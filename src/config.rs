@@ -18,7 +18,7 @@ static FILE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 static WRITE_PROBE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 const MASK: &str = "********";
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 struct Config {
     search: Search,
@@ -31,7 +31,7 @@ struct Config {
     http: Http,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 struct Search {
     backends: Vec<String>,
@@ -49,7 +49,7 @@ impl Default for Search {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 struct Classifier {
     url: String,
@@ -71,7 +71,7 @@ impl Default for Classifier {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 struct Providers {
     xai: Xai,
@@ -99,7 +99,7 @@ impl Default for Providers {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 struct Xai {
     url: String,
@@ -119,7 +119,7 @@ impl Default for Xai {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 struct OpenAiCompatible {
     url: String,
@@ -141,7 +141,7 @@ impl Default for OpenAiCompatible {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 struct Endpoint {
     url: String,
@@ -168,7 +168,7 @@ impl Endpoint {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 struct Jina {
     url: String,
@@ -188,7 +188,7 @@ impl Default for Jina {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 struct Capabilities {
     web_search: Order,
@@ -208,7 +208,7 @@ impl Default for Capabilities {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 struct Order {
     order: Vec<String>,
@@ -222,7 +222,7 @@ impl Order {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 struct Log {
     level: String,
@@ -236,7 +236,7 @@ impl Default for Log {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 struct Journal {
     enabled: bool,
@@ -254,7 +254,7 @@ impl Default for Journal {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 struct Retry {
     max_attempts: i64,
@@ -272,7 +272,7 @@ impl Default for Retry {
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 struct Http {
     ssl_verify: bool,
@@ -439,6 +439,234 @@ pub fn unset_file_value(path: &str) -> Result<bool, EditError> {
     atomic_write(&location.config_dir, &file, document.to_string().as_bytes())
         .map_err(|error| EditError::Config(ConfigError::io(&file, error)))?;
     Ok(env::var_os(env_name(path)).is_some())
+}
+
+/// A parseable configuration document being updated by the setup wizard.
+pub struct SetupDocument {
+    location: ConfigLocation,
+    file: PathBuf,
+    document: DocumentMut,
+    defaults: DocumentMut,
+}
+
+impl SetupDocument {
+    /// Loads the existing document without validating unrelated schema values.
+    ///
+    /// # Errors
+    ///
+    /// Returns a configuration error when the file cannot be read or parsed.
+    pub fn load() -> Result<Self, EditError> {
+        let location = ConfigLocation::discover().map_err(EditError::Config)?;
+        let file = location.config_file();
+        let content = read_edit_document(&file)?;
+        let document = parse_edit_document(&file, &content)?;
+        let defaults = default_document().map_err(EditError::Config)?;
+        Ok(Self {
+            location,
+            file,
+            document,
+            defaults,
+        })
+    }
+
+    /// Returns the first configured search backend, falling back to `xai`.
+    pub fn primary_backend(&self) -> &str {
+        document_array(&self.document, "search.backends")
+            .and_then(|array| array.iter().find_map(Value::as_str))
+            .filter(|backend| matches!(*backend, "xai" | "openai_compatible"))
+            .unwrap_or("xai")
+    }
+
+    /// Returns a string leaf from the file or built-in defaults.
+    pub fn string(&self, path: &str) -> &str {
+        document_string(&self.document, path)
+            .or_else(|| document_string(&self.defaults, path))
+            .unwrap_or_default()
+    }
+
+    /// Returns whether the existing file contains classifier model configuration.
+    pub fn classifier_is_configured(&self) -> bool {
+        ["classifier.url", "classifier.model"].iter().any(|path| {
+            document_string(&self.document, path).is_some_and(|value| !value.is_empty())
+        }) || document_array(&self.document, "classifier.keys").is_some_and(|keys| {
+            keys.iter()
+                .any(|key| key.as_str().is_some_and(|key| !key.is_empty()))
+        })
+    }
+
+    /// Updates a string leaf in memory.
+    ///
+    /// # Errors
+    ///
+    /// Returns an argument error when the path or value is invalid.
+    pub fn set_string(&mut self, path: &str, value: &str) -> Result<(), EditError> {
+        let value = parse_edit_value(path, value)?;
+        set_document_path(&mut self.document, path, value)
+    }
+
+    /// Updates a string-array leaf in memory.
+    ///
+    /// # Errors
+    ///
+    /// Returns an argument error when the path or values are invalid.
+    pub fn set_strings(&mut self, path: &str, values: &[String]) -> Result<(), EditError> {
+        if !matches!(path_kind(path), Some(ValueKind::Array)) {
+            return Err(invalid_value(path));
+        }
+        let mut array = Array::new();
+        for value in values {
+            array.push(value.as_str());
+        }
+        let value = if path.ends_with(".keys") || path == "classifier.keys" {
+            Value::Array(normalize_array(array))
+        } else {
+            Value::Array(array)
+        };
+        validate_edit_value(path, &value)?;
+        set_document_path(&mut self.document, path, value)
+    }
+
+    /// Persists all wizard changes with one atomic replacement.
+    ///
+    /// # Errors
+    ///
+    /// Returns a configuration error when the document cannot be written.
+    pub fn save(self) -> Result<(), EditError> {
+        atomic_write(
+            &self.location.config_dir,
+            &self.file,
+            self.document.to_string().as_bytes(),
+        )
+        .map_err(|error| EditError::Config(ConfigError::io(&self.file, error)))
+    }
+}
+
+/// Creates the complete commented configuration template without overwriting.
+///
+/// # Errors
+///
+/// Returns a configuration error when the target exists or cannot be created.
+pub fn create_setup_template() -> Result<PathBuf, ConfigError> {
+    let location = ConfigLocation::discover()?;
+    let file = location.config_file();
+    if file
+        .try_exists()
+        .map_err(|error| ConfigError::io(&file, error))?
+    {
+        return Err(ConfigError::Message(format!(
+            "{} already exists; refusing to overwrite",
+            file.display()
+        )));
+    }
+
+    let document = default_document()?;
+    let template = commented_template(&document)?;
+    atomic_create(&location.config_dir, &file, template.as_bytes())
+        .map_err(|error| ConfigError::io(&file, error))?;
+    Ok(file)
+}
+
+fn default_document() -> Result<DocumentMut, ConfigError> {
+    toml::to_string(&Config::default())
+        .map_err(|error| ConfigError::Message(error.to_string()))?
+        .parse::<DocumentMut>()
+        .map_err(|error| ConfigError::Message(error.to_string()))
+}
+
+fn document_item<'a>(document: &'a DocumentMut, path: &str) -> Option<&'a Item> {
+    let mut table: &dyn TableLike = document.as_table();
+    let mut segments = path.split('.').peekable();
+    while let Some(segment) = segments.next() {
+        let item = table.get(segment)?;
+        if segments.peek().is_none() {
+            return Some(item);
+        }
+        table = item.as_table_like()?;
+    }
+    None
+}
+
+fn document_string<'a>(document: &'a DocumentMut, path: &str) -> Option<&'a str> {
+    document_item(document, path)?.as_str()
+}
+
+fn document_array<'a>(document: &'a DocumentMut, path: &str) -> Option<&'a Array> {
+    document_item(document, path)?.as_array()
+}
+
+fn commented_template(document: &DocumentMut) -> Result<String, ConfigError> {
+    let mut table = String::new();
+    let mut template = String::new();
+    let mut annotated = 0;
+    for line in document.to_string().lines() {
+        if let Some(name) = line
+            .strip_prefix('[')
+            .and_then(|line| line.strip_suffix(']'))
+        {
+            table.clear();
+            table.push_str(name);
+        } else if let Some((key, _)) = line.split_once(" = ") {
+            let path = if table.is_empty() {
+                key.to_owned()
+            } else {
+                format!("{table}.{key}")
+            };
+            if !is_leaf(&path) {
+                return Err(ConfigError::Message(format!(
+                    "built-in configuration contains unknown `{path}`"
+                )));
+            }
+            template.push_str("# ");
+            template.push_str(&template_comment(&path));
+            template.push('\n');
+            annotated += 1;
+        }
+        template.push_str(line);
+        template.push('\n');
+    }
+    if annotated != LEAVES.len() {
+        return Err(ConfigError::Message(
+            "built-in configuration does not cover the complete key surface".into(),
+        ));
+    }
+    Ok(template)
+}
+
+fn template_comment(path: &str) -> String {
+    let purpose = if path.ends_with(".keys") || path == "classifier.keys" {
+        "credential pool; keep empty until credentials are available"
+    } else if path.ends_with(".url") || path == "classifier.url" {
+        "service endpoint URL"
+    } else if path.ends_with(".timeout") || path == "classifier.timeout" {
+        "shared timeout in seconds; must be greater than zero"
+    } else if path.ends_with(".model") || path == "classifier.model" {
+        "model identifier"
+    } else if path.ends_with(".fallback_models") || path == "classifier.fallback_models" {
+        "ordered fallback model identifiers"
+    } else if path.ends_with(".order") {
+        "authoritative provider order for this capability"
+    } else {
+        match path {
+            "search.backends" => "ordered main-model backends",
+            "search.validation" => "result validation level: fast, balanced, or strict",
+            "search.fallback" => "fallback policy: auto or off",
+            "providers.xai.tools" => "xAI tools enabled for the main model",
+            "providers.openai_compatible.stream" => "enable streaming transport",
+            "providers.jina.respond_with" => "optional X-Respond-With header value",
+            "log.level" => "stderr log level",
+            "journal.enabled" => "record search result journals",
+            "journal.dir" => "journal storage directory",
+            "journal.retention_days" => {
+                "journal retention in days; zero keeps entries indefinitely"
+            }
+            "retry.max_attempts" => "maximum attempts per request",
+            "retry.multiplier" => "retry backoff multiplier",
+            "retry.max_wait" => "maximum retry wait in seconds",
+            "http.ssl_verify" => "verify TLS certificates",
+            _ => "configuration value",
+        }
+    };
+    format!("{path}: {purpose}")
 }
 
 fn read_edit_document(path: &Path) -> Result<String, EditError> {
@@ -1353,6 +1581,29 @@ fn atomic_write(config_dir: &Path, destination: &Path, bytes: &[u8]) -> io::Resu
         file.sync_all()?;
         fs::rename(&temporary, destination)?;
         restrict_private_file(destination)
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    result
+}
+
+fn atomic_create(config_dir: &Path, destination: &Path, bytes: &[u8]) -> io::Result<()> {
+    ensure_private_directory(config_dir)?;
+    let sequence = FILE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let temporary = config_dir.join(format!(
+        ".config.toml.{}.{}.tmp",
+        std::process::id(),
+        sequence
+    ));
+    let result = (|| {
+        let mut file = create_new_private_file(&temporary)?;
+        file.write_all(bytes)?;
+        file.flush()?;
+        file.sync_all()?;
+        fs::hard_link(&temporary, destination)?;
+        restrict_private_file(destination)?;
+        fs::remove_file(&temporary)
     })();
     if result.is_err() {
         let _ = fs::remove_file(&temporary);
