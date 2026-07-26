@@ -9,7 +9,7 @@ use clap::Parser;
 use forager::app::{
     self, Cli, CommandOutput, DocsOutputFormat, ExaOutcome, OutputFormat, ProviderError,
 };
-use forager::types::{AttemptErrorKind, Context7Outcome, ErrorFamily, ErrorKind};
+use forager::types::{AnysearchOutcome, AttemptErrorKind, Context7Outcome, ErrorFamily, ErrorKind};
 use serde_json::{Value, json};
 
 fn main() -> ExitCode {
@@ -41,9 +41,106 @@ fn main() -> ExitCode {
                 ExitCode::from(4)
             }
         },
+        Ok(CommandOutput::Anysearch {
+            result,
+            format,
+            output,
+        }) => match render_anysearch(result, format, output) {
+            Ok(rendered) => emit(rendered.stdout, rendered.stderr, rendered.exit_code),
+            Err(error) => {
+                eprintln!("runtime_error: {error}");
+                ExitCode::from(4)
+            }
+        },
         Err(error) => {
             eprintln!("{}: {error}", error.category());
             ExitCode::from(error.exit_code())
+        }
+    }
+}
+
+fn render_anysearch(
+    result: Result<AnysearchOutcome, ProviderError>,
+    format: OutputFormat,
+    output: Option<PathBuf>,
+) -> Result<RenderedOutput, String> {
+    let (stdout, exit_code, diagnostic) = match result {
+        Ok(outcome) => {
+            let diagnostic = match &outcome {
+                AnysearchOutcome::Domains(outcome) => outcome.diagnostic.clone(),
+                AnysearchOutcome::Search(outcome) => outcome.diagnostic.clone(),
+            };
+            (format_anysearch_success(&outcome, format)?, 0, diagnostic)
+        }
+        Err(error) => (
+            format_anysearch_failure(&error, format)?,
+            postflight_exit_code(error.kind),
+            error.diagnostic,
+        ),
+    };
+    apply_tee(
+        stdout,
+        exit_code,
+        format == OutputFormat::Json,
+        output,
+        diagnostic,
+    )
+}
+
+fn format_anysearch_failure(error: &ProviderError, format: OutputFormat) -> Result<String, String> {
+    match format {
+        OutputFormat::Json => format_failure_json(error),
+        OutputFormat::Markdown => Ok(format!(
+            "# AnySearch request failed\n\n**{}**: {}",
+            error.kind.as_str(),
+            error.message
+        )),
+    }
+}
+
+fn format_anysearch_success(
+    outcome: &AnysearchOutcome,
+    format: OutputFormat,
+) -> Result<String, String> {
+    match (outcome, format) {
+        (AnysearchOutcome::Domains(outcome), OutputFormat::Json) => {
+            serde_json::to_string(outcome).map_err(|error| error.to_string())
+        }
+        (AnysearchOutcome::Domains(outcome), OutputFormat::Markdown) => {
+            let mut markdown = format!("# AnySearch domains: {}\n", outcome.domain);
+            for domain in &outcome.results {
+                markdown.push_str(&format!(
+                    "\n- **{}.{}** — {}",
+                    outcome.domain, domain.sub_domain, domain.description
+                ));
+            }
+            if outcome.results.is_empty() {
+                markdown.push_str("\n\nNo results.");
+            }
+            Ok(markdown)
+        }
+        (AnysearchOutcome::Search(outcome), OutputFormat::Json) => {
+            serde_json::to_string(outcome).map_err(|error| error.to_string())
+        }
+        (AnysearchOutcome::Search(outcome), OutputFormat::Markdown) => {
+            let mut markdown = format!("# AnySearch {}: {}\n", outcome.operation, outcome.query);
+            for result in &outcome.results {
+                if result.url.is_empty() {
+                    markdown.push_str(&format!(
+                        "\n- **{}** — {}",
+                        result.title, result.description
+                    ));
+                } else {
+                    markdown.push_str(&format!(
+                        "\n- [{}]({}) — {}",
+                        result.title, result.url, result.description
+                    ));
+                }
+            }
+            if outcome.results.is_empty() {
+                markdown.push_str("\n\nNo results.");
+            }
+            Ok(markdown)
         }
     }
 }

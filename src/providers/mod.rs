@@ -1,14 +1,16 @@
+mod anysearch;
 mod context7;
 mod exa;
 
 use reqwest::Client;
 use thiserror::Error;
 
-use crate::config::{Context7RuntimeConfig, ExaRuntimeConfig};
+use crate::config::{AnysearchRuntimeConfig, Context7RuntimeConfig, ExaRuntimeConfig};
 use crate::credentials::CredentialPool;
 use crate::net::RetryPolicy;
 use crate::types::{AttemptErrorKind, Deadline, ProviderAttempt};
 
+pub(crate) use anysearch::{Anysearch, AnysearchDomainsRequest, AnysearchSearchRequest};
 pub(crate) use context7::{Context7, Context7DocsRequest, Context7LibraryRequest};
 pub(crate) use exa::{Exa, ExaSearchRequest, ExaSimilarRequest, SearchType};
 
@@ -44,6 +46,7 @@ pub(crate) struct ProviderRegistration {
 
 #[derive(Clone, Copy)]
 enum ProviderConstructor {
+    Anysearch,
     Context7,
     Exa,
     Pending,
@@ -90,7 +93,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         name: "anysearch",
         capabilities: &["vertical_search"],
         credentials_required: true,
-        constructor: ProviderConstructor::Pending,
+        constructor: ProviderConstructor::Anysearch,
     },
 ];
 
@@ -136,6 +139,22 @@ pub(crate) fn build_context7(
     Context7::new(config, client, credentials, retry_policy, deadline)
 }
 
+pub(crate) fn build_anysearch(
+    mut config: AnysearchRuntimeConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> Anysearch {
+    let registration = registration(ProviderId::Anysearch);
+    debug_assert!(registration.credentials_required);
+    debug_assert!(matches!(
+        registration.constructor,
+        ProviderConstructor::Anysearch
+    ));
+    let credentials = CredentialPool::new(registration.name, std::mem::take(&mut config.keys));
+    Anysearch::new(config, client, credentials, retry_policy, deadline)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{ProviderConstructor, ProviderId, registration};
@@ -167,6 +186,21 @@ mod tests {
                 matches!(context7.constructor, ProviderConstructor::Context7),
             ),
             ("context7", &["docs_search"][..], true, true)
+        );
+    }
+
+    #[test]
+    fn anysearch_has_one_complete_registry_description() {
+        let anysearch = registration(ProviderId::Anysearch);
+
+        assert_eq!(
+            (
+                anysearch.name,
+                anysearch.capabilities,
+                anysearch.credentials_required,
+                matches!(anysearch.constructor, ProviderConstructor::Anysearch),
+            ),
+            ("anysearch", &["vertical_search"][..], true, true)
         );
     }
 }

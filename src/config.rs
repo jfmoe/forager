@@ -303,6 +303,13 @@ pub(crate) struct Context7RuntimeConfig {
     pub(crate) timeout_seconds: u64,
 }
 
+#[derive(Clone, Debug)]
+pub(crate) struct AnysearchRuntimeConfig {
+    pub(crate) url: String,
+    pub(crate) keys: Vec<String>,
+    pub(crate) timeout_seconds: u64,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct RetryRuntimeConfig {
     pub(crate) max_attempts: usize,
@@ -314,6 +321,7 @@ pub(crate) struct RetryRuntimeConfig {
 pub(crate) struct RuntimeConfig {
     pub(crate) exa: ExaRuntimeConfig,
     pub(crate) context7: Context7RuntimeConfig,
+    pub(crate) anysearch: AnysearchRuntimeConfig,
     pub(crate) retry: RetryRuntimeConfig,
     pub(crate) ssl_verify: bool,
 }
@@ -352,6 +360,11 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
             url: config.providers.context7.url,
             keys: config.providers.context7.keys,
             timeout_seconds: config.providers.context7.timeout as u64,
+        },
+        anysearch: AnysearchRuntimeConfig {
+            url: config.providers.anysearch.url,
+            keys: config.providers.anysearch.keys,
+            timeout_seconds: config.providers.anysearch.timeout as u64,
         },
         retry: RetryRuntimeConfig {
             max_attempts: config.retry.max_attempts as usize,

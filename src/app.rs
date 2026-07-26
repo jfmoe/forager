@@ -5,15 +5,16 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use clap::{Parser, Subcommand, ValueEnum};
+use serde_json::{Map, Value};
 use thiserror::Error;
 
 use crate::config::{self, ConfigError, ConfigLocation, EditError};
 use crate::net::{self, RetryPolicy};
 use crate::providers::{
-    self, Context7DocsRequest, Context7LibraryRequest, ExaSearchRequest, ExaSimilarRequest,
-    SearchType,
+    self, AnysearchDomainsRequest, AnysearchSearchRequest, Context7DocsRequest,
+    Context7LibraryRequest, ExaSearchRequest, ExaSimilarRequest, SearchType,
 };
-use crate::types::{Context7Outcome, Deadline};
+use crate::types::{AnysearchOutcome, Context7Outcome, Deadline};
 
 pub use crate::providers::ProviderError;
 pub use crate::types::ExaOutcome;
@@ -28,6 +29,11 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    #[command(visible_alias = "as")]
+    Anysearch {
+        #[command(subcommand)]
+        command: AnysearchCommand,
+    },
     #[command(visible_alias = "c7")]
     Context7 {
         #[command(subcommand)]
@@ -46,6 +52,40 @@ enum Command {
         non_interactive: bool,
         #[arg(long, value_enum)]
         lang: Option<Language>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum AnysearchCommand {
+    Domains {
+        domain: Option<String>,
+        #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
+        timeout: Option<u64>,
+        #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
+        format: OutputFormat,
+        #[arg(long)]
+        output: Option<PathBuf>,
+        #[arg(long)]
+        verbose: bool,
+    },
+    Search {
+        query: String,
+        #[arg(long, requires = "sub_domain")]
+        domain: Option<String>,
+        #[arg(long, requires = "domain")]
+        sub_domain: Option<String>,
+        #[arg(long, value_parser = parse_json_object)]
+        sub_domain_params: Option<Map<String, Value>>,
+        #[arg(long, default_value_t = 5, value_parser = clap::value_parser!(u16).range(1..=100))]
+        max_results: u16,
+        #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
+        timeout: Option<u64>,
+        #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
+        format: OutputFormat,
+        #[arg(long)]
+        output: Option<PathBuf>,
+        #[arg(long)]
+        verbose: bool,
     },
 }
 
@@ -205,6 +245,15 @@ pub enum CommandOutput {
         /// Optional tee destination.
         output: Option<PathBuf>,
     },
+    /// Typed AnySearch terminal state for binary-side formatting and tee output.
+    Anysearch {
+        /// Provider result.
+        result: Result<AnysearchOutcome, ProviderError>,
+        /// Requested output format.
+        format: OutputFormat,
+        /// Optional tee destination.
+        output: Option<PathBuf>,
+    },
 }
 
 struct AppContext<P> {
@@ -304,6 +353,37 @@ impl AppContext<providers::Context7> {
     }
 }
 
+impl AppContext<providers::Anysearch> {
+    fn for_anysearch(timeout: Option<u64>) -> Result<Self, AppError> {
+        let dependencies = NetworkDependencies::load()?;
+        let config = dependencies.config;
+        if config.anysearch.keys.is_empty() {
+            return Err(AppError::Config(ConfigError::Message(
+                "providers.anysearch.keys has no configured credentials".into(),
+            )));
+        }
+        let command_timeout = timeout.unwrap_or(config.anysearch.timeout_seconds);
+        let provider = providers::build_anysearch(
+            config.anysearch,
+            dependencies.client,
+            dependencies.retry_policy,
+            Deadline::new(Duration::from_secs(command_timeout)),
+        );
+        Ok(Self {
+            provider,
+            runtime: dependencies.runtime,
+        })
+    }
+
+    fn domains(self, request: AnysearchDomainsRequest) -> Result<AnysearchOutcome, ProviderError> {
+        self.runtime.block_on(self.provider.domains(request))
+    }
+
+    fn search(self, request: AnysearchSearchRequest) -> Result<AnysearchOutcome, ProviderError> {
+        self.runtime.block_on(self.provider.search(request))
+    }
+}
+
 /// Executes a parsed command.
 ///
 /// # Errors
@@ -312,6 +392,93 @@ impl AppContext<providers::Context7> {
 /// persistence are invalid.
 pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
     match cli.command {
+        Command::Anysearch {
+            command:
+                AnysearchCommand::Domains {
+                    domain,
+                    timeout,
+                    format,
+                    output,
+                    verbose,
+                },
+        } => {
+            let domain = domain.ok_or_else(|| {
+                AppError::Argument(
+                    "anysearch domains requires a parent DOMAIN before contacting AnySearch".into(),
+                )
+            })?;
+            if domain.contains('.') {
+                return Err(AppError::Argument(
+                    "DOMAIN must be a parent domain without a dotted sub-domain".into(),
+                ));
+            }
+            let result = AppContext::<providers::Anysearch>::for_anysearch(timeout)?
+                .domains(AnysearchDomainsRequest { domain, verbose });
+            Ok(CommandOutput::Anysearch {
+                result,
+                format,
+                output,
+            })
+        }
+        Command::Anysearch {
+            command:
+                AnysearchCommand::Search {
+                    query,
+                    domain,
+                    sub_domain,
+                    sub_domain_params,
+                    max_results,
+                    timeout,
+                    format,
+                    output,
+                    verbose,
+                },
+        } => {
+            let sub_domain_params = sub_domain_params.unwrap_or_default();
+            if domain.as_deref().is_some_and(|value| value.contains('.'))
+                || sub_domain
+                    .as_deref()
+                    .is_some_and(|value| value.contains('.'))
+            {
+                return Err(AppError::Argument(
+                    "dotted domain shorthand is unsupported; pass separate --domain and --sub-domain values"
+                        .into(),
+                ));
+            }
+            if domain.as_deref() == Some("security") && sub_domain.as_deref() == Some("cve") {
+                return Err(AppError::Argument(
+                    "legacy sub-domain aliases are unsupported; migrate to --domain security --sub-domain vuln"
+                        .into(),
+                ));
+            }
+            if sub_domain_params.keys().any(|name| {
+                ["query", "domain", "sub_domain", "max_results"].contains(&name.as_str())
+            }) {
+                return Err(AppError::Argument(
+                    "--sub-domain-params cannot override reserved fields".into(),
+                ));
+            }
+            if !sub_domain_params.is_empty() && domain.is_none() {
+                return Err(AppError::Argument(
+                    "--sub-domain-params requires both --domain and --sub-domain".into(),
+                ));
+            }
+            let result = AppContext::<providers::Anysearch>::for_anysearch(timeout)?.search(
+                AnysearchSearchRequest {
+                    query,
+                    domain,
+                    sub_domain,
+                    sub_domain_params,
+                    max_results,
+                    verbose,
+                },
+            );
+            Ok(CommandOutput::Anysearch {
+                result,
+                format,
+                output,
+            })
+        }
         Command::Context7 {
             command:
                 Context7Command::Library {
@@ -475,6 +642,14 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             lang,
         } => run_interactive_setup(lang),
     }
+}
+
+fn parse_json_object(value: &str) -> Result<Map<String, Value>, String> {
+    serde_json::from_str::<Value>(value)
+        .map_err(|_| "--sub-domain-params must be a valid JSON object".to_owned())?
+        .as_object()
+        .cloned()
+        .ok_or_else(|| "--sub-domain-params must be a single JSON object".to_owned())
 }
 
 fn run_exa_search(
@@ -795,6 +970,9 @@ fn read_stdin() -> Result<String, AppError> {
 /// Application errors with stable exit categories.
 #[derive(Debug, Error)]
 pub enum AppError {
+    /// Command arguments violate a cross-field contract.
+    #[error("{0}")]
+    Argument(String),
     /// A configuration could not be loaded or persisted.
     #[error(transparent)]
     Config(#[from] ConfigError),
@@ -813,6 +991,7 @@ impl AppError {
     /// Returns the CLI exit status for this error.
     pub fn exit_code(&self) -> u8 {
         match self {
+            Self::Argument(_) => 2,
             Self::Edit(EditError::Argument(_)) => 2,
             Self::Config(_) | Self::Edit(EditError::Config(_)) | Self::Stdin(_) => 3,
             Self::Runtime(_) => 4,

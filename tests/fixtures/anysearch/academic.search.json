@@ -1,0 +1,20 @@
+{
+  "fixture_version": 1,
+  "provenance": "synthetic_mock",
+  "domain": "academic",
+  "sub_domain": "search",
+  "parameter_schema": {
+    "type": "object",
+    "required": ["keywords"],
+    "properties": {
+      "keywords": {"type": "string"},
+      "year_from": {"type": "integer"}
+    }
+  },
+  "valid_params": {"keywords": "retrieval augmented generation", "year_from": 2024},
+  "valid_result": {
+    "content": [{"type": "text", "text": "### 1. Retrieval-Augmented Generation\n- **URL**: https://arxiv.org/abs/2005.11401\nA paper result."}]
+  },
+  "missing_required_error": {"code": -32602, "message": "keywords is required"},
+  "provider_error": {"isError": true, "content": [{"type": "text", "text": "academic provider unavailable"}]}
+}
