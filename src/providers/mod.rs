@@ -1,14 +1,27 @@
+mod context7;
 mod exa;
 
 use reqwest::Client;
+use thiserror::Error;
 
-use crate::config::ExaRuntimeConfig;
+use crate::config::{Context7RuntimeConfig, ExaRuntimeConfig};
 use crate::credentials::CredentialPool;
 use crate::net::RetryPolicy;
-use crate::types::Deadline;
+use crate::types::{AttemptErrorKind, Deadline, ProviderAttempt};
 
-pub use exa::ProviderError;
+pub(crate) use context7::{Context7, Context7DocsRequest, Context7LibraryRequest};
 pub(crate) use exa::{Exa, ExaSearchRequest, ExaSimilarRequest, SearchType};
+
+#[derive(Debug, Error)]
+#[error("{message}")]
+pub struct ProviderError {
+    pub kind: AttemptErrorKind,
+    pub message: String,
+    pub attempts: Vec<ProviderAttempt>,
+    pub verbose: bool,
+    pub diagnostic: Option<String>,
+    pub redirected_library_id: Option<String>,
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ProviderId {
@@ -31,6 +44,7 @@ pub(crate) struct ProviderRegistration {
 
 #[derive(Clone, Copy)]
 enum ProviderConstructor {
+    Context7,
     Exa,
     Pending,
 }
@@ -62,7 +76,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         name: "context7",
         capabilities: &["docs_search"],
         credentials_required: true,
-        constructor: ProviderConstructor::Pending,
+        constructor: ProviderConstructor::Context7,
     },
     ProviderRegistration {
         id: ProviderId::Exa,
@@ -106,6 +120,22 @@ pub(crate) fn build_exa(
     exa::Exa::new(config, client, credentials, retry_policy, deadline)
 }
 
+pub(crate) fn build_context7(
+    mut config: Context7RuntimeConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> Context7 {
+    let registration = registration(ProviderId::Context7);
+    debug_assert!(registration.credentials_required);
+    debug_assert!(matches!(
+        registration.constructor,
+        ProviderConstructor::Context7
+    ));
+    let credentials = CredentialPool::new(registration.name, std::mem::take(&mut config.keys));
+    Context7::new(config, client, credentials, retry_policy, deadline)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{ProviderConstructor, ProviderId, registration};
@@ -122,6 +152,21 @@ mod tests {
                 matches!(exa.constructor, ProviderConstructor::Exa),
             ),
             ("exa", &["docs_search"][..], true, true)
+        );
+    }
+
+    #[test]
+    fn context7_has_one_complete_registry_description() {
+        let context7 = registration(ProviderId::Context7);
+
+        assert_eq!(
+            (
+                context7.name,
+                context7.capabilities,
+                context7.credentials_required,
+                matches!(context7.constructor, ProviderConstructor::Context7),
+            ),
+            ("context7", &["docs_search"][..], true, true)
         );
     }
 }

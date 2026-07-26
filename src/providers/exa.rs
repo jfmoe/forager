@@ -2,11 +2,11 @@ use std::time::{Duration, Instant};
 
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use thiserror::Error;
 
 use crate::config::{self, ExaRuntimeConfig};
 use crate::credentials::CredentialPool;
 use crate::net::{RetryPolicy, error_kind_for_status, truncate_message};
+use crate::providers::ProviderError;
 use crate::types::{AttemptErrorKind, Deadline, ExaInput, ExaOutcome, ProviderAttempt, Source};
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -36,16 +36,6 @@ pub(crate) struct ExaSimilarRequest {
     pub(crate) url: String,
     pub(crate) num_results: u16,
     pub(crate) verbose: bool,
-}
-
-#[derive(Debug, Error)]
-#[error("{message}")]
-pub struct ProviderError {
-    pub kind: AttemptErrorKind,
-    pub message: String,
-    pub attempts: Vec<ProviderAttempt>,
-    pub verbose: bool,
-    pub diagnostic: Option<String>,
 }
 
 pub(crate) struct Exa {
@@ -440,6 +430,7 @@ fn terminal_error(
         attempts,
         verbose,
         diagnostic,
+        redirected_library_id: None,
     }
 }
 

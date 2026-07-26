@@ -129,6 +129,56 @@ pub struct Source {
 }
 
 #[derive(Clone, Debug, Serialize)]
+pub struct LibraryCandidate {
+    pub id: String,
+    pub title: String,
+    pub description: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub trust_score: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub benchmark_score: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub total_snippets: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stars: Option<u64>,
+    pub provider: &'static str,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct Context7LibraryOutcome {
+    pub provider: &'static str,
+    pub query: String,
+    pub results: Vec<LibraryCandidate>,
+    pub total: usize,
+    #[serde(rename = "provider_attempts", skip_serializing_if = "Vec::is_empty")]
+    pub attempts: Vec<ProviderAttempt>,
+    #[serde(skip)]
+    pub diagnostic: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct Context7DocsOutcome {
+    pub provider: &'static str,
+    pub library_id: String,
+    pub query: String,
+    pub content: String,
+    pub code_snippets: Vec<serde_json::Value>,
+    pub info_snippets: Vec<serde_json::Value>,
+    pub results: Vec<serde_json::Value>,
+    pub total: usize,
+    #[serde(rename = "provider_attempts", skip_serializing_if = "Vec::is_empty")]
+    pub attempts: Vec<ProviderAttempt>,
+    #[serde(skip)]
+    pub diagnostic: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub enum Context7Outcome {
+    Library(Context7LibraryOutcome),
+    Docs(Context7DocsOutcome),
+}
+
+#[derive(Clone, Debug, Serialize)]
 #[serde(untagged)]
 pub enum ExaInput {
     Search { query: String },

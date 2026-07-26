@@ -9,8 +9,11 @@ use thiserror::Error;
 
 use crate::config::{self, ConfigError, ConfigLocation, EditError};
 use crate::net::{self, RetryPolicy};
-use crate::providers::{self, ExaSearchRequest, ExaSimilarRequest, SearchType};
-use crate::types::Deadline;
+use crate::providers::{
+    self, Context7DocsRequest, Context7LibraryRequest, ExaSearchRequest, ExaSimilarRequest,
+    SearchType,
+};
+use crate::types::{Context7Outcome, Deadline};
 
 pub use crate::providers::ProviderError;
 pub use crate::types::ExaOutcome;
@@ -25,6 +28,11 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    #[command(visible_alias = "c7")]
+    Context7 {
+        #[command(subcommand)]
+        command: Context7Command,
+    },
     Exa {
         #[command(subcommand)]
         command: ExaCommand,
@@ -38,6 +46,35 @@ enum Command {
         non_interactive: bool,
         #[arg(long, value_enum)]
         lang: Option<Language>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum Context7Command {
+    Library {
+        name: String,
+        #[arg(default_value = "")]
+        query: String,
+        #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
+        timeout: Option<u64>,
+        #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
+        format: OutputFormat,
+        #[arg(long)]
+        output: Option<PathBuf>,
+        #[arg(long)]
+        verbose: bool,
+    },
+    Docs {
+        library_id: String,
+        query: String,
+        #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
+        timeout: Option<u64>,
+        #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
+        format: DocsOutputFormat,
+        #[arg(long)]
+        output: Option<PathBuf>,
+        #[arg(long)]
+        verbose: bool,
     },
 }
 
@@ -131,6 +168,13 @@ pub enum OutputFormat {
     Markdown,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+pub enum DocsOutputFormat {
+    Json,
+    Markdown,
+    Content,
+}
+
 /// A command result ready for binary-side rendering.
 #[derive(Debug)]
 pub enum CommandOutput {
@@ -152,22 +196,32 @@ pub enum CommandOutput {
         /// Optional tee destination.
         output: Option<PathBuf>,
     },
+    /// Typed Context7 terminal state for binary-side formatting and tee output.
+    Context7 {
+        /// Provider result.
+        result: Result<Context7Outcome, ProviderError>,
+        /// Requested output format.
+        format: DocsOutputFormat,
+        /// Optional tee destination.
+        output: Option<PathBuf>,
+    },
 }
 
-struct AppContext {
-    exa: providers::Exa,
+struct AppContext<P> {
+    provider: P,
     runtime: tokio::runtime::Runtime,
 }
 
-impl AppContext {
-    fn for_network_command(timeout: Option<u64>) -> Result<Self, AppError> {
+struct NetworkDependencies {
+    config: config::RuntimeConfig,
+    client: reqwest::Client,
+    retry_policy: RetryPolicy,
+    runtime: tokio::runtime::Runtime,
+}
+
+impl NetworkDependencies {
+    fn load() -> Result<Self, AppError> {
         let config = config::runtime_config()?;
-        if config.exa.keys.is_empty() {
-            return Err(AppError::Config(ConfigError::Message(
-                "providers.exa.keys has no configured credentials".into(),
-            )));
-        }
-        let command_timeout = timeout.unwrap_or(config.exa.timeout_seconds);
         let retry_policy = RetryPolicy::new(
             config.retry.max_attempts,
             config.retry.multiplier,
@@ -179,21 +233,74 @@ impl AppContext {
             .enable_all()
             .build()
             .map_err(|error| AppError::Runtime(format!("cannot start network runtime: {error}")))?;
-        let exa = providers::build_exa(
-            config.exa,
+        Ok(Self {
+            config,
             client,
             retry_policy,
+            runtime,
+        })
+    }
+}
+
+impl AppContext<providers::Exa> {
+    fn for_exa(timeout: Option<u64>) -> Result<Self, AppError> {
+        let dependencies = NetworkDependencies::load()?;
+        let config = dependencies.config;
+        if config.exa.keys.is_empty() {
+            return Err(AppError::Config(ConfigError::Message(
+                "providers.exa.keys has no configured credentials".into(),
+            )));
+        }
+        let command_timeout = timeout.unwrap_or(config.exa.timeout_seconds);
+        let provider = providers::build_exa(
+            config.exa,
+            dependencies.client,
+            dependencies.retry_policy,
             Deadline::new(Duration::from_secs(command_timeout)),
         );
-        Ok(Self { exa, runtime })
+        Ok(Self {
+            provider,
+            runtime: dependencies.runtime,
+        })
     }
 
     fn exa_search(self, request: ExaSearchRequest) -> Result<ExaOutcome, ProviderError> {
-        self.runtime.block_on(self.exa.search(request))
+        self.runtime.block_on(self.provider.search(request))
     }
 
     fn exa_similar(self, request: ExaSimilarRequest) -> Result<ExaOutcome, ProviderError> {
-        self.runtime.block_on(self.exa.similar(request))
+        self.runtime.block_on(self.provider.similar(request))
+    }
+}
+
+impl AppContext<providers::Context7> {
+    fn for_context7(timeout: Option<u64>) -> Result<Self, AppError> {
+        let dependencies = NetworkDependencies::load()?;
+        let config = dependencies.config;
+        if config.context7.keys.is_empty() {
+            return Err(AppError::Config(ConfigError::Message(
+                "providers.context7.keys has no configured credentials".into(),
+            )));
+        }
+        let command_timeout = timeout.unwrap_or(config.context7.timeout_seconds);
+        let provider = providers::build_context7(
+            config.context7,
+            dependencies.client,
+            dependencies.retry_policy,
+            Deadline::new(Duration::from_secs(command_timeout)),
+        );
+        Ok(Self {
+            provider,
+            runtime: dependencies.runtime,
+        })
+    }
+
+    fn library(self, request: Context7LibraryRequest) -> Result<Context7Outcome, ProviderError> {
+        self.runtime.block_on(self.provider.library(request))
+    }
+
+    fn docs(self, request: Context7DocsRequest) -> Result<Context7Outcome, ProviderError> {
+        self.runtime.block_on(self.provider.docs(request))
     }
 }
 
@@ -205,6 +312,57 @@ impl AppContext {
 /// persistence are invalid.
 pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
     match cli.command {
+        Command::Context7 {
+            command:
+                Context7Command::Library {
+                    name,
+                    query,
+                    timeout,
+                    format,
+                    output,
+                    verbose,
+                },
+        } => {
+            let result = AppContext::<providers::Context7>::for_context7(timeout)?.library(
+                Context7LibraryRequest {
+                    name,
+                    query,
+                    verbose,
+                },
+            );
+            Ok(CommandOutput::Context7 {
+                result,
+                format: match format {
+                    OutputFormat::Json => DocsOutputFormat::Json,
+                    OutputFormat::Markdown => DocsOutputFormat::Markdown,
+                },
+                output,
+            })
+        }
+        Command::Context7 {
+            command:
+                Context7Command::Docs {
+                    library_id,
+                    query,
+                    timeout,
+                    format,
+                    output,
+                    verbose,
+                },
+        } => {
+            let result = AppContext::<providers::Context7>::for_context7(timeout)?.docs(
+                Context7DocsRequest {
+                    library_id,
+                    query,
+                    verbose,
+                },
+            );
+            Ok(CommandOutput::Context7 {
+                result,
+                format,
+                output,
+            })
+        }
         Command::Exa {
             command:
                 ExaCommand::Search {
@@ -325,7 +483,7 @@ fn run_exa_search(
     format: OutputFormat,
     output: Option<PathBuf>,
 ) -> Result<CommandOutput, AppError> {
-    let result = AppContext::for_network_command(timeout)?.exa_search(request);
+    let result = AppContext::<providers::Exa>::for_exa(timeout)?.exa_search(request);
     Ok(CommandOutput::Exa {
         result,
         format,
@@ -339,7 +497,7 @@ fn run_exa_similar(
     format: OutputFormat,
     output: Option<PathBuf>,
 ) -> Result<CommandOutput, AppError> {
-    let result = AppContext::for_network_command(timeout)?.exa_similar(request);
+    let result = AppContext::<providers::Exa>::for_exa(timeout)?.exa_similar(request);
     Ok(CommandOutput::Exa {
         result,
         format,

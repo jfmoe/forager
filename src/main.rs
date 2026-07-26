@@ -6,8 +6,10 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::Parser;
-use forager::app::{self, Cli, CommandOutput, ExaOutcome, OutputFormat, ProviderError};
-use forager::types::{AttemptErrorKind, ErrorFamily, ErrorKind};
+use forager::app::{
+    self, Cli, CommandOutput, DocsOutputFormat, ExaOutcome, OutputFormat, ProviderError,
+};
+use forager::types::{AttemptErrorKind, Context7Outcome, ErrorFamily, ErrorKind};
 use serde_json::{Value, json};
 
 fn main() -> ExitCode {
@@ -22,6 +24,17 @@ fn main() -> ExitCode {
             format,
             output,
         }) => match render_exa(result, format, output) {
+            Ok(rendered) => emit(rendered.stdout, rendered.stderr, rendered.exit_code),
+            Err(error) => {
+                eprintln!("runtime_error: {error}");
+                ExitCode::from(4)
+            }
+        },
+        Ok(CommandOutput::Context7 {
+            result,
+            format,
+            output,
+        }) => match render_context7(result, format, output) {
             Ok(rendered) => emit(rendered.stdout, rendered.stderr, rendered.exit_code),
             Err(error) => {
                 eprintln!("runtime_error: {error}");
@@ -64,7 +77,90 @@ fn render_exa(
             error.diagnostic,
         ),
     };
-    apply_tee(stdout, exit_code, format, output, diagnostic)
+    apply_tee(
+        stdout,
+        exit_code,
+        format == OutputFormat::Json,
+        output,
+        diagnostic,
+    )
+}
+
+fn render_context7(
+    result: Result<Context7Outcome, ProviderError>,
+    format: DocsOutputFormat,
+    output: Option<PathBuf>,
+) -> Result<RenderedOutput, String> {
+    let (stdout, exit_code, diagnostic) = match result {
+        Ok(outcome) => {
+            let diagnostic = match &outcome {
+                Context7Outcome::Library(outcome) => outcome.diagnostic.clone(),
+                Context7Outcome::Docs(outcome) => outcome.diagnostic.clone(),
+            };
+            (format_context7_success(&outcome, format)?, 0, diagnostic)
+        }
+        Err(error) => (
+            format_context7_failure(&error, format)?,
+            postflight_exit_code(error.kind),
+            error.diagnostic,
+        ),
+    };
+    apply_tee(
+        stdout,
+        exit_code,
+        format == DocsOutputFormat::Json,
+        output,
+        diagnostic,
+    )
+}
+
+fn format_context7_success(
+    outcome: &Context7Outcome,
+    format: DocsOutputFormat,
+) -> Result<String, String> {
+    match (outcome, format) {
+        (Context7Outcome::Library(outcome), DocsOutputFormat::Json) => {
+            serde_json::to_string(outcome).map_err(|error| error.to_string())
+        }
+        (Context7Outcome::Library(outcome), DocsOutputFormat::Markdown) => {
+            let mut markdown = format!("# Context7 libraries: {}\n", outcome.query);
+            for library in &outcome.results {
+                markdown.push_str(&format!(
+                    "\n- **{}** (`{}`) — {}",
+                    library.title, library.id, library.description
+                ));
+            }
+            if outcome.results.is_empty() {
+                markdown.push_str("\n\nNo results.");
+            }
+            Ok(markdown)
+        }
+        (Context7Outcome::Library(_), DocsOutputFormat::Content) => {
+            Err("content format is only available for context7 docs".into())
+        }
+        (Context7Outcome::Docs(outcome), DocsOutputFormat::Json) => {
+            serde_json::to_string(outcome).map_err(|error| error.to_string())
+        }
+        (Context7Outcome::Docs(outcome), DocsOutputFormat::Markdown) => Ok(format!(
+            "# Context7 docs: {}\n\n{}",
+            outcome.library_id, outcome.content
+        )),
+        (Context7Outcome::Docs(outcome), DocsOutputFormat::Content) => Ok(outcome.content.clone()),
+    }
+}
+
+fn format_context7_failure(
+    error: &ProviderError,
+    format: DocsOutputFormat,
+) -> Result<String, String> {
+    match format {
+        DocsOutputFormat::Json => format_failure_json(error),
+        DocsOutputFormat::Markdown | DocsOutputFormat::Content => Ok(format!(
+            "# Context7 request failed\n\n**{}**: {}",
+            error.kind.as_str(),
+            error.message
+        )),
+    }
 }
 
 fn format_success(outcome: &ExaOutcome, format: OutputFormat) -> Result<String, String> {
@@ -95,41 +191,7 @@ fn format_success(outcome: &ExaOutcome, format: OutputFormat) -> Result<String, 
 
 fn format_failure(error: &ProviderError, format: OutputFormat) -> Result<String, String> {
     match format {
-        OutputFormat::Json => {
-            let mut by_kind = BTreeMap::new();
-            for attempt in &error.attempts {
-                if let Some(kind) = attempt.error_kind {
-                    *by_kind.entry(kind.as_str()).or_insert(0) += 1;
-                }
-            }
-            let mut payload = json!({
-                "error_kind": error.kind.as_str(),
-                "message": error.message.chars().take(500).collect::<String>(),
-                "attempts": {
-                    "total": error.attempts.len(),
-                    "by_kind": by_kind,
-                    "providers": if error.attempts.is_empty() { Vec::<&str>::new() } else { vec!["exa"] },
-                    "truncated": false
-                },
-                "journal_ref": Value::Null,
-                "journal_status": "not_applicable"
-            });
-            if error.verbose {
-                payload
-                    .as_object_mut()
-                    .expect("failure payload is an object")
-                    .insert(
-                        "provider_attempts".into(),
-                        serde_json::to_value(&error.attempts)
-                            .map_err(|serialize_error| serialize_error.to_string())?,
-                    );
-            }
-            let encoded = serde_json::to_string(&payload).map_err(|error| error.to_string())?;
-            if !error.verbose && encoded.len() > 4096 {
-                return Err("default failure payload exceeded 4 KiB".into());
-            }
-            Ok(encoded)
-        }
+        OutputFormat::Json => format_failure_json(error),
         OutputFormat::Markdown => Ok(format!(
             "# Exa search failed\n\n**{}**: {}",
             error.kind.as_str(),
@@ -138,10 +200,60 @@ fn format_failure(error: &ProviderError, format: OutputFormat) -> Result<String,
     }
 }
 
+fn format_failure_json(error: &ProviderError) -> Result<String, String> {
+    let mut by_kind = BTreeMap::new();
+    for attempt in &error.attempts {
+        if let Some(kind) = attempt.error_kind {
+            *by_kind.entry(kind.as_str()).or_insert(0) += 1;
+        }
+    }
+    let providers = error
+        .attempts
+        .first()
+        .map(|attempt| vec![attempt.provider])
+        .unwrap_or_default();
+    let mut payload = json!({
+        "error_kind": error.kind.as_str(),
+        "message": error.message.chars().take(500).collect::<String>(),
+        "attempts": {
+            "total": error.attempts.len(),
+            "by_kind": by_kind,
+            "providers": providers,
+            "truncated": false
+        },
+        "journal_ref": Value::Null,
+        "journal_status": "not_applicable"
+    });
+    if let Some(target) = &error.redirected_library_id {
+        payload
+            .as_object_mut()
+            .expect("failure payload is an object")
+            .insert(
+                "redirected_library_id".into(),
+                Value::String(target.clone()),
+            );
+    }
+    if error.verbose {
+        payload
+            .as_object_mut()
+            .expect("failure payload is an object")
+            .insert(
+                "provider_attempts".into(),
+                serde_json::to_value(&error.attempts)
+                    .map_err(|serialize_error| serialize_error.to_string())?,
+            );
+    }
+    let encoded = serde_json::to_string(&payload).map_err(|error| error.to_string())?;
+    if !error.verbose && encoded.len() > 4096 {
+        return Err("default failure payload exceeded 4 KiB".into());
+    }
+    Ok(encoded)
+}
+
 fn apply_tee(
     stdout: String,
     exit_code: u8,
-    format: OutputFormat,
+    is_json: bool,
     output: Option<PathBuf>,
     diagnostic: Option<String>,
 ) -> Result<RenderedOutput, String> {
@@ -161,7 +273,7 @@ fn apply_tee(
         }),
         Err(error) => {
             let output_diagnostic = format!("cannot write output to {}: {error}", path.display());
-            let stdout = if format == OutputFormat::Json {
+            let stdout = if is_json {
                 annotate_output_failure(&stdout, &output_diagnostic)?
             } else {
                 stdout
