@@ -42,6 +42,7 @@ impl ResearchBudget {
 pub(crate) struct ResearchRequest {
     pub(crate) query: String,
     pub(crate) plan: ResearchPlan,
+    pub(crate) plan_source: &'static str,
     pub(crate) budget: ResearchBudget,
     pub(crate) evidence_dir: PathBuf,
     pub(crate) fallback: String,
@@ -443,7 +444,7 @@ pub(crate) async fn execute(
     let outcome = ResearchOutcome {
         query: request.query,
         budget: request.budget.as_str(),
-        plan_source: "caller",
+        plan_source: request.plan_source,
         research_plan: request.plan,
         capabilities,
         content: final_answer.clone(),

@@ -8,6 +8,203 @@ use serde_json::{Value, json};
 use support::{Fixture, Response, RunEnvironment};
 
 #[test]
+fn bare_research_requires_a_configured_classifier() {
+    let environment = RunEnvironment::new("");
+
+    let output = environment.run(&["research", "What changed?"]);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            String::from_utf8_lossy(&output.stderr).contains(
+                "research without --plan requires a configured classifier plan generator"
+            ),
+        ),
+        (Some(3), true)
+    );
+}
+
+#[test]
+fn bare_research_executes_the_classifier_plan_through_the_research_pipeline() {
+    let classifier = Fixture::start(
+        200,
+        "application/json",
+        &classifier_response(valid_plan(json!(["web_search"]))),
+    );
+    let tavily = Fixture::start(
+        200,
+        "application/json",
+        r#"{"results":[{"title":"Generated plan evidence","url":"https://example.test/generated"}]}"#,
+    );
+    let jina = Fixture::start(200, "text/markdown", &rich_content("Generated plan body"));
+    let environment = RunEnvironment::new(&bare_research_config(
+        &classifier.url,
+        &tavily.url,
+        &jina.url,
+        true,
+    ));
+
+    let output = environment.run(&["research", "What changed?", "--verbose"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let journal = read_only_journal(&environment);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["plan_source"],
+            &payload["research_plan"],
+            payload["provider_attempts"]
+                .as_array()
+                .expect("verbose attempts")
+                .iter()
+                .map(|attempt| attempt["seam"].as_str().expect("seam"))
+                .collect::<Vec<_>>(),
+            &journal["execution"]["plan_summary"]["source"],
+            &journal["execution"]["plan_summary"]["classifier_degraded"],
+        ),
+        (
+            Some(0),
+            &Value::String("classifier".into()),
+            &valid_plan(json!(["web_search"])),
+            vec!["classifier", "web_search", "web_fetch"],
+            &Value::String("classifier".into()),
+            &Value::Bool(false),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let classifier_request = classifier.finish();
+    assert!(classifier_request.contains("\"name\":\"classifier_research_plan\""));
+    assert!(
+        classifier_request
+            .contains("\"enum\":[\"docs_search\",\"web_search\",\"vertical_search\"]")
+    );
+    tavily.finish();
+    jina.finish();
+}
+
+#[test]
+fn bare_research_uses_the_fixed_web_search_plan_when_classifier_transport_fails() {
+    let classifier = Fixture::start(500, "text/plain", "classifier unavailable");
+    let tavily = Fixture::start(
+        200,
+        "application/json",
+        r#"{"results":[{"title":"Fallback evidence","url":"https://example.test/fallback"}]}"#,
+    );
+    let jina = Fixture::start(200, "text/markdown", &rich_content("Fallback body"));
+    let environment = RunEnvironment::new(&bare_research_config(
+        &classifier.url,
+        &tavily.url,
+        &jina.url,
+        true,
+    ));
+
+    let output = environment.run(&["research", "What changed?", "--verbose"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let journal = read_only_journal(&environment);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["plan_source"],
+            &payload["research_plan"]["decomposition"][0]["required_capabilities"],
+            String::from_utf8_lossy(&output.stderr).contains("Classifier warning"),
+            &journal["execution"]["plan_summary"]["classifier_degraded"],
+        ),
+        (
+            Some(0),
+            &Value::String("classifier_degraded".into()),
+            &json!(["web_search"]),
+            true,
+            &Value::Bool(true),
+        )
+    );
+    classifier.finish();
+    tavily.finish();
+    jina.finish();
+}
+
+#[test]
+fn bare_research_degrades_when_classifier_returns_an_invalid_plan() {
+    let classifier = Fixture::start(
+        200,
+        "application/json",
+        &classifier_response(json!({
+            "plan_version": 1,
+            "intent_signals": {
+                "recency_requirement": "none",
+                "docs_api_intent": false,
+                "source_authority_need": "normal",
+                "claim_risk": "medium",
+                "cross_validation_need": "normal"
+            },
+            "decomposition": []
+        })),
+    );
+    let tavily = Fixture::start(
+        200,
+        "application/json",
+        r#"{"results":[{"title":"Fallback evidence","url":"https://example.test/invalid"}]}"#,
+    );
+    let jina = Fixture::start(200, "text/markdown", &rich_content("Fallback body"));
+    let environment = RunEnvironment::new(&bare_research_config(
+        &classifier.url,
+        &tavily.url,
+        &jina.url,
+        false,
+    ));
+
+    let output = environment.run(&["research", "What changed?"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (output.status.code(), &payload["plan_source"]),
+        (Some(0), &Value::String("classifier_degraded".into())),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    classifier.finish();
+    tavily.finish();
+    jina.finish();
+}
+
+#[test]
+fn bare_research_preserves_classifier_metadata_on_an_evidence_terminal() {
+    let mut plan = valid_plan(json!([]));
+    plan["intent_signals"]["cross_validation_need"] = json!("high");
+    let classifier = Fixture::start(200, "application/json", &classifier_response(plan));
+    let jina = Fixture::start(200, "text/markdown", &rich_content("Only evidence"));
+    let environment = RunEnvironment::new(&bare_fetch_research_config(
+        &classifier.url,
+        &jina.url,
+        true,
+    ));
+
+    let output = environment.run(&["research", "Verify https://example.test/only"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let journal = read_only_journal(&environment);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["error_kind"],
+            &journal["execution"]["plan_summary"]["source"],
+            &journal["execution"]["plan_summary"]["classifier_degraded"],
+        ),
+        (
+            Some(5),
+            &Value::String("evidence".into()),
+            &Value::String("classifier".into()),
+            &Value::Bool(false),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    classifier.finish();
+    jina.finish();
+}
+
+#[test]
 fn research_rejects_strict_schema_v1_negative_cases_before_loading_config() {
     let environment = RunEnvironment::new("");
     let valid = valid_plan(json!(["web_search"]));
@@ -768,6 +965,56 @@ max_wait = 0
 enabled = {journal_enabled}
 "#
     )
+}
+
+fn bare_research_config(
+    classifier_url: &str,
+    tavily_url: &str,
+    jina_url: &str,
+    journal_enabled: bool,
+) -> String {
+    format!(
+        r#"
+[classifier]
+url = {classifier_url:?}
+keys = ["classifier-key"]
+model = "classifier-model"
+timeout = 30
+
+{}
+"#,
+        research_config(tavily_url, jina_url, journal_enabled)
+    )
+}
+
+fn bare_fetch_research_config(
+    classifier_url: &str,
+    jina_url: &str,
+    journal_enabled: bool,
+) -> String {
+    format!(
+        r#"
+[classifier]
+url = {classifier_url:?}
+keys = ["classifier-key"]
+model = "classifier-model"
+timeout = 30
+
+{}
+"#,
+        fetch_only_config(jina_url, journal_enabled)
+    )
+}
+
+fn classifier_response(plan: Value) -> String {
+    json!({
+        "choices": [{
+            "message": {
+                "content": serde_json::to_string(&plan).expect("encode classifier plan")
+            }
+        }]
+    })
+    .to_string()
 }
 
 fn read_only_journal(environment: &RunEnvironment) -> Value {

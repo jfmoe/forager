@@ -19,9 +19,10 @@ use crate::providers::{
     SearchType,
 };
 use crate::types::{
-    AnysearchOutcome, CapabilitySet, Context7Outcome, Deadline, FetchOutcome, MapOutcome,
+    AnysearchOutcome, CapabilitySet, ClaimRisk, Context7Outcome, Deadline, EvidenceStrength,
+    FetchOutcome, JournalOutcome, MapOutcome, PlanCapability, RecencyRequirement, ResearchError,
+    ResearchIntentSignals, ResearchOutcome, ResearchPlan, ResearchSubquestion, SearchOutcome,
 };
-use crate::types::{JournalOutcome, ResearchError, ResearchOutcome, ResearchPlan, SearchOutcome};
 
 pub use crate::providers::ProviderError;
 pub use crate::types::ExaOutcome;
@@ -658,17 +659,60 @@ impl ResearchContext {
     fn research(
         self,
         query: String,
-        plan: ResearchPlan,
+        caller_plan: Option<ResearchPlan>,
         budget: crate::research::ResearchBudget,
         evidence_dir: PathBuf,
         fallback: String,
     ) -> (Result<ResearchOutcome, ResearchError>, JournalOutcome) {
         let started = Instant::now();
+        let deadline = Deadline::new(self.timeout);
+        let (
+            plan,
+            plan_source,
+            classifier_degraded,
+            classifier_duration,
+            classifier_attempts,
+            classifier_warning,
+        ) = match caller_plan {
+            Some(plan) => (plan, "caller", false, None, Vec::new(), None),
+            None => {
+                let classifier = crate::classifier::Classifier::new(
+                    self.config.classifier.clone(),
+                    self.client.clone(),
+                    self.retry_policy,
+                );
+                match self
+                    .runtime
+                    .block_on(classifier.plan_research(&query, deadline))
+                {
+                    Ok(decision) => (
+                        decision.plan,
+                        "classifier",
+                        false,
+                        Some(decision.duration),
+                        decision.attempts,
+                        None,
+                    ),
+                    Err(failure) => (
+                        minimal_research_fallback_plan(&query),
+                        "classifier_degraded",
+                        true,
+                        Some(failure.duration),
+                        failure.attempts,
+                        Some(format!(
+                            "Classifier warning: {}; using fixed minimal web_search research plan",
+                            failure.message
+                        )),
+                    ),
+                }
+            }
+        };
         let capabilities = plan.capabilities().iter().collect::<Vec<_>>();
-        let result = self.runtime.block_on(crate::research::execute(
+        let mut result = self.runtime.block_on(crate::research::execute(
             crate::research::ResearchRequest {
                 query: query.clone(),
                 plan,
+                plan_source,
                 budget,
                 evidence_dir,
                 fallback,
@@ -676,8 +720,24 @@ impl ResearchContext {
             self.config,
             self.client,
             self.retry_policy,
-            Deadline::new(self.timeout),
+            deadline,
         ));
+        match &mut result {
+            Ok(outcome) => {
+                outcome
+                    .attempts
+                    .splice(0..0, classifier_attempts.iter().cloned());
+                outcome.diagnostic =
+                    combine_diagnostics(classifier_warning.clone(), outcome.diagnostic.take());
+            }
+            Err(error) => {
+                error
+                    .attempts
+                    .splice(0..0, classifier_attempts.iter().cloned());
+                error.diagnostic =
+                    combine_diagnostics(classifier_warning.clone(), error.diagnostic.take());
+            }
+        }
         let journal = crate::journal::record_research(
             &self.journal,
             crate::journal::ResearchRecord {
@@ -685,6 +745,9 @@ impl ResearchContext {
                 budget: self.timeout,
                 elapsed: started.elapsed(),
                 capabilities: &capabilities,
+                plan_source,
+                classifier_degraded,
+                classifier_duration,
                 result: &result,
             },
         );
@@ -861,28 +924,28 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             output,
             verbose,
         } => {
-            let plan = plan.ok_or_else(|| {
-                AppError::Config(ConfigError::Message(
+            let plan = if let Some(plan) = plan {
+                let plan_input = if plan == "-" {
+                    read_stdin()?
+                } else {
+                    fs::read_to_string(&plan).map_err(|error| {
+                        AppError::Argument(format!("cannot read research plan `{plan}`: {error}"))
+                    })?
+                };
+                Some(ResearchPlan::parse_json(&plan_input).map_err(AppError::Argument)?)
+            } else {
+                None
+            };
+            let evidence_dir = evidence_dir.unwrap_or_else(default_evidence_dir);
+            let context = ResearchContext::load(timeout)?;
+            if plan.is_none() && !context.config.classifier.configured() {
+                return Err(AppError::Config(ConfigError::Message(
                     "research without --plan requires a configured classifier plan generator"
                         .into(),
-                ))
-            })?;
-            let plan_input = if plan == "-" {
-                read_stdin()?
-            } else {
-                fs::read_to_string(&plan).map_err(|error| {
-                    AppError::Argument(format!("cannot read research plan `{plan}`: {error}"))
-                })?
-            };
-            let plan = ResearchPlan::parse_json(&plan_input).map_err(AppError::Argument)?;
-            let evidence_dir = evidence_dir.unwrap_or_else(default_evidence_dir);
-            let (result, journal) = ResearchContext::load(timeout)?.research(
-                query,
-                plan,
-                budget.into(),
-                evidence_dir,
-                fallback,
-            );
+                )));
+            }
+            let (result, journal) =
+                context.research(query, plan, budget.into(), evidence_dir, fallback);
             Ok(CommandOutput::Research {
                 result,
                 journal,
@@ -1174,6 +1237,25 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             non_interactive: false,
             lang,
         } => run_interactive_setup(lang),
+    }
+}
+
+fn minimal_research_fallback_plan(query: &str) -> ResearchPlan {
+    ResearchPlan {
+        plan_version: 1,
+        intent_signals: ResearchIntentSignals {
+            recency_requirement: RecencyRequirement::None,
+            docs_api_intent: false,
+            source_authority_need: EvidenceStrength::Normal,
+            claim_risk: ClaimRisk::Medium,
+            cross_validation_need: EvidenceStrength::Normal,
+        },
+        decomposition: vec![ResearchSubquestion {
+            id: "sq1".into(),
+            question: query.into(),
+            reason: "Gather minimum available web evidence".into(),
+            required_capabilities: vec![PlanCapability::WebSearch],
+        }],
     }
 }
 

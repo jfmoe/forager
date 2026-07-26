@@ -29,6 +29,9 @@ pub(crate) struct ResearchRecord<'a> {
     pub(crate) budget: Duration,
     pub(crate) elapsed: Duration,
     pub(crate) capabilities: &'a [Capability],
+    pub(crate) plan_source: &'static str,
+    pub(crate) classifier_degraded: bool,
+    pub(crate) classifier_duration: Option<Duration>,
     pub(crate) result: &'a Result<ResearchOutcome, ResearchError>,
 }
 
@@ -152,9 +155,9 @@ fn build_research_record(record: ResearchRecord<'_>) -> Value {
         "result": result_surface,
         "execution": {
             "plan_summary": {
-                "source": "caller",
+                "source": record.plan_source,
                 "capabilities": record.capabilities,
-                "classifier_degraded": false
+                "classifier_degraded": record.classifier_degraded
             },
             "provider_attempts": attempts,
             "terminal_attribution": terminal_attribution,
@@ -163,7 +166,10 @@ fn build_research_record(record: ResearchRecord<'_>) -> Value {
                 "consumed_ms": duration_millis(record.elapsed),
                 "exhausted": record.elapsed >= record.budget
             },
-            "classifier_duration_ms": Value::Null,
+            "classifier_duration_ms": record.classifier_duration
+                .map(duration_millis)
+                .map(Value::from)
+                .unwrap_or(Value::Null),
             "capability_gaps": capability_gaps,
             "evidence_items": record.result
                 .as_ref()

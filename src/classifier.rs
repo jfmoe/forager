@@ -2,7 +2,8 @@ use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
 use reqwest::Client;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde_json::{Value, json};
 
 use crate::config::{self, ClassifierRuntimeConfig};
 use crate::credentials::CredentialPool;
@@ -10,7 +11,7 @@ use crate::net::{RetryPolicy, error_kind_for_status, truncate_message};
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute};
 use crate::types::{
     AttemptErrorKind, Capability, CapabilitySet, Deadline, MIN_USEFUL_SLICE_SECONDS,
-    ProviderAttempt,
+    ProviderAttempt, ResearchPlan,
 };
 
 const VOCABULARY: &str = include_str!("../assets/capability-vocabulary.json");
@@ -29,6 +30,26 @@ pub(crate) struct ClassifierFailure {
     pub(crate) message: String,
 }
 
+#[derive(Debug)]
+pub(crate) struct ResearchPlanSuccess {
+    pub(crate) plan: ResearchPlan,
+    pub(crate) attempts: Vec<ProviderAttempt>,
+    pub(crate) duration: Duration,
+}
+
+struct DecisionSuccess<T> {
+    decision: T,
+    attempts: Vec<ProviderAttempt>,
+    duration: Duration,
+}
+
+struct DecisionSpec<T> {
+    name: &'static str,
+    instruction: String,
+    schema: Value,
+    parse: fn(&str) -> Result<T, String>,
+}
+
 pub(crate) struct Classifier {
     config: ClassifierRuntimeConfig,
     client: Client,
@@ -36,7 +57,7 @@ pub(crate) struct Classifier {
     retry_policy: RetryPolicy,
 }
 
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct CapabilityDecision {
     required_capabilities: Vec<Capability>,
@@ -77,6 +98,53 @@ impl Classifier {
         query: &str,
         command_deadline: Deadline,
     ) -> Result<ClassifierSuccess, ClassifierFailure> {
+        self.decide(
+            query,
+            command_deadline,
+            DecisionSpec {
+                name: "classifier_capability_decision",
+                instruction: capability_instruction(),
+                schema: capability_schema(),
+                parse: parse_capability_decision,
+            },
+        )
+        .await
+        .map(|success| ClassifierSuccess {
+            capabilities: CapabilitySet::from_capabilities(success.decision.required_capabilities),
+            attempts: success.attempts,
+            duration: success.duration,
+        })
+    }
+
+    pub(crate) async fn plan_research(
+        &self,
+        query: &str,
+        command_deadline: Deadline,
+    ) -> Result<ResearchPlanSuccess, ClassifierFailure> {
+        self.decide(
+            query,
+            command_deadline,
+            DecisionSpec {
+                name: "classifier_research_plan",
+                instruction: research_plan_instruction(),
+                schema: research_plan_schema(),
+                parse: ResearchPlan::parse_json,
+            },
+        )
+        .await
+        .map(|success| ResearchPlanSuccess {
+            plan: success.decision,
+            attempts: success.attempts,
+            duration: success.duration,
+        })
+    }
+
+    async fn decide<T>(
+        &self,
+        query: &str,
+        command_deadline: Deadline,
+        spec: DecisionSpec<T>,
+    ) -> Result<DecisionSuccess<T>, ClassifierFailure> {
         let started = Instant::now();
         let Some(command_remaining) = command_deadline.remaining() else {
             return Err(ClassifierFailure {
@@ -103,15 +171,13 @@ impl Classifier {
                 continue;
             };
             match self
-                .execute_model(query, model, Deadline::new(model_budget))
+                .execute_model(query, model, Deadline::new(model_budget), &spec)
                 .await
             {
                 Ok((decision, mut model_attempts)) => {
                     attempts.append(&mut model_attempts);
-                    return Ok(ClassifierSuccess {
-                        capabilities: CapabilitySet::from_capabilities(
-                            decision.required_capabilities,
-                        ),
+                    return Ok(DecisionSuccess {
+                        decision,
                         attempts,
                         duration: started.elapsed(),
                     });
@@ -131,12 +197,13 @@ impl Classifier {
         })
     }
 
-    async fn execute_model(
+    async fn execute_model<T>(
         &self,
         query: &str,
         model: &str,
         deadline: Deadline,
-    ) -> Result<(CapabilityDecision, Vec<ProviderAttempt>), Vec<ProviderAttempt>> {
+        spec: &DecisionSpec<T>,
+    ) -> Result<(T, Vec<ProviderAttempt>), Vec<ProviderAttempt>> {
         let endpoint_host = reqwest::Url::parse(&self.config.url)
             .ok()
             .and_then(|url| url.host_str().map(ToOwned::to_owned));
@@ -155,19 +222,20 @@ impl Classifier {
                 endpoint_host,
                 breaker_event: None,
             },
-            |credential| async move { self.send_once(query, model, &credential).await },
+            |credential| async move { self.send_once(query, model, &credential, spec).await },
         )
         .await
         .map(|outcome| (outcome.value, outcome.attempts))
         .map_err(|error| error.attempts)
     }
 
-    async fn send_once(
+    async fn send_once<T>(
         &self,
         query: &str,
         model: &str,
         credential: &str,
-    ) -> Result<(u16, CapabilityDecision), AttemptFailure> {
+        spec: &DecisionSpec<T>,
+    ) -> Result<(u16, T), AttemptFailure> {
         let endpoint = format!("{}/chat/completions", self.config.url.trim_end_matches('/'));
         let response = self
             .client
@@ -179,7 +247,7 @@ impl Classifier {
                 "messages": [
                     {
                         "role": "system",
-                        "content": classifier_instruction()
+                        "content": spec.instruction
                     },
                     {
                         "role": "user",
@@ -189,28 +257,9 @@ impl Classifier {
                 "response_format": {
                     "type": "json_schema",
                     "json_schema": {
-                        "name": "classifier_capability_decision",
+                        "name": spec.name,
                         "strict": true,
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": false,
-                            "required": ["required_capabilities"],
-                            "properties": {
-                                "required_capabilities": {
-                                    "type": "array",
-                                    "items": {
-                                        "type": "string",
-                                        "enum": [
-                                            "docs_search",
-                                            "web_search",
-                                            "web_fetch",
-                                            "vertical_search"
-                                        ]
-                                    },
-                                    "uniqueItems": true
-                                }
-                            }
-                        }
+                        "schema": spec.schema
                     }
                 }
             }))
@@ -257,24 +306,11 @@ impl Classifier {
                 status: Some(status.as_u16()),
                 message: "classifier response omitted JSON content".into(),
             })?;
-        let decision: CapabilityDecision =
-            serde_json::from_str(content).map_err(|_| AttemptFailure {
-                kind: AttemptErrorKind::Runtime,
-                status: Some(status.as_u16()),
-                message: "classifier returned invalid capability schema".into(),
-            })?;
-        let unique = decision
-            .required_capabilities
-            .iter()
-            .copied()
-            .collect::<HashSet<_>>();
-        if unique.len() != decision.required_capabilities.len() {
-            return Err(AttemptFailure {
-                kind: AttemptErrorKind::Runtime,
-                status: Some(status.as_u16()),
-                message: "classifier returned duplicate capabilities".into(),
-            });
-        }
+        let decision = (spec.parse)(content).map_err(|error| AttemptFailure {
+            kind: AttemptErrorKind::Runtime,
+            status: Some(status.as_u16()),
+            message: self.redact(&format!("classifier returned invalid schema: {error}")),
+        })?;
         Ok((status.as_u16(), decision))
     }
 
@@ -313,10 +349,116 @@ impl Classifier {
     }
 }
 
-fn classifier_instruction() -> String {
+fn capability_instruction() -> String {
     format!(
         "Select the complete capability set required by the user request. Multiple capabilities or an empty set are valid. Never select providers. Return JSON only, matching the required schema. Capability vocabulary, authoritative order, selection semantics, and examples:\n{VOCABULARY}"
     )
+}
+
+fn research_plan_instruction() -> String {
+    "Generate a Schema v1 research plan with intent_signals and a non-empty decomposition. Each subquestion must have a unique non-empty id, a question, a non-empty reason, and a complete required_capabilities set limited to docs_search, web_search, and vertical_search. Never select providers. Do not emit known URLs or web_fetch; URL extraction and fetch-before-claim are deterministic engine behavior. intent_signals may only set evidence strength and cross-validation needs, never capabilities or provider order. Return JSON only, matching the required schema.".into()
+}
+
+fn capability_schema() -> Value {
+    json!({
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["required_capabilities"],
+        "properties": {
+            "required_capabilities": {
+                "type": "array",
+                "items": {
+                    "type": "string",
+                    "enum": [
+                        "docs_search",
+                        "web_search",
+                        "web_fetch",
+                        "vertical_search"
+                    ]
+                },
+                "uniqueItems": true
+            }
+        }
+    })
+}
+
+fn research_plan_schema() -> Value {
+    json!({
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["plan_version", "intent_signals", "decomposition"],
+        "properties": {
+            "plan_version": {
+                "type": "integer",
+                "const": 1
+            },
+            "intent_signals": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                    "recency_requirement",
+                    "docs_api_intent",
+                    "source_authority_need",
+                    "claim_risk",
+                    "cross_validation_need"
+                ],
+                "properties": {
+                    "recency_requirement": {
+                        "type": "string",
+                        "enum": ["none", "recent", "current"]
+                    },
+                    "docs_api_intent": {"type": "boolean"},
+                    "source_authority_need": {
+                        "type": "string",
+                        "enum": ["normal", "high"]
+                    },
+                    "claim_risk": {
+                        "type": "string",
+                        "enum": ["medium", "high"]
+                    },
+                    "cross_validation_need": {
+                        "type": "string",
+                        "enum": ["normal", "high"]
+                    }
+                }
+            },
+            "decomposition": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["id", "question", "reason", "required_capabilities"],
+                    "properties": {
+                        "id": {"type": "string", "minLength": 1},
+                        "question": {"type": "string"},
+                        "reason": {"type": "string", "minLength": 1},
+                        "required_capabilities": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": ["docs_search", "web_search", "vertical_search"]
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    })
+}
+
+fn parse_capability_decision(content: &str) -> Result<CapabilityDecision, String> {
+    let decision: CapabilityDecision =
+        serde_json::from_str(content).map_err(|error| error.to_string())?;
+    let unique = decision
+        .required_capabilities
+        .iter()
+        .copied()
+        .collect::<HashSet<_>>();
+    if unique.len() != decision.required_capabilities.len() {
+        return Err("duplicate capabilities".into());
+    }
+    Ok(decision)
 }
 
 fn model_budget(remaining: Duration, remaining_slots: usize) -> Option<Duration> {
