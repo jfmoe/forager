@@ -14,7 +14,7 @@ use crate::types::{
     ProviderAttempt, ResearchPlan,
 };
 
-const VOCABULARY: &str = include_str!("../assets/capability-vocabulary.json");
+const VOCABULARY: &str = include_str!("../skills/forager/references/capability-vocabulary.json");
 
 #[derive(Debug)]
 pub(crate) struct ClassifierSuccess {
