@@ -1,0 +1,12 @@
+[workspace]
+changelog_update = true
+dependencies_update = false
+git_only = true
+git_release_enable = false
+publish = false
+release_always = false
+
+[[package]]
+name = "forager"
+changelog_path = "./CHANGELOG.md"
+git_tag_name = "v{{ version }}"

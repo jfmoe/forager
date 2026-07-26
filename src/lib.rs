@@ -1,8 +1,10 @@
 #![forbid(unsafe_code)]
 
-mod app;
+//! Core application services for the `forager` CLI.
+
+pub mod app;
 mod classifier;
-mod config;
+pub mod config;
 mod credentials;
 mod doctor;
 mod engine;
