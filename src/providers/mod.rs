@@ -8,7 +8,7 @@ use crate::net::RetryPolicy;
 use crate::types::Deadline;
 
 pub use exa::ProviderError;
-pub(crate) use exa::{ExaSearchRequest, SearchType};
+pub(crate) use exa::{Exa, ExaSearchRequest, ExaSimilarRequest, SearchType};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ProviderId {

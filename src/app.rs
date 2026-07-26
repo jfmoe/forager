@@ -5,16 +5,15 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use reqwest::Client;
 use thiserror::Error;
 
-use crate::config::{self, ConfigError, ConfigLocation, EditError, RuntimeConfig};
+use crate::config::{self, ConfigError, ConfigLocation, EditError};
 use crate::net::{self, RetryPolicy};
-use crate::providers::{self, ExaSearchRequest, SearchType};
+use crate::providers::{self, ExaSearchRequest, ExaSimilarRequest, SearchType};
 use crate::types::Deadline;
 
 pub use crate::providers::ProviderError;
-pub use crate::types::SearchOutcome;
+pub use crate::types::ExaOutcome;
 
 /// Parsed `forager` command-line arguments.
 #[derive(Debug, Parser)]
@@ -62,6 +61,19 @@ enum ExaCommand {
         exclude_domains: Vec<String>,
         #[arg(long)]
         category: Option<String>,
+        #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
+        timeout: Option<u64>,
+        #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
+        format: OutputFormat,
+        #[arg(long)]
+        output: Option<PathBuf>,
+        #[arg(long)]
+        verbose: bool,
+    },
+    Similar {
+        url: String,
+        #[arg(long, default_value_t = 5, value_parser = clap::value_parser!(u16).range(1..=100))]
+        num_results: u16,
         #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
         timeout: Option<u64>,
         #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
@@ -134,7 +146,7 @@ pub enum CommandOutput {
     /// Typed Exa terminal state for binary-side formatting and tee output.
     Exa {
         /// Provider result.
-        result: Result<SearchOutcome, ProviderError>,
+        result: Result<ExaOutcome, ProviderError>,
         /// Requested output format.
         format: OutputFormat,
         /// Optional tee destination.
@@ -143,10 +155,7 @@ pub enum CommandOutput {
 }
 
 struct AppContext {
-    config: RuntimeConfig,
-    client: Client,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
+    exa: providers::Exa,
     runtime: tokio::runtime::Runtime,
 }
 
@@ -170,23 +179,21 @@ impl AppContext {
             .enable_all()
             .build()
             .map_err(|error| AppError::Runtime(format!("cannot start network runtime: {error}")))?;
-        Ok(Self {
-            config,
+        let exa = providers::build_exa(
+            config.exa,
             client,
             retry_policy,
-            deadline: Deadline::new(Duration::from_secs(command_timeout)),
-            runtime,
-        })
+            Deadline::new(Duration::from_secs(command_timeout)),
+        );
+        Ok(Self { exa, runtime })
     }
 
-    fn exa_search(self, request: ExaSearchRequest) -> Result<SearchOutcome, ProviderError> {
-        let provider = providers::build_exa(
-            self.config.exa,
-            self.client,
-            self.retry_policy,
-            self.deadline,
-        );
-        self.runtime.block_on(provider.search(request))
+    fn exa_search(self, request: ExaSearchRequest) -> Result<ExaOutcome, ProviderError> {
+        self.runtime.block_on(self.exa.search(request))
+    }
+
+    fn exa_similar(self, request: ExaSimilarRequest) -> Result<ExaOutcome, ProviderError> {
+        self.runtime.block_on(self.exa.similar(request))
     }
 }
 
@@ -226,6 +233,26 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                 include_domains,
                 exclude_domains,
                 category,
+                verbose,
+            },
+            timeout,
+            format,
+            output,
+        ),
+        Command::Exa {
+            command:
+                ExaCommand::Similar {
+                    url,
+                    num_results,
+                    timeout,
+                    format,
+                    output,
+                    verbose,
+                },
+        } => run_exa_similar(
+            ExaSimilarRequest {
+                url,
+                num_results,
                 verbose,
             },
             timeout,
@@ -299,6 +326,20 @@ fn run_exa_search(
     output: Option<PathBuf>,
 ) -> Result<CommandOutput, AppError> {
     let result = AppContext::for_network_command(timeout)?.exa_search(request);
+    Ok(CommandOutput::Exa {
+        result,
+        format,
+        output,
+    })
+}
+
+fn run_exa_similar(
+    request: ExaSimilarRequest,
+    timeout: Option<u64>,
+    format: OutputFormat,
+    output: Option<PathBuf>,
+) -> Result<CommandOutput, AppError> {
+    let result = AppContext::for_network_command(timeout)?.exa_similar(request);
     Ok(CommandOutput::Exa {
         result,
         format,

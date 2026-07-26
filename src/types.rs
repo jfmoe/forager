@@ -129,9 +129,33 @@ pub struct Source {
 }
 
 #[derive(Clone, Debug, Serialize)]
-pub struct SearchOutcome {
+#[serde(untagged)]
+pub enum ExaInput {
+    Search { query: String },
+    Similar { url: String },
+}
+
+impl ExaInput {
+    pub fn value(&self) -> &str {
+        match self {
+            Self::Search { query } => query,
+            Self::Similar { url } => url,
+        }
+    }
+
+    pub fn operation(&self) -> &'static str {
+        match self {
+            Self::Search { .. } => "search",
+            Self::Similar { .. } => "similar",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ExaOutcome {
     pub provider: &'static str,
-    pub query: String,
+    #[serde(flatten)]
+    pub input: ExaInput,
     pub results: Vec<Source>,
     #[serde(rename = "provider_attempts", skip_serializing_if = "Vec::is_empty")]
     pub attempts: Vec<ProviderAttempt>,

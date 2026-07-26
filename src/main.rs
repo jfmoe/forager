@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::Parser;
-use forager::app::{self, Cli, CommandOutput, OutputFormat, ProviderError, SearchOutcome};
+use forager::app::{self, Cli, CommandOutput, ExaOutcome, OutputFormat, ProviderError};
 use forager::types::{AttemptErrorKind, ErrorFamily, ErrorKind};
 use serde_json::{Value, json};
 
@@ -52,7 +52,7 @@ struct RenderedOutput {
 }
 
 fn render_exa(
-    result: Result<SearchOutcome, ProviderError>,
+    result: Result<ExaOutcome, ProviderError>,
     format: OutputFormat,
     output: Option<PathBuf>,
 ) -> Result<RenderedOutput, String> {
@@ -67,11 +67,15 @@ fn render_exa(
     apply_tee(stdout, exit_code, format, output, diagnostic)
 }
 
-fn format_success(outcome: &SearchOutcome, format: OutputFormat) -> Result<String, String> {
+fn format_success(outcome: &ExaOutcome, format: OutputFormat) -> Result<String, String> {
     match format {
         OutputFormat::Json => serde_json::to_string(outcome).map_err(|error| error.to_string()),
         OutputFormat::Markdown => {
-            let mut markdown = format!("# Exa search: {}\n", outcome.query);
+            let mut markdown = format!(
+                "# Exa {}: {}\n",
+                outcome.input.operation(),
+                outcome.input.value()
+            );
             for source in &outcome.results {
                 markdown.push_str(&format!("\n- [{}]({})", source.title, source.url));
                 if let Some(published_date) = &source.published_date {

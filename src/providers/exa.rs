@@ -7,7 +7,7 @@ use thiserror::Error;
 use crate::config::{self, ExaRuntimeConfig};
 use crate::credentials::CredentialPool;
 use crate::net::{RetryPolicy, error_kind_for_status, truncate_message};
-use crate::types::{AttemptErrorKind, Deadline, ProviderAttempt, SearchOutcome, Source};
+use crate::types::{AttemptErrorKind, Deadline, ExaInput, ExaOutcome, ProviderAttempt, Source};
 
 #[derive(Clone, Copy, Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -28,6 +28,13 @@ pub(crate) struct ExaSearchRequest {
     pub(crate) include_domains: Vec<String>,
     pub(crate) exclude_domains: Vec<String>,
     pub(crate) category: Option<String>,
+    pub(crate) verbose: bool,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct ExaSimilarRequest {
+    pub(crate) url: String,
+    pub(crate) num_results: u16,
     pub(crate) verbose: bool,
 }
 
@@ -69,7 +76,18 @@ impl Exa {
     pub(crate) async fn search(
         &self,
         request: ExaSearchRequest,
-    ) -> Result<SearchOutcome, ProviderError> {
+    ) -> Result<ExaOutcome, ProviderError> {
+        self.execute(ExaOperation::Search(request)).await
+    }
+
+    pub(crate) async fn similar(
+        &self,
+        request: ExaSimilarRequest,
+    ) -> Result<ExaOutcome, ProviderError> {
+        self.execute(ExaOperation::Similar(request)).await
+    }
+
+    async fn execute(&self, operation: ExaOperation) -> Result<ExaOutcome, ProviderError> {
         let selection = self.credentials.claim();
         let mut attempts = Vec::new();
         let mut credential_index = selection.index;
@@ -81,7 +99,7 @@ impl Exa {
                 return Err(terminal_error(
                     AttemptErrorKind::Timeout,
                     attempts,
-                    request.verbose,
+                    operation.verbose(),
                     selection.diagnostic.clone(),
                 ));
             };
@@ -89,7 +107,7 @@ impl Exa {
             let started = Instant::now();
             let response = tokio::time::timeout(
                 attempt_limit,
-                self.send_once(&request, self.credentials.key(credential_index)),
+                self.send_once(&operation, self.credentials.key(credential_index)),
             )
             .await;
 
@@ -97,7 +115,7 @@ impl Exa {
                 Ok(Ok(outcome)) => {
                     attempts.push(ProviderAttempt {
                         provider: "exa",
-                        seam: "docs_search",
+                        seam: operation.name(),
                         error_kind: None,
                         http_status: Some(200),
                         duration_ms: millis(started.elapsed()),
@@ -106,11 +124,11 @@ impl Exa {
                         rotation_count,
                         message: String::new(),
                     });
-                    return Ok(SearchOutcome {
+                    return Ok(ExaOutcome {
                         provider: "exa",
-                        query: request.query,
+                        input: operation.output_input(),
                         results: outcome,
-                        attempts: if request.verbose {
+                        attempts: if operation.verbose() {
                             attempts
                         } else {
                             Vec::new()
@@ -122,7 +140,7 @@ impl Exa {
                     let kind = failure.kind;
                     attempts.push(ProviderAttempt {
                         provider: "exa",
-                        seam: "docs_search",
+                        seam: operation.name(),
                         error_kind: Some(kind),
                         http_status: failure.status,
                         duration_ms: millis(started.elapsed()),
@@ -146,7 +164,7 @@ impl Exa {
                             return Err(terminal_error(
                                 AttemptErrorKind::Timeout,
                                 attempts,
-                                request.verbose,
+                                operation.verbose(),
                                 selection.diagnostic.clone(),
                             ));
                         };
@@ -154,7 +172,7 @@ impl Exa {
                             return Err(terminal_error(
                                 AttemptErrorKind::Timeout,
                                 attempts,
-                                request.verbose,
+                                operation.verbose(),
                                 selection.diagnostic.clone(),
                             ));
                         }
@@ -164,14 +182,14 @@ impl Exa {
                     return Err(terminal_error(
                         kind,
                         attempts,
-                        request.verbose,
+                        operation.verbose(),
                         selection.diagnostic.clone(),
                     ));
                 }
                 Err(_) => {
                     attempts.push(ProviderAttempt {
                         provider: "exa",
-                        seam: "docs_search",
+                        seam: operation.name(),
                         error_kind: Some(AttemptErrorKind::Timeout),
                         http_status: None,
                         duration_ms: millis(started.elapsed()),
@@ -187,7 +205,7 @@ impl Exa {
                     return Err(terminal_error(
                         AttemptErrorKind::Timeout,
                         attempts,
-                        request.verbose,
+                        operation.verbose(),
                         selection.diagnostic.clone(),
                     ));
                 }
@@ -197,25 +215,32 @@ impl Exa {
 
     async fn send_once(
         &self,
-        request: &ExaSearchRequest,
+        operation: &ExaOperation,
         key: &str,
     ) -> Result<Vec<Source>, AttemptFailure> {
-        let response = self
+        let endpoint = format!(
+            "{}/{}",
+            self.config.url.trim_end_matches('/'),
+            operation.endpoint()
+        );
+        let request = self
             .client
-            .post(format!("{}/search", self.config.url.trim_end_matches('/')))
+            .post(endpoint)
             .header("x-api-key", key)
-            .json(&ExaRequestBody::from(request))
-            .send()
-            .await
-            .map_err(|error| AttemptFailure {
-                kind: if error.is_timeout() {
-                    AttemptErrorKind::Timeout
-                } else {
-                    AttemptErrorKind::Network
-                },
-                status: error.status().map(|status| status.as_u16()),
-                message: self.redacted_message(&error.to_string()),
-            })?;
+            .header("accept", "application/json");
+        let request = match operation {
+            ExaOperation::Search(search) => request.json(&ExaSearchBody::from(search)),
+            ExaOperation::Similar(similar) => request.json(&ExaSimilarBody::from(similar)),
+        };
+        let response = request.send().await.map_err(|error| AttemptFailure {
+            kind: if error.is_timeout() {
+                AttemptErrorKind::Timeout
+            } else {
+                AttemptErrorKind::Network
+            },
+            status: error.status().map(|status| status.as_u16()),
+            message: self.redacted_message(&error.to_string()),
+        })?;
         let status = response.status();
         let body = response.text().await.map_err(|error| AttemptFailure {
             kind: if error.is_timeout() {
@@ -274,9 +299,48 @@ impl Exa {
     }
 }
 
+enum ExaOperation {
+    Search(ExaSearchRequest),
+    Similar(ExaSimilarRequest),
+}
+
+impl ExaOperation {
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Search(_) => "docs_search",
+            Self::Similar(_) => "similar",
+        }
+    }
+
+    fn endpoint(&self) -> &'static str {
+        match self {
+            Self::Search(_) => "search",
+            Self::Similar(_) => "findSimilar",
+        }
+    }
+
+    fn output_input(&self) -> ExaInput {
+        match self {
+            Self::Search(request) => ExaInput::Search {
+                query: request.query.clone(),
+            },
+            Self::Similar(request) => ExaInput::Similar {
+                url: request.url.clone(),
+            },
+        }
+    }
+
+    fn verbose(&self) -> bool {
+        match self {
+            Self::Search(request) => request.verbose,
+            Self::Similar(request) => request.verbose,
+        }
+    }
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-struct ExaRequestBody<'a> {
+struct ExaSearchBody<'a> {
     query: &'a str,
     num_results: u16,
     #[serde(rename = "type")]
@@ -293,7 +357,7 @@ struct ExaRequestBody<'a> {
     category: Option<&'a str>,
 }
 
-impl<'a> From<&'a ExaSearchRequest> for ExaRequestBody<'a> {
+impl<'a> From<&'a ExaSearchRequest> for ExaSearchBody<'a> {
     fn from(request: &'a ExaSearchRequest) -> Self {
         let contents =
             (request.include_text || request.include_highlights).then_some(ExaContents {
@@ -309,6 +373,22 @@ impl<'a> From<&'a ExaSearchRequest> for ExaRequestBody<'a> {
             include_domains: &request.include_domains,
             exclude_domains: &request.exclude_domains,
             category: request.category.as_deref(),
+        }
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ExaSimilarBody<'a> {
+    url: &'a str,
+    num_results: u16,
+}
+
+impl<'a> From<&'a ExaSimilarRequest> for ExaSimilarBody<'a> {
+    fn from(request: &'a ExaSimilarRequest) -> Self {
+        Self {
+            url: &request.url,
+            num_results: request.num_results,
         }
     }
 }

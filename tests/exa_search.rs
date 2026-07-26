@@ -98,6 +98,62 @@ fn exa_search_returns_normalized_results_through_the_real_http_stack() {
 }
 
 #[test]
+fn exa_similar_returns_normalized_results_through_the_real_http_stack() {
+    let fixture = Fixture::start(
+        200,
+        r#"{
+            "results": [{
+                "title": "Similar fixture",
+                "url": "https://example.test/similar?api_key=source-secret&safe=1#fragment",
+                "publishedDate": "2026-07-25T00:00:00.000Z",
+                "author": "Example"
+            }]
+        }"#,
+    );
+
+    let output = run(
+        &fixture,
+        &[
+            "exa",
+            "similar",
+            "https://example.test/source",
+            "--num-results",
+            "2",
+        ],
+        &["first-key"],
+    );
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["provider"],
+            &payload["url"],
+            &payload["results"][0]["title"],
+            &payload["results"][0]["url"],
+        ),
+        (
+            Some(0),
+            &Value::String("exa".into()),
+            &Value::String("https://example.test/source".into()),
+            &Value::String("Similar fixture".into()),
+            &Value::String("https://example.test/similar?api_key=********&safe=1".into()),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let request = fixture.finish();
+    assert!(request.starts_with("POST /findSimilar "), "{request}");
+    assert!(
+        request.contains("\"url\":\"https://example.test/source\""),
+        "{request}"
+    );
+    assert!(request.contains("\"numResults\":2"), "{request}");
+    assert!(request.contains("x-api-key: first-key"), "{request}");
+}
+
+#[test]
 fn exa_search_treats_an_empty_result_set_as_success() {
     let fixture = Fixture::start(200, r#"{"results":[]}"#);
 
@@ -111,6 +167,133 @@ fn exa_search_treats_an_empty_result_set_as_success() {
         String::from_utf8_lossy(&output.stderr)
     );
     fixture.finish();
+}
+
+#[test]
+fn exa_similar_treats_an_empty_result_set_as_success() {
+    let fixture = Fixture::start(200, r#"{"results":[]}"#);
+
+    let output = run(
+        &fixture,
+        &["exa", "similar", "https://example.test/source"],
+        &["only-key"],
+    );
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (output.status.code(), &payload["results"]),
+        (Some(0), &serde_json::json!([])),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    fixture.finish();
+}
+
+#[test]
+fn exa_similar_rejects_an_invalid_result_count_before_network_or_config() {
+    let output = Command::new(env!("CARGO_BIN_EXE_forager"))
+        .args([
+            "exa",
+            "similar",
+            "https://example.test/source",
+            "--num-results",
+            "0",
+        ])
+        .env_clear()
+        .output()
+        .expect("run forager");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            output.stdout.is_empty(),
+            String::from_utf8_lossy(&output.stderr).contains("--num-results"),
+        ),
+        (Some(2), true, true)
+    );
+}
+
+#[test]
+fn exa_similar_classifies_authentication_failures() {
+    let fixture = Fixture::start(401, r#"{"error":{"message":"invalid credential"}}"#);
+
+    let output = run(
+        &fixture,
+        &["exa", "similar", "https://example.test/source"],
+        &["only-key"],
+    );
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (output.status.code(), &payload["error_kind"]),
+        (Some(4), &Value::String("auth".into())),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    fixture.finish();
+}
+
+#[test]
+fn exa_similar_rotates_credentials_after_a_rate_limit() {
+    let fixture = Fixture::start_sequence(vec![
+        Response::new(429, r#"{"error":{"message":"rate limited"}}"#),
+        Response::new(200, r#"{"results":[]}"#),
+    ]);
+
+    let output = run(
+        &fixture,
+        &["exa", "similar", "https://example.test/source", "--verbose"],
+        &["first-key", "second-key"],
+    );
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let requests = fixture.finish_all();
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["provider_attempts"][0]["error_kind"],
+            &payload["provider_attempts"][0]["seam"],
+            requests[0].contains("x-api-key: first-key"),
+            requests[1].contains("x-api-key: second-key"),
+        ),
+        (
+            Some(0),
+            &Value::String("rate_limited".into()),
+            &Value::String("similar".into()),
+            true,
+            true,
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn exa_similar_obeys_the_command_deadline() {
+    let fixture = Fixture::start_sequence(vec![
+        Response::new(200, r#"{"results":[]}"#).with_delay(Duration::from_millis(1500)),
+    ]);
+
+    let output = run(
+        &fixture,
+        &[
+            "exa",
+            "similar",
+            "https://example.test/source",
+            "--timeout",
+            "1",
+        ],
+        &["only-key"],
+    );
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (output.status.code(), &payload["error_kind"]),
+        (Some(4), &Value::String("timeout".into())),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    fixture.finish_all();
 }
 
 #[test]
@@ -280,7 +463,7 @@ fn exa_search_retries_a_transient_failure_without_rotating() {
 }
 
 #[test]
-fn exa_search_persists_the_normalized_credential_cursor_between_processes() {
+fn exa_search_and_similar_share_the_persistent_credential_cursor_between_processes() {
     let first_fixture = Fixture::start(200, r#"{"results":[]}"#);
     let environment = RunEnvironment::new(
         &first_fixture.url,
@@ -291,7 +474,7 @@ fn exa_search_persists_the_normalized_credential_cursor_between_processes() {
     let first_request = first_fixture.finish();
     let second_fixture = Fixture::start(200, r#"{"results":[]}"#);
     environment.set_url(&second_fixture.url);
-    let second_output = environment.run(&["exa", "search", "second invocation"]);
+    let second_output = environment.run(&["exa", "similar", "https://example.test/source"]);
     let second_request = second_fixture.finish();
     let state_path = environment
         .state_dir
@@ -306,12 +489,14 @@ fn exa_search_persists_the_normalized_credential_cursor_between_processes() {
             second_output.status.code(),
             first_request.contains("x-api-key: first-key"),
             second_request.contains("x-api-key: second-key"),
+            second_request.starts_with("POST /findSimilar "),
             &state["schema_version"],
             &state["providers"]["exa"]["next_index"],
         ),
         (
             Some(0),
             Some(0),
+            true,
             true,
             true,
             &Value::from(1),
