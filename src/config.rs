@@ -356,10 +356,17 @@ impl MainSearchProviderConfig {
         }
     }
 
-    fn url(&self) -> &str {
+    pub(crate) fn url(&self) -> &str {
         match self {
             Self::Xai(config) => &config.url,
             Self::OpenAiCompatible(config) => &config.url,
+        }
+    }
+
+    pub(crate) fn keys(&self) -> &[String] {
+        match self {
+            Self::Xai(config) => &config.keys,
+            Self::OpenAiCompatible(config) => &config.keys,
         }
     }
 }

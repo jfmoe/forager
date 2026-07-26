@@ -134,6 +134,14 @@ enum Command {
         #[arg(long, value_enum)]
         lang: Option<Language>,
     },
+    Doctor {
+        #[arg(long, value_parser = parse_provider)]
+        provider: Option<providers::ProviderId>,
+        #[arg(long, default_value_t = 30, value_parser = clap::value_parser!(u64).range(1..))]
+        timeout: u64,
+        #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
+        format: OutputFormat,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -1237,7 +1245,130 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             non_interactive: false,
             lang,
         } => run_interactive_setup(lang),
+        Command::Doctor {
+            provider: None,
+            timeout,
+            format,
+        } => {
+            let report = crate::doctor::shallow(timeout)?;
+            let stdout = match format {
+                OutputFormat::Json => serde_json::to_string(&report)
+                    .map_err(|error| AppError::Runtime(error.to_string()))?,
+                OutputFormat::Markdown => render_doctor_markdown(&report)?,
+            };
+            Ok(CommandOutput::Text {
+                stdout,
+                stderr: None,
+                exit_code: 0,
+            })
+        }
+        Command::Doctor {
+            provider: Some(provider),
+            timeout,
+            format,
+        } => {
+            let (report, exit_code) = crate::doctor::deep(provider, timeout)?;
+            let stdout = match format {
+                OutputFormat::Json => serde_json::to_string(&report)
+                    .map_err(|error| AppError::Runtime(error.to_string()))?,
+                OutputFormat::Markdown => render_deep_doctor_markdown(&report)?,
+            };
+            Ok(CommandOutput::Text {
+                stdout,
+                stderr: None,
+                exit_code,
+            })
+        }
     }
+}
+
+fn parse_provider(value: &str) -> Result<providers::ProviderId, String> {
+    providers::ProviderId::parse(value).ok_or_else(|| {
+        format!(
+            "invalid provider `{value}`; expected one of: {}",
+            providers::registrations()
+                .iter()
+                .map(|registration| registration.name)
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    })
+}
+
+fn render_doctor_markdown(report: &crate::doctor::ShallowDoctorReport) -> Result<String, AppError> {
+    let value =
+        serde_json::to_value(report).map_err(|error| AppError::Runtime(error.to_string()))?;
+    let mut output = String::from("# forager doctor\n\n");
+    for provider in value["providers"]
+        .as_array()
+        .expect("doctor providers serialize as an array")
+    {
+        output.push_str(&format!(
+            "- {}: configured={}, key_count={}, source={}, reachable={}\n",
+            provider["provider"].as_str().unwrap_or_default(),
+            provider["configured"].as_bool().unwrap_or(false),
+            provider["key_count"].as_u64().unwrap_or(0),
+            provider["source"].as_str().unwrap_or_default(),
+            provider["reachable"].as_bool().unwrap_or(false),
+        ));
+    }
+    if let Some(warnings) = value["permission_warnings"].as_array()
+        && !warnings.is_empty()
+    {
+        output.push_str("\n## Permission warnings\n\n");
+        for warning in warnings {
+            output.push_str(&format!("- {}\n", warning.as_str().unwrap_or_default()));
+        }
+    }
+    output.push_str("\n## Effective configuration\n\n```json\n");
+    output.push_str(
+        &serde_json::to_string_pretty(&value["config"])
+            .map_err(|error| AppError::Runtime(error.to_string()))?,
+    );
+    output.push_str("\n```\n");
+    Ok(output)
+}
+
+fn render_deep_doctor_markdown(
+    report: &crate::doctor::DeepDoctorReport,
+) -> Result<String, AppError> {
+    let value =
+        serde_json::to_value(report).map_err(|error| AppError::Runtime(error.to_string()))?;
+    let mut output = format!(
+        "# forager doctor: {}\n\nStatus: {}\n\n- configured: {}\n- key_count: {}\n- source: {}\n- deadline_seconds: {}\n",
+        value["provider"].as_str().unwrap_or_default(),
+        if value["ok"].as_bool().unwrap_or(false) {
+            "ok"
+        } else {
+            "failed"
+        },
+        value["configured"].as_bool().unwrap_or(false),
+        value["key_count"].as_u64().unwrap_or(0),
+        value["source"].as_str().unwrap_or_default(),
+        value["deadline_seconds"].as_u64().unwrap_or(0),
+    );
+    for check in value["checks"]
+        .as_array()
+        .expect("doctor checks serialize as an array")
+    {
+        output.push_str(&format!(
+            "- {} ({}): {}\n",
+            check["name"].as_str().unwrap_or_default(),
+            check["transport"].as_str().unwrap_or_default(),
+            if check["ok"].as_bool().unwrap_or(false) {
+                "ok"
+            } else {
+                "failed"
+            },
+        ));
+    }
+    if let Some(message) = value["message"].as_str() {
+        output.push_str(&format!(
+            "\n{}: {message}\n",
+            value["error_kind"].as_str().unwrap_or("runtime")
+        ));
+    }
+    Ok(output)
 }
 
 fn minimal_research_fallback_plan(query: &str) -> ResearchPlan {

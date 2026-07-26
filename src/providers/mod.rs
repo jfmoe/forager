@@ -295,6 +295,16 @@ pub(crate) enum ProviderId {
     Anysearch,
 }
 
+impl ProviderId {
+    pub(crate) fn parse(value: &str) -> Option<Self> {
+        registration_by_name(value).map(|registration| registration.id)
+    }
+
+    pub(crate) fn name(self) -> &'static str {
+        registration(self).name
+    }
+}
+
 #[derive(Clone, Copy)]
 pub(crate) struct ProviderRegistration {
     pub(crate) id: ProviderId,
@@ -302,7 +312,20 @@ pub(crate) struct ProviderRegistration {
     pub(crate) capabilities: &'static [&'static str],
     pub(crate) operations: &'static [&'static str],
     pub(crate) credentials_required: bool,
+    pub(crate) doctor_probe: DoctorProbe,
     constructor: ProviderConstructor,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum DoctorProbe {
+    XaiResponses,
+    OpenAiCompatibleShapes,
+    ExaSearch,
+    TavilySearch,
+    FirecrawlSearch,
+    JinaFetch,
+    Context7Library,
+    AnysearchDomains,
 }
 
 #[derive(Clone, Copy)]
@@ -324,6 +347,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         capabilities: &["main_search"],
         operations: &[],
         credentials_required: true,
+        doctor_probe: DoctorProbe::XaiResponses,
         constructor: ProviderConstructor::Xai,
     },
     ProviderRegistration {
@@ -332,6 +356,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         capabilities: &["main_search"],
         operations: &[],
         credentials_required: true,
+        doctor_probe: DoctorProbe::OpenAiCompatibleShapes,
         constructor: ProviderConstructor::OpenAiCompatible,
     },
     ProviderRegistration {
@@ -340,6 +365,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         capabilities: &["web_search", "web_fetch"],
         operations: &["site_map"],
         credentials_required: true,
+        doctor_probe: DoctorProbe::TavilySearch,
         constructor: ProviderConstructor::Tavily,
     },
     ProviderRegistration {
@@ -348,6 +374,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         capabilities: &["web_search", "web_fetch"],
         operations: &[],
         credentials_required: true,
+        doctor_probe: DoctorProbe::FirecrawlSearch,
         constructor: ProviderConstructor::Firecrawl,
     },
     ProviderRegistration {
@@ -356,6 +383,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         capabilities: &["web_fetch"],
         operations: &[],
         credentials_required: true,
+        doctor_probe: DoctorProbe::JinaFetch,
         constructor: ProviderConstructor::Jina,
     },
     ProviderRegistration {
@@ -364,6 +392,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         capabilities: &["docs_search"],
         operations: &[],
         credentials_required: true,
+        doctor_probe: DoctorProbe::Context7Library,
         constructor: ProviderConstructor::Context7,
     },
     ProviderRegistration {
@@ -372,6 +401,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         capabilities: &["docs_search"],
         operations: &[],
         credentials_required: true,
+        doctor_probe: DoctorProbe::ExaSearch,
         constructor: ProviderConstructor::Exa,
     },
     ProviderRegistration {
@@ -380,9 +410,14 @@ const REGISTRY: &[ProviderRegistration] = &[
         capabilities: &["vertical_search"],
         operations: &[],
         credentials_required: true,
+        doctor_probe: DoctorProbe::AnysearchDomains,
         constructor: ProviderConstructor::Anysearch,
     },
 ];
+
+pub(crate) fn registrations() -> &'static [ProviderRegistration] {
+    REGISTRY
+}
 
 pub(crate) fn build_xai(
     mut config: XaiRuntimeConfig,
