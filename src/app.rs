@@ -1,11 +1,20 @@
 //! CLI parsing and application dispatch.
 
 use std::io::{self, BufRead, IsTerminal, Read, Write};
+use std::path::PathBuf;
+use std::time::Duration;
 
 use clap::{Parser, Subcommand, ValueEnum};
+use reqwest::Client;
 use thiserror::Error;
 
-use crate::config::{self, ConfigError, ConfigLocation, EditError};
+use crate::config::{self, ConfigError, ConfigLocation, EditError, RuntimeConfig};
+use crate::net::{self, RetryPolicy};
+use crate::providers::{self, ExaSearchRequest, SearchType};
+use crate::types::Deadline;
+
+pub use crate::providers::ProviderError;
+pub use crate::types::SearchOutcome;
 
 /// Parsed `forager` command-line arguments.
 #[derive(Debug, Parser)]
@@ -17,6 +26,10 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    Exa {
+        #[command(subcommand)]
+        command: ExaCommand,
+    },
     Config {
         #[command(subcommand)]
         command: ConfigCommand,
@@ -26,6 +39,37 @@ enum Command {
         non_interactive: bool,
         #[arg(long, value_enum)]
         lang: Option<Language>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+enum ExaCommand {
+    Search {
+        query: String,
+        #[arg(long, default_value_t = 5, value_parser = clap::value_parser!(u16).range(1..=100))]
+        num_results: u16,
+        #[arg(long, value_enum, default_value_t = ExaSearchType::Auto)]
+        search_type: ExaSearchType,
+        #[arg(long)]
+        include_text: bool,
+        #[arg(long)]
+        include_highlights: bool,
+        #[arg(long)]
+        start_published_date: Option<String>,
+        #[arg(long, value_delimiter = ',')]
+        include_domains: Vec<String>,
+        #[arg(long, value_delimiter = ',')]
+        exclude_domains: Vec<String>,
+        #[arg(long)]
+        category: Option<String>,
+        #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
+        timeout: Option<u64>,
+        #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
+        format: OutputFormat,
+        #[arg(long)]
+        output: Option<PathBuf>,
+        #[arg(long)]
+        verbose: bool,
     },
 }
 
@@ -52,13 +96,98 @@ enum Language {
     En,
 }
 
-/// Text emitted by a successful command.
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum ExaSearchType {
+    Neural,
+    Keyword,
+    Auto,
+}
+
+impl From<ExaSearchType> for SearchType {
+    fn from(value: ExaSearchType) -> Self {
+        match value {
+            ExaSearchType::Neural => Self::Neural,
+            ExaSearchType::Keyword => Self::Keyword,
+            ExaSearchType::Auto => Self::Auto,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
+pub enum OutputFormat {
+    Json,
+    Markdown,
+}
+
+/// A command result ready for binary-side rendering.
 #[derive(Debug)]
-pub struct CommandOutput {
-    /// Standard output without an automatically appended newline.
-    pub stdout: String,
-    /// Optional diagnostic emitted on standard error.
-    pub stderr: Option<String>,
+pub enum CommandOutput {
+    /// Text already produced by a non-network command.
+    Text {
+        /// Standard output without an automatically appended newline.
+        stdout: String,
+        /// Optional diagnostic emitted on standard error.
+        stderr: Option<String>,
+        /// Process exit status.
+        exit_code: u8,
+    },
+    /// Typed Exa terminal state for binary-side formatting and tee output.
+    Exa {
+        /// Provider result.
+        result: Result<SearchOutcome, ProviderError>,
+        /// Requested output format.
+        format: OutputFormat,
+        /// Optional tee destination.
+        output: Option<PathBuf>,
+    },
+}
+
+struct AppContext {
+    config: RuntimeConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+    runtime: tokio::runtime::Runtime,
+}
+
+impl AppContext {
+    fn for_network_command(timeout: Option<u64>) -> Result<Self, AppError> {
+        let config = config::runtime_config()?;
+        if config.exa.keys.is_empty() {
+            return Err(AppError::Config(ConfigError::Message(
+                "providers.exa.keys has no configured credentials".into(),
+            )));
+        }
+        let command_timeout = timeout.unwrap_or(config.exa.timeout_seconds);
+        let retry_policy = RetryPolicy::new(
+            config.retry.max_attempts,
+            config.retry.multiplier,
+            Duration::from_secs(config.retry.max_wait_seconds),
+        );
+        let client = net::build_client(config.ssl_verify)
+            .map_err(|error| AppError::Runtime(format!("cannot build HTTP client: {error}")))?;
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .map_err(|error| AppError::Runtime(format!("cannot start network runtime: {error}")))?;
+        Ok(Self {
+            config,
+            client,
+            retry_policy,
+            deadline: Deadline::new(Duration::from_secs(command_timeout)),
+            runtime,
+        })
+    }
+
+    fn exa_search(self, request: ExaSearchRequest) -> Result<SearchOutcome, ProviderError> {
+        let provider = providers::build_exa(
+            self.config.exa,
+            self.client,
+            self.retry_policy,
+            self.deadline,
+        );
+        self.runtime.block_on(provider.search(request))
+    }
 }
 
 /// Executes a parsed command.
@@ -69,39 +198,77 @@ pub struct CommandOutput {
 /// persistence are invalid.
 pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
     match cli.command {
+        Command::Exa {
+            command:
+                ExaCommand::Search {
+                    query,
+                    num_results,
+                    search_type,
+                    include_text,
+                    include_highlights,
+                    start_published_date,
+                    include_domains,
+                    exclude_domains,
+                    category,
+                    timeout,
+                    format,
+                    output,
+                    verbose,
+                },
+        } => run_exa_search(
+            ExaSearchRequest {
+                query,
+                num_results,
+                search_type: search_type.into(),
+                include_text,
+                include_highlights,
+                start_published_date,
+                include_domains,
+                exclude_domains,
+                category,
+                verbose,
+            },
+            timeout,
+            format,
+            output,
+        ),
         Command::Config {
             command: ConfigCommand::Path,
-        } => Ok(CommandOutput {
+        } => Ok(CommandOutput::Text {
             stdout: ConfigLocation::discover()?
                 .config_file()
                 .display()
                 .to_string(),
             stderr: None,
+            exit_code: 0,
         }),
         Command::Config {
             command: ConfigCommand::List,
-        } => Ok(CommandOutput {
+        } => Ok(CommandOutput::Text {
             stdout: config::effective_view_json()?,
             stderr: None,
+            exit_code: 0,
         }),
         Command::Config {
             command: ConfigCommand::Set { key, value },
         } => {
             let value = if value == "-" { read_stdin()? } else { value };
             config::set_file_value(&key, &value)?;
-            Ok(CommandOutput {
+            Ok(CommandOutput::Text {
                 stdout: String::new(),
                 stderr: None,
+                exit_code: 0,
             })
         }
         Command::Config {
             command: ConfigCommand::Unset { key },
         } => {
             let overridden = config::unset_file_value(&key)?;
-            Ok(CommandOutput {
+            Ok(CommandOutput::Text {
                 stdout: String::new(),
                 stderr: overridden
                     .then(|| format!("environment override for `{key}` is still effective")),
+                exit_code: 0,
             })
         }
         Command::Setup {
@@ -109,12 +276,13 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             ..
         } => {
             let path = config::create_setup_template()?;
-            Ok(CommandOutput {
+            Ok(CommandOutput::Text {
                 stdout: format!(
                     "Created {}. Run `forager doctor` to check the configuration.",
                     path.display()
                 ),
                 stderr: None,
+                exit_code: 0,
             })
         }
         Command::Setup {
@@ -122,6 +290,20 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             lang,
         } => run_interactive_setup(lang),
     }
+}
+
+fn run_exa_search(
+    request: ExaSearchRequest,
+    timeout: Option<u64>,
+    format: OutputFormat,
+    output: Option<PathBuf>,
+) -> Result<CommandOutput, AppError> {
+    let result = AppContext::for_network_command(timeout)?.exa_search(request);
+    Ok(CommandOutput::Exa {
+        result,
+        format,
+        output,
+    })
 }
 
 fn run_interactive_setup(language: Option<Language>) -> Result<CommandOutput, AppError> {
@@ -167,9 +349,10 @@ fn run_interactive_setup(language: Option<Language>) -> Result<CommandOutput, Ap
         Language::Zh => "配置已保存。请运行 `forager doctor` 检查配置。".to_owned(),
         Language::En => "Configuration saved. Run `forager doctor` to check it.".to_owned(),
     };
-    Ok(CommandOutput {
+    Ok(CommandOutput::Text {
         stdout,
         stderr: None,
+        exit_code: 0,
     })
 }
 
@@ -422,6 +605,9 @@ pub enum AppError {
     /// Standard input could not be read.
     #[error("cannot read standard input: {0}")]
     Stdin(io::Error),
+    /// The application runtime could not execute or serialize a command.
+    #[error("{0}")]
+    Runtime(String),
 }
 
 impl AppError {
@@ -430,15 +616,16 @@ impl AppError {
         match self {
             Self::Edit(EditError::Argument(_)) => 2,
             Self::Config(_) | Self::Edit(EditError::Config(_)) | Self::Stdin(_) => 3,
+            Self::Runtime(_) => 4,
         }
     }
 
     /// Returns the stable human-readable error category.
     pub fn category(&self) -> &'static str {
-        if self.exit_code() == 2 {
-            "argument_error"
-        } else {
-            "config_error"
+        match self.exit_code() {
+            2 => "argument_error",
+            3 => "config_error",
+            _ => "runtime_error",
         }
     }
 }

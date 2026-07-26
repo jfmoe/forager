@@ -289,6 +289,33 @@ impl Default for Http {
 #[serde(transparent)]
 pub struct EffectiveConfigView(JsonValue);
 
+#[derive(Clone, Debug)]
+pub(crate) struct ExaRuntimeConfig {
+    pub(crate) url: String,
+    pub(crate) keys: Vec<String>,
+    pub(crate) timeout_seconds: u64,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct RetryRuntimeConfig {
+    pub(crate) max_attempts: usize,
+    pub(crate) multiplier: f64,
+    pub(crate) max_wait_seconds: u64,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct RuntimeConfig {
+    pub(crate) exa: ExaRuntimeConfig,
+    pub(crate) retry: RetryRuntimeConfig,
+    pub(crate) ssl_verify: bool,
+}
+
+struct LoadedConfig {
+    config: Config,
+    file_value: toml::Value,
+    env_paths: HashSet<String>,
+}
+
 /// Loads and validates the complete effective configuration.
 ///
 /// # Errors
@@ -296,6 +323,33 @@ pub struct EffectiveConfigView(JsonValue);
 /// Returns a configuration error for malformed files, unknown keys, invalid
 /// values, or unknown `FORAGER_*` variables.
 pub fn effective_view() -> Result<EffectiveConfigView, ConfigError> {
+    let loaded = load_effective_config()?;
+    Ok(EffectiveConfigView(build_view(
+        &loaded.config,
+        &loaded.file_value,
+        &loaded.env_paths,
+    )))
+}
+
+pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
+    let loaded = load_effective_config()?;
+    let config = loaded.config;
+    Ok(RuntimeConfig {
+        exa: ExaRuntimeConfig {
+            url: config.providers.exa.url,
+            keys: config.providers.exa.keys,
+            timeout_seconds: config.providers.exa.timeout as u64,
+        },
+        retry: RetryRuntimeConfig {
+            max_attempts: config.retry.max_attempts as usize,
+            multiplier: config.retry.multiplier,
+            max_wait_seconds: config.retry.max_wait as u64,
+        },
+        ssl_verify: config.http.ssl_verify,
+    })
+}
+
+fn load_effective_config() -> Result<LoadedConfig, ConfigError> {
     let location = ConfigLocation::discover()?;
     let path = location.config_file();
     let content = match fs::read_to_string(&path) {
@@ -349,11 +403,11 @@ pub fn effective_view() -> Result<EffectiveConfigView, ConfigError> {
     normalize_credentials(&mut config);
     validate(&config, &path, &content)?;
 
-    Ok(EffectiveConfigView(build_view(
-        &config,
-        &file_value,
-        &env_paths,
-    )))
+    Ok(LoadedConfig {
+        config,
+        file_value,
+        env_paths,
+    })
 }
 
 fn restore_provider_url_defaults(config: &mut Config, file: &toml::Value) {
@@ -1005,6 +1059,9 @@ fn normalize_credentials(config: &mut Config) {
 }
 
 fn normalize_strings(values: &mut Vec<String>) {
+    for value in values.iter_mut() {
+        *value = value.trim().to_owned();
+    }
     let mut seen = HashSet::new();
     values.retain(|value| !value.is_empty() && seen.insert(value.clone()));
 }
@@ -1291,7 +1348,7 @@ fn endpoint_view(
     })
 }
 
-fn redact_url(value: &str) -> String {
+pub(crate) fn redact_url(value: &str) -> String {
     let without_fragment = value.split_once('#').map_or(value, |(url, _)| url);
     let mut redacted = without_fragment.to_owned();
 

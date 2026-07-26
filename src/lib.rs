@@ -12,4 +12,4 @@ mod journal;
 mod net;
 mod providers;
 mod research;
-mod types;
+pub mod types;
