@@ -1,6 +1,6 @@
 #![forbid(unsafe_code)]
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -9,7 +9,9 @@ use clap::Parser;
 use forager::app::{
     self, Cli, CommandOutput, DocsOutputFormat, ExaOutcome, OutputFormat, ProviderError,
 };
-use forager::types::{AnysearchOutcome, AttemptErrorKind, Context7Outcome, ErrorFamily, ErrorKind};
+use forager::types::{
+    AnysearchOutcome, AttemptErrorKind, Context7Outcome, ErrorFamily, ErrorKind, FetchOutcome,
+};
 use serde_json::{Value, json};
 
 fn main() -> ExitCode {
@@ -52,11 +54,61 @@ fn main() -> ExitCode {
                 ExitCode::from(4)
             }
         },
+        Ok(CommandOutput::Fetch {
+            result,
+            format,
+            output,
+        }) => match render_fetch(result, format, output) {
+            Ok(rendered) => emit(rendered.stdout, rendered.stderr, rendered.exit_code),
+            Err(error) => {
+                eprintln!("runtime_error: {error}");
+                ExitCode::from(4)
+            }
+        },
         Err(error) => {
             eprintln!("{}: {error}", error.category());
             ExitCode::from(error.exit_code())
         }
     }
+}
+
+fn render_fetch(
+    result: Result<FetchOutcome, ProviderError>,
+    format: DocsOutputFormat,
+    output: Option<PathBuf>,
+) -> Result<RenderedOutput, String> {
+    let (stdout, exit_code, diagnostic) = match result {
+        Ok(outcome) => {
+            let stdout = match format {
+                DocsOutputFormat::Json => {
+                    serde_json::to_string(&outcome).map_err(|error| error.to_string())?
+                }
+                DocsOutputFormat::Markdown => {
+                    format!("# Fetched with {}\n\n{}", outcome.provider, outcome.content)
+                }
+                DocsOutputFormat::Content => outcome.content.clone(),
+            };
+            (stdout, 0, outcome.diagnostic)
+        }
+        Err(error) => {
+            let stdout = match format {
+                DocsOutputFormat::Json => format_failure_json(&error)?,
+                DocsOutputFormat::Markdown | DocsOutputFormat::Content => format!(
+                    "# Fetch failed\n\n**{}**: {}",
+                    error.kind.as_str(),
+                    error.message
+                ),
+            };
+            (stdout, postflight_exit_code(error.kind), error.diagnostic)
+        }
+    };
+    apply_tee(
+        stdout,
+        exit_code,
+        format == DocsOutputFormat::Json,
+        output,
+        diagnostic,
+    )
 }
 
 fn render_anysearch(
@@ -304,11 +356,13 @@ fn format_failure_json(error: &ProviderError) -> Result<String, String> {
             *by_kind.entry(kind.as_str()).or_insert(0) += 1;
         }
     }
-    let providers = error
+    let provider_set = error
         .attempts
-        .first()
-        .map(|attempt| vec![attempt.provider])
-        .unwrap_or_default();
+        .iter()
+        .map(|attempt| attempt.provider)
+        .collect::<BTreeSet<_>>();
+    let providers = provider_set.iter().take(8).copied().collect::<Vec<_>>();
+    let attempts_truncated = provider_set.len() > providers.len();
     let mut payload = json!({
         "error_kind": error.kind.as_str(),
         "message": error.message.chars().take(500).collect::<String>(),
@@ -316,7 +370,7 @@ fn format_failure_json(error: &ProviderError) -> Result<String, String> {
             "total": error.attempts.len(),
             "by_kind": by_kind,
             "providers": providers,
-            "truncated": false
+            "truncated": attempts_truncated
         },
         "journal_ref": Value::Null,
         "journal_status": "not_applicable"

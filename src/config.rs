@@ -1,6 +1,6 @@
 //! Configuration schema, layered loading, effective views, and private writes.
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::env;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
@@ -310,6 +310,36 @@ pub(crate) struct AnysearchRuntimeConfig {
     pub(crate) timeout_seconds: u64,
 }
 
+#[derive(Clone, Debug)]
+pub(crate) struct WebFetchProviderConfig {
+    pub(crate) url: String,
+    pub(crate) keys: Vec<String>,
+    pub(crate) timeout_seconds: u64,
+    pub(crate) respond_with: String,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct WebFetchRuntimeConfig {
+    pub(crate) order: Vec<String>,
+    providers: BTreeMap<String, WebFetchProviderConfig>,
+}
+
+impl WebFetchRuntimeConfig {
+    pub(crate) fn configured_provider_count(&self) -> usize {
+        self.order
+            .iter()
+            .filter(|provider| {
+                self.provider(provider)
+                    .is_some_and(|config| !config.keys.is_empty())
+            })
+            .count()
+    }
+
+    pub(crate) fn provider(&self, provider: &str) -> Option<&WebFetchProviderConfig> {
+        self.providers.get(provider)
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct RetryRuntimeConfig {
     pub(crate) max_attempts: usize,
@@ -322,6 +352,7 @@ pub(crate) struct RuntimeConfig {
     pub(crate) exa: ExaRuntimeConfig,
     pub(crate) context7: Context7RuntimeConfig,
     pub(crate) anysearch: AnysearchRuntimeConfig,
+    pub(crate) web_fetch: WebFetchRuntimeConfig,
     pub(crate) retry: RetryRuntimeConfig,
     pub(crate) ssl_verify: bool,
 }
@@ -365,6 +396,38 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
             url: config.providers.anysearch.url,
             keys: config.providers.anysearch.keys,
             timeout_seconds: config.providers.anysearch.timeout as u64,
+        },
+        web_fetch: WebFetchRuntimeConfig {
+            order: config.capabilities.web_fetch.order,
+            providers: BTreeMap::from([
+                (
+                    "jina".into(),
+                    WebFetchProviderConfig {
+                        url: config.providers.jina.url,
+                        keys: config.providers.jina.keys,
+                        timeout_seconds: config.providers.jina.timeout as u64,
+                        respond_with: config.providers.jina.respond_with,
+                    },
+                ),
+                (
+                    "tavily".into(),
+                    WebFetchProviderConfig {
+                        url: config.providers.tavily.url,
+                        keys: config.providers.tavily.keys,
+                        timeout_seconds: config.providers.tavily.timeout as u64,
+                        respond_with: String::new(),
+                    },
+                ),
+                (
+                    "firecrawl".into(),
+                    WebFetchProviderConfig {
+                        url: config.providers.firecrawl.url,
+                        keys: config.providers.firecrawl.keys,
+                        timeout_seconds: config.providers.firecrawl.timeout as u64,
+                        respond_with: String::new(),
+                    },
+                ),
+            ]),
         },
         retry: RetryRuntimeConfig {
             max_attempts: config.retry.max_attempts as usize,
@@ -1407,6 +1470,30 @@ pub(crate) fn redact_url(value: &str) -> String {
     redacted.truncate(query_start + 1);
     redacted.push_str(&query);
     redacted
+}
+
+pub(crate) fn redact_urls(value: &str) -> String {
+    let mut output = String::with_capacity(value.len());
+    let mut remaining = value;
+    while let Some(start) = match (remaining.find("https://"), remaining.find("http://")) {
+        (Some(https), Some(http)) => Some(https.min(http)),
+        (Some(https), None) => Some(https),
+        (None, Some(http)) => Some(http),
+        (None, None) => None,
+    } {
+        output.push_str(&remaining[..start]);
+        remaining = &remaining[start..];
+        let end = remaining
+            .find(|character: char| {
+                character.is_whitespace()
+                    || matches!(character, '<' | '>' | '"' | '\'' | ')' | ']' | '}')
+            })
+            .unwrap_or(remaining.len());
+        output.push_str(&redact_url(&remaining[..end]));
+        remaining = &remaining[end..];
+    }
+    output.push_str(remaining);
+    output
 }
 
 fn is_sensitive_query_name(name: &str) -> bool {

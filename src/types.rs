@@ -2,6 +2,11 @@ use std::time::{Duration, Instant};
 
 use serde::Serialize;
 
+pub(crate) const MIN_FETCH_CONTENT_CHARS: usize = 200;
+pub(crate) const DENSITY_MAX_UNIQUE_LINES: usize = 3;
+pub(crate) const DENSITY_MAX_CHARS: usize = 500;
+pub(crate) const MIN_USEFUL_SLICE_SECONDS: u64 = 5;
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ErrorKind {
@@ -284,6 +289,17 @@ pub struct ExaOutcome {
     #[serde(flatten)]
     pub input: ExaInput,
     pub results: Vec<Source>,
+    #[serde(rename = "provider_attempts", skip_serializing_if = "Vec::is_empty")]
+    pub attempts: Vec<ProviderAttempt>,
+    #[serde(skip)]
+    pub diagnostic: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct FetchOutcome {
+    pub provider: &'static str,
+    pub url: String,
+    pub content: String,
     #[serde(rename = "provider_attempts", skip_serializing_if = "Vec::is_empty")]
     pub attempts: Vec<ProviderAttempt>,
     #[serde(skip)]

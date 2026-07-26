@@ -1,11 +1,14 @@
 mod anysearch;
 mod context7;
 mod exa;
+mod web_fetch;
 
 use reqwest::Client;
 use thiserror::Error;
 
-use crate::config::{AnysearchRuntimeConfig, Context7RuntimeConfig, ExaRuntimeConfig};
+use crate::config::{
+    AnysearchRuntimeConfig, Context7RuntimeConfig, ExaRuntimeConfig, WebFetchProviderConfig,
+};
 use crate::credentials::CredentialPool;
 use crate::net::RetryPolicy;
 use crate::types::{AttemptErrorKind, Deadline, ProviderAttempt};
@@ -13,6 +16,7 @@ use crate::types::{AttemptErrorKind, Deadline, ProviderAttempt};
 pub(crate) use anysearch::{Anysearch, AnysearchDomainsRequest, AnysearchSearchRequest};
 pub(crate) use context7::{Context7, Context7DocsRequest, Context7LibraryRequest};
 pub(crate) use exa::{Exa, ExaSearchRequest, ExaSimilarRequest, SearchType};
+pub(crate) use web_fetch::{FetchRequest, WebFetch};
 
 #[derive(Debug, Error)]
 #[error("{message}")]
@@ -49,7 +53,9 @@ enum ProviderConstructor {
     Anysearch,
     Context7,
     Exa,
-    Pending,
+    Jina,
+    Tavily,
+    Firecrawl,
 }
 
 const REGISTRY: &[ProviderRegistration] = &[
@@ -58,21 +64,21 @@ const REGISTRY: &[ProviderRegistration] = &[
         name: "tavily",
         capabilities: &["web_search", "web_fetch"],
         credentials_required: true,
-        constructor: ProviderConstructor::Pending,
+        constructor: ProviderConstructor::Tavily,
     },
     ProviderRegistration {
         id: ProviderId::Firecrawl,
         name: "firecrawl",
         capabilities: &["web_search", "web_fetch"],
         credentials_required: true,
-        constructor: ProviderConstructor::Pending,
+        constructor: ProviderConstructor::Firecrawl,
     },
     ProviderRegistration {
         id: ProviderId::Jina,
         name: "jina",
         capabilities: &["web_fetch"],
         credentials_required: true,
-        constructor: ProviderConstructor::Pending,
+        constructor: ProviderConstructor::Jina,
     },
     ProviderRegistration {
         id: ProviderId::Context7,
@@ -101,6 +107,38 @@ pub(crate) fn supports(capability: &str, provider: &str) -> bool {
     REGISTRY.iter().any(|registration| {
         registration.name == provider && registration.capabilities.contains(&capability)
     })
+}
+
+pub(crate) fn registration_by_name(name: &str) -> Option<&'static ProviderRegistration> {
+    REGISTRY
+        .iter()
+        .find(|registration| registration.name == name)
+}
+
+pub(crate) fn build_web_fetch(
+    provider: &str,
+    mut config: WebFetchProviderConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> Box<dyn WebFetch> {
+    let registration = registration_by_name(provider)
+        .expect("validated web_fetch order contains registered providers");
+    debug_assert!(registration.credentials_required);
+    debug_assert!(registration.capabilities.contains(&"web_fetch"));
+    let credentials = CredentialPool::new(registration.name, std::mem::take(&mut config.keys));
+    match registration.constructor {
+        ProviderConstructor::Jina => {
+            web_fetch::jina(config, client, credentials, retry_policy, deadline)
+        }
+        ProviderConstructor::Tavily => {
+            web_fetch::tavily(config, client, credentials, retry_policy, deadline)
+        }
+        ProviderConstructor::Firecrawl => {
+            web_fetch::firecrawl(config, client, credentials, retry_policy, deadline)
+        }
+        _ => unreachable!("web_fetch capability only has web fetch constructors"),
+    }
 }
 
 pub(crate) fn registration(id: ProviderId) -> &'static ProviderRegistration {
@@ -202,5 +240,30 @@ mod tests {
             ),
             ("anysearch", &["vertical_search"][..], true, true)
         );
+    }
+
+    #[test]
+    fn every_web_fetch_provider_has_one_complete_registry_description() {
+        for (id, name, constructor) in [
+            (ProviderId::Jina, "jina", ProviderConstructor::Jina),
+            (ProviderId::Tavily, "tavily", ProviderConstructor::Tavily),
+            (
+                ProviderId::Firecrawl,
+                "firecrawl",
+                ProviderConstructor::Firecrawl,
+            ),
+        ] {
+            let registration = registration(id);
+            assert_eq!(
+                (
+                    registration.name,
+                    registration.capabilities.contains(&"web_fetch"),
+                    registration.credentials_required,
+                    std::mem::discriminant(&registration.constructor)
+                        == std::mem::discriminant(&constructor),
+                ),
+                (name, true, true, true)
+            );
+        }
     }
 }

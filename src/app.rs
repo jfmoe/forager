@@ -12,9 +12,9 @@ use crate::config::{self, ConfigError, ConfigLocation, EditError};
 use crate::net::{self, RetryPolicy};
 use crate::providers::{
     self, AnysearchDomainsRequest, AnysearchSearchRequest, Context7DocsRequest,
-    Context7LibraryRequest, ExaSearchRequest, ExaSimilarRequest, SearchType,
+    Context7LibraryRequest, ExaSearchRequest, ExaSimilarRequest, FetchRequest, SearchType,
 };
-use crate::types::{AnysearchOutcome, Context7Outcome, Deadline};
+use crate::types::{AnysearchOutcome, Context7Outcome, Deadline, FetchOutcome};
 
 pub use crate::providers::ProviderError;
 pub use crate::types::ExaOutcome;
@@ -29,6 +29,18 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    #[command(visible_alias = "f")]
+    Fetch {
+        url: String,
+        #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
+        timeout: Option<u64>,
+        #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
+        format: DocsOutputFormat,
+        #[arg(long)]
+        output: Option<PathBuf>,
+        #[arg(long)]
+        verbose: bool,
+    },
     #[command(visible_alias = "as")]
     Anysearch {
         #[command(subcommand)]
@@ -254,6 +266,15 @@ pub enum CommandOutput {
         /// Optional tee destination.
         output: Option<PathBuf>,
     },
+    /// Typed Web Fetch terminal state for binary-side formatting and tee output.
+    Fetch {
+        /// Fetch result.
+        result: Result<FetchOutcome, ProviderError>,
+        /// Requested output format.
+        format: DocsOutputFormat,
+        /// Optional tee destination.
+        output: Option<PathBuf>,
+    },
 }
 
 struct AppContext<P> {
@@ -265,6 +286,14 @@ struct NetworkDependencies {
     config: config::RuntimeConfig,
     client: reqwest::Client,
     retry_policy: RetryPolicy,
+    runtime: tokio::runtime::Runtime,
+}
+
+struct FetchContext {
+    config: config::WebFetchRuntimeConfig,
+    client: reqwest::Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
     runtime: tokio::runtime::Runtime,
 }
 
@@ -288,6 +317,35 @@ impl NetworkDependencies {
             retry_policy,
             runtime,
         })
+    }
+}
+
+impl FetchContext {
+    fn load(timeout: Option<u64>) -> Result<Self, AppError> {
+        let dependencies = NetworkDependencies::load()?;
+        let config = dependencies.config.web_fetch;
+        if config.configured_provider_count() == 0 {
+            return Err(AppError::Config(ConfigError::Message(
+                "capabilities.web_fetch.order has no configured provider".into(),
+            )));
+        }
+        Ok(Self {
+            config,
+            client: dependencies.client,
+            retry_policy: dependencies.retry_policy,
+            deadline: Deadline::new(Duration::from_secs(timeout.unwrap_or(180))),
+            runtime: dependencies.runtime,
+        })
+    }
+
+    fn fetch(self, request: FetchRequest) -> Result<FetchOutcome, ProviderError> {
+        self.runtime.block_on(crate::engine::fetch(
+            request,
+            self.config,
+            self.client,
+            self.retry_policy,
+            self.deadline,
+        ))
     }
 }
 
@@ -392,6 +450,17 @@ impl AppContext<providers::Anysearch> {
 /// persistence are invalid.
 pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
     match cli.command {
+        Command::Fetch {
+            url,
+            timeout,
+            format,
+            output,
+            verbose,
+        } => Ok(CommandOutput::Fetch {
+            result: FetchContext::load(timeout)?.fetch(FetchRequest { url, verbose }),
+            format,
+            output,
+        }),
         Command::Anysearch {
             command:
                 AnysearchCommand::Domains {
