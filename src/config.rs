@@ -1,14 +1,1265 @@
-//! Configuration location and private filesystem primitives.
+//! Configuration schema, layered loading, effective views, and private writes.
 
+use std::collections::HashSet;
 use std::env;
 use std::fs::{self, File, OpenOptions};
-use std::io;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use serde::{Deserialize, Serialize};
+use serde_json::{Value as JsonValue, json};
 use thiserror::Error;
+use toml_edit::{Array, Document, DocumentMut, Item, Table, TableLike, Value};
 
+use crate::providers;
+
+static FILE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 static WRITE_PROBE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+const MASK: &str = "********";
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct Config {
+    search: Search,
+    classifier: Classifier,
+    providers: Providers,
+    capabilities: Capabilities,
+    log: Log,
+    journal: Journal,
+    retry: Retry,
+    http: Http,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct Search {
+    backends: Vec<String>,
+    validation: String,
+    fallback: String,
+}
+
+impl Default for Search {
+    fn default() -> Self {
+        Self {
+            backends: vec!["xai".into(), "openai_compatible".into()],
+            validation: "balanced".into(),
+            fallback: "auto".into(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct Classifier {
+    url: String,
+    keys: Vec<String>,
+    model: String,
+    fallback_models: Vec<String>,
+    timeout: i64,
+}
+
+impl Default for Classifier {
+    fn default() -> Self {
+        Self {
+            url: String::new(),
+            keys: Vec::new(),
+            model: String::new(),
+            fallback_models: Vec::new(),
+            timeout: 30,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct Providers {
+    xai: Xai,
+    openai_compatible: OpenAiCompatible,
+    exa: Endpoint,
+    context7: Endpoint,
+    jina: Jina,
+    tavily: Endpoint,
+    firecrawl: Endpoint,
+    anysearch: Endpoint,
+}
+
+impl Default for Providers {
+    fn default() -> Self {
+        Self {
+            xai: Xai::default(),
+            openai_compatible: OpenAiCompatible::default(),
+            exa: Endpoint::new("https://api.exa.ai"),
+            context7: Endpoint::new("https://mcp.context7.com/mcp"),
+            jina: Jina::default(),
+            tavily: Endpoint::new("https://api.tavily.com"),
+            firecrawl: Endpoint::new("https://api.firecrawl.dev/v2"),
+            anysearch: Endpoint::new("https://api.anysearch.com/mcp"),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct Xai {
+    url: String,
+    keys: Vec<String>,
+    model: String,
+    tools: Vec<String>,
+}
+
+impl Default for Xai {
+    fn default() -> Self {
+        Self {
+            url: "https://api.x.ai/v1".into(),
+            keys: Vec::new(),
+            model: "grok-4-fast".into(),
+            tools: vec!["web_search".into(), "x_search".into()],
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct OpenAiCompatible {
+    url: String,
+    keys: Vec<String>,
+    model: String,
+    fallback_models: Vec<String>,
+    stream: bool,
+}
+
+impl Default for OpenAiCompatible {
+    fn default() -> Self {
+        Self {
+            url: String::new(),
+            keys: Vec::new(),
+            model: "grok-4-fast".into(),
+            fallback_models: Vec::new(),
+            stream: false,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct Endpoint {
+    url: String,
+    keys: Vec<String>,
+    timeout: i64,
+}
+
+impl Default for Endpoint {
+    fn default() -> Self {
+        Self {
+            url: String::new(),
+            keys: Vec::new(),
+            timeout: 30,
+        }
+    }
+}
+
+impl Endpoint {
+    fn new(url: &str) -> Self {
+        Self {
+            url: url.into(),
+            ..Self::default()
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct Jina {
+    url: String,
+    keys: Vec<String>,
+    respond_with: String,
+    timeout: i64,
+}
+
+impl Default for Jina {
+    fn default() -> Self {
+        Self {
+            url: "https://r.jina.ai".into(),
+            keys: Vec::new(),
+            respond_with: String::new(),
+            timeout: 30,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct Capabilities {
+    web_search: Order,
+    web_fetch: Order,
+    docs_search: Order,
+    vertical_search: Order,
+}
+
+impl Default for Capabilities {
+    fn default() -> Self {
+        Self {
+            web_search: Order::new(&["tavily", "firecrawl"]),
+            web_fetch: Order::new(&["jina", "tavily", "firecrawl"]),
+            docs_search: Order::new(&["context7", "exa"]),
+            vertical_search: Order::new(&["anysearch"]),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct Order {
+    order: Vec<String>,
+}
+
+impl Order {
+    fn new(values: &[&str]) -> Self {
+        Self {
+            order: values.iter().map(ToString::to_string).collect(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct Log {
+    level: String,
+}
+
+impl Default for Log {
+    fn default() -> Self {
+        Self {
+            level: "info".into(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct Journal {
+    enabled: bool,
+    dir: String,
+    retention_days: i64,
+}
+
+impl Default for Journal {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            dir: "~/.local/state/forager/journal".into(),
+            retention_days: 30,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct Retry {
+    max_attempts: i64,
+    multiplier: f64,
+    max_wait: i64,
+}
+
+impl Default for Retry {
+    fn default() -> Self {
+        Self {
+            max_attempts: 3,
+            multiplier: 1.0,
+            max_wait: 10,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+struct Http {
+    ssl_verify: bool,
+}
+
+impl Default for Http {
+    fn default() -> Self {
+        Self { ssl_verify: true }
+    }
+}
+
+/// A serialized, credential-safe view of the effective configuration.
+#[derive(Debug, Serialize)]
+#[serde(transparent)]
+pub struct EffectiveConfigView(JsonValue);
+
+/// Loads and validates the complete effective configuration.
+///
+/// # Errors
+///
+/// Returns a configuration error for malformed files, unknown keys, invalid
+/// values, or unknown `FORAGER_*` variables.
+pub fn effective_view() -> Result<EffectiveConfigView, ConfigError> {
+    let location = ConfigLocation::discover()?;
+    let path = location.config_file();
+    let content = match fs::read_to_string(&path) {
+        Ok(content) => content,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => String::new(),
+        Err(error) => return Err(ConfigError::io(&path, error)),
+    };
+    let mut config = if content.is_empty() {
+        Config::default()
+    } else {
+        let deserializer =
+            toml::Deserializer::parse(&content).map_err(|error| ConfigError::Document {
+                path: path.clone(),
+                detail: diagnostic_without_source(&error.to_string()),
+            })?;
+        serde_path_to_error::deserialize(deserializer).map_err(|error| {
+            let key_path = error.path().to_string();
+            let detail = if key_path.ends_with(".keys") || key_path == "classifier.keys" {
+                let location = error
+                    .inner()
+                    .to_string()
+                    .lines()
+                    .find(|line| line.contains("TOML parse error"))
+                    .unwrap_or("invalid credential array")
+                    .to_owned();
+                format!("{location}\ninvalid credential array")
+            } else {
+                diagnostic_without_source(&error.inner().to_string())
+            };
+            ConfigError::Document {
+                path: path.clone(),
+                detail: if key_path.is_empty() {
+                    detail
+                } else {
+                    format!("key `{key_path}`: {detail}")
+                },
+            }
+        })?
+    };
+    let file_value = if content.is_empty() {
+        toml::Value::Table(toml::map::Map::new())
+    } else {
+        toml::from_str::<toml::Value>(&content).map_err(|error| ConfigError::Document {
+            path: path.clone(),
+            detail: diagnostic_without_source(&error.to_string()),
+        })?
+    };
+    restore_provider_url_defaults(&mut config, &file_value);
+    let mut env_paths = HashSet::new();
+    apply_environment(&mut config, &mut env_paths)?;
+    normalize_credentials(&mut config);
+    validate(&config, &path, &content)?;
+
+    Ok(EffectiveConfigView(build_view(
+        &config,
+        &file_value,
+        &env_paths,
+    )))
+}
+
+fn restore_provider_url_defaults(config: &mut Config, file: &toml::Value) {
+    for (path, target, default) in [
+        (
+            "providers.exa.url",
+            &mut config.providers.exa.url,
+            "https://api.exa.ai",
+        ),
+        (
+            "providers.context7.url",
+            &mut config.providers.context7.url,
+            "https://mcp.context7.com/mcp",
+        ),
+        (
+            "providers.tavily.url",
+            &mut config.providers.tavily.url,
+            "https://api.tavily.com",
+        ),
+        (
+            "providers.firecrawl.url",
+            &mut config.providers.firecrawl.url,
+            "https://api.firecrawl.dev/v2",
+        ),
+        (
+            "providers.anysearch.url",
+            &mut config.providers.anysearch.url,
+            "https://api.anysearch.com/mcp",
+        ),
+    ] {
+        if !toml_contains(file, path) {
+            *target = default.into();
+        }
+    }
+}
+
+/// Serializes the shared effective configuration view.
+///
+/// # Errors
+///
+/// Returns a configuration or JSON serialization error.
+pub fn effective_view_json() -> Result<String, ConfigError> {
+    serde_json::to_string(&effective_view()?)
+        .map_err(|error| ConfigError::Message(error.to_string()))
+}
+
+/// Sets one schema leaf in the file layer without strictly loading other keys.
+///
+/// # Errors
+///
+/// Returns an argument error for an invalid target or value, and a
+/// configuration error when the document cannot be parsed or written.
+pub fn set_file_value(path: &str, raw: &str) -> Result<(), EditError> {
+    let value = parse_edit_value(path, raw)?;
+    let location = ConfigLocation::discover().map_err(EditError::Config)?;
+    let file = location.config_file();
+    let content = read_edit_document(&file)?;
+    let mut document = parse_edit_document(&file, &content)?;
+    set_document_path(&mut document, path, value)?;
+    atomic_write(&location.config_dir, &file, document.to_string().as_bytes())
+        .map_err(|error| EditError::Config(ConfigError::io(&file, error)))
+}
+
+/// Removes one schema leaf from the file layer without strictly loading it.
+///
+/// Returns whether an environment value for the same leaf remains effective.
+///
+/// # Errors
+///
+/// Returns an argument error for an invalid target and a configuration error
+/// when the document cannot be parsed or written.
+pub fn unset_file_value(path: &str) -> Result<bool, EditError> {
+    if !is_leaf(path) {
+        return Err(EditError::Argument(format!(
+            "unknown configuration key `{path}`"
+        )));
+    }
+    let location = ConfigLocation::discover().map_err(EditError::Config)?;
+    let file = location.config_file();
+    let content = read_edit_document(&file)?;
+    let mut document = parse_edit_document(&file, &content)?;
+    remove_document_path(&mut document, path);
+    atomic_write(&location.config_dir, &file, document.to_string().as_bytes())
+        .map_err(|error| EditError::Config(ConfigError::io(&file, error)))?;
+    Ok(env::var_os(env_name(path)).is_some())
+}
+
+fn read_edit_document(path: &Path) -> Result<String, EditError> {
+    match fs::read_to_string(path) {
+        Ok(content) => Ok(content),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(String::new()),
+        Err(error) => Err(EditError::Config(ConfigError::io(path, error))),
+    }
+}
+
+fn parse_edit_document(path: &Path, content: &str) -> Result<DocumentMut, EditError> {
+    content.parse::<DocumentMut>().map_err(|error| {
+        EditError::Config(ConfigError::Document {
+            path: path.to_path_buf(),
+            detail: diagnostic_without_source(&error.to_string()),
+        })
+    })
+}
+
+fn diagnostic_without_source(detail: &str) -> String {
+    detail
+        .lines()
+        .filter(|line| !line.contains(" |") && line.trim() != "|")
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+fn set_document_path(
+    document: &mut DocumentMut,
+    path: &str,
+    value: Value,
+) -> Result<(), EditError> {
+    let mut segments = path.split('.').peekable();
+    let mut table = document.as_table_mut();
+    while let Some(segment) = segments.next() {
+        if segments.peek().is_none() {
+            table.insert(segment, Item::Value(value));
+            return Ok(());
+        }
+        let item = table
+            .entry(segment)
+            .or_insert_with(|| Item::Table(Table::new()));
+        table = item.as_table_mut().ok_or_else(|| {
+            EditError::Config(ConfigError::Message(format!(
+                "cannot set `{path}` because `{segment}` is not a table"
+            )))
+        })?;
+    }
+    Err(EditError::Argument(format!(
+        "unknown configuration key `{path}`"
+    )))
+}
+
+fn remove_document_path(document: &mut DocumentMut, path: &str) {
+    let segments: Vec<_> = path.split('.').collect();
+    let Some((leaf, parents)) = segments.split_last() else {
+        return;
+    };
+    let mut table = document.as_table_mut();
+    for segment in parents {
+        let Some(next) = table.get_mut(segment).and_then(Item::as_table_mut) else {
+            return;
+        };
+        table = next;
+    }
+    table.remove(leaf);
+}
+
+fn parse_edit_value(path: &str, raw: &str) -> Result<Value, EditError> {
+    if !is_leaf(path) {
+        return Err(EditError::Argument(format!(
+            "unknown configuration key `{path}`"
+        )));
+    }
+    let value = match path_kind(path) {
+        Some(ValueKind::String) => Value::from(raw),
+        Some(ValueKind::Boolean) => raw
+            .parse::<bool>()
+            .map(Value::from)
+            .map_err(|_| invalid_value(path))?,
+        Some(ValueKind::Integer) => raw
+            .parse::<i64>()
+            .map(Value::from)
+            .map_err(|_| invalid_value(path))?,
+        Some(ValueKind::Float) => raw
+            .parse::<f64>()
+            .map(Value::from)
+            .map_err(|_| invalid_value(path))?,
+        Some(ValueKind::Array) => {
+            let document = format!("value = {raw}")
+                .parse::<DocumentMut>()
+                .map_err(|_| invalid_value(path))?;
+            let array = document["value"]
+                .as_array()
+                .cloned()
+                .ok_or_else(|| invalid_value(path))?;
+            if array.iter().any(|item| item.as_str().is_none()) {
+                return Err(invalid_value(path));
+            }
+            if path.ends_with(".keys") || path == "classifier.keys" {
+                Value::Array(normalize_array(array))
+            } else {
+                Value::Array(array)
+            }
+        }
+        None => return Err(invalid_value(path)),
+    };
+    validate_edit_value(path, &value)?;
+    Ok(value)
+}
+
+fn normalize_array(array: Array) -> Array {
+    let mut seen = HashSet::new();
+    array
+        .iter()
+        .filter_map(Value::as_str)
+        .filter(|value| !value.is_empty())
+        .filter(|value| seen.insert((*value).to_owned()))
+        .fold(Array::new(), |mut normalized, value| {
+            normalized.push(value);
+            normalized
+        })
+}
+
+fn validate_edit_value(path: &str, value: &Value) -> Result<(), EditError> {
+    let valid = match path {
+        "search.backends" => valid_unique_array(value, &["xai", "openai_compatible"], false),
+        "search.validation" => string_in(value, &["fast", "balanced", "strict"]),
+        "search.fallback" => string_in(value, &["auto", "off"]),
+        "providers.xai.tools" => valid_array(value, &["web_search", "x_search"], true),
+        "classifier.timeout"
+        | "providers.exa.timeout"
+        | "providers.context7.timeout"
+        | "providers.jina.timeout"
+        | "providers.tavily.timeout"
+        | "providers.firecrawl.timeout"
+        | "providers.anysearch.timeout" => value.as_integer().is_some_and(|number| number > 0),
+        "retry.max_attempts" => value.as_integer().is_some_and(|number| number >= 1),
+        "retry.multiplier" => value.as_float().is_some_and(|number| number > 0.0),
+        "retry.max_wait" | "journal.retention_days" => {
+            value.as_integer().is_some_and(|number| number >= 0)
+        }
+        "log.level" => string_in(value, &["error", "warn", "info", "debug", "trace"]),
+        "capabilities.web_search.order"
+        | "capabilities.web_fetch.order"
+        | "capabilities.docs_search.order"
+        | "capabilities.vertical_search.order" => {
+            let capability = path.split('.').nth(1).unwrap_or_default();
+            let non_empty = path != "capabilities.web_fetch.order"
+                || value.as_array().is_some_and(|array| !array.is_empty());
+            non_empty
+                && value.as_array().is_some_and(|array| {
+                    array.iter().all(|provider| {
+                        provider
+                            .as_str()
+                            .is_some_and(|provider| providers::supports(capability, provider))
+                    })
+                })
+        }
+        _ => true,
+    };
+    if valid {
+        Ok(())
+    } else {
+        Err(invalid_value(path))
+    }
+}
+
+fn valid_unique_array(value: &Value, allowed: &[&str], allow_empty: bool) -> bool {
+    let Some(array) = value.as_array() else {
+        return false;
+    };
+    let mut seen = HashSet::new();
+    (allow_empty || !array.is_empty())
+        && array.iter().all(|entry| {
+            entry
+                .as_str()
+                .is_some_and(|entry| allowed.contains(&entry) && seen.insert(entry))
+        })
+}
+
+fn valid_array(value: &Value, allowed: &[&str], allow_empty: bool) -> bool {
+    value.as_array().is_some_and(|array| {
+        (allow_empty || !array.is_empty())
+            && array
+                .iter()
+                .all(|entry| entry.as_str().is_some_and(|entry| allowed.contains(&entry)))
+    })
+}
+
+fn string_in(value: &Value, allowed: &[&str]) -> bool {
+    value.as_str().is_some_and(|value| allowed.contains(&value))
+}
+
+fn invalid_value(path: &str) -> EditError {
+    EditError::Argument(format!("invalid value for `{path}`"))
+}
+
+fn apply_environment(
+    config: &mut Config,
+    env_paths: &mut HashSet<String>,
+) -> Result<(), ConfigError> {
+    for (name, value) in env::vars_os() {
+        let visible_name = name.to_string_lossy();
+        if !visible_name.starts_with("FORAGER_") || visible_name == "FORAGER_CONFIG_DIR" {
+            continue;
+        }
+        let name = name.into_string().map_err(|_| {
+            ConfigError::Message("unknown non-Unicode FORAGER_* environment variable".into())
+        })?;
+        let path = env_path(&name).ok_or_else(|| {
+            ConfigError::Message(format!(
+                "unknown configuration environment variable `{name}`"
+            ))
+        })?;
+        let value = value.into_string().map_err(|_| {
+            ConfigError::Message(format!(
+                "invalid value for configuration environment variable `{name}`"
+            ))
+        })?;
+        parse_edit_value(path, &value).map_err(|_| {
+            ConfigError::Message(format!(
+                "invalid value for configuration environment variable `{name}`"
+            ))
+        })?;
+        apply_env_value(config, path, &value).map_err(|_| {
+            ConfigError::Message(format!(
+                "invalid value for configuration environment variable `{name}`"
+            ))
+        })?;
+        env_paths.insert(path.to_owned());
+    }
+    Ok(())
+}
+
+fn apply_env_value(config: &mut Config, path: &str, raw: &str) -> Result<(), ()> {
+    macro_rules! string {
+        ($target:expr) => {{
+            $target = raw.to_owned();
+            Ok(())
+        }};
+    }
+    macro_rules! integer {
+        ($target:expr) => {{
+            $target = raw.parse().map_err(|_| ())?;
+            Ok(())
+        }};
+    }
+    macro_rules! boolean {
+        ($target:expr) => {{
+            $target = raw.parse().map_err(|_| ())?;
+            Ok(())
+        }};
+    }
+    macro_rules! array {
+        ($target:expr) => {{
+            $target = parse_string_array(raw)?;
+            Ok(())
+        }};
+    }
+    match path {
+        "search.backends" => array!(config.search.backends),
+        "search.validation" => string!(config.search.validation),
+        "search.fallback" => string!(config.search.fallback),
+        "classifier.url" => string!(config.classifier.url),
+        "classifier.keys" => array!(config.classifier.keys),
+        "classifier.model" => string!(config.classifier.model),
+        "classifier.fallback_models" => array!(config.classifier.fallback_models),
+        "classifier.timeout" => integer!(config.classifier.timeout),
+        "providers.xai.url" => string!(config.providers.xai.url),
+        "providers.xai.keys" => array!(config.providers.xai.keys),
+        "providers.xai.model" => string!(config.providers.xai.model),
+        "providers.xai.tools" => array!(config.providers.xai.tools),
+        "providers.openai_compatible.url" => string!(config.providers.openai_compatible.url),
+        "providers.openai_compatible.keys" => array!(config.providers.openai_compatible.keys),
+        "providers.openai_compatible.model" => string!(config.providers.openai_compatible.model),
+        "providers.openai_compatible.fallback_models" => {
+            array!(config.providers.openai_compatible.fallback_models)
+        }
+        "providers.openai_compatible.stream" => boolean!(config.providers.openai_compatible.stream),
+        "providers.exa.url" => string!(config.providers.exa.url),
+        "providers.exa.keys" => array!(config.providers.exa.keys),
+        "providers.exa.timeout" => integer!(config.providers.exa.timeout),
+        "providers.context7.url" => string!(config.providers.context7.url),
+        "providers.context7.keys" => array!(config.providers.context7.keys),
+        "providers.context7.timeout" => integer!(config.providers.context7.timeout),
+        "providers.jina.url" => string!(config.providers.jina.url),
+        "providers.jina.keys" => array!(config.providers.jina.keys),
+        "providers.jina.respond_with" => string!(config.providers.jina.respond_with),
+        "providers.jina.timeout" => integer!(config.providers.jina.timeout),
+        "providers.tavily.url" => string!(config.providers.tavily.url),
+        "providers.tavily.keys" => array!(config.providers.tavily.keys),
+        "providers.tavily.timeout" => integer!(config.providers.tavily.timeout),
+        "providers.firecrawl.url" => string!(config.providers.firecrawl.url),
+        "providers.firecrawl.keys" => array!(config.providers.firecrawl.keys),
+        "providers.firecrawl.timeout" => integer!(config.providers.firecrawl.timeout),
+        "providers.anysearch.url" => string!(config.providers.anysearch.url),
+        "providers.anysearch.keys" => array!(config.providers.anysearch.keys),
+        "providers.anysearch.timeout" => integer!(config.providers.anysearch.timeout),
+        "capabilities.web_search.order" => array!(config.capabilities.web_search.order),
+        "capabilities.web_fetch.order" => array!(config.capabilities.web_fetch.order),
+        "capabilities.docs_search.order" => array!(config.capabilities.docs_search.order),
+        "capabilities.vertical_search.order" => array!(config.capabilities.vertical_search.order),
+        "log.level" => string!(config.log.level),
+        "journal.enabled" => boolean!(config.journal.enabled),
+        "journal.dir" => string!(config.journal.dir),
+        "journal.retention_days" => integer!(config.journal.retention_days),
+        "retry.max_attempts" => integer!(config.retry.max_attempts),
+        "retry.multiplier" => integer!(config.retry.multiplier),
+        "retry.max_wait" => integer!(config.retry.max_wait),
+        "http.ssl_verify" => boolean!(config.http.ssl_verify),
+        _ => Err(()),
+    }
+}
+
+fn parse_string_array(raw: &str) -> Result<Vec<String>, ()> {
+    #[derive(Deserialize)]
+    struct Wrapped {
+        value: Vec<String>,
+    }
+    toml::from_str::<Wrapped>(&format!("value = {raw}"))
+        .map(|wrapped| wrapped.value)
+        .map_err(|_| ())
+}
+
+fn normalize_credentials(config: &mut Config) {
+    normalize_strings(&mut config.classifier.keys);
+    normalize_strings(&mut config.providers.xai.keys);
+    normalize_strings(&mut config.providers.openai_compatible.keys);
+    normalize_strings(&mut config.providers.exa.keys);
+    normalize_strings(&mut config.providers.context7.keys);
+    normalize_strings(&mut config.providers.jina.keys);
+    normalize_strings(&mut config.providers.tavily.keys);
+    normalize_strings(&mut config.providers.firecrawl.keys);
+    normalize_strings(&mut config.providers.anysearch.keys);
+}
+
+fn normalize_strings(values: &mut Vec<String>) {
+    let mut seen = HashSet::new();
+    values.retain(|value| !value.is_empty() && seen.insert(value.clone()));
+}
+
+fn validate(config: &Config, path: &Path, content: &str) -> Result<(), ConfigError> {
+    validate_list(
+        "search.backends",
+        &config.search.backends,
+        &["xai", "openai_compatible"],
+        false,
+        path,
+        content,
+    )?;
+    validate_enum(
+        "search.validation",
+        &config.search.validation,
+        &["fast", "balanced", "strict"],
+        path,
+        content,
+    )?;
+    validate_enum(
+        "search.fallback",
+        &config.search.fallback,
+        &["auto", "off"],
+        path,
+        content,
+    )?;
+    if config
+        .providers
+        .xai
+        .tools
+        .iter()
+        .any(|tool| !["web_search", "x_search"].contains(&tool.as_str()))
+    {
+        return Err(value_error(path, content, "providers.xai.tools"));
+    }
+    validate_enum(
+        "log.level",
+        &config.log.level,
+        &["error", "warn", "info", "debug", "trace"],
+        path,
+        content,
+    )?;
+    for (key, timeout) in [
+        ("classifier.timeout", config.classifier.timeout),
+        ("providers.exa.timeout", config.providers.exa.timeout),
+        (
+            "providers.context7.timeout",
+            config.providers.context7.timeout,
+        ),
+        ("providers.jina.timeout", config.providers.jina.timeout),
+        ("providers.tavily.timeout", config.providers.tavily.timeout),
+        (
+            "providers.firecrawl.timeout",
+            config.providers.firecrawl.timeout,
+        ),
+        (
+            "providers.anysearch.timeout",
+            config.providers.anysearch.timeout,
+        ),
+    ] {
+        if timeout <= 0 {
+            return Err(value_error(path, content, key));
+        }
+    }
+    if config.retry.max_attempts < 1 {
+        return Err(value_error(path, content, "retry.max_attempts"));
+    }
+    if config.retry.multiplier <= 0.0 {
+        return Err(value_error(path, content, "retry.multiplier"));
+    }
+    if config.retry.max_wait < 0 {
+        return Err(value_error(path, content, "retry.max_wait"));
+    }
+    if config.journal.retention_days < 0 {
+        return Err(value_error(path, content, "journal.retention_days"));
+    }
+    validate_order(
+        "web_search",
+        &config.capabilities.web_search.order,
+        false,
+        path,
+        content,
+    )?;
+    validate_order(
+        "web_fetch",
+        &config.capabilities.web_fetch.order,
+        true,
+        path,
+        content,
+    )?;
+    validate_order(
+        "docs_search",
+        &config.capabilities.docs_search.order,
+        false,
+        path,
+        content,
+    )?;
+    validate_order(
+        "vertical_search",
+        &config.capabilities.vertical_search.order,
+        false,
+        path,
+        content,
+    )
+}
+
+fn validate_enum(
+    key: &str,
+    value: &str,
+    allowed: &[&str],
+    path: &Path,
+    content: &str,
+) -> Result<(), ConfigError> {
+    if allowed.contains(&value) {
+        Ok(())
+    } else {
+        Err(value_error(path, content, key))
+    }
+}
+
+fn validate_list(
+    key: &str,
+    values: &[String],
+    allowed: &[&str],
+    allow_empty: bool,
+    path: &Path,
+    content: &str,
+) -> Result<(), ConfigError> {
+    let mut seen = HashSet::new();
+    if (!allow_empty && values.is_empty())
+        || values
+            .iter()
+            .any(|value| !allowed.contains(&value.as_str()) || !seen.insert(value))
+    {
+        Err(value_error(path, content, key))
+    } else {
+        Ok(())
+    }
+}
+
+fn validate_order(
+    capability: &str,
+    order: &[String],
+    required: bool,
+    path: &Path,
+    content: &str,
+) -> Result<(), ConfigError> {
+    let key = format!("capabilities.{capability}.order");
+    if (required && order.is_empty())
+        || order
+            .iter()
+            .any(|provider| !providers::supports(capability, provider))
+    {
+        Err(value_error(path, content, &key))
+    } else {
+        Ok(())
+    }
+}
+
+fn value_error(path: &Path, content: &str, key: &str) -> ConfigError {
+    let position = source_position(content, key)
+        .map(|(line, column)| format!(" at line {line}, column {column}"))
+        .unwrap_or_default();
+    ConfigError::Document {
+        path: path.to_path_buf(),
+        detail: format!("invalid value for `{key}`{position}"),
+    }
+}
+
+fn source_position(content: &str, path: &str) -> Option<(usize, usize)> {
+    let document = Document::parse(content).ok()?;
+    let mut table: &dyn TableLike = document.as_table();
+    let mut item = None;
+    let mut segments = path.split('.').peekable();
+    while let Some(segment) = segments.next() {
+        let next = table.get(segment)?;
+        item = Some(next);
+        if segments.peek().is_some() {
+            table = next.as_table_like()?;
+        }
+    }
+    let offset = item?.span()?.start;
+    let preceding = content.get(..offset)?;
+    let line = preceding.bytes().filter(|byte| *byte == b'\n').count() + 1;
+    let column = preceding
+        .rsplit_once('\n')
+        .map_or(preceding, |(_, line)| line)
+        .chars()
+        .count()
+        + 1;
+    Some((line, column))
+}
+
+fn build_view(config: &Config, file: &toml::Value, environment: &HashSet<String>) -> JsonValue {
+    macro_rules! leaf {
+        ($path:literal, $value:expr) => {
+            leaf_value(json!($value), source($path, file, environment))
+        };
+    }
+    macro_rules! keys {
+        ($path:literal, $value:expr) => {
+            key_value($value, source($path, file, environment))
+        };
+    }
+    macro_rules! url {
+        ($path:literal, $value:expr) => {
+            leaf_value(json!(redact_url($value)), source($path, file, environment))
+        };
+    }
+    json!({
+        "search": {
+            "backends": leaf!("search.backends", config.search.backends),
+            "validation": leaf!("search.validation", config.search.validation),
+            "fallback": leaf!("search.fallback", config.search.fallback),
+        },
+        "classifier": {
+            "url": url!("classifier.url", &config.classifier.url),
+            "keys": keys!("classifier.keys", &config.classifier.keys),
+            "model": leaf!("classifier.model", config.classifier.model),
+            "fallback_models": leaf!("classifier.fallback_models", config.classifier.fallback_models),
+            "timeout": leaf!("classifier.timeout", config.classifier.timeout),
+        },
+        "providers": {
+            "xai": {
+                "url": url!("providers.xai.url", &config.providers.xai.url),
+                "keys": keys!("providers.xai.keys", &config.providers.xai.keys),
+                "model": leaf!("providers.xai.model", config.providers.xai.model),
+                "tools": leaf!("providers.xai.tools", config.providers.xai.tools),
+            },
+            "openai_compatible": {
+                "url": url!("providers.openai_compatible.url", &config.providers.openai_compatible.url),
+                "keys": keys!("providers.openai_compatible.keys", &config.providers.openai_compatible.keys),
+                "model": leaf!("providers.openai_compatible.model", config.providers.openai_compatible.model),
+                "fallback_models": leaf!("providers.openai_compatible.fallback_models", config.providers.openai_compatible.fallback_models),
+                "stream": leaf!("providers.openai_compatible.stream", config.providers.openai_compatible.stream),
+            },
+            "exa": endpoint_view("providers.exa", &config.providers.exa, file, environment),
+            "context7": endpoint_view("providers.context7", &config.providers.context7, file, environment),
+            "jina": {
+                "url": url!("providers.jina.url", &config.providers.jina.url),
+                "keys": keys!("providers.jina.keys", &config.providers.jina.keys),
+                "respond_with": leaf!("providers.jina.respond_with", config.providers.jina.respond_with),
+                "timeout": leaf!("providers.jina.timeout", config.providers.jina.timeout),
+            },
+            "tavily": endpoint_view("providers.tavily", &config.providers.tavily, file, environment),
+            "firecrawl": endpoint_view("providers.firecrawl", &config.providers.firecrawl, file, environment),
+            "anysearch": endpoint_view("providers.anysearch", &config.providers.anysearch, file, environment),
+        },
+        "capabilities": {
+            "web_search": {"order": leaf!("capabilities.web_search.order", config.capabilities.web_search.order)},
+            "web_fetch": {"order": leaf!("capabilities.web_fetch.order", config.capabilities.web_fetch.order)},
+            "docs_search": {"order": leaf!("capabilities.docs_search.order", config.capabilities.docs_search.order)},
+            "vertical_search": {"order": leaf!("capabilities.vertical_search.order", config.capabilities.vertical_search.order)},
+        },
+        "log": {"level": leaf!("log.level", config.log.level)},
+        "journal": {
+            "enabled": leaf!("journal.enabled", config.journal.enabled),
+            "dir": leaf!("journal.dir", config.journal.dir),
+            "retention_days": leaf!("journal.retention_days", config.journal.retention_days),
+        },
+        "retry": {
+            "max_attempts": leaf!("retry.max_attempts", config.retry.max_attempts),
+            "multiplier": leaf!("retry.multiplier", config.retry.multiplier),
+            "max_wait": leaf!("retry.max_wait", config.retry.max_wait),
+        },
+        "http": {"ssl_verify": leaf!("http.ssl_verify", config.http.ssl_verify)},
+    })
+}
+
+fn endpoint_view(
+    prefix: &str,
+    endpoint: &Endpoint,
+    file: &toml::Value,
+    environment: &HashSet<String>,
+) -> JsonValue {
+    let url_path = format!("{prefix}.url");
+    let keys_path = format!("{prefix}.keys");
+    let timeout_path = format!("{prefix}.timeout");
+    json!({
+        "url": leaf_value(json!(redact_url(&endpoint.url)), source(&url_path, file, environment)),
+        "keys": key_value(&endpoint.keys, source(&keys_path, file, environment)),
+        "timeout": leaf_value(json!(endpoint.timeout), source(&timeout_path, file, environment)),
+    })
+}
+
+fn redact_url(value: &str) -> String {
+    let without_fragment = value.split_once('#').map_or(value, |(url, _)| url);
+    let mut redacted = without_fragment.to_owned();
+
+    if let Some(authority_start) = redacted.find("://").map(|index| index + 3) {
+        let authority_end = redacted[authority_start..]
+            .find(['/', '?'])
+            .map_or(redacted.len(), |index| authority_start + index);
+        if let Some(userinfo_end) = redacted[authority_start..authority_end].rfind('@') {
+            redacted.replace_range(authority_start..=authority_start + userinfo_end, "");
+        }
+    }
+
+    let Some(query_start) = redacted.find('?') else {
+        return redacted;
+    };
+    let query = redacted[query_start + 1..]
+        .split('&')
+        .map(|pair| {
+            let Some((name, value)) = pair.split_once('=') else {
+                return pair.to_owned();
+            };
+            if is_sensitive_query_name(name) {
+                format!("{name}={MASK}")
+            } else {
+                format!("{name}={value}")
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("&");
+    redacted.truncate(query_start + 1);
+    redacted.push_str(&query);
+    redacted
+}
+
+fn is_sensitive_query_name(name: &str) -> bool {
+    let name = name.to_ascii_lowercase();
+    ["token", "key", "secret", "signature", "authorization"]
+        .iter()
+        .any(|sensitive| name.contains(sensitive))
+}
+
+fn leaf_value(value: JsonValue, source: &'static str) -> JsonValue {
+    json!({"value": value, "source": source})
+}
+
+fn key_value(keys: &[String], source: &'static str) -> JsonValue {
+    json!({
+        "value": vec![MASK; keys.len()],
+        "source": source,
+        "configured": !keys.is_empty(),
+        "key_count": keys.len(),
+    })
+}
+
+fn source(path: &str, file: &toml::Value, environment: &HashSet<String>) -> &'static str {
+    if environment.contains(path) {
+        "env"
+    } else if toml_contains(file, path) {
+        "file"
+    } else {
+        "default"
+    }
+}
+
+fn toml_contains(value: &toml::Value, path: &str) -> bool {
+    path.split('.')
+        .try_fold(value, |value, segment| value.get(segment))
+        .is_some()
+}
+
+#[derive(Clone, Copy)]
+enum ValueKind {
+    String,
+    Boolean,
+    Integer,
+    Float,
+    Array,
+}
+
+fn path_kind(path: &str) -> Option<ValueKind> {
+    if [
+        "search.backends",
+        "classifier.keys",
+        "classifier.fallback_models",
+        "providers.xai.keys",
+        "providers.xai.tools",
+        "providers.openai_compatible.keys",
+        "providers.openai_compatible.fallback_models",
+        "providers.exa.keys",
+        "providers.context7.keys",
+        "providers.jina.keys",
+        "providers.tavily.keys",
+        "providers.firecrawl.keys",
+        "providers.anysearch.keys",
+        "capabilities.web_search.order",
+        "capabilities.web_fetch.order",
+        "capabilities.docs_search.order",
+        "capabilities.vertical_search.order",
+    ]
+    .contains(&path)
+    {
+        Some(ValueKind::Array)
+    } else if [
+        "providers.openai_compatible.stream",
+        "journal.enabled",
+        "http.ssl_verify",
+    ]
+    .contains(&path)
+    {
+        Some(ValueKind::Boolean)
+    } else if path == "retry.multiplier" {
+        Some(ValueKind::Float)
+    } else if [
+        "classifier.timeout",
+        "providers.exa.timeout",
+        "providers.context7.timeout",
+        "providers.jina.timeout",
+        "providers.tavily.timeout",
+        "providers.firecrawl.timeout",
+        "providers.anysearch.timeout",
+        "journal.retention_days",
+        "retry.max_attempts",
+        "retry.max_wait",
+    ]
+    .contains(&path)
+    {
+        Some(ValueKind::Integer)
+    } else if is_leaf(path) {
+        Some(ValueKind::String)
+    } else {
+        None
+    }
+}
+
+fn is_leaf(path: &str) -> bool {
+    LEAVES.contains(&path)
+}
+
+fn env_path(name: &str) -> Option<&'static str> {
+    LEAVES.iter().copied().find(|path| env_name(path) == name)
+}
+
+fn env_name(path: &str) -> String {
+    format!("FORAGER_{}", path.replace('.', "__").to_ascii_uppercase())
+}
+
+const LEAVES: &[&str] = &[
+    "search.backends",
+    "search.validation",
+    "search.fallback",
+    "classifier.url",
+    "classifier.keys",
+    "classifier.model",
+    "classifier.fallback_models",
+    "classifier.timeout",
+    "providers.xai.url",
+    "providers.xai.keys",
+    "providers.xai.model",
+    "providers.xai.tools",
+    "providers.openai_compatible.url",
+    "providers.openai_compatible.keys",
+    "providers.openai_compatible.model",
+    "providers.openai_compatible.fallback_models",
+    "providers.openai_compatible.stream",
+    "providers.exa.url",
+    "providers.exa.keys",
+    "providers.exa.timeout",
+    "providers.context7.url",
+    "providers.context7.keys",
+    "providers.context7.timeout",
+    "providers.jina.url",
+    "providers.jina.keys",
+    "providers.jina.respond_with",
+    "providers.jina.timeout",
+    "providers.tavily.url",
+    "providers.tavily.keys",
+    "providers.tavily.timeout",
+    "providers.firecrawl.url",
+    "providers.firecrawl.keys",
+    "providers.firecrawl.timeout",
+    "providers.anysearch.url",
+    "providers.anysearch.keys",
+    "providers.anysearch.timeout",
+    "capabilities.web_search.order",
+    "capabilities.web_fetch.order",
+    "capabilities.docs_search.order",
+    "capabilities.vertical_search.order",
+    "log.level",
+    "journal.enabled",
+    "journal.dir",
+    "journal.retention_days",
+    "retry.max_attempts",
+    "retry.multiplier",
+    "retry.max_wait",
+    "http.ssl_verify",
+];
 
 /// The directory and file used by forager configuration.
 #[derive(Debug, Eq, PartialEq)]
@@ -19,15 +1270,10 @@ pub struct ConfigLocation {
 impl ConfigLocation {
     /// Resolves the configuration location from the process environment.
     ///
-    /// `FORAGER_CONFIG_DIR` takes precedence. Otherwise this follows the XDG
-    /// configuration directory convention and verifies that the nearest
-    /// existing ancestor can create files.
-    ///
     /// # Errors
     ///
-    /// Returns [`ConfigError::DefaultDirectoryUnavailable`] when no absolute
-    /// XDG default can be resolved or its nearest existing ancestor is not
-    /// writable.
+    /// Returns [`ConfigError::DefaultDirectoryUnavailable`] when no writable
+    /// absolute XDG default can be resolved.
     pub fn discover() -> Result<Self, ConfigError> {
         if let Some(config_dir) = env::var_os("FORAGER_CONFIG_DIR")
             .filter(|value| !value.is_empty())
@@ -52,7 +1298,6 @@ impl ConfigLocation {
 
         verify_default_directory(&config_dir)
             .map_err(|_| ConfigError::DefaultDirectoryUnavailable)?;
-
         Ok(Self { config_dir })
     }
 
@@ -62,47 +1307,74 @@ impl ConfigLocation {
     }
 }
 
-/// Errors produced before configuration loading begins.
+/// Configuration loading and persistence errors.
 #[derive(Debug, Eq, Error, PartialEq)]
 pub enum ConfigError {
     /// The XDG configuration directory could not be resolved or written.
     #[error("default configuration directory is unavailable; set FORAGER_CONFIG_DIR")]
     DefaultDirectoryUnavailable,
+    /// The configuration document is invalid.
+    #[error("{}: {detail}", path.display())]
+    Document { path: PathBuf, detail: String },
+    /// A configuration operation failed.
+    #[error("{0}")]
+    Message(String),
 }
 
-/// Creates a configuration directory and restricts it to the current Unix user.
-///
-/// # Errors
-///
-/// Returns an I/O error when the directory cannot be created or its mode cannot
-/// be restricted to the current user.
+impl ConfigError {
+    fn io(path: &Path, error: io::Error) -> Self {
+        Self::Message(format!("{}: {error}", path.display()))
+    }
+}
+
+/// Errors from `config set` and `config unset`.
+#[derive(Debug, Error)]
+pub enum EditError {
+    /// The requested key or value is invalid.
+    #[error("{0}")]
+    Argument(String),
+    /// The configuration document could not be read or written.
+    #[error(transparent)]
+    Config(#[from] ConfigError),
+}
+
+fn atomic_write(config_dir: &Path, destination: &Path, bytes: &[u8]) -> io::Result<()> {
+    ensure_private_directory(config_dir)?;
+    let sequence = FILE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    let temporary = config_dir.join(format!(
+        ".config.toml.{}.{}.tmp",
+        std::process::id(),
+        sequence
+    ));
+    let result = (|| {
+        let mut file = create_new_private_file(&temporary)?;
+        file.write_all(bytes)?;
+        file.flush()?;
+        file.sync_all()?;
+        fs::rename(&temporary, destination)?;
+        restrict_private_file(destination)
+    })();
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    result
+}
+
+/// Creates a configuration directory restricted to the current user.
 #[cfg(unix)]
 pub fn ensure_private_directory(path: &Path) -> io::Result<()> {
     fs::create_dir_all(path)?;
     set_mode(path, 0o700)
 }
 
-/// Creates a configuration directory and restricts its ACL to the Windows owner.
-///
-/// # Errors
-///
-/// Returns an I/O error when the directory cannot be created or its ACL cannot
-/// be restricted.
+/// Creates a configuration directory restricted to the Windows owner.
 #[cfg(windows)]
 pub fn ensure_private_directory(path: &Path) -> io::Result<()> {
     fs::create_dir_all(path)?;
     restrict_windows_acl(path)
 }
 
-/// Opens or creates a configuration file and restricts it to the current Unix user.
-///
-/// This primitive applies equally to `config.toml` and same-directory temporary
-/// files used by an atomic replacement.
-///
-/// # Errors
-///
-/// Returns an I/O error when the file cannot be opened or its mode cannot be
-/// set to `0600`.
+/// Opens or creates a private configuration file.
 #[cfg(unix)]
 pub fn create_private_file(path: &Path) -> io::Result<File> {
     let file = open_private_file(path)?;
@@ -110,12 +1382,7 @@ pub fn create_private_file(path: &Path) -> io::Result<File> {
     Ok(file)
 }
 
-/// Opens or creates a configuration file and restricts its ACL to the Windows owner.
-///
-/// # Errors
-///
-/// Returns an I/O error when the file cannot be opened or its ACL cannot be
-/// restricted.
+/// Opens or creates a private configuration file on Windows.
 #[cfg(windows)]
 pub fn create_private_file(path: &Path) -> io::Result<File> {
     let file = OpenOptions::new()
@@ -130,7 +1397,6 @@ pub fn create_private_file(path: &Path) -> io::Result<File> {
 #[cfg(unix)]
 fn open_private_file(path: &Path) -> io::Result<File> {
     use std::os::unix::fs::OpenOptionsExt;
-
     OpenOptions::new()
         .create(true)
         .write(true)
@@ -140,13 +1406,38 @@ fn open_private_file(path: &Path) -> io::Result<File> {
 }
 
 #[cfg(unix)]
+fn create_new_private_file(path: &Path) -> io::Result<File> {
+    use std::os::unix::fs::OpenOptionsExt;
+    OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .mode(0o600)
+        .open(path)
+}
+
+#[cfg(windows)]
+fn create_new_private_file(path: &Path) -> io::Result<File> {
+    let file = OpenOptions::new().create_new(true).write(true).open(path)?;
+    restrict_windows_acl(path)?;
+    Ok(file)
+}
+
+#[cfg(unix)]
+fn restrict_private_file(path: &Path) -> io::Result<()> {
+    set_mode(path, 0o600)
+}
+
+#[cfg(windows)]
+fn restrict_private_file(path: &Path) -> io::Result<()> {
+    restrict_windows_acl(path)
+}
+
+#[cfg(unix)]
 fn set_mode(path: &Path, mode: u32) -> io::Result<()> {
     use std::os::unix::fs::PermissionsExt;
-
     fs::set_permissions(path, fs::Permissions::from_mode(mode))
 }
 
-/// Rejects permission-sensitive directory creation on unsupported platforms.
 #[cfg(not(any(unix, windows)))]
 pub fn ensure_private_directory(_path: &Path) -> io::Result<()> {
     Err(io::Error::new(
@@ -155,9 +1446,24 @@ pub fn ensure_private_directory(_path: &Path) -> io::Result<()> {
     ))
 }
 
-/// Rejects permission-sensitive file creation on unsupported platforms.
 #[cfg(not(any(unix, windows)))]
 pub fn create_private_file(_path: &Path) -> io::Result<File> {
+    Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        "private configuration permissions are unavailable",
+    ))
+}
+
+#[cfg(not(any(unix, windows)))]
+fn create_new_private_file(_path: &Path) -> io::Result<File> {
+    Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        "private configuration permissions are unavailable",
+    ))
+}
+
+#[cfg(not(any(unix, windows)))]
+fn restrict_private_file(_path: &Path) -> io::Result<()> {
     Err(io::Error::new(
         io::ErrorKind::Unsupported,
         "private configuration permissions are unavailable",
@@ -171,7 +1477,6 @@ fn restrict_windows_acl(path: &Path) -> io::Result<()> {
     use windows_acl::helper::{sid_to_string, string_to_sid};
 
     const OWNER_SID: &str = "S-1-3-4";
-
     let path = path.to_str().ok_or_else(|| {
         io::Error::new(
             io::ErrorKind::InvalidInput,
@@ -185,7 +1490,6 @@ fn restrict_windows_acl(path: &Path) -> io::Result<()> {
         .map_err(|code| io::Error::other(format!("cannot enumerate Windows ACL: {code}")))?;
     let owner = string_to_sid(OWNER_SID)
         .map_err(|code| io::Error::other(format!("cannot create owner SID: {code}")))?;
-
     for entry in entries {
         let sid = entry
             .sid
@@ -197,7 +1501,6 @@ fn restrict_windows_acl(path: &Path) -> io::Result<()> {
             io::Error::other(format!("cannot remove inherited ACL entry: {code}"))
         })?;
     }
-
     acl.add_entry(
         owner.as_ptr() as PSID,
         AceType::AccessAllow,
@@ -232,7 +1535,6 @@ fn verify_default_directory(config_dir: &Path) -> io::Result<()> {
             "configuration path has no existing ancestor",
         )
     })?;
-
     let sequence = WRITE_PROBE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
     let probe = writable_ancestor.join(format!(
         ".forager-write-probe-{}-{sequence}",

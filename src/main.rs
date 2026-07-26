@@ -8,12 +8,17 @@ use forager::app::{self, Cli};
 fn main() -> ExitCode {
     match app::run(Cli::parse()) {
         Ok(output) => {
-            println!("{output}");
+            if !output.stdout.is_empty() {
+                println!("{}", output.stdout);
+            }
+            if let Some(diagnostic) = output.stderr {
+                eprintln!("{diagnostic}");
+            }
             ExitCode::SUCCESS
         }
         Err(error) => {
-            eprintln!("config_error: {error}");
-            ExitCode::from(3)
+            eprintln!("{}: {error}", error.category());
+            ExitCode::from(error.exit_code())
         }
     }
 }
