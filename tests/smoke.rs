@@ -1,7 +1,10 @@
 use std::fs;
+use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 
@@ -108,6 +111,290 @@ fn offline_smoke_reports_local_readiness_without_contacting_provider_endpoints()
 }
 
 #[test]
+fn live_smoke_lists_exactly_the_specification_case_registry_without_l0_doctor_gates() {
+    let endpoint = "http://127.0.0.1:9";
+    let environment = SmokeEnvironment::new(|journal_dir| minimal_config(endpoint, journal_dir));
+
+    let output = environment.run(&["smoke", "--live", "--list"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live registry JSON");
+    let expected = json!([
+        "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11",
+        "C12", "C13", "C14", "C15", "C16", "C17"
+    ]);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["mode"],
+            &payload["registered_case_ids"],
+            &payload["specification_case_ids"],
+        ),
+        (
+            Some(0),
+            &Value::String("live_registry".into()),
+            &expected,
+            &expected,
+        ),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(payload["cases"].as_array().is_some_and(|cases| {
+        cases
+            .iter()
+            .all(|case| case["id"].as_str().is_some_and(|id| !id.starts_with("L0")))
+    }));
+}
+
+#[test]
+fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_unconfigured_cases() {
+    let endpoint = "http://127.0.0.1:9";
+    let environment = SmokeEnvironment::new(|journal_dir| minimal_config(endpoint, journal_dir));
+
+    let failed = environment.run(&["smoke", "--live", "--timeout", "1"]);
+    let failed_payload: Value =
+        serde_json::from_slice(&failed.stdout).expect("parse failed live smoke JSON");
+    let failed_c01 = case(&failed_payload, "C01");
+
+    assert_eq!(
+        (
+            failed.status.code(),
+            &failed_payload["mode"],
+            &failed_payload["ok"],
+            &failed_payload["summary"],
+            &failed_c01["status"],
+            &failed_c01["attempts"],
+            &case(&failed_payload, "C02")["status"],
+            &case(&failed_payload, "P1")["status"],
+        ),
+        (
+            Some(4),
+            &Value::String("live".into()),
+            &Value::Bool(false),
+            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 18}),
+            &Value::String("failed".into()),
+            &Value::Number(3.into()),
+            &Value::String("unconfigured".into()),
+            &Value::String("unconfigured".into()),
+        ),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&failed.stdout),
+        String::from_utf8_lossy(&failed.stderr)
+    );
+
+    let outage_evidence = format!("C01={endpoint}?token=outage-secret");
+    let deferred = environment.run(&[
+        "smoke",
+        "--live",
+        "--timeout",
+        "5",
+        "--outage-evidence",
+        &outage_evidence,
+    ]);
+    let deferred_payload: Value =
+        serde_json::from_slice(&deferred.stdout).expect("parse deferred live smoke JSON");
+    let deferred_c01 = case(&deferred_payload, "C01");
+
+    assert_eq!(
+        (
+            deferred.status.code(),
+            &deferred_payload["ok"],
+            &deferred_payload["summary"],
+            &deferred_c01["status"],
+            &deferred_c01["attempts"],
+            &deferred_c01["outage_evidence"],
+            deferred_c01["checked_at_unix_seconds"].as_u64().is_some(),
+        ),
+        (
+            Some(4),
+            &Value::Bool(false),
+            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 18}),
+            &Value::String("deferred".into()),
+            &Value::Number(3.into()),
+            &Value::String("http://127.0.0.1:9?token=********".into()),
+            true,
+        ),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&deferred.stdout),
+        String::from_utf8_lossy(&deferred.stderr)
+    );
+    assert!(!String::from_utf8_lossy(&deferred.stdout).contains("outage-secret"));
+}
+
+#[test]
+fn independent_outage_probe_reports_a_failed_same_endpoint_request() {
+    let endpoint = "http://127.0.0.1:9";
+    let environment = SmokeEnvironment::new(|journal_dir| minimal_config(endpoint, journal_dir));
+
+    let output = environment.run(&[
+        "smoke",
+        "--probe",
+        "OUTAGE",
+        "--probe-url",
+        endpoint,
+        "--probe-timeout",
+        "1",
+    ]);
+
+    let payload = serde_json::from_slice::<Value>(&output.stdout).unwrap_or_else(|error| {
+        panic!(
+            "parse outage probe JSON: {error}; stderr: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )
+    });
+    assert_eq!(
+        (output.status.code(), payload,),
+        (Some(4), json!({"outage": true})),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn internal_smoke_probe_does_not_add_a_top_level_command() {
+    let output = Command::new(env!("CARGO_BIN_EXE_forager"))
+        .arg("__smoke-probe")
+        .output()
+        .expect("run forager");
+
+    assert_eq!(output.status.code(), Some(2));
+}
+
+#[test]
+fn live_smoke_passes_a_configured_case_only_after_a_zero_parseable_nonempty_terminal() {
+    let response_body = format!(
+        "data: {}\n\n",
+        json!({
+            "type": "response.completed",
+            "response": {
+                "output": [{
+                    "content": [{
+                        "type": "output_text",
+                        "text": "Rust stable release",
+                        "annotations": [{
+                            "type": "url_citation",
+                            "url": "https://example.test/rust",
+                            "title": "Rust"
+                        }]
+                    }]
+                }]
+            }
+        })
+    );
+    let (endpoint, server) = serve_once("text/event-stream", response_body);
+    let environment = SmokeEnvironment::new(|journal_dir| minimal_config(&endpoint, journal_dir));
+
+    let output = environment.run(&["smoke", "--live", "--timeout", "2"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live smoke JSON");
+    server.join().expect("fixture server");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["summary"],
+            &case(&payload, "C01")["status"],
+            &case(&payload, "C01")["attempts"],
+        ),
+        (
+            Some(4),
+            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 18}),
+            &Value::String("passed".into()),
+            &Value::Number(1.into()),
+        ),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn live_smoke_drains_large_child_output_without_false_timeout() {
+    let response_body = format!(
+        "data: {}\n\n",
+        json!({
+            "type": "response.completed",
+            "response": {
+                "output": [{
+                    "content": [{
+                        "type": "output_text",
+                        "text": "x".repeat(256 * 1024),
+                        "annotations": [{
+                            "type": "url_citation",
+                            "url": "https://example.test/rust",
+                            "title": "Rust"
+                        }]
+                    }]
+                }]
+            }
+        })
+    );
+    let (endpoint, server) = serve_once("text/event-stream", response_body);
+    let environment = SmokeEnvironment::new(|journal_dir| minimal_config(&endpoint, journal_dir));
+
+    let output = environment.run(&["smoke", "--live", "--timeout", "3"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live smoke JSON");
+    server.join().expect("fixture server");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &case(&payload, "C01")["status"],
+            &case(&payload, "C01")["attempts"],
+        ),
+        (
+            Some(4),
+            &Value::String("passed".into()),
+            &Value::Number(1.into()),
+        ),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn live_smoke_enforces_one_hard_deadline_across_retries() {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind slow fixture server");
+    let endpoint = format!(
+        "http://{}/v1",
+        listener.local_addr().expect("fixture address")
+    );
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept fixture request");
+        let mut request = [0_u8; 8192];
+        let _ = stream.read(&mut request).expect("read fixture request");
+        thread::sleep(Duration::from_secs(3));
+    });
+    let environment = SmokeEnvironment::new(|journal_dir| minimal_config(&endpoint, journal_dir));
+
+    let started = Instant::now();
+    let output = environment.run(&["smoke", "--live", "--timeout", "1"]);
+    let elapsed = started.elapsed();
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live smoke JSON");
+    server.join().expect("fixture server");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &case(&payload, "C01")["status"],
+            &case(&payload, "C01")["attempts"],
+        ),
+        (
+            Some(4),
+            &Value::String("failed".into()),
+            &Value::Number(1.into()),
+        ),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        elapsed < Duration::from_millis(2500),
+        "live smoke exceeded its hard deadline: {elapsed:?}"
+    );
+}
+
+#[test]
 fn offline_smoke_returns_config_error_for_invalid_configuration() {
     let secret = "invalid-config-secret";
     let environment = SmokeEnvironment::new(|_| {
@@ -125,6 +412,15 @@ fn offline_smoke_returns_config_error_for_invalid_configuration() {
     assert!(output.stdout.is_empty(), "{combined}");
     assert!(combined.contains("config_error"), "{combined}");
     assert!(!combined.contains(secret), "smoke leaked {secret}");
+}
+
+fn case<'a>(payload: &'a Value, id: &str) -> &'a Value {
+    payload["cases"]
+        .as_array()
+        .expect("live cases")
+        .iter()
+        .find(|case| case["id"] == id)
+        .expect("registered live case")
 }
 
 #[test]
@@ -312,6 +608,26 @@ fn provider_secrets() -> [&'static str; 9] {
         "context7-secret",
         "anysearch-secret",
     ]
+}
+
+fn serve_once(content_type: &'static str, body: String) -> (String, thread::JoinHandle<()>) {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind fixture server");
+    let endpoint = format!(
+        "http://{}/v1",
+        listener.local_addr().expect("fixture address")
+    );
+    let server = thread::spawn(move || {
+        let (mut stream, _) = listener.accept().expect("accept fixture request");
+        let mut request = [0_u8; 8192];
+        let _ = stream.read(&mut request).expect("read fixture request");
+        write!(
+            stream,
+            "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        )
+        .expect("write fixture response");
+    });
+    (endpoint, server)
 }
 
 #[cfg(unix)]

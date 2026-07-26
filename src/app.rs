@@ -142,7 +142,22 @@ enum Command {
         #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
         format: OutputFormat,
     },
-    Smoke,
+    Smoke {
+        #[arg(long)]
+        live: bool,
+        #[arg(long, requires = "live")]
+        list: bool,
+        #[arg(long, requires = "live", default_value_t = 180, value_parser = clap::value_parser!(u64).range(1..))]
+        timeout: u64,
+        #[arg(long, requires = "live", value_name = "CASE_ID=EVIDENCE_URL")]
+        outage_evidence: Vec<String>,
+        #[arg(long, hide = true, conflicts_with = "live", value_parser = ["C04", "C05", "C06", "OUTAGE"])]
+        probe: Option<String>,
+        #[arg(long, hide = true, requires = "probe", default_value_t = 180, value_parser = clap::value_parser!(u64).range(1..))]
+        probe_timeout: u64,
+        #[arg(long, hide = true, requires = "probe")]
+        probe_url: Option<String>,
+    },
 }
 
 #[derive(Debug, Subcommand)]
@@ -1280,8 +1295,18 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                 exit_code,
             })
         }
-        Command::Smoke => {
-            let (report, exit_code) = crate::smoke::run()?;
+        Command::Smoke {
+            probe: Some(case_id),
+            probe_timeout,
+            probe_url,
+            ..
+        } => run_smoke_probe(&case_id, probe_timeout, probe_url.as_deref()),
+        Command::Smoke {
+            live: false,
+            probe: None,
+            ..
+        } => {
+            let (report, exit_code) = crate::smoke::run_offline()?;
             Ok(CommandOutput::Text {
                 stdout: serde_json::to_string(&report)
                     .map_err(|error| AppError::Runtime(error.to_string()))?,
@@ -1289,6 +1314,175 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                 exit_code,
             })
         }
+        Command::Smoke {
+            live: true,
+            list: true,
+            probe: None,
+            ..
+        } => Ok(CommandOutput::Text {
+            stdout: serde_json::to_string(&crate::smoke::live_registry())
+                .map_err(|error| AppError::Runtime(error.to_string()))?,
+            stderr: None,
+            exit_code: 0,
+        }),
+        Command::Smoke {
+            live: true,
+            list: false,
+            timeout,
+            outage_evidence,
+            probe: None,
+            ..
+        } => {
+            let outage_evidence = crate::smoke::parse_outage_evidence(&outage_evidence)
+                .map_err(AppError::Argument)?;
+            let (report, exit_code) = crate::smoke::run_live(timeout, &outage_evidence)?;
+            Ok(CommandOutput::Text {
+                stdout: serde_json::to_string(&report)
+                    .map_err(|error| AppError::Runtime(error.to_string()))?,
+                stderr: None,
+                exit_code,
+            })
+        }
+    }
+}
+
+fn run_smoke_probe(
+    case_id: &str,
+    timeout_seconds: u64,
+    url: Option<&str>,
+) -> Result<CommandOutput, AppError> {
+    match crate::smoke::probe_kind(case_id).map_err(AppError::Argument)? {
+        crate::smoke::ProbeKind::Classifier => run_classifier_smoke_probe(timeout_seconds),
+        crate::smoke::ProbeKind::Supplemental(provider) => {
+            run_supplemental_smoke_probe(provider.name(), timeout_seconds)
+        }
+        crate::smoke::ProbeKind::Outage => run_outage_smoke_probe(
+            url.ok_or_else(|| AppError::Argument("outage probe requires --probe-url".into()))?,
+            timeout_seconds,
+        ),
+    }
+}
+
+fn run_outage_smoke_probe(url: &str, timeout_seconds: u64) -> Result<CommandOutput, AppError> {
+    let dependencies = NetworkDependencies::load()?;
+    let status_page = crate::smoke::is_official_status_url(url);
+    let result = dependencies.runtime.block_on(async {
+        tokio::time::timeout(Duration::from_secs(timeout_seconds), async {
+            let response = dependencies.client.get(url).send().await?;
+            let server_error = response.status().is_server_error();
+            let body = if status_page {
+                response.text().await?
+            } else {
+                String::new()
+            };
+            Ok::<_, reqwest::Error>((server_error, body))
+        })
+        .await
+    });
+    let outage = if status_page {
+        result
+            .ok()
+            .and_then(Result::ok)
+            .is_some_and(|(_, body)| crate::smoke::status_page_reports_outage(&body))
+    } else {
+        match result {
+            Ok(Ok((server_error, _))) => server_error,
+            Ok(Err(_)) | Err(_) => true,
+        }
+    };
+    Ok(CommandOutput::Text {
+        stdout: serde_json::json!({"outage": outage}).to_string(),
+        stderr: None,
+        exit_code: if outage { 4 } else { 0 },
+    })
+}
+
+fn run_classifier_smoke_probe(timeout_seconds: u64) -> Result<CommandOutput, AppError> {
+    let dependencies = NetworkDependencies::load()?;
+    if !dependencies.config.classifier.configured() {
+        return Err(AppError::Config(ConfigError::Message(
+            "classifier.keys has no configured credentials".into(),
+        )));
+    }
+    let classifier = crate::classifier::Classifier::new(
+        dependencies.config.classifier,
+        dependencies.client,
+        RetryPolicy::new(1, 1.0, Duration::ZERO),
+    );
+    let timeout = Duration::from_secs(timeout_seconds);
+    let capabilities = dependencies
+        .runtime
+        .block_on(classifier.classify(crate::smoke::PIPELINE_CANARY_QUERY, Deadline::new(timeout)));
+    let plan = dependencies.runtime.block_on(
+        classifier.plan_research(crate::smoke::RESEARCH_CANARY_QUERY, Deadline::new(timeout)),
+    );
+    let (capabilities, plan) = match (capabilities, plan) {
+        (Ok(capabilities), Ok(plan)) => (capabilities, plan),
+        _ => {
+            return Ok(CommandOutput::Text {
+                stdout: serde_json::json!({
+                    "error_kind": "runtime",
+                    "message": "classifier live contract probe failed"
+                })
+                .to_string(),
+                stderr: None,
+                exit_code: 4,
+            });
+        }
+    };
+    let mut attempts = capabilities.attempts;
+    attempts.extend(plan.attempts);
+    Ok(CommandOutput::Text {
+        stdout: serde_json::json!({
+            "capabilities": capabilities.capabilities.iter().collect::<Vec<_>>(),
+            "research_plan": plan.plan,
+            "provider_attempts": attempts,
+        })
+        .to_string(),
+        stderr: None,
+        exit_code: 0,
+    })
+}
+
+fn run_supplemental_smoke_probe(
+    provider: &str,
+    timeout_seconds: u64,
+) -> Result<CommandOutput, AppError> {
+    let dependencies = NetworkDependencies::load()?;
+    let mut config = dependencies.config.web_search;
+    config.order = vec![provider.into()];
+    let outcome = dependencies
+        .runtime
+        .block_on(crate::engine::supplemental_web_search(
+            crate::smoke::MAIN_CANARY_QUERY,
+            3,
+            config,
+            crate::engine::CapabilityExecution::new(
+                "off",
+                dependencies.client,
+                RetryPolicy::new(1, 1.0, Duration::ZERO),
+                Deadline::new(Duration::from_secs(timeout_seconds)),
+            ),
+        ));
+    match outcome {
+        Ok(outcome) => Ok(CommandOutput::Text {
+            stdout: serde_json::json!({
+                "results": outcome.sources,
+                "provider_attempts": outcome.attempts,
+            })
+            .to_string(),
+            stderr: None,
+            exit_code: 0,
+        }),
+        Err(_) => Ok(CommandOutput::Text {
+            stdout: serde_json::json!({
+                "error_kind": "runtime",
+                "message": "supplemental live contract probe failed"
+            })
+            .to_string(),
+            stderr: None,
+            exit_code: 4,
+        }),
     }
 }
 
