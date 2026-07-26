@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 
 use crate::config::{self, JournalRuntimeConfig};
 use crate::providers::ProviderError;
-use crate::types::{Capability, JournalOutcome, SearchOutcome};
+use crate::types::{Capability, JournalOutcome, ResearchError, ResearchOutcome, SearchOutcome};
 
 static RECORD_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
@@ -22,6 +22,14 @@ pub(crate) struct SearchRecord<'a> {
     pub(crate) classifier_degraded: bool,
     pub(crate) classifier_duration: Option<Duration>,
     pub(crate) result: &'a Result<SearchOutcome, ProviderError>,
+}
+
+pub(crate) struct ResearchRecord<'a> {
+    pub(crate) query: &'a str,
+    pub(crate) budget: Duration,
+    pub(crate) elapsed: Duration,
+    pub(crate) capabilities: &'a [Capability],
+    pub(crate) result: &'a Result<ResearchOutcome, ResearchError>,
 }
 
 pub(crate) fn record_search(
@@ -49,12 +57,40 @@ pub(crate) fn record_search(
     }
 }
 
+pub(crate) fn record_research(
+    config: &JournalRuntimeConfig,
+    record: ResearchRecord<'_>,
+) -> JournalOutcome {
+    if !config.enabled {
+        return JournalOutcome {
+            status: "disabled",
+            reference: None,
+            warning: None,
+        };
+    }
+    match write_value(config, build_research_record(record)) {
+        Ok(reference) => JournalOutcome {
+            status: "written",
+            reference: Some(sanitize_text(config, &reference)),
+            warning: None,
+        },
+        Err(error) => JournalOutcome {
+            status: "failed",
+            reference: None,
+            warning: Some(sanitize_warning(config, &error.to_string())),
+        },
+    }
+}
+
 fn write_record(config: &JournalRuntimeConfig, record: SearchRecord<'_>) -> io::Result<String> {
+    write_value(config, build_record(record))
+}
+
+fn write_value(config: &JournalRuntimeConfig, mut value: Value) -> io::Result<String> {
     fs::create_dir_all(&config.dir)?;
     restrict_directory(&config.dir)?;
     cleanup_expired(config)?;
     let path = config.dir.join(record_name());
-    let mut value = build_record(record);
     sanitize_value(&mut value, &config.credentials);
     let encoded = serde_json::to_vec(&value).map_err(io::Error::other)?;
     let mut options = OpenOptions::new();
@@ -69,6 +105,72 @@ fn write_record(config: &JournalRuntimeConfig, record: SearchRecord<'_>) -> io::
     file.write_all(b"\n")?;
     restrict_file(&path)?;
     Ok(path.display().to_string())
+}
+
+fn build_research_record(record: ResearchRecord<'_>) -> Value {
+    let recorded_at_unix_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    let (result_surface, attempts, terminal_attribution, capability_gaps) = match record.result {
+        Ok(outcome) => (
+            json!({
+                "status": "ok",
+                "query": record.query,
+                "answer": outcome.final_answer,
+                "citations": outcome.citations,
+                "evidence_items": outcome.evidence_items,
+                "capabilities": outcome.capabilities,
+                "capability_gaps": outcome.capability_gaps,
+            }),
+            &outcome.attempts,
+            "ok",
+            &outcome.capability_gaps,
+        ),
+        Err(error) => (
+            json!({
+                "status": "error",
+                "query": record.query,
+                "error_kind": error.kind.as_str(),
+                "message": error.message,
+                "citations": error.evidence_items.iter().map(|item| json!({
+                    "url": item.url,
+                    "title": item.title,
+                    "provider": item.provider,
+                })).collect::<Vec<_>>(),
+                "evidence_items": error.evidence_items,
+                "capability_gaps": error.capability_gaps,
+            }),
+            &error.attempts,
+            error.kind.as_str(),
+            &error.capability_gaps,
+        ),
+    };
+    json!({
+        "schema_version": 1,
+        "recorded_at_unix_ms": recorded_at_unix_ms,
+        "result": result_surface,
+        "execution": {
+            "plan_summary": {
+                "source": "caller",
+                "capabilities": record.capabilities,
+                "classifier_degraded": false
+            },
+            "provider_attempts": attempts,
+            "terminal_attribution": terminal_attribution,
+            "deadline_budget": {
+                "total_ms": duration_millis(record.budget),
+                "consumed_ms": duration_millis(record.elapsed),
+                "exhausted": record.elapsed >= record.budget
+            },
+            "classifier_duration_ms": Value::Null,
+            "capability_gaps": capability_gaps,
+            "evidence_items": record.result
+                .as_ref()
+                .map(|outcome| &outcome.evidence_items)
+                .map_or_else(|error| &error.evidence_items, |evidence| evidence)
+        }
+    })
 }
 
 fn build_record(record: SearchRecord<'_>) -> Value {

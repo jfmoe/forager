@@ -2,7 +2,7 @@ use std::fs;
 use std::io::{Read, Write};
 use std::net::TcpListener;
 use std::path::PathBuf;
-use std::process::{Command, Output};
+use std::process::{Command, Output, Stdio};
 use std::thread;
 use std::time::Duration;
 
@@ -139,6 +139,28 @@ impl RunEnvironment {
             command.env(name, value);
         }
         command.output().expect("run forager")
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn run_with_stdin(&self, arguments: &[&str], stdin: &str) -> Output {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_forager"));
+        command
+            .args(arguments)
+            .env_clear()
+            .env("FORAGER_CONFIG_DIR", &self.config_dir)
+            .env("XDG_STATE_HOME", &self.state_dir)
+            .env("HOME", self.root.path())
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        let mut child = command.spawn().expect("spawn forager");
+        child
+            .stdin
+            .take()
+            .expect("child stdin")
+            .write_all(stdin.as_bytes())
+            .expect("write child stdin");
+        child.wait_with_output().expect("wait forager")
     }
 }
 

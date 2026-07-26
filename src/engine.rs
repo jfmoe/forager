@@ -337,7 +337,7 @@ fn merge_diagnostic(first: Option<String>, second: Option<String>) -> Option<Str
     }
 }
 
-fn known_urls(query: &str) -> Vec<String> {
+pub(crate) fn known_urls(query: &str) -> Vec<String> {
     let mut seen = HashSet::new();
     query
         .split_whitespace()
@@ -874,7 +874,7 @@ fn skipped_attempt(provider: &str, seam: &'static str) -> ProviderAttempt {
     }
 }
 
-fn terminal_kind(attempts: &[ProviderAttempt]) -> AttemptErrorKind {
+pub(crate) fn terminal_kind(attempts: &[ProviderAttempt]) -> AttemptErrorKind {
     terminal_attempt(attempts)
         .and_then(|attempt| attempt.error_kind)
         .unwrap_or(AttemptErrorKind::Timeout)

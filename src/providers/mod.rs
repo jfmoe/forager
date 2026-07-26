@@ -202,12 +202,18 @@ impl DocsSearch for Context7 {
             };
             let mut attempts = library.attempts;
             attempts.append(&mut docs.attempts);
-            let sources = docs
+            let mut sources = docs
                 .results
                 .iter()
                 .filter_map(context7_source)
                 .take(usize::from(limit))
-                .collect();
+                .collect::<Vec<_>>();
+            if let Some(source) = sources.first_mut()
+                && source.text.is_none()
+                && !docs.content.trim().is_empty()
+            {
+                source.text = Some(docs.content);
+            }
             Ok(SupplementalSearchOutcome {
                 sources,
                 attempts,

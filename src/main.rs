@@ -11,7 +11,7 @@ use forager::app::{
 };
 use forager::types::{
     AnysearchOutcome, AttemptErrorKind, Context7Outcome, ErrorFamily, ErrorKind, FetchOutcome,
-    JournalOutcome, MapOutcome, SearchOutcome,
+    JournalOutcome, MapOutcome, ResearchError, ResearchOutcome, SearchOutcome,
 };
 use serde_json::{Value, json};
 
@@ -29,6 +29,19 @@ fn main() -> ExitCode {
             output,
             verbose,
         }) => match render_search(result, &journal, format, output, verbose) {
+            Ok(rendered) => emit(rendered.stdout, rendered.stderr, rendered.exit_code),
+            Err(error) => {
+                eprintln!("runtime_error: {error}");
+                ExitCode::from(4)
+            }
+        },
+        Ok(CommandOutput::Research {
+            result,
+            journal,
+            format,
+            output,
+            verbose,
+        }) => match render_research(result, &journal, format, output, verbose) {
             Ok(rendered) => emit(rendered.stdout, rendered.stderr, rendered.exit_code),
             Err(error) => {
                 eprintln!("runtime_error: {error}");
@@ -95,6 +108,122 @@ fn main() -> ExitCode {
             ExitCode::from(error.exit_code())
         }
     }
+}
+
+fn render_research(
+    result: Result<ResearchOutcome, ResearchError>,
+    journal: &JournalOutcome,
+    format: DocsOutputFormat,
+    output: Option<PathBuf>,
+    verbose: bool,
+) -> Result<RenderedOutput, String> {
+    let (stdout, exit_code, diagnostic) = match result {
+        Ok(outcome) => {
+            let stdout = match format {
+                DocsOutputFormat::Json => {
+                    let mut payload =
+                        serde_json::to_value(&outcome).map_err(|error| error.to_string())?;
+                    add_journal_status(&mut payload, journal)?;
+                    if verbose {
+                        payload
+                            .as_object_mut()
+                            .expect("research outcome is an object")
+                            .insert(
+                                "provider_attempts".into(),
+                                serde_json::to_value(&outcome.attempts)
+                                    .map_err(|error| error.to_string())?,
+                            );
+                    }
+                    serde_json::to_string(&payload).map_err(|error| error.to_string())?
+                }
+                DocsOutputFormat::Markdown => {
+                    let mut markdown = format!("# Research Report\n\n{}", outcome.final_answer);
+                    if !outcome.citations.is_empty() {
+                        markdown.push_str("\n\n## Citations\n");
+                        for citation in &outcome.citations {
+                            markdown.push_str(&format!(
+                                "\n- [{}]({}) — {}",
+                                citation.title, citation.url, citation.provider
+                            ));
+                        }
+                    }
+                    markdown
+                }
+                DocsOutputFormat::Content => outcome.content.clone(),
+            };
+            (stdout, 0, outcome.diagnostic)
+        }
+        Err(error) => {
+            let stdout = match format {
+                DocsOutputFormat::Json => format_research_failure_json(&error, journal, verbose)?,
+                DocsOutputFormat::Markdown | DocsOutputFormat::Content => format!(
+                    "# Research failed\n\n**{}**: {}",
+                    error.kind.as_str(),
+                    error.message
+                ),
+            };
+            (stdout, postflight_exit_code(error.kind), error.diagnostic)
+        }
+    };
+    let diagnostic = combine_diagnostics(
+        diagnostic,
+        journal
+            .warning
+            .as_ref()
+            .map(|warning| format!("Search Result Journal warning: {warning}")),
+    );
+    apply_tee(
+        stdout,
+        exit_code,
+        format == DocsOutputFormat::Json,
+        output,
+        diagnostic,
+    )
+}
+
+fn format_research_failure_json(
+    error: &ResearchError,
+    journal: &JournalOutcome,
+    verbose: bool,
+) -> Result<String, String> {
+    let mut by_kind = BTreeMap::new();
+    for attempt in &error.attempts {
+        if let Some(kind) = attempt.error_kind {
+            *by_kind.entry(kind.as_str()).or_insert(0) += 1;
+        }
+    }
+    let provider_set = error
+        .attempts
+        .iter()
+        .map(|attempt| attempt.provider)
+        .collect::<BTreeSet<_>>();
+    let providers = provider_set.iter().take(8).copied().collect::<Vec<_>>();
+    let mut payload = json!({
+        "error_kind": error.kind.as_str(),
+        "message": error.message.chars().take(500).collect::<String>(),
+        "attempts": {
+            "total": error.attempts.len(),
+            "by_kind": by_kind,
+            "providers": providers,
+            "truncated": provider_set.len() > providers.len()
+        },
+        "capability_gaps": error.capability_gaps,
+    });
+    add_journal_status(&mut payload, journal)?;
+    if verbose {
+        payload
+            .as_object_mut()
+            .expect("research failure is an object")
+            .insert(
+                "provider_attempts".into(),
+                serde_json::to_value(&error.attempts).map_err(|error| error.to_string())?,
+            );
+    }
+    let encoded = serde_json::to_string(&payload).map_err(|error| error.to_string())?;
+    if !verbose && encoded.len() > 4096 {
+        return Err("default failure payload exceeded 4 KiB".into());
+    }
+    Ok(encoded)
 }
 
 fn render_search(

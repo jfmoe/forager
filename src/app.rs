@@ -1,9 +1,11 @@
 //! CLI parsing and application dispatch.
 
+use std::fs;
 use std::io::{self, BufRead, IsTerminal, Read, Write};
 use std::path::PathBuf;
 use std::time::Duration;
 use std::time::Instant;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use clap::{Parser, Subcommand, ValueEnum};
 use serde_json::{Map, Value};
@@ -19,7 +21,7 @@ use crate::providers::{
 use crate::types::{
     AnysearchOutcome, CapabilitySet, Context7Outcome, Deadline, FetchOutcome, MapOutcome,
 };
-use crate::types::{JournalOutcome, SearchOutcome};
+use crate::types::{JournalOutcome, ResearchError, ResearchOutcome, ResearchPlan, SearchOutcome};
 
 pub use crate::providers::ProviderError;
 pub use crate::types::ExaOutcome;
@@ -48,6 +50,26 @@ enum Command {
         #[arg(long, value_parser = ["auto", "off"])]
         fallback: Option<String>,
         #[arg(long, default_value_t = 180, value_parser = clap::value_parser!(u64).range(1..))]
+        timeout: u64,
+        #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
+        format: DocsOutputFormat,
+        #[arg(long)]
+        output: Option<PathBuf>,
+        #[arg(long)]
+        verbose: bool,
+    },
+    #[command(visible_alias = "rs")]
+    Research {
+        query: String,
+        #[arg(long)]
+        plan: Option<String>,
+        #[arg(long, value_enum, default_value_t = ResearchBudgetArg::Standard)]
+        budget: ResearchBudgetArg,
+        #[arg(long)]
+        evidence_dir: Option<PathBuf>,
+        #[arg(long, default_value = "auto", value_parser = ["auto", "off"])]
+        fallback: String,
+        #[arg(long, default_value_t = 600, value_parser = clap::value_parser!(u64).range(1..))]
         timeout: u64,
         #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
         format: DocsOutputFormat,
@@ -250,6 +272,23 @@ enum ExaSearchType {
     Auto,
 }
 
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum ResearchBudgetArg {
+    Quick,
+    Standard,
+    Deep,
+}
+
+impl From<ResearchBudgetArg> for crate::research::ResearchBudget {
+    fn from(value: ResearchBudgetArg) -> Self {
+        match value {
+            ResearchBudgetArg::Quick => Self::Quick,
+            ResearchBudgetArg::Standard => Self::Standard,
+            ResearchBudgetArg::Deep => Self::Deep,
+        }
+    }
+}
+
 impl From<ExaSearchType> for SearchType {
     fn from(value: ExaSearchType) -> Self {
         match value {
@@ -289,6 +328,19 @@ pub enum CommandOutput {
     Search {
         /// Main-search terminal result.
         result: Result<SearchOutcome, ProviderError>,
+        /// Search Result Journal side-channel outcome.
+        journal: JournalOutcome,
+        /// Requested output format.
+        format: DocsOutputFormat,
+        /// Optional tee destination.
+        output: Option<PathBuf>,
+        /// Whether full provider attempts should be rendered inline.
+        verbose: bool,
+    },
+    /// One completed caller-planned research invocation.
+    Research {
+        /// Evidence-backed research terminal result.
+        result: Result<ResearchOutcome, ResearchError>,
         /// Search Result Journal side-channel outcome.
         journal: JournalOutcome,
         /// Requested output format.
@@ -373,6 +425,15 @@ struct SearchContext {
     journal: config::JournalRuntimeConfig,
     default_model: String,
     endpoint_host: String,
+    timeout: Duration,
+    runtime: tokio::runtime::Runtime,
+}
+
+struct ResearchContext {
+    config: config::RuntimeConfig,
+    client: reqwest::Client,
+    retry_policy: RetryPolicy,
+    journal: config::JournalRuntimeConfig,
     timeout: Duration,
     runtime: tokio::runtime::Runtime,
 }
@@ -580,6 +641,57 @@ impl SearchContext {
     }
 }
 
+impl ResearchContext {
+    fn load(timeout_seconds: u64) -> Result<Self, AppError> {
+        let dependencies = NetworkDependencies::load()?;
+        let journal = dependencies.config.journal.clone();
+        Ok(Self {
+            config: dependencies.config,
+            client: dependencies.client,
+            retry_policy: dependencies.retry_policy,
+            journal,
+            timeout: Duration::from_secs(timeout_seconds),
+            runtime: dependencies.runtime,
+        })
+    }
+
+    fn research(
+        self,
+        query: String,
+        plan: ResearchPlan,
+        budget: crate::research::ResearchBudget,
+        evidence_dir: PathBuf,
+        fallback: String,
+    ) -> (Result<ResearchOutcome, ResearchError>, JournalOutcome) {
+        let started = Instant::now();
+        let capabilities = plan.capabilities().iter().collect::<Vec<_>>();
+        let result = self.runtime.block_on(crate::research::execute(
+            crate::research::ResearchRequest {
+                query: query.clone(),
+                plan,
+                budget,
+                evidence_dir,
+                fallback,
+            },
+            self.config,
+            self.client,
+            self.retry_policy,
+            Deadline::new(self.timeout),
+        ));
+        let journal = crate::journal::record_research(
+            &self.journal,
+            crate::journal::ResearchRecord {
+                query: &query,
+                budget: self.timeout,
+                elapsed: started.elapsed(),
+                capabilities: &capabilities,
+                result: &result,
+            },
+        );
+        (result, journal)
+    }
+}
+
 impl AppContext<providers::Exa> {
     fn for_exa(timeout: Option<u64>) -> Result<Self, AppError> {
         let dependencies = NetworkDependencies::load()?;
@@ -731,6 +843,47 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                 fallback.as_deref(),
             );
             Ok(CommandOutput::Search {
+                result,
+                journal,
+                format,
+                output,
+                verbose,
+            })
+        }
+        Command::Research {
+            query,
+            plan,
+            budget,
+            evidence_dir,
+            fallback,
+            timeout,
+            format,
+            output,
+            verbose,
+        } => {
+            let plan = plan.ok_or_else(|| {
+                AppError::Config(ConfigError::Message(
+                    "research without --plan requires a configured classifier plan generator"
+                        .into(),
+                ))
+            })?;
+            let plan_input = if plan == "-" {
+                read_stdin()?
+            } else {
+                fs::read_to_string(&plan).map_err(|error| {
+                    AppError::Argument(format!("cannot read research plan `{plan}`: {error}"))
+                })?
+            };
+            let plan = ResearchPlan::parse_json(&plan_input).map_err(AppError::Argument)?;
+            let evidence_dir = evidence_dir.unwrap_or_else(default_evidence_dir);
+            let (result, journal) = ResearchContext::load(timeout)?.research(
+                query,
+                plan,
+                budget.into(),
+                evidence_dir,
+                fallback,
+            );
+            Ok(CommandOutput::Research {
                 result,
                 journal,
                 format,
@@ -1022,6 +1175,16 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             lang,
         } => run_interactive_setup(lang),
     }
+}
+
+fn default_evidence_dir() -> PathBuf {
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    std::env::temp_dir()
+        .join("forager-evidence")
+        .join(format!("{}-{timestamp}", std::process::id()))
 }
 
 fn combine_diagnostics(first: Option<String>, second: Option<String>) -> Option<String> {
