@@ -1,0 +1,93 @@
+# 4. Rust 架构骨架
+
+权威来源：[#58 Resolution](https://github.com/jfmoe/smartsearch/issues/58) 及其[补充决议（F1–F10）](https://github.com/jfmoe/smartsearch/issues/58#issuecomment-5078828791)。选型输入：#54（clap 4 derive、tokio + reqwest(rustls)、figment + serde、thiserror/anyhow/miette、dist + release-plz；aichat 为架构参考）。
+
+## 工程形态：单 crate `forager`，bin + lib
+
+不上多 crate 工作区（Rust 模块私有性已在编译期阻止跨私有面 import；单 crate → 工作区是机械重构）。两条纪律：① 模块默认私有，跨模块共享必须显式 `pub(crate)` 且只能上移共享层，provider 之间禁止横向 import；② `main.rs`/`lib.rs` 分离，bin 只做 clap 解析与退出码映射。
+
+## 顶层模块（12 个，五层单向依赖）
+
+```
+main → app → {engine, research, classifier, doctor, journal}
+                → {net, credentials, config, providers} → types
+```
+
+- **`app` 组合层**（F1）：极薄；持有显式 `AppContext`（Config、共享 Client、CredentialPool、ModelBreakers、Deadline、journal 写入器的唯一所有权），只做具名输入/输出的顺序组合；禁止 provider 分支、路由规则、结果拼装。持有关键任务 `JoinHandle`，`JoinError` 归 Runtime。
+- **`types`**：零 IO 纯类型层——ErrorKind、Capability、`PlanCapability`（plan 语境独立三值枚举）、各 Outcome、ProviderAttempt、Source、ResearchPlan Schema v1、Deadline、薄正文阈值常量。所有跨层形状的唯一定义点。
+- **`net`**：共享 HTTP client 构造、RetryPolicy、SSE 解析、status→ErrorKind 唯一映射、McpClient。
+- `research`/`classifier`/`doctor`/`journal` 各自一格、互不依赖、不被 engine 依赖。
+- 输出格式化先放 bin 侧，出现第二个消费者再提升为 `output/`。
+
+## Provider 契约与 registry
+
+- **每 seam 一个 trait + 专属返回类型**：`WebSearch`/`DocsSearch`/`WebFetch`（supplemental 与主搜索共用 WebSearch 签名，registry 区分链序归属）；`SearchOutcome`/`DocsOutcome`/`FetchOutcome` 共享 ProviderAttempt/Source 构件。一个 provider＝一个 struct，同一 `Arc` 实例登记进多条 seam 链。
+- **seam 支持矩阵**＝「谁 impl 了哪个 trait」的编译期事实；`order` 校验查 registry。**`map` 命令**＝tavily 直连操作（`site_map`），不设独立 seam trait（唯一 provider，需要时提升为 trait 是纯增量）；registry 在 tavily 描述内登记该操作。
+- **registry 最小职责**（F10）：唯一登记 `ProviderId`、支持 seam、凭据要求、doctor probe、构造入口；config/doctor/capability status 从同一描述读取身份，不各设 allowlist；engine 只调用 seam trait 并聚合 `ProviderAttempt`，禁止按 provider id/model 分支；openai-compatible 的 model 候选、断路器、transport fallback 全部封装在 provider 内。不引入宏、不生成 clap 树。
+
+## 错误模型
+
+- **`ErrorKind` 10 变体**：Auth / RateLimited / QuotaExhausted / Parameter / Config / Timeout / Network / Quality / Evidence / Runtime。三方法：`is_retryable()`；`rotates_credential()`（RateLimited|QuotaExhausted——轮换优先于重试，429 不重试）；`family() → Transport|Content`（Quality/Evidence 为 Content 族）。**无 `exit_code()` 方法**。
+- 「empty」从错误分类法除名：直连命令空结果＝`Ok(空 Outcome)` 退 0；证据管线的证据不足＝Evidence 退 5（域切分见第 1 章）。
+- **退出码两阶段**：飞行前（argv→2、config/未知 env→3）只由预检产生；飞行后由**归因总函数**产生。attempt 级 Parameter 不映射退 2。
+- **归因总函数**（F4 + #59 B3）：只按每个 provider 的**最终 attempt** 归约（重试不参与计数），对各 kind 按**优先级全序**取最大，与重试次数、失败顺序无关。已有成功响应进入质量/证据阶段且终局失败＝Content 优先退 5，不被后续网络失败覆盖；所有可用 provider 均未产生可验证响应才退 4；同质失败顶层透传原 kind（如全 401 报 auth_error，退出码仍按族）；attempts 永远带原始 kind。
+  - **全序表定稿**（低 → 高；Content 族恒高于 Transport 族）：`Network < Timeout < RateLimited < QuotaExhausted < Auth < Parameter < Runtime < Quality < Evidence`。定义域为**飞行后 kind**（ErrorKind ∖ {Config}）：`Config` 只在飞行前预检产生（退 3），**`ProviderAttempt` 不得携带 Config**——此为类型不变量，进 unit 真值表。族间关系与全序存在性为契约（真值表穷举验证）；族内排布编码期可微调，调整须同步更新真值表。
+- `ProviderError`（thiserror）：kind + provider + status + 脱敏消息 + 耗时；status→kind 映射只在 net 一份。
+- **分类器已配置但失败**：降级继续 + stderr 警告 + journal 落痕，不影响退出码；research 裸调用下采用**固定最小降级 plan**（单步 web_search）继续执行（#59 H8）。
+- miette 只渲染 text 人类报错；契约路径（JSON）不经 anyhow/miette。
+
+## net 层
+
+1. 全进程一个 `reqwest::Client`（rustls），构造参数单点。
+2. **`Deadline` 贯穿调用链**；attempt 上限＝`min(层上限, 剩余预算 / 剩余必要 fallback 槽位数)`（F3）。每层开始时枚举尚未尝试的必要槽位；retry 只消费本槽位未用完预算，优先级低于未尝试的 provider/model fallback；耗尽→Timeout、保留已完成 attempts。槽位可执行定义见第 5 章 M17。
+3. SSE 只用 **eventsource-stream 裸解析**（不用 reqwest-eventsource——其自动重连绕过预算与 attempt 记录）；NDJSON 同入口换分帧器。
+4. **`McpClient`** 统一 session 握手 / tools-call / 双格式解析 / 错误映射；context7、anysearch 退化为「tool 名 + serde 参数 + 结果映射」；session 过期重握手留在 McpClient 内、受 Deadline 约束。**语义错误解码**（F5）：统一识别 JSON-RPC `error` 与 `result.isError`；provider adapter 只提供具名解码规则；可识别限流/配额文本映射 RateLimited/QuotaExhausted（触发轮换），未知 tool error 映射 Runtime 且不重试；归类先于轮换/重试决策。
+5. `RetryPolicy` 参数化；可重试集合由 `is_retryable()` 决定；执行序固定：轮换 → 重试 → 上抛。
+
+## 凭据池与断路器
+
+分界原则：跨进程必须共享的落盘，策略性短时效的留进程内。
+
+- **池**：游标落盘 `$XDG_STATE_HOME/forager/credential_pool_state.json`，fd-lock 有界文件锁，「锁内取号推进 / 拿不到锁乐观降级」语义保持。**状态文件不变量**（F6）：带 schema version、只存非敏感索引；同目录 `0600` 临时文件 + fsync + 原子 rename；解析失败只复位受影响 provider 的游标并发非致命诊断，不升 config_error、不阻断搜索。进程内轮换状态为显式 `CredentialPool` struct（`Arc<Mutex>`）参数传入，无全局、无 reset 钩子。`classifier.keys` 走同一实现。
+- **model 断路器**：进程内显式 `ModelBreakers` struct（阈值 2 / 冷却 600s），不落盘。
+
+## web_fetch 薄正文质量门控
+
+只对 HTTP 成功响应生效，判定对象为提取后正文文本。两线命中任一 → `Quality`（Content 族）落下一家：**长度线**正文 < 200 字符；**密度线**唯一行数 ≤ 3 且总长 < 500。PDF 只适用长度线。全链皆薄 → 终态 Quality 退 5，attempts 带实测字符数。阈值为 types 具名常量，**不设配置键**。
+
+## journal
+
+定位：结果面 + 过程面双记录。
+
+- **结果面**：query、answer 全文、sources[]（URL 经统一脱敏器）、research 的 citations/evidence_items。
+- **过程面**：plan 摘要（capabilities 终集 + 来源 + 分类器是否降级）、provider_attempts[]（provider、seam、error_kind、http_status、duration_ms、credential_index、retry/rotation 计数、脱敏截断 500 字符错误消息、model、endpoint_host、断路器事件）、终态归因、budget 视图 `{total_ms, consumed_ms, exhausted}`、分类器耗时、capability_gaps。
+- **字段白名单排除项**：请求/响应头、请求体、原始响应体、key 任何形式（含掩码）、分类器 prompt 原文。
+- `capability_gaps` 形状：`[{capability, reason: no_configured_provider|all_attempts_failed, providers_skipped[]}]`，空则省略；结果 JSON 顶层 + stderr 警告 + journal 三出口。
+- **落笔机制**（F7 修订）：`app` 层唯一终态写入器落笔一次，Ok/Err 皆写；panic hook 只做最小 stderr 诊断、**不写 journal**；孤儿任务 panic 与 kill -9 丢记录为已接受限制。
+- **路径规则**（F8）：`journal.dir` 只支持前导 `~/` 展开；相对路径统一相对 config 目录解析（不依赖 cwd）；`FORAGER_CONFIG_DIR` 改变 config 目录时同步改变该基准。
+- 深钻原始交互走重放：`log.level = "debug"` 打 stderr 不持久化。
+
+## 照办件（上游已定契约汇总）
+
+- 具名 request class 预留（v1 空）；env 数组＝TOML 字面量、按 schema 目标类型解析（figment Env 层自定义）；`FORAGER_CONFIG_DIR` 豁免、未知 `FORAGER_*` 退 3。
+- **统一 URL 脱敏器**居 `config` 模块：去 userinfo/fragment、掩 token/key/secret/signature/authorization 类 query 参数；config list / doctor / 错误消息 / journal 四出口共用。
+- config 目录 0700 / 文件与临时文件 0600（替换后重申）；`config set KEY -` stdin 语义（第 3 章）；坏配置双通道（严格加载 vs 修复）；toml_edit 承诺以 #57 原文为准，不扩大。
+- Schema v1 严格解析细则全套（第 2 章）；`reason` 必填非空；`PlanCapability` 独立三值枚举；plan→执行纯函数只读 `required_capabilities`。
+
+## #55 痛点 13 条消解落点
+
+| 痛点 | 落点 |
+|---|---|
+| 1 service.py God 模块 | 模块拆分 + app 组合层 |
+| 2 虚假基类契约 | 每 seam trait + 专属 Outcome |
+| 3 HTTP/重试样板漂移 | 单 Client、RetryPolicy、唯一 status 映射 |
+| 4 多套 MCP transport | McpClient 统一（Zhipu 已砍） |
+| 5 error_type 无单一真相 | ErrorKind + 归因总函数 |
+| 6 结果 dict 多处拼装 | types + 专属 Outcome |
+| 7 配置 God 单例 | 强类型 schema + AppContext 持有 Config |
+| 8 两套凭据体系 | 唯一凭据池 |
+| 9 monkeypatch/全局 reset | 显式 struct 参数传入，无全局 |
+| 10 双向耦合 | 私有性纪律 + 单向层 |
+| 11 新 provider 多点登记 | registry 唯一描述 |
+| 12 路由分裂 | classifier 独立模块，app 唯一组合点 |
+| 13 engine 中 provider 特判 | F10 封装边界 |
