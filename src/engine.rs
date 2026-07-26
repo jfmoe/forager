@@ -4,13 +4,358 @@ use std::time::Duration;
 
 use reqwest::Client;
 
-use crate::config::{self, MainSearchRuntimeConfig, WebFetchRuntimeConfig};
+use crate::config::{
+    self, DocsSearchProviderConfig, DocsSearchRuntimeConfig, MainSearchRuntimeConfig,
+    RuntimeConfig, VerticalSearchRuntimeConfig, WebFetchRuntimeConfig, WebSearchRuntimeConfig,
+};
 use crate::net::RetryPolicy;
 use crate::providers::{self, FetchRequest, ProviderError, SearchRequest};
 use crate::types::{
-    AttemptErrorKind, DENSITY_MAX_CHARS, DENSITY_MAX_UNIQUE_LINES, Deadline, FetchOutcome,
-    MIN_FETCH_CONTENT_CHARS, MIN_USEFUL_SLICE_SECONDS, ProviderAttempt, SearchOutcome,
+    AttemptErrorKind, Capability, CapabilityGap, CapabilitySet, DENSITY_MAX_CHARS,
+    DENSITY_MAX_UNIQUE_LINES, Deadline, FetchOutcome, MIN_FETCH_CONTENT_CHARS,
+    MIN_USEFUL_SLICE_SECONDS, ProviderAttempt, SearchOutcome, Source, SupplementalSearchOutcome,
+    ValidationResult, VerticalSearchOutcome,
 };
+
+#[derive(Clone)]
+pub(crate) struct CapabilityExecution {
+    pub(crate) fallback: String,
+    pub(crate) client: Client,
+    pub(crate) retry_policy: RetryPolicy,
+    pub(crate) deadline: Deadline,
+}
+
+impl CapabilityExecution {
+    pub(crate) fn new(
+        fallback: &str,
+        client: Client,
+        retry_policy: RetryPolicy,
+        deadline: Deadline,
+    ) -> Self {
+        Self {
+            fallback: fallback.into(),
+            client,
+            retry_policy,
+            deadline,
+        }
+    }
+}
+
+pub(crate) async fn execute_capabilities(
+    outcome: &mut SearchOutcome,
+    query: &str,
+    capabilities: &CapabilitySet,
+    limit: u16,
+    config: &RuntimeConfig,
+    execution: CapabilityExecution,
+) {
+    for capability in capabilities.iter() {
+        match capability {
+            Capability::DocsSearch => {
+                augment_with_docs_search(outcome, query, limit, config, execution.clone()).await;
+            }
+            Capability::WebSearch => {
+                augment_with_web_search(outcome, query, limit, config, execution.clone()).await;
+            }
+            Capability::WebFetch => {
+                augment_with_web_fetch(outcome, query, config, execution.clone()).await;
+            }
+            Capability::VerticalSearch => {
+                augment_with_vertical_search(outcome, query, limit, config, execution.clone())
+                    .await;
+            }
+        }
+    }
+}
+
+async fn augment_with_web_search(
+    outcome: &mut SearchOutcome,
+    query: &str,
+    limit: u16,
+    config: &RuntimeConfig,
+    execution: CapabilityExecution,
+) {
+    if config.web_search.configured_provider_count() == 0 {
+        record_gap(
+            outcome,
+            Capability::WebSearch,
+            "no_configured_provider",
+            config.web_search.order.clone(),
+            "web_search has no configured provider",
+        );
+        return;
+    }
+    match supplemental_web_search(query, limit, config.web_search.clone(), execution).await {
+        Ok(mut supplemental) => {
+            outcome.attempts.append(&mut supplemental.attempts);
+            outcome.diagnostic =
+                merge_diagnostic(outcome.diagnostic.take(), supplemental.diagnostic);
+            merge_extra_sources(outcome, supplemental.sources);
+        }
+        Err(mut error) => {
+            let attempted = error
+                .attempts
+                .iter()
+                .map(|attempt| attempt.provider.to_owned())
+                .collect::<HashSet<_>>();
+            outcome.attempts.append(&mut error.attempts);
+            outcome.diagnostic = merge_diagnostic(outcome.diagnostic.take(), error.diagnostic);
+            record_gap(
+                outcome,
+                Capability::WebSearch,
+                "all_attempts_failed",
+                config
+                    .web_search
+                    .order
+                    .iter()
+                    .filter(|provider| !attempted.contains(provider.as_str()))
+                    .cloned()
+                    .collect(),
+                "all web_search attempts failed",
+            );
+        }
+    }
+}
+
+async fn augment_with_docs_search(
+    outcome: &mut SearchOutcome,
+    query: &str,
+    limit: u16,
+    config: &RuntimeConfig,
+    execution: CapabilityExecution,
+) {
+    if config.docs_search.configured_provider_count() == 0 {
+        record_gap(
+            outcome,
+            Capability::DocsSearch,
+            "no_configured_provider",
+            config.docs_search.order.clone(),
+            "docs_search has no configured provider",
+        );
+        return;
+    }
+    match documentation_search(query, limit, config.docs_search.clone(), execution).await {
+        Ok(mut supplemental) => {
+            outcome.attempts.append(&mut supplemental.attempts);
+            outcome.diagnostic =
+                merge_diagnostic(outcome.diagnostic.take(), supplemental.diagnostic);
+            merge_extra_sources(outcome, supplemental.sources);
+        }
+        Err(mut error) => {
+            outcome.attempts.append(&mut error.attempts);
+            outcome.diagnostic = merge_diagnostic(outcome.diagnostic.take(), error.diagnostic);
+            record_gap(
+                outcome,
+                Capability::DocsSearch,
+                "all_attempts_failed",
+                config
+                    .docs_search
+                    .order
+                    .iter()
+                    .filter(|provider| {
+                        config
+                            .docs_search
+                            .provider(provider)
+                            .is_none_or(|config| !config.configured())
+                    })
+                    .cloned()
+                    .collect(),
+                "all docs_search attempts failed",
+            );
+        }
+    }
+}
+
+async fn augment_with_web_fetch(
+    outcome: &mut SearchOutcome,
+    query: &str,
+    config: &RuntimeConfig,
+    execution: CapabilityExecution,
+) {
+    if config.web_fetch.configured_provider_count() == 0 {
+        record_gap(
+            outcome,
+            Capability::WebFetch,
+            "no_configured_provider",
+            config.web_fetch.order.clone(),
+            "web_fetch has no configured provider",
+        );
+        return;
+    }
+    let urls = known_urls(query);
+    if urls.is_empty() {
+        record_gap(
+            outcome,
+            Capability::WebFetch,
+            "all_attempts_failed",
+            Vec::new(),
+            "web_fetch declaration has no known URL target",
+        );
+        return;
+    }
+    let mut succeeded = false;
+    let mut failed = false;
+    for url in urls {
+        match fetch(
+            FetchRequest {
+                url: url.clone(),
+                verbose: true,
+            },
+            config.web_fetch.clone(),
+            execution.client.clone(),
+            execution.retry_policy,
+            execution.deadline,
+        )
+        .await
+        {
+            Ok(mut fetched) => {
+                succeeded = true;
+                outcome.attempts.append(&mut fetched.attempts);
+                outcome.diagnostic =
+                    merge_diagnostic(outcome.diagnostic.take(), fetched.diagnostic);
+                outcome.validation_results.push(ValidationResult {
+                    url: config::redact_url(&url),
+                    provider: fetched.provider,
+                    status: "validated",
+                });
+            }
+            Err(mut error) => {
+                failed = true;
+                outcome.attempts.append(&mut error.attempts);
+                outcome.diagnostic = merge_diagnostic(outcome.diagnostic.take(), error.diagnostic);
+            }
+        }
+    }
+    if failed && !succeeded {
+        record_gap(
+            outcome,
+            Capability::WebFetch,
+            "all_attempts_failed",
+            config
+                .web_fetch
+                .order
+                .iter()
+                .filter(|provider| {
+                    config
+                        .web_fetch
+                        .provider(provider)
+                        .is_none_or(|provider| provider.keys.is_empty())
+                })
+                .cloned()
+                .collect(),
+            "one or more web_fetch targets failed",
+        );
+    }
+}
+
+async fn augment_with_vertical_search(
+    outcome: &mut SearchOutcome,
+    query: &str,
+    limit: u16,
+    config: &RuntimeConfig,
+    execution: CapabilityExecution,
+) {
+    if config.vertical_search.configured_provider_count() == 0 {
+        record_gap(
+            outcome,
+            Capability::VerticalSearch,
+            "no_configured_provider",
+            config.vertical_search.order.clone(),
+            "vertical_search has no configured provider",
+        );
+        return;
+    }
+    match vertical_search(query, limit, config.vertical_search.clone(), execution).await {
+        Ok(mut vertical) => {
+            outcome.attempts.append(&mut vertical.attempts);
+            outcome.diagnostic = merge_diagnostic(outcome.diagnostic.take(), vertical.diagnostic);
+            outcome.vertical_results = vertical.results;
+            merge_extra_sources(outcome, vertical.sources);
+        }
+        Err(mut error) => {
+            outcome.attempts.append(&mut error.attempts);
+            outcome.diagnostic = merge_diagnostic(outcome.diagnostic.take(), error.diagnostic);
+            record_gap(
+                outcome,
+                Capability::VerticalSearch,
+                "all_attempts_failed",
+                config
+                    .vertical_search
+                    .order
+                    .iter()
+                    .filter(|provider| {
+                        config
+                            .vertical_search
+                            .provider(provider)
+                            .is_none_or(|config| config.keys.is_empty())
+                    })
+                    .cloned()
+                    .collect(),
+                "all vertical_search attempts failed",
+            );
+        }
+    }
+}
+
+fn merge_extra_sources(outcome: &mut SearchOutcome, sources: Vec<Source>) {
+    let mut seen = outcome
+        .sources
+        .iter()
+        .map(|source| source.url.clone())
+        .collect::<HashSet<_>>();
+    for source in sources {
+        if seen.insert(source.url.clone()) {
+            outcome.extra_sources.push(source.clone());
+            outcome.sources.push(source);
+        }
+    }
+}
+
+fn record_gap(
+    outcome: &mut SearchOutcome,
+    capability: Capability,
+    reason: &'static str,
+    providers_skipped: Vec<String>,
+    message: &str,
+) {
+    outcome.capability_gaps.push(CapabilityGap {
+        capability,
+        reason,
+        providers_skipped,
+    });
+    outcome.diagnostic = merge_diagnostic(
+        outcome.diagnostic.take(),
+        Some(format!("capability gap: {message}")),
+    );
+}
+
+fn merge_diagnostic(first: Option<String>, second: Option<String>) -> Option<String> {
+    match (first, second) {
+        (Some(first), Some(second)) => Some(format!("{first}\n{second}")),
+        (Some(value), None) | (None, Some(value)) => Some(value),
+        (None, None) => None,
+    }
+}
+
+fn known_urls(query: &str) -> Vec<String> {
+    let mut seen = HashSet::new();
+    query
+        .split_whitespace()
+        .map(|value| {
+            value.trim_matches(|character: char| {
+                matches!(
+                    character,
+                    '"' | '\'' | '(' | ')' | '[' | ']' | '{' | '}' | ',' | ';'
+                )
+            })
+        })
+        .filter(|value| {
+            reqwest::Url::parse(value).is_ok_and(|url| matches!(url.scheme(), "http" | "https"))
+        })
+        .filter(|value| seen.insert((*value).to_owned()))
+        .map(ToOwned::to_owned)
+        .collect()
+}
 
 pub(crate) async fn search(
     request: SearchRequest,
@@ -213,6 +558,275 @@ pub(crate) async fn fetch(
         diagnostic: combine_diagnostics(diagnostics),
         redirected_library_id: None,
     })
+}
+
+pub(crate) async fn supplemental_web_search(
+    query: &str,
+    limit: u16,
+    config: WebSearchRuntimeConfig,
+    execution: CapabilityExecution,
+) -> Result<SupplementalSearchOutcome, ProviderError> {
+    let executable = if execution.fallback == "off" {
+        config.order.iter().take(1).cloned().collect::<Vec<_>>()
+    } else {
+        config
+            .order
+            .iter()
+            .filter(|provider| {
+                config
+                    .provider(provider)
+                    .is_some_and(|config| !config.keys.is_empty())
+            })
+            .cloned()
+            .collect::<Vec<_>>()
+    };
+    let mut attempts = Vec::new();
+    let mut diagnostics = Vec::new();
+
+    for (index, provider_name) in executable.iter().enumerate() {
+        let Some(provider_config) = config.provider(provider_name) else {
+            continue;
+        };
+        if provider_config.keys.is_empty() {
+            attempts.push(unconfigured_capability_attempt(provider_name, "web_search"));
+            break;
+        }
+        let Some(remaining) = execution.deadline.remaining() else {
+            break;
+        };
+        let Some(budget) = provider_budget(remaining, executable.len() - index) else {
+            attempts.push(skipped_attempt(provider_name, "web_search"));
+            continue;
+        };
+        match providers::build_web_search(
+            provider_name,
+            provider_config.clone(),
+            execution.client.clone(),
+            execution.retry_policy,
+            Deadline::new(budget),
+        )
+        .search(query.to_owned(), limit)
+        .await
+        {
+            Ok(mut outcome) => {
+                attempts.append(&mut outcome.attempts);
+                if let Some(diagnostic) = outcome.diagnostic.take() {
+                    diagnostics.push(diagnostic);
+                }
+                outcome.attempts = attempts;
+                outcome.diagnostic = combine_diagnostics(diagnostics);
+                return Ok(outcome);
+            }
+            Err(mut error) => {
+                attempts.append(&mut error.attempts);
+                if let Some(diagnostic) = error.diagnostic {
+                    diagnostics.push(diagnostic);
+                }
+            }
+        }
+    }
+    let terminal = terminal_attempt(&attempts);
+    Err(ProviderError {
+        kind: terminal
+            .and_then(|attempt| attempt.error_kind)
+            .unwrap_or(AttemptErrorKind::Timeout),
+        message: terminal.map_or_else(
+            || "supplemental web search has no executable provider".into(),
+            |attempt| attempt.message.clone(),
+        ),
+        attempts,
+        verbose: false,
+        diagnostic: combine_diagnostics(diagnostics),
+        redirected_library_id: None,
+    })
+}
+
+pub(crate) async fn documentation_search(
+    query: &str,
+    limit: u16,
+    config: DocsSearchRuntimeConfig,
+    execution: CapabilityExecution,
+) -> Result<SupplementalSearchOutcome, ProviderError> {
+    let executable = if execution.fallback == "off" {
+        config.order.iter().take(1).cloned().collect::<Vec<_>>()
+    } else {
+        config
+            .order
+            .iter()
+            .filter(|provider| {
+                config
+                    .provider(provider)
+                    .is_some_and(DocsSearchProviderConfig::configured)
+            })
+            .cloned()
+            .collect::<Vec<_>>()
+    };
+    let mut attempts = Vec::new();
+    let mut diagnostics = Vec::new();
+    for (index, provider_name) in executable.iter().enumerate() {
+        let provider_config = config
+            .provider(provider_name)
+            .expect("validated docs search provider")
+            .clone();
+        if !provider_config.configured() {
+            attempts.push(unconfigured_capability_attempt(
+                provider_name,
+                "docs_search",
+            ));
+            break;
+        }
+        let Some(remaining) = execution.deadline.remaining() else {
+            break;
+        };
+        let Some(budget) = provider_budget(remaining, executable.len() - index) else {
+            attempts.push(skipped_attempt(provider_name, "docs_search"));
+            continue;
+        };
+        match providers::build_docs_search(
+            provider_name,
+            provider_config,
+            execution.client.clone(),
+            execution.retry_policy,
+            Deadline::new(budget),
+        )
+        .search(query.to_owned(), limit)
+        .await
+        {
+            Ok(mut outcome) => {
+                attempts.append(&mut outcome.attempts);
+                if let Some(diagnostic) = outcome.diagnostic.take() {
+                    diagnostics.push(diagnostic);
+                }
+                outcome.attempts = attempts;
+                outcome.diagnostic = combine_diagnostics(diagnostics);
+                return Ok(outcome);
+            }
+            Err(mut error) => {
+                attempts.append(&mut error.attempts);
+                if let Some(diagnostic) = error.diagnostic {
+                    diagnostics.push(diagnostic);
+                }
+            }
+        }
+    }
+    let terminal = terminal_attempt(&attempts);
+    Err(ProviderError {
+        kind: terminal
+            .and_then(|attempt| attempt.error_kind)
+            .unwrap_or(AttemptErrorKind::Timeout),
+        message: terminal.map_or_else(
+            || "documentation search has no executable provider".into(),
+            |attempt| attempt.message.clone(),
+        ),
+        attempts,
+        verbose: false,
+        diagnostic: combine_diagnostics(diagnostics),
+        redirected_library_id: None,
+    })
+}
+
+pub(crate) async fn vertical_search(
+    query: &str,
+    limit: u16,
+    config: VerticalSearchRuntimeConfig,
+    execution: CapabilityExecution,
+) -> Result<VerticalSearchOutcome, ProviderError> {
+    let executable = if execution.fallback == "off" {
+        config.order.iter().take(1).cloned().collect::<Vec<_>>()
+    } else {
+        config
+            .order
+            .iter()
+            .filter(|provider| {
+                config
+                    .provider(provider)
+                    .is_some_and(|config| !config.keys.is_empty())
+            })
+            .cloned()
+            .collect()
+    };
+    let mut attempts = Vec::new();
+    let mut diagnostics = Vec::new();
+    for (index, provider_name) in executable.iter().enumerate() {
+        let provider_config = config
+            .provider(provider_name)
+            .expect("validated vertical search provider")
+            .clone();
+        if provider_config.keys.is_empty() {
+            attempts.push(unconfigured_capability_attempt(
+                provider_name,
+                "vertical_search",
+            ));
+            break;
+        }
+        let Some(remaining) = execution.deadline.remaining() else {
+            break;
+        };
+        let Some(budget) = provider_budget(remaining, executable.len() - index) else {
+            attempts.push(skipped_attempt(provider_name, "vertical_search"));
+            continue;
+        };
+        match providers::build_vertical_search(
+            provider_name,
+            provider_config,
+            execution.client.clone(),
+            execution.retry_policy,
+            Deadline::new(budget),
+        )
+        .search(query.to_owned(), limit)
+        .await
+        {
+            Ok(mut outcome) => {
+                attempts.append(&mut outcome.attempts);
+                outcome.attempts = attempts;
+                if let Some(diagnostic) = outcome.diagnostic.take() {
+                    diagnostics.push(diagnostic);
+                }
+                outcome.diagnostic = combine_diagnostics(diagnostics);
+                return Ok(outcome);
+            }
+            Err(mut error) => {
+                attempts.append(&mut error.attempts);
+                if let Some(diagnostic) = error.diagnostic {
+                    diagnostics.push(diagnostic);
+                }
+            }
+        }
+    }
+    let terminal = terminal_attempt(&attempts);
+    Err(ProviderError {
+        kind: terminal
+            .and_then(|attempt| attempt.error_kind)
+            .unwrap_or(AttemptErrorKind::Timeout),
+        message: terminal.map_or_else(
+            || "vertical search has no executable provider".into(),
+            |attempt| attempt.message.clone(),
+        ),
+        attempts,
+        verbose: false,
+        diagnostic: combine_diagnostics(diagnostics),
+        redirected_library_id: None,
+    })
+}
+
+fn unconfigured_capability_attempt(provider: &str, seam: &'static str) -> ProviderAttempt {
+    ProviderAttempt {
+        provider: providers::registration_by_name(provider)
+            .expect("validated capability provider")
+            .name,
+        seam,
+        error_kind: Some(AttemptErrorKind::Auth),
+        http_status: None,
+        duration_ms: 0,
+        credential_index: 0,
+        retry_count: 0,
+        rotation_count: 0,
+        message: format!("{provider} has no configured credentials"),
+        model: None,
+        transport: None,
+        endpoint_host: None,
+        breaker_event: None,
+    }
 }
 
 fn is_thin(content: &str, url: &str) -> bool {

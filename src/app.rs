@@ -16,7 +16,9 @@ use crate::providers::{
     Context7LibraryRequest, ExaSearchRequest, ExaSimilarRequest, FetchRequest, MapRequest,
     SearchType,
 };
-use crate::types::{AnysearchOutcome, Context7Outcome, Deadline, FetchOutcome, MapOutcome};
+use crate::types::{
+    AnysearchOutcome, CapabilitySet, Context7Outcome, Deadline, FetchOutcome, MapOutcome,
+};
 use crate::types::{JournalOutcome, SearchOutcome};
 
 pub use crate::providers::ProviderError;
@@ -35,8 +37,8 @@ enum Command {
     #[command(visible_alias = "s")]
     Search {
         query: String,
-        #[arg(long, value_parser = parse_none_capability)]
-        capabilities: Option<String>,
+        #[arg(long)]
+        capabilities: Option<CapabilitySet>,
         #[arg(long)]
         model: Option<String>,
         #[arg(long, default_value_t = 0)]
@@ -364,7 +366,7 @@ struct FetchContext {
 }
 
 struct SearchContext {
-    config: config::MainSearchRuntimeConfig,
+    config: config::RuntimeConfig,
     client: reqwest::Client,
     retry_policy: RetryPolicy,
     model_breakers: std::sync::Arc<providers::ModelBreakers>,
@@ -430,21 +432,22 @@ impl FetchContext {
 impl SearchContext {
     fn load(timeout_seconds: u64) -> Result<Self, AppError> {
         let dependencies = NetworkDependencies::load()?;
-        let config = dependencies.config.main_search;
-        if config.configured_provider_count() == 0 {
+        let config = dependencies.config;
+        let journal = config.journal.clone();
+        if config.main_search.configured_provider_count() == 0 {
             return Err(AppError::Config(ConfigError::Message(
                 "search.backends has no configured credentials".into(),
             )));
         }
         let timeout = Duration::from_secs(timeout_seconds);
-        let default_model = config.default_model().to_owned();
-        let endpoint_host = config.default_endpoint_host();
+        let default_model = config.main_search.default_model().to_owned();
+        let endpoint_host = config.main_search.default_endpoint_host();
         Ok(Self {
             config,
             client: dependencies.client,
             retry_policy: dependencies.retry_policy,
             model_breakers: std::sync::Arc::new(providers::ModelBreakers::default()),
-            journal: dependencies.config.journal,
+            journal,
             default_model,
             endpoint_host,
             timeout,
@@ -455,35 +458,59 @@ impl SearchContext {
     fn search(
         self,
         mut request: providers::SearchRequest,
+        capabilities: Option<&CapabilitySet>,
+        extra_sources: u16,
         fallback_override: Option<&str>,
     ) -> (Result<SearchOutcome, ProviderError>, JournalOutcome) {
         let fallback = fallback_override
-            .unwrap_or(&self.config.fallback)
+            .unwrap_or(&self.config.main_search.fallback)
             .to_owned();
         request.allow_model_fallback = fallback != "off";
         let query = request.query.clone();
+        let journal_capabilities =
+            capabilities.map(|capabilities| capabilities.iter().collect::<Vec<_>>());
         let model = request
             .model
             .clone()
             .unwrap_or_else(|| self.default_model.clone());
         let started = Instant::now();
-        let result = self.runtime.block_on(crate::engine::search(
+        let deadline = Deadline::new(self.timeout);
+        let mut result = self.runtime.block_on(crate::engine::search(
             request,
-            self.config,
+            self.config.main_search.clone(),
             &fallback,
-            self.client,
+            self.client.clone(),
             self.retry_policy,
-            Deadline::new(self.timeout),
+            deadline,
             self.model_breakers,
         ));
+        if let (Ok(outcome), Some(capabilities)) = (&mut result, capabilities) {
+            outcome.capabilities = capabilities.iter().collect();
+            self.runtime.block_on(crate::engine::execute_capabilities(
+                outcome,
+                &query,
+                capabilities,
+                extra_sources.max(1),
+                &self.config,
+                crate::engine::CapabilityExecution::new(
+                    &fallback,
+                    self.client.clone(),
+                    self.retry_policy,
+                    deadline,
+                ),
+            ));
+        }
         let journal = crate::journal::record_search(
             &self.journal,
-            &query,
-            self.timeout,
-            started.elapsed(),
-            &model,
-            &self.endpoint_host,
-            &result,
+            crate::journal::SearchRecord {
+                query: &query,
+                budget: self.timeout,
+                elapsed: started.elapsed(),
+                model: &model,
+                endpoint_host: &self.endpoint_host,
+                capabilities: journal_capabilities.as_deref(),
+                result: &result,
+            },
         );
         (result, journal)
     }
@@ -620,7 +647,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             query,
             capabilities,
             model,
-            extra_sources: _,
+            extra_sources,
             validation: _,
             fallback,
             timeout,
@@ -628,11 +655,6 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             output,
             verbose,
         } => {
-            if capabilities.is_none() {
-                return Err(AppError::Argument(
-                    "search currently requires `--capabilities none`".into(),
-                ));
-            }
             let (result, journal) = SearchContext::load(timeout)?.search(
                 providers::SearchRequest {
                     query,
@@ -640,6 +662,8 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                     allow_model_fallback: true,
                     verbose,
                 },
+                capabilities.as_ref(),
+                extra_sources,
                 fallback.as_deref(),
             );
             Ok(CommandOutput::Search {
@@ -942,13 +966,6 @@ fn parse_json_object(value: &str) -> Result<Map<String, Value>, String> {
         .as_object()
         .cloned()
         .ok_or_else(|| "--sub-domain-params must be a single JSON object".to_owned())
-}
-
-fn parse_none_capability(value: &str) -> Result<String, String> {
-    value
-        .eq_ignore_ascii_case("none")
-        .then(|| "none".to_owned())
-        .ok_or_else(|| "this search slice accepts only the exclusive `none` declaration".into())
 }
 
 fn run_exa_search(

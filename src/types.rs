@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+use std::str::FromStr;
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
@@ -6,6 +8,87 @@ pub(crate) const MIN_FETCH_CONTENT_CHARS: usize = 200;
 pub(crate) const DENSITY_MAX_UNIQUE_LINES: usize = 3;
 pub(crate) const DENSITY_MAX_CHARS: usize = 500;
 pub(crate) const MIN_USEFUL_SLICE_SECONDS: u64 = 5;
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Capability {
+    DocsSearch,
+    WebSearch,
+    WebFetch,
+    VerticalSearch,
+}
+
+impl Capability {
+    const VOCABULARY: [Self; 4] = [
+        Self::DocsSearch,
+        Self::WebSearch,
+        Self::WebFetch,
+        Self::VerticalSearch,
+    ];
+
+    pub(crate) fn as_str(self) -> &'static str {
+        match self {
+            Self::DocsSearch => "docs_search",
+            Self::WebSearch => "web_search",
+            Self::WebFetch => "web_fetch",
+            Self::VerticalSearch => "vertical_search",
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CapabilitySet(Vec<Capability>);
+
+impl CapabilitySet {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = Capability> + '_ {
+        self.0.iter().copied()
+    }
+}
+
+impl FromStr for CapabilitySet {
+    type Err = String;
+
+    fn from_str(declaration: &str) -> Result<Self, Self::Err> {
+        if declaration.trim().is_empty() {
+            return Err(
+                "capability declaration must not be empty; use `none` for an empty set".into(),
+            );
+        }
+        let values = declaration
+            .split(',')
+            .map(|value| value.trim().to_ascii_lowercase())
+            .collect::<Vec<_>>();
+        if values.iter().any(String::is_empty) {
+            return Err(
+                "capability declaration contains an empty CSV value; use `none` for an empty set"
+                    .into(),
+            );
+        }
+        if values.iter().any(|value| value == "none") {
+            return if values.len() == 1 {
+                Ok(Self(Vec::new()))
+            } else {
+                Err("`none` must be used alone".into())
+            };
+        }
+        if let Some(unknown) = values.iter().find(|value| {
+            !Capability::VOCABULARY
+                .iter()
+                .any(|capability| capability.as_str() == value.as_str())
+        }) {
+            return Err(format!(
+                "unknown capability `{unknown}`; expected docs_search, web_search, web_fetch, vertical_search, or none"
+            ));
+        }
+        let selected = values.into_iter().collect::<HashSet<_>>();
+        Ok(Self(
+            Capability::VOCABULARY
+                .into_iter()
+                .filter(|capability| selected.contains(capability.as_str()))
+                .collect(),
+        ))
+    }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -148,12 +231,47 @@ pub struct SearchOutcome {
     pub model: String,
     pub answer: String,
     pub sources: Vec<Source>,
-    pub capabilities: Vec<String>,
-    pub capability_gaps: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub extra_sources: Vec<Source>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub validation_results: Vec<ValidationResult>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub vertical_results: Vec<AnysearchResult>,
+    pub capabilities: Vec<Capability>,
+    pub capability_gaps: Vec<CapabilityGap>,
     #[serde(skip)]
     pub attempts: Vec<ProviderAttempt>,
     #[serde(skip)]
     pub diagnostic: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct ValidationResult {
+    pub url: String,
+    pub provider: &'static str,
+    pub status: &'static str,
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct CapabilityGap {
+    pub capability: Capability,
+    pub reason: &'static str,
+    pub providers_skipped: Vec<String>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct SupplementalSearchOutcome {
+    pub(crate) sources: Vec<Source>,
+    pub(crate) attempts: Vec<ProviderAttempt>,
+    pub(crate) diagnostic: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct VerticalSearchOutcome {
+    pub(crate) results: Vec<AnysearchResult>,
+    pub(crate) sources: Vec<Source>,
+    pub(crate) attempts: Vec<ProviderAttempt>,
+    pub(crate) diagnostic: Option<String>,
 }
 
 #[derive(Clone, Debug)]

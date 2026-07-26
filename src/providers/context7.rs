@@ -299,6 +299,7 @@ impl Context7Operation {
             Self::Docs(_) => {
                 let code_snippets = array_field(&data, &["codeSnippets", "code_snippets"]);
                 let info_snippets = array_field(&data, &["infoSnippets", "info_snippets"]);
+                let results = array_field(&data, &["results", "items"]);
                 let content = data
                     .get("content")
                     .and_then(Value::as_str)
@@ -308,6 +309,7 @@ impl Context7Operation {
                     content,
                     code_snippets,
                     info_snippets,
+                    results,
                 }
             }
         })
@@ -339,13 +341,12 @@ impl Context7Operation {
                     content,
                     code_snippets,
                     info_snippets,
+                    mut results,
                 },
             ) => {
-                let results = code_snippets
-                    .iter()
-                    .chain(&info_snippets)
-                    .cloned()
-                    .collect::<Vec<_>>();
+                if results.is_empty() {
+                    results.extend(code_snippets.iter().chain(&info_snippets).cloned());
+                }
                 let total = results.len();
                 Context7Outcome::Docs(Context7DocsOutcome {
                     provider: "context7",
@@ -382,6 +383,7 @@ enum DecodedOutcome {
         content: String,
         code_snippets: Vec<Value>,
         info_snippets: Vec<Value>,
+        results: Vec<Value>,
     },
 }
 

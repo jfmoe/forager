@@ -41,11 +41,17 @@ impl Fixture {
                 } else {
                     "Error"
                 };
+                let headers = response
+                    .headers
+                    .iter()
+                    .map(|(name, value)| format!("{name}: {value}\r\n"))
+                    .collect::<String>();
                 let _ = write!(
                     stream,
-                    "HTTP/1.1 {} {reason}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                    "HTTP/1.1 {} {reason}\r\nContent-Type: {}\r\n{}Content-Length: {}\r\nConnection: close\r\n\r\n{}",
                     response.status,
                     response.content_type,
+                    headers,
                     response.body.len(),
                     response.body
                 );
@@ -75,6 +81,7 @@ pub(crate) struct Response {
     status: u16,
     content_type: String,
     body: String,
+    headers: Vec<(String, String)>,
     pub(crate) delay: Duration,
 }
 
@@ -84,8 +91,15 @@ impl Response {
             status,
             content_type: content_type.into(),
             body: body.into(),
+            headers: Vec::new(),
             delay: Duration::ZERO,
         }
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn with_header(mut self, name: &str, value: &str) -> Self {
+        self.headers.push((name.into(), value.into()));
+        self
     }
 }
 

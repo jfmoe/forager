@@ -7,6 +7,588 @@ use serde_json::Value;
 use support::{Fixture, Response, RunEnvironment};
 
 #[test]
+fn caller_capability_declaration_is_normalized_in_vocabulary_order() {
+    let fixture = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Source"),
+    );
+    let environment = RunEnvironment::new(&search_config(&fixture.url, false));
+
+    let output = environment.run(&[
+        "search",
+        "Declared",
+        "--capabilities",
+        "VERTICAL_SEARCH,docs_search,vertical_search",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (output.status.code(), &payload["capabilities"]),
+        (
+            Some(0),
+            &serde_json::json!(["docs_search", "vertical_search"])
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    fixture.finish();
+}
+
+#[test]
+fn caller_capability_declaration_rejects_unknown_empty_and_mixed_none_values() {
+    let environment = RunEnvironment::new("");
+
+    for declaration in ["unknown", "", "docs_search,", "none,web_search"] {
+        let output = environment.run(&[
+            "search",
+            "Invalid declaration",
+            "--capabilities",
+            declaration,
+        ]);
+
+        assert_eq!(
+            output.status.code(),
+            Some(2),
+            "{declaration:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+#[test]
+fn declared_web_search_adds_normalized_extra_sources_in_configured_order() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let tavily = Fixture::start(
+        200,
+        "application/json",
+        r#"{"results":[{"title":"Primary duplicate","url":"https://example.test/source?token=canary-secret"},{"title":"Supplemental","url":"https://example.test/extra","content":"extra context"}]}"#,
+    );
+    let config = format!(
+        "{}\n[providers.tavily]\nurl = {:?}\nkeys = [\"tavily-key\"]\ntimeout = 30\n\n[capabilities.web_search]\norder = [\"tavily\"]\n",
+        search_config(&main.url, false),
+        tavily.url
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Current information",
+        "--capabilities",
+        "web_search",
+        "--extra-sources",
+        "2",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["answer"],
+            &payload["extra_sources"],
+            &payload["sources"],
+            &payload["capability_gaps"],
+        ),
+        (
+            Some(0),
+            &Value::String("answer".into()),
+            &serde_json::json!([{
+                "title": "Supplemental",
+                "url": "https://example.test/extra",
+                "text": "extra context"
+            }]),
+            &serde_json::json!([
+                {
+                    "title": "Primary",
+                    "url": "https://example.test/source?token=********"
+                },
+                {
+                    "title": "Supplemental",
+                    "url": "https://example.test/extra",
+                    "text": "extra context"
+                }
+            ]),
+            &serde_json::json!([]),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    main.finish();
+    let request = tavily.finish();
+    assert!(request.starts_with("POST /search "), "{request}");
+}
+
+#[test]
+fn declared_capability_without_credentials_is_advisory_and_reported_as_a_gap() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let environment = RunEnvironment::new(&search_config(&main.url, false));
+
+    let output = environment.run(&[
+        "search",
+        "Current information",
+        "--capabilities",
+        "web_search",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["capability_gaps"],
+            String::from_utf8_lossy(&output.stderr).contains("web_search"),
+        ),
+        (
+            Some(0),
+            &serde_json::json!([{
+                "capability": "web_search",
+                "reason": "no_configured_provider",
+                "providers_skipped": ["tavily", "firecrawl"]
+            }]),
+            true,
+        )
+    );
+    main.finish();
+}
+
+#[test]
+fn declared_web_search_honors_fallback_off_at_the_chain_head() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let config = format!(
+        "{}\n[search]\nfallback = \"off\"\n\n[providers.tavily]\nurl = \"http://127.0.0.1:9\"\nkeys = [\"tavily-key\"]\ntimeout = 30\n\n[capabilities.web_search]\norder = [\"firecrawl\", \"tavily\"]\n",
+        search_config(&main.url, false),
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Current information",
+        "--capabilities",
+        "web_search",
+        "--verbose",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let providers = payload["provider_attempts"]
+        .as_array()
+        .expect("provider attempts")
+        .iter()
+        .map(|attempt| attempt["provider"].as_str().expect("attempt provider"))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        (output.status.code(), providers, &payload["capability_gaps"],),
+        (
+            Some(0),
+            vec!["xai", "firecrawl"],
+            &serde_json::json!([{
+                "capability": "web_search",
+                "reason": "all_attempts_failed",
+                "providers_skipped": ["tavily"]
+            }]),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    main.finish();
+}
+
+#[test]
+fn declared_docs_search_uses_the_configured_registry_chain() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let exa = Fixture::start(
+        200,
+        "application/json",
+        r#"{"results":[{"title":"Rust documentation","url":"https://doc.rust-lang.org/book/"}]}"#,
+    );
+    let config = format!(
+        "{}\n[providers.exa]\nurl = {:?}\nkeys = [\"exa-key\"]\ntimeout = 30\n\n[capabilities.docs_search]\norder = [\"exa\"]\n",
+        search_config(&main.url, false),
+        exa.url
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Rust ownership documentation",
+        "--capabilities",
+        "docs_search",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["extra_sources"][0]["url"],
+            &payload["capability_gaps"],
+        ),
+        (
+            Some(0),
+            &Value::String("https://doc.rust-lang.org/book/".into()),
+            &serde_json::json!([]),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    main.finish();
+    let request = exa.finish();
+    assert!(request.starts_with("POST /search "), "{request}");
+}
+
+#[test]
+fn declared_docs_search_resolves_and_queries_context7_through_one_registry_provider() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let context7 = Fixture::start_sequence(vec![
+        Response::new(
+            200,
+            "application/json",
+            r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{}}}"#,
+        )
+        .with_header("mcp-session-id", "library-session"),
+        Response::new(202, "application/json", ""),
+        Response::new(
+            200,
+            "application/json",
+            r#"{"jsonrpc":"2.0","id":2,"result":{"structuredContent":{"results":[{"id":"/rust-lang/rust","title":"Rust","description":"Rust docs"}]},"content":[]}}"#,
+        ),
+        Response::new(
+            200,
+            "application/json",
+            r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{}}}"#,
+        )
+        .with_header("mcp-session-id", "docs-session"),
+        Response::new(202, "application/json", ""),
+        Response::new(
+            200,
+            "application/json",
+            r#"{"jsonrpc":"2.0","id":2,"result":{"structuredContent":{"content":"Ownership docs","results":[{"title":"Ownership","url":"https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html"}]},"content":[]}}"#,
+        ),
+    ]);
+    let config = format!(
+        "{}\n[providers.context7]\nurl = {:?}\nkeys = [\"context7-key\"]\ntimeout = 30\n\n[capabilities.docs_search]\norder = [\"context7\"]\n",
+        search_config(&main.url, false),
+        context7.url
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Rust ownership",
+        "--capabilities",
+        "docs_search",
+        "--verbose",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["extra_sources"][0]["url"],
+            payload["provider_attempts"].as_array().map(Vec::len),
+        ),
+        (
+            Some(0),
+            &Value::String(
+                "https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html".into()
+            ),
+            Some(3),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    main.finish();
+    let requests = context7.finish_all();
+    assert!(requests[2].contains(r#""name":"resolve-library-id""#));
+    assert!(requests[5].contains(r#""name":"query-docs""#));
+}
+
+#[test]
+fn declared_web_fetch_validates_the_known_url_without_changing_the_main_answer() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let content = "Fetched evidence line one.\nFetched evidence line two.\n".repeat(12);
+    let jina = Fixture::start(200, "text/markdown", &content);
+    let config = format!(
+        "{}\n[providers.jina]\nurl = {:?}\nkeys = [\"jina-key\"]\ntimeout = 30\n\n[capabilities.web_fetch]\norder = [\"jina\"]\n",
+        search_config(&main.url, false),
+        jina.url
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Verify https://example.test/article",
+        "--capabilities",
+        "web_fetch",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["answer"],
+            &payload["validation_results"],
+            &payload["capability_gaps"],
+        ),
+        (
+            Some(0),
+            &Value::String("answer".into()),
+            &serde_json::json!([{
+                "url": "https://example.test/article",
+                "provider": "jina",
+                "status": "validated"
+            }]),
+            &serde_json::json!([]),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    main.finish();
+    let request = jina.finish();
+    assert!(
+        request.starts_with("GET /https://example.test/article "),
+        "{request}"
+    );
+}
+
+#[test]
+fn declared_web_fetch_does_not_report_all_failed_when_one_target_succeeds() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let content = "Fetched evidence line one.\nFetched evidence line two.\n".repeat(12);
+    let jina = Fixture::start_sequence(vec![
+        Response::new(200, "text/markdown", &content),
+        Response::new(503, "text/plain", "unavailable"),
+    ]);
+    let config = format!(
+        "{}\n[providers.jina]\nurl = {:?}\nkeys = [\"jina-key\"]\ntimeout = 30\n\n[capabilities.web_fetch]\norder = [\"jina\"]\n",
+        search_config(&main.url, false),
+        jina.url
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Verify https://example.test/one https://example.test/two",
+        "--capabilities",
+        "web_fetch",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["validation_results"],
+            &payload["capability_gaps"],
+        ),
+        (
+            Some(0),
+            &serde_json::json!([{
+                "url": "https://example.test/one",
+                "provider": "jina",
+                "status": "validated"
+            }]),
+            &serde_json::json!([]),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    main.finish();
+    assert_eq!(jina.finish_all().len(), 2);
+}
+
+#[test]
+fn declared_vertical_search_runs_domainless_discovery_and_normalizes_url_results() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let anysearch = Fixture::start_sequence(vec![
+        Response::new(
+            200,
+            "application/json",
+            r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{}}}"#,
+        )
+        .with_header("mcp-session-id", "vertical-session"),
+        Response::new(202, "application/json", ""),
+        Response::new(
+            200,
+            "application/json",
+            r####"{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"### 1. Academic result\n- **URL**: https://example.test/paper\nPaper summary"}]}}"####,
+        ),
+    ]);
+    let config = format!(
+        "{}\n[providers.anysearch]\nurl = {:?}\nkeys = [\"anysearch-key\"]\ntimeout = 30\n",
+        search_config(&main.url, false),
+        anysearch.url
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Academic retrieval paper",
+        "--capabilities",
+        "vertical_search",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["vertical_results"][0]["url"],
+            &payload["extra_sources"][0]["url"],
+            &payload["capability_gaps"],
+        ),
+        (
+            Some(0),
+            &Value::String("https://example.test/paper".into()),
+            &Value::String("https://example.test/paper".into()),
+            &serde_json::json!([]),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    main.finish();
+    let requests = anysearch.finish_all();
+    assert!(requests[2].contains(r#""name":"search""#));
+    assert!(!requests[2].contains(r#""domain""#));
+}
+
+#[test]
+fn combined_declaration_executes_only_declared_seams_in_vocabulary_order() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let exa = Fixture::start(
+        200,
+        "application/json",
+        r#"{"results":[{"title":"Documentation","url":"https://example.test/docs"}]}"#,
+    );
+    let tavily = Fixture::start(
+        200,
+        "application/json",
+        r#"{"results":[{"title":"Current source","url":"https://example.test/current"}]}"#,
+    );
+    let config = format!(
+        "{}\n[providers.exa]\nurl = {:?}\nkeys = [\"exa-key\"]\ntimeout = 30\n\n[providers.tavily]\nurl = {:?}\nkeys = [\"tavily-key\"]\ntimeout = 30\n\n[providers.jina]\nurl = \"http://127.0.0.1:9\"\nkeys = [\"jina-key\"]\ntimeout = 30\n\n[capabilities.docs_search]\norder = [\"exa\"]\n[capabilities.web_search]\norder = [\"tavily\"]\n[capabilities.web_fetch]\norder = [\"jina\"]\n",
+        search_config(&main.url, false),
+        exa.url,
+        tavily.url,
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Read https://example.test/known",
+        "--capabilities",
+        "web_search,docs_search",
+        "--verbose",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let seams = payload["provider_attempts"]
+        .as_array()
+        .expect("provider attempts")
+        .iter()
+        .map(|attempt| attempt["seam"].as_str().expect("attempt seam"))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["capabilities"],
+            seams,
+            &payload["validation_results"],
+            &payload["vertical_results"],
+        ),
+        (
+            Some(0),
+            &serde_json::json!(["docs_search", "web_search"]),
+            vec!["main_search", "docs_search", "web_search"],
+            &Value::Null,
+            &Value::Null,
+        )
+    );
+    main.finish();
+    exa.finish();
+    tavily.finish();
+}
+
+#[test]
+fn failed_declared_seam_is_advisory_and_preserves_all_attempts() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let tavily = Fixture::start(503, "application/json", r#"{"error":"unavailable"}"#);
+    let config = format!(
+        "{}\n[providers.tavily]\nurl = {:?}\nkeys = [\"tavily-key\"]\ntimeout = 30\n\n[capabilities.web_search]\norder = [\"tavily\"]\n",
+        search_config(&main.url, true),
+        tavily.url
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Current information",
+        "--capabilities",
+        "web_search",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let journal = read_only_journal(&environment);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["capability_gaps"],
+            journal["execution"]["provider_attempts"]
+                .as_array()
+                .map(Vec::len),
+            &journal["execution"]["capability_gaps"],
+        ),
+        (
+            Some(0),
+            &serde_json::json!([{
+                "capability": "web_search",
+                "reason": "all_attempts_failed",
+                "providers_skipped": []
+            }]),
+            Some(2),
+            &payload["capability_gaps"],
+        )
+    );
+    main.finish();
+    tavily.finish();
+}
+
+#[test]
 fn search_uses_the_completed_xai_response_and_deduplicates_sources() {
     let fixture = Fixture::start(
         200,

@@ -257,6 +257,7 @@ fn config_list_rejects_invalid_enums_ranges_and_provider_orders_with_locations()
     for (document, key) in [
         ("[search]\nvalidation = \"slow\"\n", "validation"),
         ("[retry]\nmax_attempts = 0\n", "max_attempts"),
+        ("[capabilities.web_fetch]\norder = []\n", "web_fetch"),
         ("[capabilities.web_fetch]\norder = [\"exa\"]\n", "web_fetch"),
     ] {
         let config_dir = tempfile::tempdir().expect("create config directory");

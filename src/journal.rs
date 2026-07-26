@@ -7,18 +7,23 @@ use serde_json::{Value, json};
 
 use crate::config::{self, JournalRuntimeConfig};
 use crate::providers::ProviderError;
-use crate::types::{JournalOutcome, SearchOutcome};
+use crate::types::{Capability, JournalOutcome, SearchOutcome};
 
 static RECORD_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
+pub(crate) struct SearchRecord<'a> {
+    pub(crate) query: &'a str,
+    pub(crate) budget: Duration,
+    pub(crate) elapsed: Duration,
+    pub(crate) model: &'a str,
+    pub(crate) endpoint_host: &'a str,
+    pub(crate) capabilities: Option<&'a [Capability]>,
+    pub(crate) result: &'a Result<SearchOutcome, ProviderError>,
+}
+
 pub(crate) fn record_search(
     config: &JournalRuntimeConfig,
-    query: &str,
-    budget: Duration,
-    elapsed: Duration,
-    model: &str,
-    endpoint_host: &str,
-    result: &Result<SearchOutcome, ProviderError>,
+    record: SearchRecord<'_>,
 ) -> JournalOutcome {
     if !config.enabled {
         return JournalOutcome {
@@ -27,7 +32,7 @@ pub(crate) fn record_search(
             warning: None,
         };
     }
-    match write_record(config, query, budget, elapsed, model, endpoint_host, result) {
+    match write_record(config, record) {
         Ok(reference) => JournalOutcome {
             status: "written",
             reference: Some(sanitize_text(config, &reference)),
@@ -41,22 +46,14 @@ pub(crate) fn record_search(
     }
 }
 
-fn write_record(
-    config: &JournalRuntimeConfig,
-    query: &str,
-    budget: Duration,
-    elapsed: Duration,
-    model: &str,
-    endpoint_host: &str,
-    result: &Result<SearchOutcome, ProviderError>,
-) -> io::Result<String> {
+fn write_record(config: &JournalRuntimeConfig, record: SearchRecord<'_>) -> io::Result<String> {
     fs::create_dir_all(&config.dir)?;
     restrict_directory(&config.dir)?;
     cleanup_expired(config)?;
     let path = config.dir.join(record_name());
-    let mut record = build_record(query, budget, elapsed, model, endpoint_host, result);
-    sanitize_value(&mut record, &config.credentials);
-    let encoded = serde_json::to_vec(&record).map_err(io::Error::other)?;
+    let mut value = build_record(record);
+    sanitize_value(&mut value, &config.credentials);
+    let encoded = serde_json::to_vec(&value).map_err(io::Error::other)?;
     let mut options = OpenOptions::new();
     options.create_new(true).write(true);
     #[cfg(unix)]
@@ -71,23 +68,16 @@ fn write_record(
     Ok(path.display().to_string())
 }
 
-fn build_record(
-    query: &str,
-    budget: Duration,
-    elapsed: Duration,
-    model: &str,
-    endpoint_host: &str,
-    result: &Result<SearchOutcome, ProviderError>,
-) -> Value {
+fn build_record(record: SearchRecord<'_>) -> Value {
     let recorded_at_unix_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis();
-    let (result_surface, raw_attempts, terminal_attribution) = match result {
+    let (result_surface, raw_attempts, terminal_attribution) = match record.result {
         Ok(outcome) => (
             json!({
                 "status": "ok",
-                "query": query,
+                "query": record.query,
                 "answer": outcome.answer,
                 "sources": outcome.sources,
                 "capabilities": outcome.capabilities,
@@ -99,7 +89,7 @@ fn build_record(
         Err(error) => (
             json!({
                 "status": "error",
-                "query": query,
+                "query": record.query,
                 "error_kind": error.kind.as_str(),
                 "message": error.message,
             }),
@@ -112,10 +102,10 @@ fn build_record(
         if let Some(attempt) = attempt.as_object_mut() {
             attempt
                 .entry("model")
-                .or_insert_with(|| Value::String(model.into()));
+                .or_insert_with(|| Value::String(record.model.into()));
             attempt
                 .entry("endpoint_host")
-                .or_insert_with(|| Value::String(endpoint_host.into()));
+                .or_insert_with(|| Value::String(record.endpoint_host.into()));
         }
     }
     json!({
@@ -124,18 +114,21 @@ fn build_record(
         "result": result_surface,
         "execution": {
             "plan_summary": {
-                "source": "caller",
-                "capabilities": []
+                "source": record.capabilities.map_or("automatic", |_| "caller"),
+                "capabilities": record.capabilities.unwrap_or_default()
             },
             "provider_attempts": attempts,
             "terminal_attribution": terminal_attribution,
             "deadline_budget": {
-                "total_ms": duration_millis(budget),
-                "consumed_ms": duration_millis(elapsed),
-                "exhausted": elapsed >= budget
+                "total_ms": duration_millis(record.budget),
+                "consumed_ms": duration_millis(record.elapsed),
+                "exhausted": record.elapsed >= record.budget
             },
             "classifier_duration_ms": Value::Null,
-            "capability_gaps": []
+            "capability_gaps": record.result
+                .as_ref()
+                .map(|outcome| &outcome.capability_gaps)
+                .ok()
         }
     })
 }

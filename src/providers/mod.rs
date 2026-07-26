@@ -6,6 +6,7 @@ mod context7;
 mod exa;
 mod execution;
 mod openai_compatible;
+mod supplemental;
 mod tavily_map;
 mod web_fetch;
 mod xai;
@@ -14,17 +15,23 @@ use reqwest::Client;
 use thiserror::Error;
 
 use crate::config::{
-    AnysearchRuntimeConfig, Context7RuntimeConfig, ExaRuntimeConfig, MainSearchProviderConfig,
-    OpenAiCompatibleRuntimeConfig, WebFetchProviderConfig, XaiRuntimeConfig,
+    AnysearchRuntimeConfig, Context7RuntimeConfig, DocsSearchProviderConfig, ExaRuntimeConfig,
+    MainSearchProviderConfig, OpenAiCompatibleRuntimeConfig, WebFetchProviderConfig,
+    XaiRuntimeConfig,
 };
 use crate::credentials::CredentialPool;
 use crate::net::RetryPolicy;
+use crate::types::{
+    AnysearchOutcome, Context7Outcome, ExaOutcome, Source, SupplementalSearchOutcome,
+    VerticalSearchOutcome,
+};
 use crate::types::{AttemptErrorKind, Deadline, ProviderAttempt};
 
 pub(crate) use anysearch::{Anysearch, AnysearchDomainsRequest, AnysearchSearchRequest};
 pub(crate) use context7::{Context7, Context7DocsRequest, Context7LibraryRequest};
 pub(crate) use exa::{Exa, ExaSearchRequest, ExaSimilarRequest, SearchType};
 pub(crate) use openai_compatible::{ModelBreakers, OpenAiCompatible};
+pub(crate) use supplemental::SupplementalSearch;
 pub(crate) use tavily_map::{MapRequest, TavilyMap};
 pub(crate) use web_fetch::{FetchRequest, WebFetch};
 pub(crate) use xai::{SearchRequest, Xai};
@@ -34,6 +41,209 @@ pub(crate) trait MainSearch: Send + Sync {
         &self,
         request: SearchRequest,
     ) -> Pin<Box<dyn Future<Output = Result<crate::types::SearchOutcome, ProviderError>> + Send + '_>>;
+}
+
+pub(crate) trait WebSearch: Send + Sync {
+    fn search(
+        &self,
+        query: String,
+        limit: u16,
+    ) -> Pin<Box<dyn Future<Output = Result<SupplementalSearchOutcome, ProviderError>> + Send + '_>>;
+}
+
+impl WebSearch for SupplementalSearch {
+    fn search(
+        &self,
+        query: String,
+        limit: u16,
+    ) -> Pin<Box<dyn Future<Output = Result<SupplementalSearchOutcome, ProviderError>> + Send + '_>>
+    {
+        Box::pin(async move { SupplementalSearch::search(self, &query, limit).await })
+    }
+}
+
+pub(crate) trait DocsSearch: Send + Sync {
+    fn search(
+        &self,
+        query: String,
+        limit: u16,
+    ) -> Pin<Box<dyn Future<Output = Result<SupplementalSearchOutcome, ProviderError>> + Send + '_>>;
+}
+
+pub(crate) trait VerticalSearch: Send + Sync {
+    fn search(
+        &self,
+        query: String,
+        limit: u16,
+    ) -> Pin<Box<dyn Future<Output = Result<VerticalSearchOutcome, ProviderError>> + Send + '_>>;
+}
+
+impl VerticalSearch for Anysearch {
+    fn search(
+        &self,
+        query: String,
+        limit: u16,
+    ) -> Pin<Box<dyn Future<Output = Result<VerticalSearchOutcome, ProviderError>> + Send + '_>>
+    {
+        Box::pin(async move {
+            let AnysearchOutcome::Search(outcome) = self
+                .search(AnysearchSearchRequest {
+                    query,
+                    domain: None,
+                    sub_domain: None,
+                    sub_domain_params: serde_json::Map::new(),
+                    max_results: limit,
+                    verbose: true,
+                })
+                .await?
+            else {
+                unreachable!("search request returns search outcome");
+            };
+            let sources = outcome
+                .results
+                .iter()
+                .filter(|result| !result.url.is_empty())
+                .map(|result| Source {
+                    title: result.title.clone(),
+                    url: crate::config::redact_url(&result.url),
+                    published_date: None,
+                    author: None,
+                    text: (!result.description.is_empty()).then(|| result.description.clone()),
+                    highlights: Vec::new(),
+                })
+                .collect();
+            Ok(VerticalSearchOutcome {
+                results: outcome.results,
+                sources,
+                attempts: outcome.attempts,
+                diagnostic: outcome.diagnostic,
+            })
+        })
+    }
+}
+
+impl DocsSearch for Exa {
+    fn search(
+        &self,
+        query: String,
+        limit: u16,
+    ) -> Pin<Box<dyn Future<Output = Result<SupplementalSearchOutcome, ProviderError>> + Send + '_>>
+    {
+        Box::pin(async move {
+            let ExaOutcome {
+                results,
+                attempts,
+                diagnostic,
+                ..
+            } = self
+                .search(ExaSearchRequest {
+                    query,
+                    num_results: limit,
+                    search_type: SearchType::Auto,
+                    include_text: false,
+                    include_highlights: false,
+                    start_published_date: None,
+                    include_domains: Vec::new(),
+                    exclude_domains: Vec::new(),
+                    category: None,
+                    verbose: true,
+                })
+                .await?;
+            Ok(SupplementalSearchOutcome {
+                sources: results,
+                attempts,
+                diagnostic,
+            })
+        })
+    }
+}
+
+impl DocsSearch for Context7 {
+    fn search(
+        &self,
+        query: String,
+        limit: u16,
+    ) -> Pin<Box<dyn Future<Output = Result<SupplementalSearchOutcome, ProviderError>> + Send + '_>>
+    {
+        Box::pin(async move {
+            let Context7Outcome::Library(library) = self
+                .library(Context7LibraryRequest {
+                    name: query.clone(),
+                    query: String::new(),
+                    verbose: true,
+                })
+                .await?
+            else {
+                unreachable!("library request returns library outcome");
+            };
+            let Some(candidate) = library.results.into_iter().next() else {
+                return Ok(SupplementalSearchOutcome {
+                    sources: Vec::new(),
+                    attempts: library.attempts,
+                    diagnostic: library.diagnostic,
+                });
+            };
+            let docs_result = self
+                .docs(Context7DocsRequest {
+                    library_id: candidate.id,
+                    query,
+                    verbose: true,
+                })
+                .await;
+            let Context7Outcome::Docs(mut docs) = (match docs_result {
+                Ok(outcome) => outcome,
+                Err(mut error) => {
+                    error.attempts.splice(0..0, library.attempts);
+                    error.diagnostic = merge_diagnostic(library.diagnostic, error.diagnostic);
+                    return Err(error);
+                }
+            }) else {
+                unreachable!("docs request returns docs outcome");
+            };
+            let mut attempts = library.attempts;
+            attempts.append(&mut docs.attempts);
+            let sources = docs
+                .results
+                .iter()
+                .filter_map(context7_source)
+                .take(usize::from(limit))
+                .collect();
+            Ok(SupplementalSearchOutcome {
+                sources,
+                attempts,
+                diagnostic: merge_diagnostic(library.diagnostic, docs.diagnostic),
+            })
+        })
+    }
+}
+
+fn merge_diagnostic(first: Option<String>, second: Option<String>) -> Option<String> {
+    match (first, second) {
+        (Some(first), Some(second)) => Some(format!("{first}\n{second}")),
+        (Some(value), None) | (None, Some(value)) => Some(value),
+        (None, None) => None,
+    }
+}
+
+fn context7_source(value: &serde_json::Value) -> Option<Source> {
+    let fields = value.as_object()?;
+    let url = fields.get("url")?.as_str()?;
+    Some(Source {
+        title: fields
+            .get("title")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("Context7 documentation")
+            .to_owned(),
+        url: crate::config::redact_url(url),
+        published_date: None,
+        author: None,
+        text: fields
+            .get("text")
+            .or_else(|| fields.get("content"))
+            .and_then(serde_json::Value::as_str)
+            .map(ToOwned::to_owned),
+        highlights: Vec::new(),
+    })
 }
 
 impl MainSearch for Xai {
@@ -266,6 +476,72 @@ pub(crate) fn build_web_fetch(
             web_fetch::firecrawl(config, client, credentials, retry_policy, deadline)
         }
         _ => unreachable!("web_fetch capability only has web fetch constructors"),
+    }
+}
+
+pub(crate) fn build_web_search(
+    provider: &str,
+    mut config: WebFetchProviderConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> Box<dyn WebSearch> {
+    let registration = registration_by_name(provider)
+        .expect("validated web_search order contains registered providers");
+    debug_assert!(registration.credentials_required);
+    debug_assert!(registration.capabilities.contains(&"web_search"));
+    let credentials = CredentialPool::new(registration.name, std::mem::take(&mut config.keys));
+    match registration.constructor {
+        ProviderConstructor::Tavily | ProviderConstructor::Firecrawl => {
+            Box::new(SupplementalSearch::new(
+                registration.name,
+                config,
+                client,
+                credentials,
+                retry_policy,
+                deadline,
+            ))
+        }
+        _ => unreachable!("web_search capability only has web search constructors"),
+    }
+}
+
+pub(crate) fn build_docs_search(
+    provider: &str,
+    config: DocsSearchProviderConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> Box<dyn DocsSearch> {
+    let registration = registration_by_name(provider)
+        .expect("validated docs_search order contains registered providers");
+    debug_assert!(registration.capabilities.contains(&"docs_search"));
+    match (registration.constructor, config) {
+        (ProviderConstructor::Exa, DocsSearchProviderConfig::Exa(config)) => {
+            Box::new(build_exa(config, client, retry_policy, deadline))
+        }
+        (ProviderConstructor::Context7, DocsSearchProviderConfig::Context7(config)) => {
+            Box::new(build_context7(config, client, retry_policy, deadline))
+        }
+        _ => unreachable!("docs_search capability only has docs search constructors"),
+    }
+}
+
+pub(crate) fn build_vertical_search(
+    provider: &str,
+    config: AnysearchRuntimeConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> Box<dyn VerticalSearch> {
+    let registration = registration_by_name(provider)
+        .expect("validated vertical_search order contains registered providers");
+    debug_assert!(registration.capabilities.contains(&"vertical_search"));
+    match registration.constructor {
+        ProviderConstructor::Anysearch => {
+            Box::new(build_anysearch(config, client, retry_policy, deadline))
+        }
+        _ => unreachable!("vertical_search capability only has vertical search constructors"),
     }
 }
 

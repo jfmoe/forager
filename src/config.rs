@@ -405,6 +405,65 @@ pub(crate) struct AnysearchRuntimeConfig {
 }
 
 #[derive(Clone, Debug)]
+pub(crate) enum DocsSearchProviderConfig {
+    Exa(ExaRuntimeConfig),
+    Context7(Context7RuntimeConfig),
+}
+
+impl DocsSearchProviderConfig {
+    pub(crate) fn configured(&self) -> bool {
+        match self {
+            Self::Exa(config) => !config.keys.is_empty(),
+            Self::Context7(config) => !config.keys.is_empty(),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct DocsSearchRuntimeConfig {
+    pub(crate) order: Vec<String>,
+    providers: BTreeMap<String, DocsSearchProviderConfig>,
+}
+
+impl DocsSearchRuntimeConfig {
+    pub(crate) fn configured_provider_count(&self) -> usize {
+        self.order
+            .iter()
+            .filter(|provider| {
+                self.provider(provider)
+                    .is_some_and(DocsSearchProviderConfig::configured)
+            })
+            .count()
+    }
+
+    pub(crate) fn provider(&self, provider: &str) -> Option<&DocsSearchProviderConfig> {
+        self.providers.get(provider)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct VerticalSearchRuntimeConfig {
+    pub(crate) order: Vec<String>,
+    providers: BTreeMap<String, AnysearchRuntimeConfig>,
+}
+
+impl VerticalSearchRuntimeConfig {
+    pub(crate) fn configured_provider_count(&self) -> usize {
+        self.order
+            .iter()
+            .filter(|provider| {
+                self.provider(provider)
+                    .is_some_and(|config| !config.keys.is_empty())
+            })
+            .count()
+    }
+
+    pub(crate) fn provider(&self, provider: &str) -> Option<&AnysearchRuntimeConfig> {
+        self.providers.get(provider)
+    }
+}
+
+#[derive(Clone, Debug)]
 pub(crate) struct WebFetchProviderConfig {
     pub(crate) url: String,
     pub(crate) keys: Vec<String>,
@@ -416,6 +475,28 @@ pub(crate) struct WebFetchProviderConfig {
 pub(crate) struct WebFetchRuntimeConfig {
     pub(crate) order: Vec<String>,
     providers: BTreeMap<String, WebFetchProviderConfig>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct WebSearchRuntimeConfig {
+    pub(crate) order: Vec<String>,
+    providers: BTreeMap<String, WebFetchProviderConfig>,
+}
+
+impl WebSearchRuntimeConfig {
+    pub(crate) fn configured_provider_count(&self) -> usize {
+        self.order
+            .iter()
+            .filter(|provider| {
+                self.provider(provider)
+                    .is_some_and(|config| !config.keys.is_empty())
+            })
+            .count()
+    }
+
+    pub(crate) fn provider(&self, provider: &str) -> Option<&WebFetchProviderConfig> {
+        self.providers.get(provider)
+    }
 }
 
 impl WebFetchRuntimeConfig {
@@ -448,6 +529,9 @@ pub(crate) struct RuntimeConfig {
     pub(crate) context7: Context7RuntimeConfig,
     pub(crate) anysearch: AnysearchRuntimeConfig,
     pub(crate) tavily: WebFetchProviderConfig,
+    pub(crate) docs_search: DocsSearchRuntimeConfig,
+    pub(crate) vertical_search: VerticalSearchRuntimeConfig,
+    pub(crate) web_search: WebSearchRuntimeConfig,
     pub(crate) web_fetch: WebFetchRuntimeConfig,
     pub(crate) journal: JournalRuntimeConfig,
     pub(crate) retry: RetryRuntimeConfig,
@@ -491,6 +575,27 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         timeout_seconds: config.providers.tavily.timeout as u64,
         respond_with: String::new(),
     };
+    let firecrawl = WebFetchProviderConfig {
+        url: config.providers.firecrawl.url,
+        keys: config.providers.firecrawl.keys,
+        timeout_seconds: config.providers.firecrawl.timeout as u64,
+        respond_with: String::new(),
+    };
+    let exa = ExaRuntimeConfig {
+        url: config.providers.exa.url,
+        keys: config.providers.exa.keys,
+        timeout_seconds: config.providers.exa.timeout as u64,
+    };
+    let context7 = Context7RuntimeConfig {
+        url: config.providers.context7.url,
+        keys: config.providers.context7.keys,
+        timeout_seconds: config.providers.context7.timeout as u64,
+    };
+    let anysearch = AnysearchRuntimeConfig {
+        url: config.providers.anysearch.url,
+        keys: config.providers.anysearch.keys,
+        timeout_seconds: config.providers.anysearch.timeout as u64,
+    };
     Ok(RuntimeConfig {
         main_search: MainSearchRuntimeConfig {
             backends: config.search.backends,
@@ -517,22 +622,31 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
                 ),
             ]),
         },
-        exa: ExaRuntimeConfig {
-            url: config.providers.exa.url,
-            keys: config.providers.exa.keys,
-            timeout_seconds: config.providers.exa.timeout as u64,
-        },
-        context7: Context7RuntimeConfig {
-            url: config.providers.context7.url,
-            keys: config.providers.context7.keys,
-            timeout_seconds: config.providers.context7.timeout as u64,
-        },
-        anysearch: AnysearchRuntimeConfig {
-            url: config.providers.anysearch.url,
-            keys: config.providers.anysearch.keys,
-            timeout_seconds: config.providers.anysearch.timeout as u64,
-        },
+        exa: exa.clone(),
+        context7: context7.clone(),
+        anysearch: anysearch.clone(),
         tavily: tavily.clone(),
+        docs_search: DocsSearchRuntimeConfig {
+            order: config.capabilities.docs_search.order,
+            providers: BTreeMap::from([
+                ("exa".into(), DocsSearchProviderConfig::Exa(exa)),
+                (
+                    "context7".into(),
+                    DocsSearchProviderConfig::Context7(context7),
+                ),
+            ]),
+        },
+        vertical_search: VerticalSearchRuntimeConfig {
+            order: config.capabilities.vertical_search.order,
+            providers: BTreeMap::from([("anysearch".into(), anysearch)]),
+        },
+        web_search: WebSearchRuntimeConfig {
+            order: config.capabilities.web_search.order,
+            providers: BTreeMap::from([
+                ("tavily".into(), tavily.clone()),
+                ("firecrawl".into(), firecrawl.clone()),
+            ]),
+        },
         web_fetch: WebFetchRuntimeConfig {
             order: config.capabilities.web_fetch.order,
             providers: BTreeMap::from([
@@ -546,15 +660,7 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
                     },
                 ),
                 ("tavily".into(), tavily),
-                (
-                    "firecrawl".into(),
-                    WebFetchProviderConfig {
-                        url: config.providers.firecrawl.url,
-                        keys: config.providers.firecrawl.keys,
-                        timeout_seconds: config.providers.firecrawl.timeout as u64,
-                        respond_with: String::new(),
-                    },
-                ),
+                ("firecrawl".into(), firecrawl),
             ]),
         },
         journal,
