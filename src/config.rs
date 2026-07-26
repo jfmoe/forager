@@ -297,6 +297,22 @@ pub(crate) struct ExaRuntimeConfig {
 }
 
 #[derive(Clone, Debug)]
+pub(crate) struct XaiRuntimeConfig {
+    pub(crate) url: String,
+    pub(crate) keys: Vec<String>,
+    pub(crate) model: String,
+    pub(crate) tools: Vec<String>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct JournalRuntimeConfig {
+    pub(crate) enabled: bool,
+    pub(crate) dir: PathBuf,
+    pub(crate) retention_days: u64,
+    pub(crate) credentials: Vec<String>,
+}
+
+#[derive(Clone, Debug)]
 pub(crate) struct Context7RuntimeConfig {
     pub(crate) url: String,
     pub(crate) keys: Vec<String>,
@@ -349,11 +365,13 @@ pub(crate) struct RetryRuntimeConfig {
 
 #[derive(Clone, Debug)]
 pub(crate) struct RuntimeConfig {
+    pub(crate) xai: XaiRuntimeConfig,
     pub(crate) exa: ExaRuntimeConfig,
     pub(crate) context7: Context7RuntimeConfig,
     pub(crate) anysearch: AnysearchRuntimeConfig,
     pub(crate) tavily: WebFetchProviderConfig,
     pub(crate) web_fetch: WebFetchRuntimeConfig,
+    pub(crate) journal: JournalRuntimeConfig,
     pub(crate) retry: RetryRuntimeConfig,
     pub(crate) ssl_verify: bool,
 }
@@ -382,6 +400,13 @@ pub fn effective_view() -> Result<EffectiveConfigView, ConfigError> {
 pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
     let loaded = load_effective_config()?;
     let config = loaded.config;
+    let config_dir = ConfigLocation::discover()?.config_dir;
+    let journal = JournalRuntimeConfig {
+        enabled: config.journal.enabled,
+        dir: resolve_journal_dir(&config.journal.dir, &config_dir)?,
+        retention_days: config.journal.retention_days as u64,
+        credentials: configured_credentials(&config),
+    };
     let tavily = WebFetchProviderConfig {
         url: config.providers.tavily.url,
         keys: config.providers.tavily.keys,
@@ -389,6 +414,12 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         respond_with: String::new(),
     };
     Ok(RuntimeConfig {
+        xai: XaiRuntimeConfig {
+            url: config.providers.xai.url,
+            keys: config.providers.xai.keys,
+            model: config.providers.xai.model,
+            tools: config.providers.xai.tools,
+        },
         exa: ExaRuntimeConfig {
             url: config.providers.exa.url,
             keys: config.providers.exa.keys,
@@ -429,6 +460,7 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
                 ),
             ]),
         },
+        journal,
         retry: RetryRuntimeConfig {
             max_attempts: config.retry.max_attempts as usize,
             multiplier: config.retry.multiplier,
@@ -436,6 +468,53 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         },
         ssl_verify: config.http.ssl_verify,
     })
+}
+
+fn resolve_journal_dir(value: &str, config_dir: &Path) -> Result<PathBuf, ConfigError> {
+    if value == "~/.local/state/forager/journal"
+        && let Some(state_home) = env::var_os("XDG_STATE_HOME")
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+            .filter(|path| path.is_absolute())
+    {
+        return Ok(state_home.join("forager/journal"));
+    }
+    if let Some(relative) = value.strip_prefix("~/") {
+        return env::var_os("HOME")
+            .filter(|value| !value.is_empty())
+            .map(PathBuf::from)
+            .filter(|path| path.is_absolute())
+            .map(|home| home.join(relative))
+            .ok_or_else(|| {
+                ConfigError::Message(
+                    "journal.dir uses `~` but HOME is unavailable or not absolute".into(),
+                )
+            });
+    }
+    let path = PathBuf::from(value);
+    if path.is_absolute() {
+        Ok(path)
+    } else {
+        Ok(config_dir.join(path))
+    }
+}
+
+fn configured_credentials(config: &Config) -> Vec<String> {
+    [
+        &config.classifier.keys,
+        &config.providers.xai.keys,
+        &config.providers.openai_compatible.keys,
+        &config.providers.exa.keys,
+        &config.providers.context7.keys,
+        &config.providers.jina.keys,
+        &config.providers.tavily.keys,
+        &config.providers.firecrawl.keys,
+        &config.providers.anysearch.keys,
+    ]
+    .into_iter()
+    .flatten()
+    .cloned()
+    .collect()
 }
 
 fn load_effective_config() -> Result<LoadedConfig, ConfigError> {

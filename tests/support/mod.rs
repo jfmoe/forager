@@ -91,8 +91,8 @@ impl Response {
 
 pub(crate) struct RunEnvironment {
     root: tempfile::TempDir,
-    config_dir: PathBuf,
-    state_dir: PathBuf,
+    pub(crate) config_dir: PathBuf,
+    pub(crate) state_dir: PathBuf,
 }
 
 impl RunEnvironment {

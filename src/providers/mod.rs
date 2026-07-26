@@ -4,12 +4,14 @@ mod exa;
 mod execution;
 mod tavily_map;
 mod web_fetch;
+mod xai;
 
 use reqwest::Client;
 use thiserror::Error;
 
 use crate::config::{
     AnysearchRuntimeConfig, Context7RuntimeConfig, ExaRuntimeConfig, WebFetchProviderConfig,
+    XaiRuntimeConfig,
 };
 use crate::credentials::CredentialPool;
 use crate::net::RetryPolicy;
@@ -20,6 +22,7 @@ pub(crate) use context7::{Context7, Context7DocsRequest, Context7LibraryRequest}
 pub(crate) use exa::{Exa, ExaSearchRequest, ExaSimilarRequest, SearchType};
 pub(crate) use tavily_map::{MapRequest, TavilyMap};
 pub(crate) use web_fetch::{FetchRequest, WebFetch};
+pub(crate) use xai::{SearchRequest, Xai};
 
 #[derive(Debug, Error)]
 #[error("{message}")]
@@ -34,6 +37,7 @@ pub struct ProviderError {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ProviderId {
+    Xai,
     Exa,
     Tavily,
     Firecrawl,
@@ -54,6 +58,7 @@ pub(crate) struct ProviderRegistration {
 
 #[derive(Clone, Copy)]
 enum ProviderConstructor {
+    Xai,
     Anysearch,
     Context7,
     Exa,
@@ -63,6 +68,14 @@ enum ProviderConstructor {
 }
 
 const REGISTRY: &[ProviderRegistration] = &[
+    ProviderRegistration {
+        id: ProviderId::Xai,
+        name: "xai",
+        capabilities: &["main_search"],
+        operations: &[],
+        credentials_required: true,
+        constructor: ProviderConstructor::Xai,
+    },
     ProviderRegistration {
         id: ProviderId::Tavily,
         name: "tavily",
@@ -112,6 +125,19 @@ const REGISTRY: &[ProviderRegistration] = &[
         constructor: ProviderConstructor::Anysearch,
     },
 ];
+
+pub(crate) fn build_xai(
+    mut config: XaiRuntimeConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> Xai {
+    let registration = registration(ProviderId::Xai);
+    debug_assert!(registration.credentials_required);
+    debug_assert!(matches!(registration.constructor, ProviderConstructor::Xai));
+    let credentials = CredentialPool::new(registration.name, std::mem::take(&mut config.keys));
+    Xai::new(config, client, credentials, retry_policy, deadline)
+}
 
 pub(crate) fn supports(capability: &str, provider: &str) -> bool {
     REGISTRY.iter().any(|registration| {
@@ -232,6 +258,21 @@ mod tests {
                 matches!(exa.constructor, ProviderConstructor::Exa),
             ),
             ("exa", &["docs_search"][..], true, true)
+        );
+    }
+
+    #[test]
+    fn xai_has_one_complete_registry_description() {
+        let xai = registration(ProviderId::Xai);
+
+        assert_eq!(
+            (
+                xai.name,
+                xai.capabilities,
+                xai.credentials_required,
+                matches!(xai.constructor, ProviderConstructor::Xai),
+            ),
+            ("xai", &["main_search"][..], true, true)
         );
     }
 

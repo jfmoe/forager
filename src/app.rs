@@ -3,6 +3,7 @@
 use std::io::{self, BufRead, IsTerminal, Read, Write};
 use std::path::PathBuf;
 use std::time::Duration;
+use std::time::Instant;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use serde_json::{Map, Value};
@@ -16,6 +17,7 @@ use crate::providers::{
     SearchType,
 };
 use crate::types::{AnysearchOutcome, Context7Outcome, Deadline, FetchOutcome, MapOutcome};
+use crate::types::{JournalOutcome, SearchOutcome};
 
 pub use crate::providers::ProviderError;
 pub use crate::types::ExaOutcome;
@@ -30,6 +32,28 @@ pub struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
+    #[command(visible_alias = "s")]
+    Search {
+        query: String,
+        #[arg(long, value_parser = parse_none_capability)]
+        capabilities: Option<String>,
+        #[arg(long)]
+        model: Option<String>,
+        #[arg(long, default_value_t = 0)]
+        extra_sources: u16,
+        #[arg(long, default_value = "balanced", value_parser = ["fast", "balanced", "strict"])]
+        validation: String,
+        #[arg(long, default_value = "auto", value_parser = ["auto", "off"])]
+        fallback: String,
+        #[arg(long, default_value_t = 180, value_parser = clap::value_parser!(u64).range(1..))]
+        timeout: u64,
+        #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
+        format: DocsOutputFormat,
+        #[arg(long)]
+        output: Option<PathBuf>,
+        #[arg(long)]
+        verbose: bool,
+    },
     #[command(visible_alias = "f")]
     Fetch {
         url: String,
@@ -259,6 +283,19 @@ pub enum CommandOutput {
         /// Process exit status.
         exit_code: u8,
     },
+    /// One completed Default Search Invocation.
+    Search {
+        /// Main-search terminal result.
+        result: Result<SearchOutcome, ProviderError>,
+        /// Search Result Journal side-channel outcome.
+        journal: JournalOutcome,
+        /// Requested output format.
+        format: DocsOutputFormat,
+        /// Optional tee destination.
+        output: Option<PathBuf>,
+        /// Whether full provider attempts should be rendered inline.
+        verbose: bool,
+    },
     /// Typed Exa terminal state for binary-side formatting and tee output.
     Exa {
         /// Provider result.
@@ -326,6 +363,15 @@ struct FetchContext {
     runtime: tokio::runtime::Runtime,
 }
 
+struct SearchContext {
+    provider: providers::Xai,
+    journal: config::JournalRuntimeConfig,
+    default_model: String,
+    endpoint_host: String,
+    timeout: Duration,
+    runtime: tokio::runtime::Runtime,
+}
+
 impl NetworkDependencies {
     fn load() -> Result<Self, AppError> {
         let config = config::runtime_config()?;
@@ -375,6 +421,60 @@ impl FetchContext {
             self.retry_policy,
             self.deadline,
         ))
+    }
+}
+
+impl SearchContext {
+    fn load(timeout_seconds: u64) -> Result<Self, AppError> {
+        let dependencies = NetworkDependencies::load()?;
+        if dependencies.config.xai.keys.is_empty() {
+            return Err(AppError::Config(ConfigError::Message(
+                "providers.xai.keys has no configured credentials".into(),
+            )));
+        }
+        let timeout = Duration::from_secs(timeout_seconds);
+        let default_model = dependencies.config.xai.model.clone();
+        let endpoint_host = reqwest::Url::parse(&dependencies.config.xai.url)
+            .ok()
+            .and_then(|url| url.host_str().map(ToOwned::to_owned))
+            .unwrap_or_default();
+        let provider = providers::build_xai(
+            dependencies.config.xai,
+            dependencies.client,
+            dependencies.retry_policy,
+            Deadline::new(timeout),
+        );
+        Ok(Self {
+            provider,
+            journal: dependencies.config.journal,
+            default_model,
+            endpoint_host,
+            timeout,
+            runtime: dependencies.runtime,
+        })
+    }
+
+    fn search(
+        self,
+        request: providers::SearchRequest,
+    ) -> (Result<SearchOutcome, ProviderError>, JournalOutcome) {
+        let query = request.query.clone();
+        let model = request
+            .model
+            .clone()
+            .unwrap_or_else(|| self.default_model.clone());
+        let started = Instant::now();
+        let result = self.runtime.block_on(self.provider.search(request));
+        let journal = crate::journal::record_search(
+            &self.journal,
+            &query,
+            self.timeout,
+            started.elapsed(),
+            &model,
+            &self.endpoint_host,
+            &result,
+        );
+        (result, journal)
     }
 }
 
@@ -505,6 +605,37 @@ impl AppContext<providers::Anysearch> {
 /// persistence are invalid.
 pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
     match cli.command {
+        Command::Search {
+            query,
+            capabilities,
+            model,
+            extra_sources: _,
+            validation: _,
+            fallback: _,
+            timeout,
+            format,
+            output,
+            verbose,
+        } => {
+            if capabilities.is_none() {
+                return Err(AppError::Argument(
+                    "search currently requires `--capabilities none`".into(),
+                ));
+            }
+            let (result, journal) =
+                SearchContext::load(timeout)?.search(providers::SearchRequest {
+                    query,
+                    model,
+                    verbose,
+                });
+            Ok(CommandOutput::Search {
+                result,
+                journal,
+                format,
+                output,
+                verbose,
+            })
+        }
         Command::Fetch {
             url,
             timeout,
@@ -797,6 +928,13 @@ fn parse_json_object(value: &str) -> Result<Map<String, Value>, String> {
         .as_object()
         .cloned()
         .ok_or_else(|| "--sub-domain-params must be a single JSON object".to_owned())
+}
+
+fn parse_none_capability(value: &str) -> Result<String, String> {
+    value
+        .eq_ignore_ascii_case("none")
+        .then(|| "none".to_owned())
+        .ok_or_else(|| "this search slice accepts only the exclusive `none` declaration".into())
 }
 
 fn run_exa_search(

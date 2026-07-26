@@ -11,7 +11,7 @@ use forager::app::{
 };
 use forager::types::{
     AnysearchOutcome, AttemptErrorKind, Context7Outcome, ErrorFamily, ErrorKind, FetchOutcome,
-    MapOutcome,
+    JournalOutcome, MapOutcome, SearchOutcome,
 };
 use serde_json::{Value, json};
 
@@ -22,6 +22,19 @@ fn main() -> ExitCode {
             stderr,
             exit_code,
         }) => emit(stdout, stderr, exit_code),
+        Ok(CommandOutput::Search {
+            result,
+            journal,
+            format,
+            output,
+            verbose,
+        }) => match render_search(result, &journal, format, output, verbose) {
+            Ok(rendered) => emit(rendered.stdout, rendered.stderr, rendered.exit_code),
+            Err(error) => {
+                eprintln!("runtime_error: {error}");
+                ExitCode::from(4)
+            }
+        },
         Ok(CommandOutput::Exa {
             result,
             format,
@@ -81,6 +94,110 @@ fn main() -> ExitCode {
             eprintln!("{}: {error}", error.category());
             ExitCode::from(error.exit_code())
         }
+    }
+}
+
+fn render_search(
+    result: Result<SearchOutcome, ProviderError>,
+    journal: &JournalOutcome,
+    format: DocsOutputFormat,
+    output: Option<PathBuf>,
+    verbose: bool,
+) -> Result<RenderedOutput, String> {
+    let (stdout, exit_code, provider_diagnostic) = match result {
+        Ok(outcome) => {
+            let stdout = match format {
+                DocsOutputFormat::Json => {
+                    let mut payload =
+                        serde_json::to_value(&outcome).map_err(|error| error.to_string())?;
+                    add_journal_status(&mut payload, journal)?;
+                    if verbose {
+                        payload
+                            .as_object_mut()
+                            .expect("search outcome is an object")
+                            .insert(
+                                "provider_attempts".into(),
+                                serde_json::to_value(&outcome.attempts)
+                                    .map_err(|error| error.to_string())?,
+                            );
+                    }
+                    serde_json::to_string(&payload).map_err(|error| error.to_string())?
+                }
+                DocsOutputFormat::Markdown => {
+                    let mut markdown = format!("# Search result\n\n{}", outcome.answer);
+                    if !outcome.sources.is_empty() {
+                        markdown.push_str("\n\n## Sources\n");
+                        for source in &outcome.sources {
+                            markdown.push_str(&format!("\n- [{}]({})", source.title, source.url));
+                        }
+                    }
+                    markdown
+                }
+                DocsOutputFormat::Content => outcome.answer.clone(),
+            };
+            (stdout, 0, outcome.diagnostic)
+        }
+        Err(error) => {
+            let stdout = match format {
+                DocsOutputFormat::Json => format_search_failure_json(&error, journal)?,
+                DocsOutputFormat::Markdown | DocsOutputFormat::Content => format!(
+                    "# Search failed\n\n**{}**: {}",
+                    error.kind.as_str(),
+                    error.message
+                ),
+            };
+            (stdout, postflight_exit_code(error.kind), error.diagnostic)
+        }
+    };
+    let diagnostic = combine_diagnostics(
+        provider_diagnostic,
+        journal
+            .warning
+            .as_ref()
+            .map(|warning| format!("Search Result Journal warning: {warning}")),
+    );
+    apply_tee(
+        stdout,
+        exit_code,
+        format == DocsOutputFormat::Json,
+        output,
+        diagnostic,
+    )
+}
+
+fn format_search_failure_json(
+    error: &ProviderError,
+    journal: &JournalOutcome,
+) -> Result<String, String> {
+    let mut payload: Value =
+        serde_json::from_str(&format_failure_json(error)?).map_err(|error| error.to_string())?;
+    add_journal_status(&mut payload, journal)?;
+    serde_json::to_string(&payload).map_err(|error| error.to_string())
+}
+
+fn add_journal_status(payload: &mut Value, journal: &JournalOutcome) -> Result<(), String> {
+    let object = payload
+        .as_object_mut()
+        .ok_or_else(|| "search output is not a JSON object".to_owned())?;
+    object.insert(
+        "journal_ref".into(),
+        journal
+            .reference
+            .as_ref()
+            .map_or(Value::Null, |reference| Value::String(reference.clone())),
+    );
+    object.insert(
+        "journal_status".into(),
+        Value::String(journal.status.into()),
+    );
+    Ok(())
+}
+
+fn combine_diagnostics(first: Option<String>, second: Option<String>) -> Option<String> {
+    match (first, second) {
+        (Some(first), Some(second)) => Some(format!("{first}\n{second}")),
+        (Some(diagnostic), None) | (None, Some(diagnostic)) => Some(diagnostic),
+        (None, None) => None,
     }
 }
 

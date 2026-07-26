@@ -134,6 +134,28 @@ pub struct Source {
 }
 
 #[derive(Clone, Debug, Serialize)]
+pub struct SearchOutcome {
+    pub provider: &'static str,
+    pub query: String,
+    pub model: String,
+    pub answer: String,
+    pub sources: Vec<Source>,
+    pub capabilities: Vec<String>,
+    pub capability_gaps: Vec<String>,
+    #[serde(skip)]
+    pub attempts: Vec<ProviderAttempt>,
+    #[serde(skip)]
+    pub diagnostic: Option<String>,
+}
+
+#[derive(Clone, Debug)]
+pub struct JournalOutcome {
+    pub status: &'static str,
+    pub reference: Option<String>,
+    pub warning: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
 pub struct LibraryCandidate {
     pub id: String,
     pub title: String,
