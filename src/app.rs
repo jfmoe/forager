@@ -142,6 +142,7 @@ enum Command {
         #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
         format: OutputFormat,
     },
+    Smoke,
 }
 
 #[derive(Debug, Subcommand)]
@@ -1275,6 +1276,15 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             };
             Ok(CommandOutput::Text {
                 stdout,
+                stderr: None,
+                exit_code,
+            })
+        }
+        Command::Smoke => {
+            let (report, exit_code) = crate::smoke::run()?;
+            Ok(CommandOutput::Text {
+                stdout: serde_json::to_string(&report)
+                    .map_err(|error| AppError::Runtime(error.to_string()))?,
                 stderr: None,
                 exit_code,
             })

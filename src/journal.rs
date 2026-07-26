@@ -291,11 +291,7 @@ fn record_name() -> String {
 fn sanitize_value(value: &mut Value, credentials: &[String]) {
     match value {
         Value::String(text) => {
-            *text = credentials
-                .iter()
-                .fold(config::redact_urls(text), |redacted, credential| {
-                    redacted.replace(credential, "********")
-                });
+            *text = config::redact_credentials(text, credentials);
         }
         Value::Array(values) => {
             for value in values {
@@ -316,12 +312,7 @@ fn sanitize_warning(config: &JournalRuntimeConfig, message: &str) -> String {
 }
 
 fn sanitize_text(config: &JournalRuntimeConfig, value: &str) -> String {
-    config
-        .credentials
-        .iter()
-        .fold(config::redact_urls(value), |redacted, credential| {
-            redacted.replace(credential, "********")
-        })
+    config::redact_credentials(value, &config.credentials)
 }
 
 fn duration_millis(duration: Duration) -> u64 {

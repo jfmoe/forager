@@ -12,4 +12,5 @@ mod journal;
 mod net;
 mod providers;
 mod research;
+mod smoke;
 pub mod types;

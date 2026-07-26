@@ -87,6 +87,10 @@ fn state_file() -> Option<PathBuf> {
         })
 }
 
+pub(crate) fn state_directory() -> Option<PathBuf> {
+    state_file().and_then(|path| path.parent().map(Path::to_path_buf))
+}
+
 fn claim_persistent_index(
     path: &Path,
     provider: &str,

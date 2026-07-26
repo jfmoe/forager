@@ -16,7 +16,7 @@ use crate::providers;
 
 static FILE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 static WRITE_PROBE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
-const MASK: &str = "********";
+pub(crate) const CREDENTIAL_MASK: &str = "********";
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
@@ -1773,7 +1773,7 @@ pub(crate) fn redact_url(value: &str) -> String {
                 return pair.to_owned();
             };
             if is_sensitive_query_name(name) {
-                format!("{name}={MASK}")
+                format!("{name}={CREDENTIAL_MASK}")
             } else {
                 format!("{name}={value}")
             }
@@ -1809,6 +1809,14 @@ pub(crate) fn redact_urls(value: &str) -> String {
     output
 }
 
+pub(crate) fn redact_credentials(value: &str, credentials: &[String]) -> String {
+    credentials
+        .iter()
+        .fold(redact_urls(value), |redacted, credential| {
+            redacted.replace(credential, CREDENTIAL_MASK)
+        })
+}
+
 fn is_sensitive_query_name(name: &str) -> bool {
     let name = name.to_ascii_lowercase();
     ["token", "key", "secret", "signature", "authorization"]
@@ -1822,7 +1830,7 @@ fn leaf_value(value: JsonValue, source: &'static str) -> JsonValue {
 
 fn key_value(keys: &[String], source: &'static str) -> JsonValue {
     json!({
-        "value": vec![MASK; keys.len()],
+        "value": vec![CREDENTIAL_MASK; keys.len()],
         "source": source,
         "configured": !keys.is_empty(),
         "key_count": keys.len(),
@@ -2170,6 +2178,55 @@ fn restrict_private_file(path: &Path) -> io::Result<()> {
 fn set_mode(path: &Path, mode: u32) -> io::Result<()> {
     use std::os::unix::fs::PermissionsExt;
     fs::set_permissions(path, fs::Permissions::from_mode(mode))
+}
+
+#[cfg(unix)]
+pub(crate) fn has_private_permissions(path: &Path, expected: u32) -> io::Result<bool> {
+    use std::os::unix::fs::PermissionsExt;
+
+    let actual = fs::metadata(path)?.permissions().mode() & 0o777;
+    Ok(actual & !expected == 0)
+}
+
+#[cfg(windows)]
+pub(crate) fn has_private_permissions(path: &Path, _expected: u32) -> io::Result<bool> {
+    use winapi::um::winnt::PSID;
+    use windows_acl::acl::{ACL, AceType};
+    use windows_acl::helper::sid_to_string;
+
+    let path = path.to_str().ok_or_else(|| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "configuration path is not valid Unicode",
+        )
+    })?;
+    let acl = ACL::from_file_path(path, false)
+        .map_err(|code| io::Error::other(format!("cannot read Windows ACL: {code}")))?;
+    let entries = acl
+        .all()
+        .map_err(|code| io::Error::other(format!("cannot enumerate Windows ACL: {code}")))?;
+    Ok(!entries.is_empty()
+        && entries.iter().all(|entry| {
+            let is_owner = entry.sid.as_ref().is_some_and(|sid| {
+                sid_to_string(sid.as_ptr() as PSID).is_ok_and(|sid| sid == "S-1-3-4")
+            });
+            let is_allow = matches!(
+                entry.entry_type,
+                AceType::AccessAllow
+                    | AceType::AccessAllowCallback
+                    | AceType::AccessAllowObject
+                    | AceType::AccessAllowCallbackObject
+            );
+            is_owner && is_allow
+        }))
+}
+
+#[cfg(not(any(unix, windows)))]
+pub(crate) fn has_private_permissions(_path: &Path, _expected: u32) -> io::Result<bool> {
+    Err(io::Error::new(
+        io::ErrorKind::Unsupported,
+        "private configuration permissions are unavailable",
+    ))
 }
 
 #[cfg(not(any(unix, windows)))]
