@@ -43,8 +43,8 @@ enum Command {
         extra_sources: u16,
         #[arg(long, default_value = "balanced", value_parser = ["fast", "balanced", "strict"])]
         validation: String,
-        #[arg(long, default_value = "auto", value_parser = ["auto", "off"])]
-        fallback: String,
+        #[arg(long, value_parser = ["auto", "off"])]
+        fallback: Option<String>,
         #[arg(long, default_value_t = 180, value_parser = clap::value_parser!(u64).range(1..))]
         timeout: u64,
         #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
@@ -364,7 +364,10 @@ struct FetchContext {
 }
 
 struct SearchContext {
-    provider: providers::Xai,
+    config: config::MainSearchRuntimeConfig,
+    client: reqwest::Client,
+    retry_policy: RetryPolicy,
+    model_breakers: std::sync::Arc<providers::ModelBreakers>,
     journal: config::JournalRuntimeConfig,
     default_model: String,
     endpoint_host: String,
@@ -427,25 +430,20 @@ impl FetchContext {
 impl SearchContext {
     fn load(timeout_seconds: u64) -> Result<Self, AppError> {
         let dependencies = NetworkDependencies::load()?;
-        if dependencies.config.xai.keys.is_empty() {
+        let config = dependencies.config.main_search;
+        if config.configured_provider_count() == 0 {
             return Err(AppError::Config(ConfigError::Message(
-                "providers.xai.keys has no configured credentials".into(),
+                "search.backends has no configured credentials".into(),
             )));
         }
         let timeout = Duration::from_secs(timeout_seconds);
-        let default_model = dependencies.config.xai.model.clone();
-        let endpoint_host = reqwest::Url::parse(&dependencies.config.xai.url)
-            .ok()
-            .and_then(|url| url.host_str().map(ToOwned::to_owned))
-            .unwrap_or_default();
-        let provider = providers::build_xai(
-            dependencies.config.xai,
-            dependencies.client,
-            dependencies.retry_policy,
-            Deadline::new(timeout),
-        );
+        let default_model = config.default_model().to_owned();
+        let endpoint_host = config.default_endpoint_host();
         Ok(Self {
-            provider,
+            config,
+            client: dependencies.client,
+            retry_policy: dependencies.retry_policy,
+            model_breakers: std::sync::Arc::new(providers::ModelBreakers::default()),
             journal: dependencies.config.journal,
             default_model,
             endpoint_host,
@@ -456,15 +454,28 @@ impl SearchContext {
 
     fn search(
         self,
-        request: providers::SearchRequest,
+        mut request: providers::SearchRequest,
+        fallback_override: Option<&str>,
     ) -> (Result<SearchOutcome, ProviderError>, JournalOutcome) {
+        let fallback = fallback_override
+            .unwrap_or(&self.config.fallback)
+            .to_owned();
+        request.allow_model_fallback = fallback != "off";
         let query = request.query.clone();
         let model = request
             .model
             .clone()
             .unwrap_or_else(|| self.default_model.clone());
         let started = Instant::now();
-        let result = self.runtime.block_on(self.provider.search(request));
+        let result = self.runtime.block_on(crate::engine::search(
+            request,
+            self.config,
+            &fallback,
+            self.client,
+            self.retry_policy,
+            Deadline::new(self.timeout),
+            self.model_breakers,
+        ));
         let journal = crate::journal::record_search(
             &self.journal,
             &query,
@@ -611,7 +622,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             model,
             extra_sources: _,
             validation: _,
-            fallback: _,
+            fallback,
             timeout,
             format,
             output,
@@ -622,12 +633,15 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                     "search currently requires `--capabilities none`".into(),
                 ));
             }
-            let (result, journal) =
-                SearchContext::load(timeout)?.search(providers::SearchRequest {
+            let (result, journal) = SearchContext::load(timeout)?.search(
+                providers::SearchRequest {
                     query,
                     model,
+                    allow_model_fallback: true,
                     verbose,
-                });
+                },
+                fallback.as_deref(),
+            );
             Ok(CommandOutput::Search {
                 result,
                 journal,

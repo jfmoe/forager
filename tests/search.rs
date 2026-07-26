@@ -163,6 +163,420 @@ fn search_maps_non_completed_sse_terminals_to_stable_runtime_errors() {
 }
 
 #[test]
+fn search_falls_back_from_xai_to_openai_compatible_non_stream() {
+    let xai = Fixture::start(503, "application/json", r#"{"error":"xAI unavailable"}"#);
+    let openai = Fixture::start(
+        200,
+        "application/json",
+        r#"{"choices":[{"message":{"content":"Fallback answer","citations":[{"url":"https://example.test/fallback","title":"Fallback source"}]}}]}"#,
+    );
+    let environment = RunEnvironment::new(&main_fallback_config(
+        &xai.url,
+        &openai.url,
+        false,
+        &[],
+        "auto",
+        false,
+    ));
+
+    let output = environment.run(&["search", "Fallback", "--capabilities", "none"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["provider"],
+            &payload["answer"],
+            &payload["sources"],
+        ),
+        (
+            Some(0),
+            &Value::String("openai_compatible".into()),
+            &Value::String("Fallback answer".into()),
+            &serde_json::json!([{
+                "title": "Fallback source",
+                "url": "https://example.test/fallback"
+            }]),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(xai.finish().starts_with("POST /v1/responses "));
+    let openai_request = openai.finish();
+    assert!(
+        openai_request.starts_with("POST /v1/chat/completions "),
+        "{openai_request}"
+    );
+    assert!(
+        openai_request.contains("\"stream\":false"),
+        "{openai_request}"
+    );
+}
+
+#[test]
+fn search_openai_stream_falls_back_to_non_stream_with_the_same_adapter() {
+    let openai = Fixture::start_sequence(vec![
+        Response::new(200, "text/event-stream", "data: [DONE]\n\n"),
+        Response::new(
+            200,
+            "application/json",
+            r#"{"choices":[{"message":{"content":"HTTP fallback","citations":["https://example.test/http"]}}]}"#,
+        ),
+    ]);
+    let config = main_fallback_config("http://127.0.0.1:9", &openai.url, true, &[], "auto", false)
+        .replace(
+            r#"backends = ["xai", "openai_compatible"]"#,
+            r#"backends = ["openai_compatible"]"#,
+        );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Transport fallback",
+        "--capabilities",
+        "none",
+        "--model",
+        "override-model",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["answer"],
+            &payload["sources"][0]["url"],
+        ),
+        (
+            Some(0),
+            &Value::String("HTTP fallback".into()),
+            &Value::String("https://example.test/http".into()),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let requests = openai.finish_all();
+    assert_eq!(requests.len(), 2);
+    assert!(requests[0].contains("\"stream\":true"), "{}", requests[0]);
+    assert!(requests[1].contains("\"stream\":false"), "{}", requests[1]);
+}
+
+#[test]
+fn search_openai_stream_environment_override_uses_the_same_adapter() {
+    let openai = Fixture::start(
+        200,
+        "text/event-stream",
+        concat!(
+            "data: {\"choices\":[{\"delta\":{\"content\":\"Env stream\",\"citations\":[",
+            "{\"url\":\"https://example.test/env\",\"title\":\"Env source\"}]}}]}\n\n",
+            "data: [DONE]\n\n"
+        ),
+    );
+    let config = main_fallback_config("http://127.0.0.1:9", &openai.url, false, &[], "auto", false)
+        .replace(
+            r#"backends = ["xai", "openai_compatible"]"#,
+            r#"backends = ["openai_compatible"]"#,
+        );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run_with_env(
+        &["search", "Env stream", "--capabilities", "none"],
+        &[("FORAGER_PROVIDERS__OPENAI_COMPATIBLE__STREAM", "true")],
+    );
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["answer"],
+            &payload["sources"][0]["title"],
+        ),
+        (
+            Some(0),
+            &Value::String("Env stream".into()),
+            &Value::String("Env source".into()),
+        )
+    );
+    let request = openai.finish();
+    assert!(request.contains("\"stream\":true"), "{request}");
+}
+
+#[test]
+fn search_openai_falls_back_between_configured_models() {
+    let openai = Fixture::start_sequence(vec![
+        Response::new(503, "application/json", r#"{"error":"primary failed"}"#),
+        Response::new(
+            200,
+            "application/json",
+            r#"{"choices":[{"message":{"content":"Model fallback"}}]}"#,
+        ),
+    ]);
+    let config = main_fallback_config(
+        "http://127.0.0.1:9",
+        &openai.url,
+        false,
+        &["fallback-model"],
+        "auto",
+        true,
+    )
+    .replace(
+        r#"backends = ["xai", "openai_compatible"]"#,
+        r#"backends = ["openai_compatible"]"#,
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&["search", "Models", "--capabilities", "none"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["model"],
+            &payload["answer"],
+            &payload["journal_status"],
+        ),
+        (
+            Some(0),
+            &Value::String("fallback-model".into()),
+            &Value::String("Model fallback".into()),
+            &Value::String("written".into()),
+        )
+    );
+    let requests = openai.finish_all();
+    assert!(requests[0].contains("\"model\":\"primary-model\""));
+    assert!(requests[1].contains("\"model\":\"fallback-model\""));
+    let journal = read_only_journal(&environment);
+    assert_eq!(
+        journal["execution"]["provider_attempts"]
+            .as_array()
+            .expect("journal attempts")
+            .iter()
+            .map(|attempt| attempt["model"].as_str().expect("attempt model"))
+            .collect::<Vec<_>>(),
+        ["primary-model", "fallback-model"]
+    );
+}
+
+#[test]
+fn search_model_override_disables_configured_model_fallbacks() {
+    let openai = Fixture::start(503, "application/json", r#"{"error":"override failed"}"#);
+    let config = main_fallback_config(
+        "http://127.0.0.1:9",
+        &openai.url,
+        false,
+        &["fallback-model"],
+        "auto",
+        false,
+    )
+    .replace(
+        r#"backends = ["xai", "openai_compatible"]"#,
+        r#"backends = ["openai_compatible"]"#,
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Override",
+        "--capabilities",
+        "none",
+        "--model",
+        "override-model",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["attempts"]["total"],
+            &payload["attempts"]["providers"],
+        ),
+        (
+            Some(4),
+            &Value::from(1),
+            &serde_json::json!(["openai_compatible"]),
+        )
+    );
+    let request = openai.finish();
+    assert!(
+        request.contains("\"model\":\"override-model\""),
+        "{request}"
+    );
+}
+
+#[test]
+fn search_fallback_off_stops_after_the_configured_chain_head() {
+    let xai = Fixture::start(503, "application/json", r#"{"error":"head failed"}"#);
+    let environment = RunEnvironment::new(&main_fallback_config(
+        &xai.url,
+        "http://127.0.0.1:9",
+        false,
+        &["fallback-model"],
+        "off",
+        false,
+    ));
+
+    let output = environment.run(&["search", "No fallback", "--capabilities", "none"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["attempts"]["providers"],
+            &payload["attempts"]["total"],
+        ),
+        (Some(4), &serde_json::json!(["xai"]), &Value::from(1),)
+    );
+    xai.finish();
+}
+
+#[test]
+fn search_fallback_off_does_not_skip_an_unconfigured_chain_head() {
+    let config = main_fallback_config(
+        "http://127.0.0.1:9",
+        "http://127.0.0.1:9",
+        false,
+        &[],
+        "off",
+        false,
+    )
+    .replace(r#"keys = ["xai-key"]"#, "keys = []");
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&["search", "Head only", "--capabilities", "none"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["error_kind"],
+            &payload["attempts"]["providers"],
+        ),
+        (
+            Some(4),
+            &Value::String("auth".into()),
+            &serde_json::json!(["xai"]),
+        )
+    );
+}
+
+#[test]
+fn search_fallback_off_disables_openai_model_fallback() {
+    let openai = Fixture::start(503, "application/json", r#"{"error":"primary failed"}"#);
+    let config = main_fallback_config(
+        "http://127.0.0.1:9",
+        &openai.url,
+        false,
+        &["fallback-model"],
+        "off",
+        false,
+    )
+    .replace(
+        r#"backends = ["xai", "openai_compatible"]"#,
+        r#"backends = ["openai_compatible"]"#,
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&["search", "One model", "--capabilities", "none"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["attempts"]["total"],
+            &payload["attempts"]["providers"],
+        ),
+        (
+            Some(4),
+            &Value::from(1),
+            &serde_json::json!(["openai_compatible"]),
+        )
+    );
+    let request = openai.finish();
+    assert!(request.contains("\"model\":\"primary-model\""), "{request}");
+}
+
+#[test]
+fn search_budget_exhaustion_preserves_the_full_attempt_chain_in_the_journal() {
+    let mut slow = Response::new(
+        200,
+        "application/json",
+        r#"{"choices":[{"message":{"content":"too late"}}]}"#,
+    );
+    slow.delay = std::time::Duration::from_secs(2);
+    let openai = Fixture::start_sequence(vec![slow]);
+    let environment = RunEnvironment::new(&main_fallback_config(
+        "http://127.0.0.1:9",
+        &openai.url,
+        false,
+        &[],
+        "auto",
+        true,
+    ));
+
+    let output = environment.run(&[
+        "search",
+        "Budget",
+        "--capabilities",
+        "none",
+        "--timeout",
+        "1",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let journal = read_only_journal(&environment);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["error_kind"],
+            journal["execution"]["provider_attempts"]
+                .as_array()
+                .map(Vec::len),
+            &journal["execution"]["deadline_budget"]["exhausted"],
+        ),
+        (
+            Some(4),
+            &Value::String("timeout".into()),
+            Some(2),
+            &Value::Bool(true),
+        )
+    );
+    openai.finish();
+}
+
+#[test]
+fn search_attribution_uses_each_provider_final_attempt_and_error_priority() {
+    let xai = Fixture::start(401, "application/json", r#"{"error":"bad xAI key"}"#);
+    let openai = Fixture::start(503, "application/json", r#"{"error":"relay down"}"#);
+    let environment = RunEnvironment::new(&main_fallback_config(
+        &xai.url,
+        &openai.url,
+        false,
+        &[],
+        "auto",
+        false,
+    ));
+
+    let output = environment.run(&["search", "Attribution", "--capabilities", "none"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["error_kind"],
+            &payload["message"],
+            &payload["attempts"]["providers"],
+        ),
+        (
+            Some(4),
+            &Value::String("auth".into()),
+            &Value::String(r#"{"error":"bad xAI key"}"#.into()),
+            &serde_json::json!(["openai_compatible", "xai"]),
+        )
+    );
+    xai.finish();
+    openai.finish();
+}
+
+#[test]
 fn search_journals_each_success_and_failure_terminal_once() {
     let fixture = Fixture::start_sequence(vec![
         Response::new(
@@ -396,6 +810,46 @@ enabled = {journal_enabled}
     )
 }
 
+fn main_fallback_config(
+    xai_url: &str,
+    openai_url: &str,
+    stream: bool,
+    fallback_models: &[&str],
+    fallback: &str,
+    journal_enabled: bool,
+) -> String {
+    let xai_url = format!("{xai_url}/v1");
+    let openai_url = format!("{openai_url}/v1");
+    format!(
+        r#"
+[search]
+backends = ["xai", "openai_compatible"]
+fallback = {fallback:?}
+
+[providers.xai]
+url = {xai_url:?}
+keys = ["xai-key"]
+model = "xai-model"
+tools = ["web_search"]
+
+[providers.openai_compatible]
+url = {openai_url:?}
+keys = ["openai-key"]
+model = "primary-model"
+fallback_models = {fallback_models:?}
+stream = {stream}
+
+[retry]
+max_attempts = 1
+multiplier = 1
+max_wait = 0
+
+[journal]
+enabled = {journal_enabled}
+"#
+    )
+}
+
 fn completed_body(answer: &str, title: &str) -> String {
     format!(
         "data: {}\n\n",
@@ -416,4 +870,14 @@ fn completed_body(answer: &str, title: &str) -> String {
             }
         })
     )
+}
+
+fn read_only_journal(environment: &RunEnvironment) -> Value {
+    let entry = fs::read_dir(environment.state_dir.join("forager/journal"))
+        .expect("read journal")
+        .next()
+        .expect("journal entry")
+        .expect("valid journal entry");
+    serde_json::from_slice(&fs::read(entry.path()).expect("read journal record"))
+        .expect("parse journal record")
 }

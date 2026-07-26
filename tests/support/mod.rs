@@ -110,14 +110,21 @@ impl RunEnvironment {
     }
 
     pub(crate) fn run(&self, arguments: &[&str]) -> Output {
-        Command::new(env!("CARGO_BIN_EXE_forager"))
+        self.run_with_env(arguments, &[])
+    }
+
+    pub(crate) fn run_with_env(&self, arguments: &[&str], variables: &[(&str, &str)]) -> Output {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_forager"));
+        command
             .args(arguments)
             .env_clear()
             .env("FORAGER_CONFIG_DIR", &self.config_dir)
             .env("XDG_STATE_HOME", &self.state_dir)
-            .env("HOME", self.root.path())
-            .output()
-            .expect("run forager")
+            .env("HOME", self.root.path());
+        for (name, value) in variables {
+            command.env(name, value);
+        }
+        command.output().expect("run forager")
     }
 }
 

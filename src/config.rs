@@ -305,6 +305,84 @@ pub(crate) struct XaiRuntimeConfig {
 }
 
 #[derive(Clone, Debug)]
+pub(crate) struct OpenAiCompatibleRuntimeConfig {
+    pub(crate) url: String,
+    pub(crate) keys: Vec<String>,
+    pub(crate) model: String,
+    pub(crate) fallback_models: Vec<String>,
+    pub(crate) stream: bool,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct MainSearchRuntimeConfig {
+    pub(crate) backends: Vec<String>,
+    pub(crate) fallback: String,
+    providers: BTreeMap<String, MainSearchProviderConfig>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) enum MainSearchProviderConfig {
+    Xai(XaiRuntimeConfig),
+    OpenAiCompatible(OpenAiCompatibleRuntimeConfig),
+}
+
+impl MainSearchProviderConfig {
+    pub(crate) fn configured(&self) -> bool {
+        match self {
+            Self::Xai(config) => !config.keys.is_empty(),
+            Self::OpenAiCompatible(config) => !config.keys.is_empty(),
+        }
+    }
+
+    fn model(&self) -> &str {
+        match self {
+            Self::Xai(config) => &config.model,
+            Self::OpenAiCompatible(config) => &config.model,
+        }
+    }
+
+    fn url(&self) -> &str {
+        match self {
+            Self::Xai(config) => &config.url,
+            Self::OpenAiCompatible(config) => &config.url,
+        }
+    }
+}
+
+impl MainSearchRuntimeConfig {
+    pub(crate) fn provider(&self, provider: &str) -> Option<&MainSearchProviderConfig> {
+        self.providers.get(provider)
+    }
+
+    pub(crate) fn configured_provider_count(&self) -> usize {
+        self.backends
+            .iter()
+            .filter(|provider| {
+                self.provider(provider)
+                    .is_some_and(MainSearchProviderConfig::configured)
+            })
+            .count()
+    }
+
+    pub(crate) fn default_model(&self) -> &str {
+        self.backends
+            .iter()
+            .find_map(|provider| self.provider(provider))
+            .map(MainSearchProviderConfig::model)
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn default_endpoint_host(&self) -> String {
+        self.backends
+            .iter()
+            .find_map(|provider| self.provider(provider))
+            .and_then(|provider| reqwest::Url::parse(provider.url()).ok())
+            .and_then(|url| url.host_str().map(ToOwned::to_owned))
+            .unwrap_or_default()
+    }
+}
+
+#[derive(Clone, Debug)]
 pub(crate) struct JournalRuntimeConfig {
     pub(crate) enabled: bool,
     pub(crate) dir: PathBuf,
@@ -365,7 +443,7 @@ pub(crate) struct RetryRuntimeConfig {
 
 #[derive(Clone, Debug)]
 pub(crate) struct RuntimeConfig {
-    pub(crate) xai: XaiRuntimeConfig,
+    pub(crate) main_search: MainSearchRuntimeConfig,
     pub(crate) exa: ExaRuntimeConfig,
     pub(crate) context7: Context7RuntimeConfig,
     pub(crate) anysearch: AnysearchRuntimeConfig,
@@ -414,11 +492,30 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         respond_with: String::new(),
     };
     Ok(RuntimeConfig {
-        xai: XaiRuntimeConfig {
-            url: config.providers.xai.url,
-            keys: config.providers.xai.keys,
-            model: config.providers.xai.model,
-            tools: config.providers.xai.tools,
+        main_search: MainSearchRuntimeConfig {
+            backends: config.search.backends,
+            fallback: config.search.fallback,
+            providers: BTreeMap::from([
+                (
+                    "xai".into(),
+                    MainSearchProviderConfig::Xai(XaiRuntimeConfig {
+                        url: config.providers.xai.url,
+                        keys: config.providers.xai.keys,
+                        model: config.providers.xai.model,
+                        tools: config.providers.xai.tools,
+                    }),
+                ),
+                (
+                    "openai_compatible".into(),
+                    MainSearchProviderConfig::OpenAiCompatible(OpenAiCompatibleRuntimeConfig {
+                        url: config.providers.openai_compatible.url,
+                        keys: config.providers.openai_compatible.keys,
+                        model: config.providers.openai_compatible.model,
+                        fallback_models: config.providers.openai_compatible.fallback_models,
+                        stream: config.providers.openai_compatible.stream,
+                    }),
+                ),
+            ]),
         },
         exa: ExaRuntimeConfig {
             url: config.providers.exa.url,

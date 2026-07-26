@@ -15,6 +15,7 @@ use crate::types::{AttemptErrorKind, Deadline, SearchOutcome, Source};
 pub(crate) struct SearchRequest {
     pub(crate) query: String,
     pub(crate) model: Option<String>,
+    pub(crate) allow_model_fallback: bool,
     pub(crate) verbose: bool,
 }
 
@@ -62,6 +63,12 @@ impl Xai {
                 attempt_timeout: self.deadline.remaining().unwrap_or_default(),
                 verbose: request.verbose,
                 timeout_message: "xAI Responses request timed out",
+                model: Some(model.clone()),
+                transport: Some("sse"),
+                endpoint_host: reqwest::Url::parse(&self.config.url)
+                    .ok()
+                    .and_then(|url| url.host_str().map(ToOwned::to_owned)),
+                breaker_event: None,
             },
             |credential| {
                 let model = model.clone();

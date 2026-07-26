@@ -113,6 +113,10 @@ impl Exa {
                         retry_count,
                         rotation_count,
                         message: String::new(),
+                        model: None,
+                        transport: Some("http"),
+                        endpoint_host: None,
+                        breaker_event: None,
                     });
                     return Ok(ExaOutcome {
                         provider: "exa",
@@ -138,6 +142,10 @@ impl Exa {
                         retry_count,
                         rotation_count,
                         message: failure.message,
+                        model: None,
+                        transport: Some("http"),
+                        endpoint_host: None,
+                        breaker_event: None,
                     });
 
                     if kind.rotates_credential() && rotation_count + 1 < self.credentials.len() {
@@ -187,6 +195,10 @@ impl Exa {
                         retry_count,
                         rotation_count,
                         message: "Exa request timed out".into(),
+                        model: None,
+                        transport: Some("http"),
+                        endpoint_host: None,
+                        breaker_event: None,
                     });
                     if attempts.len() < self.retry_policy.max_attempts() {
                         retry_count += 1;

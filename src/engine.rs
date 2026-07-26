@@ -1,15 +1,127 @@
 use std::collections::HashSet;
+use std::sync::Arc;
 use std::time::Duration;
 
 use reqwest::Client;
 
-use crate::config::{self, WebFetchRuntimeConfig};
+use crate::config::{self, MainSearchRuntimeConfig, WebFetchRuntimeConfig};
 use crate::net::RetryPolicy;
-use crate::providers::{self, FetchRequest, ProviderError};
+use crate::providers::{self, FetchRequest, ProviderError, SearchRequest};
 use crate::types::{
     AttemptErrorKind, DENSITY_MAX_CHARS, DENSITY_MAX_UNIQUE_LINES, Deadline, FetchOutcome,
-    MIN_FETCH_CONTENT_CHARS, MIN_USEFUL_SLICE_SECONDS, ProviderAttempt,
+    MIN_FETCH_CONTENT_CHARS, MIN_USEFUL_SLICE_SECONDS, ProviderAttempt, SearchOutcome,
 };
+
+pub(crate) async fn search(
+    request: SearchRequest,
+    config: MainSearchRuntimeConfig,
+    fallback: &str,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+    model_breakers: Arc<providers::ModelBreakers>,
+) -> Result<SearchOutcome, ProviderError> {
+    let executable = if fallback == "off" {
+        config.backends.iter().take(1).cloned().collect::<Vec<_>>()
+    } else {
+        config
+            .backends
+            .iter()
+            .filter(|backend| backend_is_configured(backend, &config))
+            .cloned()
+            .collect::<Vec<_>>()
+    };
+    let mut attempts = Vec::new();
+    let mut diagnostics = Vec::new();
+
+    for (index, backend) in executable.iter().enumerate() {
+        if !backend_is_configured(backend, &config) {
+            attempts.push(unconfigured_attempt(backend));
+            break;
+        }
+        let remaining_slots = executable.len() - index;
+        let Some(remaining) = deadline.remaining() else {
+            break;
+        };
+        let Some(budget) = provider_budget(remaining, remaining_slots) else {
+            attempts.push(skipped_attempt(backend, "main_search"));
+            continue;
+        };
+        let provider_config = config
+            .provider(backend)
+            .expect("validated main search backend")
+            .clone();
+        let result = providers::build_main_search(
+            backend,
+            provider_config,
+            client.clone(),
+            retry_policy,
+            Deadline::new(budget),
+            model_breakers.clone(),
+        )
+        .search(request.clone())
+        .await;
+        match result {
+            Ok(mut outcome) => {
+                if let Some(diagnostic) = outcome.diagnostic.take() {
+                    diagnostics.push(diagnostic);
+                }
+                attempts.extend(outcome.attempts);
+                outcome.attempts = attempts;
+                outcome.diagnostic = combine_diagnostics(diagnostics);
+                return Ok(outcome);
+            }
+            Err(error) => {
+                if let Some(diagnostic) = error.diagnostic {
+                    diagnostics.push(diagnostic);
+                }
+                attempts.extend(error.attempts);
+            }
+        }
+    }
+    let terminal = terminal_attempt(&attempts);
+    let kind = terminal
+        .and_then(|attempt| attempt.error_kind)
+        .unwrap_or(AttemptErrorKind::Timeout);
+    let message = terminal.map_or_else(
+        || "main search deadline elapsed".into(),
+        |attempt| attempt.message.clone(),
+    );
+    Err(ProviderError {
+        kind,
+        message,
+        attempts,
+        verbose: request.verbose,
+        diagnostic: combine_diagnostics(diagnostics),
+        redirected_library_id: None,
+    })
+}
+
+fn backend_is_configured(backend: &str, config: &MainSearchRuntimeConfig) -> bool {
+    config
+        .provider(backend)
+        .is_some_and(config::MainSearchProviderConfig::configured)
+}
+
+fn unconfigured_attempt(backend: &str) -> ProviderAttempt {
+    ProviderAttempt {
+        provider: providers::registration_by_name(backend)
+            .expect("validated main search backend")
+            .name,
+        seam: "main_search",
+        error_kind: Some(AttemptErrorKind::Auth),
+        http_status: None,
+        duration_ms: 0,
+        credential_index: 0,
+        retry_count: 0,
+        rotation_count: 0,
+        message: format!("{backend} has no configured credentials"),
+        model: None,
+        transport: None,
+        endpoint_host: None,
+        breaker_event: None,
+    }
+}
 
 pub(crate) async fn fetch(
     request: FetchRequest,
@@ -37,7 +149,7 @@ pub(crate) async fn fetch(
             break;
         };
         let Some(provider_budget) = provider_budget(remaining, remaining_slots) else {
-            attempts.push(skipped_attempt(provider_name));
+            attempts.push(skipped_attempt(provider_name, "web_fetch"));
             continue;
         };
         let provider_config = config
@@ -127,13 +239,13 @@ fn is_pdf(url: &str) -> bool {
         .is_some_and(|path| path.to_ascii_lowercase().ends_with(".pdf"))
 }
 
-fn skipped_attempt(provider: &str) -> ProviderAttempt {
+fn skipped_attempt(provider: &str, seam: &'static str) -> ProviderAttempt {
     let provider = providers::registration_by_name(provider)
         .expect("validated fetch provider")
         .name;
     ProviderAttempt {
         provider,
-        seam: "web_fetch",
+        seam,
         error_kind: Some(AttemptErrorKind::Timeout),
         http_status: None,
         duration_ms: 0,
@@ -141,18 +253,34 @@ fn skipped_attempt(provider: &str) -> ProviderAttempt {
         retry_count: 0,
         rotation_count: 0,
         message: "skipped to preserve fallback deadline budget".into(),
+        model: None,
+        transport: None,
+        endpoint_host: None,
+        breaker_event: None,
     }
 }
 
 fn terminal_kind(attempts: &[ProviderAttempt]) -> AttemptErrorKind {
+    terminal_attempt(attempts)
+        .and_then(|attempt| attempt.error_kind)
+        .unwrap_or(AttemptErrorKind::Timeout)
+}
+
+fn terminal_attempt(attempts: &[ProviderAttempt]) -> Option<&ProviderAttempt> {
     let mut final_providers = HashSet::new();
     attempts
         .iter()
+        .enumerate()
         .rev()
-        .filter(|attempt| final_providers.insert(attempt.provider))
-        .filter_map(|attempt| attempt.error_kind)
-        .max_by_key(|kind| error_priority(*kind))
-        .unwrap_or(AttemptErrorKind::Timeout)
+        .filter(|(_, attempt)| final_providers.insert(attempt.provider))
+        .filter(|(_, attempt)| attempt.error_kind.is_some())
+        .max_by_key(|(index, attempt)| {
+            (
+                error_priority(attempt.error_kind.expect("filtered error kind")),
+                *index,
+            )
+        })
+        .map(|(_, attempt)| attempt)
 }
 
 fn provider_budget(remaining: Duration, remaining_slots: usize) -> Option<Duration> {
@@ -185,7 +313,7 @@ fn combine_diagnostics(diagnostics: Vec<String>) -> Option<String> {
 mod tests {
     use std::time::Duration;
 
-    use super::{error_priority, provider_budget, terminal_kind};
+    use super::{error_priority, provider_budget, terminal_attempt, terminal_kind};
     use crate::types::{AttemptErrorKind, ProviderAttempt};
 
     #[test]
@@ -231,6 +359,19 @@ mod tests {
         }
     }
 
+    #[test]
+    fn terminal_attempt_uses_the_later_provider_when_kinds_match() {
+        let attempts = [
+            attempt_with_message("xai", AttemptErrorKind::Auth, "first"),
+            attempt_with_message("openai_compatible", AttemptErrorKind::Auth, "second"),
+        ];
+
+        assert_eq!(
+            terminal_attempt(&attempts).map(|attempt| attempt.message.as_str()),
+            Some("second")
+        );
+    }
+
     const ALL_KINDS: [AttemptErrorKind; 9] = [
         AttemptErrorKind::Auth,
         AttemptErrorKind::RateLimited,
@@ -244,6 +385,14 @@ mod tests {
     ];
 
     fn attempt(provider: &'static str, kind: AttemptErrorKind) -> ProviderAttempt {
+        attempt_with_message(provider, kind, "")
+    }
+
+    fn attempt_with_message(
+        provider: &'static str,
+        kind: AttemptErrorKind,
+        message: &str,
+    ) -> ProviderAttempt {
         ProviderAttempt {
             provider,
             seam: "web_fetch",
@@ -253,7 +402,11 @@ mod tests {
             credential_index: 0,
             retry_count: 0,
             rotation_count: 0,
-            message: String::new(),
+            message: message.into(),
+            model: None,
+            transport: None,
+            endpoint_host: None,
+            breaker_event: None,
         }
     }
 }

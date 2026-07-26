@@ -143,6 +143,10 @@ impl HttpFetchProvider {
                     ProviderId::Firecrawl => "firecrawl request timed out",
                     _ => unreachable!("only web fetch providers make fetch requests"),
                 },
+                model: None,
+                transport: Some("http"),
+                endpoint_host: None,
+                breaker_event: None,
             },
             |credential| async move { self.send_once(request, &credential).await },
         )

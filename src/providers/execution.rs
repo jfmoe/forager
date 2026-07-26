@@ -26,6 +26,10 @@ pub(super) struct ExecutionSettings {
     pub(super) attempt_timeout: Duration,
     pub(super) verbose: bool,
     pub(super) timeout_message: &'static str,
+    pub(super) model: Option<String>,
+    pub(super) transport: Option<&'static str>,
+    pub(super) endpoint_host: Option<String>,
+    pub(super) breaker_event: Option<&'static str>,
 }
 
 pub(super) async fn execute<T, F, Fut>(
@@ -71,6 +75,10 @@ where
                     retry_count,
                     rotation_count,
                     message: String::new(),
+                    model: settings.model.clone(),
+                    transport: settings.transport,
+                    endpoint_host: settings.endpoint_host.clone(),
+                    breaker_event: settings.breaker_event,
                 });
                 return Ok(ExecutionOutcome {
                     value,
@@ -96,6 +104,10 @@ where
             retry_count,
             rotation_count,
             message: failure.message,
+            model: settings.model.clone(),
+            transport: settings.transport,
+            endpoint_host: settings.endpoint_host.clone(),
+            breaker_event: settings.breaker_event,
         });
 
         if kind.rotates_credential() && rotation_count + 1 < credentials.len() {

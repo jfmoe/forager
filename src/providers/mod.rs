@@ -1,7 +1,11 @@
+use std::future::Future;
+use std::pin::Pin;
+
 mod anysearch;
 mod context7;
 mod exa;
 mod execution;
+mod openai_compatible;
 mod tavily_map;
 mod web_fetch;
 mod xai;
@@ -10,8 +14,8 @@ use reqwest::Client;
 use thiserror::Error;
 
 use crate::config::{
-    AnysearchRuntimeConfig, Context7RuntimeConfig, ExaRuntimeConfig, WebFetchProviderConfig,
-    XaiRuntimeConfig,
+    AnysearchRuntimeConfig, Context7RuntimeConfig, ExaRuntimeConfig, MainSearchProviderConfig,
+    OpenAiCompatibleRuntimeConfig, WebFetchProviderConfig, XaiRuntimeConfig,
 };
 use crate::credentials::CredentialPool;
 use crate::net::RetryPolicy;
@@ -20,9 +24,37 @@ use crate::types::{AttemptErrorKind, Deadline, ProviderAttempt};
 pub(crate) use anysearch::{Anysearch, AnysearchDomainsRequest, AnysearchSearchRequest};
 pub(crate) use context7::{Context7, Context7DocsRequest, Context7LibraryRequest};
 pub(crate) use exa::{Exa, ExaSearchRequest, ExaSimilarRequest, SearchType};
+pub(crate) use openai_compatible::{ModelBreakers, OpenAiCompatible};
 pub(crate) use tavily_map::{MapRequest, TavilyMap};
 pub(crate) use web_fetch::{FetchRequest, WebFetch};
 pub(crate) use xai::{SearchRequest, Xai};
+
+pub(crate) trait MainSearch: Send + Sync {
+    fn search(
+        &self,
+        request: SearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<crate::types::SearchOutcome, ProviderError>> + Send + '_>>;
+}
+
+impl MainSearch for Xai {
+    fn search(
+        &self,
+        request: SearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<crate::types::SearchOutcome, ProviderError>> + Send + '_>>
+    {
+        Box::pin(self.search(request))
+    }
+}
+
+impl MainSearch for OpenAiCompatible {
+    fn search(
+        &self,
+        request: SearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<crate::types::SearchOutcome, ProviderError>> + Send + '_>>
+    {
+        Box::pin(self.search(request))
+    }
+}
 
 #[derive(Debug, Error)]
 #[error("{message}")]
@@ -38,6 +70,7 @@ pub struct ProviderError {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum ProviderId {
     Xai,
+    OpenAiCompatible,
     Exa,
     Tavily,
     Firecrawl,
@@ -59,6 +92,7 @@ pub(crate) struct ProviderRegistration {
 #[derive(Clone, Copy)]
 enum ProviderConstructor {
     Xai,
+    OpenAiCompatible,
     Anysearch,
     Context7,
     Exa,
@@ -75,6 +109,14 @@ const REGISTRY: &[ProviderRegistration] = &[
         operations: &[],
         credentials_required: true,
         constructor: ProviderConstructor::Xai,
+    },
+    ProviderRegistration {
+        id: ProviderId::OpenAiCompatible,
+        name: "openai_compatible",
+        capabilities: &["main_search"],
+        operations: &[],
+        credentials_required: true,
+        constructor: ProviderConstructor::OpenAiCompatible,
     },
     ProviderRegistration {
         id: ProviderId::Tavily,
@@ -137,6 +179,56 @@ pub(crate) fn build_xai(
     debug_assert!(matches!(registration.constructor, ProviderConstructor::Xai));
     let credentials = CredentialPool::new(registration.name, std::mem::take(&mut config.keys));
     Xai::new(config, client, credentials, retry_policy, deadline)
+}
+
+pub(crate) fn build_openai_compatible(
+    mut config: OpenAiCompatibleRuntimeConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+    breakers: std::sync::Arc<ModelBreakers>,
+) -> OpenAiCompatible {
+    let registration = registration(ProviderId::OpenAiCompatible);
+    debug_assert!(registration.credentials_required);
+    debug_assert!(matches!(
+        registration.constructor,
+        ProviderConstructor::OpenAiCompatible
+    ));
+    let credentials = CredentialPool::new(registration.name, std::mem::take(&mut config.keys));
+    OpenAiCompatible::new(
+        config,
+        client,
+        credentials,
+        retry_policy,
+        deadline,
+        breakers,
+    )
+}
+
+pub(crate) fn build_main_search(
+    name: &str,
+    config: MainSearchProviderConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+    breakers: std::sync::Arc<ModelBreakers>,
+) -> Box<dyn MainSearch> {
+    match config {
+        MainSearchProviderConfig::Xai(config) => {
+            debug_assert_eq!(name, registration(ProviderId::Xai).name);
+            Box::new(build_xai(config, client, retry_policy, deadline))
+        }
+        MainSearchProviderConfig::OpenAiCompatible(config) => {
+            debug_assert_eq!(name, registration(ProviderId::OpenAiCompatible).name);
+            Box::new(build_openai_compatible(
+                config,
+                client,
+                retry_policy,
+                deadline,
+                breakers,
+            ))
+        }
+    }
 }
 
 pub(crate) fn supports(capability: &str, provider: &str) -> bool {
@@ -273,6 +365,21 @@ mod tests {
                 matches!(xai.constructor, ProviderConstructor::Xai),
             ),
             ("xai", &["main_search"][..], true, true)
+        );
+    }
+
+    #[test]
+    fn openai_compatible_has_one_complete_registry_description() {
+        let openai = registration(ProviderId::OpenAiCompatible);
+
+        assert_eq!(
+            (
+                openai.name,
+                openai.capabilities,
+                openai.credentials_required,
+                matches!(openai.constructor, ProviderConstructor::OpenAiCompatible),
+            ),
+            ("openai_compatible", &["main_search"][..], true, true)
         );
     }
 

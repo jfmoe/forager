@@ -111,6 +111,10 @@ impl Context7 {
                         retry_count,
                         rotation_count,
                         message: String::new(),
+                        model: None,
+                        transport: Some("mcp"),
+                        endpoint_host: None,
+                        breaker_event: None,
                     });
                     let visible_attempts = if operation.verbose() {
                         attempts
@@ -134,6 +138,10 @@ impl Context7 {
                         retry_count,
                         rotation_count,
                         message: self.redacted_message(&failure.message),
+                        model: None,
+                        transport: Some("mcp"),
+                        endpoint_host: None,
+                        breaker_event: None,
                     });
 
                     if kind.rotates_credential() && rotation_count + 1 < self.credentials.len() {

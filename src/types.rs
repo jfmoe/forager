@@ -117,6 +117,14 @@ pub struct ProviderAttempt {
     pub retry_count: usize,
     pub rotation_count: usize,
     pub message: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transport: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub endpoint_host: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub breaker_event: Option<&'static str>,
 }
 
 #[derive(Clone, Debug, Serialize)]

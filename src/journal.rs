@@ -110,8 +110,12 @@ fn build_record(
     let mut attempts = json!(raw_attempts);
     for attempt in attempts.as_array_mut().into_iter().flatten() {
         if let Some(attempt) = attempt.as_object_mut() {
-            attempt.insert("model".into(), Value::String(model.into()));
-            attempt.insert("endpoint_host".into(), Value::String(endpoint_host.into()));
+            attempt
+                .entry("model")
+                .or_insert_with(|| Value::String(model.into()));
+            attempt
+                .entry("endpoint_host")
+                .or_insert_with(|| Value::String(endpoint_host.into()));
         }
     }
     json!({

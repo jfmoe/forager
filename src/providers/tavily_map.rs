@@ -58,6 +58,10 @@ impl TavilyMap {
                 attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
                 verbose: request.verbose,
                 timeout_message: "Tavily site map request timed out",
+                model: None,
+                transport: Some("http"),
+                endpoint_host: None,
+                breaker_event: None,
             },
             move |credential| async move { self.send_once(request_ref, &credential).await },
         )
