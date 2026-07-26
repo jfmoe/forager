@@ -783,7 +783,30 @@ impl Deadline {
 mod research_plan_tests {
     use serde_json::{Value, json};
 
-    use super::ResearchPlan;
+    use super::{AttemptErrorKind, ErrorKind, ResearchPlan};
+
+    #[test]
+    fn provider_attempt_error_domain_excludes_preflight_config() {
+        let kinds = [
+            AttemptErrorKind::Auth,
+            AttemptErrorKind::RateLimited,
+            AttemptErrorKind::QuotaExhausted,
+            AttemptErrorKind::Parameter,
+            AttemptErrorKind::Timeout,
+            AttemptErrorKind::Network,
+            AttemptErrorKind::Quality,
+            AttemptErrorKind::Evidence,
+            AttemptErrorKind::Runtime,
+        ];
+
+        assert_eq!(kinds.len(), 9);
+        assert!(
+            kinds
+                .into_iter()
+                .map(ErrorKind::from)
+                .all(|kind| kind != ErrorKind::Config)
+        );
+    }
 
     #[test]
     fn strict_parser_accepts_schema_v1_and_normalizes_duplicate_capabilities() {

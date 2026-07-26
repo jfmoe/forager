@@ -1,0 +1,153 @@
+{
+  "unit": [
+    {
+      "id": "U01",
+      "requirements": ["I0-4"],
+      "test": "src/engine.rs::terminal_kind_exhausts_final_kind_pairs_and_ignores_history"
+    },
+    {
+      "id": "U02",
+      "requirements": ["I0-3"],
+      "test": "src/engine.rs::provider_budget_preserves_reachable_fallback_slots_at_every_boundary"
+    },
+    {
+      "id": "U03",
+      "requirements": ["I0-2"],
+      "test": "src/types.rs::strict_parser_rejects_each_schema_boundary"
+    },
+    {
+      "id": "U04",
+      "requirements": ["I0-5"],
+      "test": "src/config.rs::url_redaction_exhausts_credentials_fragments_and_safe_query_boundaries"
+    },
+    {
+      "id": "U05",
+      "requirements": ["I0-1"],
+      "test": "src/types.rs::provider_attempt_error_domain_excludes_preflight_config"
+    },
+    {
+      "id": "U06",
+      "requirements": ["I0-6"],
+      "test": "src/main.rs::default_failure_payload_truncates_each_list_and_preserves_utf8_message_boundary"
+    }
+  ],
+  "transport_fixtures": [
+    {
+      "id": "F01",
+      "provider": "xai",
+      "seam": "main_search",
+      "test": "tests/search.rs::search_uses_the_completed_xai_response_and_deduplicates_sources"
+    },
+    {
+      "id": "F02",
+      "provider": "openai_compatible",
+      "seam": "main_search",
+      "test": "tests/search.rs::search_falls_back_from_xai_to_openai_compatible_non_stream"
+    },
+    {
+      "id": "F03",
+      "provider": "tavily",
+      "seam": "web_search",
+      "test": "tests/search.rs::declared_web_search_adds_normalized_extra_sources_in_configured_order"
+    },
+    {
+      "id": "F04",
+      "provider": "firecrawl",
+      "seam": "web_search",
+      "test": "tests/search.rs::declared_web_search_adds_normalized_extra_sources_in_configured_order"
+    },
+    {
+      "id": "F05",
+      "provider": "tavily",
+      "seam": "web_fetch",
+      "test": "tests/tavily_fetch.rs::tavily_fetch_decodes_extract_results_through_the_real_http_stack"
+    },
+    {
+      "id": "F06",
+      "provider": "firecrawl",
+      "seam": "web_fetch",
+      "test": "tests/firecrawl_fetch.rs::firecrawl_fetch_decodes_scrape_results_through_the_real_http_stack"
+    },
+    {
+      "id": "F07",
+      "provider": "jina",
+      "seam": "web_fetch",
+      "test": "tests/jina_fetch.rs::jina_fetch_returns_redacted_content_through_the_real_http_stack"
+    },
+    {
+      "id": "F08",
+      "provider": "context7",
+      "seam": "docs_search",
+      "test": "tests/context7.rs::context7_library_initializes_the_mcp_session_and_normalizes_json_results"
+    },
+    {
+      "id": "F09",
+      "provider": "exa",
+      "seam": "docs_search",
+      "test": "tests/exa_search.rs::exa_search_returns_normalized_results_through_the_real_http_stack"
+    },
+    {
+      "id": "F10",
+      "provider": "anysearch",
+      "seam": "vertical_search",
+      "test": "tests/anysearch.rs::anysearch_search_without_a_domain_performs_vertical_discovery"
+    }
+  ],
+  "offline_e2e": [
+    {
+      "id": "E01",
+      "requirements": ["T1-command-tree", "T1-aliases"],
+      "test": "tests/cli_contract.rs::command_tree_and_six_visible_aliases_remain_available"
+    },
+    {
+      "id": "E02",
+      "requirements": ["T1-exit-codes"],
+      "test": "tests/search.rs::search_attribution_uses_each_provider_final_attempt_and_error_priority"
+    },
+    {
+      "id": "E03",
+      "requirements": ["T1-routing"],
+      "test": "tests/search.rs::combined_declaration_executes_only_declared_seams_in_vocabulary_order"
+    },
+    {
+      "id": "E04",
+      "requirements": ["T1-fallback"],
+      "test": "tests/search.rs::search_falls_back_from_xai_to_openai_compatible_non_stream"
+    },
+    {
+      "id": "E05",
+      "requirements": ["T1-config"],
+      "test": "tests/config_commands.rs::config_list_rejects_invalid_enums_ranges_and_provider_orders_with_locations"
+    },
+    {
+      "id": "E06",
+      "requirements": ["T1-plan"],
+      "test": "tests/research.rs::research_rejects_strict_schema_v1_negative_cases_before_loading_config"
+    },
+    {
+      "id": "E07",
+      "requirements": ["T1-journal"],
+      "test": "tests/search.rs::search_journals_each_success_and_failure_terminal_once"
+    },
+    {
+      "id": "E08",
+      "requirements": ["T1-output"],
+      "test": "tests/search.rs::search_formats_content_and_markdown_and_marks_json_tee_failures"
+    },
+    {
+      "id": "E09",
+      "requirements": ["I0-7", "T1-sidecar-failure"],
+      "test": "tests/search.rs::search_journal_failure_is_non_fatal_and_reported_in_json"
+    },
+    {
+      "id": "E10",
+      "requirements": ["T1-redaction"],
+      "test": "tests/search.rs::search_redacts_secrets_from_stdout_stderr_tee_and_journal"
+    },
+    {
+      "id": "E11",
+      "requirements": ["T1-map"],
+      "test": "tests/tavily_map.rs::map_sends_tavily_options_and_normalizes_site_results"
+    }
+  ]
+}

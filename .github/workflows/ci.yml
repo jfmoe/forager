@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  rust:
+  quality:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -18,8 +18,53 @@ jobs:
           persist-credentials: false
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - run: cargo fmt --check
+      - run: cargo check --all-targets --all-features --locked
       - run: cargo clippy --all-targets --all-features --locked -- -D warnings
-      - run: cargo test --all-targets --all-features --locked
+
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: cargo test --lib --bin forager --all-features --locked
+
+  transport-fixtures:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: >-
+          cargo test --locked
+          --test anysearch
+          --test context7
+          --test exa_search
+          --test firecrawl_fetch
+          --test jina_fetch
+          --test search
+          --test tavily_fetch
+
+  offline-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: cargo test --tests --all-features --locked
+
+  coverage-tracking:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: cargo test --test acceptance_coverage --locked
+      - run: cargo test --lib provider_fixture_projection_matches_transport_manifest --locked
 
   windows-permissions:
     runs-on: windows-latest

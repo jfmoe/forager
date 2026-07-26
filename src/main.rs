@@ -186,28 +186,11 @@ fn format_research_failure_json(
     journal: &JournalOutcome,
     verbose: bool,
 ) -> Result<String, String> {
-    let mut by_kind = BTreeMap::new();
-    for attempt in &error.attempts {
-        if let Some(kind) = attempt.error_kind {
-            *by_kind.entry(kind.as_str()).or_insert(0) += 1;
-        }
-    }
-    let provider_set = error
-        .attempts
-        .iter()
-        .map(|attempt| attempt.provider)
-        .collect::<BTreeSet<_>>();
-    let providers = provider_set.iter().take(8).copied().collect::<Vec<_>>();
     let mut payload = json!({
         "error_kind": error.kind.as_str(),
         "message": error.message.chars().take(500).collect::<String>(),
-        "attempts": {
-            "total": error.attempts.len(),
-            "by_kind": by_kind,
-            "providers": providers,
-            "truncated": provider_set.len() > providers.len()
-        },
-        "capability_gaps": error.capability_gaps,
+        "attempts": bounded_attempt_summary(&error.attempts),
+        "capability_gaps": bounded_capability_gaps(&error.capability_gaps),
     });
     add_journal_status(&mut payload, journal)?;
     if verbose {
@@ -653,28 +636,10 @@ fn format_failure(error: &ProviderError, format: OutputFormat) -> Result<String,
 }
 
 fn format_failure_json(error: &ProviderError) -> Result<String, String> {
-    let mut by_kind = BTreeMap::new();
-    for attempt in &error.attempts {
-        if let Some(kind) = attempt.error_kind {
-            *by_kind.entry(kind.as_str()).or_insert(0) += 1;
-        }
-    }
-    let provider_set = error
-        .attempts
-        .iter()
-        .map(|attempt| attempt.provider)
-        .collect::<BTreeSet<_>>();
-    let providers = provider_set.iter().take(8).copied().collect::<Vec<_>>();
-    let attempts_truncated = provider_set.len() > providers.len();
     let mut payload = json!({
         "error_kind": error.kind.as_str(),
         "message": error.message.chars().take(500).collect::<String>(),
-        "attempts": {
-            "total": error.attempts.len(),
-            "by_kind": by_kind,
-            "providers": providers,
-            "truncated": attempts_truncated
-        },
+        "attempts": bounded_attempt_summary(&error.attempts),
         "journal_ref": Value::Null,
         "journal_status": "not_applicable"
     });
@@ -684,7 +649,7 @@ fn format_failure_json(error: &ProviderError) -> Result<String, String> {
             .expect("failure payload is an object")
             .insert(
                 "redirected_library_id".into(),
-                Value::String(target.clone()),
+                Value::String(target.chars().take(500).collect()),
             );
     }
     if error.verbose {
@@ -702,6 +667,49 @@ fn format_failure_json(error: &ProviderError) -> Result<String, String> {
         return Err("default failure payload exceeded 4 KiB".into());
     }
     Ok(encoded)
+}
+
+fn bounded_attempt_summary(attempts: &[forager::types::ProviderAttempt]) -> Value {
+    let mut by_kind = BTreeMap::new();
+    for attempt in attempts {
+        if let Some(kind) = attempt.error_kind {
+            *by_kind.entry(kind.as_str()).or_insert(0) += 1;
+        }
+    }
+    let by_kind_count = by_kind.len();
+    let by_kind = by_kind.into_iter().take(8).collect::<BTreeMap<_, _>>();
+    let provider_set = attempts
+        .iter()
+        .map(|attempt| attempt.provider)
+        .collect::<BTreeSet<_>>();
+    let providers = provider_set.iter().take(8).copied().collect::<Vec<_>>();
+    let by_kind_truncated = by_kind_count > by_kind.len();
+    let providers_truncated = provider_set.len() > providers.len();
+
+    json!({
+        "total": attempts.len(),
+        "by_kind": by_kind,
+        "by_kind_truncated": by_kind_truncated,
+        "providers": providers,
+        "providers_truncated": providers_truncated,
+        "truncated": by_kind_truncated || providers_truncated,
+    })
+}
+
+fn bounded_capability_gaps(gaps: &[forager::types::CapabilityGap]) -> Value {
+    Value::Array(
+        gaps.iter()
+            .map(|gap| {
+                let providers = gap.providers_skipped.iter().take(8).collect::<Vec<_>>();
+                json!({
+                    "capability": gap.capability,
+                    "reason": gap.reason,
+                    "providers_skipped": providers,
+                    "truncated": gap.providers_skipped.len() > providers.len(),
+                })
+            })
+            .collect(),
+    )
 }
 
 fn apply_tee(
@@ -764,5 +772,147 @@ fn postflight_exit_code(kind: AttemptErrorKind) -> u8 {
     {
         ErrorFamily::Transport => 4,
         ErrorFamily::Content => 5,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use forager::app::ProviderError;
+    use forager::types::{
+        AttemptErrorKind, Capability, CapabilityGap, JournalOutcome, ProviderAttempt, ResearchError,
+    };
+    use serde_json::{Value, json};
+
+    use super::{format_failure_json, format_research_failure_json};
+
+    #[test]
+    fn default_failure_payload_truncates_each_list_and_preserves_utf8_message_boundary() {
+        let attempts = all_attempt_kinds()
+            .into_iter()
+            .enumerate()
+            .map(|(index, kind)| attempt(PROVIDERS[index], kind))
+            .collect::<Vec<_>>();
+        let provider_error = ProviderError {
+            kind: AttemptErrorKind::Evidence,
+            message: "界".repeat(600),
+            attempts: attempts.clone(),
+            verbose: false,
+            diagnostic: None,
+            redirected_library_id: Some("库".repeat(2_000)),
+        };
+        let encoded =
+            format_failure_json(&provider_error).expect("bounded provider failure payload");
+        let payload: Value = serde_json::from_str(&encoded).expect("provider failure JSON");
+
+        assert!(encoded.len() <= 4096);
+        assert_eq!(
+            (
+                payload["message"]
+                    .as_str()
+                    .map(str::chars)
+                    .map(Iterator::count),
+                payload["redirected_library_id"]
+                    .as_str()
+                    .map(str::chars)
+                    .map(Iterator::count),
+                payload["attempts"]["by_kind"]
+                    .as_object()
+                    .map(serde_json::Map::len),
+                payload["attempts"]["by_kind_truncated"].as_bool(),
+                payload["attempts"]["providers"].as_array().map(Vec::len),
+                payload["attempts"]["providers_truncated"].as_bool(),
+            ),
+            (
+                Some(500),
+                Some(500),
+                Some(8),
+                Some(true),
+                Some(8),
+                Some(true)
+            )
+        );
+
+        let research_error = ResearchError {
+            kind: AttemptErrorKind::Evidence,
+            message: "界".repeat(600),
+            attempts,
+            evidence_items: Vec::new(),
+            capability_gaps: vec![CapabilityGap {
+                capability: Capability::WebSearch,
+                reason: "all_attempts_failed",
+                providers_skipped: PROVIDERS
+                    .iter()
+                    .map(|provider| (*provider).into())
+                    .collect(),
+            }],
+            diagnostic: None,
+        };
+        let journal = JournalOutcome {
+            status: "disabled",
+            reference: None,
+            warning: None,
+        };
+        let encoded = format_research_failure_json(&research_error, &journal, false)
+            .expect("bounded research failure payload");
+        let payload: Value = serde_json::from_str(&encoded).expect("research failure JSON");
+
+        assert!(encoded.len() <= 4096);
+        assert_eq!(
+            (
+                payload["attempts"]["by_kind"]
+                    .as_object()
+                    .map(serde_json::Map::len),
+                payload["attempts"]["by_kind_truncated"].as_bool(),
+                payload["capability_gaps"][0]["providers_skipped"]
+                    .as_array()
+                    .map(Vec::len),
+                &payload["capability_gaps"][0]["truncated"],
+            ),
+            (Some(8), Some(true), Some(8), &json!(true))
+        );
+    }
+
+    const PROVIDERS: [&str; 9] = [
+        "anysearch",
+        "classifier",
+        "context7",
+        "exa",
+        "firecrawl",
+        "jina",
+        "openai_compatible",
+        "tavily",
+        "xai",
+    ];
+
+    fn all_attempt_kinds() -> [AttemptErrorKind; 9] {
+        [
+            AttemptErrorKind::Auth,
+            AttemptErrorKind::RateLimited,
+            AttemptErrorKind::QuotaExhausted,
+            AttemptErrorKind::Parameter,
+            AttemptErrorKind::Timeout,
+            AttemptErrorKind::Network,
+            AttemptErrorKind::Quality,
+            AttemptErrorKind::Evidence,
+            AttemptErrorKind::Runtime,
+        ]
+    }
+
+    fn attempt(provider: &'static str, kind: AttemptErrorKind) -> ProviderAttempt {
+        ProviderAttempt {
+            provider,
+            seam: "acceptance",
+            error_kind: Some(kind),
+            http_status: None,
+            duration_ms: 0,
+            credential_index: 0,
+            retry_count: 0,
+            rotation_count: 0,
+            message: String::new(),
+            model: None,
+            transport: None,
+            endpoint_host: None,
+            breaker_event: None,
+        }
     }
 }

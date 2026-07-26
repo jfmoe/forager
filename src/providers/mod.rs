@@ -653,7 +653,50 @@ pub(crate) fn build_anysearch(
 
 #[cfg(test)]
 mod tests {
-    use super::{ProviderConstructor, ProviderId, registration};
+    use std::collections::BTreeSet;
+
+    use serde::Deserialize;
+
+    use super::{ProviderConstructor, ProviderId, registration, registrations};
+
+    #[derive(Deserialize)]
+    struct TransportFixture {
+        provider: String,
+        seam: String,
+        test: String,
+    }
+
+    #[test]
+    fn provider_fixture_projection_matches_transport_manifest() {
+        let fixtures: Vec<TransportFixture> = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/tests/transport-fixtures.json"
+        )))
+        .expect("transport fixture manifest");
+        let registry = registrations()
+            .iter()
+            .flat_map(|registration| {
+                registration
+                    .capabilities
+                    .iter()
+                    .map(move |seam| (registration.name, *seam))
+            })
+            .collect::<BTreeSet<_>>();
+        let fixture_projection = fixtures
+            .iter()
+            .map(|fixture| (fixture.provider.as_str(), fixture.seam.as_str()))
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(fixture_projection, registry);
+        for fixture in fixtures {
+            assert!(
+                !fixture.test.trim().is_empty(),
+                "{} / {} lacks a fixture test",
+                fixture.provider,
+                fixture.seam
+            );
+        }
+    }
 
     #[test]
     fn exa_has_one_complete_registry_description() {

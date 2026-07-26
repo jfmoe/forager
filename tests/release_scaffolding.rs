@@ -1,14 +1,27 @@
 use std::fs;
 
 #[test]
-fn ci_uses_the_repository_toolchain_and_runs_all_rust_gates() {
+fn ci_uses_the_repository_toolchain_and_runs_every_pull_request_gate() {
     let workflow = fs::read_to_string(".github/workflows/ci.yml").expect("read CI workflow");
 
     let required_fragments = [
         "actions-rust-lang/setup-rust-toolchain@v1",
+        "quality:",
         "cargo fmt --check",
+        "cargo check --all-targets --all-features --locked",
         "cargo clippy --all-targets --all-features --locked -- -D warnings",
-        "cargo test --all-targets --all-features --locked",
+        "unit:",
+        "cargo test --lib --bin forager --all-features --locked",
+        "transport-fixtures:",
+        "--test anysearch",
+        "--test tavily_fetch",
+        "offline-e2e:",
+        "cargo test --tests --all-features --locked",
+        "coverage-tracking:",
+        "cargo test --test acceptance_coverage --locked",
+        "cargo test --lib provider_fixture_projection_matches_transport_manifest --locked",
+        "windows-permissions:",
+        "cargo test --test config_permissions --test smoke --locked",
     ];
 
     assert!(
@@ -16,6 +29,10 @@ fn ci_uses_the_repository_toolchain_and_runs_all_rust_gates() {
             .iter()
             .all(|fragment| workflow.contains(fragment)),
         "CI workflow is missing a required Rust gate"
+    );
+    assert!(
+        !workflow.contains("smoke --live"),
+        "live credential checks must not run in pull request CI"
     );
 }
 

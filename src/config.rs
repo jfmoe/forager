@@ -2338,3 +2338,33 @@ fn verify_default_directory(config_dir: &Path) -> io::Result<()> {
     drop(file);
     fs::remove_file(probe)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::redact_url;
+
+    #[test]
+    fn url_redaction_exhausts_credentials_fragments_and_safe_query_boundaries() {
+        for (input, expected) in [
+            (
+                "https://user:password@example.test/path#private",
+                "https://example.test/path",
+            ),
+            (
+                "https://example.test/path?api_key=secret&safe=yes",
+                "https://example.test/path?api_key=********&safe=yes",
+            ),
+            (
+                "https://example.test/path?access_token=secret&signature=secret",
+                "https://example.test/path?access_token=********&signature=********",
+            ),
+            (
+                "https://example.test/path?monkey=value&author=alice",
+                "https://example.test/path?monkey=********&author=alice",
+            ),
+            ("not a URL#fragment", "not a URL"),
+        ] {
+            assert_eq!(redact_url(input), expected, "input={input}");
+        }
+    }
+}

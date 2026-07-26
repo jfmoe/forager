@@ -1,0 +1,62 @@
+[
+  {
+    "id": "F01",
+    "provider": "xai",
+    "seam": "main_search",
+    "test": "tests/search.rs::search_uses_the_completed_xai_response_and_deduplicates_sources"
+  },
+  {
+    "id": "F02",
+    "provider": "openai_compatible",
+    "seam": "main_search",
+    "test": "tests/search.rs::search_falls_back_from_xai_to_openai_compatible_non_stream"
+  },
+  {
+    "id": "F03",
+    "provider": "tavily",
+    "seam": "web_search",
+    "test": "tests/search.rs::declared_web_search_adds_normalized_extra_sources_in_configured_order"
+  },
+  {
+    "id": "F04",
+    "provider": "firecrawl",
+    "seam": "web_search",
+    "test": "tests/search.rs::declared_web_search_adds_normalized_extra_sources_in_configured_order"
+  },
+  {
+    "id": "F05",
+    "provider": "tavily",
+    "seam": "web_fetch",
+    "test": "tests/tavily_fetch.rs::tavily_fetch_decodes_extract_results_through_the_real_http_stack"
+  },
+  {
+    "id": "F06",
+    "provider": "firecrawl",
+    "seam": "web_fetch",
+    "test": "tests/firecrawl_fetch.rs::firecrawl_fetch_decodes_scrape_results_through_the_real_http_stack"
+  },
+  {
+    "id": "F07",
+    "provider": "jina",
+    "seam": "web_fetch",
+    "test": "tests/jina_fetch.rs::jina_fetch_returns_redacted_content_through_the_real_http_stack"
+  },
+  {
+    "id": "F08",
+    "provider": "context7",
+    "seam": "docs_search",
+    "test": "tests/context7.rs::context7_library_initializes_the_mcp_session_and_normalizes_json_results"
+  },
+  {
+    "id": "F09",
+    "provider": "exa",
+    "seam": "docs_search",
+    "test": "tests/exa_search.rs::exa_search_returns_normalized_results_through_the_real_http_stack"
+  },
+  {
+    "id": "F10",
+    "provider": "anysearch",
+    "seam": "vertical_search",
+    "test": "tests/anysearch.rs::anysearch_search_without_a_domain_performs_vertical_discovery"
+  }
+]
