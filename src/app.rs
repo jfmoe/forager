@@ -12,9 +12,10 @@ use crate::config::{self, ConfigError, ConfigLocation, EditError};
 use crate::net::{self, RetryPolicy};
 use crate::providers::{
     self, AnysearchDomainsRequest, AnysearchSearchRequest, Context7DocsRequest,
-    Context7LibraryRequest, ExaSearchRequest, ExaSimilarRequest, FetchRequest, SearchType,
+    Context7LibraryRequest, ExaSearchRequest, ExaSimilarRequest, FetchRequest, MapRequest,
+    SearchType,
 };
-use crate::types::{AnysearchOutcome, Context7Outcome, Deadline, FetchOutcome};
+use crate::types::{AnysearchOutcome, Context7Outcome, Deadline, FetchOutcome, MapOutcome};
 
 pub use crate::providers::ProviderError;
 pub use crate::types::ExaOutcome;
@@ -36,6 +37,25 @@ enum Command {
         timeout: Option<u64>,
         #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
         format: DocsOutputFormat,
+        #[arg(long)]
+        output: Option<PathBuf>,
+        #[arg(long)]
+        verbose: bool,
+    },
+    Map {
+        url: String,
+        #[arg(long, default_value = "")]
+        instructions: String,
+        #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u16).range(1..))]
+        max_depth: u16,
+        #[arg(long, default_value_t = 20, value_parser = clap::value_parser!(u16).range(1..))]
+        max_breadth: u16,
+        #[arg(long, default_value_t = 50, value_parser = clap::value_parser!(u16).range(1..))]
+        limit: u16,
+        #[arg(long, default_value_t = 150, value_parser = clap::value_parser!(u64).range(1..))]
+        timeout: u64,
+        #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
+        format: OutputFormat,
         #[arg(long)]
         output: Option<PathBuf>,
         #[arg(long)]
@@ -275,6 +295,15 @@ pub enum CommandOutput {
         /// Optional tee destination.
         output: Option<PathBuf>,
     },
+    /// Typed Tavily site map terminal state for binary-side formatting and tee output.
+    Map {
+        /// Site map result.
+        result: Result<MapOutcome, ProviderError>,
+        /// Requested output format.
+        format: OutputFormat,
+        /// Optional tee destination.
+        output: Option<PathBuf>,
+    },
 }
 
 struct AppContext<P> {
@@ -380,6 +409,32 @@ impl AppContext<providers::Exa> {
     }
 }
 
+impl AppContext<providers::TavilyMap> {
+    fn for_tavily_map(timeout: u64) -> Result<Self, AppError> {
+        let dependencies = NetworkDependencies::load()?;
+        let config = dependencies.config.tavily;
+        if config.keys.is_empty() {
+            return Err(AppError::Config(ConfigError::Message(
+                "providers.tavily.keys has no configured credentials".into(),
+            )));
+        }
+        let provider = providers::build_tavily_map(
+            config,
+            dependencies.client,
+            dependencies.retry_policy,
+            Deadline::new(Duration::from_secs(timeout)),
+        );
+        Ok(Self {
+            provider,
+            runtime: dependencies.runtime,
+        })
+    }
+
+    fn map(self, request: MapRequest) -> Result<MapOutcome, ProviderError> {
+        self.runtime.block_on(self.provider.map(request))
+    }
+}
+
 impl AppContext<providers::Context7> {
     fn for_context7(timeout: Option<u64>) -> Result<Self, AppError> {
         let dependencies = NetworkDependencies::load()?;
@@ -458,6 +513,29 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             verbose,
         } => Ok(CommandOutput::Fetch {
             result: FetchContext::load(timeout)?.fetch(FetchRequest { url, verbose }),
+            format,
+            output,
+        }),
+        Command::Map {
+            url,
+            instructions,
+            max_depth,
+            max_breadth,
+            limit,
+            timeout,
+            format,
+            output,
+            verbose,
+        } => Ok(CommandOutput::Map {
+            result: AppContext::<providers::TavilyMap>::for_tavily_map(timeout)?.map(MapRequest {
+                url,
+                instructions,
+                max_depth,
+                max_breadth,
+                limit,
+                timeout_seconds: timeout,
+                verbose,
+            }),
             format,
             output,
         }),

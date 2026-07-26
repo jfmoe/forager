@@ -306,6 +306,19 @@ pub struct FetchOutcome {
     pub diagnostic: Option<String>,
 }
 
+#[derive(Clone, Debug, Serialize)]
+pub struct MapOutcome {
+    pub provider: &'static str,
+    pub url: String,
+    pub base_url: String,
+    pub results: Vec<String>,
+    pub response_time: f64,
+    #[serde(rename = "provider_attempts", skip_serializing_if = "Vec::is_empty")]
+    pub attempts: Vec<ProviderAttempt>,
+    #[serde(skip)]
+    pub diagnostic: Option<String>,
+}
+
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Deadline {
     started: Instant,

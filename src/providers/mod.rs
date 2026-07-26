@@ -1,6 +1,8 @@
 mod anysearch;
 mod context7;
 mod exa;
+mod execution;
+mod tavily_map;
 mod web_fetch;
 
 use reqwest::Client;
@@ -16,6 +18,7 @@ use crate::types::{AttemptErrorKind, Deadline, ProviderAttempt};
 pub(crate) use anysearch::{Anysearch, AnysearchDomainsRequest, AnysearchSearchRequest};
 pub(crate) use context7::{Context7, Context7DocsRequest, Context7LibraryRequest};
 pub(crate) use exa::{Exa, ExaSearchRequest, ExaSimilarRequest, SearchType};
+pub(crate) use tavily_map::{MapRequest, TavilyMap};
 pub(crate) use web_fetch::{FetchRequest, WebFetch};
 
 #[derive(Debug, Error)]
@@ -44,6 +47,7 @@ pub(crate) struct ProviderRegistration {
     pub(crate) id: ProviderId,
     pub(crate) name: &'static str,
     pub(crate) capabilities: &'static [&'static str],
+    pub(crate) operations: &'static [&'static str],
     pub(crate) credentials_required: bool,
     constructor: ProviderConstructor,
 }
@@ -63,6 +67,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         id: ProviderId::Tavily,
         name: "tavily",
         capabilities: &["web_search", "web_fetch"],
+        operations: &["site_map"],
         credentials_required: true,
         constructor: ProviderConstructor::Tavily,
     },
@@ -70,6 +75,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         id: ProviderId::Firecrawl,
         name: "firecrawl",
         capabilities: &["web_search", "web_fetch"],
+        operations: &[],
         credentials_required: true,
         constructor: ProviderConstructor::Firecrawl,
     },
@@ -77,6 +83,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         id: ProviderId::Jina,
         name: "jina",
         capabilities: &["web_fetch"],
+        operations: &[],
         credentials_required: true,
         constructor: ProviderConstructor::Jina,
     },
@@ -84,6 +91,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         id: ProviderId::Context7,
         name: "context7",
         capabilities: &["docs_search"],
+        operations: &[],
         credentials_required: true,
         constructor: ProviderConstructor::Context7,
     },
@@ -91,6 +99,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         id: ProviderId::Exa,
         name: "exa",
         capabilities: &["docs_search"],
+        operations: &[],
         credentials_required: true,
         constructor: ProviderConstructor::Exa,
     },
@@ -98,6 +107,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         id: ProviderId::Anysearch,
         name: "anysearch",
         capabilities: &["vertical_search"],
+        operations: &[],
         credentials_required: true,
         constructor: ProviderConstructor::Anysearch,
     },
@@ -159,6 +169,19 @@ pub(crate) fn build_exa(
     debug_assert!(matches!(registration.constructor, ProviderConstructor::Exa));
     let credentials = CredentialPool::new(registration.name, std::mem::take(&mut config.keys));
     exa::Exa::new(config, client, credentials, retry_policy, deadline)
+}
+
+pub(crate) fn build_tavily_map(
+    mut config: WebFetchProviderConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> TavilyMap {
+    let registration = registration(ProviderId::Tavily);
+    debug_assert!(registration.credentials_required);
+    debug_assert!(registration.operations.contains(&"site_map"));
+    let credentials = CredentialPool::new(registration.name, std::mem::take(&mut config.keys));
+    TavilyMap::new(config, client, credentials, retry_policy, deadline)
 }
 
 pub(crate) fn build_context7(
@@ -265,5 +288,15 @@ mod tests {
                 (name, true, true, true)
             );
         }
+    }
+
+    #[test]
+    fn tavily_registers_site_map_without_changing_its_capability_support() {
+        let tavily = registration(ProviderId::Tavily);
+
+        assert_eq!(
+            (tavily.capabilities, tavily.operations),
+            (&["web_search", "web_fetch"][..], &["site_map"][..])
+        );
     }
 }

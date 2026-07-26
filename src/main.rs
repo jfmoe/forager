@@ -11,6 +11,7 @@ use forager::app::{
 };
 use forager::types::{
     AnysearchOutcome, AttemptErrorKind, Context7Outcome, ErrorFamily, ErrorKind, FetchOutcome,
+    MapOutcome,
 };
 use serde_json::{Value, json};
 
@@ -65,11 +66,67 @@ fn main() -> ExitCode {
                 ExitCode::from(4)
             }
         },
+        Ok(CommandOutput::Map {
+            result,
+            format,
+            output,
+        }) => match render_map(result, format, output) {
+            Ok(rendered) => emit(rendered.stdout, rendered.stderr, rendered.exit_code),
+            Err(error) => {
+                eprintln!("runtime_error: {error}");
+                ExitCode::from(4)
+            }
+        },
         Err(error) => {
             eprintln!("{}: {error}", error.category());
             ExitCode::from(error.exit_code())
         }
     }
+}
+
+fn render_map(
+    result: Result<MapOutcome, ProviderError>,
+    format: OutputFormat,
+    output: Option<PathBuf>,
+) -> Result<RenderedOutput, String> {
+    let (stdout, exit_code, diagnostic) = match result {
+        Ok(outcome) => {
+            let stdout = match format {
+                OutputFormat::Json => {
+                    serde_json::to_string(&outcome).map_err(|error| error.to_string())?
+                }
+                OutputFormat::Markdown => {
+                    let mut markdown = format!("# Site map: {}\n", outcome.base_url);
+                    for result in &outcome.results {
+                        markdown.push_str(&format!("\n- <{result}>"));
+                    }
+                    if outcome.results.is_empty() {
+                        markdown.push_str("\n\nNo results.");
+                    }
+                    markdown
+                }
+            };
+            (stdout, 0, outcome.diagnostic)
+        }
+        Err(error) => {
+            let stdout = match format {
+                OutputFormat::Json => format_failure_json(&error)?,
+                OutputFormat::Markdown => format!(
+                    "# Site map failed\n\n**{}**: {}",
+                    error.kind.as_str(),
+                    error.message
+                ),
+            };
+            (stdout, postflight_exit_code(error.kind), error.diagnostic)
+        }
+    };
+    apply_tee(
+        stdout,
+        exit_code,
+        format == OutputFormat::Json,
+        output,
+        diagnostic,
+    )
 }
 
 fn render_fetch(

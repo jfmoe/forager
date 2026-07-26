@@ -352,6 +352,7 @@ pub(crate) struct RuntimeConfig {
     pub(crate) exa: ExaRuntimeConfig,
     pub(crate) context7: Context7RuntimeConfig,
     pub(crate) anysearch: AnysearchRuntimeConfig,
+    pub(crate) tavily: WebFetchProviderConfig,
     pub(crate) web_fetch: WebFetchRuntimeConfig,
     pub(crate) retry: RetryRuntimeConfig,
     pub(crate) ssl_verify: bool,
@@ -381,6 +382,12 @@ pub fn effective_view() -> Result<EffectiveConfigView, ConfigError> {
 pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
     let loaded = load_effective_config()?;
     let config = loaded.config;
+    let tavily = WebFetchProviderConfig {
+        url: config.providers.tavily.url,
+        keys: config.providers.tavily.keys,
+        timeout_seconds: config.providers.tavily.timeout as u64,
+        respond_with: String::new(),
+    };
     Ok(RuntimeConfig {
         exa: ExaRuntimeConfig {
             url: config.providers.exa.url,
@@ -397,6 +404,7 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
             keys: config.providers.anysearch.keys,
             timeout_seconds: config.providers.anysearch.timeout as u64,
         },
+        tavily: tavily.clone(),
         web_fetch: WebFetchRuntimeConfig {
             order: config.capabilities.web_fetch.order,
             providers: BTreeMap::from([
@@ -409,15 +417,7 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
                         respond_with: config.providers.jina.respond_with,
                     },
                 ),
-                (
-                    "tavily".into(),
-                    WebFetchProviderConfig {
-                        url: config.providers.tavily.url,
-                        keys: config.providers.tavily.keys,
-                        timeout_seconds: config.providers.tavily.timeout as u64,
-                        respond_with: String::new(),
-                    },
-                ),
+                ("tavily".into(), tavily),
                 (
                     "firecrawl".into(),
                     WebFetchProviderConfig {
