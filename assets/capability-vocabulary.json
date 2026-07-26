@@ -1,0 +1,61 @@
+{
+  "capabilities": [
+    {
+      "id": "docs_search",
+      "description": "Search external library, SDK, API, framework, and official technical documentation.",
+      "select_when": "The request needs authoritative documentation, API reference, configuration, or integration details.",
+      "do_not_select_when": "The request is general technical knowledge or merely mentions a technology without needing its documentation.",
+      "examples": [
+        "React useEffect API docs",
+        "how to integrate this SDK",
+        "Python function parameters reference",
+        "OpenAI API documentation",
+        "这个 SDK 怎么接入",
+        "查一下框架官方文档和配置参数"
+      ]
+    },
+    {
+      "id": "web_search",
+      "description": "Discover supplemental web sources for current, news, regional, policy, market, or cross-validation needs.",
+      "select_when": "The request needs recent or live information, locale-specific discovery, policy/news/market updates, or source reinforcement.",
+      "do_not_select_when": "The request is timeless, already has a known URL to read, or only needs documentation search; this capability is not main_search.",
+      "examples": [
+        "today China AI news",
+        "latest policy announcement",
+        "current market update",
+        "NBA score today",
+        "今天国内 AI 新闻",
+        "最近有什么最新变化"
+      ]
+    },
+    {
+      "id": "web_fetch",
+      "description": "Read, extract, or verify the body of a known HTTP(S) URL or PDF.",
+      "select_when": "The request supplies a known URL/PDF or explicitly asks to read, extract, summarize, or verify linked content.",
+      "do_not_select_when": "The request needs link discovery rather than content from a known URL; provider acceptance extraction is not this capability.",
+      "examples": [
+        "verify the claim in this URL https://example.com",
+        "summarize this webpage",
+        "fetch this PDF",
+        "请核验这个链接里的说法 https://example.com",
+        "抓取这个网页正文"
+      ]
+    },
+    {
+      "id": "vertical_search",
+      "description": "Discover results for explicit vertical-domain intent, including security, finance, legal, academic, code, gaming-guide, and travel-itinerary lookup.",
+      "select_when": "The request clearly targets a structured or specialized vertical domain covered by the available vertical search contract.",
+      "do_not_select_when": "The request is ordinary broad web search, uses generic game/travel words, or asks for an unverified automatic domain search.",
+      "examples": [
+        "CVE-2026 OpenSSL vulnerability impact",
+        "financial filing structured search",
+        "legal regulation database search",
+        "GitHub codebase search",
+        "漏洞影响范围",
+        "垂直领域结构化检索",
+        "Elden Ring game walkthrough",
+        "Tokyo travel itinerary"
+      ]
+    }
+  ]
+}

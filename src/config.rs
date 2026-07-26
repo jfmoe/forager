@@ -314,6 +314,21 @@ pub(crate) struct OpenAiCompatibleRuntimeConfig {
 }
 
 #[derive(Clone, Debug)]
+pub(crate) struct ClassifierRuntimeConfig {
+    pub(crate) url: String,
+    pub(crate) keys: Vec<String>,
+    pub(crate) model: String,
+    pub(crate) fallback_models: Vec<String>,
+    pub(crate) timeout_seconds: u64,
+}
+
+impl ClassifierRuntimeConfig {
+    pub(crate) fn configured(&self) -> bool {
+        !self.url.is_empty() && !self.keys.is_empty() && !self.model.is_empty()
+    }
+}
+
+#[derive(Clone, Debug)]
 pub(crate) struct MainSearchRuntimeConfig {
     pub(crate) backends: Vec<String>,
     pub(crate) fallback: String,
@@ -525,6 +540,7 @@ pub(crate) struct RetryRuntimeConfig {
 #[derive(Clone, Debug)]
 pub(crate) struct RuntimeConfig {
     pub(crate) main_search: MainSearchRuntimeConfig,
+    pub(crate) classifier: ClassifierRuntimeConfig,
     pub(crate) exa: ExaRuntimeConfig,
     pub(crate) context7: Context7RuntimeConfig,
     pub(crate) anysearch: AnysearchRuntimeConfig,
@@ -596,6 +612,13 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         keys: config.providers.anysearch.keys,
         timeout_seconds: config.providers.anysearch.timeout as u64,
     };
+    let classifier = ClassifierRuntimeConfig {
+        url: config.classifier.url,
+        keys: config.classifier.keys,
+        model: config.classifier.model,
+        fallback_models: config.classifier.fallback_models,
+        timeout_seconds: config.classifier.timeout as u64,
+    };
     Ok(RuntimeConfig {
         main_search: MainSearchRuntimeConfig {
             backends: config.search.backends,
@@ -622,6 +645,7 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
                 ),
             ]),
         },
+        classifier,
         exa: exa.clone(),
         context7: context7.clone(),
         anysearch: anysearch.clone(),

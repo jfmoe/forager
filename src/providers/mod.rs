@@ -4,7 +4,7 @@ use std::pin::Pin;
 mod anysearch;
 mod context7;
 mod exa;
-mod execution;
+pub(crate) mod execution;
 mod openai_compatible;
 mod supplemental;
 mod tavily_map;

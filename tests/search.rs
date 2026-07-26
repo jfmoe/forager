@@ -57,6 +57,462 @@ fn caller_capability_declaration_rejects_unknown_empty_and_mixed_none_values() {
 }
 
 #[test]
+fn bare_search_uses_classifier_complete_capability_decision() {
+    let classifier = Fixture::start(
+        200,
+        "application/json",
+        r#"{"choices":[{"message":{"content":"{\"required_capabilities\":[\"web_search\"]}"}}]}"#,
+    );
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let tavily = Fixture::start(
+        200,
+        "application/json",
+        r#"{"results":[{"title":"Current source","url":"https://example.test/current"}]}"#,
+    );
+    let config = format!(
+        "{}\n[classifier]\nurl = {:?}\nkeys = [\"classifier-key\"]\nmodel = \"classifier-model\"\nfallback_models = []\ntimeout = 30\n\n[providers.tavily]\nurl = {:?}\nkeys = [\"tavily-key\"]\ntimeout = 30\n\n[capabilities.web_search]\norder = [\"tavily\"]\n",
+        search_config(&main.url, true),
+        classifier.url,
+        tavily.url,
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&["search", "What changed today?", "--verbose"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let journal = read_only_journal(&environment);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["capabilities"],
+            &payload["extra_sources"][0]["url"],
+            &journal["execution"]["plan_summary"]["source"],
+        ),
+        (
+            Some(0),
+            &serde_json::json!(["web_search"]),
+            &Value::String("https://example.test/current".into()),
+            &Value::String("classifier".into()),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let classifier_request = classifier.finish();
+    assert!(
+        classifier_request.starts_with("POST /chat/completions "),
+        "{classifier_request}"
+    );
+    assert!(
+        classifier_request.contains("authorization: Bearer classifier-key"),
+        "{classifier_request}"
+    );
+    assert!(classifier_request.contains("\"model\":\"classifier-model\""));
+    assert!(classifier_request.contains("\"docs_search\""));
+    assert!(classifier_request.contains("\"vertical_search\""));
+    main.finish();
+    tavily.finish();
+}
+
+#[test]
+fn bare_search_without_classifier_uses_default_web_search_chain() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let tavily = Fixture::start(
+        200,
+        "application/json",
+        r#"{"results":[{"title":"Default source","url":"https://example.test/default"}]}"#,
+    );
+    let config = format!(
+        "{}\n[providers.tavily]\nurl = {:?}\nkeys = [\"tavily-key\"]\ntimeout = 30\n\n[capabilities.web_search]\norder = [\"tavily\"]\n",
+        search_config(&main.url, true),
+        tavily.url,
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&["search", "Ordinary bare search"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let journal = read_only_journal(&environment);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["capabilities"],
+            &payload["extra_sources"][0]["url"],
+            &journal["execution"]["plan_summary"],
+            output.stderr.is_empty(),
+        ),
+        (
+            Some(0),
+            &serde_json::json!(["web_search"]),
+            &Value::String("https://example.test/default".into()),
+            &serde_json::json!({
+                "source": "default_web_search",
+                "capabilities": ["web_search"],
+                "classifier_degraded": false
+            }),
+            true,
+        )
+    );
+    main.finish();
+    tavily.finish();
+}
+
+#[test]
+fn classifier_invalid_schema_degrades_with_warning_and_journal_trace() {
+    let classifier = Fixture::start(
+        200,
+        "application/json",
+        r#"{"choices":[{"message":{"content":"{\"required_capabilities\":[\"provider:tavily\"]}"}}]}"#,
+    );
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let tavily = Fixture::start(
+        200,
+        "application/json",
+        r#"{"results":[{"title":"Degraded source","url":"https://example.test/degraded"}]}"#,
+    );
+    let config = format!(
+        "{}\n[classifier]\nurl = {:?}\nkeys = [\"classifier-key\"]\nmodel = \"classifier-model\"\ntimeout = 30\n\n[providers.tavily]\nurl = {:?}\nkeys = [\"tavily-key\"]\ntimeout = 30\n\n[capabilities.web_search]\norder = [\"tavily\"]\n",
+        search_config(&main.url, true),
+        classifier.url,
+        tavily.url,
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&["search", "Bare search after invalid classifier"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let journal = read_only_journal(&environment);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["capabilities"],
+            &payload["extra_sources"][0]["url"],
+            &journal["execution"]["plan_summary"]["source"],
+            &journal["execution"]["plan_summary"]["classifier_degraded"],
+            journal["execution"]["provider_attempts"]
+                .as_array()
+                .and_then(|attempts| attempts.first())
+                .and_then(|attempt| attempt["provider"].as_str()),
+        ),
+        (
+            Some(0),
+            &serde_json::json!(["web_search"]),
+            &Value::String("https://example.test/degraded".into()),
+            &Value::String("classifier_degraded".into()),
+            &Value::Bool(true),
+            Some("classifier"),
+        )
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("Classifier warning"),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    classifier.finish();
+    main.finish();
+    tavily.finish();
+}
+
+#[test]
+fn classifier_rejects_duplicate_capabilities_and_degrades_to_web_search() {
+    let classifier = Fixture::start(
+        200,
+        "application/json",
+        r#"{"choices":[{"message":{"content":"{\"required_capabilities\":[\"docs_search\",\"docs_search\"]}"}}]}"#,
+    );
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let tavily = Fixture::start(
+        200,
+        "application/json",
+        r#"{"results":[{"title":"Fallback source","url":"https://example.test/fallback"}]}"#,
+    );
+    let config = format!(
+        "{}\n[classifier]\nurl = {:?}\nkeys = [\"classifier-key\"]\nmodel = \"classifier-model\"\ntimeout = 30\n\n[providers.tavily]\nurl = {:?}\nkeys = [\"tavily-key\"]\ntimeout = 30\n\n[capabilities.web_search]\norder = [\"tavily\"]\n",
+        search_config(&main.url, true),
+        classifier.url,
+        tavily.url,
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&["search", "Duplicate classifier decision"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let journal = read_only_journal(&environment);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["capabilities"],
+            &payload["extra_sources"][0]["url"],
+            &journal["execution"]["plan_summary"]["source"],
+        ),
+        (
+            Some(0),
+            &serde_json::json!(["web_search"]),
+            &Value::String("https://example.test/fallback".into()),
+            &Value::String("classifier_degraded".into()),
+        )
+    );
+    classifier.finish();
+    main.finish();
+    tavily.finish();
+}
+
+#[test]
+fn invalid_classifier_content_does_not_leak_credentials_through_diagnostics_or_journal() {
+    let secret = "classifier-canary-secret";
+    let classifier = Fixture::start(
+        200,
+        "application/json",
+        &format!(
+            r#"{{"choices":[{{"message":{{"content":"{{\"required_capabilities\":[\"{secret}\"]}}"}}}}]}}"#
+        ),
+    );
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let config = format!(
+        "{}\n[classifier]\nurl = {:?}\nkeys = [{secret:?}]\nmodel = \"classifier-model\"\ntimeout = 30\n",
+        search_config(&main.url, true),
+        classifier.url,
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&["search", "Secret-bearing invalid classifier response"]);
+    let journal = read_only_journal(&environment).to_string();
+
+    for (name, content) in [
+        (
+            "stdout",
+            String::from_utf8_lossy(&output.stdout).into_owned(),
+        ),
+        (
+            "stderr",
+            String::from_utf8_lossy(&output.stderr).into_owned(),
+        ),
+        ("journal", journal),
+    ] {
+        assert!(!content.contains(secret), "{name} leaked classifier secret");
+    }
+    classifier.finish();
+    main.finish();
+}
+
+#[test]
+fn classifier_transport_failure_degrades_without_changing_search_terminal() {
+    let classifier = Fixture::start(
+        503,
+        "application/json",
+        r#"{"error":"classifier unavailable"}"#,
+    );
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let tavily = Fixture::start(
+        200,
+        "application/json",
+        r#"{"results":[{"title":"Fallback source","url":"https://example.test/fallback"}]}"#,
+    );
+    let config = format!(
+        "{}\n[classifier]\nurl = {:?}\nkeys = [\"classifier-key\"]\nmodel = \"classifier-model\"\ntimeout = 30\n\n[providers.tavily]\nurl = {:?}\nkeys = [\"tavily-key\"]\ntimeout = 30\n\n[capabilities.web_search]\norder = [\"tavily\"]\n",
+        search_config(&main.url, true),
+        classifier.url,
+        tavily.url,
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&["search", "Bare search after classifier outage"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let journal = read_only_journal(&environment);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["answer"],
+            &payload["capabilities"],
+            &journal["execution"]["plan_summary"]["classifier_degraded"],
+            &journal["execution"]["provider_attempts"][0]["error_kind"],
+        ),
+        (
+            Some(0),
+            &Value::String("answer".into()),
+            &serde_json::json!(["web_search"]),
+            &Value::Bool(true),
+            &Value::String("network".into()),
+        )
+    );
+    assert!(String::from_utf8_lossy(&output.stderr).contains("Classifier warning"));
+    classifier.finish();
+    main.finish();
+    tavily.finish();
+}
+
+#[test]
+fn classifier_rotates_credentials_and_uses_fallback_models_even_when_search_fallback_is_off() {
+    let classifier = Fixture::start_sequence(vec![
+        Response::new(429, "application/json", r#"{"error":"rate limited"}"#),
+        Response::new(
+            503,
+            "application/json",
+            r#"{"error":"primary unavailable"}"#,
+        ),
+        Response::new(
+            200,
+            "application/json",
+            r#"{"choices":[{"message":{"content":"{\"required_capabilities\":[]}"}}]}"#,
+        ),
+    ]);
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let config = format!(
+        "{}\n[search]\nfallback = \"off\"\n\n[classifier]\nurl = {:?}\nkeys = [\"classifier-key-a\", \"classifier-key-b\"]\nmodel = \"primary-classifier\"\nfallback_models = [\"fallback-classifier\"]\ntimeout = 30\n",
+        search_config(&main.url, true),
+        classifier.url,
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&["search", "Classify with fallback", "--verbose"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let attempts = payload["provider_attempts"]
+        .as_array()
+        .expect("provider attempts");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["capabilities"],
+            attempts[0]["model"].as_str(),
+            attempts[0]["rotation_count"].as_u64(),
+            attempts[1]["model"].as_str(),
+            attempts[2]["model"].as_str(),
+        ),
+        (
+            Some(0),
+            &serde_json::json!([]),
+            Some("primary-classifier"),
+            Some(0),
+            Some("primary-classifier"),
+            Some("fallback-classifier"),
+        )
+    );
+    let requests = classifier.finish_all();
+    assert!(requests[0].contains("authorization: Bearer classifier-key-a"));
+    assert!(requests[1].contains("authorization: Bearer classifier-key-b"));
+    assert!(requests[2].contains("\"model\":\"fallback-classifier\""));
+    main.finish();
+}
+
+#[test]
+fn classifier_skips_a_model_when_its_budget_slice_is_below_five_seconds() {
+    let classifier = Fixture::start(
+        200,
+        "application/json",
+        r#"{"choices":[{"message":{"content":"{\"required_capabilities\":[]}"}}]}"#,
+    );
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let config = format!(
+        "{}\n[classifier]\nurl = {:?}\nkeys = [\"classifier-key\"]\nmodel = \"skipped-model\"\nfallback_models = [\"executable-model\"]\ntimeout = 9\n",
+        search_config(&main.url, false),
+        classifier.url,
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&["search", "Budgeted classification", "--verbose"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let attempts = payload["provider_attempts"]
+        .as_array()
+        .expect("provider attempts");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            attempts[0]["provider"].as_str(),
+            attempts[0]["model"].as_str(),
+            attempts[0]["duration_ms"].as_u64(),
+            attempts[1]["model"].as_str(),
+        ),
+        (
+            Some(0),
+            Some("classifier"),
+            Some("skipped-model"),
+            Some(0),
+            Some("executable-model"),
+        )
+    );
+    let request = classifier.finish();
+    assert!(!request.contains("\"model\":\"skipped-model\""));
+    assert!(request.contains("\"model\":\"executable-model\""));
+    main.finish();
+}
+
+#[test]
+fn caller_capability_declaration_skips_configured_classifier() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let config = format!(
+        "{}\n[classifier]\nurl = \"http://127.0.0.1:9\"\nkeys = [\"classifier-key\"]\nmodel = \"classifier-model\"\ntimeout = 30\n",
+        search_config(&main.url, true),
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Caller owns the decision",
+        "--capabilities",
+        "none",
+        "--verbose",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let journal = read_only_journal(&environment);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["capabilities"],
+            payload["provider_attempts"].as_array().map(Vec::len),
+            &journal["execution"]["plan_summary"]["source"],
+            output.stderr.is_empty(),
+        ),
+        (
+            Some(0),
+            &serde_json::json!([]),
+            Some(1),
+            &Value::String("caller".into()),
+            true,
+        )
+    );
+    main.finish();
+}
+
+#[test]
 fn declared_web_search_adds_normalized_extra_sources_in_configured_order() {
     let main = Fixture::start(
         200,

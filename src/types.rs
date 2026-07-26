@@ -2,14 +2,14 @@ use std::collections::HashSet;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 pub(crate) const MIN_FETCH_CONTENT_CHARS: usize = 200;
 pub(crate) const DENSITY_MAX_UNIQUE_LINES: usize = 3;
 pub(crate) const DENSITY_MAX_CHARS: usize = 500;
 pub(crate) const MIN_USEFUL_SLICE_SECONDS: u64 = 5;
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Capability {
     DocsSearch,
@@ -40,6 +40,20 @@ impl Capability {
 pub struct CapabilitySet(Vec<Capability>);
 
 impl CapabilitySet {
+    pub(crate) fn from_capabilities(capabilities: impl IntoIterator<Item = Capability>) -> Self {
+        let selected = capabilities.into_iter().collect::<HashSet<_>>();
+        Self(
+            Capability::VOCABULARY
+                .into_iter()
+                .filter(|capability| selected.contains(capability))
+                .collect(),
+        )
+    }
+
+    pub(crate) fn default_supplemental_web_search() -> Self {
+        Self(vec![Capability::WebSearch])
+    }
+
     pub(crate) fn iter(&self) -> impl Iterator<Item = Capability> + '_ {
         self.0.iter().copied()
     }
@@ -81,11 +95,10 @@ impl FromStr for CapabilitySet {
             ));
         }
         let selected = values.into_iter().collect::<HashSet<_>>();
-        Ok(Self(
+        Ok(Self::from_capabilities(
             Capability::VOCABULARY
                 .into_iter()
-                .filter(|capability| selected.contains(capability.as_str()))
-                .collect(),
+                .filter(|capability| selected.contains(capability.as_str())),
         ))
     }
 }

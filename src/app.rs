@@ -458,7 +458,7 @@ impl SearchContext {
     fn search(
         self,
         mut request: providers::SearchRequest,
-        capabilities: Option<&CapabilitySet>,
+        capabilities: Option<CapabilitySet>,
         extra_sources: u16,
         fallback_override: Option<&str>,
     ) -> (Result<SearchOutcome, ProviderError>, JournalOutcome) {
@@ -467,14 +467,59 @@ impl SearchContext {
             .to_owned();
         request.allow_model_fallback = fallback != "off";
         let query = request.query.clone();
-        let journal_capabilities =
-            capabilities.map(|capabilities| capabilities.iter().collect::<Vec<_>>());
         let model = request
             .model
             .clone()
             .unwrap_or_else(|| self.default_model.clone());
         let started = Instant::now();
         let deadline = Deadline::new(self.timeout);
+        let (
+            capabilities,
+            decision_source,
+            classifier_degraded,
+            classifier_duration,
+            classifier_attempts,
+            classifier_warning,
+        ) = match capabilities {
+            Some(capabilities) => (capabilities, "caller", false, None, Vec::new(), None),
+            None if !self.config.classifier.configured() => (
+                CapabilitySet::default_supplemental_web_search(),
+                "default_web_search",
+                false,
+                None,
+                Vec::new(),
+                None,
+            ),
+            None => {
+                let classifier = crate::classifier::Classifier::new(
+                    self.config.classifier.clone(),
+                    self.client.clone(),
+                    self.retry_policy,
+                );
+                match self.runtime.block_on(classifier.classify(&query, deadline)) {
+                    Ok(decision) => (
+                        decision.capabilities,
+                        "classifier",
+                        false,
+                        Some(decision.duration),
+                        decision.attempts,
+                        None,
+                    ),
+                    Err(failure) => (
+                        CapabilitySet::default_supplemental_web_search(),
+                        "classifier_degraded",
+                        true,
+                        Some(failure.duration),
+                        failure.attempts,
+                        Some(format!(
+                            "Classifier warning: {}; using default web_search capability",
+                            failure.message
+                        )),
+                    ),
+                }
+            }
+        };
+        let journal_capabilities = capabilities.iter().collect::<Vec<_>>();
         let mut result = self.runtime.block_on(crate::engine::search(
             request,
             self.config.main_search.clone(),
@@ -484,12 +529,28 @@ impl SearchContext {
             deadline,
             self.model_breakers,
         ));
-        if let (Ok(outcome), Some(capabilities)) = (&mut result, capabilities) {
+        match &mut result {
+            Ok(outcome) => {
+                outcome
+                    .attempts
+                    .splice(0..0, classifier_attempts.iter().cloned());
+                outcome.diagnostic =
+                    combine_diagnostics(classifier_warning.clone(), outcome.diagnostic.take());
+            }
+            Err(error) => {
+                error
+                    .attempts
+                    .splice(0..0, classifier_attempts.iter().cloned());
+                error.diagnostic =
+                    combine_diagnostics(classifier_warning.clone(), error.diagnostic.take());
+            }
+        }
+        if let Ok(outcome) = &mut result {
             outcome.capabilities = capabilities.iter().collect();
             self.runtime.block_on(crate::engine::execute_capabilities(
                 outcome,
                 &query,
-                capabilities,
+                &capabilities,
                 extra_sources.max(1),
                 &self.config,
                 crate::engine::CapabilityExecution::new(
@@ -508,7 +569,10 @@ impl SearchContext {
                 elapsed: started.elapsed(),
                 model: &model,
                 endpoint_host: &self.endpoint_host,
-                capabilities: journal_capabilities.as_deref(),
+                capabilities: &journal_capabilities,
+                decision_source,
+                classifier_degraded,
+                classifier_duration,
                 result: &result,
             },
         );
@@ -662,7 +726,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                     allow_model_fallback: true,
                     verbose,
                 },
-                capabilities.as_ref(),
+                capabilities,
                 extra_sources,
                 fallback.as_deref(),
             );
@@ -957,6 +1021,14 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             non_interactive: false,
             lang,
         } => run_interactive_setup(lang),
+    }
+}
+
+fn combine_diagnostics(first: Option<String>, second: Option<String>) -> Option<String> {
+    match (first, second) {
+        (Some(first), Some(second)) => Some(format!("{first}\n{second}")),
+        (Some(diagnostic), None) | (None, Some(diagnostic)) => Some(diagnostic),
+        (None, None) => None,
     }
 }
 

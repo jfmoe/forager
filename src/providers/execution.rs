@@ -6,33 +6,33 @@ use crate::net::RetryPolicy;
 use crate::providers::ProviderError;
 use crate::types::{AttemptErrorKind, Deadline, ProviderAttempt};
 
-pub(super) struct ExecutionOutcome<T> {
-    pub(super) value: T,
-    pub(super) attempts: Vec<ProviderAttempt>,
-    pub(super) diagnostic: Option<String>,
+pub(crate) struct ExecutionOutcome<T> {
+    pub(crate) value: T,
+    pub(crate) attempts: Vec<ProviderAttempt>,
+    pub(crate) diagnostic: Option<String>,
 }
 
-pub(super) struct AttemptFailure {
-    pub(super) kind: AttemptErrorKind,
-    pub(super) status: Option<u16>,
-    pub(super) message: String,
+pub(crate) struct AttemptFailure {
+    pub(crate) kind: AttemptErrorKind,
+    pub(crate) status: Option<u16>,
+    pub(crate) message: String,
 }
 
-pub(super) struct ExecutionSettings {
-    pub(super) provider: &'static str,
-    pub(super) seam: &'static str,
-    pub(super) retry_policy: RetryPolicy,
-    pub(super) deadline: Deadline,
-    pub(super) attempt_timeout: Duration,
-    pub(super) verbose: bool,
-    pub(super) timeout_message: &'static str,
-    pub(super) model: Option<String>,
-    pub(super) transport: Option<&'static str>,
-    pub(super) endpoint_host: Option<String>,
-    pub(super) breaker_event: Option<&'static str>,
+pub(crate) struct ExecutionSettings {
+    pub(crate) provider: &'static str,
+    pub(crate) seam: &'static str,
+    pub(crate) retry_policy: RetryPolicy,
+    pub(crate) deadline: Deadline,
+    pub(crate) attempt_timeout: Duration,
+    pub(crate) verbose: bool,
+    pub(crate) timeout_message: &'static str,
+    pub(crate) model: Option<String>,
+    pub(crate) transport: Option<&'static str>,
+    pub(crate) endpoint_host: Option<String>,
+    pub(crate) breaker_event: Option<&'static str>,
 }
 
-pub(super) async fn execute<T, F, Fut>(
+pub(crate) async fn execute<T, F, Fut>(
     credentials: &CredentialPool,
     settings: ExecutionSettings,
     mut send_once: F,

@@ -17,7 +17,10 @@ pub(crate) struct SearchRecord<'a> {
     pub(crate) elapsed: Duration,
     pub(crate) model: &'a str,
     pub(crate) endpoint_host: &'a str,
-    pub(crate) capabilities: Option<&'a [Capability]>,
+    pub(crate) capabilities: &'a [Capability],
+    pub(crate) decision_source: &'static str,
+    pub(crate) classifier_degraded: bool,
+    pub(crate) classifier_duration: Option<Duration>,
     pub(crate) result: &'a Result<SearchOutcome, ProviderError>,
 }
 
@@ -114,8 +117,9 @@ fn build_record(record: SearchRecord<'_>) -> Value {
         "result": result_surface,
         "execution": {
             "plan_summary": {
-                "source": record.capabilities.map_or("automatic", |_| "caller"),
-                "capabilities": record.capabilities.unwrap_or_default()
+                "source": record.decision_source,
+                "capabilities": record.capabilities,
+                "classifier_degraded": record.classifier_degraded
             },
             "provider_attempts": attempts,
             "terminal_attribution": terminal_attribution,
@@ -124,7 +128,10 @@ fn build_record(record: SearchRecord<'_>) -> Value {
                 "consumed_ms": duration_millis(record.elapsed),
                 "exhausted": record.elapsed >= record.budget
             },
-            "classifier_duration_ms": Value::Null,
+            "classifier_duration_ms": record.classifier_duration
+                .map(duration_millis)
+                .map(Value::from)
+                .unwrap_or(Value::Null),
             "capability_gaps": record.result
                 .as_ref()
                 .map(|outcome| &outcome.capability_gaps)
