@@ -52,7 +52,8 @@ impl SmokeEnvironment {
                 self.config_dir.parent().expect("XDG config home"),
             )
             .env("XDG_STATE_HOME", &self.state_dir)
-            .env("HOME", &self.home_dir);
+            .env("HOME", &self.home_dir)
+            .env("NO_PROXY", "127.0.0.1,localhost");
         #[cfg(windows)]
         if let Some(system_root) = std::env::var_os("SystemRoot") {
             command.env("SystemRoot", system_root);
