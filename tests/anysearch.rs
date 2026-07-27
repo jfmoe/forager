@@ -9,6 +9,44 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 
 #[test]
+fn anysearch_calls_tools_without_a_session_when_initialize_omits_the_session_header() {
+    let fixture = Fixture::start(vec![
+        Response::json(
+            200,
+            r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{}}}"#,
+        ),
+        Response::json(
+            200,
+            r####"{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"### 1. Kyoto guide\n- **URL**: https://example.test/kyoto\nTravel guide"}]}}"####,
+        ),
+    ]);
+
+    let output = run(
+        &fixture,
+        &["anysearch", "search", "Kyoto travel"],
+        &["anysearch-key"],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let requests = fixture.finish();
+
+    assert_eq!(
+        (
+            requests.len(),
+            requests[0].contains(r#""method":"initialize""#),
+            requests[1].contains(r#""method":"tools/call""#),
+            requests[1].contains("mcp-session-id:"),
+        ),
+        (2, true, true, false)
+    );
+}
+
+#[test]
 fn anysearch_domains_lists_sub_domains_and_parameter_contracts() {
     let fixture = Fixture::start(vec![
         initialize("domains-session"),

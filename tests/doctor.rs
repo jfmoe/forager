@@ -233,7 +233,7 @@ fn firecrawl_deep_doctor_executes_the_registry_search_probe() {
     let fixture = Fixture::start(
         200,
         "application/json",
-        r#"{"data":[{"title":"ok","url":"https://example.test"}]}"#,
+        r#"{"success":true,"data":{"web":[{"title":"ok","url":"https://example.test"}]}}"#,
     );
     let environment = RunEnvironment::new(&format!(
         "[providers.firecrawl]\nurl = {:?}\nkeys = [\"firecrawl-key\"]\n",

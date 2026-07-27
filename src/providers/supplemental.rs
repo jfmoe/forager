@@ -113,19 +113,22 @@ impl SupplementalSearch {
                 message: self.redact(&body),
             });
         }
-        let response: SearchResponse =
-            serde_json::from_str(&body).map_err(|error| AttemptFailure {
-                kind: AttemptErrorKind::Runtime,
-                status: Some(status.as_u16()),
-                message: self.redact(&format!(
-                    "invalid {} search response: {error}",
-                    self.provider
-                )),
-            })?;
+        let results = if self.provider == "tavily" {
+            serde_json::from_str::<TavilySearchResponse>(&body).map(|response| response.results)
+        } else {
+            serde_json::from_str::<FirecrawlSearchResponse>(&body).map(|response| response.data.web)
+        }
+        .map_err(|error| AttemptFailure {
+            kind: AttemptErrorKind::Runtime,
+            status: Some(status.as_u16()),
+            message: self.redact(&format!(
+                "invalid {} search response: {error}",
+                self.provider
+            )),
+        })?;
         Ok((
             status.as_u16(),
-            response
-                .results
+            results
                 .into_iter()
                 .take(usize::from(limit))
                 .map(|source| Source {
@@ -168,9 +171,20 @@ struct FirecrawlRequest<'a> {
 }
 
 #[derive(Deserialize)]
-struct SearchResponse {
-    #[serde(default, alias = "data")]
+struct TavilySearchResponse {
+    #[serde(default)]
     results: Vec<SearchResult>,
+}
+
+#[derive(Deserialize)]
+struct FirecrawlSearchResponse {
+    data: FirecrawlSearchData,
+}
+
+#[derive(Deserialize)]
+struct FirecrawlSearchData {
+    #[serde(default)]
+    web: Vec<SearchResult>,
 }
 
 #[derive(Deserialize)]

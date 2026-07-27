@@ -93,13 +93,15 @@ impl<'a> McpClient<'a> {
     ) -> Result<McpToolResult, McpError> {
         for handshake in 0..2 {
             let session = self.initialize(credential).await?;
-            match self.notify_initialized(credential, &session).await {
-                Err(error) if error.session_expired && handshake == 0 => continue,
-                Err(error) => return Err(error),
-                Ok(()) => {}
+            if let Some(session) = session.as_deref() {
+                match self.notify_initialized(credential, session).await {
+                    Err(error) if error.session_expired && handshake == 0 => continue,
+                    Err(error) => return Err(error),
+                    Ok(()) => {}
+                }
             }
             match self
-                .tool_call(credential, &session, tool, arguments.clone())
+                .tool_call(credential, session.as_deref(), tool, arguments.clone())
                 .await
             {
                 Err(error) if error.session_expired && handshake == 0 => continue,
@@ -109,7 +111,7 @@ impl<'a> McpClient<'a> {
         Err(McpError::runtime("MCP session could not be renewed"))
     }
 
-    async fn initialize(&self, credential: &str) -> Result<String, McpError> {
+    async fn initialize(&self, credential: &str) -> Result<Option<String>, McpError> {
         let response = self
             .post(
                 credential,
@@ -134,7 +136,7 @@ impl<'a> McpClient<'a> {
             .filter(|value| !value.is_empty())
             .map(ToOwned::to_owned);
         rpc_result(response, 1, self.deadline).await?;
-        session.ok_or_else(|| McpError::runtime("MCP initialize response omitted the session id"))
+        Ok(session)
     }
 
     async fn notify_initialized(&self, credential: &str, session: &str) -> Result<(), McpError> {
@@ -153,14 +155,14 @@ impl<'a> McpClient<'a> {
     async fn tool_call(
         &self,
         credential: &str,
-        session: &str,
+        session: Option<&str>,
         tool: &str,
         arguments: Value,
     ) -> Result<McpToolResult, McpError> {
         let response = self
             .post(
                 credential,
-                Some(session),
+                session,
                 &json!({
                     "jsonrpc": "2.0",
                     "id": 2,
