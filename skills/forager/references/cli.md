@@ -67,8 +67,6 @@ forager search QUERY [--capabilities CSV|none] [--model ID] [--extra-sources N]
 | `--output FILE` | Tee the rendered result to a file. | Omitted |
 | `--verbose` | Include full provider attempts inline. | Off |
 
-Read `capability-vocabulary.json` before setting `--capabilities`.
-
 ### `research`
 
 ```console
