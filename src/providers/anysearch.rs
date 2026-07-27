@@ -319,10 +319,15 @@ struct AnysearchExecution {
 }
 
 fn decode_domains(result: McpToolResult) -> Vec<AnysearchDomain> {
-    discovery_items(&result.structured_content)
+    let domains = discovery_items(&result.structured_content)
         .into_iter()
         .filter_map(normalize_domain)
-        .collect()
+        .collect::<Vec<_>>();
+    if domains.is_empty() {
+        decode_markdown_domains(&result.text)
+    } else {
+        domains
+    }
 }
 
 fn decode_search(result: McpToolResult) -> Vec<AnysearchResult> {
@@ -482,6 +487,82 @@ fn normalize_domain(item: &Map<String, Value>) -> Option<AnysearchDomain> {
             .collect(),
         parameter_schema,
     })
+}
+
+struct MarkdownDomain {
+    domain: String,
+    sub_domain: String,
+    description: String,
+    properties: Map<String, Value>,
+    current_parameter: Option<String>,
+}
+
+fn decode_markdown_domains(text: &str) -> Vec<AnysearchDomain> {
+    let mut domains = Vec::new();
+    let mut current = None;
+    for line in text.lines() {
+        if let Some((domain, sub_domain)) = markdown_domain_heading(line) {
+            if let Some(domain) = current.take() {
+                domains.push(finish_markdown_domain(domain));
+            }
+            current = Some(MarkdownDomain {
+                domain: domain.to_owned(),
+                sub_domain: sub_domain.to_owned(),
+                description: String::new(),
+                properties: Map::new(),
+                current_parameter: None,
+            });
+            continue;
+        }
+        let Some(domain) = &mut current else {
+            continue;
+        };
+        let line = line.trim();
+        if line.is_empty() || line == "**Parameters:**" {
+            continue;
+        }
+        if let Some((name, description)) = markdown_parameter(line) {
+            domain
+                .properties
+                .insert(name.to_owned(), json!({"description": description.trim()}));
+            domain.current_parameter = Some(name.to_owned());
+        } else if let Some(name) = &domain.current_parameter {
+            let property = &mut domain.properties[name]["description"];
+            let description = property.as_str().unwrap_or_default();
+            *property = Value::String(format!("{description}\n{line}"));
+        } else if domain.description.is_empty() {
+            domain.description = line.chars().take(300).collect();
+        }
+    }
+    if let Some(domain) = current {
+        domains.push(finish_markdown_domain(domain));
+    }
+    domains
+}
+
+fn markdown_domain_heading(line: &str) -> Option<(&str, &str)> {
+    let identifier = line.trim().strip_prefix("### ")?.trim();
+    let (domain, sub_domain) = identifier.split_once('.')?;
+    (!domain.is_empty() && !sub_domain.is_empty()).then_some((domain, sub_domain))
+}
+
+fn markdown_parameter(line: &str) -> Option<(&str, &str)> {
+    let parameter = line.strip_prefix("- `")?;
+    let (name, suffix) = parameter.split_once('`')?;
+    let (_, description) = suffix.split_once(':')?;
+    Some((name, description))
+}
+
+fn finish_markdown_domain(domain: MarkdownDomain) -> AnysearchDomain {
+    AnysearchDomain {
+        domain: domain.domain,
+        sub_domain: domain.sub_domain,
+        description: domain.description,
+        parameter_schema: json!({
+            "type": "object",
+            "properties": domain.properties,
+        }),
+    }
 }
 
 fn millis(duration: Duration) -> u64 {

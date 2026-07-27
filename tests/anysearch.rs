@@ -98,6 +98,49 @@ fn anysearch_domains_lists_sub_domains_and_parameter_contracts() {
 }
 
 #[test]
+fn anysearch_domains_decodes_live_markdown_contracts() {
+    let fixture = Fixture::start(vec![
+        initialize("domains-session"),
+        Response::json(202, ""),
+        Response::json(
+            200,
+            r####"{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"## academic Domain Capabilities (2 available)\n\n### academic.search\nCross-discipline paper search by keyword and author\n\n**Parameters:**\n- `year_from` (required): Publication year start (inclusive), four digits.\n- `open_access`: Whether to return only open access publications.\n\n### academic.dataset\nResearch datasets and scientific software\n\n**Parameters:**\n- `year_to`: Publication year upper bound (inclusive)."}]}}"####,
+        ),
+    ]);
+
+    let output = run(
+        &fixture,
+        &["anysearch", "domains", "academic"],
+        &["anysearch-key"],
+    );
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    fixture.finish();
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["total"],
+            &payload["results"][0]["domain"],
+            &payload["results"][0]["sub_domain"],
+            &payload["results"][0]["description"],
+            &payload["results"][0]["parameter_schema"]["properties"]["year_from"]["description"],
+            &payload["results"][1]["sub_domain"],
+        ),
+        (
+            Some(0),
+            &Value::Number(2.into()),
+            &Value::String("academic".into()),
+            &Value::String("search".into()),
+            &Value::String("Cross-discipline paper search by keyword and author".into()),
+            &Value::String("Publication year start (inclusive), four digits.".into()),
+            &Value::String("dataset".into()),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
 fn anysearch_domains_requires_a_parent_domain_before_network() {
     let fixture = Fixture::start(Vec::new());
     let output = run(&fixture, &["anysearch", "domains"], &["anysearch-key"]);
