@@ -27,8 +27,8 @@ impl SmokeEnvironment {
         fs::create_dir_all(&config_dir).expect("create config directory");
         fs::create_dir_all(&home_dir).expect("create home directory");
         fs::write(config_dir.join("config.toml"), config(&journal_dir)).expect("write config");
-        make_private(&config_dir, 0o700);
         make_private(&config_dir.join("config.toml"), 0o600);
+        make_private(&config_dir, 0o700);
         Self {
             _root: root,
             config_dir,
