@@ -6,6 +6,8 @@ Release: [v0.1.1](https://github.com/jfmoe/forager/releases/tag/v0.1.1)
 
 Release workflow: [30288281134](https://github.com/jfmoe/forager/actions/runs/30288281134)
 
+Switch gate: **open**
+
 ## Release artifact
 
 - The public Release is not a draft or prerelease.
@@ -59,9 +61,11 @@ The independent forced-X command selected only xAI, disabled fallback, and enabl
 
 ## Skill integration
 
-- `npx skills add jfmoe/forager --agent claude-code --skill forager -y --copy` installed the skill into an isolated temporary project.
-- Claude Code 2.1.220 was invoked with only Bash, Read, and Write tools, a public-v0.1.1-first `PATH`, and a task requiring `research-plan.json` before `forager research --plan`.
-- The project-only authentication attempt failed because the isolated profile could not refresh an expired OAuth session.
-- Two authenticated attempts were rejected by the Claude service before inference with `429 Service Unavailable`; both recorded zero input tokens, zero output tokens, zero tool calls, and no permission denials.
+- The original Claude Code attempts remain recorded as non-passing history: one isolated-profile authentication failure and two pre-inference `429 Service Unavailable` responses with zero tokens and zero tool calls.
+- The final gate used an isolated Git project, HOME, Codex profile, forager config, and state directory. `npx skills add jfmoe/forager --agent codex --skill forager -y --copy` installed only the `forager` skill at project scope.
+- The skill installed from the repository was byte-identical to the skill at v0.1.1. `PATH` began with the clean public-Release binary, which reported `forager 0.1.1` and Mach-O arm64; its archive passed the published SHA-256 check.
+- Codex CLI 0.145.0 session `019fa5d8-cb53-7d51-9f48-00cee5d92765` read the installed skill and research references, generated a strict Schema v1 `research-plan.json`, and ran `forager research "Rust 的 async drop 现状与最新提案是什么？" --plan research-plan.json --budget standard --format json --output research-result.json`.
+- The command exited 0. Both the Agent-authored plan and result parsed as JSON, `plan_source` was `caller`, three evidence items were collected, `capability_gaps` was empty, and the journal was written.
+- The result disclosed one unresolved `open-questions` evidence gap and marked itself degraded. This does not replace or weaken the separately completed frozen research quality gate above: the Skill integration gate proves that a real installed Agent generated a plan, executed the public Release, reached a successful terminal result, and reported its evidence limits without human substitution.
 
-This final skill-in-Agent gate remains pending external Claude service recovery. Issue #22 must remain open until a real Claude Code session completes the plan-to-research flow.
+All automated and manual evidence is tied to v0.1.1. With the supported real-Agent Skill session complete, every acceptance item has passed and the retirement switch gate is open.

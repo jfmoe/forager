@@ -75,7 +75,7 @@ AnySearch **extraction 裁决**（消解 #53 砍 `anysearch-extract` 与 #59 L8 
 
 ## 人工验收清单五项
 
-① `smoke --live` 全量（凭据配齐，SKIP=0、P1–P2 + C01–C17 全绿）；② research 质量抽查（M21 冻结题集 + rubric）；③ journal 走查（双面合理、URL 脱敏生效）；④ setup 四步走查 + 二跑增量；⑤ **skill 实战验证**——新 forager skill 在**隔离环境**（独立 profile/容器，H11）经 `npx skills` 装入真实 Claude Code 会话，agent 按新流程（生成 plan → `research --plan`）完成一次任务；通过后才在本机执行「先删旧后装新」。顺序：①→④ 任意，⑤ 最后。skill 重写按新流程重构（旧 `deep` 的 `steps[].command` 工作流已死），非文本替换迁移。
+① `smoke --live` 全量（凭据配齐，SKIP=0、P1–P2 + C01–C17 全绿）；② research 质量抽查（M21 冻结题集 + rubric）；③ journal 走查（双面合理、URL 脱敏生效）；④ setup 四步走查 + 二跑增量；⑤ **skill 实战验证**——新 forager skill 在**隔离环境**（独立 profile/容器，H11）经 `npx skills` 装入任一受支持的真实 Agent 会话，Agent 按新流程（生成 plan → `research --plan`）完成一次任务；通过后才在本机执行「先删旧后装新」。此处“受支持”指 `npx skills` 能识别该 Agent 目标并把 Skill 安装到其项目级发现路径，且该 Agent 能读取 Skill、写入计划文件并执行 CLI；不限定 Claude Code，满足同一隔离、安装和实际执行约束的 Codex CLI 等 Agent 同样有效。顺序：①→④ 任意，⑤ 最后。skill 重写按新流程重构（旧 `deep` 的 `steps[].command` 工作流已死），非文本替换迁移。
 
 ## 切换步骤（三阶段）
 
