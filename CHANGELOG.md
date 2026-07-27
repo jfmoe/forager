@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1](https://github.com/jfmoe/forager/compare/v0.1.0...v0.1.1) - 2026-07-27
+
+### Fixed
+
+- cover every research subquestion
+- resolve release assets outside a checkout
+- make smoke test fixtures portable on Windows
+
 ## [0.1.0](https://github.com/jfmoe/forager/releases/tag/v0.1.0) - 2026-07-27
 
 ### Added
