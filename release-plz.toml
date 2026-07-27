@@ -5,7 +5,7 @@ git_only = true
 git_release_enable = false
 git_tag_enable = true
 publish = false
-release_always = true
+release_always = false
 
 [[package]]
 name = "forager"
