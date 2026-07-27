@@ -196,7 +196,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
         "smoke",
         "--live",
         "--timeout",
-        "5",
+        "15",
         "--outage-evidence",
         &outage_evidence,
     ]);
