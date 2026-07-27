@@ -28,11 +28,13 @@ jobs:
             x86_64-unknown-linux-gnu
           do
             gh release download "$tag" \
+              --repo "$GITHUB_REPOSITORY" \
               --pattern "forager-$target.tar.xz" \
               --pattern "forager-$target.tar.xz.sha256" \
               --dir artifacts
           done
           gh release download "$tag" \
+            --repo "$GITHUB_REPOSITORY" \
             --pattern "forager-x86_64-pc-windows-msvc.zip" \
             --pattern "forager-x86_64-pc-windows-msvc.zip.sha256" \
             --dir artifacts
@@ -78,6 +80,7 @@ jobs:
         run: |
           tag=$(jq -r '.announcement_tag' <<< "$PLAN")
           gh release download "$tag" \
+            --repo "$GITHUB_REPOSITORY" \
             --pattern "forager-$TARGET.tar.xz" \
             --dir artifacts
       - name: Verify installed binary
@@ -150,6 +153,7 @@ jobs:
         run: |
           $tag = ($env:PLAN | ConvertFrom-Json).announcement_tag
           gh release download $tag `
+            --repo $env:GITHUB_REPOSITORY `
             --pattern "forager-x86_64-pc-windows-msvc.zip" `
             --dir artifacts
       - name: Verify installed binary
@@ -251,7 +255,7 @@ jobs:
               ],
               install: {shell: $shell, powershell: $powershell}
             }' > release-gate.json
-          gh release upload "$tag" release-gate.json
+          gh release upload "$tag" release-gate.json --repo "$GITHUB_REPOSITORY"
       - uses: actions/upload-artifact@v6
         with:
           name: artifacts-release-gate

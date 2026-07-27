@@ -145,6 +145,7 @@ fn release_gate_installs_and_verifies_every_draft_release_asset() {
         "x86_64-unknown-linux-gnu",
         "x86_64-pc-windows-msvc",
         "gh release download",
+        "--repo \"$GITHUB_REPOSITORY\"",
         "checksum_count",
         "sha256sum --check",
         "test -x",
