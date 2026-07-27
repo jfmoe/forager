@@ -11,9 +11,9 @@ use serde_json::Value;
 use crate::config::{self, OpenAiCompatibleRuntimeConfig};
 use crate::credentials::CredentialPool;
 use crate::net::{RetryPolicy, error_kind_for_status, truncate_message};
-use crate::providers::ProviderError;
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute};
 use crate::providers::xai::SearchRequest;
+use crate::providers::{MainSearchRequestKind, ProviderError};
 use crate::types::{AttemptErrorKind, Deadline, SearchOutcome, Source};
 
 pub(crate) struct OpenAiCompatible {
@@ -27,6 +27,12 @@ pub(crate) struct OpenAiCompatible {
 
 const BREAKER_FAILURE_THRESHOLD: u8 = 2;
 const BREAKER_COOLDOWN: Duration = Duration::from_secs(600);
+
+#[derive(Clone, Copy)]
+struct TransportAttempt {
+    stream: bool,
+    fallback_from: Option<&'static str>,
+}
 
 #[derive(Default)]
 pub(crate) struct ModelBreakers {
@@ -112,6 +118,22 @@ impl OpenAiCompatible {
         &self,
         request: SearchRequest,
     ) -> Result<SearchOutcome, ProviderError> {
+        self.execute(request, MainSearchRequestKind::Search).await
+    }
+
+    pub(crate) async fn probe(
+        &self,
+        request: SearchRequest,
+    ) -> Result<SearchOutcome, ProviderError> {
+        self.execute(request, MainSearchRequestKind::ModelProbe)
+            .await
+    }
+
+    async fn execute(
+        &self,
+        request: SearchRequest,
+        request_kind: MainSearchRequestKind,
+    ) -> Result<SearchOutcome, ProviderError> {
         let query = request.query;
         let models = self.model_candidates(request.model.as_deref(), request.allow_model_fallback);
         let mut attempts = Vec::new();
@@ -142,7 +164,13 @@ impl OpenAiCompatible {
                 continue;
             };
             match self
-                .execute_model(&query, model, request.verbose, Deadline::new(model_budget))
+                .execute_model(
+                    &query,
+                    model,
+                    request.verbose,
+                    Deadline::new(model_budget),
+                    request_kind,
+                )
                 .await
             {
                 Ok(mut execution) => {
@@ -199,11 +227,22 @@ impl OpenAiCompatible {
         model: &str,
         verbose: bool,
         deadline: Deadline,
+        request_kind: MainSearchRequestKind,
     ) -> Result<crate::providers::execution::ExecutionOutcome<(String, Vec<Source>)>, ProviderError>
     {
         if !self.config.stream {
             return self
-                .execute_transport(query, model, false, verbose, deadline, None)
+                .execute_transport(
+                    query,
+                    model,
+                    verbose,
+                    deadline,
+                    TransportAttempt {
+                        stream: false,
+                        fallback_from: None,
+                    },
+                    request_kind,
+                )
                 .await;
         }
         let stream_budget = deadline
@@ -214,10 +253,13 @@ impl OpenAiCompatible {
             .execute_transport(
                 query,
                 model,
-                true,
                 verbose,
                 Deadline::new(stream_budget),
-                None,
+                TransportAttempt {
+                    stream: true,
+                    fallback_from: None,
+                },
+                request_kind,
             )
             .await;
         match stream {
@@ -237,10 +279,13 @@ impl OpenAiCompatible {
                     .execute_transport(
                         query,
                         model,
-                        false,
                         verbose,
                         Deadline::new(remaining),
-                        Some("sse"),
+                        TransportAttempt {
+                            stream: false,
+                            fallback_from: Some("sse"),
+                        },
+                        request_kind,
                     )
                     .await;
                 match non_stream {
@@ -266,10 +311,10 @@ impl OpenAiCompatible {
         &self,
         query: &str,
         model: &str,
-        stream: bool,
         verbose: bool,
         deadline: Deadline,
-        fallback_from: Option<&'static str>,
+        transport: TransportAttempt,
+        request_kind: MainSearchRequestKind,
     ) -> Result<crate::providers::execution::ExecutionOutcome<(String, Vec<Source>)>, ProviderError>
     {
         execute(
@@ -283,13 +328,16 @@ impl OpenAiCompatible {
                 verbose,
                 timeout_message: "OpenAI-compatible request timed out",
                 model: Some(model.to_owned()),
-                transport: Some(if stream { "sse" } else { "http" }),
+                transport: Some(if transport.stream { "sse" } else { "http" }),
                 endpoint_host: reqwest::Url::parse(&self.config.url)
                     .ok()
                     .and_then(|url| url.host_str().map(ToOwned::to_owned)),
-                breaker_event: fallback_from.map(|_| "transport_fallback"),
+                breaker_event: transport.fallback_from.map(|_| "transport_fallback"),
             },
-            |credential| async move { self.send_once(query, model, &credential, stream).await },
+            |credential| async move {
+                self.send_once(query, model, &credential, transport.stream, request_kind)
+                    .await
+            },
         )
         .await
     }
@@ -337,8 +385,21 @@ impl OpenAiCompatible {
         model: &str,
         credential: &str,
         stream: bool,
+        request_kind: MainSearchRequestKind,
     ) -> Result<(u16, (String, Vec<Source>)), AttemptFailure> {
         let endpoint = format!("{}/chat/completions", self.config.url.trim_end_matches('/'));
+        let input = request_kind.input(query);
+        let mut messages = Vec::with_capacity(2);
+        if let Some(instruction) = request_kind.instruction() {
+            messages.push(Message {
+                role: "system",
+                content: instruction,
+            });
+        }
+        messages.push(Message {
+            role: "user",
+            content: &input,
+        });
         let response = self
             .client
             .post(endpoint)
@@ -346,10 +407,7 @@ impl OpenAiCompatible {
             .header("accept", "application/json, text/event-stream")
             .json(&ChatRequest {
                 model,
-                messages: [Message {
-                    role: "user",
-                    content: query,
-                }],
+                messages,
                 stream,
             })
             .send()
@@ -527,7 +585,7 @@ impl OpenAiCompatible {
 #[derive(Serialize)]
 struct ChatRequest<'a> {
     model: &'a str,
-    messages: [Message<'a>; 1],
+    messages: Vec<Message<'a>>,
     stream: bool,
 }
 

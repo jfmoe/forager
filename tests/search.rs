@@ -111,6 +111,12 @@ fn bare_search_uses_classifier_complete_capability_decision() {
         "{classifier_request}"
     );
     assert!(classifier_request.contains("\"model\":\"classifier-model\""));
+    assert!(
+        classifier_request
+            .contains("Main search always runs and is not part of the returned capability set.")
+    );
+    assert!(!classifier_request.contains("selection_boundary"));
+    assert!(!classifier_request.contains("uniqueItems"));
     assert!(classifier_request.contains("\"docs_search\""));
     assert!(classifier_request.contains("\"vertical_search\""));
     main.finish();
@@ -1096,6 +1102,12 @@ fn search_uses_the_completed_xai_response_and_deduplicates_sources() {
     );
     assert!(request.contains("\"stream\":true"), "{request}");
     assert!(request.contains("\"model\":\"test-model\""), "{request}");
+    assert!(
+        request.contains("\"instructions\":\"You are a helpful research assistant."),
+        "{request}"
+    );
+    assert!(request.contains("[Current Time Context]"), "{request}");
+    assert!(request.contains("What changed?"), "{request}");
 }
 
 #[test]
@@ -1249,6 +1261,16 @@ fn search_falls_back_from_xai_to_openai_compatible_non_stream() {
         openai_request.contains("\"stream\":false"),
         "{openai_request}"
     );
+    assert!(
+        openai_request
+            .contains("\"role\":\"system\",\"content\":\"You are a helpful research assistant."),
+        "{openai_request}"
+    );
+    assert!(
+        openai_request.contains("[Current Time Context]"),
+        "{openai_request}"
+    );
+    assert!(openai_request.contains("Fallback"), "{openai_request}");
 }
 
 #[test]

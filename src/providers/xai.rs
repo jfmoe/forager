@@ -7,8 +7,8 @@ use serde_json::Value;
 use crate::config::{self, XaiRuntimeConfig};
 use crate::credentials::CredentialPool;
 use crate::net::{RetryPolicy, error_kind_for_status, truncate_message};
-use crate::providers::ProviderError;
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute};
+use crate::providers::{MainSearchRequestKind, ProviderError};
 use crate::types::{AttemptErrorKind, Deadline, SearchOutcome, Source};
 
 #[derive(Clone, Debug)]
@@ -48,6 +48,22 @@ impl Xai {
         &self,
         request: SearchRequest,
     ) -> Result<SearchOutcome, ProviderError> {
+        self.execute(request, MainSearchRequestKind::Search).await
+    }
+
+    pub(crate) async fn probe(
+        &self,
+        request: SearchRequest,
+    ) -> Result<SearchOutcome, ProviderError> {
+        self.execute(request, MainSearchRequestKind::ModelProbe)
+            .await
+    }
+
+    async fn execute(
+        &self,
+        request: SearchRequest,
+        request_kind: MainSearchRequestKind,
+    ) -> Result<SearchOutcome, ProviderError> {
         let model = request
             .model
             .clone()
@@ -73,7 +89,10 @@ impl Xai {
             |credential| {
                 let model = model.clone();
                 let query = query.clone();
-                async move { self.send_once(&query, &model, &credential).await }
+                async move {
+                    self.send_once(&query, &model, &credential, request_kind)
+                        .await
+                }
             },
         )
         .await?;
@@ -99,18 +118,25 @@ impl Xai {
         query: &str,
         model: &str,
         credential: &str,
+        request_kind: MainSearchRequestKind,
     ) -> Result<(u16, (String, Vec<Source>)), AttemptFailure> {
         let endpoint = format!("{}/responses", self.config.url.trim_end_matches('/'));
-        let body = ResponsesRequest {
-            model,
-            input: query,
-            stream: true,
-            tools: self
-                .config
+        let input = request_kind.input(query);
+        let tools = if request_kind.uses_search_tools() {
+            self.config
                 .tools
                 .iter()
                 .map(|tool| Tool { kind: tool })
-                .collect(),
+                .collect()
+        } else {
+            Vec::new()
+        };
+        let body = ResponsesRequest {
+            model,
+            instructions: request_kind.instruction(),
+            input: &input,
+            stream: true,
+            tools,
         };
         let response = self
             .client
@@ -285,6 +311,8 @@ impl Xai {
 #[derive(Serialize)]
 struct ResponsesRequest<'a> {
     model: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    instructions: Option<&'static str>,
     input: &'a str,
     stream: bool,
     tools: Vec<Tool<'a>>,

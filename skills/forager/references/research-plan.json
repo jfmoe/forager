@@ -11,7 +11,15 @@
     {
       "id": "sq1",
       "question": "Which official documentation defines the current contract?",
-      "reason": "Establish the authoritative baseline before comparing recent changes.",
+      "reason": "Establish the authoritative baseline for the comparison.",
+      "required_capabilities": [
+        "docs_search"
+      ]
+    },
+    {
+      "id": "sq2",
+      "question": "Which recent release notes or official announcements changed that contract?",
+      "reason": "Identify recent changes and cross-check them against the current documentation.",
       "required_capabilities": [
         "docs_search",
         "web_search"

@@ -1,6 +1,8 @@
 use std::future::Future;
 use std::pin::Pin;
 
+use chrono::{Datelike, Local, Weekday};
+
 mod anysearch;
 mod context7;
 mod exa;
@@ -35,6 +37,53 @@ pub(crate) use supplemental::SupplementalSearch;
 pub(crate) use tavily_map::{MapRequest, TavilyMap};
 pub(crate) use web_fetch::{FetchRequest, WebFetch};
 pub(crate) use xai::{SearchRequest, Xai};
+
+const MAIN_SEARCH_INSTRUCTION: &str = "You are a helpful research assistant. Answer the user's question thoroughly using web search results.\n\nGuidelines:\n- Infer the user's true intent even when the question is vague. Consider multiple angles.\n- Search broadly first (5+ perspectives), then go deep on the 2-3 most relevant ones.\n- Prioritize authoritative sources: official docs, Wikipedia, academic papers, reputable journalism.\n- Search in English first for breadth, switch to Chinese when the topic demands it.\n- Every factual claim should cite its source. More credible sources strengthen the answer.\n- Lead with the most likely answer, then provide supporting analysis.\n- Define technical terms in plain language. Use real-world analogies for complex concepts.\n- Format output in clean Markdown. Use LaTeX for formulas, code blocks for scripts.\n- Be direct and concise. No filler or unnecessary follow-up questions.\n";
+
+#[derive(Clone, Copy)]
+pub(crate) enum MainSearchRequestKind {
+    Search,
+    ModelProbe,
+}
+
+impl MainSearchRequestKind {
+    fn instruction(self) -> Option<&'static str> {
+        match self {
+            Self::Search => Some(MAIN_SEARCH_INSTRUCTION),
+            Self::ModelProbe => None,
+        }
+    }
+
+    fn input(self, query: &str) -> String {
+        match self {
+            Self::Search => main_search_input(query),
+            Self::ModelProbe => query.to_owned(),
+        }
+    }
+
+    fn uses_search_tools(self) -> bool {
+        matches!(self, Self::Search)
+    }
+}
+
+fn main_search_input(query: &str) -> String {
+    let now = Local::now();
+    let weekday = match now.weekday() {
+        Weekday::Mon => "星期一",
+        Weekday::Tue => "星期二",
+        Weekday::Wed => "星期三",
+        Weekday::Thu => "星期四",
+        Weekday::Fri => "星期五",
+        Weekday::Sat => "星期六",
+        Weekday::Sun => "星期日",
+    };
+    format!(
+        "[Current Time Context]\n- Date: {} ({weekday})\n- Time: {}\n- Timezone: {}\n\n{query}",
+        now.format("%Y-%m-%d"),
+        now.format("%H:%M:%S"),
+        now.format("%:z"),
+    )
+}
 
 pub(crate) trait MainSearch: Send + Sync {
     fn search(

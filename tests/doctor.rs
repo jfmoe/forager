@@ -102,6 +102,13 @@ fn xai_deep_doctor_executes_one_responses_sse_probe() {
     assert_deep_success(&output, "xai", &[("responses", "sse")]);
     let request = fixture.finish();
     assert!(request.starts_with("POST /responses "), "{request}");
+    let request = request_json(&request);
+    assert_eq!(
+        request["input"],
+        Value::String("Reply with exactly: ok".into())
+    );
+    assert_eq!(request["tools"], serde_json::json!([]));
+    assert!(request.get("instructions").is_none());
 }
 
 #[test]
@@ -130,8 +137,21 @@ fn openai_compatible_deep_doctor_validates_non_stream_and_stream_shapes() {
         &[("non_stream", "http"), ("stream", "sse")],
     );
     let requests = fixture.finish_all();
-    assert!(requests[0].contains("\"stream\":false"), "{}", requests[0]);
-    assert!(requests[1].contains("\"stream\":true"), "{}", requests[1]);
+    let requests = requests
+        .iter()
+        .map(|request| request_json(request))
+        .collect::<Vec<_>>();
+    assert_eq!(requests[0]["stream"], Value::Bool(false));
+    assert_eq!(requests[1]["stream"], Value::Bool(true));
+    for request in requests {
+        assert_eq!(
+            request["messages"],
+            serde_json::json!([{
+                "role": "user",
+                "content": "Reply with exactly: ok"
+            }])
+        );
+    }
 }
 
 #[test]
@@ -477,6 +497,14 @@ fn assert_deep_success(
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+}
+
+fn request_json(request: &str) -> Value {
+    let body = request
+        .split_once("\r\n\r\n")
+        .map(|(_, body)| body)
+        .expect("request body");
+    serde_json::from_str(body).expect("parse request JSON")
 }
 
 fn mcp_initialize(session: &str) -> Response {

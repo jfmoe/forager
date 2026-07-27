@@ -202,7 +202,7 @@ async fn run_probe(
             };
             let adapter = providers::build_xai(provider_config, client, retry_policy, deadline);
             one_check(
-                adapter.search(probe_search_request()).await,
+                adapter.probe(probe_search_request()).await,
                 "responses",
                 "sse",
             )
@@ -335,11 +335,7 @@ async fn probe_openai_shapes(
             deadline,
             Arc::clone(&breakers),
         );
-        match validate_transport(
-            adapter.search(probe_search_request()).await,
-            transport,
-            name,
-        ) {
+        match validate_transport(adapter.probe(probe_search_request()).await, transport, name) {
             Ok(_) => checks.push(ProbeCheck {
                 name,
                 transport,
@@ -406,7 +402,7 @@ fn one_check<T>(
 
 fn probe_search_request() -> SearchRequest {
     SearchRequest {
-        query: "Reply with the word ok.".into(),
+        query: "Reply with exactly: ok".into(),
         model: None,
         allow_model_fallback: false,
         verbose: false,

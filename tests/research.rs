@@ -76,6 +76,29 @@ fn bare_research_executes_the_classifier_plan_through_the_research_pipeline() {
     let classifier_request = classifier.finish();
     assert!(classifier_request.contains("\"name\":\"classifier_research_plan\""));
     assert!(
+        classifier_request.contains("Plan the user request as a complete Schema v1 investigation.")
+    );
+    let request_body = classifier_request
+        .split_once("\r\n\r\n")
+        .map(|(_, body)| body)
+        .expect("classifier request body");
+    let request: Value = serde_json::from_str(request_body).expect("parse classifier request body");
+    let system_prompt = request["messages"][0]["content"]
+        .as_str()
+        .expect("classifier system prompt");
+    let embedded_vocabulary = system_prompt
+        .split_once("Capability vocabulary:\n")
+        .map(|(_, vocabulary)| vocabulary)
+        .expect("embedded capability vocabulary");
+    let embedded_vocabulary: Value =
+        serde_json::from_str(embedded_vocabulary).expect("parse embedded capability vocabulary");
+    let shared_vocabulary: Value = serde_json::from_str(include_str!(
+        "../skills/forager/references/capability-vocabulary.json"
+    ))
+    .expect("parse shared capability vocabulary");
+    assert_eq!(embedded_vocabulary, shared_vocabulary);
+    assert!(!classifier_request.contains("selection_boundary"));
+    assert!(
         classifier_request
             .contains("\"enum\":[\"docs_search\",\"web_search\",\"vertical_search\"]")
     );

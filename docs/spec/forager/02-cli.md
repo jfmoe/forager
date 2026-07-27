@@ -88,7 +88,7 @@ CSV + 独占哨兵 `none`，未传＝自动路由。Rust 类型 `Option<Capabili
 
 ## 契约③：`doctor --provider`
 
-两档：`doctor` 浅检全体（掩码配置 + 凭据存在 + 可达性 + 过宽权限报告 + config list 同构生效值块）；`--provider NAME` 深探单体，值域＝8 provider 编译期 enum。openai-compatible 深探继承旧 diagnose 全套（真实 prompt 探测 + stream/no-stream 双形状判定）；其余 7 个凭据有效性 + 最小活体调用。
+两档：`doctor` 浅检全体（掩码配置 + 凭据存在 + 可达性 + 过宽权限报告 + config list 同构生效值块）；`--provider NAME` 深探单体，值域＝8 provider 编译期 enum。8 个 provider 均执行凭据有效性 + 最小活体调用；openai-compatible 额外保留 stream/no-stream 双形状判定。
 
 ## 收尾
 
