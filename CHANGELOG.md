@@ -11,9 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- cover every research subquestion
+- cover every research subquestion ([#26](https://github.com/jfmoe/forager/pull/26))
 - resolve release assets outside a checkout
-- make smoke test fixtures portable on Windows
+- make smoke test fixtures portable on Windows ([#26](https://github.com/jfmoe/forager/pull/26))
 
 ## [0.1.0](https://github.com/jfmoe/forager/releases/tag/v0.1.0) - 2026-07-27
 
