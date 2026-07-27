@@ -43,10 +43,6 @@ impl SmokeEnvironment {
     }
 
     fn run(&self, arguments: &[&str]) -> Output {
-        self.run_with_environment(arguments, &[])
-    }
-
-    fn run_with_environment(&self, arguments: &[&str], environment: &[(&str, &str)]) -> Output {
         let mut command = Command::new(env!("CARGO_BIN_EXE_forager"));
         command
             .args(arguments)
@@ -57,8 +53,9 @@ impl SmokeEnvironment {
             )
             .env("XDG_STATE_HOME", &self.state_dir)
             .env("HOME", &self.home_dir);
-        for (name, value) in environment {
-            command.env(name, value);
+        #[cfg(windows)]
+        if let Some(system_root) = std::env::var_os("SystemRoot") {
+            command.env("SystemRoot", system_root);
         }
         command.output().expect("run forager")
     }
@@ -292,39 +289,11 @@ fn live_smoke_passes_a_configured_case_only_after_a_zero_parseable_nonempty_term
             }
         })
     );
-    let (endpoint, server) = serve_once("text/event-stream", response_body.clone());
+    let (endpoint, server) = serve_once("text/event-stream", response_body);
     let environment = SmokeEnvironment::new(|journal_dir| minimal_config(&endpoint, journal_dir));
 
     let output = environment.run(&["smoke", "--live", "--timeout", "2"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live smoke JSON");
-    let diagnostics = if case(&payload, "C01")["status"] == "failed" {
-        let (endpoint, _) = serve_once("text/event-stream", response_body);
-        let environment =
-            SmokeEnvironment::new(|journal_dir| minimal_config(&endpoint, journal_dir));
-        let output = environment.run_with_environment(
-            &[
-                "search",
-                "Rust stable release",
-                "--capabilities",
-                "none",
-                "--timeout",
-                "2",
-                "--verbose",
-            ],
-            &[
-                ("FORAGER_RETRY__MAX_ATTEMPTS", "1"),
-                ("FORAGER_SEARCH__BACKENDS", "[\"xai\"]"),
-                ("FORAGER_SEARCH__FALLBACK", "off"),
-            ],
-        );
-        format!(
-            "direct stdout: {}\ndirect stderr: {}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        )
-    } else {
-        String::new()
-    };
 
     assert_eq!(
         (
@@ -339,7 +308,7 @@ fn live_smoke_passes_a_configured_case_only_after_a_zero_parseable_nonempty_term
             &Value::String("passed".into()),
             &Value::Number(1.into()),
         ),
-        "stdout: {}\nstderr: {}\n{diagnostics}",
+        "stdout: {}\nstderr: {}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
