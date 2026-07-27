@@ -290,7 +290,6 @@ fn live_smoke_passes_a_configured_case_only_after_a_zero_parseable_nonempty_term
 
     let output = environment.run(&["smoke", "--live", "--timeout", "2"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live smoke JSON");
-    server.join().expect("fixture server");
 
     assert_eq!(
         (
@@ -309,6 +308,7 @@ fn live_smoke_passes_a_configured_case_only_after_a_zero_parseable_nonempty_term
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
+    server.join().expect("fixture server");
 }
 
 #[test]
@@ -337,7 +337,6 @@ fn live_smoke_drains_large_child_output_without_false_timeout() {
 
     let output = environment.run(&["smoke", "--live", "--timeout", "3"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live smoke JSON");
-    server.join().expect("fixture server");
 
     assert_eq!(
         (
@@ -354,6 +353,7 @@ fn live_smoke_drains_large_child_output_without_false_timeout() {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
+    server.join().expect("fixture server");
 }
 
 #[test]
@@ -375,7 +375,6 @@ fn live_smoke_enforces_one_hard_deadline_across_retries() {
     let output = environment.run(&["smoke", "--live", "--timeout", "1"]);
     let elapsed = started.elapsed();
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live smoke JSON");
-    server.join().expect("fixture server");
 
     assert_eq!(
         (
@@ -396,6 +395,7 @@ fn live_smoke_enforces_one_hard_deadline_across_retries() {
         elapsed < Duration::from_millis(2500),
         "live smoke exceeded its hard deadline: {elapsed:?}"
     );
+    server.join().expect("fixture server");
 }
 
 #[test]
