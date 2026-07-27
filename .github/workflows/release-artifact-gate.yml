@@ -1,0 +1,258 @@
+name: Release artifact gate
+
+on:
+  workflow_call:
+    inputs:
+      plan:
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  verify-checksums:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download draft Release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PLAN: ${{ inputs.plan }}
+        run: |
+          tag=$(jq -r '.announcement_tag' <<< "$PLAN")
+          mkdir artifacts
+          for target in \
+            aarch64-apple-darwin \
+            aarch64-unknown-linux-gnu \
+            x86_64-apple-darwin \
+            x86_64-unknown-linux-gnu
+          do
+            gh release download "$tag" \
+              --pattern "forager-$target.tar.xz" \
+              --pattern "forager-$target.tar.xz.sha256" \
+              --dir artifacts
+          done
+          gh release download "$tag" \
+            --pattern "forager-x86_64-pc-windows-msvc.zip" \
+            --pattern "forager-x86_64-pc-windows-msvc.zip.sha256" \
+            --dir artifacts
+      - name: Verify archive checksums
+        working-directory: artifacts
+        run: |
+          checksum_count=$(find . -type f -name '*.sha256' | wc -l | tr -d ' ')
+          test "$checksum_count" -eq 5
+          find . -type f -name '*.sha256' -print0 |
+            while IFS= read -r -d '' checksum; do
+              sha256sum --check "$checksum"
+            done
+
+  verify-unix:
+    needs: verify-checksums
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            runner: macos-14
+            host_arch: arm64
+            file_arch: arm64
+          - target: aarch64-unknown-linux-gnu
+            runner: ubuntu-22.04-arm
+            host_arch: aarch64
+            file_arch: aarch64
+          - target: x86_64-apple-darwin
+            runner: macos-15-intel
+            host_arch: x86_64
+            file_arch: x86_64
+          - target: x86_64-unknown-linux-gnu
+            runner: ubuntu-22.04
+            host_arch: x86_64
+            file_arch: x86-64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Download draft Release asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PLAN: ${{ inputs.plan }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          tag=$(jq -r '.announcement_tag' <<< "$PLAN")
+          gh release download "$tag" \
+            --pattern "forager-$TARGET.tar.xz" \
+            --dir artifacts
+      - name: Verify installed binary
+        shell: bash
+        env:
+          PLAN: ${{ inputs.plan }}
+          TARGET: ${{ matrix.target }}
+          HOST_ARCH: ${{ matrix.host_arch }}
+          FILE_ARCH: ${{ matrix.file_arch }}
+        run: |
+          set -euo pipefail
+          version=$(jq -r '.releases[0].app_version' <<< "$PLAN")
+          install_dir="$RUNNER_TEMP/forager-release"
+          config_dir="$RUNNER_TEMP/forager-config"
+          state_dir="$RUNNER_TEMP/forager-state"
+          home_dir="$RUNNER_TEMP/forager-home"
+          mkdir -p "$install_dir" "$state_dir" "$home_dir"
+          install -d -m 700 "$config_dir"
+          tar -xJf "artifacts/forager-$TARGET.tar.xz" -C "$install_dir"
+          binary=$(find "$install_dir" -type f -name forager -print -quit)
+          test -n "$binary"
+          test -x "$binary"
+          test "$(uname -m)" = "$HOST_ARCH"
+          file "$binary" | grep -F "$FILE_ARCH"
+          binary_dir=$(dirname "$binary")
+          PATH="$binary_dir:$PATH"
+          export PATH
+          test "$(command -v forager)" = "$binary"
+          test "$(forager --version)" = "forager $version"
+          printf '%s\n' \
+            '[providers.xai]' \
+            'keys = ["release-gate"]' \
+            '[providers.openai_compatible]' \
+            'url = "https://example.invalid/v1"' \
+            'keys = ["release-gate"]' \
+            'model = "release-gate"' \
+            '[providers.tavily]' \
+            'keys = ["release-gate"]' \
+            '[providers.firecrawl]' \
+            'keys = ["release-gate"]' \
+            '[providers.jina]' \
+            'keys = ["release-gate"]' \
+            '[providers.context7]' \
+            'keys = ["release-gate"]' \
+            '[providers.exa]' \
+            'keys = ["release-gate"]' \
+            '[providers.anysearch]' \
+            'keys = ["release-gate"]' \
+            > "$config_dir/config.toml"
+          chmod 600 "$config_dir/config.toml"
+          doctor=$(FORAGER_CONFIG_DIR="$config_dir" XDG_STATE_HOME="$state_dir" \
+            HOME="$home_dir" forager doctor --timeout 1)
+          jq -e '
+            .ok == true
+            and .mode == "shallow"
+            and ([.providers[] | select(.configured)] | length) == 8
+            and .config.providers.exa.keys.source == "file"
+            and (.permission_warnings | length) == 0
+          ' <<< "$doctor"
+
+  verify-windows:
+    needs: verify-checksums
+    runs-on: windows-2022
+    steps:
+      - name: Download draft Release asset
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PLAN: ${{ inputs.plan }}
+        run: |
+          $tag = ($env:PLAN | ConvertFrom-Json).announcement_tag
+          gh release download $tag `
+            --pattern "forager-x86_64-pc-windows-msvc.zip" `
+            --dir artifacts
+      - name: Verify installed binary
+        shell: pwsh
+        env:
+          PLAN: ${{ inputs.plan }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $version = ($env:PLAN | ConvertFrom-Json).releases[0].app_version
+          $installDir = Join-Path $env:RUNNER_TEMP "forager-release"
+          $configDir = Join-Path $env:RUNNER_TEMP "forager-config"
+          $stateDir = Join-Path $env:RUNNER_TEMP "forager-state"
+          New-Item -ItemType Directory -Force $installDir, $configDir, $stateDir | Out-Null
+          Expand-Archive artifacts/forager-x86_64-pc-windows-msvc.zip $installDir
+          $binary = Get-ChildItem $installDir -Recurse -File -Filter forager.exe |
+            Select-Object -First 1
+          if ($null -eq $binary) {
+            throw "forager.exe is missing"
+          }
+          $stream = [System.IO.File]::OpenRead($binary.FullName)
+          try {
+            $reader = [System.Reflection.PortableExecutable.PEReader]::new($stream)
+            $machine = $reader.PEHeaders.CoffHeader.Machine
+            if ($machine -ne [System.Reflection.PortableExecutable.Machine]::Amd64) {
+              throw "unexpected PE Machine: $machine"
+            }
+          } finally {
+            $stream.Dispose()
+          }
+          $env:PATH = "$($binary.DirectoryName);$env:PATH"
+          if ((Get-Command forager).Source -ne $binary.FullName) {
+            throw "PATH does not resolve the release binary"
+          }
+          if ((forager --version) -ne "forager $version") {
+            throw "release binary version mismatch"
+          }
+          $config = @'
+          [providers.xai]
+          keys = ["release-gate"]
+          [providers.openai_compatible]
+          url = "https://example.invalid/v1"
+          keys = ["release-gate"]
+          model = "release-gate"
+          [providers.tavily]
+          keys = ["release-gate"]
+          [providers.firecrawl]
+          keys = ["release-gate"]
+          [providers.jina]
+          keys = ["release-gate"]
+          [providers.context7]
+          keys = ["release-gate"]
+          [providers.exa]
+          keys = ["release-gate"]
+          [providers.anysearch]
+          keys = ["release-gate"]
+          '@
+          Set-Content -Encoding utf8 (Join-Path $configDir "config.toml") $config
+          $env:FORAGER_CONFIG_DIR = $configDir
+          $env:XDG_STATE_HOME = $stateDir
+          $env:HOME = Join-Path $env:RUNNER_TEMP "forager-home"
+          $doctor = forager doctor --timeout 1 | ConvertFrom-Json
+          if (!$doctor.ok -or $doctor.mode -ne "shallow") {
+            throw "doctor did not accept the migrated configuration"
+          }
+          $configured = @($doctor.providers | Where-Object configured)
+          if ($configured.Count -ne 8) {
+            throw "doctor did not load all migrated provider credentials"
+          }
+
+  record-gate:
+    needs:
+      - verify-checksums
+      - verify-unix
+      - verify-windows
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Record release gate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PLAN: ${{ inputs.plan }}
+        run: |
+          version=$(jq -r '.releases[0].app_version' <<< "$PLAN")
+          tag=$(jq -r '.announcement_tag' <<< "$PLAN")
+          jq -n \
+            --arg version "$version" \
+            --arg tag "$tag" \
+            --arg shell "curl --proto '=https' --tlsv1.2 -LsSf https://github.com/jfmoe/forager/releases/download/$tag/forager-installer.sh | sh" \
+            --arg powershell "powershell -ExecutionPolicy Bypass -c \"irm https://github.com/jfmoe/forager/releases/download/$tag/forager-installer.ps1 | iex\"" \
+            '{
+              release_version: $version,
+              release_tag: $tag,
+              result: "passed",
+              verified_targets: [
+                "aarch64-apple-darwin",
+                "aarch64-unknown-linux-gnu",
+                "x86_64-apple-darwin",
+                "x86_64-unknown-linux-gnu",
+                "x86_64-pc-windows-msvc"
+              ],
+              install: {shell: $shell, powershell: $powershell}
+            }' > release-gate.json
+          gh release upload "$tag" release-gate.json
+      - uses: actions/upload-artifact@v6
+        with:
+          name: artifacts-release-gate
+          path: release-gate.json

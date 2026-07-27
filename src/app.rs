@@ -29,7 +29,7 @@ pub use crate::types::ExaOutcome;
 
 /// Parsed `forager` command-line arguments.
 #[derive(Debug, Parser)]
-#[command(name = "forager", infer_subcommands = false)]
+#[command(name = "forager", version, infer_subcommands = false)]
 pub struct Cli {
     #[command(subcommand)]
     command: Command,

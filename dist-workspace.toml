@@ -9,12 +9,26 @@ cargo-dist-version = "0.31.0"
 ci = "github"
 # Where to host releases
 hosting = "github"
+# Generate SHA-256 metadata for every archive
+checksum = "sha256"
 # The installers to generate for each app
 installers = ["shell", "powershell"]
 # Target platforms to build apps for (Rust target-triple syntax)
 targets = ["aarch64-apple-darwin", "aarch64-unknown-linux-gnu", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
 # Which actions to run on pull requests
 pr-run-mode = "plan"
+# Release tags are supplied explicitly by release-plz
+dispatch-releases = true
+# Upload assets to a draft that release-plz creates
+create-release = false
+# Keep the generated workflow except for moving undraft after the artifact gate
+allow-dirty = ["ci"]
+# Upload assets before running publish gates
+github-release = "host"
+# Verify draft Release assets before dist publishes the Release
+publish-jobs = ["./release-artifact-gate"]
+# Allow the gate to read and attach assets on the draft Release
+github-custom-job-permissions = { "release-artifact-gate" = { contents = "write" } }
 # Whether to enable GitHub Attestations
 github-attestations = true
 # Path that installers should place binaries in

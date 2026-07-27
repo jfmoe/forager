@@ -1,4 +1,5 @@
 use std::fs;
+use std::process::Command;
 
 #[test]
 fn ci_uses_the_repository_toolchain_and_runs_every_pull_request_gate() {
@@ -37,7 +38,25 @@ fn ci_uses_the_repository_toolchain_and_runs_every_pull_request_gate() {
 }
 
 #[test]
-fn dist_scaffold_is_validated_on_pull_requests() {
+fn released_binary_reports_the_cargo_package_version() {
+    let output = Command::new(env!("CARGO_BIN_EXE_forager"))
+        .arg("--version")
+        .output()
+        .expect("run forager");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            String::from_utf8_lossy(&output.stdout).trim().to_owned(),
+        ),
+        (Some(0), format!("forager {}", env!("CARGO_PKG_VERSION"))),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn dist_dispatches_draft_releases_through_the_artifact_gate() {
     let source = fs::read_to_string("dist-workspace.toml").expect("read dist config");
     let config: toml::Value = toml::from_str(&source).expect("parse dist config");
     let workflow = fs::read_to_string(".github/workflows/release.yml").expect("read dist workflow");
@@ -46,15 +65,106 @@ fn dist_scaffold_is_validated_on_pull_requests() {
         (
             config["dist"]["ci"].as_str(),
             config["dist"]["pr-run-mode"].as_str(),
+            config["dist"]["checksum"].as_str(),
+            config["dist"]["dispatch-releases"].as_bool(),
+            config["dist"]["create-release"].as_bool(),
+            config["dist"]["github-release"].as_str(),
+            config["dist"]["allow-dirty"].as_array(),
+            config["dist"]["publish-jobs"].as_array(),
+            config["dist"]["github-custom-job-permissions"]["release-artifact-gate"]["contents"]
+                .as_str(),
             workflow.contains("pull_request:"),
             workflow.contains("cargo-dist/releases/download/v0.31.0"),
         ),
-        (Some("github"), Some("plan"), true, true)
+        (
+            Some("github"),
+            Some("plan"),
+            Some("sha256"),
+            Some(true),
+            Some(false),
+            Some("host"),
+            Some(&vec![toml::Value::String("ci".into())]),
+            Some(&vec![toml::Value::String("./release-artifact-gate".into())]),
+            Some("write"),
+            true,
+            true,
+        )
+    );
+    assert!(
+        workflow.contains("custom-release-artifact-gate")
+            && workflow.contains("- custom-release-artifact-gate"),
+        "dist announce must wait for the artifact gate"
+    );
+    let upload = workflow
+        .find("gh release upload")
+        .expect("draft asset upload");
+    let gate = workflow
+        .find("\n  custom-release-artifact-gate:")
+        .expect("artifact gate job");
+    let publish = workflow
+        .rfind("gh release edit")
+        .expect("verified Release publish");
+    assert!(
+        upload < gate && gate < publish && workflow.contains("--draft=false"),
+        "the draft Release must be published only after the artifact gate"
     );
 }
 
 #[test]
-fn release_plz_scaffold_owns_versions_without_publishing_crates() {
+fn dist_supports_the_declared_release_targets() {
+    let source = fs::read_to_string("dist-workspace.toml").expect("read dist config");
+    let config: toml::Value = toml::from_str(&source).expect("parse dist config");
+    let targets = config["dist"]["targets"]
+        .as_array()
+        .expect("dist targets")
+        .iter()
+        .map(|target| target.as_str().expect("target string"))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        targets,
+        [
+            "aarch64-apple-darwin",
+            "aarch64-unknown-linux-gnu",
+            "x86_64-apple-darwin",
+            "x86_64-unknown-linux-gnu",
+            "x86_64-pc-windows-msvc",
+        ]
+    );
+}
+
+#[test]
+fn release_gate_installs_and_verifies_every_draft_release_asset() {
+    let gate = fs::read_to_string(".github/workflows/release-artifact-gate.yml")
+        .expect("read release artifact gate");
+
+    for required_fragment in [
+        "aarch64-apple-darwin",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-apple-darwin",
+        "x86_64-unknown-linux-gnu",
+        "x86_64-pc-windows-msvc",
+        "gh release download",
+        "checksum_count",
+        "sha256sum --check",
+        "test -x",
+        "uname -m",
+        "command -v forager",
+        "forager --version",
+        "forager doctor",
+        "Machine",
+        "release-gate.json",
+        "artifacts-release-gate",
+    ] {
+        assert!(
+            gate.contains(required_fragment),
+            "release artifact gate is missing {required_fragment}"
+        );
+    }
+}
+
+#[test]
+fn release_plz_owns_version_tags_and_dispatches_dist_without_package_wrappers() {
     let source = fs::read_to_string("release-plz.toml").expect("read release-plz config");
     let config: toml::Value = toml::from_str(&source).expect("parse release-plz config");
     let workflow =
@@ -65,8 +175,29 @@ fn release_plz_scaffold_owns_versions_without_publishing_crates() {
             config["workspace"]["git_only"].as_bool(),
             config["workspace"]["publish"].as_bool(),
             config["workspace"]["git_release_enable"].as_bool(),
+            config["workspace"]["git_tag_enable"].as_bool(),
             workflow.contains("command: release-pr"),
+            workflow.contains("command: release"),
+            workflow.contains("actions: write"),
+            workflow.contains("gh release create"),
+            workflow.contains("--draft"),
+            workflow.contains("gh workflow run release.yml --field"),
         ),
-        (Some(true), Some(false), Some(false), true)
+        (
+            Some(true),
+            Some(false),
+            Some(false),
+            Some(true),
+            true,
+            true,
+            true,
+            true,
+            true,
+            true,
+        )
+    );
+    assert!(
+        !format!("{source}\n{workflow}").contains("npm"),
+        "release flow must not depend on npm"
     );
 }

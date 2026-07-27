@@ -8,7 +8,38 @@ on:
 permissions: {}
 
 jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - id: release
+        uses: release-plz/action@v0.5
+        with:
+          command: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Dispatch dist for released tags
+        if: steps.release.outputs.releases_created == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASES: ${{ steps.release.outputs.releases }}
+        run: |
+          jq -r '.[].tag' <<< "$RELEASES" | while IFS= read -r tag; do
+            if ! gh release view "$tag" >/dev/null 2>&1; then
+              gh release create "$tag" --draft --verify-tag --title "$tag" --generate-notes
+            fi
+            gh workflow run release.yml --field "tag=$tag"
+          done
+
   release-pr:
+    needs: release
     runs-on: ubuntu-latest
     permissions:
       contents: write
