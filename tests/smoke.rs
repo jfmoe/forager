@@ -26,9 +26,13 @@ impl SmokeEnvironment {
         let journal_dir = root.path().join("journal");
         fs::create_dir_all(&config_dir).expect("create config directory");
         fs::create_dir_all(&home_dir).expect("create home directory");
-        fs::write(config_dir.join("config.toml"), config(&journal_dir)).expect("write config");
-        make_private(&config_dir.join("config.toml"), 0o600);
-        make_private(&config_dir, 0o700);
+        forager::config::ensure_private_directory(&config_dir)
+            .expect("restrict config directory permissions");
+        let mut config_file = forager::config::create_private_file(&config_dir.join("config.toml"))
+            .expect("create private config file");
+        config_file
+            .write_all(config(&journal_dir).as_bytes())
+            .expect("write config");
         Self {
             _root: root,
             config_dir,
@@ -629,23 +633,3 @@ fn serve_once(content_type: &'static str, body: String) -> (String, thread::Join
     });
     (endpoint, server)
 }
-
-#[cfg(unix)]
-fn make_private(path: &Path, mode: u32) {
-    use std::os::unix::fs::PermissionsExt;
-
-    fs::set_permissions(path, fs::Permissions::from_mode(mode)).expect("set private permissions");
-}
-
-#[cfg(windows)]
-fn make_private(path: &Path, _mode: u32) {
-    if path.is_dir() {
-        forager::config::ensure_private_directory(path)
-            .expect("restrict Windows directory permissions");
-    } else {
-        forager::config::create_private_file(path).expect("restrict Windows file permissions");
-    }
-}
-
-#[cfg(not(any(unix, windows)))]
-fn make_private(_path: &Path, _mode: u32) {}
