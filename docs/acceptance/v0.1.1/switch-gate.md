@@ -18,7 +18,8 @@ Release workflow: [30288281134](https://github.com/jfmoe/forager/actions/runs/30
 
 - The migrated configuration contains credentials for xAI, OpenAI-compatible, Tavily, Firecrawl, Jina, Context7, Exa, and AnySearch.
 - The configuration directory and file modes are `0700` and `0600`.
-- `doctor --timeout 60` returned `ok=true`, with all eight providers configured and no permission warnings. Jina's shallow reachability check was transiently false; `doctor --provider jina --timeout 120` then passed its real fetch check.
+- `doctor --timeout 60` returned `ok=true`, with all eight providers configured and no permission warnings. Jina's shallow reachability check was transiently false.
+- L0.1-L0.8 then ran `doctor --provider <provider> --timeout 120` separately for xAI, OpenAI-compatible, Tavily, Firecrawl, Jina, Context7, Exa, and AnySearch. All eight deep probes passed, covering nine checks across SSE, HTTP, and MCP transports.
 - Manual P1 returned a non-empty answer with ten sources and both `docs_search` and `web_search`.
 - Manual P2 used a classifier-generated plan, returned verified evidence and a non-empty final answer, closed its gap check, and wrote its journal.
 - Manual C14 returned three `academic.search` results for the explicit `academic.search` domain pair.
