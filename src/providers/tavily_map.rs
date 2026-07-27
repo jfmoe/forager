@@ -10,6 +10,8 @@ use crate::providers::ProviderError;
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute};
 use crate::types::{AttemptErrorKind, Deadline, MapOutcome};
 
+const TAVILY_MAP_MAX_TIMEOUT_SECONDS: u64 = 180;
+
 #[derive(Clone, Debug)]
 pub(crate) struct MapRequest {
     pub(crate) url: String,
@@ -158,7 +160,7 @@ impl<'a> From<&'a MapRequest> for TavilyMapBody<'a> {
             max_depth: request.max_depth,
             max_breadth: request.max_breadth,
             limit: request.limit,
-            timeout: request.timeout_seconds,
+            timeout: request.timeout_seconds.min(TAVILY_MAP_MAX_TIMEOUT_SECONDS),
         }
     }
 }

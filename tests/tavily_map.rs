@@ -82,6 +82,27 @@ fn map_sends_tavily_options_and_normalizes_site_results() {
 }
 
 #[test]
+fn map_caps_the_provider_timeout_below_the_command_deadline() {
+    let fixture = Fixture::start(
+        200,
+        "application/json",
+        r#"{"base_url":"https://docs.example.test","results":["https://docs.example.test"]}"#,
+    );
+    let environment = RunEnvironment::new(&map_config(&fixture.url, &["tavily-key"]));
+
+    let output = environment.run(&["map", "https://docs.example.test", "--timeout", "600"]);
+    let request = fixture.finish();
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(request.contains("\"timeout\":180"), "{request}");
+}
+
+#[test]
 fn map_treats_an_empty_site_as_a_successful_result() {
     let fixture = Fixture::start(
         200,
