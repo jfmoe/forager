@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1](https://github.com/jfmoe/forager/compare/v0.1.0...v0.1.1) - 2026-07-27
+
+### Fixed
+
+- retain xai network error context
+- cover every research subquestion
+- resolve release assets outside a checkout
+
+### Other
+
+- reserve time for smoke outage probes
+- give smoke retries a portable deadline
+- bypass proxies for smoke loopback fixtures
+- preserve Windows system root for smoke children
+- expose direct live case diagnostics
+- assert smoke results before joining fixtures
+- build smoke config with private primitives
+- restrict smoke files before parent directory
+
 ## [0.1.0](https://github.com/jfmoe/forager/releases/tag/v0.1.0) - 2026-07-27
 
 ### Added
