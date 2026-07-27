@@ -153,7 +153,7 @@ impl Xai {
                     AttemptErrorKind::Network
                 },
                 status: error.status().map(|status| status.as_u16()),
-                message: self.redacted_message(&error.to_string()),
+                message: self.redacted_message(&format!("{error:?}")),
             })?;
         let status = response.status();
         if !status.is_success() {
