@@ -624,7 +624,9 @@ fn run_case_once(
     let commands = command_specs(case_id, runtime, timeout_seconds)
         .ok_or("registered live case has no execution mapping")?;
     for mut command in commands {
-        command.arguments.push("--verbose".into());
+        if command.arguments.first().map(String::as_str) != Some("smoke") {
+            command.arguments.push("--verbose".into());
+        }
         let mut process = Command::new(&executable);
         process.args(&command.arguments);
         process.env("FORAGER_RETRY__MAX_ATTEMPTS", "1");
@@ -751,7 +753,7 @@ fn command_specs(
                     "research",
                     RESEARCH_CANARY_QUERY,
                     "--budget",
-                    "quick",
+                    "standard",
                     "--evidence-dir",
                     &evidence_dir,
                     "--timeout",

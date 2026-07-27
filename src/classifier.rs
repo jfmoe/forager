@@ -237,6 +237,10 @@ impl Classifier {
         spec: &DecisionSpec<T>,
     ) -> Result<(u16, T), AttemptFailure> {
         let endpoint = format!("{}/chat/completions", self.config.url.trim_end_matches('/'));
+        let instruction = format!(
+            "Return only a JSON object that matches the following JSON Schema exactly. Do not wrap it in Markdown or code fences.\n\nJSON Schema:\n{}\n\n{}",
+            spec.schema, spec.instruction
+        );
         let response = self
             .client
             .post(endpoint)
@@ -247,7 +251,7 @@ impl Classifier {
                 "messages": [
                     {
                         "role": "system",
-                        "content": spec.instruction
+                        "content": instruction
                     },
                     {
                         "role": "user",
