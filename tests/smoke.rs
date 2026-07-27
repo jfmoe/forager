@@ -160,7 +160,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
     let endpoint = "http://127.0.0.1:9";
     let environment = SmokeEnvironment::new(|journal_dir| minimal_config(endpoint, journal_dir));
 
-    let failed = environment.run(&["smoke", "--live", "--timeout", "1"]);
+    let failed = environment.run(&["smoke", "--live", "--timeout", "5"]);
     let failed_payload: Value =
         serde_json::from_slice(&failed.stdout).expect("parse failed live smoke JSON");
     let failed_c01 = case(&failed_payload, "C01");
