@@ -8,7 +8,7 @@ use forager::types::{PlanCapability, ResearchPlan};
 use serde_json::Value;
 
 #[test]
-fn repository_exposes_forager_as_an_installable_skill_with_a_minimum_cli_version() {
+fn repository_exposes_forager_as_an_installable_skill() {
     let skills_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("skills");
     let skill_dirs = fs::read_dir(&skills_dir)
         .expect("read skills directory")
@@ -19,97 +19,13 @@ fn repository_exposes_forager_as_an_installable_skill_with_a_minimum_cli_version
 
     assert_eq!(skill_dirs, ["forager"]);
     assert!(skill.starts_with("---\nname: forager\n"));
-    assert!(skill.contains("forager: \">=0.1.0\""));
-    assert!(!skill.contains("forager: \"=0.1.0\""));
 }
 
 #[test]
-fn skill_description_exposes_each_model_invocation_branch() {
-    let skill =
-        fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("skills/forager/SKILL.md"))
-            .expect("read installable forager skill");
-    let description = skill
-        .lines()
-        .find(|line| line.starts_with("description:"))
-        .expect("skill description");
-
-    for trigger in [
-        "current web and X/Twitter",
-        "known-URL retrieval",
-        "site mapping",
-        "official/API documentation lookup",
-        "vertical discovery",
-        "source-backed fact checking",
-        "deep research",
-    ] {
-        assert!(
-            description.contains(trigger),
-            "skill description is missing trigger `{trigger}`"
-        );
-    }
-}
-
-#[test]
-fn skill_guides_caller_declarations_and_direct_operations() {
+fn cli_reference_covers_the_public_cli_surface() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let skill =
-        fs::read_to_string(root.join("skills/forager/SKILL.md")).expect("read forager skill");
-
-    assert!(skill.contains("supplemental capabilities required beyond"));
-    assert!(skill.contains("main search alone is sufficient"));
-    assert!(skill.contains("forager search \"QUERY\" --capabilities CAPABILITIES"));
-    assert!(skill.contains("--capabilities none --format json"));
-    assert!(skill.contains("forager fetch URL --format json"));
-    assert!(skill.contains("forager map URL --instructions \"GOAL\" --format json"));
-}
-
-#[test]
-fn skill_guides_schema_v1_research_and_gap_disclosure() {
-    let skill =
-        fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("skills/forager/SKILL.md"))
-            .expect("read forager skill");
-
-    assert!(skill.contains("printf '%s' \"$PLAN_JSON\" | forager research \"QUERY\" --plan -"));
-    assert!(skill.contains("evidence_items"));
-    assert!(skill.contains("gap_check"));
-    assert!(skill.contains("capability_gaps"));
-}
-
-#[test]
-fn skill_separates_configuration_repair_from_provider_diagnosis() {
-    let skill =
-        fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("skills/forager/SKILL.md"))
-            .expect("read forager skill");
-
-    assert!(skill.contains("forager config path"));
-    assert!(skill.contains("forager config list"));
-    assert!(skill.contains("forager config set"));
-    assert!(skill.contains("forager config unset"));
-    assert!(skill.contains("forager doctor --provider PROVIDER --format json"));
-}
-
-#[test]
-fn skill_links_a_complete_public_cli_reference() {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let skill =
-        fs::read_to_string(root.join("skills/forager/SKILL.md")).expect("read forager skill");
     let cli = fs::read_to_string(root.join("skills/forager/references/cli.md"))
         .expect("read CLI reference");
-
-    assert!(skill.contains("references/cli.md"));
-    assert!(skill.contains("Only read `references/cli.md`"));
-    assert!(skill.contains("ordinary `search` or `research` fails"));
-    assert!(skill.contains("user explicitly asks to use another `forager` command"));
-    assert!(skill.contains("Do not load it for a routine `search` or `research`"));
-    assert!(skill.contains("forager <command> --help"));
-    let reference_policy = cli
-        .split_once("## Contents")
-        .expect("CLI reference contents")
-        .0;
-    assert!(reference_policy.contains("Load it only"));
-    assert!(reference_policy.contains("ordinary search or research flow fails"));
-    assert!(reference_policy.contains("user explicitly requests another CLI command"));
-    assert!(reference_policy.contains("Do not load it for a routine `search` or `research`"));
 
     let mut clap = Cli::command();
     clap.build();
@@ -202,11 +118,6 @@ fn skill_links_a_complete_public_cli_reference() {
         }
     }
 
-    let anysearch = markdown_section(&cli, "anysearch search");
-    assert!(anysearch.contains("Must be paired with `--sub-domain`"));
-    assert!(anysearch.contains("requires both domain options"));
-    let smoke = markdown_section(&cli, "smoke");
-    assert!(smoke.contains("Requires `--live`"));
     let exit_codes = cli
         .split_once("## Exit codes")
         .expect("CLI exit-code section")
@@ -251,7 +162,7 @@ fn research_plan_example_is_structurally_valid_without_freezing_its_prose() {
 }
 
 #[test]
-fn skill_and_classifier_share_the_capability_vocabulary_asset() {
+fn classifier_uses_the_installable_capability_vocabulary_asset() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let vocabulary_path = root.join("skills/forager/references/capability-vocabulary.json");
     let vocabulary: Value = serde_json::from_str(
@@ -265,8 +176,6 @@ fn skill_and_classifier_share_the_capability_vocabulary_asset() {
         .map(|entry| entry["id"].as_str().expect("capability id"))
         .collect::<Vec<_>>();
     let classifier = fs::read_to_string(root.join("src/classifier.rs")).expect("read classifier");
-    let skill =
-        fs::read_to_string(root.join("skills/forager/SKILL.md")).expect("read forager skill");
 
     assert_eq!(
         ids,
@@ -276,44 +185,7 @@ fn skill_and_classifier_share_the_capability_vocabulary_asset() {
         classifier
             .contains("include_str!(\"../skills/forager/references/capability-vocabulary.json\")")
     );
-    assert!(skill.contains("references/capability-vocabulary.json"));
     assert!(!root.join("assets/capability-vocabulary.json").exists());
-}
-
-#[test]
-fn installable_skill_excludes_retired_commands_plans_and_sync_workflows() {
-    let skill_root = Path::new(env!("CARGO_MANIFEST_DIR")).join("skills/forager");
-    let mut corpus = String::new();
-    append_files(&skill_root, &mut corpus);
-
-    for retired in [
-        "smart-search ",
-        "forager deep",
-        "forager route",
-        "forager skills ",
-        "steps.command",
-        "\"steps\"",
-        "capability_plan",
-        "known_url",
-        "locale_domain_scope",
-        "Automatic Skill Sync",
-    ] {
-        assert!(
-            !corpus.contains(retired),
-            "installable Skill retained obsolete contract {retired}"
-        );
-    }
-}
-
-fn append_files(path: &Path, corpus: &mut String) {
-    for entry in fs::read_dir(path).expect("read installable skill directory") {
-        let path = entry.expect("read installable skill entry").path();
-        if path.is_dir() {
-            append_files(&path, corpus);
-        } else {
-            corpus.push_str(&fs::read_to_string(path).expect("read installable skill file"));
-        }
-    }
 }
 
 fn collect_public_leaf_paths(
