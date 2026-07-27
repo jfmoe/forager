@@ -5,7 +5,6 @@ edition = "2024"
 description = "A capability-oriented research CLI"
 repository = "https://github.com/jfmoe/forager"
 license = "MIT"
-publish = false
 
 [package.metadata.dist]
 dist = true
