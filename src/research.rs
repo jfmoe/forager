@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -256,6 +256,13 @@ pub(crate) async fn execute(
             );
         }
     }
+    let subquestion_ids = request
+        .plan
+        .decomposition
+        .iter()
+        .map(|subquestion| subquestion.id.clone())
+        .collect::<Vec<_>>();
+    let candidates = interleave_candidates(candidates, &subquestion_ids);
 
     let mut evidence_items = Vec::new();
     let mut seen_urls = HashSet::new();
@@ -345,6 +352,21 @@ pub(crate) async fn execute(
                     url: Some(crate::config::redact_url(&url)),
                 });
             }
+        }
+    }
+    for subquestion in &request.plan.decomposition {
+        let has_evidence = evidence_items
+            .iter()
+            .any(|item| item.subquestion_id == subquestion.id);
+        let has_gap = research_gaps
+            .iter()
+            .any(|gap| gap.subquestion_id == subquestion.id);
+        if !has_evidence && !has_gap {
+            research_gaps.push(ResearchGap {
+                subquestion_id: subquestion.id.clone(),
+                reason: "no verified evidence was collected for this subquestion".into(),
+                url: None,
+            });
         }
     }
 
@@ -478,6 +500,40 @@ pub(crate) async fn execute(
         )
     })?;
     Ok(outcome)
+}
+
+fn interleave_candidates(candidates: Vec<Candidate>, subquestion_ids: &[String]) -> Vec<Candidate> {
+    let mut by_subquestion = subquestion_ids
+        .iter()
+        .cloned()
+        .map(|id| (id, VecDeque::new()))
+        .collect::<HashMap<_, _>>();
+    let mut unmatched = VecDeque::new();
+    for candidate in candidates {
+        if let Some(group) = by_subquestion.get_mut(&candidate.subquestion_id) {
+            group.push_back(candidate);
+        } else {
+            unmatched.push_back(candidate);
+        }
+    }
+
+    let mut interleaved = Vec::new();
+    loop {
+        let mut added = false;
+        for id in subquestion_ids {
+            if let Some(candidate) = by_subquestion.get_mut(id).and_then(VecDeque::pop_front) {
+                interleaved.push(candidate);
+                added = true;
+            }
+        }
+        if let Some(candidate) = unmatched.pop_front() {
+            interleaved.push(candidate);
+            added = true;
+        }
+        if !added {
+            return interleaved;
+        }
+    }
 }
 
 fn push_evidence(

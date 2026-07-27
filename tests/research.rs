@@ -723,6 +723,152 @@ fn research_budget_limits_fetched_evidence_to_quick_standard_and_deep_caps() {
 }
 
 #[test]
+fn research_standard_budget_covers_each_subquestion_before_extra_evidence() {
+    let tavily = Fixture::start_sequence(vec![
+        Response::new(
+            200,
+            "application/json",
+            r#"{"results":[
+                {"title":"First A","url":"https://example.test/first-a"},
+                {"title":"First B","url":"https://example.test/first-b"},
+                {"title":"First C","url":"https://example.test/first-c"}
+            ]}"#,
+        ),
+        Response::new(
+            200,
+            "application/json",
+            r#"{"results":[
+                {"title":"Second A","url":"https://example.test/second-a"}
+            ]}"#,
+        ),
+    ]);
+    let jina = Fixture::start_sequence(
+        (1..=3)
+            .map(|index| {
+                Response::new(
+                    200,
+                    "text/markdown",
+                    &rich_content(&format!("Fetched {index}")),
+                )
+            })
+            .collect(),
+    );
+    let environment = RunEnvironment::new(&research_config(&tavily.url, &jina.url, false));
+    let mut plan = valid_plan(json!(["web_search"]));
+    plan["decomposition"]
+        .as_array_mut()
+        .expect("decomposition")
+        .push(json!({
+            "id": "sq2",
+            "question": "What contrasting evidence is available?",
+            "reason": "Cover the comparison target",
+            "required_capabilities": ["web_search"]
+        }));
+    let plan_path = write_plan(&environment, plan);
+
+    let output = environment.run(&[
+        "research",
+        "Compare two subjects",
+        "--plan",
+        plan_path.to_str().expect("UTF-8 path"),
+        "--budget",
+        "standard",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            payload["evidence_items"]
+                .as_array()
+                .expect("evidence items")
+                .iter()
+                .map(|item| item["subquestion_id"].as_str().expect("subquestion id"))
+                .collect::<Vec<_>>(),
+            &payload["gap_check"]["status"],
+        ),
+        (
+            Some(0),
+            vec!["sq1", "sq2", "sq1"],
+            &Value::String("closed".into()),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(tavily.finish_all().len(), 2);
+    assert_eq!(jina.finish_all().len(), 3);
+}
+
+#[test]
+fn research_discloses_a_subquestion_without_verified_evidence() {
+    let tavily = Fixture::start_sequence(vec![
+        Response::new(
+            200,
+            "application/json",
+            r#"{"results":[
+                {"title":"First A","url":"https://example.test/first-a"},
+                {"title":"First B","url":"https://example.test/first-b"},
+                {"title":"First C","url":"https://example.test/first-c"}
+            ]}"#,
+        ),
+        Response::new(200, "application/json", r#"{"results":[]}"#),
+    ]);
+    let jina = Fixture::start_sequence(
+        (1..=3)
+            .map(|index| {
+                Response::new(
+                    200,
+                    "text/markdown",
+                    &rich_content(&format!("Fetched {index}")),
+                )
+            })
+            .collect(),
+    );
+    let environment = RunEnvironment::new(&research_config(&tavily.url, &jina.url, false));
+    let mut plan = valid_plan(json!(["web_search"]));
+    plan["decomposition"]
+        .as_array_mut()
+        .expect("decomposition")
+        .push(json!({
+            "id": "sq2",
+            "question": "What contrasting evidence is available?",
+            "reason": "Cover the comparison target",
+            "required_capabilities": ["web_search"]
+        }));
+    let plan_path = write_plan(&environment, plan);
+
+    let output = environment.run(&[
+        "research",
+        "Compare two subjects",
+        "--plan",
+        plan_path.to_str().expect("UTF-8 path"),
+        "--budget",
+        "standard",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["gap_check"]["status"],
+            &payload["gap_check"]["gaps"],
+        ),
+        (
+            Some(0),
+            &Value::String("degraded".into()),
+            &json!([{
+                "subquestion_id": "sq2",
+                "reason": "no verified evidence was collected for this subquestion"
+            }]),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(tavily.finish_all().len(), 2);
+    assert_eq!(jina.finish_all().len(), 3);
+}
+
+#[test]
 fn research_fallback_off_executes_only_the_configured_chain_head() {
     let jina = Fixture::start(200, "text/markdown", "thin");
     let config = format!(

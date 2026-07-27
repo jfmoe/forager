@@ -1,0 +1,30 @@
+{
+  "plan_version": 1,
+  "intent_signals": {
+    "recency_requirement": "current",
+    "docs_api_intent": true,
+    "source_authority_need": "high",
+    "claim_risk": "medium",
+    "cross_validation_need": "high"
+  },
+  "decomposition": [
+    {
+      "id": "figment-layering",
+      "question": "How do Figment providers, profiles, merge and join define configuration layering and precedence in https://docs.rs/figment/latest/figment/struct.Figment.html?",
+      "reason": "Capture Figment's layering model from its maintained first-party contract.",
+      "required_capabilities": [
+        "docs_search",
+        "web_search"
+      ]
+    },
+    {
+      "id": "config-rs-layering",
+      "question": "How do config-rs ConfigBuilder sources, defaults, environment values and overrides define layering and precedence in https://docs.rs/config/latest/config/builder/struct.ConfigBuilder.html?",
+      "reason": "Capture config-rs's layering model from its maintained first-party contract for a direct comparison.",
+      "required_capabilities": [
+        "docs_search",
+        "web_search"
+      ]
+    }
+  ]
+}

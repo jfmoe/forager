@@ -1,0 +1,36 @@
+{
+  "plan_version": 1,
+  "intent_signals": {
+    "recency_requirement": "recent",
+    "docs_api_intent": false,
+    "source_authority_need": "normal",
+    "claim_risk": "medium",
+    "cross_validation_need": "high"
+  },
+  "decomposition": [
+    {
+      "id": "hacker-news",
+      "question": "What benefits or concerns did commenters raise in the 2026-07-21 Hacker News discussion at https://news.ycombinator.com/item?id=48996197 about AI making programming differently difficult?",
+      "reason": "Capture one large English-speaking developer community with an explicit one-month boundary.",
+      "required_capabilities": [
+        "web_search"
+      ]
+    },
+    {
+      "id": "reddit",
+      "question": "What benefits or concerns did commenters raise in the recent r/ClaudeCode discussion at https://www.reddit.com/r/ClaudeCode/comments/1ux4bbf/did_gpt56_break_claude_codes_moat_where_does/ about competing coding agents?",
+      "reason": "Cross-check themes in a second community while preserving the same time window.",
+      "required_capabilities": [
+        "web_search"
+      ]
+    },
+    {
+      "id": "chinese-communities",
+      "question": "What benefits or concerns did participants raise in the 2026-06-27 V2EX discussion at https://www.v2ex.com/t/1223254 about application development in the vibe-coding era?",
+      "reason": "Include Chinese-language developer communities rather than inferring a global consensus from English sources alone.",
+      "required_capabilities": [
+        "web_search"
+      ]
+    }
+  ]
+}

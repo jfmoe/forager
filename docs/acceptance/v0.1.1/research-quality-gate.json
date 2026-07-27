@@ -1,0 +1,53 @@
+{
+  "release_tag": "v0.1.1",
+  "rubric": [
+    {
+      "id": "relevance",
+      "criterion": "回答对准问题",
+      "result_type": "pass_fail"
+    },
+    {
+      "id": "source_deduplication",
+      "criterion": "无重复或近重复来源",
+      "result_type": "pass_fail"
+    },
+    {
+      "id": "citation_support",
+      "criterion": "每个主要主张可追溯到给出的 citation",
+      "result_type": "pass_fail"
+    }
+  ],
+  "questions": [
+    {
+      "id": "async-drop",
+      "literal": "Rust 的 async drop 现状与最新提案是什么？",
+      "plan": "research-plan-async-drop.json",
+      "required_coverage": [
+        "docs_search",
+        "web_search"
+      ]
+    },
+    {
+      "id": "config-layering",
+      "literal": "对比 figment 与 config-rs 的分层覆盖模型，给出出处",
+      "plan": "research-plan-config-layering.json",
+      "required_coverage": [
+        "docs_search",
+        "web_search"
+      ]
+    },
+    {
+      "id": "coding-agent-discussions",
+      "literal": "近一个月各大社区关于 Coding Agent 的讨论",
+      "plan": "research-plan-coding-agent-discussions.json",
+      "required_coverage": [
+        "web_search",
+        "x_search"
+      ],
+      "x_search_validation": {
+        "command": "FORAGER_SEARCH__BACKENDS='[\"xai\"]' FORAGER_SEARCH__FALLBACK=off FORAGER_PROVIDERS__XAI__TOOLS='[\"x_search\"]' forager search '近一个月各大社区关于 Coding Agent 的讨论' --capabilities web_search --extra-sources 2 --timeout 300",
+        "requirement": "The xAI primary search runs with the configured x_search tool and returns at least one non-duplicate X discussion source inside the one-month window."
+      }
+    }
+  ]
+}

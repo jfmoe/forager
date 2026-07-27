@@ -1,0 +1,30 @@
+{
+  "plan_version": 1,
+  "intent_signals": {
+    "recency_requirement": "current",
+    "docs_api_intent": true,
+    "source_authority_need": "high",
+    "claim_risk": "medium",
+    "cross_validation_need": "high"
+  },
+  "decomposition": [
+    {
+      "id": "current-status",
+      "question": "What do the current AsyncDrop API documentation at https://doc.rust-lang.org/std/future/trait.AsyncDrop.html and the Rust tracking issue at https://github.com/rust-lang/rust/issues/126482 say about support and stability?",
+      "reason": "Establish the implemented and stabilized baseline from first-party Rust sources.",
+      "required_capabilities": [
+        "docs_search",
+        "web_search"
+      ]
+    },
+    {
+      "id": "latest-proposal",
+      "question": "How did the accepted compiler-team proposal at https://github.com/rust-lang/compiler-team/issues/727 shape async destructors, and what does https://github.com/rust-lang/rust/issues/126482 show remains unresolved?",
+      "reason": "Identify the latest design direction separately from already shipped behavior.",
+      "required_capabilities": [
+        "docs_search",
+        "web_search"
+      ]
+    }
+  ]
+}
