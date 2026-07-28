@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.2](https://github.com/jfmoe/forager/compare/v0.1.1...v0.1.2) - 2026-07-28
+
+### Other
+
+- record smartsearch archive
+- record retirement cutover ([#23](https://github.com/jfmoe/forager/pull/23))
+- open v0.1.1 switch gate
+- record all L0 deep probes
+- record v0.1.1 switch gate evidence
+
 ## [0.1.1](https://github.com/jfmoe/forager/compare/v0.1.0...v0.1.1) - 2026-07-27
 
 ### Fixed
