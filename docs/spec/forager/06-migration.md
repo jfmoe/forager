@@ -11,7 +11,7 @@
 ## 退役链（唯一权威顺序）
 
 1. 正式 GitHub Release + 干净安装 + doctor 验证（含第 5 章 H10 制品门）。
-2. skill 先删旧后装新（同一清单步骤）：`rm -rf ~/.agents/skills/smart-search-cli` + 按旧 Skill Installation Preference 记录的 container 集合逐一清理 → `npx skills add jfmoe/forager`。新 skill 目录名与 `name` 为 `forager`（不同名使残留可检测）；声明**最低** forager 版本（不锁精确版本）；文档写明「同时发现两者时 smart-search-cli 为残留应删除」。发布顺序 binary 先 skill 后。
+2. skill 先删旧后装新（同一清单步骤）：`rm -rf ~/.agents/skills/smart-search-cli` + 按旧 Skill Installation Preference 记录的 container 集合逐一清理 → `npx skills add jfmoe/forager`。新 skill 目录名与 `name` 为 `forager`（不同名使残留可检测）；声明**最低** forager 版本（不锁精确版本）。发布顺序 binary 先 skill 后。
 3. npm `@jfmoe/smart-search` 发最后一个 patch（README/postinstall 指向 forager）→ `npm deprecate` 全版本，不 unpublish。
 4. 全局 CLAUDE.md 改指向 forager。
 5. Wayfinder 地图 `gh issue transfer` #52 及全部子票迁至 forager（旧仓自动重定向）；transfer 后做数量/链接/关系校验（M20）。
