@@ -202,3 +202,14 @@ fn release_plz_owns_version_tags_and_dispatches_dist_without_package_wrappers() 
         "release flow must not depend on npm"
     );
 }
+
+#[test]
+fn release_plz_runs_only_when_manually_dispatched() {
+    let workflow =
+        fs::read_to_string(".github/workflows/release-plz.yml").expect("read release-plz workflow");
+
+    assert!(
+        workflow.contains("on:\n  workflow_dispatch:\n") && !workflow.contains("\n  push:"),
+        "release-plz must not run on ordinary main pushes"
+    );
+}
