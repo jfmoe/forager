@@ -29,7 +29,23 @@ impl RetryPolicy {
 
     pub(crate) fn wait(self, retry_count: usize) -> Duration {
         let seconds = self.multiplier * retry_count as f64;
-        Duration::from_secs_f64(seconds).min(self.max_wait)
+        Duration::try_from_secs_f64(seconds)
+            .unwrap_or(self.max_wait)
+            .min(self.max_wait)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::time::Duration;
+
+    use super::RetryPolicy;
+
+    #[test]
+    fn retry_wait_clamps_overflowing_seconds_to_max_wait() {
+        let policy = RetryPolicy::new(3, f64::MAX, Duration::from_secs(10));
+
+        assert_eq!(policy.wait(2), Duration::from_secs(10));
     }
 }
 

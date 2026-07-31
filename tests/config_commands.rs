@@ -228,6 +228,25 @@ fn config_set_rejects_invalid_paths_and_values_as_arguments() {
 }
 
 #[test]
+fn config_set_rejects_a_non_finite_retry_multiplier() {
+    let config_dir = tempfile::tempdir().expect("create config directory");
+
+    let output = run(
+        config_dir.path(),
+        &["config", "set", "retry.multiplier", "inf"],
+        &[],
+        None,
+    );
+
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
 fn config_unset_warns_when_the_environment_still_overrides_the_key() {
     let config_dir = tempfile::tempdir().expect("create config directory");
     fs::write(
@@ -291,6 +310,25 @@ fn config_list_accepts_the_documented_integer_retry_multiplier() {
             Some(0),
             &serde_json::json!({"value": 1.0, "source": "file"}),
         ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn config_list_rejects_a_non_finite_retry_multiplier() {
+    let config_dir = tempfile::tempdir().expect("create config directory");
+    fs::write(
+        config_dir.path().join("config.toml"),
+        "[retry]\nmultiplier = inf\n",
+    )
+    .expect("write config");
+
+    let output = run(config_dir.path(), &["config", "list"], &[], None);
+
+    assert_eq!(
+        output.status.code(),
+        Some(3),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );

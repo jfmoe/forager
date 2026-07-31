@@ -1261,7 +1261,9 @@ fn validate_edit_value(path: &str, value: &Value) -> Result<(), EditError> {
         | "providers.firecrawl.timeout"
         | "providers.anysearch.timeout" => value.as_integer().is_some_and(|number| number > 0),
         "retry.max_attempts" => value.as_integer().is_some_and(|number| number >= 1),
-        "retry.multiplier" => value.as_float().is_some_and(|number| number > 0.0),
+        "retry.multiplier" => value
+            .as_float()
+            .is_some_and(|number| number.is_finite() && number > 0.0),
         "retry.max_wait" | "journal.retention_days" => {
             value.as_integer().is_some_and(|number| number >= 0)
         }
@@ -1532,7 +1534,7 @@ fn validate(config: &Config, path: &Path, content: &str) -> Result<(), ConfigErr
     if config.retry.max_attempts < 1 {
         return Err(value_error(path, content, "retry.max_attempts"));
     }
-    if config.retry.multiplier <= 0.0 {
+    if !config.retry.multiplier.is_finite() || config.retry.multiplier <= 0.0 {
         return Err(value_error(path, content, "retry.multiplier"));
     }
     if config.retry.max_wait < 0 {
