@@ -404,6 +404,75 @@ fn live_smoke_enforces_one_hard_deadline_across_retries() {
 }
 
 #[test]
+fn live_smoke_p2_does_not_write_evidence_into_the_configured_journal() {
+    let classifier_response = json!({
+        "choices": [{
+            "message": {
+                "content": json!({
+                    "plan_version": 1,
+                    "intent_signals": {
+                        "recency_requirement": "none",
+                        "docs_api_intent": false,
+                        "source_authority_need": "normal",
+                        "claim_risk": "medium",
+                        "cross_validation_need": "normal"
+                    },
+                    "decomposition": [{
+                        "id": "sq1",
+                        "question": "What evidence is available?",
+                        "reason": "Gather relevant evidence",
+                        "required_capabilities": []
+                    }]
+                })
+                .to_string()
+            }
+        }]
+    })
+    .to_string();
+    let listener = TcpListener::bind("127.0.0.1:0").expect("bind classifier fixture");
+    let classifier_url = format!(
+        "http://{}",
+        listener.local_addr().expect("classifier fixture address")
+    );
+    let classifier = thread::spawn(move || {
+        for _ in 0..3 {
+            let (mut stream, _) = listener.accept().expect("accept classifier request");
+            let mut request = [0_u8; 8192];
+            let _ = stream.read(&mut request).expect("read classifier request");
+            write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{classifier_response}",
+                classifier_response.len()
+            )
+            .expect("write classifier response");
+        }
+    });
+    let environment = SmokeEnvironment::new(|journal_dir| p2_config(&classifier_url, journal_dir));
+
+    let output = environment.run(&["smoke", "--live", "--timeout", "3"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live smoke JSON");
+
+    assert_eq!(
+        (
+            &case(&payload, "P2")["status"],
+            &case(&payload, "P2")["attempts"]
+        ),
+        (&Value::String("failed".into()), &Value::Number(3.into())),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        !environment
+            .journal_dir
+            .join("live-smoke-p2-evidence")
+            .exists(),
+        "P2 smoke evidence polluted the configured journal"
+    );
+    classifier.join().expect("classifier fixture");
+}
+
+#[test]
 fn offline_smoke_returns_config_error_for_invalid_configuration() {
     let secret = "invalid-config-secret";
     let environment = SmokeEnvironment::new(|_| {
@@ -602,6 +671,45 @@ dir = {journal_dir:?}
 fn minimal_config(endpoint: &str, journal_dir: &Path) -> String {
     format!(
         "[providers.xai]\nurl = {endpoint:?}\nkeys = [\"xai-secret\"]\n[journal]\ndir = {journal_dir:?}\n"
+    )
+}
+
+fn p2_config(classifier_url: &str, journal_dir: &Path) -> String {
+    format!(
+        r#"
+[classifier]
+url = {classifier_url:?}
+keys = ["classifier-secret"]
+model = "classifier-model"
+
+[providers.xai]
+url = "http://127.0.0.1:9"
+keys = ["xai-secret"]
+
+[providers.exa]
+url = "http://127.0.0.1:9"
+keys = ["exa-secret"]
+
+[providers.anysearch]
+url = "http://127.0.0.1:9"
+keys = ["anysearch-secret"]
+
+[providers.jina]
+url = "http://127.0.0.1:9"
+keys = ["jina-secret"]
+
+[capabilities.docs_search]
+order = ["exa"]
+
+[capabilities.vertical_search]
+order = ["anysearch"]
+
+[capabilities.web_fetch]
+order = ["jina"]
+
+[journal]
+dir = {journal_dir:?}
+"#
     )
 }
 

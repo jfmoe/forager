@@ -3,12 +3,15 @@ use std::fs;
 use std::io::{self, Read};
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::{self, RecvTimeoutError};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
 use serde_json::Value;
+use shared_child::SharedChild;
 
 use crate::config::{self, RuntimeConfig};
 use crate::credentials;
@@ -583,7 +586,7 @@ fn run_configured_case(
             break;
         }
         attempts = attempt;
-        match run_case_once(definition.id, runtime, deadline) {
+        match run_case_once(definition.id, deadline) {
             Ok(()) => {
                 return LiveCaseResult {
                     definition,
@@ -614,15 +617,19 @@ fn run_configured_case(
     }
 }
 
-fn run_case_once(
-    case_id: &str,
-    runtime: &RuntimeConfig,
-    deadline: Deadline,
-) -> Result<(), &'static str> {
+fn run_case_once(case_id: &str, deadline: Deadline) -> Result<(), &'static str> {
     let timeout_seconds = remaining_seconds(deadline).ok_or("live smoke hard deadline elapsed")?;
     let executable = std::env::current_exe().map_err(|_| "cannot resolve forager executable")?;
-    let commands = command_specs(case_id, runtime, timeout_seconds)
-        .ok_or("registered live case has no execution mapping")?;
+    let p2_evidence = (case_id == "P2")
+        .then(tempfile::tempdir)
+        .transpose()
+        .map_err(|_| "cannot create temporary P2 evidence directory")?;
+    let commands = command_specs(
+        case_id,
+        timeout_seconds,
+        p2_evidence.as_ref().map(tempfile::TempDir::path),
+    )
+    .ok_or("registered live case has no execution mapping")?;
     for mut command in commands {
         if command.arguments.first().map(String::as_str) != Some("smoke") {
             command.arguments.push("--verbose".into());
@@ -656,16 +663,13 @@ fn run_case_once(
 
 fn execute_with_deadline(mut command: Command, deadline: Deadline) -> Result<Output, &'static str> {
     command.stdout(Stdio::piped()).stderr(Stdio::piped());
-    let mut child = command
-        .spawn()
-        .map_err(|_| "cannot execute live case command")?;
+    let child =
+        Arc::new(SharedChild::spawn(&mut command).map_err(|_| "cannot execute live case command")?);
     let mut stdout = child
-        .stdout
-        .take()
+        .take_stdout()
         .ok_or("cannot capture live case stdout")?;
     let mut stderr = child
-        .stderr
-        .take()
+        .take_stderr()
         .ok_or("cannot capture live case stderr")?;
     let stdout_reader = thread::spawn(move || {
         let mut bytes = Vec::new();
@@ -675,36 +679,36 @@ fn execute_with_deadline(mut command: Command, deadline: Deadline) -> Result<Out
         let mut bytes = Vec::new();
         stderr.read_to_end(&mut bytes).map(|_| bytes)
     });
-    loop {
-        let Some(remaining) = deadline.remaining() else {
+    let (status_sender, status_receiver) = mpsc::sync_channel(1);
+    let waiting_child = Arc::clone(&child);
+    thread::spawn(move || {
+        let _ = status_sender.send(waiting_child.wait());
+    });
+    let remaining = deadline.remaining().unwrap_or_default();
+    let status = match status_receiver.recv_timeout(remaining) {
+        Ok(status) => status.map_err(|_| "cannot wait for live case command")?,
+        Err(RecvTimeoutError::Timeout) => {
             let _ = child.kill();
-            let _ = child.wait();
+            let _ = status_receiver.recv();
             let _ = stdout_reader.join();
             let _ = stderr_reader.join();
             return Err("live smoke hard deadline elapsed");
-        };
-        match child
-            .try_wait()
-            .map_err(|_| "cannot inspect live case command")?
-        {
-            Some(status) => {
-                let stdout = stdout_reader
-                    .join()
-                    .map_err(|_| "cannot collect live case stdout")?
-                    .map_err(|_| "cannot collect live case stdout")?;
-                let stderr = stderr_reader
-                    .join()
-                    .map_err(|_| "cannot collect live case stderr")?
-                    .map_err(|_| "cannot collect live case stderr")?;
-                return Ok(Output {
-                    status,
-                    stdout,
-                    stderr,
-                });
-            }
-            None => std::thread::sleep(remaining.min(Duration::from_millis(10))),
         }
-    }
+        Err(RecvTimeoutError::Disconnected) => return Err("cannot wait for live case command"),
+    };
+    let stdout = stdout_reader
+        .join()
+        .map_err(|_| "cannot collect live case stdout")?
+        .map_err(|_| "cannot collect live case stdout")?;
+    let stderr = stderr_reader
+        .join()
+        .map_err(|_| "cannot collect live case stderr")?
+        .map_err(|_| "cannot collect live case stderr")?;
+    Ok(Output {
+        status,
+        stdout,
+        stderr,
+    })
 }
 
 fn remaining_seconds(deadline: Deadline) -> Option<u64> {
@@ -718,8 +722,8 @@ fn remaining_seconds(deadline: Deadline) -> Option<u64> {
 
 fn command_specs(
     case_id: &str,
-    runtime: &RuntimeConfig,
     timeout_seconds: u64,
+    p2_evidence_dir: Option<&Path>,
 ) -> Option<Vec<CommandSpec>> {
     let timeout = timeout_seconds.to_string();
     let one = |arguments: &[&str], shape| {
@@ -742,12 +746,7 @@ fn command_specs(
             ResultShape::PipelineSearch,
         ),
         "P2" => {
-            let evidence_dir = runtime
-                .journal
-                .dir
-                .join("live-smoke-p2-evidence")
-                .display()
-                .to_string();
+            let evidence_dir = p2_evidence_dir?.display().to_string();
             one(
                 &[
                     "research",
@@ -1232,7 +1231,48 @@ fn check_permissions(path: &Path, expected: u32, label: &str, issues: &mut Vec<S
 
 #[cfg(test)]
 mod tests {
-    use super::{official_status_host, status_host_matches_endpoint, status_page_reports_outage};
+    use std::fs;
+    use std::process::Command;
+    use std::thread;
+    use std::time::{Duration, Instant};
+
+    use super::{
+        execute_with_deadline, official_status_host, status_host_matches_endpoint,
+        status_page_reports_outage,
+    };
+    use crate::types::Deadline;
+
+    #[test]
+    fn deadline_terminates_the_child_process() {
+        let root = tempfile::tempdir().expect("create marker root");
+        let marker = root.path().join("child-completed");
+        let mut command = Command::new(std::env::current_exe().expect("resolve test executable"));
+        command
+            .args([
+                "--exact",
+                "smoke::tests::deadline_child_writes_marker",
+                "--nocapture",
+            ])
+            .env("FORAGER_SMOKE_DEADLINE_MARKER", &marker);
+
+        let started = Instant::now();
+        let result = execute_with_deadline(command, Deadline::new(Duration::from_millis(50)));
+        let elapsed = started.elapsed();
+        thread::sleep(Duration::from_millis(1_100));
+
+        assert_eq!(result.unwrap_err(), "live smoke hard deadline elapsed");
+        assert!(elapsed < Duration::from_millis(500));
+        assert!(!marker.exists(), "timed-out child kept running");
+    }
+
+    #[test]
+    fn deadline_child_writes_marker() {
+        let Some(marker) = std::env::var_os("FORAGER_SMOKE_DEADLINE_MARKER") else {
+            return;
+        };
+        thread::sleep(Duration::from_secs(1));
+        fs::write(marker, "completed").expect("write completion marker");
+    }
 
     #[test]
     fn official_status_evidence_is_bound_to_the_case_provider() {
