@@ -498,30 +498,17 @@ fn permission_warnings() -> Result<Vec<String>, config::ConfigError> {
     Ok(warnings)
 }
 
-#[cfg(unix)]
 fn check_permissions(
     path: &std::path::Path,
     expected: u32,
     label: &str,
     warnings: &mut Vec<String>,
 ) {
-    use std::os::unix::fs::PermissionsExt;
-
-    if let Ok(metadata) = std::fs::metadata(path) {
-        let actual = metadata.permissions().mode() & 0o777;
-        if actual & !expected != 0 {
-            warnings.push(format!(
-                "{label} permissions are too broad: {actual:04o}; expected {expected:04o}"
-            ));
-        }
+    match config::has_private_permissions(path, expected) {
+        Ok(true) => {}
+        Ok(false) => warnings.push(format!(
+            "{label} permissions are too broad; expected {expected:04o}"
+        )),
+        Err(error) => warnings.push(format!("{label} permissions cannot be inspected: {error}")),
     }
-}
-
-#[cfg(not(unix))]
-fn check_permissions(
-    _path: &std::path::Path,
-    _expected: u32,
-    _label: &str,
-    _warnings: &mut Vec<String>,
-) {
 }

@@ -1,4 +1,4 @@
-use std::fs::{self, OpenOptions};
+use std::fs;
 use std::io::{self, Write};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -103,23 +103,20 @@ fn write_record(
 }
 
 fn write_value(config: &JournalRuntimeConfig, mut value: Value) -> io::Result<WrittenRecord> {
-    fs::create_dir_all(&config.dir)?;
-    restrict_directory(&config.dir)?;
+    crate::config::ensure_private_directory(&config.dir)?;
     let path = config.dir.join(record_name());
+    if path.try_exists()? {
+        return Err(io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            format!("journal record already exists: {}", path.display()),
+        ));
+    }
     sanitize_value(&mut value, &config.credentials);
     let encoded = serde_json::to_vec(&value).map_err(io::Error::other)?;
-    let mut options = OpenOptions::new();
-    options.create_new(true).write(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        options.mode(0o600);
-    }
-    let mut file = options.open(&path)?;
+    let mut file = crate::config::create_private_file(&path)?;
     file.write_all(&encoded)?;
     file.write_all(b"\n")?;
     file.sync_all()?;
-    restrict_file(&path)?;
     Ok(WrittenRecord {
         reference: path.display().to_string(),
         cleanup_warning: cleanup_expired(config),
@@ -343,29 +340,7 @@ fn sanitize_warning(config: &JournalRuntimeConfig, message: &str) -> String {
 }
 
 fn sanitize_text(config: &JournalRuntimeConfig, value: &str) -> String {
-    config::redact_credentials(value, &config.credentials)
-}
-
-#[cfg(unix)]
-fn restrict_directory(path: &std::path::Path) -> io::Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-    fs::set_permissions(path, fs::Permissions::from_mode(0o700))
-}
-
-#[cfg(not(unix))]
-fn restrict_directory(_path: &std::path::Path) -> io::Result<()> {
-    Ok(())
-}
-
-#[cfg(unix)]
-fn restrict_file(path: &std::path::Path) -> io::Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-    fs::set_permissions(path, fs::Permissions::from_mode(0o600))
-}
-
-#[cfg(not(unix))]
-fn restrict_file(_path: &std::path::Path) -> io::Result<()> {
-    Ok(())
+    crate::config::redact_credentials(value, &config.credentials)
 }
 
 #[cfg(test)]
