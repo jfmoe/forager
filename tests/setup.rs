@@ -1,7 +1,11 @@
-use std::fs;
+use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
+use std::thread;
+use std::time::{Duration, Instant};
+
+use fs2::FileExt;
 
 #[test]
 fn non_interactive_setup_creates_a_complete_commented_template() {
@@ -44,6 +48,90 @@ fn non_interactive_setup_refuses_to_overwrite_even_an_empty_file() {
         ),
         (Some(3), String::new())
     );
+}
+
+#[test]
+fn setup_modes_time_out_without_writing_when_the_config_lock_is_held() {
+    let config_dir = tempfile::tempdir().expect("create config directory");
+    let lock = OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(config_dir.path().join(".config.lock"))
+        .expect("open config lock");
+    lock.lock_exclusive().expect("hold config lock");
+
+    for arguments in [
+        &["setup", "--lang", "en"][..],
+        &["setup", "--non-interactive"][..],
+    ] {
+        let output = run(config_dir.path(), arguments, None);
+        assert_eq!(output.status.code(), Some(3), "{output:?}");
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("config lock timed out"),
+            "stderr: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    assert!(!config_dir.path().join("config.toml").exists());
+}
+
+#[test]
+fn interactive_setup_holds_the_config_lock_until_its_update_is_saved() {
+    let config_dir = tempfile::tempdir().expect("create config directory");
+    let mut setup = Command::new(env!("CARGO_BIN_EXE_forager"))
+        .args(["setup", "--lang", "en"])
+        .env_clear()
+        .env("FORAGER_CONFIG_DIR", config_dir.path())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn interactive setup");
+    let lock_path = config_dir.path().join(".config.lock");
+    let deadline = Instant::now() + Duration::from_secs(1);
+    loop {
+        if let Ok(lock) = OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .read(true)
+            .write(true)
+            .open(&lock_path)
+        {
+            match lock.try_lock_exclusive() {
+                Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => break,
+                Ok(()) => FileExt::unlock(&lock).expect("release probe lock"),
+                Err(error) => panic!("probe config lock: {error}"),
+            }
+        }
+        assert!(
+            Instant::now() < deadline,
+            "setup did not acquire config lock"
+        );
+        thread::sleep(Duration::from_millis(5));
+    }
+
+    let edit = run(
+        config_dir.path(),
+        &["config", "set", "log.level", "debug"],
+        None,
+    );
+    assert_eq!(edit.status.code(), Some(3), "{edit:?}");
+    assert!(
+        String::from_utf8_lossy(&edit.stderr).contains("config lock timed out"),
+        "stderr: {}",
+        String::from_utf8_lossy(&edit.stderr)
+    );
+
+    setup
+        .stdin
+        .take()
+        .expect("open setup stdin")
+        .write_all(b"\n\n\nn\n\n\n\n\n\n\n\n")
+        .expect("complete setup input");
+    let output = setup.wait_with_output().expect("wait for setup");
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
 }
 
 #[test]

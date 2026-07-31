@@ -1,7 +1,10 @@
-use std::fs;
+use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::process::{Command, Output, Stdio};
+use std::thread;
+use std::time::Duration;
 
+use fs2::FileExt;
 use serde_json::Value;
 
 #[test]
@@ -107,6 +110,91 @@ fn config_set_and_unset_preserve_unrelated_toml() {
         fs::read_to_string(path).expect("read config"),
         "# keep this\n[providers.exa]\nurl = \"https://example.test\" # keep inline\n"
     );
+}
+
+#[test]
+fn config_edits_time_out_without_writing_when_the_config_lock_is_held() {
+    let config_dir = tempfile::tempdir().expect("create config directory");
+    let config_path = config_dir.path().join("config.toml");
+    fs::write(&config_path, "[log]\nlevel = \"info\"\n").expect("write config");
+    let lock = OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(config_dir.path().join(".config.lock"))
+        .expect("open config lock");
+    lock.lock_exclusive().expect("hold config lock");
+
+    let set = run(
+        config_dir.path(),
+        &["config", "set", "log.level", "debug"],
+        &[],
+        None,
+    );
+    let unset = run(
+        config_dir.path(),
+        &["config", "unset", "log.level"],
+        &[],
+        None,
+    );
+
+    for output in [set, unset] {
+        assert_eq!(output.status.code(), Some(3), "{output:?}");
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("config lock timed out"),
+            "stderr: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    assert_eq!(
+        fs::read_to_string(config_path).expect("read preserved config"),
+        "[log]\nlevel = \"info\"\n"
+    );
+}
+
+#[test]
+fn concurrent_config_sets_preserve_both_updates() {
+    let config_dir = tempfile::tempdir().expect("create config directory");
+    let lock = OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(config_dir.path().join(".config.lock"))
+        .expect("open config lock");
+    lock.lock_exclusive().expect("hold config lock");
+
+    let spawn = |path: &str, value: &str| {
+        Command::new(env!("CARGO_BIN_EXE_forager"))
+            .args(["config", "set", path, value])
+            .env_clear()
+            .env("FORAGER_CONFIG_DIR", config_dir.path())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("spawn config set")
+    };
+    let first = spawn("providers.exa.timeout", "41");
+    let second = spawn("log.level", "debug");
+    thread::sleep(Duration::from_millis(30));
+    FileExt::unlock(&lock).expect("release config lock");
+
+    let first = first.wait_with_output().expect("wait for first config set");
+    let second = second
+        .wait_with_output()
+        .expect("wait for second config set");
+    assert_eq!(first.status.code(), Some(0), "{first:?}");
+    assert_eq!(second.status.code(), Some(0), "{second:?}");
+    let document: toml::Value = toml::from_str(
+        &fs::read_to_string(config_dir.path().join("config.toml")).expect("read config"),
+    )
+    .expect("parse config");
+    assert_eq!(
+        document["providers"]["exa"]["timeout"].as_integer(),
+        Some(41)
+    );
+    assert_eq!(document["log"]["level"].as_str(), Some("debug"));
 }
 
 #[test]
@@ -517,15 +605,27 @@ fn config_set_enforces_private_directory_and_file_modes() {
                 .permissions()
                 .mode()
                 & 0o777,
+            config_dir
+                .join(".config.lock")
+                .metadata()
+                .expect("lock metadata")
+                .permissions()
+                .mode()
+                & 0o777,
         ),
-        (0o700, 0o600)
+        (0o700, 0o600, 0o600)
     );
+    let mut entries = fs::read_dir(&config_dir)
+        .expect("read config directory")
+        .map(|entry| entry.expect("read directory entry").file_name())
+        .collect::<Vec<_>>();
+    entries.sort();
     assert_eq!(
-        fs::read_dir(&config_dir)
-            .expect("read config directory")
-            .map(|entry| entry.expect("read directory entry").file_name())
-            .collect::<Vec<_>>(),
-        [std::ffi::OsString::from("config.toml")]
+        entries,
+        [
+            std::ffi::OsString::from(".config.lock"),
+            std::ffi::OsString::from("config.toml"),
+        ]
     );
 }
 

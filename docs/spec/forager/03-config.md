@@ -120,7 +120,7 @@ ssl_verify = true
 
 1. 点路径寻址，**schema 即键清单**：`forager config set providers.exa.timeout 45`；非法路径＝退 2；set 时校验类型/enum；数组值＝TOML 字面量。
 2. `config set KEY -`＝stdin 读值（敏感值通道）：读完整 stdin、去恰一个末尾 LF/CRLF、空输入为合法空字符串、按目标类型解析。argv 通道保留，文档警示 shell history。
-3. 写入＝toml_edit 精确编辑 + 原子替换（保留未修改项注释/空白/相对顺序；不承诺 dotted-key 原始顺序）；不做跨进程锁；并发丢更新＝已接受风险。
+3. 写入＝toml_edit 精确编辑 + 原子替换（保留未修改项注释/空白/相对顺序；不承诺 dotted-key 原始顺序）；`config set`/`config unset` 与 setup 的完整读-改-写或创建过程持有 `config_dir/.config.lock` 排他锁，最多等待 100ms，超时即报 config_error 且不写入。
 4. `config list`＝**生效视图**：每键 `{值（凭据掩码、数组逐元素掩码）, 来源 env/file/default}`；doctor 内嵌同一结构块（同一序列化器）。
 5. `config unset` 只删文件层；被 env 覆盖时提示「env 仍在生效」。
 6. **坏配置修复通道**：`path` 永不加载 schema；`set`/`unset` 走 toml_edit 文档层编辑、仅校验目标键值；`list` 在提取失败时仍报文件路径、坏键与行列。

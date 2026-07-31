@@ -7,7 +7,10 @@ use std::io::{self, Write};
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::thread;
+use std::time::{Duration, Instant};
 
+use fs2::FileExt;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value as JsonValue, json};
 use thiserror::Error;
@@ -17,6 +20,7 @@ use crate::providers;
 
 static FILE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 static WRITE_PROBE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
+const LOCK_WAIT: Duration = Duration::from_millis(100);
 pub(crate) const CREDENTIAL_MASK: &str = "********";
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -832,6 +836,7 @@ pub fn set_file_value(path: &str, raw: &str) -> Result<(), EditError> {
     let value = parse_edit_value(path, raw)?;
     let location = ConfigLocation::discover().map_err(EditError::Config)?;
     let file = location.config_file();
+    let _lock = acquire_location_lock(&location).map_err(EditError::Config)?;
     let content = read_edit_document(&file)?;
     let mut document = parse_edit_document(&file, &content)?;
     set_document_path(&mut document, path, value)?;
@@ -855,6 +860,7 @@ pub fn unset_file_value(path: &str) -> Result<bool, EditError> {
     }
     let location = ConfigLocation::discover().map_err(EditError::Config)?;
     let file = location.config_file();
+    let _lock = acquire_location_lock(&location).map_err(EditError::Config)?;
     let content = read_edit_document(&file)?;
     let mut document = parse_edit_document(&file, &content)?;
     remove_document_path(&mut document, path);
@@ -865,6 +871,7 @@ pub fn unset_file_value(path: &str) -> Result<bool, EditError> {
 
 /// A parseable configuration document being updated by the setup wizard.
 pub struct SetupDocument {
+    _lock: File,
     location: ConfigLocation,
     file: PathBuf,
     document: DocumentMut,
@@ -880,10 +887,12 @@ impl SetupDocument {
     pub fn load() -> Result<Self, EditError> {
         let location = ConfigLocation::discover().map_err(EditError::Config)?;
         let file = location.config_file();
+        let lock = acquire_location_lock(&location).map_err(EditError::Config)?;
         let content = read_edit_document(&file)?;
         let document = parse_edit_document(&file, &content)?;
         let defaults = default_document().map_err(EditError::Config)?;
         Ok(Self {
+            _lock: lock,
             location,
             file,
             document,
@@ -971,6 +980,7 @@ impl SetupDocument {
 pub fn create_setup_template() -> Result<PathBuf, ConfigError> {
     let location = ConfigLocation::discover()?;
     let file = location.config_file();
+    let _lock = acquire_location_lock(&location)?;
     if file
         .try_exists()
         .map_err(|error| ConfigError::io(&file, error))?
@@ -2068,6 +2078,43 @@ fn atomic_create(config_dir: &Path, destination: &Path, bytes: &[u8]) -> io::Res
         let _ = fs::remove_file(&temporary);
     }
     result
+}
+
+fn acquire_config_lock(config_dir: &Path) -> io::Result<File> {
+    ensure_private_directory(config_dir)?;
+    let lock = open_private_lock(&config_dir.join(".config.lock"))?;
+    let deadline = Instant::now() + LOCK_WAIT;
+    loop {
+        match lock.try_lock_exclusive() {
+            Ok(()) => return Ok(lock),
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                if Instant::now() >= deadline {
+                    return Err(io::Error::new(
+                        io::ErrorKind::WouldBlock,
+                        "config lock timed out",
+                    ));
+                }
+                thread::sleep(Duration::from_millis(5));
+            }
+            Err(error) => return Err(error),
+        }
+    }
+}
+
+fn acquire_location_lock(location: &ConfigLocation) -> Result<File, ConfigError> {
+    let lock_path = location.config_dir.join(".config.lock");
+    acquire_config_lock(&location.config_dir).map_err(|error| ConfigError::io(&lock_path, error))
+}
+
+fn open_private_lock(path: &Path) -> io::Result<File> {
+    let file = OpenOptions::new()
+        .create(true)
+        .truncate(false)
+        .read(true)
+        .write(true)
+        .open(path)?;
+    restrict_private_file(path)?;
+    Ok(file)
 }
 
 /// Creates a configuration directory restricted to the current user.
