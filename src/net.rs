@@ -37,9 +37,12 @@ impl RetryPolicy {
 
 #[cfg(test)]
 mod tests {
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::thread;
     use std::time::Duration;
 
-    use super::RetryPolicy;
+    use super::{RetryPolicy, build_client};
 
     #[test]
     fn retry_wait_clamps_overflowing_seconds_to_max_wait() {
@@ -47,11 +50,46 @@ mod tests {
 
         assert_eq!(policy.wait(2), Duration::from_secs(10));
     }
+
+    #[test]
+    fn build_client_sends_forager_user_agent() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind test server");
+        let address = listener.local_addr().expect("test server address");
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("accept request");
+            let mut request = [0_u8; 4096];
+            let read = stream.read(&mut request).expect("read request");
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+                .expect("write response");
+            String::from_utf8(request[..read].to_vec()).expect("UTF-8 request")
+        });
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("build runtime");
+        let client = build_client(true).expect("build client");
+
+        runtime
+            .block_on(client.get(format!("http://{address}")).send())
+            .expect("send request");
+
+        let request = server.join().expect("join test server");
+        assert!(
+            request
+                .lines()
+                .any(|line| line == concat!("user-agent: forager/", env!("CARGO_PKG_VERSION"))),
+            "request did not contain the forager user agent: {request}"
+        );
+    }
 }
 
 pub(crate) fn build_client(ssl_verify: bool) -> Result<Client, reqwest::Error> {
     Client::builder()
         .danger_accept_invalid_certs(!ssl_verify)
+        .connect_timeout(Duration::from_secs(5))
+        .user_agent(concat!("forager/", env!("CARGO_PKG_VERSION")))
+        .pool_idle_timeout(Duration::from_secs(90))
         .build()
 }
 
