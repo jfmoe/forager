@@ -168,6 +168,54 @@ fn fetch_rotates_tavily_credentials_after_rate_limiting() {
 }
 
 #[test]
+fn fetch_rotates_firecrawl_credentials_after_payment_required() {
+    let rich_content = "Rotated Firecrawl content. ".repeat(30);
+    let success = serde_json::json!({
+        "success": true,
+        "data": {"markdown": rich_content}
+    })
+    .to_string();
+    let firecrawl = Fixture::start_sequence(vec![
+        Response::new(402, "application/json", r#"{"message":"Payment Required"}"#),
+        Response::new(200, "application/json", &success),
+    ]);
+    let config = fetch_config(
+        "http://127.0.0.1:9",
+        &[],
+        "http://127.0.0.1:9",
+        &[],
+        &firecrawl.url,
+        &["first-key", "second-key"],
+        &["firecrawl", "jina", "tavily"],
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&["fetch", "https://example.test/article", "--verbose"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["provider_attempts"][0]["error_kind"],
+            &payload["provider_attempts"][1]["rotation_count"],
+        ),
+        (
+            Some(0),
+            &Value::String("quota_exhausted".into()),
+            &Value::from(1),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let requests = firecrawl.finish_all();
+    assert!(
+        requests[0].contains("authorization: Bearer first-key")
+            && requests[1].contains("authorization: Bearer second-key")
+    );
+}
+
+#[test]
 fn fetch_attributes_only_tavilys_final_attempt_after_rotation() {
     let tavily = Fixture::start_sequence(vec![
         Response::new(429, "application/json", r#"{"message":"rate limited"}"#),

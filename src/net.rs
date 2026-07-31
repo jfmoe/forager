@@ -43,7 +43,14 @@ pub(crate) fn error_kind_for_status(status: StatusCode, body: &str) -> AttemptEr
     match status.as_u16() {
         400 | 404 | 405 | 409 | 422 => AttemptErrorKind::Parameter,
         401 | 403 => AttemptErrorKind::Auth,
-        429 if body.to_ascii_lowercase().contains("quota") => AttemptErrorKind::QuotaExhausted,
+        402 => AttemptErrorKind::QuotaExhausted,
+        429 if body
+            .as_bytes()
+            .windows(b"quota".len())
+            .any(|window| window.eq_ignore_ascii_case(b"quota")) =>
+        {
+            AttemptErrorKind::QuotaExhausted
+        }
         429 => AttemptErrorKind::RateLimited,
         408 | 504 => AttemptErrorKind::Timeout,
         500..=599 => AttemptErrorKind::Network,
