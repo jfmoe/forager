@@ -3,6 +3,7 @@ use std::str::FromStr;
 use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
 pub(crate) const MIN_FETCH_CONTENT_CHARS: usize = 200;
 pub(crate) const DENSITY_MAX_UNIQUE_LINES: usize = 3;
@@ -521,7 +522,8 @@ pub struct ResearchOutcome {
     pub diagnostic: Option<String>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Error)]
+#[error("{message}")]
 /// A research terminal that could not produce sufficient evidence.
 pub struct ResearchError {
     /// Terminal error attribution.
