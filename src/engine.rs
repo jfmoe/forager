@@ -96,7 +96,7 @@ async fn augment_with_web_search(
             let attempted = error
                 .attempts
                 .iter()
-                .map(|attempt| attempt.provider.to_owned())
+                .map(|attempt| attempt.provider)
                 .collect::<HashSet<_>>();
             outcome.attempts.append(&mut error.attempts);
             outcome.diagnostic = merge_diagnostic(outcome.diagnostic.take(), error.diagnostic);

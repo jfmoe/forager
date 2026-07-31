@@ -564,8 +564,8 @@ impl SearchContext {
             decision_source,
             classifier_degraded,
             classifier_duration,
-            classifier_attempts,
-            classifier_warning,
+            mut classifier_attempts,
+            mut classifier_warning,
         ) = match capabilities {
             Some(capabilities) => (capabilities, "caller", false, None, Vec::new(), None),
             None if !self.config.classifier.configured() => (
@@ -619,16 +619,20 @@ impl SearchContext {
             Ok(outcome) => {
                 outcome
                     .attempts
-                    .splice(0..0, classifier_attempts.iter().cloned());
-                outcome.diagnostic =
-                    combine_diagnostics(classifier_warning.clone(), outcome.diagnostic.take());
+                    .splice(0..0, std::mem::take(&mut classifier_attempts));
+                outcome.diagnostic = combine_diagnostics(
+                    std::mem::take(&mut classifier_warning),
+                    outcome.diagnostic.take(),
+                );
             }
             Err(error) => {
                 error
                     .attempts
-                    .splice(0..0, classifier_attempts.iter().cloned());
-                error.diagnostic =
-                    combine_diagnostics(classifier_warning.clone(), error.diagnostic.take());
+                    .splice(0..0, std::mem::take(&mut classifier_attempts));
+                error.diagnostic = combine_diagnostics(
+                    std::mem::take(&mut classifier_warning),
+                    error.diagnostic.take(),
+                );
             }
         }
         if let Ok(outcome) = &mut result {
@@ -695,8 +699,8 @@ impl ResearchContext {
             plan_source,
             classifier_degraded,
             classifier_duration,
-            classifier_attempts,
-            classifier_warning,
+            mut classifier_attempts,
+            mut classifier_warning,
         ) = match caller_plan {
             Some(plan) => (plan, "caller", false, None, Vec::new(), None),
             None => {
@@ -750,16 +754,20 @@ impl ResearchContext {
             Ok(outcome) => {
                 outcome
                     .attempts
-                    .splice(0..0, classifier_attempts.iter().cloned());
-                outcome.diagnostic =
-                    combine_diagnostics(classifier_warning.clone(), outcome.diagnostic.take());
+                    .splice(0..0, std::mem::take(&mut classifier_attempts));
+                outcome.diagnostic = combine_diagnostics(
+                    std::mem::take(&mut classifier_warning),
+                    outcome.diagnostic.take(),
+                );
             }
             Err(error) => {
                 error
                     .attempts
-                    .splice(0..0, classifier_attempts.iter().cloned());
-                error.diagnostic =
-                    combine_diagnostics(classifier_warning.clone(), error.diagnostic.take());
+                    .splice(0..0, std::mem::take(&mut classifier_attempts));
+                error.diagnostic = combine_diagnostics(
+                    std::mem::take(&mut classifier_warning),
+                    error.diagnostic.take(),
+                );
             }
         }
         let journal = crate::journal::record_research(
