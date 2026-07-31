@@ -516,6 +516,37 @@ enabled = false
 }
 
 #[test]
+fn research_reports_error_summary_write_failures_without_replacing_the_terminal() {
+    let environment = RunEnvironment::new("");
+    let plan_path = write_plan(&environment, valid_plan(json!([])));
+    let evidence_dir = tempfile::tempdir().expect("evidence dir");
+    fs::create_dir(evidence_dir.path().join("summary.json"))
+        .expect("block the summary artifact path");
+
+    let output = environment.run(&[
+        "research",
+        "No available evidence",
+        "--plan",
+        plan_path.to_str().expect("UTF-8 path"),
+        "--evidence-dir",
+        evidence_dir.path().to_str().expect("UTF-8 evidence path"),
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["error_kind"],
+            String::from_utf8_lossy(&output.stderr)
+                .contains("cannot write research summary artifact"),
+        ),
+        (Some(5), &Value::String("evidence".into()), true),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
 fn research_returns_evidence_when_high_strength_requires_more_than_one_item() {
     let jina = Fixture::start(200, "text/markdown", &rich_content("Only evidence"));
     let environment = RunEnvironment::new(&fetch_only_config(&jina.url, true));

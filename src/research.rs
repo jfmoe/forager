@@ -409,7 +409,7 @@ pub(crate) async fn execute(
         } else {
             AttemptErrorKind::Evidence
         };
-        let error = ResearchError {
+        let mut error = ResearchError {
             kind,
             message: if kind == AttemptErrorKind::Evidence {
                 format!(
@@ -436,7 +436,15 @@ pub(crate) async fn execute(
                 "provider_attempts": error.attempts,
                 "capability_gaps": error.capability_gaps,
             }),
-        );
+        )
+        .inspect_err(|summary_error| {
+            let summary_diagnostic =
+                format!("cannot write research summary artifact: {summary_error}");
+            error.diagnostic = Some(match error.diagnostic.take() {
+                Some(diagnostic) => format!("{diagnostic}\n{summary_diagnostic}"),
+                None => summary_diagnostic,
+            });
+        });
         return Err(error);
     }
 
