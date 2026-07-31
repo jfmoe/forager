@@ -47,10 +47,12 @@ pub(crate) fn record_search(
         };
     }
     match write_record(config, record) {
-        Ok(reference) => JournalOutcome {
+        Ok(written) => JournalOutcome {
             status: "written",
-            reference: Some(sanitize_text(config, &reference)),
-            warning: None,
+            reference: Some(sanitize_text(config, &written.reference)),
+            warning: written
+                .cleanup_warning
+                .map(|warning| sanitize_warning(config, &warning)),
         },
         Err(error) => JournalOutcome {
             status: "failed",
@@ -72,10 +74,12 @@ pub(crate) fn record_research(
         };
     }
     match write_value(config, build_research_record(record)) {
-        Ok(reference) => JournalOutcome {
+        Ok(written) => JournalOutcome {
             status: "written",
-            reference: Some(sanitize_text(config, &reference)),
-            warning: None,
+            reference: Some(sanitize_text(config, &written.reference)),
+            warning: written
+                .cleanup_warning
+                .map(|warning| sanitize_warning(config, &warning)),
         },
         Err(error) => JournalOutcome {
             status: "failed",
@@ -85,14 +89,21 @@ pub(crate) fn record_research(
     }
 }
 
-fn write_record(config: &JournalRuntimeConfig, record: SearchRecord<'_>) -> io::Result<String> {
+struct WrittenRecord {
+    reference: String,
+    cleanup_warning: Option<String>,
+}
+
+fn write_record(
+    config: &JournalRuntimeConfig,
+    record: SearchRecord<'_>,
+) -> io::Result<WrittenRecord> {
     write_value(config, build_record(record))
 }
 
-fn write_value(config: &JournalRuntimeConfig, mut value: Value) -> io::Result<String> {
+fn write_value(config: &JournalRuntimeConfig, mut value: Value) -> io::Result<WrittenRecord> {
     fs::create_dir_all(&config.dir)?;
     restrict_directory(&config.dir)?;
-    cleanup_expired(config)?;
     let path = config.dir.join(record_name());
     sanitize_value(&mut value, &config.credentials);
     let encoded = serde_json::to_vec(&value).map_err(io::Error::other)?;
@@ -106,8 +117,12 @@ fn write_value(config: &JournalRuntimeConfig, mut value: Value) -> io::Result<St
     let mut file = options.open(&path)?;
     file.write_all(&encoded)?;
     file.write_all(b"\n")?;
+    file.sync_all()?;
     restrict_file(&path)?;
-    Ok(path.display().to_string())
+    Ok(WrittenRecord {
+        reference: path.display().to_string(),
+        cleanup_warning: cleanup_expired(config),
+    })
 }
 
 fn build_research_record(record: ResearchRecord<'_>) -> Value {
@@ -248,31 +263,46 @@ fn build_record(record: SearchRecord<'_>) -> Value {
     })
 }
 
-fn cleanup_expired(config: &JournalRuntimeConfig) -> io::Result<()> {
+fn cleanup_expired(config: &JournalRuntimeConfig) -> Option<String> {
     if config.retention_days == 0 {
-        return Ok(());
+        return None;
     }
     let retention = Duration::from_secs(config.retention_days.saturating_mul(86_400));
     let cutoff = SystemTime::now()
         .checked_sub(retention)
         .unwrap_or(UNIX_EPOCH);
-    for entry in fs::read_dir(&config.dir)? {
-        let entry = entry?;
-        let path = entry.path();
-        if path.extension().is_none_or(|extension| extension != "json")
-            || !entry.file_type()?.is_file()
+    let entries = match fs::read_dir(&config.dir) {
+        Ok(entries) => entries,
+        Err(error) => return cleanup_warning(&error),
+    };
+    let mut warnings = Vec::new();
+    for entry in entries {
+        if let Err(error) = entry.and_then(|entry| cleanup_entry(&entry, cutoff))
+            && let Some(warning) = cleanup_warning(&error)
         {
-            continue;
-        }
-        if entry
-            .metadata()?
-            .modified()
-            .is_ok_and(|modified| modified < cutoff)
-        {
-            fs::remove_file(path)?;
+            warnings.push(warning);
         }
     }
+    (!warnings.is_empty()).then(|| warnings.join("; "))
+}
+
+fn cleanup_entry(entry: &fs::DirEntry, cutoff: SystemTime) -> io::Result<()> {
+    let path = entry.path();
+    if path.extension().is_none_or(|extension| extension != "json") || !entry.file_type()?.is_file()
+    {
+        return Ok(());
+    }
+    if entry.metadata()?.modified()? < cutoff {
+        fs::remove_file(path)?;
+    }
     Ok(())
+}
+
+fn cleanup_warning(error: &io::Error) -> Option<String> {
+    match error.kind() {
+        io::ErrorKind::NotFound | io::ErrorKind::PermissionDenied => None,
+        _ => Some(format!("journal cleanup: {error}")),
+    }
 }
 
 fn record_name() -> String {
@@ -339,4 +369,51 @@ fn restrict_file(path: &std::path::Path) -> io::Result<()> {
 #[cfg(not(unix))]
 fn restrict_file(_path: &std::path::Path) -> io::Result<()> {
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use tempfile::tempdir;
+
+    use super::*;
+
+    #[test]
+    fn cleanup_expired_silences_missing_directory() {
+        let root = tempdir().expect("create temporary directory");
+        let config = journal_config(root.path().join("missing"));
+
+        let warning = cleanup_expired(&config);
+
+        assert!(warning.is_none(), "unexpected cleanup warning: {warning:?}");
+    }
+
+    #[test]
+    fn cleanup_expired_reports_unexpected_scan_error() {
+        let root = tempdir().expect("create temporary directory");
+        let journal_path = root.path().join("journal");
+        fs::write(&journal_path, "not a directory").expect("create blocking file");
+        let config = journal_config(journal_path);
+
+        let warning = cleanup_expired(&config);
+
+        assert!(warning.is_some(), "expected cleanup warning");
+    }
+
+    #[test]
+    fn cleanup_warning_silences_permission_denied() {
+        let error = io::Error::from(io::ErrorKind::PermissionDenied);
+
+        let warning = cleanup_warning(&error);
+
+        assert!(warning.is_none(), "unexpected cleanup warning: {warning:?}");
+    }
+
+    fn journal_config(dir: std::path::PathBuf) -> JournalRuntimeConfig {
+        JournalRuntimeConfig {
+            enabled: true,
+            dir,
+            retention_days: 1,
+            credentials: Vec::new(),
+        }
+    }
 }
