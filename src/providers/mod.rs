@@ -706,6 +706,11 @@ mod tests {
     use super::{ProviderConstructor, ProviderId, registration, registrations};
 
     #[derive(Deserialize)]
+    struct AcceptanceManifest {
+        transport_fixtures: Vec<TransportFixture>,
+    }
+
+    #[derive(Deserialize)]
     struct TransportFixture {
         provider: String,
         seam: String,
@@ -714,11 +719,11 @@ mod tests {
 
     #[test]
     fn provider_fixture_projection_matches_transport_manifest() {
-        let fixtures: Vec<TransportFixture> = serde_json::from_str(include_str!(concat!(
+        let manifest: AcceptanceManifest = serde_json::from_str(include_str!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/tests/transport-fixtures.json"
+            "/tests/acceptance-manifest.json"
         )))
-        .expect("transport fixture manifest");
+        .expect("acceptance manifest");
         let registry = registrations()
             .iter()
             .flat_map(|registration| {
@@ -728,13 +733,14 @@ mod tests {
                     .map(move |seam| (registration.name, *seam))
             })
             .collect::<BTreeSet<_>>();
-        let fixture_projection = fixtures
+        let fixture_projection = manifest
+            .transport_fixtures
             .iter()
             .map(|fixture| (fixture.provider.as_str(), fixture.seam.as_str()))
             .collect::<BTreeSet<_>>();
 
         assert_eq!(fixture_projection, registry);
-        for fixture in fixtures {
+        for fixture in manifest.transport_fixtures {
             assert!(
                 !fixture.test.trim().is_empty(),
                 "{} / {} lacks a fixture test",

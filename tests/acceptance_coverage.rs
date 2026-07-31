@@ -22,8 +22,6 @@ struct TrackedTest {
 #[derive(Deserialize)]
 struct TransportFixture {
     id: String,
-    provider: String,
-    seam: String,
     test: String,
 }
 
@@ -88,26 +86,6 @@ fn acceptance_manifest_tracks_every_tier_zero_and_tier_one_contract() {
     {
         assert_test_exists(test);
     }
-}
-
-#[test]
-fn transport_fixture_manifest_is_the_coverage_manifest_projection() {
-    let acceptance = manifest()
-        .transport_fixtures
-        .into_iter()
-        .map(|fixture| (fixture.provider, fixture.seam, fixture.test))
-        .collect::<BTreeSet<_>>();
-    let transport: Vec<TransportFixture> = serde_json::from_str(
-        &fs::read_to_string(root().join("tests/transport-fixtures.json"))
-            .expect("transport fixture manifest"),
-    )
-    .expect("parse transport fixture manifest");
-    let transport = transport
-        .into_iter()
-        .map(|fixture| (fixture.provider, fixture.seam, fixture.test))
-        .collect::<BTreeSet<_>>();
-
-    assert_eq!(acceptance, transport);
 }
 
 #[test]
