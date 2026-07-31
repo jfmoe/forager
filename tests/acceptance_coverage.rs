@@ -1,5 +1,6 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
+use std::path::Path;
 use std::process::Command;
 
 use serde::Deserialize;
@@ -28,6 +29,7 @@ struct TransportFixture {
 #[test]
 fn acceptance_manifest_tracks_every_tier_zero_and_tier_one_contract() {
     let manifest = manifest();
+    let mut registered_by_path = BTreeMap::new();
     let tracked = manifest
         .unit
         .iter()
@@ -84,7 +86,7 @@ fn acceptance_manifest_tracks_every_tier_zero_and_tier_one_contract() {
         )
         .chain(manifest.offline_e2e.iter().map(|test| test.test.as_str()))
     {
-        assert_test_exists(test);
+        assert_test_exists(test, &mut registered_by_path);
     }
 }
 
@@ -154,15 +156,102 @@ fn assert_unique_ids<'a>(ids: impl Iterator<Item = &'a str>) {
     }
 }
 
-fn assert_test_exists(reference: &str) {
+#[test]
+fn cargo_registry_excludes_ignored_tests() {
+    let registered = active_test_names(Path::new("tests/acceptance_coverage.rs"));
+
+    assert!(!registered.contains("ignored_registry_decoy"));
+}
+
+#[test]
+#[ignore]
+fn ignored_registry_decoy() {}
+
+fn active_test_names(path: &Path) -> BTreeSet<String> {
+    let listed = listed_test_names(path, false);
+    let ignored = listed_test_names(path, true);
+
+    listed.difference(&ignored).cloned().collect()
+}
+
+fn listed_test_names(path: &Path, ignored_only: bool) -> BTreeSet<String> {
+    let mut command = Command::new(env!("CARGO"));
+    command.current_dir(root()).args(["test", "--locked"]);
+    if let Some(target) = integration_test_target(path) {
+        command.args(["--test", target]);
+    } else if path == Path::new("src/main.rs") {
+        command.args(["--bin", "forager"]);
+    } else {
+        assert!(
+            path.starts_with("src"),
+            "tracked test path {} is not a Cargo test target",
+            path.display()
+        );
+        command.arg("--lib");
+    }
+    command.args(["--", "--list"]);
+    if ignored_only {
+        command.arg("--ignored");
+    }
+    let output = command.output().expect("list registered Cargo tests");
+    assert!(
+        output.status.success(),
+        "Cargo test listing failed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    String::from_utf8(output.stdout)
+        .expect("Cargo test listing is UTF-8")
+        .lines()
+        .filter_map(|line| line.strip_suffix(": test").map(str::to_owned))
+        .collect()
+}
+
+fn integration_test_target(path: &Path) -> Option<&str> {
+    path.strip_prefix("tests")
+        .ok()
+        .and_then(Path::file_stem)
+        .and_then(std::ffi::OsStr::to_str)
+}
+
+fn assert_test_exists(
+    reference: &str,
+    registered_by_path: &mut BTreeMap<String, BTreeSet<String>>,
+) {
     let (path, test) = reference
         .split_once("::")
         .expect("test reference uses path::name");
-    let source = fs::read_to_string(root().join(path)).expect("read tracked test source");
+    let registered = registered_by_path
+        .entry(path.to_owned())
+        .or_insert_with(|| active_test_names(Path::new(path)));
     assert!(
-        source.contains(&format!("fn {test}(")),
+        registered_test_matches(Path::new(path), test, registered),
         "tracked test {reference} does not exist"
     );
+}
+
+fn registered_test_matches(path: &Path, test: &str, registered: &BTreeSet<String>) -> bool {
+    if integration_test_target(path).is_some() || path == Path::new("src/main.rs") {
+        return registered
+            .iter()
+            .any(|name| name == test || name.ends_with(&format!("::{test}")));
+    }
+
+    let relative = path
+        .strip_prefix("src")
+        .expect("library test path starts with src");
+    let mut module = relative
+        .with_extension("")
+        .to_string_lossy()
+        .replace('/', "::");
+    if let Some(parent) = module.strip_suffix("::mod") {
+        module = parent.to_owned();
+    }
+    let prefix = format!("{module}::");
+    registered.iter().any(|name| {
+        name.strip_prefix(&prefix)
+            .is_some_and(|name| name == test || name.ends_with(&format!("::{test}")))
+    })
 }
 
 fn root() -> std::path::PathBuf {
