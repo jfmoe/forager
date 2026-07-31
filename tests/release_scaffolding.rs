@@ -2,6 +2,18 @@ use std::fs;
 use std::process::Command;
 
 #[test]
+fn every_runnable_workflow_job_has_a_twenty_minute_timeout() {
+    for workflow in [
+        ".github/workflows/ci.yml",
+        ".github/workflows/release.yml",
+        ".github/workflows/release-plz.yml",
+        ".github/workflows/release-artifact-gate.yml",
+    ] {
+        assert_runnable_job_timeouts(workflow);
+    }
+}
+
+#[test]
 fn ci_uses_the_repository_toolchain_and_runs_every_pull_request_gate() {
     let workflow = fs::read_to_string(".github/workflows/ci.yml").expect("read CI workflow");
 
@@ -212,4 +224,47 @@ fn release_plz_runs_only_when_manually_dispatched() {
         workflow.contains("on:\n  workflow_dispatch:\n") && !workflow.contains("\n  push:"),
         "release-plz must not run on ordinary main pushes"
     );
+}
+
+fn assert_runnable_job_timeouts(path: &str) {
+    let workflow = fs::read_to_string(path).expect("read workflow");
+    let jobs = workflow.split_once("\njobs:\n").expect("workflow jobs").1;
+    let mut job_name = None;
+    let mut job_body = Vec::new();
+    let mut job_count = 0;
+
+    for line in jobs.lines() {
+        if line.starts_with("  ") && !line.starts_with("    ") && line.ends_with(':') {
+            if let Some(name) = job_name.take() {
+                assert_job_timeout(path, name, &job_body);
+            }
+            job_name = Some(line.trim_end_matches(':').trim());
+            job_body.clear();
+            job_count += 1;
+        } else {
+            job_body.push(line);
+        }
+    }
+    if let Some(name) = job_name {
+        assert_job_timeout(path, name, &job_body);
+    }
+
+    assert!(job_count > 0, "{path} has no jobs");
+}
+
+fn assert_job_timeout(path: &str, job_name: &str, body: &[&str]) {
+    let calls_reusable_workflow = body.iter().any(|line| line.starts_with("    uses:"));
+    let has_timeout = body.iter().any(|line| line.trim() == "timeout-minutes: 20");
+
+    if calls_reusable_workflow {
+        assert!(
+            !has_timeout,
+            "{path} job {job_name} cannot declare timeout-minutes while calling a reusable workflow"
+        );
+    } else {
+        assert!(
+            has_timeout,
+            "{path} job {job_name} must declare timeout-minutes: 20"
+        );
+    }
 }

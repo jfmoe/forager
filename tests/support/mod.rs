@@ -1,10 +1,13 @@
 use std::fs;
 use std::io::{Read, Write};
-use std::net::TcpListener;
+use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::process::{Command, Output, Stdio};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
+
+const ACCEPT_DEADLINE: Duration = Duration::from_secs(10);
+const ACCEPT_POLL_INTERVAL: Duration = Duration::from_millis(10);
 
 pub(crate) struct Fixture {
     pub(crate) url: String,
@@ -17,12 +20,28 @@ impl Fixture {
     }
 
     pub(crate) fn start_sequence(responses: Vec<Response>) -> Self {
+        Self::start_sequence_with_deadline(responses, ACCEPT_DEADLINE)
+    }
+
+    pub(crate) fn start_sequence_with_deadline(
+        responses: Vec<Response>,
+        accept_deadline: Duration,
+    ) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind fixture");
+        listener
+            .set_nonblocking(true)
+            .expect("set fixture listener nonblocking");
         let address = listener.local_addr().expect("fixture address");
         let handle = thread::spawn(move || {
-            let mut requests = Vec::new();
+            let expected_requests = responses.len();
+            let mut requests = Vec::with_capacity(expected_requests);
             for response in responses {
-                let (mut stream, _) = listener.accept().expect("accept request");
+                let mut stream = accept_request(
+                    &listener,
+                    accept_deadline,
+                    expected_requests,
+                    requests.len(),
+                );
                 let mut request = Vec::new();
                 let mut buffer = [0_u8; 4096];
                 loop {
@@ -73,7 +92,37 @@ impl Fixture {
     }
 
     pub(crate) fn finish_all(self) -> Vec<String> {
-        self.handle.join().expect("fixture thread")
+        self.handle.join().unwrap_or_else(|panic| {
+            std::panic::resume_unwind(panic);
+        })
+    }
+}
+
+fn accept_request(
+    listener: &TcpListener,
+    deadline: Duration,
+    expected_requests: usize,
+    received_requests: usize,
+) -> TcpStream {
+    let started = Instant::now();
+    loop {
+        match listener.accept() {
+            Ok((stream, _)) => {
+                stream
+                    .set_nonblocking(false)
+                    .expect("set fixture stream blocking");
+                return stream;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                let elapsed = started.elapsed();
+                assert!(
+                    elapsed < deadline,
+                    "fixture timed out waiting for requests: expected {expected_requests}, received {received_requests}"
+                );
+                thread::sleep(ACCEPT_POLL_INTERVAL.min(deadline - elapsed));
+            }
+            Err(error) => panic!("accept fixture request: {error}"),
+        }
     }
 }
 

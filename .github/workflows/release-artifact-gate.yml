@@ -13,6 +13,7 @@ permissions:
 jobs:
   verify-checksums:
     runs-on: ubuntu-22.04
+    timeout-minutes: 20
     steps:
       - name: Download draft Release assets
         env:
@@ -71,6 +72,7 @@ jobs:
             host_arch: x86_64
             file_arch: x86-64
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
     steps:
       - name: Download draft Release asset
         env:
@@ -144,6 +146,7 @@ jobs:
   verify-windows:
     needs: verify-checksums
     runs-on: windows-2022
+    timeout-minutes: 20
     steps:
       - name: Download draft Release asset
         shell: pwsh
@@ -229,6 +232,7 @@ jobs:
       - verify-unix
       - verify-windows
     runs-on: ubuntu-22.04
+    timeout-minutes: 20
     steps:
       - name: Record release gate
         env:
