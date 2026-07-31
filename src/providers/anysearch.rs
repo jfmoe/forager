@@ -1,6 +1,9 @@
+use std::collections::HashMap;
+use std::sync::LazyLock;
 use std::time::{Duration, Instant};
 
 use reqwest::Client;
+use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
 use crate::config::AnysearchRuntimeConfig;
@@ -87,6 +90,20 @@ impl Anysearch {
         request: AnysearchSearchRequest,
     ) -> Result<AnysearchOutcome, ProviderError> {
         let explicit = request.domain.is_some();
+        let domain_status = request
+            .domain
+            .as_deref()
+            .zip(request.sub_domain.as_deref())
+            .map(|(domain, sub_domain)| domain_status(domain, sub_domain))
+            .transpose()
+            .map_err(|message| ProviderError {
+                kind: AttemptErrorKind::Runtime,
+                message,
+                attempts: Vec::new(),
+                verbose: request.verbose,
+                diagnostic: None,
+                redirected_library_id: None,
+            })?;
         let mut arguments = json!({
             "query": request.query,
             "max_results": request.max_results,
@@ -114,11 +131,6 @@ impl Anysearch {
             .execute_tool("search", arguments, request.verbose)
             .await?;
         let results = decode_search(execution.result);
-        let domain_status = request
-            .domain
-            .as_deref()
-            .zip(request.sub_domain.as_deref())
-            .map(|(domain, sub_domain)| domain_status(domain, sub_domain));
         let mut sub_domain_param_keys = request
             .sub_domain_params
             .keys()
@@ -319,6 +331,46 @@ struct AnysearchExecution {
     diagnostic: Option<String>,
 }
 
+#[derive(Deserialize)]
+struct Manifest {
+    verified_domains: Vec<ManifestEntry>,
+    candidate_assessments: Vec<ManifestEntry>,
+}
+
+#[derive(Deserialize)]
+struct ManifestEntry {
+    domain: String,
+    sub_domain: String,
+    status: String,
+}
+
+type DomainStatusIndex = HashMap<String, HashMap<String, &'static str>>;
+
+static DOMAIN_STATUSES: LazyLock<Result<DomainStatusIndex, String>> = LazyLock::new(|| {
+    let manifest: Manifest = serde_json::from_str(include_str!(
+        "../../assets/anysearch/verified-domain-manifest.json"
+    ))
+    .map_err(|error| format!("invalid versioned AnySearch manifest: {error}"))?;
+    let mut statuses = DomainStatusIndex::new();
+    for entry in manifest.candidate_assessments {
+        statuses
+            .entry(entry.domain)
+            .or_default()
+            .insert(entry.sub_domain, "discovered_unverified");
+    }
+    for entry in manifest
+        .verified_domains
+        .into_iter()
+        .filter(|entry| entry.status == "verified")
+    {
+        statuses
+            .entry(entry.domain)
+            .or_default()
+            .insert(entry.sub_domain, "verified");
+    }
+    Ok(statuses)
+});
+
 fn decode_domains(result: McpToolResult) -> Vec<AnysearchDomain> {
     let domains = discovery_items(&result.structured_content)
         .into_iter()
@@ -408,31 +460,14 @@ fn redact_argument_values(message: &mut String, value: &Value) {
     }
 }
 
-fn domain_status(domain: &str, sub_domain: &str) -> String {
-    const MANIFEST: &str = include_str!("../../assets/anysearch/verified-domain-manifest.json");
-    let manifest: Value =
-        serde_json::from_str(MANIFEST).expect("versioned AnySearch manifest must be valid JSON");
-    if manifest["verified_domains"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .any(|entry| {
-            entry["domain"] == domain
-                && entry["sub_domain"] == sub_domain
-                && entry["status"] == "verified"
-        })
-    {
-        return "verified".into();
-    }
-    if manifest["candidate_assessments"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .any(|entry| entry["domain"] == domain && entry["sub_domain"] == sub_domain)
-    {
-        return "discovered_unverified".into();
-    }
-    "unverified".into()
+fn domain_status(domain: &str, sub_domain: &str) -> Result<String, String> {
+    let statuses = DOMAIN_STATUSES.as_ref().map_err(Clone::clone)?;
+    Ok(statuses
+        .get(domain)
+        .and_then(|statuses| statuses.get(sub_domain))
+        .copied()
+        .unwrap_or("unverified")
+        .to_owned())
 }
 
 fn discovery_items(value: &Value) -> Vec<&Map<String, Value>> {
