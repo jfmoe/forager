@@ -5,13 +5,13 @@ use reqwest::Client;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use crate::config::{self, ClassifierRuntimeConfig};
+use crate::config::ClassifierRuntimeConfig;
 use crate::credentials::CredentialPool;
-use crate::net::{RetryPolicy, error_kind_for_status, truncate_message};
+use crate::net::{RetryPolicy, error_kind_for_status, slice_budget};
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute};
+use crate::providers::shared::redacted_urls_message;
 use crate::types::{
-    AttemptErrorKind, Capability, CapabilitySet, Deadline, MIN_USEFUL_SLICE_SECONDS,
-    ProviderAttempt, ResearchPlan,
+    AttemptErrorKind, Capability, CapabilitySet, Deadline, ProviderAttempt, ResearchPlan,
 };
 
 const VOCABULARY: &str = include_str!("../skills/forager/references/capability-vocabulary.json");
@@ -163,7 +163,7 @@ impl Classifier {
                 break;
             };
             let slots = models.len() - index;
-            let Some(model_budget) = model_budget(remaining, slots) else {
+            let Some(model_budget) = slice_budget(remaining, slots) else {
                 attempts.push(self.skipped_attempt(
                     model,
                     "skipped to preserve classifier model fallback deadline budget",
@@ -276,23 +276,26 @@ impl Classifier {
                     AttemptErrorKind::Network
                 },
                 status: error.status().map(|status| status.as_u16()),
-                message: self.redact(&error.to_string()),
+                message: redacted_urls_message(&error.to_string(), &self.credentials),
             })?;
         let status = response.status();
         let body = response.text().await.map_err(|error| AttemptFailure {
             kind: AttemptErrorKind::Network,
             status: Some(status.as_u16()),
-            message: self.redact(&error.to_string()),
+            message: redacted_urls_message(&error.to_string(), &self.credentials),
         })?;
         if !status.is_success() {
             return Err(AttemptFailure {
                 kind: error_kind_for_status(status, &body),
                 status: Some(status.as_u16()),
-                message: self.redact(if body.trim().is_empty() {
-                    "classifier request failed"
-                } else {
-                    &body
-                }),
+                message: redacted_urls_message(
+                    if body.trim().is_empty() {
+                        "classifier request failed"
+                    } else {
+                        &body
+                    },
+                    &self.credentials,
+                ),
             });
         }
         let response: ChatResponse = serde_json::from_str(&body).map_err(|_| AttemptFailure {
@@ -313,7 +316,10 @@ impl Classifier {
         let decision = (spec.parse)(content).map_err(|error| AttemptFailure {
             kind: AttemptErrorKind::Runtime,
             status: Some(status.as_u16()),
-            message: self.redact(&format!("classifier returned invalid schema: {error}")),
+            message: redacted_urls_message(
+                &format!("classifier returned invalid schema: {error}"),
+                &self.credentials,
+            ),
         })?;
         Ok((status.as_u16(), decision))
     }
@@ -346,10 +352,6 @@ impl Classifier {
                 .and_then(|url| url.host_str().map(ToOwned::to_owned)),
             breaker_event: None,
         }
-    }
-
-    fn redact(&self, message: &str) -> String {
-        truncate_message(&self.credentials.redact(&config::redact_urls(message)))
     }
 }
 
@@ -464,14 +466,6 @@ fn parse_capability_decision(content: &str) -> Result<CapabilityDecision, String
         return Err("duplicate capabilities".into());
     }
     Ok(decision)
-}
-
-fn model_budget(remaining: Duration, remaining_slots: usize) -> Option<Duration> {
-    if remaining_slots == 1 {
-        return Some(remaining);
-    }
-    let slice = remaining / u32::try_from(remaining_slots).unwrap_or(u32::MAX);
-    (slice >= Duration::from_secs(MIN_USEFUL_SLICE_SECONDS)).then_some(slice)
 }
 
 #[cfg(test)]

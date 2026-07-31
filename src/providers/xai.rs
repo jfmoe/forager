@@ -6,8 +6,9 @@ use serde_json::Value;
 
 use crate::config::{self, XaiRuntimeConfig};
 use crate::credentials::CredentialPool;
-use crate::net::{RetryPolicy, error_kind_for_status, truncate_message};
+use crate::net::{RetryPolicy, error_kind_for_status};
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute};
+use crate::providers::shared::redacted_urls_message;
 use crate::providers::{MainSearchRequestKind, ProviderError};
 use crate::types::{AttemptErrorKind, Deadline, SearchOutcome, Source};
 
@@ -153,7 +154,7 @@ impl Xai {
                     AttemptErrorKind::Network
                 },
                 status: error.status().map(|status| status.as_u16()),
-                message: self.redacted_message(&error.to_string()),
+                message: redacted_urls_message(&error.to_string(), &self.credentials),
             })?;
         let status = response.status();
         if !status.is_success() {
@@ -161,11 +162,14 @@ impl Xai {
             return Err(AttemptFailure {
                 kind: error_kind_for_status(status, &body),
                 status: Some(status.as_u16()),
-                message: self.redacted_message(if body.trim().is_empty() {
-                    "xAI Responses request failed"
-                } else {
-                    &body
-                }),
+                message: redacted_urls_message(
+                    if body.trim().is_empty() {
+                        "xAI Responses request failed"
+                    } else {
+                        &body
+                    },
+                    &self.credentials,
+                ),
             });
         }
         let outcome = self.completed_response(response).await?;
@@ -181,8 +185,10 @@ impl Xai {
             let event = event.map_err(|error| AttemptFailure {
                 kind: AttemptErrorKind::Network,
                 status: Some(200),
-                message: self
-                    .redacted_message(&format!("xAI Responses returned invalid SSE: {error}")),
+                message: redacted_urls_message(
+                    &format!("xAI Responses returned invalid SSE: {error}"),
+                    &self.credentials,
+                ),
             })?;
             if event.data.trim().is_empty() || event.data.trim() == "[DONE]" {
                 continue;
@@ -191,9 +197,10 @@ impl Xai {
                 serde_json::from_str(&event.data).map_err(|error| AttemptFailure {
                     kind: AttemptErrorKind::Runtime,
                     status: Some(200),
-                    message: self.redacted_message(&format!(
-                        "xAI Responses returned invalid event JSON: {error}"
-                    )),
+                    message: redacted_urls_message(
+                        &format!("xAI Responses returned invalid event JSON: {error}"),
+                        &self.credentials,
+                    ),
                 })?;
             match payload.get("type").and_then(Value::as_str) {
                 Some("response.completed") => {
@@ -208,7 +215,10 @@ impl Xai {
                     return Err(AttemptFailure {
                         kind: AttemptErrorKind::Runtime,
                         status: Some(200),
-                        message: self.redacted_message(&terminal_message(&payload)),
+                        message: redacted_urls_message(
+                            &terminal_message(&payload),
+                            &self.credentials,
+                        ),
                     });
                 }
                 _ => {}
@@ -296,15 +306,6 @@ impl Xai {
 
     fn redacted_text(&self, value: &str) -> String {
         self.credentials.redact(&config::redact_urls(value))
-    }
-
-    fn redacted_message(&self, value: &str) -> String {
-        let endpoint = config::redact_url(&self.config.url);
-        truncate_message(
-            &self
-                .redacted_text(value)
-                .replace(&self.config.url, &endpoint),
-        )
     }
 }
 

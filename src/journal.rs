@@ -6,6 +6,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use serde_json::{Value, json};
 
 use crate::config::{self, JournalRuntimeConfig};
+use crate::net::duration_millis;
 use crate::providers::ProviderError;
 use crate::types::{Capability, JournalOutcome, ResearchError, ResearchOutcome, SearchOutcome};
 
@@ -343,10 +344,6 @@ fn sanitize_warning(config: &JournalRuntimeConfig, message: &str) -> String {
 
 fn sanitize_text(config: &JournalRuntimeConfig, value: &str) -> String {
     config::redact_credentials(value, &config.credentials)
-}
-
-fn duration_millis(duration: Duration) -> u64 {
-    duration.as_millis().try_into().unwrap_or(u64::MAX)
 }
 
 #[cfg(unix)]

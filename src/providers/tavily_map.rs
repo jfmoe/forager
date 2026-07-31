@@ -3,11 +3,12 @@ use std::time::Duration;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-use crate::config::{self, WebFetchProviderConfig};
+use crate::config::WebFetchProviderConfig;
 use crate::credentials::CredentialPool;
-use crate::net::{RetryPolicy, error_kind_for_status, truncate_message};
+use crate::net::{RetryPolicy, error_kind_for_status};
 use crate::providers::ProviderError;
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute};
+use crate::providers::shared::{redact_urls, redacted_urls_message};
 use crate::types::{AttemptErrorKind, Deadline, MapOutcome};
 
 const TAVILY_MAP_MAX_TIMEOUT_SECONDS: u64 = 180;
@@ -71,12 +72,12 @@ impl TavilyMap {
         let response = execution.value;
         Ok(MapOutcome {
             provider: "tavily",
-            url: redact(&request.url, &self.config, &self.credentials),
-            base_url: redact(&response.base_url, &self.config, &self.credentials),
+            url: redact_urls(&request.url, &self.credentials),
+            base_url: redact_urls(&response.base_url, &self.credentials),
             results: response
                 .results
                 .iter()
-                .map(|url| redact(url, &self.config, &self.credentials))
+                .map(|url| redact_urls(url, &self.credentials))
                 .collect(),
             response_time: response.response_time,
             attempts: if request.verbose {
@@ -108,7 +109,7 @@ impl TavilyMap {
                     AttemptErrorKind::Network
                 },
                 status: error.status().map(|status| status.as_u16()),
-                message: self.redacted_message(&error.to_string()),
+                message: redacted_urls_message(&error.to_string(), &self.credentials),
             })?;
         let status = response.status();
         let body = response.text().await.map_err(|error| AttemptFailure {
@@ -118,13 +119,16 @@ impl TavilyMap {
                 AttemptErrorKind::Network
             },
             status: Some(status.as_u16()),
-            message: self.redacted_message(&error.to_string()),
+            message: redacted_urls_message(&error.to_string(), &self.credentials),
         })?;
         if !status.is_success() {
             return Err(AttemptFailure {
                 kind: error_kind_for_status(status, &body),
                 status: Some(status.as_u16()),
-                message: self.redacted_message(&failure_message(&body, status.as_u16())),
+                message: redacted_urls_message(
+                    &failure_message(&body, status.as_u16()),
+                    &self.credentials,
+                ),
             });
         }
         serde_json::from_str(&body)
@@ -132,12 +136,11 @@ impl TavilyMap {
             .map_err(|error| AttemptFailure {
                 kind: AttemptErrorKind::Runtime,
                 status: Some(status.as_u16()),
-                message: self.redacted_message(&format!("invalid Tavily map response: {error}")),
+                message: redacted_urls_message(
+                    &format!("invalid Tavily map response: {error}"),
+                    &self.credentials,
+                ),
             })
-    }
-
-    fn redacted_message(&self, message: &str) -> String {
-        truncate_message(&redact(message, &self.config, &self.credentials))
     }
 }
 
@@ -187,13 +190,4 @@ fn failure_message(body: &str, status: u16) -> String {
         })
         .filter(|message| !message.trim().is_empty())
         .unwrap_or_else(|| format!("Tavily returned HTTP {status}"))
-}
-
-fn redact(value: &str, config: &WebFetchProviderConfig, credentials: &CredentialPool) -> String {
-    let redacted_endpoint = config::redact_url(&config.url);
-    config::redact_urls(
-        &credentials
-            .redact(value)
-            .replace(&config.url, &redacted_endpoint),
-    )
 }

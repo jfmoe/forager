@@ -10,8 +10,9 @@ use serde_json::Value;
 
 use crate::config::{self, OpenAiCompatibleRuntimeConfig};
 use crate::credentials::CredentialPool;
-use crate::net::{RetryPolicy, error_kind_for_status, truncate_message};
+use crate::net::{RetryPolicy, error_kind_for_status, slice_budget};
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute};
+use crate::providers::shared::redacted_urls_message;
 use crate::providers::xai::SearchRequest;
 use crate::providers::{MainSearchRequestKind, ProviderError};
 use crate::types::{AttemptErrorKind, Deadline, SearchOutcome, Source};
@@ -155,7 +156,7 @@ impl OpenAiCompatible {
                 break;
             };
             let slots = executable.len() - index;
-            let Some(model_budget) = fallback_budget(remaining, slots) else {
+            let Some(model_budget) = slice_budget(remaining, slots) else {
                 attempts.push(self.skipped_model_attempt(
                     model,
                     "skipped to preserve model fallback deadline budget",
@@ -419,11 +420,14 @@ impl OpenAiCompatible {
             return Err(AttemptFailure {
                 kind: error_kind_for_status(status, &body),
                 status: Some(status.as_u16()),
-                message: self.redacted_message(if body.trim().is_empty() {
-                    "OpenAI-compatible request failed"
-                } else {
-                    &body
-                }),
+                message: redacted_urls_message(
+                    if body.trim().is_empty() {
+                        "OpenAI-compatible request failed"
+                    } else {
+                        &body
+                    },
+                    &self.credentials,
+                ),
             });
         }
         let value = if stream {
@@ -454,8 +458,10 @@ impl OpenAiCompatible {
         let value: Value = serde_json::from_str(&body).map_err(|error| AttemptFailure {
             kind: AttemptErrorKind::Runtime,
             status: Some(200),
-            message: self
-                .redacted_message(&format!("OpenAI-compatible returned invalid JSON: {error}")),
+            message: redacted_urls_message(
+                &format!("OpenAI-compatible returned invalid JSON: {error}"),
+                &self.credentials,
+            ),
         })?;
         self.normalize(&value, false)
     }
@@ -471,8 +477,10 @@ impl OpenAiCompatible {
             let event = event.map_err(|error| AttemptFailure {
                 kind: AttemptErrorKind::Network,
                 status: Some(200),
-                message: self
-                    .redacted_message(&format!("OpenAI-compatible returned invalid SSE: {error}")),
+                message: redacted_urls_message(
+                    &format!("OpenAI-compatible returned invalid SSE: {error}"),
+                    &self.credentials,
+                ),
             })?;
             if event.data.trim().is_empty() || event.data.trim() == "[DONE]" {
                 continue;
@@ -481,9 +489,10 @@ impl OpenAiCompatible {
                 serde_json::from_str(&event.data).map_err(|error| AttemptFailure {
                     kind: AttemptErrorKind::Runtime,
                     status: Some(200),
-                    message: self.redacted_message(&format!(
-                        "OpenAI-compatible returned invalid event JSON: {error}"
-                    )),
+                    message: redacted_urls_message(
+                        &format!("OpenAI-compatible returned invalid event JSON: {error}"),
+                        &self.credentials,
+                    ),
                 })?;
             let (delta, event_sources) = self.normalize(&value, true)?;
             answer.push_str(&delta);
@@ -505,9 +514,10 @@ impl OpenAiCompatible {
             let value: Value = serde_json::from_str(data).map_err(|error| AttemptFailure {
                 kind: AttemptErrorKind::Runtime,
                 status: Some(200),
-                message: self.redacted_message(&format!(
-                    "OpenAI-compatible returned invalid event JSON: {error}"
-                )),
+                message: redacted_urls_message(
+                    &format!("OpenAI-compatible returned invalid event JSON: {error}"),
+                    &self.credentials,
+                ),
             })?;
             let (delta, event_sources) = self.normalize(&value, true)?;
             answer.push_str(&delta);
@@ -554,7 +564,7 @@ impl OpenAiCompatible {
                 AttemptErrorKind::Network
             },
             status: error.status().map(|status| status.as_u16()),
-            message: self.redacted_message(&error.to_string()),
+            message: redacted_urls_message(&error.to_string(), &self.credentials),
         }
     }
 
@@ -575,10 +585,6 @@ impl OpenAiCompatible {
 
     fn redacted_text(&self, value: &str) -> String {
         self.credentials.redact(&config::redact_urls(value))
-    }
-
-    fn redacted_message(&self, value: &str) -> String {
-        truncate_message(&self.redacted_text(value))
     }
 }
 
@@ -646,14 +652,6 @@ fn finish(answer: String, sources: Vec<Source>) -> Result<(String, Vec<Source>),
         });
     }
     Ok((answer, sources))
-}
-
-fn fallback_budget(remaining: Duration, slots: usize) -> Option<Duration> {
-    if slots == 1 {
-        return Some(remaining);
-    }
-    let slice = remaining / u32::try_from(slots).unwrap_or(u32::MAX);
-    (slice >= Duration::from_secs(crate::types::MIN_USEFUL_SLICE_SECONDS)).then_some(slice)
 }
 
 fn apply_online_suffix(url: &str, model: &str) -> String {

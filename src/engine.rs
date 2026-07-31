@@ -1,6 +1,5 @@
 use std::collections::HashSet;
 use std::sync::Arc;
-use std::time::Duration;
 
 use reqwest::Client;
 
@@ -8,13 +7,12 @@ use crate::config::{
     self, DocsSearchProviderConfig, DocsSearchRuntimeConfig, MainSearchRuntimeConfig,
     RuntimeConfig, VerticalSearchRuntimeConfig, WebFetchRuntimeConfig, WebSearchRuntimeConfig,
 };
-use crate::net::RetryPolicy;
+use crate::net::{RetryPolicy, combine_diagnostics, slice_budget};
 use crate::providers::{self, FetchRequest, ProviderError, SearchRequest};
 use crate::types::{
     AttemptErrorKind, Capability, CapabilityGap, CapabilitySet, DENSITY_MAX_CHARS,
-    DENSITY_MAX_UNIQUE_LINES, Deadline, FetchOutcome, MIN_FETCH_CONTENT_CHARS,
-    MIN_USEFUL_SLICE_SECONDS, ProviderAttempt, SearchOutcome, Source, SupplementalSearchOutcome,
-    ValidationResult, VerticalSearchOutcome,
+    DENSITY_MAX_UNIQUE_LINES, Deadline, FetchOutcome, MIN_FETCH_CONTENT_CHARS, ProviderAttempt,
+    SearchOutcome, Source, SupplementalSearchOutcome, ValidationResult, VerticalSearchOutcome,
 };
 
 #[derive(Clone)]
@@ -88,8 +86,11 @@ async fn augment_with_web_search(
     match supplemental_web_search(query, limit, config.web_search.clone(), execution).await {
         Ok(mut supplemental) => {
             outcome.attempts.append(&mut supplemental.attempts);
-            outcome.diagnostic =
-                merge_diagnostic(outcome.diagnostic.take(), supplemental.diagnostic);
+            outcome.diagnostic = combine_diagnostics(
+                [outcome.diagnostic.take(), supplemental.diagnostic]
+                    .into_iter()
+                    .flatten(),
+            );
             merge_extra_sources(outcome, supplemental.sources);
         }
         Err(mut error) => {
@@ -99,7 +100,11 @@ async fn augment_with_web_search(
                 .map(|attempt| attempt.provider)
                 .collect::<HashSet<_>>();
             outcome.attempts.append(&mut error.attempts);
-            outcome.diagnostic = merge_diagnostic(outcome.diagnostic.take(), error.diagnostic);
+            outcome.diagnostic = combine_diagnostics(
+                [outcome.diagnostic.take(), error.diagnostic]
+                    .into_iter()
+                    .flatten(),
+            );
             record_gap(
                 outcome,
                 Capability::WebSearch,
@@ -137,13 +142,20 @@ async fn augment_with_docs_search(
     match documentation_search(query, limit, config.docs_search.clone(), execution).await {
         Ok(mut supplemental) => {
             outcome.attempts.append(&mut supplemental.attempts);
-            outcome.diagnostic =
-                merge_diagnostic(outcome.diagnostic.take(), supplemental.diagnostic);
+            outcome.diagnostic = combine_diagnostics(
+                [outcome.diagnostic.take(), supplemental.diagnostic]
+                    .into_iter()
+                    .flatten(),
+            );
             merge_extra_sources(outcome, supplemental.sources);
         }
         Err(mut error) => {
             outcome.attempts.append(&mut error.attempts);
-            outcome.diagnostic = merge_diagnostic(outcome.diagnostic.take(), error.diagnostic);
+            outcome.diagnostic = combine_diagnostics(
+                [outcome.diagnostic.take(), error.diagnostic]
+                    .into_iter()
+                    .flatten(),
+            );
             record_gap(
                 outcome,
                 Capability::DocsSearch,
@@ -211,8 +223,11 @@ async fn augment_with_web_fetch(
             Ok(mut fetched) => {
                 succeeded = true;
                 outcome.attempts.append(&mut fetched.attempts);
-                outcome.diagnostic =
-                    merge_diagnostic(outcome.diagnostic.take(), fetched.diagnostic);
+                outcome.diagnostic = combine_diagnostics(
+                    [outcome.diagnostic.take(), fetched.diagnostic]
+                        .into_iter()
+                        .flatten(),
+                );
                 outcome.validation_results.push(ValidationResult {
                     url: config::redact_url(&url),
                     provider: fetched.provider,
@@ -222,7 +237,11 @@ async fn augment_with_web_fetch(
             Err(mut error) => {
                 failed = true;
                 outcome.attempts.append(&mut error.attempts);
-                outcome.diagnostic = merge_diagnostic(outcome.diagnostic.take(), error.diagnostic);
+                outcome.diagnostic = combine_diagnostics(
+                    [outcome.diagnostic.take(), error.diagnostic]
+                        .into_iter()
+                        .flatten(),
+                );
             }
         }
     }
@@ -268,13 +287,21 @@ async fn augment_with_vertical_search(
     match vertical_search(query, limit, config.vertical_search.clone(), execution).await {
         Ok(mut vertical) => {
             outcome.attempts.append(&mut vertical.attempts);
-            outcome.diagnostic = merge_diagnostic(outcome.diagnostic.take(), vertical.diagnostic);
+            outcome.diagnostic = combine_diagnostics(
+                [outcome.diagnostic.take(), vertical.diagnostic]
+                    .into_iter()
+                    .flatten(),
+            );
             outcome.vertical_results = vertical.results;
             merge_extra_sources(outcome, vertical.sources);
         }
         Err(mut error) => {
             outcome.attempts.append(&mut error.attempts);
-            outcome.diagnostic = merge_diagnostic(outcome.diagnostic.take(), error.diagnostic);
+            outcome.diagnostic = combine_diagnostics(
+                [outcome.diagnostic.take(), error.diagnostic]
+                    .into_iter()
+                    .flatten(),
+            );
             record_gap(
                 outcome,
                 Capability::VerticalSearch,
@@ -323,18 +350,14 @@ fn record_gap(
         reason,
         providers_skipped,
     });
-    outcome.diagnostic = merge_diagnostic(
-        outcome.diagnostic.take(),
-        Some(format!("capability gap: {message}")),
+    outcome.diagnostic = combine_diagnostics(
+        [
+            outcome.diagnostic.take(),
+            Some(format!("capability gap: {message}")),
+        ]
+        .into_iter()
+        .flatten(),
     );
-}
-
-fn merge_diagnostic(first: Option<String>, second: Option<String>) -> Option<String> {
-    match (first, second) {
-        (Some(first), Some(second)) => Some(format!("{first}\n{second}")),
-        (Some(value), None) | (None, Some(value)) => Some(value),
-        (None, None) => None,
-    }
 }
 
 pub(crate) fn known_urls(query: &str) -> Vec<String> {
@@ -388,7 +411,7 @@ pub(crate) async fn search(
         let Some(remaining) = deadline.remaining() else {
             break;
         };
-        let Some(budget) = provider_budget(remaining, remaining_slots) else {
+        let Some(budget) = slice_budget(remaining, remaining_slots) else {
             attempts.push(skipped_attempt(backend, "main_search"));
             continue;
         };
@@ -493,7 +516,7 @@ pub(crate) async fn fetch(
         let Some(remaining) = deadline.remaining() else {
             break;
         };
-        let Some(provider_budget) = provider_budget(remaining, remaining_slots) else {
+        let Some(provider_budget) = slice_budget(remaining, remaining_slots) else {
             attempts.push(skipped_attempt(provider_name, "web_fetch"));
             continue;
         };
@@ -594,7 +617,7 @@ pub(crate) async fn supplemental_web_search(
         let Some(remaining) = execution.deadline.remaining() else {
             break;
         };
-        let Some(budget) = provider_budget(remaining, executable.len() - index) else {
+        let Some(budget) = slice_budget(remaining, executable.len() - index) else {
             attempts.push(skipped_attempt(provider_name, "web_search"));
             continue;
         };
@@ -678,7 +701,7 @@ pub(crate) async fn documentation_search(
         let Some(remaining) = execution.deadline.remaining() else {
             break;
         };
-        let Some(budget) = provider_budget(remaining, executable.len() - index) else {
+        let Some(budget) = slice_budget(remaining, executable.len() - index) else {
             attempts.push(skipped_attempt(provider_name, "docs_search"));
             continue;
         };
@@ -762,7 +785,7 @@ pub(crate) async fn vertical_search(
         let Some(remaining) = execution.deadline.remaining() else {
             break;
         };
-        let Some(budget) = provider_budget(remaining, executable.len() - index) else {
+        let Some(budget) = slice_budget(remaining, executable.len() - index) else {
             attempts.push(skipped_attempt(provider_name, "vertical_search"));
             continue;
         };
@@ -897,14 +920,6 @@ fn terminal_attempt(attempts: &[ProviderAttempt]) -> Option<&ProviderAttempt> {
         .map(|(_, attempt)| attempt)
 }
 
-fn provider_budget(remaining: Duration, remaining_slots: usize) -> Option<Duration> {
-    if remaining_slots == 1 {
-        return Some(remaining);
-    }
-    let slice = remaining / u32::try_from(remaining_slots).unwrap_or(u32::MAX);
-    (slice >= Duration::from_secs(MIN_USEFUL_SLICE_SECONDS)).then_some(slice)
-}
-
 fn error_priority(kind: AttemptErrorKind) -> u8 {
     match kind {
         AttemptErrorKind::Network => 0,
@@ -919,15 +934,12 @@ fn error_priority(kind: AttemptErrorKind) -> u8 {
     }
 }
 
-fn combine_diagnostics(diagnostics: Vec<String>) -> Option<String> {
-    (!diagnostics.is_empty()).then(|| diagnostics.join("\n"))
-}
-
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
 
-    use super::{error_priority, provider_budget, terminal_attempt, terminal_kind};
+    use super::{error_priority, terminal_attempt, terminal_kind};
+    use crate::net::slice_budget;
     use crate::types::{AttemptErrorKind, ProviderAttempt};
 
     #[test]
@@ -937,13 +949,13 @@ mod tests {
             (4, 1, Some(Duration::from_secs(4))),
             (9, 2, None),
             (10, 2, Some(Duration::from_secs(5))),
-            (11, 2, Some(Duration::from_millis(5500))),
+            (11, 2, Some(Duration::from_millis(5_500))),
             (14, 3, None),
             (15, 3, Some(Duration::from_secs(5))),
             (16, 3, Some(Duration::from_nanos(5_333_333_333))),
         ] {
             assert_eq!(
-                provider_budget(Duration::from_secs(remaining), slots),
+                slice_budget(Duration::from_secs(remaining), slots),
                 expected,
                 "remaining={remaining}, slots={slots}"
             );

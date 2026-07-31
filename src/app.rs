@@ -20,9 +20,13 @@ use crate::providers::{
 };
 use crate::types::{
     AnysearchOutcome, CapabilitySet, ClaimRisk, Context7Outcome, Deadline, EvidenceStrength,
-    FetchOutcome, JournalOutcome, MapOutcome, PlanCapability, RecencyRequirement, ResearchError,
-    ResearchIntentSignals, ResearchOutcome, ResearchPlan, ResearchSubquestion, SearchOutcome,
+    FetchOutcome, JournalOutcome, MapOutcome, PlanCapability, ProviderAttempt, RecencyRequirement,
+    ResearchError, ResearchIntentSignals, ResearchOutcome, ResearchPlan, ResearchSubquestion,
+    SearchOutcome,
 };
+
+#[doc(hidden)]
+pub use crate::net::combine_diagnostics;
 
 pub use crate::providers::ProviderError;
 pub use crate::types::ExaOutcome;
@@ -564,8 +568,8 @@ impl SearchContext {
             decision_source,
             classifier_degraded,
             classifier_duration,
-            mut classifier_attempts,
-            mut classifier_warning,
+            classifier_attempts,
+            classifier_warning,
         ) = match capabilities {
             Some(capabilities) => (capabilities, "caller", false, None, Vec::new(), None),
             None if !self.config.classifier.configured() => (
@@ -615,26 +619,16 @@ impl SearchContext {
             deadline,
             self.model_breakers,
         ));
-        match &mut result {
-            Ok(outcome) => {
-                outcome
-                    .attempts
-                    .splice(0..0, std::mem::take(&mut classifier_attempts));
-                outcome.diagnostic = combine_diagnostics(
-                    std::mem::take(&mut classifier_warning),
-                    outcome.diagnostic.take(),
-                );
-            }
-            Err(error) => {
-                error
-                    .attempts
-                    .splice(0..0, std::mem::take(&mut classifier_attempts));
-                error.diagnostic = combine_diagnostics(
-                    std::mem::take(&mut classifier_warning),
-                    error.diagnostic.take(),
-                );
-            }
-        }
+        let (attempts, diagnostic) = match &mut result {
+            Ok(outcome) => (&mut outcome.attempts, &mut outcome.diagnostic),
+            Err(error) => (&mut error.attempts, &mut error.diagnostic),
+        };
+        prepend_classifier_context(
+            attempts,
+            diagnostic,
+            classifier_attempts,
+            classifier_warning,
+        );
         if let Ok(outcome) = &mut result {
             outcome.capabilities = capabilities.iter().collect();
             self.runtime.block_on(crate::engine::execute_capabilities(
@@ -699,8 +693,8 @@ impl ResearchContext {
             plan_source,
             classifier_degraded,
             classifier_duration,
-            mut classifier_attempts,
-            mut classifier_warning,
+            classifier_attempts,
+            classifier_warning,
         ) = match caller_plan {
             Some(plan) => (plan, "caller", false, None, Vec::new(), None),
             None => {
@@ -750,26 +744,16 @@ impl ResearchContext {
             self.retry_policy,
             deadline,
         ));
-        match &mut result {
-            Ok(outcome) => {
-                outcome
-                    .attempts
-                    .splice(0..0, std::mem::take(&mut classifier_attempts));
-                outcome.diagnostic = combine_diagnostics(
-                    std::mem::take(&mut classifier_warning),
-                    outcome.diagnostic.take(),
-                );
-            }
-            Err(error) => {
-                error
-                    .attempts
-                    .splice(0..0, std::mem::take(&mut classifier_attempts));
-                error.diagnostic = combine_diagnostics(
-                    std::mem::take(&mut classifier_warning),
-                    error.diagnostic.take(),
-                );
-            }
-        }
+        let (attempts, diagnostic) = match &mut result {
+            Ok(outcome) => (&mut outcome.attempts, &mut outcome.diagnostic),
+            Err(error) => (&mut error.attempts, &mut error.diagnostic),
+        };
+        prepend_classifier_context(
+            attempts,
+            diagnostic,
+            classifier_attempts,
+            classifier_warning,
+        );
         let journal = crate::journal::record_research(
             &self.journal,
             crate::journal::ResearchRecord {
@@ -1612,12 +1596,18 @@ fn default_evidence_dir() -> PathBuf {
         .join(format!("{}-{timestamp}", std::process::id()))
 }
 
-fn combine_diagnostics(first: Option<String>, second: Option<String>) -> Option<String> {
-    match (first, second) {
-        (Some(first), Some(second)) => Some(format!("{first}\n{second}")),
-        (Some(diagnostic), None) | (None, Some(diagnostic)) => Some(diagnostic),
-        (None, None) => None,
-    }
+fn prepend_classifier_context(
+    attempts: &mut Vec<ProviderAttempt>,
+    diagnostic: &mut Option<String>,
+    classifier_attempts: Vec<ProviderAttempt>,
+    classifier_warning: Option<String>,
+) {
+    attempts.splice(0..0, classifier_attempts);
+    *diagnostic = combine_diagnostics(
+        [classifier_warning, diagnostic.take()]
+            .into_iter()
+            .flatten(),
+    );
 }
 
 fn parse_json_object(value: &str) -> Result<Map<String, Value>, String> {

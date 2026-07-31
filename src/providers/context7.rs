@@ -3,10 +3,11 @@ use std::time::{Duration, Instant};
 use reqwest::Client;
 use serde_json::{Map, Value, json};
 
-use crate::config::{self, Context7RuntimeConfig};
+use crate::config::Context7RuntimeConfig;
 use crate::credentials::CredentialPool;
-use crate::net::{McpClient, McpError, McpToolResult, RetryPolicy, truncate_message};
+use crate::net::{McpClient, McpError, McpToolResult, RetryPolicy, duration_millis};
 use crate::providers::ProviderError;
+use crate::providers::shared::redacted_message;
 use crate::types::{
     AttemptErrorKind, Context7DocsOutcome, Context7LibraryOutcome, Context7Outcome, Deadline,
     LibraryCandidate, ProviderAttempt,
@@ -106,7 +107,7 @@ impl Context7 {
                         seam: "docs_search",
                         error_kind: None,
                         http_status: Some(200),
-                        duration_ms: millis(started.elapsed()),
+                        duration_ms: duration_millis(started.elapsed()),
                         credential_index,
                         retry_count,
                         rotation_count,
@@ -133,11 +134,15 @@ impl Context7 {
                         seam: "docs_search",
                         error_kind: Some(kind),
                         http_status: failure.status,
-                        duration_ms: millis(started.elapsed()),
+                        duration_ms: duration_millis(started.elapsed()),
                         credential_index,
                         retry_count,
                         rotation_count,
-                        message: self.redacted_message(&failure.message),
+                        message: redacted_message(
+                            &failure.message,
+                            &self.config.url,
+                            &self.credentials,
+                        ),
                         model: None,
                         transport: Some("mcp"),
                         endpoint_host: None,
@@ -207,16 +212,6 @@ impl Context7 {
             diagnostic,
             redirected_library_id,
         }
-    }
-
-    fn redacted_message(&self, message: &str) -> String {
-        let redacted_endpoint = config::redact_url(&self.config.url);
-        truncate_message(
-            &self
-                .credentials
-                .redact(message)
-                .replace(&self.config.url, &redacted_endpoint),
-        )
     }
 
     fn redact_outcome(&self, mut outcome: Context7Outcome) -> Context7Outcome {
@@ -553,8 +548,4 @@ fn redact_json(value: &mut Value, credentials: &CredentialPool) {
         }
         _ => {}
     }
-}
-
-fn millis(duration: Duration) -> u64 {
-    duration.as_millis().try_into().unwrap_or(u64::MAX)
 }

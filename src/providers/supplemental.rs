@@ -5,9 +5,10 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::{self, WebFetchProviderConfig};
 use crate::credentials::CredentialPool;
-use crate::net::{RetryPolicy, error_kind_for_status, truncate_message};
+use crate::net::{RetryPolicy, error_kind_for_status};
 use crate::providers::ProviderError;
 use crate::providers::execution::{self, AttemptFailure, ExecutionSettings};
+use crate::providers::shared::redacted_message;
 use crate::types::{AttemptErrorKind, Deadline, Source, SupplementalSearchOutcome};
 
 pub(crate) struct SupplementalSearch {
@@ -98,19 +99,19 @@ impl SupplementalSearch {
                 AttemptErrorKind::Network
             },
             status: error.status().map(|status| status.as_u16()),
-            message: self.redact(&error.to_string()),
+            message: redacted_message(&error.to_string(), &self.config.url, &self.credentials),
         })?;
         let status = response.status();
         let body = response.text().await.map_err(|error| AttemptFailure {
             kind: AttemptErrorKind::Network,
             status: Some(status.as_u16()),
-            message: self.redact(&error.to_string()),
+            message: redacted_message(&error.to_string(), &self.config.url, &self.credentials),
         })?;
         if !status.is_success() {
             return Err(AttemptFailure {
                 kind: error_kind_for_status(status, &body),
                 status: Some(status.as_u16()),
-                message: self.redact(&body),
+                message: redacted_message(&body, &self.config.url, &self.credentials),
             });
         }
         let results = if self.provider == "tavily" {
@@ -121,10 +122,11 @@ impl SupplementalSearch {
         .map_err(|error| AttemptFailure {
             kind: AttemptErrorKind::Runtime,
             status: Some(status.as_u16()),
-            message: self.redact(&format!(
-                "invalid {} search response: {error}",
-                self.provider
-            )),
+            message: redacted_message(
+                &format!("invalid {} search response: {error}", self.provider),
+                &self.config.url,
+                &self.credentials,
+            ),
         })?;
         Ok((
             status.as_u16(),
@@ -146,15 +148,6 @@ impl SupplementalSearch {
                 })
                 .collect(),
         ))
-    }
-
-    fn redact(&self, message: &str) -> String {
-        truncate_message(
-            &self
-                .credentials
-                .redact(message)
-                .replace(&self.config.url, &config::redact_url(&self.config.url)),
-        )
     }
 }
 

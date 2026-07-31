@@ -8,6 +8,7 @@ mod context7;
 mod exa;
 pub(crate) mod execution;
 mod openai_compatible;
+pub(crate) mod shared;
 mod supplemental;
 mod tavily_map;
 mod web_fetch;
@@ -22,7 +23,7 @@ use crate::config::{
     XaiRuntimeConfig,
 };
 use crate::credentials::CredentialPool;
-use crate::net::RetryPolicy;
+use crate::net::{RetryPolicy, combine_diagnostics};
 use crate::types::{
     AnysearchOutcome, Context7Outcome, ExaOutcome, Source, SupplementalSearchOutcome,
     VerticalSearchOutcome,
@@ -243,7 +244,9 @@ impl DocsSearch for Context7 {
                 Ok(outcome) => outcome,
                 Err(mut error) => {
                     error.attempts.splice(0..0, library.attempts);
-                    error.diagnostic = merge_diagnostic(library.diagnostic, error.diagnostic);
+                    error.diagnostic = combine_diagnostics(
+                        [library.diagnostic, error.diagnostic].into_iter().flatten(),
+                    );
                     return Err(error);
                 }
             }) else {
@@ -266,17 +269,11 @@ impl DocsSearch for Context7 {
             Ok(SupplementalSearchOutcome {
                 sources,
                 attempts,
-                diagnostic: merge_diagnostic(library.diagnostic, docs.diagnostic),
+                diagnostic: combine_diagnostics(
+                    [library.diagnostic, docs.diagnostic].into_iter().flatten(),
+                ),
             })
         })
-    }
-}
-
-fn merge_diagnostic(first: Option<String>, second: Option<String>) -> Option<String> {
-    match (first, second) {
-        (Some(first), Some(second)) => Some(format!("{first}\n{second}")),
-        (Some(value), None) | (None, Some(value)) => Some(value),
-        (None, None) => None,
     }
 }
 

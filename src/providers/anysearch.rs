@@ -3,10 +3,13 @@ use std::time::{Duration, Instant};
 use reqwest::Client;
 use serde_json::{Map, Value, json};
 
-use crate::config::{self, AnysearchRuntimeConfig};
+use crate::config::AnysearchRuntimeConfig;
 use crate::credentials::CredentialPool;
-use crate::net::{McpClient, McpError, McpToolResult, RetryPolicy, truncate_message};
+use crate::net::{
+    McpClient, McpError, McpToolResult, RetryPolicy, duration_millis, truncate_message,
+};
 use crate::providers::ProviderError;
+use crate::providers::shared::redact_message;
 use crate::types::{
     AnysearchDomain, AnysearchDomainsOutcome, AnysearchOutcome, AnysearchResult,
     AnysearchSearchOutcome, AttemptErrorKind, Deadline, ProviderAttempt, SchemaValidation,
@@ -200,7 +203,7 @@ impl Anysearch {
                         seam: "vertical_search",
                         error_kind: None,
                         http_status: Some(200),
-                        duration_ms: millis(started.elapsed()),
+                        duration_ms: duration_millis(started.elapsed()),
                         credential_index,
                         retry_count,
                         rotation_count,
@@ -223,11 +226,19 @@ impl Anysearch {
                         seam: "vertical_search",
                         error_kind: Some(kind),
                         http_status: failure.status,
-                        duration_ms: millis(started.elapsed()),
+                        duration_ms: duration_millis(started.elapsed()),
                         credential_index,
                         retry_count,
                         rotation_count,
-                        message: self.redacted_message(&failure.message, &arguments),
+                        message: {
+                            let mut message = redact_message(
+                                &failure.message,
+                                &self.config.url,
+                                &self.credentials,
+                            );
+                            redact_argument_values(&mut message, &arguments);
+                            truncate_message(&message)
+                        },
                         model: None,
                         transport: Some("mcp"),
                         endpoint_host: None,
@@ -283,16 +294,6 @@ impl Anysearch {
             diagnostic,
             redirected_library_id: None,
         }
-    }
-
-    fn redacted_message(&self, message: &str, arguments: &Value) -> String {
-        let redacted_endpoint = config::redact_url(&self.config.url);
-        let mut message = self
-            .credentials
-            .redact(message)
-            .replace(&self.config.url, &redacted_endpoint);
-        redact_argument_values(&mut message, arguments);
-        truncate_message(&message)
     }
 }
 
@@ -563,8 +564,4 @@ fn finish_markdown_domain(domain: MarkdownDomain) -> AnysearchDomain {
             "properties": domain.properties,
         }),
     }
-}
-
-fn millis(duration: Duration) -> u64 {
-    duration.as_millis().try_into().unwrap_or(u64::MAX)
 }

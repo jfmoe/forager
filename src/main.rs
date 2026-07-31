@@ -165,12 +165,16 @@ fn render_research(
             (stdout, postflight_exit_code(error.kind), error.diagnostic)
         }
     };
-    let diagnostic = combine_diagnostics(
-        diagnostic,
-        journal
-            .warning
-            .as_ref()
-            .map(|warning| format!("Search Result Journal warning: {warning}")),
+    let diagnostic = app::combine_diagnostics(
+        [
+            diagnostic,
+            journal
+                .warning
+                .as_ref()
+                .map(|warning| format!("Search Result Journal warning: {warning}")),
+        ]
+        .into_iter()
+        .flatten(),
     );
     apply_tee(
         stdout,
@@ -261,12 +265,16 @@ fn render_search(
             (stdout, postflight_exit_code(error.kind), error.diagnostic)
         }
     };
-    let diagnostic = combine_diagnostics(
-        provider_diagnostic,
-        journal
-            .warning
-            .as_ref()
-            .map(|warning| format!("Search Result Journal warning: {warning}")),
+    let diagnostic = app::combine_diagnostics(
+        [
+            provider_diagnostic,
+            journal
+                .warning
+                .as_ref()
+                .map(|warning| format!("Search Result Journal warning: {warning}")),
+        ]
+        .into_iter()
+        .flatten(),
     );
     apply_tee(
         stdout,
@@ -303,14 +311,6 @@ fn add_journal_status(payload: &mut Value, journal: &JournalOutcome) -> Result<(
         Value::String(journal.status.into()),
     );
     Ok(())
-}
-
-fn combine_diagnostics(first: Option<String>, second: Option<String>) -> Option<String> {
-    match (first, second) {
-        (Some(first), Some(second)) => Some(format!("{first}\n{second}")),
-        (Some(diagnostic), None) | (None, Some(diagnostic)) => Some(diagnostic),
-        (None, None) => None,
-    }
 }
 
 fn render_map(

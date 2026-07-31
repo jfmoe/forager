@@ -2,7 +2,7 @@ use std::future::Future;
 use std::time::{Duration, Instant};
 
 use crate::credentials::CredentialPool;
-use crate::net::RetryPolicy;
+use crate::net::{RetryPolicy, duration_millis};
 use crate::providers::ProviderError;
 use crate::types::{AttemptErrorKind, Deadline, ProviderAttempt};
 
@@ -70,7 +70,7 @@ where
                     seam: settings.seam,
                     error_kind: None,
                     http_status: Some(status),
-                    duration_ms: millis(started.elapsed()),
+                    duration_ms: duration_millis(started.elapsed()),
                     credential_index,
                     retry_count,
                     rotation_count,
@@ -99,7 +99,7 @@ where
             seam: settings.seam,
             error_kind: Some(kind),
             http_status: failure.status,
-            duration_ms: millis(started.elapsed()),
+            duration_ms: duration_millis(started.elapsed()),
             credential_index,
             retry_count,
             rotation_count,
@@ -163,8 +163,4 @@ fn terminal_error(
         diagnostic,
         redirected_library_id: None,
     }
-}
-
-fn millis(duration: Duration) -> u64 {
-    duration.as_millis().try_into().unwrap_or(u64::MAX)
 }

@@ -5,8 +5,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::{self, ExaRuntimeConfig};
 use crate::credentials::CredentialPool;
-use crate::net::{RetryPolicy, error_kind_for_status, truncate_message};
+use crate::net::{RetryPolicy, duration_millis, error_kind_for_status};
 use crate::providers::ProviderError;
+use crate::providers::shared::redacted_message;
 use crate::types::{AttemptErrorKind, Deadline, ExaInput, ExaOutcome, ProviderAttempt, Source};
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -108,7 +109,7 @@ impl Exa {
                         seam: operation.name(),
                         error_kind: None,
                         http_status: Some(200),
-                        duration_ms: millis(started.elapsed()),
+                        duration_ms: duration_millis(started.elapsed()),
                         credential_index,
                         retry_count,
                         rotation_count,
@@ -137,7 +138,7 @@ impl Exa {
                         seam: operation.name(),
                         error_kind: Some(kind),
                         http_status: failure.status,
-                        duration_ms: millis(started.elapsed()),
+                        duration_ms: duration_millis(started.elapsed()),
                         credential_index,
                         retry_count,
                         rotation_count,
@@ -190,7 +191,7 @@ impl Exa {
                         seam: operation.name(),
                         error_kind: Some(AttemptErrorKind::Timeout),
                         http_status: None,
-                        duration_ms: millis(started.elapsed()),
+                        duration_ms: duration_millis(started.elapsed()),
                         credential_index,
                         retry_count,
                         rotation_count,
@@ -241,7 +242,7 @@ impl Exa {
                 AttemptErrorKind::Network
             },
             status: error.status().map(|status| status.as_u16()),
-            message: self.redacted_message(&error.to_string()),
+            message: redacted_message(&error.to_string(), &self.config.url, &self.credentials),
         })?;
         let status = response.status();
         let body = response.text().await.map_err(|error| AttemptFailure {
@@ -251,20 +252,28 @@ impl Exa {
                 AttemptErrorKind::Network
             },
             status: Some(status.as_u16()),
-            message: self.redacted_message(&error.to_string()),
+            message: redacted_message(&error.to_string(), &self.config.url, &self.credentials),
         })?;
         if !status.is_success() {
             return Err(AttemptFailure {
                 kind: error_kind_for_status(status, &body),
                 status: Some(status.as_u16()),
-                message: self.redacted_message(&failure_message(&body, status.as_u16())),
+                message: redacted_message(
+                    &failure_message(&body, status.as_u16()),
+                    &self.config.url,
+                    &self.credentials,
+                ),
             });
         }
         let response: ExaResponse =
             serde_json::from_str(&body).map_err(|error| AttemptFailure {
                 kind: AttemptErrorKind::Runtime,
                 status: Some(status.as_u16()),
-                message: self.redacted_message(&format!("invalid Exa response: {error}")),
+                message: redacted_message(
+                    &format!("invalid Exa response: {error}"),
+                    &self.config.url,
+                    &self.credentials,
+                ),
             })?;
         Ok(response
             .results
@@ -288,16 +297,6 @@ impl Exa {
                 .map(|value| self.credentials.redact(value))
                 .collect(),
         }
-    }
-
-    fn redacted_message(&self, message: &str) -> String {
-        let redacted_endpoint = config::redact_url(&self.config.url);
-        truncate_message(
-            &self
-                .credentials
-                .redact(message)
-                .replace(&self.config.url, &redacted_endpoint),
-        )
     }
 }
 
@@ -457,10 +456,6 @@ fn failure_message(body: &str, status: u16) -> String {
                 .map(ToOwned::to_owned)
         })
         .unwrap_or_else(|| format!("Exa returned HTTP {status}"))
-}
-
-fn millis(duration: Duration) -> u64 {
-    duration.as_millis().try_into().unwrap_or(u64::MAX)
 }
 
 fn slice_is_empty<T>(values: &[T]) -> bool {

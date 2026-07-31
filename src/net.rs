@@ -5,7 +5,7 @@ use futures_util::StreamExt;
 use reqwest::{Client, Response, StatusCode};
 use serde_json::{Value, json};
 
-use crate::types::{AttemptErrorKind, Deadline};
+use crate::types::{AttemptErrorKind, Deadline, MIN_USEFUL_SLICE_SECONDS};
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct RetryPolicy {
@@ -42,7 +42,24 @@ mod tests {
     use std::thread;
     use std::time::Duration;
 
-    use super::{RetryPolicy, build_client};
+    use super::{RetryPolicy, build_client, combine_diagnostics, duration_millis};
+
+    #[test]
+    fn combine_diagnostics_joins_present_values_in_order() {
+        assert_eq!(
+            combine_diagnostics(
+                [Some("first".to_owned()), None, Some("second".to_owned())]
+                    .into_iter()
+                    .flatten(),
+            ),
+            Some("first\nsecond".to_owned())
+        );
+    }
+
+    #[test]
+    fn duration_millis_saturates_values_larger_than_u64() {
+        assert_eq!(duration_millis(Duration::MAX), u64::MAX);
+    }
 
     #[test]
     fn retry_wait_clamps_overflowing_seconds_to_max_wait() {
@@ -114,6 +131,23 @@ pub(crate) fn error_kind_for_status(status: StatusCode, body: &str) -> AttemptEr
 
 pub(crate) fn truncate_message(message: &str) -> String {
     message.chars().take(500).collect()
+}
+
+pub fn combine_diagnostics(diagnostics: impl IntoIterator<Item = String>) -> Option<String> {
+    let diagnostics = diagnostics.into_iter().collect::<Vec<_>>();
+    (!diagnostics.is_empty()).then(|| diagnostics.join("\n"))
+}
+
+pub(crate) fn slice_budget(remaining: Duration, remaining_slots: usize) -> Option<Duration> {
+    if remaining_slots == 1 {
+        return Some(remaining);
+    }
+    let slice = remaining / u32::try_from(remaining_slots).unwrap_or(u32::MAX);
+    (slice >= Duration::from_secs(MIN_USEFUL_SLICE_SECONDS)).then_some(slice)
+}
+
+pub(crate) fn duration_millis(duration: Duration) -> u64 {
+    duration.as_millis().try_into().unwrap_or(u64::MAX)
 }
 
 const MCP_PROTOCOL_VERSION: &str = "2024-11-05";
