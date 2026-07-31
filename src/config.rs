@@ -4,6 +4,7 @@ use std::collections::{BTreeMap, HashSet};
 use std::env;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
+use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -71,32 +72,17 @@ impl Default for Classifier {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 struct Providers {
     xai: Xai,
     openai_compatible: OpenAiCompatible,
-    exa: Endpoint,
-    context7: Endpoint,
+    exa: Endpoint<ExaEndpoint>,
+    context7: Endpoint<Context7Endpoint>,
     jina: Jina,
-    tavily: Endpoint,
-    firecrawl: Endpoint,
-    anysearch: Endpoint,
-}
-
-impl Default for Providers {
-    fn default() -> Self {
-        Self {
-            xai: Xai::default(),
-            openai_compatible: OpenAiCompatible::default(),
-            exa: Endpoint::new("https://api.exa.ai"),
-            context7: Endpoint::new("https://mcp.context7.com/mcp"),
-            jina: Jina::default(),
-            tavily: Endpoint::new("https://api.tavily.com"),
-            firecrawl: Endpoint::new("https://api.firecrawl.dev/v2"),
-            anysearch: Endpoint::new("https://api.anysearch.com/mcp"),
-        }
-    }
+    tavily: Endpoint<TavilyEndpoint>,
+    firecrawl: Endpoint<FirecrawlEndpoint>,
+    anysearch: Endpoint<AnysearchEndpoint>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -143,30 +129,45 @@ impl Default for OpenAiCompatible {
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
-struct Endpoint {
+struct Endpoint<D: EndpointDefaults> {
     url: String,
     keys: Vec<String>,
     timeout: i64,
+    #[serde(skip)]
+    defaults: PhantomData<D>,
 }
 
-impl Default for Endpoint {
+impl<D: EndpointDefaults> Default for Endpoint<D> {
     fn default() -> Self {
         Self {
-            url: String::new(),
+            url: D::URL.into(),
             keys: Vec::new(),
             timeout: 30,
+            defaults: PhantomData,
         }
     }
 }
 
-impl Endpoint {
-    fn new(url: &str) -> Self {
-        Self {
-            url: url.into(),
-            ..Self::default()
-        }
-    }
+trait EndpointDefaults {
+    const URL: &'static str;
 }
+
+macro_rules! endpoint_defaults {
+    ($name:ident, $url:literal) => {
+        #[derive(Clone, Debug)]
+        struct $name;
+
+        impl EndpointDefaults for $name {
+            const URL: &'static str = $url;
+        }
+    };
+}
+
+endpoint_defaults!(ExaEndpoint, "https://api.exa.ai");
+endpoint_defaults!(Context7Endpoint, "https://mcp.context7.com/mcp");
+endpoint_defaults!(TavilyEndpoint, "https://api.tavily.com");
+endpoint_defaults!(FirecrawlEndpoint, "https://api.firecrawl.dev/v2");
+endpoint_defaults!(AnysearchEndpoint, "https://api.anysearch.com/mcp");
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
@@ -799,7 +800,6 @@ fn load_effective_config() -> Result<LoadedConfig, ConfigError> {
             detail: diagnostic_without_source(&error.to_string()),
         })?
     };
-    restore_provider_url_defaults(&mut config, &file_value);
     let mut env_paths = HashSet::new();
     apply_environment(&mut config, &mut env_paths)?;
     normalize_credentials(&mut config);
@@ -810,40 +810,6 @@ fn load_effective_config() -> Result<LoadedConfig, ConfigError> {
         file_value,
         env_paths,
     })
-}
-
-fn restore_provider_url_defaults(config: &mut Config, file: &toml::Value) {
-    for (path, target, default) in [
-        (
-            "providers.exa.url",
-            &mut config.providers.exa.url,
-            "https://api.exa.ai",
-        ),
-        (
-            "providers.context7.url",
-            &mut config.providers.context7.url,
-            "https://mcp.context7.com/mcp",
-        ),
-        (
-            "providers.tavily.url",
-            &mut config.providers.tavily.url,
-            "https://api.tavily.com",
-        ),
-        (
-            "providers.firecrawl.url",
-            &mut config.providers.firecrawl.url,
-            "https://api.firecrawl.dev/v2",
-        ),
-        (
-            "providers.anysearch.url",
-            &mut config.providers.anysearch.url,
-            "https://api.anysearch.com/mcp",
-        ),
-    ] {
-        if !toml_contains(file, path) {
-            *target = default.into();
-        }
-    }
 }
 
 /// Serializes the shared effective configuration view.
@@ -1736,9 +1702,9 @@ fn build_view(config: &Config, file: &toml::Value, environment: &HashSet<String>
     })
 }
 
-fn endpoint_view(
+fn endpoint_view<D: EndpointDefaults>(
     prefix: &str,
-    endpoint: &Endpoint,
+    endpoint: &Endpoint<D>,
     file: &toml::Value,
     environment: &HashSet<String>,
 ) -> JsonValue {
@@ -2343,7 +2309,36 @@ fn verify_default_directory(config_dir: &Path) -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::redact_url;
+    use super::{Config, redact_url};
+
+    #[test]
+    fn provider_endpoints_use_their_url_defaults_when_omitted() {
+        let config: Config = toml::from_str(
+            "[providers.exa]\ntimeout = 41\n\
+             [providers.context7]\ntimeout = 42\n\
+             [providers.tavily]\ntimeout = 43\n\
+             [providers.firecrawl]\ntimeout = 44\n\
+             [providers.anysearch]\ntimeout = 45\n",
+        )
+        .expect("deserialize partial provider endpoints");
+
+        assert_eq!(
+            (
+                config.providers.exa.url.as_str(),
+                config.providers.context7.url.as_str(),
+                config.providers.tavily.url.as_str(),
+                config.providers.firecrawl.url.as_str(),
+                config.providers.anysearch.url.as_str(),
+            ),
+            (
+                "https://api.exa.ai",
+                "https://mcp.context7.com/mcp",
+                "https://api.tavily.com",
+                "https://api.firecrawl.dev/v2",
+                "https://api.anysearch.com/mcp",
+            )
+        );
+    }
 
     #[test]
     fn url_redaction_exhausts_credentials_fragments_and_safe_query_boundaries() {
