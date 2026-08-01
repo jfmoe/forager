@@ -95,51 +95,51 @@ pub(crate) trait MainSearch: Send + Sync {
 }
 
 pub(crate) trait WebSearch: Send + Sync {
-    fn search(
-        &self,
-        query: String,
+    fn search<'a>(
+        &'a self,
+        query: &'a str,
         limit: u16,
-    ) -> Pin<Box<dyn Future<Output = Result<SupplementalSearchOutcome, ProviderError>> + Send + '_>>;
+    ) -> Pin<Box<dyn Future<Output = Result<SupplementalSearchOutcome, ProviderError>> + Send + 'a>>;
 }
 
 impl WebSearch for SupplementalSearch {
-    fn search(
-        &self,
-        query: String,
+    fn search<'a>(
+        &'a self,
+        query: &'a str,
         limit: u16,
-    ) -> Pin<Box<dyn Future<Output = Result<SupplementalSearchOutcome, ProviderError>> + Send + '_>>
+    ) -> Pin<Box<dyn Future<Output = Result<SupplementalSearchOutcome, ProviderError>> + Send + 'a>>
     {
-        Box::pin(async move { SupplementalSearch::search(self, &query, limit).await })
+        Box::pin(SupplementalSearch::search(self, query, limit))
     }
 }
 
 pub(crate) trait DocsSearch: Send + Sync {
-    fn search(
-        &self,
-        query: String,
+    fn search<'a>(
+        &'a self,
+        query: &'a str,
         limit: u16,
-    ) -> Pin<Box<dyn Future<Output = Result<SupplementalSearchOutcome, ProviderError>> + Send + '_>>;
+    ) -> Pin<Box<dyn Future<Output = Result<SupplementalSearchOutcome, ProviderError>> + Send + 'a>>;
 }
 
 pub(crate) trait VerticalSearch: Send + Sync {
-    fn search(
-        &self,
-        query: String,
+    fn search<'a>(
+        &'a self,
+        query: &'a str,
         limit: u16,
-    ) -> Pin<Box<dyn Future<Output = Result<VerticalSearchOutcome, ProviderError>> + Send + '_>>;
+    ) -> Pin<Box<dyn Future<Output = Result<VerticalSearchOutcome, ProviderError>> + Send + 'a>>;
 }
 
 impl VerticalSearch for Anysearch {
-    fn search(
-        &self,
-        query: String,
+    fn search<'a>(
+        &'a self,
+        query: &'a str,
         limit: u16,
-    ) -> Pin<Box<dyn Future<Output = Result<VerticalSearchOutcome, ProviderError>> + Send + '_>>
+    ) -> Pin<Box<dyn Future<Output = Result<VerticalSearchOutcome, ProviderError>> + Send + 'a>>
     {
         Box::pin(async move {
             let AnysearchOutcome::Search(outcome) = self
                 .search(AnysearchSearchRequest {
-                    query,
+                    query: query.to_owned(),
                     domain: None,
                     sub_domain: None,
                     sub_domain_params: serde_json::Map::new(),
@@ -174,11 +174,11 @@ impl VerticalSearch for Anysearch {
 }
 
 impl DocsSearch for Exa {
-    fn search(
-        &self,
-        query: String,
+    fn search<'a>(
+        &'a self,
+        query: &'a str,
         limit: u16,
-    ) -> Pin<Box<dyn Future<Output = Result<SupplementalSearchOutcome, ProviderError>> + Send + '_>>
+    ) -> Pin<Box<dyn Future<Output = Result<SupplementalSearchOutcome, ProviderError>> + Send + 'a>>
     {
         Box::pin(async move {
             let ExaOutcome {
@@ -188,7 +188,7 @@ impl DocsSearch for Exa {
                 ..
             } = self
                 .search(ExaSearchRequest {
-                    query,
+                    query: query.to_owned(),
                     num_results: limit,
                     search_type: SearchType::Auto,
                     include_text: false,
@@ -210,16 +210,16 @@ impl DocsSearch for Exa {
 }
 
 impl DocsSearch for Context7 {
-    fn search(
-        &self,
-        query: String,
+    fn search<'a>(
+        &'a self,
+        query: &'a str,
         limit: u16,
-    ) -> Pin<Box<dyn Future<Output = Result<SupplementalSearchOutcome, ProviderError>> + Send + '_>>
+    ) -> Pin<Box<dyn Future<Output = Result<SupplementalSearchOutcome, ProviderError>> + Send + 'a>>
     {
         Box::pin(async move {
             let Context7Outcome::Library(library) = self
                 .library(Context7LibraryRequest {
-                    name: query.clone(),
+                    name: query.to_owned(),
                     query: String::new(),
                     verbose: true,
                 })
@@ -237,7 +237,7 @@ impl DocsSearch for Context7 {
             let docs_result = self
                 .docs(Context7DocsRequest {
                     library_id: candidate.id,
-                    query,
+                    query: query.to_owned(),
                     verbose: true,
                 })
                 .await;
@@ -344,11 +344,30 @@ pub(crate) enum ProviderId {
 
 impl ProviderId {
     pub(crate) fn parse(value: &str) -> Option<Self> {
-        registration_by_name(value).map(|registration| registration.id)
+        match value {
+            "xai" => Some(Self::Xai),
+            "openai_compatible" => Some(Self::OpenAiCompatible),
+            "exa" => Some(Self::Exa),
+            "tavily" => Some(Self::Tavily),
+            "firecrawl" => Some(Self::Firecrawl),
+            "jina" => Some(Self::Jina),
+            "context7" => Some(Self::Context7),
+            "anysearch" => Some(Self::Anysearch),
+            _ => None,
+        }
     }
 
     pub(crate) fn name(self) -> &'static str {
-        registration(self).name
+        match self {
+            Self::Xai => "xai",
+            Self::OpenAiCompatible => "openai_compatible",
+            Self::Exa => "exa",
+            Self::Tavily => "tavily",
+            Self::Firecrawl => "firecrawl",
+            Self::Jina => "jina",
+            Self::Context7 => "context7",
+            Self::Anysearch => "anysearch",
+        }
     }
 }
 
@@ -359,32 +378,6 @@ pub(crate) struct ProviderRegistration {
     pub(crate) capabilities: &'static [&'static str],
     pub(crate) operations: &'static [&'static str],
     pub(crate) credentials_required: bool,
-    pub(crate) doctor_probe: DoctorProbe,
-    constructor: ProviderConstructor,
-}
-
-#[derive(Clone, Copy)]
-pub(crate) enum DoctorProbe {
-    XaiResponses,
-    OpenAiCompatibleShapes,
-    ExaSearch,
-    TavilySearch,
-    FirecrawlSearch,
-    JinaFetch,
-    Context7Library,
-    AnysearchDomains,
-}
-
-#[derive(Clone, Copy)]
-enum ProviderConstructor {
-    Xai,
-    OpenAiCompatible,
-    Anysearch,
-    Context7,
-    Exa,
-    Jina,
-    Tavily,
-    Firecrawl,
 }
 
 const REGISTRY: &[ProviderRegistration] = &[
@@ -394,8 +387,6 @@ const REGISTRY: &[ProviderRegistration] = &[
         capabilities: &["main_search"],
         operations: &[],
         credentials_required: true,
-        doctor_probe: DoctorProbe::XaiResponses,
-        constructor: ProviderConstructor::Xai,
     },
     ProviderRegistration {
         id: ProviderId::OpenAiCompatible,
@@ -403,8 +394,6 @@ const REGISTRY: &[ProviderRegistration] = &[
         capabilities: &["main_search"],
         operations: &[],
         credentials_required: true,
-        doctor_probe: DoctorProbe::OpenAiCompatibleShapes,
-        constructor: ProviderConstructor::OpenAiCompatible,
     },
     ProviderRegistration {
         id: ProviderId::Tavily,
@@ -412,8 +401,6 @@ const REGISTRY: &[ProviderRegistration] = &[
         capabilities: &["web_search", "web_fetch"],
         operations: &["site_map"],
         credentials_required: true,
-        doctor_probe: DoctorProbe::TavilySearch,
-        constructor: ProviderConstructor::Tavily,
     },
     ProviderRegistration {
         id: ProviderId::Firecrawl,
@@ -421,8 +408,6 @@ const REGISTRY: &[ProviderRegistration] = &[
         capabilities: &["web_search", "web_fetch"],
         operations: &[],
         credentials_required: true,
-        doctor_probe: DoctorProbe::FirecrawlSearch,
-        constructor: ProviderConstructor::Firecrawl,
     },
     ProviderRegistration {
         id: ProviderId::Jina,
@@ -430,8 +415,6 @@ const REGISTRY: &[ProviderRegistration] = &[
         capabilities: &["web_fetch"],
         operations: &[],
         credentials_required: true,
-        doctor_probe: DoctorProbe::JinaFetch,
-        constructor: ProviderConstructor::Jina,
     },
     ProviderRegistration {
         id: ProviderId::Context7,
@@ -439,8 +422,6 @@ const REGISTRY: &[ProviderRegistration] = &[
         capabilities: &["docs_search"],
         operations: &[],
         credentials_required: true,
-        doctor_probe: DoctorProbe::Context7Library,
-        constructor: ProviderConstructor::Context7,
     },
     ProviderRegistration {
         id: ProviderId::Exa,
@@ -448,8 +429,6 @@ const REGISTRY: &[ProviderRegistration] = &[
         capabilities: &["docs_search"],
         operations: &[],
         credentials_required: true,
-        doctor_probe: DoctorProbe::ExaSearch,
-        constructor: ProviderConstructor::Exa,
     },
     ProviderRegistration {
         id: ProviderId::Anysearch,
@@ -457,8 +436,6 @@ const REGISTRY: &[ProviderRegistration] = &[
         capabilities: &["vertical_search"],
         operations: &[],
         credentials_required: true,
-        doctor_probe: DoctorProbe::AnysearchDomains,
-        constructor: ProviderConstructor::Anysearch,
     },
 ];
 
@@ -474,7 +451,6 @@ pub(crate) fn build_xai(
 ) -> Xai {
     let registration = registration(ProviderId::Xai);
     debug_assert!(registration.credentials_required);
-    debug_assert!(matches!(registration.constructor, ProviderConstructor::Xai));
     let credentials = CredentialPool::new(registration.name, std::mem::take(&mut config.keys));
     Xai::new(config, client, credentials, retry_policy, deadline)
 }
@@ -488,10 +464,6 @@ pub(crate) fn build_openai_compatible(
 ) -> OpenAiCompatible {
     let registration = registration(ProviderId::OpenAiCompatible);
     debug_assert!(registration.credentials_required);
-    debug_assert!(matches!(
-        registration.constructor,
-        ProviderConstructor::OpenAiCompatible
-    ));
     let credentials = CredentialPool::new(registration.name, std::mem::take(&mut config.keys));
     OpenAiCompatible::new(
         config,
@@ -504,20 +476,18 @@ pub(crate) fn build_openai_compatible(
 }
 
 pub(crate) fn build_main_search(
-    name: &str,
+    id: ProviderId,
     config: MainSearchProviderConfig,
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
     breakers: std::sync::Arc<ModelBreakers>,
 ) -> Box<dyn MainSearch> {
-    match config {
-        MainSearchProviderConfig::Xai(config) => {
-            debug_assert_eq!(name, registration(ProviderId::Xai).name);
+    match (id, config) {
+        (ProviderId::Xai, MainSearchProviderConfig::Xai(config)) => {
             Box::new(build_xai(config, client, retry_policy, deadline))
         }
-        MainSearchProviderConfig::OpenAiCompatible(config) => {
-            debug_assert_eq!(name, registration(ProviderId::OpenAiCompatible).name);
+        (ProviderId::OpenAiCompatible, MainSearchProviderConfig::OpenAiCompatible(config)) => {
             Box::new(build_openai_compatible(
                 config,
                 client,
@@ -526,6 +496,7 @@ pub(crate) fn build_main_search(
                 breakers,
             ))
         }
+        _ => unreachable!("main search entry pairs provider id with its configuration"),
     }
 }
 
@@ -535,32 +506,23 @@ pub(crate) fn supports(capability: &str, provider: &str) -> bool {
     })
 }
 
-pub(crate) fn registration_by_name(name: &str) -> Option<&'static ProviderRegistration> {
-    REGISTRY
-        .iter()
-        .find(|registration| registration.name == name)
-}
-
 pub(crate) fn build_web_fetch(
-    provider: &str,
+    id: ProviderId,
     mut config: WebFetchProviderConfig,
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> Box<dyn WebFetch> {
-    let registration = registration_by_name(provider)
-        .expect("validated web_fetch order contains registered providers");
+    let registration = registration(id);
     debug_assert!(registration.credentials_required);
     debug_assert!(registration.capabilities.contains(&"web_fetch"));
     let credentials = CredentialPool::new(registration.name, std::mem::take(&mut config.keys));
-    match registration.constructor {
-        ProviderConstructor::Jina => {
-            web_fetch::jina(config, client, credentials, retry_policy, deadline)
-        }
-        ProviderConstructor::Tavily => {
+    match id {
+        ProviderId::Jina => web_fetch::jina(config, client, credentials, retry_policy, deadline),
+        ProviderId::Tavily => {
             web_fetch::tavily(config, client, credentials, retry_policy, deadline)
         }
-        ProviderConstructor::Firecrawl => {
+        ProviderId::Firecrawl => {
             web_fetch::firecrawl(config, client, credentials, retry_policy, deadline)
         }
         _ => unreachable!("web_fetch capability only has web fetch constructors"),
@@ -568,47 +530,43 @@ pub(crate) fn build_web_fetch(
 }
 
 pub(crate) fn build_web_search(
-    provider: &str,
+    id: ProviderId,
     mut config: WebFetchProviderConfig,
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> Box<dyn WebSearch> {
-    let registration = registration_by_name(provider)
-        .expect("validated web_search order contains registered providers");
+    let registration = registration(id);
     debug_assert!(registration.credentials_required);
     debug_assert!(registration.capabilities.contains(&"web_search"));
     let credentials = CredentialPool::new(registration.name, std::mem::take(&mut config.keys));
-    match registration.constructor {
-        ProviderConstructor::Tavily | ProviderConstructor::Firecrawl => {
-            Box::new(SupplementalSearch::new(
-                registration.name,
-                config,
-                client,
-                credentials,
-                retry_policy,
-                deadline,
-            ))
-        }
+    match id {
+        ProviderId::Tavily | ProviderId::Firecrawl => Box::new(SupplementalSearch::new(
+            registration.name,
+            config,
+            client,
+            credentials,
+            retry_policy,
+            deadline,
+        )),
         _ => unreachable!("web_search capability only has web search constructors"),
     }
 }
 
 pub(crate) fn build_docs_search(
-    provider: &str,
+    id: ProviderId,
     config: DocsSearchProviderConfig,
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> Box<dyn DocsSearch> {
-    let registration = registration_by_name(provider)
-        .expect("validated docs_search order contains registered providers");
+    let registration = registration(id);
     debug_assert!(registration.capabilities.contains(&"docs_search"));
-    match (registration.constructor, config) {
-        (ProviderConstructor::Exa, DocsSearchProviderConfig::Exa(config)) => {
+    match (id, config) {
+        (ProviderId::Exa, DocsSearchProviderConfig::Exa(config)) => {
             Box::new(build_exa(config, client, retry_policy, deadline))
         }
-        (ProviderConstructor::Context7, DocsSearchProviderConfig::Context7(config)) => {
+        (ProviderId::Context7, DocsSearchProviderConfig::Context7(config)) => {
             Box::new(build_context7(config, client, retry_policy, deadline))
         }
         _ => unreachable!("docs_search capability only has docs search constructors"),
@@ -616,28 +574,31 @@ pub(crate) fn build_docs_search(
 }
 
 pub(crate) fn build_vertical_search(
-    provider: &str,
+    id: ProviderId,
     config: AnysearchRuntimeConfig,
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> Box<dyn VerticalSearch> {
-    let registration = registration_by_name(provider)
-        .expect("validated vertical_search order contains registered providers");
+    let registration = registration(id);
     debug_assert!(registration.capabilities.contains(&"vertical_search"));
-    match registration.constructor {
-        ProviderConstructor::Anysearch => {
-            Box::new(build_anysearch(config, client, retry_policy, deadline))
-        }
+    match id {
+        ProviderId::Anysearch => Box::new(build_anysearch(config, client, retry_policy, deadline)),
         _ => unreachable!("vertical_search capability only has vertical search constructors"),
     }
 }
 
 pub(crate) fn registration(id: ProviderId) -> &'static ProviderRegistration {
-    REGISTRY
-        .iter()
-        .find(|registration| registration.id == id)
-        .expect("every ProviderId has one registry entry")
+    match id {
+        ProviderId::Xai => &REGISTRY[0],
+        ProviderId::OpenAiCompatible => &REGISTRY[1],
+        ProviderId::Tavily => &REGISTRY[2],
+        ProviderId::Firecrawl => &REGISTRY[3],
+        ProviderId::Jina => &REGISTRY[4],
+        ProviderId::Context7 => &REGISTRY[5],
+        ProviderId::Exa => &REGISTRY[6],
+        ProviderId::Anysearch => &REGISTRY[7],
+    }
 }
 
 pub(crate) fn build_exa(
@@ -648,7 +609,6 @@ pub(crate) fn build_exa(
 ) -> exa::Exa {
     let registration = registration(ProviderId::Exa);
     debug_assert!(registration.credentials_required);
-    debug_assert!(matches!(registration.constructor, ProviderConstructor::Exa));
     let credentials = CredentialPool::new(registration.name, std::mem::take(&mut config.keys));
     exa::Exa::new(config, client, credentials, retry_policy, deadline)
 }
@@ -674,10 +634,6 @@ pub(crate) fn build_context7(
 ) -> Context7 {
     let registration = registration(ProviderId::Context7);
     debug_assert!(registration.credentials_required);
-    debug_assert!(matches!(
-        registration.constructor,
-        ProviderConstructor::Context7
-    ));
     let credentials = CredentialPool::new(registration.name, std::mem::take(&mut config.keys));
     Context7::new(config, client, credentials, retry_policy, deadline)
 }
@@ -690,10 +646,6 @@ pub(crate) fn build_anysearch(
 ) -> Anysearch {
     let registration = registration(ProviderId::Anysearch);
     debug_assert!(registration.credentials_required);
-    debug_assert!(matches!(
-        registration.constructor,
-        ProviderConstructor::Anysearch
-    ));
     let credentials = CredentialPool::new(registration.name, std::mem::take(&mut config.keys));
     Anysearch::new(config, client, credentials, retry_policy, deadline)
 }
@@ -704,7 +656,7 @@ mod tests {
 
     use serde::Deserialize;
 
-    use super::{ProviderConstructor, ProviderId, registration, registrations};
+    use super::{ProviderId, registration, registrations};
 
     #[derive(Deserialize)]
     struct AcceptanceManifest {
@@ -756,13 +708,8 @@ mod tests {
         let exa = registration(ProviderId::Exa);
 
         assert_eq!(
-            (
-                exa.name,
-                exa.capabilities,
-                exa.credentials_required,
-                matches!(exa.constructor, ProviderConstructor::Exa),
-            ),
-            ("exa", &["docs_search"][..], true, true)
+            (exa.name, exa.capabilities, exa.credentials_required,),
+            ("exa", &["docs_search"][..], true)
         );
     }
 
@@ -771,13 +718,8 @@ mod tests {
         let xai = registration(ProviderId::Xai);
 
         assert_eq!(
-            (
-                xai.name,
-                xai.capabilities,
-                xai.credentials_required,
-                matches!(xai.constructor, ProviderConstructor::Xai),
-            ),
-            ("xai", &["main_search"][..], true, true)
+            (xai.name, xai.capabilities, xai.credentials_required,),
+            ("xai", &["main_search"][..], true)
         );
     }
 
@@ -790,9 +732,8 @@ mod tests {
                 openai.name,
                 openai.capabilities,
                 openai.credentials_required,
-                matches!(openai.constructor, ProviderConstructor::OpenAiCompatible),
             ),
-            ("openai_compatible", &["main_search"][..], true, true)
+            ("openai_compatible", &["main_search"][..], true)
         );
     }
 
@@ -805,9 +746,8 @@ mod tests {
                 context7.name,
                 context7.capabilities,
                 context7.credentials_required,
-                matches!(context7.constructor, ProviderConstructor::Context7),
             ),
-            ("context7", &["docs_search"][..], true, true)
+            ("context7", &["docs_search"][..], true)
         );
     }
 
@@ -820,22 +760,17 @@ mod tests {
                 anysearch.name,
                 anysearch.capabilities,
                 anysearch.credentials_required,
-                matches!(anysearch.constructor, ProviderConstructor::Anysearch),
             ),
-            ("anysearch", &["vertical_search"][..], true, true)
+            ("anysearch", &["vertical_search"][..], true)
         );
     }
 
     #[test]
     fn every_web_fetch_provider_has_one_complete_registry_description() {
-        for (id, name, constructor) in [
-            (ProviderId::Jina, "jina", ProviderConstructor::Jina),
-            (ProviderId::Tavily, "tavily", ProviderConstructor::Tavily),
-            (
-                ProviderId::Firecrawl,
-                "firecrawl",
-                ProviderConstructor::Firecrawl,
-            ),
+        for (id, name) in [
+            (ProviderId::Jina, "jina"),
+            (ProviderId::Tavily, "tavily"),
+            (ProviderId::Firecrawl, "firecrawl"),
         ] {
             let registration = registration(id);
             assert_eq!(
@@ -843,10 +778,8 @@ mod tests {
                     registration.name,
                     registration.capabilities.contains(&"web_fetch"),
                     registration.credentials_required,
-                    std::mem::discriminant(&registration.constructor)
-                        == std::mem::discriminant(&constructor),
                 ),
-                (name, true, true, true)
+                (name, true, true)
             );
         }
     }

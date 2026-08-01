@@ -10,7 +10,7 @@ use crate::net::{
     combine_diagnostics, duration_millis,
 };
 use crate::providers::ProviderError;
-use crate::providers::shared::{redacted_message, redacted_urls_message};
+use crate::providers::shared::redacted_urls_message;
 use crate::types::{
     AttemptErrorKind, Context7DocsOutcome, Context7LibraryOutcome, Context7Outcome, Deadline,
     LibraryCandidate, ProviderAttempt,
@@ -156,11 +156,7 @@ impl Context7 {
                         credential_index,
                         retry_count,
                         rotation_count,
-                        message: if failure.redirected_library_id.is_some() {
-                            redacted_urls_message(&failure.message, &self.credentials)
-                        } else {
-                            redacted_message(&failure.message, &self.config.url, &self.credentials)
-                        },
+                        message: redacted_urls_message(&failure.message, &self.credentials),
                         model: None,
                         transport: Some("mcp"),
                         endpoint_host: None,

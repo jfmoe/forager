@@ -1446,7 +1446,9 @@ fn run_supplemental_smoke_probe(
 ) -> Result<CommandOutput, AppError> {
     let dependencies = NetworkDependencies::load()?;
     let mut config = dependencies.config.web_search;
-    config.order = vec![provider.into()];
+    let provider = crate::providers::ProviderId::parse(provider)
+        .ok_or_else(|| AppError::Argument(format!("unknown provider `{provider}`")))?;
+    config.retain(provider);
     let outcome = dependencies
         .runtime
         .block_on(crate::engine::supplemental_web_search(

@@ -13,10 +13,12 @@ use crate::net::{
     json_string_prefix, read_response_body, response_body_limit, truncate_message,
 };
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute};
+use crate::providers::shared::redacted_urls_message;
 use crate::providers::{ProviderError, ProviderId};
-use crate::redact::{Secret, redact_url, redact_urls};
+use crate::redact::Secret;
 use crate::types::{AttemptErrorKind, Deadline, ProviderAttempt};
 
+#[derive(Clone)]
 pub(crate) struct FetchRequest {
     pub(crate) url: String,
     pub(crate) verbose: bool,
@@ -43,14 +45,14 @@ pub(crate) fn jina(
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> Box<dyn WebFetch> {
-    Box::new(Jina(HttpFetchProvider {
+    Box::new(HttpFetchProvider {
         id: ProviderId::Jina,
         config,
         client,
         credentials,
         retry_policy,
         deadline,
-    }))
+    })
 }
 
 pub(crate) fn tavily(
@@ -60,14 +62,14 @@ pub(crate) fn tavily(
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> Box<dyn WebFetch> {
-    Box::new(Tavily(HttpFetchProvider {
+    Box::new(HttpFetchProvider {
         id: ProviderId::Tavily,
         config,
         client,
         credentials,
         retry_policy,
         deadline,
-    }))
+    })
 }
 
 pub(crate) fn firecrawl(
@@ -77,47 +79,23 @@ pub(crate) fn firecrawl(
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> Box<dyn WebFetch> {
-    Box::new(Firecrawl(HttpFetchProvider {
+    Box::new(HttpFetchProvider {
         id: ProviderId::Firecrawl,
         config,
         client,
         credentials,
         retry_policy,
         deadline,
-    }))
+    })
 }
 
-struct Jina(HttpFetchProvider);
-struct Tavily(HttpFetchProvider);
-struct Firecrawl(HttpFetchProvider);
-
-impl WebFetch for Jina {
+impl WebFetch for HttpFetchProvider {
     fn fetch<'a>(
         &'a self,
         request: &'a FetchRequest,
     ) -> Pin<Box<dyn Future<Output = Result<ProviderFetchOutcome, ProviderError>> + Send + 'a>>
     {
-        Box::pin(self.0.execute(request))
-    }
-}
-
-impl WebFetch for Tavily {
-    fn fetch<'a>(
-        &'a self,
-        request: &'a FetchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<ProviderFetchOutcome, ProviderError>> + Send + 'a>>
-    {
-        Box::pin(self.0.execute(request))
-    }
-}
-
-impl WebFetch for Firecrawl {
-    fn fetch<'a>(
-        &'a self,
-        request: &'a FetchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<ProviderFetchOutcome, ProviderError>> + Send + 'a>>
-    {
-        Box::pin(self.0.execute(request))
+        Box::pin(self.execute(request))
     }
 }
 
@@ -306,18 +284,8 @@ impl HttpFetchProvider {
         }
     }
 
-    fn redacted_text(&self, value: &str) -> String {
-        let redacted_endpoint = redact_url(&self.config.url);
-        redact_urls(
-            &self
-                .credentials
-                .redact(value)
-                .replace(&self.config.url, &redacted_endpoint),
-        )
-    }
-
     fn redacted_error(&self, value: &str) -> String {
-        truncate_message(&self.redacted_text(value))
+        redacted_urls_message(value, &self.credentials)
     }
 }
 

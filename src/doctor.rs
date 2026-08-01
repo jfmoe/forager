@@ -5,11 +5,11 @@ use futures_util::future::join_all;
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::config::{self, MainSearchProviderConfig, OpenAiCompatibleRuntimeConfig, RuntimeConfig};
+use crate::config::{self, OpenAiCompatibleRuntimeConfig, RuntimeConfig};
 use crate::net::{self, RetryPolicy};
 use crate::providers::{
-    self, AnysearchDomainsRequest, Context7LibraryRequest, DoctorProbe, ExaSearchRequest,
-    FetchRequest, ModelBreakers, ProviderError, ProviderId, SearchRequest, SearchType,
+    self, AnysearchDomainsRequest, Context7LibraryRequest, ExaSearchRequest, FetchRequest,
+    ModelBreakers, ProviderError, ProviderId, SearchRequest, SearchType,
 };
 use crate::types::{AttemptErrorKind, Deadline, SearchOutcome};
 
@@ -193,17 +193,9 @@ async fn run_probe(
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> Result<Vec<ProbeCheck>, ProbeFailure> {
-    let registration = providers::registration(provider);
-    match registration.doctor_probe {
-        DoctorProbe::XaiResponses => {
-            let MainSearchProviderConfig::Xai(provider_config) = config
-                .main_search
-                .provider(provider.name())
-                .expect("xai registry entry has runtime configuration")
-                .clone()
-            else {
-                unreachable!("xai registry entry uses xai configuration")
-            };
+    match provider {
+        ProviderId::Xai => {
+            let provider_config = config.xai;
             let adapter = providers::build_xai(provider_config, client, retry_policy, deadline);
             one_check(
                 adapter.probe(probe_search_request()).await,
@@ -211,20 +203,11 @@ async fn run_probe(
                 "sse",
             )
         }
-        DoctorProbe::OpenAiCompatibleShapes => {
-            let MainSearchProviderConfig::OpenAiCompatible(provider_config) = config
-                .main_search
-                .provider(provider.name())
-                .expect("openai-compatible registry entry has runtime configuration")
-                .clone()
-            else {
-                unreachable!(
-                    "openai-compatible registry entry uses openai-compatible configuration"
-                )
-            };
+        ProviderId::OpenAiCompatible => {
+            let provider_config = config.openai_compatible;
             probe_openai_shapes(provider_config, client, retry_policy, deadline).await
         }
-        DoctorProbe::ExaSearch => {
+        ProviderId::Exa => {
             let adapter = providers::build_exa(config.exa, client, retry_policy, deadline);
             one_check(
                 adapter
@@ -245,33 +228,25 @@ async fn run_probe(
                 "http",
             )
         }
-        DoctorProbe::TavilySearch | DoctorProbe::FirecrawlSearch => {
-            let provider_config = config
-                .web_search
-                .provider(provider.name())
-                .expect("web-search registry entry has runtime configuration")
-                .clone();
+        ProviderId::Tavily | ProviderId::Firecrawl => {
+            let provider_config = match provider {
+                ProviderId::Tavily => config.tavily,
+                ProviderId::Firecrawl => config.firecrawl,
+                _ => unreachable!(),
+            };
             let adapter = providers::build_web_search(
-                provider.name(),
+                provider,
                 provider_config,
                 client,
                 retry_policy,
                 deadline,
             );
-            one_check(
-                adapter.search("forager doctor".into(), 1).await,
-                "search",
-                "http",
-            )
+            one_check(adapter.search("forager doctor", 1).await, "search", "http")
         }
-        DoctorProbe::JinaFetch => {
-            let provider_config = config
-                .web_fetch
-                .provider(provider.name())
-                .expect("jina registry entry has runtime configuration")
-                .clone();
+        ProviderId::Jina => {
+            let provider_config = config.jina;
             let adapter = providers::build_web_fetch(
-                provider.name(),
+                provider,
                 provider_config,
                 client,
                 retry_policy,
@@ -288,7 +263,7 @@ async fn run_probe(
                 "http",
             )
         }
-        DoctorProbe::Context7Library => {
+        ProviderId::Context7 => {
             let adapter =
                 providers::build_context7(config.context7, client, retry_policy, deadline);
             one_check(
@@ -303,7 +278,7 @@ async fn run_probe(
                 "mcp",
             )
         }
-        DoctorProbe::AnysearchDomains => {
+        ProviderId::Anysearch => {
             let adapter =
                 providers::build_anysearch(config.anysearch, client, retry_policy, deadline);
             one_check(
@@ -427,23 +402,7 @@ async fn probe_reachability(client: reqwest::Client, url: String, deadline: Dead
 }
 
 fn provider_endpoint(id: ProviderId, runtime: &RuntimeConfig) -> &str {
-    match id {
-        ProviderId::Xai | ProviderId::OpenAiCompatible => runtime
-            .main_search
-            .provider(id.name())
-            .expect("registry main provider has runtime configuration")
-            .url(),
-        ProviderId::Exa => runtime.exa.url.as_str(),
-        ProviderId::Tavily => runtime.tavily.url.as_str(),
-        ProviderId::Firecrawl | ProviderId::Jina => runtime
-            .web_fetch
-            .provider(id.name())
-            .expect("registry web-fetch provider has runtime configuration")
-            .url
-            .as_str(),
-        ProviderId::Context7 => runtime.context7.url.as_str(),
-        ProviderId::Anysearch => runtime.anysearch.url.as_str(),
-    }
+    runtime.provider_runtime(id).endpoint
 }
 
 fn status(
@@ -452,24 +411,7 @@ fn status(
     effective: &Value,
     reachable: bool,
 ) -> ProviderStatus {
-    let key_count = match id {
-        ProviderId::Xai | ProviderId::OpenAiCompatible => runtime
-            .main_search
-            .provider(id.name())
-            .expect("registry main provider has runtime configuration")
-            .keys()
-            .len(),
-        ProviderId::Exa => runtime.exa.keys.len(),
-        ProviderId::Tavily => runtime.tavily.keys.len(),
-        ProviderId::Firecrawl | ProviderId::Jina => runtime
-            .web_fetch
-            .provider(id.name())
-            .expect("registry web-fetch provider has runtime configuration")
-            .keys
-            .len(),
-        ProviderId::Context7 => runtime.context7.keys.len(),
-        ProviderId::Anysearch => runtime.anysearch.keys.len(),
-    };
+    let key_count = runtime.provider_runtime(id).keys.len();
     ProviderStatus {
         provider: id.name(),
         configured: key_count > 0,

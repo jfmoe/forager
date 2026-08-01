@@ -8,7 +8,7 @@ use crate::credentials::CredentialPool;
 use crate::net::{RetryPolicy, error_kind_for_status, read_response_body, response_body_limit};
 use crate::providers::ProviderError;
 use crate::providers::execution::{self, AttemptFailure, ExecutionSettings};
-use crate::providers::shared::{redacted_message, redacted_urls_message};
+use crate::providers::shared::redacted_urls_message;
 use crate::redact::{Secret, redact_url, redact_urls};
 use crate::types::{AttemptErrorKind, Deadline, Source, SupplementalSearchOutcome};
 
@@ -123,9 +123,8 @@ impl SupplementalSearch {
         .map_err(|error| AttemptFailure {
             kind: AttemptErrorKind::Runtime,
             status: Some(status.as_u16()),
-            message: redacted_message(
+            message: redacted_urls_message(
                 &format!("invalid {} search response: {error}", self.provider),
-                &self.config.url,
                 &self.credentials,
             ),
         })?;

@@ -17,7 +17,7 @@ pub(crate) use runtime::{
     AnysearchRuntimeConfig, ClassifierRuntimeConfig, Context7RuntimeConfig,
     DocsSearchProviderConfig, DocsSearchRuntimeConfig, ExaRuntimeConfig, JournalRuntimeConfig,
     MainSearchProviderConfig, MainSearchRuntimeConfig, OpenAiCompatibleRuntimeConfig,
-    RuntimeConfig, VerticalSearchRuntimeConfig, WebFetchProviderConfig, WebFetchRuntimeConfig,
-    WebSearchRuntimeConfig, XaiRuntimeConfig, runtime_config,
+    RuntimeConfig, SeamEntry, VerticalSearchRuntimeConfig, WebFetchProviderConfig,
+    WebFetchRuntimeConfig, WebSearchRuntimeConfig, XaiRuntimeConfig, runtime_config,
 };
 pub use view::{EffectiveConfigView, effective_view, effective_view_json};

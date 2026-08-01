@@ -306,9 +306,9 @@ fn official_status_page_matches_case(case_id: &str, url: &str, runtime: &Runtime
         "P1" => pipeline_status_matches(runtime, host, false),
         "P2" => pipeline_status_matches(runtime, host, true),
         "C04" => status_host_matches_endpoint(host, &runtime.classifier.url),
-        _ => provider_for_case(case_id)
-            .and_then(|provider| provider_endpoint(runtime, provider))
-            .is_some_and(|endpoint| status_host_matches_endpoint(host, endpoint)),
+        _ => provider_for_case(case_id).is_some_and(|provider| {
+            status_host_matches_endpoint(host, provider_endpoint(runtime, provider))
+        }),
     }
 }
 
@@ -329,19 +329,11 @@ fn provider_for_case(case_id: &str) -> Option<ProviderId> {
 fn pipeline_status_matches(runtime: &RuntimeConfig, status_host: &str, research: bool) -> bool {
     let classifier_matches = runtime.classifier.configured()
         && status_host_matches_endpoint(status_host, &runtime.classifier.url);
-    let main_matches = runtime.main_search.backends.iter().any(|provider| {
-        runtime
-            .main_search
-            .provider(provider)
-            .filter(|config| config.configured())
-            .is_some_and(|config| status_host_matches_endpoint(status_host, config.url()))
+    let main_matches = runtime.main_search.entries().iter().any(|entry| {
+        entry.configured() && status_host_matches_endpoint(status_host, entry.config().url())
     });
-    let web_search_matches = runtime.web_search.order.iter().any(|provider| {
-        runtime
-            .web_search
-            .provider(provider)
-            .filter(|config| !config.keys.is_empty())
-            .is_some_and(|config| status_host_matches_endpoint(status_host, &config.url))
+    let web_search_matches = runtime.web_search.entries().iter().any(|entry| {
+        entry.configured() && status_host_matches_endpoint(status_host, &entry.config().url)
     });
     classifier_matches
         || (!research && main_matches)
@@ -350,21 +342,28 @@ fn pipeline_status_matches(runtime: &RuntimeConfig, status_host: &str, research:
 }
 
 fn research_status_matches(runtime: &RuntimeConfig, status_host: &str) -> bool {
-    [
-        (ProviderId::Exa, &runtime.docs_search.order),
-        (ProviderId::Context7, &runtime.docs_search.order),
-        (ProviderId::Anysearch, &runtime.vertical_search.order),
-        (ProviderId::Tavily, &runtime.web_fetch.order),
-        (ProviderId::Jina, &runtime.web_fetch.order),
-        (ProviderId::Firecrawl, &runtime.web_fetch.order),
-    ]
-    .into_iter()
-    .any(|(provider, order)| {
-        order.iter().any(|name| name == provider.name())
-            && provider_is_configured(runtime, provider)
-            && provider_endpoint(runtime, provider)
-                .is_some_and(|endpoint| status_host_matches_endpoint(status_host, endpoint))
-    })
+    let configured_endpoint_matches = |provider| {
+        provider_is_configured(runtime, provider)
+            && status_host_matches_endpoint(
+                status_host,
+                runtime.provider_runtime(provider).endpoint,
+            )
+    };
+    runtime
+        .docs_search
+        .entries()
+        .iter()
+        .any(|entry| configured_endpoint_matches(entry.id()))
+        || runtime
+            .vertical_search
+            .entries()
+            .iter()
+            .any(|entry| configured_endpoint_matches(entry.id()))
+        || runtime
+            .web_fetch
+            .entries()
+            .iter()
+            .any(|entry| configured_endpoint_matches(entry.id()))
 }
 
 fn status_host_matches_endpoint(status_host: &str, endpoint: &str) -> bool {
@@ -440,44 +439,25 @@ fn evidence_matches_case_endpoint(case_id: &str, evidence: &str, runtime: &Runti
     match case_id {
         "P1" | "P2" => {
             matches(&runtime.classifier.url)
-                || providers::registrations().iter().any(|registration| {
-                    provider_endpoint(runtime, registration.id).is_some_and(&matches)
-                })
+                || providers::registrations()
+                    .iter()
+                    .any(|registration| matches(provider_endpoint(runtime, registration.id)))
         }
-        "C01" => provider_endpoint(runtime, ProviderId::Xai).is_some_and(matches),
-        "C02" | "C03" => {
-            provider_endpoint(runtime, ProviderId::OpenAiCompatible).is_some_and(matches)
-        }
+        "C01" => matches(provider_endpoint(runtime, ProviderId::Xai)),
+        "C02" | "C03" => matches(provider_endpoint(runtime, ProviderId::OpenAiCompatible)),
         "C04" => matches(&runtime.classifier.url),
-        "C05" | "C08" | "C17" => {
-            provider_endpoint(runtime, ProviderId::Tavily).is_some_and(matches)
-        }
-        "C06" | "C09" => provider_endpoint(runtime, ProviderId::Firecrawl).is_some_and(matches),
-        "C07" => provider_endpoint(runtime, ProviderId::Jina).is_some_and(matches),
-        "C10" | "C11" => provider_endpoint(runtime, ProviderId::Context7).is_some_and(matches),
-        "C12" | "C13" => provider_endpoint(runtime, ProviderId::Exa).is_some_and(matches),
-        "C14" | "C15" | "C16" => {
-            provider_endpoint(runtime, ProviderId::Anysearch).is_some_and(matches)
-        }
+        "C05" | "C08" | "C17" => matches(provider_endpoint(runtime, ProviderId::Tavily)),
+        "C06" | "C09" => matches(provider_endpoint(runtime, ProviderId::Firecrawl)),
+        "C07" => matches(provider_endpoint(runtime, ProviderId::Jina)),
+        "C10" | "C11" => matches(provider_endpoint(runtime, ProviderId::Context7)),
+        "C12" | "C13" => matches(provider_endpoint(runtime, ProviderId::Exa)),
+        "C14" | "C15" | "C16" => matches(provider_endpoint(runtime, ProviderId::Anysearch)),
         _ => false,
     }
 }
 
-fn provider_endpoint(runtime: &RuntimeConfig, provider: ProviderId) -> Option<&str> {
-    match provider {
-        ProviderId::Xai | ProviderId::OpenAiCompatible => runtime
-            .main_search
-            .provider(provider.name())
-            .map(super::config::MainSearchProviderConfig::url),
-        ProviderId::Exa => Some(&runtime.exa.url),
-        ProviderId::Tavily => Some(&runtime.tavily.url),
-        ProviderId::Firecrawl | ProviderId::Jina => runtime
-            .web_fetch
-            .provider(provider.name())
-            .map(|config| config.url.as_str()),
-        ProviderId::Context7 => Some(&runtime.context7.url),
-        ProviderId::Anysearch => Some(&runtime.anysearch.url),
-    }
+fn provider_endpoint(runtime: &RuntimeConfig, provider: ProviderId) -> &str {
+    runtime.provider_runtime(provider).endpoint
 }
 
 fn same_origin(first: &str, second: &str) -> bool {
@@ -1001,20 +981,7 @@ fn case_is_configured(case_id: &str, runtime: &RuntimeConfig) -> bool {
 }
 
 fn provider_is_configured(runtime: &RuntimeConfig, provider: ProviderId) -> bool {
-    match provider {
-        ProviderId::Xai | ProviderId::OpenAiCompatible => runtime
-            .main_search
-            .provider(provider.name())
-            .is_some_and(|config| !config.keys().is_empty()),
-        ProviderId::Exa => !runtime.exa.keys.is_empty(),
-        ProviderId::Tavily => !runtime.tavily.keys.is_empty(),
-        ProviderId::Firecrawl | ProviderId::Jina => runtime
-            .web_fetch
-            .provider(provider.name())
-            .is_some_and(|config| !config.keys.is_empty()),
-        ProviderId::Context7 => !runtime.context7.keys.is_empty(),
-        ProviderId::Anysearch => !runtime.anysearch.keys.is_empty(),
-    }
+    !runtime.provider_runtime(provider).keys.is_empty()
 }
 
 pub(crate) fn run_offline() -> Result<(SmokeReport, u8), config::ConfigError> {
@@ -1093,24 +1060,7 @@ fn credential_status(
     runtime: &RuntimeConfig,
     effective: &Value,
 ) -> CredentialStatus {
-    let key_count = match id {
-        ProviderId::Xai | ProviderId::OpenAiCompatible => runtime
-            .main_search
-            .provider(id.name())
-            .expect("registry main provider has runtime configuration")
-            .keys()
-            .len(),
-        ProviderId::Exa => runtime.exa.keys.len(),
-        ProviderId::Tavily => runtime.tavily.keys.len(),
-        ProviderId::Firecrawl | ProviderId::Jina => runtime
-            .web_fetch
-            .provider(id.name())
-            .expect("registry web-fetch provider has runtime configuration")
-            .keys
-            .len(),
-        ProviderId::Context7 => runtime.context7.keys.len(),
-        ProviderId::Anysearch => runtime.anysearch.keys.len(),
-    };
+    let key_count = runtime.provider_runtime(id).keys.len();
     CredentialStatus {
         provider: id.name(),
         configured: key_count > 0,

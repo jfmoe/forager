@@ -93,7 +93,7 @@ pub(crate) async fn execute(
                         capability_gaps.push(CapabilityGap {
                             capability: Capability::DocsSearch,
                             reason: "no_configured_provider",
-                            providers_skipped: config.docs_search.order.clone(),
+                            providers_skipped: config.docs_search.names(),
                         });
                         continue;
                     }
@@ -140,7 +140,7 @@ pub(crate) async fn execute(
                         capability_gaps.push(CapabilityGap {
                             capability: Capability::WebSearch,
                             reason: "no_configured_provider",
-                            providers_skipped: config.web_search.order.clone(),
+                            providers_skipped: config.web_search.names(),
                         });
                         continue;
                     }
@@ -179,7 +179,7 @@ pub(crate) async fn execute(
                         capability_gaps.push(CapabilityGap {
                             capability: Capability::VerticalSearch,
                             reason: "no_configured_provider",
-                            providers_skipped: config.vertical_search.order.clone(),
+                            providers_skipped: config.vertical_search.names(),
                         });
                         continue;
                     }
@@ -272,7 +272,7 @@ pub(crate) async fn execute(
     let mut seen_urls = HashSet::new();
     let mut fetch_config = config.web_fetch.clone();
     if request.fallback == "off" {
-        fetch_config.order.truncate(1);
+        fetch_config.retain_first();
     }
     for candidate in candidates {
         if evidence_items.len() >= request.budget.max_evidence()
@@ -307,7 +307,7 @@ pub(crate) async fn execute(
                 capability_gaps.push(CapabilityGap {
                     capability: Capability::WebFetch,
                     reason: "no_configured_provider",
-                    providers_skipped: fetch_config.order.clone(),
+                    providers_skipped: fetch_config.names(),
                 });
             }
             research_gaps.push(ResearchGap {
@@ -680,48 +680,15 @@ fn diagnostics_and_gaps(
 }
 
 fn unconfigured_docs_providers(config: &RuntimeConfig) -> Vec<String> {
-    config
-        .docs_search
-        .order
-        .iter()
-        .filter(|provider| {
-            config
-                .docs_search
-                .provider(provider)
-                .is_none_or(|provider| !provider.configured())
-        })
-        .cloned()
-        .collect()
+    config.docs_search.unconfigured_names()
 }
 
 fn unconfigured_web_providers(config: &RuntimeConfig) -> Vec<String> {
-    config
-        .web_search
-        .order
-        .iter()
-        .filter(|provider| {
-            config
-                .web_search
-                .provider(provider)
-                .is_none_or(|provider| provider.keys.is_empty())
-        })
-        .cloned()
-        .collect()
+    config.web_search.unconfigured_names()
 }
 
 fn unconfigured_vertical_providers(config: &RuntimeConfig) -> Vec<String> {
-    config
-        .vertical_search
-        .order
-        .iter()
-        .filter(|provider| {
-            config
-                .vertical_search
-                .provider(provider)
-                .is_none_or(|provider| provider.keys.is_empty())
-        })
-        .cloned()
-        .collect()
+    config.vertical_search.unconfigured_names()
 }
 
 fn fallback_used(attempts: &[ProviderAttempt]) -> bool {

@@ -13,7 +13,7 @@ use crate::net::{
     combine_diagnostics, duration_millis, truncate_message,
 };
 use crate::providers::ProviderError;
-use crate::providers::shared::redact_message;
+use crate::providers::shared::redact_urls;
 use crate::types::{
     AnysearchDomain, AnysearchDomainsOutcome, AnysearchOutcome, AnysearchResult,
     AnysearchSearchOutcome, AttemptErrorKind, Deadline, ProviderAttempt, SchemaValidation,
@@ -256,11 +256,7 @@ impl Anysearch {
                         retry_count,
                         rotation_count,
                         message: {
-                            let mut message = redact_message(
-                                &failure.message,
-                                &self.config.url,
-                                &self.credentials,
-                            );
+                            let mut message = redact_urls(&failure.message, &self.credentials);
                             redact_argument_values(&mut message, &arguments);
                             truncate_message(&message)
                         },

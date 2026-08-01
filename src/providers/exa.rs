@@ -9,7 +9,7 @@ use crate::net::{
     RetryPolicy, duration_millis, error_kind_for_status, read_response_body, response_body_limit,
 };
 use crate::providers::ProviderError;
-use crate::providers::shared::{redacted_message, redacted_urls_message};
+use crate::providers::shared::redacted_urls_message;
 use crate::redact::{Secret, redact_url};
 use crate::types::{AttemptErrorKind, Deadline, ExaInput, ExaOutcome, ProviderAttempt, Source};
 
@@ -245,7 +245,7 @@ impl Exa {
         let response = request.send().await.map_err(|error| AttemptFailure {
             kind: AttemptErrorKind::Network,
             status: error.status().map(|status| status.as_u16()),
-            message: redacted_message(&error.to_string(), &self.config.url, &self.credentials),
+            message: redacted_urls_message(&error.to_string(), &self.credentials),
         })?;
         let status = response.status();
         let body = read_response_body(response, response_body_limit(status))
@@ -269,9 +269,8 @@ impl Exa {
             serde_json::from_str(&body.text).map_err(|error| AttemptFailure {
                 kind: AttemptErrorKind::Runtime,
                 status: Some(status.as_u16()),
-                message: redacted_message(
+                message: redacted_urls_message(
                     &format!("invalid Exa response: {error}"),
-                    &self.config.url,
                     &self.credentials,
                 ),
             })?;

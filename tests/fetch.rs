@@ -97,6 +97,42 @@ fn fetch_reports_quality_when_every_configured_provider_is_thin() {
 }
 
 #[test]
+fn fetch_terminal_kind_and_message_describe_the_same_attempt() {
+    let jina = Fixture::start(200, "text/markdown", "thin");
+    let tavily = Fixture::start(
+        503,
+        "application/json",
+        r#"{"message":"service unavailable"}"#,
+    );
+    let config = fetch_config(
+        &jina.url,
+        &["jina-key"],
+        &tavily.url,
+        &["tavily-key"],
+        "http://127.0.0.1:9",
+        &[],
+        &["jina", "tavily", "firecrawl"],
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&["fetch", "https://example.test/article", "--verbose"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["error_kind"],
+            payload["message"]
+                .as_str()
+                .is_some_and(|message| message.contains("too thin")),
+        ),
+        (Some(5), &Value::String("quality".into()), true)
+    );
+    jina.finish();
+    tavily.finish();
+}
+
+#[test]
 fn fetch_applies_only_the_length_line_to_pdf_content() {
     let content = "P".repeat(250);
     let jina = Fixture::start(200, "text/markdown", &content);
