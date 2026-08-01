@@ -1321,6 +1321,102 @@ fn search_openai_stream_falls_back_to_non_stream_with_the_same_adapter() {
 }
 
 #[test]
+fn search_openai_truncated_stream_falls_back_to_non_stream() {
+    let openai = Fixture::start_sequence(vec![
+        Response::new(
+            200,
+            "text/event-stream",
+            "data: {\"choices\":[{\"delta\":{\"content\":\"Partial answer\"}}]}\n\n",
+        ),
+        Response::new(
+            200,
+            "application/json",
+            r#"{"choices":[{"message":{"content":"Complete answer"}}]}"#,
+        ),
+    ]);
+    let config = main_fallback_config("http://127.0.0.1:9", &openai.url, true, &[], "auto", false)
+        .replace(
+            r#"backends = ["xai", "openai_compatible"]"#,
+            r#"backends = ["openai_compatible"]"#,
+        );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&["search", "Truncated stream", "--capabilities", "none"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (output.status.code(), &payload["answer"]),
+        (Some(0), &Value::String("Complete answer".into())),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let requests = openai.finish_all();
+    assert_eq!(
+        (
+            requests.len(),
+            requests[0].contains("\"stream\":true"),
+            requests[1].contains("\"stream\":false"),
+        ),
+        (2, true, true)
+    );
+}
+
+#[test]
+fn search_openai_stream_accepts_finish_reason_without_done_marker() {
+    let openai = Fixture::start(
+        200,
+        "text/event-stream",
+        concat!(
+            "data: {\"choices\":[{\"delta\":{\"content\":\"Complete answer\"},",
+            "\"finish_reason\":\"stop\"}]}\n\n"
+        ),
+    );
+    let config = main_fallback_config("http://127.0.0.1:9", &openai.url, true, &[], "auto", false)
+        .replace(
+            r#"backends = ["xai", "openai_compatible"]"#,
+            r#"backends = ["openai_compatible"]"#,
+        );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&["search", "Finish reason", "--capabilities", "none"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (output.status.code(), &payload["answer"]),
+        (Some(0), &Value::String("Complete answer".into())),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    openai.finish();
+}
+
+#[test]
+fn search_openai_buffered_sse_rejects_a_truncated_answer() {
+    let openai = Fixture::start(
+        200,
+        "text/event-stream",
+        "data: {\"choices\":[{\"delta\":{\"content\":\"Partial answer\"}}]}\n\n",
+    );
+    let config = main_fallback_config("http://127.0.0.1:9", &openai.url, false, &[], "auto", false)
+        .replace(
+            r#"backends = ["xai", "openai_compatible"]"#,
+            r#"backends = ["openai_compatible"]"#,
+        );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&["search", "Buffered stream", "--capabilities", "none"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (output.status.code(), &payload["error_kind"]),
+        (Some(4), &Value::String("runtime".into())),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    openai.finish();
+}
+
+#[test]
 fn search_openai_stream_environment_override_uses_the_same_adapter() {
     let openai = Fixture::start(
         200,

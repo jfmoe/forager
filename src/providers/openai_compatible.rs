@@ -473,6 +473,7 @@ impl OpenAiCompatible {
         let mut events = response.bytes_stream().eventsource();
         let mut answer = String::new();
         let mut sources = Vec::new();
+        let mut completed = false;
         while let Some(event) = events.next().await {
             let event = event.map_err(|error| AttemptFailure {
                 kind: AttemptErrorKind::Network,
@@ -482,48 +483,50 @@ impl OpenAiCompatible {
                     &self.credentials,
                 ),
             })?;
-            if event.data.trim().is_empty() || event.data.trim() == "[DONE]" {
-                continue;
-            }
-            let value: Value =
-                serde_json::from_str(&event.data).map_err(|error| AttemptFailure {
-                    kind: AttemptErrorKind::Runtime,
-                    status: Some(200),
-                    message: redacted_urls_message(
-                        &format!("OpenAI-compatible returned invalid event JSON: {error}"),
-                        &self.credentials,
-                    ),
-                })?;
-            let (delta, event_sources) = self.normalize(&value, true)?;
-            answer.push_str(&delta);
-            merge_sources(&mut sources, event_sources);
+            completed |= self.consume_sse_data(&event.data, &mut answer, &mut sources)?;
         }
-        finish(answer, sources)
+        finish(answer, sources, completed)
     }
 
     fn parse_sse_text(&self, body: &str) -> Result<(String, Vec<Source>), AttemptFailure> {
         let mut answer = String::new();
         let mut sources = Vec::new();
+        let mut completed = false;
         for line in body.lines().map(str::trim) {
             let Some(data) = line.strip_prefix("data:").map(str::trim) else {
                 continue;
             };
-            if data.is_empty() || data == "[DONE]" {
-                continue;
-            }
-            let value: Value = serde_json::from_str(data).map_err(|error| AttemptFailure {
-                kind: AttemptErrorKind::Runtime,
-                status: Some(200),
-                message: redacted_urls_message(
-                    &format!("OpenAI-compatible returned invalid event JSON: {error}"),
-                    &self.credentials,
-                ),
-            })?;
-            let (delta, event_sources) = self.normalize(&value, true)?;
-            answer.push_str(&delta);
-            merge_sources(&mut sources, event_sources);
+            completed |= self.consume_sse_data(data, &mut answer, &mut sources)?;
         }
-        finish(answer, sources)
+        finish(answer, sources, completed)
+    }
+
+    fn consume_sse_data(
+        &self,
+        data: &str,
+        answer: &mut String,
+        sources: &mut Vec<Source>,
+    ) -> Result<bool, AttemptFailure> {
+        let data = data.trim();
+        if data.is_empty() {
+            return Ok(false);
+        }
+        if data == "[DONE]" {
+            return Ok(true);
+        }
+        let value: Value = serde_json::from_str(data).map_err(|error| AttemptFailure {
+            kind: AttemptErrorKind::Runtime,
+            status: Some(200),
+            message: redacted_urls_message(
+                &format!("OpenAI-compatible returned invalid event JSON: {error}"),
+                &self.credentials,
+            ),
+        })?;
+        let completed = has_finish_reason(&value);
+        let (delta, event_sources) = self.normalize(&value, true)?;
+        answer.push_str(&delta);
+        merge_sources(sources, event_sources);
+        Ok(completed)
     }
 
     fn normalize(
@@ -643,7 +646,27 @@ fn merge_sources(target: &mut Vec<Source>, sources: Vec<Source>) {
     }
 }
 
-fn finish(answer: String, sources: Vec<Source>) -> Result<(String, Vec<Source>), AttemptFailure> {
+fn has_finish_reason(value: &Value) -> bool {
+    value
+        .get("choices")
+        .and_then(Value::as_array)
+        .and_then(|choices| choices.first())
+        .and_then(|choice| choice.get("finish_reason"))
+        .is_some_and(|reason| !reason.is_null())
+}
+
+fn finish(
+    answer: String,
+    sources: Vec<Source>,
+    completed: bool,
+) -> Result<(String, Vec<Source>), AttemptFailure> {
+    if !completed {
+        return Err(AttemptFailure {
+            kind: AttemptErrorKind::Runtime,
+            status: Some(200),
+            message: "OpenAI-compatible stream ended before a completion marker".into(),
+        });
+    }
     if answer.trim().is_empty() {
         return Err(AttemptFailure {
             kind: AttemptErrorKind::Runtime,
