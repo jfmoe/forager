@@ -350,6 +350,20 @@ mod tests {
     use super::*;
 
     #[test]
+    fn write_value_persists_json_that_can_be_read_back() {
+        let root = tempdir().expect("create temporary directory");
+        let config = journal_config(root.path().join("journal"));
+        let expected = json!({"result": {"status": "ok"}});
+
+        let written = write_value(&config, expected.clone()).expect("write journal record");
+        let persisted: Value =
+            serde_json::from_slice(&fs::read(&written.reference).expect("read journal record"))
+                .expect("parse journal record");
+
+        assert_eq!(persisted, expected);
+    }
+
+    #[test]
     fn cleanup_expired_silences_missing_directory() {
         let root = tempdir().expect("create temporary directory");
         let config = journal_config(root.path().join("missing"));
@@ -357,6 +371,49 @@ mod tests {
         let warning = cleanup_expired(&config);
 
         assert!(warning.is_none(), "unexpected cleanup warning: {warning:?}");
+    }
+
+    #[test]
+    fn cleanup_expired_removes_json_older_than_retention_limit() {
+        let root = tempdir().expect("create temporary directory");
+        let journal_path = root.path().join("journal");
+        fs::create_dir(&journal_path).expect("create journal directory");
+        let stale_record = journal_path.join("stale.json");
+        fs::write(&stale_record, "{}").expect("create stale journal record");
+        let stale_time = SystemTime::now()
+            .checked_sub(Duration::from_secs(2 * 86_400))
+            .expect("calculate stale modification time");
+        fs::File::open(&stale_record)
+            .expect("open stale journal record")
+            .set_times(fs::FileTimes::new().set_modified(stale_time))
+            .expect("set stale modification time");
+        let config = journal_config(journal_path);
+
+        let warning = cleanup_expired(&config);
+
+        assert!(
+            !stale_record.try_exists().expect("check stale record"),
+            "stale journal record was not removed; cleanup warning: {warning:?}"
+        );
+    }
+
+    #[test]
+    fn cleanup_expired_tolerates_malformed_json_within_retention_limit() {
+        let root = tempdir().expect("create temporary directory");
+        let journal_path = root.path().join("journal");
+        fs::create_dir(&journal_path).expect("create journal directory");
+        let malformed_record = journal_path.join("malformed.json");
+        fs::write(&malformed_record, "not json").expect("create malformed journal record");
+        let config = journal_config(journal_path);
+
+        let warning = cleanup_expired(&config);
+
+        assert!(
+            malformed_record
+                .try_exists()
+                .expect("check malformed record"),
+            "unexpired malformed journal record was removed; cleanup warning: {warning:?}"
+        );
     }
 
     #[test]
