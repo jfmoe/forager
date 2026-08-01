@@ -3,6 +3,7 @@ use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use futures_util::{StreamExt, future::join_all, stream};
 use serde_json::{Value, json};
 
 use crate::config::RuntimeConfig;
@@ -13,7 +14,7 @@ use crate::redact::redact_url;
 use crate::types::{
     AttemptErrorKind, Capability, CapabilityGap, Citation, Deadline, EvidenceItem,
     EvidenceStrength, PlanCapability, ProviderAttempt, ResearchError, ResearchGap,
-    ResearchGapCheck, ResearchOutcome, ResearchPlan, Source,
+    ResearchGapCheck, ResearchOutcome, ResearchPlan, ResearchSubquestion, Source,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -56,6 +57,32 @@ struct Candidate {
     prefetched_provider: Option<&'static str>,
 }
 
+#[derive(Default)]
+struct DiscoveryBlock {
+    attempts: Vec<ProviderAttempt>,
+    capability_gaps: Vec<CapabilityGap>,
+    diagnostics: Vec<String>,
+    candidates: Vec<Candidate>,
+}
+
+struct FetchedCandidate {
+    url: String,
+    title: String,
+    provider: &'static str,
+    source_type: &'static str,
+    subquestion_id: String,
+    content: String,
+}
+
+#[derive(Default)]
+struct CandidateFetchBlock {
+    attempts: Vec<ProviderAttempt>,
+    diagnostic: Option<String>,
+    evidence: Option<FetchedCandidate>,
+    gap: Option<ResearchGap>,
+    missing_provider: bool,
+}
+
 // Research orchestration stays together to preserve deterministic phase and evidence ordering.
 #[expect(clippy::too_many_lines)]
 pub(crate) async fn execute(
@@ -83,138 +110,29 @@ pub(crate) async fn execute(
         ));
     }
 
-    for subquestion in &request.plan.decomposition {
-        for capability in &subquestion.required_capabilities {
-            let execution =
-                CapabilityExecution::new(&request.fallback, client.clone(), retry_policy, deadline);
-            match capability {
-                PlanCapability::DocsSearch => {
-                    if config.docs_search.configured_provider_count() == 0 {
-                        capability_gaps.push(CapabilityGap {
-                            capability: Capability::DocsSearch,
-                            reason: "no_configured_provider",
-                            providers_skipped: config.docs_search.names(),
-                        });
-                        continue;
-                    }
-                    match engine::documentation_search(
-                        &subquestion.question,
-                        limit,
-                        config.docs_search.clone(),
-                        execution,
-                    )
-                    .await
-                    {
-                        Ok(mut outcome) => {
-                            attempts.append(&mut outcome.attempts);
-                            push_diagnostic(&mut diagnostics, outcome.diagnostic);
-                            let prefetched_provider = attempts
-                                .iter()
-                                .rev()
-                                .find(|attempt| {
-                                    attempt.seam == "docs_search" && attempt.error_kind.is_none()
-                                })
-                                .map(|attempt| attempt.provider)
-                                .filter(|provider| *provider == "context7");
-                            candidates.extend(outcome.sources.into_iter().map(|source| {
-                                Candidate {
-                                    source,
-                                    subquestion_id: subquestion.id.clone(),
-                                    prefetched_provider,
-                                }
-                            }));
-                        }
-                        Err(mut error) => {
-                            attempts.append(&mut error.attempts);
-                            push_diagnostic(&mut diagnostics, error.diagnostic);
-                            capability_gaps.push(CapabilityGap {
-                                capability: Capability::DocsSearch,
-                                reason: "all_attempts_failed",
-                                providers_skipped: unconfigured_docs_providers(&config),
-                            });
-                        }
-                    }
-                }
-                PlanCapability::WebSearch => {
-                    if config.web_search.configured_provider_count() == 0 {
-                        capability_gaps.push(CapabilityGap {
-                            capability: Capability::WebSearch,
-                            reason: "no_configured_provider",
-                            providers_skipped: config.web_search.names(),
-                        });
-                        continue;
-                    }
-                    match engine::supplemental_web_search(
-                        &subquestion.question,
-                        limit,
-                        config.web_search.clone(),
-                        execution,
-                    )
-                    .await
-                    {
-                        Ok(mut outcome) => {
-                            attempts.append(&mut outcome.attempts);
-                            push_diagnostic(&mut diagnostics, outcome.diagnostic);
-                            candidates.extend(outcome.sources.into_iter().map(|source| {
-                                Candidate {
-                                    source,
-                                    subquestion_id: subquestion.id.clone(),
-                                    prefetched_provider: None,
-                                }
-                            }));
-                        }
-                        Err(mut error) => {
-                            attempts.append(&mut error.attempts);
-                            push_diagnostic(&mut diagnostics, error.diagnostic);
-                            capability_gaps.push(CapabilityGap {
-                                capability: Capability::WebSearch,
-                                reason: "all_attempts_failed",
-                                providers_skipped: unconfigured_web_providers(&config),
-                            });
-                        }
-                    }
-                }
-                PlanCapability::VerticalSearch => {
-                    if config.vertical_search.configured_provider_count() == 0 {
-                        capability_gaps.push(CapabilityGap {
-                            capability: Capability::VerticalSearch,
-                            reason: "no_configured_provider",
-                            providers_skipped: config.vertical_search.names(),
-                        });
-                        continue;
-                    }
-                    match engine::vertical_search(
-                        &subquestion.question,
-                        limit,
-                        config.vertical_search.clone(),
-                        execution,
-                    )
-                    .await
-                    {
-                        Ok(mut outcome) => {
-                            attempts.append(&mut outcome.attempts);
-                            push_diagnostic(&mut diagnostics, outcome.diagnostic);
-                            candidates.extend(outcome.sources.into_iter().map(|source| {
-                                Candidate {
-                                    source,
-                                    subquestion_id: subquestion.id.clone(),
-                                    prefetched_provider: None,
-                                }
-                            }));
-                        }
-                        Err(mut error) => {
-                            attempts.append(&mut error.attempts);
-                            push_diagnostic(&mut diagnostics, error.diagnostic);
-                            capability_gaps.push(CapabilityGap {
-                                capability: Capability::VerticalSearch,
-                                reason: "all_attempts_failed",
-                                providers_skipped: unconfigured_vertical_providers(&config),
-                            });
-                        }
-                    }
-                }
-            }
-        }
+    let discovery_blocks = stream::iter(request.plan.decomposition.iter().flat_map(
+        |subquestion| {
+            subquestion
+                .required_capabilities
+                .iter()
+                .copied()
+                .map(move |capability| (subquestion, capability))
+        },
+    ))
+    .map(|(subquestion, capability)| {
+        let execution =
+            CapabilityExecution::new(&request.fallback, client.clone(), retry_policy, deadline);
+        let config = &config;
+        async move { discover_capability(subquestion, capability, limit, config, execution).await }
+    })
+    .buffered(engine::FANOUT_CONCURRENCY)
+    .collect::<Vec<_>>()
+    .await;
+    for mut block in discovery_blocks {
+        attempts.append(&mut block.attempts);
+        capability_gaps.append(&mut block.capability_gaps);
+        diagnostics.append(&mut block.diagnostics);
+        candidates.append(&mut block.candidates);
     }
 
     let first_subquestion = request
@@ -274,35 +192,45 @@ pub(crate) async fn execute(
     if request.fallback == "off" {
         fetch_config.retain_first();
     }
-    for candidate in candidates {
-        if evidence_items.len() >= request.budget.max_evidence()
-            || !seen_urls.insert(candidate.source.url.clone())
-        {
-            continue;
+    let mut candidates = candidates.into_iter();
+    loop {
+        let evidence_needed = request
+            .budget
+            .max_evidence()
+            .saturating_sub(evidence_items.len());
+        if evidence_needed == 0 {
+            break;
         }
-        if let Some(provider) = candidate.prefetched_provider
-            && candidate
-                .source
-                .text
-                .as_deref()
-                .is_some_and(|content| !content.trim().is_empty())
-        {
-            let content = candidate.source.text.unwrap_or_default();
-            push_evidence(
-                &mut evidence_items,
-                candidate.source.url,
-                candidate.source.title,
-                provider,
-                "docs",
-                candidate.subquestion_id,
-                content,
-            );
-            continue;
+        let wave_size = engine::FANOUT_CONCURRENCY.min(evidence_needed);
+        let mut wave = Vec::with_capacity(wave_size);
+        while wave.len() < wave_size {
+            let Some(candidate) = candidates.next() else {
+                break;
+            };
+            if seen_urls.insert(candidate.source.url.clone()) {
+                wave.push(candidate);
+            }
         }
-        if fetch_config.configured_provider_count() == 0 {
-            if !capability_gaps
-                .iter()
-                .any(|gap| gap.capability == Capability::WebFetch)
+        if wave.is_empty() {
+            break;
+        }
+        let results = join_all(wave.into_iter().map(|candidate| {
+            fetch_candidate(
+                candidate,
+                fetch_config.clone(),
+                client.clone(),
+                retry_policy,
+                deadline,
+            )
+        }))
+        .await;
+        for mut block in results {
+            attempts.append(&mut block.attempts);
+            push_diagnostic(&mut diagnostics, block.diagnostic);
+            if block.missing_provider
+                && !capability_gaps
+                    .iter()
+                    .any(|gap| gap.capability == Capability::WebFetch)
             {
                 capability_gaps.push(CapabilityGap {
                     capability: Capability::WebFetch,
@@ -310,51 +238,19 @@ pub(crate) async fn execute(
                     providers_skipped: fetch_config.names(),
                 });
             }
-            research_gaps.push(ResearchGap {
-                subquestion_id: candidate.subquestion_id,
-                reason:
-                    "candidate could not be fetched because web_fetch has no configured provider"
-                        .into(),
-                url: Some(redact_url(&candidate.source.url)),
-            });
-            continue;
-        }
-        let url = candidate.source.url.clone();
-        match engine::fetch(
-            FetchRequest {
-                url: url.clone(),
-                verbose: true,
-            },
-            fetch_config.clone(),
-            client.clone(),
-            retry_policy,
-            deadline,
-        )
-        .await
-        {
-            Ok(mut fetched) => {
-                attempts.append(&mut fetched.attempts);
-                push_diagnostic(&mut diagnostics, fetched.diagnostic);
-                let provider = fetched.provider;
-                let content = fetched.content;
+            if let Some(gap) = block.gap {
+                research_gaps.push(gap);
+            }
+            if let Some(evidence) = block.evidence {
                 push_evidence(
                     &mut evidence_items,
-                    fetched.url,
-                    candidate.source.title,
-                    provider,
-                    "fetched_page",
-                    candidate.subquestion_id,
-                    content,
+                    evidence.url,
+                    evidence.title,
+                    evidence.provider,
+                    evidence.source_type,
+                    evidence.subquestion_id,
+                    evidence.content,
                 );
-            }
-            Err(mut error) => {
-                attempts.append(&mut error.attempts);
-                push_diagnostic(&mut diagnostics, error.diagnostic);
-                research_gaps.push(ResearchGap {
-                    subquestion_id: candidate.subquestion_id,
-                    reason: "candidate fetch failed".into(),
-                    url: Some(redact_url(&url)),
-                });
             }
         }
     }
@@ -512,6 +408,250 @@ pub(crate) async fn execute(
         )
     })?;
     Ok(outcome)
+}
+
+async fn discover_capability(
+    subquestion: &ResearchSubquestion,
+    capability: PlanCapability,
+    limit: u16,
+    config: &RuntimeConfig,
+    execution: CapabilityExecution,
+) -> DiscoveryBlock {
+    match capability {
+        PlanCapability::DocsSearch => discover_docs(subquestion, limit, config, execution).await,
+        PlanCapability::WebSearch => discover_web(subquestion, limit, config, execution).await,
+        PlanCapability::VerticalSearch => {
+            discover_vertical(subquestion, limit, config, execution).await
+        }
+    }
+}
+
+async fn discover_docs(
+    subquestion: &ResearchSubquestion,
+    limit: u16,
+    config: &RuntimeConfig,
+    execution: CapabilityExecution,
+) -> DiscoveryBlock {
+    let mut block = DiscoveryBlock::default();
+    if config.docs_search.configured_provider_count() == 0 {
+        block.capability_gaps.push(CapabilityGap {
+            capability: Capability::DocsSearch,
+            reason: "no_configured_provider",
+            providers_skipped: config.docs_search.names(),
+        });
+        return block;
+    }
+    match engine::documentation_search(
+        &subquestion.question,
+        limit,
+        config.docs_search.clone(),
+        execution,
+    )
+    .await
+    {
+        Ok(mut outcome) => {
+            let prefetched_provider = outcome
+                .attempts
+                .iter()
+                .rev()
+                .find(|attempt| attempt.seam == "docs_search" && attempt.error_kind.is_none())
+                .map(|attempt| attempt.provider)
+                .filter(|provider| *provider == "context7");
+            block.attempts.append(&mut outcome.attempts);
+            push_diagnostic(&mut block.diagnostics, outcome.diagnostic);
+            block
+                .candidates
+                .extend(outcome.sources.into_iter().map(|source| Candidate {
+                    source,
+                    subquestion_id: subquestion.id.clone(),
+                    prefetched_provider,
+                }));
+        }
+        Err(mut error) => {
+            block.attempts.append(&mut error.attempts);
+            push_diagnostic(&mut block.diagnostics, error.diagnostic);
+            block.capability_gaps.push(CapabilityGap {
+                capability: Capability::DocsSearch,
+                reason: "all_attempts_failed",
+                providers_skipped: unconfigured_docs_providers(config),
+            });
+        }
+    }
+    block
+}
+
+async fn discover_web(
+    subquestion: &ResearchSubquestion,
+    limit: u16,
+    config: &RuntimeConfig,
+    execution: CapabilityExecution,
+) -> DiscoveryBlock {
+    let mut block = DiscoveryBlock::default();
+    if config.web_search.configured_provider_count() == 0 {
+        block.capability_gaps.push(CapabilityGap {
+            capability: Capability::WebSearch,
+            reason: "no_configured_provider",
+            providers_skipped: config.web_search.names(),
+        });
+        return block;
+    }
+    match engine::supplemental_web_search(
+        &subquestion.question,
+        limit,
+        config.web_search.clone(),
+        execution,
+    )
+    .await
+    {
+        Ok(mut outcome) => {
+            block.attempts.append(&mut outcome.attempts);
+            push_diagnostic(&mut block.diagnostics, outcome.diagnostic);
+            block
+                .candidates
+                .extend(outcome.sources.into_iter().map(|source| Candidate {
+                    source,
+                    subquestion_id: subquestion.id.clone(),
+                    prefetched_provider: None,
+                }));
+        }
+        Err(mut error) => {
+            block.attempts.append(&mut error.attempts);
+            push_diagnostic(&mut block.diagnostics, error.diagnostic);
+            block.capability_gaps.push(CapabilityGap {
+                capability: Capability::WebSearch,
+                reason: "all_attempts_failed",
+                providers_skipped: unconfigured_web_providers(config),
+            });
+        }
+    }
+    block
+}
+
+async fn discover_vertical(
+    subquestion: &ResearchSubquestion,
+    limit: u16,
+    config: &RuntimeConfig,
+    execution: CapabilityExecution,
+) -> DiscoveryBlock {
+    let mut block = DiscoveryBlock::default();
+    if config.vertical_search.configured_provider_count() == 0 {
+        block.capability_gaps.push(CapabilityGap {
+            capability: Capability::VerticalSearch,
+            reason: "no_configured_provider",
+            providers_skipped: config.vertical_search.names(),
+        });
+        return block;
+    }
+    match engine::vertical_search(
+        &subquestion.question,
+        limit,
+        config.vertical_search.clone(),
+        execution,
+    )
+    .await
+    {
+        Ok(mut outcome) => {
+            block.attempts.append(&mut outcome.attempts);
+            push_diagnostic(&mut block.diagnostics, outcome.diagnostic);
+            block
+                .candidates
+                .extend(outcome.sources.into_iter().map(|source| Candidate {
+                    source,
+                    subquestion_id: subquestion.id.clone(),
+                    prefetched_provider: None,
+                }));
+        }
+        Err(mut error) => {
+            block.attempts.append(&mut error.attempts);
+            push_diagnostic(&mut block.diagnostics, error.diagnostic);
+            block.capability_gaps.push(CapabilityGap {
+                capability: Capability::VerticalSearch,
+                reason: "all_attempts_failed",
+                providers_skipped: unconfigured_vertical_providers(config),
+            });
+        }
+    }
+    block
+}
+
+async fn fetch_candidate(
+    candidate: Candidate,
+    fetch_config: crate::config::WebFetchRuntimeConfig,
+    client: reqwest::Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> CandidateFetchBlock {
+    if let Some(provider) = candidate.prefetched_provider
+        && candidate
+            .source
+            .text
+            .as_deref()
+            .is_some_and(|content| !content.trim().is_empty())
+    {
+        return CandidateFetchBlock {
+            evidence: Some(FetchedCandidate {
+                url: candidate.source.url,
+                title: candidate.source.title,
+                provider,
+                source_type: "docs",
+                subquestion_id: candidate.subquestion_id,
+                content: candidate.source.text.unwrap_or_default(),
+            }),
+            ..CandidateFetchBlock::default()
+        };
+    }
+    if fetch_config.configured_provider_count() == 0 {
+        return CandidateFetchBlock {
+            gap: Some(ResearchGap {
+                subquestion_id: candidate.subquestion_id,
+                reason:
+                    "candidate could not be fetched because web_fetch has no configured provider"
+                        .into(),
+                url: Some(redact_url(&candidate.source.url)),
+            }),
+            missing_provider: true,
+            ..CandidateFetchBlock::default()
+        };
+    }
+    let url = candidate.source.url.clone();
+    match engine::fetch(
+        FetchRequest {
+            url: url.clone(),
+            verbose: true,
+        },
+        fetch_config,
+        client,
+        retry_policy,
+        deadline,
+    )
+    .await
+    {
+        Ok(fetched) => CandidateFetchBlock {
+            attempts: fetched.attempts,
+            diagnostic: fetched.diagnostic,
+            evidence: Some(FetchedCandidate {
+                url: fetched.url,
+                title: candidate.source.title,
+                provider: fetched.provider,
+                source_type: "fetched_page",
+                subquestion_id: candidate.subquestion_id,
+                content: fetched.content,
+            }),
+            gap: None,
+            missing_provider: false,
+        },
+        Err(error) => CandidateFetchBlock {
+            attempts: error.attempts,
+            diagnostic: error.diagnostic,
+            evidence: None,
+            gap: Some(ResearchGap {
+                subquestion_id: candidate.subquestion_id,
+                reason: "candidate fetch failed".into(),
+                url: Some(redact_url(&url)),
+            }),
+            missing_provider: false,
+        },
+    }
 }
 
 fn interleave_candidates(candidates: Vec<Candidate>, subquestion_ids: &[String]) -> Vec<Candidate> {

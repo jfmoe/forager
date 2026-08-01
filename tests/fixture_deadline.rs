@@ -22,6 +22,22 @@ fn fixture_timeout_reports_expected_and_received_requests() {
     );
 }
 
+#[test]
+fn parallel_fixture_timeout_reports_expected_and_received_requests() {
+    let fixture = Fixture::start_parallel_sequence_with_deadline(
+        vec![Response::new(200, "text/plain", "ok")],
+        Duration::from_millis(50),
+    );
+
+    let panic = panic::catch_unwind(AssertUnwindSafe(|| fixture.finish_all()))
+        .expect_err("parallel fixture must time out");
+
+    assert_eq!(
+        panic_message(&panic),
+        "fixture timed out waiting for requests: expected 1, received 0"
+    );
+}
+
 fn panic_message(panic: &Box<dyn Any + Send>) -> &str {
     panic
         .downcast_ref::<String>()

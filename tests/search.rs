@@ -1,6 +1,7 @@
 mod support;
 
 use std::fs;
+use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
@@ -884,6 +885,123 @@ fn declared_web_fetch_does_not_report_all_failed_when_one_target_succeeds() {
 }
 
 #[test]
+fn declared_web_fetch_runs_known_urls_concurrently_and_preserves_url_order() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let content = "Fetched evidence line one.\nFetched evidence line two.\n".repeat(12);
+    let jina = Fixture::start_parallel_sequence(vec![
+        Response::new(200, "text/markdown", &content).with_delay(Duration::from_secs(2)),
+        Response::new(200, "text/markdown", &content).with_delay(Duration::from_secs(2)),
+    ]);
+    let config = format!(
+        "{}\n[providers.jina]\nurl = {:?}\nkeys = [\"jina-key\"]\ntimeout = 30\n\n[capabilities.web_fetch]\norder = [\"jina\"]\n",
+        search_config(&main.url, false),
+        jina.url
+    );
+    let environment = RunEnvironment::new(&config);
+    let started = Instant::now();
+
+    let output = environment.run(&[
+        "search",
+        "Verify https://example.test/one https://example.test/two",
+        "--capabilities",
+        "web_fetch",
+        "--timeout",
+        "3",
+    ]);
+    let elapsed = started.elapsed();
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["validation_results"],
+            &payload["capability_gaps"],
+        ),
+        (
+            Some(0),
+            &serde_json::json!([
+                {"url": "https://example.test/one", "provider": "jina", "status": "validated"},
+                {"url": "https://example.test/two", "provider": "jina", "status": "validated"}
+            ]),
+            &serde_json::json!([]),
+        ),
+        "elapsed: {elapsed:?}; stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    main.finish();
+    assert_eq!(jina.finish_all().len(), 2);
+}
+
+#[test]
+fn concurrent_web_fetch_rate_limits_rotate_once_per_branch_with_a_bounded_burst() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let content = "Rotated evidence line one.\nRotated evidence line two.\n".repeat(12);
+    let responses = (0..4)
+        .map(|_| {
+            Response::new(429, "application/json", r#"{"message":"rate limited"}"#)
+                .with_delay(Duration::from_millis(200))
+        })
+        .chain((0..4).map(|_| Response::new(200, "text/markdown", &content)))
+        .collect();
+    let jina = Fixture::start_parallel_sequence(responses);
+    let config = format!(
+        "{}\n[providers.jina]\nurl = {:?}\nkeys = [\"jina-key-a\", \"jina-key-b\"]\ntimeout = 30\n\n[capabilities.web_fetch]\norder = [\"jina\"]\n",
+        search_config(&main.url, false),
+        jina.url
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        concat!(
+            "Verify https://example.test/one https://example.test/two ",
+            "https://example.test/three https://example.test/four"
+        ),
+        "--capabilities",
+        "web_fetch",
+        "--timeout",
+        "5",
+        "--verbose",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let fetch_attempts = payload["provider_attempts"]
+        .as_array()
+        .expect("provider attempts")
+        .iter()
+        .filter(|attempt| attempt["seam"] == "web_fetch")
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        (
+            output.status.code(),
+            payload["validation_results"].as_array().map(Vec::len),
+            fetch_attempts.len(),
+            fetch_attempts
+                .iter()
+                .filter(|attempt| attempt["error_kind"] == "rate_limited")
+                .count(),
+            fetch_attempts
+                .iter()
+                .filter_map(|attempt| attempt["rotation_count"].as_u64())
+                .max(),
+        ),
+        (Some(0), Some(4), 8, 4, Some(1)),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    main.finish();
+    assert_eq!(jina.finish_all().len(), 8);
+}
+
+#[test]
 fn declared_vertical_search_runs_domainless_discovery_and_normalizes_url_results() {
     let main = Fixture::start(
         200,
@@ -996,6 +1114,81 @@ fn combined_declaration_executes_only_declared_seams_in_vocabulary_order() {
             &Value::Null,
             &Value::Null,
         )
+    );
+    main.finish();
+    exa.finish();
+    tavily.finish();
+}
+
+#[test]
+fn supplemental_capabilities_share_the_deadline_and_merge_in_declaration_order() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let exa = Fixture::start_sequence(vec![
+        Response::new(
+            200,
+            "application/json",
+            r#"{"results":[{"title":"Documentation","url":"https://example.test/docs"}]}"#,
+        )
+        .with_delay(Duration::from_secs(2)),
+    ]);
+    let tavily = Fixture::start_sequence(vec![
+        Response::new(
+            200,
+            "application/json",
+            r#"{"results":[{"title":"Current source","url":"https://example.test/current"}]}"#,
+        )
+        .with_delay(Duration::from_secs(2)),
+    ]);
+    let config = format!(
+        "{}\n[providers.exa]\nurl = {:?}\nkeys = [\"exa-key\"]\ntimeout = 30\n\n[providers.tavily]\nurl = {:?}\nkeys = [\"tavily-key\"]\ntimeout = 30\n\n[capabilities.docs_search]\norder = [\"exa\"]\n[capabilities.web_search]\norder = [\"tavily\"]\n",
+        search_config(&main.url, false),
+        exa.url,
+        tavily.url,
+    );
+    let environment = RunEnvironment::new(&config);
+    let started = Instant::now();
+
+    let output = environment.run(&[
+        "search",
+        "Compare sources",
+        "--capabilities",
+        "docs_search,web_search",
+        "--timeout",
+        "3",
+        "--verbose",
+    ]);
+    let elapsed = started.elapsed();
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let supplemental_attempts = payload["provider_attempts"]
+        .as_array()
+        .expect("provider attempts")
+        .iter()
+        .skip(1)
+        .map(|attempt| attempt["seam"].as_str().expect("attempt seam"))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        (
+            output.status.code(),
+            payload["extra_sources"]
+                .as_array()
+                .expect("extra sources")
+                .iter()
+                .map(|source| source["url"].as_str().expect("source URL"))
+                .collect::<Vec<_>>(),
+            supplemental_attempts,
+        ),
+        (
+            Some(0),
+            vec!["https://example.test/docs", "https://example.test/current"],
+            vec!["docs_search", "web_search"],
+        ),
+        "elapsed: {elapsed:?}; stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
     );
     main.finish();
     exa.finish();

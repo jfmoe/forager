@@ -831,6 +831,135 @@ fn research_standard_budget_covers_each_subquestion_before_extra_evidence() {
 }
 
 #[test]
+fn research_flattens_subquestions_into_one_ordered_concurrent_fanout() {
+    let tavily = Fixture::start_parallel_sequence(vec![
+        Response::new(
+            200,
+            "application/json",
+            r#"{"results":[{"title":"First","url":"https://example.test/first"}]}"#,
+        )
+        .with_delay(Duration::from_secs(2)),
+        Response::new(
+            200,
+            "application/json",
+            r#"{"results":[{"title":"Second","url":"https://example.test/second"}]}"#,
+        )
+        .with_delay(Duration::from_secs(2)),
+    ]);
+    let jina = Fixture::start_parallel_sequence(vec![
+        Response::new(200, "text/markdown", &rich_content("First fetched")),
+        Response::new(200, "text/markdown", &rich_content("Second fetched")),
+    ]);
+    let environment = RunEnvironment::new(&research_config(&tavily.url, &jina.url, false));
+    let mut plan = valid_plan(json!(["web_search"]));
+    plan["decomposition"]
+        .as_array_mut()
+        .expect("decomposition")
+        .push(json!({
+            "id": "sq2",
+            "question": "What contrasting evidence is available?",
+            "reason": "Cover the comparison target",
+            "required_capabilities": ["web_search"]
+        }));
+    let plan_path = write_plan(&environment, plan);
+
+    let output = environment.run(&[
+        "research",
+        "Compare two subjects",
+        "--plan",
+        plan_path.to_str().expect("UTF-8 path"),
+        "--budget",
+        "standard",
+        "--timeout",
+        "3",
+        "--verbose",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            payload["evidence_items"]
+                .as_array()
+                .expect("evidence items")
+                .iter()
+                .map(|item| item["subquestion_id"].as_str().expect("subquestion id"))
+                .collect::<Vec<_>>(),
+            payload["provider_attempts"]
+                .as_array()
+                .expect("provider attempts")
+                .iter()
+                .map(|attempt| attempt["seam"].as_str().expect("attempt seam"))
+                .collect::<Vec<_>>(),
+        ),
+        (
+            Some(0),
+            vec!["sq1", "sq2"],
+            vec!["web_search", "web_search", "web_fetch", "web_fetch"],
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(tavily.finish_all().len(), 2);
+    assert_eq!(jina.finish_all().len(), 2);
+}
+
+#[test]
+fn research_fetches_candidates_in_ordered_waves_sized_to_the_evidence_gap() {
+    let tavily = Fixture::start(
+        200,
+        "application/json",
+        r#"{"results":[
+            {"title":"First","url":"https://example.test/first"},
+            {"title":"Second","url":"https://example.test/second"},
+            {"title":"Third","url":"https://example.test/third"}
+        ]}"#,
+    );
+    let jina = Fixture::start_parallel_sequence(
+        ["First fetched", "Second fetched", "Third fetched"]
+            .into_iter()
+            .map(|label| {
+                Response::new(200, "text/markdown", &rich_content(label))
+                    .with_delay(Duration::from_secs(2))
+            })
+            .collect(),
+    );
+    let environment = RunEnvironment::new(&research_config(&tavily.url, &jina.url, false));
+    let plan_path = write_plan(&environment, valid_plan(json!(["web_search"])));
+    let started = Instant::now();
+
+    let output = environment.run(&[
+        "research",
+        "Wave fetching",
+        "--plan",
+        plan_path.to_str().expect("UTF-8 path"),
+        "--budget",
+        "standard",
+        "--timeout",
+        "3",
+    ]);
+    let elapsed = started.elapsed();
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            payload["evidence_items"]
+                .as_array()
+                .expect("evidence items")
+                .iter()
+                .map(|item| item["title"].as_str().expect("evidence title"))
+                .collect::<Vec<_>>(),
+        ),
+        (Some(0), vec!["First", "Second", "Third"]),
+        "elapsed: {elapsed:?}; stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    tavily.finish();
+    assert_eq!(jina.finish_all().len(), 3);
+}
+
+#[test]
 fn research_discloses_a_subquestion_without_verified_evidence() {
     let tavily = Fixture::start_sequence(vec![
         Response::new(

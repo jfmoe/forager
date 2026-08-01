@@ -39,6 +39,43 @@ impl Fixture {
         Self::start_sequence_with_deadline(responses, ACCEPT_DEADLINE)
     }
 
+    pub(crate) fn start_parallel_sequence(responses: Vec<Response>) -> Self {
+        Self::start_parallel_sequence_with_deadline(responses, ACCEPT_DEADLINE)
+    }
+
+    pub(crate) fn start_parallel_sequence_with_deadline(
+        responses: Vec<Response>,
+        accept_deadline: Duration,
+    ) -> Self {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind parallel fixture");
+        listener
+            .set_nonblocking(true)
+            .expect("set parallel fixture listener nonblocking");
+        let address = listener.local_addr().expect("parallel fixture address");
+        let handle = thread::spawn(move || {
+            let expected_requests = responses.len();
+            let mut workers = Vec::with_capacity(expected_requests);
+            for response in responses {
+                let stream =
+                    accept_request(&listener, accept_deadline, expected_requests, workers.len());
+                workers.push(thread::spawn(move || respond(stream, &response)));
+            }
+            workers
+                .into_iter()
+                .map(|worker| {
+                    worker
+                        .join()
+                        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+                })
+                .collect()
+        });
+        Self {
+            url: format!("http://{address}"),
+            handle,
+            stop: None,
+        }
+    }
+
     pub(crate) fn start_sequence_with_deadline(
         responses: Vec<Response>,
         accept_deadline: Duration,
@@ -52,49 +89,13 @@ impl Fixture {
             let expected_requests = responses.len();
             let mut requests = Vec::with_capacity(expected_requests);
             for response in responses {
-                let mut stream = accept_request(
+                let stream = accept_request(
                     &listener,
                     accept_deadline,
                     expected_requests,
                     requests.len(),
                 );
-                let mut request = Vec::new();
-                let mut buffer = [0_u8; 4096];
-                loop {
-                    let read = stream.read(&mut buffer).expect("read request");
-                    if read == 0 {
-                        break;
-                    }
-                    request.extend_from_slice(&buffer[..read]);
-                    if request_complete(&request) {
-                        break;
-                    }
-                }
-                thread::sleep(response.delay);
-                let reason = if response.status == 200 {
-                    "OK"
-                } else {
-                    "Error"
-                };
-                let mut headers = String::new();
-                for (name, value) in &response.headers {
-                    headers.push_str(name);
-                    headers.push_str(": ");
-                    headers.push_str(value);
-                    headers.push_str("\r\n");
-                }
-                let _ = write!(
-                    stream,
-                    "HTTP/1.1 {} {reason}\r\nContent-Type: {}\r\n{}Content-Length: {}\r\nConnection: close\r\n\r\n",
-                    response.status,
-                    response.content_type,
-                    headers,
-                    response.body.len()
-                );
-                let _ = stream.flush();
-                thread::sleep(response.body_delay);
-                let _ = stream.write_all(response.body.as_bytes());
-                requests.push(String::from_utf8(request).expect("UTF-8 request"));
+                requests.push(respond(stream, &response));
             }
             requests
         });
@@ -168,6 +169,46 @@ impl Fixture {
             std::panic::resume_unwind(panic);
         })
     }
+}
+
+fn respond(mut stream: TcpStream, response: &Response) -> String {
+    let mut request = Vec::new();
+    let mut buffer = [0_u8; 4096];
+    loop {
+        let read = stream.read(&mut buffer).expect("read request");
+        if read == 0 {
+            break;
+        }
+        request.extend_from_slice(&buffer[..read]);
+        if request_complete(&request) {
+            break;
+        }
+    }
+    thread::sleep(response.delay);
+    let reason = if response.status == 200 {
+        "OK"
+    } else {
+        "Error"
+    };
+    let mut headers = String::new();
+    for (name, value) in &response.headers {
+        headers.push_str(name);
+        headers.push_str(": ");
+        headers.push_str(value);
+        headers.push_str("\r\n");
+    }
+    let _ = write!(
+        stream,
+        "HTTP/1.1 {} {reason}\r\nContent-Type: {}\r\n{}Content-Length: {}\r\nConnection: close\r\n\r\n",
+        response.status,
+        response.content_type,
+        headers,
+        response.body.len()
+    );
+    let _ = stream.flush();
+    thread::sleep(response.body_delay);
+    let _ = stream.write_all(response.body.as_bytes());
+    String::from_utf8(request).expect("UTF-8 request")
 }
 
 fn accept_request(

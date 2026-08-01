@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use futures_util::{StreamExt, stream};
 use reqwest::Client;
 
 use crate::config::{
@@ -11,10 +12,12 @@ use crate::net::{RetryPolicy, combine_diagnostics, slice_budget};
 use crate::providers::{self, FetchRequest, ProviderError, SearchRequest};
 use crate::redact::redact_url;
 use crate::types::{
-    AttemptErrorKind, Capability, CapabilityGap, CapabilitySet, DENSITY_MAX_CHARS,
+    AnysearchResult, AttemptErrorKind, Capability, CapabilityGap, CapabilitySet, DENSITY_MAX_CHARS,
     DENSITY_MAX_UNIQUE_LINES, Deadline, FetchOutcome, MIN_FETCH_CONTENT_CHARS, ProviderAttempt,
     SearchOutcome, Source, SupplementalSearchOutcome, ValidationResult, VerticalSearchOutcome,
 };
+
+pub(crate) const FANOUT_CONCURRENCY: usize = 4;
 
 #[derive(Clone)]
 pub(crate) struct CapabilityExecution {
@@ -42,6 +45,39 @@ struct ChainStep<T> {
     value: T,
     attempts: Vec<ProviderAttempt>,
     diagnostic: Option<String>,
+}
+
+#[derive(Default)]
+struct CapabilityBranch {
+    attempts: Vec<ProviderAttempt>,
+    sources: Vec<Source>,
+    validation_results: Vec<ValidationResult>,
+    vertical_results: Vec<AnysearchResult>,
+    capability_gaps: Vec<CapabilityGap>,
+    diagnostics: Vec<String>,
+}
+
+impl CapabilityBranch {
+    fn record_gap(
+        &mut self,
+        capability: Capability,
+        reason: &'static str,
+        providers_skipped: Vec<String>,
+        message: &str,
+    ) {
+        self.capability_gaps.push(CapabilityGap {
+            capability,
+            reason,
+            providers_skipped,
+        });
+        self.diagnostics.push(format!("capability gap: {message}"));
+    }
+
+    fn push_diagnostic(&mut self, diagnostic: Option<String>) {
+        if let Some(diagnostic) = diagnostic {
+            self.diagnostics.push(diagnostic);
+        }
+    }
 }
 
 async fn run_provider_chain<C, T, Run, Fut>(
@@ -191,51 +227,69 @@ pub(crate) async fn execute_capabilities(
     config: &RuntimeConfig,
     execution: CapabilityExecution,
 ) {
-    for capability in capabilities.iter() {
-        match capability {
-            Capability::DocsSearch => {
-                augment_with_docs_search(outcome, query, limit, config, execution.clone()).await;
+    let branches = stream::iter(capabilities.iter())
+        .map(|capability| {
+            let execution = execution.clone();
+            async move {
+                match capability {
+                    Capability::DocsSearch => {
+                        execute_docs_search(query, limit, config, execution).await
+                    }
+                    Capability::WebSearch => {
+                        execute_web_search(query, limit, config, execution).await
+                    }
+                    Capability::WebFetch => execute_web_fetch(query, config, execution).await,
+                    Capability::VerticalSearch => {
+                        execute_vertical_search(query, limit, config, execution).await
+                    }
+                }
             }
-            Capability::WebSearch => {
-                augment_with_web_search(outcome, query, limit, config, execution.clone()).await;
-            }
-            Capability::WebFetch => {
-                augment_with_web_fetch(outcome, query, config, execution.clone()).await;
-            }
-            Capability::VerticalSearch => {
-                augment_with_vertical_search(outcome, query, limit, config, execution.clone())
-                    .await;
-            }
+        })
+        .buffered(FANOUT_CONCURRENCY)
+        .collect::<Vec<_>>()
+        .await;
+
+    for mut branch in branches {
+        outcome.attempts.append(&mut branch.attempts);
+        outcome
+            .validation_results
+            .append(&mut branch.validation_results);
+        if !branch.vertical_results.is_empty() {
+            outcome.vertical_results = branch.vertical_results;
         }
+        outcome.capability_gaps.append(&mut branch.capability_gaps);
+        for diagnostic in branch.diagnostics {
+            outcome.diagnostic = combine_diagnostics(
+                [outcome.diagnostic.take(), Some(diagnostic)]
+                    .into_iter()
+                    .flatten(),
+            );
+        }
+        merge_extra_sources(outcome, branch.sources);
     }
 }
 
-async fn augment_with_web_search(
-    outcome: &mut SearchOutcome,
+async fn execute_web_search(
     query: &str,
     limit: u16,
     config: &RuntimeConfig,
     execution: CapabilityExecution,
-) {
+) -> CapabilityBranch {
+    let mut branch = CapabilityBranch::default();
     if config.web_search.configured_provider_count() == 0 {
-        record_gap(
-            outcome,
+        branch.record_gap(
             Capability::WebSearch,
             "no_configured_provider",
             config.web_search.names(),
             "web_search has no configured provider",
         );
-        return;
+        return branch;
     }
     match supplemental_web_search(query, limit, config.web_search.clone(), execution).await {
         Ok(mut supplemental) => {
-            outcome.attempts.append(&mut supplemental.attempts);
-            outcome.diagnostic = combine_diagnostics(
-                [outcome.diagnostic.take(), supplemental.diagnostic]
-                    .into_iter()
-                    .flatten(),
-            );
-            merge_extra_sources(outcome, supplemental.sources);
+            branch.attempts.append(&mut supplemental.attempts);
+            branch.push_diagnostic(supplemental.diagnostic);
+            branch.sources = supplemental.sources;
         }
         Err(mut error) => {
             let attempted = error
@@ -243,14 +297,9 @@ async fn augment_with_web_search(
                 .iter()
                 .map(|attempt| attempt.provider)
                 .collect::<HashSet<_>>();
-            outcome.attempts.append(&mut error.attempts);
-            outcome.diagnostic = combine_diagnostics(
-                [outcome.diagnostic.take(), error.diagnostic]
-                    .into_iter()
-                    .flatten(),
-            );
-            record_gap(
-                outcome,
+            branch.attempts.append(&mut error.attempts);
+            branch.push_diagnostic(error.diagnostic);
+            branch.record_gap(
                 Capability::WebSearch,
                 "all_attempts_failed",
                 config
@@ -264,44 +313,35 @@ async fn augment_with_web_search(
             );
         }
     }
+    branch
 }
 
-async fn augment_with_docs_search(
-    outcome: &mut SearchOutcome,
+async fn execute_docs_search(
     query: &str,
     limit: u16,
     config: &RuntimeConfig,
     execution: CapabilityExecution,
-) {
+) -> CapabilityBranch {
+    let mut branch = CapabilityBranch::default();
     if config.docs_search.configured_provider_count() == 0 {
-        record_gap(
-            outcome,
+        branch.record_gap(
             Capability::DocsSearch,
             "no_configured_provider",
             config.docs_search.names(),
             "docs_search has no configured provider",
         );
-        return;
+        return branch;
     }
     match documentation_search(query, limit, config.docs_search.clone(), execution).await {
         Ok(mut supplemental) => {
-            outcome.attempts.append(&mut supplemental.attempts);
-            outcome.diagnostic = combine_diagnostics(
-                [outcome.diagnostic.take(), supplemental.diagnostic]
-                    .into_iter()
-                    .flatten(),
-            );
-            merge_extra_sources(outcome, supplemental.sources);
+            branch.attempts.append(&mut supplemental.attempts);
+            branch.push_diagnostic(supplemental.diagnostic);
+            branch.sources = supplemental.sources;
         }
         Err(mut error) => {
-            outcome.attempts.append(&mut error.attempts);
-            outcome.diagnostic = combine_diagnostics(
-                [outcome.diagnostic.take(), error.diagnostic]
-                    .into_iter()
-                    .flatten(),
-            );
-            record_gap(
-                outcome,
+            branch.attempts.append(&mut error.attempts);
+            branch.push_diagnostic(error.diagnostic);
+            branch.record_gap(
                 Capability::DocsSearch,
                 "all_attempts_failed",
                 config.docs_search.unconfigured_names(),
@@ -309,59 +349,65 @@ async fn augment_with_docs_search(
             );
         }
     }
+    branch
 }
 
-async fn augment_with_web_fetch(
-    outcome: &mut SearchOutcome,
+async fn execute_web_fetch(
     query: &str,
     config: &RuntimeConfig,
     execution: CapabilityExecution,
-) {
+) -> CapabilityBranch {
+    let mut branch = CapabilityBranch::default();
     if config.web_fetch.configured_provider_count() == 0 {
-        record_gap(
-            outcome,
+        branch.record_gap(
             Capability::WebFetch,
             "no_configured_provider",
             config.web_fetch.names(),
             "web_fetch has no configured provider",
         );
-        return;
+        return branch;
     }
     let urls = known_urls(query);
     if urls.is_empty() {
-        record_gap(
-            outcome,
+        branch.record_gap(
             Capability::WebFetch,
             "all_attempts_failed",
             Vec::new(),
             "web_fetch declaration has no known URL target",
         );
-        return;
+        return branch;
     }
     let mut succeeded = false;
     let mut failed = false;
-    for url in urls {
-        match fetch(
-            FetchRequest {
-                url: url.clone(),
-                verbose: true,
-            },
-            config.web_fetch.clone(),
-            execution.client.clone(),
-            execution.retry_policy,
-            execution.deadline,
-        )
-        .await
-        {
+    let results = stream::iter(urls)
+        .map(|url| {
+            let fetch_config = config.web_fetch.clone();
+            let execution = execution.clone();
+            async move {
+                let result = fetch(
+                    FetchRequest {
+                        url: url.clone(),
+                        verbose: true,
+                    },
+                    fetch_config,
+                    execution.client,
+                    execution.retry_policy,
+                    execution.deadline,
+                )
+                .await;
+                (url, result)
+            }
+        })
+        .buffered(FANOUT_CONCURRENCY)
+        .collect::<Vec<_>>()
+        .await;
+    for (url, result) in results {
+        match result {
             Ok(mut fetched) => {
                 succeeded = true;
-                outcome.attempts.append(&mut fetched.attempts);
-                outcome.diagnostic = combine_diagnostics(
-                    [outcome.diagnostic.take(), fetched.diagnostic]
-                        .into_iter()
-                        .flatten(),
-                );
-                outcome.validation_results.push(ValidationResult {
+                branch.attempts.append(&mut fetched.attempts);
+                branch.push_diagnostic(fetched.diagnostic);
+                branch.validation_results.push(ValidationResult {
                     url: redact_url(&url),
                     provider: fetched.provider,
                     status: "validated",
@@ -369,63 +415,49 @@ async fn augment_with_web_fetch(
             }
             Err(mut error) => {
                 failed = true;
-                outcome.attempts.append(&mut error.attempts);
-                outcome.diagnostic = combine_diagnostics(
-                    [outcome.diagnostic.take(), error.diagnostic]
-                        .into_iter()
-                        .flatten(),
-                );
+                branch.attempts.append(&mut error.attempts);
+                branch.push_diagnostic(error.diagnostic);
             }
         }
     }
     if failed && !succeeded {
-        record_gap(
-            outcome,
+        branch.record_gap(
             Capability::WebFetch,
             "all_attempts_failed",
             config.web_fetch.unconfigured_names(),
             "one or more web_fetch targets failed",
         );
     }
+    branch
 }
 
-async fn augment_with_vertical_search(
-    outcome: &mut SearchOutcome,
+async fn execute_vertical_search(
     query: &str,
     limit: u16,
     config: &RuntimeConfig,
     execution: CapabilityExecution,
-) {
+) -> CapabilityBranch {
+    let mut branch = CapabilityBranch::default();
     if config.vertical_search.configured_provider_count() == 0 {
-        record_gap(
-            outcome,
+        branch.record_gap(
             Capability::VerticalSearch,
             "no_configured_provider",
             config.vertical_search.names(),
             "vertical_search has no configured provider",
         );
-        return;
+        return branch;
     }
     match vertical_search(query, limit, config.vertical_search.clone(), execution).await {
         Ok(mut vertical) => {
-            outcome.attempts.append(&mut vertical.attempts);
-            outcome.diagnostic = combine_diagnostics(
-                [outcome.diagnostic.take(), vertical.diagnostic]
-                    .into_iter()
-                    .flatten(),
-            );
-            outcome.vertical_results = vertical.results;
-            merge_extra_sources(outcome, vertical.sources);
+            branch.attempts.append(&mut vertical.attempts);
+            branch.push_diagnostic(vertical.diagnostic);
+            branch.vertical_results = vertical.results;
+            branch.sources = vertical.sources;
         }
         Err(mut error) => {
-            outcome.attempts.append(&mut error.attempts);
-            outcome.diagnostic = combine_diagnostics(
-                [outcome.diagnostic.take(), error.diagnostic]
-                    .into_iter()
-                    .flatten(),
-            );
-            record_gap(
-                outcome,
+            branch.attempts.append(&mut error.attempts);
+            branch.push_diagnostic(error.diagnostic);
+            branch.record_gap(
                 Capability::VerticalSearch,
                 "all_attempts_failed",
                 config.vertical_search.unconfigured_names(),
@@ -433,6 +465,7 @@ async fn augment_with_vertical_search(
             );
         }
     }
+    branch
 }
 
 fn merge_extra_sources(outcome: &mut SearchOutcome, sources: Vec<Source>) {
@@ -447,28 +480,6 @@ fn merge_extra_sources(outcome: &mut SearchOutcome, sources: Vec<Source>) {
             outcome.sources.push(source);
         }
     }
-}
-
-fn record_gap(
-    outcome: &mut SearchOutcome,
-    capability: Capability,
-    reason: &'static str,
-    providers_skipped: Vec<String>,
-    message: &str,
-) {
-    outcome.capability_gaps.push(CapabilityGap {
-        capability,
-        reason,
-        providers_skipped,
-    });
-    outcome.diagnostic = combine_diagnostics(
-        [
-            outcome.diagnostic.take(),
-            Some(format!("capability gap: {message}")),
-        ]
-        .into_iter()
-        .flatten(),
-    );
 }
 
 pub(crate) fn known_urls(query: &str) -> Vec<String> {
