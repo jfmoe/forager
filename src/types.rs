@@ -12,6 +12,7 @@ pub(crate) const MIN_USEFUL_SLICE_SECONDS: u64 = 5;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
+/// A research capability exposed by an execution seam.
 pub enum Capability {
     DocsSearch,
     WebSearch,
@@ -38,6 +39,7 @@ impl Capability {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+/// A deduplicated capability set kept in the canonical [`Capability`] order.
 pub struct CapabilitySet(Vec<Capability>);
 
 impl CapabilitySet {
@@ -273,6 +275,7 @@ impl ResearchPlan {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
+/// A terminal command error, including failures detected before provider execution.
 pub enum ErrorKind {
     Auth,
     RateLimited,
@@ -287,6 +290,9 @@ pub enum ErrorKind {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+/// The transport or content family used to map terminal errors to exit behavior.
+///
+/// Preflight configuration errors have no family; see [`ErrorKind::family`].
 pub enum ErrorFamily {
     Transport,
     Content,
@@ -329,6 +335,9 @@ impl ErrorKind {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
+/// A provider-attempt failure category.
+///
+/// This domain excludes preflight configuration failures, which cannot result from an attempt.
 pub enum AttemptErrorKind {
     Auth,
     RateLimited,
@@ -373,6 +382,10 @@ impl From<AttemptErrorKind> for ErrorKind {
 }
 
 #[derive(Clone, Debug, Serialize)]
+/// Diagnostic metadata for one logical provider attempt.
+///
+/// A successful attempt has no `error_kind`; failure messages must already be redacted before
+/// construction.
 pub struct ProviderAttempt {
     pub provider: &'static str,
     pub seam: &'static str,
@@ -395,6 +408,7 @@ pub struct ProviderAttempt {
 }
 
 #[derive(Clone, Debug, Serialize)]
+/// A normalized source returned by a search provider.
 pub struct Source {
     pub title: String,
     pub url: String,
@@ -409,6 +423,7 @@ pub struct Source {
 }
 
 #[derive(Clone, Debug, Serialize)]
+/// The normalized result of a search, including enrichment and capability coverage.
 pub struct SearchOutcome {
     pub provider: &'static str,
     pub query: String,
@@ -544,6 +559,7 @@ pub struct ResearchError {
 }
 
 #[derive(Clone, Debug, Serialize)]
+/// The outcome of validating whether a source URL is usable as evidence.
 pub struct ValidationResult {
     pub url: String,
     pub provider: &'static str,
@@ -551,6 +567,7 @@ pub struct ValidationResult {
 }
 
 #[derive(Clone, Debug, Serialize)]
+/// An advisory record that a requested capability could not be executed.
 pub struct CapabilityGap {
     pub capability: Capability,
     pub reason: &'static str,
@@ -573,6 +590,7 @@ pub(crate) struct VerticalSearchOutcome {
 }
 
 #[derive(Clone, Debug)]
+/// The non-fatal result of attempting to persist a journal entry.
 pub struct JournalOutcome {
     pub status: &'static str,
     pub reference: Option<String>,
@@ -580,6 +598,7 @@ pub struct JournalOutcome {
 }
 
 #[derive(Clone, Debug, Serialize)]
+/// A documentation library candidate returned by Context7 resolution.
 pub struct LibraryCandidate {
     pub id: String,
     pub title: String,
@@ -596,6 +615,7 @@ pub struct LibraryCandidate {
 }
 
 #[derive(Clone, Debug, Serialize)]
+/// The normalized result of a Context7 library-resolution request.
 pub struct Context7LibraryOutcome {
     pub provider: &'static str,
     pub query: String,
@@ -608,6 +628,7 @@ pub struct Context7LibraryOutcome {
 }
 
 #[derive(Clone, Debug, Serialize)]
+/// The normalized result of a Context7 documentation request.
 pub struct Context7DocsOutcome {
     pub provider: &'static str,
     pub library_id: String,
@@ -624,6 +645,7 @@ pub struct Context7DocsOutcome {
 }
 
 #[derive(Clone, Debug)]
+/// A Context7 result whose variant matches the requested library or documentation operation.
 pub enum Context7Outcome {
     Library(Context7LibraryOutcome),
     Docs(Context7DocsOutcome),
@@ -708,6 +730,7 @@ pub enum AnysearchOutcome {
 
 #[derive(Clone, Debug, Serialize)]
 #[serde(untagged)]
+/// The operation-specific input echoed in an Exa result.
 pub enum ExaInput {
     Search { query: String },
     Similar { url: String },
@@ -732,6 +755,7 @@ impl ExaInput {
 }
 
 #[derive(Clone, Debug, Serialize)]
+/// The normalized result of an Exa search or similar-page request.
 pub struct ExaOutcome {
     pub provider: &'static str,
     #[serde(flatten)]
@@ -744,6 +768,7 @@ pub struct ExaOutcome {
 }
 
 #[derive(Clone, Debug, Serialize)]
+/// The normalized content returned by a Web Fetch provider chain.
 pub struct FetchOutcome {
     pub provider: &'static str,
     pub url: String,
@@ -755,6 +780,7 @@ pub struct FetchOutcome {
 }
 
 #[derive(Clone, Debug, Serialize)]
+/// The normalized URL collection returned by a site-map request.
 pub struct MapOutcome {
     pub provider: &'static str,
     pub url: String,
