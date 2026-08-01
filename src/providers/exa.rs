@@ -8,7 +8,7 @@ use crate::credentials::CredentialPool;
 use crate::net::{RetryPolicy, duration_millis, error_kind_for_status};
 use crate::providers::ProviderError;
 use crate::providers::shared::{redacted_message, redacted_urls_message};
-use crate::redact::redact_url;
+use crate::redact::{Secret, redact_url};
 use crate::types::{AttemptErrorKind, Deadline, ExaInput, ExaOutcome, ProviderAttempt, Source};
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -222,7 +222,7 @@ impl Exa {
     async fn send_once(
         &self,
         operation: &ExaOperation,
-        key: &str,
+        key: &Secret,
     ) -> Result<Vec<Source>, AttemptFailure> {
         let endpoint = format!(
             "{}/{}",
@@ -232,7 +232,7 @@ impl Exa {
         let request = self
             .client
             .post(endpoint)
-            .header("x-api-key", key)
+            .header("x-api-key", key.expose())
             .header("accept", "application/json");
         let request = match operation {
             ExaOperation::Search(search) => request.json(&ExaSearchBody::from(search)),

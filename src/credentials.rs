@@ -8,6 +8,7 @@ use std::time::{Duration, Instant};
 use fs2::FileExt;
 use serde_json::{Value, json};
 
+use crate::redact::{CREDENTIAL_MASK, Secret};
 use crate::secure_fs::{create_private_file, ensure_private_directory};
 
 const STATE_SCHEMA_VERSION: u8 = 1;
@@ -16,7 +17,7 @@ const LOCK_WAIT: Duration = Duration::from_millis(100);
 #[derive(Clone, Debug)]
 pub(crate) struct CredentialPool {
     provider: &'static str,
-    keys: Vec<String>,
+    keys: Vec<Secret>,
     state_file: Option<PathBuf>,
 }
 
@@ -27,7 +28,7 @@ pub(crate) struct CredentialSelection {
 }
 
 impl CredentialPool {
-    pub(crate) fn new(provider: &'static str, keys: Vec<String>) -> Self {
+    pub(crate) fn new(provider: &'static str, keys: Vec<Secret>) -> Self {
         Self {
             provider,
             keys,
@@ -39,7 +40,7 @@ impl CredentialPool {
         self.keys.len()
     }
 
-    pub(crate) fn key(&self, index: usize) -> &str {
+    pub(crate) fn key(&self, index: usize) -> &Secret {
         &self.keys[index]
     }
 
@@ -69,7 +70,12 @@ impl CredentialPool {
 
     pub(crate) fn redact(&self, message: &str) -> String {
         self.keys.iter().fold(message.to_owned(), |redacted, key| {
-            redacted.replace(key, "********")
+            let key = key.expose();
+            if redacted.contains(key) {
+                redacted.replace(key, CREDENTIAL_MASK)
+            } else {
+                redacted
+            }
         })
     }
 }

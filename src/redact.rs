@@ -1,4 +1,50 @@
+use std::collections::HashSet;
+use std::fmt;
+
+use serde::{Deserialize, Serialize, Serializer};
+
 pub(crate) const CREDENTIAL_MASK: &str = "********";
+
+#[derive(Clone, Deserialize, Eq, Hash, PartialEq)]
+#[serde(transparent)]
+pub(crate) struct Secret(String);
+
+impl Secret {
+    pub(crate) fn expose(&self) -> &str {
+        &self.0
+    }
+
+    pub(crate) fn normalize(values: &mut Vec<Self>) {
+        for value in values.iter_mut() {
+            value.0 = value.0.trim().to_owned();
+        }
+        let mut seen = HashSet::new();
+        values.retain(|value| !value.0.is_empty() && seen.insert(value.clone()));
+    }
+}
+
+impl fmt::Debug for Secret {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(CREDENTIAL_MASK)
+    }
+}
+
+impl Serialize for Secret {
+    fn serialize<S>(&self, _serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        Err(serde::ser::Error::custom(
+            "credentials cannot be serialized",
+        ))
+    }
+}
+
+impl From<&str> for Secret {
+    fn from(value: &str) -> Self {
+        Self(value.to_owned())
+    }
+}
 
 pub(crate) fn redact_url(value: &str) -> String {
     let without_fragment = value.split_once('#').map_or(value, |(url, _)| url);
@@ -59,11 +105,16 @@ pub(crate) fn redact_urls(value: &str) -> String {
     output
 }
 
-pub(crate) fn redact_credentials(value: &str, credentials: &[String]) -> String {
+pub(crate) fn redact_credentials(value: &str, credentials: &[Secret]) -> String {
     credentials
         .iter()
         .fold(redact_urls(value), |redacted, credential| {
-            redacted.replace(credential, CREDENTIAL_MASK)
+            let credential = credential.expose();
+            if redacted.contains(credential) {
+                redacted.replace(credential, CREDENTIAL_MASK)
+            } else {
+                redacted
+            }
         })
 }
 
@@ -76,7 +127,51 @@ fn is_sensitive_query_name(name: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::redact_url;
+    use super::{CREDENTIAL_MASK, Secret, redact_credentials, redact_url};
+
+    #[test]
+    fn secret_debug_is_masked_and_serde_only_accepts_input() {
+        let secret = Secret::from("credential-canary-do-not-print");
+
+        assert_eq!(format!("{secret:?}"), CREDENTIAL_MASK);
+        assert!(serde_json::to_string(&secret).is_err());
+
+        let deserialized: Secret =
+            serde_json::from_str("\"credential-canary-do-not-print\"").expect("deserialize secret");
+        assert_eq!(deserialized, Secret::from("credential-canary-do-not-print"));
+    }
+
+    #[test]
+    fn secret_normalization_trims_drops_empty_and_preserves_first_occurrence() {
+        let mut values = vec![
+            Secret::from(" alpha "),
+            Secret::from(""),
+            Secret::from("beta"),
+            Secret::from("alpha"),
+            Secret::from("  "),
+        ];
+
+        Secret::normalize(&mut values);
+
+        assert_eq!(values, [Secret::from("alpha"), Secret::from("beta")]);
+    }
+
+    #[test]
+    fn credential_redaction_preserves_messages_without_matching_credentials() {
+        let credentials = [Secret::from("credential-canary-do-not-print")];
+
+        assert_eq!(
+            redact_credentials("request failed without a credential", &credentials),
+            "request failed without a credential"
+        );
+        assert_eq!(
+            redact_credentials(
+                "request failed for credential-canary-do-not-print",
+                &credentials
+            ),
+            "request failed for ********"
+        );
+    }
 
     #[test]
     fn url_redaction_exhausts_credentials_fragments_and_safe_query_boundaries() {

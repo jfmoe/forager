@@ -9,7 +9,7 @@ use crate::net::{RetryPolicy, error_kind_for_status};
 use crate::providers::ProviderError;
 use crate::providers::execution::{self, AttemptFailure, ExecutionSettings};
 use crate::providers::shared::{redacted_message, redacted_urls_message};
-use crate::redact::{redact_url, redact_urls};
+use crate::redact::{Secret, redact_url, redact_urls};
 use crate::types::{AttemptErrorKind, Deadline, Source, SupplementalSearchOutcome};
 
 pub(crate) struct SupplementalSearch {
@@ -74,7 +74,7 @@ impl SupplementalSearch {
         &self,
         query: &str,
         limit: u16,
-        credential: String,
+        credential: Secret,
     ) -> Result<(u16, Vec<Source>), AttemptFailure> {
         let endpoint = format!("{}/search", self.config.url.trim_end_matches('/'));
         let mut request = self
@@ -83,14 +83,14 @@ impl SupplementalSearch {
             .header("accept", "application/json");
         request = if self.provider == "tavily" {
             request
-                .header("authorization", format!("Bearer {credential}"))
+                .bearer_auth(credential.expose())
                 .json(&TavilyRequest {
                     query,
                     max_results: limit,
                 })
         } else {
             request
-                .header("authorization", format!("Bearer {credential}"))
+                .bearer_auth(credential.expose())
                 .json(&FirecrawlRequest { query, limit })
         };
         let response = request.send().await.map_err(|error| AttemptFailure {

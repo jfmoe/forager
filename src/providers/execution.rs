@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 use crate::credentials::CredentialPool;
 use crate::net::{RetryPolicy, duration_millis};
 use crate::providers::ProviderError;
+use crate::redact::Secret;
 use crate::types::{AttemptErrorKind, Deadline, ProviderAttempt};
 
 pub(crate) struct ExecutionOutcome<T> {
@@ -40,7 +41,7 @@ pub(crate) async fn execute<T, F, Fut>(
     mut send_once: F,
 ) -> Result<ExecutionOutcome<T>, ProviderError>
 where
-    F: FnMut(String) -> Fut,
+    F: FnMut(Secret) -> Fut,
     Fut: Future<Output = Result<(u16, T), AttemptFailure>>,
 {
     let selection = credentials.claim();
@@ -62,7 +63,7 @@ where
         let started = Instant::now();
         let response = tokio::time::timeout(
             remaining.min(settings.attempt_timeout),
-            send_once(credentials.key(credential_index).to_owned()),
+            send_once(credentials.key(credential_index).clone()),
         )
         .await;
         let failure = match response {

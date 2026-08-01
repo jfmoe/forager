@@ -16,7 +16,7 @@ use shared_child::SharedChild;
 use crate::config::{self, RuntimeConfig};
 use crate::credentials;
 use crate::providers::{self, ProviderId};
-use crate::redact::{CREDENTIAL_MASK, redact_credentials, redact_url};
+use crate::redact::{CREDENTIAL_MASK, Secret, redact_credentials, redact_url};
 use crate::types::Deadline;
 
 static PROBE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -1130,7 +1130,7 @@ fn credential_source(effective: &Value, section: &str) -> String {
         .to_owned()
 }
 
-fn directory_status(enabled: Option<bool>, path: &Path, credentials: &[String]) -> DirectoryStatus {
+fn directory_status(enabled: Option<bool>, path: &Path, credentials: &[Secret]) -> DirectoryStatus {
     match probe_private_directory(path) {
         Ok(()) => DirectoryStatus {
             enabled,
@@ -1181,7 +1181,7 @@ fn permission_status() -> Result<PermissionStatus, config::ConfigError> {
     })
 }
 
-fn sanitize(message: &str, credentials: &[String]) -> String {
+fn sanitize(message: &str, credentials: &[Secret]) -> String {
     redact_credentials(message, credentials)
 }
 

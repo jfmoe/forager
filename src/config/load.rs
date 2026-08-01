@@ -9,6 +9,7 @@ use super::edit::{config_leaf, parse_edit_value};
 use super::location::{ConfigError, ConfigLocation};
 use super::schema::{Config, env_path};
 use super::validate::validate;
+use crate::redact::Secret;
 
 pub(super) struct LoadedConfig {
     pub(super) config: Config,
@@ -146,44 +147,50 @@ fn apply_env_value(config: &mut Config, path: &str, raw: &str) -> Result<(), ()>
             Ok(())
         }};
     }
+    macro_rules! secrets {
+        ($target:expr) => {{
+            $target = parse_secret_array(raw)?;
+            Ok(())
+        }};
+    }
     match path {
         "search.backends" => array!(config.search.backends),
         "search.validation" => string!(config.search.validation),
         "search.fallback" => string!(config.search.fallback),
         "classifier.url" => string!(config.classifier.url),
-        "classifier.keys" => array!(config.classifier.keys),
+        "classifier.keys" => secrets!(config.classifier.keys),
         "classifier.model" => string!(config.classifier.model),
         "classifier.fallback_models" => array!(config.classifier.fallback_models),
         "classifier.timeout" => integer!(config.classifier.timeout),
         "providers.xai.url" => string!(config.providers.xai.url),
-        "providers.xai.keys" => array!(config.providers.xai.keys),
+        "providers.xai.keys" => secrets!(config.providers.xai.keys),
         "providers.xai.model" => string!(config.providers.xai.model),
         "providers.xai.tools" => array!(config.providers.xai.tools),
         "providers.openai_compatible.url" => string!(config.providers.openai_compatible.url),
-        "providers.openai_compatible.keys" => array!(config.providers.openai_compatible.keys),
+        "providers.openai_compatible.keys" => secrets!(config.providers.openai_compatible.keys),
         "providers.openai_compatible.model" => string!(config.providers.openai_compatible.model),
         "providers.openai_compatible.fallback_models" => {
             array!(config.providers.openai_compatible.fallback_models)
         }
         "providers.openai_compatible.stream" => boolean!(config.providers.openai_compatible.stream),
         "providers.exa.url" => string!(config.providers.exa.url),
-        "providers.exa.keys" => array!(config.providers.exa.keys),
+        "providers.exa.keys" => secrets!(config.providers.exa.keys),
         "providers.exa.timeout" => integer!(config.providers.exa.timeout),
         "providers.context7.url" => string!(config.providers.context7.url),
-        "providers.context7.keys" => array!(config.providers.context7.keys),
+        "providers.context7.keys" => secrets!(config.providers.context7.keys),
         "providers.context7.timeout" => integer!(config.providers.context7.timeout),
         "providers.jina.url" => string!(config.providers.jina.url),
-        "providers.jina.keys" => array!(config.providers.jina.keys),
+        "providers.jina.keys" => secrets!(config.providers.jina.keys),
         "providers.jina.respond_with" => string!(config.providers.jina.respond_with),
         "providers.jina.timeout" => integer!(config.providers.jina.timeout),
         "providers.tavily.url" => string!(config.providers.tavily.url),
-        "providers.tavily.keys" => array!(config.providers.tavily.keys),
+        "providers.tavily.keys" => secrets!(config.providers.tavily.keys),
         "providers.tavily.timeout" => integer!(config.providers.tavily.timeout),
         "providers.firecrawl.url" => string!(config.providers.firecrawl.url),
-        "providers.firecrawl.keys" => array!(config.providers.firecrawl.keys),
+        "providers.firecrawl.keys" => secrets!(config.providers.firecrawl.keys),
         "providers.firecrawl.timeout" => integer!(config.providers.firecrawl.timeout),
         "providers.anysearch.url" => string!(config.providers.anysearch.url),
-        "providers.anysearch.keys" => array!(config.providers.anysearch.keys),
+        "providers.anysearch.keys" => secrets!(config.providers.anysearch.keys),
         "providers.anysearch.timeout" => integer!(config.providers.anysearch.timeout),
         "capabilities.web_search.order" => array!(config.capabilities.web_search.order),
         "capabilities.web_fetch.order" => array!(config.capabilities.web_fetch.order),
@@ -211,42 +218,24 @@ fn parse_string_array(raw: &str) -> Result<Vec<String>, ()> {
         .map_err(|_| ())
 }
 
+fn parse_secret_array(raw: &str) -> Result<Vec<Secret>, ()> {
+    #[derive(Deserialize)]
+    struct Wrapped {
+        value: Vec<Secret>,
+    }
+    toml::from_str::<Wrapped>(&format!("value = {raw}"))
+        .map(|wrapped| wrapped.value)
+        .map_err(|_| ())
+}
+
 fn normalize_credentials(config: &mut Config) {
-    normalize_strings(&mut config.classifier.keys);
-    normalize_strings(&mut config.providers.xai.keys);
-    normalize_strings(&mut config.providers.openai_compatible.keys);
-    normalize_strings(&mut config.providers.exa.keys);
-    normalize_strings(&mut config.providers.context7.keys);
-    normalize_strings(&mut config.providers.jina.keys);
-    normalize_strings(&mut config.providers.tavily.keys);
-    normalize_strings(&mut config.providers.firecrawl.keys);
-    normalize_strings(&mut config.providers.anysearch.keys);
-}
-
-fn normalize_strings(values: &mut Vec<String>) {
-    for value in values.iter_mut() {
-        *value = value.trim().to_owned();
-    }
-    let mut seen = HashSet::new();
-    values.retain(|value| !value.is_empty() && seen.insert(value.clone()));
-}
-
-#[cfg(test)]
-mod tests {
-    use super::normalize_strings;
-
-    #[test]
-    fn string_normalization_trims_drops_empty_and_preserves_first_occurrence() {
-        let mut values = vec![
-            " alpha ".to_owned(),
-            String::new(),
-            "beta".to_owned(),
-            "alpha".to_owned(),
-            "  ".to_owned(),
-        ];
-
-        normalize_strings(&mut values);
-
-        assert_eq!(values, ["alpha", "beta"]);
-    }
+    Secret::normalize(&mut config.classifier.keys);
+    Secret::normalize(&mut config.providers.xai.keys);
+    Secret::normalize(&mut config.providers.openai_compatible.keys);
+    Secret::normalize(&mut config.providers.exa.keys);
+    Secret::normalize(&mut config.providers.context7.keys);
+    Secret::normalize(&mut config.providers.jina.keys);
+    Secret::normalize(&mut config.providers.tavily.keys);
+    Secret::normalize(&mut config.providers.firecrawl.keys);
+    Secret::normalize(&mut config.providers.anysearch.keys);
 }

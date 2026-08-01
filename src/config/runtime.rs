@@ -5,18 +5,19 @@ use std::path::{Path, PathBuf};
 use super::load::load_effective_config;
 use super::location::{ConfigError, ConfigLocation};
 use super::schema::Config;
+use crate::redact::Secret;
 
 #[derive(Clone, Debug)]
 pub(crate) struct ExaRuntimeConfig {
     pub(crate) url: String,
-    pub(crate) keys: Vec<String>,
+    pub(crate) keys: Vec<Secret>,
     pub(crate) timeout_seconds: u64,
 }
 
 #[derive(Clone, Debug)]
 pub(crate) struct XaiRuntimeConfig {
     pub(crate) url: String,
-    pub(crate) keys: Vec<String>,
+    pub(crate) keys: Vec<Secret>,
     pub(crate) model: String,
     pub(crate) tools: Vec<String>,
 }
@@ -24,7 +25,7 @@ pub(crate) struct XaiRuntimeConfig {
 #[derive(Clone, Debug)]
 pub(crate) struct OpenAiCompatibleRuntimeConfig {
     pub(crate) url: String,
-    pub(crate) keys: Vec<String>,
+    pub(crate) keys: Vec<Secret>,
     pub(crate) model: String,
     pub(crate) fallback_models: Vec<String>,
     pub(crate) stream: bool,
@@ -33,7 +34,7 @@ pub(crate) struct OpenAiCompatibleRuntimeConfig {
 #[derive(Clone, Debug)]
 pub(crate) struct ClassifierRuntimeConfig {
     pub(crate) url: String,
-    pub(crate) keys: Vec<String>,
+    pub(crate) keys: Vec<Secret>,
     pub(crate) model: String,
     pub(crate) fallback_models: Vec<String>,
     pub(crate) timeout_seconds: u64,
@@ -80,7 +81,7 @@ impl MainSearchProviderConfig {
         }
     }
 
-    pub(crate) fn keys(&self) -> &[String] {
+    pub(crate) fn keys(&self) -> &[Secret] {
         match self {
             Self::Xai(config) => &config.keys,
             Self::OpenAiCompatible(config) => &config.keys,
@@ -126,20 +127,20 @@ pub(crate) struct JournalRuntimeConfig {
     pub(crate) enabled: bool,
     pub(crate) dir: PathBuf,
     pub(crate) retention_days: u64,
-    pub(crate) credentials: Vec<String>,
+    pub(crate) credentials: Vec<Secret>,
 }
 
 #[derive(Clone, Debug)]
 pub(crate) struct Context7RuntimeConfig {
     pub(crate) url: String,
-    pub(crate) keys: Vec<String>,
+    pub(crate) keys: Vec<Secret>,
     pub(crate) timeout_seconds: u64,
 }
 
 #[derive(Clone, Debug)]
 pub(crate) struct AnysearchRuntimeConfig {
     pub(crate) url: String,
-    pub(crate) keys: Vec<String>,
+    pub(crate) keys: Vec<Secret>,
     pub(crate) timeout_seconds: u64,
 }
 
@@ -205,7 +206,7 @@ impl VerticalSearchRuntimeConfig {
 #[derive(Clone, Debug)]
 pub(crate) struct WebFetchProviderConfig {
     pub(crate) url: String,
-    pub(crate) keys: Vec<String>,
+    pub(crate) keys: Vec<Secret>,
     pub(crate) timeout_seconds: u64,
     pub(crate) respond_with: String,
 }
@@ -433,7 +434,7 @@ fn resolve_journal_dir(value: &str, config_dir: &Path) -> Result<PathBuf, Config
     }
 }
 
-fn configured_credentials(config: &Config) -> Vec<String> {
+fn configured_credentials(config: &Config) -> Vec<Secret> {
     [
         &config.classifier.keys,
         &config.providers.xai.keys,
@@ -455,7 +456,31 @@ fn configured_credentials(config: &Config) -> Vec<String> {
 mod tests {
     use std::path::{Path, PathBuf};
 
-    use super::resolve_journal_dir;
+    use crate::redact::{CREDENTIAL_MASK, Secret};
+
+    use super::{configured_credentials, resolve_journal_dir};
+    use crate::config::schema::Config;
+
+    #[test]
+    fn configured_credentials_collects_all_nine_pools_without_debug_leakage() {
+        let mut config = Config::default();
+        config.classifier.keys = vec![Secret::from("classifier-canary")];
+        config.providers.xai.keys = vec![Secret::from("xai-canary")];
+        config.providers.openai_compatible.keys = vec![Secret::from("openai-canary")];
+        config.providers.exa.keys = vec![Secret::from("exa-canary")];
+        config.providers.context7.keys = vec![Secret::from("context7-canary")];
+        config.providers.jina.keys = vec![Secret::from("jina-canary")];
+        config.providers.tavily.keys = vec![Secret::from("tavily-canary")];
+        config.providers.firecrawl.keys = vec![Secret::from("firecrawl-canary")];
+        config.providers.anysearch.keys = vec![Secret::from("anysearch-canary")];
+
+        let credentials = configured_credentials(&config);
+        let debug = format!("{credentials:?}");
+
+        assert_eq!(credentials.len(), 9);
+        assert_eq!(debug.matches(CREDENTIAL_MASK).count(), 9);
+        assert!(!debug.contains("canary"));
+    }
 
     #[test]
     fn journal_directory_resolves_relative_to_the_configuration_directory() {

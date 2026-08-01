@@ -10,6 +10,7 @@ use crate::credentials::CredentialPool;
 use crate::net::{RetryPolicy, error_kind_for_status, slice_budget};
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute};
 use crate::providers::shared::redacted_urls_message;
+use crate::redact::Secret;
 use crate::types::{
     AttemptErrorKind, Capability, CapabilitySet, Deadline, ProviderAttempt, ResearchPlan,
 };
@@ -233,7 +234,7 @@ impl Classifier {
         &self,
         query: &str,
         model: &str,
-        credential: &str,
+        credential: &Secret,
         spec: &DecisionSpec<T>,
     ) -> Result<(u16, T), AttemptFailure> {
         let endpoint = format!("{}/chat/completions", self.config.url.trim_end_matches('/'));
@@ -244,7 +245,7 @@ impl Classifier {
         let response = self
             .client
             .post(endpoint)
-            .bearer_auth(credential)
+            .bearer_auth(credential.expose())
             .header("accept", "application/json")
             .json(&serde_json::json!({
                 "model": model,

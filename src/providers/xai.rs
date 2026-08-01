@@ -10,7 +10,7 @@ use crate::net::{RetryPolicy, error_kind_for_status};
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute};
 use crate::providers::shared::redacted_urls_message;
 use crate::providers::{MainSearchRequestKind, ProviderError};
-use crate::redact::{redact_url, redact_urls};
+use crate::redact::{Secret, redact_url, redact_urls};
 use crate::types::{AttemptErrorKind, Deadline, SearchOutcome, Source};
 
 #[derive(Clone, Debug)]
@@ -119,7 +119,7 @@ impl Xai {
         &self,
         query: &str,
         model: &str,
-        credential: &str,
+        credential: &Secret,
         request_kind: MainSearchRequestKind,
     ) -> Result<(u16, (String, Vec<Source>)), AttemptFailure> {
         let endpoint = format!("{}/responses", self.config.url.trim_end_matches('/'));
@@ -143,7 +143,7 @@ impl Xai {
         let response = self
             .client
             .post(endpoint)
-            .bearer_auth(credential)
+            .bearer_auth(credential.expose())
             .header("accept", "text/event-stream")
             .json(&body)
             .send()

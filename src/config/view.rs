@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use serde::Serialize;
 use serde_json::{Value as JsonValue, json};
 
-use crate::redact::{CREDENTIAL_MASK, redact_url};
+use crate::redact::{CREDENTIAL_MASK, Secret, redact_url};
 
 use super::load::load_effective_config;
 use super::location::ConfigError;
@@ -135,7 +135,7 @@ fn leaf_value(value: &JsonValue, source: &'static str) -> JsonValue {
     json!({"value": value, "source": source})
 }
 
-fn key_value(keys: &[String], source: &'static str) -> JsonValue {
+fn key_value(keys: &[Secret], source: &'static str) -> JsonValue {
     json!({
         "value": vec![CREDENTIAL_MASK; keys.len()],
         "source": source,

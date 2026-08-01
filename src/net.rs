@@ -5,6 +5,7 @@ use futures_util::StreamExt;
 use reqwest::{Client, Response, StatusCode};
 use serde_json::{Value, json};
 
+use crate::redact::Secret;
 use crate::types::{AttemptErrorKind, Deadline, MIN_USEFUL_SLICE_SECONDS};
 
 #[derive(Clone, Copy, Debug)]
@@ -183,7 +184,7 @@ impl<'a> McpClient<'a> {
 
     pub(crate) async fn call_tool(
         &self,
-        credential: &str,
+        credential: &Secret,
         tool: &str,
         arguments: Value,
     ) -> Result<McpToolResult, McpError> {
@@ -207,7 +208,7 @@ impl<'a> McpClient<'a> {
         Err(McpError::runtime("MCP session could not be renewed"))
     }
 
-    async fn initialize(&self, credential: &str) -> Result<Option<String>, McpError> {
+    async fn initialize(&self, credential: &Secret) -> Result<Option<String>, McpError> {
         let response = self
             .post(
                 credential,
@@ -235,7 +236,7 @@ impl<'a> McpClient<'a> {
         Ok(session)
     }
 
-    async fn notify_initialized(&self, credential: &str, session: &str) -> Result<(), McpError> {
+    async fn notify_initialized(&self, credential: &Secret, session: &str) -> Result<(), McpError> {
         self.post(
             credential,
             Some(session),
@@ -250,7 +251,7 @@ impl<'a> McpClient<'a> {
 
     async fn tool_call(
         &self,
-        credential: &str,
+        credential: &Secret,
         session: Option<&str>,
         tool: &str,
         arguments: Value,
@@ -288,7 +289,7 @@ impl<'a> McpClient<'a> {
 
     async fn post(
         &self,
-        credential: &str,
+        credential: &Secret,
         session: Option<&str>,
         payload: &Value,
     ) -> Result<Response, McpError> {
@@ -300,7 +301,7 @@ impl<'a> McpClient<'a> {
             .post(self.url)
             .header("accept", "application/json, text/event-stream")
             .header("content-type", "application/json")
-            .bearer_auth(credential)
+            .bearer_auth(credential.expose())
             .json(payload);
         if let Some(session) = session {
             request = request.header("mcp-session-id", session);

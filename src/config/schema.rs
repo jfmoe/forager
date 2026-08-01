@@ -2,6 +2,8 @@ use std::marker::PhantomData;
 
 use serde::{Deserialize, Serialize};
 
+use crate::redact::Secret;
+
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub(super) struct Config {
@@ -37,7 +39,7 @@ impl Default for Search {
 #[serde(default, deny_unknown_fields)]
 pub(super) struct Classifier {
     pub(super) url: String,
-    pub(super) keys: Vec<String>,
+    pub(super) keys: Vec<Secret>,
     pub(super) model: String,
     pub(super) fallback_models: Vec<String>,
     pub(super) timeout: i64,
@@ -72,7 +74,7 @@ pub(super) struct Providers {
 #[serde(default, deny_unknown_fields)]
 pub(super) struct Xai {
     pub(super) url: String,
-    pub(super) keys: Vec<String>,
+    pub(super) keys: Vec<Secret>,
     pub(super) model: String,
     pub(super) tools: Vec<String>,
 }
@@ -92,7 +94,7 @@ impl Default for Xai {
 #[serde(default, deny_unknown_fields)]
 pub(super) struct OpenAiCompatible {
     pub(super) url: String,
-    pub(super) keys: Vec<String>,
+    pub(super) keys: Vec<Secret>,
     pub(super) model: String,
     pub(super) fallback_models: Vec<String>,
     pub(super) stream: bool,
@@ -114,7 +116,7 @@ impl Default for OpenAiCompatible {
 #[serde(default, deny_unknown_fields)]
 pub(super) struct Endpoint<D: EndpointDefaults> {
     pub(super) url: String,
-    pub(super) keys: Vec<String>,
+    pub(super) keys: Vec<Secret>,
     pub(super) timeout: i64,
     #[serde(skip)]
     pub(super) defaults: PhantomData<D>,
@@ -156,7 +158,7 @@ endpoint_defaults!(AnysearchEndpoint, "https://api.anysearch.com/mcp");
 #[serde(default, deny_unknown_fields)]
 pub(super) struct Jina {
     pub(super) url: String,
-    pub(super) keys: Vec<String>,
+    pub(super) keys: Vec<Secret>,
     pub(super) respond_with: String,
     pub(super) timeout: i64,
 }

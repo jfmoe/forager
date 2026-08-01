@@ -11,7 +11,7 @@ use crate::credentials::CredentialPool;
 use crate::net::{RetryPolicy, error_kind_for_status, truncate_message};
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute};
 use crate::providers::{ProviderError, ProviderId};
-use crate::redact::{redact_url, redact_urls};
+use crate::redact::{Secret, redact_url, redact_urls};
 use crate::types::{AttemptErrorKind, Deadline, ProviderAttempt};
 
 pub(crate) struct FetchRequest {
@@ -163,7 +163,7 @@ impl HttpFetchProvider {
     async fn send_once(
         &self,
         request: &FetchRequest,
-        credential: &str,
+        credential: &Secret,
     ) -> Result<(u16, String), AttemptFailure> {
         let request_builder = self.request(request, credential);
         let response = request_builder
@@ -204,14 +204,14 @@ impl HttpFetchProvider {
             })
     }
 
-    fn request(&self, request: &FetchRequest, credential: &str) -> RequestBuilder {
+    fn request(&self, request: &FetchRequest, credential: &Secret) -> RequestBuilder {
         match self.id {
             ProviderId::Jina => {
                 let endpoint = format!("{}/{}", self.config.url.trim_end_matches('/'), request.url);
                 let mut request = self
                     .client
                     .get(endpoint)
-                    .bearer_auth(credential)
+                    .bearer_auth(credential.expose())
                     .header("x-return-format", "markdown")
                     .header("accept", "text/plain, text/markdown, */*");
                 if !self.config.respond_with.is_empty() {
@@ -222,12 +222,12 @@ impl HttpFetchProvider {
             ProviderId::Tavily => self
                 .client
                 .post(format!("{}/extract", self.config.url.trim_end_matches('/')))
-                .bearer_auth(credential)
+                .bearer_auth(credential.expose())
                 .json(&json!({"urls": [&request.url], "format": "markdown"})),
             ProviderId::Firecrawl => self
                 .client
                 .post(format!("{}/scrape", self.config.url.trim_end_matches('/')))
-                .bearer_auth(credential)
+                .bearer_auth(credential.expose())
                 .json(&json!({
                     "url": &request.url,
                     "formats": ["markdown"],

@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use crate::config::JournalRuntimeConfig;
 use crate::net::duration_millis;
 use crate::providers::ProviderError;
-use crate::redact::redact_credentials;
+use crate::redact::{CREDENTIAL_MASK, Secret, redact_urls};
 use crate::secure_fs::{create_private_file, ensure_private_directory};
 use crate::types::{Capability, JournalOutcome, ResearchError, ResearchOutcome, SearchOutcome};
 
@@ -318,10 +318,10 @@ fn record_name() -> String {
     )
 }
 
-fn sanitize_value(value: &mut Value, credentials: &[String]) {
+fn sanitize_value(value: &mut Value, credentials: &[Secret]) {
     match value {
         Value::String(text) => {
-            *text = redact_credentials(text, credentials);
+            *text = redact_journal_text(text, credentials);
         }
         Value::Array(values) => {
             for value in values {
@@ -342,7 +342,20 @@ fn sanitize_warning(config: &JournalRuntimeConfig, message: &str) -> String {
 }
 
 fn sanitize_text(config: &JournalRuntimeConfig, value: &str) -> String {
-    redact_credentials(value, &config.credentials)
+    redact_journal_text(value, &config.credentials)
+}
+
+fn redact_journal_text(value: &str, credentials: &[Secret]) -> String {
+    credentials
+        .iter()
+        .fold(redact_urls(value), |redacted, credential| {
+            let credential = credential.expose();
+            if redacted.contains(credential) {
+                redacted.replace(credential, CREDENTIAL_MASK)
+            } else {
+                redacted
+            }
+        })
 }
 
 #[cfg(test)]

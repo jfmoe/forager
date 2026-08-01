@@ -9,6 +9,7 @@ use crate::net::{RetryPolicy, error_kind_for_status};
 use crate::providers::ProviderError;
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute};
 use crate::providers::shared::{redact_urls, redacted_urls_message};
+use crate::redact::Secret;
 use crate::types::{AttemptErrorKind, Deadline, MapOutcome};
 
 const TAVILY_MAP_MAX_TIMEOUT_SECONDS: u64 = 180;
@@ -92,13 +93,13 @@ impl TavilyMap {
     async fn send_once(
         &self,
         request: &MapRequest,
-        credential: &str,
+        credential: &Secret,
     ) -> Result<(u16, TavilyMapResponse), AttemptFailure> {
         let endpoint = format!("{}/map", self.config.url.trim_end_matches('/'));
         let response = self
             .client
             .post(endpoint)
-            .bearer_auth(credential)
+            .bearer_auth(credential.expose())
             .json(&TavilyMapBody::from(request))
             .send()
             .await

@@ -15,7 +15,7 @@ use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute};
 use crate::providers::shared::redacted_urls_message;
 use crate::providers::xai::SearchRequest;
 use crate::providers::{MainSearchRequestKind, ProviderError};
-use crate::redact::{redact_url, redact_urls};
+use crate::redact::{Secret, redact_url, redact_urls};
 use crate::types::{AttemptErrorKind, Deadline, SearchOutcome, Source};
 
 pub(crate) struct OpenAiCompatible {
@@ -385,7 +385,7 @@ impl OpenAiCompatible {
         &self,
         query: &str,
         model: &str,
-        credential: &str,
+        credential: &Secret,
         stream: bool,
         request_kind: MainSearchRequestKind,
     ) -> Result<(u16, (String, Vec<Source>)), AttemptFailure> {
@@ -405,7 +405,7 @@ impl OpenAiCompatible {
         let response = self
             .client
             .post(endpoint)
-            .bearer_auth(credential)
+            .bearer_auth(credential.expose())
             .header("accept", "application/json, text/event-stream")
             .json(&ChatRequest {
                 model,
