@@ -8,7 +8,10 @@ use serde_json::json;
 
 use crate::config::WebFetchProviderConfig;
 use crate::credentials::CredentialPool;
-use crate::net::{RetryPolicy, error_kind_for_status, truncate_message};
+use crate::net::{
+    CONTENT_TRUNCATED_DIAGNOSTIC, RetryPolicy, combine_diagnostics, error_kind_for_status,
+    json_string_prefix, read_response_body, response_body_limit, truncate_message,
+};
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute};
 use crate::providers::{ProviderError, ProviderId};
 use crate::redact::{Secret, redact_url, redact_urls};
@@ -127,6 +130,11 @@ struct HttpFetchProvider {
     deadline: Deadline,
 }
 
+struct FetchBody {
+    content: String,
+    truncated: bool,
+}
+
 impl HttpFetchProvider {
     async fn execute(&self, request: &FetchRequest) -> Result<ProviderFetchOutcome, ProviderError> {
         let execution = execute(
@@ -154,9 +162,19 @@ impl HttpFetchProvider {
         .await?;
         Ok(ProviderFetchOutcome {
             provider: self.name(),
-            content: self.redacted_text(&execution.value),
+            content: execution.value.content,
             attempts: execution.attempts,
-            diagnostic: execution.diagnostic,
+            diagnostic: combine_diagnostics(
+                [
+                    execution.diagnostic,
+                    execution
+                        .value
+                        .truncated
+                        .then(|| CONTENT_TRUNCATED_DIAGNOSTIC.to_owned()),
+                ]
+                .into_iter()
+                .flatten(),
+            ),
         })
     }
 
@@ -164,7 +182,7 @@ impl HttpFetchProvider {
         &self,
         request: &FetchRequest,
         credential: &Secret,
-    ) -> Result<(u16, String), AttemptFailure> {
+    ) -> Result<(u16, FetchBody), AttemptFailure> {
         let request_builder = self.request(request, credential);
         let response = request_builder
             .send()
@@ -175,20 +193,37 @@ impl HttpFetchProvider {
                 message: self.redacted_error(&error.to_string()),
             })?;
         let status = response.status();
-        let body = response.text().await.map_err(|error| AttemptFailure {
-            kind: AttemptErrorKind::Network,
-            status: Some(status.as_u16()),
-            message: self.redacted_error(&error.to_string()),
-        })?;
+        let body = read_response_body(response, response_body_limit(status))
+            .await
+            .map_err(|error| AttemptFailure {
+                kind: AttemptErrorKind::Network,
+                status: Some(status.as_u16()),
+                message: self.redacted_error(&error.to_string()),
+            })?;
         if !status.is_success() {
             return Err(AttemptFailure {
-                kind: error_kind_for_status(status, &body),
+                kind: error_kind_for_status(status, &body.text),
                 status: Some(status.as_u16()),
-                message: self.redacted_error(&failure_message(&body, status.as_u16())),
+                message: self.redacted_error(&failure_message(&body.text, status.as_u16())),
             });
         }
-        self.decode(&body)
-            .map(|content| (status.as_u16(), content))
+        self.decode(&body.text)
+            .or_else(|message| {
+                if body.truncated {
+                    Ok(self.decode_truncated(&body.text))
+                } else {
+                    Err(message)
+                }
+            })
+            .map(|content| {
+                (
+                    status.as_u16(),
+                    FetchBody {
+                        content,
+                        truncated: body.truncated,
+                    },
+                )
+            })
             .map_err(|message| AttemptFailure {
                 kind: AttemptErrorKind::Runtime,
                 status: Some(status.as_u16()),
@@ -245,6 +280,19 @@ impl HttpFetchProvider {
             ProviderId::Firecrawl => serde_json::from_str::<FirecrawlResponse>(body)
                 .map_err(|error| format!("invalid Firecrawl response: {error}"))
                 .map(|response| response.data.markdown),
+            _ => unreachable!("only web fetch providers decode fetch responses"),
+        }
+    }
+
+    fn decode_truncated(&self, body: &str) -> String {
+        match self.id {
+            ProviderId::Jina => body.trim().to_owned(),
+            ProviderId::Tavily => {
+                json_string_prefix(body, "raw_content").unwrap_or_else(|| body.to_owned())
+            }
+            ProviderId::Firecrawl => {
+                json_string_prefix(body, "markdown").unwrap_or_else(|| body.to_owned())
+            }
             _ => unreachable!("only web fetch providers decode fetch responses"),
         }
     }

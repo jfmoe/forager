@@ -7,7 +7,9 @@ use serde_json::{Value, json};
 
 use crate::config::ClassifierRuntimeConfig;
 use crate::credentials::CredentialPool;
-use crate::net::{RetryPolicy, error_kind_for_status, slice_budget};
+use crate::net::{
+    RetryPolicy, error_kind_for_status, read_response_body, response_body_limit, slice_budget,
+};
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute};
 use crate::providers::shared::redacted_urls_message;
 use crate::redact::Secret;
@@ -276,30 +278,33 @@ impl Classifier {
                 message: redacted_urls_message(&error.to_string(), &self.credentials),
             })?;
         let status = response.status();
-        let body = response.text().await.map_err(|error| AttemptFailure {
-            kind: AttemptErrorKind::Network,
-            status: Some(status.as_u16()),
-            message: redacted_urls_message(&error.to_string(), &self.credentials),
-        })?;
+        let body = read_response_body(response, response_body_limit(status))
+            .await
+            .map_err(|error| AttemptFailure {
+                kind: AttemptErrorKind::Network,
+                status: Some(status.as_u16()),
+                message: redacted_urls_message(&error.to_string(), &self.credentials),
+            })?;
         if !status.is_success() {
             return Err(AttemptFailure {
-                kind: error_kind_for_status(status, &body),
+                kind: error_kind_for_status(status, &body.text),
                 status: Some(status.as_u16()),
                 message: redacted_urls_message(
-                    if body.trim().is_empty() {
+                    if body.text.trim().is_empty() {
                         "classifier request failed"
                     } else {
-                        &body
+                        &body.text
                     },
                     &self.credentials,
                 ),
             });
         }
-        let response: ChatResponse = serde_json::from_str(&body).map_err(|_| AttemptFailure {
-            kind: AttemptErrorKind::Runtime,
-            status: Some(status.as_u16()),
-            message: "classifier returned invalid response JSON".into(),
-        })?;
+        let response: ChatResponse =
+            serde_json::from_str(&body.text).map_err(|_| AttemptFailure {
+                kind: AttemptErrorKind::Runtime,
+                status: Some(status.as_u16()),
+                message: "classifier returned invalid response JSON".into(),
+            })?;
         let content = response
             .choices
             .first()

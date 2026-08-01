@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use eventsource_stream::Eventsource;
+use eventsource_stream::{EventStreamError, Eventsource};
 use futures_util::StreamExt;
 use reqwest::{Client, Response};
 use serde::Serialize;
@@ -10,7 +10,10 @@ use serde_json::Value;
 
 use crate::config::OpenAiCompatibleRuntimeConfig;
 use crate::credentials::CredentialPool;
-use crate::net::{RetryPolicy, error_kind_for_status};
+use crate::net::{
+    CappedStreamError, MAX_ERROR_BODY_BYTES, MAX_RESPONSE_BYTES, RetryPolicy, capped_stream,
+    error_kind_for_status, read_response_body,
+};
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute};
 use crate::providers::shared::redacted_urls_message;
 use crate::providers::xai::SearchRequest;
@@ -404,7 +407,10 @@ impl OpenAiCompatible {
             .map_err(|error| self.request_failure(&error))?;
         let status = response.status();
         if !status.is_success() {
-            let body = response.text().await.unwrap_or_default();
+            let body = read_response_body(response, MAX_ERROR_BODY_BYTES)
+                .await
+                .map(|body| body.text)
+                .unwrap_or_default();
             return Err(AttemptFailure {
                 kind: error_kind_for_status(status, &body),
                 status: Some(status.as_u16()),
@@ -436,14 +442,17 @@ impl OpenAiCompatible {
             .and_then(|value| value.to_str().ok())
             .unwrap_or_default()
             .to_ascii_lowercase();
-        let body = response
-            .text()
+        let body = read_response_body(response, MAX_RESPONSE_BYTES)
             .await
             .map_err(|error| self.request_failure(&error))?;
-        if content_type.contains("text/event-stream") || body.trim_start().starts_with("data:") {
-            return self.parse_sse_text(&body);
+        if body.truncated {
+            return Err(response_limit_failure());
         }
-        let value: Value = serde_json::from_str(&body).map_err(|error| AttemptFailure {
+        if content_type.contains("text/event-stream") || body.text.trim_start().starts_with("data:")
+        {
+            return self.parse_sse_text(&body.text);
+        }
+        let value: Value = serde_json::from_str(&body.text).map_err(|error| AttemptFailure {
             kind: AttemptErrorKind::Runtime,
             status: Some(200),
             message: redacted_urls_message(
@@ -458,19 +467,27 @@ impl OpenAiCompatible {
         &self,
         response: Response,
     ) -> Result<(String, Vec<Source>), AttemptFailure> {
-        let mut events = response.bytes_stream().eventsource();
+        let mut events = capped_stream(response.bytes_stream(), MAX_RESPONSE_BYTES).eventsource();
         let mut answer = String::new();
         let mut sources = Vec::new();
         let mut completed = false;
         while let Some(event) = events.next().await {
-            let event = event.map_err(|error| AttemptFailure {
-                kind: AttemptErrorKind::Network,
-                status: Some(200),
-                message: redacted_urls_message(
-                    &format!("OpenAI-compatible returned invalid SSE: {error}"),
-                    &self.credentials,
-                ),
-            })?;
+            let event = match event {
+                Err(EventStreamError::Transport(CappedStreamError::LimitExceeded)) => {
+                    return Err(response_limit_failure());
+                }
+                Err(error) => {
+                    return Err(AttemptFailure {
+                        kind: AttemptErrorKind::Network,
+                        status: Some(200),
+                        message: redacted_urls_message(
+                            &format!("OpenAI-compatible returned invalid SSE: {error}"),
+                            &self.credentials,
+                        ),
+                    });
+                }
+                Ok(event) => event,
+            };
             completed |= self.consume_sse_data(&event.data, &mut answer, &mut sources)?;
         }
         finish(answer, sources, completed)
@@ -544,7 +561,7 @@ impl OpenAiCompatible {
                 message: "OpenAI-compatible response contained no answer".into(),
             });
         }
-        Ok((self.redacted_text(content), self.redact_sources(sources)))
+        Ok((content.to_owned(), self.redact_sources(sources)))
     }
 
     fn request_failure(&self, error: &reqwest::Error) -> AttemptFailure {
@@ -572,6 +589,14 @@ impl OpenAiCompatible {
 
     fn redacted_text(&self, value: &str) -> String {
         self.credentials.redact(&redact_urls(value))
+    }
+}
+
+fn response_limit_failure() -> AttemptFailure {
+    AttemptFailure {
+        kind: AttemptErrorKind::Runtime,
+        status: Some(200),
+        message: "response exceeded 4 MiB".into(),
     }
 }
 

@@ -7,6 +7,8 @@ use serde_json::Value;
 
 use support::{Fixture, Response, RunEnvironment};
 
+const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
+
 #[test]
 fn fetch_follows_authoritative_order_and_falls_back_after_thin_html() {
     let jina = Fixture::start(200, "text/markdown", "thin");
@@ -121,6 +123,75 @@ fn fetch_applies_only_the_length_line_to_pdf_content() {
         (Some(0), &Value::String("jina".into()), Some(250))
     );
     jina.finish();
+}
+
+#[test]
+fn fetch_truncates_oversized_content_on_a_utf8_boundary_with_a_diagnostic() {
+    let mut content = "a".repeat(MAX_RESPONSE_BYTES - 1);
+    content.push('€');
+    content.push_str("unreachable suffix");
+    let jina = Fixture::start(200, "text/markdown", &content);
+    let config = fetch_config(
+        &jina.url,
+        &["jina-key"],
+        "http://127.0.0.1:9",
+        &[],
+        "http://127.0.0.1:9",
+        &[],
+        &["jina", "tavily", "firecrawl"],
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&["fetch", "https://example.test/large"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            payload["content"].as_str().map(str::len),
+            String::from_utf8_lossy(&output.stderr).as_ref(),
+        ),
+        (
+            Some(0),
+            Some(MAX_RESPONSE_BYTES - 1),
+            "content truncated at 4 MiB\n",
+        )
+    );
+    jina.finish();
+}
+
+#[test]
+fn fetch_preserves_the_available_tavily_content_when_json_is_truncated() {
+    let body = format!(
+        r#"{{"results":[{{"raw_content":"{}"#,
+        "t".repeat(MAX_RESPONSE_BYTES)
+    );
+    let tavily = Fixture::start(200, "application/json", &body);
+    let config = fetch_config(
+        "http://127.0.0.1:9",
+        &[],
+        &tavily.url,
+        &["tavily-key"],
+        "http://127.0.0.1:9",
+        &[],
+        &["tavily", "jina", "firecrawl"],
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&["fetch", "https://example.test/large-json"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert!(
+        output.status.success()
+            && payload["content"]
+                .as_str()
+                .is_some_and(|content| content.len() > MAX_RESPONSE_BYTES - 100)
+            && String::from_utf8_lossy(&output.stderr) == "content truncated at 4 MiB\n",
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    tavily.finish();
 }
 
 #[test]

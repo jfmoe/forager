@@ -5,7 +5,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::ExaRuntimeConfig;
 use crate::credentials::CredentialPool;
-use crate::net::{RetryPolicy, duration_millis, error_kind_for_status};
+use crate::net::{
+    RetryPolicy, duration_millis, error_kind_for_status, read_response_body, response_body_limit,
+};
 use crate::providers::ProviderError;
 use crate::providers::shared::{redacted_message, redacted_urls_message};
 use crate::redact::{Secret, redact_url};
@@ -246,23 +248,25 @@ impl Exa {
             message: redacted_message(&error.to_string(), &self.config.url, &self.credentials),
         })?;
         let status = response.status();
-        let body = response.text().await.map_err(|error| AttemptFailure {
-            kind: AttemptErrorKind::Network,
-            status: Some(status.as_u16()),
-            message: redacted_urls_message(&error.to_string(), &self.credentials),
-        })?;
+        let body = read_response_body(response, response_body_limit(status))
+            .await
+            .map_err(|error| AttemptFailure {
+                kind: AttemptErrorKind::Network,
+                status: Some(status.as_u16()),
+                message: redacted_urls_message(&error.to_string(), &self.credentials),
+            })?;
         if !status.is_success() {
             return Err(AttemptFailure {
-                kind: error_kind_for_status(status, &body),
+                kind: error_kind_for_status(status, &body.text),
                 status: Some(status.as_u16()),
                 message: redacted_urls_message(
-                    &failure_message(&body, status.as_u16()),
+                    &failure_message(&body.text, status.as_u16()),
                     &self.credentials,
                 ),
             });
         }
         let response: ExaResponse =
-            serde_json::from_str(&body).map_err(|error| AttemptFailure {
+            serde_json::from_str(&body.text).map_err(|error| AttemptFailure {
                 kind: AttemptErrorKind::Runtime,
                 status: Some(status.as_u16()),
                 message: redacted_message(

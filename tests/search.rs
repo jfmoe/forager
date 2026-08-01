@@ -1161,6 +1161,62 @@ fn search_uses_the_completed_xai_response_and_deduplicates_sources() {
 }
 
 #[test]
+fn search_preserves_answer_content_while_redacting_sources() {
+    let fixture = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body(
+            "xai-key https://example.test/answer?token=answer-secret",
+            "xai-key source title",
+        ),
+    );
+    let environment = RunEnvironment::new(&search_config(&fixture.url, false));
+
+    let output = environment.run(&["search", "Answer exemption", "--capabilities", "none"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["answer"],
+            &payload["sources"][0]["title"],
+            &payload["sources"][0]["url"],
+        ),
+        (
+            Some(0),
+            &Value::String("xai-key https://example.test/answer?token=answer-secret".into()),
+            &Value::String("******** source title".into()),
+            &Value::String("https://example.test/source?token=********".into()),
+        )
+    );
+    fixture.finish();
+}
+
+#[test]
+fn search_fails_when_the_raw_sse_stream_exceeds_four_mibibytes() {
+    let body = format!("data: {}\n\n", "x".repeat(4 * 1024 * 1024));
+    let fixture = Fixture::start(200, "text/event-stream", &body);
+    let environment = RunEnvironment::new(&search_config(&fixture.url, false));
+
+    let output = environment.run(&["search", "Runaway stream", "--capabilities", "none"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["error_kind"],
+            &payload["message"],
+        ),
+        (
+            Some(4),
+            &Value::String("runtime".into()),
+            &Value::String("response exceeded 4 MiB".into()),
+        )
+    );
+    fixture.finish();
+}
+
+#[test]
 fn search_formats_content_and_markdown_and_marks_json_tee_failures() {
     let body = completed_body("Rendered answer", "Rendered source");
     let fixture = Fixture::start_sequence(vec![
@@ -2167,9 +2223,16 @@ fn search_journal_failure_is_non_fatal_and_reported_in_json() {
 }
 
 #[test]
-fn search_redacts_secrets_from_stdout_stderr_tee_and_journal() {
+fn search_canary_exempts_answer_content_but_redacts_protected_outputs() {
     let secret = "canary-secret";
-    let fixture = Fixture::start(
+    let classifier = Fixture::start(
+        200,
+        "application/json",
+        &format!(
+            r#"{{"choices":[{{"message":{{"content":"{{\"required_capabilities\":[\"{secret}\"]}}"}}}}]}}"#
+        ),
+    );
+    let main = Fixture::start(
         200,
         "text/event-stream",
         &completed_body(
@@ -2177,24 +2240,30 @@ fn search_redacts_secrets_from_stdout_stderr_tee_and_journal() {
             &format!("title with {secret}"),
         ),
     );
-    let config = search_config(&fixture.url, true).replace("xai-key", secret);
+    let config = format!(
+        "{}\n[classifier]\nurl = {:?}\nkeys = [{secret:?}]\nmodel = \"classifier-model\"\ntimeout = 30\n",
+        search_config(&main.url, true).replace("xai-key", secret),
+        classifier.url,
+    );
     let environment = RunEnvironment::new(&config);
     let tee = environment.state_dir.join("result.json");
     let tee_argument = tee.to_string_lossy().into_owned();
 
-    let output = environment.run(&[
-        "search",
-        "Canary",
-        "--capabilities",
-        "none",
-        "--verbose",
-        "--output",
-        &tee_argument,
-    ]);
+    let output = environment.run(&["search", "Canary", "--verbose", "--output", &tee_argument]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse verbose JSON");
     assert_eq!(
-        payload["provider_attempts"].as_array().map(Vec::len),
-        Some(1)
+        (
+            &payload["answer"],
+            &payload["sources"][0]["title"],
+            &payload["sources"][0]["url"],
+            payload["provider_attempts"].as_array().map(Vec::len),
+        ),
+        (
+            &Value::String(format!("answer with {secret}")),
+            &Value::String("title with ********".into()),
+            &Value::String("https://example.test/source?token=********".into()),
+            Some(2),
+        )
     );
     let journal = fs::read_dir(environment.state_dir.join("forager/journal"))
         .expect("read journal")
@@ -2202,18 +2271,17 @@ fn search_redacts_secrets_from_stdout_stderr_tee_and_journal() {
         .map(|entry| fs::read_to_string(entry.path()).expect("read journal"))
         .expect("journal record");
 
-    for (name, bytes) in [
-        ("stdout", output.stdout),
-        ("stderr", output.stderr),
-        ("tee", fs::read(&tee).expect("read tee")),
-        ("journal", journal.into_bytes()),
+    let tee_payload: Value =
+        serde_json::from_slice(&fs::read(&tee).expect("read tee")).expect("parse tee JSON");
+    assert_eq!(tee_payload, payload);
+    for (name, content) in [
+        ("diagnostic", String::from_utf8_lossy(&output.stderr)),
+        ("journal", journal.into()),
     ] {
-        assert!(
-            !String::from_utf8_lossy(&bytes).contains(secret),
-            "{name} leaked the canary"
-        );
+        assert!(!content.contains(secret), "{name} leaked the canary");
     }
-    fixture.finish();
+    classifier.finish();
+    main.finish();
 }
 
 fn search_config(xai_url: &str, journal_enabled: bool) -> String {

@@ -5,7 +5,10 @@ use serde_json::{Map, Value, json};
 
 use crate::config::Context7RuntimeConfig;
 use crate::credentials::CredentialPool;
-use crate::net::{McpClient, McpError, McpToolResult, RetryPolicy, duration_millis};
+use crate::net::{
+    CONTENT_TRUNCATED_DIAGNOSTIC, McpClient, McpError, McpToolResult, RetryPolicy,
+    combine_diagnostics, duration_millis,
+};
 use crate::providers::ProviderError;
 use crate::providers::shared::{redacted_message, redacted_urls_message};
 use crate::types::{
@@ -100,10 +103,13 @@ impl Context7 {
                 )
                 .await
                 .map_err(Context7Failure::from)
-                .and_then(|result| operation.decode(result));
+                .and_then(|result| {
+                    let truncated = result.truncated;
+                    operation.decode(result).map(|outcome| (outcome, truncated))
+                });
 
             match result {
-                Ok(outcome) => {
+                Ok((outcome, truncated)) => {
                     attempts.push(ProviderAttempt {
                         provider: "context7",
                         seam: "docs_search",
@@ -124,8 +130,15 @@ impl Context7 {
                     } else {
                         Vec::new()
                     };
-                    let outcome =
-                        operation.outcome(outcome, visible_attempts, selection.diagnostic);
+                    let diagnostic = combine_diagnostics(
+                        [
+                            selection.diagnostic,
+                            truncated.then(|| CONTENT_TRUNCATED_DIAGNOSTIC.to_owned()),
+                        ]
+                        .into_iter()
+                        .flatten(),
+                    );
+                    let outcome = operation.outcome(outcome, visible_attempts, diagnostic);
                     return Ok(self.redact_outcome(outcome));
                 }
                 Err(failure) => {

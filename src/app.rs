@@ -1368,7 +1368,9 @@ fn run_outage_smoke_probe(url: &str, timeout_seconds: u64) -> Result<CommandOutp
             let response = dependencies.client.get(url).send().await?;
             let server_error = response.status().is_server_error();
             let body = if status_page {
-                response.text().await?
+                net::read_response_body(response, net::MAX_RESPONSE_BYTES)
+                    .await?
+                    .text
             } else {
                 String::new()
             };

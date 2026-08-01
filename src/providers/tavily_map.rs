@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::WebFetchProviderConfig;
 use crate::credentials::CredentialPool;
-use crate::net::{RetryPolicy, error_kind_for_status};
+use crate::net::{RetryPolicy, error_kind_for_status, read_response_body, response_body_limit};
 use crate::providers::ProviderError;
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute};
 use crate::providers::shared::{redact_urls, redacted_urls_message};
@@ -109,22 +109,24 @@ impl TavilyMap {
                 message: redacted_urls_message(&error.to_string(), &self.credentials),
             })?;
         let status = response.status();
-        let body = response.text().await.map_err(|error| AttemptFailure {
-            kind: AttemptErrorKind::Network,
-            status: Some(status.as_u16()),
-            message: redacted_urls_message(&error.to_string(), &self.credentials),
-        })?;
+        let body = read_response_body(response, response_body_limit(status))
+            .await
+            .map_err(|error| AttemptFailure {
+                kind: AttemptErrorKind::Network,
+                status: Some(status.as_u16()),
+                message: redacted_urls_message(&error.to_string(), &self.credentials),
+            })?;
         if !status.is_success() {
             return Err(AttemptFailure {
-                kind: error_kind_for_status(status, &body),
+                kind: error_kind_for_status(status, &body.text),
                 status: Some(status.as_u16()),
                 message: redacted_urls_message(
-                    &failure_message(&body, status.as_u16()),
+                    &failure_message(&body.text, status.as_u16()),
                     &self.credentials,
                 ),
             });
         }
-        serde_json::from_str(&body)
+        serde_json::from_str(&body.text)
             .map(|response| (status.as_u16(), response))
             .map_err(|error| AttemptFailure {
                 kind: AttemptErrorKind::Runtime,

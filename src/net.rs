@@ -1,14 +1,147 @@
 use std::time::Duration;
 
-use eventsource_stream::Eventsource;
-use futures_util::StreamExt;
+use eventsource_stream::{EventStreamError, Eventsource};
+use futures_util::{Stream, StreamExt, future};
 use reqwest::{Client, Response, StatusCode};
+use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::redact::Secret;
 use crate::types::{AttemptErrorKind, Deadline, MIN_USEFUL_SLICE_SECONDS};
 
 const HTTP_READ_TIMEOUT: Duration = Duration::from_mins(1);
+pub(crate) const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
+pub(crate) const MAX_ERROR_BODY_BYTES: usize = 64 * 1024;
+pub(crate) const CONTENT_TRUNCATED_DIAGNOSTIC: &str = "content truncated at 4 MiB";
+
+pub(crate) struct CappedResponseBody {
+    pub(crate) text: String,
+    pub(crate) truncated: bool,
+}
+
+#[derive(Debug)]
+pub(crate) enum CappedStreamError<E> {
+    Transport(E),
+    LimitExceeded,
+}
+
+impl<E: std::fmt::Display> std::fmt::Display for CappedStreamError<E> {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Transport(error) => error.fmt(formatter),
+            Self::LimitExceeded => formatter.write_str("response exceeded 4 MiB"),
+        }
+    }
+}
+
+impl<E> std::error::Error for CappedStreamError<E> where E: std::error::Error + Send + Sync + 'static
+{}
+
+pub(crate) async fn read_response_body(
+    response: Response,
+    limit: usize,
+) -> Result<CappedResponseBody, reqwest::Error> {
+    let capacity = response
+        .content_length()
+        .and_then(|length| usize::try_from(length).ok())
+        .map_or(0, |length| length.min(limit));
+    let mut bytes = Vec::with_capacity(capacity);
+    let mut stream = response.bytes_stream();
+    let mut truncated = false;
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk?;
+        let remaining = limit.saturating_sub(bytes.len());
+        if chunk.len() > remaining {
+            bytes.extend_from_slice(&chunk[..remaining]);
+            truncated = true;
+            break;
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    if truncated {
+        truncate_incomplete_utf8_suffix(&mut bytes);
+    }
+    Ok(CappedResponseBody {
+        text: String::from_utf8_lossy(&bytes).into_owned(),
+        truncated,
+    })
+}
+
+pub(crate) fn response_body_limit(status: StatusCode) -> usize {
+    if status.is_success() {
+        MAX_RESPONSE_BYTES
+    } else {
+        MAX_ERROR_BODY_BYTES
+    }
+}
+
+pub(crate) fn json_string_prefix(body: &str, key: &str) -> Option<String> {
+    let marker = format!("\"{key}\"");
+    body.match_indices(&marker).find_map(|(index, _)| {
+        let value = body
+            .get(index + marker.len()..)?
+            .trim_start()
+            .strip_prefix(':')?
+            .trim_start();
+        decode_json_string_prefix(value)
+    })
+}
+
+fn decode_json_string_prefix(value: &str) -> Option<String> {
+    if !value.starts_with('"') {
+        return None;
+    }
+    if let Ok(parsed) = String::deserialize(&mut serde_json::Deserializer::from_str(value)) {
+        return Some(parsed);
+    }
+    let mut candidate = value.to_owned();
+    for _ in 0..=6 {
+        candidate.push('"');
+        if let Ok(parsed) = String::deserialize(&mut serde_json::Deserializer::from_str(&candidate))
+        {
+            return Some(parsed);
+        }
+        candidate.pop();
+        candidate.pop()?;
+    }
+    None
+}
+
+pub(crate) fn capped_stream<S, B, E>(
+    stream: S,
+    limit: usize,
+) -> impl Stream<Item = Result<B, CappedStreamError<E>>>
+where
+    S: Stream<Item = Result<B, E>>,
+    B: AsRef<[u8]>,
+{
+    stream.scan(Some(limit), |remaining, item| {
+        let output = match (*remaining, item) {
+            (None, _) => None,
+            (Some(_), Err(error)) => {
+                *remaining = None;
+                Some(Err(CappedStreamError::Transport(error)))
+            }
+            (Some(available), Ok(chunk)) if chunk.as_ref().len() <= available => {
+                *remaining = Some(available - chunk.as_ref().len());
+                Some(Ok(chunk))
+            }
+            (Some(_), Ok(_)) => {
+                *remaining = None;
+                Some(Err(CappedStreamError::LimitExceeded))
+            }
+        };
+        future::ready(output)
+    })
+}
+
+fn truncate_incomplete_utf8_suffix(bytes: &mut Vec<u8>) {
+    if let Err(error) = std::str::from_utf8(bytes)
+        && error.error_len().is_none()
+    {
+        bytes.truncate(error.valid_up_to());
+    }
+}
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct RetryPolicy {
@@ -222,6 +355,7 @@ pub(crate) struct McpClient<'a> {
 pub(crate) struct McpToolResult {
     pub(crate) structured_content: Value,
     pub(crate) text: String,
+    pub(crate) truncated: bool,
 }
 
 #[derive(Debug)]
@@ -248,7 +382,7 @@ impl<'a> McpClient<'a> {
         arguments: Value,
     ) -> Result<McpToolResult, McpError> {
         for handshake in 0..2 {
-            let session = self.initialize(credential).await?;
+            let (session, initialize_truncated) = self.initialize(credential).await?;
             if let Some(session) = session.as_deref() {
                 match self.notify_initialized(credential, session).await {
                     Err(error) if error.session_expired && handshake == 0 => continue,
@@ -261,13 +395,17 @@ impl<'a> McpClient<'a> {
                 .await
             {
                 Err(error) if error.session_expired && handshake == 0 => {}
-                result => return result,
+                Ok(mut result) => {
+                    result.truncated |= initialize_truncated;
+                    return Ok(result);
+                }
+                Err(error) => return Err(error),
             }
         }
         Err(McpError::runtime("MCP session could not be renewed"))
     }
 
-    async fn initialize(&self, credential: &Secret) -> Result<Option<String>, McpError> {
+    async fn initialize(&self, credential: &Secret) -> Result<(Option<String>, bool), McpError> {
         let response = self
             .post(
                 credential,
@@ -291,8 +429,8 @@ impl<'a> McpClient<'a> {
             .map(str::trim)
             .filter(|value| !value.is_empty())
             .map(ToOwned::to_owned);
-        rpc_result(response, 1, self.deadline).await?;
-        Ok(session)
+        let (_, truncated) = rpc_result(response, 1, self.deadline).await?;
+        Ok((session, truncated))
     }
 
     async fn notify_initialized(&self, credential: &Secret, session: &str) -> Result<(), McpError> {
@@ -327,7 +465,7 @@ impl<'a> McpClient<'a> {
                 }),
             )
             .await?;
-        let result = rpc_result(response, 2, self.deadline).await?;
+        let (result, truncated) = rpc_result(response, 2, self.deadline).await?;
         let text = content_text(&result);
         if result
             .get("isError")
@@ -343,6 +481,7 @@ impl<'a> McpClient<'a> {
                 .filter(Value::is_object)
                 .unwrap_or_else(|| json!({})),
             text,
+            truncated,
         })
     }
 
@@ -382,29 +521,32 @@ impl<'a> McpClient<'a> {
         let remaining = self.deadline.remaining().ok_or_else(|| {
             McpError::new(AttemptErrorKind::Timeout, None, "MCP deadline elapsed")
         })?;
-        let body = tokio::time::timeout(remaining, response.text())
-            .await
-            .map_err(|_| {
-                McpError::new(
-                    AttemptErrorKind::Timeout,
-                    Some(status.as_u16()),
-                    "MCP response body timed out",
-                )
-            })?
-            .map_err(|error| {
-                McpError::new(
-                    AttemptErrorKind::Network,
-                    Some(status.as_u16()),
-                    &format!("MCP response body failed: {error}"),
-                )
-            })?;
+        let body = tokio::time::timeout(
+            remaining,
+            read_response_body(response, MAX_ERROR_BODY_BYTES),
+        )
+        .await
+        .map_err(|_| {
+            McpError::new(
+                AttemptErrorKind::Timeout,
+                Some(status.as_u16()),
+                "MCP response body timed out",
+            )
+        })?
+        .map_err(|error| {
+            McpError::new(
+                AttemptErrorKind::Network,
+                Some(status.as_u16()),
+                &format!("MCP response body failed: {error}"),
+            )
+        })?;
         let mut error = McpError::new(
-            error_kind_for_status(status, &body),
+            error_kind_for_status(status, &body.text),
             Some(status.as_u16()),
-            &if body.trim().is_empty() {
+            &if body.text.trim().is_empty() {
                 format!("MCP server returned HTTP {}", status.as_u16())
             } else {
-                body
+                body.text
             },
         );
         error.session_expired = session.is_some() && session_expired(status, &error.message);
@@ -416,8 +558,8 @@ async fn rpc_result(
     response: Response,
     request_id: u64,
     deadline: Deadline,
-) -> Result<Value, McpError> {
-    let messages = response_messages(response, deadline).await?;
+) -> Result<(Value, bool), McpError> {
+    let (messages, truncated, fallback_text) = response_messages(response, deadline).await?;
     for message in messages {
         if message.get("jsonrpc").and_then(Value::as_str) != Some("2.0") {
             return Err(McpError::runtime(
@@ -442,26 +584,37 @@ async fn rpc_result(
                 session_expired(StatusCode::BAD_REQUEST, &classified.message);
             return Err(classified);
         }
-        return message
+        let result = message
             .get("result")
             .cloned()
             .filter(Value::is_object)
-            .ok_or_else(|| McpError::runtime("MCP JSON-RPC response omitted its result"));
+            .ok_or_else(|| McpError::runtime("MCP JSON-RPC response omitted its result"))?;
+        return Ok((result, truncated));
+    }
+    if truncated {
+        return Ok((
+            json!({"content": [{"type": "text", "text": fallback_text.unwrap_or_default()}]}),
+            true,
+        ));
     }
     Err(McpError::runtime(
         "MCP response did not match the JSON-RPC request",
     ))
 }
 
-async fn response_messages(response: Response, deadline: Deadline) -> Result<Vec<Value>, McpError> {
+async fn response_messages(
+    response: Response,
+    deadline: Deadline,
+) -> Result<(Vec<Value>, bool, Option<String>), McpError> {
     let is_sse = response
         .headers()
         .get("content-type")
         .and_then(|value| value.to_str().ok())
         .is_some_and(|value| value.to_ascii_lowercase().contains("text/event-stream"));
     if is_sse {
-        let mut events = response.bytes_stream().eventsource();
+        let mut events = capped_stream(response.bytes_stream(), MAX_RESPONSE_BYTES).eventsource();
         let mut messages = Vec::new();
+        let mut truncated = false;
         loop {
             let remaining = deadline.remaining().ok_or_else(|| {
                 McpError::new(AttemptErrorKind::Timeout, None, "MCP deadline elapsed")
@@ -478,28 +631,35 @@ async fn response_messages(response: Response, deadline: Deadline) -> Result<Vec
             let Some(event) = event else {
                 break;
             };
-            let event = event.map_err(|error| {
-                McpError::new(
-                    AttemptErrorKind::Network,
-                    None,
-                    &format!("MCP SSE response failed: {error}"),
-                )
-            })?;
+            let event = match event {
+                Err(EventStreamError::Transport(CappedStreamError::LimitExceeded)) => {
+                    truncated = true;
+                    break;
+                }
+                Err(error) => {
+                    return Err(McpError::new(
+                        AttemptErrorKind::Network,
+                        None,
+                        &format!("MCP SSE response failed: {error}"),
+                    ));
+                }
+                Ok(event) => event,
+            };
             let message = serde_json::from_str(&event.data).map_err(|error| {
                 McpError::runtime(&format!("MCP returned invalid SSE JSON: {error}"))
             })?;
             messages.push(message);
         }
-        if messages.is_empty() {
+        if messages.is_empty() && !truncated {
             return Err(McpError::runtime("MCP returned an empty SSE response"));
         }
-        return Ok(messages);
+        return Ok((messages, truncated, truncated.then(String::new)));
     }
 
     let remaining = deadline
         .remaining()
         .ok_or_else(|| McpError::new(AttemptErrorKind::Timeout, None, "MCP deadline elapsed"))?;
-    let payload: Value = tokio::time::timeout(remaining, response.json())
+    let body = tokio::time::timeout(remaining, read_response_body(response, MAX_RESPONSE_BYTES))
         .await
         .map_err(|_| {
             McpError::new(
@@ -510,19 +670,31 @@ async fn response_messages(response: Response, deadline: Deadline) -> Result<Vec
         })?
         .map_err(|error| {
             McpError::new(
-                if error.is_decode() {
-                    AttemptErrorKind::Runtime
-                } else {
-                    AttemptErrorKind::Network
-                },
+                AttemptErrorKind::Network,
                 error.status().map(|status| status.as_u16()),
-                &format!("MCP returned invalid JSON: {error}"),
+                &format!("MCP response body failed: {error}"),
             )
         })?;
-    Ok(match payload {
+    let payload: Value = match serde_json::from_str(&body.text) {
+        Ok(payload) => payload,
+        Err(_) if body.truncated => {
+            return Ok((
+                Vec::new(),
+                true,
+                Some(json_string_prefix(&body.text, "text").unwrap_or(body.text)),
+            ));
+        }
+        Err(error) => {
+            return Err(McpError::runtime(&format!(
+                "MCP returned invalid JSON: {error}"
+            )));
+        }
+    };
+    let messages = match payload {
         Value::Array(messages) => messages,
         message => vec![message],
-    })
+    };
+    Ok((messages, body.truncated, None))
 }
 
 fn content_text(result: &Value) -> String {

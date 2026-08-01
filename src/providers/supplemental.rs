@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::WebFetchProviderConfig;
 use crate::credentials::CredentialPool;
-use crate::net::{RetryPolicy, error_kind_for_status};
+use crate::net::{RetryPolicy, error_kind_for_status, read_response_body, response_body_limit};
 use crate::providers::ProviderError;
 use crate::providers::execution::{self, AttemptFailure, ExecutionSettings};
 use crate::providers::shared::{redacted_message, redacted_urls_message};
@@ -99,22 +99,26 @@ impl SupplementalSearch {
             message: redacted_urls_message(&error.to_string(), &self.credentials),
         })?;
         let status = response.status();
-        let body = response.text().await.map_err(|error| AttemptFailure {
-            kind: AttemptErrorKind::Network,
-            status: Some(status.as_u16()),
-            message: redacted_urls_message(&error.to_string(), &self.credentials),
-        })?;
+        let body = read_response_body(response, response_body_limit(status))
+            .await
+            .map_err(|error| AttemptFailure {
+                kind: AttemptErrorKind::Network,
+                status: Some(status.as_u16()),
+                message: redacted_urls_message(&error.to_string(), &self.credentials),
+            })?;
         if !status.is_success() {
             return Err(AttemptFailure {
-                kind: error_kind_for_status(status, &body),
+                kind: error_kind_for_status(status, &body.text),
                 status: Some(status.as_u16()),
-                message: redacted_urls_message(&body, &self.credentials),
+                message: redacted_urls_message(&body.text, &self.credentials),
             });
         }
         let results = if self.provider == "tavily" {
-            serde_json::from_str::<TavilySearchResponse>(&body).map(|response| response.results)
+            serde_json::from_str::<TavilySearchResponse>(&body.text)
+                .map(|response| response.results)
         } else {
-            serde_json::from_str::<FirecrawlSearchResponse>(&body).map(|response| response.data.web)
+            serde_json::from_str::<FirecrawlSearchResponse>(&body.text)
+                .map(|response| response.data.web)
         }
         .map_err(|error| AttemptFailure {
             kind: AttemptErrorKind::Runtime,

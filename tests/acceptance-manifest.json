@@ -72,7 +72,7 @@
       "id": "F07",
       "provider": "jina",
       "seam": "web_fetch",
-      "test": "tests/jina_fetch.rs::jina_fetch_returns_redacted_content_through_the_real_http_stack"
+      "test": "tests/jina_fetch.rs::jina_fetch_preserves_content_while_redacting_protected_outputs"
     },
     {
       "id": "F08",
@@ -142,7 +142,7 @@
     {
       "id": "E10",
       "requirements": ["T1-redaction"],
-      "test": "tests/search.rs::search_redacts_secrets_from_stdout_stderr_tee_and_journal"
+      "test": "tests/search.rs::search_canary_exempts_answer_content_but_redacts_protected_outputs"
     },
     {
       "id": "E11",

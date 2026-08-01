@@ -9,7 +9,8 @@ use serde_json::{Map, Value, json};
 use crate::config::AnysearchRuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{
-    McpClient, McpError, McpToolResult, RetryPolicy, duration_millis, truncate_message,
+    CONTENT_TRUNCATED_DIAGNOSTIC, McpClient, McpError, McpToolResult, RetryPolicy,
+    combine_diagnostics, duration_millis, truncate_message,
 };
 use crate::providers::ProviderError;
 use crate::providers::shared::redact_message;
@@ -212,6 +213,16 @@ impl Anysearch {
 
             match result {
                 Ok(result) => {
+                    let diagnostic = combine_diagnostics(
+                        [
+                            selection.diagnostic.clone(),
+                            result
+                                .truncated
+                                .then(|| CONTENT_TRUNCATED_DIAGNOSTIC.to_owned()),
+                        ]
+                        .into_iter()
+                        .flatten(),
+                    );
                     attempts.push(ProviderAttempt {
                         provider: "anysearch",
                         seam: "vertical_search",
@@ -230,7 +241,7 @@ impl Anysearch {
                     return Ok(AnysearchExecution {
                         result,
                         attempts: if verbose { attempts } else { Vec::new() },
-                        diagnostic: selection.diagnostic,
+                        diagnostic,
                     });
                 }
                 Err(failure) => {

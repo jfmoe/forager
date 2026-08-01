@@ -5,7 +5,7 @@ use serde_json::Value;
 use support::{Fixture, RunEnvironment};
 
 #[test]
-fn jina_fetch_returns_redacted_content_through_the_real_http_stack() {
+fn jina_fetch_preserves_content_while_redacting_protected_outputs() {
     let content = format!(
         "{}\nhttps://example.test/source?token=source-secret#fragment",
         "A substantial fixture paragraph. ".repeat(20)
@@ -46,7 +46,7 @@ enabled = false
             &payload["url"],
             payload["content"]
                 .as_str()
-                .is_some_and(|value| value.len() > 200),
+                .is_some_and(|value| value.contains("source-secret")),
             &payload["provider_attempts"][0]["seam"],
         ),
         (
@@ -59,13 +59,7 @@ enabled = false
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let combined = format!(
-        "{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(!combined.contains("jina-canary"));
-    assert!(!combined.contains("source-secret"));
+    assert!(!String::from_utf8_lossy(&output.stderr).contains("jina-canary"));
 
     let request = fixture.finish();
     assert!(request.starts_with("GET /https://example.test/source?token=source-secret"));

@@ -114,6 +114,48 @@ fn context7_docs_decodes_sse_and_emits_content_and_snippets() {
 }
 
 #[test]
+fn context7_succeeds_with_a_diagnostic_when_an_mcp_body_is_truncated() {
+    let text = format!(
+        "- Title: Rust\n- Context7-compatible library ID: /rust-lang/rust\n- Description: {}",
+        "x".repeat(4 * 1024 * 1024)
+    );
+    let result = format!(
+        r#"{{"jsonrpc":"2.0","id":2,"result":{{"content":[{{"type":"text","text":{}"#,
+        serde_json::to_string(&text).expect("encode MCP text")
+    );
+    let fixture = Fixture::start_sequence(vec![
+        Response::json(
+            200,
+            r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{}}}"#,
+        )
+        .with_session("truncated-session"),
+        Response::json(202, ""),
+        Response::json(200, &result),
+    ]);
+
+    let output = run(
+        &fixture,
+        &["context7", "library", "rust", "async drop"],
+        &["context-key"],
+    );
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["results"][0]["id"],
+            String::from_utf8_lossy(&output.stderr).as_ref(),
+        ),
+        (
+            Some(0),
+            &Value::String("/rust-lang/rust".into()),
+            "content truncated at 4 MiB\n",
+        )
+    );
+    fixture.finish_all();
+}
+
+#[test]
 fn context7_authentication_failure_has_a_stable_transport_exit() {
     let fixture = Fixture::start_sequence(vec![Response::json(
         401,
