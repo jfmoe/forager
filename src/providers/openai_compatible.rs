@@ -14,7 +14,7 @@ use crate::net::{
     CappedStreamError, MAX_ERROR_BODY_BYTES, MAX_RESPONSE_BYTES, RetryPolicy, capped_stream,
     error_kind_for_status, read_response_body,
 };
-use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute};
+use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2};
 use crate::providers::shared::redacted_urls_message;
 use crate::providers::xai::SearchRequest;
 use crate::providers::{MainSearchRequestKind, ProviderError};
@@ -309,7 +309,7 @@ impl OpenAiCompatible {
         request_kind: MainSearchRequestKind,
     ) -> Result<crate::providers::execution::ExecutionOutcome<(String, Vec<Source>)>, ProviderError>
     {
-        execute(
+        execute_v2(
             &self.credentials,
             ExecutionSettings {
                 provider: "openai_compatible",
@@ -326,7 +326,7 @@ impl OpenAiCompatible {
                     .and_then(|url| url.host_str().map(ToOwned::to_owned)),
                 breaker_event: transport.fallback_from.map(|_| "transport_fallback"),
             },
-            |credential| async move {
+            |credential, _| async move {
                 self.send_once(query, model, &credential, transport.stream, request_kind)
                     .await
             },
@@ -422,6 +422,7 @@ impl OpenAiCompatible {
                     },
                     &self.credentials,
                 ),
+                redirected_library_id: None,
             });
         }
         let value = if stream {
@@ -459,6 +460,7 @@ impl OpenAiCompatible {
                 &format!("OpenAI-compatible returned invalid JSON: {error}"),
                 &self.credentials,
             ),
+            redirected_library_id: None,
         })?;
         self.normalize(&value, false)
     }
@@ -484,6 +486,7 @@ impl OpenAiCompatible {
                             &format!("OpenAI-compatible returned invalid SSE: {error}"),
                             &self.credentials,
                         ),
+                        redirected_library_id: None,
                     });
                 }
                 Ok(event) => event,
@@ -526,6 +529,7 @@ impl OpenAiCompatible {
                 &format!("OpenAI-compatible returned invalid event JSON: {error}"),
                 &self.credentials,
             ),
+            redirected_library_id: None,
         })?;
         let completed = has_finish_reason(&value);
         let (delta, event_sources) = self.normalize(&value, true)?;
@@ -559,6 +563,7 @@ impl OpenAiCompatible {
                 kind: AttemptErrorKind::Runtime,
                 status: Some(200),
                 message: "OpenAI-compatible response contained no answer".into(),
+                redirected_library_id: None,
             });
         }
         Ok((content.to_owned(), self.redact_sources(sources)))
@@ -569,6 +574,7 @@ impl OpenAiCompatible {
             kind: AttemptErrorKind::Network,
             status: error.status().map(|status| status.as_u16()),
             message: redacted_urls_message(&error.to_string(), &self.credentials),
+            redirected_library_id: None,
         }
     }
 
@@ -597,6 +603,7 @@ fn response_limit_failure() -> AttemptFailure {
         kind: AttemptErrorKind::Runtime,
         status: Some(200),
         message: "response exceeded 4 MiB".into(),
+        redirected_library_id: None,
     }
 }
 
@@ -674,6 +681,7 @@ fn finish(
             kind: AttemptErrorKind::Runtime,
             status: Some(200),
             message: "OpenAI-compatible stream ended before a completion marker".into(),
+            redirected_library_id: None,
         });
     }
     if answer.trim().is_empty() {
@@ -681,6 +689,7 @@ fn finish(
             kind: AttemptErrorKind::Runtime,
             status: Some(200),
             message: "OpenAI-compatible stream contained no answer".into(),
+            redirected_library_id: None,
         });
     }
     Ok((answer, sources))

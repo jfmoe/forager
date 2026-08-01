@@ -624,6 +624,52 @@ fn exa_search_obeys_the_command_deadline() {
 }
 
 #[test]
+fn exa_search_timeout_waits_before_retrying_when_deadline_allows() {
+    let fixture = Fixture::start_sequence(vec![
+        Response::json(200, r#"{"results":[]}"#).with_delay(Duration::from_millis(2500)),
+        Response::json(200, r#"{"results":[]}"#),
+    ]);
+    let started = std::time::Instant::now();
+
+    let output = run(
+        &fixture,
+        &[
+            "exa",
+            "search",
+            "timeout retry",
+            "--verbose",
+            "--timeout",
+            "5",
+        ],
+        &["only-key"],
+    );
+    let elapsed = started.elapsed();
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let requests = fixture.finish_all();
+
+    assert_eq!(
+        (
+            output.status.code(),
+            payload["provider_attempts"].as_array().map(Vec::len),
+            &payload["provider_attempts"][0]["error_kind"],
+            &payload["provider_attempts"][1]["retry_count"],
+            requests.len(),
+            elapsed >= Duration::from_secs(3),
+        ),
+        (
+            Some(0),
+            Some(2),
+            &Value::String("timeout".into()),
+            &Value::from(1),
+            2,
+            true,
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
 fn exa_search_supports_markdown_and_output_tee() {
     let fixture = Fixture::start_json(
         200,

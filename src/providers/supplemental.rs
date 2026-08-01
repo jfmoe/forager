@@ -45,7 +45,7 @@ impl SupplementalSearch {
         query: &str,
         limit: u16,
     ) -> Result<SupplementalSearchOutcome, ProviderError> {
-        let outcome = execution::execute(
+        let outcome = execution::execute_v2(
             &self.credentials,
             ExecutionSettings {
                 provider: self.provider,
@@ -60,7 +60,7 @@ impl SupplementalSearch {
                 endpoint_host: None,
                 breaker_event: None,
             },
-            |credential| self.send_once(query, limit, credential),
+            |credential, _| self.send_once(query, limit, credential),
         )
         .await?;
         Ok(SupplementalSearchOutcome {
@@ -97,6 +97,7 @@ impl SupplementalSearch {
             kind: AttemptErrorKind::Network,
             status: error.status().map(|status| status.as_u16()),
             message: redacted_urls_message(&error.to_string(), &self.credentials),
+            redirected_library_id: None,
         })?;
         let status = response.status();
         let body = read_response_body(response, response_body_limit(status))
@@ -105,12 +106,14 @@ impl SupplementalSearch {
                 kind: AttemptErrorKind::Network,
                 status: Some(status.as_u16()),
                 message: redacted_urls_message(&error.to_string(), &self.credentials),
+                redirected_library_id: None,
             })?;
         if !status.is_success() {
             return Err(AttemptFailure {
                 kind: error_kind_for_status(status, &body.text),
                 status: Some(status.as_u16()),
                 message: redacted_urls_message(&body.text, &self.credentials),
+                redirected_library_id: None,
             });
         }
         let results = if self.provider == "tavily" {
@@ -127,6 +130,7 @@ impl SupplementalSearch {
                 &format!("invalid {} search response: {error}", self.provider),
                 &self.credentials,
             ),
+            redirected_library_id: None,
         })?;
         Ok((
             status.as_u16(),

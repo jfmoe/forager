@@ -10,7 +10,7 @@ use crate::net::{
     CappedStreamError, MAX_ERROR_BODY_BYTES, MAX_RESPONSE_BYTES, RetryPolicy, capped_stream,
     error_kind_for_status, read_response_body,
 };
-use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute};
+use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2};
 use crate::providers::shared::redacted_urls_message;
 use crate::providers::{MainSearchRequestKind, ProviderError};
 use crate::redact::{Secret, redact_url, redact_urls};
@@ -74,7 +74,7 @@ impl Xai {
             .clone()
             .unwrap_or_else(|| self.config.model.clone());
         let query = request.query;
-        let execution = execute(
+        let execution = execute_v2(
             &self.credentials,
             ExecutionSettings {
                 provider: "xai",
@@ -91,7 +91,7 @@ impl Xai {
                     .and_then(|url| url.host_str().map(ToOwned::to_owned)),
                 breaker_event: None,
             },
-            |credential| {
+            |credential, _| {
                 let model = model.clone();
                 let query = query.clone();
                 async move {
@@ -155,6 +155,7 @@ impl Xai {
                 kind: AttemptErrorKind::Network,
                 status: error.status().map(|status| status.as_u16()),
                 message: redacted_urls_message(&error.to_string(), &self.credentials),
+                redirected_library_id: None,
             })?;
         let status = response.status();
         if !status.is_success() {
@@ -173,6 +174,7 @@ impl Xai {
                     },
                     &self.credentials,
                 ),
+                redirected_library_id: None,
             });
         }
         let outcome = self.completed_response(response).await?;
@@ -191,6 +193,7 @@ impl Xai {
                         kind: AttemptErrorKind::Runtime,
                         status: Some(200),
                         message: "response exceeded 4 MiB".into(),
+                        redirected_library_id: None,
                     });
                 }
                 Err(error) => {
@@ -201,6 +204,7 @@ impl Xai {
                             &format!("xAI Responses returned invalid SSE: {error}"),
                             &self.credentials,
                         ),
+                        redirected_library_id: None,
                     });
                 }
                 Ok(event) => event,
@@ -216,6 +220,7 @@ impl Xai {
                         &format!("xAI Responses returned invalid event JSON: {error}"),
                         &self.credentials,
                     ),
+                    redirected_library_id: None,
                 })?;
             match payload.get("type").and_then(Value::as_str) {
                 Some("response.completed") => {
@@ -223,6 +228,7 @@ impl Xai {
                         kind: AttemptErrorKind::Runtime,
                         status: Some(200),
                         message: "xAI response.completed omitted response data".into(),
+                        redirected_library_id: None,
                     })?;
                     return self.normalize_completed(response);
                 }
@@ -234,6 +240,7 @@ impl Xai {
                             &terminal_message(&payload),
                             &self.credentials,
                         ),
+                        redirected_library_id: None,
                     });
                 }
                 _ => {}
@@ -243,6 +250,7 @@ impl Xai {
             kind: AttemptErrorKind::Runtime,
             status: Some(200),
             message: "xAI Responses stream ended before response.completed".into(),
+            redirected_library_id: None,
         })
     }
 
@@ -313,6 +321,7 @@ impl Xai {
                 kind: AttemptErrorKind::Runtime,
                 status: Some(200),
                 message: "xAI response.completed contained no output_text".into(),
+                redirected_library_id: None,
             });
         }
         Ok((answer, sources))

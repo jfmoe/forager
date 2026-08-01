@@ -17,6 +17,7 @@ pub(crate) struct AttemptFailure {
     pub(crate) kind: AttemptErrorKind,
     pub(crate) status: Option<u16>,
     pub(crate) message: String,
+    pub(crate) redirected_library_id: Option<String>,
 }
 
 pub(crate) struct ExecutionSettings {
@@ -35,16 +36,16 @@ pub(crate) struct ExecutionSettings {
 
 // The shared retry loop keeps every terminal path under the same attempt accounting rules.
 #[expect(clippy::too_many_lines)]
-pub(crate) async fn execute<T, F, Fut>(
+pub(crate) async fn execute_v2<T, F, Fut>(
     credentials: &CredentialPool,
     settings: ExecutionSettings,
     mut send_once: F,
 ) -> Result<ExecutionOutcome<T>, ProviderError>
 where
-    F: FnMut(Secret) -> Fut,
+    F: FnMut(Secret, Deadline) -> Fut,
     Fut: Future<Output = Result<(u16, T), AttemptFailure>>,
 {
-    let selection = credentials.claim();
+    let selection = credentials.claim().await;
     let mut attempts = Vec::new();
     let mut credential_index = selection.index;
     let mut retry_count = 0;
@@ -58,12 +59,15 @@ where
                 attempts,
                 settings.verbose,
                 selection.diagnostic.clone(),
+                None,
             ));
         };
+        let attempt_limit = remaining.min(settings.attempt_timeout);
+        let attempt_deadline = Deadline::new(attempt_limit);
         let started = Instant::now();
         let response = tokio::time::timeout(
-            remaining.min(settings.attempt_timeout),
-            send_once(credentials.key(credential_index).clone()),
+            attempt_limit,
+            send_once(credentials.key(credential_index).clone(), attempt_deadline),
         )
         .await;
         let failure = match response {
@@ -94,9 +98,11 @@ where
                 kind: AttemptErrorKind::Timeout,
                 status: None,
                 message: settings.timeout_message.into(),
+                redirected_library_id: None,
             },
         };
         let kind = failure.kind;
+        let redirected_library_id = failure.redirected_library_id;
         attempts.push(ProviderAttempt {
             provider: settings.provider,
             seam: settings.seam,
@@ -134,6 +140,7 @@ where
                     attempts,
                     settings.verbose,
                     selection.diagnostic.clone(),
+                    redirected_library_id,
                 ));
             }
             tokio::time::sleep(wait).await;
@@ -145,6 +152,7 @@ where
             attempts,
             settings.verbose,
             selection.diagnostic.clone(),
+            redirected_library_id,
         ));
     }
 }
@@ -155,6 +163,7 @@ fn terminal_error(
     attempts: Vec<ProviderAttempt>,
     verbose: bool,
     diagnostic: Option<String>,
+    redirected_library_id: Option<String>,
 ) -> ProviderError {
     let message = attempts.last().map_or_else(
         || format!("{provider} request failed"),
@@ -166,6 +175,6 @@ fn terminal_error(
         attempts,
         verbose,
         diagnostic,
-        redirected_library_id: None,
+        redirected_library_id,
     }
 }

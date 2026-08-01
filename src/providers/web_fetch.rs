@@ -12,7 +12,7 @@ use crate::net::{
     CONTENT_TRUNCATED_DIAGNOSTIC, RetryPolicy, combine_diagnostics, error_kind_for_status,
     json_string_prefix, read_response_body, response_body_limit, truncate_message,
 };
-use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute};
+use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2};
 use crate::providers::shared::redacted_urls_message;
 use crate::providers::{ProviderError, ProviderId};
 use crate::redact::Secret;
@@ -115,7 +115,7 @@ struct FetchBody {
 
 impl HttpFetchProvider {
     async fn execute(&self, request: &FetchRequest) -> Result<ProviderFetchOutcome, ProviderError> {
-        let execution = execute(
+        let execution = execute_v2(
             &self.credentials,
             ExecutionSettings {
                 provider: self.name(),
@@ -135,7 +135,7 @@ impl HttpFetchProvider {
                 endpoint_host: None,
                 breaker_event: None,
             },
-            |credential| async move { self.send_once(request, &credential).await },
+            |credential, _| async move { self.send_once(request, &credential).await },
         )
         .await?;
         Ok(ProviderFetchOutcome {
@@ -169,6 +169,7 @@ impl HttpFetchProvider {
                 kind: AttemptErrorKind::Network,
                 status: error.status().map(|status| status.as_u16()),
                 message: self.redacted_error(&error.to_string()),
+                redirected_library_id: None,
             })?;
         let status = response.status();
         let body = read_response_body(response, response_body_limit(status))
@@ -177,12 +178,14 @@ impl HttpFetchProvider {
                 kind: AttemptErrorKind::Network,
                 status: Some(status.as_u16()),
                 message: self.redacted_error(&error.to_string()),
+                redirected_library_id: None,
             })?;
         if !status.is_success() {
             return Err(AttemptFailure {
                 kind: error_kind_for_status(status, &body.text),
                 status: Some(status.as_u16()),
                 message: self.redacted_error(&failure_message(&body.text, status.as_u16())),
+                redirected_library_id: None,
             });
         }
         self.decode(&body.text)
@@ -206,6 +209,7 @@ impl HttpFetchProvider {
                 kind: AttemptErrorKind::Runtime,
                 status: Some(status.as_u16()),
                 message: self.redacted_error(&message),
+                redirected_library_id: None,
             })
     }
 

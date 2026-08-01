@@ -7,7 +7,7 @@ use crate::config::WebFetchProviderConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{RetryPolicy, error_kind_for_status, read_response_body, response_body_limit};
 use crate::providers::ProviderError;
-use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute};
+use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2};
 use crate::providers::shared::{redact_urls, redacted_urls_message};
 use crate::redact::Secret;
 use crate::types::{AttemptErrorKind, Deadline, MapOutcome};
@@ -52,7 +52,7 @@ impl TavilyMap {
 
     pub(crate) async fn map(&self, request: MapRequest) -> Result<MapOutcome, ProviderError> {
         let request_ref = &request;
-        let execution = execute(
+        let execution = execute_v2(
             &self.credentials,
             ExecutionSettings {
                 provider: "tavily",
@@ -67,7 +67,7 @@ impl TavilyMap {
                 endpoint_host: None,
                 breaker_event: None,
             },
-            move |credential| async move { self.send_once(request_ref, &credential).await },
+            move |credential, _| async move { self.send_once(request_ref, &credential).await },
         )
         .await?;
         let response = execution.value;
@@ -107,6 +107,7 @@ impl TavilyMap {
                 kind: AttemptErrorKind::Network,
                 status: error.status().map(|status| status.as_u16()),
                 message: redacted_urls_message(&error.to_string(), &self.credentials),
+                redirected_library_id: None,
             })?;
         let status = response.status();
         let body = read_response_body(response, response_body_limit(status))
@@ -115,6 +116,7 @@ impl TavilyMap {
                 kind: AttemptErrorKind::Network,
                 status: Some(status.as_u16()),
                 message: redacted_urls_message(&error.to_string(), &self.credentials),
+                redirected_library_id: None,
             })?;
         if !status.is_success() {
             return Err(AttemptFailure {
@@ -124,6 +126,7 @@ impl TavilyMap {
                     &failure_message(&body.text, status.as_u16()),
                     &self.credentials,
                 ),
+                redirected_library_id: None,
             });
         }
         serde_json::from_str(&body.text)
@@ -135,6 +138,7 @@ impl TavilyMap {
                     &format!("invalid Tavily map response: {error}"),
                     &self.credentials,
                 ),
+                redirected_library_id: None,
             })
     }
 }

@@ -10,7 +10,7 @@ use crate::credentials::CredentialPool;
 use crate::net::{
     RetryPolicy, error_kind_for_status, read_response_body, response_body_limit, slice_budget,
 };
-use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute};
+use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2};
 use crate::providers::shared::redacted_urls_message;
 use crate::redact::Secret;
 use crate::types::{
@@ -210,7 +210,7 @@ impl Classifier {
         let endpoint_host = reqwest::Url::parse(&self.config.url)
             .ok()
             .and_then(|url| url.host_str().map(ToOwned::to_owned));
-        execute(
+        execute_v2(
             &self.credentials,
             ExecutionSettings {
                 provider: "classifier",
@@ -225,7 +225,7 @@ impl Classifier {
                 endpoint_host,
                 breaker_event: None,
             },
-            |credential| async move { self.send_once(query, model, &credential, spec).await },
+            |credential, _| async move { self.send_once(query, model, &credential, spec).await },
         )
         .await
         .map(|outcome| (outcome.value, outcome.attempts))
@@ -276,6 +276,7 @@ impl Classifier {
                 kind: AttemptErrorKind::Network,
                 status: error.status().map(|status| status.as_u16()),
                 message: redacted_urls_message(&error.to_string(), &self.credentials),
+                redirected_library_id: None,
             })?;
         let status = response.status();
         let body = read_response_body(response, response_body_limit(status))
@@ -284,6 +285,7 @@ impl Classifier {
                 kind: AttemptErrorKind::Network,
                 status: Some(status.as_u16()),
                 message: redacted_urls_message(&error.to_string(), &self.credentials),
+                redirected_library_id: None,
             })?;
         if !status.is_success() {
             return Err(AttemptFailure {
@@ -297,6 +299,7 @@ impl Classifier {
                     },
                     &self.credentials,
                 ),
+                redirected_library_id: None,
             });
         }
         let response: ChatResponse =
@@ -304,6 +307,7 @@ impl Classifier {
                 kind: AttemptErrorKind::Runtime,
                 status: Some(status.as_u16()),
                 message: "classifier returned invalid response JSON".into(),
+                redirected_library_id: None,
             })?;
         let content = response
             .choices
@@ -314,6 +318,7 @@ impl Classifier {
                 kind: AttemptErrorKind::Runtime,
                 status: Some(status.as_u16()),
                 message: "classifier response omitted JSON content".into(),
+                redirected_library_id: None,
             })?;
         let decision = (spec.parse)(content).map_err(|error| AttemptFailure {
             kind: AttemptErrorKind::Runtime,
@@ -322,6 +327,7 @@ impl Classifier {
                 &format!("classifier returned invalid schema: {error}"),
                 &self.credentials,
             ),
+            redirected_library_id: None,
         })?;
         Ok((status.as_u16(), decision))
     }

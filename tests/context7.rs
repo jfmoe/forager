@@ -24,11 +24,16 @@ fn context7_library_initializes_the_mcp_session_and_normalizes_json_results() {
 
     let output = run(
         &fixture,
-        &["context7", "library", "rust", "async drop"],
+        &["context7", "library", "rust", "async drop", "--verbose"],
         &["context-key"],
     );
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
     let requests = fixture.finish_all();
+    assert_eq!(
+        payload["provider_attempts"].as_array().map(Vec::len),
+        Some(1),
+        "three MCP handshakes belong to one logical attempt"
+    );
 
     assert_eq!(
         (
@@ -428,8 +433,13 @@ fn context7_session_renewal_remains_inside_the_command_deadline() {
     let requests = fixture.finish_all();
 
     assert_eq!(
-        (output.status.code(), &payload["error_kind"], requests.len(),),
-        (Some(4), &Value::String("timeout".into()), 4),
+        (
+            output.status.code(),
+            &payload["error_kind"],
+            payload["attempts"]["total"].as_u64(),
+            requests.len(),
+        ),
+        (Some(4), &Value::String("timeout".into()), Some(1), 4),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );

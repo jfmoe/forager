@@ -1,17 +1,16 @@
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 use crate::config::ExaRuntimeConfig;
 use crate::credentials::CredentialPool;
-use crate::net::{
-    RetryPolicy, duration_millis, error_kind_for_status, read_response_body, response_body_limit,
-};
+use crate::net::{RetryPolicy, error_kind_for_status, read_response_body, response_body_limit};
 use crate::providers::ProviderError;
+use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2};
 use crate::providers::shared::redacted_urls_message;
 use crate::redact::{Secret, redact_url};
-use crate::types::{AttemptErrorKind, Deadline, ExaInput, ExaOutcome, ProviderAttempt, Source};
+use crate::types::{AttemptErrorKind, Deadline, ExaInput, ExaOutcome, Source};
 
 #[derive(Clone, Copy, Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -81,146 +80,41 @@ impl Exa {
         self.execute(ExaOperation::Similar(request)).await
     }
 
-    // The retry loop stays contiguous so operation-specific decoding cannot split attempt accounting.
-    #[expect(clippy::too_many_lines)]
     async fn execute(&self, operation: ExaOperation) -> Result<ExaOutcome, ProviderError> {
-        let selection = self.credentials.claim();
-        let mut attempts = Vec::new();
-        let mut credential_index = selection.index;
-        let mut retry_count = 0;
-        let mut rotation_count = 0;
-
-        loop {
-            let Some(remaining) = self.deadline.remaining() else {
-                return Err(terminal_error(
-                    AttemptErrorKind::Timeout,
-                    attempts,
-                    operation.verbose(),
-                    selection.diagnostic.clone(),
-                ));
-            };
-            let attempt_limit = remaining.min(Duration::from_secs(self.config.timeout_seconds));
-            let started = Instant::now();
-            let response = tokio::time::timeout(
-                attempt_limit,
-                self.send_once(&operation, self.credentials.key(credential_index)),
-            )
-            .await;
-
-            match response {
-                Ok(Ok(outcome)) => {
-                    attempts.push(ProviderAttempt {
-                        provider: "exa",
-                        seam: operation.name(),
-                        error_kind: None,
-                        http_status: Some(200),
-                        duration_ms: duration_millis(started.elapsed()),
-                        credential_index,
-                        retry_count,
-                        rotation_count,
-                        message: String::new(),
-                        model: None,
-                        transport: Some("http"),
-                        endpoint_host: None,
-                        breaker_event: None,
-                    });
-                    return Ok(ExaOutcome {
-                        provider: "exa",
-                        input: operation.output_input(),
-                        results: outcome,
-                        attempts: if operation.verbose() {
-                            attempts
-                        } else {
-                            Vec::new()
-                        },
-                        diagnostic: selection.diagnostic,
-                    });
-                }
-                Ok(Err(failure)) => {
-                    let kind = failure.kind;
-                    attempts.push(ProviderAttempt {
-                        provider: "exa",
-                        seam: operation.name(),
-                        error_kind: Some(kind),
-                        http_status: failure.status,
-                        duration_ms: duration_millis(started.elapsed()),
-                        credential_index,
-                        retry_count,
-                        rotation_count,
-                        message: failure.message,
-                        model: None,
-                        transport: Some("http"),
-                        endpoint_host: None,
-                        breaker_event: None,
-                    });
-
-                    if kind.rotates_credential() && rotation_count + 1 < self.credentials.len() {
-                        rotation_count += 1;
-                        credential_index = self
-                            .credentials
-                            .rotated_index(selection.index, rotation_count);
-                        continue;
-                    }
-                    if kind.is_retryable()
-                        && retry_count.saturating_add(1) < self.retry_policy.max_attempts()
-                    {
-                        retry_count += 1;
-                        let wait = self.retry_policy.wait(retry_count);
-                        let Some(remaining) = self.deadline.remaining() else {
-                            return Err(terminal_error(
-                                AttemptErrorKind::Timeout,
-                                attempts,
-                                operation.verbose(),
-                                selection.diagnostic.clone(),
-                            ));
-                        };
-                        if wait >= remaining {
-                            return Err(terminal_error(
-                                AttemptErrorKind::Timeout,
-                                attempts,
-                                operation.verbose(),
-                                selection.diagnostic.clone(),
-                            ));
-                        }
-                        tokio::time::sleep(wait).await;
-                        continue;
-                    }
-                    return Err(terminal_error(
-                        kind,
-                        attempts,
-                        operation.verbose(),
-                        selection.diagnostic.clone(),
-                    ));
-                }
-                Err(_) => {
-                    attempts.push(ProviderAttempt {
-                        provider: "exa",
-                        seam: operation.name(),
-                        error_kind: Some(AttemptErrorKind::Timeout),
-                        http_status: None,
-                        duration_ms: duration_millis(started.elapsed()),
-                        credential_index,
-                        retry_count,
-                        rotation_count,
-                        message: "Exa request timed out".into(),
-                        model: None,
-                        transport: Some("http"),
-                        endpoint_host: None,
-                        breaker_event: None,
-                    });
-                    if retry_count.saturating_add(1) < self.retry_policy.max_attempts() {
-                        retry_count += 1;
-                        continue;
-                    }
-                    return Err(terminal_error(
-                        AttemptErrorKind::Timeout,
-                        attempts,
-                        operation.verbose(),
-                        selection.diagnostic.clone(),
-                    ));
-                }
-            }
-        }
+        let operation_ref = &operation;
+        let execution = execute_v2(
+            &self.credentials,
+            ExecutionSettings {
+                provider: "exa",
+                seam: operation.name(),
+                retry_policy: self.retry_policy,
+                deadline: self.deadline,
+                attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
+                verbose: operation.verbose(),
+                timeout_message: "Exa request timed out",
+                model: None,
+                transport: Some("http"),
+                endpoint_host: None,
+                breaker_event: None,
+            },
+            |credential, _| async move {
+                self.send_once(operation_ref, &credential)
+                    .await
+                    .map(|value| (200, value))
+            },
+        )
+        .await?;
+        Ok(ExaOutcome {
+            provider: "exa",
+            input: operation.output_input(),
+            results: execution.value,
+            attempts: if operation.verbose() {
+                execution.attempts
+            } else {
+                Vec::new()
+            },
+            diagnostic: execution.diagnostic,
+        })
     }
 
     async fn send_once(
@@ -246,6 +140,7 @@ impl Exa {
             kind: AttemptErrorKind::Network,
             status: error.status().map(|status| status.as_u16()),
             message: redacted_urls_message(&error.to_string(), &self.credentials),
+            redirected_library_id: None,
         })?;
         let status = response.status();
         let body = read_response_body(response, response_body_limit(status))
@@ -254,6 +149,7 @@ impl Exa {
                 kind: AttemptErrorKind::Network,
                 status: Some(status.as_u16()),
                 message: redacted_urls_message(&error.to_string(), &self.credentials),
+                redirected_library_id: None,
             })?;
         if !status.is_success() {
             return Err(AttemptFailure {
@@ -263,6 +159,7 @@ impl Exa {
                     &failure_message(&body.text, status.as_u16()),
                     &self.credentials,
                 ),
+                redirected_library_id: None,
             });
         }
         let response: ExaResponse =
@@ -273,6 +170,7 @@ impl Exa {
                     &format!("invalid Exa response: {error}"),
                     &self.credentials,
                 ),
+                redirected_library_id: None,
             })?;
         Ok(response
             .results
@@ -416,32 +314,6 @@ struct ExaResult {
     text: Option<String>,
     #[serde(default)]
     highlights: Vec<String>,
-}
-
-struct AttemptFailure {
-    kind: AttemptErrorKind,
-    status: Option<u16>,
-    message: String,
-}
-
-fn terminal_error(
-    kind: AttemptErrorKind,
-    attempts: Vec<ProviderAttempt>,
-    verbose: bool,
-    diagnostic: Option<String>,
-) -> ProviderError {
-    let message = attempts.last().map_or_else(
-        || "Exa request failed".into(),
-        |attempt| attempt.message.clone(),
-    );
-    ProviderError {
-        kind,
-        message,
-        attempts,
-        verbose,
-        diagnostic,
-        redirected_library_id: None,
-    }
 }
 
 fn failure_message(body: &str, status: u16) -> String {

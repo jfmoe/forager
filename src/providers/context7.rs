@@ -1,4 +1,4 @@
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use reqwest::Client;
 use serde_json::{Map, Value, json};
@@ -7,9 +7,10 @@ use crate::config::Context7RuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{
     CONTENT_TRUNCATED_DIAGNOSTIC, McpClient, McpError, McpToolResult, RetryPolicy,
-    combine_diagnostics, duration_millis,
+    combine_diagnostics,
 };
 use crate::providers::ProviderError;
+use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2};
 use crate::providers::shared::redacted_urls_message;
 use crate::types::{
     AttemptErrorKind, Context7DocsOutcome, Context7LibraryOutcome, Context7Outcome, Deadline,
@@ -69,164 +70,64 @@ impl Context7 {
         self.execute(Context7Operation::Docs(request)).await
     }
 
-    // The retry loop stays contiguous so redirects, rotation, and diagnostics share one lifecycle.
-    #[expect(clippy::too_many_lines)]
     async fn execute(
         &self,
         operation: Context7Operation,
     ) -> Result<Context7Outcome, ProviderError> {
-        let selection = self.credentials.claim();
-        let mut attempts = Vec::new();
-        let mut credential_index = selection.index;
-        let mut retry_count = 0;
-        let mut rotation_count = 0;
-
-        loop {
-            let Some(remaining) = self.deadline.remaining() else {
-                return Err(Self::terminal_error(
-                    AttemptErrorKind::Timeout,
-                    attempts,
-                    operation.verbose(),
-                    selection.diagnostic.clone(),
-                    None,
-                ));
-            };
-            let attempt_limit = remaining.min(Duration::from_secs(self.config.timeout_seconds));
-            let attempt_deadline = Deadline::new(attempt_limit);
-            let started = Instant::now();
-            let client = McpClient::new(&self.client, &self.config.url, attempt_deadline);
-            let result = client
-                .call_tool(
-                    self.credentials.key(credential_index),
-                    operation.tool(),
-                    operation.arguments(),
-                )
-                .await
-                .map_err(Context7Failure::from)
-                .and_then(|result| {
-                    let truncated = result.truncated;
-                    operation.decode(result).map(|outcome| (outcome, truncated))
-                });
-
-            match result {
-                Ok((outcome, truncated)) => {
-                    attempts.push(ProviderAttempt {
-                        provider: "context7",
-                        seam: "docs_search",
-                        error_kind: None,
-                        http_status: Some(200),
-                        duration_ms: duration_millis(started.elapsed()),
-                        credential_index,
-                        retry_count,
-                        rotation_count,
-                        message: String::new(),
-                        model: None,
-                        transport: Some("mcp"),
-                        endpoint_host: None,
-                        breaker_event: None,
-                    });
-                    let visible_attempts = if operation.verbose() {
-                        attempts
-                    } else {
-                        Vec::new()
-                    };
-                    let diagnostic = combine_diagnostics(
-                        [
-                            selection.diagnostic,
-                            truncated.then(|| CONTENT_TRUNCATED_DIAGNOSTIC.to_owned()),
-                        ]
-                        .into_iter()
-                        .flatten(),
-                    );
-                    let outcome = operation.outcome(outcome, visible_attempts, diagnostic);
-                    return Ok(self.redact_outcome(outcome));
-                }
-                Err(failure) => {
-                    let kind = failure.kind;
-                    let redirect = failure
-                        .redirected_library_id
-                        .as_deref()
-                        .map(|target| redacted_urls_message(target, &self.credentials));
-                    attempts.push(ProviderAttempt {
-                        provider: "context7",
-                        seam: "docs_search",
-                        error_kind: Some(kind),
-                        http_status: failure.status,
-                        duration_ms: duration_millis(started.elapsed()),
-                        credential_index,
-                        retry_count,
-                        rotation_count,
+        let operation_ref = &operation;
+        let execution = execute_v2(
+            &self.credentials,
+            ExecutionSettings {
+                provider: "context7",
+                seam: "docs_search",
+                retry_policy: self.retry_policy,
+                deadline: self.deadline,
+                attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
+                verbose: operation.verbose(),
+                timeout_message: "Context7 request timed out",
+                model: None,
+                transport: Some("mcp"),
+                endpoint_host: None,
+                breaker_event: None,
+            },
+            |credential, attempt_deadline| async move {
+                McpClient::new(&self.client, &self.config.url, attempt_deadline)
+                    .call_tool(&credential, operation_ref.tool(), operation_ref.arguments())
+                    .await
+                    .map_err(Context7Failure::from)
+                    .and_then(|result| {
+                        let truncated = result.truncated;
+                        operation_ref
+                            .decode(result)
+                            .map(|outcome| (200, (outcome, truncated)))
+                    })
+                    .map_err(|failure| AttemptFailure {
+                        kind: failure.kind,
+                        status: failure.status,
                         message: redacted_urls_message(&failure.message, &self.credentials),
-                        model: None,
-                        transport: Some("mcp"),
-                        endpoint_host: None,
-                        breaker_event: None,
-                    });
-
-                    if kind.rotates_credential() && rotation_count + 1 < self.credentials.len() {
-                        rotation_count += 1;
-                        credential_index = self
-                            .credentials
-                            .rotated_index(selection.index, rotation_count);
-                        continue;
-                    }
-                    if kind.is_retryable()
-                        && retry_count.saturating_add(1) < self.retry_policy.max_attempts()
-                    {
-                        retry_count += 1;
-                        let wait = self.retry_policy.wait(retry_count);
-                        let Some(remaining) = self.deadline.remaining() else {
-                            return Err(Self::terminal_error(
-                                AttemptErrorKind::Timeout,
-                                attempts,
-                                operation.verbose(),
-                                selection.diagnostic.clone(),
-                                redirect,
-                            ));
-                        };
-                        if wait >= remaining {
-                            return Err(Self::terminal_error(
-                                AttemptErrorKind::Timeout,
-                                attempts,
-                                operation.verbose(),
-                                selection.diagnostic.clone(),
-                                redirect,
-                            ));
-                        }
-                        tokio::time::sleep(wait).await;
-                        continue;
-                    }
-                    return Err(Self::terminal_error(
-                        kind,
-                        attempts,
-                        operation.verbose(),
-                        selection.diagnostic,
-                        redirect,
-                    ));
-                }
-            }
-        }
-    }
-
-    fn terminal_error(
-        kind: AttemptErrorKind,
-        attempts: Vec<ProviderAttempt>,
-        verbose: bool,
-        diagnostic: Option<String>,
-        redirected_library_id: Option<String>,
-    ) -> ProviderError {
-        let message = attempts.last().map_or_else(
-            || "Context7 request failed".to_owned(),
-            |attempt| attempt.message.clone(),
+                        redirected_library_id: failure
+                            .redirected_library_id
+                            .map(|target| redacted_urls_message(&target, &self.credentials)),
+                    })
+            },
+        )
+        .await?;
+        let (decoded, truncated) = execution.value;
+        let visible_attempts = if operation.verbose() {
+            execution.attempts
+        } else {
+            Vec::new()
+        };
+        let diagnostic = combine_diagnostics(
+            [
+                execution.diagnostic,
+                truncated.then(|| CONTENT_TRUNCATED_DIAGNOSTIC.to_owned()),
+            ]
+            .into_iter()
+            .flatten(),
         );
-        ProviderError {
-            kind,
-            message,
-            attempts,
-            verbose,
-            diagnostic,
-            redirected_library_id,
-        }
+        let outcome = operation.outcome(decoded, visible_attempts, diagnostic);
+        Ok(self.redact_outcome(outcome))
     }
 
     fn redact_outcome(&self, mut outcome: Context7Outcome) -> Context7Outcome {

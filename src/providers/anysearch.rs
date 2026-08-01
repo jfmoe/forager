@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::LazyLock;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use reqwest::Client;
 use serde::Deserialize;
@@ -9,10 +9,11 @@ use serde_json::{Map, Value, json};
 use crate::config::AnysearchRuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{
-    CONTENT_TRUNCATED_DIAGNOSTIC, McpClient, McpError, McpToolResult, RetryPolicy,
-    combine_diagnostics, duration_millis, truncate_message,
+    CONTENT_TRUNCATED_DIAGNOSTIC, McpClient, McpToolResult, RetryPolicy, combine_diagnostics,
+    truncate_message,
 };
 use crate::providers::ProviderError;
+use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2};
 use crate::providers::shared::redact_urls;
 use crate::types::{
     AnysearchDomain, AnysearchDomainsOutcome, AnysearchOutcome, AnysearchResult,
@@ -176,168 +177,70 @@ impl Anysearch {
         }))
     }
 
-    // The retry loop stays contiguous so credential rotation and attempt accounting cannot drift.
-    #[expect(clippy::too_many_lines)]
     async fn execute_tool(
         &self,
         tool: &'static str,
         arguments: Value,
         verbose: bool,
     ) -> Result<AnysearchExecution, ProviderError> {
-        let selection = self.credentials.claim();
-        let mut attempts = Vec::new();
-        let mut credential_index = selection.index;
-        let mut retry_count = 0;
-        let mut rotation_count = 0;
-
-        loop {
-            let Some(remaining) = self.deadline.remaining() else {
-                return Err(Self::terminal_error(
-                    AttemptErrorKind::Timeout,
-                    attempts,
-                    verbose,
-                    selection.diagnostic.clone(),
-                ));
-            };
-            let attempt_deadline =
-                Deadline::new(remaining.min(Duration::from_secs(self.config.timeout_seconds)));
-            let started = Instant::now();
-            let result = McpClient::new(&self.client, &self.config.url, attempt_deadline)
-                .call_tool(
-                    self.credentials.key(credential_index),
-                    tool,
-                    arguments.clone(),
-                )
-                .await
-                .map_err(AnysearchFailure::from);
-
-            match result {
-                Ok(result) => {
-                    let diagnostic = combine_diagnostics(
-                        [
-                            selection.diagnostic.clone(),
-                            result
-                                .truncated
-                                .then(|| CONTENT_TRUNCATED_DIAGNOSTIC.to_owned()),
-                        ]
-                        .into_iter()
-                        .flatten(),
-                    );
-                    attempts.push(ProviderAttempt {
-                        provider: "anysearch",
-                        seam: "vertical_search",
-                        error_kind: None,
-                        http_status: Some(200),
-                        duration_ms: duration_millis(started.elapsed()),
-                        credential_index,
-                        retry_count,
-                        rotation_count,
-                        message: String::new(),
-                        model: None,
-                        transport: Some("mcp"),
-                        endpoint_host: None,
-                        breaker_event: None,
-                    });
-                    return Ok(AnysearchExecution {
-                        result,
-                        attempts: if verbose { attempts } else { Vec::new() },
-                        diagnostic,
-                    });
+        let arguments_ref = &arguments;
+        let execution = execute_v2(
+            &self.credentials,
+            ExecutionSettings {
+                provider: "anysearch",
+                seam: "vertical_search",
+                retry_policy: self.retry_policy,
+                deadline: self.deadline,
+                attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
+                verbose,
+                timeout_message: "AnySearch request timed out",
+                model: None,
+                transport: Some("mcp"),
+                endpoint_host: None,
+                breaker_event: None,
+            },
+            |credential, attempt_deadline| {
+                let attempt_arguments = arguments_ref.clone();
+                async move {
+                    McpClient::new(&self.client, &self.config.url, attempt_deadline)
+                        .call_tool(&credential, tool, attempt_arguments)
+                        .await
+                        .map(|result| (200, result))
+                        .map_err(|error| {
+                            let mut message = redact_urls(&error.message, &self.credentials);
+                            redact_argument_values(&mut message, arguments_ref);
+                            AttemptFailure {
+                                kind: error.kind,
+                                status: error.status,
+                                message: truncate_message(&message),
+                                redirected_library_id: None,
+                            }
+                        })
                 }
-                Err(failure) => {
-                    let kind = failure.kind;
-                    attempts.push(ProviderAttempt {
-                        provider: "anysearch",
-                        seam: "vertical_search",
-                        error_kind: Some(kind),
-                        http_status: failure.status,
-                        duration_ms: duration_millis(started.elapsed()),
-                        credential_index,
-                        retry_count,
-                        rotation_count,
-                        message: {
-                            let mut message = redact_urls(&failure.message, &self.credentials);
-                            redact_argument_values(&mut message, &arguments);
-                            truncate_message(&message)
-                        },
-                        model: None,
-                        transport: Some("mcp"),
-                        endpoint_host: None,
-                        breaker_event: None,
-                    });
-                    if kind.rotates_credential() && rotation_count + 1 < self.credentials.len() {
-                        rotation_count += 1;
-                        credential_index = self
-                            .credentials
-                            .rotated_index(selection.index, rotation_count);
-                        continue;
-                    }
-                    if kind.is_retryable()
-                        && retry_count.saturating_add(1) < self.retry_policy.max_attempts()
-                    {
-                        retry_count += 1;
-                        let wait = self.retry_policy.wait(retry_count);
-                        if self
-                            .deadline
-                            .remaining()
-                            .is_none_or(|remaining| wait >= remaining)
-                        {
-                            return Err(Self::terminal_error(
-                                AttemptErrorKind::Timeout,
-                                attempts,
-                                verbose,
-                                selection.diagnostic,
-                            ));
-                        }
-                        tokio::time::sleep(wait).await;
-                        continue;
-                    }
-                    return Err(Self::terminal_error(
-                        kind,
-                        attempts,
-                        verbose,
-                        selection.diagnostic,
-                    ));
-                }
-            }
-        }
-    }
-
-    fn terminal_error(
-        kind: AttemptErrorKind,
-        attempts: Vec<ProviderAttempt>,
-        verbose: bool,
-        diagnostic: Option<String>,
-    ) -> ProviderError {
-        let message = attempts.last().map_or_else(
-            || "AnySearch request failed".to_owned(),
-            |attempt| attempt.message.clone(),
+            },
+        )
+        .await?;
+        let diagnostic = combine_diagnostics(
+            [
+                execution.diagnostic,
+                execution
+                    .value
+                    .truncated
+                    .then(|| CONTENT_TRUNCATED_DIAGNOSTIC.to_owned()),
+            ]
+            .into_iter()
+            .flatten(),
         );
-        ProviderError {
-            kind,
-            message,
-            attempts,
-            verbose,
+        Ok(AnysearchExecution {
+            result: execution.value,
+            attempts: if verbose {
+                execution.attempts
+            } else {
+                Vec::new()
+            },
             diagnostic,
-            redirected_library_id: None,
-        }
+        })
     }
-}
-
-impl From<McpError> for AnysearchFailure {
-    fn from(error: McpError) -> Self {
-        Self {
-            kind: error.kind,
-            status: error.status,
-            message: error.message,
-        }
-    }
-}
-
-struct AnysearchFailure {
-    kind: AttemptErrorKind,
-    status: Option<u16>,
-    message: String,
 }
 
 struct AnysearchExecution {

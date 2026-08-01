@@ -23,7 +23,7 @@ fn anysearch_calls_tools_without_a_session_when_initialize_omits_the_session_hea
 
     let output = run(
         &fixture,
-        &["anysearch", "search", "Kyoto travel"],
+        &["anysearch", "search", "Kyoto travel", "--verbose"],
         &["anysearch-key"],
     );
     assert_eq!(
@@ -35,14 +35,16 @@ fn anysearch_calls_tools_without_a_session_when_initialize_omits_the_session_hea
     );
     let requests = fixture.finish_all();
 
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
     assert_eq!(
         (
+            payload["provider_attempts"].as_array().map(Vec::len),
             requests.len(),
             requests[0].contains(r#""method":"initialize""#),
             requests[1].contains(r#""method":"tools/call""#),
             requests[1].contains("mcp-session-id:"),
         ),
-        (2, true, true, false)
+        (Some(1), 2, true, true, false)
     );
 }
 

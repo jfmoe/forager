@@ -2,17 +2,20 @@ use std::env;
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, LazyLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use fs2::FileExt;
 use serde_json::{Value, json};
+use tokio::sync::Mutex;
 
 use crate::redact::{CREDENTIAL_MASK, Secret};
 use crate::secure_fs::{create_private_file, ensure_private_directory};
 
 const STATE_SCHEMA_VERSION: u8 = 1;
 const LOCK_WAIT: Duration = Duration::from_millis(100);
+static CLAIM_MUTEX: LazyLock<Arc<Mutex<()>>> = LazyLock::new(|| Arc::new(Mutex::new(())));
 
 #[derive(Clone, Debug)]
 pub(crate) struct CredentialPool {
@@ -44,7 +47,7 @@ impl CredentialPool {
         &self.keys[index]
     }
 
-    pub(crate) fn claim(&self) -> CredentialSelection {
+    pub(crate) async fn claim(&self) -> CredentialSelection {
         let Some(state_file) = &self.state_file else {
             return CredentialSelection {
                 index: 0,
@@ -53,12 +56,25 @@ impl CredentialPool {
                 ),
             };
         };
-        match claim_persistent_index(state_file, self.provider, self.keys.len()) {
-            Ok((index, diagnostic)) => CredentialSelection { index, diagnostic },
-            Err(error) => CredentialSelection {
+        let state_file = state_file.clone();
+        let provider = self.provider;
+        let key_count = self.keys.len();
+        match serialized_blocking_claim(move || {
+            claim_persistent_index(&state_file, provider, key_count)
+        })
+        .await
+        {
+            Ok(Ok((index, diagnostic))) => CredentialSelection { index, diagnostic },
+            Ok(Err(error)) => CredentialSelection {
                 index: 0,
                 diagnostic: Some(format!(
                     "credential cursor unavailable; using optimistic selection: {error}"
+                )),
+            },
+            Err(error) => CredentialSelection {
+                index: 0,
+                diagnostic: Some(format!(
+                    "credential cursor task failed; using optimistic selection: {error}"
                 )),
             },
         }
@@ -217,4 +233,64 @@ fn write_state(path: &Path, state: &Value) -> io::Result<()> {
 
 fn open_private_lock(path: &Path) -> io::Result<File> {
     create_private_file(path)
+}
+
+async fn serialized_blocking_claim<T, F>(claim: F) -> Result<T, tokio::task::JoinError>
+where
+    T: Send + 'static,
+    F: FnOnce() -> T + Send + 'static,
+{
+    let guard = Arc::clone(&CLAIM_MUTEX).lock_owned().await;
+    tokio::task::spawn_blocking(move || {
+        let _guard = guard;
+        claim()
+    })
+    .await
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    use super::serialized_blocking_claim;
+
+    #[test]
+    fn cancelling_claim_waiter_keeps_blocking_claims_serialized() {
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_time()
+            .build()
+            .expect("build test runtime");
+
+        runtime.block_on(async {
+            let (first_entered_tx, first_entered_rx) = mpsc::channel();
+            let (release_first_tx, release_first_rx) = mpsc::channel();
+            let first = tokio::spawn(serialized_blocking_claim(move || {
+                first_entered_tx.send(()).expect("signal first claim");
+                release_first_rx.recv().expect("release first claim");
+            }));
+            first_entered_rx
+                .recv_timeout(Duration::from_secs(1))
+                .expect("first claim entered blocking work");
+            first.abort();
+
+            let (second_entered_tx, second_entered_rx) = mpsc::channel();
+            let second = tokio::spawn(serialized_blocking_claim(move || {
+                second_entered_tx.send(()).expect("signal second claim");
+            }));
+            assert!(
+                second_entered_rx
+                    .recv_timeout(Duration::from_millis(50))
+                    .is_err(),
+                "cancelling the waiter released the process claim lock"
+            );
+
+            release_first_tx.send(()).expect("release first claim");
+            second
+                .await
+                .expect("join second claim")
+                .expect("second claim");
+        });
+    }
 }
