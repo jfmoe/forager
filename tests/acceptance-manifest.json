@@ -18,7 +18,7 @@
     {
       "id": "U04",
       "requirements": ["I0-5"],
-      "test": "src/config.rs::url_redaction_exhausts_credentials_fragments_and_safe_query_boundaries"
+      "test": "src/redact.rs::url_redaction_exhausts_credentials_fragments_and_safe_query_boundaries"
     },
     {
       "id": "U05",

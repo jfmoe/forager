@@ -8,13 +8,14 @@ use reqwest::{Client, Response};
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::config::{self, OpenAiCompatibleRuntimeConfig};
+use crate::config::OpenAiCompatibleRuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{RetryPolicy, error_kind_for_status, slice_budget};
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute};
 use crate::providers::shared::redacted_urls_message;
 use crate::providers::xai::SearchRequest;
 use crate::providers::{MainSearchRequestKind, ProviderError};
+use crate::redact::{redact_url, redact_urls};
 use crate::types::{AttemptErrorKind, Deadline, SearchOutcome, Source};
 
 pub(crate) struct OpenAiCompatible {
@@ -574,7 +575,7 @@ impl OpenAiCompatible {
     fn redact_sources(&self, sources: Vec<Source>) -> Vec<Source> {
         let mut redacted = Vec::new();
         for mut source in sources {
-            source.url = self.credentials.redact(&config::redact_url(&source.url));
+            source.url = self.credentials.redact(&redact_url(&source.url));
             source.title = self.redacted_text(&source.title);
             if !redacted
                 .iter()
@@ -587,7 +588,7 @@ impl OpenAiCompatible {
     }
 
     fn redacted_text(&self, value: &str) -> String {
-        self.credentials.redact(&config::redact_urls(value))
+        self.credentials.redact(&redact_urls(value))
     }
 }
 

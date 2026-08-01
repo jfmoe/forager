@@ -11,6 +11,8 @@ mod engine;
 mod journal;
 mod net;
 mod providers;
+mod redact;
 mod research;
+mod secure_fs;
 mod smoke;
 pub mod types;

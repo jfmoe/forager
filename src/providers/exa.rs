@@ -3,11 +3,12 @@ use std::time::{Duration, Instant};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-use crate::config::{self, ExaRuntimeConfig};
+use crate::config::ExaRuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{RetryPolicy, duration_millis, error_kind_for_status};
 use crate::providers::ProviderError;
 use crate::providers::shared::{redacted_message, redacted_urls_message};
+use crate::redact::redact_url;
 use crate::types::{AttemptErrorKind, Deadline, ExaInput, ExaOutcome, ProviderAttempt, Source};
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -286,7 +287,7 @@ impl Exa {
     fn normalize_source(&self, result: ExaResult) -> Source {
         Source {
             title: self.credentials.redact(&result.title),
-            url: self.credentials.redact(&config::redact_url(&result.url)),
+            url: self.credentials.redact(&redact_url(&result.url)),
             published_date: result
                 .published_date
                 .map(|value| self.credentials.redact(&value)),

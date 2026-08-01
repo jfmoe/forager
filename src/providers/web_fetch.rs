@@ -6,11 +6,12 @@ use reqwest::{Client, RequestBuilder};
 use serde::Deserialize;
 use serde_json::json;
 
-use crate::config::{self, WebFetchProviderConfig};
+use crate::config::WebFetchProviderConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{RetryPolicy, error_kind_for_status, truncate_message};
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute};
 use crate::providers::{ProviderError, ProviderId};
+use crate::redact::{redact_url, redact_urls};
 use crate::types::{AttemptErrorKind, Deadline, ProviderAttempt};
 
 pub(crate) struct FetchRequest {
@@ -266,8 +267,8 @@ impl HttpFetchProvider {
     }
 
     fn redacted_text(&self, value: &str) -> String {
-        let redacted_endpoint = config::redact_url(&self.config.url);
-        config::redact_urls(
+        let redacted_endpoint = redact_url(&self.config.url);
+        redact_urls(
             &self
                 .credentials
                 .redact(value)

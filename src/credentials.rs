@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use fs2::FileExt;
 use serde_json::{Value, json};
 
-use crate::config;
+use crate::secure_fs::{create_private_file, ensure_private_directory};
 
 const STATE_SCHEMA_VERSION: u8 = 1;
 const LOCK_WAIT: Duration = Duration::from_millis(100);
@@ -102,7 +102,7 @@ fn claim_persistent_index(
     let directory = path
         .parent()
         .ok_or_else(|| io::Error::other("credential state path has no parent"))?;
-    config::ensure_private_directory(directory)?;
+    ensure_private_directory(directory)?;
     let lock_path = directory.join("credential_pool_state.lock");
     let lock = open_private_lock(&lock_path)?;
     acquire_bounded_lock(&lock)?;
@@ -193,14 +193,14 @@ fn write_state(path: &Path, state: &Value) -> io::Result<()> {
         .ok_or_else(|| io::Error::other("credential state path has no parent"))?;
     let temporary = directory.join(format!(".credential_pool_state.{}.tmp", std::process::id()));
     let result = (|| {
-        let mut file = config::create_private_file(&temporary)?;
+        let mut file = create_private_file(&temporary)?;
         file.set_len(0)?;
         serde_json::to_writer(&mut file, state).map_err(io::Error::other)?;
         file.write_all(b"\n")?;
         file.flush()?;
         file.sync_all()?;
         fs::rename(&temporary, path)?;
-        drop(config::create_private_file(path)?);
+        drop(create_private_file(path)?);
         Ok(())
     })();
     if result.is_err() {
@@ -210,5 +210,5 @@ fn write_state(path: &Path, state: &Value) -> io::Result<()> {
 }
 
 fn open_private_lock(path: &Path) -> io::Result<File> {
-    config::create_private_file(path)
+    create_private_file(path)
 }

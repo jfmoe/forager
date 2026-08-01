@@ -16,6 +16,7 @@ use shared_child::SharedChild;
 use crate::config::{self, RuntimeConfig};
 use crate::credentials;
 use crate::providers::{self, ProviderId};
+use crate::redact::{CREDENTIAL_MASK, redact_credentials, redact_url};
 use crate::types::Deadline;
 
 static PROBE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -294,8 +295,7 @@ fn verify_outage_evidence(
     ]);
     let output = execute_with_deadline(command, deadline).ok()?;
     let payload: Value = serde_json::from_slice(&output.stdout).ok()?;
-    (output.status.code() == Some(4) && payload["outage"] == true)
-        .then(|| config::redact_url(evidence))
+    (output.status.code() == Some(4) && payload["outage"] == true).then(|| redact_url(evidence))
 }
 
 fn official_status_page_matches_case(case_id: &str, url: &str, runtime: &RuntimeConfig) -> bool {
@@ -1036,7 +1036,7 @@ pub(crate) fn run_offline() -> Result<(SmokeReport, u8), config::ConfigError> {
         provider: "classifier",
         configured: !runtime.classifier.keys.is_empty(),
         key_count: runtime.classifier.keys.len(),
-        keys: vec![config::CREDENTIAL_MASK; runtime.classifier.keys.len()],
+        keys: vec![CREDENTIAL_MASK; runtime.classifier.keys.len()],
         source: credential_source(&effective, "classifier"),
     };
     let journal = directory_status(
@@ -1115,7 +1115,7 @@ fn credential_status(
         provider: id.name(),
         configured: key_count > 0,
         key_count,
-        keys: vec![config::CREDENTIAL_MASK; key_count],
+        keys: vec![CREDENTIAL_MASK; key_count],
         source: effective["providers"][id.name()]["keys"]["source"]
             .as_str()
             .unwrap_or("default")
@@ -1182,7 +1182,7 @@ fn permission_status() -> Result<PermissionStatus, config::ConfigError> {
 }
 
 fn sanitize(message: &str, credentials: &[String]) -> String {
-    config::redact_credentials(message, credentials)
+    redact_credentials(message, credentials)
 }
 
 fn check_permissions(path: &Path, expected: u32, label: &str, issues: &mut Vec<String>) {

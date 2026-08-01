@@ -4,12 +4,13 @@ use reqwest::{Client, Response};
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::config::{self, XaiRuntimeConfig};
+use crate::config::XaiRuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{RetryPolicy, error_kind_for_status};
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute};
 use crate::providers::shared::redacted_urls_message;
 use crate::providers::{MainSearchRequestKind, ProviderError};
+use crate::redact::{redact_url, redact_urls};
 use crate::types::{AttemptErrorKind, Deadline, SearchOutcome, Source};
 
 #[derive(Clone, Debug)]
@@ -268,7 +269,7 @@ impl Xai {
                     .get("url")
                     .and_then(Value::as_str)
                     .filter(|url| url.starts_with("http://") || url.starts_with("https://"))
-                    .map(config::redact_url)
+                    .map(redact_url)
                     .map(|url| self.credentials.redact(&url))
                 else {
                     continue;
@@ -304,7 +305,7 @@ impl Xai {
     }
 
     fn redacted_text(&self, value: &str) -> String {
-        self.credentials.redact(&config::redact_urls(value))
+        self.credentials.redact(&redact_urls(value))
     }
 }
 

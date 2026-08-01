@@ -1,6 +1,6 @@
-use crate::config;
 use crate::credentials::CredentialPool;
 use crate::net::truncate_message;
+use crate::redact::{redact_url, redact_urls as redact_urls_in_text};
 
 pub(super) fn redact_message(
     message: &str,
@@ -9,7 +9,7 @@ pub(super) fn redact_message(
 ) -> String {
     credentials
         .redact(message)
-        .replace(endpoint, &config::redact_url(endpoint))
+        .replace(endpoint, &redact_url(endpoint))
 }
 
 pub(super) fn redacted_message(
@@ -25,7 +25,7 @@ pub(crate) fn redacted_urls_message(message: &str, credentials: &CredentialPool)
 }
 
 pub(super) fn redact_urls(message: &str, credentials: &CredentialPool) -> String {
-    credentials.redact(&config::redact_urls(message))
+    credentials.redact(&redact_urls_in_text(message))
 }
 
 #[cfg(test)]

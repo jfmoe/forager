@@ -5,9 +5,11 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde_json::{Value, json};
 
-use crate::config::{self, JournalRuntimeConfig};
+use crate::config::JournalRuntimeConfig;
 use crate::net::duration_millis;
 use crate::providers::ProviderError;
+use crate::redact::redact_credentials;
+use crate::secure_fs::{create_private_file, ensure_private_directory};
 use crate::types::{Capability, JournalOutcome, ResearchError, ResearchOutcome, SearchOutcome};
 
 static RECORD_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -105,7 +107,7 @@ fn write_record(
 }
 
 fn write_value(config: &JournalRuntimeConfig, mut value: Value) -> io::Result<WrittenRecord> {
-    crate::config::ensure_private_directory(&config.dir)?;
+    ensure_private_directory(&config.dir)?;
     let path = config.dir.join(record_name());
     if path.try_exists()? {
         return Err(io::Error::new(
@@ -115,7 +117,7 @@ fn write_value(config: &JournalRuntimeConfig, mut value: Value) -> io::Result<Wr
     }
     sanitize_value(&mut value, &config.credentials);
     let encoded = serde_json::to_vec(&value).map_err(io::Error::other)?;
-    let mut file = crate::config::create_private_file(&path)?;
+    let mut file = create_private_file(&path)?;
     file.write_all(&encoded)?;
     file.write_all(b"\n")?;
     file.sync_all()?;
@@ -319,7 +321,7 @@ fn record_name() -> String {
 fn sanitize_value(value: &mut Value, credentials: &[String]) {
     match value {
         Value::String(text) => {
-            *text = config::redact_credentials(text, credentials);
+            *text = redact_credentials(text, credentials);
         }
         Value::Array(values) => {
             for value in values {
@@ -340,7 +342,7 @@ fn sanitize_warning(config: &JournalRuntimeConfig, message: &str) -> String {
 }
 
 fn sanitize_text(config: &JournalRuntimeConfig, value: &str) -> String {
-    crate::config::redact_credentials(value, &config.credentials)
+    redact_credentials(value, &config.credentials)
 }
 
 #[cfg(test)]

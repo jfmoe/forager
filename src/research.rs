@@ -9,6 +9,7 @@ use crate::config::RuntimeConfig;
 use crate::engine::{self, CapabilityExecution};
 use crate::net::RetryPolicy;
 use crate::providers::FetchRequest;
+use crate::redact::redact_url;
 use crate::types::{
     AttemptErrorKind, Capability, CapabilityGap, Citation, Deadline, EvidenceItem,
     EvidenceStrength, PlanCapability, ProviderAttempt, ResearchError, ResearchGap,
@@ -222,7 +223,7 @@ pub(crate) async fn execute(
         .first()
         .map_or("", |subquestion| subquestion.id.as_str());
     for url in engine::known_urls(&request.query) {
-        let redacted_url = crate::config::redact_url(&url);
+        let redacted_url = redact_url(&url);
         candidates.insert(
             0,
             Candidate {
@@ -241,7 +242,7 @@ pub(crate) async fn execute(
     }
     for subquestion in &request.plan.decomposition {
         for url in engine::known_urls(&subquestion.question) {
-            let redacted_url = crate::config::redact_url(&url);
+            let redacted_url = redact_url(&url);
             candidates.insert(
                 0,
                 Candidate {
@@ -314,7 +315,7 @@ pub(crate) async fn execute(
                 reason:
                     "candidate could not be fetched because web_fetch has no configured provider"
                         .into(),
-                url: Some(crate::config::redact_url(&candidate.source.url)),
+                url: Some(redact_url(&candidate.source.url)),
             });
             continue;
         }
@@ -352,7 +353,7 @@ pub(crate) async fn execute(
                 research_gaps.push(ResearchGap {
                     subquestion_id: candidate.subquestion_id,
                     reason: "candidate fetch failed".into(),
-                    url: Some(crate::config::redact_url(&url)),
+                    url: Some(redact_url(&url)),
                 });
             }
         }

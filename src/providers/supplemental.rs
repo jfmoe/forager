@@ -3,12 +3,13 @@ use std::time::Duration;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-use crate::config::{self, WebFetchProviderConfig};
+use crate::config::WebFetchProviderConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{RetryPolicy, error_kind_for_status};
 use crate::providers::ProviderError;
 use crate::providers::execution::{self, AttemptFailure, ExecutionSettings};
 use crate::providers::shared::{redacted_message, redacted_urls_message};
+use crate::redact::{redact_url, redact_urls};
 use crate::types::{AttemptErrorKind, Deadline, Source, SupplementalSearchOutcome};
 
 pub(crate) struct SupplementalSearch {
@@ -135,7 +136,7 @@ impl SupplementalSearch {
                 .take(usize::from(limit))
                 .map(|source| Source {
                     title: self.credentials.redact(&source.title),
-                    url: self.credentials.redact(&config::redact_url(&source.url)),
+                    url: self.credentials.redact(&redact_url(&source.url)),
                     published_date: source
                         .published_date
                         .map(|value| self.credentials.redact(&value)),
@@ -143,7 +144,7 @@ impl SupplementalSearch {
                     text: source
                         .content
                         .or(source.description)
-                        .map(|value| config::redact_urls(&self.credentials.redact(&value))),
+                        .map(|value| redact_urls(&self.credentials.redact(&value))),
                     highlights: Vec::new(),
                 })
                 .collect(),

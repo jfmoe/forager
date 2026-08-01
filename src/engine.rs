@@ -9,6 +9,7 @@ use crate::config::{
 };
 use crate::net::{RetryPolicy, combine_diagnostics, slice_budget};
 use crate::providers::{self, FetchRequest, ProviderError, SearchRequest};
+use crate::redact::redact_url;
 use crate::types::{
     AttemptErrorKind, Capability, CapabilityGap, CapabilitySet, DENSITY_MAX_CHARS,
     DENSITY_MAX_UNIQUE_LINES, Deadline, FetchOutcome, MIN_FETCH_CONTENT_CHARS, ProviderAttempt,
@@ -229,7 +230,7 @@ async fn augment_with_web_fetch(
                         .flatten(),
                 );
                 outcome.validation_results.push(ValidationResult {
-                    url: config::redact_url(&url),
+                    url: redact_url(&url),
                     provider: fetched.provider,
                     status: "validated",
                 });
@@ -549,7 +550,7 @@ pub(crate) async fn fetch(
                 attempts.extend(outcome.attempts);
                 return Ok(FetchOutcome {
                     provider: outcome.provider,
-                    url: config::redact_url(&request.url),
+                    url: redact_url(&request.url),
                     content: outcome.content,
                     attempts: if request.verbose {
                         attempts

@@ -24,6 +24,7 @@ use crate::config::{
 };
 use crate::credentials::CredentialPool;
 use crate::net::{RetryPolicy, combine_diagnostics};
+use crate::redact::redact_url;
 use crate::types::{
     AnysearchOutcome, Context7Outcome, ExaOutcome, Source, SupplementalSearchOutcome,
     VerticalSearchOutcome,
@@ -155,7 +156,7 @@ impl VerticalSearch for Anysearch {
                 .filter(|result| !result.url.is_empty())
                 .map(|result| Source {
                     title: result.title.clone(),
-                    url: crate::config::redact_url(&result.url),
+                    url: redact_url(&result.url),
                     published_date: None,
                     author: None,
                     text: (!result.description.is_empty()).then(|| result.description.clone()),
@@ -286,7 +287,7 @@ fn context7_source(value: &serde_json::Value) -> Option<Source> {
             .and_then(serde_json::Value::as_str)
             .unwrap_or("Context7 documentation")
             .to_owned(),
-        url: crate::config::redact_url(url),
+        url: redact_url(url),
         published_date: None,
         author: None,
         text: fields
