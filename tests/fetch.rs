@@ -483,7 +483,7 @@ fn fetch_config(
     order: &[&str],
 ) -> String {
     format!(
-        r#"
+        r"
 [providers.jina]
 url = {jina_url:?}
 keys = {jina_keys:?}
@@ -509,7 +509,7 @@ max_wait = 0
 
 [journal]
 enabled = false
-"#
+"
     )
 }
 

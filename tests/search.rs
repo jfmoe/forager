@@ -1822,7 +1822,7 @@ fn search_journals_each_success_and_failure_terminal_once() {
     let journal_dir = environment.state_dir.join("forager/journal");
     let mut records = fs::read_dir(&journal_dir)
         .expect("read journal")
-        .filter_map(|entry| entry.ok())
+        .filter_map(std::result::Result::ok)
         .filter(|entry| {
             entry
                 .path()
@@ -1977,7 +1977,7 @@ fn search_redacts_secrets_from_stdout_stderr_tee_and_journal() {
     );
     let journal = fs::read_dir(environment.state_dir.join("forager/journal"))
         .expect("read journal")
-        .find_map(|entry| entry.ok())
+        .find_map(std::result::Result::ok)
         .map(|entry| fs::read_to_string(entry.path()).expect("read journal"))
         .expect("journal record");
 

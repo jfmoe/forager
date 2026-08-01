@@ -569,10 +569,10 @@ pub(crate) async fn fetch(
     }
 
     let kind = terminal_kind(&attempts);
-    let message = attempts
-        .last()
-        .map(|attempt| attempt.message.clone())
-        .unwrap_or_else(|| "web fetch deadline elapsed".into());
+    let message = attempts.last().map_or_else(
+        || "web fetch deadline elapsed".into(),
+        |attempt| attempt.message.clone(),
+    );
     Err(ProviderError {
         kind,
         message,

@@ -254,8 +254,7 @@ fn interactive_setup_enter_preserves_a_single_backend_array() {
             stderr.contains("skipping disables automatic routing and research plans"),
         ),
         (Some(0), Some(1), Some("openai_compatible"), true, false,),
-        "stderr: {}",
-        stderr
+        "stderr: {stderr}"
     );
 }
 
@@ -287,10 +286,33 @@ fn setup_does_not_enable_subcommand_inference() {
 }
 
 #[cfg(unix)]
-#[test]
-fn both_setup_modes_enforce_private_permissions_and_remove_temporary_files() {
+fn private_modes(config_dir: &Path) -> (u32, u32, usize) {
     use std::os::unix::fs::PermissionsExt;
 
+    let directory_mode = config_dir
+        .metadata()
+        .expect("read directory metadata")
+        .permissions()
+        .mode()
+        & 0o777;
+    let file_mode = config_dir
+        .join("config.toml")
+        .metadata()
+        .expect("read file metadata")
+        .permissions()
+        .mode()
+        & 0o777;
+    let temporary_files = fs::read_dir(config_dir)
+        .expect("read config directory")
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_name().to_string_lossy().ends_with(".tmp"))
+        .count();
+    (directory_mode, file_mode, temporary_files)
+}
+
+#[cfg(unix)]
+#[test]
+fn both_setup_modes_enforce_private_permissions_and_remove_temporary_files() {
     let interactive_dir = tempfile::tempdir().expect("create interactive config directory");
     let output = run(
         interactive_dir.path(),
@@ -310,28 +332,6 @@ fn both_setup_modes_enforce_private_permissions_and_remove_temporary_files() {
         ),
         ((0o700, 0o600, 0), (0o700, 0o600, 0))
     );
-
-    fn private_modes(config_dir: &Path) -> (u32, u32, usize) {
-        let directory_mode = config_dir
-            .metadata()
-            .expect("read directory metadata")
-            .permissions()
-            .mode()
-            & 0o777;
-        let file_mode = config_dir
-            .join("config.toml")
-            .metadata()
-            .expect("read file metadata")
-            .permissions()
-            .mode()
-            & 0o777;
-        let temporary_files = fs::read_dir(config_dir)
-            .expect("read config directory")
-            .filter_map(Result::ok)
-            .filter(|entry| entry.file_name().to_string_lossy().ends_with(".tmp"))
-            .count();
-        (directory_mode, file_mode, temporary_files)
-    }
 }
 
 fn count_leaves(value: &toml::Value) -> usize {

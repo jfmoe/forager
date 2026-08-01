@@ -67,7 +67,7 @@ impl Anysearch {
         let execution = self
             .execute_tool("get_sub_domains", arguments, request.verbose)
             .await?;
-        let mut results = decode_domains(execution.result);
+        let mut results = decode_domains(&execution.result);
         for result in &mut results {
             if result.domain.is_empty() {
                 result.domain.clone_from(&request.domain);
@@ -130,7 +130,7 @@ impl Anysearch {
         let execution = self
             .execute_tool("search", arguments, request.verbose)
             .await?;
-        let results = decode_search(execution.result);
+        let results = decode_search(&execution.result);
         let mut sub_domain_param_keys = request
             .sub_domain_params
             .keys()
@@ -175,6 +175,8 @@ impl Anysearch {
         }))
     }
 
+    // The retry loop stays contiguous so credential rotation and attempt accounting cannot drift.
+    #[expect(clippy::too_many_lines)]
     async fn execute_tool(
         &self,
         tool: &'static str,
@@ -189,7 +191,7 @@ impl Anysearch {
 
         loop {
             let Some(remaining) = self.deadline.remaining() else {
-                return Err(self.terminal_error(
+                return Err(Self::terminal_error(
                     AttemptErrorKind::Timeout,
                     attempts,
                     verbose,
@@ -271,7 +273,7 @@ impl Anysearch {
                             .remaining()
                             .is_none_or(|remaining| wait >= remaining)
                         {
-                            return Err(self.terminal_error(
+                            return Err(Self::terminal_error(
                                 AttemptErrorKind::Timeout,
                                 attempts,
                                 verbose,
@@ -281,14 +283,18 @@ impl Anysearch {
                         tokio::time::sleep(wait).await;
                         continue;
                     }
-                    return Err(self.terminal_error(kind, attempts, verbose, selection.diagnostic));
+                    return Err(Self::terminal_error(
+                        kind,
+                        attempts,
+                        verbose,
+                        selection.diagnostic,
+                    ));
                 }
             }
         }
     }
 
     fn terminal_error(
-        &self,
         kind: AttemptErrorKind,
         attempts: Vec<ProviderAttempt>,
         verbose: bool,
@@ -371,7 +377,7 @@ static DOMAIN_STATUSES: LazyLock<Result<DomainStatusIndex, String>> = LazyLock::
     Ok(statuses)
 });
 
-fn decode_domains(result: McpToolResult) -> Vec<AnysearchDomain> {
+fn decode_domains(result: &McpToolResult) -> Vec<AnysearchDomain> {
     let domains = discovery_items(&result.structured_content)
         .into_iter()
         .filter_map(normalize_domain)
@@ -383,7 +389,7 @@ fn decode_domains(result: McpToolResult) -> Vec<AnysearchDomain> {
     }
 }
 
-fn decode_search(result: McpToolResult) -> Vec<AnysearchResult> {
+fn decode_search(result: &McpToolResult) -> Vec<AnysearchResult> {
     let mut results = Vec::new();
     let mut current: Option<AnysearchResult> = None;
     for line in result.text.lines() {
@@ -399,7 +405,7 @@ fn decode_search(result: McpToolResult) -> Vec<AnysearchResult> {
             });
         } else if let Some(url) = line.strip_prefix("- **URL**: ") {
             if let Some(result) = &mut current {
-                result.url = url.trim().to_owned();
+                url.trim().clone_into(&mut result.url);
             }
         } else if let Some(result) = &mut current {
             let line = line.trim();

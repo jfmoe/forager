@@ -60,11 +60,13 @@ impl Fixture {
                 } else {
                     "Error"
                 };
-                let headers = response
-                    .headers
-                    .iter()
-                    .map(|(name, value)| format!("{name}: {value}\r\n"))
-                    .collect::<String>();
+                let mut headers = String::new();
+                for (name, value) in &response.headers {
+                    headers.push_str(name);
+                    headers.push_str(": ");
+                    headers.push_str(value);
+                    headers.push_str("\r\n");
+                }
                 let _ = write!(
                     stream,
                     "HTTP/1.1 {} {reason}\r\nContent-Type: {}\r\n{}Content-Length: {}\r\nConnection: close\r\n\r\n{}",
@@ -119,7 +121,7 @@ fn accept_request(
                     elapsed < deadline,
                     "fixture timed out waiting for requests: expected {expected_requests}, received {received_requests}"
                 );
-                thread::sleep(ACCEPT_POLL_INTERVAL.min(deadline - elapsed));
+                thread::sleep(ACCEPT_POLL_INTERVAL.min(deadline.checked_sub(elapsed).unwrap()));
             }
             Err(error) => panic!("accept fixture request: {error}"),
         }

@@ -1083,6 +1083,8 @@ enabled = true
     tavily.finish();
 }
 
+// Test builders take ownership so nested call sites can pass JSON temporaries directly.
+#[expect(clippy::needless_pass_by_value)]
 fn valid_plan(capabilities: Value) -> Value {
     json!({
         "plan_version": 1,
@@ -1102,6 +1104,8 @@ fn valid_plan(capabilities: Value) -> Value {
     })
 }
 
+// Test builders take ownership so nested call sites can pass JSON temporaries directly.
+#[expect(clippy::needless_pass_by_value)]
 fn write_plan(environment: &RunEnvironment, plan: Value) -> std::path::PathBuf {
     let path = environment.config_dir.join("plan.json");
     fs::write(&path, serde_json::to_vec(&plan).expect("encode plan")).expect("write plan");
@@ -1206,6 +1210,8 @@ timeout = 30
     )
 }
 
+// Test builders take ownership so nested call sites can pass JSON temporaries directly.
+#[expect(clippy::needless_pass_by_value)]
 fn classifier_response(plan: Value) -> String {
     json!({
         "choices": [{

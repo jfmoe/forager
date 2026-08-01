@@ -104,7 +104,7 @@ fn anysearch_domains_decodes_live_markdown_contracts() {
         Response::json(202, ""),
         Response::json(
             200,
-            r####"{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"## academic Domain Capabilities (2 available)\n\n### academic.search\nCross-discipline paper search by keyword and author\n\n**Parameters:**\n- `year_from` (required): Publication year start (inclusive), four digits.\n- `open_access`: Whether to return only open access publications.\n\n### academic.dataset\nResearch datasets and scientific software\n\n**Parameters:**\n- `year_to`: Publication year upper bound (inclusive)."}]}}"####,
+            r###"{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"## academic Domain Capabilities (2 available)\n\n### academic.search\nCross-discipline paper search by keyword and author\n\n**Parameters:**\n- `year_from` (required): Publication year start (inclusive), four digits.\n- `open_access`: Whether to return only open access publications.\n\n### academic.dataset\nResearch datasets and scientific software\n\n**Parameters:**\n- `year_to`: Publication year upper bound (inclusive)."}]}}"###,
         ),
     ]);
 

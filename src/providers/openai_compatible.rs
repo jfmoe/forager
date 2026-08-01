@@ -27,7 +27,7 @@ pub(crate) struct OpenAiCompatible {
 }
 
 const BREAKER_FAILURE_THRESHOLD: u8 = 2;
-const BREAKER_COOLDOWN: Duration = Duration::from_secs(600);
+const BREAKER_COOLDOWN: Duration = Duration::from_mins(10);
 
 #[derive(Clone, Copy)]
 struct TransportAttempt {
@@ -51,7 +51,7 @@ impl ModelBreakers {
         let mut states = self
             .states
             .lock()
-            .unwrap_or_else(|error| error.into_inner());
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let key = (url.trim_end_matches('/').to_owned(), model.to_owned());
         let Some(state) = states.get(&key).copied() else {
             return false;
@@ -71,7 +71,7 @@ impl ModelBreakers {
     fn record_success(&self, url: &str, model: &str) {
         self.states
             .lock()
-            .unwrap_or_else(|error| error.into_inner())
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
             .remove(&(url.trim_end_matches('/').to_owned(), model.to_owned()));
     }
 
@@ -79,7 +79,7 @@ impl ModelBreakers {
         let mut states = self
             .states
             .lock()
-            .unwrap_or_else(|error| error.into_inner());
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
         let state = states
             .entry((url.trim_end_matches('/').to_owned(), model.to_owned()))
             .or_insert(BreakerState {
@@ -413,7 +413,7 @@ impl OpenAiCompatible {
             })
             .send()
             .await
-            .map_err(|error| self.request_failure(error))?;
+            .map_err(|error| self.request_failure(&error))?;
         let status = response.status();
         if !status.is_success() {
             let body = response.text().await.unwrap_or_default();
@@ -451,7 +451,7 @@ impl OpenAiCompatible {
         let body = response
             .text()
             .await
-            .map_err(|error| self.request_failure(error))?;
+            .map_err(|error| self.request_failure(&error))?;
         if content_type.contains("text/event-stream") || body.trim_start().starts_with("data:") {
             return self.parse_sse_text(&body);
         }
@@ -559,7 +559,7 @@ impl OpenAiCompatible {
         Ok((self.redacted_text(content), self.redact_sources(sources)))
     }
 
-    fn request_failure(&self, error: reqwest::Error) -> AttemptFailure {
+    fn request_failure(&self, error: &reqwest::Error) -> AttemptFailure {
         AttemptFailure {
             kind: if error.is_timeout() {
                 AttemptErrorKind::Timeout
@@ -756,7 +756,7 @@ mod tests {
             ("https://relay.example/v1".into(), "model".into()),
             BreakerState {
                 consecutive_failures: BREAKER_FAILURE_THRESHOLD,
-                opened_until: Some(Instant::now() - Duration::from_secs(1)),
+                opened_until: Some(Instant::now().checked_sub(Duration::from_secs(1)).unwrap()),
             },
         );
         assert!(!breakers.is_open("https://relay.example/v1", "model"));

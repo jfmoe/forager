@@ -32,6 +32,8 @@ pub(crate) struct ExecutionSettings {
     pub(crate) breaker_event: Option<&'static str>,
 }
 
+// The shared retry loop keeps every terminal path under the same attempt accounting rules.
+#[expect(clippy::too_many_lines)]
 pub(crate) async fn execute<T, F, Fut>(
     credentials: &CredentialPool,
     settings: ExecutionSettings,

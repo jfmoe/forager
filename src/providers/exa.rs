@@ -78,6 +78,8 @@ impl Exa {
         self.execute(ExaOperation::Similar(request)).await
     }
 
+    // The retry loop stays contiguous so operation-specific decoding cannot split attempt accounting.
+    #[expect(clippy::too_many_lines)]
     async fn execute(&self, operation: ExaOperation) -> Result<ExaOutcome, ProviderError> {
         let selection = self.credentials.claim();
         let mut attempts = Vec::new();

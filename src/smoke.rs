@@ -506,7 +506,7 @@ fn provider_endpoint(runtime: &RuntimeConfig, provider: ProviderId) -> Option<&s
         ProviderId::Xai | ProviderId::OpenAiCompatible => runtime
             .main_search
             .provider(provider.name())
-            .map(|config| config.url()),
+            .map(super::config::MainSearchProviderConfig::url),
         ProviderId::Exa => Some(&runtime.exa.url),
         ProviderId::Tavily => Some(&runtime.tavily.url),
         ProviderId::Firecrawl | ProviderId::Jina => runtime
@@ -537,7 +537,9 @@ pub(crate) fn run_live(
     let mut summary = LiveSummary::default();
 
     for definition in LIVE_CASES {
-        let result = if !case_is_configured(definition.id, &runtime) {
+        let result = if case_is_configured(definition.id, &runtime) {
+            run_configured_case(definition, &runtime, deadline, outage_evidence)
+        } else {
             LiveCaseResult {
                 definition,
                 status: LiveCaseStatus::Unconfigured,
@@ -546,8 +548,6 @@ pub(crate) fn run_live(
                 outage_evidence: None,
                 message: Some("required unified credentials are not configured"),
             }
-        } else {
-            run_configured_case(definition, &runtime, deadline, outage_evidence)
         };
         match result.status {
             LiveCaseStatus::Passed => summary.passed += 1,
@@ -720,6 +720,8 @@ fn remaining_seconds(deadline: Deadline) -> Option<u64> {
     })
 }
 
+// Each smoke case is intentionally visible in one exhaustive command-specification match.
+#[expect(clippy::too_many_lines)]
 fn command_specs(
     case_id: &str,
     timeout_seconds: u64,
@@ -961,12 +963,12 @@ fn result_shape_is_nonempty(shape: ResultShape, payload: &Value) -> bool {
                     .as_array()
                     .is_some_and(|values| !values.is_empty())
         }
-        ResultShape::SupplementalSearch => nonempty_array(payload, "results"),
-        ResultShape::Fetch | ResultShape::Context7Docs => nonempty_string(payload, "content"),
-        ResultShape::Context7Library
+        ResultShape::SupplementalSearch
+        | ResultShape::Context7Library
         | ResultShape::Exa
         | ResultShape::Anysearch
         | ResultShape::Map => nonempty_array(payload, "results"),
+        ResultShape::Fetch | ResultShape::Context7Docs => nonempty_string(payload, "content"),
     }
 }
 

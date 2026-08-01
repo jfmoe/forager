@@ -28,7 +28,8 @@ impl RetryPolicy {
     }
 
     pub(crate) fn wait(self, retry_count: usize) -> Duration {
-        let seconds = self.multiplier * retry_count as f64;
+        let retry_count = u32::try_from(retry_count).unwrap_or(u32::MAX);
+        let seconds = self.multiplier * f64::from(retry_count);
         Duration::try_from_secs_f64(seconds)
             .unwrap_or(self.max_wait)
             .min(self.max_wait)
@@ -199,7 +200,7 @@ impl<'a> McpClient<'a> {
                 .tool_call(credential, session.as_deref(), tool, arguments.clone())
                 .await
             {
-                Err(error) if error.session_expired && handshake == 0 => continue,
+                Err(error) if error.session_expired && handshake == 0 => {}
                 result => return result,
             }
         }

@@ -1,6 +1,7 @@
 #![forbid(unsafe_code)]
 
 use std::collections::{BTreeMap, BTreeSet};
+use std::fmt::Write as _;
 use std::fs;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -141,10 +142,11 @@ fn render_research(
                     if !outcome.citations.is_empty() {
                         markdown.push_str("\n\n## Citations\n");
                         for citation in &outcome.citations {
-                            markdown.push_str(&format!(
+                            let _ = write!(
+                                markdown,
                                 "\n- [{}]({}) — {}",
                                 citation.title, citation.url, citation.provider
-                            ));
+                            );
                         }
                     }
                     markdown
@@ -244,7 +246,7 @@ fn render_search(
                     if !outcome.sources.is_empty() {
                         markdown.push_str("\n\n## Sources\n");
                         for source in &outcome.sources {
-                            markdown.push_str(&format!("\n- [{}]({})", source.title, source.url));
+                            let _ = write!(markdown, "\n- [{}]({})", source.title, source.url);
                         }
                     }
                     markdown
@@ -327,7 +329,7 @@ fn render_map(
                 OutputFormat::Markdown => {
                     let mut markdown = format!("# Site map: {}\n", outcome.base_url);
                     for result in &outcome.results {
-                        markdown.push_str(&format!("\n- <{result}>"));
+                        let _ = write!(markdown, "\n- <{result}>");
                     }
                     if outcome.results.is_empty() {
                         markdown.push_str("\n\nNo results.");
@@ -447,10 +449,11 @@ fn format_anysearch_success(
         (AnysearchOutcome::Domains(outcome), OutputFormat::Markdown) => {
             let mut markdown = format!("# AnySearch domains: {}\n", outcome.domain);
             for domain in &outcome.results {
-                markdown.push_str(&format!(
+                let _ = write!(
+                    markdown,
                     "\n- **{}.{}** — {}",
                     outcome.domain, domain.sub_domain, domain.description
-                ));
+                );
             }
             if outcome.results.is_empty() {
                 markdown.push_str("\n\nNo results.");
@@ -464,15 +467,17 @@ fn format_anysearch_success(
             let mut markdown = format!("# AnySearch {}: {}\n", outcome.operation, outcome.query);
             for result in &outcome.results {
                 if result.url.is_empty() {
-                    markdown.push_str(&format!(
+                    let _ = write!(
+                        markdown,
                         "\n- **{}** — {}",
                         result.title, result.description
-                    ));
+                    );
                 } else {
-                    markdown.push_str(&format!(
+                    let _ = write!(
+                        markdown,
                         "\n- [{}]({}) — {}",
                         result.title, result.url, result.description
-                    ));
+                    );
                 }
             }
             if outcome.results.is_empty() {
@@ -483,6 +488,8 @@ fn format_anysearch_success(
     }
 }
 
+// Rendering transfers the completed stdout buffer to the terminal as a final output value.
+#[expect(clippy::needless_pass_by_value)]
 fn emit(stdout: String, stderr: Option<String>, exit_code: u8) -> ExitCode {
     if !stdout.is_empty() {
         println!("{stdout}");
@@ -560,10 +567,11 @@ fn format_context7_success(
         (Context7Outcome::Library(outcome), DocsOutputFormat::Markdown) => {
             let mut markdown = format!("# Context7 libraries: {}\n", outcome.query);
             for library in &outcome.results {
-                markdown.push_str(&format!(
+                let _ = write!(
+                    markdown,
                     "\n- **{}** (`{}`) — {}",
                     library.title, library.id, library.description
-                ));
+                );
             }
             if outcome.results.is_empty() {
                 markdown.push_str("\n\nNo results.");
@@ -608,12 +616,12 @@ fn format_success(outcome: &ExaOutcome, format: OutputFormat) -> Result<String, 
                 outcome.input.value()
             );
             for source in &outcome.results {
-                markdown.push_str(&format!("\n- [{}]({})", source.title, source.url));
+                let _ = write!(markdown, "\n- [{}]({})", source.title, source.url);
                 if let Some(published_date) = &source.published_date {
-                    markdown.push_str(&format!(" — {published_date}"));
+                    let _ = write!(markdown, " — {published_date}");
                 }
                 if let Some(text) = &source.text {
-                    markdown.push_str(&format!("\n\n  {text}"));
+                    let _ = write!(markdown, "\n\n  {text}");
                 }
             }
             if outcome.results.is_empty() {

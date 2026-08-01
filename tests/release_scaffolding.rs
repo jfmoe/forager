@@ -72,6 +72,56 @@ fn ci_tests_on_a_windows_runner() {
 }
 
 #[test]
+fn windows_ci_denies_clippy_warnings() {
+    let workflow = ci_workflow();
+    let jobs = workflow.split_once("\njobs:\n").expect("workflow jobs").1;
+
+    assert!(workflow_job_bodies(jobs).iter().any(|job| {
+        job.lines()
+            .any(|line| line.trim() == "runs-on: windows-latest")
+            && cargo_commands(job).iter().any(|command| {
+                let arguments = command.split_whitespace().collect::<Vec<_>>();
+                arguments.starts_with(&["cargo", "clippy"])
+                    && arguments.contains(&"--all-targets")
+                    && arguments.contains(&"--locked")
+                    && arguments.windows(2).any(|pair| pair == ["-D", "warnings"])
+            })
+    }));
+}
+
+#[test]
+fn package_manifest_enables_the_pinned_clippy_policy() {
+    let manifest = fs::read_to_string("Cargo.toml").expect("read Cargo manifest");
+    let package: toml::Value = toml::from_str(&manifest).expect("parse Cargo manifest");
+    let toolchain = fs::read_to_string("rust-toolchain.toml").expect("read pinned Rust toolchain");
+    let toolchain: toml::Value = toml::from_str(&toolchain).expect("parse pinned Rust toolchain");
+    let rust_version = package["package"]["rust-version"]
+        .as_str()
+        .expect("package rust-version");
+    let channel = toolchain["toolchain"]["channel"]
+        .as_str()
+        .expect("toolchain channel");
+    let pinned_minor = channel.rsplit_once('.').expect("toolchain patch version").0;
+
+    assert_eq!(
+        (
+            package["lints"]["clippy"]["pedantic"]["level"].as_str(),
+            package["lints"]["clippy"]["pedantic"]["priority"].as_integer(),
+            package["lints"]["clippy"]["redundant_clone"].as_str(),
+            package["lints"]["clippy"]["missing_const_for_fn"].as_str(),
+            rust_version,
+        ),
+        (
+            Some("warn"),
+            Some(-1),
+            Some("warn"),
+            Some("allow"),
+            pinned_minor
+        )
+    );
+}
+
+#[test]
 fn released_binary_reports_the_cargo_package_version() {
     let output = Command::new(env!("CARGO_BIN_EXE_forager"))
         .arg("--version")

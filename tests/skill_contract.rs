@@ -76,10 +76,10 @@ fn cli_reference_covers_the_public_cli_surface() {
                     "CLI reference section `{heading}` is missing `--{long}`"
                 );
             } else if argument.get_index().is_some() {
-                let value_names = argument
-                    .get_value_names()
-                    .map(|names| names.iter().map(ToString::to_string).collect::<Vec<_>>())
-                    .unwrap_or_else(|| vec![argument.get_id().to_string().to_uppercase()]);
+                let value_names = argument.get_value_names().map_or_else(
+                    || vec![argument.get_id().to_string().to_uppercase()],
+                    |names| names.iter().map(ToString::to_string).collect::<Vec<_>>(),
+                );
                 for value_name in value_names {
                     assert!(
                         section.contains(&value_name),

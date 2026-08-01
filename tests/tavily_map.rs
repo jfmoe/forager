@@ -320,7 +320,7 @@ fn map_preserves_completed_attempts_when_the_hard_deadline_expires() {
 
 fn map_config(tavily_url: &str, tavily_keys: &[&str]) -> String {
     format!(
-        r#"
+        r"
 [providers.tavily]
 url = {tavily_url:?}
 keys = {tavily_keys:?}
@@ -333,6 +333,6 @@ max_wait = 0
 
 [journal]
 enabled = false
-"#
+"
     )
 }

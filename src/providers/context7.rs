@@ -66,6 +66,8 @@ impl Context7 {
         self.execute(Context7Operation::Docs(request)).await
     }
 
+    // The retry loop stays contiguous so redirects, rotation, and diagnostics share one lifecycle.
+    #[expect(clippy::too_many_lines)]
     async fn execute(
         &self,
         operation: Context7Operation,
@@ -78,7 +80,7 @@ impl Context7 {
 
         loop {
             let Some(remaining) = self.deadline.remaining() else {
-                return Err(self.terminal_error(
+                return Err(Self::terminal_error(
                     AttemptErrorKind::Timeout,
                     attempts,
                     operation.verbose(),
@@ -163,7 +165,7 @@ impl Context7 {
                         retry_count += 1;
                         let wait = self.retry_policy.wait(retry_count);
                         let Some(remaining) = self.deadline.remaining() else {
-                            return Err(self.terminal_error(
+                            return Err(Self::terminal_error(
                                 AttemptErrorKind::Timeout,
                                 attempts,
                                 operation.verbose(),
@@ -172,7 +174,7 @@ impl Context7 {
                             ));
                         };
                         if wait >= remaining {
-                            return Err(self.terminal_error(
+                            return Err(Self::terminal_error(
                                 AttemptErrorKind::Timeout,
                                 attempts,
                                 operation.verbose(),
@@ -183,7 +185,7 @@ impl Context7 {
                         tokio::time::sleep(wait).await;
                         continue;
                     }
-                    return Err(self.terminal_error(
+                    return Err(Self::terminal_error(
                         kind,
                         attempts,
                         operation.verbose(),
@@ -196,7 +198,6 @@ impl Context7 {
     }
 
     fn terminal_error(
-        &self,
         kind: AttemptErrorKind,
         attempts: Vec<ProviderAttempt>,
         verbose: bool,

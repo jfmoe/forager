@@ -622,6 +622,8 @@ fn offline_smoke_rejects_configuration_access_granted_beyond_the_windows_owner()
     );
 }
 
+// Debug path formatting supplies the quoted and escaped TOML string literal required by fixtures.
+#[expect(clippy::unnecessary_debug_formatting)]
 fn complete_config(endpoint: &str, journal_dir: &Path) -> String {
     format!(
         r#"
@@ -668,12 +670,16 @@ dir = {journal_dir:?}
     )
 }
 
+// Debug path formatting supplies the quoted and escaped TOML string literal required by fixtures.
+#[expect(clippy::unnecessary_debug_formatting)]
 fn minimal_config(endpoint: &str, journal_dir: &Path) -> String {
     format!(
         "[providers.xai]\nurl = {endpoint:?}\nkeys = [\"xai-secret\"]\n[journal]\ndir = {journal_dir:?}\n"
     )
 }
 
+// Debug path formatting supplies the quoted and escaped TOML string literal required by fixtures.
+#[expect(clippy::unnecessary_debug_formatting)]
 fn p2_config(classifier_url: &str, journal_dir: &Path) -> String {
     format!(
         r#"

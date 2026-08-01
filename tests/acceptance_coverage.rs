@@ -164,7 +164,7 @@ fn cargo_registry_excludes_ignored_tests() {
 }
 
 #[test]
-#[ignore]
+#[ignore = "registry exclusion sentinel"]
 fn ignored_registry_decoy() {}
 
 fn active_test_names(path: &Path) -> BTreeSet<String> {

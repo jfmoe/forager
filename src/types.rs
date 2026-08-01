@@ -301,6 +301,7 @@ impl ErrorKind {
         matches!(self, Self::RateLimited | Self::QuotaExhausted)
     }
 
+    #[must_use]
     pub fn family(self) -> Option<ErrorFamily> {
         match self {
             Self::Config => None,
@@ -309,6 +310,7 @@ impl ErrorKind {
         }
     }
 
+    #[must_use]
     pub fn as_str(self) -> &'static str {
         match self {
             Self::Auth => "auth",
@@ -348,6 +350,7 @@ impl AttemptErrorKind {
         ErrorKind::from(self).rotates_credential()
     }
 
+    #[must_use]
     pub fn as_str(self) -> &'static str {
         ErrorKind::from(self).as_str()
     }
@@ -636,7 +639,7 @@ pub struct AnysearchDomain {
 }
 
 #[derive(Clone, Debug, Serialize)]
-/// The normalized result of an AnySearch Domain Discovery operation.
+/// The normalized result of an `AnySearch` Domain Discovery operation.
 pub struct AnysearchDomainsOutcome {
     pub provider: &'static str,
     pub operation: &'static str,
@@ -651,7 +654,7 @@ pub struct AnysearchDomainsOutcome {
 }
 
 #[derive(Clone, Debug, Serialize)]
-/// A normalized URL-backed or structured AnySearch result.
+/// A normalized URL-backed or structured `AnySearch` result.
 pub struct AnysearchResult {
     pub title: String,
     pub url: String,
@@ -697,7 +700,7 @@ pub struct AnysearchSearchOutcome {
 }
 
 #[derive(Clone, Debug)]
-/// A terminal AnySearch Acceptance Surface result.
+/// A terminal `AnySearch` Acceptance Surface result.
 pub enum AnysearchOutcome {
     Domains(AnysearchDomainsOutcome),
     Search(AnysearchSearchOutcome),
@@ -711,6 +714,7 @@ pub enum ExaInput {
 }
 
 impl ExaInput {
+    #[must_use]
     pub fn value(&self) -> &str {
         match self {
             Self::Search { query } => query,
@@ -718,6 +722,7 @@ impl ExaInput {
         }
     }
 
+    #[must_use]
     pub fn operation(&self) -> &'static str {
         match self {
             Self::Search { .. } => "search",
@@ -813,7 +818,12 @@ mod research_plan_tests {
     #[test]
     fn strict_parser_accepts_schema_v1_and_normalizes_duplicate_capabilities() {
         let plan = ResearchPlan::parse_json(
-            &valid_plan(json!(["vertical_search", "docs_search", "vertical_search"])).to_string(),
+            &valid_plan(&json!([
+                "vertical_search",
+                "docs_search",
+                "vertical_search"
+            ]))
+            .to_string(),
         )
         .expect("valid plan");
 
@@ -826,7 +836,7 @@ mod research_plan_tests {
 
     #[test]
     fn strict_parser_rejects_each_schema_boundary() {
-        let valid = valid_plan(json!(["web_search"]));
+        let valid = valid_plan(&json!(["web_search"]));
         let mut invalid = Vec::new();
 
         let mut version = valid.clone();
@@ -872,14 +882,14 @@ mod research_plan_tests {
 
     #[test]
     fn web_fetch_error_explains_the_engine_invariant() {
-        let plan = valid_plan(json!(["web_fetch"]));
+        let plan = valid_plan(&json!(["web_fetch"]));
 
         let error = ResearchPlan::parse_json(&plan.to_string()).expect_err("invalid plan");
 
         assert!(error.contains("research engine invariant"));
     }
 
-    fn valid_plan(capabilities: Value) -> Value {
+    fn valid_plan(capabilities: &Value) -> Value {
         json!({
             "plan_version": 1,
             "intent_signals": {

@@ -12,6 +12,7 @@ use crate::types::{Capability, JournalOutcome, ResearchError, ResearchOutcome, S
 
 static RECORD_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
+#[derive(Clone, Copy)]
 pub(crate) struct SearchRecord<'a> {
     pub(crate) query: &'a str,
     pub(crate) budget: Duration,
@@ -25,6 +26,7 @@ pub(crate) struct SearchRecord<'a> {
     pub(crate) result: &'a Result<SearchOutcome, ProviderError>,
 }
 
+#[derive(Clone, Copy)]
 pub(crate) struct ResearchRecord<'a> {
     pub(crate) query: &'a str,
     pub(crate) budget: Duration,
@@ -181,8 +183,7 @@ fn build_research_record(record: ResearchRecord<'_>) -> Value {
             },
             "classifier_duration_ms": record.classifier_duration
                 .map(duration_millis)
-                .map(Value::from)
-                .unwrap_or(Value::Null),
+                .map_or(Value::Null, Value::from),
             "capability_gaps": capability_gaps,
             "evidence_items": record.result
                 .as_ref()
@@ -251,8 +252,7 @@ fn build_record(record: SearchRecord<'_>) -> Value {
             },
             "classifier_duration_ms": record.classifier_duration
                 .map(duration_millis)
-                .map(Value::from)
-                .unwrap_or(Value::Null),
+                .map_or(Value::Null, Value::from),
             "capability_gaps": record.result
                 .as_ref()
                 .map(|outcome| &outcome.capability_gaps)
@@ -381,7 +381,7 @@ mod tests {
         let stale_record = journal_path.join("stale.json");
         fs::write(&stale_record, "{}").expect("create stale journal record");
         let stale_time = SystemTime::now()
-            .checked_sub(Duration::from_secs(2 * 86_400))
+            .checked_sub(Duration::from_hours(48))
             .expect("calculate stale modification time");
         fs::File::open(&stale_record)
             .expect("open stale journal record")

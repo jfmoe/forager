@@ -1,4 +1,5 @@
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -54,6 +55,8 @@ struct Candidate {
     prefetched_provider: Option<&'static str>,
 }
 
+// Research orchestration stays together to preserve deterministic phase and evidence ordering.
+#[expect(clippy::too_many_lines)]
 pub(crate) async fn execute(
     request: ResearchRequest,
     config: RuntimeConfig,
@@ -571,19 +574,20 @@ fn synthesize(query: &str, evidence: &[EvidenceItem], gaps: &[ResearchGap]) -> S
     let mut report = format!("Research result for: {query}\n\nEvidence-backed findings:");
     for (index, item) in evidence.iter().enumerate() {
         let excerpt = bounded_excerpt(&item.content, 360);
-        report.push_str(&format!(
+        let _ = write!(
+            report,
             "\n{}. {} ({})\n   Evidence excerpt: {}\n   Source: {}",
             index + 1,
             item.title,
             item.provider,
             excerpt,
             item.url
-        ));
+        );
     }
     if !gaps.is_empty() {
         report.push_str("\n\nUnverified gaps:");
         for gap in gaps {
-            report.push_str(&format!("\n- {}: {}", gap.subquestion_id, gap.reason));
+            let _ = write!(report, "\n- {}: {}", gap.subquestion_id, gap.reason);
         }
     }
     report

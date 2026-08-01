@@ -182,6 +182,8 @@ pub(crate) fn deep(
     }
 }
 
+// Provider probes remain in one match so the doctor surface stays exhaustively mapped.
+#[expect(clippy::too_many_lines)]
 async fn run_probe(
     provider: ProviderId,
     config: RuntimeConfig,
@@ -336,7 +338,7 @@ async fn probe_openai_shapes(
             Arc::clone(&breakers),
         );
         match validate_transport(adapter.probe(probe_search_request()).await, transport, name) {
-            Ok(_) => checks.push(ProbeCheck {
+            Ok(()) => checks.push(ProbeCheck {
                 name,
                 transport,
                 ok: true,

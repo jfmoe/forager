@@ -1,5 +1,6 @@
 //! CLI parsing and application dispatch.
 
+use std::fmt::Write as _;
 use std::fs;
 use std::io::{self, BufRead, IsTerminal, Read, Write};
 use std::path::PathBuf;
@@ -397,7 +398,7 @@ pub enum CommandOutput {
         /// Optional tee destination.
         output: Option<PathBuf>,
     },
-    /// Typed AnySearch terminal state for binary-side formatting and tee output.
+    /// Typed `AnySearch` terminal state for binary-side formatting and tee output.
     Anysearch {
         /// Provider result.
         result: Result<AnysearchOutcome, ProviderError>,
@@ -545,6 +546,8 @@ impl SearchContext {
         })
     }
 
+    // Search orchestration is kept together so attempt and journal ordering stay auditable.
+    #[expect(clippy::too_many_lines)]
     fn search(
         self,
         mut request: providers::SearchRequest,
@@ -680,7 +683,7 @@ impl ResearchContext {
 
     fn research(
         self,
-        query: String,
+        query: &str,
         caller_plan: Option<ResearchPlan>,
         budget: crate::research::ResearchBudget,
         evidence_dir: PathBuf,
@@ -695,44 +698,43 @@ impl ResearchContext {
             classifier_duration,
             classifier_attempts,
             classifier_warning,
-        ) = match caller_plan {
-            Some(plan) => (plan, "caller", false, None, Vec::new(), None),
-            None => {
-                let classifier = crate::classifier::Classifier::new(
-                    self.config.classifier.clone(),
-                    self.client.clone(),
-                    self.retry_policy,
-                );
-                match self
-                    .runtime
-                    .block_on(classifier.plan_research(&query, deadline))
-                {
-                    Ok(decision) => (
-                        decision.plan,
-                        "classifier",
-                        false,
-                        Some(decision.duration),
-                        decision.attempts,
-                        None,
-                    ),
-                    Err(failure) => (
-                        minimal_research_fallback_plan(&query),
-                        "classifier_degraded",
-                        true,
-                        Some(failure.duration),
-                        failure.attempts,
-                        Some(format!(
-                            "Classifier warning: {}; using fixed minimal web_search research plan",
-                            failure.message
-                        )),
-                    ),
-                }
+        ) = if let Some(plan) = caller_plan {
+            (plan, "caller", false, None, Vec::new(), None)
+        } else {
+            let classifier = crate::classifier::Classifier::new(
+                self.config.classifier.clone(),
+                self.client.clone(),
+                self.retry_policy,
+            );
+            match self
+                .runtime
+                .block_on(classifier.plan_research(query, deadline))
+            {
+                Ok(decision) => (
+                    decision.plan,
+                    "classifier",
+                    false,
+                    Some(decision.duration),
+                    decision.attempts,
+                    None,
+                ),
+                Err(failure) => (
+                    minimal_research_fallback_plan(query),
+                    "classifier_degraded",
+                    true,
+                    Some(failure.duration),
+                    failure.attempts,
+                    Some(format!(
+                        "Classifier warning: {}; using fixed minimal web_search research plan",
+                        failure.message
+                    )),
+                ),
             }
         };
         let capabilities = plan.capabilities().iter().collect::<Vec<_>>();
         let mut result = self.runtime.block_on(crate::research::execute(
             crate::research::ResearchRequest {
-                query: query.clone(),
+                query: query.to_owned(),
                 plan,
                 plan_source,
                 budget,
@@ -757,7 +759,7 @@ impl ResearchContext {
         let journal = crate::journal::record_research(
             &self.journal,
             crate::journal::ResearchRecord {
-                query: &query,
+                query,
                 budget: self.timeout,
                 elapsed: started.elapsed(),
                 capabilities: &capabilities,
@@ -896,6 +898,8 @@ impl AppContext<providers::Anysearch> {
 ///
 /// Returns [`AppError`] when arguments, configuration, standard input, or
 /// persistence are invalid.
+// Command dispatch stays explicit so each CLI variant remains visible in one exhaustive match.
+#[expect(clippy::too_many_lines)]
 pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
     match cli.command {
         Command::Search {
@@ -961,7 +965,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                 )));
             }
             let (result, journal) =
-                context.research(query, plan, budget.into(), evidence_dir, fallback);
+                context.research(&query, plan, budget.into(), evidence_dir, fallback);
             Ok(CommandOutput::Research {
                 result,
                 journal,
@@ -1408,19 +1412,16 @@ fn run_classifier_smoke_probe(timeout_seconds: u64) -> Result<CommandOutput, App
     let plan = dependencies.runtime.block_on(
         classifier.plan_research(crate::smoke::RESEARCH_CANARY_QUERY, Deadline::new(timeout)),
     );
-    let (capabilities, plan) = match (capabilities, plan) {
-        (Ok(capabilities), Ok(plan)) => (capabilities, plan),
-        _ => {
-            return Ok(CommandOutput::Text {
-                stdout: serde_json::json!({
-                    "error_kind": "runtime",
-                    "message": "classifier live contract probe failed"
-                })
-                .to_string(),
-                stderr: None,
-                exit_code: 4,
-            });
-        }
+    let (Ok(capabilities), Ok(plan)) = (capabilities, plan) else {
+        return Ok(CommandOutput::Text {
+            stdout: serde_json::json!({
+                "error_kind": "runtime",
+                "message": "classifier live contract probe failed"
+            })
+            .to_string(),
+            stderr: None,
+            exit_code: 4,
+        });
     };
     let mut attempts = capabilities.attempts;
     attempts.extend(plan.attempts);
@@ -1499,21 +1500,22 @@ fn render_doctor_markdown(report: &crate::doctor::ShallowDoctorReport) -> Result
         .as_array()
         .expect("doctor providers serialize as an array")
     {
-        output.push_str(&format!(
-            "- {}: configured={}, key_count={}, source={}, reachable={}\n",
+        let _ = writeln!(
+            output,
+            "- {}: configured={}, key_count={}, source={}, reachable={}",
             provider["provider"].as_str().unwrap_or_default(),
             provider["configured"].as_bool().unwrap_or(false),
             provider["key_count"].as_u64().unwrap_or(0),
             provider["source"].as_str().unwrap_or_default(),
             provider["reachable"].as_bool().unwrap_or(false),
-        ));
+        );
     }
     if let Some(warnings) = value["permission_warnings"].as_array()
         && !warnings.is_empty()
     {
         output.push_str("\n## Permission warnings\n\n");
         for warning in warnings {
-            output.push_str(&format!("- {}\n", warning.as_str().unwrap_or_default()));
+            let _ = writeln!(output, "- {}", warning.as_str().unwrap_or_default());
         }
     }
     output.push_str("\n## Effective configuration\n\n```json\n");
@@ -1547,8 +1549,9 @@ fn render_deep_doctor_markdown(
         .as_array()
         .expect("doctor checks serialize as an array")
     {
-        output.push_str(&format!(
-            "- {} ({}): {}\n",
+        let _ = writeln!(
+            output,
+            "- {} ({}): {}",
             check["name"].as_str().unwrap_or_default(),
             check["transport"].as_str().unwrap_or_default(),
             if check["ok"].as_bool().unwrap_or(false) {
@@ -1556,13 +1559,14 @@ fn render_deep_doctor_markdown(
             } else {
                 "failed"
             },
-        ));
+        );
     }
     if let Some(message) = value["message"].as_str() {
-        output.push_str(&format!(
+        let _ = write!(
+            output,
             "\n{}: {message}\n",
             value["error_kind"].as_str().unwrap_or("runtime")
-        ));
+        );
     }
     Ok(output)
 }
@@ -1955,16 +1959,17 @@ pub enum AppError {
 
 impl AppError {
     /// Returns the CLI exit status for this error.
+    #[must_use]
     pub fn exit_code(&self) -> u8 {
         match self {
-            Self::Argument(_) => 2,
-            Self::Edit(EditError::Argument(_)) => 2,
+            Self::Argument(_) | Self::Edit(EditError::Argument(_)) => 2,
             Self::Config(_) | Self::Edit(EditError::Config(_)) | Self::Stdin(_) => 3,
             Self::Runtime(_) => 4,
         }
     }
 
     /// Returns the stable human-readable error category.
+    #[must_use]
     pub fn category(&self) -> &'static str {
         match self.exit_code() {
             2 => "argument_error",

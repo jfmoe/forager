@@ -587,6 +587,8 @@ pub fn effective_view() -> Result<EffectiveConfigView, ConfigError> {
     )))
 }
 
+// Runtime assembly mirrors the complete validated configuration surface in one place.
+#[expect(clippy::too_many_lines)]
 pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
     let loaded = load_effective_config()?;
     let config = loaded.config;
@@ -594,42 +596,42 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
     let journal = JournalRuntimeConfig {
         enabled: config.journal.enabled,
         dir: resolve_journal_dir(&config.journal.dir, &config_dir)?,
-        retention_days: config.journal.retention_days as u64,
+        retention_days: config.journal.retention_days.cast_unsigned(),
         credentials: configured_credentials(&config),
     };
     let tavily = WebFetchProviderConfig {
         url: config.providers.tavily.url,
         keys: config.providers.tavily.keys,
-        timeout_seconds: config.providers.tavily.timeout as u64,
+        timeout_seconds: config.providers.tavily.timeout.cast_unsigned(),
         respond_with: String::new(),
     };
     let firecrawl = WebFetchProviderConfig {
         url: config.providers.firecrawl.url,
         keys: config.providers.firecrawl.keys,
-        timeout_seconds: config.providers.firecrawl.timeout as u64,
+        timeout_seconds: config.providers.firecrawl.timeout.cast_unsigned(),
         respond_with: String::new(),
     };
     let exa = ExaRuntimeConfig {
         url: config.providers.exa.url,
         keys: config.providers.exa.keys,
-        timeout_seconds: config.providers.exa.timeout as u64,
+        timeout_seconds: config.providers.exa.timeout.cast_unsigned(),
     };
     let context7 = Context7RuntimeConfig {
         url: config.providers.context7.url,
         keys: config.providers.context7.keys,
-        timeout_seconds: config.providers.context7.timeout as u64,
+        timeout_seconds: config.providers.context7.timeout.cast_unsigned(),
     };
     let anysearch = AnysearchRuntimeConfig {
         url: config.providers.anysearch.url,
         keys: config.providers.anysearch.keys,
-        timeout_seconds: config.providers.anysearch.timeout as u64,
+        timeout_seconds: config.providers.anysearch.timeout.cast_unsigned(),
     };
     let classifier = ClassifierRuntimeConfig {
         url: config.classifier.url,
         keys: config.classifier.keys,
         model: config.classifier.model,
         fallback_models: config.classifier.fallback_models,
-        timeout_seconds: config.classifier.timeout as u64,
+        timeout_seconds: config.classifier.timeout.cast_unsigned(),
     };
     Ok(RuntimeConfig {
         main_search: MainSearchRuntimeConfig {
@@ -691,7 +693,7 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
                     WebFetchProviderConfig {
                         url: config.providers.jina.url,
                         keys: config.providers.jina.keys,
-                        timeout_seconds: config.providers.jina.timeout as u64,
+                        timeout_seconds: config.providers.jina.timeout.cast_unsigned(),
                         respond_with: config.providers.jina.respond_with,
                     },
                 ),
@@ -701,9 +703,11 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         },
         journal,
         retry: RetryRuntimeConfig {
-            max_attempts: config.retry.max_attempts as usize,
+            max_attempts: usize::try_from(config.retry.max_attempts).map_err(|_| {
+                ConfigError::Message("retry.max_attempts exceeds this platform's limit".into())
+            })?,
             multiplier: config.retry.multiplier,
-            max_wait_seconds: config.retry.max_wait as u64,
+            max_wait_seconds: config.retry.max_wait.cast_unsigned(),
         },
         ssl_verify: config.http.ssl_verify,
     })
@@ -774,7 +778,7 @@ fn load_effective_config() -> Result<LoadedConfig, ConfigError> {
             })?;
         serde_path_to_error::deserialize(deserializer).map_err(|error| {
             let key_path = error.path().to_string();
-            let detail = if key_path.ends_with(".keys") || key_path == "classifier.keys" {
+            let detail = if config_leaf(&key_path) == "keys" {
                 let location = error
                     .inner()
                     .to_string()
@@ -901,6 +905,7 @@ impl SetupDocument {
     }
 
     /// Returns the first configured search backend, falling back to `xai`.
+    #[must_use]
     pub fn primary_backend(&self) -> &str {
         document_array(&self.document, "search.backends")
             .and_then(|array| array.iter().find_map(Value::as_str))
@@ -909,6 +914,7 @@ impl SetupDocument {
     }
 
     /// Returns a string leaf from the file or built-in defaults.
+    #[must_use]
     pub fn string(&self, path: &str) -> &str {
         document_string(&self.document, path)
             .or_else(|| document_string(&self.defaults, path))
@@ -916,6 +922,7 @@ impl SetupDocument {
     }
 
     /// Returns whether the existing file contains classifier model configuration.
+    #[must_use]
     pub fn classifier_is_configured(&self) -> bool {
         ["classifier.url", "classifier.model"].iter().any(|path| {
             document_string(&self.document, path).is_some_and(|value| !value.is_empty())
@@ -948,8 +955,8 @@ impl SetupDocument {
         for value in values {
             array.push(value.as_str());
         }
-        let value = if path.ends_with(".keys") || path == "classifier.keys" {
-            Value::Array(normalize_array(array))
+        let value = if config_leaf(path) == "keys" {
+            Value::Array(normalize_array(&array))
         } else {
             Value::Array(array)
         };
@@ -1026,6 +1033,10 @@ fn document_array<'a>(document: &'a DocumentMut, path: &str) -> Option<&'a Array
     document_item(document, path)?.as_array()
 }
 
+fn config_leaf(path: &str) -> &str {
+    path.rsplit_once('.').map_or(path, |(_, leaf)| leaf)
+}
+
 fn commented_template(document: &DocumentMut) -> Result<String, ConfigError> {
     let mut table = String::new();
     let mut template = String::new();
@@ -1065,17 +1076,17 @@ fn commented_template(document: &DocumentMut) -> Result<String, ConfigError> {
 }
 
 fn template_comment(path: &str) -> String {
-    let purpose = if path.ends_with(".keys") || path == "classifier.keys" {
+    let purpose = if config_leaf(path) == "keys" {
         "credential pool; keep empty until credentials are available"
-    } else if path.ends_with(".url") || path == "classifier.url" {
+    } else if config_leaf(path) == "url" {
         "service endpoint URL"
-    } else if path.ends_with(".timeout") || path == "classifier.timeout" {
+    } else if config_leaf(path) == "timeout" {
         "shared timeout in seconds; must be greater than zero"
-    } else if path.ends_with(".model") || path == "classifier.model" {
+    } else if config_leaf(path) == "model" {
         "model identifier"
-    } else if path.ends_with(".fallback_models") || path == "classifier.fallback_models" {
+    } else if config_leaf(path) == "fallback_models" {
         "ordered fallback model identifiers"
-    } else if path.ends_with(".order") {
+    } else if config_leaf(path) == "order" {
         "authoritative provider order for this capability"
     } else {
         match path {
@@ -1198,8 +1209,8 @@ fn parse_edit_value(path: &str, raw: &str) -> Result<Value, EditError> {
             if array.iter().any(|item| item.as_str().is_none()) {
                 return Err(invalid_value(path));
             }
-            if path.ends_with(".keys") || path == "classifier.keys" {
-                Value::Array(normalize_array(array))
+            if config_leaf(path) == "keys" {
+                Value::Array(normalize_array(&array))
             } else {
                 Value::Array(array)
             }
@@ -1210,7 +1221,7 @@ fn parse_edit_value(path: &str, raw: &str) -> Result<Value, EditError> {
     Ok(value)
 }
 
-fn normalize_array(array: Array) -> Array {
+fn normalize_array(array: &Array) -> Array {
     let mut seen = HashSet::new();
     array
         .iter()
@@ -1326,7 +1337,7 @@ fn apply_environment(
                 "invalid value for configuration environment variable `{name}`"
             ))
         })?;
-        apply_env_value(config, path, &value).map_err(|_| {
+        apply_env_value(config, path, &value).map_err(|()| {
             ConfigError::Message(format!(
                 "invalid value for configuration environment variable `{name}`"
             ))
@@ -1639,7 +1650,7 @@ fn source_position(content: &str, path: &str) -> Option<(usize, usize)> {
 fn build_view(config: &Config, file: &toml::Value, environment: &HashSet<String>) -> JsonValue {
     macro_rules! leaf {
         ($path:literal, $value:expr) => {
-            leaf_value(json!($value), source($path, file, environment))
+            leaf_value(&json!($value), source($path, file, environment))
         };
     }
     macro_rules! keys {
@@ -1649,7 +1660,7 @@ fn build_view(config: &Config, file: &toml::Value, environment: &HashSet<String>
     }
     macro_rules! url {
         ($path:literal, $value:expr) => {
-            leaf_value(json!(redact_url($value)), source($path, file, environment))
+            leaf_value(&json!(redact_url($value)), source($path, file, environment))
         };
     }
     json!({
@@ -1722,9 +1733,9 @@ fn endpoint_view<D: EndpointDefaults>(
     let keys_path = format!("{prefix}.keys");
     let timeout_path = format!("{prefix}.timeout");
     json!({
-        "url": leaf_value(json!(redact_url(&endpoint.url)), source(&url_path, file, environment)),
+        "url": leaf_value(&json!(redact_url(&endpoint.url)), source(&url_path, file, environment)),
         "keys": key_value(&endpoint.keys, source(&keys_path, file, environment)),
-        "timeout": leaf_value(json!(endpoint.timeout), source(&timeout_path, file, environment)),
+        "timeout": leaf_value(&json!(endpoint.timeout), source(&timeout_path, file, environment)),
     })
 }
 
@@ -1802,7 +1813,7 @@ fn is_sensitive_query_name(name: &str) -> bool {
         .any(|sensitive| name.contains(sensitive))
 }
 
-fn leaf_value(value: JsonValue, source: &'static str) -> JsonValue {
+fn leaf_value(value: &JsonValue, source: &'static str) -> JsonValue {
     json!({"value": value, "source": source})
 }
 
@@ -1999,6 +2010,7 @@ impl ConfigLocation {
     }
 
     /// Returns the resolved `config.toml` path.
+    #[must_use]
     pub fn config_file(&self) -> PathBuf {
         self.config_dir.join("config.toml")
     }
@@ -2019,6 +2031,8 @@ pub enum ConfigError {
 }
 
 impl ConfigError {
+    // Callers transfer errors here because they have no further use for the source value.
+    #[expect(clippy::needless_pass_by_value)]
     fn io(path: &Path, error: io::Error) -> Self {
         Self::Message(format!("{}: {error}", path.display()))
     }
@@ -2118,6 +2132,10 @@ fn open_private_lock(path: &Path) -> io::Result<File> {
 }
 
 /// Creates a configuration directory restricted to the current user.
+///
+/// # Errors
+///
+/// Returns an I/O error when the directory cannot be created or restricted.
 #[cfg(unix)]
 pub fn ensure_private_directory(path: &Path) -> io::Result<()> {
     fs::create_dir_all(path)?;
@@ -2125,6 +2143,10 @@ pub fn ensure_private_directory(path: &Path) -> io::Result<()> {
 }
 
 /// Creates a configuration directory restricted to the Windows owner.
+///
+/// # Errors
+///
+/// Returns an I/O error when the directory cannot be created or restricted.
 #[cfg(windows)]
 pub fn ensure_private_directory(path: &Path) -> io::Result<()> {
     fs::create_dir_all(path)?;
@@ -2132,6 +2154,10 @@ pub fn ensure_private_directory(path: &Path) -> io::Result<()> {
 }
 
 /// Opens or creates a private configuration file.
+///
+/// # Errors
+///
+/// Returns an I/O error when the file cannot be opened or restricted.
 #[cfg(unix)]
 pub fn create_private_file(path: &Path) -> io::Result<File> {
     let file = open_private_file(path)?;
@@ -2140,6 +2166,10 @@ pub fn create_private_file(path: &Path) -> io::Result<File> {
 }
 
 /// Opens or creates a private configuration file on Windows.
+///
+/// # Errors
+///
+/// Returns an I/O error when the file cannot be opened or restricted.
 #[cfg(windows)]
 pub fn create_private_file(path: &Path) -> io::Result<File> {
     let file = OpenOptions::new()
