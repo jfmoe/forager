@@ -6,47 +6,10 @@ use toml_edit::{Document, TableLike, Value};
 use crate::providers;
 
 use super::location::{ConfigError, EditError};
-use super::schema::Config;
+use super::schema::{Config, FieldRef, Rule, SCHEMA, leaf};
 
 pub(super) fn validate_edit_value(path: &str, value: &Value) -> Result<(), EditError> {
-    let valid = match path {
-        "search.backends" => valid_unique_array(value, &["xai", "openai_compatible"], false),
-        "search.validation" => string_in(value, &["fast", "balanced", "strict"]),
-        "search.fallback" => string_in(value, &["auto", "off"]),
-        "providers.xai.tools" => valid_array(value, &["web_search", "x_search"], true),
-        "classifier.timeout"
-        | "providers.exa.timeout"
-        | "providers.context7.timeout"
-        | "providers.jina.timeout"
-        | "providers.tavily.timeout"
-        | "providers.firecrawl.timeout"
-        | "providers.anysearch.timeout" => value.as_integer().is_some_and(|number| number > 0),
-        "retry.max_attempts" => value.as_integer().is_some_and(|number| number >= 1),
-        "retry.multiplier" => value
-            .as_float()
-            .is_some_and(|number| number.is_finite() && number > 0.0),
-        "retry.max_wait" | "journal.retention_days" => {
-            value.as_integer().is_some_and(|number| number >= 0)
-        }
-        "log.level" => string_in(value, &["error", "warn", "info", "debug", "trace"]),
-        "capabilities.web_search.order"
-        | "capabilities.web_fetch.order"
-        | "capabilities.docs_search.order"
-        | "capabilities.vertical_search.order" => {
-            let capability = path.split('.').nth(1).unwrap_or_default();
-            let non_empty = path != "capabilities.web_fetch.order"
-                || value.as_array().is_some_and(|array| !array.is_empty());
-            non_empty
-                && value.as_array().is_some_and(|array| {
-                    array.iter().all(|provider| {
-                        provider
-                            .as_str()
-                            .is_some_and(|provider| providers::supports(capability, provider))
-                    })
-                })
-        }
-        _ => true,
-    };
+    let valid = leaf(path).is_some_and(|leaf| edit_value_satisfies(leaf.rule, value));
     if valid {
         Ok(())
     } else {
@@ -54,30 +17,38 @@ pub(super) fn validate_edit_value(path: &str, value: &Value) -> Result<(), EditE
     }
 }
 
-fn valid_unique_array(value: &Value, allowed: &[&str], allow_empty: bool) -> bool {
-    let Some(array) = value.as_array() else {
-        return false;
-    };
-    let mut seen = HashSet::new();
-    (allow_empty || !array.is_empty())
-        && array.iter().all(|entry| {
-            entry
-                .as_str()
-                .is_some_and(|entry| allowed.contains(&entry) && seen.insert(entry))
-        })
-}
-
-fn valid_array(value: &Value, allowed: &[&str], allow_empty: bool) -> bool {
-    value.as_array().is_some_and(|array| {
-        (allow_empty || !array.is_empty())
-            && array
-                .iter()
-                .all(|entry| entry.as_str().is_some_and(|entry| allowed.contains(&entry)))
-    })
-}
-
-fn string_in(value: &Value, allowed: &[&str]) -> bool {
-    value.as_str().is_some_and(|value| allowed.contains(&value))
+fn edit_value_satisfies(rule: Rule, value: &Value) -> bool {
+    match rule {
+        Rule::Any => true,
+        Rule::OneOf(allowed) => value.as_str().is_some_and(|value| allowed.contains(&value)),
+        Rule::Subset {
+            allowed,
+            unique,
+            allow_empty,
+        } => value.as_array().is_some_and(|values| {
+            strings_satisfy(
+                values.iter().map(Value::as_str),
+                allowed,
+                unique,
+                allow_empty,
+            )
+        }),
+        Rule::Positive => value.as_integer().is_some_and(|value| value > 0),
+        Rule::PositiveFinite => value
+            .as_float()
+            .is_some_and(|value| value.is_finite() && value > 0.0),
+        Rule::CapabilityOrder {
+            capability,
+            allow_empty,
+        } => value.as_array().is_some_and(|values| {
+            (allow_empty || !values.is_empty())
+                && values.iter().all(|provider| {
+                    provider
+                        .as_str()
+                        .is_some_and(|provider| providers::supports(capability, provider))
+                })
+        }),
+    }
 }
 
 pub(super) fn invalid_value(path: &str) -> EditError {
@@ -85,159 +56,64 @@ pub(super) fn invalid_value(path: &str) -> EditError {
 }
 
 pub(super) fn validate(config: &Config, path: &Path, content: &str) -> Result<(), ConfigError> {
-    validate_list(
-        "search.backends",
-        &config.search.backends,
-        &["xai", "openai_compatible"],
-        false,
-        path,
-        content,
-    )?;
-    validate_enum(
-        "search.validation",
-        &config.search.validation,
-        &["fast", "balanced", "strict"],
-        path,
-        content,
-    )?;
-    validate_enum(
-        "search.fallback",
-        &config.search.fallback,
-        &["auto", "off"],
-        path,
-        content,
-    )?;
-    if config
-        .providers
-        .xai
-        .tools
-        .iter()
-        .any(|tool| !["web_search", "x_search"].contains(&tool.as_str()))
-    {
-        return Err(value_error(path, content, "providers.xai.tools"));
-    }
-    validate_enum(
-        "log.level",
-        &config.log.level,
-        &["error", "warn", "info", "debug", "trace"],
-        path,
-        content,
-    )?;
-    for (key, timeout) in [
-        ("classifier.timeout", config.classifier.timeout),
-        ("providers.exa.timeout", config.providers.exa.timeout),
-        (
-            "providers.context7.timeout",
-            config.providers.context7.timeout,
-        ),
-        ("providers.jina.timeout", config.providers.jina.timeout),
-        ("providers.tavily.timeout", config.providers.tavily.timeout),
-        (
-            "providers.firecrawl.timeout",
-            config.providers.firecrawl.timeout,
-        ),
-        (
-            "providers.anysearch.timeout",
-            config.providers.anysearch.timeout,
-        ),
-    ] {
-        if timeout <= 0 {
-            return Err(value_error(path, content, key));
+    for leaf in SCHEMA {
+        if !field_satisfies(leaf.rule, (leaf.get)(config)) {
+            return Err(value_error(path, content, leaf.path));
         }
     }
-    if config.retry.max_attempts < 1 {
-        return Err(value_error(path, content, "retry.max_attempts"));
-    }
-    if !config.retry.multiplier.is_finite() || config.retry.multiplier <= 0.0 {
-        return Err(value_error(path, content, "retry.multiplier"));
-    }
-    if config.retry.max_wait < 0 {
-        return Err(value_error(path, content, "retry.max_wait"));
-    }
-    if config.journal.retention_days < 0 {
-        return Err(value_error(path, content, "journal.retention_days"));
-    }
-    validate_order(
-        "web_search",
-        &config.capabilities.web_search.order,
-        false,
-        path,
-        content,
-    )?;
-    validate_order(
-        "web_fetch",
-        &config.capabilities.web_fetch.order,
-        true,
-        path,
-        content,
-    )?;
-    validate_order(
-        "docs_search",
-        &config.capabilities.docs_search.order,
-        false,
-        path,
-        content,
-    )?;
-    validate_order(
-        "vertical_search",
-        &config.capabilities.vertical_search.order,
-        false,
-        path,
-        content,
-    )
+    Ok(())
 }
 
-pub(super) fn validate_enum(
-    key: &str,
-    value: &str,
-    allowed: &[&str],
-    path: &Path,
-    content: &str,
-) -> Result<(), ConfigError> {
-    if allowed.contains(&value) {
-        Ok(())
-    } else {
-        Err(value_error(path, content, key))
+fn field_satisfies(rule: Rule, field: FieldRef<'_>) -> bool {
+    match (rule, field) {
+        (Rule::Any, _) => true,
+        (Rule::OneOf(allowed), FieldRef::String(value)) => allowed.contains(&value),
+        (
+            Rule::Subset {
+                allowed,
+                unique,
+                allow_empty,
+            },
+            FieldRef::Strings(values),
+        ) => strings_satisfy(
+            values.iter().map(|value| Some(value.as_str())),
+            allowed,
+            unique,
+            allow_empty,
+        ),
+        (Rule::Positive, FieldRef::U64(value)) => value > 0,
+        (Rule::PositiveFinite, FieldRef::F64(value)) => value.is_finite() && value > 0.0,
+        (
+            Rule::CapabilityOrder {
+                capability,
+                allow_empty,
+            },
+            FieldRef::Strings(values),
+        ) => {
+            (allow_empty || !values.is_empty())
+                && values
+                    .iter()
+                    .all(|provider| providers::supports(capability, provider))
+        }
+        _ => false,
     }
 }
 
-pub(super) fn validate_list(
-    key: &str,
-    values: &[String],
+fn strings_satisfy<'a>(
+    values: impl Iterator<Item = Option<&'a str>>,
     allowed: &[&str],
+    unique: bool,
     allow_empty: bool,
-    path: &Path,
-    content: &str,
-) -> Result<(), ConfigError> {
+) -> bool {
     let mut seen = HashSet::new();
-    if (!allow_empty && values.is_empty())
-        || values
-            .iter()
-            .any(|value| !allowed.contains(&value.as_str()) || !seen.insert(value))
-    {
-        Err(value_error(path, content, key))
-    } else {
-        Ok(())
-    }
-}
-
-pub(super) fn validate_order(
-    capability: &str,
-    order: &[String],
-    required: bool,
-    path: &Path,
-    content: &str,
-) -> Result<(), ConfigError> {
-    let key = format!("capabilities.{capability}.order");
-    if (required && order.is_empty())
-        || order
-            .iter()
-            .any(|provider| !providers::supports(capability, provider))
-    {
-        Err(value_error(path, content, &key))
-    } else {
-        Ok(())
-    }
+    let mut count = 0;
+    let valid = values.into_iter().all(|value| {
+        count += 1;
+        value.is_some_and(|value| {
+            allowed.contains(&value) && (!unique || seen.insert(value.to_owned()))
+        })
+    });
+    valid && (allow_empty || count > 0)
 }
 
 fn value_error(path: &Path, content: &str, key: &str) -> ConfigError {
@@ -276,7 +152,77 @@ fn source_position(content: &str, path: &str) -> Option<(usize, usize)> {
 
 #[cfg(test)]
 mod tests {
-    use super::source_position;
+    use std::path::Path;
+
+    use toml_edit::{Array, Value};
+
+    use super::{source_position, validate, validate_edit_value};
+    use crate::config::schema::Config;
+
+    fn validates(config: &Config) -> bool {
+        validate(config, Path::new("config.toml"), "").is_ok()
+    }
+
+    #[test]
+    fn any_rule_accepts_zero_in_full_and_edit_validation() {
+        let mut config = Config::default();
+        config.retry.max_wait = 0;
+
+        assert!(validates(&config));
+        assert!(validate_edit_value("retry.max_wait", &Value::from(0)).is_ok());
+    }
+
+    #[test]
+    fn one_of_rule_rejects_unknown_values_in_full_and_edit_validation() {
+        let mut config = Config::default();
+        config.search.validation = "unknown".into();
+
+        assert!(!validates(&config));
+        assert!(validate_edit_value("search.validation", &Value::from("unknown")).is_err());
+    }
+
+    #[test]
+    fn subset_rule_enforces_membership_and_uniqueness_in_both_validators() {
+        let mut config = Config::default();
+        config.search.backends = vec!["xai".into(), "xai".into()];
+        let mut values = Array::new();
+        values.push("xai");
+        values.push("xai");
+
+        assert!(!validates(&config));
+        assert!(validate_edit_value("search.backends", &Value::Array(values)).is_err());
+    }
+
+    #[test]
+    fn positive_rule_rejects_zero_in_full_and_edit_validation() {
+        let mut config = Config::default();
+        config.providers.exa.timeout = 0;
+
+        assert!(!validates(&config));
+        assert!(validate_edit_value("providers.exa.timeout", &Value::from(0)).is_err());
+    }
+
+    #[test]
+    fn positive_finite_rule_rejects_nan_in_full_and_edit_validation() {
+        let mut config = Config::default();
+        config.retry.multiplier = f64::NAN;
+
+        assert!(!validates(&config));
+        assert!(validate_edit_value("retry.multiplier", &Value::from(f64::NAN)).is_err());
+    }
+
+    #[test]
+    fn capability_order_rule_rejects_unknown_providers_in_both_validators() {
+        let mut config = Config::default();
+        config.capabilities.web_fetch.order = vec!["unknown".into()];
+        let mut values = Array::new();
+        values.push("unknown");
+
+        assert!(!validates(&config));
+        assert!(
+            validate_edit_value("capabilities.web_fetch.order", &Value::Array(values),).is_err()
+        );
+    }
 
     #[test]
     fn source_position_reports_the_leaf_value_location() {

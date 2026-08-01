@@ -1,6 +1,7 @@
 use std::marker::PhantomData;
+use std::sync::LazyLock;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, de};
 
 use crate::redact::Secret;
 
@@ -42,7 +43,8 @@ pub(super) struct Classifier {
     pub(super) keys: Vec<Secret>,
     pub(super) model: String,
     pub(super) fallback_models: Vec<String>,
-    pub(super) timeout: i64,
+    #[serde(deserialize_with = "deserialize_integer")]
+    pub(super) timeout: u64,
 }
 
 impl Default for Classifier {
@@ -117,7 +119,8 @@ impl Default for OpenAiCompatible {
 pub(super) struct Endpoint<D: EndpointDefaults> {
     pub(super) url: String,
     pub(super) keys: Vec<Secret>,
-    pub(super) timeout: i64,
+    #[serde(deserialize_with = "deserialize_integer")]
+    pub(super) timeout: u64,
     #[serde(skip)]
     pub(super) defaults: PhantomData<D>,
 }
@@ -160,7 +163,8 @@ pub(super) struct Jina {
     pub(super) url: String,
     pub(super) keys: Vec<Secret>,
     pub(super) respond_with: String,
-    pub(super) timeout: i64,
+    #[serde(deserialize_with = "deserialize_integer")]
+    pub(super) timeout: u64,
 }
 
 impl Default for Jina {
@@ -227,7 +231,8 @@ impl Default for Log {
 pub(super) struct Journal {
     pub(super) enabled: bool,
     pub(super) dir: String,
-    pub(super) retention_days: i64,
+    #[serde(deserialize_with = "deserialize_integer")]
+    pub(super) retention_days: u64,
 }
 
 impl Default for Journal {
@@ -243,9 +248,11 @@ impl Default for Journal {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub(super) struct Retry {
-    pub(super) max_attempts: i64,
+    #[serde(deserialize_with = "deserialize_integer")]
+    pub(super) max_attempts: u64,
     pub(super) multiplier: f64,
-    pub(super) max_wait: i64,
+    #[serde(deserialize_with = "deserialize_integer")]
+    pub(super) max_wait: u64,
 }
 
 impl Default for Retry {
@@ -279,127 +286,335 @@ pub(super) enum ValueKind {
     Array,
 }
 
+pub(super) struct Leaf {
+    pub(super) path: &'static str,
+    pub(super) kind: ValueKind,
+    pub(super) get: fn(&Config) -> FieldRef<'_>,
+    pub(super) get_mut: fn(&mut Config) -> FieldMut<'_>,
+    pub(super) rule: Rule,
+    pub(super) view: View,
+    pub(super) comment: &'static str,
+}
+
+pub(super) enum FieldRef<'a> {
+    String(&'a str),
+    Bool(bool),
+    U64(u64),
+    F64(f64),
+    Strings(&'a [String]),
+    Secrets(&'a [Secret]),
+}
+
+pub(super) enum FieldMut<'a> {
+    String(&'a mut String),
+    Bool(&'a mut bool),
+    U64(&'a mut u64),
+    F64(&'a mut f64),
+    Strings(&'a mut Vec<String>),
+    Secrets(&'a mut Vec<Secret>),
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum Rule {
+    Any,
+    OneOf(&'static [&'static str]),
+    Subset {
+        allowed: &'static [&'static str],
+        unique: bool,
+        allow_empty: bool,
+    },
+    Positive,
+    PositiveFinite,
+    CapabilityOrder {
+        capability: &'static str,
+        allow_empty: bool,
+    },
+}
+
+#[derive(Clone, Copy)]
+pub(super) enum View {
+    Plain,
+    Url,
+    Keys,
+}
+
+macro_rules! kind_of {
+    (String) => {
+        ValueKind::String
+    };
+    (Bool) => {
+        ValueKind::Boolean
+    };
+    (U64) => {
+        ValueKind::Integer
+    };
+    (F64) => {
+        ValueKind::Float
+    };
+    (Strings) => {
+        ValueKind::Array
+    };
+    (Secrets) => {
+        ValueKind::Array
+    };
+}
+
+macro_rules! field_ref {
+    (String, $value:expr) => {
+        FieldRef::String($value.as_str())
+    };
+    (Bool, $value:expr) => {
+        FieldRef::Bool(*$value)
+    };
+    (U64, $value:expr) => {
+        FieldRef::U64(*$value)
+    };
+    (F64, $value:expr) => {
+        FieldRef::F64(*$value)
+    };
+    (Strings, $value:expr) => {
+        FieldRef::Strings($value.as_slice())
+    };
+    (Secrets, $value:expr) => {
+        FieldRef::Secrets($value.as_slice())
+    };
+}
+
+macro_rules! leaf {
+    ($path:literal, $($field:ident).+ : $variant:ident, $rule:expr, $view:expr, $comment:literal) => {{
+        fn get(config: &Config) -> FieldRef<'_> {
+            field_ref!($variant, &config.$($field).+)
+        }
+        fn get_mut(config: &mut Config) -> FieldMut<'_> {
+            FieldMut::$variant(&mut config.$($field).+)
+        }
+        Leaf {
+            path: $path,
+            kind: kind_of!($variant),
+            get,
+            get_mut,
+            rule: $rule,
+            view: $view,
+            comment: $comment,
+        }
+    }};
+}
+
+const BACKENDS: &[&str] = &["xai", "openai_compatible"];
+const XAI_TOOLS: &[&str] = &["web_search", "x_search"];
+const VALIDATION: &[&str] = &["fast", "balanced", "strict"];
+const FALLBACK: &[&str] = &["auto", "off"];
+const LOG_LEVELS: &[&str] = &["error", "warn", "info", "debug", "trace"];
+
+pub(super) static SCHEMA: &[Leaf] = &[
+    leaf!("search.backends", search.backends: Strings, Rule::Subset { allowed: BACKENDS, unique: true, allow_empty: false }, View::Plain, "ordered main-model backends"),
+    leaf!("search.validation", search.validation: String, Rule::OneOf(VALIDATION), View::Plain, "result validation level: fast, balanced, or strict"),
+    leaf!("search.fallback", search.fallback: String, Rule::OneOf(FALLBACK), View::Plain, "fallback policy: auto or off"),
+    leaf!("classifier.url", classifier.url: String, Rule::Any, View::Url, "service endpoint URL"),
+    leaf!("classifier.keys", classifier.keys: Secrets, Rule::Any, View::Keys, "credential pool; keep empty until credentials are available"),
+    leaf!("classifier.model", classifier.model: String, Rule::Any, View::Plain, "model identifier"),
+    leaf!("classifier.fallback_models", classifier.fallback_models: Strings, Rule::Any, View::Plain, "ordered fallback model identifiers"),
+    leaf!("classifier.timeout", classifier.timeout: U64, Rule::Positive, View::Plain, "shared timeout in seconds; must be greater than zero"),
+    leaf!("providers.xai.url", providers.xai.url: String, Rule::Any, View::Url, "service endpoint URL"),
+    leaf!("providers.xai.keys", providers.xai.keys: Secrets, Rule::Any, View::Keys, "credential pool; keep empty until credentials are available"),
+    leaf!("providers.xai.model", providers.xai.model: String, Rule::Any, View::Plain, "model identifier"),
+    leaf!("providers.xai.tools", providers.xai.tools: Strings, Rule::Subset { allowed: XAI_TOOLS, unique: false, allow_empty: true }, View::Plain, "xAI tools enabled for the main model"),
+    leaf!("providers.openai_compatible.url", providers.openai_compatible.url: String, Rule::Any, View::Url, "service endpoint URL"),
+    leaf!("providers.openai_compatible.keys", providers.openai_compatible.keys: Secrets, Rule::Any, View::Keys, "credential pool; keep empty until credentials are available"),
+    leaf!("providers.openai_compatible.model", providers.openai_compatible.model: String, Rule::Any, View::Plain, "model identifier"),
+    leaf!("providers.openai_compatible.fallback_models", providers.openai_compatible.fallback_models: Strings, Rule::Any, View::Plain, "ordered fallback model identifiers"),
+    leaf!("providers.openai_compatible.stream", providers.openai_compatible.stream: Bool, Rule::Any, View::Plain, "enable streaming transport"),
+    leaf!("providers.exa.url", providers.exa.url: String, Rule::Any, View::Url, "service endpoint URL"),
+    leaf!("providers.exa.keys", providers.exa.keys: Secrets, Rule::Any, View::Keys, "credential pool; keep empty until credentials are available"),
+    leaf!("providers.exa.timeout", providers.exa.timeout: U64, Rule::Positive, View::Plain, "shared timeout in seconds; must be greater than zero"),
+    leaf!("providers.context7.url", providers.context7.url: String, Rule::Any, View::Url, "service endpoint URL"),
+    leaf!("providers.context7.keys", providers.context7.keys: Secrets, Rule::Any, View::Keys, "credential pool; keep empty until credentials are available"),
+    leaf!("providers.context7.timeout", providers.context7.timeout: U64, Rule::Positive, View::Plain, "shared timeout in seconds; must be greater than zero"),
+    leaf!("providers.jina.url", providers.jina.url: String, Rule::Any, View::Url, "service endpoint URL"),
+    leaf!("providers.jina.keys", providers.jina.keys: Secrets, Rule::Any, View::Keys, "credential pool; keep empty until credentials are available"),
+    leaf!("providers.jina.respond_with", providers.jina.respond_with: String, Rule::Any, View::Plain, "optional X-Respond-With header value"),
+    leaf!("providers.jina.timeout", providers.jina.timeout: U64, Rule::Positive, View::Plain, "shared timeout in seconds; must be greater than zero"),
+    leaf!("providers.tavily.url", providers.tavily.url: String, Rule::Any, View::Url, "service endpoint URL"),
+    leaf!("providers.tavily.keys", providers.tavily.keys: Secrets, Rule::Any, View::Keys, "credential pool; keep empty until credentials are available"),
+    leaf!("providers.tavily.timeout", providers.tavily.timeout: U64, Rule::Positive, View::Plain, "shared timeout in seconds; must be greater than zero"),
+    leaf!("providers.firecrawl.url", providers.firecrawl.url: String, Rule::Any, View::Url, "service endpoint URL"),
+    leaf!("providers.firecrawl.keys", providers.firecrawl.keys: Secrets, Rule::Any, View::Keys, "credential pool; keep empty until credentials are available"),
+    leaf!("providers.firecrawl.timeout", providers.firecrawl.timeout: U64, Rule::Positive, View::Plain, "shared timeout in seconds; must be greater than zero"),
+    leaf!("providers.anysearch.url", providers.anysearch.url: String, Rule::Any, View::Url, "service endpoint URL"),
+    leaf!("providers.anysearch.keys", providers.anysearch.keys: Secrets, Rule::Any, View::Keys, "credential pool; keep empty until credentials are available"),
+    leaf!("providers.anysearch.timeout", providers.anysearch.timeout: U64, Rule::Positive, View::Plain, "shared timeout in seconds; must be greater than zero"),
+    leaf!("capabilities.web_search.order", capabilities.web_search.order: Strings, Rule::CapabilityOrder { capability: "web_search", allow_empty: true }, View::Plain, "authoritative provider order for this capability"),
+    leaf!("capabilities.web_fetch.order", capabilities.web_fetch.order: Strings, Rule::CapabilityOrder { capability: "web_fetch", allow_empty: false }, View::Plain, "authoritative provider order for this capability"),
+    leaf!("capabilities.docs_search.order", capabilities.docs_search.order: Strings, Rule::CapabilityOrder { capability: "docs_search", allow_empty: true }, View::Plain, "authoritative provider order for this capability"),
+    leaf!("capabilities.vertical_search.order", capabilities.vertical_search.order: Strings, Rule::CapabilityOrder { capability: "vertical_search", allow_empty: true }, View::Plain, "authoritative provider order for this capability"),
+    leaf!("log.level", log.level: String, Rule::OneOf(LOG_LEVELS), View::Plain, "stderr log level"),
+    leaf!("journal.enabled", journal.enabled: Bool, Rule::Any, View::Plain, "record search result journals"),
+    leaf!("journal.dir", journal.dir: String, Rule::Any, View::Plain, "journal storage directory"),
+    leaf!("journal.retention_days", journal.retention_days: U64, Rule::Any, View::Plain, "journal retention in days; zero keeps entries indefinitely"),
+    leaf!("retry.max_attempts", retry.max_attempts: U64, Rule::Positive, View::Plain, "maximum attempts per request"),
+    leaf!("retry.multiplier", retry.multiplier: F64, Rule::PositiveFinite, View::Plain, "retry backoff multiplier"),
+    leaf!("retry.max_wait", retry.max_wait: U64, Rule::Any, View::Plain, "maximum retry wait in seconds"),
+    leaf!("http.ssl_verify", http.ssl_verify: Bool, Rule::Any, View::Plain, "verify TLS certificates"),
+];
+
+pub(super) static LEAVES: LazyLock<Vec<&'static str>> =
+    LazyLock::new(|| SCHEMA.iter().map(|leaf| leaf.path).collect());
+
+pub(super) fn leaf(path: &str) -> Option<&'static Leaf> {
+    SCHEMA.iter().find(|leaf| leaf.path == path)
+}
+
 pub(super) fn path_kind(path: &str) -> Option<ValueKind> {
-    if [
-        "search.backends",
-        "classifier.keys",
-        "classifier.fallback_models",
-        "providers.xai.keys",
-        "providers.xai.tools",
-        "providers.openai_compatible.keys",
-        "providers.openai_compatible.fallback_models",
-        "providers.exa.keys",
-        "providers.context7.keys",
-        "providers.jina.keys",
-        "providers.tavily.keys",
-        "providers.firecrawl.keys",
-        "providers.anysearch.keys",
-        "capabilities.web_search.order",
-        "capabilities.web_fetch.order",
-        "capabilities.docs_search.order",
-        "capabilities.vertical_search.order",
-    ]
-    .contains(&path)
-    {
-        Some(ValueKind::Array)
-    } else if [
-        "providers.openai_compatible.stream",
-        "journal.enabled",
-        "http.ssl_verify",
-    ]
-    .contains(&path)
-    {
-        Some(ValueKind::Boolean)
-    } else if path == "retry.multiplier" {
-        Some(ValueKind::Float)
-    } else if [
-        "classifier.timeout",
-        "providers.exa.timeout",
-        "providers.context7.timeout",
-        "providers.jina.timeout",
-        "providers.tavily.timeout",
-        "providers.firecrawl.timeout",
-        "providers.anysearch.timeout",
-        "journal.retention_days",
-        "retry.max_attempts",
-        "retry.max_wait",
-    ]
-    .contains(&path)
-    {
-        Some(ValueKind::Integer)
-    } else if is_leaf(path) {
-        Some(ValueKind::String)
-    } else {
-        None
-    }
+    leaf(path).map(|leaf| leaf.kind)
 }
 
 pub(super) fn is_leaf(path: &str) -> bool {
-    LEAVES.contains(&path)
+    leaf(path).is_some()
 }
 
 pub(super) fn env_path(name: &str) -> Option<&'static str> {
-    LEAVES.iter().copied().find(|path| env_name(path) == name)
+    SCHEMA
+        .iter()
+        .map(|leaf| leaf.path)
+        .find(|path| env_name(path) == name)
 }
 
 pub(super) fn env_name(path: &str) -> String {
     format!("FORAGER_{}", path.replace('.', "__").to_ascii_uppercase())
 }
 
-pub(super) const LEAVES: &[&str] = &[
-    "search.backends",
-    "search.validation",
-    "search.fallback",
-    "classifier.url",
-    "classifier.keys",
-    "classifier.model",
-    "classifier.fallback_models",
-    "classifier.timeout",
-    "providers.xai.url",
-    "providers.xai.keys",
-    "providers.xai.model",
-    "providers.xai.tools",
-    "providers.openai_compatible.url",
-    "providers.openai_compatible.keys",
-    "providers.openai_compatible.model",
-    "providers.openai_compatible.fallback_models",
-    "providers.openai_compatible.stream",
-    "providers.exa.url",
-    "providers.exa.keys",
-    "providers.exa.timeout",
-    "providers.context7.url",
-    "providers.context7.keys",
-    "providers.context7.timeout",
-    "providers.jina.url",
-    "providers.jina.keys",
-    "providers.jina.respond_with",
-    "providers.jina.timeout",
-    "providers.tavily.url",
-    "providers.tavily.keys",
-    "providers.tavily.timeout",
-    "providers.firecrawl.url",
-    "providers.firecrawl.keys",
-    "providers.firecrawl.timeout",
-    "providers.anysearch.url",
-    "providers.anysearch.keys",
-    "providers.anysearch.timeout",
-    "capabilities.web_search.order",
-    "capabilities.web_fetch.order",
-    "capabilities.docs_search.order",
-    "capabilities.vertical_search.order",
-    "log.level",
-    "journal.enabled",
-    "journal.dir",
-    "journal.retention_days",
-    "retry.max_attempts",
-    "retry.multiplier",
-    "retry.max_wait",
-    "http.ssl_verify",
-];
+pub(super) fn parse_integer(raw: &str) -> Result<u64, ()> {
+    raw.parse::<u64>()
+        .ok()
+        .filter(|value| *value <= i64::MAX.cast_unsigned())
+        .ok_or(())
+}
+
+fn deserialize_integer<'de, D>(deserializer: D) -> Result<u64, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = i64::deserialize(deserializer)?;
+    parse_integer(&value.to_string())
+        .map_err(|()| de::Error::custom(format!("integer must be between 0 and {}", i64::MAX)))
+}
 
 #[cfg(test)]
 mod tests {
-    use super::Config;
+    use std::collections::BTreeSet;
+
+    use crate::redact::Secret;
+
+    use super::{Config, FieldMut, FieldRef, SCHEMA, leaf};
+
+    fn toml_leaf_paths(value: &toml::Value, prefix: &str, paths: &mut BTreeSet<String>) {
+        if let toml::Value::Table(table) = value {
+            for (key, value) in table {
+                let path = if prefix.is_empty() {
+                    key.clone()
+                } else {
+                    format!("{prefix}.{key}")
+                };
+                toml_leaf_paths(value, &path, paths);
+            }
+        } else {
+            paths.insert(prefix.to_owned());
+        }
+    }
+
+    #[test]
+    fn schema_paths_exactly_cover_the_default_configuration_leaves() {
+        let value = toml::Value::try_from(Config::default()).expect("serialize default config");
+        let mut serialized = BTreeSet::new();
+        toml_leaf_paths(&value, "", &mut serialized);
+        let declared = SCHEMA
+            .iter()
+            .map(|leaf| leaf.path.to_owned())
+            .collect::<BTreeSet<_>>();
+
+        assert_eq!(declared, serialized);
+        assert_eq!(declared.len(), SCHEMA.len(), "duplicate schema path");
+    }
+
+    #[test]
+    fn schema_getters_read_the_declared_fields() {
+        let mut config = Config::default();
+        config.search.validation = "strict".into();
+        config.journal.enabled = false;
+        config.retry.max_wait = 91;
+        config.retry.multiplier = 2.5;
+        config.search.backends = vec!["xai".into()];
+        config.classifier.keys = vec![Secret::from("canary")];
+
+        assert!(matches!(
+            (leaf("search.validation").expect("leaf").get)(&config),
+            FieldRef::String("strict")
+        ));
+        assert!(matches!(
+            (leaf("journal.enabled").expect("leaf").get)(&config),
+            FieldRef::Bool(false)
+        ));
+        assert!(matches!(
+            (leaf("retry.max_wait").expect("leaf").get)(&config),
+            FieldRef::U64(91)
+        ));
+        assert!(matches!(
+            (leaf("retry.multiplier").expect("leaf").get)(&config),
+            FieldRef::F64(2.5)
+        ));
+        assert!(matches!(
+            (leaf("search.backends").expect("leaf").get)(&config),
+            FieldRef::Strings(values) if values == ["xai"]
+        ));
+        assert!(matches!(
+            (leaf("classifier.keys").expect("leaf").get)(&config),
+            FieldRef::Secrets(values) if values.len() == 1
+        ));
+    }
+
+    #[test]
+    fn schema_mutators_write_the_declared_fields() {
+        let mut config = Config::default();
+        if let FieldMut::String(value) =
+            (leaf("search.validation").expect("leaf").get_mut)(&mut config)
+        {
+            *value = "fast".into();
+        }
+        if let FieldMut::Bool(value) = (leaf("journal.enabled").expect("leaf").get_mut)(&mut config)
+        {
+            *value = false;
+        }
+        if let FieldMut::U64(value) = (leaf("retry.max_wait").expect("leaf").get_mut)(&mut config) {
+            *value = 92;
+        }
+        if let FieldMut::F64(value) = (leaf("retry.multiplier").expect("leaf").get_mut)(&mut config)
+        {
+            *value = 3.5;
+        }
+        if let FieldMut::Strings(value) =
+            (leaf("search.backends").expect("leaf").get_mut)(&mut config)
+        {
+            *value = vec!["openai_compatible".into()];
+        }
+        if let FieldMut::Secrets(value) =
+            (leaf("classifier.keys").expect("leaf").get_mut)(&mut config)
+        {
+            *value = vec![Secret::from("canary")];
+        }
+
+        let expected_backends = vec!["openai_compatible".to_owned()];
+        assert_eq!(
+            (
+                config.search.validation.as_str(),
+                config.journal.enabled,
+                config.retry.max_wait,
+                config.retry.multiplier,
+                config.search.backends.as_slice(),
+                config.classifier.keys.len(),
+            ),
+            ("fast", false, 92, 3.5, expected_backends.as_slice(), 1,)
+        );
+    }
 
     #[test]
     fn provider_endpoints_use_their_url_defaults_when_omitted() {

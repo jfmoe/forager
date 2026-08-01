@@ -14,7 +14,7 @@ use crate::secure_fs::{create_new_private_file, ensure_private_directory, restri
 
 use super::load::diagnostic_without_source;
 use super::location::{ConfigError, ConfigLocation, EditError};
-use super::schema::{Config, LEAVES, ValueKind, env_name, is_leaf, path_kind};
+use super::schema::{Config, LEAVES, ValueKind, env_name, is_leaf, leaf, parse_integer, path_kind};
 use super::validate::{invalid_value, validate_edit_value};
 
 static FILE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -266,39 +266,7 @@ fn commented_template(document: &DocumentMut) -> Result<String, ConfigError> {
 }
 
 fn template_comment(path: &str) -> String {
-    let purpose = if config_leaf(path) == "keys" {
-        "credential pool; keep empty until credentials are available"
-    } else if config_leaf(path) == "url" {
-        "service endpoint URL"
-    } else if config_leaf(path) == "timeout" {
-        "shared timeout in seconds; must be greater than zero"
-    } else if config_leaf(path) == "model" {
-        "model identifier"
-    } else if config_leaf(path) == "fallback_models" {
-        "ordered fallback model identifiers"
-    } else if config_leaf(path) == "order" {
-        "authoritative provider order for this capability"
-    } else {
-        match path {
-            "search.backends" => "ordered main-model backends",
-            "search.validation" => "result validation level: fast, balanced, or strict",
-            "search.fallback" => "fallback policy: auto or off",
-            "providers.xai.tools" => "xAI tools enabled for the main model",
-            "providers.openai_compatible.stream" => "enable streaming transport",
-            "providers.jina.respond_with" => "optional X-Respond-With header value",
-            "log.level" => "stderr log level",
-            "journal.enabled" => "record search result journals",
-            "journal.dir" => "journal storage directory",
-            "journal.retention_days" => {
-                "journal retention in days; zero keeps entries indefinitely"
-            }
-            "retry.max_attempts" => "maximum attempts per request",
-            "retry.multiplier" => "retry backoff multiplier",
-            "retry.max_wait" => "maximum retry wait in seconds",
-            "http.ssl_verify" => "verify TLS certificates",
-            _ => "configuration value",
-        }
-    };
+    let purpose = leaf(path).map_or("configuration value", |leaf| leaf.comment);
     format!("{path}: {purpose}")
 }
 
@@ -372,10 +340,10 @@ pub(super) fn parse_edit_value(path: &str, raw: &str) -> Result<Value, EditError
             .parse::<bool>()
             .map(Value::from)
             .map_err(|_| invalid_value(path))?,
-        Some(ValueKind::Integer) => raw
-            .parse::<i64>()
-            .map(Value::from)
-            .map_err(|_| invalid_value(path))?,
+        Some(ValueKind::Integer) => parse_integer(raw)
+            .map_err(|()| invalid_value(path))
+            .and_then(|value| i64::try_from(value).map_err(|_| invalid_value(path)))
+            .map(Value::from)?,
         Some(ValueKind::Float) => raw
             .parse::<f64>()
             .map(Value::from)

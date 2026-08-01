@@ -82,6 +82,154 @@ fn config_list_applies_file_then_environment_precedence() {
 }
 
 #[test]
+fn integer_file_values_share_the_toml_range_and_report_the_full_path() {
+    let cases = [
+        ("-1", Some(3)),
+        ("0", Some(3)),
+        (&i64::MAX.to_string(), Some(0)),
+        (
+            &(u64::try_from(i64::MAX).expect("positive maximum") + 1).to_string(),
+            Some(3),
+        ),
+    ];
+
+    for (raw, expected_status) in cases {
+        let config_dir = tempfile::tempdir().expect("create config directory");
+        fs::write(
+            config_dir.path().join("config.toml"),
+            format!("[providers.exa]\ntimeout = {raw}\n"),
+        )
+        .expect("write config");
+
+        let output = run(config_dir.path(), &["config", "list"], &[], None);
+        assert_eq!(
+            output.status.code(),
+            expected_status,
+            "raw={raw}: {output:?}"
+        );
+        if expected_status != Some(0) {
+            assert!(
+                String::from_utf8_lossy(&output.stderr).contains("providers.exa.timeout"),
+                "raw={raw}, stderr: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+    }
+}
+
+#[test]
+fn negative_file_integer_fails_before_an_environment_override() {
+    let config_dir = tempfile::tempdir().expect("create config directory");
+    fs::write(
+        config_dir.path().join("config.toml"),
+        "[providers.exa]\ntimeout = -1\n",
+    )
+    .expect("write config");
+
+    let output = run(
+        config_dir.path(),
+        &["config", "list"],
+        &[("FORAGER_PROVIDERS__EXA__TIMEOUT", "30")],
+        None,
+    );
+
+    assert_eq!(output.status.code(), Some(3), "{output:?}");
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("providers.exa.timeout"),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn integer_environment_values_share_the_toml_range() {
+    let cases = [
+        ("-1", Some(3)),
+        ("0", Some(3)),
+        (&i64::MAX.to_string(), Some(0)),
+        (
+            &(u64::try_from(i64::MAX).expect("positive maximum") + 1).to_string(),
+            Some(3),
+        ),
+    ];
+
+    for (raw, expected_status) in cases {
+        let config_dir = tempfile::tempdir().expect("create config directory");
+        let output = run(
+            config_dir.path(),
+            &["config", "list"],
+            &[("FORAGER_PROVIDERS__EXA__TIMEOUT", raw)],
+            None,
+        );
+        assert_eq!(
+            output.status.code(),
+            expected_status,
+            "raw={raw}: {output:?}"
+        );
+    }
+}
+
+#[test]
+fn config_set_integer_values_share_the_toml_range() {
+    let cases = [
+        ("-1", Some(2)),
+        ("0", Some(2)),
+        (&i64::MAX.to_string(), Some(0)),
+        (
+            &(u64::try_from(i64::MAX).expect("positive maximum") + 1).to_string(),
+            Some(2),
+        ),
+    ];
+
+    for (raw, expected_status) in cases {
+        let config_dir = tempfile::tempdir().expect("create config directory");
+        let output = run(
+            config_dir.path(),
+            &["config", "set", "providers.exa.timeout", raw],
+            &[],
+            None,
+        );
+        assert_eq!(
+            output.status.code(),
+            expected_status,
+            "raw={raw}: {output:?}"
+        );
+    }
+}
+
+#[test]
+fn zero_is_accepted_for_non_negative_integers_at_all_three_entries() {
+    let config_dir = tempfile::tempdir().expect("create config directory");
+    fs::write(
+        config_dir.path().join("config.toml"),
+        "[retry]\nmax_wait = 0\n",
+    )
+    .expect("write config");
+    let file = run(config_dir.path(), &["config", "list"], &[], None);
+    let environment = run(
+        config_dir.path(),
+        &["config", "list"],
+        &[("FORAGER_RETRY__MAX_WAIT", "0")],
+        None,
+    );
+    let set = run(
+        config_dir.path(),
+        &["config", "set", "retry.max_wait", "0"],
+        &[],
+        None,
+    );
+
+    assert_eq!(
+        (
+            file.status.code(),
+            environment.status.code(),
+            set.status.code(),
+        ),
+        (Some(0), Some(0), Some(0))
+    );
+}
+
+#[test]
 fn config_set_and_unset_preserve_unrelated_toml() {
     let config_dir = tempfile::tempdir().expect("create config directory");
     let path = config_dir.path().join("config.toml");

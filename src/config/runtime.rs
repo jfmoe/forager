@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 
 use super::load::load_effective_config;
 use super::location::{ConfigError, ConfigLocation};
-use super::schema::Config;
+use super::schema::{Config, FieldRef, SCHEMA};
 use crate::redact::Secret;
 
 #[derive(Clone, Debug)]
@@ -288,42 +288,42 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
     let journal = JournalRuntimeConfig {
         enabled: config.journal.enabled,
         dir: resolve_journal_dir(&config.journal.dir, &config_dir)?,
-        retention_days: config.journal.retention_days.cast_unsigned(),
+        retention_days: config.journal.retention_days,
         credentials: configured_credentials(&config),
     };
     let tavily = WebFetchProviderConfig {
         url: config.providers.tavily.url,
         keys: config.providers.tavily.keys,
-        timeout_seconds: config.providers.tavily.timeout.cast_unsigned(),
+        timeout_seconds: config.providers.tavily.timeout,
         respond_with: String::new(),
     };
     let firecrawl = WebFetchProviderConfig {
         url: config.providers.firecrawl.url,
         keys: config.providers.firecrawl.keys,
-        timeout_seconds: config.providers.firecrawl.timeout.cast_unsigned(),
+        timeout_seconds: config.providers.firecrawl.timeout,
         respond_with: String::new(),
     };
     let exa = ExaRuntimeConfig {
         url: config.providers.exa.url,
         keys: config.providers.exa.keys,
-        timeout_seconds: config.providers.exa.timeout.cast_unsigned(),
+        timeout_seconds: config.providers.exa.timeout,
     };
     let context7 = Context7RuntimeConfig {
         url: config.providers.context7.url,
         keys: config.providers.context7.keys,
-        timeout_seconds: config.providers.context7.timeout.cast_unsigned(),
+        timeout_seconds: config.providers.context7.timeout,
     };
     let anysearch = AnysearchRuntimeConfig {
         url: config.providers.anysearch.url,
         keys: config.providers.anysearch.keys,
-        timeout_seconds: config.providers.anysearch.timeout.cast_unsigned(),
+        timeout_seconds: config.providers.anysearch.timeout,
     };
     let classifier = ClassifierRuntimeConfig {
         url: config.classifier.url,
         keys: config.classifier.keys,
         model: config.classifier.model,
         fallback_models: config.classifier.fallback_models,
-        timeout_seconds: config.classifier.timeout.cast_unsigned(),
+        timeout_seconds: config.classifier.timeout,
     };
     Ok(RuntimeConfig {
         main_search: MainSearchRuntimeConfig {
@@ -385,7 +385,7 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
                     WebFetchProviderConfig {
                         url: config.providers.jina.url,
                         keys: config.providers.jina.keys,
-                        timeout_seconds: config.providers.jina.timeout.cast_unsigned(),
+                        timeout_seconds: config.providers.jina.timeout,
                         respond_with: config.providers.jina.respond_with,
                     },
                 ),
@@ -399,7 +399,7 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
                 ConfigError::Message("retry.max_attempts exceeds this platform's limit".into())
             })?,
             multiplier: config.retry.multiplier,
-            max_wait_seconds: config.retry.max_wait.cast_unsigned(),
+            max_wait_seconds: config.retry.max_wait,
         },
         ssl_verify: config.http.ssl_verify,
     })
@@ -435,21 +435,15 @@ fn resolve_journal_dir(value: &str, config_dir: &Path) -> Result<PathBuf, Config
 }
 
 fn configured_credentials(config: &Config) -> Vec<Secret> {
-    [
-        &config.classifier.keys,
-        &config.providers.xai.keys,
-        &config.providers.openai_compatible.keys,
-        &config.providers.exa.keys,
-        &config.providers.context7.keys,
-        &config.providers.jina.keys,
-        &config.providers.tavily.keys,
-        &config.providers.firecrawl.keys,
-        &config.providers.anysearch.keys,
-    ]
-    .into_iter()
-    .flatten()
-    .cloned()
-    .collect()
+    SCHEMA
+        .iter()
+        .filter_map(|leaf| match (leaf.get)(config) {
+            FieldRef::Secrets(keys) => Some(keys),
+            _ => None,
+        })
+        .flatten()
+        .cloned()
+        .collect()
 }
 
 #[cfg(test)]

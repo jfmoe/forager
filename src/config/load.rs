@@ -7,7 +7,7 @@ use serde::Deserialize;
 
 use super::edit::{config_leaf, parse_edit_value};
 use super::location::{ConfigError, ConfigLocation};
-use super::schema::{Config, env_path};
+use super::schema::{Config, FieldMut, SCHEMA, env_path, leaf, parse_integer};
 use super::validate::validate;
 use crate::redact::Secret;
 
@@ -109,12 +109,12 @@ fn apply_environment(
         })?;
         parse_edit_value(path, &value).map_err(|_| {
             ConfigError::Message(format!(
-                "invalid value for configuration environment variable `{name}`"
+                "invalid value for configuration key `{path}` from environment variable `{name}`"
             ))
         })?;
         apply_env_value(config, path, &value).map_err(|()| {
             ConfigError::Message(format!(
-                "invalid value for configuration environment variable `{name}`"
+                "invalid value for configuration key `{path}` from environment variable `{name}`"
             ))
         })?;
         env_paths.insert(path.to_owned());
@@ -123,89 +123,16 @@ fn apply_environment(
 }
 
 fn apply_env_value(config: &mut Config, path: &str, raw: &str) -> Result<(), ()> {
-    macro_rules! string {
-        ($target:expr) => {{
-            $target = raw.to_owned();
-            Ok(())
-        }};
+    let leaf = leaf(path).ok_or(())?;
+    match (leaf.get_mut)(config) {
+        FieldMut::String(slot) => raw.clone_into(slot),
+        FieldMut::Bool(slot) => *slot = raw.parse().map_err(|_| ())?,
+        FieldMut::U64(slot) => *slot = parse_integer(raw)?,
+        FieldMut::F64(slot) => *slot = raw.parse().map_err(|_| ())?,
+        FieldMut::Strings(slot) => *slot = parse_string_array(raw)?,
+        FieldMut::Secrets(slot) => *slot = parse_secret_array(raw)?,
     }
-    macro_rules! integer {
-        ($target:expr) => {{
-            $target = raw.parse().map_err(|_| ())?;
-            Ok(())
-        }};
-    }
-    macro_rules! boolean {
-        ($target:expr) => {{
-            $target = raw.parse().map_err(|_| ())?;
-            Ok(())
-        }};
-    }
-    macro_rules! array {
-        ($target:expr) => {{
-            $target = parse_string_array(raw)?;
-            Ok(())
-        }};
-    }
-    macro_rules! secrets {
-        ($target:expr) => {{
-            $target = parse_secret_array(raw)?;
-            Ok(())
-        }};
-    }
-    match path {
-        "search.backends" => array!(config.search.backends),
-        "search.validation" => string!(config.search.validation),
-        "search.fallback" => string!(config.search.fallback),
-        "classifier.url" => string!(config.classifier.url),
-        "classifier.keys" => secrets!(config.classifier.keys),
-        "classifier.model" => string!(config.classifier.model),
-        "classifier.fallback_models" => array!(config.classifier.fallback_models),
-        "classifier.timeout" => integer!(config.classifier.timeout),
-        "providers.xai.url" => string!(config.providers.xai.url),
-        "providers.xai.keys" => secrets!(config.providers.xai.keys),
-        "providers.xai.model" => string!(config.providers.xai.model),
-        "providers.xai.tools" => array!(config.providers.xai.tools),
-        "providers.openai_compatible.url" => string!(config.providers.openai_compatible.url),
-        "providers.openai_compatible.keys" => secrets!(config.providers.openai_compatible.keys),
-        "providers.openai_compatible.model" => string!(config.providers.openai_compatible.model),
-        "providers.openai_compatible.fallback_models" => {
-            array!(config.providers.openai_compatible.fallback_models)
-        }
-        "providers.openai_compatible.stream" => boolean!(config.providers.openai_compatible.stream),
-        "providers.exa.url" => string!(config.providers.exa.url),
-        "providers.exa.keys" => secrets!(config.providers.exa.keys),
-        "providers.exa.timeout" => integer!(config.providers.exa.timeout),
-        "providers.context7.url" => string!(config.providers.context7.url),
-        "providers.context7.keys" => secrets!(config.providers.context7.keys),
-        "providers.context7.timeout" => integer!(config.providers.context7.timeout),
-        "providers.jina.url" => string!(config.providers.jina.url),
-        "providers.jina.keys" => secrets!(config.providers.jina.keys),
-        "providers.jina.respond_with" => string!(config.providers.jina.respond_with),
-        "providers.jina.timeout" => integer!(config.providers.jina.timeout),
-        "providers.tavily.url" => string!(config.providers.tavily.url),
-        "providers.tavily.keys" => secrets!(config.providers.tavily.keys),
-        "providers.tavily.timeout" => integer!(config.providers.tavily.timeout),
-        "providers.firecrawl.url" => string!(config.providers.firecrawl.url),
-        "providers.firecrawl.keys" => secrets!(config.providers.firecrawl.keys),
-        "providers.firecrawl.timeout" => integer!(config.providers.firecrawl.timeout),
-        "providers.anysearch.url" => string!(config.providers.anysearch.url),
-        "providers.anysearch.keys" => secrets!(config.providers.anysearch.keys),
-        "providers.anysearch.timeout" => integer!(config.providers.anysearch.timeout),
-        "capabilities.web_search.order" => array!(config.capabilities.web_search.order),
-        "capabilities.web_fetch.order" => array!(config.capabilities.web_fetch.order),
-        "capabilities.docs_search.order" => array!(config.capabilities.docs_search.order),
-        "capabilities.vertical_search.order" => array!(config.capabilities.vertical_search.order),
-        "log.level" => string!(config.log.level),
-        "journal.enabled" => boolean!(config.journal.enabled),
-        "journal.dir" => string!(config.journal.dir),
-        "journal.retention_days" => integer!(config.journal.retention_days),
-        "retry.max_attempts" => integer!(config.retry.max_attempts),
-        "retry.multiplier" => integer!(config.retry.multiplier),
-        "retry.max_wait" => integer!(config.retry.max_wait),
-        "http.ssl_verify" => boolean!(config.http.ssl_verify),
-        _ => Err(()),
-    }
+    Ok(())
 }
 
 fn parse_string_array(raw: &str) -> Result<Vec<String>, ()> {
@@ -229,13 +156,40 @@ fn parse_secret_array(raw: &str) -> Result<Vec<Secret>, ()> {
 }
 
 fn normalize_credentials(config: &mut Config) {
-    Secret::normalize(&mut config.classifier.keys);
-    Secret::normalize(&mut config.providers.xai.keys);
-    Secret::normalize(&mut config.providers.openai_compatible.keys);
-    Secret::normalize(&mut config.providers.exa.keys);
-    Secret::normalize(&mut config.providers.context7.keys);
-    Secret::normalize(&mut config.providers.jina.keys);
-    Secret::normalize(&mut config.providers.tavily.keys);
-    Secret::normalize(&mut config.providers.firecrawl.keys);
-    Secret::normalize(&mut config.providers.anysearch.keys);
+    for leaf in SCHEMA {
+        if let FieldMut::Secrets(keys) = (leaf.get_mut)(config) {
+            Secret::normalize(keys);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::apply_env_value;
+    use crate::config::schema::Config;
+
+    #[test]
+    fn schema_mutator_executor_applies_every_field_kind_to_its_value() {
+        let mut config = Config::default();
+
+        apply_env_value(&mut config, "search.validation", "strict").expect("string");
+        apply_env_value(&mut config, "journal.enabled", "false").expect("boolean");
+        apply_env_value(&mut config, "retry.max_wait", "92").expect("integer");
+        apply_env_value(&mut config, "retry.multiplier", "2.5").expect("float");
+        apply_env_value(&mut config, "search.backends", r#"["xai"]"#).expect("strings");
+        apply_env_value(&mut config, "classifier.keys", r#"["first", "second"]"#).expect("secrets");
+
+        let expected_backends = vec!["xai".to_owned()];
+        assert_eq!(
+            (
+                config.search.validation.as_str(),
+                config.journal.enabled,
+                config.retry.max_wait,
+                config.retry.multiplier,
+                config.search.backends.as_slice(),
+                config.classifier.keys.len(),
+            ),
+            ("strict", false, 92, 2.5, expected_backends.as_slice(), 2)
+        );
+    }
 }
