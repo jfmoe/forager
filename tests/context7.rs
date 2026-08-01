@@ -280,6 +280,44 @@ fn context7_reports_a_library_redirect_without_retrying() {
 }
 
 #[test]
+fn context7_redacts_urls_in_a_library_redirect() {
+    let fixture = Fixture::start(vec![
+        initialize("redacted-redirect-session"),
+        Response::json(202, ""),
+        Response::json(
+            200,
+            r#"{"jsonrpc":"2.0","id":2,"result":{"structuredContent":{"redirectedLibraryId":"/https://user:password@example.test/private?token=redirect-secret"},"content":[]}}"#,
+        ),
+    ]);
+
+    let output = run(
+        &fixture,
+        &["context7", "docs", "/rust-lang/rust", "book"],
+        &["only-key"],
+    );
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["message"],
+            &payload["redirected_library_id"],
+        ),
+        (
+            Some(4),
+            &Value::String(
+                "Context7 library ID was redirected to /https://example.test/private?token=********"
+                    .into(),
+            ),
+            &Value::String("/https://example.test/private?token=********".into()),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    fixture.finish();
+}
+
+#[test]
 fn context7_unknown_tool_error_is_runtime_and_is_not_retried() {
     let fixture = Fixture::start(vec![
         initialize("error-session"),

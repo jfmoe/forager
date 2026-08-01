@@ -7,7 +7,7 @@ use crate::config::{self, ExaRuntimeConfig};
 use crate::credentials::CredentialPool;
 use crate::net::{RetryPolicy, duration_millis, error_kind_for_status};
 use crate::providers::ProviderError;
-use crate::providers::shared::redacted_message;
+use crate::providers::shared::{redacted_message, redacted_urls_message};
 use crate::types::{AttemptErrorKind, Deadline, ExaInput, ExaOutcome, ProviderAttempt, Source};
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -252,15 +252,14 @@ impl Exa {
                 AttemptErrorKind::Network
             },
             status: Some(status.as_u16()),
-            message: redacted_message(&error.to_string(), &self.config.url, &self.credentials),
+            message: redacted_urls_message(&error.to_string(), &self.credentials),
         })?;
         if !status.is_success() {
             return Err(AttemptFailure {
                 kind: error_kind_for_status(status, &body),
                 status: Some(status.as_u16()),
-                message: redacted_message(
+                message: redacted_urls_message(
                     &failure_message(&body, status.as_u16()),
-                    &self.config.url,
                     &self.credentials,
                 ),
             });

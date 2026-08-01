@@ -1051,6 +1051,56 @@ fn failed_declared_seam_is_advisory_and_preserves_all_attempts() {
 }
 
 #[test]
+fn supplemental_search_redacts_urls_in_non_success_responses() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let tavily = Fixture::start(
+        400,
+        "application/json",
+        r#"{"error":"upstream rejected https://user:password@example.test/private?token=response-secret"}"#,
+    );
+    let config = format!(
+        "{}\n[providers.tavily]\nurl = {:?}\nkeys = [\"tavily-key\"]\ntimeout = 30\n\n[capabilities.web_search]\norder = [\"tavily\"]\n",
+        search_config(&main.url, false),
+        tavily.url
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Current information",
+        "--capabilities",
+        "web_search",
+        "--verbose",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let tavily_attempt = payload["provider_attempts"]
+        .as_array()
+        .expect("provider attempts")
+        .iter()
+        .find(|attempt| attempt["provider"] == "tavily")
+        .expect("tavily attempt");
+
+    assert_eq!(
+        (output.status.code(), &tavily_attempt["message"]),
+        (
+            Some(0),
+            &Value::String(
+                r#"{"error":"upstream rejected https://example.test/private?token=********"}"#
+                    .into(),
+            ),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    main.finish();
+    tavily.finish();
+}
+
+#[test]
 fn search_uses_the_completed_xai_response_and_deduplicates_sources() {
     let fixture = Fixture::start(
         200,

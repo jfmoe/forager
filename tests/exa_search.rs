@@ -333,6 +333,30 @@ fn exa_search_keeps_default_failure_json_small_and_secret_free() {
 }
 
 #[test]
+fn exa_search_redacts_urls_in_non_success_responses() {
+    let message =
+        "upstream rejected https://user:password@example.test/private?api_key=response-secret";
+    let body = format!(r#"{{"error":{{"message":{message:?}}}}}"#);
+    let fixture = Fixture::start_owned(400, body);
+
+    let output = run(&fixture, &["exa", "search", "redaction"], &["only-key"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (output.status.code(), &payload["message"]),
+        (
+            Some(4),
+            &Value::String(
+                "upstream rejected https://example.test/private?api_key=********".into(),
+            ),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    fixture.finish();
+}
+
+#[test]
 fn exa_search_verbose_attempts_can_exceed_the_default_payload_limit() {
     let message = "rate limit detail ".repeat(100);
     let body = format!(r#"{{"error":{{"message":{message:?}}}}}"#);

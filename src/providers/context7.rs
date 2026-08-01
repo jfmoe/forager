@@ -7,7 +7,7 @@ use crate::config::Context7RuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{McpClient, McpError, McpToolResult, RetryPolicy, duration_millis};
 use crate::providers::ProviderError;
-use crate::providers::shared::redacted_message;
+use crate::providers::shared::{redacted_message, redacted_urls_message};
 use crate::types::{
     AttemptErrorKind, Context7DocsOutcome, Context7LibraryOutcome, Context7Outcome, Deadline,
     LibraryCandidate, ProviderAttempt,
@@ -128,7 +128,10 @@ impl Context7 {
                 }
                 Err(failure) => {
                     let kind = failure.kind;
-                    let redirect = failure.redirected_library_id.clone();
+                    let redirect = failure
+                        .redirected_library_id
+                        .as_deref()
+                        .map(|target| redacted_urls_message(target, &self.credentials));
                     attempts.push(ProviderAttempt {
                         provider: "context7",
                         seam: "docs_search",
@@ -138,11 +141,11 @@ impl Context7 {
                         credential_index,
                         retry_count,
                         rotation_count,
-                        message: redacted_message(
-                            &failure.message,
-                            &self.config.url,
-                            &self.credentials,
-                        ),
+                        message: if failure.redirected_library_id.is_some() {
+                            redacted_urls_message(&failure.message, &self.credentials)
+                        } else {
+                            redacted_message(&failure.message, &self.config.url, &self.credentials)
+                        },
                         model: None,
                         transport: Some("mcp"),
                         endpoint_host: None,
