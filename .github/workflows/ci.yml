@@ -6,6 +6,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -19,10 +23,9 @@ jobs:
           persist-credentials: false
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - run: cargo fmt --check
-      - run: cargo check --all-targets --all-features --locked
-      - run: cargo clippy --all-targets --all-features --locked -- -D warnings
+      - run: cargo clippy --all-targets --locked -- -D warnings
 
-  unit:
+  test:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -30,46 +33,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - run: cargo test --lib --bin forager --all-features --locked
-
-  transport-fixtures:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - run: >-
-          cargo test --locked
-          --test anysearch
-          --test context7
-          --test exa_search
-          --test firecrawl_fetch
-          --test jina_fetch
-          --test search
-          --test tavily_fetch
-
-  offline-e2e:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - run: cargo test --tests --all-features --locked
-
-  coverage-tracking:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
-      - uses: actions-rust-lang/setup-rust-toolchain@v1
-      - run: cargo test --test acceptance_coverage --locked
-      - run: cargo test --lib provider_fixture_projection_matches_transport_manifest --locked
+      - run: cargo test --locked
 
   windows-permissions:
     runs-on: windows-latest

@@ -14,39 +14,61 @@ fn every_runnable_workflow_job_has_a_twenty_minute_timeout() {
 }
 
 #[test]
-fn ci_uses_the_repository_toolchain_and_runs_every_pull_request_gate() {
-    let workflow = fs::read_to_string(".github/workflows/ci.yml").expect("read CI workflow");
+fn ci_does_not_run_live_smoke_checks() {
+    assert!(!ci_workflow().contains("smoke --live"));
+}
 
-    let required_fragments = [
-        "actions-rust-lang/setup-rust-toolchain@v1",
-        "quality:",
-        "cargo fmt --check",
-        "cargo check --all-targets --all-features --locked",
-        "cargo clippy --all-targets --all-features --locked -- -D warnings",
-        "unit:",
-        "cargo test --lib --bin forager --all-features --locked",
-        "transport-fixtures:",
-        "--test anysearch",
-        "--test tavily_fetch",
-        "offline-e2e:",
-        "cargo test --tests --all-features --locked",
-        "coverage-tracking:",
-        "cargo test --test acceptance_coverage --locked",
-        "cargo test --lib provider_fixture_projection_matches_transport_manifest --locked",
-        "windows-permissions:",
-        "cargo test --test config_permissions --test smoke --locked",
-    ];
+#[test]
+fn ci_checks_rust_formatting() {
+    assert!(cargo_commands(&ci_workflow()).iter().any(|command| {
+        let arguments = command.split_whitespace().collect::<Vec<_>>();
+        arguments.starts_with(&["cargo", "fmt"]) && arguments.contains(&"--check")
+    }));
+}
 
+#[test]
+fn ci_denies_clippy_warnings() {
+    assert!(cargo_commands(&ci_workflow()).iter().any(|command| {
+        let arguments = command.split_whitespace().collect::<Vec<_>>();
+        arguments.starts_with(&["cargo", "clippy"])
+            && arguments.windows(2).any(|pair| pair == ["-D", "warnings"])
+    }));
+}
+
+#[test]
+fn ci_runs_the_full_unfiltered_test_suite() {
+    assert!(cargo_commands(&ci_workflow()).iter().any(|command| {
+        let mut arguments = command.split_whitespace();
+        arguments.next() == Some("cargo")
+            && arguments.next() == Some("test")
+            && arguments.all(|argument| argument == "--locked")
+    }));
+}
+
+#[test]
+fn ci_locks_every_dependency_resolving_cargo_command() {
     assert!(
-        required_fragments
+        cargo_commands(&ci_workflow())
             .iter()
-            .all(|fragment| workflow.contains(fragment)),
-        "CI workflow is missing a required Rust gate"
+            .filter(|command| !command.starts_with("cargo fmt "))
+            .all(|command| command
+                .split_whitespace()
+                .any(|argument| argument == "--locked"))
     );
-    assert!(
-        !workflow.contains("smoke --live"),
-        "live credential checks must not run in pull request CI"
-    );
+}
+
+#[test]
+fn ci_tests_on_a_windows_runner() {
+    let workflow = ci_workflow();
+    let jobs = workflow.split_once("\njobs:\n").expect("workflow jobs").1;
+
+    assert!(workflow_job_bodies(jobs).iter().any(|job| {
+        job.lines()
+            .any(|line| line.trim() == "runs-on: windows-latest")
+            && cargo_commands(job)
+                .iter()
+                .any(|command| command.starts_with("cargo test"))
+    }));
 }
 
 #[test]
@@ -267,4 +289,66 @@ fn assert_job_timeout(path: &str, job_name: &str, body: &[&str]) {
             "{path} job {job_name} must declare timeout-minutes: 20"
         );
     }
+}
+
+fn ci_workflow() -> String {
+    fs::read_to_string(".github/workflows/ci.yml").expect("read CI workflow")
+}
+
+fn cargo_commands(workflow: &str) -> Vec<String> {
+    let lines = workflow.lines().collect::<Vec<_>>();
+    let mut commands = Vec::new();
+    let mut index = 0;
+
+    while index < lines.len() {
+        let line = lines[index];
+        let indentation = line.len() - line.trim_start().len();
+        let Some(run) = line.trim().strip_prefix("- run: ") else {
+            index += 1;
+            continue;
+        };
+
+        let command = if matches!(run, ">-" | "|" | "|-" | ">") {
+            index += 1;
+            let mut parts = Vec::new();
+            while index < lines.len()
+                && lines[index].len() - lines[index].trim_start().len() > indentation
+            {
+                parts.push(lines[index].trim());
+                index += 1;
+            }
+            parts.join(" ")
+        } else {
+            index += 1;
+            run.to_owned()
+        };
+
+        if command.starts_with("cargo ") {
+            commands.push(command);
+        }
+    }
+
+    commands
+}
+
+fn workflow_job_bodies(jobs: &str) -> Vec<String> {
+    let mut bodies = Vec::new();
+    let mut body = Vec::new();
+
+    for line in jobs.lines() {
+        let starts_job = line.starts_with("  ") && !line.starts_with("    ") && line.ends_with(':');
+        if starts_job {
+            if !body.is_empty() {
+                bodies.push(body.join("\n"));
+                body.clear();
+            }
+        } else {
+            body.push(line);
+        }
+    }
+    if !body.is_empty() {
+        bodies.push(body.join("\n"));
+    }
+
+    bodies
 }
