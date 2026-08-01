@@ -39,7 +39,7 @@ main → app → {engine, research, classifier, doctor, journal}
 ## net 层
 
 1. 全进程一个 `reqwest::Client`（rustls），构造参数单点。
-2. **`Deadline` 贯穿调用链**；attempt 上限＝`min(层上限, 剩余预算 / 剩余必要 fallback 槽位数)`（F3）。每层开始时枚举尚未尝试的必要槽位；retry 只消费本槽位未用完预算，优先级低于未尝试的 provider/model fallback；耗尽→Timeout、保留已完成 attempts。槽位可执行定义见第 5 章 M17。
+2. **`Deadline` 贯穿调用链**；main search 的主 backend、主 model 与 SSE 首次尝试可使用全部剩余预算，fallback 只消费失败后的残余。classifier 与辅助 seam 的 attempt 上限＝`min(层上限, 剩余预算 / 剩余必要 fallback 槽位数)`（F3）；耗尽→Timeout、保留已完成 attempts。辅助 seam 的槽位可执行定义见第 5 章 M17，main search 的边界与已接受后果见 ADR 0007。
 3. SSE 只用 **eventsource-stream 裸解析**（不用 reqwest-eventsource——其自动重连绕过预算与 attempt 记录）；NDJSON 同入口换分帧器。
 4. **`McpClient`** 统一 session 握手 / tools-call / 双格式解析 / 错误映射；context7、anysearch 退化为「tool 名 + serde 参数 + 结果映射」；session 过期重握手留在 McpClient 内、受 Deadline 约束。**语义错误解码**（F5）：统一识别 JSON-RPC `error` 与 `result.isError`；provider adapter 只提供具名解码规则；可识别限流/配额文本映射 RateLimited/QuotaExhausted（触发轮换），未知 tool error 映射 Runtime 且不重试；归类先于轮换/重试决策。
 5. `RetryPolicy` 参数化；可重试集合由 `is_retryable()` 决定；执行序固定：轮换 → 重试 → 上抛。

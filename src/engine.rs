@@ -403,18 +403,13 @@ pub(crate) async fn search(
     let mut attempts = Vec::new();
     let mut diagnostics = Vec::new();
 
-    for (index, backend) in executable.iter().enumerate() {
+    for backend in &executable {
         if !backend_is_configured(backend, &config) {
             attempts.push(unconfigured_attempt(backend));
             break;
         }
-        let remaining_slots = executable.len() - index;
         let Some(remaining) = deadline.remaining() else {
             break;
-        };
-        let Some(budget) = slice_budget(remaining, remaining_slots) else {
-            attempts.push(skipped_attempt(backend, "main_search"));
-            continue;
         };
         let provider_config = config
             .provider(backend)
@@ -425,7 +420,7 @@ pub(crate) async fn search(
             provider_config,
             client.clone(),
             retry_policy,
-            Deadline::new(budget),
+            Deadline::new(remaining),
             model_breakers.clone(),
         )
         .search(request.clone())

@@ -161,7 +161,9 @@ impl Context7 {
                             .rotated_index(selection.index, rotation_count);
                         continue;
                     }
-                    if kind.is_retryable() && attempts.len() < self.retry_policy.max_attempts() {
+                    if kind.is_retryable()
+                        && retry_count.saturating_add(1) < self.retry_policy.max_attempts()
+                    {
                         retry_count += 1;
                         let wait = self.retry_policy.wait(retry_count);
                         let Some(remaining) = self.deadline.remaining() else {

@@ -63,12 +63,13 @@ pub(crate) fn shallow(timeout_seconds: u64) -> Result<ShallowDoctorReport, confi
     let effective = serde_json::to_value(config::effective_view()?)
         .map_err(|error| config::ConfigError::Message(error.to_string()))?;
     let runtime_config = config::runtime_config()?;
-    let client = net::build_client(runtime_config.ssl_verify)
-        .map_err(|error| config::ConfigError::Message(error.to_string()))?;
     let deadline = Deadline::new(Duration::from_secs(timeout_seconds));
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
+        .map_err(|error| config::ConfigError::Message(error.to_string()))?;
+    let client = runtime
+        .block_on(async { net::build_client(runtime_config.ssl_verify) })
         .map_err(|error| config::ConfigError::Message(error.to_string()))?;
     let reachability = runtime.block_on(async {
         join_all(providers::registrations().iter().map(|registration| {
@@ -129,8 +130,6 @@ pub(crate) fn deep(
             3,
         ));
     }
-    let client = net::build_client(runtime_config.ssl_verify)
-        .map_err(|error| config::ConfigError::Message(error.to_string()))?;
     let retry_policy = RetryPolicy::new(
         runtime_config.retry.max_attempts,
         runtime_config.retry.multiplier,
@@ -140,6 +139,9 @@ pub(crate) fn deep(
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
+        .map_err(|error| config::ConfigError::Message(error.to_string()))?;
+    let client = runtime
+        .block_on(async { net::build_client(runtime_config.ssl_verify) })
         .map_err(|error| config::ConfigError::Message(error.to_string()))?;
     let result = runtime.block_on(run_probe(
         provider,

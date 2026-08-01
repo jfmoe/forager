@@ -170,21 +170,13 @@ impl HttpFetchProvider {
             .send()
             .await
             .map_err(|error| AttemptFailure {
-                kind: if error.is_timeout() {
-                    AttemptErrorKind::Timeout
-                } else {
-                    AttemptErrorKind::Network
-                },
+                kind: AttemptErrorKind::Network,
                 status: error.status().map(|status| status.as_u16()),
                 message: self.redacted_error(&error.to_string()),
             })?;
         let status = response.status();
         let body = response.text().await.map_err(|error| AttemptFailure {
-            kind: if error.is_timeout() {
-                AttemptErrorKind::Timeout
-            } else {
-                AttemptErrorKind::Network
-            },
+            kind: AttemptErrorKind::Network,
             status: Some(status.as_u16()),
             message: self.redacted_error(&error.to_string()),
         })?;

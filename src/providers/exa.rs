@@ -159,7 +159,9 @@ impl Exa {
                             .rotated_index(selection.index, rotation_count);
                         continue;
                     }
-                    if kind.is_retryable() && attempts.len() < self.retry_policy.max_attempts() {
+                    if kind.is_retryable()
+                        && retry_count.saturating_add(1) < self.retry_policy.max_attempts()
+                    {
                         retry_count += 1;
                         let wait = self.retry_policy.wait(retry_count);
                         let Some(remaining) = self.deadline.remaining() else {
@@ -204,7 +206,7 @@ impl Exa {
                         endpoint_host: None,
                         breaker_event: None,
                     });
-                    if attempts.len() < self.retry_policy.max_attempts() {
+                    if retry_count.saturating_add(1) < self.retry_policy.max_attempts() {
                         retry_count += 1;
                         continue;
                     }
@@ -239,21 +241,13 @@ impl Exa {
             ExaOperation::Similar(similar) => request.json(&ExaSimilarBody::from(similar)),
         };
         let response = request.send().await.map_err(|error| AttemptFailure {
-            kind: if error.is_timeout() {
-                AttemptErrorKind::Timeout
-            } else {
-                AttemptErrorKind::Network
-            },
+            kind: AttemptErrorKind::Network,
             status: error.status().map(|status| status.as_u16()),
             message: redacted_message(&error.to_string(), &self.config.url, &self.credentials),
         })?;
         let status = response.status();
         let body = response.text().await.map_err(|error| AttemptFailure {
-            kind: if error.is_timeout() {
-                AttemptErrorKind::Timeout
-            } else {
-                AttemptErrorKind::Network
-            },
+            kind: AttemptErrorKind::Network,
             status: Some(status.as_u16()),
             message: redacted_urls_message(&error.to_string(), &self.credentials),
         })?;

@@ -271,11 +271,7 @@ impl Classifier {
             .send()
             .await
             .map_err(|error| AttemptFailure {
-                kind: if error.is_timeout() {
-                    AttemptErrorKind::Timeout
-                } else {
-                    AttemptErrorKind::Network
-                },
+                kind: AttemptErrorKind::Network,
                 status: error.status().map(|status| status.as_u16()),
                 message: redacted_urls_message(&error.to_string(), &self.credentials),
             })?;

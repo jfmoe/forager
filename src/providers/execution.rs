@@ -118,7 +118,9 @@ where
             credential_index = credentials.rotated_index(selection.index, rotation_count);
             continue;
         }
-        if kind.is_retryable() && attempts.len() < settings.retry_policy.max_attempts() {
+        if kind.is_retryable()
+            && retry_count.saturating_add(1) < settings.retry_policy.max_attempts()
+        {
             retry_count += 1;
             let wait = settings.retry_policy.wait(retry_count);
             if settings

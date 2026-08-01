@@ -476,12 +476,13 @@ impl NetworkDependencies {
             config.retry.multiplier,
             Duration::from_secs(config.retry.max_wait_seconds),
         );
-        let client = net::build_client(config.ssl_verify)
-            .map_err(|error| AppError::Runtime(format!("cannot build HTTP client: {error}")))?;
         let runtime = tokio::runtime::Builder::new_multi_thread()
             .enable_all()
             .build()
             .map_err(|error| AppError::Runtime(format!("cannot start network runtime: {error}")))?;
+        let client = runtime
+            .block_on(async { net::build_client(config.ssl_verify) })
+            .map_err(|error| AppError::Runtime(format!("cannot build HTTP client: {error}")))?;
         Ok(Self {
             config,
             client,

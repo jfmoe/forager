@@ -1324,6 +1324,53 @@ fn search_falls_back_from_xai_to_openai_compatible_non_stream() {
 }
 
 #[test]
+fn search_primary_backend_can_use_more_than_its_even_budget_share() {
+    let xai = Fixture::start_sequence(vec![
+        Response::sse(
+            200,
+            &completed_body("Slow primary answer", "Primary source"),
+        )
+        .with_delay(std::time::Duration::from_secs(6)),
+    ]);
+    let openai = Fixture::start_canary();
+    let environment = RunEnvironment::new(&main_fallback_config(
+        &xai.url,
+        &openai.url,
+        false,
+        &[],
+        "auto",
+        false,
+    ));
+
+    let output = environment.run(&[
+        "search",
+        "Slow primary",
+        "--capabilities",
+        "none",
+        "--timeout",
+        "10",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["provider"],
+            &payload["answer"]
+        ),
+        (
+            Some(0),
+            &Value::String("xai".into()),
+            &Value::String("Slow primary answer".into()),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    xai.finish();
+    assert!(openai.finish_all().is_empty());
+}
+
+#[test]
 fn search_openai_stream_falls_back_to_non_stream_with_the_same_adapter() {
     let openai = Fixture::start_sequence(vec![
         Response::new(200, "text/event-stream", "data: [DONE]\n\n"),
@@ -1368,6 +1415,44 @@ fn search_openai_stream_falls_back_to_non_stream_with_the_same_adapter() {
     assert_eq!(requests.len(), 2);
     assert!(requests[0].contains("\"stream\":true"), "{}", requests[0]);
     assert!(requests[1].contains("\"stream\":false"), "{}", requests[1]);
+}
+
+#[test]
+fn search_primary_sse_transport_can_use_the_models_full_remaining_budget() {
+    let openai = Fixture::start_sequence(vec![
+        Response::sse(
+            200,
+            concat!(
+                "data: {\"choices\":[{\"delta\":{\"content\":\"Slow SSE answer\"},",
+                "\"finish_reason\":\"stop\"}]}\n\n"
+            ),
+        )
+        .with_delay(std::time::Duration::from_secs(4)),
+    ]);
+    let config = main_fallback_config("http://127.0.0.1:9", &openai.url, true, &[], "auto", false)
+        .replace(
+            r#"backends = ["xai", "openai_compatible"]"#,
+            r#"backends = ["openai_compatible"]"#,
+        );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Slow SSE",
+        "--capabilities",
+        "none",
+        "--timeout",
+        "6",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (output.status.code(), &payload["answer"]),
+        (Some(0), &Value::String("Slow SSE answer".into())),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(openai.finish_all().len(), 1);
 }
 
 #[test]
@@ -1560,6 +1645,142 @@ fn search_openai_falls_back_between_configured_models() {
             .collect::<Vec<_>>(),
         ["primary-model", "fallback-model"]
     );
+}
+
+#[test]
+fn search_primary_model_can_use_more_than_its_even_budget_share() {
+    let openai = Fixture::start_sequence(vec![
+        Response::json(
+            200,
+            r#"{"choices":[{"message":{"content":"Slow model answer"}}]}"#,
+        )
+        .with_delay(std::time::Duration::from_secs(6)),
+    ]);
+    let config = main_fallback_config(
+        "http://127.0.0.1:9",
+        &openai.url,
+        false,
+        &["fallback-model"],
+        "auto",
+        false,
+    )
+    .replace(
+        r#"backends = ["xai", "openai_compatible"]"#,
+        r#"backends = ["openai_compatible"]"#,
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Slow model",
+        "--capabilities",
+        "none",
+        "--timeout",
+        "10",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (output.status.code(), &payload["model"], &payload["answer"]),
+        (
+            Some(0),
+            &Value::String("primary-model".into()),
+            &Value::String("Slow model answer".into()),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(openai.finish_all().len(), 1);
+}
+
+#[test]
+fn search_credential_rotation_does_not_consume_network_retry_quota() {
+    let xai = Fixture::start_sequence(vec![
+        Response::json(429, r#"{"error":"rate limited"}"#),
+        Response::json(429, r#"{"error":"rate limited"}"#),
+        Response::json(503, r#"{"error":"network failure"}"#),
+        Response::json(503, r#"{"error":"network failure"}"#),
+    ]);
+    let config = search_config(&xai.url, false)
+        .replace(
+            r#"keys = ["xai-key"]"#,
+            r#"keys = ["key-1", "key-2", "key-3"]"#,
+        )
+        .replace("max_attempts = 1", "max_attempts = 2");
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Independent quotas",
+        "--capabilities",
+        "none",
+        "--verbose",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["error_kind"],
+            &payload["attempts"]["total"],
+        ),
+        (Some(4), &Value::String("network".into()), &Value::from(4),),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let requests = xai.finish_all();
+    assert_eq!(requests.len(), 4);
+    assert!(requests[0].contains("authorization: Bearer key-1"));
+    assert!(requests[1].contains("authorization: Bearer key-2"));
+    assert!(requests[2].contains("authorization: Bearer key-3"));
+    assert!(requests[3].contains("authorization: Bearer key-3"));
+}
+
+#[test]
+fn search_retries_a_network_error_after_the_shared_read_timeout() {
+    let xai = Fixture::start_sequence(vec![
+        Response::sse(200, &completed_body("Stalled answer", "Stalled source"))
+            .with_body_delay(std::time::Duration::from_secs(61)),
+        Response::sse(200, &completed_body("Retried answer", "Retried source")),
+    ]);
+    let config = search_config(&xai.url, true).replace("max_attempts = 1", "max_attempts = 2");
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Read timeout retry",
+        "--capabilities",
+        "none",
+        "--timeout",
+        "70",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let journal = read_only_journal(&environment);
+    let attempts = journal["execution"]["provider_attempts"]
+        .as_array()
+        .expect("journal attempts");
+
+    assert_eq!(
+        (output.status.code(), &payload["answer"], attempts.len()),
+        (Some(0), &Value::String("Retried answer".into()), 2,),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        (
+            &attempts[0]["error_kind"],
+            &attempts[0]["retry_count"],
+            &attempts[1]["error_kind"],
+            &attempts[1]["retry_count"],
+        ),
+        (
+            &Value::String("network".into()),
+            &Value::from(0),
+            &Value::Null,
+            &Value::from(1),
+        )
+    );
+    assert_eq!(xai.finish_all().len(), 2);
 }
 
 #[test]

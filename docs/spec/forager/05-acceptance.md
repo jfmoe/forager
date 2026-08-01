@@ -67,7 +67,7 @@ AnySearch **extraction 裁决**（消解 #53 砍 `anysearch-extract` 与 #59 L8 
 
 ## Medium 落地件（补充决议② M17–M21 定稿）
 
-- **M17 预算槽位定义**（统一算法，适用于一切链式 fallback 层）：槽位＝该层中「尚未尝试、凭据在位、未被断路器熔断」的候选数——seam 链的候选是 provider，provider 内 model 链（openai_compatible `fallback_models`）与 **classifier model 链**（`classifier.fallback_models`，在其 30s 阶段共享预算内按同规则切片）的候选是 model。**`--fallback off` 恒 1**（依 #59/#60 原文）：seam 链只执行链头，且 provider 内 model 链不启动；**classifier 链不受该旗标影响**（独立阶段、非搜索 fallback 面——本条为汇编裁定，2026-07-26 留痕）。断路器熔断项不计入。**最小可用 slice 下限 5s**：`剩余预算/剩余槽位 < 5s` 时跳过该槽（journal 记 skipped），最后一槽可用全部剩余预算。
+- **M17 辅助 seam 预算槽位定义**：槽位＝该层中「尚未尝试、凭据在位、未被断路器熔断」的候选数；classifier model 链及 web_fetch、supplemental、tavily_map 等辅助 provider 链继续按槽位均分，并受各自阶段或单次 timeout 上限约束。断路器熔断项不计入；`剩余预算/剩余槽位 < 5s` 时跳过该槽（journal 记 skipped），最后一槽可用全部剩余预算。main search 不适用槽位均分：主 backend → 主 model → SSE 首次尝试可使用全部剩余预算，fallback 只消费残余；`--fallback off` 仍只执行链头并禁用 provider 内 model fallback，classifier 链不受该旗标影响。单 backend + 单 model 没有 in-seam 超时重试，保障来自 fallback 链；共享 endpoint、model 或凭据池的 fallback 不提供故障隔离，隔离由配置负责（ADR 0007）。
 - **M18 瘦载荷边界**：默认失败载荷上限 **4 KiB**；列表字段（by_kind、providers、capability_gaps.providers_skipped）各截断至 8 项并置 `truncated: true`；message 截断至 500 字符。断言用字节上限，不用「几百字节」措辞。
 - **M19 覆盖完整性门**：Tier 0/Tier 1 → 测试 ID → provider/seam 追踪清单入库。**验收用例 ID 的权威源＝本章用例清单本身**（受版本控制，随规格入新仓），不由 provider registry 派生（registry 保持第 4 章 F10 最小职责）。集合断言拆两条**同型比较**进 CI：① registry 的 `(provider, seam)` 投影 ＝ fixture 集的 `(provider, seam)` 投影——新 provider/seam 无 fixture 即红；② 本清单的 live 用例 ID 集（P1–P2 + C01–C17）＝ `smoke --live` 实际注册的 ID 集——清单与实现不许漂移。L0 为流程门，不入集合。
 - **M20 随迁 manifest**：见第 6 章。

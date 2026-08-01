@@ -10,7 +10,7 @@ use serde_json::Value;
 
 use crate::config::OpenAiCompatibleRuntimeConfig;
 use crate::credentials::CredentialPool;
-use crate::net::{RetryPolicy, error_kind_for_status, slice_budget};
+use crate::net::{RetryPolicy, error_kind_for_status};
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute};
 use crate::providers::shared::redacted_urls_message;
 use crate::providers::xai::SearchRequest;
@@ -152,25 +152,16 @@ impl OpenAiCompatible {
                 executable.push(model);
             }
         }
-        for (index, model) in executable.iter().enumerate() {
+        for model in &executable {
             let Some(remaining) = self.deadline.remaining() else {
                 break;
-            };
-            let slots = executable.len() - index;
-            let Some(model_budget) = slice_budget(remaining, slots) else {
-                attempts.push(self.skipped_model_attempt(
-                    model,
-                    "skipped to preserve model fallback deadline budget",
-                    None,
-                ));
-                continue;
             };
             match self
                 .execute_model(
                     &query,
                     model,
                     request.verbose,
-                    Deadline::new(model_budget),
+                    Deadline::new(remaining),
                     request_kind,
                 )
                 .await
@@ -247,16 +238,12 @@ impl OpenAiCompatible {
                 )
                 .await;
         }
-        let stream_budget = deadline
-            .remaining()
-            .map(|remaining| remaining / 2)
-            .unwrap_or_default();
         let stream = self
             .execute_transport(
                 query,
                 model,
                 verbose,
-                Deadline::new(stream_budget),
+                deadline,
                 TransportAttempt {
                     stream: true,
                     fallback_from: None,
@@ -562,11 +549,7 @@ impl OpenAiCompatible {
 
     fn request_failure(&self, error: &reqwest::Error) -> AttemptFailure {
         AttemptFailure {
-            kind: if error.is_timeout() {
-                AttemptErrorKind::Timeout
-            } else {
-                AttemptErrorKind::Network
-            },
+            kind: AttemptErrorKind::Network,
             status: error.status().map(|status| status.as_u16()),
             message: redacted_urls_message(&error.to_string(), &self.credentials),
         }

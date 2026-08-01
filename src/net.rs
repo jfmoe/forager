@@ -8,6 +8,8 @@ use serde_json::{Value, json};
 use crate::redact::Secret;
 use crate::types::{AttemptErrorKind, Deadline, MIN_USEFUL_SLICE_SECONDS};
 
+const HTTP_READ_TIMEOUT: Duration = Duration::from_mins(1);
+
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct RetryPolicy {
     max_attempts: usize,
@@ -44,7 +46,10 @@ mod tests {
     use std::thread;
     use std::time::Duration;
 
-    use super::{RetryPolicy, build_client, combine_diagnostics, duration_millis};
+    use super::{
+        RetryPolicy, build_client, build_client_with_read_timeout, combine_diagnostics,
+        duration_millis,
+    };
 
     #[test]
     fn combine_diagnostics_joins_present_values_in_order() {
@@ -87,11 +92,15 @@ mod tests {
             .enable_all()
             .build()
             .expect("build runtime");
-        let client = build_client(true).expect("build client");
 
-        runtime
-            .block_on(client.get(format!("http://{address}")).send())
-            .expect("send request");
+        runtime.block_on(async {
+            let client = build_client(true).expect("build client");
+            client
+                .get(format!("http://{address}"))
+                .send()
+                .await
+                .expect("send request");
+        });
 
         let request = server.join().expect("join test server");
         assert!(
@@ -101,12 +110,62 @@ mod tests {
             "request did not contain the forager user agent: {request}"
         );
     }
+
+    #[test]
+    fn build_client_times_out_when_the_response_body_stalls() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind test server");
+        let address = listener.local_addr().expect("test server address");
+        let (release, released) = std::sync::mpsc::channel();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("accept request");
+            let mut request = [0_u8; 4096];
+            let read = stream.read(&mut request).expect("read request");
+            assert!(read > 0, "fixture received an empty request");
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 1\r\nConnection: close\r\n\r\n")
+                .expect("write response headers");
+            stream.flush().expect("flush response headers");
+            released
+                .recv_timeout(Duration::from_secs(1))
+                .expect("wait for client timeout");
+        });
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("build runtime");
+
+        let result = runtime.block_on(async {
+            let client = build_client_with_read_timeout(true, Duration::from_millis(20))
+                .expect("build client");
+            let response = client
+                .get(format!("http://{address}"))
+                .send()
+                .await
+                .expect("receive response headers");
+            response.bytes().await
+        });
+        release.send(()).expect("release test server");
+        server.join().expect("join test server");
+
+        assert!(
+            matches!(result, Err(ref error) if error.is_timeout()),
+            "shared client did not enforce its read timeout: {result:?}"
+        );
+    }
 }
 
 pub(crate) fn build_client(ssl_verify: bool) -> Result<Client, reqwest::Error> {
+    build_client_with_read_timeout(ssl_verify, HTTP_READ_TIMEOUT)
+}
+
+fn build_client_with_read_timeout(
+    ssl_verify: bool,
+    read_timeout: Duration,
+) -> Result<Client, reqwest::Error> {
     Client::builder()
         .danger_accept_invalid_certs(!ssl_verify)
         .connect_timeout(Duration::from_secs(5))
+        .read_timeout(read_timeout)
         .user_agent(concat!("forager/", env!("CARGO_PKG_VERSION")))
         .pool_idle_timeout(Duration::from_secs(90))
         .build()
@@ -311,11 +370,7 @@ impl<'a> McpClient<'a> {
             .map_err(|_| McpError::new(AttemptErrorKind::Timeout, None, "MCP request timed out"))?
             .map_err(|error| {
                 McpError::new(
-                    if error.is_timeout() {
-                        AttemptErrorKind::Timeout
-                    } else {
-                        AttemptErrorKind::Network
-                    },
+                    AttemptErrorKind::Network,
                     error.status().map(|status| status.as_u16()),
                     &format!("MCP network request failed: {error}"),
                 )
@@ -336,7 +391,13 @@ impl<'a> McpClient<'a> {
                     "MCP response body timed out",
                 )
             })?
-            .unwrap_or_default();
+            .map_err(|error| {
+                McpError::new(
+                    AttemptErrorKind::Network,
+                    Some(status.as_u16()),
+                    &format!("MCP response body failed: {error}"),
+                )
+            })?;
         let mut error = McpError::new(
             error_kind_for_status(status, &body),
             Some(status.as_u16()),
@@ -418,7 +479,11 @@ async fn response_messages(response: Response, deadline: Deadline) -> Result<Vec
                 break;
             };
             let event = event.map_err(|error| {
-                McpError::runtime(&format!("MCP returned invalid SSE: {error}"))
+                McpError::new(
+                    AttemptErrorKind::Network,
+                    None,
+                    &format!("MCP SSE response failed: {error}"),
+                )
             })?;
             let message = serde_json::from_str(&event.data).map_err(|error| {
                 McpError::runtime(&format!("MCP returned invalid SSE JSON: {error}"))
@@ -443,7 +508,17 @@ async fn response_messages(response: Response, deadline: Deadline) -> Result<Vec
                 "MCP JSON response timed out",
             )
         })?
-        .map_err(|error| McpError::runtime(&format!("MCP returned invalid JSON: {error}")))?;
+        .map_err(|error| {
+            McpError::new(
+                if error.is_decode() {
+                    AttemptErrorKind::Runtime
+                } else {
+                    AttemptErrorKind::Network
+                },
+                error.status().map(|status| status.as_u16()),
+                &format!("MCP returned invalid JSON: {error}"),
+            )
+        })?;
     Ok(match payload {
         Value::Array(messages) => messages,
         message => vec![message],
