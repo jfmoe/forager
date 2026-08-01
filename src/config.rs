@@ -2354,6 +2354,10 @@ fn verify_default_directory(config_dir: &Path) -> io::Result<()> {
     fs::remove_file(probe)
 }
 
+// PROTOTYPE (#45): throwaway 表驱动 SCHEMA 验证，见其 //! 文档；勿并入 main。
+#[cfg(test)]
+mod schema_prototype;
+
 #[cfg(test)]
 mod tests {
     use super::{Config, redact_url};
