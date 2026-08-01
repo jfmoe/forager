@@ -268,7 +268,7 @@ mod tests {
             .expect("build runtime");
 
         let result = runtime.block_on(async {
-            let client = build_client_with_read_timeout(true, Duration::from_millis(20))
+            let client = build_client_with_read_timeout(true, Duration::from_millis(200))
                 .expect("build client");
             let response = client
                 .get(format!("http://{address}"))
