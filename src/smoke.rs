@@ -425,52 +425,14 @@ pub(crate) fn is_official_status_url(url: &str) -> bool {
 }
 
 pub(crate) fn status_page_reports_outage(body: &str) -> bool {
-    if let Ok(payload) = serde_json::from_str::<Value>(body) {
-        if payload
-            .pointer("/status/indicator")
-            .and_then(Value::as_str)
-            .is_some_and(|indicator| !matches!(indicator, "none" | "operational"))
-        {
-            return true;
-        }
-        if payload["incidents"].as_array().is_some_and(|incidents| {
-            incidents.iter().any(|incident| {
-                incident["status"].as_str().is_some_and(|status| {
-                    !matches!(status, "resolved" | "postmortem" | "completed")
-                })
-            })
-        }) {
-            return true;
-        }
-    }
-    let body = body.to_ascii_lowercase();
-    let current = ["past incidents", "incident history", "uptime history"]
-        .iter()
-        .filter_map(|marker| body.find(marker))
-        .min()
-        .map_or(body.as_str(), |index| &body[..index]);
-    if current.contains("all systems operational")
-        || current.contains("no incidents declared")
-        || current.contains("no active incidents")
-        || (current.contains("resolved")
-            && !["investigating", "identified", "monitoring"]
-                .iter()
-                .any(|marker| current.contains(marker)))
-    {
-        return false;
-    }
-    [
-        "major outage",
-        "partial outage",
-        "degraded performance",
-        "service disruption",
-        "status-investigating",
-        "\"status\":\"investigating\"",
-        "\"indicator\":\"major\"",
-        "\"indicator\":\"critical\"",
-    ]
-    .iter()
-    .any(|marker| current.contains(marker))
+    serde_json::from_str::<Value>(body)
+        .ok()
+        .is_some_and(|payload| {
+            payload
+                .pointer("/status/indicator")
+                .and_then(Value::as_str)
+                .is_some_and(|indicator| !matches!(indicator, "none" | "operational"))
+        })
 }
 
 fn evidence_matches_case_endpoint(case_id: &str, evidence: &str, runtime: &RuntimeConfig) -> bool {
@@ -1295,18 +1257,16 @@ mod tests {
     }
 
     #[test]
-    fn official_status_evidence_requires_an_active_outage_marker() {
-        assert!(status_page_reports_outage(
-            r#"{"status":{"indicator":"major"},"incidents":[]}"#
-        ));
-        assert!(!status_page_reports_outage(
-            r#"{"status":{"indicator":"none"},"incidents":[{"status":"resolved"}]}"#
-        ));
-        assert!(!status_page_reports_outage(
-            "All systems operational. Past incidents: Major outage"
-        ));
-        assert!(!status_page_reports_outage(
-            "Resolved: Major outage affected the API"
-        ));
+    fn official_status_evidence_requires_a_statuspage_outage_indicator() {
+        assert_eq!(
+            [
+                r#"{"status":{"indicator":"major"},"incidents":[]}"#,
+                r#"{"status":{"indicator":"none"},"incidents":[{"status":"investigating"}]}"#,
+                "Major outage affecting the API",
+                "not valid JSON",
+            ]
+            .map(status_page_reports_outage),
+            [true, false, false, false]
+        );
     }
 }
