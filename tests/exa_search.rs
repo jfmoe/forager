@@ -1,16 +1,16 @@
+mod support;
+
 use std::fs::{self, OpenOptions};
-use std::io::{Read, Write};
-use std::net::TcpListener;
 use std::process::{Command, Output};
-use std::thread;
 use std::time::{Duration, Instant};
 
 use fs2::FileExt;
 use serde_json::Value;
+use support::{Fixture, Response};
 
 #[test]
 fn exa_search_returns_normalized_results_through_the_real_http_stack() {
-    let fixture = Fixture::start(
+    let fixture = Fixture::start_json(
         200,
         r#"{
             "results": [{
@@ -99,7 +99,7 @@ fn exa_search_returns_normalized_results_through_the_real_http_stack() {
 
 #[test]
 fn exa_similar_returns_normalized_results_through_the_real_http_stack() {
-    let fixture = Fixture::start(
+    let fixture = Fixture::start_json(
         200,
         r#"{
             "results": [{
@@ -155,7 +155,7 @@ fn exa_similar_returns_normalized_results_through_the_real_http_stack() {
 
 #[test]
 fn exa_search_treats_an_empty_result_set_as_success() {
-    let fixture = Fixture::start(200, r#"{"results":[]}"#);
+    let fixture = Fixture::start_json(200, r#"{"results":[]}"#);
 
     let output = run(&fixture, &["exa", "search", "no matches"], &["only-key"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
@@ -171,7 +171,7 @@ fn exa_search_treats_an_empty_result_set_as_success() {
 
 #[test]
 fn exa_similar_treats_an_empty_result_set_as_success() {
-    let fixture = Fixture::start(200, r#"{"results":[]}"#);
+    let fixture = Fixture::start_json(200, r#"{"results":[]}"#);
 
     let output = run(
         &fixture,
@@ -215,7 +215,7 @@ fn exa_similar_rejects_an_invalid_result_count_before_network_or_config() {
 
 #[test]
 fn exa_similar_classifies_authentication_failures() {
-    let fixture = Fixture::start(401, r#"{"error":{"message":"invalid credential"}}"#);
+    let fixture = Fixture::start_json(401, r#"{"error":{"message":"invalid credential"}}"#);
 
     let output = run(
         &fixture,
@@ -236,8 +236,8 @@ fn exa_similar_classifies_authentication_failures() {
 #[test]
 fn exa_similar_rotates_credentials_after_a_rate_limit() {
     let fixture = Fixture::start_sequence(vec![
-        Response::new(429, r#"{"error":{"message":"rate limited"}}"#),
-        Response::new(200, r#"{"results":[]}"#),
+        Response::json(429, r#"{"error":{"message":"rate limited"}}"#),
+        Response::json(200, r#"{"results":[]}"#),
     ]);
 
     let output = run(
@@ -271,7 +271,7 @@ fn exa_similar_rotates_credentials_after_a_rate_limit() {
 #[test]
 fn exa_similar_obeys_the_command_deadline() {
     let fixture = Fixture::start_sequence(vec![
-        Response::new(200, r#"{"results":[]}"#).with_delay(Duration::from_millis(1500)),
+        Response::json(200, r#"{"results":[]}"#).with_delay(Duration::from_millis(1500)),
     ]);
 
     let output = run(
@@ -301,7 +301,7 @@ fn exa_search_keeps_default_failure_json_small_and_secret_free() {
     let canary = "credential-canary-do-not-print";
     let message = format!("{canary} {}", "failure detail ".repeat(900));
     let body = format!(r#"{{"error":{{"message":{message:?}}}}}"#);
-    let fixture = Fixture::start_owned(401, body);
+    let fixture = Fixture::start_json(401, &body);
 
     let output = run(&fixture, &["exa", "search", "auth failure"], &[canary]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
@@ -337,7 +337,7 @@ fn exa_search_redacts_urls_in_non_success_responses() {
     let message =
         "upstream rejected https://user:password@example.test/private?api_key=response-secret";
     let body = format!(r#"{{"error":{{"message":{message:?}}}}}"#);
-    let fixture = Fixture::start_owned(400, body);
+    let fixture = Fixture::start_json(400, &body);
 
     let output = run(&fixture, &["exa", "search", "redaction"], &["only-key"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
@@ -360,13 +360,7 @@ fn exa_search_redacts_urls_in_non_success_responses() {
 fn exa_search_verbose_attempts_can_exceed_the_default_payload_limit() {
     let message = "rate limit detail ".repeat(100);
     let body = format!(r#"{{"error":{{"message":{message:?}}}}}"#);
-    let responses = (0..10)
-        .map(|_| Response {
-            status: 429,
-            body: body.clone(),
-            delay: Duration::ZERO,
-        })
-        .collect();
+    let responses = (0..10).map(|_| Response::json(429, &body)).collect();
     let fixture = Fixture::start_sequence(responses);
     let keys = (0..10)
         .map(|index| format!("key-{index}"))
@@ -395,8 +389,8 @@ fn exa_search_verbose_attempts_can_exceed_the_default_payload_limit() {
 #[test]
 fn exa_search_rotates_credentials_before_retrying_a_rate_limit() {
     let fixture = Fixture::start_sequence(vec![
-        Response::new(429, r#"{"error":{"message":"rate limited"}}"#),
-        Response::new(200, r#"{"results":[]}"#),
+        Response::json(429, r#"{"error":{"message":"rate limited"}}"#),
+        Response::json(200, r#"{"results":[]}"#),
     ]);
 
     let output = run(
@@ -434,8 +428,8 @@ fn exa_search_rotates_credentials_before_retrying_a_rate_limit() {
 #[test]
 fn exa_search_rotates_credentials_before_retrying_exhausted_quota() {
     let fixture = Fixture::start_sequence(vec![
-        Response::new(429, r#"{"error":{"message":"monthly quota exhausted"}}"#),
-        Response::new(200, r#"{"results":[]}"#),
+        Response::json(429, r#"{"error":{"message":"monthly quota exhausted"}}"#),
+        Response::json(200, r#"{"results":[]}"#),
     ]);
 
     let output = run(
@@ -467,8 +461,8 @@ fn exa_search_rotates_credentials_before_retrying_exhausted_quota() {
 #[test]
 fn exa_search_retries_a_transient_failure_without_rotating() {
     let fixture = Fixture::start_sequence(vec![
-        Response::new(503, r#"{"error":{"message":"temporarily unavailable"}}"#),
-        Response::new(200, r#"{"results":[]}"#),
+        Response::json(503, r#"{"error":{"message":"temporarily unavailable"}}"#),
+        Response::json(200, r#"{"results":[]}"#),
     ]);
 
     let output = run(&fixture, &["exa", "search", "retry"], &["only-key"]);
@@ -488,7 +482,7 @@ fn exa_search_retries_a_transient_failure_without_rotating() {
 
 #[test]
 fn exa_search_and_similar_share_the_persistent_credential_cursor_between_processes() {
-    let first_fixture = Fixture::start(200, r#"{"results":[]}"#);
+    let first_fixture = Fixture::start_json(200, r#"{"results":[]}"#);
     let environment = RunEnvironment::new(
         &first_fixture.url,
         &["", " first-key ", "first-key", "second-key"],
@@ -496,7 +490,7 @@ fn exa_search_and_similar_share_the_persistent_credential_cursor_between_process
 
     let first_output = environment.run(&["exa", "search", "first invocation"]);
     let first_request = first_fixture.finish();
-    let second_fixture = Fixture::start(200, r#"{"results":[]}"#);
+    let second_fixture = Fixture::start_json(200, r#"{"results":[]}"#);
     environment.set_url(&second_fixture.url);
     let second_output = environment.run(&["exa", "similar", "https://example.test/source"]);
     let second_request = second_fixture.finish();
@@ -546,7 +540,7 @@ fn exa_search_and_similar_share_the_persistent_credential_cursor_between_process
 
 #[test]
 fn exa_search_uses_bounded_optimistic_selection_when_the_cursor_lock_is_busy() {
-    let fixture = Fixture::start(200, r#"{"results":[]}"#);
+    let fixture = Fixture::start_json(200, r#"{"results":[]}"#);
     let environment = RunEnvironment::new(&fixture.url, &["first-key", "second-key"]);
     let state_directory = environment.state_dir.join("forager");
     fs::create_dir_all(&state_directory).expect("create credential state directory");
@@ -580,7 +574,7 @@ fn exa_search_uses_bounded_optimistic_selection_when_the_cursor_lock_is_busy() {
 
 #[test]
 fn exa_search_resets_only_its_corrupt_cursor_and_persists_the_repair() {
-    let fixture = Fixture::start(200, r#"{"results":[]}"#);
+    let fixture = Fixture::start_json(200, r#"{"results":[]}"#);
     let environment = RunEnvironment::new(&fixture.url, &["first-key", "second-key"]);
     let state_directory = environment.state_dir.join("forager");
     fs::create_dir_all(&state_directory).expect("create credential state directory");
@@ -610,7 +604,7 @@ fn exa_search_resets_only_its_corrupt_cursor_and_persists_the_repair() {
 #[test]
 fn exa_search_obeys_the_command_deadline() {
     let fixture = Fixture::start_sequence(vec![
-        Response::new(200, r#"{"results":[]}"#).with_delay(Duration::from_millis(1500)),
+        Response::json(200, r#"{"results":[]}"#).with_delay(Duration::from_millis(1500)),
     ]);
 
     let output = run(
@@ -631,7 +625,7 @@ fn exa_search_obeys_the_command_deadline() {
 
 #[test]
 fn exa_search_supports_markdown_and_output_tee() {
-    let fixture = Fixture::start(
+    let fixture = Fixture::start_json(
         200,
         r#"{"results":[{"title":"Tee result","url":"https://example.test"}]}"#,
     );
@@ -667,7 +661,7 @@ fn exa_search_supports_markdown_and_output_tee() {
 
 #[test]
 fn exa_search_marks_a_tee_write_failure_and_exits_three() {
-    let fixture = Fixture::start(200, r#"{"results":[]}"#);
+    let fixture = Fixture::start_json(200, r#"{"results":[]}"#);
     let directory = tempfile::tempdir().expect("create unwritable output target");
     let output_path = directory.path().to_string_lossy().into_owned();
 
@@ -687,114 +681,6 @@ fn exa_search_marks_a_tee_write_failure_and_exits_three() {
         (Some(3), &Value::String("failed".into()), true)
     );
     fixture.finish();
-}
-
-struct Fixture {
-    url: String,
-    handle: thread::JoinHandle<Vec<String>>,
-}
-
-impl Fixture {
-    fn start(status: u16, body: &'static str) -> Self {
-        Self::start_sequence(vec![Response::new(status, body)])
-    }
-
-    fn start_owned(status: u16, body: String) -> Self {
-        Self::start_sequence(vec![Response {
-            status,
-            body,
-            delay: Duration::ZERO,
-        }])
-    }
-
-    fn start_sequence(responses: Vec<Response>) -> Self {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("bind fixture");
-        let address = listener.local_addr().expect("fixture address");
-        let handle = thread::spawn(move || {
-            let mut requests = Vec::new();
-            for response in responses {
-                let (mut stream, _) = listener.accept().expect("accept request");
-                let mut request = Vec::new();
-                let mut buffer = [0_u8; 4096];
-                loop {
-                    let read = stream.read(&mut buffer).expect("read request");
-                    if read == 0 {
-                        break;
-                    }
-                    request.extend_from_slice(&buffer[..read]);
-                    if let Some(header_end) =
-                        request.windows(4).position(|part| part == b"\r\n\r\n")
-                    {
-                        let headers = String::from_utf8_lossy(&request[..header_end + 4]);
-                        let content_length = headers
-                            .lines()
-                            .find_map(|line| {
-                                line.split_once(':').and_then(|(name, value)| {
-                                    name.eq_ignore_ascii_case("content-length").then(|| {
-                                        value.trim().parse::<usize>().expect("content length")
-                                    })
-                                })
-                            })
-                            .unwrap_or(0);
-                        if request.len() >= header_end + 4 + content_length {
-                            break;
-                        }
-                    }
-                }
-                thread::sleep(response.delay);
-                let reason = if response.status == 200 {
-                    "OK"
-                } else {
-                    "Error"
-                };
-                let _ = write!(
-                    stream,
-                    "HTTP/1.1 {} {reason}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
-                    response.status,
-                    response.body.len(),
-                    response.body
-                );
-                requests.push(String::from_utf8(request).expect("UTF-8 request"));
-            }
-            requests
-        });
-        Self {
-            url: format!("http://{address}"),
-            handle,
-        }
-    }
-
-    fn finish(self) -> String {
-        self.finish_all()
-            .into_iter()
-            .next()
-            .expect("fixture request")
-    }
-
-    fn finish_all(self) -> Vec<String> {
-        self.handle.join().expect("fixture thread")
-    }
-}
-
-struct Response {
-    status: u16,
-    body: String,
-    delay: Duration,
-}
-
-impl Response {
-    fn new(status: u16, body: &str) -> Self {
-        Self {
-            status,
-            body: body.into(),
-            delay: Duration::ZERO,
-        }
-    }
-
-    fn with_delay(mut self, delay: Duration) -> Self {
-        self.delay = delay;
-        self
-    }
 }
 
 fn run(fixture: &Fixture, arguments: &[&str], keys: &[&str]) -> Output {

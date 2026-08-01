@@ -1,16 +1,16 @@
+mod support;
+
 use std::fs;
-use std::io::{Read, Write};
-use std::net::TcpListener;
 use std::process::{Command, Output};
-use std::thread;
 use std::time::Duration;
 
 use serde_json::Value;
 use sha2::{Digest, Sha256};
+use support::{Fixture, Response};
 
 #[test]
 fn anysearch_calls_tools_without_a_session_when_initialize_omits_the_session_header() {
-    let fixture = Fixture::start(vec![
+    let fixture = Fixture::start_sequence(vec![
         Response::json(
             200,
             r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{}}}"#,
@@ -33,7 +33,7 @@ fn anysearch_calls_tools_without_a_session_when_initialize_omits_the_session_hea
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
-    let requests = fixture.finish();
+    let requests = fixture.finish_all();
 
     assert_eq!(
         (
@@ -48,7 +48,7 @@ fn anysearch_calls_tools_without_a_session_when_initialize_omits_the_session_hea
 
 #[test]
 fn anysearch_domains_lists_sub_domains_and_parameter_contracts() {
-    let fixture = Fixture::start(vec![
+    let fixture = Fixture::start_sequence(vec![
         initialize("domains-session"),
         Response::json(202, ""),
         Response::json(
@@ -69,7 +69,7 @@ fn anysearch_domains_lists_sub_domains_and_parameter_contracts() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let requests = fixture.finish();
+    let requests = fixture.finish_all();
 
     assert_eq!(
         (
@@ -99,7 +99,7 @@ fn anysearch_domains_lists_sub_domains_and_parameter_contracts() {
 
 #[test]
 fn anysearch_domains_decodes_live_markdown_contracts() {
-    let fixture = Fixture::start(vec![
+    let fixture = Fixture::start_sequence(vec![
         initialize("domains-session"),
         Response::json(202, ""),
         Response::json(
@@ -114,7 +114,7 @@ fn anysearch_domains_decodes_live_markdown_contracts() {
         &["anysearch-key"],
     );
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-    fixture.finish();
+    fixture.finish_all();
 
     assert_eq!(
         (
@@ -142,9 +142,9 @@ fn anysearch_domains_decodes_live_markdown_contracts() {
 
 #[test]
 fn anysearch_domains_requires_a_parent_domain_before_network() {
-    let fixture = Fixture::start(Vec::new());
+    let fixture = Fixture::start_sequence(Vec::new());
     let output = run(&fixture, &["anysearch", "domains"], &["anysearch-key"]);
-    fixture.finish();
+    fixture.finish_all();
 
     assert_eq!(
         (
@@ -158,7 +158,7 @@ fn anysearch_domains_requires_a_parent_domain_before_network() {
 
 #[test]
 fn anysearch_search_without_a_domain_performs_vertical_discovery() {
-    let fixture = Fixture::start(vec![
+    let fixture = Fixture::start_sequence(vec![
         initialize("discovery-session"),
         Response::json(202, ""),
         Response::json(
@@ -179,7 +179,7 @@ fn anysearch_search_without_a_domain_performs_vertical_discovery() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let requests = fixture.finish();
+    let requests = fixture.finish_all();
 
     assert_eq!(
         (
@@ -204,7 +204,7 @@ fn anysearch_search_without_a_domain_performs_vertical_discovery() {
 
 #[test]
 fn anysearch_explicit_search_passes_domain_and_sub_domain_parameters() {
-    let fixture = Fixture::start(vec![
+    let fixture = Fixture::start_sequence(vec![
         initialize("search-session"),
         Response::json(202, ""),
         Response::json(
@@ -235,7 +235,7 @@ fn anysearch_explicit_search_passes_domain_and_sub_domain_parameters() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let requests = fixture.finish();
+    let requests = fixture.finish_all();
 
     assert_eq!(
         (
@@ -315,9 +315,9 @@ fn anysearch_search_rejects_invalid_parameter_contracts_before_network() {
             "reserved fields",
         ),
     ] {
-        let fixture = Fixture::start(Vec::new());
+        let fixture = Fixture::start_sequence(Vec::new());
         let output = run(&fixture, &arguments, &["anysearch-key"]);
-        fixture.finish();
+        fixture.finish_all();
         let stderr = String::from_utf8_lossy(&output.stderr);
 
         assert_eq!(
@@ -335,7 +335,7 @@ fn anysearch_search_rejects_invalid_parameter_contracts_before_network() {
 
 #[test]
 fn anysearch_tool_errors_redact_request_values() {
-    let fixture = Fixture::start(vec![
+    let fixture = Fixture::start_sequence(vec![
         initialize("redaction-session"),
         Response::json(202, ""),
         Response::json(
@@ -359,7 +359,7 @@ fn anysearch_tool_errors_redact_request_values() {
         ],
         &["anysearch-key"],
     );
-    fixture.finish();
+    fixture.finish_all();
     let combined = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
@@ -374,7 +374,7 @@ fn anysearch_tool_errors_redact_request_values() {
 
 #[test]
 fn anysearch_classifies_upstream_parameter_errors_without_retrying() {
-    let fixture = Fixture::start(vec![
+    let fixture = Fixture::start_sequence(vec![
         initialize("parameter-session"),
         Response::json(202, ""),
         Response::json(
@@ -397,7 +397,7 @@ fn anysearch_classifies_upstream_parameter_errors_without_retrying() {
         &["anysearch-key"],
     );
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-    let requests = fixture.finish();
+    let requests = fixture.finish_all();
 
     assert_eq!(
         (
@@ -412,7 +412,7 @@ fn anysearch_classifies_upstream_parameter_errors_without_retrying() {
 
 #[test]
 fn anysearch_rotates_after_result_is_error_reports_exhausted_quota() {
-    let fixture = Fixture::start(vec![
+    let fixture = Fixture::start_sequence(vec![
         initialize("quota-session"),
         Response::json(202, ""),
         Response::json(
@@ -430,7 +430,7 @@ fn anysearch_rotates_after_result_is_error_reports_exhausted_quota() {
         &["first-key", "second-key"],
     );
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-    let requests = fixture.finish();
+    let requests = fixture.finish_all();
 
     assert_eq!(
         (
@@ -450,7 +450,7 @@ fn anysearch_rotates_after_result_is_error_reports_exhausted_quota() {
 
 #[test]
 fn anysearch_authentication_failure_has_a_stable_transport_exit() {
-    let fixture = Fixture::start(vec![Response::json(
+    let fixture = Fixture::start_sequence(vec![Response::json(
         401,
         r#"{"error":{"message":"invalid credential"}}"#,
     )]);
@@ -461,7 +461,7 @@ fn anysearch_authentication_failure_has_a_stable_transport_exit() {
         &["bad-key"],
     );
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-    let requests = fixture.finish();
+    let requests = fixture.finish_all();
 
     assert_eq!(
         (
@@ -476,7 +476,7 @@ fn anysearch_authentication_failure_has_a_stable_transport_exit() {
 
 #[test]
 fn anysearch_obeys_the_command_deadline() {
-    let fixture = Fixture::start(vec![
+    let fixture = Fixture::start_sequence(vec![
         initialize("late-session").with_delay(Duration::from_millis(1500)),
     ]);
 
@@ -486,7 +486,7 @@ fn anysearch_obeys_the_command_deadline() {
         &["anysearch-key"],
     );
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-    let requests = fixture.finish();
+    let requests = fixture.finish_all();
 
     assert_eq!(
         (output.status.code(), &payload["error_kind"], requests.len()),
@@ -531,7 +531,7 @@ fn anysearch_vertical_discovery_cannot_modify_or_promote_the_manifest() {
     let manifest_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("assets/anysearch/verified-domain-manifest.json");
     let before = fs::read(&manifest_path).expect("read manifest before discovery");
-    let fixture = Fixture::start(vec![
+    let fixture = Fixture::start_sequence(vec![
         initialize("isolation-session"),
         Response::json(202, ""),
         Response::json(
@@ -546,7 +546,7 @@ fn anysearch_vertical_discovery_cannot_modify_or_promote_the_manifest() {
         &["anysearch-key"],
     );
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-    fixture.finish();
+    fixture.finish_all();
     let after = fs::read(manifest_path).expect("read manifest after discovery");
 
     assert_eq!(
@@ -602,102 +602,4 @@ fn run(fixture: &Fixture, arguments: &[&str], keys: &[&str]) -> Output {
         .env("HOME", root.path())
         .output()
         .expect("run forager")
-}
-
-struct Fixture {
-    url: String,
-    handle: thread::JoinHandle<Vec<String>>,
-}
-
-impl Fixture {
-    fn start(responses: Vec<Response>) -> Self {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("bind fixture");
-        let address = listener.local_addr().expect("fixture address");
-        let handle = thread::spawn(move || {
-            let mut requests = Vec::new();
-            for response in responses {
-                let (mut stream, _) = listener.accept().expect("accept request");
-                let request = read_request(&mut stream);
-                let reason = if response.status < 400 { "OK" } else { "Error" };
-                let session = response
-                    .session
-                    .map(|value| format!("Mcp-Session-Id: {value}\r\n"))
-                    .unwrap_or_default();
-                thread::sleep(response.delay);
-                let headers = format!(
-                    "HTTP/1.1 {} {reason}\r\nContent-Type: application/json\r\n{session}Content-Length: {}\r\nConnection: close\r\n\r\n",
-                    response.status,
-                    response.body.len()
-                );
-                let _ = stream.write_all(headers.as_bytes());
-                let _ = stream.write_all(response.body.as_bytes());
-                requests.push(String::from_utf8(request).expect("UTF-8 request"));
-            }
-            requests
-        });
-        Self {
-            url: format!("http://{address}"),
-            handle,
-        }
-    }
-
-    fn finish(self) -> Vec<String> {
-        self.handle.join().expect("fixture thread")
-    }
-}
-
-struct Response {
-    status: u16,
-    body: &'static str,
-    session: Option<&'static str>,
-    delay: Duration,
-}
-
-impl Response {
-    fn json(status: u16, body: &'static str) -> Self {
-        Self {
-            status,
-            body,
-            session: None,
-            delay: Duration::ZERO,
-        }
-    }
-
-    fn with_session(mut self, session: &'static str) -> Self {
-        self.session = Some(session);
-        self
-    }
-
-    fn with_delay(mut self, delay: Duration) -> Self {
-        self.delay = delay;
-        self
-    }
-}
-
-fn read_request(stream: &mut impl Read) -> Vec<u8> {
-    let mut request = Vec::new();
-    let mut buffer = [0_u8; 4096];
-    loop {
-        let read = stream.read(&mut buffer).expect("read request");
-        if read == 0 {
-            break;
-        }
-        request.extend_from_slice(&buffer[..read]);
-        if let Some(header_end) = request.windows(4).position(|part| part == b"\r\n\r\n") {
-            let headers = String::from_utf8_lossy(&request[..header_end + 4]);
-            let content_length = headers
-                .lines()
-                .find_map(|line| {
-                    line.split_once(':').and_then(|(name, value)| {
-                        name.eq_ignore_ascii_case("content-length")
-                            .then(|| value.trim().parse::<usize>().expect("content length"))
-                    })
-                })
-                .unwrap_or(0);
-            if request.len() >= header_end + 4 + content_length {
-                break;
-            }
-        }
-    }
-    request
 }

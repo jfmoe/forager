@@ -1,15 +1,15 @@
+mod support;
+
 use std::fs;
-use std::io::{Read, Write};
-use std::net::TcpListener;
 use std::process::{Command, Output};
-use std::thread;
 use std::time::Duration;
 
 use serde_json::Value;
+use support::{Fixture, Response};
 
 #[test]
 fn context7_library_initializes_the_mcp_session_and_normalizes_json_results() {
-    let fixture = Fixture::start(vec![
+    let fixture = Fixture::start_sequence(vec![
         Response::json(
             200,
             r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{},"serverInfo":{"name":"context7","version":"1"}}}"#,
@@ -28,7 +28,7 @@ fn context7_library_initializes_the_mcp_session_and_normalizes_json_results() {
         &["context-key"],
     );
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-    let requests = fixture.finish();
+    let requests = fixture.finish_all();
 
     assert_eq!(
         (
@@ -68,7 +68,7 @@ fn context7_library_initializes_the_mcp_session_and_normalizes_json_results() {
 
 #[test]
 fn context7_docs_decodes_sse_and_emits_content_and_snippets() {
-    let fixture = Fixture::start(vec![
+    let fixture = Fixture::start_sequence(vec![
         Response::sse(
             200,
             "data: {\"jsonrpc\":\"2.0\",\"id\":1,\"result\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{}}}\n\n",
@@ -87,7 +87,7 @@ fn context7_docs_decodes_sse_and_emits_content_and_snippets() {
         &["context-key"],
     );
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-    let requests = fixture.finish();
+    let requests = fixture.finish_all();
 
     assert_eq!(
         (
@@ -115,14 +115,14 @@ fn context7_docs_decodes_sse_and_emits_content_and_snippets() {
 
 #[test]
 fn context7_authentication_failure_has_a_stable_transport_exit() {
-    let fixture = Fixture::start(vec![Response::json(
+    let fixture = Fixture::start_sequence(vec![Response::json(
         401,
         r#"{"error":{"message":"invalid credential"}}"#,
     )]);
 
     let output = run(&fixture, &["context7", "library", "rust"], &["bad-key"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-    let requests = fixture.finish();
+    let requests = fixture.finish_all();
 
     assert_eq!(
         (
@@ -139,7 +139,7 @@ fn context7_authentication_failure_has_a_stable_transport_exit() {
 
 #[test]
 fn context7_retries_a_503_within_the_same_deadline() {
-    let fixture = Fixture::start(vec![
+    let fixture = Fixture::start_sequence(vec![
         Response::json(503, r#"{"error":{"message":"unavailable"}}"#),
         initialize("retry-session"),
         Response::json(202, ""),
@@ -152,7 +152,7 @@ fn context7_retries_a_503_within_the_same_deadline() {
         &["only-key"],
     );
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-    let requests = fixture.finish();
+    let requests = fixture.finish_all();
 
     assert_eq!(
         (
@@ -174,7 +174,7 @@ fn context7_retries_a_503_within_the_same_deadline() {
 
 #[test]
 fn context7_classifies_json_rpc_rate_limit_before_rotating_credentials() {
-    let fixture = Fixture::start(vec![
+    let fixture = Fixture::start_sequence(vec![
         initialize("first-session"),
         Response::json(202, ""),
         Response::json(
@@ -192,7 +192,7 @@ fn context7_classifies_json_rpc_rate_limit_before_rotating_credentials() {
         &["first-key", "second-key"],
     );
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-    let requests = fixture.finish();
+    let requests = fixture.finish_all();
 
     assert_eq!(
         (
@@ -216,7 +216,7 @@ fn context7_classifies_json_rpc_rate_limit_before_rotating_credentials() {
 
 #[test]
 fn context7_renews_an_expired_session_before_returning() {
-    let fixture = Fixture::start(vec![
+    let fixture = Fixture::start_sequence(vec![
         initialize("expired-session"),
         Response::json(202, ""),
         Response::json(404, "MCP session expired"),
@@ -227,7 +227,7 @@ fn context7_renews_an_expired_session_before_returning() {
 
     let output = run(&fixture, &["context7", "library", "rust"], &["only-key"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-    let requests = fixture.finish();
+    let requests = fixture.finish_all();
 
     assert_eq!(
         (
@@ -244,7 +244,7 @@ fn context7_renews_an_expired_session_before_returning() {
 
 #[test]
 fn context7_reports_a_library_redirect_without_retrying() {
-    let fixture = Fixture::start(vec![
+    let fixture = Fixture::start_sequence(vec![
         initialize("redirect-session"),
         Response::json(202, ""),
         Response::json(
@@ -259,7 +259,7 @@ fn context7_reports_a_library_redirect_without_retrying() {
         &["only-key"],
     );
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-    let requests = fixture.finish();
+    let requests = fixture.finish_all();
 
     assert_eq!(
         (
@@ -281,7 +281,7 @@ fn context7_reports_a_library_redirect_without_retrying() {
 
 #[test]
 fn context7_redacts_urls_in_a_library_redirect() {
-    let fixture = Fixture::start(vec![
+    let fixture = Fixture::start_sequence(vec![
         initialize("redacted-redirect-session"),
         Response::json(202, ""),
         Response::json(
@@ -314,12 +314,12 @@ fn context7_redacts_urls_in_a_library_redirect() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    fixture.finish();
+    fixture.finish_all();
 }
 
 #[test]
 fn context7_unknown_tool_error_is_runtime_and_is_not_retried() {
-    let fixture = Fixture::start(vec![
+    let fixture = Fixture::start_sequence(vec![
         initialize("error-session"),
         Response::json(202, ""),
         Response::json(
@@ -330,7 +330,7 @@ fn context7_unknown_tool_error_is_runtime_and_is_not_retried() {
 
     let output = run(&fixture, &["context7", "library", "rust"], &["only-key"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-    let requests = fixture.finish();
+    let requests = fixture.finish_all();
 
     assert_eq!(
         (
@@ -347,7 +347,7 @@ fn context7_unknown_tool_error_is_runtime_and_is_not_retried() {
 
 #[test]
 fn context7_library_treats_an_empty_result_set_as_success() {
-    let fixture = Fixture::start(vec![
+    let fixture = Fixture::start_sequence(vec![
         initialize("empty-session"),
         Response::json(202, ""),
         Response::json(
@@ -365,12 +365,12 @@ fn context7_library_treats_an_empty_result_set_as_success() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    fixture.finish();
+    fixture.finish_all();
 }
 
 #[test]
 fn context7_session_renewal_remains_inside_the_command_deadline() {
-    let fixture = Fixture::start(vec![
+    let fixture = Fixture::start_sequence(vec![
         initialize("expired-session"),
         Response::json(202, ""),
         Response::json(404, "MCP session expired"),
@@ -383,7 +383,7 @@ fn context7_session_renewal_remains_inside_the_command_deadline() {
         &["only-key"],
     );
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-    let requests = fixture.finish();
+    let requests = fixture.finish_all();
 
     assert_eq!(
         (output.status.code(), &payload["error_kind"], requests.len(),),
@@ -395,7 +395,7 @@ fn context7_session_renewal_remains_inside_the_command_deadline() {
 
 #[test]
 fn context7_library_normalizes_plain_text_candidates() {
-    let fixture = Fixture::start(vec![
+    let fixture = Fixture::start_sequence(vec![
         initialize("text-session"),
         Response::json(202, ""),
         Response::json(
@@ -423,12 +423,12 @@ fn context7_library_normalizes_plain_text_candidates() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    fixture.finish();
+    fixture.finish_all();
 }
 
 #[test]
 fn context7_docs_content_format_prints_only_the_body() {
-    let fixture = Fixture::start(vec![
+    let fixture = Fixture::start_sequence(vec![
         initialize("content-session"),
         Response::json(202, ""),
         Response::json(
@@ -459,12 +459,12 @@ fn context7_docs_content_format_prints_only_the_body() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    fixture.finish();
+    fixture.finish_all();
 }
 
 #[test]
 fn context7_renews_a_session_that_expires_during_initialized_notification() {
-    let fixture = Fixture::start(vec![
+    let fixture = Fixture::start_sequence(vec![
         initialize("notification-expired"),
         Response::json(404, "MCP session expired"),
         initialize("notification-renewed"),
@@ -474,7 +474,7 @@ fn context7_renews_a_session_that_expires_during_initialized_notification() {
 
     let output = run(&fixture, &["context7", "library", "rust"], &["only-key"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-    let requests = fixture.finish();
+    let requests = fixture.finish_all();
 
     assert_eq!(
         (
@@ -491,7 +491,7 @@ fn context7_renews_a_session_that_expires_during_initialized_notification() {
 
 #[test]
 fn context7_classifies_initialize_json_rpc_errors_before_requiring_a_session_header() {
-    let fixture = Fixture::start(vec![
+    let fixture = Fixture::start_sequence(vec![
         Response::json(
             200,
             r#"{"jsonrpc":"2.0","id":1,"error":{"code":-32000,"message":"rate limit exceeded"}}"#,
@@ -507,7 +507,7 @@ fn context7_classifies_initialize_json_rpc_errors_before_requiring_a_session_hea
         &["first-key", "second-key"],
     );
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-    let requests = fixture.finish();
+    let requests = fixture.finish_all();
 
     assert_eq!(
         (
@@ -524,7 +524,7 @@ fn context7_classifies_initialize_json_rpc_errors_before_requiring_a_session_hea
 
 #[test]
 fn context7_response_body_reading_obeys_the_command_deadline() {
-    let fixture = Fixture::start(vec![
+    let fixture = Fixture::start_sequence(vec![
         initialize("slow-body").with_body_delay(Duration::from_millis(1500)),
     ]);
 
@@ -534,7 +534,7 @@ fn context7_response_body_reading_obeys_the_command_deadline() {
         &["only-key"],
     );
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-    let requests = fixture.finish();
+    let requests = fixture.finish_all();
 
     assert_eq!(
         (output.status.code(), &payload["error_kind"], requests.len(),),
@@ -595,125 +595,4 @@ fn run(fixture: &Fixture, arguments: &[&str], keys: &[&str]) -> Output {
         .env("HOME", root.path())
         .output()
         .expect("run forager")
-}
-
-struct Fixture {
-    url: String,
-    handle: thread::JoinHandle<Vec<String>>,
-}
-
-impl Fixture {
-    fn start(responses: Vec<Response>) -> Self {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("bind fixture");
-        let address = listener.local_addr().expect("fixture address");
-        let handle = thread::spawn(move || {
-            let mut requests = Vec::new();
-            for response in responses {
-                let (mut stream, _) = listener.accept().expect("accept request");
-                let request = read_request(&mut stream);
-                let reason = if response.status < 400 { "OK" } else { "Error" };
-                let session = response
-                    .session
-                    .map(|value| format!("Mcp-Session-Id: {value}\r\n"))
-                    .unwrap_or_default();
-                thread::sleep(response.delay);
-                let headers = format!(
-                    "HTTP/1.1 {} {reason}\r\nContent-Type: {}\r\n{session}Content-Length: {}\r\nConnection: close\r\n\r\n",
-                    response.status,
-                    response.content_type,
-                    response.body.len()
-                );
-                let _ = stream.write_all(headers.as_bytes());
-                let _ = stream.flush();
-                thread::sleep(response.body_delay);
-                let _ = stream.write_all(response.body.as_bytes());
-                requests.push(String::from_utf8(request).expect("UTF-8 request"));
-            }
-            requests
-        });
-        Self {
-            url: format!("http://{address}"),
-            handle,
-        }
-    }
-
-    fn finish(self) -> Vec<String> {
-        self.handle.join().expect("fixture thread")
-    }
-}
-
-struct Response {
-    status: u16,
-    content_type: &'static str,
-    body: &'static str,
-    session: Option<&'static str>,
-    delay: Duration,
-    body_delay: Duration,
-}
-
-impl Response {
-    fn json(status: u16, body: &'static str) -> Self {
-        Self {
-            status,
-            content_type: "application/json",
-            body,
-            session: None,
-            delay: Duration::ZERO,
-            body_delay: Duration::ZERO,
-        }
-    }
-
-    fn sse(status: u16, body: &'static str) -> Self {
-        Self {
-            status,
-            content_type: "text/event-stream",
-            body,
-            session: None,
-            delay: Duration::ZERO,
-            body_delay: Duration::ZERO,
-        }
-    }
-
-    fn with_session(mut self, session: &'static str) -> Self {
-        self.session = Some(session);
-        self
-    }
-
-    fn with_delay(mut self, delay: Duration) -> Self {
-        self.delay = delay;
-        self
-    }
-
-    fn with_body_delay(mut self, delay: Duration) -> Self {
-        self.body_delay = delay;
-        self
-    }
-}
-
-fn read_request(stream: &mut impl Read) -> Vec<u8> {
-    let mut request = Vec::new();
-    let mut buffer = [0_u8; 4096];
-    loop {
-        let read = stream.read(&mut buffer).expect("read request");
-        if read == 0 {
-            break;
-        }
-        request.extend_from_slice(&buffer[..read]);
-        if let Some(header_end) = request.windows(4).position(|part| part == b"\r\n\r\n") {
-            let headers = String::from_utf8_lossy(&request[..header_end + 4]);
-            let content_length = headers
-                .lines()
-                .find_map(|line| {
-                    line.split_once(':').and_then(|(name, value)| {
-                        name.eq_ignore_ascii_case("content-length")
-                            .then(|| value.trim().parse::<usize>().expect("content length"))
-                    })
-                })
-                .unwrap_or(0);
-            if request.len() >= header_end + 4 + content_length {
-                break;
-            }
-        }
-    }
-    request
 }

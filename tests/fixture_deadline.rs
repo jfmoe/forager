@@ -1,5 +1,3 @@
-// This test imports shared support in isolation, so unrelated helpers are intentionally unused.
-#[expect(dead_code)]
 mod support;
 
 use std::any::Any;

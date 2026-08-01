@@ -1,12 +1,13 @@
+mod support;
+
 use std::fs;
-use std::io::{Read, Write};
-use std::net::TcpListener;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
-use std::thread;
 use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
+use support::{Fixture, Response};
 
 struct SmokeEnvironment {
     _root: tempfile::TempDir,
@@ -64,19 +65,13 @@ impl SmokeEnvironment {
 
 #[test]
 fn offline_smoke_reports_local_readiness_without_contacting_provider_endpoints() {
-    let listener = TcpListener::bind("127.0.0.1:0").expect("bind network canary");
-    let endpoint = format!(
-        "http://{}",
-        listener.local_addr().expect("listener address")
-    );
-    let environment = SmokeEnvironment::new(|journal_dir| complete_config(&endpoint, journal_dir));
+    let fixture = Fixture::start_canary();
+    let environment =
+        SmokeEnvironment::new(|journal_dir| complete_config(&fixture.url, journal_dir));
 
     let output = environment.run(&["smoke"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse smoke JSON");
-    listener
-        .set_nonblocking(true)
-        .expect("make network canary nonblocking");
-    let network_was_contacted = listener.accept().is_ok();
+    let network_was_contacted = !fixture.finish_all().is_empty();
     let combined = format!(
         "{}{}",
         String::from_utf8_lossy(&output.stdout),
@@ -290,7 +285,8 @@ fn live_smoke_passes_a_configured_case_only_after_a_zero_parseable_nonempty_term
             }
         })
     );
-    let (endpoint, server) = serve_once("text/event-stream", response_body);
+    let fixture = Fixture::start(200, "text/event-stream", &response_body);
+    let endpoint = format!("{}/v1", fixture.url);
     let environment = SmokeEnvironment::new(|journal_dir| minimal_config(&endpoint, journal_dir));
 
     let output = environment.run(&["smoke", "--live", "--timeout", "2"]);
@@ -313,7 +309,7 @@ fn live_smoke_passes_a_configured_case_only_after_a_zero_parseable_nonempty_term
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
-    server.join().expect("fixture server");
+    fixture.finish();
 }
 
 #[test]
@@ -337,7 +333,8 @@ fn live_smoke_drains_large_child_output_without_false_timeout() {
             }
         })
     );
-    let (endpoint, server) = serve_once("text/event-stream", response_body);
+    let fixture = Fixture::start(200, "text/event-stream", &response_body);
+    let endpoint = format!("{}/v1", fixture.url);
     let environment = SmokeEnvironment::new(|journal_dir| minimal_config(&endpoint, journal_dir));
 
     let output = environment.run(&["smoke", "--live", "--timeout", "3"]);
@@ -358,22 +355,15 @@ fn live_smoke_drains_large_child_output_without_false_timeout() {
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
-    server.join().expect("fixture server");
+    fixture.finish();
 }
 
 #[test]
 fn live_smoke_enforces_one_hard_deadline_across_retries() {
-    let listener = TcpListener::bind("127.0.0.1:0").expect("bind slow fixture server");
-    let endpoint = format!(
-        "http://{}/v1",
-        listener.local_addr().expect("fixture address")
-    );
-    let server = thread::spawn(move || {
-        let (mut stream, _) = listener.accept().expect("accept fixture request");
-        let mut request = [0_u8; 8192];
-        let _ = stream.read(&mut request).expect("read fixture request");
-        thread::sleep(Duration::from_secs(3));
-    });
+    let fixture = Fixture::start_sequence(vec![
+        Response::json(200, "").with_delay(Duration::from_secs(3)),
+    ]);
+    let endpoint = format!("{}/v1", fixture.url);
     let environment = SmokeEnvironment::new(|journal_dir| minimal_config(&endpoint, journal_dir));
 
     let started = Instant::now();
@@ -400,7 +390,7 @@ fn live_smoke_enforces_one_hard_deadline_across_retries() {
         elapsed < Duration::from_millis(2500),
         "live smoke exceeded its hard deadline: {elapsed:?}"
     );
-    server.join().expect("fixture server");
+    fixture.finish();
 }
 
 #[test]
@@ -429,25 +419,12 @@ fn live_smoke_p2_does_not_write_evidence_into_the_configured_journal() {
         }]
     })
     .to_string();
-    let listener = TcpListener::bind("127.0.0.1:0").expect("bind classifier fixture");
-    let classifier_url = format!(
-        "http://{}",
-        listener.local_addr().expect("classifier fixture address")
-    );
-    let classifier = thread::spawn(move || {
-        for _ in 0..3 {
-            let (mut stream, _) = listener.accept().expect("accept classifier request");
-            let mut request = [0_u8; 8192];
-            let _ = stream.read(&mut request).expect("read classifier request");
-            write!(
-                stream,
-                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{classifier_response}",
-                classifier_response.len()
-            )
-            .expect("write classifier response");
-        }
-    });
-    let environment = SmokeEnvironment::new(|journal_dir| p2_config(&classifier_url, journal_dir));
+    let classifier = Fixture::start_sequence(vec![
+        Response::json(200, &classifier_response),
+        Response::json(200, &classifier_response),
+        Response::json(200, &classifier_response),
+    ]);
+    let environment = SmokeEnvironment::new(|journal_dir| p2_config(&classifier.url, journal_dir));
 
     let output = environment.run(&["smoke", "--live", "--timeout", "3"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live smoke JSON");
@@ -469,7 +446,7 @@ fn live_smoke_p2_does_not_write_evidence_into_the_configured_journal() {
             .exists(),
         "P2 smoke evidence polluted the configured journal"
     );
-    classifier.join().expect("classifier fixture");
+    classifier.finish_all();
 }
 
 #[test]
@@ -731,24 +708,4 @@ fn provider_secrets() -> [&'static str; 9] {
         "context7-secret",
         "anysearch-secret",
     ]
-}
-
-fn serve_once(content_type: &'static str, body: String) -> (String, thread::JoinHandle<()>) {
-    let listener = TcpListener::bind("127.0.0.1:0").expect("bind fixture server");
-    let endpoint = format!(
-        "http://{}/v1",
-        listener.local_addr().expect("fixture address")
-    );
-    let server = thread::spawn(move || {
-        let (mut stream, _) = listener.accept().expect("accept fixture request");
-        let mut request = [0_u8; 8192];
-        let _ = stream.read(&mut request).expect("read fixture request");
-        write!(
-            stream,
-            "HTTP/1.1 200 OK\r\nContent-Type: {content_type}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-            body.len()
-        )
-        .expect("write fixture response");
-    });
-    (endpoint, server)
 }
