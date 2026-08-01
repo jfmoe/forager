@@ -9,7 +9,9 @@ Use the local `forager >=0.1.0` CLI as the execution layer. The CLI owns provide
 ordering, credential rotation, and same-capability fallback.
 
 Treat a command as complete only at terminal exit. When the runner yields a handle, poll that handle
-until it exits before reading output, diagnosing, or retrying.
+until it exits before reading output, diagnosing, or retrying. Main search legitimately runs 60
+seconds or longer on complex queries; keep the default `--timeout`, give any outer tool timeout more
+headroom than it, and do not abandon the run early.
 
 If `forager` is missing or below the required version, report the observed command or version and
 stop this Skill branch.
