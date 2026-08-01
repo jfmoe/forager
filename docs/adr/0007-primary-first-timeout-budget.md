@@ -1,0 +1,13 @@
+# Primary-first timeout and retry budget
+
+forager runs every search against a single end-to-end deadline (`--timeout`, default 180 seconds). All stages draw from that one budget sequentially; no stage holds a reservation.
+
+**Main search is primary-first.** The primary path — the first backend, its primary model, the SSE transport — may spend the entire remaining budget on its first attempt. Fallback backends, fallback models, and the non-stream transport hold no reserved slice; they consume whatever remains after the primary path fails. The fair `slice_budget` split at the main_search stage and inside openai_compatible (model-chain split, SSE half-split) is removed. Fallback value concentrates in fast failures (milliseconds), which leftovers cover; fair slicing kills slow successes — on 2026-08-01 a 56.3 s slice cut an xAI request roughly 3 ms before completion while the reserved fallback shared the same failure domain.
+
+**Hangs are caught by a read timeout, not by budget slicing.** The shared HTTP client sets a 60-second `read_timeout` (idle gap between bytes; a constant, no config key). A stream that keeps producing bytes may run as long as the budget allows; a silent hang surfaces within 60 s as a Network error, which is retryable.
+
+**Auxiliary seams keep fair slicing.** The classifier keeps its stage cap (`classifier.timeout`) and model-chain slices; web_fetch, supplemental search, and the other utility providers keep their per-attempt `timeout` config plus `slice_budget` fairness. In those seams chain fallback is the retry; a single-model, single-backend configuration has no in-seam timeout retry by design.
+
+**Rotation and retry are separate quotas.** Timeout never rotates credentials; rotation stays RateLimited/QuotaExhausted only (see the provider credential pool ADR). The rotation quota is the credential pool size; the retry quota is `retry.max_attempts`, and the retry gate counts `retry_count` rather than total attempts, so rotations no longer consume retry headroom. The worst-case total is credential count + `retry.max_attempts` - 1. Backoff stays linear and jitter-free at the existing defaults (`multiplier = 1.0`, yielding 1 s then 2 s, capped by `max_wait = 10 s`): at three attempts in a single-user CLI, exponential backoff and jitter buy nothing and burn deadline.
+
+**Accepted consequences:** a hung primary consumes up to 60 s before fallbacks run; a slow-but-alive primary may starve supplemental stages entirely; fallback slots that share the primary's endpoint, model, and credential pool provide no isolation — fallback independence is a configuration concern, not a budget one.
