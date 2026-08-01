@@ -298,6 +298,25 @@ fn release_plz_runs_only_when_manually_dispatched() {
     );
 }
 
+#[test]
+fn release_plz_commands_use_github_app_tokens() {
+    let workflow =
+        fs::read_to_string(".github/workflows/release-plz.yml").expect("read release-plz workflow");
+    let jobs = workflow.split_once("\njobs:\n").expect("workflow jobs").1;
+    let release_plz_jobs = workflow_job_bodies(jobs)
+        .into_iter()
+        .filter(|job| job.contains("uses: release-plz/action@"))
+        .collect::<Vec<_>>();
+
+    assert_eq!(release_plz_jobs.len(), 2);
+    for job in release_plz_jobs {
+        assert!(job.contains("uses: actions/create-github-app-token@"));
+        assert!(job.contains("app-id: ${{ secrets.APP_ID }}"));
+        assert!(job.contains("private-key: ${{ secrets.APP_PRIVATE_KEY }}"));
+        assert!(job.contains("GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}"));
+    }
+}
+
 fn assert_runnable_job_timeouts(path: &str) {
     let workflow = fs::read_to_string(path).expect("read workflow");
     let jobs = workflow.split_once("\njobs:\n").expect("workflow jobs").1;

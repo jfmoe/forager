@@ -17,13 +17,18 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - id: release
         uses: release-plz/action@v0.5
         with:
           command: release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
       - name: Dispatch dist for released tags
         if: steps.release.outputs.releases_created == 'true'
         env:
@@ -52,9 +57,14 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+      - id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - uses: release-plz/action@v0.5
         with:
           command: release-pr
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
