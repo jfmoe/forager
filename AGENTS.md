@@ -19,3 +19,7 @@ Before writing, modifying, or reviewing Rust, use `rust-code-quality`: read its 
 ### Windows-only CI
 
 The `windows-permissions` job is CI-only. On non-Windows hosts, do not report a missing local run as a risk; report only an observed CI failure, and claim success only from a successful remote run.
+
+### Release completion
+
+After publishing a release, update the local CLI, run `npx skills add jfmoe/forager -g -s forager -a '*' -y`, then run the live-provider end-to-end test before closing the task.
