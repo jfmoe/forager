@@ -1,0 +1,3 @@
+# Keep stdout without a separate agent context budget
+
+Forager will not introduce a separate context-budget layer for successful content output: there will be no character-, byte-, or token-budget flag, default context limit, automatic stdout truncation with full-content spillover, or summary-to-full second-stage retrieval contract. The full rendered result continues to stdout, and `--output` retains its tee semantics. ADR 0006's 4 MiB and 64 KiB response caps remain transport and memory safety rails rather than agent-context limits; callers and skills remain responsible for managing long output. This preserves the existing one-shot public CLI contract.
