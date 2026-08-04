@@ -96,6 +96,10 @@ _Avoid_: classifier additions、classifier patch、provider decision
 统一拥有 capability 身份、顺序、选择语义和语义例句的领域词汇表；分类器 prompt、`--capabilities` 校验与 forager skill 契约共同消费它，而 provider fallback 与路由控制流不属于该词汇表。
 _Avoid_: Skill capability list、routing rules DSL、provider registry
 
+**Research Evidence Pipeline**:
+research 引擎的职责定位：确定性地执行计划、发现候选、取证、按子问题记账覆盖并落盘证据；它不做语义综合，也不含 main search 定向——综合归消费方 agent，定向在计划之前由 skill 编排完成。
+_Avoid_: research answer engine、engine synthesis、final answer generator、in-engine orientation
+
 **Provider Credential Pool**:
 某一供应方上由 TOML `keys` 真数组配置的认证凭据集合；八个供应方统一使用这一形状，单凭据是单元素数组。运行时按轮询选用，并在额度或限流类失败时于同一次请求内换用其他凭据。
 _Avoid_: key pool、key rotation、API key list、high-availability credential pool
