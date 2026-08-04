@@ -36,6 +36,10 @@ _Avoid_: main search、all web access、web provider
 读取、提取或核验已知 URL 或 PDF 正文的能力；它不负责发现链接。
 _Avoid_: web search、link discovery
 
+**Normalized Fetch Content**:
+Web Fetch Capability 经 provider 解码与质量门控后接受的 provider 无关 Markdown 正文；它不包含传输包装或诊断，也不承诺不同 provider 选出相同的正文边界。
+_Avoid_: raw provider response、cleaned content
+
 **Provider Acceptance Operation**:
 只属于某个供应方显式验收入口的操作，不构成 Capability Seam，也不允许分类器据此跨能力调用。
 _Avoid_: provider capability、fallback operation
