@@ -28,7 +28,9 @@ impl Capability {
         Self::VerticalSearch,
     ];
 
-    pub(crate) fn as_str(self) -> &'static str {
+    /// Returns the stable snake-case capability identifier used by CLI output.
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
         match self {
             Self::DocsSearch => "docs_search",
             Self::WebSearch => "web_search",
@@ -463,37 +465,39 @@ pub struct SearchOutcome {
 }
 
 #[derive(Clone, Debug, Serialize)]
-/// A citation derived only from fetched or read evidence.
-pub struct Citation {
-    /// Redacted evidence URL.
-    pub url: String,
-    /// Human-readable evidence title.
-    pub title: String,
-    /// Provider that returned the evidence content.
-    pub provider: &'static str,
-}
-
-#[derive(Clone, Debug, Serialize)]
-/// Fetched or read content that may support research claims.
+/// A file-backed evidence item exposed through the Research Evidence Index.
 pub struct EvidenceItem {
     /// Invocation-local stable identifier.
     pub id: String,
     /// Redacted evidence URL.
     pub url: String,
-    /// Human-readable evidence title.
-    pub title: String,
+    /// Human-readable evidence title when the provider supplied one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
     /// Provider that returned the content.
     pub provider: &'static str,
     /// Whether the content came from Web Fetch or documentation retrieval.
     pub source_type: &'static str,
     /// Plan subquestion associated with the evidence.
     pub subquestion_id: String,
-    /// Full fetched or read content.
+    #[serde(skip)]
+    /// Full fetched or read content persisted at `path`.
     pub content: String,
     /// Character count of `content`.
     pub content_len: usize,
     /// Whether non-empty content passed the evidence boundary.
     pub verified: bool,
+    /// Directly readable Markdown artifact containing the evidence body.
+    pub path: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+/// Count and readable path for candidates that were discovered but not fetched.
+pub struct UnconsumedCandidates {
+    /// Number of candidate records stored at `path`.
+    pub count: usize,
+    /// Directly readable JSON artifact containing the candidate metadata.
+    pub path: String,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -520,36 +524,22 @@ pub struct ResearchGapCheck {
 }
 
 #[derive(Clone, Debug, Serialize)]
-/// Successful evidence-backed research output.
+/// Successful file-backed Research Evidence Index.
 pub struct ResearchOutcome {
-    /// Original caller query.
-    pub query: String,
-    /// Applied quick, standard, or deep budget.
-    pub budget: &'static str,
-    /// Origin of the authoritative plan.
-    pub plan_source: &'static str,
-    /// Normalized Schema v1 plan.
-    pub research_plan: ResearchPlan,
-    /// Final seam set, including the Web Fetch engine invariant.
-    pub capabilities: Vec<Capability>,
-    /// Evidence-only synthesized answer.
-    pub final_answer: String,
-    /// Alias of `final_answer` for content output.
-    pub content: String,
-    /// Citations derived from `evidence_items`.
-    pub citations: Vec<Citation>,
-    /// Full fetched or read evidence.
+    /// Evidence identities and readable body paths.
     pub evidence_items: Vec<EvidenceItem>,
     /// Advisory provider availability gaps.
     pub capability_gaps: Vec<CapabilityGap>,
     /// Evidence coverage state.
     pub gap_check: ResearchGapCheck,
-    /// Whether a same-seam provider fallback occurred.
-    pub fallback_used: bool,
-    /// Whether non-fatal gaps remain.
-    pub degraded: bool,
     /// Directory containing evidence artifacts.
     pub evidence_dir: String,
+    /// Readable path to the normalized Schema v1 plan.
+    pub plan_path: String,
+    /// Discovered candidates that were not fetched and are not evidence.
+    pub unconsumed_candidates: UnconsumedCandidates,
+    /// Policy the caller must apply before making claims from candidates.
+    pub synthesis_policy: &'static str,
     #[serde(skip)]
     /// Full provider attempt chain for verbose output and journaling.
     pub attempts: Vec<ProviderAttempt>,
@@ -572,6 +562,16 @@ pub struct ResearchError {
     pub evidence_items: Vec<EvidenceItem>,
     /// Advisory provider availability gaps.
     pub capability_gaps: Vec<CapabilityGap>,
+    /// Evidence coverage state at the terminal.
+    pub gap_check: ResearchGapCheck,
+    /// Directory containing the artifacts retained before failure.
+    pub evidence_dir: String,
+    /// Readable path to the normalized Schema v1 plan.
+    pub plan_path: String,
+    /// Discovered candidates that were not fetched and are not evidence.
+    pub unconsumed_candidates: UnconsumedCandidates,
+    /// Policy the caller must apply before making claims from candidates.
+    pub synthesis_policy: &'static str,
     /// Non-fatal diagnostic text for standard error.
     pub diagnostic: Option<String>,
 }

@@ -78,7 +78,7 @@ forager research "对比主流 Rust CLI 分发方式" \
   --format markdown
 ```
 
-直接调用 `research` 时需要配置分类器；通过 Agent Skill 调用时，Agent 会生成计划并通过 `--plan` 注入。
+直接调用 `research` 时需要配置分类器；通过 Agent Skill 调用时，Agent 会生成计划并通过 `--plan` 注入。`research` 返回轻量 Research Evidence Index：证据正文逐条写入返回的 `evidence_items[].path`，完整计划、未消费候选与运行摘要分别位于 `00-plan.json`、`candidates.json` 和 `summary.json`。调用方按需读取正文并完成综合；stdout 不再输出机械答案或重复正文。
 
 读取已知网页：
 
@@ -108,7 +108,7 @@ Skill 要求 `forager >= 0.1.0`。
 
 - `search` 接受调用方声明的完整能力集合；forager 不擅自扩张该集合。
 - `search` 的 `sources` 只表示主回答来源；`extra_sources` 是补充候选，保留 provider 原生摘要，search-side Web Fetch 则返回 300 字正文 preview；Vertical Discovery 只进入 `vertical_results`。
-- `research` 可以接受调用方通过 `--plan` 注入的 Schema v1 研究计划。
+- `research` 可以接受调用方通过 `--plan` 注入的 Schema v1 研究计划，并以文件化 Research Evidence Index 交付证据而非生成答案。
 - `fetch`、`map` 以及 `exa`、`context7`、`anysearch` 子命令提供显式直连入口。
 - 凭据保存在本地配置中；命令输出和持久化 journal 会对敏感 URL 参数脱敏。
 - 能力暂时不可用时，结果会明确报告 `capability_gaps`，不会把缺失能力伪装成成功覆盖。

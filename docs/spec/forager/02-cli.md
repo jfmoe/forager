@@ -35,10 +35,10 @@ forager setup [--non-interactive] [--lang zh|en]
 
 ## 输出与退出码
 
-- `--format json(默认)/markdown/content` 三态；**content 收窄**到四个正文命令（search/fetch/context7 docs/research），per-command ValueEnum 在解析层强制。doctor 默认 json。
+- `--format json(默认)/markdown/content` 三态；**content 收窄**到 search、fetch、context7 docs 与 research，per-command ValueEnum 在解析层强制。research 的 Markdown/content 都渲染 Research Evidence Index 与 unresolved gaps，不渲染证据正文或机械答案。doctor 默认 json。
 - `--output FILE` 为 **tee 语义**（写文件 + stdout 照常）。写失败＝非零终态退 3，stdout JSON 照常输出并标注写失败（#59 H15）；与 journal 旁路（非致命）区分。
 - 退出码：`0` 成功（含直连命令的合法空结果）；`2` 参数错（clap 天然 + 坏 plan + `config set` 非法路径）；`3` config_error（含未知文件键、未知 `FORAGER_*` env、web_fetch 空链、`--output` 写失败）；`4` transport 族终态；`5` content 族终态（quality/evidence；**evidence_error 由 4 改 5**）。`1` 空缺；panic 101 不拦，为非契约异常出口。
-- **默认 stdout 瘦载荷**（#59 I0-6 连带修订本票）：成功＝结果本身；失败＝`error_kind` + 一行 message + attempts 计数摘要（total/by_kind/providers，非全文）+ 精简 capability_gaps + `journal_ref`（nullable，写失败置 null 并附 `journal_status`）。全量 `provider_attempts` 移出默认 stdout、只落 journal；`--verbose` 为 inline 全量逃生阀。载荷上限与截断规则见第 5 章 M18。
+- **默认 stdout 瘦载荷**（#59 I0-6 连带修订本票）：成功＝结果本身；普通命令失败＝`error_kind` + 一行 message + attempts 计数摘要（total/by_kind/providers，非全文）+ 精简 capability_gaps + `journal_ref`（nullable，写失败置 null 并附 `journal_status`）；research 失败＝`error_kind` + message + 与成功相同的 Research Evidence Index/路径。全量 `provider_attempts` 移出默认 stdout、只落 journal；`--verbose` 为 inline 全量逃生阀。默认失败载荷继续不超过 4 KiB。
 - **fetch 成功载荷**：`content` 只包含 provider 无关的 Markdown 正文；provider attempts 与 diagnostic 保持在各自字段/输出通道，不混入正文。URL 与 PDF 共享 `web_fetch` 链和失败语义，`--output` 仍是 tee。
 
 ## search 参数清理
@@ -86,6 +86,19 @@ CSV + 独占哨兵 `none`，未传＝自动路由。Rust 类型 `Option<Capabili
 - **`web_fetch` 为 research 引擎不变量**（fetch-before-claim）：由引擎按证据需要自动执行，plan 中声明它＝退 2，错误信息说明其由引擎自动执行。
 - `required_capabilities`＝seam 门（路由权威）；seam 内 provider 凭据缺口不阻断成功，经 capability_gaps 自报（#59 H7：required＝路由权威、可用性 advisory）。
 - 与 ADR-0004 关系：本规则是计划注入进入 research 后对该 ADR 豁免区的首次权威定义，与其 search 侧语义并立不冲突。
+
+### Research Evidence Index
+
+research 是文件化证据管线，不是答案引擎。默认 JSON 顶层只包含 `evidence_items`、`evidence_dir`、`plan_path`、`unconsumed_candidates: {count, path}`、`gap_check`、`capability_gaps`、`synthesis_policy: "fetch_before_claim"`、`journal_ref` 与 `journal_status`。每条 evidence item 只包含 `id`、`url`、可选 `title`、`provider`、`source_type`、`subquestion_id`、`content_len`、`verified` 和可直接读取的 `path`。
+
+`evidence_dir` 固定写出：
+
+- `00-plan.json`：完整规范化计划；
+- `NN-evidence.md`：逐条 evidence 正文，stdout、summary 与 journal 不重复嵌入；
+- `candidates.json`：`is_evidence: false` 的未消费候选完整元数据；
+- `summary.json`：query、budget、plan source、capabilities、fallback、coverage、attempts 与无正文 evidence index 等运行元数据，不包含 evidence 正文。默认失败 JSON 接近 4 KiB 上限时压缩可从这里恢复的长 metadata，保留原 error kind 与直接读取路径。
+
+成功和进入 postflight 的失败都会先保留已取得的 evidence 与上述索引，再输出同一组可读路径。`--verbose` 仍只负责把 `provider_attempts` 显式内联；`--output` 仍是 tee。
 
 ## 契约③：`doctor --provider`
 

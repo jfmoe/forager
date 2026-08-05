@@ -137,32 +137,33 @@ fn render_research(
                     }
                     serde_json::to_string(&payload).map_err(|error| error.to_string())?
                 }
-                DocsOutputFormat::Markdown => {
-                    let mut markdown = format!("# Research Report\n\n{}", outcome.final_answer);
-                    if !outcome.citations.is_empty() {
-                        markdown.push_str("\n\n## Citations\n");
-                        for citation in &outcome.citations {
-                            let _ = write!(
-                                markdown,
-                                "\n- [{}]({}) — {}",
-                                citation.title, citation.url, citation.provider
-                            );
-                        }
-                    }
-                    markdown
+                DocsOutputFormat::Markdown | DocsOutputFormat::Content => {
+                    format_research_index(&outcome)
                 }
-                DocsOutputFormat::Content => outcome.content.clone(),
             };
             (stdout, 0, outcome.diagnostic)
         }
         Err(error) => {
             let stdout = match format {
                 DocsOutputFormat::Json => format_research_failure_json(&error, journal, verbose)?,
-                DocsOutputFormat::Markdown | DocsOutputFormat::Content => format!(
-                    "# Research failed\n\n**{}**: {}",
-                    error.kind.as_str(),
-                    error.message
-                ),
+                DocsOutputFormat::Markdown | DocsOutputFormat::Content => {
+                    let mut rendered = format!(
+                        "# Research Evidence Index\n\n**{}**: {}\n",
+                        error.kind.as_str(),
+                        error.message
+                    );
+                    append_research_index(
+                        &mut rendered,
+                        &error.evidence_items,
+                        &error.evidence_dir,
+                        &error.plan_path,
+                        &error.unconsumed_candidates,
+                        &error.gap_check,
+                        &error.capability_gaps,
+                        error.synthesis_policy,
+                    );
+                    rendered
+                }
             };
             (stdout, postflight_exit_code(error.kind), error.diagnostic)
         }
@@ -195,8 +196,13 @@ fn format_research_failure_json(
     let mut payload = json!({
         "error_kind": error.kind.as_str(),
         "message": error.message.chars().take(500).collect::<String>(),
-        "attempts": bounded_attempt_summary(&error.attempts),
-        "capability_gaps": bounded_capability_gaps(&error.capability_gaps),
+        "evidence_items": error.evidence_items,
+        "capability_gaps": error.capability_gaps,
+        "gap_check": error.gap_check,
+        "evidence_dir": error.evidence_dir,
+        "plan_path": error.plan_path,
+        "unconsumed_candidates": error.unconsumed_candidates,
+        "synthesis_policy": error.synthesis_policy,
     });
     add_journal_status(&mut payload, journal)?;
     if verbose {
@@ -209,10 +215,193 @@ fn format_research_failure_json(
             );
     }
     let encoded = serde_json::to_string(&payload).map_err(|error| error.to_string())?;
-    if !verbose && encoded.len() > 4096 {
-        return Err("default failure payload exceeded 4 KiB".into());
+    if verbose || encoded.len() <= 4096 {
+        return Ok(encoded);
     }
-    Ok(encoded)
+    for limit in [4, 1, 0] {
+        let mut payload = compact_research_failure_payload(error, limit);
+        add_journal_status(&mut payload, journal)?;
+        let encoded = serde_json::to_string(&payload).map_err(|error| error.to_string())?;
+        if encoded.len() <= 4096 {
+            return Ok(encoded);
+        }
+    }
+    let mut payload = json!({
+        "error_kind": error.kind.as_str(),
+        "message": "failure index exceeded 4 KiB; read the persisted evidence directory",
+        "evidence_dir": error.evidence_dir.chars().take(512).collect::<String>(),
+        "synthesis_policy": error.synthesis_policy,
+    });
+    add_journal_status(&mut payload, journal)?;
+    serde_json::to_string(&payload).map_err(|error| error.to_string())
+}
+
+fn compact_research_failure_payload(error: &ResearchError, limit: usize) -> Value {
+    let omitted_gaps = error.gap_check.gaps.len().saturating_sub(limit);
+    let omitted_capability_gaps = error.capability_gaps.len().saturating_sub(limit);
+    let mut gaps = error
+        .gap_check
+        .gaps
+        .iter()
+        .take(limit)
+        .map(|gap| {
+            let mut value = json!({
+                "subquestion_id": gap.subquestion_id,
+                "reason": gap.reason.chars().take(120).collect::<String>(),
+            });
+            if let Some(url) = &gap.url {
+                value
+                    .as_object_mut()
+                    .expect("research gap is an object")
+                    .insert("url".into(), Value::String(url.chars().take(160).collect()));
+            }
+            value
+        })
+        .collect::<Vec<_>>();
+    let evidence_limit = limit.max(1);
+    let evidence_items = error
+        .evidence_items
+        .iter()
+        .take(evidence_limit)
+        .map(|item| {
+            json!({
+                "id": item.id.chars().take(80).collect::<String>(),
+                "url": item.url.chars().take(320).collect::<String>(),
+                "provider": item.provider,
+                "source_type": item.source_type,
+                "subquestion_id": item.subquestion_id.chars().take(120).collect::<String>(),
+                "content_len": item.content_len,
+                "verified": item.verified,
+                "path": item.path,
+            })
+        })
+        .collect::<Vec<_>>();
+    let compacted_evidence = error.evidence_items.len() > evidence_items.len()
+        || error
+            .evidence_items
+            .iter()
+            .zip(&evidence_items)
+            .any(|(item, compact)| {
+                compact["id"] != item.id
+                    || compact["url"] != item.url
+                    || compact["subquestion_id"] != item.subquestion_id
+                    || item.title.is_some()
+            });
+    if omitted_gaps > 0 || omitted_capability_gaps > 0 || compacted_evidence {
+        gaps.push(json!({
+            "subquestion_id": "",
+            "reason": format!(
+                "failure metadata compacted ({omitted_gaps} research gaps, {omitted_capability_gaps} capability gaps); read summary.json"
+            )
+        }));
+    }
+    let capability_gaps = error
+        .capability_gaps
+        .iter()
+        .take(limit)
+        .map(|gap| {
+            json!({
+                "capability": gap.capability,
+                "reason": gap.reason,
+                "providers_skipped": gap.providers_skipped.iter().take(2).map(|provider| {
+                    provider.chars().take(64).collect::<String>()
+                }).collect::<Vec<_>>(),
+            })
+        })
+        .collect::<Vec<_>>();
+    json!({
+        "error_kind": error.kind.as_str(),
+        "message": error.message.chars().take(160).collect::<String>(),
+        "evidence_items": evidence_items,
+        "capability_gaps": capability_gaps,
+        "gap_check": {
+            "status": error.gap_check.status,
+            "gaps": gaps,
+            "stop_reason": error.gap_check.stop_reason,
+        },
+        "evidence_dir": error.evidence_dir,
+        "plan_path": error.plan_path,
+        "unconsumed_candidates": error.unconsumed_candidates,
+        "synthesis_policy": error.synthesis_policy,
+    })
+}
+
+fn format_research_index(outcome: &ResearchOutcome) -> String {
+    let mut rendered = "# Research Evidence Index\n".to_owned();
+    append_research_index(
+        &mut rendered,
+        &outcome.evidence_items,
+        &outcome.evidence_dir,
+        &outcome.plan_path,
+        &outcome.unconsumed_candidates,
+        &outcome.gap_check,
+        &outcome.capability_gaps,
+        outcome.synthesis_policy,
+    );
+    rendered
+}
+
+// Success and failure share this renderer so their index semantics cannot drift.
+#[expect(clippy::too_many_arguments)]
+fn append_research_index(
+    rendered: &mut String,
+    evidence_items: &[forager::types::EvidenceItem],
+    evidence_dir: &str,
+    plan_path: &str,
+    unconsumed_candidates: &forager::types::UnconsumedCandidates,
+    gap_check: &forager::types::ResearchGapCheck,
+    capability_gaps: &[forager::types::CapabilityGap],
+    synthesis_policy: &str,
+) {
+    let _ = write!(
+        rendered,
+        "\nEvidence directory: `{evidence_dir}`\n\nPlan: `{plan_path}`\n\nUnconsumed candidates: {} at `{}`\n\nSynthesis policy: `{synthesis_policy}`",
+        unconsumed_candidates.count, unconsumed_candidates.path
+    );
+    rendered.push_str("\n\n## Evidence\n");
+    if evidence_items.is_empty() {
+        rendered.push_str("\nNo verified evidence was collected.\n");
+    } else {
+        for item in evidence_items {
+            let title = item.title.as_deref().unwrap_or(&item.url);
+            let _ = write!(
+                rendered,
+                "\n- [{}]({}) — {} / {}; subquestion `{}`; {} chars; verified={}; `{}`",
+                item.id,
+                item.url,
+                title,
+                item.provider,
+                item.subquestion_id,
+                item.content_len,
+                item.verified,
+                item.path
+            );
+        }
+    }
+    rendered.push_str("\n\n## Unresolved gaps\n");
+    if gap_check.gaps.is_empty() && capability_gaps.is_empty() {
+        rendered.push_str("\nNone.\n");
+    } else {
+        for gap in &gap_check.gaps {
+            let scope = if gap.subquestion_id.is_empty() {
+                "plan"
+            } else {
+                &gap.subquestion_id
+            };
+            let _ = write!(rendered, "\n- `{scope}`: {}", gap.reason);
+            if let Some(url) = &gap.url {
+                let _ = write!(rendered, " ({url})");
+            }
+        }
+        for gap in capability_gaps {
+            let _ = write!(
+                rendered,
+                "\n- capability `{}`: {}",
+                gap.capability.as_str(),
+                gap.reason
+            );
+        }
+    }
 }
 
 fn render_search(
@@ -741,22 +930,6 @@ fn bounded_attempt_summary(attempts: &[forager::types::ProviderAttempt]) -> Valu
     })
 }
 
-fn bounded_capability_gaps(gaps: &[forager::types::CapabilityGap]) -> Value {
-    Value::Array(
-        gaps.iter()
-            .map(|gap| {
-                let providers = gap.providers_skipped.iter().take(8).collect::<Vec<_>>();
-                json!({
-                    "capability": gap.capability,
-                    "reason": gap.reason,
-                    "providers_skipped": providers,
-                    "truncated": gap.providers_skipped.len() > providers.len(),
-                })
-            })
-            .collect(),
-    )
-}
-
 fn apply_tee(
     stdout: String,
     exit_code: u8,
@@ -824,7 +997,8 @@ fn postflight_exit_code(kind: AttemptErrorKind) -> u8 {
 mod tests {
     use forager::app::ProviderError;
     use forager::types::{
-        AttemptErrorKind, Capability, CapabilityGap, JournalOutcome, ProviderAttempt, ResearchError,
+        AttemptErrorKind, Capability, CapabilityGap, EvidenceItem, JournalOutcome, ProviderAttempt,
+        ResearchError, ResearchGapCheck, UnconsumedCandidates,
     };
     use serde_json::{Value, json};
 
@@ -840,7 +1014,7 @@ mod tests {
         let provider_error = ProviderError {
             kind: AttemptErrorKind::Evidence,
             message: "界".repeat(600),
-            attempts: attempts.clone(),
+            attempts,
             verbose: false,
             diagnostic: None,
             redirected_library_id: Some("库".repeat(2_000)),
@@ -876,20 +1050,53 @@ mod tests {
                 Some(true)
             )
         );
+    }
 
+    #[test]
+    fn research_failure_payload_keeps_the_terminal_and_paths_under_four_kibibytes() {
+        let attempts = all_attempt_kinds()
+            .into_iter()
+            .enumerate()
+            .map(|(index, kind)| attempt(PROVIDERS[index], kind))
+            .collect::<Vec<_>>();
         let research_error = ResearchError {
             kind: AttemptErrorKind::Evidence,
             message: "界".repeat(600),
             attempts,
-            evidence_items: Vec::new(),
-            capability_gaps: vec![CapabilityGap {
-                capability: Capability::WebSearch,
-                reason: "all_attempts_failed",
-                providers_skipped: PROVIDERS
-                    .iter()
-                    .map(|provider| (*provider).into())
-                    .collect(),
+            evidence_items: vec![EvidenceItem {
+                id: "e1".into(),
+                url: format!("https://example.test/{}", "u".repeat(5_000)),
+                title: Some("t".repeat(5_000)),
+                provider: "jina",
+                source_type: "fetched_page",
+                subquestion_id: "s".repeat(5_000),
+                content: "persisted body".into(),
+                content_len: 14,
+                verified: true,
+                path: "/tmp/evidence/01-evidence.md".into(),
             }],
+            capability_gaps: (0..40)
+                .map(|index| CapabilityGap {
+                    capability: Capability::WebSearch,
+                    reason: "all_attempts_failed",
+                    providers_skipped: PROVIDERS
+                        .iter()
+                        .map(|provider| format!("{provider}-{index}-{}", "x".repeat(120)))
+                        .collect(),
+                })
+                .collect(),
+            gap_check: ResearchGapCheck {
+                status: "degraded",
+                gaps: Vec::new(),
+                stop_reason: "insufficient_evidence",
+            },
+            evidence_dir: "/tmp/evidence".into(),
+            plan_path: "/tmp/evidence/00-plan.json".into(),
+            unconsumed_candidates: UnconsumedCandidates {
+                count: 0,
+                path: "/tmp/evidence/candidates.json".into(),
+            },
+            synthesis_policy: "fetch_before_claim",
             diagnostic: None,
         };
         let journal = JournalOutcome {
@@ -904,16 +1111,23 @@ mod tests {
         assert!(encoded.len() <= 4096);
         assert_eq!(
             (
-                payload["attempts"]["by_kind"]
-                    .as_object()
-                    .map(serde_json::Map::len),
-                payload["attempts"]["by_kind_truncated"].as_bool(),
-                payload["capability_gaps"][0]["providers_skipped"]
+                payload["attempts"].is_null(),
+                payload["capability_gaps"].as_array().map(Vec::len),
+                payload["gap_check"]["gaps"]
                     .as_array()
-                    .map(Vec::len),
-                &payload["capability_gaps"][0]["truncated"],
+                    .is_some_and(|gaps| !gaps.is_empty()),
+                &payload["evidence_items"][0]["path"],
+                &payload["synthesis_policy"],
+                &payload["unconsumed_candidates"]["path"],
             ),
-            (Some(8), Some(true), Some(8), &json!(true))
+            (
+                true,
+                Some(4),
+                true,
+                &json!("/tmp/evidence/01-evidence.md"),
+                &json!("fetch_before_claim"),
+                &json!("/tmp/evidence/candidates.json"),
+            )
         );
     }
 

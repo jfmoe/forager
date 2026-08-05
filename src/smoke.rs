@@ -894,10 +894,11 @@ fn result_shape_is_nonempty(shape: ResultShape, payload: &Value) -> bool {
             nonempty_string(payload, "answer") && nonempty_array(payload, "extra_sources")
         }
         ResultShape::Research => {
-            nonempty_string(payload, "final_answer")
-                && nonempty_array(payload, "evidence_items")
-                && nonempty_array(payload, "citations")
-                && payload["plan_source"] == "classifier"
+            nonempty_array(payload, "evidence_items")
+                && nonempty_string(payload, "evidence_dir")
+                && nonempty_string(payload, "plan_path")
+                && nonempty_string(&payload["unconsumed_candidates"], "path")
+                && payload["synthesis_policy"] == "fetch_before_claim"
         }
         ResultShape::Classifier => {
             nonempty_array(payload, "capabilities")

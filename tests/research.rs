@@ -1,6 +1,7 @@
 mod support;
 
 use std::fs;
+use std::path::Path;
 use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
@@ -51,12 +52,15 @@ fn bare_research_executes_the_classifier_plan_through_the_research_pipeline() {
     let output = environment.run(&["research", "What changed?", "--verbose"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
     let journal = read_only_journal(&environment);
+    let persisted_plan: Value = serde_json::from_slice(
+        &fs::read(payload["plan_path"].as_str().expect("plan path")).expect("read plan"),
+    )
+    .expect("parse plan");
 
     assert_eq!(
         (
             output.status.code(),
-            &payload["plan_source"],
-            &payload["research_plan"],
+            &persisted_plan,
             payload["provider_attempts"]
                 .as_array()
                 .expect("verbose attempts")
@@ -68,7 +72,6 @@ fn bare_research_executes_the_classifier_plan_through_the_research_pipeline() {
         ),
         (
             Some(0),
-            &Value::String("classifier".into()),
             &valid_plan(json!(["web_search"])),
             vec!["classifier", "web_search", "web_fetch"],
             &Value::String("classifier".into()),
@@ -161,14 +164,16 @@ fn bare_research_truncates_an_over_limit_classifier_plan_by_importance() {
 
     let output = environment.run(&["research", "Prioritized plan", "--budget", "quick"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let persisted_plan: Value = serde_json::from_slice(
+        &fs::read(payload["plan_path"].as_str().expect("plan path")).expect("read plan"),
+    )
+    .expect("parse plan");
 
     assert_eq!(
         (
             output.status.code(),
-            payload["research_plan"]["decomposition"]
-                .as_array()
-                .map(Vec::len),
-            payload["research_plan"]["decomposition"]
+            persisted_plan["decomposition"].as_array().map(Vec::len),
+            persisted_plan["decomposition"]
                 .as_array()
                 .expect("decomposition")
                 .iter()
@@ -211,12 +216,16 @@ fn bare_research_uses_the_fixed_web_search_plan_when_classifier_transport_fails(
     let output = environment.run(&["research", "What changed?", "--verbose"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
     let journal = read_only_journal(&environment);
+    let persisted_plan: Value = serde_json::from_slice(
+        &fs::read(payload["plan_path"].as_str().expect("plan path")).expect("read plan"),
+    )
+    .expect("parse plan");
 
     assert_eq!(
         (
             output.status.code(),
-            &payload["plan_source"],
-            &payload["research_plan"]["decomposition"][0]["required_capabilities"],
+            &journal["execution"]["plan_summary"]["source"],
+            &persisted_plan["decomposition"][0]["required_capabilities"],
             String::from_utf8_lossy(&output.stderr).contains("Classifier warning"),
             &journal["execution"]["plan_summary"]["classifier_degraded"],
         ),
@@ -269,9 +278,16 @@ fn bare_research_degrades_when_classifier_returns_an_invalid_plan() {
 
     let output = environment.run(&["research", "What changed?"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let summary: Value = serde_json::from_slice(
+        &fs::read(
+            Path::new(payload["evidence_dir"].as_str().expect("evidence dir")).join("summary.json"),
+        )
+        .expect("read summary"),
+    )
+    .expect("parse summary");
 
     assert_eq!(
-        (output.status.code(), &payload["plan_source"]),
+        (output.status.code(), &summary["plan_source"]),
         (Some(0), &Value::String("classifier_degraded".into())),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
@@ -449,13 +465,18 @@ fn research_reads_plan_from_stdin_and_normalizes_capabilities_in_declared_order(
         &serde_json::to_string(&plan).expect("encode plan"),
     );
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let persisted_plan: Value = serde_json::from_slice(
+        &fs::read(payload["plan_path"].as_str().expect("plan path")).expect("read plan"),
+    )
+    .expect("parse plan");
+    let journal = read_only_journal(&environment);
 
     assert_eq!(
         (
             output.status.code(),
-            &payload["research_plan"]["decomposition"][0]["required_capabilities"],
-            &payload["capabilities"],
-            &payload["citations"][0]["url"],
+            &persisted_plan["decomposition"][0]["required_capabilities"],
+            &journal["execution"]["plan_summary"]["capabilities"],
+            &payload["evidence_items"][0]["url"],
         ),
         (
             Some(0),
@@ -515,10 +536,14 @@ fn research_discovers_then_fetches_before_emitting_claims_and_journals_evidence(
     assert_eq!(
         (
             output.status.code(),
-            &payload["citations"][0]["url"],
-            payload["evidence_items"][0]["content"]
-                .as_str()
-                .is_some_and(|content| content.contains("Fetched body")),
+            &payload["evidence_items"][0]["url"],
+            fs::read_to_string(
+                payload["evidence_items"][0]["path"]
+                    .as_str()
+                    .expect("evidence path"),
+            )
+            .expect("read evidence")
+            .contains("Fetched body"),
             &journal["execution"]["plan_summary"]["source"],
             &journal["execution"]["plan_summary"]["capabilities"],
             &journal["result"]["evidence_items"][0]["url"],
@@ -551,6 +576,149 @@ fn research_discovers_then_fetches_before_emitting_claims_and_journals_evidence(
 }
 
 #[test]
+fn research_returns_a_file_backed_evidence_index_without_repeating_evidence_content() {
+    let tavily = Fixture::start(
+        200,
+        "application/json",
+        r#"{"results":[
+            {"title":"Selected","url":"https://example.test/selected"},
+            {"title":"Candidate A","url":"https://example.test/candidate-a"},
+            {"title":"Candidate B","url":"https://example.test/candidate-b"}
+        ]}"#,
+    );
+    let evidence_body = rich_content("Unique persisted evidence body");
+    let jina = Fixture::start(200, "application/json", &jina_response(&evidence_body));
+    let evidence_dir = tempfile::tempdir().expect("evidence dir");
+    let environment = RunEnvironment::new(&research_config(&tavily.url, &jina.url, true));
+    let plan_path = write_plan(&environment, valid_plan(json!(["web_search"])));
+
+    let output = environment.run(&[
+        "research",
+        "Build an evidence index",
+        "--plan",
+        plan_path.to_str().expect("UTF-8 path"),
+        "--budget",
+        "quick",
+        "--evidence-dir",
+        evidence_dir.path().to_str().expect("UTF-8 evidence path"),
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let evidence = payload["evidence_items"][0]
+        .as_object()
+        .expect("evidence index item");
+    let candidates_path = payload["unconsumed_candidates"]["path"]
+        .as_str()
+        .expect("candidate artifact path");
+    let candidates: Value = serde_json::from_slice(
+        &fs::read(candidates_path).expect("read candidate artifact from returned path"),
+    )
+    .expect("parse candidate artifact");
+    let journal = read_only_journal(&environment);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            payload
+                .as_object()
+                .expect("research index")
+                .keys()
+                .map(String::as_str)
+                .collect::<Vec<_>>(),
+            evidence.keys().map(String::as_str).collect::<Vec<_>>(),
+            &payload["unconsumed_candidates"]["count"],
+            &payload["synthesis_policy"],
+            &candidates["is_evidence"],
+            candidates["candidates"].as_array().map(Vec::len),
+        ),
+        (
+            Some(0),
+            vec![
+                "capability_gaps",
+                "evidence_dir",
+                "evidence_items",
+                "gap_check",
+                "journal_ref",
+                "journal_status",
+                "plan_path",
+                "synthesis_policy",
+                "unconsumed_candidates",
+            ],
+            vec![
+                "content_len",
+                "id",
+                "path",
+                "provider",
+                "source_type",
+                "subquestion_id",
+                "title",
+                "url",
+                "verified",
+            ],
+            &json!(2),
+            &Value::String("fetch_before_claim".into()),
+            &Value::Bool(false),
+            Some(2),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_file_backed_index_artifacts(
+        &payload,
+        evidence_dir.path(),
+        &evidence_body,
+        &output.stdout,
+        &journal,
+    );
+    tavily.finish();
+    jina.finish();
+}
+
+#[test]
+fn research_markdown_and_content_render_the_same_index_semantics_and_output_remains_a_tee() {
+    let body = rich_content("Persisted format evidence");
+    let jina = Fixture::start_sequence(
+        (0..2)
+            .map(|_| Response::new(200, "application/json", &jina_response(&body)))
+            .collect(),
+    );
+    let environment = RunEnvironment::new(&fetch_only_config(&jina.url, false));
+    let plan_path = write_plan(&environment, valid_plan(json!([])));
+
+    for format in ["markdown", "content"] {
+        let evidence_dir = tempfile::tempdir().expect("evidence dir");
+        let tee = evidence_dir.path().join("stdout.txt");
+        let output = environment.run(&[
+            "research",
+            "Verify https://example.test/known",
+            "--plan",
+            plan_path.to_str().expect("UTF-8 plan path"),
+            "--evidence-dir",
+            evidence_dir.path().to_str().expect("UTF-8 evidence path"),
+            "--format",
+            format,
+            "--output",
+            tee.to_str().expect("UTF-8 tee path"),
+        ]);
+        let stdout = String::from_utf8(output.stdout).expect("UTF-8 stdout");
+
+        assert_eq!(
+            (
+                output.status.code(),
+                stdout.contains("Research Evidence Index"),
+                stdout.contains("Unresolved gaps"),
+                stdout.contains("fetch_before_claim"),
+                stdout.contains(&body),
+                fs::read_to_string(&tee).expect("read tee output"),
+            ),
+            (Some(0), true, true, true, false, stdout.clone()),
+            "format: {format}; stderr: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    assert_eq!(jina.finish_all().len(), 2);
+}
+
+#[test]
 fn research_intent_signals_do_not_add_or_reorder_capability_seams() {
     let jina = Fixture::start(
         200,
@@ -576,11 +744,18 @@ fn research_intent_signals_do_not_add_or_reorder_capability_seams() {
         "--verbose",
     ]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let summary: Value = serde_json::from_slice(
+        &fs::read(
+            Path::new(payload["evidence_dir"].as_str().expect("evidence dir")).join("summary.json"),
+        )
+        .expect("read summary"),
+    )
+    .expect("parse summary");
 
     assert_eq!(
         (
             output.status.code(),
-            &payload["capabilities"],
+            &summary["capabilities"],
             payload["provider_attempts"]
                 .as_array()
                 .expect("attempts")
@@ -994,6 +1169,54 @@ fn research_reports_error_summary_write_failures_without_replacing_the_terminal(
 }
 
 #[test]
+fn research_summary_write_failure_preserves_the_already_persisted_evidence_index() {
+    let body = rich_content("Evidence retained after summary failure");
+    let jina = Fixture::start(200, "application/json", &jina_response(&body));
+    let environment = RunEnvironment::new(&fetch_only_config(&jina.url, false));
+    let plan_path = write_plan(&environment, valid_plan(json!([])));
+    let evidence_dir = tempfile::tempdir().expect("evidence dir");
+    fs::create_dir(evidence_dir.path().join("summary.json"))
+        .expect("block the summary artifact path");
+
+    let output = environment.run(&[
+        "research",
+        "Verify https://example.test/known",
+        "--plan",
+        plan_path.to_str().expect("UTF-8 plan path"),
+        "--evidence-dir",
+        evidence_dir.path().to_str().expect("UTF-8 evidence path"),
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["error_kind"],
+            &payload["evidence_items"][0]["url"],
+            Path::new(
+                payload["evidence_items"][0]["path"]
+                    .as_str()
+                    .expect("evidence path"),
+            )
+            .is_file(),
+            &payload["unconsumed_candidates"]["count"],
+            Path::new(payload["plan_path"].as_str().expect("plan path")).is_file(),
+        ),
+        (
+            Some(4),
+            &Value::String("runtime".into()),
+            &Value::String("https://example.test/known".into()),
+            true,
+            &json!(0),
+            true,
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    jina.finish();
+}
+
+#[test]
 fn research_returns_evidence_when_high_strength_requires_more_than_one_item() {
     let jina = Fixture::start(
         200,
@@ -1018,9 +1241,33 @@ fn research_returns_evidence_when_high_strength_requires_more_than_one_item() {
         (
             output.status.code(),
             &payload["error_kind"],
+            &payload["synthesis_policy"],
+            payload["evidence_items"][0]["content"].is_null(),
+            Path::new(payload["plan_path"].as_str().expect("plan path")).is_file(),
+            Path::new(
+                payload["evidence_items"][0]["path"]
+                    .as_str()
+                    .expect("evidence path"),
+            )
+            .is_file(),
+            Path::new(
+                payload["unconsumed_candidates"]["path"]
+                    .as_str()
+                    .expect("candidate path")
+            )
+            .is_file(),
             journal["result"]["evidence_items"].as_array().map(Vec::len),
         ),
-        (Some(5), &Value::String("evidence".into()), Some(1)),
+        (
+            Some(5),
+            &Value::String("evidence".into()),
+            &Value::String("fetch_before_claim".into()),
+            true,
+            true,
+            true,
+            true,
+            Some(1),
+        ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
@@ -1387,8 +1634,7 @@ enabled = false
             &json!([{
                 "capability": "docs_search",
                 "reason": "all_attempts_failed",
-                "providers_skipped": [],
-                "truncated": false
+                "providers_skipped": []
             }]),
             Some(2),
         ),
@@ -2153,4 +2399,52 @@ fn read_only_journal(environment: &RunEnvironment) -> Value {
         .expect("valid journal entry");
     serde_json::from_slice(&fs::read(entry.path()).expect("read journal record"))
         .expect("parse journal record")
+}
+
+fn assert_file_backed_index_artifacts(
+    payload: &Value,
+    evidence_dir: &Path,
+    evidence_body: &str,
+    stdout: &[u8],
+    journal: &Value,
+) {
+    let candidates_path = payload["unconsumed_candidates"]["path"]
+        .as_str()
+        .expect("candidate path");
+    let evidence_path = payload["evidence_items"][0]["path"]
+        .as_str()
+        .expect("evidence path");
+    for path in [
+        payload["plan_path"].as_str().expect("plan path"),
+        evidence_path,
+        candidates_path,
+        evidence_dir
+            .join("summary.json")
+            .to_str()
+            .expect("summary path"),
+    ] {
+        assert!(Path::new(path).is_file(), "unreadable artifact: {path}");
+    }
+    assert!(
+        fs::read_to_string(evidence_path)
+            .expect("read evidence body")
+            .contains(evidence_body)
+    );
+    for (surface, content) in [
+        ("stdout", String::from_utf8_lossy(stdout).into_owned()),
+        (
+            "candidates",
+            fs::read_to_string(candidates_path).expect("read candidates"),
+        ),
+        (
+            "summary",
+            fs::read_to_string(evidence_dir.join("summary.json")).expect("read summary"),
+        ),
+        ("journal", journal.to_string()),
+    ] {
+        assert!(
+            !content.contains(evidence_body),
+            "{surface} repeated persisted evidence content"
+        );
+    }
 }

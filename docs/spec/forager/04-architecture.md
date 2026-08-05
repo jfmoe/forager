@@ -63,11 +63,15 @@ Web Fetch 成功值是 **Normalized Fetch Content**：从成功 provider 响应�
 - provider-native summary 原样保留。search-side Web Fetch 成功结果以实际 provider 和 Normalized Fetch Content 的 300 字 preview 进入 `extra_sources`；抓取失败由 attempts、capability gap 和既有终态表达，不另设 validation 集合。
 - Markdown 明确渲染 `Primary Sources` 与 `Extra Sources`；content 只返回主 answer；JSON、verbose 和 journal 消费同一结果角色。
 
+## research 文件化交付
+
+Research Evidence Pipeline 将正文逐条写入 evidence Markdown，并在 stdout 只返回 Research Evidence Index。计划、未消费候选与运行摘要分别写入 `00-plan.json`、`candidates.json` 与 `summary.json`；索引中的每个 path 都可直接读取。未消费候选 artifact 以 `is_evidence: false` 明确其角色，只有 evidence Markdown 的正文可进入后续综合。成功与 postflight 失败共享该索引形状，`synthesis_policy` 固定为 `fetch_before_claim`。
+
 ## journal
 
 定位：结果面 + 过程面双记录。
 
-- **结果面**：query、answer 全文、仅属于主回答的 sources[]、独立的 supplemental candidates（含 search-side Web Fetch preview，URL 经统一脱敏器），以及 research 的 citations/evidence_items；Vertical Discovery Result 不复制到其他来源集合。
+- **结果面**：search 保存 query、answer 全文、仅属于主回答的 sources[] 与独立 supplemental candidates（含 search-side Web Fetch preview，URL 经统一脱敏器）；research 保存 Evidence Index、coverage、artifact 路径与 capability gaps，不保存机械 answer/citations，也不重复 evidence 正文。Vertical Discovery Result 不复制到其他来源集合。
 - **过程面**：plan 摘要（capabilities 终集 + 来源 + 分类器是否降级）、provider_attempts[]（provider、seam、error_kind、http_status、duration_ms、credential_index、retry/rotation 计数、脱敏截断 500 字符错误消息、model、endpoint_host、断路器事件）、终态归因、budget 视图 `{total_ms, consumed_ms, exhausted}`、分类器耗时、capability_gaps。
 - **字段白名单排除项**：请求/响应头、请求体、原始响应体、key 任何形式（含掩码）、分类器 prompt 原文。
 - `capability_gaps` 形状：`[{capability, reason: no_configured_provider|partial_failure|all_attempts_failed, providers_skipped[]}]`，空则省略；结果 JSON 顶层 + stderr 警告 + journal 三出口。

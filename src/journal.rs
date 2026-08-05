@@ -137,11 +137,13 @@ fn build_research_record(record: ResearchRecord<'_>) -> Value {
             json!({
                 "status": "ok",
                 "query": record.query,
-                "answer": outcome.final_answer,
-                "citations": outcome.citations,
                 "evidence_items": outcome.evidence_items,
-                "capabilities": outcome.capabilities,
                 "capability_gaps": outcome.capability_gaps,
+                "gap_check": outcome.gap_check,
+                "evidence_dir": outcome.evidence_dir,
+                "plan_path": outcome.plan_path,
+                "unconsumed_candidates": outcome.unconsumed_candidates,
+                "synthesis_policy": outcome.synthesis_policy,
             }),
             &outcome.attempts,
             "ok",
@@ -153,13 +155,13 @@ fn build_research_record(record: ResearchRecord<'_>) -> Value {
                 "query": record.query,
                 "error_kind": error.kind.as_str(),
                 "message": error.message,
-                "citations": error.evidence_items.iter().map(|item| json!({
-                    "url": item.url,
-                    "title": item.title,
-                    "provider": item.provider,
-                })).collect::<Vec<_>>(),
                 "evidence_items": error.evidence_items,
                 "capability_gaps": error.capability_gaps,
+                "gap_check": error.gap_check,
+                "evidence_dir": error.evidence_dir,
+                "plan_path": error.plan_path,
+                "unconsumed_candidates": error.unconsumed_candidates,
+                "synthesis_policy": error.synthesis_policy,
             }),
             &error.attempts,
             error.kind.as_str(),
@@ -186,11 +188,7 @@ fn build_research_record(record: ResearchRecord<'_>) -> Value {
             "classifier_duration_ms": record.classifier_duration
                 .map(duration_millis)
                 .map_or(Value::Null, Value::from),
-            "capability_gaps": capability_gaps,
-            "evidence_items": record.result
-                .as_ref()
-                .map(|outcome| &outcome.evidence_items)
-                .map_or_else(|error| &error.evidence_items, |evidence| evidence)
+            "capability_gaps": capability_gaps
         }
     })
 }

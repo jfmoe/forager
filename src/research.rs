@@ -1,5 +1,4 @@
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -12,10 +11,12 @@ use crate::net::RetryPolicy;
 use crate::providers::FetchRequest;
 use crate::redact::redact_url;
 use crate::types::{
-    AttemptErrorKind, Capability, CapabilityGap, Citation, Deadline, EvidenceItem,
-    EvidenceStrength, PlanCapability, ProviderAttempt, ResearchError, ResearchGap,
-    ResearchGapCheck, ResearchOutcome, ResearchPlan, ResearchSubquestion, Source,
+    AttemptErrorKind, Capability, CapabilityGap, Deadline, EvidenceItem, EvidenceStrength,
+    PlanCapability, ProviderAttempt, ResearchError, ResearchGap, ResearchGapCheck, ResearchOutcome,
+    ResearchPlan, ResearchSubquestion, Source, UnconsumedCandidates,
 };
+
+const SYNTHESIS_POLICY: &str = "fetch_before_claim";
 
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum ResearchBudget {
@@ -66,7 +67,8 @@ pub(crate) struct ResearchRequest {
 struct Candidate {
     source: Source,
     subquestion_id: String,
-    prefetched_provider: Option<&'static str>,
+    provider: Option<&'static str>,
+    source_type: &'static str,
     known_url: bool,
 }
 
@@ -120,6 +122,7 @@ pub(crate) async fn execute(
             format!("cannot write research plan artifact: {error}"),
             attempts,
             capability_gaps,
+            &request.evidence_dir,
         ));
     }
 
@@ -208,15 +211,7 @@ pub(crate) async fn execute(
                 research_gaps.push(gap);
             }
             if let Some(evidence) = block.evidence {
-                push_evidence(
-                    &mut evidence_items,
-                    evidence.url,
-                    evidence.title,
-                    evidence.provider,
-                    evidence.source_type,
-                    evidence.subquestion_id,
-                    evidence.content,
-                );
+                push_evidence(&mut evidence_items, &request.evidence_dir, evidence);
             }
         }
     }
@@ -289,15 +284,7 @@ pub(crate) async fn execute(
                 *evidence_counts
                     .entry(evidence.subquestion_id.clone())
                     .or_default() += 1;
-                push_evidence(
-                    &mut evidence_items,
-                    evidence.url,
-                    evidence.title,
-                    evidence.provider,
-                    evidence.source_type,
-                    evidence.subquestion_id,
-                    evidence.content,
-                );
+                push_evidence(&mut evidence_items, &request.evidence_dir, evidence);
             }
         }
     }
@@ -354,15 +341,58 @@ pub(crate) async fn execute(
         });
     }
     let diagnostic = diagnostics_and_gaps(&diagnostics, &capability_gaps);
-    if evidence_is_insufficient {
-        if let Err(error) = write_evidence_artifacts(&request.evidence_dir, &evidence_items) {
-            return Err(runtime_error(
-                format!("cannot write research evidence artifact: {error}"),
-                attempts,
-                capability_gaps,
-            ));
+    let gap_check = if research_gaps.is_empty() && capability_gaps.is_empty() {
+        ResearchGapCheck {
+            status: "closed",
+            gaps: research_gaps,
+            stop_reason: "evidence_converged",
         }
-        let citations = citations(&evidence_items);
+    } else {
+        ResearchGapCheck {
+            status: "degraded",
+            gaps: research_gaps,
+            stop_reason: "degraded_with_gaps",
+        }
+    };
+    let evidence_dir = request.evidence_dir.display().to_string();
+    let plan_path = request
+        .evidence_dir
+        .join("00-plan.json")
+        .display()
+        .to_string();
+    let candidates_path = request
+        .evidence_dir
+        .join("candidates.json")
+        .display()
+        .to_string();
+    let candidate_artifact = unconsumed_candidates_artifact(&candidates);
+    let unconsumed_candidates = UnconsumedCandidates {
+        count: candidates.len(),
+        path: candidates_path,
+    };
+    write_evidence_artifacts(&evidence_items).map_err(|error| {
+        runtime_error(
+            format!("cannot write research evidence artifact: {error}"),
+            attempts.clone(),
+            capability_gaps.clone(),
+            &request.evidence_dir,
+        )
+    })?;
+    write_json_artifact(
+        &request.evidence_dir,
+        "candidates.json",
+        &candidate_artifact,
+    )
+    .map_err(|error| {
+        runtime_error(
+            format!("cannot write research candidate artifact: {error}"),
+            attempts.clone(),
+            capability_gaps.clone(),
+            &request.evidence_dir,
+        )
+    })?;
+    let fallback_used = fallback_used(&attempts);
+    if evidence_is_insufficient {
         let has_quality_failure = attempts
             .iter()
             .any(|attempt| attempt.error_kind == Some(AttemptErrorKind::Quality));
@@ -386,6 +416,11 @@ pub(crate) async fn execute(
             attempts,
             evidence_items,
             capability_gaps,
+            gap_check,
+            evidence_dir,
+            plan_path,
+            unconsumed_candidates,
+            synthesis_policy: SYNTHESIS_POLICY,
             diagnostic,
         };
         let _ = write_json_artifact(
@@ -395,7 +430,16 @@ pub(crate) async fn execute(
                 "status": "error",
                 "error_kind": error.kind.as_str(),
                 "message": error.message,
-                "citations": citations,
+                "query": request.query,
+                "budget": request.budget.as_str(),
+                "plan_source": request.plan_source,
+                "capabilities": capabilities,
+                "fallback_used": fallback_used,
+                "coverage": {
+                    "evidence_count": error.evidence_items.len(),
+                    "unconsumed_candidate_count": error.unconsumed_candidates.count,
+                    "gap_check": error.gap_check,
+                },
                 "evidence_items": error.evidence_items,
                 "provider_attempts": error.attempts,
                 "capability_gaps": error.capability_gaps,
@@ -412,65 +456,48 @@ pub(crate) async fn execute(
         return Err(error);
     }
 
-    write_evidence_artifacts(&request.evidence_dir, &evidence_items).map_err(|error| {
-        runtime_error(
-            format!("cannot write research evidence artifact: {error}"),
-            attempts.clone(),
-            capability_gaps.clone(),
-        )
-    })?;
-    let citations = citations(&evidence_items);
-    let final_answer = synthesize(&request.query, &evidence_items, &research_gaps);
-    let gap_check = if research_gaps.is_empty() && capability_gaps.is_empty() {
-        ResearchGapCheck {
-            status: "closed",
-            gaps: research_gaps,
-            stop_reason: "evidence_converged",
-        }
-    } else {
-        ResearchGapCheck {
-            status: "degraded",
-            gaps: research_gaps,
-            stop_reason: "degraded_with_gaps",
-        }
-    };
-    let fallback_used = fallback_used(&attempts);
     let outcome = ResearchOutcome {
-        query: request.query,
-        budget: request.budget.as_str(),
-        plan_source: request.plan_source,
-        research_plan: request.plan,
-        capabilities,
-        content: final_answer.clone(),
-        final_answer,
-        citations,
         evidence_items,
         capability_gaps,
-        degraded: gap_check.status != "closed",
         gap_check,
-        fallback_used,
-        evidence_dir: request.evidence_dir.display().to_string(),
+        evidence_dir,
+        plan_path,
+        unconsumed_candidates,
+        synthesis_policy: SYNTHESIS_POLICY,
         attempts,
         diagnostic,
     };
-    let mut summary = serde_json::to_value(&outcome).map_err(|error| {
-        runtime_error(
-            format!("cannot serialize research summary: {error}"),
-            outcome.attempts.clone(),
-            outcome.capability_gaps.clone(),
-        )
-    })?;
-    summary
-        .as_object_mut()
-        .expect("research outcome serializes as object")
-        .insert("provider_attempts".into(), json!(outcome.attempts));
-    write_json_artifact(&request.evidence_dir, "summary.json", &summary).map_err(|error| {
-        runtime_error(
-            format!("cannot write research summary artifact: {error}"),
-            outcome.attempts.clone(),
-            outcome.capability_gaps.clone(),
-        )
-    })?;
+    let summary = json!({
+        "status": "ok",
+        "query": request.query,
+        "budget": request.budget.as_str(),
+        "plan_source": request.plan_source,
+        "capabilities": capabilities,
+        "fallback_used": fallback_used,
+        "coverage": {
+            "evidence_count": outcome.evidence_items.len(),
+            "unconsumed_candidate_count": outcome.unconsumed_candidates.count,
+            "gap_check": outcome.gap_check,
+        },
+        "evidence_items": outcome.evidence_items,
+        "provider_attempts": outcome.attempts,
+        "capability_gaps": outcome.capability_gaps,
+    });
+    if let Err(error) = write_json_artifact(&request.evidence_dir, "summary.json", &summary) {
+        return Err(ResearchError {
+            kind: AttemptErrorKind::Runtime,
+            message: format!("cannot write research summary artifact: {error}"),
+            attempts: outcome.attempts,
+            evidence_items: outcome.evidence_items,
+            capability_gaps: outcome.capability_gaps,
+            gap_check: outcome.gap_check,
+            evidence_dir: outcome.evidence_dir,
+            plan_path: outcome.plan_path,
+            unconsumed_candidates: outcome.unconsumed_candidates,
+            synthesis_policy: outcome.synthesis_policy,
+            diagnostic: outcome.diagnostic,
+        });
+    }
     Ok(outcome)
 }
 
@@ -546,7 +573,7 @@ async fn discover_docs(
     .await
     {
         Ok(mut outcome) => {
-            let prefetched_provider = outcome
+            let provider = outcome
                 .attempts
                 .iter()
                 .rev()
@@ -559,7 +586,8 @@ async fn discover_docs(
                 .extend(outcome.read_sources.into_iter().map(|source| Candidate {
                     source,
                     subquestion_id: subquestion.id.clone(),
-                    prefetched_provider,
+                    provider,
+                    source_type: "docs",
                     known_url: false,
                 }));
             block
@@ -571,7 +599,8 @@ async fn discover_docs(
                         .map(|source| Candidate {
                             source,
                             subquestion_id: subquestion.id.clone(),
-                            prefetched_provider: None,
+                            provider,
+                            source_type: "docs_candidate",
                             known_url: false,
                         }),
                 );
@@ -613,6 +642,7 @@ async fn discover_web(
     .await
     {
         Ok(mut outcome) => {
+            let provider = successful_provider(&outcome.attempts, "web_search");
             block.attempts.append(&mut outcome.attempts);
             push_diagnostic(&mut block.diagnostics, outcome.diagnostic);
             block
@@ -620,7 +650,8 @@ async fn discover_web(
                 .extend(outcome.sources.into_iter().map(|source| Candidate {
                     source,
                     subquestion_id: subquestion.id.clone(),
-                    prefetched_provider: None,
+                    provider,
+                    source_type: "web_candidate",
                     known_url: false,
                 }));
         }
@@ -661,6 +692,7 @@ async fn discover_vertical(
     .await
     {
         Ok(mut outcome) => {
+            let provider = successful_provider(&outcome.attempts, "vertical_search");
             block.attempts.append(&mut outcome.attempts);
             push_diagnostic(&mut block.diagnostics, outcome.diagnostic);
             block
@@ -668,7 +700,8 @@ async fn discover_vertical(
                 .extend(outcome.sources.into_iter().map(|source| Candidate {
                     source,
                     subquestion_id: subquestion.id.clone(),
-                    prefetched_provider: None,
+                    provider,
+                    source_type: "vertical_candidate",
                     known_url: false,
                 }));
         }
@@ -692,7 +725,7 @@ async fn fetch_candidate(
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> CandidateFetchBlock {
-    if let Some(provider) = candidate.prefetched_provider
+    if let Some(provider) = candidate.provider
         && candidate
             .source
             .text
@@ -794,7 +827,8 @@ fn known_url_candidate(url: String, subquestion_id: String) -> Candidate {
             highlights: Vec::new(),
         },
         subquestion_id,
-        prefetched_provider: None,
+        provider: None,
+        source_type: "known_url",
         known_url: true,
     }
 }
@@ -835,91 +869,54 @@ fn interleave_candidates(candidates: Vec<Candidate>, subquestion_ids: &[String])
 
 fn push_evidence(
     evidence_items: &mut Vec<EvidenceItem>,
-    url: String,
-    title: String,
-    provider: &'static str,
-    source_type: &'static str,
-    subquestion_id: String,
-    content: String,
+    evidence_dir: &Path,
+    evidence: FetchedCandidate,
 ) {
-    let content_len = content.chars().count();
+    let content_len = evidence.content.chars().count();
+    let id = format!("e{}", evidence_items.len() + 1);
+    let path = evidence_dir
+        .join(format!("{:02}-evidence.md", evidence_items.len() + 1))
+        .display()
+        .to_string();
     evidence_items.push(EvidenceItem {
-        id: format!("e{}", evidence_items.len() + 1),
-        url,
-        title,
-        provider,
-        source_type,
-        subquestion_id,
-        content,
+        id,
+        url: evidence.url,
+        title: (!evidence.title.is_empty()).then_some(evidence.title),
+        provider: evidence.provider,
+        source_type: evidence.source_type,
+        subquestion_id: evidence.subquestion_id,
+        content: evidence.content,
         content_len,
         verified: content_len > 0,
+        path,
     });
 }
 
-fn synthesize(query: &str, evidence: &[EvidenceItem], gaps: &[ResearchGap]) -> String {
-    let mut report = format!("Research result for: {query}\n\nEvidence-backed findings:");
-    for (index, item) in evidence.iter().enumerate() {
-        let excerpt = bounded_excerpt(&item.content, 360);
-        let _ = write!(
-            report,
-            "\n{}. {} ({})\n   Evidence excerpt: {}\n   Source: {}",
-            index + 1,
-            item.title,
-            item.provider,
-            excerpt,
-            item.url
-        );
-    }
-    if !gaps.is_empty() {
-        report.push_str("\n\nUnverified gaps:");
-        for gap in gaps {
-            let _ = write!(report, "\n- {}: {}", gap.subquestion_id, gap.reason);
-        }
-    }
-    report
+fn unconsumed_candidates_artifact(candidates: &VecDeque<Candidate>) -> Value {
+    json!({
+        "is_evidence": false,
+        "candidates": candidates.iter().map(|candidate| json!({
+            "source": candidate.source,
+            "provider": candidate.provider,
+            "source_type": candidate.source_type,
+            "subquestion_id": candidate.subquestion_id,
+        })).collect::<Vec<_>>()
+    })
 }
 
-fn bounded_excerpt(content: &str, limit: usize) -> String {
-    let mut excerpt = String::with_capacity(limit);
-    let mut remaining = limit;
-    for word in content.split_whitespace() {
-        if !excerpt.is_empty() {
-            if remaining == 0 {
-                break;
-            }
-            excerpt.push(' ');
-            remaining -= 1;
-        }
-        for character in word.chars() {
-            if remaining == 0 {
-                return excerpt;
-            }
-            excerpt.push(character);
-            remaining -= 1;
-        }
-    }
-    excerpt
-}
-
-fn citations(evidence_items: &[EvidenceItem]) -> Vec<Citation> {
-    evidence_items
-        .iter()
-        .map(|item| Citation {
-            url: item.url.clone(),
-            title: item.title.clone(),
-            provider: item.provider,
-        })
-        .collect()
-}
-
-fn write_evidence_artifacts(root: &Path, items: &[EvidenceItem]) -> std::io::Result<()> {
-    for (index, item) in items.iter().enumerate() {
-        fs::write(
-            root.join(format!("{:02}-evidence.md", index + 1)),
-            &item.content,
-        )?;
+fn write_evidence_artifacts(items: &[EvidenceItem]) -> std::io::Result<()> {
+    for item in items {
+        fs::write(&item.path, &item.content)?;
     }
     Ok(())
+}
+
+fn successful_provider(attempts: &[ProviderAttempt], seam: &str) -> Option<&'static str> {
+    attempts
+        .iter()
+        .rev()
+        .find(|attempt| attempt.seam == seam && attempt.error_kind.is_none())
+        .map(|attempt| attempt.provider)
 }
 
 fn write_json_artifact(root: &Path, name: &str, value: &Value) -> std::io::Result<()> {
@@ -932,13 +929,27 @@ fn runtime_error(
     message: String,
     attempts: Vec<ProviderAttempt>,
     capability_gaps: Vec<CapabilityGap>,
+    evidence_dir: &Path,
 ) -> ResearchError {
+    let evidence_dir_display = evidence_dir.display().to_string();
     ResearchError {
         kind: AttemptErrorKind::Runtime,
         message,
         attempts,
         evidence_items: Vec::new(),
         capability_gaps,
+        gap_check: ResearchGapCheck {
+            status: "degraded",
+            gaps: Vec::new(),
+            stop_reason: "artifact_write_failed",
+        },
+        evidence_dir: evidence_dir_display,
+        plan_path: evidence_dir.join("00-plan.json").display().to_string(),
+        unconsumed_candidates: UnconsumedCandidates {
+            count: 0,
+            path: evidence_dir.join("candidates.json").display().to_string(),
+        },
+        synthesis_policy: SYNTHESIS_POLICY,
         diagnostic: None,
     }
 }

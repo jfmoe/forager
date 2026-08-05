@@ -158,6 +158,16 @@
       "id": "E13",
       "requirements": ["I0-5"],
       "test": "tests/search.rs::declared_vertical_search_keeps_url_results_only_in_vertical_results"
+    },
+    {
+      "id": "E14",
+      "requirements": ["I0-6", "T1-output", "T1-journal"],
+      "test": "tests/research.rs::research_returns_a_file_backed_evidence_index_without_repeating_evidence_content"
+    },
+    {
+      "id": "E15",
+      "requirements": ["I0-6", "T1-output"],
+      "test": "tests/research.rs::research_markdown_and_content_render_the_same_index_semantics_and_output_remains_a_tee"
     }
   ]
 }
