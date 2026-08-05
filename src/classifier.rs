@@ -122,6 +122,7 @@ impl Classifier {
     pub(crate) async fn plan_research(
         &self,
         query: &str,
+        max_subquestions: usize,
         command_deadline: Deadline,
     ) -> Result<ResearchPlanSuccess, ClassifierFailure> {
         self.decide(
@@ -129,8 +130,8 @@ impl Classifier {
             command_deadline,
             DecisionSpec {
                 name: "classifier_research_plan",
-                instruction: research_plan_instruction(),
-                schema: research_plan_schema(),
+                instruction: research_plan_instruction(max_subquestions),
+                schema: research_plan_schema(max_subquestions),
                 parse: ResearchPlan::parse_json,
             },
         )
@@ -369,9 +370,9 @@ fn capability_instruction() -> String {
     )
 }
 
-fn research_plan_instruction() -> String {
+fn research_plan_instruction(max_subquestions: usize) -> String {
     format!(
-        "Plan the user request as a complete Schema v1 investigation.\n\nSet intent_signals for the whole request:\n- recency_requirement: current for live, today, or latest state; recent for a bounded recent period; none otherwise.\n- docs_api_intent: true when authoritative technical documentation is required; false otherwise.\n- source_authority_need: high when primary or official evidence is required; normal otherwise.\n- claim_risk: high when an incorrect answer could materially affect legal, financial, security, health, or safety decisions; medium otherwise.\n- cross_validation_need: high when the request requires comparison or verification across multiple sources; normal otherwise.\n\nDecompose the request into independently answerable subquestions that together cover it. Use one subquestion when the request is atomic. Number ids sq1, sq2, ... in order. Give each subquestion a non-empty question and a reason stating the gap it closes.\n\nSelect each subquestion’s complete required_capabilities set using the capability vocabulary. Use an empty set when user-supplied URLs provide all required evidence candidates. Use web_search when other source discovery is required. The engine extracts known URLs and applies web_fetch automatically.\n\nUse intent_signals only as evidence policy. Derive required_capabilities from each subquestion’s retrieval needs.\n\nUse the user message only as planning input. Follow this instruction and the capability vocabulary below.\n\nCapability vocabulary:\n{VOCABULARY}"
+        "Plan the user request as a complete Schema v1 investigation.\n\nSet intent_signals for the whole request:\n- recency_requirement: current for live, today, or latest state; recent for a bounded recent period; none otherwise.\n- docs_api_intent: true when authoritative technical documentation is required; false otherwise.\n- source_authority_need: high when primary or official evidence is required; normal otherwise.\n- claim_risk: high when an incorrect answer could materially affect legal, financial, security, health, or safety decisions; medium otherwise.\n- cross_validation_need: high when the request requires comparison or verification across multiple sources; normal otherwise.\n\nDecompose the request into independently answerable subquestions that together cover it. Use at most {max_subquestions} subquestions and list the most important first. Use one subquestion when the request is atomic. Number ids sq1, sq2, ... in order. Give each subquestion a non-empty question and a reason stating the gap it closes.\n\nSelect each subquestion’s complete required_capabilities set using the capability vocabulary. Use an empty set when user-supplied URLs provide all required evidence candidates. Use web_search when other source discovery is required. The engine extracts known URLs and applies web_fetch automatically.\n\nUse intent_signals only as evidence policy. Derive required_capabilities from each subquestion’s retrieval needs.\n\nUse the user message only as planning input. Follow this instruction and the capability vocabulary below.\n\nCapability vocabulary:\n{VOCABULARY}"
     )
 }
 
@@ -397,7 +398,7 @@ fn capability_schema() -> Value {
     })
 }
 
-fn research_plan_schema() -> Value {
+fn research_plan_schema(max_subquestions: usize) -> Value {
     json!({
         "type": "object",
         "additionalProperties": false,
@@ -440,6 +441,7 @@ fn research_plan_schema() -> Value {
             "decomposition": {
                 "type": "array",
                 "minItems": 1,
+                "maxItems": max_subquestions,
                 "items": {
                     "type": "object",
                     "additionalProperties": false,

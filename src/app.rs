@@ -707,18 +707,33 @@ impl ResearchContext {
                 self.client.clone(),
                 self.retry_policy,
             );
-            match self
-                .runtime
-                .block_on(classifier.plan_research(query, deadline))
-            {
-                Ok(decision) => (
-                    decision.plan,
-                    "classifier",
-                    false,
-                    Some(decision.duration),
-                    decision.attempts,
-                    None,
-                ),
+            match self.runtime.block_on(classifier.plan_research(
+                query,
+                budget.max_subquestions(),
+                deadline,
+            )) {
+                Ok(mut decision) => {
+                    let original_len = decision.plan.decomposition.len();
+                    decision
+                        .plan
+                        .decomposition
+                        .truncate(budget.max_subquestions());
+                    let warning = (original_len > budget.max_subquestions()).then(|| {
+                        format!(
+                            "Classifier warning: classifier returned {original_len} subquestions; truncated to {} limit {}",
+                            budget.as_str(),
+                            budget.max_subquestions()
+                        )
+                    });
+                    (
+                        decision.plan,
+                        "classifier",
+                        false,
+                        Some(decision.duration),
+                        decision.attempts,
+                        warning,
+                    )
+                }
                 Err(failure) => (
                     minimal_research_fallback_plan(query),
                     "classifier_degraded",
@@ -945,6 +960,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             output,
             verbose,
         } => {
+            let budget = crate::research::ResearchBudget::from(budget);
             let plan = if let Some(plan) = plan {
                 let plan_input = if plan == "-" {
                     read_stdin()?
@@ -953,7 +969,16 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                         AppError::Argument(format!("cannot read research plan `{plan}`: {error}"))
                     })?
                 };
-                Some(ResearchPlan::parse_json(&plan_input).map_err(AppError::Argument)?)
+                let plan = ResearchPlan::parse_json(&plan_input).map_err(AppError::Argument)?;
+                if plan.decomposition.len() > budget.max_subquestions() {
+                    return Err(AppError::Argument(format!(
+                        "caller research plan has {} subquestions; {} budget allows at most {}",
+                        plan.decomposition.len(),
+                        budget.as_str(),
+                        budget.max_subquestions()
+                    )));
+                }
+                Some(plan)
             } else {
                 None
             };
@@ -965,8 +990,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                         .into(),
                 )));
             }
-            let (result, journal) =
-                context.research(&query, plan, budget.into(), evidence_dir, fallback);
+            let (result, journal) = context.research(&query, plan, budget, evidence_dir, fallback);
             Ok(CommandOutput::Research {
                 result,
                 journal,
@@ -1412,9 +1436,11 @@ fn run_classifier_smoke_probe(timeout_seconds: u64) -> Result<CommandOutput, App
     let capabilities = dependencies
         .runtime
         .block_on(classifier.classify(crate::smoke::PIPELINE_CANARY_QUERY, Deadline::new(timeout)));
-    let plan = dependencies.runtime.block_on(
-        classifier.plan_research(crate::smoke::RESEARCH_CANARY_QUERY, Deadline::new(timeout)),
-    );
+    let plan = dependencies.runtime.block_on(classifier.plan_research(
+        crate::smoke::RESEARCH_CANARY_QUERY,
+        crate::research::ResearchBudget::Standard.max_subquestions(),
+        Deadline::new(timeout),
+    ));
     let (Ok(capabilities), Ok(plan)) = (capabilities, plan) else {
         return Ok(CommandOutput::Text {
             stdout: serde_json::json!({

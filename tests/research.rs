@@ -106,8 +106,86 @@ fn bare_research_executes_the_classifier_plan_through_the_research_pipeline() {
         classifier_request
             .contains("\"enum\":[\"docs_search\",\"web_search\",\"vertical_search\"]")
     );
+    assert!(classifier_request.contains("\"maxItems\":4"));
+    assert!(system_prompt.contains("at most 4 subquestions"));
+    assert!(system_prompt.contains("most important first"));
     tavily.finish();
     jina.finish();
+}
+
+#[test]
+fn bare_research_truncates_an_over_limit_classifier_plan_by_importance() {
+    let mut plan = valid_plan(json!(["web_search"]));
+    for index in 2..=3 {
+        plan["decomposition"]
+            .as_array_mut()
+            .expect("decomposition")
+            .push(json!({
+                "id": format!("sq{index}"),
+                "question": format!("Question {index}?"),
+                "reason": format!("Priority {index}"),
+                "required_capabilities": ["web_search"]
+            }));
+    }
+    let classifier = Fixture::start(200, "application/json", &classifier_response(plan));
+    let tavily = Fixture::start_sequence(vec![
+        Response::new(
+            200,
+            "application/json",
+            r#"{"results":[{"title":"First","url":"https://example.test/first"}]}"#,
+        ),
+        Response::new(
+            200,
+            "application/json",
+            r#"{"results":[{"title":"Second","url":"https://example.test/second"}]}"#,
+        ),
+    ]);
+    let jina = Fixture::start_sequence(vec![
+        Response::new(
+            200,
+            "application/json",
+            &jina_response(&rich_content("First body")),
+        ),
+        Response::new(
+            200,
+            "application/json",
+            &jina_response(&rich_content("Second body")),
+        ),
+    ]);
+    let environment = RunEnvironment::new(&bare_research_config(
+        &classifier.url,
+        &tavily.url,
+        &jina.url,
+        false,
+    ));
+
+    let output = environment.run(&["research", "Prioritized plan", "--budget", "quick"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            payload["research_plan"]["decomposition"]
+                .as_array()
+                .map(Vec::len),
+            payload["research_plan"]["decomposition"]
+                .as_array()
+                .expect("decomposition")
+                .iter()
+                .map(|item| item["id"].as_str().expect("id"))
+                .collect::<Vec<_>>(),
+            String::from_utf8_lossy(&output.stderr)
+                .contains("classifier returned 3 subquestions; truncated to quick limit 2"),
+        ),
+        (Some(0), Some(2), vec!["sq1", "sq2"], true),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let classifier_request = classifier.finish();
+    assert!(classifier_request.contains("\"maxItems\":2"));
+    assert!(classifier_request.contains("at most 2 subquestions"));
+    assert_eq!(tavily.finish_all().len(), 2);
+    assert_eq!(jina.finish_all().len(), 2);
 }
 
 #[test]
@@ -305,6 +383,45 @@ fn research_rejects_strict_schema_v1_negative_cases_before_loading_config() {
             output.status.code(),
             Some(2),
             "{name}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+}
+
+#[test]
+fn research_rejects_caller_plans_over_each_budget_subquestion_limit() {
+    for (budget, limit) in [("quick", 2), ("standard", 4), ("deep", 6)] {
+        let environment = RunEnvironment::new("");
+        let mut plan = valid_plan(json!([]));
+        for index in 2..=(limit + 1) {
+            plan["decomposition"]
+                .as_array_mut()
+                .expect("decomposition")
+                .push(json!({
+                    "id": format!("sq{index}"),
+                    "question": format!("Question {index}?"),
+                    "reason": format!("Need {index}"),
+                    "required_capabilities": []
+                }));
+        }
+        let plan_path = write_plan(&environment, plan);
+
+        let output = environment.run(&[
+            "research",
+            "Too many subquestions",
+            "--plan",
+            plan_path.to_str().expect("UTF-8 path"),
+            "--budget",
+            budget,
+        ]);
+
+        assert_eq!(output.status.code(), Some(2), "{budget}");
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains(&format!(
+                "caller research plan has {} subquestions; {budget} budget allows at most {limit}",
+                limit + 1
+            )),
+            "{budget}: {}",
             String::from_utf8_lossy(&output.stderr)
         );
     }
@@ -626,7 +743,7 @@ fn research_returns_evidence_when_high_strength_requires_more_than_one_item() {
 }
 
 #[test]
-fn research_quick_budget_does_not_weaken_high_strength_requirement() {
+fn research_quick_budget_clamps_high_strength_requirement_to_plan_capacity() {
     let jina = Fixture::start(
         200,
         "application/json",
@@ -648,8 +765,13 @@ fn research_quick_budget_does_not_weaken_high_strength_requirement() {
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
 
     assert_eq!(
-        (output.status.code(), &payload["error_kind"]),
-        (Some(5), &Value::String("evidence".into())),
+        (
+            output.status.code(),
+            payload["evidence_items"].as_array().map(Vec::len),
+            String::from_utf8_lossy(&output.stderr)
+                .contains("required evidence floor clamped from 2 to plan capacity 1"),
+        ),
+        (Some(0), Some(1), true),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
@@ -844,8 +966,9 @@ enabled = false
 
 #[test]
 fn research_budget_limits_fetched_evidence_to_quick_standard_and_deep_caps() {
-    for (budget, expected) in [("quick", 1), ("standard", 3), ("deep", 5)] {
-        let results = (1..=5)
+    for (budget, expected, discovery_limit) in [("quick", 1, 3), ("standard", 2, 6), ("deep", 3, 9)]
+    {
+        let results = (1..=9)
             .map(|index| {
                 json!({
                     "title": format!("Candidate {index}"),
@@ -891,9 +1014,51 @@ fn research_budget_limits_fetched_evidence_to_quick_standard_and_deep_caps() {
             "{budget}: {}",
             String::from_utf8_lossy(&output.stderr)
         );
-        tavily.finish();
+        let discovery_request = tavily.finish();
+        assert!(
+            discovery_request.contains(&format!("\"max_results\":{discovery_limit}")),
+            "{budget}: {discovery_request}"
+        );
         assert_eq!(jina.finish_all().len(), expected);
     }
+}
+
+#[test]
+fn research_bounds_the_post_dedup_candidate_pool_to_the_subquestion_discovery_limit() {
+    let results = (1..=9)
+        .map(|index| {
+            json!({
+                "title": format!("Candidate {index}"),
+                "url": format!("https://example.test/{index}")
+            })
+        })
+        .collect::<Vec<_>>();
+    let tavily = Fixture::start(
+        200,
+        "application/json",
+        &json!({"results": results}).to_string(),
+    );
+    let jina = Fixture::start_parallel_sequence(
+        (1..=6)
+            .map(|_| Response::new(500, "text/plain", "fetch failed"))
+            .collect(),
+    );
+    let environment = RunEnvironment::new(&research_config(&tavily.url, &jina.url, false));
+    let plan_path = write_plan(&environment, valid_plan(json!(["web_search"])));
+
+    let output = environment.run(&[
+        "research",
+        "Bounded candidates",
+        "--plan",
+        plan_path.to_str().expect("UTF-8 path"),
+        "--budget",
+        "standard",
+    ]);
+
+    assert_eq!(output.status.code(), Some(5));
+    let discovery_request = tavily.finish();
+    assert!(discovery_request.contains("\"max_results\":6"));
+    assert_eq!(jina.finish_all().len(), 6);
 }
 
 #[test]
@@ -1056,7 +1221,7 @@ fn research_flattens_subquestions_into_one_ordered_concurrent_fanout() {
 }
 
 #[test]
-fn research_fetches_candidates_in_ordered_waves_sized_to_the_evidence_gap() {
+fn research_fetches_concurrently_without_reserving_over_the_subquestion_cap() {
     let tavily = Fixture::start(
         200,
         "application/json",
@@ -1067,7 +1232,7 @@ fn research_fetches_candidates_in_ordered_waves_sized_to_the_evidence_gap() {
         ]}"#,
     );
     let jina = Fixture::start_parallel_sequence(
-        ["First fetched", "Second fetched", "Third fetched"]
+        ["First fetched", "Second fetched"]
             .into_iter()
             .map(|label| {
                 Response::new(
@@ -1106,12 +1271,12 @@ fn research_fetches_candidates_in_ordered_waves_sized_to_the_evidence_gap() {
                 .map(|item| item["title"].as_str().expect("evidence title"))
                 .collect::<Vec<_>>(),
         ),
-        (Some(0), vec!["First", "Second", "Third"]),
+        (Some(0), vec!["First", "Second"]),
         "elapsed: {elapsed:?}; stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     tavily.finish();
-    assert_eq!(jina.finish_all().len(), 3);
+    assert_eq!(jina.finish_all().len(), 2);
 }
 
 #[test]
@@ -1129,7 +1294,7 @@ fn research_discloses_a_subquestion_without_verified_evidence() {
         Response::new(200, "application/json", r#"{"results":[]}"#),
     ]);
     let jina = Fixture::start_sequence(
-        (1..=3)
+        (1..=2)
             .map(|index| {
                 Response::new(
                     200,
@@ -1180,7 +1345,7 @@ fn research_discloses_a_subquestion_without_verified_evidence() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert_eq!(tavily.finish_all().len(), 2);
-    assert_eq!(jina.finish_all().len(), 3);
+    assert_eq!(jina.finish_all().len(), 2);
 }
 
 #[test]

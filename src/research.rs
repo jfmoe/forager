@@ -33,12 +33,24 @@ impl ResearchBudget {
         }
     }
 
-    fn max_evidence(self) -> usize {
+    pub(crate) fn max_subquestions(self) -> usize {
+        match self {
+            Self::Quick => 2,
+            Self::Standard => 4,
+            Self::Deep => 6,
+        }
+    }
+
+    fn evidence_cap(self) -> usize {
         match self {
             Self::Quick => 1,
-            Self::Standard => 3,
-            Self::Deep => 5,
+            Self::Standard => 2,
+            Self::Deep => 3,
         }
+    }
+
+    fn discovery_limit(self) -> usize {
+        self.evidence_cap() * 3
     }
 }
 
@@ -98,7 +110,7 @@ pub(crate) async fn execute(
     let mut research_gaps = Vec::new();
     let mut diagnostics = Vec::new();
     let mut candidates = Vec::new();
-    let limit = u16::try_from(request.budget.max_evidence()).unwrap_or(u16::MAX);
+    let limit = u16::try_from(request.budget.discovery_limit()).unwrap_or(u16::MAX);
 
     if let Err(error) =
         write_json_artifact(&request.evidence_dir, "00-plan.json", &json!(request.plan))
@@ -134,6 +146,11 @@ pub(crate) async fn execute(
         diagnostics.append(&mut block.diagnostics);
         candidates.append(&mut block.candidates);
     }
+    candidates = bound_discovery_candidates(
+        candidates,
+        &request.plan.decomposition,
+        request.budget.discovery_limit(),
+    );
 
     let first_subquestion = request
         .plan
@@ -187,29 +204,48 @@ pub(crate) async fn execute(
     let candidates = interleave_candidates(candidates, &subquestion_ids);
 
     let mut evidence_items = Vec::new();
+    let mut evidence_counts = request
+        .plan
+        .decomposition
+        .iter()
+        .map(|subquestion| (subquestion.id.clone(), 0_usize))
+        .collect::<HashMap<_, _>>();
     let mut seen_urls = HashSet::new();
     let mut fetch_config = config.web_fetch.clone();
     if request.fallback == "off" {
         fetch_config.retain_first();
     }
-    let mut candidates = candidates.into_iter();
+    let mut candidates = VecDeque::from(candidates);
     loop {
-        let evidence_needed = request
-            .budget
-            .max_evidence()
-            .saturating_sub(evidence_items.len());
-        if evidence_needed == 0 {
-            break;
-        }
-        let wave_size = engine::FANOUT_CONCURRENCY.min(evidence_needed);
-        let mut wave = Vec::with_capacity(wave_size);
-        while wave.len() < wave_size {
-            let Some(candidate) = candidates.next() else {
+        let mut wave = Vec::with_capacity(engine::FANOUT_CONCURRENCY);
+        let mut reserved = HashMap::<String, usize>::new();
+        let candidates_to_consider = candidates.len();
+        for _ in 0..candidates_to_consider {
+            if wave.len() >= engine::FANOUT_CONCURRENCY {
+                break;
+            }
+            let Some(candidate) = candidates.pop_front() else {
                 break;
             };
-            if seen_urls.insert(candidate.source.url.clone()) {
-                wave.push(candidate);
+            let accepted = evidence_counts
+                .get(&candidate.subquestion_id)
+                .copied()
+                .unwrap_or_default();
+            let reserved_for_subquestion = reserved
+                .get(&candidate.subquestion_id)
+                .copied()
+                .unwrap_or_default();
+            if accepted + reserved_for_subquestion >= request.budget.evidence_cap() {
+                candidates.push_back(candidate);
+                continue;
             }
+            if !seen_urls.insert(candidate.source.url.clone()) {
+                continue;
+            }
+            *reserved
+                .entry(candidate.subquestion_id.clone())
+                .or_default() += 1;
+            wave.push(candidate);
         }
         if wave.is_empty() {
             break;
@@ -242,6 +278,9 @@ pub(crate) async fn execute(
                 research_gaps.push(gap);
             }
             if let Some(evidence) = block.evidence {
+                *evidence_counts
+                    .entry(evidence.subquestion_id.clone())
+                    .or_default() += 1;
                 push_evidence(
                     &mut evidence_items,
                     evidence.url,
@@ -270,7 +309,7 @@ pub(crate) async fn execute(
         }
     }
 
-    let required_evidence = if request.plan.intent_signals.cross_validation_need
+    let requested_evidence = if request.plan.intent_signals.cross_validation_need
         == EvidenceStrength::High
         || request.plan.intent_signals.source_authority_need == EvidenceStrength::High
     {
@@ -278,6 +317,17 @@ pub(crate) async fn execute(
     } else {
         1
     };
+    let plan_capacity = request
+        .plan
+        .decomposition
+        .len()
+        .saturating_mul(request.budget.evidence_cap());
+    let required_evidence = requested_evidence.min(plan_capacity);
+    if required_evidence < requested_evidence {
+        diagnostics.push(format!(
+            "required evidence floor clamped from {requested_evidence} to plan capacity {required_evidence}"
+        ));
+    }
     let evidence_is_insufficient = evidence_items.len() < required_evidence;
     if evidence_is_insufficient {
         research_gaps.push(ResearchGap {
@@ -408,6 +458,38 @@ pub(crate) async fn execute(
         )
     })?;
     Ok(outcome)
+}
+
+fn bound_discovery_candidates(
+    candidates: Vec<Candidate>,
+    subquestions: &[ResearchSubquestion],
+    limit: usize,
+) -> Vec<Candidate> {
+    let mut counts = subquestions
+        .iter()
+        .map(|subquestion| (subquestion.id.as_str(), 0_usize))
+        .collect::<HashMap<_, _>>();
+    let mut urls = subquestions
+        .iter()
+        .map(|subquestion| (subquestion.id.as_str(), HashSet::<String>::new()))
+        .collect::<HashMap<_, _>>();
+
+    candidates
+        .into_iter()
+        .filter(|candidate| {
+            let Some(count) = counts.get_mut(candidate.subquestion_id.as_str()) else {
+                return false;
+            };
+            let Some(seen) = urls.get_mut(candidate.subquestion_id.as_str()) else {
+                return false;
+            };
+            if *count >= limit || !seen.insert(candidate.source.url.clone()) {
+                return false;
+            }
+            *count += 1;
+            true
+        })
+        .collect()
 }
 
 async fn discover_capability(
