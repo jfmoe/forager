@@ -107,6 +107,7 @@ Skill 要求 `forager >= 0.1.0`。
 ## 设计边界
 
 - `search` 接受调用方声明的完整能力集合；forager 不擅自扩张该集合。
+- `search` 的 `sources` 只表示主回答来源，`extra_sources` 是带 provider 原生摘要、仍待筛选抓取的补充候选。
 - `research` 可以接受调用方通过 `--plan` 注入的 Schema v1 研究计划。
 - `fetch`、`map` 以及 `exa`、`context7`、`anysearch` 子命令提供显式直连入口。
 - 凭据保存在本地配置中；命令输出和持久化 journal 会对敏感 URL 参数脱敏。

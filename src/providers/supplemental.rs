@@ -143,7 +143,7 @@ impl SupplementalSearch {
                     published_date: source
                         .published_date
                         .map(|value| self.credentials.redact(&value)),
-                    author: None,
+                    author: source.author.map(|value| self.credentials.redact(&value)),
                     text: source
                         .content
                         .or(source.description)
@@ -191,6 +191,7 @@ struct SearchResult {
     url: String,
     content: Option<String>,
     description: Option<String>,
-    #[serde(rename = "publishedDate")]
+    #[serde(rename = "publishedDate", alias = "published_date")]
     published_date: Option<String>,
+    author: Option<String>,
 }

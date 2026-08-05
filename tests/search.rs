@@ -14,7 +14,7 @@ fn caller_capability_declaration_is_normalized_in_vocabulary_order() {
         "text/event-stream",
         &completed_body("answer", "Source"),
     );
-    let environment = RunEnvironment::new(&search_config(&fixture.url, false));
+    let environment = RunEnvironment::new(&search_config(&fixture.url, true));
 
     let output = environment.run(&[
         "search",
@@ -23,11 +23,17 @@ fn caller_capability_declaration_is_normalized_in_vocabulary_order() {
         "VERTICAL_SEARCH,docs_search,vertical_search",
     ]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let journal = read_only_journal(&environment);
 
     assert_eq!(
-        (output.status.code(), &payload["capabilities"]),
+        (
+            output.status.code(),
+            payload.get("capabilities"),
+            &journal["execution"]["plan_summary"]["capabilities"],
+        ),
         (
             Some(0),
+            None,
             &serde_json::json!(["docs_search", "vertical_search"])
         ),
         "stderr: {}",
@@ -89,14 +95,14 @@ fn bare_search_uses_classifier_complete_capability_decision() {
     assert_eq!(
         (
             output.status.code(),
-            &payload["capabilities"],
             &payload["extra_sources"][0]["url"],
+            &journal["execution"]["plan_summary"]["capabilities"],
             &journal["execution"]["plan_summary"]["source"],
         ),
         (
             Some(0),
-            &serde_json::json!(["web_search"]),
             &Value::String("https://example.test/current".into()),
+            &serde_json::json!(["web_search"]),
             &Value::String("classifier".into()),
         ),
         "stderr: {}",
@@ -150,14 +156,12 @@ fn bare_search_without_classifier_uses_default_web_search_chain() {
     assert_eq!(
         (
             output.status.code(),
-            &payload["capabilities"],
             &payload["extra_sources"][0]["url"],
             &journal["execution"]["plan_summary"],
             output.stderr.is_empty(),
         ),
         (
             Some(0),
-            &serde_json::json!(["web_search"]),
             &Value::String("https://example.test/default".into()),
             &serde_json::json!({
                 "source": "default_web_search",
@@ -203,8 +207,8 @@ fn classifier_invalid_schema_degrades_with_warning_and_journal_trace() {
     assert_eq!(
         (
             output.status.code(),
-            &payload["capabilities"],
             &payload["extra_sources"][0]["url"],
+            &journal["execution"]["plan_summary"]["capabilities"],
             &journal["execution"]["plan_summary"]["source"],
             &journal["execution"]["plan_summary"]["classifier_degraded"],
             journal["execution"]["provider_attempts"]
@@ -214,8 +218,8 @@ fn classifier_invalid_schema_degrades_with_warning_and_journal_trace() {
         ),
         (
             Some(0),
-            &serde_json::json!(["web_search"]),
             &Value::String("https://example.test/degraded".into()),
+            &serde_json::json!(["web_search"]),
             &Value::String("classifier_degraded".into()),
             &Value::Bool(true),
             Some("classifier"),
@@ -263,14 +267,14 @@ fn classifier_rejects_duplicate_capabilities_and_degrades_to_web_search() {
     assert_eq!(
         (
             output.status.code(),
-            &payload["capabilities"],
             &payload["extra_sources"][0]["url"],
+            &journal["execution"]["plan_summary"]["capabilities"],
             &journal["execution"]["plan_summary"]["source"],
         ),
         (
             Some(0),
-            &serde_json::json!(["web_search"]),
             &Value::String("https://example.test/fallback".into()),
+            &serde_json::json!(["web_search"]),
             &Value::String("classifier_degraded".into()),
         )
     );
@@ -354,7 +358,7 @@ fn classifier_transport_failure_degrades_without_changing_search_terminal() {
         (
             output.status.code(),
             &payload["answer"],
-            &payload["capabilities"],
+            &journal["execution"]["plan_summary"]["capabilities"],
             &journal["execution"]["plan_summary"]["classifier_degraded"],
             &journal["execution"]["provider_attempts"][0]["error_kind"],
         ),
@@ -408,7 +412,6 @@ fn classifier_rotates_credentials_and_uses_fallback_models_even_when_search_fall
     assert_eq!(
         (
             output.status.code(),
-            &payload["capabilities"],
             attempts[0]["model"].as_str(),
             attempts[0]["rotation_count"].as_u64(),
             attempts[1]["model"].as_str(),
@@ -416,7 +419,6 @@ fn classifier_rotates_credentials_and_uses_fallback_models_even_when_search_fall
         ),
         (
             Some(0),
-            &serde_json::json!([]),
             Some("primary-classifier"),
             Some(0),
             Some("primary-classifier"),
@@ -503,15 +505,15 @@ fn caller_capability_declaration_skips_configured_classifier() {
     assert_eq!(
         (
             output.status.code(),
-            &payload["capabilities"],
             payload["provider_attempts"].as_array().map(Vec::len),
+            &journal["execution"]["plan_summary"]["capabilities"],
             &journal["execution"]["plan_summary"]["source"],
             output.stderr.is_empty(),
         ),
         (
             Some(0),
-            &serde_json::json!([]),
             Some(1),
+            &serde_json::json!([]),
             &Value::String("caller".into()),
             true,
         )
@@ -526,14 +528,25 @@ fn declared_web_search_adds_normalized_extra_sources_in_configured_order() {
         "text/event-stream",
         &completed_body("answer", "Primary"),
     );
-    let tavily = Fixture::start(
-        200,
-        "application/json",
-        r#"{"results":[{"title":"Primary duplicate","url":"https://example.test/source?token=canary-secret"},{"title":"Supplemental","url":"https://example.test/extra","content":"extra context"}]}"#,
-    );
+    let summary = "provider-native summary ".repeat(20);
+    let tavily_body = serde_json::json!({
+        "results": [
+            {
+                "title": "Primary duplicate",
+                "url": "https://example.test/source?token=canary-secret"
+            },
+            {
+                "title": "Supplemental",
+                "url": "https://example.test/extra",
+                "content": summary
+            }
+        ]
+    })
+    .to_string();
+    let tavily = Fixture::start(200, "application/json", &tavily_body);
     let config = format!(
         "{}\n[providers.tavily]\nurl = {:?}\nkeys = [\"tavily-key\"]\ntimeout = 30\n\n[capabilities.web_search]\norder = [\"tavily\"]\n",
-        search_config(&main.url, false),
+        search_config(&main.url, true),
         tavily.url
     );
     let environment = RunEnvironment::new(&config);
@@ -547,6 +560,7 @@ fn declared_web_search_adds_normalized_extra_sources_in_configured_order() {
         "2",
     ]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let journal = read_only_journal(&environment);
 
     assert_eq!(
         (
@@ -555,6 +569,8 @@ fn declared_web_search_adds_normalized_extra_sources_in_configured_order() {
             &payload["extra_sources"],
             &payload["sources"],
             &payload["capability_gaps"],
+            &journal["result"]["sources"],
+            &journal["result"]["extra_sources"],
         ),
         (
             Some(0),
@@ -562,20 +578,24 @@ fn declared_web_search_adds_normalized_extra_sources_in_configured_order() {
             &serde_json::json!([{
                 "title": "Supplemental",
                 "url": "https://example.test/extra",
-                "text": "extra context"
+                "provider": "tavily",
+                "summary": summary
             }]),
-            &serde_json::json!([
-                {
-                    "title": "Primary",
-                    "url": "https://example.test/source?token=********"
-                },
-                {
-                    "title": "Supplemental",
-                    "url": "https://example.test/extra",
-                    "text": "extra context"
-                }
-            ]),
+            &serde_json::json!([{
+                "title": "Primary",
+                "url": "https://example.test/source?token=********"
+            }]),
             &serde_json::json!([]),
+            &serde_json::json!([{
+                "title": "Primary",
+                "url": "https://example.test/source?token=********"
+            }]),
+            &serde_json::json!([{
+                "title": "Supplemental",
+                "url": "https://example.test/extra",
+                "provider": "tavily",
+                "summary": summary
+            }]),
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
@@ -810,7 +830,7 @@ fn declared_docs_search_falls_back_after_context7_returns_text_without_a_source(
     let exa = Fixture::start(
         200,
         "application/json",
-        r#"{"results":[{"title":"Rust ownership","url":"https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html"}]}"#,
+        r#"{"results":[{"title":"Rust ownership","url":"https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html","publishedDate":"2026-08-06","author":"Rust Project","highlights":["Ownership summary","Secondary detail"]}]}"#,
     );
     let config = format!(
         "{}\n[providers.context7]\nurl = {:?}\nkeys = [\"context7-key\"]\ntimeout = 30\n\n[providers.exa]\nurl = {:?}\nkeys = [\"exa-key\"]\ntimeout = 30\n\n[capabilities.docs_search]\norder = [\"context7\", \"exa\"]\n",
@@ -839,14 +859,19 @@ fn declared_docs_search_falls_back_after_context7_returns_text_without_a_source(
     assert_eq!(
         (
             output.status.code(),
-            &payload["extra_sources"][0]["url"],
+            &payload["extra_sources"],
             docs_attempt_providers,
         ),
         (
             Some(0),
-            &Value::String(
-                "https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html".into()
-            ),
+            &serde_json::json!([{
+                "url": "https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html",
+                "title": "Rust ownership",
+                "provider": "exa",
+                "summary": "Ownership summary",
+                "published_date": "2026-08-06",
+                "author": "Rust Project"
+            }]),
             vec!["context7", "context7", "exa"],
         ),
         "stderr: {}",
@@ -854,7 +879,11 @@ fn declared_docs_search_falls_back_after_context7_returns_text_without_a_source(
     );
     main.finish();
     context7.finish_all();
-    exa.finish();
+    let exa_request = exa.finish();
+    assert!(
+        exa_request.contains(r#""highlights":true"#),
+        "{exa_request}"
+    );
 }
 
 #[test]
@@ -1192,14 +1221,14 @@ fn combined_declaration_executes_only_declared_seams_in_vocabulary_order() {
     assert_eq!(
         (
             output.status.code(),
-            &payload["capabilities"],
+            payload.get("capabilities"),
             seams,
             &payload["validation_results"],
             &payload["vertical_results"],
         ),
         (
             Some(0),
-            &serde_json::json!(["docs_search", "web_search"]),
+            None,
             vec!["main_search", "docs_search", "web_search"],
             &Value::Null,
             &Value::Null,
@@ -1208,6 +1237,94 @@ fn combined_declaration_executes_only_declared_seams_in_vocabulary_order() {
     main.finish();
     exa.finish();
     tavily.finish();
+}
+
+#[test]
+fn supplemental_candidate_without_title_omits_json_title() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let firecrawl = Fixture::start(
+        200,
+        "application/json",
+        r#"{"data":{"web":[{"url":"https://example.test/untitled","description":"Firecrawl summary","publishedDate":"2026-08-06","author":"Reporter"}]}}"#,
+    );
+    let config = format!(
+        "{}\n[providers.firecrawl]\nurl = {:?}\nkeys = [\"firecrawl-key\"]\ntimeout = 30\n\n[capabilities.web_search]\norder = [\"firecrawl\"]\n",
+        search_config(&main.url, false),
+        firecrawl.url,
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Current information",
+        "--capabilities",
+        "web_search",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (output.status.code(), &payload["extra_sources"]),
+        (
+            Some(0),
+            &serde_json::json!([{
+                "url": "https://example.test/untitled",
+                "provider": "firecrawl",
+                "summary": "Firecrawl summary",
+                "published_date": "2026-08-06",
+                "author": "Reporter"
+            }]),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    main.finish();
+    firecrawl.finish();
+}
+
+#[test]
+fn search_markdown_separates_primary_sources_from_untitled_extra_sources() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let firecrawl = Fixture::start(
+        200,
+        "application/json",
+        r#"{"data":{"web":[{"url":"https://example.test/untitled","description":"Firecrawl summary"}]}}"#,
+    );
+    let config = format!(
+        "{}\n[providers.firecrawl]\nurl = {:?}\nkeys = [\"firecrawl-key\"]\ntimeout = 30\n\n[capabilities.web_search]\norder = [\"firecrawl\"]\n",
+        search_config(&main.url, false),
+        firecrawl.url,
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Current information",
+        "--capabilities",
+        "web_search",
+        "--format",
+        "markdown",
+    ]);
+    let markdown = String::from_utf8(output.stdout).expect("UTF-8 markdown");
+
+    assert_eq!(
+        (output.status.code(), markdown),
+        (
+            Some(0),
+            "# Search result\n\nanswer\n\n## Primary Sources\n\n- [Primary](https://example.test/source?token=********)\n\n## Extra Sources\n\n- [https://example.test/untitled](https://example.test/untitled) — firecrawl\n\n  Firecrawl summary\n".into(),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    main.finish();
+    firecrawl.finish();
 }
 
 #[test]
@@ -1409,7 +1526,6 @@ fn search_uses_the_completed_xai_response_and_deduplicates_sources() {
             output.status.code(),
             &payload["answer"],
             &payload["sources"],
-            &payload["capabilities"],
             &payload["journal_status"],
         ),
         (
@@ -1419,7 +1535,6 @@ fn search_uses_the_completed_xai_response_and_deduplicates_sources() {
                 "title": "Source A",
                 "url": "https://example.test/a?token=********"
             }]),
-            &serde_json::json!([]),
             &Value::String("disabled".into()),
         ),
         "stderr: {}",
@@ -1471,6 +1586,86 @@ fn search_preserves_answer_content_while_redacting_sources() {
             &Value::String("******** source title".into()),
             &Value::String("https://example.test/source?token=********".into()),
         )
+    );
+    fixture.finish();
+}
+
+#[test]
+fn search_default_json_moves_invocation_echoes_to_the_journal() {
+    let fixture = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let environment = RunEnvironment::new(&search_config(&fixture.url, true));
+
+    let output = environment.run(&["search", "Focused stdout", "--capabilities", "none"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let journal = read_only_journal(&environment);
+    let keys = payload
+        .as_object()
+        .expect("search payload object")
+        .keys()
+        .map(String::as_str)
+        .collect::<std::collections::BTreeSet<_>>();
+
+    assert_eq!(
+        (
+            output.status.code(),
+            keys,
+            &journal["result"]["query"],
+            &journal["execution"]["plan_summary"]["capabilities"],
+            &journal["execution"]["provider_attempts"][0]["provider"],
+            &journal["execution"]["provider_attempts"][0]["model"],
+        ),
+        (
+            Some(0),
+            std::collections::BTreeSet::from([
+                "answer",
+                "capability_gaps",
+                "journal_ref",
+                "journal_status",
+                "sources",
+            ]),
+            &Value::String("Focused stdout".into()),
+            &serde_json::json!([]),
+            &Value::String("xai".into()),
+            &Value::String("test-model".into()),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    fixture.finish();
+}
+
+#[test]
+fn primary_source_without_title_omits_json_title() {
+    let fixture = Fixture::start(
+        200,
+        "text/event-stream",
+        concat!(
+            "event: response.output_text.delta\n",
+            "data: {\"type\":\"response.output_text.delta\",\"delta\":\"answer\"}\n\n",
+            "event: response.completed\n",
+            "data: {\"type\":\"response.completed\",\"response\":{\"output\":[{\"content\":[",
+            "{\"type\":\"output_text\",\"text\":\"answer\",\"annotations\":[",
+            "{\"type\":\"url_citation\",\"url\":\"https://example.test/untitled\"}",
+            "]}]}]}}\n\n"
+        ),
+    );
+    let environment = RunEnvironment::new(&search_config(&fixture.url, false));
+
+    let output = environment.run(&["search", "Untitled source", "--capabilities", "none"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (output.status.code(), &payload["sources"]),
+        (
+            Some(0),
+            &serde_json::json!([{"url": "https://example.test/untitled"}]),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
     );
     fixture.finish();
 }
@@ -1542,7 +1737,7 @@ fn search_formats_content_and_markdown_and_marks_json_tee_failures() {
         serde_json::from_slice(&failed_tee.stdout).expect("parse failed tee JSON");
 
     assert_eq!(markdown.status.code(), Some(0));
-    assert!(String::from_utf8_lossy(&markdown.stdout).contains("## Sources"));
+    assert!(String::from_utf8_lossy(&markdown.stdout).contains("## Primary Sources"));
     assert_eq!(
         fs::read(&markdown_tee).expect("read markdown tee"),
         markdown.stdout
@@ -1624,13 +1819,11 @@ fn search_falls_back_from_xai_to_openai_compatible_non_stream() {
     assert_eq!(
         (
             output.status.code(),
-            &payload["provider"],
             &payload["answer"],
             &payload["sources"],
         ),
         (
             Some(0),
-            &Value::String("openai_compatible".into()),
             &Value::String("Fallback answer".into()),
             &serde_json::json!([{
                 "title": "Fallback source",
@@ -1692,16 +1885,8 @@ fn search_primary_backend_can_use_more_than_its_even_budget_share() {
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
 
     assert_eq!(
-        (
-            output.status.code(),
-            &payload["provider"],
-            &payload["answer"]
-        ),
-        (
-            Some(0),
-            &Value::String("xai".into()),
-            &Value::String("Slow primary answer".into()),
-        ),
+        (output.status.code(), &payload["answer"]),
+        (Some(0), &Value::String("Slow primary answer".into()),),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
@@ -1960,13 +2145,11 @@ fn search_openai_falls_back_between_configured_models() {
     assert_eq!(
         (
             output.status.code(),
-            &payload["model"],
             &payload["answer"],
             &payload["journal_status"],
         ),
         (
             Some(0),
-            &Value::String("fallback-model".into()),
             &Value::String("Model fallback".into()),
             &Value::String("written".into()),
         )
@@ -2020,12 +2203,8 @@ fn search_primary_model_can_use_more_than_its_even_budget_share() {
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
 
     assert_eq!(
-        (output.status.code(), &payload["model"], &payload["answer"]),
-        (
-            Some(0),
-            &Value::String("primary-model".into()),
-            &Value::String("Slow model answer".into()),
-        ),
+        (output.status.code(), &payload["answer"]),
+        (Some(0), &Value::String("Slow model answer".into())),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );

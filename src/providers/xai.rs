@@ -304,7 +304,7 @@ impl Xai {
                     .and_then(Value::as_str)
                     .map(str::trim)
                     .filter(|title| !title.is_empty())
-                    .map_or_else(|| url.clone(), |title| self.redacted_text(title));
+                    .map_or_else(String::new, |title| self.redacted_text(title));
                 sources.push(Source {
                     title,
                     url,

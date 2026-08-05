@@ -192,7 +192,7 @@ impl DocsSearch for Exa {
                     num_results: limit,
                     search_type: SearchType::Auto,
                     include_text: false,
-                    include_highlights: false,
+                    include_highlights: true,
                     start_published_date: None,
                     include_domains: Vec::new(),
                     exclude_domains: Vec::new(),

@@ -244,9 +244,28 @@ fn render_search(
                 DocsOutputFormat::Markdown => {
                     let mut markdown = format!("# Search result\n\n{}", outcome.answer);
                     if !outcome.sources.is_empty() {
-                        markdown.push_str("\n\n## Sources\n");
+                        markdown.push_str("\n\n## Primary Sources\n");
                         for source in &outcome.sources {
-                            let _ = write!(markdown, "\n- [{}]({})", source.title, source.url);
+                            let title = if source.title.is_empty() {
+                                &source.url
+                            } else {
+                                &source.title
+                            };
+                            let _ = write!(markdown, "\n- [{title}]({})", source.url);
+                        }
+                    }
+                    if !outcome.extra_sources.is_empty() {
+                        markdown.push_str("\n\n## Extra Sources\n");
+                        for source in &outcome.extra_sources {
+                            let title = source.title.as_deref().unwrap_or(&source.url);
+                            let _ = write!(
+                                markdown,
+                                "\n- [{title}]({}) — {}",
+                                source.url, source.provider
+                            );
+                            if let Some(summary) = &source.summary {
+                                let _ = write!(markdown, "\n\n  {summary}");
+                            }
                         }
                     }
                     markdown

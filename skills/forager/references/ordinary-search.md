@@ -19,8 +19,10 @@ coverage and increase it only for an explicitly broad request.
 ## Results
 
 - `answer` is the main-search answer.
-- `sources` merges main and supplemental sources; `extra_sources` is the supplemental candidate
-  subset. Fetch candidates needed as claim-level evidence.
+- `sources` contains only Primary Search Sources attributed to the main answer.
+- `extra_sources` contains only Supplemental Search Candidates. Use each candidate's provider,
+  optional title, and provider-native summary to choose a small number of URLs to fetch as
+  claim-level evidence. A candidate is not evidence before its content is fetched.
 - `vertical_results` without URLs are structured discovery results, not sources or evidence.
 - Disclose every `capability_gaps` entry and its effect on coverage.
 

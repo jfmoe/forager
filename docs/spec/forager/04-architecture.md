@@ -61,7 +61,7 @@ Web Fetch 成功值是 **Normalized Fetch Content**：从成功 provider 响应�
 
 定位：结果面 + 过程面双记录。
 
-- **结果面**：query、answer 全文、sources[]（URL 经统一脱敏器）、research 的 citations/evidence_items。
+- **结果面**：query、answer 全文、仅属于主回答的 sources[]、独立的 supplemental candidates（URL 经统一脱敏器），以及 research 的 citations/evidence_items。
 - **过程面**：plan 摘要（capabilities 终集 + 来源 + 分类器是否降级）、provider_attempts[]（provider、seam、error_kind、http_status、duration_ms、credential_index、retry/rotation 计数、脱敏截断 500 字符错误消息、model、endpoint_host、断路器事件）、终态归因、budget 视图 `{total_ms, consumed_ms, exhausted}`、分类器耗时、capability_gaps。
 - **字段白名单排除项**：请求/响应头、请求体、原始响应体、key 任何形式（含掩码）、分类器 prompt 原文。
 - `capability_gaps` 形状：`[{capability, reason: no_configured_provider|all_attempts_failed, providers_skipped[]}]`，空则省略；结果 JSON 顶层 + stderr 警告 + journal 三出口。

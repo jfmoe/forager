@@ -67,6 +67,13 @@ forager search QUERY [--capabilities CSV|none] [--model ID] [--extra-sources N]
 | `--output FILE` | Tee the rendered result to a file. | Omitted |
 | `--verbose` | Include full provider attempts inline. | Off |
 
+Default search JSON keeps `answer`, Primary Search Sources in `sources`, Supplemental Search
+Candidates in `extra_sources`, optional structured results, capability gaps, and the journal
+reference. Supplemental candidates include `url` and `provider`, plus provider-native `title`,
+`summary`, `published_date`, or `author` when available. Invocation echoes and diagnostics are in
+the Search Result Journal; `--verbose` adds provider attempts inline. Content format emits only the
+main answer.
+
 ### `research`
 
 ```console

@@ -643,7 +643,7 @@ fn normalize_citations(value: Option<&Value>) -> Vec<Source> {
                 )
             };
             (url.starts_with("http://") || url.starts_with("https://")).then(|| Source {
-                title: title.unwrap_or(url).trim().to_owned(),
+                title: title.unwrap_or_default().trim().to_owned(),
                 url: url.to_owned(),
                 published_date: None,
                 author: None,

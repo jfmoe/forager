@@ -10,7 +10,7 @@
 - **I0-2 能力路由权威**：`--capabilities` 存在即权威、三态 CSV/none/缺省；裸调用由 classifier 兜底；`web_fetch` 恒为引擎不变量（plan 声明即退 2）。
 - **I0-3 尝试链与预算**：每 seam 按配置 order 走链；凭据池轮询，429/quota 同请求内换凭据（轮换先于重试、429 不重试）；fallback 在共享 deadline 内可达（预算保留 `min(层上限, 剩余预算/剩余槽位)`）。
 - **I0-4 归因确定性**：只按每 provider 最终 attempt 归约，与重试次数/失败顺序无关；进入证据阶段的终局失败 Content 优先退 5；全 provider 无可验证响应才退 4；同质失败透传原 kind；全序表见第 4 章。
-- **I0-5 结果装配与缺口自报**：primary + extra sources（URL 统一脱敏）；capability_gaps 自报（结果字段 + stderr），无 minimum profile 门禁。
+- **I0-5 结果装配与缺口自报**：Primary Search Sources 与 Supplemental Search Candidates 分离（URL 统一脱敏），候选保留 provider-native summary；capability_gaps 自报（结果字段 + stderr），无 minimum profile 门禁。
 - **I0-6 输出通道与载荷边界**：`--format json` 终态只写 stdout 且为干净 JSON（含失败态）；诊断/日志/miette 全走 stderr；`--output` tee 时 stdout 不变。瘦载荷（第 2 章）；胖过程记录只落 journal；`--verbose` 为逃生阀。豁免：clap argv 错（退 2）与 panic（101）不受干净 JSON 契约约束。
 - **I0-7 旁路隔离与降级**：主终态/退出码/主结果不被旁路失败改变——journal 写失败（非致命告警、journal_ref 置 null + journal_status）、游标文件损坏（安全复位）、classifier 已配置但失败（降级 + 警告 + 落痕；research 用固定最小降级 plan）；`--output` 写失败例外＝显式请求，退 3。
 

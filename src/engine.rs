@@ -14,7 +14,8 @@ use crate::redact::redact_url;
 use crate::types::{
     AnysearchResult, AttemptErrorKind, Capability, CapabilityGap, CapabilitySet, DENSITY_MAX_CHARS,
     DENSITY_MAX_UNIQUE_LINES, Deadline, FetchOutcome, MIN_FETCH_CONTENT_CHARS, ProviderAttempt,
-    SearchOutcome, Source, SupplementalSearchOutcome, ValidationResult, VerticalSearchOutcome,
+    SearchOutcome, Source, SupplementalSearchCandidate, SupplementalSearchOutcome,
+    ValidationResult, VerticalSearchOutcome,
 };
 
 pub(crate) const FANOUT_CONCURRENCY: usize = 4;
@@ -50,7 +51,7 @@ struct ChainStep<T> {
 #[derive(Default)]
 struct CapabilityBranch {
     attempts: Vec<ProviderAttempt>,
-    sources: Vec<Source>,
+    sources: Vec<SupplementalSearchCandidate>,
     validation_results: Vec<ValidationResult>,
     vertical_results: Vec<AnysearchResult>,
     capability_gaps: Vec<CapabilityGap>,
@@ -300,9 +301,10 @@ async fn execute_web_search(
     }
     match supplemental_web_search(query, limit, config.web_search.clone(), execution).await {
         Ok(mut supplemental) => {
+            let provider = successful_provider(&supplemental.attempts, "web_search");
             branch.attempts.append(&mut supplemental.attempts);
             branch.push_diagnostic(supplemental.diagnostic);
-            branch.sources = supplemental.sources;
+            branch.sources = supplemental_candidates(supplemental.sources, provider);
         }
         Err(mut error) => {
             let attempted = error
@@ -347,9 +349,10 @@ async fn execute_docs_search(
     }
     match documentation_search(query, limit, config.docs_search.clone(), execution).await {
         Ok(mut supplemental) => {
+            let provider = successful_provider(&supplemental.attempts, "docs_search");
             branch.attempts.append(&mut supplemental.attempts);
             branch.push_diagnostic(supplemental.diagnostic);
-            branch.sources = supplemental.sources;
+            branch.sources = supplemental_candidates(supplemental.sources, provider);
         }
         Err(mut error) => {
             branch.attempts.append(&mut error.attempts);
@@ -462,10 +465,11 @@ async fn execute_vertical_search(
     }
     match vertical_search(query, limit, config.vertical_search.clone(), execution).await {
         Ok(mut vertical) => {
+            let provider = successful_provider(&vertical.attempts, "vertical_search");
             branch.attempts.append(&mut vertical.attempts);
             branch.push_diagnostic(vertical.diagnostic);
             branch.vertical_results = vertical.results;
-            branch.sources = vertical.sources;
+            branch.sources = supplemental_candidates(vertical.sources, provider);
         }
         Err(mut error) => {
             branch.attempts.append(&mut error.attempts);
@@ -481,18 +485,54 @@ async fn execute_vertical_search(
     branch
 }
 
-fn merge_extra_sources(outcome: &mut SearchOutcome, sources: Vec<Source>) {
+fn merge_extra_sources(outcome: &mut SearchOutcome, sources: Vec<SupplementalSearchCandidate>) {
     let mut seen = outcome
         .sources
         .iter()
         .map(|source| source.url.clone())
+        .chain(
+            outcome
+                .extra_sources
+                .iter()
+                .map(|source| source.url.clone()),
+        )
         .collect::<HashSet<_>>();
     for source in sources {
         if seen.insert(source.url.clone()) {
-            outcome.extra_sources.push(source.clone());
-            outcome.sources.push(source);
+            outcome.extra_sources.push(source);
         }
     }
+}
+
+fn successful_provider(attempts: &[ProviderAttempt], seam: &str) -> &'static str {
+    attempts
+        .iter()
+        .rev()
+        .find(|attempt| attempt.seam == seam && attempt.error_kind.is_none())
+        .map_or_else(
+            || unreachable!("successful search outcome records a provider attempt"),
+            |attempt| attempt.provider,
+        )
+}
+
+fn supplemental_candidates(
+    sources: Vec<Source>,
+    provider: &'static str,
+) -> Vec<SupplementalSearchCandidate> {
+    sources
+        .into_iter()
+        .map(|source| SupplementalSearchCandidate {
+            url: source.url,
+            title: (!source.title.trim().is_empty()).then_some(source.title),
+            provider,
+            summary: source
+                .text
+                .or_else(|| source.highlights.into_iter().next())
+                .filter(|summary| !summary.trim().is_empty()),
+            published_date: source.published_date,
+            author: source.author,
+        })
+        .collect()
 }
 
 pub(crate) fn known_urls(query: &str) -> Vec<String> {

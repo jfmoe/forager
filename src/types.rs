@@ -410,6 +410,7 @@ pub struct ProviderAttempt {
 #[derive(Clone, Debug, Serialize)]
 /// A normalized source returned by a search provider.
 pub struct Source {
+    #[serde(skip_serializing_if = "String::is_empty")]
     pub title: String,
     pub url: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -423,19 +424,38 @@ pub struct Source {
 }
 
 #[derive(Clone, Debug, Serialize)]
+/// A supplemental result that callers can evaluate before fetching its content.
+pub struct SupplementalSearchCandidate {
+    pub url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    pub provider: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub summary: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub published_date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub author: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
 /// The normalized result of a search, including enrichment and capability coverage.
 pub struct SearchOutcome {
+    #[serde(skip)]
     pub provider: &'static str,
+    #[serde(skip)]
     pub query: String,
+    #[serde(skip)]
     pub model: String,
     pub answer: String,
     pub sources: Vec<Source>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub extra_sources: Vec<Source>,
+    pub extra_sources: Vec<SupplementalSearchCandidate>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub validation_results: Vec<ValidationResult>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub vertical_results: Vec<AnysearchResult>,
+    #[serde(skip)]
     pub capabilities: Vec<Capability>,
     pub capability_gaps: Vec<CapabilityGap>,
     #[serde(skip)]
