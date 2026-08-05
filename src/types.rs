@@ -592,6 +592,14 @@ pub(crate) struct SupplementalSearchOutcome {
 }
 
 #[derive(Clone, Debug)]
+pub(crate) struct DocumentationSearchOutcome {
+    pub(crate) candidate_sources: Vec<Source>,
+    pub(crate) read_sources: Vec<Source>,
+    pub(crate) attempts: Vec<ProviderAttempt>,
+    pub(crate) diagnostic: Option<String>,
+}
+
+#[derive(Clone, Debug)]
 pub(crate) struct VerticalSearchOutcome {
     pub(crate) results: Vec<AnysearchResult>,
     pub(crate) sources: Vec<Source>,

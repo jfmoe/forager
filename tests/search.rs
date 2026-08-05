@@ -733,7 +733,7 @@ fn declared_docs_search_uses_the_configured_registry_chain() {
 }
 
 #[test]
-fn declared_docs_search_returns_a_legal_empty_result_when_context7_has_no_source() {
+fn declared_docs_search_reports_a_gap_when_context7_has_no_consumable_source() {
     let main = Fixture::start(
         200,
         "text/event-stream",
@@ -788,7 +788,16 @@ fn declared_docs_search_returns_a_legal_empty_result_when_context7_has_no_source
             &payload["capability_gaps"],
             payload["provider_attempts"].as_array().map(Vec::len),
         ),
-        (Some(0), true, &serde_json::json!([]), Some(3),),
+        (
+            Some(0),
+            true,
+            &serde_json::json!([{
+                "capability": "docs_search",
+                "reason": "all_attempts_failed",
+                "providers_skipped": []
+            }]),
+            Some(3),
+        ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );

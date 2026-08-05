@@ -594,6 +594,289 @@ fn research_intent_signals_do_not_add_or_reorder_capability_seams() {
 }
 
 #[test]
+fn research_fetches_each_known_url_once_with_the_most_specific_ownership() {
+    let jina = Fixture::start_sequence(vec![
+        Response::new(
+            200,
+            "application/json",
+            &jina_response(&rich_content("Subquestion evidence")),
+        ),
+        Response::new(
+            200,
+            "application/json",
+            &jina_response(&rich_content("Plan evidence")),
+        ),
+    ]);
+    let environment = RunEnvironment::new(&fetch_only_config(&jina.url, false));
+    let mut plan = valid_plan(json!([]));
+    plan["decomposition"][0]["question"] =
+        json!("Inspect [the shared source](https://example.test/shared)。");
+    let plan_path = write_plan(&environment, plan);
+
+    let output = environment.run(&[
+        "research",
+        "Compare <https://example.test/shared>,<https://example.test/plan-only>。",
+        "--plan",
+        plan_path.to_str().expect("UTF-8 path"),
+        "--verbose",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            payload["evidence_items"]
+                .as_array()
+                .expect("evidence items")
+                .iter()
+                .map(|item| (&item["url"], &item["subquestion_id"]))
+                .collect::<Vec<_>>(),
+            payload["provider_attempts"].as_array().map(Vec::len),
+        ),
+        (
+            Some(0),
+            vec![
+                (
+                    &Value::String("https://example.test/shared".into()),
+                    &Value::String("sq1".into()),
+                ),
+                (
+                    &Value::String("https://example.test/plan-only".into()),
+                    &Value::String(String::new()),
+                ),
+            ],
+            Some(2),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(jina.finish_all().len(), 2);
+}
+
+#[test]
+fn research_fetches_known_urls_outside_the_subquestion_evidence_cap() {
+    let tavily = Fixture::start(
+        200,
+        "application/json",
+        r#"{"results":[{"title":"Discovered","url":"https://example.test/discovered"}]}"#,
+    );
+    let jina = Fixture::start_sequence(
+        ["Known A", "Known B", "Discovered"]
+            .into_iter()
+            .map(|label| {
+                Response::new(
+                    200,
+                    "application/json",
+                    &jina_response(&rich_content(label)),
+                )
+            })
+            .collect(),
+    );
+    let environment = RunEnvironment::new(&research_config(&tavily.url, &jina.url, false));
+    let mut plan = valid_plan(json!(["web_search"]));
+    plan["decomposition"][0]["question"] =
+        json!("Compare https://example.test/known-a and https://example.test/known-b");
+    let plan_path = write_plan(&environment, plan);
+
+    let output = environment.run(&[
+        "research",
+        "Compare the supplied sources",
+        "--plan",
+        plan_path.to_str().expect("UTF-8 path"),
+        "--budget",
+        "quick",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            payload["evidence_items"].as_array().map(Vec::len),
+            &payload["gap_check"]["status"],
+        ),
+        (Some(0), Some(3), &Value::String("closed".into())),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    tavily.finish();
+    assert_eq!(jina.finish_all().len(), 3);
+}
+
+#[test]
+fn research_fetches_known_urls_concurrently_and_preserves_plan_order() {
+    let content = rich_content("Known evidence");
+    let jina = Fixture::start_parallel_sequence(vec![
+        Response::new(200, "application/json", &jina_response(&content))
+            .with_delay(Duration::from_secs(2)),
+        Response::new(200, "application/json", &jina_response(&content))
+            .with_delay(Duration::from_secs(2)),
+    ]);
+    let environment = RunEnvironment::new(&fetch_only_config(&jina.url, false));
+    let mut plan = valid_plan(json!([]));
+    plan["decomposition"][0]["question"] =
+        json!("Compare https://example.test/known-one and https://example.test/known-two");
+    let plan_path = write_plan(&environment, plan);
+    let started = Instant::now();
+
+    let output = environment.run(&[
+        "research",
+        "Compare the supplied sources",
+        "--plan",
+        plan_path.to_str().expect("UTF-8 path"),
+        "--timeout",
+        "3",
+    ]);
+    let elapsed = started.elapsed();
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            payload["evidence_items"]
+                .as_array()
+                .expect("evidence items")
+                .iter()
+                .map(|item| item["url"].as_str().expect("evidence URL"))
+                .collect::<Vec<_>>(),
+        ),
+        (
+            Some(0),
+            vec![
+                "https://example.test/known-one",
+                "https://example.test/known-two"
+            ],
+        ),
+        "elapsed: {elapsed:?}; stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(jina.finish_all().len(), 2);
+}
+
+#[test]
+fn research_keeps_a_failed_known_url_gap_after_replacement_evidence_succeeds() {
+    let tavily = Fixture::start(
+        200,
+        "application/json",
+        r#"{"results":[{"title":"Replacement","url":"https://example.test/replacement"}]}"#,
+    );
+    let jina = Fixture::start_sequence(vec![
+        Response::new(500, "text/plain", "known URL unavailable"),
+        Response::new(
+            200,
+            "application/json",
+            &jina_response(&rich_content("Replacement evidence")),
+        ),
+    ]);
+    let environment = RunEnvironment::new(&research_config(&tavily.url, &jina.url, false));
+    let mut plan = valid_plan(json!(["web_search"]));
+    plan["decomposition"][0]["question"] = json!("Verify https://example.test/known-unavailable");
+    let plan_path = write_plan(&environment, plan);
+
+    let output = environment.run(&[
+        "research",
+        "Verify the claim",
+        "--plan",
+        plan_path.to_str().expect("UTF-8 path"),
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["gap_check"],
+            payload["evidence_items"].as_array().map(Vec::len),
+        ),
+        (
+            Some(0),
+            &json!({
+                "status": "degraded",
+                "gaps": [{
+                    "subquestion_id": "sq1",
+                    "reason": "failed to fetch known URL",
+                    "url": "https://example.test/known-unavailable"
+                }],
+                "stop_reason": "degraded_with_gaps"
+            }),
+            Some(1),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    tavily.finish();
+    assert_eq!(jina.finish_all().len(), 2);
+}
+
+#[test]
+fn research_reports_one_terminal_gap_with_the_candidate_url_attempt_count() {
+    let tavily = Fixture::start_sequence(vec![
+        Response::new(
+            200,
+            "application/json",
+            r#"{"results":[{"title":"Covered","url":"https://example.test/covered"}]}"#,
+        ),
+        Response::new(
+            200,
+            "application/json",
+            r#"{"results":[
+                {"title":"Unavailable A","url":"https://example.test/unavailable-a"},
+                {"title":"Unavailable B","url":"https://example.test/unavailable-b"}
+            ]}"#,
+        ),
+    ]);
+    let jina = Fixture::start_sequence(vec![
+        Response::new(
+            200,
+            "application/json",
+            &jina_response(&rich_content("Covered evidence")),
+        ),
+        Response::new(500, "text/plain", "candidate unavailable"),
+        Response::new(500, "text/plain", "candidate unavailable"),
+    ]);
+    let environment = RunEnvironment::new(&research_config(&tavily.url, &jina.url, false));
+    let mut plan = valid_plan(json!(["web_search"]));
+    plan["decomposition"]
+        .as_array_mut()
+        .expect("decomposition")
+        .push(json!({
+            "id": "sq2",
+            "question": "What unavailable evidence exists?",
+            "reason": "Exercise candidate exhaustion",
+            "required_capabilities": ["web_search"]
+        }));
+    let plan_path = write_plan(&environment, plan);
+
+    let output = environment.run(&[
+        "research",
+        "Compare candidate outcomes",
+        "--plan",
+        plan_path.to_str().expect("UTF-8 path"),
+        "--budget",
+        "standard",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["gap_check"]["status"],
+            &payload["gap_check"]["gaps"],
+        ),
+        (
+            Some(0),
+            &Value::String("degraded".into()),
+            &json!([{
+                "subquestion_id": "sq2",
+                "reason": "no verified evidence was collected after attempting 2 candidate URLs"
+            }]),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(tavily.finish_all().len(), 2);
+    assert_eq!(jina.finish_all().len(), 3);
+}
+
+#[test]
 fn research_reports_provider_gaps_as_advisory_when_other_evidence_succeeds() {
     let jina = Fixture::start(
         200,
@@ -615,6 +898,7 @@ fn research_reports_provider_gaps_as_advisory_when_other_evidence_succeeds() {
         (
             output.status.code(),
             &payload["capability_gaps"],
+            &payload["gap_check"]["status"],
             String::from_utf8_lossy(&output.stderr).contains("capability gap"),
         ),
         (
@@ -624,6 +908,7 @@ fn research_reports_provider_gaps_as_advisory_when_other_evidence_succeeds() {
                 "reason": "no_configured_provider",
                 "providers_skipped": ["tavily", "firecrawl"]
             }]),
+            &Value::String("degraded".into()),
             true,
         )
     );
@@ -885,8 +1170,152 @@ enabled = false
         String::from_utf8_lossy(&output.stderr)
     );
     context7.finish_all();
-    exa.finish();
+    assert!(exa.finish().contains(r#""text":true"#));
     jina.finish();
+}
+
+#[test]
+fn research_accepts_docs_search_read_content_without_web_fetch() {
+    let exa = Fixture::start(
+        200,
+        "application/json",
+        &json!({
+            "results": [{
+                "title": "Ownership",
+                "url": "https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html",
+                "text": rich_content("Already read documentation")
+            }]
+        })
+        .to_string(),
+    );
+    let config = format!(
+        r#"
+[providers.exa]
+url = {:?}
+keys = ["exa-key"]
+timeout = 30
+
+[capabilities.docs_search]
+order = ["exa"]
+
+[retry]
+max_attempts = 1
+multiplier = 1
+max_wait = 0
+
+[journal]
+enabled = false
+"#,
+        exa.url,
+    );
+    let environment = RunEnvironment::new(&config);
+    let plan_path = write_plan(&environment, valid_plan(json!(["docs_search"])));
+
+    let output = environment.run(&[
+        "research",
+        "Rust ownership",
+        "--plan",
+        plan_path.to_str().expect("UTF-8 path"),
+        "--verbose",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["evidence_items"][0]["provider"],
+            &payload["evidence_items"][0]["source_type"],
+            payload["provider_attempts"]
+                .as_array()
+                .expect("provider attempts")
+                .iter()
+                .map(|attempt| attempt["seam"].as_str().expect("attempt seam"))
+                .collect::<Vec<_>>(),
+        ),
+        (
+            Some(0),
+            &Value::String("exa".into()),
+            &Value::String("docs".into()),
+            vec!["docs_search"],
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(exa.finish().contains(r#""text":true"#));
+}
+
+#[test]
+fn research_rejects_thin_docs_content_without_refetching_it() {
+    let exa = Fixture::start(
+        200,
+        "application/json",
+        r#"{"results":[{"title":"Thin docs","url":"https://example.test/docs","text":"thin"}]}"#,
+    );
+    let jina = Fixture::start(
+        200,
+        "application/json",
+        &jina_response(&rich_content("Must not be fetched")),
+    );
+    let config = format!(
+        r#"
+[providers.exa]
+url = {:?}
+keys = ["exa-key"]
+timeout = 30
+
+[providers.jina]
+url = {:?}
+keys = ["jina-key"]
+timeout = 30
+
+[capabilities.docs_search]
+order = ["exa"]
+
+[capabilities.web_fetch]
+order = ["jina"]
+
+[retry]
+max_attempts = 1
+multiplier = 1
+max_wait = 0
+
+[journal]
+enabled = false
+"#,
+        exa.url, jina.url,
+    );
+    let environment = RunEnvironment::new(&config);
+    let plan_path = write_plan(&environment, valid_plan(json!(["docs_search"])));
+
+    let output = environment.run(&[
+        "research",
+        "Thin documentation",
+        "--plan",
+        plan_path.to_str().expect("UTF-8 path"),
+        "--verbose",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["error_kind"],
+            payload["provider_attempts"]
+                .as_array()
+                .expect("provider attempts")
+                .iter()
+                .map(|attempt| attempt["seam"].as_str().expect("attempt seam"))
+                .collect::<Vec<_>>(),
+        ),
+        (
+            Some(5),
+            &Value::String("quality".into()),
+            vec!["docs_search"],
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(exa.finish().contains(r#""text":true"#));
 }
 
 #[test]
@@ -955,7 +1384,12 @@ enabled = false
         (
             Some(5),
             &Value::String("evidence".into()),
-            &json!([]),
+            &json!([{
+                "capability": "docs_search",
+                "reason": "all_attempts_failed",
+                "providers_skipped": [],
+                "truncated": false
+            }]),
             Some(2),
         ),
         "stderr: {}",
@@ -1338,7 +1772,7 @@ fn research_discloses_a_subquestion_without_verified_evidence() {
             &Value::String("degraded".into()),
             &json!([{
                 "subquestion_id": "sq2",
-                "reason": "no verified evidence was collected for this subquestion"
+                "reason": "no verified evidence was collected after attempting 0 candidate URLs"
             }]),
         ),
         "stderr: {}",

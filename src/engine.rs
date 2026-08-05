@@ -13,9 +13,9 @@ use crate::providers::{self, FetchRequest, ProviderError, SearchRequest};
 use crate::redact::redact_url;
 use crate::types::{
     AnysearchResult, AttemptErrorKind, Capability, CapabilityGap, CapabilitySet, DENSITY_MAX_CHARS,
-    DENSITY_MAX_UNIQUE_LINES, Deadline, FetchOutcome, MIN_FETCH_CONTENT_CHARS, ProviderAttempt,
-    SearchOutcome, Source, SupplementalSearchCandidate, SupplementalSearchOutcome,
-    VerticalSearchOutcome,
+    DENSITY_MAX_UNIQUE_LINES, Deadline, DocumentationSearchOutcome, FetchOutcome,
+    MIN_FETCH_CONTENT_CHARS, ProviderAttempt, SearchOutcome, Source, SupplementalSearchCandidate,
+    SupplementalSearchOutcome, VerticalSearchOutcome,
 };
 
 pub(crate) const FANOUT_CONCURRENCY: usize = 4;
@@ -349,7 +349,13 @@ async fn execute_docs_search(
             let provider = successful_provider(&supplemental.attempts, "docs_search");
             branch.attempts.append(&mut supplemental.attempts);
             branch.push_diagnostic(supplemental.diagnostic);
-            branch.sources = supplemental_candidates(supplemental.sources, provider);
+            supplemental
+                .candidate_sources
+                .extend(supplemental.read_sources.into_iter().map(|mut source| {
+                    source.text = None;
+                    source
+                }));
+            branch.sources = supplemental_candidates(supplemental.candidate_sources, provider);
         }
         Err(mut error) => {
             branch.attempts.append(&mut error.attempts);
@@ -574,22 +580,54 @@ fn supplemental_candidates(
 
 pub(crate) fn known_urls(query: &str) -> Vec<String> {
     let mut seen = HashSet::new();
-    query
-        .split_whitespace()
-        .map(|value| {
-            value.trim_matches(|character: char| {
-                matches!(
-                    character,
-                    '"' | '\'' | '(' | ')' | '[' | ']' | '{' | '}' | ',' | ';'
-                )
-            })
-        })
-        .filter(|value| {
-            reqwest::Url::parse(value).is_ok_and(|url| matches!(url.scheme(), "http" | "https"))
-        })
-        .filter(|value| seen.insert((*value).to_owned()))
-        .map(ToOwned::to_owned)
-        .collect()
+    let mut urls = Vec::new();
+    let mut offset = 0;
+    while let Some(start) = next_url_start(&query[offset..]).map(|start| offset + start) {
+        let value = &query[start..];
+        let end = value.find(url_boundary).unwrap_or(value.len());
+        let value = value[..end].trim_end_matches(['.', '!', '?', ':']);
+        if reqwest::Url::parse(value).is_ok_and(|url| matches!(url.scheme(), "http" | "https"))
+            && seen.insert(value.to_owned())
+        {
+            urls.push(value.to_owned());
+        }
+        offset = start + end;
+    }
+    urls
+}
+
+fn next_url_start(value: &str) -> Option<usize> {
+    match (value.find("http://"), value.find("https://")) {
+        (Some(http), Some(https)) => Some(http.min(https)),
+        (Some(http), None) => Some(http),
+        (None, Some(https)) => Some(https),
+        (None, None) => None,
+    }
+}
+
+fn url_boundary(character: char) -> bool {
+    character.is_whitespace()
+        || matches!(
+            character,
+            '"' | '\''
+                | '<'
+                | '>'
+                | '('
+                | ')'
+                | '['
+                | ']'
+                | '{'
+                | '}'
+                | ','
+                | ';'
+                | '，'
+                | '；'
+                | '：'
+                | '。'
+                | '！'
+                | '？'
+                | '、'
+        )
 }
 
 pub(crate) async fn search(
@@ -760,7 +798,7 @@ pub(crate) async fn documentation_search(
     limit: u16,
     config: DocsSearchRuntimeConfig,
     execution: CapabilityExecution,
-) -> Result<SupplementalSearchOutcome, ProviderError> {
+) -> Result<DocumentationSearchOutcome, ProviderError> {
     let step = run_provider_chain(
         config.into_entries(),
         ChainSettings {
@@ -771,11 +809,13 @@ pub(crate) async fn documentation_search(
             fallback_off: execution.fallback == "off",
         },
         execution.deadline,
-        |sources: &Vec<Source>| !sources.is_empty(),
+        |(candidate_sources, read_sources): &(Vec<Source>, Vec<Source>)| {
+            !candidate_sources.is_empty() || !read_sources.is_empty()
+        },
         |id, provider_config, deadline| {
             let client = execution.client.clone();
             async move {
-                let outcome = providers::build_docs_search(
+                let mut outcome = providers::build_docs_search(
                     id,
                     provider_config,
                     client,
@@ -784,8 +824,52 @@ pub(crate) async fn documentation_search(
                 )
                 .search(query, limit)
                 .await?;
+                if outcome.candidate_sources.is_empty() && outcome.read_sources.is_empty() {
+                    if let Some(attempt) = outcome.attempts.last_mut() {
+                        attempt.error_kind = Some(AttemptErrorKind::Evidence);
+                        attempt.message =
+                            "documentation search returned no consumable source".into();
+                    }
+                    return Err(provider_chain_error(
+                        outcome.attempts,
+                        false,
+                        outcome.diagnostic,
+                        "documentation search returned no consumable source",
+                    ));
+                }
+                let thin_content_count = outcome
+                    .read_sources
+                    .iter()
+                    .filter(|source| {
+                        source
+                            .text
+                            .as_deref()
+                            .is_none_or(|content| is_thin(content, &source.url))
+                    })
+                    .count();
+                outcome.read_sources.retain(|source| {
+                    source
+                        .text
+                        .as_deref()
+                        .is_some_and(|content| !is_thin(content, &source.url))
+                });
+                if thin_content_count > 0
+                    && outcome.read_sources.is_empty()
+                    && outcome.candidate_sources.is_empty()
+                {
+                    if let Some(attempt) = outcome.attempts.last_mut() {
+                        attempt.error_kind = Some(AttemptErrorKind::Quality);
+                        attempt.message = "documentation content is too thin".into();
+                    }
+                    return Err(provider_chain_error(
+                        outcome.attempts,
+                        false,
+                        outcome.diagnostic,
+                        "documentation content is too thin",
+                    ));
+                }
                 Ok(ChainStep {
-                    value: outcome.sources,
+                    value: (outcome.candidate_sources, outcome.read_sources),
                     attempts: outcome.attempts,
                     diagnostic: outcome.diagnostic,
                 })
@@ -793,8 +877,9 @@ pub(crate) async fn documentation_search(
         },
     )
     .await?;
-    Ok(SupplementalSearchOutcome {
-        sources: step.value,
+    Ok(DocumentationSearchOutcome {
+        candidate_sources: step.value.0,
+        read_sources: step.value.1,
         attempts: step.attempts,
         diagnostic: step.diagnostic,
     })
@@ -846,7 +931,7 @@ pub(crate) async fn vertical_search(
     })
 }
 
-fn is_thin(content: &str, url: &str) -> bool {
+pub(crate) fn is_thin(content: &str, url: &str) -> bool {
     let content = content.trim();
     let character_count = content.chars().count();
     if character_count < MIN_FETCH_CONTENT_CHARS {

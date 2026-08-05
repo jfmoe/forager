@@ -67,6 +67,7 @@ struct Candidate {
     source: Source,
     subquestion_id: String,
     prefetched_provider: Option<&'static str>,
+    known_url: bool,
 }
 
 #[derive(Default)]
@@ -152,49 +153,7 @@ pub(crate) async fn execute(
         request.budget.discovery_limit(),
     );
 
-    let first_subquestion = request
-        .plan
-        .decomposition
-        .first()
-        .map_or("", |subquestion| subquestion.id.as_str());
-    for url in engine::known_urls(&request.query) {
-        let redacted_url = redact_url(&url);
-        candidates.insert(
-            0,
-            Candidate {
-                source: Source {
-                    title: redacted_url,
-                    url,
-                    published_date: None,
-                    author: None,
-                    text: None,
-                    highlights: Vec::new(),
-                },
-                subquestion_id: first_subquestion.to_owned(),
-                prefetched_provider: None,
-            },
-        );
-    }
-    for subquestion in &request.plan.decomposition {
-        for url in engine::known_urls(&subquestion.question) {
-            let redacted_url = redact_url(&url);
-            candidates.insert(
-                0,
-                Candidate {
-                    source: Source {
-                        title: redacted_url,
-                        url,
-                        published_date: None,
-                        author: None,
-                        text: None,
-                        highlights: Vec::new(),
-                    },
-                    subquestion_id: subquestion.id.clone(),
-                    prefetched_provider: None,
-                },
-            );
-        }
-    }
+    let known_url_candidates = known_url_candidates(&request.query, &request.plan.decomposition);
     let subquestion_ids = request
         .plan
         .decomposition
@@ -210,10 +169,56 @@ pub(crate) async fn execute(
         .iter()
         .map(|subquestion| (subquestion.id.clone(), 0_usize))
         .collect::<HashMap<_, _>>();
+    let mut candidate_attempt_counts = evidence_counts.clone();
     let mut seen_urls = HashSet::new();
     let mut fetch_config = config.web_fetch.clone();
     if request.fallback == "off" {
         fetch_config.retain_first();
+    }
+    let mut known_url_candidates = VecDeque::from(known_url_candidates);
+    while !known_url_candidates.is_empty() {
+        let wave_len = known_url_candidates.len().min(engine::FANOUT_CONCURRENCY);
+        let wave = known_url_candidates.drain(..wave_len).collect::<Vec<_>>();
+        seen_urls.extend(wave.iter().map(|candidate| candidate.source.url.clone()));
+        let results = join_all(wave.into_iter().map(|candidate| {
+            fetch_candidate(
+                candidate,
+                fetch_config.clone(),
+                client.clone(),
+                retry_policy,
+                deadline,
+            )
+        }))
+        .await;
+        for mut block in results {
+            attempts.append(&mut block.attempts);
+            push_diagnostic(&mut diagnostics, block.diagnostic);
+            if block.missing_provider
+                && !capability_gaps
+                    .iter()
+                    .any(|gap| gap.capability == Capability::WebFetch)
+            {
+                capability_gaps.push(CapabilityGap {
+                    capability: Capability::WebFetch,
+                    reason: "no_configured_provider",
+                    providers_skipped: fetch_config.names(),
+                });
+            }
+            if let Some(gap) = block.gap {
+                research_gaps.push(gap);
+            }
+            if let Some(evidence) = block.evidence {
+                push_evidence(
+                    &mut evidence_items,
+                    evidence.url,
+                    evidence.title,
+                    evidence.provider,
+                    evidence.source_type,
+                    evidence.subquestion_id,
+                    evidence.content,
+                );
+            }
+        }
     }
     let mut candidates = VecDeque::from(candidates);
     loop {
@@ -243,6 +248,9 @@ pub(crate) async fn execute(
                 continue;
             }
             *reserved
+                .entry(candidate.subquestion_id.clone())
+                .or_default() += 1;
+            *candidate_attempt_counts
                 .entry(candidate.subquestion_id.clone())
                 .or_default() += 1;
             wave.push(candidate);
@@ -301,9 +309,15 @@ pub(crate) async fn execute(
             .iter()
             .any(|gap| gap.subquestion_id == subquestion.id);
         if !has_evidence && !has_gap {
+            let attempted = candidate_attempt_counts
+                .get(&subquestion.id)
+                .copied()
+                .unwrap_or_default();
             research_gaps.push(ResearchGap {
                 subquestion_id: subquestion.id.clone(),
-                reason: "no verified evidence was collected for this subquestion".into(),
+                reason: format!(
+                    "no verified evidence was collected after attempting {attempted} candidate URLs"
+                ),
                 url: None,
             });
         }
@@ -537,17 +551,30 @@ async fn discover_docs(
                 .iter()
                 .rev()
                 .find(|attempt| attempt.seam == "docs_search" && attempt.error_kind.is_none())
-                .map(|attempt| attempt.provider)
-                .filter(|provider| *provider == "context7");
+                .map(|attempt| attempt.provider);
             block.attempts.append(&mut outcome.attempts);
             push_diagnostic(&mut block.diagnostics, outcome.diagnostic);
             block
                 .candidates
-                .extend(outcome.sources.into_iter().map(|source| Candidate {
+                .extend(outcome.read_sources.into_iter().map(|source| Candidate {
                     source,
                     subquestion_id: subquestion.id.clone(),
                     prefetched_provider,
+                    known_url: false,
                 }));
+            block
+                .candidates
+                .extend(
+                    outcome
+                        .candidate_sources
+                        .into_iter()
+                        .map(|source| Candidate {
+                            source,
+                            subquestion_id: subquestion.id.clone(),
+                            prefetched_provider: None,
+                            known_url: false,
+                        }),
+                );
         }
         Err(mut error) => {
             block.attempts.append(&mut error.attempts);
@@ -594,6 +621,7 @@ async fn discover_web(
                     source,
                     subquestion_id: subquestion.id.clone(),
                     prefetched_provider: None,
+                    known_url: false,
                 }));
         }
         Err(mut error) => {
@@ -641,6 +669,7 @@ async fn discover_vertical(
                     source,
                     subquestion_id: subquestion.id.clone(),
                     prefetched_provider: None,
+                    known_url: false,
                 }));
         }
         Err(mut error) => {
@@ -684,10 +713,10 @@ async fn fetch_candidate(
     }
     if fetch_config.configured_provider_count() == 0 {
         return CandidateFetchBlock {
-            gap: Some(ResearchGap {
+            gap: candidate.known_url.then(|| ResearchGap {
                 subquestion_id: candidate.subquestion_id,
                 reason:
-                    "candidate could not be fetched because web_fetch has no configured provider"
+                    "known URL could not be fetched because web_fetch has no configured provider"
                         .into(),
                 url: Some(redact_url(&candidate.source.url)),
             }),
@@ -726,13 +755,47 @@ async fn fetch_candidate(
             attempts: error.attempts,
             diagnostic: error.diagnostic,
             evidence: None,
-            gap: Some(ResearchGap {
+            gap: candidate.known_url.then(|| ResearchGap {
                 subquestion_id: candidate.subquestion_id,
-                reason: "candidate fetch failed".into(),
+                reason: "failed to fetch known URL".into(),
                 url: Some(redact_url(&url)),
             }),
             missing_provider: false,
         },
+    }
+}
+
+fn known_url_candidates(query: &str, subquestions: &[ResearchSubquestion]) -> Vec<Candidate> {
+    let mut seen = HashSet::new();
+    let mut candidates = Vec::new();
+    for subquestion in subquestions {
+        for url in engine::known_urls(&subquestion.question) {
+            if seen.insert(url.clone()) {
+                candidates.push(known_url_candidate(url, subquestion.id.clone()));
+            }
+        }
+    }
+    for url in engine::known_urls(query) {
+        if seen.insert(url.clone()) {
+            candidates.push(known_url_candidate(url, String::new()));
+        }
+    }
+    candidates
+}
+
+fn known_url_candidate(url: String, subquestion_id: String) -> Candidate {
+    Candidate {
+        source: Source {
+            title: redact_url(&url),
+            url,
+            published_date: None,
+            author: None,
+            text: None,
+            highlights: Vec::new(),
+        },
+        subquestion_id,
+        prefetched_provider: None,
+        known_url: true,
     }
 }
 

@@ -26,8 +26,8 @@ use crate::credentials::CredentialPool;
 use crate::net::{RetryPolicy, combine_diagnostics};
 use crate::redact::redact_url;
 use crate::types::{
-    AnysearchOutcome, Context7Outcome, ExaOutcome, Source, SupplementalSearchOutcome,
-    VerticalSearchOutcome,
+    AnysearchOutcome, Context7Outcome, DocumentationSearchOutcome, ExaOutcome, Source,
+    SupplementalSearchOutcome, VerticalSearchOutcome,
 };
 use crate::types::{AttemptErrorKind, Deadline, ProviderAttempt};
 
@@ -118,7 +118,7 @@ pub(crate) trait DocsSearch: Send + Sync {
         &'a self,
         query: &'a str,
         limit: u16,
-    ) -> Pin<Box<dyn Future<Output = Result<SupplementalSearchOutcome, ProviderError>> + Send + 'a>>;
+    ) -> Pin<Box<dyn Future<Output = Result<DocumentationSearchOutcome, ProviderError>> + Send + 'a>>;
 }
 
 pub(crate) trait VerticalSearch: Send + Sync {
@@ -178,7 +178,7 @@ impl DocsSearch for Exa {
         &'a self,
         query: &'a str,
         limit: u16,
-    ) -> Pin<Box<dyn Future<Output = Result<SupplementalSearchOutcome, ProviderError>> + Send + 'a>>
+    ) -> Pin<Box<dyn Future<Output = Result<DocumentationSearchOutcome, ProviderError>> + Send + 'a>>
     {
         Box::pin(async move {
             let ExaOutcome {
@@ -191,7 +191,7 @@ impl DocsSearch for Exa {
                     query: query.to_owned(),
                     num_results: limit,
                     search_type: SearchType::Auto,
-                    include_text: false,
+                    include_text: true,
                     include_highlights: true,
                     start_published_date: None,
                     include_domains: Vec::new(),
@@ -200,8 +200,12 @@ impl DocsSearch for Exa {
                     verbose: true,
                 })
                 .await?;
-            Ok(SupplementalSearchOutcome {
-                sources: results,
+            let (read_sources, candidate_sources) = results
+                .into_iter()
+                .partition(|source| source.text.is_some());
+            Ok(DocumentationSearchOutcome {
+                candidate_sources,
+                read_sources,
                 attempts,
                 diagnostic,
             })
@@ -214,7 +218,7 @@ impl DocsSearch for Context7 {
         &'a self,
         query: &'a str,
         _limit: u16,
-    ) -> Pin<Box<dyn Future<Output = Result<SupplementalSearchOutcome, ProviderError>> + Send + 'a>>
+    ) -> Pin<Box<dyn Future<Output = Result<DocumentationSearchOutcome, ProviderError>> + Send + 'a>>
     {
         Box::pin(async move {
             let Context7Outcome::Library(library) = self
@@ -228,8 +232,9 @@ impl DocsSearch for Context7 {
                 unreachable!("library request returns library outcome");
             };
             let Some(candidate) = library.results.into_iter().next() else {
-                return Ok(SupplementalSearchOutcome {
-                    sources: Vec::new(),
+                return Ok(DocumentationSearchOutcome {
+                    candidate_sources: Vec::new(),
+                    read_sources: Vec::new(),
                     attempts: library.attempts,
                     diagnostic: library.diagnostic,
                 });
@@ -255,8 +260,9 @@ impl DocsSearch for Context7 {
             };
             let mut attempts = library.attempts;
             attempts.append(&mut docs.attempts);
-            Ok(SupplementalSearchOutcome {
-                sources: Vec::new(),
+            Ok(DocumentationSearchOutcome {
+                candidate_sources: Vec::new(),
+                read_sources: Vec::new(),
                 attempts,
                 diagnostic: combine_diagnostics(
                     [library.diagnostic, docs.diagnostic].into_iter().flatten(),
