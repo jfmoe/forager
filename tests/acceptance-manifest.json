@@ -148,6 +148,16 @@
       "id": "E11",
       "requirements": ["T1-map"],
       "test": "tests/tavily_map.rs::map_sends_tavily_options_and_normalizes_site_results"
+    },
+    {
+      "id": "E12",
+      "requirements": ["I0-5"],
+      "test": "tests/search.rs::declared_web_fetch_adds_a_content_preview_candidate_without_changing_the_main_answer"
+    },
+    {
+      "id": "E13",
+      "requirements": ["I0-5"],
+      "test": "tests/search.rs::declared_vertical_search_keeps_url_results_only_in_vertical_results"
     }
   ]
 }

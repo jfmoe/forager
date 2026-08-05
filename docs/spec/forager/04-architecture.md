@@ -57,14 +57,20 @@ Web Fetch 成功值是 **Normalized Fetch Content**：从成功 provider 响应�
 
 薄正文门只对 HTTP 成功并完成 provider 解码后的正文生效。两线命中任一 → `Quality`（Content 族）落下一家：**长度线**正文 < 200 字符；**密度线**唯一行数 ≤ 3 且总长 < 500。PDF 只适用长度线。全链皆薄 → 终态 Quality 退 5，attempts 带实测字符数。阈值为 types 具名常量，**不设配置键**。4 MiB 截断继续是成功加 diagnostic；只有截断后正文仍薄才 fallback。64 KiB 错误响应上限不变。
 
+## search 结果角色
+
+- `sources` 只保存 Primary Search Sources，`extra_sources` 只保存 Supplemental Search Candidates，`vertical_results` 只保存完整 Vertical Discovery Result；三个集合不互相投影。
+- provider-native summary 原样保留。search-side Web Fetch 成功结果以实际 provider 和 Normalized Fetch Content 的 300 字 preview 进入 `extra_sources`；抓取失败由 attempts、capability gap 和既有终态表达，不另设 validation 集合。
+- Markdown 明确渲染 `Primary Sources` 与 `Extra Sources`；content 只返回主 answer；JSON、verbose 和 journal 消费同一结果角色。
+
 ## journal
 
 定位：结果面 + 过程面双记录。
 
-- **结果面**：query、answer 全文、仅属于主回答的 sources[]、独立的 supplemental candidates（URL 经统一脱敏器），以及 research 的 citations/evidence_items。
+- **结果面**：query、answer 全文、仅属于主回答的 sources[]、独立的 supplemental candidates（含 search-side Web Fetch preview，URL 经统一脱敏器），以及 research 的 citations/evidence_items；Vertical Discovery Result 不复制到其他来源集合。
 - **过程面**：plan 摘要（capabilities 终集 + 来源 + 分类器是否降级）、provider_attempts[]（provider、seam、error_kind、http_status、duration_ms、credential_index、retry/rotation 计数、脱敏截断 500 字符错误消息、model、endpoint_host、断路器事件）、终态归因、budget 视图 `{total_ms, consumed_ms, exhausted}`、分类器耗时、capability_gaps。
 - **字段白名单排除项**：请求/响应头、请求体、原始响应体、key 任何形式（含掩码）、分类器 prompt 原文。
-- `capability_gaps` 形状：`[{capability, reason: no_configured_provider|all_attempts_failed, providers_skipped[]}]`，空则省略；结果 JSON 顶层 + stderr 警告 + journal 三出口。
+- `capability_gaps` 形状：`[{capability, reason: no_configured_provider|partial_failure|all_attempts_failed, providers_skipped[]}]`，空则省略；结果 JSON 顶层 + stderr 警告 + journal 三出口。
 - **落笔机制**（F7 修订）：`app` 层唯一终态写入器落笔一次，Ok/Err 皆写；panic hook 只做最小 stderr 诊断、**不写 journal**；孤儿任务 panic 与 kill -9 丢记录为已接受限制。
 - **路径规则**（F8）：`journal.dir` 只支持前导 `~/` 展开；相对路径统一相对 config 目录解析（不依赖 cwd）；`FORAGER_CONFIG_DIR` 改变 config 目录时同步改变该基准。
 - 深钻原始交互走重放：`log.level = "debug"` 打 stderr 不持久化。

@@ -71,8 +71,11 @@ Default search JSON keeps `answer`, Primary Search Sources in `sources`, Supplem
 Candidates in `extra_sources`, optional structured results, capability gaps, and the journal
 reference. Supplemental candidates include `url` and `provider`, plus provider-native `title`,
 `summary`, `published_date`, or `author` when available. Invocation echoes and diagnostics are in
-the Search Result Journal; `--verbose` adds provider attempts inline. Content format emits only the
-main answer.
+the Search Result Journal; provider-native summaries are not truncated. Search-side Web Fetch
+successes use the actual fetch provider and a 300-character Normalized Fetch Content preview as
+their candidate summary. Vertical Discovery results remain only in `vertical_results`, including
+results with URLs. `--verbose` adds provider attempts inline. Content format emits only the main
+answer. Markdown labels the two source roles as `Primary Sources` and `Extra Sources`.
 
 ### `research`
 

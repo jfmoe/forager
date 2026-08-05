@@ -15,10 +15,11 @@ use crate::types::{
     AnysearchResult, AttemptErrorKind, Capability, CapabilityGap, CapabilitySet, DENSITY_MAX_CHARS,
     DENSITY_MAX_UNIQUE_LINES, Deadline, FetchOutcome, MIN_FETCH_CONTENT_CHARS, ProviderAttempt,
     SearchOutcome, Source, SupplementalSearchCandidate, SupplementalSearchOutcome,
-    ValidationResult, VerticalSearchOutcome,
+    VerticalSearchOutcome,
 };
 
 pub(crate) const FANOUT_CONCURRENCY: usize = 4;
+const WEB_FETCH_PREVIEW_CHARS: usize = 300;
 
 #[derive(Clone)]
 pub(crate) struct CapabilityExecution {
@@ -52,7 +53,6 @@ struct ChainStep<T> {
 struct CapabilityBranch {
     attempts: Vec<ProviderAttempt>,
     sources: Vec<SupplementalSearchCandidate>,
-    validation_results: Vec<ValidationResult>,
     vertical_results: Vec<AnysearchResult>,
     capability_gaps: Vec<CapabilityGap>,
     diagnostics: Vec<String>,
@@ -265,11 +265,8 @@ pub(crate) async fn execute_capabilities(
 
     for mut branch in branches {
         outcome.attempts.append(&mut branch.attempts);
-        outcome
-            .validation_results
-            .append(&mut branch.validation_results);
         if !branch.vertical_results.is_empty() {
-            outcome.vertical_results = branch.vertical_results;
+            merge_vertical_results(outcome, branch.vertical_results);
         }
         outcome.capability_gaps.append(&mut branch.capability_gaps);
         for diagnostic in branch.diagnostics {
@@ -423,10 +420,19 @@ async fn execute_web_fetch(
                 succeeded = true;
                 branch.attempts.append(&mut fetched.attempts);
                 branch.push_diagnostic(fetched.diagnostic);
-                branch.validation_results.push(ValidationResult {
+                branch.sources.push(SupplementalSearchCandidate {
                     url: redact_url(&url),
+                    title: None,
                     provider: fetched.provider,
-                    status: "validated",
+                    summary: Some(
+                        fetched
+                            .content
+                            .chars()
+                            .take(WEB_FETCH_PREVIEW_CHARS)
+                            .collect(),
+                    ),
+                    published_date: None,
+                    author: None,
                 });
             }
             Err(mut error) => {
@@ -436,11 +442,16 @@ async fn execute_web_fetch(
             }
         }
     }
-    if failed && !succeeded {
+    if failed {
+        let (reason, providers_skipped) = if succeeded {
+            ("partial_failure", Vec::new())
+        } else {
+            ("all_attempts_failed", config.web_fetch.unconfigured_names())
+        };
         branch.record_gap(
             Capability::WebFetch,
-            "all_attempts_failed",
-            config.web_fetch.unconfigured_names(),
+            reason,
+            providers_skipped,
             "one or more web_fetch targets failed",
         );
     }
@@ -465,11 +476,9 @@ async fn execute_vertical_search(
     }
     match vertical_search(query, limit, config.vertical_search.clone(), execution).await {
         Ok(mut vertical) => {
-            let provider = successful_provider(&vertical.attempts, "vertical_search");
             branch.attempts.append(&mut vertical.attempts);
             branch.push_diagnostic(vertical.diagnostic);
             branch.vertical_results = vertical.results;
-            branch.sources = supplemental_candidates(vertical.sources, provider);
         }
         Err(mut error) => {
             branch.attempts.append(&mut error.attempts);
@@ -496,12 +505,40 @@ fn merge_extra_sources(outcome: &mut SearchOutcome, sources: Vec<SupplementalSea
                 .iter()
                 .map(|source| source.url.clone()),
         )
+        .chain(
+            outcome
+                .vertical_results
+                .iter()
+                .filter(|result| !result.url.is_empty())
+                .map(|result| result.url.clone()),
+        )
         .collect::<HashSet<_>>();
     for source in sources {
         if seen.insert(source.url.clone()) {
             outcome.extra_sources.push(source);
         }
     }
+}
+
+fn merge_vertical_results(outcome: &mut SearchOutcome, results: Vec<AnysearchResult>) {
+    let mut seen = outcome
+        .sources
+        .iter()
+        .map(|source| source.url.clone())
+        .collect::<HashSet<_>>();
+    outcome.vertical_results = results
+        .into_iter()
+        .filter(|result| result.url.is_empty() || seen.insert(result.url.clone()))
+        .collect();
+    let vertical_urls = outcome
+        .vertical_results
+        .iter()
+        .filter(|result| !result.url.is_empty())
+        .map(|result| result.url.as_str())
+        .collect::<HashSet<_>>();
+    outcome
+        .extra_sources
+        .retain(|source| !vertical_urls.contains(source.url.as_str()));
 }
 
 fn successful_provider(attempts: &[ProviderAttempt], seam: &str) -> &'static str {

@@ -887,7 +887,7 @@ fn declared_docs_search_falls_back_after_context7_returns_text_without_a_source(
 }
 
 #[test]
-fn declared_web_fetch_validates_the_known_url_without_changing_the_main_answer() {
+fn declared_web_fetch_adds_a_content_preview_candidate_without_changing_the_main_answer() {
     let main = Fixture::start(
         200,
         "text/event-stream",
@@ -907,7 +907,7 @@ fn declared_web_fetch_validates_the_known_url_without_changing_the_main_answer()
     let jina = Fixture::start(200, "application/json", &jina_response(&content));
     let config = format!(
         "{}\n[providers.tavily]\nurl = {:?}\nkeys = [\"tavily-key\"]\ntimeout = 30\n\n[providers.firecrawl]\nurl = {:?}\nkeys = [\"firecrawl-key\"]\ntimeout = 30\n\n[providers.jina]\nurl = {:?}\nkeys = [\"jina-key\"]\ntimeout = 30\n\n[capabilities.web_fetch]\norder = [\"tavily\", \"firecrawl\", \"jina\"]\n",
-        search_config(&main.url, false),
+        search_config(&main.url, true),
         tavily.url,
         firecrawl.url,
         jina.url
@@ -921,23 +921,33 @@ fn declared_web_fetch_validates_the_known_url_without_changing_the_main_answer()
         "web_fetch",
     ]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let journal = read_only_journal(&environment);
+    let preview = payload["extra_sources"][0]["summary"]
+        .as_str()
+        .expect("fetched content preview");
 
     assert_eq!(
         (
             output.status.code(),
             &payload["answer"],
-            &payload["validation_results"],
+            payload.get("validation_results"),
+            &payload["extra_sources"][0]["url"],
+            &payload["extra_sources"][0]["provider"],
+            preview.chars().count(),
+            content.starts_with(preview),
             &payload["capability_gaps"],
+            &journal["result"]["extra_sources"],
         ),
         (
             Some(0),
             &Value::String("answer".into()),
-            &serde_json::json!([{
-                "url": "https://example.test/article",
-                "provider": "jina",
-                "status": "validated"
-            }]),
+            None,
+            &Value::String("https://example.test/article".into()),
+            &Value::String("jina".into()),
+            300,
+            true,
             &serde_json::json!([]),
+            &payload["extra_sources"],
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
@@ -953,7 +963,45 @@ fn declared_web_fetch_validates_the_known_url_without_changing_the_main_answer()
 }
 
 #[test]
-fn declared_web_fetch_does_not_report_all_failed_when_one_target_succeeds() {
+fn search_markdown_renders_fetched_previews_as_extra_sources() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let content = "Fetched evidence line one.\nFetched evidence line two.\n".repeat(12);
+    let jina = Fixture::start(200, "application/json", &jina_response(&content));
+    let config = format!(
+        "{}\n[providers.jina]\nurl = {:?}\nkeys = [\"jina-key\"]\ntimeout = 30\n\n[capabilities.web_fetch]\norder = [\"jina\"]\n",
+        search_config(&main.url, false),
+        jina.url
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Verify https://example.test/article",
+        "--capabilities",
+        "web_fetch",
+        "--format",
+        "markdown",
+    ]);
+    let markdown = String::from_utf8(output.stdout).expect("UTF-8 markdown");
+
+    assert_eq!(output.status.code(), Some(0));
+    assert!(markdown.contains("## Primary Sources"), "{markdown}");
+    assert!(markdown.contains("## Extra Sources"), "{markdown}");
+    assert!(
+        markdown.contains("[https://example.test/article](https://example.test/article) — jina"),
+        "{markdown}"
+    );
+    assert!(markdown.contains(&content[..120]), "{markdown}");
+    main.finish();
+    jina.finish();
+}
+
+#[test]
+fn declared_web_fetch_reports_a_partial_gap_when_one_target_succeeds() {
     let main = Fixture::start(
         200,
         "text/event-stream",
@@ -978,21 +1026,24 @@ fn declared_web_fetch_does_not_report_all_failed_when_one_target_succeeds() {
         "web_fetch",
     ]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let candidate = &payload["extra_sources"][0];
 
     assert_eq!(
         (
             output.status.code(),
-            &payload["validation_results"],
+            &candidate["url"],
+            &candidate["provider"],
             &payload["capability_gaps"],
         ),
         (
             Some(0),
+            &Value::String("https://example.test/one".into()),
+            &Value::String("jina".into()),
             &serde_json::json!([{
-                "url": "https://example.test/one",
-                "provider": "jina",
-                "status": "validated"
+                "capability": "web_fetch",
+                "reason": "partial_failure",
+                "providers_skipped": []
             }]),
-            &serde_json::json!([]),
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
@@ -1037,15 +1088,17 @@ fn declared_web_fetch_runs_known_urls_concurrently_and_preserves_url_order() {
     assert_eq!(
         (
             output.status.code(),
-            &payload["validation_results"],
+            payload["extra_sources"]
+                .as_array()
+                .expect("extra sources")
+                .iter()
+                .map(|source| source["url"].as_str().expect("source URL"))
+                .collect::<Vec<_>>(),
             &payload["capability_gaps"],
         ),
         (
             Some(0),
-            &serde_json::json!([
-                {"url": "https://example.test/one", "provider": "jina", "status": "validated"},
-                {"url": "https://example.test/two", "provider": "jina", "status": "validated"}
-            ]),
+            vec!["https://example.test/one", "https://example.test/two"],
             &serde_json::json!([]),
         ),
         "elapsed: {elapsed:?}; stderr: {}",
@@ -1101,7 +1154,7 @@ fn concurrent_web_fetch_rate_limits_rotate_once_per_branch_with_a_bounded_burst(
     assert_eq!(
         (
             output.status.code(),
-            payload["validation_results"].as_array().map(Vec::len),
+            payload["extra_sources"].as_array().map(Vec::len),
             fetch_attempts.len(),
             fetch_attempts
                 .iter()
@@ -1121,7 +1174,79 @@ fn concurrent_web_fetch_rate_limits_rotate_once_per_branch_with_a_bounded_burst(
 }
 
 #[test]
-fn declared_vertical_search_runs_domainless_discovery_and_normalizes_url_results() {
+fn declared_vertical_search_keeps_url_results_only_in_vertical_results() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let anysearch = Fixture::start_sequence(vec![
+        Response::new(
+            200,
+            "application/json",
+            r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{}}}"#,
+        )
+        .with_header("mcp-session-id", "vertical-session"),
+        Response::new(202, "application/json", ""),
+        Response::new(
+            200,
+            "application/json",
+            r####"{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"### 1. Academic result\n- **URL**: https://example.test/paper\nPaper summary"}]}}"####,
+        ),
+    ]);
+    let tavily = Fixture::start(
+        200,
+        "application/json",
+        r#"{"results":[{"title":"Supplemental duplicate","url":"https://example.test/paper","content":"Provider-native summary"}]}"#,
+    );
+    let config = format!(
+        "{}\n[providers.anysearch]\nurl = {:?}\nkeys = [\"anysearch-key\"]\ntimeout = 30\n\n[providers.tavily]\nurl = {:?}\nkeys = [\"tavily-key\"]\ntimeout = 30\n\n[capabilities.web_search]\norder = [\"tavily\"]\n",
+        search_config(&main.url, true),
+        anysearch.url,
+        tavily.url
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Academic retrieval paper",
+        "--capabilities",
+        "web_search,vertical_search",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let journal = read_only_journal(&environment);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["vertical_results"][0]["url"],
+            payload.get("extra_sources"),
+            payload["sources"].as_array().map(Vec::len),
+            &payload["capability_gaps"],
+            &journal["result"]["vertical_results"],
+            &journal["result"]["extra_sources"],
+        ),
+        (
+            Some(0),
+            &Value::String("https://example.test/paper".into()),
+            None,
+            Some(1),
+            &serde_json::json!([]),
+            &payload["vertical_results"],
+            &serde_json::json!([]),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    main.finish();
+    let requests = anysearch.finish_all();
+    tavily.finish();
+    assert!(requests[2].contains(r#""name":"search""#));
+    assert!(!requests[2].contains(r#""domain""#));
+}
+
+#[test]
+fn search_markdown_renders_vertical_results_without_extra_sources() {
     let main = Fixture::start(
         200,
         "text/event-stream",
@@ -1153,29 +1278,20 @@ fn declared_vertical_search_runs_domainless_discovery_and_normalizes_url_results
         "Academic retrieval paper",
         "--capabilities",
         "vertical_search",
+        "--format",
+        "markdown",
     ]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let markdown = String::from_utf8(output.stdout).expect("UTF-8 markdown");
 
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["vertical_results"][0]["url"],
-            &payload["extra_sources"][0]["url"],
-            &payload["capability_gaps"],
-        ),
-        (
-            Some(0),
-            &Value::String("https://example.test/paper".into()),
-            &Value::String("https://example.test/paper".into()),
-            &serde_json::json!([]),
-        ),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
+    assert_eq!(output.status.code(), Some(0));
+    assert!(markdown.contains("## Vertical Results"), "{markdown}");
+    assert!(
+        markdown.contains("[Academic result](https://example.test/paper) — Paper summary"),
+        "{markdown}"
     );
+    assert!(!markdown.contains("## Extra Sources"), "{markdown}");
     main.finish();
-    let requests = anysearch.finish_all();
-    assert!(requests[2].contains(r#""name":"search""#));
-    assert!(!requests[2].contains(r#""domain""#));
+    anysearch.finish_all();
 }
 
 #[test]
@@ -1223,14 +1339,14 @@ fn combined_declaration_executes_only_declared_seams_in_vocabulary_order() {
             output.status.code(),
             payload.get("capabilities"),
             seams,
-            &payload["validation_results"],
+            payload.get("validation_results"),
             &payload["vertical_results"],
         ),
         (
             Some(0),
             None,
             vec!["main_search", "docs_search", "web_search"],
-            &Value::Null,
+            None,
             &Value::Null,
         )
     );

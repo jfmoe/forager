@@ -9,8 +9,9 @@ forager search "QUERY" --capabilities CAPABILITIES --format json
 ```
 
 Use the Direct retrieval branch in `SKILL.md` when a known URL or PDF supplies the required
-content. In ordinary search, `web_fetch` currently contributes URL validation rather than content
-to `answer`.
+content. When ordinary search declares `web_fetch`, each successfully fetched known URL becomes a
+Supplemental Search Candidate with the actual Web Fetch provider and a 300-character preview of
+the Normalized Fetch Content; it does not change `answer`.
 
 Set `--extra-sources` only to control supplemental breadth. A selected supplemental capability has
 an effective minimum of one result, so `0` and `1` currently match; use `1` to `3` for normal
@@ -22,8 +23,11 @@ coverage and increase it only for an explicitly broad request.
 - `sources` contains only Primary Search Sources attributed to the main answer.
 - `extra_sources` contains only Supplemental Search Candidates. Use each candidate's provider,
   optional title, and provider-native summary to choose a small number of URLs to fetch as
-  claim-level evidence. A candidate is not evidence before its content is fetched.
-- `vertical_results` without URLs are structured discovery results, not sources or evidence.
+  claim-level evidence. Provider-native summaries are not truncated; only previews derived from a
+  full search-side Web Fetch use the 300-character rule. A candidate is not evidence before its
+  content is fetched.
+- `vertical_results` contains complete Vertical Discovery results. They are not copied into
+  `sources` or `extra_sources`, even when they contain URLs.
 - Disclose every `capability_gaps` entry and its effect on coverage.
 
 For high-risk, time-sensitive, or source-backed claims, fetch the key URLs and limit the answer to

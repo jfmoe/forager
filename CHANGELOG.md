@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- separate search-side Web Fetch previews and Vertical Discovery results, and remove `validation_results` ([#101](https://github.com/jfmoe/forager/issues/101))
+
 ## [0.1.2](https://github.com/jfmoe/forager/compare/v0.1.1...v0.1.2) - 2026-08-02
 
 ### Added

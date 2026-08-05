@@ -452,8 +452,6 @@ pub struct SearchOutcome {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub extra_sources: Vec<SupplementalSearchCandidate>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub validation_results: Vec<ValidationResult>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub vertical_results: Vec<AnysearchResult>,
     #[serde(skip)]
     pub capabilities: Vec<Capability>,
@@ -576,14 +574,6 @@ pub struct ResearchError {
     pub capability_gaps: Vec<CapabilityGap>,
     /// Non-fatal diagnostic text for standard error.
     pub diagnostic: Option<String>,
-}
-
-#[derive(Clone, Debug, Serialize)]
-/// The outcome of validating whether a source URL is usable as evidence.
-pub struct ValidationResult {
-    pub url: String,
-    pub provider: &'static str,
-    pub status: &'static str,
 }
 
 #[derive(Clone, Debug, Serialize)]

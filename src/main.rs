@@ -268,6 +268,24 @@ fn render_search(
                             }
                         }
                     }
+                    if !outcome.vertical_results.is_empty() {
+                        markdown.push_str("\n\n## Vertical Results\n");
+                        for result in &outcome.vertical_results {
+                            if result.url.is_empty() {
+                                let _ = write!(
+                                    markdown,
+                                    "\n- **{}** — {}",
+                                    result.title, result.description
+                                );
+                            } else {
+                                let _ = write!(
+                                    markdown,
+                                    "\n- [{}]({}) — {}",
+                                    result.title, result.url, result.description
+                                );
+                            }
+                        }
+                    }
                     markdown
                 }
                 DocsOutputFormat::Content => outcome.answer.clone(),

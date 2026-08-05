@@ -109,7 +109,6 @@ impl Xai {
             answer,
             sources,
             extra_sources: Vec::new(),
-            validation_results: Vec::new(),
             vertical_results: Vec::new(),
             capabilities: Vec::new(),
             capability_gaps: Vec::new(),
