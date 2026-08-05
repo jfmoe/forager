@@ -7,6 +7,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0](https://github.com/jfmoe/forager/compare/v0.1.2...v0.2.0) - 2026-08-05
+
+### Added
+
+- *(research)* deliver file-backed evidence index ([#104](https://github.com/jfmoe/forager/pull/104))
+- *(research)* account for known URLs and terminal gaps ([#103](https://github.com/jfmoe/forager/pull/103))
+- *(research)* budget evidence per subquestion
+- *(search)* separate fetch and vertical results ([#101](https://github.com/jfmoe/forager/pull/101))
+- *(search)* separate supplemental candidates ([#100](https://github.com/jfmoe/forager/pull/100))
+- normalize web fetch content contract ([#99](https://github.com/jfmoe/forager/pull/99))
+
+### Fixed
+
+- preserve docs fallback after empty Context7 sources ([#95](https://github.com/jfmoe/forager/pull/95))
+
+### Other
+
+- document v0.2.0 output migration ([#106](https://github.com/jfmoe/forager/pull/106))
+- *(skill)* rewrite forager orchestration ([#105](https://github.com/jfmoe/forager/pull/105))
+- define consumable search and research outputs
+- define inline citation binding
+- decide skill search orchestration contract
+- decide research engine evidence pipeline contract
+- record Context7 MCP output contract
+- retain current stdout contract
+- decide provider-first fetch content contract
+- require post-release local validation
+
 ### Changed
 
 - Web Fetch now returns provider-independent Normalized Fetch Content and uses the shared `Tavily → Firecrawl → Jina` chain for URLs, PDFs, search-side fetches, and research evidence ([#99](https://github.com/jfmoe/forager/issues/99)).
