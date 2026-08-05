@@ -22,6 +22,30 @@ fn repository_exposes_forager_as_an_installable_skill() {
 }
 
 #[test]
+fn skill_documents_the_context7_library_id_workflow() {
+    let skill =
+        fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("skills/forager/SKILL.md"))
+            .expect("read installable forager skill");
+    let skill = skill.split_whitespace().collect::<Vec<_>>().join(" ");
+
+    for required_guidance in [
+        "forager context7 library NAME QUERY",
+        "`/owner/project[/version]`",
+        "reuse the same `library_id`",
+        "keep the versioned ID",
+        "`library_id` is not a URL",
+        "do not pass it to `fetch`",
+        "absolute URL",
+        "do not invent a source",
+    ] {
+        assert!(
+            skill.contains(required_guidance),
+            "Context7 workflow is missing `{required_guidance}`"
+        );
+    }
+}
+
+#[test]
 fn cli_reference_covers_the_public_cli_surface() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let cli = fs::read_to_string(root.join("skills/forager/references/cli.md"))

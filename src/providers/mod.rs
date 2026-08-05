@@ -213,7 +213,7 @@ impl DocsSearch for Context7 {
     fn search<'a>(
         &'a self,
         query: &'a str,
-        limit: u16,
+        _limit: u16,
     ) -> Pin<Box<dyn Future<Output = Result<SupplementalSearchOutcome, ProviderError>> + Send + 'a>>
     {
         Box::pin(async move {
@@ -255,20 +255,8 @@ impl DocsSearch for Context7 {
             };
             let mut attempts = library.attempts;
             attempts.append(&mut docs.attempts);
-            let mut sources = docs
-                .results
-                .iter()
-                .filter_map(context7_source)
-                .take(usize::from(limit))
-                .collect::<Vec<_>>();
-            if let Some(source) = sources.first_mut()
-                && source.text.is_none()
-                && !docs.content.trim().is_empty()
-            {
-                source.text = Some(docs.content);
-            }
             Ok(SupplementalSearchOutcome {
-                sources,
+                sources: Vec::new(),
                 attempts,
                 diagnostic: combine_diagnostics(
                     [library.diagnostic, docs.diagnostic].into_iter().flatten(),
@@ -276,27 +264,6 @@ impl DocsSearch for Context7 {
             })
         })
     }
-}
-
-fn context7_source(value: &serde_json::Value) -> Option<Source> {
-    let fields = value.as_object()?;
-    let url = fields.get("url")?.as_str()?;
-    Some(Source {
-        title: fields
-            .get("title")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or("Context7 documentation")
-            .to_owned(),
-        url: redact_url(url),
-        published_date: None,
-        author: None,
-        text: fields
-            .get("text")
-            .or_else(|| fields.get("content"))
-            .and_then(serde_json::Value::as_str)
-            .map(ToOwned::to_owned),
-        highlights: Vec::new(),
-    })
 }
 
 impl MainSearch for Xai {

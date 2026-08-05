@@ -634,10 +634,6 @@ pub struct Context7DocsOutcome {
     pub library_id: String,
     pub query: String,
     pub content: String,
-    pub code_snippets: Vec<serde_json::Value>,
-    pub info_snippets: Vec<serde_json::Value>,
-    pub results: Vec<serde_json::Value>,
-    pub total: usize,
     #[serde(rename = "provider_attempts", skip_serializing_if = "Vec::is_empty")]
     pub attempts: Vec<ProviderAttempt>,
     #[serde(skip)]

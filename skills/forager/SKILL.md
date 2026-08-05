@@ -38,6 +38,13 @@ available tool with authenticated access, such as a browser, to retrieve its con
 Commands under `exa`, `context7`, and `anysearch` bypass capability routing. Use them when the user
 requests that provider or the operation exists only as a direct command.
 
+For direct Context7 documentation, run `forager context7 library NAME QUERY` first to obtain a
+`library_id`; if the user already supplied a valid `/owner/project[/version]`, skip resolution. For
+later single-topic queries about the same library, reuse the same `library_id` and change only the
+query; when the user requested a version, keep the versioned ID. A `library_id` is not a URL; do not
+pass it to `fetch`. If the returned content contains an absolute URL, decide whether the task's risk
+warrants fetching it; if it contains no URL, do not invent a source.
+
 Complete this branch when it returns the requested content or page set, or route its observed
 failure to Diagnose or configure.
 

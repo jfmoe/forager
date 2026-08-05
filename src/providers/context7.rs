@@ -144,14 +144,6 @@ impl Context7 {
                 outcome.library_id = self.credentials.redact(&outcome.library_id);
                 outcome.query = self.credentials.redact(&outcome.query);
                 outcome.content = self.credentials.redact(&outcome.content);
-                for value in outcome
-                    .code_snippets
-                    .iter_mut()
-                    .chain(&mut outcome.info_snippets)
-                    .chain(&mut outcome.results)
-                {
-                    redact_json(value, &self.credentials);
-                }
             }
         }
         outcome
@@ -208,20 +200,12 @@ impl Context7Operation {
                 DecodedOutcome::Libraries(results)
             }
             Self::Docs(_) => {
-                let code_snippets = array_field(&data, &["codeSnippets", "code_snippets"]);
-                let info_snippets = array_field(&data, &["infoSnippets", "info_snippets"]);
-                let results = array_field(&data, &["results", "items"]);
                 let content = data
                     .get("content")
                     .and_then(Value::as_str)
                     .unwrap_or(&result.text)
                     .to_owned();
-                DecodedOutcome::Docs {
-                    content,
-                    code_snippets,
-                    info_snippets,
-                    results,
-                }
+                DecodedOutcome::Docs(content)
             }
         })
     }
@@ -246,28 +230,12 @@ impl Context7Operation {
                     diagnostic,
                 })
             }
-            (
-                Self::Docs(request),
-                DecodedOutcome::Docs {
-                    content,
-                    code_snippets,
-                    info_snippets,
-                    mut results,
-                },
-            ) => {
-                if results.is_empty() {
-                    results.extend(code_snippets.iter().chain(&info_snippets).cloned());
-                }
-                let total = results.len();
+            (Self::Docs(request), DecodedOutcome::Docs(content)) => {
                 Context7Outcome::Docs(Context7DocsOutcome {
                     provider: "context7",
                     library_id: request.library_id.clone(),
                     query: request.query.clone(),
                     content,
-                    code_snippets,
-                    info_snippets,
-                    results,
-                    total,
                     attempts,
                     diagnostic,
                 })
@@ -290,12 +258,7 @@ impl From<McpError> for Context7Failure {
 
 enum DecodedOutcome {
     Libraries(Vec<LibraryCandidate>),
-    Docs {
-        content: String,
-        code_snippets: Vec<Value>,
-        info_snippets: Vec<Value>,
-        results: Vec<Value>,
-    },
+    Docs(String),
 }
 
 struct Context7Failure {
@@ -404,14 +367,6 @@ fn integer_field(item: &Map<String, Value>, names: &[&str]) -> Option<u64> {
         .find_map(|name| item.get(*name).and_then(Value::as_u64))
 }
 
-fn array_field(data: &Value, names: &[&str]) -> Vec<Value> {
-    names
-        .iter()
-        .find_map(|name| data.get(*name).and_then(Value::as_array))
-        .cloned()
-        .unwrap_or_default()
-}
-
 fn redirect_target(data: &Value, text: &str) -> Option<String> {
     redirect_target_in_data(data).or_else(|| {
         let lower = text.to_ascii_lowercase();
@@ -446,22 +401,5 @@ fn redirect_target_in_data(data: &Value) -> Option<String> {
         }
         Value::Array(values) => values.iter().find_map(redirect_target_in_data),
         _ => None,
-    }
-}
-
-fn redact_json(value: &mut Value, credentials: &CredentialPool) {
-    match value {
-        Value::String(text) => *text = credentials.redact(text),
-        Value::Array(values) => {
-            for value in values {
-                redact_json(value, credentials);
-            }
-        }
-        Value::Object(fields) => {
-            for value in fields.values_mut() {
-                redact_json(value, credentials);
-            }
-        }
-        _ => {}
     }
 }

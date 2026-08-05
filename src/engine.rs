@@ -80,15 +80,17 @@ impl CapabilityBranch {
     }
 }
 
-async fn run_provider_chain<C, T, Run, Fut>(
+async fn run_provider_chain<C, T, Run, Fut, Accept>(
     entries: Vec<SeamEntry<C>>,
     settings: ChainSettings,
     deadline: Deadline,
+    accept: Accept,
     mut run: Run,
 ) -> Result<ChainStep<T>, ProviderError>
 where
     Run: FnMut(providers::ProviderId, C, Deadline) -> Fut,
     Fut: std::future::Future<Output = Result<ChainStep<T>, ProviderError>>,
+    Accept: Fn(&T) -> bool,
 {
     let entries = if settings.fallback_off {
         entries.into_iter().take(1).collect::<Vec<_>>()
@@ -101,6 +103,7 @@ where
     let total = entries.len();
     let mut attempts = Vec::new();
     let mut diagnostics = Vec::new();
+    let mut unconsumed_success = None;
     for (index, entry) in entries.into_iter().enumerate() {
         let (id, config, configured) = entry.into_parts();
         if !configured {
@@ -136,11 +139,14 @@ where
                 if let Some(diagnostic) = step.diagnostic.take() {
                     diagnostics.push(diagnostic);
                 }
-                return Ok(ChainStep {
-                    value: step.value,
-                    attempts,
-                    diagnostic: combine_diagnostics(diagnostics),
-                });
+                if accept(&step.value) {
+                    return Ok(ChainStep {
+                        value: step.value,
+                        attempts,
+                        diagnostic: combine_diagnostics(diagnostics),
+                    });
+                }
+                unconsumed_success = Some(step.value);
             }
             Err(mut error) => {
                 attempts.append(&mut error.attempts);
@@ -149,6 +155,13 @@ where
                 }
             }
         }
+    }
+    if let Some(value) = unconsumed_success {
+        return Ok(ChainStep {
+            value,
+            attempts,
+            diagnostic: combine_diagnostics(diagnostics),
+        });
     }
     Err(provider_chain_error(
         attempts,
@@ -521,6 +534,7 @@ pub(crate) async fn search(
             fallback_off: fallback == "off",
         },
         deadline,
+        |_| true,
         |id, provider_config, provider_deadline| {
             let client = client.clone();
             let request = request.clone();
@@ -568,6 +582,7 @@ pub(crate) async fn fetch(
             fallback_off: false,
         },
         deadline,
+        |_| true,
         |id, provider_config, provider_deadline| {
             let client = client.clone();
             let request = request.clone();
@@ -634,6 +649,7 @@ pub(crate) async fn supplemental_web_search(
             fallback_off,
         },
         execution.deadline,
+        |_| true,
         |id, provider_config, deadline| {
             let client = execution.client.clone();
             async move {
@@ -678,6 +694,7 @@ pub(crate) async fn documentation_search(
             fallback_off: execution.fallback == "off",
         },
         execution.deadline,
+        |sources: &Vec<Source>| !sources.is_empty(),
         |id, provider_config, deadline| {
             let client = execution.client.clone();
             async move {
@@ -722,6 +739,7 @@ pub(crate) async fn vertical_search(
             fallback_off: execution.fallback == "off",
         },
         execution.deadline,
+        |_| true,
         |id, provider_config, deadline| {
             let client = execution.client.clone();
             async move {

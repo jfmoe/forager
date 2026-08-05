@@ -1,5 +1,6 @@
 mod support;
 
+use std::collections::BTreeSet;
 use std::fs;
 use std::process::{Command, Output};
 use std::time::Duration;
@@ -72,7 +73,7 @@ fn context7_library_initializes_the_mcp_session_and_normalizes_json_results() {
 }
 
 #[test]
-fn context7_docs_decodes_sse_and_emits_content_and_snippets() {
+fn context7_docs_default_json_contains_only_the_readable_payload() {
     let fixture = Fixture::start_sequence(vec![
         Response::sse(
             200,
@@ -97,25 +98,76 @@ fn context7_docs_decodes_sse_and_emits_content_and_snippets() {
     assert_eq!(
         (
             output.status.code(),
-            &payload["library_id"],
+            payload
+                .as_object()
+                .expect("Context7 docs object")
+                .keys()
+                .map(String::as_str)
+                .collect::<BTreeSet<_>>(),
             &payload["content"],
-            &payload["code_snippets"][0]["code"],
-            &payload["info_snippets"][0]["text"],
-            payload["results"].as_array().map(Vec::len),
             requests[2].contains(r#""name":"query-docs""#),
         ),
         (
             Some(0),
-            &Value::String("/rust-lang/rust".into()),
+            BTreeSet::from(["content", "library_id", "provider", "query"]),
             &Value::String("Async drop documentation".into()),
-            &Value::String("async fn drop() {}".into()),
-            &Value::String("Drop is synchronous".into()),
-            Some(2),
             true,
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+}
+
+#[test]
+fn context7_docs_verbose_json_adds_only_provider_attempts() {
+    let fixture = Fixture::start_sequence(vec![
+        initialize("verbose-docs"),
+        Response::json(202, ""),
+        Response::json(
+            200,
+            r#"{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"Readable MCP text"}]}}"#,
+        ),
+    ]);
+
+    let output = run(
+        &fixture,
+        &[
+            "context7",
+            "docs",
+            "/rust-lang/rust",
+            "async drop",
+            "--verbose",
+        ],
+        &["context-key"],
+    );
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            payload
+                .as_object()
+                .expect("Context7 docs object")
+                .keys()
+                .map(String::as_str)
+                .collect::<BTreeSet<_>>(),
+            payload["provider_attempts"].as_array().map(Vec::len),
+        ),
+        (
+            Some(0),
+            BTreeSet::from([
+                "content",
+                "library_id",
+                "provider",
+                "provider_attempts",
+                "query",
+            ]),
+            Some(1),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    fixture.finish_all();
 }
 
 #[test]

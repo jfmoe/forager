@@ -713,7 +713,7 @@ fn declared_docs_search_uses_the_configured_registry_chain() {
 }
 
 #[test]
-fn declared_docs_search_resolves_and_queries_context7_through_one_registry_provider() {
+fn declared_docs_search_returns_a_legal_empty_result_when_context7_has_no_source() {
     let main = Fixture::start(
         200,
         "text/event-stream",
@@ -742,7 +742,7 @@ fn declared_docs_search_resolves_and_queries_context7_through_one_registry_provi
         Response::new(
             200,
             "application/json",
-            r#"{"jsonrpc":"2.0","id":2,"result":{"structuredContent":{"content":"Ownership docs","results":[{"title":"Ownership","url":"https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html"}]},"content":[]}}"#,
+            r#"{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"Ownership docs without a source URL"}]}}"#,
         ),
     ]);
     let config = format!(
@@ -764,16 +764,11 @@ fn declared_docs_search_resolves_and_queries_context7_through_one_registry_provi
     assert_eq!(
         (
             output.status.code(),
-            &payload["extra_sources"][0]["url"],
+            payload.get("extra_sources").is_none(),
+            &payload["capability_gaps"],
             payload["provider_attempts"].as_array().map(Vec::len),
         ),
-        (
-            Some(0),
-            &Value::String(
-                "https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html".into()
-            ),
-            Some(3),
-        ),
+        (Some(0), true, &serde_json::json!([]), Some(3),),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
@@ -781,6 +776,85 @@ fn declared_docs_search_resolves_and_queries_context7_through_one_registry_provi
     let requests = context7.finish_all();
     assert!(requests[2].contains(r#""name":"resolve-library-id""#));
     assert!(requests[5].contains(r#""name":"query-docs""#));
+}
+
+#[test]
+fn declared_docs_search_falls_back_after_context7_returns_text_without_a_source() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let context7 = Fixture::start_sequence(vec![
+        Response::json(
+            200,
+            r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{},"serverInfo":{"name":"context7","version":"1"}}}"#,
+        )
+        .with_session("library-session"),
+        Response::json(202, ""),
+        Response::json(
+            200,
+            r#"{"jsonrpc":"2.0","id":2,"result":{"structuredContent":{"results":[{"id":"/rust-lang/rust","title":"Rust"}]},"content":[]}}"#,
+        ),
+        Response::json(
+            200,
+            r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{},"serverInfo":{"name":"context7","version":"1"}}}"#,
+        )
+        .with_session("docs-session"),
+        Response::json(202, ""),
+        Response::json(
+            200,
+            r#"{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"Readable documentation without a source URL"}]}}"#,
+        ),
+    ]);
+    let exa = Fixture::start(
+        200,
+        "application/json",
+        r#"{"results":[{"title":"Rust ownership","url":"https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html"}]}"#,
+    );
+    let config = format!(
+        "{}\n[providers.context7]\nurl = {:?}\nkeys = [\"context7-key\"]\ntimeout = 30\n\n[providers.exa]\nurl = {:?}\nkeys = [\"exa-key\"]\ntimeout = 30\n\n[capabilities.docs_search]\norder = [\"context7\", \"exa\"]\n",
+        search_config(&main.url, false),
+        context7.url,
+        exa.url,
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Rust ownership",
+        "--capabilities",
+        "docs_search",
+        "--verbose",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let docs_attempt_providers = payload["provider_attempts"]
+        .as_array()
+        .expect("provider attempts")
+        .iter()
+        .filter(|attempt| attempt["seam"] == "docs_search")
+        .map(|attempt| attempt["provider"].as_str().expect("attempt provider"))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["extra_sources"][0]["url"],
+            docs_attempt_providers,
+        ),
+        (
+            Some(0),
+            &Value::String(
+                "https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html".into()
+            ),
+            vec!["context7", "context7", "exa"],
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    main.finish();
+    context7.finish_all();
+    exa.finish();
 }
 
 #[test]
