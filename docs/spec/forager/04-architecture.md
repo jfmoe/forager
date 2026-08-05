@@ -53,7 +53,9 @@ main → app → {engine, research, classifier, doctor, journal}
 
 ## web_fetch 薄正文质量门控
 
-只对 HTTP 成功响应生效，判定对象为提取后正文文本。两线命中任一 → `Quality`（Content 族）落下一家：**长度线**正文 < 200 字符；**密度线**唯一行数 ≤ 3 且总长 < 500。PDF 只适用长度线。全链皆薄 → 终态 Quality 退 5，attempts 带实测字符数。阈值为 types 具名常量，**不设配置键**。
+Web Fetch 成功值是 **Normalized Fetch Content**：从成功 provider 响应解码出的 provider 无关 Markdown 正文，不含传输包装、attempts 或 diagnostic。默认链为 `Tavily → Firecrawl → Jina`，直接 fetch、research 取证、search-side Web Fetch 与 PDF 都消费同一个配置和执行入口，不存在内容类型专属顺序。Tavily 固定请求完整 basic Markdown 且不传 query chunks；Firecrawl 显式请求 Markdown 并固定 `onlyMainContent: true`；Jina 通过官方结构化 JSON 响应的 `data.content` 读取正文，不启用链接删除或通用 selector。
+
+薄正文门只对 HTTP 成功并完成 provider 解码后的正文生效。两线命中任一 → `Quality`（Content 族）落下一家：**长度线**正文 < 200 字符；**密度线**唯一行数 ≤ 3 且总长 < 500。PDF 只适用长度线。全链皆薄 → 终态 Quality 退 5，attempts 带实测字符数。阈值为 types 具名常量，**不设配置键**。4 MiB 截断继续是成功加 diagnostic；只有截断后正文仍薄才 fallback。64 KiB 错误响应上限不变。
 
 ## journal
 

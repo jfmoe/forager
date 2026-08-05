@@ -191,7 +191,7 @@ impl Default for Capabilities {
     fn default() -> Self {
         Self {
             web_search: Order::new(&["tavily", "firecrawl"]),
-            web_fetch: Order::new(&["jina", "tavily", "firecrawl"]),
+            web_fetch: Order::new(&["tavily", "firecrawl", "jina"]),
             docs_search: Order::new(&["context7", "exa"]),
             vertical_search: Order::new(&["anysearch"]),
         }

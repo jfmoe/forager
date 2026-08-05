@@ -10,22 +10,33 @@ use support::{Fixture, Response, RunEnvironment};
 const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 
 #[test]
-fn fetch_follows_authoritative_order_and_falls_back_after_thin_html() {
-    let jina = Fixture::start(200, "text/markdown", "thin");
-    let rich_content = "Tavily fallback content. ".repeat(30);
-    let tavily_body = serde_json::json!({
-        "results": [{"raw_content": rich_content}]
+fn fetch_uses_the_shared_provider_order_and_falls_back_after_thin_html() {
+    let tavily = Fixture::start(
+        200,
+        "application/json",
+        r#"{"results":[{"raw_content":"thin"}]}"#,
+    );
+    let firecrawl = Fixture::start(
+        200,
+        "application/json",
+        r#"{"success":true,"data":{"markdown":"also thin"}}"#,
+    );
+    let rich_content = "Jina fallback content. ".repeat(30);
+    let jina_body = serde_json::json!({
+        "code": 200,
+        "status": 20000,
+        "data": {"content": rich_content}
     })
     .to_string();
-    let tavily = Fixture::start(200, "application/json", &tavily_body);
+    let jina = Fixture::start(200, "application/json", &jina_body);
     let config = fetch_config(
         &jina.url,
         &["jina-key"],
         &tavily.url,
         &["tavily-key"],
-        "http://127.0.0.1:9",
-        &[],
-        &["jina", "firecrawl", "tavily"],
+        &firecrawl.url,
+        &["firecrawl-key"],
+        &["tavily", "firecrawl", "jina"],
     );
     let environment = RunEnvironment::new(&config);
 
@@ -40,13 +51,17 @@ fn fetch_follows_authoritative_order_and_falls_back_after_thin_html() {
             &payload["provider_attempts"][0]["error_kind"],
             &payload["provider_attempts"][1]["provider"],
             &payload["provider_attempts"][1]["error_kind"],
+            &payload["provider_attempts"][2]["provider"],
+            &payload["provider_attempts"][2]["error_kind"],
         ),
         (
             Some(0),
-            &Value::String("tavily".into()),
             &Value::String("jina".into()),
-            &Value::String("quality".into()),
             &Value::String("tavily".into()),
+            &Value::String("quality".into()),
+            &Value::String("firecrawl".into()),
+            &Value::String("quality".into()),
+            &Value::String("jina".into()),
             &Value::Null,
         ),
         "stderr: {}",
@@ -54,11 +69,12 @@ fn fetch_follows_authoritative_order_and_falls_back_after_thin_html() {
     );
     jina.finish();
     tavily.finish();
+    firecrawl.finish();
 }
 
 #[test]
 fn fetch_reports_quality_when_every_configured_provider_is_thin() {
-    let jina = Fixture::start(200, "text/markdown", "");
+    let jina = Fixture::start(200, "application/json", &jina_response(""));
     let tavily = Fixture::start(
         200,
         "application/json",
@@ -98,7 +114,7 @@ fn fetch_reports_quality_when_every_configured_provider_is_thin() {
 
 #[test]
 fn fetch_terminal_kind_and_message_describe_the_same_attempt() {
-    let jina = Fixture::start(200, "text/markdown", "thin");
+    let jina = Fixture::start(200, "application/json", &jina_response("thin"));
     let tavily = Fixture::start(
         503,
         "application/json",
@@ -135,15 +151,25 @@ fn fetch_terminal_kind_and_message_describe_the_same_attempt() {
 #[test]
 fn fetch_applies_only_the_length_line_to_pdf_content() {
     let content = "P".repeat(250);
-    let jina = Fixture::start(200, "text/markdown", &content);
+    let tavily = Fixture::start(
+        200,
+        "application/json",
+        r#"{"results":[{"raw_content":"thin"}]}"#,
+    );
+    let firecrawl = Fixture::start(
+        200,
+        "application/json",
+        r#"{"success":true,"data":{"markdown":"also thin"}}"#,
+    );
+    let jina = Fixture::start(200, "application/json", &jina_response(&content));
     let config = fetch_config(
         &jina.url,
         &["jina-key"],
-        "http://127.0.0.1:9",
-        &[],
-        "http://127.0.0.1:9",
-        &[],
-        &["jina", "tavily", "firecrawl"],
+        &tavily.url,
+        &["tavily-key"],
+        &firecrawl.url,
+        &["firecrawl-key"],
+        &["tavily", "firecrawl", "jina"],
     );
     let environment = RunEnvironment::new(&config);
 
@@ -159,6 +185,8 @@ fn fetch_applies_only_the_length_line_to_pdf_content() {
         (Some(0), &Value::String("jina".into()), Some(250))
     );
     jina.finish();
+    tavily.finish();
+    firecrawl.finish();
 }
 
 #[test]
@@ -166,7 +194,8 @@ fn fetch_truncates_oversized_content_on_a_utf8_boundary_with_a_diagnostic() {
     let mut content = "a".repeat(MAX_RESPONSE_BYTES - 1);
     content.push('€');
     content.push_str("unreachable suffix");
-    let jina = Fixture::start(200, "text/markdown", &content);
+    let body = format!(r#"{{"data":{{"content":"{content}"#);
+    let jina = Fixture::start(200, "application/json", &body);
     let config = fetch_config(
         &jina.url,
         &["jina-key"],
@@ -181,19 +210,110 @@ fn fetch_truncates_oversized_content_on_a_utf8_boundary_with_a_diagnostic() {
     let output = environment.run(&["fetch", "https://example.test/large"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
 
+    assert!(
+        output.status.success()
+            && payload["content"]
+                .as_str()
+                .is_some_and(|content| content.len() > MAX_RESPONSE_BYTES - 100)
+            && String::from_utf8_lossy(&output.stderr) == "content truncated at 4 MiB\n",
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    jina.finish();
+}
+
+#[test]
+fn fetch_falls_back_when_truncated_content_is_still_thin() {
+    let tavily_body = format!(
+        r#"{{"results":[{{"raw_content":"thin","padding":"{}"#,
+        "x".repeat(MAX_RESPONSE_BYTES)
+    );
+    let tavily = Fixture::start(200, "application/json", &tavily_body);
+    let rich_content = "Firecrawl fallback after truncated thin content. ".repeat(20);
+    let firecrawl_body = serde_json::json!({
+        "success": true,
+        "data": {"markdown": rich_content}
+    })
+    .to_string();
+    let firecrawl = Fixture::start(200, "application/json", &firecrawl_body);
+    let config = fetch_config(
+        "http://127.0.0.1:9",
+        &[],
+        &tavily.url,
+        &["tavily-key"],
+        &firecrawl.url,
+        &["firecrawl-key"],
+        &["tavily", "firecrawl", "jina"],
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&["fetch", "https://example.test/large", "--verbose"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
     assert_eq!(
         (
             output.status.code(),
-            payload["content"].as_str().map(str::len),
+            &payload["provider"],
+            &payload["provider_attempts"][0]["provider"],
+            &payload["provider_attempts"][0]["error_kind"],
+            &payload["provider_attempts"][1]["provider"],
             String::from_utf8_lossy(&output.stderr).as_ref(),
         ),
         (
             Some(0),
-            Some(MAX_RESPONSE_BYTES - 1),
+            &Value::String("firecrawl".into()),
+            &Value::String("tavily".into()),
+            &Value::String("quality".into()),
+            &Value::String("firecrawl".into()),
             "content truncated at 4 MiB\n",
         )
     );
+    tavily.finish();
+    firecrawl.finish();
+}
+
+#[test]
+fn fetch_falls_back_when_jina_returns_malformed_structured_json() {
+    let jina = Fixture::start(200, "application/json", r#"{"data":null}"#);
+    let rich_content = "Tavily fallback after malformed Jina JSON. ".repeat(20);
+    let tavily_body = serde_json::json!({
+        "results": [{"raw_content": rich_content}]
+    })
+    .to_string();
+    let tavily = Fixture::start(200, "application/json", &tavily_body);
+    let config = fetch_config(
+        &jina.url,
+        &["jina-key"],
+        &tavily.url,
+        &["tavily-key"],
+        "http://127.0.0.1:9",
+        &[],
+        &["jina", "tavily", "firecrawl"],
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&["fetch", "https://example.test/article", "--verbose"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["provider"],
+            &payload["provider_attempts"][0]["provider"],
+            &payload["provider_attempts"][0]["error_kind"],
+            &payload["provider_attempts"][1]["provider"],
+        ),
+        (
+            Some(0),
+            &Value::String("tavily".into()),
+            &Value::String("jina".into()),
+            &Value::String("runtime".into()),
+            &Value::String("tavily".into()),
+        )
+    );
     jina.finish();
+    tavily.finish();
 }
 
 #[test]
@@ -361,13 +481,13 @@ fn fetch_attributes_only_tavilys_final_attempt_after_rotation() {
 
 #[test]
 fn fetch_retries_a_timed_out_attempt_inside_the_shared_deadline() {
-    let rich_content = "Retried Jina content. ".repeat(30);
+    let rich_content = jina_response(&"Retried Jina content. ".repeat(30));
     let jina = Fixture::start_sequence(vec![
         delayed(
-            Response::new(200, "text/markdown", "too late"),
+            Response::new(200, "application/json", &jina_response("too late")),
             Duration::from_millis(1100),
         ),
-        Response::new(202, "text/markdown", &rich_content),
+        Response::new(202, "application/json", &rich_content),
     ]);
     let config = fetch_config(
         &jina.url,
@@ -415,7 +535,7 @@ fn fetch_retries_a_timed_out_attempt_inside_the_shared_deadline() {
 #[test]
 fn fetch_preserves_fallback_budget_under_one_hard_deadline() {
     let jina = Fixture::start_sequence(vec![delayed(
-        Response::new(200, "text/markdown", "too late"),
+        Response::new(200, "application/json", &jina_response("too late")),
         Duration::from_millis(6200),
     )]);
     let rich_content = "Deadline fallback content. ".repeat(30);
@@ -516,7 +636,7 @@ fn fetch_redacts_canaries_from_stdout_stderr_and_tee() {
 #[test]
 fn fetch_reports_timeout_when_the_command_deadline_expires() {
     let jina = Fixture::start_sequence(vec![delayed(
-        Response::new(200, "text/markdown", "too late"),
+        Response::new(200, "application/json", &jina_response("too late")),
         Duration::from_millis(1500),
     )]);
     let config = fetch_config(
@@ -623,4 +743,8 @@ enabled = false
 fn delayed(mut response: Response, delay: Duration) -> Response {
     response.delay = delay;
     response
+}
+
+fn jina_response(content: &str) -> String {
+    serde_json::json!({"data": {"content": content}}).to_string()
 }

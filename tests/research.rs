@@ -36,7 +36,11 @@ fn bare_research_executes_the_classifier_plan_through_the_research_pipeline() {
         "application/json",
         r#"{"results":[{"title":"Generated plan evidence","url":"https://example.test/generated"}]}"#,
     );
-    let jina = Fixture::start(200, "text/markdown", &rich_content("Generated plan body"));
+    let jina = Fixture::start(
+        200,
+        "application/json",
+        &jina_response(&rich_content("Generated plan body")),
+    );
     let environment = RunEnvironment::new(&bare_research_config(
         &classifier.url,
         &tavily.url,
@@ -114,7 +118,11 @@ fn bare_research_uses_the_fixed_web_search_plan_when_classifier_transport_fails(
         "application/json",
         r#"{"results":[{"title":"Fallback evidence","url":"https://example.test/fallback"}]}"#,
     );
-    let jina = Fixture::start(200, "text/markdown", &rich_content("Fallback body"));
+    let jina = Fixture::start(
+        200,
+        "application/json",
+        &jina_response(&rich_content("Fallback body")),
+    );
     let environment = RunEnvironment::new(&bare_research_config(
         &classifier.url,
         &tavily.url,
@@ -169,7 +177,11 @@ fn bare_research_degrades_when_classifier_returns_an_invalid_plan() {
         "application/json",
         r#"{"results":[{"title":"Fallback evidence","url":"https://example.test/invalid"}]}"#,
     );
-    let jina = Fixture::start(200, "text/markdown", &rich_content("Fallback body"));
+    let jina = Fixture::start(
+        200,
+        "application/json",
+        &jina_response(&rich_content("Fallback body")),
+    );
     let environment = RunEnvironment::new(&bare_research_config(
         &classifier.url,
         &tavily.url,
@@ -196,7 +208,11 @@ fn bare_research_preserves_classifier_metadata_on_an_evidence_terminal() {
     let mut plan = valid_plan(json!([]));
     plan["intent_signals"]["cross_validation_need"] = json!("high");
     let classifier = Fixture::start(200, "application/json", &classifier_response(plan));
-    let jina = Fixture::start(200, "text/markdown", &rich_content("Only evidence"));
+    let jina = Fixture::start(
+        200,
+        "application/json",
+        &jina_response(&rich_content("Only evidence")),
+    );
     let environment = RunEnvironment::new(&bare_fetch_research_config(
         &classifier.url,
         &jina.url,
@@ -296,7 +312,11 @@ fn research_rejects_strict_schema_v1_negative_cases_before_loading_config() {
 
 #[test]
 fn research_reads_plan_from_stdin_and_normalizes_capabilities_in_declared_order() {
-    let jina = Fixture::start(200, "text/markdown", &rich_content("Known evidence"));
+    let jina = Fixture::start(
+        200,
+        "application/json",
+        &jina_response(&rich_content("Known evidence")),
+    );
     let environment = RunEnvironment::new(&fetch_only_config(&jina.url, true));
     let plan = valid_plan(json!(["vertical_search", "docs_search", "vertical_search"]));
 
@@ -334,14 +354,30 @@ fn research_reads_plan_from_stdin_and_normalizes_capabilities_in_declared_order(
 
 #[test]
 fn research_discovers_then_fetches_before_emitting_claims_and_journals_evidence() {
-    let tavily = Fixture::start(
+    let tavily = Fixture::start_sequence(vec![
+        Response::new(
+            200,
+            "application/json",
+            r#"{"results":[{"title":"Discovery only","url":"https://example.test/evidence"}]}"#,
+        ),
+        Response::new(
+            200,
+            "application/json",
+            r#"{"results":[{"raw_content":"thin"}]}"#,
+        ),
+    ]);
+    let firecrawl = Fixture::start(
         200,
         "application/json",
-        r#"{"results":[{"title":"Discovery only","url":"https://example.test/evidence"}]}"#,
+        r#"{"success":true,"data":{"markdown":"also thin"}}"#,
     );
-    let jina = Fixture::start(200, "text/markdown", &rich_content("Fetched body"));
+    let jina = Fixture::start(
+        200,
+        "application/json",
+        &jina_response(&rich_content("Fetched body")),
+    );
     let evidence_dir = tempfile::tempdir().expect("evidence dir");
-    let config = research_config(&tavily.url, &jina.url, true);
+    let config = shared_fetch_research_config(&tavily.url, &firecrawl.url, &jina.url);
     let environment = RunEnvironment::new(&config);
     let plan_path = write_plan(&environment, valid_plan(json!(["web_search"])));
 
@@ -390,15 +426,20 @@ fn research_discovers_then_fetches_before_emitting_claims_and_journals_evidence(
             .iter()
             .map(|attempt| attempt["seam"].as_str().expect("seam"))
             .collect::<Vec<_>>(),
-        ["web_search", "web_fetch"]
+        ["web_search", "web_fetch", "web_fetch", "web_fetch"]
     );
-    tavily.finish();
+    assert_eq!(tavily.finish_all().len(), 2);
+    firecrawl.finish();
     jina.finish();
 }
 
 #[test]
 fn research_intent_signals_do_not_add_or_reorder_capability_seams() {
-    let jina = Fixture::start(200, "text/markdown", &rich_content("Known URL evidence"));
+    let jina = Fixture::start(
+        200,
+        "application/json",
+        &jina_response(&rich_content("Known URL evidence")),
+    );
     let environment = RunEnvironment::new(&fetch_only_config(&jina.url, false));
     let mut plan = valid_plan(json!([]));
     plan["intent_signals"] = json!({
@@ -437,7 +478,11 @@ fn research_intent_signals_do_not_add_or_reorder_capability_seams() {
 
 #[test]
 fn research_reports_provider_gaps_as_advisory_when_other_evidence_succeeds() {
-    let jina = Fixture::start(200, "text/markdown", &rich_content("Known URL evidence"));
+    let jina = Fixture::start(
+        200,
+        "application/json",
+        &jina_response(&rich_content("Known URL evidence")),
+    );
     let environment = RunEnvironment::new(&fetch_only_config(&jina.url, false));
     let plan_path = write_plan(&environment, valid_plan(json!(["web_search"])));
 
@@ -548,7 +593,11 @@ fn research_reports_error_summary_write_failures_without_replacing_the_terminal(
 
 #[test]
 fn research_returns_evidence_when_high_strength_requires_more_than_one_item() {
-    let jina = Fixture::start(200, "text/markdown", &rich_content("Only evidence"));
+    let jina = Fixture::start(
+        200,
+        "application/json",
+        &jina_response(&rich_content("Only evidence")),
+    );
     let environment = RunEnvironment::new(&fetch_only_config(&jina.url, true));
     let mut plan = valid_plan(json!([]));
     plan["intent_signals"]["cross_validation_need"] = json!("high");
@@ -578,7 +627,11 @@ fn research_returns_evidence_when_high_strength_requires_more_than_one_item() {
 
 #[test]
 fn research_quick_budget_does_not_weaken_high_strength_requirement() {
-    let jina = Fixture::start(200, "text/markdown", &rich_content("Only evidence"));
+    let jina = Fixture::start(
+        200,
+        "application/json",
+        &jina_response(&rich_content("Only evidence")),
+    );
     let environment = RunEnvironment::new(&fetch_only_config(&jina.url, true));
     let mut plan = valid_plan(json!([]));
     plan["intent_signals"]["source_authority_need"] = json!("high");
@@ -638,8 +691,8 @@ fn research_uses_the_fallback_docs_provider_after_context7_has_no_source() {
     );
     let jina = Fixture::start(
         200,
-        "text/markdown",
-        &rich_content("Fetched ownership docs"),
+        "application/json",
+        &jina_response(&rich_content("Fetched ownership docs")),
     );
     let config = format!(
         r#"
@@ -810,8 +863,8 @@ fn research_budget_limits_fetched_evidence_to_quick_standard_and_deep_caps() {
                 .map(|index| {
                     Response::new(
                         200,
-                        "text/markdown",
-                        &rich_content(&format!("Fetched {index}")),
+                        "application/json",
+                        &jina_response(&rich_content(&format!("Fetched {index}"))),
                     )
                 })
                 .collect(),
@@ -868,8 +921,8 @@ fn research_standard_budget_covers_each_subquestion_before_extra_evidence() {
             .map(|index| {
                 Response::new(
                     200,
-                    "text/markdown",
-                    &rich_content(&format!("Fetched {index}")),
+                    "application/json",
+                    &jina_response(&rich_content(&format!("Fetched {index}"))),
                 )
             })
             .collect(),
@@ -937,8 +990,16 @@ fn research_flattens_subquestions_into_one_ordered_concurrent_fanout() {
         .with_delay(Duration::from_secs(2)),
     ]);
     let jina = Fixture::start_parallel_sequence(vec![
-        Response::new(200, "text/markdown", &rich_content("First fetched")),
-        Response::new(200, "text/markdown", &rich_content("Second fetched")),
+        Response::new(
+            200,
+            "application/json",
+            &jina_response(&rich_content("First fetched")),
+        ),
+        Response::new(
+            200,
+            "application/json",
+            &jina_response(&rich_content("Second fetched")),
+        ),
     ]);
     let environment = RunEnvironment::new(&research_config(&tavily.url, &jina.url, false));
     let mut plan = valid_plan(json!(["web_search"]));
@@ -1009,8 +1070,12 @@ fn research_fetches_candidates_in_ordered_waves_sized_to_the_evidence_gap() {
         ["First fetched", "Second fetched", "Third fetched"]
             .into_iter()
             .map(|label| {
-                Response::new(200, "text/markdown", &rich_content(label))
-                    .with_delay(Duration::from_secs(2))
+                Response::new(
+                    200,
+                    "application/json",
+                    &jina_response(&rich_content(label)),
+                )
+                .with_delay(Duration::from_secs(2))
             })
             .collect(),
     );
@@ -1068,8 +1133,8 @@ fn research_discloses_a_subquestion_without_verified_evidence() {
             .map(|index| {
                 Response::new(
                     200,
-                    "text/markdown",
-                    &rich_content(&format!("Fetched {index}")),
+                    "application/json",
+                    &jina_response(&rich_content(&format!("Fetched {index}"))),
                 )
             })
             .collect(),
@@ -1120,7 +1185,7 @@ fn research_discloses_a_subquestion_without_verified_evidence() {
 
 #[test]
 fn research_fallback_off_executes_only_the_configured_chain_head() {
-    let jina = Fixture::start(200, "text/markdown", "thin");
+    let jina = Fixture::start(200, "application/json", &jina_response("thin"));
     let config = format!(
         r#"
 [providers.jina]
@@ -1185,7 +1250,7 @@ fn research_reports_quality_when_discovery_succeeds_but_all_fetches_are_thin() {
         "application/json",
         r#"{"results":[{"title":"Thin candidate","url":"https://example.test/thin"}]}"#,
     );
-    let jina = Fixture::start(200, "text/markdown", "thin");
+    let jina = Fixture::start(200, "application/json", &jina_response("thin"));
     let environment = RunEnvironment::new(&research_config(&tavily.url, &jina.url, false));
     let plan_path = write_plan(&environment, valid_plan(json!(["web_search"])));
 
@@ -1338,6 +1403,10 @@ fn rich_content(label: &str) -> String {
         .join("\n")
 }
 
+fn jina_response(content: &str) -> String {
+    json!({"data": {"content": content}}).to_string()
+}
+
 fn fetch_only_config(jina_url: &str, journal_enabled: bool) -> String {
     format!(
         r#"
@@ -1386,6 +1455,41 @@ max_wait = 0
 
 [journal]
 enabled = {journal_enabled}
+"#
+    )
+}
+
+fn shared_fetch_research_config(tavily_url: &str, firecrawl_url: &str, jina_url: &str) -> String {
+    format!(
+        r#"
+[providers.tavily]
+url = {tavily_url:?}
+keys = ["tavily-key"]
+timeout = 30
+
+[providers.firecrawl]
+url = {firecrawl_url:?}
+keys = ["firecrawl-key"]
+timeout = 30
+
+[providers.jina]
+url = {jina_url:?}
+keys = ["jina-key"]
+timeout = 30
+
+[capabilities.web_search]
+order = ["tavily"]
+
+[capabilities.web_fetch]
+order = ["tavily", "firecrawl", "jina"]
+
+[retry]
+max_attempts = 1
+multiplier = 1
+max_wait = 0
+
+[journal]
+enabled = true
 "#
     )
 }

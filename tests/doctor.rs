@@ -248,7 +248,11 @@ fn firecrawl_deep_doctor_executes_the_registry_search_probe() {
 
 #[test]
 fn jina_deep_doctor_executes_the_registry_fetch_probe() {
-    let fixture = Fixture::start(200, "text/markdown", &"rich ".repeat(60));
+    let fixture = Fixture::start(
+        200,
+        "application/json",
+        &serde_json::json!({"data": {"content": "rich ".repeat(60)}}).to_string(),
+    );
     let environment = RunEnvironment::new(&format!(
         "[providers.jina]\nurl = {:?}\nkeys = [\"jina-key\"]\n",
         fixture.url

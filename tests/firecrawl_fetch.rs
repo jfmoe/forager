@@ -56,4 +56,5 @@ enabled = false
     assert!(request.contains("authorization: Bearer firecrawl-key"));
     assert!(request.contains("\"url\":\"https://example.test/article\""));
     assert!(request.contains("\"formats\":[\"markdown\"]"));
+    assert!(request.contains("\"onlyMainContent\":true"));
 }

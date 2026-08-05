@@ -865,10 +865,22 @@ fn declared_web_fetch_validates_the_known_url_without_changing_the_main_answer()
         &completed_body("answer", "Primary"),
     );
     let content = "Fetched evidence line one.\nFetched evidence line two.\n".repeat(12);
-    let jina = Fixture::start(200, "text/markdown", &content);
+    let tavily = Fixture::start(
+        200,
+        "application/json",
+        r#"{"results":[{"raw_content":"thin"}]}"#,
+    );
+    let firecrawl = Fixture::start(
+        200,
+        "application/json",
+        r#"{"success":true,"data":{"markdown":"also thin"}}"#,
+    );
+    let jina = Fixture::start(200, "application/json", &jina_response(&content));
     let config = format!(
-        "{}\n[providers.jina]\nurl = {:?}\nkeys = [\"jina-key\"]\ntimeout = 30\n\n[capabilities.web_fetch]\norder = [\"jina\"]\n",
+        "{}\n[providers.tavily]\nurl = {:?}\nkeys = [\"tavily-key\"]\ntimeout = 30\n\n[providers.firecrawl]\nurl = {:?}\nkeys = [\"firecrawl-key\"]\ntimeout = 30\n\n[providers.jina]\nurl = {:?}\nkeys = [\"jina-key\"]\ntimeout = 30\n\n[capabilities.web_fetch]\norder = [\"tavily\", \"firecrawl\", \"jina\"]\n",
         search_config(&main.url, false),
+        tavily.url,
+        firecrawl.url,
         jina.url
     );
     let environment = RunEnvironment::new(&config);
@@ -902,6 +914,8 @@ fn declared_web_fetch_validates_the_known_url_without_changing_the_main_answer()
         String::from_utf8_lossy(&output.stderr)
     );
     main.finish();
+    tavily.finish();
+    firecrawl.finish();
     let request = jina.finish();
     assert!(
         request.starts_with("GET /https://example.test/article "),
@@ -918,7 +932,7 @@ fn declared_web_fetch_does_not_report_all_failed_when_one_target_succeeds() {
     );
     let content = "Fetched evidence line one.\nFetched evidence line two.\n".repeat(12);
     let jina = Fixture::start_sequence(vec![
-        Response::new(200, "text/markdown", &content),
+        Response::new(200, "application/json", &jina_response(&content)),
         Response::new(503, "text/plain", "unavailable"),
     ]);
     let config = format!(
@@ -967,8 +981,10 @@ fn declared_web_fetch_runs_known_urls_concurrently_and_preserves_url_order() {
     );
     let content = "Fetched evidence line one.\nFetched evidence line two.\n".repeat(12);
     let jina = Fixture::start_parallel_sequence(vec![
-        Response::new(200, "text/markdown", &content).with_delay(Duration::from_secs(2)),
-        Response::new(200, "text/markdown", &content).with_delay(Duration::from_secs(2)),
+        Response::new(200, "application/json", &jina_response(&content))
+            .with_delay(Duration::from_secs(2)),
+        Response::new(200, "application/json", &jina_response(&content))
+            .with_delay(Duration::from_secs(2)),
     ]);
     let config = format!(
         "{}\n[providers.jina]\nurl = {:?}\nkeys = [\"jina-key\"]\ntimeout = 30\n\n[capabilities.web_fetch]\norder = [\"jina\"]\n",
@@ -1023,7 +1039,7 @@ fn concurrent_web_fetch_rate_limits_rotate_once_per_branch_with_a_bounded_burst(
             Response::new(429, "application/json", r#"{"message":"rate limited"}"#)
                 .with_delay(Duration::from_millis(200))
         })
-        .chain((0..4).map(|_| Response::new(200, "text/markdown", &content)))
+        .chain((0..4).map(|_| Response::new(200, "application/json", &jina_response(&content))))
         .collect();
     let jina = Fixture::start_parallel_sequence(responses);
     let config = format!(
@@ -2632,6 +2648,10 @@ fn completed_body(answer: &str, title: &str) -> String {
             }
         })
     )
+}
+
+fn jina_response(content: &str) -> String {
+    serde_json::json!({"data": {"content": content}}).to_string()
 }
 
 fn read_only_journal(environment: &RunEnvironment) -> Value {

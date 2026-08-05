@@ -86,6 +86,8 @@ forager research "对比主流 Rust CLI 分发方式" \
 forager fetch https://doc.rust-lang.org/cargo/ --format markdown
 ```
 
+`fetch` 对 URL 与 PDF 使用同一条默认 `Tavily → Firecrawl → Jina` 链，成功时只返回 provider 无关的 Markdown 正文；诊断与 provider attempts 不会混入正文。
+
 查看全部命令：
 
 ```sh

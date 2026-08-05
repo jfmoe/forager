@@ -39,6 +39,7 @@ forager setup [--non-interactive] [--lang zh|en]
 - `--output FILE` 为 **tee 语义**（写文件 + stdout 照常）。写失败＝非零终态退 3，stdout JSON 照常输出并标注写失败（#59 H15）；与 journal 旁路（非致命）区分。
 - 退出码：`0` 成功（含直连命令的合法空结果）；`2` 参数错（clap 天然 + 坏 plan + `config set` 非法路径）；`3` config_error（含未知文件键、未知 `FORAGER_*` env、web_fetch 空链、`--output` 写失败）；`4` transport 族终态；`5` content 族终态（quality/evidence；**evidence_error 由 4 改 5**）。`1` 空缺；panic 101 不拦，为非契约异常出口。
 - **默认 stdout 瘦载荷**（#59 I0-6 连带修订本票）：成功＝结果本身；失败＝`error_kind` + 一行 message + attempts 计数摘要（total/by_kind/providers，非全文）+ 精简 capability_gaps + `journal_ref`（nullable，写失败置 null 并附 `journal_status`）。全量 `provider_attempts` 移出默认 stdout、只落 journal；`--verbose` 为 inline 全量逃生阀。载荷上限与截断规则见第 5 章 M18。
+- **fetch 成功载荷**：`content` 只包含 provider 无关的 Markdown 正文；provider attempts 与 diagnostic 保持在各自字段/输出通道，不混入正文。URL 与 PDF 共享 `web_fetch` 链和失败语义，`--output` 仍是 tee。
 
 ## search 参数清理
 

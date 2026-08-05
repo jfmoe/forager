@@ -24,10 +24,25 @@ fn non_interactive_setup_creates_a_complete_commented_template() {
             value["providers"]["anysearch"]["keys"]
                 .as_array()
                 .map(Vec::len),
+            &value["capabilities"]["web_fetch"]["order"],
             content.contains("[providers.exa]"),
             String::from_utf8_lossy(&output.stdout).contains("forager doctor"),
         ),
-        (Some(0), 48, 48, Some(0), Some(0), true, true),
+        (
+            Some(0),
+            48,
+            48,
+            Some(0),
+            Some(0),
+            &toml::Value::Array(
+                ["tavily", "firecrawl", "jina"]
+                    .into_iter()
+                    .map(|provider| toml::Value::String(provider.into()))
+                    .collect()
+            ),
+            true,
+            true
+        ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );

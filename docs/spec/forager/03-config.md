@@ -79,7 +79,7 @@ timeout = 30
 [capabilities.web_search]
 order = ["tavily", "firecrawl"]
 [capabilities.web_fetch]
-order = ["jina", "tavily", "firecrawl"]   # 置空＝config_error（引擎不变量）
+order = ["tavily", "firecrawl", "jina"]   # 置空＝config_error（引擎不变量）
 [capabilities.docs_search]
 order = ["context7", "exa"]
 [capabilities.vertical_search]

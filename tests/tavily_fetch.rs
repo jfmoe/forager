@@ -55,4 +55,6 @@ enabled = false
     assert!(request.contains("authorization: Bearer tavily-key"));
     assert!(request.contains("\"urls\":[\"https://example.test/article\"]"));
     assert!(request.contains("\"format\":\"markdown\""));
+    assert!(request.contains("\"extract_depth\":\"basic\""));
+    assert!(!request.contains("\"query\""));
 }

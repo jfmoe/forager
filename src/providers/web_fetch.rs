@@ -222,7 +222,7 @@ impl HttpFetchProvider {
                     .get(endpoint)
                     .bearer_auth(credential.expose())
                     .header("x-return-format", "markdown")
-                    .header("accept", "text/plain, text/markdown, */*");
+                    .header("accept", "application/json");
                 if !self.config.respond_with.is_empty() {
                     request = request.header("x-respond-with", &self.config.respond_with);
                 }
@@ -232,7 +232,11 @@ impl HttpFetchProvider {
                 .client
                 .post(format!("{}/extract", self.config.url.trim_end_matches('/')))
                 .bearer_auth(credential.expose())
-                .json(&json!({"urls": [&request.url], "format": "markdown"})),
+                .json(&json!({
+                    "urls": [&request.url],
+                    "format": "markdown",
+                    "extract_depth": "basic"
+                })),
             ProviderId::Firecrawl => self
                 .client
                 .post(format!("{}/scrape", self.config.url.trim_end_matches('/')))
@@ -240,6 +244,7 @@ impl HttpFetchProvider {
                 .json(&json!({
                     "url": &request.url,
                     "formats": ["markdown"],
+                    "onlyMainContent": true,
                     "timeout": 60000
                 })),
             _ => unreachable!("only web fetch providers make fetch requests"),
@@ -248,7 +253,9 @@ impl HttpFetchProvider {
 
     fn decode(&self, body: &str) -> Result<String, String> {
         match self.id {
-            ProviderId::Jina => Ok(body.trim().to_owned()),
+            ProviderId::Jina => serde_json::from_str::<JinaResponse>(body)
+                .map_err(|error| format!("invalid Jina response: {error}"))
+                .map(|response| response.data.content),
             ProviderId::Tavily => serde_json::from_str::<TavilyResponse>(body)
                 .map_err(|error| format!("invalid Tavily response: {error}"))
                 .map(|response| {
@@ -268,7 +275,9 @@ impl HttpFetchProvider {
 
     fn decode_truncated(&self, body: &str) -> String {
         match self.id {
-            ProviderId::Jina => body.trim().to_owned(),
+            ProviderId::Jina => {
+                json_string_prefix(body, "content").unwrap_or_else(|| body.to_owned())
+            }
             ProviderId::Tavily => {
                 json_string_prefix(body, "raw_content").unwrap_or_else(|| body.to_owned())
             }
@@ -291,6 +300,17 @@ impl HttpFetchProvider {
     fn redacted_error(&self, value: &str) -> String {
         redacted_urls_message(value, &self.credentials)
     }
+}
+
+#[derive(Deserialize)]
+struct JinaResponse {
+    data: JinaData,
+}
+
+#[derive(Deserialize)]
+struct JinaData {
+    #[serde(default)]
+    content: String,
 }
 
 #[derive(Deserialize)]
