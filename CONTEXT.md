@@ -32,6 +32,14 @@ _Avoid_: general technical search、Context7 capability、docs provider
 主搜索之外，为时效、新闻、地区、政策、行情、交叉验证或来源补强提供的 Web 发现能力；它不代表每次普通搜索都会执行的主搜索。
 _Avoid_: main search、all web access、web provider
 
+**Primary Search Source**:
+主搜索回答归属的来源，由 search 输出的 `sources` 表示；它不同于补充能力发现但尚未读取的候选，也不因被引用而自动成为已验证证据。
+_Avoid_: supplemental source、verified evidence、all search sources
+
+**Supplemental Search Candidate**:
+补充检索能力发现、可供调用方后续抓取的来源，由 search 输出的 `extra_sources` 表示；它保留发现 provider 给出的来源身份与原生摘要，不对摘要套用统一二次截断，在正文被读取前也不是证据。
+_Avoid_: primary source、verified evidence、merged source
+
 **Web Fetch Capability**:
 读取、提取或核验已知 URL 或 PDF 正文的能力；它不负责发现链接。
 _Avoid_: web search、link discovery
@@ -99,6 +107,10 @@ _Avoid_: Skill capability list、routing rules DSL、provider registry
 **Research Evidence Pipeline**:
 research 引擎的职责定位：确定性地执行计划、发现候选、取证、按子问题记账覆盖并落盘证据；它不做语义综合，也不含 main search 定向——综合归消费方 agent，定向在计划之前由 skill 编排完成。
 _Avoid_: research answer engine、engine synthesis、final answer generator、in-engine orientation
+
+**Research Evidence Index**:
+Research Evidence Pipeline 在标准输出中交付的轻量证据目录；它描述每条证据的身份、来源、覆盖归属与本地正文路径，但不重复输出已经落盘的正文。
+_Avoid_: evidence preview、inline evidence content、research answer
 
 **Citation Binding**:
 回答文本中的内联标记与某条来源或证据之间可机器读取的对应关系；它表达引用归属，不代表系统已验证该证据确实支持对应陈述。
