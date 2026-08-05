@@ -9,9 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- separate search-side Web Fetch previews and Vertical Discovery results, and remove `validation_results` ([#101](https://github.com/jfmoe/forager/issues/101))
-- deliver research as a file-backed Research Evidence Index without duplicated evidence bodies or mechanical answers ([#104](https://github.com/jfmoe/forager/issues/104))
-- route the bundled skill by retrieval cost and consume research evidence by file reference ([#105](https://github.com/jfmoe/forager/issues/105))
+- Web Fetch now returns provider-independent Normalized Fetch Content and uses the shared `Tavily → Firecrawl → Jina` chain for URLs, PDFs, search-side fetches, and research evidence ([#99](https://github.com/jfmoe/forager/issues/99)).
+- Search `sources` now contains only Primary Search Sources. `extra_sources` contains only Supplemental Search Candidates with provider-native summaries, while `vertical_results` contains only structured Vertical Discovery results ([#100](https://github.com/jfmoe/forager/issues/100), [#101](https://github.com/jfmoe/forager/issues/101)).
+- Search-side Web Fetch results now appear in `extra_sources` with the successful provider and a 300-character body preview; the preview limit does not truncate provider-native candidate summaries ([#101](https://github.com/jfmoe/forager/issues/101)).
+- Search source and candidate `title` fields are now optional in JSON; Markdown uses the URL as the link label when a title is absent. Invocation fields `query`, `model`, selected `provider`, and `capabilities` now live in the Search Result Journal rather than default stdout.
+- Context7 docs JSON now exposes one readable payload with `provider`, `library_id`, `query`, and `content`; `provider_attempts` remains available only with `--verbose`. Automatic Documentation Search continues to the next provider when Context7 has no normalized source ([#95](https://github.com/jfmoe/forager/issues/95)).
+- Research is now a deterministic, single-pass evidence pipeline with per-subquestion caps, first-class known URLs, terminal coverage gaps, and a file-backed Research Evidence Index ([#102](https://github.com/jfmoe/forager/issues/102), [#103](https://github.com/jfmoe/forager/issues/103), [#104](https://github.com/jfmoe/forager/issues/104)).
+- The bundled skill now routes through `direct retrieval → ordinary search → research`, orients with ordinary search before writing a research plan, reads evidence from `evidence_items[].path`, and binds synthesized claims as `[eN](URL)` ([#105](https://github.com/jfmoe/forager/issues/105)).
+
+### Removed
+
+- Search no longer returns `validation_results`, duplicates Supplemental Search Candidates into `sources`, or copies URL-bearing Vertical Discovery records into `extra_sources`.
+- Context7 docs no longer returns `code_snippets`, `info_snippets`, `results`, `total`, or synthesized `sources`.
+- Research no longer returns `evidence_items[].content`, mechanical `final_answer`, duplicate top-level `content`, derived `citations`, inline `research_plan`, or invocation and diagnostic echoes in its default output. No aliases, compatibility shims, feature flags, or duplicate legacy arrays remain.
+
+### Migration
+
+- Upgrade the CLI to `forager >= 0.2.0` before installing or using the bundled skill.
+- Search callers must treat `sources` as answer attribution, select and fetch any needed `extra_sources`, consume Vertical Discovery only from `vertical_results`, handle an omitted `title`, read `query`/`model`/selected `provider`/`capabilities` from the journal, and request `--verbose` when inline `provider_attempts` are required.
+- Research callers must read selected evidence bodies from `evidence_items[].path`, synthesize the answer themselves, cite evidence with `[eN](URL)`, and treat unconsumed candidates as unverified fetch inputs rather than evidence.
+- Context7 callers must reuse `library_id` as an identifier rather than pass it to `fetch`; use absolute URLs present in the returned content when source-page verification is required.
 
 ## [0.1.2](https://github.com/jfmoe/forager/compare/v0.1.1...v0.1.2) - 2026-08-02
 

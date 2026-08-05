@@ -140,6 +140,84 @@ fn released_binary_reports_the_cargo_package_version() {
 }
 
 #[test]
+fn breaking_output_release_documents_the_complete_caller_migration() {
+    let changelog = fs::read_to_string("CHANGELOG.md").expect("read changelog");
+    let release_notes = changelog
+        .split_once("## [0.1.2]")
+        .expect("v0.2.0 release notes precede v0.1.2")
+        .0;
+    let (preamble, remainder) = release_notes
+        .split_once("### Changed")
+        .expect("changed section");
+    let (changed, remainder) = remainder
+        .split_once("### Removed")
+        .expect("removed section");
+    let (removed, migration) = remainder
+        .split_once("### Migration")
+        .expect("migration section");
+
+    assert!(preamble.contains("## [Unreleased]") || preamble.contains("## [0.2.0]"));
+
+    for required_fragment in [
+        "Normalized Fetch Content",
+        "`sources`",
+        "Primary Search Sources",
+        "`extra_sources`",
+        "Supplemental Search Candidates",
+        "`vertical_results`",
+        "`title`",
+        "`query`",
+        "`model`",
+        "`provider`",
+        "`capabilities`",
+        "Search Result Journal",
+    ] {
+        assert!(
+            changed.contains(required_fragment),
+            "breaking release changed section is missing {required_fragment}"
+        );
+    }
+
+    for required_fragment in [
+        "`validation_results`",
+        "`code_snippets`",
+        "`info_snippets`",
+        "`results`",
+        "`total`",
+        "`evidence_items[].content`",
+        "`final_answer`",
+        "`citations`",
+        "`research_plan`",
+    ] {
+        assert!(
+            removed.contains(required_fragment),
+            "breaking release removed section is missing {required_fragment}"
+        );
+    }
+
+    for required_fragment in [
+        "forager >= 0.2.0",
+        "`sources`",
+        "`extra_sources`",
+        "`vertical_results`",
+        "`title`",
+        "`query`",
+        "`model`",
+        "`provider`",
+        "`capabilities`",
+        "`provider_attempts`",
+        "`evidence_items[].path`",
+        "`[eN](URL)`",
+        "`library_id`",
+    ] {
+        assert!(
+            migration.contains(required_fragment),
+            "breaking release migration section is missing {required_fragment}"
+        );
+    }
+}
+
+#[test]
 fn dist_dispatches_draft_releases_through_the_artifact_gate() {
     let source = fs::read_to_string("dist-workspace.toml").expect("read dist config");
     let config: toml::Value = toml::from_str(&source).expect("parse dist config");
