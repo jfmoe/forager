@@ -5,48 +5,37 @@ description: "Search current web and X/Twitter sources with the local forager CL
 
 # forager
 
-Use the local `forager >=0.1.0` CLI as the execution layer. The CLI owns provider selection,
-ordering, credential rotation, and same-capability fallback.
+Use the local `forager >=0.2.0` CLI as the execution layer. The CLI owns provider selection,
+ordering, credential rotation, and same-capability fallback. If the command is missing or below the
+required version, report the observed command or version and stop this skill run.
+
+## Run commands to completion
 
 Treat a command as complete only at terminal exit. When the runner yields a handle, poll that handle
-until it exits before reading output, diagnosing, or retrying. Main search legitimately runs 60
-seconds or longer on complex queries; keep the default `--timeout`, give any outer tool timeout more
-headroom than it, and do not abandon the run early.
+until it exits before reading output, diagnosing, or retrying. Main search can run for 60 seconds or
+longer; keep its default `--timeout` and give the outer runner more headroom.
 
-If `forager` is missing or below the required version, report the observed command or version and
-stop this Skill branch.
+This step is complete when the selected command has a terminal exit and its full result is
+available.
 
-## Ordinary search
+## Route on the cost ladder
 
-Use ordinary search for most requests. Read
-[`references/ordinary-search.md`](references/ordinary-search.md) and follow it through completion.
+Route every request through `direct retrieval → ordinary search → research`. Choose the cheapest
+branch that can complete the request. Run one eligible branch, then escalate only when the request
+shape or an observed shortfall shows that branch cannot finish the task. Research is the most
+expensive branch.
 
-## Research
+- For a known URL, PDF, site map, or provider-direct operation, read
+  [`references/direct-retrieval.md`](references/direct-retrieval.md) and follow it through
+  completion.
+- For a request one live search can complete, read
+  [`references/ordinary-search.md`](references/ordinary-search.md) and follow it through
+  completion.
+- For a request that requires decomposition or multi-source verification, read
+  [`references/research.md`](references/research.md) and follow it through completion.
 
-Use research only when the request requires decomposition, multi-source verification, or explicitly
-asks for deep research. Read [`references/research.md`](references/research.md) and follow it
-through completion.
-
-## Direct retrieval
-
-For a task limited to reading a known URL or PDF, use `forager fetch URL --format json`. For site
-structure discovery, use `forager map URL --instructions "GOAL" --format json`.
-
-When a URL requires authentication and cannot be fetched directly, such as `x.com`, use another
-available tool with authenticated access, such as a browser, to retrieve its content.
-
-Commands under `exa`, `context7`, and `anysearch` bypass capability routing. Use them when the user
-requests that provider or the operation exists only as a direct command.
-
-For direct Context7 documentation, run `forager context7 library NAME QUERY` first to obtain a
-`library_id`; if the user already supplied a valid `/owner/project[/version]`, skip resolution. For
-later single-topic queries about the same library, reuse the same `library_id` and change only the
-query; when the user requested a version, keep the versioned ID. A `library_id` is not a URL; do not
-pass it to `fetch`. If the returned content contains an absolute URL, decide whether the task's risk
-warrants fetching it; if it contains no URL, do not invent a source.
-
-Complete this branch when it returns the requested content or page set, or route its observed
-failure to Diagnose or configure.
+Routing is complete when exactly one branch matches the request shape or the preceding branch has
+returned an observable reason to escalate.
 
 ## Diagnose or configure
 
@@ -55,8 +44,9 @@ document with `forager config set` or `forager config unset`, and edit the repor
 TOML is malformed.
 
 For provider authentication, availability, or connectivity failures, use
-`forager doctor --provider PROVIDER --format json`. Complete this branch when the reported
-diagnostic and recovery command are actionable.
+`forager doctor --provider PROVIDER --format json`.
+
+Diagnosis is complete when the reported cause and recovery command are actionable.
 
 ## CLI reference
 

@@ -8,47 +8,41 @@ sufficient.
 forager search "QUERY" --capabilities CAPABILITIES --format json
 ```
 
-Use the Direct retrieval branch in `SKILL.md` when a known URL or PDF supplies the required
-content. When ordinary search declares `web_fetch`, each successfully fetched known URL becomes a
-Supplemental Search Candidate with the actual Web Fetch provider and a 300-character preview of
-the Normalized Fetch Content; it does not change `answer`.
-
 Set `--extra-sources` only to control supplemental breadth. A selected supplemental capability has
 an effective minimum of one result, so `0` and `1` currently match; use `1` to `3` for normal
 coverage and increase it only for an explicitly broad request.
 
-## Results
+## Consume the result
 
 - `answer` is the main-search answer.
 - `sources` contains only Primary Search Sources attributed to the main answer.
 - `extra_sources` contains only Supplemental Search Candidates. Use each candidate's provider,
-  optional title, and provider-native summary to choose a small number of URLs to fetch as
-  claim-level evidence. Provider-native summaries are not truncated; only previews derived from a
-  full search-side Web Fetch use the 300-character rule. A candidate is not evidence before its
-  content is fetched.
-- `vertical_results` contains complete Vertical Discovery results. They are not copied into
-  `sources` or `extra_sources`, even when they contain URLs.
+  optional title, and provider-native summary to select a small number of URLs for claim-level
+  evidence. Provider-native summaries remain complete; only a preview derived from a full
+  search-side Web Fetch uses the 300-character rule. A candidate becomes evidence after its content
+  is fetched.
+- `vertical_results` contains complete Vertical Discovery results. Its records stay out of
+  `sources` and `extra_sources`, including records with URLs.
 - Disclose every `capability_gaps` entry and its effect on coverage.
 
 For high-risk, time-sensitive, or source-backed claims, fetch the key URLs and limit the answer to
-what their content supports. Use `--output` only when a long or multi-source result must persist
-beyond stdout.
+their content. Use `--output` when a long or multi-source result must persist beyond stdout.
 
-## Recovery
+## Bounded recovery
 
-After a terminal `timeout` or `network` error, make at most one additional attempt when the user's
-time budget allows:
+Only a terminal `timeout` or `network` error enters this recovery chain. An authentication,
+configuration, or quota error goes directly to Diagnose or configure in `SKILL.md`.
 
-```console
-forager search "QUERY" --capabilities CAPABILITIES --timeout 300 --format json
-```
+1. Retry at most once with the same query and capability declaration. Use `--timeout 300` for a
+   timeout; retain the normal timeout for a network error. Skip this retry when the user explicitly
+   prioritizes speed.
+2. If search remains unavailable, run `forager exa search` at most once. Add
+   `--include-domains CSV` when authoritative domains are known.
+3. Fetch at most two URLs from the strongest results with `forager fetch URL --format json`.
 
-If it still fails, run `forager exa search "QUERY" --num-results 5 --format json`, adding
-`--include-domains CSV` when authoritative domains are known. Fetch the strongest one or two
-results with `forager fetch URL --format json`.
-
-Answer only from fetched content, preserve its URLs, and disclose `source_mode: fallback`. Report
-the observed Exa or fetch failure when this path cannot produce evidence.
+Each step runs only after the preceding step produces its continue signal. An answer from this
+chain cites only fetched content and discloses `source_mode: fallback` plus the actual rounds used.
+When the chain stops without evidence, report the steps completed and the observed failure.
 
 Complete ordinary search when the command has reached terminal success, every capability gap is
 disclosed, and every claim requiring source evidence is supported by fetched content or marked

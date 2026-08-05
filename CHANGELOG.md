@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - separate search-side Web Fetch previews and Vertical Discovery results, and remove `validation_results` ([#101](https://github.com/jfmoe/forager/issues/101))
 - deliver research as a file-backed Research Evidence Index without duplicated evidence bodies or mechanical answers ([#104](https://github.com/jfmoe/forager/issues/104))
+- route the bundled skill by retrieval cost and consume research evidence by file reference ([#105](https://github.com/jfmoe/forager/issues/105))
 
 ## [0.1.2](https://github.com/jfmoe/forager/compare/v0.1.1...v0.1.2) - 2026-08-02
 

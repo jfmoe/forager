@@ -19,14 +19,12 @@ fn repository_exposes_forager_as_an_installable_skill() {
 
     assert_eq!(skill_dirs, ["forager"]);
     assert!(skill.starts_with("---\nname: forager\n"));
+    assert!(skill.contains("forager >=0.2.0"));
 }
 
 #[test]
 fn skill_documents_the_context7_library_id_workflow() {
-    let skill =
-        fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("skills/forager/SKILL.md"))
-            .expect("read installable forager skill");
-    let skill = skill.split_whitespace().collect::<Vec<_>>().join(" ");
+    let skill = normalized_file("skills/forager/references/direct-retrieval.md");
 
     for required_guidance in [
         "forager context7 library NAME QUERY",
@@ -46,10 +44,128 @@ fn skill_documents_the_context7_library_id_workflow() {
 }
 
 #[test]
+fn skill_routes_each_request_through_the_cost_ladder() {
+    let skill = normalized_file("skills/forager/SKILL.md");
+
+    for required_guidance in [
+        "direct retrieval → ordinary search → research",
+        "cheapest branch that can complete the request",
+        "Research is the most expensive branch",
+        "references/direct-retrieval.md",
+        "references/ordinary-search.md",
+        "references/research.md",
+    ] {
+        assert!(
+            skill.contains(required_guidance),
+            "cost-ladder contract is missing `{required_guidance}`"
+        );
+    }
+}
+
+#[test]
+fn ordinary_search_has_one_bounded_recovery_chain() {
+    let ordinary = normalized_file("skills/forager/references/ordinary-search.md");
+
+    for required_guidance in [
+        "terminal `timeout` or `network` error",
+        "Retry at most once",
+        "run `forager exa search` at most once",
+        "Fetch at most two URLs",
+        "authentication, configuration, or quota error",
+        "Diagnose or configure",
+        "`source_mode: fallback`",
+        "actual rounds",
+        "steps completed and the observed failure",
+    ] {
+        assert!(
+            ordinary.contains(required_guidance),
+            "ordinary-search recovery contract is missing `{required_guidance}`"
+        );
+    }
+}
+
+#[test]
+fn research_orients_before_planning_and_consumes_evidence_by_path() {
+    let research = normalized_file("skills/forager/references/research.md");
+
+    for required_guidance in [
+        "ordinary search before writing the plan",
+        "reuse that existing result",
+        "orientation material only",
+        "`evidence_items[].path`",
+        "`[eN](URL)`",
+        "attribution, not semantic verification",
+        "`unconsumed_candidates.path`",
+        "unverified candidate",
+        "`forager exa similar`",
+        "re-run neither `forager research` nor main search",
+    ] {
+        assert!(
+            research.contains(required_guidance),
+            "research-consumption contract is missing `{required_guidance}`"
+        );
+    }
+}
+
+#[test]
+fn cli_reference_documents_the_research_evidence_index() {
+    let cli = normalized_file("skills/forager/references/cli.md");
+
+    for required_guidance in [
+        "Research Evidence Index",
+        "`evidence_items[].path`",
+        "`evidence_dir`",
+        "`plan_path`",
+        "`unconsumed_candidates`",
+        "`gap_check`",
+        "`capability_gaps`",
+        "`synthesis_policy: \"fetch_before_claim\"`",
+        "`journal_ref`",
+    ] {
+        assert!(
+            cli.contains(required_guidance),
+            "CLI research reference is missing `{required_guidance}`"
+        );
+    }
+}
+
+#[test]
+fn external_integration_guide_only_exposes_context_protection_patterns() {
+    let guide = normalized_file("docs/agents/forager-integration.md");
+
+    for required_guidance in [
+        "direct retrieval → ordinary search → research",
+        "subagent",
+        "conclusions and citations",
+        "persist bulk evidence",
+        "read it on demand",
+        "single-page spot check",
+    ] {
+        assert!(
+            guide.contains(required_guidance),
+            "external integration guide is missing `{required_guidance}`"
+        );
+    }
+
+    for internal_detail in [
+        "provider configuration",
+        "output fields",
+        "routing criteria",
+    ] {
+        assert!(
+            !guide.contains(internal_detail),
+            "external integration guide exposes `{internal_detail}`"
+        );
+    }
+}
+
+#[test]
 fn cli_reference_covers_the_public_cli_surface() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let cli = fs::read_to_string(root.join("skills/forager/references/cli.md"))
         .expect("read CLI reference");
+    assert!(cli.contains("forager >=0.2.0"));
+    assert!(cli.contains("exact command syntax, non-routine commands, or diagnosis and recovery"));
 
     let mut clap = Cli::command();
     clap.build();
@@ -281,4 +397,12 @@ fn markdown_section<'a>(markdown: &'a str, heading: &str) -> &'a str {
         .min()
         .unwrap_or(body.len());
     &body[..end]
+}
+
+fn normalized_file(path: &str) -> String {
+    fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(path))
+        .unwrap_or_else(|error| panic!("read `{path}`: {error}"))
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
 }

@@ -102,7 +102,8 @@ CLI 负责实际检索，仓库中的 `forager` Skill 负责教 Agent 选择命�
 npx skills add jfmoe/forager
 ```
 
-Skill 要求 `forager >= 0.1.0`。
+Skill 要求 `forager >= 0.2.0`。外部 Agent 的上下文保护方式见
+[Forager integration](docs/agents/forager-integration.md)。
 
 ## 设计边界
 

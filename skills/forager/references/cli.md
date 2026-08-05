@@ -1,10 +1,9 @@
 # forager CLI reference
 
-This reference documents the public CLI for `forager >=0.1.0`. Load it only under the conditions
-given in `SKILL.md`: after the ordinary search or research flow fails and diagnosis or recovery
-details are needed, or when the user explicitly requests another CLI command or its parameters.
-Do not load it for a routine `search` or `research`. Treat `forager <command> --help` as the final
-authority for argument parsing.
+This reference documents the public CLI for `forager >=0.2.0`. Load it under the conditions given
+in `SKILL.md`: for exact command syntax, non-routine commands, or diagnosis and recovery details.
+Routine `search` and `research` stay on their branch references. Treat
+`forager <command> --help` as the final authority for argument parsing.
 
 ## Contents
 
@@ -108,6 +107,14 @@ Use `research-plan.json` as the Schema v1 shape. A caller-provided plan is autho
 plan generation. An omitted plan requires a configured classifier. Invalid JSON, unsupported
 versions, unknown or missing fields, invalid capabilities, empty decomposition, and empty or
 duplicate subquestion IDs exit with code 2.
+
+Default JSON is a Research Evidence Index. Each item in `evidence_items` contains evidence identity
+and metadata plus a readable `evidence_items[].path`; fetched body content lives at that path rather
+than in stdout. The top level contains `evidence_dir`, `plan_path`, `unconsumed_candidates` as a
+count and path, `gap_check`, `capability_gaps`, `synthesis_policy: "fetch_before_claim"`, and the
+`journal_ref`/`journal_status` pair. Markdown and content render the same index and unresolved gaps.
+Successful and failed runs preserve the artifacts and return their readable paths; `--verbose`
+adds provider attempts inline.
 
 ## Direct operations
 
