@@ -33,12 +33,12 @@ _Avoid_: general technical search、Context7 capability、docs provider
 _Avoid_: main search、all web access、web provider
 
 **Primary Search Source**:
-主搜索回答归属的来源，由 search 输出的 `sources` 表示；它不同于补充能力发现但尚未读取的候选，也不因被引用而自动成为已验证证据。
+主搜索回答归属的来源，由 search 输出的 `sources` 表示；它不同于非主搜索能力产生但尚未消费的候选，也不因被引用而自动成为已验证证据。
 _Avoid_: supplemental source、verified evidence、all search sources
 
-**Supplemental Search Candidate**:
-补充检索能力发现、可供调用方后续抓取的来源，由 search 输出的 `extra_sources` 表示；它保留发现 provider 给出的来源身份与原生摘要，不对摘要套用统一二次截断，在正文被读取前也不是证据。
-_Avoid_: primary source、verified evidence、merged source
+**Search Candidate**:
+普通 search 中由非主搜索能力产生、可供调用方选择后续动作的候选，由 `extra_sources` 表示；候选可以由 URL、provider 专属标识或结构化记录定位，在被相应读取或取证流程消费前不是证据。
+_Avoid_: Supplemental Search Candidate、primary source、verified evidence、merged source
 
 **Web Fetch Capability**:
 读取、提取或核验已知 URL 或 PDF 正文的能力；它不负责发现链接。
