@@ -264,16 +264,26 @@ fn compact_research_failure_payload(error: &ResearchError, limit: usize) -> Valu
         .iter()
         .take(evidence_limit)
         .map(|item| {
-            json!({
+            let mut compact = json!({
                 "id": item.id.chars().take(80).collect::<String>(),
-                "url": item.url.chars().take(320).collect::<String>(),
+                "url": item.locator.url().map(|url| url.chars().take(320).collect::<String>()),
                 "provider": item.provider,
                 "source_type": item.source_type,
                 "subquestion_id": item.subquestion_id.chars().take(120).collect::<String>(),
                 "content_len": item.content_len,
                 "verified": item.verified,
                 "path": item.path,
-            })
+            });
+            if let Some(library_id) = item.locator.library_id() {
+                compact
+                    .as_object_mut()
+                    .expect("compacted evidence is an object")
+                    .insert(
+                        "library_id".into(),
+                        Value::String(library_id.chars().take(320).collect()),
+                    );
+            }
+            compact
         })
         .collect::<Vec<_>>();
     let compacted_evidence = error.evidence_items.len() > evidence_items.len()
@@ -283,7 +293,8 @@ fn compact_research_failure_payload(error: &ResearchError, limit: usize) -> Valu
             .zip(&evidence_items)
             .any(|(item, compact)| {
                 compact["id"] != item.id
-                    || compact["url"] != item.url
+                    || compact["url"] != json!(item.locator.url())
+                    || compact["library_id"] != json!(item.locator.library_id())
                     || compact["subquestion_id"] != item.subquestion_id
                     || item.title.is_some()
             });
@@ -363,18 +374,20 @@ fn append_research_index(
         rendered.push_str("\nNo verified evidence was collected.\n");
     } else {
         for item in evidence_items {
-            let title = item.title.as_deref().unwrap_or(&item.url);
+            let identity = match item.locator.url() {
+                Some(url) => format!("[{}]({url})", item.id),
+                None => format!("[{}]", item.id),
+            };
+            let title = item
+                .title
+                .as_deref()
+                .or_else(|| item.locator.url())
+                .or_else(|| item.locator.library_id())
+                .unwrap_or("untitled evidence");
             let _ = write!(
                 rendered,
-                "\n- [{}]({}) — {} / {}; subquestion `{}`; {} chars; verified={}; `{}`",
-                item.id,
-                item.url,
-                title,
-                item.provider,
-                item.subquestion_id,
-                item.content_len,
-                item.verified,
-                item.path
+                "\n- {identity} — {title} / {}; subquestion `{}`; {} chars; verified={}; `{}`",
+                item.provider, item.subquestion_id, item.content_len, item.verified, item.path
             );
         }
     }
@@ -1054,7 +1067,10 @@ mod tests {
             attempts,
             evidence_items: vec![EvidenceItem {
                 id: "e1".into(),
-                url: format!("https://example.test/{}", "u".repeat(5_000)),
+                locator: forager::types::EvidenceLocator::Url(format!(
+                    "https://example.test/{}",
+                    "u".repeat(5_000)
+                )),
                 title: Some("t".repeat(5_000)),
                 provider: "jina",
                 source_type: "fetched_page",

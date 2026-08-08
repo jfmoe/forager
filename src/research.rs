@@ -8,12 +8,13 @@ use serde_json::{Value, json};
 use crate::config::RuntimeConfig;
 use crate::engine::{self, CapabilityExecution};
 use crate::net::RetryPolicy;
-use crate::providers::{DocumentationSearchMode, FetchRequest};
+use crate::providers::FetchRequest;
 use crate::redact::redact_url;
 use crate::types::{
-    AttemptErrorKind, Capability, CapabilityGap, Deadline, EvidenceItem, EvidenceStrength,
-    PlanCapability, ProviderAttempt, ResearchError, ResearchGap, ResearchGapCheck, ResearchOutcome,
-    ResearchPlan, ResearchSubquestion, SearchCandidate, Source, UnconsumedCandidates,
+    AttemptErrorKind, Capability, CapabilityGap, Deadline, EvidenceItem, EvidenceLocator,
+    EvidenceStrength, PlanCapability, ProviderAttempt, ResearchError, ResearchGap,
+    ResearchGapCheck, ResearchOutcome, ResearchPlan, ResearchSubquestion, Source,
+    UnconsumedCandidates,
 };
 
 const SYNTHESIS_POLICY: &str = "fetch_before_claim";
@@ -65,7 +66,9 @@ pub(crate) struct ResearchRequest {
 }
 
 struct Candidate {
+    locator: EvidenceLocator,
     source: Source,
+    query: String,
     subquestion_id: String,
     provider: Option<&'static str>,
     source_type: &'static str,
@@ -81,7 +84,7 @@ struct DiscoveryBlock {
 }
 
 struct FetchedCandidate {
-    url: String,
+    locator: EvidenceLocator,
     title: String,
     provider: &'static str,
     source_type: &'static str,
@@ -173,8 +176,9 @@ pub(crate) async fn execute(
         .map(|subquestion| (subquestion.id.clone(), 0_usize))
         .collect::<HashMap<_, _>>();
     let mut candidate_attempt_counts = evidence_counts.clone();
-    let mut seen_urls = HashSet::new();
+    let mut seen_locators = HashSet::new();
     let mut fetch_config = config.web_fetch.clone();
+    let docs_config = config.docs_search.clone();
     if request.fallback == "off" {
         fetch_config.retain_first();
     }
@@ -182,10 +186,11 @@ pub(crate) async fn execute(
     while !known_url_candidates.is_empty() {
         let wave_len = known_url_candidates.len().min(engine::FANOUT_CONCURRENCY);
         let wave = known_url_candidates.drain(..wave_len).collect::<Vec<_>>();
-        seen_urls.extend(wave.iter().map(|candidate| candidate.source.url.clone()));
+        seen_locators.extend(wave.iter().map(|candidate| candidate.locator.clone()));
         let results = join_all(wave.into_iter().map(|candidate| {
             fetch_candidate(
                 candidate,
+                docs_config.clone(),
                 fetch_config.clone(),
                 client.clone(),
                 retry_policy,
@@ -239,7 +244,7 @@ pub(crate) async fn execute(
                 candidates.push_back(candidate);
                 continue;
             }
-            if !seen_urls.insert(candidate.source.url.clone()) {
+            if !seen_locators.insert(candidate.locator.clone()) {
                 continue;
             }
             *reserved
@@ -256,6 +261,7 @@ pub(crate) async fn execute(
         let results = join_all(wave.into_iter().map(|candidate| {
             fetch_candidate(
                 candidate,
+                docs_config.clone(),
                 fetch_config.clone(),
                 client.clone(),
                 retry_policy,
@@ -510,9 +516,9 @@ fn bound_discovery_candidates(
         .iter()
         .map(|subquestion| (subquestion.id.as_str(), 0_usize))
         .collect::<HashMap<_, _>>();
-    let mut urls = subquestions
+    let mut locators = subquestions
         .iter()
-        .map(|subquestion| (subquestion.id.as_str(), HashSet::<String>::new()))
+        .map(|subquestion| (subquestion.id.as_str(), HashSet::<EvidenceLocator>::new()))
         .collect::<HashMap<_, _>>();
 
     candidates
@@ -521,10 +527,10 @@ fn bound_discovery_candidates(
             let Some(count) = counts.get_mut(candidate.subquestion_id.as_str()) else {
                 return false;
             };
-            let Some(seen) = urls.get_mut(candidate.subquestion_id.as_str()) else {
+            let Some(seen) = locators.get_mut(candidate.subquestion_id.as_str()) else {
                 return false;
             };
-            if *count >= limit || !seen.insert(candidate.source.url.clone()) {
+            if *count >= limit || !seen.insert(candidate.locator.clone()) {
                 return false;
             }
             *count += 1;
@@ -569,41 +575,32 @@ async fn discover_docs(
         limit,
         config.docs_search.clone(),
         execution,
-        DocumentationSearchMode::Evidence,
     )
     .await
     {
         Ok(mut outcome) => {
-            let provider = outcome
-                .attempts
-                .iter()
-                .rev()
-                .find(|attempt| attempt.seam == "docs_search" && attempt.error_kind.is_none())
-                .map(|attempt| attempt.provider);
             block.attempts.append(&mut outcome.attempts);
             push_diagnostic(&mut block.diagnostics, outcome.diagnostic);
             block
                 .candidates
-                .extend(outcome.read_sources.into_iter().map(|source| Candidate {
-                    source,
-                    subquestion_id: subquestion.id.clone(),
-                    provider,
-                    source_type: "docs",
-                    known_url: false,
-                }));
-            block.candidates.extend(
-                outcome
-                    .candidate_sources
-                    .into_iter()
-                    .filter_map(SearchCandidate::into_source)
-                    .map(|source| Candidate {
-                        source,
-                        subquestion_id: subquestion.id.clone(),
-                        provider,
-                        source_type: "docs_candidate",
-                        known_url: false,
-                    }),
-            );
+                .extend(
+                    outcome
+                        .candidate_sources
+                        .into_iter()
+                        .filter_map(|candidate| {
+                            let provider = candidate.provider();
+                            let (locator, source) = candidate.into_evidence_source()?;
+                            Some(Candidate {
+                                locator,
+                                source,
+                                query: subquestion.question.clone(),
+                                subquestion_id: subquestion.id.clone(),
+                                provider: Some(provider),
+                                source_type: "docs_candidate",
+                                known_url: false,
+                            })
+                        }),
+                );
         }
         Err(mut error) => {
             block.attempts.append(&mut error.attempts);
@@ -648,7 +645,9 @@ async fn discover_web(
             block
                 .candidates
                 .extend(outcome.sources.into_iter().map(|source| Candidate {
+                    locator: EvidenceLocator::Url(source.url.clone()),
                     source,
+                    query: subquestion.question.clone(),
                     subquestion_id: subquestion.id.clone(),
                     provider,
                     source_type: "web_candidate",
@@ -698,7 +697,9 @@ async fn discover_vertical(
             block
                 .candidates
                 .extend(outcome.sources.into_iter().map(|source| Candidate {
+                    locator: EvidenceLocator::Url(source.url.clone()),
                     source,
+                    query: subquestion.question.clone(),
                     subquestion_id: subquestion.id.clone(),
                     provider,
                     source_type: "vertical_candidate",
@@ -720,28 +721,47 @@ async fn discover_vertical(
 
 async fn fetch_candidate(
     candidate: Candidate,
+    docs_config: crate::config::DocsSearchRuntimeConfig,
     fetch_config: crate::config::WebFetchRuntimeConfig,
     client: reqwest::Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> CandidateFetchBlock {
-    if let Some(provider) = candidate.provider
-        && candidate
-            .source
-            .text
-            .as_deref()
-            .is_some_and(|content| !content.trim().is_empty())
-    {
-        return CandidateFetchBlock {
-            evidence: Some(FetchedCandidate {
-                url: candidate.source.url,
-                title: candidate.source.title,
-                provider,
-                source_type: "docs",
-                subquestion_id: candidate.subquestion_id,
-                content: candidate.source.text.unwrap_or_default(),
-            }),
-            ..CandidateFetchBlock::default()
+    if matches!(&candidate.locator, EvidenceLocator::Context7Library(_)) {
+        let execution = CapabilityExecution::new("auto", client, retry_policy, deadline);
+        return match engine::documentation_read(
+            &candidate.locator,
+            &candidate.query,
+            docs_config,
+            execution,
+        )
+        .await
+        {
+            Ok(evidence) => CandidateFetchBlock {
+                attempts: evidence.attempts,
+                diagnostic: evidence.diagnostic,
+                evidence: Some(FetchedCandidate {
+                    locator: evidence.locator,
+                    title: candidate.source.title,
+                    provider: evidence.provider,
+                    source_type: "docs",
+                    subquestion_id: candidate.subquestion_id,
+                    content: evidence.content,
+                }),
+                gap: None,
+                missing_provider: false,
+            },
+            Err(error) => CandidateFetchBlock {
+                attempts: error.attempts,
+                diagnostic: error.diagnostic,
+                evidence: None,
+                gap: Some(ResearchGap {
+                    subquestion_id: candidate.subquestion_id,
+                    reason: "failed to read Context7 library".into(),
+                    url: None,
+                }),
+                missing_provider: false,
+            },
         };
     }
     if fetch_config.configured_provider_count() == 0 {
@@ -774,7 +794,7 @@ async fn fetch_candidate(
             attempts: fetched.attempts,
             diagnostic: fetched.diagnostic,
             evidence: Some(FetchedCandidate {
-                url: fetched.url,
+                locator: EvidenceLocator::Url(fetched.url),
                 title: candidate.source.title,
                 provider: fetched.provider,
                 source_type: "fetched_page",
@@ -818,6 +838,7 @@ fn known_url_candidates(query: &str, subquestions: &[ResearchSubquestion]) -> Ve
 
 fn known_url_candidate(url: String, subquestion_id: String) -> Candidate {
     Candidate {
+        locator: EvidenceLocator::Url(url.clone()),
         source: Source {
             title: redact_url(&url),
             url,
@@ -829,6 +850,7 @@ fn known_url_candidate(url: String, subquestion_id: String) -> Candidate {
             image: None,
             favicon: None,
         },
+        query: String::new(),
         subquestion_id,
         provider: None,
         source_type: "known_url",
@@ -883,7 +905,7 @@ fn push_evidence(
         .to_string();
     evidence_items.push(EvidenceItem {
         id,
-        url: evidence.url,
+        locator: evidence.locator,
         title: (!evidence.title.is_empty()).then_some(evidence.title),
         provider: evidence.provider,
         source_type: evidence.source_type,
@@ -898,12 +920,19 @@ fn push_evidence(
 fn unconsumed_candidates_artifact(candidates: &VecDeque<Candidate>) -> Value {
     json!({
         "is_evidence": false,
-        "candidates": candidates.iter().map(|candidate| json!({
-            "source": candidate.source,
-            "provider": candidate.provider,
-            "source_type": candidate.source_type,
-            "subquestion_id": candidate.subquestion_id,
-        })).collect::<Vec<_>>()
+        "candidates": candidates.iter().map(|candidate| {
+            let mut source = json!(candidate.source);
+            source["url"] = json!(candidate.locator.url());
+            if let Some(library_id) = candidate.locator.library_id() {
+                source["library_id"] = json!(library_id);
+            }
+            json!({
+                "source": source,
+                "provider": candidate.provider,
+                "source_type": candidate.source_type,
+                "subquestion_id": candidate.subquestion_id,
+            })
+        }).collect::<Vec<_>>()
     })
 }
 

@@ -1311,43 +1311,35 @@ fn research_quick_budget_clamps_high_strength_requirement_to_plan_capacity() {
 }
 
 #[test]
-fn research_uses_the_fallback_docs_provider_after_context7_has_no_source() {
+fn research_consumes_context7_candidate_as_non_linked_evidence() {
+    let docs_content = rich_content("Context7 ownership docs");
     let context7 = Fixture::start_sequence(vec![
-        Response::new(
+        Response::json(
             200,
-            "application/json",
             r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{}}}"#,
         )
-        .with_header("mcp-session-id", "library-session"),
-        Response::new(202, "application/json", ""),
-        Response::new(
+        .with_session("library-session"),
+        Response::json(202, ""),
+        Response::json(
             200,
-            "application/json",
             r#"{"jsonrpc":"2.0","id":2,"result":{"structuredContent":{"results":[{"id":"/rust-lang/rust","title":"Rust","description":"Rust docs"}]},"content":[]}}"#,
         ),
-        Response::new(
+        Response::json(
             200,
-            "application/json",
             r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{}}}"#,
         )
-        .with_header("mcp-session-id", "docs-session"),
-        Response::new(202, "application/json", ""),
-        Response::new(
+        .with_session("docs-session"),
+        Response::json(202, ""),
+        Response::json(
             200,
-            "application/json",
-            r#"{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"Ownership docs without a source URL"}]}}"#,
+            &json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "result": {"content": [{"type": "text", "text": docs_content}]}
+            })
+            .to_string(),
         ),
     ]);
-    let exa = Fixture::start(
-        200,
-        "application/json",
-        r#"{"results":[{"title":"Ownership","url":"https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html"}]}"#,
-    );
-    let jina = Fixture::start(
-        200,
-        "application/json",
-        &jina_response(&rich_content("Fetched ownership docs")),
-    );
     let config = format!(
         r#"
 [providers.context7]
@@ -1355,6 +1347,98 @@ url = {:?}
 keys = ["context7-key"]
 timeout = 30
 
+[capabilities.docs_search]
+order = ["context7"]
+
+[retry]
+max_attempts = 1
+multiplier = 1
+max_wait = 0
+
+[journal]
+enabled = false
+"#,
+        context7.url,
+    );
+    let environment = RunEnvironment::new(&config);
+    let plan_path = write_plan(&environment, valid_plan(json!(["docs_search"])));
+    let evidence_dir = tempfile::tempdir().expect("evidence dir");
+
+    let output = environment.run(&[
+        "research",
+        "Rust ownership",
+        "--plan",
+        plan_path.to_str().expect("UTF-8 path"),
+        "--evidence-dir",
+        evidence_dir.path().to_str().expect("UTF-8 evidence path"),
+        "--format",
+        "markdown",
+        "--verbose",
+    ]);
+    let stdout = String::from_utf8(output.stdout).expect("UTF-8 stdout");
+    let summary: Value = serde_json::from_slice(
+        &fs::read(evidence_dir.path().join("summary.json")).expect("read summary"),
+    )
+    .expect("parse summary");
+    let evidence = &summary["evidence_items"][0];
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &evidence["provider"],
+            &evidence["source_type"],
+            &evidence["url"],
+            &evidence["library_id"],
+            summary["provider_attempts"]
+                .as_array()
+                .expect("attempts")
+                .iter()
+                .map(|attempt| attempt["provider"].as_str().expect("provider"))
+                .collect::<Vec<_>>(),
+        ),
+        (
+            Some(0),
+            &Value::String("context7".into()),
+            &Value::String("docs".into()),
+            &Value::Null,
+            &Value::String("/rust-lang/rust".into()),
+            vec!["context7", "context7"],
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(stdout.contains("- [e1] —"), "stdout: {stdout}");
+    assert!(!stdout.contains("[e1]("), "stdout: {stdout}");
+    assert!(
+        fs::read_to_string(evidence["path"].as_str().expect("evidence path"))
+            .expect("read evidence")
+            .contains("Context7 ownership docs")
+    );
+    let requests = context7.finish_all();
+    assert!(requests[2].contains("resolve-library-id"));
+    assert!(requests[5].contains("query-docs"));
+}
+
+#[test]
+fn research_fetches_url_documentation_candidate_through_web_fetch() {
+    let exa = Fixture::start(
+        200,
+        "application/json",
+        &json!({
+            "results": [{
+                "title": "Ownership",
+                "url": "https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html"
+            }]
+        })
+        .to_string(),
+    );
+    let jina = Fixture::start(
+        200,
+        "application/json",
+        &jina_response(&rich_content("Fetched ownership documentation")),
+    );
+    let config = format!(
+        r#"
 [providers.exa]
 url = {:?}
 keys = ["exa-key"]
@@ -1366,7 +1450,7 @@ keys = ["jina-key"]
 timeout = 30
 
 [capabilities.docs_search]
-order = ["context7", "exa"]
+order = ["exa"]
 
 [capabilities.web_fetch]
 order = ["jina"]
@@ -1379,81 +1463,7 @@ max_wait = 0
 [journal]
 enabled = false
 "#,
-        context7.url, exa.url, jina.url,
-    );
-    let environment = RunEnvironment::new(&config);
-    let plan_path = write_plan(&environment, valid_plan(json!(["docs_search"])));
-
-    let output = environment.run(&[
-        "research",
-        "Rust ownership",
-        "--plan",
-        plan_path.to_str().expect("UTF-8 path"),
-        "--verbose",
-    ]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["evidence_items"][0]["source_type"],
-            &payload["evidence_items"][0]["url"],
-            payload["provider_attempts"]
-                .as_array()
-                .expect("attempts")
-                .iter()
-                .map(|attempt| attempt["provider"].as_str().expect("provider"))
-                .collect::<Vec<_>>(),
-        ),
-        (
-            Some(0),
-            &Value::String("fetched_page".into()),
-            &Value::String(
-                "https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html".into()
-            ),
-            vec!["context7", "context7", "exa", "jina"]
-        ),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    context7.finish_all();
-    assert!(exa.finish().contains(r#""text":true"#));
-    jina.finish();
-}
-
-#[test]
-fn research_accepts_docs_search_read_content_without_web_fetch() {
-    let exa = Fixture::start(
-        200,
-        "application/json",
-        &json!({
-            "results": [{
-                "title": "Ownership",
-                "url": "https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html",
-                "text": rich_content("Already read documentation")
-            }]
-        })
-        .to_string(),
-    );
-    let config = format!(
-        r#"
-[providers.exa]
-url = {:?}
-keys = ["exa-key"]
-timeout = 30
-
-[capabilities.docs_search]
-order = ["exa"]
-
-[retry]
-max_attempts = 1
-multiplier = 1
-max_wait = 0
-
-[journal]
-enabled = false
-"#,
-        exa.url,
+        exa.url, jina.url,
     );
     let environment = RunEnvironment::new(&config);
     let plan_path = write_plan(&environment, valid_plan(json!(["docs_search"])));
@@ -1481,18 +1491,19 @@ enabled = false
         ),
         (
             Some(0),
-            &Value::String("exa".into()),
-            &Value::String("docs".into()),
-            vec!["docs_search"],
+            &Value::String("jina".into()),
+            &Value::String("fetched_page".into()),
+            vec!["docs_search", "web_fetch"],
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(exa.finish().contains(r#""text":true"#));
+    assert!(exa.finish().contains(r#""text":false"#));
+    jina.finish();
 }
 
 #[test]
-fn research_rejects_thin_docs_content_without_refetching_it() {
+fn research_ignores_unsolicited_exa_text_and_fetches_the_url_candidate() {
     let exa = Fixture::start(
         200,
         "application/json",
@@ -1554,19 +1565,16 @@ enabled = false
                 .map(|attempt| attempt["seam"].as_str().expect("attempt seam"))
                 .collect::<Vec<_>>(),
         ),
-        (
-            Some(5),
-            &Value::String("quality".into()),
-            vec!["docs_search"],
-        ),
+        (Some(0), &Value::Null, vec!["docs_search", "web_fetch"],),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(exa.finish().contains(r#""text":true"#));
+    assert!(exa.finish().contains(r#""text":false"#));
+    jina.finish();
 }
 
 #[test]
-fn research_uses_the_evidence_gate_when_the_docs_chain_has_no_source() {
+fn research_keeps_context7_read_failure_as_a_gap_without_web_fetch() {
     let context7 = Fixture::start_sequence(vec![
         Response::json(
             200,
@@ -1584,11 +1592,9 @@ fn research_uses_the_evidence_gate_when_the_docs_chain_has_no_source() {
         )
         .with_session("docs-session"),
         Response::json(202, ""),
-        Response::json(
-            200,
-            r#"{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"Readable docs without a source URL"}]}}"#,
-        ),
+        Response::new(500, "text/plain", "query-docs unavailable"),
     ]);
+    let jina = Fixture::start_canary();
     let config = format!(
         r#"
 [providers.context7]
@@ -1599,6 +1605,14 @@ timeout = 30
 [capabilities.docs_search]
 order = ["context7"]
 
+[providers.jina]
+url = {:?}
+keys = ["jina-key"]
+timeout = 30
+
+[capabilities.web_fetch]
+order = ["jina"]
+
 [retry]
 max_attempts = 1
 multiplier = 1
@@ -1607,16 +1621,19 @@ max_wait = 0
 [journal]
 enabled = false
 "#,
-        context7.url,
+        context7.url, jina.url,
     );
     let environment = RunEnvironment::new(&config);
     let plan_path = write_plan(&environment, valid_plan(json!(["docs_search"])));
+    let evidence_dir = tempfile::tempdir().expect("evidence dir");
 
     let output = environment.run(&[
         "research",
         "Rust ownership",
         "--plan",
         plan_path.to_str().expect("UTF-8 path"),
+        "--evidence-dir",
+        evidence_dir.path().to_str().expect("UTF-8 evidence path"),
         "--verbose",
     ]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
@@ -1626,22 +1643,37 @@ enabled = false
             output.status.code(),
             &payload["error_kind"],
             &payload["capability_gaps"],
+            &payload["gap_check"]["gaps"],
             payload["provider_attempts"].as_array().map(Vec::len),
         ),
         (
             Some(5),
             &Value::String("evidence".into()),
+            &json!([]),
             &json!([{
-                "capability": "docs_search",
-                "reason": "all_attempts_failed",
-                "providers_skipped": []
+                "subquestion_id": "sq1",
+                "reason": "failed to read Context7 library"
+            }, {
+                "subquestion_id": "",
+                "reason": "research required 1 evidence items but obtained 0"
             }]),
             Some(2),
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+    assert!(evidence_dir.path().join("summary.json").is_file());
+    assert!(Path::new(payload["plan_path"].as_str().expect("plan path")).is_file());
+    assert!(
+        Path::new(
+            payload["unconsumed_candidates"]["path"]
+                .as_str()
+                .expect("candidates path")
+        )
+        .is_file()
+    );
     context7.finish_all();
+    assert!(jina.finish_all().is_empty());
 }
 
 #[test]

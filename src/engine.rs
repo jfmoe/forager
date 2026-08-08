@@ -9,13 +9,13 @@ use crate::config::{
     VerticalSearchRuntimeConfig, WebFetchRuntimeConfig, WebSearchRuntimeConfig,
 };
 use crate::net::{RetryPolicy, combine_diagnostics, slice_budget};
-use crate::providers::{self, DocumentationSearchMode, FetchRequest, ProviderError, SearchRequest};
+use crate::providers::{self, FetchRequest, ProviderError, SearchRequest};
 use crate::redact::redact_url;
 use crate::types::{
     AttemptErrorKind, Capability, CapabilityGap, CapabilitySet, DENSITY_MAX_CHARS,
-    DENSITY_MAX_UNIQUE_LINES, Deadline, DocumentationSearchOutcome, FetchOutcome,
-    MIN_FETCH_CONTENT_CHARS, ProviderAttempt, SearchCandidate, SearchOutcome, Source,
-    SupplementalSearchOutcome, VerticalSearchOutcome,
+    DENSITY_MAX_UNIQUE_LINES, Deadline, DocumentationEvidence, DocumentationSearchOutcome,
+    EvidenceLocator, FetchOutcome, MIN_FETCH_CONTENT_CHARS, ProviderAttempt, SearchCandidate,
+    SearchOutcome, Source, SupplementalSearchOutcome, VerticalSearchOutcome,
 };
 
 pub(crate) const FANOUT_CONCURRENCY: usize = 4;
@@ -340,25 +340,11 @@ async fn execute_docs_search(
         );
         return branch;
     }
-    match documentation_search(
-        query,
-        limit,
-        config.docs_search.clone(),
-        execution,
-        DocumentationSearchMode::Candidates,
-    )
-    .await
-    {
+    match documentation_search(query, limit, config.docs_search.clone(), execution).await {
         Ok(mut supplemental) => {
-            let provider = successful_provider(&supplemental.attempts, "docs_search");
             branch.attempts.append(&mut supplemental.attempts);
             branch.push_diagnostic(supplemental.diagnostic);
             branch.sources = supplemental.candidate_sources;
-            branch
-                .sources
-                .extend(supplemental.read_sources.into_iter().filter_map(|source| {
-                    SearchCandidate::from_source(source, provider, Capability::DocsSearch)
-                }));
         }
         Err(mut error) => {
             branch.attempts.append(&mut error.attempts);
@@ -775,7 +761,6 @@ pub(crate) async fn documentation_search(
     limit: u16,
     config: DocsSearchRuntimeConfig,
     execution: CapabilityExecution,
-    mode: DocumentationSearchMode,
 ) -> Result<DocumentationSearchOutcome, ProviderError> {
     let step = run_provider_chain(
         config.into_entries(),
@@ -787,9 +772,7 @@ pub(crate) async fn documentation_search(
             fallback_off: execution.fallback == "off",
         },
         execution.deadline,
-        |(candidate_sources, read_sources): &(Vec<SearchCandidate>, Vec<Source>)| {
-            !candidate_sources.is_empty() || !read_sources.is_empty()
-        },
+        |candidate_sources: &Vec<SearchCandidate>| !candidate_sources.is_empty(),
         |id, provider_config, deadline| {
             let client = execution.client.clone();
             async move {
@@ -800,9 +783,9 @@ pub(crate) async fn documentation_search(
                     execution.retry_policy,
                     deadline,
                 )
-                .search(query, limit, mode)
+                .search(query, limit)
                 .await?;
-                if outcome.candidate_sources.is_empty() && outcome.read_sources.is_empty() {
+                if outcome.candidate_sources.is_empty() {
                     if let Some(attempt) = outcome.attempts.last_mut() {
                         attempt.error_kind = Some(AttemptErrorKind::Evidence);
                         attempt.message =
@@ -815,39 +798,8 @@ pub(crate) async fn documentation_search(
                         "documentation search returned no consumable source",
                     ));
                 }
-                let thin_content_count = outcome
-                    .read_sources
-                    .iter()
-                    .filter(|source| {
-                        source
-                            .text
-                            .as_deref()
-                            .is_none_or(|content| is_thin(content, &source.url))
-                    })
-                    .count();
-                outcome.read_sources.retain(|source| {
-                    source
-                        .text
-                        .as_deref()
-                        .is_some_and(|content| !is_thin(content, &source.url))
-                });
-                if thin_content_count > 0
-                    && outcome.read_sources.is_empty()
-                    && outcome.candidate_sources.is_empty()
-                {
-                    if let Some(attempt) = outcome.attempts.last_mut() {
-                        attempt.error_kind = Some(AttemptErrorKind::Quality);
-                        attempt.message = "documentation content is too thin".into();
-                    }
-                    return Err(provider_chain_error(
-                        outcome.attempts,
-                        false,
-                        outcome.diagnostic,
-                        "documentation content is too thin",
-                    ));
-                }
                 Ok(ChainStep {
-                    value: (outcome.candidate_sources, outcome.read_sources),
+                    value: outcome.candidate_sources,
                     attempts: outcome.attempts,
                     diagnostic: outcome.diagnostic,
                 })
@@ -856,11 +808,79 @@ pub(crate) async fn documentation_search(
     )
     .await?;
     Ok(DocumentationSearchOutcome {
-        candidate_sources: step.value.0,
-        read_sources: step.value.1,
+        candidate_sources: step.value,
         attempts: step.attempts,
         diagnostic: step.diagnostic,
     })
+}
+
+pub(crate) async fn documentation_read(
+    locator: &EvidenceLocator,
+    query: &str,
+    config: DocsSearchRuntimeConfig,
+    execution: CapabilityExecution,
+) -> Result<DocumentationEvidence, ProviderError> {
+    let Some(provider) = locator.provider() else {
+        return Err(ProviderError {
+            kind: AttemptErrorKind::Evidence,
+            message: "documentation locator has no provider-owned reader".into(),
+            attempts: Vec::new(),
+            verbose: false,
+            diagnostic: None,
+            redirected_library_id: None,
+        });
+    };
+    let Some(entry) = config
+        .into_entries()
+        .into_iter()
+        .find(|entry| entry.configured() && entry.name() == provider)
+    else {
+        return Err(ProviderError {
+            kind: AttemptErrorKind::Evidence,
+            message: format!("{provider} documentation reader is not configured"),
+            attempts: Vec::new(),
+            verbose: false,
+            diagnostic: None,
+            redirected_library_id: None,
+        });
+    };
+    let (id, provider_config, _) = entry.into_parts();
+    let reader = providers::build_docs_search(
+        id,
+        provider_config,
+        execution.client,
+        execution.retry_policy,
+        execution.deadline,
+    );
+    let Some(read) = reader.read(locator, query) else {
+        return Err(ProviderError {
+            kind: AttemptErrorKind::Evidence,
+            message: format!("{provider} cannot read this documentation locator"),
+            attempts: Vec::new(),
+            verbose: false,
+            diagnostic: None,
+            redirected_library_id: None,
+        });
+    };
+    let mut evidence = read.await?;
+    let identity = evidence
+        .locator
+        .url()
+        .or_else(|| evidence.locator.library_id())
+        .unwrap_or_default();
+    if is_thin(&evidence.content, identity) {
+        if let Some(attempt) = evidence.attempts.last_mut() {
+            attempt.error_kind = Some(AttemptErrorKind::Quality);
+            attempt.message = "documentation content is too thin".into();
+        }
+        return Err(provider_chain_error(
+            evidence.attempts,
+            false,
+            evidence.diagnostic,
+            "documentation content is too thin",
+        ));
+    }
+    Ok(evidence)
 }
 
 pub(crate) async fn vertical_search(

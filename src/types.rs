@@ -2,7 +2,8 @@ use std::collections::HashSet;
 use std::str::FromStr;
 use std::time::{Duration, Instant};
 
-use serde::{Deserialize, Serialize};
+use serde::ser::SerializeMap;
+use serde::{Deserialize, Serialize, Serializer};
 use thiserror::Error;
 
 pub(crate) const MIN_FETCH_CONTENT_CHARS: usize = 200;
@@ -639,11 +640,17 @@ impl SearchCandidate {
         self.capability
     }
 
-    pub(crate) fn into_source(self) -> Option<Source> {
-        let url = self.url?.0;
-        Some(Source {
+    pub(crate) fn into_evidence_source(self) -> Option<(EvidenceLocator, Source)> {
+        let locator = match (self.url, self.provider_data) {
+            (Some(url), _) => EvidenceLocator::Url(url.0),
+            (None, SearchCandidateProviderData::Context7(data)) => {
+                EvidenceLocator::Context7Library(data.library_id)
+            }
+            (None, _) => return None,
+        };
+        let source = Source {
             title: self.title.unwrap_or_default(),
-            url,
+            url: locator.url().unwrap_or_default().to_owned(),
             published_date: None,
             author: None,
             text: self.summary,
@@ -651,7 +658,8 @@ impl SearchCandidate {
             id: None,
             image: None,
             favicon: None,
-        })
+        };
+        Some((locator, source))
     }
 }
 
@@ -682,8 +690,9 @@ pub struct SearchOutcome {
 pub struct EvidenceItem {
     /// Invocation-local stable identifier.
     pub id: String,
-    /// Redacted evidence URL.
-    pub url: String,
+    /// Mutually exclusive evidence identity.
+    #[serde(flatten)]
+    pub locator: EvidenceLocator,
     /// Human-readable evidence title when the provider supplied one.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub title: Option<String>,
@@ -702,6 +711,68 @@ pub struct EvidenceItem {
     pub verified: bool,
     /// Directly readable Markdown artifact containing the evidence body.
     pub path: String,
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+/// A retrievable evidence identity.
+pub enum EvidenceLocator {
+    /// A real HTTP(S) URL consumed through Web Fetch.
+    Url(String),
+    /// A Context7 library consumed through `query-docs`.
+    Context7Library(String),
+}
+
+impl EvidenceLocator {
+    /// Returns the evidence URL when this locator has one.
+    #[must_use]
+    pub fn url(&self) -> Option<&str> {
+        match self {
+            Self::Url(url) => Some(url),
+            Self::Context7Library(_) => None,
+        }
+    }
+
+    /// Returns the Context7 library ID when this locator identifies one.
+    #[must_use]
+    pub fn library_id(&self) -> Option<&str> {
+        match self {
+            Self::Url(_) => None,
+            Self::Context7Library(library_id) => Some(library_id),
+        }
+    }
+
+    pub(crate) fn provider(&self) -> Option<&'static str> {
+        match self {
+            Self::Url(_) => None,
+            Self::Context7Library(_) => Some("context7"),
+        }
+    }
+}
+
+impl Serialize for EvidenceLocator {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut map = serializer.serialize_map(None)?;
+        match self {
+            Self::Url(url) => map.serialize_entry("url", url)?,
+            Self::Context7Library(library_id) => {
+                map.serialize_entry("url", &Option::<&str>::None)?;
+                map.serialize_entry("library_id", library_id)?;
+            }
+        }
+        map.end()
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct DocumentationEvidence {
+    pub(crate) locator: EvidenceLocator,
+    pub(crate) provider: &'static str,
+    pub(crate) content: String,
+    pub(crate) attempts: Vec<ProviderAttempt>,
+    pub(crate) diagnostic: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -807,7 +878,6 @@ pub(crate) struct SupplementalSearchOutcome {
 #[derive(Clone, Debug)]
 pub(crate) struct DocumentationSearchOutcome {
     pub(crate) candidate_sources: Vec<SearchCandidate>,
-    pub(crate) read_sources: Vec<Source>,
     pub(crate) attempts: Vec<ProviderAttempt>,
     pub(crate) diagnostic: Option<String>,
 }
@@ -1045,7 +1115,25 @@ impl Deadline {
 mod research_plan_tests {
     use serde_json::{Value, json};
 
-    use super::{AttemptErrorKind, ErrorKind, ResearchPlan};
+    use super::{AttemptErrorKind, ErrorKind, EvidenceLocator, ResearchPlan};
+
+    #[test]
+    fn evidence_locators_project_their_mutually_exclusive_public_identity() {
+        let url =
+            serde_json::to_value(EvidenceLocator::Url("https://example.test/evidence".into()))
+                .expect("serialize URL locator");
+        let context7 =
+            serde_json::to_value(EvidenceLocator::Context7Library("/rust-lang/rust".into()))
+                .expect("serialize Context7 locator");
+
+        assert_eq!(
+            (url, context7),
+            (
+                json!({"url": "https://example.test/evidence"}),
+                json!({"url": null, "library_id": "/rust-lang/rust"}),
+            )
+        );
+    }
 
     #[test]
     fn provider_attempt_error_domain_excludes_preflight_config() {
