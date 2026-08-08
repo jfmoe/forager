@@ -16,6 +16,7 @@ fn research_error_exposes_its_message_through_the_standard_error_interface() {
             stop_reason: "insufficient_evidence",
         },
         evidence_dir: "/tmp/evidence".into(),
+        summary_path: None,
         plan_path: "/tmp/evidence/00-plan.json".into(),
         unconsumed_candidates: UnconsumedCandidates {
             count: 0,

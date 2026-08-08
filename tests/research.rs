@@ -1187,13 +1187,223 @@ fn research_reports_error_summary_write_failures_without_replacing_the_terminal(
         (
             output.status.code(),
             &payload["error_kind"],
+            &payload["evidence_dir"],
+            &payload["summary_path"],
             String::from_utf8_lossy(&output.stderr)
                 .contains("cannot write research summary artifact"),
         ),
-        (Some(5), &Value::String("evidence".into()), true),
+        (
+            Some(5),
+            &Value::String("evidence".into()),
+            &json!(evidence_dir.path()),
+            &Value::Null,
+            true,
+        ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+}
+
+#[test]
+fn research_failure_returns_a_stable_envelope_and_readable_recovery_manifest() {
+    let environment = RunEnvironment::new("");
+    let plan_path = write_plan(&environment, valid_plan(json!([])));
+    let evidence_dir = tempfile::tempdir().expect("evidence dir");
+
+    let output = environment.run(&[
+        "research",
+        "No available evidence",
+        "--plan",
+        plan_path.to_str().expect("UTF-8 path"),
+        "--evidence-dir",
+        evidence_dir.path().to_str().expect("UTF-8 evidence path"),
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let manifest = read_recovery_manifest(&payload);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            payload
+                .as_object()
+                .expect("failure envelope")
+                .keys()
+                .map(String::as_str)
+                .collect::<Vec<_>>(),
+        ),
+        (
+            Some(5),
+            vec![
+                "error_kind",
+                "evidence_dir",
+                "gap_check",
+                "journal_ref",
+                "journal_status",
+                "message",
+                "summary_path",
+                "synthesis_policy",
+            ],
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        (
+            &manifest["status"],
+            &manifest["error_kind"],
+            &manifest["query"],
+            &manifest["budget"],
+            &manifest["plan_source"],
+            &manifest["fallback"],
+            &manifest["evidence_dir"],
+            &manifest["plan_path"],
+        ),
+        (
+            &json!("error"),
+            &json!("evidence"),
+            &json!("No available evidence"),
+            &json!("standard"),
+            &json!("caller"),
+            &json!({"mode": "auto", "used": false}),
+            &json!(evidence_dir.path()),
+            &json!(evidence_dir.path().join("00-plan.json")),
+        )
+    );
+    assert_eq!(
+        (
+            &manifest["unconsumed_candidates"],
+            &manifest["coverage"]["gap_check"],
+            &manifest["synthesis_policy"],
+            manifest["provider_attempts"].as_array().map(Vec::len),
+            manifest["evidence_items"].as_array().map(Vec::len),
+        ),
+        (
+            &json!({
+                "count": 0,
+                "path": evidence_dir.path().join("candidates.json")
+            }),
+            &json!({
+                "status": "degraded",
+                "gaps": [{
+                    "subquestion_id": "sq1",
+                    "reason": "no verified evidence was collected after attempting 0 candidate URLs"
+                }, {
+                    "subquestion_id": "",
+                    "reason": "research required 1 evidence items but obtained 0"
+                }],
+                "stop_reason": "degraded_with_gaps"
+            }),
+            &json!("fetch_before_claim"),
+            Some(0),
+            Some(0),
+        )
+    );
+    assert!(
+        manifest["message"]
+            .as_str()
+            .is_some_and(|message| message.len() <= 500)
+    );
+    assert!(manifest["capabilities"].is_array());
+    assert!(manifest["capability_gaps"].is_array());
+}
+
+#[test]
+fn research_early_artifact_failure_returns_no_speculative_summary_path() {
+    let environment = RunEnvironment::new("");
+    let plan_path = write_plan(&environment, valid_plan(json!([])));
+    let blocked_evidence_dir = environment.config_dir.join("blocked-evidence-dir");
+    fs::write(&blocked_evidence_dir, "not a directory").expect("block evidence directory");
+
+    let output = environment.run(&[
+        "research",
+        "No artifact root",
+        "--plan",
+        plan_path.to_str().expect("UTF-8 path"),
+        "--evidence-dir",
+        blocked_evidence_dir.to_str().expect("UTF-8 evidence path"),
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["error_kind"],
+            &payload["evidence_dir"],
+            &payload["summary_path"],
+        ),
+        (
+            Some(4),
+            &json!("runtime"),
+            &json!(blocked_evidence_dir),
+            &Value::Null,
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn research_large_failure_metadata_stays_in_the_recovery_manifest() {
+    let title = "metadata".repeat(700);
+    let tavily = Fixture::start(
+        200,
+        "application/json",
+        &json!({
+            "results": [{
+                "title": title,
+                "url": "https://example.test/large-metadata"
+            }]
+        })
+        .to_string(),
+    );
+    let jina = Fixture::start(
+        200,
+        "application/json",
+        &jina_response(&rich_content("Large metadata evidence")),
+    );
+    let environment = RunEnvironment::new(&research_config(&tavily.url, &jina.url, false));
+    let mut plan = valid_plan(json!(["web_search"]));
+    plan["intent_signals"]["cross_validation_need"] = json!("high");
+    let plan_path = write_plan(&environment, plan);
+    let evidence_dir = tempfile::tempdir().expect("evidence dir");
+
+    let output = environment.run(&[
+        "research",
+        "Recover large metadata",
+        "--plan",
+        plan_path.to_str().expect("UTF-8 path"),
+        "--evidence-dir",
+        evidence_dir.path().to_str().expect("UTF-8 evidence path"),
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let manifest = read_recovery_manifest(&payload);
+
+    assert!(output.stdout.len() <= 4096);
+    assert_eq!(
+        (
+            output.status.code(),
+            &manifest["evidence_items"][0]["title"],
+            Path::new(
+                manifest["evidence_items"][0]["path"]
+                    .as_str()
+                    .expect("evidence path")
+            )
+            .is_file(),
+            Path::new(manifest["plan_path"].as_str().expect("plan path")).is_file(),
+            Path::new(
+                manifest["unconsumed_candidates"]["path"]
+                    .as_str()
+                    .expect("candidate path")
+            )
+            .is_file(),
+            &manifest["coverage"]["gap_check"]["status"],
+        ),
+        (Some(5), &json!(title), true, true, true, &json!("degraded"),),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    tavily.finish();
+    jina.finish();
 }
 
 #[test]
@@ -1215,31 +1425,34 @@ fn research_summary_write_failure_preserves_the_already_persisted_evidence_index
         evidence_dir.path().to_str().expect("UTF-8 evidence path"),
     ]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let evidence_path = evidence_dir.path().join("01-evidence.md");
 
     assert_eq!(
         (
             output.status.code(),
             &payload["error_kind"],
-            &payload["evidence_items"][0]["url"],
-            Path::new(
-                payload["evidence_items"][0]["path"]
-                    .as_str()
-                    .expect("evidence path"),
-            )
-            .is_file(),
-            &payload["unconsumed_candidates"]["count"],
-            Path::new(payload["plan_path"].as_str().expect("plan path")).is_file(),
+            &payload["evidence_dir"],
+            &payload["summary_path"],
+            evidence_path.is_file(),
+            evidence_dir.path().join("candidates.json").is_file(),
+            evidence_dir.path().join("00-plan.json").is_file(),
         ),
         (
             Some(4),
             &Value::String("runtime".into()),
-            &Value::String("https://example.test/known".into()),
+            &json!(evidence_dir.path()),
+            &Value::Null,
             true,
-            &json!(0),
+            true,
             true,
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        fs::read_to_string(evidence_path)
+            .expect("read retained evidence")
+            .contains("Evidence retained after summary failure")
     );
     jina.finish();
 }
@@ -1263,6 +1476,7 @@ fn research_returns_evidence_when_high_strength_requires_more_than_one_item() {
         plan_path.to_str().expect("UTF-8 path"),
     ]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let manifest = read_recovery_manifest(&payload);
     let journal = read_only_journal(&environment);
 
     assert_eq!(
@@ -1270,16 +1484,16 @@ fn research_returns_evidence_when_high_strength_requires_more_than_one_item() {
             output.status.code(),
             &payload["error_kind"],
             &payload["synthesis_policy"],
-            payload["evidence_items"][0]["content"].is_null(),
-            Path::new(payload["plan_path"].as_str().expect("plan path")).is_file(),
+            manifest["evidence_items"][0]["content"].is_null(),
+            Path::new(manifest["plan_path"].as_str().expect("plan path")).is_file(),
             Path::new(
-                payload["evidence_items"][0]["path"]
+                manifest["evidence_items"][0]["path"]
                     .as_str()
                     .expect("evidence path"),
             )
             .is_file(),
             Path::new(
-                payload["unconsumed_candidates"]["path"]
+                manifest["unconsumed_candidates"]["path"]
                     .as_str()
                     .expect("candidate path")
             )
@@ -1323,7 +1537,6 @@ fn research_quick_budget_clamps_high_strength_requirement_to_plan_capacity() {
         "quick",
     ]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
     assert_eq!(
         (
             output.status.code(),
@@ -1339,62 +1552,22 @@ fn research_quick_budget_clamps_high_strength_requirement_to_plan_capacity() {
 }
 
 #[test]
-fn research_consumes_context7_candidate_as_non_linked_evidence() {
+fn research_recovery_manifest_keeps_mixed_url_and_context7_evidence_identities() {
     let docs_content = rich_content("Context7 ownership docs");
-    let context7 = Fixture::start_sequence(vec![
-        Response::json(
-            200,
-            r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{}}}"#,
-        )
-        .with_session("library-session"),
-        Response::json(202, ""),
-        Response::json(
-            200,
-            r#"{"jsonrpc":"2.0","id":2,"result":{"structuredContent":{"results":[{"id":"/rust-lang/rust","title":"Rust","description":"Rust docs"}]},"content":[]}}"#,
-        ),
-        Response::json(
-            200,
-            r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{}}}"#,
-        )
-        .with_session("docs-session"),
-        Response::json(202, ""),
-        Response::json(
-            200,
-            &json!({
-                "jsonrpc": "2.0",
-                "id": 2,
-                "result": {"content": [{"type": "text", "text": docs_content}]}
-            })
-            .to_string(),
-        ),
-    ]);
-    let config = format!(
-        r#"
-[providers.context7]
-url = {:?}
-keys = ["context7-key"]
-timeout = 30
-
-[capabilities.docs_search]
-order = ["context7"]
-
-[retry]
-max_attempts = 1
-multiplier = 1
-max_wait = 0
-
-[journal]
-enabled = false
-"#,
-        context7.url,
+    let context7 = context7_evidence_fixture(&docs_content);
+    let jina = Fixture::start(
+        200,
+        "application/json",
+        &jina_response(&rich_content("Known URL ownership docs")),
     );
+    let config = context7_research_config(&context7.url, &jina.url);
     let environment = RunEnvironment::new(&config);
     let plan_path = write_plan(&environment, valid_plan(json!(["docs_search"])));
     let evidence_dir = tempfile::tempdir().expect("evidence dir");
 
     let output = environment.run(&[
         "research",
-        "Rust ownership",
+        "Rust ownership https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html",
         "--plan",
         plan_path.to_str().expect("UTF-8 path"),
         "--evidence-dir",
@@ -1408,15 +1581,18 @@ enabled = false
         &fs::read(evidence_dir.path().join("summary.json")).expect("read summary"),
     )
     .expect("parse summary");
-    let evidence = &summary["evidence_items"][0];
+    let url_evidence = &summary["evidence_items"][0];
+    let docs_evidence = &summary["evidence_items"][1];
 
     assert_eq!(
         (
             output.status.code(),
-            &evidence["provider"],
-            &evidence["source_type"],
-            &evidence["url"],
-            &evidence["library_id"],
+            &url_evidence["url"],
+            &url_evidence["library_id"],
+            &docs_evidence["provider"],
+            &docs_evidence["source_type"],
+            &docs_evidence["url"],
+            &docs_evidence["library_id"],
             summary["provider_attempts"]
                 .as_array()
                 .expect("attempts")
@@ -1426,25 +1602,35 @@ enabled = false
         ),
         (
             Some(0),
+            &Value::String(
+                "https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html".into()
+            ),
+            &Value::Null,
             &Value::String("context7".into()),
             &Value::String("docs".into()),
             &Value::Null,
             &Value::String("/rust-lang/rust".into()),
-            vec!["context7", "context7"],
+            vec!["context7", "jina", "context7"],
         ),
-        "stderr: {}",
+        "summary: {summary}\nstderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(stdout.contains("- [e1] —"), "stdout: {stdout}");
-    assert!(!stdout.contains("[e1]("), "stdout: {stdout}");
     assert!(
-        fs::read_to_string(evidence["path"].as_str().expect("evidence path"))
+        stdout
+            .contains("[e1](https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html)"),
+        "stdout: {stdout}"
+    );
+    assert!(stdout.contains("- [e2] —"), "stdout: {stdout}");
+    assert!(!stdout.contains("[e2]("), "stdout: {stdout}");
+    assert!(
+        fs::read_to_string(docs_evidence["path"].as_str().expect("evidence path"))
             .expect("read evidence")
             .contains("Context7 ownership docs")
     );
     let requests = context7.finish_all();
     assert!(requests[2].contains("resolve-library-id"));
     assert!(requests[5].contains("query-docs"));
+    jina.finish();
 }
 
 #[test]
@@ -1504,7 +1690,6 @@ enabled = false
         "--verbose",
     ]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
     assert_eq!(
         (
             output.status.code(),
@@ -1665,13 +1850,14 @@ enabled = false
         "--verbose",
     ]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let manifest = read_recovery_manifest(&payload);
 
     assert_eq!(
         (
             output.status.code(),
             &payload["error_kind"],
-            &payload["capability_gaps"],
-            &payload["gap_check"]["gaps"],
+            &manifest["capability_gaps"],
+            &manifest["coverage"]["gap_check"]["gaps"],
             payload["provider_attempts"].as_array().map(Vec::len),
         ),
         (
@@ -1691,10 +1877,10 @@ enabled = false
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(evidence_dir.path().join("summary.json").is_file());
-    assert!(Path::new(payload["plan_path"].as_str().expect("plan path")).is_file());
+    assert!(Path::new(manifest["plan_path"].as_str().expect("plan path")).is_file());
     assert!(
         Path::new(
-            payload["unconsumed_candidates"]["path"]
+            manifest["unconsumed_candidates"]["path"]
                 .as_str()
                 .expect("candidates path")
         )
@@ -2299,6 +2485,74 @@ fn write_plan(environment: &RunEnvironment, plan: Value) -> std::path::PathBuf {
     let path = environment.config_dir.join("plan.json");
     fs::write(&path, serde_json::to_vec(&plan).expect("encode plan")).expect("write plan");
     path
+}
+
+fn read_recovery_manifest(payload: &Value) -> Value {
+    serde_json::from_slice(
+        &fs::read(payload["summary_path"].as_str().expect("summary path"))
+            .expect("read Recovery Manifest"),
+    )
+    .expect("parse Recovery Manifest")
+}
+
+fn context7_evidence_fixture(docs_content: &str) -> Fixture {
+    Fixture::start_sequence(vec![
+        Response::json(
+            200,
+            r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{}}}"#,
+        )
+        .with_session("library-session"),
+        Response::json(202, ""),
+        Response::json(
+            200,
+            r#"{"jsonrpc":"2.0","id":2,"result":{"structuredContent":{"results":[{"id":"/rust-lang/rust","title":"Rust","description":"Rust docs"}]},"content":[]}}"#,
+        ),
+        Response::json(
+            200,
+            r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{}}}"#,
+        )
+        .with_session("docs-session"),
+        Response::json(202, ""),
+        Response::json(
+            200,
+            &json!({
+                "jsonrpc": "2.0",
+                "id": 2,
+                "result": {"content": [{"type": "text", "text": docs_content}]}
+            })
+            .to_string(),
+        ),
+    ])
+}
+
+fn context7_research_config(context7_url: &str, jina_url: &str) -> String {
+    format!(
+        r#"
+[providers.context7]
+url = {context7_url:?}
+keys = ["context7-key"]
+timeout = 30
+
+[capabilities.docs_search]
+order = ["context7"]
+
+[providers.jina]
+url = {jina_url:?}
+keys = ["jina-key"]
+timeout = 30
+
+[capabilities.web_fetch]
+order = ["jina"]
+
+[retry]
+max_attempts = 1
+multiplier = 1
+max_wait = 0
+
+[journal]
+enabled = false
+"#
+    )
 }
 
 fn rich_content(label: &str) -> String {

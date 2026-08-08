@@ -78,7 +78,7 @@ forager research "对比主流 Rust CLI 分发方式" \
   --format markdown
 ```
 
-直接调用 `research` 时需要配置分类器；通过 Agent Skill 调用时，Agent 会生成计划并通过 `--plan` 注入。`research` 返回轻量 Research Evidence Index：证据正文逐条写入返回的 `evidence_items[].path`，完整计划、未消费候选与运行摘要分别位于 `00-plan.json`、`candidates.json` 和 `summary.json`。调用方按需读取正文并完成综合；stdout 不再输出机械答案或重复正文。
+直接调用 `research` 时需要配置分类器；通过 Agent Skill 调用时，Agent 会生成计划并通过 `--plan` 注入。未指定 `--budget` 时默认使用 `standard`；`deep` 是显式选择的最大覆盖、高成本档。成功时 `research` 返回轻量 Research Evidence Index：证据正文逐条写入返回的 `evidence_items[].path`，完整计划与未消费候选分别位于 `00-plan.json` 和 `candidates.json`。`summary.json` 是无正文的 Research Recovery Manifest，不是 Evidence Index；失败 JSON 通过可空的 `summary_path` 指向已成功写入且可直接读取的 manifest。调用方按需读取正文并完成综合；stdout 不再输出机械答案或重复正文。
 
 读取已知网页：
 

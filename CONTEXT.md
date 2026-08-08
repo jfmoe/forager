@@ -112,6 +112,10 @@ _Avoid_: research answer engine、engine synthesis、final answer generator、in
 Research Evidence Pipeline 在标准输出中交付的轻量证据目录；它描述每条证据的身份、来源、覆盖归属与本地正文路径，但不重复输出已经落盘的正文。
 _Avoid_: evidence preview、inline evidence content、research answer
 
+**Research Recovery Manifest**:
+Research Evidence Pipeline 写入 `summary.json` 的无正文恢复清单；它记录终态、计划与预算来源、能力、fallback、证据身份和路径、未消费候选、覆盖缺口、供应方尝试及综合策略，使失败调用方能通过稳定的 `summary_path` 恢复制品。它不是成功 stdout 交付的 Research Evidence Index。
+_Avoid_: Research Evidence Index、inline failure index、evidence body archive
+
 **Citation Binding**:
 回答文本中的内联标记与某条来源或证据之间可机器读取的对应关系；它表达引用归属，不代表系统已验证该证据确实支持对应陈述。
 _Avoid_: claim verification、source list

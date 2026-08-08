@@ -110,7 +110,6 @@ pub(crate) async fn execute(
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> Result<ResearchOutcome, ResearchError> {
-    let capabilities = request.plan.capabilities().iter().collect::<Vec<_>>();
     let mut attempts = Vec::new();
     let mut capability_gaps = Vec::new();
     let mut research_gaps = Vec::new();
@@ -424,41 +423,24 @@ pub(crate) async fn execute(
             capability_gaps,
             gap_check,
             evidence_dir,
+            summary_path: None,
             plan_path,
             unconsumed_candidates,
             synthesis_policy: SYNTHESIS_POLICY,
             diagnostic,
         };
-        let _ = write_json_artifact(
-            &request.evidence_dir,
-            "summary.json",
-            &json!({
-                "status": "error",
-                "error_kind": error.kind.as_str(),
-                "message": error.message,
-                "query": request.query,
-                "budget": request.budget.as_str(),
-                "plan_source": request.plan_source,
-                "capabilities": capabilities,
-                "fallback_used": fallback_used,
-                "coverage": {
-                    "evidence_count": error.evidence_items.len(),
-                    "unconsumed_candidate_count": error.unconsumed_candidates.count,
-                    "gap_check": error.gap_check,
-                },
-                "evidence_items": error.evidence_items,
-                "provider_attempts": error.attempts,
-                "capability_gaps": error.capability_gaps,
-            }),
-        )
-        .inspect_err(|summary_error| {
-            let summary_diagnostic =
-                format!("cannot write research summary artifact: {summary_error}");
-            error.diagnostic = Some(match error.diagnostic.take() {
-                Some(diagnostic) => format!("{diagnostic}\n{summary_diagnostic}"),
-                None => summary_diagnostic,
-            });
-        });
+        let manifest = recovery_manifest(&request, Err(&error), fallback_used);
+        match write_recovery_manifest(&request.evidence_dir, &manifest) {
+            Ok(summary_path) => error.summary_path = Some(summary_path),
+            Err(summary_error) => {
+                let summary_diagnostic =
+                    format!("cannot write research summary artifact: {summary_error}");
+                error.diagnostic = Some(match error.diagnostic.take() {
+                    Some(diagnostic) => format!("{diagnostic}\n{summary_diagnostic}"),
+                    None => summary_diagnostic,
+                });
+            }
+        }
         return Err(error);
     }
 
@@ -473,23 +455,8 @@ pub(crate) async fn execute(
         attempts,
         diagnostic,
     };
-    let summary = json!({
-        "status": "ok",
-        "query": request.query,
-        "budget": request.budget.as_str(),
-        "plan_source": request.plan_source,
-        "capabilities": capabilities,
-        "fallback_used": fallback_used,
-        "coverage": {
-            "evidence_count": outcome.evidence_items.len(),
-            "unconsumed_candidate_count": outcome.unconsumed_candidates.count,
-            "gap_check": outcome.gap_check,
-        },
-        "evidence_items": outcome.evidence_items,
-        "provider_attempts": outcome.attempts,
-        "capability_gaps": outcome.capability_gaps,
-    });
-    if let Err(error) = write_json_artifact(&request.evidence_dir, "summary.json", &summary) {
+    let summary = recovery_manifest(&request, Ok(&outcome), fallback_used);
+    if let Err(error) = write_recovery_manifest(&request.evidence_dir, &summary) {
         return Err(ResearchError {
             kind: AttemptErrorKind::Runtime,
             message: format!("cannot write research summary artifact: {error}"),
@@ -498,6 +465,7 @@ pub(crate) async fn execute(
             capability_gaps: outcome.capability_gaps,
             gap_check: outcome.gap_check,
             evidence_dir: outcome.evidence_dir,
+            summary_path: None,
             plan_path: outcome.plan_path,
             unconsumed_candidates: outcome.unconsumed_candidates,
             synthesis_policy: outcome.synthesis_policy,
@@ -957,6 +925,76 @@ fn write_json_artifact(root: &Path, name: &str, value: &Value) -> std::io::Resul
     fs::write(root.join(name), encoded)
 }
 
+fn write_recovery_manifest(root: &Path, value: &Value) -> std::io::Result<String> {
+    write_json_artifact(root, "summary.json", value)?;
+    let path = root.join("summary.json");
+    fs::read(&path)?;
+    Ok(path.display().to_string())
+}
+
+fn recovery_manifest(
+    request: &ResearchRequest,
+    terminal: Result<&ResearchOutcome, &ResearchError>,
+    fallback_used: bool,
+) -> Value {
+    let (status, error_kind, message, evidence_items, capability_gaps, gap_check, attempts, paths) =
+        match terminal {
+            Ok(outcome) => (
+                "ok",
+                None,
+                None,
+                &outcome.evidence_items,
+                &outcome.capability_gaps,
+                &outcome.gap_check,
+                &outcome.attempts,
+                (
+                    &outcome.evidence_dir,
+                    &outcome.plan_path,
+                    &outcome.unconsumed_candidates,
+                ),
+            ),
+            Err(error) => (
+                "error",
+                Some(error.kind.as_str()),
+                Some(error.message.chars().take(500).collect::<String>()),
+                &error.evidence_items,
+                &error.capability_gaps,
+                &error.gap_check,
+                &error.attempts,
+                (
+                    &error.evidence_dir,
+                    &error.plan_path,
+                    &error.unconsumed_candidates,
+                ),
+            ),
+        };
+    json!({
+        "status": status,
+        "error_kind": error_kind,
+        "message": message,
+        "query": request.query,
+        "budget": request.budget.as_str(),
+        "plan_source": request.plan_source,
+        "capabilities": request.plan.capabilities().iter().collect::<Vec<_>>(),
+        "fallback": {
+            "mode": request.fallback,
+            "used": fallback_used,
+        },
+        "evidence_dir": paths.0,
+        "plan_path": paths.1,
+        "unconsumed_candidates": paths.2,
+        "evidence_items": evidence_items,
+        "coverage": {
+            "evidence_count": evidence_items.len(),
+            "unconsumed_candidate_count": paths.2.count,
+            "gap_check": gap_check,
+        },
+        "capability_gaps": capability_gaps,
+        "provider_attempts": attempts,
+        "synthesis_policy": SYNTHESIS_POLICY,
+    })
+}
+
 fn runtime_error(
     message: String,
     attempts: Vec<ProviderAttempt>,
@@ -976,6 +1014,7 @@ fn runtime_error(
             stop_reason: "artifact_write_failed",
         },
         evidence_dir: evidence_dir_display,
+        summary_path: None,
         plan_path: evidence_dir.join("00-plan.json").display().to_string(),
         unconsumed_candidates: UnconsumedCandidates {
             count: 0,
@@ -1030,4 +1069,167 @@ fn fallback_used(attempts: &[ProviderAttempt]) -> bool {
     providers_by_seam
         .values()
         .any(|providers| providers.len() > 1)
+}
+
+#[cfg(test)]
+mod tests {
+    use serde_json::{Value, json};
+
+    use super::{ResearchBudget, ResearchRequest, recovery_manifest};
+    use crate::types::{
+        AttemptErrorKind, EvidenceItem, EvidenceLocator, ResearchError, ResearchGapCheck,
+        ResearchOutcome, ResearchPlan, UnconsumedCandidates,
+    };
+
+    #[test]
+    fn recovery_manifest_covers_success_evidence_and_runtime_without_content() {
+        let request = request();
+        let outcome = outcome();
+        let evidence_error = error(AttemptErrorKind::Evidence);
+        let runtime_error = error(AttemptErrorKind::Runtime);
+
+        let success = recovery_manifest(&request, Ok(&outcome), false);
+        let evidence = recovery_manifest(&request, Err(&evidence_error), true);
+        let runtime = recovery_manifest(&request, Err(&runtime_error), false);
+
+        assert_eq!(
+            [
+                (&success["status"], &success["error_kind"]),
+                (&evidence["status"], &evidence["error_kind"]),
+                (&runtime["status"], &runtime["error_kind"]),
+            ],
+            [
+                (&json!("ok"), &Value::Null),
+                (&json!("error"), &json!("evidence")),
+                (&json!("error"), &json!("runtime")),
+            ]
+        );
+        for manifest in [&success, &evidence, &runtime] {
+            assert_eq!(
+                manifest
+                    .as_object()
+                    .expect("Recovery Manifest")
+                    .keys()
+                    .map(String::as_str)
+                    .collect::<Vec<_>>(),
+                [
+                    "budget",
+                    "capabilities",
+                    "capability_gaps",
+                    "coverage",
+                    "error_kind",
+                    "evidence_dir",
+                    "evidence_items",
+                    "fallback",
+                    "message",
+                    "plan_path",
+                    "plan_source",
+                    "provider_attempts",
+                    "query",
+                    "status",
+                    "synthesis_policy",
+                    "unconsumed_candidates",
+                ]
+            );
+            assert!(manifest["evidence_items"][0]["content"].is_null());
+        }
+        assert_eq!(
+            evidence["message"]
+                .as_str()
+                .map(str::chars)
+                .map(Iterator::count),
+            Some(500)
+        );
+    }
+
+    fn request() -> ResearchRequest {
+        ResearchRequest {
+            query: "Recovery query".into(),
+            plan: ResearchPlan::parse_json(
+                &json!({
+                    "plan_version": 1,
+                    "intent_signals": {
+                        "recency_requirement": "none",
+                        "docs_api_intent": false,
+                        "source_authority_need": "normal",
+                        "claim_risk": "medium",
+                        "cross_validation_need": "normal"
+                    },
+                    "decomposition": [{
+                        "id": "sq1",
+                        "question": "What is recoverable?",
+                        "reason": "Exercise the manifest contract",
+                        "required_capabilities": []
+                    }]
+                })
+                .to_string(),
+            )
+            .expect("valid plan"),
+            plan_source: "caller",
+            budget: ResearchBudget::Standard,
+            evidence_dir: "/tmp/evidence".into(),
+            fallback: "auto".into(),
+        }
+    }
+
+    fn outcome() -> ResearchOutcome {
+        ResearchOutcome {
+            evidence_items: vec![evidence_item()],
+            capability_gaps: Vec::new(),
+            gap_check: gap_check(),
+            evidence_dir: "/tmp/evidence".into(),
+            plan_path: "/tmp/evidence/00-plan.json".into(),
+            unconsumed_candidates: candidates(),
+            synthesis_policy: "fetch_before_claim",
+            attempts: Vec::new(),
+            diagnostic: None,
+        }
+    }
+
+    fn error(kind: AttemptErrorKind) -> ResearchError {
+        ResearchError {
+            kind,
+            message: "界".repeat(600),
+            attempts: Vec::new(),
+            evidence_items: vec![evidence_item()],
+            capability_gaps: Vec::new(),
+            gap_check: gap_check(),
+            evidence_dir: "/tmp/evidence".into(),
+            summary_path: None,
+            plan_path: "/tmp/evidence/00-plan.json".into(),
+            unconsumed_candidates: candidates(),
+            synthesis_policy: "fetch_before_claim",
+            diagnostic: None,
+        }
+    }
+
+    fn evidence_item() -> EvidenceItem {
+        EvidenceItem {
+            id: "e1".into(),
+            locator: EvidenceLocator::Context7Library("/rust-lang/rust".into()),
+            title: Some("Rust".into()),
+            provider: "context7",
+            source_type: "docs",
+            subquestion_id: "sq1".into(),
+            content: "persisted body".into(),
+            content_len: 14,
+            verified: true,
+            path: "/tmp/evidence/01-evidence.md".into(),
+        }
+    }
+
+    fn gap_check() -> ResearchGapCheck {
+        ResearchGapCheck {
+            status: "closed",
+            gaps: Vec::new(),
+            stop_reason: "evidence_converged",
+        }
+    }
+
+    fn candidates() -> UnconsumedCandidates {
+        UnconsumedCandidates {
+            count: 0,
+            path: "/tmp/evidence/candidates.json".into(),
+        }
+    }
 }

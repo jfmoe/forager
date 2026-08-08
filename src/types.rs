@@ -850,6 +850,8 @@ pub struct ResearchError {
     pub gap_check: ResearchGapCheck,
     /// Directory containing the artifacts retained before failure.
     pub evidence_dir: String,
+    /// Readable Research Recovery Manifest, when persistence succeeded.
+    pub summary_path: Option<String>,
     /// Readable path to the normalized Schema v1 plan.
     pub plan_path: String,
     /// Discovered candidates that were not fetched and are not evidence.

@@ -41,6 +41,19 @@ fn command_tree_and_six_visible_aliases_remain_available() {
     }
 }
 
+#[test]
+fn research_help_declares_standard_as_the_default_budget() {
+    let output = run(&["research", "--help"]);
+    let help = String::from_utf8(output.stdout).expect("UTF-8 help");
+
+    assert!(
+        help.contains("--budget <BUDGET>")
+            && help.contains("[default: standard]")
+            && help.contains("[possible values: quick, standard, deep]"),
+        "research help:\n{help}"
+    );
+}
+
 fn run(arguments: &[&str]) -> Output {
     let isolated = tempfile::tempdir().expect("isolated environment");
     Command::new(env!("CARGO_BIN_EXE_forager"))

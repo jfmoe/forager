@@ -186,6 +186,7 @@ fn build_research_record(record: ResearchRecord<'_>) -> Value {
                 "capability_gaps": error.capability_gaps,
                 "gap_check": error.gap_check,
                 "evidence_dir": error.evidence_dir,
+                "summary_path": error.summary_path,
                 "plan_path": error.plan_path,
                 "unconsumed_candidates": error.unconsumed_candidates,
                 "synthesis_policy": error.synthesis_policy,

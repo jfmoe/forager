@@ -178,12 +178,12 @@ fn format_research_failure_json(
     let mut payload = json!({
         "error_kind": error.kind.as_str(),
         "message": error.message.chars().take(500).collect::<String>(),
-        "evidence_items": error.evidence_items,
-        "capability_gaps": error.capability_gaps,
-        "gap_check": error.gap_check,
         "evidence_dir": error.evidence_dir,
-        "plan_path": error.plan_path,
-        "unconsumed_candidates": error.unconsumed_candidates,
+        "summary_path": error.summary_path,
+        "gap_check": {
+            "status": error.gap_check.status,
+            "stop_reason": error.gap_check.stop_reason,
+        },
         "synthesis_policy": error.synthesis_policy,
     });
     add_journal_status(&mut payload, journal)?;
@@ -196,127 +196,7 @@ fn format_research_failure_json(
                 serde_json::to_value(&error.attempts).map_err(|error| error.to_string())?,
             );
     }
-    let encoded = serde_json::to_string(&payload).map_err(|error| error.to_string())?;
-    if verbose || encoded.len() <= 4096 {
-        return Ok(encoded);
-    }
-    for limit in [4, 1, 0] {
-        let mut payload = compact_research_failure_payload(error, limit);
-        add_journal_status(&mut payload, journal)?;
-        let encoded = serde_json::to_string(&payload).map_err(|error| error.to_string())?;
-        if encoded.len() <= 4096 {
-            return Ok(encoded);
-        }
-    }
-    let mut payload = json!({
-        "error_kind": error.kind.as_str(),
-        "message": "failure index exceeded 4 KiB; read the persisted evidence directory",
-        "evidence_dir": error.evidence_dir.chars().take(512).collect::<String>(),
-        "synthesis_policy": error.synthesis_policy,
-    });
-    add_journal_status(&mut payload, journal)?;
     serde_json::to_string(&payload).map_err(|error| error.to_string())
-}
-
-fn compact_research_failure_payload(error: &ResearchError, limit: usize) -> Value {
-    let omitted_gaps = error.gap_check.gaps.len().saturating_sub(limit);
-    let omitted_capability_gaps = error.capability_gaps.len().saturating_sub(limit);
-    let mut gaps = error
-        .gap_check
-        .gaps
-        .iter()
-        .take(limit)
-        .map(|gap| {
-            let mut value = json!({
-                "subquestion_id": gap.subquestion_id,
-                "reason": gap.reason.chars().take(120).collect::<String>(),
-            });
-            if let Some(url) = &gap.url {
-                value
-                    .as_object_mut()
-                    .expect("research gap is an object")
-                    .insert("url".into(), Value::String(url.chars().take(160).collect()));
-            }
-            value
-        })
-        .collect::<Vec<_>>();
-    let evidence_limit = limit.max(1);
-    let evidence_items = error
-        .evidence_items
-        .iter()
-        .take(evidence_limit)
-        .map(|item| {
-            let mut compact = json!({
-                "id": item.id.chars().take(80).collect::<String>(),
-                "url": item.locator.url().map(|url| url.chars().take(320).collect::<String>()),
-                "provider": item.provider,
-                "source_type": item.source_type,
-                "subquestion_id": item.subquestion_id.chars().take(120).collect::<String>(),
-                "content_len": item.content_len,
-                "verified": item.verified,
-                "path": item.path,
-            });
-            if let Some(library_id) = item.locator.library_id() {
-                compact
-                    .as_object_mut()
-                    .expect("compacted evidence is an object")
-                    .insert(
-                        "library_id".into(),
-                        Value::String(library_id.chars().take(320).collect()),
-                    );
-            }
-            compact
-        })
-        .collect::<Vec<_>>();
-    let compacted_evidence = error.evidence_items.len() > evidence_items.len()
-        || error
-            .evidence_items
-            .iter()
-            .zip(&evidence_items)
-            .any(|(item, compact)| {
-                compact["id"] != item.id
-                    || compact["url"] != json!(item.locator.url())
-                    || compact["library_id"] != json!(item.locator.library_id())
-                    || compact["subquestion_id"] != item.subquestion_id
-                    || item.title.is_some()
-            });
-    if omitted_gaps > 0 || omitted_capability_gaps > 0 || compacted_evidence {
-        gaps.push(json!({
-            "subquestion_id": "",
-            "reason": format!(
-                "failure metadata compacted ({omitted_gaps} research gaps, {omitted_capability_gaps} capability gaps); read summary.json"
-            )
-        }));
-    }
-    let capability_gaps = error
-        .capability_gaps
-        .iter()
-        .take(limit)
-        .map(|gap| {
-            json!({
-                "capability": gap.capability,
-                "reason": gap.reason,
-                "providers_skipped": gap.providers_skipped.iter().take(2).map(|provider| {
-                    provider.chars().take(64).collect::<String>()
-                }).collect::<Vec<_>>(),
-            })
-        })
-        .collect::<Vec<_>>();
-    json!({
-        "error_kind": error.kind.as_str(),
-        "message": error.message.chars().take(160).collect::<String>(),
-        "evidence_items": evidence_items,
-        "capability_gaps": capability_gaps,
-        "gap_check": {
-            "status": error.gap_check.status,
-            "gaps": gaps,
-            "stop_reason": error.gap_check.stop_reason,
-        },
-        "evidence_dir": error.evidence_dir,
-        "plan_path": error.plan_path,
-        "unconsumed_candidates": error.unconsumed_candidates,
-        "synthesis_policy": error.synthesis_policy,
-    })
 }
 
 fn format_research_index(outcome: &ResearchOutcome) -> String {
@@ -1070,7 +950,7 @@ mod tests {
     }
 
     #[test]
-    fn research_failure_payload_keeps_the_terminal_and_paths_under_four_kibibytes() {
+    fn research_failure_payload_uses_one_small_schema_for_large_recovery_metadata() {
         let attempts = all_attempt_kinds()
             .into_iter()
             .enumerate()
@@ -1111,6 +991,7 @@ mod tests {
                 stop_reason: "insufficient_evidence",
             },
             evidence_dir: "/tmp/evidence".into(),
+            summary_path: Some("/tmp/evidence/summary.json".into()),
             plan_path: "/tmp/evidence/00-plan.json".into(),
             unconsumed_candidates: UnconsumedCandidates {
                 count: 0,
@@ -1130,24 +1011,73 @@ mod tests {
 
         assert!(encoded.len() <= 4096);
         assert_eq!(
+            payload
+                .as_object()
+                .expect("research failure object")
+                .keys()
+                .map(String::as_str)
+                .collect::<Vec<_>>(),
+            [
+                "error_kind",
+                "evidence_dir",
+                "gap_check",
+                "journal_ref",
+                "journal_status",
+                "message",
+                "summary_path",
+                "synthesis_policy",
+            ]
+        );
+        assert_eq!(
+            (&payload["gap_check"], &payload["synthesis_policy"]),
             (
-                payload["attempts"].is_null(),
-                payload["capability_gaps"].as_array().map(Vec::len),
-                payload["gap_check"]["gaps"]
-                    .as_array()
-                    .is_some_and(|gaps| !gaps.is_empty()),
-                &payload["evidence_items"][0]["path"],
-                &payload["synthesis_policy"],
-                &payload["unconsumed_candidates"]["path"],
-            ),
-            (
-                true,
-                Some(4),
-                true,
-                &json!("/tmp/evidence/01-evidence.md"),
-                &json!("fetch_before_claim"),
-                &json!("/tmp/evidence/candidates.json"),
+                &json!({
+                    "status": "degraded",
+                    "stop_reason": "insufficient_evidence"
+                }),
+                &json!("fetch_before_claim")
             )
+        );
+    }
+
+    #[test]
+    fn research_failure_payload_never_truncates_extreme_valid_locators() {
+        let evidence_dir = format!("/tmp/{}", "e".repeat(5_000));
+        let summary_path = format!("{evidence_dir}/summary.json");
+        let research_error = ResearchError {
+            kind: AttemptErrorKind::Evidence,
+            message: "insufficient evidence".into(),
+            attempts: Vec::new(),
+            evidence_items: Vec::new(),
+            capability_gaps: Vec::new(),
+            gap_check: ResearchGapCheck {
+                status: "degraded",
+                gaps: Vec::new(),
+                stop_reason: "insufficient_evidence",
+            },
+            evidence_dir: evidence_dir.clone(),
+            summary_path: Some(summary_path.clone()),
+            plan_path: format!("{evidence_dir}/00-plan.json"),
+            unconsumed_candidates: UnconsumedCandidates {
+                count: 0,
+                path: format!("{evidence_dir}/candidates.json"),
+            },
+            synthesis_policy: "fetch_before_claim",
+            diagnostic: None,
+        };
+        let journal = JournalOutcome {
+            status: "disabled",
+            reference: None,
+            warning: None,
+        };
+        let encoded = format_research_failure_json(&research_error, &journal, false)
+            .expect("research failure payload");
+        let payload: Value = serde_json::from_str(&encoded).expect("research failure JSON");
+
+        assert!(encoded.len() > 4096);
+        assert_eq!(
+            (&payload["evidence_dir"], &payload["summary_path"]),
+            (&json!(evidence_dir), &json!(summary_path))
         );
     }
 

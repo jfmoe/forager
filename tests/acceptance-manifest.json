@@ -29,6 +29,11 @@
       "id": "U06",
       "requirements": ["I0-6"],
       "test": "src/main.rs::default_failure_payload_truncates_each_list_and_preserves_utf8_message_boundary"
+    },
+    {
+      "id": "U07",
+      "requirements": ["I0-6"],
+      "test": "src/research.rs::recovery_manifest_covers_success_evidence_and_runtime_without_content"
     }
   ],
   "transport_fixtures": [
