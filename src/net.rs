@@ -407,9 +407,9 @@ mod tests {
             let read = stream.read(&mut request).expect("read request");
             assert!(read > 0, "fixture received an empty request");
             stream
-                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 1\r\nConnection: close\r\n\r\n")
-                .expect("write response headers");
-            stream.flush().expect("flush response headers");
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nx")
+                .expect("write partial response");
+            stream.flush().expect("flush partial response");
             released
                 .recv_timeout(Duration::from_secs(1))
                 .expect("wait for client timeout");
