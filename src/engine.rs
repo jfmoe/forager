@@ -57,6 +57,23 @@ struct CapabilityBranch {
     diagnostics: Vec<String>,
 }
 
+#[derive(Clone, Copy)]
+struct CapabilityTargets {
+    web: u16,
+    documentation: u16,
+    vertical: u16,
+}
+
+impl CapabilityTargets {
+    fn new(requested: u16) -> Self {
+        Self {
+            web: if requested == 0 { 3 } else { requested },
+            documentation: requested.max(1),
+            vertical: requested.max(1),
+        }
+    }
+}
+
 impl CapabilityBranch {
     fn record_gap(
         &mut self,
@@ -236,24 +253,25 @@ pub(crate) async fn execute_capabilities(
     outcome: &mut SearchOutcome,
     query: &str,
     capabilities: &CapabilitySet,
-    limit: u16,
+    requested_target: u16,
     config: &RuntimeConfig,
     execution: CapabilityExecution,
 ) {
+    let targets = CapabilityTargets::new(requested_target);
     let branches = stream::iter(capabilities.iter())
         .map(|capability| {
             let execution = execution.clone();
             async move {
                 match capability {
                     Capability::DocsSearch => {
-                        execute_docs_search(query, limit, config, execution).await
+                        execute_docs_search(query, targets.documentation, config, execution).await
                     }
                     Capability::WebSearch => {
-                        execute_web_search(query, limit, config, execution).await
+                        execute_web_search(query, targets.web, config, execution).await
                     }
                     Capability::WebFetch => execute_web_fetch(query, config, execution).await,
                     Capability::VerticalSearch => {
-                        execute_vertical_search(query, limit, config, execution).await
+                        execute_vertical_search(query, targets.vertical, config, execution).await
                     }
                 }
             }
@@ -989,9 +1007,26 @@ fn error_priority(kind: AttemptErrorKind) -> u8 {
 mod tests {
     use std::time::Duration;
 
-    use super::{error_priority, provider_chain_error, terminal_attempt, terminal_kind};
+    use super::{
+        CapabilityTargets, error_priority, provider_chain_error, terminal_attempt, terminal_kind,
+    };
     use crate::net::slice_budget;
     use crate::types::{AttemptErrorKind, ProviderAttempt};
+
+    #[test]
+    fn capability_targets_preserve_branch_local_defaults_and_positive_requests() {
+        let cases = [(0, (3, 1, 1)), (1, (1, 1, 1)), (20, (20, 20, 20))];
+
+        for (requested, expected) in cases {
+            let targets = CapabilityTargets::new(requested);
+
+            assert_eq!(
+                (targets.web, targets.documentation, targets.vertical,),
+                expected,
+                "requested={requested}"
+            );
+        }
+    }
 
     #[test]
     fn provider_budget_preserves_reachable_fallback_slots_at_every_boundary() {

@@ -2,11 +2,15 @@ use std::fs;
 use std::process::Command;
 
 #[test]
-fn config_path_ignores_a_damaged_config_file() {
+fn config_path_does_not_load_a_removed_validation_key() {
     let config_dir = tempfile::tempdir().expect("create temporary config directory");
     let xdg_config_home = tempfile::tempdir().expect("create alternate XDG directory");
     let home = tempfile::tempdir().expect("create alternate home");
-    fs::write(config_dir.path().join("config.toml"), "[broken").expect("write damaged config");
+    fs::write(
+        config_dir.path().join("config.toml"),
+        "[search]\nvalidation = \"strict\"\n",
+    )
+    .expect("write legacy config");
 
     let output = Command::new(env!("CARGO_BIN_EXE_forager"))
         .args(["config", "path"])

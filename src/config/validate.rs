@@ -175,10 +175,10 @@ mod tests {
     #[test]
     fn one_of_rule_rejects_unknown_values_in_full_and_edit_validation() {
         let mut config = Config::default();
-        config.search.validation = "unknown".into();
+        config.search.fallback = "unknown".into();
 
         assert!(!validates(&config));
-        assert!(validate_edit_value("search.validation", &Value::from("unknown")).is_err());
+        assert!(validate_edit_value("search.fallback", &Value::from("unknown")).is_err());
     }
 
     #[test]

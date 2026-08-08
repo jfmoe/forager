@@ -22,7 +22,6 @@ pub(super) struct Config {
 #[serde(default, deny_unknown_fields)]
 pub(super) struct Search {
     pub(super) backends: Vec<String>,
-    pub(super) validation: String,
     pub(super) fallback: String,
 }
 
@@ -30,7 +29,6 @@ impl Default for Search {
     fn default() -> Self {
         Self {
             backends: vec!["xai".into(), "openai_compatible".into()],
-            validation: "balanced".into(),
             fallback: "auto".into(),
         }
     }
@@ -402,13 +400,11 @@ macro_rules! leaf {
 
 const BACKENDS: &[&str] = &["xai", "openai_compatible"];
 const XAI_TOOLS: &[&str] = &["web_search", "x_search"];
-const VALIDATION: &[&str] = &["fast", "balanced", "strict"];
 const FALLBACK: &[&str] = &["auto", "off"];
 const LOG_LEVELS: &[&str] = &["error", "warn", "info", "debug", "trace"];
 
 pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("search.backends", search.backends: Strings, Rule::Subset { allowed: BACKENDS, unique: true, allow_empty: false }, View::Plain, "ordered main-model backends"),
-    leaf!("search.validation", search.validation: String, Rule::OneOf(VALIDATION), View::Plain, "result validation level: fast, balanced, or strict"),
     leaf!("search.fallback", search.fallback: String, Rule::OneOf(FALLBACK), View::Plain, "fallback policy: auto or off"),
     leaf!("classifier.url", classifier.url: String, Rule::Any, View::Url, "service endpoint URL"),
     leaf!("classifier.keys", classifier.keys: Secrets, Rule::Any, View::Keys, "credential pool; keep empty until credentials are available"),
@@ -539,7 +535,7 @@ mod tests {
     #[test]
     fn schema_getters_read_the_declared_fields() {
         let mut config = Config::default();
-        config.search.validation = "strict".into();
+        config.search.fallback = "off".into();
         config.journal.enabled = false;
         config.retry.max_wait = 91;
         config.retry.multiplier = 2.5;
@@ -547,8 +543,8 @@ mod tests {
         config.classifier.keys = vec![Secret::from("canary")];
 
         assert!(matches!(
-            (leaf("search.validation").expect("leaf").get)(&config),
-            FieldRef::String("strict")
+            (leaf("search.fallback").expect("leaf").get)(&config),
+            FieldRef::String("off")
         ));
         assert!(matches!(
             (leaf("journal.enabled").expect("leaf").get)(&config),
@@ -576,9 +572,9 @@ mod tests {
     fn schema_mutators_write_the_declared_fields() {
         let mut config = Config::default();
         if let FieldMut::String(value) =
-            (leaf("search.validation").expect("leaf").get_mut)(&mut config)
+            (leaf("search.fallback").expect("leaf").get_mut)(&mut config)
         {
-            *value = "fast".into();
+            *value = "off".into();
         }
         if let FieldMut::Bool(value) = (leaf("journal.enabled").expect("leaf").get_mut)(&mut config)
         {
@@ -605,14 +601,14 @@ mod tests {
         let expected_backends = vec!["openai_compatible".to_owned()];
         assert_eq!(
             (
-                config.search.validation.as_str(),
+                config.search.fallback.as_str(),
                 config.journal.enabled,
                 config.retry.max_wait,
                 config.retry.multiplier,
                 config.search.backends.as_slice(),
                 config.classifier.keys.len(),
             ),
-            ("fast", false, 92, 3.5, expected_backends.as_slice(), 1,)
+            ("off", false, 92, 3.5, expected_backends.as_slice(), 1,)
         );
     }
 

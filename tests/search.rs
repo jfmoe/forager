@@ -172,7 +172,13 @@ fn bare_search_without_classifier_uses_default_web_search_chain() {
         )
     );
     main.finish();
-    tavily.finish();
+    let request = tavily.finish();
+    let request_body = request
+        .split_once("\r\n\r\n")
+        .map(|(_, body)| body)
+        .expect("Tavily request body");
+    let request_body: Value = serde_json::from_str(request_body).expect("parse Tavily request");
+    assert_eq!(request_body["max_results"], 3);
 }
 
 #[test]
@@ -557,7 +563,7 @@ fn declared_web_search_adds_normalized_extra_sources_in_configured_order() {
         "--capabilities",
         "web_search",
         "--extra-sources",
-        "2",
+        "20",
     ]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
     let journal = read_only_journal(&environment);
@@ -607,6 +613,33 @@ fn declared_web_search_adds_normalized_extra_sources_in_configured_order() {
     main.finish();
     let request = tavily.finish();
     assert!(request.starts_with("POST /search "), "{request}");
+    let request_body = request
+        .split_once("\r\n\r\n")
+        .map(|(_, body)| body)
+        .expect("Tavily request body");
+    let request_body: Value = serde_json::from_str(request_body).expect("parse Tavily request");
+    assert_eq!(request_body["max_results"], 20);
+}
+
+#[test]
+fn search_rejects_extra_sources_above_twenty_before_loading_config() {
+    let environment = RunEnvironment::new("invalid = [");
+
+    let output = environment.run(&[
+        "search",
+        "Out of range",
+        "--capabilities",
+        "none",
+        "--extra-sources",
+        "21",
+    ]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(2),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]
@@ -714,6 +747,8 @@ fn declared_docs_search_uses_the_configured_registry_chain() {
         "Rust ownership documentation",
         "--capabilities",
         "docs_search",
+        "--extra-sources",
+        "0",
     ]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
 
@@ -744,6 +779,7 @@ fn declared_docs_search_uses_the_configured_registry_chain() {
     assert!(request.contains(r#""type":"auto""#), "{request}");
     assert!(request.contains(r#""text":false"#), "{request}");
     assert!(request.contains(r#""highlights":true"#), "{request}");
+    assert!(request.contains(r#""numResults":1"#), "{request}");
     assert!(!request.contains("useAutoprompt"), "{request}");
 }
 
@@ -1371,6 +1407,8 @@ fn declared_vertical_search_uses_the_unified_candidate_envelope() {
         "Academic retrieval paper",
         "--capabilities",
         "web_search,vertical_search",
+        "--extra-sources",
+        "0",
     ]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
     let journal = read_only_journal(&environment);
@@ -1415,6 +1453,7 @@ fn declared_vertical_search_uses_the_unified_candidate_envelope() {
     let requests = anysearch.finish_all();
     tavily.finish();
     assert!(requests[2].contains(r#""name":"search""#));
+    assert!(requests[2].contains(r#""max_results":1"#));
     assert!(!requests[2].contains(r#""domain""#));
 }
 

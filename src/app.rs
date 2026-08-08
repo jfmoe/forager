@@ -71,10 +71,8 @@ enum Command {
         capabilities: Option<CapabilitySet>,
         #[arg(long)]
         model: Option<String>,
-        #[arg(long, default_value_t = 0)]
+        #[arg(long, default_value_t = 0, value_parser = clap::value_parser!(u16).range(0..=20))]
         extra_sources: u16,
-        #[arg(long, default_value = "balanced", value_parser = ["fast", "balanced", "strict"])]
-        validation: String,
         #[arg(long, value_parser = ["auto", "off"])]
         fallback: Option<String>,
         #[arg(long, default_value_t = 180, value_parser = clap::value_parser!(u64).range(1..))]
@@ -690,7 +688,7 @@ impl SearchContext {
                 outcome,
                 &query,
                 &capabilities,
-                extra_sources.max(1),
+                extra_sources,
                 &self.config,
                 crate::engine::CapabilityExecution::new(
                     &fallback,
@@ -1037,7 +1035,6 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             capabilities,
             model,
             extra_sources,
-            validation: _,
             fallback,
             timeout,
             format,

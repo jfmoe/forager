@@ -172,7 +172,7 @@ mod tests {
     fn schema_mutator_executor_applies_every_field_kind_to_its_value() {
         let mut config = Config::default();
 
-        apply_env_value(&mut config, "search.validation", "strict").expect("string");
+        apply_env_value(&mut config, "search.fallback", "off").expect("string");
         apply_env_value(&mut config, "journal.enabled", "false").expect("boolean");
         apply_env_value(&mut config, "retry.max_wait", "92").expect("integer");
         apply_env_value(&mut config, "retry.multiplier", "2.5").expect("float");
@@ -182,14 +182,14 @@ mod tests {
         let expected_backends = vec!["xai".to_owned()];
         assert_eq!(
             (
-                config.search.validation.as_str(),
+                config.search.fallback.as_str(),
                 config.journal.enabled,
                 config.retry.max_wait,
                 config.retry.multiplier,
                 config.search.backends.as_slice(),
                 config.classifier.keys.len(),
             ),
-            ("strict", false, 92, 2.5, expected_backends.as_slice(), 2)
+            ("off", false, 92, 2.5, expected_backends.as_slice(), 2)
         );
     }
 }

@@ -28,7 +28,7 @@
 
 12. 其余全部保留：
     - **8 个 provider**：exa、tavily、firecrawl、jina、context7、anysearch、openai-compatible、xai-responses。
-    - **主搜索管线语义**：主链 `[xai-responses → openai-compatible]`、`--capabilities`、`--validation`、fallback 模式、`--extra-sources`、来源规范化。
+    - **主搜索管线语义**：主链 `[xai-responses → openai-compatible]`、`--capabilities`、fallback 模式、`--extra-sources 0..=20`、来源规范化。`extra_sources=0` 是分支本地默认哨兵：Supplemental Web Search 目标为 3，Documentation / Vertical Search 目标为 1。
     - **`research` 一体化入口**（吸收计划能力；证据目录约定降格为 skill 文档约定）。
     - **直连命令六件套**：fetch、map、exa search、exa similar、context7 library、context7 docs。
     - **AnySearch 验收面瘦身版**：`anysearch search`（双形态）+ `anysearch domains` + Verified Domain Manifest，晋升通道完整。
@@ -41,3 +41,4 @@
 
 - **minimum profile 门禁不迁移**（[#57 补充决议 R1](https://github.com/jfmoe/smartsearch/issues/57#issuecomment-5078205945)）：原第 12 条把 minimum profile 门列入管线语义基线，经重新评估砍除。继任机制为 **capability 缺口自报**——同一判定谓词（某 seam 的 order 链 ∩ 有凭据者 = ∅）从「拦死」改「自报」：结果 JSON `capability_gaps` 字段 + stderr 警告一行。字段形状见第 4 章，验收基线相应调整见第 5 章。
 - **空结果语义切分**（#59 补充决议② B1）：退 5（evidence_error）只属于证据管线；直连 search 类命令的合法空结果集 = Ok / 退 0。
+- **validation 删除与补强数量恢复**（[#139](https://github.com/jfmoe/forager/issues/139)）：删除无独立职责的 `--validation` / `search.validation`；Caller Capability Declaration、classifier 与 Citation Binding 各自保留既有职责。Supplemental Web Search 的零值目标恢复为 3，Documentation / Vertical Search 的零值目标保持 1，显式 `1..=20` 原样传递。

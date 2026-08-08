@@ -25,13 +25,14 @@ fn non_interactive_setup_creates_a_complete_commented_template() {
                 .as_array()
                 .map(Vec::len),
             &value["capabilities"]["web_fetch"]["order"],
+            value["search"].get("validation"),
             content.contains("[providers.exa]"),
             String::from_utf8_lossy(&output.stdout).contains("forager doctor"),
         ),
         (
             Some(0),
-            48,
-            48,
+            47,
+            47,
             Some(0),
             Some(0),
             &toml::Value::Array(
@@ -40,6 +41,7 @@ fn non_interactive_setup_creates_a_complete_commented_template() {
                     .map(|provider| toml::Value::String(provider.into()))
                     .collect()
             ),
+            None,
             true,
             true
         ),

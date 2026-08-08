@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- Removed the `search --validation` option and `search.validation` configuration key without aliases or compatibility shims. Legacy uses now fail as unknown CLI or configuration input.
+
+### Migration
+
+- Before or after upgrading, use `forager config path` to locate the configuration file and manually delete any persisted `search.validation` key; `config path` does not load the schema. The obsolete `SMART_SEARCH_VALIDATION_LEVEL` migration mapping is deleted rather than treated as a runtime input.
+- Callers that omit `--extra-sources` or pass `0` should account for the restored Supplemental Web Search request target of 3. Documentation Search and Vertical Search still default to 1, explicit `1..=20` targets are unchanged, and values above 20 are rejected before configuration loading or network access.
+
 ## [0.2.0](https://github.com/jfmoe/forager/compare/v0.1.2...v0.2.0) - 2026-08-05
 
 ### Added

@@ -122,7 +122,7 @@ mod tests {
     #[test]
     fn schema_views_project_plain_url_and_keys_at_nested_paths() {
         let mut config = Config::default();
-        config.search.validation = "strict".into();
+        config.search.fallback = "off".into();
         config.classifier.url = "https://user:pass@example.test/?token=secret".into();
         config.classifier.keys = vec![Secret::from("canary")];
         let file: toml::Value = toml::from_str(
@@ -135,12 +135,12 @@ mod tests {
 
         assert_eq!(
             (
-                &view["search"]["validation"],
+                &view["search"]["fallback"],
                 &view["classifier"]["url"],
                 &view["classifier"]["keys"],
             ),
             (
-                &json!({"value": "strict", "source": "default"}),
+                &json!({"value": "off", "source": "default"}),
                 &json!({"value": "https://example.test/?token=********", "source": "file"}),
                 &json!({
                     "value": ["********"],

@@ -54,6 +54,18 @@ fn research_help_declares_standard_as_the_default_budget() {
     );
 }
 
+#[test]
+fn search_rejects_the_removed_validation_option_as_unknown() {
+    let output = run(&["search", "query", "--validation", "strict"]);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert_eq!(
+        (output.status.code(), stderr.contains("--validation")),
+        (Some(2), true),
+        "stderr: {stderr}"
+    );
+}
+
 fn run(arguments: &[&str]) -> Output {
     let isolated = tempfile::tempdir().expect("isolated environment");
     Command::new(env!("CARGO_BIN_EXE_forager"))

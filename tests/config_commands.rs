@@ -18,14 +18,14 @@ fn config_list_reports_the_complete_default_effective_view() {
         (
             output.status.code(),
             count_effective_leaves(&view),
-            &view["search"]["validation"],
+            view["search"].get("validation"),
             &view["providers"]["exa"]["keys"],
             &view["http"]["ssl_verify"],
         ),
         (
             Some(0),
-            48,
-            &serde_json::json!({"value": "balanced", "source": "default"}),
+            47,
+            None,
             &serde_json::json!({
                 "value": [],
                 "source": "default",
@@ -403,11 +403,11 @@ fn config_set_can_repair_a_strictly_invalid_but_parseable_document() {
 }
 
 #[test]
-fn config_list_rejects_unknown_file_and_environment_keys() {
+fn config_list_rejects_removed_validation_file_and_environment_inputs() {
     let config_dir = tempfile::tempdir().expect("create config directory");
     fs::write(
         config_dir.path().join("config.toml"),
-        "[providers.exa]\nunknown = true\n",
+        "[search]\nvalidation = \"strict\"\n",
     )
     .expect("write config");
 
@@ -416,16 +416,16 @@ fn config_list_rejects_unknown_file_and_environment_keys() {
     let env_error = run(
         config_dir.path(),
         &["config", "list"],
-        &[("FORAGER_UNKNOWN", "value")],
+        &[("FORAGER_SEARCH__VALIDATION", "strict")],
         None,
     );
 
     assert_eq!(
         (
             file_error.status.code(),
-            String::from_utf8_lossy(&file_error.stderr).contains("unknown"),
+            String::from_utf8_lossy(&file_error.stderr).contains("validation"),
             env_error.status.code(),
-            String::from_utf8_lossy(&env_error.stderr).contains("FORAGER_UNKNOWN"),
+            String::from_utf8_lossy(&env_error.stderr).contains("FORAGER_SEARCH__VALIDATION"),
         ),
         (Some(3), true, Some(3), true)
     );
@@ -510,7 +510,7 @@ fn config_unset_warns_when_the_environment_still_overrides_the_key() {
 #[test]
 fn config_list_rejects_invalid_enums_ranges_and_provider_orders_with_locations() {
     for (document, key) in [
-        ("[search]\nvalidation = \"slow\"\n", "validation"),
+        ("[search]\nfallback = \"sometimes\"\n", "fallback"),
         ("[retry]\nmax_attempts = 0\n", "max_attempts"),
         ("[capabilities.web_fetch]\norder = []\n", "web_fetch"),
         ("[capabilities.web_fetch]\norder = [\"exa\"]\n", "web_fetch"),
