@@ -2700,6 +2700,66 @@ fn search_retries_a_network_error_after_the_shared_read_timeout() {
 }
 
 #[test]
+fn search_projects_terminal_attempts_without_changing_stdout() {
+    let fixture = Fixture::start_sequence(vec![
+        Response::json(503, r#"{"error":"retry"}"#),
+        Response::sse(200, &completed_body("answer", "Source")),
+        Response::json(503, r#"{"error":"retry"}"#),
+        Response::sse(200, &completed_body("answer", "Source")),
+        Response::json(503, r#"{"error":"retry"}"#),
+        Response::sse(200, &completed_body("answer", "Source")),
+        Response::json(503, r#"{"error":"retry"}"#),
+        Response::sse(200, &completed_body("answer", "Source")),
+        Response::json(503, r#"{"error":"retry"}"#),
+        Response::sse(200, &completed_body("answer", "Source")),
+        Response::json(503, r#"{"error":"retry"}"#),
+        Response::sse(200, &completed_body("answer", "Source")),
+    ]);
+    let outputs = ["info", "debug", "trace"].map(|level| {
+        let config = format!(
+            "{}\n[log]\nlevel = {level:?}\n",
+            search_config(&fixture.url, false).replace("max_attempts = 1", "max_attempts = 2")
+        );
+        RunEnvironment::new(&config).run(&["search", "Retry projection", "--capabilities", "none"])
+    });
+
+    assert_eq!(outputs[0].status.code(), Some(0));
+    assert_eq!(outputs[0].stdout, outputs[1].stdout);
+    assert_eq!(outputs[1].stdout, outputs[2].stdout);
+    let stderr = outputs.map(|output| String::from_utf8(output.stderr).expect("UTF-8 stderr"));
+    assert!(stderr[0].is_empty(), "{}", stderr[0]);
+    assert_eq!(stderr[1].lines().count(), 1, "{}", stderr[1]);
+    assert!(stderr[1].starts_with("forager attempts: "));
+    assert_eq!(stderr[2].lines().count(), 3, "{}", stderr[2]);
+    assert!(
+        stderr[2]
+            .lines()
+            .next()
+            .is_some_and(|line| line.starts_with("forager attempts: "))
+    );
+    assert!(
+        stderr[2]
+            .lines()
+            .skip(1)
+            .all(|line| line.starts_with("forager attempt: "))
+    );
+
+    let journals = ["info", "debug", "trace"].map(|level| {
+        let config = format!(
+            "{}\n[log]\nlevel = {level:?}\n",
+            search_config(&fixture.url, true).replace("max_attempts = 1", "max_attempts = 2")
+        );
+        let environment = RunEnvironment::new(&config);
+        let output = environment.run(&["search", "Retry projection", "--capabilities", "none"]);
+        assert_eq!(output.status.code(), Some(0));
+        normalized_journal_bytes(read_only_journal(&environment))
+    });
+    assert_eq!(journals[0], journals[1]);
+    assert_eq!(journals[1], journals[2]);
+    assert_eq!(fixture.finish_all().len(), 12);
+}
+
+#[test]
 fn search_model_override_disables_configured_model_fallbacks() {
     let openai = Fixture::start(503, "application/json", r#"{"error":"override failed"}"#);
     let config = main_fallback_config(
@@ -3310,4 +3370,16 @@ fn read_only_journal(environment: &RunEnvironment) -> Value {
         .expect("valid journal entry");
     serde_json::from_slice(&fs::read(entry.path()).expect("read journal record"))
         .expect("parse journal record")
+}
+
+fn normalized_journal_bytes(mut journal: Value) -> Vec<u8> {
+    journal["recorded_at_unix_ms"] = Value::Null;
+    journal["execution"]["deadline_budget"]["consumed_ms"] = Value::Null;
+    for attempt in journal["execution"]["provider_attempts"]
+        .as_array_mut()
+        .expect("journal attempts")
+    {
+        attempt["duration_ms"] = Value::Null;
+    }
+    serde_json::to_vec(&journal).expect("encode normalized journal")
 }

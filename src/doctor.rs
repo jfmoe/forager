@@ -59,7 +59,9 @@ struct ProbeFailure {
     checks: Vec<ProbeCheck>,
 }
 
-pub(crate) fn shallow(timeout_seconds: u64) -> Result<ShallowDoctorReport, config::ConfigError> {
+pub(crate) fn shallow(
+    timeout_seconds: u64,
+) -> Result<(ShallowDoctorReport, u8), config::ConfigError> {
     let effective = serde_json::to_value(config::effective_view()?)
         .map_err(|error| config::ConfigError::Message(error.to_string()))?;
     let runtime_config = config::runtime_config()?;
@@ -87,14 +89,22 @@ pub(crate) fn shallow(timeout_seconds: u64) -> Result<ShallowDoctorReport, confi
         .map(|(registration, reachable)| {
             status(registration.id, &runtime_config, &effective, reachable)
         })
-        .collect();
-    Ok(ShallowDoctorReport {
-        mode: "shallow",
-        ok: true,
-        providers,
-        permission_warnings: permission_warnings()?,
-        config: effective,
-    })
+        .collect::<Vec<_>>();
+    let ok = providers
+        .iter()
+        .filter(|provider| provider.configured)
+        .all(|provider| provider.reachable);
+    let exit_code = if ok { 0 } else { 4 };
+    Ok((
+        ShallowDoctorReport {
+            mode: "shallow",
+            ok,
+            providers,
+            permission_warnings: permission_warnings()?,
+            config: effective,
+        },
+        exit_code,
+    ))
 }
 
 pub(crate) fn deep(

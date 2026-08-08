@@ -27,6 +27,8 @@ use crate::types::{
 };
 
 #[doc(hidden)]
+pub use crate::attempt_log::bounded_attempt_summary;
+#[doc(hidden)]
 pub use crate::net::combine_diagnostics;
 
 pub use crate::providers::ProviderError;
@@ -395,6 +397,8 @@ pub enum CommandOutput {
         output: Option<PathBuf>,
         /// Whether full provider attempts should be rendered inline.
         verbose: bool,
+        /// Optional terminal projection selected by `log.level`.
+        attempt_log: Option<String>,
     },
     /// One completed caller-planned research invocation.
     Research {
@@ -408,6 +412,8 @@ pub enum CommandOutput {
         output: Option<PathBuf>,
         /// Whether full provider attempts should be rendered inline.
         verbose: bool,
+        /// Optional terminal projection selected by `log.level`.
+        attempt_log: Option<String>,
     },
     /// Typed Exa terminal state for binary-side formatting and tee output.
     Exa {
@@ -417,6 +423,8 @@ pub enum CommandOutput {
         format: OutputFormat,
         /// Optional tee destination.
         output: Option<PathBuf>,
+        /// Optional terminal projection selected by `log.level`.
+        attempt_log: Option<String>,
     },
     /// Typed Context7 terminal state for binary-side formatting and tee output.
     Context7 {
@@ -426,6 +434,8 @@ pub enum CommandOutput {
         format: DocsOutputFormat,
         /// Optional tee destination.
         output: Option<PathBuf>,
+        /// Optional terminal projection selected by `log.level`.
+        attempt_log: Option<String>,
     },
     /// Typed `AnySearch` terminal state for binary-side formatting and tee output.
     Anysearch {
@@ -435,6 +445,8 @@ pub enum CommandOutput {
         format: OutputFormat,
         /// Optional tee destination.
         output: Option<PathBuf>,
+        /// Optional terminal projection selected by `log.level`.
+        attempt_log: Option<String>,
     },
     /// Typed Web Fetch terminal state for binary-side formatting and tee output.
     Fetch {
@@ -444,6 +456,8 @@ pub enum CommandOutput {
         format: DocsOutputFormat,
         /// Optional tee destination.
         output: Option<PathBuf>,
+        /// Optional terminal projection selected by `log.level`.
+        attempt_log: Option<String>,
     },
     /// Typed Tavily site map terminal state for binary-side formatting and tee output.
     Map {
@@ -453,12 +467,15 @@ pub enum CommandOutput {
         format: OutputFormat,
         /// Optional tee destination.
         output: Option<PathBuf>,
+        /// Optional terminal projection selected by `log.level`.
+        attempt_log: Option<String>,
     },
 }
 
 struct AppContext<P> {
     provider: P,
     runtime: tokio::runtime::Runtime,
+    log_level: config::LogLevel,
 }
 
 struct NetworkDependencies {
@@ -474,6 +491,7 @@ struct FetchContext {
     retry_policy: RetryPolicy,
     deadline: Deadline,
     runtime: tokio::runtime::Runtime,
+    log_level: config::LogLevel,
 }
 
 struct SearchContext {
@@ -524,6 +542,7 @@ impl NetworkDependencies {
 impl FetchContext {
     fn load(timeout: Option<u64>) -> Result<Self, AppError> {
         let dependencies = NetworkDependencies::load()?;
+        let log_level = dependencies.config.log_level;
         let config = dependencies.config.web_fetch;
         if config.configured_provider_count() == 0 {
             return Err(AppError::Config(ConfigError::Message(
@@ -536,17 +555,21 @@ impl FetchContext {
             retry_policy: dependencies.retry_policy,
             deadline: Deadline::new(Duration::from_secs(timeout.unwrap_or(180))),
             runtime: dependencies.runtime,
+            log_level,
         })
     }
 
-    fn fetch(self, request: FetchRequest) -> Result<FetchOutcome, ProviderError> {
-        self.runtime.block_on(crate::engine::fetch(
+    fn fetch(self, request: FetchRequest) -> (Result<FetchOutcome, ProviderError>, Option<String>) {
+        let result = self.runtime.block_on(crate::engine::fetch(
             request,
             self.config,
             self.client,
             self.retry_policy,
             self.deadline,
-        ))
+        ));
+        let attempt_log =
+            provider_attempt_log(self.log_level, &result, |outcome| &outcome.attempts);
+        (result, attempt_log)
     }
 }
 
@@ -579,7 +602,11 @@ impl SearchContext {
         capabilities: Option<CapabilitySet>,
         extra_sources: u16,
         fallback_override: Option<&str>,
-    ) -> (Result<SearchOutcome, ProviderError>, JournalOutcome) {
+    ) -> (
+        Result<SearchOutcome, ProviderError>,
+        JournalOutcome,
+        Option<String>,
+    ) {
         let fallback = fallback_override
             .unwrap_or(&self.config.main_search.fallback)
             .to_owned();
@@ -688,7 +715,9 @@ impl SearchContext {
                 result: &result,
             },
         );
-        (result, journal)
+        let attempt_log =
+            provider_attempt_log(self.config.log_level, &result, |outcome| &outcome.attempts);
+        (result, journal, attempt_log)
     }
 }
 
@@ -713,7 +742,11 @@ impl ResearchContext {
         budget: crate::research::ResearchBudget,
         evidence_dir: PathBuf,
         fallback: String,
-    ) -> (Result<ResearchOutcome, ResearchError>, JournalOutcome) {
+    ) -> (
+        Result<ResearchOutcome, ResearchError>,
+        JournalOutcome,
+        Option<String>,
+    ) {
         let started = Instant::now();
         let deadline = Deadline::new(self.timeout);
         let (
@@ -772,6 +805,7 @@ impl ResearchContext {
             }
         };
         let capabilities = plan.capabilities().iter().collect::<Vec<_>>();
+        let log_level = self.config.log_level;
         let mut result = self.runtime.block_on(crate::research::execute(
             crate::research::ResearchRequest {
                 query: query.to_owned(),
@@ -809,7 +843,8 @@ impl ResearchContext {
                 result: &result,
             },
         );
-        (result, journal)
+        let attempt_log = research_attempt_log(log_level, &result);
+        (result, journal, attempt_log)
     }
 }
 
@@ -817,6 +852,7 @@ impl AppContext<providers::Exa> {
     fn for_exa(timeout: Option<u64>) -> Result<Self, AppError> {
         let dependencies = NetworkDependencies::load()?;
         let config = dependencies.config;
+        let log_level = config.log_level;
         if config.exa.keys.is_empty() {
             return Err(AppError::Config(ConfigError::Message(
                 "providers.exa.keys has no configured credentials".into(),
@@ -832,21 +868,35 @@ impl AppContext<providers::Exa> {
         Ok(Self {
             provider,
             runtime: dependencies.runtime,
+            log_level,
         })
     }
 
-    fn exa_search(self, request: ExaSearchRequest) -> Result<ExaOutcome, ProviderError> {
-        self.runtime.block_on(self.provider.search(request))
+    fn exa_search(
+        self,
+        request: ExaSearchRequest,
+    ) -> (Result<ExaOutcome, ProviderError>, Option<String>) {
+        let result = self.runtime.block_on(self.provider.search(request));
+        let attempt_log =
+            provider_attempt_log(self.log_level, &result, |outcome| &outcome.attempts);
+        (result, attempt_log)
     }
 
-    fn exa_similar(self, request: ExaSimilarRequest) -> Result<ExaOutcome, ProviderError> {
-        self.runtime.block_on(self.provider.similar(request))
+    fn exa_similar(
+        self,
+        request: ExaSimilarRequest,
+    ) -> (Result<ExaOutcome, ProviderError>, Option<String>) {
+        let result = self.runtime.block_on(self.provider.similar(request));
+        let attempt_log =
+            provider_attempt_log(self.log_level, &result, |outcome| &outcome.attempts);
+        (result, attempt_log)
     }
 }
 
 impl AppContext<providers::TavilyMap> {
     fn for_tavily_map(timeout: u64) -> Result<Self, AppError> {
         let dependencies = NetworkDependencies::load()?;
+        let log_level = dependencies.config.log_level;
         let config = dependencies.config.tavily;
         if config.keys.is_empty() {
             return Err(AppError::Config(ConfigError::Message(
@@ -862,11 +912,15 @@ impl AppContext<providers::TavilyMap> {
         Ok(Self {
             provider,
             runtime: dependencies.runtime,
+            log_level,
         })
     }
 
-    fn map(self, request: MapRequest) -> Result<MapOutcome, ProviderError> {
-        self.runtime.block_on(self.provider.map(request))
+    fn map(self, request: MapRequest) -> (Result<MapOutcome, ProviderError>, Option<String>) {
+        let result = self.runtime.block_on(self.provider.map(request));
+        let attempt_log =
+            provider_attempt_log(self.log_level, &result, |outcome| &outcome.attempts);
+        (result, attempt_log)
     }
 }
 
@@ -874,6 +928,7 @@ impl AppContext<providers::Context7> {
     fn for_context7(timeout: Option<u64>) -> Result<Self, AppError> {
         let dependencies = NetworkDependencies::load()?;
         let config = dependencies.config;
+        let log_level = config.log_level;
         if config.context7.keys.is_empty() {
             return Err(AppError::Config(ConfigError::Message(
                 "providers.context7.keys has no configured credentials".into(),
@@ -889,15 +944,32 @@ impl AppContext<providers::Context7> {
         Ok(Self {
             provider,
             runtime: dependencies.runtime,
+            log_level,
         })
     }
 
-    fn library(self, request: Context7LibraryRequest) -> Result<Context7Outcome, ProviderError> {
-        self.runtime.block_on(self.provider.library(request))
+    fn library(
+        self,
+        request: Context7LibraryRequest,
+    ) -> (Result<Context7Outcome, ProviderError>, Option<String>) {
+        let result = self.runtime.block_on(self.provider.library(request));
+        let attempt_log = provider_attempt_log(self.log_level, &result, |outcome| match outcome {
+            Context7Outcome::Library(outcome) => &outcome.attempts,
+            Context7Outcome::Docs(outcome) => &outcome.attempts,
+        });
+        (result, attempt_log)
     }
 
-    fn docs(self, request: Context7DocsRequest) -> Result<Context7Outcome, ProviderError> {
-        self.runtime.block_on(self.provider.docs(request))
+    fn docs(
+        self,
+        request: Context7DocsRequest,
+    ) -> (Result<Context7Outcome, ProviderError>, Option<String>) {
+        let result = self.runtime.block_on(self.provider.docs(request));
+        let attempt_log = provider_attempt_log(self.log_level, &result, |outcome| match outcome {
+            Context7Outcome::Library(outcome) => &outcome.attempts,
+            Context7Outcome::Docs(outcome) => &outcome.attempts,
+        });
+        (result, attempt_log)
     }
 }
 
@@ -905,6 +977,7 @@ impl AppContext<providers::Anysearch> {
     fn for_anysearch(timeout: Option<u64>) -> Result<Self, AppError> {
         let dependencies = NetworkDependencies::load()?;
         let config = dependencies.config;
+        let log_level = config.log_level;
         if config.anysearch.keys.is_empty() {
             return Err(AppError::Config(ConfigError::Message(
                 "providers.anysearch.keys has no configured credentials".into(),
@@ -920,15 +993,32 @@ impl AppContext<providers::Anysearch> {
         Ok(Self {
             provider,
             runtime: dependencies.runtime,
+            log_level,
         })
     }
 
-    fn domains(self, request: AnysearchDomainsRequest) -> Result<AnysearchOutcome, ProviderError> {
-        self.runtime.block_on(self.provider.domains(request))
+    fn domains(
+        self,
+        request: AnysearchDomainsRequest,
+    ) -> (Result<AnysearchOutcome, ProviderError>, Option<String>) {
+        let result = self.runtime.block_on(self.provider.domains(request));
+        let attempt_log = provider_attempt_log(self.log_level, &result, |outcome| match outcome {
+            AnysearchOutcome::Domains(outcome) => &outcome.attempts,
+            AnysearchOutcome::Search(outcome) => &outcome.attempts,
+        });
+        (result, attempt_log)
     }
 
-    fn search(self, request: AnysearchSearchRequest) -> Result<AnysearchOutcome, ProviderError> {
-        self.runtime.block_on(self.provider.search(request))
+    fn search(
+        self,
+        request: AnysearchSearchRequest,
+    ) -> (Result<AnysearchOutcome, ProviderError>, Option<String>) {
+        let result = self.runtime.block_on(self.provider.search(request));
+        let attempt_log = provider_attempt_log(self.log_level, &result, |outcome| match outcome {
+            AnysearchOutcome::Domains(outcome) => &outcome.attempts,
+            AnysearchOutcome::Search(outcome) => &outcome.attempts,
+        });
+        (result, attempt_log)
     }
 }
 
@@ -975,7 +1065,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                     format,
                 });
             }
-            let (result, journal) = context.search(
+            let (result, journal, attempt_log) = context.search(
                 providers::SearchRequest {
                     query,
                     model,
@@ -992,6 +1082,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                 format,
                 output,
                 verbose,
+                attempt_log,
             })
         }
         Command::Research {
@@ -1035,13 +1126,15 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                         .into(),
                 )));
             }
-            let (result, journal) = context.research(&query, plan, budget, evidence_dir, fallback);
+            let (result, journal, attempt_log) =
+                context.research(&query, plan, budget, evidence_dir, fallback);
             Ok(CommandOutput::Research {
                 result,
                 journal,
                 format,
                 output,
                 verbose,
+                attempt_log,
             })
         }
         Command::Fetch {
@@ -1050,11 +1143,16 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             format,
             output,
             verbose,
-        } => Ok(CommandOutput::Fetch {
-            result: FetchContext::load(timeout)?.fetch(FetchRequest { url, verbose }),
-            format,
-            output,
-        }),
+        } => {
+            let (result, attempt_log) =
+                FetchContext::load(timeout)?.fetch(FetchRequest { url, verbose });
+            Ok(CommandOutput::Fetch {
+                result,
+                format,
+                output,
+                attempt_log,
+            })
+        }
         Command::Map {
             url,
             instructions,
@@ -1065,19 +1163,24 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             format,
             output,
             verbose,
-        } => Ok(CommandOutput::Map {
-            result: AppContext::<providers::TavilyMap>::for_tavily_map(timeout)?.map(MapRequest {
-                url,
-                instructions,
-                max_depth,
-                max_breadth,
-                limit,
-                timeout_seconds: timeout,
-                verbose,
-            }),
-            format,
-            output,
-        }),
+        } => {
+            let (result, attempt_log) =
+                AppContext::<providers::TavilyMap>::for_tavily_map(timeout)?.map(MapRequest {
+                    url,
+                    instructions,
+                    max_depth,
+                    max_breadth,
+                    limit,
+                    timeout_seconds: timeout,
+                    verbose,
+                });
+            Ok(CommandOutput::Map {
+                result,
+                format,
+                output,
+                attempt_log,
+            })
+        }
         Command::Anysearch {
             command:
                 AnysearchCommand::Domains {
@@ -1098,12 +1201,13 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                     "DOMAIN must be a parent domain without a dotted sub-domain".into(),
                 ));
             }
-            let result = AppContext::<providers::Anysearch>::for_anysearch(timeout)?
+            let (result, attempt_log) = AppContext::<providers::Anysearch>::for_anysearch(timeout)?
                 .domains(AnysearchDomainsRequest { domain, verbose });
             Ok(CommandOutput::Anysearch {
                 result,
                 format,
                 output,
+                attempt_log,
             })
         }
         Command::Anysearch {
@@ -1149,20 +1253,20 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                     "--sub-domain-params requires both --domain and --sub-domain".into(),
                 ));
             }
-            let result = AppContext::<providers::Anysearch>::for_anysearch(timeout)?.search(
-                AnysearchSearchRequest {
+            let (result, attempt_log) = AppContext::<providers::Anysearch>::for_anysearch(timeout)?
+                .search(AnysearchSearchRequest {
                     query,
                     domain,
                     sub_domain,
                     sub_domain_params,
                     max_results,
                     verbose,
-                },
-            );
+                });
             Ok(CommandOutput::Anysearch {
                 result,
                 format,
                 output,
+                attempt_log,
             })
         }
         Command::Context7 {
@@ -1176,13 +1280,12 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                     verbose,
                 },
         } => {
-            let result = AppContext::<providers::Context7>::for_context7(timeout)?.library(
-                Context7LibraryRequest {
+            let (result, attempt_log) = AppContext::<providers::Context7>::for_context7(timeout)?
+                .library(Context7LibraryRequest {
                     name,
                     query,
                     verbose,
-                },
-            );
+                });
             Ok(CommandOutput::Context7 {
                 result,
                 format: match format {
@@ -1190,6 +1293,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                     OutputFormat::Markdown => DocsOutputFormat::Markdown,
                 },
                 output,
+                attempt_log,
             })
         }
         Command::Context7 {
@@ -1203,17 +1307,17 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                     verbose,
                 },
         } => {
-            let result = AppContext::<providers::Context7>::for_context7(timeout)?.docs(
-                Context7DocsRequest {
+            let (result, attempt_log) = AppContext::<providers::Context7>::for_context7(timeout)?
+                .docs(Context7DocsRequest {
                     library_id,
                     query,
                     verbose,
-                },
-            );
+                });
             Ok(CommandOutput::Context7 {
                 result,
                 format,
                 output,
+                attempt_log,
             })
         }
         Command::Exa {
@@ -1332,7 +1436,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             timeout,
             format,
         } => {
-            let report = crate::doctor::shallow(timeout)?;
+            let (report, exit_code) = crate::doctor::shallow(timeout)?;
             let stdout = match format {
                 OutputFormat::Json => serde_json::to_string(&report)
                     .map_err(|error| AppError::Runtime(error.to_string()))?,
@@ -1341,7 +1445,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             Ok(CommandOutput::Text {
                 stdout,
                 stderr: None,
-                exit_code: 0,
+                exit_code,
             })
         }
         Command::Doctor {
@@ -1583,7 +1687,10 @@ fn parse_provider(value: &str) -> Result<providers::ProviderId, String> {
 fn render_doctor_markdown(report: &crate::doctor::ShallowDoctorReport) -> Result<String, AppError> {
     let value =
         serde_json::to_value(report).map_err(|error| AppError::Runtime(error.to_string()))?;
-    let mut output = String::from("# forager doctor\n\n");
+    let mut output = format!(
+        "# forager doctor\n\nok: {}\n\n",
+        value["ok"].as_bool().unwrap_or(false)
+    );
     for provider in value["providers"]
         .as_array()
         .expect("doctor providers serialize as an array")
@@ -1702,6 +1809,29 @@ fn prepend_classifier_context(
     );
 }
 
+fn provider_attempt_log<'a, T>(
+    level: config::LogLevel,
+    result: &'a Result<T, ProviderError>,
+    success_attempts: impl FnOnce(&'a T) -> &'a [ProviderAttempt],
+) -> Option<String> {
+    let attempts = match result {
+        Ok(outcome) => success_attempts(outcome),
+        Err(error) => &error.attempts,
+    };
+    crate::attempt_log::render(level, attempts)
+}
+
+fn research_attempt_log(
+    level: config::LogLevel,
+    result: &Result<ResearchOutcome, ResearchError>,
+) -> Option<String> {
+    let attempts = match result {
+        Ok(outcome) => &outcome.attempts,
+        Err(error) => &error.attempts,
+    };
+    crate::attempt_log::render(level, attempts)
+}
+
 fn parse_json_object(value: &str) -> Result<Map<String, Value>, String> {
     serde_json::from_str::<Value>(value)
         .map_err(|_| "--sub-domain-params must be a valid JSON object".to_owned())?
@@ -1716,11 +1846,12 @@ fn run_exa_search(
     format: OutputFormat,
     output: Option<PathBuf>,
 ) -> Result<CommandOutput, AppError> {
-    let result = AppContext::<providers::Exa>::for_exa(timeout)?.exa_search(request);
+    let (result, attempt_log) = AppContext::<providers::Exa>::for_exa(timeout)?.exa_search(request);
     Ok(CommandOutput::Exa {
         result,
         format,
         output,
+        attempt_log,
     })
 }
 
@@ -1730,11 +1861,13 @@ fn run_exa_similar(
     format: OutputFormat,
     output: Option<PathBuf>,
 ) -> Result<CommandOutput, AppError> {
-    let result = AppContext::<providers::Exa>::for_exa(timeout)?.exa_similar(request);
+    let (result, attempt_log) =
+        AppContext::<providers::Exa>::for_exa(timeout)?.exa_similar(request);
     Ok(CommandOutput::Exa {
         result,
         format,
         output,
+        attempt_log,
     })
 }
 

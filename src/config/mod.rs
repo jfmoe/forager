@@ -16,7 +16,7 @@ pub use location::{ConfigError, ConfigLocation, EditError};
 pub(crate) use runtime::{
     AnysearchRuntimeConfig, ClassifierRuntimeConfig, Context7RuntimeConfig,
     DocsSearchProviderConfig, DocsSearchRuntimeConfig, ExaRuntimeConfig, JournalRuntimeConfig,
-    MainSearchProviderConfig, MainSearchRuntimeConfig, OpenAiCompatibleRuntimeConfig,
+    LogLevel, MainSearchProviderConfig, MainSearchRuntimeConfig, OpenAiCompatibleRuntimeConfig,
     RuntimeConfig, SeamEntry, VerticalSearchRuntimeConfig, WebFetchProviderConfig,
     WebFetchRuntimeConfig, WebSearchRuntimeConfig, XaiRuntimeConfig, runtime_config,
 };

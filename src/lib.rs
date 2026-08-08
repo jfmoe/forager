@@ -3,6 +3,7 @@
 //! Core application services for the `forager` CLI.
 
 pub mod app;
+mod attempt_log;
 mod classifier;
 pub mod config;
 mod credentials;

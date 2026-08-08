@@ -1,6 +1,5 @@
 #![forbid(unsafe_code)]
 
-use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::fs;
 use std::path::PathBuf;
@@ -9,6 +8,7 @@ use std::process::ExitCode;
 use clap::Parser;
 use forager::app::{
     self, Cli, CommandOutput, DocsOutputFormat, ExaOutcome, OutputFormat, ProviderError,
+    bounded_attempt_summary,
 };
 use forager::types::{
     AnysearchOutcome, AttemptErrorKind, Context7Outcome, ErrorFamily, ErrorKind, FetchOutcome,
@@ -36,39 +36,52 @@ fn main() -> ExitCode {
             format,
             output,
             verbose,
-        }) => emit_rendered(render_search(result, &journal, format, output, verbose)),
+            attempt_log,
+        }) => emit_logged(
+            render_search(result, &journal, format, output, verbose),
+            attempt_log,
+        ),
         Ok(CommandOutput::Research {
             result,
             journal,
             format,
             output,
             verbose,
-        }) => emit_rendered(render_research(result, &journal, format, output, verbose)),
+            attempt_log,
+        }) => emit_logged(
+            render_research(result, &journal, format, output, verbose),
+            attempt_log,
+        ),
         Ok(CommandOutput::Exa {
             result,
             format,
             output,
-        }) => emit_rendered(render_exa(result, format, output)),
+            attempt_log,
+        }) => emit_logged(render_exa(result, format, output), attempt_log),
         Ok(CommandOutput::Context7 {
             result,
             format,
             output,
-        }) => emit_rendered(render_context7(result, format, output)),
+            attempt_log,
+        }) => emit_logged(render_context7(result, format, output), attempt_log),
         Ok(CommandOutput::Anysearch {
             result,
             format,
             output,
-        }) => emit_rendered(render_anysearch(result, format, output)),
+            attempt_log,
+        }) => emit_logged(render_anysearch(result, format, output), attempt_log),
         Ok(CommandOutput::Fetch {
             result,
             format,
             output,
-        }) => emit_rendered(render_fetch(result, format, output)),
+            attempt_log,
+        }) => emit_logged(render_fetch(result, format, output), attempt_log),
         Ok(CommandOutput::Map {
             result,
             format,
             output,
-        }) => emit_rendered(render_map(result, format, output)),
+            attempt_log,
+        }) => emit_logged(render_map(result, format, output), attempt_log),
         Err(error) if json_preflight_errors => {
             let exit_code = error.exit_code();
             emit(error.json_preflight_payload().to_string(), None, exit_code)
@@ -536,6 +549,14 @@ fn emit_rendered(rendered: Result<RenderedOutput, String>) -> ExitCode {
     }
 }
 
+fn emit_logged(rendered: Result<RenderedOutput, String>, attempt_log: Option<String>) -> ExitCode {
+    emit_rendered(rendered.map(|mut rendered| {
+        rendered.stderr =
+            app::combine_diagnostics([rendered.stderr.take(), attempt_log].into_iter().flatten());
+        rendered
+    }))
+}
+
 fn format_search_failure_json(
     error: &ProviderError,
     journal: &JournalOutcome,
@@ -924,33 +945,6 @@ fn format_failure_json(error: &ProviderError) -> Result<String, String> {
         return Err("default failure payload exceeded 4 KiB".into());
     }
     Ok(encoded)
-}
-
-fn bounded_attempt_summary(attempts: &[forager::types::ProviderAttempt]) -> Value {
-    let mut by_kind = BTreeMap::new();
-    for attempt in attempts {
-        if let Some(kind) = attempt.error_kind {
-            *by_kind.entry(kind.as_str()).or_insert(0) += 1;
-        }
-    }
-    let by_kind_count = by_kind.len();
-    let by_kind = by_kind.into_iter().take(8).collect::<BTreeMap<_, _>>();
-    let provider_set = attempts
-        .iter()
-        .map(|attempt| attempt.provider)
-        .collect::<BTreeSet<_>>();
-    let providers = provider_set.iter().take(8).copied().collect::<Vec<_>>();
-    let by_kind_truncated = by_kind_count > by_kind.len();
-    let providers_truncated = provider_set.len() > providers.len();
-
-    json!({
-        "total": attempts.len(),
-        "by_kind": by_kind,
-        "by_kind_truncated": by_kind_truncated,
-        "providers": providers,
-        "providers_truncated": providers_truncated,
-        "truncated": by_kind_truncated || providers_truncated,
-    })
 }
 
 fn apply_tee(

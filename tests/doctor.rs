@@ -28,6 +28,7 @@ fn shallow_doctor_reports_all_registry_providers_and_reuses_the_config_list_view
         (
             doctor.status.code(),
             &payload["mode"],
+            &payload["ok"],
             payload["providers"].as_array().map(Vec::len),
             &payload["config"],
             &payload["providers"][0]["provider"],
@@ -39,6 +40,7 @@ fn shallow_doctor_reports_all_registry_providers_and_reuses_the_config_list_view
         (
             Some(0),
             &Value::String("shallow".into()),
+            &Value::Bool(true),
             Some(8),
             &config,
             &Value::String("xai".into()),
@@ -425,10 +427,47 @@ fn doctor_markdown_preserves_the_json_status_and_effective_configuration() {
 
 #[test]
 fn shallow_doctor_reports_a_well_formed_but_dead_endpoint_as_unreachable() {
-    let fixture = Fixture::start_sequence(reachable_responses(7));
+    let fixture = Fixture::start_sequence(reachable_responses(14));
     let config = shallow_config(&fixture.url).replace(
         &format!("[providers.xai]\nurl = {:?}", fixture.url),
         "[providers.xai]\nurl = \"http://127.0.0.1:9\"",
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&["doctor", "--timeout", "2"]);
+    let markdown_output = environment.run(&["doctor", "--timeout", "2", "--format", "markdown"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
+    let markdown = String::from_utf8(markdown_output.stdout).expect("UTF-8 markdown");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["ok"],
+            &payload["providers"][0]["provider"],
+            &payload["providers"][0]["reachable"],
+            markdown_output.status.code(),
+        ),
+        (
+            Some(4),
+            &Value::Bool(false),
+            &Value::String("xai".into()),
+            &Value::Bool(false),
+            Some(4),
+        )
+    );
+    assert!(markdown.contains("ok: false"), "{markdown}");
+    assert_eq!(fixture.finish_all().len(), 14);
+}
+
+#[test]
+fn shallow_doctor_ignores_an_unconfigured_unreachable_provider() {
+    let fixture = Fixture::start_sequence(reachable_responses(7));
+    let config = shallow_config(&fixture.url).replace(
+        &format!(
+            "[providers.xai]\nurl = {:?}\nkeys = [\"xai-secret\"]",
+            fixture.url
+        ),
+        "[providers.xai]\nurl = \"http://127.0.0.1:9\"\nkeys = []",
     );
     let environment = RunEnvironment::new(&config);
 
@@ -438,12 +477,56 @@ fn shallow_doctor_reports_a_well_formed_but_dead_endpoint_as_unreachable() {
     assert_eq!(
         (
             output.status.code(),
-            &payload["providers"][0]["provider"],
+            &payload["ok"],
+            &payload["providers"][0]["configured"],
             &payload["providers"][0]["reachable"],
         ),
-        (Some(0), &Value::String("xai".into()), &Value::Bool(false),)
+        (
+            Some(0),
+            &Value::Bool(true),
+            &Value::Bool(false),
+            &Value::Bool(false),
+        )
     );
     assert_eq!(fixture.finish_all().len(), 7);
+}
+
+#[test]
+fn shallow_doctor_treats_zero_configured_providers_as_healthy() {
+    let fixture = Fixture::start_sequence(reachable_responses(8));
+    let config = [
+        "xai-secret",
+        "openai-secret",
+        "exa-secret",
+        "tavily-secret",
+        "firecrawl-secret",
+        "jina-secret",
+        "context7-secret",
+        "anysearch-secret",
+    ]
+    .into_iter()
+    .fold(shallow_config(&fixture.url), |config, secret| {
+        config.replace(&format!("keys = [\"{secret}\"]"), "keys = []")
+    });
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&["doctor"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["ok"],
+            payload["providers"]
+                .as_array()
+                .expect("providers")
+                .iter()
+                .filter(|provider| provider["configured"] == Value::Bool(true))
+                .count(),
+        ),
+        (Some(0), &Value::Bool(true), 0)
+    );
+    assert_eq!(fixture.finish_all().len(), 8);
 }
 
 #[test]

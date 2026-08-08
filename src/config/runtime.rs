@@ -349,6 +349,28 @@ pub(crate) struct RetryRuntimeConfig {
     pub(crate) max_wait_seconds: u64,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum LogLevel {
+    Error,
+    Warn,
+    Info,
+    Debug,
+    Trace,
+}
+
+impl LogLevel {
+    fn from_validated(value: &str) -> Self {
+        match value {
+            "error" => Self::Error,
+            "warn" => Self::Warn,
+            "info" => Self::Info,
+            "debug" => Self::Debug,
+            "trace" => Self::Trace,
+            _ => unreachable!("log.level is validated before runtime assembly"),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub(crate) struct RuntimeConfig {
     pub(crate) main_search: MainSearchRuntimeConfig,
@@ -367,6 +389,7 @@ pub(crate) struct RuntimeConfig {
     pub(crate) web_fetch: WebFetchRuntimeConfig,
     pub(crate) journal: JournalRuntimeConfig,
     pub(crate) retry: RetryRuntimeConfig,
+    pub(crate) log_level: LogLevel,
     pub(crate) ssl_verify: bool,
 }
 
@@ -531,6 +554,7 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
             multiplier: config.retry.multiplier,
             max_wait_seconds: config.retry.max_wait,
         },
+        log_level: LogLevel::from_validated(&config.log.level),
         ssl_verify: config.http.ssl_verify,
     })
 }
