@@ -745,7 +745,7 @@ pub(crate) async fn supplemental_web_search(
             fallback_off,
         },
         execution.deadline,
-        |_| true,
+        |sources: &Vec<Source>| !sources.is_empty(),
         |id, provider_config, deadline| {
             let client = execution.client.clone();
             async move {

@@ -87,6 +87,9 @@ impl SupplementalSearch {
                 .json(&TavilyRequest {
                     query,
                     max_results: limit,
+                    search_depth: "advanced",
+                    include_raw_content: false,
+                    include_answer: false,
                 })
         } else {
             request
@@ -135,14 +138,17 @@ impl SupplementalSearch {
             ),
             redirected_library_id: None,
         })?;
-        Ok((
-            status.as_u16(),
-            results
-                .into_iter()
-                .take(usize::from(limit))
-                .map(|source| Source {
+        let results_were_empty = results.is_empty();
+        let sources = results
+            .into_iter()
+            .filter_map(|source| {
+                let url = source.url?.trim().to_owned();
+                if url.is_empty() {
+                    return None;
+                }
+                Some(Source {
                     title: self.credentials.redact(&source.title),
-                    url: self.credentials.redact(&redact_url(&source.url)),
+                    url: self.credentials.redact(&redact_url(&url)),
                     published_date: source
                         .published_date
                         .map(|value| self.credentials.redact(&value)),
@@ -156,8 +162,18 @@ impl SupplementalSearch {
                     image: None,
                     favicon: None,
                 })
-                .collect(),
-        ))
+            })
+            .take(usize::from(limit))
+            .collect::<Vec<_>>();
+        if !results_were_empty && sources.is_empty() {
+            return Err(AttemptFailure {
+                kind: AttemptErrorKind::Evidence,
+                status: Some(status.as_u16()),
+                message: format!("{} search returned no valid candidate", self.provider),
+                redirected_library_id: None,
+            });
+        }
+        Ok((status.as_u16(), sources))
     }
 }
 
@@ -165,6 +181,9 @@ impl SupplementalSearch {
 struct TavilyRequest<'a> {
     query: &'a str,
     max_results: u16,
+    search_depth: &'static str,
+    include_raw_content: bool,
+    include_answer: bool,
 }
 
 #[derive(Serialize)]
@@ -175,7 +194,6 @@ struct FirecrawlRequest<'a> {
 
 #[derive(Deserialize)]
 struct TavilySearchResponse {
-    #[serde(default)]
     results: Vec<SearchResult>,
 }
 
@@ -186,7 +204,6 @@ struct FirecrawlSearchResponse {
 
 #[derive(Deserialize)]
 struct FirecrawlSearchData {
-    #[serde(default)]
     web: Vec<SearchResult>,
 }
 
@@ -194,7 +211,7 @@ struct FirecrawlSearchData {
 struct SearchResult {
     #[serde(default)]
     title: String,
-    url: String,
+    url: Option<String>,
     content: Option<String>,
     description: Option<String>,
     #[serde(rename = "publishedDate", alias = "published_date")]

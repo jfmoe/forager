@@ -537,13 +537,16 @@ fn declared_web_search_adds_normalized_extra_sources_in_configured_order() {
     let summary = "provider-native summary ".repeat(20);
     let tavily_body = serde_json::json!({
         "results": [
+            {"title": "Missing URL must be skipped", "content": "Invalid candidate"},
+            {"title": "Null URL must be skipped", "url": null},
+            {"title": "Blank URL must be skipped", "url": "   "},
             {
                 "title": "Primary duplicate",
                 "url": "https://example.test/source?token=canary-secret"
             },
             {
                 "title": "Supplemental",
-                "url": "https://example.test/extra",
+                "url": "  https://example.test/extra  ",
                 "content": summary
             }
         ]
@@ -618,7 +621,374 @@ fn declared_web_search_adds_normalized_extra_sources_in_configured_order() {
         .map(|(_, body)| body)
         .expect("Tavily request body");
     let request_body: Value = serde_json::from_str(request_body).expect("parse Tavily request");
-    assert_eq!(request_body["max_results"], 20);
+    assert_eq!(
+        request_body,
+        serde_json::json!({
+            "query": "Current information",
+            "max_results": 20,
+            "search_depth": "advanced",
+            "include_raw_content": false,
+            "include_answer": false
+        })
+    );
+}
+
+#[test]
+fn empty_tavily_results_fall_back_to_a_nonempty_firecrawl_result() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let tavily = Fixture::start(200, "application/json", r#"{"results":[]}"#);
+    let firecrawl = Fixture::start(
+        200,
+        "application/json",
+        r#"{"data":{"web":[{"title":"Fallback","url":"https://example.test/fallback"}]}}"#,
+    );
+    let config = format!(
+        "{}\n[providers.tavily]\nurl = {:?}\nkeys = [\"tavily-key\"]\ntimeout = 30\n\n[providers.firecrawl]\nurl = {:?}\nkeys = [\"firecrawl-key\"]\ntimeout = 30\n\n[capabilities.web_search]\norder = [\"tavily\", \"firecrawl\"]\n",
+        search_config(&main.url, true),
+        tavily.url,
+        firecrawl.url,
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Current information",
+        "--capabilities",
+        "web_search",
+        "--verbose",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let web_attempts = payload["provider_attempts"]
+        .as_array()
+        .expect("provider attempts")
+        .iter()
+        .filter(|attempt| attempt["seam"] == "web_search")
+        .map(|attempt| attempt["provider"].as_str().expect("attempt provider"))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["extra_sources"],
+            &payload["capability_gaps"],
+            web_attempts,
+        ),
+        (
+            Some(0),
+            &serde_json::json!([{
+                "provider": "firecrawl",
+                "capability": "web_search",
+                "title": "Fallback",
+                "url": "https://example.test/fallback",
+                "summary": null,
+                "provider_data": {}
+            }]),
+            &serde_json::json!([]),
+            vec!["tavily", "firecrawl"],
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    main.finish();
+    tavily.finish();
+    firecrawl.finish();
+}
+
+#[test]
+fn a_fully_empty_supplemental_chain_succeeds_with_all_attempts() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let tavily = Fixture::start(200, "application/json", r#"{"results":[]}"#);
+    let firecrawl = Fixture::start(200, "application/json", r#"{"data":{"web":[]}}"#);
+    let config = format!(
+        "{}\n[providers.tavily]\nurl = {:?}\nkeys = [\"tavily-key\"]\ntimeout = 30\n\n[providers.firecrawl]\nurl = {:?}\nkeys = [\"firecrawl-key\"]\ntimeout = 30\n\n[capabilities.web_search]\norder = [\"tavily\", \"firecrawl\"]\n",
+        search_config(&main.url, true),
+        tavily.url,
+        firecrawl.url,
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Current information",
+        "--capabilities",
+        "web_search",
+        "--verbose",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let web_attempts = payload["provider_attempts"]
+        .as_array()
+        .expect("provider attempts")
+        .iter()
+        .filter(|attempt| attempt["seam"] == "web_search")
+        .map(|attempt| attempt["provider"].as_str().expect("attempt provider"))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        (
+            output.status.code(),
+            payload.get("extra_sources"),
+            &payload["capability_gaps"],
+            web_attempts,
+        ),
+        (
+            Some(0),
+            None,
+            &serde_json::json!([]),
+            vec!["tavily", "firecrawl"],
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    main.finish();
+    tavily.finish();
+    firecrawl.finish();
+}
+
+#[test]
+fn fallback_off_returns_the_chain_heads_empty_result() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let tavily = Fixture::start(200, "application/json", r#"{"results":[]}"#);
+    let firecrawl = Fixture::start_canary();
+    let config = format!(
+        "{}\n[search]\nfallback = \"off\"\n\n[providers.tavily]\nurl = {:?}\nkeys = [\"tavily-key\"]\ntimeout = 30\n\n[providers.firecrawl]\nurl = {:?}\nkeys = [\"firecrawl-key\"]\ntimeout = 30\n\n[capabilities.web_search]\norder = [\"tavily\", \"firecrawl\"]\n",
+        search_config(&main.url, true),
+        tavily.url,
+        firecrawl.url,
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Current information",
+        "--capabilities",
+        "web_search",
+        "--verbose",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let web_attempts = payload["provider_attempts"]
+        .as_array()
+        .expect("provider attempts")
+        .iter()
+        .filter(|attempt| attempt["seam"] == "web_search")
+        .map(|attempt| attempt["provider"].as_str().expect("attempt provider"))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        (
+            output.status.code(),
+            payload.get("extra_sources"),
+            &payload["capability_gaps"],
+            web_attempts,
+        ),
+        (Some(0), None, &serde_json::json!([]), vec!["tavily"],),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    main.finish();
+    tavily.finish();
+    assert!(firecrawl.finish_all().is_empty());
+}
+
+#[test]
+fn filtered_only_results_do_not_count_as_a_legal_empty_array() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let tavily = Fixture::start(
+        200,
+        "application/json",
+        r#"{"results":[{"url":null},{"title":"missing"},{"url":"  "}]}"#,
+    );
+    let firecrawl = Fixture::start(200, "application/json", r#"{"data":{}}"#);
+    let config = format!(
+        "{}\n[providers.tavily]\nurl = {:?}\nkeys = [\"tavily-key\"]\ntimeout = 30\n\n[providers.firecrawl]\nurl = {:?}\nkeys = [\"firecrawl-key\"]\ntimeout = 30\n\n[capabilities.web_search]\norder = [\"tavily\", \"firecrawl\"]\n",
+        search_config(&main.url, true),
+        tavily.url,
+        firecrawl.url,
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Current information",
+        "--capabilities",
+        "web_search",
+        "--verbose",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let error_kinds = payload["provider_attempts"]
+        .as_array()
+        .expect("provider attempts")
+        .iter()
+        .filter(|attempt| attempt["seam"] == "web_search")
+        .map(|attempt| attempt["error_kind"].as_str().expect("attempt error kind"))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        (
+            output.status.code(),
+            payload.get("extra_sources"),
+            &payload["capability_gaps"],
+            error_kinds,
+        ),
+        (
+            Some(0),
+            None,
+            &serde_json::json!([{
+                "capability": "web_search",
+                "reason": "all_attempts_failed",
+                "providers_skipped": []
+            }]),
+            vec!["evidence", "runtime"],
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    main.finish();
+    tavily.finish();
+    firecrawl.finish();
+}
+
+#[test]
+fn malformed_tavily_results_are_runtime_failures_that_fall_back() {
+    for body in [
+        r"{}",
+        r#"{"results":{}}"#,
+        r#"{"results":[{"url":42}]}"#,
+        r#"{"results":["not an object"]}"#,
+    ] {
+        let main = Fixture::start(
+            200,
+            "text/event-stream",
+            &completed_body("answer", "Primary"),
+        );
+        let tavily = Fixture::start(200, "application/json", body);
+        let firecrawl = Fixture::start(
+            200,
+            "application/json",
+            r#"{"data":{"web":[{"url":"https://example.test/fallback"}]}}"#,
+        );
+        let config = format!(
+            "{}\n[providers.tavily]\nurl = {:?}\nkeys = [\"tavily-key\"]\ntimeout = 30\n\n[providers.firecrawl]\nurl = {:?}\nkeys = [\"firecrawl-key\"]\ntimeout = 30\n\n[capabilities.web_search]\norder = [\"tavily\", \"firecrawl\"]\n",
+            search_config(&main.url, true),
+            tavily.url,
+            firecrawl.url,
+        );
+        let environment = RunEnvironment::new(&config);
+
+        let output = environment.run(&[
+            "search",
+            "Current information",
+            "--capabilities",
+            "web_search",
+            "--verbose",
+        ]);
+        let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+        let web_attempts = payload["provider_attempts"]
+            .as_array()
+            .expect("provider attempts")
+            .iter()
+            .filter(|attempt| attempt["seam"] == "web_search")
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            (
+                output.status.code(),
+                &payload["extra_sources"][0]["url"],
+                &web_attempts[0]["error_kind"],
+                &web_attempts[1]["provider"],
+            ),
+            (
+                Some(0),
+                &Value::String("https://example.test/fallback".into()),
+                &Value::String("runtime".into()),
+                &Value::String("firecrawl".into()),
+            ),
+            "body: {body}; stderr: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        main.finish();
+        tavily.finish();
+        firecrawl.finish();
+    }
+}
+
+#[test]
+fn malformed_firecrawl_containers_are_runtime_failures_that_fall_back() {
+    for body in [
+        r"{}",
+        r#"{"data":[]}"#,
+        r#"{"data":{}}"#,
+        r#"{"data":{"web":{}}}"#,
+    ] {
+        let main = Fixture::start(
+            200,
+            "text/event-stream",
+            &completed_body("answer", "Primary"),
+        );
+        let firecrawl = Fixture::start(200, "application/json", body);
+        let tavily = Fixture::start(
+            200,
+            "application/json",
+            r#"{"results":[{"url":"https://example.test/fallback"}]}"#,
+        );
+        let config = format!(
+            "{}\n[providers.firecrawl]\nurl = {:?}\nkeys = [\"firecrawl-key\"]\ntimeout = 30\n\n[providers.tavily]\nurl = {:?}\nkeys = [\"tavily-key\"]\ntimeout = 30\n\n[capabilities.web_search]\norder = [\"firecrawl\", \"tavily\"]\n",
+            search_config(&main.url, true),
+            firecrawl.url,
+            tavily.url,
+        );
+        let environment = RunEnvironment::new(&config);
+
+        let output = environment.run(&[
+            "search",
+            "Current information",
+            "--capabilities",
+            "web_search",
+            "--verbose",
+        ]);
+        let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+        let web_attempts = payload["provider_attempts"]
+            .as_array()
+            .expect("provider attempts")
+            .iter()
+            .filter(|attempt| attempt["seam"] == "web_search")
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            (
+                output.status.code(),
+                &payload["extra_sources"][0]["url"],
+                &web_attempts[0]["error_kind"],
+                &web_attempts[1]["provider"],
+            ),
+            (
+                Some(0),
+                &Value::String("https://example.test/fallback".into()),
+                &Value::String("runtime".into()),
+                &Value::String("tavily".into()),
+            ),
+            "body: {body}; stderr: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        main.finish();
+        firecrawl.finish();
+        tavily.finish();
+    }
 }
 
 #[test]
