@@ -22,7 +22,6 @@
 # 除 keys 外全部可省略——省略即内置默认
 [search]
 backends = ["xai", "openai_compatible"]
-validation = "balanced"      # fast|balanced|strict
 fallback = "auto"            # auto|off
 
 [classifier]
@@ -86,7 +85,7 @@ order = ["context7", "exa"]
 order = ["anysearch"]
 
 [log]
-level = "info"               # 仅 stderr 控制台流；debug＝旧 DEBUG 的 verbose
+level = "info"               # error|warn|info|debug|trace；见下方运行时语义
 
 [journal]
 enabled = true               # 默认翻转为开
@@ -114,7 +113,18 @@ ssl_verify = true
 
 ### 值域与交叉约束（进 schema 与验收）
 
-`search.backends` 非空、去重、限 `{xai, openai_compatible}`；全部 backend 无凭据＝退 3；`providers.xai.tools` 限 `{web_search, x_search}`；所有 `timeout > 0`；`retry.max_attempts >= 1`、`multiplier > 0`、`max_wait >= 0`；`journal.retention_days >= 0` 且 0＝无限期。文件层严格 schema：未知键＝退 3、报错点名坏键。
+`search.backends` 非空、去重、限 `{xai, openai_compatible}`；全部 backend 无凭据＝退 3；`providers.xai.tools` 限 `{web_search, x_search}`；所有 `timeout > 0`；`retry.max_attempts >= 1`、`multiplier > 0`、`max_wait >= 0`；`journal.retention_days >= 0` 且 0＝无限期。`search.validation` 已从 schema 删除；旧文件键或 `FORAGER_SEARCH__VALIDATION` 都按未知输入退出 3。文件层严格 schema：未知键＝退 3、报错点名坏键。
+
+### `log.level` 运行时语义
+
+- 保留默认 `info`，不恢复 file logging，也不新增实时事件模型。`error`/`warn`/`info` 不产生可选运行日志；契约要求的终态错误、capability gap、classifier degradation、journal 与 `--output` warning 始终写 stderr，不受该键过滤。
+- `debug` 在命令终结时至多输出一条由现有 `ProviderAttempt` 集合投影的脱敏摘要；`trace` 再输出逐 attempt 的安全字段：provider、seam、error kind、HTTP status、duration、credential index、retry/rotation、transport 与 breaker event。
+- debug/trace 不输出 attempt message、model、endpoint、请求/响应、正文、header、credential、prompt 或 tool trace，不新增 `tracing` 依赖。`--verbose` 与 journal 的职责不变。
+
+### Journal 文件所有权
+
+- 每次 Default Search Invocation 写入独占的 `search_result_<nanos>_<pid>_<seq>.json`，路径字符串本身就是 `journal_ref`；写后 `sync_all`，再 best-effort retention。不恢复每日 JSONL、`record_id`、共享追加锁或 `{path, record_id}` 形状。
+- retention 仅删除文件名完整匹配上述模式且已过期的普通文件，继续按 mtime 与 `retention_days` 判断；其他 JSON/JSONL、相近名称、目录和链接永不删除。`retention_days=0` 仍表示无限保留，清理失败不改变主终态。
 
 ## `config` 命令
 
@@ -144,7 +154,7 @@ ssl_verify = true
 | `OPENAI_COMPATIBLE_MODEL` | `providers.openai_compatible.model` |
 | `OPENAI_COMPATIBLE_FALLBACK_MODELS` | `providers.openai_compatible.fallback_models` |
 | `OPENAI_COMPATIBLE_STREAM` | `providers.openai_compatible.stream` |
-| `SMART_SEARCH_VALIDATION_LEVEL` | `search.validation` |
+| `SMART_SEARCH_VALIDATION_LEVEL` | **已删除**（Caller Capability Declaration、classifier 与 Citation Binding 分别拥有原混合职责；手动删除旧 `search.validation` 配置） |
 | `SMART_SEARCH_FALLBACK_MODE` | `search.fallback` |
 | `SMART_SEARCH_MINIMUM_PROFILE` | **已删除**（capability 缺口自报继任，见第 1 章修订留痕） |
 | `SMART_SEARCH_RESEARCH_PREFERRED_PROVIDERS` | **已删除**（`capabilities.*.order` 完全权威） |
@@ -195,7 +205,7 @@ ssl_verify = true
 | `SMART_SEARCH_RETRY_MAX_ATTEMPTS` | `retry.max_attempts` |
 | `SMART_SEARCH_RETRY_MULTIPLIER` | `retry.multiplier` |
 | `SMART_SEARCH_RETRY_MAX_WAIT` | `retry.max_wait` |
-| `SMART_SEARCH_OUTPUT_CLEANUP` | **已删除**（正文消毒无条件执行） |
+| `SMART_SEARCH_OUTPUT_CLEANUP` | **已删除**（只无条件删除完整闭合 `<think>` block 并投影显式文本来源；不恢复关键词内容审查） |
 | `SMART_SEARCH_RESULT_JOURNAL_ENABLED` | `journal.enabled`（默认由关翻转为**开**） |
 | `SMART_SEARCH_RESULT_JOURNAL_RETENTION_DAYS` | `journal.retention_days` |
 | `SSL_VERIFY` | `http.ssl_verify` |

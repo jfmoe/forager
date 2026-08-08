@@ -1,6 +1,6 @@
 mod support;
 
-use serde_json::Value;
+use serde_json::{Value, json};
 
 use support::{Fixture, RunEnvironment};
 
@@ -54,7 +54,17 @@ enabled = false
     let request = fixture.finish();
     assert!(request.starts_with("POST /scrape "));
     assert!(request.contains("authorization: Bearer firecrawl-key"));
-    assert!(request.contains("\"url\":\"https://example.test/article\""));
-    assert!(request.contains("\"formats\":[\"markdown\"]"));
-    assert!(request.contains("\"onlyMainContent\":true"));
+    let (_, request_body) = request
+        .split_once("\r\n\r\n")
+        .expect("HTTP request body separator");
+    let request_body: Value = serde_json::from_str(request_body).expect("parse request JSON");
+    assert_eq!(
+        request_body,
+        json!({
+            "url": "https://example.test/article",
+            "formats": ["markdown"],
+            "onlyMainContent": true,
+            "timeout": 60000
+        })
+    );
 }

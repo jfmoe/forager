@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use eventsource_stream::{EventStreamError, Eventsource};
 use futures_util::{Stream, StreamExt, future};
-use reqwest::{Client, Response, StatusCode};
+use reqwest::{Client, Response, StatusCode, redirect};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
@@ -179,10 +179,13 @@ mod tests {
     use std::thread;
     use std::time::Duration;
 
+    use reqwest::StatusCode;
+
     use super::{
         RetryPolicy, build_client, build_client_with_read_timeout, combine_diagnostics,
-        duration_millis,
+        duration_millis, error_kind_for_status,
     };
+    use crate::types::AttemptErrorKind;
 
     #[test]
     fn combine_diagnostics_joins_present_values_in_order() {
@@ -245,6 +248,88 @@ mod tests {
     }
 
     #[test]
+    fn build_client_returns_redirect_without_requesting_its_location() {
+        let target_listener = TcpListener::bind("127.0.0.1:0").expect("bind target canary");
+        target_listener
+            .set_nonblocking(true)
+            .expect("set target canary nonblocking");
+        let target_address = target_listener.local_addr().expect("target canary address");
+        let (stop_target, target_stopped) = std::sync::mpsc::channel();
+        let target_server = thread::spawn(move || {
+            loop {
+                if target_stopped.try_recv().is_ok() {
+                    return 0;
+                }
+                match target_listener.accept() {
+                    Ok((mut stream, _)) => {
+                        stream
+                            .set_nonblocking(false)
+                            .expect("set target stream blocking");
+                        let mut request = [0_u8; 4096];
+                        let read = stream.read(&mut request).expect("read target request");
+                        assert!(read > 0, "target canary received an empty request");
+                        stream
+                        .write_all(
+                            b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                        )
+                        .expect("write target response");
+                        return 1;
+                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
+                        thread::sleep(Duration::from_millis(10));
+                    }
+                    Err(error) => panic!("accept target canary request: {error}"),
+                }
+            }
+        });
+
+        let redirect_listener = TcpListener::bind("127.0.0.1:0").expect("bind redirect server");
+        let redirect_address = redirect_listener
+            .local_addr()
+            .expect("redirect server address");
+        let redirect_server = thread::spawn(move || {
+            let (mut stream, _) = redirect_listener.accept().expect("accept redirect request");
+            let mut request = [0_u8; 4096];
+            let read = stream.read(&mut request).expect("read redirect request");
+            assert!(read > 0, "redirect server received an empty request");
+            write!(
+                stream,
+                "HTTP/1.1 302 Found\r\nLocation: http://{target_address}/canary\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            )
+            .expect("write redirect response");
+        });
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("build runtime");
+
+        let status = runtime.block_on(async {
+            build_client(true)
+                .expect("build client")
+                .get(format!("http://{redirect_address}"))
+                .send()
+                .await
+                .expect("send request")
+                .status()
+        });
+        let _ = stop_target.send(());
+        redirect_server.join().expect("join redirect server");
+        let target_requests = target_server.join().expect("join target canary");
+
+        assert_eq!((status, target_requests), (StatusCode::FOUND, 0));
+    }
+
+    #[test]
+    fn redirect_status_is_runtime_without_retry_or_rotation() {
+        let kind = error_kind_for_status(StatusCode::FOUND, "");
+
+        assert_eq!(
+            (kind, kind.is_retryable(), kind.rotates_credential()),
+            (AttemptErrorKind::Runtime, false, false)
+        );
+    }
+
+    #[test]
     fn build_client_times_out_when_the_response_body_stalls() {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind test server");
         let address = listener.local_addr().expect("test server address");
@@ -299,6 +384,7 @@ fn build_client_with_read_timeout(
         .danger_accept_invalid_certs(!ssl_verify)
         .connect_timeout(Duration::from_secs(5))
         .read_timeout(read_timeout)
+        .redirect(redirect::Policy::none())
         .user_agent(concat!("forager/", env!("CARGO_PKG_VERSION")))
         .pool_idle_timeout(Duration::from_secs(90))
         .build()

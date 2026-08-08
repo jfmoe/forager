@@ -1,6 +1,6 @@
 # 5. 验收契约与切换步骤
 
-权威来源：[#59 Resolution](https://github.com/jfmoe/smartsearch/issues/59)、[补充决议①](https://github.com/jfmoe/smartsearch/issues/59#issuecomment-5081831697)、[补充决议②（Codex 对抗审查 21 条裁定）](https://github.com/jfmoe/smartsearch/issues/59#issuecomment-5081958567)。抵触处以补充决议②为准。
+权威来源：[#59 Resolution](https://github.com/jfmoe/smartsearch/issues/59)、[补充决议①](https://github.com/jfmoe/smartsearch/issues/59#issuecomment-5081831697)、[补充决议②（Codex 对抗审查 21 条裁定）](https://github.com/jfmoe/smartsearch/issues/59#issuecomment-5081958567)，以及 [smartsearch → forager 迁移 Q1–Q14 最终裁决](https://github.com/jfmoe/forager/issues/108)。迁移裁决 supersede 与其冲突的旧验收文字。
 
 **判定形态**：自动化为主 + 人工清单；基准为本规格的**纯规格断言**，不与 Python 旧版对拍（旧版仅人工参考）。整套测试面是**长期回归网**而非一次性验收：unit + fixture + offline-e2e 每次改动必跑（PR CI），**首次全绿即切换门槛**。
 
@@ -10,8 +10,8 @@
 - **I0-2 能力路由权威**：`--capabilities` 存在即权威、三态 CSV/none/缺省；裸调用由 classifier 兜底；`web_fetch` 恒为引擎不变量（plan 声明即退 2）。
 - **I0-3 尝试链与预算**：每 seam 按配置 order 走链；凭据池轮询，429/quota 同请求内换凭据（轮换先于重试、429 不重试）；fallback 在共享 deadline 内可达（预算保留 `min(层上限, 剩余预算/剩余槽位)`）。
 - **I0-4 归因确定性**：只按每 provider 最终 attempt 归约，与重试次数/失败顺序无关；进入证据阶段的终局失败 Content 优先退 5；全 provider 无可验证响应才退 4；同质失败透传原 kind；全序表见第 4 章。
-- **I0-5 结果装配与缺口自报**：Primary Search Sources、Supplemental Search Candidates 与 Vertical Discovery Results 三集合互不投影（URL 统一脱敏）；候选保留 provider-native summary，search-side Web Fetch 候选使用实际 provider 与 300 字正文 preview；capability_gaps 自报（结果字段 + stderr），无 minimum profile 门禁。
-- **I0-6 输出通道与载荷边界**：`--format json` 终态只写 stdout 且为干净 JSON（含失败态）；诊断/日志/miette 全走 stderr；`--output` tee 时 stdout 不变。research 的 JSON/Markdown/content 都只渲染 Research Evidence Index 与 gaps，正文只存在逐条 evidence Markdown；成功和 postflight 失败都返回可读 plan/evidence/candidate 路径，默认失败载荷不超过 4 KiB。胖过程记录只落 summary/journal；`--verbose` 为 provider attempts 的内联逃生阀。豁免：clap argv 错（退 2）与 panic（101）不受干净 JSON 契约约束。
+- **I0-5 结果装配与缺口自报**：`sources` 只表示 Primary Search Source；所有非主结果统一为 `extra_sources` Search Candidate，并以 URL 或 provider-owned typed locator 定位。候选保留 provider-native summary，在被对应读取/取证操作消费前不是 evidence；capability_gaps 自报（结果字段 + stderr），无 minimum profile 门禁。
+- **I0-6 输出通道与载荷边界**：clap 已成功解析且选择 JSON 后，search/fetch/research 的配置与 plan 飞行前失败在 stdout 返回单个干净 JSON；Markdown/content 飞行前错误留在 stderr。research 成功只渲染 Research Evidence Index，正文只存在逐条 evidence Markdown；失败以稳定小载荷和可空 `summary_path` 指向 Research Recovery Manifest，locator 不截断。普通失败以 4 KiB 为目标而非硬拒绝长合法路径。协议成功载荷硬上限 4 MiB；只有 Web Fetch 可将 UTF-8 安全前缀截断为成功，SSE/JSON/MCP 超限整体 Runtime。`--output` tee 时 stdout 不变，`--verbose` 为 provider attempts 的内联逃生阀。豁免：clap argv 错（退 2）与 panic（101）。
 - **I0-7 旁路隔离与降级**：主终态/退出码/主结果不被旁路失败改变——journal 写失败（非致命告警、journal_ref 置 null + journal_status）、游标文件损坏（安全复位）、classifier 已配置但失败（降级 + 警告 + 落痕；research 用固定最小降级 plan）；`--output` 写失败例外＝显式请求，退 3。
 
 ## Tier 1：分域覆盖
@@ -20,9 +20,9 @@
 
 ## 测试四层
 
-1. **unit 真值表**（契约点名四块，穷举边界）：归因总函数、预算切片、plan 严格解析、URL 脱敏。其余单元测试为编码 effort 自由裁量。不承担错误映射/轮换/net/serde 回归（必须走 transport 侧真管线）。
-2. **HTTP fixture**（wiremock 类本地桩，真实 reqwest 栈）：8 provider 响应解码、SSE 帧、MCP 帧，各配 fixture 组；fixture 视为外部契约资产随规格维护。
-3. **offline-e2e（验收主面）**：spawn 真实 `forager` 二进制 + transport-mock（base URL 可覆写注入缝），覆盖路由/归因/fallback/退出码/config/plan/journal 副作用/I0-6/I0-7。CLI 断言清单：plan 五负用例（非法 `plan_version`、未知 capability、声明 `web_fetch`、重复/空 `id`、空 `decomposition`）；config 全行为（未知文件键退 3 点名坏键、未知 `FORAGER_*` env 退 3、web_fetch 空链退 3、set 非法路径退 2 + 类型/enum 校验、值域全表、config list 掩码+来源视图与 doctor 同构块、坏配置四命令仍可用、权限 0700/0600、setup 模板生成与拒绝覆盖）；Web Fetch 三家请求 profile、Jina 结构化正文解码、`Tavily → Firecrawl → Jina` 在直接 fetch/search-side/research/PDF 四个调用面的共享顺序、薄正文 Quality fallback、全链 Quality、4 MiB 截断成功 diagnostic 与 attempts 分离；search-side Web Fetch 单 URL、部分成功、并发保序、300 字 preview、JSON/Markdown/content/verbose/journal 同步，Vertical Discovery URL 不复制，provider-native summary 不受 preview 截断；research 成功/degraded/Evidence 错误、三种格式、默认/verbose、tee、全部 artifact path 可读、candidate 非 evidence、正文仅落 evidence Markdown、失败 payload ≤ 4 KiB；capability 缺口自报；`map` 命令契约一例（tavily `/map` fixture 归 tavily fixture 组——site_map 非 seam trait，不入 (provider, seam) 投影，靠本清单 ID 保覆盖）。**环境隔离**（H9）：清空继承 env、临时 XDG_CONFIG/STATE/HOME、独立 journal/游标目录；端点覆盖变量用独立命名空间，不与「未知 FORAGER_* 退 3」冲突。**脱敏 canary**（H14）：注入 canary secret，经错误路径、sources、journal、诊断断言 stdout/stderr/`--output` 文件/journal 四出口无原文；answer 正文与 fetch content 豁免脱敏——凭据不进入 provider 生成内容的通路，provider 回显凭据属错误路径范畴（ADR 0006）。
+1. **unit 真值表**：归因总函数、预算切片、plan 严格解析、URL 脱敏；另在 `net` 最低接缝以单个带 `Location` 的 redirect canary 证明 shared client 返回原 3xx 且目标零请求，并以一张紧凑断言证明 3xx → Runtime、不可重试、不可轮换。不建立 provider×status×同/跨源矩阵。
+2. **HTTP fixture**（本地桩 + 真实 reqwest 栈）：8 provider 响应解码、SSE、MCP 各配 fixture 组。主搜索覆盖 xAI role-array、failed/incomplete 分类、completed 无文本失败、OpenAI-compatible 非空 clean EOF，以及两者遇到畸形非空 JSON 帧都整体 Runtime；normalizer 只覆盖 think block、显式来源 grammar、空结果 Runtime 与公开 URL 去重。MCP 覆盖 optional-session、AnySearch 固定 client header、非数组 content Runtime 与 structuredContent；成功协议超 4 MiB 整体失败。
+3. **offline-e2e（验收主面）**：spawn 真实 `forager` 二进制 + transport-mock，覆盖路由/归因/fallback/退出码/config/plan/journal 副作用/I0-6/I0-7。CLI 覆盖 JSON 飞行前终态与 Markdown/content 豁免；删除 validation 后未知参数/配置；`extra_sources` 的 `0 → web 3/docs 1/vertical 1`、20 成功与 21 clap 失败零网络；shallow doctor 聚合；debug/trace attempts 投影；journal 只清理自有独占文件；Recovery Manifest 成功/写失败 locator。Search Candidate 覆盖统一信封、Context7 typed locator 与无 URL evidence、Exa 字段投影、AnySearch Markdown/required 标记；Supplemental 覆盖 Tavily advanced profile、合法空集 fallback、严格 container 与窄 URL 容错。Web Fetch 覆盖三家 request profile、共享 provider 顺序、薄正文 Quality fallback、全链 Quality和 4 MiB 截断；Firecrawl fixture 精确断言 Markdown、`onlyMainContent: true`、`timeout: 60000` 与 `waitFor` 缺失，并复用薄正文用例证明每个逻辑 attempt 只 scrape 一次。map 覆盖 timeout 10/150、depth 1/5、breadth 1/500 的 wire，以及越界 clap 退出 2 与零网络，单次 attempt cap 使用合法命令 timeout + 较小 provider timeout。direct fetch、search-side Web Fetch 与 research 共享 engine 入口，不复制调用面矩阵；不新增 live-e2e。
 4. **live-e2e**：见下。
 
 ## live-e2e（`smoke --live` 用例面）
@@ -68,7 +68,7 @@ AnySearch **extraction 裁决**（消解 #53 砍 `anysearch-extract` 与 #59 L8 
 ## Medium 落地件（补充决议② M17–M21 定稿）
 
 - **M17 辅助 seam 预算槽位定义**：槽位＝该层中「尚未尝试、凭据在位、未被断路器熔断」的候选数；classifier model 链及 web_fetch、supplemental、tavily_map 等辅助 provider 链继续按槽位均分，并受各自阶段或单次 timeout 上限约束。断路器熔断项不计入；`剩余预算/剩余槽位 < 5s` 时跳过该槽（journal 记 skipped），最后一槽可用全部剩余预算。main search 不适用槽位均分：主 backend → 主 model → SSE 首次尝试可使用全部剩余预算，fallback 只消费残余；`--fallback off` 仍只执行链头并禁用 provider 内 model fallback，classifier 链不受该旗标影响。单 backend + 单 model 没有 in-seam 超时重试，保障来自 fallback 链；共享 endpoint、model 或凭据池的 fallback 不提供故障隔离，隔离由配置负责（ADR 0007）。
-- **M18 瘦载荷边界**：默认失败载荷上限 **4 KiB**；列表字段（by_kind、providers、capability_gaps.providers_skipped）各截断至 8 项并置 `truncated: true`；message 截断至 500 字符。断言用字节上限，不用「几百字节」措辞。
+- **M18 瘦载荷边界**：普通路径的默认失败载荷以 **4 KiB** 为目标；列表字段（by_kind、providers、capability_gaps.providers_skipped）各截断至 8 项并置 `truncated: true`，message 截断至 500 字符。Research failure 使用稳定 schema，`evidence_dir`/`summary_path` locator 永不截断；极端长合法路径允许超过目标，不在创建 artifact 前预演拒绝。
 - **M19 覆盖完整性门**：Tier 0/Tier 1 → 测试 ID → provider/seam 追踪清单入库。**验收用例 ID 的权威源＝本章用例清单本身**（受版本控制，随规格入新仓），不由 provider registry 派生（registry 保持第 4 章 F10 最小职责）。集合断言拆两条**同型比较**进 CI：① registry 的 `(provider, seam)` 投影 ＝ fixture 集的 `(provider, seam)` 投影——新 provider/seam 无 fixture 即红；② 本清单的 live 用例 ID 集（P1–P2 + C01–C17）＝ `smoke --live` 实际注册的 ID 集——清单与实现不许漂移。L0 为流程门，不入集合。
 - **M20 随迁 manifest**：见第 6 章。
 - **M21 冻结题集 + rubric**（人工质量抽查，行为丢失报警器，不做旧版对拍）：三题字面冻结——① 「Rust 的 async drop 现状与最新提案是什么？」（docs+web 混合、时效）；② 「对比 figment 与 config-rs 的分层覆盖模型，给出出处」（docs、交叉验证）；③ 「近一个月各大社区关于 Coding Agent 的讨论」（web+x 混合、时效、观点聚合）。rubric 三行，每行 pass/fail：相关性（回答对准问题）；来源去重（无重复/近重复来源）；引用支持结论（每主张可溯源到给出的 citation）。
