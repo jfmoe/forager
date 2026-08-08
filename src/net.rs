@@ -19,6 +19,30 @@ pub(crate) struct CappedResponseBody {
     pub(crate) truncated: bool,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ResponseBodyPolicy {
+    TruncatableContent,
+    CompleteProtocol,
+    Error,
+}
+
+impl ResponseBodyPolicy {
+    pub(crate) fn for_status(status: StatusCode, success: Self) -> Self {
+        if status.is_success() {
+            success
+        } else {
+            Self::Error
+        }
+    }
+
+    const fn limit(self) -> usize {
+        match self {
+            Self::TruncatableContent | Self::CompleteProtocol => MAX_RESPONSE_BYTES,
+            Self::Error => MAX_ERROR_BODY_BYTES,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub(crate) enum CappedStreamError<E> {
     Transport(E),
@@ -34,13 +58,23 @@ impl<E: std::fmt::Display> std::fmt::Display for CappedStreamError<E> {
     }
 }
 
+impl<E> CappedStreamError<E> {
+    pub(crate) const fn attempt_error_kind(&self) -> AttemptErrorKind {
+        match self {
+            Self::Transport(_) => AttemptErrorKind::Network,
+            Self::LimitExceeded => AttemptErrorKind::Runtime,
+        }
+    }
+}
+
 impl<E> std::error::Error for CappedStreamError<E> where E: std::error::Error + Send + Sync + 'static
 {}
 
 pub(crate) async fn read_response_body(
     response: Response,
-    limit: usize,
-) -> Result<CappedResponseBody, reqwest::Error> {
+    policy: ResponseBodyPolicy,
+) -> Result<CappedResponseBody, CappedStreamError<reqwest::Error>> {
+    let limit = policy.limit();
     let capacity = response
         .content_length()
         .and_then(|length| usize::try_from(length).ok())
@@ -49,9 +83,12 @@ pub(crate) async fn read_response_body(
     let mut stream = response.bytes_stream();
     let mut truncated = false;
     while let Some(chunk) = stream.next().await {
-        let chunk = chunk?;
+        let chunk = chunk.map_err(CappedStreamError::Transport)?;
         let remaining = limit.saturating_sub(bytes.len());
         if chunk.len() > remaining {
+            if policy == ResponseBodyPolicy::CompleteProtocol {
+                return Err(CappedStreamError::LimitExceeded);
+            }
             bytes.extend_from_slice(&chunk[..remaining]);
             truncated = true;
             break;
@@ -65,14 +102,6 @@ pub(crate) async fn read_response_body(
         text: String::from_utf8_lossy(&bytes).into_owned(),
         truncated,
     })
-}
-
-pub(crate) fn response_body_limit(status: StatusCode) -> usize {
-    if status.is_success() {
-        MAX_RESPONSE_BYTES
-    } else {
-        MAX_ERROR_BODY_BYTES
-    }
 }
 
 pub(crate) fn json_string_prefix(body: &str, key: &str) -> Option<String> {
@@ -182,8 +211,9 @@ mod tests {
     use reqwest::StatusCode;
 
     use super::{
-        RetryPolicy, build_client, build_client_with_read_timeout, combine_diagnostics,
-        duration_millis, error_kind_for_status,
+        MAX_ERROR_BODY_BYTES, MAX_RESPONSE_BYTES, ResponseBodyPolicy, RetryPolicy, build_client,
+        build_client_with_read_timeout, combine_diagnostics, duration_millis,
+        error_kind_for_status,
     };
     use crate::types::AttemptErrorKind;
 
@@ -209,6 +239,43 @@ mod tests {
         let policy = RetryPolicy::new(3, f64::MAX, Duration::from_secs(10));
 
         assert_eq!(policy.wait(2), Duration::from_secs(10));
+    }
+
+    #[test]
+    fn response_body_policy_selects_error_heads_only_for_non_success_statuses() {
+        assert_eq!(
+            (
+                ResponseBodyPolicy::for_status(
+                    StatusCode::OK,
+                    ResponseBodyPolicy::TruncatableContent,
+                ),
+                ResponseBodyPolicy::for_status(
+                    StatusCode::OK,
+                    ResponseBodyPolicy::CompleteProtocol,
+                ),
+                ResponseBodyPolicy::for_status(
+                    StatusCode::BAD_REQUEST,
+                    ResponseBodyPolicy::CompleteProtocol,
+                ),
+            ),
+            (
+                ResponseBodyPolicy::TruncatableContent,
+                ResponseBodyPolicy::CompleteProtocol,
+                ResponseBodyPolicy::Error,
+            )
+        );
+    }
+
+    #[test]
+    fn response_body_policy_keeps_error_heads_smaller_than_success_bodies() {
+        assert_eq!(
+            (
+                ResponseBodyPolicy::TruncatableContent.limit(),
+                ResponseBodyPolicy::CompleteProtocol.limit(),
+                ResponseBodyPolicy::Error.limit(),
+            ),
+            (MAX_RESPONSE_BYTES, MAX_RESPONSE_BYTES, MAX_ERROR_BODY_BYTES,)
+        );
     }
 
     #[test]
@@ -441,7 +508,6 @@ pub(crate) struct McpClient<'a> {
 pub(crate) struct McpToolResult {
     pub(crate) structured_content: Value,
     pub(crate) text: String,
-    pub(crate) truncated: bool,
 }
 
 #[derive(Debug)]
@@ -468,7 +534,7 @@ impl<'a> McpClient<'a> {
         arguments: Value,
     ) -> Result<McpToolResult, McpError> {
         for handshake in 0..2 {
-            let (session, initialize_truncated) = self.initialize(credential).await?;
+            let session = self.initialize(credential).await?;
             if let Some(session) = session.as_deref() {
                 match self.notify_initialized(credential, session).await {
                     Err(error) if error.session_expired && handshake == 0 => continue,
@@ -481,17 +547,14 @@ impl<'a> McpClient<'a> {
                 .await
             {
                 Err(error) if error.session_expired && handshake == 0 => {}
-                Ok(mut result) => {
-                    result.truncated |= initialize_truncated;
-                    return Ok(result);
-                }
+                Ok(result) => return Ok(result),
                 Err(error) => return Err(error),
             }
         }
         Err(McpError::runtime("MCP session could not be renewed"))
     }
 
-    async fn initialize(&self, credential: &Secret) -> Result<(Option<String>, bool), McpError> {
+    async fn initialize(&self, credential: &Secret) -> Result<Option<String>, McpError> {
         let response = self
             .post(
                 credential,
@@ -515,8 +578,8 @@ impl<'a> McpClient<'a> {
             .map(str::trim)
             .filter(|value| !value.is_empty())
             .map(ToOwned::to_owned);
-        let (_, truncated) = rpc_result(response, 1, self.deadline).await?;
-        Ok((session, truncated))
+        rpc_result(response, 1, self.deadline).await?;
+        Ok(session)
     }
 
     async fn notify_initialized(&self, credential: &Secret, session: &str) -> Result<(), McpError> {
@@ -551,7 +614,7 @@ impl<'a> McpClient<'a> {
                 }),
             )
             .await?;
-        let (result, truncated) = rpc_result(response, 2, self.deadline).await?;
+        let result = rpc_result(response, 2, self.deadline).await?;
         let text = content_text(&result);
         if result
             .get("isError")
@@ -567,7 +630,6 @@ impl<'a> McpClient<'a> {
                 .filter(Value::is_object)
                 .unwrap_or_else(|| json!({})),
             text,
-            truncated,
         })
     }
 
@@ -609,7 +671,7 @@ impl<'a> McpClient<'a> {
         })?;
         let body = tokio::time::timeout(
             remaining,
-            read_response_body(response, MAX_ERROR_BODY_BYTES),
+            read_response_body(response, ResponseBodyPolicy::Error),
         )
         .await
         .map_err(|_| {
@@ -644,8 +706,8 @@ async fn rpc_result(
     response: Response,
     request_id: u64,
     deadline: Deadline,
-) -> Result<(Value, bool), McpError> {
-    let (messages, truncated, fallback_text) = response_messages(response, deadline).await?;
+) -> Result<Value, McpError> {
+    let messages = response_messages(response, deadline).await?;
     for message in messages {
         if message.get("jsonrpc").and_then(Value::as_str) != Some("2.0") {
             return Err(McpError::runtime(
@@ -675,23 +737,14 @@ async fn rpc_result(
             .cloned()
             .filter(Value::is_object)
             .ok_or_else(|| McpError::runtime("MCP JSON-RPC response omitted its result"))?;
-        return Ok((result, truncated));
-    }
-    if truncated {
-        return Ok((
-            json!({"content": [{"type": "text", "text": fallback_text.unwrap_or_default()}]}),
-            true,
-        ));
+        return Ok(result);
     }
     Err(McpError::runtime(
         "MCP response did not match the JSON-RPC request",
     ))
 }
 
-async fn response_messages(
-    response: Response,
-    deadline: Deadline,
-) -> Result<(Vec<Value>, bool, Option<String>), McpError> {
+async fn response_messages(response: Response, deadline: Deadline) -> Result<Vec<Value>, McpError> {
     let is_sse = response
         .headers()
         .get("content-type")
@@ -700,7 +753,6 @@ async fn response_messages(
     if is_sse {
         let mut events = capped_stream(response.bytes_stream(), MAX_RESPONSE_BYTES).eventsource();
         let mut messages = Vec::new();
-        let mut truncated = false;
         loop {
             let remaining = deadline.remaining().ok_or_else(|| {
                 McpError::new(AttemptErrorKind::Timeout, None, "MCP deadline elapsed")
@@ -719,8 +771,7 @@ async fn response_messages(
             };
             let event = match event {
                 Err(EventStreamError::Transport(CappedStreamError::LimitExceeded)) => {
-                    truncated = true;
-                    break;
+                    return Err(McpError::runtime("response exceeded 4 MiB"));
                 }
                 Err(error) => {
                     return Err(McpError::new(
@@ -736,51 +787,42 @@ async fn response_messages(
             })?;
             messages.push(message);
         }
-        if messages.is_empty() && !truncated {
+        if messages.is_empty() {
             return Err(McpError::runtime("MCP returned an empty SSE response"));
         }
-        return Ok((messages, truncated, truncated.then(String::new)));
+        return Ok(messages);
     }
 
     let remaining = deadline
         .remaining()
         .ok_or_else(|| McpError::new(AttemptErrorKind::Timeout, None, "MCP deadline elapsed"))?;
-    let body = tokio::time::timeout(remaining, read_response_body(response, MAX_RESPONSE_BYTES))
-        .await
-        .map_err(|_| {
-            McpError::new(
-                AttemptErrorKind::Timeout,
-                None,
-                "MCP JSON response timed out",
-            )
-        })?
-        .map_err(|error| {
-            McpError::new(
-                AttemptErrorKind::Network,
-                error.status().map(|status| status.as_u16()),
-                &format!("MCP response body failed: {error}"),
-            )
-        })?;
-    let payload: Value = match serde_json::from_str(&body.text) {
-        Ok(payload) => payload,
-        Err(_) if body.truncated => {
-            return Ok((
-                Vec::new(),
-                true,
-                Some(json_string_prefix(&body.text, "text").unwrap_or(body.text)),
-            ));
-        }
-        Err(error) => {
-            return Err(McpError::runtime(&format!(
-                "MCP returned invalid JSON: {error}"
-            )));
-        }
-    };
+    let body = tokio::time::timeout(
+        remaining,
+        read_response_body(response, ResponseBodyPolicy::CompleteProtocol),
+    )
+    .await
+    .map_err(|_| {
+        McpError::new(
+            AttemptErrorKind::Timeout,
+            None,
+            "MCP JSON response timed out",
+        )
+    })?
+    .map_err(|error| match error {
+        CappedStreamError::Transport(error) => McpError::new(
+            AttemptErrorKind::Network,
+            error.status().map(|status| status.as_u16()),
+            &format!("MCP response body failed: {error}"),
+        ),
+        CappedStreamError::LimitExceeded => McpError::runtime("response exceeded 4 MiB"),
+    })?;
+    let payload: Value = serde_json::from_str(&body.text)
+        .map_err(|error| McpError::runtime(&format!("MCP returned invalid JSON: {error}")))?;
     let messages = match payload {
         Value::Array(messages) => messages,
         message => vec![message],
     };
-    Ok((messages, body.truncated, None))
+    Ok(messages)
 }
 
 fn content_text(result: &Value) -> String {

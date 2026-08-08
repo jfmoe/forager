@@ -9,8 +9,8 @@ use serde_json::json;
 use crate::config::WebFetchProviderConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{
-    CONTENT_TRUNCATED_DIAGNOSTIC, RetryPolicy, combine_diagnostics, error_kind_for_status,
-    json_string_prefix, read_response_body, response_body_limit, truncate_message,
+    CONTENT_TRUNCATED_DIAGNOSTIC, ResponseBodyPolicy, RetryPolicy, combine_diagnostics,
+    error_kind_for_status, json_string_prefix, read_response_body, truncate_message,
 };
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2};
 use crate::providers::shared::redacted_urls_message;
@@ -172,14 +172,17 @@ impl HttpFetchProvider {
                 redirected_library_id: None,
             })?;
         let status = response.status();
-        let body = read_response_body(response, response_body_limit(status))
-            .await
-            .map_err(|error| AttemptFailure {
-                kind: AttemptErrorKind::Network,
-                status: Some(status.as_u16()),
-                message: self.redacted_error(&error.to_string()),
-                redirected_library_id: None,
-            })?;
+        let body = read_response_body(
+            response,
+            ResponseBodyPolicy::for_status(status, ResponseBodyPolicy::TruncatableContent),
+        )
+        .await
+        .map_err(|error| AttemptFailure {
+            kind: AttemptErrorKind::Network,
+            status: Some(status.as_u16()),
+            message: self.redacted_error(&error.to_string()),
+            redirected_library_id: None,
+        })?;
         if !status.is_success() {
             return Err(AttemptFailure {
                 kind: error_kind_for_status(status, &body.text),

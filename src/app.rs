@@ -1389,16 +1389,28 @@ fn run_outage_smoke_probe(url: &str, timeout_seconds: u64) -> Result<CommandOutp
     let status_page = crate::smoke::is_official_status_url(url);
     let result = dependencies.runtime.block_on(async {
         tokio::time::timeout(Duration::from_secs(timeout_seconds), async {
-            let response = dependencies.client.get(url).send().await?;
-            let server_error = response.status().is_server_error();
+            let response = dependencies
+                .client
+                .get(url)
+                .send()
+                .await
+                .map_err(net::CappedStreamError::Transport)?;
+            let status = response.status();
+            let server_error = status.is_server_error();
             let body = if status_page {
-                net::read_response_body(response, net::MAX_RESPONSE_BYTES)
-                    .await?
-                    .text
+                net::read_response_body(
+                    response,
+                    net::ResponseBodyPolicy::for_status(
+                        status,
+                        net::ResponseBodyPolicy::CompleteProtocol,
+                    ),
+                )
+                .await?
+                .text
             } else {
                 String::new()
             };
-            Ok::<_, reqwest::Error>((server_error, body))
+            Ok::<_, net::CappedStreamError<reqwest::Error>>((server_error, body))
         })
         .await
     });

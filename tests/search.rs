@@ -1987,6 +1987,112 @@ fn search_fails_when_the_raw_sse_stream_exceeds_four_mibibytes() {
 }
 
 #[test]
+fn search_rejects_an_xai_sse_body_that_exceeds_four_mibibytes_after_completion() {
+    let body = format!(
+        "{}data: {}\n\n",
+        completed_body("Partial answer", "Partial source"),
+        "x".repeat(4 * 1024 * 1024)
+    );
+    let fixture = Fixture::start(200, "text/event-stream", &body);
+    let environment = RunEnvironment::new(&search_config(&fixture.url, false));
+
+    let output = environment.run(&["search", "Oversized tail", "--capabilities", "none"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["error_kind"],
+            &payload["message"],
+            payload.get("answer"),
+            payload.get("sources"),
+        ),
+        (
+            Some(4),
+            &Value::String("runtime".into()),
+            &Value::String("response exceeded 4 MiB".into()),
+            None,
+            None,
+        )
+    );
+    fixture.finish();
+}
+
+#[test]
+fn search_accepts_a_complete_xai_sse_body_at_four_mibibytes() {
+    let completed = completed_body("Boundary answer", "Boundary source");
+    let padding = "x".repeat(4 * 1024 * 1024 - completed.len() - 3);
+    let body = format!(":{padding}\n\n{completed}");
+    let fixture = Fixture::start(200, "text/event-stream", &body);
+    let environment = RunEnvironment::new(&search_config(&fixture.url, false));
+
+    let output = environment.run(&["search", "Boundary SSE", "--capabilities", "none"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (body.len(), output.status.code(), &payload["answer"]),
+        (
+            4 * 1024 * 1024,
+            Some(0),
+            &Value::String("Boundary answer".into()),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    fixture.finish();
+}
+
+#[test]
+fn search_openai_compatible_returns_no_partial_answer_when_responses_exceed_four_mibibytes() {
+    let stream_body = format!("data: {}\n\n", "x".repeat(4 * 1024 * 1024));
+    let buffered_result = r#"{"choices":[{"message":{"content":"Partial answer"}}]}"#;
+    let buffered_body = format!("{buffered_result}{}", " ".repeat(4 * 1024 * 1024));
+    let openai = Fixture::start_sequence(vec![
+        Response::new(200, "text/event-stream", &stream_body),
+        Response::json(200, &buffered_body),
+    ]);
+    let config = main_fallback_config("http://127.0.0.1:9", &openai.url, true, &[], "auto", false)
+        .replace(
+            r#"backends = ["xai", "openai_compatible"]"#,
+            r#"backends = ["openai_compatible"]"#,
+        );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Oversized OpenAI",
+        "--capabilities",
+        "none",
+        "--verbose",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["error_kind"],
+            &payload["message"],
+            &payload["attempts"]["total"],
+            &payload["provider_attempts"][1]["breaker_event"],
+            payload.get("diagnostic"),
+            payload.get("answer"),
+            payload.get("sources"),
+        ),
+        (
+            Some(4),
+            &Value::String("runtime".into()),
+            &Value::String("response exceeded 4 MiB".into()),
+            &Value::from(2),
+            &Value::String("transport_fallback".into()),
+            None,
+            None,
+            None,
+        )
+    );
+    assert_eq!(openai.finish_all().len(), 2);
+}
+
+#[test]
 fn search_formats_content_and_markdown_and_marks_json_tee_failures() {
     let body = completed_body("Rendered answer", "Rendered source");
     let fixture = Fixture::start_sequence(vec![

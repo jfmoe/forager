@@ -5,10 +5,7 @@ use serde_json::{Map, Value, json};
 
 use crate::config::Context7RuntimeConfig;
 use crate::credentials::CredentialPool;
-use crate::net::{
-    CONTENT_TRUNCATED_DIAGNOSTIC, McpClient, McpError, McpToolResult, RetryPolicy,
-    combine_diagnostics,
-};
+use crate::net::{McpClient, McpError, McpToolResult, RetryPolicy};
 use crate::providers::ProviderError;
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2};
 use crate::providers::shared::redacted_urls_message;
@@ -95,12 +92,7 @@ impl Context7 {
                     .call_tool(&credential, operation_ref.tool(), operation_ref.arguments())
                     .await
                     .map_err(Context7Failure::from)
-                    .and_then(|result| {
-                        let truncated = result.truncated;
-                        operation_ref
-                            .decode(result)
-                            .map(|outcome| (200, (outcome, truncated)))
-                    })
+                    .and_then(|result| operation_ref.decode(result).map(|outcome| (200, outcome)))
                     .map_err(|failure| AttemptFailure {
                         kind: failure.kind,
                         status: failure.status,
@@ -112,21 +104,12 @@ impl Context7 {
             },
         )
         .await?;
-        let (decoded, truncated) = execution.value;
         let visible_attempts = if operation.verbose() {
             execution.attempts
         } else {
             Vec::new()
         };
-        let diagnostic = combine_diagnostics(
-            [
-                execution.diagnostic,
-                truncated.then(|| CONTENT_TRUNCATED_DIAGNOSTIC.to_owned()),
-            ]
-            .into_iter()
-            .flatten(),
-        );
-        let outcome = operation.outcome(decoded, visible_attempts, diagnostic);
+        let outcome = operation.outcome(execution.value, visible_attempts, execution.diagnostic);
         Ok(self.redact_outcome(outcome))
     }
 

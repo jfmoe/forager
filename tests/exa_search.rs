@@ -8,6 +8,8 @@ use fs2::FileExt;
 use serde_json::Value;
 use support::{Fixture, Response};
 
+const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
+
 #[test]
 fn exa_search_returns_normalized_results_through_the_real_http_stack() {
     let fixture = Fixture::start_json(
@@ -95,6 +97,62 @@ fn exa_search_returns_normalized_results_through_the_real_http_stack() {
         "{request}"
     );
     assert!(request.contains("x-api-key: first-key"), "{request}");
+}
+
+#[test]
+fn exa_search_rejects_a_complete_json_body_that_exceeds_four_mibibytes() {
+    let result = r#"{"results":[{"title":"Partial result","url":"https://example.test/partial"}]}"#;
+    let body = format!("{result}{}", " ".repeat(MAX_RESPONSE_BYTES));
+    let fixture = Fixture::start_json(200, &body);
+
+    let output = run(
+        &fixture,
+        &["exa", "search", "oversized response"],
+        &["exa-key"],
+    );
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["error_kind"],
+            &payload["message"],
+            payload.get("results"),
+        ),
+        (
+            Some(4),
+            &Value::String("runtime".into()),
+            &Value::String("response exceeded 4 MiB".into()),
+            None,
+        )
+    );
+    fixture.finish();
+}
+
+#[test]
+fn exa_search_accepts_a_complete_json_body_at_four_mibibytes() {
+    let result =
+        r#"{"results":[{"title":"Boundary result","url":"https://example.test/boundary"}]}"#;
+    let body = format!("{result}{}", " ".repeat(MAX_RESPONSE_BYTES - result.len()));
+    let fixture = Fixture::start_json(200, &body);
+
+    let output = run(
+        &fixture,
+        &["exa", "search", "boundary response"],
+        &["exa-key"],
+    );
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (output.status.code(), &payload["results"][0]["url"]),
+        (
+            Some(0),
+            &Value::String("https://example.test/boundary".into()),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    fixture.finish();
 }
 
 #[test]

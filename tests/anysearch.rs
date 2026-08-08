@@ -8,6 +8,8 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use support::{Fixture, Response};
 
+const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
+
 #[test]
 fn anysearch_calls_tools_without_a_session_when_initialize_omits_the_session_header() {
     let fixture = Fixture::start_sequence(vec![
@@ -46,6 +48,72 @@ fn anysearch_calls_tools_without_a_session_when_initialize_omits_the_session_hea
         ),
         (Some(1), 2, true, true, false)
     );
+}
+
+#[test]
+fn anysearch_rejects_an_sse_body_that_exceeds_four_mibibytes() {
+    let completed = r####"{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"### 1. Complete candidate\n- **URL**: https://example.test/complete"}]}}"####;
+    let body = format!(
+        "data: {completed}\n\ndata: {}\n\n",
+        "x".repeat(MAX_RESPONSE_BYTES)
+    );
+    let fixture = Fixture::start_sequence(vec![
+        initialize("oversized-session"),
+        Response::json(202, ""),
+        Response::new(200, "text/event-stream", &body),
+    ]);
+
+    let output = run(
+        &fixture,
+        &["anysearch", "search", "oversized response"],
+        &["anysearch-key"],
+    );
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["error_kind"],
+            &payload["message"],
+            payload.get("results"),
+        ),
+        (
+            Some(4),
+            &Value::String("runtime".into()),
+            &Value::String("response exceeded 4 MiB".into()),
+            None,
+        )
+    );
+    fixture.finish_all();
+}
+
+#[test]
+fn anysearch_accepts_a_complete_mcp_body_at_four_mibibytes() {
+    let result = r####"{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"### 1. Boundary candidate\n- **URL**: https://example.test/boundary"}]}}"####;
+    let body = format!("{result}{}", " ".repeat(MAX_RESPONSE_BYTES - result.len()));
+    let fixture = Fixture::start_sequence(vec![
+        initialize("boundary-session"),
+        Response::json(202, ""),
+        Response::json(200, &body),
+    ]);
+
+    let output = run(
+        &fixture,
+        &["anysearch", "search", "boundary response"],
+        &["anysearch-key"],
+    );
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (output.status.code(), &payload["results"][0]["url"]),
+        (
+            Some(0),
+            &Value::String("https://example.test/boundary".into()),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    fixture.finish_all();
 }
 
 #[test]

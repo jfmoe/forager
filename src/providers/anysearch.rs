@@ -8,10 +8,7 @@ use serde_json::{Map, Value, json};
 
 use crate::config::AnysearchRuntimeConfig;
 use crate::credentials::CredentialPool;
-use crate::net::{
-    CONTENT_TRUNCATED_DIAGNOSTIC, McpClient, McpToolResult, RetryPolicy, combine_diagnostics,
-    truncate_message,
-};
+use crate::net::{McpClient, McpToolResult, RetryPolicy, truncate_message};
 use crate::providers::ProviderError;
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2};
 use crate::providers::shared::redact_urls;
@@ -220,17 +217,6 @@ impl Anysearch {
             },
         )
         .await?;
-        let diagnostic = combine_diagnostics(
-            [
-                execution.diagnostic,
-                execution
-                    .value
-                    .truncated
-                    .then(|| CONTENT_TRUNCATED_DIAGNOSTIC.to_owned()),
-            ]
-            .into_iter()
-            .flatten(),
-        );
         Ok(AnysearchExecution {
             result: execution.value,
             attempts: if verbose {
@@ -238,7 +224,7 @@ impl Anysearch {
             } else {
                 Vec::new()
             },
-            diagnostic,
+            diagnostic: execution.diagnostic,
         })
     }
 }

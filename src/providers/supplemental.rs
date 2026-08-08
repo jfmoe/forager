@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::WebFetchProviderConfig;
 use crate::credentials::CredentialPool;
-use crate::net::{RetryPolicy, error_kind_for_status, read_response_body, response_body_limit};
+use crate::net::{ResponseBodyPolicy, RetryPolicy, error_kind_for_status, read_response_body};
 use crate::providers::ProviderError;
 use crate::providers::execution::{self, AttemptFailure, ExecutionSettings};
 use crate::providers::shared::redacted_urls_message;
@@ -100,14 +100,17 @@ impl SupplementalSearch {
             redirected_library_id: None,
         })?;
         let status = response.status();
-        let body = read_response_body(response, response_body_limit(status))
-            .await
-            .map_err(|error| AttemptFailure {
-                kind: AttemptErrorKind::Network,
-                status: Some(status.as_u16()),
-                message: redacted_urls_message(&error.to_string(), &self.credentials),
-                redirected_library_id: None,
-            })?;
+        let body = read_response_body(
+            response,
+            ResponseBodyPolicy::for_status(status, ResponseBodyPolicy::CompleteProtocol),
+        )
+        .await
+        .map_err(|error| AttemptFailure {
+            kind: error.attempt_error_kind(),
+            status: Some(status.as_u16()),
+            message: redacted_urls_message(&error.to_string(), &self.credentials),
+            redirected_library_id: None,
+        })?;
         if !status.is_success() {
             return Err(AttemptFailure {
                 kind: error_kind_for_status(status, &body.text),

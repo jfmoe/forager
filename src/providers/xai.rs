@@ -7,7 +7,7 @@ use serde_json::Value;
 use crate::config::XaiRuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{
-    CappedStreamError, MAX_ERROR_BODY_BYTES, MAX_RESPONSE_BYTES, RetryPolicy, capped_stream,
+    CappedStreamError, MAX_RESPONSE_BYTES, ResponseBodyPolicy, RetryPolicy, capped_stream,
     error_kind_for_status, read_response_body,
 };
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2};
@@ -157,7 +157,7 @@ impl Xai {
             })?;
         let status = response.status();
         if !status.is_success() {
-            let body = read_response_body(response, MAX_ERROR_BODY_BYTES)
+            let body = read_response_body(response, ResponseBodyPolicy::Error)
                 .await
                 .map(|body| body.text)
                 .unwrap_or_default();
@@ -184,6 +184,7 @@ impl Xai {
         response: Response,
     ) -> Result<(String, Vec<Source>), AttemptFailure> {
         let mut events = capped_stream(response.bytes_stream(), MAX_RESPONSE_BYTES).eventsource();
+        let mut completed = None;
         while let Some(event) = events.next().await {
             let event = match event {
                 Err(EventStreamError::Transport(CappedStreamError::LimitExceeded)) => {
@@ -228,7 +229,7 @@ impl Xai {
                         message: "xAI response.completed omitted response data".into(),
                         redirected_library_id: None,
                     })?;
-                    return self.normalize_completed(response);
+                    completed = Some(self.normalize_completed(response)?);
                 }
                 Some("response.failed" | "response.incomplete") => {
                     return Err(AttemptFailure {
@@ -244,7 +245,7 @@ impl Xai {
                 _ => {}
             }
         }
-        Err(AttemptFailure {
+        completed.ok_or_else(|| AttemptFailure {
             kind: AttemptErrorKind::Runtime,
             status: Some(200),
             message: "xAI Responses stream ended before response.completed".into(),

@@ -208,7 +208,7 @@ fn context7_docs_verbose_json_adds_only_provider_attempts() {
 }
 
 #[test]
-fn context7_succeeds_with_a_diagnostic_when_an_mcp_body_is_truncated() {
+fn context7_rejects_an_mcp_body_that_exceeds_four_mibibytes() {
     let text = format!(
         "- Title: Rust\n- Context7-compatible library ID: /rust-lang/rust\n- Description: {}",
         "x".repeat(4 * 1024 * 1024)
@@ -237,13 +237,15 @@ fn context7_succeeds_with_a_diagnostic_when_an_mcp_body_is_truncated() {
     assert_eq!(
         (
             output.status.code(),
-            &payload["results"][0]["id"],
-            String::from_utf8_lossy(&output.stderr).as_ref(),
+            &payload["error_kind"],
+            &payload["message"],
+            payload.get("results"),
         ),
         (
-            Some(0),
-            &Value::String("/rust-lang/rust".into()),
-            "content truncated at 4 MiB\n",
+            Some(4),
+            &Value::String("runtime".into()),
+            &Value::String("response exceeded 4 MiB".into()),
+            None,
         )
     );
     fixture.finish_all();

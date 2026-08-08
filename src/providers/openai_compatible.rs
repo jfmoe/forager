@@ -11,7 +11,7 @@ use serde_json::Value;
 use crate::config::OpenAiCompatibleRuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{
-    CappedStreamError, MAX_ERROR_BODY_BYTES, MAX_RESPONSE_BYTES, RetryPolicy, capped_stream,
+    CappedStreamError, MAX_RESPONSE_BYTES, ResponseBodyPolicy, RetryPolicy, capped_stream,
     error_kind_for_status, read_response_body,
 };
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2};
@@ -405,7 +405,7 @@ impl OpenAiCompatible {
             .map_err(|error| self.request_failure(&error))?;
         let status = response.status();
         if !status.is_success() {
-            let body = read_response_body(response, MAX_ERROR_BODY_BYTES)
+            let body = read_response_body(response, ResponseBodyPolicy::Error)
                 .await
                 .map(|body| body.text)
                 .unwrap_or_default();
@@ -441,12 +441,12 @@ impl OpenAiCompatible {
             .and_then(|value| value.to_str().ok())
             .unwrap_or_default()
             .to_ascii_lowercase();
-        let body = read_response_body(response, MAX_RESPONSE_BYTES)
+        let body = read_response_body(response, ResponseBodyPolicy::CompleteProtocol)
             .await
-            .map_err(|error| self.request_failure(&error))?;
-        if body.truncated {
-            return Err(response_limit_failure());
-        }
+            .map_err(|error| match error {
+                CappedStreamError::Transport(error) => self.request_failure(&error),
+                CappedStreamError::LimitExceeded => response_limit_failure(),
+            })?;
         if content_type.contains("text/event-stream") || body.text.trim_start().starts_with("data:")
         {
             return self.parse_sse_text(&body.text);
