@@ -3027,6 +3027,77 @@ fn search_journals_each_success_and_failure_terminal_once() {
 }
 
 #[test]
+fn search_retention_only_removes_expired_owned_regular_files() {
+    let fixture = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Source"),
+    );
+    let environment = RunEnvironment::new(&search_config(&fixture.url, true));
+    let journal_dir = environment.state_dir.join("forager/journal");
+    fs::create_dir_all(&journal_dir).expect("create journal directory");
+    let stale_time = std::time::SystemTime::now()
+        .checked_sub(Duration::from_hours(960))
+        .expect("calculate stale modification time");
+    let stale_owned = journal_dir.join("search_result_1_2_3.json");
+    let fresh_owned = journal_dir.join("search_result_4_5_6.json");
+    let foreign_json = journal_dir.join("foreign.json");
+    let foreign_jsonl = journal_dir.join("search_results_20260809.jsonl");
+    let similar_name = journal_dir.join("search_result_1_2_bad.json");
+    for path in [
+        &stale_owned,
+        &fresh_owned,
+        &foreign_json,
+        &foreign_jsonl,
+        &similar_name,
+    ] {
+        fs::write(path, "{}").expect("create retention fixture");
+    }
+    for path in [&stale_owned, &foreign_json, &foreign_jsonl, &similar_name] {
+        fs::File::open(path)
+            .expect("open retention fixture")
+            .set_times(fs::FileTimes::new().set_modified(stale_time))
+            .expect("set retention fixture modification time");
+    }
+    let owned_directory = journal_dir.join("search_result_7_8_9.json");
+    fs::create_dir(&owned_directory).expect("create owned-name directory");
+    #[cfg(unix)]
+    let owned_symlink = {
+        let path = journal_dir.join("search_result_10_11_12.json");
+        std::os::unix::fs::symlink(&foreign_json, &path).expect("create owned-name symlink");
+        path
+    };
+
+    let output = environment.run(&["search", "Retention", "--capabilities", "none"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["answer"],
+            &payload["journal_status"],
+        ),
+        (
+            Some(0),
+            &Value::String("answer".into()),
+            &Value::String("written".into()),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(!stale_owned.exists());
+    for path in [fresh_owned, foreign_json, foreign_jsonl, similar_name] {
+        assert!(path.exists(), "retention removed {}", path.display());
+    }
+    assert!(owned_directory.is_dir());
+    #[cfg(unix)]
+    assert!(owned_symlink.symlink_metadata().is_ok());
+    let journal_ref = payload["journal_ref"].as_str().expect("journal reference");
+    assert!(std::path::Path::new(journal_ref).is_file());
+    fixture.finish();
+}
+
+#[test]
 fn search_resolves_relative_journal_directories_from_the_config_directory() {
     let fixture = Fixture::start(
         200,

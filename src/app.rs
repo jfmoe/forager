@@ -40,6 +40,26 @@ pub struct Cli {
     command: Command,
 }
 
+impl Cli {
+    /// Returns whether preflight failures use the machine-readable JSON channel.
+    #[must_use]
+    pub fn uses_json_preflight_errors(&self) -> bool {
+        matches!(
+            &self.command,
+            Command::Search {
+                format: DocsOutputFormat::Json,
+                ..
+            } | Command::Research {
+                format: DocsOutputFormat::Json,
+                ..
+            } | Command::Fetch {
+                format: DocsOutputFormat::Json,
+                ..
+            }
+        )
+    }
+}
+
 #[derive(Debug, Subcommand)]
 enum Command {
     #[command(visible_alias = "s")]
@@ -354,6 +374,15 @@ pub enum CommandOutput {
         /// Process exit status.
         exit_code: u8,
     },
+    /// A Default Search Invocation that failed after journal configuration was available.
+    SearchPreflight {
+        /// Stable preflight error.
+        error: AppError,
+        /// Search Result Journal side-channel outcome.
+        journal: JournalOutcome,
+        /// Requested output format.
+        format: DocsOutputFormat,
+    },
     /// One completed Default Search Invocation.
     Search {
         /// Main-search terminal result.
@@ -526,11 +555,6 @@ impl SearchContext {
         let dependencies = NetworkDependencies::load()?;
         let config = dependencies.config;
         let journal = config.journal.clone();
-        if config.main_search.configured_provider_count() == 0 {
-            return Err(AppError::Config(ConfigError::Message(
-                "search.backends has no configured credentials".into(),
-            )));
-        }
         let timeout = Duration::from_secs(timeout_seconds);
         let default_model = config.main_search.default_model().to_owned();
         let endpoint_host = config.main_search.default_endpoint_host();
@@ -930,7 +954,28 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             output,
             verbose,
         } => {
-            let (result, journal) = SearchContext::load(timeout)?.search(
+            let context = SearchContext::load(timeout)?;
+            if context.config.main_search.configured_provider_count() == 0 {
+                let error = AppError::Config(ConfigError::Message(
+                    "search.backends has no configured credentials".into(),
+                ));
+                let message = error.to_string();
+                let journal = crate::journal::record_search_preflight(
+                    &context.journal,
+                    crate::journal::SearchPreflightRecord {
+                        query: &query,
+                        budget: Duration::from_secs(timeout),
+                        error_kind: "config",
+                        message: &message,
+                    },
+                );
+                return Ok(CommandOutput::SearchPreflight {
+                    error,
+                    journal,
+                    format,
+                });
+            }
+            let (result, journal) = context.search(
                 providers::SearchRequest {
                     query,
                     model,
@@ -2020,6 +2065,30 @@ impl AppError {
             _ => "runtime_error",
         }
     }
+
+    /// Returns the stable machine-readable preflight failure object.
+    #[must_use]
+    pub fn json_preflight_payload(&self) -> Value {
+        let message = self
+            .to_string()
+            .lines()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .chars()
+            .take(500)
+            .collect::<String>();
+        let error_kind = match self.exit_code() {
+            2 => "parameter",
+            3 => "config",
+            _ => "runtime",
+        };
+        serde_json::json!({
+            "error_kind": error_kind,
+            "message": message,
+            "journal_ref": Value::Null,
+            "journal_status": "unavailable",
+        })
+    }
 }
 
 #[cfg(test)]
@@ -2027,7 +2096,48 @@ mod tests {
     use std::cell::Cell;
     use std::io::Cursor;
 
-    use super::read_secret;
+    use serde_json::{Value, json};
+
+    use super::{AppError, ConfigError, read_secret};
+
+    #[test]
+    fn app_errors_have_stable_json_preflight_fields() {
+        let cases = [
+            (
+                AppError::Argument("invalid plan".into()),
+                "parameter",
+                2,
+                "invalid plan",
+            ),
+            (
+                AppError::Config(ConfigError::Message("invalid config".into())),
+                "config",
+                3,
+                "invalid config",
+            ),
+            (
+                AppError::Runtime("runtime failed".into()),
+                "runtime",
+                4,
+                "runtime failed",
+            ),
+        ];
+
+        for (error, error_kind, exit_code, message) in cases {
+            assert_eq!(
+                (error.json_preflight_payload(), error.exit_code()),
+                (
+                    json!({
+                        "error_kind": error_kind,
+                        "message": message,
+                        "journal_ref": Value::Null,
+                        "journal_status": "unavailable",
+                    }),
+                    exit_code,
+                )
+            );
+        }
+    }
 
     #[test]
     fn read_secret_uses_hidden_reader_for_a_terminal() {

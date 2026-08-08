@@ -17,93 +17,62 @@ use forager::types::{
 use serde_json::{Value, json};
 
 fn main() -> ExitCode {
-    match app::run(Cli::parse()) {
+    let cli = Cli::parse();
+    let json_preflight_errors = cli.uses_json_preflight_errors();
+    match app::run(cli) {
         Ok(CommandOutput::Text {
             stdout,
             stderr,
             exit_code,
         }) => emit(stdout, stderr, exit_code),
+        Ok(CommandOutput::SearchPreflight {
+            error,
+            journal,
+            format,
+        }) => emit_search_preflight(&error, &journal, format),
         Ok(CommandOutput::Search {
             result,
             journal,
             format,
             output,
             verbose,
-        }) => match render_search(result, &journal, format, output, verbose) {
-            Ok(rendered) => emit(rendered.stdout, rendered.stderr, rendered.exit_code),
-            Err(error) => {
-                eprintln!("runtime_error: {error}");
-                ExitCode::from(4)
-            }
-        },
+        }) => emit_rendered(render_search(result, &journal, format, output, verbose)),
         Ok(CommandOutput::Research {
             result,
             journal,
             format,
             output,
             verbose,
-        }) => match render_research(result, &journal, format, output, verbose) {
-            Ok(rendered) => emit(rendered.stdout, rendered.stderr, rendered.exit_code),
-            Err(error) => {
-                eprintln!("runtime_error: {error}");
-                ExitCode::from(4)
-            }
-        },
+        }) => emit_rendered(render_research(result, &journal, format, output, verbose)),
         Ok(CommandOutput::Exa {
             result,
             format,
             output,
-        }) => match render_exa(result, format, output) {
-            Ok(rendered) => emit(rendered.stdout, rendered.stderr, rendered.exit_code),
-            Err(error) => {
-                eprintln!("runtime_error: {error}");
-                ExitCode::from(4)
-            }
-        },
+        }) => emit_rendered(render_exa(result, format, output)),
         Ok(CommandOutput::Context7 {
             result,
             format,
             output,
-        }) => match render_context7(result, format, output) {
-            Ok(rendered) => emit(rendered.stdout, rendered.stderr, rendered.exit_code),
-            Err(error) => {
-                eprintln!("runtime_error: {error}");
-                ExitCode::from(4)
-            }
-        },
+        }) => emit_rendered(render_context7(result, format, output)),
         Ok(CommandOutput::Anysearch {
             result,
             format,
             output,
-        }) => match render_anysearch(result, format, output) {
-            Ok(rendered) => emit(rendered.stdout, rendered.stderr, rendered.exit_code),
-            Err(error) => {
-                eprintln!("runtime_error: {error}");
-                ExitCode::from(4)
-            }
-        },
+        }) => emit_rendered(render_anysearch(result, format, output)),
         Ok(CommandOutput::Fetch {
             result,
             format,
             output,
-        }) => match render_fetch(result, format, output) {
-            Ok(rendered) => emit(rendered.stdout, rendered.stderr, rendered.exit_code),
-            Err(error) => {
-                eprintln!("runtime_error: {error}");
-                ExitCode::from(4)
-            }
-        },
+        }) => emit_rendered(render_fetch(result, format, output)),
         Ok(CommandOutput::Map {
             result,
             format,
             output,
-        }) => match render_map(result, format, output) {
-            Ok(rendered) => emit(rendered.stdout, rendered.stderr, rendered.exit_code),
-            Err(error) => {
-                eprintln!("runtime_error: {error}");
-                ExitCode::from(4)
-            }
-        },
+        }) => emit_rendered(render_map(result, format, output)),
+        Err(error) if json_preflight_errors => {
+            let exit_code = error.exit_code();
+            emit(error.json_preflight_payload().to_string(), None, exit_code)
+        }
         Err(error) => {
             eprintln!("{}: {error}", error.category());
             ExitCode::from(error.exit_code())
@@ -513,6 +482,58 @@ fn render_search(
         output,
         diagnostic,
     )
+}
+
+fn render_search_preflight(
+    error: &app::AppError,
+    journal: &JournalOutcome,
+    format: DocsOutputFormat,
+) -> Result<RenderedOutput, String> {
+    let journal_warning = journal
+        .warning
+        .as_ref()
+        .map(|warning| format!("Search Result Journal warning: {warning}"));
+    let (stdout, stderr) = match format {
+        DocsOutputFormat::Json => {
+            let mut payload = error.json_preflight_payload();
+            add_journal_status(&mut payload, journal)?;
+            (payload.to_string(), journal_warning)
+        }
+        DocsOutputFormat::Markdown | DocsOutputFormat::Content => (
+            String::new(),
+            app::combine_diagnostics(
+                [
+                    Some(format!("{}: {error}", error.category())),
+                    journal_warning,
+                ]
+                .into_iter()
+                .flatten(),
+            ),
+        ),
+    };
+    Ok(RenderedOutput {
+        stdout,
+        stderr,
+        exit_code: error.exit_code(),
+    })
+}
+
+fn emit_search_preflight(
+    error: &app::AppError,
+    journal: &JournalOutcome,
+    format: DocsOutputFormat,
+) -> ExitCode {
+    emit_rendered(render_search_preflight(error, journal, format))
+}
+
+fn emit_rendered(rendered: Result<RenderedOutput, String>) -> ExitCode {
+    match rendered {
+        Ok(rendered) => emit(rendered.stdout, rendered.stderr, rendered.exit_code),
+        Err(error) => {
+            eprintln!("runtime_error: {error}");
+            ExitCode::from(4)
+        }
+    }
 }
 
 fn format_search_failure_json(

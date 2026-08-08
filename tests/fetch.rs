@@ -688,15 +688,27 @@ fn fetch_rejects_a_chain_without_configured_credentials_before_network() {
     let environment = RunEnvironment::new(&config);
 
     let output = environment.run(&["fetch", "https://example.test/article"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
 
     assert_eq!(
         (
             output.status.code(),
-            output.stdout.is_empty(),
-            String::from_utf8_lossy(&output.stderr)
-                .contains("web_fetch.order has no configured provider"),
+            &payload["error_kind"],
+            payload["message"].as_str().is_some_and(
+                |message| message.contains("web_fetch.order has no configured provider")
+            ),
+            &payload["journal_ref"],
+            &payload["journal_status"],
+            output.stderr.is_empty(),
         ),
-        (Some(3), true, true)
+        (
+            Some(3),
+            &Value::String("config".into()),
+            true,
+            &Value::Null,
+            &Value::String("unavailable".into()),
+            true,
+        )
     );
 }
 

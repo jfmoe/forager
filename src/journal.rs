@@ -9,7 +9,7 @@ use crate::config::JournalRuntimeConfig;
 use crate::net::duration_millis;
 use crate::providers::ProviderError;
 use crate::redact::{CREDENTIAL_MASK, Secret, redact_urls};
-use crate::secure_fs::{create_private_file, ensure_private_directory};
+use crate::secure_fs::{create_new_private_file, ensure_private_directory};
 use crate::types::{Capability, JournalOutcome, ResearchError, ResearchOutcome, SearchOutcome};
 
 static RECORD_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -40,37 +40,36 @@ pub(crate) struct ResearchRecord<'a> {
     pub(crate) result: &'a Result<ResearchOutcome, ResearchError>,
 }
 
+#[derive(Clone, Copy)]
+pub(crate) struct SearchPreflightRecord<'a> {
+    pub(crate) query: &'a str,
+    pub(crate) budget: Duration,
+    pub(crate) error_kind: &'static str,
+    pub(crate) message: &'a str,
+}
+
 pub(crate) fn record_search(
     config: &JournalRuntimeConfig,
     record: SearchRecord<'_>,
 ) -> JournalOutcome {
-    if !config.enabled {
-        return JournalOutcome {
-            status: "disabled",
-            reference: None,
-            warning: None,
-        };
-    }
-    match write_record(config, record) {
-        Ok(written) => JournalOutcome {
-            status: "written",
-            reference: Some(sanitize_text(config, &written.reference)),
-            warning: written
-                .cleanup_warning
-                .map(|warning| sanitize_warning(config, &warning)),
-        },
-        Err(error) => JournalOutcome {
-            status: "failed",
-            reference: None,
-            warning: Some(sanitize_warning(config, &error.to_string())),
-        },
-    }
+    record_value(config, || build_record(record))
 }
 
 pub(crate) fn record_research(
     config: &JournalRuntimeConfig,
     record: ResearchRecord<'_>,
 ) -> JournalOutcome {
+    record_value(config, || build_research_record(record))
+}
+
+pub(crate) fn record_search_preflight(
+    config: &JournalRuntimeConfig,
+    record: SearchPreflightRecord<'_>,
+) -> JournalOutcome {
+    record_value(config, || build_search_preflight_record(record))
+}
+
+fn record_value(config: &JournalRuntimeConfig, build: impl FnOnce() -> Value) -> JournalOutcome {
     if !config.enabled {
         return JournalOutcome {
             status: "disabled",
@@ -78,7 +77,7 @@ pub(crate) fn record_research(
             warning: None,
         };
     }
-    match write_value(config, build_research_record(record)) {
+    match write_value(config, build()) {
         Ok(written) => JournalOutcome {
             status: "written",
             reference: Some(sanitize_text(config, &written.reference)),
@@ -99,31 +98,59 @@ struct WrittenRecord {
     cleanup_warning: Option<String>,
 }
 
-fn write_record(
-    config: &JournalRuntimeConfig,
-    record: SearchRecord<'_>,
-) -> io::Result<WrittenRecord> {
-    write_value(config, build_record(record))
-}
-
-fn write_value(config: &JournalRuntimeConfig, mut value: Value) -> io::Result<WrittenRecord> {
+fn write_value(config: &JournalRuntimeConfig, value: Value) -> io::Result<WrittenRecord> {
     ensure_private_directory(&config.dir)?;
     let path = config.dir.join(record_name());
-    if path.try_exists()? {
-        return Err(io::Error::new(
-            io::ErrorKind::AlreadyExists,
-            format!("journal record already exists: {}", path.display()),
-        ));
-    }
+    write_value_to(config, &path, value)
+}
+
+fn write_value_to(
+    config: &JournalRuntimeConfig,
+    path: &std::path::Path,
+    mut value: Value,
+) -> io::Result<WrittenRecord> {
     sanitize_value(&mut value, &config.credentials);
     let encoded = serde_json::to_vec(&value).map_err(io::Error::other)?;
-    let mut file = create_private_file(&path)?;
+    let mut file = create_new_private_file(path)?;
     file.write_all(&encoded)?;
     file.write_all(b"\n")?;
     file.sync_all()?;
     Ok(WrittenRecord {
         reference: path.display().to_string(),
         cleanup_warning: cleanup_expired(config),
+    })
+}
+
+fn build_search_preflight_record(record: SearchPreflightRecord<'_>) -> Value {
+    let recorded_at_unix_ms = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis();
+    json!({
+        "schema_version": 1,
+        "recorded_at_unix_ms": recorded_at_unix_ms,
+        "result": {
+            "status": "error",
+            "query": record.query,
+            "error_kind": record.error_kind,
+            "message": record.message,
+        },
+        "execution": {
+            "plan_summary": {
+                "source": "preflight",
+                "capabilities": [],
+                "classifier_degraded": false,
+            },
+            "provider_attempts": [],
+            "terminal_attribution": record.error_kind,
+            "deadline_budget": {
+                "total_ms": duration_millis(record.budget),
+                "consumed_ms": 0,
+                "exhausted": false,
+            },
+            "classifier_duration_ms": Value::Null,
+            "capability_gaps": Value::Null,
+        }
     })
 }
 
@@ -287,14 +314,34 @@ fn cleanup_expired(config: &JournalRuntimeConfig) -> Option<String> {
 
 fn cleanup_entry(entry: &fs::DirEntry, cutoff: SystemTime) -> io::Result<()> {
     let path = entry.path();
-    if path.extension().is_none_or(|extension| extension != "json") || !entry.file_type()?.is_file()
-    {
+    if !is_owned_record_name(&entry.file_name()) || !entry.file_type()?.is_file() {
         return Ok(());
     }
     if entry.metadata()?.modified()? < cutoff {
         fs::remove_file(path)?;
     }
     Ok(())
+}
+
+fn is_owned_record_name(name: &std::ffi::OsStr) -> bool {
+    let Some(name) = name.to_str() else {
+        return false;
+    };
+    let Some(fields) = name
+        .strip_prefix("search_result_")
+        .and_then(|name| name.strip_suffix(".json"))
+    else {
+        return false;
+    };
+    let mut fields = fields.split('_');
+    let (Some(nanos), Some(pid), Some(sequence), None) =
+        (fields.next(), fields.next(), fields.next(), fields.next())
+    else {
+        return false;
+    };
+    [nanos, pid, sequence]
+        .into_iter()
+        .all(|field| !field.is_empty() && field.bytes().all(|byte| byte.is_ascii_digit()))
 }
 
 fn cleanup_warning(error: &io::Error) -> Option<String> {
@@ -378,6 +425,26 @@ mod tests {
     }
 
     #[test]
+    fn write_value_does_not_replace_an_existing_record() {
+        let root = tempdir().expect("create temporary directory");
+        let config = journal_config(root.path().join("journal"));
+        fs::create_dir(&config.dir).expect("create journal directory");
+        let path = config.dir.join("search_result_1_2_3.json");
+        fs::write(&path, "existing record\n").expect("create existing record");
+
+        let result = write_value_to(&config, &path, json!({"replacement": true}));
+
+        let Err(error) = result else {
+            panic!("existing record must reject replacement");
+        };
+        assert_eq!(error.kind(), io::ErrorKind::AlreadyExists);
+        assert_eq!(
+            fs::read_to_string(path).expect("read existing record"),
+            "existing record\n"
+        );
+    }
+
+    #[test]
     fn cleanup_expired_silences_missing_directory() {
         let root = tempdir().expect("create temporary directory");
         let config = journal_config(root.path().join("missing"));
@@ -388,46 +455,61 @@ mod tests {
     }
 
     #[test]
-    fn cleanup_expired_removes_json_older_than_retention_limit() {
+    fn cleanup_expired_only_removes_owned_regular_files_past_retention() {
         let root = tempdir().expect("create temporary directory");
         let journal_path = root.path().join("journal");
         fs::create_dir(&journal_path).expect("create journal directory");
-        let stale_record = journal_path.join("stale.json");
-        fs::write(&stale_record, "{}").expect("create stale journal record");
         let stale_time = SystemTime::now()
             .checked_sub(Duration::from_hours(48))
             .expect("calculate stale modification time");
-        fs::File::open(&stale_record)
-            .expect("open stale journal record")
-            .set_times(fs::FileTimes::new().set_modified(stale_time))
-            .expect("set stale modification time");
-        let config = journal_config(journal_path);
+        let cases = [
+            ("search_result_1_2_3.json", true, true),
+            ("search_result_4_5_6.json", false, false),
+            ("search_result__2_3.json", true, false),
+            ("search_result_1__3.json", true, false),
+            ("search_result_1_2_.json", true, false),
+            ("search_result_one_2_3.json", true, false),
+            ("search_result_1_two_3.json", true, false),
+            ("search_result_1_2_three.json", true, false),
+            ("prefix_search_result_1_2_3.json", true, false),
+            ("search_result_1_2_3.json.bak", true, false),
+            ("stale.json", true, false),
+            ("search_results_20260809.jsonl", true, false),
+        ];
+        for (name, stale, _) in cases {
+            let path = journal_path.join(name);
+            fs::write(&path, "{}").expect("create retention case");
+            if stale {
+                fs::File::open(&path)
+                    .expect("open retention case")
+                    .set_times(fs::FileTimes::new().set_modified(stale_time))
+                    .expect("set retention case modification time");
+            }
+        }
+        let owned_directory = journal_path.join("search_result_7_8_9.json");
+        fs::create_dir(&owned_directory).expect("create owned-name directory");
+        #[cfg(unix)]
+        let owned_symlink = {
+            let path = journal_path.join("search_result_10_11_12.json");
+            std::os::unix::fs::symlink(journal_path.join("stale.json"), &path)
+                .expect("create owned-name symlink");
+            path
+        };
+        let config = journal_config(journal_path.clone());
 
         let warning = cleanup_expired(&config);
 
-        assert!(
-            !stale_record.try_exists().expect("check stale record"),
-            "stale journal record was not removed; cleanup warning: {warning:?}"
-        );
-    }
-
-    #[test]
-    fn cleanup_expired_tolerates_malformed_json_within_retention_limit() {
-        let root = tempdir().expect("create temporary directory");
-        let journal_path = root.path().join("journal");
-        fs::create_dir(&journal_path).expect("create journal directory");
-        let malformed_record = journal_path.join("malformed.json");
-        fs::write(&malformed_record, "not json").expect("create malformed journal record");
-        let config = journal_config(journal_path);
-
-        let warning = cleanup_expired(&config);
-
-        assert!(
-            malformed_record
-                .try_exists()
-                .expect("check malformed record"),
-            "unexpired malformed journal record was removed; cleanup warning: {warning:?}"
-        );
+        assert!(warning.is_none(), "unexpected cleanup warning: {warning:?}");
+        for (name, _, removed) in cases {
+            assert_eq!(
+                journal_path.join(name).exists(),
+                !removed,
+                "retention result for {name}"
+            );
+        }
+        assert!(owned_directory.is_dir());
+        #[cfg(unix)]
+        assert!(owned_symlink.symlink_metadata().is_ok());
     }
 
     #[test]

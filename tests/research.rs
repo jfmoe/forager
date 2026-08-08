@@ -13,15 +13,29 @@ fn bare_research_requires_a_configured_classifier() {
     let environment = RunEnvironment::new("");
 
     let output = environment.run(&["research", "What changed?"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
 
     assert_eq!(
         (
             output.status.code(),
-            String::from_utf8_lossy(&output.stderr).contains(
-                "research without --plan requires a configured classifier plan generator"
-            ),
+            &payload["error_kind"],
+            payload["message"]
+                .as_str()
+                .is_some_and(|message| message.contains(
+                    "research without --plan requires a configured classifier plan generator"
+                )),
+            &payload["journal_ref"],
+            &payload["journal_status"],
+            output.stderr.is_empty(),
         ),
-        (Some(3), true)
+        (
+            Some(3),
+            &Value::String("config".into()),
+            true,
+            &Value::Null,
+            &Value::String("unavailable".into()),
+            true,
+        )
     );
 }
 
@@ -430,15 +444,29 @@ fn research_rejects_caller_plans_over_each_budget_subquestion_limit() {
             "--budget",
             budget,
         ]);
+        let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
 
-        assert_eq!(output.status.code(), Some(2), "{budget}");
-        assert!(
-            String::from_utf8_lossy(&output.stderr).contains(&format!(
-                "caller research plan has {} subquestions; {budget} budget allows at most {limit}",
-                limit + 1
-            )),
-            "{budget}: {}",
-            String::from_utf8_lossy(&output.stderr)
+        assert_eq!(
+            (
+                output.status.code(),
+                &payload["error_kind"],
+                payload["message"].as_str().is_some_and(|message| message.contains(&format!(
+                    "caller research plan has {} subquestions; {budget} budget allows at most {limit}",
+                    limit + 1
+                ))),
+                &payload["journal_ref"],
+                &payload["journal_status"],
+                output.stderr.is_empty(),
+            ),
+            (
+                Some(2),
+                &Value::String("parameter".into()),
+                true,
+                &Value::Null,
+                &Value::String("unavailable".into()),
+                true,
+            ),
+            "{budget}"
         );
     }
 }
