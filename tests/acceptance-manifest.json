@@ -157,7 +157,7 @@
     {
       "id": "E13",
       "requirements": ["I0-5"],
-      "test": "tests/search.rs::declared_vertical_search_keeps_url_results_only_in_vertical_results"
+      "test": "tests/search.rs::declared_vertical_search_uses_the_unified_candidate_envelope"
     },
     {
       "id": "E14",

@@ -9,12 +9,12 @@ use crate::config::{
     VerticalSearchRuntimeConfig, WebFetchRuntimeConfig, WebSearchRuntimeConfig,
 };
 use crate::net::{RetryPolicy, combine_diagnostics, slice_budget};
-use crate::providers::{self, FetchRequest, ProviderError, SearchRequest};
+use crate::providers::{self, DocumentationSearchMode, FetchRequest, ProviderError, SearchRequest};
 use crate::redact::redact_url;
 use crate::types::{
-    AnysearchResult, AttemptErrorKind, Capability, CapabilityGap, CapabilitySet, DENSITY_MAX_CHARS,
+    AttemptErrorKind, Capability, CapabilityGap, CapabilitySet, DENSITY_MAX_CHARS,
     DENSITY_MAX_UNIQUE_LINES, Deadline, DocumentationSearchOutcome, FetchOutcome,
-    MIN_FETCH_CONTENT_CHARS, ProviderAttempt, SearchOutcome, Source, SupplementalSearchCandidate,
+    MIN_FETCH_CONTENT_CHARS, ProviderAttempt, SearchCandidate, SearchOutcome, Source,
     SupplementalSearchOutcome, VerticalSearchOutcome,
 };
 
@@ -52,8 +52,7 @@ struct ChainStep<T> {
 #[derive(Default)]
 struct CapabilityBranch {
     attempts: Vec<ProviderAttempt>,
-    sources: Vec<SupplementalSearchCandidate>,
-    vertical_results: Vec<AnysearchResult>,
+    sources: Vec<SearchCandidate>,
     capability_gaps: Vec<CapabilityGap>,
     diagnostics: Vec<String>,
 }
@@ -265,9 +264,6 @@ pub(crate) async fn execute_capabilities(
 
     for mut branch in branches {
         outcome.attempts.append(&mut branch.attempts);
-        if !branch.vertical_results.is_empty() {
-            merge_vertical_results(outcome, branch.vertical_results);
-        }
         outcome.capability_gaps.append(&mut branch.capability_gaps);
         for diagnostic in branch.diagnostics {
             outcome.diagnostic = combine_diagnostics(
@@ -344,18 +340,25 @@ async fn execute_docs_search(
         );
         return branch;
     }
-    match documentation_search(query, limit, config.docs_search.clone(), execution).await {
+    match documentation_search(
+        query,
+        limit,
+        config.docs_search.clone(),
+        execution,
+        DocumentationSearchMode::Candidates,
+    )
+    .await
+    {
         Ok(mut supplemental) => {
             let provider = successful_provider(&supplemental.attempts, "docs_search");
             branch.attempts.append(&mut supplemental.attempts);
             branch.push_diagnostic(supplemental.diagnostic);
-            supplemental
-                .candidate_sources
-                .extend(supplemental.read_sources.into_iter().map(|mut source| {
-                    source.text = None;
-                    source
+            branch.sources = supplemental.candidate_sources;
+            branch
+                .sources
+                .extend(supplemental.read_sources.into_iter().filter_map(|source| {
+                    SearchCandidate::from_source(source, provider, Capability::DocsSearch)
                 }));
-            branch.sources = supplemental_candidates(supplemental.candidate_sources, provider);
         }
         Err(mut error) => {
             branch.attempts.append(&mut error.attempts);
@@ -426,20 +429,17 @@ async fn execute_web_fetch(
                 succeeded = true;
                 branch.attempts.append(&mut fetched.attempts);
                 branch.push_diagnostic(fetched.diagnostic);
-                branch.sources.push(SupplementalSearchCandidate {
-                    url: redact_url(&url),
-                    title: None,
-                    provider: fetched.provider,
-                    summary: Some(
-                        fetched
-                            .content
-                            .chars()
-                            .take(WEB_FETCH_PREVIEW_CHARS)
-                            .collect(),
-                    ),
-                    published_date: None,
-                    author: None,
-                });
+                if let Some(candidate) = SearchCandidate::from_web_fetch(
+                    fetched.provider,
+                    redact_url(&url),
+                    fetched
+                        .content
+                        .chars()
+                        .take(WEB_FETCH_PREVIEW_CHARS)
+                        .collect(),
+                ) {
+                    branch.sources.push(candidate);
+                }
             }
             Err(mut error) => {
                 failed = true;
@@ -484,7 +484,11 @@ async fn execute_vertical_search(
         Ok(mut vertical) => {
             branch.attempts.append(&mut vertical.attempts);
             branch.push_diagnostic(vertical.diagnostic);
-            branch.vertical_results = vertical.results;
+            branch.sources = vertical
+                .results
+                .into_iter()
+                .map(SearchCandidate::from_vertical_result)
+                .collect();
         }
         Err(mut error) => {
             branch.attempts.append(&mut error.attempts);
@@ -500,51 +504,37 @@ async fn execute_vertical_search(
     branch
 }
 
-fn merge_extra_sources(outcome: &mut SearchOutcome, sources: Vec<SupplementalSearchCandidate>) {
-    let mut seen = outcome
+fn merge_extra_sources(outcome: &mut SearchOutcome, sources: Vec<SearchCandidate>) {
+    let primary_urls = outcome
         .sources
         .iter()
-        .map(|source| source.url.clone())
-        .chain(
+        .map(|source| source.url.as_str())
+        .collect::<HashSet<_>>();
+    for source in sources {
+        if source.url().is_some_and(|url| primary_urls.contains(url)) {
+            continue;
+        }
+        if let Some(index) = source.url().and_then(|url| {
             outcome
                 .extra_sources
                 .iter()
-                .map(|source| source.url.clone()),
-        )
-        .chain(
-            outcome
-                .vertical_results
-                .iter()
-                .filter(|result| !result.url.is_empty())
-                .map(|result| result.url.clone()),
-        )
-        .collect::<HashSet<_>>();
-    for source in sources {
-        if seen.insert(source.url.clone()) {
+                .position(|existing| existing.url() == Some(url))
+        }) {
+            if source.capability() == Capability::VerticalSearch
+                && outcome.extra_sources[index].capability() != Capability::VerticalSearch
+            {
+                outcome.extra_sources[index] = source;
+            }
+            continue;
+        }
+        if !outcome
+            .extra_sources
+            .iter()
+            .any(|existing| existing == &source)
+        {
             outcome.extra_sources.push(source);
         }
     }
-}
-
-fn merge_vertical_results(outcome: &mut SearchOutcome, results: Vec<AnysearchResult>) {
-    let mut seen = outcome
-        .sources
-        .iter()
-        .map(|source| source.url.clone())
-        .collect::<HashSet<_>>();
-    outcome.vertical_results = results
-        .into_iter()
-        .filter(|result| result.url.is_empty() || seen.insert(result.url.clone()))
-        .collect();
-    let vertical_urls = outcome
-        .vertical_results
-        .iter()
-        .filter(|result| !result.url.is_empty())
-        .map(|result| result.url.as_str())
-        .collect::<HashSet<_>>();
-    outcome
-        .extra_sources
-        .retain(|source| !vertical_urls.contains(source.url.as_str()));
 }
 
 fn successful_provider(attempts: &[ProviderAttempt], seam: &str) -> &'static str {
@@ -558,23 +548,10 @@ fn successful_provider(attempts: &[ProviderAttempt], seam: &str) -> &'static str
         )
 }
 
-fn supplemental_candidates(
-    sources: Vec<Source>,
-    provider: &'static str,
-) -> Vec<SupplementalSearchCandidate> {
+fn supplemental_candidates(sources: Vec<Source>, provider: &'static str) -> Vec<SearchCandidate> {
     sources
         .into_iter()
-        .map(|source| SupplementalSearchCandidate {
-            url: source.url,
-            title: (!source.title.trim().is_empty()).then_some(source.title),
-            provider,
-            summary: source
-                .text
-                .or_else(|| source.highlights.into_iter().next())
-                .filter(|summary| !summary.trim().is_empty()),
-            published_date: source.published_date,
-            author: source.author,
-        })
+        .filter_map(|source| SearchCandidate::from_source(source, provider, Capability::WebSearch))
         .collect()
 }
 
@@ -798,6 +775,7 @@ pub(crate) async fn documentation_search(
     limit: u16,
     config: DocsSearchRuntimeConfig,
     execution: CapabilityExecution,
+    mode: DocumentationSearchMode,
 ) -> Result<DocumentationSearchOutcome, ProviderError> {
     let step = run_provider_chain(
         config.into_entries(),
@@ -809,7 +787,7 @@ pub(crate) async fn documentation_search(
             fallback_off: execution.fallback == "off",
         },
         execution.deadline,
-        |(candidate_sources, read_sources): &(Vec<Source>, Vec<Source>)| {
+        |(candidate_sources, read_sources): &(Vec<SearchCandidate>, Vec<Source>)| {
             !candidate_sources.is_empty() || !read_sources.is_empty()
         },
         |id, provider_config, deadline| {
@@ -822,7 +800,7 @@ pub(crate) async fn documentation_search(
                     execution.retry_policy,
                     deadline,
                 )
-                .search(query, limit)
+                .search(query, limit, mode)
                 .await?;
                 if outcome.candidate_sources.is_empty() && outcome.read_sources.is_empty() {
                     if let Some(attempt) = outcome.attempts.last_mut() {

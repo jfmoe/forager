@@ -109,7 +109,6 @@ impl Xai {
             answer,
             sources,
             extra_sources: Vec::new(),
-            vertical_results: Vec::new(),
             capabilities: Vec::new(),
             capability_gaps: Vec::new(),
             attempts: execution.attempts,
@@ -311,6 +310,9 @@ impl Xai {
                     author: None,
                     text: None,
                     highlights: Vec::new(),
+                    id: None,
+                    image: None,
+                    favicon: None,
                 });
             }
         }

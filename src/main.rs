@@ -446,32 +446,21 @@ fn render_search(
                     if !outcome.extra_sources.is_empty() {
                         markdown.push_str("\n\n## Extra Sources\n");
                         for source in &outcome.extra_sources {
-                            let title = source.title.as_deref().unwrap_or(&source.url);
-                            let _ = write!(
-                                markdown,
-                                "\n- [{title}]({}) — {}",
-                                source.url, source.provider
-                            );
-                            if let Some(summary) = &source.summary {
-                                let _ = write!(markdown, "\n\n  {summary}");
-                            }
-                        }
-                    }
-                    if !outcome.vertical_results.is_empty() {
-                        markdown.push_str("\n\n## Vertical Results\n");
-                        for result in &outcome.vertical_results {
-                            if result.url.is_empty() {
+                            let title = source
+                                .title()
+                                .or_else(|| source.url())
+                                .unwrap_or_else(|| source.provider());
+                            if let Some(url) = source.url() {
                                 let _ = write!(
                                     markdown,
-                                    "\n- **{}** — {}",
-                                    result.title, result.description
+                                    "\n- [{title}]({url}) — {}",
+                                    source.provider()
                                 );
                             } else {
-                                let _ = write!(
-                                    markdown,
-                                    "\n- [{}]({}) — {}",
-                                    result.title, result.url, result.description
-                                );
+                                let _ = write!(markdown, "\n- **{title}** — {}", source.provider());
+                            }
+                            if let Some(summary) = source.summary() {
+                                let _ = write!(markdown, "\n\n  {summary}");
                             }
                         }
                     }

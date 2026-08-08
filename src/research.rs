@@ -8,12 +8,12 @@ use serde_json::{Value, json};
 use crate::config::RuntimeConfig;
 use crate::engine::{self, CapabilityExecution};
 use crate::net::RetryPolicy;
-use crate::providers::FetchRequest;
+use crate::providers::{DocumentationSearchMode, FetchRequest};
 use crate::redact::redact_url;
 use crate::types::{
     AttemptErrorKind, Capability, CapabilityGap, Deadline, EvidenceItem, EvidenceStrength,
     PlanCapability, ProviderAttempt, ResearchError, ResearchGap, ResearchGapCheck, ResearchOutcome,
-    ResearchPlan, ResearchSubquestion, Source, UnconsumedCandidates,
+    ResearchPlan, ResearchSubquestion, SearchCandidate, Source, UnconsumedCandidates,
 };
 
 const SYNTHESIS_POLICY: &str = "fetch_before_claim";
@@ -569,6 +569,7 @@ async fn discover_docs(
         limit,
         config.docs_search.clone(),
         execution,
+        DocumentationSearchMode::Evidence,
     )
     .await
     {
@@ -590,20 +591,19 @@ async fn discover_docs(
                     source_type: "docs",
                     known_url: false,
                 }));
-            block
-                .candidates
-                .extend(
-                    outcome
-                        .candidate_sources
-                        .into_iter()
-                        .map(|source| Candidate {
-                            source,
-                            subquestion_id: subquestion.id.clone(),
-                            provider,
-                            source_type: "docs_candidate",
-                            known_url: false,
-                        }),
-                );
+            block.candidates.extend(
+                outcome
+                    .candidate_sources
+                    .into_iter()
+                    .filter_map(SearchCandidate::into_source)
+                    .map(|source| Candidate {
+                        source,
+                        subquestion_id: subquestion.id.clone(),
+                        provider,
+                        source_type: "docs_candidate",
+                        known_url: false,
+                    }),
+            );
         }
         Err(mut error) => {
             block.attempts.append(&mut error.attempts);
@@ -825,6 +825,9 @@ fn known_url_candidate(url: String, subquestion_id: String) -> Candidate {
             author: None,
             text: None,
             highlights: Vec::new(),
+            id: None,
+            image: None,
+            favicon: None,
         },
         subquestion_id,
         provider: None,

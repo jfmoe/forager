@@ -26,8 +26,8 @@ use crate::credentials::CredentialPool;
 use crate::net::{RetryPolicy, combine_diagnostics};
 use crate::redact::redact_url;
 use crate::types::{
-    AnysearchOutcome, Context7Outcome, DocumentationSearchOutcome, ExaOutcome, Source,
-    SupplementalSearchOutcome, VerticalSearchOutcome,
+    AnysearchOutcome, Context7Outcome, DocumentationSearchOutcome, ExaOutcome, SearchCandidate,
+    Source, SupplementalSearchOutcome, VerticalSearchOutcome,
 };
 use crate::types::{AttemptErrorKind, Deadline, ProviderAttempt};
 
@@ -118,7 +118,14 @@ pub(crate) trait DocsSearch: Send + Sync {
         &'a self,
         query: &'a str,
         limit: u16,
+        mode: DocumentationSearchMode,
     ) -> Pin<Box<dyn Future<Output = Result<DocumentationSearchOutcome, ProviderError>> + Send + 'a>>;
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum DocumentationSearchMode {
+    Candidates,
+    Evidence,
 }
 
 pub(crate) trait VerticalSearch: Send + Sync {
@@ -161,6 +168,9 @@ impl VerticalSearch for Anysearch {
                     author: None,
                     text: (!result.description.is_empty()).then(|| result.description.clone()),
                     highlights: Vec::new(),
+                    id: None,
+                    image: None,
+                    favicon: None,
                 })
                 .collect();
             Ok(VerticalSearchOutcome {
@@ -178,6 +188,7 @@ impl DocsSearch for Exa {
         &'a self,
         query: &'a str,
         limit: u16,
+        mode: DocumentationSearchMode,
     ) -> Pin<Box<dyn Future<Output = Result<DocumentationSearchOutcome, ProviderError>> + Send + 'a>>
     {
         Box::pin(async move {
@@ -191,7 +202,7 @@ impl DocsSearch for Exa {
                     query: query.to_owned(),
                     num_results: limit,
                     search_type: SearchType::Auto,
-                    include_text: true,
+                    include_text: mode == DocumentationSearchMode::Evidence,
                     include_highlights: true,
                     start_published_date: None,
                     include_domains: Vec::new(),
@@ -200,9 +211,26 @@ impl DocsSearch for Exa {
                     verbose: true,
                 })
                 .await?;
-            let (read_sources, candidate_sources) = results
-                .into_iter()
-                .partition(|source| source.text.is_some());
+            let (read_sources, candidate_sources) = if mode == DocumentationSearchMode::Evidence {
+                let (read_sources, candidates): (Vec<_>, Vec<_>) = results
+                    .into_iter()
+                    .partition(|source| source.text.is_some());
+                (
+                    read_sources,
+                    candidates
+                        .into_iter()
+                        .filter_map(SearchCandidate::from_exa_source)
+                        .collect(),
+                )
+            } else {
+                (
+                    Vec::new(),
+                    results
+                        .into_iter()
+                        .filter_map(SearchCandidate::from_exa_source)
+                        .collect(),
+                )
+            };
             Ok(DocumentationSearchOutcome {
                 candidate_sources,
                 read_sources,
@@ -217,7 +245,8 @@ impl DocsSearch for Context7 {
     fn search<'a>(
         &'a self,
         query: &'a str,
-        _limit: u16,
+        limit: u16,
+        mode: DocumentationSearchMode,
     ) -> Pin<Box<dyn Future<Output = Result<DocumentationSearchOutcome, ProviderError>> + Send + 'a>>
     {
         Box::pin(async move {
@@ -231,6 +260,19 @@ impl DocsSearch for Context7 {
             else {
                 unreachable!("library request returns library outcome");
             };
+            if mode == DocumentationSearchMode::Candidates {
+                return Ok(DocumentationSearchOutcome {
+                    candidate_sources: library
+                        .results
+                        .into_iter()
+                        .filter_map(SearchCandidate::from_context7_library)
+                        .take(usize::from(limit))
+                        .collect(),
+                    read_sources: Vec::new(),
+                    attempts: library.attempts,
+                    diagnostic: library.diagnostic,
+                });
+            }
             let Some(candidate) = library.results.into_iter().next() else {
                 return Ok(DocumentationSearchOutcome {
                     candidate_sources: Vec::new(),

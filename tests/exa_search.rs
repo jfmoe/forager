@@ -98,6 +98,127 @@ fn exa_search_returns_normalized_results_through_the_real_http_stack() {
 }
 
 #[test]
+fn exa_search_excludes_unrequested_content_and_keeps_media_for_a_null_title() {
+    let fixture = Fixture::start_json(
+        200,
+        r#"{
+            "results": [{
+                "id": "exa-result-id",
+                "title": null,
+                "url": "https://example.test/result",
+                "text": "Unrequested body",
+                "highlights": ["Unrequested highlight"],
+                "image": "https://example.test/image.png",
+                "favicon": "https://example.test/favicon.ico"
+            }]
+        }"#,
+    );
+
+    let output = run(
+        &fixture,
+        &["exa", "search", "rust async drop"],
+        &["only-key"],
+    );
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (output.status.code(), &payload["results"][0]),
+        (
+            Some(0),
+            &serde_json::json!({
+                "url": "https://example.test/result",
+                "image": "https://example.test/image.png",
+                "favicon": "https://example.test/favicon.ico"
+            }),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let request = fixture.finish();
+    assert!(request.contains(r#""type":"auto""#), "{request}");
+    assert!(!request.contains("useAutoprompt"), "{request}");
+    assert!(!request.contains(r#""contents""#), "{request}");
+}
+
+#[test]
+fn exa_search_projects_only_requested_text() {
+    let fixture = Fixture::start_json(
+        200,
+        r#"{"results":[{"title":"Result","url":"https://example.test/result","text":"Requested body","highlights":["Unrequested highlight"]}]}"#,
+    );
+
+    let output = run(
+        &fixture,
+        &["exa", "search", "rust async drop", "--include-text"],
+        &["only-key"],
+    );
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        &payload["results"][0],
+        &serde_json::json!({
+            "title": "Result",
+            "url": "https://example.test/result",
+            "text": "Requested body"
+        }),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let request = fixture.finish();
+    assert!(request.contains(r#""text":true"#), "{request}");
+    assert!(request.contains(r#""highlights":false"#), "{request}");
+}
+
+#[test]
+fn exa_search_projects_only_requested_highlights() {
+    let fixture = Fixture::start_json(
+        200,
+        r#"{"results":[{"title":"Result","url":"https://example.test/result","text":"Unrequested body","highlights":["Requested highlight"]}]}"#,
+    );
+
+    let output = run(
+        &fixture,
+        &["exa", "search", "rust async drop", "--include-highlights"],
+        &["only-key"],
+    );
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        &payload["results"][0],
+        &serde_json::json!({
+            "title": "Result",
+            "url": "https://example.test/result",
+            "highlights": ["Requested highlight"]
+        }),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let request = fixture.finish();
+    assert!(request.contains(r#""text":false"#), "{request}");
+    assert!(request.contains(r#""highlights":true"#), "{request}");
+}
+
+#[test]
+fn exa_search_rejects_a_non_http_result_url() {
+    let fixture = Fixture::start_json(
+        200,
+        r#"{"results":[{"id":"exa-result-id","title":"Invalid","url":"context7:/rust-lang/rust"}]}"#,
+    );
+
+    let output = run(&fixture, &["exa", "search", "invalid URL"], &["only-key"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (output.status.code(), &payload["error_kind"]),
+        (Some(4), &Value::String("runtime".into())),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    fixture.finish();
+}
+
+#[test]
 fn exa_similar_returns_normalized_results_through_the_real_http_stack() {
     let fixture = Fixture::start_json(
         200,

@@ -149,6 +149,9 @@ impl SupplementalSearch {
                         .or(source.description)
                         .map(|value| redact_urls(&self.credentials.redact(&value))),
                     highlights: Vec::new(),
+                    id: None,
+                    image: None,
+                    favicon: None,
                 })
                 .collect(),
         ))

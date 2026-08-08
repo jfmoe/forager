@@ -119,6 +119,43 @@ fn context7_docs_default_json_contains_only_the_readable_payload() {
 }
 
 #[test]
+fn context7_docs_turns_structured_content_only_into_readable_content() {
+    let fixture = Fixture::start_sequence(vec![
+        initialize("structured-docs"),
+        Response::json(202, ""),
+        Response::json(
+            200,
+            r#"{"jsonrpc":"2.0","id":2,"result":{"structuredContent":{"results":[{"content":"Async runtime documentation","source":"Tokio"}]},"content":[]}}"#,
+        ),
+    ]);
+
+    let output = run(
+        &fixture,
+        &["context7", "docs", "/tokio-rs/tokio", "runtime"],
+        &["only-key"],
+    );
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let content: Value = serde_json::from_str(payload["content"].as_str().expect("content string"))
+        .expect("structured content JSON");
+
+    assert_eq!(
+        (output.status.code(), content),
+        (
+            Some(0),
+            serde_json::json!({
+                "results": [{
+                    "content": "Async runtime documentation",
+                    "source": "Tokio"
+                }]
+            }),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    fixture.finish_all();
+}
+
+#[test]
 fn context7_docs_verbose_json_adds_only_provider_attempts() {
     let fixture = Fixture::start_sequence(vec![
         initialize("verbose-docs"),

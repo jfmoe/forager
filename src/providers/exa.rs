@@ -172,27 +172,60 @@ impl Exa {
                 ),
                 redirected_library_id: None,
             })?;
+        if response
+            .results
+            .iter()
+            .any(|result| !is_http_url(&result.url))
+        {
+            return Err(AttemptFailure {
+                kind: AttemptErrorKind::Runtime,
+                status: Some(status.as_u16()),
+                message: "invalid Exa response: result URL must use HTTP(S)".into(),
+                redirected_library_id: None,
+            });
+        }
         Ok(response
             .results
             .into_iter()
-            .map(|result| self.normalize_source(result))
+            .map(|result| self.normalize_source(operation, result))
             .collect())
     }
 
-    fn normalize_source(&self, result: ExaResult) -> Source {
+    fn normalize_source(&self, operation: &ExaOperation, result: ExaResult) -> Source {
+        let (include_text, include_highlights) = match operation {
+            ExaOperation::Search(request) => (request.include_text, request.include_highlights),
+            ExaOperation::Similar(_) => (true, true),
+        };
         Source {
-            title: self.credentials.redact(&result.title),
+            title: result
+                .title
+                .map(|value| self.credentials.redact(&value))
+                .unwrap_or_default(),
             url: self.credentials.redact(&redact_url(&result.url)),
             published_date: result
                 .published_date
                 .map(|value| self.credentials.redact(&value)),
             author: result.author.map(|value| self.credentials.redact(&value)),
-            text: result.text.map(|value| self.credentials.redact(&value)),
-            highlights: result
-                .highlights
-                .iter()
-                .map(|value| self.credentials.redact(value))
-                .collect(),
+            text: include_text
+                .then_some(result.text)
+                .flatten()
+                .map(|value| self.credentials.redact(&value)),
+            highlights: if include_highlights {
+                result
+                    .highlights
+                    .iter()
+                    .map(|value| self.credentials.redact(value))
+                    .collect()
+            } else {
+                Vec::new()
+            },
+            id: result.id.map(|value| self.credentials.redact(&value)),
+            image: result
+                .image
+                .map(|value| self.credentials.redact(&redact_url(&value))),
+            favicon: result
+                .favicon
+                .map(|value| self.credentials.redact(&redact_url(&value))),
         }
     }
 }
@@ -306,14 +339,16 @@ struct ExaResponse {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct ExaResult {
-    #[serde(default)]
-    title: String,
+    title: Option<String>,
     url: String,
+    id: Option<String>,
     published_date: Option<String>,
     author: Option<String>,
     text: Option<String>,
     #[serde(default)]
     highlights: Vec<String>,
+    image: Option<String>,
+    favicon: Option<String>,
 }
 
 fn failure_message(body: &str, status: u16) -> String {
@@ -331,4 +366,9 @@ fn failure_message(body: &str, status: u16) -> String {
 
 fn slice_is_empty<T>(values: &[T]) -> bool {
     values.is_empty()
+}
+
+fn is_http_url(value: &str) -> bool {
+    reqwest::Url::parse(value)
+        .is_ok_and(|url| matches!(url.scheme(), "http" | "https") && url.host().is_some())
 }

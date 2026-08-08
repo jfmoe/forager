@@ -576,10 +576,12 @@ fn declared_web_search_adds_normalized_extra_sources_in_configured_order() {
             Some(0),
             &Value::String("answer".into()),
             &serde_json::json!([{
+                "provider": "tavily",
+                "capability": "web_search",
                 "title": "Supplemental",
                 "url": "https://example.test/extra",
-                "provider": "tavily",
-                "summary": summary
+                "summary": summary,
+                "provider_data": {}
             }]),
             &serde_json::json!([{
                 "title": "Primary",
@@ -591,10 +593,12 @@ fn declared_web_search_adds_normalized_extra_sources_in_configured_order() {
                 "url": "https://example.test/source?token=********"
             }]),
             &serde_json::json!([{
+                "provider": "tavily",
+                "capability": "web_search",
                 "title": "Supplemental",
                 "url": "https://example.test/extra",
-                "provider": "tavily",
-                "summary": summary
+                "summary": summary,
+                "provider_data": {}
             }]),
         ),
         "stderr: {}",
@@ -716,12 +720,19 @@ fn declared_docs_search_uses_the_configured_registry_chain() {
     assert_eq!(
         (
             output.status.code(),
-            &payload["extra_sources"][0]["url"],
+            &payload["extra_sources"],
             &payload["capability_gaps"],
         ),
         (
             Some(0),
-            &Value::String("https://doc.rust-lang.org/book/".into()),
+            &serde_json::json!([{
+                "provider": "exa",
+                "capability": "docs_search",
+                "title": "Rust documentation",
+                "url": "https://doc.rust-lang.org/book/",
+                "summary": null,
+                "provider_data": {}
+            }]),
             &serde_json::json!([]),
         ),
         "stderr: {}",
@@ -730,10 +741,14 @@ fn declared_docs_search_uses_the_configured_registry_chain() {
     main.finish();
     let request = exa.finish();
     assert!(request.starts_with("POST /search "), "{request}");
+    assert!(request.contains(r#""type":"auto""#), "{request}");
+    assert!(request.contains(r#""text":false"#), "{request}");
+    assert!(request.contains(r#""highlights":true"#), "{request}");
+    assert!(!request.contains("useAutoprompt"), "{request}");
 }
 
 #[test]
-fn declared_docs_search_reports_a_gap_when_context7_has_no_consumable_source() {
+fn declared_docs_search_filters_invalid_libraries_before_applying_the_limit() {
     let main = Fixture::start(
         200,
         "text/event-stream",
@@ -750,25 +765,15 @@ fn declared_docs_search_reports_a_gap_when_context7_has_no_consumable_source() {
         Response::new(
             200,
             "application/json",
-            r#"{"jsonrpc":"2.0","id":2,"result":{"structuredContent":{"results":[{"id":"/rust-lang/rust","title":"Rust","description":"Rust docs"}]},"content":[]}}"#,
-        ),
-        Response::new(
-            200,
-            "application/json",
-            r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{}}}"#,
-        )
-        .with_header("mcp-session-id", "docs-session"),
-        Response::new(202, "application/json", ""),
-        Response::new(
-            200,
-            "application/json",
-            r#"{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"Ownership docs without a source URL"}]}}"#,
+            r#"{"jsonrpc":"2.0","id":2,"result":{"structuredContent":{"results":[{"title":"Invalid","description":"Missing library id"},{"id":"/rust-lang/rust","title":"Rust","description":"Rust docs","totalSnippets":1234,"trustScore":9.8,"benchmarkScore":91,"stars":100000,"versions":["1.85","1.84"]}]},"content":[]}}"#,
         ),
     ]);
+    let exa = Fixture::start_canary();
     let config = format!(
-        "{}\n[providers.context7]\nurl = {:?}\nkeys = [\"context7-key\"]\ntimeout = 30\n\n[capabilities.docs_search]\norder = [\"context7\"]\n",
+        "{}\n[providers.context7]\nurl = {:?}\nkeys = [\"context7-key\"]\ntimeout = 30\n\n[providers.exa]\nurl = {:?}\nkeys = [\"exa-key\"]\ntimeout = 30\n\n[capabilities.docs_search]\norder = [\"context7\", \"exa\"]\n",
         search_config(&main.url, false),
-        context7.url
+        context7.url,
+        exa.url,
     );
     let environment = RunEnvironment::new(&config);
 
@@ -784,31 +789,100 @@ fn declared_docs_search_reports_a_gap_when_context7_has_no_consumable_source() {
     assert_eq!(
         (
             output.status.code(),
-            payload.get("extra_sources").is_none(),
+            &payload["extra_sources"],
             &payload["capability_gaps"],
             payload["provider_attempts"].as_array().map(Vec::len),
         ),
         (
             Some(0),
-            true,
             &serde_json::json!([{
+                "provider": "context7",
                 "capability": "docs_search",
-                "reason": "all_attempts_failed",
-                "providers_skipped": []
+                "title": "Rust",
+                "url": null,
+                "summary": "Rust docs",
+                "provider_data": {
+                    "library_id": "/rust-lang/rust",
+                    "total_snippets": 1234,
+                    "trust_score": 9.8,
+                    "benchmark_score": 91.0,
+                    "stars": 100_000,
+                    "versions": ["1.85", "1.84"]
+                }
             }]),
-            Some(3),
+            &serde_json::json!([]),
+            Some(2),
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     main.finish();
     let requests = context7.finish_all();
+    assert_eq!(requests.len(), 3);
     assert!(requests[2].contains(r#""name":"resolve-library-id""#));
-    assert!(requests[5].contains(r#""name":"query-docs""#));
+    assert!(exa.finish_all().is_empty());
 }
 
 #[test]
-fn declared_docs_search_falls_back_after_context7_returns_text_without_a_source() {
+fn declared_docs_search_normalizes_a_text_context7_library_candidate() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let context7 = Fixture::start_sequence(vec![
+        Response::json(
+            200,
+            r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{}}}"#,
+        )
+        .with_session("text-library-session"),
+        Response::json(202, ""),
+        Response::json(
+            200,
+            r#"{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"- Title: Tokio\n- Context7-compatible library ID: /tokio-rs/tokio\n- Description: Async runtime\n- Code Snippets: 1,234\n- Trust Score: 9.7\n- Benchmark Score: 91\n- Stars: 28000\n- Versions: 1.47, 1.46"}]}}"#,
+        ),
+    ]);
+    let config = format!(
+        "{}\n[providers.context7]\nurl = {:?}\nkeys = [\"context7-key\"]\ntimeout = 30\n\n[capabilities.docs_search]\norder = [\"context7\"]\n",
+        search_config(&main.url, false),
+        context7.url
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&["search", "Tokio runtime", "--capabilities", "docs_search"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (output.status.code(), &payload["extra_sources"]),
+        (
+            Some(0),
+            &serde_json::json!([{
+                "provider": "context7",
+                "capability": "docs_search",
+                "title": "Tokio",
+                "url": null,
+                "summary": "Async runtime",
+                "provider_data": {
+                    "library_id": "/tokio-rs/tokio",
+                    "total_snippets": 1234,
+                    "trust_score": 9.7,
+                    "benchmark_score": 91.0,
+                    "stars": 28000,
+                    "versions": ["1.47", "1.46"]
+                }
+            }]),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    main.finish();
+    let requests = context7.finish_all();
+    assert_eq!(requests.len(), 3);
+    assert!(requests[2].contains(r#""name":"resolve-library-id""#));
+}
+
+#[test]
+fn declared_docs_search_falls_back_to_exa_when_context7_lacks_a_library_id() {
     let main = Fixture::start(
         200,
         "text/event-stream",
@@ -823,23 +897,13 @@ fn declared_docs_search_falls_back_after_context7_returns_text_without_a_source(
         Response::json(202, ""),
         Response::json(
             200,
-            r#"{"jsonrpc":"2.0","id":2,"result":{"structuredContent":{"results":[{"id":"/rust-lang/rust","title":"Rust"}]},"content":[]}}"#,
-        ),
-        Response::json(
-            200,
-            r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{},"serverInfo":{"name":"context7","version":"1"}}}"#,
-        )
-        .with_session("docs-session"),
-        Response::json(202, ""),
-        Response::json(
-            200,
-            r#"{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"Readable documentation without a source URL"}]}}"#,
+            r#"{"jsonrpc":"2.0","id":2,"result":{"structuredContent":{"results":[{"title":"Rust","description":"Missing identity"}]},"content":[]}}"#,
         ),
     ]);
     let exa = Fixture::start(
         200,
         "application/json",
-        r#"{"results":[{"title":"Rust ownership","url":"https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html","publishedDate":"2026-08-06","author":"Rust Project","highlights":["Ownership summary","Secondary detail"]}]}"#,
+        r#"{"requestId":"wrapper-must-not-leak","results":[{"id":"exa-result-id","title":"Rust ownership","url":"https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html","publishedDate":"2026-08-06","author":"Rust Project","text":"Full body must not leak","highlights":["Ownership summary","Secondary detail"],"image":"https://example.test/image.png","favicon":"https://example.test/favicon.ico","unknownField":"must not leak"}]}"#,
     );
     let config = format!(
         "{}\n[providers.context7]\nurl = {:?}\nkeys = [\"context7-key\"]\ntimeout = 30\n\n[providers.exa]\nurl = {:?}\nkeys = [\"exa-key\"]\ntimeout = 30\n\n[capabilities.docs_search]\norder = [\"context7\", \"exa\"]\n",
@@ -874,14 +938,21 @@ fn declared_docs_search_falls_back_after_context7_returns_text_without_a_source(
         (
             Some(0),
             &serde_json::json!([{
-                "url": "https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html",
-                "title": "Rust ownership",
                 "provider": "exa",
+                "capability": "docs_search",
+                "title": "Rust ownership",
+                "url": "https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html",
                 "summary": "Ownership summary",
-                "published_date": "2026-08-06",
-                "author": "Rust Project"
+                "provider_data": {
+                    "id": "exa-result-id",
+                    "highlights": ["Ownership summary", "Secondary detail"],
+                    "published_date": "2026-08-06",
+                    "author": "Rust Project",
+                    "image": "https://example.test/image.png",
+                    "favicon": "https://example.test/favicon.ico"
+                }
             }]),
-            vec!["context7", "context7", "exa"],
+            vec!["context7", "exa"],
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
@@ -889,10 +960,89 @@ fn declared_docs_search_falls_back_after_context7_returns_text_without_a_source(
     main.finish();
     context7.finish_all();
     let exa_request = exa.finish();
+    assert!(exa_request.contains(r#""type":"auto""#), "{exa_request}");
+    assert!(exa_request.contains(r#""text":false"#), "{exa_request}");
     assert!(
         exa_request.contains(r#""highlights":true"#),
         "{exa_request}"
     );
+    assert!(!exa_request.contains("useAutoprompt"), "{exa_request}");
+}
+
+#[test]
+fn declared_docs_search_falls_back_from_an_exa_candidate_without_an_http_url() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let exa = Fixture::start(
+        200,
+        "application/json",
+        r#"{"results":[{"title":"Invalid","url":"exa:result-id"}]}"#,
+    );
+    let context7 = Fixture::start_sequence(vec![
+        Response::json(
+            200,
+            r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{}}}"#,
+        )
+        .with_session("fallback-library-session"),
+        Response::json(202, ""),
+        Response::json(
+            200,
+            r#"{"jsonrpc":"2.0","id":2,"result":{"structuredContent":{"results":[{"id":"/tokio-rs/tokio","title":"Tokio","description":"Async runtime"}]},"content":[]}}"#,
+        ),
+    ]);
+    let config = format!(
+        "{}\n[providers.exa]\nurl = {:?}\nkeys = [\"exa-key\"]\ntimeout = 30\n\n[providers.context7]\nurl = {:?}\nkeys = [\"context7-key\"]\ntimeout = 30\n\n[capabilities.docs_search]\norder = [\"exa\", \"context7\"]\n",
+        search_config(&main.url, false),
+        exa.url,
+        context7.url,
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Tokio runtime",
+        "--capabilities",
+        "docs_search",
+        "--verbose",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let docs_attempt_providers = payload["provider_attempts"]
+        .as_array()
+        .expect("provider attempts")
+        .iter()
+        .filter(|attempt| attempt["seam"] == "docs_search")
+        .map(|attempt| attempt["provider"].as_str().expect("attempt provider"))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["extra_sources"],
+            docs_attempt_providers,
+        ),
+        (
+            Some(0),
+            &serde_json::json!([{
+                "provider": "context7",
+                "capability": "docs_search",
+                "title": "Tokio",
+                "url": null,
+                "summary": "Async runtime",
+                "provider_data": {
+                    "library_id": "/tokio-rs/tokio"
+                }
+            }]),
+            vec!["exa", "context7"],
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    main.finish();
+    exa.finish();
+    context7.finish_all();
 }
 
 #[test]
@@ -1183,7 +1333,7 @@ fn concurrent_web_fetch_rate_limits_rotate_once_per_branch_with_a_bounded_burst(
 }
 
 #[test]
-fn declared_vertical_search_keeps_url_results_only_in_vertical_results() {
+fn declared_vertical_search_uses_the_unified_candidate_envelope() {
     let main = Fixture::start(
         200,
         "text/event-stream",
@@ -1228,21 +1378,35 @@ fn declared_vertical_search_keeps_url_results_only_in_vertical_results() {
     assert_eq!(
         (
             output.status.code(),
-            &payload["vertical_results"][0]["url"],
-            payload.get("extra_sources"),
+            &payload["extra_sources"],
+            payload.get("vertical_results"),
             payload["sources"].as_array().map(Vec::len),
             &payload["capability_gaps"],
-            &journal["result"]["vertical_results"],
+            journal["result"].get("vertical_results"),
             &journal["result"]["extra_sources"],
         ),
         (
             Some(0),
-            &Value::String("https://example.test/paper".into()),
+            &serde_json::json!([{
+                "provider": "anysearch",
+                "capability": "vertical_search",
+                "title": "Academic result",
+                "url": "https://example.test/paper",
+                "summary": "Paper summary",
+                "provider_data": {}
+            }]),
             None,
             Some(1),
             &serde_json::json!([]),
-            &payload["vertical_results"],
-            &serde_json::json!([]),
+            None,
+            &serde_json::json!([{
+                "provider": "anysearch",
+                "capability": "vertical_search",
+                "title": "Academic result",
+                "url": "https://example.test/paper",
+                "summary": "Paper summary",
+                "provider_data": {}
+            }]),
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
@@ -1255,7 +1419,7 @@ fn declared_vertical_search_keeps_url_results_only_in_vertical_results() {
 }
 
 #[test]
-fn search_markdown_renders_vertical_results_without_extra_sources() {
+fn search_markdown_renders_vertical_candidates_as_extra_sources() {
     let main = Fixture::start(
         200,
         "text/event-stream",
@@ -1293,12 +1457,14 @@ fn search_markdown_renders_vertical_results_without_extra_sources() {
     let markdown = String::from_utf8(output.stdout).expect("UTF-8 markdown");
 
     assert_eq!(output.status.code(), Some(0));
-    assert!(markdown.contains("## Vertical Results"), "{markdown}");
+    assert!(markdown.contains("## Extra Sources"), "{markdown}");
     assert!(
-        markdown.contains("[Academic result](https://example.test/paper) — Paper summary"),
+        markdown.contains(
+            "[Academic result](https://example.test/paper) — anysearch\n\n  Paper summary"
+        ),
         "{markdown}"
     );
-    assert!(!markdown.contains("## Extra Sources"), "{markdown}");
+    assert!(!markdown.contains("## Vertical Results"), "{markdown}");
     main.finish();
     anysearch.finish_all();
 }
@@ -1349,14 +1515,14 @@ fn combined_declaration_executes_only_declared_seams_in_vocabulary_order() {
             payload.get("capabilities"),
             seams,
             payload.get("validation_results"),
-            &payload["vertical_results"],
+            payload.get("vertical_results"),
         ),
         (
             Some(0),
             None,
             vec!["main_search", "docs_search", "web_search"],
             None,
-            &Value::Null,
+            None,
         )
     );
     main.finish();
@@ -1365,7 +1531,7 @@ fn combined_declaration_executes_only_declared_seams_in_vocabulary_order() {
 }
 
 #[test]
-fn supplemental_candidate_without_title_omits_json_title() {
+fn supplemental_candidate_without_title_serializes_a_null_title() {
     let main = Fixture::start(
         200,
         "text/event-stream",
@@ -1396,11 +1562,12 @@ fn supplemental_candidate_without_title_omits_json_title() {
         (
             Some(0),
             &serde_json::json!([{
-                "url": "https://example.test/untitled",
                 "provider": "firecrawl",
+                "capability": "web_search",
+                "title": null,
+                "url": "https://example.test/untitled",
                 "summary": "Firecrawl summary",
-                "published_date": "2026-08-06",
-                "author": "Reporter"
+                "provider_data": {}
             }]),
         ),
         "stderr: {}",

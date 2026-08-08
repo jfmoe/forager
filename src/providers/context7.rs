@@ -200,11 +200,7 @@ impl Context7Operation {
                 DecodedOutcome::Libraries(results)
             }
             Self::Docs(_) => {
-                let content = data
-                    .get("content")
-                    .and_then(Value::as_str)
-                    .unwrap_or(&result.text)
-                    .to_owned();
+                let content = docs_content(&data, &result.text);
                 DecodedOutcome::Docs(content)
             }
         })
@@ -243,6 +239,19 @@ impl Context7Operation {
             _ => unreachable!("operation and decoded outcome always have matching variants"),
         }
     }
+}
+
+fn docs_content(data: &Value, text: &str) -> String {
+    if let Some(content) = data.get("content").and_then(Value::as_str) {
+        return content.to_owned();
+    }
+    if !text.is_empty() {
+        return text.to_owned();
+    }
+    data.as_object()
+        .filter(|fields| !fields.is_empty())
+        .and_then(|_| serde_json::to_string(data).ok())
+        .unwrap_or_default()
 }
 
 impl From<McpError> for Context7Failure {
@@ -314,15 +323,28 @@ fn library_results_from_text(text: &str) -> Vec<LibraryCandidate> {
                     "Code Snippets" => "totalSnippets",
                     "Trust Score" => "trustScore",
                     "Benchmark Score" => "benchmarkScore",
+                    "Stars" => "stars",
+                    "Versions" => "versions",
                     _ => continue,
                 };
                 let value = value.trim();
-                let parsed = value
-                    .replace(',', "")
-                    .parse::<u64>()
-                    .map(Value::from)
-                    .or_else(|_| value.parse::<f64>().map(Value::from))
-                    .unwrap_or_else(|_| Value::String(value.to_owned()));
+                let parsed = if key == "versions" {
+                    Value::Array(
+                        value
+                            .split(',')
+                            .map(str::trim)
+                            .filter(|version| !version.is_empty())
+                            .map(|version| Value::String(version.to_owned()))
+                            .collect(),
+                    )
+                } else {
+                    value
+                        .replace(',', "")
+                        .parse::<u64>()
+                        .map(Value::from)
+                        .or_else(|_| value.parse::<f64>().map(Value::from))
+                        .unwrap_or_else(|_| Value::String(value.to_owned()))
+                };
                 fields.insert(key.to_owned(), parsed);
             }
             fields
@@ -343,6 +365,7 @@ fn normalize_library(item: &Map<String, Value>) -> LibraryCandidate {
         benchmark_score: number_field(item, &["benchmarkScore"]),
         total_snippets: integer_field(item, &["totalSnippets"]),
         stars: integer_field(item, &["stars"]),
+        versions: string_list_field(item, &["versions"]),
         provider: "context7",
     }
 }
@@ -365,6 +388,17 @@ fn integer_field(item: &Map<String, Value>, names: &[&str]) -> Option<u64> {
     names
         .iter()
         .find_map(|name| item.get(*name).and_then(Value::as_u64))
+}
+
+fn string_list_field(item: &Map<String, Value>, names: &[&str]) -> Vec<String> {
+    names
+        .iter()
+        .find_map(|name| item.get(*name).and_then(Value::as_array))
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .map(ToOwned::to_owned)
+        .collect()
 }
 
 fn redirect_target(data: &Value, text: &str) -> Option<String> {

@@ -181,7 +181,6 @@ impl OpenAiCompatible {
                         answer,
                         sources,
                         extra_sources: Vec::new(),
-                        vertical_results: Vec::new(),
                         capabilities: Vec::new(),
                         capability_gaps: Vec::new(),
                         attempts,
@@ -648,6 +647,9 @@ fn normalize_citations(value: Option<&Value>) -> Vec<Source> {
                 author: None,
                 text: None,
                 highlights: Vec::new(),
+                id: None,
+                image: None,
+                favicon: None,
             })
         })
         .collect()

@@ -206,7 +206,6 @@ fn build_record(record: SearchRecord<'_>) -> Value {
                 "answer": outcome.answer,
                 "sources": outcome.sources,
                 "extra_sources": outcome.extra_sources,
-                "vertical_results": outcome.vertical_results,
                 "capabilities": outcome.capabilities,
                 "capability_gaps": outcome.capability_gaps,
             }),
