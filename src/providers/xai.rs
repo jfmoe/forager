@@ -11,9 +11,11 @@ use crate::net::{
     error_kind_for_status, read_response_body,
 };
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2};
-use crate::providers::shared::redacted_urls_message;
+use crate::providers::shared::{
+    normalize_main_search, redact_and_deduplicate_sources, redacted_urls_message,
+};
 use crate::providers::{MainSearchRequestKind, ProviderError};
-use crate::redact::{Secret, redact_url, redact_urls};
+use crate::redact::Secret;
 use crate::types::{AttemptErrorKind, Deadline, SearchOutcome, Source};
 
 #[derive(Clone, Debug)]
@@ -175,7 +177,15 @@ impl Xai {
                 redirected_library_id: None,
             });
         }
-        let outcome = self.completed_response(response).await?;
+        let (answer, sources) = self.completed_response(response).await?;
+        let outcome = if matches!(request_kind, MainSearchRequestKind::Search) {
+            normalize_main_search(&answer, sources, &self.credentials)?
+        } else {
+            (
+                answer,
+                redact_and_deduplicate_sources(sources, &self.credentials),
+            )
+        };
         Ok((status.as_u16(), outcome))
     }
 
@@ -229,7 +239,7 @@ impl Xai {
                         message: "xAI response.completed omitted response data".into(),
                         redirected_library_id: None,
                     })?;
-                    completed = Some(self.normalize_completed(response)?);
+                    completed = Some(Self::normalize_completed(response)?);
                 }
                 Some("response.failed" | "response.incomplete") => {
                     return Err(AttemptFailure {
@@ -253,13 +263,9 @@ impl Xai {
         })
     }
 
-    fn normalize_completed(
-        &self,
-        response: &Value,
-    ) -> Result<(String, Vec<Source>), AttemptFailure> {
+    fn normalize_completed(response: &Value) -> Result<(String, Vec<Source>), AttemptFailure> {
         let mut text_parts = Vec::new();
         let mut sources = Vec::new();
-        let mut seen = std::collections::HashSet::new();
         for content in response
             .get("output")
             .and_then(Value::as_array)
@@ -290,23 +296,19 @@ impl Xai {
                     .get("url")
                     .and_then(Value::as_str)
                     .filter(|url| url.starts_with("http://") || url.starts_with("https://"))
-                    .map(redact_url)
-                    .map(|url| self.credentials.redact(&url))
                 else {
                     continue;
                 };
-                if !seen.insert(url.clone()) {
-                    continue;
-                }
                 let title = annotation
                     .get("title")
                     .and_then(Value::as_str)
                     .map(str::trim)
                     .filter(|title| !title.is_empty())
-                    .map_or_else(String::new, |title| self.redacted_text(title));
+                    .unwrap_or_default()
+                    .to_owned();
                 sources.push(Source {
                     title,
-                    url,
+                    url: url.to_owned(),
                     published_date: None,
                     author: None,
                     text: None,
@@ -327,10 +329,6 @@ impl Xai {
             });
         }
         Ok((answer, sources))
-    }
-
-    fn redacted_text(&self, value: &str) -> String {
-        self.credentials.redact(&redact_urls(value))
     }
 }
 

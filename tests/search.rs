@@ -2203,18 +2203,29 @@ fn supplemental_search_redacts_urls_in_non_success_responses() {
 
 #[test]
 fn search_uses_the_completed_xai_response_and_deduplicates_sources() {
+    let answer = concat!(
+        "<think>Hidden [[9]](https://hidden.example/path)</think>\n",
+        "Final answer [[1]](https://example.test/inline)\n\n",
+        "Sources:\n",
+        "- [Tail](https://example.test/tail)"
+    );
     let fixture = Fixture::start(
         200,
         "text/event-stream",
-        concat!(
-            "event: response.output_text.delta\n",
-            "data: {\"type\":\"response.output_text.delta\",\"delta\":\"partial\"}\n\n",
-            "event: response.completed\n",
-            "data: {\"type\":\"response.completed\",\"response\":{\"output\":[{\"content\":[",
-            "{\"type\":\"output_text\",\"text\":\"Final answer\",\"annotations\":[",
-            "{\"type\":\"url_citation\",\"url\":\"https://example.test/a?token=secret#fragment\",\"title\":\"Source A\"},",
-            "{\"type\":\"url_citation\",\"url\":\"https://example.test/a?token=secret\",\"title\":\"Duplicate\"}",
-            "]}]}]}}\n\n"
+        &format!(
+            "data: {}\n\n",
+            serde_json::json!({
+                "type": "response.completed",
+                "response": {"output": [{"content": [{
+                    "type": "output_text",
+                    "text": answer,
+                    "annotations": [{
+                        "type": "url_citation",
+                        "url": "https://example.test/a?token=secret#fragment",
+                        "title": "Source A"
+                    }]
+                }]}]}
+            })
         ),
     );
     let environment = RunEnvironment::new(&search_config(&fixture.url, false));
@@ -2231,17 +2242,22 @@ fn search_uses_the_completed_xai_response_and_deduplicates_sources() {
         ),
         (
             Some(0),
-            &Value::String("Final answer".into()),
-            &serde_json::json!([{
-                "title": "Source A",
-                "url": "https://example.test/a?token=********"
-            }]),
+            &Value::String("Final answer [[1]](https://example.test/inline)".into()),
+            &serde_json::json!([
+                {
+                    "title": "Source A",
+                    "url": "https://example.test/a?token=********"
+                },
+                {"url": "https://example.test/inline"},
+                {"title": "Tail", "url": "https://example.test/tail"}
+            ]),
             &Value::String("disabled".into()),
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(payload.get("provider_attempts").is_none());
+    assert!(!payload.to_string().contains("hidden.example"));
 
     let request = fixture.finish();
     assert!(request.starts_with("POST /v1/responses "), "{request}");
@@ -2257,6 +2273,124 @@ fn search_uses_the_completed_xai_response_and_deduplicates_sources() {
     );
     assert!(request.contains("[Current Time Context]"), "{request}");
     assert!(request.contains("What changed?"), "{request}");
+}
+
+#[test]
+fn search_openai_stream_and_non_stream_share_completed_answer_normalization() {
+    let answer = concat!(
+        "<THINK>private</think>\n",
+        "Shared answer [[1]](https://example.test/inline)\n\n",
+        "References\n",
+        "- https://example.test/tail?token=one"
+    );
+    let citations = serde_json::json!([
+        {"url": "https://example.test/structured#fragment", "title": "Structured"},
+        {"url": "https://example.test/structured", "title": "Duplicate"}
+    ]);
+    let non_stream = serde_json::json!({
+        "choices": [{"message": {"content": answer, "citations": citations}}]
+    })
+    .to_string();
+    let stream = format!(
+        "data: {}\n\ndata: {}\n\n",
+        serde_json::json!({
+            "choices": [{"delta": {
+                "content": "<THI",
+                "citations": citations
+            }}]
+        }),
+        serde_json::json!({
+            "choices": [{
+                "delta": {"content": &answer[4..]},
+                "finish_reason": "stop"
+            }]
+        })
+    );
+    let openai = Fixture::start_sequence(vec![
+        Response::new(200, "application/json", &non_stream),
+        Response::new(200, "text/event-stream", &stream),
+    ]);
+    let config = main_fallback_config("http://127.0.0.1:9", &openai.url, false, &[], "auto", false)
+        .replace(
+            r#"backends = ["xai", "openai_compatible"]"#,
+            r#"backends = ["openai_compatible"]"#,
+        );
+    let environment = RunEnvironment::new(&config);
+
+    let non_stream_output = environment.run(&[
+        "search",
+        "Non-stream normalization",
+        "--capabilities",
+        "none",
+    ]);
+    let stream_output = environment.run_with_env(
+        &["search", "Stream normalization", "--capabilities", "none"],
+        &[("FORAGER_PROVIDERS__OPENAI_COMPATIBLE__STREAM", "true")],
+    );
+    let non_stream_payload: Value =
+        serde_json::from_slice(&non_stream_output.stdout).expect("parse non-stream JSON");
+    let stream_payload: Value =
+        serde_json::from_slice(&stream_output.stdout).expect("parse stream JSON");
+    let expected_sources = serde_json::json!([
+        {"title": "Structured", "url": "https://example.test/structured"},
+        {"url": "https://example.test/inline"},
+        {"url": "https://example.test/tail?token=********"}
+    ]);
+
+    assert_eq!(non_stream_output.status.code(), Some(0));
+    assert_eq!(stream_output.status.code(), Some(0));
+    for payload in [&non_stream_payload, &stream_payload] {
+        assert_eq!(
+            (&payload["answer"], &payload["sources"]),
+            (
+                &Value::String("Shared answer [[1]](https://example.test/inline)".into()),
+                &expected_sources,
+            )
+        );
+    }
+    assert_eq!(openai.finish_all().len(), 2);
+}
+
+#[test]
+fn search_falls_back_when_xai_normalization_removes_the_answer() {
+    let xai = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("<think>hidden-only</think>", "Hidden source"),
+    );
+    let openai = Fixture::start(
+        200,
+        "application/json",
+        r#"{"choices":[{"message":{"content":"Fallback answer"}}]}"#,
+    );
+    let environment = RunEnvironment::new(&main_fallback_config(
+        &xai.url,
+        &openai.url,
+        false,
+        &[],
+        "auto",
+        false,
+    ));
+
+    let output = environment.run(&["search", "Fallback", "--capabilities", "none"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["answer"],
+            &payload["sources"]
+        ),
+        (
+            Some(0),
+            &Value::String("Fallback answer".into()),
+            &serde_json::json!([]),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    xai.finish();
+    openai.finish();
 }
 
 #[test]
@@ -2293,11 +2427,13 @@ fn search_preserves_answer_content_while_redacting_sources() {
 
 #[test]
 fn search_default_json_moves_invocation_echoes_to_the_journal() {
-    let fixture = Fixture::start(
-        200,
-        "text/event-stream",
-        &completed_body("answer", "Primary"),
+    let answer = concat!(
+        "<think>hidden</think>\n",
+        "Focused answer [[1]](https://example.test/inline)\n\n",
+        "Sources:\n",
+        "- [Text source](https://example.test/text)"
     );
+    let fixture = Fixture::start(200, "text/event-stream", &completed_body(answer, "Primary"));
     let environment = RunEnvironment::new(&search_config(&fixture.url, true));
 
     let output = environment.run(&["search", "Focused stdout", "--capabilities", "none"]);
@@ -2314,6 +2450,10 @@ fn search_default_json_moves_invocation_echoes_to_the_journal() {
         (
             output.status.code(),
             keys,
+            &payload["answer"],
+            &payload["sources"],
+            &journal["result"]["answer"],
+            &journal["result"]["sources"],
             &journal["result"]["query"],
             &journal["execution"]["plan_summary"]["capabilities"],
             &journal["execution"]["provider_attempts"][0]["provider"],
@@ -2327,6 +2467,24 @@ fn search_default_json_moves_invocation_echoes_to_the_journal() {
                 "journal_ref",
                 "journal_status",
                 "sources",
+            ]),
+            &Value::String("Focused answer [[1]](https://example.test/inline)".into()),
+            &serde_json::json!([
+                {
+                    "title": "Primary",
+                    "url": "https://example.test/source?token=********"
+                },
+                {"url": "https://example.test/inline"},
+                {"title": "Text source", "url": "https://example.test/text"}
+            ]),
+            &Value::String("Focused answer [[1]](https://example.test/inline)".into()),
+            &serde_json::json!([
+                {
+                    "title": "Primary",
+                    "url": "https://example.test/source?token=********"
+                },
+                {"url": "https://example.test/inline"},
+                {"title": "Text source", "url": "https://example.test/text"}
             ]),
             &Value::String("Focused stdout".into()),
             &serde_json::json!([]),
@@ -2503,7 +2661,15 @@ fn search_openai_compatible_returns_no_partial_answer_when_responses_exceed_four
 
 #[test]
 fn search_formats_content_and_markdown_and_marks_json_tee_failures() {
-    let body = completed_body("Rendered answer", "Rendered source");
+    let body = completed_body(
+        concat!(
+            "<think>hidden</think>\n",
+            "Rendered answer\n\n",
+            "References:\n",
+            "- [Text source](https://example.test/text)"
+        ),
+        "Rendered source",
+    );
     let fixture = Fixture::start_sequence(vec![
         Response::new(200, "text/event-stream", &body),
         Response::new(200, "text/event-stream", &body),
@@ -2545,6 +2711,7 @@ fn search_formats_content_and_markdown_and_marks_json_tee_failures() {
 
     assert_eq!(markdown.status.code(), Some(0));
     assert!(String::from_utf8_lossy(&markdown.stdout).contains("## Primary Sources"));
+    assert!(String::from_utf8_lossy(&markdown.stdout).contains("[Text source]"));
     assert_eq!(
         fs::read(&markdown_tee).expect("read markdown tee"),
         markdown.stdout

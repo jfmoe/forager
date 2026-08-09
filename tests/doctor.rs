@@ -93,7 +93,7 @@ fn xai_deep_doctor_executes_one_responses_sse_probe() {
     let fixture = Fixture::start(
         200,
         "text/event-stream",
-        "data: {\"type\":\"response.completed\",\"response\":{\"output\":[{\"content\":[{\"type\":\"output_text\",\"text\":\"ok\",\"annotations\":[]}]}]}}\n\n",
+        "data: {\"type\":\"response.completed\",\"response\":{\"output\":[{\"content\":[{\"type\":\"output_text\",\"text\":\"<think>ok</think>\",\"annotations\":[]}]}]}}\n\n",
     );
     let environment = RunEnvironment::new(&format!(
         "[providers.xai]\nurl = {:?}\nkeys = [\"xai-key\"]\n",
@@ -119,12 +119,12 @@ fn openai_compatible_deep_doctor_validates_non_stream_and_stream_shapes() {
         Response::new(
             200,
             "application/json",
-            r#"{"choices":[{"message":{"content":"ok"}}]}"#,
+            r#"{"choices":[{"message":{"content":"<think>ok</think>"}}]}"#,
         ),
         Response::new(
             200,
             "text/event-stream",
-            "data: {\"choices\":[{\"delta\":{\"content\":\"ok\"}}]}\n\ndata: [DONE]\n\n",
+            "data: {\"choices\":[{\"delta\":{\"content\":\"<think>ok</think>\"}}]}\n\ndata: [DONE]\n\n",
         ),
     ]);
     let environment = RunEnvironment::new(&format!(

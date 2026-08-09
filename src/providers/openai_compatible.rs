@@ -15,10 +15,12 @@ use crate::net::{
     error_kind_for_status, read_response_body,
 };
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2};
-use crate::providers::shared::redacted_urls_message;
+use crate::providers::shared::{
+    normalize_main_search, redact_and_deduplicate_sources, redacted_urls_message,
+};
 use crate::providers::xai::SearchRequest;
 use crate::providers::{MainSearchRequestKind, ProviderError};
-use crate::redact::{Secret, redact_url, redact_urls};
+use crate::redact::Secret;
 use crate::types::{AttemptErrorKind, Deadline, SearchOutcome, Source};
 
 pub(crate) struct OpenAiCompatible {
@@ -423,10 +425,18 @@ impl OpenAiCompatible {
                 redirected_library_id: None,
             });
         }
-        let value = if stream {
+        let (answer, sources) = if stream {
             self.stream_response(response).await?
         } else {
             self.http_response(response).await?
+        };
+        let value = if matches!(request_kind, MainSearchRequestKind::Search) {
+            normalize_main_search(&answer, sources, &self.credentials)?
+        } else {
+            (
+                answer,
+                redact_and_deduplicate_sources(sources, &self.credentials),
+            )
         };
         Ok((status.as_u16(), value))
     }
@@ -460,7 +470,7 @@ impl OpenAiCompatible {
             ),
             redirected_library_id: None,
         })?;
-        self.normalize(&value, false)
+        Self::normalize(&value, false)
     }
 
     async fn stream_response(
@@ -530,17 +540,13 @@ impl OpenAiCompatible {
             redirected_library_id: None,
         })?;
         let completed = has_finish_reason(&value);
-        let (delta, event_sources) = self.normalize(&value, true)?;
+        let (delta, event_sources) = Self::normalize(&value, true)?;
         answer.push_str(&delta);
         merge_sources(sources, event_sources);
         Ok(completed)
     }
 
-    fn normalize(
-        &self,
-        value: &Value,
-        streaming: bool,
-    ) -> Result<(String, Vec<Source>), AttemptFailure> {
+    fn normalize(value: &Value, streaming: bool) -> Result<(String, Vec<Source>), AttemptFailure> {
         let choice = value
             .get("choices")
             .and_then(Value::as_array)
@@ -564,7 +570,7 @@ impl OpenAiCompatible {
                 redirected_library_id: None,
             });
         }
-        Ok((content.to_owned(), self.redact_sources(sources)))
+        Ok((content.to_owned(), sources))
     }
 
     fn request_failure(&self, error: &reqwest::Error) -> AttemptFailure {
@@ -574,25 +580,6 @@ impl OpenAiCompatible {
             message: redacted_urls_message(&error.to_string(), &self.credentials),
             redirected_library_id: None,
         }
-    }
-
-    fn redact_sources(&self, sources: Vec<Source>) -> Vec<Source> {
-        let mut redacted = Vec::new();
-        for mut source in sources {
-            source.url = self.credentials.redact(&redact_url(&source.url));
-            source.title = self.redacted_text(&source.title);
-            if !redacted
-                .iter()
-                .any(|existing: &Source| existing.url == source.url)
-            {
-                redacted.push(source);
-            }
-        }
-        redacted
-    }
-
-    fn redacted_text(&self, value: &str) -> String {
-        self.credentials.redact(&redact_urls(value))
     }
 }
 
