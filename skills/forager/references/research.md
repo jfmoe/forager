@@ -31,10 +31,10 @@ readable.
 
 ## Synthesize from the evidence index
 
-Use the Research Evidence Index as a directory, not as an answer. Read only the necessary bodies
-from `evidence_items[].path`, then synthesize each supported claim with `[eN](URL)`, where `eN`
-matches the evidence item's `id`. Citation Binding expresses attribution, not semantic
-verification; check that the cited body supports the claim.
+Use the Research Evidence Index as a directory, not as an answer. Read the necessary body from
+every cited `evidence_items[].path` and check that it supports the claim. Cite URL evidence as
+`[eN](URL)` and documentation evidence as `[eN]` when it has no URL, where `eN` matches the
+evidence item's `id`. Citation Binding expresses attribution, not semantic verification.
 
 Disclose every unresolved `gap_check` and `capability_gaps` entry and its effect on coverage.
 
@@ -45,5 +45,7 @@ candidate. Keep this supplement loop in the agent layer and re-run neither `fora
 main search.
 
 Complete research when every key claim is supported by fetched evidence or represented by a
-disclosed gap or unverified candidate. On terminal failure, preserve and consume any reported
-evidence paths and gaps before using Diagnose or configure in `SKILL.md`.
+disclosed gap or unverified candidate. On terminal failure, read the Research Recovery Manifest
+when `summary_path` is not null, then consume its readable paths, completed evidence, and gaps. If
+the manifest is unavailable, consume the other reported readable paths and gaps before using
+Diagnose or configure in `SKILL.md`.

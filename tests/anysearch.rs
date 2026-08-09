@@ -264,13 +264,17 @@ fn anysearch_domains_requires_a_parent_domain_before_network() {
     let output = run(&fixture, &["anysearch", "domains"], &["anysearch-key"]);
     fixture.finish_all();
 
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
     assert_eq!(
         (
             output.status.code(),
             output.stdout.is_empty(),
-            String::from_utf8_lossy(&output.stderr).contains("parent DOMAIN"),
+            stderr.contains("required arguments"),
+            stderr.contains("<DOMAIN>"),
         ),
-        (Some(2), true, true)
+        (Some(2), true, true, true),
+        "stderr: {stderr}"
     );
 }
 

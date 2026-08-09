@@ -8,21 +8,22 @@ sufficient.
 forager search "QUERY" --capabilities CAPABILITIES --format json
 ```
 
-Set `--extra-sources` only to control supplemental breadth. A selected supplemental capability has
-an effective minimum of one result, so `0` and `1` currently match; use `1` to `3` for normal
-coverage and increase it only for an explicitly broad request.
+Set `--extra-sources` only to control supplemental breadth. Its public range is `0..=20`: `0` uses
+the selected branch's local default, where Web Search uses 3 and Documentation Search and Vertical
+Search use 1. An explicit value from `1..=20` is the exact target.
 
 ## Consume the result
 
 - `answer` is the main-search answer.
 - `sources` contains only Primary Search Sources attributed to the main answer.
-- `extra_sources` contains only Supplemental Search Candidates. Use each candidate's provider,
-  optional title, and provider-native summary to select a small number of URLs for claim-level
-  evidence. Provider-native summaries remain complete; only a preview derived from a full
-  search-side Web Fetch uses the 300-character rule. A candidate becomes evidence after its content
-  is fetched.
-- `vertical_results` contains complete Vertical Discovery results. Its records stay out of
-  `sources` and `extra_sources`, including records with URLs.
+- `extra_sources` contains every non-primary Search Candidate, including Vertical Discovery
+  results. Each candidate has stable `provider`, `capability`, `title`, `url`, `summary`, and
+  `provider_data` fields; `title`, `url`, and `summary` can be null, while `provider_data` carries
+  provider-specific selection data. A provider-native summary is not verified evidence.
+- Fetch a candidate with an HTTP(S) `url` before using it as evidence. A Context7 Documentation
+  Candidate instead carries a typed library locator in `provider_data`; consume it through
+  Documentation Search or the Research Evidence Pipeline, never by fabricating a URL or passing it
+  to Web Fetch.
 - Disclose every `capability_gaps` entry and its effect on coverage.
 
 For high-risk, time-sensitive, or source-backed claims, fetch the key URLs and limit the answer to

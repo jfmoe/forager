@@ -85,6 +85,39 @@ fn ordinary_search_has_one_bounded_recovery_chain() {
 }
 
 #[test]
+fn ordinary_search_documents_branch_local_breadth_and_unified_candidates() {
+    let ordinary = normalized_file("skills/forager/references/ordinary-search.md");
+
+    for required_guidance in [
+        "`0..=20`",
+        "Web Search uses 3",
+        "Documentation Search and Vertical Search use 1",
+        "exact target",
+        "`provider`",
+        "`capability`",
+        "`title`",
+        "`url`",
+        "`summary`",
+        "`provider_data`",
+        "typed library locator",
+        "Documentation Search or the Research Evidence Pipeline",
+        "not verified evidence",
+    ] {
+        assert!(
+            ordinary.contains(required_guidance),
+            "ordinary-search candidate contract is missing `{required_guidance}`"
+        );
+    }
+
+    for stale_guidance in ["`vertical_results`", "`0` and `1` currently match"] {
+        assert!(
+            !ordinary.contains(stale_guidance),
+            "ordinary-search reference retains stale guidance `{stale_guidance}`"
+        );
+    }
+}
+
+#[test]
 fn research_orients_before_planning_and_consumes_evidence_by_path() {
     let research = normalized_file("skills/forager/references/research.md");
 
@@ -108,6 +141,38 @@ fn research_orients_before_planning_and_consumes_evidence_by_path() {
 }
 
 #[test]
+fn research_documents_both_citation_forms_and_failure_recovery() {
+    let research = normalized_file("skills/forager/references/research.md");
+
+    for required_guidance in [
+        "URL evidence as `[eN](URL)`",
+        "documentation evidence as `[eN]`",
+        "`evidence_items[].path`",
+        "Research Recovery Manifest",
+        "`summary_path`",
+        "when `summary_path` is not null",
+        "completed evidence",
+        "gaps",
+        "Diagnose or configure",
+    ] {
+        assert!(
+            research.contains(required_guidance),
+            "research recovery contract is missing `{required_guidance}`"
+        );
+    }
+
+    for stale_guidance in [
+        "synthesize each supported claim with `[eN](URL)`",
+        "every supported claim with `[eN](URL)`",
+    ] {
+        assert!(
+            !research.contains(stale_guidance),
+            "research reference retains URL-only evidence guidance `{stale_guidance}`"
+        );
+    }
+}
+
+#[test]
 fn cli_reference_documents_the_research_evidence_index() {
     let cli = normalized_file("skills/forager/references/cli.md");
 
@@ -125,6 +190,54 @@ fn cli_reference_documents_the_research_evidence_index() {
         assert!(
             cli.contains(required_guidance),
             "CLI research reference is missing `{required_guidance}`"
+        );
+    }
+}
+
+#[test]
+fn cli_reference_matches_the_final_public_contract() {
+    let cli = normalized_file("skills/forager/references/cli.md");
+
+    for required_guidance in [
+        "`0..=20`",
+        "Web Search uses 3",
+        "Documentation Search and Vertical Search use 1",
+        "`provider`",
+        "`capability`",
+        "`provider_data`",
+        "Research Recovery Manifest",
+        "`summary_path`",
+        "configuration, stdin, or plan preflight failures",
+        "parseable error object on stdout",
+        "`log.level=debug`",
+        "attempts summary",
+        "`trace` adds safe fields for each attempt",
+        "configured provider",
+        "unreachable",
+        "exit code 4",
+        "`10..=150`",
+        "`1..=5`",
+        "`1..=500`",
+        "Required by the parser",
+    ] {
+        assert!(
+            cli.contains(required_guidance),
+            "CLI final contract is missing `{required_guidance}`"
+        );
+    }
+
+    for stale_guidance in [
+        "--validation",
+        "search.validation",
+        "`vertical_results`",
+        "`0` and `1` currently produce the same target",
+        "without a JSON payload",
+        "Required at runtime",
+        "parser currently displays `[DOMAIN]`",
+    ] {
+        assert!(
+            !cli.contains(stale_guidance),
+            "CLI reference retains stale guidance `{stale_guidance}`"
         );
     }
 }

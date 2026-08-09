@@ -38,6 +38,14 @@ Network commands that expose these options share the following behavior:
 | `--output FILE` | Write the same rendered result to `FILE` and still emit it to stdout. |
 | `--verbose` | Include full provider attempts inline. Without it, `search` and `research` retain full attempts in their journal; provider-direct commands do not create a result journal. |
 
+After argument parsing selects `--format json`, `search`, `fetch`, and `research` return a single
+parseable error object on stdout for configuration, stdin, or plan preflight failures. Clap parser
+errors and panics keep their existing channels, as do failures in non-JSON formats.
+
+`log.level=debug` enables an optional terminal projection with one bounded attempts summary;
+`trace` adds safe fields for each attempt. This projection never changes stdout or replaces
+`--verbose` and journal attempts.
+
 `content` output is available only for `search`, `research`, `fetch`, and `context7 docs`.
 All other commands with `--format` accept only `json` and `markdown`. `smoke` emits JSON and does
 not expose `--format`.
@@ -48,9 +56,8 @@ not expose `--format`.
 
 ```console
 forager search QUERY [--capabilities CSV|none] [--model ID] [--extra-sources N]
-                     [--validation fast|balanced|strict] [--fallback auto|off]
-                     [--timeout SECONDS] [--format json|markdown|content]
-                     [--output FILE] [--verbose]
+                     [--fallback auto|off] [--timeout SECONDS]
+                     [--format json|markdown|content] [--output FILE] [--verbose]
 ```
 
 | Argument or option | Meaning | Default |
@@ -58,23 +65,23 @@ forager search QUERY [--capabilities CSV|none] [--model ID] [--extra-sources N]
 | `QUERY` | Search request passed to the main-search pipeline. | Required |
 | `--capabilities CSV\|none` | Authoritative supplemental capability set. Use canonical comma-separated IDs, or `none` for main search only. Omit it to use classifier routing, with the configured default Web route when no classifier is available. | Omitted |
 | `--model ID` | Override the configured main-search model for this invocation. | Configured model |
-| `--extra-sources N` | Set the supplemental result target. When a supplemental capability runs, the engine applies an effective minimum of 1, so `0` and `1` currently produce the same target. | `0` |
-| `--validation LEVEL` | Parse `fast`, `balanced`, or `strict`. In the current 0.1 runtime this per-command value is not wired into execution, so the three values behave identically. | `balanced` |
+| `--extra-sources N` | Set a target in `0..=20`. At `0`, Web Search uses 3 while Documentation Search and Vertical Search use 1; an explicit `1..=20` is the exact target. | `0` |
 | `--fallback MODE` | Use `auto` or `off` for provider/model fallback. | `search.fallback`, normally `auto` |
 | `--timeout SECONDS` | Set the whole-pipeline deadline. | `180` |
 | `--format FORMAT` | Use `json`, `markdown`, or `content`. | `json` |
 | `--output FILE` | Tee the rendered result to a file. | Omitted |
 | `--verbose` | Include full provider attempts inline. | Off |
 
-Default search JSON keeps `answer`, Primary Search Sources in `sources`, Supplemental Search
-Candidates in `extra_sources`, optional structured results, capability gaps, and the journal
-reference. Supplemental candidates include `url` and `provider`, plus provider-native `title`,
-`summary`, `published_date`, or `author` when available. Invocation echoes and diagnostics are in
-the Search Result Journal; provider-native summaries are not truncated. Search-side Web Fetch
-successes use the actual fetch provider and a 300-character Normalized Fetch Content preview as
-their candidate summary. Vertical Discovery results remain only in `vertical_results`, including
-results with URLs. `--verbose` adds provider attempts inline. Content format emits only the main
-answer. Markdown labels the two source roles as `Primary Sources` and `Extra Sources`.
+Default search JSON keeps `answer`, Primary Search Sources in `sources`, every non-primary Search
+Candidate in `extra_sources`, capability gaps, and the journal reference. Each candidate has
+required `provider`, `capability`, and provider-specific `provider_data`, plus nullable `title`,
+`url`, and `summary`. Provider-native summaries are not verified evidence. Candidates with an
+HTTP(S) URL can enter Web Fetch; a Context7 candidate carries a typed library locator in
+`provider_data` for Documentation Search or the Research Evidence Pipeline and has no fabricated
+URL. Search-side Web Fetch successes use the actual fetch provider and a 300-character Normalized
+Fetch Content preview as their candidate summary. `--verbose` adds provider attempts inline.
+Content format emits only the main answer. Markdown labels the two source roles as `Primary
+Sources` and `Extra Sources`.
 
 ### `research`
 
@@ -113,8 +120,10 @@ and metadata plus a readable `evidence_items[].path`; fetched body content lives
 than in stdout. The top level contains `evidence_dir`, `plan_path`, `unconsumed_candidates` as a
 count and path, `gap_check`, `capability_gaps`, `synthesis_policy: "fetch_before_claim"`, and the
 `journal_ref`/`journal_status` pair. Markdown and content render the same index and unresolved gaps.
-Successful and failed runs preserve the artifacts and return their readable paths; `--verbose`
-adds provider attempts inline.
+On success, the Evidence Index locates these artifacts. On terminal failure, a non-null
+`summary_path` points to the readable Research Recovery Manifest containing completed evidence,
+gaps, and artifact paths. If it is null, use the other reported paths and gaps before diagnosis.
+`--verbose` adds provider attempts inline.
 
 ## Direct operations
 
@@ -145,10 +154,10 @@ forager map URL [--instructions TEXT] [--max-depth N] [--max-breadth N]
 | --- | --- | --- |
 | `URL` | Site root or page from which mapping starts. | Required |
 | `--instructions TEXT` | Tell the mapper which pages or structure to prioritize. | Empty |
-| `--max-depth N` | Set a positive traversal depth. | `1` |
-| `--max-breadth N` | Set a positive per-level breadth. | `20` |
+| `--max-depth N` | Set traversal depth in `1..=5`. | `1` |
+| `--max-breadth N` | Set per-level breadth in `1..=500`. | `20` |
 | `--limit N` | Set a positive total result limit. | `50` |
-| `--timeout SECONDS` | Set the whole-command deadline. | `150` |
+| `--timeout SECONDS` | Set the whole-command deadline in `10..=150`. | `150` |
 | `--format FORMAT` | Use `json` or `markdown`. | `json` |
 | `--output FILE` | Tee the rendered result to a file. | Omitted |
 | `--verbose` | Include full provider attempts inline. | Off |
@@ -270,14 +279,11 @@ forager anysearch domains DOMAIN [--timeout SECONDS] [--format json|markdown]
 
 | Argument or option | Meaning | Default |
 | --- | --- | --- |
-| `DOMAIN` | Undotted parent domain whose supported subdomains should be listed. | Required at runtime |
+| `DOMAIN` | Undotted parent domain whose supported subdomains should be listed. | Required by the parser |
 | `--timeout SECONDS` | Override `providers.anysearch.timeout`. | Configured value |
 | `--format FORMAT` | Use `json` or `markdown`. | `json` |
 | `--output FILE` | Tee the rendered result to a file. | Omitted |
 | `--verbose` | Include full provider attempts inline. | Off |
-
-The parser currently displays `[DOMAIN]`, but the command rejects an omitted value before making a
-request.
 
 ## Configuration and diagnostics
 
@@ -329,7 +335,9 @@ forager doctor [--provider PROVIDER] [--timeout SECONDS] [--format json|markdown
 | `--format FORMAT` | Use `json` or `markdown`. | `json` |
 
 Use `doctor` for credentials, connectivity, provider responses, and effective configuration
-inspection. Do not use it as the recovery path for configuration that cannot be loaded.
+inspection. In shallow mode, `ok` covers every configured provider: if any configured provider is
+unreachable, the top-level result is false and the command uses exit code 4. Do not use it as the
+recovery path for configuration that cannot be loaded.
 
 ### `smoke`
 
@@ -363,6 +371,6 @@ probe flags are internal and are not part of the public CLI.
 
 Exit code `1` is intentionally unused. Panic status `101` is outside the CLI contract. After a
 network command reaches a rendered terminal result, JSON output is emitted as clean JSON on stdout
-and diagnostics or logs use stderr. Preflight argument, configuration, and stdin errors are emitted
-on stderr without a JSON payload; this includes Clap errors and failures such as an unreadable
-research plan file.
+and diagnostics or logs use stderr. After successful Clap parsing selects JSON, configuration,
+stdin, and plan preflight failures use the parseable stdout error object described above. Clap
+errors, panics, and non-JSON formats retain their existing channels.

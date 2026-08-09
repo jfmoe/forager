@@ -188,7 +188,7 @@ enum Command {
 #[derive(Debug, Subcommand)]
 enum AnysearchCommand {
     Domains {
-        domain: Option<String>,
+        domain: String,
         #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
         timeout: Option<u64>,
         #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
@@ -1188,11 +1188,6 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                     verbose,
                 },
         } => {
-            let domain = domain.ok_or_else(|| {
-                AppError::Argument(
-                    "anysearch domains requires a parent DOMAIN before contacting AnySearch".into(),
-                )
-            })?;
             if domain.contains('.') {
                 return Err(AppError::Argument(
                     "DOMAIN must be a parent domain without a dotted sub-domain".into(),
