@@ -45,8 +45,43 @@ fn anysearch_calls_tools_without_a_session_when_initialize_omits_the_session_hea
             requests[0].contains(r#""method":"initialize""#),
             requests[1].contains(r#""method":"tools/call""#),
             requests[1].contains("mcp-session-id:"),
+            requests
+                .iter()
+                .all(|request| request.contains("x-anysearch-client: mcp/1.0.0")),
+            requests
+                .iter()
+                .any(|request| request.contains("x-context7-source:")),
         ),
-        (Some(1), 2, true, true, false)
+        (Some(1), 2, true, true, false, true, false)
+    );
+}
+
+#[test]
+fn anysearch_rejects_string_content_as_a_runtime_error() {
+    let fixture = Fixture::start_sequence(vec![
+        Response::json(
+            200,
+            r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{}}}"#,
+        ),
+        Response::json(
+            200,
+            r#"{"jsonrpc":"2.0","id":2,"result":{"content":"non-standard text"}}"#,
+        ),
+    ]);
+
+    let output = run(
+        &fixture,
+        &["anysearch", "search", "string content"],
+        &["anysearch-key"],
+    );
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let requests = fixture.finish_all();
+
+    assert_eq!(
+        (output.status.code(), &payload["error_kind"], requests.len(),),
+        (Some(4), &Value::String("runtime".into()), 2),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
     );
 }
 
@@ -151,6 +186,7 @@ fn anysearch_domains_lists_sub_domains_and_parameter_contracts() {
             &payload["results"][0]["parameter_schema"]["required"],
             requests[2].contains(r#""name":"get_sub_domains""#),
             requests[2].contains(r#""domain":"security""#),
+            requests[1].contains("x-anysearch-client: mcp/1.0.0"),
         ),
         (
             Some(0),
@@ -159,6 +195,7 @@ fn anysearch_domains_lists_sub_domains_and_parameter_contracts() {
             &Value::String("security".into()),
             &Value::String("vuln".into()),
             &serde_json::json!(["type", "value"]),
+            true,
             true,
             true,
         ),

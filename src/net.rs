@@ -2,6 +2,7 @@ use std::time::Duration;
 
 use eventsource_stream::{EventStreamError, Eventsource};
 use futures_util::{Stream, StreamExt, future};
+use reqwest::header::HeaderMap;
 use reqwest::{Client, Response, StatusCode, redirect};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -502,6 +503,7 @@ const MCP_PROTOCOL_VERSION: &str = "2024-11-05";
 pub(crate) struct McpClient<'a> {
     client: &'a Client,
     url: &'a str,
+    headers: &'a HeaderMap,
     deadline: Deadline,
 }
 
@@ -519,10 +521,16 @@ pub(crate) struct McpError {
 }
 
 impl<'a> McpClient<'a> {
-    pub(crate) fn new(client: &'a Client, url: &'a str, deadline: Deadline) -> Self {
+    pub(crate) fn new(
+        client: &'a Client,
+        url: &'a str,
+        headers: &'a HeaderMap,
+        deadline: Deadline,
+    ) -> Self {
         Self {
             client,
             url,
+            headers,
             deadline,
         }
     }
@@ -615,7 +623,7 @@ impl<'a> McpClient<'a> {
             )
             .await?;
         let result = rpc_result(response, 2, self.deadline).await?;
-        let text = content_text(&result);
+        let text = content_text(&result)?;
         if result
             .get("isError")
             .and_then(Value::as_bool)
@@ -648,6 +656,7 @@ impl<'a> McpClient<'a> {
             .header("accept", "application/json, text/event-stream")
             .header("content-type", "application/json")
             .bearer_auth(credential.expose())
+            .headers(self.headers.clone())
             .json(payload);
         if let Some(session) = session {
             request = request.header("mcp-session-id", session);
@@ -825,18 +834,21 @@ async fn response_messages(response: Response, deadline: Deadline) -> Result<Vec
     Ok(messages)
 }
 
-fn content_text(result: &Value) -> String {
-    result
-        .get("content")
-        .and_then(Value::as_array)
-        .into_iter()
-        .flatten()
+fn content_text(result: &Value) -> Result<String, McpError> {
+    let Some(content) = result.get("content") else {
+        return Ok(String::new());
+    };
+    let content = content
+        .as_array()
+        .ok_or_else(|| McpError::runtime("MCP result content must be an array"))?;
+    Ok(content
+        .iter()
         .filter(|item| item.get("type").and_then(Value::as_str) == Some("text"))
         .filter_map(|item| item.get("text").and_then(Value::as_str))
         .collect::<Vec<_>>()
         .join("\n")
         .trim()
-        .to_owned()
+        .to_owned())
 }
 
 fn session_expired(status: StatusCode, message: &str) -> bool {

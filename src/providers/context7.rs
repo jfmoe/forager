@@ -1,6 +1,8 @@
+use std::sync::LazyLock;
 use std::time::Duration;
 
 use reqwest::Client;
+use reqwest::header::HeaderMap;
 use serde_json::{Map, Value, json};
 
 use crate::config::Context7RuntimeConfig;
@@ -13,6 +15,8 @@ use crate::types::{
     AttemptErrorKind, Context7DocsOutcome, Context7LibraryOutcome, Context7Outcome, Deadline,
     LibraryCandidate, ProviderAttempt,
 };
+
+static MCP_HEADERS: LazyLock<HeaderMap> = LazyLock::new(HeaderMap::new);
 
 #[derive(Clone, Debug)]
 pub(crate) struct Context7LibraryRequest {
@@ -88,19 +92,24 @@ impl Context7 {
                 breaker_event: None,
             },
             |credential, attempt_deadline| async move {
-                McpClient::new(&self.client, &self.config.url, attempt_deadline)
-                    .call_tool(&credential, operation_ref.tool(), operation_ref.arguments())
-                    .await
-                    .map_err(Context7Failure::from)
-                    .and_then(|result| operation_ref.decode(result).map(|outcome| (200, outcome)))
-                    .map_err(|failure| AttemptFailure {
-                        kind: failure.kind,
-                        status: failure.status,
-                        message: redacted_urls_message(&failure.message, &self.credentials),
-                        redirected_library_id: failure
-                            .redirected_library_id
-                            .map(|target| redacted_urls_message(&target, &self.credentials)),
-                    })
+                McpClient::new(
+                    &self.client,
+                    &self.config.url,
+                    &MCP_HEADERS,
+                    attempt_deadline,
+                )
+                .call_tool(&credential, operation_ref.tool(), operation_ref.arguments())
+                .await
+                .map_err(Context7Failure::from)
+                .and_then(|result| operation_ref.decode(result).map(|outcome| (200, outcome)))
+                .map_err(|failure| AttemptFailure {
+                    kind: failure.kind,
+                    status: failure.status,
+                    message: redacted_urls_message(&failure.message, &self.credentials),
+                    redirected_library_id: failure
+                        .redirected_library_id
+                        .map(|target| redacted_urls_message(&target, &self.credentials)),
+                })
             },
         )
         .await?;

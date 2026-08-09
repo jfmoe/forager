@@ -3,6 +3,7 @@ use std::sync::LazyLock;
 use std::time::Duration;
 
 use reqwest::Client;
+use reqwest::header::{HeaderMap, HeaderValue};
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
@@ -16,6 +17,12 @@ use crate::types::{
     AnysearchDomain, AnysearchDomainsOutcome, AnysearchOutcome, AnysearchResult,
     AnysearchSearchOutcome, AttemptErrorKind, Deadline, ProviderAttempt, SchemaValidation,
 };
+
+static MCP_HEADERS: LazyLock<HeaderMap> = LazyLock::new(|| {
+    let mut headers = HeaderMap::new();
+    headers.insert("x-anysearch-client", HeaderValue::from_static("mcp/1.0.0"));
+    headers
+});
 
 #[derive(Clone, Debug)]
 pub(crate) struct AnysearchDomainsRequest {
@@ -199,20 +206,25 @@ impl Anysearch {
             |credential, attempt_deadline| {
                 let attempt_arguments = arguments_ref.clone();
                 async move {
-                    McpClient::new(&self.client, &self.config.url, attempt_deadline)
-                        .call_tool(&credential, tool, attempt_arguments)
-                        .await
-                        .map(|result| (200, result))
-                        .map_err(|error| {
-                            let mut message = redact_urls(&error.message, &self.credentials);
-                            redact_argument_values(&mut message, arguments_ref);
-                            AttemptFailure {
-                                kind: error.kind,
-                                status: error.status,
-                                message: truncate_message(&message),
-                                redirected_library_id: None,
-                            }
-                        })
+                    McpClient::new(
+                        &self.client,
+                        &self.config.url,
+                        &MCP_HEADERS,
+                        attempt_deadline,
+                    )
+                    .call_tool(&credential, tool, attempt_arguments)
+                    .await
+                    .map(|result| (200, result))
+                    .map_err(|error| {
+                        let mut message = redact_urls(&error.message, &self.credentials);
+                        redact_argument_values(&mut message, arguments_ref);
+                        AttemptFailure {
+                            kind: error.kind,
+                            status: error.status,
+                            message: truncate_message(&message),
+                            redirected_library_id: None,
+                        }
+                    })
                 }
             },
         )

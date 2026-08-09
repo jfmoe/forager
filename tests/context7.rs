@@ -9,6 +9,48 @@ use serde_json::Value;
 use support::{Fixture, Response};
 
 #[test]
+fn context7_calls_tools_without_a_session_or_legacy_source_header() {
+    let fixture = Fixture::start_sequence(vec![
+        Response::json(
+            200,
+            r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{}}}"#,
+        ),
+        library_result("sessionless"),
+    ]);
+
+    let output = run(&fixture, &["context7", "library", "rust"], &["only-key"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let requests = fixture.finish_all();
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["results"][0]["id"],
+            requests.len(),
+            requests[0].contains(r#""method":"initialize""#),
+            requests[1].contains(r#""method":"tools/call""#),
+            requests
+                .iter()
+                .any(|request| request.contains("mcp-session-id:")),
+            requests
+                .iter()
+                .any(|request| request.contains("x-context7-source:")),
+        ),
+        (
+            Some(0),
+            &Value::String("/fixture/sessionless".into()),
+            2,
+            true,
+            true,
+            false,
+            false,
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
 fn context7_library_initializes_the_mcp_session_and_normalizes_json_results() {
     let fixture = Fixture::start_sequence(vec![
         Response::json(
@@ -705,6 +747,9 @@ fn library_result(suffix: &'static str) -> Response {
         }
         "renewed" => {
             r#"{"jsonrpc":"2.0","id":2,"result":{"structuredContent":{"results":[{"id":"/fixture/renewed","title":"Fixture"}]},"content":[]}}"#
+        }
+        "sessionless" => {
+            r#"{"jsonrpc":"2.0","id":2,"result":{"structuredContent":{"results":[{"id":"/fixture/sessionless","title":"Fixture"}]},"content":[]}}"#
         }
         _ => unreachable!("test fixture suffix is known"),
     };
