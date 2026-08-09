@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0](https://github.com/jfmoe/forager/compare/v0.2.0...v0.3.0) - 2026-08-09
+
+### Added
+
+- *(research)* consume Context7 evidence locators
+- *(search)* unify search candidate contract
+
+### Fixed
+
+- close search fallback and live smoke gaps
+- *(map)* enforce Tavily API bounds ([#143](https://github.com/jfmoe/forager/pull/143))
+- *(anysearch)* restore narrow markdown decoding ([#142](https://github.com/jfmoe/forager/pull/142))
+- *(mcp)* preserve optional provider contracts ([#141](https://github.com/jfmoe/forager/pull/141))
+- *(search)* restore streaming provider contracts
+- *(search)* normalize completed main answers
+- *(search)* restore supplemental fallback contract
+- *(search)* remove validation and restore source targets
+- *(research)* stabilize failure recovery manifest
+- *(cli)* restore runtime observability contracts
+- *(cli)* restore JSON preflight terminals
+- *(net)* enforce protocol response byte caps
+- *(net)* disable shared client redirects
+
+### Other
+
+- *(skill)* sync bundled CLI contract ([#146](https://github.com/jfmoe/forager/pull/146))
+- streamline acceptance validation
+- *(net)* stall after the first response byte
+- restore project agent instructions
+- sync agent skills and migration audit
+
 ### Removed
 
 - Removed the `search --validation` option and `search.validation` configuration key without aliases or compatibility shims. Legacy uses now fail as unknown CLI or configuration input.
