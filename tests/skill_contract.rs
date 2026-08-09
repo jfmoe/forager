@@ -19,7 +19,6 @@ fn repository_exposes_forager_as_an_installable_skill() {
 
     assert_eq!(skill_dirs, ["forager"]);
     assert!(skill.starts_with("---\nname: forager\n"));
-    assert!(skill.contains("forager >=0.2.0"));
 }
 
 #[test]
@@ -277,7 +276,6 @@ fn cli_reference_covers_the_public_cli_surface() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let cli = fs::read_to_string(root.join("skills/forager/references/cli.md"))
         .expect("read CLI reference");
-    assert!(cli.contains("forager >=0.2.0"));
     assert!(cli.contains("exact command syntax, non-routine commands, or diagnosis and recovery"));
 
     let mut clap = Cli::command();

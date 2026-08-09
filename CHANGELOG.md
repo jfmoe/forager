@@ -7,12 +7,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0](https://github.com/jfmoe/forager/compare/v0.2.0...v0.3.0) - 2026-08-09
+
+### Added
+
+- *(research)* consume Context7 evidence locators
+- *(search)* unify search candidate contract
+
+### Fixed
+
+- close search fallback and live smoke gaps
+- *(map)* enforce Tavily API bounds ([#143](https://github.com/jfmoe/forager/pull/143))
+- *(anysearch)* restore narrow markdown decoding ([#142](https://github.com/jfmoe/forager/pull/142))
+- *(mcp)* preserve optional provider contracts ([#141](https://github.com/jfmoe/forager/pull/141))
+- *(search)* restore streaming provider contracts
+- *(search)* normalize completed main answers
+- *(search)* restore supplemental fallback contract
+- *(search)* remove validation and restore source targets
+- *(research)* stabilize failure recovery manifest
+- *(cli)* restore runtime observability contracts
+- *(cli)* restore JSON preflight terminals
+- *(net)* enforce protocol response byte caps
+- *(net)* disable shared client redirects
+
+### Other
+
+- *(skill)* sync bundled CLI contract ([#146](https://github.com/jfmoe/forager/pull/146))
+- streamline acceptance validation
+- *(net)* stall after the first response byte
+- restore project agent instructions
+- sync agent skills and migration audit
+
 ### Removed
 
 - Removed the `search --validation` option and `search.validation` configuration key without aliases or compatibility shims. Legacy uses now fail as unknown CLI or configuration input.
 
 ### Migration
 
+- Upgrade the CLI to `forager >=0.3.0` before installing or using the bundled skill.
+- Search JSON no longer returns `vertical_results`; read every non-primary Search Candidate, including Vertical Discovery results, from `extra_sources`.
 - Before or after upgrading, use `forager config path` to locate the configuration file and manually delete any persisted `search.validation` key; `config path` does not load the schema. The obsolete `SMART_SEARCH_VALIDATION_LEVEL` migration mapping is deleted rather than treated as a runtime input.
 - Callers that omit `--extra-sources` or pass `0` should account for the restored Supplemental Web Search request target of 3. Documentation Search and Vertical Search still default to 1, explicit `1..=20` targets are unchanged, and values above 20 are rejected before configuration loading or network access.
 
