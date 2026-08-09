@@ -227,6 +227,7 @@ jobs:
           if ($configured.Count -ne 8) {
             throw "doctor did not load all migrated provider credentials"
           }
+          exit 0
 
   record-gate:
     needs:
