@@ -120,13 +120,13 @@ enum Command {
         url: String,
         #[arg(long, default_value = "")]
         instructions: String,
-        #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u16).range(1..))]
+        #[arg(long, default_value_t = 1, value_parser = clap::value_parser!(u16).range(1..=5))]
         max_depth: u16,
-        #[arg(long, default_value_t = 20, value_parser = clap::value_parser!(u16).range(1..))]
+        #[arg(long, default_value_t = 20, value_parser = clap::value_parser!(u16).range(1..=500))]
         max_breadth: u16,
         #[arg(long, default_value_t = 50, value_parser = clap::value_parser!(u16).range(1..))]
         limit: u16,
-        #[arg(long, default_value_t = 150, value_parser = clap::value_parser!(u64).range(1..))]
+        #[arg(long, default_value_t = 150, value_parser = clap::value_parser!(u64).range(10..=150))]
         timeout: u64,
         #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
         format: OutputFormat,

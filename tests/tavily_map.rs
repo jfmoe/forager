@@ -2,6 +2,7 @@ mod support;
 
 use std::process::Command;
 use std::time::Duration;
+use std::time::Instant;
 
 use serde_json::Value;
 
@@ -82,7 +83,7 @@ fn map_sends_tavily_options_and_normalizes_site_results() {
 }
 
 #[test]
-fn map_caps_the_provider_timeout_below_the_command_deadline() {
+fn map_sends_the_minimum_timeout_without_provider_clamping() {
     let fixture = Fixture::start(
         200,
         "application/json",
@@ -90,7 +91,7 @@ fn map_caps_the_provider_timeout_below_the_command_deadline() {
     );
     let environment = RunEnvironment::new(&map_config(&fixture.url, &["tavily-key"]));
 
-    let output = environment.run(&["map", "https://docs.example.test", "--timeout", "600"]);
+    let output = environment.run(&["map", "https://docs.example.test", "--timeout", "10"]);
     let request = fixture.finish();
 
     assert_eq!(
@@ -99,7 +100,7 @@ fn map_caps_the_provider_timeout_below_the_command_deadline() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert!(request.contains("\"timeout\":180"), "{request}");
+    assert!(request.contains("\"timeout\":10"), "{request}");
 }
 
 #[test]
@@ -153,21 +154,40 @@ fn map_reports_tavily_parameter_errors() {
 }
 
 #[test]
-fn map_rejects_zero_depth_before_loading_configuration() {
-    let output = Command::new(env!("CARGO_BIN_EXE_forager"))
-        .args(["map", "https://docs.example.test", "--max-depth", "0"])
-        .env_clear()
-        .output()
-        .expect("run forager");
+fn map_rejects_out_of_range_options_before_network_attempts() {
+    let cases = [
+        ("--timeout", "9"),
+        ("--timeout", "151"),
+        ("--timeout", "600"),
+        ("--max-depth", "0"),
+        ("--max-depth", "6"),
+        ("--max-breadth", "0"),
+        ("--max-breadth", "501"),
+        ("--limit", "0"),
+    ];
 
-    assert_eq!(
-        (
-            output.status.code(),
-            output.stdout.is_empty(),
-            String::from_utf8_lossy(&output.stderr).contains("--max-depth"),
-        ),
-        (Some(2), true, true)
-    );
+    for (option, value) in cases {
+        let fixture = Fixture::start_canary();
+        let environment = RunEnvironment::new(&map_config(&fixture.url, &["tavily-key"]));
+        let output = environment.run(&[
+            "map",
+            "https://docs.example.test",
+            option,
+            value,
+            "--verbose",
+        ]);
+
+        assert_eq!(
+            (
+                output.status.code(),
+                output.stdout.is_empty(),
+                String::from_utf8_lossy(&output.stderr).contains(option),
+                fixture.finish_all(),
+            ),
+            (Some(2), true, true, Vec::new()),
+            "option {option} accepted out-of-range value {value}"
+        );
+    }
 }
 
 #[test]
@@ -257,13 +277,7 @@ fn map_retries_retryable_failures_inside_the_command_deadline() {
         map_config(&fixture.url, &["tavily-key"]).replace("max_attempts = 1", "max_attempts = 2");
     let environment = RunEnvironment::new(&config);
 
-    let output = environment.run(&[
-        "map",
-        "https://docs.example.test",
-        "--timeout",
-        "3",
-        "--verbose",
-    ]);
+    let output = environment.run(&["map", "https://docs.example.test", "--verbose"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
 
     assert_eq!(
@@ -280,7 +294,7 @@ fn map_retries_retryable_failures_inside_the_command_deadline() {
 }
 
 #[test]
-fn map_preserves_completed_attempts_when_the_hard_deadline_expires() {
+fn map_caps_each_attempt_below_the_command_deadline() {
     let mut response = Response::new(
         200,
         "application/json",
@@ -288,17 +302,18 @@ fn map_preserves_completed_attempts_when_the_hard_deadline_expires() {
     );
     response.delay = Duration::from_millis(1500);
     let fixture = Fixture::start_sequence(vec![response]);
-    let config =
-        map_config(&fixture.url, &["tavily-key"]).replace("max_attempts = 1", "max_attempts = 2");
+    let config = map_config(&fixture.url, &["tavily-key"]).replace("timeout = 30", "timeout = 1");
     let environment = RunEnvironment::new(&config);
 
+    let started = Instant::now();
     let output = environment.run(&[
         "map",
         "https://docs.example.test",
         "--timeout",
-        "1",
+        "10",
         "--verbose",
     ]);
+    let elapsed = started.elapsed();
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
 
     assert_eq!(
@@ -315,6 +330,7 @@ fn map_preserves_completed_attempts_when_the_hard_deadline_expires() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+    assert!(elapsed < Duration::from_secs(3), "elapsed: {elapsed:?}");
     fixture.finish_all();
 }
 
