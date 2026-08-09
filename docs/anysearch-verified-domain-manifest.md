@@ -13,10 +13,10 @@ The manifest starts with an empty `verified_domains` collection. A future Verifi
 | `finance.fundamental` | discovery schema, valid request with `cn_code`/`symbol`/`type`, missing required params, provider error | URL-less structured result | discovered/unverified | sanitized live capture, complete independent live run, upstream stability window |
 | `code.doc` | discovery schema, valid request with `library`, missing required param, provider error | URL result | discovered/unverified | sanitized live capture, complete independent live run, upstream stability window |
 
-The fixtures under `tests/fixtures/anysearch/` are sanitized synthetic transport fixtures, not live acceptance evidence. Their schema fingerprints are checked against the manifest in ordinary offline tests. `security.cve` is intentionally absent and has no compatibility mapping; the candidate is `security.vuln`.
+The fixtures under `tests/fixtures/anysearch/` are sanitized synthetic transport fixtures, not live acceptance evidence. Candidate schema fingerprints only verify that these versioned fixtures have not drifted; they are not runtime request-validation fingerprints. Because the manifest has no verified entry, the current runtime performs no Verified Domain schema validation and passes explicit unverified-domain parameters through unchanged. `security.cve` is intentionally absent and has no compatibility mapping; the candidate is `security.vuln`.
 
 ## Live acceptance
 
 The complete live contract is defined by C14–C16 in [`docs/spec/forager/05-acceptance.md`](spec/forager/05-acceptance.md): explicit `academic.search`, domain-less Vertical Discovery, and Domain Discovery. Credentials come only from `providers.anysearch.keys` and its `FORAGER_` overlay.
 
-Live results remain observational. Promotion requires a reviewed, sanitized evidence update covering every matrix gate, including stable provider-error classification and the upstream stability/version decision.
+Live results remain observational. The first promotion must atomically deliver reviewed, sanitized live evidence covering every matrix gate, a formal verified manifest entry, its canonical schema fingerprint, the runtime validator, and acceptance coverage. This includes stable provider-error classification and the upstream stability/version decision.

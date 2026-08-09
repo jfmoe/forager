@@ -158,7 +158,7 @@ fn anysearch_domains_lists_sub_domains_and_parameter_contracts() {
         Response::json(202, ""),
         Response::json(
             200,
-            r#"{"jsonrpc":"2.0","id":2,"result":{"structuredContent":{"sub_domains":[{"sub_domain":"vuln","description":"Vulnerability search","parameters":{"type":"object","required":["type","value"],"properties":{"type":{"type":"string"},"value":{"type":"string"}}}}]},"content":[]}}"#,
+            r####"{"jsonrpc":"2.0","id":2,"result":{"structuredContent":{"sub_domains":[{"sub_domain":"vuln","description":"Vulnerability search","parameters":{"type":"object","required":["type","value"],"properties":{"type":{"type":"string"},"value":{"type":"string"}}}}]},"content":[{"type":"text","text":"### security.search\nThis Markdown fallback must not replace structuredContent."}]}}"####,
         ),
     ]);
 
@@ -211,7 +211,7 @@ fn anysearch_domains_decodes_live_markdown_contracts() {
         Response::json(202, ""),
         Response::json(
             200,
-            r###"{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"## academic Domain Capabilities (2 available)\n\n### academic.search\nCross-discipline paper search by keyword and author\n\n**Parameters:**\n- `year_from` (required): Publication year start (inclusive), four digits.\n- `open_access`: Whether to return only open access publications.\n\n### academic.dataset\nResearch datasets and scientific software\n\n**Parameters:**\n- `year_to`: Publication year upper bound (inclusive)."}]}}"###,
+            r###"{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"## academic Domain Capabilities (2 available)\n\n### academic.search\nCross-discipline paper search by keyword and author\n\n**Parameters:**\n- `year_from` (required): Publication year start (inclusive), four digits.\n  Accepted from 1900 onward.\n- `open_access`: Whether to return only open access publications.\n\n### academic.dataset\nResearch datasets and scientific software\n\n**Parameters:**\n- `year_to`: Publication year upper bound (inclusive)."}]}}"###,
         ),
     ]);
 
@@ -231,7 +231,10 @@ fn anysearch_domains_decodes_live_markdown_contracts() {
             &payload["results"][0]["sub_domain"],
             &payload["results"][0]["description"],
             &payload["results"][0]["parameter_schema"]["properties"]["year_from"]["description"],
+            &payload["results"][0]["parameter_schema"]["properties"]["year_from"],
+            &payload["results"][0]["parameter_schema"]["required"],
             &payload["results"][1]["sub_domain"],
+            &payload["results"][1]["parameter_schema"]["required"],
         ),
         (
             Some(0),
@@ -239,8 +242,16 @@ fn anysearch_domains_decodes_live_markdown_contracts() {
             &Value::String("academic".into()),
             &Value::String("search".into()),
             &Value::String("Cross-discipline paper search by keyword and author".into()),
-            &Value::String("Publication year start (inclusive), four digits.".into()),
+            &Value::String(
+                "Publication year start (inclusive), four digits.\nAccepted from 1900 onward."
+                    .into()
+            ),
+            &serde_json::json!({
+                "description": "Publication year start (inclusive), four digits.\nAccepted from 1900 onward."
+            }),
+            &serde_json::json!(["year_from"]),
             &Value::String("dataset".into()),
+            &serde_json::json!([]),
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
@@ -306,6 +317,232 @@ fn anysearch_search_without_a_domain_performs_vertical_discovery() {
             true,
             false,
         )
+    );
+}
+
+#[test]
+fn anysearch_search_decodes_flexible_numbered_markdown_blocks() {
+    let (output, payload) = run_search_text(
+        "### 1. First result\n- **URL**: https://example.test/first\nFirst summary\n\n### \t2.\tSecond result\n-  **URL**:\t https://example.test/second\nSecond summary",
+        "flexible markdown",
+    );
+
+    assert_eq!(
+        (output.status.code(), &payload["results"]),
+        (
+            Some(0),
+            &serde_json::json!([
+                {
+                    "title": "First result",
+                    "url": "https://example.test/first",
+                    "description": "First summary"
+                },
+                {
+                    "title": "Second result",
+                    "url": "https://example.test/second",
+                    "description": "Second summary"
+                }
+            ]),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn anysearch_search_excludes_markdown_metadata_from_descriptions() {
+    let (output, payload) = run_search_text(
+        "### 1. Result\n## Metadata\n- **URL**: https://example.test/result\nResult summary",
+        "metadata",
+    );
+
+    assert_eq!(
+        (output.status.code(), &payload["results"][0]),
+        (
+            Some(0),
+            &serde_json::json!({
+                "title": "Result",
+                "url": "https://example.test/result",
+                "description": "Result summary"
+            })
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn anysearch_search_limits_descriptions_to_300_unicode_characters() {
+    let text = format!("### 1. Result\n{}", "界".repeat(301));
+    let (output, payload) = run_search_text(&text, "long description");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            payload["results"][0]["description"]
+                .as_str()
+                .map(str::chars)
+                .map(Iterator::count),
+        ),
+        (Some(0), Some(300)),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn anysearch_search_validates_labeled_urls() {
+    let fixture = Fixture::start_sequence(vec![
+        initialize("labeled-url-session"),
+        Response::json(202, ""),
+        Response::json(
+            200,
+            r####"{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"### 1. Invalid scheme\n- **URL**: ftp://example.test/file\nFirst summary\n### 2. Missing host\n- **URL**: https://\nSecond summary\n### 3. Valid URL\n- **URL**: https://example.test/valid\nThird summary"}]}}"####,
+        ),
+    ]);
+
+    let output = run(
+        &fixture,
+        &["anysearch", "search", "labeled URLs"],
+        &["anysearch-key"],
+    );
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    fixture.finish_all();
+
+    assert_eq!(
+        (output.status.code(), &payload["results"]),
+        (
+            Some(0),
+            &serde_json::json!([
+                {
+                    "title": "Invalid scheme",
+                    "url": "",
+                    "description": "First summary"
+                },
+                {
+                    "title": "Missing host",
+                    "url": "",
+                    "description": "Second summary"
+                },
+                {
+                    "title": "Valid URL",
+                    "url": "https://example.test/valid",
+                    "description": "Third summary"
+                }
+            ])
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn anysearch_search_extracts_unique_bare_urls_without_numbered_headings() {
+    let fixture = Fixture::start_sequence(vec![
+        initialize("bare-url-session"),
+        Response::json(202, ""),
+        Response::json(
+            200,
+            r#"{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"Raw https://example.test/first then [linked](https://example.test/linked) and ftp://example.test/file.\nRepeat https://example.test/first before http://example.test/second\nReject https:// and http://["}]}}"#,
+        ),
+    ]);
+
+    let output = run(
+        &fixture,
+        &["anysearch", "search", "bare URLs"],
+        &["anysearch-key"],
+    );
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    fixture.finish_all();
+
+    assert_eq!(
+        (output.status.code(), &payload["results"]),
+        (
+            Some(0),
+            &serde_json::json!([
+                {
+                    "title": "https://example.test/first",
+                    "url": "https://example.test/first",
+                    "description": ""
+                },
+                {
+                    "title": "http://example.test/second",
+                    "url": "http://example.test/second",
+                    "description": ""
+                }
+            ])
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn anysearch_search_ignores_formatted_and_nested_urls() {
+    let fixture = Fixture::start_sequence(vec![
+        initialize("formatted-url-session"),
+        Response::json(202, ""),
+        Response::json(
+            200,
+            r#"{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"[inline](https://example.test/inline)\n[reference]: https://example.test/reference\n<https://example.test/autolink>\n<details>\nhttps://example.test/details\n<details>\nhttps://example.test/nested-details\n</details>\nhttps://example.test/outer-details\n</details>\nRaw https://example.test/source?next=https://example.test/nested"}]}}"#,
+        ),
+    ]);
+
+    let output = run(
+        &fixture,
+        &["anysearch", "search", "formatted URLs"],
+        &["anysearch-key"],
+    );
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    fixture.finish_all();
+
+    assert_eq!(
+        (output.status.code(), &payload["results"]),
+        (
+            Some(0),
+            &serde_json::json!([{
+                "title": "https://example.test/source?next=https://example.test/nested",
+                "url": "https://example.test/source?next=https://example.test/nested",
+                "description": ""
+            }])
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn anysearch_search_preserves_pure_structured_content_without_a_url() {
+    let fixture = Fixture::start_sequence(vec![
+        initialize("structured-session"),
+        Response::json(202, ""),
+        Response::json(
+            200,
+            r#"{"jsonrpc":"2.0","id":2,"result":{"structuredContent":{"identifier":"CVE-2024-3094","severity":"critical"},"content":[]}}"#,
+        ),
+    ]);
+
+    let output = run(
+        &fixture,
+        &["anysearch", "search", "structured result"],
+        &["anysearch-key"],
+    );
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    fixture.finish_all();
+
+    assert_eq!(
+        (output.status.code(), &payload["results"]),
+        (
+            Some(0),
+            &serde_json::json!([{
+                "title": "vertical search structured result",
+                "url": "",
+                "description": "",
+                "evidence_type": "structured"
+            }])
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
     );
 }
 
@@ -680,6 +917,27 @@ fn initialize(session: &'static str) -> Response {
         r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{}}}"#,
     )
     .with_session(session)
+}
+
+fn run_search_text(text: &str, query: &str) -> (Output, Value) {
+    let tool_result = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": 2,
+        "result": {"content": [{"type": "text", "text": text}]}
+    });
+    let fixture = Fixture::start_sequence(vec![
+        initialize("search-result-session"),
+        Response::json(202, ""),
+        Response::json(200, &tool_result.to_string()),
+    ]);
+    let output = run(
+        &fixture,
+        &["anysearch", "search", query],
+        &["anysearch-key"],
+    );
+    let payload = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    fixture.finish_all();
+    (output, payload)
 }
 
 fn run(fixture: &Fixture, arguments: &[&str], keys: &[&str]) -> Output {

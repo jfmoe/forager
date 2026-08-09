@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::LazyLock;
 use std::time::Duration;
 
@@ -313,13 +313,15 @@ fn decode_search(result: &McpToolResult) -> Vec<AnysearchResult> {
                 description: String::new(),
                 evidence_type: None,
             });
-        } else if let Some(url) = line.strip_prefix("- **URL**: ") {
-            if let Some(result) = &mut current {
-                url.trim().clone_into(&mut result.url);
+        } else if let Some(url) = labeled_url(line) {
+            if let Some(result) = &mut current
+                && is_http_url_with_host(url)
+            {
+                url.clone_into(&mut result.url);
             }
         } else if let Some(result) = &mut current {
-            let line = line.trim();
-            if !line.is_empty() {
+            let line = line.trim_ascii();
+            if !line.is_empty() && !line.starts_with('#') {
                 if !result.description.is_empty() {
                     result.description.push(' ');
                 }
@@ -330,6 +332,18 @@ fn decode_search(result: &McpToolResult) -> Vec<AnysearchResult> {
     }
     if let Some(result) = current {
         results.push(result);
+    }
+    if results.is_empty() {
+        results.extend(
+            bare_http_urls(&result.text)
+                .into_iter()
+                .map(|url| AnysearchResult {
+                    title: url.to_owned(),
+                    url: url.to_owned(),
+                    description: String::new(),
+                    evidence_type: None,
+                }),
+        );
     }
     if results.is_empty()
         && (!result.text.is_empty()
@@ -349,9 +363,81 @@ fn decode_search(result: &McpToolResult) -> Vec<AnysearchResult> {
 }
 
 fn numbered_heading(line: &str) -> Option<&str> {
-    let line = line.strip_prefix("### ")?;
-    let (_, title) = line.split_once(". ")?;
-    (!title.trim().is_empty()).then_some(title.trim())
+    let line = strip_ascii_whitespace(line.strip_prefix("###")?)?;
+    let digit_count = line.bytes().take_while(u8::is_ascii_digit).count();
+    if digit_count == 0 {
+        return None;
+    }
+    let title = strip_ascii_whitespace(line[digit_count..].strip_prefix('.')?)?.trim_ascii();
+    (!title.is_empty()).then_some(title)
+}
+
+fn labeled_url(line: &str) -> Option<&str> {
+    strip_ascii_whitespace(line.strip_prefix('-')?)?
+        .strip_prefix("**URL**:")
+        .and_then(strip_ascii_whitespace)
+        .map(str::trim_ascii)
+}
+
+fn strip_ascii_whitespace(value: &str) -> Option<&str> {
+    let trimmed = value.trim_ascii_start();
+    (trimmed.len() < value.len()).then_some(trimmed)
+}
+
+fn is_http_url_with_host(value: &str) -> bool {
+    reqwest::Url::parse(value)
+        .is_ok_and(|url| matches!(url.scheme(), "http" | "https") && url.host().is_some())
+}
+
+fn bare_http_urls(text: &str) -> Vec<&str> {
+    let mut seen = HashSet::new();
+    let mut urls = Vec::new();
+    let mut offset = 0;
+    while let Some(relative_start) = next_http_start(&text[offset..]) {
+        let start = offset + relative_start;
+        let candidate = &text[start..];
+        let end = candidate
+            .find(|character: char| {
+                character.is_ascii_whitespace() || matches!(character, ')' | '>' | ']')
+            })
+            .unwrap_or(candidate.len());
+        let url = &candidate[..end];
+        offset = start + end;
+        if !is_formatted_url(text, start)
+            && !is_inside_details(text, start)
+            && is_http_url_with_host(url)
+            && seen.insert(url)
+        {
+            urls.push(url);
+        }
+    }
+    urls
+}
+
+fn next_http_start(text: &str) -> Option<usize> {
+    match (text.find("http://"), text.find("https://")) {
+        (Some(http), Some(https)) => Some(http.min(https)),
+        (Some(start), None) | (None, Some(start)) => Some(start),
+        (None, None) => None,
+    }
+}
+
+fn is_formatted_url(text: &str, start: usize) -> bool {
+    let prefix = &text[..start];
+    let line_prefix = prefix
+        .rsplit_once('\n')
+        .map_or(prefix, |(_, line)| line)
+        .trim_ascii_end();
+    line_prefix.ends_with("](")
+        || line_prefix.ends_with("]:")
+        || line_prefix.ends_with('<')
+        || prefix.ends_with('"')
+        || prefix.ends_with('\'')
+}
+
+fn is_inside_details(text: &str, start: usize) -> bool {
+    let prefix = text[..start].to_ascii_lowercase();
+    prefix.match_indices("<details").count() > prefix.match_indices("</details>").count()
 }
 
 fn redact_argument_values(message: &mut String, value: &Value) {
@@ -446,6 +532,7 @@ struct MarkdownDomain {
     sub_domain: String,
     description: String,
     properties: Map<String, Value>,
+    required: Vec<String>,
     current_parameter: Option<String>,
 }
 
@@ -462,6 +549,7 @@ fn decode_markdown_domains(text: &str) -> Vec<AnysearchDomain> {
                 sub_domain: sub_domain.to_owned(),
                 description: String::new(),
                 properties: Map::new(),
+                required: Vec::new(),
                 current_parameter: None,
             });
             continue;
@@ -473,10 +561,13 @@ fn decode_markdown_domains(text: &str) -> Vec<AnysearchDomain> {
         if line.is_empty() || line == "**Parameters:**" {
             continue;
         }
-        if let Some((name, description)) = markdown_parameter(line) {
+        if let Some((name, required, description)) = markdown_parameter(line) {
             domain
                 .properties
                 .insert(name.to_owned(), json!({"description": description.trim()}));
+            if required {
+                domain.required.push(name.to_owned());
+            }
             domain.current_parameter = Some(name.to_owned());
         } else if let Some(name) = &domain.current_parameter {
             let property = &mut domain.properties[name]["description"];
@@ -498,11 +589,15 @@ fn markdown_domain_heading(line: &str) -> Option<(&str, &str)> {
     (!domain.is_empty() && !sub_domain.is_empty()).then_some((domain, sub_domain))
 }
 
-fn markdown_parameter(line: &str) -> Option<(&str, &str)> {
+fn markdown_parameter(line: &str) -> Option<(&str, bool, &str)> {
     let parameter = line.strip_prefix("- `")?;
     let (name, suffix) = parameter.split_once('`')?;
-    let (_, description) = suffix.split_once(':')?;
-    Some((name, description))
+    let suffix = suffix.trim_ascii_start();
+    let (required, suffix) = suffix
+        .strip_prefix("(required)")
+        .map_or((false, suffix), |suffix| (true, suffix));
+    let description = suffix.trim_ascii_start().strip_prefix(':')?;
+    Some((name, required, description))
 }
 
 fn finish_markdown_domain(domain: MarkdownDomain) -> AnysearchDomain {
@@ -513,6 +608,7 @@ fn finish_markdown_domain(domain: MarkdownDomain) -> AnysearchDomain {
         parameter_schema: json!({
             "type": "object",
             "properties": domain.properties,
+            "required": domain.required,
         }),
     }
 }
