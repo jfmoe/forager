@@ -44,6 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Migration
 
+- Upgrade the CLI to `forager >=0.3.0` before installing or using the bundled skill.
+- Search JSON no longer returns `vertical_results`; read every non-primary Search Candidate, including Vertical Discovery results, from `extra_sources`.
 - Before or after upgrading, use `forager config path` to locate the configuration file and manually delete any persisted `search.validation` key; `config path` does not load the schema. The obsolete `SMART_SEARCH_VALIDATION_LEVEL` migration mapping is deleted rather than treated as a runtime input.
 - Callers that omit `--extra-sources` or pass `0` should account for the restored Supplemental Web Search request target of 3. Documentation Search and Vertical Search still default to 1, explicit `1..=20` targets are unchanged, and values above 20 are rejected before configuration loading or network access.
 

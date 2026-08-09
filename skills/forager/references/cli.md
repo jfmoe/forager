@@ -1,6 +1,6 @@
 # forager CLI reference
 
-This reference documents the public CLI for `forager >=0.2.0`. Load it under the conditions given
+This reference documents the public CLI for `forager >=0.3.0`. Load it under the conditions given
 in `SKILL.md`: for exact command syntax, non-routine commands, or diagnosis and recovery details.
 Routine `search` and `research` stay on their branch references. Treat
 `forager <command> --help` as the final authority for argument parsing.
