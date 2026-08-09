@@ -203,7 +203,9 @@ fn respond(mut stream: TcpStream, response: &Response) -> String {
         response.status,
         response.content_type,
         headers,
-        response.body.len()
+        response
+            .declared_content_length
+            .unwrap_or(response.body.len())
     );
     let _ = stream.flush();
     thread::sleep(response.body_delay);
@@ -246,6 +248,7 @@ pub(crate) struct Response {
     headers: Vec<(String, String)>,
     pub(crate) delay: Duration,
     body_delay: Duration,
+    declared_content_length: Option<usize>,
 }
 
 impl Response {
@@ -257,6 +260,7 @@ impl Response {
             headers: Vec::new(),
             delay: Duration::ZERO,
             body_delay: Duration::ZERO,
+            declared_content_length: None,
         }
     }
 
@@ -285,6 +289,11 @@ impl Response {
 
     pub(crate) fn with_body_delay(mut self, delay: Duration) -> Self {
         self.body_delay = delay;
+        self
+    }
+
+    pub(crate) fn with_declared_content_length(mut self, length: usize) -> Self {
+        self.declared_content_length = Some(length);
         self
     }
 }

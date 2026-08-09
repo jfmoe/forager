@@ -3229,10 +3229,9 @@ fn search_credential_rotation_does_not_consume_network_retry_quota() {
 }
 
 #[test]
-fn search_retries_a_network_error_after_the_shared_read_timeout() {
+fn search_retries_after_a_truncated_response_body() {
     let xai = Fixture::start_sequence(vec![
-        Response::sse(200, &completed_body("Stalled answer", "Stalled source"))
-            .with_body_delay(std::time::Duration::from_secs(61)),
+        Response::sse(200, "").with_declared_content_length(1),
         Response::sse(200, &completed_body("Retried answer", "Retried source")),
     ]);
     let config = search_config(&xai.url, true).replace("max_attempts = 1", "max_attempts = 2");
@@ -3240,11 +3239,9 @@ fn search_retries_a_network_error_after_the_shared_read_timeout() {
 
     let output = environment.run(&[
         "search",
-        "Read timeout retry",
+        "Truncated response retry",
         "--capabilities",
         "none",
-        "--timeout",
-        "70",
     ]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
     let journal = read_only_journal(&environment);

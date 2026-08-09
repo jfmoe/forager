@@ -16,6 +16,10 @@ This repository uses a single-context domain documentation layout. See `docs/age
 
 Before writing, modifying, or reviewing Rust, use `rust-code-quality`: read its `SKILL.md` and all relevant chapters in the same turn. During `code-review`, add it to the Standards axis without replacing its existing requirements.
 
+### Full local test suite
+
+Run `cargo test --all-targets --all-features --locked --no-fail-fast -- --quiet` for complete local validation. `--no-fail-fast` continues running remaining targets but any failure still makes the command fail; `-- --quiet` reduces successful-test output while preserving failure details.
+
 ### Windows-only CI
 
 The `windows-permissions` job is CI-only. On non-Windows hosts, do not report a missing local run as a risk; report only an observed CI failure, and claim success only from a successful remote run.

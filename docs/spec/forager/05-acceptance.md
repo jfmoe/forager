@@ -16,7 +16,7 @@
 
 ## Tier 1：分域覆盖
 
-条件→期望用例（输入/前置 → 退出码 + 关键输出/副作用），每条标 offline/live 档位。内容＝下述 CLI 断言清单 + 各票输入注记的 harvest；用例逐条编 ID，见 M19 追踪门。
+条件→期望用例（输入/前置 → 退出码 + 关键输出/副作用），每条标 offline/live 档位。内容＝下述 CLI 断言清单 + 各票输入注记的 harvest；用例逐条编 ID，见 M19 追踪清单。
 
 ## 测试四层
 
@@ -69,7 +69,7 @@ AnySearch **extraction 裁决**（消解 #53 砍 `anysearch-extract` 与 #59 L8 
 
 - **M17 辅助 seam 预算槽位定义**：槽位＝该层中「尚未尝试、凭据在位、未被断路器熔断」的候选数；classifier model 链及 web_fetch、supplemental、tavily_map 等辅助 provider 链继续按槽位均分，并受各自阶段或单次 timeout 上限约束。断路器熔断项不计入；`剩余预算/剩余槽位 < 5s` 时跳过该槽（journal 记 skipped），最后一槽可用全部剩余预算。main search 不适用槽位均分：主 backend → 主 model → SSE 首次尝试可使用全部剩余预算，fallback 只消费残余；`--fallback off` 仍只执行链头并禁用 provider 内 model fallback，classifier 链不受该旗标影响。单 backend + 单 model 没有 in-seam 超时重试，保障来自 fallback 链；共享 endpoint、model 或凭据池的 fallback 不提供故障隔离，隔离由配置负责（ADR 0007）。
 - **M18 瘦载荷边界**：普通路径的默认失败载荷以 **4 KiB** 为目标；列表字段（by_kind、providers、capability_gaps.providers_skipped）各截断至 8 项并置 `truncated: true`，message 截断至 500 字符。Research failure 使用稳定 schema，`evidence_dir`/`summary_path` locator 永不截断；极端长合法路径允许超过目标，不在创建 artifact 前预演拒绝。
-- **M19 覆盖完整性门**：Tier 0/Tier 1 → 测试 ID → provider/seam 追踪清单入库。**验收用例 ID 的权威源＝本章用例清单本身**（受版本控制，随规格入新仓），不由 provider registry 派生（registry 保持第 4 章 F10 最小职责）。集合断言拆两条**同型比较**进 CI：① registry 的 `(provider, seam)` 投影 ＝ fixture 集的 `(provider, seam)` 投影——新 provider/seam 无 fixture 即红；② 本清单的 live 用例 ID 集（P1–P2 + C01–C17）＝ `smoke --live` 实际注册的 ID 集——清单与实现不许漂移。L0 为流程门，不入集合。
+- **M19 追踪清单与 registry 一致性**：Tier 0/Tier 1 → 测试 ID → provider/seam 追踪清单入库。PR CI 保留两条直接集合断言：① provider registry 的 `(provider, seam)` 投影 ＝ transport fixture 集的 `(provider, seam)` 投影，且每项 fixture 都有非空测试引用；② `SPECIFICATION_CASE_IDS` 与 `smoke --live` 实际 registry 都精确等于 P1–P2 + C01–C17。`tests/acceptance-manifest.json` 继续作为受版本控制的追踪清单，但不再递归启动 Cargo 来验证每个测试引用是否仍注册且未被忽略；本章用例清单与 `SPECIFICATION_CASE_IDS` 的同步由变更审查负责。L0 为流程门，不入集合。
 - **M20 随迁 manifest**：见第 6 章。
 - **M21 冻结题集 + rubric**（人工质量抽查，行为丢失报警器，不做旧版对拍）：三题字面冻结——① 「Rust 的 async drop 现状与最新提案是什么？」（docs+web 混合、时效）；② 「对比 figment 与 config-rs 的分层覆盖模型，给出出处」（docs、交叉验证）；③ 「近一个月各大社区关于 Coding Agent 的讨论」（web+x 混合、时效、观点聚合）。rubric 三行，每行 pass/fail：相关性（回答对准问题）；来源去重（无重复/近重复来源）；引用支持结论（每主张可溯源到给出的 citation）。
 

@@ -132,8 +132,7 @@ cargo install --path . --locked
 cargo fmt --check
 cargo check --all-targets --all-features --locked
 cargo clippy --all-targets --all-features --locked -- -D warnings
-cargo test --lib --bin forager --all-features --locked
-cargo test --tests --all-features --locked
+cargo test --all-targets --all-features --locked --no-fail-fast -- --quiet
 ```
 
 ## 发布
