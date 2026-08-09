@@ -107,7 +107,7 @@ fn xai_deep_doctor_executes_one_responses_sse_probe() {
     let request = request_json(&request);
     assert_eq!(
         request["input"],
-        Value::String("Reply with exactly: ok".into())
+        serde_json::json!([{"role": "user", "content": "Reply with exactly: ok"}])
     );
     assert_eq!(request["tools"], serde_json::json!([]));
     assert!(request.get("instructions").is_none());

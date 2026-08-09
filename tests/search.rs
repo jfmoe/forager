@@ -2213,7 +2213,7 @@ fn search_uses_the_completed_xai_response_and_deduplicates_sources() {
         200,
         "text/event-stream",
         &format!(
-            "data: {}\n\n",
+            ": keepalive\n\ndata:\n\ndata: [DONE]\n\ndata: {}\n\n",
             serde_json::json!({
                 "type": "response.completed",
                 "response": {"output": [{"content": [{
@@ -2267,6 +2267,10 @@ fn search_uses_the_completed_xai_response_and_deduplicates_sources() {
     );
     assert!(request.contains("\"stream\":true"), "{request}");
     assert!(request.contains("\"model\":\"test-model\""), "{request}");
+    assert!(
+        request.contains("\"input\":[{\"role\":\"user\",\"content\":\""),
+        "{request}"
+    );
     assert!(
         request.contains("\"instructions\":\"You are a helpful research assistant."),
         "{request}"
@@ -2738,11 +2742,12 @@ fn search_formats_content_and_markdown_and_marks_json_tee_failures() {
 }
 
 #[test]
-fn search_maps_non_completed_sse_terminals_to_stable_runtime_errors() {
+fn search_maps_unknown_xai_terminals_missing_completion_and_malformed_frames_to_runtime() {
     for body in [
         "data: {\"type\":\"response.failed\",\"error\":{\"message\":\"upstream failed\"}}\n\n",
         "data: {\"type\":\"response.incomplete\",\"response\":{}}\n\n",
         "data: {\"type\":\"response.output_text.delta\",\"delta\":\"partial\"}\n\n",
+        "data: {not-json}\n\n",
     ] {
         let fixture = Fixture::start(200, "text/event-stream", body);
         let environment = RunEnvironment::new(&search_config(&fixture.url, false));
@@ -2768,6 +2773,113 @@ fn search_maps_non_completed_sse_terminals_to_stable_runtime_errors() {
         );
         fixture.finish();
     }
+}
+
+#[test]
+fn search_xai_structured_terminals_drive_retry_and_credential_rotation() {
+    let retry = Fixture::start_sequence(vec![
+        Response::sse(
+            200,
+            "data: {\"type\":\"response.failed\",\"error\":{\"code\":\"server_error\"}}\n\n",
+        ),
+        Response::sse(200, &completed_body("Retried answer", "Retried source")),
+    ]);
+    let retry_environment = RunEnvironment::new(
+        &search_config(&retry.url, false).replace("max_attempts = 1", "max_attempts = 2"),
+    );
+
+    let retry_output =
+        retry_environment.run(&["search", "Retry", "--capabilities", "none", "--verbose"]);
+    let retry_payload: Value =
+        serde_json::from_slice(&retry_output.stdout).expect("parse retry stdout");
+
+    assert_eq!(
+        (
+            retry_output.status.code(),
+            &retry_payload["answer"],
+            &retry_payload["provider_attempts"][0]["error_kind"],
+            &retry_payload["provider_attempts"][1]["error_kind"],
+        ),
+        (
+            Some(0),
+            &Value::String("Retried answer".into()),
+            &Value::String("network".into()),
+            &Value::Null,
+        )
+    );
+    assert_eq!(retry.finish_all().len(), 2);
+
+    let rotation = Fixture::start_sequence(vec![
+        Response::sse(
+            200,
+            "data: {\"type\":\"response.failed\",\"error\":{\"code\":\"rate_limit_exceeded\"}}\n\n",
+        ),
+        Response::sse(200, &completed_body("Rotated answer", "Rotated source")),
+    ]);
+    let rotation_environment = RunEnvironment::new(
+        &search_config(&rotation.url, false)
+            .replace(r#"keys = ["xai-key"]"#, r#"keys = ["key-1", "key-2"]"#),
+    );
+
+    let rotation_output =
+        rotation_environment.run(&["search", "Rotation", "--capabilities", "none", "--verbose"]);
+    let rotation_payload: Value =
+        serde_json::from_slice(&rotation_output.stdout).expect("parse rotation stdout");
+
+    assert_eq!(
+        (
+            rotation_output.status.code(),
+            &rotation_payload["answer"],
+            &rotation_payload["provider_attempts"][0]["error_kind"],
+            &rotation_payload["provider_attempts"][1]["rotation_count"],
+        ),
+        (
+            Some(0),
+            &Value::String("Rotated answer".into()),
+            &Value::String("rate_limited".into()),
+            &Value::from(1),
+        )
+    );
+    let requests = rotation.finish_all();
+    assert!(requests[0].contains("authorization: Bearer key-1"));
+    assert!(requests[1].contains("authorization: Bearer key-2"));
+}
+
+#[test]
+fn search_falls_back_when_xai_completed_response_has_no_output_text() {
+    let xai = Fixture::start(
+        200,
+        "text/event-stream",
+        concat!(
+            "data: {\"type\":\"response.completed\",\"response\":{\"output\":[",
+            "{\"content\":[{\"type\":\"reasoning\",\"text\":\"hidden\"}]}]}}\n\n"
+        ),
+    );
+    let openai = Fixture::start(
+        200,
+        "application/json",
+        r#"{"choices":[{"message":{"content":"Fallback answer"}}]}"#,
+    );
+    let environment = RunEnvironment::new(&main_fallback_config(
+        &xai.url,
+        &openai.url,
+        false,
+        &[],
+        "auto",
+        false,
+    ));
+
+    let output = environment.run(&["search", "Fallback", "--capabilities", "none"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (output.status.code(), &payload["answer"]),
+        (Some(0), &Value::String("Fallback answer".into())),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    xai.finish();
+    openai.finish();
 }
 
 #[test]
@@ -2954,44 +3066,52 @@ fn search_primary_sse_transport_can_use_the_models_full_remaining_budget() {
 }
 
 #[test]
-fn search_openai_truncated_stream_falls_back_to_non_stream() {
-    let openai = Fixture::start_sequence(vec![
-        Response::new(
-            200,
-            "text/event-stream",
-            "data: {\"choices\":[{\"delta\":{\"content\":\"Partial answer\"}}]}\n\n",
-        ),
-        Response::new(
-            200,
-            "application/json",
-            r#"{"choices":[{"message":{"content":"Complete answer"}}]}"#,
-        ),
-    ]);
-    let config = main_fallback_config("http://127.0.0.1:9", &openai.url, true, &[], "auto", false)
+fn search_openai_stream_accepts_nonempty_clean_eof() {
+    let openai = Fixture::start(
+        200,
+        "text/event-stream",
+        "data: {\"choices\":[{\"delta\":{\"content\":\"Partial answer\"}}]}\n\n",
+    );
+    let config = main_fallback_config("http://127.0.0.1:9", &openai.url, true, &[], "auto", true)
         .replace(
             r#"backends = ["xai", "openai_compatible"]"#,
             r#"backends = ["openai_compatible"]"#,
         );
     let environment = RunEnvironment::new(&config);
 
-    let output = environment.run(&["search", "Truncated stream", "--capabilities", "none"]);
+    let output = environment.run(&[
+        "search",
+        "Truncated stream",
+        "--capabilities",
+        "none",
+        "--verbose",
+    ]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let journal = read_only_journal(&environment);
 
     assert_eq!(
-        (output.status.code(), &payload["answer"]),
-        (Some(0), &Value::String("Complete answer".into())),
+        (
+            output.status.code(),
+            &payload["answer"],
+            &payload["journal_status"],
+            payload["provider_attempts"].as_array().map(Vec::len),
+            journal["execution"]["provider_attempts"]
+                .as_array()
+                .map(Vec::len),
+        ),
+        (
+            Some(0),
+            &Value::String("Partial answer".into()),
+            &Value::String("written".into()),
+            Some(1),
+            Some(1),
+        ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     let requests = openai.finish_all();
-    assert_eq!(
-        (
-            requests.len(),
-            requests[0].contains("\"stream\":true"),
-            requests[1].contains("\"stream\":false"),
-        ),
-        (2, true, true)
-    );
+    assert_eq!(requests.len(), 1);
+    assert!(requests[0].contains("\"stream\":true"));
 }
 
 #[test]
@@ -3024,7 +3144,7 @@ fn search_openai_stream_accepts_finish_reason_without_done_marker() {
 }
 
 #[test]
-fn search_openai_buffered_sse_rejects_a_truncated_answer() {
+fn search_openai_buffered_sse_accepts_nonempty_clean_eof() {
     let openai = Fixture::start(
         200,
         "text/event-stream",
@@ -3041,12 +3161,43 @@ fn search_openai_buffered_sse_rejects_a_truncated_answer() {
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
 
     assert_eq!(
-        (output.status.code(), &payload["error_kind"]),
-        (Some(4), &Value::String("runtime".into())),
+        (output.status.code(), &payload["answer"]),
+        (Some(0), &Value::String("Partial answer".into())),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     openai.finish();
+}
+
+#[test]
+fn search_openai_buffered_sse_rejects_empty_eof_and_malformed_frames() {
+    for body in [
+        "",
+        concat!(
+            "data: {\"choices\":[{\"delta\":{\"content\":\"partial\"}}]}\n\n",
+            "data: {not-json}\n\n"
+        ),
+    ] {
+        let openai = Fixture::start(200, "text/event-stream", body);
+        let config =
+            main_fallback_config("http://127.0.0.1:9", &openai.url, false, &[], "auto", false)
+                .replace(
+                    r#"backends = ["xai", "openai_compatible"]"#,
+                    r#"backends = ["openai_compatible"]"#,
+                );
+        let environment = RunEnvironment::new(&config);
+
+        let output = environment.run(&["search", "Invalid stream", "--capabilities", "none"]);
+        let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+        assert_eq!(
+            (output.status.code(), &payload["error_kind"]),
+            (Some(4), &Value::String("runtime".into())),
+            "stderr: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        openai.finish();
+    }
 }
 
 #[test]

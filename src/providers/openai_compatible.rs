@@ -664,19 +664,16 @@ fn finish(
     sources: Vec<Source>,
     completed: bool,
 ) -> Result<(String, Vec<Source>), AttemptFailure> {
-    if !completed {
-        return Err(AttemptFailure {
-            kind: AttemptErrorKind::Runtime,
-            status: Some(200),
-            message: "OpenAI-compatible stream ended before a completion marker".into(),
-            redirected_library_id: None,
-        });
-    }
     if answer.trim().is_empty() {
         return Err(AttemptFailure {
             kind: AttemptErrorKind::Runtime,
             status: Some(200),
-            message: "OpenAI-compatible stream contained no answer".into(),
+            message: if completed {
+                "OpenAI-compatible stream contained no answer"
+            } else {
+                "OpenAI-compatible stream ended with an empty answer"
+            }
+            .into(),
             redirected_library_id: None,
         });
     }
@@ -713,8 +710,25 @@ mod tests {
 
     use super::{
         BREAKER_FAILURE_THRESHOLD, BreakerState, ModelBreakers, OpenAiCompatible,
-        apply_online_suffix, push_model,
+        apply_online_suffix, finish, push_model,
     };
+
+    fn provider() -> OpenAiCompatible {
+        OpenAiCompatible::new(
+            OpenAiCompatibleRuntimeConfig {
+                url: "https://relay.example/v1".into(),
+                keys: vec!["key".into()],
+                model: "model".into(),
+                fallback_models: Vec::new(),
+                stream: true,
+            },
+            reqwest::Client::new(),
+            CredentialPool::new("openai_compatible", vec!["key".into()]),
+            RetryPolicy::new(1, 1.0, Duration::ZERO),
+            Deadline::new(Duration::from_secs(10)),
+            Arc::new(ModelBreakers::default()),
+        )
+    }
 
     #[test]
     fn openrouter_models_receive_one_online_suffix() {
@@ -739,6 +753,53 @@ mod tests {
             push_model(&mut models, model.into());
         }
         assert_eq!(models, ["primary", "fallback"]);
+    }
+
+    #[test]
+    fn sse_parser_accepts_controls_and_clean_eof_but_rejects_empty_or_malformed_data() {
+        let provider = provider();
+        let mut answer = String::new();
+        let mut sources = Vec::new();
+
+        assert_eq!(
+            provider
+                .consume_sse_data("", &mut answer, &mut sources)
+                .ok(),
+            Some(false)
+        );
+        assert_eq!(
+            provider
+                .consume_sse_data("[DONE]", &mut answer, &mut sources)
+                .ok(),
+            Some(true)
+        );
+        assert_eq!(
+            provider
+                .consume_sse_data(
+                    r#"{"choices":[{"delta":{"content":"answer"}}]}"#,
+                    &mut answer,
+                    &mut sources,
+                )
+                .ok(),
+            Some(false)
+        );
+        assert_eq!(
+            finish(answer, sources, false).ok().map(|value| value.0),
+            Some("answer".into())
+        );
+        assert_eq!(
+            finish(String::new(), Vec::new(), false)
+                .err()
+                .map(|error| error.kind),
+            Some(AttemptErrorKind::Runtime)
+        );
+        assert_eq!(
+            provider
+                .consume_sse_data("{not-json}", &mut String::new(), &mut Vec::new())
+                .err()
+                .map(|error| error.kind),
+            Some(AttemptErrorKind::Runtime)
+        );
     }
 
     #[test]
