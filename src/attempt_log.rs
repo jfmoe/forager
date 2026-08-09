@@ -23,14 +23,7 @@ pub(crate) fn render(level: LogLevel, attempts: &[ProviderAttempt]) -> Option<St
         "credential_rotation".into(),
         Value::Bool(attempts.iter().any(|attempt| attempt.rotation_count > 0)),
     );
-    summary.insert(
-        "fallback".into(),
-        Value::Bool(
-            attempts
-                .windows(2)
-                .any(|pair| pair[0].provider != pair[1].provider),
-        ),
-    );
+    summary.insert("fallback".into(), Value::Bool(fallback_occurred(attempts)));
     summary.insert(
         "breaker_event".into(),
         Value::Bool(
@@ -54,6 +47,21 @@ pub(crate) fn render(level: LogLevel, attempts: &[ProviderAttempt]) -> Option<St
         }));
     }
     Some(lines.join("\n"))
+}
+
+fn fallback_occurred(attempts: &[ProviderAttempt]) -> bool {
+    let mut identity_by_seam = BTreeMap::new();
+    for attempt in attempts {
+        let identity = (attempt.provider, attempt.model.as_deref());
+        if let Some(first_identity) = identity_by_seam.get(attempt.seam) {
+            if *first_identity != identity {
+                return true;
+            }
+        } else {
+            identity_by_seam.insert(attempt.seam, identity);
+        }
+    }
+    false
 }
 
 #[must_use]
@@ -146,6 +154,42 @@ mod tests {
             );
         }
         assert_eq!(render(LogLevel::Trace, &[]), None);
+    }
+
+    #[test]
+    fn summary_marks_same_provider_model_change_as_fallback() {
+        let first = attempt(AttemptErrorKind::Runtime);
+        let mut second = attempt(AttemptErrorKind::Network);
+        second.model = Some("fallback-model".into());
+
+        let output = render(LogLevel::Debug, &[first, second]).expect("debug projection");
+        let summary: serde_json::Value = serde_json::from_str(
+            output
+                .strip_prefix("forager attempts: ")
+                .expect("summary prefix"),
+        )
+        .expect("summary JSON");
+
+        assert_eq!(&summary["fallback"], &serde_json::json!(true));
+    }
+
+    #[test]
+    fn summary_does_not_mark_a_seam_transition_as_fallback() {
+        let mut classifier = attempt(AttemptErrorKind::Runtime);
+        classifier.provider = "classifier";
+        classifier.seam = "classifier";
+        classifier.model = Some("classifier-model".into());
+        let main_search = attempt(AttemptErrorKind::Network);
+
+        let output = render(LogLevel::Debug, &[classifier, main_search]).expect("debug projection");
+        let summary: serde_json::Value = serde_json::from_str(
+            output
+                .strip_prefix("forager attempts: ")
+                .expect("summary prefix"),
+        )
+        .expect("summary JSON");
+
+        assert_eq!(&summary["fallback"], &serde_json::json!(false));
     }
 
     #[test]

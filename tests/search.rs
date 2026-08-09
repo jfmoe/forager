@@ -699,6 +699,67 @@ fn empty_tavily_results_fall_back_to_a_nonempty_firecrawl_result() {
 }
 
 #[test]
+fn non_http_tavily_url_falls_back_to_a_valid_firecrawl_candidate() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let tavily = Fixture::start(
+        200,
+        "application/json",
+        r#"{"results":[{"title":"Invalid","url":"ftp://example.test/result"}]}"#,
+    );
+    let firecrawl = Fixture::start(
+        200,
+        "application/json",
+        r#"{"data":{"web":[{"title":"Fallback","url":"https://example.test/fallback"}]}}"#,
+    );
+    let config = format!(
+        "{}\n[providers.tavily]\nurl = {:?}\nkeys = [\"tavily-key\"]\ntimeout = 30\n\n[providers.firecrawl]\nurl = {:?}\nkeys = [\"firecrawl-key\"]\ntimeout = 30\n\n[capabilities.web_search]\norder = [\"tavily\", \"firecrawl\"]\n",
+        search_config(&main.url, true),
+        tavily.url,
+        firecrawl.url,
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Current information",
+        "--capabilities",
+        "web_search",
+        "--verbose",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let web_attempts = payload["provider_attempts"]
+        .as_array()
+        .expect("provider attempts")
+        .iter()
+        .filter(|attempt| attempt["seam"] == "web_search")
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["extra_sources"][0]["url"],
+            &web_attempts[0]["error_kind"],
+            &web_attempts[1]["provider"],
+        ),
+        (
+            Some(0),
+            &Value::String("https://example.test/fallback".into()),
+            &Value::String("runtime".into()),
+            &Value::String("firecrawl".into()),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    main.finish();
+    tavily.finish();
+    firecrawl.finish();
+}
+
+#[test]
 fn a_fully_empty_supplemental_chain_succeeds_with_all_attempts() {
     let main = Fixture::start(
         200,

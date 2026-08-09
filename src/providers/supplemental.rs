@@ -138,43 +138,72 @@ impl SupplementalSearch {
             ),
             redirected_library_id: None,
         })?;
+        let sources = self.normalize_sources(results, limit, status.as_u16())?;
+        Ok((status.as_u16(), sources))
+    }
+
+    fn normalize_sources(
+        &self,
+        results: Vec<SearchResult>,
+        limit: u16,
+        status: u16,
+    ) -> Result<Vec<Source>, AttemptFailure> {
         let results_were_empty = results.is_empty();
-        let sources = results
-            .into_iter()
-            .filter_map(|source| {
-                let url = source.url?.trim().to_owned();
-                if url.is_empty() {
-                    return None;
-                }
-                Some(Source {
-                    title: self.credentials.redact(&source.title),
-                    url: self.credentials.redact(&redact_url(&url)),
-                    published_date: source
-                        .published_date
-                        .map(|value| self.credentials.redact(&value)),
-                    author: source.author.map(|value| self.credentials.redact(&value)),
-                    text: source
-                        .content
-                        .or(source.description)
-                        .map(|value| redact_urls(&self.credentials.redact(&value))),
-                    highlights: Vec::new(),
-                    id: None,
-                    image: None,
-                    favicon: None,
-                })
-            })
-            .take(usize::from(limit))
-            .collect::<Vec<_>>();
+        let mut sources = Vec::new();
+        let result_limit = usize::from(limit);
+        for source in results {
+            if sources.len() == result_limit {
+                break;
+            }
+            let Some(url) = source.url.map(|url| url.trim().to_owned()) else {
+                continue;
+            };
+            if url.is_empty() {
+                continue;
+            }
+            if !is_http_url(&url) {
+                return Err(AttemptFailure {
+                    kind: AttemptErrorKind::Runtime,
+                    status: Some(status),
+                    message: format!(
+                        "invalid {} search response: result URL must use HTTP(S)",
+                        self.provider
+                    ),
+                    redirected_library_id: None,
+                });
+            }
+            sources.push(Source {
+                title: self.credentials.redact(&source.title),
+                url: self.credentials.redact(&redact_url(&url)),
+                published_date: source
+                    .published_date
+                    .map(|value| self.credentials.redact(&value)),
+                author: source.author.map(|value| self.credentials.redact(&value)),
+                text: source
+                    .content
+                    .or(source.description)
+                    .map(|value| redact_urls(&self.credentials.redact(&value))),
+                highlights: Vec::new(),
+                id: None,
+                image: None,
+                favicon: None,
+            });
+        }
         if !results_were_empty && sources.is_empty() {
             return Err(AttemptFailure {
                 kind: AttemptErrorKind::Evidence,
-                status: Some(status.as_u16()),
+                status: Some(status),
                 message: format!("{} search returned no valid candidate", self.provider),
                 redirected_library_id: None,
             });
         }
-        Ok((status.as_u16(), sources))
+        Ok(sources)
     }
+}
+
+fn is_http_url(value: &str) -> bool {
+    reqwest::Url::parse(value)
+        .is_ok_and(|url| matches!(url.scheme(), "http" | "https") && url.host_str().is_some())
 }
 
 #[derive(Serialize)]

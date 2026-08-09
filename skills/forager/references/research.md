@@ -15,10 +15,16 @@ attached to the plan without being treated as evidence.
 Read [`capability-vocabulary.json`](capability-vocabulary.json) and
 [`research-plan.json`](research-plan.json). Choose `quick` for a small research-grade plan,
 `standard` for normal multi-source work, and `deep` for an explicit deep or broad investigation.
+Their maximum subquestion counts are 2, 4, and 6 respectively.
 
 Create a complete Schema v1 plan adapted to the request. Each subquestion has a unique, non-empty
 `id`, `question`, and `reason`, plus the complete `required_capabilities` set drawn from
 `docs_search`, `web_search`, and `vertical_search`. The engine supplies `web_fetch`.
+
+Use only the schema's exact intent-signal values: `recency_requirement` is `none`, `recent`, or
+`current`; `docs_api_intent` is boolean; `source_authority_need` and `cross_validation_need` are
+`normal` or `high`; and `claim_risk` is `medium` or `high`. Put dates and other precision in the
+query or subquestions instead of inventing enum values.
 
 Store the exact plan in `PLAN_JSON`, then run:
 
@@ -38,11 +44,13 @@ evidence item's `id`. Citation Binding expresses attribution, not semantic verif
 
 Disclose every unresolved `gap_check` and `capability_gaps` entry and its effect on coverage.
 
-For each key claim without fetched support, read `unconsumed_candidates.path`, select a matching
-disclosed candidate, and fetch it. When none fits, run `forager exa similar` from a reliable URL and
-fetch the selected result. An unfetched candidate may appear only as a disclosed unverified
-candidate. Keep this supplement loop in the agent layer and re-run neither `forager research` nor
-main search.
+For each key claim without fetched support, fetch an already-known reliable HTTP(S) URL when one is
+available. Otherwise read `unconsumed_candidates.path`, select a matching disclosed candidate, and
+fetch it. Only when neither exists, run one `forager exa similar` round from a reliable URL and fetch
+the selected result. An unfetched candidate may appear only as a disclosed unverified candidate.
+Supplemental fetches are outside the evidence index: cite their actual URLs as supplemental sources
+and never fabricate an `eN` identity for them. Keep this loop in the agent layer and re-run neither
+`forager research` nor main search.
 
 Complete research when every key claim is supported by fetched evidence or represented by a
 disclosed gap or unverified candidate. On terminal failure, read the Research Recovery Manifest

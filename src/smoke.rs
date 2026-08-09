@@ -670,6 +670,7 @@ fn command_specs(
     p2_evidence_dir: Option<&Path>,
 ) -> Option<Vec<CommandSpec>> {
     let timeout = timeout_seconds.to_string();
+    let map_timeout = timeout_seconds.clamp(10, 150).to_string();
     let one = |arguments: &[&str], shape| {
         vec![CommandSpec {
             arguments: arguments.iter().map(|value| (*value).into()).collect(),
@@ -869,7 +870,7 @@ fn command_specs(
                 "--limit",
                 "10",
                 "--timeout",
-                &timeout,
+                &map_timeout,
             ],
             ResultShape::Map,
         ),
@@ -1152,7 +1153,7 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use super::{
-        execute_with_deadline, official_status_host, status_host_matches_endpoint,
+        command_specs, execute_with_deadline, official_status_host, status_host_matches_endpoint,
         status_page_reports_outage,
     };
     use crate::types::Deadline;
@@ -1187,6 +1188,16 @@ mod tests {
         };
         thread::sleep(Duration::from_secs(1));
         fs::write(marker, "completed").expect("write completion marker");
+    }
+
+    #[test]
+    fn map_live_case_uses_a_legal_command_timeout() {
+        let timeouts = [1, 10, 150, 600].map(|budget| {
+            let commands = command_specs("C17", budget, None).expect("C17 command");
+            commands[0].arguments[5].clone()
+        });
+
+        assert_eq!(timeouts, ["10", "10", "150", "150"]);
     }
 
     #[test]

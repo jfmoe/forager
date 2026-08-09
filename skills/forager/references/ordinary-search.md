@@ -4,6 +4,10 @@ Read [`capability-vocabulary.json`](capability-vocabulary.json), then declare th
 supplemental capability set. Preserve the vocabulary order and use `none` when main search alone is
 sufficient.
 
+Declare `web_fetch` only when the request already supplies or identifies a concrete HTTP(S) URL or
+PDF for this search command. Intending to fetch URLs discovered after search does not add
+`web_fetch` to the initial declaration; run those later fetches explicitly.
+
 ```console
 forager search "QUERY" --capabilities CAPABILITIES --format json
 ```
