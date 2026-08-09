@@ -134,9 +134,9 @@ jobs:
             > "$config_dir/config.toml"
           chmod 600 "$config_dir/config.toml"
           doctor=$(FORAGER_CONFIG_DIR="$config_dir" XDG_STATE_HOME="$state_dir" \
-            HOME="$home_dir" forager doctor --timeout 1)
+            HOME="$home_dir" forager doctor --timeout 1 || test "$?" -eq 4)
           jq -e '
-            .ok == true
+            .ok == false
             and .mode == "shallow"
             and ([.providers[] | select(.configured)] | length) == 8
             and .config.providers.exa.keys.source == "file"
@@ -217,9 +217,11 @@ jobs:
           $env:FORAGER_CONFIG_DIR = $configDir
           $env:XDG_STATE_HOME = $stateDir
           $env:HOME = Join-Path $env:RUNNER_TEMP "forager-home"
-          $doctor = forager doctor --timeout 1 | ConvertFrom-Json
-          if (!$doctor.ok -or $doctor.mode -ne "shallow") {
-            throw "doctor did not accept the migrated configuration"
+          $doctorJson = forager doctor --timeout 1
+          $doctorExitCode = $LASTEXITCODE
+          $doctor = $doctorJson | ConvertFrom-Json
+          if ($doctorExitCode -ne 4 -or $doctor.ok -or $doctor.mode -ne "shallow") {
+            throw "doctor did not report the expected unreachable configuration"
           }
           $configured = @($doctor.providers | Where-Object configured)
           if ($configured.Count -ne 8) {
