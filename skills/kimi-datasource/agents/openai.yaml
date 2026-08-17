@@ -1,0 +1,4 @@
+interface:
+  display_name: "Kimi Datasource"
+  short_description: "使用 Kimi Code OAuth 查询 12 类结构化数据源"
+  default_prompt: "Use $kimi-datasource to query the best matching Kimi data source and summarize the result."
