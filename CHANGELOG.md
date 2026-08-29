@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0](https://github.com/jfmoe/forager/compare/v0.3.0...v0.4.0) - 2026-08-29
+
+### Added
+
+- *(skill)* add Kimi datasource support
+
+### Fixed
+
+- *(release)* clear expected doctor exit on Windows
+- *(release)* align artifact gate with doctor exit contract
+
+### Other
+
+- simplify suite contracts
+- [**breaking**] tighten audited contracts
+
 ## [0.3.0](https://github.com/jfmoe/forager/compare/v0.2.0...v0.3.0) - 2026-08-09
 
 ### Added
