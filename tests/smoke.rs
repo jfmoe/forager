@@ -7,7 +7,7 @@ use std::process::{Command, Output};
 use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
-use support::{Fixture, Response};
+use support::{Fixture, Response, run_command};
 
 struct SmokeEnvironment {
     _root: tempfile::TempDir,
@@ -59,7 +59,7 @@ impl SmokeEnvironment {
         if let Some(system_root) = std::env::var_os("SystemRoot") {
             command.env("SystemRoot", system_root);
         }
-        command.output().expect("run forager")
+        run_command(&mut command, None)
     }
 }
 
@@ -256,10 +256,9 @@ fn independent_outage_probe_reports_a_failed_same_endpoint_request() {
 
 #[test]
 fn internal_smoke_probe_does_not_add_a_top_level_command() {
-    let output = Command::new(env!("CARGO_BIN_EXE_forager"))
-        .arg("__smoke-probe")
-        .output()
-        .expect("run forager");
+    let mut command = Command::new(env!("CARGO_BIN_EXE_forager"));
+    command.arg("__smoke-probe");
+    let output = run_command(&mut command, None);
 
     assert_eq!(output.status.code(), Some(2));
 }

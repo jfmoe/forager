@@ -9,13 +9,14 @@ use crate::config::{
     VerticalSearchRuntimeConfig, WebFetchRuntimeConfig, WebSearchRuntimeConfig,
 };
 use crate::net::{RetryPolicy, combine_diagnostics, slice_budget};
-use crate::providers::{self, FetchRequest, ProviderError, SearchRequest};
+use crate::providers::{self, FetchRequest, MainSearchRequest, ProviderError};
 use crate::redact::redact_url;
 use crate::types::{
-    AttemptErrorKind, Capability, CapabilityGap, CapabilitySet, DENSITY_MAX_CHARS,
-    DENSITY_MAX_UNIQUE_LINES, Deadline, DocumentationEvidence, DocumentationSearchOutcome,
-    EvidenceLocator, FetchOutcome, MIN_FETCH_CONTENT_CHARS, ProviderAttempt, SearchCandidate,
-    SearchOutcome, Source, SupplementalSearchOutcome, VerticalSearchOutcome,
+    AttemptDisposition, AttemptErrorKind, AttemptTarget, Capability, CapabilityGap, CapabilitySet,
+    DENSITY_MAX_CHARS, DENSITY_MAX_UNIQUE_LINES, Deadline, DocumentationEvidence,
+    DocumentationSearchOutcome, EvidenceLocator, FallbackPolicy, FetchOutcome,
+    MIN_FETCH_CONTENT_CHARS, ProviderAttempt, SearchCandidate, SearchOutcome, Source,
+    SupplementalSearchOutcome, VerticalSearchOutcome,
 };
 
 pub(crate) const FANOUT_CONCURRENCY: usize = 4;
@@ -23,7 +24,7 @@ const WEB_FETCH_PREVIEW_CHARS: usize = 300;
 
 #[derive(Clone)]
 pub(crate) struct CapabilityExecution {
-    pub(crate) fallback: String,
+    pub(crate) fallback: FallbackPolicy,
     pub(crate) client: Client,
     pub(crate) retry_policy: RetryPolicy,
     pub(crate) deadline: Deadline,
@@ -127,7 +128,8 @@ where
             attempts.push(synthetic_attempt(
                 id,
                 settings.seam,
-                AttemptErrorKind::Auth,
+                AttemptDisposition::Failed,
+                Some(AttemptErrorKind::Auth),
                 format!("{} has no configured credentials", id.name()),
             ));
             break;
@@ -142,7 +144,8 @@ where
                     attempts.push(synthetic_attempt(
                         id,
                         settings.seam,
-                        AttemptErrorKind::Timeout,
+                        AttemptDisposition::Skipped,
+                        None,
                         "skipped to preserve fallback deadline budget".into(),
                     ));
                     continue;
@@ -213,13 +216,15 @@ fn provider_chain_error(
 fn synthetic_attempt(
     id: providers::ProviderId,
     seam: &'static str,
-    kind: AttemptErrorKind,
+    disposition: AttemptDisposition,
+    error_kind: Option<AttemptErrorKind>,
     message: String,
 ) -> ProviderAttempt {
     ProviderAttempt {
         provider: id.name(),
-        seam,
-        error_kind: Some(kind),
+        target: AttemptTarget::seam(seam),
+        disposition,
+        error_kind,
         http_status: None,
         duration_ms: 0,
         credential_index: 0,
@@ -235,13 +240,13 @@ fn synthetic_attempt(
 
 impl CapabilityExecution {
     pub(crate) fn new(
-        fallback: &str,
+        fallback: FallbackPolicy,
         client: Client,
         retry_policy: RetryPolicy,
         deadline: Deadline,
     ) -> Self {
         Self {
-            fallback: fallback.into(),
+            fallback,
             client,
             retry_policy,
             deadline,
@@ -545,7 +550,10 @@ fn successful_provider(attempts: &[ProviderAttempt], seam: &str) -> &'static str
     attempts
         .iter()
         .rev()
-        .find(|attempt| attempt.seam == seam && attempt.error_kind.is_none())
+        .find(|attempt| {
+            attempt.target.seam_name() == Some(seam)
+                && attempt.disposition == AttemptDisposition::Succeeded
+        })
         .map_or_else(
             || unreachable!("successful search outcome records a provider attempt"),
             |attempt| attempt.provider,
@@ -612,9 +620,9 @@ fn url_boundary(character: char) -> bool {
 }
 
 pub(crate) async fn search(
-    request: SearchRequest,
+    request: MainSearchRequest,
     config: MainSearchRuntimeConfig,
-    fallback: &str,
+    fallback: FallbackPolicy,
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
@@ -627,7 +635,7 @@ pub(crate) async fn search(
             budget_policy: BudgetPolicy::PrimaryFirst,
             exhausted_message: "main search deadline elapsed",
             error_verbose: request.verbose,
-            fallback_off: fallback == "off",
+            fallback_off: !fallback.allows_fallback(),
         },
         deadline,
         |_| true,
@@ -695,9 +703,10 @@ pub(crate) async fn fetch(
                 if is_thin(&outcome.content, &request.url) {
                     let character_count = outcome.content.chars().count();
                     if let Some(attempt) = outcome.attempts.last_mut() {
-                        attempt.error_kind = Some(AttemptErrorKind::Quality);
-                        attempt.message =
-                            format!("extracted content is too thin ({character_count} characters)");
+                        attempt.mark_failed(
+                            AttemptErrorKind::Quality,
+                            format!("extracted content is too thin ({character_count} characters)"),
+                        );
                     }
                     return Err(provider_chain_error(
                         outcome.attempts,
@@ -734,7 +743,7 @@ pub(crate) async fn supplemental_web_search(
     config: WebSearchRuntimeConfig,
     execution: CapabilityExecution,
 ) -> Result<SupplementalSearchOutcome, ProviderError> {
-    let fallback_off = execution.fallback == "off";
+    let fallback_off = !execution.fallback.allows_fallback();
     let step = run_provider_chain(
         config.into_entries(),
         ChainSettings {
@@ -787,7 +796,7 @@ pub(crate) async fn documentation_search(
             budget_policy: BudgetPolicy::SlicedEven,
             exhausted_message: "documentation search has no executable provider",
             error_verbose: false,
-            fallback_off: execution.fallback == "off",
+            fallback_off: !execution.fallback.allows_fallback(),
         },
         execution.deadline,
         |candidate_sources: &Vec<SearchCandidate>| !candidate_sources.is_empty(),
@@ -805,9 +814,10 @@ pub(crate) async fn documentation_search(
                 .await?;
                 if outcome.candidate_sources.is_empty() {
                     if let Some(attempt) = outcome.attempts.last_mut() {
-                        attempt.error_kind = Some(AttemptErrorKind::Evidence);
-                        attempt.message =
-                            "documentation search returned no consumable source".into();
+                        attempt.mark_failed(
+                            AttemptErrorKind::Evidence,
+                            "documentation search returned no consumable source",
+                        );
                     }
                     return Err(provider_chain_error(
                         outcome.attempts,
@@ -888,8 +898,10 @@ pub(crate) async fn documentation_read(
         .unwrap_or_default();
     if is_thin(&evidence.content, identity) {
         if let Some(attempt) = evidence.attempts.last_mut() {
-            attempt.error_kind = Some(AttemptErrorKind::Quality);
-            attempt.message = "documentation content is too thin".into();
+            attempt.mark_failed(
+                AttemptErrorKind::Quality,
+                "documentation content is too thin",
+            );
         }
         return Err(provider_chain_error(
             evidence.attempts,
@@ -914,7 +926,7 @@ pub(crate) async fn vertical_search(
             budget_policy: BudgetPolicy::SlicedEven,
             exhausted_message: "vertical search has no executable provider",
             error_verbose: false,
-            fallback_off: execution.fallback == "off",
+            fallback_off: !execution.fallback.allows_fallback(),
         },
         execution.deadline,
         |_| true,
@@ -984,6 +996,7 @@ fn terminal_attempt(attempts: &[ProviderAttempt]) -> Option<&ProviderAttempt> {
         .enumerate()
         .rev()
         .filter(|(_, attempt)| final_providers.insert(attempt.provider))
+        .filter(|(_, attempt)| attempt.disposition == AttemptDisposition::Failed)
         .filter_map(|(index, attempt)| attempt.error_kind.map(|kind| (index, attempt, kind)))
         .max_by_key(|(index, _, kind)| (error_priority(*kind), *index))
         .map(|(_, attempt, _)| attempt)
@@ -1011,7 +1024,7 @@ mod tests {
         CapabilityTargets, error_priority, provider_chain_error, terminal_attempt, terminal_kind,
     };
     use crate::net::slice_budget;
-    use crate::types::{AttemptErrorKind, ProviderAttempt};
+    use crate::types::{AttemptDisposition, AttemptErrorKind, AttemptTarget, ProviderAttempt};
 
     #[test]
     fn capability_targets_preserve_branch_local_defaults_and_positive_requests() {
@@ -1122,7 +1135,8 @@ mod tests {
     ) -> ProviderAttempt {
         ProviderAttempt {
             provider,
-            seam: "web_fetch",
+            target: AttemptTarget::seam("web_fetch"),
+            disposition: AttemptDisposition::Failed,
             error_kind: Some(kind),
             http_status: None,
             duration_ms: 0,

@@ -1,3 +1,5 @@
+mod support;
+
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::Path;
@@ -6,6 +8,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use fs2::FileExt;
+use support::{run_command, spawn_command, wait_for_child};
 
 #[test]
 fn non_interactive_setup_creates_a_complete_commented_template() {
@@ -97,15 +100,15 @@ fn setup_modes_time_out_without_writing_when_the_config_lock_is_held() {
 #[test]
 fn interactive_setup_holds_the_config_lock_until_its_update_is_saved() {
     let config_dir = tempfile::tempdir().expect("create config directory");
-    let mut setup = Command::new(env!("CARGO_BIN_EXE_forager"))
+    let mut setup_command = Command::new(env!("CARGO_BIN_EXE_forager"));
+    setup_command
         .args(["setup", "--lang", "en"])
         .env_clear()
         .env("FORAGER_CONFIG_DIR", config_dir.path())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("spawn interactive setup");
+        .stderr(Stdio::piped());
+    let mut setup = spawn_command(&mut setup_command).expect("spawn interactive setup");
     let lock_path = config_dir.path().join(".config.lock");
     let deadline = Instant::now() + Duration::from_secs(1);
     loop {
@@ -142,12 +145,11 @@ fn interactive_setup_holds_the_config_lock_until_its_update_is_saved() {
     );
 
     setup
-        .stdin
-        .take()
+        .take_stdin()
         .expect("open setup stdin")
         .write_all(b"\n\n\nn\n\n\n\n\n\n\n\n")
         .expect("complete setup input");
-    let output = setup.wait_with_output().expect("wait for setup");
+    let output = wait_for_child(setup, "interactive setup");
     assert_eq!(output.status.code(), Some(0), "{output:?}");
 }
 
@@ -371,14 +373,5 @@ fn run(config_dir: &Path, args: &[&str], stdin: Option<&str>) -> Output {
     } else {
         command.stdin(Stdio::null());
     }
-    let mut child = command.spawn().expect("spawn forager");
-    if let Some(stdin) = stdin {
-        child
-            .stdin
-            .take()
-            .expect("open stdin")
-            .write_all(stdin.as_bytes())
-            .expect("write stdin");
-    }
-    child.wait_with_output().expect("wait forager")
+    run_command(&mut command, stdin.map(str::as_bytes))
 }

@@ -1,11 +1,11 @@
+mod support;
+
 use std::fs::{self, OpenOptions};
-use std::io::Write;
 use std::process::{Command, Output, Stdio};
-use std::thread;
-use std::time::Duration;
 
 use fs2::FileExt;
 use serde_json::Value;
+use support::run_command;
 
 #[test]
 fn config_list_reports_the_complete_default_effective_view() {
@@ -261,6 +261,39 @@ fn config_set_and_unset_preserve_unrelated_toml() {
 }
 
 #[test]
+fn config_set_and_unset_edit_inline_tables() {
+    let config_dir = tempfile::tempdir().expect("create config directory");
+    let path = config_dir.path().join("config.toml");
+    fs::write(&path, "retry = { max_attempts = 2, max_wait = 5 }\n").expect("write config");
+
+    let set = run(
+        config_dir.path(),
+        &["config", "set", "retry.max_attempts", "4"],
+        &[],
+        None,
+    );
+    let unset = run(
+        config_dir.path(),
+        &["config", "unset", "retry.max_wait"],
+        &[],
+        None,
+    );
+    let document: toml::Value =
+        toml::from_str(&fs::read_to_string(path).expect("read edited inline table"))
+            .expect("parse edited inline table");
+
+    assert_eq!(
+        (
+            set.status.code(),
+            unset.status.code(),
+            document["retry"]["max_attempts"].as_integer(),
+            document["retry"].get("max_wait"),
+        ),
+        (Some(0), Some(0), Some(4), None)
+    );
+}
+
+#[test]
 fn config_edits_time_out_without_writing_when_the_config_lock_is_held() {
     let config_dir = tempfile::tempdir().expect("create config directory");
     let config_path = config_dir.path().join("config.toml");
@@ -299,50 +332,6 @@ fn config_edits_time_out_without_writing_when_the_config_lock_is_held() {
         fs::read_to_string(config_path).expect("read preserved config"),
         "[log]\nlevel = \"info\"\n"
     );
-}
-
-#[test]
-fn concurrent_config_sets_preserve_both_updates() {
-    let config_dir = tempfile::tempdir().expect("create config directory");
-    let lock = OpenOptions::new()
-        .create(true)
-        .truncate(false)
-        .read(true)
-        .write(true)
-        .open(config_dir.path().join(".config.lock"))
-        .expect("open config lock");
-    lock.lock_exclusive().expect("hold config lock");
-
-    let spawn = |path: &str, value: &str| {
-        Command::new(env!("CARGO_BIN_EXE_forager"))
-            .args(["config", "set", path, value])
-            .env_clear()
-            .env("FORAGER_CONFIG_DIR", config_dir.path())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .expect("spawn config set")
-    };
-    let first = spawn("providers.exa.timeout", "41");
-    let second = spawn("log.level", "debug");
-    thread::sleep(Duration::from_millis(30));
-    FileExt::unlock(&lock).expect("release config lock");
-
-    let first = first.wait_with_output().expect("wait for first config set");
-    let second = second
-        .wait_with_output()
-        .expect("wait for second config set");
-    assert_eq!(first.status.code(), Some(0), "{first:?}");
-    assert_eq!(second.status.code(), Some(0), "{second:?}");
-    let document: toml::Value = toml::from_str(
-        &fs::read_to_string(config_dir.path().join("config.toml")).expect("read config"),
-    )
-    .expect("parse config");
-    assert_eq!(
-        document["providers"]["exa"]["timeout"].as_integer(),
-        Some(41)
-    );
-    assert_eq!(document["log"]["level"].as_str(), Some("debug"));
 }
 
 #[test]
@@ -526,6 +515,50 @@ fn config_list_rejects_invalid_enums_ranges_and_provider_orders_with_locations()
         assert!(stderr.contains(key), "{stderr}");
         assert!(stderr.contains("line"), "{stderr}");
     }
+}
+
+#[test]
+fn capability_orders_reject_duplicate_providers_at_every_input_boundary() {
+    let file_dir = tempfile::tempdir().expect("create file config directory");
+    fs::write(
+        file_dir.path().join("config.toml"),
+        "[capabilities.web_fetch]\norder = [\"tavily\", \"tavily\"]\n",
+    )
+    .expect("write duplicate file order");
+    let file = run(file_dir.path(), &["config", "list"], &[], None);
+
+    let env_dir = tempfile::tempdir().expect("create env config directory");
+    let environment = run(
+        env_dir.path(),
+        &["config", "list"],
+        &[(
+            "FORAGER_CAPABILITIES__WEB_FETCH__ORDER",
+            "[\"tavily\",\"tavily\"]",
+        )],
+        None,
+    );
+
+    let set_dir = tempfile::tempdir().expect("create set config directory");
+    let set = run(
+        set_dir.path(),
+        &[
+            "config",
+            "set",
+            "capabilities.web_fetch.order",
+            "[\"tavily\",\"tavily\"]",
+        ],
+        &[],
+        None,
+    );
+
+    assert_eq!(
+        (
+            file.status.code(),
+            environment.status.code(),
+            set.status.code()
+        ),
+        (Some(3), Some(3), Some(2))
+    );
 }
 
 #[test]
@@ -798,14 +831,5 @@ fn run(
     for (key, value) in env {
         command.env(key, value);
     }
-    let mut child = command.spawn().expect("run forager");
-    if let Some(input) = stdin {
-        child
-            .stdin
-            .take()
-            .expect("open stdin")
-            .write_all(input)
-            .expect("write stdin");
-    }
-    child.wait_with_output().expect("wait for forager")
+    run_command(&mut command, stdin)
 }

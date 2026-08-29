@@ -11,6 +11,53 @@ pub(crate) const DENSITY_MAX_UNIQUE_LINES: usize = 3;
 pub(crate) const DENSITY_MAX_CHARS: usize = 500;
 pub(crate) const MIN_USEFUL_SLICE_SECONDS: u64 = 5;
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+/// Whether provider and model fallback chains may continue after the primary choice.
+pub enum FallbackPolicy {
+    /// Continue through configured fallback choices.
+    Auto,
+    /// Execute only the primary configured choice.
+    Off,
+}
+
+impl FallbackPolicy {
+    /// Returns whether another configured choice may run.
+    #[must_use]
+    pub const fn allows_fallback(self) -> bool {
+        matches!(self, Self::Auto)
+    }
+
+    /// Returns the stable configuration and output identifier.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::Off => "off",
+        }
+    }
+}
+
+impl std::fmt::Display for FallbackPolicy {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str(self.as_str())
+    }
+}
+
+impl FromStr for FallbackPolicy {
+    type Err = String;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "auto" => Ok(Self::Auto),
+            "off" => Ok(Self::Off),
+            _ => Err(format!(
+                "invalid fallback policy `{value}`; expected auto or off"
+            )),
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 /// A research capability exposed by an execution seam.
@@ -213,31 +260,43 @@ pub struct ResearchSubquestion {
     pub required_capabilities: Vec<PlanCapability>,
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 /// A strictly parsed caller or classifier research plan using Schema v1.
 pub struct ResearchPlan {
     /// Schema version, which must equal one.
-    pub plan_version: u8,
+    plan_version: u8,
     /// Evidence-policy signals that cannot alter capability selection.
-    pub intent_signals: ResearchIntentSignals,
+    intent_signals: ResearchIntentSignals,
     /// Non-empty list of subquestions with unique identifiers.
-    pub decomposition: Vec<ResearchSubquestion>,
+    decomposition: Vec<ResearchSubquestion>,
 }
 
 impl ResearchPlan {
-    pub(crate) fn parse_json(input: &str) -> Result<Self, String> {
-        let mut plan: Self = serde_json::from_str(input)
-            .map_err(|error| format!("invalid research plan: {error}"))?;
-        if plan.plan_version != 1 {
+    /// Constructs a Schema v1 plan after enforcing every plan invariant.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the version is unsupported or the decomposition
+    /// violates a required field, identifier, or capability invariant.
+    pub fn new(
+        plan_version: u8,
+        intent_signals: ResearchIntentSignals,
+        decomposition: Vec<ResearchSubquestion>,
+    ) -> Result<Self, String> {
+        if plan_version != 1 {
             return Err(format!(
-                "unsupported research plan version {}; expected version 1",
-                plan.plan_version
+                "unsupported research plan version {plan_version}; expected version 1"
             ));
         }
-        if plan.decomposition.is_empty() {
+        if decomposition.is_empty() {
             return Err("research plan decomposition must not be empty".into());
         }
+        let mut plan = Self {
+            plan_version,
+            intent_signals,
+            decomposition,
+        };
         let mut ids = HashSet::new();
         for subquestion in &mut plan.decomposition {
             subquestion.id = subquestion.id.trim().to_owned();
@@ -247,6 +306,12 @@ impl ResearchPlan {
             if !ids.insert(subquestion.id.clone()) {
                 return Err(format!(
                     "research plan decomposition id `{}` is duplicated",
+                    subquestion.id
+                ));
+            }
+            if subquestion.question.trim().is_empty() {
+                return Err(format!(
+                    "research plan decomposition `{}` question must not be empty",
                     subquestion.id
                 ));
             }
@@ -264,6 +329,34 @@ impl ResearchPlan {
         Ok(plan)
     }
 
+    pub(crate) fn parse_json(input: &str) -> Result<Self, String> {
+        serde_json::from_str(input).map_err(|error| format!("invalid research plan: {error}"))
+    }
+
+    /// Returns the validated schema version.
+    #[must_use]
+    pub const fn plan_version(&self) -> u8 {
+        self.plan_version
+    }
+
+    /// Returns the plan's evidence-policy signals.
+    #[must_use]
+    pub const fn intent_signals(&self) -> &ResearchIntentSignals {
+        &self.intent_signals
+    }
+
+    /// Returns the plan's ordered, non-empty decomposition.
+    #[must_use]
+    pub fn decomposition(&self) -> &[ResearchSubquestion] {
+        &self.decomposition
+    }
+
+    pub(crate) fn truncate_decomposition(&mut self, limit: usize) -> usize {
+        let original_len = self.decomposition.len();
+        self.decomposition.truncate(limit.max(1));
+        original_len
+    }
+
     pub(crate) fn capabilities(&self) -> CapabilitySet {
         CapabilitySet::from_capabilities(
             self.decomposition
@@ -273,6 +366,25 @@ impl ResearchPlan {
                 .map(PlanCapability::as_capability)
                 .chain(std::iter::once(Capability::WebFetch)),
         )
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct RawResearchPlan {
+    plan_version: u8,
+    intent_signals: ResearchIntentSignals,
+    decomposition: Vec<ResearchSubquestion>,
+}
+
+impl<'de> Deserialize<'de> for ResearchPlan {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let raw = RawResearchPlan::deserialize(deserializer)?;
+        Self::new(raw.plan_version, raw.intent_signals, raw.decomposition)
+            .map_err(serde::de::Error::custom)
     }
 }
 
@@ -384,14 +496,59 @@ impl From<AttemptErrorKind> for ErrorKind {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+/// Whether a provider attempt ran and how it completed.
+pub enum AttemptDisposition {
+    /// The provider operation completed successfully.
+    Succeeded,
+    /// The provider operation ran and failed.
+    Failed,
+    /// The provider operation was intentionally not run.
+    Skipped,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+#[serde(untagged)]
+/// The execution boundary associated with a provider attempt.
+pub enum AttemptTarget {
+    /// A canonical research capability seam.
+    Seam { seam: &'static str },
+    /// A provider-specific operation outside the capability vocabulary.
+    Operation { operation: &'static str },
+}
+
+impl AttemptTarget {
+    /// Constructs a canonical capability-seam target.
+    #[must_use]
+    pub const fn seam(seam: &'static str) -> Self {
+        Self::Seam { seam }
+    }
+
+    /// Constructs a provider-specific operation target.
+    #[must_use]
+    pub const fn operation(operation: &'static str) -> Self {
+        Self::Operation { operation }
+    }
+
+    pub(crate) const fn seam_name(self) -> Option<&'static str> {
+        match self {
+            Self::Seam { seam } => Some(seam),
+            Self::Operation { .. } => None,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize)]
 /// Diagnostic metadata for one logical provider attempt.
 ///
-/// A successful attempt has no `error_kind`; failure messages must already be redacted before
+/// Only failed attempts have an `error_kind`; failure messages must already be redacted before
 /// construction.
 pub struct ProviderAttempt {
     pub provider: &'static str,
-    pub seam: &'static str,
+    #[serde(flatten)]
+    pub target: AttemptTarget,
+    pub disposition: AttemptDisposition,
     pub error_kind: Option<AttemptErrorKind>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub http_status: Option<u16>,
@@ -408,6 +565,14 @@ pub struct ProviderAttempt {
     pub endpoint_host: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub breaker_event: Option<&'static str>,
+}
+
+impl ProviderAttempt {
+    pub(crate) fn mark_failed(&mut self, kind: AttemptErrorKind, message: impl Into<String>) {
+        self.disposition = AttemptDisposition::Failed;
+        self.error_kind = Some(kind);
+        self.message = message.into();
+    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -700,8 +865,8 @@ pub struct EvidenceItem {
     pub provider: &'static str,
     /// Whether the content came from Web Fetch or documentation retrieval.
     pub source_type: &'static str,
-    /// Plan subquestion associated with the evidence.
-    pub subquestion_id: String,
+    /// Plan subquestions covered by this evidence; empty means plan-wide evidence.
+    pub subquestion_ids: Vec<String>,
     #[serde(skip)]
     /// Full fetched or read content persisted at `path`.
     pub content: String,
@@ -1205,6 +1370,9 @@ mod research_plan_tests {
         let mut empty_reason = valid.clone();
         empty_reason["decomposition"][0]["reason"] = json!("");
         invalid.push(empty_reason);
+        let mut empty_question = valid.clone();
+        empty_question["decomposition"][0]["question"] = json!(" ");
+        invalid.push(empty_question);
         let mut unknown_field = valid.clone();
         unknown_field["steps"] = json!([]);
         invalid.push(unknown_field);
@@ -1218,11 +1386,10 @@ mod research_plan_tests {
         empty_decomposition["decomposition"] = json!([]);
         invalid.push(empty_decomposition);
 
-        assert!(
-            invalid
-                .iter()
-                .all(|plan| ResearchPlan::parse_json(&plan.to_string()).is_err())
-        );
+        assert!(invalid.iter().all(|plan| {
+            ResearchPlan::parse_json(&plan.to_string()).is_err()
+                && serde_json::from_value::<ResearchPlan>(plan.clone()).is_err()
+        }));
     }
 
     #[test]

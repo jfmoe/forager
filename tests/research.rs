@@ -66,6 +66,13 @@ fn bare_research_executes_the_classifier_plan_through_the_research_pipeline() {
     let output = environment.run(&["research", "What changed?", "--verbose"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
     let journal = read_only_journal(&environment);
+    let summary: Value = serde_json::from_slice(
+        &fs::read(
+            Path::new(payload["evidence_dir"].as_str().expect("evidence dir")).join("summary.json"),
+        )
+        .expect("read summary"),
+    )
+    .expect("parse summary");
     let persisted_plan: Value = serde_json::from_slice(
         &fs::read(payload["plan_path"].as_str().expect("plan path")).expect("read plan"),
     )
@@ -83,6 +90,12 @@ fn bare_research_executes_the_classifier_plan_through_the_research_pipeline() {
                 .collect::<Vec<_>>(),
             &journal["execution"]["plan_summary"]["source"],
             &journal["execution"]["plan_summary"]["classifier_degraded"],
+            summary["provider_attempts"]
+                .as_array()
+                .expect("summary attempts")
+                .iter()
+                .map(|attempt| attempt["seam"].as_str().expect("summary seam"))
+                .collect::<Vec<_>>(),
         ),
         (
             Some(0),
@@ -90,6 +103,7 @@ fn bare_research_executes_the_classifier_plan_through_the_research_pipeline() {
             vec!["classifier", "web_search", "web_fetch"],
             &Value::String("classifier".into()),
             &Value::Bool(false),
+            vec!["classifier", "web_search", "web_fetch"],
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
@@ -234,6 +248,13 @@ fn bare_research_uses_the_fixed_web_search_plan_when_classifier_transport_fails(
         &fs::read(payload["plan_path"].as_str().expect("plan path")).expect("read plan"),
     )
     .expect("parse plan");
+    let summary: Value = serde_json::from_slice(
+        &fs::read(
+            Path::new(payload["evidence_dir"].as_str().expect("evidence dir")).join("summary.json"),
+        )
+        .expect("read summary"),
+    )
+    .expect("parse summary");
 
     assert_eq!(
         (
@@ -242,6 +263,8 @@ fn bare_research_uses_the_fixed_web_search_plan_when_classifier_transport_fails(
             &persisted_plan["decomposition"][0]["required_capabilities"],
             String::from_utf8_lossy(&output.stderr).contains("Classifier warning"),
             &journal["execution"]["plan_summary"]["classifier_degraded"],
+            &summary["provider_attempts"][0]["provider"],
+            &summary["provider_attempts"][0]["disposition"],
         ),
         (
             Some(0),
@@ -249,6 +272,8 @@ fn bare_research_uses_the_fixed_web_search_plan_when_classifier_transport_fails(
             &json!(["web_search"]),
             true,
             &Value::Bool(true),
+            &Value::String("classifier".into()),
+            &Value::String("failed".into()),
         )
     );
     classifier.finish();
@@ -330,6 +355,7 @@ fn bare_research_preserves_classifier_metadata_on_an_evidence_terminal() {
     let output = environment.run(&["research", "Verify https://example.test/only"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
     let journal = read_only_journal(&environment);
+    let manifest = read_recovery_manifest(&payload);
 
     assert_eq!(
         (
@@ -337,12 +363,14 @@ fn bare_research_preserves_classifier_metadata_on_an_evidence_terminal() {
             &payload["error_kind"],
             &journal["execution"]["plan_summary"]["source"],
             &journal["execution"]["plan_summary"]["classifier_degraded"],
+            &manifest["provider_attempts"][0]["provider"],
         ),
         (
             Some(5),
             &Value::String("evidence".into()),
             &Value::String("classifier".into()),
             &Value::Bool(false),
+            &Value::String("classifier".into()),
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
@@ -677,7 +705,7 @@ fn research_returns_a_file_backed_evidence_index_without_repeating_evidence_cont
                 "path",
                 "provider",
                 "source_type",
-                "subquestion_id",
+                "subquestion_ids",
                 "title",
                 "url",
                 "verified",
@@ -814,6 +842,15 @@ fn research_fetches_each_known_url_once_with_the_most_specific_ownership() {
     let mut plan = valid_plan(json!([]));
     plan["decomposition"][0]["question"] =
         json!("Inspect [the shared source](https://example.test/shared)。");
+    plan["decomposition"]
+        .as_array_mut()
+        .expect("decomposition")
+        .push(json!({
+            "id": "sq2",
+            "question": "Verify https://example.test/shared independently",
+            "reason": "Cover the second question",
+            "required_capabilities": []
+        }));
     let plan_path = write_plan(&environment, plan);
 
     let output = environment.run(&[
@@ -832,7 +869,7 @@ fn research_fetches_each_known_url_once_with_the_most_specific_ownership() {
                 .as_array()
                 .expect("evidence items")
                 .iter()
-                .map(|item| (&item["url"], &item["subquestion_id"]))
+                .map(|item| (&item["url"], &item["subquestion_ids"]))
                 .collect::<Vec<_>>(),
             payload["provider_attempts"].as_array().map(Vec::len),
         ),
@@ -841,11 +878,11 @@ fn research_fetches_each_known_url_once_with_the_most_specific_ownership() {
             vec![
                 (
                     &Value::String("https://example.test/shared".into()),
-                    &Value::String("sq1".into()),
+                    &json!(["sq1", "sq2"]),
                 ),
                 (
                     &Value::String("https://example.test/plan-only".into()),
-                    &Value::String(String::new()),
+                    &json!([]),
                 ),
             ],
             Some(2),
@@ -1787,7 +1824,7 @@ enabled = false
 }
 
 #[test]
-fn research_keeps_context7_read_failure_as_a_gap_without_web_fetch() {
+fn research_reports_one_terminal_gap_when_context7_is_the_only_failed_candidate() {
     let context7 = Fixture::start_sequence(vec![
         Response::json(
             200,
@@ -1866,7 +1903,7 @@ enabled = false
             &json!([]),
             &json!([{
                 "subquestion_id": "sq1",
-                "reason": "failed to read Context7 library"
+                "reason": "no verified evidence was collected after attempting 1 candidate URLs"
             }, {
                 "subquestion_id": "",
                 "reason": "research required 1 evidence items but obtained 0"
@@ -1888,6 +1925,87 @@ enabled = false
     );
     context7.finish_all();
     assert!(jina.finish_all().is_empty());
+}
+
+#[test]
+fn research_closes_a_context7_candidate_failure_with_web_evidence() {
+    let context7 = Fixture::start_sequence(vec![
+        Response::json(
+            200,
+            r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{}}}"#,
+        )
+        .with_session("library-session"),
+        Response::json(202, ""),
+        Response::json(
+            200,
+            r#"{"jsonrpc":"2.0","id":2,"result":{"structuredContent":{"results":[{"id":"/rust-lang/rust","title":"Rust"}]},"content":[]}}"#,
+        ),
+        Response::json(
+            200,
+            r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{}}}"#,
+        )
+        .with_session("docs-session"),
+        Response::json(202, ""),
+        Response::new(500, "text/plain", "query-docs unavailable"),
+    ]);
+    let tavily = Fixture::start(
+        200,
+        "application/json",
+        r#"{"results":[{"title":"Web evidence","url":"https://example.test/rust"}]}"#,
+    );
+    let jina = Fixture::start(
+        200,
+        "application/json",
+        &jina_response(&rich_content("Web fallback evidence")),
+    );
+    let config = format!(
+        "{}\n[providers.context7]\nurl = {:?}\nkeys = [\"context7-key\"]\ntimeout = 30\n\n[capabilities.docs_search]\norder = [\"context7\"]\n",
+        research_config(&tavily.url, &jina.url, false),
+        context7.url,
+    );
+    let environment = RunEnvironment::new(&config);
+    let plan_path = write_plan(
+        &environment,
+        valid_plan(json!(["docs_search", "web_search"])),
+    );
+
+    let output = environment.run(&[
+        "research",
+        "Rust ownership",
+        "--plan",
+        plan_path.to_str().expect("UTF-8 path"),
+        "--verbose",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let summary: Value = serde_json::from_slice(
+        &fs::read(
+            Path::new(payload["evidence_dir"].as_str().expect("evidence dir")).join("summary.json"),
+        )
+        .expect("read summary"),
+    )
+    .expect("parse summary");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["gap_check"]["status"],
+            &payload["capability_gaps"],
+            summary["evidence_items"].as_array().map(Vec::len),
+            payload["provider_attempts"].as_array().map(Vec::len),
+        ),
+        (
+            Some(0),
+            &Value::String("closed".into()),
+            &json!([]),
+            Some(1),
+            Some(4),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    context7.finish_all();
+    tavily.finish();
+    jina.finish();
 }
 
 #[test]
@@ -2048,13 +2166,13 @@ fn research_standard_budget_covers_each_subquestion_before_extra_evidence() {
                 .as_array()
                 .expect("evidence items")
                 .iter()
-                .map(|item| item["subquestion_id"].as_str().expect("subquestion id"))
+                .map(|item| item["subquestion_ids"].clone())
                 .collect::<Vec<_>>(),
             &payload["gap_check"]["status"],
         ),
         (
             Some(0),
-            vec!["sq1", "sq2", "sq1"],
+            vec![json!(["sq1"]), json!(["sq2"]), json!(["sq1"])],
             &Value::String("closed".into()),
         ),
         "stderr: {}",
@@ -2062,6 +2180,152 @@ fn research_standard_budget_covers_each_subquestion_before_extra_evidence() {
     );
     assert_eq!(tavily.finish_all().len(), 2);
     assert_eq!(jina.finish_all().len(), 3);
+}
+
+#[test]
+fn research_defers_shared_candidates_until_prior_wave_reservations_resolve() {
+    for first_succeeds in [false, true] {
+        let tavily = Fixture::start_sequence(vec![
+            Response::json(
+                200,
+                r#"{"results":[{"title":"First","url":"https://example.test/first"},{"title":"Shared","url":"https://example.test/shared"}]}"#,
+            ),
+            Response::json(
+                200,
+                r#"{"results":[{"title":"Shared again","url":"https://example.test/shared"}]}"#,
+            ),
+        ]);
+        let first_response = if first_succeeds {
+            Response::json(200, &jina_response(&rich_content("First evidence")))
+        } else {
+            Response::new(500, "text/plain", "first candidate failed")
+        };
+        let jina = Fixture::start_sequence(vec![
+            first_response,
+            Response::json(200, &jina_response(&rich_content("Shared evidence"))),
+        ]);
+        let environment = RunEnvironment::new(&research_config(&tavily.url, &jina.url, false));
+        let mut plan = valid_plan(json!(["web_search"]));
+        plan["decomposition"]
+            .as_array_mut()
+            .expect("decomposition")
+            .push(json!({
+                "id": "sq2",
+                "question": "What corroborating evidence is available?",
+                "reason": "Cover the second question",
+                "required_capabilities": ["web_search"]
+            }));
+        let plan_path = write_plan(&environment, plan);
+
+        let output = environment.run(&[
+            "research",
+            "Resolve shared evidence",
+            "--plan",
+            plan_path.to_str().expect("UTF-8 path"),
+            "--budget",
+            "quick",
+        ]);
+        let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+        let evidence = payload["evidence_items"]
+            .as_array()
+            .expect("evidence items");
+        let shared = evidence
+            .iter()
+            .find(|item| item["url"] == "https://example.test/shared")
+            .expect("shared evidence");
+        let mut shared_ids = shared["subquestion_ids"]
+            .as_array()
+            .expect("shared subquestion ids")
+            .iter()
+            .map(|id| id.as_str().expect("subquestion id"))
+            .collect::<Vec<_>>();
+        shared_ids.sort_unstable();
+        let sq1_evidence = evidence
+            .iter()
+            .filter(|item| {
+                item["subquestion_ids"]
+                    .as_array()
+                    .is_some_and(|ids| ids.iter().any(|id| id == "sq1"))
+            })
+            .count();
+
+        assert_eq!(
+            (
+                output.status.code(),
+                evidence.len(),
+                shared_ids,
+                sq1_evidence,
+                payload["gap_check"]["status"].as_str(),
+            ),
+            if first_succeeds {
+                (Some(0), 2, vec!["sq2"], 1, Some("closed"))
+            } else {
+                (Some(0), 1, vec!["sq1", "sq2"], 1, Some("closed"))
+            },
+            "first_succeeds={first_succeeds}, stderr: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(tavily.finish_all().len(), 2);
+        assert_eq!(jina.finish_all().len(), 2);
+    }
+}
+
+#[test]
+fn research_fetches_a_shared_discovery_url_once_and_covers_each_subquestion() {
+    let tavily = Fixture::start_sequence(vec![
+        Response::json(
+            200,
+            r#"{"results":[{"title":"Shared","url":"https://example.test/shared"}]}"#,
+        ),
+        Response::json(
+            200,
+            r#"{"results":[{"title":"Shared again","url":"https://example.test/shared"}]}"#,
+        ),
+    ]);
+    let jina = Fixture::start(
+        200,
+        "application/json",
+        &jina_response(&rich_content("Shared evidence")),
+    );
+    let environment = RunEnvironment::new(&research_config(&tavily.url, &jina.url, false));
+    let mut plan = valid_plan(json!(["web_search"]));
+    plan["decomposition"]
+        .as_array_mut()
+        .expect("decomposition")
+        .push(json!({
+            "id": "sq2",
+            "question": "What corroborating evidence is available?",
+            "reason": "Cover the second question",
+            "required_capabilities": ["web_search"]
+        }));
+    let plan_path = write_plan(&environment, plan);
+
+    let output = environment.run(&[
+        "research",
+        "Compare two questions",
+        "--plan",
+        plan_path.to_str().expect("UTF-8 path"),
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            payload["evidence_items"].as_array().map(Vec::len),
+            &payload["evidence_items"][0]["subquestion_ids"],
+            &payload["gap_check"]["status"],
+        ),
+        (
+            Some(0),
+            Some(1),
+            &json!(["sq1", "sq2"]),
+            &Value::String("closed".into()),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(tavily.finish_all().len(), 2);
+    assert_eq!(jina.finish_all().len(), 1);
 }
 
 #[test]
@@ -2125,7 +2389,7 @@ fn research_flattens_subquestions_into_one_ordered_concurrent_fanout() {
                 .as_array()
                 .expect("evidence items")
                 .iter()
-                .map(|item| item["subquestion_id"].as_str().expect("subquestion id"))
+                .map(|item| item["subquestion_ids"].clone())
                 .collect::<Vec<_>>(),
             payload["provider_attempts"]
                 .as_array()
@@ -2136,7 +2400,7 @@ fn research_flattens_subquestions_into_one_ordered_concurrent_fanout() {
         ),
         (
             Some(0),
-            vec!["sq1", "sq2"],
+            vec![json!(["sq1"]), json!(["sq2"])],
             vec!["web_search", "web_search", "web_fetch", "web_fetch"],
         ),
         "stderr: {}",

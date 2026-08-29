@@ -6,14 +6,14 @@ use serde::{Deserialize, Serialize};
 use crate::config::WebFetchProviderConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{ResponseBodyPolicy, RetryPolicy, error_kind_for_status, read_response_body};
-use crate::providers::ProviderError;
 use crate::providers::execution::{self, AttemptFailure, ExecutionSettings};
 use crate::providers::shared::redacted_urls_message;
+use crate::providers::{ProviderError, ProviderId};
 use crate::redact::{Secret, redact_url, redact_urls};
-use crate::types::{AttemptErrorKind, Deadline, Source, SupplementalSearchOutcome};
+use crate::types::{AttemptErrorKind, AttemptTarget, Deadline, Source, SupplementalSearchOutcome};
 
 pub(crate) struct SupplementalSearch {
-    provider: &'static str,
+    provider: ProviderId,
     config: WebFetchProviderConfig,
     client: Client,
     credentials: CredentialPool,
@@ -23,7 +23,7 @@ pub(crate) struct SupplementalSearch {
 
 impl SupplementalSearch {
     pub(crate) fn new(
-        provider: &'static str,
+        provider: ProviderId,
         config: WebFetchProviderConfig,
         client: Client,
         credentials: CredentialPool,
@@ -48,8 +48,8 @@ impl SupplementalSearch {
         let outcome = execution::execute_v2(
             &self.credentials,
             ExecutionSettings {
-                provider: self.provider,
-                seam: "web_search",
+                provider: self.provider.name(),
+                target: AttemptTarget::seam("web_search"),
                 retry_policy: self.retry_policy,
                 deadline: self.deadline,
                 attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
@@ -76,12 +76,13 @@ impl SupplementalSearch {
         limit: u16,
         credential: Secret,
     ) -> Result<(u16, Vec<Source>), AttemptFailure> {
+        let provider = self.provider.name();
         let endpoint = format!("{}/search", self.config.url.trim_end_matches('/'));
         let mut request = self
             .client
             .post(endpoint)
             .header("accept", "application/json");
-        request = if self.provider == "tavily" {
+        request = if self.provider == ProviderId::Tavily {
             request
                 .bearer_auth(credential.expose())
                 .json(&TavilyRequest {
@@ -122,7 +123,7 @@ impl SupplementalSearch {
                 redirected_library_id: None,
             });
         }
-        let results = if self.provider == "tavily" {
+        let results = if self.provider == ProviderId::Tavily {
             serde_json::from_str::<TavilySearchResponse>(&body.text)
                 .map(|response| response.results)
         } else {
@@ -133,7 +134,7 @@ impl SupplementalSearch {
             kind: AttemptErrorKind::Runtime,
             status: Some(status.as_u16()),
             message: redacted_urls_message(
-                &format!("invalid {} search response: {error}", self.provider),
+                &format!("invalid {provider} search response: {error}"),
                 &self.credentials,
             ),
             redirected_library_id: None,
@@ -167,7 +168,7 @@ impl SupplementalSearch {
                     status: Some(status),
                     message: format!(
                         "invalid {} search response: result URL must use HTTP(S)",
-                        self.provider
+                        self.provider.name()
                     ),
                     redirected_library_id: None,
                 });
@@ -193,7 +194,10 @@ impl SupplementalSearch {
             return Err(AttemptFailure {
                 kind: AttemptErrorKind::Evidence,
                 status: Some(status),
-                message: format!("{} search returned no valid candidate", self.provider),
+                message: format!(
+                    "{} search returned no valid candidate",
+                    self.provider.name()
+                ),
                 redirected_library_id: None,
             });
         }

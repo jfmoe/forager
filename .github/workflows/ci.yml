@@ -33,6 +33,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: actions-rust-lang/setup-rust-toolchain@v1
+      - run: node --test skills/kimi-datasource/scripts/kimi-datasource.test.mjs
       - run: cargo test --locked
 
   windows-permissions:
@@ -44,4 +45,5 @@ jobs:
           persist-credentials: false
       - uses: actions-rust-lang/setup-rust-toolchain@v1
       - run: cargo clippy --all-targets --locked -- -D warnings
-      - run: cargo test --test config_permissions --test smoke --locked
+      - run: node --test skills/kimi-datasource/scripts/kimi-datasource.test.mjs
+      - run: cargo test --test command_watchdog --test config_permissions --test smoke --locked

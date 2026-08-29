@@ -9,9 +9,9 @@ use crate::config::{self, OpenAiCompatibleRuntimeConfig, RuntimeConfig};
 use crate::net::{self, RetryPolicy};
 use crate::providers::{
     self, AnysearchDomainsRequest, Context7LibraryRequest, ExaSearchRequest, FetchRequest,
-    ModelBreakers, ProviderError, ProviderId, SearchRequest, SearchType,
+    MainSearchRequest, ModelBreakers, ProviderError, ProviderId, SearchType,
 };
-use crate::types::{AttemptErrorKind, Deadline, SearchOutcome};
+use crate::types::{AttemptDisposition, AttemptErrorKind, Deadline, SearchOutcome};
 
 #[derive(Debug, Serialize)]
 pub(crate) struct ShallowDoctorReport {
@@ -353,7 +353,8 @@ fn validate_transport(
 ) -> Result<(), ProviderError> {
     let outcome = result?;
     if outcome.attempts.last().is_some_and(|attempt| {
-        attempt.error_kind.is_none() && attempt.transport == Some(expected_transport)
+        attempt.disposition == AttemptDisposition::Succeeded
+            && attempt.transport == Some(expected_transport)
     }) {
         return Ok(());
     }
@@ -389,8 +390,8 @@ fn one_check<T>(
     }
 }
 
-fn probe_search_request() -> SearchRequest {
-    SearchRequest {
+fn probe_search_request() -> MainSearchRequest {
+    MainSearchRequest {
         query: "Reply with exactly: ok".into(),
         model: None,
         allow_model_fallback: false,

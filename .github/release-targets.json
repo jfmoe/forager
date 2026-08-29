@@ -1,0 +1,40 @@
+{
+  "unix": [
+    {
+      "target": "aarch64-apple-darwin",
+      "runner": "macos-14",
+      "host_arch": "arm64",
+      "file_arch": "arm64",
+      "archive": "tar.xz"
+    },
+    {
+      "target": "aarch64-unknown-linux-gnu",
+      "runner": "ubuntu-22.04-arm",
+      "host_arch": "aarch64",
+      "file_arch": "aarch64",
+      "archive": "tar.xz"
+    },
+    {
+      "target": "x86_64-apple-darwin",
+      "runner": "macos-15-intel",
+      "host_arch": "x86_64",
+      "file_arch": "x86_64",
+      "archive": "tar.xz"
+    },
+    {
+      "target": "x86_64-unknown-linux-gnu",
+      "runner": "ubuntu-22.04",
+      "host_arch": "x86_64",
+      "file_arch": "x86-64",
+      "archive": "tar.xz"
+    }
+  ],
+  "windows": [
+    {
+      "target": "x86_64-pc-windows-msvc",
+      "runner": "windows-2022",
+      "machine": "Amd64",
+      "archive": "zip"
+    }
+  ]
+}

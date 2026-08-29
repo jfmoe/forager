@@ -14,17 +14,9 @@ use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2}
 use crate::providers::shared::{
     normalize_main_search, redact_and_deduplicate_sources, redacted_urls_message,
 };
-use crate::providers::{MainSearchRequestKind, ProviderError};
+use crate::providers::{MainSearchRequest, MainSearchRequestKind, ProviderError};
 use crate::redact::Secret;
-use crate::types::{AttemptErrorKind, Deadline, SearchOutcome, Source};
-
-#[derive(Clone, Debug)]
-pub(crate) struct SearchRequest {
-    pub(crate) query: String,
-    pub(crate) model: Option<String>,
-    pub(crate) allow_model_fallback: bool,
-    pub(crate) verbose: bool,
-}
+use crate::types::{AttemptErrorKind, AttemptTarget, Deadline, SearchOutcome, Source};
 
 pub(crate) struct Xai {
     config: XaiRuntimeConfig,
@@ -53,14 +45,14 @@ impl Xai {
 
     pub(crate) async fn search(
         &self,
-        request: SearchRequest,
+        request: MainSearchRequest,
     ) -> Result<SearchOutcome, ProviderError> {
         self.execute(request, MainSearchRequestKind::Search).await
     }
 
     pub(crate) async fn probe(
         &self,
-        request: SearchRequest,
+        request: MainSearchRequest,
     ) -> Result<SearchOutcome, ProviderError> {
         self.execute(request, MainSearchRequestKind::ModelProbe)
             .await
@@ -68,7 +60,7 @@ impl Xai {
 
     async fn execute(
         &self,
-        request: SearchRequest,
+        request: MainSearchRequest,
         request_kind: MainSearchRequestKind,
     ) -> Result<SearchOutcome, ProviderError> {
         let model = request
@@ -80,7 +72,7 @@ impl Xai {
             &self.credentials,
             ExecutionSettings {
                 provider: "xai",
-                seam: "main_search",
+                target: AttemptTarget::seam("main_search"),
                 retry_policy: self.retry_policy,
                 deadline: self.deadline,
                 attempt_timeout: self.deadline.remaining().unwrap_or_default(),

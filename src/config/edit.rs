@@ -3,21 +3,20 @@ use std::env;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use fs2::FileExt;
-use toml_edit::{Array, DocumentMut, Item, Table, TableLike, Value};
+use tempfile::{Builder, NamedTempFile};
+use toml_edit::{Array, DocumentMut, InlineTable, Item, Table, TableLike, Value};
 
-use crate::secure_fs::{create_new_private_file, ensure_private_directory, restrict_private_file};
+use crate::secure_fs::{ensure_private_directory, restrict_private_file};
 
 use super::load::diagnostic_without_source;
 use super::location::{ConfigError, ConfigLocation, EditError};
 use super::schema::{Config, LEAVES, ValueKind, env_name, is_leaf, leaf, parse_integer, path_kind};
 use super::validate::{invalid_value, validate_edit_value};
 
-static FILE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 const LOCK_WAIT: Duration = Duration::from_millis(100);
 
 /// Sets one schema leaf in the file layer without strictly loading other keys.
@@ -57,7 +56,7 @@ pub fn unset_file_value(path: &str) -> Result<bool, EditError> {
     let _lock = acquire_location_lock(&location).map_err(EditError::Config)?;
     let content = read_edit_document(&file)?;
     let mut document = parse_edit_document(&file, &content)?;
-    remove_document_path(&mut document, path);
+    remove_document_path(&mut document, path)?;
     atomic_write(&location.config_dir, &file, document.to_string().as_bytes())
         .map_err(|error| EditError::Config(ConfigError::io(&file, error)))?;
     Ok(env::var_os(env_name(path)).is_some())
@@ -292,40 +291,72 @@ fn set_document_path(
     path: &str,
     value: Value,
 ) -> Result<(), EditError> {
-    let mut segments = path.split('.').peekable();
-    let mut table = document.as_table_mut();
-    while let Some(segment) = segments.next() {
-        if segments.peek().is_none() {
-            table.insert(segment, Item::Value(value));
-            return Ok(());
-        }
-        let item = table
-            .entry(segment)
-            .or_insert_with(|| Item::Table(Table::new()));
-        table = item.as_table_mut().ok_or_else(|| {
-            EditError::Config(ConfigError::Message(format!(
-                "cannot set `{path}` because `{segment}` is not a table"
-            )))
-        })?;
-    }
-    Err(EditError::Argument(format!(
-        "unknown configuration key `{path}`"
-    )))
+    let segments = path.split('.').collect::<Vec<_>>();
+    set_table_path(document.as_table_mut(), false, &segments, value, path)
 }
 
-fn remove_document_path(document: &mut DocumentMut, path: &str) {
-    let segments: Vec<_> = path.split('.').collect();
-    let Some((leaf, parents)) = segments.split_last() else {
-        return;
+fn set_table_path(
+    table: &mut dyn TableLike,
+    inline: bool,
+    segments: &[&str],
+    value: Value,
+    path: &str,
+) -> Result<(), EditError> {
+    let Some((segment, remaining)) = segments.split_first() else {
+        return Err(EditError::Argument(format!(
+            "unknown configuration key `{path}`"
+        )));
     };
-    let mut table = document.as_table_mut();
-    for segment in parents {
-        let Some(next) = table.get_mut(segment).and_then(Item::as_table_mut) else {
-            return;
-        };
-        table = next;
+    if remaining.is_empty() {
+        table.insert(segment, Item::Value(value));
+        return Ok(());
     }
-    table.remove(leaf);
+    let item = table.entry(segment).or_insert_with(|| {
+        if inline {
+            Item::Value(Value::InlineTable(InlineTable::new()))
+        } else {
+            Item::Table(Table::new())
+        }
+    });
+    match item {
+        Item::Table(table) => set_table_path(table, false, remaining, value, path),
+        Item::Value(Value::InlineTable(table)) => {
+            set_table_path(table, true, remaining, value, path)
+        }
+        _ => Err(non_table_path(path, segment)),
+    }
+}
+
+fn remove_document_path(document: &mut DocumentMut, path: &str) -> Result<bool, EditError> {
+    let segments = path.split('.').collect::<Vec<_>>();
+    remove_table_path(document.as_table_mut(), &segments, path)
+}
+
+fn remove_table_path(
+    table: &mut dyn TableLike,
+    segments: &[&str],
+    path: &str,
+) -> Result<bool, EditError> {
+    let Some((segment, remaining)) = segments.split_first() else {
+        return Ok(false);
+    };
+    if remaining.is_empty() {
+        return Ok(table.remove(segment).is_some());
+    }
+    let Some(item) = table.get_mut(segment) else {
+        return Ok(false);
+    };
+    match item {
+        Item::Table(table) => remove_table_path(table, remaining, path),
+        Item::Value(Value::InlineTable(table)) => remove_table_path(table, remaining, path),
+        _ => Err(non_table_path(path, segment)),
+    }
+}
+
+fn non_table_path(path: &str, segment: &str) -> EditError {
+    EditError::Config(ConfigError::Message(format!(
+        "cannot edit `{path}` because `{segment}` is not a table"
+    )))
 }
 
 pub(super) fn parse_edit_value(path: &str, raw: &str) -> Result<Value, EditError> {
@@ -385,48 +416,30 @@ fn normalize_array(array: &Array) -> Array {
 }
 
 fn atomic_write(config_dir: &Path, destination: &Path, bytes: &[u8]) -> io::Result<()> {
-    ensure_private_directory(config_dir)?;
-    let sequence = FILE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-    let temporary = config_dir.join(format!(
-        ".config.toml.{}.{}.tmp",
-        std::process::id(),
-        sequence
-    ));
-    let result = (|| {
-        let mut file = create_new_private_file(&temporary)?;
-        file.write_all(bytes)?;
-        file.flush()?;
-        file.sync_all()?;
-        fs::rename(&temporary, destination)?;
-        restrict_private_file(destination)
-    })();
-    if result.is_err() {
-        let _ = fs::remove_file(&temporary);
-    }
-    result
+    write_private_tempfile(config_dir, bytes)?
+        .persist(destination)
+        .map_err(|error| error.error)?;
+    restrict_private_file(destination)
 }
 
 fn atomic_create(config_dir: &Path, destination: &Path, bytes: &[u8]) -> io::Result<()> {
+    write_private_tempfile(config_dir, bytes)?
+        .persist_noclobber(destination)
+        .map_err(|error| error.error)?;
+    restrict_private_file(destination)
+}
+
+fn write_private_tempfile(config_dir: &Path, bytes: &[u8]) -> io::Result<NamedTempFile> {
     ensure_private_directory(config_dir)?;
-    let sequence = FILE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-    let temporary = config_dir.join(format!(
-        ".config.toml.{}.{}.tmp",
-        std::process::id(),
-        sequence
-    ));
-    let result = (|| {
-        let mut file = create_new_private_file(&temporary)?;
-        file.write_all(bytes)?;
-        file.flush()?;
-        file.sync_all()?;
-        fs::hard_link(&temporary, destination)?;
-        restrict_private_file(destination)?;
-        fs::remove_file(&temporary)
-    })();
-    if result.is_err() {
-        let _ = fs::remove_file(&temporary);
-    }
-    result
+    let mut temporary = Builder::new()
+        .prefix(".config.toml.")
+        .suffix(".tmp")
+        .tempfile_in(config_dir)?;
+    restrict_private_file(temporary.path())?;
+    temporary.write_all(bytes)?;
+    temporary.flush()?;
+    temporary.as_file().sync_all()?;
+    Ok(temporary)
 }
 
 fn acquire_config_lock(config_dir: &Path) -> io::Result<File> {

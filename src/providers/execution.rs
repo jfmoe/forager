@@ -5,7 +5,9 @@ use crate::credentials::CredentialPool;
 use crate::net::{RetryPolicy, duration_millis};
 use crate::providers::ProviderError;
 use crate::redact::Secret;
-use crate::types::{AttemptErrorKind, Deadline, ProviderAttempt};
+use crate::types::{
+    AttemptDisposition, AttemptErrorKind, AttemptTarget, Deadline, ProviderAttempt,
+};
 
 pub(crate) struct ExecutionOutcome<T> {
     pub(crate) value: T,
@@ -22,7 +24,7 @@ pub(crate) struct AttemptFailure {
 
 pub(crate) struct ExecutionSettings {
     pub(crate) provider: &'static str,
-    pub(crate) seam: &'static str,
+    pub(crate) target: AttemptTarget,
     pub(crate) retry_policy: RetryPolicy,
     pub(crate) deadline: Deadline,
     pub(crate) attempt_timeout: Duration,
@@ -74,7 +76,8 @@ where
             Ok(Ok((status, value))) => {
                 attempts.push(ProviderAttempt {
                     provider: settings.provider,
-                    seam: settings.seam,
+                    target: settings.target,
+                    disposition: AttemptDisposition::Succeeded,
                     error_kind: None,
                     http_status: Some(status),
                     duration_ms: duration_millis(started.elapsed()),
@@ -105,7 +108,8 @@ where
         let redirected_library_id = failure.redirected_library_id;
         attempts.push(ProviderAttempt {
             provider: settings.provider,
-            seam: settings.seam,
+            target: settings.target,
+            disposition: AttemptDisposition::Failed,
             error_kind: Some(kind),
             http_status: failure.status,
             duration_ms: duration_millis(started.elapsed()),

@@ -1,4 +1,8 @@
+mod support;
+
 use std::process::{Command, Output};
+
+use support::run_command;
 
 #[test]
 fn command_tree_and_six_visible_aliases_remain_available() {
@@ -68,12 +72,12 @@ fn search_rejects_the_removed_validation_option_as_unknown() {
 
 fn run(arguments: &[&str]) -> Output {
     let isolated = tempfile::tempdir().expect("isolated environment");
-    Command::new(env!("CARGO_BIN_EXE_forager"))
+    let mut command = Command::new(env!("CARGO_BIN_EXE_forager"));
+    command
         .args(arguments)
         .env_clear()
         .env("HOME", isolated.path())
         .env("XDG_CONFIG_HOME", isolated.path().join("config"))
-        .env("XDG_STATE_HOME", isolated.path().join("state"))
-        .output()
-        .expect("run forager")
+        .env("XDG_STATE_HOME", isolated.path().join("state"));
+    run_command(&mut command, None)
 }

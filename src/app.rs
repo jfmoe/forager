@@ -21,9 +21,9 @@ use crate::providers::{
 };
 use crate::types::{
     AnysearchOutcome, CapabilitySet, ClaimRisk, Context7Outcome, Deadline, EvidenceStrength,
-    FetchOutcome, JournalOutcome, MapOutcome, PlanCapability, ProviderAttempt, RecencyRequirement,
-    ResearchError, ResearchIntentSignals, ResearchOutcome, ResearchPlan, ResearchSubquestion,
-    SearchOutcome,
+    FallbackPolicy, FetchOutcome, JournalOutcome, MapOutcome, PlanCapability, ProviderAttempt,
+    RecencyRequirement, ResearchError, ResearchIntentSignals, ResearchOutcome, ResearchPlan,
+    ResearchSubquestion, SearchOutcome,
 };
 
 #[doc(hidden)]
@@ -60,6 +60,29 @@ impl Cli {
             }
         )
     }
+
+    /// Returns the requested tee destination for a JSON preflight failure.
+    #[must_use]
+    pub fn json_preflight_output(&self) -> Option<PathBuf> {
+        match &self.command {
+            Command::Search {
+                format: DocsOutputFormat::Json,
+                output,
+                ..
+            }
+            | Command::Research {
+                format: DocsOutputFormat::Json,
+                output,
+                ..
+            }
+            | Command::Fetch {
+                format: DocsOutputFormat::Json,
+                output,
+                ..
+            } => output.clone(),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug, Subcommand)]
@@ -73,8 +96,8 @@ enum Command {
         model: Option<String>,
         #[arg(long, default_value_t = 0, value_parser = clap::value_parser!(u16).range(0..=20))]
         extra_sources: u16,
-        #[arg(long, value_parser = ["auto", "off"])]
-        fallback: Option<String>,
+        #[arg(long)]
+        fallback: Option<FallbackPolicy>,
         #[arg(long, default_value_t = 180, value_parser = clap::value_parser!(u64).range(1..))]
         timeout: u64,
         #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
@@ -93,8 +116,8 @@ enum Command {
         budget: ResearchBudgetArg,
         #[arg(long)]
         evidence_dir: Option<PathBuf>,
-        #[arg(long, default_value = "auto", value_parser = ["auto", "off"])]
-        fallback: String,
+        #[arg(long, default_value_t = FallbackPolicy::Auto)]
+        fallback: FallbackPolicy,
         #[arg(long, default_value_t = 600, value_parser = clap::value_parser!(u64).range(1..))]
         timeout: u64,
         #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
@@ -382,6 +405,8 @@ pub enum CommandOutput {
         journal: JournalOutcome,
         /// Requested output format.
         format: DocsOutputFormat,
+        /// Optional tee destination.
+        output: Option<PathBuf>,
     },
     /// One completed Default Search Invocation.
     Search {
@@ -498,8 +523,6 @@ struct SearchContext {
     retry_policy: RetryPolicy,
     model_breakers: std::sync::Arc<providers::ModelBreakers>,
     journal: config::JournalRuntimeConfig,
-    default_model: String,
-    endpoint_host: String,
     timeout: Duration,
     runtime: tokio::runtime::Runtime,
 }
@@ -577,16 +600,12 @@ impl SearchContext {
         let config = dependencies.config;
         let journal = config.journal.clone();
         let timeout = Duration::from_secs(timeout_seconds);
-        let default_model = config.main_search.default_model().to_owned();
-        let endpoint_host = config.main_search.default_endpoint_host();
         Ok(Self {
             config,
             client: dependencies.client,
             retry_policy: dependencies.retry_policy,
             model_breakers: std::sync::Arc::new(providers::ModelBreakers::default()),
             journal,
-            default_model,
-            endpoint_host,
             timeout,
             runtime: dependencies.runtime,
         })
@@ -596,24 +615,18 @@ impl SearchContext {
     #[expect(clippy::too_many_lines)]
     fn search(
         self,
-        mut request: providers::SearchRequest,
+        mut request: providers::MainSearchRequest,
         capabilities: Option<CapabilitySet>,
         extra_sources: u16,
-        fallback_override: Option<&str>,
+        fallback_override: Option<FallbackPolicy>,
     ) -> (
         Result<SearchOutcome, ProviderError>,
         JournalOutcome,
         Option<String>,
     ) {
-        let fallback = fallback_override
-            .unwrap_or(&self.config.main_search.fallback)
-            .to_owned();
-        request.allow_model_fallback = fallback != "off";
+        let fallback = fallback_override.unwrap_or(self.config.main_search.fallback);
+        request.allow_model_fallback = fallback.allows_fallback();
         let query = request.query.clone();
-        let model = request
-            .model
-            .clone()
-            .unwrap_or_else(|| self.default_model.clone());
         let started = Instant::now();
         let deadline = Deadline::new(self.timeout);
         let (
@@ -666,7 +679,7 @@ impl SearchContext {
         let mut result = self.runtime.block_on(crate::engine::search(
             request,
             self.config.main_search.clone(),
-            &fallback,
+            fallback,
             self.client.clone(),
             self.retry_policy,
             deadline,
@@ -691,7 +704,7 @@ impl SearchContext {
                 extra_sources,
                 &self.config,
                 crate::engine::CapabilityExecution::new(
-                    &fallback,
+                    fallback,
                     self.client.clone(),
                     self.retry_policy,
                     deadline,
@@ -704,8 +717,6 @@ impl SearchContext {
                 query: &query,
                 budget: self.timeout,
                 elapsed: started.elapsed(),
-                model: &model,
-                endpoint_host: &self.endpoint_host,
                 capabilities: &journal_capabilities,
                 decision_source,
                 classifier_degraded,
@@ -739,7 +750,7 @@ impl ResearchContext {
         caller_plan: Option<ResearchPlan>,
         budget: crate::research::ResearchBudget,
         evidence_dir: PathBuf,
-        fallback: String,
+        fallback: FallbackPolicy,
     ) -> (
         Result<ResearchOutcome, ResearchError>,
         JournalOutcome,
@@ -768,11 +779,9 @@ impl ResearchContext {
                 deadline,
             )) {
                 Ok(mut decision) => {
-                    let original_len = decision.plan.decomposition.len();
-                    decision
+                    let original_len = decision
                         .plan
-                        .decomposition
-                        .truncate(budget.max_subquestions());
+                        .truncate_decomposition(budget.max_subquestions());
                     let warning = (original_len > budget.max_subquestions()).then(|| {
                         format!(
                             "Classifier warning: classifier returned {original_len} subquestions; truncated to {} limit {}",
@@ -804,7 +813,7 @@ impl ResearchContext {
         };
         let capabilities = plan.capabilities().iter().collect::<Vec<_>>();
         let log_level = self.config.log_level;
-        let mut result = self.runtime.block_on(crate::research::execute(
+        let result = self.runtime.block_on(crate::research::execute(
             crate::research::ResearchRequest {
                 query: query.to_owned(),
                 plan,
@@ -812,22 +821,14 @@ impl ResearchContext {
                 budget,
                 evidence_dir,
                 fallback,
+                initial_attempts: classifier_attempts,
+                initial_diagnostic: classifier_warning,
             },
             self.config,
             self.client,
             self.retry_policy,
             deadline,
         ));
-        let (attempts, diagnostic) = match &mut result {
-            Ok(outcome) => (&mut outcome.attempts, &mut outcome.diagnostic),
-            Err(error) => (&mut error.attempts, &mut error.diagnostic),
-        };
-        prepend_classifier_context(
-            attempts,
-            diagnostic,
-            classifier_attempts,
-            classifier_warning,
-        );
         let journal = crate::journal::record_research(
             &self.journal,
             crate::journal::ResearchRecord {
@@ -1060,10 +1061,11 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                     error,
                     journal,
                     format,
+                    output,
                 });
             }
             let (result, journal, attempt_log) = context.search(
-                providers::SearchRequest {
+                providers::MainSearchRequest {
                     query,
                     model,
                     allow_model_fallback: true,
@@ -1071,7 +1073,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                 },
                 capabilities,
                 extra_sources,
-                fallback.as_deref(),
+                fallback,
             );
             Ok(CommandOutput::Search {
                 result,
@@ -1103,10 +1105,10 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                     })?
                 };
                 let plan = ResearchPlan::parse_json(&plan_input).map_err(AppError::Argument)?;
-                if plan.decomposition.len() > budget.max_subquestions() {
+                if plan.decomposition().len() > budget.max_subquestions() {
                     return Err(AppError::Argument(format!(
                         "caller research plan has {} subquestions; {} budget allows at most {}",
-                        plan.decomposition.len(),
+                        plan.decomposition().len(),
                         budget.as_str(),
                         budget.max_subquestions()
                     )));
@@ -1635,7 +1637,7 @@ fn run_supplemental_smoke_probe(
             3,
             config,
             crate::engine::CapabilityExecution::new(
-                "off",
+                FallbackPolicy::Off,
                 dependencies.client,
                 RetryPolicy::new(1, 1.0, Duration::ZERO),
                 Deadline::new(Duration::from_secs(timeout_seconds)),
@@ -1669,7 +1671,7 @@ fn parse_provider(value: &str) -> Result<providers::ProviderId, String> {
             "invalid provider `{value}`; expected one of: {}",
             providers::registrations()
                 .iter()
-                .map(|registration| registration.name)
+                .map(|registration| registration.id.name())
                 .collect::<Vec<_>>()
                 .join(", ")
         )
@@ -1759,22 +1761,23 @@ fn render_deep_doctor_markdown(
 }
 
 fn minimal_research_fallback_plan(query: &str) -> ResearchPlan {
-    ResearchPlan {
-        plan_version: 1,
-        intent_signals: ResearchIntentSignals {
+    ResearchPlan::new(
+        1,
+        ResearchIntentSignals {
             recency_requirement: RecencyRequirement::None,
             docs_api_intent: false,
             source_authority_need: EvidenceStrength::Normal,
             claim_risk: ClaimRisk::Medium,
             cross_validation_need: EvidenceStrength::Normal,
         },
-        decomposition: vec![ResearchSubquestion {
+        vec![ResearchSubquestion {
             id: "sq1".into(),
             question: query.into(),
             reason: "Gather minimum available web evidence".into(),
             required_capabilities: vec![PlanCapability::WebSearch],
         }],
-    }
+    )
+    .expect("the fixed fallback research plan is valid")
 }
 
 fn default_evidence_dir() -> PathBuf {

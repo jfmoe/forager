@@ -10,7 +10,7 @@ use crate::providers::ProviderError;
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2};
 use crate::providers::shared::redacted_urls_message;
 use crate::redact::{Secret, redact_url};
-use crate::types::{AttemptErrorKind, Deadline, ExaInput, ExaOutcome, Source};
+use crate::types::{AttemptErrorKind, AttemptTarget, Deadline, ExaInput, ExaOutcome, Source};
 
 #[derive(Clone, Copy, Debug, Serialize)]
 #[serde(rename_all = "lowercase")]
@@ -86,7 +86,7 @@ impl Exa {
             &self.credentials,
             ExecutionSettings {
                 provider: "exa",
-                seam: operation.name(),
+                target: operation.target(),
                 retry_policy: self.retry_policy,
                 deadline: self.deadline,
                 attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
@@ -239,10 +239,10 @@ enum ExaOperation {
 }
 
 impl ExaOperation {
-    fn name(&self) -> &'static str {
+    fn target(&self) -> AttemptTarget {
         match self {
-            Self::Search(_) => "docs_search",
-            Self::Similar(_) => "similar",
+            Self::Search(_) => AttemptTarget::seam("docs_search"),
+            Self::Similar(_) => AttemptTarget::operation("similar"),
         }
     }
 
@@ -335,7 +335,6 @@ struct ExaContents {
 
 #[derive(Deserialize)]
 struct ExaResponse {
-    #[serde(default)]
     results: Vec<ExaResult>,
 }
 

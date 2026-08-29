@@ -1,12 +1,12 @@
 mod support;
 
 use std::fs;
-use std::process::{Command, Output};
+use std::process::Output;
 use std::time::Duration;
 
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use support::{Fixture, Response};
+use support::{Fixture, Response, RunEnvironment};
 
 const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 
@@ -945,30 +945,9 @@ fn run_search_text(text: &str, query: &str) -> (Output, Value) {
 }
 
 fn run(fixture: &Fixture, arguments: &[&str], keys: &[&str]) -> Output {
-    let root = tempfile::tempdir().expect("create isolated root");
-    let config_dir = root.path().join("config");
-    let state_dir = root.path().join("state");
-    fs::create_dir_all(&config_dir).expect("create config directory");
-    let keys = keys
-        .iter()
-        .map(|key| format!("{key:?}"))
-        .collect::<Vec<_>>()
-        .join(", ");
-    fs::write(
-        config_dir.join("config.toml"),
-        format!(
-            "[providers.anysearch]\nurl = {:?}\nkeys = [{keys}]\ntimeout = 2\n[journal]\nenabled = false\n",
-            fixture.url
-        ),
-    )
-    .expect("write config");
-
-    Command::new(env!("CARGO_BIN_EXE_forager"))
-        .args(arguments)
-        .env_clear()
-        .env("FORAGER_CONFIG_DIR", config_dir)
-        .env("XDG_STATE_HOME", state_dir)
-        .env("HOME", root.path())
-        .output()
-        .expect("run forager")
+    RunEnvironment::new(&format!(
+        "[providers.anysearch]\nurl = {:?}\nkeys = {keys:?}\ntimeout = 2\n[journal]\nenabled = false\n",
+        fixture.url
+    ))
+    .run(arguments)
 }

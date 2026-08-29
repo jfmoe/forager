@@ -41,12 +41,7 @@ fn edit_value_satisfies(rule: Rule, value: &Value) -> bool {
             capability,
             allow_empty,
         } => value.as_array().is_some_and(|values| {
-            (allow_empty || !values.is_empty())
-                && values.iter().all(|provider| {
-                    provider
-                        .as_str()
-                        .is_some_and(|provider| providers::supports(capability, provider))
-                })
+            capability_order_satisfies(values.iter().map(Value::as_str), capability, allow_empty)
         }),
     }
 }
@@ -89,14 +84,29 @@ fn field_satisfies(rule: Rule, field: FieldRef<'_>) -> bool {
                 allow_empty,
             },
             FieldRef::Strings(values),
-        ) => {
-            (allow_empty || !values.is_empty())
-                && values
-                    .iter()
-                    .all(|provider| providers::supports(capability, provider))
-        }
+        ) => capability_order_satisfies(
+            values.iter().map(|provider| Some(provider.as_str())),
+            capability,
+            allow_empty,
+        ),
         _ => false,
     }
+}
+
+fn capability_order_satisfies<'a>(
+    values: impl Iterator<Item = Option<&'a str>>,
+    capability: &str,
+    allow_empty: bool,
+) -> bool {
+    let mut seen = HashSet::new();
+    let mut count = 0;
+    let valid = values.into_iter().all(|value| {
+        count += 1;
+        value.is_some_and(|provider| {
+            providers::supports(capability, provider) && seen.insert(provider.to_owned())
+        })
+    });
+    valid && (allow_empty || count > 0)
 }
 
 fn strings_satisfy<'a>(

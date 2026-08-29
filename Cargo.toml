@@ -5,7 +5,6 @@ edition = "2024"
 description = "A capability-oriented research CLI"
 repository = "https://github.com/jfmoe/forager"
 license = "MIT"
-rust-version = "1.97"
 
 [package.metadata.dist]
 dist = true
@@ -33,6 +32,7 @@ winapi = { version = "0.3.9", features = ["winnt"] }
 windows-acl = "0.3.0"
 
 [dev-dependencies]
+serde_yaml_ng = "0.10.0"
 sha2 = "0.10.9"
 
 [lints.clippy]

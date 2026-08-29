@@ -10,7 +10,7 @@ use crate::providers::ProviderError;
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2};
 use crate::providers::shared::{redact_urls, redacted_urls_message};
 use crate::redact::Secret;
-use crate::types::{AttemptErrorKind, Deadline, MapOutcome};
+use crate::types::{AttemptErrorKind, AttemptTarget, Deadline, MapOutcome};
 
 #[derive(Clone, Debug)]
 pub(crate) struct MapRequest {
@@ -54,7 +54,7 @@ impl TavilyMap {
             &self.credentials,
             ExecutionSettings {
                 provider: "tavily",
-                seam: "site_map",
+                target: AttemptTarget::operation("site_map"),
                 retry_policy: self.retry_policy,
                 deadline: self.deadline,
                 attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
@@ -130,9 +130,8 @@ impl TavilyMap {
                 redirected_library_id: None,
             });
         }
-        serde_json::from_str(&body.text)
-            .map(|response| (status.as_u16(), response))
-            .map_err(|error| AttemptFailure {
+        let response: TavilyMapResponse =
+            serde_json::from_str(&body.text).map_err(|error| AttemptFailure {
                 kind: AttemptErrorKind::Runtime,
                 status: Some(status.as_u16()),
                 message: redacted_urls_message(
@@ -140,7 +139,14 @@ impl TavilyMap {
                     &self.credentials,
                 ),
                 redirected_library_id: None,
-            })
+            })?;
+        response.validate().map_err(|message| AttemptFailure {
+            kind: AttemptErrorKind::Runtime,
+            status: Some(status.as_u16()),
+            message: message.into(),
+            redirected_library_id: None,
+        })?;
+        Ok((status.as_u16(), response))
     }
 }
 
@@ -170,12 +176,27 @@ impl<'a> From<&'a MapRequest> for TavilyMapBody<'a> {
 
 #[derive(Deserialize)]
 struct TavilyMapResponse {
-    #[serde(default)]
     base_url: String,
-    #[serde(default)]
     results: Vec<String>,
     #[serde(default)]
     response_time: f64,
+}
+
+impl TavilyMapResponse {
+    fn validate(&self) -> Result<(), &'static str> {
+        if !is_http_url(&self.base_url) {
+            return Err("base_url must be an HTTP(S) URL with a host");
+        }
+        if self.results.iter().any(|url| !is_http_url(url)) {
+            return Err("results must contain only HTTP(S) URLs with a host");
+        }
+        Ok(())
+    }
+}
+
+fn is_http_url(value: &str) -> bool {
+    reqwest::Url::parse(value)
+        .is_ok_and(|url| matches!(url.scheme(), "http" | "https") && url.host().is_some())
 }
 
 fn failure_message(body: &str, status: u16) -> String {

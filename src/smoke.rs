@@ -1042,7 +1042,7 @@ fn registry_status() -> RegistryStatus {
     let registrations = providers::registrations();
     let names = registrations
         .iter()
-        .map(|registration| registration.name)
+        .map(|registration| registration.id.name())
         .collect::<BTreeSet<_>>();
     let expected = EXPECTED_PROVIDERS.into_iter().collect::<BTreeSet<_>>();
     let descriptions_are_complete = registrations.iter().all(|registration| {

@@ -35,8 +35,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
-export const VERSION = '3.3.0';
-export const DATA_SOURCE_NAMES = [
+const VERSION = '3.3.0';
+const DATA_SOURCE_NAMES = [
   'stock_finance_data',
   'yahoo_finance',
   'world_bank_open_data',
@@ -147,12 +147,12 @@ function requestTimeoutMs() {
   return parsed;
 }
 
-export function resolveKimiHome() {
+function resolveKimiHome() {
   const explicit = process.env.KIMI_CODE_HOME?.trim();
   return explicit && explicit.length > 0 ? explicit : path.join(homedir(), '.kimi-code');
 }
 
-export function resolveCredentialName() {
+function resolveCredentialName() {
   const oauthHost = kimiCodeOAuthHost();
   const baseUrl = kimiCodeBaseUrl();
   if (
@@ -169,7 +169,7 @@ export function resolveCredentialName() {
   return `kimi-code-env-${digest}`;
 }
 
-export function credentialsPath(kimiHome = resolveKimiHome()) {
+function credentialsPath(kimiHome = resolveKimiHome()) {
   return path.join(kimiHome, 'credentials', `${resolveCredentialName()}.json`);
 }
 
@@ -217,7 +217,7 @@ async function atomicWritePrivate(filePath, contents) {
   }
 }
 
-export async function loadTokenWire(filePath = credentialsPath()) {
+async function loadTokenWire(filePath = credentialsPath()) {
   let raw;
   try {
     raw = await readFile(filePath, 'utf8');
@@ -239,7 +239,7 @@ export async function loadTokenWire(filePath = credentialsPath()) {
   return parsed;
 }
 
-export async function saveTokenWire(token, filePath = credentialsPath()) {
+async function saveTokenWire(token, filePath = credentialsPath()) {
   await atomicWritePrivate(filePath, `${JSON.stringify(token, null, 2)}\n`);
 }
 
@@ -251,7 +251,11 @@ function classifyToken(token) {
   return { kind: 'valid', token };
 }
 
-function tokenNeedsRefresh(token, force = false) {
+export function tokenNeedsRefresh(
+  token,
+  force = false,
+  nowSeconds = Math.floor(Date.now() / 1000),
+) {
   if (force) return true;
   const expiresAt = Number(token.expires_at ?? 0);
   if (!Number.isFinite(expiresAt) || expiresAt === 0) return false;
@@ -260,7 +264,7 @@ function tokenNeedsRefresh(token, force = false) {
     DEFAULT_REFRESH_THRESHOLD_SECONDS,
     Number.isFinite(expiresIn) && expiresIn > 0 ? expiresIn * 0.5 : 0,
   );
-  return expiresAt - Math.floor(Date.now() / 1000) < threshold;
+  return expiresAt - nowSeconds < threshold;
 }
 
 function tokenChanged(left, right) {
@@ -442,7 +446,7 @@ async function refreshAccessToken(kimiHome, refreshToken) {
   };
 }
 
-export async function ensureFreshAccessToken(options = {}) {
+async function ensureFreshAccessToken(options = {}) {
   const force = options.force === true;
   const kimiHome = resolveKimiHome();
   const filePath = credentialsPath(kimiHome);
@@ -498,7 +502,7 @@ export async function ensureFreshAccessToken(options = {}) {
   }
 }
 
-export async function credentialsStatus() {
+async function credentialsStatus() {
   const kimiHome = resolveKimiHome();
   const filePath = credentialsPath(kimiHome);
   let token;
@@ -655,6 +659,26 @@ function extractToolText(response) {
   return extractChannelText(response.result) ?? 'Tool API succeeded without a text result.';
 }
 
+export async function processToolResponse(
+  response,
+  { method, params, secrets = [], writeFiles = writeResponseFiles },
+) {
+  let text = extractToolText(response).trim();
+  if (
+    method === 'call_data_source_tool' &&
+    params.data_source_name === 'arxiv' &&
+    params.api_name === 'read_paper'
+  ) {
+    text = extractArxivMarkdown(text) ?? text;
+  }
+  const { warnings, writtenFiles } = await writeFiles(
+    response,
+    absoluteParameterPaths(params),
+  );
+  if (warnings.length > 0) text = `${text}\n\n${warnings.join('\n')}`;
+  return { text: redactSecrets(text, secrets), writtenFiles };
+}
+
 const PYTHON_STRING_ESCAPES = {
   '\\': '\\',
   "'": "'",
@@ -698,18 +722,21 @@ function appendTrace(text, trace) {
   return `${text}\n\n[kimi-datasource] ${parts.join(' · ')}`;
 }
 
-export async function invokeTool(method, params) {
-  let auth = await ensureFreshAccessToken();
-  let attempt = await gatewayRequest(method, params, auth);
+export async function invokeTool(method, params, dependencies = {}) {
+  const ensureAccessToken = dependencies.ensureFreshAccessToken ?? ensureFreshAccessToken;
+  const requestGateway = dependencies.gatewayRequest ?? gatewayRequest;
+  const readToken = dependencies.loadTokenWire ?? loadTokenWire;
+  let auth = await ensureAccessToken();
+  let attempt = await requestGateway(method, params, auth);
   let refreshed = auth.refreshed;
 
   if (attempt.response.status === 401) {
-    auth = await ensureFreshAccessToken({ force: true });
+    auth = await ensureAccessToken({ force: true });
     refreshed = true;
-    attempt = await gatewayRequest(method, params, auth);
+    attempt = await requestGateway(method, params, auth);
   }
 
-  const storedToken = await loadTokenWire(credentialsPath(auth.kimiHome)).catch(() => undefined);
+  const storedToken = await readToken(credentialsPath(auth.kimiHome)).catch(() => undefined);
   const secrets = [...credentialSecrets(storedToken), auth.token];
   if (!attempt.response.ok) {
     const body = compactResponseBody(attempt.text, secrets) || 'empty response';
@@ -722,20 +749,12 @@ export async function invokeTool(method, params) {
   } catch {
     response = attempt.text;
   }
-  const { warnings, writtenFiles } = await writeResponseFiles(
-    response,
-    absoluteParameterPaths(params),
-  );
-  let text = extractToolText(response).trim();
-  if (
-    method === 'call_data_source_tool' &&
-    params.data_source_name === 'arxiv' &&
-    params.api_name === 'read_paper'
-  ) {
-    text = extractArxivMarkdown(text) ?? text;
-  }
-  if (warnings.length > 0) text = `${text}\n\n${warnings.join('\n')}`;
-  text = redactSecrets(text, secrets);
+  const { text, writtenFiles } = await processToolResponse(response, {
+    method,
+    params,
+    secrets,
+    writeFiles: dependencies.writeResponseFiles ?? writeResponseFiles,
+  });
   const trace = {
     requestId:
       attempt.requestId === undefined ? undefined : redactSecrets(attempt.requestId, secrets),
@@ -745,7 +764,7 @@ export async function invokeTool(method, params) {
   return { text: appendTrace(text, trace), writtenFiles, trace };
 }
 
-export function parseArgv(argv) {
+function parseArgv(argv) {
   const { values, positionals } = parseArgs({
     args: argv,
     options: CLI_OPTIONS,
@@ -771,14 +790,22 @@ function parseJsonObject(raw, source) {
   return parsed;
 }
 
-export async function buildCallParams(flags) {
+async function readStdin() {
+  const chunks = [];
+  for await (const chunk of process.stdin) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+async function buildCallParams(flags) {
   const jsonFile = flags['json-file'];
   const json = flags.json;
   if (typeof jsonFile === 'string' && typeof json === 'string') {
     throw new Error('Use either --json or --json-file, not both.');
   }
   if (typeof jsonFile === 'string') {
-    const raw = await readFile(jsonFile === '-' ? 0 : jsonFile, 'utf8');
+    const raw = jsonFile === '-' ? await readStdin() : await readFile(jsonFile, 'utf8');
     return parseJsonObject(raw, jsonFile === '-' ? 'stdin' : `--json-file ${jsonFile}`);
   }
   return typeof json === 'string' ? parseJsonObject(json, '--json') : {};
@@ -806,10 +833,9 @@ function stripTrace(text) {
   return text.replace(/\n\n\[kimi-datasource\][^\n]*\s*$/u, '').trimEnd();
 }
 
-function writeToolResult(result, flags, context) {
+export function formatToolResult(result, flags, context) {
   if (outputFormat(flags) === 'text') {
-    process.stdout.write(`${flags.quiet === true ? stripTrace(result.text) : result.text}\n`);
-    return;
+    return flags.quiet === true ? stripTrace(result.text) : result.text;
   }
   const output = {
     ok: true,
@@ -818,7 +844,11 @@ function writeToolResult(result, flags, context) {
     files: result.writtenFiles,
   };
   if (flags.quiet !== true) output.trace = result.trace;
-  process.stdout.write(`${JSON.stringify(output)}\n`);
+  return JSON.stringify(output);
+}
+
+function writeToolResult(result, flags, context) {
+  process.stdout.write(`${formatToolResult(result, flags, context)}\n`);
 }
 
 function writeStatus(status, flags) {
@@ -841,7 +871,7 @@ function writeStatus(status, flags) {
   if (status.error !== undefined) process.stdout.write(`error: ${status.error}\n`);
 }
 
-export async function runCli(argv = process.argv.slice(2)) {
+async function runCli(argv = process.argv.slice(2)) {
   assertSupportedNode();
   const { command, positionals, flags } = parseArgv(argv);
   if (flags.version === true) {
@@ -919,7 +949,7 @@ async function currentSecrets() {
   return credentialSecrets(token);
 }
 
-export async function runMain(argv = process.argv.slice(2)) {
+async function runMain(argv = process.argv.slice(2)) {
   try {
     return await runCli(argv);
   } catch (error) {

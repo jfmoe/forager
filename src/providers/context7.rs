@@ -12,8 +12,8 @@ use crate::providers::ProviderError;
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2};
 use crate::providers::shared::redacted_urls_message;
 use crate::types::{
-    AttemptErrorKind, Context7DocsOutcome, Context7LibraryOutcome, Context7Outcome, Deadline,
-    LibraryCandidate, ProviderAttempt,
+    AttemptErrorKind, AttemptTarget, Context7DocsOutcome, Context7LibraryOutcome, Context7Outcome,
+    Deadline, LibraryCandidate, ProviderAttempt,
 };
 
 static MCP_HEADERS: LazyLock<HeaderMap> = LazyLock::new(HeaderMap::new);
@@ -80,7 +80,7 @@ impl Context7 {
             &self.credentials,
             ExecutionSettings {
                 provider: "context7",
-                seam: "docs_search",
+                target: AttemptTarget::seam("docs_search"),
                 retry_policy: self.retry_policy,
                 deadline: self.deadline,
                 attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
@@ -175,7 +175,7 @@ impl Context7Operation {
 
     fn decode(&self, result: McpToolResult) -> Result<DecodedOutcome, Context7Failure> {
         let data = merged_data(result.structured_content, &result.text);
-        if let Some(target) = redirect_target(&data, &result.text) {
+        if let Some(target) = redirect_target(&data) {
             return Err(Context7Failure {
                 kind: AttemptErrorKind::Runtime,
                 status: None,
@@ -393,17 +393,8 @@ fn string_list_field(item: &Map<String, Value>, names: &[&str]) -> Vec<String> {
         .collect()
 }
 
-fn redirect_target(data: &Value, text: &str) -> Option<String> {
-    redirect_target_in_data(data).or_else(|| {
-        let lower = text.to_ascii_lowercase();
-        if !lower.contains("redirect") {
-            return None;
-        }
-        text.split_whitespace()
-            .map(|part| part.trim_matches(['`', '.', ',', ':']))
-            .find(|part| part.starts_with('/') && part.len() > 1)
-            .map(ToOwned::to_owned)
-    })
+fn redirect_target(data: &Value) -> Option<String> {
+    redirect_target_in_data(data)
 }
 
 fn redirect_target_in_data(data: &Value) -> Option<String> {

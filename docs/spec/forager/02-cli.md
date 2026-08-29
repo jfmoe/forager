@@ -99,7 +99,7 @@ CSV + 独占哨兵 `none`，未传＝自动路由。Rust 类型 `Option<Capabili
 
 ### Research Evidence Index
 
-research 是文件化证据管线，不是答案引擎；未指定 `--budget` 时使用 `standard`。默认 JSON 顶层只包含 `evidence_items`、`evidence_dir`、`plan_path`、`unconsumed_candidates: {count, path}`、`gap_check`、`capability_gaps`、`synthesis_policy: "fetch_before_claim"`、`journal_ref` 与 `journal_status`。每条 evidence item 包含 `id`、可空 `url`、可选 `library_id`/`title`、`provider`、`source_type`、`subquestion_id`、`content_len`、`verified` 和可直接读取的 `path`。URL evidence 使用 `[eN](URL)`；Context7 无 URL evidence 使用 `[eN]`，由同 ID 的 Index 项完成归属。
+research 是文件化证据管线，不是答案引擎；未指定 `--budget` 时使用 `standard`。默认 JSON 顶层只包含 `evidence_items`、`evidence_dir`、`plan_path`、`unconsumed_candidates: {count, path}`、`gap_check`、`capability_gaps`、`synthesis_policy: "fetch_before_claim"`、`journal_ref` 与 `journal_status`。每条 evidence item 包含 `id`、可空 `url`、可选 `library_id`/`title`、`provider`、`source_type`、`subquestion_ids`、`content_len`、`verified` 和可直接读取的 `path`；同一 locator 只抓取一次，`subquestion_ids` 记录它覆盖的全部子问题。URL evidence 使用 `[eN](URL)`；Context7 无 URL evidence 使用 `[eN]`，由同 ID 的 Index 项完成归属。
 
 `evidence_dir` 固定写出：
 

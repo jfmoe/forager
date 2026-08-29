@@ -11,10 +11,10 @@ use crate::net::RetryPolicy;
 use crate::providers::FetchRequest;
 use crate::redact::redact_url;
 use crate::types::{
-    AttemptErrorKind, Capability, CapabilityGap, Deadline, EvidenceItem, EvidenceLocator,
-    EvidenceStrength, PlanCapability, ProviderAttempt, ResearchError, ResearchGap,
-    ResearchGapCheck, ResearchOutcome, ResearchPlan, ResearchSubquestion, Source,
-    UnconsumedCandidates,
+    AttemptDisposition, AttemptErrorKind, Capability, CapabilityGap, Deadline, EvidenceItem,
+    EvidenceLocator, EvidenceStrength, FallbackPolicy, PlanCapability, ProviderAttempt,
+    ResearchError, ResearchGap, ResearchGapCheck, ResearchOutcome, ResearchPlan,
+    ResearchSubquestion, Source, UnconsumedCandidates,
 };
 
 const SYNTHESIS_POLICY: &str = "fetch_before_claim";
@@ -62,17 +62,37 @@ pub(crate) struct ResearchRequest {
     pub(crate) plan_source: &'static str,
     pub(crate) budget: ResearchBudget,
     pub(crate) evidence_dir: PathBuf,
-    pub(crate) fallback: String,
+    pub(crate) fallback: FallbackPolicy,
+    pub(crate) initial_attempts: Vec<ProviderAttempt>,
+    pub(crate) initial_diagnostic: Option<String>,
 }
 
 struct Candidate {
     locator: EvidenceLocator,
     source: Source,
     query: String,
-    subquestion_id: String,
+    subquestion_ids: Vec<String>,
     provider: Option<&'static str>,
     source_type: &'static str,
     known_url: bool,
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+enum CandidateFetchIdentity {
+    Url(String),
+    Context7Query { library_id: String, query: String },
+}
+
+impl Candidate {
+    fn fetch_identity(&self) -> CandidateFetchIdentity {
+        match &self.locator {
+            EvidenceLocator::Url(url) => CandidateFetchIdentity::Url(url.clone()),
+            EvidenceLocator::Context7Library(library_id) => CandidateFetchIdentity::Context7Query {
+                library_id: library_id.clone(),
+                query: self.query.clone(),
+            },
+        }
+    }
 }
 
 #[derive(Default)]
@@ -88,7 +108,7 @@ struct FetchedCandidate {
     title: String,
     provider: &'static str,
     source_type: &'static str,
-    subquestion_id: String,
+    subquestion_ids: Vec<String>,
     content: String,
 }
 
@@ -97,7 +117,7 @@ struct CandidateFetchBlock {
     attempts: Vec<ProviderAttempt>,
     diagnostic: Option<String>,
     evidence: Option<FetchedCandidate>,
-    gap: Option<ResearchGap>,
+    gaps: Vec<ResearchGap>,
     missing_provider: bool,
 }
 
@@ -110,10 +130,15 @@ pub(crate) async fn execute(
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> Result<ResearchOutcome, ResearchError> {
-    let mut attempts = Vec::new();
+    let mut attempts = request.initial_attempts.clone();
+    let research_attempt_start = attempts.len();
     let mut capability_gaps = Vec::new();
     let mut research_gaps = Vec::new();
-    let mut diagnostics = Vec::new();
+    let mut diagnostics = request
+        .initial_diagnostic
+        .clone()
+        .into_iter()
+        .collect::<Vec<_>>();
     let mut candidates = Vec::new();
     let limit = u16::try_from(request.budget.discovery_limit()).unwrap_or(u16::MAX);
 
@@ -128,7 +153,7 @@ pub(crate) async fn execute(
         ));
     }
 
-    let discovery_blocks = stream::iter(request.plan.decomposition.iter().flat_map(
+    let discovery_blocks = stream::iter(request.plan.decomposition().iter().flat_map(
         |subquestion| {
             subquestion
                 .required_capabilities
@@ -139,7 +164,7 @@ pub(crate) async fn execute(
     ))
     .map(|(subquestion, capability)| {
         let execution =
-            CapabilityExecution::new(&request.fallback, client.clone(), retry_policy, deadline);
+            CapabilityExecution::new(request.fallback, client.clone(), retry_policy, deadline);
         let config = &config;
         async move { discover_capability(subquestion, capability, limit, config, execution).await }
     })
@@ -154,38 +179,51 @@ pub(crate) async fn execute(
     }
     candidates = bound_discovery_candidates(
         candidates,
-        &request.plan.decomposition,
+        request.plan.decomposition(),
         request.budget.discovery_limit(),
     );
 
-    let known_url_candidates = known_url_candidates(&request.query, &request.plan.decomposition);
     let subquestion_ids = request
         .plan
-        .decomposition
+        .decomposition()
         .iter()
         .map(|subquestion| subquestion.id.clone())
         .collect::<Vec<_>>();
-    let candidates = interleave_candidates(candidates, &subquestion_ids);
+    let discovered_candidates = interleave_candidates(candidates, &subquestion_ids);
+    let (known_url_candidates, candidates): (Vec<_>, Vec<_>) = merge_candidate_coverage(
+        known_url_candidates(&request.query, request.plan.decomposition())
+            .into_iter()
+            .chain(discovered_candidates),
+    )
+    .into_iter()
+    .partition(|candidate| candidate.known_url);
 
     let mut evidence_items = Vec::new();
-    let mut evidence_counts = request
+    let mut capped_evidence_counts = request
         .plan
-        .decomposition
+        .decomposition()
         .iter()
         .map(|subquestion| (subquestion.id.clone(), 0_usize))
         .collect::<HashMap<_, _>>();
-    let mut candidate_attempt_counts = evidence_counts.clone();
-    let mut seen_locators = HashSet::new();
+    let mut candidate_attempt_counts = capped_evidence_counts.clone();
+    let mut seen_fetches = HashSet::new();
     let mut fetch_config = config.web_fetch.clone();
     let docs_config = config.docs_search.clone();
-    if request.fallback == "off" {
+    if !request.fallback.allows_fallback() {
         fetch_config.retain_first();
     }
     let mut known_url_candidates = VecDeque::from(known_url_candidates);
     while !known_url_candidates.is_empty() {
         let wave_len = known_url_candidates.len().min(engine::FANOUT_CONCURRENCY);
         let wave = known_url_candidates.drain(..wave_len).collect::<Vec<_>>();
-        seen_locators.extend(wave.iter().map(|candidate| candidate.locator.clone()));
+        seen_fetches.extend(wave.iter().map(Candidate::fetch_identity));
+        for candidate in &wave {
+            for subquestion_id in &candidate.subquestion_ids {
+                *candidate_attempt_counts
+                    .entry(subquestion_id.clone())
+                    .or_default() += 1;
+            }
+        }
         let results = join_all(wave.into_iter().map(|candidate| {
             fetch_candidate(
                 candidate,
@@ -211,9 +249,7 @@ pub(crate) async fn execute(
                     providers_skipped: fetch_config.names(),
                 });
             }
-            if let Some(gap) = block.gap {
-                research_gaps.push(gap);
-            }
+            research_gaps.append(&mut block.gaps);
             if let Some(evidence) = block.evidence {
                 push_evidence(&mut evidence_items, &request.evidence_dir, evidence);
             }
@@ -228,30 +264,39 @@ pub(crate) async fn execute(
             if wave.len() >= engine::FANOUT_CONCURRENCY {
                 break;
             }
-            let Some(candidate) = candidates.pop_front() else {
+            let Some(mut candidate) = candidates.pop_front() else {
                 break;
             };
-            let accepted = evidence_counts
-                .get(&candidate.subquestion_id)
-                .copied()
-                .unwrap_or_default();
-            let reserved_for_subquestion = reserved
-                .get(&candidate.subquestion_id)
-                .copied()
-                .unwrap_or_default();
-            if accepted + reserved_for_subquestion >= request.budget.evidence_cap() {
+            let mut available_subquestion_ids = Vec::new();
+            let mut reservation_blocked = false;
+            for subquestion_id in &candidate.subquestion_ids {
+                let accepted = capped_evidence_counts
+                    .get(subquestion_id)
+                    .copied()
+                    .unwrap_or_default();
+                if accepted >= request.budget.evidence_cap() {
+                    continue;
+                }
+                available_subquestion_ids.push(subquestion_id.clone());
+                let reserved_for_subquestion =
+                    reserved.get(subquestion_id).copied().unwrap_or_default();
+                reservation_blocked |=
+                    accepted + reserved_for_subquestion >= request.budget.evidence_cap();
+            }
+            if available_subquestion_ids.is_empty() || reservation_blocked {
                 candidates.push_back(candidate);
                 continue;
             }
-            if !seen_locators.insert(candidate.locator.clone()) {
+            candidate.subquestion_ids = available_subquestion_ids;
+            if !seen_fetches.insert(candidate.fetch_identity()) {
                 continue;
             }
-            *reserved
-                .entry(candidate.subquestion_id.clone())
-                .or_default() += 1;
-            *candidate_attempt_counts
-                .entry(candidate.subquestion_id.clone())
-                .or_default() += 1;
+            for subquestion_id in &candidate.subquestion_ids {
+                *reserved.entry(subquestion_id.clone()).or_default() += 1;
+                *candidate_attempt_counts
+                    .entry(subquestion_id.clone())
+                    .or_default() += 1;
+            }
             wave.push(candidate);
         }
         if wave.is_empty() {
@@ -282,21 +327,21 @@ pub(crate) async fn execute(
                     providers_skipped: fetch_config.names(),
                 });
             }
-            if let Some(gap) = block.gap {
-                research_gaps.push(gap);
-            }
+            research_gaps.append(&mut block.gaps);
             if let Some(evidence) = block.evidence {
-                *evidence_counts
-                    .entry(evidence.subquestion_id.clone())
-                    .or_default() += 1;
+                for subquestion_id in &evidence.subquestion_ids {
+                    *capped_evidence_counts
+                        .entry(subquestion_id.clone())
+                        .or_default() += 1;
+                }
                 push_evidence(&mut evidence_items, &request.evidence_dir, evidence);
             }
         }
     }
-    for subquestion in &request.plan.decomposition {
+    for subquestion in request.plan.decomposition() {
         let has_evidence = evidence_items
             .iter()
-            .any(|item| item.subquestion_id == subquestion.id);
+            .any(|item| item.subquestion_ids.contains(&subquestion.id));
         let has_gap = research_gaps
             .iter()
             .any(|gap| gap.subquestion_id == subquestion.id);
@@ -315,9 +360,9 @@ pub(crate) async fn execute(
         }
     }
 
-    let requested_evidence = if request.plan.intent_signals.cross_validation_need
+    let requested_evidence = if request.plan.intent_signals().cross_validation_need
         == EvidenceStrength::High
-        || request.plan.intent_signals.source_authority_need == EvidenceStrength::High
+        || request.plan.intent_signals().source_authority_need == EvidenceStrength::High
     {
         2
     } else {
@@ -325,7 +370,7 @@ pub(crate) async fn execute(
     };
     let plan_capacity = request
         .plan
-        .decomposition
+        .decomposition()
         .len()
         .saturating_mul(request.budget.evidence_cap());
     let required_evidence = requested_evidence.min(plan_capacity);
@@ -398,13 +443,16 @@ pub(crate) async fn execute(
     })?;
     let fallback_used = fallback_used(&attempts);
     if evidence_is_insufficient {
-        let has_quality_failure = attempts
+        let execution_attempts = &attempts[research_attempt_start..];
+        let has_quality_failure = execution_attempts
             .iter()
             .any(|attempt| attempt.error_kind == Some(AttemptErrorKind::Quality));
-        let entire_chain_failed =
-            !attempts.is_empty() && attempts.iter().all(|attempt| attempt.error_kind.is_some());
+        let entire_chain_failed = !execution_attempts.is_empty()
+            && execution_attempts
+                .iter()
+                .all(|attempt| attempt.disposition == AttemptDisposition::Failed);
         let kind = if evidence_items.is_empty() && (has_quality_failure || entire_chain_failed) {
-            engine::terminal_kind(&attempts)
+            engine::terminal_kind(execution_attempts)
         } else {
             AttemptErrorKind::Evidence
         };
@@ -492,10 +540,13 @@ fn bound_discovery_candidates(
     candidates
         .into_iter()
         .filter(|candidate| {
-            let Some(count) = counts.get_mut(candidate.subquestion_id.as_str()) else {
+            let Some(subquestion_id) = candidate.subquestion_ids.first() else {
                 return false;
             };
-            let Some(seen) = locators.get_mut(candidate.subquestion_id.as_str()) else {
+            let Some(count) = counts.get_mut(subquestion_id.as_str()) else {
+                return false;
+            };
+            let Some(seen) = locators.get_mut(subquestion_id.as_str()) else {
                 return false;
             };
             if *count >= limit || !seen.insert(candidate.locator.clone()) {
@@ -562,7 +613,7 @@ async fn discover_docs(
                                 locator,
                                 source,
                                 query: subquestion.question.clone(),
-                                subquestion_id: subquestion.id.clone(),
+                                subquestion_ids: vec![subquestion.id.clone()],
                                 provider: Some(provider),
                                 source_type: "docs_candidate",
                                 known_url: false,
@@ -616,7 +667,7 @@ async fn discover_web(
                     locator: EvidenceLocator::Url(source.url.clone()),
                     source,
                     query: subquestion.question.clone(),
-                    subquestion_id: subquestion.id.clone(),
+                    subquestion_ids: vec![subquestion.id.clone()],
                     provider,
                     source_type: "web_candidate",
                     known_url: false,
@@ -668,7 +719,7 @@ async fn discover_vertical(
                     locator: EvidenceLocator::Url(source.url.clone()),
                     source,
                     query: subquestion.question.clone(),
-                    subquestion_id: subquestion.id.clone(),
+                    subquestion_ids: vec![subquestion.id.clone()],
                     provider,
                     source_type: "vertical_candidate",
                     known_url: false,
@@ -696,7 +747,8 @@ async fn fetch_candidate(
     deadline: Deadline,
 ) -> CandidateFetchBlock {
     if matches!(&candidate.locator, EvidenceLocator::Context7Library(_)) {
-        let execution = CapabilityExecution::new("auto", client, retry_policy, deadline);
+        let execution =
+            CapabilityExecution::new(FallbackPolicy::Auto, client, retry_policy, deadline);
         return match engine::documentation_read(
             &candidate.locator,
             &candidate.query,
@@ -713,34 +765,32 @@ async fn fetch_candidate(
                     title: candidate.source.title,
                     provider: evidence.provider,
                     source_type: "docs",
-                    subquestion_id: candidate.subquestion_id,
+                    subquestion_ids: candidate.subquestion_ids,
                     content: evidence.content,
                 }),
-                gap: None,
+                gaps: Vec::new(),
                 missing_provider: false,
             },
             Err(error) => CandidateFetchBlock {
                 attempts: error.attempts,
                 diagnostic: error.diagnostic,
                 evidence: None,
-                gap: Some(ResearchGap {
-                    subquestion_id: candidate.subquestion_id,
-                    reason: "failed to read Context7 library".into(),
-                    url: None,
-                }),
+                gaps: Vec::new(),
                 missing_provider: false,
             },
         };
     }
     if fetch_config.configured_provider_count() == 0 {
         return CandidateFetchBlock {
-            gap: candidate.known_url.then(|| ResearchGap {
-                subquestion_id: candidate.subquestion_id,
-                reason:
-                    "known URL could not be fetched because web_fetch has no configured provider"
-                        .into(),
-                url: Some(redact_url(&candidate.source.url)),
-            }),
+            gaps: if candidate.known_url {
+                candidate_gaps(
+                    &candidate.subquestion_ids,
+                    "known URL could not be fetched because web_fetch has no configured provider",
+                    Some(redact_url(&candidate.source.url)),
+                )
+            } else {
+                Vec::new()
+            },
             missing_provider: true,
             ..CandidateFetchBlock::default()
         };
@@ -766,45 +816,66 @@ async fn fetch_candidate(
                 title: candidate.source.title,
                 provider: fetched.provider,
                 source_type: "fetched_page",
-                subquestion_id: candidate.subquestion_id,
+                subquestion_ids: candidate.subquestion_ids,
                 content: fetched.content,
             }),
-            gap: None,
+            gaps: Vec::new(),
             missing_provider: false,
         },
         Err(error) => CandidateFetchBlock {
             attempts: error.attempts,
             diagnostic: error.diagnostic,
             evidence: None,
-            gap: candidate.known_url.then(|| ResearchGap {
-                subquestion_id: candidate.subquestion_id,
-                reason: "failed to fetch known URL".into(),
-                url: Some(redact_url(&url)),
-            }),
+            gaps: if candidate.known_url {
+                candidate_gaps(
+                    &candidate.subquestion_ids,
+                    "failed to fetch known URL",
+                    Some(redact_url(&url)),
+                )
+            } else {
+                Vec::new()
+            },
             missing_provider: false,
         },
     }
 }
 
+fn candidate_gaps(
+    subquestion_ids: &[String],
+    reason: &str,
+    url: Option<String>,
+) -> Vec<ResearchGap> {
+    if subquestion_ids.is_empty() {
+        return vec![ResearchGap {
+            subquestion_id: String::new(),
+            reason: reason.into(),
+            url,
+        }];
+    }
+    subquestion_ids
+        .iter()
+        .map(|subquestion_id| ResearchGap {
+            subquestion_id: subquestion_id.clone(),
+            reason: reason.into(),
+            url: url.clone(),
+        })
+        .collect()
+}
+
 fn known_url_candidates(query: &str, subquestions: &[ResearchSubquestion]) -> Vec<Candidate> {
-    let mut seen = HashSet::new();
     let mut candidates = Vec::new();
     for subquestion in subquestions {
         for url in engine::known_urls(&subquestion.question) {
-            if seen.insert(url.clone()) {
-                candidates.push(known_url_candidate(url, subquestion.id.clone()));
-            }
+            candidates.push(known_url_candidate(url, Some(subquestion.id.clone())));
         }
     }
     for url in engine::known_urls(query) {
-        if seen.insert(url.clone()) {
-            candidates.push(known_url_candidate(url, String::new()));
-        }
+        candidates.push(known_url_candidate(url, None));
     }
     candidates
 }
 
-fn known_url_candidate(url: String, subquestion_id: String) -> Candidate {
+fn known_url_candidate(url: String, subquestion_id: Option<String>) -> Candidate {
     Candidate {
         locator: EvidenceLocator::Url(url.clone()),
         source: Source {
@@ -819,7 +890,7 @@ fn known_url_candidate(url: String, subquestion_id: String) -> Candidate {
             favicon: None,
         },
         query: String::new(),
-        subquestion_id,
+        subquestion_ids: subquestion_id.into_iter().collect(),
         provider: None,
         source_type: "known_url",
         known_url: true,
@@ -834,7 +905,11 @@ fn interleave_candidates(candidates: Vec<Candidate>, subquestion_ids: &[String])
         .collect::<HashMap<_, _>>();
     let mut unmatched = VecDeque::new();
     for candidate in candidates {
-        if let Some(group) = by_subquestion.get_mut(&candidate.subquestion_id) {
+        if let Some(group) = candidate
+            .subquestion_ids
+            .first()
+            .and_then(|subquestion_id| by_subquestion.get_mut(subquestion_id))
+        {
             group.push_back(candidate);
         } else {
             unmatched.push_back(candidate);
@@ -860,6 +935,25 @@ fn interleave_candidates(candidates: Vec<Candidate>, subquestion_ids: &[String])
     }
 }
 
+fn merge_candidate_coverage(candidates: impl IntoIterator<Item = Candidate>) -> Vec<Candidate> {
+    let mut merged = Vec::<Candidate>::new();
+    let mut indexes = HashMap::<CandidateFetchIdentity, usize>::new();
+    for candidate in candidates {
+        let identity = candidate.fetch_identity();
+        if let Some(index) = indexes.get(&identity).copied() {
+            for subquestion_id in candidate.subquestion_ids {
+                if !merged[index].subquestion_ids.contains(&subquestion_id) {
+                    merged[index].subquestion_ids.push(subquestion_id);
+                }
+            }
+            continue;
+        }
+        indexes.insert(identity, merged.len());
+        merged.push(candidate);
+    }
+    merged
+}
+
 fn push_evidence(
     evidence_items: &mut Vec<EvidenceItem>,
     evidence_dir: &Path,
@@ -877,7 +971,7 @@ fn push_evidence(
         title: (!evidence.title.is_empty()).then_some(evidence.title),
         provider: evidence.provider,
         source_type: evidence.source_type,
-        subquestion_id: evidence.subquestion_id,
+        subquestion_ids: evidence.subquestion_ids,
         content: evidence.content,
         content_len,
         verified: content_len > 0,
@@ -898,7 +992,7 @@ fn unconsumed_candidates_artifact(candidates: &VecDeque<Candidate>) -> Value {
                 "source": source,
                 "provider": candidate.provider,
                 "source_type": candidate.source_type,
-                "subquestion_id": candidate.subquestion_id,
+                "subquestion_ids": candidate.subquestion_ids,
             })
         }).collect::<Vec<_>>()
     })
@@ -915,7 +1009,10 @@ fn successful_provider(attempts: &[ProviderAttempt], seam: &str) -> Option<&'sta
     attempts
         .iter()
         .rev()
-        .find(|attempt| attempt.seam == seam && attempt.error_kind.is_none())
+        .find(|attempt| {
+            attempt.target.seam_name() == Some(seam)
+                && attempt.disposition == AttemptDisposition::Succeeded
+        })
         .map(|attempt| attempt.provider)
 }
 
@@ -1061,10 +1158,12 @@ fn unconfigured_vertical_providers(config: &RuntimeConfig) -> Vec<String> {
 fn fallback_used(attempts: &[ProviderAttempt]) -> bool {
     let mut providers_by_seam = HashMap::<&str, HashSet<&str>>::new();
     for attempt in attempts {
-        providers_by_seam
-            .entry(attempt.seam)
-            .or_default()
-            .insert(attempt.provider);
+        if let Some(seam) = attempt.target.seam_name() {
+            providers_by_seam
+                .entry(seam)
+                .or_default()
+                .insert(attempt.provider);
+        }
     }
     providers_by_seam
         .values()
@@ -1077,8 +1176,8 @@ mod tests {
 
     use super::{ResearchBudget, ResearchRequest, recovery_manifest};
     use crate::types::{
-        AttemptErrorKind, EvidenceItem, EvidenceLocator, ResearchError, ResearchGapCheck,
-        ResearchOutcome, ResearchPlan, UnconsumedCandidates,
+        AttemptErrorKind, EvidenceItem, EvidenceLocator, FallbackPolicy, ResearchError,
+        ResearchGapCheck, ResearchOutcome, ResearchPlan, UnconsumedCandidates,
     };
 
     #[test]
@@ -1168,7 +1267,9 @@ mod tests {
             plan_source: "caller",
             budget: ResearchBudget::Standard,
             evidence_dir: "/tmp/evidence".into(),
-            fallback: "auto".into(),
+            fallback: FallbackPolicy::Auto,
+            initial_attempts: Vec::new(),
+            initial_diagnostic: None,
         }
     }
 
@@ -1210,7 +1311,7 @@ mod tests {
             title: Some("Rust".into()),
             provider: "context7",
             source_type: "docs",
-            subquestion_id: "sq1".into(),
+            subquestion_ids: vec!["sq1".into()],
             content: "persisted body".into(),
             content_len: 14,
             verified: true,

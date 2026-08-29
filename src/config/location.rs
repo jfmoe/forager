@@ -1,12 +1,10 @@
 use std::env;
-use std::fs::{self, OpenOptions};
+use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
 
+use tempfile::Builder;
 use thiserror::Error;
-
-static WRITE_PROBE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 /// The directory and file used by forager configuration.
 #[derive(Debug, Eq, PartialEq)]
@@ -112,15 +110,8 @@ fn verify_default_directory(config_dir: &Path) -> io::Result<()> {
             "configuration path has no existing ancestor",
         )
     })?;
-    let sequence = WRITE_PROBE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-    let probe = writable_ancestor.join(format!(
-        ".forager-write-probe-{}-{sequence}",
-        std::process::id()
-    ));
-    let file = OpenOptions::new()
-        .create_new(true)
-        .write(true)
-        .open(&probe)?;
-    drop(file);
-    fs::remove_file(probe)
+    Builder::new()
+        .prefix(".forager-write-probe-")
+        .tempfile_in(writable_ancestor)?
+        .close()
 }

@@ -2195,6 +2195,12 @@ fn failed_declared_seam_is_advisory_and_preserves_all_attempts() {
             journal["execution"]["provider_attempts"]
                 .as_array()
                 .map(Vec::len),
+            journal["execution"]["provider_attempts"][1]
+                .as_object()
+                .is_some_and(|attempt| !attempt.contains_key("model")),
+            journal["execution"]["provider_attempts"][1]
+                .as_object()
+                .is_some_and(|attempt| !attempt.contains_key("endpoint_host")),
             &journal["execution"]["capability_gaps"],
         ),
         (
@@ -2205,6 +2211,8 @@ fn failed_declared_seam_is_advisory_and_preserves_all_attempts() {
                 "providers_skipped": []
             }]),
             Some(2),
+            true,
+            true,
             &payload["capability_gaps"],
         )
     );
@@ -4001,6 +4009,7 @@ fn search_journal_failure_is_non_fatal_and_reported_in_json() {
 #[test]
 fn search_canary_exempts_answer_content_but_redacts_protected_outputs() {
     let secret = "canary-secret";
+    let query_secret = "query-url-secret";
     let classifier = Fixture::start(
         200,
         "application/json",
@@ -4025,7 +4034,13 @@ fn search_canary_exempts_answer_content_but_redacts_protected_outputs() {
     let tee = environment.state_dir.join("result.json");
     let tee_argument = tee.to_string_lossy().into_owned();
 
-    let output = environment.run(&["search", "Canary", "--verbose", "--output", &tee_argument]);
+    let output = environment.run(&[
+        "search",
+        &format!("Canary https://example.test/query?token={query_secret}"),
+        "--verbose",
+        "--output",
+        &tee_argument,
+    ]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse verbose JSON");
     assert_eq!(
         (
@@ -4041,21 +4056,41 @@ fn search_canary_exempts_answer_content_but_redacts_protected_outputs() {
             Some(2),
         )
     );
-    let journal = fs::read_dir(environment.state_dir.join("forager/journal"))
+    let journal: Value = fs::read_dir(environment.state_dir.join("forager/journal"))
         .expect("read journal")
         .find_map(std::result::Result::ok)
-        .map(|entry| fs::read_to_string(entry.path()).expect("read journal"))
+        .map(|entry| {
+            serde_json::from_slice(&fs::read(entry.path()).expect("read journal"))
+                .expect("parse journal")
+        })
         .expect("journal record");
 
     let tee_payload: Value =
         serde_json::from_slice(&fs::read(&tee).expect("read tee")).expect("parse tee JSON");
     assert_eq!(tee_payload, payload);
-    for (name, content) in [
-        ("diagnostic", String::from_utf8_lossy(&output.stderr)),
-        ("journal", journal.into()),
-    ] {
-        assert!(!content.contains(secret), "{name} leaked the canary");
-    }
+    assert_eq!(
+        &journal["result"]["answer"],
+        &Value::String(format!("answer with {secret}"))
+    );
+    assert_eq!(
+        &journal["result"]["query"],
+        &Value::String("Canary https://example.test/query?token=********".into())
+    );
+    let mut protected_journal = journal;
+    protected_journal["result"]
+        .as_object_mut()
+        .expect("journal result")
+        .remove("answer");
+    let protected_journal =
+        serde_json::to_string(&protected_journal).expect("encode protected journal");
+    assert!(
+        !protected_journal.contains(secret) && !protected_journal.contains(query_secret),
+        "journal protected fields leaked the canary"
+    );
+    assert!(
+        !String::from_utf8_lossy(&output.stderr).contains(secret),
+        "diagnostic leaked the canary"
+    );
     classifier.finish();
     main.finish();
 }

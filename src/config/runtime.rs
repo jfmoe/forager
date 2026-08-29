@@ -6,6 +6,7 @@ use super::location::{ConfigError, ConfigLocation};
 use super::schema::{Config, FieldRef, SCHEMA};
 use crate::providers::ProviderId;
 use crate::redact::Secret;
+use crate::types::FallbackPolicy;
 
 #[derive(Clone, Debug)]
 pub(crate) struct SeamEntry<C> {
@@ -101,7 +102,7 @@ impl ClassifierRuntimeConfig {
 #[derive(Clone, Debug)]
 pub(crate) struct MainSearchRuntimeConfig {
     entries: Vec<SeamEntry<MainSearchProviderConfig>>,
-    pub(crate) fallback: String,
+    pub(crate) fallback: FallbackPolicy,
 }
 
 #[derive(Clone, Debug)]
@@ -115,13 +116,6 @@ impl MainSearchProviderConfig {
         match self {
             Self::Xai(config) => !config.keys.is_empty(),
             Self::OpenAiCompatible(config) => !config.keys.is_empty(),
-        }
-    }
-
-    fn model(&self) -> &str {
-        match self {
-            Self::Xai(config) => &config.model,
-            Self::OpenAiCompatible(config) => &config.model,
         }
     }
 
@@ -147,25 +141,6 @@ impl MainSearchRuntimeConfig {
             .iter()
             .filter(|entry| entry.configured())
             .count()
-    }
-
-    pub(crate) fn default_model(&self) -> &str {
-        self.entries
-            .iter()
-            .map(SeamEntry::config)
-            .map(MainSearchProviderConfig::model)
-            .next()
-            .unwrap_or_default()
-    }
-
-    pub(crate) fn default_endpoint_host(&self) -> String {
-        self.entries
-            .iter()
-            .map(SeamEntry::config)
-            .next()
-            .and_then(|provider| reqwest::Url::parse(provider.url()).ok())
-            .and_then(|url| url.host_str().map(ToOwned::to_owned))
-            .unwrap_or_default()
     }
 }
 
@@ -442,6 +417,11 @@ impl RuntimeConfig {
 pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
     let loaded = load_effective_config()?;
     let config = loaded.config;
+    let fallback = config
+        .search
+        .fallback
+        .parse()
+        .map_err(ConfigError::Message)?;
     let config_dir = ConfigLocation::discover()?.config_dir;
     let journal = JournalRuntimeConfig {
         enabled: config.journal.enabled,
@@ -523,7 +503,7 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
     Ok(RuntimeConfig {
         main_search: MainSearchRuntimeConfig {
             entries: main_entries,
-            fallback: config.search.fallback,
+            fallback,
         },
         classifier,
         xai,

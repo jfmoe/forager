@@ -4,7 +4,7 @@ use serde::Serialize;
 use serde_json::{Value, json};
 
 use crate::config::LogLevel;
-use crate::types::ProviderAttempt;
+use crate::types::{AttemptDisposition, AttemptTarget, ProviderAttempt};
 
 pub(crate) fn render(level: LogLevel, attempts: &[ProviderAttempt]) -> Option<String> {
     if attempts.is_empty() || matches!(level, LogLevel::Error | LogLevel::Warn | LogLevel::Info) {
@@ -50,15 +50,15 @@ pub(crate) fn render(level: LogLevel, attempts: &[ProviderAttempt]) -> Option<St
 }
 
 fn fallback_occurred(attempts: &[ProviderAttempt]) -> bool {
-    let mut identity_by_seam = BTreeMap::new();
+    let mut identity_by_target = BTreeMap::new();
     for attempt in attempts {
         let identity = (attempt.provider, attempt.model.as_deref());
-        if let Some(first_identity) = identity_by_seam.get(attempt.seam) {
+        if let Some(first_identity) = identity_by_target.get(&attempt.target) {
             if *first_identity != identity {
                 return true;
             }
         } else {
-            identity_by_seam.insert(attempt.seam, identity);
+            identity_by_target.insert(attempt.target, identity);
         }
     }
     false
@@ -95,7 +95,9 @@ pub fn bounded_attempt_summary(attempts: &[ProviderAttempt]) -> Value {
 #[derive(Serialize)]
 struct SafeAttempt {
     provider: &'static str,
-    seam: &'static str,
+    #[serde(flatten)]
+    target: AttemptTarget,
+    disposition: AttemptDisposition,
     error_kind: Option<&'static str>,
     http_status: Option<u16>,
     duration_ms: u64,
@@ -110,7 +112,8 @@ impl From<&ProviderAttempt> for SafeAttempt {
     fn from(attempt: &ProviderAttempt) -> Self {
         Self {
             provider: attempt.provider,
-            seam: attempt.seam,
+            target: attempt.target,
+            disposition: attempt.disposition,
             error_kind: attempt
                 .error_kind
                 .map(crate::types::AttemptErrorKind::as_str),
@@ -128,7 +131,7 @@ impl From<&ProviderAttempt> for SafeAttempt {
 #[cfg(test)]
 mod tests {
     use crate::config::LogLevel;
-    use crate::types::{AttemptErrorKind, ProviderAttempt};
+    use crate::types::{AttemptDisposition, AttemptErrorKind, AttemptTarget, ProviderAttempt};
 
     use super::render;
 
@@ -177,7 +180,7 @@ mod tests {
     fn summary_does_not_mark_a_seam_transition_as_fallback() {
         let mut classifier = attempt(AttemptErrorKind::Runtime);
         classifier.provider = "classifier";
-        classifier.seam = "classifier";
+        classifier.target = AttemptTarget::seam("classifier");
         classifier.model = Some("classifier-model".into());
         let main_search = attempt(AttemptErrorKind::Network);
 
@@ -254,6 +257,7 @@ mod tests {
             [
                 "breaker_event",
                 "credential_index",
+                "disposition",
                 "duration_ms",
                 "error_kind",
                 "http_status",
@@ -279,7 +283,8 @@ mod tests {
     fn attempt(kind: AttemptErrorKind) -> ProviderAttempt {
         ProviderAttempt {
             provider: "fixture",
-            seam: "main_search",
+            target: AttemptTarget::seam("main_search"),
+            disposition: AttemptDisposition::Failed,
             error_kind: Some(kind),
             http_status: Some(503),
             duration_ms: 12,

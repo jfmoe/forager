@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use fs2::FileExt;
 use serde_json::Value;
-use support::{Fixture, Response};
+use support::{Fixture, Response, run_command};
 
 const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 
@@ -369,8 +369,31 @@ fn exa_similar_treats_an_empty_result_set_as_success() {
 }
 
 #[test]
+fn exa_rejects_success_responses_without_the_results_container() {
+    for body in [r"{}", r#"{"error":"upstream failed"}"#] {
+        let fixture = Fixture::start_json(200, body);
+
+        let output = run(
+            &fixture,
+            &["exa", "search", "missing results"],
+            &["only-key"],
+        );
+        let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+        assert_eq!(
+            (output.status.code(), &payload["error_kind"]),
+            (Some(4), &Value::String("runtime".into())),
+            "body: {body}; stderr: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        fixture.finish();
+    }
+}
+
+#[test]
 fn exa_similar_rejects_an_invalid_result_count_before_network_or_config() {
-    let output = Command::new(env!("CARGO_BIN_EXE_forager"))
+    let mut command = Command::new(env!("CARGO_BIN_EXE_forager"));
+    command
         .args([
             "exa",
             "similar",
@@ -378,9 +401,8 @@ fn exa_similar_rejects_an_invalid_result_count_before_network_or_config() {
             "--num-results",
             "0",
         ])
-        .env_clear()
-        .output()
-        .expect("run forager");
+        .env_clear();
+    let output = run_command(&mut command, None);
 
     assert_eq!(
         (
@@ -431,7 +453,7 @@ fn exa_similar_rotates_credentials_after_a_rate_limit() {
         (
             output.status.code(),
             &payload["provider_attempts"][0]["error_kind"],
-            &payload["provider_attempts"][0]["seam"],
+            &payload["provider_attempts"][0]["operation"],
             requests[0].contains("x-api-key: first-key"),
             requests[1].contains("x-api-key: second-key"),
         ),
@@ -952,13 +974,13 @@ impl RunEnvironment {
     }
 
     fn run(&self, arguments: &[&str]) -> Output {
-        Command::new(env!("CARGO_BIN_EXE_forager"))
+        let mut command = Command::new(env!("CARGO_BIN_EXE_forager"));
+        command
             .args(arguments)
             .env_clear()
             .env("FORAGER_CONFIG_DIR", &self.config_dir)
             .env("XDG_STATE_HOME", &self.state_dir)
-            .env("HOME", self.root.path())
-            .output()
-            .expect("run forager")
+            .env("HOME", self.root.path());
+        run_command(&mut command, None)
     }
 }

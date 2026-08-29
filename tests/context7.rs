@@ -1,12 +1,11 @@
 mod support;
 
 use std::collections::BTreeSet;
-use std::fs;
-use std::process::{Command, Output};
+use std::process::Output;
 use std::time::Duration;
 
 use serde_json::Value;
-use support::{Fixture, Response};
+use support::{Fixture, Response, RunEnvironment};
 
 #[test]
 fn context7_calls_tools_without_a_session_or_legacy_source_header() {
@@ -158,6 +157,36 @@ fn context7_docs_default_json_contains_only_the_readable_payload() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+}
+
+#[test]
+fn context7_docs_treats_redirect_language_as_document_content() {
+    let fixture = Fixture::start_sequence(vec![
+        initialize("redirect-language-docs"),
+        Response::json(202, ""),
+        Response::json(
+            200,
+            r#"{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"Redirect requests from /old to /new."}]}}"#,
+        ),
+    ]);
+
+    let output = run(
+        &fixture,
+        &["context7", "docs", "/example/router", "redirects"],
+        &["only-key"],
+    );
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (output.status.code(), &payload["content"]),
+        (
+            Some(0),
+            &Value::String("Redirect requests from /old to /new.".into()),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    fixture.finish_all();
 }
 
 #[test]
@@ -757,30 +786,9 @@ fn library_result(suffix: &'static str) -> Response {
 }
 
 fn run(fixture: &Fixture, arguments: &[&str], keys: &[&str]) -> Output {
-    let root = tempfile::tempdir().expect("create isolated root");
-    let config_dir = root.path().join("config");
-    let state_dir = root.path().join("state");
-    fs::create_dir_all(&config_dir).expect("create config directory");
-    let keys = keys
-        .iter()
-        .map(|key| format!("{key:?}"))
-        .collect::<Vec<_>>()
-        .join(", ");
-    fs::write(
-        config_dir.join("config.toml"),
-        format!(
-            "[providers.context7]\nurl = {:?}\nkeys = [{keys}]\ntimeout = 2\n[journal]\nenabled = false\n",
-            fixture.url
-        ),
-    )
-    .expect("write config");
-
-    Command::new(env!("CARGO_BIN_EXE_forager"))
-        .args(arguments)
-        .env_clear()
-        .env("FORAGER_CONFIG_DIR", config_dir)
-        .env("XDG_STATE_HOME", state_dir)
-        .env("HOME", root.path())
-        .output()
-        .expect("run forager")
+    RunEnvironment::new(&format!(
+        "[providers.context7]\nurl = {:?}\nkeys = {keys:?}\ntimeout = 2\n[journal]\nenabled = false\n",
+        fixture.url
+    ))
+    .run(arguments)
 }

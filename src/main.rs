@@ -19,6 +19,7 @@ use serde_json::{Value, json};
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let json_preflight_errors = cli.uses_json_preflight_errors();
+    let json_preflight_output = cli.json_preflight_output();
     match app::run(cli) {
         Ok(CommandOutput::Text {
             stdout,
@@ -29,7 +30,8 @@ fn main() -> ExitCode {
             error,
             journal,
             format,
-        }) => emit_search_preflight(&error, &journal, format),
+            output,
+        }) => emit_search_preflight(&error, &journal, format, output),
         Ok(CommandOutput::Search {
             result,
             journal,
@@ -84,7 +86,13 @@ fn main() -> ExitCode {
         }) => emit_logged(render_map(result, format, output), attempt_log),
         Err(error) if json_preflight_errors => {
             let exit_code = error.exit_code();
-            emit(error.json_preflight_payload().to_string(), None, exit_code)
+            emit_rendered(apply_tee(
+                error.json_preflight_payload().to_string(),
+                exit_code,
+                true,
+                json_preflight_output,
+                None,
+            ))
         }
         Err(error) => {
             eprintln!("{}: {error}", error.category());
@@ -246,10 +254,15 @@ fn append_research_index(
                 .or_else(|| item.locator.url())
                 .or_else(|| item.locator.library_id())
                 .unwrap_or("untitled evidence");
+            let coverage = if item.subquestion_ids.is_empty() {
+                "plan".to_owned()
+            } else {
+                item.subquestion_ids.join(", ")
+            };
             let _ = write!(
                 rendered,
-                "\n- {identity} — {title} / {}; subquestion `{}`; {} chars; verified={}; `{}`",
-                item.provider, item.subquestion_id, item.content_len, item.verified, item.path
+                "\n- {identity} — {title} / {}; subquestions `{coverage}`; {} chars; verified={}; `{}`",
+                item.provider, item.content_len, item.verified, item.path
             );
         }
     }
@@ -381,6 +394,7 @@ fn render_search_preflight(
     error: &app::AppError,
     journal: &JournalOutcome,
     format: DocsOutputFormat,
+    output: Option<PathBuf>,
 ) -> Result<RenderedOutput, String> {
     let journal_warning = journal
         .warning
@@ -404,19 +418,22 @@ fn render_search_preflight(
             ),
         ),
     };
-    Ok(RenderedOutput {
+    apply_tee(
         stdout,
+        error.exit_code(),
+        format == DocsOutputFormat::Json,
+        output,
         stderr,
-        exit_code: error.exit_code(),
-    })
+    )
 }
 
 fn emit_search_preflight(
     error: &app::AppError,
     journal: &JournalOutcome,
     format: DocsOutputFormat,
+    output: Option<PathBuf>,
 ) -> ExitCode {
-    emit_rendered(render_search_preflight(error, journal, format))
+    emit_rendered(render_search_preflight(error, journal, format, output))
 }
 
 fn emit_rendered(rendered: Result<RenderedOutput, String>) -> ExitCode {
@@ -894,8 +911,9 @@ fn postflight_exit_code(kind: AttemptErrorKind) -> u8 {
 mod tests {
     use forager::app::ProviderError;
     use forager::types::{
-        AttemptErrorKind, Capability, CapabilityGap, EvidenceItem, JournalOutcome, ProviderAttempt,
-        ResearchError, ResearchGapCheck, UnconsumedCandidates,
+        AttemptDisposition, AttemptErrorKind, AttemptTarget, Capability, CapabilityGap,
+        EvidenceItem, JournalOutcome, ProviderAttempt, ResearchError, ResearchGapCheck,
+        UnconsumedCandidates,
     };
     use serde_json::{Value, json};
 
@@ -969,7 +987,7 @@ mod tests {
                 title: Some("t".repeat(5_000)),
                 provider: "jina",
                 source_type: "fetched_page",
-                subquestion_id: "s".repeat(5_000),
+                subquestion_ids: vec!["s".repeat(5_000)],
                 content: "persisted body".into(),
                 content_len: 14,
                 verified: true,
@@ -1110,7 +1128,8 @@ mod tests {
     fn attempt(provider: &'static str, kind: AttemptErrorKind) -> ProviderAttempt {
         ProviderAttempt {
             provider,
-            seam: "acceptance",
+            target: AttemptTarget::operation("acceptance"),
+            disposition: AttemptDisposition::Failed,
             error_kind: Some(kind),
             http_status: None,
             duration_ms: 0,

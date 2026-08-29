@@ -156,3 +156,76 @@ fn recordable_search_preflight_failure_is_journaled_once() {
     );
     assert!(output.stderr.is_empty());
 }
+
+#[test]
+fn json_preflight_failures_follow_the_output_tee_contract() {
+    let invalid_config = RunEnvironment::new("invalid = [");
+    std::fs::create_dir_all(&invalid_config.state_dir).expect("create state directory");
+    let output_path = invalid_config.state_dir.join("preflight.json");
+    let output_argument = output_path.to_string_lossy().into_owned();
+
+    let output = invalid_config.run(&[
+        "fetch",
+        "https://example.test",
+        "--output",
+        &output_argument,
+    ]);
+
+    assert_eq!(output.status.code(), Some(3));
+    assert_eq!(
+        std::fs::read(&output_path).expect("read preflight tee"),
+        output.stdout
+    );
+    assert!(output.stderr.is_empty());
+
+    let recordable = RunEnvironment::new("");
+    std::fs::create_dir_all(&recordable.state_dir).expect("create state directory");
+    let recordable_path = recordable.state_dir.join("recordable-preflight.json");
+    let recordable_argument = recordable_path.to_string_lossy().into_owned();
+    let output = recordable.run(&[
+        "search",
+        "query",
+        "--capabilities",
+        "none",
+        "--output",
+        &recordable_argument,
+    ]);
+
+    assert_eq!(output.status.code(), Some(3));
+    assert_eq!(
+        std::fs::read(&recordable_path).expect("read recordable preflight tee"),
+        output.stdout
+    );
+    assert!(output.stderr.is_empty());
+}
+
+#[test]
+fn json_preflight_reports_an_unwritable_output_destination() {
+    let environment = RunEnvironment::new("invalid = [");
+    std::fs::create_dir_all(&environment.state_dir).expect("create state directory");
+    let blocked_parent = environment.state_dir.join("blocked-parent");
+    std::fs::write(&blocked_parent, "not a directory").expect("create blocking file");
+    let output_path = blocked_parent.join("preflight.json");
+    let output_argument = output_path.to_string_lossy().into_owned();
+
+    let output = environment.run(&[
+        "fetch",
+        "https://example.test",
+        "--output",
+        &output_argument,
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse preflight JSON");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["output_status"],
+            payload["output_error"].as_str().is_some_and(|message| {
+                message.contains("cannot write output") && message.contains("preflight.json")
+            }),
+        ),
+        (Some(3), &Value::String("failed".into()), true)
+    );
+    assert!(String::from_utf8_lossy(&output.stderr).contains("cannot write output"));
+    assert!(!output_path.exists());
+}

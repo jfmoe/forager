@@ -9,16 +9,18 @@
 //! another server in the test file.
 
 use std::fs;
-use std::io::{Read, Write};
+use std::io::{self, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
-use std::process::{Command, Output, Stdio};
+use std::process::{Child, ChildStdin, Command, ExitStatus, Output, Stdio};
 use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
 const ACCEPT_DEADLINE: Duration = Duration::from_secs(10);
 const ACCEPT_POLL_INTERVAL: Duration = Duration::from_millis(10);
+const COMMAND_DEADLINE: Duration = Duration::from_secs(30);
+const COMMAND_POLL_INTERVAL: Duration = Duration::from_millis(5);
 
 pub(crate) struct Fixture {
     pub(crate) url: String,
@@ -121,6 +123,9 @@ impl Fixture {
                 }
                 match listener.accept() {
                     Ok((mut stream, _)) => {
+                        stream
+                            .set_read_timeout(Some(ACCEPT_DEADLINE))
+                            .expect("set canary stream read timeout");
                         let mut request = Vec::new();
                         let mut buffer = [0_u8; 4096];
                         loop {
@@ -226,6 +231,9 @@ fn accept_request(
                 stream
                     .set_nonblocking(false)
                     .expect("set fixture stream blocking");
+                stream
+                    .set_read_timeout(Some(ACCEPT_DEADLINE))
+                    .expect("set fixture stream read timeout");
                 return stream;
             }
             Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
@@ -333,7 +341,7 @@ impl RunEnvironment {
         for (name, value) in variables {
             command.env(name, value);
         }
-        command.output().expect("run forager")
+        run_command(&mut command, None)
     }
 
     #[allow(dead_code)]
@@ -348,15 +356,117 @@ impl RunEnvironment {
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        let mut child = command.spawn().expect("spawn forager");
-        child
-            .stdin
-            .take()
-            .expect("child stdin")
-            .write_all(stdin.as_bytes())
-            .expect("write child stdin");
-        child.wait_with_output().expect("wait forager")
+        run_command(&mut command, Some(stdin.as_bytes()))
     }
+}
+
+pub(crate) fn run_command(command: &mut Command, stdin: Option<&[u8]>) -> Output {
+    run_command_with_deadline(command, stdin, COMMAND_DEADLINE)
+}
+
+pub(crate) fn run_command_with_deadline(
+    command: &mut Command,
+    stdin: Option<&[u8]>,
+    deadline: Duration,
+) -> Output {
+    let command_label = format!("{command:?}");
+    match stdin {
+        Some(_) => command.stdin(Stdio::piped()),
+        None => command.stdin(Stdio::null()),
+    };
+    command.stdout(Stdio::piped()).stderr(Stdio::piped());
+
+    let mut child = spawn_command(command).expect("spawn test command");
+    if let Some(input) = stdin {
+        child
+            .take_stdin()
+            .expect("capture test command stdin")
+            .write_all(input)
+            .expect("write test command stdin");
+    }
+    wait_for_managed_child(child, &command_label, deadline)
+}
+
+pub(crate) struct ManagedChild {
+    child: Child,
+    stdout: thread::JoinHandle<io::Result<Vec<u8>>>,
+    stderr: thread::JoinHandle<io::Result<Vec<u8>>>,
+}
+
+impl ManagedChild {
+    pub(crate) fn take_stdin(&mut self) -> Option<ChildStdin> {
+        self.child.stdin.take()
+    }
+
+    fn finish(self, status: ExitStatus) -> Output {
+        Output {
+            status,
+            stdout: join_reader(self.stdout, "stdout"),
+            stderr: join_reader(self.stderr, "stderr"),
+        }
+    }
+}
+
+pub(crate) fn spawn_command(command: &mut Command) -> io::Result<ManagedChild> {
+    let mut child = command.spawn()?;
+    let stdout = child.stdout.take().expect("capture test command stdout");
+    let stderr = child.stderr.take().expect("capture test command stderr");
+    Ok(ManagedChild {
+        child,
+        stdout: spawn_reader(stdout),
+        stderr: spawn_reader(stderr),
+    })
+}
+
+pub(crate) fn wait_for_child(child: ManagedChild, command_label: &str) -> Output {
+    wait_for_managed_child(child, command_label, COMMAND_DEADLINE)
+}
+
+fn wait_for_managed_child(
+    mut child: ManagedChild,
+    command_label: &str,
+    deadline: Duration,
+) -> Output {
+    let command_deadline = Instant::now() + deadline;
+    loop {
+        match child.child.try_wait() {
+            Ok(Some(status)) => return child.finish(status),
+            Ok(None) => {}
+            Err(error) => {
+                let _ = child.child.kill();
+                let _ = child.child.wait();
+                panic!("could not poll test command {command_label}: {error}");
+            }
+        }
+
+        let now = Instant::now();
+        if now >= command_deadline {
+            let _ = child.child.kill();
+            let status = child.child.wait().expect("reap timed out test command");
+            let output = child.finish(status);
+            panic!(
+                "test command exceeded {deadline:?}: {command_label}\nstatus: {}\nstdout: {}\nstderr: {}",
+                output.status,
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr),
+            );
+        }
+        thread::sleep(COMMAND_POLL_INTERVAL.min(command_deadline - now));
+    }
+}
+
+fn spawn_reader(mut reader: impl Read + Send + 'static) -> thread::JoinHandle<io::Result<Vec<u8>>> {
+    thread::spawn(move || {
+        let mut bytes = Vec::new();
+        reader.read_to_end(&mut bytes).map(|_| bytes)
+    })
+}
+
+fn join_reader(reader: thread::JoinHandle<io::Result<Vec<u8>>>, label: &str) -> Vec<u8> {
+    reader
+        .join()
+        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
+        .unwrap_or_else(|error| panic!("capture test command {label}: {error}"))
 }
 
 fn request_complete(request: &[u8]) -> bool {

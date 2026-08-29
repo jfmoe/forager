@@ -39,7 +39,15 @@ pub(crate) use openai_compatible::{ModelBreakers, OpenAiCompatible};
 pub(crate) use supplemental::SupplementalSearch;
 pub(crate) use tavily_map::{MapRequest, TavilyMap};
 pub(crate) use web_fetch::{FetchRequest, WebFetch};
-pub(crate) use xai::{SearchRequest, Xai};
+pub(crate) use xai::Xai;
+
+#[derive(Clone, Debug)]
+pub(crate) struct MainSearchRequest {
+    pub(crate) query: String,
+    pub(crate) model: Option<String>,
+    pub(crate) allow_model_fallback: bool,
+    pub(crate) verbose: bool,
+}
 
 const MAIN_SEARCH_INSTRUCTION: &str = "You are a helpful research assistant. Answer the user's question thoroughly using web search results.\n\nGuidelines:\n- Infer the user's true intent even when the question is vague. Consider multiple angles.\n- Search broadly first (5+ perspectives), then go deep on the 2-3 most relevant ones.\n- Prioritize authoritative sources: official docs, Wikipedia, academic papers, reputable journalism.\n- Search in English first for breadth, switch to Chinese when the topic demands it.\n- Every factual claim should cite its source. More credible sources strengthen the answer.\n- Lead with the most likely answer, then provide supporting analysis.\n- Define technical terms in plain language. Use real-world analogies for complex concepts.\n- Format output in clean Markdown. Use LaTeX for formulas, code blocks for scripts.\n- Be direct and concise. No filler or unnecessary follow-up questions.\n";
 
@@ -91,7 +99,7 @@ fn main_search_input(query: &str) -> String {
 pub(crate) trait MainSearch: Send + Sync {
     fn search(
         &self,
-        request: SearchRequest,
+        request: MainSearchRequest,
     ) -> Pin<Box<dyn Future<Output = Result<crate::types::SearchOutcome, ProviderError>> + Send + '_>>;
 }
 
@@ -292,7 +300,7 @@ impl DocsSearch for Context7 {
 impl MainSearch for Xai {
     fn search(
         &self,
-        request: SearchRequest,
+        request: MainSearchRequest,
     ) -> Pin<Box<dyn Future<Output = Result<crate::types::SearchOutcome, ProviderError>> + Send + '_>>
     {
         Box::pin(self.search(request))
@@ -302,7 +310,7 @@ impl MainSearch for Xai {
 impl MainSearch for OpenAiCompatible {
     fn search(
         &self,
-        request: SearchRequest,
+        request: MainSearchRequest,
     ) -> Pin<Box<dyn Future<Output = Result<crate::types::SearchOutcome, ProviderError>> + Send + '_>>
     {
         Box::pin(self.search(request))
@@ -364,7 +372,6 @@ impl ProviderId {
 #[derive(Clone, Copy)]
 pub(crate) struct ProviderRegistration {
     pub(crate) id: ProviderId,
-    pub(crate) name: &'static str,
     pub(crate) capabilities: &'static [&'static str],
     pub(crate) operations: &'static [&'static str],
     pub(crate) credentials_required: bool,
@@ -373,56 +380,48 @@ pub(crate) struct ProviderRegistration {
 const REGISTRY: &[ProviderRegistration] = &[
     ProviderRegistration {
         id: ProviderId::Xai,
-        name: "xai",
         capabilities: &["main_search"],
         operations: &[],
         credentials_required: true,
     },
     ProviderRegistration {
         id: ProviderId::OpenAiCompatible,
-        name: "openai_compatible",
         capabilities: &["main_search"],
         operations: &[],
         credentials_required: true,
     },
     ProviderRegistration {
         id: ProviderId::Tavily,
-        name: "tavily",
         capabilities: &["web_search", "web_fetch"],
         operations: &["site_map"],
         credentials_required: true,
     },
     ProviderRegistration {
         id: ProviderId::Firecrawl,
-        name: "firecrawl",
         capabilities: &["web_search", "web_fetch"],
         operations: &[],
         credentials_required: true,
     },
     ProviderRegistration {
         id: ProviderId::Jina,
-        name: "jina",
         capabilities: &["web_fetch"],
         operations: &[],
         credentials_required: true,
     },
     ProviderRegistration {
         id: ProviderId::Context7,
-        name: "context7",
         capabilities: &["docs_search"],
         operations: &[],
         credentials_required: true,
     },
     ProviderRegistration {
         id: ProviderId::Exa,
-        name: "exa",
         capabilities: &["docs_search"],
         operations: &[],
         credentials_required: true,
     },
     ProviderRegistration {
         id: ProviderId::Anysearch,
-        name: "anysearch",
         capabilities: &["vertical_search"],
         operations: &[],
         credentials_required: true,
@@ -441,7 +440,7 @@ pub(crate) fn build_xai(
 ) -> Xai {
     let registration = registration(ProviderId::Xai);
     debug_assert!(registration.credentials_required);
-    let credentials = CredentialPool::new(registration.name, std::mem::take(&mut config.keys));
+    let credentials = CredentialPool::new(registration.id.name(), std::mem::take(&mut config.keys));
     Xai::new(config, client, credentials, retry_policy, deadline)
 }
 
@@ -454,7 +453,7 @@ pub(crate) fn build_openai_compatible(
 ) -> OpenAiCompatible {
     let registration = registration(ProviderId::OpenAiCompatible);
     debug_assert!(registration.credentials_required);
-    let credentials = CredentialPool::new(registration.name, std::mem::take(&mut config.keys));
+    let credentials = CredentialPool::new(registration.id.name(), std::mem::take(&mut config.keys));
     OpenAiCompatible::new(
         config,
         client,
@@ -492,7 +491,7 @@ pub(crate) fn build_main_search(
 
 pub(crate) fn supports(capability: &str, provider: &str) -> bool {
     REGISTRY.iter().any(|registration| {
-        registration.name == provider && registration.capabilities.contains(&capability)
+        registration.id.name() == provider && registration.capabilities.contains(&capability)
     })
 }
 
@@ -506,14 +505,10 @@ pub(crate) fn build_web_fetch(
     let registration = registration(id);
     debug_assert!(registration.credentials_required);
     debug_assert!(registration.capabilities.contains(&"web_fetch"));
-    let credentials = CredentialPool::new(registration.name, std::mem::take(&mut config.keys));
+    let credentials = CredentialPool::new(registration.id.name(), std::mem::take(&mut config.keys));
     match id {
-        ProviderId::Jina => web_fetch::jina(config, client, credentials, retry_policy, deadline),
-        ProviderId::Tavily => {
-            web_fetch::tavily(config, client, credentials, retry_policy, deadline)
-        }
-        ProviderId::Firecrawl => {
-            web_fetch::firecrawl(config, client, credentials, retry_policy, deadline)
+        ProviderId::Jina | ProviderId::Tavily | ProviderId::Firecrawl => {
+            web_fetch::new(id, config, client, credentials, retry_policy, deadline)
         }
         _ => unreachable!("web_fetch capability only has web fetch constructors"),
     }
@@ -529,10 +524,10 @@ pub(crate) fn build_web_search(
     let registration = registration(id);
     debug_assert!(registration.credentials_required);
     debug_assert!(registration.capabilities.contains(&"web_search"));
-    let credentials = CredentialPool::new(registration.name, std::mem::take(&mut config.keys));
+    let credentials = CredentialPool::new(registration.id.name(), std::mem::take(&mut config.keys));
     match id {
         ProviderId::Tavily | ProviderId::Firecrawl => Box::new(SupplementalSearch::new(
-            registration.name,
+            id,
             config,
             client,
             credentials,
@@ -599,7 +594,7 @@ pub(crate) fn build_exa(
 ) -> exa::Exa {
     let registration = registration(ProviderId::Exa);
     debug_assert!(registration.credentials_required);
-    let credentials = CredentialPool::new(registration.name, std::mem::take(&mut config.keys));
+    let credentials = CredentialPool::new(registration.id.name(), std::mem::take(&mut config.keys));
     exa::Exa::new(config, client, credentials, retry_policy, deadline)
 }
 
@@ -612,7 +607,7 @@ pub(crate) fn build_tavily_map(
     let registration = registration(ProviderId::Tavily);
     debug_assert!(registration.credentials_required);
     debug_assert!(registration.operations.contains(&"site_map"));
-    let credentials = CredentialPool::new(registration.name, std::mem::take(&mut config.keys));
+    let credentials = CredentialPool::new(registration.id.name(), std::mem::take(&mut config.keys));
     TavilyMap::new(config, client, credentials, retry_policy, deadline)
 }
 
@@ -624,7 +619,7 @@ pub(crate) fn build_context7(
 ) -> Context7 {
     let registration = registration(ProviderId::Context7);
     debug_assert!(registration.credentials_required);
-    let credentials = CredentialPool::new(registration.name, std::mem::take(&mut config.keys));
+    let credentials = CredentialPool::new(registration.id.name(), std::mem::take(&mut config.keys));
     Context7::new(config, client, credentials, retry_policy, deadline)
 }
 
@@ -636,7 +631,7 @@ pub(crate) fn build_anysearch(
 ) -> Anysearch {
     let registration = registration(ProviderId::Anysearch);
     debug_assert!(registration.credentials_required);
-    let credentials = CredentialPool::new(registration.name, std::mem::take(&mut config.keys));
+    let credentials = CredentialPool::new(registration.id.name(), std::mem::take(&mut config.keys));
     Anysearch::new(config, client, credentials, retry_policy, deadline)
 }
 
@@ -673,7 +668,7 @@ mod tests {
                 registration
                     .capabilities
                     .iter()
-                    .map(move |seam| (registration.name, *seam))
+                    .map(move |seam| (registration.id.name(), *seam))
             })
             .collect::<BTreeSet<_>>();
         let fixture_projection = manifest
@@ -698,7 +693,7 @@ mod tests {
         let exa = registration(ProviderId::Exa);
 
         assert_eq!(
-            (exa.name, exa.capabilities, exa.credentials_required,),
+            (exa.id.name(), exa.capabilities, exa.credentials_required,),
             ("exa", &["docs_search"][..], true)
         );
     }
@@ -708,7 +703,7 @@ mod tests {
         let xai = registration(ProviderId::Xai);
 
         assert_eq!(
-            (xai.name, xai.capabilities, xai.credentials_required,),
+            (xai.id.name(), xai.capabilities, xai.credentials_required,),
             ("xai", &["main_search"][..], true)
         );
     }
@@ -719,7 +714,7 @@ mod tests {
 
         assert_eq!(
             (
-                openai.name,
+                openai.id.name(),
                 openai.capabilities,
                 openai.credentials_required,
             ),
@@ -733,7 +728,7 @@ mod tests {
 
         assert_eq!(
             (
-                context7.name,
+                context7.id.name(),
                 context7.capabilities,
                 context7.credentials_required,
             ),
@@ -747,7 +742,7 @@ mod tests {
 
         assert_eq!(
             (
-                anysearch.name,
+                anysearch.id.name(),
                 anysearch.capabilities,
                 anysearch.credentials_required,
             ),
@@ -765,7 +760,7 @@ mod tests {
             let registration = registration(id);
             assert_eq!(
                 (
-                    registration.name,
+                    registration.id.name(),
                     registration.capabilities.contains(&"web_fetch"),
                     registration.credentials_required,
                 ),

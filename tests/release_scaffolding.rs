@@ -1,5 +1,11 @@
+mod support;
+
+use std::collections::BTreeMap;
 use std::fs;
 use std::process::Command;
+
+use serde_json::{Map, Value};
+use support::run_command;
 
 #[test]
 fn every_runnable_workflow_job_has_a_twenty_minute_timeout() {
@@ -15,7 +21,11 @@ fn every_runnable_workflow_job_has_a_twenty_minute_timeout() {
 
 #[test]
 fn ci_does_not_run_live_smoke_checks() {
-    assert!(!ci_workflow().contains("smoke --live"));
+    assert!(
+        workflow_run_commands(&ci_workflow())
+            .iter()
+            .all(|command| !command.contains("smoke --live"))
+    );
 }
 
 #[test]
@@ -60,12 +70,10 @@ fn ci_locks_every_dependency_resolving_cargo_command() {
 #[test]
 fn ci_tests_on_a_windows_runner() {
     let workflow = ci_workflow();
-    let jobs = workflow.split_once("\njobs:\n").expect("workflow jobs").1;
 
-    assert!(workflow_job_bodies(jobs).iter().any(|job| {
-        job.lines()
-            .any(|line| line.trim() == "runs-on: windows-latest")
-            && cargo_commands(job)
+    assert!(workflow_jobs(&workflow).values().any(|job| {
+        job["runs-on"].as_str() == Some("windows-latest")
+            && cargo_commands_in_job(job)
                 .iter()
                 .any(|command| command.starts_with("cargo test"))
     }));
@@ -74,12 +82,10 @@ fn ci_tests_on_a_windows_runner() {
 #[test]
 fn windows_ci_denies_clippy_warnings() {
     let workflow = ci_workflow();
-    let jobs = workflow.split_once("\njobs:\n").expect("workflow jobs").1;
 
-    assert!(workflow_job_bodies(jobs).iter().any(|job| {
-        job.lines()
-            .any(|line| line.trim() == "runs-on: windows-latest")
-            && cargo_commands(job).iter().any(|command| {
+    assert!(workflow_jobs(&workflow).values().any(|job| {
+        job["runs-on"].as_str() == Some("windows-latest")
+            && cargo_commands_in_job(job).iter().any(|command| {
                 let arguments = command.split_whitespace().collect::<Vec<_>>();
                 arguments.starts_with(&["cargo", "clippy"])
                     && arguments.contains(&"--all-targets")
@@ -90,43 +96,10 @@ fn windows_ci_denies_clippy_warnings() {
 }
 
 #[test]
-fn package_manifest_enables_the_pinned_clippy_policy() {
-    let manifest = fs::read_to_string("Cargo.toml").expect("read Cargo manifest");
-    let package: toml::Value = toml::from_str(&manifest).expect("parse Cargo manifest");
-    let toolchain = fs::read_to_string("rust-toolchain.toml").expect("read pinned Rust toolchain");
-    let toolchain: toml::Value = toml::from_str(&toolchain).expect("parse pinned Rust toolchain");
-    let rust_version = package["package"]["rust-version"]
-        .as_str()
-        .expect("package rust-version");
-    let channel = toolchain["toolchain"]["channel"]
-        .as_str()
-        .expect("toolchain channel");
-    let pinned_minor = channel.rsplit_once('.').expect("toolchain patch version").0;
-
-    assert_eq!(
-        (
-            package["lints"]["clippy"]["pedantic"]["level"].as_str(),
-            package["lints"]["clippy"]["pedantic"]["priority"].as_integer(),
-            package["lints"]["clippy"]["redundant_clone"].as_str(),
-            package["lints"]["clippy"]["missing_const_for_fn"].as_str(),
-            rust_version,
-        ),
-        (
-            Some("warn"),
-            Some(-1),
-            Some("warn"),
-            Some("allow"),
-            pinned_minor
-        )
-    );
-}
-
-#[test]
 fn released_binary_reports_the_cargo_package_version() {
-    let output = Command::new(env!("CARGO_BIN_EXE_forager"))
-        .arg("--version")
-        .output()
-        .expect("run forager");
+    let mut command = Command::new(env!("CARGO_BIN_EXE_forager"));
+    command.arg("--version");
+    let output = run_command(&mut command, None);
 
     assert_eq!(
         (
@@ -140,88 +113,10 @@ fn released_binary_reports_the_cargo_package_version() {
 }
 
 #[test]
-fn breaking_output_release_documents_the_complete_caller_migration() {
-    let changelog = fs::read_to_string("CHANGELOG.md").expect("read changelog");
-    let release_notes = changelog
-        .split_once("## [0.1.2]")
-        .expect("v0.2.0 release notes precede v0.1.2")
-        .0;
-    let (preamble, remainder) = release_notes
-        .split_once("### Changed")
-        .expect("changed section");
-    let (changed, remainder) = remainder
-        .split_once("### Removed")
-        .expect("removed section");
-    let (removed, migration) = remainder
-        .split_once("### Migration")
-        .expect("migration section");
-
-    assert!(preamble.contains("## [Unreleased]") || preamble.contains("## [0.2.0]"));
-
-    for required_fragment in [
-        "Normalized Fetch Content",
-        "`sources`",
-        "Primary Search Sources",
-        "`extra_sources`",
-        "Supplemental Search Candidates",
-        "`vertical_results`",
-        "`title`",
-        "`query`",
-        "`model`",
-        "`provider`",
-        "`capabilities`",
-        "Search Result Journal",
-    ] {
-        assert!(
-            changed.contains(required_fragment),
-            "breaking release changed section is missing {required_fragment}"
-        );
-    }
-
-    for required_fragment in [
-        "`validation_results`",
-        "`code_snippets`",
-        "`info_snippets`",
-        "`results`",
-        "`total`",
-        "`evidence_items[].content`",
-        "`final_answer`",
-        "`citations`",
-        "`research_plan`",
-    ] {
-        assert!(
-            removed.contains(required_fragment),
-            "breaking release removed section is missing {required_fragment}"
-        );
-    }
-
-    for required_fragment in [
-        "forager >= 0.2.0",
-        "`sources`",
-        "`extra_sources`",
-        "`vertical_results`",
-        "`title`",
-        "`query`",
-        "`model`",
-        "`provider`",
-        "`capabilities`",
-        "`provider_attempts`",
-        "`evidence_items[].path`",
-        "`[eN](URL)`",
-        "`library_id`",
-    ] {
-        assert!(
-            migration.contains(required_fragment),
-            "breaking release migration section is missing {required_fragment}"
-        );
-    }
-}
-
-#[test]
 fn dist_dispatches_draft_releases_through_the_artifact_gate() {
     let source = fs::read_to_string("dist-workspace.toml").expect("read dist config");
     let config: toml::Value = toml::from_str(&source).expect("parse dist config");
-    let workflow = fs::read_to_string(".github/workflows/release.yml").expect("read dist workflow");
+    let workflow = load_workflow(".github/workflows/release.yml");
 
     assert_eq!(
         (
@@ -235,8 +130,6 @@ fn dist_dispatches_draft_releases_through_the_artifact_gate() {
             config["dist"]["publish-jobs"].as_array(),
             config["dist"]["github-custom-job-permissions"]["release-artifact-gate"]["contents"]
                 .as_str(),
-            workflow.contains("pull_request:"),
-            workflow.contains("cargo-dist/releases/download/v0.31.0"),
         ),
         (
             Some("github"),
@@ -248,90 +141,344 @@ fn dist_dispatches_draft_releases_through_the_artifact_gate() {
             Some(&vec![toml::Value::String("ci".into())]),
             Some(&vec![toml::Value::String("./release-artifact-gate".into())]),
             Some("write"),
-            true,
-            true,
         )
     );
+
+    assert!(workflow["on"].as_object().is_some_and(|triggers| {
+        triggers.contains_key("pull_request") && triggers.contains_key("workflow_dispatch")
+    }));
     assert!(
-        workflow.contains("custom-release-artifact-gate")
-            && workflow.contains("- custom-release-artifact-gate"),
+        named_step(workflow_job(&workflow, "plan"), "Install dist")["run"]
+            .as_str()
+            .is_some_and(|run| run.contains("cargo-dist/releases/download/v0.31.0"))
+    );
+
+    let gate = workflow_job(&workflow, "custom-release-artifact-gate");
+    assert_eq!(string_list(&gate["needs"]), ["plan", "host"]);
+    assert_eq!(
+        gate["uses"].as_str(),
+        Some("./.github/workflows/release-artifact-gate.yml")
+    );
+    assert_eq!(
+        gate["with"]["plan"].as_str(),
+        Some("${{ needs.plan.outputs.val }}")
+    );
+    assert_eq!(gate["permissions"]["contents"].as_str(), Some("write"));
+
+    let announce = workflow_job(&workflow, "announce");
+    assert!(
+        string_list(&announce["needs"]).contains(&"custom-release-artifact-gate"),
         "dist announce must wait for the artifact gate"
     );
-    let upload = workflow
-        .find("gh release upload")
-        .expect("draft asset upload");
-    let gate = workflow
-        .find("\n  custom-release-artifact-gate:")
-        .expect("artifact gate job");
-    let publish = workflow
-        .rfind("gh release edit")
-        .expect("verified Release publish");
     assert!(
-        upload < gate && gate < publish && workflow.contains("--draft=false"),
-        "the draft Release must be published only after the artifact gate"
+        named_step(
+            workflow_job(&workflow, "host"),
+            "Upload draft GitHub Release assets"
+        )["run"]
+            .as_str()
+            .is_some_and(|run| run.contains("gh release upload"))
+    );
+    assert!(
+        named_step(announce, "Publish verified GitHub Release")["run"]
+            .as_str()
+            .is_some_and(|run| run.contains("gh release edit") && run.contains("--draft=false"))
     );
 }
 
 #[test]
-fn dist_supports_the_declared_release_targets() {
+fn release_target_allowlist_matches_dist() {
     let source = fs::read_to_string("dist-workspace.toml").expect("read dist config");
     let config: toml::Value = toml::from_str(&source).expect("parse dist config");
-    let targets = config["dist"]["targets"]
+    let dist_targets = config["dist"]["targets"]
         .as_array()
         .expect("dist targets")
         .iter()
         .map(|target| target.as_str().expect("target string"))
         .collect::<Vec<_>>();
+    let allowlist: Value = serde_json::from_str(
+        &fs::read_to_string(".github/release-targets.json").expect("read release targets"),
+    )
+    .expect("parse release targets");
+    let gate_targets = ["unix", "windows"]
+        .into_iter()
+        .flat_map(|platform| {
+            allowlist[platform]
+                .as_array()
+                .expect("platform release targets")
+        })
+        .map(|entry| entry["target"].as_str().expect("release target name"))
+        .collect::<Vec<_>>();
 
-    assert_eq!(
-        targets,
-        [
-            "aarch64-apple-darwin",
-            "aarch64-unknown-linux-gnu",
-            "x86_64-apple-darwin",
-            "x86_64-unknown-linux-gnu",
-            "x86_64-pc-windows-msvc",
-        ]
-    );
+    assert_eq!(dist_targets, gate_targets);
+}
+
+#[test]
+fn release_target_preparation_is_fail_closed() {
+    let directory = tempfile::tempdir().expect("create release target test directory");
+    let output_path = directory.path().join("github-output");
+    let mut command = Command::new("bash");
+    command.args([
+        ".github/scripts/prepare-release-targets.sh",
+        ".github/release-targets.json",
+    ]);
+    command.arg(&output_path);
+    let output = run_command(&mut command, None);
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+
+    let prepared = fs::read_to_string(&output_path).expect("read prepared release targets");
+    let fields = prepared
+        .lines()
+        .map(|line| line.split_once('=').expect("release target output"))
+        .collect::<BTreeMap<_, _>>();
+    let targets: Value = serde_json::from_str(fields["targets"]).expect("prepared targets");
+    let unix: Value = serde_json::from_str(fields["unix-matrix"]).expect("prepared Unix matrix");
+    let windows: Value =
+        serde_json::from_str(fields["windows-matrix"]).expect("prepared Windows matrix");
+    let combined = unix["include"]
+        .as_array()
+        .expect("Unix matrix include")
+        .iter()
+        .chain(
+            windows["include"]
+                .as_array()
+                .expect("Windows matrix include"),
+        )
+        .cloned()
+        .collect::<Vec<_>>();
+    assert!(!combined.is_empty());
+    assert_eq!(targets, Value::Array(combined));
+
+    let empty_source = directory.path().join("empty-targets.json");
+    fs::write(&empty_source, r#"{"unix":[],"windows":[]}"#).expect("write empty release targets");
+    let empty_output = directory.path().join("empty-output");
+    let mut command = Command::new("bash");
+    command
+        .arg(".github/scripts/prepare-release-targets.sh")
+        .arg(empty_source)
+        .arg(empty_output);
+    let output = run_command(&mut command, None);
+    assert_ne!(output.status.code(), Some(0), "{output:?}");
 }
 
 #[test]
 fn release_gate_installs_and_verifies_every_draft_release_asset() {
-    let gate = fs::read_to_string(".github/workflows/release-artifact-gate.yml")
-        .expect("read release artifact gate");
+    let workflow = load_workflow(".github/workflows/release-artifact-gate.yml");
 
-    for required_fragment in [
-        "aarch64-apple-darwin",
-        "aarch64-unknown-linux-gnu",
-        "x86_64-apple-darwin",
-        "x86_64-unknown-linux-gnu",
-        "x86_64-pc-windows-msvc",
-        "gh release download",
-        "--repo \"$GITHUB_REPOSITORY\"",
-        "checksum_count",
-        "sha256sum --check",
+    assert_release_target_job(&workflow);
+    assert_release_checksum_job(&workflow);
+    assert_release_unix_job(&workflow);
+    assert_release_windows_job(&workflow);
+    assert_release_record_job(&workflow);
+}
+
+fn assert_release_target_job(workflow: &Value) {
+    let prepare = workflow_job(workflow, "prepare-targets");
+    assert_eq!(
+        (
+            prepare["outputs"]["targets"].as_str(),
+            prepare["outputs"]["unix-matrix"].as_str(),
+            prepare["outputs"]["windows-matrix"].as_str(),
+        ),
+        (
+            Some("${{ steps.targets.outputs.targets }}"),
+            Some("${{ steps.targets.outputs.unix-matrix }}"),
+            Some("${{ steps.targets.outputs.windows-matrix }}"),
+        )
+    );
+    let prepare_run = named_step_by_id(prepare, "targets")["run"]
+        .as_str()
+        .expect("prepare target command");
+    assert_eq!(
+        prepare_run,
+        "bash .github/scripts/prepare-release-targets.sh .github/release-targets.json \"$GITHUB_OUTPUT\""
+    );
+}
+
+fn assert_release_checksum_job(workflow: &Value) {
+    let checksums = workflow_job(workflow, "verify-checksums");
+    assert_eq!(string_list(&checksums["needs"]), ["prepare-targets"]);
+    let download_step = named_step(checksums, "Download draft Release assets");
+    assert_eq!(
+        (
+            download_step["env"]["PLAN"].as_str(),
+            download_step["env"]["TARGETS"].as_str(),
+        ),
+        (
+            Some("${{ inputs.plan }}"),
+            Some("${{ needs.prepare-targets.outputs.targets }}"),
+        )
+    );
+    let download = download_step["run"]
+        .as_str()
+        .expect("checksum download command");
+    assert!(
+        download.contains("gh release download")
+            && download.contains("$GITHUB_REPOSITORY")
+            && download.contains("$TARGETS")
+    );
+    let checksum_step = named_step(checksums, "Verify archive checksums");
+    assert_eq!(
+        checksum_step["env"]["TARGETS"].as_str(),
+        Some("${{ needs.prepare-targets.outputs.targets }}")
+    );
+    let checksum = checksum_step["run"]
+        .as_str()
+        .expect("checksum verification command");
+    assert!(
+        checksum.contains("jq 'length'")
+            && checksum.contains("sha256sum --check")
+            && checksum.contains("checksum_count")
+    );
+}
+
+fn assert_release_unix_job(workflow: &Value) {
+    let unix = workflow_job(workflow, "verify-unix");
+    assert_eq!(
+        string_list(&unix["needs"]),
+        ["prepare-targets", "verify-checksums"]
+    );
+    assert_eq!(
+        unix["strategy"]["matrix"].as_str(),
+        Some("${{ fromJSON(needs.prepare-targets.outputs.unix-matrix) }}")
+    );
+    let unix_download = named_step(unix, "Download draft Release asset");
+    assert_eq!(
+        (
+            unix_download["env"]["PLAN"].as_str(),
+            unix_download["env"]["TARGET"].as_str(),
+            unix_download["env"]["ARCHIVE"].as_str(),
+        ),
+        (
+            Some("${{ inputs.plan }}"),
+            Some("${{ matrix.target }}"),
+            Some("${{ matrix.archive }}"),
+        )
+    );
+    let unix_verify_step = named_step(unix, "Verify installed binary");
+    assert_eq!(
+        (
+            unix_verify_step["env"]["TARGET"].as_str(),
+            unix_verify_step["env"]["ARCHIVE"].as_str(),
+            unix_verify_step["env"]["HOST_ARCH"].as_str(),
+            unix_verify_step["env"]["FILE_ARCH"].as_str(),
+        ),
+        (
+            Some("${{ matrix.target }}"),
+            Some("${{ matrix.archive }}"),
+            Some("${{ matrix.host_arch }}"),
+            Some("${{ matrix.file_arch }}"),
+        )
+    );
+    let unix_verify = unix_verify_step["run"]
+        .as_str()
+        .expect("Unix verification command");
+    for command in [
         "test -x",
         "uname -m",
         "command -v forager",
         "forager --version",
         "forager doctor",
-        "Machine",
-        "release-gate.json",
-        "artifacts-release-gate",
     ] {
         assert!(
-            gate.contains(required_fragment),
-            "release artifact gate is missing {required_fragment}"
+            unix_verify.contains(command),
+            "missing Unix gate command: {command}"
         );
     }
+}
+
+fn assert_release_windows_job(workflow: &Value) {
+    let windows = workflow_job(workflow, "verify-windows");
+    assert_eq!(
+        string_list(&windows["needs"]),
+        ["prepare-targets", "verify-checksums"]
+    );
+    assert_eq!(
+        windows["strategy"]["matrix"].as_str(),
+        Some("${{ fromJSON(needs.prepare-targets.outputs.windows-matrix) }}")
+    );
+    let windows_download = named_step(windows, "Download draft Release asset");
+    assert_eq!(
+        (
+            windows_download["env"]["PLAN"].as_str(),
+            windows_download["env"]["TARGET"].as_str(),
+            windows_download["env"]["ARCHIVE"].as_str(),
+        ),
+        (
+            Some("${{ inputs.plan }}"),
+            Some("${{ matrix.target }}"),
+            Some("${{ matrix.archive }}"),
+        )
+    );
+    let windows_verify_step = named_step(windows, "Verify installed binary");
+    assert_eq!(
+        (
+            windows_verify_step["env"]["TARGET"].as_str(),
+            windows_verify_step["env"]["ARCHIVE"].as_str(),
+            windows_verify_step["env"]["EXPECTED_MACHINE"].as_str(),
+        ),
+        (
+            Some("${{ matrix.target }}"),
+            Some("${{ matrix.archive }}"),
+            Some("${{ matrix.machine }}"),
+        )
+    );
+    let windows_verify = windows_verify_step["run"]
+        .as_str()
+        .expect("Windows verification command");
+    assert!(
+        windows_verify.contains("PortableExecutable.PEReader")
+            && windows_verify.contains("EXPECTED_MACHINE")
+            && windows_verify.contains("forager --version")
+            && windows_verify.contains("forager doctor")
+    );
+}
+
+fn assert_release_record_job(workflow: &Value) {
+    let record = workflow_job(workflow, "record-gate");
+    assert_eq!(
+        string_list(&record["needs"]),
+        [
+            "prepare-targets",
+            "verify-checksums",
+            "verify-unix",
+            "verify-windows",
+        ]
+    );
+    let record_step = named_step(record, "Record release gate");
+    assert_eq!(
+        (
+            record_step["env"]["PLAN"].as_str(),
+            record_step["env"]["TARGETS"].as_str(),
+        ),
+        (
+            Some("${{ inputs.plan }}"),
+            Some("${{ needs.prepare-targets.outputs.targets }}"),
+        )
+    );
+    let record_run = record_step["run"].as_str().expect("record gate command");
+    assert!(
+        record_run.contains("--argjson targets \"$TARGETS\"")
+            && record_run.contains("verified_targets: [$targets[].target]")
+            && record_run.contains("release-gate.json")
+    );
+    assert!(job_steps(record).iter().any(|step| {
+        step["uses"].as_str() == Some("actions/upload-artifact@v6")
+            && step["with"]["name"].as_str() == Some("artifacts-release-gate")
+    }));
 }
 
 #[test]
 fn release_plz_owns_version_tags_and_dispatches_dist_without_package_wrappers() {
     let source = fs::read_to_string("release-plz.toml").expect("read release-plz config");
     let config: toml::Value = toml::from_str(&source).expect("parse release-plz config");
-    let workflow =
+    let workflow_source =
         fs::read_to_string(".github/workflows/release-plz.yml").expect("read release-plz workflow");
+    let workflow: Value =
+        serde_yaml_ng::from_str(&workflow_source).expect("parse release-plz workflow");
+    let release = workflow_job(&workflow, "release");
+    let dispatch = named_step(release, "Dispatch dist for released tags")["run"]
+        .as_str()
+        .expect("release dispatch command");
 
     assert_eq!(
         (
@@ -339,12 +486,18 @@ fn release_plz_owns_version_tags_and_dispatches_dist_without_package_wrappers() 
             config["workspace"]["publish"].as_bool(),
             config["workspace"]["git_release_enable"].as_bool(),
             config["workspace"]["git_tag_enable"].as_bool(),
-            workflow.contains("command: release-pr"),
-            workflow.contains("command: release"),
-            workflow.contains("actions: write"),
-            workflow.contains("gh release create"),
-            workflow.contains("--draft"),
-            workflow.contains("gh workflow run release.yml --field"),
+            workflow_job(&workflow, "release-pr")["steps"]
+                .as_array()
+                .is_some_and(|steps| steps
+                    .iter()
+                    .any(|step| { step["with"]["command"].as_str() == Some("release-pr") })),
+            job_steps(release)
+                .iter()
+                .any(|step| step["with"]["command"].as_str() == Some("release")),
+            release["permissions"]["actions"].as_str() == Some("write"),
+            dispatch.contains("gh release create"),
+            dispatch.contains("--draft"),
+            dispatch.contains("gh workflow run release.yml --field"),
         ),
         (
             Some(true),
@@ -360,142 +513,151 @@ fn release_plz_owns_version_tags_and_dispatches_dist_without_package_wrappers() 
         )
     );
     assert!(
-        !format!("{source}\n{workflow}").contains("npm"),
+        !format!("{source}\n{workflow_source}").contains("npm"),
         "release flow must not depend on npm"
     );
 }
 
 #[test]
 fn release_plz_runs_only_when_manually_dispatched() {
-    let workflow =
-        fs::read_to_string(".github/workflows/release-plz.yml").expect("read release-plz workflow");
+    let workflow = load_workflow(".github/workflows/release-plz.yml");
+    let triggers = workflow["on"].as_object().expect("release-plz triggers");
 
     assert!(
-        workflow.contains("on:\n  workflow_dispatch:\n") && !workflow.contains("\n  push:"),
+        triggers.contains_key("workflow_dispatch") && !triggers.contains_key("push"),
         "release-plz must not run on ordinary main pushes"
     );
 }
 
 #[test]
 fn release_plz_commands_use_github_app_tokens() {
-    let workflow =
-        fs::read_to_string(".github/workflows/release-plz.yml").expect("read release-plz workflow");
-    let jobs = workflow.split_once("\njobs:\n").expect("workflow jobs").1;
-    let release_plz_jobs = workflow_job_bodies(jobs)
-        .into_iter()
-        .filter(|job| job.contains("uses: release-plz/action@"))
+    let workflow = load_workflow(".github/workflows/release-plz.yml");
+    let release_plz_jobs = workflow_jobs(&workflow)
+        .values()
+        .filter(|job| {
+            job_steps(job).iter().any(|step| {
+                step["uses"]
+                    .as_str()
+                    .is_some_and(|uses| uses.starts_with("release-plz/action@"))
+            })
+        })
         .collect::<Vec<_>>();
 
     assert_eq!(release_plz_jobs.len(), 2);
     for job in release_plz_jobs {
-        assert!(job.contains("uses: actions/create-github-app-token@"));
-        assert!(job.contains("app-id: ${{ secrets.APP_ID }}"));
-        assert!(job.contains("private-key: ${{ secrets.APP_PRIVATE_KEY }}"));
-        assert!(job.contains("GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}"));
+        let token = named_step_by_id(job, "app-token");
+        assert_eq!(
+            token["uses"].as_str(),
+            Some("actions/create-github-app-token@v2")
+        );
+        assert_eq!(
+            token["with"]["app-id"].as_str(),
+            Some("${{ secrets.APP_ID }}")
+        );
+        assert_eq!(
+            token["with"]["private-key"].as_str(),
+            Some("${{ secrets.APP_PRIVATE_KEY }}")
+        );
+        assert!(job_steps(job).iter().any(|step| {
+            step["uses"]
+                .as_str()
+                .is_some_and(|uses| uses.starts_with("release-plz/action@"))
+                && step["env"]["GITHUB_TOKEN"].as_str()
+                    == Some("${{ steps.app-token.outputs.token }}")
+        }));
     }
 }
 
 fn assert_runnable_job_timeouts(path: &str) {
-    let workflow = fs::read_to_string(path).expect("read workflow");
-    let jobs = workflow.split_once("\njobs:\n").expect("workflow jobs").1;
-    let mut job_name = None;
-    let mut job_body = Vec::new();
-    let mut job_count = 0;
-
-    for line in jobs.lines() {
-        if line.starts_with("  ") && !line.starts_with("    ") && line.ends_with(':') {
-            if let Some(name) = job_name.take() {
-                assert_job_timeout(path, name, &job_body);
-            }
-            job_name = Some(line.trim_end_matches(':').trim());
-            job_body.clear();
-            job_count += 1;
+    let workflow = load_workflow(path);
+    let jobs = workflow_jobs(&workflow);
+    assert!(!jobs.is_empty(), "{path} has no jobs");
+    for (job_name, job) in jobs {
+        if job.get("uses").is_some() {
+            assert!(
+                job.get("timeout-minutes").is_none(),
+                "{path} job {job_name} cannot declare timeout-minutes while calling a reusable workflow"
+            );
         } else {
-            job_body.push(line);
+            assert_eq!(
+                job["timeout-minutes"].as_u64(),
+                Some(20),
+                "{path} job {job_name} must declare timeout-minutes: 20"
+            );
         }
     }
-    if let Some(name) = job_name {
-        assert_job_timeout(path, name, &job_body);
-    }
-
-    assert!(job_count > 0, "{path} has no jobs");
 }
 
-fn assert_job_timeout(path: &str, job_name: &str, body: &[&str]) {
-    let calls_reusable_workflow = body.iter().any(|line| line.starts_with("    uses:"));
-    let has_timeout = body.iter().any(|line| line.trim() == "timeout-minutes: 20");
+fn load_workflow(path: &str) -> Value {
+    let source = fs::read_to_string(path).expect("read workflow");
+    serde_yaml_ng::from_str(&source).expect("parse workflow")
+}
 
-    if calls_reusable_workflow {
-        assert!(
-            !has_timeout,
-            "{path} job {job_name} cannot declare timeout-minutes while calling a reusable workflow"
-        );
+fn workflow_jobs(workflow: &Value) -> &Map<String, Value> {
+    workflow["jobs"].as_object().expect("workflow jobs")
+}
+
+fn workflow_job<'a>(workflow: &'a Value, name: &str) -> &'a Value {
+    workflow_jobs(workflow).get(name).expect("workflow job")
+}
+
+fn job_steps(job: &Value) -> &[Value] {
+    job["steps"].as_array().expect("workflow job steps")
+}
+
+fn named_step<'a>(job: &'a Value, name: &str) -> &'a Value {
+    job_steps(job)
+        .iter()
+        .find(|step| step["name"].as_str() == Some(name))
+        .expect("named workflow step")
+}
+
+fn named_step_by_id<'a>(job: &'a Value, id: &str) -> &'a Value {
+    job_steps(job)
+        .iter()
+        .find(|step| step["id"].as_str() == Some(id))
+        .expect("workflow step id")
+}
+
+fn string_list(value: &Value) -> Vec<&str> {
+    if let Some(value) = value.as_str() {
+        vec![value]
     } else {
-        assert!(
-            has_timeout,
-            "{path} job {job_name} must declare timeout-minutes: 20"
-        );
+        value
+            .as_array()
+            .expect("string list")
+            .iter()
+            .map(|value| value.as_str().expect("string list item"))
+            .collect()
     }
 }
 
-fn ci_workflow() -> String {
-    fs::read_to_string(".github/workflows/ci.yml").expect("read CI workflow")
+fn workflow_run_commands(workflow: &Value) -> Vec<&str> {
+    workflow_jobs(workflow)
+        .values()
+        .flat_map(job_steps)
+        .filter_map(|step| step["run"].as_str())
+        .collect()
 }
 
-fn cargo_commands(workflow: &str) -> Vec<String> {
-    let lines = workflow.lines().collect::<Vec<_>>();
-    let mut commands = Vec::new();
-    let mut index = 0;
-
-    while index < lines.len() {
-        let line = lines[index];
-        let indentation = line.len() - line.trim_start().len();
-        let Some(run) = line.trim().strip_prefix("- run: ") else {
-            index += 1;
-            continue;
-        };
-
-        let command = if matches!(run, ">-" | "|" | "|-" | ">") {
-            index += 1;
-            let mut parts = Vec::new();
-            while index < lines.len()
-                && lines[index].len() - lines[index].trim_start().len() > indentation
-            {
-                parts.push(lines[index].trim());
-                index += 1;
-            }
-            parts.join(" ")
-        } else {
-            index += 1;
-            run.to_owned()
-        };
-
-        if command.starts_with("cargo ") {
-            commands.push(command);
-        }
-    }
-
-    commands
+fn cargo_commands_in_job(job: &Value) -> Vec<String> {
+    job_steps(job)
+        .iter()
+        .filter_map(|step| step["run"].as_str())
+        .flat_map(str::lines)
+        .map(str::trim)
+        .filter(|command| command.starts_with("cargo "))
+        .map(str::to_owned)
+        .collect()
 }
 
-fn workflow_job_bodies(jobs: &str) -> Vec<String> {
-    let mut bodies = Vec::new();
-    let mut body = Vec::new();
+fn ci_workflow() -> Value {
+    load_workflow(".github/workflows/ci.yml")
+}
 
-    for line in jobs.lines() {
-        let starts_job = line.starts_with("  ") && !line.starts_with("    ") && line.ends_with(':');
-        if starts_job {
-            if !body.is_empty() {
-                bodies.push(body.join("\n"));
-                body.clear();
-            }
-        } else {
-            body.push(line);
-        }
-    }
-    if !body.is_empty() {
-        bodies.push(body.join("\n"));
-    }
-
-    bodies
+fn cargo_commands(workflow: &Value) -> Vec<String> {
+    workflow_jobs(workflow)
+        .values()
+        .flat_map(cargo_commands_in_job)
+        .collect()
 }

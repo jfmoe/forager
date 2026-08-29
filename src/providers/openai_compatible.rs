@@ -18,10 +18,11 @@ use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2}
 use crate::providers::shared::{
     normalize_main_search, redact_and_deduplicate_sources, redacted_urls_message,
 };
-use crate::providers::xai::SearchRequest;
-use crate::providers::{MainSearchRequestKind, ProviderError};
+use crate::providers::{MainSearchRequest, MainSearchRequestKind, ProviderError};
 use crate::redact::Secret;
-use crate::types::{AttemptErrorKind, Deadline, SearchOutcome, Source};
+use crate::types::{
+    AttemptDisposition, AttemptErrorKind, AttemptTarget, Deadline, SearchOutcome, Source,
+};
 
 pub(crate) struct OpenAiCompatible {
     config: OpenAiCompatibleRuntimeConfig,
@@ -123,14 +124,14 @@ impl OpenAiCompatible {
 
     pub(crate) async fn search(
         &self,
-        request: SearchRequest,
+        request: MainSearchRequest,
     ) -> Result<SearchOutcome, ProviderError> {
         self.execute(request, MainSearchRequestKind::Search).await
     }
 
     pub(crate) async fn probe(
         &self,
-        request: SearchRequest,
+        request: MainSearchRequest,
     ) -> Result<SearchOutcome, ProviderError> {
         self.execute(request, MainSearchRequestKind::ModelProbe)
             .await
@@ -138,7 +139,7 @@ impl OpenAiCompatible {
 
     async fn execute(
         &self,
-        request: SearchRequest,
+        request: MainSearchRequest,
         request_kind: MainSearchRequestKind,
     ) -> Result<SearchOutcome, ProviderError> {
         let query = request.query;
@@ -199,12 +200,15 @@ impl OpenAiCompatible {
                 }
             }
         }
-        let kind = attempts
-            .last()
+        let terminal = attempts
+            .iter()
+            .rev()
+            .find(|attempt| attempt.disposition == AttemptDisposition::Failed);
+        let kind = terminal
             .and_then(|attempt| attempt.error_kind)
-            .unwrap_or(AttemptErrorKind::Timeout);
-        let message = attempts.last().map_or_else(
-            || "OpenAI-compatible model chain exhausted".into(),
+            .unwrap_or(AttemptErrorKind::Runtime);
+        let message = terminal.map_or_else(
+            || "OpenAI-compatible model chain has no executable models".into(),
             |attempt| attempt.message.clone(),
         );
         Err(ProviderError {
@@ -313,7 +317,7 @@ impl OpenAiCompatible {
             &self.credentials,
             ExecutionSettings {
                 provider: "openai_compatible",
-                seam: "main_search",
+                target: AttemptTarget::seam("main_search"),
                 retry_policy: self.retry_policy,
                 deadline,
                 attempt_timeout: deadline.remaining().unwrap_or_default(),
@@ -354,8 +358,9 @@ impl OpenAiCompatible {
     ) -> crate::types::ProviderAttempt {
         crate::types::ProviderAttempt {
             provider: "openai_compatible",
-            seam: "main_search",
-            error_kind: Some(AttemptErrorKind::Timeout),
+            target: AttemptTarget::seam("main_search"),
+            disposition: AttemptDisposition::Skipped,
+            error_kind: None,
             http_status: None,
             duration_ms: 0,
             credential_index: 0,
@@ -705,8 +710,8 @@ mod tests {
     use crate::config::OpenAiCompatibleRuntimeConfig;
     use crate::credentials::CredentialPool;
     use crate::net::RetryPolicy;
-    use crate::providers::xai::SearchRequest;
-    use crate::types::{AttemptErrorKind, Deadline};
+    use crate::providers::MainSearchRequest;
+    use crate::types::{AttemptDisposition, AttemptErrorKind, Deadline};
 
     use super::{
         BREAKER_FAILURE_THRESHOLD, BreakerState, ModelBreakers, OpenAiCompatible,
@@ -864,7 +869,7 @@ mod tests {
             .enable_all()
             .build()
             .expect("test runtime");
-        let request = || SearchRequest {
+        let request = || MainSearchRequest {
             query: "query".into(),
             model: None,
             allow_model_fallback: false,
@@ -893,11 +898,19 @@ mod tests {
             let skipped = provider.search(request()).await.expect_err("open breaker");
             assert_eq!(
                 (
+                    skipped.kind,
                     skipped.attempts.len(),
+                    skipped.attempts[0].disposition,
                     skipped.attempts[0].breaker_event,
                     skipped.attempts[0].http_status,
                 ),
-                (1, Some("open"), None)
+                (
+                    AttemptErrorKind::Runtime,
+                    1,
+                    AttemptDisposition::Skipped,
+                    Some("open"),
+                    None,
+                )
             );
         });
         server.join().expect("provider fixture");

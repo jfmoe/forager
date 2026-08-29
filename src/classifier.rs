@@ -14,7 +14,8 @@ use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2}
 use crate::providers::shared::redacted_urls_message;
 use crate::redact::Secret;
 use crate::types::{
-    AttemptErrorKind, Capability, CapabilitySet, Deadline, ProviderAttempt, ResearchPlan,
+    AttemptDisposition, AttemptErrorKind, AttemptTarget, Capability, CapabilitySet, Deadline,
+    ProviderAttempt, ResearchPlan,
 };
 
 const VOCABULARY: &str = include_str!("../skills/forager/references/capability-vocabulary.json");
@@ -190,10 +191,14 @@ impl Classifier {
             }
         }
 
-        let message = attempts.last().map_or_else(
-            || "classifier model chain exhausted".into(),
-            |attempt| attempt.message.clone(),
-        );
+        let message = attempts
+            .iter()
+            .rev()
+            .find(|attempt| attempt.disposition == AttemptDisposition::Failed)
+            .map_or_else(
+                || "classifier model chain exhausted".into(),
+                |attempt| attempt.message.clone(),
+            );
         Err(ClassifierFailure {
             attempts,
             duration: started.elapsed(),
@@ -215,7 +220,7 @@ impl Classifier {
             &self.credentials,
             ExecutionSettings {
                 provider: "classifier",
-                seam: "classifier",
+                target: AttemptTarget::seam("classifier"),
                 retry_policy: self.retry_policy,
                 deadline,
                 attempt_timeout: deadline.remaining().unwrap_or_default(),
@@ -349,8 +354,9 @@ impl Classifier {
     fn skipped_attempt(&self, model: &str, message: &str) -> ProviderAttempt {
         ProviderAttempt {
             provider: "classifier",
-            seam: "classifier",
-            error_kind: Some(AttemptErrorKind::Timeout),
+            target: AttemptTarget::seam("classifier"),
+            disposition: AttemptDisposition::Skipped,
+            error_kind: None,
             http_status: None,
             duration_ms: 0,
             credential_index: 0,
@@ -451,7 +457,7 @@ fn research_plan_schema(max_subquestions: usize) -> Value {
                     "required": ["id", "question", "reason", "required_capabilities"],
                     "properties": {
                         "id": {"type": "string", "minLength": 1},
-                        "question": {"type": "string"},
+                        "question": {"type": "string", "minLength": 1},
                         "reason": {"type": "string", "minLength": 1},
                         "required_capabilities": {
                             "type": "array",

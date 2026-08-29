@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use crate::config::JournalRuntimeConfig;
 use crate::net::duration_millis;
 use crate::providers::ProviderError;
-use crate::redact::{CREDENTIAL_MASK, Secret, redact_urls};
+use crate::redact::{Secret, redact_credentials};
 use crate::secure_fs::{create_new_private_file, ensure_private_directory};
 use crate::types::{Capability, JournalOutcome, ResearchError, ResearchOutcome, SearchOutcome};
 
@@ -19,8 +19,6 @@ pub(crate) struct SearchRecord<'a> {
     pub(crate) query: &'a str,
     pub(crate) budget: Duration,
     pub(crate) elapsed: Duration,
-    pub(crate) model: &'a str,
-    pub(crate) endpoint_host: &'a str,
     pub(crate) capabilities: &'a [Capability],
     pub(crate) decision_source: &'static str,
     pub(crate) classifier_degraded: bool,
@@ -109,7 +107,7 @@ fn write_value_to(
     path: &std::path::Path,
     mut value: Value,
 ) -> io::Result<WrittenRecord> {
-    sanitize_value(&mut value, &config.credentials);
+    sanitize_record(&mut value, &config.credentials);
     let encoded = serde_json::to_vec(&value).map_err(io::Error::other)?;
     let mut file = create_new_private_file(path)?;
     file.write_all(&encoded)?;
@@ -226,7 +224,7 @@ fn build_record(record: SearchRecord<'_>) -> Value {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis();
-    let (result_surface, raw_attempts, terminal_attribution) = match record.result {
+    let (result_surface, attempts, terminal_attribution) = match record.result {
         Ok(outcome) => (
             json!({
                 "status": "ok",
@@ -251,17 +249,6 @@ fn build_record(record: SearchRecord<'_>) -> Value {
             error.kind.as_str(),
         ),
     };
-    let mut attempts = json!(raw_attempts);
-    for attempt in attempts.as_array_mut().into_iter().flatten() {
-        if let Some(attempt) = attempt.as_object_mut() {
-            attempt
-                .entry("model")
-                .or_insert_with(|| Value::String(record.model.into()));
-            attempt
-                .entry("endpoint_host")
-                .or_insert_with(|| Value::String(record.endpoint_host.into()));
-        }
-    }
     json!({
         "schema_version": 1,
         "recorded_at_unix_ms": recorded_at_unix_ms,
@@ -368,7 +355,7 @@ fn record_name() -> String {
 fn sanitize_value(value: &mut Value, credentials: &[Secret]) {
     match value {
         Value::String(text) => {
-            *text = redact_journal_text(text, credentials);
+            *text = redact_credentials(text, credentials);
         }
         Value::Array(values) => {
             for value in values {
@@ -384,25 +371,25 @@ fn sanitize_value(value: &mut Value, credentials: &[Secret]) {
     }
 }
 
+fn sanitize_record(value: &mut Value, credentials: &[Secret]) {
+    let answer = value
+        .get_mut("result")
+        .and_then(Value::as_object_mut)
+        .and_then(|result| result.remove("answer"));
+    sanitize_value(value, credentials);
+    if let Some(answer) = answer
+        && let Some(result) = value.get_mut("result").and_then(Value::as_object_mut)
+    {
+        result.insert("answer".into(), answer);
+    }
+}
+
 fn sanitize_warning(config: &JournalRuntimeConfig, message: &str) -> String {
     sanitize_text(config, message).chars().take(240).collect()
 }
 
 fn sanitize_text(config: &JournalRuntimeConfig, value: &str) -> String {
-    redact_journal_text(value, &config.credentials)
-}
-
-fn redact_journal_text(value: &str, credentials: &[Secret]) -> String {
-    credentials
-        .iter()
-        .fold(redact_urls(value), |redacted, credential| {
-            let credential = credential.expose();
-            if redacted.contains(credential) {
-                redacted.replace(credential, CREDENTIAL_MASK)
-            } else {
-                redacted
-            }
-        })
+    redact_credentials(value, &config.credentials)
 }
 
 #[cfg(test)]

@@ -16,7 +16,7 @@ use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2}
 use crate::providers::shared::redacted_urls_message;
 use crate::providers::{ProviderError, ProviderId};
 use crate::redact::Secret;
-use crate::types::{AttemptErrorKind, Deadline, ProviderAttempt};
+use crate::types::{AttemptErrorKind, AttemptTarget, Deadline, ProviderAttempt};
 
 #[derive(Clone)]
 pub(crate) struct FetchRequest {
@@ -38,7 +38,8 @@ pub(crate) trait WebFetch: Send + Sync {
     ) -> Pin<Box<dyn Future<Output = Result<ProviderFetchOutcome, ProviderError>> + Send + 'a>>;
 }
 
-pub(crate) fn jina(
+pub(crate) fn new(
+    id: ProviderId,
     config: WebFetchProviderConfig,
     client: Client,
     credentials: CredentialPool,
@@ -46,41 +47,7 @@ pub(crate) fn jina(
     deadline: Deadline,
 ) -> Box<dyn WebFetch> {
     Box::new(HttpFetchProvider {
-        id: ProviderId::Jina,
-        config,
-        client,
-        credentials,
-        retry_policy,
-        deadline,
-    })
-}
-
-pub(crate) fn tavily(
-    config: WebFetchProviderConfig,
-    client: Client,
-    credentials: CredentialPool,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
-) -> Box<dyn WebFetch> {
-    Box::new(HttpFetchProvider {
-        id: ProviderId::Tavily,
-        config,
-        client,
-        credentials,
-        retry_policy,
-        deadline,
-    })
-}
-
-pub(crate) fn firecrawl(
-    config: WebFetchProviderConfig,
-    client: Client,
-    credentials: CredentialPool,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
-) -> Box<dyn WebFetch> {
-    Box::new(HttpFetchProvider {
-        id: ProviderId::Firecrawl,
+        id,
         config,
         client,
         credentials,
@@ -118,8 +85,8 @@ impl HttpFetchProvider {
         let execution = execute_v2(
             &self.credentials,
             ExecutionSettings {
-                provider: self.name(),
-                seam: "web_fetch",
+                provider: self.id.name(),
+                target: AttemptTarget::seam("web_fetch"),
                 retry_policy: self.retry_policy,
                 deadline: self.deadline,
                 attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
@@ -139,7 +106,7 @@ impl HttpFetchProvider {
         )
         .await?;
         Ok(ProviderFetchOutcome {
-            provider: self.name(),
+            provider: self.id.name(),
             content: execution.value.content,
             attempts: execution.attempts,
             diagnostic: combine_diagnostics(
@@ -291,15 +258,6 @@ impl HttpFetchProvider {
         }
     }
 
-    fn name(&self) -> &'static str {
-        match self.id {
-            ProviderId::Jina => "jina",
-            ProviderId::Tavily => "tavily",
-            ProviderId::Firecrawl => "firecrawl",
-            _ => unreachable!("only web fetch providers have fetch names"),
-        }
-    }
-
     fn redacted_error(&self, value: &str) -> String {
         redacted_urls_message(value, &self.credentials)
     }
@@ -312,31 +270,26 @@ struct JinaResponse {
 
 #[derive(Deserialize)]
 struct JinaData {
-    #[serde(default)]
     content: String,
 }
 
 #[derive(Deserialize)]
 struct TavilyResponse {
-    #[serde(default)]
     results: Vec<TavilyResult>,
 }
 
 #[derive(Deserialize)]
 struct TavilyResult {
-    #[serde(default)]
     raw_content: String,
 }
 
 #[derive(Deserialize)]
 struct FirecrawlResponse {
-    #[serde(default)]
     data: FirecrawlData,
 }
 
-#[derive(Default, Deserialize)]
+#[derive(Deserialize)]
 struct FirecrawlData {
-    #[serde(default)]
     markdown: String,
 }
 

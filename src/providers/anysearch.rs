@@ -15,7 +15,8 @@ use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2}
 use crate::providers::shared::redact_urls;
 use crate::types::{
     AnysearchDomain, AnysearchDomainsOutcome, AnysearchOutcome, AnysearchResult,
-    AnysearchSearchOutcome, AttemptErrorKind, Deadline, ProviderAttempt, SchemaValidation,
+    AnysearchSearchOutcome, AttemptErrorKind, AttemptTarget, Deadline, ProviderAttempt,
+    SchemaValidation,
 };
 
 static MCP_HEADERS: LazyLock<HeaderMap> = LazyLock::new(|| {
@@ -71,7 +72,12 @@ impl Anysearch {
     ) -> Result<AnysearchOutcome, ProviderError> {
         let arguments = json!({"domain": request.domain});
         let execution = self
-            .execute_tool("get_sub_domains", arguments, request.verbose)
+            .execute_tool(
+                "get_sub_domains",
+                arguments,
+                AttemptTarget::operation("domain_discovery"),
+                request.verbose,
+            )
             .await?;
         let mut results = decode_domains(&execution.result);
         for result in &mut results {
@@ -134,7 +140,16 @@ impl Anysearch {
             );
         }
         let execution = self
-            .execute_tool("search", arguments, request.verbose)
+            .execute_tool(
+                "search",
+                arguments,
+                if explicit {
+                    AttemptTarget::operation("domain_search")
+                } else {
+                    AttemptTarget::seam("vertical_search")
+                },
+                request.verbose,
+            )
             .await?;
         let results = decode_search(&execution.result);
         let mut sub_domain_param_keys = request
@@ -185,6 +200,7 @@ impl Anysearch {
         &self,
         tool: &'static str,
         arguments: Value,
+        target: AttemptTarget,
         verbose: bool,
     ) -> Result<AnysearchExecution, ProviderError> {
         let arguments_ref = &arguments;
@@ -192,7 +208,7 @@ impl Anysearch {
             &self.credentials,
             ExecutionSettings {
                 provider: "anysearch",
-                seam: "vertical_search",
+                target,
                 retry_policy: self.retry_policy,
                 deadline: self.deadline,
                 attempt_timeout: Duration::from_secs(self.config.timeout_seconds),

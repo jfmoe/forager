@@ -6,7 +6,7 @@ use std::time::Instant;
 
 use serde_json::Value;
 
-use support::{Fixture, Response, RunEnvironment};
+use support::{Fixture, Response, RunEnvironment, run_command};
 
 #[test]
 fn map_sends_tavily_options_and_normalizes_site_results() {
@@ -133,6 +133,30 @@ fn map_treats_an_empty_site_as_a_successful_result() {
 }
 
 #[test]
+fn map_rejects_malformed_success_envelopes() {
+    for body in [
+        r"{}",
+        r#"{"base_url":"https://docs.example.test"}"#,
+        r#"{"results":[]}"#,
+        r#"{"base_url":"https://docs.example.test","results":["not-a-url"]}"#,
+    ] {
+        let fixture = Fixture::start(200, "application/json", body);
+        let environment = RunEnvironment::new(&map_config(&fixture.url, &["tavily-key"]));
+
+        let output = environment.run(&["map", "https://docs.example.test"]);
+        let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+        assert_eq!(
+            (output.status.code(), &payload["error_kind"]),
+            (Some(4), &Value::String("runtime".into())),
+            "body: {body}; stderr: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        fixture.finish();
+    }
+}
+
+#[test]
 fn map_reports_tavily_parameter_errors() {
     let fixture = Fixture::start(
         400,
@@ -192,11 +216,11 @@ fn map_rejects_out_of_range_options_before_network_attempts() {
 
 #[test]
 fn map_rejects_content_output_format() {
-    let output = Command::new(env!("CARGO_BIN_EXE_forager"))
+    let mut command = Command::new(env!("CARGO_BIN_EXE_forager"));
+    command
         .args(["map", "https://docs.example.test", "--format", "content"])
-        .env_clear()
-        .output()
-        .expect("run forager");
+        .env_clear();
+    let output = run_command(&mut command, None);
 
     assert_eq!(
         (
