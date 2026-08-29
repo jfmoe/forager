@@ -319,12 +319,12 @@ fn map_retries_retryable_failures_inside_the_command_deadline() {
 
 #[test]
 fn map_caps_each_attempt_below_the_command_deadline() {
-    let mut response = Response::new(
+    let response = Response::new(
         200,
         "application/json",
         r#"{"base_url":"https://docs.example.test","results":[]}"#,
-    );
-    response.delay = Duration::from_millis(1500);
+    )
+    .with_delay(Duration::from_millis(1500));
     let fixture = Fixture::start_sequence(vec![response]);
     let config = map_config(&fixture.url, &["tavily-key"]).replace("timeout = 30", "timeout = 1");
     let environment = RunEnvironment::new(&config);

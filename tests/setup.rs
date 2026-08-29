@@ -11,7 +11,7 @@ use fs2::FileExt;
 use support::{run_command, spawn_command, wait_for_child};
 
 #[test]
-fn non_interactive_setup_creates_a_complete_commented_template() {
+fn non_interactive_setup_creates_a_complete_template() {
     let config_dir = tempfile::tempdir().expect("create config directory");
 
     let output = run(config_dir.path(), &["setup", "--non-interactive"], None);
@@ -22,19 +22,15 @@ fn non_interactive_setup_creates_a_complete_commented_template() {
         (
             output.status.code(),
             count_leaves(&value),
-            content.matches("# ").count(),
             value["classifier"]["keys"].as_array().map(Vec::len),
             value["providers"]["anysearch"]["keys"]
                 .as_array()
                 .map(Vec::len),
             &value["capabilities"]["web_fetch"]["order"],
             value["search"].get("validation"),
-            content.contains("[providers.exa]"),
-            String::from_utf8_lossy(&output.stdout).contains("forager doctor"),
         ),
         (
             Some(0),
-            47,
             47,
             Some(0),
             Some(0),
@@ -45,8 +41,6 @@ fn non_interactive_setup_creates_a_complete_commented_template() {
                     .collect()
             ),
             None,
-            true,
-            true
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)

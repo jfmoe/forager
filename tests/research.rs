@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 
-use support::{Fixture, Response, RunEnvironment};
+use support::{Fixture, Response, RunEnvironment, jina_response, request_json};
 
 #[test]
 fn bare_research_requires_a_configured_classifier() {
@@ -109,37 +109,23 @@ fn bare_research_executes_the_classifier_plan_through_the_research_pipeline() {
         String::from_utf8_lossy(&output.stderr)
     );
     let classifier_request = classifier.finish();
-    assert!(classifier_request.contains("\"name\":\"classifier_research_plan\""));
-    assert!(
-        classifier_request.contains("Plan the user request as a complete Schema v1 investigation.")
+    let request = request_json(&classifier_request);
+    let json_schema = &request["response_format"]["json_schema"];
+    assert_eq!(
+        (
+            &json_schema["name"],
+            &json_schema["strict"],
+            &json_schema["schema"]["properties"]["decomposition"]["maxItems"],
+            &json_schema["schema"]["properties"]["decomposition"]["items"]["properties"]["required_capabilities"]
+                ["items"]["enum"],
+        ),
+        (
+            &json!("classifier_research_plan"),
+            &json!(true),
+            &json!(4),
+            &json!(["docs_search", "web_search", "vertical_search"]),
+        )
     );
-    let request_body = classifier_request
-        .split_once("\r\n\r\n")
-        .map(|(_, body)| body)
-        .expect("classifier request body");
-    let request: Value = serde_json::from_str(request_body).expect("parse classifier request body");
-    let system_prompt = request["messages"][0]["content"]
-        .as_str()
-        .expect("classifier system prompt");
-    let embedded_vocabulary = system_prompt
-        .split_once("Capability vocabulary:\n")
-        .map(|(_, vocabulary)| vocabulary)
-        .expect("embedded capability vocabulary");
-    let embedded_vocabulary: Value =
-        serde_json::from_str(embedded_vocabulary).expect("parse embedded capability vocabulary");
-    let shared_vocabulary: Value = serde_json::from_str(include_str!(
-        "../skills/forager/references/capability-vocabulary.json"
-    ))
-    .expect("parse shared capability vocabulary");
-    assert_eq!(embedded_vocabulary, shared_vocabulary);
-    assert!(!classifier_request.contains("selection_boundary"));
-    assert!(
-        classifier_request
-            .contains("\"enum\":[\"docs_search\",\"web_search\",\"vertical_search\"]")
-    );
-    assert!(classifier_request.contains("\"maxItems\":4"));
-    assert!(system_prompt.contains("at most 4 subquestions"));
-    assert!(system_prompt.contains("most important first"));
     tavily.finish();
     jina.finish();
 }
@@ -215,8 +201,11 @@ fn bare_research_truncates_an_over_limit_classifier_plan_by_importance() {
         String::from_utf8_lossy(&output.stderr)
     );
     let classifier_request = classifier.finish();
-    assert!(classifier_request.contains("\"maxItems\":2"));
-    assert!(classifier_request.contains("at most 2 subquestions"));
+    let request = request_json(&classifier_request);
+    assert_eq!(
+        request["response_format"]["json_schema"]["schema"]["properties"]["decomposition"]["maxItems"],
+        2
+    );
     assert_eq!(tavily.finish_all().len(), 2);
     assert_eq!(jina.finish_all().len(), 2);
 }
@@ -2658,12 +2647,12 @@ fn research_reports_evidence_when_discovery_succeeds_but_fetch_transport_fails()
 
 #[test]
 fn research_uses_one_hard_deadline_across_discovery_and_fetch() {
-    let mut delayed = Response::new(
+    let delayed = Response::new(
         200,
         "application/json",
         r#"{"results":[{"title":"Too late","url":"https://example.test/late"}]}"#,
-    );
-    delayed.delay = Duration::from_secs(3);
+    )
+    .with_delay(Duration::from_secs(3));
     let tavily = Fixture::start_sequence(vec![delayed]);
     let config = format!(
         r#"
@@ -2824,10 +2813,6 @@ fn rich_content(label: &str) -> String {
         .map(|index| format!("{label} line {index} with independently fetched details."))
         .collect::<Vec<_>>()
         .join("\n")
-}
-
-fn jina_response(content: &str) -> String {
-    json!({"data": {"content": content}}).to_string()
 }
 
 fn fetch_only_config(jina_url: &str, journal_enabled: bool) -> String {

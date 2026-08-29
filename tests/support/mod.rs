@@ -254,7 +254,7 @@ pub(crate) struct Response {
     content_type: String,
     body: String,
     headers: Vec<(String, String)>,
-    pub(crate) delay: Duration,
+    delay: Duration,
     body_delay: Duration,
     declared_content_length: Option<usize>,
 }
@@ -280,7 +280,6 @@ impl Response {
         Self::new(status, "text/event-stream", body)
     }
 
-    #[allow(dead_code)]
     pub(crate) fn with_header(mut self, name: &str, value: &str) -> Self {
         self.headers.push((name.into(), value.into()));
         self
@@ -304,6 +303,18 @@ impl Response {
         self.declared_content_length = Some(length);
         self
     }
+}
+
+pub(crate) fn jina_response(content: &str) -> String {
+    serde_json::json!({"data": {"content": content}}).to_string()
+}
+
+pub(crate) fn request_json(request: &str) -> serde_json::Value {
+    let body = request
+        .split_once("\r\n\r\n")
+        .map(|(_, body)| body)
+        .expect("request body");
+    serde_json::from_str(body).expect("parse request JSON")
 }
 
 pub(crate) struct RunEnvironment {
@@ -344,7 +355,6 @@ impl RunEnvironment {
         run_command(&mut command, None)
     }
 
-    #[allow(dead_code)]
     pub(crate) fn run_with_stdin(&self, arguments: &[&str], stdin: &str) -> Output {
         let mut command = Command::new(env!("CARGO_BIN_EXE_forager"));
         command

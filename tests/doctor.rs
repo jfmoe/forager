@@ -4,7 +4,7 @@ use serde_json::Value;
 
 use std::time::Duration;
 
-use support::{Fixture, Response, RunEnvironment};
+use support::{Fixture, Response, RunEnvironment, jina_response, request_json};
 
 #[test]
 fn shallow_doctor_reports_all_registry_providers_and_reuses_the_config_list_view() {
@@ -250,11 +250,7 @@ fn firecrawl_deep_doctor_executes_the_registry_search_probe() {
 
 #[test]
 fn jina_deep_doctor_executes_the_registry_fetch_probe() {
-    let fixture = Fixture::start(
-        200,
-        "application/json",
-        &serde_json::json!({"data": {"content": "rich ".repeat(60)}}).to_string(),
-    );
+    let fixture = Fixture::start(200, "application/json", &jina_response(&"rich ".repeat(60)));
     let environment = RunEnvironment::new(&format!(
         "[providers.jina]\nurl = {:?}\nkeys = [\"jina-key\"]\n",
         fixture.url
@@ -338,12 +334,12 @@ fn deep_doctor_reports_missing_credentials_as_a_json_config_failure() {
 
 #[test]
 fn deep_doctor_applies_one_hard_deadline_and_redacts_failed_output() {
-    let mut delayed = Response::new(
+    let delayed = Response::new(
         401,
         "application/json",
         r#"{"message":"bad timeout-key at http://user:pass@example.test/?token=url-secret"}"#,
-    );
-    delayed.delay = Duration::from_secs(2);
+    )
+    .with_delay(Duration::from_secs(2));
     let fixture = Fixture::start_sequence(vec![delayed]);
     let environment = RunEnvironment::new(&format!(
         "[providers.exa]\nurl = {:?}\nkeys = [\"timeout-key\"]\n",
@@ -584,14 +580,6 @@ fn assert_deep_success(
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-}
-
-fn request_json(request: &str) -> Value {
-    let body = request
-        .split_once("\r\n\r\n")
-        .map(|(_, body)| body)
-        .expect("request body");
-    serde_json::from_str(body).expect("parse request JSON")
 }
 
 fn mcp_initialize(session: &str) -> Response {

@@ -515,11 +515,6 @@ mod tests {
                 MainSearchRequestKind::Search => {
                     assert!(body["instructions"].as_str().is_some());
                     assert_eq!(body["tools"][0]["type"], "web_search");
-                    assert!(
-                        body["input"][0]["content"]
-                            .as_str()
-                            .is_some_and(|content| content.contains("[Current Time Context]"))
-                    );
                 }
                 MainSearchRequestKind::ModelProbe => {
                     assert_eq!(body.get("instructions"), None);

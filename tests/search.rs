@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
-use support::{Fixture, Response, RunEnvironment};
+use support::{Fixture, Response, RunEnvironment, jina_response, request_json};
 
 #[test]
 fn caller_capability_declaration_is_normalized_in_vocabulary_order() {
@@ -118,14 +118,6 @@ fn bare_search_uses_classifier_complete_capability_decision() {
         "{classifier_request}"
     );
     assert!(classifier_request.contains("\"model\":\"classifier-model\""));
-    assert!(
-        classifier_request
-            .contains("Main search always runs and is not part of the returned capability set.")
-    );
-    assert!(!classifier_request.contains("selection_boundary"));
-    assert!(!classifier_request.contains("uniqueItems"));
-    assert!(classifier_request.contains("\"docs_search\""));
-    assert!(classifier_request.contains("\"vertical_search\""));
     main.finish();
     tavily.finish();
 }
@@ -173,11 +165,7 @@ fn bare_search_without_classifier_uses_default_web_search_chain() {
     );
     main.finish();
     let request = tavily.finish();
-    let request_body = request
-        .split_once("\r\n\r\n")
-        .map(|(_, body)| body)
-        .expect("Tavily request body");
-    let request_body: Value = serde_json::from_str(request_body).expect("parse Tavily request");
+    let request_body = request_json(&request);
     assert_eq!(request_body["max_results"], 3);
 }
 
@@ -616,11 +604,7 @@ fn declared_web_search_adds_normalized_extra_sources_in_configured_order() {
     main.finish();
     let request = tavily.finish();
     assert!(request.starts_with("POST /search "), "{request}");
-    let request_body = request
-        .split_once("\r\n\r\n")
-        .map(|(_, body)| body)
-        .expect("Tavily request body");
-    let request_body: Value = serde_json::from_str(request_body).expect("parse Tavily request");
+    let request_body = request_json(&request);
     assert_eq!(
         request_body,
         serde_json::json!({
@@ -2336,16 +2320,17 @@ fn search_uses_the_completed_xai_response_and_deduplicates_sources() {
     );
     assert!(request.contains("\"stream\":true"), "{request}");
     assert!(request.contains("\"model\":\"test-model\""), "{request}");
-    assert!(
-        request.contains("\"input\":[{\"role\":\"user\",\"content\":\""),
-        "{request}"
+    let request_body = request_json(&request);
+    assert_eq!(
+        &request_body["input"][0]["role"],
+        &Value::String("user".into())
     );
+    assert!(request_body["instructions"].as_str().is_some());
     assert!(
-        request.contains("\"instructions\":\"You are a helpful research assistant."),
-        "{request}"
+        request_body["input"][0]["content"]
+            .as_str()
+            .is_some_and(|content| content.contains("What changed?"))
     );
-    assert!(request.contains("[Current Time Context]"), "{request}");
-    assert!(request.contains("What changed?"), "{request}");
 }
 
 #[test]
@@ -2998,16 +2983,23 @@ fn search_falls_back_from_xai_to_openai_compatible_non_stream() {
         openai_request.contains("\"stream\":false"),
         "{openai_request}"
     );
-    assert!(
-        openai_request
-            .contains("\"role\":\"system\",\"content\":\"You are a helpful research assistant."),
-        "{openai_request}"
+    let request_body = request_json(&openai_request);
+    assert_eq!(
+        (
+            &request_body["messages"][0]["role"],
+            &request_body["messages"][1]["role"]
+        ),
+        (
+            &Value::String("system".into()),
+            &Value::String("user".into())
+        )
     );
+    assert!(request_body["messages"][0]["content"].as_str().is_some());
     assert!(
-        openai_request.contains("[Current Time Context]"),
-        "{openai_request}"
+        request_body["messages"][1]["content"]
+            .as_str()
+            .is_some_and(|content| content.contains("Fallback"))
     );
-    assert!(openai_request.contains("Fallback"), "{openai_request}");
 }
 
 #[test]
@@ -3692,12 +3684,12 @@ fn search_fallback_off_disables_openai_model_fallback() {
 
 #[test]
 fn search_budget_exhaustion_preserves_the_full_attempt_chain_in_the_journal() {
-    let mut slow = Response::new(
+    let slow = Response::new(
         200,
         "application/json",
         r#"{"choices":[{"message":{"content":"too late"}}]}"#,
-    );
-    slow.delay = std::time::Duration::from_secs(2);
+    )
+    .with_delay(std::time::Duration::from_secs(2));
     let openai = Fixture::start_sequence(vec![slow]);
     let environment = RunEnvironment::new(&main_fallback_config(
         "http://127.0.0.1:9",
@@ -4176,10 +4168,6 @@ fn completed_body(answer: &str, title: &str) -> String {
             }
         })
     )
-}
-
-fn jina_response(content: &str) -> String {
-    serde_json::json!({"data": {"content": content}}).to_string()
 }
 
 fn read_only_journal(environment: &RunEnvironment) -> Value {

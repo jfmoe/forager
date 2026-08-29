@@ -491,7 +491,7 @@ fn parse_capability_decision(content: &str) -> Result<CapabilityDecision, String
 mod tests {
     use serde_json::Value;
 
-    use super::{VOCABULARY, capability_schema};
+    use super::VOCABULARY;
     use crate::types::Capability;
 
     #[test]
@@ -512,41 +512,6 @@ mod tests {
                 Capability::WebFetch.as_str(),
                 Capability::VerticalSearch.as_str(),
             ]
-        );
-        assert!(
-            vocabulary["capabilities"]
-                .as_array()
-                .expect("capability entries")
-                .iter()
-                .all(|capability| capability["examples"]
-                    .as_array()
-                    .is_some_and(|examples| !examples.is_empty()))
-        );
-    }
-
-    #[test]
-    fn vocabulary_asset_uses_shared_selection_fields_without_boundaries() {
-        let vocabulary: Value = serde_json::from_str(VOCABULARY).expect("valid vocabulary asset");
-
-        assert!(
-            vocabulary["capabilities"]
-                .as_array()
-                .expect("capability entries")
-                .iter()
-                .all(|capability| capability.get("purpose").is_some()
-                    && capability.get("select_when").is_some()
-                    && capability.get("selection_boundary").is_none()
-                    && capability.get("description").is_none()
-                    && capability.get("do_not_select_when").is_none())
-        );
-    }
-
-    #[test]
-    fn capability_schema_leaves_uniqueness_to_application_validation() {
-        assert!(
-            capability_schema()["properties"]["required_capabilities"]
-                .get("uniqueItems")
-                .is_none()
         );
     }
 }

@@ -2,7 +2,7 @@ mod support;
 
 use serde_json::{Value, json};
 
-use support::{Fixture, RunEnvironment};
+use support::{Fixture, RunEnvironment, request_json};
 
 #[test]
 fn firecrawl_fetch_decodes_scrape_results_through_the_real_http_stack() {
@@ -54,10 +54,7 @@ enabled = false
     let request = fixture.finish();
     assert!(request.starts_with("POST /scrape "));
     assert!(request.contains("authorization: Bearer firecrawl-key"));
-    let (_, request_body) = request
-        .split_once("\r\n\r\n")
-        .expect("HTTP request body separator");
-    let request_body: Value = serde_json::from_str(request_body).expect("parse request JSON");
+    let request_body = request_json(&request);
     assert_eq!(
         request_body,
         json!({

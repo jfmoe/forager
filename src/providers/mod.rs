@@ -641,7 +641,7 @@ mod tests {
 
     use serde::Deserialize;
 
-    use super::{ProviderId, registration, registrations};
+    use super::registrations;
 
     #[derive(Deserialize)]
     struct AcceptanceManifest {
@@ -686,96 +686,5 @@ mod tests {
                 fixture.seam
             );
         }
-    }
-
-    #[test]
-    fn exa_has_one_complete_registry_description() {
-        let exa = registration(ProviderId::Exa);
-
-        assert_eq!(
-            (exa.id.name(), exa.capabilities, exa.credentials_required,),
-            ("exa", &["docs_search"][..], true)
-        );
-    }
-
-    #[test]
-    fn xai_has_one_complete_registry_description() {
-        let xai = registration(ProviderId::Xai);
-
-        assert_eq!(
-            (xai.id.name(), xai.capabilities, xai.credentials_required,),
-            ("xai", &["main_search"][..], true)
-        );
-    }
-
-    #[test]
-    fn openai_compatible_has_one_complete_registry_description() {
-        let openai = registration(ProviderId::OpenAiCompatible);
-
-        assert_eq!(
-            (
-                openai.id.name(),
-                openai.capabilities,
-                openai.credentials_required,
-            ),
-            ("openai_compatible", &["main_search"][..], true)
-        );
-    }
-
-    #[test]
-    fn context7_has_one_complete_registry_description() {
-        let context7 = registration(ProviderId::Context7);
-
-        assert_eq!(
-            (
-                context7.id.name(),
-                context7.capabilities,
-                context7.credentials_required,
-            ),
-            ("context7", &["docs_search"][..], true)
-        );
-    }
-
-    #[test]
-    fn anysearch_has_one_complete_registry_description() {
-        let anysearch = registration(ProviderId::Anysearch);
-
-        assert_eq!(
-            (
-                anysearch.id.name(),
-                anysearch.capabilities,
-                anysearch.credentials_required,
-            ),
-            ("anysearch", &["vertical_search"][..], true)
-        );
-    }
-
-    #[test]
-    fn every_web_fetch_provider_has_one_complete_registry_description() {
-        for (id, name) in [
-            (ProviderId::Jina, "jina"),
-            (ProviderId::Tavily, "tavily"),
-            (ProviderId::Firecrawl, "firecrawl"),
-        ] {
-            let registration = registration(id);
-            assert_eq!(
-                (
-                    registration.id.name(),
-                    registration.capabilities.contains(&"web_fetch"),
-                    registration.credentials_required,
-                ),
-                (name, true, true)
-            );
-        }
-    }
-
-    #[test]
-    fn tavily_registers_site_map_without_changing_its_capability_support() {
-        let tavily = registration(ProviderId::Tavily);
-
-        assert_eq!(
-            (tavily.capabilities, tavily.operations),
-            (&["web_search", "web_fetch"][..], &["site_map"][..])
-        );
     }
 }

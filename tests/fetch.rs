@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::Value;
 
-use support::{Fixture, Response, RunEnvironment};
+use support::{Fixture, Response, RunEnvironment, jina_response};
 
 const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 
@@ -483,10 +483,8 @@ fn fetch_attributes_only_tavilys_final_attempt_after_rotation() {
 fn fetch_retries_a_timed_out_attempt_inside_the_shared_deadline() {
     let rich_content = jina_response(&"Retried Jina content. ".repeat(30));
     let jina = Fixture::start_sequence(vec![
-        delayed(
-            Response::new(200, "application/json", &jina_response("too late")),
-            Duration::from_millis(1100),
-        ),
+        Response::new(200, "application/json", &jina_response("too late"))
+            .with_delay(Duration::from_millis(1100)),
         Response::new(202, "application/json", &rich_content),
     ]);
     let config = fetch_config(
@@ -534,10 +532,10 @@ fn fetch_retries_a_timed_out_attempt_inside_the_shared_deadline() {
 
 #[test]
 fn fetch_preserves_fallback_budget_under_one_hard_deadline() {
-    let jina = Fixture::start_sequence(vec![delayed(
-        Response::new(200, "application/json", &jina_response("too late")),
-        Duration::from_millis(6200),
-    )]);
+    let jina = Fixture::start_sequence(vec![
+        Response::new(200, "application/json", &jina_response("too late"))
+            .with_delay(Duration::from_millis(6200)),
+    ]);
     let rich_content = "Deadline fallback content. ".repeat(30);
     let tavily_body = serde_json::json!({
         "results": [{"raw_content": rich_content}]
@@ -635,10 +633,10 @@ fn fetch_redacts_canaries_from_stdout_stderr_and_tee() {
 
 #[test]
 fn fetch_reports_timeout_when_the_command_deadline_expires() {
-    let jina = Fixture::start_sequence(vec![delayed(
-        Response::new(200, "application/json", &jina_response("too late")),
-        Duration::from_millis(1500),
-    )]);
+    let jina = Fixture::start_sequence(vec![
+        Response::new(200, "application/json", &jina_response("too late"))
+            .with_delay(Duration::from_millis(1500)),
+    ]);
     let config = fetch_config(
         &jina.url,
         &["jina-key"],
@@ -750,13 +748,4 @@ max_wait = 0
 enabled = false
 "
     )
-}
-
-fn delayed(mut response: Response, delay: Duration) -> Response {
-    response.delay = delay;
-    response
-}
-
-fn jina_response(content: &str) -> String {
-    serde_json::json!({"data": {"content": content}}).to_string()
 }
