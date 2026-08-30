@@ -15,8 +15,7 @@ use crate::redact::redact_url;
 use crate::types::{
     AttemptDisposition, AttemptErrorKind, Capability, CapabilityGap, Deadline, EvidenceItem,
     EvidenceLocator, EvidenceStrength, FallbackPolicy, PlanCapability, ProviderAttempt,
-    ResearchGap, ResearchGapCheck, ResearchPlan, ResearchSubquestion, Source,
-    UnconsumedCandidates,
+    ResearchGap, ResearchGapCheck, ResearchPlan, ResearchSubquestion, Source, UnconsumedCandidates,
 };
 
 const SYNTHESIS_POLICY: &str = "fetch_before_claim";
@@ -1184,8 +1183,8 @@ mod tests {
     use serde_json::{Value, json};
 
     use super::{
-        ResearchBudget, ResearchFailure, ResearchRequest, ResearchTerminal,
-        artifact_write_failure, recovery_manifest,
+        ResearchBudget, ResearchFailure, ResearchRequest, ResearchTerminal, artifact_write_failure,
+        recovery_manifest,
     };
     use crate::types::{
         AttemptErrorKind, EvidenceItem, EvidenceLocator, FallbackPolicy, ResearchGapCheck,

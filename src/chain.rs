@@ -144,6 +144,12 @@ pub(crate) struct ChainOutcome<T> {
     pub(crate) diagnostic: Option<String>,
 }
 
+struct PreparedChain<S> {
+    total: usize,
+    attempts: Vec<ProviderAttempt>,
+    runnable: Vec<(usize, ChainStep<S>)>,
+}
+
 /// Runs `steps` in order under `settings`, merging attempts and diagnostics
 /// and closing out through the configured terminal policy.
 pub(crate) async fn run_chain<S, T, Run, Fut>(
@@ -164,26 +170,11 @@ where
             || steps.iter().all(|step| step.gate_attempt.is_none()),
         "gate_attempt steps distort SlicedEven budget slicing"
     );
-    let steps = if settings.fallback_off {
-        steps.into_iter().take(1).collect::<Vec<_>>()
-    } else {
-        steps
-            .into_iter()
-            .filter(|step| step.configured)
-            .collect::<Vec<_>>()
-    };
-    let total = steps.len();
-    // Gates are evaluated for every step before any step runs, so a gate skip
-    // is recorded even when an earlier step would close out the chain; the
-    // model breaker pre-pass relied on this ordering.
-    let mut attempts = Vec::new();
-    let mut runnable = Vec::new();
-    for (index, step) in steps.into_iter().enumerate() {
-        match step.gate_attempt {
-            Some(attempt) => attempts.push(attempt),
-            None => runnable.push((index, step)),
-        }
-    }
+    let PreparedChain {
+        total,
+        mut attempts,
+        runnable,
+    } = prepare_steps(steps, settings.fallback_off);
     let mut diagnostics = Vec::new();
     let mut unconsumed_success = None;
     let mut last_error = None;
@@ -263,6 +254,33 @@ where
         diagnostic,
         last_error,
     ))
+}
+
+fn prepare_steps<S>(steps: Vec<ChainStep<S>>, fallback_off: bool) -> PreparedChain<S> {
+    let steps = if fallback_off {
+        steps.into_iter().take(1).collect::<Vec<_>>()
+    } else {
+        steps
+            .into_iter()
+            .filter(|step| step.configured)
+            .collect::<Vec<_>>()
+    };
+    let total = steps.len();
+    // Gate attempts are recorded before the chain runs, preserving the model
+    // breaker pre-pass ordering even when an earlier runnable step succeeds.
+    let mut attempts = Vec::new();
+    let mut runnable = Vec::new();
+    for (index, step) in steps.into_iter().enumerate() {
+        match step.gate_attempt {
+            Some(attempt) => attempts.push(attempt),
+            None => runnable.push((index, step)),
+        }
+    }
+    PreparedChain {
+        total,
+        attempts,
+        runnable,
+    }
 }
 
 fn unconfigured_attempt(identity: &StepIdentity, seam: &'static str) -> ProviderAttempt {
