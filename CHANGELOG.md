@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0](https://github.com/jfmoe/forager/compare/v0.4.0...v0.5.0) - 2026-08-30
+
+### Other
+
+- close code quality reviews
+- *(skill)* remove Kimi datasource
+- *(chain)* isolate step preparation
+- pin gate/SlicedEven incompatibility in the chain runner
+- *(providers)* add capability catalogs
+- *(net)* own provider HTTP reads
+- share one typed chain runner across fallback loops
+- merge research terminal state into one type
+- own attempt-chain derived facts in attempt_trace
+
 ## [0.4.0](https://github.com/jfmoe/forager/compare/v0.3.0...v0.4.0) - 2026-08-29
 
 ### Fixed
