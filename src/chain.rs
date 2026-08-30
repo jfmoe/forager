@@ -83,6 +83,8 @@ pub(crate) struct ChainStep<S> {
     pub(crate) configured: bool,
     /// Pre-run gate record (e.g. an open model breaker): a present value is
     /// appended before any step runs and the step is excluded from the loop.
+    /// Never combine with [`BudgetPolicy::SlicedEven`]: the slice divisor
+    /// counts gate-excluded steps.
     pub(crate) gate_attempt: Option<ProviderAttempt>,
 }
 
@@ -154,6 +156,14 @@ where
     Run: FnMut(S, Deadline) -> Fut,
     Fut: Future<Output = StepVerdict<T>>,
 {
+    // SlicedEven slices by `total - index`, which counts gate-excluded steps;
+    // every current call site pairs gates with PrimaryFirst, so reject the
+    // combination loudly instead of silently slicing conservatively.
+    debug_assert!(
+        matches!(settings.budget_policy, BudgetPolicy::PrimaryFirst)
+            || steps.iter().all(|step| step.gate_attempt.is_none()),
+        "gate_attempt steps distort SlicedEven budget slicing"
+    );
     let steps = if settings.fallback_off {
         steps.into_iter().take(1).collect::<Vec<_>>()
     } else {

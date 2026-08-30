@@ -127,3 +127,11 @@ _Avoid_: claim verification、source list
 **Provider Credential Pool**:
 某一供应方上由 TOML `keys` 真数组配置的认证凭据集合；八个供应方统一使用这一形状，单凭据是单元素数组。运行时按轮询选用，并在额度或限流类失败时于同一次请求内换用其他凭据。
 _Avoid_: key pool、key rotation、API key list、high-availability credential pool
+
+**Capability Catalog**:
+每个 Capability Seam 的合法供应方集合的唯一出处；配置默认顺序、order 校验、供应方构造、doctor 探测与 smoke 用例投影都从它派生，供应方与 seam 的隶属关系不存在第二份平行清单。
+_Avoid_: provider registry、BACKENDS allowlist、per-call-site provider list
+
+**Provider HTTP Read Contract**:
+供应方网络边界上由 net 唯一拥有的读取语义：HTTP status 与 429 额度嗅探的错误归因、完整协议响应的 4 MiB 硬上限、Web Fetch 正文的 UTF-8 安全截断、64 KiB 有界错误正文、凭据与 URL 脱敏；provider adapter 只构造请求并解码自己的成功格式，不再各自组合这些规则。
+_Avoid_: per-adapter read recipe、raw reqwest handling
