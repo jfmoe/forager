@@ -4,6 +4,7 @@ use std::sync::Arc;
 use futures_util::{StreamExt, stream};
 use reqwest::Client;
 
+use crate::attempt_trace;
 use crate::config::{
     DocsSearchRuntimeConfig, MainSearchRuntimeConfig, RuntimeConfig, SeamEntry,
     VerticalSearchRuntimeConfig, WebFetchRuntimeConfig, WebSearchRuntimeConfig,
@@ -197,7 +198,7 @@ fn provider_chain_error(
     diagnostic: Option<String>,
     exhausted_message: &str,
 ) -> ProviderError {
-    let terminal = terminal_attempt(&attempts);
+    let terminal = attempt_trace::terminal_attempt(&attempts);
     ProviderError {
         kind: terminal
             .and_then(|attempt| attempt.error_kind)
@@ -317,7 +318,11 @@ async fn execute_web_search(
     }
     match supplemental_web_search(query, limit, config.web_search.clone(), execution).await {
         Ok(mut supplemental) => {
-            let provider = successful_provider(&supplemental.attempts, "web_search");
+            let Some(provider) =
+                attempt_trace::successful_provider(&supplemental.attempts, "web_search")
+            else {
+                unreachable!("successful search outcome records a provider attempt")
+            };
             branch.attempts.append(&mut supplemental.attempts);
             branch.push_diagnostic(supplemental.diagnostic);
             branch.sources = supplemental_candidates(supplemental.sources, provider);
@@ -544,20 +549,6 @@ fn merge_extra_sources(outcome: &mut SearchOutcome, sources: Vec<SearchCandidate
             outcome.extra_sources.push(source);
         }
     }
-}
-
-fn successful_provider(attempts: &[ProviderAttempt], seam: &str) -> &'static str {
-    attempts
-        .iter()
-        .rev()
-        .find(|attempt| {
-            attempt.target.seam_name() == Some(seam)
-                && attempt.disposition == AttemptDisposition::Succeeded
-        })
-        .map_or_else(
-            || unreachable!("successful search outcome records a provider attempt"),
-            |attempt| attempt.provider,
-        )
 }
 
 fn supplemental_candidates(sources: Vec<Source>, provider: &'static str) -> Vec<SearchCandidate> {
@@ -983,46 +974,11 @@ fn is_pdf(url: &str) -> bool {
         .is_some_and(|path| path.to_ascii_lowercase().ends_with(".pdf"))
 }
 
-pub(crate) fn terminal_kind(attempts: &[ProviderAttempt]) -> AttemptErrorKind {
-    terminal_attempt(attempts)
-        .and_then(|attempt| attempt.error_kind)
-        .unwrap_or(AttemptErrorKind::Timeout)
-}
-
-fn terminal_attempt(attempts: &[ProviderAttempt]) -> Option<&ProviderAttempt> {
-    let mut final_providers = HashSet::new();
-    attempts
-        .iter()
-        .enumerate()
-        .rev()
-        .filter(|(_, attempt)| final_providers.insert(attempt.provider))
-        .filter(|(_, attempt)| attempt.disposition == AttemptDisposition::Failed)
-        .filter_map(|(index, attempt)| attempt.error_kind.map(|kind| (index, attempt, kind)))
-        .max_by_key(|(index, _, kind)| (error_priority(*kind), *index))
-        .map(|(_, attempt, _)| attempt)
-}
-
-fn error_priority(kind: AttemptErrorKind) -> u8 {
-    match kind {
-        AttemptErrorKind::Network => 0,
-        AttemptErrorKind::Timeout => 1,
-        AttemptErrorKind::RateLimited => 2,
-        AttemptErrorKind::QuotaExhausted => 3,
-        AttemptErrorKind::Auth => 4,
-        AttemptErrorKind::Parameter => 5,
-        AttemptErrorKind::Runtime => 6,
-        AttemptErrorKind::Quality => 7,
-        AttemptErrorKind::Evidence => 8,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
 
-    use super::{
-        CapabilityTargets, error_priority, provider_chain_error, terminal_attempt, terminal_kind,
-    };
+    use super::{CapabilityTargets, provider_chain_error};
     use crate::net::slice_budget;
     use crate::types::{AttemptDisposition, AttemptErrorKind, AttemptTarget, ProviderAttempt};
 
@@ -1062,42 +1018,6 @@ mod tests {
     }
 
     #[test]
-    fn terminal_kind_exhausts_final_kind_pairs_and_ignores_history() {
-        for first in ALL_KINDS {
-            for second in ALL_KINDS {
-                let expected = if error_priority(first) >= error_priority(second) {
-                    first
-                } else {
-                    second
-                };
-                assert_eq!(
-                    terminal_kind(&[
-                        attempt("tavily", AttemptErrorKind::Evidence),
-                        attempt("tavily", first),
-                        attempt("jina", AttemptErrorKind::Evidence),
-                        attempt("jina", second),
-                    ]),
-                    expected,
-                    "first={first:?}, second={second:?}"
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn terminal_attempt_uses_the_later_provider_when_kinds_match() {
-        let attempts = vec![
-            attempt_with_message("xai", AttemptErrorKind::Auth, "first"),
-            attempt_with_message("openai_compatible", AttemptErrorKind::Auth, "second"),
-        ];
-
-        assert_eq!(
-            terminal_attempt(&attempts).map(|attempt| attempt.message.as_str()),
-            Some("second")
-        );
-    }
-
-    #[test]
     fn fetch_terminal_error_uses_kind_and_message_from_the_same_attempt() {
         let attempts = vec![
             attempt_with_message("tavily", AttemptErrorKind::Quality, "thin content"),
@@ -1110,22 +1030,6 @@ mod tests {
             (error.kind, error.message.as_str()),
             (AttemptErrorKind::Quality, "thin content")
         );
-    }
-
-    const ALL_KINDS: [AttemptErrorKind; 9] = [
-        AttemptErrorKind::Auth,
-        AttemptErrorKind::RateLimited,
-        AttemptErrorKind::QuotaExhausted,
-        AttemptErrorKind::Parameter,
-        AttemptErrorKind::Timeout,
-        AttemptErrorKind::Network,
-        AttemptErrorKind::Quality,
-        AttemptErrorKind::Evidence,
-        AttemptErrorKind::Runtime,
-    ];
-
-    fn attempt(provider: &'static str, kind: AttemptErrorKind) -> ProviderAttempt {
-        attempt_with_message(provider, kind, "")
     }
 
     fn attempt_with_message(

@@ -92,6 +92,10 @@ _Avoid_: successful search、provider search、all commands
 默认启用、按发生顺序保存每次 Default Search Invocation 的结果面与执行过程面的本地集合。结果面包含查询、回答、来源及 research 的引用与证据；过程面包含计划摘要、供应方尝试链、终态归因、预算、分类器耗时和能力缺口。字段以架构规格的白名单为准，不保存请求或响应头、请求体、原始响应体、凭据、分类器 prompt 或工具 trace。它用于复盘与诊断，不是调试消息流，也不作为搜索响应缓存。
 _Avoid_: debug log、response cache、search history
 
+**Attempt Trace**:
+供应方尝试链的只读派生事实（终态归因、fallback 判定、成功供应方、有界摘要），由 attempt_trace module 唯一拥有；Search Result Journal、stderr attempt log、Research Recovery Manifest 与退出码归因等消费方从它读取投影，不再各自重新解释裸尝试链。fallback 保留两种刻意不同的语义：Recovery Manifest 的 seam 级 `provider_fallback_used` 回答「是否离开了首选 provider」，stderr log 的身份级 `identity_fallback_occurred` 回答「是否发生任何降级，含同 provider 换 model」；两者在同 provider 换 model 的链上给出相反答案是预期行为，不是 bug。
+_Avoid_: per-call-site interpretation、raw attempt scan
+
 **Caller Capability Declaration**:
 调用方为一次普通 `forager search` 显式声明的完整、权威检索能力集合；空集合也是有效声明。forager 不以本地规则、URL 识别、严格校验或分类器补充该集合；声明只能引用 Capability Seam，不能选择供应方。research 使用计划注入，不使用该声明。
 _Avoid_: provider override、router hint、capability patch

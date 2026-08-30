@@ -27,7 +27,7 @@ use crate::types::{
 };
 
 #[doc(hidden)]
-pub use crate::attempt_log::bounded_attempt_summary;
+pub use crate::attempt_trace::bounded_attempt_summary;
 #[doc(hidden)]
 pub use crate::net::combine_diagnostics;
 

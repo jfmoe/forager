@@ -8,6 +8,7 @@ use reqwest::{Client, Response};
 use serde::Serialize;
 use serde_json::Value;
 
+use crate::attempt_trace;
 use crate::config::OpenAiCompatibleRuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{
@@ -200,10 +201,7 @@ impl OpenAiCompatible {
                 }
             }
         }
-        let terminal = attempts
-            .iter()
-            .rev()
-            .find(|attempt| attempt.disposition == AttemptDisposition::Failed);
+        let terminal = attempt_trace::last_failed(&attempts);
         let kind = terminal
             .and_then(|attempt| attempt.error_kind)
             .unwrap_or(AttemptErrorKind::Runtime);

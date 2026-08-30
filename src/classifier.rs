@@ -5,6 +5,7 @@ use reqwest::Client;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+use crate::attempt_trace;
 use crate::config::ClassifierRuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{
@@ -191,14 +192,10 @@ impl Classifier {
             }
         }
 
-        let message = attempts
-            .iter()
-            .rev()
-            .find(|attempt| attempt.disposition == AttemptDisposition::Failed)
-            .map_or_else(
-                || "classifier model chain exhausted".into(),
-                |attempt| attempt.message.clone(),
-            );
+        let message = attempt_trace::last_failed(&attempts).map_or_else(
+            || "classifier model chain exhausted".into(),
+            |attempt| attempt.message.clone(),
+        );
         Err(ClassifierFailure {
             attempts,
             duration: started.elapsed(),

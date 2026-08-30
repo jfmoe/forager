@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use futures_util::{StreamExt, future::join_all, stream};
 use serde_json::{Value, json};
 
+use crate::attempt_trace;
 use crate::config::RuntimeConfig;
 use crate::engine::{self, CapabilityExecution};
 use crate::net::RetryPolicy;
@@ -441,7 +442,7 @@ pub(crate) async fn execute(
             &request.evidence_dir,
         )
     })?;
-    let fallback_used = fallback_used(&attempts);
+    let fallback_used = attempt_trace::provider_fallback_used(&attempts);
     if evidence_is_insufficient {
         let execution_attempts = &attempts[research_attempt_start..];
         let has_quality_failure = execution_attempts
@@ -452,7 +453,7 @@ pub(crate) async fn execute(
                 .iter()
                 .all(|attempt| attempt.disposition == AttemptDisposition::Failed);
         let kind = if evidence_items.is_empty() && (has_quality_failure || entire_chain_failed) {
-            engine::terminal_kind(execution_attempts)
+            attempt_trace::terminal_kind(execution_attempts)
         } else {
             AttemptErrorKind::Evidence
         };
@@ -658,7 +659,7 @@ async fn discover_web(
     .await
     {
         Ok(mut outcome) => {
-            let provider = successful_provider(&outcome.attempts, "web_search");
+            let provider = attempt_trace::successful_provider(&outcome.attempts, "web_search");
             block.attempts.append(&mut outcome.attempts);
             push_diagnostic(&mut block.diagnostics, outcome.diagnostic);
             block
@@ -710,7 +711,7 @@ async fn discover_vertical(
     .await
     {
         Ok(mut outcome) => {
-            let provider = successful_provider(&outcome.attempts, "vertical_search");
+            let provider = attempt_trace::successful_provider(&outcome.attempts, "vertical_search");
             block.attempts.append(&mut outcome.attempts);
             push_diagnostic(&mut block.diagnostics, outcome.diagnostic);
             block
@@ -1005,17 +1006,6 @@ fn write_evidence_artifacts(items: &[EvidenceItem]) -> std::io::Result<()> {
     Ok(())
 }
 
-fn successful_provider(attempts: &[ProviderAttempt], seam: &str) -> Option<&'static str> {
-    attempts
-        .iter()
-        .rev()
-        .find(|attempt| {
-            attempt.target.seam_name() == Some(seam)
-                && attempt.disposition == AttemptDisposition::Succeeded
-        })
-        .map(|attempt| attempt.provider)
-}
-
 fn write_json_artifact(root: &Path, name: &str, value: &Value) -> std::io::Result<()> {
     fs::create_dir_all(root)?;
     let encoded = serde_json::to_vec_pretty(value).map_err(std::io::Error::other)?;
@@ -1153,21 +1143,6 @@ fn unconfigured_web_providers(config: &RuntimeConfig) -> Vec<String> {
 
 fn unconfigured_vertical_providers(config: &RuntimeConfig) -> Vec<String> {
     config.vertical_search.unconfigured_names()
-}
-
-fn fallback_used(attempts: &[ProviderAttempt]) -> bool {
-    let mut providers_by_seam = HashMap::<&str, HashSet<&str>>::new();
-    for attempt in attempts {
-        if let Some(seam) = attempt.target.seam_name() {
-            providers_by_seam
-                .entry(seam)
-                .or_default()
-                .insert(attempt.provider);
-        }
-    }
-    providers_by_seam
-        .values()
-        .any(|providers| providers.len() > 1)
 }
 
 #[cfg(test)]

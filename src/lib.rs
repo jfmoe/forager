@@ -4,6 +4,7 @@
 
 pub mod app;
 mod attempt_log;
+mod attempt_trace;
 mod classifier;
 pub mod config;
 mod credentials;

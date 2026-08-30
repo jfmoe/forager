@@ -1,8 +1,7 @@
-use std::collections::{BTreeMap, BTreeSet};
-
 use serde::Serialize;
-use serde_json::{Value, json};
+use serde_json::Value;
 
+use crate::attempt_trace;
 use crate::config::LogLevel;
 use crate::types::{AttemptDisposition, AttemptTarget, ProviderAttempt};
 
@@ -11,7 +10,7 @@ pub(crate) fn render(level: LogLevel, attempts: &[ProviderAttempt]) -> Option<St
         return None;
     }
 
-    let mut summary = bounded_attempt_summary(attempts);
+    let mut summary = attempt_trace::bounded_attempt_summary(attempts);
     let summary = summary
         .as_object_mut()
         .expect("attempt summary is always an object");
@@ -23,7 +22,10 @@ pub(crate) fn render(level: LogLevel, attempts: &[ProviderAttempt]) -> Option<St
         "credential_rotation".into(),
         Value::Bool(attempts.iter().any(|attempt| attempt.rotation_count > 0)),
     );
-    summary.insert("fallback".into(), Value::Bool(fallback_occurred(attempts)));
+    summary.insert(
+        "fallback".into(),
+        Value::Bool(attempt_trace::identity_fallback_occurred(attempts)),
+    );
     summary.insert(
         "breaker_event".into(),
         Value::Bool(
@@ -47,49 +49,6 @@ pub(crate) fn render(level: LogLevel, attempts: &[ProviderAttempt]) -> Option<St
         }));
     }
     Some(lines.join("\n"))
-}
-
-fn fallback_occurred(attempts: &[ProviderAttempt]) -> bool {
-    let mut identity_by_target = BTreeMap::new();
-    for attempt in attempts {
-        let identity = (attempt.provider, attempt.model.as_deref());
-        if let Some(first_identity) = identity_by_target.get(&attempt.target) {
-            if *first_identity != identity {
-                return true;
-            }
-        } else {
-            identity_by_target.insert(attempt.target, identity);
-        }
-    }
-    false
-}
-
-#[must_use]
-pub fn bounded_attempt_summary(attempts: &[ProviderAttempt]) -> Value {
-    let mut by_kind = BTreeMap::new();
-    for attempt in attempts {
-        if let Some(kind) = attempt.error_kind {
-            *by_kind.entry(kind.as_str()).or_insert(0) += 1;
-        }
-    }
-    let by_kind_count = by_kind.len();
-    let by_kind = by_kind.into_iter().take(8).collect::<BTreeMap<_, _>>();
-    let provider_set = attempts
-        .iter()
-        .map(|attempt| attempt.provider)
-        .collect::<BTreeSet<_>>();
-    let providers = provider_set.iter().take(8).copied().collect::<Vec<_>>();
-    let by_kind_truncated = by_kind_count > by_kind.len();
-    let providers_truncated = provider_set.len() > providers.len();
-
-    json!({
-        "total": attempts.len(),
-        "by_kind": by_kind,
-        "by_kind_truncated": by_kind_truncated,
-        "providers": providers,
-        "providers_truncated": providers_truncated,
-        "truncated": by_kind_truncated || providers_truncated,
-    })
 }
 
 #[derive(Serialize)]
