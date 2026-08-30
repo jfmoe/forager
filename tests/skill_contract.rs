@@ -18,20 +18,12 @@ fn repository_exposes_the_tracked_installable_skills() {
         })
         .collect::<HashSet<_>>();
 
-    assert_eq!(
-        skill_dirs,
-        HashSet::from(["forager".to_owned(), "kimi-datasource".to_owned()])
+    assert_eq!(skill_dirs, HashSet::from(["forager".to_owned()]));
+    let skill_path = "skills/forager/SKILL.md";
+    assert!(
+        Path::new(skill_path).is_file(),
+        "missing installable skill asset {skill_path}"
     );
-    for path in [
-        "skills/forager/SKILL.md",
-        "skills/kimi-datasource/SKILL.md",
-        "skills/kimi-datasource/scripts/kimi-datasource.mjs",
-    ] {
-        assert!(
-            Path::new(path).is_file(),
-            "missing installable skill asset {path}"
-        );
-    }
 }
 
 #[test]
