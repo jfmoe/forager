@@ -11,8 +11,7 @@
 | 5 | Hand-written config temp lifecycle | Code quality | Accepted | Replaced with existing `tempfile` APIs |
 | 6 | Duplicate provider names and fetch constructors | Code quality | Accepted | Folded into `ProviderId` and one constructor |
 | 7 | Undeclared MSRV plus static restatement test | Code quality | Accepted | Removed metadata and brittle test |
-| 8 | Broad Kimi ESM export surface and stdin injection | Code quality | Accepted | Kept five consumed seams; internalized fourteen names and removed both unused injection points |
-| 9 | Duplicate capability-vocabulary identity test | Code quality | Accepted | Removed redundant traversal |
+| 8 | Duplicate capability-vocabulary identity test | Code quality | Accepted | Removed redundant traversal |
 
 All accepted work is structural simplification. No candidate is classified as a
 bug fix, and no rare-scenario defensive branch was added. Existing security and
@@ -21,14 +20,12 @@ serialization boundaries was retained.
 
 ## Complexity result
 
-The audit-specific implementation diff touches 13 code, test, script, and manifest
-files. Before adding these reports it contains 83 added lines and 237 deleted lines,
-for a net deletion of 154 lines. The additions are replacement glue around existing
-`tempfile` and typed provider identities; they do not introduce a new abstraction.
+The audit-specific implementation diff touches code, test, and manifest files.
+The additions are replacement glue around existing `tempfile` and typed provider
+identities; they do not introduce a new abstraction.
 
 Complexity decreased in four observable dimensions:
 
-- fewer public/test-visible entry points;
 - fewer duplicate representations of provider identity;
 - less owned resource-lifecycle machinery;
 - fewer tests that restate implementation or metadata instead of behavior.
@@ -40,7 +37,6 @@ Complexity decreased in four observable dimensions:
 | Rust formatting | Passed | `cargo fmt --all -- --check` |
 | Patch whitespace | Passed | `git diff --check HEAD` |
 | Targeted Rust tests | Passed | `cargo test --locked --lib --test config_commands --test config_path --test setup --test fetch --test search --test doctor --test smoke --test skill_contract --test release_scaffolding` (277 tests) |
-| Kimi Node tests | Passed | `node --test skills/kimi-datasource/scripts/kimi-datasource.test.mjs` (8 tests) |
 | Reviewer re-review | Findings handled | Restored public getter and narrowed provider-name ownership claim |
 | Clippy | Passed | `cargo clippy --all-targets --all-features --locked -- -D warnings` |
 | Full local suite | Passed | `cargo test --all-targets --all-features --locked --no-fail-fast -- --quiet` (425 tests) |
@@ -51,9 +47,6 @@ Complexity decreased in four observable dimensions:
 ## Baseline and scope
 
 The complete `HEAD` plus staged, unstaged, and untracked working tree was reviewed.
-The 154-line metric isolates this audit by comparing the pre-existing staged index
-to the new unstaged implementation edits; it does not misattribute the earlier
-code-quality review's staged changes to this pass.
 
 ## Re-review finding disposition
 
@@ -63,5 +56,4 @@ code-quality review's staged changes to this pass.
 - Provider/config low: accepted. The report now limits `ProviderId` ownership to
   registry and shared adapters; provider-specific transports retain local protocol
   labels without creating a reverse dependency.
-- Tests/JavaScript/release: no finding. Its residual private stdin parameter was
-  also removed as a local, behavior-neutral simplification.
+- Tests/release: no finding.

@@ -1,8 +1,8 @@
-# Tests, JavaScript, and release simplification audit
+# Tests and release simplification audit
 
 ## Scope
 
-Reviewed all repository tests, fixtures, skills, JavaScript helpers, Cargo metadata,
+Reviewed all repository tests, fixtures, skills, Cargo metadata,
 and release automation in the complete working tree. Product smoke paths and
 release gates were classified as production or operational consumers rather than
 ordinary test-only code.
@@ -27,29 +27,6 @@ ordinary test-only code.
 - Acceptance: Cargo metadata resolves under `--locked`; release-scaffolding tests
   continue to verify the actual CI and release gates.
 
-## Accepted: narrow the Kimi script module surface
-
-- Owner and design surface: `kimi-datasource.mjs` command implementation and its
-  Node tests.
-- Production consumers: the executable entry path uses all retained internals.
-- Non-production consumers: tests import five behavior seams:
-  `tokenNeedsRefresh`, `redactSecrets`, `processToolResponse`, `invokeTool`, and
-  `formatToolResult`.
-- Ambiguous consumers: repository-wide searches found no package entry point or
-  external script importing the other fourteen exports.
-- Change: made fourteen command internals private and removed both unused stdin
-  injection points; `buildCallParams` and `readStdin` now use the real process
-  boundary directly.
-- Abandoned capability: tests and hypothetical library consumers can no longer
-  call CLI orchestration internals as a JavaScript API. The skill is shipped as a
-  command, not a library.
-- Net impact: the export surface falls from nineteen names to five and the unused
-  dependency-injection branch is gone; production behavior and dependencies are
-  unchanged.
-- Risk and reintroduction: export a helper only when a tracked production consumer
-  appears. Keep process-level CLI tests as the default command contract.
-- Acceptance: all eight Node tests pass, including stdin JSON and refresh retry.
-
 ## Accepted: remove a third capability-vocabulary identity test
 
 - Owner and design surface: `tests/skill_contract.rs`.
@@ -72,7 +49,7 @@ ordinary test-only code.
 ## Rejected candidates
 
 The command watchdog, test-runner lifecycle, release target manifest and artifact
-gate, Kimi invocation/result seams, acceptance manifest, provider fixtures, and
+gate, acceptance manifest, provider fixtures, and
 YAML parser dependency were retained. Each has a current production, operational,
 or materially distinct test consumer; deleting them would remove behavior or move
 complexity rather than simplify it.

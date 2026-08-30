@@ -53,51 +53,40 @@
 - Recommendation：立即移动 seam request；先决定 F10 是否继续有效；扩展 typed LiveCaseDefinition；app 只移动完整职责簇并保留平坦 dispatch。
 - Verification：见模块报告 01、04。
 
-### [高严重度，高置信度] 测试体系同时“必红”和“关键盲区过大”
+### [高严重度，高置信度] 测试体系关键盲区过大
 
-- 位置：`tests/skill_contract.rs:10`、`tests/skill_contract.rs:25`、`tests/support/mod.rs:321`、`tests/config_commands.rs:305`、`.github/workflows/ci.yml:17`
-- Fact：skill inventory 与 tracked tree 确定性冲突；Rust tests 冻结 Markdown/CHANGELOG/源码拼写；CLI runner/fixture 无 case-level watchdog；raw wire 是 fixture 主 API；并发测试用 sleep；Kimi JS 无测试/CI。
-- Impact：当前完整套件必红，同时 deadline/child lifecycle/OAuth/401/文件/输出等关键副作用仍可在其他 checks 绿色时回归。
+- 位置：`tests/support/mod.rs:321`、`tests/config_commands.rs:305`
+- Fact：Rust tests 冻结 Markdown/CHANGELOG/源码拼写；CLI runner/fixture 无 case-level watchdog；raw wire 是 fixture 主 API；并发测试用 sleep。
+- Impact：deadline/child lifecycle 等关键副作用仍可在其他 checks 绿色时回归。
 - Judgment：Behavior Safety Net、Resource Lifecycle、Fragile Test、shallow fixture API。
-- Evidence：Rust 黑盒 CLI 覆盖总体较强，CI 20 分钟 timeout 可终止整批；但不能替代单 case kill/reap 或 JS 行为网。
-- Recommendation：先修库存契约；删除文案/源码扫描；Node tests 入 CI；共享 runner 加 watchdog；CapturedRequest typed API；并发锁测试使用 barrier。
-- Verification：见模块报告 08、09。
-
-### [中高严重度，高置信度] Kimi OAuth 与返回文件缺 crash-safe ownership/commit 顺序
-
-- 位置：`skills/kimi-datasource/scripts/kimi-datasource.mjs:285`、`:599`、`:648`、`:725`
-- Fact：目录锁只有正常 finally 删除，无 stale owner recovery；工具响应在判断语义失败前写 files。
-- Impact：异常终止可永久阻塞 refresh；失败调用可留下调用方不可见的半应用文件。
-- Judgment：Resource Lifecycle 与副作用提交顺序错误。
-- Evidence：普通 throw 会 finally，后端也可能保证失败不带 files，因此不升高严重度。
-- Recommendation：内核锁或 PID+nonce/确认死亡回收；先 parse/classify，后执行 success 文件计划。
-- Verification：见模块报告 09。
+- Evidence：Rust 黑盒 CLI 覆盖总体较强，CI 20 分钟 timeout 可终止整批；但不能替代单 case kill/reap。
+- Recommendation：删除文案/源码扫描；共享 runner 加 watchdog；CapturedRequest typed API；并发锁测试使用 barrier。
+- Verification：见模块报告 08。
 
 ## Prior-Report Adjudication
 
-- 合并：01+04 的 provider ownership；02 的 plan/config policy；03 的四项 research 状态；04-06 的 provider boundary；01+03+07 的 terminal observation；01/02/08/09 的测试问题；09 的 Kimi lifecycle。
-- 降级：`app.rs` 体积只作 divergent-change 证据；tag-driven provider 只作待决架构问题；preflight tee 从单项高降为横切中高；release target 多副本降为 concern；YAML substring 优先级低于必败 inventory、JS 零覆盖与 watchdog。
+- 合并：01+04 的 provider ownership；02 的 plan/config policy；03 的四项 research 状态；04-06 的 provider boundary；01+03+07 的 terminal observation；01/02/08 的测试问题。
+- 降级：`app.rs` 体积只作 divergent-change 证据；tag-driven provider 只作待决架构问题；preflight tee 从单项高降为横切中高；release target 多副本降为 concern；YAML substring 优先级低于 watchdog。
 - 丢弃：不按 1,000 行拆 main/smoke/types/net/tests；不取消 MainSearch/DocsSearch/VerticalSearch traits；不造万能 provider DTO；不重写 Rust fan-out；不改 credential claim、journal retention 或 smoke child 生命周期；不报告机械 lint。
 
 ## Repair Order
 
-1. 恢复安全网：skill inventory、删除错误层级测试、watchdog、Kimi Node tests/CI。
+1. 恢复安全网：删除错误层级测试并增加 watchdog。
 2. 修 provider data/control boundary：Context7、Web Fetch raw envelope、核心 wire 字段。
-3. 修 Kimi commit 顺序与 stale lock。
-4. 引入 attempt disposition/typed target，再删 journal fact 回填并修 AnySearch target。
-5. 统一 terminal context：preflight tee、typed journal redaction、research chronology。
-6. 修 research locator/coverage/gap/artifact commit。
-7. 收紧 ResearchPlan/FallbackPolicy/order/inline-table invariants。
-8. 最后处理 registry/app 架构；先决策 ADR，再移动完整职责簇。
+3. 引入 attempt disposition/typed target，再删 journal fact 回填并修 AnySearch target。
+4. 统一 terminal context：preflight tee、typed journal redaction、research chronology。
+5. 修 research locator/coverage/gap/artifact commit。
+6. 收紧 ResearchPlan/FallbackPolicy/order/inline-table invariants。
+7. 最后处理 registry/app 架构；先决策 ADR，再移动完整职责簇。
 
 ## Thermo Pressure Pass
 
 - deletable-complexity：Context7 text redirect、Web Fetch raw fallback、journal fact 回填、文案/源码扫描测试可净删除。
-- growth/cohesion：app 有 divergent change；Kimi/net/types 体积本身 No finding。
+- growth/cohesion：app 有 divergent change；net/types 体积本身 No finding。
 - spaghetti/model：research 与 provider data/control 状态需要显式模型。
 - boundaries/types：Findings 1、2、4。
 - canonical-ownership：Findings 4、5。
-- concurrency/atomicity：Research artifacts、Kimi lock/files 有 finding；Rust fan-out/credentials/journal retention/smoke lifecycle No finding。
+- concurrency/atomicity：Research artifacts 有 finding；Rust fan-out/credentials/journal retention/smoke lifecycle No finding。
 - behavior-safety：Finding 6；Rust 主搜索/retry/deadline/主要 CLI 已有较强安全网。
 
 ## 主 Agent 点验
@@ -111,9 +100,8 @@
 - Research identity/gap/chronology/commit：**resolved-common / accepted-rare**。多归属 candidate、终态 gap 与初始 chronology 形成一致状态流；artifact 中途文件系统失败的提交恢复协议不纳入本轮，列为 P3。
 - Terminal observation 下游补丁重建：**resolved**。Preflight tee、attempt 自有归因、journal answer policy 与 research chronology 均在持久化前完成。
 - Canonical owner/app architecture：**accepted-deferred (P3)**。Seam request 已归位；registry/runtime/doctor/smoke 多 owner、compile-time matrix 与 `app.rs` divergent change 仍是结构债，但无已观察到的 P0-P2 后果。
-- 测试“必红”与关键盲区：**resolved-common / accepted-rare**。Inventory、文案测试、Node 安全网与共享 direct-child watchdog 已关闭普通路径；raw-wire fixture、deterministic lost-update、后代/Drop cleanup 留作 P3。
-- Kimi lock/file commit：**resolved-common / accepted-rare**。失败响应先分类后写文件已关闭；SIGKILL/主机崩溃后的 stale lock recovery 保持 `HEAD` 行为，列为 P3。
+- 测试关键盲区：**resolved-common / accepted-rare**。文案测试与共享 direct-child watchdog 已关闭普通路径；raw-wire fixture、deterministic lost-update、后代/Drop cleanup 留作 P3。
 
-范围收口复审补充：删除截断 JSON parser、artifact commit/recovery 协议、Kimi 内核锁状态机和跨平台 process-tree watchdog 后，三名原 reviewer 均确认常见路径保留完整；唯一残余类型一致性项 `doctor` 已改为消费 `AttemptDisposition::Succeeded`。
+范围收口复审补充：删除截断 JSON parser、artifact commit/recovery 协议和跨平台 process-tree watchdog 后，三名原 reviewer 均确认常见路径保留完整；唯一残余类型一致性项 `doctor` 已改为消费 `AttemptDisposition::Succeeded`。
 
 横切复核最终无本轮仍需处理的 P0-P2；罕见生命周期与文件系统故障均明确记录为 accepted-deferred P3，而非声称已修复。
