@@ -9,8 +9,9 @@ use crate::config::JournalRuntimeConfig;
 use crate::net::duration_millis;
 use crate::providers::ProviderError;
 use crate::redact::{Secret, redact_credentials};
+use crate::research::ResearchTerminal;
 use crate::secure_fs::{create_new_private_file, ensure_private_directory};
-use crate::types::{Capability, JournalOutcome, ResearchError, ResearchOutcome, SearchOutcome};
+use crate::types::{Capability, JournalOutcome, SearchOutcome};
 
 static RECORD_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
@@ -35,7 +36,7 @@ pub(crate) struct ResearchRecord<'a> {
     pub(crate) plan_source: &'static str,
     pub(crate) classifier_degraded: bool,
     pub(crate) classifier_duration: Option<Duration>,
-    pub(crate) result: &'a Result<ResearchOutcome, ResearchError>,
+    pub(crate) terminal: &'a ResearchTerminal,
 }
 
 #[derive(Clone, Copy)]
@@ -157,42 +158,28 @@ fn build_research_record(record: ResearchRecord<'_>) -> Value {
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_millis();
-    let (result_surface, attempts, terminal_attribution, capability_gaps) = match record.result {
-        Ok(outcome) => (
-            json!({
-                "status": "ok",
-                "query": record.query,
-                "evidence_items": outcome.evidence_items,
-                "capability_gaps": outcome.capability_gaps,
-                "gap_check": outcome.gap_check,
-                "evidence_dir": outcome.evidence_dir,
-                "plan_path": outcome.plan_path,
-                "unconsumed_candidates": outcome.unconsumed_candidates,
-                "synthesis_policy": outcome.synthesis_policy,
-            }),
-            &outcome.attempts,
-            "ok",
-            &outcome.capability_gaps,
-        ),
-        Err(error) => (
-            json!({
-                "status": "error",
-                "query": record.query,
-                "error_kind": error.kind.as_str(),
-                "message": error.message,
-                "evidence_items": error.evidence_items,
-                "capability_gaps": error.capability_gaps,
-                "gap_check": error.gap_check,
-                "evidence_dir": error.evidence_dir,
-                "summary_path": error.summary_path,
-                "plan_path": error.plan_path,
-                "unconsumed_candidates": error.unconsumed_candidates,
-                "synthesis_policy": error.synthesis_policy,
-            }),
-            &error.attempts,
-            error.kind.as_str(),
-            &error.capability_gaps,
-        ),
+    let terminal = record.terminal;
+    let mut result_surface = json!({
+        "status": terminal.status(),
+        "query": record.query,
+        "evidence_items": terminal.evidence_items,
+        "capability_gaps": terminal.capability_gaps,
+        "gap_check": terminal.gap_check,
+        "evidence_dir": terminal.evidence_dir,
+        "plan_path": terminal.plan_path,
+        "unconsumed_candidates": terminal.unconsumed_candidates,
+        "synthesis_policy": terminal.synthesis_policy,
+    });
+    let terminal_attribution = if let Some(failure) = terminal.failure.as_ref() {
+        let surface = result_surface
+            .as_object_mut()
+            .expect("research result surface is an object");
+        surface.insert("error_kind".into(), json!(failure.kind.as_str()));
+        surface.insert("message".into(), json!(failure.message));
+        surface.insert("summary_path".into(), json!(failure.summary_path));
+        failure.kind.as_str()
+    } else {
+        "ok"
     };
     json!({
         "schema_version": 1,
@@ -204,7 +191,7 @@ fn build_research_record(record: ResearchRecord<'_>) -> Value {
                 "capabilities": record.capabilities,
                 "classifier_degraded": record.classifier_degraded
             },
-            "provider_attempts": attempts,
+            "provider_attempts": terminal.attempts,
             "terminal_attribution": terminal_attribution,
             "deadline_budget": {
                 "total_ms": duration_millis(record.budget),
@@ -214,7 +201,7 @@ fn build_research_record(record: ResearchRecord<'_>) -> Value {
             "classifier_duration_ms": record.classifier_duration
                 .map(duration_millis)
                 .map_or(Value::Null, Value::from),
-            "capability_gaps": capability_gaps
+            "capability_gaps": terminal.capability_gaps
         }
     })
 }

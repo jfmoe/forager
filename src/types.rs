@@ -4,7 +4,6 @@ use std::time::{Duration, Instant};
 
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Serialize, Serializer};
-use thiserror::Error;
 
 pub(crate) const MIN_FETCH_CONTENT_CHARS: usize = 200;
 pub(crate) const DENSITY_MAX_UNIQUE_LINES: usize = 3;
@@ -970,61 +969,6 @@ pub struct ResearchGapCheck {
     pub gaps: Vec<ResearchGap>,
     /// Stable reason execution stopped.
     pub stop_reason: &'static str,
-}
-
-#[derive(Clone, Debug, Serialize)]
-/// Successful file-backed Research Evidence Index.
-pub struct ResearchOutcome {
-    /// Evidence identities and readable body paths.
-    pub evidence_items: Vec<EvidenceItem>,
-    /// Advisory provider availability gaps.
-    pub capability_gaps: Vec<CapabilityGap>,
-    /// Evidence coverage state.
-    pub gap_check: ResearchGapCheck,
-    /// Directory containing evidence artifacts.
-    pub evidence_dir: String,
-    /// Readable path to the normalized Schema v1 plan.
-    pub plan_path: String,
-    /// Discovered candidates that were not fetched and are not evidence.
-    pub unconsumed_candidates: UnconsumedCandidates,
-    /// Policy the caller must apply before making claims from candidates.
-    pub synthesis_policy: &'static str,
-    #[serde(skip)]
-    /// Full provider attempt chain for verbose output and journaling.
-    pub attempts: Vec<ProviderAttempt>,
-    #[serde(skip)]
-    /// Non-fatal diagnostic text for standard error.
-    pub diagnostic: Option<String>,
-}
-
-#[derive(Clone, Debug, Error)]
-#[error("{message}")]
-/// A research terminal that could not produce sufficient evidence.
-pub struct ResearchError {
-    /// Terminal error attribution.
-    pub kind: AttemptErrorKind,
-    /// Redacted human-readable failure reason.
-    pub message: String,
-    /// Full provider attempt chain.
-    pub attempts: Vec<ProviderAttempt>,
-    /// Evidence obtained before the terminal threshold was evaluated.
-    pub evidence_items: Vec<EvidenceItem>,
-    /// Advisory provider availability gaps.
-    pub capability_gaps: Vec<CapabilityGap>,
-    /// Evidence coverage state at the terminal.
-    pub gap_check: ResearchGapCheck,
-    /// Directory containing the artifacts retained before failure.
-    pub evidence_dir: String,
-    /// Readable Research Recovery Manifest, when persistence succeeded.
-    pub summary_path: Option<String>,
-    /// Readable path to the normalized Schema v1 plan.
-    pub plan_path: String,
-    /// Discovered candidates that were not fetched and are not evidence.
-    pub unconsumed_candidates: UnconsumedCandidates,
-    /// Policy the caller must apply before making claims from candidates.
-    pub synthesis_policy: &'static str,
-    /// Non-fatal diagnostic text for standard error.
-    pub diagnostic: Option<String>,
 }
 
 #[derive(Clone, Debug, Serialize)]

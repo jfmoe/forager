@@ -22,8 +22,7 @@ use crate::providers::{
 use crate::types::{
     AnysearchOutcome, CapabilitySet, ClaimRisk, Context7Outcome, Deadline, EvidenceStrength,
     FallbackPolicy, FetchOutcome, JournalOutcome, MapOutcome, PlanCapability, ProviderAttempt,
-    RecencyRequirement, ResearchError, ResearchIntentSignals, ResearchOutcome, ResearchPlan,
-    ResearchSubquestion, SearchOutcome,
+    RecencyRequirement, ResearchIntentSignals, ResearchPlan, ResearchSubquestion, SearchOutcome,
 };
 
 #[doc(hidden)]
@@ -32,6 +31,7 @@ pub use crate::attempt_trace::bounded_attempt_summary;
 pub use crate::net::combine_diagnostics;
 
 pub use crate::providers::ProviderError;
+pub use crate::research::{ResearchFailure, ResearchTerminal};
 pub use crate::types::ExaOutcome;
 
 /// Parsed `forager` command-line arguments.
@@ -425,8 +425,8 @@ pub enum CommandOutput {
     },
     /// One completed caller-planned research invocation.
     Research {
-        /// Evidence-backed research terminal result.
-        result: Result<ResearchOutcome, ResearchError>,
+        /// Research terminal state, success or failure.
+        terminal: ResearchTerminal,
         /// Search Result Journal side-channel outcome.
         journal: JournalOutcome,
         /// Requested output format.
@@ -751,11 +751,7 @@ impl ResearchContext {
         budget: crate::research::ResearchBudget,
         evidence_dir: PathBuf,
         fallback: FallbackPolicy,
-    ) -> (
-        Result<ResearchOutcome, ResearchError>,
-        JournalOutcome,
-        Option<String>,
-    ) {
+    ) -> (ResearchTerminal, JournalOutcome, Option<String>) {
         let started = Instant::now();
         let deadline = Deadline::new(self.timeout);
         let (
@@ -813,7 +809,7 @@ impl ResearchContext {
         };
         let capabilities = plan.capabilities().iter().collect::<Vec<_>>();
         let log_level = self.config.log_level;
-        let result = self.runtime.block_on(crate::research::execute(
+        let terminal = self.runtime.block_on(crate::research::execute(
             crate::research::ResearchRequest {
                 query: query.to_owned(),
                 plan,
@@ -839,11 +835,11 @@ impl ResearchContext {
                 plan_source,
                 classifier_degraded,
                 classifier_duration,
-                result: &result,
+                terminal: &terminal,
             },
         );
-        let attempt_log = research_attempt_log(log_level, &result);
-        (result, journal, attempt_log)
+        let attempt_log = crate::attempt_log::render(log_level, &terminal.attempts);
+        (terminal, journal, attempt_log)
     }
 }
 
@@ -1125,10 +1121,10 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                         .into(),
                 )));
             }
-            let (result, journal, attempt_log) =
+            let (terminal, journal, attempt_log) =
                 context.research(&query, plan, budget, evidence_dir, fallback);
             Ok(CommandOutput::Research {
-                result,
+                terminal,
                 journal,
                 format,
                 output,
@@ -1811,17 +1807,6 @@ fn provider_attempt_log<'a, T>(
 ) -> Option<String> {
     let attempts = match result {
         Ok(outcome) => success_attempts(outcome),
-        Err(error) => &error.attempts,
-    };
-    crate::attempt_log::render(level, attempts)
-}
-
-fn research_attempt_log(
-    level: config::LogLevel,
-    result: &Result<ResearchOutcome, ResearchError>,
-) -> Option<String> {
-    let attempts = match result {
-        Ok(outcome) => &outcome.attempts,
         Err(error) => &error.attempts,
     };
     crate::attempt_log::render(level, attempts)

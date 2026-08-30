@@ -8,11 +8,11 @@ use std::process::ExitCode;
 use clap::Parser;
 use forager::app::{
     self, Cli, CommandOutput, DocsOutputFormat, ExaOutcome, OutputFormat, ProviderError,
-    bounded_attempt_summary,
+    ResearchFailure, ResearchTerminal, bounded_attempt_summary,
 };
 use forager::types::{
     AnysearchOutcome, AttemptErrorKind, Context7Outcome, ErrorFamily, ErrorKind, FetchOutcome,
-    JournalOutcome, MapOutcome, ResearchError, ResearchOutcome, SearchOutcome,
+    JournalOutcome, MapOutcome, SearchOutcome,
 };
 use serde_json::{Value, json};
 
@@ -44,14 +44,14 @@ fn main() -> ExitCode {
             attempt_log,
         ),
         Ok(CommandOutput::Research {
-            result,
+            terminal,
             journal,
             format,
             output,
             verbose,
             attempt_log,
         }) => emit_logged(
-            render_research(result, &journal, format, output, verbose),
+            render_research(terminal, &journal, format, output, verbose),
             attempt_log,
         ),
         Ok(CommandOutput::Exa {
@@ -102,65 +102,58 @@ fn main() -> ExitCode {
 }
 
 fn render_research(
-    result: Result<ResearchOutcome, ResearchError>,
+    terminal: ResearchTerminal,
     journal: &JournalOutcome,
     format: DocsOutputFormat,
     output: Option<PathBuf>,
     verbose: bool,
 ) -> Result<RenderedOutput, String> {
-    let (stdout, exit_code, diagnostic) = match result {
-        Ok(outcome) => {
+    let (stdout, exit_code) = match terminal.failure.as_ref() {
+        None => {
             let stdout = match format {
                 DocsOutputFormat::Json => {
                     let mut payload =
-                        serde_json::to_value(&outcome).map_err(|error| error.to_string())?;
+                        serde_json::to_value(&terminal).map_err(|error| error.to_string())?;
                     add_journal_status(&mut payload, journal)?;
                     if verbose {
                         payload
                             .as_object_mut()
-                            .expect("research outcome is an object")
+                            .expect("research terminal is an object")
                             .insert(
                                 "provider_attempts".into(),
-                                serde_json::to_value(&outcome.attempts)
+                                serde_json::to_value(&terminal.attempts)
                                     .map_err(|error| error.to_string())?,
                             );
                     }
                     serde_json::to_string(&payload).map_err(|error| error.to_string())?
                 }
                 DocsOutputFormat::Markdown | DocsOutputFormat::Content => {
-                    format_research_index(&outcome)
+                    format_research_index(&terminal)
                 }
             };
-            (stdout, 0, outcome.diagnostic)
+            (stdout, 0)
         }
-        Err(error) => {
+        Some(failure) => {
             let stdout = match format {
-                DocsOutputFormat::Json => format_research_failure_json(&error, journal, verbose)?,
+                DocsOutputFormat::Json => {
+                    format_research_failure_json(&terminal, failure, journal, verbose)?
+                }
                 DocsOutputFormat::Markdown | DocsOutputFormat::Content => {
                     let mut rendered = format!(
                         "# Research Evidence Index\n\n**{}**: {}\n",
-                        error.kind.as_str(),
-                        error.message
+                        failure.kind.as_str(),
+                        failure.message
                     );
-                    append_research_index(
-                        &mut rendered,
-                        &error.evidence_items,
-                        &error.evidence_dir,
-                        &error.plan_path,
-                        &error.unconsumed_candidates,
-                        &error.gap_check,
-                        &error.capability_gaps,
-                        error.synthesis_policy,
-                    );
+                    append_research_index(&mut rendered, &terminal);
                     rendered
                 }
             };
-            (stdout, postflight_exit_code(error.kind), error.diagnostic)
+            (stdout, postflight_exit_code(failure.kind))
         }
     };
     let diagnostic = app::combine_diagnostics(
         [
-            diagnostic,
+            terminal.diagnostic,
             journal
                 .warning
                 .as_ref()
@@ -179,20 +172,21 @@ fn render_research(
 }
 
 fn format_research_failure_json(
-    error: &ResearchError,
+    terminal: &ResearchTerminal,
+    failure: &ResearchFailure,
     journal: &JournalOutcome,
     verbose: bool,
 ) -> Result<String, String> {
     let mut payload = json!({
-        "error_kind": error.kind.as_str(),
-        "message": error.message.chars().take(500).collect::<String>(),
-        "evidence_dir": error.evidence_dir,
-        "summary_path": error.summary_path,
+        "error_kind": failure.kind.as_str(),
+        "message": failure.message.chars().take(500).collect::<String>(),
+        "evidence_dir": terminal.evidence_dir,
+        "summary_path": failure.summary_path,
         "gap_check": {
-            "status": error.gap_check.status,
-            "stop_reason": error.gap_check.stop_reason,
+            "status": terminal.gap_check.status,
+            "stop_reason": terminal.gap_check.stop_reason,
         },
-        "synthesis_policy": error.synthesis_policy,
+        "synthesis_policy": terminal.synthesis_policy,
     });
     add_journal_status(&mut payload, journal)?;
     if verbose {
@@ -201,49 +195,34 @@ fn format_research_failure_json(
             .expect("research failure is an object")
             .insert(
                 "provider_attempts".into(),
-                serde_json::to_value(&error.attempts).map_err(|error| error.to_string())?,
+                serde_json::to_value(&terminal.attempts).map_err(|error| error.to_string())?,
             );
     }
     serde_json::to_string(&payload).map_err(|error| error.to_string())
 }
 
-fn format_research_index(outcome: &ResearchOutcome) -> String {
+fn format_research_index(terminal: &ResearchTerminal) -> String {
     let mut rendered = "# Research Evidence Index\n".to_owned();
-    append_research_index(
-        &mut rendered,
-        &outcome.evidence_items,
-        &outcome.evidence_dir,
-        &outcome.plan_path,
-        &outcome.unconsumed_candidates,
-        &outcome.gap_check,
-        &outcome.capability_gaps,
-        outcome.synthesis_policy,
-    );
+    append_research_index(&mut rendered, terminal);
     rendered
 }
 
 // Success and failure share this renderer so their index semantics cannot drift.
-#[expect(clippy::too_many_arguments)]
-fn append_research_index(
-    rendered: &mut String,
-    evidence_items: &[forager::types::EvidenceItem],
-    evidence_dir: &str,
-    plan_path: &str,
-    unconsumed_candidates: &forager::types::UnconsumedCandidates,
-    gap_check: &forager::types::ResearchGapCheck,
-    capability_gaps: &[forager::types::CapabilityGap],
-    synthesis_policy: &str,
-) {
+fn append_research_index(rendered: &mut String, terminal: &ResearchTerminal) {
     let _ = write!(
         rendered,
-        "\nEvidence directory: `{evidence_dir}`\n\nPlan: `{plan_path}`\n\nUnconsumed candidates: {} at `{}`\n\nSynthesis policy: `{synthesis_policy}`",
-        unconsumed_candidates.count, unconsumed_candidates.path
+        "\nEvidence directory: `{}`\n\nPlan: `{}`\n\nUnconsumed candidates: {} at `{}`\n\nSynthesis policy: `{}`",
+        terminal.evidence_dir,
+        terminal.plan_path,
+        terminal.unconsumed_candidates.count,
+        terminal.unconsumed_candidates.path,
+        terminal.synthesis_policy
     );
     rendered.push_str("\n\n## Evidence\n");
-    if evidence_items.is_empty() {
+    if terminal.evidence_items.is_empty() {
         rendered.push_str("\nNo verified evidence was collected.\n");
     } else {
-        for item in evidence_items {
+        for item in &terminal.evidence_items {
             let identity = match item.locator.url() {
                 Some(url) => format!("[{}]({url})", item.id),
                 None => format!("[{}]", item.id),
@@ -267,10 +246,10 @@ fn append_research_index(
         }
     }
     rendered.push_str("\n\n## Unresolved gaps\n");
-    if gap_check.gaps.is_empty() && capability_gaps.is_empty() {
+    if terminal.gap_check.gaps.is_empty() && terminal.capability_gaps.is_empty() {
         rendered.push_str("\nNone.\n");
     } else {
-        for gap in &gap_check.gaps {
+        for gap in &terminal.gap_check.gaps {
             let scope = if gap.subquestion_id.is_empty() {
                 "plan"
             } else {
@@ -281,7 +260,7 @@ fn append_research_index(
                 let _ = write!(rendered, " ({url})");
             }
         }
-        for gap in capability_gaps {
+        for gap in &terminal.capability_gaps {
             let _ = write!(
                 rendered,
                 "\n- capability `{}`: {}",
@@ -909,11 +888,10 @@ fn postflight_exit_code(kind: AttemptErrorKind) -> u8 {
 
 #[cfg(test)]
 mod tests {
-    use forager::app::ProviderError;
+    use forager::app::{ProviderError, ResearchFailure, ResearchTerminal};
     use forager::types::{
         AttemptDisposition, AttemptErrorKind, AttemptTarget, Capability, CapabilityGap,
-        EvidenceItem, JournalOutcome, ProviderAttempt, ResearchError, ResearchGapCheck,
-        UnconsumedCandidates,
+        EvidenceItem, JournalOutcome, ProviderAttempt, ResearchGapCheck, UnconsumedCandidates,
     };
     use serde_json::{Value, json};
 
@@ -974,10 +952,7 @@ mod tests {
             .enumerate()
             .map(|(index, kind)| attempt(PROVIDERS[index], kind))
             .collect::<Vec<_>>();
-        let research_error = ResearchError {
-            kind: AttemptErrorKind::Evidence,
-            message: "界".repeat(600),
-            attempts,
+        let terminal = ResearchTerminal {
             evidence_items: vec![EvidenceItem {
                 id: "e1".into(),
                 locator: forager::types::EvidenceLocator::Url(format!(
@@ -1009,21 +984,27 @@ mod tests {
                 stop_reason: "insufficient_evidence",
             },
             evidence_dir: "/tmp/evidence".into(),
-            summary_path: Some("/tmp/evidence/summary.json".into()),
             plan_path: "/tmp/evidence/00-plan.json".into(),
             unconsumed_candidates: UnconsumedCandidates {
                 count: 0,
                 path: "/tmp/evidence/candidates.json".into(),
             },
             synthesis_policy: "fetch_before_claim",
+            attempts,
             diagnostic: None,
+            failure: Some(ResearchFailure {
+                kind: AttemptErrorKind::Evidence,
+                message: "界".repeat(600),
+                summary_path: Some("/tmp/evidence/summary.json".into()),
+            }),
         };
         let journal = JournalOutcome {
             status: "disabled",
             reference: None,
             warning: None,
         };
-        let encoded = format_research_failure_json(&research_error, &journal, false)
+        let failure = terminal.failure.as_ref().expect("research failure fixture");
+        let encoded = format_research_failure_json(&terminal, failure, &journal, false)
             .expect("bounded research failure payload");
         let payload: Value = serde_json::from_str(&encoded).expect("research failure JSON");
 
@@ -1062,10 +1043,7 @@ mod tests {
     fn research_failure_payload_never_truncates_extreme_valid_locators() {
         let evidence_dir = format!("/tmp/{}", "e".repeat(5_000));
         let summary_path = format!("{evidence_dir}/summary.json");
-        let research_error = ResearchError {
-            kind: AttemptErrorKind::Evidence,
-            message: "insufficient evidence".into(),
-            attempts: Vec::new(),
+        let terminal = ResearchTerminal {
             evidence_items: Vec::new(),
             capability_gaps: Vec::new(),
             gap_check: ResearchGapCheck {
@@ -1074,21 +1052,27 @@ mod tests {
                 stop_reason: "insufficient_evidence",
             },
             evidence_dir: evidence_dir.clone(),
-            summary_path: Some(summary_path.clone()),
             plan_path: format!("{evidence_dir}/00-plan.json"),
             unconsumed_candidates: UnconsumedCandidates {
                 count: 0,
                 path: format!("{evidence_dir}/candidates.json"),
             },
             synthesis_policy: "fetch_before_claim",
+            attempts: Vec::new(),
             diagnostic: None,
+            failure: Some(ResearchFailure {
+                kind: AttemptErrorKind::Evidence,
+                message: "insufficient evidence".into(),
+                summary_path: Some(summary_path.clone()),
+            }),
         };
         let journal = JournalOutcome {
             status: "disabled",
             reference: None,
             warning: None,
         };
-        let encoded = format_research_failure_json(&research_error, &journal, false)
+        let failure = terminal.failure.as_ref().expect("research failure fixture");
+        let encoded = format_research_failure_json(&terminal, failure, &journal, false)
             .expect("research failure payload");
         let payload: Value = serde_json::from_str(&encoded).expect("research failure JSON");
 
