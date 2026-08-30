@@ -566,14 +566,6 @@ pub struct ProviderAttempt {
     pub breaker_event: Option<&'static str>,
 }
 
-impl ProviderAttempt {
-    pub(crate) fn mark_failed(&mut self, kind: AttemptErrorKind, message: impl Into<String>) {
-        self.disposition = AttemptDisposition::Failed;
-        self.error_kind = Some(kind);
-        self.message = message.into();
-    }
-}
-
 #[derive(Clone, Debug, Serialize)]
 /// A normalized source returned by a search provider.
 pub struct Source {

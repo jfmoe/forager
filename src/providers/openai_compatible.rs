@@ -8,7 +8,10 @@ use reqwest::{Client, Response};
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::attempt_trace;
+use crate::chain::{
+    BudgetPolicy, ChainSettings, ChainStep, DiagnosticMerge, StepIdentity, StepSuccess,
+    StepVerdict, TerminalPolicy, always_continue, run_chain,
+};
 use crate::config::OpenAiCompatibleRuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{
@@ -144,78 +147,85 @@ impl OpenAiCompatible {
         request_kind: MainSearchRequestKind,
     ) -> Result<SearchOutcome, ProviderError> {
         let query = request.query;
+        let verbose = request.verbose;
         let models = self.model_candidates(request.model.as_deref(), request.allow_model_fallback);
-        let mut attempts = Vec::new();
-        let mut diagnostic = None;
-        let mut executable = Vec::new();
-        for model in models {
-            if self.breakers.is_open(&self.config.url, &model) {
-                attempts.push(self.skipped_model_attempt(
-                    &model,
-                    "skipped because the model breaker is open",
-                    Some("open"),
-                ));
-            } else {
-                executable.push(model);
-            }
-        }
-        for model in &executable {
-            let Some(remaining) = self.deadline.remaining() else {
-                break;
-            };
-            match self
-                .execute_model(
-                    &query,
-                    model,
-                    request.verbose,
-                    Deadline::new(remaining),
-                    request_kind,
-                )
-                .await
-            {
-                Ok(mut execution) => {
-                    self.breakers.record_success(&self.config.url, model);
-                    attempts.append(&mut execution.attempts);
-                    diagnostic = execution.diagnostic.or(diagnostic);
-                    let (answer, sources) = execution.value;
-                    return Ok(SearchOutcome {
-                        provider: "openai_compatible",
-                        query,
-                        model: model.clone(),
-                        answer,
-                        sources,
-                        extra_sources: Vec::new(),
-                        capabilities: Vec::new(),
-                        capability_gaps: Vec::new(),
-                        attempts,
-                        diagnostic,
-                    });
-                }
-                Err(mut error) => {
-                    let opened = self.breakers.record_failure(&self.config.url, model);
-                    if opened && let Some(attempt) = error.attempts.last_mut() {
-                        attempt.breaker_event = Some("opened");
+        let steps = models
+            .into_iter()
+            .map(|model| ChainStep {
+                gate_attempt: self.breakers.is_open(&self.config.url, &model).then(|| {
+                    self.skipped_model_attempt(
+                        &model,
+                        "skipped because the model breaker is open",
+                        Some("open"),
+                    )
+                }),
+                context: model,
+                configured: true,
+            })
+            .collect::<Vec<_>>();
+        let endpoint_host = reqwest::Url::parse(&self.config.url)
+            .ok()
+            .and_then(|url| url.host_str().map(ToOwned::to_owned));
+        let identity = |model: &String| StepIdentity {
+            provider: "openai_compatible",
+            model: Some(model.clone()),
+            endpoint_host: endpoint_host.clone(),
+        };
+        let outcome = run_chain(
+            steps,
+            ChainSettings {
+                seam: "main_search",
+                budget_policy: BudgetPolicy::PrimaryFirst,
+                fallback_off: false,
+                diagnostic_merge: DiagnosticMerge::LatestWins,
+                terminal: TerminalPolicy::Tail {
+                    verbose,
+                    default_kind: AttemptErrorKind::Runtime,
+                    exhausted_message: "OpenAI-compatible model chain has no executable models",
+                },
+                identity: &identity,
+                continue_on_failure: &always_continue,
+            },
+            self.deadline,
+            |model, model_deadline| {
+                let query = &query;
+                async move {
+                    match self
+                        .execute_model(query, &model, verbose, model_deadline, request_kind)
+                        .await
+                    {
+                        Ok(execution) => {
+                            self.breakers.record_success(&self.config.url, &model);
+                            StepVerdict::Accepted(StepSuccess {
+                                value: (model, execution.value),
+                                attempts: execution.attempts,
+                                diagnostic: execution.diagnostic,
+                            })
+                        }
+                        Err(mut error) => {
+                            let opened = self.breakers.record_failure(&self.config.url, &model);
+                            if opened && let Some(attempt) = error.attempts.last_mut() {
+                                attempt.breaker_event = Some("opened");
+                            }
+                            StepVerdict::Failed(error)
+                        }
                     }
-                    diagnostic = error.diagnostic.or(diagnostic);
-                    attempts.append(&mut error.attempts);
                 }
-            }
-        }
-        let terminal = attempt_trace::last_failed(&attempts);
-        let kind = terminal
-            .and_then(|attempt| attempt.error_kind)
-            .unwrap_or(AttemptErrorKind::Runtime);
-        let message = terminal.map_or_else(
-            || "OpenAI-compatible model chain has no executable models".into(),
-            |attempt| attempt.message.clone(),
-        );
-        Err(ProviderError {
-            kind,
-            message,
-            attempts,
-            verbose: request.verbose,
-            diagnostic,
-            redirected_library_id: None,
+            },
+        )
+        .await?;
+        let (model, (answer, sources)) = outcome.value;
+        Ok(SearchOutcome {
+            provider: "openai_compatible",
+            query,
+            model,
+            answer,
+            sources,
+            extra_sources: Vec::new(),
+            capabilities: Vec::new(),
+            capability_gaps: Vec::new(),
+            attempts: outcome.attempts,
+            diagnostic: outcome.diagnostic,
         })
     }
 
@@ -228,77 +238,86 @@ impl OpenAiCompatible {
         request_kind: MainSearchRequestKind,
     ) -> Result<crate::providers::execution::ExecutionOutcome<(String, Vec<Source>)>, ProviderError>
     {
-        if !self.config.stream {
-            return self
-                .execute_transport(
-                    query,
-                    model,
-                    verbose,
-                    deadline,
-                    TransportAttempt {
-                        stream: false,
-                        fallback_from: None,
-                    },
-                    request_kind,
-                )
-                .await;
-        }
-        let stream = self
-            .execute_transport(
-                query,
-                model,
-                verbose,
-                deadline,
+        let steps = if self.config.stream {
+            vec![
                 TransportAttempt {
                     stream: true,
                     fallback_from: None,
                 },
-                request_kind,
+                TransportAttempt {
+                    stream: false,
+                    fallback_from: Some("sse"),
+                },
+            ]
+        } else {
+            vec![TransportAttempt {
+                stream: false,
+                fallback_from: None,
+            }]
+        }
+        .into_iter()
+        .map(|transport| ChainStep {
+            context: transport,
+            configured: true,
+            gate_attempt: None,
+        })
+        .collect::<Vec<_>>();
+        let transport_continuable = |error: &ProviderError| {
+            matches!(
+                error.kind,
+                AttemptErrorKind::Timeout | AttemptErrorKind::Network | AttemptErrorKind::Runtime
             )
-            .await;
-        match stream {
-            Ok(outcome) => Ok(outcome),
-            Err(mut stream_error)
-                if matches!(
-                    stream_error.kind,
-                    AttemptErrorKind::Timeout
-                        | AttemptErrorKind::Network
-                        | AttemptErrorKind::Runtime
-                ) =>
-            {
-                let Some(remaining) = deadline.remaining() else {
-                    return Err(stream_error);
-                };
-                let non_stream = self
+        };
+        let identity = |_: &TransportAttempt| StepIdentity {
+            provider: "openai_compatible",
+            model: Some(model.to_owned()),
+            endpoint_host: reqwest::Url::parse(&self.config.url)
+                .ok()
+                .and_then(|url| url.host_str().map(ToOwned::to_owned)),
+        };
+        let outcome = run_chain(
+            steps,
+            ChainSettings {
+                seam: "main_search",
+                budget_policy: BudgetPolicy::PrimaryFirst,
+                fallback_off: false,
+                diagnostic_merge: DiagnosticMerge::LatestWins,
+                terminal: TerminalPolicy::LastError {
+                    verbose,
+                    fallback_kind: AttemptErrorKind::Timeout,
+                    fallback_message: "openai_compatible request failed",
+                },
+                identity: &identity,
+                continue_on_failure: &transport_continuable,
+            },
+            deadline,
+            |transport, transport_deadline| async move {
+                match self
                     .execute_transport(
                         query,
                         model,
                         verbose,
-                        Deadline::new(remaining),
-                        TransportAttempt {
-                            stream: false,
-                            fallback_from: Some("sse"),
-                        },
+                        transport_deadline,
+                        transport,
                         request_kind,
                     )
-                    .await;
-                match non_stream {
-                    Ok(mut outcome) => {
-                        stream_error.attempts.append(&mut outcome.attempts);
-                        outcome.attempts = stream_error.attempts;
-                        outcome.diagnostic = outcome.diagnostic.or(stream_error.diagnostic.take());
-                        Ok(outcome)
-                    }
-                    Err(mut error) => {
-                        stream_error.attempts.append(&mut error.attempts);
-                        error.attempts = stream_error.attempts;
-                        error.diagnostic = error.diagnostic.or(stream_error.diagnostic);
-                        Err(error)
-                    }
+                    .await
+                {
+                    Ok(execution) => StepVerdict::Accepted(StepSuccess {
+                        value: execution.value,
+                        attempts: execution.attempts,
+                        diagnostic: execution.diagnostic,
+                    }),
+                    Err(error) => StepVerdict::Failed(error),
                 }
-            }
-            Err(error) => Err(error),
-        }
+            },
+        )
+        .await?;
+        Ok(crate::providers::execution::ExecutionOutcome {
+            value: outcome.value,
+            attempts: outcome.attempts,
+            diagnostic: outcome.diagnostic,
+        })
     }
 
     async fn execute_transport(

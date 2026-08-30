@@ -5,19 +5,22 @@ use futures_util::{StreamExt, stream};
 use reqwest::Client;
 
 use crate::attempt_trace;
+use crate::chain::{
+    self, BudgetPolicy, ChainSettings, ChainStep, StepIdentity, StepRejection, StepSuccess,
+    StepVerdict,
+};
 use crate::config::{
     DocsSearchRuntimeConfig, MainSearchRuntimeConfig, RuntimeConfig, SeamEntry,
     VerticalSearchRuntimeConfig, WebFetchRuntimeConfig, WebSearchRuntimeConfig,
 };
-use crate::net::{RetryPolicy, combine_diagnostics, slice_budget};
+use crate::net::{RetryPolicy, combine_diagnostics};
 use crate::providers::{self, FetchRequest, MainSearchRequest, ProviderError};
 use crate::redact::redact_url;
 use crate::types::{
-    AttemptDisposition, AttemptErrorKind, AttemptTarget, Capability, CapabilityGap, CapabilitySet,
-    DENSITY_MAX_CHARS, DENSITY_MAX_UNIQUE_LINES, Deadline, DocumentationEvidence,
-    DocumentationSearchOutcome, EvidenceLocator, FallbackPolicy, FetchOutcome,
-    MIN_FETCH_CONTENT_CHARS, ProviderAttempt, SearchCandidate, SearchOutcome, Source,
-    SupplementalSearchOutcome, VerticalSearchOutcome,
+    AttemptErrorKind, Capability, CapabilityGap, CapabilitySet, DENSITY_MAX_CHARS,
+    DENSITY_MAX_UNIQUE_LINES, Deadline, DocumentationEvidence, DocumentationSearchOutcome,
+    EvidenceLocator, FallbackPolicy, FetchOutcome, MIN_FETCH_CONTENT_CHARS, ProviderAttempt,
+    SearchCandidate, SearchOutcome, Source, SupplementalSearchOutcome, VerticalSearchOutcome,
 };
 
 pub(crate) const FANOUT_CONCURRENCY: usize = 4;
@@ -29,26 +32,6 @@ pub(crate) struct CapabilityExecution {
     pub(crate) client: Client,
     pub(crate) retry_policy: RetryPolicy,
     pub(crate) deadline: Deadline,
-}
-
-#[derive(Clone, Copy)]
-enum BudgetPolicy {
-    PrimaryFirst,
-    SlicedEven,
-}
-
-struct ChainSettings {
-    seam: &'static str,
-    budget_policy: BudgetPolicy,
-    exhausted_message: &'static str,
-    error_verbose: bool,
-    fallback_off: bool,
-}
-
-struct ChainStep<T> {
-    value: T,
-    attempts: Vec<ProviderAttempt>,
-    diagnostic: Option<String>,
 }
 
 #[derive(Default)]
@@ -99,143 +82,46 @@ impl CapabilityBranch {
     }
 }
 
-async fn run_provider_chain<C, T, Run, Fut, Accept>(
-    entries: Vec<SeamEntry<C>>,
-    settings: ChainSettings,
-    deadline: Deadline,
-    accept: Accept,
-    mut run: Run,
-) -> Result<ChainStep<T>, ProviderError>
-where
-    Run: FnMut(providers::ProviderId, C, Deadline) -> Fut,
-    Fut: std::future::Future<Output = Result<ChainStep<T>, ProviderError>>,
-    Accept: Fn(&T) -> bool,
-{
-    let entries = if settings.fallback_off {
-        entries.into_iter().take(1).collect::<Vec<_>>()
-    } else {
-        entries
-            .into_iter()
-            .filter(SeamEntry::configured)
-            .collect::<Vec<_>>()
-    };
-    let total = entries.len();
-    let mut attempts = Vec::new();
-    let mut diagnostics = Vec::new();
-    let mut unconsumed_success = None;
-    for (index, entry) in entries.into_iter().enumerate() {
-        let (id, config, configured) = entry.into_parts();
-        if !configured {
-            attempts.push(synthetic_attempt(
-                id,
-                settings.seam,
-                AttemptDisposition::Failed,
-                Some(AttemptErrorKind::Auth),
-                format!("{} has no configured credentials", id.name()),
-            ));
-            break;
-        }
-        let Some(remaining) = deadline.remaining() else {
-            break;
-        };
-        let budget = match settings.budget_policy {
-            BudgetPolicy::PrimaryFirst => remaining,
-            BudgetPolicy::SlicedEven => {
-                let Some(budget) = slice_budget(remaining, total - index) else {
-                    attempts.push(synthetic_attempt(
-                        id,
-                        settings.seam,
-                        AttemptDisposition::Skipped,
-                        None,
-                        "skipped to preserve fallback deadline budget".into(),
-                    ));
-                    continue;
-                };
-                budget
+fn provider_steps<C>(entries: Vec<SeamEntry<C>>) -> Vec<ChainStep<(providers::ProviderId, C)>> {
+    entries
+        .into_iter()
+        .map(|entry| {
+            let (id, config, configured) = entry.into_parts();
+            ChainStep {
+                context: (id, config),
+                configured,
+                gate_attempt: None,
             }
-        };
-        match run(id, config, Deadline::new(budget)).await {
-            Ok(mut step) => {
-                attempts.append(&mut step.attempts);
-                if let Some(diagnostic) = step.diagnostic.take() {
-                    diagnostics.push(diagnostic);
-                }
-                if accept(&step.value) {
-                    return Ok(ChainStep {
-                        value: step.value,
-                        attempts,
-                        diagnostic: combine_diagnostics(diagnostics),
-                    });
-                }
-                unconsumed_success = Some(step.value);
-            }
-            Err(mut error) => {
-                attempts.append(&mut error.attempts);
-                if let Some(diagnostic) = error.diagnostic {
-                    diagnostics.push(diagnostic);
-                }
-            }
-        }
-    }
-    if let Some(value) = unconsumed_success {
-        return Ok(ChainStep {
-            value,
-            attempts,
-            diagnostic: combine_diagnostics(diagnostics),
-        });
-    }
-    Err(provider_chain_error(
-        attempts,
-        settings.error_verbose,
-        combine_diagnostics(diagnostics),
-        settings.exhausted_message,
-    ))
+        })
+        .collect()
 }
 
-fn provider_chain_error(
-    attempts: Vec<ProviderAttempt>,
-    verbose: bool,
-    diagnostic: Option<String>,
-    exhausted_message: &str,
-) -> ProviderError {
-    let terminal = attempt_trace::terminal_attempt(&attempts);
-    ProviderError {
-        kind: terminal
-            .and_then(|attempt| attempt.error_kind)
-            .unwrap_or(AttemptErrorKind::Timeout),
-        message: terminal.map_or_else(
-            || exhausted_message.to_owned(),
-            |attempt| attempt.message.clone(),
-        ),
-        attempts,
-        verbose,
-        diagnostic,
-        redirected_library_id: None,
-    }
-}
-
-fn synthetic_attempt(
-    id: providers::ProviderId,
-    seam: &'static str,
-    disposition: AttemptDisposition,
-    error_kind: Option<AttemptErrorKind>,
-    message: String,
-) -> ProviderAttempt {
-    ProviderAttempt {
-        provider: id.name(),
-        target: AttemptTarget::seam(seam),
-        disposition,
-        error_kind,
-        http_status: None,
-        duration_ms: 0,
-        credential_index: 0,
-        retry_count: 0,
-        rotation_count: 0,
-        message,
+fn provider_identity<C>(context: &(providers::ProviderId, C)) -> StepIdentity {
+    StepIdentity {
+        provider: context.0.name(),
         model: None,
-        transport: None,
         endpoint_host: None,
-        breaker_event: None,
+    }
+}
+
+fn provider_chain_settings<C>(
+    seam: &'static str,
+    budget_policy: BudgetPolicy,
+    fallback_off: bool,
+    verbose: bool,
+    exhausted_message: &'static str,
+) -> ChainSettings<'static, (providers::ProviderId, C)> {
+    ChainSettings {
+        seam,
+        budget_policy,
+        fallback_off,
+        diagnostic_merge: chain::DiagnosticMerge::Join,
+        terminal: chain::TerminalPolicy::ChainWide {
+            verbose,
+            exhausted_message,
+        },
+        identity: &provider_identity::<C>,
+        continue_on_failure: &chain::always_continue,
     }
 }
 
@@ -619,23 +505,22 @@ pub(crate) async fn search(
     deadline: Deadline,
     model_breakers: Arc<providers::ModelBreakers>,
 ) -> Result<SearchOutcome, ProviderError> {
-    let step = run_provider_chain(
-        config.into_entries(),
-        ChainSettings {
-            seam: "main_search",
-            budget_policy: BudgetPolicy::PrimaryFirst,
-            exhausted_message: "main search deadline elapsed",
-            error_verbose: request.verbose,
-            fallback_off: !fallback.allows_fallback(),
-        },
+    let step = chain::run_chain(
+        provider_steps(config.into_entries()),
+        provider_chain_settings(
+            "main_search",
+            BudgetPolicy::PrimaryFirst,
+            !fallback.allows_fallback(),
+            request.verbose,
+            "main search deadline elapsed",
+        ),
         deadline,
-        |_| true,
-        |id, provider_config, provider_deadline| {
+        |(id, provider_config), provider_deadline| {
             let client = client.clone();
             let request = request.clone();
             let model_breakers = model_breakers.clone();
             async move {
-                let mut outcome = providers::build_main_search(
+                match providers::build_main_search(
                     id,
                     provider_config,
                     client,
@@ -644,12 +529,15 @@ pub(crate) async fn search(
                     model_breakers,
                 )
                 .search(request)
-                .await?;
-                Ok(ChainStep {
-                    attempts: std::mem::take(&mut outcome.attempts),
-                    diagnostic: outcome.diagnostic.take(),
-                    value: outcome,
-                })
+                .await
+                {
+                    Ok(mut outcome) => StepVerdict::Accepted(StepSuccess {
+                        attempts: std::mem::take(&mut outcome.attempts),
+                        diagnostic: outcome.diagnostic.take(),
+                        value: outcome,
+                    }),
+                    Err(error) => StepVerdict::Failed(error),
+                }
             }
         },
     )
@@ -667,22 +555,23 @@ pub(crate) async fn fetch(
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> Result<FetchOutcome, ProviderError> {
-    let step = run_provider_chain(
-        config.into_entries(),
-        ChainSettings {
-            seam: "web_fetch",
-            budget_policy: BudgetPolicy::SlicedEven,
-            exhausted_message: "web fetch deadline elapsed",
-            error_verbose: request.verbose,
-            fallback_off: false,
-        },
+    let step = chain::run_chain(
+        provider_steps(config.into_entries()),
+        provider_chain_settings(
+            "web_fetch",
+            BudgetPolicy::SlicedEven {
+                skipped_message: "skipped to preserve fallback deadline budget",
+            },
+            false,
+            request.verbose,
+            "web fetch deadline elapsed",
+        ),
         deadline,
-        |_| true,
-        |id, provider_config, provider_deadline| {
+        |(id, provider_config), provider_deadline| {
             let client = client.clone();
             let request = request.clone();
             async move {
-                let mut outcome = providers::build_web_fetch(
+                match providers::build_web_fetch(
                     id,
                     provider_config,
                     client,
@@ -690,27 +579,29 @@ pub(crate) async fn fetch(
                     provider_deadline,
                 )
                 .fetch(&request)
-                .await?;
-                if is_thin(&outcome.content, &request.url) {
-                    let character_count = outcome.content.chars().count();
-                    if let Some(attempt) = outcome.attempts.last_mut() {
-                        attempt.mark_failed(
-                            AttemptErrorKind::Quality,
-                            format!("extracted content is too thin ({character_count} characters)"),
-                        );
+                .await
+                {
+                    Ok(outcome) => {
+                        if is_thin(&outcome.content, &request.url) {
+                            let character_count = outcome.content.chars().count();
+                            StepVerdict::QualityRejected(StepRejection {
+                                attempts: outcome.attempts,
+                                diagnostic: outcome.diagnostic,
+                                kind: AttemptErrorKind::Quality,
+                                message: format!(
+                                    "extracted content is too thin ({character_count} characters)"
+                                ),
+                            })
+                        } else {
+                            StepVerdict::Accepted(StepSuccess {
+                                value: (outcome.provider, outcome.content),
+                                attempts: outcome.attempts,
+                                diagnostic: outcome.diagnostic,
+                            })
+                        }
                     }
-                    return Err(provider_chain_error(
-                        outcome.attempts,
-                        request.verbose,
-                        outcome.diagnostic,
-                        "web fetch content is too thin",
-                    ));
+                    Err(error) => StepVerdict::Failed(error),
                 }
-                Ok(ChainStep {
-                    value: (outcome.provider, outcome.content),
-                    attempts: outcome.attempts,
-                    diagnostic: outcome.diagnostic,
-                })
             }
         },
     )
@@ -735,21 +626,22 @@ pub(crate) async fn supplemental_web_search(
     execution: CapabilityExecution,
 ) -> Result<SupplementalSearchOutcome, ProviderError> {
     let fallback_off = !execution.fallback.allows_fallback();
-    let step = run_provider_chain(
-        config.into_entries(),
-        ChainSettings {
-            seam: "web_search",
-            budget_policy: BudgetPolicy::SlicedEven,
-            exhausted_message: "supplemental web search has no executable provider",
-            error_verbose: false,
+    let step = chain::run_chain(
+        provider_steps(config.into_entries()),
+        provider_chain_settings(
+            "web_search",
+            BudgetPolicy::SlicedEven {
+                skipped_message: "skipped to preserve fallback deadline budget",
+            },
             fallback_off,
-        },
+            false,
+            "supplemental web search has no executable provider",
+        ),
         execution.deadline,
-        |sources: &Vec<Source>| !sources.is_empty(),
-        |id, provider_config, deadline| {
+        |(id, provider_config), deadline| {
             let client = execution.client.clone();
             async move {
-                let outcome = providers::build_web_search(
+                match providers::build_web_search(
                     id,
                     provider_config,
                     client,
@@ -757,12 +649,22 @@ pub(crate) async fn supplemental_web_search(
                     deadline,
                 )
                 .search(query, limit)
-                .await?;
-                Ok(ChainStep {
-                    value: outcome.sources,
-                    attempts: outcome.attempts,
-                    diagnostic: outcome.diagnostic,
-                })
+                .await
+                {
+                    Ok(outcome) => {
+                        let success = StepSuccess {
+                            value: outcome.sources,
+                            attempts: outcome.attempts,
+                            diagnostic: outcome.diagnostic,
+                        };
+                        if success.value.is_empty() {
+                            StepVerdict::LegitimateEmpty(success)
+                        } else {
+                            StepVerdict::Accepted(success)
+                        }
+                    }
+                    Err(error) => StepVerdict::Failed(error),
+                }
             }
         },
     )
@@ -780,21 +682,22 @@ pub(crate) async fn documentation_search(
     config: DocsSearchRuntimeConfig,
     execution: CapabilityExecution,
 ) -> Result<DocumentationSearchOutcome, ProviderError> {
-    let step = run_provider_chain(
-        config.into_entries(),
-        ChainSettings {
-            seam: "docs_search",
-            budget_policy: BudgetPolicy::SlicedEven,
-            exhausted_message: "documentation search has no executable provider",
-            error_verbose: false,
-            fallback_off: !execution.fallback.allows_fallback(),
-        },
+    let step = chain::run_chain(
+        provider_steps(config.into_entries()),
+        provider_chain_settings(
+            "docs_search",
+            BudgetPolicy::SlicedEven {
+                skipped_message: "skipped to preserve fallback deadline budget",
+            },
+            !execution.fallback.allows_fallback(),
+            false,
+            "documentation search has no executable provider",
+        ),
         execution.deadline,
-        |candidate_sources: &Vec<SearchCandidate>| !candidate_sources.is_empty(),
-        |id, provider_config, deadline| {
+        |(id, provider_config), deadline| {
             let client = execution.client.clone();
             async move {
-                let mut outcome = providers::build_docs_search(
+                match providers::build_docs_search(
                     id,
                     provider_config,
                     client,
@@ -802,26 +705,27 @@ pub(crate) async fn documentation_search(
                     deadline,
                 )
                 .search(query, limit)
-                .await?;
-                if outcome.candidate_sources.is_empty() {
-                    if let Some(attempt) = outcome.attempts.last_mut() {
-                        attempt.mark_failed(
-                            AttemptErrorKind::Evidence,
-                            "documentation search returned no consumable source",
-                        );
+                .await
+                {
+                    Ok(outcome) => {
+                        if outcome.candidate_sources.is_empty() {
+                            StepVerdict::QualityRejected(StepRejection {
+                                attempts: outcome.attempts,
+                                diagnostic: outcome.diagnostic,
+                                kind: AttemptErrorKind::Evidence,
+                                message: "documentation search returned no consumable source"
+                                    .into(),
+                            })
+                        } else {
+                            StepVerdict::Accepted(StepSuccess {
+                                value: outcome.candidate_sources,
+                                attempts: outcome.attempts,
+                                diagnostic: outcome.diagnostic,
+                            })
+                        }
                     }
-                    return Err(provider_chain_error(
-                        outcome.attempts,
-                        false,
-                        outcome.diagnostic,
-                        "documentation search returned no consumable source",
-                    ));
+                    Err(error) => StepVerdict::Failed(error),
                 }
-                Ok(ChainStep {
-                    value: outcome.candidate_sources,
-                    attempts: outcome.attempts,
-                    diagnostic: outcome.diagnostic,
-                })
             }
         },
     )
@@ -888,13 +792,12 @@ pub(crate) async fn documentation_read(
         .or_else(|| evidence.locator.library_id())
         .unwrap_or_default();
     if is_thin(&evidence.content, identity) {
-        if let Some(attempt) = evidence.attempts.last_mut() {
-            attempt.mark_failed(
-                AttemptErrorKind::Quality,
-                "documentation content is too thin",
-            );
-        }
-        return Err(provider_chain_error(
+        chain::mark_last_attempt_failed(
+            &mut evidence.attempts,
+            AttemptErrorKind::Quality,
+            "documentation content is too thin",
+        );
+        return Err(chain::chain_wide_error(
             evidence.attempts,
             false,
             evidence.diagnostic,
@@ -910,21 +813,22 @@ pub(crate) async fn vertical_search(
     config: VerticalSearchRuntimeConfig,
     execution: CapabilityExecution,
 ) -> Result<VerticalSearchOutcome, ProviderError> {
-    let step = run_provider_chain(
-        config.into_entries(),
-        ChainSettings {
-            seam: "vertical_search",
-            budget_policy: BudgetPolicy::SlicedEven,
-            exhausted_message: "vertical search has no executable provider",
-            error_verbose: false,
-            fallback_off: !execution.fallback.allows_fallback(),
-        },
+    let step = chain::run_chain(
+        provider_steps(config.into_entries()),
+        provider_chain_settings(
+            "vertical_search",
+            BudgetPolicy::SlicedEven {
+                skipped_message: "skipped to preserve fallback deadline budget",
+            },
+            !execution.fallback.allows_fallback(),
+            false,
+            "vertical search has no executable provider",
+        ),
         execution.deadline,
-        |_| true,
-        |id, provider_config, deadline| {
+        |(id, provider_config), deadline| {
             let client = execution.client.clone();
             async move {
-                let outcome = providers::build_vertical_search(
+                match providers::build_vertical_search(
                     id,
                     provider_config,
                     client,
@@ -932,12 +836,15 @@ pub(crate) async fn vertical_search(
                     deadline,
                 )
                 .search(query, limit)
-                .await?;
-                Ok(ChainStep {
-                    value: (outcome.results, outcome.sources),
-                    attempts: outcome.attempts,
-                    diagnostic: outcome.diagnostic,
-                })
+                .await
+                {
+                    Ok(outcome) => StepVerdict::Accepted(StepSuccess {
+                        value: (outcome.results, outcome.sources),
+                        attempts: outcome.attempts,
+                        diagnostic: outcome.diagnostic,
+                    }),
+                    Err(error) => StepVerdict::Failed(error),
+                }
             }
         },
     )
@@ -978,9 +885,8 @@ fn is_pdf(url: &str) -> bool {
 mod tests {
     use std::time::Duration;
 
-    use super::{CapabilityTargets, provider_chain_error};
+    use super::CapabilityTargets;
     use crate::net::slice_budget;
-    use crate::types::{AttemptDisposition, AttemptErrorKind, AttemptTarget, ProviderAttempt};
 
     #[test]
     fn capability_targets_preserve_branch_local_defaults_and_positive_requests() {
@@ -1014,44 +920,6 @@ mod tests {
                 expected,
                 "remaining={remaining}, slots={slots}"
             );
-        }
-    }
-
-    #[test]
-    fn fetch_terminal_error_uses_kind_and_message_from_the_same_attempt() {
-        let attempts = vec![
-            attempt_with_message("tavily", AttemptErrorKind::Quality, "thin content"),
-            attempt_with_message("jina", AttemptErrorKind::Network, "connection reset"),
-        ];
-
-        let error = provider_chain_error(attempts, false, None, "web fetch deadline elapsed");
-
-        assert_eq!(
-            (error.kind, error.message.as_str()),
-            (AttemptErrorKind::Quality, "thin content")
-        );
-    }
-
-    fn attempt_with_message(
-        provider: &'static str,
-        kind: AttemptErrorKind,
-        message: &str,
-    ) -> ProviderAttempt {
-        ProviderAttempt {
-            provider,
-            target: AttemptTarget::seam("web_fetch"),
-            disposition: AttemptDisposition::Failed,
-            error_kind: Some(kind),
-            http_status: None,
-            duration_ms: 0,
-            credential_index: 0,
-            retry_count: 0,
-            rotation_count: 0,
-            message: message.into(),
-            model: None,
-            transport: None,
-            endpoint_host: None,
-            breaker_event: None,
         }
     }
 }

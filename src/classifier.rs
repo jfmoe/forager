@@ -5,18 +5,20 @@ use reqwest::Client;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use crate::attempt_trace;
+use crate::chain::{
+    BudgetPolicy, ChainSettings, ChainStep, DiagnosticMerge, StepIdentity, StepSuccess,
+    StepVerdict, TerminalPolicy, always_continue, run_chain,
+};
 use crate::config::ClassifierRuntimeConfig;
 use crate::credentials::CredentialPool;
-use crate::net::{
-    ResponseBodyPolicy, RetryPolicy, error_kind_for_status, read_response_body, slice_budget,
-};
+use crate::net::{ResponseBodyPolicy, RetryPolicy, error_kind_for_status, read_response_body};
+use crate::providers::ProviderError;
 use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2};
 use crate::providers::shared::redacted_urls_message;
 use crate::redact::Secret;
 use crate::types::{
-    AttemptDisposition, AttemptErrorKind, AttemptTarget, Capability, CapabilitySet, Deadline,
-    ProviderAttempt, ResearchPlan,
+    AttemptErrorKind, AttemptTarget, Capability, CapabilitySet, Deadline, ProviderAttempt,
+    ResearchPlan,
 };
 
 const VOCABULARY: &str = include_str!("../skills/forager/references/capability-vocabulary.json");
@@ -161,46 +163,66 @@ impl Classifier {
         };
         let stage_deadline =
             Deadline::new(command_remaining.min(Duration::from_secs(self.config.timeout_seconds)));
-        let models = self.model_candidates();
-        let mut attempts = Vec::new();
-
-        for (index, model) in models.iter().enumerate() {
-            let Some(remaining) = stage_deadline.remaining() else {
-                break;
-            };
-            let slots = models.len() - index;
-            let Some(model_budget) = slice_budget(remaining, slots) else {
-                attempts.push(self.skipped_attempt(
-                    model,
-                    "skipped to preserve classifier model fallback deadline budget",
-                ));
-                continue;
-            };
-            match self
-                .execute_model(query, model, Deadline::new(model_budget), &spec)
-                .await
-            {
-                Ok((decision, mut model_attempts)) => {
-                    attempts.append(&mut model_attempts);
-                    return Ok(DecisionSuccess {
-                        decision,
-                        attempts,
-                        duration: started.elapsed(),
-                    });
+        let endpoint_host = reqwest::Url::parse(&self.config.url)
+            .ok()
+            .and_then(|url| url.host_str().map(ToOwned::to_owned));
+        let identity = |model: &String| StepIdentity {
+            provider: "classifier",
+            model: Some(model.clone()),
+            endpoint_host: endpoint_host.clone(),
+        };
+        let outcome = run_chain(
+            self.model_candidates()
+                .into_iter()
+                .map(|model| ChainStep {
+                    context: model,
+                    configured: true,
+                    gate_attempt: None,
+                })
+                .collect(),
+            ChainSettings {
+                seam: "classifier",
+                budget_policy: BudgetPolicy::SlicedEven {
+                    skipped_message: "skipped to preserve classifier model fallback deadline budget",
+                },
+                fallback_off: false,
+                diagnostic_merge: DiagnosticMerge::LatestWins,
+                terminal: TerminalPolicy::Tail {
+                    verbose: false,
+                    default_kind: AttemptErrorKind::Runtime,
+                    exhausted_message: "classifier model chain exhausted",
+                },
+                identity: &identity,
+                continue_on_failure: &always_continue,
+            },
+            stage_deadline,
+            |model, model_deadline| {
+                let spec = &spec;
+                async move {
+                    match self.execute_model(query, &model, model_deadline, spec).await {
+                        Ok((decision, attempts)) => StepVerdict::Accepted(StepSuccess {
+                            value: decision,
+                            attempts,
+                            diagnostic: None,
+                        }),
+                        Err(error) => StepVerdict::Failed(error),
+                    }
                 }
-                Err(mut model_attempts) => attempts.append(&mut model_attempts),
-            }
+            },
+        )
+        .await;
+        match outcome {
+            Ok(chain) => Ok(DecisionSuccess {
+                decision: chain.value,
+                attempts: chain.attempts,
+                duration: started.elapsed(),
+            }),
+            Err(error) => Err(ClassifierFailure {
+                attempts: error.attempts,
+                duration: started.elapsed(),
+                message: error.message,
+            }),
         }
-
-        let message = attempt_trace::last_failed(&attempts).map_or_else(
-            || "classifier model chain exhausted".into(),
-            |attempt| attempt.message.clone(),
-        );
-        Err(ClassifierFailure {
-            attempts,
-            duration: started.elapsed(),
-            message,
-        })
     }
 
     async fn execute_model<T>(
@@ -209,7 +231,7 @@ impl Classifier {
         model: &str,
         deadline: Deadline,
         spec: &DecisionSpec<T>,
-    ) -> Result<(T, Vec<ProviderAttempt>), Vec<ProviderAttempt>> {
+    ) -> Result<(T, Vec<ProviderAttempt>), ProviderError> {
         let endpoint_host = reqwest::Url::parse(&self.config.url)
             .ok()
             .and_then(|url| url.host_str().map(ToOwned::to_owned));
@@ -232,7 +254,6 @@ impl Classifier {
         )
         .await
         .map(|outcome| (outcome.value, outcome.attempts))
-        .map_err(|error| error.attempts)
     }
 
     async fn send_once<T>(
@@ -346,27 +367,6 @@ impl Classifier {
             }
         }
         models
-    }
-
-    fn skipped_attempt(&self, model: &str, message: &str) -> ProviderAttempt {
-        ProviderAttempt {
-            provider: "classifier",
-            target: AttemptTarget::seam("classifier"),
-            disposition: AttemptDisposition::Skipped,
-            error_kind: None,
-            http_status: None,
-            duration_ms: 0,
-            credential_index: 0,
-            retry_count: 0,
-            rotation_count: 0,
-            message: message.into(),
-            model: Some(model.into()),
-            transport: None,
-            endpoint_host: reqwest::Url::parse(&self.config.url)
-                .ok()
-                .and_then(|url| url.host_str().map(ToOwned::to_owned)),
-            breaker_event: None,
-        }
     }
 }
 
