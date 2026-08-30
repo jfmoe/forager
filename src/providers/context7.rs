@@ -1,4 +1,4 @@
-use std::sync::LazyLock;
+use std::sync::{Arc, LazyLock, Mutex};
 use std::time::Duration;
 
 use reqwest::Client;
@@ -7,9 +7,9 @@ use serde_json::{Map, Value, json};
 
 use crate::config::Context7RuntimeConfig;
 use crate::credentials::CredentialPool;
-use crate::net::{McpClient, McpError, McpToolResult, RetryPolicy};
+use crate::net::{AttemptFailure, McpClient, McpError, McpToolResult, RetryPolicy};
 use crate::providers::ProviderError;
-use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2};
+use crate::providers::execution::{ExecutionSettings, execute_v2};
 use crate::providers::shared::redacted_urls_message;
 use crate::types::{
     AttemptErrorKind, AttemptTarget, Context7DocsOutcome, Context7LibraryOutcome, Context7Outcome,
@@ -76,6 +76,8 @@ impl Context7 {
         operation: Context7Operation,
     ) -> Result<Context7Outcome, ProviderError> {
         let operation_ref = &operation;
+        let redirected_library_id = Arc::new(Mutex::new(None));
+        let redirect_capture = Arc::clone(&redirected_library_id);
         let execution = execute_v2(
             &self.credentials,
             ExecutionSettings {
@@ -91,28 +93,43 @@ impl Context7 {
                 endpoint_host: None,
                 breaker_event: None,
             },
-            |credential, attempt_deadline| async move {
-                McpClient::new(
-                    &self.client,
-                    &self.config.url,
-                    &MCP_HEADERS,
-                    attempt_deadline,
-                )
-                .call_tool(&credential, operation_ref.tool(), operation_ref.arguments())
-                .await
-                .map_err(Context7Failure::from)
-                .and_then(|result| operation_ref.decode(result).map(|outcome| (200, outcome)))
-                .map_err(|failure| AttemptFailure {
-                    kind: failure.kind,
-                    status: failure.status,
-                    message: redacted_urls_message(&failure.message, &self.credentials),
-                    redirected_library_id: failure
-                        .redirected_library_id
-                        .map(|target| redacted_urls_message(&target, &self.credentials)),
-                })
+            |credential, attempt_deadline| {
+                let redirect_capture = Arc::clone(&redirect_capture);
+                async move {
+                    McpClient::new(
+                        &self.client,
+                        &self.config.url,
+                        &MCP_HEADERS,
+                        attempt_deadline,
+                    )
+                    .call_tool(&credential, operation_ref.tool(), operation_ref.arguments())
+                    .await
+                    .map_err(Context7Failure::from)
+                    .and_then(|result| operation_ref.decode(result).map(|outcome| (200, outcome)))
+                    .map_err(|failure| {
+                        if let Some(target) = failure.redirected_library_id {
+                            let target = redacted_urls_message(&target, &self.credentials);
+                            if let Ok(mut capture) = redirect_capture.lock() {
+                                *capture = Some(target);
+                            }
+                        }
+                        AttemptFailure {
+                            kind: failure.kind,
+                            status: failure.status,
+                            message: redacted_urls_message(&failure.message, &self.credentials),
+                        }
+                    })
+                }
             },
         )
-        .await?;
+        .await
+        .map_err(|mut error| {
+            error.redirected_library_id = redirected_library_id
+                .lock()
+                .ok()
+                .and_then(|capture| capture.clone());
+            error
+        })?;
         let visible_attempts = if operation.verbose() {
             execution.attempts
         } else {

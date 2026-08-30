@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use eventsource_stream::{EventStreamError, Eventsource};
 use futures_util::StreamExt;
 use reqwest::{Client, Response};
 use serde::Serialize;
@@ -15,10 +14,9 @@ use crate::chain::{
 use crate::config::OpenAiCompatibleRuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{
-    CappedStreamError, MAX_RESPONSE_BYTES, ResponseBodyPolicy, RetryPolicy, capped_stream,
-    error_kind_for_status, read_response_body,
+    AttemptFailure, RetryPolicy, read_capped_sse, read_complete_protocol, send_provider_request,
 };
-use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2};
+use crate::providers::execution::{ExecutionSettings, execute_v2};
 use crate::providers::shared::{
     normalize_main_search, redact_and_deduplicate_sources, redacted_urls_message,
 };
@@ -414,7 +412,7 @@ impl OpenAiCompatible {
             role: "user",
             content: &input,
         });
-        let response = self
+        let request = self
             .client
             .post(endpoint)
             .bearer_auth(credential.expose())
@@ -423,30 +421,9 @@ impl OpenAiCompatible {
                 model,
                 messages,
                 stream,
-            })
-            .send()
-            .await
-            .map_err(|error| self.request_failure(&error))?;
-        let status = response.status();
-        if !status.is_success() {
-            let body = read_response_body(response, ResponseBodyPolicy::Error)
-                .await
-                .map(|body| body.text)
-                .unwrap_or_default();
-            return Err(AttemptFailure {
-                kind: error_kind_for_status(status, &body),
-                status: Some(status.as_u16()),
-                message: redacted_urls_message(
-                    if body.trim().is_empty() {
-                        "OpenAI-compatible request failed"
-                    } else {
-                        &body
-                    },
-                    &self.credentials,
-                ),
-                redirected_library_id: None,
             });
-        }
+        let response = send_provider_request(request, &self.credentials).await?;
+        let status = response.status().as_u16();
         let (answer, sources) = if stream {
             self.stream_response(response).await?
         } else {
@@ -460,7 +437,7 @@ impl OpenAiCompatible {
                 redact_and_deduplicate_sources(sources, &self.credentials),
             )
         };
-        Ok((status.as_u16(), value))
+        Ok((status, value))
     }
 
     async fn http_response(
@@ -473,12 +450,8 @@ impl OpenAiCompatible {
             .and_then(|value| value.to_str().ok())
             .unwrap_or_default()
             .to_ascii_lowercase();
-        let body = read_response_body(response, ResponseBodyPolicy::CompleteProtocol)
-            .await
-            .map_err(|error| match error {
-                CappedStreamError::Transport(error) => self.request_failure(&error),
-                CappedStreamError::LimitExceeded => response_limit_failure(),
-            })?;
+        let body =
+            read_complete_protocol(response, &self.credentials, openai_compatible_error).await?;
         if content_type.contains("text/event-stream") || body.text.trim_start().starts_with("data:")
         {
             return self.parse_sse_text(&body.text);
@@ -490,7 +463,6 @@ impl OpenAiCompatible {
                 &format!("OpenAI-compatible returned invalid JSON: {error}"),
                 &self.credentials,
             ),
-            redirected_library_id: None,
         })?;
         Self::normalize(&value, false)
     }
@@ -499,28 +471,18 @@ impl OpenAiCompatible {
         &self,
         response: Response,
     ) -> Result<(String, Vec<Source>), AttemptFailure> {
-        let mut events = capped_stream(response.bytes_stream(), MAX_RESPONSE_BYTES).eventsource();
+        let (_, mut events) = read_capped_sse(
+            response,
+            &self.credentials,
+            openai_compatible_error,
+            "OpenAI-compatible returned invalid SSE",
+        )
+        .await?;
         let mut answer = String::new();
         let mut sources = Vec::new();
         let mut completed = false;
         while let Some(event) = events.next().await {
-            let event = match event {
-                Err(EventStreamError::Transport(CappedStreamError::LimitExceeded)) => {
-                    return Err(response_limit_failure());
-                }
-                Err(error) => {
-                    return Err(AttemptFailure {
-                        kind: AttemptErrorKind::Network,
-                        status: Some(200),
-                        message: redacted_urls_message(
-                            &format!("OpenAI-compatible returned invalid SSE: {error}"),
-                            &self.credentials,
-                        ),
-                        redirected_library_id: None,
-                    });
-                }
-                Ok(event) => event,
-            };
+            let event = event?;
             completed |= self.consume_sse_data(&event.data, &mut answer, &mut sources)?;
         }
         finish(answer, sources, completed)
@@ -559,7 +521,6 @@ impl OpenAiCompatible {
                 &format!("OpenAI-compatible returned invalid event JSON: {error}"),
                 &self.credentials,
             ),
-            redirected_library_id: None,
         })?;
         let completed = has_finish_reason(&value);
         let (delta, event_sources) = Self::normalize(&value, true)?;
@@ -589,28 +550,17 @@ impl OpenAiCompatible {
                 kind: AttemptErrorKind::Runtime,
                 status: Some(200),
                 message: "OpenAI-compatible response contained no answer".into(),
-                redirected_library_id: None,
             });
         }
         Ok((content.to_owned(), sources))
     }
-
-    fn request_failure(&self, error: &reqwest::Error) -> AttemptFailure {
-        AttemptFailure {
-            kind: AttemptErrorKind::Network,
-            status: error.status().map(|status| status.as_u16()),
-            message: redacted_urls_message(&error.to_string(), &self.credentials),
-            redirected_library_id: None,
-        }
-    }
 }
 
-fn response_limit_failure() -> AttemptFailure {
-    AttemptFailure {
-        kind: AttemptErrorKind::Runtime,
-        status: Some(200),
-        message: "response exceeded 4 MiB".into(),
-        redirected_library_id: None,
+fn openai_compatible_error(body: &str, _status: u16) -> String {
+    if body.trim().is_empty() {
+        "OpenAI-compatible request failed".into()
+    } else {
+        body.to_owned()
     }
 }
 
@@ -696,7 +646,6 @@ fn finish(
                 "OpenAI-compatible stream ended with an empty answer"
             }
             .into(),
-            redirected_library_id: None,
         });
     }
     Ok((answer, sources))

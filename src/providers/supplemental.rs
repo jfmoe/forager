@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::WebFetchProviderConfig;
 use crate::credentials::CredentialPool;
-use crate::net::{ResponseBodyPolicy, RetryPolicy, error_kind_for_status, read_response_body};
-use crate::providers::execution::{self, AttemptFailure, ExecutionSettings};
+use crate::net::{AttemptFailure, RetryPolicy, read_complete_protocol, send_provider_request};
+use crate::providers::execution::{self, ExecutionSettings};
 use crate::providers::shared::redacted_urls_message;
 use crate::providers::{ProviderError, ProviderId};
 use crate::redact::{Secret, redact_url, redact_urls};
@@ -97,32 +97,9 @@ impl SupplementalSearch {
                 .bearer_auth(credential.expose())
                 .json(&FirecrawlRequest { query, limit })
         };
-        let response = request.send().await.map_err(|error| AttemptFailure {
-            kind: AttemptErrorKind::Network,
-            status: error.status().map(|status| status.as_u16()),
-            message: redacted_urls_message(&error.to_string(), &self.credentials),
-            redirected_library_id: None,
-        })?;
-        let status = response.status();
-        let body = read_response_body(
-            response,
-            ResponseBodyPolicy::for_status(status, ResponseBodyPolicy::CompleteProtocol),
-        )
-        .await
-        .map_err(|error| AttemptFailure {
-            kind: error.attempt_error_kind(),
-            status: Some(status.as_u16()),
-            message: redacted_urls_message(&error.to_string(), &self.credentials),
-            redirected_library_id: None,
-        })?;
-        if !status.is_success() {
-            return Err(AttemptFailure {
-                kind: error_kind_for_status(status, &body.text),
-                status: Some(status.as_u16()),
-                message: redacted_urls_message(&body.text, &self.credentials),
-                redirected_library_id: None,
-            });
-        }
+        let response = send_provider_request(request, &self.credentials).await?;
+        let body = read_complete_protocol(response, &self.credentials, raw_error_body).await?;
+        let status = body.status;
         let results = if self.provider == ProviderId::Tavily {
             serde_json::from_str::<TavilySearchResponse>(&body.text)
                 .map(|response| response.results)
@@ -132,15 +109,14 @@ impl SupplementalSearch {
         }
         .map_err(|error| AttemptFailure {
             kind: AttemptErrorKind::Runtime,
-            status: Some(status.as_u16()),
+            status: Some(status),
             message: redacted_urls_message(
                 &format!("invalid {provider} search response: {error}"),
                 &self.credentials,
             ),
-            redirected_library_id: None,
         })?;
-        let sources = self.normalize_sources(results, limit, status.as_u16())?;
-        Ok((status.as_u16(), sources))
+        let sources = self.normalize_sources(results, limit, status)?;
+        Ok((status, sources))
     }
 
     fn normalize_sources(
@@ -170,7 +146,6 @@ impl SupplementalSearch {
                         "invalid {} search response: result URL must use HTTP(S)",
                         self.provider.name()
                     ),
-                    redirected_library_id: None,
                 });
             }
             sources.push(Source {
@@ -198,7 +173,6 @@ impl SupplementalSearch {
                     "{} search returned no valid candidate",
                     self.provider.name()
                 ),
-                redirected_library_id: None,
             });
         }
         Ok(sources)
@@ -250,4 +224,8 @@ struct SearchResult {
     #[serde(rename = "publishedDate", alias = "published_date")]
     published_date: Option<String>,
     author: Option<String>,
+}
+
+fn raw_error_body(body: &str, _status: u16) -> String {
+    body.to_owned()
 }

@@ -2,7 +2,7 @@ use std::future::Future;
 use std::time::{Duration, Instant};
 
 use crate::credentials::CredentialPool;
-use crate::net::{RetryPolicy, duration_millis};
+use crate::net::{AttemptFailure, RetryPolicy, duration_millis};
 use crate::providers::ProviderError;
 use crate::redact::Secret;
 use crate::types::{
@@ -13,13 +13,6 @@ pub(crate) struct ExecutionOutcome<T> {
     pub(crate) value: T,
     pub(crate) attempts: Vec<ProviderAttempt>,
     pub(crate) diagnostic: Option<String>,
-}
-
-pub(crate) struct AttemptFailure {
-    pub(crate) kind: AttemptErrorKind,
-    pub(crate) status: Option<u16>,
-    pub(crate) message: String,
-    pub(crate) redirected_library_id: Option<String>,
 }
 
 pub(crate) struct ExecutionSettings {
@@ -61,7 +54,6 @@ where
                 attempts,
                 settings.verbose,
                 selection.diagnostic.clone(),
-                None,
             ));
         };
         let attempt_limit = remaining.min(settings.attempt_timeout);
@@ -101,11 +93,9 @@ where
                 kind: AttemptErrorKind::Timeout,
                 status: None,
                 message: settings.timeout_message.into(),
-                redirected_library_id: None,
             },
         };
         let kind = failure.kind;
-        let redirected_library_id = failure.redirected_library_id;
         attempts.push(ProviderAttempt {
             provider: settings.provider,
             target: settings.target,
@@ -144,7 +134,6 @@ where
                     attempts,
                     settings.verbose,
                     selection.diagnostic.clone(),
-                    redirected_library_id,
                 ));
             }
             tokio::time::sleep(wait).await;
@@ -156,7 +145,6 @@ where
             attempts,
             settings.verbose,
             selection.diagnostic.clone(),
-            redirected_library_id,
         ));
     }
 }
@@ -167,7 +155,6 @@ fn terminal_error(
     attempts: Vec<ProviderAttempt>,
     verbose: bool,
     diagnostic: Option<String>,
-    redirected_library_id: Option<String>,
 ) -> ProviderError {
     let message = attempts.last().map_or_else(
         || format!("{provider} request failed"),
@@ -179,6 +166,6 @@ fn terminal_error(
         attempts,
         verbose,
         diagnostic,
-        redirected_library_id,
+        redirected_library_id: None,
     }
 }

@@ -1,16 +1,15 @@
-use eventsource_stream::{Event, EventStreamError, Eventsource};
+use eventsource_stream::Event;
 use futures_util::{Stream, StreamExt};
-use reqwest::{Client, Response, StatusCode};
+use reqwest::{Client, StatusCode};
 use serde::Serialize;
 use serde_json::Value;
 
 use crate::config::XaiRuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{
-    CappedStreamError, MAX_RESPONSE_BYTES, ResponseBodyPolicy, RetryPolicy, capped_stream,
-    error_kind_for_status, read_response_body,
+    AttemptFailure, RetryPolicy, error_kind_for_status, read_capped_sse, send_provider_request,
 };
-use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2};
+use crate::providers::execution::{ExecutionSettings, execute_v2};
 use crate::providers::shared::{
     normalize_main_search, redact_and_deduplicate_sources, redacted_urls_message,
 };
@@ -138,41 +137,21 @@ impl Xai {
             stream: true,
             tools,
         };
-        let response = self
+        let request = self
             .client
             .post(endpoint)
             .bearer_auth(credential.expose())
             .header("accept", "text/event-stream")
-            .json(&body)
-            .send()
-            .await
-            .map_err(|error| AttemptFailure {
-                kind: AttemptErrorKind::Network,
-                status: error.status().map(|status| status.as_u16()),
-                message: redacted_urls_message(&error.to_string(), &self.credentials),
-                redirected_library_id: None,
-            })?;
-        let status = response.status();
-        if !status.is_success() {
-            let body = read_response_body(response, ResponseBodyPolicy::Error)
-                .await
-                .map(|body| body.text)
-                .unwrap_or_default();
-            return Err(AttemptFailure {
-                kind: error_kind_for_status(status, &body),
-                status: Some(status.as_u16()),
-                message: redacted_urls_message(
-                    if body.trim().is_empty() {
-                        "xAI Responses request failed"
-                    } else {
-                        &body
-                    },
-                    &self.credentials,
-                ),
-                redirected_library_id: None,
-            });
-        }
-        let (answer, sources) = self.completed_response(response).await?;
+            .json(&body);
+        let response = send_provider_request(request, &self.credentials).await?;
+        let (status, events) = read_capped_sse(
+            response,
+            &self.credentials,
+            xai_error,
+            "xAI Responses returned invalid SSE",
+        )
+        .await?;
+        let (answer, sources) = self.completed_from_events(events).await?;
         let outcome = if matches!(request_kind, MainSearchRequestKind::Search) {
             normalize_main_search(&answer, sources, &self.credentials)?
         } else {
@@ -181,49 +160,19 @@ impl Xai {
                 redact_and_deduplicate_sources(sources, &self.credentials),
             )
         };
-        Ok((status.as_u16(), outcome))
+        Ok((status, outcome))
     }
 
-    async fn completed_response(
-        &self,
-        response: Response,
-    ) -> Result<(String, Vec<Source>), AttemptFailure> {
-        let events = capped_stream(response.bytes_stream(), MAX_RESPONSE_BYTES).eventsource();
-        self.completed_from_events(events).await
-    }
-
-    async fn completed_from_events<S, E>(
+    async fn completed_from_events<S>(
         &self,
         mut events: S,
     ) -> Result<(String, Vec<Source>), AttemptFailure>
     where
-        S: Stream<Item = Result<Event, EventStreamError<CappedStreamError<E>>>> + Unpin,
-        E: std::fmt::Display,
+        S: Stream<Item = Result<Event, AttemptFailure>> + Unpin,
     {
         let mut completed = None;
         while let Some(event) = events.next().await {
-            let event = match event {
-                Err(EventStreamError::Transport(CappedStreamError::LimitExceeded)) => {
-                    return Err(AttemptFailure {
-                        kind: AttemptErrorKind::Runtime,
-                        status: Some(200),
-                        message: "response exceeded 4 MiB".into(),
-                        redirected_library_id: None,
-                    });
-                }
-                Err(error) => {
-                    return Err(AttemptFailure {
-                        kind: AttemptErrorKind::Network,
-                        status: Some(200),
-                        message: redacted_urls_message(
-                            &format!("xAI Responses returned invalid SSE: {error}"),
-                            &self.credentials,
-                        ),
-                        redirected_library_id: None,
-                    });
-                }
-                Ok(event) => event,
-            };
+            let event = event?;
             let Some(payload) = parse_event_data(&event.data).map_err(|error| AttemptFailure {
                 kind: AttemptErrorKind::Runtime,
                 status: Some(200),
@@ -231,7 +180,6 @@ impl Xai {
                     &format!("xAI Responses returned invalid event JSON: {error}"),
                     &self.credentials,
                 ),
-                redirected_library_id: None,
             })?
             else {
                 continue;
@@ -242,7 +190,6 @@ impl Xai {
                         kind: AttemptErrorKind::Runtime,
                         status: Some(200),
                         message: "xAI response.completed omitted response data".into(),
-                        redirected_library_id: None,
                     })?;
                     completed = Some(Self::normalize_completed(response)?);
                 }
@@ -254,7 +201,6 @@ impl Xai {
                             &terminal_message(&payload),
                             &self.credentials,
                         ),
-                        redirected_library_id: None,
                     });
                 }
                 _ => {}
@@ -264,7 +210,6 @@ impl Xai {
             kind: AttemptErrorKind::Runtime,
             status: Some(200),
             message: "xAI Responses stream ended before response.completed".into(),
-            redirected_library_id: None,
         })
     }
 
@@ -330,7 +275,6 @@ impl Xai {
                 kind: AttemptErrorKind::Runtime,
                 status: Some(200),
                 message: "xAI response.completed contained no output_text".into(),
-                redirected_library_id: None,
             });
         }
         Ok((answer, sources))
@@ -381,6 +325,14 @@ fn terminal_message(event: &Value) -> String {
             || format!("xAI Responses ended with {event_type}"),
             |message| format!("xAI Responses ended with {event_type}: {message}"),
         )
+}
+
+fn xai_error(body: &str, _status: u16) -> String {
+    if body.trim().is_empty() {
+        "xAI Responses request failed".into()
+    } else {
+        body.to_owned()
+    }
 }
 
 fn parse_event_data(data: &str) -> Result<Option<Value>, serde_json::Error> {
@@ -451,16 +403,15 @@ fn classify_terminal_signal(signal: &Value) -> Option<AttemptErrorKind> {
 
 #[cfg(test)]
 mod tests {
-    use std::io;
     use std::time::Duration;
 
-    use eventsource_stream::{Event, EventStreamError};
+    use eventsource_stream::Event;
     use futures_util::stream;
     use serde_json::Value;
 
     use crate::config::XaiRuntimeConfig;
     use crate::credentials::CredentialPool;
-    use crate::net::{CappedStreamError, RetryPolicy};
+    use crate::net::{AttemptFailure, RetryPolicy};
     use crate::providers::MainSearchRequestKind;
     use crate::types::{AttemptErrorKind, Deadline};
 
@@ -629,9 +580,11 @@ mod tests {
             .expect("test runtime");
 
         runtime.block_on(async {
-            let transport = stream::iter([Err(EventStreamError::Transport(
-                CappedStreamError::Transport(io::Error::other("connection reset")),
-            ))]);
+            let transport = stream::iter([Err(AttemptFailure {
+                kind: AttemptErrorKind::Network,
+                status: Some(200),
+                message: "connection reset".into(),
+            })]);
             assert_eq!(
                 provider
                     .completed_from_events(transport)
@@ -641,10 +594,7 @@ mod tests {
                 Some(AttemptErrorKind::Network)
             );
 
-            let missing_completion = stream::iter([Ok::<
-                _,
-                EventStreamError<CappedStreamError<io::Error>>,
-            >(Event {
+            let missing_completion = stream::iter([Ok::<_, AttemptFailure>(Event {
                 data: r#"{"type":"response.output_text.delta","delta":"partial"}"#.into(),
                 ..Event::default()
             })]);

@@ -1,6 +1,5 @@
 use crate::credentials::CredentialPool;
-use crate::net::truncate_message;
-use crate::providers::execution::AttemptFailure;
+use crate::net::{AttemptFailure, truncate_message};
 use crate::redact::{redact_url, redact_urls as redact_urls_in_text};
 use crate::types::{AttemptErrorKind, Source};
 
@@ -19,7 +18,6 @@ pub(super) fn normalize_main_search(
             kind: AttemptErrorKind::Runtime,
             status: Some(200),
             message: "main search response contained no answer after normalization".into(),
-            redirected_library_id: None,
         });
     }
     let mut sources = sources;

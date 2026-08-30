@@ -9,9 +9,9 @@ use serde_json::{Map, Value, json};
 
 use crate::config::AnysearchRuntimeConfig;
 use crate::credentials::CredentialPool;
-use crate::net::{McpClient, McpToolResult, RetryPolicy, truncate_message};
+use crate::net::{AttemptFailure, McpClient, McpToolResult, RetryPolicy, truncate_message};
 use crate::providers::ProviderError;
-use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2};
+use crate::providers::execution::{ExecutionSettings, execute_v2};
 use crate::providers::shared::redact_urls;
 use crate::types::{
     AnysearchDomain, AnysearchDomainsOutcome, AnysearchOutcome, AnysearchResult,
@@ -238,7 +238,6 @@ impl Anysearch {
                             kind: error.kind,
                             status: error.status,
                             message: truncate_message(&message),
-                            redirected_library_id: None,
                         }
                     })
                 }

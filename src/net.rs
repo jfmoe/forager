@@ -1,19 +1,164 @@
+use std::pin::Pin;
 use std::time::Duration;
 
 use eventsource_stream::{EventStreamError, Eventsource};
 use futures_util::{Stream, StreamExt, future};
 use reqwest::header::HeaderMap;
-use reqwest::{Client, Response, StatusCode, redirect};
+use reqwest::{Client, RequestBuilder, Response, StatusCode, redirect};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+use crate::credentials::CredentialPool;
 use crate::redact::Secret;
+use crate::redact::redact_urls;
 use crate::types::{AttemptErrorKind, Deadline, MIN_USEFUL_SLICE_SECONDS};
 
 const HTTP_READ_TIMEOUT: Duration = Duration::from_mins(1);
 pub(crate) const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 pub(crate) const MAX_ERROR_BODY_BYTES: usize = 64 * 1024;
 pub(crate) const CONTENT_TRUNCATED_DIAGNOSTIC: &str = "content truncated at 4 MiB";
+
+const RESPONSE_LIMIT_MESSAGE: &str = "response exceeded 4 MiB";
+
+#[derive(Debug)]
+pub(crate) struct AttemptFailure {
+    pub(crate) kind: AttemptErrorKind,
+    pub(crate) status: Option<u16>,
+    pub(crate) message: String,
+}
+
+#[derive(Debug)]
+pub(crate) struct ProviderResponseBody {
+    pub(crate) status: u16,
+    pub(crate) text: String,
+    pub(crate) truncated: bool,
+}
+
+pub(crate) type ProviderEventStream =
+    Pin<Box<dyn Stream<Item = Result<eventsource_stream::Event, AttemptFailure>> + Send>>;
+
+pub(crate) async fn send_provider_request(
+    request: RequestBuilder,
+    credentials: &CredentialPool,
+) -> Result<Response, AttemptFailure> {
+    request.send().await.map_err(|error| AttemptFailure {
+        kind: AttemptErrorKind::Network,
+        status: error.status().map(|status| status.as_u16()),
+        message: redact_provider_message(&error.to_string(), credentials),
+    })
+}
+
+pub(crate) async fn read_complete_protocol(
+    response: Response,
+    credentials: &CredentialPool,
+    error_message: fn(&str, u16) -> String,
+) -> Result<ProviderResponseBody, AttemptFailure> {
+    read_provider_response(
+        response,
+        ResponseBodyPolicy::CompleteProtocol,
+        credentials,
+        error_message,
+    )
+    .await
+}
+
+pub(crate) async fn read_truncatable_content(
+    response: Response,
+    credentials: &CredentialPool,
+    error_message: fn(&str, u16) -> String,
+) -> Result<ProviderResponseBody, AttemptFailure> {
+    read_provider_response(
+        response,
+        ResponseBodyPolicy::TruncatableContent,
+        credentials,
+        error_message,
+    )
+    .await
+}
+
+pub(crate) async fn read_capped_sse(
+    response: Response,
+    credentials: &CredentialPool,
+    error_message: fn(&str, u16) -> String,
+    stream_error_prefix: &'static str,
+) -> Result<(u16, ProviderEventStream), AttemptFailure> {
+    let response = ensure_success(response, credentials, error_message).await?;
+    let status = response.status().as_u16();
+    let credentials = credentials.clone();
+    let events = capped_stream(response.bytes_stream(), MAX_RESPONSE_BYTES)
+        .eventsource()
+        .map(move |event| {
+            event.map_err(|error| match error {
+                EventStreamError::Transport(CappedStreamError::LimitExceeded) => AttemptFailure {
+                    kind: AttemptErrorKind::Runtime,
+                    status: Some(status),
+                    message: RESPONSE_LIMIT_MESSAGE.into(),
+                },
+                error => AttemptFailure {
+                    kind: AttemptErrorKind::Network,
+                    status: Some(status),
+                    message: redact_provider_message(
+                        &format!("{stream_error_prefix}: {error}"),
+                        &credentials,
+                    ),
+                },
+            })
+        });
+    Ok((status, Box::pin(events)))
+}
+
+async fn read_provider_response(
+    response: Response,
+    success_policy: ResponseBodyPolicy,
+    credentials: &CredentialPool,
+    error_message: fn(&str, u16) -> String,
+) -> Result<ProviderResponseBody, AttemptFailure> {
+    let response = ensure_success(response, credentials, error_message).await?;
+    let status = response.status().as_u16();
+    let body = read_response_body(response, success_policy)
+        .await
+        .map_err(|error| response_body_failure(&error, status, credentials))?;
+    Ok(ProviderResponseBody {
+        status,
+        text: body.text,
+        truncated: body.truncated,
+    })
+}
+
+async fn ensure_success(
+    response: Response,
+    credentials: &CredentialPool,
+    error_message: fn(&str, u16) -> String,
+) -> Result<Response, AttemptFailure> {
+    let status = response.status();
+    if status.is_success() {
+        return Ok(response);
+    }
+    let body = read_response_body(response, ResponseBodyPolicy::Error)
+        .await
+        .map_err(|error| response_body_failure(&error, status.as_u16(), credentials))?;
+    Err(AttemptFailure {
+        kind: error_kind_for_status(status, &body.text),
+        status: Some(status.as_u16()),
+        message: redact_provider_message(&error_message(&body.text, status.as_u16()), credentials),
+    })
+}
+
+fn response_body_failure(
+    error: &CappedStreamError<reqwest::Error>,
+    status: u16,
+    credentials: &CredentialPool,
+) -> AttemptFailure {
+    AttemptFailure {
+        kind: error.attempt_error_kind(),
+        status: Some(status),
+        message: redact_provider_message(&error.to_string(), credentials),
+    }
+}
+
+fn redact_provider_message(message: &str, credentials: &CredentialPool) -> String {
+    truncate_message(&credentials.redact(&redact_urls(message)))
+}
 
 pub(crate) struct CappedResponseBody {
     pub(crate) text: String,
@@ -54,7 +199,7 @@ impl<E: std::fmt::Display> std::fmt::Display for CappedStreamError<E> {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Transport(error) => error.fmt(formatter),
-            Self::LimitExceeded => formatter.write_str("response exceeded 4 MiB"),
+            Self::LimitExceeded => formatter.write_str(RESPONSE_LIMIT_MESSAGE),
         }
     }
 }
@@ -206,16 +351,18 @@ impl RetryPolicy {
 mod tests {
     use std::io::{Read, Write};
     use std::net::TcpListener;
+    use std::sync::mpsc;
     use std::thread;
     use std::time::Duration;
 
     use reqwest::StatusCode;
 
     use super::{
-        MAX_ERROR_BODY_BYTES, MAX_RESPONSE_BYTES, ResponseBodyPolicy, RetryPolicy, build_client,
-        build_client_with_read_timeout, combine_diagnostics, duration_millis,
-        error_kind_for_status,
+        MAX_ERROR_BODY_BYTES, MAX_RESPONSE_BYTES, RESPONSE_LIMIT_MESSAGE, ResponseBodyPolicy,
+        RetryPolicy, build_client, build_client_with_read_timeout, combine_diagnostics,
+        duration_millis, error_kind_for_status, read_complete_protocol, read_truncatable_content,
     };
+    use crate::credentials::CredentialPool;
     use crate::types::AttemptErrorKind;
 
     #[test]
@@ -277,6 +424,184 @@ mod tests {
             ),
             (MAX_RESPONSE_BYTES, MAX_RESPONSE_BYTES, MAX_ERROR_BODY_BYTES,)
         );
+    }
+
+    #[test]
+    fn complete_protocol_accepts_body_exactly_at_cap() {
+        let body = vec![b'x'; MAX_RESPONSE_BYTES];
+        let (url, server) = serve_response("200 OK", body);
+        let runtime = test_runtime();
+
+        let result = runtime.block_on(async {
+            let response = build_client(true)
+                .expect("build client")
+                .get(url)
+                .send()
+                .await
+                .expect("send request");
+            read_complete_protocol(response, &credentials(), raw_error_body).await
+        });
+        server.join().expect("join response server");
+
+        assert_eq!(
+            result.ok().map(|body| body.text.len()),
+            Some(MAX_RESPONSE_BYTES)
+        );
+    }
+
+    #[test]
+    fn complete_protocol_rejects_body_one_byte_over_cap_as_runtime() {
+        let body = vec![b'x'; MAX_RESPONSE_BYTES + 1];
+        let (url, server) = serve_response("200 OK", body);
+        let runtime = test_runtime();
+
+        let failure = runtime.block_on(async {
+            let response = build_client(true)
+                .expect("build client")
+                .get(url)
+                .send()
+                .await
+                .expect("send request");
+            read_complete_protocol(response, &credentials(), raw_error_body)
+                .await
+                .expect_err("over-cap protocol must fail")
+        });
+        server.join().expect("join response server");
+
+        assert_eq!(
+            (failure.kind, failure.message.as_str()),
+            (AttemptErrorKind::Runtime, RESPONSE_LIMIT_MESSAGE)
+        );
+    }
+
+    #[test]
+    fn truncatable_content_removes_incomplete_utf8_tail() {
+        let mut body = vec![b'x'; MAX_RESPONSE_BYTES - 1];
+        body.extend_from_slice("界".as_bytes());
+        let (url, server) = serve_response("200 OK", body);
+        let runtime = test_runtime();
+
+        let result = runtime.block_on(async {
+            let response = build_client(true)
+                .expect("build client")
+                .get(url)
+                .send()
+                .await
+                .expect("send request");
+            read_truncatable_content(response, &credentials(), raw_error_body)
+                .await
+                .expect("truncatable body")
+        });
+        server.join().expect("join response server");
+
+        assert_eq!(
+            (result.text.len(), result.truncated),
+            (MAX_RESPONSE_BYTES - 1, true)
+        );
+    }
+
+    #[test]
+    fn non_success_response_reads_only_the_bounded_error_head() {
+        let body = vec![b'x'; MAX_ERROR_BODY_BYTES + 1];
+        let (url, server) = serve_response("429 Too Many Requests", body);
+        let runtime = test_runtime();
+
+        let failure = runtime.block_on(async {
+            let response = build_client(true)
+                .expect("build client")
+                .get(url)
+                .send()
+                .await
+                .expect("send request");
+            read_complete_protocol(response, &credentials(), body_length_message)
+                .await
+                .expect_err("non-success response must fail")
+        });
+        server.join().expect("join response server");
+
+        assert_eq!(
+            (failure.kind, failure.message),
+            (
+                AttemptErrorKind::RateLimited,
+                MAX_ERROR_BODY_BYTES.to_string()
+            )
+        );
+    }
+
+    #[test]
+    fn complete_protocol_maps_a_stalled_body_to_network() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind stall server");
+        let address = listener.local_addr().expect("stall server address");
+        let (release, released) = mpsc::channel();
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("accept request");
+            let mut request = [0_u8; 4096];
+            let read = stream.read(&mut request).expect("read request");
+            assert!(read > 0, "fixture received an empty request");
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nx")
+                .expect("write partial response");
+            stream.flush().expect("flush partial response");
+            released
+                .recv_timeout(Duration::from_secs(1))
+                .expect("wait for client timeout");
+        });
+        let runtime = test_runtime();
+
+        let failure = runtime.block_on(async {
+            let client = build_client_with_read_timeout(true, Duration::from_millis(50))
+                .expect("build client");
+            let response = client
+                .get(format!("http://{address}"))
+                .send()
+                .await
+                .expect("receive response headers");
+            read_complete_protocol(response, &credentials(), raw_error_body)
+                .await
+                .expect_err("stalled body must fail")
+        });
+        release.send(()).expect("release stall server");
+        server.join().expect("join stall server");
+
+        assert_eq!(failure.kind, AttemptErrorKind::Network);
+    }
+
+    fn credentials() -> CredentialPool {
+        CredentialPool::new("test", vec!["secret".into()])
+    }
+
+    fn raw_error_body(body: &str, _status: u16) -> String {
+        body.to_owned()
+    }
+
+    fn body_length_message(body: &str, _status: u16) -> String {
+        body.len().to_string()
+    }
+
+    fn test_runtime() -> tokio::runtime::Runtime {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("build test runtime")
+    }
+
+    fn serve_response(status: &'static str, body: Vec<u8>) -> (String, thread::JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind response server");
+        let address = listener.local_addr().expect("response server address");
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("accept request");
+            let mut request = [0_u8; 4096];
+            let read = stream.read(&mut request).expect("read request");
+            assert!(read > 0, "fixture received an empty request");
+            write!(
+                stream,
+                "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            )
+            .expect("write response headers");
+            stream.write_all(&body).expect("write response body");
+        });
+        (format!("http://{address}"), server)
     }
 
     #[test]
@@ -780,7 +1105,7 @@ async fn response_messages(response: Response, deadline: Deadline) -> Result<Vec
             };
             let event = match event {
                 Err(EventStreamError::Transport(CappedStreamError::LimitExceeded)) => {
-                    return Err(McpError::runtime("response exceeded 4 MiB"));
+                    return Err(McpError::runtime(RESPONSE_LIMIT_MESSAGE));
                 }
                 Err(error) => {
                     return Err(McpError::new(
@@ -823,7 +1148,7 @@ async fn response_messages(response: Response, deadline: Deadline) -> Result<Vec
             error.status().map(|status| status.as_u16()),
             &format!("MCP response body failed: {error}"),
         ),
-        CappedStreamError::LimitExceeded => McpError::runtime("response exceeded 4 MiB"),
+        CappedStreamError::LimitExceeded => McpError::runtime(RESPONSE_LIMIT_MESSAGE),
     })?;
     let payload: Value = serde_json::from_str(&body.text)
         .map_err(|error| McpError::runtime(&format!("MCP returned invalid JSON: {error}")))?;

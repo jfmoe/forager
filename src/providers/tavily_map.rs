@@ -5,9 +5,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::WebFetchProviderConfig;
 use crate::credentials::CredentialPool;
-use crate::net::{ResponseBodyPolicy, RetryPolicy, error_kind_for_status, read_response_body};
+use crate::net::{AttemptFailure, RetryPolicy, read_complete_protocol, send_provider_request};
 use crate::providers::ProviderError;
-use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2};
+use crate::providers::execution::{ExecutionSettings, execute_v2};
 use crate::providers::shared::{redact_urls, redacted_urls_message};
 use crate::redact::Secret;
 use crate::types::{AttemptErrorKind, AttemptTarget, Deadline, MapOutcome};
@@ -94,59 +94,29 @@ impl TavilyMap {
         credential: &Secret,
     ) -> Result<(u16, TavilyMapResponse), AttemptFailure> {
         let endpoint = format!("{}/map", self.config.url.trim_end_matches('/'));
-        let response = self
+        let request = self
             .client
             .post(endpoint)
             .bearer_auth(credential.expose())
-            .json(&TavilyMapBody::from(request))
-            .send()
-            .await
-            .map_err(|error| AttemptFailure {
-                kind: AttemptErrorKind::Network,
-                status: error.status().map(|status| status.as_u16()),
-                message: redacted_urls_message(&error.to_string(), &self.credentials),
-                redirected_library_id: None,
-            })?;
-        let status = response.status();
-        let body = read_response_body(
-            response,
-            ResponseBodyPolicy::for_status(status, ResponseBodyPolicy::CompleteProtocol),
-        )
-        .await
-        .map_err(|error| AttemptFailure {
-            kind: error.attempt_error_kind(),
-            status: Some(status.as_u16()),
-            message: redacted_urls_message(&error.to_string(), &self.credentials),
-            redirected_library_id: None,
-        })?;
-        if !status.is_success() {
-            return Err(AttemptFailure {
-                kind: error_kind_for_status(status, &body.text),
-                status: Some(status.as_u16()),
-                message: redacted_urls_message(
-                    &failure_message(&body.text, status.as_u16()),
-                    &self.credentials,
-                ),
-                redirected_library_id: None,
-            });
-        }
+            .json(&TavilyMapBody::from(request));
+        let response = send_provider_request(request, &self.credentials).await?;
+        let body = read_complete_protocol(response, &self.credentials, failure_message).await?;
+        let status = body.status;
         let response: TavilyMapResponse =
             serde_json::from_str(&body.text).map_err(|error| AttemptFailure {
                 kind: AttemptErrorKind::Runtime,
-                status: Some(status.as_u16()),
+                status: Some(status),
                 message: redacted_urls_message(
                     &format!("invalid Tavily map response: {error}"),
                     &self.credentials,
                 ),
-                redirected_library_id: None,
             })?;
         response.validate().map_err(|message| AttemptFailure {
             kind: AttemptErrorKind::Runtime,
-            status: Some(status.as_u16()),
+            status: Some(status),
             message: message.into(),
-            redirected_library_id: None,
         })?;
-        Ok((status.as_u16(), response))
+        Ok((status, response))
     }
 }
 

@@ -9,10 +9,10 @@ use serde_json::json;
 use crate::config::WebFetchProviderConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{
-    CONTENT_TRUNCATED_DIAGNOSTIC, ResponseBodyPolicy, RetryPolicy, combine_diagnostics,
-    error_kind_for_status, json_string_prefix, read_response_body, truncate_message,
+    AttemptFailure, CONTENT_TRUNCATED_DIAGNOSTIC, RetryPolicy, combine_diagnostics,
+    json_string_prefix, read_truncatable_content, send_provider_request, truncate_message,
 };
-use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2};
+use crate::providers::execution::{ExecutionSettings, execute_v2};
 use crate::providers::shared::redacted_urls_message;
 use crate::providers::{ProviderError, ProviderId};
 use crate::redact::Secret;
@@ -129,35 +129,9 @@ impl HttpFetchProvider {
         credential: &Secret,
     ) -> Result<(u16, FetchBody), AttemptFailure> {
         let request_builder = self.request(request, credential);
-        let response = request_builder
-            .send()
-            .await
-            .map_err(|error| AttemptFailure {
-                kind: AttemptErrorKind::Network,
-                status: error.status().map(|status| status.as_u16()),
-                message: self.redacted_error(&error.to_string()),
-                redirected_library_id: None,
-            })?;
-        let status = response.status();
-        let body = read_response_body(
-            response,
-            ResponseBodyPolicy::for_status(status, ResponseBodyPolicy::TruncatableContent),
-        )
-        .await
-        .map_err(|error| AttemptFailure {
-            kind: AttemptErrorKind::Network,
-            status: Some(status.as_u16()),
-            message: self.redacted_error(&error.to_string()),
-            redirected_library_id: None,
-        })?;
-        if !status.is_success() {
-            return Err(AttemptFailure {
-                kind: error_kind_for_status(status, &body.text),
-                status: Some(status.as_u16()),
-                message: self.redacted_error(&failure_message(&body.text, status.as_u16())),
-                redirected_library_id: None,
-            });
-        }
+        let response = send_provider_request(request_builder, &self.credentials).await?;
+        let body = read_truncatable_content(response, &self.credentials, failure_message).await?;
+        let status = body.status;
         self.decode(&body.text)
             .or_else(|message| {
                 if body.truncated {
@@ -168,7 +142,7 @@ impl HttpFetchProvider {
             })
             .map(|content| {
                 (
-                    status.as_u16(),
+                    status,
                     FetchBody {
                         content,
                         truncated: body.truncated,
@@ -177,9 +151,8 @@ impl HttpFetchProvider {
             })
             .map_err(|message| AttemptFailure {
                 kind: AttemptErrorKind::Runtime,
-                status: Some(status.as_u16()),
+                status: Some(status),
                 message: self.redacted_error(&message),
-                redirected_library_id: None,
             })
     }
 

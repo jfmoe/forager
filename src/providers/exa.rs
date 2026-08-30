@@ -5,9 +5,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::config::ExaRuntimeConfig;
 use crate::credentials::CredentialPool;
-use crate::net::{ResponseBodyPolicy, RetryPolicy, error_kind_for_status, read_response_body};
+use crate::net::{AttemptFailure, RetryPolicy, read_complete_protocol, send_provider_request};
 use crate::providers::ProviderError;
-use crate::providers::execution::{AttemptFailure, ExecutionSettings, execute_v2};
+use crate::providers::execution::{ExecutionSettings, execute_v2};
 use crate::providers::shared::redacted_urls_message;
 use crate::redact::{Secret, redact_url};
 use crate::types::{AttemptErrorKind, AttemptTarget, Deadline, ExaInput, ExaOutcome, Source};
@@ -136,44 +136,17 @@ impl Exa {
             ExaOperation::Search(search) => request.json(&ExaSearchBody::from(search)),
             ExaOperation::Similar(similar) => request.json(&ExaSimilarBody::from(similar)),
         };
-        let response = request.send().await.map_err(|error| AttemptFailure {
-            kind: AttemptErrorKind::Network,
-            status: error.status().map(|status| status.as_u16()),
-            message: redacted_urls_message(&error.to_string(), &self.credentials),
-            redirected_library_id: None,
-        })?;
-        let status = response.status();
-        let body = read_response_body(
-            response,
-            ResponseBodyPolicy::for_status(status, ResponseBodyPolicy::CompleteProtocol),
-        )
-        .await
-        .map_err(|error| AttemptFailure {
-            kind: error.attempt_error_kind(),
-            status: Some(status.as_u16()),
-            message: redacted_urls_message(&error.to_string(), &self.credentials),
-            redirected_library_id: None,
-        })?;
-        if !status.is_success() {
-            return Err(AttemptFailure {
-                kind: error_kind_for_status(status, &body.text),
-                status: Some(status.as_u16()),
-                message: redacted_urls_message(
-                    &failure_message(&body.text, status.as_u16()),
-                    &self.credentials,
-                ),
-                redirected_library_id: None,
-            });
-        }
+        let response = send_provider_request(request, &self.credentials).await?;
+        let body = read_complete_protocol(response, &self.credentials, failure_message).await?;
+        let status = body.status;
         let response: ExaResponse =
             serde_json::from_str(&body.text).map_err(|error| AttemptFailure {
                 kind: AttemptErrorKind::Runtime,
-                status: Some(status.as_u16()),
+                status: Some(status),
                 message: redacted_urls_message(
                     &format!("invalid Exa response: {error}"),
                     &self.credentials,
                 ),
-                redirected_library_id: None,
             })?;
         if response
             .results
@@ -182,9 +155,8 @@ impl Exa {
         {
             return Err(AttemptFailure {
                 kind: AttemptErrorKind::Runtime,
-                status: Some(status.as_u16()),
+                status: Some(status),
                 message: "invalid Exa response: result URL must use HTTP(S)".into(),
-                redirected_library_id: None,
             });
         }
         Ok(response
