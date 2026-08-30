@@ -3,6 +3,7 @@ use std::sync::LazyLock;
 
 use serde::{Deserialize, Deserializer, Serialize, de};
 
+use crate::providers::catalog;
 use crate::redact::Secret;
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -28,7 +29,7 @@ pub(super) struct Search {
 impl Default for Search {
     fn default() -> Self {
         Self {
-            backends: vec!["xai".into(), "openai_compatible".into()],
+            backends: provider_names(catalog::MAIN_SEARCH),
             fallback: "auto".into(),
         }
     }
@@ -188,10 +189,10 @@ pub(super) struct Capabilities {
 impl Default for Capabilities {
     fn default() -> Self {
         Self {
-            web_search: Order::new(&["tavily", "firecrawl"]),
-            web_fetch: Order::new(&["tavily", "firecrawl", "jina"]),
-            docs_search: Order::new(&["context7", "exa"]),
-            vertical_search: Order::new(&["anysearch"]),
+            web_search: Order::new(catalog::WEB_SEARCH),
+            web_fetch: Order::new(catalog::WEB_FETCH),
+            docs_search: Order::new(catalog::DOCS_SEARCH),
+            vertical_search: Order::new(catalog::VERTICAL_SEARCH),
         }
     }
 }
@@ -203,11 +204,19 @@ pub(super) struct Order {
 }
 
 impl Order {
-    fn new(values: &[&str]) -> Self {
+    fn new(catalog: catalog::CapabilityCatalog) -> Self {
         Self {
-            order: values.iter().map(ToString::to_string).collect(),
+            order: provider_names(catalog),
         }
     }
+}
+
+fn provider_names(catalog: catalog::CapabilityCatalog) -> Vec<String> {
+    catalog
+        .providers
+        .iter()
+        .map(|provider| provider.name().to_owned())
+        .collect()
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -398,13 +407,12 @@ macro_rules! leaf {
     }};
 }
 
-const BACKENDS: &[&str] = &["xai", "openai_compatible"];
 const XAI_TOOLS: &[&str] = &["web_search", "x_search"];
 const FALLBACK: &[&str] = &["auto", "off"];
 const LOG_LEVELS: &[&str] = &["error", "warn", "info", "debug", "trace"];
 
 pub(super) static SCHEMA: &[Leaf] = &[
-    leaf!("search.backends", search.backends: Strings, Rule::Subset { allowed: BACKENDS, unique: true, allow_empty: false }, View::Plain, "ordered main-model backends"),
+    leaf!("search.backends", search.backends: Strings, Rule::CapabilityOrder { capability: "main_search", allow_empty: false }, View::Plain, "ordered main-model backends"),
     leaf!("search.fallback", search.fallback: String, Rule::OneOf(FALLBACK), View::Plain, "fallback policy: auto or off"),
     leaf!("classifier.url", classifier.url: String, Rule::Any, View::Url, "service endpoint URL"),
     leaf!("classifier.keys", classifier.keys: Secrets, Rule::Any, View::Keys, "credential pool; keep empty until credentials are available"),
@@ -499,9 +507,40 @@ where
 mod tests {
     use std::collections::BTreeSet;
 
+    use crate::providers::catalog;
     use crate::redact::Secret;
 
     use super::{Config, FieldMut, FieldRef, SCHEMA, leaf};
+
+    #[test]
+    fn default_provider_orders_are_catalog_projections() {
+        let config = Config::default();
+        let names = |catalog: catalog::CapabilityCatalog| {
+            catalog
+                .providers
+                .iter()
+                .map(|provider| provider.name().to_owned())
+                .collect::<Vec<_>>()
+        };
+
+        assert_eq!(config.search.backends, names(catalog::MAIN_SEARCH));
+        assert_eq!(
+            config.capabilities.web_search.order,
+            names(catalog::WEB_SEARCH)
+        );
+        assert_eq!(
+            config.capabilities.web_fetch.order,
+            names(catalog::WEB_FETCH)
+        );
+        assert_eq!(
+            config.capabilities.docs_search.order,
+            names(catalog::DOCS_SEARCH)
+        );
+        assert_eq!(
+            config.capabilities.vertical_search.order,
+            names(catalog::VERTICAL_SEARCH)
+        );
+    }
 
     fn toml_leaf_paths(value: &toml::Value, prefix: &str, paths: &mut BTreeSet<String>) {
         if let toml::Value::Table(table) = value {

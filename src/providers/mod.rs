@@ -1,9 +1,11 @@
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::LazyLock;
 
 use chrono::{Datelike, Local, Weekday};
 
 mod anysearch;
+pub(crate) mod catalog;
 mod context7;
 mod exa;
 pub(crate) mod execution;
@@ -19,8 +21,8 @@ use thiserror::Error;
 
 use crate::config::{
     AnysearchRuntimeConfig, Context7RuntimeConfig, DocsSearchProviderConfig, ExaRuntimeConfig,
-    MainSearchProviderConfig, OpenAiCompatibleRuntimeConfig, WebFetchProviderConfig,
-    XaiRuntimeConfig,
+    MainSearchProviderConfig, OpenAiCompatibleRuntimeConfig, ProviderRuntime, RuntimeConfig,
+    WebFetchProviderConfig, XaiRuntimeConfig,
 };
 use crate::credentials::CredentialPool;
 use crate::net::RetryPolicy;
@@ -98,6 +100,11 @@ fn main_search_input(query: &str) -> String {
 
 pub(crate) trait MainSearch: Send + Sync {
     fn search(
+        &self,
+        request: MainSearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<crate::types::SearchOutcome, ProviderError>> + Send + '_>>;
+
+    fn probe(
         &self,
         request: MainSearchRequest,
     ) -> Pin<Box<dyn Future<Output = Result<crate::types::SearchOutcome, ProviderError>> + Send + '_>>;
@@ -305,6 +312,14 @@ impl MainSearch for Xai {
     {
         Box::pin(self.search(request))
     }
+
+    fn probe(
+        &self,
+        request: MainSearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<crate::types::SearchOutcome, ProviderError>> + Send + '_>>
+    {
+        Box::pin(self.probe(request))
+    }
 }
 
 impl MainSearch for OpenAiCompatible {
@@ -314,6 +329,14 @@ impl MainSearch for OpenAiCompatible {
     ) -> Pin<Box<dyn Future<Output = Result<crate::types::SearchOutcome, ProviderError>> + Send + '_>>
     {
         Box::pin(self.search(request))
+    }
+
+    fn probe(
+        &self,
+        request: MainSearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<crate::types::SearchOutcome, ProviderError>> + Send + '_>>
+    {
+        Box::pin(self.probe(request))
     }
 }
 
@@ -328,7 +351,7 @@ pub struct ProviderError {
     pub redirected_library_id: Option<String>,
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub(crate) enum ProviderId {
     Xai,
     OpenAiCompatible,
@@ -341,6 +364,17 @@ pub(crate) enum ProviderId {
 }
 
 impl ProviderId {
+    pub(crate) const ALL: [Self; 8] = [
+        Self::Xai,
+        Self::OpenAiCompatible,
+        Self::Exa,
+        Self::Tavily,
+        Self::Firecrawl,
+        Self::Jina,
+        Self::Context7,
+        Self::Anysearch,
+    ];
+
     pub(crate) fn parse(value: &str) -> Option<Self> {
         match value {
             "xai" => Some(Self::Xai),
@@ -369,67 +403,355 @@ impl ProviderId {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct ProbeShape {
+    pub(crate) name: &'static str,
+    pub(crate) transport: &'static str,
+    pub(crate) stream: Option<bool>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum DoctorProbe {
+    MainSearch(&'static [ProbeShape]),
+    WebSearch {
+        name: &'static str,
+        transport: &'static str,
+    },
+    WebFetch {
+        name: &'static str,
+        transport: &'static str,
+    },
+    DocsSearch {
+        name: &'static str,
+        transport: &'static str,
+    },
+    AnysearchDomains {
+        name: &'static str,
+        transport: &'static str,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct ProviderSmokeCase {
+    pub(crate) id: &'static str,
+    pub(crate) operation: &'static str,
+    pub(crate) transport: &'static str,
+}
+
 #[derive(Clone, Copy)]
 pub(crate) struct ProviderRegistration {
     pub(crate) id: ProviderId,
-    pub(crate) capabilities: &'static [&'static str],
     pub(crate) operations: &'static [&'static str],
     pub(crate) credentials_required: bool,
+    pub(crate) probe: DoctorProbe,
+    pub(crate) smoke_cases: &'static [ProviderSmokeCase],
+    runtime: for<'a> fn(&'a RuntimeConfig) -> ProviderRuntime<'a>,
 }
+
+impl ProviderRegistration {
+    pub(crate) fn runtime<'a>(&self, config: &'a RuntimeConfig) -> ProviderRuntime<'a> {
+        (self.runtime)(config)
+    }
+}
+
+const XAI_PROBES: &[ProbeShape] = &[ProbeShape {
+    name: "responses",
+    transport: "sse",
+    stream: None,
+}];
+const OPENAI_PROBES: &[ProbeShape] = &[
+    ProbeShape {
+        name: "non_stream",
+        transport: "http",
+        stream: Some(false),
+    },
+    ProbeShape {
+        name: "stream",
+        transport: "sse",
+        stream: Some(true),
+    },
+];
+
+fn xai_runtime(config: &RuntimeConfig) -> ProviderRuntime<'_> {
+    ProviderRuntime {
+        endpoint: &config.xai.url,
+        keys: &config.xai.keys,
+    }
+}
+
+fn openai_runtime(config: &RuntimeConfig) -> ProviderRuntime<'_> {
+    ProviderRuntime {
+        endpoint: &config.openai_compatible.url,
+        keys: &config.openai_compatible.keys,
+    }
+}
+
+fn exa_runtime(config: &RuntimeConfig) -> ProviderRuntime<'_> {
+    ProviderRuntime {
+        endpoint: &config.exa.url,
+        keys: &config.exa.keys,
+    }
+}
+
+fn tavily_runtime(config: &RuntimeConfig) -> ProviderRuntime<'_> {
+    ProviderRuntime {
+        endpoint: &config.tavily.url,
+        keys: &config.tavily.keys,
+    }
+}
+
+fn firecrawl_runtime(config: &RuntimeConfig) -> ProviderRuntime<'_> {
+    ProviderRuntime {
+        endpoint: &config.firecrawl.url,
+        keys: &config.firecrawl.keys,
+    }
+}
+
+fn jina_runtime(config: &RuntimeConfig) -> ProviderRuntime<'_> {
+    ProviderRuntime {
+        endpoint: &config.jina.url,
+        keys: &config.jina.keys,
+    }
+}
+
+fn context7_runtime(config: &RuntimeConfig) -> ProviderRuntime<'_> {
+    ProviderRuntime {
+        endpoint: &config.context7.url,
+        keys: &config.context7.keys,
+    }
+}
+
+fn anysearch_runtime(config: &RuntimeConfig) -> ProviderRuntime<'_> {
+    ProviderRuntime {
+        endpoint: &config.anysearch.url,
+        keys: &config.anysearch.keys,
+    }
+}
+
+const XAI_SMOKE: &[ProviderSmokeCase] = &[ProviderSmokeCase {
+    id: "C01",
+    operation: "main_search",
+    transport: "sse",
+}];
+const OPENAI_SMOKE: &[ProviderSmokeCase] = &[
+    ProviderSmokeCase {
+        id: "C02",
+        operation: "main_search_stream_false",
+        transport: "http",
+    },
+    ProviderSmokeCase {
+        id: "C03",
+        operation: "main_search_stream_true",
+        transport: "sse",
+    },
+];
+const TAVILY_SMOKE: &[ProviderSmokeCase] = &[
+    ProviderSmokeCase {
+        id: "C05",
+        operation: "web_search",
+        transport: "http",
+    },
+    ProviderSmokeCase {
+        id: "C08",
+        operation: "web_fetch",
+        transport: "http",
+    },
+    ProviderSmokeCase {
+        id: "C17",
+        operation: "site_map",
+        transport: "http",
+    },
+];
+const FIRECRAWL_SMOKE: &[ProviderSmokeCase] = &[
+    ProviderSmokeCase {
+        id: "C06",
+        operation: "web_search",
+        transport: "http",
+    },
+    ProviderSmokeCase {
+        id: "C09",
+        operation: "web_fetch",
+        transport: "http",
+    },
+];
+const JINA_SMOKE: &[ProviderSmokeCase] = &[ProviderSmokeCase {
+    id: "C07",
+    operation: "web_fetch",
+    transport: "http",
+}];
+const CONTEXT7_SMOKE: &[ProviderSmokeCase] = &[
+    ProviderSmokeCase {
+        id: "C10",
+        operation: "library_resolve",
+        transport: "mcp",
+    },
+    ProviderSmokeCase {
+        id: "C11",
+        operation: "docs",
+        transport: "mcp",
+    },
+];
+const EXA_SMOKE: &[ProviderSmokeCase] = &[
+    ProviderSmokeCase {
+        id: "C12",
+        operation: "docs_search",
+        transport: "http",
+    },
+    ProviderSmokeCase {
+        id: "C13",
+        operation: "similar",
+        transport: "http",
+    },
+];
+const ANYSEARCH_SMOKE: &[ProviderSmokeCase] = &[
+    ProviderSmokeCase {
+        id: "C14",
+        operation: "academic.search",
+        transport: "mcp",
+    },
+    ProviderSmokeCase {
+        id: "C15",
+        operation: "vertical_discovery",
+        transport: "mcp",
+    },
+    ProviderSmokeCase {
+        id: "C16",
+        operation: "domains",
+        transport: "mcp",
+    },
+];
 
 const REGISTRY: &[ProviderRegistration] = &[
     ProviderRegistration {
         id: ProviderId::Xai,
-        capabilities: &["main_search"],
         operations: &[],
         credentials_required: true,
+        probe: DoctorProbe::MainSearch(XAI_PROBES),
+        smoke_cases: XAI_SMOKE,
+        runtime: xai_runtime,
     },
     ProviderRegistration {
         id: ProviderId::OpenAiCompatible,
-        capabilities: &["main_search"],
         operations: &[],
         credentials_required: true,
+        probe: DoctorProbe::MainSearch(OPENAI_PROBES),
+        smoke_cases: OPENAI_SMOKE,
+        runtime: openai_runtime,
     },
     ProviderRegistration {
         id: ProviderId::Tavily,
-        capabilities: &["web_search", "web_fetch"],
         operations: &["site_map"],
         credentials_required: true,
+        probe: DoctorProbe::WebSearch {
+            name: "search",
+            transport: "http",
+        },
+        smoke_cases: TAVILY_SMOKE,
+        runtime: tavily_runtime,
     },
     ProviderRegistration {
         id: ProviderId::Firecrawl,
-        capabilities: &["web_search", "web_fetch"],
         operations: &[],
         credentials_required: true,
+        probe: DoctorProbe::WebSearch {
+            name: "search",
+            transport: "http",
+        },
+        smoke_cases: FIRECRAWL_SMOKE,
+        runtime: firecrawl_runtime,
     },
     ProviderRegistration {
         id: ProviderId::Jina,
-        capabilities: &["web_fetch"],
         operations: &[],
         credentials_required: true,
+        probe: DoctorProbe::WebFetch {
+            name: "fetch",
+            transport: "http",
+        },
+        smoke_cases: JINA_SMOKE,
+        runtime: jina_runtime,
     },
     ProviderRegistration {
         id: ProviderId::Context7,
-        capabilities: &["docs_search"],
         operations: &[],
         credentials_required: true,
+        probe: DoctorProbe::DocsSearch {
+            name: "library",
+            transport: "mcp",
+        },
+        smoke_cases: CONTEXT7_SMOKE,
+        runtime: context7_runtime,
     },
     ProviderRegistration {
         id: ProviderId::Exa,
-        capabilities: &["docs_search"],
-        operations: &[],
+        operations: &["similar"],
         credentials_required: true,
+        probe: DoctorProbe::DocsSearch {
+            name: "search",
+            transport: "http",
+        },
+        smoke_cases: EXA_SMOKE,
+        runtime: exa_runtime,
     },
     ProviderRegistration {
         id: ProviderId::Anysearch,
-        capabilities: &["vertical_search"],
-        operations: &[],
+        operations: &["search", "domains"],
         credentials_required: true,
+        probe: DoctorProbe::AnysearchDomains {
+            name: "domains",
+            transport: "mcp",
+        },
+        smoke_cases: ANYSEARCH_SMOKE,
+        runtime: anysearch_runtime,
     },
 ];
 
+static VALIDATED_REGISTRY: LazyLock<()> = LazyLock::new(|| {
+    if let Err(error) = validate_registrations(REGISTRY) {
+        panic!("invalid provider registry: {error}");
+    }
+});
+
 pub(crate) fn registrations() -> &'static [ProviderRegistration] {
+    LazyLock::force(&VALIDATED_REGISTRY);
     REGISTRY
+}
+
+fn validate_registrations(registry: &[ProviderRegistration]) -> Result<(), String> {
+    let ids = registry
+        .iter()
+        .map(|registration| registration.id)
+        .collect::<std::collections::BTreeSet<_>>();
+    let expected = ProviderId::ALL
+        .into_iter()
+        .collect::<std::collections::BTreeSet<_>>();
+    if registry.len() != expected.len() || ids != expected {
+        return Err("provider IDs must appear exactly once".into());
+    }
+    let catalog_ids = catalog::CATALOGS
+        .iter()
+        .flat_map(|catalog| catalog.providers.iter().copied())
+        .collect::<std::collections::BTreeSet<_>>();
+    for registration in registry {
+        if !catalog_ids.contains(&registration.id) && registration.operations.is_empty() {
+            return Err(format!(
+                "{} has neither a capability nor an operation",
+                registration.id.name()
+            ));
+        }
+    }
+    let smoke_ids = registry
+        .iter()
+        .flat_map(|registration| registration.smoke_cases.iter().map(|case| case.id))
+        .collect::<Vec<_>>();
+    let unique_smoke_ids = smoke_ids
+        .iter()
+        .copied()
+        .collect::<std::collections::BTreeSet<_>>();
+    if smoke_ids.len() != unique_smoke_ids.len() {
+        return Err("provider smoke case IDs must be unique".into());
+    }
+    Ok(())
 }
 
 pub(crate) fn build_xai(
@@ -472,70 +794,34 @@ pub(crate) fn build_main_search(
     deadline: Deadline,
     breakers: std::sync::Arc<ModelBreakers>,
 ) -> Box<dyn MainSearch> {
-    match (id, config) {
-        (ProviderId::Xai, MainSearchProviderConfig::Xai(config)) => {
-            Box::new(build_xai(config, client, retry_policy, deadline))
-        }
-        (ProviderId::OpenAiCompatible, MainSearchProviderConfig::OpenAiCompatible(config)) => {
-            Box::new(build_openai_compatible(
-                config,
-                client,
-                retry_policy,
-                deadline,
-                breakers,
-            ))
-        }
-        _ => unreachable!("main search entry pairs provider id with its configuration"),
-    }
+    catalog::build_main(id, config, client, retry_policy, deadline, breakers)
 }
 
 pub(crate) fn supports(capability: &str, provider: &str) -> bool {
-    REGISTRY.iter().any(|registration| {
-        registration.id.name() == provider && registration.capabilities.contains(&capability)
-    })
+    let Some(id) = ProviderId::parse(provider) else {
+        return false;
+    };
+    catalog::by_seam(capability).is_some_and(|catalog| catalog.contains(id))
 }
 
 pub(crate) fn build_web_fetch(
     id: ProviderId,
-    mut config: WebFetchProviderConfig,
+    config: WebFetchProviderConfig,
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> Box<dyn WebFetch> {
-    let registration = registration(id);
-    debug_assert!(registration.credentials_required);
-    debug_assert!(registration.capabilities.contains(&"web_fetch"));
-    let credentials = CredentialPool::new(registration.id.name(), std::mem::take(&mut config.keys));
-    match id {
-        ProviderId::Jina | ProviderId::Tavily | ProviderId::Firecrawl => {
-            web_fetch::new(id, config, client, credentials, retry_policy, deadline)
-        }
-        _ => unreachable!("web_fetch capability only has web fetch constructors"),
-    }
+    catalog::build_web_fetch(id, config, client, retry_policy, deadline)
 }
 
 pub(crate) fn build_web_search(
     id: ProviderId,
-    mut config: WebFetchProviderConfig,
+    config: WebFetchProviderConfig,
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> Box<dyn WebSearch> {
-    let registration = registration(id);
-    debug_assert!(registration.credentials_required);
-    debug_assert!(registration.capabilities.contains(&"web_search"));
-    let credentials = CredentialPool::new(registration.id.name(), std::mem::take(&mut config.keys));
-    match id {
-        ProviderId::Tavily | ProviderId::Firecrawl => Box::new(SupplementalSearch::new(
-            id,
-            config,
-            client,
-            credentials,
-            retry_policy,
-            deadline,
-        )),
-        _ => unreachable!("web_search capability only has web search constructors"),
-    }
+    catalog::build_web_search(id, config, client, retry_policy, deadline)
 }
 
 pub(crate) fn build_docs_search(
@@ -545,17 +831,7 @@ pub(crate) fn build_docs_search(
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> Box<dyn DocsSearch> {
-    let registration = registration(id);
-    debug_assert!(registration.capabilities.contains(&"docs_search"));
-    match (id, config) {
-        (ProviderId::Exa, DocsSearchProviderConfig::Exa(config)) => {
-            Box::new(build_exa(config, client, retry_policy, deadline))
-        }
-        (ProviderId::Context7, DocsSearchProviderConfig::Context7(config)) => {
-            Box::new(build_context7(config, client, retry_policy, deadline))
-        }
-        _ => unreachable!("docs_search capability only has docs search constructors"),
-    }
+    catalog::build_docs(id, config, client, retry_policy, deadline)
 }
 
 pub(crate) fn build_vertical_search(
@@ -565,25 +841,14 @@ pub(crate) fn build_vertical_search(
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> Box<dyn VerticalSearch> {
-    let registration = registration(id);
-    debug_assert!(registration.capabilities.contains(&"vertical_search"));
-    match id {
-        ProviderId::Anysearch => Box::new(build_anysearch(config, client, retry_policy, deadline)),
-        _ => unreachable!("vertical_search capability only has vertical search constructors"),
-    }
+    catalog::build_vertical(id, config, client, retry_policy, deadline)
 }
 
 pub(crate) fn registration(id: ProviderId) -> &'static ProviderRegistration {
-    match id {
-        ProviderId::Xai => &REGISTRY[0],
-        ProviderId::OpenAiCompatible => &REGISTRY[1],
-        ProviderId::Tavily => &REGISTRY[2],
-        ProviderId::Firecrawl => &REGISTRY[3],
-        ProviderId::Jina => &REGISTRY[4],
-        ProviderId::Context7 => &REGISTRY[5],
-        ProviderId::Exa => &REGISTRY[6],
-        ProviderId::Anysearch => &REGISTRY[7],
-    }
+    registrations()
+        .iter()
+        .find(|registration| registration.id == id)
+        .expect("validated registry contains every provider ID")
 }
 
 pub(crate) fn build_exa(
@@ -641,7 +906,9 @@ mod tests {
 
     use serde::Deserialize;
 
-    use super::registrations;
+    use super::{
+        DoctorProbe, ProviderId, REGISTRY, catalog, registrations, validate_registrations,
+    };
 
     #[derive(Deserialize)]
     struct AcceptanceManifest {
@@ -662,13 +929,13 @@ mod tests {
             "/tests/acceptance-manifest.json"
         )))
         .expect("acceptance manifest");
-        let registry = registrations()
+        let registry = catalog::CATALOGS
             .iter()
-            .flat_map(|registration| {
-                registration
-                    .capabilities
+            .flat_map(|catalog| {
+                catalog
+                    .providers
                     .iter()
-                    .map(move |seam| (registration.id.name(), *seam))
+                    .map(move |provider| (provider.name(), catalog.seam))
             })
             .collect::<BTreeSet<_>>();
         let fixture_projection = manifest
@@ -684,6 +951,57 @@ mod tests {
                 "{} / {} lacks a fixture test",
                 fixture.provider,
                 fixture.seam
+            );
+        }
+    }
+
+    #[test]
+    fn registration_lookup_is_identifier_based_and_rejects_missing_or_duplicate_ids() {
+        let mut reordered = REGISTRY.to_vec();
+        reordered.swap(0, 6);
+        assert!(validate_registrations(&reordered).is_ok());
+        assert_eq!(
+            reordered
+                .iter()
+                .find(|registration| registration.id == ProviderId::Xai)
+                .map(|registration| registration.id),
+            Some(ProviderId::Xai)
+        );
+
+        let mut misaligned = reordered;
+        misaligned[0] = misaligned[1];
+
+        assert!(validate_registrations(&misaligned).is_err());
+        for id in ProviderId::ALL {
+            assert_eq!(super::registration(id).id, id);
+        }
+    }
+
+    #[test]
+    fn catalogs_project_every_registration_probe_and_smoke_case_consistently() {
+        let catalog_ids = catalog::CATALOGS
+            .iter()
+            .flat_map(|catalog| catalog.providers.iter().copied())
+            .collect::<BTreeSet<_>>();
+        let registration_ids = registrations()
+            .iter()
+            .map(|registration| registration.id)
+            .collect::<BTreeSet<_>>();
+        assert_eq!(catalog_ids, registration_ids);
+
+        for registration in registrations() {
+            let probe_is_supported = match registration.probe {
+                DoctorProbe::MainSearch(_) => catalog::MAIN_SEARCH.contains(registration.id),
+                DoctorProbe::WebSearch { .. } => catalog::WEB_SEARCH.contains(registration.id),
+                DoctorProbe::WebFetch { .. } => catalog::WEB_FETCH.contains(registration.id),
+                DoctorProbe::DocsSearch { .. } => catalog::DOCS_SEARCH.contains(registration.id),
+                DoctorProbe::AnysearchDomains { .. } => registration.id == ProviderId::Anysearch,
+            };
+            assert!(probe_is_supported, "{} probe", registration.id.name());
+            assert!(
+                !registration.smoke_cases.is_empty(),
+                "{} smoke",
+                registration.id.name()
             );
         }
     }

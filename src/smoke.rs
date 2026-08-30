@@ -3,9 +3,9 @@ use std::fs;
 use std::io::{self, Read};
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
+use std::sync::{Arc, LazyLock};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
@@ -26,46 +26,36 @@ pub(crate) const PIPELINE_CANARY_QUERY: &str =
 pub(crate) const RESEARCH_CANARY_QUERY: &str = "What is the current status of async drop in Rust?";
 const FETCH_CANARY_URL: &str = "https://www.rust-lang.org/";
 const ANYSEARCH_CANARY_QUERY: &str = "retrieval augmented generation";
-const EXPECTED_PROVIDERS: [&str; 8] = [
-    "anysearch",
-    "context7",
-    "exa",
-    "firecrawl",
-    "jina",
-    "openai_compatible",
-    "tavily",
-    "xai",
-];
 const SPECIFICATION_CASE_IDS: [&str; 19] = [
     "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12",
     "C13", "C14", "C15", "C16", "C17",
 ];
-const LIVE_CASES: [LiveCaseDefinition; 19] = [
+const PIPELINE_CASES: [LiveCaseDefinition; 3] = [
     LiveCaseDefinition::pipeline("P1", "search"),
     LiveCaseDefinition::pipeline("P2", "research"),
-    LiveCaseDefinition::provider("C01", "xai", "main_search", "sse"),
-    LiveCaseDefinition::provider(
-        "C02",
-        "openai_compatible",
-        "main_search_stream_false",
-        "http",
-    ),
-    LiveCaseDefinition::provider("C03", "openai_compatible", "main_search_stream_true", "sse"),
     LiveCaseDefinition::provider("C04", "classifier", "capability_and_plan", "http"),
-    LiveCaseDefinition::provider("C05", "tavily", "web_search", "http"),
-    LiveCaseDefinition::provider("C06", "firecrawl", "web_search", "http"),
-    LiveCaseDefinition::provider("C07", "jina", "web_fetch", "http"),
-    LiveCaseDefinition::provider("C08", "tavily", "web_fetch", "http"),
-    LiveCaseDefinition::provider("C09", "firecrawl", "web_fetch", "http"),
-    LiveCaseDefinition::provider("C10", "context7", "library_resolve", "mcp"),
-    LiveCaseDefinition::provider("C11", "context7", "docs", "mcp"),
-    LiveCaseDefinition::provider("C12", "exa", "docs_search", "http"),
-    LiveCaseDefinition::provider("C13", "exa", "similar", "http"),
-    LiveCaseDefinition::provider("C14", "anysearch", "academic.search", "mcp"),
-    LiveCaseDefinition::provider("C15", "anysearch", "vertical_discovery", "mcp"),
-    LiveCaseDefinition::provider("C16", "anysearch", "domains", "mcp"),
-    LiveCaseDefinition::provider("C17", "tavily", "site_map", "http"),
 ];
+
+static LIVE_CASES: LazyLock<Vec<LiveCaseDefinition>> = LazyLock::new(|| {
+    let mut cases = PIPELINE_CASES.to_vec();
+    cases.extend(providers::registrations().iter().flat_map(|registration| {
+        registration.smoke_cases.iter().map(|case| {
+            LiveCaseDefinition::provider(
+                case.id,
+                registration.id.name(),
+                case.operation,
+                case.transport,
+            )
+        })
+    }));
+    cases.sort_by_key(|case| {
+        SPECIFICATION_CASE_IDS
+            .iter()
+            .position(|id| *id == case.id)
+            .unwrap_or(usize::MAX)
+    });
+    cases
+});
 
 #[derive(Clone, Copy, Debug, Serialize)]
 pub(crate) struct LiveCaseDefinition {
@@ -175,18 +165,24 @@ pub(crate) enum ProbeKind {
 }
 
 pub(crate) fn probe_kind(case_id: &str) -> Result<ProbeKind, String> {
-    match case_id {
-        "C04" => Ok(ProbeKind::Classifier),
-        "C05" => Ok(ProbeKind::Supplemental(ProviderId::Tavily)),
-        "C06" => Ok(ProbeKind::Supplemental(ProviderId::Firecrawl)),
-        "OUTAGE" => Ok(ProbeKind::Outage),
-        _ => Err("unknown internal smoke probe".into()),
+    if case_id == "OUTAGE" {
+        return Ok(ProbeKind::Outage);
     }
+    let definition = live_case(case_id).ok_or_else(|| "unknown internal smoke probe".to_owned())?;
+    if definition.provider == Some("classifier") {
+        return Ok(ProbeKind::Classifier);
+    }
+    if definition.operation == "web_search"
+        && let Some(provider) = definition.provider.and_then(ProviderId::parse)
+    {
+        return Ok(ProbeKind::Supplemental(provider));
+    }
+    Err("unknown internal smoke probe".into())
 }
 
 struct CommandSpec {
     arguments: Vec<String>,
-    environment: Vec<(&'static str, &'static str)>,
+    environment: Vec<(String, String)>,
     shape: ResultShape,
 }
 
@@ -313,17 +309,11 @@ fn official_status_page_matches_case(case_id: &str, url: &str, runtime: &Runtime
 }
 
 fn provider_for_case(case_id: &str) -> Option<ProviderId> {
-    match case_id {
-        "C01" => Some(ProviderId::Xai),
-        "C02" | "C03" => Some(ProviderId::OpenAiCompatible),
-        "C05" | "C08" | "C17" => Some(ProviderId::Tavily),
-        "C06" | "C09" => Some(ProviderId::Firecrawl),
-        "C07" => Some(ProviderId::Jina),
-        "C10" | "C11" => Some(ProviderId::Context7),
-        "C12" | "C13" => Some(ProviderId::Exa),
-        "C14" | "C15" | "C16" => Some(ProviderId::Anysearch),
-        _ => None,
-    }
+    live_case(case_id)?.provider.and_then(ProviderId::parse)
+}
+
+fn live_case(case_id: &str) -> Option<LiveCaseDefinition> {
+    LIVE_CASES.iter().copied().find(|case| case.id == case_id)
 }
 
 fn pipeline_status_matches(runtime: &RuntimeConfig, status_host: &str, research: bool) -> bool {
@@ -443,16 +433,9 @@ fn evidence_matches_case_endpoint(case_id: &str, evidence: &str, runtime: &Runti
                     .iter()
                     .any(|registration| matches(provider_endpoint(runtime, registration.id)))
         }
-        "C01" => matches(provider_endpoint(runtime, ProviderId::Xai)),
-        "C02" | "C03" => matches(provider_endpoint(runtime, ProviderId::OpenAiCompatible)),
         "C04" => matches(&runtime.classifier.url),
-        "C05" | "C08" | "C17" => matches(provider_endpoint(runtime, ProviderId::Tavily)),
-        "C06" | "C09" => matches(provider_endpoint(runtime, ProviderId::Firecrawl)),
-        "C07" => matches(provider_endpoint(runtime, ProviderId::Jina)),
-        "C10" | "C11" => matches(provider_endpoint(runtime, ProviderId::Context7)),
-        "C12" | "C13" => matches(provider_endpoint(runtime, ProviderId::Exa)),
-        "C14" | "C15" | "C16" => matches(provider_endpoint(runtime, ProviderId::Anysearch)),
-        _ => false,
+        _ => provider_for_case(case_id)
+            .is_some_and(|provider| matches(provider_endpoint(runtime, provider))),
     }
 }
 
@@ -478,7 +461,7 @@ pub(crate) fn run_live(
     let mut results = Vec::with_capacity(LIVE_CASES.len());
     let mut summary = LiveSummary::default();
 
-    for definition in LIVE_CASES {
+    for definition in LIVE_CASES.iter().copied() {
         let result = if case_is_configured(definition.id, &runtime) {
             run_configured_case(definition, &runtime, deadline, outage_evidence)
         } else {
@@ -678,6 +661,53 @@ fn command_specs(
             shape,
         }]
     };
+    let definition = live_case(case_id)?;
+    if definition.operation == "web_search" {
+        return Some(one(
+            &["smoke", "--probe", case_id, "--probe-timeout", &timeout],
+            ResultShape::SupplementalSearch,
+        ));
+    }
+    if definition.operation == "web_fetch" {
+        let provider = definition.provider?;
+        let mut commands = one(
+            &["fetch", FETCH_CANARY_URL, "--timeout", &timeout],
+            ResultShape::Fetch,
+        );
+        commands[0].environment.push((
+            "FORAGER_CAPABILITIES__WEB_FETCH__ORDER".into(),
+            format!("[\"{provider}\"]"),
+        ));
+        return Some(commands);
+    }
+    if definition.operation.starts_with("main_search") {
+        let provider = definition.provider?;
+        let mut commands = one(
+            &[
+                "search",
+                MAIN_CANARY_QUERY,
+                "--capabilities",
+                "none",
+                "--timeout",
+                &timeout,
+            ],
+            ResultShape::MainSearch,
+        );
+        commands[0].environment.extend([
+            (
+                "FORAGER_SEARCH__BACKENDS".into(),
+                format!("[\"{provider}\"]"),
+            ),
+            ("FORAGER_SEARCH__FALLBACK".into(), "off".into()),
+        ]);
+        if let Some(stream) = definition.operation.strip_prefix("main_search_stream_") {
+            commands[0].environment.push((
+                "FORAGER_PROVIDERS__OPENAI_COMPATIBLE__STREAM".into(),
+                stream.into(),
+            ));
+        }
+        return Some(commands);
+    }
     Some(match case_id {
         "P1" => one(
             &[
@@ -706,85 +736,10 @@ fn command_specs(
                 ResultShape::Research,
             )
         }
-        "C01" => with_environment(
-            one(
-                &[
-                    "search",
-                    MAIN_CANARY_QUERY,
-                    "--capabilities",
-                    "none",
-                    "--timeout",
-                    &timeout,
-                ],
-                ResultShape::MainSearch,
-            ),
-            &[
-                ("FORAGER_SEARCH__BACKENDS", "[\"xai\"]"),
-                ("FORAGER_SEARCH__FALLBACK", "off"),
-            ],
-        ),
-        "C02" => with_environment(
-            one(
-                &[
-                    "search",
-                    MAIN_CANARY_QUERY,
-                    "--capabilities",
-                    "none",
-                    "--timeout",
-                    &timeout,
-                ],
-                ResultShape::MainSearch,
-            ),
-            &[
-                ("FORAGER_SEARCH__BACKENDS", "[\"openai_compatible\"]"),
-                ("FORAGER_SEARCH__FALLBACK", "off"),
-                ("FORAGER_PROVIDERS__OPENAI_COMPATIBLE__STREAM", "false"),
-            ],
-        ),
-        "C03" => with_environment(
-            one(
-                &[
-                    "search",
-                    MAIN_CANARY_QUERY,
-                    "--capabilities",
-                    "none",
-                    "--timeout",
-                    &timeout,
-                ],
-                ResultShape::MainSearch,
-            ),
-            &[
-                ("FORAGER_SEARCH__BACKENDS", "[\"openai_compatible\"]"),
-                ("FORAGER_SEARCH__FALLBACK", "off"),
-                ("FORAGER_PROVIDERS__OPENAI_COMPATIBLE__STREAM", "true"),
-            ],
-        ),
         "C04" => one(
             &["smoke", "--probe", "C04", "--probe-timeout", &timeout],
             ResultShape::Classifier,
         ),
-        "C05" => one(
-            &["smoke", "--probe", "C05", "--probe-timeout", &timeout],
-            ResultShape::SupplementalSearch,
-        ),
-        "C06" => one(
-            &["smoke", "--probe", "C06", "--probe-timeout", &timeout],
-            ResultShape::SupplementalSearch,
-        ),
-        "C07" | "C08" | "C09" => {
-            let order = match case_id {
-                "C07" => "[\"jina\"]",
-                "C08" => "[\"tavily\"]",
-                _ => "[\"firecrawl\"]",
-            };
-            with_environment(
-                one(
-                    &["fetch", FETCH_CANARY_URL, "--timeout", &timeout],
-                    ResultShape::Fetch,
-                ),
-                &[("FORAGER_CAPABILITIES__WEB_FETCH__ORDER", order)],
-            )
-        }
         "C10" => one(
             &[
                 "context7",
@@ -878,16 +833,6 @@ fn command_specs(
     })
 }
 
-fn with_environment(
-    mut commands: Vec<CommandSpec>,
-    environment: &[(&'static str, &'static str)],
-) -> Vec<CommandSpec> {
-    for command in &mut commands {
-        command.environment.extend_from_slice(environment);
-    }
-    commands
-}
-
 fn result_shape_is_nonempty(shape: ResultShape, payload: &Value) -> bool {
     match shape {
         ResultShape::MainSearch => nonempty_string(payload, "answer"),
@@ -969,16 +914,9 @@ fn case_is_configured(case_id: &str, runtime: &RuntimeConfig) -> bool {
                 && discovery_seams >= 2
                 && runtime.web_fetch.configured_provider_count() > 0
         }
-        "C01" => provider_is_configured(runtime, ProviderId::Xai),
-        "C02" | "C03" => provider_is_configured(runtime, ProviderId::OpenAiCompatible),
         "C04" => runtime.classifier.configured(),
-        "C05" | "C08" | "C17" => provider_is_configured(runtime, ProviderId::Tavily),
-        "C06" | "C09" => provider_is_configured(runtime, ProviderId::Firecrawl),
-        "C07" => provider_is_configured(runtime, ProviderId::Jina),
-        "C10" | "C11" => provider_is_configured(runtime, ProviderId::Context7),
-        "C12" | "C13" => provider_is_configured(runtime, ProviderId::Exa),
-        "C14" | "C15" | "C16" => provider_is_configured(runtime, ProviderId::Anysearch),
-        _ => false,
+        _ => provider_for_case(case_id)
+            .is_some_and(|provider| provider_is_configured(runtime, provider)),
     }
 }
 
@@ -1044,13 +982,19 @@ fn registry_status() -> RegistryStatus {
         .iter()
         .map(|registration| registration.id.name())
         .collect::<BTreeSet<_>>();
-    let expected = EXPECTED_PROVIDERS.into_iter().collect::<BTreeSet<_>>();
+    let expected = ProviderId::ALL
+        .into_iter()
+        .map(ProviderId::name)
+        .collect::<BTreeSet<_>>();
     let descriptions_are_complete = registrations.iter().all(|registration| {
         registration.credentials_required
-            && (!registration.capabilities.is_empty() || !registration.operations.is_empty())
+            && (providers::catalog::CATALOGS
+                .iter()
+                .any(|catalog| catalog.contains(registration.id))
+                || !registration.operations.is_empty())
     });
     RegistryStatus {
-        ok: registrations.len() == EXPECTED_PROVIDERS.len()
+        ok: registrations.len() == ProviderId::ALL.len()
             && names == expected
             && descriptions_are_complete,
         provider_count: registrations.len(),

@@ -5,11 +5,11 @@ use futures_util::future::join_all;
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::config::{self, OpenAiCompatibleRuntimeConfig, RuntimeConfig};
+use crate::config::{self, MainSearchProviderConfig, RuntimeConfig};
 use crate::net::{self, RetryPolicy};
 use crate::providers::{
-    self, AnysearchDomainsRequest, Context7LibraryRequest, ExaSearchRequest, FetchRequest,
-    MainSearchRequest, ModelBreakers, ProviderError, ProviderId, SearchType,
+    self, AnysearchDomainsRequest, DoctorProbe, FetchRequest, MainSearchRequest, ModelBreakers,
+    ProviderError, ProviderId,
 };
 use crate::types::{AttemptDisposition, AttemptErrorKind, Deadline, SearchOutcome};
 
@@ -194,8 +194,6 @@ pub(crate) fn deep(
     }
 }
 
-// Provider probes remain in one match so the doctor surface stays exhaustively mapped.
-#[expect(clippy::too_many_lines)]
 async fn run_probe(
     provider: ProviderId,
     config: RuntimeConfig,
@@ -203,47 +201,19 @@ async fn run_probe(
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> Result<Vec<ProbeCheck>, ProbeFailure> {
-    match provider {
-        ProviderId::Xai => {
-            let provider_config = config.xai;
-            let adapter = providers::build_xai(provider_config, client, retry_policy, deadline);
-            one_check(
-                adapter.probe(probe_search_request()).await,
-                "responses",
-                "sse",
+    match providers::registration(provider).probe {
+        DoctorProbe::MainSearch(shapes) => {
+            probe_main_search(provider, shapes, config, client, retry_policy, deadline).await
+        }
+        DoctorProbe::WebSearch { name, transport } => {
+            let provider_config = providers::catalog::web_config(
+                providers::catalog::WEB_SEARCH,
+                provider,
+                &config.tavily,
+                &config.firecrawl,
+                &config.jina,
             )
-        }
-        ProviderId::OpenAiCompatible => {
-            let provider_config = config.openai_compatible;
-            probe_openai_shapes(provider_config, client, retry_policy, deadline).await
-        }
-        ProviderId::Exa => {
-            let adapter = providers::build_exa(config.exa, client, retry_policy, deadline);
-            one_check(
-                adapter
-                    .search(ExaSearchRequest {
-                        query: "forager doctor".into(),
-                        num_results: 1,
-                        search_type: SearchType::Auto,
-                        include_text: false,
-                        include_highlights: false,
-                        start_published_date: None,
-                        include_domains: Vec::new(),
-                        exclude_domains: Vec::new(),
-                        category: None,
-                        verbose: false,
-                    })
-                    .await,
-                "search",
-                "http",
-            )
-        }
-        ProviderId::Tavily | ProviderId::Firecrawl => {
-            let provider_config = match provider {
-                ProviderId::Tavily => config.tavily,
-                ProviderId::Firecrawl => config.firecrawl,
-                _ => unreachable!(),
-            };
+            .expect("probe registration belongs to the web-search catalog");
             let adapter = providers::build_web_search(
                 provider,
                 provider_config,
@@ -251,10 +221,17 @@ async fn run_probe(
                 retry_policy,
                 deadline,
             );
-            one_check(adapter.search("forager doctor", 1).await, "search", "http")
+            one_check(adapter.search("forager doctor", 1).await, name, transport)
         }
-        ProviderId::Jina => {
-            let provider_config = config.jina;
+        DoctorProbe::WebFetch { name, transport } => {
+            let provider_config = providers::catalog::web_config(
+                providers::catalog::WEB_FETCH,
+                provider,
+                &config.tavily,
+                &config.firecrawl,
+                &config.jina,
+            )
+            .expect("probe registration belongs to the web-fetch catalog");
             let adapter = providers::build_web_fetch(
                 provider,
                 provider_config,
@@ -269,26 +246,24 @@ async fn run_probe(
                         verbose: false,
                     })
                     .await,
-                "fetch",
-                "http",
+                name,
+                transport,
             )
         }
-        ProviderId::Context7 => {
-            let adapter =
-                providers::build_context7(config.context7, client, retry_policy, deadline);
-            one_check(
-                adapter
-                    .library(Context7LibraryRequest {
-                        name: "rust".into(),
-                        query: "forager doctor".into(),
-                        verbose: false,
-                    })
-                    .await,
-                "library",
-                "mcp",
-            )
+        DoctorProbe::DocsSearch { name, transport } => {
+            let provider_config =
+                providers::catalog::docs_config(provider, &config.exa, &config.context7)
+                    .expect("probe registration belongs to the docs-search catalog");
+            let adapter = providers::build_docs_search(
+                provider,
+                provider_config,
+                client,
+                retry_policy,
+                deadline,
+            );
+            one_check(adapter.search("forager doctor", 1).await, name, transport)
         }
-        ProviderId::Anysearch => {
+        DoctorProbe::AnysearchDomains { name, transport } => {
             let adapter =
                 providers::build_anysearch(config.anysearch, client, retry_policy, deadline);
             one_check(
@@ -298,42 +273,55 @@ async fn run_probe(
                         verbose: false,
                     })
                     .await,
-                "domains",
-                "mcp",
+                name,
+                transport,
             )
         }
     }
 }
 
-async fn probe_openai_shapes(
-    config: OpenAiCompatibleRuntimeConfig,
+async fn probe_main_search(
+    provider: ProviderId,
+    shapes: &'static [providers::ProbeShape],
+    config: RuntimeConfig,
     client: reqwest::Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> Result<Vec<ProbeCheck>, ProbeFailure> {
     let breakers = Arc::new(ModelBreakers::default());
     let mut checks = Vec::new();
-    for (stream, name, transport) in [(false, "non_stream", "http"), (true, "stream", "sse")] {
-        let mut shape_config = config.clone();
-        shape_config.stream = stream;
-        shape_config.fallback_models.clear();
-        let adapter = providers::build_openai_compatible(
+    for shape in shapes {
+        let mut shape_config =
+            providers::catalog::main_config(provider, &config.xai, &config.openai_compatible)
+                .expect("probe registration belongs to the main-search catalog");
+        if let MainSearchProviderConfig::OpenAiCompatible(config) = &mut shape_config {
+            if let Some(stream) = shape.stream {
+                config.stream = stream;
+            }
+            config.fallback_models.clear();
+        }
+        let adapter = providers::build_main_search(
+            provider,
             shape_config,
             client.clone(),
             retry_policy,
             deadline,
             Arc::clone(&breakers),
         );
-        match validate_transport(adapter.probe(probe_search_request()).await, transport, name) {
+        match validate_transport(
+            adapter.probe(probe_search_request()).await,
+            shape.transport,
+            shape.name,
+        ) {
             Ok(()) => checks.push(ProbeCheck {
-                name,
-                transport,
+                name: shape.name,
+                transport: shape.transport,
                 ok: true,
             }),
             Err(error) => {
                 checks.push(ProbeCheck {
-                    name,
-                    transport,
+                    name: shape.name,
+                    transport: shape.transport,
                     ok: false,
                 });
                 return Err(ProbeFailure {

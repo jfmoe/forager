@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use super::load::load_effective_config;
 use super::location::{ConfigError, ConfigLocation};
 use super::schema::{Config, FieldRef, SCHEMA};
-use crate::providers::ProviderId;
+use crate::providers::{ProviderId, catalog};
 use crate::redact::Secret;
 use crate::types::FallbackPolicy;
 
@@ -375,40 +375,7 @@ pub(crate) struct ProviderRuntime<'a> {
 
 impl RuntimeConfig {
     pub(crate) fn provider_runtime(&self, id: ProviderId) -> ProviderRuntime<'_> {
-        match id {
-            ProviderId::Xai => ProviderRuntime {
-                endpoint: &self.xai.url,
-                keys: &self.xai.keys,
-            },
-            ProviderId::OpenAiCompatible => ProviderRuntime {
-                endpoint: &self.openai_compatible.url,
-                keys: &self.openai_compatible.keys,
-            },
-            ProviderId::Exa => ProviderRuntime {
-                endpoint: &self.exa.url,
-                keys: &self.exa.keys,
-            },
-            ProviderId::Tavily => ProviderRuntime {
-                endpoint: &self.tavily.url,
-                keys: &self.tavily.keys,
-            },
-            ProviderId::Firecrawl => ProviderRuntime {
-                endpoint: &self.firecrawl.url,
-                keys: &self.firecrawl.keys,
-            },
-            ProviderId::Jina => ProviderRuntime {
-                endpoint: &self.jina.url,
-                keys: &self.jina.keys,
-            },
-            ProviderId::Context7 => ProviderRuntime {
-                endpoint: &self.context7.url,
-                keys: &self.context7.keys,
-            },
-            ProviderId::Anysearch => ProviderRuntime {
-                endpoint: &self.anysearch.url,
-                keys: &self.anysearch.keys,
-            },
-        }
+        crate::providers::registration(id).runtime(self)
     }
 }
 
@@ -550,22 +517,13 @@ fn main_search_entries(
 ) -> Result<Vec<SeamEntry<MainSearchProviderConfig>>, ConfigError> {
     order
         .into_iter()
-        .map(|name| match ProviderId::parse(&name) {
-            Some(ProviderId::Xai) => {
-                let config = MainSearchProviderConfig::Xai(xai.clone());
-                let configured = config.configured();
-                Ok(SeamEntry::new(ProviderId::Xai, config, configured))
-            }
-            Some(ProviderId::OpenAiCompatible) => {
-                let config = MainSearchProviderConfig::OpenAiCompatible(openai.clone());
-                let configured = config.configured();
-                Ok(SeamEntry::new(
-                    ProviderId::OpenAiCompatible,
-                    config,
-                    configured,
-                ))
-            }
-            _ => Err(unknown_provider(&name, "search.backends")),
+        .map(|name| {
+            let id = ProviderId::parse(&name)
+                .ok_or_else(|| unknown_provider(&name, "search.backends"))?;
+            let config = catalog::main_config(id, xai, openai)
+                .ok_or_else(|| unknown_provider(&name, "search.backends"))?;
+            let configured = config.configured();
+            Ok(SeamEntry::new(id, config, configured))
         })
         .collect()
 }
@@ -577,18 +535,13 @@ fn docs_search_entries(
 ) -> Result<Vec<SeamEntry<DocsSearchProviderConfig>>, ConfigError> {
     order
         .into_iter()
-        .map(|name| match ProviderId::parse(&name) {
-            Some(ProviderId::Exa) => {
-                let config = DocsSearchProviderConfig::Exa(exa.clone());
-                let configured = config.configured();
-                Ok(SeamEntry::new(ProviderId::Exa, config, configured))
-            }
-            Some(ProviderId::Context7) => {
-                let config = DocsSearchProviderConfig::Context7(context7.clone());
-                let configured = config.configured();
-                Ok(SeamEntry::new(ProviderId::Context7, config, configured))
-            }
-            _ => Err(unknown_provider(&name, "capabilities.docs_search.order")),
+        .map(|name| {
+            let seam = "capabilities.docs_search.order";
+            let id = ProviderId::parse(&name).ok_or_else(|| unknown_provider(&name, seam))?;
+            let config = catalog::docs_config(id, exa, context7)
+                .ok_or_else(|| unknown_provider(&name, seam))?;
+            let configured = config.configured();
+            Ok(SeamEntry::new(id, config, configured))
         })
         .collect()
 }
@@ -599,16 +552,13 @@ fn vertical_search_entries(
 ) -> Result<Vec<SeamEntry<AnysearchRuntimeConfig>>, ConfigError> {
     order
         .into_iter()
-        .map(|name| match ProviderId::parse(&name) {
-            Some(ProviderId::Anysearch) => Ok(SeamEntry::new(
-                ProviderId::Anysearch,
-                anysearch.clone(),
-                !anysearch.keys.is_empty(),
-            )),
-            _ => Err(unknown_provider(
-                &name,
-                "capabilities.vertical_search.order",
-            )),
+        .map(|name| {
+            let seam = "capabilities.vertical_search.order";
+            let id = ProviderId::parse(&name).ok_or_else(|| unknown_provider(&name, seam))?;
+            let config = catalog::vertical_config(id, anysearch)
+                .ok_or_else(|| unknown_provider(&name, seam))?;
+            let configured = !config.keys.is_empty();
+            Ok(SeamEntry::new(id, config, configured))
         })
         .collect()
 }
@@ -620,15 +570,13 @@ fn web_entries(
     firecrawl: &WebFetchProviderConfig,
     jina: &WebFetchProviderConfig,
 ) -> Result<Vec<SeamEntry<WebFetchProviderConfig>>, ConfigError> {
+    let catalog = catalog::by_seam(seam).ok_or_else(|| unknown_provider("", seam))?;
     order
         .into_iter()
         .map(|name| {
-            let (id, config) = match ProviderId::parse(&name) {
-                Some(ProviderId::Tavily) => (ProviderId::Tavily, tavily.clone()),
-                Some(ProviderId::Firecrawl) => (ProviderId::Firecrawl, firecrawl.clone()),
-                Some(ProviderId::Jina) if seam == "web_fetch" => (ProviderId::Jina, jina.clone()),
-                _ => return Err(unknown_provider(&name, seam)),
-            };
+            let id = ProviderId::parse(&name).ok_or_else(|| unknown_provider(&name, seam))?;
+            let config = catalog::web_config(catalog, id, tavily, firecrawl, jina)
+                .ok_or_else(|| unknown_provider(&name, seam))?;
             let configured = !config.keys.is_empty();
             Ok(SeamEntry::new(id, config, configured))
         })
