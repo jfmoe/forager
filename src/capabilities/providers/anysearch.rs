@@ -279,7 +279,7 @@ type DomainStatusIndex = HashMap<String, HashMap<String, &'static str>>;
 
 static DOMAIN_STATUSES: LazyLock<Result<DomainStatusIndex, String>> = LazyLock::new(|| {
     let manifest: Manifest = serde_json::from_str(include_str!(
-        "../../assets/anysearch/verified-domain-manifest.json"
+        "../../../assets/anysearch/verified-domain-manifest.json"
     ))
     .map_err(|error| format!("invalid versioned AnySearch manifest: {error}"))?;
     let mut statuses = DomainStatusIndex::new();

@@ -3,27 +3,27 @@
     {
       "id": "U01",
       "requirements": ["I0-4"],
-      "test": "src/engine.rs::terminal_kind_exhausts_final_kind_pairs_and_ignores_history"
+      "test": "src/core/attempt_trace.rs::terminal_kind_exhausts_final_kind_pairs_and_ignores_history"
     },
     {
       "id": "U02",
       "requirements": ["I0-3"],
-      "test": "src/engine.rs::provider_budget_preserves_reachable_fallback_slots_at_every_boundary"
+      "test": "src/core/engine.rs::provider_budget_preserves_reachable_fallback_slots_at_every_boundary"
     },
     {
       "id": "U03",
       "requirements": ["I0-2"],
-      "test": "src/types.rs::strict_parser_rejects_each_schema_boundary"
+      "test": "src/infra/types.rs::strict_parser_rejects_each_schema_boundary"
     },
     {
       "id": "U04",
       "requirements": ["I0-5"],
-      "test": "src/redact.rs::url_redaction_exhausts_credentials_fragments_and_safe_query_boundaries"
+      "test": "src/infra/redact.rs::url_redaction_exhausts_credentials_fragments_and_safe_query_boundaries"
     },
     {
       "id": "U05",
       "requirements": ["I0-1"],
-      "test": "src/types.rs::provider_attempt_error_domain_excludes_preflight_config"
+      "test": "src/infra/types.rs::provider_attempt_error_domain_excludes_preflight_config"
     },
     {
       "id": "U06",
@@ -33,7 +33,7 @@
     {
       "id": "U07",
       "requirements": ["I0-6"],
-      "test": "src/research.rs::recovery_manifest_covers_success_evidence_and_runtime_without_content"
+      "test": "src/evidence/research.rs::recovery_manifest_covers_success_evidence_and_runtime_without_content"
     }
   ],
   "transport_fixtures": [
