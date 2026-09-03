@@ -4,7 +4,7 @@ use std::path::{Path, PathBuf};
 use super::load::load_effective_config;
 use super::location::{ConfigError, ConfigLocation};
 use super::schema::{Config, FieldRef, SCHEMA};
-use crate::providers::{ProviderId, catalog};
+use crate::catalog::{self, ProviderId};
 use crate::redact::Secret;
 use crate::types::FallbackPolicy;
 
@@ -375,7 +375,40 @@ pub(crate) struct ProviderRuntime<'a> {
 
 impl RuntimeConfig {
     pub(crate) fn provider_runtime(&self, id: ProviderId) -> ProviderRuntime<'_> {
-        crate::providers::registration(id).runtime(self)
+        match id {
+            ProviderId::Xai => ProviderRuntime {
+                endpoint: &self.xai.url,
+                keys: &self.xai.keys,
+            },
+            ProviderId::OpenAiCompatible => ProviderRuntime {
+                endpoint: &self.openai_compatible.url,
+                keys: &self.openai_compatible.keys,
+            },
+            ProviderId::Exa => ProviderRuntime {
+                endpoint: &self.exa.url,
+                keys: &self.exa.keys,
+            },
+            ProviderId::Tavily => ProviderRuntime {
+                endpoint: &self.tavily.url,
+                keys: &self.tavily.keys,
+            },
+            ProviderId::Firecrawl => ProviderRuntime {
+                endpoint: &self.firecrawl.url,
+                keys: &self.firecrawl.keys,
+            },
+            ProviderId::Jina => ProviderRuntime {
+                endpoint: &self.jina.url,
+                keys: &self.jina.keys,
+            },
+            ProviderId::Context7 => ProviderRuntime {
+                endpoint: &self.context7.url,
+                keys: &self.context7.keys,
+            },
+            ProviderId::Anysearch => ProviderRuntime {
+                endpoint: &self.anysearch.url,
+                keys: &self.anysearch.keys,
+            },
+        }
     }
 }
 
@@ -520,7 +553,7 @@ fn main_search_entries(
         .map(|name| {
             let id = ProviderId::parse(&name)
                 .ok_or_else(|| unknown_provider(&name, "search.backends"))?;
-            let config = catalog::main_config(id, xai, openai)
+            let config = main_provider_config(id, xai, openai)
                 .ok_or_else(|| unknown_provider(&name, "search.backends"))?;
             let configured = config.configured();
             Ok(SeamEntry::new(id, config, configured))
@@ -538,7 +571,7 @@ fn docs_search_entries(
         .map(|name| {
             let seam = "capabilities.docs_search.order";
             let id = ProviderId::parse(&name).ok_or_else(|| unknown_provider(&name, seam))?;
-            let config = catalog::docs_config(id, exa, context7)
+            let config = docs_provider_config(id, exa, context7)
                 .ok_or_else(|| unknown_provider(&name, seam))?;
             let configured = config.configured();
             Ok(SeamEntry::new(id, config, configured))
@@ -555,7 +588,7 @@ fn vertical_search_entries(
         .map(|name| {
             let seam = "capabilities.vertical_search.order";
             let id = ProviderId::parse(&name).ok_or_else(|| unknown_provider(&name, seam))?;
-            let config = catalog::vertical_config(id, anysearch)
+            let config = vertical_provider_config(id, anysearch)
                 .ok_or_else(|| unknown_provider(&name, seam))?;
             let configured = !config.keys.is_empty();
             Ok(SeamEntry::new(id, config, configured))
@@ -575,12 +608,65 @@ fn web_entries(
         .into_iter()
         .map(|name| {
             let id = ProviderId::parse(&name).ok_or_else(|| unknown_provider(&name, seam))?;
-            let config = catalog::web_config(catalog, id, tavily, firecrawl, jina)
+            let config = web_provider_config(catalog, id, tavily, firecrawl, jina)
                 .ok_or_else(|| unknown_provider(&name, seam))?;
             let configured = !config.keys.is_empty();
             Ok(SeamEntry::new(id, config, configured))
         })
         .collect()
+}
+
+pub(crate) fn main_provider_config(
+    id: ProviderId,
+    xai: &XaiRuntimeConfig,
+    openai: &OpenAiCompatibleRuntimeConfig,
+) -> Option<MainSearchProviderConfig> {
+    match id {
+        ProviderId::Xai => Some(MainSearchProviderConfig::Xai(xai.clone())),
+        ProviderId::OpenAiCompatible => {
+            Some(MainSearchProviderConfig::OpenAiCompatible(openai.clone()))
+        }
+        _ => None,
+    }
+}
+
+pub(crate) fn docs_provider_config(
+    id: ProviderId,
+    exa: &ExaRuntimeConfig,
+    context7: &Context7RuntimeConfig,
+) -> Option<DocsSearchProviderConfig> {
+    match id {
+        ProviderId::Exa => Some(DocsSearchProviderConfig::Exa(exa.clone())),
+        ProviderId::Context7 => Some(DocsSearchProviderConfig::Context7(context7.clone())),
+        _ => None,
+    }
+}
+
+pub(crate) fn web_provider_config(
+    catalog: catalog::CapabilityCatalog,
+    id: ProviderId,
+    tavily: &WebFetchProviderConfig,
+    firecrawl: &WebFetchProviderConfig,
+    jina: &WebFetchProviderConfig,
+) -> Option<WebFetchProviderConfig> {
+    if !catalog.contains(id) {
+        return None;
+    }
+    match id {
+        ProviderId::Tavily => Some(tavily.clone()),
+        ProviderId::Firecrawl => Some(firecrawl.clone()),
+        ProviderId::Jina => Some(jina.clone()),
+        _ => None,
+    }
+}
+
+pub(crate) fn vertical_provider_config(
+    id: ProviderId,
+    anysearch: &AnysearchRuntimeConfig,
+) -> Option<AnysearchRuntimeConfig> {
+    catalog::VERTICAL_SEARCH
+        .contains(id)
+        .then(|| anysearch.clone())
 }
 
 fn resolve_journal_dir(value: &str, config_dir: &Path) -> Result<PathBuf, ConfigError> {

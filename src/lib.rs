@@ -8,6 +8,8 @@ pub mod app;
 mod attempt_log;
 #[path = "core/attempt_trace.rs"]
 mod attempt_trace;
+#[path = "capabilities/catalog.rs"]
+mod catalog;
 #[path = "core/chain.rs"]
 mod chain;
 #[path = "core/classifier.rs"]

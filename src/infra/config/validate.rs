@@ -3,7 +3,7 @@ use std::path::Path;
 
 use toml_edit::{Document, TableLike, Value};
 
-use crate::providers;
+use crate::catalog;
 
 use super::location::{ConfigError, EditError};
 use super::schema::{Config, FieldRef, Rule, SCHEMA, leaf};
@@ -103,7 +103,7 @@ fn capability_order_satisfies<'a>(
     let valid = values.into_iter().all(|value| {
         count += 1;
         value.is_some_and(|provider| {
-            providers::supports(capability, provider) && seen.insert(provider.to_owned())
+            catalog::supports(capability, provider) && seen.insert(provider.to_owned())
         })
     });
     valid && (allow_empty || count > 0)

@@ -5,11 +5,11 @@ use futures_util::future::join_all;
 use serde::Serialize;
 use serde_json::Value;
 
+use crate::catalog::{self, DoctorProbe, ProbeShape, ProviderId};
 use crate::config::{self, MainSearchProviderConfig, RuntimeConfig};
 use crate::net::{self, RetryPolicy};
 use crate::providers::{
-    self, AnysearchDomainsRequest, DoctorProbe, FetchRequest, MainSearchRequest, ModelBreakers,
-    ProviderError, ProviderId,
+    self, AnysearchDomainsRequest, FetchRequest, MainSearchRequest, ModelBreakers, ProviderError,
 };
 use crate::types::{AttemptDisposition, AttemptErrorKind, Deadline, SearchOutcome};
 
@@ -74,7 +74,7 @@ pub(crate) fn shallow(
         .block_on(async { net::build_client(runtime_config.ssl_verify) })
         .map_err(|error| config::ConfigError::Message(error.to_string()))?;
     let reachability = runtime.block_on(async {
-        join_all(providers::registrations().iter().map(|registration| {
+        join_all(catalog::registrations().iter().map(|registration| {
             probe_reachability(
                 client.clone(),
                 provider_endpoint(registration.id, &runtime_config).to_owned(),
@@ -83,7 +83,7 @@ pub(crate) fn shallow(
         }))
         .await
     });
-    let providers = providers::registrations()
+    let providers = catalog::registrations()
         .iter()
         .zip(reachability)
         .map(|(registration, reachable)| {
@@ -201,13 +201,13 @@ async fn run_probe(
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> Result<Vec<ProbeCheck>, ProbeFailure> {
-    match providers::registration(provider).probe {
+    match catalog::registration(provider).probe {
         DoctorProbe::MainSearch(shapes) => {
             probe_main_search(provider, shapes, config, client, retry_policy, deadline).await
         }
         DoctorProbe::WebSearch { name, transport } => {
-            let provider_config = providers::catalog::web_config(
-                providers::catalog::WEB_SEARCH,
+            let provider_config = config::web_provider_config(
+                catalog::WEB_SEARCH,
                 provider,
                 &config.tavily,
                 &config.firecrawl,
@@ -224,8 +224,8 @@ async fn run_probe(
             one_check(adapter.search("forager doctor", 1).await, name, transport)
         }
         DoctorProbe::WebFetch { name, transport } => {
-            let provider_config = providers::catalog::web_config(
-                providers::catalog::WEB_FETCH,
+            let provider_config = config::web_provider_config(
+                catalog::WEB_FETCH,
                 provider,
                 &config.tavily,
                 &config.firecrawl,
@@ -252,7 +252,7 @@ async fn run_probe(
         }
         DoctorProbe::DocsSearch { name, transport } => {
             let provider_config =
-                providers::catalog::docs_config(provider, &config.exa, &config.context7)
+                config::docs_provider_config(provider, &config.exa, &config.context7)
                     .expect("probe registration belongs to the docs-search catalog");
             let adapter = providers::build_docs_search(
                 provider,
@@ -282,7 +282,7 @@ async fn run_probe(
 
 async fn probe_main_search(
     provider: ProviderId,
-    shapes: &'static [providers::ProbeShape],
+    shapes: &'static [ProbeShape],
     config: RuntimeConfig,
     client: reqwest::Client,
     retry_policy: RetryPolicy,
@@ -292,7 +292,7 @@ async fn probe_main_search(
     let mut checks = Vec::new();
     for shape in shapes {
         let mut shape_config =
-            providers::catalog::main_config(provider, &config.xai, &config.openai_compatible)
+            config::main_provider_config(provider, &config.xai, &config.openai_compatible)
                 .expect("probe registration belongs to the main-search catalog");
         if let MainSearchProviderConfig::OpenAiCompatible(config) = &mut shape_config {
             if let Some(stream) = shape.stream {

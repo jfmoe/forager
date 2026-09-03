@@ -3,7 +3,7 @@ use std::sync::LazyLock;
 
 use serde::{Deserialize, Deserializer, Serialize, de};
 
-use crate::providers::catalog;
+use crate::catalog;
 use crate::redact::Secret;
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -507,7 +507,7 @@ where
 mod tests {
     use std::collections::BTreeSet;
 
-    use crate::providers::catalog;
+    use crate::catalog;
     use crate::redact::Secret;
 
     use super::{Config, FieldMut, FieldRef, SCHEMA, leaf};

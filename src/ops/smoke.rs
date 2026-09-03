@@ -13,9 +13,9 @@ use serde::Serialize;
 use serde_json::Value;
 use shared_child::SharedChild;
 
+use crate::catalog::{self, ProviderId};
 use crate::config::{self, RuntimeConfig};
 use crate::credentials;
-use crate::providers::{self, ProviderId};
 use crate::redact::{CREDENTIAL_MASK, Secret, redact_credentials, redact_url};
 use crate::types::Deadline;
 
@@ -38,7 +38,7 @@ const PIPELINE_CASES: [LiveCaseDefinition; 3] = [
 
 static LIVE_CASES: LazyLock<Vec<LiveCaseDefinition>> = LazyLock::new(|| {
     let mut cases = PIPELINE_CASES.to_vec();
-    cases.extend(providers::registrations().iter().flat_map(|registration| {
+    cases.extend(catalog::registrations().iter().flat_map(|registration| {
         registration.smoke_cases.iter().map(|case| {
             LiveCaseDefinition::provider(
                 case.id,
@@ -429,7 +429,7 @@ fn evidence_matches_case_endpoint(case_id: &str, evidence: &str, runtime: &Runti
     match case_id {
         "P1" | "P2" => {
             matches(&runtime.classifier.url)
-                || providers::registrations()
+                || catalog::registrations()
                     .iter()
                     .any(|registration| matches(provider_endpoint(runtime, registration.id)))
         }
@@ -935,7 +935,7 @@ pub(crate) fn run_offline() -> Result<(SmokeReport, u8), config::ConfigError> {
     }
 
     let registry = registry_status();
-    let providers = providers::registrations()
+    let providers = catalog::registrations()
         .iter()
         .map(|registration| credential_status(registration.id, &runtime, &effective))
         .collect();
@@ -977,7 +977,7 @@ pub(crate) fn run_offline() -> Result<(SmokeReport, u8), config::ConfigError> {
 }
 
 fn registry_status() -> RegistryStatus {
-    let registrations = providers::registrations();
+    let registrations = catalog::registrations();
     let names = registrations
         .iter()
         .map(|registration| registration.id.name())
@@ -988,7 +988,7 @@ fn registry_status() -> RegistryStatus {
         .collect::<BTreeSet<_>>();
     let descriptions_are_complete = registrations.iter().all(|registration| {
         registration.credentials_required
-            && (providers::catalog::CATALOGS
+            && (catalog::CATALOGS
                 .iter()
                 .any(|catalog| catalog.contains(registration.id))
                 || !registration.operations.is_empty())
