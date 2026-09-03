@@ -4,20 +4,35 @@
 
 ## 工程形态：单 crate `forager`，bin + lib
 
-不上多 crate 工作区（Rust 模块私有性已在编译期阻止跨私有面 import；单 crate → 工作区是机械重构）。两条纪律：① 模块默认私有，跨模块共享必须显式 `pub(crate)` 且只能上移共享层，provider 之间禁止横向 import；② `main.rs`/`lib.rs` 分离，bin 只做 clap 解析与退出码映射。
+不上多 crate 工作区（Rust 模块私有性已在编译期阻止跨私有面 import；单 crate → 工作区是机械重构）。两条纪律：① 模块默认私有，`lib.rs` 对外只开放 `app`、`config`、`types` 三个必要门面；跨模块共享必须显式 `pub(crate)` 且只能上移共享层，provider adapter 之间禁止横向 import；② `main.rs`/`lib.rs` 分离，bin 只负责 clap 解析、输出渲染与退出码映射。
 
-## 顶层模块（12 个，五层单向依赖）
+## 六分组物理结构与五层单向依赖
+
+`src/` 以职责形成六个物理分组；`lib.rs` 用显式 `#[path]` 声明保持既有 crate 内模块名，不把目录本身变成新的公共 API 层级。
+
+- **`cli/`**：CLI 参数定义、应用分发与 `app` 公共门面；参数树在 `args.rs`，分发在 `dispatch.rs`。
+- **`core/`**：engine、chain、classifier 与 Attempt Trace。
+- **`capabilities/`**：Capability Catalog、Provider Credential Pool、Provider HTTP Read Contract（`net`）及 provider adapter。
+- **`evidence/`**：Research Evidence Pipeline、Search Result Journal 与 stderr attempt log。
+- **`infra/`**：config、secure filesystem、redaction 与零 IO 的 `types` 基底。
+- **`ops/`**：doctor 与 smoke 运维入口。
+
+物理分组表达职责归属，调用关系仍遵守五层从上到下的单向纪律：
 
 ```
-main → app → {engine, research, classifier, doctor, journal}
-                → {net, credentials, config, providers} → types
+入口（main）
+  → 应用（cli/app、args、dispatch）
+    → 能力编排（engine、research、classifier、doctor、smoke、journal）
+      → 能力基础设施（catalog、providers、credentials、net、config、secure_fs、redact）
+        → 类型基底（types）
 ```
 
-- **`app` 组合层**（F1）：极薄；持有显式 `AppContext`（Config、共享 Client、CredentialPool、ModelBreakers、Deadline、journal 写入器的唯一所有权），只做具名输入/输出的顺序组合；禁止 provider 分支、路由规则、结果拼装。持有关键任务 `JoinHandle`，`JoinError` 归 Runtime。
-- **`types`**：零 IO 纯类型层——ErrorKind、Capability、`PlanCapability`（plan 语境独立三值枚举）、各 Outcome、ProviderAttempt、Source、ResearchPlan Schema v1、Deadline、薄正文阈值常量。所有跨层形状的唯一定义点。
-- **`net`**：共享 HTTP client 构造、RetryPolicy、SSE 解析、status→ErrorKind 唯一映射、McpClient。
-- `research`/`classifier`/`doctor`/`journal` 各自一格、互不依赖、不被 engine 依赖。
-- 输出格式化先放 bin 侧，出现第二个消费者再提升为 `output/`。
+上层可以依赖下层，下层不得反向依赖上层；同层共享行为必须放到该职责的唯一拥有模块，再以最窄的 crate 内可见性提供。`catalog` 独立于 config 与 providers，二者只单向消费它；provider adapter 只消费 `providers/shared`、`providers/execution` 等共享拥有模块，不互相 import。
+
+- **应用组合层**（F1）：`cli/app.rs` 只公开参数与分发门面；`dispatch.rs` 先构造共享 `NetworkDependencies`，再按命令建立 `AppContext<P>`、`FetchContext`、`SearchContext` 或 `ResearchContext`，各自持有所需的 runtime、配置与网络依赖。provider 实现与路由策略留在下层模块，Search Result Journal 仍由分发层在命令终态统一落笔。
+- **`types` 类型基底**：零 IO 纯类型层——ErrorKind、Capability、`PlanCapability`（plan 语境独立三值枚举）、各 Outcome、ProviderAttempt、Source、ResearchPlan Schema v1、Deadline、薄正文阈值常量。所有跨层形状的唯一定义点。
+- **`net` 网络边界**：共享 HTTP client 构造、RetryPolicy、SSE 解析、status→ErrorKind 唯一映射、McpClient。
+- 输出格式化保留在 bin 侧，出现第二个消费者再提升为独立共享模块。
 
 ## Provider 契约与 registry
 
