@@ -139,7 +139,7 @@ fn script_path(name: &str) -> PathBuf {
 fn windows_gate_accepts_a_valid_release_archive() {
     let fixture = WindowsFixture::new(true);
 
-    let output = fixture.verify(env!("CARGO_PKG_VERSION"), &fixture.machine);
+    let output = fixture.verify(env!("CARGO_PKG_VERSION"), fixture.machine);
 
     assert!(output.status.success(), "{output:?}");
 }
@@ -149,7 +149,7 @@ fn windows_gate_accepts_a_valid_release_archive() {
 fn windows_gate_rejects_an_archive_without_the_binary() {
     let fixture = WindowsFixture::new(false);
 
-    let output = fixture.verify(env!("CARGO_PKG_VERSION"), &fixture.machine);
+    let output = fixture.verify(env!("CARGO_PKG_VERSION"), fixture.machine);
 
     assert!(!output.status.success(), "{output:?}");
 }
@@ -159,7 +159,7 @@ fn windows_gate_rejects_an_archive_without_the_binary() {
 fn windows_gate_rejects_a_version_mismatch() {
     let fixture = WindowsFixture::new(true);
 
-    let output = fixture.verify("0.0.0-fixture", &fixture.machine);
+    let output = fixture.verify("0.0.0-fixture", fixture.machine);
 
     assert!(!output.status.success(), "{output:?}");
 }
