@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.1](https://github.com/jfmoe/forager/compare/v0.5.0...v0.5.1) - 2026-09-04
+
+### Fixed
+
+- preserve maintenance safeguards
+
+### Other
+
+- *(smoke)* decouple probes from deadline
+- *(release)* satisfy Windows clippy
+- *(time)* make timeout behavior deterministic
+- *(release)* script artifact verification
+- anchor AGENTS.md conventions to the architecture spec
+- strengthen behavioral contracts
+- lock source architecture boundaries
+- separate CLI and capability boundaries
+- group source modules by architecture
+- *(skill)* add code quality guidance
+
 ## [0.5.0](https://github.com/jfmoe/forager/compare/v0.4.0...v0.5.0) - 2026-08-30
 
 ### Other
