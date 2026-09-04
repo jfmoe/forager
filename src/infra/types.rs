@@ -1,9 +1,10 @@
 use std::collections::HashSet;
 use std::str::FromStr;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Serialize, Serializer};
+use tokio::time::Instant;
 
 pub(crate) const MIN_FETCH_CONTENT_CHARS: usize = 200;
 pub(crate) const DENSITY_MAX_UNIQUE_LINES: usize = 3;

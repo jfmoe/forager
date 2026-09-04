@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use futures_util::StreamExt;
 use reqwest::{Client, Response};
 use serde::Serialize;
 use serde_json::Value;
+use tokio::time::Instant;
 
 use crate::chain::{
     BudgetPolicy, ChainSettings, ChainStep, DiagnosticMerge, StepIdentity, StepSuccess,
@@ -671,7 +672,7 @@ mod tests {
     use std::net::TcpListener;
     use std::sync::Arc;
     use std::thread;
-    use std::time::{Duration, Instant};
+    use std::time::Duration;
 
     use crate::config::OpenAiCompatibleRuntimeConfig;
     use crate::credentials::CredentialPool;
@@ -680,7 +681,7 @@ mod tests {
     use crate::types::{AttemptDisposition, AttemptErrorKind, Deadline};
 
     use super::{
-        BREAKER_FAILURE_THRESHOLD, BreakerState, ModelBreakers, OpenAiCompatible,
+        BREAKER_COOLDOWN, BREAKER_FAILURE_THRESHOLD, ModelBreakers, OpenAiCompatible,
         apply_online_suffix, finish, push_model,
     };
 
@@ -788,55 +789,42 @@ mod tests {
     }
 
     #[test]
-    fn expired_breaker_state_is_evicted() {
-        let breakers = ModelBreakers::default();
-        breakers.states.lock().expect("breaker state").insert(
-            ("https://relay.example/v1".into(), "model".into()),
-            BreakerState {
-                consecutive_failures: BREAKER_FAILURE_THRESHOLD,
-                opened_until: Some(Instant::now().checked_sub(Duration::from_secs(1)).unwrap()),
-            },
-        );
-        assert!(!breakers.is_open("https://relay.example/v1", "model"));
-        assert!(
-            !breakers
-                .states
-                .lock()
-                .expect("breaker state")
-                .contains_key(&("https://relay.example/v1".into(), "model".into()))
-        );
-    }
-
-    #[test]
-    fn model_breaker_opens_after_two_real_provider_failures_and_skips_the_next_request() {
+    fn model_breaker_opens_after_real_failures_and_recovers_after_its_cooldown() {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind provider fixture");
         let address = listener.local_addr().expect("fixture address");
         let server = thread::spawn(move || {
-            for _ in 0..2 {
+            for status in ["503 Error", "503 Error", "200 OK"] {
                 let (mut stream, _) = listener.accept().expect("accept provider request");
                 let mut request = [0_u8; 4096];
                 let _ = stream.read(&mut request).expect("read provider request");
+                let body = if status.starts_with("200") {
+                    r#"{"choices":[{"message":{"content":"recovered"}}]}"#
+                } else {
+                    r#"{"error":"down"}"#
+                };
                 write!(
                     stream,
-                    "HTTP/1.1 503 Error\r\nContent-Type: application/json\r\nContent-Length: 16\r\nConnection: close\r\n\r\n{{\"error\":\"down\"}}"
+                    "HTTP/1.1 {status}\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len(),
                 )
                 .expect("write provider response");
             }
         });
         let breakers = Arc::new(ModelBreakers::default());
+        let config = OpenAiCompatibleRuntimeConfig {
+            url: format!("http://{address}/v1"),
+            keys: vec!["key".into()],
+            model: "model".into(),
+            fallback_models: Vec::new(),
+            stream: false,
+        };
         let provider = OpenAiCompatible::new(
-            OpenAiCompatibleRuntimeConfig {
-                url: format!("http://{address}/v1"),
-                keys: vec!["key".into()],
-                model: "model".into(),
-                fallback_models: Vec::new(),
-                stream: false,
-            },
+            config.clone(),
             reqwest::Client::new(),
             CredentialPool::new("openai_compatible", vec!["key".into()]),
             RetryPolicy::new(1, 1.0, Duration::ZERO),
             Deadline::new(Duration::from_secs(10)),
-            breakers,
+            Arc::clone(&breakers),
         );
         let runtime = tokio::runtime::Builder::new_current_thread()
             .enable_all()
@@ -885,6 +873,21 @@ mod tests {
                     None,
                 )
             );
+            tokio::time::pause();
+            tokio::time::advance(BREAKER_COOLDOWN).await;
+            tokio::time::resume();
+            let recovered = OpenAiCompatible::new(
+                config,
+                reqwest::Client::new(),
+                CredentialPool::new("openai_compatible", vec!["key".into()]),
+                RetryPolicy::new(1, 1.0, Duration::ZERO),
+                Deadline::new(Duration::from_secs(10)),
+                breakers,
+            )
+            .search(request())
+            .await
+            .expect("breaker permits a request after cooldown");
+            assert_eq!(recovered.answer, "recovered");
         });
         server.join().expect("provider fixture");
     }

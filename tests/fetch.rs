@@ -1,7 +1,7 @@
 mod support;
 
 use std::fs;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use serde_json::Value;
 
@@ -478,112 +478,6 @@ fn fetch_attributes_only_tavilys_final_attempt_after_rotation() {
         )
     );
     tavily.finish_all();
-}
-
-#[test]
-fn fetch_retries_a_timed_out_attempt_inside_the_shared_deadline() {
-    let rich_content = jina_response(&"Retried Jina content. ".repeat(30));
-    let jina = Fixture::start_sequence(vec![
-        Response::new(200, "application/json", &jina_response("too late"))
-            .with_delay(Duration::from_millis(1100)),
-        Response::new(202, "application/json", &rich_content),
-    ]);
-    let config = fetch_config(
-        &jina.url,
-        &["jina-key"],
-        "http://127.0.0.1:9",
-        &[],
-        "http://127.0.0.1:9",
-        &[],
-        &["jina", "tavily", "firecrawl"],
-    )
-    .replace("timeout = 30", "timeout = 1")
-    .replace("max_attempts = 1", "max_attempts = 2");
-    let environment = RunEnvironment::new(&config);
-
-    let output = environment.run(&[
-        "fetch",
-        "https://example.test/article",
-        "--timeout",
-        "4",
-        "--verbose",
-    ]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["provider"],
-            &payload["provider_attempts"][0]["error_kind"],
-            &payload["provider_attempts"][1]["http_status"],
-            &payload["provider_attempts"][1]["retry_count"],
-        ),
-        (
-            Some(0),
-            &Value::String("jina".into()),
-            &Value::String("timeout".into()),
-            &Value::from(202),
-            &Value::from(1),
-        ),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    jina.finish_all();
-}
-
-#[test]
-fn fetch_preserves_fallback_budget_under_one_hard_deadline() {
-    let jina = Fixture::start_sequence(vec![
-        Response::new(200, "application/json", &jina_response("too late"))
-            .with_delay(Duration::from_millis(6200)),
-    ]);
-    let rich_content = "Deadline fallback content. ".repeat(30);
-    let tavily_body = serde_json::json!({
-        "results": [{"raw_content": rich_content}]
-    })
-    .to_string();
-    let tavily = Fixture::start(200, "application/json", &tavily_body);
-    let config = fetch_config(
-        &jina.url,
-        &["jina-key"],
-        &tavily.url,
-        &["tavily-key"],
-        "http://127.0.0.1:9",
-        &[],
-        &["jina", "tavily", "firecrawl"],
-    );
-    let environment = RunEnvironment::new(&config);
-
-    let started = Instant::now();
-    let output = environment.run(&[
-        "fetch",
-        "https://example.test/article",
-        "--timeout",
-        "12",
-        "--verbose",
-    ]);
-    let elapsed = started.elapsed();
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["provider"],
-            &payload["provider_attempts"][0]["error_kind"],
-            &payload["provider_attempts"][1]["provider"],
-        ),
-        (
-            Some(0),
-            &Value::String("tavily".into()),
-            &Value::String("timeout".into()),
-            &Value::String("tavily".into()),
-        ),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(elapsed < Duration::from_secs(12), "elapsed: {elapsed:?}");
-    jina.finish_all();
-    tavily.finish();
 }
 
 #[test]

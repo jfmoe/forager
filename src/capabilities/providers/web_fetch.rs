@@ -280,3 +280,102 @@ fn failure_message(body: &str, status: u16) -> String {
         .unwrap_or_else(|| format!("HTTP {status}"));
     truncate_message(&message)
 }
+
+#[cfg(test)]
+mod tests {
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::mpsc;
+    use std::thread;
+    use std::time::Duration;
+
+    use futures_util::future::{self, Either};
+
+    use super::{FetchRequest, HttpFetchProvider};
+    use crate::config::WebFetchProviderConfig;
+    use crate::credentials::CredentialPool;
+    use crate::net::RetryPolicy;
+    use crate::providers::ProviderId;
+    use crate::types::{AttemptErrorKind, Deadline};
+
+    #[test]
+    fn configured_attempt_timeout_bounds_web_fetch_without_wall_clock_waiting() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind provider fixture");
+        let address = listener.local_addr().expect("fixture address");
+        let (release, delayed) = mpsc::channel();
+        let request_received = Arc::new(AtomicBool::new(false));
+        let server_received = Arc::clone(&request_received);
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("accept provider request");
+            let mut request = [0_u8; 4096];
+            let _ = stream.read(&mut request).expect("read provider request");
+            server_received.store(true, Ordering::Release);
+            delayed.recv().expect("release delayed response");
+            let body = r#"{"data":{"content":"late"}}"#;
+            let _ = write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len(),
+            );
+        });
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .start_paused(true)
+            .build()
+            .expect("test runtime");
+
+        let error = runtime.block_on(async {
+            let provider = HttpFetchProvider {
+                id: ProviderId::Jina,
+                config: WebFetchProviderConfig {
+                    url: format!("http://{address}"),
+                    keys: vec!["key".into()],
+                    timeout_seconds: 2,
+                    respond_with: String::new(),
+                },
+                client: reqwest::Client::new(),
+                credentials: CredentialPool::new("jina", vec!["key".into()]),
+                retry_policy: RetryPolicy::new(1, 1.0, Duration::ZERO),
+                deadline: Deadline::new(Duration::from_secs(10)),
+            };
+            let request = FetchRequest {
+                url: "https://example.test/article".into(),
+                verbose: true,
+            };
+            let fetch = Box::pin(provider.execute(&request));
+            let wait_for_request = Box::pin(async {
+                while !request_received.load(Ordering::Acquire) {
+                    tokio::task::yield_now().await;
+                }
+            });
+            let fetch = match future::select(fetch, wait_for_request).await {
+                Either::Left((result, _)) => {
+                    panic!("provider completed before timeout: {}", result.is_ok())
+                }
+                Either::Right(((), fetch)) => fetch,
+            };
+            tokio::time::advance(Duration::from_secs(2)).await;
+            let result = fetch.await;
+            release.send(()).expect("release provider response");
+            result.err().expect("configured attempt timeout")
+        });
+        server.join().expect("provider fixture");
+
+        assert_eq!(
+            (
+                error.kind,
+                error.attempts.len(),
+                error.attempts[0].error_kind,
+                error.attempts[0].duration_ms,
+            ),
+            (
+                AttemptErrorKind::Timeout,
+                1,
+                Some(AttemptErrorKind::Timeout),
+                2_000,
+            )
+        );
+    }
+}

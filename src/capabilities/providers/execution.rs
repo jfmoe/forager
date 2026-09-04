@@ -1,5 +1,7 @@
 use std::future::Future;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+
+use tokio::time::Instant;
 
 use crate::credentials::CredentialPool;
 use crate::net::{AttemptFailure, RetryPolicy, duration_millis};
@@ -167,5 +169,219 @@ fn terminal_error(
         verbose,
         diagnostic,
         redirected_library_id: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    use super::{ExecutionSettings, execute_v2};
+    use crate::credentials::CredentialPool;
+    use crate::net::{AttemptFailure, RetryPolicy};
+    use crate::types::{AttemptErrorKind, AttemptTarget, Deadline};
+    use std::time::Duration;
+
+    fn runtime() -> tokio::runtime::Runtime {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .start_paused(true)
+            .build()
+            .expect("test runtime")
+    }
+
+    fn settings(
+        retry_policy: RetryPolicy,
+        deadline: Duration,
+        attempt_timeout: Duration,
+    ) -> ExecutionSettings {
+        ExecutionSettings {
+            provider: "test",
+            target: AttemptTarget::seam("web_fetch"),
+            retry_policy,
+            deadline: Deadline::new(deadline),
+            attempt_timeout,
+            verbose: true,
+            timeout_message: "test request timed out",
+            model: None,
+            transport: Some("test"),
+            endpoint_host: None,
+            breaker_event: None,
+        }
+    }
+
+    fn network_failure() -> AttemptFailure {
+        AttemptFailure {
+            kind: AttemptErrorKind::Network,
+            status: Some(503),
+            message: "test failure".into(),
+        }
+    }
+
+    #[test]
+    fn attempt_timeout_retries_without_rotating_credentials() {
+        runtime().block_on(async {
+            let calls = Rc::new(RefCell::new(0));
+            let outcome = execute_v2(
+                &CredentialPool::new("test", vec!["first".into(), "second".into()]),
+                settings(
+                    RetryPolicy::new(2, 1.0, Duration::from_secs(10)),
+                    Duration::from_secs(10),
+                    Duration::from_secs(2),
+                ),
+                {
+                    let calls = Rc::clone(&calls);
+                    move |_, _| {
+                        *calls.borrow_mut() += 1;
+                        let call = *calls.borrow();
+                        async move {
+                            if call == 1 {
+                                tokio::time::sleep(Duration::from_secs(3)).await;
+                            }
+                            Ok((200, "content"))
+                        }
+                    }
+                },
+            )
+            .await
+            .expect("retry succeeds");
+
+            assert_eq!(
+                outcome
+                    .attempts
+                    .iter()
+                    .map(|attempt| (
+                        attempt.error_kind,
+                        attempt.retry_count,
+                        attempt.rotation_count,
+                    ))
+                    .collect::<Vec<_>>(),
+                vec![(Some(AttemptErrorKind::Timeout), 0, 0), (None, 1, 0),]
+            );
+            assert_eq!(
+                outcome.attempts[0].credential_index,
+                outcome.attempts[1].credential_index
+            );
+        });
+    }
+
+    #[test]
+    fn retries_use_linear_backoff_capped_by_max_wait() {
+        runtime().block_on(async {
+            let started = tokio::time::Instant::now();
+            let calls = Rc::new(RefCell::new(Vec::new()));
+            let outcome = execute_v2(
+                &CredentialPool::new("test", vec!["key".into()]),
+                settings(
+                    RetryPolicy::new(4, 1.5, Duration::from_secs(4)),
+                    Duration::from_secs(20),
+                    Duration::from_secs(10),
+                ),
+                {
+                    let calls = Rc::clone(&calls);
+                    move |_, _| {
+                        calls.borrow_mut().push(started.elapsed());
+                        let call = calls.borrow().len();
+                        async move {
+                            if call < 4 {
+                                Err(network_failure())
+                            } else {
+                                Ok((200, "content"))
+                            }
+                        }
+                    }
+                },
+            )
+            .await
+            .expect("final retry succeeds");
+
+            assert_eq!(
+                calls.borrow().as_slice(),
+                [
+                    Duration::ZERO,
+                    Duration::from_millis(1_500),
+                    Duration::from_millis(4_500),
+                    Duration::from_millis(8_500),
+                ]
+            );
+            assert_eq!(
+                outcome.attempts.last().map(|attempt| attempt.retry_count),
+                Some(3)
+            );
+        });
+    }
+
+    #[test]
+    fn retry_stops_immediately_when_backoff_exceeds_remaining_deadline() {
+        runtime().block_on(async {
+            let started = tokio::time::Instant::now();
+            let calls = Rc::new(RefCell::new(0));
+            let error = execute_v2(
+                &CredentialPool::new("test", vec!["key".into()]),
+                settings(
+                    RetryPolicy::new(2, 5.0, Duration::from_secs(10)),
+                    Duration::from_secs(4),
+                    Duration::from_secs(4),
+                ),
+                {
+                    let calls = Rc::clone(&calls);
+                    move |_, _| {
+                        *calls.borrow_mut() += 1;
+                        async { Err::<(u16, ()), _>(network_failure()) }
+                    }
+                },
+            )
+            .await
+            .err()
+            .expect("deadline cannot fit retry backoff");
+
+            assert_eq!(
+                (
+                    error.kind,
+                    error.attempts.len(),
+                    *calls.borrow(),
+                    started.elapsed()
+                ),
+                (AttemptErrorKind::Timeout, 1, 1, Duration::ZERO)
+            );
+            assert_eq!(
+                error.attempts[0].error_kind,
+                Some(AttemptErrorKind::Network)
+            );
+        });
+    }
+
+    #[test]
+    fn attempt_timeout_consumes_the_shared_deadline_before_retry_backoff() {
+        runtime().block_on(async {
+            let calls = Rc::new(RefCell::new(0));
+            let error = execute_v2(
+                &CredentialPool::new("test", vec!["key".into()]),
+                settings(
+                    RetryPolicy::new(2, 1.0, Duration::from_secs(10)),
+                    Duration::from_secs(3),
+                    Duration::from_secs(2),
+                ),
+                {
+                    let calls = Rc::clone(&calls);
+                    move |_, _| {
+                        *calls.borrow_mut() += 1;
+                        async {
+                            tokio::time::sleep(Duration::from_secs(3)).await;
+                            Ok::<_, AttemptFailure>((200, ()))
+                        }
+                    }
+                },
+            )
+            .await
+            .err()
+            .expect("retry backoff consumes the final second");
+
+            assert_eq!(
+                (error.kind, error.attempts.len(), *calls.borrow()),
+                (AttemptErrorKind::Timeout, 1, 1)
+            );
+        });
     }
 }

@@ -125,6 +125,20 @@ fn provider_chain_settings<C>(
     }
 }
 
+fn web_fetch_chain_settings<C>(
+    verbose: bool,
+) -> ChainSettings<'static, (providers::ProviderId, C)> {
+    provider_chain_settings(
+        "web_fetch",
+        BudgetPolicy::SlicedEven {
+            skipped_message: "skipped to preserve fallback deadline budget",
+        },
+        false,
+        verbose,
+        "web fetch deadline elapsed",
+    )
+}
+
 impl CapabilityExecution {
     pub(crate) fn new(
         fallback: FallbackPolicy,
@@ -557,15 +571,7 @@ pub(crate) async fn fetch(
 ) -> Result<FetchOutcome, ProviderError> {
     let step = chain::run_chain(
         provider_steps(config.into_entries()),
-        provider_chain_settings(
-            "web_fetch",
-            BudgetPolicy::SlicedEven {
-                skipped_message: "skipped to preserve fallback deadline budget",
-            },
-            false,
-            request.verbose,
-            "web fetch deadline elapsed",
-        ),
+        web_fetch_chain_settings(request.verbose),
         deadline,
         |(id, provider_config), provider_deadline| {
             let client = client.clone();
@@ -883,7 +889,14 @@ fn is_pdf(url: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::{CapabilityTargets, is_thin};
+    use std::cell::RefCell;
+    use std::rc::Rc;
+    use std::time::Duration;
+
+    use super::{CapabilityTargets, is_thin, web_fetch_chain_settings};
+    use crate::chain::{ChainStep, StepSuccess, StepVerdict, run_chain};
+    use crate::providers::{ProviderError, ProviderId};
+    use crate::types::{AttemptErrorKind, Deadline};
 
     #[test]
     fn capability_targets_preserve_branch_local_defaults_and_positive_requests() {
@@ -911,5 +924,72 @@ mod tests {
             ),
             (true, false)
         );
+    }
+
+    #[test]
+    fn web_fetch_preserves_fallback_budget_after_an_attempt_timeout() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_time()
+            .start_paused(true)
+            .build()
+            .expect("test runtime");
+
+        runtime.block_on(async {
+            let budgets = Rc::new(RefCell::new(Vec::new()));
+            let outcome = run_chain(
+                vec![
+                    ChainStep {
+                        context: (ProviderId::Jina, ()),
+                        configured: true,
+                        gate_attempt: None,
+                    },
+                    ChainStep {
+                        context: (ProviderId::Tavily, ()),
+                        configured: true,
+                        gate_attempt: None,
+                    },
+                ],
+                web_fetch_chain_settings(true),
+                Deadline::new(Duration::from_secs(12)),
+                {
+                    let budgets = Rc::clone(&budgets);
+                    move |(provider, ()), deadline| {
+                        budgets
+                            .borrow_mut()
+                            .push(deadline.remaining().unwrap_or_default());
+                        async move {
+                            if provider == ProviderId::Jina {
+                                tokio::time::sleep(Duration::from_secs(6)).await;
+                                StepVerdict::Failed(ProviderError {
+                                    kind: AttemptErrorKind::Timeout,
+                                    message: "timed out".into(),
+                                    attempts: Vec::new(),
+                                    verbose: true,
+                                    diagnostic: None,
+                                    redirected_library_id: None,
+                                })
+                            } else {
+                                StepVerdict::Accepted(StepSuccess {
+                                    value: "fallback content",
+                                    attempts: Vec::new(),
+                                    diagnostic: None,
+                                })
+                            }
+                        }
+                    }
+                },
+            )
+            .await
+            .expect("fallback succeeds");
+
+            assert_eq!(outcome.value, "fallback content");
+            let budgets = budgets.borrow();
+            assert_eq!(budgets[0], Duration::from_secs(6));
+            assert!(
+                budgets[1].abs_diff(Duration::from_secs(6)) < Duration::from_millis(1),
+                "fallback budget: {:?}",
+                budgets[1]
+            );
+        });
     }
 }
