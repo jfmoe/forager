@@ -1,7 +1,10 @@
+mod support;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
+use support::run_command;
 use tempfile::TempDir;
 
 #[cfg(unix)]
@@ -73,14 +76,14 @@ impl UnixFixture {
         }
         let target = "fixture-unix";
         let archive = artifacts.join(format!("forager-{target}.tar.xz"));
-        let output = Command::new("tar")
+        let mut command = Command::new("tar");
+        command
             .args(["-cJf"])
             .arg(&archive)
             .arg("-C")
             .arg(&payload)
-            .arg(".")
-            .output()
-            .expect("create Unix fixture archive");
+            .arg(".");
+        let output = run_command(&mut command, None);
         assert!(output.status.success(), "{output:?}");
         let host_arch = command_stdout(Command::new("uname").arg("-m"));
         let file_arch = match host_arch.as_str() {
@@ -98,7 +101,8 @@ impl UnixFixture {
     }
 
     fn verify(&self, version: &str, file_arch: &str) -> Output {
-        Command::new("bash")
+        let mut command = Command::new("bash");
+        command
             .arg(script_path("verify-release-unix.sh"))
             .current_dir(&self.root)
             .env(
@@ -109,15 +113,14 @@ impl UnixFixture {
             .env("HOST_ARCH", &self.host_arch)
             .env("FILE_ARCH", file_arch)
             .env("ARCHIVE", "tar.xz")
-            .env("RUNNER_TEMP", &self.runner_temp)
-            .output()
-            .expect("run Unix release gate")
+            .env("RUNNER_TEMP", &self.runner_temp);
+        run_command(&mut command, None)
     }
 }
 
 #[cfg(unix)]
 fn command_stdout(command: &mut Command) -> String {
-    let output = command.output().expect("run fixture command");
+    let output = run_command(command, None);
     assert!(output.status.success(), "{output:?}");
     String::from_utf8(output.stdout)
         .expect("fixture command UTF-8")
@@ -195,16 +198,16 @@ impl WindowsFixture {
                 .expect("write fixture placeholder");
         }
         let archive = artifacts.join("forager-fixture-windows.zip");
-        let output = Command::new("pwsh")
+        let mut command = Command::new("pwsh");
+        command
             .args([
                 "-NoProfile",
                 "-Command",
                 "Compress-Archive -Path (Join-Path $env:FIXTURE_PAYLOAD '*') -DestinationPath $env:FIXTURE_ARCHIVE",
             ])
             .env("FIXTURE_PAYLOAD", &payload)
-            .env("FIXTURE_ARCHIVE", &archive)
-            .output()
-            .expect("create Windows fixture archive");
+            .env("FIXTURE_ARCHIVE", &archive);
+        let output = run_command(&mut command, None);
         assert!(output.status.success(), "{output:?}");
         Self {
             _directory: directory,
@@ -222,7 +225,8 @@ impl WindowsFixture {
             .prefix("runner-")
             .tempdir_in(&self.root)
             .expect("create Windows runner directory");
-        Command::new("pwsh")
+        let mut command = Command::new("pwsh");
+        command
             .args(["-NoProfile", "-File"])
             .arg(script_path("verify-release-windows.ps1"))
             .current_dir(&self.root)
@@ -233,9 +237,8 @@ impl WindowsFixture {
             .env("TARGET", "fixture-windows")
             .env("EXPECTED_MACHINE", machine)
             .env("ARCHIVE", "zip")
-            .env("RUNNER_TEMP", runner_temp.path())
-            .output()
-            .expect("run Windows release gate")
+            .env("RUNNER_TEMP", runner_temp.path());
+        run_command(&mut command, None)
     }
 }
 
@@ -274,25 +277,25 @@ impl ChecksumFixture {
     }
 
     fn verify(&self) -> std::process::Output {
-        Command::new("bash")
+        let mut command = Command::new("bash");
+        command
             .arg(".github/scripts/verify-release-checksums.sh")
             .arg(&self.artifacts)
             .env(
                 "TARGETS",
                 r#"[{"target":"x86_64-unknown-linux-gnu","archive":"tar.xz"}]"#,
-            )
-            .output()
-            .expect("run checksum gate")
+            );
+        run_command(&mut command, None)
     }
 }
 
 #[cfg(unix)]
 fn write_checksum(archive: &Path) {
-    let output = Command::new("sha256sum")
+    let mut command = Command::new("sha256sum");
+    command
         .arg(archive.file_name().expect("fixture archive file name"))
-        .current_dir(archive.parent().expect("fixture archive parent"))
-        .output()
-        .expect("hash fixture archive");
+        .current_dir(archive.parent().expect("fixture archive parent"));
+    let output = run_command(&mut command, None);
     assert!(output.status.success(), "{output:?}");
     let mut checksum = archive.as_os_str().to_owned();
     checksum.push(".sha256");
