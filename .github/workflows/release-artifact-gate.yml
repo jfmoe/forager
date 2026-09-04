@@ -30,6 +30,9 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - name: Download draft Release assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -46,16 +49,9 @@ jobs:
               --dir artifacts
           done < <(jq -r '.[] | [.target, .archive] | @tsv' <<< "$TARGETS")
       - name: Verify archive checksums
-        working-directory: artifacts
         env:
           TARGETS: ${{ needs.prepare-targets.outputs.targets }}
-        run: |
-          checksum_count=$(find . -type f -name '*.sha256' | wc -l | tr -d ' ')
-          test "$checksum_count" -eq "$(jq 'length' <<< "$TARGETS")"
-          find . -type f -name '*.sha256' -print0 |
-            while IFS= read -r -d '' checksum; do
-              sha256sum --check "$checksum"
-            done
+        run: bash .github/scripts/verify-release-checksums.sh artifacts
 
   verify-unix:
     needs:
@@ -67,6 +63,9 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - name: Download draft Release asset
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -87,56 +86,7 @@ jobs:
           HOST_ARCH: ${{ matrix.host_arch }}
           FILE_ARCH: ${{ matrix.file_arch }}
           ARCHIVE: ${{ matrix.archive }}
-        run: |
-          set -euo pipefail
-          version=$(jq -r '.releases[0].app_version' <<< "$PLAN")
-          install_dir="$RUNNER_TEMP/forager-release"
-          config_dir="$RUNNER_TEMP/forager-config"
-          state_dir="$RUNNER_TEMP/forager-state"
-          home_dir="$RUNNER_TEMP/forager-home"
-          mkdir -p "$install_dir" "$state_dir" "$home_dir"
-          install -d -m 700 "$config_dir"
-          tar -xJf "artifacts/forager-$TARGET.$ARCHIVE" -C "$install_dir"
-          binary=$(find "$install_dir" -type f -name forager -print -quit)
-          test -n "$binary"
-          test -x "$binary"
-          test "$(uname -m)" = "$HOST_ARCH"
-          file "$binary" | grep -F "$FILE_ARCH"
-          binary_dir=$(dirname "$binary")
-          PATH="$binary_dir:$PATH"
-          export PATH
-          test "$(command -v forager)" = "$binary"
-          test "$(forager --version)" = "forager $version"
-          printf '%s\n' \
-            '[providers.xai]' \
-            'keys = ["release-gate"]' \
-            '[providers.openai_compatible]' \
-            'url = "https://example.invalid/v1"' \
-            'keys = ["release-gate"]' \
-            'model = "release-gate"' \
-            '[providers.tavily]' \
-            'keys = ["release-gate"]' \
-            '[providers.firecrawl]' \
-            'keys = ["release-gate"]' \
-            '[providers.jina]' \
-            'keys = ["release-gate"]' \
-            '[providers.context7]' \
-            'keys = ["release-gate"]' \
-            '[providers.exa]' \
-            'keys = ["release-gate"]' \
-            '[providers.anysearch]' \
-            'keys = ["release-gate"]' \
-            > "$config_dir/config.toml"
-          chmod 600 "$config_dir/config.toml"
-          doctor=$(FORAGER_CONFIG_DIR="$config_dir" XDG_STATE_HOME="$state_dir" \
-            HOME="$home_dir" forager doctor --timeout 1 || test "$?" -eq 4)
-          jq -e '
-            .ok == false
-            and .mode == "shallow"
-            and ([.providers[] | select(.configured)] | length) == 8
-            and .config.providers.exa.keys.source == "file"
-            and (.permission_warnings | length) == 0
-          ' <<< "$doctor"
+        run: bash .github/scripts/verify-release-unix.sh
 
   verify-windows:
     needs:
@@ -148,6 +98,9 @@ jobs:
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 20
     steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - name: Download draft Release asset
         shell: pwsh
         env:
@@ -168,71 +121,7 @@ jobs:
           TARGET: ${{ matrix.target }}
           ARCHIVE: ${{ matrix.archive }}
           EXPECTED_MACHINE: ${{ matrix.machine }}
-        run: |
-          $ErrorActionPreference = "Stop"
-          $version = ($env:PLAN | ConvertFrom-Json).releases[0].app_version
-          $installDir = Join-Path $env:RUNNER_TEMP "forager-release"
-          $configDir = Join-Path $env:RUNNER_TEMP "forager-config"
-          $stateDir = Join-Path $env:RUNNER_TEMP "forager-state"
-          New-Item -ItemType Directory -Force $installDir, $configDir, $stateDir | Out-Null
-          Expand-Archive "artifacts/forager-$($env:TARGET).$($env:ARCHIVE)" $installDir
-          $binary = Get-ChildItem $installDir -Recurse -File -Filter forager.exe |
-            Select-Object -First 1
-          if ($null -eq $binary) {
-            throw "forager.exe is missing"
-          }
-          $stream = [System.IO.File]::OpenRead($binary.FullName)
-          try {
-            $reader = [System.Reflection.PortableExecutable.PEReader]::new($stream)
-            $machine = $reader.PEHeaders.CoffHeader.Machine
-            if ($machine.ToString() -ne $env:EXPECTED_MACHINE) {
-              throw "unexpected PE Machine: $machine"
-            }
-          } finally {
-            $stream.Dispose()
-          }
-          $env:PATH = "$($binary.DirectoryName);$env:PATH"
-          if ((Get-Command forager).Source -ne $binary.FullName) {
-            throw "PATH does not resolve the release binary"
-          }
-          if ((forager --version) -ne "forager $version") {
-            throw "release binary version mismatch"
-          }
-          $config = @'
-          [providers.xai]
-          keys = ["release-gate"]
-          [providers.openai_compatible]
-          url = "https://example.invalid/v1"
-          keys = ["release-gate"]
-          model = "release-gate"
-          [providers.tavily]
-          keys = ["release-gate"]
-          [providers.firecrawl]
-          keys = ["release-gate"]
-          [providers.jina]
-          keys = ["release-gate"]
-          [providers.context7]
-          keys = ["release-gate"]
-          [providers.exa]
-          keys = ["release-gate"]
-          [providers.anysearch]
-          keys = ["release-gate"]
-          '@
-          Set-Content -Encoding utf8 (Join-Path $configDir "config.toml") $config
-          $env:FORAGER_CONFIG_DIR = $configDir
-          $env:XDG_STATE_HOME = $stateDir
-          $env:HOME = Join-Path $env:RUNNER_TEMP "forager-home"
-          $doctorJson = forager doctor --timeout 1
-          $doctorExitCode = $LASTEXITCODE
-          $doctor = $doctorJson | ConvertFrom-Json
-          if ($doctorExitCode -ne 4 -or $doctor.ok -or $doctor.mode -ne "shallow") {
-            throw "doctor did not report the expected unreachable configuration"
-          }
-          $configured = @($doctor.providers | Where-Object configured)
-          if ($configured.Count -ne 8) {
-            throw "doctor did not load all migrated provider credentials"
-          }
-          exit 0
+        run: ./.github/scripts/verify-release-windows.ps1
 
   record-gate:
     needs:

@@ -109,6 +109,18 @@ fn windows_ci_denies_clippy_warnings() {
 }
 
 #[test]
+fn windows_ci_runs_release_artifact_fixtures() {
+    let workflow = ci_workflow();
+
+    assert!(workflow_jobs(&workflow).values().any(|job| {
+        job["runs-on"].as_str() == Some("windows-latest")
+            && cargo_commands_in_job(job)
+                .iter()
+                .any(|command| command.contains("--test release_artifact_gate"))
+    }));
+}
+
+#[test]
 fn released_binary_reports_the_cargo_package_version() {
     let mut command = Command::new(env!("CARGO_BIN_EXE_forager"));
     command.arg("--version");
@@ -313,6 +325,7 @@ fn assert_release_target_job(workflow: &Value) {
 
 fn assert_release_checksum_job(workflow: &Value) {
     let checksums = workflow_job(workflow, "verify-checksums");
+    assert_job_checks_out_scripts(checksums);
     assert_eq!(string_list(&checksums["needs"]), ["prepare-targets"]);
     let download_step = named_step(checksums, "Download draft Release assets");
     assert_eq!(
@@ -338,18 +351,15 @@ fn assert_release_checksum_job(workflow: &Value) {
         checksum_step["env"]["TARGETS"].as_str(),
         Some("${{ needs.prepare-targets.outputs.targets }}")
     );
-    let checksum = checksum_step["run"]
-        .as_str()
-        .expect("checksum verification command");
-    assert!(
-        checksum.contains("jq 'length'")
-            && checksum.contains("sha256sum --check")
-            && checksum.contains("checksum_count")
+    assert_eq!(
+        checksum_step["run"].as_str(),
+        Some("bash .github/scripts/verify-release-checksums.sh artifacts")
     );
 }
 
 fn assert_release_unix_job(workflow: &Value) {
     let unix = workflow_job(workflow, "verify-unix");
+    assert_job_checks_out_scripts(unix);
     assert_eq!(
         string_list(&unix["needs"]),
         ["prepare-targets", "verify-checksums"]
@@ -374,12 +384,16 @@ fn assert_release_unix_job(workflow: &Value) {
     let unix_verify_step = named_step(unix, "Verify installed binary");
     assert_eq!(
         (
+            unix_verify_step["shell"].as_str(),
+            unix_verify_step["run"].as_str(),
             unix_verify_step["env"]["TARGET"].as_str(),
             unix_verify_step["env"]["ARCHIVE"].as_str(),
             unix_verify_step["env"]["HOST_ARCH"].as_str(),
             unix_verify_step["env"]["FILE_ARCH"].as_str(),
         ),
         (
+            Some("bash"),
+            Some("bash .github/scripts/verify-release-unix.sh"),
             Some("${{ matrix.target }}"),
             Some("${{ matrix.archive }}"),
             Some("${{ matrix.host_arch }}"),
@@ -390,6 +404,7 @@ fn assert_release_unix_job(workflow: &Value) {
 
 fn assert_release_windows_job(workflow: &Value) {
     let windows = workflow_job(workflow, "verify-windows");
+    assert_job_checks_out_scripts(windows);
     assert_eq!(
         string_list(&windows["needs"]),
         ["prepare-targets", "verify-checksums"]
@@ -414,16 +429,27 @@ fn assert_release_windows_job(workflow: &Value) {
     let windows_verify_step = named_step(windows, "Verify installed binary");
     assert_eq!(
         (
+            windows_verify_step["shell"].as_str(),
+            windows_verify_step["run"].as_str(),
             windows_verify_step["env"]["TARGET"].as_str(),
             windows_verify_step["env"]["ARCHIVE"].as_str(),
             windows_verify_step["env"]["EXPECTED_MACHINE"].as_str(),
         ),
         (
+            Some("pwsh"),
+            Some("./.github/scripts/verify-release-windows.ps1"),
             Some("${{ matrix.target }}"),
             Some("${{ matrix.archive }}"),
             Some("${{ matrix.machine }}"),
         )
     );
+}
+
+fn assert_job_checks_out_scripts(job: &Value) {
+    assert!(job_steps(job).iter().any(|step| {
+        step["uses"].as_str() == Some("actions/checkout@v6")
+            && step["with"]["persist-credentials"].as_bool() == Some(false)
+    }));
 }
 
 fn assert_release_record_job(workflow: &Value) {
