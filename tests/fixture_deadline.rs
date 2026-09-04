@@ -55,6 +55,17 @@ fn fixture_finish_rejects_an_ignored_extra_request() {
     );
 }
 
+#[test]
+fn repeating_fixture_serves_until_finished_without_a_fixed_request_count() {
+    let fixture = Fixture::start_repeating(Response::new(200, "text/plain", "ok"));
+
+    send_request(&fixture.url);
+    send_request(&fixture.url);
+    let requests = fixture.finish_all();
+
+    assert_eq!(requests.len(), 2);
+}
+
 fn send_request(url: &str) {
     let address = url.strip_prefix("http://").expect("fixture HTTP URL");
     let mut stream = TcpStream::connect(address).expect("connect to fixture");

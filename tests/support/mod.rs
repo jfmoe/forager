@@ -39,6 +39,42 @@ impl Fixture {
         Self::start_sequence(vec![Response::json(status, body)])
     }
 
+    pub(crate) fn start_repeating(response: Response) -> Self {
+        let listener = fixture_listener("repeating fixture");
+        let address = listener.local_addr().expect("repeating fixture address");
+        let (stop, stopped) = mpsc::channel();
+        let handle = thread::spawn(move || {
+            let mut requests = Vec::new();
+            loop {
+                match listener.accept() {
+                    Ok((stream, _)) => {
+                        stream
+                            .set_nonblocking(false)
+                            .expect("set repeating fixture stream blocking");
+                        stream
+                            .set_read_timeout(Some(ACCEPT_DEADLINE))
+                            .expect("set repeating fixture stream read timeout");
+                        requests.push(respond(stream, &response));
+                    }
+                    Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                        match stopped.try_recv() {
+                            Ok(()) | Err(mpsc::TryRecvError::Disconnected) => return requests,
+                            Err(mpsc::TryRecvError::Empty) => {}
+                        }
+                        thread::sleep(ACCEPT_POLL_INTERVAL);
+                    }
+                    Err(error) => panic!("accept repeating fixture request: {error}"),
+                }
+            }
+        });
+        Self {
+            url: format!("http://{address}"),
+            handle,
+            stop: Some(stop),
+            expected_requests: None,
+        }
+    }
+
     pub(crate) fn start_sequence(responses: Vec<Response>) -> Self {
         Self::start_sequence_with_deadline(responses, ACCEPT_DEADLINE)
     }

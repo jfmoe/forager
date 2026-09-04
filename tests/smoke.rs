@@ -418,11 +418,7 @@ fn live_smoke_p2_does_not_write_evidence_into_the_configured_journal() {
         }]
     })
     .to_string();
-    let classifier = Fixture::start_sequence(
-        (0..9)
-            .map(|_| Response::json(200, &classifier_response))
-            .collect(),
-    );
+    let classifier = Fixture::start_repeating(Response::json(200, &classifier_response));
     let environment = SmokeEnvironment::new(|journal_dir| p2_config(&classifier.url, journal_dir));
 
     let output = environment.run(&["smoke", "--live", "--timeout", "3"]);
@@ -445,7 +441,11 @@ fn live_smoke_p2_does_not_write_evidence_into_the_configured_journal() {
             .exists(),
         "P2 smoke evidence polluted the configured journal"
     );
-    classifier.finish_all();
+    let classifier_requests = classifier.finish_all();
+    assert!(
+        classifier_requests.len() >= 3,
+        "P2 smoke did not exercise all three classifier attempts"
+    );
 }
 
 #[test]
