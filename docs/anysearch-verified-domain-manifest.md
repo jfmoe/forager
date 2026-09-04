@@ -8,12 +8,12 @@ The manifest starts with an empty `verified_domains` collection. A future Verifi
 
 | Candidate | Versioned fixture | Result shape | Current conclusion | Missing gates |
 | --- | --- | --- | --- | --- |
-| `academic.search` | discovery schema, valid request, missing `keywords`, provider error | URL result | discovered/unverified | sanitized live capture, complete independent live run, upstream stability window |
-| `security.vuln` | discovery schema, valid request with `type`/`value`, missing required params, provider error | URL-less structured result | discovered/unverified | sanitized live capture, complete independent live run, upstream stability window |
-| `finance.fundamental` | discovery schema, valid request with `cn_code`/`symbol`/`type`, missing required params, provider error | URL-less structured result | discovered/unverified | sanitized live capture, complete independent live run, upstream stability window |
-| `code.doc` | discovery schema, valid request with `library`, missing required param, provider error | URL result | discovered/unverified | sanitized live capture, complete independent live run, upstream stability window |
+| `academic.search` | discovery schema | Unverified | discovered/unverified | sanitized live capture, valid and invalid request evidence, provider error, result shape, upstream stability window |
+| `security.vuln` | discovery schema | Unverified | discovered/unverified | sanitized live capture, valid and invalid request evidence, provider error, result shape, upstream stability window |
+| `finance.fundamental` | discovery schema | Unverified | discovered/unverified | sanitized live capture, valid and invalid request evidence, provider error, result shape, upstream stability window |
+| `code.doc` | discovery schema | Unverified | discovered/unverified | sanitized live capture, valid and invalid request evidence, provider error, result shape, upstream stability window |
 
-The fixtures under `tests/fixtures/anysearch/` are sanitized synthetic transport fixtures, not live acceptance evidence. Candidate schema fingerprints only verify that these versioned fixtures have not drifted; they are not runtime request-validation fingerprints. Because the manifest has no verified entry, the current runtime performs no Verified Domain schema validation and passes explicit unverified-domain parameters through unchanged. `security.cve` is intentionally absent and has no compatibility mapping; the candidate is `security.vuln`.
+The fixtures under `tests/fixtures/anysearch/` are versioned synthetic schema artifacts, not transport fixtures or live acceptance evidence. Candidate schema fingerprints only verify that these artifacts have not drifted; they are not runtime request-validation fingerprints. Because the manifest has no verified entry, the current runtime performs no Verified Domain schema validation and passes explicit unverified-domain parameters through unchanged. `security.cve` is intentionally absent and has no compatibility mapping; the candidate is `security.vuln`.
 
 ## Live acceptance
 

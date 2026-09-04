@@ -510,7 +510,7 @@ mod tests {
     use crate::catalog;
     use crate::redact::Secret;
 
-    use super::{Config, FieldMut, FieldRef, SCHEMA, leaf};
+    use super::{Config, FieldMut, FieldRef, Leaf, SCHEMA, ValueKind};
 
     #[test]
     fn default_provider_orders_are_catalog_projections() {
@@ -571,84 +571,175 @@ mod tests {
         assert_eq!(declared.len(), SCHEMA.len(), "duplicate schema path");
     }
 
-    #[test]
-    fn schema_getters_read_the_declared_fields() {
-        let mut config = Config::default();
-        config.search.fallback = "off".into();
-        config.journal.enabled = false;
-        config.retry.max_wait = 91;
-        config.retry.multiplier = 2.5;
-        config.search.backends = vec!["xai".into()];
-        config.classifier.keys = vec![Secret::from("canary")];
+    fn sentinel(index: usize, kind: ValueKind) -> toml::Value {
+        let index = u32::try_from(index).expect("schema index fits u32");
+        match kind {
+            ValueKind::String => toml::Value::String(format!("string-sentinel-{index}")),
+            ValueKind::Boolean => toml::Value::Boolean(true),
+            ValueKind::Integer => toml::Value::Integer(10_000 + i64::from(index)),
+            ValueKind::Float => toml::Value::Float(10_000.25 + f64::from(index)),
+            ValueKind::Array => {
+                toml::Value::Array(vec![toml::Value::String(format!("array-sentinel-{index}"))])
+            }
+        }
+    }
 
-        assert!(matches!(
-            (leaf("search.fallback").expect("leaf").get)(&config),
-            FieldRef::String("off")
-        ));
-        assert!(matches!(
-            (leaf("journal.enabled").expect("leaf").get)(&config),
-            FieldRef::Bool(false)
-        ));
-        assert!(matches!(
-            (leaf("retry.max_wait").expect("leaf").get)(&config),
-            FieldRef::U64(91)
-        ));
-        assert!(matches!(
-            (leaf("retry.multiplier").expect("leaf").get)(&config),
-            FieldRef::F64(2.5)
-        ));
-        assert!(matches!(
-            (leaf("search.backends").expect("leaf").get)(&config),
-            FieldRef::Strings(values) if values == ["xai"]
-        ));
-        assert!(matches!(
-            (leaf("classifier.keys").expect("leaf").get)(&config),
-            FieldRef::Secrets(values) if values.len() == 1
-        ));
+    fn neutral(kind: ValueKind) -> toml::Value {
+        match kind {
+            ValueKind::String => toml::Value::String("not-the-sentinel".into()),
+            ValueKind::Boolean => toml::Value::Boolean(false),
+            ValueKind::Integer => toml::Value::Integer(1),
+            ValueKind::Float => toml::Value::Float(1.0),
+            ValueKind::Array => {
+                toml::Value::Array(vec![toml::Value::String("not-the-sentinel".into())])
+            }
+        }
+    }
+
+    fn set_path(root: &mut toml::Value, path: &str, value: toml::Value) {
+        let mut segments = path.split('.').peekable();
+        let mut current = root;
+        while let Some(segment) = segments.next() {
+            if segments.peek().is_none() {
+                current
+                    .as_table_mut()
+                    .expect("schema parent is a table")
+                    .insert(segment.to_owned(), value);
+                return;
+            }
+            current = current
+                .as_table_mut()
+                .expect("schema parent is a table")
+                .get_mut(segment)
+                .expect("schema path segment exists");
+        }
+    }
+
+    fn value_at_path<'a>(root: &'a toml::Value, path: &str) -> &'a toml::Value {
+        path.split('.').fold(root, |value, segment| {
+            value.get(segment).expect("schema path segment exists")
+        })
+    }
+
+    fn field_ref_value(field: &FieldRef<'_>) -> toml::Value {
+        match field {
+            FieldRef::String(value) => toml::Value::String((*value).to_owned()),
+            FieldRef::Bool(value) => toml::Value::Boolean(*value),
+            FieldRef::U64(value) => {
+                toml::Value::Integer(i64::try_from(*value).expect("test integer fits i64"))
+            }
+            FieldRef::F64(value) => toml::Value::Float(*value),
+            FieldRef::Strings(values) => {
+                toml::Value::Array(values.iter().cloned().map(toml::Value::String).collect())
+            }
+            FieldRef::Secrets(values) => toml::Value::Array(
+                values
+                    .iter()
+                    .map(|value| toml::Value::String(value.expose().to_owned()))
+                    .collect(),
+            ),
+        }
+    }
+
+    fn same_field_variant(left: &FieldRef<'_>, right: &FieldRef<'_>) -> bool {
+        matches!(
+            (left, right),
+            (FieldRef::String(_), FieldRef::String(_))
+                | (FieldRef::Bool(_), FieldRef::Bool(_))
+                | (FieldRef::U64(_), FieldRef::U64(_))
+                | (FieldRef::F64(_), FieldRef::F64(_))
+                | (FieldRef::Strings(_), FieldRef::Strings(_))
+                | (FieldRef::Secrets(_), FieldRef::Secrets(_))
+        )
+    }
+
+    fn write_sentinel(field: FieldMut<'_>, index: usize) {
+        let index = u32::try_from(index).expect("schema index fits u32");
+        match field {
+            FieldMut::String(value) => *value = format!("string-sentinel-{index}"),
+            FieldMut::Bool(value) => *value = true,
+            FieldMut::U64(value) => *value = 10_000 + u64::from(index),
+            FieldMut::F64(value) => *value = 10_000.25 + f64::from(index),
+            FieldMut::Strings(value) => *value = vec![format!("array-sentinel-{index}")],
+            FieldMut::Secrets(value) => {
+                *value = vec![Secret::from(format!("array-sentinel-{index}").as_str())];
+            }
+        }
+    }
+
+    fn secret_at_path<'a>(config: &'a Config, path: &str) -> Option<&'a [Secret]> {
+        match path {
+            "classifier.keys" => Some(&config.classifier.keys),
+            "providers.xai.keys" => Some(&config.providers.xai.keys),
+            "providers.openai_compatible.keys" => Some(&config.providers.openai_compatible.keys),
+            "providers.exa.keys" => Some(&config.providers.exa.keys),
+            "providers.context7.keys" => Some(&config.providers.context7.keys),
+            "providers.jina.keys" => Some(&config.providers.jina.keys),
+            "providers.tavily.keys" => Some(&config.providers.tavily.keys),
+            "providers.firecrawl.keys" => Some(&config.providers.firecrawl.keys),
+            "providers.anysearch.keys" => Some(&config.providers.anysearch.keys),
+            _ => None,
+        }
+    }
+
+    fn mutated_value(config: &Config, leaf: &Leaf) -> toml::Value {
+        if let Some(values) = secret_at_path(config, leaf.path) {
+            return toml::Value::Array(
+                values
+                    .iter()
+                    .map(|value| toml::Value::String(value.expose().to_owned()))
+                    .collect(),
+            );
+        }
+        let serialized = toml::Value::try_from(config).expect("serialize mutated config");
+        value_at_path(&serialized, leaf.path).clone()
     }
 
     #[test]
-    fn schema_mutators_write_the_declared_fields() {
-        let mut config = Config::default();
-        if let FieldMut::String(value) =
-            (leaf("search.fallback").expect("leaf").get_mut)(&mut config)
-        {
-            *value = "off".into();
-        }
-        if let FieldMut::Bool(value) = (leaf("journal.enabled").expect("leaf").get_mut)(&mut config)
-        {
-            *value = false;
-        }
-        if let FieldMut::U64(value) = (leaf("retry.max_wait").expect("leaf").get_mut)(&mut config) {
-            *value = 92;
-        }
-        if let FieldMut::F64(value) = (leaf("retry.multiplier").expect("leaf").get_mut)(&mut config)
-        {
-            *value = 3.5;
-        }
-        if let FieldMut::Strings(value) =
-            (leaf("search.backends").expect("leaf").get_mut)(&mut config)
-        {
-            *value = vec!["openai_compatible".into()];
-        }
-        if let FieldMut::Secrets(value) =
-            (leaf("classifier.keys").expect("leaf").get_mut)(&mut config)
-        {
-            *value = vec![Secret::from("canary")];
-        }
+    fn every_schema_getter_reads_its_declared_path() {
+        for (target_index, target) in SCHEMA.iter().enumerate() {
+            let mut serialized =
+                toml::Value::try_from(Config::default()).expect("serialize default config");
+            let defaults = Config::default();
+            for leaf in SCHEMA {
+                if same_field_variant(&(leaf.get)(&defaults), &(target.get)(&defaults)) {
+                    set_path(&mut serialized, leaf.path, neutral(leaf.kind));
+                }
+            }
+            let expected = sentinel(target_index, target.kind);
+            set_path(&mut serialized, target.path, expected.clone());
+            let config: Config = serialized.try_into().expect("deserialize sentinel config");
 
-        let expected_backends = vec!["openai_compatible".to_owned()];
-        assert_eq!(
-            (
-                config.search.fallback.as_str(),
-                config.journal.enabled,
-                config.retry.max_wait,
-                config.retry.multiplier,
-                config.search.backends.as_slice(),
-                config.classifier.keys.len(),
-            ),
-            ("off", false, 92, 3.5, expected_backends.as_slice(), 1,)
-        );
+            assert_eq!(
+                field_ref_value(&(target.get)(&config)),
+                expected,
+                "path={}",
+                target.path
+            );
+        }
+    }
+
+    #[test]
+    fn every_schema_mutator_writes_its_declared_path() {
+        for (target_index, target) in SCHEMA.iter().enumerate() {
+            let mut serialized =
+                toml::Value::try_from(Config::default()).expect("serialize default config");
+            let defaults = Config::default();
+            for leaf in SCHEMA {
+                if same_field_variant(&(leaf.get)(&defaults), &(target.get)(&defaults)) {
+                    set_path(&mut serialized, leaf.path, neutral(leaf.kind));
+                }
+            }
+            let mut config: Config = serialized.try_into().expect("deserialize neutral config");
+            write_sentinel((target.get_mut)(&mut config), target_index);
+
+            assert_eq!(
+                mutated_value(&config, target),
+                sentinel(target_index, target.kind),
+                "path={}",
+                target.path
+            );
+        }
     }
 
     #[test]

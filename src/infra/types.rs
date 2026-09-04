@@ -1218,7 +1218,91 @@ impl Deadline {
 mod research_plan_tests {
     use serde_json::{Value, json};
 
-    use super::{AttemptErrorKind, ErrorKind, EvidenceLocator, ResearchPlan};
+    use super::{AttemptErrorKind, ErrorFamily, ErrorKind, EvidenceLocator, ResearchPlan};
+
+    type AttemptErrorCase = (
+        AttemptErrorKind,
+        ErrorKind,
+        &'static str,
+        ErrorFamily,
+        bool,
+        bool,
+    );
+
+    const ATTEMPT_ERROR_CASES: [AttemptErrorCase; 9] = [
+        (
+            AttemptErrorKind::Auth,
+            ErrorKind::Auth,
+            "auth",
+            ErrorFamily::Transport,
+            false,
+            false,
+        ),
+        (
+            AttemptErrorKind::RateLimited,
+            ErrorKind::RateLimited,
+            "rate_limited",
+            ErrorFamily::Transport,
+            false,
+            true,
+        ),
+        (
+            AttemptErrorKind::QuotaExhausted,
+            ErrorKind::QuotaExhausted,
+            "quota_exhausted",
+            ErrorFamily::Transport,
+            false,
+            true,
+        ),
+        (
+            AttemptErrorKind::Parameter,
+            ErrorKind::Parameter,
+            "parameter",
+            ErrorFamily::Transport,
+            false,
+            false,
+        ),
+        (
+            AttemptErrorKind::Timeout,
+            ErrorKind::Timeout,
+            "timeout",
+            ErrorFamily::Transport,
+            true,
+            false,
+        ),
+        (
+            AttemptErrorKind::Network,
+            ErrorKind::Network,
+            "network",
+            ErrorFamily::Transport,
+            true,
+            false,
+        ),
+        (
+            AttemptErrorKind::Quality,
+            ErrorKind::Quality,
+            "quality",
+            ErrorFamily::Content,
+            false,
+            false,
+        ),
+        (
+            AttemptErrorKind::Evidence,
+            ErrorKind::Evidence,
+            "evidence",
+            ErrorFamily::Content,
+            false,
+            false,
+        ),
+        (
+            AttemptErrorKind::Runtime,
+            ErrorKind::Runtime,
+            "runtime",
+            ErrorFamily::Transport,
+            false,
+            false,
+        ),
+    ];
 
     #[test]
     fn evidence_locators_project_their_mutually_exclusive_public_identity() {
@@ -1239,25 +1323,37 @@ mod research_plan_tests {
     }
 
     #[test]
-    fn provider_attempt_error_domain_excludes_preflight_config() {
-        let kinds = [
-            AttemptErrorKind::Auth,
-            AttemptErrorKind::RateLimited,
-            AttemptErrorKind::QuotaExhausted,
-            AttemptErrorKind::Parameter,
-            AttemptErrorKind::Timeout,
-            AttemptErrorKind::Network,
-            AttemptErrorKind::Quality,
-            AttemptErrorKind::Evidence,
-            AttemptErrorKind::Runtime,
-        ];
-
-        assert_eq!(kinds.len(), 9);
-        assert!(
-            kinds
-                .into_iter()
-                .map(ErrorKind::from)
-                .all(|kind| kind != ErrorKind::Config)
+    fn provider_attempt_errors_preserve_their_public_and_control_flow_semantics() {
+        for (attempt, error, name, family, retryable, rotates) in ATTEMPT_ERROR_CASES {
+            assert_eq!(
+                (
+                    ErrorKind::from(attempt),
+                    attempt.as_str(),
+                    serde_json::to_value(attempt).expect("serialize attempt error kind"),
+                    error.family(),
+                    attempt.is_retryable(),
+                    attempt.rotates_credential(),
+                ),
+                (
+                    error,
+                    name,
+                    Value::String(name.to_owned()),
+                    Some(family),
+                    retryable,
+                    rotates,
+                ),
+                "attempt={attempt:?}"
+            );
+        }
+        assert_eq!(
+            (
+                ErrorKind::Config.as_str(),
+                serde_json::to_value(ErrorKind::Config).expect("serialize config error kind"),
+                ErrorKind::Config.family(),
+                ErrorKind::Config.is_retryable(),
+                ErrorKind::Config.rotates_credential(),
+            ),
+            ("config", Value::String("config".into()), None, false, false)
         );
     }
 

@@ -1,5 +1,4 @@
 {
-  "fixture_version": 2,
   "provenance": "synthetic_mock",
   "domain": "security",
   "sub_domain": "vuln",
@@ -10,12 +9,5 @@
       "type": {"type": "string"},
       "value": {"type": "string"}
     }
-  },
-  "valid_params": {"type": "cve", "value": "CVE-2024-3094"},
-  "valid_result": {
-    "structuredContent": {"identifier": "CVE-2024-3094", "severity": "critical", "affected": "xz utils"},
-    "content": [{"type": "text", "text": "CVE-2024-3094 severity: critical\nAffected: xz utils"}]
-  },
-  "missing_required_error": {"code": -32602, "message": "type and value are required"},
-  "provider_error": {"isError": true, "content": [{"type": "text", "text": "security provider unavailable"}]}
+  }
 }

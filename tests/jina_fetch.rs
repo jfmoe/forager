@@ -76,4 +76,14 @@ enabled = false
     assert!(request.contains("x-return-format: markdown"));
     assert!(request.contains("accept: application/json"));
     assert!(request.contains("x-respond-with: readerlm-v2"));
+    for header in [
+        "x-retain-links:",
+        "x-target-selector:",
+        "x-remove-selector:",
+    ] {
+        assert!(
+            !request.contains(header),
+            "unexpected header {header}: {request}"
+        );
+    }
 }

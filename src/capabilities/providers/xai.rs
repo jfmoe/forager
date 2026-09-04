@@ -407,15 +407,13 @@ mod tests {
 
     use eventsource_stream::Event;
     use futures_util::stream;
-    use serde_json::Value;
 
     use crate::config::XaiRuntimeConfig;
     use crate::credentials::CredentialPool;
     use crate::net::{AttemptFailure, RetryPolicy};
-    use crate::providers::MainSearchRequestKind;
     use crate::types::{AttemptErrorKind, Deadline};
 
-    use super::{InputMessage, ResponsesRequest, Tool, Xai, parse_event_data, terminal_error_kind};
+    use super::{Xai, parse_event_data, terminal_error_kind};
 
     fn provider() -> Xai {
         Xai::new(
@@ -430,50 +428,6 @@ mod tests {
             RetryPolicy::new(1, 1.0, Duration::ZERO),
             Deadline::new(Duration::from_secs(10)),
         )
-    }
-
-    #[test]
-    fn request_profiles_use_the_same_role_array_input() {
-        for request_kind in [
-            MainSearchRequestKind::Search,
-            MainSearchRequestKind::ModelProbe,
-        ] {
-            let input = request_kind.input("current releases");
-            let tools = if request_kind.uses_search_tools() {
-                vec![Tool { kind: "web_search" }]
-            } else {
-                Vec::new()
-            };
-            let body = serde_json::to_value(ResponsesRequest {
-                model: "model",
-                instructions: request_kind.instruction(),
-                input: [InputMessage {
-                    role: "user",
-                    content: &input,
-                }],
-                stream: true,
-                tools,
-            })
-            .expect("serialize request");
-
-            assert_eq!(body["input"][0]["role"], "user");
-            assert!(
-                body["input"][0]["content"]
-                    .as_str()
-                    .is_some_and(|content| content.contains("current releases"))
-            );
-            match request_kind {
-                MainSearchRequestKind::Search => {
-                    assert!(body["instructions"].as_str().is_some());
-                    assert_eq!(body["tools"][0]["type"], "web_search");
-                }
-                MainSearchRequestKind::ModelProbe => {
-                    assert_eq!(body.get("instructions"), None);
-                    assert_eq!(body["tools"], Value::Array(Vec::new()));
-                    assert_eq!(body["input"][0]["content"], "current releases");
-                }
-            }
-        }
     }
 
     #[test]

@@ -1146,11 +1146,13 @@ fn research_reports_provider_gaps_as_advisory_when_other_evidence_succeeds() {
 
 #[test]
 fn research_returns_evidence_exit_five_when_discovery_cannot_be_fetched() {
-    let tavily = Fixture::start(
-        200,
-        "application/json",
-        r#"{"results":[{"title":"Candidate","url":"https://example.test/unfetched"}]}"#,
-    );
+    let tavily = Fixture::start_sequence(vec![
+        Response::json(
+            200,
+            r#"{"results":[{"title":"Candidate","url":"https://example.test/unfetched"}]}"#,
+        ),
+        Response::json(503, r#"{"message":"candidate fetch unavailable"}"#),
+    ]);
     let config = format!(
         r#"
 [providers.tavily]
@@ -1188,7 +1190,9 @@ enabled = false
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    tavily.finish();
+    let requests = tavily.finish_all();
+    assert!(requests[0].starts_with("POST /search "), "{requests:?}");
+    assert!(requests[1].starts_with("POST /extract "), "{requests:?}");
 }
 
 #[test]

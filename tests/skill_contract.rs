@@ -5,9 +5,9 @@ use std::path::Path;
 use forager::types::ResearchPlan;
 
 #[test]
-fn repository_exposes_the_tracked_installable_skills() {
-    let skills_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("skills");
-    let skill_dirs = fs::read_dir(&skills_dir)
+fn repository_exposes_only_the_named_installable_skill() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let skill_dirs = fs::read_dir(root.join("skills"))
         .expect("read skills directory")
         .map(|entry| {
             entry
@@ -17,13 +17,18 @@ fn repository_exposes_the_tracked_installable_skills() {
                 .into_owned()
         })
         .collect::<HashSet<_>>();
-
     assert_eq!(skill_dirs, HashSet::from(["forager".to_owned()]));
-    let skill_path = "skills/forager/SKILL.md";
-    assert!(
-        Path::new(skill_path).is_file(),
-        "missing installable skill asset {skill_path}"
-    );
+
+    let source =
+        fs::read_to_string(root.join("skills/forager/SKILL.md")).expect("read installable skill");
+    let frontmatter = source
+        .strip_prefix("---\n")
+        .and_then(|source| source.split_once("\n---\n").map(|(yaml, _)| yaml))
+        .expect("skill YAML frontmatter");
+    let metadata: serde_yaml_ng::Value =
+        serde_yaml_ng::from_str(frontmatter).expect("parse skill YAML frontmatter");
+
+    assert_eq!(metadata["name"].as_str(), Some("forager"));
 }
 
 #[test]

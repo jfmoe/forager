@@ -6,7 +6,7 @@ use std::time::Instant;
 
 use serde_json::Value;
 
-use support::{Fixture, Response, RunEnvironment, run_command};
+use support::{Fixture, Response, RunEnvironment, request_json, run_command};
 
 #[test]
 fn map_sends_tavily_options_and_normalizes_site_results() {
@@ -101,6 +101,16 @@ fn map_sends_the_minimum_timeout_without_provider_clamping() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(request.contains("\"timeout\":10"), "{request}");
+}
+
+#[test]
+fn map_sends_minimum_depth_and_breadth_boundaries_unchanged() {
+    assert_map_boundaries(1, 1);
+}
+
+#[test]
+fn map_sends_maximum_depth_and_breadth_boundaries_unchanged() {
+    assert_map_boundaries(5, 500);
 }
 
 #[test]
@@ -356,6 +366,41 @@ fn map_caps_each_attempt_below_the_command_deadline() {
     );
     assert!(elapsed < Duration::from_secs(3), "elapsed: {elapsed:?}");
     fixture.finish_all();
+}
+
+fn assert_map_boundaries(max_depth: u16, max_breadth: u16) {
+    let fixture = Fixture::start(
+        200,
+        "application/json",
+        r#"{"base_url":"https://docs.example.test","results":[]}"#,
+    );
+    let environment = RunEnvironment::new(&map_config(&fixture.url, &["tavily-key"]));
+    let output = environment.run(&[
+        "map",
+        "https://docs.example.test",
+        "--max-depth",
+        &max_depth.to_string(),
+        "--max-breadth",
+        &max_breadth.to_string(),
+    ]);
+    let request = fixture.finish();
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        request_json(&request),
+        serde_json::json!({
+            "url": "https://docs.example.test",
+            "max_depth": max_depth,
+            "max_breadth": max_breadth,
+            "limit": 50,
+            "timeout": 150
+        })
+    );
 }
 
 fn map_config(tavily_url: &str, tavily_keys: &[&str]) -> String {

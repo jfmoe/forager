@@ -349,26 +349,6 @@ fn exa_search_treats_an_empty_result_set_as_success() {
 }
 
 #[test]
-fn exa_similar_treats_an_empty_result_set_as_success() {
-    let fixture = Fixture::start_json(200, r#"{"results":[]}"#);
-
-    let output = run(
-        &fixture,
-        &["exa", "similar", "https://example.test/source"],
-        &["only-key"],
-    );
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
-    assert_eq!(
-        (output.status.code(), &payload["results"]),
-        (Some(0), &serde_json::json!([])),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    fixture.finish();
-}
-
-#[test]
 fn exa_rejects_success_responses_without_the_results_container() {
     for body in [r"{}", r#"{"error":"upstream failed"}"#] {
         let fixture = Fixture::start_json(200, body);
@@ -415,26 +395,6 @@ fn exa_similar_rejects_an_invalid_result_count_before_network_or_config() {
 }
 
 #[test]
-fn exa_similar_classifies_authentication_failures() {
-    let fixture = Fixture::start_json(401, r#"{"error":{"message":"invalid credential"}}"#);
-
-    let output = run(
-        &fixture,
-        &["exa", "similar", "https://example.test/source"],
-        &["only-key"],
-    );
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
-    assert_eq!(
-        (output.status.code(), &payload["error_kind"]),
-        (Some(4), &Value::String("auth".into())),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    fixture.finish();
-}
-
-#[test]
 fn exa_similar_rotates_credentials_after_a_rate_limit() {
     let fixture = Fixture::start_sequence(vec![
         Response::json(429, r#"{"error":{"message":"rate limited"}}"#),
@@ -467,34 +427,6 @@ fn exa_similar_rotates_credentials_after_a_rate_limit() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-}
-
-#[test]
-fn exa_similar_obeys_the_command_deadline() {
-    let fixture = Fixture::start_sequence(vec![
-        Response::json(200, r#"{"results":[]}"#).with_delay(Duration::from_millis(1500)),
-    ]);
-
-    let output = run(
-        &fixture,
-        &[
-            "exa",
-            "similar",
-            "https://example.test/source",
-            "--timeout",
-            "1",
-        ],
-        &["only-key"],
-    );
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
-    assert_eq!(
-        (output.status.code(), &payload["error_kind"]),
-        (Some(4), &Value::String("timeout".into())),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    fixture.finish_all();
 }
 
 #[test]

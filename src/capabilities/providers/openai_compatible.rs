@@ -788,7 +788,7 @@ mod tests {
     }
 
     #[test]
-    fn model_breaker_closes_after_the_six_hundred_second_cooldown() {
+    fn expired_breaker_state_is_evicted() {
         let breakers = ModelBreakers::default();
         breakers.states.lock().expect("breaker state").insert(
             ("https://relay.example/v1".into(), "model".into()),
@@ -798,6 +798,13 @@ mod tests {
             },
         );
         assert!(!breakers.is_open("https://relay.example/v1", "model"));
+        assert!(
+            !breakers
+                .states
+                .lock()
+                .expect("breaker state")
+                .contains_key(&("https://relay.example/v1".into(), "model".into()))
+        );
     }
 
     #[test]

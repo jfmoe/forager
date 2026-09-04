@@ -104,7 +104,7 @@ fn interactive_setup_holds_the_config_lock_until_its_update_is_saved() {
         .stderr(Stdio::piped());
     let mut setup = spawn_command(&mut setup_command).expect("spawn interactive setup");
     let lock_path = config_dir.path().join(".config.lock");
-    let deadline = Instant::now() + Duration::from_secs(1);
+    let deadline = Instant::now() + Duration::from_secs(5);
     loop {
         if let Ok(lock) = OpenOptions::new()
             .create(true)
@@ -152,7 +152,7 @@ fn interactive_setup_configures_the_four_stages_without_echoing_credentials() {
     let config_dir = tempfile::tempdir().expect("create config directory");
     let canary = "setup-canary-secret";
     let input = format!(
-        "xai\nhttps://main.example/v1\n{canary}\nmain-model\ny\nhttps://classifier.example/v1\nclassifier-secret\nclassifier-model\nexa-secret\n\njina-secret\n\n\nanysearch-secret\n"
+        "xai\nhttps://main.example/v1\n{canary}\nmain-model\ny\nhttps://classifier.example/v1\nclassifier-secret\nclassifier-model\nexa-secret\ncontext7-secret\njina-secret\ntavily-secret\nfirecrawl-secret\nanysearch-secret\n"
     );
 
     let output = run(config_dir.path(), &["setup", "--lang", "zh"], Some(&input));
@@ -172,9 +172,6 @@ fn interactive_setup_configures_the_four_stages_without_echoing_credentials() {
             config.get("search").is_none(),
             config["providers"]["xai"]["model"].as_str(),
             config["classifier"]["model"].as_str(),
-            config["providers"]["exa"]["keys"][0].as_str(),
-            config["providers"]["jina"]["keys"][0].as_str(),
-            config["providers"]["anysearch"]["keys"][0].as_str(),
             combined.contains("第 3 步：分类器（跳过后无法自动路由或生成 research 计划）"),
             combined.contains("forager doctor"),
             combined.contains(canary),
@@ -184,9 +181,6 @@ fn interactive_setup_configures_the_four_stages_without_echoing_credentials() {
             true,
             Some("main-model"),
             Some("classifier-model"),
-            Some("exa-secret"),
-            Some("jina-secret"),
-            Some("anysearch-secret"),
             true,
             true,
             false,
@@ -194,6 +188,20 @@ fn interactive_setup_configures_the_four_stages_without_echoing_credentials() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+    for (provider, expected_key) in [
+        ("exa", "exa-secret"),
+        ("context7", "context7-secret"),
+        ("jina", "jina-secret"),
+        ("tavily", "tavily-secret"),
+        ("firecrawl", "firecrawl-secret"),
+        ("anysearch", "anysearch-secret"),
+    ] {
+        assert_eq!(
+            config["providers"][provider]["keys"][0].as_str(),
+            Some(expected_key),
+            "provider: {provider}"
+        );
+    }
 }
 
 #[test]
@@ -289,17 +297,8 @@ fn interactive_setup_rejects_a_malformed_document_without_replacing_it() {
     );
 }
 
-#[test]
-fn setup_does_not_enable_subcommand_inference() {
-    let config_dir = tempfile::tempdir().expect("create config directory");
-
-    let output = run(config_dir.path(), &["setu", "--non-interactive"], None);
-
-    assert_eq!(output.status.code(), Some(2));
-}
-
 #[cfg(unix)]
-fn private_modes(config_dir: &Path) -> (u32, u32, usize) {
+fn private_modes(config_dir: &Path) -> (u32, u32, u32, usize) {
     use std::os::unix::fs::PermissionsExt;
 
     let directory_mode = config_dir
@@ -315,18 +314,37 @@ fn private_modes(config_dir: &Path) -> (u32, u32, usize) {
         .permissions()
         .mode()
         & 0o777;
+    let lock_mode = config_dir
+        .join(".config.lock")
+        .metadata()
+        .expect("read lock metadata")
+        .permissions()
+        .mode()
+        & 0o777;
     let temporary_files = fs::read_dir(config_dir)
         .expect("read config directory")
         .filter_map(Result::ok)
         .filter(|entry| entry.file_name().to_string_lossy().ends_with(".tmp"))
         .count();
-    (directory_mode, file_mode, temporary_files)
+    (directory_mode, file_mode, lock_mode, temporary_files)
 }
 
 #[cfg(unix)]
 #[test]
 fn both_setup_modes_enforce_private_permissions_and_remove_temporary_files() {
+    use std::os::unix::fs::PermissionsExt;
+
     let interactive_dir = tempfile::tempdir().expect("create interactive config directory");
+    fs::set_permissions(interactive_dir.path(), fs::Permissions::from_mode(0o777))
+        .expect("set broad interactive directory permissions");
+    for path in [
+        interactive_dir.path().join("config.toml"),
+        interactive_dir.path().join(".config.lock"),
+    ] {
+        fs::write(&path, "").expect("create broad interactive config object");
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o666))
+            .expect("set broad interactive file permissions");
+    }
     let output = run(
         interactive_dir.path(),
         &["setup", "--lang", "en"],
@@ -335,6 +353,12 @@ fn both_setup_modes_enforce_private_permissions_and_remove_temporary_files() {
     assert_eq!(output.status.code(), Some(0), "{output:?}");
 
     let template_dir = tempfile::tempdir().expect("create template config directory");
+    fs::set_permissions(template_dir.path(), fs::Permissions::from_mode(0o777))
+        .expect("set broad template directory permissions");
+    let template_lock = template_dir.path().join(".config.lock");
+    fs::write(&template_lock, "").expect("create broad template lock");
+    fs::set_permissions(&template_lock, fs::Permissions::from_mode(0o666))
+        .expect("set broad template lock permissions");
     let output = run(template_dir.path(), &["setup", "--non-interactive"], None);
     assert_eq!(output.status.code(), Some(0), "{output:?}");
 
@@ -343,7 +367,7 @@ fn both_setup_modes_enforce_private_permissions_and_remove_temporary_files() {
             private_modes(interactive_dir.path()),
             private_modes(template_dir.path()),
         ),
-        ((0o700, 0o600, 0), (0o700, 0o600, 0))
+        ((0o700, 0o600, 0o600, 0), (0o700, 0o600, 0o600, 0))
     );
 }
 

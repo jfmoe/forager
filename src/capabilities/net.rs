@@ -361,6 +361,7 @@ mod tests {
         MAX_ERROR_BODY_BYTES, MAX_RESPONSE_BYTES, RESPONSE_LIMIT_MESSAGE, ResponseBodyPolicy,
         RetryPolicy, build_client, build_client_with_read_timeout, combine_diagnostics,
         duration_millis, error_kind_for_status, read_complete_protocol, read_truncatable_content,
+        slice_budget,
     };
     use crate::credentials::CredentialPool;
     use crate::types::AttemptErrorKind;
@@ -713,13 +714,95 @@ mod tests {
     }
 
     #[test]
-    fn redirect_status_is_runtime_without_retry_or_rotation() {
-        let kind = error_kind_for_status(StatusCode::FOUND, "");
+    fn http_statuses_map_to_their_attempt_error_equivalence_classes() {
+        for (case, status, body, expected) in [
+            ("bad_request", 400, "", AttemptErrorKind::Parameter),
+            ("not_found", 404, "", AttemptErrorKind::Parameter),
+            ("method_not_allowed", 405, "", AttemptErrorKind::Parameter),
+            ("conflict", 409, "", AttemptErrorKind::Parameter),
+            ("unprocessable", 422, "", AttemptErrorKind::Parameter),
+            ("unauthorized", 401, "", AttemptErrorKind::Auth),
+            ("forbidden", 403, "", AttemptErrorKind::Auth),
+            (
+                "payment_required",
+                402,
+                "",
+                AttemptErrorKind::QuotaExhausted,
+            ),
+            (
+                "rate_limited",
+                429,
+                "slow down",
+                AttemptErrorKind::RateLimited,
+            ),
+            (
+                "quota_lowercase",
+                429,
+                "quota exceeded",
+                AttemptErrorKind::QuotaExhausted,
+            ),
+            (
+                "quota_mixed_case",
+                429,
+                "QuOtA exceeded",
+                AttemptErrorKind::QuotaExhausted,
+            ),
+            ("request_timeout", 408, "", AttemptErrorKind::Timeout),
+            ("gateway_timeout", 504, "", AttemptErrorKind::Timeout),
+            ("server_error_lower", 500, "", AttemptErrorKind::Network),
+            ("server_error_upper", 599, "", AttemptErrorKind::Network),
+            ("redirect", 302, "", AttemptErrorKind::Runtime),
+            (
+                "unclassified_client_error",
+                418,
+                "",
+                AttemptErrorKind::Runtime,
+            ),
+        ] {
+            let status = StatusCode::from_u16(status).expect("valid fixture status");
 
-        assert_eq!(
-            (kind, kind.is_retryable(), kind.rotates_credential()),
-            (AttemptErrorKind::Runtime, false, false)
-        );
+            assert_eq!(error_kind_for_status(status, body), expected, "case={case}");
+        }
+    }
+
+    #[test]
+    fn slice_budget_preserves_reachable_fallback_slots_at_every_boundary() {
+        for (case, remaining, slots, expected) in [
+            ("last_slot_zero", 0, 1, Some(Duration::ZERO)),
+            (
+                "last_slot_below_minimum",
+                4,
+                1,
+                Some(Duration::from_secs(4)),
+            ),
+            ("two_slots_below_minimum", 9, 2, None),
+            ("two_slots_at_minimum", 10, 2, Some(Duration::from_secs(5))),
+            (
+                "two_slots_fractional",
+                11,
+                2,
+                Some(Duration::from_millis(5_500)),
+            ),
+            ("three_slots_below_minimum", 14, 3, None),
+            (
+                "three_slots_at_minimum",
+                15,
+                3,
+                Some(Duration::from_secs(5)),
+            ),
+            (
+                "three_slots_fractional",
+                16,
+                3,
+                Some(Duration::from_nanos(5_333_333_333)),
+            ),
+        ] {
+            assert_eq!(
+                slice_budget(Duration::from_secs(remaining), slots),
+                expected,
+                "case={case}"
+            );
+        }
     }
 
     #[test]

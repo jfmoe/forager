@@ -23,12 +23,14 @@ fn config_path_does_not_load_a_removed_validation_key() {
         ("HOME", home.path()),
     ]);
 
+    assert_eq!(output.status.code(), Some(0));
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
         format!("{}\n", config_dir.path().join("config.toml").display()),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+    assert!(output.stderr.is_empty());
 }
 
 #[test]
@@ -37,6 +39,7 @@ fn config_path_uses_xdg_config_home() {
 
     let output = run(&[("XDG_CONFIG_HOME", xdg_config_home.path())]);
 
+    assert_eq!(output.status.code(), Some(0));
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
         format!(
@@ -46,6 +49,7 @@ fn config_path_uses_xdg_config_home() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+    assert!(output.stderr.is_empty());
 }
 
 #[test]
@@ -54,6 +58,7 @@ fn config_path_uses_the_xdg_default_below_home() {
 
     let output = run(&[("HOME", home.path())]);
 
+    assert_eq!(output.status.code(), Some(0));
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
         format!(
@@ -63,6 +68,7 @@ fn config_path_uses_the_xdg_default_below_home() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+    assert!(output.stderr.is_empty());
 }
 
 #[test]

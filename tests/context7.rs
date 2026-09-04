@@ -5,7 +5,7 @@ use std::process::Output;
 use std::time::Duration;
 
 use serde_json::Value;
-use support::{Fixture, Response, RunEnvironment};
+use support::{Fixture, Response, RunEnvironment, request_json};
 
 #[test]
 fn context7_calls_tools_without_a_session_or_legacy_source_header() {
@@ -71,6 +71,7 @@ fn context7_library_initializes_the_mcp_session_and_normalizes_json_results() {
     );
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
     let requests = fixture.finish_all();
+    let tool_request = request_json(&requests[2]);
     assert_eq!(
         payload["provider_attempts"].as_array().map(Vec::len),
         Some(1),
@@ -88,7 +89,6 @@ fn context7_library_initializes_the_mcp_session_and_normalizes_json_results() {
             requests.len(),
             requests[0].contains(r#""method":"initialize""#),
             requests[1].contains(r#""method":"notifications/initialized""#),
-            requests[2].contains(r#""name":"resolve-library-id""#),
             requests[2].contains("mcp-session-id: session-1"),
             requests
                 .iter()
@@ -106,10 +106,19 @@ fn context7_library_initializes_the_mcp_session_and_normalizes_json_results() {
             true,
             true,
             true,
-            true,
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(
+        (
+            &tool_request["params"]["name"],
+            &tool_request["params"]["arguments"],
+        ),
+        (
+            &Value::String("resolve-library-id".into()),
+            &serde_json::json!({"libraryName": "rust", "query": "async drop"}),
+        )
     );
 }
 
@@ -135,6 +144,7 @@ fn context7_docs_default_json_contains_only_the_readable_payload() {
     );
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
     let requests = fixture.finish_all();
+    let tool_request = request_json(&requests[2]);
 
     assert_eq!(
         (
@@ -146,13 +156,15 @@ fn context7_docs_default_json_contains_only_the_readable_payload() {
                 .map(String::as_str)
                 .collect::<BTreeSet<_>>(),
             &payload["content"],
-            requests[2].contains(r#""name":"query-docs""#),
+            &tool_request["params"]["name"],
+            &tool_request["params"]["arguments"],
         ),
         (
             Some(0),
             BTreeSet::from(["content", "library_id", "provider", "query"]),
             &Value::String("Async drop documentation".into()),
-            true,
+            &Value::String("query-docs".into()),
+            &serde_json::json!({"libraryId": "/rust-lang/rust", "query": "async drop"}),
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)

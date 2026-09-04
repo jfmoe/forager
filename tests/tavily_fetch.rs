@@ -2,7 +2,7 @@ mod support;
 
 use serde_json::Value;
 
-use support::{Fixture, RunEnvironment};
+use support::{Fixture, RunEnvironment, request_json};
 
 #[test]
 fn tavily_fetch_decodes_extract_results_through_the_real_http_stack() {
@@ -53,8 +53,12 @@ enabled = false
     let request = fixture.finish();
     assert!(request.starts_with("POST /extract "));
     assert!(request.contains("authorization: Bearer tavily-key"));
-    assert!(request.contains("\"urls\":[\"https://example.test/article\"]"));
-    assert!(request.contains("\"format\":\"markdown\""));
-    assert!(request.contains("\"extract_depth\":\"basic\""));
-    assert!(!request.contains("\"query\""));
+    assert_eq!(
+        request_json(&request),
+        serde_json::json!({
+            "urls": ["https://example.test/article"],
+            "format": "markdown",
+            "extract_depth": "basic"
+        })
+    );
 }

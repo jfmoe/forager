@@ -13,12 +13,13 @@ use std::io::{self, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::PathBuf;
 use std::process::{Child, ChildStdin, Command, ExitStatus, Output, Stdio};
-use std::sync::mpsc;
+use std::sync::{Arc, Condvar, Mutex, mpsc};
 use std::thread;
 use std::time::{Duration, Instant};
 
 const ACCEPT_DEADLINE: Duration = Duration::from_secs(10);
 const ACCEPT_POLL_INTERVAL: Duration = Duration::from_millis(10);
+const SYNCHRONIZATION_DEADLINE: Duration = Duration::from_secs(2);
 const COMMAND_DEADLINE: Duration = Duration::from_secs(30);
 const COMMAND_POLL_INTERVAL: Duration = Duration::from_millis(5);
 
@@ -26,6 +27,7 @@ pub(crate) struct Fixture {
     pub(crate) url: String,
     handle: thread::JoinHandle<Vec<String>>,
     stop: Option<mpsc::Sender<()>>,
+    expected_requests: Option<usize>,
 }
 
 impl Fixture {
@@ -45,36 +47,79 @@ impl Fixture {
         Self::start_parallel_sequence_with_deadline(responses, ACCEPT_DEADLINE)
     }
 
+    pub(crate) fn start_synchronized_sequence(responses: Vec<Response>) -> Self {
+        Self::start_synchronized_sequences(vec![responses])
+            .pop()
+            .expect("synchronized fixture")
+    }
+
+    pub(crate) fn start_synchronized_sequences(
+        response_sequences: Vec<Vec<Response>>,
+    ) -> Vec<Self> {
+        let total_requests = response_sequences.iter().map(Vec::len).sum();
+        let synchronization = Arc::new(ConnectionBarrier::new(total_requests));
+        response_sequences
+            .into_iter()
+            .map(|responses| {
+                let listener = fixture_listener("synchronized fixture");
+                let address = listener.local_addr().expect("synchronized fixture address");
+                let expected_requests = responses.len();
+                let synchronization = Arc::clone(&synchronization);
+                let (stop, stopped) = mpsc::channel();
+                let handle = thread::spawn(move || {
+                    let workers = responses
+                        .into_iter()
+                        .enumerate()
+                        .map(|(received, response)| {
+                            let stream = accept_request(
+                                &listener,
+                                ACCEPT_DEADLINE,
+                                expected_requests,
+                                received,
+                            );
+                            let synchronization = Arc::clone(&synchronization);
+                            thread::spawn(move || {
+                                synchronization.arrive_and_wait();
+                                respond(stream, &response)
+                            })
+                        })
+                        .collect::<Vec<_>>();
+                    let requests = join_workers(workers);
+                    observe_extra_requests(&listener, &stopped, requests)
+                });
+                Self {
+                    url: format!("http://{address}"),
+                    handle,
+                    stop: Some(stop),
+                    expected_requests: Some(expected_requests),
+                }
+            })
+            .collect()
+    }
+
     pub(crate) fn start_parallel_sequence_with_deadline(
         responses: Vec<Response>,
         accept_deadline: Duration,
     ) -> Self {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("bind parallel fixture");
-        listener
-            .set_nonblocking(true)
-            .expect("set parallel fixture listener nonblocking");
+        let listener = fixture_listener("parallel fixture");
         let address = listener.local_addr().expect("parallel fixture address");
+        let expected_requests = responses.len();
+        let (stop, stopped) = mpsc::channel();
         let handle = thread::spawn(move || {
-            let expected_requests = responses.len();
             let mut workers = Vec::with_capacity(expected_requests);
             for response in responses {
                 let stream =
                     accept_request(&listener, accept_deadline, expected_requests, workers.len());
                 workers.push(thread::spawn(move || respond(stream, &response)));
             }
-            workers
-                .into_iter()
-                .map(|worker| {
-                    worker
-                        .join()
-                        .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
-                })
-                .collect()
+            let requests = join_workers(workers);
+            observe_extra_requests(&listener, &stopped, requests)
         });
         Self {
             url: format!("http://{address}"),
             handle,
-            stop: None,
+            stop: Some(stop),
+            expected_requests: Some(expected_requests),
         }
     }
 
@@ -82,13 +127,11 @@ impl Fixture {
         responses: Vec<Response>,
         accept_deadline: Duration,
     ) -> Self {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("bind fixture");
-        listener
-            .set_nonblocking(true)
-            .expect("set fixture listener nonblocking");
+        let listener = fixture_listener("fixture");
         let address = listener.local_addr().expect("fixture address");
+        let expected_requests = responses.len();
+        let (stop, stopped) = mpsc::channel();
         let handle = thread::spawn(move || {
-            let expected_requests = responses.len();
             let mut requests = Vec::with_capacity(expected_requests);
             for response in responses {
                 let stream = accept_request(
@@ -99,12 +142,13 @@ impl Fixture {
                 );
                 requests.push(respond(stream, &response));
             }
-            requests
+            observe_extra_requests(&listener, &stopped, requests)
         });
         Self {
             url: format!("http://{address}"),
             handle,
-            stop: None,
+            stop: Some(stop),
+            expected_requests: Some(expected_requests),
         }
     }
 
@@ -118,8 +162,9 @@ impl Fixture {
         let handle = thread::spawn(move || {
             let mut requests = Vec::new();
             loop {
-                if stopped.try_recv().is_ok() {
-                    break;
+                match stopped.try_recv() {
+                    Ok(()) | Err(mpsc::TryRecvError::Disconnected) => break,
+                    Err(mpsc::TryRecvError::Empty) => {}
                 }
                 match listener.accept() {
                     Ok((mut stream, _)) => {
@@ -156,6 +201,7 @@ impl Fixture {
             url: format!("http://{address}"),
             handle,
             stop: Some(stop),
+            expected_requests: None,
         }
     }
 
@@ -170,9 +216,106 @@ impl Fixture {
         if let Some(stop) = self.stop.take() {
             let _ = stop.send(());
         }
-        self.handle.join().unwrap_or_else(|panic| {
+        let requests = self.handle.join().unwrap_or_else(|panic| {
             std::panic::resume_unwind(panic);
+        });
+        if let Some(expected_requests) = self.expected_requests {
+            assert_eq!(
+                requests.len(),
+                expected_requests,
+                "fixture received an unexpected number of requests: expected {expected_requests}, received {}",
+                requests.len()
+            );
+        }
+        requests
+    }
+}
+
+struct ConnectionBarrier {
+    expected: usize,
+    arrived: Mutex<usize>,
+    all_arrived: Condvar,
+}
+
+impl ConnectionBarrier {
+    fn new(expected: usize) -> Self {
+        Self {
+            expected,
+            arrived: Mutex::new(0),
+            all_arrived: Condvar::new(),
+        }
+    }
+
+    fn arrive_and_wait(&self) {
+        let mut arrived = self.arrived.lock().expect("lock fixture barrier");
+        *arrived += 1;
+        if *arrived == self.expected {
+            self.all_arrived.notify_all();
+            return;
+        }
+        let (arrived, timeout) = self
+            .all_arrived
+            .wait_timeout_while(arrived, SYNCHRONIZATION_DEADLINE, |arrived| {
+                *arrived < self.expected
+            })
+            .expect("wait on fixture barrier");
+        assert!(
+            !timeout.timed_out(),
+            "fixture timed out waiting for concurrent requests: expected {}, received {}",
+            self.expected,
+            *arrived
+        );
+    }
+}
+
+fn fixture_listener(label: &str) -> TcpListener {
+    let listener =
+        TcpListener::bind("127.0.0.1:0").unwrap_or_else(|error| panic!("bind {label}: {error}"));
+    listener
+        .set_nonblocking(true)
+        .unwrap_or_else(|error| panic!("set {label} listener nonblocking: {error}"));
+    listener
+}
+
+fn join_workers(workers: Vec<thread::JoinHandle<String>>) -> Vec<String> {
+    workers
+        .into_iter()
+        .map(|worker| {
+            worker
+                .join()
+                .unwrap_or_else(|panic| std::panic::resume_unwind(panic))
         })
+        .collect()
+}
+
+fn observe_extra_requests(
+    listener: &TcpListener,
+    stopped: &mpsc::Receiver<()>,
+    mut requests: Vec<String>,
+) -> Vec<String> {
+    loop {
+        match listener.accept() {
+            Ok((stream, _)) => {
+                stream
+                    .set_nonblocking(false)
+                    .expect("set extra fixture stream blocking");
+                stream
+                    .set_read_timeout(Some(ACCEPT_DEADLINE))
+                    .expect("set extra fixture stream read timeout");
+                requests.push(respond(
+                    stream,
+                    &Response::new(500, "text/plain", "unexpected request"),
+                ));
+            }
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {
+                match stopped.try_recv() {
+                    Ok(()) | Err(mpsc::TryRecvError::Disconnected) => return requests,
+                    Err(mpsc::TryRecvError::Empty) => {}
+                }
+                thread::sleep(ACCEPT_POLL_INTERVAL);
+            }
+            Err(error) => panic!("accept extra fixture request: {error}"),
+        }
     }
 }
 

@@ -2,47 +2,61 @@ mod support;
 
 use std::process::{Command, Output};
 
+use clap::{CommandFactory, Parser};
+use forager::app::Cli;
 use support::run_command;
 
 #[test]
-fn command_tree_and_six_visible_aliases_remain_available() {
-    let help = run(&["--help"]);
-    let help = String::from_utf8(help.stdout).expect("UTF-8 help");
+fn command_tree_aliases_and_exact_subcommands_match_the_contract() {
+    let command = Cli::command();
+    let commands = command
+        .get_subcommands()
+        .map(|subcommand| {
+            (
+                subcommand.get_name(),
+                subcommand.get_visible_aliases().collect::<Vec<_>>(),
+            )
+        })
+        .collect::<Vec<_>>();
 
-    for command in [
-        "search",
-        "research",
-        "fetch",
-        "map",
-        "exa",
-        "context7",
-        "anysearch",
-        "doctor",
-        "smoke",
-        "config",
-        "setup",
-    ] {
-        assert!(
-            help.contains(command),
-            "missing top-level command {command}"
-        );
-    }
-    for (alias, arguments) in [
-        ("s", &["s", "--help"][..]),
-        ("f", &["f", "--help"]),
-        ("rs", &["rs", "--help"]),
-        ("c7", &["c7", "--help"]),
-        ("as", &["as", "--help"]),
-        ("ls", &["config", "ls", "--help"]),
-    ] {
-        let output = run(arguments);
-        assert_eq!(
-            output.status.code(),
-            Some(0),
-            "visible alias {alias} failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-    }
+    assert_eq!(
+        commands,
+        [
+            ("search", vec!["s"]),
+            ("research", vec!["rs"]),
+            ("fetch", vec!["f"]),
+            ("map", vec![]),
+            ("anysearch", vec!["as"]),
+            ("context7", vec!["c7"]),
+            ("exa", vec![]),
+            ("config", vec![]),
+            ("setup", vec![]),
+            ("doctor", vec![]),
+            ("smoke", vec![]),
+        ]
+    );
+    let config = command
+        .get_subcommands()
+        .find(|subcommand| subcommand.get_name() == "config")
+        .expect("config command");
+    assert_eq!(
+        config
+            .get_subcommands()
+            .map(|subcommand| {
+                (
+                    subcommand.get_name(),
+                    subcommand.get_visible_aliases().collect::<Vec<_>>(),
+                )
+            })
+            .collect::<Vec<_>>(),
+        [
+            ("path", vec![]),
+            ("list", vec!["ls"]),
+            ("set", vec![]),
+            ("unset", vec![]),
+        ]
+    );
+    assert!(Cli::try_parse_from(["forager", "setu", "--non-interactive"]).is_err());
 }
 
 #[test]

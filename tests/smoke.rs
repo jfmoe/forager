@@ -418,11 +418,11 @@ fn live_smoke_p2_does_not_write_evidence_into_the_configured_journal() {
         }]
     })
     .to_string();
-    let classifier = Fixture::start_sequence(vec![
-        Response::json(200, &classifier_response),
-        Response::json(200, &classifier_response),
-        Response::json(200, &classifier_response),
-    ]);
+    let classifier = Fixture::start_sequence(
+        (0..9)
+            .map(|_| Response::json(200, &classifier_response))
+            .collect(),
+    );
     let environment = SmokeEnvironment::new(|journal_dir| p2_config(&classifier.url, journal_dir));
 
     let output = environment.run(&["smoke", "--live", "--timeout", "3"]);

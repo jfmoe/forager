@@ -1,5 +1,4 @@
 {
-  "fixture_version": 2,
   "provenance": "synthetic_mock",
   "domain": "finance",
   "sub_domain": "fundamental",
@@ -11,12 +10,5 @@
       "symbol": {"type": "string"},
       "type": {"type": "string"}
     }
-  },
-  "valid_params": {"cn_code": "US", "symbol": "AAPL", "type": "stock"},
-  "valid_result": {
-    "structuredContent": {"ticker": "AAPL", "revenue": 391035000000, "currency": "USD"},
-    "content": [{"type": "text", "text": "AAPL annual revenue: 391035000000 USD"}]
-  },
-  "missing_required_error": {"code": -32602, "message": "cn_code, symbol, and type are required"},
-  "provider_error": {"isError": true, "content": [{"type": "text", "text": "finance provider unavailable"}]}
+  }
 }

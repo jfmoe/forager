@@ -8,7 +8,7 @@
     {
       "id": "U02",
       "requirements": ["I0-3"],
-      "test": "src/core/engine.rs::provider_budget_preserves_reachable_fallback_slots_at_every_boundary"
+      "test": "src/capabilities/net.rs::slice_budget_preserves_reachable_fallback_slots_at_every_boundary"
     },
     {
       "id": "U03",
@@ -23,7 +23,7 @@
     {
       "id": "U05",
       "requirements": ["I0-1"],
-      "test": "src/infra/types.rs::provider_attempt_error_domain_excludes_preflight_config"
+      "test": "src/infra/types.rs::provider_attempt_errors_preserve_their_public_and_control_flow_semantics"
     },
     {
       "id": "U06",
@@ -102,7 +102,7 @@
     {
       "id": "E01",
       "requirements": ["T1-command-tree", "T1-aliases"],
-      "test": "tests/cli_contract.rs::command_tree_and_six_visible_aliases_remain_available"
+      "test": "tests/cli_contract.rs::command_tree_aliases_and_exact_subcommands_match_the_contract"
     },
     {
       "id": "E02",

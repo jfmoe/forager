@@ -107,7 +107,6 @@ fn fetch_reports_quality_when_every_configured_provider_is_thin() {
         ),
         (Some(5), &Value::String("quality".into()), Some(2), true,)
     );
-    assert_ne!(payload["error_kind"], Value::String("evidence".into()));
     jina.finish();
     tavily.finish();
 }
@@ -191,10 +190,9 @@ fn fetch_applies_only_the_length_line_to_pdf_content() {
 
 #[test]
 fn fetch_truncates_oversized_content_on_a_utf8_boundary_with_a_diagnostic() {
-    let mut content = "a".repeat(MAX_RESPONSE_BYTES - 1);
-    content.push('€');
-    content.push_str("unreachable suffix");
-    let body = format!(r#"{{"data":{{"content":"{content}"#);
+    let prefix = r#"{"data":{"content":""#;
+    let retained = "a".repeat(MAX_RESPONSE_BYTES - prefix.len() - 1);
+    let body = format!("{prefix}{retained}€unreachable suffix");
     let jina = Fixture::start(200, "application/json", &body);
     let config = fetch_config(
         &jina.url,
@@ -210,16 +208,19 @@ fn fetch_truncates_oversized_content_on_a_utf8_boundary_with_a_diagnostic() {
     let output = environment.run(&["fetch", "https://example.test/large"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
 
-    assert!(
-        output.status.success()
-            && payload["content"]
-                .as_str()
-                .is_some_and(|content| content.len() > MAX_RESPONSE_BYTES - 100)
-            && String::from_utf8_lossy(&output.stderr) == "content truncated at 4 MiB\n",
-        "stdout: {}\nstderr: {}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
+    assert_eq!(
+        (
+            output.status.code(),
+            payload["content"].as_str(),
+            String::from_utf8_lossy(&output.stderr).as_ref(),
+        ),
+        (
+            Some(0),
+            Some(retained.as_str()),
+            "content truncated at 4 MiB\n",
+        )
     );
+    assert!(!String::from_utf8_lossy(&output.stdout).contains('\u{fffd}'));
     jina.finish();
 }
 
@@ -614,20 +615,25 @@ fn fetch_redacts_canaries_from_stdout_stderr_and_tee() {
         "--verbose",
     ]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-    let combined = format!(
-        "{}{}{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr),
-        String::from_utf8_lossy(&fs::read(output_file.path()).expect("read tee output"))
-    );
+    let tee = fs::read(output_file.path()).expect("read tee output");
 
     assert_eq!(
         (output.status.code(), &payload["error_kind"]),
         (Some(4), &Value::String("auth".into()))
     );
-    assert!(!combined.contains(canary));
-    assert!(!combined.contains("source-canary"));
-    assert!(!combined.contains("user:password"));
+    for (sink, contents) in [
+        ("stdout", output.stdout.as_slice()),
+        ("stderr", output.stderr.as_slice()),
+        ("tee", tee.as_slice()),
+    ] {
+        let contents = String::from_utf8_lossy(contents);
+        for secret in [canary, "source-canary", "user:password"] {
+            assert!(
+                !contents.contains(secret),
+                "{sink} leaked protected value {secret}"
+            );
+        }
+    }
     jina.finish();
 }
 

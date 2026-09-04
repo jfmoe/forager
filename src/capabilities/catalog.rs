@@ -455,13 +455,6 @@ mod tests {
         let mut reordered = REGISTRY.to_vec();
         reordered.swap(0, 6);
         assert!(validate_registrations(&reordered).is_ok());
-        assert_eq!(
-            reordered
-                .iter()
-                .find(|registration| registration.id == ProviderId::Xai)
-                .map(|registration| registration.id),
-            Some(ProviderId::Xai)
-        );
 
         let mut misaligned = reordered;
         misaligned[0] = misaligned[1];

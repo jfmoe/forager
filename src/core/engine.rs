@@ -883,10 +883,7 @@ fn is_pdf(url: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
-
-    use super::CapabilityTargets;
-    use crate::net::slice_budget;
+    use super::{CapabilityTargets, is_thin};
 
     #[test]
     fn capability_targets_preserve_branch_local_defaults_and_positive_requests() {
@@ -904,22 +901,15 @@ mod tests {
     }
 
     #[test]
-    fn provider_budget_preserves_reachable_fallback_slots_at_every_boundary() {
-        for (remaining, slots, expected) in [
-            (0, 1, Some(Duration::ZERO)),
-            (4, 1, Some(Duration::from_secs(4))),
-            (9, 2, None),
-            (10, 2, Some(Duration::from_secs(5))),
-            (11, 2, Some(Duration::from_millis(5_500))),
-            (14, 3, None),
-            (15, 3, Some(Duration::from_secs(5))),
-            (16, 3, Some(Duration::from_nanos(5_333_333_333))),
-        ] {
-            assert_eq!(
-                slice_budget(Duration::from_secs(remaining), slots),
-                expected,
-                "remaining={remaining}, slots={slots}"
-            );
-        }
+    fn single_line_content_is_thin_for_html_but_not_pdf() {
+        let content = "x".repeat(250);
+
+        assert_eq!(
+            (
+                is_thin(&content, "https://example.test/page"),
+                is_thin(&content, "https://example.test/file.pdf"),
+            ),
+            (true, false)
+        );
     }
 }

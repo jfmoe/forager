@@ -1,7 +1,7 @@
 mod support;
 
 use std::fs;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use serde_json::Value;
 
@@ -1670,11 +1670,9 @@ fn declared_web_fetch_runs_known_urls_concurrently_and_preserves_url_order() {
         &completed_body("answer", "Primary"),
     );
     let content = "Fetched evidence line one.\nFetched evidence line two.\n".repeat(12);
-    let jina = Fixture::start_parallel_sequence(vec![
-        Response::new(200, "application/json", &jina_response(&content))
-            .with_delay(Duration::from_secs(2)),
-        Response::new(200, "application/json", &jina_response(&content))
-            .with_delay(Duration::from_secs(2)),
+    let jina = Fixture::start_synchronized_sequence(vec![
+        Response::new(200, "application/json", &jina_response(&content)),
+        Response::new(200, "application/json", &jina_response(&content)),
     ]);
     let config = format!(
         "{}\n[providers.jina]\nurl = {:?}\nkeys = [\"jina-key\"]\ntimeout = 30\n\n[capabilities.web_fetch]\norder = [\"jina\"]\n",
@@ -1682,8 +1680,6 @@ fn declared_web_fetch_runs_known_urls_concurrently_and_preserves_url_order() {
         jina.url
     );
     let environment = RunEnvironment::new(&config);
-    let started = Instant::now();
-
     let output = environment.run(&[
         "search",
         "Verify https://example.test/one https://example.test/two",
@@ -1692,7 +1688,6 @@ fn declared_web_fetch_runs_known_urls_concurrently_and_preserves_url_order() {
         "--timeout",
         "3",
     ]);
-    let elapsed = started.elapsed();
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
 
     assert_eq!(
@@ -1711,7 +1706,7 @@ fn declared_web_fetch_runs_known_urls_concurrently_and_preserves_url_order() {
             vec!["https://example.test/one", "https://example.test/two"],
             &serde_json::json!([]),
         ),
-        "elapsed: {elapsed:?}; stderr: {}",
+        "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     main.finish();
@@ -2080,22 +2075,20 @@ fn supplemental_capabilities_share_the_deadline_and_merge_in_declaration_order()
         "text/event-stream",
         &completed_body("answer", "Primary"),
     );
-    let exa = Fixture::start_sequence(vec![
-        Response::new(
+    let mut fixtures = Fixture::start_synchronized_sequences(vec![
+        vec![Response::new(
             200,
             "application/json",
             r#"{"results":[{"title":"Documentation","url":"https://example.test/docs"}]}"#,
-        )
-        .with_delay(Duration::from_secs(2)),
-    ]);
-    let tavily = Fixture::start_sequence(vec![
-        Response::new(
+        )],
+        vec![Response::new(
             200,
             "application/json",
             r#"{"results":[{"title":"Current source","url":"https://example.test/current"}]}"#,
-        )
-        .with_delay(Duration::from_secs(2)),
+        )],
     ]);
+    let tavily = fixtures.pop().expect("Tavily fixture");
+    let exa = fixtures.pop().expect("Exa fixture");
     let config = format!(
         "{}\n[providers.exa]\nurl = {:?}\nkeys = [\"exa-key\"]\ntimeout = 30\n\n[providers.tavily]\nurl = {:?}\nkeys = [\"tavily-key\"]\ntimeout = 30\n\n[capabilities.docs_search]\norder = [\"exa\"]\n[capabilities.web_search]\norder = [\"tavily\"]\n",
         search_config(&main.url, false),
@@ -2103,8 +2096,6 @@ fn supplemental_capabilities_share_the_deadline_and_merge_in_declaration_order()
         tavily.url,
     );
     let environment = RunEnvironment::new(&config);
-    let started = Instant::now();
-
     let output = environment.run(&[
         "search",
         "Compare sources",
@@ -2114,7 +2105,6 @@ fn supplemental_capabilities_share_the_deadline_and_merge_in_declaration_order()
         "3",
         "--verbose",
     ]);
-    let elapsed = started.elapsed();
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
     let supplemental_attempts = payload["provider_attempts"]
         .as_array()
@@ -2140,7 +2130,7 @@ fn supplemental_capabilities_share_the_deadline_and_merge_in_declaration_order()
             vec!["https://example.test/docs", "https://example.test/current"],
             vec!["docs_search", "web_search"],
         ),
-        "elapsed: {elapsed:?}; stderr: {}",
+        "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     main.finish();

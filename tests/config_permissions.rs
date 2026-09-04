@@ -1,5 +1,6 @@
 #[cfg(unix)]
 mod unix {
+    use std::fs;
     use std::os::unix::fs::PermissionsExt;
 
     use forager::config::{create_private_file, ensure_private_directory};
@@ -10,6 +11,16 @@ mod unix {
         let config_dir = root.path().join("forager");
         let config_file = config_dir.join("config.toml");
         let temporary_file = config_dir.join(".config.toml.tmp");
+
+        fs::create_dir_all(&config_dir).expect("create broad config directory");
+        fs::set_permissions(&config_dir, fs::Permissions::from_mode(0o777))
+            .expect("set broad directory permissions");
+        fs::write(&config_file, "").expect("create broad config file");
+        fs::set_permissions(&config_file, fs::Permissions::from_mode(0o666))
+            .expect("set broad config permissions");
+        fs::write(&temporary_file, "").expect("create broad temporary file");
+        fs::set_permissions(&temporary_file, fs::Permissions::from_mode(0o666))
+            .expect("set broad temporary permissions");
 
         ensure_private_directory(&config_dir).expect("create private config directory");
         create_private_file(&config_file).expect("create private config file");

@@ -763,6 +763,17 @@ fn config_set_enforces_private_directory_and_file_modes() {
 
     let root = tempfile::tempdir().expect("create root");
     let config_dir = root.path().join("config");
+    fs::create_dir_all(&config_dir).expect("create broad config directory");
+    fs::set_permissions(&config_dir, fs::Permissions::from_mode(0o777))
+        .expect("set broad directory permissions");
+    for path in [
+        config_dir.join("config.toml"),
+        config_dir.join(".config.lock"),
+    ] {
+        fs::write(&path, "").expect("create broad config object");
+        fs::set_permissions(&path, fs::Permissions::from_mode(0o666))
+            .expect("set broad file permissions");
+    }
     let output = run(
         &config_dir,
         &["config", "set", "log.level", "debug"],

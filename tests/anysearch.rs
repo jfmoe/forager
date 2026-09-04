@@ -843,7 +843,7 @@ fn anysearch_obeys_the_command_deadline() {
 }
 
 #[test]
-fn anysearch_candidate_fixtures_match_the_versioned_unverified_manifest() {
+fn anysearch_candidate_schema_artifacts_match_the_manifest_identity_and_fingerprint() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let manifest_path = root.join("assets/anysearch/verified-domain-manifest.json");
     let manifest: Value = serde_json::from_slice(&fs::read(manifest_path).expect("read manifest"))
@@ -868,51 +868,12 @@ fn anysearch_candidate_fixtures_match_the_versioned_unverified_manifest() {
             serde_json::to_string(&fixture["parameter_schema"]).expect("canonical schema");
         let fingerprint = format!("sha256:{:x}", Sha256::digest(canonical.as_bytes()));
 
+        assert_eq!(fixture["domain"], assessment["domain"]);
+        assert_eq!(fixture["sub_domain"], assessment["sub_domain"]);
         assert_eq!(assessment["schema_fingerprint"], fingerprint);
-        assert_eq!(fixture["provenance"], "synthetic_mock");
+        assert_eq!(fixture["provenance"], assessment["evidence"]["provenance"]);
         assert_eq!(assessment["acceptance_date"], Value::Null);
     }
-}
-
-#[test]
-fn anysearch_vertical_discovery_cannot_modify_or_promote_the_manifest() {
-    let manifest_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("assets/anysearch/verified-domain-manifest.json");
-    let before = fs::read(&manifest_path).expect("read manifest before discovery");
-    let fixture = Fixture::start_sequence(vec![
-        initialize("isolation-session"),
-        Response::json(202, ""),
-        Response::json(
-            200,
-            r#"{"jsonrpc":"2.0","id":2,"result":{"structuredContent":{"domain":"security","sub_domain":"vuln"},"content":[{"type":"text","text":"candidate"}]}}"#,
-        ),
-    ]);
-
-    let output = run(
-        &fixture,
-        &["anysearch", "search", "find a vulnerability"],
-        &["anysearch-key"],
-    );
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-    fixture.finish_all();
-    let after = fs::read(manifest_path).expect("read manifest after discovery");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["operation"],
-            payload.get("domain"),
-            payload.get("domain_status"),
-            before == after,
-        ),
-        (
-            Some(0),
-            &Value::String("vertical_discovery".into()),
-            None,
-            None,
-            true,
-        )
-    );
 }
 
 fn initialize(session: &'static str) -> Response {

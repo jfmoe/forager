@@ -1,6 +1,8 @@
 mod support;
 
 use std::any::Any;
+use std::io::{Read, Write};
+use std::net::TcpStream;
 use std::panic::{self, AssertUnwindSafe};
 use std::time::Duration;
 
@@ -36,6 +38,33 @@ fn parallel_fixture_timeout_reports_expected_and_received_requests() {
         panic_message(&panic),
         "fixture timed out waiting for requests: expected 1, received 0"
     );
+}
+
+#[test]
+fn fixture_finish_rejects_an_ignored_extra_request() {
+    let fixture = Fixture::start(200, "text/plain", "ok");
+
+    send_request(&fixture.url);
+    send_request(&fixture.url);
+    let panic = panic::catch_unwind(AssertUnwindSafe(|| fixture.finish_all()))
+        .expect_err("fixture must reject the extra request");
+
+    assert!(
+        panic_message(&panic)
+            .contains("fixture received an unexpected number of requests: expected 1, received 2")
+    );
+}
+
+fn send_request(url: &str) {
+    let address = url.strip_prefix("http://").expect("fixture HTTP URL");
+    let mut stream = TcpStream::connect(address).expect("connect to fixture");
+    stream
+        .write_all(b"GET / HTTP/1.1\r\nHost: fixture\r\nConnection: close\r\n\r\n")
+        .expect("write fixture request");
+    let mut response = Vec::new();
+    stream
+        .read_to_end(&mut response)
+        .expect("read fixture response");
 }
 
 fn panic_message(panic: &Box<dyn Any + Send>) -> &str {

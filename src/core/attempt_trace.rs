@@ -167,21 +167,21 @@ pub fn bounded_attempt_summary(attempts: &[ProviderAttempt]) -> Value {
 #[cfg(test)]
 mod tests {
     use super::{
-        bounded_attempt_summary, error_priority, identity_fallback_occurred, last_failed,
-        provider_fallback_used, successful_provider, terminal_attempt, terminal_kind,
+        bounded_attempt_summary, identity_fallback_occurred, last_failed, provider_fallback_used,
+        successful_provider, terminal_attempt, terminal_kind,
     };
     use crate::types::{AttemptDisposition, AttemptErrorKind, AttemptTarget, ProviderAttempt};
 
     const ALL_KINDS: [AttemptErrorKind; 9] = [
-        AttemptErrorKind::Auth,
+        AttemptErrorKind::Network,
+        AttemptErrorKind::Timeout,
         AttemptErrorKind::RateLimited,
         AttemptErrorKind::QuotaExhausted,
+        AttemptErrorKind::Auth,
         AttemptErrorKind::Parameter,
-        AttemptErrorKind::Timeout,
-        AttemptErrorKind::Network,
+        AttemptErrorKind::Runtime,
         AttemptErrorKind::Quality,
         AttemptErrorKind::Evidence,
-        AttemptErrorKind::Runtime,
     ];
 
     fn attempt(provider: &'static str, kind: AttemptErrorKind) -> ProviderAttempt {
@@ -215,11 +215,11 @@ mod tests {
     fn terminal_kind_exhausts_final_kind_pairs_and_ignores_history() {
         for first in ALL_KINDS {
             for second in ALL_KINDS {
-                let expected = if error_priority(first) >= error_priority(second) {
-                    first
-                } else {
-                    second
-                };
+                let expected = ALL_KINDS
+                    .iter()
+                    .rposition(|kind| *kind == first || *kind == second)
+                    .map(|index| ALL_KINDS[index])
+                    .expect("pair contains a specified kind");
                 assert_eq!(
                     terminal_kind(&[
                         attempt("tavily", AttemptErrorKind::Evidence),
@@ -264,11 +264,12 @@ mod tests {
     #[test]
     fn successful_provider_returns_the_last_success_within_the_seam() {
         let failed = attempt("tavily", AttemptErrorKind::Network);
-        let success = succeeded("exa", "main_search");
+        let first_success = succeeded("exa", "main_search");
+        let last_success = succeeded("jina", "main_search");
 
         assert_eq!(
-            successful_provider(&[failed, success], "main_search"),
-            Some("exa")
+            successful_provider(&[failed, first_success, last_success], "main_search"),
+            Some("jina")
         );
     }
 
@@ -344,75 +345,53 @@ mod tests {
     }
 
     #[test]
-    fn bounded_attempt_summary_marks_by_kind_truncated_above_eight_kinds() {
-        let attempts = ALL_KINDS.map(|kind| attempt("fixture", kind));
+    fn bounded_attempt_summary_preserves_the_by_kind_boundary() {
+        for (case, kind_count, truncated) in
+            [("exactly_eight", 8, false), ("one_above_eight", 9, true)]
+        {
+            let attempts = ALL_KINDS[..kind_count]
+                .iter()
+                .map(|&kind| attempt("fixture", kind))
+                .collect::<Vec<_>>();
+            let summary = bounded_attempt_summary(&attempts);
 
-        let summary = bounded_attempt_summary(&attempts);
-
-        assert_eq!(
-            (
-                summary["by_kind"]
-                    .as_object()
-                    .map_or(0, serde_json::Map::len),
-                &summary["by_kind_truncated"],
-                &summary["truncated"],
-            ),
-            (8, &serde_json::json!(true), &serde_json::json!(true))
-        );
+            assert_eq!(
+                (
+                    summary["by_kind"]
+                        .as_object()
+                        .map_or(0, serde_json::Map::len),
+                    summary["by_kind_truncated"].as_bool(),
+                    summary["truncated"].as_bool(),
+                ),
+                (8, Some(truncated), Some(truncated)),
+                "case={case}"
+            );
+        }
     }
 
     #[test]
-    fn bounded_attempt_summary_keeps_eight_kinds_untruncated() {
-        let attempts = ALL_KINDS[..8]
-            .iter()
-            .map(|&kind| attempt("fixture", kind))
-            .collect::<Vec<_>>();
-
-        let summary = bounded_attempt_summary(&attempts);
-
-        assert_eq!(
-            (
-                summary["by_kind"]
-                    .as_object()
-                    .map_or(0, serde_json::Map::len),
-                &summary["by_kind_truncated"],
-                &summary["truncated"],
-            ),
-            (8, &serde_json::json!(false), &serde_json::json!(false))
-        );
-    }
-
-    #[test]
-    fn bounded_attempt_summary_marks_providers_truncated_above_eight_providers() {
-        let providers = ["p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7", "p8"];
-        let attempts = providers.map(|provider| attempt(provider, AttemptErrorKind::Network));
-
-        let summary = bounded_attempt_summary(&attempts);
-
-        assert_eq!(
-            (
-                summary["providers"].as_array().map_or(0, Vec::len),
-                &summary["providers_truncated"],
-                &summary["truncated"],
-            ),
-            (8, &serde_json::json!(true), &serde_json::json!(true))
-        );
-    }
-
-    #[test]
-    fn bounded_attempt_summary_keeps_eight_providers_untruncated() {
+    fn bounded_attempt_summary_preserves_the_provider_boundary() {
         let providers = ["p0", "p1", "p2", "p3", "p4", "p5", "p6", "p7"];
-        let attempts = providers.map(|provider| attempt(provider, AttemptErrorKind::Network));
+        for (case, extra_provider, truncated) in [
+            ("exactly_eight", None, false),
+            ("one_above_eight", Some("p8"), true),
+        ] {
+            let attempts = providers
+                .into_iter()
+                .chain(extra_provider)
+                .map(|provider| attempt(provider, AttemptErrorKind::Network))
+                .collect::<Vec<_>>();
+            let summary = bounded_attempt_summary(&attempts);
 
-        let summary = bounded_attempt_summary(&attempts);
-
-        assert_eq!(
-            (
-                summary["providers"].as_array().map_or(0, Vec::len),
-                &summary["providers_truncated"],
-                &summary["truncated"],
-            ),
-            (8, &serde_json::json!(false), &serde_json::json!(false))
-        );
+            assert_eq!(
+                (
+                    summary["providers"].as_array().map_or(0, Vec::len),
+                    summary["providers_truncated"].as_bool(),
+                    summary["truncated"].as_bool(),
+                ),
+                (8, Some(truncated), Some(truncated)),
+                "case={case}"
+            );
+        }
     }
 }

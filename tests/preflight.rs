@@ -46,14 +46,12 @@ fn json_preflight_failures_are_machine_readable_without_a_journal_config() {
             (
                 output.status.code(),
                 &payload["error_kind"],
-                payload["message"].as_str().map(str::len),
                 &payload["journal_ref"],
                 &payload["journal_status"],
             ),
             (
                 Some(exit_code),
                 &Value::String(error_kind.into()),
-                payload["message"].as_str().map(str::len),
                 &Value::Null,
                 &Value::String("unavailable".into()),
             ),
