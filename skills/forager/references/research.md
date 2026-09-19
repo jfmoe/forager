@@ -49,8 +49,24 @@ available. Otherwise read `unconsumed_candidates.path`, select a matching disclo
 fetch it. Only when neither exists, run one `forager exa similar` round from a reliable URL and fetch
 the selected result. An unfetched candidate may appear only as a disclosed unverified candidate.
 Supplemental fetches are outside the evidence index: cite their actual URLs as supplemental sources
-and never fabricate an `eN` identity for them. Keep this loop in the agent layer and re-run neither
-`forager research` nor main search.
+and never fabricate an `eN` identity for them. Keep this recovery loop in the agent layer. Reuse
+completed work rather than repeating the same research plan or main query to fill retrieval gaps.
+
+## Follow new questions
+
+When evidence reveals a new mechanism, useful search term, or unresolved objection that existing
+material cannot answer, state the new question, the evidence that prompted it, and the decision it
+could change. Within the authorized scope and remaining task budget, route that question through
+the cost ladder in `SKILL.md`. Use a focused ordinary search when sufficient; use a new research
+plan only when the new question requires decomposition or multiple-source verification.
+
+Retain earlier evidence and gaps. A new query must add information, not merely rename a failed
+query or seek a preferred conclusion. It does not reset retry limits, access permissions, or the
+task budget. Keep evidence indexes from separate runs distinct; cite supplemental sources by URL
+and identify the originating run when using index locators. Stop when further searches are unlikely
+to change the decision, the budget is reached, or access is blocked; report the remaining limits.
+
+## Close or recover
 
 Complete research when every key claim is supported by fetched evidence or represented by a
 disclosed gap or unverified candidate. On terminal failure, read the Research Recovery Manifest
