@@ -125,6 +125,13 @@ impl MainSearchProviderConfig {
             Self::OpenAiCompatible(config) => &config.url,
         }
     }
+
+    pub(crate) fn model(&self) -> &str {
+        match self {
+            Self::Xai(config) => &config.model,
+            Self::OpenAiCompatible(config) => &config.model,
+        }
+    }
 }
 
 impl MainSearchRuntimeConfig {

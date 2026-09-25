@@ -559,13 +559,7 @@ fn run_case_once(case_id: &str, deadline: Deadline) -> Result<(), &'static str> 
         if command.arguments.first().map(String::as_str) != Some("smoke") {
             command.arguments.push("--verbose".into());
         }
-        let mut process = Command::new(&executable);
-        process.args(&command.arguments);
-        process.env("FORAGER_RETRY__MAX_ATTEMPTS", "1");
-        for (name, value) in command.environment {
-            process.env(name, value);
-        }
-        let output = execute_with_deadline(process, deadline)?;
+        let output = execute_with_deadline(live_case_process(&executable, &command), deadline)?;
         if output.status.code() != Some(0) {
             return Err("live case command returned a nonzero terminal");
         }
@@ -584,6 +578,18 @@ fn run_case_once(case_id: &str, deadline: Deadline) -> Result<(), &'static str> 
         }
     }
     Ok(())
+}
+
+// Live cases are canaries, not user searches, so they stay out of the Search Result Journal.
+fn live_case_process(executable: &Path, command: &CommandSpec) -> Command {
+    let mut process = Command::new(executable);
+    process.args(&command.arguments);
+    process.env("FORAGER_RETRY__MAX_ATTEMPTS", "1");
+    process.env("FORAGER_JOURNAL__ENABLED", "false");
+    for (name, value) in &command.environment {
+        process.env(name, value);
+    }
+    process
 }
 
 fn execute_with_deadline(mut command: Command, deadline: Deadline) -> Result<Output, &'static str> {
@@ -1097,10 +1103,31 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use super::{
-        command_specs, execute_with_deadline, official_status_host, status_host_matches_endpoint,
-        status_page_reports_outage,
+        command_specs, execute_with_deadline, live_case_process, official_status_host,
+        status_host_matches_endpoint, status_page_reports_outage,
     };
     use crate::types::Deadline;
+
+    #[test]
+    fn live_case_processes_disable_the_search_result_journal() {
+        let specs = command_specs("P1", 60, None).expect("P1 is a registered live case");
+
+        let journal_settings = specs
+            .iter()
+            .map(|spec| {
+                live_case_process(std::path::Path::new("forager"), spec)
+                    .get_envs()
+                    .find(|(name, _)| *name == "FORAGER_JOURNAL__ENABLED")
+                    .and_then(|(_, value)| value)
+                    .map(|value| value.to_string_lossy().into_owned())
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            journal_settings,
+            vec![Some("false".to_owned()); specs.len()]
+        );
+    }
 
     #[test]
     fn deadline_terminates_the_child_process() {

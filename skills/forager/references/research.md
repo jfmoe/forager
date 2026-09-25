@@ -29,8 +29,10 @@ query or subquestions instead of inventing enum values.
 Store the exact plan in `PLAN_JSON`, then run:
 
 ```console
-printf '%s' "$PLAN_JSON" | forager research "QUERY" --plan - --budget BUDGET --format json
+printf '%s' "$PLAN_JSON" | forager research "QUERY" --plan - --budget standard --format json
 ```
+
+`--budget` takes only the word `quick`, `standard`, or `deep`; substitute the selected tier.
 
 Execution is complete when the command exits and every returned path needed for synthesis is
 readable.
@@ -38,7 +40,8 @@ readable.
 ## Synthesize from the evidence index
 
 Use the Research Evidence Index as a directory, not as an answer. Read the necessary body from
-every cited `evidence_items[].path` and check that it supports the claim. Cite URL evidence as
+every cited `evidence_items[].path` and check that it supports the claim. For an item with a large
+`content_len`, list its headings with `grep -n '^#' PATH` and read only the relevant line ranges. Cite URL evidence as
 `[eN](URL)` and documentation evidence as `[eN]` when it has no URL, where `eN` matches the
 evidence item's `id`. Citation Binding expresses attribution, not semantic verification.
 

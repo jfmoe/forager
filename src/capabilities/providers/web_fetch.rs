@@ -273,6 +273,7 @@ fn failure_message(body: &str, status: u16) -> String {
             value
                 .pointer("/error/message")
                 .or_else(|| value.get("message"))
+                .or_else(|| value.get("error"))
                 .and_then(serde_json::Value::as_str)
                 .map(ToOwned::to_owned)
         })

@@ -65,3 +65,48 @@ enabled = false
         })
     );
 }
+
+#[test]
+fn firecrawl_unsupported_site_403_is_a_parameter_failure_with_the_provider_reason() {
+    let body = json!({
+        "success": false,
+        "error": "We apologize for the inconvenience but we do not support this site."
+    })
+    .to_string();
+    let fixture = Fixture::start(403, "application/json", &body);
+    let config = format!(
+        r#"
+[providers.jina]
+keys = []
+
+[providers.tavily]
+keys = []
+
+[providers.firecrawl]
+url = {url:?}
+keys = ["firecrawl-key"]
+timeout = 2
+
+[journal]
+enabled = false
+"#,
+        url = fixture.url
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&["fetch", "https://example.test/blocked"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (&payload["error_kind"], &payload["message"]),
+        (
+            &Value::String("parameter".into()),
+            &Value::String(
+                "We apologize for the inconvenience but we do not support this site.".into()
+            ),
+        ),
+        "stdout: {payload}\nstderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    fixture.finish();
+}

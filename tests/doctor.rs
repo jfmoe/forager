@@ -422,6 +422,63 @@ fn doctor_markdown_preserves_the_json_status_and_effective_configuration() {
 }
 
 #[test]
+fn shallow_doctor_probes_reachability_with_get_requests() {
+    let fixture = Fixture::start_sequence(reachable_responses(8));
+    let environment = RunEnvironment::new(&shallow_config(&fixture.url));
+
+    let doctor = environment.run(&["doctor"]);
+    let methods = fixture
+        .finish_all()
+        .iter()
+        .map(|request| {
+            request
+                .split_whitespace()
+                .next()
+                .unwrap_or_default()
+                .to_owned()
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        (doctor.status.code(), methods),
+        (Some(0), vec!["GET".to_owned(); 8]),
+        "stderr: {}",
+        String::from_utf8_lossy(&doctor.stderr)
+    );
+}
+
+#[test]
+fn shallow_doctor_warns_when_main_search_fallback_shares_endpoint_and_model() {
+    let cases = [
+        ("[providers.openai_compatible]\n", 1),
+        (
+            "[providers.openai_compatible]\nmodel = \"other-model\"\n",
+            0,
+        ),
+    ];
+    for (openai_compatible_header, expected_warnings) in cases {
+        let fixture = Fixture::start_sequence(reachable_responses(8));
+        let config = shallow_config(&fixture.url)
+            .replace("[providers.openai_compatible]\n", openai_compatible_header);
+        let environment = RunEnvironment::new(&config);
+
+        let doctor = environment.run(&["doctor"]);
+        let payload: Value = serde_json::from_slice(&doctor.stdout).expect("parse doctor JSON");
+
+        assert_eq!(
+            (
+                doctor.status.code(),
+                payload["config_warnings"].as_array().map(Vec::len)
+            ),
+            (Some(0), Some(expected_warnings)),
+            "config: {config}\nstderr: {}",
+            String::from_utf8_lossy(&doctor.stderr)
+        );
+        fixture.finish_all();
+    }
+}
+
+#[test]
 fn shallow_doctor_reports_a_well_formed_but_dead_endpoint_as_unreachable() {
     let fixture = Fixture::start_sequence(reachable_responses(14));
     let config = shallow_config(&fixture.url).replace(

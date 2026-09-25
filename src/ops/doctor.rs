@@ -6,7 +6,7 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::catalog::{self, DoctorProbe, ProbeShape, ProviderId};
-use crate::config::{self, MainSearchProviderConfig, RuntimeConfig};
+use crate::config::{self, MainSearchProviderConfig, MainSearchRuntimeConfig, RuntimeConfig};
 use crate::net::{self, RetryPolicy};
 use crate::providers::{
     self, AnysearchDomainsRequest, FetchRequest, MainSearchRequest, ModelBreakers, ProviderError,
@@ -19,6 +19,7 @@ pub(crate) struct ShallowDoctorReport {
     ok: bool,
     providers: Vec<ProviderStatus>,
     permission_warnings: Vec<String>,
+    config_warnings: Vec<String>,
     config: Value,
 }
 
@@ -101,6 +102,7 @@ pub(crate) fn shallow(
             ok,
             providers,
             permission_warnings: permission_warnings()?,
+            config_warnings: main_search_fallback_warnings(&runtime_config.main_search),
             config: effective,
         },
         exit_code,
@@ -395,7 +397,7 @@ async fn probe_reachability(client: reqwest::Client, url: String, deadline: Dead
         return false;
     };
     matches!(
-        tokio::time::timeout(remaining, client.head(url).send()).await,
+        tokio::time::timeout(remaining, client.get(url).send()).await,
         Ok(Ok(_))
     )
 }
@@ -426,6 +428,36 @@ fn status(
 fn endpoint_is_valid(value: &str) -> bool {
     reqwest::Url::parse(value)
         .is_ok_and(|url| matches!(url.scheme(), "http" | "https") && url.host_str().is_some())
+}
+
+fn main_search_fallback_warnings(main_search: &MainSearchRuntimeConfig) -> Vec<String> {
+    let configured = main_search
+        .entries()
+        .iter()
+        .filter(|entry| entry.configured())
+        .collect::<Vec<_>>();
+    let Some((primary, fallbacks)) = configured.split_first() else {
+        return Vec::new();
+    };
+    fallbacks
+        .iter()
+        .filter(|fallback| shares_failure_domain(primary.config(), fallback.config()))
+        .map(|fallback| {
+            format!(
+                "main search fallback `{}` uses the same endpoint and model as `{}`, so it cannot recover from failures of that endpoint or model",
+                fallback.name(),
+                primary.name()
+            )
+        })
+        .collect()
+}
+
+fn shares_failure_domain(
+    primary: &MainSearchProviderConfig,
+    fallback: &MainSearchProviderConfig,
+) -> bool {
+    primary.url().trim_end_matches('/') == fallback.url().trim_end_matches('/')
+        && primary.model() == fallback.model()
 }
 
 fn permission_warnings() -> Result<Vec<String>, config::ConfigError> {

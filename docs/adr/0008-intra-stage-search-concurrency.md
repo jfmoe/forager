@@ -1,6 +1,6 @@
 # Intra-stage search concurrency and blocking IO boundary
 
-forager parallelizes independent provider work inside each pipeline stage while keeping the stage boundaries themselves sequential. The classifier, main search, and supplemental capabilities still run one after another, and capabilities still run only after main search succeeds; provider fallback chains inside a seam stay strictly ordered (primary-first, per the timeout budget ADR).
+forager parallelizes independent provider work inside each pipeline stage while keeping the stage boundaries themselves sequential. The classifier runs before main search, and provider fallback chains inside a seam stay strictly ordered (primary-first, per the timeout budget ADR). This ADR originally also ran supplemental capabilities only after main search succeeded; ADR 0016 supersedes that boundary, and supplemental capabilities now run concurrently with main search.
 
 **Concurrency happens at three fan-out points.** The supplemental capabilities of a search run concurrently with each other (web_fetch fans out over the URLs found in the query); research flattens its subquestion × capability loop into one concurrent task list; research candidate fetching runs in bounded waves. Everything else stays sequential.
 

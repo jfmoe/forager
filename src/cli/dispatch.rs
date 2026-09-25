@@ -9,7 +9,7 @@ use thiserror::Error;
 
 use super::args::{
     AnysearchCommand, Cli, Command, ConfigCommand, Context7Command, DocsOutputFormat, ExaCommand,
-    Language, OutputFormat,
+    Language, OutputFormat, OutputTarget,
 };
 use crate::config::{self, ConfigError, ConfigLocation, EditError};
 use crate::net::{self, RetryPolicy};
@@ -30,6 +30,7 @@ pub use crate::net::combine_diagnostics;
 
 pub use crate::providers::ProviderError;
 pub use crate::research::{ResearchFailure, ResearchTerminal};
+pub use crate::search_fanout::SearchFailure;
 pub use crate::types::ExaOutcome;
 
 /// A command result ready for binary-side rendering.
@@ -52,19 +53,19 @@ pub enum CommandOutput {
         journal: JournalOutcome,
         /// Requested output format.
         format: DocsOutputFormat,
-        /// Optional tee destination.
-        output: Option<PathBuf>,
+        /// Optional output file destination.
+        output: Option<OutputTarget>,
     },
     /// One completed Default Search Invocation.
     Search {
         /// Main-search terminal result.
-        result: Result<SearchOutcome, ProviderError>,
+        result: Result<SearchOutcome, SearchFailure>,
         /// Search Result Journal side-channel outcome.
         journal: JournalOutcome,
         /// Requested output format.
         format: DocsOutputFormat,
-        /// Optional tee destination.
-        output: Option<PathBuf>,
+        /// Optional output file destination.
+        output: Option<OutputTarget>,
         /// Whether full provider attempts should be rendered inline.
         verbose: bool,
         /// Optional terminal projection selected by `log.level`.
@@ -78,8 +79,8 @@ pub enum CommandOutput {
         journal: JournalOutcome,
         /// Requested output format.
         format: DocsOutputFormat,
-        /// Optional tee destination.
-        output: Option<PathBuf>,
+        /// Optional output file destination.
+        output: Option<OutputTarget>,
         /// Whether full provider attempts should be rendered inline.
         verbose: bool,
         /// Optional terminal projection selected by `log.level`.
@@ -91,8 +92,8 @@ pub enum CommandOutput {
         result: Result<ExaOutcome, ProviderError>,
         /// Requested output format.
         format: OutputFormat,
-        /// Optional tee destination.
-        output: Option<PathBuf>,
+        /// Optional output file destination.
+        output: Option<OutputTarget>,
         /// Optional terminal projection selected by `log.level`.
         attempt_log: Option<String>,
     },
@@ -102,8 +103,8 @@ pub enum CommandOutput {
         result: Result<Context7Outcome, ProviderError>,
         /// Requested output format.
         format: DocsOutputFormat,
-        /// Optional tee destination.
-        output: Option<PathBuf>,
+        /// Optional output file destination.
+        output: Option<OutputTarget>,
         /// Optional terminal projection selected by `log.level`.
         attempt_log: Option<String>,
     },
@@ -113,8 +114,8 @@ pub enum CommandOutput {
         result: Result<AnysearchOutcome, ProviderError>,
         /// Requested output format.
         format: OutputFormat,
-        /// Optional tee destination.
-        output: Option<PathBuf>,
+        /// Optional output file destination.
+        output: Option<OutputTarget>,
         /// Optional terminal projection selected by `log.level`.
         attempt_log: Option<String>,
     },
@@ -124,8 +125,8 @@ pub enum CommandOutput {
         result: Result<FetchOutcome, ProviderError>,
         /// Requested output format.
         format: DocsOutputFormat,
-        /// Optional tee destination.
-        output: Option<PathBuf>,
+        /// Optional output file destination.
+        output: Option<OutputTarget>,
         /// Optional terminal projection selected by `log.level`.
         attempt_log: Option<String>,
     },
@@ -135,8 +136,8 @@ pub enum CommandOutput {
         result: Result<MapOutcome, ProviderError>,
         /// Requested output format.
         format: OutputFormat,
-        /// Optional tee destination.
-        output: Option<PathBuf>,
+        /// Optional output file destination.
+        output: Option<OutputTarget>,
         /// Optional terminal projection selected by `log.level`.
         attempt_log: Option<String>,
     },
@@ -267,7 +268,7 @@ impl SearchContext {
         extra_sources: u16,
         fallback_override: Option<FallbackPolicy>,
     ) -> (
-        Result<SearchOutcome, ProviderError>,
+        Result<SearchOutcome, SearchFailure>,
         JournalOutcome,
         Option<String>,
     ) {
@@ -323,16 +324,31 @@ impl SearchContext {
             }
         };
         let journal_capabilities = capabilities.iter().collect::<Vec<_>>();
-        let mut result = self.runtime.block_on(crate::engine::search(
-            request,
-            self.config.main_search.clone(),
-            fallback,
-            self.client.clone(),
-            self.retry_policy,
-            deadline,
-            self.model_breakers,
-        ));
-        let (attempts, diagnostic) = match &mut result {
+        let (mut main_result, capability_results) =
+            self.runtime.block_on(futures_util::future::join(
+                crate::engine::search(
+                    request,
+                    self.config.main_search.clone(),
+                    fallback,
+                    self.client.clone(),
+                    self.retry_policy,
+                    deadline,
+                    self.model_breakers,
+                ),
+                crate::search_fanout::execute_capabilities(
+                    &query,
+                    &capabilities,
+                    extra_sources,
+                    &self.config,
+                    crate::engine::CapabilityExecution::new(
+                        fallback,
+                        self.client.clone(),
+                        self.retry_policy,
+                        deadline,
+                    ),
+                ),
+            ));
+        let (attempts, diagnostic) = match &mut main_result {
             Ok(outcome) => (&mut outcome.attempts, &mut outcome.diagnostic),
             Err(error) => (&mut error.attempts, &mut error.diagnostic),
         };
@@ -342,22 +358,14 @@ impl SearchContext {
             classifier_attempts,
             classifier_warning,
         );
-        if let Ok(outcome) = &mut result {
-            outcome.capabilities = capabilities.iter().collect();
-            self.runtime.block_on(crate::engine::execute_capabilities(
-                outcome,
-                &query,
-                &capabilities,
-                extra_sources,
-                &self.config,
-                crate::engine::CapabilityExecution::new(
-                    fallback,
-                    self.client.clone(),
-                    self.retry_policy,
-                    deadline,
-                ),
-            ));
-        }
+        let result = match main_result {
+            Ok(mut outcome) => {
+                outcome.capabilities = capabilities.iter().collect();
+                capability_results.merge_into(&mut outcome);
+                Ok(outcome)
+            }
+            Err(error) => Err(capability_results.into_failure(error)),
+        };
         let journal = crate::journal::record_search(
             &self.journal,
             crate::journal::SearchRecord {
@@ -371,8 +379,11 @@ impl SearchContext {
                 result: &result,
             },
         );
-        let attempt_log =
-            provider_attempt_log(self.config.log_level, &result, |outcome| &outcome.attempts);
+        let attempts = match &result {
+            Ok(outcome) => &outcome.attempts,
+            Err(failure) => &failure.error.attempts,
+        };
+        let attempt_log = crate::attempt_log::render(self.config.log_level, attempts);
         (result, journal, attempt_log)
     }
 }
@@ -704,7 +715,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                     error,
                     journal,
                     format,
-                    output,
+                    output: output.target(),
                 });
             }
             let (result, journal, attempt_log) = context.search(
@@ -722,7 +733,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                 result,
                 journal,
                 format,
-                output,
+                output: output.target(),
                 verbose,
                 attempt_log,
             })
@@ -774,7 +785,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                 terminal,
                 journal,
                 format,
-                output,
+                output: output.target(),
                 verbose,
                 attempt_log,
             })
@@ -791,7 +802,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             Ok(CommandOutput::Fetch {
                 result,
                 format,
-                output,
+                output: output.target(),
                 attempt_log,
             })
         }
@@ -819,7 +830,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             Ok(CommandOutput::Map {
                 result,
                 format,
-                output,
+                output: output.target(),
                 attempt_log,
             })
         }
@@ -843,7 +854,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             Ok(CommandOutput::Anysearch {
                 result,
                 format,
-                output,
+                output: output.target(),
                 attempt_log,
             })
         }
@@ -902,7 +913,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             Ok(CommandOutput::Anysearch {
                 result,
                 format,
-                output,
+                output: output.target(),
                 attempt_log,
             })
         }
@@ -929,7 +940,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                     OutputFormat::Json => DocsOutputFormat::Json,
                     OutputFormat::Markdown => DocsOutputFormat::Markdown,
                 },
-                output,
+                output: output.target(),
                 attempt_log,
             })
         }
@@ -953,7 +964,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             Ok(CommandOutput::Context7 {
                 result,
                 format,
-                output,
+                output: output.target(),
                 attempt_log,
             })
         }
@@ -964,6 +975,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                     num_results,
                     search_type,
                     include_text,
+                    text_max_characters,
                     include_highlights,
                     start_published_date,
                     include_domains,
@@ -979,7 +991,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                 query,
                 num_results,
                 search_type: search_type.into(),
-                include_text,
+                text_max_characters: include_text.then_some(text_max_characters),
                 include_highlights,
                 start_published_date,
                 include_domains,
@@ -989,7 +1001,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             },
             timeout,
             format,
-            output,
+            output.target(),
         ),
         Command::Exa {
             command:
@@ -1009,7 +1021,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             },
             timeout,
             format,
-            output,
+            output.target(),
         ),
         Command::Config {
             command: ConfigCommand::Path,
@@ -1337,6 +1349,14 @@ fn render_doctor_markdown(report: &crate::doctor::ShallowDoctorReport) -> Result
             let _ = writeln!(output, "- {}", warning.as_str().unwrap_or_default());
         }
     }
+    if let Some(warnings) = value["config_warnings"].as_array()
+        && !warnings.is_empty()
+    {
+        output.push_str("\n## Configuration warnings\n\n");
+        for warning in warnings {
+            let _ = writeln!(output, "- {}", warning.as_str().unwrap_or_default());
+        }
+    }
     output.push_str("\n## Effective configuration\n\n```json\n");
     output.push_str(
         &serde_json::to_string_pretty(&value["config"])
@@ -1450,7 +1470,7 @@ fn run_exa_search(
     request: ExaSearchRequest,
     timeout: Option<u64>,
     format: OutputFormat,
-    output: Option<PathBuf>,
+    output: Option<OutputTarget>,
 ) -> Result<CommandOutput, AppError> {
     let (result, attempt_log) = AppContext::<providers::Exa>::for_exa(timeout)?.exa_search(request);
     Ok(CommandOutput::Exa {
@@ -1465,7 +1485,7 @@ fn run_exa_similar(
     request: ExaSimilarRequest,
     timeout: Option<u64>,
     format: OutputFormat,
-    output: Option<PathBuf>,
+    output: Option<OutputTarget>,
 ) -> Result<CommandOutput, AppError> {
     let (result, attempt_log) =
         AppContext::<providers::Exa>::for_exa(timeout)?.exa_similar(request);

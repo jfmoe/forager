@@ -11,7 +11,7 @@
 `src/` 以职责形成六个物理分组；`lib.rs` 用显式 `#[path]` 声明保持既有 crate 内模块名，不把目录本身变成新的公共 API 层级。
 
 - **`cli/`**：CLI 参数定义、应用分发与 `app` 公共门面；参数树在 `args.rs`，分发在 `dispatch.rs`。
-- **`core/`**：engine、chain、classifier 与 Attempt Trace。
+- **`core/`**：engine（各 seam 的 provider 链）、search_fanout（普通 search 的辅助能力 fan-out 与结果合并）、chain、classifier 与 Attempt Trace。
 - **`capabilities/`**：Capability Catalog、Provider Credential Pool、Provider HTTP Read Contract（`net`）及 provider adapter。
 - **`evidence/`**：Research Evidence Pipeline、Search Result Journal 与 stderr attempt log。
 - **`infra/`**：config、secure filesystem、redaction 与零 IO 的 `types` 基底。
@@ -22,7 +22,7 @@
 ```
 入口（main）
   → 应用（cli/app、args、dispatch）
-    → 能力编排（engine、research、classifier、doctor、smoke、journal）
+    → 能力编排（engine、search_fanout、research、classifier、doctor、smoke、journal）
       → 能力基础设施（catalog、providers、credentials、net、config、secure_fs、redact）
         → 类型基底（types）
 ```
@@ -64,7 +64,7 @@
 
 - xAI Search 与 ModelProbe 都发送 role-array input；xAI 必须看到 `response.completed`，completed 无 `output_text` 为 Runtime。failed/incomplete 按 payload code/status/reason 映射现有 ErrorKind，只有映射为 Network/Timeout 的终态重试，RateLimited/QuotaExhausted 轮换，其他保持非重试。
 - OpenAI-compatible 以 `[DONE]` 或非空 `finish_reason` 完成；底层 transport 干净 EOF 且已累计非空 answer 也可成功。transport error、空 EOF 和任一非空 SSE data 的畸形 JSON 都为失败，不跳过坏帧继续组装；xAI 不复用 clean EOF。
-- 两类主搜索在完整响应组装后、attempt 判定成功前进入同一个 normalizer：先删除完整闭合、大小写不敏感且可跨行的 `<think>...</think>`，再投影末尾显式 Sources/References/Citations/来源/参考资料/引用标题块与 `[[N]](HTTP(S) URL)`。不做策略/prompt-injection 关键词过滤，不解析 `sources(...)`、任意 `<details>` 或尾链猜测；规范化后 answer 为空为 Runtime。来源按脱敏后的公开 URL 稳定去重。
+- 两类主搜索在完整响应组装后、attempt 判定成功前进入同一个 normalizer：先删除完整闭合、大小写不敏感且可跨行的 `<think>...</think>`，再投影末尾显式 Sources/References/Citations/来源/参考资料/引用标题块与 `[[N]](HTTP(S) URL)`。不做策略/prompt-injection 关键词过滤，不解析 `sources(...)`、任意 `<details>` 或尾链猜测；规范化后 answer 为空为 Runtime。provider 引用注释中仅由数字构成的标题是引用序号而非页面标题，按无标题处理。来源按脱敏后的公开 URL 稳定去重。
 
 ## 凭据池与断路器
 
@@ -75,7 +75,7 @@
 
 ## web_fetch 薄正文质量门控
 
-Web Fetch 成功值是 **Normalized Fetch Content**：从成功 provider 响应解码出的 provider 无关 Markdown 正文，不含传输包装、attempts 或 diagnostic。默认链为 `Tavily → Firecrawl → Jina`，直接 fetch、research 取证、search-side Web Fetch 与 PDF 都消费同一个 `engine::fetch`，不存在内容类型专属顺序。Tavily 固定请求完整 basic Markdown 且不传 query chunks；每个 Firecrawl provider attempt 只发送一次 `/scrape`，显式请求 Markdown、`onlyMainContent: true`、`timeout: 60000`，不发送 `waitFor`、actions 或第二套 rendering probe；Jina 通过官方结构化 JSON 响应的 `data.content` 读取正文，不启用链接删除或通用 selector。
+Web Fetch 成功值是 **Normalized Fetch Content**：从成功 provider 响应解码出的 provider 无关 Markdown 正文，不含传输包装、attempts 或 diagnostic。默认链为 `Tavily → Firecrawl → Jina`，直接 fetch、research 取证、search-side Web Fetch 与 PDF 都消费同一个 `engine::fetch`，不存在内容类型专属顺序。Tavily 固定请求完整 basic Markdown 且不传 query chunks；每个 Firecrawl provider attempt 只发送一次 `/scrape`，显式请求 Markdown、`onlyMainContent: true`、`timeout: 60000`，不发送 `waitFor`、actions 或第二套 rendering probe；Jina 通过官方结构化 JSON 响应的 `data.content` 读取正文，不启用链接删除或通用 selector。Firecrawl 以 HTTP 403 表示拒绝抓取目标站点（凭据失效为 401）；net 的共享 status mapper 把正文声明 `support this site` 的 403 记为 Parameter 而非 Auth，该 attempt 照常落到下一家，错误消息取 provider 响应的 `error` 文本。
 
 薄正文门只对 HTTP 成功并完成 provider 解码后的正文生效。两线命中任一 → `Quality`（Content 族）落下一家：**长度线**正文 < 200 字符；**密度线**唯一行数 ≤ 3 且总长 < 500。PDF 只适用长度线。全链皆薄 → 终态 Quality 退 5，attempts 带实测字符数。阈值为 types 具名常量，**不设配置键**。4 MiB 截断继续是成功加 diagnostic；只有截断后正文仍薄才 fallback。64 KiB 错误响应上限不变。
 
@@ -85,8 +85,9 @@ Web Fetch 成功值是 **Normalized Fetch Content**：从成功 provider 响应�
 - Context7 Documentation Search 只做 library resolve，使用 `url: null` 与 typed library locator；Research 通过现有 Documentation Search seam 的 provider-owned query-docs 读取它。有 URL candidate 走 Web Fetch。Evidence Index 对 Context7 保留 `library_id`、`path`、`url: null`，Citation Binding 使用非链接 `[eN]`；URL evidence 使用 `[eN](URL)`。不建立通用 provider registry。
 - Exa direct search 的 text/highlights 按请求 flag 精确投影并保留 image/favicon；Documentation Search 保留 highlights 与媒体选择信号但不读取全文。不强制 `useAutoprompt`，不以 `id` 代替必填 URL。AnySearch Candidate 的 summary 复制 description；URL-less structured result 仅投影 `evidence_type=structured`。
 - AnySearch 当前没有 verified manifest entry，显式未验证域继续报告 `schema_validation.status=unavailable` 并原样透传参数；不交付 test-only validator、fingerprint 或运行时 schema 依赖。Domain Discovery 将参数名后的 `(required)` 投影到 `parameter_schema.required`，但不从自然语言猜测 type/enum/default。Markdown decoder 只容忍编号标题与 `- **URL**:` 内的可变 ASCII 空白；没有编号标题时仅提取带 host 的 HTTP(S) URL 并按出现顺序去重，仍无 URL 时保留 structured result。
-- Supplemental Tavily 请求显式发送 `search_depth: "advanced"`、`include_raw_content: false`、`include_answer: false`；只有规范化后非空候选停止链。合法 `results: []` / `data.web: []` 继续 fallback，全链有合法空集且无非空结果时 `Ok(empty)`，`fallback=off` 只执行链头。仅跳过缺失/null/空白 URL 单项；非字符串 URL、非对象条目、缺失或错误 container 为 Runtime。
+- Supplemental Tavily 请求显式发送 `search_depth: "advanced"`、`chunks_per_source: 1`（每条候选摘要至多一个约 500 字符的片段）、`include_raw_content: false`、`include_answer: false`；只有规范化后非空候选停止链。合法 `results: []` / `data.web: []` 继续 fallback，全链有合法空集且无非空结果时 `Ok(empty)`，`fallback=off` 只执行链头。仅跳过缺失/null/空白 URL 单项；非 HTTP(S) URL 单项同样跳过，其余合法候选保留；非字符串 URL、非对象条目、缺失或错误 container 为 Runtime。
 - Tavily map 是 direct operation：CLI 校验 timeout `10..=150`、depth `1..=5`、breadth `1..=500`、limit > 0；合法 timeout 原样进入命令 Deadline 和 body，每个 attempt 再受 `providers.tavily.timeout` 与剩余预算较小值限制。
+- 普通 search 在分类器决定能力集合后，让主搜索与辅助能力 fan-out 并发执行并共享同一绝对 Deadline（ADR 0016）；主搜索结束后按「分类器 attempts → 主搜索 attempts → 各能力分支（词汇表顺序）」合并。主搜索失败时，辅助 attempts 只追加用于诊断，已取得的候选与 capability gaps 由 `search_fanout::SearchFailure` 携带交付。
 - search-side Web Fetch 成功结果以实际 provider 和 Normalized Fetch Content 的 300 字 preview 进入 `extra_sources`；抓取失败由 attempts、capability gap 和既有终态表达。Markdown 明确渲染 `Primary Sources` 与 `Extra Sources`；content 只返回主 answer；JSON、verbose 和 journal 消费同一结果角色。
 
 ## research 文件化交付
@@ -97,7 +98,7 @@ Research Evidence Pipeline 默认使用 standard 预算，将正文逐条写入 
 
 定位：结果面 + 过程面双记录。
 
-- **结果面**：search 保存 query、answer 全文、仅属于主回答的 sources[] 与独立 supplemental candidates（含 search-side Web Fetch preview，URL 经统一脱敏器）；research 保存 Evidence Index、coverage、artifact 路径与 capability gaps，不保存机械 answer/citations，也不重复 evidence 正文。Vertical Discovery Result 不复制到其他来源集合。
+- **结果面**：search 保存 query、answer 全文、仅属于主回答的 sources[] 与独立 supplemental candidates（含 search-side Web Fetch preview，URL 经统一脱敏器）；主搜索失败时保存 error_kind、message、已取得的完整 `extra_sources` 与 `capability_gaps`；research 保存 Evidence Index、coverage、artifact 路径与 capability gaps，不保存机械 answer/citations，也不重复 evidence 正文。Vertical Discovery Result 不复制到其他来源集合。
 - **过程面**：plan 摘要（capabilities 终集 + 来源 + 分类器是否降级）、provider_attempts[]（provider、seam、error_kind、http_status、duration_ms、credential_index、retry/rotation 计数、脱敏截断 500 字符错误消息、model、endpoint_host、断路器事件）、终态归因、budget 视图 `{total_ms, consumed_ms, exhausted}`、分类器耗时、capability_gaps。
 - **字段白名单排除项**：请求/响应头、请求体、原始响应体、key 任何形式（含掩码）、分类器 prompt 原文。
 - `capability_gaps` 形状：`[{capability, reason: no_configured_provider|partial_failure|all_attempts_failed, providers_skipped[]}]`，空则省略；结果 JSON 顶层 + stderr 警告 + journal 三出口。

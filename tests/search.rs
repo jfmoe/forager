@@ -611,6 +611,7 @@ fn declared_web_search_adds_normalized_extra_sources_in_configured_order() {
             "query": "Current information",
             "max_results": 20,
             "search_depth": "advanced",
+            "chunks_per_source": 1,
             "include_raw_content": false,
             "include_answer": false
         })
@@ -683,7 +684,7 @@ fn empty_tavily_results_fall_back_to_a_nonempty_firecrawl_result() {
 }
 
 #[test]
-fn non_http_tavily_url_falls_back_to_a_valid_firecrawl_candidate() {
+fn non_http_tavily_result_is_skipped_while_valid_results_are_kept() {
     let main = Fixture::start(
         200,
         "text/event-stream",
@@ -692,18 +693,12 @@ fn non_http_tavily_url_falls_back_to_a_valid_firecrawl_candidate() {
     let tavily = Fixture::start(
         200,
         "application/json",
-        r#"{"results":[{"title":"Invalid","url":"ftp://example.test/result"}]}"#,
-    );
-    let firecrawl = Fixture::start(
-        200,
-        "application/json",
-        r#"{"data":{"web":[{"title":"Fallback","url":"https://example.test/fallback"}]}}"#,
+        r#"{"results":[{"title":"Invalid","url":"ftp://example.test/result"},{"title":"Valid","url":"https://example.test/valid"}]}"#,
     );
     let config = format!(
-        "{}\n[providers.tavily]\nurl = {:?}\nkeys = [\"tavily-key\"]\ntimeout = 30\n\n[providers.firecrawl]\nurl = {:?}\nkeys = [\"firecrawl-key\"]\ntimeout = 30\n\n[capabilities.web_search]\norder = [\"tavily\", \"firecrawl\"]\n",
+        "{}\n[providers.tavily]\nurl = {:?}\nkeys = [\"tavily-key\"]\ntimeout = 30\n\n[capabilities.web_search]\norder = [\"tavily\"]\n",
         search_config(&main.url, true),
         tavily.url,
-        firecrawl.url,
     );
     let environment = RunEnvironment::new(&config);
 
@@ -712,35 +707,27 @@ fn non_http_tavily_url_falls_back_to_a_valid_firecrawl_candidate() {
         "Current information",
         "--capabilities",
         "web_search",
-        "--verbose",
     ]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-    let web_attempts = payload["provider_attempts"]
-        .as_array()
-        .expect("provider attempts")
-        .iter()
-        .filter(|attempt| attempt["seam"] == "web_search")
-        .collect::<Vec<_>>();
 
     assert_eq!(
-        (
-            output.status.code(),
-            &payload["extra_sources"][0]["url"],
-            &web_attempts[0]["error_kind"],
-            &web_attempts[1]["provider"],
-        ),
+        (output.status.code(), &payload["extra_sources"]),
         (
             Some(0),
-            &Value::String("https://example.test/fallback".into()),
-            &Value::String("runtime".into()),
-            &Value::String("firecrawl".into()),
+            &serde_json::json!([{
+                "provider": "tavily",
+                "capability": "web_search",
+                "title": "Valid",
+                "url": "https://example.test/valid",
+                "summary": null,
+                "provider_data": {}
+            }]),
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     main.finish();
     tavily.finish();
-    firecrawl.finish();
 }
 
 #[test]
@@ -4180,4 +4167,168 @@ fn normalized_journal_bytes(mut journal: Value) -> Vec<u8> {
         attempt["duration_ms"] = Value::Null;
     }
     serde_json::to_vec(&journal).expect("encode normalized journal")
+}
+
+fn tavily_search_config(xai_url: &str, tavily_url: &str) -> String {
+    format!(
+        "{}\n[providers.tavily]\nurl = {tavily_url:?}\nkeys = [\"tavily-key\"]\ntimeout = 30\n\n[capabilities.web_search]\norder = [\"tavily\"]\n",
+        search_config(xai_url, true),
+    )
+}
+
+#[test]
+fn failed_main_search_still_reports_supplemental_candidates() {
+    let main = Fixture::start(401, "application/json", r#"{"error":"bad key"}"#);
+    let tavily = Fixture::start(
+        200,
+        "application/json",
+        r#"{"results":[{"title":"Candidate","url":"https://example.test/candidate","content":"Candidate summary"}]}"#,
+    );
+    let environment = RunEnvironment::new(&tavily_search_config(&main.url, &tavily.url));
+
+    let output = environment.run(&[
+        "search",
+        "Current information",
+        "--capabilities",
+        "web_search",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let journal = read_only_journal(&environment);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["error_kind"],
+            &payload["extra_sources"],
+            &payload["extra_sources_truncated"],
+            &journal["result"]["extra_sources"][0]["summary"],
+        ),
+        (
+            Some(4),
+            &Value::String("auth".into()),
+            &serde_json::json!([{
+                "provider": "tavily",
+                "capability": "web_search",
+                "title": "Candidate",
+                "url": "https://example.test/candidate",
+                "provider_data": {}
+            }]),
+            &Value::Bool(false),
+            &Value::String("Candidate summary".into()),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    main.finish();
+    tavily.finish();
+}
+
+#[test]
+fn failed_main_search_bounds_candidates_to_the_failure_payload_target() {
+    let main = Fixture::start(401, "application/json", r#"{"error":"bad key"}"#);
+    let results = (0..20)
+        .map(|index| {
+            serde_json::json!({
+                "title": format!("{index} {}", "long title ".repeat(30)),
+                "url": format!("https://example.test/candidate/{index}")
+            })
+        })
+        .collect::<Vec<_>>();
+    let tavily = Fixture::start(
+        200,
+        "application/json",
+        &serde_json::json!({ "results": results }).to_string(),
+    );
+    let environment = RunEnvironment::new(&tavily_search_config(&main.url, &tavily.url));
+
+    let output = environment.run(&[
+        "search",
+        "Current information",
+        "--capabilities",
+        "web_search",
+        "--extra-sources",
+        "20",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let kept = payload["extra_sources"].as_array().map_or(0, Vec::len);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["extra_sources_truncated"],
+            output.stdout.len() <= 4096,
+            (1..20).contains(&kept),
+        ),
+        (Some(4), &Value::Bool(true), true, true),
+        "kept {kept}; stdout: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    main.finish();
+    tavily.finish();
+}
+
+#[test]
+fn supplemental_capabilities_run_while_main_search_is_in_flight() {
+    let mut fixtures = Fixture::start_synchronized_sequences(vec![
+        vec![Response::new(
+            200,
+            "text/event-stream",
+            &completed_body("answer", "Primary"),
+        )],
+        vec![Response::new(
+            200,
+            "application/json",
+            r#"{"results":[{"title":"Candidate","url":"https://example.test/candidate"}]}"#,
+        )],
+    ]);
+    let tavily = fixtures.pop().expect("tavily fixture");
+    let main = fixtures.pop().expect("main fixture");
+    let environment = RunEnvironment::new(&tavily_search_config(&main.url, &tavily.url));
+
+    let output = environment.run(&[
+        "search",
+        "Current information",
+        "--capabilities",
+        "web_search",
+    ]);
+
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    main.finish();
+    tavily.finish();
+}
+
+#[test]
+fn failed_main_search_reports_supplemental_capability_gaps() {
+    let main = Fixture::start(401, "application/json", r#"{"error":"bad key"}"#);
+    let environment = RunEnvironment::new(&search_config(&main.url, true));
+
+    let output = environment.run(&[
+        "search",
+        "Current information",
+        "--capabilities",
+        "docs_search",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let journal = read_only_journal(&environment);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["capability_gaps"][0]["capability"],
+            &journal["execution"]["capability_gaps"][0]["reason"],
+        ),
+        (
+            Some(4),
+            &Value::String("docs_search".into()),
+            &Value::String("no_configured_provider".into()),
+        ),
+        "stdout: {payload}\nstderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    main.finish();
 }

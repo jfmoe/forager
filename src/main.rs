@@ -2,19 +2,21 @@
 
 use std::fmt::Write as _;
 use std::fs;
-use std::path::PathBuf;
+use std::path::Path;
 use std::process::ExitCode;
 
 use clap::Parser;
 use forager::app::{
-    self, Cli, CommandOutput, DocsOutputFormat, ExaOutcome, OutputFormat, ProviderError,
-    ResearchFailure, ResearchTerminal, bounded_attempt_summary,
+    self, Cli, CommandOutput, DocsOutputFormat, ExaOutcome, OutputFormat, OutputTarget,
+    ProviderError, ResearchFailure, ResearchTerminal, SearchFailure, bounded_attempt_summary,
 };
 use forager::types::{
     AnysearchOutcome, AttemptErrorKind, Context7Outcome, ErrorFamily, ErrorKind, FetchOutcome,
-    JournalOutcome, MapOutcome, SearchOutcome,
+    JournalOutcome, MapOutcome, SearchCandidate, SearchOutcome,
 };
 use serde_json::{Value, json};
+
+const FAILURE_PAYLOAD_TARGET_BYTES: usize = 4096;
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
@@ -105,7 +107,7 @@ fn render_research(
     terminal: ResearchTerminal,
     journal: &JournalOutcome,
     format: DocsOutputFormat,
-    output: Option<PathBuf>,
+    output: Option<OutputTarget>,
     verbose: bool,
 ) -> Result<RenderedOutput, String> {
     let (stdout, exit_code) = match terminal.failure.as_ref() {
@@ -272,10 +274,10 @@ fn append_research_index(rendered: &mut String, terminal: &ResearchTerminal) {
 }
 
 fn render_search(
-    result: Result<SearchOutcome, ProviderError>,
+    result: Result<SearchOutcome, SearchFailure>,
     journal: &JournalOutcome,
     format: DocsOutputFormat,
-    output: Option<PathBuf>,
+    output: Option<OutputTarget>,
     verbose: bool,
 ) -> Result<RenderedOutput, String> {
     let (stdout, exit_code, provider_diagnostic) = match result {
@@ -310,43 +312,34 @@ fn render_search(
                             let _ = write!(markdown, "\n- [{title}]({})", source.url);
                         }
                     }
-                    if !outcome.extra_sources.is_empty() {
-                        markdown.push_str("\n\n## Extra Sources\n");
-                        for source in &outcome.extra_sources {
-                            let title = source
-                                .title()
-                                .or_else(|| source.url())
-                                .unwrap_or_else(|| source.provider());
-                            if let Some(url) = source.url() {
-                                let _ = write!(
-                                    markdown,
-                                    "\n- [{title}]({url}) — {}",
-                                    source.provider()
-                                );
-                            } else {
-                                let _ = write!(markdown, "\n- **{title}** — {}", source.provider());
-                            }
-                            if let Some(summary) = source.summary() {
-                                let _ = write!(markdown, "\n\n  {summary}");
-                            }
-                        }
-                    }
+                    append_extra_sources_markdown(&mut markdown, &outcome.extra_sources);
                     markdown
                 }
                 DocsOutputFormat::Content => outcome.answer.clone(),
             };
             (stdout, 0, outcome.diagnostic)
         }
-        Err(error) => {
+        Err(failure) => {
+            let error = &failure.error;
             let stdout = match format {
-                DocsOutputFormat::Json => format_search_failure_json(&error, journal)?,
-                DocsOutputFormat::Markdown | DocsOutputFormat::Content => format!(
-                    "# Search failed\n\n**{}**: {}",
-                    error.kind.as_str(),
-                    error.message
-                ),
+                DocsOutputFormat::Json => format_search_failure_json(&failure, journal)?,
+                DocsOutputFormat::Markdown | DocsOutputFormat::Content => {
+                    let mut rendered = format!(
+                        "# Search failed\n\n**{}**: {}",
+                        error.kind.as_str(),
+                        error.message
+                    );
+                    if format == DocsOutputFormat::Markdown {
+                        append_extra_sources_markdown(&mut rendered, &failure.extra_sources);
+                    }
+                    rendered
+                }
             };
-            (stdout, postflight_exit_code(error.kind), error.diagnostic)
+            (
+                stdout,
+                postflight_exit_code(error.kind),
+                failure.error.diagnostic,
+            )
         }
     };
     let diagnostic = app::combine_diagnostics(
@@ -373,7 +366,7 @@ fn render_search_preflight(
     error: &app::AppError,
     journal: &JournalOutcome,
     format: DocsOutputFormat,
-    output: Option<PathBuf>,
+    output: Option<OutputTarget>,
 ) -> Result<RenderedOutput, String> {
     let journal_warning = journal
         .warning
@@ -410,7 +403,7 @@ fn emit_search_preflight(
     error: &app::AppError,
     journal: &JournalOutcome,
     format: DocsOutputFormat,
-    output: Option<PathBuf>,
+    output: Option<OutputTarget>,
 ) -> ExitCode {
     emit_rendered(render_search_preflight(error, journal, format, output))
 }
@@ -433,14 +426,87 @@ fn emit_logged(rendered: Result<RenderedOutput, String>, attempt_log: Option<Str
     }))
 }
 
+fn append_extra_sources_markdown(markdown: &mut String, extra_sources: &[SearchCandidate]) {
+    if extra_sources.is_empty() {
+        return;
+    }
+    markdown.push_str("\n\n## Extra Sources\n");
+    for source in extra_sources {
+        let title = source
+            .title()
+            .or_else(|| source.url())
+            .unwrap_or_else(|| source.provider());
+        if let Some(url) = source.url() {
+            let _ = write!(markdown, "\n- [{title}]({url}) — {}", source.provider());
+        } else {
+            let _ = write!(markdown, "\n- **{title}** — {}", source.provider());
+        }
+        if let Some(summary) = source.summary() {
+            let _ = write!(markdown, "\n\n  {summary}");
+        }
+    }
+}
+
 fn format_search_failure_json(
-    error: &ProviderError,
+    failure: &SearchFailure,
     journal: &JournalOutcome,
 ) -> Result<String, String> {
-    let mut payload: Value =
-        serde_json::from_str(&format_failure_json(error)?).map_err(|error| error.to_string())?;
+    let mut payload: Value = serde_json::from_str(&format_failure_json(&failure.error)?)
+        .map_err(|error| error.to_string())?;
     add_journal_status(&mut payload, journal)?;
+    let object = payload
+        .as_object_mut()
+        .ok_or_else(|| "search failure output is not a JSON object".to_owned())?;
+    if !failure.capability_gaps.is_empty() {
+        object.insert(
+            "capability_gaps".into(),
+            serde_json::to_value(&failure.capability_gaps).map_err(|error| error.to_string())?,
+        );
+    }
+    if !failure.extra_sources.is_empty() {
+        let candidates =
+            serde_json::to_value(&failure.extra_sources).map_err(|error| error.to_string())?;
+        let Value::Array(mut candidates) = candidates else {
+            return Err("extra_sources did not serialize as an array".into());
+        };
+        if failure.error.verbose {
+            object.insert("extra_sources".into(), Value::Array(candidates));
+        } else {
+            for candidate in &mut candidates {
+                if let Some(fields) = candidate.as_object_mut() {
+                    fields.remove("summary");
+                }
+            }
+            object.insert("extra_sources".into(), Value::Array(Vec::new()));
+            object.insert("extra_sources_truncated".into(), Value::Bool(false));
+            let base_len = serde_json::to_string(&*object)
+                .map_err(|error| error.to_string())?
+                .len();
+            let (kept, truncated) = fit_failure_candidates(base_len, candidates);
+            object.insert("extra_sources".into(), Value::Array(kept));
+            object.insert("extra_sources_truncated".into(), Value::Bool(truncated));
+        }
+    }
     serde_json::to_string(&payload).map_err(|error| error.to_string())
+}
+
+// Callers read the default failure payload in full, so its 4 KiB target outranks candidate
+// completeness; the journal keeps every candidate.
+fn fit_failure_candidates(base_len: usize, candidates: Vec<Value>) -> (Vec<Value>, bool) {
+    let total = candidates.len();
+    let mut encoded_len = base_len;
+    let mut kept = Vec::new();
+    for candidate in candidates {
+        let separator_len = usize::from(!kept.is_empty());
+        let candidate_len = candidate.to_string().len();
+        if encoded_len + separator_len + candidate_len > FAILURE_PAYLOAD_TARGET_BYTES {
+            break;
+        }
+        encoded_len += separator_len + candidate_len;
+        kept.push(candidate);
+    }
+    let truncated = kept.len() < total;
+    (kept, truncated)
 }
 
 fn add_journal_status(payload: &mut Value, journal: &JournalOutcome) -> Result<(), String> {
@@ -464,7 +530,7 @@ fn add_journal_status(payload: &mut Value, journal: &JournalOutcome) -> Result<(
 fn render_map(
     result: Result<MapOutcome, ProviderError>,
     format: OutputFormat,
-    output: Option<PathBuf>,
+    output: Option<OutputTarget>,
 ) -> Result<RenderedOutput, String> {
     let (stdout, exit_code, diagnostic) = match result {
         Ok(outcome) => {
@@ -509,7 +575,7 @@ fn render_map(
 fn render_fetch(
     result: Result<FetchOutcome, ProviderError>,
     format: DocsOutputFormat,
-    output: Option<PathBuf>,
+    output: Option<OutputTarget>,
 ) -> Result<RenderedOutput, String> {
     let (stdout, exit_code, diagnostic) = match result {
         Ok(outcome) => {
@@ -548,7 +614,7 @@ fn render_fetch(
 fn render_anysearch(
     result: Result<AnysearchOutcome, ProviderError>,
     format: OutputFormat,
-    output: Option<PathBuf>,
+    output: Option<OutputTarget>,
 ) -> Result<RenderedOutput, String> {
     let (stdout, exit_code, diagnostic) = match result {
         Ok(outcome) => {
@@ -655,7 +721,7 @@ struct RenderedOutput {
 fn render_exa(
     result: Result<ExaOutcome, ProviderError>,
     format: OutputFormat,
-    output: Option<PathBuf>,
+    output: Option<OutputTarget>,
 ) -> Result<RenderedOutput, String> {
     let (stdout, exit_code, diagnostic) = match result {
         Ok(outcome) => (format_success(&outcome, format)?, 0, outcome.diagnostic),
@@ -677,7 +743,7 @@ fn render_exa(
 fn render_context7(
     result: Result<Context7Outcome, ProviderError>,
     format: DocsOutputFormat,
-    output: Option<PathBuf>,
+    output: Option<OutputTarget>,
 ) -> Result<RenderedOutput, String> {
     let (stdout, exit_code, diagnostic) = match result {
         Ok(outcome) => {
@@ -817,7 +883,7 @@ fn format_failure_json(error: &ProviderError) -> Result<String, String> {
             );
     }
     let encoded = serde_json::to_string(&payload).map_err(|error| error.to_string())?;
-    if !error.verbose && encoded.len() > 4096 {
+    if !error.verbose && encoded.len() > FAILURE_PAYLOAD_TARGET_BYTES {
         return Err("default failure payload exceeded 4 KiB".into());
     }
     Ok(encoded)
@@ -827,10 +893,10 @@ fn apply_tee(
     stdout: String,
     exit_code: u8,
     is_json: bool,
-    output: Option<PathBuf>,
+    output: Option<OutputTarget>,
     diagnostic: Option<String>,
 ) -> Result<RenderedOutput, String> {
-    let Some(path) = output else {
+    let Some(target) = output else {
         return Ok(RenderedOutput {
             stdout,
             stderr: diagnostic,
@@ -838,14 +904,20 @@ fn apply_tee(
         });
     };
     let tee_bytes = format!("{stdout}\n");
-    match fs::write(&path, tee_bytes.as_bytes()) {
+    match fs::write(target.path(), tee_bytes.as_bytes()) {
         Ok(()) => Ok(RenderedOutput {
-            stdout,
+            stdout: match target {
+                OutputTarget::Receipt(path) if exit_code == 0 => output_receipt(&path, &tee_bytes),
+                OutputTarget::Receipt(_) | OutputTarget::Tee(_) => stdout,
+            },
             stderr: diagnostic,
             exit_code,
         }),
         Err(error) => {
-            let output_diagnostic = format!("cannot write output to {}: {error}", path.display());
+            let output_diagnostic = format!(
+                "cannot write output to {}: {error}",
+                target.path().display()
+            );
             let stdout = if is_json {
                 annotate_output_failure(&stdout, &output_diagnostic)?
             } else {
@@ -861,6 +933,15 @@ fn apply_tee(
             })
         }
     }
+}
+
+fn output_receipt(path: &Path, written: &str) -> String {
+    json!({
+        "output_path": path.to_string_lossy(),
+        "bytes": written.len(),
+        "lines": written.lines().count(),
+    })
+    .to_string()
 }
 
 fn annotate_output_failure(stdout: &str, diagnostic: &str) -> Result<String, String> {
@@ -895,7 +976,31 @@ mod tests {
     };
     use serde_json::{Value, json};
 
-    use super::{format_failure_json, format_research_failure_json};
+    use super::{
+        FAILURE_PAYLOAD_TARGET_BYTES, fit_failure_candidates, format_failure_json,
+        format_research_failure_json,
+    };
+
+    #[test]
+    fn failure_candidates_stop_before_the_payload_target_is_exceeded() {
+        let candidate = json!("abcd");
+        let candidate_len = candidate.to_string().len();
+        let base_len = FAILURE_PAYLOAD_TARGET_BYTES - 2 * candidate_len - 1;
+
+        let (kept, truncated) = fit_failure_candidates(
+            base_len,
+            vec![candidate.clone(), candidate.clone(), candidate],
+        );
+
+        assert_eq!((kept.len(), truncated), (2, true));
+    }
+
+    #[test]
+    fn failure_candidates_that_fit_are_all_kept() {
+        let (kept, truncated) = fit_failure_candidates(100, vec![json!("a"), json!("b")]);
+
+        assert_eq!((kept, truncated), (vec![json!("a"), json!("b")], false));
+    }
 
     #[test]
     fn default_failure_payload_truncates_each_list_and_preserves_utf8_message_boundary() {
