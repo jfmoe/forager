@@ -237,18 +237,17 @@ pub(crate) async fn execute(
         diagnostics.append(&mut block.diagnostics);
         candidates.append(&mut block.candidates);
     }
-    candidates = bound_discovery_candidates(
-        candidates,
-        request.plan.decomposition(),
-        request.budget.discovery_limit(),
-    );
-
     let subquestion_ids = request
         .plan
         .decomposition()
         .iter()
         .map(|subquestion| subquestion.id.clone())
         .collect::<Vec<_>>();
+    candidates = bound_discovery_candidates(
+        candidates,
+        &subquestion_ids,
+        request.budget.discovery_limit(),
+    );
     let discovered_candidates = interleave_candidates(candidates, &subquestion_ids);
     let (known_url_candidates, candidates): (Vec<_>, Vec<_>) = merge_candidate_coverage(
         known_url_candidates(&request.query, request.plan.decomposition())
@@ -583,19 +582,19 @@ pub(crate) async fn execute(
 
 fn bound_discovery_candidates(
     candidates: Vec<Candidate>,
-    subquestions: &[ResearchSubquestion],
+    subquestion_ids: &[String],
     limit: usize,
 ) -> Vec<Candidate> {
-    let mut counts = subquestions
+    let mut counts = subquestion_ids
         .iter()
-        .map(|subquestion| (subquestion.id.as_str(), 0_usize))
+        .map(|id| (id.as_str(), 0_usize))
         .collect::<HashMap<_, _>>();
-    let mut locators = subquestions
+    let mut locators = subquestion_ids
         .iter()
-        .map(|subquestion| (subquestion.id.as_str(), HashSet::<EvidenceLocator>::new()))
+        .map(|id| (id.as_str(), HashSet::<EvidenceLocator>::new()))
         .collect::<HashMap<_, _>>();
 
-    candidates
+    interleave_capabilities(candidates)
         .into_iter()
         .filter(|candidate| {
             let Some(subquestion_id) = candidate.subquestion_ids.first() else {
@@ -614,6 +613,27 @@ fn bound_discovery_candidates(
             true
         })
         .collect()
+}
+
+// Discovery returns one block per capability, so a subquestion's limit would otherwise be
+// filled by whichever capability was declared first and starve the rest.
+fn interleave_capabilities(candidates: Vec<Candidate>) -> Vec<Candidate> {
+    let mut next_rank = HashMap::<(Option<String>, &'static str), usize>::new();
+    let mut ranked = candidates
+        .into_iter()
+        .map(|candidate| {
+            let key = (
+                candidate.subquestion_ids.first().cloned(),
+                candidate.source_type,
+            );
+            let rank = next_rank.entry(key).or_default();
+            let ranked = (*rank, candidate);
+            *rank += 1;
+            ranked
+        })
+        .collect::<Vec<_>>();
+    ranked.sort_by_key(|(rank, _)| *rank);
+    ranked.into_iter().map(|(_, candidate)| candidate).collect()
 }
 
 async fn discover_capability(
@@ -1183,9 +1203,42 @@ mod tests {
     use serde_json::{Value, json};
 
     use super::{
-        ResearchBudget, ResearchFailure, ResearchRequest, ResearchTerminal, artifact_write_failure,
-        recovery_manifest,
+        Candidate, ResearchBudget, ResearchFailure, ResearchRequest, ResearchTerminal,
+        artifact_write_failure, bound_discovery_candidates, known_url_candidate, recovery_manifest,
     };
+
+    fn discovered(url: &str, source_type: &'static str) -> Candidate {
+        Candidate {
+            source_type,
+            known_url: false,
+            ..known_url_candidate(url.into(), Some("sq1".into()))
+        }
+    }
+
+    #[test]
+    fn discovery_limit_is_shared_across_declared_capabilities() {
+        let candidates = vec![
+            discovered("https://docs.test/1", "docs_candidate"),
+            discovered("https://docs.test/2", "docs_candidate"),
+            discovered("https://docs.test/3", "docs_candidate"),
+            discovered("https://web.test/1", "web_candidate"),
+            discovered("https://web.test/2", "web_candidate"),
+        ];
+
+        let kept = bound_discovery_candidates(candidates, &["sq1".to_owned()], 3)
+            .into_iter()
+            .map(|candidate| candidate.source.url)
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            kept,
+            vec![
+                "https://docs.test/1",
+                "https://web.test/1",
+                "https://docs.test/2"
+            ]
+        );
+    }
     use crate::types::{
         AttemptErrorKind, EvidenceItem, EvidenceLocator, FallbackPolicy, ResearchGapCheck,
         ResearchPlan, UnconsumedCandidates,

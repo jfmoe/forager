@@ -4332,3 +4332,56 @@ fn failed_main_search_reports_supplemental_capability_gaps() {
     );
     main.finish();
 }
+
+#[test]
+fn documentation_search_uses_exa_before_context7_by_default() {
+    let main = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Primary"),
+    );
+    let exa = Fixture::start(
+        200,
+        "application/json",
+        r#"{"results":[{"title":"Exa docs","url":"https://docs.example.test/api","highlights":["API reference"]}]}"#,
+    );
+    let config = format!(
+        "{}\n[providers.exa]\nurl = {:?}\nkeys = [\"exa-key\"]\n\n[providers.context7]\nurl = \"http://127.0.0.1:9\"\nkeys = [\"context7-key\"]\n",
+        search_config(&main.url, true),
+        exa.url,
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "search",
+        "Library API reference",
+        "--capabilities",
+        "docs_search",
+        "--verbose",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+    let docs_providers = payload["provider_attempts"]
+        .as_array()
+        .expect("provider attempts")
+        .iter()
+        .filter(|attempt| attempt["seam"] == "docs_search")
+        .map(|attempt| attempt["provider"].as_str().expect("attempt provider"))
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        (
+            output.status.code(),
+            docs_providers,
+            &payload["extra_sources"][0]["url"],
+        ),
+        (
+            Some(0),
+            vec!["exa"],
+            &Value::String("https://docs.example.test/api".into()),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    main.finish();
+    exa.finish();
+}

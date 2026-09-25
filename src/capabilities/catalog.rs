@@ -20,7 +20,7 @@ pub(crate) const WEB_FETCH: CapabilityCatalog = CapabilityCatalog {
 };
 pub(crate) const DOCS_SEARCH: CapabilityCatalog = CapabilityCatalog {
     seam: "docs_search",
-    providers: &[ProviderId::Context7, ProviderId::Exa],
+    providers: &[ProviderId::Exa, ProviderId::Context7],
 };
 pub(crate) const VERTICAL_SEARCH: CapabilityCatalog = CapabilityCatalog {
     seam: "vertical_search",

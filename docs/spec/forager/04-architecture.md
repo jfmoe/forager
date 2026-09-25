@@ -82,6 +82,7 @@ Web Fetch 成功值是 **Normalized Fetch Content**：从成功 provider 响应�
 ## Search Candidate 与 provider request contract
 
 - `sources` 只保存 Primary Search Source；所有非主候选统一进入 `extra_sources`，不再公开独立 `vertical_results`。Search Candidate 固定包含必填 provider/capability/provider_data 与可空 title/url/summary；URL 只能是真实 HTTP(S)，summary 只复制 provider-native 描述、摘要或片段，provider_data 是 snake_case 强类型白名单。
+- Documentation Search 默认顺序为 Exa → Context7（ADR 0017）：Exa 返回可直接抓取的 URL 候选；Context7 只在 Exa 没有可消费候选时被自动调用，直连 `context7` 命令不受影响。research 在每个子问题的发现名额内按能力轮转分配候选，先声明的能力不能占满名额。
 - Context7 Documentation Search 只做 library resolve，使用 `url: null` 与 typed library locator；Research 通过现有 Documentation Search seam 的 provider-owned query-docs 读取它。有 URL candidate 走 Web Fetch。Evidence Index 对 Context7 保留 `library_id`、`path`、`url: null`，Citation Binding 使用非链接 `[eN]`；URL evidence 使用 `[eN](URL)`。不建立通用 provider registry。
 - Exa direct search 的 text/highlights 按请求 flag 精确投影并保留 image/favicon；Documentation Search 保留 highlights 与媒体选择信号但不读取全文。不强制 `useAutoprompt`，不以 `id` 代替必填 URL。AnySearch Candidate 的 summary 复制 description；URL-less structured result 仅投影 `evidence_type=structured`。
 - AnySearch 当前没有 verified manifest entry，显式未验证域继续报告 `schema_validation.status=unavailable` 并原样透传参数；不交付 test-only validator、fingerprint 或运行时 schema 依赖。Domain Discovery 将参数名后的 `(required)` 投影到 `parameter_schema.required`，但不从自然语言猜测 type/enum/default。Markdown decoder 只容忍编号标题与 `- **URL**:` 内的可变 ASCII 空白；没有编号标题时仅提取带 host 的 HTTP(S) URL 并按出现顺序去重，仍无 URL 时保留 structured result。
