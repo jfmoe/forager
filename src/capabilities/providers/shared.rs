@@ -141,11 +141,10 @@ fn extract_inline_bindings(answer: &str) -> Vec<Source> {
         let number_end = number_start + number_end_offset;
         let number = &answer[number_start..number_end];
         let url_start = number_end + "]](".len();
-        let Some(url_end_offset) = answer[url_start..].find(')') else {
+        let Some(url_end) = delimited_url_end(answer, url_start, |_| false) else {
             cursor = url_start;
             continue;
         };
-        let url_end = url_start + url_end_offset;
         let url = answer[url_start..url_end].trim();
         if !number.is_empty()
             && number.chars().all(|character| character.is_ascii_digit())
@@ -156,6 +155,30 @@ fn extract_inline_bindings(answer: &str) -> Vec<Source> {
         cursor = url_end + 1;
     }
     sources
+}
+
+// A link destination can contain balanced parentheses (Wikipedia-style URLs), so
+// only a terminator or a `)` at depth zero ends it.
+fn delimited_url_end(
+    text: &str,
+    start: usize,
+    is_terminator: impl Fn(char) -> bool,
+) -> Option<usize> {
+    let mut depth = 0usize;
+    for (offset, character) in text[start..].char_indices() {
+        if is_terminator(character) {
+            return Some(start + offset);
+        }
+        match character {
+            '(' => depth += 1,
+            ')' => match depth.checked_sub(1) {
+                Some(inner) => depth = inner,
+                None => return Some(start + offset),
+            },
+            _ => {}
+        }
+    }
+    None
 }
 
 fn extract_link_sources(block: &str) -> Vec<Source> {
@@ -170,11 +193,10 @@ fn extract_link_sources(block: &str) -> Vec<Source> {
         };
         let label_end = open + 1 + label_end_offset;
         let url_start = label_end + "](".len();
-        let Some(url_end_offset) = block[url_start..].find(')') else {
+        let Some(url_end) = delimited_url_end(block, url_start, |_| false) else {
             cursor = url_start;
             continue;
         };
-        let url_end = url_start + url_end_offset;
         let url = block[url_start..url_end].trim();
         if valid_http_url(url) {
             sources.push((open, source(&block[open + 1..label_end], url)));
@@ -193,11 +215,10 @@ fn extract_link_sources(block: &str) -> Vec<Source> {
             {
                 continue;
             }
-            let end = block[start..]
-                .find(|character: char| {
-                    character.is_whitespace() || matches!(character, ')' | ']' | '>' | '"' | '\'')
-                })
-                .map_or(block.len(), |offset| start + offset);
+            let end = delimited_url_end(block, start, |character: char| {
+                character.is_whitespace() || matches!(character, ']' | '>' | '"' | '\'')
+            })
+            .unwrap_or(block.len());
             let url = block[start..end].trim_end_matches([
                 '.', ',', ';', ':', '!', '?', '，', '。', '；', '：', '！', '？',
             ]);
@@ -375,6 +396,94 @@ mod tests {
                 ("", "https://example.test/inline"),
                 ("Tail", "https://example.test/tail"),
             ]
+        );
+    }
+
+    #[test]
+    fn main_search_normalizer_does_not_truncate_markdown_source_urls_at_balanced_parentheses() {
+        let credentials = CredentialPool::new("test", vec![]);
+        let input = concat!(
+            "Answer\n\n## Sources\n",
+            "- [Rust (programming language)](https://en.wikipedia.org/wiki/Rust_(programming_language))"
+        );
+
+        let Ok((_, sources)) = normalize_main_search(
+            input,
+            vec![source(
+                "",
+                "https://en.wikipedia.org/wiki/Rust_(programming_language)",
+            )],
+            &credentials,
+        ) else {
+            panic!("answer should normalize successfully");
+        };
+
+        assert_eq!(
+            sources
+                .iter()
+                .map(|source| (source.title.as_str(), source.url.as_str()))
+                .collect::<Vec<_>>(),
+            [(
+                "",
+                "https://en.wikipedia.org/wiki/Rust_(programming_language)"
+            )]
+        );
+    }
+
+    #[test]
+    fn main_search_normalizer_does_not_truncate_inline_binding_urls_at_balanced_parentheses() {
+        let credentials = CredentialPool::new("test", vec![]);
+        let input =
+            "Claim [[1]](https://en.wikipedia.org/wiki/Rust_(programming_language)) and text.";
+
+        let Ok((answer, sources)) = normalize_main_search(input, Vec::new(), &credentials) else {
+            panic!("answer should normalize successfully");
+        };
+
+        assert_eq!(answer, input);
+        assert_eq!(
+            sources
+                .iter()
+                .map(|source| source.url.as_str())
+                .collect::<Vec<_>>(),
+            ["https://en.wikipedia.org/wiki/Rust_(programming_language)"]
+        );
+    }
+
+    #[test]
+    fn main_search_normalizer_does_not_truncate_bare_source_urls_at_balanced_parentheses() {
+        let credentials = CredentialPool::new("test", vec![]);
+        let input =
+            "Answer\n\n## Sources\n- https://en.wikipedia.org/wiki/Rust_(programming_language)";
+
+        let Ok((_, sources)) = normalize_main_search(input, Vec::new(), &credentials) else {
+            panic!("answer should normalize successfully");
+        };
+
+        assert_eq!(
+            sources
+                .iter()
+                .map(|source| source.url.as_str())
+                .collect::<Vec<_>>(),
+            ["https://en.wikipedia.org/wiki/Rust_(programming_language)"]
+        );
+    }
+
+    #[test]
+    fn main_search_normalizer_ends_bare_source_urls_at_unbalanced_close_parenthesis() {
+        let credentials = CredentialPool::new("test", vec![]);
+        let input = "Answer\n\n## Sources\n- (https://example.test/rust)";
+
+        let Ok((_, sources)) = normalize_main_search(input, Vec::new(), &credentials) else {
+            panic!("answer should normalize successfully");
+        };
+
+        assert_eq!(
+            sources
+                .iter()
+                .map(|source| source.url.as_str())
+                .collect::<Vec<_>>(),
+            ["https://example.test/rust"]
         );
     }
 
