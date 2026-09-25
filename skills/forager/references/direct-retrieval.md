@@ -1,13 +1,23 @@
 # Direct retrieval
 
-For a known URL or PDF, run `forager fetch URL --format json`. For site structure discovery, run
-`forager map URL --instructions "GOAL" --format json`.
+For a known URL or PDF, run `forager fetch 'URL' --format json`. For site structure discovery, run
+`forager map 'URL' --instructions "GOAL" --format json`. Single-quote every URL so the shell passes
+`?` and `&` through unchanged.
+
+For a long page, run `forager fetch 'URL' --format content --output FILE --receipt`, list its
+headings with `grep -n '^#' FILE`, and read only the relevant line ranges.
+
+`fetch` extracts readable page text. For a JSON API endpoint such as `api.github.com`, use `gh api`
+or `curl` directly.
 
 When a URL requires authentication and cannot be fetched directly, such as `x.com`, use an
 available authenticated client to retrieve it.
 
 Commands under `exa`, `context7`, and `anysearch` bypass capability routing. Use them when the user
-requests that provider or the operation exists only as a direct command.
+requests that provider or the operation exists only as a direct command. Restrict
+`exa search` to known domains with `--include-domains CSV` rather than `site:` in the query. With
+`exa search --include-text`, each result's text is capped by `--text-max-characters` (default
+3000); prefer `--include-highlights` when snippets suffice.
 
 ## Context7 documentation
 

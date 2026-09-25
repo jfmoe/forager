@@ -1,0 +1,12 @@
+# Run supplemental capabilities concurrently with main search
+
+A Default Search Invocation now starts its supplemental capabilities at the same time as main search instead of after main search succeeds. This supersedes the part of ADR 0008 that kept main search and supplemental capabilities as sequential stages; the classifier still runs first because it decides the capability set, and every other ADR 0008 rule (per-fan-out limit, shared absolute deadline, deterministic merge order) is unchanged.
+
+The Search Result Journal from 2026-08-26 to 2026-09-25 motivated the change. Main search (xAI) took a median of 57 s, while the supplemental stage added a median of 5.6 s (p90 8.2 s) after it, which was pure waiting time. And when main search failed, candidates that supplemental providers could have returned within seconds were never requested, so a caller received nothing after a 180 s timeout.
+
+## Consequences
+
+- Main search and the supplemental fan-out share the one absolute `Deadline`. Main search keeps its primary-first budget from ADR 0007; supplemental seams keep their per-attempt caps and chain slicing. Neither reserves budget from the other.
+- On success, supplemental results are merged after main search completes, in the same order as before: main-search attempts first (after classifier attempts), then each capability branch as a block in vocabulary order. Search Candidates whose URL matches a Primary Search Source are still dropped at merge time.
+- On main-search failure, the terminal attribution, error kind, and exit code still come from main search alone; supplemental attempts are appended to the attempt list for diagnosis only, so the failure payload's attempt summary counts them too. The candidates and capability gaps gathered so far are delivered instead of discarded; gaps appear in the failure JSON whenever they are non-empty. With `--verbose` the failure JSON carries the full `extra_sources`. Without it, `extra_sources` omits each `summary` and is cut at the first candidate that would push the payload past its 4 KiB target, with `extra_sources_truncated` reporting the cut. The Search Result Journal keeps the complete candidates, and the Markdown failure view lists them.
+- Supplemental provider quota is now spent even when main search fails, including fast failures such as an authentication error. This is accepted: the candidates are returned to the caller rather than wasted, and the configured supplemental set is usually small.

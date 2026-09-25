@@ -649,3 +649,101 @@ enabled = false
 "
     )
 }
+
+#[test]
+fn fetch_receipt_writes_the_result_file_and_prints_only_a_receipt() {
+    let content = (1..=5)
+        .map(|line| format!("Receipt fixture paragraph {line} with enough words to pass the gate."))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let jina = Fixture::start(200, "application/json", &jina_response(&content));
+    let config = fetch_config(
+        &jina.url,
+        &["jina-key"],
+        "http://127.0.0.1:9",
+        &[],
+        "http://127.0.0.1:9",
+        &[],
+        &["jina", "tavily", "firecrawl"],
+    );
+    let environment = RunEnvironment::new(&config);
+    let output_file = tempfile::NamedTempFile::new().expect("create output file");
+    let output_path = output_file.path().to_string_lossy().into_owned();
+
+    let output = environment.run(&[
+        "fetch",
+        "https://example.test/article",
+        "--output",
+        &output_path,
+        "--receipt",
+    ]);
+    let written = fs::read_to_string(output_file.path()).expect("read output file");
+    let written_payload: Value = serde_json::from_str(&written).expect("parse written JSON");
+    let receipt: Value = serde_json::from_slice(&output.stdout).expect("parse receipt JSON");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            receipt,
+            written_payload["content"].as_str()
+        ),
+        (
+            Some(0),
+            serde_json::json!({
+                "output_path": output_path,
+                "bytes": written.len(),
+                "lines": 1
+            }),
+            Some(content.as_str()),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    jina.finish();
+}
+
+#[test]
+fn fetch_receipt_keeps_the_failure_payload_on_stdout() {
+    let jina = Fixture::start(401, "application/json", r#"{"message":"bad credential"}"#);
+    let config = fetch_config(
+        &jina.url,
+        &["jina-key"],
+        "http://127.0.0.1:9",
+        &[],
+        "http://127.0.0.1:9",
+        &[],
+        &["jina", "tavily", "firecrawl"],
+    );
+    let environment = RunEnvironment::new(&config);
+    let output_file = tempfile::NamedTempFile::new().expect("create output file");
+    let output_path = output_file.path().to_string_lossy().into_owned();
+
+    let output = environment.run(&[
+        "fetch",
+        "https://example.test/article",
+        "--output",
+        &output_path,
+        "--receipt",
+    ]);
+    let written = fs::read_to_string(output_file.path()).expect("read output file");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            String::from_utf8_lossy(&output.stdout).trim_end(),
+        ),
+        (Some(4), written.trim_end()),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    jina.finish();
+}
+
+#[test]
+fn fetch_receipt_requires_an_output_file() {
+    let environment = RunEnvironment::new("");
+
+    let output = environment.run(&["fetch", "https://example.test/article", "--receipt"]);
+
+    assert_eq!(output.status.code(), Some(2));
+}

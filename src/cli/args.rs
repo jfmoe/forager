@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use serde_json::{Map, Value};
 
 use crate::catalog::{self, ProviderId};
@@ -34,9 +34,9 @@ impl Cli {
         )
     }
 
-    /// Returns the requested tee destination for a JSON preflight failure.
+    /// Returns the requested output destination for a JSON preflight failure.
     #[must_use]
-    pub fn json_preflight_output(&self) -> Option<PathBuf> {
+    pub fn json_preflight_output(&self) -> Option<OutputTarget> {
         match &self.command {
             Command::Search {
                 format: DocsOutputFormat::Json,
@@ -52,7 +52,7 @@ impl Cli {
                 format: DocsOutputFormat::Json,
                 output,
                 ..
-            } => output.clone(),
+            } => output.target(),
             _ => None,
         }
     }
@@ -75,8 +75,8 @@ pub(super) enum Command {
         timeout: u64,
         #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
         format: DocsOutputFormat,
-        #[arg(long)]
-        output: Option<PathBuf>,
+        #[command(flatten)]
+        output: OutputArgs,
         #[arg(long)]
         verbose: bool,
     },
@@ -95,8 +95,8 @@ pub(super) enum Command {
         timeout: u64,
         #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
         format: DocsOutputFormat,
-        #[arg(long)]
-        output: Option<PathBuf>,
+        #[command(flatten)]
+        output: OutputArgs,
         #[arg(long)]
         verbose: bool,
     },
@@ -107,8 +107,8 @@ pub(super) enum Command {
         timeout: Option<u64>,
         #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
         format: DocsOutputFormat,
-        #[arg(long)]
-        output: Option<PathBuf>,
+        #[command(flatten)]
+        output: OutputArgs,
         #[arg(long)]
         verbose: bool,
     },
@@ -126,8 +126,8 @@ pub(super) enum Command {
         timeout: u64,
         #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
         format: OutputFormat,
-        #[arg(long)]
-        output: Option<PathBuf>,
+        #[command(flatten)]
+        output: OutputArgs,
         #[arg(long)]
         verbose: bool,
     },
@@ -189,8 +189,8 @@ pub(super) enum AnysearchCommand {
         timeout: Option<u64>,
         #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
         format: OutputFormat,
-        #[arg(long)]
-        output: Option<PathBuf>,
+        #[command(flatten)]
+        output: OutputArgs,
         #[arg(long)]
         verbose: bool,
     },
@@ -208,8 +208,8 @@ pub(super) enum AnysearchCommand {
         timeout: Option<u64>,
         #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
         format: OutputFormat,
-        #[arg(long)]
-        output: Option<PathBuf>,
+        #[command(flatten)]
+        output: OutputArgs,
         #[arg(long)]
         verbose: bool,
     },
@@ -225,8 +225,8 @@ pub(super) enum Context7Command {
         timeout: Option<u64>,
         #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
         format: OutputFormat,
-        #[arg(long)]
-        output: Option<PathBuf>,
+        #[command(flatten)]
+        output: OutputArgs,
         #[arg(long)]
         verbose: bool,
     },
@@ -237,8 +237,8 @@ pub(super) enum Context7Command {
         timeout: Option<u64>,
         #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
         format: DocsOutputFormat,
-        #[arg(long)]
-        output: Option<PathBuf>,
+        #[command(flatten)]
+        output: OutputArgs,
         #[arg(long)]
         verbose: bool,
     },
@@ -254,6 +254,8 @@ pub(super) enum ExaCommand {
         search_type: ExaSearchType,
         #[arg(long)]
         include_text: bool,
+        #[arg(long, default_value_t = 3000, requires = "include_text", value_parser = clap::value_parser!(u32).range(1..))]
+        text_max_characters: u32,
         #[arg(long)]
         include_highlights: bool,
         #[arg(long)]
@@ -268,8 +270,8 @@ pub(super) enum ExaCommand {
         timeout: Option<u64>,
         #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
         format: OutputFormat,
-        #[arg(long)]
-        output: Option<PathBuf>,
+        #[command(flatten)]
+        output: OutputArgs,
         #[arg(long)]
         verbose: bool,
     },
@@ -281,8 +283,8 @@ pub(super) enum ExaCommand {
         timeout: Option<u64>,
         #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
         format: OutputFormat,
-        #[arg(long)]
-        output: Option<PathBuf>,
+        #[command(flatten)]
+        output: OutputArgs,
         #[arg(long)]
         verbose: bool,
     },
@@ -349,6 +351,44 @@ impl From<ExaSearchType> for SearchType {
 pub enum OutputFormat {
     Json,
     Markdown,
+}
+
+/// Where a rendered command result is written besides standard output.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum OutputTarget {
+    /// Write the rendered result to the file and emit it on standard output unchanged.
+    Tee(PathBuf),
+    /// Write the rendered result to the file and emit only a short receipt on success.
+    Receipt(PathBuf),
+}
+
+impl OutputTarget {
+    /// Returns the destination file.
+    #[must_use]
+    pub fn path(&self) -> &std::path::Path {
+        match self {
+            Self::Tee(path) | Self::Receipt(path) => path,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Args)]
+pub(super) struct OutputArgs {
+    #[arg(long)]
+    output: Option<PathBuf>,
+    #[arg(long, requires = "output")]
+    receipt: bool,
+}
+
+impl OutputArgs {
+    pub(super) fn target(&self) -> Option<OutputTarget> {
+        let path = self.output.clone()?;
+        Some(if self.receipt {
+            OutputTarget::Receipt(path)
+        } else {
+            OutputTarget::Tee(path)
+        })
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]

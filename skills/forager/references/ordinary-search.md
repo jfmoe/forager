@@ -19,7 +19,9 @@ Search use 1. An explicit value from `1..=20` is the exact target.
 ## Consume the result
 
 - `answer` is the main-search answer.
-- `sources` contains only Primary Search Sources attributed to the main answer.
+- `sources` contains only Primary Search Sources attributed to the main answer. An empty `sources`
+  marks an uncited answer, such as one from a fallback backend without web search: treat each of
+  its claims as unverified until fetched content supports it.
 - `extra_sources` contains every non-primary Search Candidate, including Vertical Discovery
   results. Each candidate has stable `provider`, `capability`, `title`, `url`, `summary`, and
   `provider_data` fields; `title`, `url`, and `summary` can be null, while `provider_data` carries
@@ -31,7 +33,8 @@ Search use 1. An explicit value from `1..=20` is the exact target.
 - Disclose every `capability_gaps` entry and its effect on coverage.
 
 For high-risk, time-sensitive, or source-backed claims, fetch the key URLs and limit the answer to
-their content. Use `--output` when a long or multi-source result must persist beyond stdout.
+their content. To keep a long result out of context, add `--output FILE --receipt` and read the
+file in parts; `--output` alone still prints the full result.
 
 ## Bounded recovery
 
@@ -41,9 +44,10 @@ configuration, or quota error goes directly to Diagnose or configure in `SKILL.m
 1. Retry at most once with the same query and capability declaration. Use `--timeout 300` for a
    timeout; retain the normal timeout for a network error. Skip this retry when the user explicitly
    prioritizes speed.
-2. If search remains unavailable, run `forager exa search` at most once. Add
-   `--include-domains CSV` when authoritative domains are known.
-3. Fetch at most two URLs from the strongest results with `forager fetch URL --format json`.
+2. If search remains unavailable, take candidates from the failure's `extra_sources` when it lists
+   any; otherwise run `forager exa search` at most once. Restrict Exa to known authoritative
+   domains with `--include-domains CSV` rather than `site:` in the query.
+3. Fetch at most two URLs from the strongest candidates with `forager fetch 'URL' --format json`.
 
 Each step runs only after the preceding step produces its continue signal. An answer from this
 chain cites only fetched content and discloses `source_mode: fallback` plus the actual rounds used.

@@ -78,7 +78,10 @@ fn exa_search_returns_normalized_results_through_the_real_http_stack() {
     let request = fixture.finish();
     assert!(request.contains("\"numResults\":2"), "{request}");
     assert!(request.contains("\"type\":\"neural\""), "{request}");
-    assert!(request.contains("\"text\":true"), "{request}");
+    assert!(
+        request.contains("\"text\":{\"maxCharacters\":3000}"),
+        "{request}"
+    );
     assert!(request.contains("\"highlights\":true"), "{request}");
     assert!(
         request.contains("\"startPublishedDate\":\"2026-07-01\""),
@@ -208,7 +211,14 @@ fn exa_search_projects_only_requested_text() {
 
     let output = run(
         &fixture,
-        &["exa", "search", "rust async drop", "--include-text"],
+        &[
+            "exa",
+            "search",
+            "rust async drop",
+            "--include-text",
+            "--text-max-characters",
+            "500",
+        ],
         &["only-key"],
     );
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
@@ -224,7 +234,10 @@ fn exa_search_projects_only_requested_text() {
         String::from_utf8_lossy(&output.stderr)
     );
     let request = fixture.finish();
-    assert!(request.contains(r#""text":true"#), "{request}");
+    assert!(
+        request.contains(r#""text":{"maxCharacters":500}"#),
+        "{request}"
+    );
     assert!(request.contains(r#""highlights":false"#), "{request}");
 }
 

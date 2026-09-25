@@ -21,9 +21,20 @@ pub(super) fn normalize_main_search(
         });
     }
     let mut sources = sources;
+    for source in &mut sources {
+        if is_citation_ordinal(&source.title) {
+            source.title.clear();
+        }
+    }
     sources.extend(text_sources);
     let sources = redact_and_deduplicate_sources(sources, credentials);
     Ok((answer.to_owned(), sources))
+}
+
+// xAI url_citation annotations carry the citation number as the title.
+fn is_citation_ordinal(title: &str) -> bool {
+    let title = title.trim();
+    !title.is_empty() && title.chars().all(|character| character.is_ascii_digit())
 }
 
 pub(super) fn redact_and_deduplicate_sources(
@@ -246,6 +257,27 @@ mod tests {
 
         assert_eq!(answer, "Before\n\nMiddle\n\nAfter");
         assert!(sources.is_empty());
+    }
+
+    #[test]
+    fn main_search_normalizer_drops_citation_ordinal_titles() {
+        let credentials = CredentialPool::new("test", vec![]);
+        let sources = vec![
+            source("1", "https://example.test/one"),
+            source("Rust 2024", "https://example.test/two"),
+        ];
+
+        let Ok((_, sources)) = normalize_main_search("Answer", sources, &credentials) else {
+            panic!("answer should normalize successfully");
+        };
+
+        assert_eq!(
+            sources
+                .iter()
+                .map(|source| source.title.as_str())
+                .collect::<Vec<_>>(),
+            vec!["", "Rust 2024"]
+        );
     }
 
     #[test]

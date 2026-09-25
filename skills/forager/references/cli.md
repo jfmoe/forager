@@ -1,6 +1,6 @@
 # forager CLI reference
 
-This reference documents the public CLI for `forager >=0.3.0`. Load it under the conditions given
+This reference documents the public CLI for `forager >=0.5.2`. Load it under the conditions given
 in `SKILL.md`: for exact command syntax, non-routine commands, or diagnosis and recovery details.
 Routine `search` and `research` stay on their branch references. Treat
 `forager <command> --help` as the final authority for argument parsing.
@@ -36,6 +36,7 @@ Network commands that expose these options share the following behavior:
 | `--timeout SECONDS` | Set a positive hard deadline for the whole command, including retries and fallback. |
 | `--format FORMAT` | Select stdout rendering. The default is `json`. |
 | `--output FILE` | Write the same rendered result to `FILE` and still emit it to stdout. |
+| `--receipt` | With `--output`, emit only a one-line `{"output_path","bytes","lines"}` receipt on success; failures still print the full failure payload. Use it to keep long results out of context and read the file in parts. |
 | `--verbose` | Include full provider attempts inline. Without it, `search` and `research` retain full attempts in their journal; provider-direct commands do not create a result journal. |
 
 After argument parsing selects `--format json`, `search`, `fetch`, and `research` return a single
@@ -57,7 +58,7 @@ not expose `--format`.
 ```console
 forager search QUERY [--capabilities CSV|none] [--model ID] [--extra-sources N]
                      [--fallback auto|off] [--timeout SECONDS]
-                     [--format json|markdown|content] [--output FILE] [--verbose]
+                     [--format json|markdown|content] [--output FILE [--receipt]] [--verbose]
 ```
 
 | Argument or option | Meaning | Default |
@@ -70,6 +71,7 @@ forager search QUERY [--capabilities CSV|none] [--model ID] [--extra-sources N]
 | `--timeout SECONDS` | Set the whole-pipeline deadline. | `180` |
 | `--format FORMAT` | Use `json`, `markdown`, or `content`. | `json` |
 | `--output FILE` | Tee the rendered result to a file. | Omitted |
+| `--receipt` | Print only a receipt on success; requires `--output`. | Off |
 | `--verbose` | Include full provider attempts inline. | Off |
 
 Default search JSON keeps `answer`, Primary Search Sources in `sources`, every non-primary Search
@@ -89,7 +91,7 @@ Sources` and `Extra Sources`.
 forager research QUERY [--plan FILE|-] [--budget quick|standard|deep]
                        [--evidence-dir DIR] [--fallback auto|off]
                        [--timeout SECONDS] [--format json|markdown|content]
-                       [--output FILE] [--verbose]
+                       [--output FILE [--receipt]] [--verbose]
 ```
 
 | Argument or option | Meaning | Default |
@@ -102,6 +104,7 @@ forager research QUERY [--plan FILE|-] [--budget quick|standard|deep]
 | `--timeout SECONDS` | Set the whole research deadline. | `600` |
 | `--format FORMAT` | Use `json`, `markdown`, or `content`. | `json` |
 | `--output FILE` | Tee the rendered result to a file. | Omitted |
+| `--receipt` | Print only a receipt on success; requires `--output`. | Off |
 | `--verbose` | Include full provider attempts inline. | Off |
 
 Pipe stdin all the way into the command when using `--plan -`:
@@ -131,7 +134,7 @@ gaps, and artifact paths. If it is null, use the other reported paths and gaps b
 
 ```console
 forager fetch URL [--timeout SECONDS] [--format json|markdown|content]
-                  [--output FILE] [--verbose]
+                  [--output FILE [--receipt]] [--verbose]
 ```
 
 | Argument or option | Meaning | Default |
@@ -140,6 +143,7 @@ forager fetch URL [--timeout SECONDS] [--format json|markdown|content]
 | `--timeout SECONDS` | Set the deadline for the complete fallback chain. | `180` |
 | `--format FORMAT` | Use `json`, `markdown`, or `content`. | `json` |
 | `--output FILE` | Tee the rendered result to a file. | Omitted |
+| `--receipt` | Print only a receipt on success; requires `--output`. | Off |
 | `--verbose` | Include full provider attempts inline. | Off |
 
 ### `map`
@@ -147,7 +151,7 @@ forager fetch URL [--timeout SECONDS] [--format json|markdown|content]
 ```console
 forager map URL [--instructions TEXT] [--max-depth N] [--max-breadth N]
                 [--limit N] [--timeout SECONDS] [--format json|markdown]
-                [--output FILE] [--verbose]
+                [--output FILE [--receipt]] [--verbose]
 ```
 
 | Argument or option | Meaning | Default |
@@ -160,6 +164,7 @@ forager map URL [--instructions TEXT] [--max-depth N] [--max-breadth N]
 | `--timeout SECONDS` | Set the whole-command deadline in `10..=150`. | `150` |
 | `--format FORMAT` | Use `json` or `markdown`. | `json` |
 | `--output FILE` | Tee the rendered result to a file. | Omitted |
+| `--receipt` | Print only a receipt on success; requires `--output`. | Off |
 | `--verbose` | Include full provider attempts inline. | Off |
 
 ## Provider-direct commands
@@ -172,11 +177,11 @@ configuration value, which defaults to 30 seconds.
 
 ```console
 forager exa search QUERY [--num-results N] [--search-type neural|keyword|auto]
-                         [--include-text] [--include-highlights]
-                         [--start-published-date DATE]
+                         [--include-text [--text-max-characters N]]
+                         [--include-highlights] [--start-published-date DATE]
                          [--include-domains CSV] [--exclude-domains CSV]
                          [--category NAME] [--timeout SECONDS]
-                         [--format json|markdown] [--output FILE] [--verbose]
+                         [--format json|markdown] [--output FILE [--receipt]] [--verbose]
 ```
 
 | Argument or option | Meaning | Default |
@@ -184,7 +189,8 @@ forager exa search QUERY [--num-results N] [--search-type neural|keyword|auto]
 | `QUERY` | Exa search query. | Required |
 | `--num-results N` | Request between 1 and 100 results. | `5` |
 | `--search-type TYPE` | Use `neural`, `keyword`, or `auto` search. | `auto` |
-| `--include-text` | Include full result text. | Off |
+| `--include-text` | Include page text for each result. | Off |
+| `--text-max-characters N` | Cap each result's page text at `N` characters. Requires `--include-text`. | `3000` |
 | `--include-highlights` | Include result highlights. | Off |
 | `--start-published-date DATE` | Restrict results to the given lower publication-date bound. | Omitted |
 | `--include-domains CSV` | Include only the comma-separated domains. | Empty |
@@ -193,13 +199,14 @@ forager exa search QUERY [--num-results N] [--search-type neural|keyword|auto]
 | `--timeout SECONDS` | Override `providers.exa.timeout`. | Configured value |
 | `--format FORMAT` | Use `json` or `markdown`. | `json` |
 | `--output FILE` | Tee the rendered result to a file. | Omitted |
+| `--receipt` | Print only a receipt on success; requires `--output`. | Off |
 | `--verbose` | Include full provider attempts inline. | Off |
 
 ### `exa similar`
 
 ```console
 forager exa similar URL [--num-results N] [--timeout SECONDS]
-                        [--format json|markdown] [--output FILE] [--verbose]
+                        [--format json|markdown] [--output FILE [--receipt]] [--verbose]
 ```
 
 | Argument or option | Meaning | Default |
@@ -209,6 +216,7 @@ forager exa similar URL [--num-results N] [--timeout SECONDS]
 | `--timeout SECONDS` | Override `providers.exa.timeout`. | Configured value |
 | `--format FORMAT` | Use `json` or `markdown`. | `json` |
 | `--output FILE` | Tee the rendered result to a file. | Omitted |
+| `--receipt` | Print only a receipt on success; requires `--output`. | Off |
 | `--verbose` | Include full provider attempts inline. | Off |
 
 ### `context7 library`
@@ -216,7 +224,7 @@ forager exa similar URL [--num-results N] [--timeout SECONDS]
 ```console
 forager context7 library NAME [QUERY] [--timeout SECONDS]
                                      [--format json|markdown]
-                                     [--output FILE] [--verbose]
+                                     [--output FILE [--receipt]] [--verbose]
 ```
 
 | Argument or option | Meaning | Default |
@@ -226,6 +234,7 @@ forager context7 library NAME [QUERY] [--timeout SECONDS]
 | `--timeout SECONDS` | Override `providers.context7.timeout`. | Configured value |
 | `--format FORMAT` | Use `json` or `markdown`. | `json` |
 | `--output FILE` | Tee the rendered result to a file. | Omitted |
+| `--receipt` | Print only a receipt on success; requires `--output`. | Off |
 | `--verbose` | Include full provider attempts inline. | Off |
 
 ### `context7 docs`
@@ -233,7 +242,7 @@ forager context7 library NAME [QUERY] [--timeout SECONDS]
 ```console
 forager context7 docs LIBRARY_ID QUERY [--timeout SECONDS]
                                        [--format json|markdown|content]
-                                       [--output FILE] [--verbose]
+                                       [--output FILE [--receipt]] [--verbose]
 ```
 
 | Argument or option | Meaning | Default |
@@ -243,6 +252,7 @@ forager context7 docs LIBRARY_ID QUERY [--timeout SECONDS]
 | `--timeout SECONDS` | Override `providers.context7.timeout`. | Configured value |
 | `--format FORMAT` | Use `json`, `markdown`, or `content`. | `json` |
 | `--output FILE` | Tee the rendered result to a file. | Omitted |
+| `--receipt` | Print only a receipt on success; requires `--output`. | Off |
 | `--verbose` | Include full provider attempts inline. | Off |
 
 ### `anysearch search`
@@ -251,7 +261,7 @@ forager context7 docs LIBRARY_ID QUERY [--timeout SECONDS]
 forager anysearch search QUERY [--domain DOMAIN --sub-domain SUBDOMAIN]
                                [--sub-domain-params JSON] [--max-results N]
                                [--timeout SECONDS] [--format json|markdown]
-                               [--output FILE] [--verbose]
+                               [--output FILE [--receipt]] [--verbose]
 ```
 
 | Argument or option | Meaning | Default |
@@ -264,6 +274,7 @@ forager anysearch search QUERY [--domain DOMAIN --sub-domain SUBDOMAIN]
 | `--timeout SECONDS` | Override `providers.anysearch.timeout`. | Configured value |
 | `--format FORMAT` | Use `json` or `markdown`. | `json` |
 | `--output FILE` | Tee the rendered result to a file. | Omitted |
+| `--receipt` | Print only a receipt on success; requires `--output`. | Off |
 | `--verbose` | Include full provider attempts inline. | Off |
 
 Use no domain options for general vertical discovery. Use separate undotted parent and subdomain
@@ -274,7 +285,7 @@ values for scoped discovery. The retired `security.cve` alias is invalid; use
 
 ```console
 forager anysearch domains DOMAIN [--timeout SECONDS] [--format json|markdown]
-                                 [--output FILE] [--verbose]
+                                 [--output FILE [--receipt]] [--verbose]
 ```
 
 | Argument or option | Meaning | Default |
@@ -283,6 +294,7 @@ forager anysearch domains DOMAIN [--timeout SECONDS] [--format json|markdown]
 | `--timeout SECONDS` | Override `providers.anysearch.timeout`. | Configured value |
 | `--format FORMAT` | Use `json` or `markdown`. | `json` |
 | `--output FILE` | Tee the rendered result to a file. | Omitted |
+| `--receipt` | Print only a receipt on success; requires `--output`. | Off |
 | `--verbose` | Include full provider attempts inline. | Off |
 
 ## Configuration and diagnostics

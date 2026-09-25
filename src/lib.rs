@@ -32,6 +32,8 @@ mod providers;
 mod redact;
 #[path = "evidence/research.rs"]
 mod research;
+#[path = "core/search_fanout.rs"]
+mod search_fanout;
 #[path = "infra/secure_fs.rs"]
 mod secure_fs;
 #[path = "ops/smoke.rs"]

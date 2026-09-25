@@ -724,6 +724,12 @@ mod tests {
             ("unauthorized", 401, "", AttemptErrorKind::Auth),
             ("forbidden", 403, "", AttemptErrorKind::Auth),
             (
+                "unsupported_target_site",
+                403,
+                "We do NOT support this site.",
+                AttemptErrorKind::Parameter,
+            ),
+            (
                 "payment_required",
                 402,
                 "",
@@ -869,20 +875,22 @@ fn build_client_with_read_timeout(
 pub(crate) fn error_kind_for_status(status: StatusCode, body: &str) -> AttemptErrorKind {
     match status.as_u16() {
         400 | 404 | 405 | 409 | 422 => AttemptErrorKind::Parameter,
+        // Firecrawl refuses unsupported target sites with 403; its invalid keys get 401.
+        403 if mentions(body, "support this site") => AttemptErrorKind::Parameter,
         401 | 403 => AttemptErrorKind::Auth,
         402 => AttemptErrorKind::QuotaExhausted,
-        429 if body
-            .as_bytes()
-            .windows(b"quota".len())
-            .any(|window| window.eq_ignore_ascii_case(b"quota")) =>
-        {
-            AttemptErrorKind::QuotaExhausted
-        }
+        429 if mentions(body, "quota") => AttemptErrorKind::QuotaExhausted,
         429 => AttemptErrorKind::RateLimited,
         408 | 504 => AttemptErrorKind::Timeout,
         500..=599 => AttemptErrorKind::Network,
         _ => AttemptErrorKind::Runtime,
     }
+}
+
+fn mentions(body: &str, phrase: &str) -> bool {
+    body.as_bytes()
+        .windows(phrase.len())
+        .any(|window| window.eq_ignore_ascii_case(phrase.as_bytes()))
 }
 
 pub(crate) fn truncate_message(message: &str) -> String {

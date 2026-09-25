@@ -89,6 +89,7 @@ impl SupplementalSearch {
                     query,
                     max_results: limit,
                     search_depth: "advanced",
+                    chunks_per_source: 1,
                     include_raw_content: false,
                     include_answer: false,
                 })
@@ -132,22 +133,13 @@ impl SupplementalSearch {
             if sources.len() == result_limit {
                 break;
             }
-            let Some(url) = source.url.map(|url| url.trim().to_owned()) else {
+            let Some(url) = source
+                .url
+                .map(|url| url.trim().to_owned())
+                .filter(|url| is_http_url(url))
+            else {
                 continue;
             };
-            if url.is_empty() {
-                continue;
-            }
-            if !is_http_url(&url) {
-                return Err(AttemptFailure {
-                    kind: AttemptErrorKind::Runtime,
-                    status: Some(status),
-                    message: format!(
-                        "invalid {} search response: result URL must use HTTP(S)",
-                        self.provider.name()
-                    ),
-                });
-            }
             sources.push(Source {
                 title: self.credentials.redact(&source.title),
                 url: self.credentials.redact(&redact_url(&url)),
@@ -189,6 +181,7 @@ struct TavilyRequest<'a> {
     query: &'a str,
     max_results: u16,
     search_depth: &'static str,
+    chunks_per_source: u8,
     include_raw_content: bool,
     include_answer: bool,
 }

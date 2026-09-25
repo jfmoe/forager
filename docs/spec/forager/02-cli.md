@@ -11,14 +11,15 @@
 ```
 forager search QUERY [--capabilities CSV|none] [--model ID] [--extra-sources N]
                      [--fallback auto|off]
-                     [--timeout 180] [--format json|markdown|content] [--output FILE] [--verbose]
+                     [--timeout 180] [--format json|markdown|content] [--output FILE [--receipt]] [--verbose]
 forager research QUERY [--plan FILE|-] [--budget quick|standard|deep（默认 standard）]
                        [--evidence-dir DIR] [--fallback auto|off] [--timeout 600] [...]
 forager fetch URL [--timeout N] [...]
 forager map URL [--instructions S] [--max-depth 1..=5] [--max-breadth 1..=500]
                 [--limit N>0] [--timeout 10..=150（默认 150）] [...]
 forager exa search QUERY [--num-results 5] [--search-type neural|keyword|auto]
-                         [--include-text] [--include-highlights] [--start-published-date D]
+                         [--include-text [--text-max-characters 3000]] [--include-highlights]
+                         [--start-published-date D]
                          [--include-domains ...] [--exclude-domains ...] [--category NAME] [...]
 forager exa similar URL [--num-results 5] [...]
 forager context7 library NAME [QUERY] [...]
@@ -38,10 +39,12 @@ forager setup [--non-interactive] [--lang zh|en]
 
 - `--format json(默认)/markdown/content` 三态；**content 收窄**到 search、fetch、context7 docs 与 research，per-command ValueEnum 在解析层强制。research 的 Markdown/content 都渲染 Research Evidence Index 与 unresolved gaps，不渲染证据正文或机械答案。doctor 默认 json。
 - `--output FILE` 为 **tee 语义**（写文件 + stdout 照常）。写失败＝非零终态退 3，stdout JSON 照常输出并标注写失败（#59 H15）；与 journal 旁路（非致命）区分。
+- `--receipt`（须与 `--output` 同用，所有带 `--output` 的命令均支持）为**回执语义**：文件内容与 tee 完全相同；仅当命令成功（退 0）且文件写入成功时，stdout 改为单行 JSON 回执 `{"output_path", "bytes", "lines"}`，其中 `bytes`/`lines` 描述写入文件的内容。命令失败时 stdout 仍是该失败的完整瘦载荷；写失败时退回 tee 的写失败行为（完整 stdout + 标注，退 3）。它让调用方把长结果留在文件中、按需读取片段，而不是让全文进入调用方上下文。
 - 退出码：`0` 成功（含直连命令的合法空结果）；`2` 参数错（clap 天然 + 坏 plan + `config set` 非法路径）；`3` config_error（含未知文件键、未知 `FORAGER_*` env、web_fetch 空链、`--output` 写失败）；`4` transport 族终态；`5` content 族终态（quality/evidence；**evidence_error 由 4 改 5**）。`1` 空缺；panic 101 不拦，为非契约异常出口。
 - **JSON 飞行前终态**：clap 已成功解析并选择 `--format json` 后，search/fetch/research 的配置装载以及 research plan 读取、解析、校验失败都在 stdout 返回单个可解析错误对象，退出码沿用 2/3/4/5。clap argv 错误与 panic 豁免；Markdown/content 保持简洁 stderr 错误。尚未取得有效 `JournalRuntimeConfig` 时不得猜测 journal 配置或回退默认目录，返回 `journal_ref: null` 与 `journal_status: "unavailable"`。
 - **默认 stdout 瘦载荷**：成功＝结果本身；普通命令失败＝`error_kind` + 一行 message + attempts 计数摘要（total/by_kind/providers，非全文）+ 精简 capability_gaps + `journal_ref`（nullable）与 `journal_status`。research 失败使用稳定小形状：`error_kind`、有界 `message`、完整 `evidence_dir`、可空且仅在文件可读时存在的 `summary_path`、精简 gap、`synthesis_policy` 与 journal 状态；不按编码长度切换 schema，locator 永不截断。普通路径以 4 KiB 为目标，极端长的合法路径可超出。全量 `provider_attempts` 只落 journal；`--verbose` 为 inline 全量逃生阀。
-- **fetch 成功载荷**：`content` 只包含 provider 无关的 Markdown 正文；provider attempts 与 diagnostic 保持在各自字段/输出通道，不混入正文。URL 与 PDF 共享 `web_fetch` 链和失败语义，`--output` 仍是 tee。
+- **search 失败附带候选**（ADR 0016）：辅助能力与主搜索并发执行，主搜索失败时终态与退出码仍只由主搜索决定；已取得的 Search Candidate 不丢弃。默认失败 JSON 增加非空时才出现的 `capability_gaps`，以及 `extra_sources`（去掉各条 `summary`，按顺序保留到载荷触及 4 KiB 目标前为止）与 `extra_sources_truncated`；attempts 计数摘要同时计入辅助 attempts；`--verbose` 给出完整 `extra_sources`；Markdown 失败视图列出 Extra Sources；journal 失败结果面保存完整候选与 gaps。无候选时不输出后两个字段。
+- **fetch 成功载荷**：`content` 只包含 provider 无关的 Markdown 正文；provider attempts 与 diagnostic 保持在各自字段/输出通道，不混入正文。URL 与 PDF 共享 `web_fetch` 链和失败语义，`--output` 的 tee 与 `--receipt` 语义同上。
 
 ## search 参数清理
 
@@ -56,10 +59,10 @@ forager setup [--non-interactive] [--lang zh|en]
 
 ## search 输出角色
 
-- `sources` 只表示 Primary Search Source；所有非主候选统一由 `extra_sources` 表示，领域类型为 Search Candidate，不再公开独立 `vertical_results`。
+- `sources` 只表示 Primary Search Source；空 `sources` 即主回答没有可归属的引用（例如不带联网搜索的 fallback backend 作答），forager 不另设字段标记，由调用方把此类回答视为未核实。所有非主候选统一由 `extra_sources` 表示，领域类型为 Search Candidate，不再公开独立 `vertical_results`。
 - 每条 Search Candidate 固定包含必填 `provider`、`capability`、`provider_data`，以及可空 `title`、`url`、`summary`。`url` 只能是真实 HTTP(S) URL；`summary` 只复制 provider-native 描述、摘要或片段；`provider_data` 只投影 provider 定义的 snake_case 强类型白名单，不透传原始 HTTP/MCP 包装或正文。
 - Context7 Documentation Search 只 resolve library，候选 `url: null`、`summary` 复制 description；`provider_data` 白名单为 `library_id`、`total_snippets`、`trust_score`、`benchmark_score`、`stars`、`versions`。Research 才调用 query-docs 取证。Exa Documentation Search 使用真实 URL，白名单为 `id`、`highlights`、`published_date`、`author`、`image`、`favicon`，且不读取完整 text。直连 `context7 docs` 继续只公开可消费 `content`，structuredContent-only 响应也必须填充该字段。
-- Main Search 在完整响应组装后共享执行 normalizer：先删除完整闭合、大小写不敏感且可跨行的 `<think>...</think>`，再投影末尾显式来源标题块与 `[[N]](HTTP(S) URL)`；其他策略关键词、`sources(...)`、任意 `<details>` 或尾链猜测不解析。规范化后 answer 为空为 Runtime。来源按脱敏后的公开 URL 稳定去重。
+- Main Search 在完整响应组装后共享执行 normalizer：先删除完整闭合、大小写不敏感且可跨行的 `<think>...</think>`，再投影末尾显式来源标题块与 `[[N]](HTTP(S) URL)`；其他策略关键词、`sources(...)`、任意 `<details>` 或尾链猜测不解析。规范化后 answer 为空为 Runtime。provider 引用注释中仅由数字构成的标题是引用序号而非页面标题，按无标题处理。来源按脱敏后的公开 URL 稳定去重。
 
 ## 契约①：`--capabilities`
 
@@ -108,11 +111,11 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 - `candidates.json`：`is_evidence: false` 的未消费候选完整元数据；
 - `summary.json`：Research Recovery Manifest，而非 Research Evidence Index；记录 query、budget、plan source、capabilities、fallback、evidence identity/metadata/path、coverage、gap、capability gaps、终态、attempts 与 `synthesis_policy`，不包含 evidence 正文。
 
-成功 stdout 交付 Research Evidence Index；失败通过可读的 Recovery Manifest 保证制品可恢复，不要求两种终态内联同一形状。manifest 写入失败时保留原终态与完整 `evidence_dir`，`summary_path: null` 并输出既有 diagnostic。`--verbose` 仍只负责把 `provider_attempts` 显式内联；`--output` 仍是 tee。
+成功 stdout 交付 Research Evidence Index；失败通过可读的 Recovery Manifest 保证制品可恢复，不要求两种终态内联同一形状。manifest 写入失败时保留原终态与完整 `evidence_dir`，`summary_path: null` 并输出既有 diagnostic。`--verbose` 仍只负责把 `provider_attempts` 显式内联；`--output` 的 tee 与 `--receipt` 语义同上。
 
 ## 契约③：`doctor --provider`
 
-两档：`doctor` 浅检全体（掩码配置 + 凭据存在 + 可达性 + 过宽权限报告 + config list 同构生效值块）；顶层 `ok` 等于所有 `configured=true` provider 均 `reachable=true`，零配置为 true，任一不可达则 JSON/Markdown 均为 false 并退出 4，permission warning 不改变 `ok`。`--provider NAME` 深探单体，值域＝8 provider 编译期 enum。8 个 provider 均执行凭据有效性 + 最小活体调用；openai-compatible 额外保留 stream/no-stream 双形状判定。
+两档：`doctor` 浅检全体（掩码配置 + 凭据存在 + 可达性（对 endpoint 发 GET 并只等待响应头，任何 HTTP 响应都算可达；部分 endpoint 对 HEAD 不响应）+ 过宽权限报告 + config list 同构生效值块）；顶层 `ok` 等于所有 `configured=true` provider 均 `reachable=true`，零配置为 true，任一不可达则 JSON/Markdown 均为 false 并退出 4，permission warning 不改变 `ok`。`config_warnings` 报告主搜索链中与首个已配置 backend 使用相同 endpoint（忽略末尾 `/`）和相同主模型的后续 backend——这类 fallback 与主 backend 处于同一故障域；该警告同样不改变 `ok`。`--provider NAME` 深探单体，值域＝8 provider 编译期 enum。8 个 provider 均执行凭据有效性 + 最小活体调用；openai-compatible 额外保留 stream/no-stream 双形状判定。
 
 ## 收尾
 

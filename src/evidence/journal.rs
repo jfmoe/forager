@@ -7,9 +7,9 @@ use serde_json::{Value, json};
 
 use crate::config::JournalRuntimeConfig;
 use crate::net::duration_millis;
-use crate::providers::ProviderError;
 use crate::redact::{Secret, redact_credentials};
 use crate::research::ResearchTerminal;
+use crate::search_fanout::SearchFailure;
 use crate::secure_fs::{create_new_private_file, ensure_private_directory};
 use crate::types::{Capability, JournalOutcome, SearchOutcome};
 
@@ -24,7 +24,7 @@ pub(crate) struct SearchRecord<'a> {
     pub(crate) decision_source: &'static str,
     pub(crate) classifier_degraded: bool,
     pub(crate) classifier_duration: Option<Duration>,
-    pub(crate) result: &'a Result<SearchOutcome, ProviderError>,
+    pub(crate) result: &'a Result<SearchOutcome, SearchFailure>,
 }
 
 #[derive(Clone, Copy)]
@@ -225,15 +225,17 @@ fn build_record(record: SearchRecord<'_>) -> Value {
             &outcome.attempts,
             "ok",
         ),
-        Err(error) => (
+        Err(failure) => (
             json!({
                 "status": "error",
                 "query": record.query,
-                "error_kind": error.kind.as_str(),
-                "message": error.message,
+                "error_kind": failure.error.kind.as_str(),
+                "message": failure.error.message,
+                "extra_sources": failure.extra_sources,
+                "capability_gaps": failure.capability_gaps,
             }),
-            &error.attempts,
-            error.kind.as_str(),
+            &failure.error.attempts,
+            failure.error.kind.as_str(),
         ),
     };
     json!({
@@ -256,10 +258,10 @@ fn build_record(record: SearchRecord<'_>) -> Value {
             "classifier_duration_ms": record.classifier_duration
                 .map(duration_millis)
                 .map_or(Value::Null, Value::from),
-            "capability_gaps": record.result
-                .as_ref()
-                .map(|outcome| &outcome.capability_gaps)
-                .ok()
+            "capability_gaps": match record.result {
+                Ok(outcome) => &outcome.capability_gaps,
+                Err(failure) => &failure.capability_gaps,
+            }
         }
     })
 }

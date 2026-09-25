@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use reqwest::Client;
+use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize};
 
 use crate::config::ExaRuntimeConfig;
@@ -25,7 +26,7 @@ pub(crate) struct ExaSearchRequest {
     pub(crate) query: String,
     pub(crate) num_results: u16,
     pub(crate) search_type: SearchType,
-    pub(crate) include_text: bool,
+    pub(crate) text_max_characters: Option<u32>,
     pub(crate) include_highlights: bool,
     pub(crate) start_published_date: Option<String>,
     pub(crate) include_domains: Vec<String>,
@@ -168,7 +169,10 @@ impl Exa {
 
     fn normalize_source(&self, operation: &ExaOperation, result: ExaResult) -> Source {
         let (include_text, include_highlights) = match operation {
-            ExaOperation::Search(request) => (request.include_text, request.include_highlights),
+            ExaOperation::Search(request) => (
+                request.text_max_characters.is_some(),
+                request.include_highlights,
+            ),
             ExaOperation::Similar(_) => (true, true),
         };
         Source {
@@ -265,9 +269,13 @@ struct ExaSearchBody<'a> {
 
 impl<'a> From<&'a ExaSearchRequest> for ExaSearchBody<'a> {
     fn from(request: &'a ExaSearchRequest) -> Self {
-        let contents =
-            (request.include_text || request.include_highlights).then_some(ExaContents {
-                text: request.include_text,
+        let contents = (request.text_max_characters.is_some() || request.include_highlights)
+            .then_some(ExaContents {
+                text: request
+                    .text_max_characters
+                    .map_or(ExaText::Disabled, |max_characters| ExaText::Limited {
+                        max_characters,
+                    }),
                 highlights: request.include_highlights,
             });
         Self {
@@ -301,8 +309,26 @@ impl<'a> From<&'a ExaSimilarRequest> for ExaSimilarBody<'a> {
 
 #[derive(Serialize)]
 struct ExaContents {
-    text: bool,
+    text: ExaText,
     highlights: bool,
+}
+
+enum ExaText {
+    Limited { max_characters: u32 },
+    Disabled,
+}
+
+impl Serialize for ExaText {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::Limited { max_characters } => {
+                let mut options = serializer.serialize_struct("ExaText", 1)?;
+                options.serialize_field("maxCharacters", max_characters)?;
+                options.end()
+            }
+            Self::Disabled => serializer.serialize_bool(false),
+        }
+    }
 }
 
 #[derive(Deserialize)]
