@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.2](https://github.com/jfmoe/forager/compare/v0.5.1...v0.5.2) - 2026-09-25
+
+### Added
+
+- *(docs-search)* prefer Exa over Context7 and share research discovery slots
+- cut search token cost and run supplemental search alongside main search
+
+### Other
+
+- *(skills)* allow searches for new questions
+- remove code-quality skill and reviews
+
 ## [0.5.1](https://github.com/jfmoe/forager/compare/v0.5.0...v0.5.1) - 2026-09-04
 
 ### Fixed
