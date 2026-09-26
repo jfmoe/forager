@@ -26,6 +26,22 @@ Every item carries `depth`, the content it actually holds: `metadata` (bibliogra
 - **SSRN** `fetch` defaults to `--depth metadata` and includes the abstract when a route has one.
   `--depth abstract` requires an abstract and fails with exit 5 when none is available. SSRN full
   text is not available: `--depth full_text` exits 2.
+- **SSRN search** items from `ssrn_crossref` are `abstract` or `metadata`; items from
+  `ssrn_browser` are `snippet` (`metadata` for a result card without an excerpt). A browser page never spans two SSRN result pages, so it can hold
+  fewer items than `--limit`; follow `next_cursor` for more.
+
+## SSRN browser route
+
+`ssrn_browser` reads SSRN in the user's own Chrome through OpenCLI. It is off by default. Enable it
+only when the user asks for it; it runs at most one browser command every 5 seconds.
+
+- **Install** (verified with OpenCLI 1.8.6): OpenCLI with its Chrome Browser Bridge connected
+  (`opencli doctor`), then copy the `opencli/ssrn` directory next to this skill's `SKILL.md` to
+  `~/.opencli/clis/ssrn` (replace the whole directory to update). Run the same copy after updating
+  forager, then `forager doctor` to check the adapter.
+- **Enable**: `forager config set platforms.ssrn.order '["ssrn_crossref", "ssrn_browser"]'`. With
+  this order, a `--depth abstract` fetch that Crossref cannot serve falls through to the browser.
+  Set `providers.ssrn_browser.command` when `opencli` is not on `PATH`.
 
 ## Read full text
 
@@ -67,6 +83,10 @@ body must enter context or a pipe directly.
   `metadata` depth and state that the abstract is unavailable.
 - "SSRN paper not found in Crossref": the paper may still exist on SSRN; say that Crossref has no
   record of it rather than that the paper does not exist.
+- An `ssrn_browser` `auth` error saying SSRN security verification did not clear: ask the user to
+  open SSRN in Chrome and pass the check by hand, then retry. Never try to pass it for them.
+- An `ssrn_browser` error that names the forager OpenCLI adapter, or a doctor `message` with
+  install steps: repeat the install step in "SSRN browser route".
 
 Platform retrieval is complete when the requested items or content are read at the depth the answer
 needs, or a terminal failure is reported with its recovery.

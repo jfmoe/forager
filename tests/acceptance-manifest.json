@@ -120,6 +120,20 @@
       "provider": "ssrn_crossref",
       "seam": "platform:ssrn:fetch",
       "test": "tests/ssrn_fetch.rs::fetch_returns_metadata_and_the_abstract_at_the_default_depth"
+    },
+    {
+      "id": "F15",
+      "provider": "ssrn_browser",
+      "seam": "platform:ssrn:search",
+      "test": "tests/ssrn_browser.rs::search_maps_page_facts_to_snippet_items",
+      "note": "A fake opencli executable proves the transport and the route adapter; the JavaScript adapter is covered only by the live smoke C22."
+    },
+    {
+      "id": "F16",
+      "provider": "ssrn_browser",
+      "seam": "platform:ssrn:fetch",
+      "test": "tests/ssrn_browser.rs::fetch_reads_the_paper_page_with_its_abstract",
+      "note": "A fake opencli executable proves the transport and the route adapter; the JavaScript adapter is covered only by the live smoke C23."
     }
   ],
   "offline_e2e": [

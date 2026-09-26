@@ -34,6 +34,7 @@ fn edit_value_satisfies(rule: Rule, value: &Value) -> bool {
                 allow_empty,
             )
         }),
+        Rule::NonEmpty => value.as_str().is_some_and(|value| !value.trim().is_empty()),
         Rule::Positive => value.as_integer().is_some_and(|value| value > 0),
         Rule::PositiveFinite => value
             .as_float()
@@ -80,6 +81,7 @@ fn field_satisfies(rule: Rule, field: FieldRef<'_>) -> bool {
             unique,
             allow_empty,
         ),
+        (Rule::NonEmpty, FieldRef::String(value)) => !value.trim().is_empty(),
         (Rule::Positive, FieldRef::U64(value)) => value > 0,
         (Rule::PositiveFinite, FieldRef::F64(value)) => value.is_finite() && value > 0.0,
         (

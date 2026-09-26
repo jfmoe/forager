@@ -186,12 +186,20 @@ pub(crate) struct HttpRouteRuntimeConfig {
     pub(crate) timeout_seconds: u64,
 }
 
+/// The configuration of a platform route that runs local OpenCLI commands.
+#[derive(Clone, Debug)]
+pub(crate) struct ProcessRouteRuntimeConfig {
+    pub(crate) command: String,
+    pub(crate) timeout_seconds: u64,
+}
+
 /// The configuration of every platform route. Route lookups take it whole, so a new route adds
 /// a field here and changes no signature.
 #[derive(Clone, Debug)]
 pub(crate) struct PlatformRoutesRuntimeConfig {
     pub(crate) arxiv_api: HttpRouteRuntimeConfig,
     pub(crate) ssrn_crossref: HttpRouteRuntimeConfig,
+    pub(crate) ssrn_browser: ProcessRouteRuntimeConfig,
 }
 
 /// The configuration of one platform route.
@@ -199,6 +207,7 @@ pub(crate) struct PlatformRoutesRuntimeConfig {
 pub(crate) enum PlatformRouteConfig {
     ArxivApi(HttpRouteRuntimeConfig),
     SsrnCrossref(HttpRouteRuntimeConfig),
+    SsrnBrowser(ProcessRouteRuntimeConfig),
 }
 
 impl PlatformRouteConfig {
@@ -206,12 +215,15 @@ impl PlatformRouteConfig {
         match self {
             Self::ArxivApi(_) => ProviderId::ArxivApi,
             Self::SsrnCrossref(_) => ProviderId::SsrnCrossref,
+            Self::SsrnBrowser(_) => ProviderId::SsrnBrowser,
         }
     }
 
     pub(crate) fn configured(&self) -> bool {
         match self {
-            Self::ArxivApi(_) | Self::SsrnCrossref(_) => provider_configured(self.route(), &[]),
+            Self::ArxivApi(_) | Self::SsrnCrossref(_) | Self::SsrnBrowser(_) => {
+                provider_configured(self.route(), &[])
+            }
         }
     }
 }
@@ -458,6 +470,7 @@ pub(crate) struct RuntimeConfig {
 }
 
 pub(crate) struct ProviderRuntime<'a> {
+    /// The HTTP endpoint, or the command of a process route.
     pub(crate) endpoint: &'a str,
     pub(crate) keys: &'a [Secret],
 }
@@ -509,6 +522,10 @@ impl RuntimeConfig {
             },
             ProviderId::SsrnCrossref => ProviderRuntime {
                 endpoint: &self.platform_routes.ssrn_crossref.url,
+                keys: &[],
+            },
+            ProviderId::SsrnBrowser => ProviderRuntime {
+                endpoint: &self.platform_routes.ssrn_browser.command,
                 keys: &[],
             },
         }
@@ -573,6 +590,10 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         ssrn_crossref: HttpRouteRuntimeConfig {
             url: config.providers.ssrn_crossref.url,
             timeout_seconds: config.providers.ssrn_crossref.timeout,
+        },
+        ssrn_browser: ProcessRouteRuntimeConfig {
+            command: config.providers.ssrn_browser.command,
+            timeout_seconds: config.providers.ssrn_browser.timeout,
         },
     };
     let classifier = ClassifierRuntimeConfig {
@@ -778,6 +799,9 @@ pub(crate) fn platform_route_config(
         ProviderId::ArxivApi => Some(PlatformRouteConfig::ArxivApi(routes.arxiv_api.clone())),
         ProviderId::SsrnCrossref => Some(PlatformRouteConfig::SsrnCrossref(
             routes.ssrn_crossref.clone(),
+        )),
+        ProviderId::SsrnBrowser => Some(PlatformRouteConfig::SsrnBrowser(
+            routes.ssrn_browser.clone(),
         )),
         _ => None,
     }

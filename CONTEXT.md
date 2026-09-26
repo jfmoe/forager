@@ -148,6 +148,14 @@ _Avoid_: platform provider、vertical domain、custom platform
 接入某个 Platform 的一条路线；route 就是供应方，同平台的 route 按配置顺序组成 fallback 链。route 身份绝不使用裸平台名。
 _Avoid_: platform backend、platform provider list
 
+**Route Transport**:
+Platform Route 到达外部内容源的方式，在供应方注册信息中声明：HTTP（配置 `url`），或本机 OpenCLI 命令（配置 `command`，这类 route 称为 process route）。配置检查、doctor 与接入清单按传输类型判断，不按 route id 判断。process route 只能由用户在平台 order 中手动启用（ADR 0020）。
+_Avoid_: route kind、backend type
+
+**OpenCLI Adapter**:
+forager 自有、安装到本机 OpenCLI 的站点命令集合，例如 SSRN 的 `search`、`paper` 与 `contract`。每个命令只读取页面事实，输出带契约版本的统一外壳（`contract`、`status`、`data`）；校验与归一化由 route adapter 完成。只有 adapter 核实了站点自己的无结果提示时，`status` 才是 `no_results`。
+_Avoid_: OpenCLI plugin、browser script、built-in OpenCLI site adapter
+
 **Platform Ref**:
 Platform 实体的类型化身份，由平台、平台自有的 kind 与 id 组成，可以带版本（SSRN 修订论文时 DOI 不变，无法据此推出版本，因此 SSRN ref 不带版本）；它与 canonical URL 可以互相推导。kind 只按身份空间或取回结果形状划分，不按对话角色划分。
 _Avoid_: platform URL、raw id

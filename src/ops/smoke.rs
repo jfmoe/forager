@@ -27,9 +27,9 @@ pub(crate) const RESEARCH_CANARY_QUERY: &str = "What is the current status of as
 const FETCH_CANARY_URL: &str = "https://www.rust-lang.org/";
 const ANYSEARCH_CANARY_QUERY: &str = "retrieval augmented generation";
 const PLATFORM_CANARY_QUERY: &str = "retrieval augmented generation";
-const SPECIFICATION_CASE_IDS: [&str; 23] = [
+const SPECIFICATION_CASE_IDS: [&str; 25] = [
     "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12",
-    "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21",
+    "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23",
 ];
 const PIPELINE_CASES: [LiveCaseDefinition; 3] = [
     LiveCaseDefinition::pipeline("P1", "search"),
@@ -489,7 +489,11 @@ pub(crate) fn run_live(
                 attempts: 0,
                 checked_at_unix_seconds: unix_timestamp(),
                 outage_evidence: None,
-                message: Some("required unified credentials are not configured"),
+                message: Some(if definition.platform.is_some() {
+                    "the platform order does not list this route"
+                } else {
+                    "required unified credentials are not configured"
+                }),
             }
         };
         match result.status {

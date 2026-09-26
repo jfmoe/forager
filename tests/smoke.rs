@@ -7,6 +7,7 @@ use std::process::{Command, Output};
 use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
+use support::opencli::FakeOpenCli;
 use support::{Fixture, Response, run_command};
 
 struct SmokeEnvironment {
@@ -96,8 +97,8 @@ fn offline_smoke_reports_local_readiness_without_contacting_provider_endpoints()
             Some(0),
             &Value::String("offline".into()),
             &Value::Bool(true),
-            &json!({"ok": true, "provider_count": 10}),
-            Some(10),
+            &json!({"ok": true, "provider_count": 11}),
+            Some(11),
             &json!(["********"]),
             &json!(["********"]),
             &Value::Bool(true),
@@ -123,7 +124,7 @@ fn live_smoke_lists_exactly_the_specification_case_registry_without_l0_doctor_ga
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live registry JSON");
     let expected = json!([
         "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11",
-        "C12", "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21"
+        "C12", "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23"
     ]);
 
     assert_eq!(
@@ -175,7 +176,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
             Some(4),
             &Value::String("live".into()),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 22}),
+            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 24}),
             &Value::String("failed".into()),
             &Value::Number(3.into()),
             &Value::String("unconfigured".into()),
@@ -212,7 +213,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
         (
             Some(4),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 22}),
+            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 24}),
             &Value::String("deferred".into()),
             &Value::Number(3.into()),
             &Value::String("http://127.0.0.1:9?token=********".into()),
@@ -300,7 +301,7 @@ fn live_smoke_passes_a_configured_case_only_after_a_zero_parseable_nonempty_term
         ),
         (
             Some(4),
-            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 22}),
+            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 24}),
             &Value::String("passed".into()),
             &Value::Number(1.into()),
         ),
@@ -508,7 +509,7 @@ fn live_smoke_runs_the_platform_cases_through_their_configured_route() {
             crossref_requests[1].contains("/works/10.2139/ssrn.2042750"),
         ),
         (
-            &json!({"passed": 4, "failed": 0, "deferred": 0, "unconfigured": 19}),
+            &json!({"passed": 4, "failed": 0, "deferred": 0, "unconfigured": 21}),
             [(); 4].map(|()| Value::String("passed".into())),
             [
                 &Value::String("arxiv".into()),
@@ -522,6 +523,56 @@ fn live_smoke_runs_the_platform_cases_through_their_configured_route() {
         "stdout: {}\nstderr: {}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn live_smoke_runs_the_browser_cases_only_when_the_order_lists_the_route() {
+    let fake = FakeOpenCli::by_command(&[
+        (
+            "search",
+            json!({
+                "url": "https://papers.ssrn.com/searchresults.cfm?term=retrieval+augmented+generation",
+                "term": "retrieval augmented generation",
+                "current_page": "1",
+                "range": "Displaying results 1 to 1 of 1",
+                "results": [{
+                    "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=1",
+                    "title": "Paper"
+                }]
+            }),
+        ),
+        (
+            "paper",
+            json!({
+                "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2042750",
+                "canonical_url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2042750",
+                "title": "Risk Premia Harvesting Through Dual Momentum"
+            }),
+        ),
+    ]);
+    let run = |order: &str| {
+        let environment = SmokeEnvironment::new(|journal_dir| {
+            format!(
+                "{}[journal]\ndir = {journal_dir:?}\n[platforms.arxiv]\norder = []\n",
+                fake.config(order)
+            )
+        });
+        let output = environment.run(&["smoke", "--live", "--timeout", "60"]);
+        let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live smoke JSON");
+        ["C22", "C23"].map(|id| case(&payload, id)["status"].clone())
+    };
+
+    let disabled = run("[]");
+    let enabled = run("[\"ssrn_browser\"]");
+
+    assert_eq!(
+        (disabled, enabled, fake.calls().len()),
+        (
+            [(); 2].map(|()| Value::String("unconfigured".into())),
+            [(); 2].map(|()| Value::String("passed".into())),
+            2
+        )
     );
 }
 

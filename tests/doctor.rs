@@ -4,6 +4,7 @@ use serde_json::Value;
 
 use std::time::Duration;
 
+use support::opencli::FakeOpenCli;
 use support::{Fixture, Response, RunEnvironment, jina_response, request_json};
 
 #[test]
@@ -41,7 +42,7 @@ fn shallow_doctor_reports_all_registry_providers_and_reuses_the_config_list_view
             Some(0),
             &Value::String("shallow".into()),
             &Value::Bool(true),
-            Some(10),
+            Some(11),
             &config,
             &Value::String("xai".into()),
             &Value::Bool(true),
@@ -502,7 +503,7 @@ fn doctor_markdown_preserves_the_json_status_and_effective_configuration() {
     assert!(markdown.contains("## Effective configuration"));
     assert!(markdown.contains(r#""source": "file""#));
     assert!(!markdown.contains("exa-secret"));
-    assert_eq!(payload["providers"].as_array().map(Vec::len), Some(10));
+    assert_eq!(payload["providers"].as_array().map(Vec::len), Some(11));
     assert_eq!(fixture.finish_all().len(), 20);
 }
 
@@ -672,6 +673,148 @@ fn shallow_doctor_treats_providers_without_keys_as_unconfigured_and_healthy() {
         )
     );
     assert_eq!(fixture.finish_all().len(), 10);
+}
+
+fn ssrn_browser_status(payload: &Value) -> &Value {
+    payload["providers"]
+        .as_array()
+        .expect("providers")
+        .iter()
+        .find(|provider| provider["provider"] == "ssrn_browser")
+        .expect("ssrn_browser status")
+}
+
+/// Runs a shallow doctor where every HTTP provider is reachable and `fake` answers for
+/// `ssrn_browser`, which the SSRN order lists when `enabled`.
+fn shallow_with_browser(fake: &FakeOpenCli, enabled: bool) -> std::process::Output {
+    let fixture = Fixture::start_sequence(reachable_responses(10));
+    let order = if enabled {
+        "[\"ssrn_crossref\", \"ssrn_browser\"]"
+    } else {
+        "[\"ssrn_crossref\"]"
+    };
+    let environment = RunEnvironment::new(&format!(
+        "{}\n{}",
+        shallow_config(&fixture.url),
+        fake.config(order)
+    ));
+    let output = environment.run(&["doctor"]);
+    assert_eq!(fixture.finish_all().len(), 10);
+    output
+}
+
+#[test]
+fn shallow_doctor_checks_an_enabled_process_route_by_its_contract_command() {
+    let fake = FakeOpenCli::envelope("ok", &serde_json::json!({}));
+
+    let output = shallow_with_browser(&fake, true);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
+    let calls = fake.calls();
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["ok"],
+            ssrn_browser_status(&payload)["configured"].clone(),
+            ssrn_browser_status(&payload)["reachable"].clone(),
+            calls.len(),
+            calls[0][..2].to_vec(),
+        ),
+        (
+            Some(0),
+            &Value::Bool(true),
+            Value::Bool(true),
+            Value::Bool(true),
+            1,
+            vec!["ssrn".to_owned(), "contract".to_owned()],
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn shallow_doctor_reports_an_outdated_adapter_with_install_steps() {
+    let fake = FakeOpenCli::answering(
+        r#"{"contract":"forager-ssrn/0","status":"ok","data":{}}"#,
+        "",
+        0,
+    );
+
+    let output = shallow_with_browser(&fake, true);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
+    let status = ssrn_browser_status(&payload);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["ok"],
+            &status["reachable"],
+            status["message"]
+                .as_str()
+                .is_some_and(|message| message.contains("install or update")),
+        ),
+        (Some(4), &Value::Bool(false), &Value::Bool(false), true)
+    );
+}
+
+#[test]
+fn shallow_doctor_skips_a_process_route_that_no_order_enables() {
+    let fake = FakeOpenCli::answering("", "", 1);
+
+    let output = shallow_with_browser(&fake, false);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["ok"],
+            ssrn_browser_status(&payload)["configured"].clone(),
+            fake.calls().len(),
+        ),
+        (Some(0), &Value::Bool(true), Value::Bool(false), 0)
+    );
+}
+
+#[test]
+fn ssrn_browser_deep_doctor_runs_one_platform_search() {
+    let fake = FakeOpenCli::envelope(
+        "ok",
+        &serde_json::json!({
+            "url": "https://papers.ssrn.com/searchresults.cfm?term=forager+doctor",
+            "term": "forager doctor",
+            "current_page": "1",
+            "range": "Displaying results 1 to 1 of 1",
+            "results": [{
+                "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=1",
+                "title": "Paper"
+            }]
+        }),
+    );
+    let environment = RunEnvironment::new(&fake.config("[\"ssrn_browser\"]"));
+
+    let output = environment.run(&["doctor", "--provider", "ssrn_browser"]);
+
+    assert_deep_success(&output, "ssrn_browser", &[("search", "process")]);
+    assert_eq!(fake.calls()[0][..2], ["ssrn", "search"]);
+}
+
+#[test]
+fn ssrn_browser_deep_doctor_refuses_a_route_that_no_order_enables() {
+    let fake = FakeOpenCli::envelope("ok", &serde_json::json!({}));
+    let environment = RunEnvironment::new(&fake.config("[\"ssrn_crossref\"]"));
+
+    let output = environment.run(&["doctor", "--provider", "ssrn_browser"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["error_kind"],
+            fake.calls().len()
+        ),
+        (Some(3), &Value::String("config".into()), 0)
+    );
 }
 
 #[test]

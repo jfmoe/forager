@@ -17,6 +17,8 @@ use std::sync::{Arc, Condvar, Mutex, mpsc};
 use std::thread;
 use std::time::{Duration, Instant};
 
+pub(crate) mod opencli;
+
 const ACCEPT_DEADLINE: Duration = Duration::from_secs(10);
 const ACCEPT_POLL_INTERVAL: Duration = Duration::from_millis(10);
 const SYNCHRONIZATION_DEADLINE: Duration = Duration::from_secs(2);

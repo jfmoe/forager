@@ -6,7 +6,9 @@ mod exa;
 pub(crate) mod execution;
 mod factory;
 mod openai_compatible;
+mod opencli;
 pub(crate) mod shared;
+mod ssrn_browser;
 mod ssrn_crossref;
 mod supplemental;
 mod tavily_map;
@@ -29,6 +31,8 @@ pub(crate) use factory::{
     platform_search_support,
 };
 pub(crate) use openai_compatible::{ModelBreakers, OpenAiCompatible};
+pub(crate) use opencli::check_contract as check_opencli_contract;
+pub(crate) use ssrn_browser::SsrnBrowser;
 pub(crate) use ssrn_crossref::SsrnCrossref;
 pub(crate) use supplemental::SupplementalSearch;
 pub(crate) use tavily_map::{MapRequest, TavilyMap};

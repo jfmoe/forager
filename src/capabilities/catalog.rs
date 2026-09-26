@@ -89,10 +89,11 @@ pub(crate) const ARXIV: PlatformCatalog = PlatformCatalog {
     default_order: &[ProviderId::ArxivApi],
 };
 
+// `ssrn_browser` drives the user's own browser, so users must enable it themselves (ADR 0020).
 pub(crate) const SSRN: PlatformCatalog = PlatformCatalog {
     platform: Platform::Ssrn,
-    search: &[ProviderId::SsrnCrossref],
-    fetch: &[ProviderId::SsrnCrossref],
+    search: &[ProviderId::SsrnCrossref, ProviderId::SsrnBrowser],
+    fetch: &[ProviderId::SsrnCrossref, ProviderId::SsrnBrowser],
     default_order: &[ProviderId::SsrnCrossref],
 };
 
@@ -149,10 +150,11 @@ pub(crate) enum ProviderId {
     Anysearch,
     ArxivApi,
     SsrnCrossref,
+    SsrnBrowser,
 }
 
 impl ProviderId {
-    pub(crate) const ALL: [Self; 10] = [
+    pub(crate) const ALL: [Self; 11] = [
         Self::Xai,
         Self::OpenAiCompatible,
         Self::Exa,
@@ -163,6 +165,7 @@ impl ProviderId {
         Self::Anysearch,
         Self::ArxivApi,
         Self::SsrnCrossref,
+        Self::SsrnBrowser,
     ];
 
     pub(crate) fn parse(value: &str) -> Option<Self> {
@@ -177,6 +180,7 @@ impl ProviderId {
             "anysearch" => Some(Self::Anysearch),
             "arxiv_api" => Some(Self::ArxivApi),
             "ssrn_crossref" => Some(Self::SsrnCrossref),
+            "ssrn_browser" => Some(Self::SsrnBrowser),
             _ => None,
         }
     }
@@ -193,8 +197,27 @@ impl ProviderId {
             Self::Anysearch => "anysearch",
             Self::ArxivApi => "arxiv_api",
             Self::SsrnCrossref => "ssrn_crossref",
+            Self::SsrnBrowser => "ssrn_browser",
         }
     }
+}
+
+/// How forager reaches a provider. Configuration checks and doctor branch on it, never on a
+/// provider ID.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ProviderTransport {
+    /// HTTP requests to the configured `url`.
+    Http,
+    /// Commands of a forager-owned OpenCLI adapter, run through the configured `command`.
+    OpenCli(OpenCliAdapter),
+}
+
+/// A forager-owned OpenCLI adapter: the site whose commands it installs, and the contract
+/// version of the output envelope every command answers with.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct OpenCliAdapter {
+    pub(crate) site: &'static str,
+    pub(crate) contract: &'static str,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -244,7 +267,9 @@ pub(crate) struct ProviderRegistration {
     pub(crate) id: ProviderId,
     pub(crate) operations: &'static [&'static str],
     pub(crate) credentials_required: bool,
-    /// The request pacing every send to the provider endpoint must follow.
+    pub(crate) transport: ProviderTransport,
+    /// The pacing every send to the provider must follow; a process route paces each OpenCLI
+    /// command, not each HTTP request the browser sends.
     pub(crate) access_policy: Option<AccessPolicy>,
     pub(crate) probe: DoctorProbe,
     pub(crate) smoke_cases: &'static [ProviderSmokeCase],
@@ -416,6 +441,21 @@ const SSRN_CROSSREF_SMOKE: &[ProviderSmokeCase] = &[
     },
 ];
 
+const SSRN_BROWSER_SMOKE: &[ProviderSmokeCase] = &[
+    ProviderSmokeCase {
+        id: "C22",
+        platform: Some(Platform::Ssrn),
+        operation: "search",
+        transport: "process",
+    },
+    ProviderSmokeCase {
+        id: "C23",
+        platform: Some(Platform::Ssrn),
+        operation: "fetch",
+        transport: "process",
+    },
+];
+
 // arXiv terms of use allow one request every three seconds over one connection.
 const ARXIV_API_ACCESS: AccessPolicy = AccessPolicy {
     min_interval: Duration::from_secs(3),
@@ -429,11 +469,18 @@ const SSRN_CROSSREF_ACCESS: AccessPolicy = AccessPolicy {
     max_concurrency: 1,
 };
 
+// One browser operation every five seconds keeps the pace close to a person's (ADR 0020).
+const SSRN_BROWSER_ACCESS: AccessPolicy = AccessPolicy {
+    min_interval: Duration::from_secs(5),
+    max_concurrency: 1,
+};
+
 const REGISTRY: &[ProviderRegistration] = &[
     ProviderRegistration {
         id: ProviderId::Xai,
         operations: &[],
         credentials_required: true,
+        transport: ProviderTransport::Http,
         access_policy: None,
         probe: DoctorProbe::MainSearch(XAI_PROBES),
         smoke_cases: XAI_SMOKE,
@@ -442,6 +489,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         id: ProviderId::OpenAiCompatible,
         operations: &[],
         credentials_required: true,
+        transport: ProviderTransport::Http,
         access_policy: None,
         probe: DoctorProbe::MainSearch(OPENAI_PROBES),
         smoke_cases: OPENAI_SMOKE,
@@ -450,6 +498,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         id: ProviderId::Tavily,
         operations: &["site_map"],
         credentials_required: true,
+        transport: ProviderTransport::Http,
         access_policy: None,
         probe: DoctorProbe::WebSearch {
             name: "search",
@@ -461,6 +510,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         id: ProviderId::Firecrawl,
         operations: &[],
         credentials_required: true,
+        transport: ProviderTransport::Http,
         access_policy: None,
         probe: DoctorProbe::WebSearch {
             name: "search",
@@ -472,6 +522,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         id: ProviderId::Jina,
         operations: &[],
         credentials_required: true,
+        transport: ProviderTransport::Http,
         access_policy: None,
         probe: DoctorProbe::WebFetch {
             name: "fetch",
@@ -483,6 +534,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         id: ProviderId::Context7,
         operations: &[],
         credentials_required: true,
+        transport: ProviderTransport::Http,
         access_policy: None,
         probe: DoctorProbe::DocsSearch {
             name: "library",
@@ -494,6 +546,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         id: ProviderId::Exa,
         operations: &["similar"],
         credentials_required: true,
+        transport: ProviderTransport::Http,
         access_policy: None,
         probe: DoctorProbe::DocsSearch {
             name: "search",
@@ -505,6 +558,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         id: ProviderId::Anysearch,
         operations: &["search", "domains"],
         credentials_required: true,
+        transport: ProviderTransport::Http,
         access_policy: None,
         probe: DoctorProbe::AnysearchDomains {
             name: "domains",
@@ -516,6 +570,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         id: ProviderId::ArxivApi,
         operations: &[],
         credentials_required: false,
+        transport: ProviderTransport::Http,
         access_policy: Some(ARXIV_API_ACCESS),
         probe: DoctorProbe::PlatformSearch {
             platform: Platform::Arxiv,
@@ -528,6 +583,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         id: ProviderId::SsrnCrossref,
         operations: &[],
         credentials_required: false,
+        transport: ProviderTransport::Http,
         access_policy: Some(SSRN_CROSSREF_ACCESS),
         probe: DoctorProbe::PlatformSearch {
             platform: Platform::Ssrn,
@@ -535,6 +591,22 @@ const REGISTRY: &[ProviderRegistration] = &[
             transport: "http",
         },
         smoke_cases: SSRN_CROSSREF_SMOKE,
+    },
+    ProviderRegistration {
+        id: ProviderId::SsrnBrowser,
+        operations: &[],
+        credentials_required: false,
+        transport: ProviderTransport::OpenCli(OpenCliAdapter {
+            site: "ssrn",
+            contract: "forager-ssrn/1",
+        }),
+        access_policy: Some(SSRN_BROWSER_ACCESS),
+        probe: DoctorProbe::PlatformSearch {
+            platform: Platform::Ssrn,
+            name: "search",
+            transport: "process",
+        },
+        smoke_cases: SSRN_BROWSER_SMOKE,
     },
 ];
 

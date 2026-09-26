@@ -1,0 +1,105 @@
+{
+ "recent_browser_papers_in_crossref": [
+  {
+   "ref": "ssrn:3692151",
+   "browser_posted": "2026-09-16",
+   "crossref_exit": 4,
+   "crossref_published": null,
+   "crossref_created": null,
+   "message": "SSRN paper not found in Crossref: ssrn:3692151"
+  },
+  {
+   "ref": "ssrn:7360920",
+   "browser_posted": "2026-08-28",
+   "crossref_exit": 0,
+   "crossref_published": "2026",
+   "crossref_created": "2026-08-28T13:37:54Z",
+   "message": null
+  },
+  {
+   "ref": "ssrn:7364939",
+   "browser_posted": "2026-08-30",
+   "crossref_exit": 0,
+   "crossref_published": "2026",
+   "crossref_created": "2026-08-29T16:23:56Z",
+   "message": null
+  },
+  {
+   "ref": "ssrn:7404899",
+   "browser_posted": "2026-09-04",
+   "crossref_exit": 0,
+   "crossref_published": "2026",
+   "crossref_created": "2026-09-03T18:15:29Z",
+   "message": null
+  },
+  {
+   "ref": "ssrn:7411828",
+   "browser_posted": "2026-09-05",
+   "crossref_exit": 0,
+   "crossref_published": "2026",
+   "crossref_created": "2026-09-04T17:55:59Z",
+   "message": null
+  },
+  {
+   "ref": "ssrn:7427878",
+   "browser_posted": "2026-09-14",
+   "crossref_exit": 0,
+   "crossref_published": "2026",
+   "crossref_created": "2026-09-14T09:30:52Z",
+   "message": null
+  },
+  {
+   "ref": "ssrn:7443119",
+   "browser_posted": "2026-09-11",
+   "crossref_exit": 0,
+   "crossref_published": "2026",
+   "crossref_created": "2026-09-10T18:33:32Z",
+   "message": null
+  },
+  {
+   "ref": "ssrn:7466186",
+   "browser_posted": "2026-09-15",
+   "crossref_exit": 0,
+   "crossref_published": "2026",
+   "crossref_created": "2026-09-15T15:57:17Z",
+   "message": null
+  },
+  {
+   "ref": "ssrn:7512099",
+   "browser_posted": "2026-09-23",
+   "crossref_exit": 0,
+   "crossref_published": "2026",
+   "crossref_created": "2026-09-23T13:36:58Z",
+   "message": null
+  }
+ ],
+ "crossref_2026_unique": 75,
+ "crossref_2026_with_browser_posted": {
+  "ssrn:6110747": "2026-01-26",
+  "ssrn:6178638": "2026-02-25",
+  "ssrn:6235863": "2026-02-14",
+  "ssrn:6238291": "2026-02-14",
+  "ssrn:6293281": "2026-02-23",
+  "ssrn:6364658": "2026-03-17",
+  "ssrn:6729918": "2026-05-07",
+  "ssrn:6744738": "2026-05-11",
+  "ssrn:6764145": "2026-05-21",
+  "ssrn:6867878": "2026-06-20",
+  "ssrn:6918820": "2026-06-16",
+  "ssrn:6933528": "2026-06-14",
+  "ssrn:6951461": "2026-07-12",
+  "ssrn:6953821": "2026-07-13",
+  "ssrn:6980898": "2026-07-11",
+  "ssrn:7143882": "2026-07-24",
+  "ssrn:7269511": "2026-08-12",
+  "ssrn:7288024": "2026-08-18",
+  "ssrn:7308041": "2026-08-19",
+  "ssrn:7364939": "2026-08-30",
+  "ssrn:7404899": "2026-09-04",
+  "ssrn:7411828": "2026-09-05",
+  "ssrn:7427878": "2026-09-14",
+  "ssrn:7443119": "2026-09-11",
+  "ssrn:7466186": "2026-09-15",
+  "ssrn:7512099": "2026-09-23"
+ }
+}

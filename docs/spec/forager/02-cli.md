@@ -125,7 +125,9 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 ## 契约③：`doctor --provider`
 
-两档：`doctor` 浅检全体（掩码配置 + 凭据存在 + 可达性（对 endpoint 发 GET 并只等待响应头，任何 HTTP 响应都算可达；部分 endpoint 对 HEAD 不响应）+ 过宽权限报告 + config list 同构生效值块）；顶层 `ok` 等于所有 `configured=true` provider 均 `reachable=true`，零配置为 true，任一不可达则 JSON/Markdown 均为 false 并退出 4，permission warning 不改变 `ok`。`config_warnings` 报告主搜索链中与首个已配置 backend 使用相同 endpoint（忽略末尾 `/`）和相同主模型的后续 backend——这类 fallback 与主 backend 处于同一故障域；该警告同样不改变 `ok`。`--provider NAME` 深探单体，值域＝9 provider 编译期 enum。需要凭据的 8 个 provider 执行凭据有效性 + 最小活体调用；`arxiv_api` 不需要凭据，恒为已配置，深探执行一次最小平台检索；openai-compatible 额外保留 stream/no-stream 双形状判定。声明访问策略的 provider（`arxiv_api`）的浅检可达性 GET 与深探请求都先经过跨进程限速，等不到窗口时浅检记为不可达、深探以 timeout 失败，且都不发送请求。
+两档：`doctor` 浅检全体（掩码配置 + 凭据存在 + 可达性（对 endpoint 发 GET 并只等待响应头，任何 HTTP 响应都算可达；部分 endpoint 对 HEAD 不响应）+ 过宽权限报告 + config list 同构生效值块）；顶层 `ok` 等于所有 `configured=true` provider 均 `reachable=true`，零配置为 true，任一不可达则 JSON/Markdown 均为 false 并退出 4，permission warning 不改变 `ok`。`config_warnings` 报告主搜索链中与首个已配置 backend 使用相同 endpoint（忽略末尾 `/`）和相同主模型的后续 backend——这类 fallback 与主 backend 处于同一故障域；该警告同样不改变 `ok`。`--provider NAME` 深探单体，值域＝provider 注册表的编译期 enum。需要凭据的 8 个 provider 执行凭据有效性 + 最小活体调用；平台 route（`arxiv_api`、`ssrn_crossref`、`ssrn_browser`）不需要凭据，恒为已配置，深探执行一次最小平台检索；openai-compatible 额外保留 stream/no-stream 双形状判定。声明访问策略的 provider（三条平台 route）的浅检检查与深探请求都先经过跨进程限速，等不到窗口时浅检记为不可达、深探以 timeout 失败，且都不发送请求。
+
+传输类型为 process 的 route（`ssrn_browser`）不发 GET：浅检只在它出现在所属平台的 order 中时参与，运行 adapter 的 `contract` 命令并核对契约版本；未启用时报告 `configured: false`，不影响 `ok`。检查失败时该 provider 状态带 `message`（含安装提示），Markdown 在同一行括号中显示。深探（`doctor --provider ssrn_browser`）同样只在 order 启用该 route 时运行一次真实的平台检索；未启用时以 config 失败退 3，不启动进程。
 
 ## 平台命令
 
@@ -173,8 +175,9 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 | `--cursor` | 上一页的 `next_cursor` | 无 | 翻页；完整恢复原请求 |
 
 - 通用 flag、cursor 独占规则与 arXiv search 相同。查询词为空或只有空白＝飞行前退 2。第一版没有查询词之外的选项。
-- **输出**：外层形状与 arXiv search 相同。每个 item 含 `ref`（`ssrn:<id>`，不带版本）、canonical `url`（SSRN 摘要页）、`depth`、`title`、`authors`、`published`，以及 SSRN 字段 `abstract`、`snippet`、`doi`、`crossref_type`、`crossref_created`、`posted`、`last_revised`、`date_written`；route 没有读到的字段为 `null`。条目有摘要时 `depth` 为 `abstract`，否则为 `metadata` 且 `abstract: null`。`published` 保留 route 报告的原始日期精度（`2012`、`2012-04` 或 `2012-04-19`）。route 细节（分页上限、DOI 过滤、诊断）见第 7 章「SSRN」。
-- **退出码**：cursor 无效或越过上游分页上限、查询词为空＝飞行前退 2；`platforms.ssrn.order` 为空或操作可用 route 为空＝飞行前退 3；Crossref 429 为 RateLimited 退 4；其他上游失败沿用共享状态码映射；合法零结果为 `items: []` 且退 0。
+- 启用 `ssrn_browser` 时，该 route 的一页不跨越 SSRN 的 50 条原生页，可以短于 `--limit`；条目深度为 `snippet`（片段，绝不是摘要；卡片没有片段时为 `metadata`）。
+- **输出**：外层形状与 arXiv search 相同。每个 item 含 `ref`（`ssrn:<id>`，不带版本）、canonical `url`（SSRN 摘要页）、`depth`、`title`、`authors`、`published`，以及 SSRN 字段 `abstract`、`snippet`、`doi`、`crossref_type`、`crossref_created`、`posted`、`last_revised`、`date_written`；route 没有读到的字段为 `null`。`ssrn_crossref` 的条目有摘要时 `depth` 为 `abstract`，否则为 `metadata` 且 `abstract: null`；`ssrn_browser` 的条目为 `snippet`，卡片没有片段时为 `metadata`。`published` 保留 route 报告的原始日期精度（`2012`、`2012-04` 或 `2012-04-19`）。route 细节（分页上限、DOI 过滤、诊断、浏览器页校验）见第 7 章「SSRN」。
+- **退出码**：cursor 无效或越过上游分页上限、查询词为空＝飞行前退 2；`platforms.ssrn.order` 为空或操作可用 route 为空＝飞行前退 3；Crossref 429 为 RateLimited 退 4；浏览器 route 的站点验证未通过为 Auth、无法识别结果页为 Runtime，都退 4；其他上游失败沿用共享状态码映射；合法零结果为 `items: []` 且退 0。
 
 ### `platform ssrn fetch`
 
@@ -186,7 +189,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 - 通用 flag 为 `--timeout`（默认 120 秒）、`--output`/`--receipt`、`--verbose`。
 - **输出**：JSON 顶层为 `platform`、`provider`、`ref`、`url`、`depth`、`title`、`authors`、`published`，以及与 search item 相同的 SSRN 字段；`depth` 记录 route 实际拿到的内容。不写文件，不写 Search Result Journal。
-- **退出码**：ref 或 URL 无法识别（包括 SSRN 的 `Delivery.cfm` PDF 链接、相似域名与短链）＝飞行前退 2；`--depth full_text` 时没有已配置的 route 支持全文＝飞行前退 2；`platforms.ssrn.order` 为空＝飞行前退 3；Crossref 中找不到该 DOI 为 attempt 级 Parameter（`SSRN paper not found in Crossref: ssrn:<id>`），退 4；`--depth abstract` 但所有 route 都没有摘要为 Quality 退 5。
+- **退出码**：ref 或 URL 无法识别（包括 SSRN 的 `Delivery.cfm` PDF 链接、相似域名与短链）＝飞行前退 2；`--depth full_text` 时没有已配置的 route 支持全文＝飞行前退 2；`platforms.ssrn.order` 为空＝飞行前退 3；Crossref 中找不到该 DOI 为 attempt 级 Parameter（`SSRN paper not found in Crossref: ssrn:<id>`），SSRN 页面显示论文审核中或已撤下为 attempt 级 Parameter（`SSRN paper not available: ssrn:<id> (…)`），都退 4；`--depth abstract` 但所有 route 都没有摘要为 Quality 退 5。
 
 ## 收尾
 

@@ -27,7 +27,7 @@
         → 类型基底（types）
 ```
 
-上层可以依赖下层，下层不得反向依赖上层；同层共享行为必须放到该职责的唯一拥有模块，再以最窄的 crate 内可见性提供。`catalog` 独立于 config 与 providers，二者只单向消费它；`catalog` 只从 `rate_limit` 取访问策略类型，`rate_limit` 不依赖 `catalog`。provider adapter 只消费 `providers/shared`、`providers/execution` 等共享拥有模块，不互相 import；平台 route adapter 同样不 import 任何 capability provider。平台 fetch 的正文段由编排层的 `platform_fetch` 调用 `engine::fetch`，route adapter 只声明候选正文 URL。
+上层可以依赖下层，下层不得反向依赖上层；同层共享行为必须放到该职责的唯一拥有模块，再以最窄的 crate 内可见性提供。`catalog` 独立于 config 与 providers，二者只单向消费它；`catalog` 只从 `rate_limit` 取访问策略类型，`rate_limit` 不依赖 `catalog`。provider adapter 只消费 `providers/shared`、`providers/execution`、`providers/opencli` 等共享拥有模块，不互相 import；`providers/opencli` 是 OpenCLI 进程传输（启动命令、进程组与截止时间、有界读取、输出外壳与退出码映射），不含任何站点知识，也不反向依赖 route adapter；平台 route adapter 同样不 import 任何 capability provider。平台 fetch 的正文段由编排层的 `platform_fetch` 调用 `engine::fetch`，route adapter 只声明候选正文 URL。
 
 - **应用组合层**（F1）：`cli/app.rs` 只公开参数与分发门面；`dispatch.rs` 先构造共享 `NetworkDependencies`，再按命令建立 `AppContext<P>`、`FetchContext`、`SearchContext` 或 `ResearchContext`，各自持有所需的 runtime、配置与网络依赖。provider 实现与路由策略留在下层模块，Search Result Journal 仍由分发层在命令终态统一落笔。
 - **`types` 类型基底**：零 IO 纯类型层——ErrorKind、ProviderError、Capability、`PlanCapability`（plan 语境独立三值枚举）、各 Outcome、ProviderAttempt、Source、ResearchPlan Schema v1、Deadline、薄正文阈值常量，以及平台形状（Platform、Platform Ref 与 canonical URL 推导、Content Depth、平台选项、条目、结果页与 fetch 结果）。所有跨层形状的唯一定义点。`infra/types/` 是目录模块，按职责分为 `capability`、`research`、`error`、`attempt`、`search`、`outcome`、`platform`、`platform_arxiv`、`platform_ssrn`、`deadline` 私有子模块，由 `mod.rs` 统一再导出，公共路径保持 `forager::types::*`。`platform` 叶子只放各平台共享的形状（Platform、Platform Ref、Content Depth、平台选项、条目、结果页与 fetch 结果的外层枚举与结构）；每个平台自己的形状（ref、选项、条目平台字段与校验）放在各自的 `platform_<id>` 叶子中，再以一个变体接入共享枚举。新增平台时新增该平台的叶子，并在共享枚举中各加一个变体。公开的平台身份类型不引用 crate 私有的 `ProviderId`。
@@ -41,7 +41,8 @@
 - **凭据要求**：registry 的 `credentials_required` 是 provider 是否需要凭据的唯一来源。执行路径、doctor 与 smoke 用同一判定（`ProviderRegistration::is_configured`）决定「已配置」：需要凭据的 provider 要求 keys 非空，不需要凭据的 provider 恒为已配置。registry 校验与 smoke 的注册完整性检查都不要求 provider 需要凭据。
 - **匿名执行**：不需要凭据的 provider 经 `execute_anonymous` 执行：不 claim、不轮换、不注入认证；每个 attempt 的 `credential_index` 为 0，`rotation_count` 恒为 0，这两个字段对匿名 provider 没有凭据含义。需要凭据的执行入口 `execute_v2` 遇到空凭据池时在发送前以 Auth 失败，不 panic。共享构造器不断言 provider 需要凭据。
 - **单次发送契约**：每次发送返回可选的 status 与解码值。现有调用方照常传入 status：多数 HTTP 调用方传入响应的实际 status，Exa 以及 Context7、AnySearch 的 MCP 调用成功时记为 200；非 HTTP 传输可以不带 status，attempt 的 `http_status` 随之为空。
-- **registry 最小职责**（F10）：唯一登记 `ProviderId`、支持 seam、凭据要求、访问策略、doctor probe、构造入口；注册合法性为「属于某个 Capability Catalog、某个 platform catalog，或拥有 operation 之一」，启动期校验、catalog 单测与 smoke 注册完整性检查共用 `catalog::has_owner`；config/doctor/capability status 从同一描述读取身份，不各设 allowlist；engine 只调用 seam trait 并聚合 `ProviderAttempt`，禁止按 provider id/model 分支；openai-compatible 的 model 候选、断路器、transport fallback 全部封装在 provider 内。不引入宏、不生成 clap 树。
+- **传输类型**：registry 的 `transport` 声明 provider 到达上游的方式：`Http`，或 `OpenCli(OpenCliAdapter { site, contract })`。route adapter 从这一处读取 OpenCLI adapter 的 site 与契约版本；route 配置按传输类型使用 `HttpRouteRuntimeConfig` 或 `ProcessRouteRuntimeConfig`；factory 的主机支持检查（process route 需要 Unix 进程组）、doctor 的检查方式与是否按 order 门控、checklist 测试的 R4 叶子都按传输类型分支，不按 provider id 分支。
+- **registry 最小职责**（F10）：唯一登记 `ProviderId`、支持 seam、凭据要求、传输类型、访问策略、doctor probe、构造入口；注册合法性为「属于某个 Capability Catalog、某个 platform catalog，或拥有 operation 之一」，启动期校验、catalog 单测与 smoke 注册完整性检查共用 `catalog::has_owner`；config/doctor/capability status 从同一描述读取身份，不各设 allowlist；engine 只调用 seam trait 并聚合 `ProviderAttempt`，禁止按 provider id/model 分支；openai-compatible 的 model 候选、断路器、transport fallback 全部封装在 provider 内。不引入宏、不生成 clap 树。
 
 ## Platform 维度
 
@@ -91,7 +92,7 @@ Platform 与 Capability Seam 并列（ADR 0019），完整接入契约见第 7 �
 
 ## 跨进程限速
 
-`rate_limit` 统一负责跨进程请求节奏。访问策略包括最小间隔与最大并发，由 provider 注册信息的 `access_policy` 声明（`arxiv_api`：每 3 秒 1 个请求、并发 1；`ssrn_crossref`：每秒 1 个请求、并发 1）；对受限 endpoint 的每次发送（包括重试、doctor 的 shallow 可达性探测与 deep 探测）都必须先调用 `RateLimiter::acquire` 申请时间窗口。`providers::route_limiter` 按注册信息构造限速器；route adapter 在单次发送内先取窗口再发请求，窗口的等待计入该 attempt 与命令的 Deadline。
+`rate_limit` 统一负责跨进程请求节奏。访问策略包括最小间隔与最大并发，由 provider 注册信息的 `access_policy` 声明（`arxiv_api`：每 3 秒 1 个请求、并发 1；`ssrn_crossref`：每秒 1 个请求、并发 1；`ssrn_browser`：每 5 秒 1 次 OpenCLI 命令、并发 1）；process route 以一次命令为限速单位，permit 持有到子进程被回收为止（ADR 0020）；对受限 endpoint 的每次发送（包括重试、doctor 的 shallow 可达性探测与 deep 探测）都必须先调用 `RateLimiter::acquire` 申请时间窗口。`providers::route_limiter` 按注册信息构造限速器；route adapter 在单次发送内先取窗口再发请求，窗口的等待计入该 attempt 与命令的 Deadline。
 
 - **算法**：先在进程内按最大并发取得 permit，再取得跨进程连接槽位：状态目录下每个 route 有最大并发个槽位锁文件（`rate_limit_<route>.<n>.lock`），异步轮询到第一个空闲槽位；两段等待都计入 Deadline，超时为 Timeout。然后在 Deadline 内等到状态文件的进程内轮次（此时尚未预留，超时不会占用窗口），再在共享状态锁内读取该 route 上次预留的时刻，计算下一个窗口 = max(现在, 上次预留 + 最小间隔)。需要等待的时间不小于剩余预算时，直接以 Timeout 结束，不写入预留；否则写入新的预留时刻，释放锁，然后在锁外等待到该绝对时刻。permit 与槽位锁持有到发送结束，因此共享状态目录的所有进程同时在途的请求不超过最大并发；进程退出时操作系统释放槽位锁。
 - **时钟**：预留时刻是墙钟毫秒，从构造时的墙钟起按 Tokio 时钟推进，因此预留、等待与 Deadline 在同一时间线上。

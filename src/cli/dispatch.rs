@@ -1356,7 +1356,7 @@ fn render_doctor_markdown(report: &crate::doctor::ShallowDoctorReport) -> Result
         .as_array()
         .expect("doctor providers serialize as an array")
     {
-        let _ = writeln!(
+        let _ = write!(
             output,
             "- {}: configured={}, key_count={}, source={}, reachable={}",
             provider["provider"].as_str().unwrap_or_default(),
@@ -1365,6 +1365,10 @@ fn render_doctor_markdown(report: &crate::doctor::ShallowDoctorReport) -> Result
             provider["source"].as_str().unwrap_or_default(),
             provider["reachable"].as_bool().unwrap_or(false),
         );
+        if let Some(message) = provider["message"].as_str() {
+            let _ = write!(output, " ({message})");
+        }
+        output.push('\n');
     }
     if let Some(warnings) = value["permission_warnings"].as_array()
         && !warnings.is_empty()

@@ -306,7 +306,7 @@ forager anysearch domains DOMAIN [--timeout SECONDS] [--format json|markdown]
 [`platform-vocabulary.json`](platform-vocabulary.json). Platform commands write no result journal.
 Their `--timeout` defaults to `120` and includes waits for the platform's request window, shared
 across all local processes (arXiv: one request every 3 seconds; SSRN through Crossref: one request
-per second).
+per second; SSRN through the browser: one OpenCLI command every 5 seconds).
 
 ### `platform arxiv search`
 
@@ -378,6 +378,13 @@ at result 10000, where Crossref stops offset paging; `next_cursor` is then `null
 is not an SSRN DOI are dropped and reported on stderr. A valid empty search returns `items: []`
 with exit 0.
 
+When `platforms.ssrn.order` includes the opt-in `ssrn_browser` route, that route reads SSRN's own
+result pages in Chrome through OpenCLI (see [`platforms.md`](platforms.md) to install and enable
+it). Its items have `depth: snippet` (`metadata` for a result card without an excerpt), `snippet`, `posted` as the page shows it, and `published` as
+an ISO date. A page never spans two 50-result SSRN pages, so it can hold fewer items than
+`--limit`. An SSRN security check that did not clear is an `auth` failure; an unrecognized result
+page is a `runtime` failure, never an empty result.
+
 ### `platform ssrn fetch`
 
 ```console
@@ -395,7 +402,10 @@ forager platform ssrn fetch REF_OR_URL [--depth metadata|abstract|full_text]
 SSRN download links, look-alike hosts, and short links exit `2` before any request, and so does
 `--depth full_text`. A DOI that Crossref does not know is a `parameter` failure (exit `4`) whose
 message says the paper was not found in Crossref; `--depth abstract` without an abstract is a
-`quality` failure (exit `5`).
+`quality` failure (exit `5`). With the order `["ssrn_crossref", "ssrn_browser"]`, a `--depth abstract`
+fetch whose Crossref record has no abstract falls through to the browser, which reads the abstract page and also fills
+`posted`, `last_revised`, and `date_written`. The browser reports a paper that SSRN shows as under
+review or removed as a `parameter` failure.
 
 ## Configuration and diagnostics
 
@@ -442,14 +452,17 @@ forager doctor [--provider PROVIDER] [--timeout SECONDS] [--format json|markdown
 
 | Option | Meaning | Default |
 | --- | --- | --- |
-| `--provider PROVIDER` | Deep-probe one of `xai`, `openai_compatible`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, or `anysearch`. Without it, run the shallow all-provider report. | Omitted |
+| `--provider PROVIDER` | Deep-probe one of `xai`, `openai_compatible`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, `anysearch`, `arxiv_api`, `ssrn_crossref`, or `ssrn_browser`. Without it, run the shallow all-provider report. | Omitted |
 | `--timeout SECONDS` | Set the diagnostic deadline. | `30` |
 | `--format FORMAT` | Use `json` or `markdown`. | `json` |
 
 Use `doctor` for credentials, connectivity, provider responses, and effective configuration
 inspection. In shallow mode, `ok` covers every configured provider: if any configured provider is
-unreachable, the top-level result is false and the command uses exit code 4. Do not use it as the
-recovery path for configuration that cannot be loaded.
+unreachable, the top-level result is false and the command uses exit code 4. The browser route
+`ssrn_browser` is checked only when `platforms.ssrn.order` lists it: doctor runs its OpenCLI
+`contract` command, and a failed check carries a `message` with install steps; `--provider ssrn_browser`
+also needs the route in the order. Do not use doctor as
+the recovery path for configuration that cannot be loaded.
 
 ### `smoke`
 

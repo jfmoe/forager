@@ -5,7 +5,9 @@ use futures_util::future::join_all;
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::catalog::{self, DoctorProbe, ProbeShape, ProviderId};
+use crate::catalog::{
+    self, DoctorProbe, ProbeShape, ProviderId, ProviderRegistration, ProviderTransport,
+};
 use crate::config::{
     self, MainSearchProviderConfig, MainSearchRuntimeConfig, PlatformRouteConfig, RuntimeConfig,
 };
@@ -36,6 +38,8 @@ struct ProviderStatus {
     key_count: usize,
     source: String,
     reachable: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -80,23 +84,17 @@ pub(crate) fn shallow(
     let client = runtime
         .block_on(async { net::build_client(runtime_config.ssl_verify) })
         .map_err(|error| config::ConfigError::Message(error.to_string()))?;
-    let reachability = runtime.block_on(async {
-        join_all(catalog::registrations().iter().map(|registration| {
-            probe_reachability(
-                client.clone(),
-                provider_endpoint(registration.id, &runtime_config).to_owned(),
-                providers::route_limiter(registration.id),
-                deadline,
-            )
-        }))
-        .await
-    });
+    let checks =
+        runtime.block_on(async {
+            join_all(catalog::registrations().iter().map(|registration| {
+                shallow_check(registration, &runtime_config, &client, deadline)
+            }))
+            .await
+        });
     let providers = catalog::registrations()
         .iter()
-        .zip(reachability)
-        .map(|(registration, reachable)| {
-            status(registration.id, &runtime_config, &effective, reachable)
-        })
+        .zip(checks)
+        .map(|(registration, check)| status(registration.id, &effective, check, &runtime_config))
         .collect::<Vec<_>>();
     let ok = providers
         .iter()
@@ -123,13 +121,18 @@ pub(crate) fn deep(
     let effective = serde_json::to_value(config::effective_view()?)
         .map_err(|error| config::ConfigError::Message(error.to_string()))?;
     let runtime_config = config::runtime_config()?;
+    let unconfigured = deep_unconfigured_reason(provider, &runtime_config);
     let provider_status = status(
         provider,
-        &runtime_config,
         &effective,
-        endpoint_is_valid(provider_endpoint(provider, &runtime_config)),
+        ShallowCheck {
+            configured: unconfigured.is_none(),
+            reachable: endpoint_is_valid(provider_endpoint(provider, &runtime_config)),
+            message: None,
+        },
+        &runtime_config,
     );
-    if !provider_status.configured {
+    if let Some(reason) = unconfigured {
         return Ok((
             DeepDoctorReport {
                 mode: "deep",
@@ -141,10 +144,7 @@ pub(crate) fn deep(
                 deadline_seconds: timeout_seconds,
                 checks: Vec::new(),
                 error_kind: Some("config"),
-                message: Some(format!(
-                    "providers.{}.keys has no configured credentials",
-                    provider.name()
-                )),
+                message: Some(reason),
             },
             3,
         ));
@@ -451,26 +451,96 @@ async fn probe_reachability(
     )
 }
 
+/// The shallow result of one provider.
+struct ShallowCheck {
+    configured: bool,
+    reachable: bool,
+    message: Option<String>,
+}
+
+/// Checks an HTTP provider by a GET to its endpoint. A process route takes part only when its
+/// platform order enables it; its check runs the adapter's `contract` command.
+async fn shallow_check(
+    registration: &ProviderRegistration,
+    runtime: &RuntimeConfig,
+    client: &reqwest::Client,
+    deadline: Deadline,
+) -> ShallowCheck {
+    let id = registration.id;
+    let endpoint = provider_endpoint(id, runtime);
+    let limiter = providers::route_limiter(id);
+    let ProviderTransport::OpenCli(adapter) = registration.transport else {
+        return ShallowCheck {
+            configured: runtime.provider_configured(id),
+            reachable: probe_reachability(client.clone(), endpoint.to_owned(), limiter, deadline)
+                .await,
+            message: None,
+        };
+    };
+    if !route_enabled(id, runtime) {
+        return ShallowCheck {
+            configured: false,
+            reachable: false,
+            message: None,
+        };
+    }
+    let limiter = limiter.expect("a process route declares an access policy");
+    let result = providers::check_opencli_contract(endpoint, adapter, &limiter, deadline).await;
+    ShallowCheck {
+        configured: true,
+        reachable: result.is_ok(),
+        message: result.err(),
+    }
+}
+
+/// Returns why the deep probe cannot run the provider, or `None` when it can. A process route
+/// drives the user's browser, so doctor runs it only when a platform order enables it.
+fn deep_unconfigured_reason(provider: ProviderId, runtime: &RuntimeConfig) -> Option<String> {
+    let name = provider.name();
+    match catalog::registration(provider).transport {
+        ProviderTransport::OpenCli(_) => (!route_enabled(provider, runtime))
+            .then(|| format!("no platform order lists `{name}`; add it to the order to enable it")),
+        ProviderTransport::Http => (!runtime.provider_configured(provider))
+            .then(|| format!("providers.{name}.keys has no configured credentials")),
+    }
+}
+
+/// Returns whether any platform order lists the route.
+fn route_enabled(id: ProviderId, runtime: &RuntimeConfig) -> bool {
+    catalog::PLATFORMS
+        .iter()
+        .filter(|platform| platform.contains(id))
+        .any(|platform| {
+            runtime
+                .platforms
+                .get(platform.platform)
+                .entries()
+                .iter()
+                .any(|entry| entry.id() == id)
+        })
+}
+
 fn provider_endpoint(id: ProviderId, runtime: &RuntimeConfig) -> &str {
     runtime.provider_runtime(id).endpoint
 }
 
 fn status(
     id: ProviderId,
-    runtime: &RuntimeConfig,
     effective: &Value,
-    reachable: bool,
+    check: ShallowCheck,
+    runtime: &RuntimeConfig,
 ) -> ProviderStatus {
     let key_count = runtime.provider_runtime(id).keys.len();
     ProviderStatus {
         provider: id.name(),
-        configured: runtime.provider_configured(id),
+        configured: check.configured,
         key_count,
         source: effective["providers"][id.name()]["keys"]["source"]
             .as_str()
             .unwrap_or("default")
             .to_owned(),
-        reachable,
+        reachable: check.reachable,
+        message: check.message,
     }
 }
 

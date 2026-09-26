@@ -6,6 +6,7 @@
 
 - **Platform**：内置的外部内容源，拥有自己的身份空间。它与 Capability Seam 并列，不是 provider，也不是 Vertical Search 的垂直域。只支持随版本发布的内置平台；配置不能定义平台或通用 MCP/CLI route。
 - **Platform Route**：接入某个平台的一条路线。route 就是 provider，沿用 provider 身份、凭据池（需要凭据时）、provider 配置段、doctor 探针与 smoke 登记。route id 绝不使用裸平台名（用 `arxiv_api`，不用 `arxiv`）。一个 provider 可以服务多个平台和 seam。
+- **Route 传输类型**：注册信息的 `transport` 声明 route 到达内容源的方式：`Http`（发 HTTP 请求），或 `OpenCli`（运行本机 OpenCLI 中 forager 自有 adapter 的命令，附 site 与契约版本；这类 route 称为 process route）。配置检查、doctor 与 checklist 测试按传输类型判断，不按 route id 判断。process route 只能由用户手动加入平台 order，永不进入 `default_order`（ADR 0020）。
 - **链语义**：同平台的 route 按 `platforms.<id>.order` 组成 fallback 链，由共享链执行器运行，沿用 LegitimateEmpty 语义：至少一条 route 返回合法空结果、之后没有 route 被接受时，结果为空成功。结果永不跨平台 fallback。
 - **Platform Ref**：平台实体的类型化身份，由平台、平台自有的 kind 和 id 组成。kind 只按「身份空间不同」或「fetch 结果形状不同」划分，不按对话角色划分。字符串形式为 `<platform>:<id>`，例如 `arxiv:2401.01234v2`。
   - ref 解析与 canonical URL 推导是 types 门面中的零 IO 纯函数。每个 kind 都满足往返性质：解析 ref 的 canonical URL，得到同一个 ref。
@@ -65,8 +66,9 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
 ## 访问策略与限速
 
 - route 在注册信息中以 `access_policy` 声明最小间隔与最大并发。对该 route endpoint 的**每次发送**都先经过 `RateLimiter::acquire`，包括重试、doctor 的 shallow 可达性探测与 deep 探测。
+- process route 的访问策略以一次 OpenCLI 命令为单位：浏览器在一次命令内发出的请求不逐个限速。permit 持有到子进程被回收为止（ADR 0020）。
 - 等待窗口的时间计入 attempt 与命令的 Deadline；算法、跨进程协调范围与已知边界见第 4 章「跨进程限速」。
-- 不需要凭据的 route 在注册信息中声明 `credentials_required: false`：配置节只有 `url` 与 `timeout`，经 `execute_anonymous` 执行，attempt 的 `credential_index` 与 `rotation_count` 恒为 0。
+- 不需要凭据的 route 在注册信息中声明 `credentials_required: false`：配置节没有 `keys`（HTTP route 只有 `url` 与 `timeout`，process route 只有 `command` 与 `timeout`），经 `execute_anonymous` 执行，attempt 的 `credential_index` 与 `rotation_count` 恒为 0。
 
 ## skill 与平台词表
 
@@ -82,8 +84,8 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
 |---|---|---|
 | R1 | `catalog::PLATFORMS` 登记平台，search 与 fetch 的 route 集合都非空，并声明默认 order（`default_order`，只含该平台的 route）；`types::Platform` 增加变体，平台形状放在新的 `platform_<id>` 类型叶子中 | checklist 测试；`catalog` 单测 `catalogs_project_every_registration_probe_and_smoke_case_consistently` |
 | R2 | 每条 route 有 `ProviderId`（全集、解析与名称）和 `ProviderRegistration`；route id 不是裸平台名 | checklist 测试；`catalog` 注册校验 |
-| R3 | factory 覆盖每个操作的每条 route：`platform_search_support`／`platform_fetch_support` 有该 route 的分支，`PlatformRoutesRuntimeConfig` 有该 route 的字段，`platform_route_config` 返回以该 route 为身份的 `PlatformRouteConfig`（`build_platform_search`／`build_platform_fetch` 按该变体构造）；route 适配器只构造请求、解码响应、声明正文 URL 并提供支持检查 | checklist 测试 |
-| R4 | 配置 schema 有 `platforms.<id>.order` 与每条 route 的 `providers.<route>.url`、`.timeout`；`keys` 叶子当且仅当 route 需要凭据；runtime 投影与 `platform_route_config` 覆盖该 route | checklist 测试；`config` schema 单测 |
+| R3 | factory 覆盖每个操作的每条 route：`platform_search_support`／`platform_fetch_support` 有该 route 的分支（process route 在非 Unix 系统上由支持检查拒绝），`PlatformRoutesRuntimeConfig` 有该 route 的字段，`platform_route_config` 返回以该 route 为身份的 `PlatformRouteConfig`（`build_platform_search`／`build_platform_fetch` 按该变体构造）；route 适配器只构造请求、解码响应、声明正文 URL 并提供支持检查 | checklist 测试 |
+| R4 | 配置 schema 有 `platforms.<id>.order`，并按 route 的传输类型有配置叶子：HTTP route 为 `providers.<route>.url` 与 `.timeout`，process route 为 `providers.<route>.command` 与 `.timeout`；`keys` 叶子当且仅当 route 需要凭据；runtime 投影与 `platform_route_config` 覆盖该 route | checklist 测试；`config` schema 单测 |
 | R5 | route 的 doctor probe 为 `DoctorProbe::PlatformSearch`（或它所服务的 capability 的 probe） | checklist 测试 |
 | R6 | search 与 fetch 各至少有一条 route 登记 smoke 用例，`SPECIFICATION_CASE_IDS` 与第 5 章矩阵同步 | checklist 测试；`tests/smoke.rs` 列表断言 |
 | R7 | `tests/acceptance-manifest.json` 为每个操作的每条 route 登记 `(route, platform:<id>:<op>)` fixture 与测试引用 | checklist 测试；`catalog` 单测 `provider_fixture_projection_matches_transport_manifest` |
@@ -103,10 +105,43 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
 
 数据源选择与实测证据见 [SSRN 检索接入方案](../../research/2026-09-26-ssrn-integration.md)（2026-09-26）。
 
-- **route**：`ssrn_crossref`，匿名 Crossref REST API（默认 `https://api.crossref.org`），只检索 SSRN 的 DOI 前缀 `10.2139`。不需要凭据；默认 timeout 30 秒；访问策略为每秒 1 个请求、并发 1（2026-09-26 公共池响应头为每秒 5 个请求、并发 1）。platform catalog 的默认 order 只含这一条 route。
+- **route**：search 与 fetch 的 route 集合都是 `[ssrn_crossref, ssrn_browser]`；platform catalog 的默认 order 只含 `ssrn_crossref`，`ssrn_browser` 由用户手动加入 `platforms.ssrn.order` 后才生效。两条 route 共用同一种 ref 与输出形状。
+- **`ssrn_crossref`**：匿名 Crossref REST API（默认 `https://api.crossref.org`），只检索 SSRN 的 DOI 前缀 `10.2139`。不需要凭据；默认 timeout 30 秒；访问策略为每秒 1 个请求、并发 1（2026-09-26 公共池响应头为每秒 5 个请求、并发 1）。
 - **ref**：`ssrn:<id>`，id 是不带前导零的 ASCII 数字，kind 为 `paper`，不带版本。canonical URL 是 `https://papers.ssrn.com/sol3/papers.cfm?abstract_id=<id>`。不联网即可解析的输入：ref 本身（前缀不区分大小写）；`papers.ssrn.com/sol3/papers.cfm` 摘要页，取 `abstract_id`，忽略其他 query 参数与 fragment；`ssrn.com/abstract=<id>` 与 `www.ssrn.com/abstract=<id>`；DOI `10.2139/ssrn.<id>`（不区分大小写）及其 `doi.org`、`dx.doi.org` URL。主机名不区分大小写，http 与 https 都接受。SSRN 的 `Delivery.cfm` PDF 链接（文件名里的数字不是论文身份）、其他路径、相似域名与短链都在飞行前退 2。
 - **search wire 编码**：`GET <url>/prefixes/10.2139/works`，参数为 `query`（查询词原样传入，按上游相关性检索，不要求每个词都出现）、`rows`（`--limit`，1–100）、`offset`、`sort=score`、`order=desc` 与 `select=DOI,title,author,abstract,published,type,created,resource`。查询词必填；第一版没有其他选项。
 - **分页**：页位置是绝对 offset，不使用 Crossref 的上游 cursor。只有同时满足以下条件时才签发下一页 cursor：原始页条数等于 `rows`；下一个 offset 小于 `total-results`；下一个 offset 加 `rows` 不超过 10000。Crossref 拒绝 offset 加 `rows` 超过 10000 的请求（HTTP 400，2026-09-26 实测：`rows=20` 时 offset 最大为 9980），因此 route 的支持检查在飞行前以参数错误拒绝越过该上限的 cursor。是否到末页按过滤前的原始条数判断。
 - **解码**：响应的 `message-type` 必须是 `work-list`（search）或 `work`（fetch），否则为 Runtime；无法解码的响应为 Runtime。DOI 不符合 `10.2139/ssrn.<数字>` 的记录被跳过，DOI 写入 stderr 诊断；类型为 `journal-article` 的记录保留，因为 SSRN 把部分 DOI 登记成这个类型。条目字段：`title` 取第一个非空标题；`authors` 为 `given family`，机构作者取 `name`；`published` 取 Crossref `published` 的 date-parts，按原始精度写成 `2012`、`2012-04` 或 `2012-04-19`，不补齐；平台字段 `doi` 为 Crossref 记录的 DOI，`crossref_type` 为记录类型，`crossref_created` 为 Crossref 登记 DOI 的时间，永不用来填补 `published`。`snippet`、`posted`、`last_revised`、`date_written` 由读取 SSRN 页面的 route 填写，本 route 恒为 `null`。
 - **摘要清理**：去掉 JATS 与 HTML 标记（引号内的属性值不结束标签），保留 CDATA 中的文本，块元素（`p`、`title`、`sec`、`list`、`list-item`、`br`、`div`）之间保留段落换行（空行），解码 XML 实体、`&nbsp;` 与数字字符引用，段内折叠空白。Crossref 摘要是 XML，其他命名实体原样保留。清理后为空的摘要按缺失处理。有摘要的条目深度为 `abstract`，没有摘要的为 `metadata` 且 `abstract: null`。
 - **fetch**：请求 `GET <url>/works/10.2139/ssrn.<id>`。route 支持 `metadata` 与 `abstract`；请求的深度是最低要求，`metadata` 在有摘要时一并返回摘要，条目的 `depth` 记录实际拿到的内容。请求 `abstract` 但记录没有摘要时，在 attempt 内报 Quality，链落到下一条 route，全链如此则退 5。`full_text` 不支持，该 route 记为 Skipped；没有其他 route 支持时飞行前退 2。错误映射：HTTP 404 为 Parameter（`SSRN paper not found in Crossref: ssrn:<id>`，只说明 Crossref 没有该 DOI）；返回的 DOI 与请求的不一致为 Runtime；429 为 RateLimited，匿名 route 无凭据可轮换，直接成为 route 终态；其他状态码沿用共享 status 映射，HTTP 400 的消息取 Crossref validation-failure 的首条说明。
+
+### Route `ssrn_browser`
+
+- **传输与配置**：process route，经本机 OpenCLI 驱动用户自己的 Chrome，读取 SSRN 原站。配置项为 `providers.ssrn_browser.command`（OpenCLI 可执行文件，默认 `opencli`，不能为空）与 `.timeout`（一次命令的 attempt 超时，默认 90 秒），没有 `url` 与 `keys`；它是匿名 route，始终视为已配置。命令只能选择可执行文件，参数全部由 route 决定（ADR 0019）。访问策略为每 5 秒一次 OpenCLI 命令、并发 1。route 不重试，失败直接落到下一条 route。
+- **OpenCLI 进程传输**（`providers/opencli`，不含站点知识）：输入为可执行文件、adapter（site 与契约版本）、命令、具名参数与 attempt 截止时间。
+  - 调用形式：`<command> <site> <命令> --<参数> <值>… --timeout <秒> -f json --window background --site-session ephemeral --keep-tab false`。forager 自有 adapter 的每个命令都接受这些 flag。
+  - 截止时间：attempt 截止时间之前预留 5 秒得到工作截止点，剩余整秒数作为 adapter 命令的 `--timeout` 参数传入。OpenCLI 据此设置 daemon 每次操作的截止时间；adapter 在 `--timeout` 之前 3 秒停止读取页面并返回，让 OpenCLI 在工作截止点之前关闭标签页。5 秒预留用于强杀、回收子进程与报告 attempt。子进程放入独立进程组；到达工作截止点或 future 被丢弃时，强杀整个进程组，不做分步终止。access permit 持有到子进程被回收为止。剩余时间不足时 attempt 以 Timeout 结束，不启动进程。
+  - 输出上限：stdout 最多 4 MiB（协议上限），超出为 Runtime 并强杀进程组；stderr 只保留前 64 KiB 并做 URL 脱敏。
+  - 非 Unix 系统：传输在启动进程之前以 Runtime 拒绝；factory 的支持检查同样拒绝，因此该 route 记为 Skipped。
+  - 外壳：stdout 是一个 JSON 对象 `{contract, status, data}`。`contract` 与注册信息的契约版本（`forager-ssrn/1`）不一致为 Runtime，消息附安装提示（把 skill 的 `opencli/<site>` 目录复制为 `~/.opencli/clis/<site>`）；`status` 为 `ok` 或 `no_results`，只有 adapter 核实了站点自己的无结果提示时才是 `no_results`。
+  - 退出码映射：
+
+    | OpenCLI 结果 | 映射 |
+    |---|---|
+    | 0，且外壳有效 | 成功 |
+    | 66（EMPTY_RESULT） | Runtime（永远不算合法空结果） |
+    | 69，且 stderr 的 `code` 为 `ADAPTER_LOAD` | Runtime，附安装提示 |
+    | 其他 69 | Network |
+    | 75 | Timeout |
+    | 77（含 LOGIN_WALL；adapter 报出的站点验证未通过与访问被拦截也用 77） | Auth |
+    | stderr 报告未知命令（未安装 adapter 时 OpenCLI 1.8.6 以 2 退出） | Runtime，附安装提示 |
+    | 找不到可执行文件 | Runtime，提示安装 OpenCLI 或设置 `command` |
+    | 其他退出码、输出无法解码 | Runtime |
+
+- **search**：adapter 的 `search` 命令直接打开 `https://papers.ssrn.com/searchresults.cfm?term=<查询词>&page=<原生页码>`。SSRN 每个原生页 50 条；页位置是绝对 offset，原生页码 = offset / 50 + 1，页内起点 = offset mod 50。每次最多返回 `--limit` 条且不跨越原生页，因此允许返回不足 limit 的短页；下一个 offset 按实际消费的条数推进。页内还有剩余条目，或页面的下一页链接可用且结果范围未到总数时，才签发下一页 cursor。route 核对页面 URL 的主机、路径、`term` 与 `page`、搜索框中的查询词（空白折叠后相同）、分页标记的当前页，以及结果范围 `Displaying results <first> to <last> of <total>` 与列出的条数一致；任何一项不符，或页面既没有结果范围也不是站点的无结果提示，都为 Runtime，不返回空列表。条目深度为 `snippet`（卡片上的高亮片段，以 ` … ` 连接；没有片段时为 `metadata`），`published` 为卡片 Posted 日期的 ISO 形式，`posted` 保留页面原文。
+- **fetch**：adapter 的 `paper` 命令打开规范摘要页。route 从页面的 canonical 链接（或 `citation_doi`）读出 abstract id，与请求的 id 不一致为 Runtime。支持 `metadata` 与 `abstract`：页面有摘要时条目深度为 `abstract`，否则为 `metadata`；请求 `abstract` 但页面没有摘要时在 attempt 内报 Quality。`posted`、`last_revised`、`date_written` 保留页面原文，`published` 为 Posted 日期的 ISO 形式。页面显示论文正在审核或已撤下时，adapter 返回 `no_results`，route 报 attempt 级 Parameter（`SSRN paper not available: ssrn:<id> (<站点提示>)`）。`full_text` 不支持（P3 再接入），该 route 记为 Skipped。
+- **route 对比**：两条 route 的召回、重合度、字段覆盖、新鲜度与延迟见 [SSRN 两条 route 的检索对比](../../research/2026-09-26-ssrn-route-comparison.md)（2026-09-26）。
+- **route 配合**：order 为 `[ssrn_crossref, ssrn_browser]` 时，`--depth abstract` 而 Crossref 缺摘要的请求在 Crossref attempt 内报 Quality，落到浏览器 route 补齐。
+- **站点验证**：SSRN 由 Cloudflare 保护。Chrome 已通过站点验证时，临时站点会话可以直接打开结果页（2026-09-26 实测）；站点显示瞬时验证时 adapter 继续等待它自行通过；站点升级为需要人工勾选的验证时（同日在较多次访问后出现），adapter 等到自己的读取截止点后以 77 结束，attempt 为 Auth。route 永不点击或绕过验证，用户需在 Chrome 中打开 SSRN 手动通过（ADR 0020）。
+- **doctor**：shallow 只在 `ssrn_browser` 出现在 `platforms.ssrn.order` 中时检查它，运行 `contract` 命令（不需要浏览器）并核对契约版本；未启用时报告为 `configured: false`，不影响 `ok`。检查失败时状态带 `message`，含安装提示。deep（`doctor --provider ssrn_browser`）同样只在 order 启用该 route 时运行一次真实的平台检索；未启用时以 config 失败退 3，不启动进程。
+- **smoke**：C22（search）与 C23（fetch）按 order 门控，只在 `platforms.ssrn.order` 含 `ssrn_browser` 时运行，需要真实的 OpenCLI、Chrome 与已安装的 adapter。
+- **adapter 分发**：forager 自有的 SSRN adapter 在 skill 目录 `skills/forager/opencli/ssrn/`（`search.js`、`paper.js`、`contract.js` 与共享的 `shared.js`）。JS 只读取页面事实并返回外壳，校验与归一化都在 Rust 中完成。安装方式是把该目录复制为 `~/.opencli/clis/ssrn/`；步骤与支持的 OpenCLI 版本见 skill 的平台 reference。

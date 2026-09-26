@@ -73,6 +73,7 @@ pub(super) struct Providers {
     pub(super) anysearch: Endpoint<AnysearchEndpoint>,
     pub(super) arxiv_api: AnonymousEndpoint<ArxivApiEndpoint>,
     pub(super) ssrn_crossref: AnonymousEndpoint<SsrnCrossrefEndpoint>,
+    pub(super) ssrn_browser: ProcessRoute,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -156,6 +157,25 @@ impl<D: EndpointDefaults> Default for AnonymousEndpoint<D> {
             url: D::URL.into(),
             timeout: D::TIMEOUT_SECONDS,
             defaults: PhantomData,
+        }
+    }
+}
+
+/// The section of a route that runs a local OpenCLI command instead of sending HTTP requests.
+/// The configuration selects only the executable; the route owns every argument (ADR 0019).
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub(super) struct ProcessRoute {
+    pub(super) command: String,
+    #[serde(deserialize_with = "deserialize_integer")]
+    pub(super) timeout: u64,
+}
+
+impl Default for ProcessRoute {
+    fn default() -> Self {
+        Self {
+            command: "opencli".into(),
+            timeout: 90,
         }
     }
 }
@@ -389,6 +409,7 @@ pub(super) enum Rule {
         unique: bool,
         allow_empty: bool,
     },
+    NonEmpty,
     Positive,
     PositiveFinite,
     CapabilityOrder {
@@ -514,6 +535,8 @@ pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("providers.arxiv_api.timeout", providers.arxiv_api.timeout: U64, Rule::Positive, View::Plain, "shared timeout in seconds; must be greater than zero"),
     leaf!("providers.ssrn_crossref.url", providers.ssrn_crossref.url: String, Rule::Any, View::Url, "service endpoint URL; this provider needs no credentials"),
     leaf!("providers.ssrn_crossref.timeout", providers.ssrn_crossref.timeout: U64, Rule::Positive, View::Plain, "shared timeout in seconds; must be greater than zero"),
+    leaf!("providers.ssrn_browser.command", providers.ssrn_browser.command: String, Rule::NonEmpty, View::Plain, "OpenCLI executable name or path; this route needs no credentials"),
+    leaf!("providers.ssrn_browser.timeout", providers.ssrn_browser.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one OpenCLI command; must be greater than zero"),
     leaf!("capabilities.web_search.order", capabilities.web_search.order: Strings, Rule::CapabilityOrder { capability: "web_search", allow_empty: true }, View::Plain, "authoritative provider order for this capability"),
     leaf!("capabilities.web_fetch.order", capabilities.web_fetch.order: Strings, Rule::CapabilityOrder { capability: "web_fetch", allow_empty: false }, View::Plain, "authoritative provider order for this capability"),
     leaf!("capabilities.docs_search.order", capabilities.docs_search.order: Strings, Rule::CapabilityOrder { capability: "docs_search", allow_empty: true }, View::Plain, "authoritative provider order for this capability"),

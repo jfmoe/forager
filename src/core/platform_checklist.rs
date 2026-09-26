@@ -8,9 +8,11 @@ use std::collections::BTreeSet;
 
 use crate::catalog::{
     self, DoctorProbe, PLATFORMS, PlatformCatalog, PlatformOperation, ProviderId,
-    ProviderRegistration,
+    ProviderRegistration, ProviderTransport,
 };
-use crate::config::{self, HttpRouteRuntimeConfig, PlatformRoutesRuntimeConfig};
+use crate::config::{
+    self, HttpRouteRuntimeConfig, PlatformRoutesRuntimeConfig, ProcessRouteRuntimeConfig,
+};
 use crate::providers;
 use crate::types::{
     ContentDepth, Platform, PlatformFetchRequest, PlatformRef, PlatformSearchOptions,
@@ -162,7 +164,11 @@ fn check_route(
         ));
         return;
     };
-    for leaf in ["url", "timeout"] {
+    let leaves = match registration.transport {
+        ProviderTransport::Http => ["url", "timeout"],
+        ProviderTransport::OpenCli(_) => ["command", "timeout"],
+    };
+    for leaf in leaves {
         let path = format!("providers.{name}.{leaf}");
         if !(registry.is_config_leaf)(&path) {
             found.push(violation(
@@ -269,6 +275,10 @@ fn has_adapter(platform: Platform, operation: PlatformOperation, route: Provider
     let routes = PlatformRoutesRuntimeConfig {
         arxiv_api: http_route.clone(),
         ssrn_crossref: http_route,
+        ssrn_browser: ProcessRouteRuntimeConfig {
+            command: String::new(),
+            timeout_seconds: 1,
+        },
     };
     has_support
         && config::platform_route_config(route, &routes)
@@ -358,6 +368,39 @@ fn a_platform_without_an_order_leaf_violates_r4() {
     };
 
     assert_reports(&violations(Platform::Arxiv, &registry), "R4");
+}
+
+#[test]
+fn a_process_route_without_a_command_leaf_violates_r4() {
+    let fixtures = manifest_fixtures();
+    let registry = Registry {
+        is_config_leaf: &|path| path != "providers.ssrn_browser.command" && config::is_leaf(path),
+        ..baseline(&fixtures)
+    };
+
+    let found = violations(Platform::Ssrn, &registry);
+
+    assert!(
+        found
+            .iter()
+            .any(|message| message.contains("`providers.ssrn_browser.command`")),
+        "{found:?}"
+    );
+}
+
+#[test]
+fn a_process_route_is_not_required_to_have_a_url_leaf() {
+    let fixtures = manifest_fixtures();
+    let registry = baseline(&fixtures);
+
+    let found = violations(Platform::Ssrn, &registry);
+
+    assert!(
+        !found
+            .iter()
+            .any(|message| message.contains("providers.ssrn_browser.url")),
+        "{found:?}"
+    );
 }
 
 #[test]

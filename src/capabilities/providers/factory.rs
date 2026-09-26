@@ -5,13 +5,14 @@ use reqwest::Client;
 use super::constructors::{credentials, route_limiter};
 use super::{
     ArxivApi, DocsSearch, MainSearch, ModelBreakers, PlatformFetch, PlatformSearch, ProviderId,
-    SsrnCrossref, SupplementalSearch, VerticalSearch, WebFetch, WebSearch, arxiv, ssrn_crossref,
-    web_fetch,
+    SsrnBrowser, SsrnCrossref, SupplementalSearch, VerticalSearch, WebFetch, WebSearch, arxiv,
+    opencli, ssrn_browser, ssrn_crossref, web_fetch,
 };
-use crate::catalog::{VERTICAL_SEARCH, WEB_FETCH, WEB_SEARCH};
+use crate::catalog::{ProviderTransport, VERTICAL_SEARCH, WEB_FETCH, WEB_SEARCH, registration};
 use crate::config::{
     AnysearchRuntimeConfig, DocsSearchProviderConfig, HttpRouteRuntimeConfig,
-    MainSearchProviderConfig, PlatformRouteConfig, WebFetchProviderConfig,
+    MainSearchProviderConfig, PlatformRouteConfig, ProcessRouteRuntimeConfig,
+    WebFetchProviderConfig,
 };
 use crate::net::RetryPolicy;
 use crate::types::{Deadline, PlatformFetchRequest, PlatformSearchRequest};
@@ -122,6 +123,7 @@ pub(crate) fn build_platform_search(
         PlatformRouteConfig::SsrnCrossref(config) => {
             Box::new(build_ssrn_crossref(config, client, retry_policy, deadline))
         }
+        PlatformRouteConfig::SsrnBrowser(config) => Box::new(build_ssrn_browser(config, deadline)),
     }
 }
 
@@ -138,6 +140,7 @@ pub(crate) fn build_platform_fetch(
         PlatformRouteConfig::SsrnCrossref(config) => {
             Box::new(build_ssrn_crossref(config, client, retry_policy, deadline))
         }
+        PlatformRouteConfig::SsrnBrowser(config) => Box::new(build_ssrn_browser(config, deadline)),
     }
 }
 
@@ -173,17 +176,28 @@ fn build_ssrn_crossref(
     )
 }
 
+fn build_ssrn_browser(config: ProcessRouteRuntimeConfig, deadline: Deadline) -> SsrnBrowser {
+    SsrnBrowser::new(
+        config,
+        route_limiter(ProviderId::SsrnBrowser)
+            .expect("ssrn_browser registration declares an access policy"),
+        deadline,
+    )
+}
+
 /// Returns whether a platform search route can run the request with every explicit option, or
 /// `None` for a provider that has no platform search adapter.
 pub(crate) fn platform_search_support(
     id: ProviderId,
     request: &PlatformSearchRequest,
 ) -> Option<Result<(), String>> {
-    match id {
-        ProviderId::ArxivApi => Some(arxiv::search_support(request)),
-        ProviderId::SsrnCrossref => Some(ssrn_crossref::search_support(request)),
-        _ => None,
-    }
+    let route = match id {
+        ProviderId::ArxivApi => arxiv::search_support(request),
+        ProviderId::SsrnCrossref => ssrn_crossref::search_support(request),
+        ProviderId::SsrnBrowser => ssrn_browser::search_support(request),
+        _ => return None,
+    };
+    Some(transport_support(id).and(route))
 }
 
 /// Returns whether a platform fetch route can run the request, or `None` for a provider that has
@@ -192,9 +206,20 @@ pub(crate) fn platform_fetch_support(
     id: ProviderId,
     request: &PlatformFetchRequest,
 ) -> Option<Result<(), String>> {
-    match id {
-        ProviderId::ArxivApi => Some(arxiv::fetch_support(request)),
-        ProviderId::SsrnCrossref => Some(ssrn_crossref::fetch_support(request)),
-        _ => None,
+    let route = match id {
+        ProviderId::ArxivApi => arxiv::fetch_support(request),
+        ProviderId::SsrnCrossref => ssrn_crossref::fetch_support(request),
+        ProviderId::SsrnBrowser => ssrn_browser::fetch_support(request),
+        _ => return None,
+    };
+    Some(transport_support(id).and(route))
+}
+
+/// Returns whether this host can run the route's transport at all.
+fn transport_support(id: ProviderId) -> Result<(), String> {
+    match registration(id).transport {
+        ProviderTransport::Http => Ok(()),
+        ProviderTransport::OpenCli(_) => opencli::host_support()
+            .map_err(|reason| format!("{} cannot run here: {reason}", id.name())),
     }
 }
