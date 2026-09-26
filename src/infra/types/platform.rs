@@ -169,10 +169,12 @@ impl ArxivRef {
 
     fn from_identifier(value: &str) -> Option<Self> {
         let (id, version) = split_version(value);
-        (is_new_style_id(id) || is_old_style_id(id)).then(|| Self {
-            id: id.to_owned(),
-            version,
-        })
+        let id = if is_new_style_id(id) {
+            id.to_owned()
+        } else {
+            old_style_id(id)?
+        };
+        Some(Self { id, version })
     }
 
     /// Returns the identifier without its version.
@@ -260,21 +262,22 @@ fn is_new_style_id(id: &str) -> bool {
 }
 
 // Old-style IDs are archive[.SUBJECT]/YYMMNNN, for example hep-th/9901001 or math.GT/0309136.
-fn is_old_style_id(id: &str) -> bool {
-    let Some((archive, number)) = id.split_once('/') else {
-        return false;
-    };
+// The subject class is not part of the identity: arXiv resolves math.GT/0309136 to
+// math/0309136, and the Query API finds only the latter.
+fn old_style_id(id: &str) -> Option<String> {
+    let (archive, number) = id.split_once('/')?;
     let (archive, subject) = archive
         .split_once('.')
         .map_or((archive, None), |(archive, subject)| {
             (archive, Some(subject))
         });
-    is_hyphenated_lowercase(archive)
+    (is_hyphenated_lowercase(archive)
         && subject.is_none_or(|subject| {
             subject.len() == 2 && subject.bytes().all(|byte| byte.is_ascii_uppercase())
         })
         && number.len() == 7
-        && all_digits(number)
+        && all_digits(number))
+    .then(|| format!("{archive}/{number}"))
 }
 
 fn all_digits(value: &str) -> bool {
@@ -327,9 +330,10 @@ pub struct ArxivSearchOptions {
 impl ArxivSearchOptions {
     /// Splits plain text into the literal words a search must match.
     ///
-    /// A double quote cannot appear inside a quoted arXiv term, so it separates words.
+    /// A double quote cannot appear inside a quoted arXiv term and a backslash escapes the
+    /// closing quote, so both separate words.
     pub fn words(text: &str) -> impl Iterator<Item = &str> {
-        text.split(|character: char| character.is_whitespace() || character == '"')
+        text.split(|character: char| character.is_whitespace() || matches!(character, '"' | '\\'))
             .filter(|word| !word.is_empty())
     }
 
@@ -592,7 +596,7 @@ mod tests {
                 Some("arxiv:2401.01234".into()),
                 Some("arxiv:0704.0001".into()),
                 Some("arxiv:hep-th/9901001v1".into()),
-                Some("arxiv:math.GT/0309136".into()),
+                Some("arxiv:math/0309136".into()),
                 Some("arxiv:solv-int/9901001".into()),
             ]
         );
@@ -643,7 +647,24 @@ mod tests {
                 Some("arxiv:2401.01234v2".into()),
                 Some("arxiv:2401.01234v2".into()),
                 Some("arxiv:2401.01234".into()),
-                Some("arxiv:math.GT/0309136v1".into()),
+                Some("arxiv:math/0309136v1".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn arxiv_old_style_ids_drop_the_subject_class() {
+        let parsed = [
+            "arxiv:math.DG/0211159v1",
+            "https://arxiv.org/abs/math.DG/0211159",
+        ]
+        .map(arxiv);
+
+        assert_eq!(
+            parsed,
+            [
+                Some("arxiv:math/0211159v1".into()),
+                Some("arxiv:math/0211159".into())
             ]
         );
     }
@@ -846,6 +867,13 @@ mod tests {
         let words = ArxivSearchOptions::words(" \"dark  matter\" AND (halo) ").collect::<Vec<_>>();
 
         assert_eq!(words, ["dark", "matter", "AND", "(halo)"]);
+    }
+
+    #[test]
+    fn search_words_treat_backslashes_as_separators() {
+        let words = ArxivSearchOptions::words(r"C:\ a\b").collect::<Vec<_>>();
+
+        assert_eq!(words, ["C:", "a", "b"]);
     }
 
     #[test]

@@ -337,14 +337,11 @@ mod tests {
 
     #[test]
     fn content_file_names_derive_from_the_versioned_ref() {
-        let names = ["arxiv:2401.01234v2", "arxiv:math.GT/0309136v1"].map(|input| {
+        let names = ["arxiv:2401.01234v2", "arxiv:math/0309136v1"].map(|input| {
             content_file_name(&PlatformRef::parse(Platform::Arxiv, input).expect("valid ref"))
         });
 
-        assert_eq!(
-            names,
-            ["arxiv-2401.01234v2.md", "arxiv-math.GT-0309136v1.md"]
-        );
+        assert_eq!(names, ["arxiv-2401.01234v2.md", "arxiv-math-0309136v1.md"]);
     }
 
     #[test]
