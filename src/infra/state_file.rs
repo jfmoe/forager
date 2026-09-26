@@ -3,7 +3,8 @@
 //! State lives in `$XDG_STATE_HOME/forager`, or `$HOME/.local/state/forager` when
 //! `XDG_STATE_HOME` is not an absolute path. Callers hold a [`StateLock`] while they read
 //! and atomically replace a state file, and run that blocking work through
-//! [`serialized_blocking`].
+//! [`serialized_blocking`]. A lock can also be held across async work through
+//! [`acquire_any_lock`].
 
 use std::collections::HashMap;
 use std::env;
@@ -19,6 +20,9 @@ use serde_json::Value;
 use tokio::sync::{Mutex, OwnedMutexGuard};
 
 use crate::secure_fs::{create_private_file, ensure_private_directory};
+use crate::types::Deadline;
+
+const ASYNC_LOCK_POLL: Duration = Duration::from_millis(20);
 
 // Advisory file locks do not reliably exclude other handles in the same process, so work
 // on each state file is also serialized in-process.
@@ -51,8 +55,7 @@ impl StateLock {
     /// Returns `WouldBlock` when another holder keeps the lock for longer than `wait`, or
     /// another I/O error when the directory or lock file is unusable.
     pub(crate) fn acquire(path: &Path, wait: Duration) -> io::Result<Self> {
-        ensure_private_directory(parent(path)?)?;
-        let file = create_private_file(path)?;
+        let file = open_lock_file(path)?;
         let deadline = Instant::now() + wait;
         loop {
             match file.try_lock_exclusive() {
@@ -75,6 +78,56 @@ impl StateLock {
 impl Drop for StateLock {
     fn drop(&mut self) {
         let _ = FileExt::unlock(&self.file);
+    }
+}
+
+fn open_lock_file(path: &Path) -> io::Result<File> {
+    ensure_private_directory(parent(path)?)?;
+    create_private_file(path)
+}
+
+/// Waits within `deadline`, without blocking the runtime, for the first free lock among
+/// `paths`. Returns `None` when every lock stays held until the deadline.
+///
+/// # Errors
+///
+/// Returns an I/O error when a lock file's directory or the lock file is unusable.
+pub(crate) async fn acquire_any_lock(
+    paths: Vec<PathBuf>,
+    deadline: Deadline,
+) -> io::Result<Option<StateLock>> {
+    let mut files = tokio::task::spawn_blocking(move || {
+        paths
+            .iter()
+            .map(|path| open_lock_file(path))
+            .collect::<io::Result<Vec<_>>>()
+    })
+    .await
+    .map_err(io::Error::other)??;
+    loop {
+        let mut free = None;
+        for (index, file) in files.iter().enumerate() {
+            match file.try_lock_exclusive() {
+                Ok(()) => {
+                    free = Some(index);
+                    break;
+                }
+                Err(error) if error.kind() == io::ErrorKind::WouldBlock => {}
+                Err(error) => return Err(error),
+            }
+        }
+        if let Some(index) = free {
+            return Ok(Some(StateLock {
+                file: files.swap_remove(index),
+            }));
+        }
+        let Some(remaining) = deadline
+            .remaining()
+            .filter(|remaining| !remaining.is_zero())
+        else {
+            return Ok(None);
+        };
+        tokio::time::sleep(remaining.min(ASYNC_LOCK_POLL)).await;
     }
 }
 

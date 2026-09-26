@@ -129,7 +129,7 @@ _Avoid_: claim verification、source list
 _Avoid_: key pool、key rotation、API key list、high-availability credential pool
 
 **Access Policy**:
-供应方为自己的 endpoint 声明的请求节奏：最小间隔与最大并发。每次发送前在共享状态锁内预约时间窗口，同一状态目录下的所有 forager 进程共享这一节奏；锁或状态不可用时不发送，预算内等不到窗口时以超时结束。最大并发只在单个进程内限制。
+供应方为自己的 endpoint 声明的请求节奏：最小间隔与最大并发。每次发送先取得一个连接槽位并持有到发送结束，再在共享状态锁内预约时间窗口；同一状态目录下的所有 forager 进程共享这一节奏与最大并发。锁或状态不可用时不发送，预算内等不到槽位或窗口时以超时结束。
 _Avoid_: throttle、retry backoff、provider quota
 
 **Capability Catalog**:

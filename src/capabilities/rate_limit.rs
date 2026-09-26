@@ -6,9 +6,13 @@
 //! unavailable, the send fails with `Runtime`; unlike the credential pool, pacing never falls
 //! back to optimistic sending.
 //!
+//! Each send also holds one of the route's `max_concurrency` connection slots, a file lock in
+//! the state directory, until it completes, so sends from all processes never overlap beyond
+//! that limit.
+//!
 //! Known limits: spacing holds between reservation times, so a process delayed after it
 //! reserves can send closer than the interval; coordination covers processes that share one
-//! state directory; `max_concurrency` applies within one process only.
+//! state directory.
 
 use std::io;
 use std::path::{Path, PathBuf};
@@ -51,9 +55,10 @@ impl RateLimitError {
     }
 }
 
-/// Holds one of the route's in-process concurrency slots until the send completes.
+/// Holds one of the route's connection slots until the send completes.
 pub(crate) struct RatePermit {
     _permit: OwnedSemaphorePermit,
+    _connection: StateLock,
 }
 
 /// Paces sends to one route. Clones share the in-process concurrency limit, so build one
@@ -62,6 +67,7 @@ pub(crate) struct RatePermit {
 pub(crate) struct RateLimiter {
     route: &'static str,
     min_interval: Duration,
+    max_concurrency: usize,
     state_file: Option<PathBuf>,
     concurrency: Arc<Semaphore>,
     clock: WallClock,
@@ -86,13 +92,14 @@ impl RateLimiter {
         Self {
             route,
             min_interval: policy.min_interval,
+            max_concurrency: policy.max_concurrency,
             state_file,
             concurrency: Arc::new(Semaphore::new(policy.max_concurrency)),
             clock,
         }
     }
 
-    /// Waits for a concurrency slot and the next request window within `deadline`.
+    /// Waits for a connection slot and the next request window within `deadline`.
     ///
     /// # Errors
     ///
@@ -100,11 +107,19 @@ impl RateLimiter {
     /// budget, and [`RateLimitError::Unavailable`] when the shared state cannot be locked,
     /// read, or written. In both cases the caller must not send.
     pub(crate) async fn acquire(&self, deadline: Deadline) -> Result<RatePermit, RateLimitError> {
+        let Some(state_file) = self.state_file.as_deref() else {
+            return Err(self
+                .unavailable("XDG_STATE_HOME and HOME do not resolve to an absolute path".into()));
+        };
         let permit = self.acquire_slot(deadline).await?;
-        let window = self.reserve_window(deadline).await?;
+        let connection = self.acquire_connection(state_file, deadline).await?;
+        let window = self.reserve_window(state_file, deadline).await?;
         let wait = window.saturating_sub(self.clock.now_ms());
         tokio::time::sleep(Duration::from_millis(wait)).await;
-        Ok(RatePermit { _permit: permit })
+        Ok(RatePermit {
+            _permit: permit,
+            _connection: connection,
+        })
     }
 
     async fn acquire_slot(
@@ -119,12 +134,29 @@ impl RateLimiter {
         }
     }
 
+    /// Takes a connection slot shared by every process that uses the state directory.
+    async fn acquire_connection(
+        &self,
+        state_file: &Path,
+        deadline: Deadline,
+    ) -> Result<StateLock, RateLimitError> {
+        let slots = (0..self.max_concurrency)
+            .map(|slot| state_file.with_file_name(format!("rate_limit_{}.{slot}.lock", self.route)))
+            .collect();
+        match state_file::acquire_any_lock(slots, deadline).await {
+            Ok(Some(connection)) => Ok(connection),
+            Ok(None) => Err(self.timeout()),
+            Err(error) => Err(self.unavailable(error.to_string())),
+        }
+    }
+
     /// Returns the reserved window as wall-clock milliseconds.
-    async fn reserve_window(&self, deadline: Deadline) -> Result<u64, RateLimitError> {
-        let Some(state_file) = self.state_file.clone() else {
-            return Err(self
-                .unavailable("XDG_STATE_HOME and HOME do not resolve to an absolute path".into()));
-        };
+    async fn reserve_window(
+        &self,
+        state_file: &Path,
+        deadline: Deadline,
+    ) -> Result<u64, RateLimitError> {
+        let state_file = state_file.to_path_buf();
         let remaining = deadline.remaining().ok_or_else(|| self.timeout())?;
         let turn = tokio::time::timeout(remaining, state_file::state_work_turn(&state_file))
             .await
@@ -377,6 +409,32 @@ mod tests {
             );
 
             assert_eq!(started.elapsed(), INTERVAL);
+        });
+    }
+
+    #[test]
+    fn a_send_in_flight_in_another_process_blocks_the_next_send() {
+        let directory = tempdir().expect("create state directory");
+        runtime().block_on(async {
+            let path = state_file(directory.path());
+            let _in_flight = limiter(Some(path.clone()))
+                .acquire(budget(10))
+                .await
+                .expect("first process window");
+
+            let started = Instant::now();
+
+            // The budget fits the next window, so only the held connection slot can fail it.
+            let error = limiter(Some(path))
+                .acquire(budget(4))
+                .await
+                .err()
+                .expect("the connection slot is taken");
+
+            assert_eq!(
+                (error.kind(), started.elapsed()),
+                (AttemptErrorKind::Timeout, Duration::from_secs(4))
+            );
         });
     }
 
