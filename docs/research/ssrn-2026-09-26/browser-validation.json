@@ -1,0 +1,1177 @@
+{
+  "checked_at_utc": "2026-09-26T11:05:20.861150+00:00",
+  "tool_versions": {
+    "agent-browser": "0.38.1",
+    "OpenCLI": "1.8.6"
+  },
+  "agent_browser": {
+    "managed_session": {
+      "result": "blocked",
+      "page_title": "Content Blocked",
+      "message": "The site reported an unsupported automated script or search engine.",
+      "next_steps_tested": false
+    },
+    "existing_browser_probe": {
+      "result": "unavailable",
+      "message": "No running Chrome instance found. Launch Chrome with --remote-debugging-port or use --cdp."
+    },
+    "challenge_bypass_attempted": false
+  },
+  "opencli": {
+    "installation": "OpenCLIApp managed shim",
+    "browser_mode": "existing Chrome through configured browser bridge",
+    "login_performed": false,
+    "sign_in_link_visible": true,
+    "homepage": {
+      "input_url": "https://www.ssrn.com/index.cfm/en/",
+      "final_url": "https://www.ssrn.com/ssrn/",
+      "title": "SSRN Home Page"
+    },
+    "search": {
+      "transient_security_verification": true,
+      "verification_cleared_without_interaction": true,
+      "page1": {
+        "url": "https://papers.ssrn.com/searchresults.cfm?term=dual+momentum",
+        "title": "Search Results",
+        "display": "Displaying results 1 to 50 of 10000",
+        "checked": [
+          "title-abstract-keywords",
+          "fuzzy"
+        ],
+        "items": [
+          {
+            "title": "Unraveling Momentum's Moments",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3447702",
+            "authors": [
+              "Sunil Teluja"
+            ],
+            "page_and_posted": "Number of pages: 27 • Posted: 08 Sep 2019",
+            "snippet_characters": 252
+          },
+          {
+            "title": "Momentum, Size and Value Factors versus Systematic Co-Moments in Stock Returns",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=965765",
+            "authors": [
+              "Chi-Hsiou Daniel Hung"
+            ],
+            "page_and_posted": "Number of pages: 30 • Posted: 27 Feb 2007",
+            "snippet_characters": 351
+          },
+          {
+            "title": "Risk Premia Harvesting Through Dual Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2042750",
+            "authors": [
+              "Gary Antonacci"
+            ],
+            "page_and_posted": "Number of pages: 37 • Posted: 20 Apr 2012",
+            "snippet_characters": 343
+          },
+          {
+            "title": "Dual and Canary Momentum with Rising Yields/Inflation: Hybrid Asset Allocation (HAA)",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4346906",
+            "authors": [
+              "Wouter J. Keller",
+              "Jan Willem Keuning"
+            ],
+            "page_and_posted": "Number of pages: 15 • Posted: 04 Feb 2023",
+            "snippet_characters": 456
+          },
+          {
+            "title": "Dual and Canary Momentum with Rising Yields/Inflation: Hybrid Asset Allocation (HAA)",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4378728",
+            "authors": [
+              "Wouter J. Keller",
+              "Jan Willem Keuning"
+            ],
+            "page_and_posted": "Number of pages: 15 • Posted: 04 Feb 2023",
+            "snippet_characters": 456
+          },
+          {
+            "title": "Momentum Has Its Moments",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2041429",
+            "authors": [
+              "Pedro Barroso",
+              "Pedro Santa-Clara"
+            ],
+            "page_and_posted": "Number of pages: 39 • Posted: 19 Apr 2012",
+            "snippet_characters": 196
+          },
+          {
+            "title": "RAMP: Dual Momentum for Smarter Investing: A Volatility-Scaled, Drawdown-Controlled Equity Strategy",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6980898",
+            "authors": [
+              "Siddharth Mirchandani"
+            ],
+            "page_and_posted": "Number of pages: 9 • Posted: 11 Jul 2026",
+            "snippet_characters": 443
+          },
+          {
+            "title": "Is Factor Momentum More than Stock Momentum?",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3688983",
+            "authors": [
+              "Antoine Falck",
+              "Adam Rej",
+              "David Thesmar"
+            ],
+            "page_and_posted": "Number of pages: 33 • Posted: 27 Oct 2020",
+            "snippet_characters": 198
+          },
+          {
+            "title": "Asymmetry, Tail Risk and Time Series Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3573878",
+            "authors": [
+              "Zhenya Liu",
+              "Shanglin Lu",
+              "Shixuan Wang"
+            ],
+            "page_and_posted": "Number of pages: 37 • Posted: 07 May 2020",
+            "snippet_characters": 333
+          },
+          {
+            "title": "Dual Momentum Allocation Between Physical Gold and Bitcoin (Digital Gold)",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6729918",
+            "authors": [
+              "Radovan Vojtko",
+              "Cyril Dujava"
+            ],
+            "page_and_posted": "Number of pages: 9 • Posted: 07 May 2026",
+            "snippet_characters": 253
+          },
+          {
+            "title": "Dual vs. Single Momentum in Commodities: Enhancing Risk-Adjusted Returns through Absolute Trend Filtering",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=6953821",
+            "authors": [
+              "Radovan Vojtko",
+              "Cyril Dujava"
+            ],
+            "page_and_posted": "Number of pages: 12 • Posted: 13 Jul 2026",
+            "snippet_characters": 426
+          },
+          {
+            "title": "When Does Risk-Managed Momentum Add Value? An Out-of-Sample, Regime-Conditional, and Statistically Tested Study of a Volatility-Targeted Dual-Momentum Strategy",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7143882",
+            "authors": [
+              "Aariv Goyal"
+            ],
+            "page_and_posted": "Number of pages: 15 • Posted: 24 Jul 2026",
+            "snippet_characters": 427
+          },
+          {
+            "title": "Breadth Momentum and Vigilant Asset Allocation (VAA): Winning More by Losing Less",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3002624",
+            "authors": [
+              "Wouter J. Keller",
+              "Jan Willem Keuning"
+            ],
+            "page_and_posted": "Number of pages: 37 • Posted: 19 Jul 2017",
+            "snippet_characters": 372
+          },
+          {
+            "title": "On the Dual Test for Ssd Efficiency: With an Application to Momentum Investment Strategies",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=581323",
+            "authors": [
+              "Thierry Post"
+            ],
+            "page_and_posted": "Number of pages: 13 • Posted: 25 Aug 2004",
+            "snippet_characters": 399
+          },
+          {
+            "title": "Regulation of Whole-Body Angular Momentum in Tai Chi: From Segmental to Bilateral Control",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5701713",
+            "authors": [
+              "Leichao Liang",
+              "Yuzhao Xie",
+              "He Li",
+              "Xueli Ma",
+              "Yong Wang",
+              "Yunqi Tang",
+              "Kuan Wang",
+              "Liyan Wang"
+            ],
+            "page_and_posted": "Number of pages: 21 • Posted: 06 Nov 2025",
+            "snippet_characters": 391
+          },
+          {
+            "title": "Salience Theory and Momentum Everywhere",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4441960",
+            "authors": [
+              "Jiaqi Guo",
+              "Peng Li",
+              "Tse-Chun Lin",
+              "Jinyu Liu"
+            ],
+            "page_and_posted": "Number of pages: 72 • Posted: 17 May 2023",
+            "snippet_characters": 326
+          },
+          {
+            "title": "The Four-Moment CAPM and Non-Linear Market Models in Momentum and Size Strategies",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=495362",
+            "authors": [
+              "Chi-Hsiou Daniel Hung"
+            ],
+            "page_and_posted": "Number of pages: 42 • Posted: 09 May 2004",
+            "snippet_characters": 257
+          },
+          {
+            "title": "Uncovering Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3502301",
+            "authors": [
+              "Yulia Malitsky"
+            ],
+            "page_and_posted": "Number of pages: 20 • Posted: 18 Dec 2019",
+            "snippet_characters": 424
+          },
+          {
+            "title": "Central Moments, Stochastic Dominance, Moment Rule, and Diversification",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3900600",
+            "authors": [
+              "Raymond Honfu Chan",
+              "Nikolai Sheung-Chi Chow",
+              "Xu Guo",
+              "Wing-Keung Wong"
+            ],
+            "page_and_posted": "Number of pages: 13 • Posted: 31 Aug 2021",
+            "snippet_characters": 447
+          },
+          {
+            "title": "Factor Momentum and the Momentum Factor",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3014521",
+            "authors": [
+              "Sina Ehsani",
+              "Juhani T. Linnainmaa"
+            ],
+            "page_and_posted": "Number of pages: 84 • Posted: 08 Aug 2017",
+            "snippet_characters": 182
+          },
+          {
+            "title": "The Distribution of Cross Sectional Momentum Returns",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3018366",
+            "authors": [
+              "Oh Kang Kwon",
+              "Stephen E. Satchell"
+            ],
+            "page_and_posted": "Number of pages: 19 • Posted: 16 Aug 2017",
+            "snippet_characters": 367
+          },
+          {
+            "title": "Option Factor Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4405852",
+            "authors": [
+              "Niclas Käfer",
+              "Mathis Moerke",
+              "Tobias Wiest"
+            ],
+            "page_and_posted": "Number of pages: 81 • Posted: 13 Apr 2023",
+            "snippet_characters": 203
+          },
+          {
+            "title": "Momentum Universe Shrinkage Effect in Price Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2180556",
+            "authors": [
+              "Jaehyung Choi",
+              "Sungsoo Choi",
+              "Wonseok Kang"
+            ],
+            "page_and_posted": "Number of pages: 38 • Posted: 28 Nov 2012",
+            "snippet_characters": 192
+          },
+          {
+            "title": "Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=1919226",
+            "authors": [
+              "Narasimhan Jegadeesh",
+              "Sheridan Titman"
+            ],
+            "page_and_posted": "Number of pages: 27 • Posted: 30 Aug 2011",
+            "snippet_characters": 258
+          },
+          {
+            "title": "Protective Asset Allocation (PAA): A Simple Momentum-Based Alternative for Term Deposits",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2759734",
+            "authors": [
+              "Wouter J. Keller",
+              "Jan Willem Keuning"
+            ],
+            "page_and_posted": "Number of pages: 24 • Posted: 08 Apr 2016",
+            "snippet_characters": 260
+          },
+          {
+            "title": "Momentum? What Momentum?",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3710496",
+            "authors": [
+              "Erik Theissen",
+              "Can Yilanci"
+            ],
+            "page_and_posted": "Number of pages: 53 • Posted: 15 Oct 2020",
+            "snippet_characters": 336
+          },
+          {
+            "title": "Factor Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3116974",
+            "authors": [
+              "Robert D. Arnott",
+              "Mark Clements",
+              "Vitali Kalesnik",
+              "Juhani T. Linnainmaa"
+            ],
+            "page_and_posted": "Number of pages: 48 • Posted: 13 Nov 2020",
+            "snippet_characters": 315
+          },
+          {
+            "title": "Does Revenue Momentum Drive or Ride Earnings or Price Momentum?",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=1571883",
+            "authors": [
+              "Hong-Yi Chen",
+              "Sheng‐Syan Chen",
+              "Chin-Wen Hsin",
+              "Cheng-Few Lee"
+            ],
+            "page_and_posted": "Number of pages: 53 • Posted: 22 Mar 2010",
+            "snippet_characters": 305
+          },
+          {
+            "title": "Central Moments, Stochastic Dominance, and the Moment Rules",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3034903",
+            "authors": [
+              "Raymond Honfu Chan",
+              "Nikolai Sheung-Chi Chow",
+              "Xu Guo",
+              "Wing-Keung Wong"
+            ],
+            "page_and_posted": "Number of pages: 20 • Posted: 13 Sep 2017",
+            "snippet_characters": 410
+          },
+          {
+            "title": "Momentum Loses Its Momentum: Implications for Market Efficiency",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=1762264",
+            "authors": [
+              "Debarati Bhattacharya",
+              "Raman Kumar",
+              "Gokhan Sonaer"
+            ],
+            "page_and_posted": "Number of pages: 50 • Posted: 16 Feb 2011",
+            "snippet_characters": 336
+          },
+          {
+            "title": "Alpha Momentum and Price Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2287848",
+            "authors": [
+              "Hannah Hühn",
+              "Hendrik Scholz"
+            ],
+            "page_and_posted": "Number of pages: 1 • Posted: 02 Jul 2013",
+            "snippet_characters": 388
+          },
+          {
+            "title": "Mapping Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3883504",
+            "authors": [
+              "Yimou Li",
+              "David Turkington"
+            ],
+            "page_and_posted": "Number of pages: 25 • Posted: 12 Jul 2021",
+            "snippet_characters": 383
+          },
+          {
+            "title": "Enduring Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4082543",
+            "authors": [
+              "Hui Zeng",
+              "Ben R. Marshall",
+              "Nhut H. Nguyen",
+              "Nuttawat Visaltanachoti"
+            ],
+            "page_and_posted": "Number of pages: 44 • Posted: 27 Apr 2022",
+            "snippet_characters": 249
+          },
+          {
+            "title": "Central Moments, Stochastic Dominance, Moment Rule, and Diversification",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3431903",
+            "authors": [
+              "Raymond Honfu Chan",
+              "Sheung Chi Chow",
+              "Xu Guo",
+              "Wing-Keung Wong"
+            ],
+            "page_and_posted": "Number of pages: 2 • Posted: 08 Aug 2019",
+            "snippet_characters": 369
+          },
+          {
+            "title": "Risk-Managed Industry Momentum and Momentum Crashes",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2844140",
+            "authors": [
+              "Klaus Grobys",
+              "Joni Ruotsalainen",
+              "Janne Jaakko Äijö"
+            ],
+            "page_and_posted": "Number of pages: 46 • Posted: 28 Sep 2016",
+            "snippet_characters": 347
+          },
+          {
+            "title": "Uninformed Momentum Traders",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=1455343",
+            "authors": [
+              "Emre Konukoglu"
+            ],
+            "page_and_posted": "Number of pages: 44 • Posted: 27 Aug 2009",
+            "snippet_characters": 287
+          },
+          {
+            "title": "Dual-Parameter Manipulation of Orbital Angular Momentum and Focal Length Via Concentric Bilayer Moiré Metalens",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5192013",
+            "authors": [
+              "TIESHENG WU",
+              "YINGSHUANG HUANG",
+              "Yingtao Tang",
+              "HONGYUN LI",
+              "DACHENG ZHOU",
+              "CHANGYE FENG",
+              "BO LU",
+              "YUXIN YANG"
+            ],
+            "page_and_posted": "Number of pages: 9 • Posted: 25 Mar 2025",
+            "snippet_characters": 422
+          },
+          {
+            "title": "Factor Momentum and the Momentum Factor: Evidence from Emerging Markets",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7466186",
+            "authors": [
+              "James Foye"
+            ],
+            "page_and_posted": "Number of pages: 23 • Posted: 15 Sep 2026",
+            "snippet_characters": 243
+          },
+          {
+            "title": "Momentum is Really Short-Term Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2516086",
+            "authors": [
+              "Qiang Gong",
+              "Ming Liu",
+              "Qianqiu Liu"
+            ],
+            "page_and_posted": "Number of pages: 49 • Posted: 31 Oct 2014",
+            "snippet_characters": 325
+          },
+          {
+            "title": "Can Momentum Investing Be Saved?",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3099687",
+            "authors": [
+              "Robert D. Arnott",
+              "Vitali Kalesnik",
+              "Engin Kose",
+              "Lillian J. Wu"
+            ],
+            "page_and_posted": "Number of pages: 27 • Posted: 17 Jan 2018",
+            "snippet_characters": 364
+          },
+          {
+            "title": "Shades of Momentum: Alternative Momentum Metrics and their Dissipation in Indian Equities",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4977717",
+            "authors": [
+              "Rajan Raju"
+            ],
+            "page_and_posted": "Number of pages: 33 • Posted: 20 Nov 2024",
+            "snippet_characters": 327
+          },
+          {
+            "title": "What Explains Momentum When It Really Works?",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3716786",
+            "authors": [
+              "Pedro Barroso",
+              "Haoxu Wang"
+            ],
+            "page_and_posted": "Number of pages: 83 • Posted: 30 Nov 2020",
+            "snippet_characters": 269
+          },
+          {
+            "title": "Momentum Life Cycle around the World and Beyond",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2565305",
+            "authors": [
+              "Frank Weikai Li",
+              "K.C. John Wei"
+            ],
+            "page_and_posted": "Number of pages: 72 • Posted: 17 Feb 2015",
+            "snippet_characters": 269
+          },
+          {
+            "title": "Does factor momentum span stock momentum in the UK?",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7269511",
+            "authors": [
+              "James Foye"
+            ],
+            "page_and_posted": "Number of pages: 11 • Posted: 12 Aug 2026",
+            "snippet_characters": 331
+          },
+          {
+            "title": "One Brief Shining Moment(um): Past Momentum Performance and Momentum Reversals",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2956493",
+            "authors": [
+              "Usman Ali",
+              "Kent D. Daniel",
+              "David Hirshleifer"
+            ],
+            "page_and_posted": "Number of pages: 40 • Posted: 24 Apr 2017",
+            "snippet_characters": 197
+          },
+          {
+            "title": "Momentum in Japan: The Exception that Proves the Rule",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=1776123",
+            "authors": [
+              "Clifford S. Asness"
+            ],
+            "page_and_posted": "Number of pages: 0 • Posted: 09 Mar 2011",
+            "snippet_characters": 332
+          },
+          {
+            "title": "Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=299107",
+            "authors": [
+              "Narasimhan Jegadeesh",
+              "Sheridan Titman"
+            ],
+            "page_and_posted": "Number of pages: 45 • Posted: 05 Feb 2002",
+            "snippet_characters": 313
+          },
+          {
+            "title": "Credit Distortions in Japanese Momentum ",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5095966",
+            "authors": [
+              "Sharon Y. Ross"
+            ],
+            "page_and_posted": "Number of pages: 54 • Posted: 06 Mar 2025",
+            "snippet_characters": 319
+          },
+          {
+            "title": "Customer Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4338991",
+            "authors": [
+              "Mykola Pinchuk"
+            ],
+            "page_and_posted": "Number of pages: 64 • Posted: 28 Jan 2023",
+            "snippet_characters": 286
+          },
+          {
+            "title": "Factor Momentum Everywhere",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3300728",
+            "authors": [
+              "Tarun Gupta",
+              "Bryan T. Kelly"
+            ],
+            "page_and_posted": "Number of pages: 31 • Posted: 01 Jan 2019",
+            "snippet_characters": 338
+          }
+        ]
+      },
+      "page2": {
+        "url": "https://papers.ssrn.com/searchresults.cfm?term=dual+momentum&page=2",
+        "title": "Search Results",
+        "display": "Displaying results 51 to 100 of 10000",
+        "items": [
+          {
+            "title": "Momentum, Reversal, and the Trading Behaviors of Institutions",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=637281",
+            "authors": [
+              "Roberto C. Gutierrez ",
+              "Christo A. Pirinsky"
+            ],
+            "page_and_posted": "Number of pages: 52 • Posted: 31 Dec 2004",
+            "snippet_characters": 225
+          },
+          {
+            "title": "Has Momentum Lost Its Momentum?",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3239593",
+            "authors": [
+              "Debarati Bhattacharya",
+              "Wei-Hsien Li",
+              "Gokhan Sonaer"
+            ],
+            "page_and_posted": "Number of pages: 47 • Posted: 07 Sep 2018",
+            "snippet_characters": 253
+          },
+          {
+            "title": "Echo effect in cross-sectional momentum: Evidence from the Korean stock markets",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4559807",
+            "authors": [
+              "Cheoljun Eom",
+              "Jong Won Park"
+            ],
+            "page_and_posted": "Number of pages: 41 • Posted: 02 Sep 2023",
+            "snippet_characters": 287
+          },
+          {
+            "title": "More on Difference between Angular Momentum and Pseudo-Angular Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4569338",
+            "authors": [
+              "Qi Dai",
+              "Zi-Wei Chen",
+              "Bang-Hui Hua",
+              "Xiang-Song Chen"
+            ],
+            "page_and_posted": "Number of pages: 8 • Posted: 12 Sep 2023",
+            "snippet_characters": 222
+          },
+          {
+            "title": "Realized skewness and momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4055284",
+            "authors": [
+              "Seema Rehman",
+              "Saqib Sharif",
+              "Wali Ullah",
+              "Mustansar Hayat"
+            ],
+            "page_and_posted": "Number of pages: 0 • Posted: 13 Mar 2022",
+            "snippet_characters": 328
+          },
+          {
+            "title": "Momentum Loses its Momentum: Implications for Market Efficiency",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=1928764",
+            "authors": [
+              "Debarati Bhattacharya",
+              "Raman Kumar",
+              "Gokhan Sonaer"
+            ],
+            "page_and_posted": "Number of pages: 50 • Posted: 16 Jan 2015",
+            "snippet_characters": 336
+          },
+          {
+            "title": "Has Momentum Lost Its Momentum?",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2791138",
+            "authors": [
+              "Debarati Bhattacharya",
+              "Wei-Hsien Li",
+              "Gokhan Sonaer"
+            ],
+            "page_and_posted": "Number of pages: 43 • Posted: 09 Jun 2016",
+            "snippet_characters": 255
+          },
+          {
+            "title": "Momentum and Long-Run Risks",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=972661",
+            "authors": [
+              "Paul Zurek"
+            ],
+            "page_and_posted": "Number of pages: 71 • Posted: 20 Mar 2007",
+            "snippet_characters": 263
+          },
+          {
+            "title": "Crowded Trades, Short Covering, and Momentum Crashes",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2404272",
+            "authors": [
+              "Philip Yan"
+            ],
+            "page_and_posted": "Number of pages: 40 • Posted: 04 Mar 2014",
+            "snippet_characters": 291
+          },
+          {
+            "title": "Indexation of Momentum Effects",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=498304",
+            "authors": [
+              "Eugene Y. Lee"
+            ],
+            "page_and_posted": "Number of pages: 40 • Posted: 28 May 2004",
+            "snippet_characters": 228
+          },
+          {
+            "title": "Applying Machine Learning to Trading Strategies: Using Logistic Regression to Build Momentum-Based Trading Strategies",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3325656",
+            "authors": [
+              "Patrick Beaudan",
+              "Shuoyuan He"
+            ],
+            "page_and_posted": "Number of pages: 78 • Posted: 05 Feb 2019",
+            "snippet_characters": 393
+          },
+          {
+            "title": "Dissecting Currency Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3759017",
+            "authors": [
+              "Shaojun Zhang"
+            ],
+            "page_and_posted": "Number of pages: 50 • Posted: 29 Jan 2021",
+            "snippet_characters": 250
+          },
+          {
+            "title": "Cross-Bond Momentum Spillovers",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4880869",
+            "authors": [
+              "Junbo Wang",
+              "Di Wu",
+              "Lihai Yang"
+            ],
+            "page_and_posted": "Number of pages: 70 • Posted: 13 May 2025",
+            "snippet_characters": 332
+          },
+          {
+            "title": "Earnings and Price Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=342581",
+            "authors": [
+              "Tarun Chordia",
+              "Lakshmanan Shivakumar"
+            ],
+            "page_and_posted": "Number of pages: 46 • Posted: 11 Nov 2002",
+            "snippet_characters": 149
+          },
+          {
+            "title": "The Value-Momentum Correlation: An Investment Explanation",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3476844",
+            "authors": [
+              "Elisa Pazaj"
+            ],
+            "page_and_posted": "Number of pages: 74 • Posted: 07 Nov 2019",
+            "snippet_characters": 170
+          },
+          {
+            "title": "Momentum in China: Momentum as Value's Natural Hedge",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3853288",
+            "authors": [
+              "Jingyuan Deng"
+            ],
+            "page_and_posted": "Number of pages: 0 • Posted: 26 May 2021",
+            "snippet_characters": 300
+          },
+          {
+            "title": "Customer Profits Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4142639",
+            "authors": [
+              "Haoxiang Yang"
+            ],
+            "page_and_posted": "Number of pages: 3 • Posted: 12 Jul 2022",
+            "snippet_characters": 231
+          },
+          {
+            "title": "Option Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3705573",
+            "authors": [
+              "Steven L. Heston",
+              "Shuaiqi Li"
+            ],
+            "page_and_posted": "Number of pages: 40 • Posted: 11 Nov 2020",
+            "snippet_characters": 255
+          },
+          {
+            "title": "Risk-Managed Momentum Strategies",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3448995",
+            "authors": [
+              "Lars Rickenberg"
+            ],
+            "page_and_posted": "Number of pages: 177 • Posted: 14 Sep 2019",
+            "snippet_characters": 194
+          },
+          {
+            "title": "Dissecting Currency Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3643855",
+            "authors": [
+              "Shaojun Zhang"
+            ],
+            "page_and_posted": "Number of pages: 42 • Posted: 08 Jul 2020",
+            "snippet_characters": 228
+          },
+          {
+            "title": "Peer Option Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5542358",
+            "authors": [
+              "Christopher S. Jones",
+              "Mehdi Khorram",
+              "Shuaiqi Li",
+              "Haitao Mo",
+              "Lihai Yang",
+              "Yuanyi Zhang"
+            ],
+            "page_and_posted": "Number of pages: 65 • Posted: 09 Oct 2025",
+            "snippet_characters": 290
+          },
+          {
+            "title": "The Idiosyncratic Momentum Anomaly",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2947044",
+            "authors": [
+              "David Blitz",
+              "Matthias X. Hanauer",
+              "Milan Vidojevic"
+            ],
+            "page_and_posted": "Number of pages: 60 • Posted: 05 Apr 2017",
+            "snippet_characters": 383
+          },
+          {
+            "title": "Physical Approach to Price Momentum and Its Application to Momentum Strategy",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2128946",
+            "authors": [
+              "Jaehyung Choi"
+            ],
+            "page_and_posted": "Number of pages: 23 • Posted: 15 Aug 2012",
+            "snippet_characters": 294
+          },
+          {
+            "title": "Two Centuries of Price Return Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2292544",
+            "authors": [
+              "Christopher Geczy",
+              "Mikhail Samonov"
+            ],
+            "page_and_posted": "Number of pages: 58 • Posted: 12 Jul 2013",
+            "snippet_characters": 306
+          },
+          {
+            "title": "Habitat Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2862828",
+            "authors": [
+              "Paweł Maryniak",
+              "Rafal Weron"
+            ],
+            "page_and_posted": "Number of pages: 22 • Posted: 03 Nov 2016",
+            "snippet_characters": 340
+          },
+          {
+            "title": "Long-Term Momentum Hypothesis: Contrarian and Momentum Strategies",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=320020",
+            "authors": [
+              "Keun-Soo Kim"
+            ],
+            "page_and_posted": "Number of pages: 54 • Posted: 06 Sep 2002",
+            "snippet_characters": 287
+          },
+          {
+            "title": "Momentum Without Crashes",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4280465",
+            "authors": [
+              "Soros Chitsiripanich",
+              "Marc S. Paolella",
+              "Pawel Polak",
+              "Patrick S. Walker"
+            ],
+            "page_and_posted": "Number of pages: 53 • Posted: 18 Nov 2022",
+            "snippet_characters": 339
+          },
+          {
+            "title": "ETF Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3468556",
+            "authors": [
+              "Frank Weikai Li",
+              "Melvyn Teo",
+              "Chloe (Chunliu) Yang"
+            ],
+            "page_and_posted": "Number of pages: 53 • Posted: 23 Oct 2019",
+            "snippet_characters": 282
+          },
+          {
+            "title": "High Accruals Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3188172",
+            "authors": [
+              "Xiaoting Hao",
+              "Juwon Jang",
+              "Eunju Lee"
+            ],
+            "page_and_posted": "Number of pages: 49 • Posted: 08 Jun 2018",
+            "snippet_characters": 315
+          },
+          {
+            "title": "Angular Momentum of Radiation from Ultrarelativistic Charge",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4948814",
+            "authors": [
+              "Vladimir Epp",
+              "Ulyana Guselnikova",
+              "Julia Janz"
+            ],
+            "page_and_posted": "Number of pages: 17 • Posted: 06 Sep 2024",
+            "snippet_characters": 401
+          },
+          {
+            "title": "Avoiding Momentum Crashes: Dynamic Momentum and Contrarian Trading",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2942641",
+            "authors": [
+              "Victoria Dobrynskaya"
+            ],
+            "page_and_posted": "Number of pages: 33 • Posted: 30 Mar 2017",
+            "snippet_characters": 352
+          },
+          {
+            "title": "Momentum in Futures Markets",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=671841",
+            "authors": [
+              "Craig Pirrong"
+            ],
+            "page_and_posted": "Number of pages: 50 • Posted: 23 Feb 2005",
+            "snippet_characters": 252
+          },
+          {
+            "title": "A Model of Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=1779188",
+            "authors": [
+              "Laura Xiaolei Liu",
+              "Lu Zhang"
+            ],
+            "page_and_posted": "Number of pages: 55 • Posted: 07 Mar 2011",
+            "snippet_characters": 295
+          },
+          {
+            "title": "Firm-specific versus systematic momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5053270",
+            "authors": [
+              "Markus Schmid",
+              "Frank Graef",
+              "Daniel Hoechle"
+            ],
+            "page_and_posted": "Number of pages: 15 • Posted: 18 Dec 2024",
+            "snippet_characters": 354
+          },
+          {
+            "title": "Constrained Momentum Investment",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2248362",
+            "authors": [
+              "Marcus Davidsson"
+            ],
+            "page_and_posted": "Number of pages: 9 • Posted: 12 Apr 2013",
+            "snippet_characters": 264
+          },
+          {
+            "title": "Network Momentum across Asset Classes",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4540651",
+            "authors": [
+              "Xingyue (Stacy) Pu",
+              "Stephen Roberts",
+              "Xiaowen Dong",
+              "Stefan Zohren"
+            ],
+            "page_and_posted": "Number of pages: 34 • Posted: 15 Aug 2023",
+            "snippet_characters": 276
+          },
+          {
+            "title": "Definition of four-momentum through energy-momentum field",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7512134",
+            "authors": [
+              "Sergey G. Fedosin"
+            ],
+            "page_and_posted": "Number of pages: 27 • Posted: 23 Sep 2026",
+            "snippet_characters": 407
+          },
+          {
+            "title": "Market Volatility, Momentum, and Reversal",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4478316",
+            "authors": [
+              "Hilal Anwar Butt",
+              "James W. Kolari",
+              "Mohsin Sadaqat"
+            ],
+            "page_and_posted": "Number of pages: 36 • Posted: 14 Jun 2023",
+            "snippet_characters": 310
+          },
+          {
+            "title": "Higher Order Moment Portfolio Optimization with L-Moments",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4393155",
+            "authors": [
+              "Dany Cajas"
+            ],
+            "page_and_posted": "Number of pages: 20 • Posted: 30 Mar 2023",
+            "snippet_characters": 345
+          },
+          {
+            "title": "Peer Option Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4964637",
+            "authors": [
+              "Shuaiqi Li",
+              "Lihai Yang"
+            ],
+            "page_and_posted": "Number of pages: 44 • Posted: 04 Oct 2024",
+            "snippet_characters": 271
+          },
+          {
+            "title": "Momentum, Risk, and Underreaction",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2085340",
+            "authors": [
+              "Mark Rachwalski",
+              "Quan Wen"
+            ],
+            "page_and_posted": "Number of pages: 37 • Posted: 17 Jun 2012",
+            "snippet_characters": 256
+          },
+          {
+            "title": "What Can Explain Momentum? Evidence From Decomposition",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3749570",
+            "authors": [
+              "Jiaqi Guo",
+              "Peng Li",
+              "Youwei Li"
+            ],
+            "page_and_posted": "Number of pages: 66 • Posted: 19 Feb 2021",
+            "snippet_characters": 329
+          },
+          {
+            "title": "Dual-Channel Photonic Crystal Fiber Featuring Negative Curvature Capillary Tubes for Enhanced Transmission of Orbital Angular Momentum Modes",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=5042044",
+            "authors": [
+              "Md.Iftekher Hossain Upal",
+              "Dipta Dutta"
+            ],
+            "page_and_posted": "Number of pages: 20 • Posted: 03 Dec 2024",
+            "snippet_characters": 390
+          },
+          {
+            "title": "Twin Momentum: Fundamental Trends Matter",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2894068",
+            "authors": [
+              "Dashan Huang",
+              "Huacheng Zhang",
+              "Guofu Zhou"
+            ],
+            "page_and_posted": "Number of pages: 50 • Posted: 09 Jan 2017",
+            "snippet_characters": 348
+          },
+          {
+            "title": "Momentum and Reversal Dynamics",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=3301545",
+            "authors": [
+              "James W. Kolari",
+              "Sang-Ook Shin"
+            ],
+            "page_and_posted": "Number of pages: 54 • Posted: 04 Jan 2019",
+            "snippet_characters": 251
+          },
+          {
+            "title": "Global Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=1334862",
+            "authors": [
+              "MSCI Inc."
+            ],
+            "page_and_posted": "Number of pages: 6 • Posted: 01 Feb 2009",
+            "snippet_characters": 275
+          },
+          {
+            "title": "Residual Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2319883",
+            "authors": [
+              "David Blitz",
+              "Joop Huij",
+              "Martin Martens"
+            ],
+            "page_and_posted": "Number of pages: 0 • Posted: 04 Sep 2013",
+            "snippet_characters": 228
+          },
+          {
+            "title": "Residual Momentum",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2319861",
+            "authors": [
+              "David Blitz",
+              "Joop Huij",
+              "Martin Martens"
+            ],
+            "page_and_posted": "Number of pages: 60 • Posted: 04 Sep 2013",
+            "snippet_characters": 228
+          },
+          {
+            "title": "Momentum, Market Volatility, and Reversal",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=4342008",
+            "authors": [
+              "Hilal Anwar Butt",
+              "James W. Kolari",
+              "Mohsin Sadaqat"
+            ],
+            "page_and_posted": "Number of pages: 98 • Posted: 30 Jan 2023",
+            "snippet_characters": 212
+          },
+          {
+            "title": "3D Voxel Object Recognition Network Based on Dual–Basis Fractional–Order Laguerre–Spherical Harmonic Moments",
+            "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7355397",
+            "authors": [
+              "Gengwu Chen",
+              "Chao Lu",
+              "Bing He",
+              "Guancheng Lin",
+              "Shuyi Wang"
+            ],
+            "page_and_posted": "Number of pages: 36 • Posted: 27 Aug 2026",
+            "snippet_characters": 369
+          }
+        ]
+      },
+      "overlapping_ids": 0
+    },
+    "detail": {
+      "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2042750",
+      "title": "Risk Premia Harvesting Through Dual Momentum by Gary Antonacci :: SSRN",
+      "heading": "Risk Premia Harvesting Through Dual Momentum",
+      "dates": "37 Pages Posted: 19 Apr 2012 Last revised: 23 May 2017",
+      "date_written": "Date Written: October 1, 2016",
+      "download_url": "https://papers.ssrn.com/sol3/Delivery.cfm/SSRN_ID2881657_code1556771.pdf?abstractid=2042750&mirid=1",
+      "sign_in_visible": true
+    },
+    "download": {
+      "file": "/Users/jfmoe/Downloads/ssrn-2042750.pdf",
+      "bytes": 1560142,
+      "header": "%PDF-1.5",
+      "sha256": "2aad7948b664b9be8b44f96d43e711b0df6d067d0bd12872235b231f5a8eee08",
+      "modified_utc": "2026-09-26T11:00:31.799472+00:00",
+      "download_state": "complete",
+      "download_mime": "application/pdf",
+      "final_host": "download.ssrn.com",
+      "signed_url_expires_seconds": 300
+    },
+    "pdf_validation": {
+      "page_count": 37,
+      "encrypted": false,
+      "page_text_characters": [
+        1013,
+        2059,
+        1859,
+        1902,
+        1959,
+        2102,
+        1467,
+        715,
+        1329,
+        1326,
+        839,
+        868,
+        1040,
+        770,
+        1576,
+        1176,
+        975,
+        1216,
+        976,
+        983,
+        685,
+        1228,
+        809,
+        890,
+        586,
+        968,
+        946,
+        875,
+        373,
+        337,
+        1333,
+        992,
+        1820,
+        1576,
+        2179,
+        2198,
+        1604
+      ],
+      "total_text_characters": 45549,
+      "first_page_title_matches": true,
+      "first_page_author_matches": true,
+      "first_page_version_date": "2016-10-01",
+      "last_page_contains_references": true,
+      "first_and_last_pages_visually_checked": true
+    },
+    "empty_result": {
+      "url": "https://papers.ssrn.com/searchresults.cfm?term=foragerssrnvalidation7f39d8e4a2",
+      "title": "Search Results",
+      "query": "foragerssrnvalidation7f39d8e4a2",
+      "no_results_message": true,
+      "item_count": 0
+    },
+    "input_observation": {
+      "fill_value_verified": true,
+      "fill_then_enter_or_click_changed_query": false,
+      "keyboard_clear_then_type_and_click_changed_query": true,
+      "root_cause_confirmed": false
+    }
+  },
+  "scope_limits": [
+    "One topic, two pages, one paper and one PDF; no success-rate estimate.",
+    "Different browser sessions were compared; tool implementation superiority is not established.",
+    "Date and sort filters were observed but not exercised.",
+    "No login expiry or cancellation fault was injected."
+  ],
+  "redaction": "No cookies, tokens, signed download URL, browser history, IP address, full abstract or PDF body are stored here."
+}

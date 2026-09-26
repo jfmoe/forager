@@ -7,6 +7,7 @@ pub(crate) mod execution;
 mod factory;
 mod openai_compatible;
 pub(crate) mod shared;
+mod ssrn_crossref;
 mod supplemental;
 mod tavily_map;
 mod types;
@@ -28,6 +29,7 @@ pub(crate) use factory::{
     platform_search_support,
 };
 pub(crate) use openai_compatible::{ModelBreakers, OpenAiCompatible};
+pub(crate) use ssrn_crossref::SsrnCrossref;
 pub(crate) use supplemental::SupplementalSearch;
 pub(crate) use tavily_map::{MapRequest, TavilyMap};
 pub(crate) use types::{

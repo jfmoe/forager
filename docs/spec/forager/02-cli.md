@@ -32,6 +32,10 @@ forager platform arxiv search [QUERY] [--category CAT]... [--author NAME] [--tit
                               [--cursor CURSOR] [--timeout 120] [--format json|markdown] [...]
 forager platform arxiv fetch REF_OR_URL [--depth full_text|abstract] [--content-dir DIR]
                              [--timeout 120] [--format json|markdown|content] [...]
+forager platform ssrn search QUERY [--limit 1..=100（默认 10）] [--cursor CURSOR]
+                             [--timeout 120] [--format json|markdown] [...]
+forager platform ssrn fetch REF_OR_URL [--depth metadata|abstract|full_text]
+                            [--timeout 120] [--format json|markdown|content] [...]
 forager doctor [--provider PROVIDER] [--timeout 30] [--format json|markdown]
 forager smoke [--live] [...]
 forager config path|list|set|unset
@@ -125,7 +129,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 ## 平台命令
 
-`forager platform <id> <op>` 直连检索内置平台（ADR 0019；接入契约见第 7 章）。每个平台一棵静态 clap 子树；`forager platform arxiv --help` 及各操作的 help 是参数语法的唯一权威。arXiv 提供 `search` 与 `fetch`。
+`forager platform <id> <op>` 直连检索内置平台（ADR 0019；接入契约见第 7 章）。每个平台一棵静态 clap 子树；`forager platform <id> --help` 及各操作的 help 是参数语法的唯一权威。arXiv 与 SSRN 都提供 `search` 与 `fetch`。
 
 ### `platform arxiv search`
 
@@ -159,6 +163,30 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 - **正文段**（仅 `full_text`）：对该版本的 HTML 地址发一次 HEAD 探测（经 arXiv 限速，发往 Query API 所在主机）；404 表示没有 HTML，直接读 `https://arxiv.org/pdf/<id>v<n>`；其他结果先读 `https://arxiv.org/html/<id>v<n>`，HTML 的 Web Fetch 链失败（包括全部过薄）后再读同一版本的 PDF。有 PDF 兜底时 HTML 链最多使用剩余预算的一半。正文沿用全局 `capabilities.web_fetch.order` 与凭据、薄正文门与 4 MiB 截断诊断；abs 页面永不作为正文。
 - **输出**：JSON 顶层为 `platform`、`provider`（元数据 route）、`ref`、`url`、`depth`、`title`、`authors`、`published`，以及与 search item 相同的 arXiv 数据字段。`full_text` 时另有 `content_url`（正文实际来自的 html 或 pdf URL）、`content_provider`（Web Fetch provider）、`content_path`（可直接读取的 Markdown 文件）与 `content_len`（正文字符数）；正文本身不出现在 stdout。文件名由带版本的 ref 派生（`arxiv:hep-th/9901001v3` → `arxiv-hep-th-9901001v3.md`），写入方式与 research 证据文件相同；v1 不做跨调用缓存。`abstract` 不写文件。`--verbose` 时 `provider_attempts` 依次包含元数据、HTML 探测与各 Web Fetch attempt。不写 Search Result Journal。
 - **退出码**：ref 或 URL 无法识别（包括短链）＝飞行前退 2；`platforms.arxiv.order` 为空或 fetch 可用 route 为空＝飞行前退 3；`full_text` 时没有已配置的 Web Fetch provider＝飞行前退 3（`abstract` 不受影响）；id 或版本不存在为 attempt 级 Parameter（`arXiv item not found`），Query API 429 为 RateLimited，都退 4 且元数据失败时不读正文；HTML 与 PDF 都失败时沿用最后一条 Web Fetch 链的终态（例如全部过薄为 Quality 退 5）；正文文件写入失败为 Runtime 退 4，不回退为内联输出。
+
+### `platform ssrn search`
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| 查询词（位置参数） | 字符串，不带 cursor 时必填 | 无 | 主题关键词，按上游相关性排序，不要求每个词都出现 |
+| `--limit` | 1..=100 | 10 | 本页最多返回的条数 |
+| `--cursor` | 上一页的 `next_cursor` | 无 | 翻页；完整恢复原请求 |
+
+- 通用 flag、cursor 独占规则与 arXiv search 相同。查询词为空或只有空白＝飞行前退 2。第一版没有查询词之外的选项。
+- **输出**：外层形状与 arXiv search 相同。每个 item 含 `ref`（`ssrn:<id>`，不带版本）、canonical `url`（SSRN 摘要页）、`depth`、`title`、`authors`、`published`，以及 SSRN 字段 `abstract`、`snippet`、`doi`、`crossref_type`、`crossref_created`、`posted`、`last_revised`、`date_written`；route 没有读到的字段为 `null`。条目有摘要时 `depth` 为 `abstract`，否则为 `metadata` 且 `abstract: null`。`published` 保留 route 报告的原始日期精度（`2012`、`2012-04` 或 `2012-04-19`）。route 细节（分页上限、DOI 过滤、诊断）见第 7 章「SSRN」。
+- **退出码**：cursor 无效或越过上游分页上限、查询词为空＝飞行前退 2；`platforms.ssrn.order` 为空或操作可用 route 为空＝飞行前退 3；Crossref 429 为 RateLimited 退 4；其他上游失败沿用共享状态码映射；合法零结果为 `items: []` 且退 0。
+
+### `platform ssrn fetch`
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| ref 或 URL（位置参数） | `ssrn:<id>`、`papers.ssrn.com/sol3/papers.cfm?abstract_id=<id>`、`ssrn.com/abstract=<id>`（含 `www.`）、DOI `10.2139/ssrn.<id>` 或其 doi.org URL | 必填 | 主机名不区分大小写；摘要页的其他 query 参数与 fragment 被忽略 |
+| `--depth` | `metadata` / `abstract` / `full_text` | `metadata` | 请求的深度是最低要求：`metadata` 在有摘要时一并返回摘要；`abstract` 要求摘要 |
+| `--format` | `json` / `markdown` / `content` | `json` | `content` 把摘要输出到 stdout；Markdown 只在有摘要时显示 Abstract 小节 |
+
+- 通用 flag 为 `--timeout`（默认 120 秒）、`--output`/`--receipt`、`--verbose`。
+- **输出**：JSON 顶层为 `platform`、`provider`、`ref`、`url`、`depth`、`title`、`authors`、`published`，以及与 search item 相同的 SSRN 字段；`depth` 记录 route 实际拿到的内容。不写文件，不写 Search Result Journal。
+- **退出码**：ref 或 URL 无法识别（包括 SSRN 的 `Delivery.cfm` PDF 链接、相似域名与短链）＝飞行前退 2；`--depth full_text` 时没有已配置的 route 支持全文＝飞行前退 2；`platforms.ssrn.order` 为空＝飞行前退 3；Crossref 中找不到该 DOI 为 attempt 级 Parameter（`SSRN paper not found in Crossref: ssrn:<id>`），退 4；`--depth abstract` 但所有 route 都没有摘要为 Quality 退 5。
 
 ## 收尾
 

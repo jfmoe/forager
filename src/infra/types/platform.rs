@@ -10,6 +10,7 @@ use thiserror::Error;
 
 use super::ProviderAttempt;
 use super::platform_arxiv::{ArxivItemData, ArxivRef, ArxivSearchOptions};
+use super::platform_ssrn::{SsrnItemData, SsrnRef, SsrnSearchOptions};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -17,17 +18,20 @@ use super::platform_arxiv::{ArxivItemData, ArxivRef, ArxivSearchOptions};
 pub enum Platform {
     /// The arXiv preprint server.
     Arxiv,
+    /// The Social Science Research Network (SSRN).
+    Ssrn,
 }
 
 impl Platform {
     /// Every built-in platform.
-    pub const ALL: [Self; 1] = [Self::Arxiv];
+    pub const ALL: [Self; 2] = [Self::Arxiv, Self::Ssrn];
 
     /// Returns the stable platform identifier used by commands and configuration.
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
             Self::Arxiv => "arxiv",
+            Self::Ssrn => "ssrn",
         }
     }
 }
@@ -42,6 +46,8 @@ impl fmt::Display for Platform {
 #[serde(rename_all = "snake_case")]
 /// How much of a platform item a result carries; each platform defines what each depth means.
 pub enum ContentDepth {
+    /// Bibliographic information only, without an abstract.
+    Metadata,
     /// A short excerpt.
     Snippet,
     /// Metadata and the author-written summary, never the full text.
@@ -57,6 +63,7 @@ impl ContentDepth {
     #[must_use]
     pub const fn as_str(self) -> &'static str {
         match self {
+            Self::Metadata => "metadata",
             Self::Snippet => "snippet",
             Self::Abstract => "abstract",
             Self::FullText => "full_text",
@@ -82,6 +89,8 @@ pub struct PlatformRefError {
 pub enum PlatformRef {
     /// An arXiv paper.
     Arxiv(ArxivRef),
+    /// An SSRN paper.
+    Ssrn(SsrnRef),
 }
 
 impl PlatformRef {
@@ -93,6 +102,7 @@ impl PlatformRef {
     pub fn parse(platform: Platform, input: &str) -> Result<Self, PlatformRefError> {
         match platform {
             Platform::Arxiv => ArxivRef::parse(input).map(Self::Arxiv),
+            Platform::Ssrn => SsrnRef::parse(input).map(Self::Ssrn),
         }
     }
 
@@ -101,6 +111,7 @@ impl PlatformRef {
     pub const fn platform(&self) -> Platform {
         match self {
             Self::Arxiv(_) => Platform::Arxiv,
+            Self::Ssrn(_) => Platform::Ssrn,
         }
     }
 
@@ -108,7 +119,7 @@ impl PlatformRef {
     #[must_use]
     pub const fn kind(&self) -> &'static str {
         match self {
-            Self::Arxiv(_) => "paper",
+            Self::Arxiv(_) | Self::Ssrn(_) => "paper",
         }
     }
 
@@ -117,6 +128,7 @@ impl PlatformRef {
     pub fn canonical_url(&self) -> String {
         match self {
             Self::Arxiv(reference) => reference.canonical_url(),
+            Self::Ssrn(reference) => reference.canonical_url(),
         }
     }
 }
@@ -125,6 +137,7 @@ impl fmt::Display for PlatformRef {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Arxiv(reference) => write!(formatter, "arxiv:{reference}"),
+            Self::Ssrn(reference) => write!(formatter, "ssrn:{reference}"),
         }
     }
 }
@@ -141,6 +154,8 @@ impl Serialize for PlatformRef {
 pub enum PlatformSearchOptions {
     /// arXiv options.
     Arxiv(ArxivSearchOptions),
+    /// SSRN options.
+    Ssrn(SsrnSearchOptions),
 }
 
 impl PlatformSearchOptions {
@@ -149,6 +164,7 @@ impl PlatformSearchOptions {
     pub fn defaults(platform: Platform) -> Self {
         match platform {
             Platform::Arxiv => Self::Arxiv(ArxivSearchOptions::default()),
+            Platform::Ssrn => Self::Ssrn(SsrnSearchOptions::default()),
         }
     }
 
@@ -157,6 +173,7 @@ impl PlatformSearchOptions {
     pub const fn platform(&self) -> Platform {
         match self {
             Self::Arxiv(_) => Platform::Arxiv,
+            Self::Ssrn(_) => Platform::Ssrn,
         }
     }
 }
@@ -178,6 +195,7 @@ impl PlatformSearchRequest {
     pub(crate) fn validate(&self) -> Result<(), String> {
         match &self.options {
             PlatformSearchOptions::Arxiv(options) => options.validate(&self.query, self.limit),
+            PlatformSearchOptions::Ssrn(_) => SsrnSearchOptions::validate(&self.query, self.limit),
         }
     }
 }
@@ -202,6 +220,8 @@ pub struct PlatformItem {
 pub enum PlatformItemData {
     /// arXiv metadata.
     Arxiv(ArxivItemData),
+    /// SSRN metadata.
+    Ssrn(SsrnItemData),
 }
 
 #[derive(Clone, Debug, Serialize)]

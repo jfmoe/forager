@@ -24,7 +24,7 @@ fn config_list_reports_the_complete_default_effective_view() {
         ),
         (
             Some(0),
-            50,
+            53,
             None,
             &serde_json::json!({
                 "value": [],
@@ -59,6 +59,32 @@ fn config_list_projects_an_anonymous_provider_without_keys_and_the_platform_orde
                 "timeout": {"value": 30, "source": "default"}
             }),
             &serde_json::json!({"value": ["arxiv_api"], "source": "default"}),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn config_list_projects_the_default_ssrn_route_and_order() {
+    let config_dir = tempfile::tempdir().expect("create config directory");
+
+    let output = run(config_dir.path(), &["config", "list"], &[], None);
+    let view: Value = serde_json::from_slice(&output.stdout).expect("parse config view");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &view["providers"]["ssrn_crossref"],
+            &view["platforms"]["ssrn"]["order"],
+        ),
+        (
+            Some(0),
+            &serde_json::json!({
+                "url": {"value": "https://api.crossref.org", "source": "default"},
+                "timeout": {"value": 30, "source": "default"}
+            }),
+            &serde_json::json!({"value": ["ssrn_crossref"], "source": "default"}),
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)

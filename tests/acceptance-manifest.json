@@ -108,6 +108,18 @@
       "provider": "arxiv_api",
       "seam": "platform:arxiv:fetch",
       "test": "tests/arxiv_fetch.rs::full_text_fetch_writes_the_body_to_a_file_and_reports_the_resolved_version"
+    },
+    {
+      "id": "F13",
+      "provider": "ssrn_crossref",
+      "seam": "platform:ssrn:search",
+      "test": "tests/ssrn_search.rs::search_returns_abstract_and_metadata_depth_items_and_skips_non_ssrn_dois"
+    },
+    {
+      "id": "F14",
+      "provider": "ssrn_crossref",
+      "seam": "platform:ssrn:fetch",
+      "test": "tests/ssrn_fetch.rs::fetch_returns_metadata_and_the_abstract_at_the_default_depth"
     }
   ],
   "offline_e2e": [

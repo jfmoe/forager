@@ -27,9 +27,9 @@ pub(crate) const RESEARCH_CANARY_QUERY: &str = "What is the current status of as
 const FETCH_CANARY_URL: &str = "https://www.rust-lang.org/";
 const ANYSEARCH_CANARY_QUERY: &str = "retrieval augmented generation";
 const PLATFORM_CANARY_QUERY: &str = "retrieval augmented generation";
-const SPECIFICATION_CASE_IDS: [&str; 21] = [
+const SPECIFICATION_CASE_IDS: [&str; 23] = [
     "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12",
-    "C13", "C14", "C15", "C16", "C17", "C18", "C19",
+    "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21",
 ];
 const PIPELINE_CASES: [LiveCaseDefinition; 3] = [
     LiveCaseDefinition::pipeline("P1", "search"),
@@ -172,6 +172,7 @@ enum ResultShape {
 fn platform_fetch_canary(platform: Platform) -> (&'static str, &'static str) {
     match platform {
         Platform::Arxiv => ("arxiv:1706.03762", "abstract"),
+        Platform::Ssrn => ("ssrn:2042750", "metadata"),
     }
 }
 

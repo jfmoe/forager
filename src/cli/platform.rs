@@ -17,7 +17,7 @@ use crate::platform_fetch;
 use crate::types::{
     ArxivSearchOptions, ArxivSort, AttemptErrorKind, ContentDepth, Deadline, Platform,
     PlatformFetchRequest, PlatformFetchResult, PlatformRef, PlatformSearchOptions,
-    PlatformSearchRequest, ProviderError,
+    PlatformSearchRequest, ProviderError, SsrnSearchOptions,
 };
 
 const DEFAULT_TIMEOUT_SECONDS: u64 = 120;
@@ -28,6 +28,11 @@ pub(super) enum PlatformCommand {
     Arxiv {
         #[command(subcommand)]
         command: ArxivCommand,
+    },
+    /// Retrieve SSRN papers.
+    Ssrn {
+        #[command(subcommand)]
+        command: SsrnCommand,
     },
 }
 
@@ -92,6 +97,48 @@ pub(super) struct ArxivFetchArgs {
     common: PlatformCommonArgs,
 }
 
+#[derive(Debug, Subcommand)]
+pub(super) enum SsrnCommand {
+    /// Search SSRN papers by topic; each result carries its metadata and, when available, its
+    /// abstract.
+    Search(SsrnSearchArgs),
+    /// Fetch the metadata of one SSRN paper, with its abstract when available.
+    Fetch(SsrnFetchArgs),
+}
+
+#[derive(Debug, Args)]
+pub(super) struct SsrnSearchArgs {
+    /// Topic keywords, ranked by relevance.
+    #[arg(conflicts_with = "cursor")]
+    query: Option<String>,
+    /// Maximum results on this page.
+    #[arg(long, default_value_t = 10, value_parser = clap::value_parser!(u16).range(1..=100), conflicts_with = "cursor")]
+    limit: u16,
+    /// Opaque `next_cursor` from a previous page; it restores the complete original request.
+    #[arg(long)]
+    cursor: Option<String>,
+    #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
+    format: OutputFormat,
+    #[command(flatten)]
+    common: PlatformCommonArgs,
+}
+
+#[derive(Debug, Args)]
+pub(super) struct SsrnFetchArgs {
+    /// An `ssrn:<id>` ref, an SSRN abstract page URL, an ssrn.com/abstract=<id> URL, or a
+    /// 10.2139/ssrn.<id> DOI or its doi.org URL.
+    reference: String,
+    /// `metadata` returns the abstract too when a route has it; `abstract` requires it;
+    /// `full_text` needs a route that can read the paper body.
+    #[arg(long, value_enum, default_value_t = SsrnDepthArg::Metadata)]
+    depth: SsrnDepthArg,
+    /// `content` prints the abstract to stdout.
+    #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
+    format: DocsOutputFormat,
+    #[command(flatten)]
+    common: PlatformCommonArgs,
+}
+
 #[derive(Debug, Args)]
 struct PlatformCommonArgs {
     /// Whole-command deadline in seconds, including waits for the platform request window.
@@ -137,6 +184,24 @@ impl From<ArxivDepthArg> for ContentDepth {
     }
 }
 
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum SsrnDepthArg {
+    Metadata,
+    Abstract,
+    #[value(name = "full_text")]
+    FullText,
+}
+
+impl From<SsrnDepthArg> for ContentDepth {
+    fn from(value: SsrnDepthArg) -> Self {
+        match value {
+            SsrnDepthArg::Metadata => Self::Metadata,
+            SsrnDepthArg::Abstract => Self::Abstract,
+            SsrnDepthArg::FullText => Self::FullText,
+        }
+    }
+}
+
 fn parse_date(value: &str) -> Result<NaiveDate, String> {
     let shaped = value.len() == 10
         && value.bytes().enumerate().all(|(index, byte)| match index {
@@ -157,6 +222,12 @@ pub(super) fn run(command: PlatformCommand) -> Result<CommandOutput, AppError> {
         PlatformCommand::Arxiv {
             command: ArxivCommand::Fetch(arguments),
         } => arxiv_fetch(arguments),
+        PlatformCommand::Ssrn {
+            command: SsrnCommand::Search(arguments),
+        } => ssrn_search(arguments),
+        PlatformCommand::Ssrn {
+            command: SsrnCommand::Fetch(arguments),
+        } => ssrn_fetch(arguments),
     }
 }
 
@@ -194,6 +265,29 @@ fn arxiv_search(arguments: ArxivSearchArgs) -> Result<CommandOutput, AppError> {
         SearchInput::Request(request)
     };
     search(Platform::Arxiv, input, format, &common)
+}
+
+fn ssrn_search(arguments: SsrnSearchArgs) -> Result<CommandOutput, AppError> {
+    let SsrnSearchArgs {
+        query,
+        limit,
+        cursor,
+        format,
+        common,
+    } = arguments;
+    let input = if let Some(cursor) = cursor {
+        SearchInput::Cursor(cursor)
+    } else {
+        let request = PlatformSearchRequest {
+            query: query.unwrap_or_default(),
+            limit,
+            options: PlatformSearchOptions::Ssrn(SsrnSearchOptions::default()),
+            page: None,
+        };
+        request.validate().map_err(AppError::Argument)?;
+        SearchInput::Request(request)
+    };
+    search(Platform::Ssrn, input, format, &common)
 }
 
 enum SearchInput {
@@ -254,6 +348,22 @@ fn arxiv_fetch(arguments: ArxivFetchArgs) -> Result<CommandOutput, AppError> {
         depth: depth.into(),
     };
     fetch(Platform::Arxiv, request, format, content_dir, &common)
+}
+
+fn ssrn_fetch(arguments: SsrnFetchArgs) -> Result<CommandOutput, AppError> {
+    let SsrnFetchArgs {
+        reference,
+        depth,
+        format,
+        common,
+    } = arguments;
+    let reference = PlatformRef::parse(Platform::Ssrn, &reference)
+        .map_err(|error| AppError::Argument(error.to_string()))?;
+    let request = PlatformFetchRequest {
+        reference,
+        depth: depth.into(),
+    };
+    fetch(Platform::Ssrn, request, format, None, &common)
 }
 
 fn fetch(

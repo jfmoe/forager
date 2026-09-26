@@ -89,7 +89,14 @@ pub(crate) const ARXIV: PlatformCatalog = PlatformCatalog {
     default_order: &[ProviderId::ArxivApi],
 };
 
-pub(crate) const PLATFORMS: &[PlatformCatalog] = &[ARXIV];
+pub(crate) const SSRN: PlatformCatalog = PlatformCatalog {
+    platform: Platform::Ssrn,
+    search: &[ProviderId::SsrnCrossref],
+    fetch: &[ProviderId::SsrnCrossref],
+    default_order: &[ProviderId::SsrnCrossref],
+};
+
+pub(crate) const PLATFORMS: &[PlatformCatalog] = &[ARXIV, SSRN];
 
 impl PlatformCatalog {
     pub(crate) fn routes(self, operation: PlatformOperation) -> &'static [ProviderId] {
@@ -141,10 +148,11 @@ pub(crate) enum ProviderId {
     Context7,
     Anysearch,
     ArxivApi,
+    SsrnCrossref,
 }
 
 impl ProviderId {
-    pub(crate) const ALL: [Self; 9] = [
+    pub(crate) const ALL: [Self; 10] = [
         Self::Xai,
         Self::OpenAiCompatible,
         Self::Exa,
@@ -154,6 +162,7 @@ impl ProviderId {
         Self::Context7,
         Self::Anysearch,
         Self::ArxivApi,
+        Self::SsrnCrossref,
     ];
 
     pub(crate) fn parse(value: &str) -> Option<Self> {
@@ -167,6 +176,7 @@ impl ProviderId {
             "context7" => Some(Self::Context7),
             "anysearch" => Some(Self::Anysearch),
             "arxiv_api" => Some(Self::ArxivApi),
+            "ssrn_crossref" => Some(Self::SsrnCrossref),
             _ => None,
         }
     }
@@ -182,6 +192,7 @@ impl ProviderId {
             Self::Context7 => "context7",
             Self::Anysearch => "anysearch",
             Self::ArxivApi => "arxiv_api",
+            Self::SsrnCrossref => "ssrn_crossref",
         }
     }
 }
@@ -390,9 +401,31 @@ const ARXIV_API_SMOKE: &[ProviderSmokeCase] = &[
     },
 ];
 
+const SSRN_CROSSREF_SMOKE: &[ProviderSmokeCase] = &[
+    ProviderSmokeCase {
+        id: "C20",
+        platform: Some(Platform::Ssrn),
+        operation: "search",
+        transport: "http",
+    },
+    ProviderSmokeCase {
+        id: "C21",
+        platform: Some(Platform::Ssrn),
+        operation: "fetch",
+        transport: "http",
+    },
+];
+
 // arXiv terms of use allow one request every three seconds over one connection.
 const ARXIV_API_ACCESS: AccessPolicy = AccessPolicy {
     min_interval: Duration::from_secs(3),
+    max_concurrency: 1,
+};
+
+// The anonymous Crossref pool announced 5 requests per second over one connection on
+// 2026-09-26; one request per second stays well inside it.
+const SSRN_CROSSREF_ACCESS: AccessPolicy = AccessPolicy {
+    min_interval: Duration::from_secs(1),
     max_concurrency: 1,
 };
 
@@ -490,6 +523,18 @@ const REGISTRY: &[ProviderRegistration] = &[
             transport: "http",
         },
         smoke_cases: ARXIV_API_SMOKE,
+    },
+    ProviderRegistration {
+        id: ProviderId::SsrnCrossref,
+        operations: &[],
+        credentials_required: false,
+        access_policy: Some(SSRN_CROSSREF_ACCESS),
+        probe: DoctorProbe::PlatformSearch {
+            platform: Platform::Ssrn,
+            name: "search",
+            transport: "http",
+        },
+        smoke_cases: SSRN_CROSSREF_SMOKE,
     },
 ];
 

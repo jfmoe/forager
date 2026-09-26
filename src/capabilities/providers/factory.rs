@@ -5,7 +5,8 @@ use reqwest::Client;
 use super::constructors::{credentials, route_limiter};
 use super::{
     ArxivApi, DocsSearch, MainSearch, ModelBreakers, PlatformFetch, PlatformSearch, ProviderId,
-    SupplementalSearch, VerticalSearch, WebFetch, WebSearch, arxiv, web_fetch,
+    SsrnCrossref, SupplementalSearch, VerticalSearch, WebFetch, WebSearch, arxiv, ssrn_crossref,
+    web_fetch,
 };
 use crate::catalog::{VERTICAL_SEARCH, WEB_FETCH, WEB_SEARCH};
 use crate::config::{
@@ -118,6 +119,9 @@ pub(crate) fn build_platform_search(
         PlatformRouteConfig::ArxivApi(config) => {
             Box::new(build_arxiv_api(config, client, retry_policy, deadline))
         }
+        PlatformRouteConfig::SsrnCrossref(config) => {
+            Box::new(build_ssrn_crossref(config, client, retry_policy, deadline))
+        }
     }
 }
 
@@ -130,6 +134,9 @@ pub(crate) fn build_platform_fetch(
     match config {
         PlatformRouteConfig::ArxivApi(config) => {
             Box::new(build_arxiv_api(config, client, retry_policy, deadline))
+        }
+        PlatformRouteConfig::SsrnCrossref(config) => {
+            Box::new(build_ssrn_crossref(config, client, retry_policy, deadline))
         }
     }
 }
@@ -150,6 +157,22 @@ fn build_arxiv_api(
     )
 }
 
+fn build_ssrn_crossref(
+    config: HttpRouteRuntimeConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> SsrnCrossref {
+    SsrnCrossref::new(
+        config,
+        client,
+        route_limiter(ProviderId::SsrnCrossref)
+            .expect("ssrn_crossref registration declares an access policy"),
+        retry_policy,
+        deadline,
+    )
+}
+
 /// Returns whether a platform search route can run the request with every explicit option, or
 /// `None` for a provider that has no platform search adapter.
 pub(crate) fn platform_search_support(
@@ -158,6 +181,7 @@ pub(crate) fn platform_search_support(
 ) -> Option<Result<(), String>> {
     match id {
         ProviderId::ArxivApi => Some(arxiv::search_support(request)),
+        ProviderId::SsrnCrossref => Some(ssrn_crossref::search_support(request)),
         _ => None,
     }
 }
@@ -170,6 +194,7 @@ pub(crate) fn platform_fetch_support(
 ) -> Option<Result<(), String>> {
     match id {
         ProviderId::ArxivApi => Some(arxiv::fetch_support(request)),
+        ProviderId::SsrnCrossref => Some(ssrn_crossref::fetch_support(request)),
         _ => None,
     }
 }

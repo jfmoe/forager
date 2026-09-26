@@ -1,7 +1,41 @@
+use crate::catalog::ProviderId;
 use crate::credentials::CredentialPool;
 use crate::net::{AttemptFailure, truncate_message};
+use crate::rate_limit::{RateLimiter, RatePermit};
 use crate::redact::{redact_url, redact_urls as redact_urls_in_text};
-use crate::types::{AttemptErrorKind, Source};
+use crate::types::{AttemptErrorKind, Deadline, Platform, ProviderError, Source};
+
+/// Waits for the route's request window; a pacing failure ends the attempt before any send.
+pub(super) async fn acquire_window(
+    limiter: &RateLimiter,
+    deadline: Deadline,
+) -> Result<RatePermit, AttemptFailure> {
+    limiter
+        .acquire(deadline)
+        .await
+        .map_err(|error| AttemptFailure {
+            kind: error.kind(),
+            status: None,
+            message: error.to_string(),
+        })
+}
+
+/// Returns a platform route's refusal of a request that belongs to another platform.
+pub(super) fn other_platform_message(route: ProviderId, platform: Platform) -> String {
+    format!("{} cannot serve {platform} requests", route.name())
+}
+
+/// Returns the failure of a request that a route rejects before sending it.
+pub(super) fn parameter_error(message: String) -> ProviderError {
+    ProviderError {
+        kind: AttemptErrorKind::Parameter,
+        message,
+        attempts: Vec::new(),
+        verbose: false,
+        diagnostic: None,
+        redirected_library_id: None,
+    }
+}
 
 pub(super) fn normalize_main_search(
     answer: &str,

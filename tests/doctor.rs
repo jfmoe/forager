@@ -8,7 +8,7 @@ use support::{Fixture, Response, RunEnvironment, jina_response, request_json};
 
 #[test]
 fn shallow_doctor_reports_all_registry_providers_and_reuses_the_config_list_view() {
-    let fixture = Fixture::start_sequence(reachable_responses(9));
+    let fixture = Fixture::start_sequence(reachable_responses(10));
     let environment = RunEnvironment::new(&shallow_config(&format!(
         "{}?token=url-secret",
         fixture.url
@@ -41,7 +41,7 @@ fn shallow_doctor_reports_all_registry_providers_and_reuses_the_config_list_view
             Some(0),
             &Value::String("shallow".into()),
             &Value::Bool(true),
-            Some(9),
+            Some(10),
             &config,
             &Value::String("xai".into()),
             &Value::Bool(true),
@@ -70,7 +70,7 @@ fn shallow_doctor_reports_all_registry_providers_and_reuses_the_config_list_view
             .as_array()
             .is_some_and(|warnings| !warnings.is_empty())
     );
-    assert_eq!(fixture.finish_all().len(), 9);
+    assert_eq!(fixture.finish_all().len(), 10);
 }
 
 #[test]
@@ -369,7 +369,7 @@ fn arxiv_api_deep_doctor_probe_waits_for_the_request_window() {
 
 #[test]
 fn shallow_doctor_reachability_probe_waits_for_the_request_window() {
-    let fixture = Fixture::start_sequence(reachable_responses(8));
+    let fixture = Fixture::start_sequence(reachable_responses(9));
     let environment = RunEnvironment::new(&shallow_config(&fixture.url));
     reserve_arxiv_window(&environment);
 
@@ -389,7 +389,7 @@ fn shallow_doctor_reachability_probe_waits_for_the_request_window() {
             &arxiv_api["reachable"],
             fixture.finish_all().len()
         ),
-        (Some(4), &Value::Bool(true), &Value::Bool(false), 8)
+        (Some(4), &Value::Bool(true), &Value::Bool(false), 9)
     );
 }
 
@@ -484,7 +484,7 @@ fn deep_doctor_reports_authentication_failure_without_leaking_provider_values() 
 
 #[test]
 fn doctor_markdown_preserves_the_json_status_and_effective_configuration() {
-    let fixture = Fixture::start_sequence(reachable_responses(18));
+    let fixture = Fixture::start_sequence(reachable_responses(20));
     let environment = RunEnvironment::new(&shallow_config(&fixture.url));
     let markdown_environment = RunEnvironment::new(&shallow_config(&fixture.url));
 
@@ -502,13 +502,13 @@ fn doctor_markdown_preserves_the_json_status_and_effective_configuration() {
     assert!(markdown.contains("## Effective configuration"));
     assert!(markdown.contains(r#""source": "file""#));
     assert!(!markdown.contains("exa-secret"));
-    assert_eq!(payload["providers"].as_array().map(Vec::len), Some(9));
-    assert_eq!(fixture.finish_all().len(), 18);
+    assert_eq!(payload["providers"].as_array().map(Vec::len), Some(10));
+    assert_eq!(fixture.finish_all().len(), 20);
 }
 
 #[test]
 fn shallow_doctor_probes_reachability_with_get_requests() {
-    let fixture = Fixture::start_sequence(reachable_responses(9));
+    let fixture = Fixture::start_sequence(reachable_responses(10));
     let environment = RunEnvironment::new(&shallow_config(&fixture.url));
 
     let doctor = environment.run(&["doctor"]);
@@ -526,7 +526,7 @@ fn shallow_doctor_probes_reachability_with_get_requests() {
 
     assert_eq!(
         (doctor.status.code(), methods),
-        (Some(0), vec!["GET".to_owned(); 9]),
+        (Some(0), vec!["GET".to_owned(); 10]),
         "stderr: {}",
         String::from_utf8_lossy(&doctor.stderr)
     );
@@ -542,7 +542,7 @@ fn shallow_doctor_warns_when_main_search_fallback_shares_endpoint_and_model() {
         ),
     ];
     for (openai_compatible_header, expected_warnings) in cases {
-        let fixture = Fixture::start_sequence(reachable_responses(9));
+        let fixture = Fixture::start_sequence(reachable_responses(10));
         let config = shallow_config(&fixture.url)
             .replace("[providers.openai_compatible]\n", openai_compatible_header);
         let environment = RunEnvironment::new(&config);
@@ -565,7 +565,7 @@ fn shallow_doctor_warns_when_main_search_fallback_shares_endpoint_and_model() {
 
 #[test]
 fn shallow_doctor_reports_a_well_formed_but_dead_endpoint_as_unreachable() {
-    let fixture = Fixture::start_sequence(reachable_responses(16));
+    let fixture = Fixture::start_sequence(reachable_responses(18));
     let config = shallow_config(&fixture.url).replace(
         &format!("[providers.xai]\nurl = {:?}", fixture.url),
         "[providers.xai]\nurl = \"http://127.0.0.1:9\"",
@@ -596,12 +596,12 @@ fn shallow_doctor_reports_a_well_formed_but_dead_endpoint_as_unreachable() {
         )
     );
     assert!(markdown.contains("ok: false"), "{markdown}");
-    assert_eq!(fixture.finish_all().len(), 16);
+    assert_eq!(fixture.finish_all().len(), 18);
 }
 
 #[test]
 fn shallow_doctor_ignores_an_unconfigured_unreachable_provider() {
-    let fixture = Fixture::start_sequence(reachable_responses(8));
+    let fixture = Fixture::start_sequence(reachable_responses(9));
     let config = shallow_config(&fixture.url).replace(
         &format!(
             "[providers.xai]\nurl = {:?}\nkeys = [\"xai-secret\"]",
@@ -628,12 +628,12 @@ fn shallow_doctor_ignores_an_unconfigured_unreachable_provider() {
             &Value::Bool(false),
         )
     );
-    assert_eq!(fixture.finish_all().len(), 8);
+    assert_eq!(fixture.finish_all().len(), 9);
 }
 
 #[test]
 fn shallow_doctor_treats_providers_without_keys_as_unconfigured_and_healthy() {
-    let fixture = Fixture::start_sequence(reachable_responses(9));
+    let fixture = Fixture::start_sequence(reachable_responses(10));
     let config = [
         "xai-secret",
         "openai-secret",
@@ -665,9 +665,13 @@ fn shallow_doctor_treats_providers_without_keys_as_unconfigured_and_healthy() {
                 .map(|provider| provider["provider"].as_str().expect("provider name"))
                 .collect::<Vec<_>>(),
         ),
-        (Some(0), &Value::Bool(true), vec!["arxiv_api"])
+        (
+            Some(0),
+            &Value::Bool(true),
+            vec!["arxiv_api", "ssrn_crossref"]
+        )
     );
-    assert_eq!(fixture.finish_all().len(), 9);
+    assert_eq!(fixture.finish_all().len(), 10);
 }
 
 #[test]
@@ -778,6 +782,9 @@ url = {url:?}
 keys = ["anysearch-secret"]
 
 [providers.arxiv_api]
+url = {url:?}
+
+[providers.ssrn_crossref]
 url = {url:?}
 "#
     )

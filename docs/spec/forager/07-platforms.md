@@ -1,6 +1,6 @@
 # 7. 平台接入
 
-本章是接入任何内置平台的权威契约。新增或修改平台时先读本章，并保持新平台 checklist 测试（`src/core/platform_checklist.rs`）通过。决策依据见 ADR 0019；arXiv 是参考实现，各节以它举例。
+本章是接入任何内置平台的权威契约。新增或修改平台时先读本章，并保持新平台 checklist 测试（`src/core/platform_checklist.rs`）通过。决策依据见 ADR 0019；arXiv 是参考实现，各节以它举例；SSRN 是第二个平台，见文末。
 
 ## 概念与规则
 
@@ -9,9 +9,9 @@
 - **链语义**：同平台的 route 按 `platforms.<id>.order` 组成 fallback 链，由共享链执行器运行，沿用 LegitimateEmpty 语义：至少一条 route 返回合法空结果、之后没有 route 被接受时，结果为空成功。结果永不跨平台 fallback。
 - **Platform Ref**：平台实体的类型化身份，由平台、平台自有的 kind 和 id 组成。kind 只按「身份空间不同」或「fetch 结果形状不同」划分，不按对话角色划分。字符串形式为 `<platform>:<id>`，例如 `arxiv:2401.01234v2`。
   - ref 解析与 canonical URL 推导是 types 门面中的零 IO 纯函数。每个 kind 都满足往返性质：解析 ref 的 canonical URL，得到同一个 ref。
-  - 版本号可选。不带版本的 ref 推导出不带版本的 URL；纯函数不猜测版本，实际版本只在平台返回后确定。
+  - 版本号可选，由平台决定是否有版本。不带版本的 ref 推导出不带版本的 URL；纯函数不猜测版本，实际版本只在平台返回后确定。
   - 需要联网解析的短链在飞行前退 2。
-- **Content Depth**：`snippet`、`abstract`、`full_text` 或 `thread`。每个平台为它支持的每种深度定义含义，每个结果条目都带 `depth`。摘要深度绝不当作全文。
+- **Content Depth**：`metadata`、`snippet`、`abstract`、`full_text` 或 `thread`。`metadata` 只有书目信息，没有摘要。每个平台为它支持的每种深度定义含义，每个结果条目都带 `depth`；深度之间没有全局排序。摘要深度绝不当作全文，片段绝不当作摘要。
 
 ## 参数分层
 
@@ -80,9 +80,9 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
 
 | 编号 | 登记点 | 一致性测试 |
 |---|---|---|
-| R1 | `catalog::PLATFORMS` 登记平台，search 与 fetch 的 route 集合都非空；`types::Platform` 增加变体 | checklist 测试；`catalog` 单测 `catalogs_project_every_registration_probe_and_smoke_case_consistently` |
+| R1 | `catalog::PLATFORMS` 登记平台，search 与 fetch 的 route 集合都非空，并声明默认 order（`default_order`，只含该平台的 route）；`types::Platform` 增加变体，平台形状放在新的 `platform_<id>` 类型叶子中 | checklist 测试；`catalog` 单测 `catalogs_project_every_registration_probe_and_smoke_case_consistently` |
 | R2 | 每条 route 有 `ProviderId`（全集、解析与名称）和 `ProviderRegistration`；route id 不是裸平台名 | checklist 测试；`catalog` 注册校验 |
-| R3 | factory 覆盖每个操作的每条 route：`platform_search_support`／`platform_fetch_support` 有该 route 的分支，`platform_route_config` 返回以该 route 为身份的 `PlatformRouteConfig`（`build_platform_search`／`build_platform_fetch` 按该变体构造）；route 适配器只构造请求、解码响应、声明正文 URL 并提供支持检查 | checklist 测试 |
+| R3 | factory 覆盖每个操作的每条 route：`platform_search_support`／`platform_fetch_support` 有该 route 的分支，`PlatformRoutesRuntimeConfig` 有该 route 的字段，`platform_route_config` 返回以该 route 为身份的 `PlatformRouteConfig`（`build_platform_search`／`build_platform_fetch` 按该变体构造）；route 适配器只构造请求、解码响应、声明正文 URL 并提供支持检查 | checklist 测试 |
 | R4 | 配置 schema 有 `platforms.<id>.order` 与每条 route 的 `providers.<route>.url`、`.timeout`；`keys` 叶子当且仅当 route 需要凭据；runtime 投影与 `platform_route_config` 覆盖该 route | checklist 测试；`config` schema 单测 |
 | R5 | route 的 doctor probe 为 `DoctorProbe::PlatformSearch`（或它所服务的 capability 的 probe） | checklist 测试 |
 | R6 | search 与 fetch 各至少有一条 route 登记 smoke 用例，`SPECIFICATION_CASE_IDS` 与第 5 章矩阵同步 | checklist 测试；`tests/smoke.rs` 列表断言 |
@@ -98,3 +98,15 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
 - **search wire 编码**：查询词按空白、双引号与反斜杠切分，每个词写成 `all:"<词>"`，因此布尔运算符、字段前缀与括号都是字面词。arXiv 拒绝带转义双引号的引号词（`all:"a\"b"` 返回 HTTP 400），字面双引号无法发送，所以双引号只作分隔符；反斜杠会转义引号词的闭合引号（`all:"C:\"` 返回 HTTP 400），同样只作分隔符；分类写成 `cat:<code>`，多个分类写成 `(cat:a OR cat:b)`；作者与标题写成 `au:"<短语>"`、`ti:"<短语>"`；日期区间写成 `submittedDate:[YYYYMMDD0000 TO YYYYMMDD2359]`，缺少的一端用 `199101010000` 或 `999912312359` 补齐；所有条件以 ` AND ` 连接。`sortBy` 为 `relevance`、`submittedDate` 或 `lastUpdatedDate`，`sortOrder` 固定为 `descending`；`--limit` 为 `max_results`，cursor 的页位置为 `start`。
 - **解码**：Atom feed 解码为 depth 为 `abstract` 的条目，含完整摘要与元数据；`opensearch:totalResults` 决定是否有下一页，缺少它的成功响应不是 arXiv feed，为 Runtime。cursor 的页位置是 `start` 偏移量，无法解析时在飞行前退 2。id 包含 `arxiv.org/api/errors` 的 entry 是错误，映射为 Parameter 并带上 arXiv 消息；无法解码的 feed 为 Runtime；HTTP 失败沿用共享 status 映射。
 - **fetch**：route 支持 `full_text`（默认）与 `abstract`。元数据段请求 Query API 的 `id_list=<id>[v<n>]&max_results=1`；空 feed（`totalResults` 为 0）表示 id 或版本不存在，为 Parameter（`arXiv item not found: arxiv:<ref>`）；返回的条目与请求的 id 或版本不符为 Runtime；429 为 RateLimited，匿名 route 无凭据可轮换，直接成为 route 终态。`full_text` 时 route 对 `<Query API 主机>/html/<id>v<n>` 发一次不重试的 HEAD（经同一访问策略）：404 表示没有 HTML，正文 URL 只有 `https://arxiv.org/pdf/<id>v<n>`；2xx 或其他 HTTP／网络结果（未知）时依次为 `https://arxiv.org/html/<id>v<n>` 与同一版本的 PDF。探测等不到限速窗口时按访问策略终止（预算不足为 Timeout，状态不可用为 Runtime，都退 4、不发送探测、不读正文），保留已完成的 attempts。不按 provider 返回的内容判断有无 HTML，因为 arXiv 的「无 HTML」说明页能通过薄正文门。export 镜像与 arxiv.org 的 HTML 页面返回相同 ETag 与 404 语义（2026-09-26 实测），因此探测跟随 `providers.arxiv_api.url` 的主机，交给 Web Fetch 的正文 URL 始终是 arxiv.org 官方地址。正文由第三方 provider 抓取，不经过本机 arXiv 限速。
+
+## SSRN
+
+数据源选择与实测证据见 [SSRN 检索接入方案](../../research/2026-09-26-ssrn-integration.md)（2026-09-26）。
+
+- **route**：`ssrn_crossref`，匿名 Crossref REST API（默认 `https://api.crossref.org`），只检索 SSRN 的 DOI 前缀 `10.2139`。不需要凭据；默认 timeout 30 秒；访问策略为每秒 1 个请求、并发 1（2026-09-26 公共池响应头为每秒 5 个请求、并发 1）。platform catalog 的默认 order 只含这一条 route。
+- **ref**：`ssrn:<id>`，id 是不带前导零的 ASCII 数字，kind 为 `paper`，不带版本。canonical URL 是 `https://papers.ssrn.com/sol3/papers.cfm?abstract_id=<id>`。不联网即可解析的输入：ref 本身（前缀不区分大小写）；`papers.ssrn.com/sol3/papers.cfm` 摘要页，取 `abstract_id`，忽略其他 query 参数与 fragment；`ssrn.com/abstract=<id>` 与 `www.ssrn.com/abstract=<id>`；DOI `10.2139/ssrn.<id>`（不区分大小写）及其 `doi.org`、`dx.doi.org` URL。主机名不区分大小写，http 与 https 都接受。SSRN 的 `Delivery.cfm` PDF 链接（文件名里的数字不是论文身份）、其他路径、相似域名与短链都在飞行前退 2。
+- **search wire 编码**：`GET <url>/prefixes/10.2139/works`，参数为 `query`（查询词原样传入，按上游相关性检索，不要求每个词都出现）、`rows`（`--limit`，1–100）、`offset`、`sort=score`、`order=desc` 与 `select=DOI,title,author,abstract,published,type,created,resource`。查询词必填；第一版没有其他选项。
+- **分页**：页位置是绝对 offset，不使用 Crossref 的上游 cursor。只有同时满足以下条件时才签发下一页 cursor：原始页条数等于 `rows`；下一个 offset 小于 `total-results`；下一个 offset 加 `rows` 不超过 10000。Crossref 拒绝 offset 加 `rows` 超过 10000 的请求（HTTP 400，2026-09-26 实测：`rows=20` 时 offset 最大为 9980），因此 route 的支持检查在飞行前以参数错误拒绝越过该上限的 cursor。是否到末页按过滤前的原始条数判断。
+- **解码**：响应的 `message-type` 必须是 `work-list`（search）或 `work`（fetch），否则为 Runtime；无法解码的响应为 Runtime。DOI 不符合 `10.2139/ssrn.<数字>` 的记录被跳过，DOI 写入 stderr 诊断；类型为 `journal-article` 的记录保留，因为 SSRN 把部分 DOI 登记成这个类型。条目字段：`title` 取第一个非空标题；`authors` 为 `given family`，机构作者取 `name`；`published` 取 Crossref `published` 的 date-parts，按原始精度写成 `2012`、`2012-04` 或 `2012-04-19`，不补齐；平台字段 `doi` 为 Crossref 记录的 DOI，`crossref_type` 为记录类型，`crossref_created` 为 Crossref 登记 DOI 的时间，永不用来填补 `published`。`snippet`、`posted`、`last_revised`、`date_written` 由读取 SSRN 页面的 route 填写，本 route 恒为 `null`。
+- **摘要清理**：去掉 JATS 与 HTML 标记（引号内的属性值不结束标签），保留 CDATA 中的文本，块元素（`p`、`title`、`sec`、`list`、`list-item`、`br`、`div`）之间保留段落换行（空行），解码 XML 实体、`&nbsp;` 与数字字符引用，段内折叠空白。Crossref 摘要是 XML，其他命名实体原样保留。清理后为空的摘要按缺失处理。有摘要的条目深度为 `abstract`，没有摘要的为 `metadata` 且 `abstract: null`。
+- **fetch**：请求 `GET <url>/works/10.2139/ssrn.<id>`。route 支持 `metadata` 与 `abstract`；请求的深度是最低要求，`metadata` 在有摘要时一并返回摘要，条目的 `depth` 记录实际拿到的内容。请求 `abstract` 但记录没有摘要时，在 attempt 内报 Quality，链落到下一条 route，全链如此则退 5。`full_text` 不支持，该 route 记为 Skipped；没有其他 route 支持时飞行前退 2。错误映射：HTTP 404 为 Parameter（`SSRN paper not found in Crossref: ssrn:<id>`，只说明 Crossref 没有该 DOI）；返回的 DOI 与请求的不一致为 Runtime；429 为 RateLimited，匿名 route 无凭据可轮换，直接成为 route 终态；其他状态码沿用共享 status 映射，HTTP 400 的消息取 Crossref validation-failure 的首条说明。

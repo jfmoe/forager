@@ -78,7 +78,13 @@ fn platform_commands_nest_operations_under_each_platform() {
         })
         .collect::<Vec<_>>();
 
-    assert_eq!(platforms, [("arxiv", vec!["search", "fetch"])]);
+    assert_eq!(
+        platforms,
+        [
+            ("arxiv", vec!["search", "fetch"]),
+            ("ssrn", vec!["search", "fetch"])
+        ]
+    );
 }
 
 #[test]
@@ -117,6 +123,46 @@ fn arxiv_fetch_help_lists_every_option_and_value() {
         "[default: full_text]",
         "[possible values: full_text, abstract]",
         "--content-dir <DIR>",
+        "[possible values: json, markdown, content]",
+        "--timeout <TIMEOUT>",
+        "--verbose",
+    ] {
+        assert!(
+            help.contains(expected),
+            "missing {expected} in help:\n{help}"
+        );
+    }
+}
+
+#[test]
+fn ssrn_search_help_lists_every_option() {
+    let output = run(&["platform", "ssrn", "search", "--help"]);
+    let help = String::from_utf8(output.stdout).expect("UTF-8 help");
+
+    for expected in [
+        "[QUERY]",
+        "--limit <LIMIT>",
+        "--cursor <CURSOR>",
+        "--timeout <TIMEOUT>",
+        "--verbose",
+    ] {
+        assert!(
+            help.contains(expected),
+            "missing {expected} in help:\n{help}"
+        );
+    }
+}
+
+#[test]
+fn ssrn_fetch_help_defaults_to_metadata_depth() {
+    let output = run(&["platform", "ssrn", "fetch", "--help"]);
+    let help = String::from_utf8(output.stdout).expect("UTF-8 help");
+
+    for expected in [
+        "<REFERENCE>",
+        "--depth <DEPTH>",
+        "[default: metadata]",
+        "[possible values: metadata, abstract, full_text]",
         "[possible values: json, markdown, content]",
         "--timeout <TIMEOUT>",
         "--verbose",

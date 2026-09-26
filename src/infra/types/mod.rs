@@ -7,6 +7,7 @@ mod error;
 mod outcome;
 mod platform;
 mod platform_arxiv;
+mod platform_ssrn;
 mod research;
 mod search;
 
@@ -28,6 +29,7 @@ pub(crate) use platform::{
     PlatformFetchOutcome, PlatformFetchRequest, PlatformSearchOutcome, PlatformSearchRequest,
 };
 pub use platform_arxiv::{ArxivItemData, ArxivRef, ArxivSearchOptions, ArxivSort};
+pub use platform_ssrn::{SsrnItemData, SsrnRef, SsrnSearchOptions};
 pub(crate) use research::DocumentationEvidence;
 pub use research::{
     ClaimRisk, EvidenceItem, EvidenceLocator, EvidenceStrength, RecencyRequirement, ResearchGap,

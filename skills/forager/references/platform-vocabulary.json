@@ -21,6 +21,28 @@
         ],
         "examples": ["arxiv:2401.04088v1", "arxiv:hep-th/9711200", "https://arxiv.org/pdf/1706.03762v7"]
       }
+    },
+    {
+      "id": "ssrn",
+      "purpose": "Retrieve SSRN working papers as platform-native papers: abstract-ID identity, bibliographic metadata, and the abstract when a route has it.",
+      "select_when": "The request names SSRN, supplies an SSRN URL, an ssrn: ref, or a 10.2139/ssrn DOI, or needs SSRN papers (finance, law, economics working papers) rather than general web pages.",
+      "examples": [
+        "find SSRN papers on dual momentum",
+        "read https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2042750",
+        "get the abstract of ssrn:2042750",
+        "查一下 SSRN 上关于碳排放监管的论文"
+      ],
+      "ref_syntax": {
+        "ref": "ssrn:<id>",
+        "id_forms": ["2042750"],
+        "urls": [
+          "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=<id>",
+          "https://ssrn.com/abstract=<id>",
+          "https://www.ssrn.com/abstract=<id>",
+          "https://doi.org/10.2139/ssrn.<id>"
+        ],
+        "examples": ["ssrn:2042750", "10.2139/ssrn.2042750", "https://ssrn.com/abstract=2042750"]
+      }
     }
   ]
 }

@@ -664,7 +664,8 @@ fn format_platform_page(page: &PlatformSearchPage, format: OutputFormat) -> Resu
             item.title, item.url, item.reference
         );
         append_byline(&mut markdown, item);
-        if let Some(summary) = item_abstract(item).filter(|summary| !summary.is_empty()) {
+        let summary = item_abstract(item).or_else(|| item_snippet(item));
+        if let Some(summary) = summary.filter(|summary| !summary.is_empty()) {
             let _ = write!(
                 markdown,
                 "\n\n  {}",
@@ -690,13 +691,17 @@ fn append_byline(markdown: &mut String, item: &PlatformItem) {
     }
 }
 
-#[expect(
-    clippy::unnecessary_wraps,
-    reason = "platforms whose items can lack an abstract join this match"
-)]
 fn item_abstract(item: &PlatformItem) -> Option<&str> {
     match &item.data {
         PlatformItemData::Arxiv(data) => Some(&data.abstract_text),
+        PlatformItemData::Ssrn(data) => data.abstract_text.as_deref(),
+    }
+}
+
+fn item_snippet(item: &PlatformItem) -> Option<&str> {
+    match &item.data {
+        PlatformItemData::Arxiv(_) => None,
+        PlatformItemData::Ssrn(data) => data.snippet.as_deref(),
     }
 }
 

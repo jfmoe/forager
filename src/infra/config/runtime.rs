@@ -191,24 +191,27 @@ pub(crate) struct HttpRouteRuntimeConfig {
 #[derive(Clone, Debug)]
 pub(crate) struct PlatformRoutesRuntimeConfig {
     pub(crate) arxiv_api: HttpRouteRuntimeConfig,
+    pub(crate) ssrn_crossref: HttpRouteRuntimeConfig,
 }
 
 /// The configuration of one platform route.
 #[derive(Clone, Debug)]
 pub(crate) enum PlatformRouteConfig {
     ArxivApi(HttpRouteRuntimeConfig),
+    SsrnCrossref(HttpRouteRuntimeConfig),
 }
 
 impl PlatformRouteConfig {
     pub(crate) fn route(&self) -> ProviderId {
         match self {
             Self::ArxivApi(_) => ProviderId::ArxivApi,
+            Self::SsrnCrossref(_) => ProviderId::SsrnCrossref,
         }
     }
 
     pub(crate) fn configured(&self) -> bool {
         match self {
-            Self::ArxivApi(_) => provider_configured(ProviderId::ArxivApi, &[]),
+            Self::ArxivApi(_) | Self::SsrnCrossref(_) => provider_configured(self.route(), &[]),
         }
     }
 }
@@ -238,12 +241,14 @@ impl PlatformRuntimeConfig {
 #[derive(Clone, Debug)]
 pub(crate) struct PlatformsRuntimeConfig {
     arxiv: PlatformRuntimeConfig,
+    ssrn: PlatformRuntimeConfig,
 }
 
 impl PlatformsRuntimeConfig {
     pub(crate) fn get(&self, platform: Platform) -> &PlatformRuntimeConfig {
         match platform {
             Platform::Arxiv => &self.arxiv,
+            Platform::Ssrn => &self.ssrn,
         }
     }
 }
@@ -502,6 +507,10 @@ impl RuntimeConfig {
                 endpoint: &self.platform_routes.arxiv_api.url,
                 keys: &[],
             },
+            ProviderId::SsrnCrossref => ProviderRuntime {
+                endpoint: &self.platform_routes.ssrn_crossref.url,
+                keys: &[],
+            },
         }
     }
 }
@@ -561,6 +570,10 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
             url: config.providers.arxiv_api.url,
             timeout_seconds: config.providers.arxiv_api.timeout,
         },
+        ssrn_crossref: HttpRouteRuntimeConfig {
+            url: config.providers.ssrn_crossref.url,
+            timeout_seconds: config.providers.ssrn_crossref.timeout,
+        },
     };
     let classifier = ClassifierRuntimeConfig {
         url: config.classifier.url,
@@ -604,6 +617,11 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         arxiv: platform_entries(
             Platform::Arxiv,
             config.platforms.arxiv.order,
+            &platform_routes,
+        )?,
+        ssrn: platform_entries(
+            Platform::Ssrn,
+            config.platforms.ssrn.order,
             &platform_routes,
         )?,
     };
@@ -758,6 +776,9 @@ pub(crate) fn platform_route_config(
 ) -> Option<PlatformRouteConfig> {
     match id {
         ProviderId::ArxivApi => Some(PlatformRouteConfig::ArxivApi(routes.arxiv_api.clone())),
+        ProviderId::SsrnCrossref => Some(PlatformRouteConfig::SsrnCrossref(
+            routes.ssrn_crossref.clone(),
+        )),
         _ => None,
     }
 }

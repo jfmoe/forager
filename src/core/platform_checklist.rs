@@ -27,6 +27,7 @@ fn sample_refs(platform: Platform) -> &'static [&'static str] {
             "arxiv:2401.01234",
             "arxiv:hep-th/9901001v1",
         ],
+        Platform::Ssrn => &["ssrn:2042750"],
     }
 }
 
@@ -266,7 +267,8 @@ fn has_adapter(platform: Platform, operation: PlatformOperation, route: Provider
         timeout_seconds: 1,
     };
     let routes = PlatformRoutesRuntimeConfig {
-        arxiv_api: http_route,
+        arxiv_api: http_route.clone(),
+        ssrn_crossref: http_route,
     };
     has_support
         && config::platform_route_config(route, &routes)

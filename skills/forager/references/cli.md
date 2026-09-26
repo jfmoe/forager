@@ -304,8 +304,9 @@ forager anysearch domains DOMAIN [--timeout SECONDS] [--format json|markdown]
 `forager platform <id> <op>` retrieves items of a built-in platform through the routes in
 `platforms.<id>.order`; results never fall back to another platform. The platforms are listed in
 [`platform-vocabulary.json`](platform-vocabulary.json). Platform commands write no result journal.
-Their `--timeout` defaults to `120` and includes waits for the platform's request window (arXiv
-allows one request every 3 seconds across all local processes).
+Their `--timeout` defaults to `120` and includes waits for the platform's request window, shared
+across all local processes (arXiv: one request every 3 seconds; SSRN through Crossref: one request
+per second).
 
 ### `platform arxiv search`
 
@@ -353,6 +354,48 @@ HTML read fails, through the configured `web_fetch` chain. JSON output carries t
 file. Short links and unrecognized inputs exit `2` before any request; a missing paper is a
 `parameter` failure (exit `4`); both HTML and PDF too thin is a `quality` failure (exit `5`);
 `full_text` with no configured Web Fetch provider exits `3`.
+
+### `platform ssrn search`
+
+```console
+forager platform ssrn search QUERY [--limit N] [--cursor CURSOR]
+                             [--timeout SECONDS] [--format json|markdown]
+                             [--output FILE [--receipt]] [--verbose]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `QUERY` | Topic keywords, ranked by relevance; not every word must match. Required unless `--cursor` is given. | Required |
+| `--limit N` | Results on this page, `1..=100`. | `10` |
+| `--cursor CURSOR` | `next_cursor` of a previous page; it restores the whole request, so pass no query or `--limit` with it. | Omitted |
+
+The default `ssrn_crossref` route searches Crossref records under the SSRN DOI prefix; it needs no
+credentials. Each item has `ref`, `url` (the SSRN abstract page), `depth`, `title`, `authors`,
+`published`, and the SSRN fields `abstract`, `snippet`, `doi`, `crossref_type`,
+`crossref_created`, `posted`, `last_revised`, and `date_written`; a field the route did not read is
+`null`. `depth` is `abstract` when the item has an abstract and `metadata` otherwise. Paging stops
+at result 10000, where Crossref stops offset paging; `next_cursor` is then `null`. Records whose DOI
+is not an SSRN DOI are dropped and reported on stderr. A valid empty search returns `items: []`
+with exit 0.
+
+### `platform ssrn fetch`
+
+```console
+forager platform ssrn fetch REF_OR_URL [--depth metadata|abstract|full_text]
+                            [--timeout SECONDS] [--format json|markdown|content]
+                            [--output FILE [--receipt]] [--verbose]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `REF_OR_URL` | `ssrn:<id>`, a `papers.ssrn.com/sol3/papers.cfm?abstract_id=<id>` URL, an `ssrn.com/abstract=<id>` URL, or the `10.2139/ssrn.<id>` DOI or its doi.org URL. | Required |
+| `--depth DEPTH` | `metadata` returns the metadata and the abstract when available; `abstract` requires the abstract; `full_text` has no route yet. | `metadata` |
+| `--format FORMAT` | `json`, `markdown`, or `content`; `content` prints the abstract. | `json` |
+
+SSRN download links, look-alike hosts, and short links exit `2` before any request, and so does
+`--depth full_text`. A DOI that Crossref does not know is a `parameter` failure (exit `4`) whose
+message says the paper was not found in Crossref; `--depth abstract` without an abstract is a
+`quality` failure (exit `5`).
 
 ## Configuration and diagnostics
 

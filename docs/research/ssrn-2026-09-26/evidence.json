@@ -1,0 +1,3895 @@
+{
+  "checked_at_utc": "2026-09-26",
+  "repository_commit": "8a72d6e",
+  "cli_version": "0.6.0",
+  "method": "Sequential public Crossref REST requests; each case stores a field projection and a SHA-256 hash of the raw response. Random sample and live ranking can change on repeat.",
+  "crossref_cases": [
+    {
+      "case": "dual-default",
+      "url": "https://api.crossref.org/prefixes/10.2139/works?query.bibliographic=dual+momentum&rows=20",
+      "status": 200,
+      "seconds": 2.89,
+      "total": 13347,
+      "count": 20,
+      "abstracts": 16,
+      "links": 0,
+      "non_ssrn": [],
+      "cursor": false,
+      "rate_headers": {
+        "x-rate-limit-limit": "5",
+        "x-rate-limit-interval": "1s",
+        "x-concurrency-limit": "1",
+        "x-api-pool": "public-single"
+      },
+      "response_sha256": "50106551b0fbf0b7d4ed12b7bc33f6ef553578a35feb12e043b1c8b255ce467f",
+      "records": [
+        {
+          "doi": "10.2139/ssrn.2042750",
+          "title": [
+            "Risk Premia Harvesting Through Dual Momentum"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 437,
+          "published_parts": [
+            [
+              2012
+            ]
+          ],
+          "created": "2012-04-25T11:01:44Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=2042750"
+        },
+        {
+          "doi": "10.2139/ssrn.7427878",
+          "title": [
+            "Global Equities Momentum, 1971–2026 - A Replication of Antonacci's Dual Momentum and a Decomposition of its Returns"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1734,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-09-14T09:30:52Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=7427878"
+        },
+        {
+          "doi": "10.2139/ssrn.7143882",
+          "title": [
+            "When Does Risk-Managed Momentum Add Value? An Out-of-Sample, Regime-Conditional, and Statistically Tested Study of a Volatility-Targeted Dual-Momentum Strategy"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1592,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-07-29T14:12:14Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=7143882"
+        },
+        {
+          "doi": "10.2139/ssrn.6729918",
+          "title": [
+            "Dual Momentum Allocation Between Physical Gold and Bitcoin (Digital Gold)"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 676,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-05-07T11:38:16Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6729918"
+        },
+        {
+          "doi": "10.2139/ssrn.6980898",
+          "title": [
+            "RAMP: Dual Momentum for Smarter Investing: A Volatility-Scaled, Drawdown-Controlled Equity Strategy"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1459,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-07-29T13:59:42Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6980898"
+        },
+        {
+          "doi": "10.2139/ssrn.581323",
+          "title": [
+            "On the Dual Test for Ssd Efficiency: With an Application to Momentum Investment Strategies"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 713,
+          "published_parts": [
+            [
+              2004
+            ]
+          ],
+          "created": "2011-12-28T11:10:17Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=581323"
+        },
+        {
+          "doi": "10.2139/ssrn.6953821",
+          "title": [
+            "Dual vs. Single Momentum in Commodities: Enhancing Risk-Adjusted Returns through Absolute Trend Filtering"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1177,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-07-13T08:10:21Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6953821"
+        },
+        {
+          "doi": "10.2139/ssrn.4346906",
+          "title": [
+            "Dual and Canary Momentum with Rising Yields/Inflation: Hybrid Asset Allocation (HAA)"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 886,
+          "published_parts": [
+            [
+              2023
+            ]
+          ],
+          "created": "2023-02-03T12:19:16Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4346906"
+        },
+        {
+          "doi": "10.2139/ssrn.5906742",
+          "title": [
+            "The Application of Dual-Denoised Momentum Factors in Portfolio Management: A Study of ChiNext Stocks for Retail Investors"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1636,
+          "published_parts": [
+            [
+              2025
+            ]
+          ],
+          "created": "2025-12-12T12:00:29Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5906742"
+        },
+        {
+          "doi": "10.2139/ssrn.5042044",
+          "title": [
+            "Dual-Channel Photonic Crystal Fiber Featuring Negative Curvature Capillary Tubes for Enhanced Transmission of Orbital Angular Momentum Modes"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2024
+            ]
+          ],
+          "created": "2024-12-03T06:41:32Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5042044"
+        },
+        {
+          "doi": "10.2139/ssrn.7436501",
+          "title": [
+            "Dual-Momentum Regime Switching under Halal Screens: An Exploratory Backtest of 12-1 Relative Strength and a 200-Day SMA Overlay, 2019-2024"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1415,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-09-14T19:41:12Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=7436501"
+        },
+        {
+          "doi": "10.2139/ssrn.4572479",
+          "title": [
+            "Generation of Dual-Polarization Orbital Angular Momentum Vortex Beams with Reflection-Type Metasurface"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2023
+            ]
+          ],
+          "created": "2023-09-14T21:18:55Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4572479"
+        },
+        {
+          "doi": "10.2139/ssrn.5192013",
+          "title": [
+            "Dual-Parameter Manipulation of Orbital Angular Momentum and Focal Length Via Concentric Bilayer Moiré Metalens"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2025
+            ]
+          ],
+          "created": "2025-03-24T23:43:44Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5192013"
+        },
+        {
+          "doi": "10.2139/ssrn.4326731",
+          "title": [
+            "Facts, Momentum and Factor Momentum"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 889,
+          "published_parts": [
+            [
+              2023
+            ]
+          ],
+          "created": "2023-01-31T04:37:29Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4326731"
+        },
+        {
+          "doi": "10.2139/ssrn.2287848",
+          "title": [
+            "Alpha Momentum and Price Momentum"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 646,
+          "published_parts": [
+            [
+              2013
+            ]
+          ],
+          "created": "2013-09-18T11:42:00Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=2287848"
+        },
+        {
+          "doi": "10.2139/ssrn.1913971",
+          "title": [
+            "Management Guidance, Earnings Momentum and Price Momentum"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 858,
+          "published_parts": [
+            [
+              2011
+            ]
+          ],
+          "created": "2012-01-05T12:47:33Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=1913971"
+        },
+        {
+          "doi": "10.2139/ssrn.1359888",
+          "title": [
+            "Short-Term Momentum: The Centered Momentum Effect"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1056,
+          "published_parts": [
+            [
+              2009
+            ]
+          ],
+          "created": "2011-12-28T13:08:43Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=1359888"
+        },
+        {
+          "doi": "10.2139/ssrn.2942641",
+          "title": [
+            "Avoiding Momentum Crashes: Dynamic Momentum and Contrarian Trading"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 956,
+          "published_parts": [
+            [
+              2017
+            ]
+          ],
+          "created": "2017-06-28T11:39:37Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=2942641"
+        },
+        {
+          "doi": "10.2139/ssrn.5542338",
+          "title": [
+            "Derivation of Relativistic Momentum Corresponding to Classical Momentum"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2025
+            ]
+          ],
+          "created": "2025-10-24T11:31:36Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5542338"
+        },
+        {
+          "doi": "10.2139/ssrn.3014521",
+          "title": [
+            "Factor Momentum and the Momentum Factor"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 667,
+          "published_parts": [
+            [
+              2017
+            ]
+          ],
+          "created": "2017-09-06T17:34:09Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=3014521"
+        }
+      ]
+    },
+    {
+      "case": "dual-score-cursor",
+      "url": "https://api.crossref.org/prefixes/10.2139/works?query.bibliographic=dual+momentum&rows=20&sort=score&order=desc&cursor=%2A",
+      "status": 200,
+      "seconds": 3.05,
+      "total": 13347,
+      "count": 20,
+      "abstracts": 16,
+      "links": 0,
+      "non_ssrn": [],
+      "cursor": true,
+      "rate_headers": {
+        "x-rate-limit-limit": "5",
+        "x-rate-limit-interval": "1s",
+        "x-concurrency-limit": "1",
+        "x-api-pool": "public-single"
+      },
+      "response_sha256": "8dc9b15bc866ebc9360b42a24163484a48bdd0bb0d61fd1b389e8e32473ef99b",
+      "records": [
+        {
+          "doi": "10.2139/ssrn.2042750",
+          "title": [
+            "Risk Premia Harvesting Through Dual Momentum"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 437,
+          "published_parts": [
+            [
+              2012
+            ]
+          ],
+          "created": "2012-04-25T11:01:44Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=2042750"
+        },
+        {
+          "doi": "10.2139/ssrn.7427878",
+          "title": [
+            "Global Equities Momentum, 1971–2026 - A Replication of Antonacci's Dual Momentum and a Decomposition of its Returns"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1734,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-09-14T09:30:52Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=7427878"
+        },
+        {
+          "doi": "10.2139/ssrn.7143882",
+          "title": [
+            "When Does Risk-Managed Momentum Add Value? An Out-of-Sample, Regime-Conditional, and Statistically Tested Study of a Volatility-Targeted Dual-Momentum Strategy"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1592,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-07-29T14:12:14Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=7143882"
+        },
+        {
+          "doi": "10.2139/ssrn.6729918",
+          "title": [
+            "Dual Momentum Allocation Between Physical Gold and Bitcoin (Digital Gold)"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 676,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-05-07T11:38:16Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6729918"
+        },
+        {
+          "doi": "10.2139/ssrn.6980898",
+          "title": [
+            "RAMP: Dual Momentum for Smarter Investing: A Volatility-Scaled, Drawdown-Controlled Equity Strategy"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1459,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-07-29T13:59:42Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6980898"
+        },
+        {
+          "doi": "10.2139/ssrn.581323",
+          "title": [
+            "On the Dual Test for Ssd Efficiency: With an Application to Momentum Investment Strategies"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 713,
+          "published_parts": [
+            [
+              2004
+            ]
+          ],
+          "created": "2011-12-28T11:10:17Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=581323"
+        },
+        {
+          "doi": "10.2139/ssrn.6953821",
+          "title": [
+            "Dual vs. Single Momentum in Commodities: Enhancing Risk-Adjusted Returns through Absolute Trend Filtering"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1177,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-07-13T08:10:21Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6953821"
+        },
+        {
+          "doi": "10.2139/ssrn.4346906",
+          "title": [
+            "Dual and Canary Momentum with Rising Yields/Inflation: Hybrid Asset Allocation (HAA)"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 886,
+          "published_parts": [
+            [
+              2023
+            ]
+          ],
+          "created": "2023-02-03T12:19:16Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4346906"
+        },
+        {
+          "doi": "10.2139/ssrn.5906742",
+          "title": [
+            "The Application of Dual-Denoised Momentum Factors in Portfolio Management: A Study of ChiNext Stocks for Retail Investors"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1636,
+          "published_parts": [
+            [
+              2025
+            ]
+          ],
+          "created": "2025-12-12T12:00:29Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5906742"
+        },
+        {
+          "doi": "10.2139/ssrn.5042044",
+          "title": [
+            "Dual-Channel Photonic Crystal Fiber Featuring Negative Curvature Capillary Tubes for Enhanced Transmission of Orbital Angular Momentum Modes"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2024
+            ]
+          ],
+          "created": "2024-12-03T06:41:32Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5042044"
+        },
+        {
+          "doi": "10.2139/ssrn.7436501",
+          "title": [
+            "Dual-Momentum Regime Switching under Halal Screens: An Exploratory Backtest of 12-1 Relative Strength and a 200-Day SMA Overlay, 2019-2024"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1415,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-09-14T19:41:12Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=7436501"
+        },
+        {
+          "doi": "10.2139/ssrn.4572479",
+          "title": [
+            "Generation of Dual-Polarization Orbital Angular Momentum Vortex Beams with Reflection-Type Metasurface"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2023
+            ]
+          ],
+          "created": "2023-09-14T21:18:55Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4572479"
+        },
+        {
+          "doi": "10.2139/ssrn.5192013",
+          "title": [
+            "Dual-Parameter Manipulation of Orbital Angular Momentum and Focal Length Via Concentric Bilayer Moiré Metalens"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2025
+            ]
+          ],
+          "created": "2025-03-24T23:43:44Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5192013"
+        },
+        {
+          "doi": "10.2139/ssrn.4326731",
+          "title": [
+            "Facts, Momentum and Factor Momentum"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 889,
+          "published_parts": [
+            [
+              2023
+            ]
+          ],
+          "created": "2023-01-31T04:37:29Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4326731"
+        },
+        {
+          "doi": "10.2139/ssrn.2287848",
+          "title": [
+            "Alpha Momentum and Price Momentum"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 646,
+          "published_parts": [
+            [
+              2013
+            ]
+          ],
+          "created": "2013-09-18T11:42:00Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=2287848"
+        },
+        {
+          "doi": "10.2139/ssrn.1913971",
+          "title": [
+            "Management Guidance, Earnings Momentum and Price Momentum"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 858,
+          "published_parts": [
+            [
+              2011
+            ]
+          ],
+          "created": "2012-01-05T12:47:33Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=1913971"
+        },
+        {
+          "doi": "10.2139/ssrn.1359888",
+          "title": [
+            "Short-Term Momentum: The Centered Momentum Effect"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1056,
+          "published_parts": [
+            [
+              2009
+            ]
+          ],
+          "created": "2011-12-28T13:08:43Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=1359888"
+        },
+        {
+          "doi": "10.2139/ssrn.2942641",
+          "title": [
+            "Avoiding Momentum Crashes: Dynamic Momentum and Contrarian Trading"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 956,
+          "published_parts": [
+            [
+              2017
+            ]
+          ],
+          "created": "2017-06-28T11:39:37Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=2942641"
+        },
+        {
+          "doi": "10.2139/ssrn.5542338",
+          "title": [
+            "Derivation of Relativistic Momentum Corresponding to Classical Momentum"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2025
+            ]
+          ],
+          "created": "2025-10-24T11:31:36Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5542338"
+        },
+        {
+          "doi": "10.2139/ssrn.3014521",
+          "title": [
+            "Factor Momentum and the Momentum Factor"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 667,
+          "published_parts": [
+            [
+              2017
+            ]
+          ],
+          "created": "2017-09-06T17:34:09Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=3014521"
+        }
+      ]
+    },
+    {
+      "case": "dual-title",
+      "url": "https://api.crossref.org/prefixes/10.2139/works?query.title=dual+momentum&rows=20&sort=score&order=desc",
+      "status": 200,
+      "seconds": 3.54,
+      "total": 13345,
+      "count": 20,
+      "abstracts": 14,
+      "links": 0,
+      "non_ssrn": [],
+      "cursor": false,
+      "rate_headers": {
+        "x-rate-limit-limit": "5",
+        "x-rate-limit-interval": "1s",
+        "x-concurrency-limit": "1",
+        "x-api-pool": "public-single"
+      },
+      "response_sha256": "ad86a875ab933c2a08ba9b104ab92492ae3b97df5d265ebcd6024a4233463687",
+      "records": [
+        {
+          "doi": "10.2139/ssrn.2042750",
+          "title": [
+            "Risk Premia Harvesting Through Dual Momentum"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 437,
+          "published_parts": [
+            [
+              2012
+            ]
+          ],
+          "created": "2012-04-25T11:01:44Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=2042750"
+        },
+        {
+          "doi": "10.2139/ssrn.6729918",
+          "title": [
+            "Dual Momentum Allocation Between Physical Gold and Bitcoin (Digital Gold)"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 676,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-05-07T11:38:16Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6729918"
+        },
+        {
+          "doi": "10.2139/ssrn.7427878",
+          "title": [
+            "Global Equities Momentum, 1971–2026 - A Replication of Antonacci's Dual Momentum and a Decomposition of its Returns"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1734,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-09-14T09:30:52Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=7427878"
+        },
+        {
+          "doi": "10.2139/ssrn.3710496",
+          "title": [
+            "Momentum? What Momentum?"
+          ],
+          "type": "journal-article",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2020
+            ]
+          ],
+          "created": "2020-10-15T12:08:04Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=3710496"
+        },
+        {
+          "doi": "10.2139/ssrn.4346906",
+          "title": [
+            "Dual and Canary Momentum with Rising Yields/Inflation: Hybrid Asset Allocation (HAA)"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 886,
+          "published_parts": [
+            [
+              2023
+            ]
+          ],
+          "created": "2023-02-03T12:19:16Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4346906"
+        },
+        {
+          "doi": "10.2139/ssrn.4326731",
+          "title": [
+            "Facts, Momentum and Factor Momentum"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 889,
+          "published_parts": [
+            [
+              2023
+            ]
+          ],
+          "created": "2023-01-31T04:37:29Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4326731"
+        },
+        {
+          "doi": "10.2139/ssrn.6980898",
+          "title": [
+            "RAMP: Dual Momentum for Smarter Investing: A Volatility-Scaled, Drawdown-Controlled Equity Strategy"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1459,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-07-29T13:59:42Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6980898"
+        },
+        {
+          "doi": "10.2139/ssrn.4572479",
+          "title": [
+            "Generation of Dual-Polarization Orbital Angular Momentum Vortex Beams with Reflection-Type Metasurface"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2023
+            ]
+          ],
+          "created": "2023-09-14T21:18:55Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4572479"
+        },
+        {
+          "doi": "10.2139/ssrn.2287848",
+          "title": [
+            "Alpha Momentum and Price Momentum"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 646,
+          "published_parts": [
+            [
+              2013
+            ]
+          ],
+          "created": "2013-09-18T11:42:00Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=2287848"
+        },
+        {
+          "doi": "10.2139/ssrn.299107",
+          "title": [
+            "Momentum"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 576,
+          "published_parts": [
+            [
+              2002
+            ]
+          ],
+          "created": "2005-08-19T17:10:57Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=299107"
+        },
+        {
+          "doi": "10.2139/ssrn.1919226",
+          "title": [
+            "Momentum"
+          ],
+          "type": "journal-article",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2011
+            ]
+          ],
+          "created": "2012-01-05T17:51:29Z",
+          "links": [],
+          "resource_url": "http://www.ssrn.com/abstract=1919226"
+        },
+        {
+          "doi": "10.2139/ssrn.3014521",
+          "title": [
+            "Factor Momentum and the Momentum Factor"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 667,
+          "published_parts": [
+            [
+              2017
+            ]
+          ],
+          "created": "2017-09-06T17:34:09Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=3014521"
+        },
+        {
+          "doi": "10.2139/ssrn.6953821",
+          "title": [
+            "Dual vs. Single Momentum in Commodities: Enhancing Risk-Adjusted Returns through Absolute Trend Filtering"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1177,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-07-13T08:10:21Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6953821"
+        },
+        {
+          "doi": "10.2139/ssrn.581323",
+          "title": [
+            "On the Dual Test for Ssd Efficiency: With an Application to Momentum Investment Strategies"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 713,
+          "published_parts": [
+            [
+              2004
+            ]
+          ],
+          "created": "2011-12-28T11:10:17Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=581323"
+        },
+        {
+          "doi": "10.2139/ssrn.7143882",
+          "title": [
+            "When Does Risk-Managed Momentum Add Value? An Out-of-Sample, Regime-Conditional, and Statistically Tested Study of a Volatility-Targeted Dual-Momentum Strategy"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1592,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-07-29T14:12:14Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=7143882"
+        },
+        {
+          "doi": "10.2139/ssrn.2180556",
+          "title": [
+            "Momentum Universe Shrinkage Effect in Price Momentum"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 713,
+          "published_parts": [
+            [
+              2012
+            ]
+          ],
+          "created": "2012-11-28T11:01:18Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=2180556"
+        },
+        {
+          "doi": "10.2139/ssrn.1359888",
+          "title": [
+            "Short-Term Momentum: The Centered Momentum Effect"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1056,
+          "published_parts": [
+            [
+              2009
+            ]
+          ],
+          "created": "2011-12-28T13:08:43Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=1359888"
+        },
+        {
+          "doi": "10.2139/ssrn.3688983",
+          "title": [
+            "Is Factor Momentum More than Stock Momentum?"
+          ],
+          "type": "journal-article",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2020
+            ]
+          ],
+          "created": "2020-10-28T11:40:00Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=3688983"
+        },
+        {
+          "doi": "10.2139/ssrn.5057525",
+          "title": [
+            "Momentum and Factor Momentum: A Re-Examination"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2024
+            ]
+          ],
+          "created": "2024-12-16T21:23:07Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5057525"
+        },
+        {
+          "doi": "10.2139/ssrn.2844140",
+          "title": [
+            "Risk-Managed Industry Momentum and Momentum Crashes"
+          ],
+          "type": "journal-article",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2016
+            ]
+          ],
+          "created": "2016-09-28T15:04:28Z",
+          "links": [],
+          "resource_url": "http://www.ssrn.com/abstract=2844140"
+        }
+      ]
+    },
+    {
+      "case": "asset-pricing",
+      "url": "https://api.crossref.org/prefixes/10.2139/works?query=machine+learning+asset+pricing&rows=20&sort=score&order=desc",
+      "status": 200,
+      "seconds": 4.29,
+      "total": 59553,
+      "count": 20,
+      "abstracts": 15,
+      "links": 0,
+      "non_ssrn": [],
+      "cursor": false,
+      "rate_headers": {
+        "x-rate-limit-limit": "5",
+        "x-rate-limit-interval": "1s",
+        "x-concurrency-limit": "1",
+        "x-api-pool": "public-single"
+      },
+      "response_sha256": "d84c783879472bcf36473ade674fd06fe27d1656c0822b9bec1882a78ee1e7a6",
+      "records": [
+        {
+          "doi": "10.2139/ssrn.3738023",
+          "title": [
+            "Automated Machine Learning Asset Pricing"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 415,
+          "published_parts": [
+            [
+              2020
+            ]
+          ],
+          "created": "2020-12-15T22:02:52Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=3738023"
+        },
+        {
+          "doi": "10.2139/ssrn.4068797",
+          "title": [
+            "Big Data Asset Pricing 5: Machine Learning in Asset Pricing"
+          ],
+          "type": "journal-article",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2022
+            ]
+          ],
+          "created": "2022-04-30T03:07:26Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4068797"
+        },
+        {
+          "doi": "10.2139/ssrn.5199395",
+          "title": [
+            "Machine Learning and Empirical Asset Pricing"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2025
+            ]
+          ],
+          "created": "2025-06-05T00:52:05Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5199395"
+        },
+        {
+          "doi": "10.2139/ssrn.4097100",
+          "title": [
+            "A Machine Learning Framework for Asset Pricing"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 423,
+          "published_parts": [
+            [
+              2022
+            ]
+          ],
+          "created": "2022-05-08T08:43:49Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4097100"
+        },
+        {
+          "doi": "10.2139/ssrn.6962648",
+          "title": [
+            "False Confidence in Machine-Learning Asset Pricing"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1026,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-07-15T15:06:57Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6962648"
+        },
+        {
+          "doi": "10.2139/ssrn.3950524",
+          "title": [
+            "Machine Learning Methods in Asset Pricing"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 947,
+          "published_parts": [
+            [
+              2021
+            ]
+          ],
+          "created": "2021-10-27T23:06:08Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=3950524"
+        },
+        {
+          "doi": "10.2139/ssrn.3950512",
+          "title": [
+            "Machine Learning Methods in Asset Pricing"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 911,
+          "published_parts": [
+            [
+              2022
+            ]
+          ],
+          "created": "2022-05-27T19:43:46Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=3950512"
+        },
+        {
+          "doi": "10.2139/ssrn.5150205",
+          "title": [
+            "From Econometrics to Machine Learning: Transforming Empirical Asset Pricing"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2025
+            ]
+          ],
+          "created": "2025-04-23T09:12:32Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5150205"
+        },
+        {
+          "doi": "10.2139/ssrn.4587923",
+          "title": [
+            "Machine Learning Execution Time in Asset Pricing"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1122,
+          "published_parts": [
+            [
+              2023
+            ]
+          ],
+          "created": "2023-10-31T09:56:41Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4587923"
+        },
+        {
+          "doi": "10.2139/ssrn.4473746",
+          "title": [
+            "Interpretable Machine Learning for Asset Pricing"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 699,
+          "published_parts": [
+            [
+              2023
+            ]
+          ],
+          "created": "2023-06-27T12:35:52Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4473746"
+        },
+        {
+          "doi": "10.2139/ssrn.5193994",
+          "title": [
+            "Machine Learning Applications in Asset Pricing: Forecasting Financial Innovation Fund Prices"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2025
+            ]
+          ],
+          "created": "2025-04-28T18:50:41Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5193994"
+        },
+        {
+          "doi": "10.2139/ssrn.3159577",
+          "title": [
+            "Empirical Asset Pricing via Machine Learning"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 862,
+          "published_parts": [
+            [
+              2018
+            ]
+          ],
+          "created": "2018-04-20T11:55:51Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=3159577"
+        },
+        {
+          "doi": "10.2139/ssrn.7339440",
+          "title": [
+            "Empirical Asset Pricing via Machine Learning: Evidence from Indian Equity Markets"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1803,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-08-25T10:18:56Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=7339440"
+        },
+        {
+          "doi": "10.2139/ssrn.4079290",
+          "title": [
+            "Economic Models or Machine Learning Techniques? Evidence from Asset Pricing Models"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 670,
+          "published_parts": [
+            [
+              2022
+            ]
+          ],
+          "created": "2022-04-09T23:06:53Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4079290"
+        },
+        {
+          "doi": "10.2139/ssrn.3924420",
+          "title": [
+            "Economic Models or Machine Learning Techniques? Evidence from Asset Pricing Models"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 888,
+          "published_parts": [
+            [
+              2021
+            ]
+          ],
+          "created": "2021-09-21T08:04:39Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=3924420"
+        },
+        {
+          "doi": "10.2139/ssrn.6891838",
+          "title": [
+            "Machine Learning, Real-time Macroeconomic Risk, and Asset Pricing"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1984,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-07-29T13:47:31Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6891838"
+        },
+        {
+          "doi": "10.2139/ssrn.6439412",
+          "title": [
+            "Behavioral Factors in Asset Pricing: An Approach Through Machine Learning"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 791,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-03-18T23:48:01Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6439412"
+        },
+        {
+          "doi": "10.2139/ssrn.5185155",
+          "title": [
+            "Sample Splitting Choices Matter: Evidence from Machine Learning in Empirical Asset Pricing"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2025
+            ]
+          ],
+          "created": "2025-04-15T17:03:20Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5185155"
+        },
+        {
+          "doi": "10.2139/ssrn.4824740",
+          "title": [
+            "Macroeconomic Announcement and Machine Learning for Asset Pricing"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 775,
+          "published_parts": [
+            [
+              2024
+            ]
+          ],
+          "created": "2024-05-13T10:37:13Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4824740"
+        },
+        {
+          "doi": "10.2139/ssrn.3640631",
+          "title": [
+            "Empirical Asset Pricing via Machine Learning: Evidence from the European Stock Market"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1081,
+          "published_parts": [
+            [
+              2020
+            ]
+          ],
+          "created": "2020-07-28T07:31:59Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=3640631"
+        }
+      ]
+    },
+    {
+      "case": "carbon-law",
+      "url": "https://api.crossref.org/prefixes/10.2139/works?query=carbon+emissions+regulation&rows=20&sort=score&order=desc",
+      "status": 200,
+      "seconds": 3.29,
+      "total": 41964,
+      "count": 20,
+      "abstracts": 13,
+      "links": 0,
+      "non_ssrn": [],
+      "cursor": false,
+      "rate_headers": {
+        "x-rate-limit-limit": "5",
+        "x-rate-limit-interval": "1s",
+        "x-concurrency-limit": "1",
+        "x-api-pool": "public-single"
+      },
+      "response_sha256": "d5d3f3c3efe9b832c8fa058519aa74a2a58381773267587fe21e8d32b1b23c06",
+      "records": [
+        {
+          "doi": "10.2139/ssrn.1824509",
+          "title": [
+            "Confronting the American Divide on Carbon Emissions Regulation"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 2328,
+          "published_parts": [
+            [
+              2011
+            ]
+          ],
+          "created": "2012-01-05T11:11:34Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=1824509"
+        },
+        {
+          "doi": "10.2139/ssrn.892543",
+          "title": [
+            "Efficiency Losses from Overlapping Economic Instruments in European Carbon Emissions Regulation"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1342,
+          "published_parts": [
+            [
+              2006
+            ]
+          ],
+          "created": "2011-12-28T11:45:35Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=892543"
+        },
+        {
+          "doi": "10.2139/ssrn.5008147",
+          "title": [
+            "Towards Green and Low-Carbon Transformation: Investigating the Impact of Carbon Emissions Regulation From A Multidimensional Performance Perspective"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2024
+            ]
+          ],
+          "created": "2024-11-02T23:39:58Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5008147"
+        },
+        {
+          "doi": "10.2139/ssrn.6294349",
+          "title": [
+            "Energy Security and Carbon Emissions Reduction in China: The Roles of Renewable Energy and Environmental Regulation"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1716,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-03-04T18:52:51Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6294349"
+        },
+        {
+          "doi": "10.2139/ssrn.3792384",
+          "title": [
+            "Optimal dynamic regulation of carbon emissions market: A variational approach"
+          ],
+          "type": "journal-article",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2021
+            ]
+          ],
+          "created": "2021-03-22T23:15:09Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=3792384"
+        },
+        {
+          "doi": "10.2139/ssrn.6906367",
+          "title": [
+            "Public Policy, Carbon Trading Regulation, and Financial Reporting: Evidence from China's Emissions Trading System"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1149,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-06-09T14:46:04Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6906367"
+        },
+        {
+          "doi": "10.2139/ssrn.4273509",
+          "title": [
+            "A Global Analysis of Land Use Regulation, Urban Form, and Carbon Emissions"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 984,
+          "published_parts": [
+            [
+              2022
+            ]
+          ],
+          "created": "2022-11-10T22:23:20Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4273509"
+        },
+        {
+          "doi": "10.2139/ssrn.5599450",
+          "title": [
+            "The impact of environmental regulation on the green and low-carbon transformation of industry: A quasi-natural experiment based on China's carbon emissions trading pilot policy"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2025
+            ]
+          ],
+          "created": "2025-10-13T18:44:34Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5599450"
+        },
+        {
+          "doi": "10.2139/ssrn.3926137",
+          "title": [
+            "Spatial Spillover Effect of Carbon Emissions Trading on Carbon Emissions Reduction Empirical Data from Pilot Regions in China"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1346,
+          "published_parts": [
+            [
+              2021
+            ]
+          ],
+          "created": "2021-09-21T08:05:42Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=3926137"
+        },
+        {
+          "doi": "10.2139/ssrn.2780689",
+          "title": [
+            "Global Warming, Carbon Emissions, and  Atmospheric Carbon"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 481,
+          "published_parts": [
+            [
+              2016
+            ]
+          ],
+          "created": "2017-06-28T11:11:45Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=2780689"
+        },
+        {
+          "doi": "10.2139/ssrn.4724625",
+          "title": [
+            "The Impact of Carbon Emissions Trading on China's Inclusive Green Growth: A Study Based on \"Carbon Emissions Trading Pilot\" Quasi-Natural Experiment"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2024
+            ]
+          ],
+          "created": "2024-02-14T16:48:30Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4724625"
+        },
+        {
+          "doi": "10.2139/ssrn.5009151",
+          "title": [
+            "Short-Termist Carbon Emissions"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2024
+            ]
+          ],
+          "created": "2024-12-04T18:35:22Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5009151"
+        },
+        {
+          "doi": "10.2139/ssrn.4950904",
+          "title": [
+            "Optimal Quantity and Carbon Emissions Reduction Decisions: The Effects of Carbon Emissions Permits Repurchase and Consumer Preference"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2024
+            ]
+          ],
+          "created": "2024-09-09T14:27:31Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4950904"
+        },
+        {
+          "doi": "10.2139/ssrn.2573689",
+          "title": [
+            "Carbon Pricing: Transaction Costs of Emissions Trading vs. Carbon Taxes"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1075,
+          "published_parts": [
+            [
+              2015
+            ]
+          ],
+          "created": "2015-03-11T11:01:34Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=2573689"
+        },
+        {
+          "doi": "10.2139/ssrn.2189497",
+          "title": [
+            "Carbon Emissions and Stock Returns: Evidence from the EU Emissions Trading Scheme"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 714,
+          "published_parts": [
+            [
+              2012
+            ]
+          ],
+          "created": "2012-12-19T11:01:42Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=2189497"
+        },
+        {
+          "doi": "10.2139/ssrn.4582276",
+          "title": [
+            "Firms' Carbon Emissions and Stock Returns"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 942,
+          "published_parts": [
+            [
+              2024
+            ]
+          ],
+          "created": "2024-01-17T09:44:55Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4582276"
+        },
+        {
+          "doi": "10.2139/ssrn.7170778",
+          "title": [
+            "ENDOGNOUS EMISSIONS, REGULATION POICIES, GOVERNANCE AND BUS TRANSIT COST"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1064,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-07-24T01:16:35Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=7170778"
+        },
+        {
+          "doi": "10.2139/ssrn.4869145",
+          "title": [
+            "Have China's Emissions Trading Systems Reduced Carbon Emissions? Firm-Level Evidence from the Power Sector"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2024
+            ]
+          ],
+          "created": "2024-06-18T10:17:34Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4869145"
+        },
+        {
+          "doi": "10.2139/ssrn.6922686",
+          "title": [
+            "Carbon Emissions, Institutional Investors, and Stock Returns: Evidence from China's Emerging Carbon Market"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 2084,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-06-12T00:38:13Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6922686"
+        },
+        {
+          "doi": "10.2139/ssrn.4220834",
+          "title": [
+            "Carbon Finance and Productivity:Evidence from China's Pilot Carbon Emissions Trading Schemes"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1211,
+          "published_parts": [
+            [
+              2022
+            ]
+          ],
+          "created": "2022-09-17T11:54:39Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4220834"
+        }
+      ]
+    },
+    {
+      "case": "recent",
+      "url": "https://api.crossref.org/prefixes/10.2139/works?rows=20&sort=published&order=desc&filter=from-pub-date%3A2026-09-01%2Cuntil-pub-date%3A2026-09-26",
+      "status": 200,
+      "seconds": 2.64,
+      "total": 1,
+      "count": 1,
+      "abstracts": 0,
+      "links": 0,
+      "non_ssrn": [],
+      "cursor": false,
+      "rate_headers": {
+        "x-rate-limit-limit": "5",
+        "x-rate-limit-interval": "1s",
+        "x-concurrency-limit": "1",
+        "x-api-pool": "public-single"
+      },
+      "response_sha256": "fc8c6d0c8548d98baf76f83b5b2e42fced661840b9daf73ebb962a16a1ee94fd",
+      "records": [
+        {
+          "doi": "10.2139/ssrn.7470958",
+          "title": [
+            "From Impulse to Empire: How Survival- and Reproduction-Linked Drives Become Organizational Culture"
+          ],
+          "type": "journal-article",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2026,
+              9,
+              17
+            ]
+          ],
+          "created": "2026-09-17T18:26:16Z",
+          "links": [],
+          "resource_url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7470958"
+        }
+      ]
+    },
+    {
+      "case": "random",
+      "url": "https://api.crossref.org/prefixes/10.2139/works?sample=100",
+      "status": 200,
+      "seconds": 3.49,
+      "total": 1487173,
+      "count": 100,
+      "abstracts": 47,
+      "links": 0,
+      "non_ssrn": [],
+      "cursor": false,
+      "rate_headers": {
+        "x-rate-limit-limit": "5",
+        "x-rate-limit-interval": "1s",
+        "x-concurrency-limit": "1",
+        "x-api-pool": "public-single"
+      },
+      "response_sha256": "1548771b84e6a968b576dbbbfd00c8332d3395df7e7b2a07599e84fc3a7e721a",
+      "records": [
+        {
+          "doi": "10.2139/ssrn.4426879",
+          "title": [
+            "The Role of Particle Size and Other Properties on Silo Discharge Behaviour of Chipped Wood Biomass"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2023
+            ]
+          ],
+          "created": "2023-04-24T03:21:31Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4426879"
+        },
+        {
+          "doi": "10.2139/ssrn.4057131",
+          "title": [
+            "Interaction between ELAVL1 and M6A Regulators in Prostate Cancer"
+          ],
+          "type": "journal-article",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2022
+            ]
+          ],
+          "created": "2022-03-17T18:06:11Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4057131"
+        },
+        {
+          "doi": "10.2139/ssrn.6588980",
+          "title": [
+            "Atomic-level flattening and smoothing of polycrystalline diamond surface based on thermal oxygen micro-etching"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1603,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-04-16T14:37:11Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6588980"
+        },
+        {
+          "doi": "10.2139/ssrn.4408725",
+          "title": [
+            "Using Structural Analysis to Identify and Understand Critical Variables, Links and Perspectives of the Human Dimension in Energy Models"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2023
+            ]
+          ],
+          "created": "2023-04-03T19:32:41Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4408725"
+        },
+        {
+          "doi": "10.2139/ssrn.3836681",
+          "title": [
+            "The Changing U.S. - Africa Relations: From Offshore Balancer to Offensive Realism?"
+          ],
+          "type": "journal-article",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2021
+            ]
+          ],
+          "created": "2021-05-01T11:30:20Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=3836681"
+        },
+        {
+          "doi": "10.2139/ssrn.2986634",
+          "title": [
+            "Reschedulings as the Groundwork for the Secondary Market in Sovereign Debt"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 883,
+          "published_parts": [
+            [
+              2017
+            ]
+          ],
+          "created": "2017-06-21T11:02:50Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=2986634"
+        },
+        {
+          "doi": "10.2139/ssrn.6069909",
+          "title": [
+            "Why New Zealand needs European investment: Towards New Zealand-European endeavours&amp;nbsp;"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1281,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-02-03T21:27:44Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6069909"
+        },
+        {
+          "doi": "10.2139/ssrn.4796946",
+          "title": [
+            "Featural Relations in Concept Learning and Generalization"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2024
+            ]
+          ],
+          "created": "2024-04-17T00:24:50Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4796946"
+        },
+        {
+          "doi": "10.2139/ssrn.4256204",
+          "title": [
+            "Ultrathin Bi2se3/Graphene Derived from Bi-Based Metal-Organic-Framework as Superior Electrode Material for Sodium-Ion Storage"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2022
+            ]
+          ],
+          "created": "2023-02-01T17:21:55Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4256204"
+        },
+        {
+          "doi": "10.2139/ssrn.2997001",
+          "title": [
+            "Stock Price Patterns When Overconfident Traders Underestimate Their Competition"
+          ],
+          "type": "journal-article",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2018
+            ]
+          ],
+          "created": "2018-04-20T11:22:44Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=2997001"
+        },
+        {
+          "doi": "10.2139/ssrn.4401842",
+          "title": [
+            "Real-Time System for Monitoring the Water Vapour Concentration and Temperature of Air Exhaled from Human Lungs"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2023
+            ]
+          ],
+          "created": "2023-03-27T17:18:42Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4401842"
+        },
+        {
+          "doi": "10.2139/ssrn.5233107",
+          "title": [
+            "Pricing of mean-reverting climate risk hedging with delay factors under uncertainty"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2025
+            ]
+          ],
+          "created": "2025-05-07T16:02:52Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5233107"
+        },
+        {
+          "doi": "10.2139/ssrn.3543643",
+          "title": [
+            "Minimum Wages in Monopsonistic Labor Markets"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1383,
+          "published_parts": [
+            [
+              2020
+            ]
+          ],
+          "created": "2020-04-23T07:30:58Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=3543643"
+        },
+        {
+          "doi": "10.2139/ssrn.5243543",
+          "title": [
+            "On the Modified Heavenly Equation: Inverse Spectral Transform for the Cauchy Problem, Long-Time Behaviour and Implicit Solutions"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2025
+            ]
+          ],
+          "created": "2025-05-06T18:45:29Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5243543"
+        },
+        {
+          "doi": "10.2139/ssrn.1575860",
+          "title": [
+            "Guilt from Promise-Breaking and Trust in Markets for Expert Services: Theory and Experiment"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 681,
+          "published_parts": [
+            [
+              2010
+            ]
+          ],
+          "created": "2021-11-17T04:59:55Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=1575860"
+        },
+        {
+          "doi": "10.2139/ssrn.2660276",
+          "title": [
+            "MSA Geographic Allocations, Property Selection, and Performance Attribution in Public and Private Real Estate Markets"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1325,
+          "published_parts": [
+            [
+              2015
+            ]
+          ],
+          "created": "2015-09-16T11:01:56Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=2660276"
+        },
+        {
+          "doi": "10.2139/ssrn.7103039",
+          "title": [
+            "Non-enzymatic biosenser based on conductive polymer-enhanced MXene nanocomposite with high selctivity and sensitivity"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1780,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-07-13T00:34:43Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=7103039"
+        },
+        {
+          "doi": "10.2139/ssrn.5217737",
+          "title": [
+            "Comprehensive Evaluation of Tensile Properties, Damage Mechanisms, and Predictive Modeling of Pultruded Gfrp after Elevated Temperatures"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2025
+            ]
+          ],
+          "created": "2025-04-15T07:40:23Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5217737"
+        },
+        {
+          "doi": "10.2139/ssrn.6418144",
+          "title": [
+            "Money as a Constraint: Settlement Reliability, Safe Assets, and Nominal Contracting"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 823,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-03-15T00:41:43Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6418144"
+        },
+        {
+          "doi": "10.2139/ssrn.3727104",
+          "title": [
+            "북한의 자본스톡 추정 및 시사점 (Estimating Capital Stock in North Korea and Its Implications)"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 3974,
+          "published_parts": [
+            [
+              2020
+            ]
+          ],
+          "created": "2020-11-10T22:02:40Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=3727104"
+        },
+        {
+          "doi": "10.2139/ssrn.2190337",
+          "title": [
+            "What Do People Know About the Economy? A Test of Minimal Economic Knowledge in Germany"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1137,
+          "published_parts": [
+            [
+              2012
+            ]
+          ],
+          "created": "2012-12-19T11:02:05Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=2190337"
+        },
+        {
+          "doi": "10.2139/ssrn.4961163",
+          "title": [
+            "Emotion Recognition Systems with Electrodermal Activity: From Affective Science to Affective Computing"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2024
+            ]
+          ],
+          "created": "2024-09-19T06:18:32Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4961163"
+        },
+        {
+          "doi": "10.2139/ssrn.5361725",
+          "title": [
+            "Deep Learning with Viscosity-Reduction Variational Approach for Anisotropic Eikonal Equations"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2025
+            ]
+          ],
+          "created": "2025-07-22T13:37:59Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5361725"
+        },
+        {
+          "doi": "10.2139/ssrn.4223132",
+          "title": [
+            "Loops at Carbon Edges: Boron-Assisted Passivation and Tunable Surface Properties of Carbon Nanofibers"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1206,
+          "published_parts": [
+            [
+              2022
+            ]
+          ],
+          "created": "2022-09-19T23:50:52Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4223132"
+        },
+        {
+          "doi": "10.2139/ssrn.5061220",
+          "title": [
+            "Spatio-Temporal Characteristics and Influencing Factors of Water Quality in Xiangxi Bay Under the Operation of the Three Gorges Reservoir"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2024
+            ]
+          ],
+          "created": "2024-12-17T10:36:45Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5061220"
+        },
+        {
+          "doi": "10.2139/ssrn.2645956",
+          "title": [
+            "The Role of Common Risk in the Effectiveness of Explicit Relative Performance Evaluation"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1347,
+          "published_parts": [
+            [
+              2015
+            ]
+          ],
+          "created": "2015-08-19T11:03:02Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=2645956"
+        },
+        {
+          "doi": "10.2139/ssrn.6803250",
+          "title": [
+            "Clinical Factors Associated with Long-term Lung Function Trajectory in Persons with Cystic Fibrosis Following Elexacaftor/Tezacaftor/Ivacaftor Treatment"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1733,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-05-21T14:04:49Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6803250"
+        },
+        {
+          "doi": "10.2139/ssrn.5747002",
+          "title": [
+            "Adaptive Mechanisms in Dissociative Identity Disorder: How Protective and Psychopathic Alters Enhance Threat Adaptation in Past and Future Contexts A Combined Psychological Study Using Psychoanalytic, humanistic, Existential, and Analytical Psychological Frameworks"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2025
+            ]
+          ],
+          "created": "2025-11-18T16:24:22Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5747002"
+        },
+        {
+          "doi": "10.2139/ssrn.4480111",
+          "title": [
+            "Tree, Understory Plant, and Soil Biota Diversity Jointly Drive Ecosystem Stability Via Forest Structure"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2023
+            ]
+          ],
+          "created": "2023-06-15T15:19:31Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4480111"
+        },
+        {
+          "doi": "10.2139/ssrn.4453994",
+          "title": [
+            "Mitochondria-Targeting Hemicyanine Photosensitizer as an Inducer for Mmp Loss and Cell Apoptosis Based on Radical Enhanced Isc Strategy"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2023
+            ]
+          ],
+          "created": "2023-06-01T18:32:32Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4453994"
+        },
+        {
+          "doi": "10.2139/ssrn.5209580",
+          "title": [
+            "An Illumination-Robust Feature Decomposition Approach for Low-Light Crowd Counting"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2025
+            ]
+          ],
+          "created": "2025-04-08T11:49:13Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5209580"
+        },
+        {
+          "doi": "10.2139/ssrn.4389665",
+          "title": [
+            "Costs of Executing Complex Options Trades"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 661,
+          "published_parts": [
+            [
+              2023
+            ]
+          ],
+          "created": "2023-03-21T15:50:44Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4389665"
+        },
+        {
+          "doi": "10.2139/ssrn.2652301",
+          "title": [
+            "For Responsible Negotiation Meetings: Concocting a Vaccine Against Meetingitis"
+          ],
+          "type": "journal-article",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2015
+            ]
+          ],
+          "created": "2015-09-02T16:40:26Z",
+          "links": [],
+          "resource_url": "http://www.ssrn.com/abstract=2652301"
+        },
+        {
+          "doi": "10.2139/ssrn.3301083",
+          "title": [
+            "Construct Validity in Accruals Quality Research"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 886,
+          "published_parts": [
+            [
+              2019
+            ]
+          ],
+          "created": "2019-01-14T06:33:14Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=3301083"
+        },
+        {
+          "doi": "10.2139/ssrn.4462258",
+          "title": [
+            "Metal-Doped Functional Zinc Oxide Nanosheets for Self-Powered Underwater Mechanical Sensing"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2023
+            ]
+          ],
+          "created": "2023-05-29T14:25:32Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4462258"
+        },
+        {
+          "doi": "10.2139/ssrn.5600664",
+          "title": [
+            "Early Vocal Development in TSC Predicts Language, But Not Autism Outcomes"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2025
+            ]
+          ],
+          "created": "2025-10-16T10:57:07Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5600664"
+        },
+        {
+          "doi": "10.2139/ssrn.6580183",
+          "title": [
+            "THE PEDAGOGICAL FRICTION DEFICIT A Theory of Metacognitive Bypass, Synthesizing Friction Loss, and Performance Without Proficiency in Generative AI-Mediated K-12 Education"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1730,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-04-15T06:45:58Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6580183"
+        },
+        {
+          "doi": "10.2139/ssrn.6694882",
+          "title": [
+            "Propagation of uncertainties in a CFD simulation of the VVER1000 in-vessel flow based on Deterministic Sampling and Metalog distribution"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1685,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-05-02T13:36:42Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6694882"
+        },
+        {
+          "doi": "10.2139/ssrn.2330745",
+          "title": [
+            "Diskrecija (Discretion)"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1388,
+          "published_parts": [
+            [
+              2013
+            ]
+          ],
+          "created": "2013-10-02T11:03:38Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=2330745"
+        },
+        {
+          "doi": "10.2139/ssrn.1416883",
+          "title": [
+            "Policy Responses during the Depth of the 2007-09 Financial Crisis: Instrument Innovations, Executive Reconfigurations, and Legacies for U.S. Governance"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 850,
+          "published_parts": [
+            [
+              2009
+            ]
+          ],
+          "created": "2011-12-28T13:17:41Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=1416883"
+        },
+        {
+          "doi": "10.2139/ssrn.4453328",
+          "title": [
+            "Parametric Sensitivity of Crane Ship Numerical Model with Experimental Verification in a Wave Basin"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2023
+            ]
+          ],
+          "created": "2023-05-19T12:22:37Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4453328"
+        },
+        {
+          "doi": "10.2139/ssrn.3945107",
+          "title": [
+            "Mapping the Needs of Design for Maintenance in Electric Aviation"
+          ],
+          "type": "journal-article",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2021
+            ]
+          ],
+          "created": "2021-10-21T07:46:09Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=3945107"
+        },
+        {
+          "doi": "10.2139/ssrn.6588939",
+          "title": [
+            "Toward a MEZO Framework for Economic Dynamics:&amp;nbsp;&lt;span&gt;The E–F–G MEZO-Loop&lt;/span&gt;"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 3150,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-04-20T16:28:40Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6588939"
+        },
+        {
+          "doi": "10.2139/ssrn.6796398",
+          "title": [
+            "Can AI Replace Human Counselors at Scale? A Nationwide Experiment to Reduce Teacher Shortages"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1720,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-07-29T13:33:26Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6796398"
+        },
+        {
+          "doi": "10.2139/ssrn.3835151",
+          "title": [
+            "The Ethics of Cloud Computing"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1516,
+          "published_parts": [
+            [
+              2021
+            ]
+          ],
+          "created": "2021-05-05T05:17:08Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=3835151"
+        },
+        {
+          "doi": "10.2139/ssrn.2442518",
+          "title": [
+            "A Field Study of Chinese Migrant Workers' Attitudes Toward Risks, Strategic Uncertainty, and Competitiveness"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 697,
+          "published_parts": [
+            [
+              2014
+            ]
+          ],
+          "created": "2014-06-04T11:03:10Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=2442518"
+        },
+        {
+          "doi": "10.2139/ssrn.6748604",
+          "title": [
+            "Research on leaked molten aluminum contact with water in direct chill casting and product characterization"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1688,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-05-11T15:07:45Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6748604"
+        },
+        {
+          "doi": "10.2139/ssrn.4383655",
+          "title": [
+            "Multi-Objective Generation Maintenance Scheduling Problem Considering Financial Costs, Generation Emission, and System Reliability, Using the Lexicographic Optimization"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2023
+            ]
+          ],
+          "created": "2023-03-09T21:18:35Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4383655"
+        },
+        {
+          "doi": "10.2139/ssrn.4927982",
+          "title": [
+            "Deciphering the Relationship between Groundwater Levels and Uranium Mobilization in Alluvial Aquifers of Punjab, India: Implications and Insights"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2024
+            ]
+          ],
+          "created": "2024-08-19T12:16:10Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4927982"
+        },
+        {
+          "doi": "10.2139/ssrn.5887502",
+          "title": [
+            "Adunni Adewale v Polance Media Limited &amp;amp; Anor. (2025): The Constitutionalisation of Digital Privacy and the Emergence of the Right to be Forgotten in Nigerian Jurisprudence"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2025
+            ]
+          ],
+          "created": "2025-12-12T12:00:51Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5887502"
+        },
+        {
+          "doi": "10.2139/ssrn.5384353",
+          "title": [
+            "Governmental Debanking †"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2025
+            ]
+          ],
+          "created": "2025-08-12T10:26:30Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5384353"
+        },
+        {
+          "doi": "10.2139/ssrn.6078232",
+          "title": [
+            "The Architect of Peace: Jesus Christ's Coherent System for Human Psychological Flourishing"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1086,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-01-28T03:41:22Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6078232"
+        },
+        {
+          "doi": "10.2139/ssrn.5174016",
+          "title": [
+            "Blood-Based Neurologic Biomarkers in Pediatric Cerebral Malaria"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2025
+            ]
+          ],
+          "created": "2025-03-14T18:24:45Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5174016"
+        },
+        {
+          "doi": "10.2139/ssrn.4896326",
+          "title": [
+            "Fracture Analysis of Fractured Sandstone Based on Multiple Parameters"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2024
+            ]
+          ],
+          "created": "2024-07-16T12:52:22Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4896326"
+        },
+        {
+          "doi": "10.2139/ssrn.6469728",
+          "title": [
+            "Engineering viability of attached growth reactors for mainstream anammox: Superior stability and sludge minimization at low temperatures"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1755,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-03-25T18:38:19Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6469728"
+        },
+        {
+          "doi": "10.2139/ssrn.4210380",
+          "title": [
+            "Determinants of Incident Atherosclerotic Cardiovascular Disease Events Among Individuals with Type 2 Diabetic Microvascular Complications in UK: A Prospective Cohort Study"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 2856,
+          "published_parts": [
+            [
+              2022
+            ]
+          ],
+          "created": "2022-09-08T23:09:16Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4210380"
+        },
+        {
+          "doi": "10.2139/ssrn.4474315",
+          "title": [
+            "Economic Impact of Covid"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2023
+            ]
+          ],
+          "created": "2023-06-13T01:04:20Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4474315"
+        },
+        {
+          "doi": "10.2139/ssrn.7071886",
+          "title": [
+            "Resonant Tunneling via a Point Impurity with Multiple Quasi Bound States"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1191,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-07-07T20:09:53Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=7071886"
+        },
+        {
+          "doi": "10.2139/ssrn.4420126",
+          "title": [
+            "Predicting Life Outcomes with Automatic Thinking Measures in a Marginalized Population"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 779,
+          "published_parts": [
+            [
+              2023
+            ]
+          ],
+          "created": "2023-04-28T08:58:09Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4420126"
+        },
+        {
+          "doi": "10.2139/ssrn.4144016",
+          "title": [
+            "Chemical  Characteristics  Analysis of Automobile Exhaust Particles And the Method for Evaluating its Ecological Effect"
+          ],
+          "type": "journal-article",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2022
+            ]
+          ],
+          "created": "2022-06-25T08:55:51Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4144016"
+        },
+        {
+          "doi": "10.2139/ssrn.4122401",
+          "title": [
+            "Predicting the Parameters of the Output Flow of Conveyor Systems"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1096,
+          "published_parts": [
+            [
+              2022
+            ]
+          ],
+          "created": "2022-06-10T17:01:22Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4122401"
+        },
+        {
+          "doi": "10.2139/ssrn.4137063",
+          "title": [
+            "The Procyclicality of Inflation-Linked Debt"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 435,
+          "published_parts": [
+            [
+              2022
+            ]
+          ],
+          "created": "2022-06-16T01:56:33Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4137063"
+        },
+        {
+          "doi": "10.2139/ssrn.2634313",
+          "title": [
+            "A Dual-Curve Short Rate Model with Multi-Factor Stochastic Volatility: I. Asymptotic Analysis"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 771,
+          "published_parts": [
+            [
+              2015
+            ]
+          ],
+          "created": "2015-09-16T11:00:57Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=2634313"
+        },
+        {
+          "doi": "10.2139/ssrn.4900752",
+          "title": [
+            "La inscripción de la sociedad civil en el Registro Mercantil (Registration of Civil Law Partnerships in the Commercial Register)&lt;span&gt;&lt;br&gt;&lt;/span&gt;"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 2539,
+          "published_parts": [
+            [
+              2024
+            ]
+          ],
+          "created": "2024-08-23T12:21:22Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4900752"
+        },
+        {
+          "doi": "10.2139/ssrn.5066083",
+          "title": [
+            "Direct Air Capture and Utilization System (DACUS): FEED Study of CarbonCapture Inc. DAC and CarbonCure Utilization Technologies Using United States Steel’s Gary Works Plant Waste Heat"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 2639,
+          "published_parts": [
+            [
+              2024
+            ]
+          ],
+          "created": "2024-12-27T10:09:07Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5066083"
+        },
+        {
+          "doi": "10.2139/ssrn.7322273",
+          "title": [
+            "Physics-Informed Residual Learning Architecture for Building Thermal Modeling and Flexibility Assessment"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1250,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-08-20T19:41:55Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=7322273"
+        },
+        {
+          "doi": "10.2139/ssrn.4200193",
+          "title": [
+            "Dosage-Effectiveness of Modified Clay Flocculating Red Tide Organisms: Mechanical Mechanism and Mathematical Model"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1768,
+          "published_parts": [
+            [
+              2022
+            ]
+          ],
+          "created": "2022-08-25T23:08:02Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4200193"
+        },
+        {
+          "doi": "10.2139/ssrn.2280215",
+          "title": [
+            "Cognitive Resource Depletion, Choice Consistency, and Risk Preferences"
+          ],
+          "type": "journal-article",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2012
+            ]
+          ],
+          "created": "2013-06-26T15:03:29Z",
+          "links": [],
+          "resource_url": "http://www.ssrn.com/abstract=2280215"
+        },
+        {
+          "doi": "10.2139/ssrn.1646461",
+          "title": [
+            "Branching Restrictions, Financial Market Integration, and Firm Growth: Evidence from U.S. Banking Deregulation"
+          ],
+          "type": "journal-article",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2010
+            ]
+          ],
+          "created": "2012-01-04T20:32:30Z",
+          "links": [],
+          "resource_url": "http://www.ssrn.com/abstract=1646461"
+        },
+        {
+          "doi": "10.2139/ssrn.4812741",
+          "title": [
+            "Exploring the Behavior of Immiscible and Miscible Co2 Displacement Oil Phase in Nanopores"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2024
+            ]
+          ],
+          "created": "2024-04-30T20:26:07Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4812741"
+        },
+        {
+          "doi": "10.2139/ssrn.2312166",
+          "title": [
+            "An Equilibrium Model with Buy and Hold Investors"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1961,
+          "published_parts": [
+            [
+              2013
+            ]
+          ],
+          "created": "2013-08-22T10:26:24Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=2312166"
+        },
+        {
+          "doi": "10.2139/ssrn.6596640",
+          "title": [
+            "Exploring the Impact of Climate Change on Nurses in Pakistan: Challenges and Experiences a Qualitative Exploration"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1950,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-04-18T16:41:49Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6596640"
+        },
+        {
+          "doi": "10.2139/ssrn.6298712",
+          "title": [
+            "Spending composition and fiscal consolidation: Enhancing resilience in the face of economic shocks"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1613,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-02-24T15:44:01Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6298712"
+        },
+        {
+          "doi": "10.2139/ssrn.4463889",
+          "title": [
+            "Sectoral Shocks and Asset Prices"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2023
+            ]
+          ],
+          "created": "2023-05-30T14:21:41Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4463889"
+        },
+        {
+          "doi": "10.2139/ssrn.5423636",
+          "title": [
+            "Managing Innovation Risk in Package Design with Bayesian AI-Assisted Creation"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2025
+            ]
+          ],
+          "created": "2025-09-08T19:13:30Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5423636"
+        },
+        {
+          "doi": "10.2139/ssrn.4427984",
+          "title": [
+            "Unified Ac/Dc Hybrid Admittance Modeling and Oscillation Stability Analysis for Interlinking Vsc System"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2023
+            ]
+          ],
+          "created": "2023-04-24T16:21:42Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4427984"
+        },
+        {
+          "doi": "10.2139/ssrn.1496413",
+          "title": [
+            "Stories and Students: Mentoring Professional Development"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 153,
+          "published_parts": [
+            [
+              2009
+            ]
+          ],
+          "created": "2011-12-28T13:34:57Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=1496413"
+        },
+        {
+          "doi": "10.2139/ssrn.3024518",
+          "title": [
+            "Monetary Policy, Stock Market and Sectoral Comovement"
+          ],
+          "type": "journal-article",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2017
+            ]
+          ],
+          "created": "2018-04-20T11:30:38Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=3024518"
+        },
+        {
+          "doi": "10.2139/ssrn.1976624",
+          "title": [
+            "Islamic Concept of Partnership"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 2224,
+          "published_parts": [
+            [
+              2011
+            ]
+          ],
+          "created": "2012-01-05T14:37:21Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=1976624"
+        },
+        {
+          "doi": "10.2139/ssrn.4281722",
+          "title": [
+            "A Comparison Study of Polymer-Matrix Nanocomposites as Sacrificial Thermal Protective Materials"
+          ],
+          "type": "journal-article",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2022
+            ]
+          ],
+          "created": "2022-11-20T03:09:50Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4281722"
+        },
+        {
+          "doi": "10.2139/ssrn.3025393",
+          "title": [
+            "Can Blockchain Improve Healthcare Management? Consumer Medical Electronics and the IoMT"
+          ],
+          "type": "journal-article",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2017
+            ]
+          ],
+          "created": "2017-09-06T17:29:02Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=3025393"
+        },
+        {
+          "doi": "10.2139/ssrn.1491128",
+          "title": [
+            "Has Legal Realism Damaged the Legitimacy of the U.S. Supreme Court?"
+          ],
+          "type": "journal-article",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2009
+            ]
+          ],
+          "created": "2011-12-28T18:33:31Z",
+          "links": [],
+          "resource_url": "http://www.ssrn.com/abstract=1491128"
+        },
+        {
+          "doi": "10.2139/ssrn.7300700",
+          "title": [
+            "Optimization of a reversed-phase chromatographic method for high-throughput detection of archaeal lipids"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1340,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-08-17T16:36:56Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=7300700"
+        },
+        {
+          "doi": "10.2139/ssrn.5312555",
+          "title": [
+            "Appraisal of Physico-Chemical Characteristics of Urasi River for Sustainable Quality Water and Health Management in Urasi, Ihiala Local Government, Anambra State, Nigeria"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2025
+            ]
+          ],
+          "created": "2025-06-20T12:51:52Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5312555"
+        },
+        {
+          "doi": "10.2139/ssrn.4128823",
+          "title": [
+            "Effect of Temperature on the High-Rate Pulse Charging of Lithium-Ion Batteries"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1687,
+          "published_parts": [
+            [
+              2022
+            ]
+          ],
+          "created": "2022-06-07T14:52:54Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4128823"
+        },
+        {
+          "doi": "10.2139/ssrn.4861713",
+          "title": [
+            "Environmental Adaptive Enhancement for the Bionic Polarized Compass Based on Multi-Scattering Light Model"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2024
+            ]
+          ],
+          "created": "2024-06-11T18:34:17Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4861713"
+        },
+        {
+          "doi": "10.2139/ssrn.4031292",
+          "title": [
+            "A Differential Molecularly Imprinting Polymers Electrochemical Method for Simultaneous Determination of Sulfamerazine and 4-Acetamidophenol with Enhancing Anti-Interference Ability"
+          ],
+          "type": "journal-article",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2022
+            ]
+          ],
+          "created": "2022-03-22T03:09:53Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4031292"
+        },
+        {
+          "doi": "10.2139/ssrn.6628479",
+          "title": [
+            "LINGXSEH Electromagnetic Field Computer: Theoretical Demonstration &amp;amp; Implementation Framework"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1156,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-07-29T13:23:42Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6628479"
+        },
+        {
+          "doi": "10.2139/ssrn.5723028",
+          "title": [
+            "Sentinel-1 SAR-based dam deformation and its seasonal coupling with hydrometeorological parameters: case studies from Tehri and Nagarjuna Sagar Dams"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2025
+            ]
+          ],
+          "created": "2025-11-08T20:38:22Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5723028"
+        },
+        {
+          "doi": "10.2139/ssrn.4296463",
+          "title": [
+            "Leakage Detection&amp;nbsp;Of Hydraulic Actuator Based on Distance Discrimination Technology and PSO-SVM"
+          ],
+          "type": "journal-article",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2022
+            ]
+          ],
+          "created": "2022-12-16T06:15:54Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4296463"
+        },
+        {
+          "doi": "10.2139/ssrn.5436279",
+          "title": [
+            "Disaster Risk, Saliency Shocks, and Real Estate Markets: Evidence from the Phlegraean Fields"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2025
+            ]
+          ],
+          "created": "2025-09-11T18:52:33Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5436279"
+        },
+        {
+          "doi": "10.2139/ssrn.3477274",
+          "title": [
+            "The Cadets From the Military Schools As Subjects of Educational Activity"
+          ],
+          "type": "journal-article",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2019
+            ]
+          ],
+          "created": "2019-11-09T06:30:24Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=3477274"
+        },
+        {
+          "doi": "10.2139/ssrn.6864950",
+          "title": [
+            "Evaluation of Beam Properties Using a Checkerboard Masking Configuration at the NNBI Test Stand BATMAN Upgrade"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1336,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-06-01T23:39:27Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6864950"
+        },
+        {
+          "doi": "10.2139/ssrn.4355110",
+          "title": [
+            "Quantitation of 5α-Androstanedione in Normal Women and Women with Pcos"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2023
+            ]
+          ],
+          "created": "2023-02-12T00:26:58Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4355110"
+        },
+        {
+          "doi": "10.2139/ssrn.4992531",
+          "title": [
+            "Effect of Broodstock Stocking Density and Removal of Eggs from Parent Guard on the Spawning Performance of Pearlspot (Etroplus Suratensis) Reared in the Brackishwater  Cage"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2024
+            ]
+          ],
+          "created": "2024-10-19T02:37:22Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4992531"
+        },
+        {
+          "doi": "10.2139/ssrn.4645398",
+          "title": [
+            "Immobilization of Candida Antarctic Lipase B by Macroporous Resin Adsorption and Organic Polymer Coating: Preparation, Characterization, and its Application for Biodiesel Production"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2023
+            ]
+          ],
+          "created": "2023-11-27T14:17:42Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4645398"
+        },
+        {
+          "doi": "10.2139/ssrn.47400",
+          "title": [
+            "Taxes Versus Legal Rules as Instruments for Equity: A More Equitable View"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1455,
+          "published_parts": [
+            [
+              1997
+            ]
+          ],
+          "created": "2005-07-07T17:01:33Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=47400"
+        },
+        {
+          "doi": "10.2139/ssrn.3097701",
+          "title": [
+            "Comment Letter Filed with Securities and Exchange Commission Re 'Managed Portfolio Shares'"
+          ],
+          "type": "journal-article",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2017
+            ]
+          ],
+          "created": "2018-01-31T11:00:26Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=3097701"
+        },
+        {
+          "doi": "10.2139/ssrn.6769601",
+          "title": [
+            "Calibrating LLM-Generated Sentiment and Risk Signals for Risk-Aware Reinforcement Learning Trading"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1466,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-07-29T13:31:14Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=6769601"
+        },
+        {
+          "doi": "10.2139/ssrn.5660422",
+          "title": [
+            "Assessing the Influence of Urban Morphology on Outdoor Thermal Comfort Using SHAP-Enhanced Machine Learning in Hot and Humid Climates"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2025
+            ]
+          ],
+          "created": "2025-10-25T20:48:19Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5660422"
+        }
+      ]
+    },
+    {
+      "case": "dual-page2",
+      "url": "https://api.crossref.org/prefixes/10.2139/works?query.bibliographic=dual+momentum&rows=20&sort=score&order=desc&cursor=MTMuNDYyODY2LDE1MDQ3MTkyNDkwMDAsMTAuMjEzOSUyRnNzcm4uMzAxNDUyMQ%3D%3D",
+      "status": 200,
+      "total": 13347,
+      "count": 20,
+      "overlap_page1": 1,
+      "response_sha256": "23dcdb233cb698342d53e469b69e9cc76848adb901c9b2a062b80d6baea87e40",
+      "records": [
+        {
+          "doi": "10.2139/ssrn.3014521",
+          "title": [
+            "Factor Momentum and the Momentum Factor"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 667,
+          "published_parts": [
+            [
+              2017
+            ]
+          ],
+          "created": "2017-09-06T17:34:09Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=3014521"
+        },
+        {
+          "doi": "10.2139/ssrn.7269511",
+          "title": [
+            "Does factor momentum span stock momentum in the UK?"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1391,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-08-12T07:49:30Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=7269511"
+        },
+        {
+          "doi": "10.2139/ssrn.7512134",
+          "title": [
+            "Definition of four-momentum through energy-momentum field"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1144,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-09-23T13:45:13Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=7512134"
+        },
+        {
+          "doi": "10.2139/ssrn.320020",
+          "title": [
+            "Long-Term Momentum Hypothesis: Contrarian and Momentum Strategies"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 709,
+          "published_parts": [
+            [
+              2002
+            ]
+          ],
+          "created": "2005-08-19T17:26:09Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=320020"
+        },
+        {
+          "doi": "10.2139/ssrn.7466186",
+          "title": [
+            "Factor Momentum and the Momentum Factor: Evidence from Emerging Markets"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1348,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-09-15T15:57:17Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=7466186"
+        },
+        {
+          "doi": "10.2139/ssrn.2180556",
+          "title": [
+            "Momentum Universe Shrinkage Effect in Price Momentum"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 713,
+          "published_parts": [
+            [
+              2012
+            ]
+          ],
+          "created": "2012-11-28T11:01:18Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=2180556"
+        },
+        {
+          "doi": "10.2139/ssrn.1933987",
+          "title": [
+            "Role of Analysts: Following Momentum or Creating Momentum?"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 778,
+          "published_parts": [
+            [
+              2011
+            ]
+          ],
+          "created": "2012-01-05T13:47:13Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=1933987"
+        },
+        {
+          "doi": "10.2139/ssrn.3710496",
+          "title": [
+            "Momentum? What Momentum?"
+          ],
+          "type": "journal-article",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2020
+            ]
+          ],
+          "created": "2020-10-15T12:08:04Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=3710496"
+        },
+        {
+          "doi": "10.2139/ssrn.2564488",
+          "title": [
+            "Another Look at Momentum Crashes: Momentum in the European Monetary Union"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 562,
+          "published_parts": [
+            [
+              2015
+            ]
+          ],
+          "created": "2015-02-18T11:12:47Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=2564488"
+        },
+        {
+          "doi": "10.2139/ssrn.5377125",
+          "title": [
+            "Momentum Without Motion: Space-Time Geometry as the Carrier of Photonic Momentum"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2025
+            ]
+          ],
+          "created": "2025-08-04T20:03:57Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5377125"
+        },
+        {
+          "doi": "10.2139/ssrn.1928764",
+          "title": [
+            "Momentum Loses its Momentum: Implications for Market Efficiency"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 661,
+          "published_parts": [
+            [
+              2015
+            ]
+          ],
+          "created": "2012-01-05T13:28:10Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=1928764"
+        },
+        {
+          "doi": "10.2139/ssrn.1762264",
+          "title": [
+            "Momentum Loses Its Momentum: Implications for Market Efficiency"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 661,
+          "published_parts": [
+            [
+              2011
+            ]
+          ],
+          "created": "2012-01-05T10:30:50Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=1762264"
+        },
+        {
+          "doi": "10.2139/ssrn.5631072",
+          "title": [
+            "Momentum Factor or Factor Momentum in REIT Market?"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2025
+            ]
+          ],
+          "created": "2025-10-29T18:18:57Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5631072"
+        },
+        {
+          "doi": "10.2139/ssrn.4977717",
+          "title": [
+            "Shades of Momentum: Alternative Momentum Metrics and their Dissipation in Indian Equities"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1082,
+          "published_parts": [
+            [
+              2024
+            ]
+          ],
+          "created": "2024-11-19T16:18:12Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4977717"
+        },
+        {
+          "doi": "10.2139/ssrn.4059632",
+          "title": [
+            "What Does Residual Momentum Tell Us About Firm-Specific Momentum?"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 724,
+          "published_parts": [
+            [
+              2022
+            ]
+          ],
+          "created": "2022-04-13T23:10:14Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4059632"
+        },
+        {
+          "doi": "10.2139/ssrn.2139730",
+          "title": [
+            "A Model of Momentum, Momentum Crashes, and Long-Run Reversals: Theory and Evidence"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 730,
+          "published_parts": [
+            [
+              2012
+            ]
+          ],
+          "created": "2012-09-05T11:01:02Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=2139730"
+        },
+        {
+          "doi": "10.2139/ssrn.4775540",
+          "title": [
+            "Re-examining Differences between Momentum and Time Series Momentum among Individual Stocks"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 471,
+          "published_parts": [
+            [
+              2024
+            ]
+          ],
+          "created": "2024-05-06T16:02:46Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4775540"
+        },
+        {
+          "doi": "10.2139/ssrn.4454976",
+          "title": [
+            "Factor Momentum Versus Stock Price Momentum: A Revisit"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 711,
+          "published_parts": [
+            [
+              2023
+            ]
+          ],
+          "created": "2023-05-25T03:22:46Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4454976"
+        },
+        {
+          "doi": "10.2139/ssrn.4324141",
+          "title": [
+            "Factor Momentum Versus Stock Price Momentum: A Revisit"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 604,
+          "published_parts": [
+            [
+              2023
+            ]
+          ],
+          "created": "2023-01-14T19:55:39Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=4324141"
+        },
+        {
+          "doi": "10.2139/ssrn.5057525",
+          "title": [
+            "Momentum and Factor Momentum: A Re-Examination"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 0,
+          "published_parts": [
+            [
+              2024
+            ]
+          ],
+          "created": "2024-12-16T21:23:07Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=5057525"
+        }
+      ]
+    },
+    {
+      "case": "recent-created",
+      "url": "https://api.crossref.org/prefixes/10.2139/works?rows=5&sort=created&order=desc&filter=from-created-date%3A2026-09-01%2Cuntil-created-date%3A2026-09-26",
+      "status": 200,
+      "total": 22958,
+      "count": 5,
+      "overlap_page1": null,
+      "response_sha256": "64ca4bff8811d43f43497aaa480bec91024d96c0cc5040baeff858fb6ada519c",
+      "records": [
+        {
+          "doi": "10.2139/ssrn.7520300",
+          "title": [
+            "The First AI-saturated Election: Disclosure, Detection, and the Regulatory Limits of Generative Political Persuasion"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 2113,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-09-26T09:57:03Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=7520300"
+        },
+        {
+          "doi": "10.2139/ssrn.7520299",
+          "title": [
+            "Who Acts when the user is Gone? Digital Remains, Survivor Claims, and Post-mortem Governance"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1222,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-09-26T09:53:53Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=7520299"
+        },
+        {
+          "doi": "10.2139/ssrn.7520298",
+          "title": [
+            "Agentic AI as a Cognitive Partner"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1663,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-09-26T09:46:15Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=7520298"
+        },
+        {
+          "doi": "10.2139/ssrn.7520259",
+          "title": [
+            "How the Great America is Gradually Ceasing to be Great"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1582,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-09-26T09:41:41Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=7520259"
+        },
+        {
+          "doi": "10.2139/ssrn.7520258",
+          "title": [
+            "Law Behind a Paywall: Copyright as a Barrier to the Rule of Law in Incorporation by Reference"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 1046,
+          "published_parts": [
+            [
+              2026
+            ]
+          ],
+          "created": "2026-09-26T09:37:35Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=7520258"
+        }
+      ]
+    },
+    {
+      "case": "single",
+      "url": "https://api.crossref.org/works/10.2139/ssrn.2042750",
+      "status": 200,
+      "total": null,
+      "count": 1,
+      "overlap_page1": null,
+      "response_sha256": "415fc7d9226a2c32d562583f460e6ab02f39c8e933416e75f7b118c54acd7ed4",
+      "records": [
+        {
+          "doi": "10.2139/ssrn.2042750",
+          "title": [
+            "Risk Premia Harvesting Through Dual Momentum"
+          ],
+          "type": "posted-content",
+          "abstract_characters": 437,
+          "published_parts": [
+            [
+              2012
+            ]
+          ],
+          "created": "2012-04-25T11:01:44Z",
+          "links": [],
+          "resource_url": "https://www.ssrn.com/abstract=2042750"
+        }
+      ]
+    }
+  ],
+  "cursor_without_explicit_sort": {
+    "url": "https://api.crossref.org/prefixes/10.2139/works?query.bibliographic=dual%20momentum&rows=10&cursor=%2A",
+    "first_doi": "10.2139/ssrn.53921"
+  },
+  "ssrn_direct": {
+    "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2042750",
+    "status": 403,
+    "content_type": "text/html; charset=UTF-8"
+  },
+  "ssrn_web_fetch": {
+    "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2042750",
+    "provider": "firecrawl",
+    "content_characters": 9067,
+    "has_title": true,
+    "has_abstract_heading": true,
+    "observed_download_url": "https://papers.ssrn.com/sol3/Delivery.cfm/SSRN_ID2881657_code1556771.pdf?abstractid=2042750&mirid=1",
+    "full_text_tested": false
+  },
+  "web_search": {
+    "query": "Find SSRN research papers on dual momentum. Return original papers.ssrn.com links and titles.",
+    "capabilities": [
+      "web_search"
+    ],
+    "source_count": 12,
+    "extra_sources": [
+      {
+        "provider": "tavily",
+        "title": "Global Equities Momentum, 1971–2026 - A Replication of Antonacci's Dual Momentum and a Decomposition of its Returns by Marius Petit :: SSRN",
+        "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7427878"
+      },
+      {
+        "provider": "tavily",
+        "title": "Dual-Momentum Regime Switching under Halal Screens",
+        "url": "https://papers.ssrn.com/sol3/Delivery.cfm/7436501.pdf?abstractid=7436501&mirid=1"
+      }
+    ],
+    "capability_gaps": [],
+    "verified_source_urls": [
+      "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2042750"
+    ]
+  },
+  "official_sources": [
+    {
+      "url": "https://www.ssrn.com/index.cfm/en/terms-of-use/",
+      "checked_at_utc": "2026-09-26",
+      "extracted_markdown_sha256": "70f1575d7dba5fa65be8af485954e45f28f9571aa0c4cd50251236d395d6b88b"
+    },
+    {
+      "url": "https://blog.ssrn.com/2026/04/13/ssrn-strategic-update-renewed-focus-on-core-research-sharing-mission/",
+      "checked_at_utc": "2026-09-26",
+      "extracted_markdown_sha256": "4a2a93311808af8b5dcb35bd4ae79365e2af4d7b5728c6fa8e4ce286af4e1604"
+    },
+    {
+      "url": "https://www.crossref.org/documentation/retrieve-metadata/",
+      "checked_at_utc": "2026-09-26",
+      "extracted_markdown_sha256": "2eac2111e63d566f9b0407ed430b45a32011d0ed876d1d2c7eaf090666f2303f"
+    },
+    {
+      "url": "https://help.openalex.org/data/locations/",
+      "checked_at_utc": "2026-09-26",
+      "extracted_markdown_sha256": "f94f89a638624f88d79604c1b076b8a830984784756ec2c6e361f6749bd6ecad"
+    },
+    {
+      "url": "https://www.elsevier.support/ssrn/answer/doi",
+      "checked_at_utc": "2026-09-26",
+      "extracted_markdown_sha256": "c02c1e66fb0dc158615fb80e6528a60ff67b06eaae9c1a6bfcdf9c2492c9c098"
+    },
+    {
+      "url": "https://www.elsevier.support/dataasaservice/answer/overview-of-elsevier-apis",
+      "checked_at_utc": "2026-09-26",
+      "extracted_markdown_sha256": "0d68b2fa6652e809824adf40f89703da2e3989693b7c4fe5b4c6ce4c582c8ac5"
+    }
+  ]
+}

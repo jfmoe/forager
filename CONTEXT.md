@@ -141,7 +141,7 @@ _Avoid_: provider registry、BACKENDS allowlist、per-call-site provider list
 _Avoid_: per-adapter read recipe、raw reqwest handling
 
 **Platform**:
-内置的外部内容源，拥有自己的身份空间，例如 arXiv；它与 Capability Seam 并列，平台之间永不互相 fallback。它不是供应方，也不是 Vertical Search 的垂直域。
+内置的外部内容源，拥有自己的身份空间，例如 arXiv 与 SSRN；它与 Capability Seam 并列，平台之间永不互相 fallback。它不是供应方，也不是 Vertical Search 的垂直域。
 _Avoid_: platform provider、vertical domain、custom platform
 
 **Platform Route**:
@@ -149,7 +149,7 @@ _Avoid_: platform provider、vertical domain、custom platform
 _Avoid_: platform backend、platform provider list
 
 **Platform Ref**:
-Platform 实体的类型化身份，由平台、平台自有的 kind 与 id 组成，可以带版本；它与 canonical URL 可以互相推导。kind 只按身份空间或取回结果形状划分，不按对话角色划分。
+Platform 实体的类型化身份，由平台、平台自有的 kind 与 id 组成，可以带版本（SSRN 修订论文时 DOI 不变，无法据此推出版本，因此 SSRN ref 不带版本）；它与 canonical URL 可以互相推导。kind 只按身份空间或取回结果形状划分，不按对话角色划分。
 _Avoid_: platform URL、raw id
 
 **Platform Operation**:
@@ -161,7 +161,7 @@ _Avoid_: platform option、sub-command flag
 _Avoid_: web fetch、platform download
 
 **Content Depth**:
-平台条目结果所含内容的程度：`snippet`、`abstract`、`full_text` 或 `thread`；每个 Platform 定义它所支持深度的含义。摘要深度绝不等于全文。
+平台条目结果所含内容的程度：`metadata`（只有书目信息，没有摘要）、`snippet`、`abstract`、`full_text` 或 `thread`；每个 Platform 定义它所支持深度的含义，深度之间没有全局排序。摘要深度绝不等于全文，片段绝不等于摘要。对 SSRN，请求的深度是最低要求，条目的 `depth` 记录 route 实际拿到的内容。
 _Avoid_: detail level、verbosity
 
 **Page Cursor**:

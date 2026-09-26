@@ -1,6 +1,6 @@
 ---
 name: forager
-description: "Search current web and X/Twitter sources with the local forager CLI. Use for known-URL retrieval, platform items such as arXiv papers, site mapping, official/API documentation lookup, vertical discovery, source-backed fact checking, deep research, or forager configuration and diagnostics."
+description: "Search current web and X/Twitter sources with the local forager CLI. Use for known-URL retrieval, platform items such as arXiv or SSRN papers, site mapping, official/API documentation lookup, vertical discovery, source-backed fact checking, deep research, or forager configuration and diagnostics."
 ---
 
 # forager

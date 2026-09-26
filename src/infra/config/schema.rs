@@ -72,6 +72,7 @@ pub(super) struct Providers {
     pub(super) firecrawl: Endpoint<FirecrawlEndpoint>,
     pub(super) anysearch: Endpoint<AnysearchEndpoint>,
     pub(super) arxiv_api: AnonymousEndpoint<ArxivApiEndpoint>,
+    pub(super) ssrn_crossref: AnonymousEndpoint<SsrnCrossrefEndpoint>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -186,6 +187,7 @@ endpoint_defaults!(TavilyEndpoint, "https://api.tavily.com");
 endpoint_defaults!(FirecrawlEndpoint, "https://api.firecrawl.dev/v2", 60);
 endpoint_defaults!(AnysearchEndpoint, "https://api.anysearch.com/mcp");
 endpoint_defaults!(ArxivApiEndpoint, "https://export.arxiv.org/api/query");
+endpoint_defaults!(SsrnCrossrefEndpoint, "https://api.crossref.org");
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
@@ -246,12 +248,14 @@ impl Order {
 #[serde(default, deny_unknown_fields)]
 pub(super) struct Platforms {
     pub(super) arxiv: Order,
+    pub(super) ssrn: Order,
 }
 
 impl Default for Platforms {
     fn default() -> Self {
         Self {
             arxiv: platform_order(catalog::ARXIV),
+            ssrn: platform_order(catalog::SSRN),
         }
     }
 }
@@ -508,11 +512,14 @@ pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("providers.anysearch.timeout", providers.anysearch.timeout: U64, Rule::Positive, View::Plain, "shared timeout in seconds; must be greater than zero"),
     leaf!("providers.arxiv_api.url", providers.arxiv_api.url: String, Rule::Any, View::Url, "service endpoint URL; this provider needs no credentials"),
     leaf!("providers.arxiv_api.timeout", providers.arxiv_api.timeout: U64, Rule::Positive, View::Plain, "shared timeout in seconds; must be greater than zero"),
+    leaf!("providers.ssrn_crossref.url", providers.ssrn_crossref.url: String, Rule::Any, View::Url, "service endpoint URL; this provider needs no credentials"),
+    leaf!("providers.ssrn_crossref.timeout", providers.ssrn_crossref.timeout: U64, Rule::Positive, View::Plain, "shared timeout in seconds; must be greater than zero"),
     leaf!("capabilities.web_search.order", capabilities.web_search.order: Strings, Rule::CapabilityOrder { capability: "web_search", allow_empty: true }, View::Plain, "authoritative provider order for this capability"),
     leaf!("capabilities.web_fetch.order", capabilities.web_fetch.order: Strings, Rule::CapabilityOrder { capability: "web_fetch", allow_empty: false }, View::Plain, "authoritative provider order for this capability"),
     leaf!("capabilities.docs_search.order", capabilities.docs_search.order: Strings, Rule::CapabilityOrder { capability: "docs_search", allow_empty: true }, View::Plain, "authoritative provider order for this capability"),
     leaf!("capabilities.vertical_search.order", capabilities.vertical_search.order: Strings, Rule::CapabilityOrder { capability: "vertical_search", allow_empty: true }, View::Plain, "authoritative provider order for this capability"),
     leaf!("platforms.arxiv.order", platforms.arxiv.order: Strings, Rule::PlatformOrder { platform: Platform::Arxiv }, View::Plain, "authoritative route order for this platform; empty disables it"),
+    leaf!("platforms.ssrn.order", platforms.ssrn.order: Strings, Rule::PlatformOrder { platform: Platform::Ssrn }, View::Plain, "authoritative route order for this platform; empty disables it"),
     leaf!("log.level", log.level: String, Rule::OneOf(LOG_LEVELS), View::Plain, "stderr log level"),
     leaf!("journal.enabled", journal.enabled: Bool, Rule::Any, View::Plain, "record search result journals"),
     leaf!("journal.dir", journal.dir: String, Rule::Any, View::Plain, "journal storage directory"),
@@ -602,14 +609,15 @@ mod tests {
             config.capabilities.vertical_search.order,
             names(catalog::VERTICAL_SEARCH)
         );
-        assert_eq!(
-            config.platforms.arxiv.order,
-            catalog::ARXIV
+        let default_order = |catalog: catalog::PlatformCatalog| {
+            catalog
                 .default_order
                 .iter()
                 .map(|route| route.name().to_owned())
                 .collect::<Vec<_>>()
-        );
+        };
+        assert_eq!(config.platforms.arxiv.order, default_order(catalog::ARXIV));
+        assert_eq!(config.platforms.ssrn.order, default_order(catalog::SSRN));
     }
 
     fn toml_leaf_paths(value: &toml::Value, prefix: &str, paths: &mut BTreeSet<String>) {
@@ -827,7 +835,8 @@ mod tests {
              [providers.tavily]\ntimeout = 43\n\
              [providers.firecrawl]\ntimeout = 44\n\
              [providers.anysearch]\ntimeout = 45\n\
-             [providers.arxiv_api]\ntimeout = 46\n",
+             [providers.arxiv_api]\ntimeout = 46\n\
+             [providers.ssrn_crossref]\ntimeout = 47\n",
         )
         .expect("deserialize partial provider endpoints");
 
@@ -839,6 +848,7 @@ mod tests {
                 config.providers.firecrawl.url.as_str(),
                 config.providers.anysearch.url.as_str(),
                 config.providers.arxiv_api.url.as_str(),
+                config.providers.ssrn_crossref.url.as_str(),
             ),
             (
                 "https://api.exa.ai",
@@ -847,6 +857,7 @@ mod tests {
                 "https://api.firecrawl.dev/v2",
                 "https://api.anysearch.com/mcp",
                 "https://export.arxiv.org/api/query",
+                "https://api.crossref.org",
             )
         );
     }

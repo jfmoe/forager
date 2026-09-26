@@ -15,8 +15,10 @@ use crate::net::{
     send_provider_request,
 };
 use crate::providers::execution::{ExecutionOutcome, ExecutionSettings, execute_anonymous};
-use crate::providers::shared::redacted_urls_message;
-use crate::rate_limit::{RateLimiter, RatePermit};
+use crate::providers::shared::{
+    acquire_window, other_platform_message, parameter_error, redacted_urls_message,
+};
+use crate::rate_limit::RateLimiter;
 use crate::types::{
     ArxivItemData, ArxivRef, ArxivSearchOptions, ArxivSort, AttemptErrorKind, AttemptTarget,
     ContentDepth, Deadline, Platform, PlatformFetchOutcome, PlatformFetchRequest, PlatformItem,
@@ -35,6 +37,9 @@ const LATEST_SUBMISSION: &str = "999912312359";
 pub(crate) fn search_support(request: &PlatformSearchRequest) -> Result<(), String> {
     match request.options {
         PlatformSearchOptions::Arxiv(_) => page_start(request.page.as_deref()).map(|_| ()),
+        PlatformSearchOptions::Ssrn(_) => {
+            Err(other_platform_message(ROUTE, request.options.platform()))
+        }
     }
 }
 
@@ -87,15 +92,13 @@ impl ArxivApi {
         &self,
         request: &PlatformSearchRequest,
     ) -> Result<PlatformSearchOutcome, ProviderError> {
-        let PlatformSearchOptions::Arxiv(options) = &request.options;
-        let start = page_start(request.page.as_deref()).map_err(|message| ProviderError {
-            kind: AttemptErrorKind::Parameter,
-            message,
-            attempts: Vec::new(),
-            verbose: false,
-            diagnostic: None,
-            redirected_library_id: None,
-        })?;
+        let PlatformSearchOptions::Arxiv(options) = &request.options else {
+            return Err(parameter_error(other_platform_message(
+                ROUTE,
+                request.options.platform(),
+            )));
+        };
+        let start = page_start(request.page.as_deref()).map_err(parameter_error)?;
         let query = [
             ("search_query", search_query(&request.query, options)),
             ("start", start.to_string()),
@@ -129,14 +132,19 @@ impl ArxivApi {
         &self,
         request: &PlatformFetchRequest,
     ) -> Result<PlatformFetchOutcome, ProviderError> {
-        let PlatformRef::Arxiv(requested) = &request.reference;
+        let PlatformRef::Arxiv(requested) = &request.reference else {
+            return Err(parameter_error(other_platform_message(
+                ROUTE,
+                request.reference.platform(),
+            )));
+        };
         let query = [
             ("id_list", requested.to_string()),
             ("max_results", "1".to_owned()),
         ];
         let query = &query;
         let ExecutionOutcome {
-            value: item,
+            value: (version, item),
             mut attempts,
             diagnostic,
         } = execute_anonymous(
@@ -144,7 +152,7 @@ impl ArxivApi {
             move |deadline| async move {
                 let (status, page) = self.send_once(query, deadline).await?;
                 select_paper(page.items, requested)
-                    .map(|item| (status, item))
+                    .map(|paper| (status, paper))
                     .map_err(|(kind, message)| AttemptFailure {
                         kind,
                         status,
@@ -154,11 +162,10 @@ impl ArxivApi {
         )
         .await?;
         let content_urls = if request.depth == ContentDepth::FullText {
-            let PlatformRef::Arxiv(version) = &item.reference;
-            match self.html_availability(version).await {
+            match self.html_availability(&version).await {
                 Ok((availability, mut probe_attempts)) => {
                     attempts.append(&mut probe_attempts);
-                    content_urls(version, availability)
+                    content_urls(&version, availability)
                 }
                 Err(mut error) => {
                     attempts.append(&mut error.attempts);
@@ -208,8 +215,7 @@ impl ArxivApi {
         deadline: Deadline,
         pacing_failed: &AtomicBool,
     ) -> Result<(Option<u16>, HtmlAvailability), AttemptFailure> {
-        let _permit = self
-            .acquire(deadline)
+        let _permit = acquire_window(&self.limiter, deadline)
             .await
             .inspect_err(|_| pacing_failed.store(true, Ordering::Relaxed))?;
         let response =
@@ -247,23 +253,12 @@ impl ArxivApi {
         }
     }
 
-    async fn acquire(&self, deadline: Deadline) -> Result<RatePermit, AttemptFailure> {
-        self.limiter
-            .acquire(deadline)
-            .await
-            .map_err(|error| AttemptFailure {
-                kind: error.kind(),
-                status: None,
-                message: error.to_string(),
-            })
-    }
-
     async fn send_once(
         &self,
         query: &[(&str, String)],
         deadline: Deadline,
     ) -> Result<(Option<u16>, FeedPage), AttemptFailure> {
-        let _permit = self.acquire(deadline).await?;
+        let _permit = acquire_window(&self.limiter, deadline).await?;
         let request = self.client.get(&self.config.url).query(query);
         let response = send_provider_request(request, &self.credentials).await?;
         let body = read_complete_protocol(response, &self.credentials, failure_message).await?;
@@ -302,30 +297,31 @@ enum HtmlAvailability {
     Unknown,
 }
 
-/// Returns the paper the Query API returned for `requested`. An empty feed means arXiv has no
-/// such paper or version.
+/// Returns the paper the Query API returned for `requested`, with the version it carries. An
+/// empty feed means arXiv has no such paper or version.
 fn select_paper(
     items: Vec<PlatformItem>,
     requested: &ArxivRef,
-) -> Result<PlatformItem, (AttemptErrorKind, String)> {
+) -> Result<(ArxivRef, PlatformItem), (AttemptErrorKind, String)> {
     let Some(item) = items.into_iter().next() else {
         return Err((
             AttemptErrorKind::Parameter,
             format!("arXiv item not found: arxiv:{requested}"),
         ));
     };
-    let PlatformRef::Arxiv(returned) = &item.reference;
-    let matches = returned.id() == requested.id()
-        && requested
-            .version()
-            .is_none_or(|version| returned.version() == Some(version));
-    if matches {
-        Ok(item)
-    } else {
-        Err((
+    match &item.reference {
+        PlatformRef::Arxiv(returned)
+            if returned.id() == requested.id()
+                && requested
+                    .version()
+                    .is_none_or(|version| returned.version() == Some(version)) =>
+        {
+            Ok((returned.clone(), item))
+        }
+        returned => Err((
             AttemptErrorKind::Runtime,
-            format!("arXiv returned {} for arxiv:{requested}", item.reference),
-        ))
+            format!("arXiv returned {returned} for arxiv:{requested}"),
+        )),
     }
 }
 
