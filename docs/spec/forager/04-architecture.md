@@ -40,7 +40,7 @@
 - **seam 支持矩阵**＝「谁 impl 了哪个 trait」的编译期事实；`order` 校验查 registry。**`map` 命令**＝tavily 直连操作（`site_map`），不设独立 seam trait（唯一 provider，需要时提升为 trait 是纯增量）；registry 在 tavily 描述内登记该操作。
 - **凭据要求**：registry 的 `credentials_required` 是 provider 是否需要凭据的唯一来源。执行路径、doctor 与 smoke 用同一判定（`ProviderRegistration::is_configured`）决定「已配置」：需要凭据的 provider 要求 keys 非空，不需要凭据的 provider 恒为已配置。registry 校验与 smoke 的注册完整性检查都不要求 provider 需要凭据。
 - **匿名执行**：不需要凭据的 provider 经 `execute_anonymous` 执行：不 claim、不轮换、不注入认证；每个 attempt 的 `credential_index` 为 0，`rotation_count` 恒为 0，这两个字段对匿名 provider 没有凭据含义。需要凭据的执行入口 `execute_v2` 遇到空凭据池时在发送前以 Auth 失败，不 panic。共享构造器不断言 provider 需要凭据。
-- **单次发送契约**：每次发送返回可选的 status 与解码值。HTTP 调用方传入实际 HTTP status；非 HTTP 传输可以不带 status，attempt 的 `http_status` 随之为空。
+- **单次发送契约**：每次发送返回可选的 status 与解码值。现有调用方照常传入 status：多数 HTTP 调用方传入响应的实际 status，Exa 以及 Context7、AnySearch 的 MCP 调用成功时记为 200；非 HTTP 传输可以不带 status，attempt 的 `http_status` 随之为空。
 - **registry 最小职责**（F10）：唯一登记 `ProviderId`、支持 seam、凭据要求、doctor probe、构造入口；config/doctor/capability status 从同一描述读取身份，不各设 allowlist；engine 只调用 seam trait 并聚合 `ProviderAttempt`，禁止按 provider id/model 分支；openai-compatible 的 model 候选、断路器、transport fallback 全部封装在 provider 内。不引入宏、不生成 clap 树。
 
 ## 错误模型
@@ -74,14 +74,14 @@
 分界原则：跨进程必须共享的落盘，策略性短时效的留进程内。
 
 - **池**：游标落盘 `$XDG_STATE_HOME/forager/credential_pool_state.json`，fs2 有界文件锁，「锁内取号推进 / 拿不到锁乐观降级」语义保持。**状态文件不变量**（F6）：带 schema version、只存非敏感索引；同目录 `0600` 临时文件 + fsync + 原子 rename；解析失败只复位受影响 provider 的游标并发非致命诊断，不升 config_error、不阻断搜索。`CredentialPool` struct 作为显式参数传入，无 reset 钩子。`classifier.keys` 走同一实现。
-- **共享状态文件**：`state_file` 统一拥有状态目录解析（`XDG_STATE_HOME`，否则 `HOME/.local/state`，均须为绝对路径）、私有目录与有界文件锁、原子写，以及进程内串行化（咨询文件锁不能可靠排斥同进程内的其他句柄，因此进程内的状态读写经唯一互斥逐个执行）。凭据池与跨进程限速共用它，各自决定锁不可用时的策略。
+- **共享状态文件**：`state_file` 统一拥有状态目录解析（`XDG_STATE_HOME`，否则 `HOME/.local/state`，均须为绝对路径）、私有目录与有界文件锁、原子写，以及进程内串行化（咨询文件锁不能可靠排斥同进程内的其他句柄，因此同一状态文件的进程内读写经该文件的互斥逐个执行；调用方可以先限时等待轮次，再执行阻塞工作）。凭据池与跨进程限速共用它，各自决定锁不可用时的策略。
 - **model 断路器**：进程内显式 `ModelBreakers` struct（阈值 2 / 冷却 600s），不落盘。
 
 ## 跨进程限速
 
 `rate_limit` 统一负责跨进程请求节奏。访问策略包括最小间隔与最大并发；对受限 endpoint 的每次发送（包括重试）都必须先调用 `RateLimiter::acquire` 申请时间窗口。目前还没有 provider 声明访问策略，平台 route 接入时开始使用。
 
-- **算法**：先在进程内按最大并发取得 permit，等待时间计入 Deadline；再在共享状态锁内读取该 route 上次预留的时刻，计算下一个窗口 = max(现在, 上次预留 + 最小间隔)。需要等待的时间不小于剩余预算时，直接以 Timeout 结束，不写入预留；否则写入新的预留时刻，释放锁，然后在锁外等待到该时刻。permit 持有到发送结束。
+- **算法**：先在进程内按最大并发取得 permit，等待时间计入 Deadline；再在 Deadline 内等到状态文件的进程内轮次（此时尚未预留，超时不会占用窗口），然后在共享状态锁内读取该 route 上次预留的时刻，计算下一个窗口 = max(现在, 上次预留 + 最小间隔)。需要等待的时间不小于剩余预算时，直接以 Timeout 结束，不写入预留；否则写入新的预留时刻，释放锁，然后在锁外等待到该绝对时刻。permit 持有到发送结束。
 - **时钟**：预留时刻是墙钟毫秒，从构造时的墙钟起按 Tokio 时钟推进，因此预留、等待与 Deadline 在同一时间线上。
 - **失败语义**：状态目录无法解析、锁在有界等待内拿不到、状态文件不可读或不可写时，不发送请求，以 Runtime 结束；不复用凭据池拿不到锁时「乐观降级」的策略。状态文件损坏或 schema 不符时，视为该 route 在当前时刻已有一次预留，因此修复后的第一个窗口仍间隔完整的最小间隔。
 - **已知边界**：间隔按预留时刻保证，某个进程在预留之后被调度延迟时，实际发送间隔可能短于最小间隔，v1 接受，不做发送后复核；协调范围是共享同一状态目录的进程；最大并发只在单个进程内限制。

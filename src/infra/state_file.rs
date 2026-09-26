@@ -5,23 +5,25 @@
 //! and atomically replace a state file, and run that blocking work through
 //! [`serialized_blocking`].
 
+use std::collections::HashMap;
 use std::env;
 use std::fs::{self, File};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, LazyLock};
+use std::sync::{Arc, LazyLock, PoisonError};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use fs2::FileExt;
 use serde_json::Value;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, OwnedMutexGuard};
 
 use crate::secure_fs::{create_private_file, ensure_private_directory};
 
-// Advisory file locks do not reliably exclude other handles in the same process, so
-// state work is also serialized in-process.
-static STATE_WORK: LazyLock<Arc<Mutex<()>>> = LazyLock::new(|| Arc::new(Mutex::new(())));
+// Advisory file locks do not reliably exclude other handles in the same process, so work
+// on each state file is also serialized in-process.
+static STATE_WORK: LazyLock<std::sync::Mutex<HashMap<PathBuf, Arc<Mutex<()>>>>> =
+    LazyLock::new(Default::default);
 
 pub(crate) fn state_directory() -> Option<PathBuf> {
     absolute_env("XDG_STATE_HOME")
@@ -113,14 +115,48 @@ pub(crate) fn write_state(path: &Path, state: &Value) -> io::Result<()> {
 ///
 /// Cancelling the returned future does not release the in-process serialization until the
 /// blocking work finishes.
-pub(crate) async fn serialized_blocking<T, F>(work: F) -> Result<T, tokio::task::JoinError>
+pub(crate) async fn serialized_blocking<T, F>(
+    path: &Path,
+    work: F,
+) -> Result<T, tokio::task::JoinError>
 where
     T: Send + 'static,
     F: FnOnce() -> T + Send + 'static,
 {
-    let guard = Arc::clone(&STATE_WORK).lock_owned().await;
+    run_serialized(state_work_turn(path).await, work).await
+}
+
+/// The exclusive in-process turn to run blocking work on one state file.
+pub(crate) struct StateWorkTurn {
+    _guard: OwnedMutexGuard<()>,
+}
+
+/// Waits for the in-process turn on `path`, so a caller can bound the wait before any work
+/// starts.
+pub(crate) async fn state_work_turn(path: &Path) -> StateWorkTurn {
+    let mutex = Arc::clone(
+        STATE_WORK
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .entry(path.to_path_buf())
+            .or_default(),
+    );
+    StateWorkTurn {
+        _guard: mutex.lock_owned().await,
+    }
+}
+
+/// Runs blocking state work while holding `turn`; see [`serialized_blocking`].
+pub(crate) async fn run_serialized<T, F>(
+    turn: StateWorkTurn,
+    work: F,
+) -> Result<T, tokio::task::JoinError>
+where
+    T: Send + 'static,
+    F: FnOnce() -> T + Send + 'static,
+{
     tokio::task::spawn_blocking(move || {
-        let _guard = guard;
+        let _turn = turn;
         work()
     })
     .await
@@ -140,6 +176,7 @@ fn file_stem(path: &Path) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::path::Path;
     use std::sync::mpsc;
     use std::time::Duration;
 
@@ -153,10 +190,11 @@ mod tests {
             .build()
             .expect("build test runtime");
 
+        let path = Path::new("/state/serialization-test.json");
         runtime.block_on(async {
             let (first_entered_tx, first_entered_rx) = mpsc::channel();
             let (release_first_tx, release_first_rx) = mpsc::channel();
-            let first = tokio::spawn(serialized_blocking(move || {
+            let first = tokio::spawn(serialized_blocking(path, move || {
                 first_entered_tx.send(()).expect("signal first work");
                 release_first_rx.recv().expect("release first work");
             }));
@@ -166,7 +204,7 @@ mod tests {
             first.abort();
 
             let (second_entered_tx, second_entered_rx) = mpsc::channel();
-            let second = tokio::spawn(serialized_blocking(move || {
+            let second = tokio::spawn(serialized_blocking(path, move || {
                 second_entered_tx.send(()).expect("signal second work");
             }));
             assert!(

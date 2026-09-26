@@ -42,7 +42,7 @@ impl CredentialPool {
     }
 
     pub(crate) async fn claim(&self) -> CredentialSelection {
-        let Some(state_file) = &self.state_file else {
+        let Some(path) = &self.state_file else {
             return CredentialSelection {
                 index: 0,
                 diagnostic: Some(
@@ -50,11 +50,13 @@ impl CredentialPool {
                 ),
             };
         };
-        let state_file = state_file.clone();
+        let state_file = path.clone();
         let provider = self.provider;
         let key_count = self.keys.len();
-        match serialized_blocking(move || claim_persistent_index(&state_file, provider, key_count))
-            .await
+        match serialized_blocking(path, move || {
+            claim_persistent_index(&state_file, provider, key_count)
+        })
+        .await
         {
             Ok(Ok((index, diagnostic))) => CredentialSelection { index, diagnostic },
             Ok(Err(error)) => CredentialSelection {

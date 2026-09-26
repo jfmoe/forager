@@ -21,7 +21,7 @@ use thiserror::Error;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tokio::time::Instant;
 
-use crate::state_file::{self, StateLock, serialized_blocking};
+use crate::state_file::{self, StateLock};
 use crate::types::{AttemptErrorKind, Deadline};
 
 const STATE_FILE: &str = "rate_limit_state.json";
@@ -102,8 +102,9 @@ impl RateLimiter {
     /// read, or written. In both cases the caller must not send.
     pub(crate) async fn acquire(&self, deadline: Deadline) -> Result<RatePermit, RateLimitError> {
         let permit = self.acquire_slot(deadline).await?;
-        let wait = self.reserve_window(deadline).await?;
-        tokio::time::sleep(wait).await;
+        let window = self.reserve_window(deadline).await?;
+        let wait = window.saturating_sub(self.clock.now_ms());
+        tokio::time::sleep(Duration::from_millis(wait)).await;
         Ok(RatePermit { _permit: permit })
     }
 
@@ -119,20 +120,25 @@ impl RateLimiter {
         }
     }
 
-    async fn reserve_window(&self, deadline: Deadline) -> Result<Duration, RateLimitError> {
+    /// Returns the reserved window as wall-clock milliseconds.
+    async fn reserve_window(&self, deadline: Deadline) -> Result<u64, RateLimitError> {
         let Some(state_file) = self.state_file.clone() else {
             return Err(self
                 .unavailable("XDG_STATE_HOME and HOME do not resolve to an absolute path".into()));
         };
+        let remaining = deadline.remaining().ok_or_else(|| self.timeout())?;
+        let turn = tokio::time::timeout(remaining, state_file::state_work_turn(&state_file))
+            .await
+            .map_err(|_| self.timeout())?;
         let (route, min_interval, clock) = (self.route, self.min_interval, self.clock);
         // The window check runs under the lock against the same deadline, so time spent
         // waiting for the lock counts toward the budget and a late result reserves nothing.
-        let reservation = serialized_blocking(move || {
+        let reservation = state_file::run_serialized(turn, move || {
             reserve_under_lock(&state_file, route, min_interval, clock, deadline)
         })
         .await;
         match reservation {
-            Ok(Ok(Some(wait))) => Ok(wait),
+            Ok(Ok(Some(window))) => Ok(window),
             Ok(Ok(None)) => Err(self.timeout()),
             Ok(Err(error)) => Err(self.unavailable(error.to_string())),
             Err(error) => Err(self.unavailable(error.to_string())),
@@ -151,15 +157,15 @@ impl RateLimiter {
     }
 }
 
-/// Reserves the route's next window and returns the wait before it, or `None` without
-/// reserving when the wait leaves no budget to send.
+/// Reserves the route's next window and returns it, or `None` without reserving when the
+/// wait before it leaves no budget to send.
 fn reserve_under_lock(
     path: &Path,
     route: &str,
     min_interval: Duration,
     clock: WallClock,
     deadline: Deadline,
-) -> io::Result<Option<Duration>> {
+) -> io::Result<Option<u64>> {
     let _lock = StateLock::acquire(&path.with_extension("lock"), LOCK_WAIT)?;
     let now = clock.now_ms();
     // An unreadable reservation counts as one made now, so repairing it never shortens the
@@ -185,7 +191,7 @@ fn reserve_under_lock(
     }
     state["routes"][route] = json!({"reserved_at_ms": window});
     state_file::write_state(path, &state)?;
-    Ok(Some(wait))
+    Ok(Some(window))
 }
 
 fn next_window(now_ms: u64, last_reserved_ms: Option<u64>, min_interval: Duration) -> u64 {
@@ -242,6 +248,7 @@ mod tests {
     use tokio::time::Instant;
 
     use super::{AccessPolicy, RateLimiter, WallClock};
+    use crate::state_file;
     use crate::types::{AttemptErrorKind, Deadline};
 
     const INTERVAL: Duration = Duration::from_secs(3);
@@ -451,5 +458,26 @@ mod tests {
         });
 
         assert_eq!(error.kind(), AttemptErrorKind::Runtime);
+    }
+
+    #[test]
+    fn queued_state_work_beyond_the_budget_times_out_without_reserving() {
+        let directory = tempdir().expect("create state directory");
+        let path = state_file(directory.path());
+        runtime().block_on(async {
+            let _busy = state_file::state_work_turn(&path).await;
+            let started = Instant::now();
+
+            let error = limiter(Some(path.clone()))
+                .acquire(budget(1))
+                .await
+                .err()
+                .expect("queued state work does not fit");
+
+            assert_eq!(
+                (error.kind(), started.elapsed(), path.exists()),
+                (AttemptErrorKind::Timeout, Duration::from_secs(1), false)
+            );
+        });
     }
 }
