@@ -26,7 +26,8 @@ pub use platform::{
     PlatformRef, PlatformRefError, PlatformSearchOptions, PlatformSearchPage,
 };
 pub(crate) use platform::{
-    PlatformFetchOutcome, PlatformFetchRequest, PlatformSearchOutcome, PlatformSearchRequest,
+    FullTextSource, LocalFile, LocalMediaType, PlatformFetchOutcome, PlatformFetchRequest,
+    PlatformSearchOutcome, PlatformSearchRequest,
 };
 pub use platform_arxiv::{ArxivItemData, ArxivRef, ArxivSearchOptions, ArxivSort};
 pub use platform_ssrn::{SsrnItemData, SsrnRef, SsrnSearchOptions};

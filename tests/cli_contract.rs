@@ -163,6 +163,8 @@ fn ssrn_fetch_help_defaults_to_metadata_depth() {
         "--depth <DEPTH>",
         "[default: metadata]",
         "[possible values: metadata, abstract, full_text]",
+        "--content-dir <DIR>",
+        "--keep-pdf",
         "[possible values: json, markdown, content]",
         "--timeout <TIMEOUT>",
         "--verbose",

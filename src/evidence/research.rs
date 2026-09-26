@@ -10,7 +10,7 @@ use crate::attempt_trace;
 use crate::config::RuntimeConfig;
 use crate::engine::{self, CapabilityExecution};
 use crate::net::RetryPolicy;
-use crate::providers::FetchRequest;
+use crate::providers::{FetchRequest, FetchSource};
 use crate::redact::redact_url;
 use crate::types::{
     AttemptDisposition, AttemptErrorKind, Capability, CapabilityGap, Deadline, EvidenceItem,
@@ -876,7 +876,7 @@ async fn fetch_candidate(
     let url = candidate.source.url.clone();
     match engine::fetch(
         FetchRequest {
-            url: url.clone(),
+            source: FetchSource::Url(url.clone()),
             verbose: true,
         },
         fetch_config,

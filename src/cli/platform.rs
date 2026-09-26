@@ -12,10 +12,11 @@ use super::dispatch::{
     AppError, CommandOutput, NetworkDependencies, invocation_temp_dir, provider_attempt_log,
 };
 use crate::config::ConfigError;
+use crate::net::combine_diagnostics;
 use crate::platform_chain::{self, PlatformPreflightError, PlatformSearchPlan};
 use crate::platform_fetch;
 use crate::types::{
-    ArxivSearchOptions, ArxivSort, AttemptErrorKind, ContentDepth, Deadline, Platform,
+    ArxivSearchOptions, ArxivSort, AttemptErrorKind, ContentDepth, Deadline, LocalFile, Platform,
     PlatformFetchRequest, PlatformFetchResult, PlatformRef, PlatformSearchOptions,
     PlatformSearchRequest, ProviderError, SsrnSearchOptions,
 };
@@ -129,10 +130,17 @@ pub(super) struct SsrnFetchArgs {
     /// 10.2139/ssrn.<id> DOI or its doi.org URL.
     reference: String,
     /// `metadata` returns the abstract too when a route has it; `abstract` requires it;
-    /// `full_text` needs a route that can read the paper body.
+    /// `full_text` downloads the paper and delivers it as Markdown (needs the browser route).
     #[arg(long, value_enum, default_value_t = SsrnDepthArg::Metadata)]
     depth: SsrnDepthArg,
-    /// `content` prints the abstract to stdout.
+    /// Directory for the full-text Markdown file; defaults to a new directory under the system
+    /// temporary directory.
+    #[arg(long, value_name = "DIR")]
+    content_dir: Option<PathBuf>,
+    /// Keep the downloaded PDF next to the Markdown and report its path and size.
+    #[arg(long)]
+    keep_pdf: bool,
+    /// `content` prints the abstract or the full text to stdout.
     #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
     format: DocsOutputFormat,
     #[command(flatten)]
@@ -347,13 +355,22 @@ fn arxiv_fetch(arguments: ArxivFetchArgs) -> Result<CommandOutput, AppError> {
         reference,
         depth: depth.into(),
     };
-    fetch(Platform::Arxiv, request, format, content_dir, &common)
+    fetch(
+        Platform::Arxiv,
+        request,
+        format,
+        content_dir,
+        false,
+        &common,
+    )
 }
 
 fn ssrn_fetch(arguments: SsrnFetchArgs) -> Result<CommandOutput, AppError> {
     let SsrnFetchArgs {
         reference,
         depth,
+        content_dir,
+        keep_pdf,
         format,
         common,
     } = arguments;
@@ -363,7 +380,14 @@ fn ssrn_fetch(arguments: SsrnFetchArgs) -> Result<CommandOutput, AppError> {
         reference,
         depth: depth.into(),
     };
-    fetch(Platform::Ssrn, request, format, None, &common)
+    fetch(
+        Platform::Ssrn,
+        request,
+        format,
+        content_dir,
+        keep_pdf,
+        &common,
+    )
 }
 
 fn fetch(
@@ -371,10 +395,12 @@ fn fetch(
     request: PlatformFetchRequest,
     format: DocsOutputFormat,
     content_dir: Option<PathBuf>,
+    keep_pdf: bool,
     common: &PlatformCommonArgs,
 ) -> Result<CommandOutput, AppError> {
     let dependencies = NetworkDependencies::load()?;
     let full_text = request.depth == ContentDepth::FullText;
+    let reference = request.reference.clone();
     let plan = platform_fetch::plan_fetch(dependencies.config.platforms.get(platform), request)
         .map_err(preflight_error)?;
     let web_fetch = dependencies.config.web_fetch;
@@ -392,11 +418,41 @@ fn fetch(
         common.verbose,
     ));
     let result = match result {
-        Ok(fetched) if format != DocsOutputFormat::Content => {
-            let directory = content_dir.unwrap_or_else(|| invocation_temp_dir("forager-platform"));
-            write_content(fetched, &directory, common.verbose)
+        Ok(fetched) => {
+            let has_content = fetched.content.is_some();
+            let has_source = fetched
+                .content
+                .as_ref()
+                .is_some_and(|content| content.source_file.is_some());
+            if !has_content || (format == DocsOutputFormat::Content && !has_source) {
+                Ok(fetched)
+            } else {
+                let directory =
+                    content_dir.unwrap_or_else(|| invocation_temp_dir("forager-platform"));
+                deliver(
+                    fetched,
+                    &directory,
+                    keep_pdf,
+                    format != DocsOutputFormat::Content,
+                    common.verbose,
+                )
+            }
         }
-        result => result,
+        Err(failure) => {
+            let mut error = failure.error;
+            // The conversion failed after the route produced a file: keep the file so the
+            // user can still read the paper, and say where it is.
+            if let Some(source) = failure.source_file {
+                let directory =
+                    content_dir.unwrap_or_else(|| invocation_temp_dir("forager-platform"));
+                error.message = format!(
+                    "{}; {}",
+                    error.message,
+                    keep_source_file(&source, &directory, &reference)
+                );
+            }
+            Err(error)
+        }
     };
     let attempt_log = provider_attempt_log(dependencies.config.log_level, &result, |fetched| {
         &fetched.attempts
@@ -409,35 +465,143 @@ fn fetch(
     })
 }
 
-/// Writes the full text, when the result has one, to a Markdown file named after the versioned
-/// ref. A write failure never falls back to inline output.
-fn write_content(
+/// Delivers a fetched full text: writes the Markdown file unless the format is `content`, then
+/// keeps the local source file when asked and removes it otherwise. A write failure is Runtime
+/// and never falls back to inline output.
+fn deliver(
     mut fetched: PlatformFetchResult,
     directory: &Path,
+    keep_pdf: bool,
+    write_markdown: bool,
     verbose: bool,
 ) -> Result<PlatformFetchResult, ProviderError> {
-    let Some(content) = fetched.content.as_mut() else {
+    if fetched.content.is_none() {
         return Ok(fetched);
-    };
-    let path = directory.join(content_file_name(&fetched.item.reference));
-    match fs::create_dir_all(directory).and_then(|()| fs::write(&path, &content.text)) {
-        Ok(()) => {
-            content.path = Some(path.display().to_string());
-            Ok(fetched)
+    }
+    if write_markdown {
+        let path = directory.join(content_file_name(&fetched.item.reference));
+        let text = &fetched.content.as_ref().expect("content checked").text;
+        if let Err(error) = fs::create_dir_all(directory).and_then(|()| fs::write(&path, text)) {
+            let mut message = format!("cannot write the full text to {}: {error}", path.display());
+            // The conversion succeeded but the write failed; keep the source file so the
+            // paper is not lost.
+            if let Some(source) = fetched
+                .content
+                .as_mut()
+                .and_then(|content| content.source_file.take())
+            {
+                message = format!(
+                    "{message}; {}",
+                    keep_source_file(&source, directory, &fetched.item.reference)
+                );
+            }
+            return Err(delivery_failure(fetched, message, verbose));
         }
-        Err(error) => Err(ProviderError {
-            kind: AttemptErrorKind::Runtime,
-            message: format!("cannot write the full text to {}: {error}", path.display()),
-            attempts: fetched.attempts,
-            verbose,
-            diagnostic: fetched.diagnostic,
-            redirected_library_id: None,
-        }),
+        fetched.content.as_mut().expect("content checked").path = Some(path.display().to_string());
+    }
+    let source = fetched
+        .content
+        .as_mut()
+        .and_then(|content| content.source_file.take());
+    if let Some(source) = source {
+        if keep_pdf {
+            match keep_source_in(&source, directory, &fetched.item.reference) {
+                Ok((target, bytes)) => {
+                    let content = fetched.content.as_mut().expect("content checked");
+                    content.pdf_path = Some(target.display().to_string());
+                    content.pdf_bytes = Some(bytes);
+                }
+                Err(error) => {
+                    let target = directory.join(source_file_name(&fetched.item.reference, &source));
+                    return Err(delivery_failure(
+                        fetched,
+                        format!(
+                            "cannot keep the downloaded file as {}: {error}",
+                            target.display()
+                        ),
+                        verbose,
+                    ));
+                }
+            }
+        } else if let Err(error) = fs::remove_file(&source.path) {
+            // A leftover download is not a failure; say where it is.
+            fetched.diagnostic = combine_diagnostics(
+                [
+                    fetched.diagnostic.take(),
+                    Some(format!(
+                        "cannot delete the downloaded file {}: {error}",
+                        source.path.display()
+                    )),
+                ]
+                .into_iter()
+                .flatten(),
+            );
+        }
+    }
+    Ok(fetched)
+}
+
+/// Moves the downloaded source file next to the Markdown and says where it ended up: the kept
+/// path, or the original path when the move fails.
+fn keep_source_file(source: &LocalFile, directory: &Path, reference: &PlatformRef) -> String {
+    match keep_source_in(source, directory, reference) {
+        Ok((target, _)) => format!("the downloaded file is kept at {}", target.display()),
+        Err(error) => format!(
+            "the downloaded file remains at {} (cannot move it: {error})",
+            source.path.display()
+        ),
     }
 }
 
+/// Creates the content directory when needed and moves the source file into it under its
+/// ref-derived name. Returns the target path and the byte count.
+fn keep_source_in(
+    source: &LocalFile,
+    directory: &Path,
+    reference: &PlatformRef,
+) -> std::io::Result<(PathBuf, u64)> {
+    let target = directory.join(source_file_name(reference, source));
+    fs::create_dir_all(directory)?;
+    let bytes = move_file(&source.path, &target)?;
+    Ok((target, bytes))
+}
+
+/// Moves `source` to `target`, across filesystems by copy-then-delete. Returns the byte count.
+fn move_file(source: &Path, target: &Path) -> std::io::Result<u64> {
+    let bytes = fs::metadata(source)?.len();
+    if fs::rename(source, target).is_ok() {
+        return Ok(bytes);
+    }
+    fs::copy(source, target)?;
+    fs::remove_file(source)?;
+    Ok(bytes)
+}
+
+fn delivery_failure(fetched: PlatformFetchResult, message: String, verbose: bool) -> ProviderError {
+    ProviderError {
+        kind: AttemptErrorKind::Runtime,
+        message,
+        attempts: fetched.attempts,
+        verbose,
+        diagnostic: fetched.diagnostic,
+        redirected_library_id: None,
+    }
+}
+
+fn content_file_stem(reference: &PlatformRef) -> String {
+    reference.to_string().replace([':', '/'], "-")
+}
+
 fn content_file_name(reference: &PlatformRef) -> String {
-    format!("{}.md", reference.to_string().replace([':', '/'], "-"))
+    format!("{}.md", content_file_stem(reference))
+}
+
+fn source_file_name(reference: &PlatformRef, source: &LocalFile) -> String {
+    format!(
+        "{}.{}",
+        content_file_stem(reference),
+        source.media_type.extension()
+    )
 }
 
 #[cfg(test)]

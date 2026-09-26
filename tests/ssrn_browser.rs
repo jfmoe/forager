@@ -553,9 +553,14 @@ fn a_missing_crossref_abstract_falls_through_to_the_browser() {
 }
 
 #[test]
-fn full_text_skips_the_browser_route_before_it_runs() {
+fn full_text_runs_the_browser_route_with_the_download_switch() {
     let fake = FakeOpenCli::envelope("ok", &paper_page("2042750", &["Abstract."]));
-    let environment = browser_only(&fake);
+    let provider = Fixture::start_sequence(Vec::new());
+    let environment = RunEnvironment::new(&format!(
+        "[providers.firecrawl]\nurl = {:?}\nkeys = [\"firecrawl-key\"]\n\n{}",
+        provider.url,
+        fake.config("[\"ssrn_browser\"]")
+    ));
 
     let output = environment.run(&[
         "platform",
@@ -565,8 +570,28 @@ fn full_text_skips_the_browser_route_before_it_runs() {
         "--depth",
         "full_text",
     ]);
+    let (arguments, _) = route_arguments(&fake.calls()[0]);
 
-    assert_eq!((output.status.code(), fake.calls().len()), (Some(2), 0));
+    // The route asked for the download; without download facts the attempt is Quality, so the
+    // conversion stage never runs.
+    assert_eq!(
+        (
+            output.status.code(),
+            arguments,
+            payload(&output)["error_kind"].clone(),
+            provider.finish_all().len(),
+        ),
+        (
+            Some(5),
+            ["ssrn", "paper", "--id", "2042750", "--download", "true"]
+                .map(str::to_owned)
+                .to_vec(),
+            json!("quality"),
+            0,
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
 
 #[test]

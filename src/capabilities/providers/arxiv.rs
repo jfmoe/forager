@@ -21,8 +21,8 @@ use crate::providers::shared::{
 use crate::rate_limit::RateLimiter;
 use crate::types::{
     ArxivItemData, ArxivRef, ArxivSearchOptions, ArxivSort, AttemptErrorKind, AttemptTarget,
-    ContentDepth, Deadline, Platform, PlatformFetchOutcome, PlatformFetchRequest, PlatformItem,
-    PlatformItemData, PlatformRef, PlatformSearchOptions, PlatformSearchOutcome,
+    ContentDepth, Deadline, FullTextSource, Platform, PlatformFetchOutcome, PlatformFetchRequest,
+    PlatformItem, PlatformItemData, PlatformRef, PlatformSearchOptions, PlatformSearchOutcome,
     PlatformSearchRequest, ProviderAttempt, ProviderError,
 };
 
@@ -161,11 +161,11 @@ impl ArxivApi {
             },
         )
         .await?;
-        let content_urls = if request.depth == ContentDepth::FullText {
+        let content_source = if request.depth == ContentDepth::FullText {
             match self.html_availability(&version).await {
                 Ok((availability, mut probe_attempts)) => {
                     attempts.append(&mut probe_attempts);
-                    content_urls(&version, availability)
+                    FullTextSource::Urls(content_urls(&version, availability))
                 }
                 Err(mut error) => {
                     attempts.append(&mut error.attempts);
@@ -174,11 +174,11 @@ impl ArxivApi {
                 }
             }
         } else {
-            Vec::new()
+            FullTextSource::Urls(Vec::new())
         };
         Ok(PlatformFetchOutcome {
             item,
-            content_urls,
+            content_source,
             attempts,
             diagnostic,
         })

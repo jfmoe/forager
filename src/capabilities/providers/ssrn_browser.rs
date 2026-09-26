@@ -16,9 +16,10 @@ use crate::providers::opencli::{self, EnvelopeStatus, OpenCliCommand};
 use crate::providers::shared::{other_platform_message, parameter_error};
 use crate::rate_limit::RateLimiter;
 use crate::types::{
-    AttemptErrorKind, AttemptTarget, ContentDepth, Deadline, Platform, PlatformFetchOutcome,
-    PlatformFetchRequest, PlatformItem, PlatformItemData, PlatformRef, PlatformSearchOptions,
-    PlatformSearchOutcome, PlatformSearchRequest, ProviderError, SsrnItemData, SsrnRef,
+    AttemptErrorKind, AttemptTarget, ContentDepth, Deadline, FullTextSource, LocalFile,
+    LocalMediaType, Platform, PlatformFetchOutcome, PlatformFetchRequest, PlatformItem,
+    PlatformItemData, PlatformRef, PlatformSearchOptions, PlatformSearchOutcome,
+    PlatformSearchRequest, ProviderError, SsrnItemData, SsrnRef,
 };
 
 const ROUTE: ProviderId = ProviderId::SsrnBrowser;
@@ -41,7 +42,7 @@ pub(crate) fn search_support(request: &PlatformSearchRequest) -> Result<(), Stri
 /// Returns whether the route can fetch at the requested depth; it never starts a process.
 pub(crate) fn fetch_support(request: &PlatformFetchRequest) -> Result<(), String> {
     match request.depth {
-        ContentDepth::Metadata | ContentDepth::Abstract => Ok(()),
+        ContentDepth::Metadata | ContentDepth::Abstract | ContentDepth::FullText => Ok(()),
         depth => Err(format!(
             "{} cannot fetch at depth `{}`",
             ROUTE.name(),
@@ -112,7 +113,10 @@ impl SsrnBrowser {
         })
     }
 
-    /// Reads the paper page and checks that it shows the requested paper.
+    /// Reads the paper page and checks that it shows the requested paper. At full-text depth
+    /// the same command also downloads the PDF, and the attempt requires the download to be
+    /// complete, the file to exist and start with `%PDF-`, and the page id to match; any
+    /// failure of these checks is Quality.
     pub(crate) async fn fetch(
         &self,
         request: &PlatformFetchRequest,
@@ -123,13 +127,33 @@ impl SsrnBrowser {
                 request.reference.platform(),
             )));
         };
-        let command = self.command("paper", vec![("id", requested.id().to_owned())]);
+        let full_text = request.depth == ContentDepth::FullText;
+        let mut options = vec![("id", requested.id().to_owned())];
+        if full_text {
+            options.push(("download", "true".to_owned()));
+        }
+        let command = self.command("paper", options);
         let command = &command;
         let execution = execute_anonymous(
             self.settings(PlatformOperation::Fetch),
             move |deadline| async move {
                 let envelope = opencli::run::<PaperPage>(command, &self.limiter, deadline).await?;
-                let item = read_paper(envelope.status, &envelope.data, requested)?;
+                if full_text {
+                    let file = read_download(envelope.data.download.as_ref()).await?;
+                    let item = read_paper(
+                        envelope.status,
+                        &envelope.data,
+                        requested,
+                        AttemptErrorKind::Quality,
+                    )?;
+                    return Ok((None, (item, FullTextSource::LocalFile(file))));
+                }
+                let item = read_paper(
+                    envelope.status,
+                    &envelope.data,
+                    requested,
+                    AttemptErrorKind::Runtime,
+                )?;
                 if request.depth == ContentDepth::Abstract && item.depth != ContentDepth::Abstract {
                     return Err(AttemptFailure {
                         kind: AttemptErrorKind::Quality,
@@ -137,13 +161,14 @@ impl SsrnBrowser {
                         message: format!("the SSRN page has no abstract for ssrn:{requested}"),
                     });
                 }
-                Ok((None, item))
+                Ok((None, (item, FullTextSource::Urls(Vec::new()))))
             },
         )
         .await?;
+        let (item, content_source) = execution.value;
         Ok(PlatformFetchOutcome {
-            item: execution.value,
-            content_urls: Vec::new(),
+            item,
+            content_source,
             attempts: execution.attempts,
             diagnostic: execution.diagnostic,
         })
@@ -449,12 +474,65 @@ struct PaperPage {
     /// The line such as `Date Written: October 1, 2016`.
     date_written: Option<String>,
     notice: Option<String>,
+    /// The download the adapter completed when asked to; never carries the download URL.
+    download: Option<DownloadFact>,
+}
+
+/// The download outcome the adapter reports: the browser's download state and the local file.
+#[derive(Debug, Default, Deserialize)]
+#[serde(default)]
+struct DownloadFact {
+    state: String,
+    file: Option<String>,
+}
+
+/// Checks the file the adapter downloaded: the download completed with a file name, the file
+/// can be read, and it starts with the PDF magic. Every failure is Quality: the browser could
+/// not deliver the paper body in this attempt.
+async fn read_download(download: Option<&DownloadFact>) -> Result<LocalFile, AttemptFailure> {
+    let quality = |message: String| AttemptFailure {
+        kind: AttemptErrorKind::Quality,
+        status: None,
+        message,
+    };
+    let state = download.map_or("none", |fact| fact.state.as_str());
+    let path = download
+        .and_then(|fact| fact.file.as_deref())
+        .filter(|path| !path.is_empty());
+    let Some(path) = (state == "complete").then_some(path).flatten() else {
+        return Err(quality(format!(
+            "the SSRN download did not complete with a file (state: {state})"
+        )));
+    };
+    let path = std::path::PathBuf::from(path);
+    let unreadable = |error: std::io::Error| {
+        quality(format!(
+            "the downloaded file {} cannot be read: {error}",
+            path.display()
+        ))
+    };
+    let mut file = tokio::fs::File::open(&path).await.map_err(unreadable)?;
+    let mut header = [0_u8; 5];
+    tokio::io::AsyncReadExt::read_exact(&mut file, &mut header)
+        .await
+        .map_err(unreadable)?;
+    if &header != b"%PDF-" {
+        return Err(quality(format!(
+            "the downloaded file {} is not a PDF",
+            path.display()
+        )));
+    }
+    Ok(LocalFile {
+        path,
+        media_type: LocalMediaType::Pdf,
+    })
 }
 
 fn read_paper(
     status: EnvelopeStatus,
     page: &PaperPage,
     requested: &SsrnRef,
+    id_check: AttemptErrorKind,
 ) -> Result<PlatformItem, AttemptFailure> {
     if status == EnvelopeStatus::NoResults {
         return Err(AttemptFailure {
@@ -471,11 +549,17 @@ fn read_paper(
         .as_deref()
         .and_then(|url| SsrnRef::parse(url).ok())
         .or_else(|| page.doi.as_deref().and_then(SsrnRef::from_doi))
-        .ok_or_else(|| runtime(format!("the page `{}` shows no SSRN abstract ID", page.url)))?;
+        .ok_or_else(|| AttemptFailure {
+            kind: id_check,
+            status: None,
+            message: format!("the page `{}` shows no SSRN abstract ID", page.url),
+        })?;
     if &shown != requested {
-        return Err(runtime(format!(
-            "the SSRN page shows ssrn:{shown} for ssrn:{requested}"
-        )));
+        return Err(AttemptFailure {
+            kind: id_check,
+            status: None,
+            message: format!("the SSRN page shows ssrn:{shown} for ssrn:{requested}"),
+        });
     }
     let title = fold_whitespace(&page.title);
     if title.is_empty() {

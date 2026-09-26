@@ -772,6 +772,13 @@ fn format_platform_fetch(
                     content.provider,
                     content.path.as_deref().unwrap_or_default()
                 );
+                if let Some(pdf_path) = &content.pdf_path {
+                    let _ = write!(
+                        markdown,
+                        "\n\nOriginal PDF ({} bytes): `{pdf_path}`",
+                        content.pdf_bytes.unwrap_or_default()
+                    );
+                }
             }
             Ok(markdown)
         }

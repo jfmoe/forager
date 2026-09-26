@@ -598,7 +598,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         credentials_required: false,
         transport: ProviderTransport::OpenCli(OpenCliAdapter {
             site: "ssrn",
-            contract: "forager-ssrn/1",
+            contract: "forager-ssrn/2",
         }),
         access_policy: Some(SSRN_BROWSER_ACCESS),
         probe: DoctorProbe::PlatformSearch {

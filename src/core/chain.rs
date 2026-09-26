@@ -295,6 +295,25 @@ fn unconfigured_attempt(identity: &StepIdentity, target: AttemptTarget) -> Provi
     )
 }
 
+/// Builds a Skipped attempt for a step that never runs, naming the reason.
+pub(crate) fn skipped_attempt(
+    target: AttemptTarget,
+    provider: &'static str,
+    reason: &str,
+) -> ProviderAttempt {
+    synthetic_attempt(
+        &StepIdentity {
+            provider,
+            model: None,
+            endpoint_host: None,
+        },
+        target,
+        AttemptDisposition::Skipped,
+        None,
+        format!("skipped: {reason}"),
+    )
+}
+
 /// Marks a step's most recent attempt failed with a quality-gate kind and
 /// message; a step that recorded no attempts is left untouched.
 pub(crate) fn mark_last_attempt_failed(

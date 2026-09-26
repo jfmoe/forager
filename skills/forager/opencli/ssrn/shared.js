@@ -3,7 +3,7 @@
 
 import { AuthRequiredError } from '@jackwener/opencli/errors';
 
-export const CONTRACT = 'forager-ssrn/1';
+export const CONTRACT = 'forager-ssrn/2';
 export const SITE_DOMAIN = 'papers.ssrn.com';
 
 // OpenCLI closes the tab after the command returns, so the page reads stop this long before

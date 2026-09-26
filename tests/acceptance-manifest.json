@@ -132,8 +132,8 @@
       "id": "F16",
       "provider": "ssrn_browser",
       "seam": "platform:ssrn:fetch",
-      "test": "tests/ssrn_browser.rs::fetch_reads_the_paper_page_with_its_abstract",
-      "note": "A fake opencli executable proves the transport and the route adapter; the JavaScript adapter is covered only by the live smoke C23."
+      "test": "tests/ssrn_full_text.rs::full_text_delivers_markdown_and_removes_the_pdf_by_default",
+      "note": "A fake opencli executable proves the transport, the route adapter, and the full-text delivery; the JavaScript adapter is covered only by the live smoke C23."
     }
   ],
   "offline_e2e": [

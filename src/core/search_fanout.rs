@@ -9,7 +9,7 @@ use crate::engine::{
     supplemental_web_search, vertical_search,
 };
 use crate::net::combine_diagnostics;
-use crate::providers::FetchRequest;
+use crate::providers::{FetchRequest, FetchSource};
 use crate::redact::redact_url;
 use crate::types::ProviderError;
 use crate::types::{
@@ -267,7 +267,7 @@ async fn execute_web_fetch(
             async move {
                 let result = fetch(
                     FetchRequest {
-                        url: url.clone(),
+                        source: FetchSource::Url(url.clone()),
                         verbose: true,
                     },
                     fetch_config,

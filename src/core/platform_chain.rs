@@ -18,8 +18,8 @@ use crate::config::{PlatformRouteConfig, PlatformRuntimeConfig};
 use crate::net::RetryPolicy;
 use crate::providers;
 use crate::types::{
-    AttemptDisposition, AttemptTarget, Deadline, Platform, PlatformSearchPage,
-    PlatformSearchRequest, ProviderAttempt, ProviderError,
+    AttemptTarget, Deadline, Platform, PlatformSearchPage, PlatformSearchRequest, ProviderAttempt,
+    ProviderError,
 };
 
 const CURSOR_VERSION: &str = "v1";
@@ -281,9 +281,9 @@ pub(crate) fn plan_routes<C: Clone>(
         match check(candidate.id) {
             Ok(()) => plan.routes.push((candidate.id, candidate.config.clone())),
             Err(reason) => {
-                plan.skipped.push(skipped_attempt(
+                plan.skipped.push(crate::chain::skipped_attempt(
                     operation_target(platform, operation),
-                    candidate.id,
+                    candidate.id.name(),
                     &reason,
                 ));
                 reasons.push(reason);
@@ -302,25 +302,6 @@ pub(crate) fn plan_routes<C: Clone>(
         )));
     }
     Ok(plan)
-}
-
-fn skipped_attempt(target: AttemptTarget, route: ProviderId, reason: &str) -> ProviderAttempt {
-    ProviderAttempt {
-        provider: route.name(),
-        target,
-        disposition: AttemptDisposition::Skipped,
-        error_kind: None,
-        http_status: None,
-        duration_ms: 0,
-        credential_index: 0,
-        retry_count: 0,
-        rotation_count: 0,
-        message: format!("skipped: {reason}"),
-        model: None,
-        transport: None,
-        endpoint_host: None,
-        breaker_event: None,
-    }
 }
 
 /// Encodes `v1.<route>.<payload>`; the payload restores the complete request and page.

@@ -2,6 +2,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::time::Duration;
 
+use reqwest::multipart::{Form, Part};
 use reqwest::{Client, RequestBuilder};
 use serde::Deserialize;
 use serde_json::json;
@@ -15,14 +16,74 @@ use crate::net::{
 use crate::providers::ProviderId;
 use crate::providers::execution::{ExecutionSettings, execute_v2};
 use crate::providers::shared::redacted_urls_message;
-use crate::redact::Secret;
+use crate::redact::{Secret, redact_url};
 use crate::types::ProviderError;
-use crate::types::{AttemptErrorKind, AttemptTarget, Deadline, ProviderAttempt};
+use crate::types::{AttemptErrorKind, AttemptTarget, Deadline, LocalFile, ProviderAttempt};
 
 #[derive(Clone)]
 pub(crate) struct FetchRequest {
-    pub(crate) url: String,
+    pub(crate) source: FetchSource,
     pub(crate) verbose: bool,
+}
+
+#[derive(Clone)]
+/// What Web Fetch reads: a known URL, or a local file an earlier stage of the same command
+/// produced.
+pub(crate) enum FetchSource {
+    Url(String),
+    LocalFile(LocalFile),
+}
+
+impl FetchSource {
+    /// Returns whether the source is a PDF, for the thin-content gate.
+    pub(crate) fn is_pdf(&self) -> bool {
+        match self {
+            Self::Url(url) => is_pdf_url(url),
+            Self::LocalFile(file) => matches!(file.media_type, crate::types::LocalMediaType::Pdf),
+        }
+    }
+
+    /// Returns the redacted label recorded as the fetch URL in outcomes.
+    pub(crate) fn label(&self) -> String {
+        match self {
+            Self::Url(url) => redact_url(url),
+            Self::LocalFile(file) => file.path.display().to_string(),
+        }
+    }
+
+    /// Returns a description of the source kind, for support failures.
+    pub(crate) fn describe_kind(&self) -> String {
+        match self {
+            Self::Url(_) => "a URL".to_owned(),
+            Self::LocalFile(file) => format!("a local file ({})", file.media_type.as_str()),
+        }
+    }
+}
+
+/// The PDF parser options Firecrawl applies in both scrape and parse (ADR 0018).
+fn pdf_parsers() -> serde_json::Value {
+    json!([{"type": "pdf", "mode": "auto", "pageMarkers": true}])
+}
+
+/// Returns whether the URL names a PDF, for the thin-content gate.
+pub(crate) fn is_pdf_url(url: &str) -> bool {
+    url.split(['?', '#'])
+        .next()
+        .is_some_and(|path| path.to_ascii_lowercase().ends_with(".pdf"))
+}
+
+/// Returns whether the provider can read the source; it never sends a request.
+pub(crate) fn source_support(id: ProviderId, source: &FetchSource) -> Result<(), String> {
+    match (id, source) {
+        (ProviderId::Firecrawl, _)
+        | (ProviderId::Tavily | ProviderId::Jina, FetchSource::Url(_)) => Ok(()),
+        (ProviderId::Tavily | ProviderId::Jina, FetchSource::LocalFile(_)) => Err(format!(
+            "{} cannot read {}",
+            id.name(),
+            source.describe_kind()
+        )),
+        _ => unreachable!("only web fetch providers read fetch sources"),
+    }
 }
 
 pub(crate) struct ProviderFetchOutcome {
@@ -129,7 +190,10 @@ impl HttpFetchProvider {
         request: &FetchRequest,
         credential: &Secret,
     ) -> Result<(Option<u16>, FetchBody), AttemptFailure> {
-        let request_builder = self.request(request, credential);
+        let request_builder = match &request.source {
+            FetchSource::Url(_) => self.request(request, credential),
+            FetchSource::LocalFile(file) => self.parse_request(file, credential).await?,
+        };
         let response = send_provider_request(request_builder, &self.credentials).await?;
         let body = read_truncatable_content(response, &self.credentials, failure_message).await?;
         let status = body.status;
@@ -157,10 +221,60 @@ impl HttpFetchProvider {
             })
     }
 
+    /// Builds the Firecrawl `/v2/parse` multipart request for a local file: a `file` part plus
+    /// an `options` part carrying the same Markdown format and PDF parser options as `/scrape`.
+    /// The response shape is the scrape shape, so the same decoder reads it.
+    async fn parse_request(
+        &self,
+        file: &LocalFile,
+        credential: &Secret,
+    ) -> Result<RequestBuilder, AttemptFailure> {
+        let failure = |message: String| AttemptFailure {
+            kind: AttemptErrorKind::Runtime,
+            status: None,
+            message,
+        };
+        let bytes = tokio::fs::read(&file.path).await.map_err(|error| {
+            failure(format!(
+                "cannot read the local file {}: {error}",
+                file.path.display()
+            ))
+        })?;
+        let file_name = file.path.file_name().map_or_else(
+            || format!("input.{}", file.media_type.extension()),
+            |name| name.to_string_lossy().into_owned(),
+        );
+        let options = json!({
+            "formats": ["markdown"],
+            "timeout": 60000,
+            "parsers": pdf_parsers(),
+        })
+        .to_string();
+        let form = Form::new()
+            .part("file", Part::bytes(bytes).file_name(file_name))
+            .part(
+                "options",
+                Part::text(options)
+                    .mime_str("application/json")
+                    .map_err(|error| failure(format!("cannot build the parse request: {error}")))?,
+            );
+        match self.id {
+            ProviderId::Firecrawl => Ok(self
+                .client
+                .post(format!("{}/parse", self.config.url.trim_end_matches('/')))
+                .bearer_auth(credential.expose())
+                .multipart(form)),
+            _ => unreachable!("source support filters providers that cannot read a local file"),
+        }
+    }
+
     fn request(&self, request: &FetchRequest, credential: &Secret) -> RequestBuilder {
+        let FetchSource::Url(url) = &request.source else {
+            unreachable!("local files go to the parse request");
+        };
         match self.id {
             ProviderId::Jina => {
-                let endpoint = format!("{}/{}", self.config.url.trim_end_matches('/'), request.url);
+                let endpoint = format!("{}/{}", self.config.url.trim_end_matches('/'), url);
                 let mut request = self
                     .client
                     .get(endpoint)
@@ -177,7 +291,7 @@ impl HttpFetchProvider {
                 .post(format!("{}/extract", self.config.url.trim_end_matches('/')))
                 .bearer_auth(credential.expose())
                 .json(&json!({
-                    "urls": [&request.url],
+                    "urls": [url],
                     "format": "markdown",
                     "extract_depth": "basic"
                 })),
@@ -186,11 +300,11 @@ impl HttpFetchProvider {
                 .post(format!("{}/scrape", self.config.url.trim_end_matches('/')))
                 .bearer_auth(credential.expose())
                 .json(&json!({
-                    "url": &request.url,
+                    "url": url,
                     "formats": ["markdown"],
                     "onlyMainContent": true,
                     "timeout": 60000,
-                    "parsers": [{"type": "pdf", "mode": "auto", "pageMarkers": true}]
+                    "parsers": pdf_parsers(),
                 })),
             _ => unreachable!("only web fetch providers make fetch requests"),
         }
@@ -296,12 +410,65 @@ mod tests {
 
     use futures_util::future::{self, Either};
 
-    use super::{FetchRequest, HttpFetchProvider};
+    use super::{FetchRequest, FetchSource, HttpFetchProvider, source_support};
     use crate::config::WebFetchProviderConfig;
     use crate::credentials::CredentialPool;
     use crate::net::RetryPolicy;
     use crate::providers::ProviderId;
-    use crate::types::{AttemptErrorKind, Deadline};
+    use crate::types::{AttemptErrorKind, Deadline, LocalFile, LocalMediaType};
+
+    fn local_pdf() -> FetchSource {
+        FetchSource::LocalFile(LocalFile {
+            path: "/tmp/paper.pdf".into(),
+            media_type: LocalMediaType::Pdf,
+        })
+    }
+
+    #[test]
+    fn only_firecrawl_reads_a_local_file() {
+        let file = local_pdf();
+        let support = [
+            source_support(ProviderId::Firecrawl, &file).is_ok(),
+            source_support(ProviderId::Tavily, &file).is_ok(),
+            source_support(ProviderId::Jina, &file).is_ok(),
+        ];
+
+        assert_eq!(support, [true, false, false]);
+    }
+
+    #[test]
+    fn every_web_fetch_provider_reads_a_url() {
+        let url = FetchSource::Url("https://example.test/article".into());
+        let support = [ProviderId::Firecrawl, ProviderId::Tavily, ProviderId::Jina]
+            .map(|id| source_support(id, &url).is_ok());
+
+        assert_eq!(support, [true, true, true]);
+    }
+
+    #[test]
+    fn the_source_decides_the_pdf_gate_and_the_support_description() {
+        let cases = [
+            (
+                FetchSource::Url("https://example.test/a.pdf?x=1".into()),
+                true,
+                "a URL",
+            ),
+            (
+                FetchSource::Url("https://example.test/page".into()),
+                false,
+                "a URL",
+            ),
+            (local_pdf(), true, "a local file (application/pdf)"),
+        ]
+        .map(|(source, pdf, description)| {
+            (
+                source.is_pdf() == pdf,
+                source.describe_kind() == description,
+            )
+        });
+
+        assert_eq!(cases, [(true, true); 3]);
+    }
 
     #[test]
     fn configured_attempt_timeout_bounds_web_fetch_without_wall_clock_waiting() {
@@ -344,7 +511,7 @@ mod tests {
                 deadline: Deadline::new(Duration::from_secs(10)),
             };
             let request = FetchRequest {
-                url: "https://example.test/article".into(),
+                source: FetchSource::Url("https://example.test/article".into()),
                 verbose: true,
             };
             let fetch = Box::pin(provider.execute(&request));

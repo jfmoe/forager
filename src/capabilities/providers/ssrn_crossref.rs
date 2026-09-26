@@ -20,9 +20,10 @@ use crate::providers::shared::{
 };
 use crate::rate_limit::RateLimiter;
 use crate::types::{
-    AttemptErrorKind, AttemptTarget, ContentDepth, Deadline, Platform, PlatformFetchOutcome,
-    PlatformFetchRequest, PlatformItem, PlatformItemData, PlatformRef, PlatformSearchOptions,
-    PlatformSearchOutcome, PlatformSearchRequest, ProviderError, SsrnItemData, SsrnRef,
+    AttemptErrorKind, AttemptTarget, ContentDepth, Deadline, FullTextSource, Platform,
+    PlatformFetchOutcome, PlatformFetchRequest, PlatformItem, PlatformItemData, PlatformRef,
+    PlatformSearchOptions, PlatformSearchOutcome, PlatformSearchRequest, ProviderError,
+    SsrnItemData, SsrnRef,
 };
 
 const ROUTE: ProviderId = ProviderId::SsrnCrossref;
@@ -189,7 +190,7 @@ impl SsrnCrossref {
         .await?;
         Ok(PlatformFetchOutcome {
             item: execution.value,
-            content_urls: Vec::new(),
+            content_source: FullTextSource::Urls(Vec::new()),
             attempts: execution.attempts,
             diagnostic: execution.diagnostic,
         })

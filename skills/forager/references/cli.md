@@ -389,6 +389,7 @@ page is a `runtime` failure, never an empty result.
 
 ```console
 forager platform ssrn fetch REF_OR_URL [--depth metadata|abstract|full_text]
+                            [--content-dir DIR] [--keep-pdf]
                             [--timeout SECONDS] [--format json|markdown|content]
                             [--output FILE [--receipt]] [--verbose]
 ```
@@ -396,16 +397,29 @@ forager platform ssrn fetch REF_OR_URL [--depth metadata|abstract|full_text]
 | Argument or option | Meaning | Default |
 | --- | --- | --- |
 | `REF_OR_URL` | `ssrn:<id>`, a `papers.ssrn.com/sol3/papers.cfm?abstract_id=<id>` URL, an `ssrn.com/abstract=<id>` URL, or the `10.2139/ssrn.<id>` DOI or its doi.org URL. | Required |
-| `--depth DEPTH` | `metadata` returns the metadata and the abstract when available; `abstract` requires the abstract; `full_text` has no route yet. | `metadata` |
-| `--format FORMAT` | `json`, `markdown`, or `content`; `content` prints the abstract. | `json` |
+| `--depth DEPTH` | `metadata` returns the metadata and the abstract when available; `abstract` requires the abstract; `full_text` downloads the paper and delivers it as Markdown (needs the `ssrn_browser` route). | `metadata` |
+| `--content-dir DIR` | Directory for the full-text Markdown file. | New directory under the system temp directory |
+| `--keep-pdf` | Move the downloaded PDF next to the Markdown and report `pdf_path` and `pdf_bytes`. | Off |
+| `--format FORMAT` | `json`, `markdown`, or `content`; `content` prints the abstract or the full text and writes no file. | `json` |
 
 SSRN download links, look-alike hosts, and short links exit `2` before any request, and so does
-`--depth full_text`. A DOI that Crossref does not know is a `parameter` failure (exit `4`) whose
-message says the paper was not found in Crossref; `--depth abstract` without an abstract is a
-`quality` failure (exit `5`). With the order `["ssrn_crossref", "ssrn_browser"]`, a `--depth abstract`
+`--depth full_text` when no enabled route can download. A DOI that Crossref does not know is a
+`parameter` failure (exit `4`) whose message says the paper was not found in Crossref; `--depth
+abstract` without an abstract is a `quality` failure (exit `5`). With the order
+`["ssrn_crossref", "ssrn_browser"]`, a `--depth abstract`
 fetch whose Crossref record has no abstract falls through to the browser, which reads the abstract page and also fills
 `posted`, `last_revised`, and `date_written`. The browser reports a paper that SSRN shows as under
 review or removed as a `parameter` failure.
+
+A `full_text` fetch makes the browser route download the PDF, verifies it, and converts it
+through the configured `web_fetch` chain. JSON output carries the metadata and `content_url` (the
+canonical abstract page, never the expiring signed download address), `content_provider`,
+`content_path` (`ssrn-<id>.md`), and `content_len`; the PDF is removed after a successful
+delivery. A failed download check (incomplete download, missing file, not a PDF, wrong page) is a
+`quality` failure (exit `5`); when the conversion itself fails, the PDF is kept and the error
+message names its path. `full_text` with no configured Web Fetch provider exits `3`. Give the
+download and the conversion room: pass a larger `--timeout` than the default 120 seconds when a
+full-text fetch times out.
 
 ## Configuration and diagnostics
 

@@ -35,6 +35,7 @@ forager platform arxiv fetch REF_OR_URL [--depth full_text|abstract] [--content-
 forager platform ssrn search QUERY [--limit 1..=100（默认 10）] [--cursor CURSOR]
                              [--timeout 120] [--format json|markdown] [...]
 forager platform ssrn fetch REF_OR_URL [--depth metadata|abstract|full_text]
+                            [--content-dir DIR] [--keep-pdf]
                             [--timeout 120] [--format json|markdown|content] [...]
 forager doctor [--provider PROVIDER] [--timeout 30] [--format json|markdown]
 forager smoke [--live] [...]
@@ -184,12 +185,14 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 | 参数 | 类型与取值 | 默认值 | 语义 |
 |---|---|---|---|
 | ref 或 URL（位置参数） | `ssrn:<id>`、`papers.ssrn.com/sol3/papers.cfm?abstract_id=<id>`、`ssrn.com/abstract=<id>`（含 `www.`）、DOI `10.2139/ssrn.<id>` 或其 doi.org URL | 必填 | 主机名不区分大小写；摘要页的其他 query 参数与 fragment 被忽略 |
-| `--depth` | `metadata` / `abstract` / `full_text` | `metadata` | 请求的深度是最低要求：`metadata` 在有摘要时一并返回摘要；`abstract` 要求摘要 |
-| `--format` | `json` / `markdown` / `content` | `json` | `content` 把摘要输出到 stdout；Markdown 只在有摘要时显示 Abstract 小节 |
+| `--depth` | `metadata` / `abstract` / `full_text` | `metadata` | 请求的深度是最低要求：`metadata` 在有摘要时一并返回摘要；`abstract` 要求摘要；`full_text` 需要能下载论文的 route（`ssrn_browser`） |
+| `--content-dir` | 目录路径 | 系统临时目录下 `forager-platform/<pid>-<时间戳>` | 全文 Markdown 文件所在目录 |
+| `--keep-pdf` | 开关 | 关 | 全文时把下载的 PDF 移入内容目录，输出增加 `pdf_path` 与 `pdf_bytes` |
+| `--format` | `json` / `markdown` / `content` | `json` | `content` 把摘要或全文正文输出到 stdout，不写文件；Markdown 只在有摘要时显示 Abstract 小节 |
 
 - 通用 flag 为 `--timeout`（默认 120 秒）、`--output`/`--receipt`、`--verbose`。
-- **输出**：JSON 顶层为 `platform`、`provider`、`ref`、`url`、`depth`、`title`、`authors`、`published`，以及与 search item 相同的 SSRN 字段；`depth` 记录 route 实际拿到的内容。不写文件，不写 Search Result Journal。
-- **退出码**：ref 或 URL 无法识别（包括 SSRN 的 `Delivery.cfm` PDF 链接、相似域名与短链）＝飞行前退 2；`--depth full_text` 时没有已配置的 route 支持全文＝飞行前退 2；`platforms.ssrn.order` 为空＝飞行前退 3；Crossref 中找不到该 DOI 为 attempt 级 Parameter（`SSRN paper not found in Crossref: ssrn:<id>`），SSRN 页面显示论文审核中或已撤下为 attempt 级 Parameter（`SSRN paper not available: ssrn:<id> (…)`），都退 4；`--depth abstract` 但所有 route 都没有摘要为 Quality 退 5。
+- **输出**：JSON 顶层为 `platform`、`provider`、`ref`、`url`、`depth`、`title`、`authors`、`published`，以及与 search item 相同的 SSRN 字段；`depth` 记录 route 实际拿到的内容。`metadata` 与 `abstract` 不写文件。**`full_text`** 时浏览器 route 下载 PDF 并校验后交给全局 Web Fetch 链转换成 Markdown：默认写入 `ssrn-<id>.md` 并删除 PDF，stdout 另有 `content_url`（SSRN 规范摘要页，永不指向有时效的签名下载地址）、`content_provider`、`content_path` 与 `content_len`；`--keep-pdf` 时 PDF 移入内容目录（`ssrn-<id>.pdf`）并报告 `pdf_path` 与 `pdf_bytes`；转换失败时 PDF 一律保留，错误消息写明它的路径。不写 Search Result Journal。
+- **退出码**：ref 或 URL 无法识别（包括 SSRN 的 `Delivery.cfm` PDF 链接、相似域名与短链）＝飞行前退 2；`--depth full_text` 时没有已配置的 route 支持全文＝飞行前退 2；`platforms.ssrn.order` 为空、`full_text` 时没有已配置的 Web Fetch provider＝飞行前退 3；Crossref 中找不到该 DOI 为 attempt 级 Parameter（`SSRN paper not found in Crossref: ssrn:<id>`），SSRN 页面显示论文审核中或已撤下为 attempt 级 Parameter（`SSRN paper not available: ssrn:<id> (…)`），都退 4；`--depth abstract` 但所有 route 都没有摘要为 Quality 退 5；全文的下载校验（下载未完成、文件不存在、不是 PDF、详情页 id 不一致）与转换后正文过薄为 Quality 退 5，转换的上游失败沿用 Web Fetch 链终态。
 
 ## 收尾
 

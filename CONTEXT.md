@@ -41,7 +41,7 @@ _Avoid_: supplemental source、verified evidence、all search sources
 _Avoid_: Supplemental Search Candidate、primary source、verified evidence、merged source
 
 **Web Fetch Capability**:
-读取、提取或核验已知 URL 或 PDF 正文的能力；它不负责发现链接。
+读取、提取或核验已知来源正文的能力；输入是已知 URL，或者同一次 forager 命令中另一阶段产生并校验过的本地文件（带媒体类型）。它不负责发现链接。
 _Avoid_: web search、link discovery
 
 **Normalized Fetch Content**:
@@ -165,7 +165,7 @@ Platform 的一项操作。每个 Platform 都提供 search 与 fetch；改变�
 _Avoid_: platform option、sub-command flag
 
 **Platform Fetch**:
-按 Platform Ref 取回单个平台条目的操作；它不同于 Web Fetch Capability，尽管其正文段可以复用 Web Fetch。先由平台 route 取元数据并确定实际版本，全文深度再由 route 声明的正文 URL 依次走 Web Fetch 链；全文写入本地文件，结果只按路径引用它。
+按 Platform Ref 取回单个平台条目的操作；它不同于 Web Fetch Capability，尽管其正文段可以复用 Web Fetch。先由平台 route 取元数据并确定实际版本，全文深度再由 route 声明的正文来源（一组 URL，或一个在同一 attempt 内校验过的本地文件）走同一条 Web Fetch 链；全文写入本地文件，结果只按路径引用它。
 _Avoid_: web fetch、platform download
 
 **Content Depth**:

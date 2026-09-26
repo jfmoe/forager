@@ -13,7 +13,6 @@ use crate::config::{
 };
 use crate::net::RetryPolicy;
 use crate::providers::{self, FetchRequest, MainSearchRequest};
-use crate::redact::redact_url;
 use crate::types::ProviderError;
 use crate::types::{
     AttemptErrorKind, AttemptTarget, DENSITY_MAX_CHARS, DENSITY_MAX_UNIQUE_LINES, Deadline,
@@ -217,8 +216,38 @@ pub(crate) async fn fetch(
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> Result<FetchOutcome, ProviderError> {
+    let target = AttemptTarget::seam("web_fetch");
+    let mut skipped = Vec::new();
+    let mut steps = Vec::new();
+    for step in provider_steps(config.into_entries()) {
+        if step.configured
+            && let Err(reason) = providers::source_support(step.context.0, &request.source)
+        {
+            skipped.push(chain::skipped_attempt(
+                target,
+                step.context.0.name(),
+                &reason,
+            ));
+            continue;
+        }
+        steps.push(step);
+    }
+    if !skipped.is_empty() && !steps.iter().any(|step| step.configured) {
+        return Err(ProviderError {
+            kind: AttemptErrorKind::Runtime,
+            message: format!(
+                "no configured web fetch provider can read {}",
+                request.source.describe_kind()
+            ),
+            attempts: skipped,
+            verbose: request.verbose,
+            diagnostic: None,
+            redirected_library_id: None,
+        });
+    }
+    let pdf = request.source.is_pdf();
     let step = chain::run_chain(
-        provider_steps(config.into_entries()),
+        steps,
         web_fetch_chain_settings(request.verbose),
         deadline,
         |(id, provider_config), provider_deadline| {
@@ -236,7 +265,7 @@ pub(crate) async fn fetch(
                 .await
                 {
                     Ok(outcome) => {
-                        if is_thin(&outcome.content, &request.url) {
+                        if is_thin_content(&outcome.content, pdf) {
                             let character_count = outcome.content.chars().count();
                             StepVerdict::QualityRejected(StepRejection {
                                 attempts: outcome.attempts,
@@ -259,13 +288,22 @@ pub(crate) async fn fetch(
             }
         },
     )
-    .await?;
+    .await;
+    let step = match step {
+        Ok(step) => step,
+        Err(mut error) => {
+            error.attempts.splice(0..0, skipped);
+            return Err(error);
+        }
+    };
+    let mut attempts = skipped;
+    attempts.extend(step.attempts);
     Ok(FetchOutcome {
         provider: step.value.0,
-        url: redact_url(&request.url),
+        url: request.source.label(),
         content: step.value.1,
         attempts: if request.verbose {
-            step.attempts
+            attempts
         } else {
             Vec::new()
         },
@@ -512,12 +550,16 @@ pub(crate) async fn vertical_search(
 }
 
 pub(crate) fn is_thin(content: &str, url: &str) -> bool {
+    is_thin_content(content, is_pdf(url))
+}
+
+fn is_thin_content(content: &str, pdf: bool) -> bool {
     let content = content.trim();
     let character_count = content.chars().count();
     if character_count < MIN_FETCH_CONTENT_CHARS {
         return true;
     }
-    if is_pdf(url) {
+    if pdf {
         return false;
     }
     let unique_lines = content
@@ -530,9 +572,7 @@ pub(crate) fn is_thin(content: &str, url: &str) -> bool {
 }
 
 fn is_pdf(url: &str) -> bool {
-    url.split(['?', '#'])
-        .next()
-        .is_some_and(|path| path.to_ascii_lowercase().ends_with(".pdf"))
+    providers::is_pdf_url(url)
 }
 
 #[cfg(test)]

@@ -13,7 +13,7 @@ use crate::config::{
 };
 use crate::net::{self, RetryPolicy};
 use crate::providers::{
-    self, AnysearchDomainsRequest, FetchRequest, MainSearchRequest, ModelBreakers,
+    self, AnysearchDomainsRequest, FetchRequest, FetchSource, MainSearchRequest, ModelBreakers,
 };
 use crate::rate_limit::RateLimiter;
 use crate::types::{
@@ -251,7 +251,7 @@ async fn run_probe(
             one_check(
                 adapter
                     .fetch(&FetchRequest {
-                        url: "https://example.com/".into(),
+                        source: FetchSource::Url("https://example.com/".into()),
                         verbose: false,
                     })
                     .await,

@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 
-const CONTRACT: &str = "forager-ssrn/1";
+const CONTRACT: &str = "forager-ssrn/2";
 
 const CALL_END: &str = "<<end of call>>";
 
@@ -48,6 +48,24 @@ impl FakeOpenCli {
             )
             .expect("write fake page");
         }
+        fake
+    }
+
+    /// Writes `contents` as `file_name` and answers an `ok` envelope whose `download` points at
+    /// it, like the adapter after a completed browser download.
+    pub(crate) fn downloading(data: &Value, file_name: &str, contents: &[u8]) -> Self {
+        let fake = Self::with_body("/bin/cat \"$dir/stdout\"\n");
+        fs::write(fake.path(file_name), contents).expect("write fake download");
+        let mut data = data.clone();
+        data["download"] = json!({
+            "state": "complete",
+            "file": fake.path(file_name).display().to_string(),
+        });
+        fs::write(
+            fake.path("stdout"),
+            json!({"contract": CONTRACT, "status": "ok", "data": data}).to_string(),
+        )
+        .expect("write fake stdout");
         fake
     }
 

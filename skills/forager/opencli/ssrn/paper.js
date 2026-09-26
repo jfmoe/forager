@@ -33,6 +33,24 @@ const READ_PAPER = `
   };
 `;
 
+// Clicks the page's own download link and returns whether one exists.
+const CLICK_DOWNLOAD = `(() => {
+  const link = [...document.querySelectorAll('a[href*="Delivery.cfm"]')][0];
+  if (!link) return false;
+  link.click();
+  return true;
+})()`;
+
+// Waits for the browser download the click starts. Reports only the state and the local file:
+// the signed download URL never leaves the browser.
+async function downloadPaper(page, deadline) {
+  const clicked = await page.evaluate(CLICK_DOWNLOAD);
+  if (!clicked) return { state: 'none', file: null };
+  const remaining = Math.max(1000, deadline - Date.now());
+  const result = await page.waitForDownload('pdf', remaining);
+  return { state: result.state || 'interrupted', file: result.filename || null };
+}
+
 cli({
   site: 'ssrn',
   name: 'paper',
@@ -44,6 +62,7 @@ cli({
   navigateBefore: false,
   args: [
     { name: 'id', required: true, valueRequired: true, help: 'SSRN abstract ID' },
+    { name: 'download', valueRequired: true, default: 'false', help: 'Download the paper PDF and report the local file' },
     { name: 'timeout', type: 'int', default: 60, help: 'Command timeout in seconds' },
   ],
   func: async (page, kwargs) => {
@@ -54,6 +73,9 @@ cli({
       settleMs: 500,
     });
     const facts = await readPage(page, deadline, READ_PAPER);
+    if (String(kwargs.download) === 'true' && facts.state === 'paper') {
+      facts.data.download = await downloadPaper(page, deadline);
+    }
     return envelope(facts.state === 'no_results' ? 'no_results' : 'ok', facts.data);
   },
 });

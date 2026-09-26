@@ -25,7 +25,9 @@ Every item carries `depth`, the content it actually holds: `metadata` (bibliogra
 - **arXiv** `fetch` defaults to `--depth full_text`; `--depth abstract` skips the body.
 - **SSRN** `fetch` defaults to `--depth metadata` and includes the abstract when a route has one.
   `--depth abstract` requires an abstract and fails with exit 5 when none is available. SSRN full
-  text is not available: `--depth full_text` exits 2.
+  text needs the `ssrn_browser` route: `--depth full_text` downloads the PDF in Chrome, converts
+  it to Markdown through the Web Fetch chain, writes `ssrn-<id>.md`, and removes the PDF unless
+  `--keep-pdf` keeps it next to the Markdown. Without the browser route it exits 2.
 - **SSRN search** items from `ssrn_crossref` are `abstract` or `metadata`; items from
   `ssrn_browser` are `snippet` (`metadata` for a result card without an excerpt). A browser page never spans two SSRN result pages, so it can hold
   fewer items than `--limit`; follow `next_cursor` for more.
@@ -38,7 +40,8 @@ only when the user asks for it; it runs at most one browser command every 5 seco
 - **Install** (verified with OpenCLI 1.8.6): OpenCLI with its Chrome Browser Bridge connected
   (`opencli doctor`), then copy the `opencli/ssrn` directory next to this skill's `SKILL.md` to
   `~/.opencli/clis/ssrn` (replace the whole directory to update). Run the same copy after updating
-  forager, then `forager doctor` to check the adapter.
+  forager, then `forager doctor` to check the adapter. A forager that expects a newer adapter
+  contract fails its commands with an install hint until the copy is updated.
 - **Enable**: `forager config set platforms.ssrn.order '["ssrn_crossref", "ssrn_browser"]'`. With
   this order, a `--depth abstract` fetch that Crossref cannot serve falls through to the browser.
   Set `providers.ssrn_browser.command` when `opencli` is not on `PATH`.
@@ -55,6 +58,11 @@ A full-text fetch writes the body to a Markdown file and stdout carries only met
 
 Use `--depth abstract` when the abstract answers the request. Use `--format content` only when the
 body must enter context or a pipe directly.
+
+For SSRN, `content_url` is the canonical abstract page (the signed download address is never
+reported), the download and the conversion share the command deadline, so retry a timed-out
+full-text fetch with a larger `--timeout` (for example 300), and pass `--keep-pdf` when the
+original PDF must be checked against the Markdown.
 
 ## Consume results
 
@@ -81,6 +89,9 @@ body must enter context or a pipe directly.
   when the abstract still answers the request, and say so.
 - Exit 5 on an SSRN `--depth abstract` fetch: no route had the abstract. Fetch at the default
   `metadata` depth and state that the abstract is unavailable.
+- Exit 5 on an SSRN `--depth full_text` fetch: the download failed its checks or the converted
+  body was too thin. Retry once with a larger `--timeout`; when it still fails, read the kept PDF
+  whose path the error message names, or fall back to `--depth abstract` and say so.
 - "SSRN paper not found in Crossref": the paper may still exist on SSRN; say that Crossref has no
   record of it rather than that the paper does not exist.
 - An `ssrn_browser` `auth` error saying SSRN security verification did not clear: ask the user to

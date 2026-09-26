@@ -40,5 +40,5 @@ pub(crate) use types::{
     DocsSearch, MainSearch, MainSearchRequest, MainSearchRequestKind, PlatformFetch,
     PlatformSearch, VerticalSearch, WebSearch,
 };
-pub(crate) use web_fetch::{FetchRequest, WebFetch};
+pub(crate) use web_fetch::{FetchRequest, FetchSource, WebFetch, is_pdf_url, source_support};
 pub(crate) use xai::Xai;

@@ -36,13 +36,14 @@
 
 - **输入**：ref 字符串或可识别的原始平台 URL（L0），以及 `--depth`。平台只接受它定义过含义的深度，由 route 的支持检查判定。
 - **元数据段**：fetch route 链（`platforms.<id>.order` ∩ fetch route 集合 ∩ 已配置 route）返回条目元数据；输出的 ref 带平台返回的实际版本。条目不存在是 attempt 级 Parameter；元数据段失败即命令失败，绝不跳过元数据直接取正文。
-- **正文段**（仅 `full_text`）：答复的 route 在 `PlatformFetchOutcome.content_urls` 中按顺序声明同一版本的正文 URL；route 可以先做受访问策略约束的探测来决定顺序，但不 import Web Fetch provider。core 的 `platform_fetch` 对每个 URL 运行全局 Web Fetch 链（`capabilities.web_fetch.order` 及其凭据、薄正文门、4 MiB 截断诊断），首个成功者即正文；有后续 URL 时本段最多用剩余预算的一半；全部失败时沿用最后一条 Web Fetch 链的终态；第 4 章的归因总函数只在每条链内部归约，不跨正文 URL 合并。不新增平台级正文顺序；`full_text` 时没有已配置的 Web Fetch provider 为飞行前退 3，其他深度不需要 Web Fetch 配置。
+- **正文段**（仅 `full_text`）：答复的 route 在 `PlatformFetchOutcome.content_source` 中声明同一版本的正文来源，二者之一：一组按序读取的 URL（arXiv），或一个在同一 attempt 内校验过的本地文件（SSRN 浏览器下载的 PDF）。route 可以先做受访问策略约束的探测来决定 URL 顺序，但不 import Web Fetch provider。core 的 `platform_fetch` 对两种来源用同样的方式运行全局 Web Fetch 链（`capabilities.web_fetch.order` 及其凭据、薄正文门、4 MiB 截断诊断），不含站点知识：URL 来源首个成功者即正文，有后续 URL 时本段最多用剩余预算的一半，全部失败时沿用最后一条 Web Fetch 链的终态；本地文件来源只运行一次链，失败即终态。第 4 章的归因总函数只在每条链内部归约，不跨正文 URL 合并。不新增平台级正文顺序；`full_text` 时没有已配置的 Web Fetch provider 为飞行前退 3，其他深度不需要 Web Fetch 配置。
 
 ### fetch 输出与正文交付
 
 遵循 ADR 0015「默认结果只含下一步决策所需内容，已落盘材料按引用交付」：
 
-- **`full_text`**：正文写入本地 Markdown 文件；stdout 返回 `platform`、`provider`（元数据 route）、条目公共字段与平台字段（`depth` 为 `full_text`），以及 `content_url`（正文实际来自的 URL）、`content_provider`（Web Fetch provider）、`content_path`（可直接读取的文件）与 `content_len`（正文字符数）。正文不出现在 stdout。
+- **`full_text`**：正文写入本地 Markdown 文件；stdout 返回 `platform`、`provider`（元数据 route）、条目公共字段与平台字段（`depth` 为 `full_text`），以及 `content_url`、`content_provider`（Web Fetch provider）、`content_path`（可直接读取的文件）与 `content_len`（正文字符数）。正文不出现在 stdout。`content_url` 是正文实际来自的 URL；正文由本地文件转换而来时，它是条目的 canonical URL（正文来自平台，不是某个可抓取的地址），永不指向有时效的签名下载地址。
+- **原始文件**：正文来源是本地文件时，`--keep-pdf` 把它移入内容目录（文件名由 ref 与媒体类型派生，如 `ssrn-<id>.pdf`），输出增加 `pdf_path` 与 `pdf_bytes`；默认在交付成功后删除它；转换失败时一律保留，错误消息写明它的路径。跨文件系统的移动采用先复制再删除。
 - **其他深度**：元数据与该深度的内容直接内联，不写文件。
 - **`--format content`**：显式把正文（非全文深度时为该深度的内容）输出到 stdout，不写文件。
 - **文件位置**：默认写入系统临时目录下按调用隔离的目录 `forager-platform/<pid>-<时间戳>`（与 research 默认证据目录同一规则），`--content-dir DIR` 可以覆盖；文件名由带版本的 ref 把 `:` 与 `/` 换成 `-` 后加 `.md` 派生。写入方式与 research 证据文件相同；写入失败为 Runtime（退 4），不回退为内联输出。不做跨调用缓存。
@@ -55,7 +56,7 @@
 | ref 或 URL 无法识别、短链、cursor 冲突或无效、选项取值非法、所有已配置 route 都不支持所请求的选项 | 飞行前（参数） | 退 2，不发网络请求 |
 | 平台 order 为空、操作可用 route 集合为空、order 含其他平台的 route；`full_text` fetch 时没有已配置的 Web Fetch provider | 飞行前（配置） | 退 3，不发网络请求 |
 | 平台返回参数错误（例如 arXiv Atom error entry）、fetch 的条目不存在 | 飞行后，attempt 级 Parameter | 退 4，带平台消息 |
-| fetch 元数据成功，但所有正文 URL 的 Web Fetch 链都失败 | 飞行后 | 沿用最后一条 Web Fetch 链终态，例如全部过薄为 Quality，退 5 |
+| fetch 元数据成功，但正文来源的 Web Fetch 链全部失败；全文的下载校验不满足（下载未完成、文件不存在、不是 PDF、详情页 id 不一致） | 飞行后 | URL 来源沿用最后一条 Web Fetch 链终态，例如全部过薄为 Quality，退 5；下载校验不满足为 Quality，退 5 |
 | 正文文件写入失败 | 飞行后 | Runtime，退 4，不回退为内联输出 |
 | 等待限速窗口时剩余预算不足 | 飞行后 | Timeout，退 4，保留已完成的 attempts |
 | 限速状态文件或锁不可用 | 飞行后 | Runtime，退 4，不发送请求 |
@@ -122,7 +123,7 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
   - 截止时间：attempt 截止时间之前预留 5 秒得到工作截止点，剩余整秒数作为 adapter 命令的 `--timeout` 参数传入。OpenCLI 据此设置 daemon 每次操作的截止时间；adapter 在 `--timeout` 之前 3 秒停止读取页面并返回，让 OpenCLI 在工作截止点之前关闭标签页。5 秒预留用于强杀、回收子进程与报告 attempt。子进程放入独立进程组；到达工作截止点或 future 被丢弃时，强杀整个进程组，不做分步终止。access permit 持有到子进程被回收为止。剩余时间不足时 attempt 以 Timeout 结束，不启动进程。
   - 输出上限：stdout 最多 4 MiB（协议上限），超出为 Runtime 并强杀进程组；stderr 只保留前 64 KiB 并做 URL 脱敏。
   - 非 Unix 系统：传输在启动进程之前以 Runtime 拒绝；factory 的支持检查同样拒绝，因此该 route 记为 Skipped。
-  - 外壳：stdout 是一个 JSON 对象 `{contract, status, data}`。`contract` 与注册信息的契约版本（`forager-ssrn/1`）不一致为 Runtime，消息附安装提示（把 skill 的 `opencli/<site>` 目录复制为 `~/.opencli/clis/<site>`）；`status` 为 `ok` 或 `no_results`，只有 adapter 核实了站点自己的无结果提示时才是 `no_results`。
+  - 外壳：stdout 是一个 JSON 对象 `{contract, status, data}`。`contract` 与注册信息的契约版本（`forager-ssrn/2`）不一致为 Runtime，消息附安装提示（把 skill 的 `opencli/<site>` 目录复制为 `~/.opencli/clis/<site>`）；`status` 为 `ok` 或 `no_results`，只有 adapter 核实了站点自己的无结果提示时才是 `no_results`。
   - 退出码映射：
 
     | OpenCLI 结果 | 映射 |
@@ -138,7 +139,8 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
     | 其他退出码、输出无法解码 | Runtime |
 
 - **search**：adapter 的 `search` 命令直接打开 `https://papers.ssrn.com/searchresults.cfm?term=<查询词>&page=<原生页码>`。SSRN 每个原生页 50 条；页位置是绝对 offset，原生页码 = offset / 50 + 1，页内起点 = offset mod 50。每次最多返回 `--limit` 条且不跨越原生页，因此允许返回不足 limit 的短页；下一个 offset 按实际消费的条数推进。页内还有剩余条目，或页面的下一页链接可用且结果范围未到总数时，才签发下一页 cursor。route 核对页面 URL 的主机、路径、`term` 与 `page`、搜索框中的查询词（空白折叠后相同）、分页标记的当前页，以及结果范围 `Displaying results <first> to <last> of <total>` 与列出的条数一致；任何一项不符，或页面既没有结果范围也不是站点的无结果提示，都为 Runtime，不返回空列表。条目深度为 `snippet`（卡片上的高亮片段，以 ` … ` 连接；没有片段时为 `metadata`），`published` 为卡片 Posted 日期的 ISO 形式，`posted` 保留页面原文。
-- **fetch**：adapter 的 `paper` 命令打开规范摘要页。route 从页面的 canonical 链接（或 `citation_doi`）读出 abstract id，与请求的 id 不一致为 Runtime。支持 `metadata` 与 `abstract`：页面有摘要时条目深度为 `abstract`，否则为 `metadata`；请求 `abstract` 但页面没有摘要时在 attempt 内报 Quality。`posted`、`last_revised`、`date_written` 保留页面原文，`published` 为 Posted 日期的 ISO 形式。页面显示论文正在审核或已撤下时，adapter 返回 `no_results`，route 报 attempt 级 Parameter（`SSRN paper not available: ssrn:<id> (<站点提示>)`）。`full_text` 不支持（P3 再接入），该 route 记为 Skipped。
+- **fetch**：adapter 的 `paper` 命令打开规范摘要页。route 从页面的 canonical 链接（或 `citation_doi`）读出 abstract id，与请求的 id 不一致为 Runtime。支持 `metadata` 与 `abstract`：页面有摘要时条目深度为 `abstract`，否则为 `metadata`；请求 `abstract` 但页面没有摘要时在 attempt 内报 Quality。`posted`、`last_revised`、`date_written` 保留页面原文，`published` 为 Posted 日期的 ISO 形式。页面显示论文正在审核或已撤下时，adapter 返回 `no_results`，route 报 attempt 级 Parameter（`SSRN paper not available: ssrn:<id> (<站点提示>)`）。
+- **full_text**：route 以 `paper --download true` 在同一次 OpenCLI 命令内读取详情页并点击页面自己的下载链接下载 PDF，adapter 只回报下载状态与本地文件名（签名下载 URL 永不离开浏览器，因此不出现在 stdout、attempts 或日志中）。在同一个 attempt 内，route 依次要求：下载状态为完成且带文件名；文件存在；文件以 `%PDF-` 开头；详情页 id 一致（此处不一致报 Quality，而不是 Runtime）。任何一项不满足为 Quality。全部满足后，route 把这个文件（媒体类型 PDF）作为全文来源返回；不扫描下载目录，也不推导文件名，同一浏览器中同时有其他下载是已接受的限制。下载和转换共用命令的截止时间，PDF 只适用薄正文门的长度线。
 - **route 对比**：两条 route 的召回、重合度、字段覆盖、新鲜度与延迟见 [SSRN 两条 route 的检索对比](../../research/2026-09-26-ssrn-route-comparison.md)（2026-09-26）。
 - **route 配合**：order 为 `[ssrn_crossref, ssrn_browser]` 时，`--depth abstract` 而 Crossref 缺摘要的请求在 Crossref attempt 内报 Quality，落到浏览器 route 补齐。
 - **站点验证**：SSRN 由 Cloudflare 保护。Chrome 已通过站点验证时，临时站点会话可以直接打开结果页（2026-09-26 实测）；站点显示瞬时验证时 adapter 继续等待它自行通过；站点升级为需要人工勾选的验证时（同日在较多次访问后出现），adapter 等到自己的读取截止点后以 77 结束，attempt 为 Auth。route 永不点击或绕过验证，用户需在 Chrome 中打开 SSRN 手动通过（ADR 0020）。
