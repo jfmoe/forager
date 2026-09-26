@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0](https://github.com/jfmoe/forager/compare/v0.5.3...v0.6.0) - 2026-09-26
+
+### Added
+
+- *(rate-limit)* enforce the connection limit across processes
+- *(platform)* add arXiv full-text fetch and skill platform routing
+- *(platform)* add the platform dimension and arXiv search
+- *(fetch)* request Firecrawl PDF page markers
+- *(fetch)* prefer Firecrawl in the default Web Fetch order
+
+### Fixed
+
+- *(platform)* correct arXiv ref parsing and query word splitting
+- *(rate-limit)* bound the in-process state queue by the deadline
+
+### Other
+
+- *(spec)* sync pacing, arXiv, and attribution wording with the code
+- *(catalog)* remove the speculative trait-operations registry
+- *(research)* measure Firecrawl PDF page markers
+- *(research)* compare Firecrawl and Tavily fetch quality
+- prepare provider execution for platform routes
+- *(research)* add scholarly access and arXiv full-text fetch research
+
 ## [0.5.3](https://github.com/jfmoe/forager/compare/v0.5.2...v0.5.3) - 2026-09-25
 
 ### Fixed
