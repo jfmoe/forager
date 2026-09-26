@@ -1,6 +1,6 @@
 # forager CLI reference
 
-This reference documents the public CLI for `forager >=0.5.2`. Load it under the conditions given
+This reference documents the public CLI for `forager >=0.5.4`. Load it under the conditions given
 in `SKILL.md`: for exact command syntax, non-routine commands, or diagnosis and recovery details.
 Routine `search` and `research` stay on their branch references. Treat
 `forager <command> --help` as the final authority for argument parsing.
@@ -11,14 +11,15 @@ Routine `search` and `research` stay on their branch references. Treat
 - [Smart pipelines](#smart-pipelines)
 - [Direct operations](#direct-operations)
 - [Provider-direct commands](#provider-direct-commands)
+- [Platform commands](#platform-commands)
 - [Configuration and diagnostics](#configuration-and-diagnostics)
 - [Exit codes](#exit-codes)
 
 ## Shared behavior
 
 The public top-level commands are `search`, `research`, `fetch`, `map`, `exa`, `context7`,
-`anysearch`, `config`, `setup`, `doctor`, and `smoke`. Use `-h` or `--help` on any command for
-parser-generated help. Available aliases are:
+`anysearch`, `platform`, `config`, `setup`, `doctor`, and `smoke`. Use `-h` or `--help` on any
+command for parser-generated help. Available aliases are:
 
 | Command | Alias |
 | --- | --- |
@@ -47,7 +48,8 @@ errors and panics keep their existing channels, as do failures in non-JSON forma
 `trace` adds safe fields for each attempt. This projection never changes stdout or replaces
 `--verbose` and journal attempts.
 
-`content` output is available only for `search`, `research`, `fetch`, and `context7 docs`.
+`content` output is available only for `search`, `research`, `fetch`, `context7 docs`, and
+`platform <id> fetch`.
 All other commands with `--format` accept only `json` and `markdown`. `smoke` emits JSON and does
 not expose `--format`.
 
@@ -296,6 +298,61 @@ forager anysearch domains DOMAIN [--timeout SECONDS] [--format json|markdown]
 | `--output FILE` | Tee the rendered result to a file. | Omitted |
 | `--receipt` | Print only a receipt on success; requires `--output`. | Off |
 | `--verbose` | Include full provider attempts inline. | Off |
+
+## Platform commands
+
+`forager platform <id> <op>` retrieves items of a built-in platform through the routes in
+`platforms.<id>.order`; results never fall back to another platform. The platforms are listed in
+[`platform-vocabulary.json`](platform-vocabulary.json). Platform commands write no result journal.
+Their `--timeout` defaults to `120` and includes waits for the platform's request window (arXiv
+allows one request every 3 seconds across all local processes).
+
+### `platform arxiv search`
+
+```console
+forager platform arxiv search [QUERY] [--category CODE]... [--author NAME] [--title TEXT]
+                              [--submitted-from YYYY-MM-DD] [--submitted-to YYYY-MM-DD]
+                              [--sort relevance|submitted|updated] [--limit N] [--cursor CURSOR]
+                              [--timeout SECONDS] [--format json|markdown]
+                              [--output FILE [--receipt]] [--verbose]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `QUERY` | Plain keywords that must all match; arXiv query syntax in them is literal text. | Omitted |
+| `--category CODE` | arXiv category such as `q-fin.PM`; repeat to match any of several. | None |
+| `--author NAME` / `--title TEXT` | Author-name or title phrase. | None |
+| `--submitted-from` / `--submitted-to` | Inclusive UTC submission-date range; either end may be omitted. | None |
+| `--sort ORDER` | `relevance`, `submitted`, or `updated`; always newest or best first. | `relevance` |
+| `--limit N` | Results on this page, `1..=100`. | `10` |
+| `--cursor CURSOR` | `next_cursor` of a previous page; it restores the whole request, so pass no query, option, or `--limit` with it. | Omitted |
+
+Give a query or at least one of `--category`, `--author`, `--title`. JSON output is
+`{platform, provider, items, next_cursor}`; each item has `ref`, `url`, `depth: "abstract"`,
+`title`, `authors`, `published`, the full `abstract`, and arXiv metadata. `next_cursor` is `null`
+on the last page; a valid empty search returns `items: []` with exit 0.
+
+### `platform arxiv fetch`
+
+```console
+forager platform arxiv fetch REF_OR_URL [--depth full_text|abstract] [--content-dir DIR]
+                             [--timeout SECONDS] [--format json|markdown|content]
+                             [--output FILE [--receipt]] [--verbose]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `REF_OR_URL` | `arxiv:<id>[v<n>]`, or an arxiv.org abs, pdf, or html URL. Without a version, arXiv's current version is fetched and reported. | Required |
+| `--depth DEPTH` | `full_text` reads the body; `abstract` returns only metadata and the abstract and needs no Web Fetch provider. | `full_text` |
+| `--content-dir DIR` | Directory for the full-text Markdown file. | New directory under the system temp directory |
+| `--format FORMAT` | `json`, `markdown`, or `content`; `content` prints the body (or the abstract) and writes no file. | `json` |
+
+Full text comes from the version's official HTML, or its PDF when the version has no HTML or the
+HTML read fails, through the configured `web_fetch` chain. JSON output carries the metadata and
+`content_url`, `content_provider`, `content_path`, and `content_len`; the body itself stays in the
+file. Short links and unrecognized inputs exit `2` before any request; a missing paper is a
+`parameter` failure (exit `4`); both HTML and PDF too thin is a `quality` failure (exit `5`);
+`full_text` with no configured Web Fetch provider exits `3`.
 
 ## Configuration and diagnostics
 

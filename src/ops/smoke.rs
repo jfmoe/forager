@@ -27,9 +27,9 @@ pub(crate) const RESEARCH_CANARY_QUERY: &str = "What is the current status of as
 const FETCH_CANARY_URL: &str = "https://www.rust-lang.org/";
 const ANYSEARCH_CANARY_QUERY: &str = "retrieval augmented generation";
 const PLATFORM_CANARY_QUERY: &str = "retrieval augmented generation";
-const SPECIFICATION_CASE_IDS: [&str; 20] = [
+const SPECIFICATION_CASE_IDS: [&str; 21] = [
     "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12",
-    "C13", "C14", "C15", "C16", "C17", "C18",
+    "C13", "C14", "C15", "C16", "C17", "C18", "C19",
 ];
 const PIPELINE_CASES: [LiveCaseDefinition; 3] = [
     LiveCaseDefinition::pipeline("P1", "search"),
@@ -164,6 +164,15 @@ enum ResultShape {
     Anysearch,
     Map,
     PlatformSearch,
+    PlatformFetch,
+}
+
+/// A stable item and a depth that its route serves without Web Fetch, so the platform fetch
+/// case checks only the route contract.
+fn platform_fetch_canary(platform: Platform) -> (&'static str, &'static str) {
+    match platform {
+        Platform::Arxiv => ("arxiv:1706.03762", "abstract"),
+    }
 }
 
 pub(crate) enum ProbeKind {
@@ -678,19 +687,36 @@ fn command_specs(
     let definition = live_case(case_id)?;
     if let Some(platform) = definition.platform {
         let provider = definition.provider?;
-        let mut commands = one(
-            &[
-                "platform",
-                platform.as_str(),
-                definition.operation,
-                PLATFORM_CANARY_QUERY,
-                "--limit",
-                "3",
-                "--timeout",
-                &timeout,
-            ],
-            ResultShape::PlatformSearch,
-        );
+        let mut commands = if definition.operation == "fetch" {
+            let (reference, depth) = platform_fetch_canary(platform);
+            one(
+                &[
+                    "platform",
+                    platform.as_str(),
+                    definition.operation,
+                    reference,
+                    "--depth",
+                    depth,
+                    "--timeout",
+                    &timeout,
+                ],
+                ResultShape::PlatformFetch,
+            )
+        } else {
+            one(
+                &[
+                    "platform",
+                    platform.as_str(),
+                    definition.operation,
+                    PLATFORM_CANARY_QUERY,
+                    "--limit",
+                    "3",
+                    "--timeout",
+                    &timeout,
+                ],
+                ResultShape::PlatformSearch,
+            )
+        };
         commands[0].environment.push((
             format!(
                 "FORAGER_PLATFORMS__{}__ORDER",
@@ -896,6 +922,9 @@ fn result_shape_is_nonempty(shape: ResultShape, payload: &Value) -> bool {
         | ResultShape::Anysearch
         | ResultShape::Map => nonempty_array(payload, "results"),
         ResultShape::PlatformSearch => nonempty_array(payload, "items"),
+        ResultShape::PlatformFetch => {
+            nonempty_string(payload, "ref") && nonempty_string(payload, "title")
+        }
         ResultShape::Fetch | ResultShape::Context7Docs => nonempty_string(payload, "content"),
     }
 }

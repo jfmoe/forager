@@ -78,7 +78,7 @@ fn platform_commands_nest_operations_under_each_platform() {
         })
         .collect::<Vec<_>>();
 
-    assert_eq!(platforms, [("arxiv", vec!["search"])]);
+    assert_eq!(platforms, [("arxiv", vec!["search", "fetch"])]);
 }
 
 #[test]
@@ -96,6 +96,28 @@ fn arxiv_search_help_lists_every_option_and_value() {
         "[possible values: relevance, submitted, updated]",
         "--limit <LIMIT>",
         "--cursor <CURSOR>",
+        "--timeout <TIMEOUT>",
+        "--verbose",
+    ] {
+        assert!(
+            help.contains(expected),
+            "missing {expected} in help:\n{help}"
+        );
+    }
+}
+
+#[test]
+fn arxiv_fetch_help_lists_every_option_and_value() {
+    let output = run(&["platform", "arxiv", "fetch", "--help"]);
+    let help = String::from_utf8(output.stdout).expect("UTF-8 help");
+
+    for expected in [
+        "<REFERENCE>",
+        "--depth <DEPTH>",
+        "[default: full_text]",
+        "[possible values: full_text, abstract]",
+        "--content-dir <DIR>",
+        "[possible values: json, markdown, content]",
         "--timeout <TIMEOUT>",
         "--verbose",
     ] {

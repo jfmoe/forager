@@ -4,16 +4,16 @@ use reqwest::Client;
 
 use super::constructors::{credentials, route_limiter};
 use super::{
-    ArxivApi, DocsSearch, MainSearch, ModelBreakers, PlatformSearch, ProviderId,
+    ArxivApi, DocsSearch, MainSearch, ModelBreakers, PlatformFetch, PlatformSearch, ProviderId,
     SupplementalSearch, VerticalSearch, WebFetch, WebSearch, arxiv, web_fetch,
 };
 use crate::catalog::{VERTICAL_SEARCH, WEB_FETCH, WEB_SEARCH};
 use crate::config::{
-    AnysearchRuntimeConfig, DocsSearchProviderConfig, MainSearchProviderConfig,
-    PlatformRouteConfig, WebFetchProviderConfig,
+    AnysearchRuntimeConfig, ArxivApiRuntimeConfig, DocsSearchProviderConfig,
+    MainSearchProviderConfig, PlatformRouteConfig, WebFetchProviderConfig,
 };
 use crate::net::RetryPolicy;
-use crate::types::{Deadline, PlatformSearchRequest};
+use crate::types::{Deadline, PlatformFetchRequest, PlatformSearchRequest};
 
 pub(crate) fn build_main_search(
     id: ProviderId,
@@ -115,15 +115,39 @@ pub(crate) fn build_platform_search(
     deadline: Deadline,
 ) -> Box<dyn PlatformSearch> {
     match config {
-        PlatformRouteConfig::ArxivApi(config) => Box::new(ArxivApi::new(
-            config,
-            client,
-            route_limiter(ProviderId::ArxivApi)
-                .expect("arxiv_api registration declares an access policy"),
-            retry_policy,
-            deadline,
-        )),
+        PlatformRouteConfig::ArxivApi(config) => {
+            Box::new(build_arxiv_api(config, client, retry_policy, deadline))
+        }
     }
+}
+
+pub(crate) fn build_platform_fetch(
+    config: PlatformRouteConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> Box<dyn PlatformFetch> {
+    match config {
+        PlatformRouteConfig::ArxivApi(config) => {
+            Box::new(build_arxiv_api(config, client, retry_policy, deadline))
+        }
+    }
+}
+
+fn build_arxiv_api(
+    config: ArxivApiRuntimeConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> ArxivApi {
+    ArxivApi::new(
+        config,
+        client,
+        route_limiter(ProviderId::ArxivApi)
+            .expect("arxiv_api registration declares an access policy"),
+        retry_policy,
+        deadline,
+    )
 }
 
 /// Returns whether a platform search route can run the request with every explicit option, or
@@ -134,6 +158,18 @@ pub(crate) fn platform_search_support(
 ) -> Option<Result<(), String>> {
     match id {
         ProviderId::ArxivApi => Some(arxiv::search_support(request)),
+        _ => None,
+    }
+}
+
+/// Returns whether a platform fetch route can run the request, or `None` for a provider that has
+/// no platform fetch adapter.
+pub(crate) fn platform_fetch_support(
+    id: ProviderId,
+    request: &PlatformFetchRequest,
+) -> Option<Result<(), String>> {
+    match id {
+        ProviderId::ArxivApi => Some(arxiv::fetch_support(request)),
         _ => None,
     }
 }

@@ -11,7 +11,7 @@
 `src/` 以职责形成六个物理分组；`lib.rs` 用显式 `#[path]` 声明保持既有 crate 内模块名，不把目录本身变成新的公共 API 层级。
 
 - **`cli/`**：CLI 参数定义、应用分发与 `app` 公共门面；参数树在 `args.rs`，分发在 `dispatch.rs`；`forager platform` 命令组的静态参数树与分发在 `platform.rs`。
-- **`core/`**：engine（各 seam 的 provider 链）、platform_chain（平台 route 链）、platform_checklist（仅测试构建：新平台接入清单一致性检查）、search_fanout（普通 search 的辅助能力 fan-out 与结果合并）、chain、classifier 与 Attempt Trace。
+- **`core/`**：engine（各 seam 的 provider 链）、platform_chain（平台 route 规划、cursor 与 search 链）、platform_fetch（平台 fetch 的元数据链与正文段）、platform_checklist（仅测试构建：新平台接入清单一致性检查）、search_fanout（普通 search 的辅助能力 fan-out 与结果合并）、chain、classifier 与 Attempt Trace。
 - **`capabilities/`**：Capability Catalog 与 platform catalog、Provider Credential Pool、跨进程限速（`rate_limit`）、Provider HTTP Read Contract（`net`）及 provider adapter（含平台 route adapter）。
 - **`evidence/`**：Research Evidence Pipeline、Search Result Journal 与 stderr attempt log。
 - **`infra/`**：config、secure filesystem、共享私有状态文件（`state_file`）、redaction 与零 IO 的 `types` 基底。
@@ -22,15 +22,15 @@
 ```
 入口（main）
   → 应用（cli/app、args、dispatch）
-    → 能力编排（engine、platform_chain、search_fanout、research、classifier、doctor、smoke、journal）
+    → 能力编排（engine、platform_chain、platform_fetch、search_fanout、research、classifier、doctor、smoke、journal）
       → 能力基础设施（catalog、providers、credentials、rate_limit、net、config、secure_fs、state_file、redact）
         → 类型基底（types）
 ```
 
-上层可以依赖下层，下层不得反向依赖上层；同层共享行为必须放到该职责的唯一拥有模块，再以最窄的 crate 内可见性提供。`catalog` 独立于 config 与 providers，二者只单向消费它；`catalog` 只从 `rate_limit` 取访问策略类型，`rate_limit` 不依赖 `catalog`。provider adapter 只消费 `providers/shared`、`providers/execution` 等共享拥有模块，不互相 import；平台 route adapter 同样不 import 任何 capability provider。
+上层可以依赖下层，下层不得反向依赖上层；同层共享行为必须放到该职责的唯一拥有模块，再以最窄的 crate 内可见性提供。`catalog` 独立于 config 与 providers，二者只单向消费它；`catalog` 只从 `rate_limit` 取访问策略类型，`rate_limit` 不依赖 `catalog`。provider adapter 只消费 `providers/shared`、`providers/execution` 等共享拥有模块，不互相 import；平台 route adapter 同样不 import 任何 capability provider。平台 fetch 的正文段由编排层的 `platform_fetch` 调用 `engine::fetch`，route adapter 只声明候选正文 URL。
 
 - **应用组合层**（F1）：`cli/app.rs` 只公开参数与分发门面；`dispatch.rs` 先构造共享 `NetworkDependencies`，再按命令建立 `AppContext<P>`、`FetchContext`、`SearchContext` 或 `ResearchContext`，各自持有所需的 runtime、配置与网络依赖。provider 实现与路由策略留在下层模块，Search Result Journal 仍由分发层在命令终态统一落笔。
-- **`types` 类型基底**：零 IO 纯类型层——ErrorKind、ProviderError、Capability、`PlanCapability`（plan 语境独立三值枚举）、各 Outcome、ProviderAttempt、Source、ResearchPlan Schema v1、Deadline、薄正文阈值常量，以及平台形状（Platform、Platform Ref 与 canonical URL 推导、Content Depth、平台选项、条目与结果页）。所有跨层形状的唯一定义点。`infra/types/` 是目录模块，按职责分为 `capability`、`research`、`error`、`attempt`、`search`、`outcome`、`platform`、`deadline` 私有子模块，由 `mod.rs` 统一再导出，公共路径保持 `forager::types::*`。后续平台只在 `platform` 叶子中增加形状；公开的平台身份类型不引用 crate 私有的 `ProviderId`。
+- **`types` 类型基底**：零 IO 纯类型层——ErrorKind、ProviderError、Capability、`PlanCapability`（plan 语境独立三值枚举）、各 Outcome、ProviderAttempt、Source、ResearchPlan Schema v1、Deadline、薄正文阈值常量，以及平台形状（Platform、Platform Ref 与 canonical URL 推导、Content Depth、平台选项、条目、结果页与 fetch 结果）。所有跨层形状的唯一定义点。`infra/types/` 是目录模块，按职责分为 `capability`、`research`、`error`、`attempt`、`search`、`outcome`、`platform`、`deadline` 私有子模块，由 `mod.rs` 统一再导出，公共路径保持 `forager::types::*`。后续平台只在 `platform` 叶子中增加形状；公开的平台身份类型不引用 crate 私有的 `ProviderId`。
 - **`net` 网络边界**：共享 HTTP client 构造、RetryPolicy、SSE 解析、status→ErrorKind 唯一映射、McpClient。
 - 输出格式化保留在 bin 侧，出现第二个消费者再提升为独立共享模块。
 
@@ -49,8 +49,9 @@ Platform 与 Capability Seam 并列（ADR 0019），完整接入契约见第 7 �
 
 - **platform catalog**：`catalog::PLATFORMS` 为每个平台登记平台 id、search 与 fetch 的 route 集合，以及已提升为 trait 的平台操作的 route 集合。它是平台 route 隶属关系的唯一出处；Capability Catalog 集合保持原含义，不塞入平台 route。
 - **配置**：`platforms.<id>.order` 以 `Rule::PlatformOrder` 对照 platform catalog 校验，拒绝重复项与不属于该平台的 route，允许为空（禁用平台）；文件加载与 `config set` 走同一规则，env 按既有公式派生。runtime 投影为 `PlatformRuntimeConfig`，每项是 `SeamEntry<PlatformRouteConfig>`。
-- **平台 seam trait**：`PlatformSearch` 不使用泛型，形状与兄弟 seam 相同，返回 `ProviderError` 或 `PlatformSearchOutcome`。factory 的 `build_platform_search` 按 `PlatformRouteConfig` 的变体构造 route（route 身份由配置变体决定，不另传 `ProviderId`），`platform_search_support` 调用 route 的纯函数支持检查；支持检查读取整个请求（选项与页位置），不联网。
-- **平台链**：`platform_chain` 先做纯规划——可用 route＝order ∩ 该操作的 route 集合 ∩ 已配置 route；集合为空为 Config（退 3）；不支持显式选项的 route 记为 Skipped attempt（`error_kind` 为空），全部不支持为参数错误（退 2）；cursor 的 route 不能运行该请求（例如页位置不是它签发的）同样为参数错误。这些判定不经过链执行器的 gate。然后以共享链执行器按 `SlicedEven` 运行 route 链，沿用 LegitimateEmpty 语义，永不跨平台 fallback。
+- **平台 seam trait**：`PlatformSearch` 与 `PlatformFetch` 不使用泛型，形状与兄弟 seam 相同，分别返回 `ProviderError` 或 `PlatformSearchOutcome`／`PlatformFetchOutcome`。factory 的 `build_platform_search` 与 `build_platform_fetch` 按 `PlatformRouteConfig` 的变体构造 route（route 身份由配置变体决定，不另传 `ProviderId`），`platform_search_support` 与 `platform_fetch_support` 调用 route 的纯函数支持检查；支持检查只读取请求（search 为选项与页位置，fetch 为深度），不联网。
+- **平台链**：`platform_chain::plan_routes` 为每个平台操作做纯规划——可用 route＝order ∩ 该操作的 route 集合 ∩ 已配置 route；集合为空为 Config（退 3）；不支持显式选项的 route 记为 Skipped attempt（`error_kind` 为空），全部不支持为参数错误（退 2）；cursor 的 route 不能运行该请求（例如页位置不是它签发的）同样为参数错误。这些判定不经过链执行器的 gate。然后以共享链执行器按 `SlicedEven` 运行 route 链，沿用 LegitimateEmpty 语义，永不跨平台 fallback。
+- **平台 fetch**：`platform_fetch` 以同一规划与链执行器运行 fetch route 链取得元数据；元数据失败即命令终态。`full_text` 深度下，答复的 route 在 `PlatformFetchOutcome.content_urls` 中按顺序声明该版本的正文 URL（arXiv：HEAD 探测为 404 时只有 PDF，否则 HTML 在前、PDF 在后），`platform_fetch` 对每个 URL 运行 `engine::fetch`，首个成功者即正文；有后续 URL 时本段最多使用剩余预算的一半；全部失败时以最后一条链的 `ProviderError` 为终态，attempts 按元数据、探测、正文的顺序合并。正文落盘与 `--format content` 的交付由 `cli/platform.rs` 负责，写入失败为 Runtime。
 - **cursor**：`v1.<route>.<payload>`，payload 是 base64url（无填充）编码的 JSON 请求（查询词、limit、选项与 route 自有的页位置）。带 cursor 的请求只在该 route 上执行；route 已不可用、版本未知、无法解码、route 未知或属于其他平台均为飞行前参数错误。
 - **attempt target**：平台操作的 attempt 以 `AttemptTarget::Platform { platform, operation }` 序列化为 `{"platform", "operation"}`；链执行器的合成 attempt 使用调用方传入的 `AttemptTarget`。
 

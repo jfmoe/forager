@@ -23,15 +23,16 @@ pub(crate) use constructors::{
 pub(crate) use context7::{Context7, Context7DocsRequest, Context7LibraryRequest};
 pub(crate) use exa::{Exa, ExaSearchRequest, ExaSimilarRequest, SearchType};
 pub(crate) use factory::{
-    build_docs_search, build_main_search, build_platform_search, build_vertical_search,
-    build_web_fetch, build_web_search, platform_search_support,
+    build_docs_search, build_main_search, build_platform_fetch, build_platform_search,
+    build_vertical_search, build_web_fetch, build_web_search, platform_fetch_support,
+    platform_search_support,
 };
 pub(crate) use openai_compatible::{ModelBreakers, OpenAiCompatible};
 pub(crate) use supplemental::SupplementalSearch;
 pub(crate) use tavily_map::{MapRequest, TavilyMap};
 pub(crate) use types::{
-    DocsSearch, MainSearch, MainSearchRequest, MainSearchRequestKind, PlatformSearch,
-    VerticalSearch, WebSearch,
+    DocsSearch, MainSearch, MainSearchRequest, MainSearchRequestKind, PlatformFetch,
+    PlatformSearch, VerticalSearch, WebSearch,
 };
 pub(crate) use web_fetch::{FetchRequest, WebFetch};
 pub(crate) use xai::Xai;

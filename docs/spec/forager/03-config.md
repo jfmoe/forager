@@ -122,6 +122,8 @@ ssl_verify = true
 
 `[platforms.<id>].order`＝该平台 route 的完全权威顺序（ADR 0019），默认值是 platform catalog 中该平台的全部 route。校验：拒绝重复项与不属于该平台的 route（config_error 退 3；`config set` 退 2）；允许为空，含义是禁用该平台。某个操作实际使用的 route＝该 order ∩ 该操作的 route 集合 ∩ 已配置的 route，集合为空时平台命令飞行前退 3，消息指出该配置键。env 按既有公式派生，例如 `FORAGER_PLATFORMS__ARXIV__ORDER='["arxiv_api"]'`。
 
+平台 fetch 的正文段不设平台级顺序：它复用 `[capabilities.web_fetch].order` 与各 provider 的凭据（例如 arXiv 全文读取 HTML/PDF 时）。`full_text` 深度下该链没有已配置的 provider 时，平台 fetch 飞行前退 3；只取元数据与摘要的深度不需要 Web Fetch 配置。`providers.arxiv_api.url` 同时决定 HTML 可用性探测所在的主机（默认 export 镜像，与 arxiv.org 返回同一结果）。
+
 ### 值域与交叉约束（进 schema 与验收）
 
 `search.backends` 非空、去重、限 `{xai, openai_compatible}`；全部 backend 无凭据＝退 3；`providers.xai.tools` 限 `{web_search, x_search}`；所有 `timeout > 0`；`retry.max_attempts >= 1`、`multiplier > 0`、`max_wait >= 0`；`journal.retention_days >= 0` 且 0＝无限期。`search.validation` 已从 schema 删除；旧文件键或 `FORAGER_SEARCH__VALIDATION` 都按未知输入退出 3。文件层严格 schema：未知键＝退 3、报错点名坏键。

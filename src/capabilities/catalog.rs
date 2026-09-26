@@ -56,12 +56,17 @@ pub(crate) fn by_seam(seam: &str) -> Option<CapabilityCatalog> {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum PlatformOperation {
     Search,
+    Fetch,
 }
 
 impl PlatformOperation {
+    #[cfg(test)]
+    pub(crate) const ALL: [Self; 2] = [Self::Search, Self::Fetch];
+
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
             Self::Search => "search",
+            Self::Fetch => "fetch",
         }
     }
 }
@@ -85,7 +90,7 @@ pub(crate) struct PlatformCatalog {
 pub(crate) const ARXIV: PlatformCatalog = PlatformCatalog {
     platform: Platform::Arxiv,
     search: &[ProviderId::ArxivApi],
-    fetch: &[],
+    fetch: &[ProviderId::ArxivApi],
     trait_operations: &[],
 };
 
@@ -95,6 +100,7 @@ impl PlatformCatalog {
     pub(crate) fn routes(self, operation: PlatformOperation) -> &'static [ProviderId] {
         match operation {
             PlatformOperation::Search => self.search,
+            PlatformOperation::Fetch => self.fetch,
         }
     }
 
@@ -379,12 +385,20 @@ const ANYSEARCH_SMOKE: &[ProviderSmokeCase] = &[
     },
 ];
 
-const ARXIV_API_SMOKE: &[ProviderSmokeCase] = &[ProviderSmokeCase {
-    id: "C18",
-    platform: Some(Platform::Arxiv),
-    operation: "search",
-    transport: "http",
-}];
+const ARXIV_API_SMOKE: &[ProviderSmokeCase] = &[
+    ProviderSmokeCase {
+        id: "C18",
+        platform: Some(Platform::Arxiv),
+        operation: "search",
+        transport: "http",
+    },
+    ProviderSmokeCase {
+        id: "C19",
+        platform: Some(Platform::Arxiv),
+        operation: "fetch",
+        transport: "http",
+    },
+];
 
 // arXiv terms of use allow one request every three seconds over one connection.
 const ARXIV_API_ACCESS: AccessPolicy = AccessPolicy {
@@ -590,18 +604,15 @@ mod tests {
                 .map(move |provider| (provider.name().to_owned(), catalog.seam.to_owned()))
         });
         let platform_projection = PLATFORMS.iter().flat_map(|catalog| {
-            catalog
-                .routes(PlatformOperation::Search)
-                .iter()
-                .map(move |route| {
-                    (
-                        route.name().to_owned(),
-                        format!(
-                            "platform:{}:{}",
-                            catalog.platform,
-                            PlatformOperation::Search.as_str()
-                        ),
-                    )
+            PlatformOperation::ALL
+                .into_iter()
+                .flat_map(move |operation| {
+                    catalog.routes(operation).iter().map(move |route| {
+                        (
+                            route.name().to_owned(),
+                            format!("platform:{}:{}", catalog.platform, operation.as_str()),
+                        )
+                    })
                 })
         });
         let registry = capability_projection

@@ -1,21 +1,27 @@
-//! The `arxiv_api` route: arXiv Query API requests and Atom feed decoding.
+//! The `arxiv_api` route: arXiv Query API requests, Atom feed decoding, and the HTML
+//! availability probe that orders full-text URLs.
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use reqwest::Client;
+use reqwest::{Client, StatusCode, Url};
 use serde::Deserialize;
 
 use crate::catalog::{PlatformOperation, ProviderId};
 use crate::config::ArxivApiRuntimeConfig;
 use crate::credentials::CredentialPool;
-use crate::net::{AttemptFailure, RetryPolicy, read_complete_protocol, send_provider_request};
-use crate::providers::execution::{ExecutionSettings, execute_anonymous};
+use crate::net::{
+    AttemptFailure, RetryPolicy, error_kind_for_status, read_complete_protocol,
+    send_provider_request,
+};
+use crate::providers::execution::{ExecutionOutcome, ExecutionSettings, execute_anonymous};
 use crate::providers::shared::redacted_urls_message;
-use crate::rate_limit::RateLimiter;
+use crate::rate_limit::{RateLimiter, RatePermit};
 use crate::types::{
     ArxivItemData, ArxivRef, ArxivSearchOptions, ArxivSort, AttemptErrorKind, AttemptTarget,
-    ContentDepth, Deadline, Platform, PlatformItem, PlatformItemData, PlatformRef,
-    PlatformSearchOptions, PlatformSearchOutcome, PlatformSearchRequest, ProviderError,
+    ContentDepth, Deadline, Platform, PlatformFetchOutcome, PlatformFetchRequest, PlatformItem,
+    PlatformItemData, PlatformRef, PlatformSearchOptions, PlatformSearchOutcome,
+    PlatformSearchRequest, ProviderAttempt, ProviderError,
 };
 
 const ROUTE: ProviderId = ProviderId::ArxivApi;
@@ -29,6 +35,18 @@ const LATEST_SUBMISSION: &str = "999912312359";
 pub(crate) fn search_support(request: &PlatformSearchRequest) -> Result<(), String> {
     match request.options {
         PlatformSearchOptions::Arxiv(_) => page_start(request.page.as_deref()).map(|_| ()),
+    }
+}
+
+/// Returns whether the route can fetch at the requested depth; it never sends a request.
+pub(crate) fn fetch_support(request: &PlatformFetchRequest) -> Result<(), String> {
+    match request.depth {
+        ContentDepth::Abstract | ContentDepth::FullText => Ok(()),
+        depth => Err(format!(
+            "{} cannot fetch at depth `{}`",
+            ROUTE.name(),
+            depth.as_str()
+        )),
     }
 }
 
@@ -87,22 +105,7 @@ impl ArxivApi {
         ];
         let query = &query;
         let execution = execute_anonymous(
-            ExecutionSettings {
-                provider: ROUTE.name(),
-                target: AttemptTarget::platform(
-                    Platform::Arxiv.as_str(),
-                    PlatformOperation::Search.as_str(),
-                ),
-                retry_policy: self.retry_policy,
-                deadline: self.deadline,
-                attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
-                verbose: false,
-                timeout_message: "arXiv API request timed out",
-                model: None,
-                transport: Some("http"),
-                endpoint_host: None,
-                breaker_event: None,
-            },
+            self.settings(PlatformOperation::Search, self.retry_policy, self.deadline),
             move |deadline| async move { self.send_once(query, deadline).await },
         )
         .await?;
@@ -120,20 +123,147 @@ impl ArxivApi {
         })
     }
 
-    async fn send_once(
+    /// Reads the metadata of the requested paper version and, at full-text depth, orders the
+    /// full-text URLs of the version arXiv returned.
+    pub(crate) async fn fetch(
         &self,
-        query: &[(&str, String)],
+        request: &PlatformFetchRequest,
+    ) -> Result<PlatformFetchOutcome, ProviderError> {
+        let PlatformRef::Arxiv(requested) = &request.reference;
+        let query = [
+            ("id_list", requested.to_string()),
+            ("max_results", "1".to_owned()),
+        ];
+        let query = &query;
+        let ExecutionOutcome {
+            value: item,
+            mut attempts,
+            diagnostic,
+        } = execute_anonymous(
+            self.settings(PlatformOperation::Fetch, self.retry_policy, self.deadline),
+            move |deadline| async move {
+                let (status, page) = self.send_once(query, deadline).await?;
+                select_paper(page.items, requested)
+                    .map(|item| (status, item))
+                    .map_err(|(kind, message)| AttemptFailure {
+                        kind,
+                        status,
+                        message,
+                    })
+            },
+        )
+        .await?;
+        let content_urls = if request.depth == ContentDepth::FullText {
+            let PlatformRef::Arxiv(version) = &item.reference;
+            match self.html_availability(version).await {
+                Ok((availability, mut probe_attempts)) => {
+                    attempts.append(&mut probe_attempts);
+                    content_urls(version, availability)
+                }
+                Err(mut error) => {
+                    attempts.append(&mut error.attempts);
+                    error.attempts = attempts;
+                    return Err(error);
+                }
+            }
+        } else {
+            Vec::new()
+        };
+        Ok(PlatformFetchOutcome {
+            item,
+            content_urls,
+            attempts,
+            diagnostic,
+        })
+    }
+
+    /// Asks the Query API host whether the version has an official HTML rendering. The probe
+    /// never retries: an unknown answer already falls back to trying HTML first. A pacing
+    /// failure is terminal, because the probe must not send outside the access policy.
+    async fn html_availability(
+        &self,
+        version: &ArxivRef,
+    ) -> Result<(HtmlAvailability, Vec<ProviderAttempt>), ProviderError> {
+        let Some(url) = html_probe_url(&self.config.url, version) else {
+            return Ok((HtmlAvailability::Unknown, Vec::new()));
+        };
+        let url = &url;
+        let pacing_failed = &AtomicBool::new(false);
+        let single_attempt = RetryPolicy::new(1, 1.0, Duration::ZERO);
+        let result = execute_anonymous(
+            self.settings(PlatformOperation::Fetch, single_attempt, self.deadline),
+            move |deadline| async move { self.probe_once(url, deadline, pacing_failed).await },
+        )
+        .await;
+        match result {
+            Ok(outcome) => Ok((outcome.value, outcome.attempts)),
+            Err(error) if pacing_failed.load(Ordering::Relaxed) => Err(error),
+            Err(error) => Ok((HtmlAvailability::Unknown, error.attempts)),
+        }
+    }
+
+    async fn probe_once(
+        &self,
+        url: &Url,
         deadline: Deadline,
-    ) -> Result<(Option<u16>, FeedPage), AttemptFailure> {
+        pacing_failed: &AtomicBool,
+    ) -> Result<(Option<u16>, HtmlAvailability), AttemptFailure> {
         let _permit = self
-            .limiter
+            .acquire(deadline)
+            .await
+            .inspect_err(|_| pacing_failed.store(true, Ordering::Relaxed))?;
+        let response =
+            send_provider_request(self.client.head(url.clone()), &self.credentials).await?;
+        let status = response.status();
+        match status {
+            StatusCode::NOT_FOUND => Ok((Some(status.as_u16()), HtmlAvailability::Absent)),
+            status if status.is_success() => Ok((Some(status.as_u16()), HtmlAvailability::Present)),
+            status => Err(AttemptFailure {
+                kind: error_kind_for_status(status, ""),
+                status: Some(status.as_u16()),
+                message: format!("arXiv HTML probe returned HTTP {}", status.as_u16()),
+            }),
+        }
+    }
+
+    fn settings(
+        &self,
+        operation: PlatformOperation,
+        retry_policy: RetryPolicy,
+        deadline: Deadline,
+    ) -> ExecutionSettings {
+        ExecutionSettings {
+            provider: ROUTE.name(),
+            target: AttemptTarget::platform(Platform::Arxiv.as_str(), operation.as_str()),
+            retry_policy,
+            deadline,
+            attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
+            verbose: false,
+            timeout_message: "arXiv API request timed out",
+            model: None,
+            transport: Some("http"),
+            endpoint_host: None,
+            breaker_event: None,
+        }
+    }
+
+    async fn acquire(&self, deadline: Deadline) -> Result<RatePermit, AttemptFailure> {
+        self.limiter
             .acquire(deadline)
             .await
             .map_err(|error| AttemptFailure {
                 kind: error.kind(),
                 status: None,
                 message: error.to_string(),
-            })?;
+            })
+    }
+
+    async fn send_once(
+        &self,
+        query: &[(&str, String)],
+        deadline: Deadline,
+    ) -> Result<(Option<u16>, FeedPage), AttemptFailure> {
+        let _permit = self.acquire(deadline).await?;
         let request = self.client.get(&self.config.url).query(query);
         let response = send_provider_request(request, &self.credentials).await?;
         let body = read_complete_protocol(response, &self.credentials, failure_message).await?;
@@ -162,6 +292,59 @@ impl ArxivApi {
                 total_results,
             },
         ))
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum HtmlAvailability {
+    Present,
+    Absent,
+    Unknown,
+}
+
+/// Returns the paper the Query API returned for `requested`. An empty feed means arXiv has no
+/// such paper or version.
+fn select_paper(
+    items: Vec<PlatformItem>,
+    requested: &ArxivRef,
+) -> Result<PlatformItem, (AttemptErrorKind, String)> {
+    let Some(item) = items.into_iter().next() else {
+        return Err((
+            AttemptErrorKind::Parameter,
+            format!("arXiv item not found: arxiv:{requested}"),
+        ));
+    };
+    let PlatformRef::Arxiv(returned) = &item.reference;
+    let matches = returned.id() == requested.id()
+        && requested
+            .version()
+            .is_none_or(|version| returned.version() == Some(version));
+    if matches {
+        Ok(item)
+    } else {
+        Err((
+            AttemptErrorKind::Runtime,
+            format!("arXiv returned {} for arxiv:{requested}", item.reference),
+        ))
+    }
+}
+
+/// Returns the HTML probe URL on the Query API host; the export mirror serves the same pages.
+fn html_probe_url(api_url: &str, version: &ArxivRef) -> Option<Url> {
+    Url::parse(api_url)
+        .ok()?
+        .join(&format!("/html/{version}"))
+        .ok()
+}
+
+/// Orders the full-text URLs: the abstract page is never full text, and a version without
+/// HTML goes straight to its PDF.
+fn content_urls(version: &ArxivRef, availability: HtmlAvailability) -> Vec<String> {
+    match availability {
+        HtmlAvailability::Absent => vec![version.pdf_url()],
+        HtmlAvailability::Present | HtmlAvailability::Unknown => {
+            vec![version.html_url(), version.pdf_url()]
+        }
     }
 }
 
@@ -356,7 +539,76 @@ fn fold_whitespace(value: &str) -> String {
 mod tests {
     use serde_json::json;
 
-    use super::{decode_feed, failure_message};
+    use super::{
+        HtmlAvailability, content_urls, decode_feed, failure_message, html_probe_url, select_paper,
+    };
+    use crate::types::{ArxivRef, AttemptErrorKind};
+
+    fn arxiv_ref(input: &str) -> ArxivRef {
+        ArxivRef::parse(input).expect("valid ref")
+    }
+
+    #[test]
+    fn an_unknown_html_probe_result_tries_html_before_the_pdf() {
+        let urls = [
+            HtmlAvailability::Present,
+            HtmlAvailability::Unknown,
+            HtmlAvailability::Absent,
+        ]
+        .map(|availability| content_urls(&arxiv_ref("arxiv:2401.01234v2"), availability));
+
+        assert_eq!(
+            urls,
+            [
+                vec![
+                    "https://arxiv.org/html/2401.01234v2".to_owned(),
+                    "https://arxiv.org/pdf/2401.01234v2".to_owned()
+                ],
+                vec![
+                    "https://arxiv.org/html/2401.01234v2".to_owned(),
+                    "https://arxiv.org/pdf/2401.01234v2".to_owned()
+                ],
+                vec!["https://arxiv.org/pdf/2401.01234v2".to_owned()],
+            ]
+        );
+    }
+
+    #[test]
+    fn the_html_probe_goes_to_the_query_api_host() {
+        let url = html_probe_url(
+            "https://export.arxiv.org/api/query",
+            &arxiv_ref("arxiv:hep-th/9901001v3"),
+        );
+
+        assert_eq!(
+            url.map(String::from).as_deref(),
+            Some("https://export.arxiv.org/html/hep-th/9901001v3")
+        );
+    }
+
+    #[test]
+    fn a_returned_paper_with_another_version_is_a_runtime_failure() {
+        let feed = decode_feed(
+            r#"<feed xmlns="http://www.w3.org/2005/Atom"><totalResults>1</totalResults><entry><id>http://arxiv.org/abs/2401.01234v3</id></entry></feed>"#,
+        )
+        .expect("decode feed");
+        let items = feed
+            .entries
+            .into_iter()
+            .map(super::Entry::into_item)
+            .collect::<Result<Vec<_>, _>>()
+            .expect("map entries");
+
+        let result = select_paper(items, &arxiv_ref("arxiv:2401.01234v2")).map(|_| ());
+
+        assert_eq!(
+            result,
+            Err((
+                AttemptErrorKind::Runtime,
+                "arXiv returned arxiv:2401.01234v3 for arxiv:2401.01234v2".to_owned()
+            ))
+        );
+    }
 
     const FULL_ENTRY: &str = r#"<?xml version='1.0' encoding='UTF-8'?>
 <feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">

@@ -102,6 +102,12 @@
       "provider": "arxiv_api",
       "seam": "platform:arxiv:search",
       "test": "tests/arxiv_search.rs::search_returns_abstract_depth_items_with_refs_and_metadata"
+    },
+    {
+      "id": "F12",
+      "provider": "arxiv_api",
+      "seam": "platform:arxiv:fetch",
+      "test": "tests/arxiv_fetch.rs::full_text_fetch_writes_the_body_to_a_file_and_reports_the_resolved_version"
     }
   ],
   "offline_e2e": [

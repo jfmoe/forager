@@ -59,25 +59,26 @@
 | C16 | anysearch | domains | MCP |
 | C17 | tavily | site_map（`map` 命令直连） | HTTP |
 | C18 | arxiv_api | platform arxiv：search（`platform arxiv search` 直连） | HTTP |
+| C19 | arxiv_api | platform arxiv：fetch（`platform arxiv fetch arxiv:1706.03762 --depth abstract` 直连，只验证 route 契约，不依赖 Web Fetch） | HTTP |
 
 AnySearch **extraction 裁决**（消解 #53 砍 `anysearch-extract` 与 #59 L8 原文的矛盾）：extraction 本质为纯 fetch，**彻底删除**——不保留内部操作、不入矩阵、不入 registry。
 
 - 断言统一：退 0 + 可解析 + 该 seam 形状非空 + 无 Parse/Runtime 类 ErrorKind；不断言内容质量。失败模式排列全留 offline-e2e。
 - 抗瞬时故障（H13）：金丝雀查询固定；每用例最多重试 2 次（共 3 次尝试）。失败可按 **outage 豁免规则**延期：证据须为 provider 官方状态页异常，或规格外最小独立探测（如 `curl` 同端点）同样失败；留档记录 case ID、时间戳、证据链接。**豁免仅延期、不计 PASS**——必须择日重跑转绿后才能过切换门；不设定时哨兵。
 - 凭据只走统一体系（`keys` + `FORAGER_` env）；废除 `ANYSEARCH_API_KEY(S)` 特读与 `ANYSEARCH_LIVE_ACCEPTANCE` 分档。退出码：全 PASS（SKIP 不计）→0、任一已配置凭据探测失败→4、配置坏→3。
-- 档次落流程不落旗标：每里程碑跑 L0 全绿 + 手动 P1/P2/C14；切换前跑 `smoke --live` 全量（P1–P2 + C01–C18）；live 档不进 PR CI。
+- 档次落流程不落旗标：每里程碑跑 L0 全绿 + 手动 P1/P2/C14；切换前跑 `smoke --live` 全量（P1–P2 + C01–C19）；live 档不进 PR CI。
 
 ## Medium 落地件（补充决议② M17–M21 定稿）
 
 - **M17 辅助 seam 预算槽位定义**：槽位＝该层中「尚未尝试、凭据在位、未被断路器熔断」的候选数；classifier model 链及 web_fetch、supplemental、tavily_map 等辅助 provider 链继续按槽位均分，并受各自阶段或单次 timeout 上限约束。断路器熔断项不计入；`剩余预算/剩余槽位 < 5s` 时跳过该槽（journal 记 skipped），最后一槽可用全部剩余预算。main search 不适用槽位均分：主 backend → 主 model → SSE 首次尝试可使用全部剩余预算，fallback 只消费残余；`--fallback off` 仍只执行链头并禁用 provider 内 model fallback，classifier 链不受该旗标影响。单 backend + 单 model 没有 in-seam 超时重试，保障来自 fallback 链；共享 endpoint、model 或凭据池的 fallback 不提供故障隔离，隔离由配置负责（ADR 0007）。
 - **M18 瘦载荷边界**：普通路径的默认失败载荷以 **4 KiB** 为目标；列表字段（by_kind、providers、capability_gaps.providers_skipped）各截断至 8 项并置 `truncated: true`，message 截断至 500 字符。Research failure 使用稳定 schema，`evidence_dir`/`summary_path` locator 永不截断；极端长合法路径允许超过目标，不在创建 artifact 前预演拒绝。
-- **M19 追踪清单与 registry 一致性**：Tier 0/Tier 1 → 测试 ID → provider/seam 追踪清单入库。PR CI 保留两条直接集合断言：① provider registry 的 `(provider, seam)` 投影（Capability Catalog 的 `(provider, seam)` 加上 platform catalog 的 `(route, platform:<id>:<op>)`，如 `(arxiv_api, platform:arxiv:search)`）＝ transport fixture 集的同一投影，且每项 fixture 都有非空测试引用；② `SPECIFICATION_CASE_IDS` 与 `smoke --live` 实际 registry 都精确等于 P1–P2 + C01–C18。另有新平台 checklist 测试按第 7 章接入清单 R1–R8 检查每个平台的登记点。`tests/acceptance-manifest.json` 继续作为受版本控制的追踪清单，但不再递归启动 Cargo 来验证每个测试引用是否仍注册且未被忽略；本章用例清单与 `SPECIFICATION_CASE_IDS` 的同步由变更审查负责。L0 为流程门，不入集合。
+- **M19 追踪清单与 registry 一致性**：Tier 0/Tier 1 → 测试 ID → provider/seam 追踪清单入库。PR CI 保留两条直接集合断言：① provider registry 的 `(provider, seam)` 投影（Capability Catalog 的 `(provider, seam)` 加上 platform catalog 的 `(route, platform:<id>:<op>)`，如 `(arxiv_api, platform:arxiv:search)` 与 `(arxiv_api, platform:arxiv:fetch)`）＝ transport fixture 集的同一投影，且每项 fixture 都有非空测试引用；② `SPECIFICATION_CASE_IDS` 与 `smoke --live` 实际 registry 都精确等于 P1–P2 + C01–C19。另有新平台 checklist 测试按第 7 章接入清单 R1–R8 检查每个平台的登记点。`tests/acceptance-manifest.json` 继续作为受版本控制的追踪清单，但不再递归启动 Cargo 来验证每个测试引用是否仍注册且未被忽略；本章用例清单与 `SPECIFICATION_CASE_IDS` 的同步由变更审查负责。L0 为流程门，不入集合。
 - **M20 随迁 manifest**：见第 6 章。
 - **M21 冻结题集 + rubric**（人工质量抽查，行为丢失报警器，不做旧版对拍）：三题字面冻结——① 「Rust 的 async drop 现状与最新提案是什么？」（docs+web 混合、时效）；② 「对比 figment 与 config-rs 的分层覆盖模型，给出出处」（docs、交叉验证）；③ 「近一个月各大社区关于 Coding Agent 的讨论」（web+x 混合、时效、观点聚合）。rubric 三行，每行 pass/fail：相关性（回答对准问题）；来源去重（无重复/近重复来源）；引用支持结论（每主张可溯源到给出的 citation）。
 
 ## 人工验收清单五项
 
-① `smoke --live` 全量（凭据配齐，SKIP=0、P1–P2 + C01–C18 全绿）；② research 质量抽查（M21 冻结题集 + rubric）；③ journal 走查（双面合理、URL 脱敏生效）；④ setup 四步走查 + 二跑增量；⑤ **skill 实战验证**——新 forager skill 在**隔离环境**（独立 profile/容器，H11）经 `npx skills` 装入任一受支持的真实 Agent 会话，Agent 按新流程（生成 plan → `research --plan`）完成一次任务；通过后才在本机执行「先删旧后装新」。此处“受支持”指 `npx skills` 能识别该 Agent 目标并把 Skill 安装到其项目级发现路径，且该 Agent 能读取 Skill、写入计划文件并执行 CLI；不限定 Claude Code，满足同一隔离、安装和实际执行约束的 Codex CLI 等 Agent 同样有效。顺序：①→④ 任意，⑤ 最后。skill 重写按新流程重构（旧 `deep` 的 `steps[].command` 工作流已死），非文本替换迁移。
+① `smoke --live` 全量（凭据配齐，SKIP=0、P1–P2 + C01–C19 全绿）；② research 质量抽查（M21 冻结题集 + rubric）；③ journal 走查（双面合理、URL 脱敏生效）；④ setup 四步走查 + 二跑增量；⑤ **skill 实战验证**——新 forager skill 在**隔离环境**（独立 profile/容器，H11）经 `npx skills` 装入任一受支持的真实 Agent 会话，Agent 按新流程（生成 plan → `research --plan`）完成一次任务；通过后才在本机执行「先删旧后装新」。此处“受支持”指 `npx skills` 能识别该 Agent 目标并把 Skill 安装到其项目级发现路径，且该 Agent 能读取 Skill、写入计划文件并执行 CLI；不限定 Claude Code，满足同一隔离、安装和实际执行约束的 Codex CLI 等 Agent 同样有效。顺序：①→④ 任意，⑤ 最后。skill 重写按新流程重构（旧 `deep` 的 `steps[].command` 工作流已死），非文本替换迁移。
 
 ## 切换步骤（三阶段）
 

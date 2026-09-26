@@ -1,11 +1,11 @@
 ---
 name: forager
-description: "Search current web and X/Twitter sources with the local forager CLI. Use for known-URL retrieval, site mapping, official/API documentation lookup, vertical discovery, source-backed fact checking, deep research, or forager configuration and diagnostics."
+description: "Search current web and X/Twitter sources with the local forager CLI. Use for known-URL retrieval, platform items such as arXiv papers, site mapping, official/API documentation lookup, vertical discovery, source-backed fact checking, deep research, or forager configuration and diagnostics."
 ---
 
 # forager
 
-Use the local `forager >=0.5.2` CLI as the execution layer. The CLI owns provider selection,
+Use the local `forager >=0.5.4` CLI as the execution layer. The CLI owns provider selection,
 ordering, credential rotation, and same-capability fallback. If the command is missing or below the
 required version, report the observed command or version and stop this skill run.
 
@@ -19,6 +19,10 @@ This step is complete when the selected command has a terminal exit and its full
 available.
 
 ## Route on the cost ladder
+
+When the request names a platform, supplies a platform URL or ref, or needs platform-native items,
+read [`references/platforms.md`](references/platforms.md) first; it decides whether a platform
+command serves the request and covers its direct and search branches.
 
 Route every request through `direct retrieval → ordinary search → research`. Choose the cheapest
 branch that can complete the request. Run one eligible branch, then escalate only when the request

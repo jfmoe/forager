@@ -68,13 +68,13 @@ fn plan(
     pinned: Option<ProviderId>,
 ) -> Result<PlatformSearchPlan, PlatformPreflightError> {
     let plan = plan_routes(
+        PlatformOperation::Search,
         config.platform(),
         &config.order_key(),
         catalog::platform(config.platform()).routes(PlatformOperation::Search),
         &route_candidates(config),
-        &request,
         pinned,
-        providers::platform_search_support,
+        |id| providers::platform_search_support(id, &request),
     )?;
     Ok(PlatformSearchPlan {
         platform: config.platform(),
@@ -179,7 +179,7 @@ pub(crate) async fn search(
     }
 }
 
-fn route_identity(config: &PlatformRouteConfig) -> StepIdentity {
+pub(crate) fn route_identity(config: &PlatformRouteConfig) -> StepIdentity {
     StepIdentity {
         provider: config.route().name(),
         model: None,
@@ -187,23 +187,27 @@ fn route_identity(config: &PlatformRouteConfig) -> StepIdentity {
     }
 }
 
+pub(crate) fn operation_target(platform: Platform, operation: PlatformOperation) -> AttemptTarget {
+    AttemptTarget::platform(platform.as_str(), operation.as_str())
+}
+
 fn search_target(platform: Platform) -> AttemptTarget {
-    AttemptTarget::platform(platform.as_str(), PlatformOperation::Search.as_str())
+    operation_target(platform, PlatformOperation::Search)
 }
 
 /// One configured route in platform order.
-struct RouteCandidate<'a, C> {
+pub(crate) struct RouteCandidate<'a, C> {
     id: ProviderId,
     config: &'a C,
     configured: bool,
 }
 
-struct RoutePlan<C> {
-    routes: Vec<(ProviderId, C)>,
-    skipped: Vec<ProviderAttempt>,
+pub(crate) struct RoutePlan<C> {
+    pub(crate) routes: Vec<(ProviderId, C)>,
+    pub(crate) skipped: Vec<ProviderAttempt>,
 }
 
-fn route_candidates(
+pub(crate) fn route_candidates(
     config: &PlatformRuntimeConfig,
 ) -> Vec<RouteCandidate<'_, PlatformRouteConfig>> {
     config
@@ -217,24 +221,31 @@ fn route_candidates(
         .collect()
 }
 
-/// Selects the routes that run: configured order ∩ the operation's catalog routes ∩ configured
-/// routes, minus the routes that cannot run the request. `support` must not send requests.
-fn plan_routes<C: Clone>(
+/// Selects the routes that run an operation: configured order ∩ the operation's catalog routes
+/// ∩ configured routes, minus the routes that cannot run the request. `support` checks the
+/// request and must not send requests. A `pinned` route (from a cursor) is the only route that
+/// may run.
+pub(crate) fn plan_routes<C: Clone>(
+    operation: PlatformOperation,
     platform: Platform,
     order_key: &str,
     operation_routes: &[ProviderId],
     candidates: &[RouteCandidate<'_, C>],
-    request: &PlatformSearchRequest,
     pinned: Option<ProviderId>,
-    support: impl Fn(ProviderId, &PlatformSearchRequest) -> Option<Result<(), String>>,
+    support: impl Fn(ProviderId) -> Option<Result<(), String>>,
 ) -> Result<RoutePlan<C>, PlatformPreflightError> {
+    let operation_name = operation.as_str();
     let available = candidates
         .iter()
         .filter(|candidate| candidate.configured && operation_routes.contains(&candidate.id))
         .collect::<Vec<_>>();
     let check = |id: ProviderId| {
-        support(id, request)
-            .unwrap_or_else(|| Err(format!("{} has no {platform} search adapter", id.name())))
+        support(id).unwrap_or_else(|| {
+            Err(format!(
+                "{} has no {platform} {operation_name} adapter",
+                id.name()
+            ))
+        })
     };
     if let Some(route) = pinned {
         let candidate = available
@@ -242,7 +253,7 @@ fn plan_routes<C: Clone>(
             .find(|candidate| candidate.id == route)
             .ok_or_else(|| {
                 PlatformPreflightError::Argument(format!(
-                    "the cursor route `{}` is no longer available for {platform} search; search again without --cursor",
+                    "the cursor route `{}` is no longer available for {platform} {operation_name}; search again without --cursor",
                     route.name()
                 ))
             })?;
@@ -258,7 +269,7 @@ fn plan_routes<C: Clone>(
     }
     if available.is_empty() {
         return Err(PlatformPreflightError::Config(format!(
-            "{order_key} has no configured route for {platform} search"
+            "{order_key} has no configured route for {platform} {operation_name}"
         )));
     }
     let mut plan = RoutePlan {
@@ -270,8 +281,11 @@ fn plan_routes<C: Clone>(
         match check(candidate.id) {
             Ok(()) => plan.routes.push((candidate.id, candidate.config.clone())),
             Err(reason) => {
-                plan.skipped
-                    .push(skipped_attempt(platform, candidate.id, &reason));
+                plan.skipped.push(skipped_attempt(
+                    operation_target(platform, operation),
+                    candidate.id,
+                    &reason,
+                ));
                 reasons.push(reason);
             }
         }
@@ -290,10 +304,10 @@ fn plan_routes<C: Clone>(
     Ok(plan)
 }
 
-fn skipped_attempt(platform: Platform, route: ProviderId, reason: &str) -> ProviderAttempt {
+fn skipped_attempt(target: AttemptTarget, route: ProviderId, reason: &str) -> ProviderAttempt {
     ProviderAttempt {
         provider: route.name(),
-        target: search_target(platform),
+        target,
         disposition: AttemptDisposition::Skipped,
         error_kind: None,
         http_status: None,
@@ -355,7 +369,7 @@ mod tests {
         PlatformPreflightError, RouteCandidate, RoutePlan, decode_cursor, encode_cursor,
         plan_routes,
     };
-    use crate::catalog::ProviderId;
+    use crate::catalog::{PlatformOperation, ProviderId};
     use crate::types::{
         ArxivSearchOptions, AttemptDisposition, Platform, PlatformSearchOptions,
         PlatformSearchRequest,
@@ -408,14 +422,15 @@ mod tests {
         pinned: Option<ProviderId>,
         support: fn(ProviderId, &PlatformSearchRequest) -> Option<Result<(), String>>,
     ) -> Result<RoutePlan<()>, PlatformPreflightError> {
+        let request = first_page();
         plan_routes(
+            PlatformOperation::Search,
             Platform::Arxiv,
             ORDER_KEY,
             TEST_ROUTES,
             candidates,
-            &first_page(),
             pinned,
-            support,
+            |id| support(id, &request),
         )
     }
 

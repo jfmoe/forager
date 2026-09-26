@@ -30,6 +30,8 @@ forager platform arxiv search [QUERY] [--category CAT]... [--author NAME] [--tit
                               [--submitted-from YYYY-MM-DD] [--submitted-to YYYY-MM-DD]
                               [--sort relevance|submitted|updated] [--limit 1..=100（默认 10）]
                               [--cursor CURSOR] [--timeout 120] [--format json|markdown] [...]
+forager platform arxiv fetch REF_OR_URL [--depth full_text|abstract] [--content-dir DIR]
+                             [--timeout 120] [--format json|markdown|content] [...]
 forager doctor [--provider PROVIDER] [--timeout 30] [--format json|markdown]
 forager smoke [--live] [...]
 forager config path|list|set|unset
@@ -123,7 +125,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 ## 平台命令
 
-`forager platform <id> <op>` 直连检索内置平台（ADR 0019；接入契约见第 7 章）。每个平台一棵静态 clap 子树；`forager platform arxiv --help` 及各操作的 help 是参数语法的唯一权威。本期交付 `forager platform arxiv search`；`fetch` 尚未实现。
+`forager platform <id> <op>` 直连检索内置平台（ADR 0019；接入契约见第 7 章）。每个平台一棵静态 clap 子树；`forager platform arxiv --help` 及各操作的 help 是参数语法的唯一权威。arXiv 提供 `search` 与 `fetch`。
 
 ### `platform arxiv search`
 
@@ -142,6 +144,21 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 - **cursor 独占**：`--cursor` 与显式传入的查询词、任何平台选项或 `--limit` 同时出现时由 clap 退 2；解析后的默认值不算冲突；通用 flag 可以同时使用。
 - **输出**：成功 JSON 为 `{platform, provider, items, next_cursor}`，`--verbose` 时另有 `provider_attempts`（含被跳过的 route）。每个 item 含 `ref`（带版本号，如 `arxiv:2401.01234v2`）、canonical `url`、`depth: "abstract"`、空白折叠后的 `title`、`authors`、`published`，以及 arXiv 数据 `abstract`（完整摘要）、`updated`、`primary_category`、`categories`、`doi`、`journal_ref`、`comment`、`pdf_url`；缺失字段为 `null`。有下一页时 `next_cursor` 为字符串；本页条数小于 limit 或已达总数时为 `null`；合法零结果为 `items: []` 且退 0。平台直连命令不写 Search Result Journal。
 - **退出码**：ref、cursor 或选项无效、日期区间颠倒、缺少查询词与过滤条件、所有已配置 route 都不支持所请求的选项＝飞行前退 2；`platforms.arxiv.order` 为空或操作可用 route 为空、order 含其他平台的 route＝飞行前退 3；arXiv Atom error entry（HTTP 400 或 200）为 attempt 级 Parameter，退 4 并带 arXiv 消息；等待限速窗口时预算不足为 Timeout 退 4；限速状态不可用为 Runtime 退 4 且不发送请求。
+
+### `platform arxiv fetch`
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| ref 或 URL（位置参数） | `arxiv:<id>[v<n>]`，或 arxiv.org / export.arxiv.org 的 abs、pdf（有无 `.pdf` 后缀）、html 页面 URL | 必填 | 新式与旧式 ID 都可带版本号；不带版本时取 arXiv 当前版本 |
+| `--depth` | `full_text` / `abstract` | `full_text` | `abstract` 只返回元数据与摘要 |
+| `--content-dir` | 目录路径 | 系统临时目录下 `forager-platform/<pid>-<时间戳>` | 全文 Markdown 文件所在目录 |
+| `--format` | `json` / `markdown` / `content` | `json` | `content` 把正文（`abstract` 时为摘要）直接输出到 stdout，不写文件 |
+
+- 通用 flag 为 `--timeout`（默认 120 秒，覆盖元数据、HTML 探测与正文读取）、`--output`/`--receipt`、`--verbose`。
+- **元数据段**：用 Query API 按 id 读取元数据，输出的 `ref` 与 `url` 带 arXiv 返回的实际版本。
+- **正文段**（仅 `full_text`）：对该版本的 HTML 地址发一次 HEAD 探测（经 arXiv 限速，发往 Query API 所在主机）；404 表示没有 HTML，直接读 `https://arxiv.org/pdf/<id>v<n>`；其他结果先读 `https://arxiv.org/html/<id>v<n>`，HTML 的 Web Fetch 链失败（包括全部过薄）后再读同一版本的 PDF。有 PDF 兜底时 HTML 链最多使用剩余预算的一半。正文沿用全局 `capabilities.web_fetch.order` 与凭据、薄正文门与 4 MiB 截断诊断；abs 页面永不作为正文。
+- **输出**：JSON 顶层为 `platform`、`provider`（元数据 route）、`ref`、`url`、`depth`、`title`、`authors`、`published`，以及与 search item 相同的 arXiv 数据字段。`full_text` 时另有 `content_url`（正文实际来自的 html 或 pdf URL）、`content_provider`（Web Fetch provider）、`content_path`（可直接读取的 Markdown 文件）与 `content_len`（正文字符数）；正文本身不出现在 stdout。文件名由带版本的 ref 派生（`arxiv:hep-th/9901001v3` → `arxiv-hep-th-9901001v3.md`），写入方式与 research 证据文件相同；v1 不做跨调用缓存。`abstract` 不写文件。`--verbose` 时 `provider_attempts` 依次包含元数据、HTML 探测与各 Web Fetch attempt。不写 Search Result Journal。
+- **退出码**：ref 或 URL 无法识别（包括短链）＝飞行前退 2；`platforms.arxiv.order` 为空或 fetch 可用 route 为空＝飞行前退 3；`full_text` 时没有已配置的 Web Fetch provider＝飞行前退 3（`abstract` 不受影响）；id 或版本不存在为 attempt 级 Parameter（`arXiv item not found`），Query API 429 为 RateLimited，都退 4 且元数据失败时不读正文；HTML 与 PDF 都失败时沿用最后一条 Web Fetch 链的终态（例如全部过薄为 Quality 退 5）；正文文件写入失败为 Runtime 退 4，不回退为内联输出。
 
 ## 收尾
 

@@ -54,6 +54,19 @@ pub enum ContentDepth {
     Thread,
 }
 
+impl ContentDepth {
+    /// Returns the stable depth identifier used by commands and output.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Snippet => "snippet",
+            Self::Abstract => "abstract",
+            Self::FullText => "full_text",
+            Self::Thread => "thread",
+        }
+    }
+}
+
 #[derive(Debug, Error)]
 #[error("unrecognized {platform} reference `{input}`; {hint}")]
 /// An input that is not a recognizable reference or original URL for the platform.
@@ -133,7 +146,8 @@ pub struct ArxivRef {
 }
 
 impl ArxivRef {
-    /// Parses `arxiv:<id>[v<n>]` or an arXiv abstract-page URL.
+    /// Parses `arxiv:<id>[v<n>]` or an arXiv abstract, PDF, or HTML page URL on arxiv.org or its
+    /// export mirror.
     ///
     /// # Errors
     ///
@@ -142,7 +156,7 @@ impl ArxivRef {
         let trimmed = input.trim();
         let identifier = match trimmed.get(..6) {
             Some(prefix) if prefix.eq_ignore_ascii_case("arxiv:") => Some(&trimmed[6..]),
-            _ => abstract_page_identifier(trimmed),
+            _ => page_identifier(trimmed),
         };
         identifier
             .and_then(Self::from_identifier)
@@ -178,6 +192,18 @@ impl ArxivRef {
     pub fn canonical_url(&self) -> String {
         format!("https://arxiv.org/abs/{self}")
     }
+
+    /// Returns the official HTML full-text URL; it carries a version only when the ref does.
+    #[must_use]
+    pub fn html_url(&self) -> String {
+        format!("https://arxiv.org/html/{self}")
+    }
+
+    /// Returns the PDF full-text URL; it carries a version only when the ref does.
+    #[must_use]
+    pub fn pdf_url(&self) -> String {
+        format!("https://arxiv.org/pdf/{self}")
+    }
 }
 
 impl fmt::Display for ArxivRef {
@@ -189,7 +215,7 @@ impl fmt::Display for ArxivRef {
     }
 }
 
-fn abstract_page_identifier(input: &str) -> Option<&str> {
+fn page_identifier(input: &str) -> Option<&str> {
     let rest = input
         .strip_prefix("https://")
         .or_else(|| input.strip_prefix("http://"))?;
@@ -198,8 +224,13 @@ fn abstract_page_identifier(input: &str) -> Option<&str> {
         return None;
     }
     let path = path.split(['?', '#']).next()?;
-    let identifier = path.strip_prefix("abs/")?;
-    Some(identifier.strip_suffix('/').unwrap_or(identifier))
+    let (page, identifier) = path.split_once('/')?;
+    let identifier = identifier.strip_suffix('/').unwrap_or(identifier);
+    match page {
+        "abs" | "html" => Some(identifier),
+        "pdf" => Some(identifier.strip_suffix(".pdf").unwrap_or(identifier)),
+        _ => None,
+    }
 }
 
 fn split_version(value: &str) -> (&str, Option<u32>) {
@@ -461,6 +492,72 @@ pub(crate) struct PlatformSearchOutcome {
     pub(crate) diagnostic: Option<String>,
 }
 
+#[derive(Clone, Debug)]
+/// A platform fetch request.
+pub(crate) struct PlatformFetchRequest {
+    pub(crate) reference: PlatformRef,
+    pub(crate) depth: ContentDepth,
+}
+
+/// One route's fetch result before the full-text stage.
+pub(crate) struct PlatformFetchOutcome {
+    /// The metadata item; its ref carries the version the platform returned.
+    pub(crate) item: PlatformItem,
+    /// The full-text URLs to read in order; empty unless the request asks for the full text.
+    pub(crate) content_urls: Vec<String>,
+    pub(crate) attempts: Vec<ProviderAttempt>,
+    pub(crate) diagnostic: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+/// One fetched platform item: its metadata and, at full-text depth, a reference to its body.
+pub struct PlatformFetchResult {
+    pub platform: Platform,
+    /// The route that returned the metadata.
+    pub provider: &'static str,
+    #[serde(flatten)]
+    pub item: PlatformItem,
+    #[serde(flatten)]
+    pub content: Option<PlatformContent>,
+    #[serde(rename = "provider_attempts", skip_serializing_if = "Vec::is_empty")]
+    pub attempts: Vec<ProviderAttempt>,
+    #[serde(skip)]
+    pub diagnostic: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+/// The full text of a platform item; the body itself never serializes.
+pub struct PlatformContent {
+    /// The URL the body was read from.
+    #[serde(rename = "content_url")]
+    pub url: String,
+    /// The Web Fetch provider that returned the body.
+    #[serde(rename = "content_provider")]
+    pub provider: &'static str,
+    /// The local Markdown file that holds the body, once written.
+    #[serde(rename = "content_path", skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+    /// The body length in characters.
+    #[serde(rename = "content_len")]
+    pub len: usize,
+    #[serde(skip)]
+    pub text: String,
+}
+
+impl PlatformContent {
+    /// Wraps a body read from `url`; the path stays empty until the body is written.
+    #[must_use]
+    pub fn new(url: String, provider: &'static str, text: String) -> Self {
+        Self {
+            url,
+            provider,
+            path: None,
+            len: text.chars().count(),
+            text,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use chrono::NaiveDate;
@@ -523,6 +620,35 @@ mod tests {
     }
 
     #[test]
+    fn arxiv_pdf_html_and_mirror_urls_parse_to_refs() {
+        let parsed = [
+            "https://arxiv.org/pdf/2401.01234v2",
+            "https://arxiv.org/pdf/2401.01234v2.pdf",
+            "https://arxiv.org/pdf/hep-th/9901001.pdf",
+            "https://arxiv.org/html/2401.01234v2",
+            "https://arxiv.org/html/2401.01234v2/",
+            "https://arxiv.org/html/2401.01234v2#S3",
+            "https://export.arxiv.org/pdf/2401.01234",
+            "https://export.arxiv.org/abs/math.GT/0309136v1",
+        ]
+        .map(arxiv);
+
+        assert_eq!(
+            parsed,
+            [
+                Some("arxiv:2401.01234v2".into()),
+                Some("arxiv:2401.01234v2".into()),
+                Some("arxiv:hep-th/9901001".into()),
+                Some("arxiv:2401.01234v2".into()),
+                Some("arxiv:2401.01234v2".into()),
+                Some("arxiv:2401.01234v2".into()),
+                Some("arxiv:2401.01234".into()),
+                Some("arxiv:math.GT/0309136v1".into()),
+            ]
+        );
+    }
+
+    #[test]
     fn arxiv_rejects_unrecognizable_inputs() {
         let parsed = [
             "2401.01234",
@@ -535,13 +661,15 @@ mod tests {
             "https://example.org/abs/2401.01234",
             "https://arxiv.org/list/cs.AI/recent",
             "https://arxiv.org/abs/",
+            "https://arxiv.org/pdf/2401.01234v2.pdf.pdf",
+            "https://arxiv.org/html/2401.01234v2/x1.png",
+            "https://arxiv.org/src/2401.01234v2",
+            "https://arxiv.org/abs/2401.01234.pdf",
+            "https://arxiv.org/html/hep-th/9901001/extra",
         ]
         .map(arxiv);
 
-        assert_eq!(
-            parsed,
-            [None, None, None, None, None, None, None, None, None, None]
-        );
+        assert_eq!(parsed, [const { None }; 15]);
     }
 
     #[test]
@@ -570,6 +698,19 @@ mod tests {
             [
                 "https://arxiv.org/abs/2401.01234v2",
                 "https://arxiv.org/abs/2401.01234"
+            ]
+        );
+    }
+
+    #[test]
+    fn arxiv_content_urls_use_the_ref_version() {
+        let reference = ArxivRef::parse("arxiv:hep-th/9901001v3").expect("valid ref");
+
+        assert_eq!(
+            [reference.html_url(), reference.pdf_url()],
+            [
+                "https://arxiv.org/html/hep-th/9901001v3",
+                "https://arxiv.org/pdf/hep-th/9901001v3"
             ]
         );
     }

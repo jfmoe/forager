@@ -20,10 +20,13 @@ pub use outcome::{
 };
 pub(crate) use outcome::{DENSITY_MAX_CHARS, DENSITY_MAX_UNIQUE_LINES, MIN_FETCH_CONTENT_CHARS};
 pub use platform::{
-    ArxivItemData, ArxivRef, ArxivSearchOptions, ArxivSort, ContentDepth, Platform, PlatformItem,
-    PlatformItemData, PlatformRef, PlatformRefError, PlatformSearchOptions, PlatformSearchPage,
+    ArxivItemData, ArxivRef, ArxivSearchOptions, ArxivSort, ContentDepth, Platform,
+    PlatformContent, PlatformFetchResult, PlatformItem, PlatformItemData, PlatformRef,
+    PlatformRefError, PlatformSearchOptions, PlatformSearchPage,
 };
-pub(crate) use platform::{PlatformSearchOutcome, PlatformSearchRequest};
+pub(crate) use platform::{
+    PlatformFetchOutcome, PlatformFetchRequest, PlatformSearchOutcome, PlatformSearchRequest,
+};
 pub(crate) use research::DocumentationEvidence;
 pub use research::{
     ClaimRisk, EvidenceItem, EvidenceLocator, EvidenceStrength, RecencyRequirement, ResearchGap,

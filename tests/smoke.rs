@@ -123,7 +123,7 @@ fn live_smoke_lists_exactly_the_specification_case_registry_without_l0_doctor_ga
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live registry JSON");
     let expected = json!([
         "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11",
-        "C12", "C13", "C14", "C15", "C16", "C17", "C18"
+        "C12", "C13", "C14", "C15", "C16", "C17", "C18", "C19"
     ]);
 
     assert_eq!(
@@ -175,7 +175,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
             Some(4),
             &Value::String("live".into()),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 19}),
+            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 20}),
             &Value::String("failed".into()),
             &Value::Number(3.into()),
             &Value::String("unconfigured".into()),
@@ -212,7 +212,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
         (
             Some(4),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 19}),
+            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 20}),
             &Value::String("deferred".into()),
             &Value::Number(3.into()),
             &Value::String("http://127.0.0.1:9?token=********".into()),
@@ -300,7 +300,7 @@ fn live_smoke_passes_a_configured_case_only_after_a_zero_parseable_nonempty_term
         ),
         (
             Some(4),
-            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 19}),
+            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 20}),
             &Value::String("passed".into()),
             &Value::Number(1.into()),
         ),
@@ -448,13 +448,22 @@ fn live_smoke_p2_does_not_write_evidence_into_the_configured_journal() {
     );
 }
 
-#[test]
-fn live_smoke_runs_the_platform_case_through_its_configured_route() {
-    let feed = r#"<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns="http://www.w3.org/2005/Atom">
+fn single_entry_feed(id: &str) -> String {
+    format!(
+        r#"<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns="http://www.w3.org/2005/Atom">
   <opensearch:totalResults>1</opensearch:totalResults>
-  <entry><id>http://arxiv.org/abs/2005.11401v4</id><title>RAG</title><summary>Abstract.</summary></entry>
-</feed>"#;
-    let fixture = Fixture::start(200, "application/atom+xml", feed);
+  <entry><id>http://arxiv.org/abs/{id}</id><title>Paper</title><summary>Abstract.</summary></entry>
+</feed>"#
+    )
+}
+
+#[test]
+fn live_smoke_runs_the_platform_cases_through_their_configured_route() {
+    let atom = |body: &str| Response::new(200, "application/atom+xml", body);
+    let fixture = Fixture::start_sequence(vec![
+        atom(&single_entry_feed("2005.11401v4")),
+        atom(&single_entry_feed("1706.03762v7")),
+    ]);
     let environment = SmokeEnvironment::new(|journal_dir| {
         format!(
             "[providers.arxiv_api]\nurl = \"{}/api/query\"\n[journal]\ndir = {journal_dir:?}\n",
@@ -464,19 +473,23 @@ fn live_smoke_runs_the_platform_case_through_its_configured_route() {
 
     let output = environment.run(&["smoke", "--live", "--timeout", "10"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live smoke JSON");
-    let request = fixture.finish();
+    let requests = fixture.finish_all();
 
     assert_eq!(
         (
             &payload["summary"],
             &case(&payload, "C18")["status"],
             &case(&payload, "C18")["platform"],
-            request.contains("max_results=3"),
+            &case(&payload, "C19")["status"],
+            requests[0].contains("max_results=3"),
+            requests[1].contains("id_list=1706.03762"),
         ),
         (
-            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 19}),
+            &json!({"passed": 2, "failed": 0, "deferred": 0, "unconfigured": 19}),
             &Value::String("passed".into()),
             &Value::String("arxiv".into()),
+            &Value::String("passed".into()),
+            true,
             true,
         ),
         "stdout: {}\nstderr: {}",

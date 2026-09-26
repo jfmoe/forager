@@ -31,6 +31,8 @@ mod platform_chain;
 #[cfg(test)]
 #[path = "core/platform_checklist.rs"]
 mod platform_checklist;
+#[path = "core/platform_fetch.rs"]
+mod platform_fetch;
 #[path = "capabilities/providers/mod.rs"]
 mod providers;
 #[path = "capabilities/rate_limit.rs"]

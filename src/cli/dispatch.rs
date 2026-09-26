@@ -20,9 +20,9 @@ use crate::providers::{
 };
 use crate::types::{
     AnysearchOutcome, CapabilitySet, ClaimRisk, Context7Outcome, Deadline, EvidenceStrength,
-    FallbackPolicy, FetchOutcome, JournalOutcome, MapOutcome, PlanCapability, PlatformSearchPage,
-    ProviderAttempt, RecencyRequirement, ResearchIntentSignals, ResearchPlan, ResearchSubquestion,
-    SearchOutcome,
+    FallbackPolicy, FetchOutcome, JournalOutcome, MapOutcome, PlanCapability, PlatformFetchResult,
+    PlatformSearchPage, ProviderAttempt, RecencyRequirement, ResearchIntentSignals, ResearchPlan,
+    ResearchSubquestion, SearchOutcome,
 };
 
 #[doc(hidden)]
@@ -138,6 +138,18 @@ pub enum CommandOutput {
         result: Result<PlatformSearchPage, ProviderError>,
         /// Requested output format.
         format: OutputFormat,
+        /// Optional output file destination.
+        output: Option<OutputTarget>,
+        /// Optional terminal projection selected by `log.level`.
+        attempt_log: Option<String>,
+    },
+    /// Typed platform fetch terminal state for binary-side formatting and tee output.
+    PlatformFetch {
+        /// Platform fetch result; a full-text body is already written unless the format is
+        /// `content`.
+        result: Result<PlatformFetchResult, ProviderError>,
+        /// Requested output format.
+        format: DocsOutputFormat,
         /// Optional output file destination.
         output: Option<OutputTarget>,
         /// Optional terminal projection selected by `log.level`.
@@ -1444,12 +1456,17 @@ fn minimal_research_fallback_plan(query: &str) -> ResearchPlan {
 }
 
 fn default_evidence_dir() -> PathBuf {
+    invocation_temp_dir("forager-evidence")
+}
+
+/// Returns a directory under the system temporary directory that belongs to this invocation.
+pub(super) fn invocation_temp_dir(name: &str) -> PathBuf {
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_nanos();
     std::env::temp_dir()
-        .join("forager-evidence")
+        .join(name)
         .join(format!("{}-{timestamp}", std::process::id()))
 }
 

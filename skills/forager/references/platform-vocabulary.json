@@ -1,0 +1,26 @@
+{
+  "platforms": [
+    {
+      "id": "arxiv",
+      "purpose": "Retrieve arXiv preprints as platform-native papers: versioned identity, metadata, abstract, and full text.",
+      "select_when": "The request names arXiv, supplies an arxiv.org URL or arxiv: ref, or needs arXiv papers rather than general web pages.",
+      "examples": [
+        "find recent arXiv papers on retrieval evaluation",
+        "read https://arxiv.org/abs/1706.03762",
+        "summarize arxiv:2401.04088v1",
+        "查一下 arXiv 上 q-fin.PM 分类最近的论文"
+      ],
+      "ref_syntax": {
+        "ref": "arxiv:<id>[v<n>]",
+        "id_forms": ["2401.01234", "hep-th/9901001"],
+        "urls": [
+          "https://arxiv.org/abs/<id>[v<n>]",
+          "https://arxiv.org/pdf/<id>[v<n>][.pdf]",
+          "https://arxiv.org/html/<id>[v<n>]",
+          "https://export.arxiv.org/abs/<id>[v<n>]"
+        ],
+        "examples": ["arxiv:2401.04088v1", "arxiv:hep-th/9711200", "https://arxiv.org/pdf/1706.03762v7"]
+      }
+    }
+  ]
+}

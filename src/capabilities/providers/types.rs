@@ -11,8 +11,9 @@ use super::{
 use crate::redact::redact_url;
 use crate::types::{
     AnysearchOutcome, Context7Outcome, DocumentationEvidence, DocumentationSearchOutcome,
-    EvidenceLocator, ExaOutcome, PlatformSearchOutcome, PlatformSearchRequest, ProviderError,
-    SearchCandidate, Source, SupplementalSearchOutcome, VerticalSearchOutcome,
+    EvidenceLocator, ExaOutcome, PlatformFetchOutcome, PlatformFetchRequest, PlatformSearchOutcome,
+    PlatformSearchRequest, ProviderError, SearchCandidate, Source, SupplementalSearchOutcome,
+    VerticalSearchOutcome,
 };
 
 #[derive(Clone, Debug)]
@@ -143,6 +144,24 @@ impl PlatformSearch for ArxivApi {
     ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>
     {
         Box::pin(ArxivApi::search(self, request))
+    }
+}
+
+/// The fetch seam of a platform; each route of the platform implements it.
+pub(crate) trait PlatformFetch: Send + Sync {
+    fn fetch<'a>(
+        &'a self,
+        request: &'a PlatformFetchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>;
+}
+
+impl PlatformFetch for ArxivApi {
+    fn fetch<'a>(
+        &'a self,
+        request: &'a PlatformFetchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(ArxivApi::fetch(self, request))
     }
 }
 

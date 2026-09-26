@@ -12,7 +12,10 @@ use crate::catalog::{
 };
 use crate::config::{self, ArxivApiRuntimeConfig};
 use crate::providers;
-use crate::types::{Platform, PlatformRef, PlatformSearchOptions, PlatformSearchRequest};
+use crate::types::{
+    ContentDepth, Platform, PlatformFetchRequest, PlatformRef, PlatformSearchOptions,
+    PlatformSearchRequest,
+};
 
 const CHECKLIST: &str = "docs/spec/forager/07-platforms.md";
 
@@ -31,7 +34,7 @@ fn sample_refs(platform: Platform) -> &'static [&'static str] {
 struct Registry<'a> {
     platforms: &'a [PlatformCatalog],
     registrations: &'a [ProviderRegistration],
-    has_search_adapter: &'a dyn Fn(Platform, ProviderId) -> bool,
+    has_adapter: &'a dyn Fn(Platform, PlatformOperation, ProviderId) -> bool,
     is_config_leaf: &'a dyn Fn(&str) -> bool,
     fixtures: &'a BTreeSet<(String, String)>,
     sample_refs: &'a dyn Fn(Platform) -> &'static [&'static str],
@@ -50,9 +53,14 @@ fn violations(platform: Platform, registry: &Registry<'_>) -> Vec<String> {
     else {
         return vec![violation(platform, "R1", "no platform catalog lists it")];
     };
-    let search_routes = catalog.routes(PlatformOperation::Search);
-    if search_routes.is_empty() {
-        found.push(violation(platform, "R1", "its catalog has no search route"));
+    for operation in PlatformOperation::ALL {
+        if catalog.routes(operation).is_empty() {
+            found.push(violation(
+                platform,
+                "R1",
+                &format!("its catalog has no {} route", operation.as_str()),
+            ));
+        }
     }
     let order_key = config::platform_order_key(platform);
     if !(registry.is_config_leaf)(&order_key) {
@@ -65,18 +73,39 @@ fn violations(platform: Platform, registry: &Registry<'_>) -> Vec<String> {
     for route in catalog.all_routes() {
         check_route(platform, route, registry, &mut found);
     }
-    for route in search_routes {
-        if !(registry.has_search_adapter)(platform, *route) {
+    for operation in PlatformOperation::ALL {
+        check_operation(
+            platform,
+            operation,
+            catalog.routes(operation),
+            registry,
+            &mut found,
+        );
+    }
+    check_refs(platform, (registry.sample_refs)(platform), &mut found);
+    found
+}
+
+fn check_operation(
+    platform: Platform,
+    operation: PlatformOperation,
+    routes: &[ProviderId],
+    registry: &Registry<'_>,
+    found: &mut Vec<String>,
+) {
+    let name = operation.as_str();
+    for route in routes {
+        if !(registry.has_adapter)(platform, operation, *route) {
             found.push(violation(
                 platform,
                 "R3",
                 &format!(
-                    "the platform factory cannot build search route `{}`",
+                    "the platform factory cannot build {name} route `{}`",
                     route.name()
                 ),
             ));
         }
-        let seam = format!("platform:{platform}:{}", PlatformOperation::Search.as_str());
+        let seam = format!("platform:{platform}:{name}");
         if !registry
             .fixtures
             .contains(&(route.name().to_owned(), seam.clone()))
@@ -92,19 +121,18 @@ fn violations(platform: Platform, registry: &Registry<'_>) -> Vec<String> {
         }
     }
     let has_smoke_case = registry.registrations.iter().any(|registration| {
-        registration.smoke_cases.iter().any(|case| {
-            case.platform == Some(platform) && case.operation == PlatformOperation::Search.as_str()
-        })
+        registration
+            .smoke_cases
+            .iter()
+            .any(|case| case.platform == Some(platform) && case.operation == name)
     });
     if !has_smoke_case {
         found.push(violation(
             platform,
             "R6",
-            "no route registers a search smoke case",
+            &format!("no route registers a {name} smoke case"),
         ));
     }
-    check_refs(platform, (registry.sample_refs)(platform), &mut found);
-    found
 }
 
 fn check_route(
@@ -208,20 +236,36 @@ fn manifest_fixtures() -> BTreeSet<(String, String)> {
         .collect()
 }
 
-/// The factory covers a route when it has a support check and a route configuration that names
-/// the route, which is what `build_platform_search` constructs from.
-fn has_search_adapter(platform: Platform, route: ProviderId) -> bool {
-    let request = PlatformSearchRequest {
-        query: String::new(),
-        limit: 1,
-        options: PlatformSearchOptions::defaults(platform),
-        page: None,
+/// The factory covers a route when it has a support check for the operation and a route
+/// configuration that names the route, which is what `build_platform_search` and
+/// `build_platform_fetch` construct from.
+fn has_adapter(platform: Platform, operation: PlatformOperation, route: ProviderId) -> bool {
+    let has_support = match operation {
+        PlatformOperation::Search => {
+            let request = PlatformSearchRequest {
+                query: String::new(),
+                limit: 1,
+                options: PlatformSearchOptions::defaults(platform),
+                page: None,
+            };
+            providers::platform_search_support(route, &request).is_some()
+        }
+        PlatformOperation::Fetch => sample_refs(platform)
+            .first()
+            .and_then(|sample| PlatformRef::parse(platform, sample).ok())
+            .is_some_and(|reference| {
+                let request = PlatformFetchRequest {
+                    reference,
+                    depth: ContentDepth::Abstract,
+                };
+                providers::platform_fetch_support(route, &request).is_some()
+            }),
     };
     let arxiv_api = ArxivApiRuntimeConfig {
         url: String::new(),
         timeout_seconds: 1,
     };
-    providers::platform_search_support(route, &request).is_some()
+    has_support
         && config::platform_route_config(route, &arxiv_api)
             .is_some_and(|route_config| route_config.route() == route)
 }
@@ -230,7 +274,7 @@ fn baseline(fixtures: &BTreeSet<(String, String)>) -> Registry<'_> {
     Registry {
         platforms: PLATFORMS,
         registrations: catalog::registrations(),
-        has_search_adapter: &has_search_adapter,
+        has_adapter: &has_adapter,
         is_config_leaf: &config::is_leaf,
         fixtures,
         sample_refs: &sample_refs,
@@ -293,7 +337,7 @@ fn a_route_without_a_registration_violates_r2() {
 fn a_route_without_a_factory_violates_r3() {
     let fixtures = manifest_fixtures();
     let registry = Registry {
-        has_search_adapter: &|_, _| false,
+        has_adapter: &|_, _, _| false,
         ..baseline(&fixtures)
     };
 

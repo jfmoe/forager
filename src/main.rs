@@ -12,8 +12,8 @@ use forager::app::{
 };
 use forager::types::{
     AnysearchOutcome, AttemptErrorKind, Context7Outcome, ErrorFamily, ErrorKind, FetchOutcome,
-    JournalOutcome, MapOutcome, PlatformItemData, PlatformSearchPage, SearchCandidate,
-    SearchOutcome,
+    JournalOutcome, MapOutcome, PlatformFetchResult, PlatformItem, PlatformItemData,
+    PlatformSearchPage, SearchCandidate, SearchOutcome,
 };
 use serde_json::{Value, json};
 
@@ -93,6 +93,12 @@ fn main() -> ExitCode {
             output,
             attempt_log,
         }) => emit_logged(render_platform_search(result, format, output), attempt_log),
+        Ok(CommandOutput::PlatformFetch {
+            result,
+            format,
+            output,
+            attempt_log,
+        }) => emit_logged(render_platform_fetch(result, format, output), attempt_log),
         Err(error) if json_preflight_errors => {
             let exit_code = error.exit_code();
             emit_rendered(apply_tee(
@@ -657,24 +663,14 @@ fn format_platform_page(page: &PlatformSearchPage, format: OutputFormat) -> Resu
             "\n- [{}]({}) `{}`",
             item.title, item.url, item.reference
         );
-        if !item.authors.is_empty() {
-            let _ = write!(markdown, " — {}", item.authors.join(", "));
-        }
-        if let Some(published) = &item.published {
-            let _ = write!(markdown, " — {published}");
-        }
-        match &item.data {
-            PlatformItemData::Arxiv(data) if !data.abstract_text.is_empty() => {
-                let _ = write!(
-                    markdown,
-                    "\n\n  {}",
-                    data.abstract_text
-                        .split_whitespace()
-                        .collect::<Vec<_>>()
-                        .join(" ")
-                );
-            }
-            PlatformItemData::Arxiv(_) => {}
+        append_byline(&mut markdown, item);
+        let summary = item_abstract(item);
+        if !summary.is_empty() {
+            let _ = write!(
+                markdown,
+                "\n\n  {}",
+                summary.split_whitespace().collect::<Vec<_>>().join(" ")
+            );
         }
     }
     if page.items.is_empty() {
@@ -684,6 +680,92 @@ fn format_platform_page(page: &PlatformSearchPage, format: OutputFormat) -> Resu
         let _ = write!(markdown, "\n\nNext cursor: `{cursor}`");
     }
     Ok(markdown)
+}
+
+fn append_byline(markdown: &mut String, item: &PlatformItem) {
+    if !item.authors.is_empty() {
+        let _ = write!(markdown, " — {}", item.authors.join(", "));
+    }
+    if let Some(published) = &item.published {
+        let _ = write!(markdown, " — {published}");
+    }
+}
+
+fn item_abstract(item: &PlatformItem) -> &str {
+    match &item.data {
+        PlatformItemData::Arxiv(data) => &data.abstract_text,
+    }
+}
+
+fn render_platform_fetch(
+    result: Result<PlatformFetchResult, ProviderError>,
+    format: DocsOutputFormat,
+    output: Option<OutputTarget>,
+) -> Result<RenderedOutput, String> {
+    let (stdout, exit_code, diagnostic) = match result {
+        Ok(fetched) => (
+            format_platform_fetch(&fetched, format)?,
+            0,
+            fetched.diagnostic,
+        ),
+        Err(error) => {
+            let stdout = match format {
+                DocsOutputFormat::Json => format_failure_json(&error)?,
+                DocsOutputFormat::Markdown | DocsOutputFormat::Content => format!(
+                    "# Platform fetch failed\n\n**{}**: {}",
+                    error.kind.as_str(),
+                    error.message
+                ),
+            };
+            (stdout, postflight_exit_code(error.kind), error.diagnostic)
+        }
+    };
+    apply_tee(
+        stdout,
+        exit_code,
+        format == DocsOutputFormat::Json,
+        output,
+        diagnostic,
+    )
+}
+
+/// Renders a fetched item. Only `content` prints the body; the other formats reference the
+/// written file instead.
+fn format_platform_fetch(
+    fetched: &PlatformFetchResult,
+    format: DocsOutputFormat,
+) -> Result<String, String> {
+    let item = &fetched.item;
+    match format {
+        DocsOutputFormat::Json => serde_json::to_string(fetched).map_err(|error| error.to_string()),
+        DocsOutputFormat::Content => Ok(fetched.content.as_ref().map_or_else(
+            || item_abstract(item).to_owned(),
+            |content| content.text.clone(),
+        )),
+        DocsOutputFormat::Markdown => {
+            let mut markdown = format!(
+                "# {}\n\n`{}` — <{}> ({}, {})",
+                item.title,
+                item.reference,
+                item.url,
+                fetched.provider,
+                item.depth.as_str()
+            );
+            append_byline(&mut markdown, item);
+            let _ = write!(markdown, "\n\n## Abstract\n\n{}", item_abstract(item));
+            if let Some(content) = &fetched.content {
+                let _ = write!(
+                    markdown,
+                    "\n\n## Full text\n\n{} characters from <{}> via {}: `{}`",
+                    content.len,
+                    content.url,
+                    content.provider,
+                    content.path.as_deref().unwrap_or_default()
+                );
+            }
+            Ok(markdown)
+        }
+    }
 }
 
 fn render_anysearch(
