@@ -60,7 +60,7 @@ Platform 与 Capability Seam 并列（ADR 0019），完整接入契约见第 7 �
 - **`ErrorKind` 10 变体**：Auth / RateLimited / QuotaExhausted / Parameter / Config / Timeout / Network / Quality / Evidence / Runtime。三方法：`is_retryable()`；`rotates_credential()`（RateLimited|QuotaExhausted——轮换优先于重试，429 不重试）；`family() → Transport|Content`（Quality/Evidence 为 Content 族）。**无 `exit_code()` 方法**。
 - 「empty」从错误分类法除名：直连命令空结果＝`Ok(空 Outcome)` 退 0；证据管线的证据不足＝Evidence 退 5（域切分见第 1 章）。
 - **退出码两阶段**：飞行前（argv→2、config/未知 env→3）只由预检产生；飞行后由**归因总函数**产生。attempt 级 Parameter 不映射退 2。
-- **归因总函数**（F4 + #59 B3）：只按每个 provider 的**最终 attempt** 归约（重试不参与计数），对各 kind 按**优先级全序**取最大，与重试次数、失败顺序无关。已有成功响应进入质量/证据阶段且终局失败＝Content 优先退 5，不被后续网络失败覆盖；所有可用 provider 均未产生可验证响应才退 4；同质失败顶层透传原 kind（如全 401 报 auth_error，退出码仍按族）；attempts 永远带原始 kind。
+- **归因总函数**（F4 + #59 B3）：作用于单条 provider 链，只按每个 provider 的**最终 attempt** 归约（重试不参与计数），对各 kind 按**优先级全序**取最大，与重试次数、失败顺序无关。已有成功响应进入质量/证据阶段且终局失败＝Content 优先退 5，不被后续网络失败覆盖；所有可用 provider 均未产生可验证响应才退 4；同质失败顶层透传原 kind（如全 401 报 auth_error，退出码仍按族）；attempts 永远带原始 kind。
   - **全序表定稿**（低 → 高；Content 族恒高于 Transport 族）：`Network < Timeout < RateLimited < QuotaExhausted < Auth < Parameter < Runtime < Quality < Evidence`。定义域为**飞行后 kind**（ErrorKind ∖ {Config}）：`Config` 只在飞行前预检产生（退 3），**`ProviderAttempt` 不得携带 Config**——此为类型不变量，进 unit 真值表。族间关系与全序存在性为契约（真值表穷举验证）；族内排布编码期可微调，调整须同步更新真值表。
 - `ProviderError`（thiserror）定义在 types 门面：kind + 脱敏消息 + attempts（每个 attempt 带 provider、status 与耗时）+ 非致命诊断；`forager::app::ProviderError` 作为再导出保留，types 下的新可达路径是预期结果。status→kind 映射只在 net 一份。
 - **分类器已配置但失败**：降级继续 + stderr 警告 + journal 落痕，不影响退出码；research 裸调用下采用**固定最小降级 plan**（单步 web_search）继续执行（#59 H8）。
@@ -93,10 +93,10 @@ Platform 与 Capability Seam 并列（ADR 0019），完整接入契约见第 7 �
 
 `rate_limit` 统一负责跨进程请求节奏。访问策略包括最小间隔与最大并发，由 provider 注册信息的 `access_policy` 声明（`arxiv_api`：每 3 秒 1 个请求、并发 1）；对受限 endpoint 的每次发送（包括重试、doctor 的 shallow 可达性探测与 deep 探测）都必须先调用 `RateLimiter::acquire` 申请时间窗口。`providers::route_limiter` 按注册信息构造限速器；route adapter 在单次发送内先取窗口再发请求，窗口的等待计入该 attempt 与命令的 Deadline。
 
-- **算法**：先在进程内按最大并发取得 permit，等待时间计入 Deadline；再在 Deadline 内等到状态文件的进程内轮次（此时尚未预留，超时不会占用窗口），然后在共享状态锁内读取该 route 上次预留的时刻，计算下一个窗口 = max(现在, 上次预留 + 最小间隔)。需要等待的时间不小于剩余预算时，直接以 Timeout 结束，不写入预留；否则写入新的预留时刻，释放锁，然后在锁外等待到该绝对时刻。permit 持有到发送结束。
+- **算法**：先在进程内按最大并发取得 permit，再取得跨进程连接槽位：状态目录下每个 route 有最大并发个槽位锁文件（`rate_limit_<route>.<n>.lock`），异步轮询到第一个空闲槽位；两段等待都计入 Deadline，超时为 Timeout。然后在 Deadline 内等到状态文件的进程内轮次（此时尚未预留，超时不会占用窗口），再在共享状态锁内读取该 route 上次预留的时刻，计算下一个窗口 = max(现在, 上次预留 + 最小间隔)。需要等待的时间不小于剩余预算时，直接以 Timeout 结束，不写入预留；否则写入新的预留时刻，释放锁，然后在锁外等待到该绝对时刻。permit 与槽位锁持有到发送结束，因此共享状态目录的所有进程同时在途的请求不超过最大并发；进程退出时操作系统释放槽位锁。
 - **时钟**：预留时刻是墙钟毫秒，从构造时的墙钟起按 Tokio 时钟推进，因此预留、等待与 Deadline 在同一时间线上。
 - **失败语义**：状态目录无法解析、锁在有界等待内拿不到、状态文件不可读或不可写时，不发送请求，以 Runtime 结束；不复用凭据池拿不到锁时「乐观降级」的策略。状态文件损坏或 schema 不符时，视为该 route 在当前时刻已有一次预留，因此修复后的第一个窗口仍间隔完整的最小间隔。
-- **已知边界**：间隔按预留时刻保证，某个进程在预留之后被调度延迟时，实际发送间隔可能短于最小间隔，v1 接受，不做发送后复核；协调范围是共享同一状态目录的进程；最大并发只在单个进程内限制。
+- **已知边界**：间隔按预留时刻保证，某个进程在预留之后被调度延迟时，实际发送间隔可能短于最小间隔，不做发送后复核；协调范围是共享同一状态目录的进程。
 
 ## web_fetch 薄正文质量门控
 
