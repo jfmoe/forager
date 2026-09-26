@@ -259,8 +259,8 @@ impl Default for Platforms {
 fn platform_order(catalog: catalog::PlatformCatalog) -> Order {
     Order {
         order: catalog
-            .all_routes()
-            .into_iter()
+            .default_order
+            .iter()
             .map(|route| route.name().to_owned())
             .collect(),
     }
@@ -605,8 +605,8 @@ mod tests {
         assert_eq!(
             config.platforms.arxiv.order,
             catalog::ARXIV
-                .all_routes()
-                .into_iter()
+                .default_order
+                .iter()
                 .map(|route| route.name().to_owned())
                 .collect::<Vec<_>>()
         );

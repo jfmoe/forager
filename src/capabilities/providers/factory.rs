@@ -9,7 +9,7 @@ use super::{
 };
 use crate::catalog::{VERTICAL_SEARCH, WEB_FETCH, WEB_SEARCH};
 use crate::config::{
-    AnysearchRuntimeConfig, ArxivApiRuntimeConfig, DocsSearchProviderConfig,
+    AnysearchRuntimeConfig, DocsSearchProviderConfig, HttpRouteRuntimeConfig,
     MainSearchProviderConfig, PlatformRouteConfig, WebFetchProviderConfig,
 };
 use crate::net::RetryPolicy;
@@ -135,7 +135,7 @@ pub(crate) fn build_platform_fetch(
 }
 
 fn build_arxiv_api(
-    config: ArxivApiRuntimeConfig,
+    config: HttpRouteRuntimeConfig,
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,

@@ -664,8 +664,7 @@ fn format_platform_page(page: &PlatformSearchPage, format: OutputFormat) -> Resu
             item.title, item.url, item.reference
         );
         append_byline(&mut markdown, item);
-        let summary = item_abstract(item);
-        if !summary.is_empty() {
+        if let Some(summary) = item_abstract(item).filter(|summary| !summary.is_empty()) {
             let _ = write!(
                 markdown,
                 "\n\n  {}",
@@ -691,9 +690,13 @@ fn append_byline(markdown: &mut String, item: &PlatformItem) {
     }
 }
 
-fn item_abstract(item: &PlatformItem) -> &str {
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "platforms whose items can lack an abstract join this match"
+)]
+fn item_abstract(item: &PlatformItem) -> Option<&str> {
     match &item.data {
-        PlatformItemData::Arxiv(data) => &data.abstract_text,
+        PlatformItemData::Arxiv(data) => Some(&data.abstract_text),
     }
 }
 
@@ -739,7 +742,7 @@ fn format_platform_fetch(
     match format {
         DocsOutputFormat::Json => serde_json::to_string(fetched).map_err(|error| error.to_string()),
         DocsOutputFormat::Content => Ok(fetched.content.as_ref().map_or_else(
-            || item_abstract(item).to_owned(),
+            || item_abstract(item).unwrap_or_default().to_owned(),
             |content| content.text.clone(),
         )),
         DocsOutputFormat::Markdown => {
@@ -752,7 +755,9 @@ fn format_platform_fetch(
                 item.depth.as_str()
             );
             append_byline(&mut markdown, item);
-            let _ = write!(markdown, "\n\n## Abstract\n\n{}", item_abstract(item));
+            if let Some(summary) = item_abstract(item) {
+                let _ = write!(markdown, "\n\n## Abstract\n\n{summary}");
+            }
             if let Some(content) = &fetched.content {
                 let _ = write!(
                     markdown,

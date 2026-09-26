@@ -179,16 +179,24 @@ pub(crate) struct AnysearchRuntimeConfig {
     pub(crate) timeout_seconds: u64,
 }
 
+/// The configuration of a platform route that sends HTTP requests without credentials.
 #[derive(Clone, Debug)]
-pub(crate) struct ArxivApiRuntimeConfig {
+pub(crate) struct HttpRouteRuntimeConfig {
     pub(crate) url: String,
     pub(crate) timeout_seconds: u64,
+}
+
+/// The configuration of every platform route. Route lookups take it whole, so a new route adds
+/// a field here and changes no signature.
+#[derive(Clone, Debug)]
+pub(crate) struct PlatformRoutesRuntimeConfig {
+    pub(crate) arxiv_api: HttpRouteRuntimeConfig,
 }
 
 /// The configuration of one platform route.
 #[derive(Clone, Debug)]
 pub(crate) enum PlatformRouteConfig {
-    ArxivApi(ArxivApiRuntimeConfig),
+    ArxivApi(HttpRouteRuntimeConfig),
 }
 
 impl PlatformRouteConfig {
@@ -429,7 +437,7 @@ pub(crate) struct RuntimeConfig {
     pub(crate) exa: ExaRuntimeConfig,
     pub(crate) context7: Context7RuntimeConfig,
     pub(crate) anysearch: AnysearchRuntimeConfig,
-    pub(crate) arxiv_api: ArxivApiRuntimeConfig,
+    pub(crate) platform_routes: PlatformRoutesRuntimeConfig,
     pub(crate) tavily: WebFetchProviderConfig,
     pub(crate) firecrawl: WebFetchProviderConfig,
     pub(crate) jina: WebFetchProviderConfig,
@@ -491,7 +499,7 @@ impl RuntimeConfig {
                 keys: &self.anysearch.keys,
             },
             ProviderId::ArxivApi => ProviderRuntime {
-                endpoint: &self.arxiv_api.url,
+                endpoint: &self.platform_routes.arxiv_api.url,
                 keys: &[],
             },
         }
@@ -548,9 +556,11 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         keys: config.providers.anysearch.keys,
         timeout_seconds: config.providers.anysearch.timeout,
     };
-    let arxiv_api = ArxivApiRuntimeConfig {
-        url: config.providers.arxiv_api.url,
-        timeout_seconds: config.providers.arxiv_api.timeout,
+    let platform_routes = PlatformRoutesRuntimeConfig {
+        arxiv_api: HttpRouteRuntimeConfig {
+            url: config.providers.arxiv_api.url,
+            timeout_seconds: config.providers.arxiv_api.timeout,
+        },
     };
     let classifier = ClassifierRuntimeConfig {
         url: config.classifier.url,
@@ -591,7 +601,11 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         &jina,
     )?;
     let platforms = PlatformsRuntimeConfig {
-        arxiv: platform_entries(Platform::Arxiv, config.platforms.arxiv.order, &arxiv_api)?,
+        arxiv: platform_entries(
+            Platform::Arxiv,
+            config.platforms.arxiv.order,
+            &platform_routes,
+        )?,
     };
     Ok(RuntimeConfig {
         main_search: MainSearchRuntimeConfig {
@@ -604,7 +618,7 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         exa,
         context7,
         anysearch,
-        arxiv_api,
+        platform_routes,
         tavily,
         firecrawl,
         jina,
@@ -714,7 +728,7 @@ fn web_entries(
 fn platform_entries(
     platform: Platform,
     order: Vec<String>,
-    arxiv_api: &ArxivApiRuntimeConfig,
+    routes: &PlatformRoutesRuntimeConfig,
 ) -> Result<PlatformRuntimeConfig, ConfigError> {
     let key = platform_order_key(platform);
     let catalog = catalog::platform(platform);
@@ -723,7 +737,7 @@ fn platform_entries(
         .map(|name| {
             let config = ProviderId::parse(&name)
                 .filter(|id| catalog.contains(*id))
-                .and_then(|id| Some((id, platform_route_config(id, arxiv_api)?)))
+                .and_then(|id| Some((id, platform_route_config(id, routes)?)))
                 .ok_or_else(|| unknown_provider(&name, &key))?;
             let configured = config.1.configured();
             Ok(SeamEntry::new(config.0, config.1, configured))
@@ -740,10 +754,10 @@ pub(crate) fn platform_order_key(platform: Platform) -> String {
 /// Returns the configuration of a platform route, or `None` for a provider that is no route.
 pub(crate) fn platform_route_config(
     id: ProviderId,
-    arxiv_api: &ArxivApiRuntimeConfig,
+    routes: &PlatformRoutesRuntimeConfig,
 ) -> Option<PlatformRouteConfig> {
     match id {
-        ProviderId::ArxivApi => Some(PlatformRouteConfig::ArxivApi(arxiv_api.clone())),
+        ProviderId::ArxivApi => Some(PlatformRouteConfig::ArxivApi(routes.arxiv_api.clone())),
         _ => None,
     }
 }

@@ -8,7 +8,7 @@ use reqwest::{Client, StatusCode, Url};
 use serde::Deserialize;
 
 use crate::catalog::{PlatformOperation, ProviderId};
-use crate::config::ArxivApiRuntimeConfig;
+use crate::config::HttpRouteRuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{
     AttemptFailure, RetryPolicy, error_kind_for_status, read_complete_protocol,
@@ -51,7 +51,7 @@ pub(crate) fn fetch_support(request: &PlatformFetchRequest) -> Result<(), String
 }
 
 pub(crate) struct ArxivApi {
-    config: ArxivApiRuntimeConfig,
+    config: HttpRouteRuntimeConfig,
     client: Client,
     // The route needs no credentials; the empty pool only drives shared redaction.
     credentials: CredentialPool,
@@ -67,7 +67,7 @@ struct FeedPage {
 
 impl ArxivApi {
     pub(crate) fn new(
-        config: ArxivApiRuntimeConfig,
+        config: HttpRouteRuntimeConfig,
         client: Client,
         limiter: RateLimiter,
         retry_policy: RetryPolicy,

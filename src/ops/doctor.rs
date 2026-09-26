@@ -277,7 +277,7 @@ async fn run_probe(
             name,
             transport,
         } => {
-            let route_config = config::platform_route_config(provider, &config.arxiv_api)
+            let route_config = config::platform_route_config(provider, &config.platform_routes)
                 .expect("probe registration belongs to a platform catalog");
             let result =
                 probe_platform_search(platform, route_config, client, retry_policy, deadline).await;

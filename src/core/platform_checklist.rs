@@ -10,7 +10,7 @@ use crate::catalog::{
     self, DoctorProbe, PLATFORMS, PlatformCatalog, PlatformOperation, ProviderId,
     ProviderRegistration,
 };
-use crate::config::{self, ArxivApiRuntimeConfig};
+use crate::config::{self, HttpRouteRuntimeConfig, PlatformRoutesRuntimeConfig};
 use crate::providers;
 use crate::types::{
     ContentDepth, Platform, PlatformFetchRequest, PlatformRef, PlatformSearchOptions,
@@ -261,12 +261,15 @@ fn has_adapter(platform: Platform, operation: PlatformOperation, route: Provider
                 providers::platform_fetch_support(route, &request).is_some()
             }),
     };
-    let arxiv_api = ArxivApiRuntimeConfig {
+    let http_route = HttpRouteRuntimeConfig {
         url: String::new(),
         timeout_seconds: 1,
     };
+    let routes = PlatformRoutesRuntimeConfig {
+        arxiv_api: http_route,
+    };
     has_support
-        && config::platform_route_config(route, &arxiv_api)
+        && config::platform_route_config(route, &routes)
             .is_some_and(|route_config| route_config.route() == route)
 }
 

@@ -77,12 +77,16 @@ pub(crate) struct PlatformCatalog {
     pub(crate) platform: Platform,
     pub(crate) search: &'static [ProviderId],
     pub(crate) fetch: &'static [ProviderId],
+    /// The default `platforms.<id>.order`. A route that users must enable themselves is a
+    /// valid order entry but never appears here.
+    pub(crate) default_order: &'static [ProviderId],
 }
 
 pub(crate) const ARXIV: PlatformCatalog = PlatformCatalog {
     platform: Platform::Arxiv,
     search: &[ProviderId::ArxivApi],
     fetch: &[ProviderId::ArxivApi],
+    default_order: &[ProviderId::ArxivApi],
 };
 
 pub(crate) const PLATFORMS: &[PlatformCatalog] = &[ARXIV];
@@ -665,6 +669,24 @@ mod tests {
                 !registration.smoke_cases.is_empty(),
                 "{} smoke",
                 registration.id.name()
+            );
+        }
+    }
+
+    #[test]
+    fn every_default_platform_order_lists_unique_routes_of_its_platform() {
+        for catalog in PLATFORMS {
+            let unique = catalog.default_order.iter().collect::<BTreeSet<_>>();
+
+            assert!(
+                catalog
+                    .default_order
+                    .iter()
+                    .all(|route| catalog.contains(*route))
+                    && unique.len() == catalog.default_order.len(),
+                "{} default order {:?}",
+                catalog.platform,
+                catalog.default_order
             );
         }
     }
