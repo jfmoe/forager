@@ -90,7 +90,8 @@ pub(crate) struct ChainStep<S> {
 
 /// Per-call-site chain parameters; the runner supplies the bookkeeping.
 pub(crate) struct ChainSettings<'a, S> {
-    pub(crate) seam: &'static str,
+    /// Target recorded on synthetic skipped/unconfigured attempts.
+    pub(crate) target: AttemptTarget,
     pub(crate) budget_policy: BudgetPolicy,
     pub(crate) fallback_off: bool,
     pub(crate) diagnostic_merge: DiagnosticMerge,
@@ -182,7 +183,7 @@ where
         if !step.configured {
             attempts.push(unconfigured_attempt(
                 &(settings.identity)(&step.context),
-                settings.seam,
+                settings.target,
             ));
             break;
         }
@@ -195,7 +196,7 @@ where
                 let Some(budget) = slice_budget(remaining, total - index) else {
                     attempts.push(synthetic_attempt(
                         &(settings.identity)(&step.context),
-                        settings.seam,
+                        settings.target,
                         AttemptDisposition::Skipped,
                         None,
                         skipped_message.to_owned(),
@@ -283,11 +284,11 @@ fn prepare_steps<S>(steps: Vec<ChainStep<S>>, fallback_off: bool) -> PreparedCha
     }
 }
 
-fn unconfigured_attempt(identity: &StepIdentity, seam: &'static str) -> ProviderAttempt {
+fn unconfigured_attempt(identity: &StepIdentity, target: AttemptTarget) -> ProviderAttempt {
     let message = format!("{} has no configured credentials", identity.provider);
     synthetic_attempt(
         identity,
-        seam,
+        target,
         AttemptDisposition::Failed,
         Some(AttemptErrorKind::Auth),
         message,
@@ -396,14 +397,14 @@ fn merge_diagnostics(policy: DiagnosticMerge, diagnostics: Vec<Option<String>>) 
 
 fn synthetic_attempt(
     identity: &StepIdentity,
-    seam: &'static str,
+    target: AttemptTarget,
     disposition: AttemptDisposition,
     error_kind: Option<AttemptErrorKind>,
     message: String,
 ) -> ProviderAttempt {
     ProviderAttempt {
         provider: identity.provider,
-        target: AttemptTarget::seam(seam),
+        target,
         disposition,
         error_kind,
         http_status: None,

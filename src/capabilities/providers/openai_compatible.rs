@@ -174,7 +174,7 @@ impl OpenAiCompatible {
         let outcome = run_chain(
             steps,
             ChainSettings {
-                seam: "main_search",
+                target: AttemptTarget::seam("main_search"),
                 budget_policy: BudgetPolicy::PrimaryFirst,
                 fallback_off: false,
                 diagnostic_merge: DiagnosticMerge::LatestWins,
@@ -278,7 +278,7 @@ impl OpenAiCompatible {
         let outcome = run_chain(
             steps,
             ChainSettings {
-                seam: "main_search",
+                target: AttemptTarget::seam("main_search"),
                 budget_policy: BudgetPolicy::PrimaryFirst,
                 fallback_off: false,
                 diagnostic_merge: DiagnosticMerge::LatestWins,

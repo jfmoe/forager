@@ -58,7 +58,7 @@ if ($doctorExitCode -ne 4 -or $doctor.ok -or $doctor.mode -ne "shallow") {
   throw "doctor did not report the expected unreachable configuration"
 }
 $configured = @($doctor.providers | Where-Object configured)
-if ($configured.Count -ne 8) {
+if ($configured.Count -ne 9) {
   throw "doctor did not load all migrated provider credentials"
 }
 exit 0

@@ -16,9 +16,10 @@ use crate::providers::{self, FetchRequest, MainSearchRequest};
 use crate::redact::redact_url;
 use crate::types::ProviderError;
 use crate::types::{
-    AttemptErrorKind, DENSITY_MAX_CHARS, DENSITY_MAX_UNIQUE_LINES, Deadline, DocumentationEvidence,
-    DocumentationSearchOutcome, EvidenceLocator, FallbackPolicy, FetchOutcome,
-    MIN_FETCH_CONTENT_CHARS, SearchOutcome, SupplementalSearchOutcome, VerticalSearchOutcome,
+    AttemptErrorKind, AttemptTarget, DENSITY_MAX_CHARS, DENSITY_MAX_UNIQUE_LINES, Deadline,
+    DocumentationEvidence, DocumentationSearchOutcome, EvidenceLocator, FallbackPolicy,
+    FetchOutcome, MIN_FETCH_CONTENT_CHARS, SearchOutcome, SupplementalSearchOutcome,
+    VerticalSearchOutcome,
 };
 
 pub(crate) const FANOUT_CONCURRENCY: usize = 4;
@@ -61,7 +62,7 @@ fn provider_chain_settings<C>(
     exhausted_message: &'static str,
 ) -> ChainSettings<'static, (providers::ProviderId, C)> {
     ChainSettings {
-        seam,
+        target: AttemptTarget::seam(seam),
         budget_policy,
         fallback_off,
         diagnostic_merge: chain::DiagnosticMerge::Join,

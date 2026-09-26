@@ -6,7 +6,7 @@ use super::location::{ConfigError, ConfigLocation};
 use super::schema::{Config, FieldRef, SCHEMA};
 use crate::catalog::{self, ProviderId};
 use crate::redact::Secret;
-use crate::types::FallbackPolicy;
+use crate::types::{FallbackPolicy, Platform};
 
 #[derive(Clone, Debug)]
 pub(crate) struct SeamEntry<C> {
@@ -177,6 +177,67 @@ pub(crate) struct AnysearchRuntimeConfig {
     pub(crate) url: String,
     pub(crate) keys: Vec<Secret>,
     pub(crate) timeout_seconds: u64,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct ArxivApiRuntimeConfig {
+    pub(crate) url: String,
+    pub(crate) timeout_seconds: u64,
+}
+
+/// The configuration of one platform route.
+#[derive(Clone, Debug)]
+pub(crate) enum PlatformRouteConfig {
+    ArxivApi(ArxivApiRuntimeConfig),
+}
+
+impl PlatformRouteConfig {
+    pub(crate) fn route(&self) -> ProviderId {
+        match self {
+            Self::ArxivApi(_) => ProviderId::ArxivApi,
+        }
+    }
+
+    pub(crate) fn configured(&self) -> bool {
+        match self {
+            Self::ArxivApi(_) => provider_configured(ProviderId::ArxivApi, &[]),
+        }
+    }
+}
+
+/// The configured route order of one platform.
+#[derive(Clone, Debug)]
+pub(crate) struct PlatformRuntimeConfig {
+    platform: Platform,
+    entries: Vec<SeamEntry<PlatformRouteConfig>>,
+}
+
+impl PlatformRuntimeConfig {
+    pub(crate) fn platform(&self) -> Platform {
+        self.platform
+    }
+
+    pub(crate) fn entries(&self) -> &[SeamEntry<PlatformRouteConfig>] {
+        &self.entries
+    }
+
+    /// Returns the configuration key that orders this platform's routes.
+    pub(crate) fn order_key(&self) -> String {
+        platform_order_key(self.platform)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct PlatformsRuntimeConfig {
+    arxiv: PlatformRuntimeConfig,
+}
+
+impl PlatformsRuntimeConfig {
+    pub(crate) fn get(&self, platform: Platform) -> &PlatformRuntimeConfig {
+        match platform {
+            Platform::Arxiv => &self.arxiv,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -368,6 +429,7 @@ pub(crate) struct RuntimeConfig {
     pub(crate) exa: ExaRuntimeConfig,
     pub(crate) context7: Context7RuntimeConfig,
     pub(crate) anysearch: AnysearchRuntimeConfig,
+    pub(crate) arxiv_api: ArxivApiRuntimeConfig,
     pub(crate) tavily: WebFetchProviderConfig,
     pub(crate) firecrawl: WebFetchProviderConfig,
     pub(crate) jina: WebFetchProviderConfig,
@@ -375,6 +437,7 @@ pub(crate) struct RuntimeConfig {
     pub(crate) vertical_search: VerticalSearchRuntimeConfig,
     pub(crate) web_search: WebSearchRuntimeConfig,
     pub(crate) web_fetch: WebFetchRuntimeConfig,
+    pub(crate) platforms: PlatformsRuntimeConfig,
     pub(crate) journal: JournalRuntimeConfig,
     pub(crate) retry: RetryRuntimeConfig,
     pub(crate) log_level: LogLevel,
@@ -426,6 +489,10 @@ impl RuntimeConfig {
             ProviderId::Anysearch => ProviderRuntime {
                 endpoint: &self.anysearch.url,
                 keys: &self.anysearch.keys,
+            },
+            ProviderId::ArxivApi => ProviderRuntime {
+                endpoint: &self.arxiv_api.url,
+                keys: &[],
             },
         }
     }
@@ -481,6 +548,10 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         keys: config.providers.anysearch.keys,
         timeout_seconds: config.providers.anysearch.timeout,
     };
+    let arxiv_api = ArxivApiRuntimeConfig {
+        url: config.providers.arxiv_api.url,
+        timeout_seconds: config.providers.arxiv_api.timeout,
+    };
     let classifier = ClassifierRuntimeConfig {
         url: config.classifier.url,
         keys: config.classifier.keys,
@@ -519,6 +590,9 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         &firecrawl,
         &jina,
     )?;
+    let platforms = PlatformsRuntimeConfig {
+        arxiv: platform_entries(Platform::Arxiv, config.platforms.arxiv.order, &arxiv_api)?,
+    };
     Ok(RuntimeConfig {
         main_search: MainSearchRuntimeConfig {
             entries: main_entries,
@@ -530,6 +604,7 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         exa,
         context7,
         anysearch,
+        arxiv_api,
         tavily,
         firecrawl,
         jina,
@@ -545,6 +620,7 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         web_fetch: WebFetchRuntimeConfig {
             entries: web_fetch_entries,
         },
+        platforms,
         journal,
         retry: RetryRuntimeConfig {
             max_attempts: usize::try_from(config.retry.max_attempts).map_err(|_| {
@@ -633,6 +709,43 @@ fn web_entries(
             Ok(SeamEntry::new(id, config, configured))
         })
         .collect()
+}
+
+fn platform_entries(
+    platform: Platform,
+    order: Vec<String>,
+    arxiv_api: &ArxivApiRuntimeConfig,
+) -> Result<PlatformRuntimeConfig, ConfigError> {
+    let key = platform_order_key(platform);
+    let catalog = catalog::platform(platform);
+    let entries = order
+        .into_iter()
+        .map(|name| {
+            let config = ProviderId::parse(&name)
+                .filter(|id| catalog.contains(*id))
+                .and_then(|id| Some((id, platform_route_config(id, arxiv_api)?)))
+                .ok_or_else(|| unknown_provider(&name, &key))?;
+            let configured = config.1.configured();
+            Ok(SeamEntry::new(config.0, config.1, configured))
+        })
+        .collect::<Result<_, ConfigError>>()?;
+    Ok(PlatformRuntimeConfig { platform, entries })
+}
+
+/// Returns the configuration key that orders the routes of `platform`.
+pub(crate) fn platform_order_key(platform: Platform) -> String {
+    format!("platforms.{platform}.order")
+}
+
+/// Returns the configuration of a platform route, or `None` for a provider that is no route.
+pub(crate) fn platform_route_config(
+    id: ProviderId,
+    arxiv_api: &ArxivApiRuntimeConfig,
+) -> Option<PlatformRouteConfig> {
+    match id {
+        ProviderId::ArxivApi => Some(PlatformRouteConfig::ArxivApi(arxiv_api.clone())),
+        _ => None,
+    }
 }
 
 pub(crate) fn main_provider_config(

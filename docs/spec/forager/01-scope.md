@@ -21,7 +21,7 @@
    - openai-compatible 通道专职 main search fallback，不得复用于分类/计划。
    - 降级：分类器未配置时 search 优雅降级为默认 Web 链；research 裸调用退 3（config_error）。分类器**已配置但失败**的降级语义见第 4 章（含 research 侧固定最小降级 plan，第 5 章 H8）。
    - Intent Routing Catalog 的「能力身份 + 语义例句」保留，作为分类器 prompt 与 skill 契约共同来源。
-10. **Provider Credential Pool 升级为唯一凭据体系**：8 provider 全入池（含 xai、openai_compatible），单凭据是池的退化情形；配置面统一为 `keys` 真数组（第 3 章）；轮换触发条件按 provider 声明。
+10. **Provider Credential Pool 升级为唯一凭据体系**：需要凭据的 8 个 provider 全入池（含 xai、openai_compatible），单凭据是池的退化情形；配置面统一为 `keys` 真数组（第 3 章）；轮换触发条件按 provider 声明。
 11. **Search Result Journal 增强**：记录面从终态业务结果扩展到执行过程（provider 尝试链、耗时、分类器决策、错误分类），修订 ADR-0002（第 6 章）。
 
 ## 保留（概念平移）

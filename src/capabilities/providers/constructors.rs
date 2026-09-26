@@ -8,6 +8,7 @@ use crate::config::{
 };
 use crate::credentials::CredentialPool;
 use crate::net::RetryPolicy;
+use crate::rate_limit::RateLimiter;
 use crate::types::Deadline;
 
 pub(crate) fn build_xai(
@@ -78,6 +79,16 @@ pub(crate) fn build_anysearch(
 ) -> Anysearch {
     let credentials = credentials(ProviderId::Anysearch, &mut config.keys);
     Anysearch::new(config, client, credentials, retry_policy, deadline)
+}
+
+/// Returns a limiter for a provider whose registration declares an access policy.
+///
+/// Each call builds a new in-process concurrency limit; sends still share the cross-process
+/// state, so every limiter for one route keeps the same spacing.
+pub(crate) fn route_limiter(id: ProviderId) -> Option<RateLimiter> {
+    registration(id)
+        .access_policy
+        .map(|policy| RateLimiter::new(id.name(), policy))
 }
 
 pub(super) fn credentials(id: ProviderId, keys: &mut Vec<crate::redact::Secret>) -> CredentialPool {

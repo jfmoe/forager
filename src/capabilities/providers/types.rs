@@ -4,14 +4,15 @@ use std::pin::Pin;
 use chrono::{Datelike, Local, Weekday};
 
 use super::{
-    Anysearch, AnysearchSearchRequest, Context7, Context7DocsRequest, Context7LibraryRequest, Exa,
-    ExaSearchRequest, OpenAiCompatible, SearchType, SupplementalSearch, Xai,
+    Anysearch, AnysearchSearchRequest, ArxivApi, Context7, Context7DocsRequest,
+    Context7LibraryRequest, Exa, ExaSearchRequest, OpenAiCompatible, SearchType,
+    SupplementalSearch, Xai,
 };
 use crate::redact::redact_url;
 use crate::types::{
     AnysearchOutcome, Context7Outcome, DocumentationEvidence, DocumentationSearchOutcome,
-    EvidenceLocator, ExaOutcome, ProviderError, SearchCandidate, Source, SupplementalSearchOutcome,
-    VerticalSearchOutcome,
+    EvidenceLocator, ExaOutcome, PlatformSearchOutcome, PlatformSearchRequest, ProviderError,
+    SearchCandidate, Source, SupplementalSearchOutcome, VerticalSearchOutcome,
 };
 
 #[derive(Clone, Debug)]
@@ -125,6 +126,24 @@ pub(crate) trait VerticalSearch: Send + Sync {
         query: &'a str,
         limit: u16,
     ) -> Pin<Box<dyn Future<Output = Result<VerticalSearchOutcome, ProviderError>> + Send + 'a>>;
+}
+
+/// The search seam of a platform; each route of the platform implements it.
+pub(crate) trait PlatformSearch: Send + Sync {
+    fn search<'a>(
+        &'a self,
+        request: &'a PlatformSearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>;
+}
+
+impl PlatformSearch for ArxivApi {
+    fn search<'a>(
+        &'a self,
+        request: &'a PlatformSearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(ArxivApi::search(self, request))
+    }
 }
 
 impl VerticalSearch for Anysearch {

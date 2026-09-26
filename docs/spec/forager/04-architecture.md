@@ -10,9 +10,9 @@
 
 `src/` 以职责形成六个物理分组；`lib.rs` 用显式 `#[path]` 声明保持既有 crate 内模块名，不把目录本身变成新的公共 API 层级。
 
-- **`cli/`**：CLI 参数定义、应用分发与 `app` 公共门面；参数树在 `args.rs`，分发在 `dispatch.rs`。
-- **`core/`**：engine（各 seam 的 provider 链）、search_fanout（普通 search 的辅助能力 fan-out 与结果合并）、chain、classifier 与 Attempt Trace。
-- **`capabilities/`**：Capability Catalog、Provider Credential Pool、跨进程限速（`rate_limit`）、Provider HTTP Read Contract（`net`）及 provider adapter。
+- **`cli/`**：CLI 参数定义、应用分发与 `app` 公共门面；参数树在 `args.rs`，分发在 `dispatch.rs`；`forager platform` 命令组的静态参数树与分发在 `platform.rs`。
+- **`core/`**：engine（各 seam 的 provider 链）、platform_chain（平台 route 链）、platform_checklist（仅测试构建：新平台接入清单一致性检查）、search_fanout（普通 search 的辅助能力 fan-out 与结果合并）、chain、classifier 与 Attempt Trace。
+- **`capabilities/`**：Capability Catalog 与 platform catalog、Provider Credential Pool、跨进程限速（`rate_limit`）、Provider HTTP Read Contract（`net`）及 provider adapter（含平台 route adapter）。
 - **`evidence/`**：Research Evidence Pipeline、Search Result Journal 与 stderr attempt log。
 - **`infra/`**：config、secure filesystem、共享私有状态文件（`state_file`）、redaction 与零 IO 的 `types` 基底。
 - **`ops/`**：doctor 与 smoke 运维入口。
@@ -22,15 +22,15 @@
 ```
 入口（main）
   → 应用（cli/app、args、dispatch）
-    → 能力编排（engine、search_fanout、research、classifier、doctor、smoke、journal）
+    → 能力编排（engine、platform_chain、search_fanout、research、classifier、doctor、smoke、journal）
       → 能力基础设施（catalog、providers、credentials、rate_limit、net、config、secure_fs、state_file、redact）
         → 类型基底（types）
 ```
 
-上层可以依赖下层，下层不得反向依赖上层；同层共享行为必须放到该职责的唯一拥有模块，再以最窄的 crate 内可见性提供。`catalog` 独立于 config 与 providers，二者只单向消费它；provider adapter 只消费 `providers/shared`、`providers/execution` 等共享拥有模块，不互相 import。
+上层可以依赖下层，下层不得反向依赖上层；同层共享行为必须放到该职责的唯一拥有模块，再以最窄的 crate 内可见性提供。`catalog` 独立于 config 与 providers，二者只单向消费它；`catalog` 只从 `rate_limit` 取访问策略类型，`rate_limit` 不依赖 `catalog`。provider adapter 只消费 `providers/shared`、`providers/execution` 等共享拥有模块，不互相 import；平台 route adapter 同样不 import 任何 capability provider。
 
 - **应用组合层**（F1）：`cli/app.rs` 只公开参数与分发门面；`dispatch.rs` 先构造共享 `NetworkDependencies`，再按命令建立 `AppContext<P>`、`FetchContext`、`SearchContext` 或 `ResearchContext`，各自持有所需的 runtime、配置与网络依赖。provider 实现与路由策略留在下层模块，Search Result Journal 仍由分发层在命令终态统一落笔。
-- **`types` 类型基底**：零 IO 纯类型层——ErrorKind、ProviderError、Capability、`PlanCapability`（plan 语境独立三值枚举）、各 Outcome、ProviderAttempt、Source、ResearchPlan Schema v1、Deadline、薄正文阈值常量。所有跨层形状的唯一定义点。`infra/types/` 是目录模块，按职责分为 `capability`、`research`、`error`、`attempt`、`search`、`outcome`、`deadline` 私有子模块，由 `mod.rs` 统一再导出，公共路径保持 `forager::types::*`。
+- **`types` 类型基底**：零 IO 纯类型层——ErrorKind、ProviderError、Capability、`PlanCapability`（plan 语境独立三值枚举）、各 Outcome、ProviderAttempt、Source、ResearchPlan Schema v1、Deadline、薄正文阈值常量，以及平台形状（Platform、Platform Ref 与 canonical URL 推导、Content Depth、平台选项、条目与结果页）。所有跨层形状的唯一定义点。`infra/types/` 是目录模块，按职责分为 `capability`、`research`、`error`、`attempt`、`search`、`outcome`、`platform`、`deadline` 私有子模块，由 `mod.rs` 统一再导出，公共路径保持 `forager::types::*`。后续平台只在 `platform` 叶子中增加形状；公开的平台身份类型不引用 crate 私有的 `ProviderId`。
 - **`net` 网络边界**：共享 HTTP client 构造、RetryPolicy、SSE 解析、status→ErrorKind 唯一映射、McpClient。
 - 输出格式化保留在 bin 侧，出现第二个消费者再提升为独立共享模块。
 
@@ -41,7 +41,18 @@
 - **凭据要求**：registry 的 `credentials_required` 是 provider 是否需要凭据的唯一来源。执行路径、doctor 与 smoke 用同一判定（`ProviderRegistration::is_configured`）决定「已配置」：需要凭据的 provider 要求 keys 非空，不需要凭据的 provider 恒为已配置。registry 校验与 smoke 的注册完整性检查都不要求 provider 需要凭据。
 - **匿名执行**：不需要凭据的 provider 经 `execute_anonymous` 执行：不 claim、不轮换、不注入认证；每个 attempt 的 `credential_index` 为 0，`rotation_count` 恒为 0，这两个字段对匿名 provider 没有凭据含义。需要凭据的执行入口 `execute_v2` 遇到空凭据池时在发送前以 Auth 失败，不 panic。共享构造器不断言 provider 需要凭据。
 - **单次发送契约**：每次发送返回可选的 status 与解码值。现有调用方照常传入 status：多数 HTTP 调用方传入响应的实际 status，Exa 以及 Context7、AnySearch 的 MCP 调用成功时记为 200；非 HTTP 传输可以不带 status，attempt 的 `http_status` 随之为空。
-- **registry 最小职责**（F10）：唯一登记 `ProviderId`、支持 seam、凭据要求、doctor probe、构造入口；config/doctor/capability status 从同一描述读取身份，不各设 allowlist；engine 只调用 seam trait 并聚合 `ProviderAttempt`，禁止按 provider id/model 分支；openai-compatible 的 model 候选、断路器、transport fallback 全部封装在 provider 内。不引入宏、不生成 clap 树。
+- **registry 最小职责**（F10）：唯一登记 `ProviderId`、支持 seam、凭据要求、访问策略、doctor probe、构造入口；注册合法性为「属于某个 Capability Catalog、某个 platform catalog，或拥有 operation 之一」，启动期校验、catalog 单测与 smoke 注册完整性检查共用 `catalog::has_owner`；config/doctor/capability status 从同一描述读取身份，不各设 allowlist；engine 只调用 seam trait 并聚合 `ProviderAttempt`，禁止按 provider id/model 分支；openai-compatible 的 model 候选、断路器、transport fallback 全部封装在 provider 内。不引入宏、不生成 clap 树。
+
+## Platform 维度
+
+Platform 与 Capability Seam 并列（ADR 0019），完整接入契约见第 7 章。
+
+- **platform catalog**：`catalog::PLATFORMS` 为每个平台登记平台 id、search 与 fetch 的 route 集合，以及已提升为 trait 的平台操作的 route 集合。它是平台 route 隶属关系的唯一出处；Capability Catalog 集合保持原含义，不塞入平台 route。
+- **配置**：`platforms.<id>.order` 以 `Rule::PlatformOrder` 对照 platform catalog 校验，拒绝重复项与不属于该平台的 route，允许为空（禁用平台）；文件加载与 `config set` 走同一规则，env 按既有公式派生。runtime 投影为 `PlatformRuntimeConfig`，每项是 `SeamEntry<PlatformRouteConfig>`。
+- **平台 seam trait**：`PlatformSearch` 不使用泛型，形状与兄弟 seam 相同，返回 `ProviderError` 或 `PlatformSearchOutcome`。factory 的 `build_platform_search` 按 `PlatformRouteConfig` 的变体构造 route（route 身份由配置变体决定，不另传 `ProviderId`），`platform_search_support` 调用 route 的纯函数支持检查；支持检查读取整个请求（选项与页位置），不联网。
+- **平台链**：`platform_chain` 先做纯规划——可用 route＝order ∩ 该操作的 route 集合 ∩ 已配置 route；集合为空为 Config（退 3）；不支持显式选项的 route 记为 Skipped attempt（`error_kind` 为空），全部不支持为参数错误（退 2）；cursor 的 route 不能运行该请求（例如页位置不是它签发的）同样为参数错误。这些判定不经过链执行器的 gate。然后以共享链执行器按 `SlicedEven` 运行 route 链，沿用 LegitimateEmpty 语义，永不跨平台 fallback。
+- **cursor**：`v1.<route>.<payload>`，payload 是 base64url（无填充）编码的 JSON 请求（查询词、limit、选项与 route 自有的页位置）。带 cursor 的请求只在该 route 上执行；route 已不可用、版本未知、无法解码、route 未知或属于其他平台均为飞行前参数错误。
+- **attempt target**：平台操作的 attempt 以 `AttemptTarget::Platform { platform, operation }` 序列化为 `{"platform", "operation"}`；链执行器的合成 attempt 使用调用方传入的 `AttemptTarget`。
 
 ## 错误模型
 
@@ -79,7 +90,7 @@
 
 ## 跨进程限速
 
-`rate_limit` 统一负责跨进程请求节奏。访问策略包括最小间隔与最大并发；对受限 endpoint 的每次发送（包括重试）都必须先调用 `RateLimiter::acquire` 申请时间窗口。目前还没有 provider 声明访问策略，平台 route 接入时开始使用。
+`rate_limit` 统一负责跨进程请求节奏。访问策略包括最小间隔与最大并发，由 provider 注册信息的 `access_policy` 声明（`arxiv_api`：每 3 秒 1 个请求、并发 1）；对受限 endpoint 的每次发送（包括重试、doctor 的 shallow 可达性探测与 deep 探测）都必须先调用 `RateLimiter::acquire` 申请时间窗口。`providers::route_limiter` 按注册信息构造限速器；route adapter 在单次发送内先取窗口再发请求，窗口的等待计入该 attempt 与命令的 Deadline。
 
 - **算法**：先在进程内按最大并发取得 permit，等待时间计入 Deadline；再在 Deadline 内等到状态文件的进程内轮次（此时尚未预留，超时不会占用窗口），然后在共享状态锁内读取该 route 上次预留的时刻，计算下一个窗口 = max(现在, 上次预留 + 最小间隔)。需要等待的时间不小于剩余预算时，直接以 Timeout 结束，不写入预留；否则写入新的预留时刻，释放锁，然后在锁外等待到该绝对时刻。permit 持有到发送结束。
 - **时钟**：预留时刻是墙钟毫秒，从构造时的墙钟起按 Tokio 时钟推进，因此预留、等待与 Deadline 在同一时间线上。

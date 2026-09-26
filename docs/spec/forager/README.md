@@ -12,6 +12,7 @@
 | 4 | [04-architecture.md](04-architecture.md) | 架构骨架：模块、trait、错误模型、net、凭据池、journal | [#58](https://github.com/jfmoe/smartsearch/issues/58) |
 | 5 | [05-acceptance.md](05-acceptance.md) | 验收契约（Tier 0/1、四层测试、live 矩阵）与切换步骤 | [#59](https://github.com/jfmoe/smartsearch/issues/59) |
 | 6 | [06-migration.md](06-migration.md) | 仓库迁移、退役链、随迁 manifest、ADR/CONTEXT 修订、脚手架照办件 | [#61](https://github.com/jfmoe/smartsearch/issues/61) |
+| 7 | [07-platforms.md](07-platforms.md) | 平台接入契约：Platform/Route/Ref/Content Depth、参数分层、输出、退出码、限速、接入清单 | [#165](https://github.com/jfmoe/forager/issues/165) |
 
 各章以对应票的 Resolution 及其补充决议为权威来源；票间冲突已按「后票修订前票」原则在汇编时消解。**规格优先规则的边界**：规格与票文冲突时，仅当该差异属于显式留痕的汇编裁定——即 [#60 Resolution](https://github.com/jfmoe/smartsearch/issues/60#issuecomment-5082058705) 列出的悬置件定稿、各章「修订留痕」条目、或行文中标注「以文件/规格为准」的更正——才以规格为准；**未留痕的冲突视为汇编缺陷**，应回溯票文修正规格。
 

@@ -4,6 +4,7 @@ use std::path::Path;
 use toml_edit::{Document, TableLike, Value};
 
 use crate::catalog;
+use crate::types::Platform;
 
 use super::location::{ConfigError, EditError};
 use super::schema::{Config, FieldRef, Rule, SCHEMA, leaf};
@@ -42,6 +43,9 @@ fn edit_value_satisfies(rule: Rule, value: &Value) -> bool {
             allow_empty,
         } => value.as_array().is_some_and(|values| {
             capability_order_satisfies(values.iter().map(Value::as_str), capability, allow_empty)
+        }),
+        Rule::PlatformOrder { platform } => value.as_array().is_some_and(|values| {
+            platform_order_satisfies(values.iter().map(Value::as_str), platform)
         }),
     }
 }
@@ -89,6 +93,9 @@ fn field_satisfies(rule: Rule, field: FieldRef<'_>) -> bool {
             capability,
             allow_empty,
         ),
+        (Rule::PlatformOrder { platform }, FieldRef::Strings(values)) => {
+            platform_order_satisfies(values.iter().map(|route| Some(route.as_str())), platform)
+        }
         _ => false,
     }
 }
@@ -107,6 +114,20 @@ fn capability_order_satisfies<'a>(
         })
     });
     valid && (allow_empty || count > 0)
+}
+
+fn platform_order_satisfies<'a>(
+    values: impl Iterator<Item = Option<&'a str>>,
+    platform: Platform,
+) -> bool {
+    let catalog = catalog::platform(platform);
+    let mut seen = HashSet::new();
+    values.into_iter().all(|value| {
+        value.is_some_and(|route| {
+            catalog::ProviderId::parse(route).is_some_and(|id| catalog.contains(id))
+                && seen.insert(route.to_owned())
+        })
+    })
 }
 
 fn strings_satisfy<'a>(
@@ -232,6 +253,38 @@ mod tests {
         assert!(
             validate_edit_value("capabilities.web_fetch.order", &Value::Array(values),).is_err()
         );
+    }
+
+    #[test]
+    fn platform_order_rule_rejects_routes_of_other_platforms_in_both_validators() {
+        let mut config = Config::default();
+        config.platforms.arxiv.order = vec!["tavily".into()];
+        let mut values = Array::new();
+        values.push("tavily");
+
+        assert!(!validates(&config));
+        assert!(validate_edit_value("platforms.arxiv.order", &Value::Array(values)).is_err());
+    }
+
+    #[test]
+    fn platform_order_rule_rejects_duplicate_routes_in_both_validators() {
+        let mut config = Config::default();
+        config.platforms.arxiv.order = vec!["arxiv_api".into(), "arxiv_api".into()];
+        let mut values = Array::new();
+        values.push("arxiv_api");
+        values.push("arxiv_api");
+
+        assert!(!validates(&config));
+        assert!(validate_edit_value("platforms.arxiv.order", &Value::Array(values)).is_err());
+    }
+
+    #[test]
+    fn platform_order_rule_accepts_an_empty_order_that_disables_the_platform() {
+        let mut config = Config::default();
+        config.platforms.arxiv.order = Vec::new();
+
+        assert!(validates(&config));
+        assert!(validate_edit_value("platforms.arxiv.order", &Value::Array(Array::new())).is_ok());
     }
 
     #[test]

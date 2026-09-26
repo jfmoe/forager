@@ -37,7 +37,7 @@ fn identity(name: &&'static str) -> StepIdentity {
 
 fn settings() -> ChainSettings<'static, &'static str> {
     ChainSettings {
-        seam: "main_search",
+        target: AttemptTarget::seam("main_search"),
         budget_policy: BudgetPolicy::PrimaryFirst,
         fallback_off: false,
         diagnostic_merge: DiagnosticMerge::Join,

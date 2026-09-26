@@ -20,8 +20,9 @@ use crate::providers::{
 };
 use crate::types::{
     AnysearchOutcome, CapabilitySet, ClaimRisk, Context7Outcome, Deadline, EvidenceStrength,
-    FallbackPolicy, FetchOutcome, JournalOutcome, MapOutcome, PlanCapability, ProviderAttempt,
-    RecencyRequirement, ResearchIntentSignals, ResearchPlan, ResearchSubquestion, SearchOutcome,
+    FallbackPolicy, FetchOutcome, JournalOutcome, MapOutcome, PlanCapability, PlatformSearchPage,
+    ProviderAttempt, RecencyRequirement, ResearchIntentSignals, ResearchPlan, ResearchSubquestion,
+    SearchOutcome,
 };
 
 #[doc(hidden)]
@@ -131,6 +132,17 @@ pub enum CommandOutput {
         /// Optional terminal projection selected by `log.level`.
         attempt_log: Option<String>,
     },
+    /// Typed platform search terminal state for binary-side formatting and tee output.
+    PlatformSearch {
+        /// Platform search result.
+        result: Result<PlatformSearchPage, ProviderError>,
+        /// Requested output format.
+        format: OutputFormat,
+        /// Optional output file destination.
+        output: Option<OutputTarget>,
+        /// Optional terminal projection selected by `log.level`.
+        attempt_log: Option<String>,
+    },
     /// Typed Tavily site map terminal state for binary-side formatting and tee output.
     Map {
         /// Site map result.
@@ -150,11 +162,11 @@ struct AppContext<P> {
     log_level: config::LogLevel,
 }
 
-struct NetworkDependencies {
-    config: config::RuntimeConfig,
-    client: reqwest::Client,
-    retry_policy: RetryPolicy,
-    runtime: tokio::runtime::Runtime,
+pub(super) struct NetworkDependencies {
+    pub(super) config: config::RuntimeConfig,
+    pub(super) client: reqwest::Client,
+    pub(super) retry_policy: RetryPolicy,
+    pub(super) runtime: tokio::runtime::Runtime,
 }
 
 struct FetchContext {
@@ -186,7 +198,7 @@ struct ResearchContext {
 }
 
 impl NetworkDependencies {
-    fn load() -> Result<Self, AppError> {
+    pub(super) fn load() -> Result<Self, AppError> {
         let config = config::runtime_config()?;
         let retry_policy = RetryPolicy::new(
             config.retry.max_attempts,
@@ -1023,6 +1035,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             format,
             output.target(),
         ),
+        Command::Platform { command } => super::platform::run(command),
         Command::Config {
             command: ConfigCommand::Path,
         } => Ok(CommandOutput::Text {
@@ -1454,7 +1467,7 @@ fn prepend_classifier_context(
     );
 }
 
-fn provider_attempt_log<'a, T>(
+pub(super) fn provider_attempt_log<'a, T>(
     level: config::LogLevel,
     result: &'a Result<T, ProviderError>,
     success_attempts: impl FnOnce(&'a T) -> &'a [ProviderAttempt],

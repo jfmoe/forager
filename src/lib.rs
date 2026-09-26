@@ -26,6 +26,11 @@ mod engine;
 mod journal;
 #[path = "capabilities/net.rs"]
 mod net;
+#[path = "core/platform_chain.rs"]
+mod platform_chain;
+#[cfg(test)]
+#[path = "core/platform_checklist.rs"]
+mod platform_checklist;
 #[path = "capabilities/providers/mod.rs"]
 mod providers;
 #[path = "capabilities/rate_limit.rs"]

@@ -2,6 +2,7 @@
 
 mod args;
 mod dispatch;
+mod platform;
 
 pub use args::{Cli, DocsOutputFormat, OutputFormat, OutputTarget};
 pub use dispatch::{

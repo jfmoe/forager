@@ -96,6 +96,12 @@
       "provider": "anysearch",
       "seam": "vertical_search",
       "test": "tests/anysearch.rs::anysearch_search_without_a_domain_performs_vertical_discovery"
+    },
+    {
+      "id": "F11",
+      "provider": "arxiv_api",
+      "seam": "platform:arxiv:search",
+      "test": "tests/arxiv_search.rs::search_returns_abstract_depth_items_with_refs_and_metadata"
     }
   ],
   "offline_e2e": [

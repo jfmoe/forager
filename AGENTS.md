@@ -52,6 +52,10 @@ Dependencies flow one way, top to bottom: entry → cli → orchestration (`core
 
 `lib.rs` exposes exactly three facade modules: `app`, `config`, `types`. Everything else stays crate-private. Widening the public surface requires a spec change first, not a drive-by `pub`.
 
+### Platforms
+
+Before you add or change a platform or a platform route, read `docs/spec/forager/07-platforms.md`. Complete its integration checklist and keep the new-platform checklist test (`src/core/platform_checklist.rs`) passing.
+
 ### Spec-code lockstep
 
 A change that adds, moves, or removes a module, or alters a module's ownership or dependency direction, updates `docs/spec/forager/04-architecture.md` in the same commit. A spec claim the code no longer satisfies is corrected or deleted immediately — never left to drift.

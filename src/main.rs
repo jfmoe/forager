@@ -12,7 +12,8 @@ use forager::app::{
 };
 use forager::types::{
     AnysearchOutcome, AttemptErrorKind, Context7Outcome, ErrorFamily, ErrorKind, FetchOutcome,
-    JournalOutcome, MapOutcome, SearchCandidate, SearchOutcome,
+    JournalOutcome, MapOutcome, PlatformItemData, PlatformSearchPage, SearchCandidate,
+    SearchOutcome,
 };
 use serde_json::{Value, json};
 
@@ -86,6 +87,12 @@ fn main() -> ExitCode {
             output,
             attempt_log,
         }) => emit_logged(render_map(result, format, output), attempt_log),
+        Ok(CommandOutput::PlatformSearch {
+            result,
+            format,
+            output,
+            attempt_log,
+        }) => emit_logged(render_platform_search(result, format, output), attempt_log),
         Err(error) if json_preflight_errors => {
             let exit_code = error.exit_code();
             emit_rendered(apply_tee(
@@ -609,6 +616,74 @@ fn render_fetch(
         output,
         diagnostic,
     )
+}
+
+fn render_platform_search(
+    result: Result<PlatformSearchPage, ProviderError>,
+    format: OutputFormat,
+    output: Option<OutputTarget>,
+) -> Result<RenderedOutput, String> {
+    let (stdout, exit_code, diagnostic) = match result {
+        Ok(page) => (format_platform_page(&page, format)?, 0, page.diagnostic),
+        Err(error) => {
+            let stdout = match format {
+                OutputFormat::Json => format_failure_json(&error)?,
+                OutputFormat::Markdown => format!(
+                    "# Platform search failed\n\n**{}**: {}",
+                    error.kind.as_str(),
+                    error.message
+                ),
+            };
+            (stdout, postflight_exit_code(error.kind), error.diagnostic)
+        }
+    };
+    apply_tee(
+        stdout,
+        exit_code,
+        format == OutputFormat::Json,
+        output,
+        diagnostic,
+    )
+}
+
+fn format_platform_page(page: &PlatformSearchPage, format: OutputFormat) -> Result<String, String> {
+    if format == OutputFormat::Json {
+        return serde_json::to_string(page).map_err(|error| error.to_string());
+    }
+    let mut markdown = format!("# {} search ({})\n", page.platform, page.provider);
+    for item in &page.items {
+        let _ = write!(
+            markdown,
+            "\n- [{}]({}) `{}`",
+            item.title, item.url, item.reference
+        );
+        if !item.authors.is_empty() {
+            let _ = write!(markdown, " — {}", item.authors.join(", "));
+        }
+        if let Some(published) = &item.published {
+            let _ = write!(markdown, " — {published}");
+        }
+        match &item.data {
+            PlatformItemData::Arxiv(data) if !data.abstract_text.is_empty() => {
+                let _ = write!(
+                    markdown,
+                    "\n\n  {}",
+                    data.abstract_text
+                        .split_whitespace()
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                );
+            }
+            PlatformItemData::Arxiv(_) => {}
+        }
+    }
+    if page.items.is_empty() {
+        markdown.push_str("\n\nNo results.");
+    }
+    if let Some(cursor) = &page.next_cursor {
+        let _ = write!(markdown, "\n\nNext cursor: `{cursor}`");
+    }
+    Ok(markdown)
 }
 
 fn render_anysearch(

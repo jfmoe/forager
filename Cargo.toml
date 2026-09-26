@@ -10,11 +10,13 @@ license = "MIT"
 dist = true
 
 [dependencies]
-chrono = { version = "0.4.41", default-features = false, features = ["clock"] }
+base64 = "0.23.1"
+chrono = { version = "0.4.41", default-features = false, features = ["clock", "serde"] }
 clap = { version = "4.5.42", features = ["derive"] }
 eventsource-stream = "0.2.3"
 fs2 = "0.4.3"
 futures-util = "0.3.31"
+quick-xml = { version = "0.42.0", features = ["overlapped-lists", "serialize"] }
 reqwest = { version = "0.12.22", default-features = false, features = ["json", "rustls-tls", "stream"] }
 rpassword = "7.4.0"
 serde = { version = "1.0.219", features = ["derive"] }

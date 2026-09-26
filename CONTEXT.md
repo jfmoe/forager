@@ -125,7 +125,7 @@ _Avoid_: Research Evidence Index、inline failure index、evidence body archive
 _Avoid_: claim verification、source list
 
 **Provider Credential Pool**:
-某一需要凭据的供应方上由 TOML `keys` 真数组配置的认证凭据集合；目前八个供应方都需要凭据并统一使用这一形状，单凭据是单元素数组。运行时按轮询选用，并在额度或限流类失败时于同一次请求内换用其他凭据。注册信息声明不需要凭据的供应方不选用、不轮换凭据，且恒视为已配置。
+某一需要凭据的供应方上由 TOML `keys` 真数组配置的认证凭据集合；每个需要凭据的供应方都使用这一形状，单凭据是单元素数组；不需要凭据的供应方没有 `keys`。运行时按轮询选用，并在额度或限流类失败时于同一次请求内换用其他凭据。注册信息声明不需要凭据的供应方不选用、不轮换凭据，且恒视为已配置。
 _Avoid_: key pool、key rotation、API key list、high-availability credential pool
 
 **Access Policy**:
@@ -139,3 +139,31 @@ _Avoid_: provider registry、BACKENDS allowlist、per-call-site provider list
 **Provider HTTP Read Contract**:
 供应方网络边界上由 net 唯一拥有的读取语义：HTTP status 与 429 额度嗅探的错误归因、完整协议响应的 4 MiB 硬上限、Web Fetch 正文的 UTF-8 安全截断、64 KiB 有界错误正文、凭据与 URL 脱敏；provider adapter 只构造请求并解码自己的成功格式，不再各自组合这些规则。
 _Avoid_: per-adapter read recipe、raw reqwest handling
+
+**Platform**:
+内置的外部内容源，拥有自己的身份空间，例如 arXiv；它与 Capability Seam 并列，平台之间永不互相 fallback。它不是供应方，也不是 Vertical Search 的垂直域。
+_Avoid_: platform provider、vertical domain、custom platform
+
+**Platform Route**:
+接入某个 Platform 的一条路线；route 就是供应方，同平台的 route 按配置顺序组成 fallback 链。route 身份绝不使用裸平台名。
+_Avoid_: platform backend、platform provider list
+
+**Platform Ref**:
+Platform 实体的类型化身份，由平台、平台自有的 kind 与 id 组成，可以带版本；它与 canonical URL 可以互相推导。kind 只按身份空间或取回结果形状划分，不按对话角色划分。
+_Avoid_: platform URL、raw id
+
+**Platform Operation**:
+Platform 的一项操作。每个 Platform 都提供 search 与 fetch；改变结果种类或必需输入的操作是新的 Platform Operation，不是参数。
+_Avoid_: platform option、sub-command flag
+
+**Platform Fetch**:
+按 Platform Ref 取回单个平台条目的操作；它不同于 Web Fetch Capability，尽管其正文段可以复用 Web Fetch。
+_Avoid_: web fetch、platform download
+
+**Content Depth**:
+平台条目结果所含内容的程度：`snippet`、`abstract`、`full_text` 或 `thread`；每个 Platform 定义它所支持深度的含义。摘要深度绝不等于全文。
+_Avoid_: detail level、verbosity
+
+**Page Cursor**:
+平台检索结果的不透明翻页标识；它完整恢复原请求与下一页位置，只能在产出它的 route 上继续。
+_Avoid_: offset、page token

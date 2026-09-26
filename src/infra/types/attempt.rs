@@ -22,6 +22,11 @@ pub enum AttemptTarget {
     Seam { seam: &'static str },
     /// A provider-specific operation outside the capability vocabulary.
     Operation { operation: &'static str },
+    /// An operation of a platform, run by one of its routes.
+    Platform {
+        platform: &'static str,
+        operation: &'static str,
+    },
 }
 
 impl AttemptTarget {
@@ -37,10 +42,19 @@ impl AttemptTarget {
         Self::Operation { operation }
     }
 
+    /// Constructs a platform-operation target.
+    #[must_use]
+    pub const fn platform(platform: &'static str, operation: &'static str) -> Self {
+        Self::Platform {
+            platform,
+            operation,
+        }
+    }
+
     pub(crate) const fn seam_name(self) -> Option<&'static str> {
         match self {
             Self::Seam { seam } => Some(seam),
-            Self::Operation { .. } => None,
+            Self::Operation { .. } | Self::Platform { .. } => None,
         }
     }
 }

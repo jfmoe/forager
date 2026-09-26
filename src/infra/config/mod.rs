@@ -13,12 +13,17 @@ pub use crate::secure_fs::{create_private_file, ensure_private_directory};
 
 pub use edit::{SetupDocument, create_setup_template, set_file_value, unset_file_value};
 pub use location::{ConfigError, ConfigLocation, EditError};
+#[cfg(test)]
+pub(crate) use runtime::platform_order_key;
 pub(crate) use runtime::{
-    AnysearchRuntimeConfig, ClassifierRuntimeConfig, Context7RuntimeConfig,
+    AnysearchRuntimeConfig, ArxivApiRuntimeConfig, ClassifierRuntimeConfig, Context7RuntimeConfig,
     DocsSearchProviderConfig, DocsSearchRuntimeConfig, ExaRuntimeConfig, JournalRuntimeConfig,
     LogLevel, MainSearchProviderConfig, MainSearchRuntimeConfig, OpenAiCompatibleRuntimeConfig,
-    RuntimeConfig, SeamEntry, VerticalSearchRuntimeConfig, WebFetchProviderConfig,
-    WebFetchRuntimeConfig, WebSearchRuntimeConfig, XaiRuntimeConfig, docs_provider_config,
-    main_provider_config, runtime_config, web_provider_config,
+    PlatformRouteConfig, PlatformRuntimeConfig, RuntimeConfig, SeamEntry,
+    VerticalSearchRuntimeConfig, WebFetchProviderConfig, WebFetchRuntimeConfig,
+    WebSearchRuntimeConfig, XaiRuntimeConfig, docs_provider_config, main_provider_config,
+    platform_route_config, runtime_config, web_provider_config,
 };
+#[cfg(test)]
+pub(crate) use schema::is_leaf;
 pub use view::{EffectiveConfigView, effective_view, effective_view_json};

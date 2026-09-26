@@ -17,7 +17,7 @@ use crate::catalog::{self, ProviderId, ProviderRegistration};
 use crate::config::{self, RuntimeConfig};
 use crate::redact::{CREDENTIAL_MASK, Secret, redact_credentials, redact_url};
 use crate::state_file;
-use crate::types::Deadline;
+use crate::types::{Deadline, Platform};
 
 static PROBE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 pub(crate) const MAIN_CANARY_QUERY: &str = "What is the latest stable Rust release?";
@@ -26,14 +26,15 @@ pub(crate) const PIPELINE_CANARY_QUERY: &str =
 pub(crate) const RESEARCH_CANARY_QUERY: &str = "What is the current status of async drop in Rust?";
 const FETCH_CANARY_URL: &str = "https://www.rust-lang.org/";
 const ANYSEARCH_CANARY_QUERY: &str = "retrieval augmented generation";
-const SPECIFICATION_CASE_IDS: [&str; 19] = [
+const PLATFORM_CANARY_QUERY: &str = "retrieval augmented generation";
+const SPECIFICATION_CASE_IDS: [&str; 20] = [
     "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12",
-    "C13", "C14", "C15", "C16", "C17",
+    "C13", "C14", "C15", "C16", "C17", "C18",
 ];
 const PIPELINE_CASES: [LiveCaseDefinition; 3] = [
     LiveCaseDefinition::pipeline("P1", "search"),
     LiveCaseDefinition::pipeline("P2", "research"),
-    LiveCaseDefinition::provider("C04", "classifier", "capability_and_plan", "http"),
+    LiveCaseDefinition::provider("C04", "classifier", None, "capability_and_plan", "http"),
 ];
 
 static LIVE_CASES: LazyLock<Vec<LiveCaseDefinition>> = LazyLock::new(|| {
@@ -43,6 +44,7 @@ static LIVE_CASES: LazyLock<Vec<LiveCaseDefinition>> = LazyLock::new(|| {
             LiveCaseDefinition::provider(
                 case.id,
                 registration.id.name(),
+                case.platform,
                 case.operation,
                 case.transport,
             )
@@ -63,6 +65,8 @@ pub(crate) struct LiveCaseDefinition {
     kind: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     provider: Option<&'static str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    platform: Option<Platform>,
     operation: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
     transport: Option<&'static str>,
@@ -74,6 +78,7 @@ impl LiveCaseDefinition {
             id,
             kind: "pipeline",
             provider: None,
+            platform: None,
             operation,
             transport: None,
         }
@@ -82,6 +87,7 @@ impl LiveCaseDefinition {
     const fn provider(
         id: &'static str,
         provider: &'static str,
+        platform: Option<Platform>,
         operation: &'static str,
         transport: &'static str,
     ) -> Self {
@@ -89,6 +95,7 @@ impl LiveCaseDefinition {
             id,
             kind: "provider_contract",
             provider: Some(provider),
+            platform,
             operation,
             transport: Some(transport),
         }
@@ -156,6 +163,7 @@ enum ResultShape {
     Exa,
     Anysearch,
     Map,
+    PlatformSearch,
 }
 
 pub(crate) enum ProbeKind {
@@ -668,6 +676,30 @@ fn command_specs(
         }]
     };
     let definition = live_case(case_id)?;
+    if let Some(platform) = definition.platform {
+        let provider = definition.provider?;
+        let mut commands = one(
+            &[
+                "platform",
+                platform.as_str(),
+                definition.operation,
+                PLATFORM_CANARY_QUERY,
+                "--limit",
+                "3",
+                "--timeout",
+                &timeout,
+            ],
+            ResultShape::PlatformSearch,
+        );
+        commands[0].environment.push((
+            format!(
+                "FORAGER_PLATFORMS__{}__ORDER",
+                platform.as_str().to_ascii_uppercase()
+            ),
+            format!("[\"{provider}\"]"),
+        ));
+        return Some(commands);
+    }
     if definition.operation == "web_search" {
         return Some(one(
             &["smoke", "--probe", case_id, "--probe-timeout", &timeout],
@@ -863,6 +895,7 @@ fn result_shape_is_nonempty(shape: ResultShape, payload: &Value) -> bool {
         | ResultShape::Exa
         | ResultShape::Anysearch
         | ResultShape::Map => nonempty_array(payload, "results"),
+        ResultShape::PlatformSearch => nonempty_array(payload, "items"),
         ResultShape::Fetch | ResultShape::Context7Docs => nonempty_string(payload, "content"),
     }
 }
@@ -921,8 +954,21 @@ fn case_is_configured(case_id: &str, runtime: &RuntimeConfig) -> bool {
                 && runtime.web_fetch.configured_provider_count() > 0
         }
         "C04" => runtime.classifier.configured(),
-        _ => provider_for_case(case_id)
-            .is_some_and(|provider| provider_is_configured(runtime, provider)),
+        _ => live_case(case_id).is_some_and(|definition| {
+            let Some(provider) = definition.provider.and_then(ProviderId::parse) else {
+                return false;
+            };
+            match definition.platform {
+                // A platform case runs only when the route stays in the platform order.
+                Some(platform) => runtime
+                    .platforms
+                    .get(platform)
+                    .entries()
+                    .iter()
+                    .any(|entry| entry.id() == provider && entry.configured()),
+                None => provider_is_configured(runtime, provider),
+            }
+        }),
     }
 }
 
@@ -991,12 +1037,7 @@ fn registry_status(registrations: &[ProviderRegistration]) -> RegistryStatus {
         .into_iter()
         .map(ProviderId::name)
         .collect::<BTreeSet<_>>();
-    let descriptions_are_complete = registrations.iter().all(|registration| {
-        catalog::CATALOGS
-            .iter()
-            .any(|catalog| catalog.contains(registration.id))
-            || !registration.operations.is_empty()
-    });
+    let descriptions_are_complete = registrations.iter().all(catalog::has_owner);
     RegistryStatus {
         ok: registrations.len() == ProviderId::ALL.len()
             && names == expected

@@ -24,7 +24,7 @@ fn config_list_reports_the_complete_default_effective_view() {
         ),
         (
             Some(0),
-            47,
+            50,
             None,
             &serde_json::json!({
                 "value": [],
@@ -37,6 +37,88 @@ fn config_list_reports_the_complete_default_effective_view() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+}
+
+#[test]
+fn config_list_projects_an_anonymous_provider_without_keys_and_the_platform_order() {
+    let config_dir = tempfile::tempdir().expect("create config directory");
+
+    let output = run(config_dir.path(), &["config", "list"], &[], None);
+    let view: Value = serde_json::from_slice(&output.stdout).expect("parse config view");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &view["providers"]["arxiv_api"],
+            &view["platforms"]["arxiv"]["order"],
+        ),
+        (
+            Some(0),
+            &serde_json::json!({
+                "url": {"value": "https://export.arxiv.org/api/query", "source": "default"},
+                "timeout": {"value": 30, "source": "default"}
+            }),
+            &serde_json::json!({"value": ["arxiv_api"], "source": "default"}),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn platform_order_reads_its_derived_environment_variable() {
+    let config_dir = tempfile::tempdir().expect("create config directory");
+
+    let output = run(
+        config_dir.path(),
+        &["config", "list"],
+        &[("FORAGER_PLATFORMS__ARXIV__ORDER", "[]")],
+        None,
+    );
+    let view: Value = serde_json::from_slice(&output.stdout).expect("parse config view");
+
+    assert_eq!(
+        (output.status.code(), &view["platforms"]["arxiv"]["order"]),
+        (Some(0), &serde_json::json!({"value": [], "source": "env"})),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn config_set_rejects_a_platform_order_with_another_platform_route() {
+    let config_dir = tempfile::tempdir().expect("create config directory");
+
+    let output = run(
+        config_dir.path(),
+        &["config", "set", "platforms.arxiv.order", "[\"tavily\"]"],
+        &[],
+        None,
+    );
+
+    assert_eq!(
+        (
+            output.status.code(),
+            config_dir.path().join("config.toml").exists()
+        ),
+        (Some(2), false),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn config_set_rejects_keys_for_a_provider_without_credentials() {
+    let config_dir = tempfile::tempdir().expect("create config directory");
+
+    let output = run(
+        config_dir.path(),
+        &["config", "set", "providers.arxiv_api.keys", "[\"secret\"]"],
+        &[],
+        None,
+    );
+
+    assert_eq!(output.status.code(), Some(2), "{output:?}");
 }
 
 fn count_effective_leaves(value: &Value) -> usize {

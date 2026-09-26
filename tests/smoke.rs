@@ -96,8 +96,8 @@ fn offline_smoke_reports_local_readiness_without_contacting_provider_endpoints()
             Some(0),
             &Value::String("offline".into()),
             &Value::Bool(true),
-            &json!({"ok": true, "provider_count": 8}),
-            Some(8),
+            &json!({"ok": true, "provider_count": 9}),
+            Some(9),
             &json!(["********"]),
             &json!(["********"]),
             &Value::Bool(true),
@@ -123,7 +123,7 @@ fn live_smoke_lists_exactly_the_specification_case_registry_without_l0_doctor_ga
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live registry JSON");
     let expected = json!([
         "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11",
-        "C12", "C13", "C14", "C15", "C16", "C17"
+        "C12", "C13", "C14", "C15", "C16", "C17", "C18"
     ]);
 
     assert_eq!(
@@ -175,7 +175,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
             Some(4),
             &Value::String("live".into()),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 18}),
+            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 19}),
             &Value::String("failed".into()),
             &Value::Number(3.into()),
             &Value::String("unconfigured".into()),
@@ -212,7 +212,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
         (
             Some(4),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 18}),
+            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 19}),
             &Value::String("deferred".into()),
             &Value::Number(3.into()),
             &Value::String("http://127.0.0.1:9?token=********".into()),
@@ -300,7 +300,7 @@ fn live_smoke_passes_a_configured_case_only_after_a_zero_parseable_nonempty_term
         ),
         (
             Some(4),
-            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 18}),
+            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 19}),
             &Value::String("passed".into()),
             &Value::Number(1.into()),
         ),
@@ -445,6 +445,43 @@ fn live_smoke_p2_does_not_write_evidence_into_the_configured_journal() {
     assert!(
         classifier_requests.len() >= 3,
         "P2 smoke did not exercise all three classifier attempts"
+    );
+}
+
+#[test]
+fn live_smoke_runs_the_platform_case_through_its_configured_route() {
+    let feed = r#"<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns="http://www.w3.org/2005/Atom">
+  <opensearch:totalResults>1</opensearch:totalResults>
+  <entry><id>http://arxiv.org/abs/2005.11401v4</id><title>RAG</title><summary>Abstract.</summary></entry>
+</feed>"#;
+    let fixture = Fixture::start(200, "application/atom+xml", feed);
+    let environment = SmokeEnvironment::new(|journal_dir| {
+        format!(
+            "[providers.arxiv_api]\nurl = \"{}/api/query\"\n[journal]\ndir = {journal_dir:?}\n",
+            fixture.url
+        )
+    });
+
+    let output = environment.run(&["smoke", "--live", "--timeout", "10"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live smoke JSON");
+    let request = fixture.finish();
+
+    assert_eq!(
+        (
+            &payload["summary"],
+            &case(&payload, "C18")["status"],
+            &case(&payload, "C18")["platform"],
+            request.contains("max_results=3"),
+        ),
+        (
+            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 19}),
+            &Value::String("passed".into()),
+            &Value::String("arxiv".into()),
+            true,
+        ),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
     );
 }
 
@@ -650,9 +687,13 @@ dir = {journal_dir:?}
 #[expect(clippy::unnecessary_debug_formatting)]
 fn minimal_config(endpoint: &str, journal_dir: &Path) -> String {
     format!(
-        "[providers.xai]\nurl = {endpoint:?}\nkeys = [\"xai-secret\"]\n[journal]\ndir = {journal_dir:?}\n"
+        "[providers.xai]\nurl = {endpoint:?}\nkeys = [\"xai-secret\"]\n{DISABLED_ARXIV}[journal]\ndir = {journal_dir:?}\n"
     )
 }
+
+// arxiv_api needs no credentials, so live smoke would reach the real endpoint unless the
+// platform order disables it.
+const DISABLED_ARXIV: &str = "[platforms.arxiv]\norder = []\n";
 
 // Debug path formatting supplies the quoted and escaped TOML string literal required by fixtures.
 #[expect(clippy::unnecessary_debug_formatting)]
@@ -689,6 +730,7 @@ order = ["anysearch"]
 [capabilities.web_fetch]
 order = ["jina"]
 
+{DISABLED_ARXIV}
 [journal]
 dir = {journal_dir:?}
 "#

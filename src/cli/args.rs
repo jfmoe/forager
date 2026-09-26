@@ -145,6 +145,11 @@ pub(super) enum Command {
         #[command(subcommand)]
         command: ExaCommand,
     },
+    /// Search or fetch items of a built-in platform through its configured routes.
+    Platform {
+        #[command(subcommand)]
+        command: super::platform::PlatformCommand,
+    },
     Config {
         #[command(subcommand)]
         command: ConfigCommand,

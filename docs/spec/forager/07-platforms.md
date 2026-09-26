@@ -1,0 +1,84 @@
+# 7. 平台接入
+
+本章是接入任何内置平台的权威契约。新增或修改平台时先读本章，并保持新平台 checklist 测试（`src/core/platform_checklist.rs`）通过。决策依据见 ADR 0019；arXiv 是参考实现，各节以它举例。
+
+## 概念与规则
+
+- **Platform**：内置的外部内容源，拥有自己的身份空间。它与 Capability Seam 并列，不是 provider，也不是 Vertical Search 的垂直域。只支持随版本发布的内置平台；配置不能定义平台或通用 MCP/CLI route。
+- **Platform Route**：接入某个平台的一条路线。route 就是 provider，沿用 provider 身份、凭据池（需要凭据时）、provider 配置段、doctor 探针与 smoke 登记。route id 绝不使用裸平台名（用 `arxiv_api`，不用 `arxiv`）。一个 provider 可以服务多个平台和 seam。
+- **链语义**：同平台的 route 按 `platforms.<id>.order` 组成 fallback 链，由共享链执行器运行，沿用 LegitimateEmpty 语义：至少一条 route 返回合法空结果、之后没有 route 被接受时，结果为空成功。结果永不跨平台 fallback。
+- **Platform Ref**：平台实体的类型化身份，由平台、平台自有的 kind 和 id 组成。kind 只按「身份空间不同」或「fetch 结果形状不同」划分，不按对话角色划分。字符串形式为 `<platform>:<id>`，例如 `arxiv:2401.01234v2`。
+  - ref 解析与 canonical URL 推导是 types 门面中的零 IO 纯函数。每个 kind 都满足往返性质：解析 ref 的 canonical URL，得到同一个 ref。
+  - 版本号可选。不带版本的 ref 推导出不带版本的 URL；纯函数不猜测版本，实际版本只在平台返回后确定。
+  - 需要联网解析的短链在飞行前退 2。
+- **Content Depth**：`snippet`、`abstract`、`full_text` 或 `thread`。每个平台为它支持的每种深度定义含义，每个结果条目都带 `depth`。摘要深度绝不当作全文。
+
+## 参数分层
+
+- **L0 公共参数**：search 为查询词与 `--limit`；fetch 为 ref 或 URL，以及 `--depth`。时间窗和排序不进公共层，因为各平台语义不同。
+- **L1 平台选项**：类型化、全部可选、有默认值，定义为 types 门面中平台选项类型（例如 `PlatformSearchOptions`）下按平台划分的封闭变体。CLI 参数是每个平台的静态 clap 定义，再转换到 types 门面，types 不依赖 clap。clap 在飞行前校验枚举和取值范围；跨字段规则（例如日期区间顺序）由 types 中的校验函数负责；两者出错都退 2。
+- **L2 平台操作**：凡改变结果种类或必需输入的，就是新操作，不是参数。只有一个 route 实现的操作写成该 route 适配器的 inherent 方法；出现第二个实现它的 route 时，提升为 trait 并在 platform catalog 的 `trait_operations` 中登记其 route 集合。
+- **不提供原样透传。** 新增一个参数需要：一个选项字段、一个 clap flag、每条 route 各自的映射。
+- **不支持的选项**：每条 route 提供一个只读请求（选项与页位置）、不联网的支持检查。检查在构造链之前完成：
+  - 部分 route 不支持：被跳过的 route 记一条 disposition 为 Skipped、`error_kind` 为空的 attempt，消息写明选项与 route。
+  - order 中没有 route 支持：飞行前退 2，不发网络请求，消息写明选项和已配置的 route。
+  - route 绝不能静默忽略显式选项。
+
+## 必须提供的操作与输出形状
+
+- 每个平台都提供 **search** 与 **fetch**，命令为 `forager platform <id> search|fetch`。目前 arXiv 只实现了 search；arXiv fetch 已定契约是默认取全文、正文写入本地文件并按引用交付，尚未实现。
+- **search 结果页**：`{platform, provider, items, next_cursor}`；`provider` 是产出该页的 route；`--verbose` 时附 `provider_attempts`（含 Skipped attempt）。每个 item 含 `ref`、canonical `url`、`depth`、`title`、`authors`、`published`，以及平台自有字段（与公共字段同层）。
+- **cursor**：不透明值，格式 `v1.<route>.<payload>`，payload 能完整恢复上一次请求的查询词、选项、limit 与下一页位置。带 cursor 的请求只在产出它的 route 上执行，不 fallback；该 route 必须仍在当前 order 中、支持该操作且已配置。cursor 与显式传入的查询词、L1 选项或 `--limit` 互斥（默认值不算冲突），通用 flag 可以同时使用。
+- **fetch 交付**：全文写入本地 Markdown 文件，stdout 只返回元数据与文件引用；`--format content` 显式把正文输出到 stdout。
+- 平台直连命令不写 Search Result Journal。
+
+## 退出码阶段矩阵
+
+| 情况 | 阶段 | 结果 |
+|---|---|---|
+| ref 或 URL 无法识别、短链、cursor 冲突或无效、选项取值非法、所有已配置 route 都不支持所请求的选项 | 飞行前（参数） | 退 2，不发网络请求 |
+| 平台 order 为空、操作可用 route 集合为空、order 含其他平台的 route | 飞行前（配置） | 退 3，不发网络请求 |
+| 平台返回参数错误（例如 arXiv Atom error entry） | 飞行后，attempt 级 Parameter | 退 4，带平台消息 |
+| 等待限速窗口时剩余预算不足 | 飞行后 | Timeout，退 4，保留已完成的 attempts |
+| 限速状态文件或锁不可用 | 飞行后 | Runtime，退 4，不发送请求 |
+| 合法零结果检索 | 成功 | `items: []`，退 0 |
+
+attempt 级 Parameter 不映射为退 2（第 4 章）。
+
+## 访问策略与限速
+
+- route 在注册信息中以 `access_policy` 声明最小间隔与最大并发。对该 route endpoint 的**每次发送**都先经过 `RateLimiter::acquire`，包括重试、doctor 的 shallow 可达性探测与 deep 探测。
+- 等待窗口的时间计入 attempt 与命令的 Deadline；算法、跨进程协调范围与已知边界见第 4 章「跨进程限速」。
+- 不需要凭据的 route 在注册信息中声明 `credentials_required: false`：配置节只有 `url` 与 `timeout`，经 `execute_anonymous` 执行，attempt 的 `credential_index` 与 `rotation_count` 恒为 0。
+
+## skill 与平台词表
+
+以下是已定要求，随第一个平台 fetch 交付：
+
+- forager skill 的 `SKILL.md` 有一条不列举平台的路由规则：请求点名平台、给出平台 URL 或 ref、或需要平台原生条目时，读取平台 reference。
+- 平台 reference 写明分支映射、消费规则（只使用用户给出的或 forager 返回的 ref 与 URL，绝不臆造或拼接）、每个平台的证据语义与恢复规则。
+- 平台词表是机器可读文件，记录每个平台的 id、用途、选择规则、示例与 ref 语法，不写选项和操作。新增平台时同步更新词表与 CLI reference。
+
+## 接入清单
+
+新增一个平台或 route 时逐项完成。新平台 checklist 测试检查 R1–R8，失败消息写明平台、缺少的登记点与清单编号。
+
+| 编号 | 登记点 | 一致性测试 |
+|---|---|---|
+| R1 | `catalog::PLATFORMS` 登记平台，search route 集合非空；`types::Platform` 增加变体 | checklist 测试；`catalog` 单测 `catalogs_project_every_registration_probe_and_smoke_case_consistently` |
+| R2 | 每条 route 有 `ProviderId`（全集、解析与名称）和 `ProviderRegistration`；route id 不是裸平台名 | checklist 测试；`catalog` 注册校验 |
+| R3 | factory 覆盖每条 search route：`platform_search_support` 有该 route 的分支，`platform_route_config` 返回以该 route 为身份的 `PlatformRouteConfig`（`build_platform_search` 按该变体构造）；route 适配器只构造请求、解码响应并提供支持检查 | checklist 测试 |
+| R4 | 配置 schema 有 `platforms.<id>.order` 与每条 route 的 `providers.<route>.url`、`.timeout`；`keys` 叶子当且仅当 route 需要凭据；runtime 投影与 `platform_route_config` 覆盖该 route | checklist 测试；`config` schema 单测 |
+| R5 | route 的 doctor probe 为 `DoctorProbe::PlatformSearch`（或它所服务的 capability 的 probe） | checklist 测试 |
+| R6 | 至少一条 route 登记平台 search smoke 用例，`SPECIFICATION_CASE_IDS` 与第 5 章矩阵同步 | checklist 测试；`tests/smoke.rs` 列表断言 |
+| R7 | `tests/acceptance-manifest.json` 为每条 search route 登记 `(route, platform:<id>:search)` fixture 与测试引用 | checklist 测试；`catalog` 单测 `provider_fixture_projection_matches_transport_manifest` |
+| R8 | ref 解析与 canonical URL 推导覆盖该平台每个 kind，并在 checklist 的样例表中登记样例 ref | checklist 测试；types 单测 |
+
+同一改动中还须更新：`CONTEXT.md`（新术语）、第 2 章（命令与参数表）、第 3 章（配置键）、第 4 章（模块与依赖）、第 5 章（fixture 与 smoke 用例）以及本章的平台示例。
+
+## 参考实现：arXiv
+
+- **route**：`arxiv_api`，官方 Query API（默认 `https://export.arxiv.org/api/query`）。不需要凭据；默认 timeout 30 秒；访问策略为每 3 秒 1 个请求、并发 1（arXiv 使用条款）。默认 order 只含这一条 route。
+- **ref**：新式 ID（`2401.01234`）与旧式 ID（`hep-th/9901001`），都可以带版本号；字符串形式 `arxiv:<id>[v<n>]`；canonical URL 是 `https://arxiv.org/abs/<id>[v<n>]`；解析也接受 `arxiv.org`、`www.arxiv.org` 与 `export.arxiv.org` 的 abs 页面 URL。kind 为 `paper`。
+- **search wire 编码**：查询词按空白与双引号切分，每个词写成 `all:"<词>"`，因此布尔运算符、字段前缀与括号都是字面词。arXiv 拒绝带转义双引号的引号词（`all:"a\"b"` 返回 HTTP 400），字面双引号无法发送，所以双引号只作分隔符；分类写成 `cat:<code>`，多个分类写成 `(cat:a OR cat:b)`；作者与标题写成 `au:"<短语>"`、`ti:"<短语>"`；日期区间写成 `submittedDate:[YYYYMMDD0000 TO YYYYMMDD2359]`，缺少的一端用 `199101010000` 或 `999912312359` 补齐；所有条件以 ` AND ` 连接。`sortBy` 为 `relevance`、`submittedDate` 或 `lastUpdatedDate`，`sortOrder` 固定为 `descending`；`--limit` 为 `max_results`，cursor 的页位置为 `start`。
+- **解码**：Atom feed 解码为 depth 为 `abstract` 的条目，含完整摘要与元数据；`opensearch:totalResults` 决定是否有下一页，缺少它的成功响应不是 arXiv feed，为 Runtime。cursor 的页位置是 `start` 偏移量，无法解析时在飞行前退 2。id 包含 `arxiv.org/api/errors` 的 entry 是错误，映射为 Parameter 并带上 arXiv 消息；无法解码的 feed 为 Runtime；HTTP 失败沿用共享 status 映射。

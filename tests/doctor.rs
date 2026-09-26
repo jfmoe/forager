@@ -8,7 +8,7 @@ use support::{Fixture, Response, RunEnvironment, jina_response, request_json};
 
 #[test]
 fn shallow_doctor_reports_all_registry_providers_and_reuses_the_config_list_view() {
-    let fixture = Fixture::start_sequence(reachable_responses(8));
+    let fixture = Fixture::start_sequence(reachable_responses(9));
     let environment = RunEnvironment::new(&shallow_config(&format!(
         "{}?token=url-secret",
         fixture.url
@@ -41,7 +41,7 @@ fn shallow_doctor_reports_all_registry_providers_and_reuses_the_config_list_view
             Some(0),
             &Value::String("shallow".into()),
             &Value::Bool(true),
-            Some(8),
+            Some(9),
             &config,
             &Value::String("xai".into()),
             &Value::Bool(true),
@@ -70,7 +70,7 @@ fn shallow_doctor_reports_all_registry_providers_and_reuses_the_config_list_view
             .as_array()
             .is_some_and(|warnings| !warnings.is_empty())
     );
-    assert_eq!(fixture.finish_all().len(), 8);
+    assert_eq!(fixture.finish_all().len(), 9);
 }
 
 #[test]
@@ -309,6 +309,90 @@ fn anysearch_deep_doctor_executes_the_registry_domains_probe() {
     assert!(requests[2].contains(r#""name":"get_sub_domains""#));
 }
 
+const EMPTY_ARXIV_FEED: &str = r#"<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns="http://www.w3.org/2005/Atom"><opensearch:totalResults>0</opensearch:totalResults></feed>"#;
+
+#[test]
+fn arxiv_api_deep_doctor_executes_the_registry_search_probe_without_credentials() {
+    let fixture = Fixture::start(200, "application/atom+xml", EMPTY_ARXIV_FEED);
+    let environment = RunEnvironment::new(&format!(
+        "[providers.arxiv_api]\nurl = \"{}/api/query\"\n",
+        fixture.url
+    ));
+
+    let output = environment.run(&["doctor", "--provider", "arxiv_api"]);
+    assert_deep_success(&output, "arxiv_api", &[("search", "http")]);
+    let request = fixture.finish();
+    assert!(request.starts_with("GET /api/query?"), "{request}");
+}
+
+/// Records a reservation a minute ahead, as if another process had just reserved the window.
+fn reserve_arxiv_window(environment: &RunEnvironment) {
+    let reserved_at_ms = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("wall clock")
+        .as_millis()
+        + Duration::from_mins(1).as_millis();
+    let directory = environment.state_dir.join("forager");
+    std::fs::create_dir_all(&directory).expect("create state directory");
+    std::fs::write(
+        directory.join("rate_limit_state.json"),
+        serde_json::json!({
+            "schema_version": 1,
+            "routes": {"arxiv_api": {"reserved_at_ms": reserved_at_ms}}
+        })
+        .to_string(),
+    )
+    .expect("write rate limit state");
+}
+
+#[test]
+fn arxiv_api_deep_doctor_probe_waits_for_the_request_window() {
+    let fixture = Fixture::start_canary();
+    let environment = RunEnvironment::new(&format!(
+        "[providers.arxiv_api]\nurl = \"{}/api/query\"\n",
+        fixture.url
+    ));
+    reserve_arxiv_window(&environment);
+
+    let output = environment.run(&["doctor", "--provider", "arxiv_api", "--timeout", "1"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["error_kind"],
+            fixture.finish_all().len()
+        ),
+        (Some(4), &Value::String("timeout".into()), 0)
+    );
+}
+
+#[test]
+fn shallow_doctor_reachability_probe_waits_for_the_request_window() {
+    let fixture = Fixture::start_sequence(reachable_responses(8));
+    let environment = RunEnvironment::new(&shallow_config(&fixture.url));
+    reserve_arxiv_window(&environment);
+
+    let output = environment.run(&["doctor", "--timeout", "1"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
+    let arxiv_api = payload["providers"]
+        .as_array()
+        .expect("providers")
+        .iter()
+        .find(|provider| provider["provider"] == "arxiv_api")
+        .expect("arxiv_api status");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &arxiv_api["configured"],
+            &arxiv_api["reachable"],
+            fixture.finish_all().len()
+        ),
+        (Some(4), &Value::Bool(true), &Value::Bool(false), 8)
+    );
+}
+
 #[test]
 fn deep_doctor_reports_missing_credentials_as_a_json_config_failure() {
     let environment = RunEnvironment::new("");
@@ -400,11 +484,12 @@ fn deep_doctor_reports_authentication_failure_without_leaking_provider_values() 
 
 #[test]
 fn doctor_markdown_preserves_the_json_status_and_effective_configuration() {
-    let fixture = Fixture::start_sequence(reachable_responses(16));
+    let fixture = Fixture::start_sequence(reachable_responses(18));
     let environment = RunEnvironment::new(&shallow_config(&fixture.url));
+    let markdown_environment = RunEnvironment::new(&shallow_config(&fixture.url));
 
     let json_output = environment.run(&["doctor"]);
-    let markdown_output = environment.run(&["doctor", "--format", "markdown"]);
+    let markdown_output = markdown_environment.run(&["doctor", "--format", "markdown"]);
     let payload: Value = serde_json::from_slice(&json_output.stdout).expect("parse doctor JSON");
     let markdown = String::from_utf8(markdown_output.stdout).expect("UTF-8 markdown");
 
@@ -417,13 +502,13 @@ fn doctor_markdown_preserves_the_json_status_and_effective_configuration() {
     assert!(markdown.contains("## Effective configuration"));
     assert!(markdown.contains(r#""source": "file""#));
     assert!(!markdown.contains("exa-secret"));
-    assert_eq!(payload["providers"].as_array().map(Vec::len), Some(8));
-    assert_eq!(fixture.finish_all().len(), 16);
+    assert_eq!(payload["providers"].as_array().map(Vec::len), Some(9));
+    assert_eq!(fixture.finish_all().len(), 18);
 }
 
 #[test]
 fn shallow_doctor_probes_reachability_with_get_requests() {
-    let fixture = Fixture::start_sequence(reachable_responses(8));
+    let fixture = Fixture::start_sequence(reachable_responses(9));
     let environment = RunEnvironment::new(&shallow_config(&fixture.url));
 
     let doctor = environment.run(&["doctor"]);
@@ -441,7 +526,7 @@ fn shallow_doctor_probes_reachability_with_get_requests() {
 
     assert_eq!(
         (doctor.status.code(), methods),
-        (Some(0), vec!["GET".to_owned(); 8]),
+        (Some(0), vec!["GET".to_owned(); 9]),
         "stderr: {}",
         String::from_utf8_lossy(&doctor.stderr)
     );
@@ -457,7 +542,7 @@ fn shallow_doctor_warns_when_main_search_fallback_shares_endpoint_and_model() {
         ),
     ];
     for (openai_compatible_header, expected_warnings) in cases {
-        let fixture = Fixture::start_sequence(reachable_responses(8));
+        let fixture = Fixture::start_sequence(reachable_responses(9));
         let config = shallow_config(&fixture.url)
             .replace("[providers.openai_compatible]\n", openai_compatible_header);
         let environment = RunEnvironment::new(&config);
@@ -480,15 +565,17 @@ fn shallow_doctor_warns_when_main_search_fallback_shares_endpoint_and_model() {
 
 #[test]
 fn shallow_doctor_reports_a_well_formed_but_dead_endpoint_as_unreachable() {
-    let fixture = Fixture::start_sequence(reachable_responses(14));
+    let fixture = Fixture::start_sequence(reachable_responses(16));
     let config = shallow_config(&fixture.url).replace(
         &format!("[providers.xai]\nurl = {:?}", fixture.url),
         "[providers.xai]\nurl = \"http://127.0.0.1:9\"",
     );
     let environment = RunEnvironment::new(&config);
+    let markdown_environment = RunEnvironment::new(&config);
 
     let output = environment.run(&["doctor", "--timeout", "2"]);
-    let markdown_output = environment.run(&["doctor", "--timeout", "2", "--format", "markdown"]);
+    let markdown_output =
+        markdown_environment.run(&["doctor", "--timeout", "2", "--format", "markdown"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
     let markdown = String::from_utf8(markdown_output.stdout).expect("UTF-8 markdown");
 
@@ -509,12 +596,12 @@ fn shallow_doctor_reports_a_well_formed_but_dead_endpoint_as_unreachable() {
         )
     );
     assert!(markdown.contains("ok: false"), "{markdown}");
-    assert_eq!(fixture.finish_all().len(), 14);
+    assert_eq!(fixture.finish_all().len(), 16);
 }
 
 #[test]
 fn shallow_doctor_ignores_an_unconfigured_unreachable_provider() {
-    let fixture = Fixture::start_sequence(reachable_responses(7));
+    let fixture = Fixture::start_sequence(reachable_responses(8));
     let config = shallow_config(&fixture.url).replace(
         &format!(
             "[providers.xai]\nurl = {:?}\nkeys = [\"xai-secret\"]",
@@ -541,12 +628,12 @@ fn shallow_doctor_ignores_an_unconfigured_unreachable_provider() {
             &Value::Bool(false),
         )
     );
-    assert_eq!(fixture.finish_all().len(), 7);
+    assert_eq!(fixture.finish_all().len(), 8);
 }
 
 #[test]
-fn shallow_doctor_treats_zero_configured_providers_as_healthy() {
-    let fixture = Fixture::start_sequence(reachable_responses(8));
+fn shallow_doctor_treats_providers_without_keys_as_unconfigured_and_healthy() {
+    let fixture = Fixture::start_sequence(reachable_responses(9));
     let config = [
         "xai-secret",
         "openai-secret",
@@ -575,11 +662,12 @@ fn shallow_doctor_treats_zero_configured_providers_as_healthy() {
                 .expect("providers")
                 .iter()
                 .filter(|provider| provider["configured"] == Value::Bool(true))
-                .count(),
+                .map(|provider| provider["provider"].as_str().expect("provider name"))
+                .collect::<Vec<_>>(),
         ),
-        (Some(0), &Value::Bool(true), 0)
+        (Some(0), &Value::Bool(true), vec!["arxiv_api"])
     );
-    assert_eq!(fixture.finish_all().len(), 8);
+    assert_eq!(fixture.finish_all().len(), 9);
 }
 
 #[test]
@@ -688,6 +776,9 @@ keys = ["context7-secret"]
 [providers.anysearch]
 url = {url:?}
 keys = ["anysearch-secret"]
+
+[providers.arxiv_api]
+url = {url:?}
 "#
     )
 }

@@ -19,7 +19,7 @@
 ## 全键面定稿
 
 ```toml
-# 除 keys 外全部可省略——省略即内置默认
+# 全部可省略——省略即内置默认
 [search]
 backends = ["xai", "openai_compatible"]
 fallback = "auto"            # auto|off
@@ -75,6 +75,10 @@ url = "https://api.anysearch.com/mcp"
 keys = []
 timeout = 30
 
+[providers.arxiv_api]        # 不需要凭据，没有 keys
+url = "https://export.arxiv.org/api/query"
+timeout = 30
+
 [capabilities.web_search]
 order = ["tavily", "firecrawl"]
 [capabilities.web_fetch]
@@ -83,6 +87,9 @@ order = ["firecrawl", "tavily", "jina"]   # Firecrawl 优先（ADR 0018）；置
 order = ["exa", "context7"]       # Exa 优先；Context7 仅在 Exa 无可消费结果时自动调用（ADR 0017）
 [capabilities.vertical_search]
 order = ["anysearch"]
+
+[platforms.arxiv]
+order = ["arxiv_api"]        # 置空＝禁用该平台
 
 [log]
 level = "info"               # error|warn|info|debug|trace；见下方运行时语义
@@ -105,11 +112,15 @@ ssl_verify = true
 
 ### 凭据形状
 
-唯一形状：每 provider 节一个 `keys` **真数组**（单凭据＝单元素数组）。`*_API_KEY`/`*_API_KEYS` 双形态与「KEYS 覆盖 KEY」优先级消灭。`classifier.keys` 沿用凭据池全套语义（去空去重、轮询、配额/限流失败同请求内换用）。
+唯一形状：每个需要凭据的 provider 节一个 `keys` **真数组**（单凭据＝单元素数组）；注册信息声明不需要凭据的 provider（`arxiv_api`）的节只有 `url` 与 `timeout`，写入 `keys` 为未知键（文件层退 3，`config set` 退 2），该 provider 恒为已配置。`*_API_KEY`/`*_API_KEYS` 双形态与「KEYS 覆盖 KEY」优先级消灭。`classifier.keys` 沿用凭据池全套语义（去空去重、轮询、配额/限流失败同请求内换用）。
 
 ### 链序权威
 
 `[capabilities.<seam>].order`＝**完全权威**：列表即该 seam 全部可用面与顺序，禁用＝从表删除，无合并规则；未配置凭据者运行时自然跳过。`RESEARCH_PREFERRED/DISABLED_PROVIDERS`、`TAVILY_ENABLED` 消灭。条件变序废除，JS-heavy 场景由薄正文质量门控继任（第 4 章）。变序若回归必须走「具名 request class + `<class>_order` 键」机制（v1 具名类为空；写 `order` 未写变体键→继承）。校验：order 引用不支持该 seam 的 provider＝config_error（支持矩阵＝registry 编译期事实）。
+
+### 平台 route 顺序
+
+`[platforms.<id>].order`＝该平台 route 的完全权威顺序（ADR 0019），默认值是 platform catalog 中该平台的全部 route。校验：拒绝重复项与不属于该平台的 route（config_error 退 3；`config set` 退 2）；允许为空，含义是禁用该平台。某个操作实际使用的 route＝该 order ∩ 该操作的 route 集合 ∩ 已配置的 route，集合为空时平台命令飞行前退 3，消息指出该配置键。env 按既有公式派生，例如 `FORAGER_PLATFORMS__ARXIV__ORDER='["arxiv_api"]'`。
 
 ### 值域与交叉约束（进 schema 与验收）
 

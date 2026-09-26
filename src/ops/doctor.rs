@@ -6,12 +6,18 @@ use serde::Serialize;
 use serde_json::Value;
 
 use crate::catalog::{self, DoctorProbe, ProbeShape, ProviderId};
-use crate::config::{self, MainSearchProviderConfig, MainSearchRuntimeConfig, RuntimeConfig};
+use crate::config::{
+    self, MainSearchProviderConfig, MainSearchRuntimeConfig, PlatformRouteConfig, RuntimeConfig,
+};
 use crate::net::{self, RetryPolicy};
 use crate::providers::{
     self, AnysearchDomainsRequest, FetchRequest, MainSearchRequest, ModelBreakers,
 };
-use crate::types::{AttemptDisposition, AttemptErrorKind, Deadline, ProviderError, SearchOutcome};
+use crate::rate_limit::RateLimiter;
+use crate::types::{
+    AttemptDisposition, AttemptErrorKind, Deadline, Platform, PlatformSearchOptions,
+    PlatformSearchOutcome, PlatformSearchRequest, ProviderError, SearchOutcome,
+};
 
 #[derive(Debug, Serialize)]
 pub(crate) struct ShallowDoctorReport {
@@ -79,6 +85,7 @@ pub(crate) fn shallow(
             probe_reachability(
                 client.clone(),
                 provider_endpoint(registration.id, &runtime_config).to_owned(),
+                providers::route_limiter(registration.id),
                 deadline,
             )
         }))
@@ -265,6 +272,17 @@ async fn run_probe(
             );
             one_check(adapter.search("forager doctor", 1).await, name, transport)
         }
+        DoctorProbe::PlatformSearch {
+            platform,
+            name,
+            transport,
+        } => {
+            let route_config = config::platform_route_config(provider, &config.arxiv_api)
+                .expect("probe registration belongs to a platform catalog");
+            let result =
+                probe_platform_search(platform, route_config, client, retry_policy, deadline).await;
+            one_check(result, name, transport)
+        }
         DoctorProbe::AnysearchDomains { name, transport } => {
             let adapter =
                 providers::build_anysearch(config.anysearch, client, retry_policy, deadline);
@@ -280,6 +298,24 @@ async fn run_probe(
             )
         }
     }
+}
+
+async fn probe_platform_search(
+    platform: Platform,
+    route_config: PlatformRouteConfig,
+    client: reqwest::Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> Result<PlatformSearchOutcome, ProviderError> {
+    let request = PlatformSearchRequest {
+        query: "forager doctor".into(),
+        limit: 1,
+        options: PlatformSearchOptions::defaults(platform),
+        page: None,
+    };
+    providers::build_platform_search(route_config, client, retry_policy, deadline)
+        .search(&request)
+        .await
 }
 
 async fn probe_main_search(
@@ -389,10 +425,23 @@ fn probe_search_request() -> MainSearchRequest {
     }
 }
 
-async fn probe_reachability(client: reqwest::Client, url: String, deadline: Deadline) -> bool {
+async fn probe_reachability(
+    client: reqwest::Client,
+    url: String,
+    limiter: Option<RateLimiter>,
+    deadline: Deadline,
+) -> bool {
     if !endpoint_is_valid(&url) {
         return false;
     }
+    // A paced endpoint counts the probe against its request spacing like any other send.
+    let _permit = match &limiter {
+        Some(limiter) => match limiter.acquire(deadline).await {
+            Ok(permit) => Some(permit),
+            Err(_) => return false,
+        },
+        None => None,
+    };
     let Some(remaining) = deadline.remaining() else {
         return false;
     };

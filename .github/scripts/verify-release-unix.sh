@@ -45,7 +45,7 @@ doctor=$(FORAGER_CONFIG_DIR="$config_dir" XDG_STATE_HOME="$state_dir" \
 jq -e '
   .ok == false
   and .mode == "shallow"
-  and ([.providers[] | select(.configured)] | length) == 8
+  and ([.providers[] | select(.configured)] | length) == 9
   and .config.providers.exa.keys.source == "file"
   and (.permission_warnings | length) == 0
 ' <<< "$doctor"

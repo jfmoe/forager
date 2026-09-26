@@ -70,13 +70,6 @@ where
 /// Runs an operation for a provider whose registration requires no credentials.
 ///
 /// It never claims or rotates a credential, so every attempt records credential index 0.
-#[cfg_attr(
-    not(test),
-    expect(
-        dead_code,
-        reason = "platform routes without credentials consume this (#165)"
-    )
-)]
 pub(crate) async fn execute_anonymous<T, F, Fut>(
     settings: ExecutionSettings,
     mut send_once: F,

@@ -29,6 +29,7 @@ fn command_tree_aliases_and_exact_subcommands_match_the_contract() {
             ("anysearch", vec!["as"]),
             ("context7", vec!["c7"]),
             ("exa", vec![]),
+            ("platform", vec![]),
             ("config", vec![]),
             ("setup", vec![]),
             ("doctor", vec![]),
@@ -57,6 +58,52 @@ fn command_tree_aliases_and_exact_subcommands_match_the_contract() {
         ]
     );
     assert!(Cli::try_parse_from(["forager", "setu", "--non-interactive"]).is_err());
+}
+
+#[test]
+fn platform_commands_nest_operations_under_each_platform() {
+    let command = Cli::command();
+    let platforms = command
+        .find_subcommand("platform")
+        .expect("platform command")
+        .get_subcommands()
+        .map(|platform| {
+            (
+                platform.get_name(),
+                platform
+                    .get_subcommands()
+                    .map(clap::Command::get_name)
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(platforms, [("arxiv", vec!["search"])]);
+}
+
+#[test]
+fn arxiv_search_help_lists_every_option_and_value() {
+    let output = run(&["platform", "arxiv", "search", "--help"]);
+    let help = String::from_utf8(output.stdout).expect("UTF-8 help");
+
+    for expected in [
+        "[QUERY]",
+        "--category <CATEGORY>",
+        "--author <AUTHOR>",
+        "--title <TITLE>",
+        "--submitted-from <YYYY-MM-DD>",
+        "--submitted-to <YYYY-MM-DD>",
+        "[possible values: relevance, submitted, updated]",
+        "--limit <LIMIT>",
+        "--cursor <CURSOR>",
+        "--timeout <TIMEOUT>",
+        "--verbose",
+    ] {
+        assert!(
+            help.contains(expected),
+            "missing {expected} in help:\n{help}"
+        );
+    }
 }
 
 #[test]

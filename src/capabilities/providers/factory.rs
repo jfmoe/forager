@@ -2,18 +2,18 @@ use std::sync::Arc;
 
 use reqwest::Client;
 
-use super::constructors::credentials;
+use super::constructors::{credentials, route_limiter};
 use super::{
-    DocsSearch, MainSearch, ModelBreakers, ProviderId, SupplementalSearch, VerticalSearch,
-    WebFetch, WebSearch, web_fetch,
+    ArxivApi, DocsSearch, MainSearch, ModelBreakers, PlatformSearch, ProviderId,
+    SupplementalSearch, VerticalSearch, WebFetch, WebSearch, arxiv, web_fetch,
 };
 use crate::catalog::{VERTICAL_SEARCH, WEB_FETCH, WEB_SEARCH};
 use crate::config::{
     AnysearchRuntimeConfig, DocsSearchProviderConfig, MainSearchProviderConfig,
-    WebFetchProviderConfig,
+    PlatformRouteConfig, WebFetchProviderConfig,
 };
 use crate::net::RetryPolicy;
-use crate::types::Deadline;
+use crate::types::{Deadline, PlatformSearchRequest};
 
 pub(crate) fn build_main_search(
     id: ProviderId,
@@ -106,4 +106,34 @@ pub(crate) fn build_vertical_search(
         retry_policy,
         deadline,
     ))
+}
+
+pub(crate) fn build_platform_search(
+    config: PlatformRouteConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> Box<dyn PlatformSearch> {
+    match config {
+        PlatformRouteConfig::ArxivApi(config) => Box::new(ArxivApi::new(
+            config,
+            client,
+            route_limiter(ProviderId::ArxivApi)
+                .expect("arxiv_api registration declares an access policy"),
+            retry_policy,
+            deadline,
+        )),
+    }
+}
+
+/// Returns whether a platform search route can run the request with every explicit option, or
+/// `None` for a provider that has no platform search adapter.
+pub(crate) fn platform_search_support(
+    id: ProviderId,
+    request: &PlatformSearchRequest,
+) -> Option<Result<(), String>> {
+    match id {
+        ProviderId::ArxivApi => Some(arxiv::search_support(request)),
+        _ => None,
+    }
 }

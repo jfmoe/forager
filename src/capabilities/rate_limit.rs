@@ -9,7 +9,6 @@
 //! Known limits: spacing holds between reservation times, so a process delayed after it
 //! reserves can send closer than the interval; coordination covers processes that share one
 //! state directory; `max_concurrency` applies within one process only.
-#![expect(dead_code, reason = "platform routes declare access policies in #165")]
 
 use std::io;
 use std::path::{Path, PathBuf};

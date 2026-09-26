@@ -1,4 +1,8 @@
 use std::sync::LazyLock;
+use std::time::Duration;
+
+use crate::rate_limit::AccessPolicy;
+use crate::types::Platform;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct CapabilityCatalog {
@@ -48,6 +52,81 @@ pub(crate) fn by_seam(seam: &str) -> Option<CapabilityCatalog> {
         .find(|catalog| catalog.seam == seam)
 }
 
+/// A platform operation that every platform provides through its own route set.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum PlatformOperation {
+    Search,
+}
+
+impl PlatformOperation {
+    pub(crate) const fn as_str(self) -> &'static str {
+        match self {
+            Self::Search => "search",
+        }
+    }
+}
+
+/// The routes of an operation that more than one route implements through a shared trait.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct PlatformTraitOperation {
+    pub(crate) name: &'static str,
+    pub(crate) routes: &'static [ProviderId],
+}
+
+/// The only source of which routes serve a platform and each of its operations.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct PlatformCatalog {
+    pub(crate) platform: Platform,
+    pub(crate) search: &'static [ProviderId],
+    pub(crate) fetch: &'static [ProviderId],
+    pub(crate) trait_operations: &'static [PlatformTraitOperation],
+}
+
+pub(crate) const ARXIV: PlatformCatalog = PlatformCatalog {
+    platform: Platform::Arxiv,
+    search: &[ProviderId::ArxivApi],
+    fetch: &[],
+    trait_operations: &[],
+};
+
+pub(crate) const PLATFORMS: &[PlatformCatalog] = &[ARXIV];
+
+impl PlatformCatalog {
+    pub(crate) fn routes(self, operation: PlatformOperation) -> &'static [ProviderId] {
+        match operation {
+            PlatformOperation::Search => self.search,
+        }
+    }
+
+    /// Returns every route of the platform once, in declaration order.
+    pub(crate) fn all_routes(self) -> Vec<ProviderId> {
+        let mut routes = Vec::new();
+        let declared = self.search.iter().chain(self.fetch).chain(
+            self.trait_operations
+                .iter()
+                .flat_map(|operation| operation.routes),
+        );
+        for route in declared {
+            if !routes.contains(route) {
+                routes.push(*route);
+            }
+        }
+        routes
+    }
+
+    pub(crate) fn contains(self, id: ProviderId) -> bool {
+        self.all_routes().contains(&id)
+    }
+}
+
+pub(crate) fn platform(platform: Platform) -> PlatformCatalog {
+    PLATFORMS
+        .iter()
+        .copied()
+        .find(|catalog| catalog.platform == platform)
+        .expect("every platform has a catalog")
+}
+
 pub(crate) fn supports(capability: &str, provider: &str) -> bool {
     let Some(id) = ProviderId::parse(provider) else {
         return false;
@@ -65,10 +144,11 @@ pub(crate) enum ProviderId {
     Jina,
     Context7,
     Anysearch,
+    ArxivApi,
 }
 
 impl ProviderId {
-    pub(crate) const ALL: [Self; 8] = [
+    pub(crate) const ALL: [Self; 9] = [
         Self::Xai,
         Self::OpenAiCompatible,
         Self::Exa,
@@ -77,6 +157,7 @@ impl ProviderId {
         Self::Jina,
         Self::Context7,
         Self::Anysearch,
+        Self::ArxivApi,
     ];
 
     pub(crate) fn parse(value: &str) -> Option<Self> {
@@ -89,6 +170,7 @@ impl ProviderId {
             "jina" => Some(Self::Jina),
             "context7" => Some(Self::Context7),
             "anysearch" => Some(Self::Anysearch),
+            "arxiv_api" => Some(Self::ArxivApi),
             _ => None,
         }
     }
@@ -103,6 +185,7 @@ impl ProviderId {
             Self::Jina => "jina",
             Self::Context7 => "context7",
             Self::Anysearch => "anysearch",
+            Self::ArxivApi => "arxiv_api",
         }
     }
 }
@@ -133,11 +216,18 @@ pub(crate) enum DoctorProbe {
         name: &'static str,
         transport: &'static str,
     },
+    PlatformSearch {
+        platform: Platform,
+        name: &'static str,
+        transport: &'static str,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct ProviderSmokeCase {
     pub(crate) id: &'static str,
+    /// The platform whose operation the case exercises, for a platform route.
+    pub(crate) platform: Option<Platform>,
     pub(crate) operation: &'static str,
     pub(crate) transport: &'static str,
 }
@@ -147,6 +237,8 @@ pub(crate) struct ProviderRegistration {
     pub(crate) id: ProviderId,
     pub(crate) operations: &'static [&'static str],
     pub(crate) credentials_required: bool,
+    /// The request pacing every send to the provider endpoint must follow.
+    pub(crate) access_policy: Option<AccessPolicy>,
     pub(crate) probe: DoctorProbe,
     pub(crate) smoke_cases: &'static [ProviderSmokeCase],
 }
@@ -180,17 +272,20 @@ const OPENAI_PROBES: &[ProbeShape] = &[
 
 const XAI_SMOKE: &[ProviderSmokeCase] = &[ProviderSmokeCase {
     id: "C01",
+    platform: None,
     operation: "main_search",
     transport: "sse",
 }];
 const OPENAI_SMOKE: &[ProviderSmokeCase] = &[
     ProviderSmokeCase {
         id: "C02",
+        platform: None,
         operation: "main_search_stream_false",
         transport: "http",
     },
     ProviderSmokeCase {
         id: "C03",
+        platform: None,
         operation: "main_search_stream_true",
         transport: "sse",
     },
@@ -198,16 +293,19 @@ const OPENAI_SMOKE: &[ProviderSmokeCase] = &[
 const TAVILY_SMOKE: &[ProviderSmokeCase] = &[
     ProviderSmokeCase {
         id: "C05",
+        platform: None,
         operation: "web_search",
         transport: "http",
     },
     ProviderSmokeCase {
         id: "C08",
+        platform: None,
         operation: "web_fetch",
         transport: "http",
     },
     ProviderSmokeCase {
         id: "C17",
+        platform: None,
         operation: "site_map",
         transport: "http",
     },
@@ -215,28 +313,33 @@ const TAVILY_SMOKE: &[ProviderSmokeCase] = &[
 const FIRECRAWL_SMOKE: &[ProviderSmokeCase] = &[
     ProviderSmokeCase {
         id: "C06",
+        platform: None,
         operation: "web_search",
         transport: "http",
     },
     ProviderSmokeCase {
         id: "C09",
+        platform: None,
         operation: "web_fetch",
         transport: "http",
     },
 ];
 const JINA_SMOKE: &[ProviderSmokeCase] = &[ProviderSmokeCase {
     id: "C07",
+    platform: None,
     operation: "web_fetch",
     transport: "http",
 }];
 const CONTEXT7_SMOKE: &[ProviderSmokeCase] = &[
     ProviderSmokeCase {
         id: "C10",
+        platform: None,
         operation: "library_resolve",
         transport: "mcp",
     },
     ProviderSmokeCase {
         id: "C11",
+        platform: None,
         operation: "docs",
         transport: "mcp",
     },
@@ -244,11 +347,13 @@ const CONTEXT7_SMOKE: &[ProviderSmokeCase] = &[
 const EXA_SMOKE: &[ProviderSmokeCase] = &[
     ProviderSmokeCase {
         id: "C12",
+        platform: None,
         operation: "docs_search",
         transport: "http",
     },
     ProviderSmokeCase {
         id: "C13",
+        platform: None,
         operation: "similar",
         transport: "http",
     },
@@ -256,26 +361,43 @@ const EXA_SMOKE: &[ProviderSmokeCase] = &[
 const ANYSEARCH_SMOKE: &[ProviderSmokeCase] = &[
     ProviderSmokeCase {
         id: "C14",
+        platform: None,
         operation: "academic.search",
         transport: "mcp",
     },
     ProviderSmokeCase {
         id: "C15",
+        platform: None,
         operation: "vertical_discovery",
         transport: "mcp",
     },
     ProviderSmokeCase {
         id: "C16",
+        platform: None,
         operation: "domains",
         transport: "mcp",
     },
 ];
+
+const ARXIV_API_SMOKE: &[ProviderSmokeCase] = &[ProviderSmokeCase {
+    id: "C18",
+    platform: Some(Platform::Arxiv),
+    operation: "search",
+    transport: "http",
+}];
+
+// arXiv terms of use allow one request every three seconds over one connection.
+const ARXIV_API_ACCESS: AccessPolicy = AccessPolicy {
+    min_interval: Duration::from_secs(3),
+    max_concurrency: 1,
+};
 
 const REGISTRY: &[ProviderRegistration] = &[
     ProviderRegistration {
         id: ProviderId::Xai,
         operations: &[],
         credentials_required: true,
+        access_policy: None,
         probe: DoctorProbe::MainSearch(XAI_PROBES),
         smoke_cases: XAI_SMOKE,
     },
@@ -283,6 +405,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         id: ProviderId::OpenAiCompatible,
         operations: &[],
         credentials_required: true,
+        access_policy: None,
         probe: DoctorProbe::MainSearch(OPENAI_PROBES),
         smoke_cases: OPENAI_SMOKE,
     },
@@ -290,6 +413,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         id: ProviderId::Tavily,
         operations: &["site_map"],
         credentials_required: true,
+        access_policy: None,
         probe: DoctorProbe::WebSearch {
             name: "search",
             transport: "http",
@@ -300,6 +424,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         id: ProviderId::Firecrawl,
         operations: &[],
         credentials_required: true,
+        access_policy: None,
         probe: DoctorProbe::WebSearch {
             name: "search",
             transport: "http",
@@ -310,6 +435,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         id: ProviderId::Jina,
         operations: &[],
         credentials_required: true,
+        access_policy: None,
         probe: DoctorProbe::WebFetch {
             name: "fetch",
             transport: "http",
@@ -320,6 +446,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         id: ProviderId::Context7,
         operations: &[],
         credentials_required: true,
+        access_policy: None,
         probe: DoctorProbe::DocsSearch {
             name: "library",
             transport: "mcp",
@@ -330,6 +457,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         id: ProviderId::Exa,
         operations: &["similar"],
         credentials_required: true,
+        access_policy: None,
         probe: DoctorProbe::DocsSearch {
             name: "search",
             transport: "http",
@@ -340,13 +468,38 @@ const REGISTRY: &[ProviderRegistration] = &[
         id: ProviderId::Anysearch,
         operations: &["search", "domains"],
         credentials_required: true,
+        access_policy: None,
         probe: DoctorProbe::AnysearchDomains {
             name: "domains",
             transport: "mcp",
         },
         smoke_cases: ANYSEARCH_SMOKE,
     },
+    ProviderRegistration {
+        id: ProviderId::ArxivApi,
+        operations: &[],
+        credentials_required: false,
+        access_policy: Some(ARXIV_API_ACCESS),
+        probe: DoctorProbe::PlatformSearch {
+            platform: Platform::Arxiv,
+            name: "search",
+            transport: "http",
+        },
+        smoke_cases: ARXIV_API_SMOKE,
+    },
 ];
+
+/// Returns whether a registration is legitimate: it belongs to a capability catalog or a
+/// platform catalog, or it owns an operation.
+pub(crate) fn has_owner(registration: &ProviderRegistration) -> bool {
+    CATALOGS
+        .iter()
+        .any(|catalog| catalog.contains(registration.id))
+        || PLATFORMS
+            .iter()
+            .any(|platform| platform.contains(registration.id))
+        || !registration.operations.is_empty()
+}
 
 static VALIDATED_REGISTRY: LazyLock<()> = LazyLock::new(|| {
     if let Err(error) = validate_registrations(REGISTRY) {
@@ -377,14 +530,10 @@ fn validate_registrations(registry: &[ProviderRegistration]) -> Result<(), Strin
     if registry.len() != expected.len() || ids != expected {
         return Err("provider IDs must appear exactly once".into());
     }
-    let catalog_ids = CATALOGS
-        .iter()
-        .flat_map(|catalog| catalog.providers.iter().copied())
-        .collect::<std::collections::BTreeSet<_>>();
     for registration in registry {
-        if !catalog_ids.contains(&registration.id) && registration.operations.is_empty() {
+        if !has_owner(registration) {
             return Err(format!(
-                "{} has neither a capability nor an operation",
+                "{} belongs to no capability or platform and owns no operation",
                 registration.id.name()
             ));
         }
@@ -410,8 +559,9 @@ mod tests {
     use serde::Deserialize;
 
     use super::{
-        CATALOGS, DOCS_SEARCH, DoctorProbe, MAIN_SEARCH, ProviderId, ProviderRegistration,
-        REGISTRY, WEB_FETCH, WEB_SEARCH, registration, registrations, validate_registrations,
+        CATALOGS, DOCS_SEARCH, DoctorProbe, MAIN_SEARCH, PLATFORMS, PlatformOperation, ProviderId,
+        ProviderRegistration, REGISTRY, WEB_FETCH, WEB_SEARCH, platform, registration,
+        registrations, validate_registrations,
     };
 
     #[derive(Deserialize)]
@@ -433,19 +583,34 @@ mod tests {
             "/tests/acceptance-manifest.json"
         )))
         .expect("acceptance manifest");
-        let registry = CATALOGS
-            .iter()
-            .flat_map(|catalog| {
-                catalog
-                    .providers
-                    .iter()
-                    .map(move |provider| (provider.name(), catalog.seam))
-            })
+        let capability_projection = CATALOGS.iter().flat_map(|catalog| {
+            catalog
+                .providers
+                .iter()
+                .map(move |provider| (provider.name().to_owned(), catalog.seam.to_owned()))
+        });
+        let platform_projection = PLATFORMS.iter().flat_map(|catalog| {
+            catalog
+                .routes(PlatformOperation::Search)
+                .iter()
+                .map(move |route| {
+                    (
+                        route.name().to_owned(),
+                        format!(
+                            "platform:{}:{}",
+                            catalog.platform,
+                            PlatformOperation::Search.as_str()
+                        ),
+                    )
+                })
+        });
+        let registry = capability_projection
+            .chain(platform_projection)
             .collect::<BTreeSet<_>>();
         let fixture_projection = manifest
             .transport_fixtures
             .iter()
-            .map(|fixture| (fixture.provider.as_str(), fixture.seam.as_str()))
+            .map(|fixture| (fixture.provider.clone(), fixture.seam.clone()))
             .collect::<BTreeSet<_>>();
 
         assert_eq!(fixture_projection, registry);
@@ -479,6 +644,7 @@ mod tests {
         let catalog_ids = CATALOGS
             .iter()
             .flat_map(|catalog| catalog.providers.iter().copied())
+            .chain(PLATFORMS.iter().flat_map(|catalog| catalog.all_routes()))
             .collect::<BTreeSet<_>>();
         let registration_ids = registrations()
             .iter()
@@ -493,6 +659,9 @@ mod tests {
                 DoctorProbe::WebFetch { .. } => WEB_FETCH.contains(registration.id),
                 DoctorProbe::DocsSearch { .. } => DOCS_SEARCH.contains(registration.id),
                 DoctorProbe::AnysearchDomains { .. } => registration.id == ProviderId::Anysearch,
+                DoctorProbe::PlatformSearch {
+                    platform: probed, ..
+                } => platform(probed).search.contains(&registration.id),
             };
             assert!(probe_is_supported, "{} probe", registration.id.name());
             assert!(
@@ -520,6 +689,22 @@ mod tests {
         assert_eq!(
             (keyed.is_configured(0), keyed.is_configured(1)),
             (false, true)
+        );
+    }
+
+    #[test]
+    fn registry_validation_accepts_a_route_that_only_a_platform_catalog_lists() {
+        let arxiv_api = registration(ProviderId::ArxivApi);
+
+        assert_eq!(
+            (
+                CATALOGS
+                    .iter()
+                    .any(|catalog| catalog.contains(ProviderId::ArxivApi)),
+                arxiv_api.operations.is_empty(),
+                validate_registrations(REGISTRY),
+            ),
+            (false, true, Ok(()))
         );
     }
 

@@ -5,6 +5,7 @@ use serde::{Deserialize, Deserializer, Serialize, de};
 
 use crate::catalog;
 use crate::redact::Secret;
+use crate::types::Platform;
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
@@ -13,6 +14,7 @@ pub(super) struct Config {
     pub(super) classifier: Classifier,
     pub(super) providers: Providers,
     pub(super) capabilities: Capabilities,
+    pub(super) platforms: Platforms,
     pub(super) log: Log,
     pub(super) journal: Journal,
     pub(super) retry: Retry,
@@ -69,6 +71,7 @@ pub(super) struct Providers {
     pub(super) tavily: Endpoint<TavilyEndpoint>,
     pub(super) firecrawl: Endpoint<FirecrawlEndpoint>,
     pub(super) anysearch: Endpoint<AnysearchEndpoint>,
+    pub(super) arxiv_api: AnonymousEndpoint<ArxivApiEndpoint>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -135,6 +138,27 @@ impl<D: EndpointDefaults> Default for Endpoint<D> {
     }
 }
 
+/// The endpoint section of a provider whose registration requires no credentials.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub(super) struct AnonymousEndpoint<D: EndpointDefaults> {
+    pub(super) url: String,
+    #[serde(deserialize_with = "deserialize_integer")]
+    pub(super) timeout: u64,
+    #[serde(skip)]
+    pub(super) defaults: PhantomData<D>,
+}
+
+impl<D: EndpointDefaults> Default for AnonymousEndpoint<D> {
+    fn default() -> Self {
+        Self {
+            url: D::URL.into(),
+            timeout: D::TIMEOUT_SECONDS,
+            defaults: PhantomData,
+        }
+    }
+}
+
 pub(super) trait EndpointDefaults {
     const URL: &'static str;
     const TIMEOUT_SECONDS: u64;
@@ -161,6 +185,7 @@ endpoint_defaults!(TavilyEndpoint, "https://api.tavily.com");
 // Matches the 60 s server-side timeout that Web Fetch requests from Firecrawl (ADR 0018).
 endpoint_defaults!(FirecrawlEndpoint, "https://api.firecrawl.dev/v2", 60);
 endpoint_defaults!(AnysearchEndpoint, "https://api.anysearch.com/mcp");
+endpoint_defaults!(ArxivApiEndpoint, "https://export.arxiv.org/api/query");
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
@@ -214,6 +239,30 @@ impl Order {
         Self {
             order: provider_names(catalog),
         }
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub(super) struct Platforms {
+    pub(super) arxiv: Order,
+}
+
+impl Default for Platforms {
+    fn default() -> Self {
+        Self {
+            arxiv: platform_order(catalog::ARXIV),
+        }
+    }
+}
+
+fn platform_order(catalog: catalog::PlatformCatalog) -> Order {
+    Order {
+        order: catalog
+            .all_routes()
+            .into_iter()
+            .map(|route| route.name().to_owned())
+            .collect(),
     }
 }
 
@@ -342,6 +391,10 @@ pub(super) enum Rule {
         capability: &'static str,
         allow_empty: bool,
     },
+    /// Unique routes of the platform; an empty order disables the platform.
+    PlatformOrder {
+        platform: Platform,
+    },
 }
 
 #[derive(Clone, Copy)]
@@ -453,10 +506,13 @@ pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("providers.anysearch.url", providers.anysearch.url: String, Rule::Any, View::Url, "service endpoint URL"),
     leaf!("providers.anysearch.keys", providers.anysearch.keys: Secrets, Rule::Any, View::Keys, "credential pool; keep empty until credentials are available"),
     leaf!("providers.anysearch.timeout", providers.anysearch.timeout: U64, Rule::Positive, View::Plain, "shared timeout in seconds; must be greater than zero"),
+    leaf!("providers.arxiv_api.url", providers.arxiv_api.url: String, Rule::Any, View::Url, "service endpoint URL; this provider needs no credentials"),
+    leaf!("providers.arxiv_api.timeout", providers.arxiv_api.timeout: U64, Rule::Positive, View::Plain, "shared timeout in seconds; must be greater than zero"),
     leaf!("capabilities.web_search.order", capabilities.web_search.order: Strings, Rule::CapabilityOrder { capability: "web_search", allow_empty: true }, View::Plain, "authoritative provider order for this capability"),
     leaf!("capabilities.web_fetch.order", capabilities.web_fetch.order: Strings, Rule::CapabilityOrder { capability: "web_fetch", allow_empty: false }, View::Plain, "authoritative provider order for this capability"),
     leaf!("capabilities.docs_search.order", capabilities.docs_search.order: Strings, Rule::CapabilityOrder { capability: "docs_search", allow_empty: true }, View::Plain, "authoritative provider order for this capability"),
     leaf!("capabilities.vertical_search.order", capabilities.vertical_search.order: Strings, Rule::CapabilityOrder { capability: "vertical_search", allow_empty: true }, View::Plain, "authoritative provider order for this capability"),
+    leaf!("platforms.arxiv.order", platforms.arxiv.order: Strings, Rule::PlatformOrder { platform: Platform::Arxiv }, View::Plain, "authoritative route order for this platform; empty disables it"),
     leaf!("log.level", log.level: String, Rule::OneOf(LOG_LEVELS), View::Plain, "stderr log level"),
     leaf!("journal.enabled", journal.enabled: Bool, Rule::Any, View::Plain, "record search result journals"),
     leaf!("journal.dir", journal.dir: String, Rule::Any, View::Plain, "journal storage directory"),
@@ -478,7 +534,7 @@ pub(super) fn path_kind(path: &str) -> Option<ValueKind> {
     leaf(path).map(|leaf| leaf.kind)
 }
 
-pub(super) fn is_leaf(path: &str) -> bool {
+pub(crate) fn is_leaf(path: &str) -> bool {
     leaf(path).is_some()
 }
 
@@ -545,6 +601,14 @@ mod tests {
         assert_eq!(
             config.capabilities.vertical_search.order,
             names(catalog::VERTICAL_SEARCH)
+        );
+        assert_eq!(
+            config.platforms.arxiv.order,
+            catalog::ARXIV
+                .all_routes()
+                .into_iter()
+                .map(|route| route.name().to_owned())
+                .collect::<Vec<_>>()
         );
     }
 
@@ -749,13 +813,21 @@ mod tests {
     }
 
     #[test]
+    fn a_provider_without_credentials_rejects_a_keys_leaf() {
+        let result = toml::from_str::<Config>("[providers.arxiv_api]\nkeys = [\"secret\"]\n");
+
+        assert!(result.is_err());
+    }
+
+    #[test]
     fn provider_endpoints_use_their_url_defaults_when_omitted() {
         let config: Config = toml::from_str(
             "[providers.exa]\ntimeout = 41\n\
              [providers.context7]\ntimeout = 42\n\
              [providers.tavily]\ntimeout = 43\n\
              [providers.firecrawl]\ntimeout = 44\n\
-             [providers.anysearch]\ntimeout = 45\n",
+             [providers.anysearch]\ntimeout = 45\n\
+             [providers.arxiv_api]\ntimeout = 46\n",
         )
         .expect("deserialize partial provider endpoints");
 
@@ -766,6 +838,7 @@ mod tests {
                 config.providers.tavily.url.as_str(),
                 config.providers.firecrawl.url.as_str(),
                 config.providers.anysearch.url.as_str(),
+                config.providers.arxiv_api.url.as_str(),
             ),
             (
                 "https://api.exa.ai",
@@ -773,6 +846,7 @@ mod tests {
                 "https://api.tavily.com",
                 "https://api.firecrawl.dev/v2",
                 "https://api.anysearch.com/mcp",
+                "https://export.arxiv.org/api/query",
             )
         );
     }

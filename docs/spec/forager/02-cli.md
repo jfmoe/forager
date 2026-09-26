@@ -6,7 +6,7 @@
 
 项目 / binary 名 **forager**（脱离上游 fork 网络的独立身份；crates.io / GitHub 撞名验证通过）。
 
-## 命令面（11 顶层）
+## 命令面（12 顶层）
 
 ```
 forager search QUERY [--capabilities CSV|none] [--model ID] [--extra-sources N]
@@ -26,13 +26,17 @@ forager context7 library NAME [QUERY] [...]
 forager context7 docs LIBRARY_ID QUERY [...]
 forager anysearch search QUERY [--domain D --sub-domain S] [--sub-domain-params JSON] [--max-results 5] [...]
 forager anysearch domains [DOMAIN] [...]
+forager platform arxiv search [QUERY] [--category CAT]... [--author NAME] [--title TEXT]
+                              [--submitted-from YYYY-MM-DD] [--submitted-to YYYY-MM-DD]
+                              [--sort relevance|submitted|updated] [--limit 1..=100（默认 10）]
+                              [--cursor CURSOR] [--timeout 120] [--format json|markdown] [...]
 forager doctor [--provider PROVIDER] [--timeout 30] [--format json|markdown]
 forager smoke [--live] [...]
 forager config path|list|set|unset
 forager setup [--non-interactive] [--lang zh|en]
 ```
 
-- **分界规则**：点名 provider 的命令按 provider 分组嵌套（exa/context7/anysearch）；操作语义 + fallback 链的按操作命名保持顶层（fetch、map）。裸动词＝智能管线，provider 前缀＝旁路直连。
+- **分界规则**：点名 provider 的命令按 provider 分组嵌套（exa/context7/anysearch）；操作语义 + fallback 链的按操作命名保持顶层（fetch、map）；平台直连命令按 `platform <id> <op>` 嵌套。裸动词＝智能管线，provider 前缀＝旁路直连。
 - **别名六槽**（全部 visible_alias）：`s`=search、`f`=fetch、`rs`=research、`c7`=context7、`as`=anysearch、`ls`=config list。关闭 clap `infer_subcommands`。
 
 ## 输出与退出码
@@ -115,7 +119,29 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 ## 契约③：`doctor --provider`
 
-两档：`doctor` 浅检全体（掩码配置 + 凭据存在 + 可达性（对 endpoint 发 GET 并只等待响应头，任何 HTTP 响应都算可达；部分 endpoint 对 HEAD 不响应）+ 过宽权限报告 + config list 同构生效值块）；顶层 `ok` 等于所有 `configured=true` provider 均 `reachable=true`，零配置为 true，任一不可达则 JSON/Markdown 均为 false 并退出 4，permission warning 不改变 `ok`。`config_warnings` 报告主搜索链中与首个已配置 backend 使用相同 endpoint（忽略末尾 `/`）和相同主模型的后续 backend——这类 fallback 与主 backend 处于同一故障域；该警告同样不改变 `ok`。`--provider NAME` 深探单体，值域＝8 provider 编译期 enum。8 个 provider 均执行凭据有效性 + 最小活体调用；openai-compatible 额外保留 stream/no-stream 双形状判定。
+两档：`doctor` 浅检全体（掩码配置 + 凭据存在 + 可达性（对 endpoint 发 GET 并只等待响应头，任何 HTTP 响应都算可达；部分 endpoint 对 HEAD 不响应）+ 过宽权限报告 + config list 同构生效值块）；顶层 `ok` 等于所有 `configured=true` provider 均 `reachable=true`，零配置为 true，任一不可达则 JSON/Markdown 均为 false 并退出 4，permission warning 不改变 `ok`。`config_warnings` 报告主搜索链中与首个已配置 backend 使用相同 endpoint（忽略末尾 `/`）和相同主模型的后续 backend——这类 fallback 与主 backend 处于同一故障域；该警告同样不改变 `ok`。`--provider NAME` 深探单体，值域＝9 provider 编译期 enum。需要凭据的 8 个 provider 执行凭据有效性 + 最小活体调用；`arxiv_api` 不需要凭据，恒为已配置，深探执行一次最小平台检索；openai-compatible 额外保留 stream/no-stream 双形状判定。声明访问策略的 provider（`arxiv_api`）的浅检可达性 GET 与深探请求都先经过跨进程限速，等不到窗口时浅检记为不可达、深探以 timeout 失败，且都不发送请求。
+
+## 平台命令
+
+`forager platform <id> <op>` 直连检索内置平台（ADR 0019；接入契约见第 7 章）。每个平台一棵静态 clap 子树；`forager platform arxiv --help` 及各操作的 help 是参数语法的唯一权威。本期交付 `forager platform arxiv search`；`fetch` 尚未实现。
+
+### `platform arxiv search`
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| 查询词（位置参数） | 字符串，可省略 | 无 | 普通关键词，按空白与双引号切分，所有词都必须出现（AND）；arXiv 查询语法字符按字面词处理 |
+| `--category` | 可重复，arXiv 分类代码 | 无 | 多个分类之间为 OR，整体与其他条件 AND |
+| `--author` | 字符串 | 无 | 作者名短语匹配 |
+| `--title` | 字符串 | 无 | 标题短语匹配 |
+| `--submitted-from` / `--submitted-to` | `YYYY-MM-DD`，UTC | 无 | 提交日期区间，两端都包含；可只给一端 |
+| `--sort` | `relevance` / `submitted` / `updated` | `relevance` | 固定降序 |
+| `--limit` | 1..=100 | 10 | 本页最多返回的条数 |
+| `--cursor` | 上一页的 `next_cursor` | 无 | 翻页；完整恢复原请求 |
+
+- 查询词与 `--category`、`--author`、`--title` 至少给出一个。通用 flag 为 `--timeout`（默认 120 秒，计入等待限速窗口的时间）、`--format json|markdown`、`--output`/`--receipt`、`--verbose`。
+- **cursor 独占**：`--cursor` 与显式传入的查询词、任何平台选项或 `--limit` 同时出现时由 clap 退 2；解析后的默认值不算冲突；通用 flag 可以同时使用。
+- **输出**：成功 JSON 为 `{platform, provider, items, next_cursor}`，`--verbose` 时另有 `provider_attempts`（含被跳过的 route）。每个 item 含 `ref`（带版本号，如 `arxiv:2401.01234v2`）、canonical `url`、`depth: "abstract"`、空白折叠后的 `title`、`authors`、`published`，以及 arXiv 数据 `abstract`（完整摘要）、`updated`、`primary_category`、`categories`、`doi`、`journal_ref`、`comment`、`pdf_url`；缺失字段为 `null`。有下一页时 `next_cursor` 为字符串；本页条数小于 limit 或已达总数时为 `null`；合法零结果为 `items: []` 且退 0。平台直连命令不写 Search Result Journal。
+- **退出码**：ref、cursor 或选项无效、日期区间颠倒、缺少查询词与过滤条件、所有已配置 route 都不支持所请求的选项＝飞行前退 2；`platforms.arxiv.order` 为空或操作可用 route 为空、order 含其他平台的 route＝飞行前退 3；arXiv Atom error entry（HTTP 400 或 200）为 attempt 级 Parameter，退 4 并带 arXiv 消息；等待限速窗口时预算不足为 Timeout 退 4；限速状态不可用为 Runtime 退 4 且不发送请求。
 
 ## 收尾
 

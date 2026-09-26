@@ -181,7 +181,7 @@ impl Classifier {
                 })
                 .collect(),
             ChainSettings {
-                seam: "classifier",
+                target: AttemptTarget::seam("classifier"),
                 budget_policy: BudgetPolicy::SlicedEven {
                     skipped_message: "skipped to preserve classifier model fallback deadline budget",
                 },
