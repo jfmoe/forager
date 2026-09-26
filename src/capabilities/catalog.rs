@@ -71,27 +71,18 @@ impl PlatformOperation {
     }
 }
 
-/// The routes of an operation that more than one route implements through a shared trait.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct PlatformTraitOperation {
-    pub(crate) name: &'static str,
-    pub(crate) routes: &'static [ProviderId],
-}
-
 /// The only source of which routes serve a platform and each of its operations.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct PlatformCatalog {
     pub(crate) platform: Platform,
     pub(crate) search: &'static [ProviderId],
     pub(crate) fetch: &'static [ProviderId],
-    pub(crate) trait_operations: &'static [PlatformTraitOperation],
 }
 
 pub(crate) const ARXIV: PlatformCatalog = PlatformCatalog {
     platform: Platform::Arxiv,
     search: &[ProviderId::ArxivApi],
     fetch: &[ProviderId::ArxivApi],
-    trait_operations: &[],
 };
 
 pub(crate) const PLATFORMS: &[PlatformCatalog] = &[ARXIV];
@@ -107,12 +98,7 @@ impl PlatformCatalog {
     /// Returns every route of the platform once, in declaration order.
     pub(crate) fn all_routes(self) -> Vec<ProviderId> {
         let mut routes = Vec::new();
-        let declared = self.search.iter().chain(self.fetch).chain(
-            self.trait_operations
-                .iter()
-                .flat_map(|operation| operation.routes),
-        );
-        for route in declared {
+        for route in self.search.iter().chain(self.fetch) {
             if !routes.contains(route) {
                 routes.push(*route);
             }
