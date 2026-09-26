@@ -61,7 +61,8 @@ enabled = false
             "url": "https://example.test/article",
             "formats": ["markdown"],
             "onlyMainContent": true,
-            "timeout": 60000
+            "timeout": 60000,
+            "parsers": [{"type": "pdf", "mode": "auto", "pageMarkers": true}]
         })
     );
 }

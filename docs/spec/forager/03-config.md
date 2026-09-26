@@ -68,7 +68,7 @@ timeout = 30
 [providers.firecrawl]
 url = "https://api.firecrawl.dev/v2"
 keys = []
-timeout = 30                 # 补齐——旧版缺失该键
+timeout = 60                 # 与 Web Fetch 请求体的 timeout: 60000 一致（ADR 0018）
 
 [providers.anysearch]
 url = "https://api.anysearch.com/mcp"

@@ -27,6 +27,7 @@ fn non_interactive_setup_creates_a_complete_template() {
                 .as_array()
                 .map(Vec::len),
             &value["capabilities"]["web_fetch"]["order"],
+            value["providers"]["firecrawl"]["timeout"].as_integer(),
             value["search"].get("validation"),
         ),
         (
@@ -40,6 +41,7 @@ fn non_interactive_setup_creates_a_complete_template() {
                     .map(|provider| toml::Value::String(provider.into()))
                     .collect()
             ),
+            Some(60),
             None,
         ),
         "stderr: {}",

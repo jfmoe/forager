@@ -189,7 +189,8 @@ impl HttpFetchProvider {
                     "url": &request.url,
                     "formats": ["markdown"],
                     "onlyMainContent": true,
-                    "timeout": 60000
+                    "timeout": 60000,
+                    "parsers": [{"type": "pdf", "mode": "auto", "pageMarkers": true}]
                 })),
             _ => unreachable!("only web fetch providers make fetch requests"),
         }

@@ -129,7 +129,7 @@ impl<D: EndpointDefaults> Default for Endpoint<D> {
         Self {
             url: D::URL.into(),
             keys: Vec::new(),
-            timeout: 30,
+            timeout: D::TIMEOUT_SECONDS,
             defaults: PhantomData,
         }
     }
@@ -137,15 +137,20 @@ impl<D: EndpointDefaults> Default for Endpoint<D> {
 
 pub(super) trait EndpointDefaults {
     const URL: &'static str;
+    const TIMEOUT_SECONDS: u64;
 }
 
 macro_rules! endpoint_defaults {
     ($name:ident, $url:literal) => {
+        endpoint_defaults!($name, $url, 30);
+    };
+    ($name:ident, $url:literal, $timeout:literal) => {
         #[derive(Clone, Debug)]
         pub(super) struct $name;
 
         impl EndpointDefaults for $name {
             const URL: &'static str = $url;
+            const TIMEOUT_SECONDS: u64 = $timeout;
         }
     };
 }
@@ -153,7 +158,8 @@ macro_rules! endpoint_defaults {
 endpoint_defaults!(ExaEndpoint, "https://api.exa.ai");
 endpoint_defaults!(Context7Endpoint, "https://mcp.context7.com/mcp");
 endpoint_defaults!(TavilyEndpoint, "https://api.tavily.com");
-endpoint_defaults!(FirecrawlEndpoint, "https://api.firecrawl.dev/v2");
+// Matches the 60 s server-side timeout that Web Fetch requests from Firecrawl (ADR 0018).
+endpoint_defaults!(FirecrawlEndpoint, "https://api.firecrawl.dev/v2", 60);
 endpoint_defaults!(AnysearchEndpoint, "https://api.anysearch.com/mcp");
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
