@@ -7,7 +7,6 @@ use std::process::{Command, Output};
 use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
-use support::opencli::FakeOpenCli;
 use support::{Fixture, Response, run_command};
 
 struct SmokeEnvironment {
@@ -526,8 +525,11 @@ fn live_smoke_runs_the_platform_cases_through_their_configured_route() {
     );
 }
 
+#[cfg(unix)]
 #[test]
 fn live_smoke_runs_the_browser_cases_only_when_the_order_lists_the_route() {
+    use support::opencli::FakeOpenCli;
+
     let fake = FakeOpenCli::by_command(&[
         (
             "search",

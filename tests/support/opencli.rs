@@ -104,3 +104,7 @@ fn make_executable(path: &Path) {
 
     fs::set_permissions(path, fs::Permissions::from_mode(0o755)).expect("make fake executable");
 }
+
+// Process routes are Unix-only, so the tests that run this fake are too.
+#[cfg(not(unix))]
+fn make_executable(_path: &Path) {}
