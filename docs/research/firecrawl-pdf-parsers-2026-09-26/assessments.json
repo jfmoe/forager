@@ -1,0 +1,632 @@
+[
+  {
+    "id": "bitcoin",
+    "mode": "default",
+    "origin": "resumed_benchmark",
+    "success": true,
+    "whitespace_words": 3410,
+    "markdown_tables": 0,
+    "anchor_found": 8,
+    "anchor_total": 8,
+    "anchors": [
+      {
+        "page": 1,
+        "text": "Abstract.  A purely peer-to-peer version of electronic cash would allow online",
+        "found": true
+      },
+      {
+        "page": 1,
+        "text": "system is secure as long as honest nodes collectively control more CPU power than any",
+        "found": true
+      },
+      {
+        "page": 3,
+        "text": "To implement a distributed timestamp server on a peer-to-peer basis, we will need to use a",
+        "found": true
+      },
+      {
+        "page": 3,
+        "text": "of-work is found and one branch becomes longer; the nodes that were working on the other",
+        "found": true
+      },
+      {
+        "page": 5,
+        "text": "It is possible to verify payments without running a full network node.  A user only needs ",
+        "found": true
+      },
+      {
+        "page": 5,
+        "text": "transactions depend on many more, is not a problem here.  There is never the need to extra",
+        "found": true
+      },
+      {
+        "page": 9,
+        "text": "H. Massias, X.S. Avila, and J.-J. Quisquater, \"Design of a secure timestamping service wit",
+        "found": true
+      },
+      {
+        "page": 9,
+        "text": "W. Feller, \"An introduction to probability theory and its applications,\" 1957.",
+        "found": true
+      }
+    ],
+    "mixral_typo": 0,
+    "marker_count": 0,
+    "marker_token_delta": 0,
+    "marker_free_sha256": "22de6620253e41cad8dce8a014442fd4b5ed3d15514cdb871d12941798a07048"
+  },
+  {
+    "id": "bitcoin",
+    "mode": "markers",
+    "origin": "resumed_benchmark",
+    "success": true,
+    "whitespace_words": 3581,
+    "markdown_tables": 0,
+    "anchor_found": 8,
+    "anchor_total": 8,
+    "anchors": [
+      {
+        "page": 1,
+        "text": "Abstract.  A purely peer-to-peer version of electronic cash would allow online",
+        "found": true
+      },
+      {
+        "page": 1,
+        "text": "system is secure as long as honest nodes collectively control more CPU power than any",
+        "found": true
+      },
+      {
+        "page": 3,
+        "text": "To implement a distributed timestamp server on a peer-to-peer basis, we will need to use a",
+        "found": true
+      },
+      {
+        "page": 3,
+        "text": "of-work is found and one branch becomes longer; the nodes that were working on the other",
+        "found": true
+      },
+      {
+        "page": 5,
+        "text": "It is possible to verify payments without running a full network node.  A user only needs ",
+        "found": true
+      },
+      {
+        "page": 5,
+        "text": "transactions depend on many more, is not a problem here.  There is never the need to extra",
+        "found": true
+      },
+      {
+        "page": 9,
+        "text": "H. Massias, X.S. Avila, and J.-J. Quisquater, \"Design of a secure timestamping service wit",
+        "found": true
+      },
+      {
+        "page": 9,
+        "text": "W. Feller, \"An introduction to probability theory and its applications,\" 1957.",
+        "found": true
+      }
+    ],
+    "mixral_typo": 0,
+    "marker_count": 8,
+    "marker_token_delta": 32,
+    "marker_free_sha256": "1cf685709622890dd173e75e4757eb9b5965c04f2017dde08db20a1fd937363f"
+  },
+  {
+    "id": "irs583",
+    "mode": "default",
+    "origin": "resumed_benchmark",
+    "success": true,
+    "whitespace_words": 15659,
+    "markdown_tables": 151,
+    "anchor_found": 5,
+    "anchor_total": 8,
+    "anchors": [
+      {
+        "page": 1,
+        "text": "This publication provides basic federal tax information for",
+        "found": false
+      },
+      {
+        "page": 1,
+        "text": "Department of the Treasury  Internal Revenue Service  www.irs.gov",
+        "found": false
+      },
+      {
+        "page": 3,
+        "text": "Legal and tax considerations enter into this decision. Only",
+        "found": true
+      },
+      {
+        "page": 3,
+        "text": "the Instructions for Form 8832, Entity Classification Elec-",
+        "found": true
+      },
+      {
+        "page": 15,
+        "text": "side for debits and a right side for credits. It is self-balanc-",
+        "found": false
+      },
+      {
+        "page": 15,
+        "text": "6. File a claim for a loss from worthless securities or a bad debt deduction",
+        "found": true
+      },
+      {
+        "page": 27,
+        "text": "preference to receive notices, letters, or other written com-",
+        "found": true
+      },
+      {
+        "page": 27,
+        "text": "The Taxpayer Bill of Rights describes ten basic rights that",
+        "found": true
+      }
+    ],
+    "mixral_typo": 0,
+    "marker_count": 0,
+    "marker_token_delta": 0,
+    "marker_free_sha256": "06f6feaceffa6200315a3fff0a70afeb863183803071fbe6ed52792f88444b5d"
+  },
+  {
+    "id": "irs583",
+    "mode": "markers",
+    "origin": "resumed_benchmark",
+    "success": true,
+    "whitespace_words": 18308,
+    "markdown_tables": 225,
+    "anchor_found": 7,
+    "anchor_total": 8,
+    "anchors": [
+      {
+        "page": 1,
+        "text": "This publication provides basic federal tax information for",
+        "found": true
+      },
+      {
+        "page": 1,
+        "text": "Department of the Treasury  Internal Revenue Service  www.irs.gov",
+        "found": false
+      },
+      {
+        "page": 3,
+        "text": "Legal and tax considerations enter into this decision. Only",
+        "found": true
+      },
+      {
+        "page": 3,
+        "text": "the Instructions for Form 8832, Entity Classification Elec-",
+        "found": true
+      },
+      {
+        "page": 15,
+        "text": "side for debits and a right side for credits. It is self-balanc-",
+        "found": true
+      },
+      {
+        "page": 15,
+        "text": "6. File a claim for a loss from worthless securities or a bad debt deduction",
+        "found": true
+      },
+      {
+        "page": 27,
+        "text": "preference to receive notices, letters, or other written com-",
+        "found": true
+      },
+      {
+        "page": 27,
+        "text": "The Taxpayer Bill of Rights describes ten basic rights that",
+        "found": true
+      }
+    ],
+    "mixral_typo": 0,
+    "marker_count": 23,
+    "marker_token_delta": 92,
+    "marker_free_sha256": "3d9cfb811d25d5a3f1e86682efe7653ceaab6f3aebebf3e73f6d7f8326907eb8"
+  },
+  {
+    "id": "llama3",
+    "mode": "default",
+    "origin": "first_benchmark",
+    "success": true,
+    "whitespace_words": 49229,
+    "markdown_tables": 181,
+    "anchor_found": 7,
+    "anchor_total": 8,
+    "anchors": [
+      {
+        "page": 1,
+        "text": "1A detailed contributor list can be found in the appendix of this paper.",
+        "found": true
+      },
+      {
+        "page": 1,
+        "text": "we pre-trained a flagship model with 405B trainable parameters on 15.6T text tokens. As ex",
+        "found": true
+      },
+      {
+        "page": 3,
+        "text": "Table 2 Performance of finetuned Llama 3 models on key benchmark evaluations. The table co",
+        "found": true
+      },
+      {
+        "page": 3,
+        "text": "2In this paper, we use the term “post-training” to refer to any model training that happen",
+        "found": false
+      },
+      {
+        "page": 47,
+        "text": "Figure22 Text-basedpromptinjectionsuccessratespermodelacrossprompt",
+        "found": true
+      },
+      {
+        "page": 47,
+        "text": "conditions to the web-only control condition) as well as for breakdowns by subgroups (e.g.",
+        "found": true
+      },
+      {
+        "page": 92,
+        "text": "Conference on Machine Learning, ICML 2021, 18-24 July 2021, Virtual Event, volume 139 of P",
+        "found": true
+      },
+      {
+        "page": 92,
+        "text": "Deyao Zhu, Jun Chen, Xiaoqian Shen, Xiang Li, and Mohamed Elhoseiny. Minigpt-4: Enhancing ",
+        "found": true
+      }
+    ],
+    "mixral_typo": 0,
+    "marker_count": 0,
+    "marker_token_delta": 0,
+    "marker_free_sha256": "6d813f3d0ec0a17e205cb43a25356a285d9a5b1246128db8ceee68e3556f4f2d"
+  },
+  {
+    "id": "llama3",
+    "mode": "markers",
+    "origin": "resumed_benchmark",
+    "success": true,
+    "whitespace_words": 63811,
+    "markdown_tables": 696,
+    "anchor_found": 7,
+    "anchor_total": 8,
+    "anchors": [
+      {
+        "page": 1,
+        "text": "1A detailed contributor list can be found in the appendix of this paper.",
+        "found": true
+      },
+      {
+        "page": 1,
+        "text": "we pre-trained a flagship model with 405B trainable parameters on 15.6T text tokens. As ex",
+        "found": true
+      },
+      {
+        "page": 3,
+        "text": "Table 2 Performance of finetuned Llama 3 models on key benchmark evaluations. The table co",
+        "found": true
+      },
+      {
+        "page": 3,
+        "text": "2In this paper, we use the term “post-training” to refer to any model training that happen",
+        "found": false
+      },
+      {
+        "page": 47,
+        "text": "Figure22 Text-basedpromptinjectionsuccessratespermodelacrossprompt",
+        "found": true
+      },
+      {
+        "page": 47,
+        "text": "conditions to the web-only control condition) as well as for breakdowns by subgroups (e.g.",
+        "found": true
+      },
+      {
+        "page": 92,
+        "text": "Conference on Machine Learning, ICML 2021, 18-24 July 2021, Virtual Event, volume 139 of P",
+        "found": true
+      },
+      {
+        "page": 92,
+        "text": "Deyao Zhu, Jun Chen, Xiaoqian Shen, Xiang Li, and Mohamed Elhoseiny. Minigpt-4: Enhancing ",
+        "found": true
+      }
+    ],
+    "mixral_typo": 0,
+    "marker_count": 79,
+    "marker_token_delta": 316,
+    "marker_free_sha256": "7c254081fe3e5842a06b5de10d2a234a03aac6a3c4ef27a7da5903367f29fde7"
+  },
+  {
+    "id": "mixtral",
+    "mode": "default",
+    "origin": "prior_benchmark",
+    "success": true,
+    "whitespace_words": 4330,
+    "markdown_tables": 0,
+    "anchor_found": 7,
+    "anchor_total": 8,
+    "anchors": [
+      {
+        "page": 1,
+        "text": "Albert Q. Jiang, Alexandre Sablayrolles, Antoine Roux, Arthur Mensch,",
+        "found": true
+      },
+      {
+        "page": 1,
+        "text": "or exceeds the performance of Llama 2 70B and GPT-3.5, over several benchmarks. In particu",
+        "found": true
+      },
+      {
+        "page": 3,
+        "text": "can increase the model’s parameter count while keeping its computational cost effectively ",
+        "found": true
+      },
+      {
+        "page": 3,
+        "text": "matches Llama 2 70B on all benchmarks. In particular, it is vastly superior in mathematics",
+        "found": true
+      },
+      {
+        "page": 7,
+        "text": "In this section, we perform a small analysis on the expert selection by the router. In par",
+        "found": true
+      },
+      {
+        "page": 7,
+        "text": "breakdown of the proportion of assignments done in each case cane be seen in Figure 9 in t",
+        "found": false
+      },
+      {
+        "page": 13,
+        "text": "Figure 10: Repeated consecutive assignments per MoE layer. Repeated assignments occur a lo",
+        "found": true
+      },
+      {
+        "page": 13,
+        "text": "often than they would with uniform assignments (materialized by the dashed lines). Pattern",
+        "found": true
+      }
+    ],
+    "mixral_typo": 10,
+    "marker_count": 0,
+    "marker_token_delta": 0,
+    "marker_free_sha256": "63165806539f5ca8d65e45eaf1d9f3ade3427048dea6bd2fb39733a3745321f0"
+  },
+  {
+    "id": "mixtral",
+    "mode": "markers",
+    "origin": "prior_benchmark",
+    "success": true,
+    "whitespace_words": 8486,
+    "markdown_tables": 239,
+    "anchor_found": 8,
+    "anchor_total": 8,
+    "anchors": [
+      {
+        "page": 1,
+        "text": "Albert Q. Jiang, Alexandre Sablayrolles, Antoine Roux, Arthur Mensch,",
+        "found": true
+      },
+      {
+        "page": 1,
+        "text": "or exceeds the performance of Llama 2 70B and GPT-3.5, over several benchmarks. In particu",
+        "found": true
+      },
+      {
+        "page": 3,
+        "text": "can increase the model’s parameter count while keeping its computational cost effectively ",
+        "found": true
+      },
+      {
+        "page": 3,
+        "text": "matches Llama 2 70B on all benchmarks. In particular, it is vastly superior in mathematics",
+        "found": true
+      },
+      {
+        "page": 7,
+        "text": "In this section, we perform a small analysis on the expert selection by the router. In par",
+        "found": true
+      },
+      {
+        "page": 7,
+        "text": "breakdown of the proportion of assignments done in each case cane be seen in Figure 9 in t",
+        "found": true
+      },
+      {
+        "page": 13,
+        "text": "Figure 10: Repeated consecutive assignments per MoE layer. Repeated assignments occur a lo",
+        "found": true
+      },
+      {
+        "page": 13,
+        "text": "often than they would with uniform assignments (materialized by the dashed lines). Pattern",
+        "found": true
+      }
+    ],
+    "mixral_typo": 0,
+    "marker_count": 10,
+    "marker_token_delta": 40,
+    "marker_free_sha256": "2de42e058f6ccfdb17f089bafb578ca3606a0fc6a5828352c3409a6bf9901780"
+  },
+  {
+    "id": "mixtral_html",
+    "mode": "default",
+    "origin": "resumed_benchmark",
+    "success": true,
+    "whitespace_words": 5696,
+    "markdown_tables": 91,
+    "anchor_found": 0,
+    "anchor_total": 0,
+    "anchors": [],
+    "mixral_typo": 0,
+    "marker_count": 0,
+    "marker_token_delta": 0,
+    "marker_free_sha256": "7c4a2fb8831f33893b1d4e30e178d15bb630032e8987737038ac05b4ec3a5006"
+  },
+  {
+    "id": "mixtral_html",
+    "mode": "markers",
+    "origin": "resumed_benchmark",
+    "success": true,
+    "whitespace_words": 5696,
+    "markdown_tables": 91,
+    "anchor_found": 0,
+    "anchor_total": 0,
+    "anchors": [],
+    "mixral_typo": 0,
+    "marker_count": 0,
+    "marker_token_delta": 0,
+    "marker_free_sha256": "7c4a2fb8831f33893b1d4e30e178d15bb630032e8987737038ac05b4ec3a5006"
+  },
+  {
+    "id": "python",
+    "mode": "default",
+    "origin": "resumed_benchmark",
+    "success": true,
+    "whitespace_words": 4319,
+    "markdown_tables": 0,
+    "anchor_found": 0,
+    "anchor_total": 0,
+    "anchors": [],
+    "mixral_typo": 0,
+    "marker_count": 0,
+    "marker_token_delta": 0,
+    "marker_free_sha256": "5a537e501424e38c728764696d736c1b74beecf552286ea1769987e933262310"
+  },
+  {
+    "id": "python",
+    "mode": "markers",
+    "origin": "resumed_benchmark",
+    "success": true,
+    "whitespace_words": 4319,
+    "markdown_tables": 0,
+    "anchor_found": 0,
+    "anchor_total": 0,
+    "anchors": [],
+    "mixral_typo": 0,
+    "marker_count": 0,
+    "marker_token_delta": 0,
+    "marker_free_sha256": "5a537e501424e38c728764696d736c1b74beecf552286ea1769987e933262310"
+  },
+  {
+    "id": "scan",
+    "mode": "default",
+    "origin": "resumed_benchmark",
+    "success": true,
+    "whitespace_words": 715,
+    "markdown_tables": 0,
+    "anchor_found": 7,
+    "anchor_total": 9,
+    "anchors": [
+      {
+        "page": 1,
+        "text": "The LinnSequencer",
+        "found": true
+      },
+      {
+        "page": 1,
+        "text": "32 Track MIDI Sequence Recorder",
+        "found": true
+      },
+      {
+        "page": 1,
+        "text": "Each of the 100 sequences contains 32 simultaneous, polyphonic tracks",
+        "found": true
+      },
+      {
+        "page": 1,
+        "text": "Recording a Sequence",
+        "found": true
+      },
+      {
+        "page": 1,
+        "text": "Creating a Song",
+        "found": true
+      },
+      {
+        "page": 1,
+        "text": "Composition Without Compromise",
+        "found": true
+      },
+      {
+        "page": 1,
+        "text": "Additional Features",
+        "found": true
+      },
+      {
+        "page": 1,
+        "text": "18720 Oxnard Street, Tarzana, CA 91356",
+        "found": false
+      },
+      {
+        "page": 1,
+        "text": "(818) 708-8131 TELEX #298949 LINN UR",
+        "found": false
+      }
+    ],
+    "mixral_typo": 0,
+    "marker_count": 0,
+    "marker_token_delta": 0,
+    "marker_free_sha256": "089c71dd2905fd1404dd8678b888bdc1c8f6a333123fea4971641bbb92a50f21"
+  },
+  {
+    "id": "scan",
+    "mode": "markers",
+    "origin": "resumed_benchmark",
+    "success": true,
+    "whitespace_words": 715,
+    "markdown_tables": 0,
+    "anchor_found": 7,
+    "anchor_total": 9,
+    "anchors": [
+      {
+        "page": 1,
+        "text": "The LinnSequencer",
+        "found": true
+      },
+      {
+        "page": 1,
+        "text": "32 Track MIDI Sequence Recorder",
+        "found": true
+      },
+      {
+        "page": 1,
+        "text": "Each of the 100 sequences contains 32 simultaneous, polyphonic tracks",
+        "found": true
+      },
+      {
+        "page": 1,
+        "text": "Recording a Sequence",
+        "found": true
+      },
+      {
+        "page": 1,
+        "text": "Creating a Song",
+        "found": true
+      },
+      {
+        "page": 1,
+        "text": "Composition Without Compromise",
+        "found": true
+      },
+      {
+        "page": 1,
+        "text": "Additional Features",
+        "found": true
+      },
+      {
+        "page": 1,
+        "text": "18720 Oxnard Street, Tarzana, CA 91356",
+        "found": false
+      },
+      {
+        "page": 1,
+        "text": "(818) 708-8131 TELEX #298949 LINN UR",
+        "found": false
+      }
+    ],
+    "mixral_typo": 0,
+    "marker_count": 0,
+    "marker_token_delta": 0,
+    "marker_free_sha256": "089c71dd2905fd1404dd8678b888bdc1c8f6a333123fea4971641bbb92a50f21"
+  }
+]
