@@ -78,7 +78,7 @@ timeout = 30
 [capabilities.web_search]
 order = ["tavily", "firecrawl"]
 [capabilities.web_fetch]
-order = ["tavily", "firecrawl", "jina"]   # 置空＝config_error（引擎不变量）
+order = ["firecrawl", "tavily", "jina"]   # Firecrawl 优先（ADR 0018）；置空＝config_error（引擎不变量）
 [capabilities.docs_search]
 order = ["exa", "context7"]       # Exa 优先；Context7 仅在 Exa 无可消费结果时自动调用（ADR 0017）
 [capabilities.vertical_search]

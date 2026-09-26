@@ -16,7 +16,7 @@ pub(crate) const WEB_SEARCH: CapabilityCatalog = CapabilityCatalog {
 };
 pub(crate) const WEB_FETCH: CapabilityCatalog = CapabilityCatalog {
     seam: "web_fetch",
-    providers: &[ProviderId::Tavily, ProviderId::Firecrawl, ProviderId::Jina],
+    providers: &[ProviderId::Firecrawl, ProviderId::Tavily, ProviderId::Jina],
 };
 pub(crate) const DOCS_SEARCH: CapabilityCatalog = CapabilityCatalog {
     seam: "docs_search",

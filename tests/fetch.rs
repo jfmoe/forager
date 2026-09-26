@@ -10,7 +10,7 @@ use support::{Fixture, Response, RunEnvironment, jina_response};
 const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 
 #[test]
-fn fetch_uses_the_shared_provider_order_and_falls_back_after_thin_html() {
+fn fetch_uses_the_default_provider_order_and_falls_back_after_thin_html() {
     let tavily = Fixture::start(
         200,
         "application/json",
@@ -29,14 +29,13 @@ fn fetch_uses_the_shared_provider_order_and_falls_back_after_thin_html() {
     })
     .to_string();
     let jina = Fixture::start(200, "application/json", &jina_body);
-    let config = fetch_config(
+    let config = fetch_config_with_default_order(
         &jina.url,
         &["jina-key"],
         &tavily.url,
         &["tavily-key"],
         &firecrawl.url,
         &["firecrawl-key"],
-        &["tavily", "firecrawl", "jina"],
     );
     let environment = RunEnvironment::new(&config);
 
@@ -57,9 +56,9 @@ fn fetch_uses_the_shared_provider_order_and_falls_back_after_thin_html() {
         (
             Some(0),
             &Value::String("jina".into()),
-            &Value::String("tavily".into()),
-            &Value::String("quality".into()),
             &Value::String("firecrawl".into()),
+            &Value::String("quality".into()),
+            &Value::String("tavily".into()),
             &Value::String("quality".into()),
             &Value::String("jina".into()),
             &Value::Null,
@@ -619,6 +618,25 @@ fn fetch_config(
     firecrawl_keys: &[&str],
     order: &[&str],
 ) -> String {
+    let providers = fetch_config_with_default_order(
+        jina_url,
+        jina_keys,
+        tavily_url,
+        tavily_keys,
+        firecrawl_url,
+        firecrawl_keys,
+    );
+    format!("{providers}\n[capabilities.web_fetch]\norder = {order:?}\n")
+}
+
+fn fetch_config_with_default_order(
+    jina_url: &str,
+    jina_keys: &[&str],
+    tavily_url: &str,
+    tavily_keys: &[&str],
+    firecrawl_url: &str,
+    firecrawl_keys: &[&str],
+) -> String {
     format!(
         r"
 [providers.jina]
@@ -635,9 +653,6 @@ timeout = 30
 url = {firecrawl_url:?}
 keys = {firecrawl_keys:?}
 timeout = 30
-
-[capabilities.web_fetch]
-order = {order:?}
 
 [retry]
 max_attempts = 1
