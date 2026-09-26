@@ -9,9 +9,9 @@ use crate::catalog::{self, DoctorProbe, ProbeShape, ProviderId};
 use crate::config::{self, MainSearchProviderConfig, MainSearchRuntimeConfig, RuntimeConfig};
 use crate::net::{self, RetryPolicy};
 use crate::providers::{
-    self, AnysearchDomainsRequest, FetchRequest, MainSearchRequest, ModelBreakers, ProviderError,
+    self, AnysearchDomainsRequest, FetchRequest, MainSearchRequest, ModelBreakers,
 };
-use crate::types::{AttemptDisposition, AttemptErrorKind, Deadline, SearchOutcome};
+use crate::types::{AttemptDisposition, AttemptErrorKind, Deadline, ProviderError, SearchOutcome};
 
 #[derive(Debug, Serialize)]
 pub(crate) struct ShallowDoctorReport {
@@ -415,7 +415,7 @@ fn status(
     let key_count = runtime.provider_runtime(id).keys.len();
     ProviderStatus {
         provider: id.name(),
-        configured: key_count > 0,
+        configured: runtime.provider_configured(id),
         key_count,
         source: effective["providers"][id.name()]["keys"]["source"]
             .as_str()

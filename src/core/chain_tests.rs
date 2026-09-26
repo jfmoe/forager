@@ -7,7 +7,7 @@ use super::{
     StepRejection, StepSuccess, StepVerdict, TerminalPolicy, always_continue, chain_wide_error,
     run_chain,
 };
-use crate::providers::ProviderError;
+use crate::types::ProviderError;
 use crate::types::{
     AttemptDisposition, AttemptErrorKind, AttemptTarget, Deadline, ProviderAttempt,
 };

@@ -6,10 +6,11 @@ use serde::{Deserialize, Serialize};
 use crate::config::WebFetchProviderConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{AttemptFailure, RetryPolicy, read_complete_protocol, send_provider_request};
+use crate::providers::ProviderId;
 use crate::providers::execution::{self, ExecutionSettings};
 use crate::providers::shared::redacted_urls_message;
-use crate::providers::{ProviderError, ProviderId};
 use crate::redact::{Secret, redact_url, redact_urls};
+use crate::types::ProviderError;
 use crate::types::{AttemptErrorKind, AttemptTarget, Deadline, Source, SupplementalSearchOutcome};
 
 pub(crate) struct SupplementalSearch {
@@ -75,7 +76,7 @@ impl SupplementalSearch {
         query: &str,
         limit: u16,
         credential: Secret,
-    ) -> Result<(u16, Vec<Source>), AttemptFailure> {
+    ) -> Result<(Option<u16>, Vec<Source>), AttemptFailure> {
         let provider = self.provider.name();
         let endpoint = format!("{}/search", self.config.url.trim_end_matches('/'));
         let mut request = self
@@ -117,7 +118,7 @@ impl SupplementalSearch {
             ),
         })?;
         let sources = self.normalize_sources(results, limit, status)?;
-        Ok((status, sources))
+        Ok((Some(status), sources))
     }
 
     fn normalize_sources(

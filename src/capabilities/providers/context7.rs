@@ -8,9 +8,9 @@ use serde_json::{Map, Value, json};
 use crate::config::Context7RuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{AttemptFailure, McpClient, McpError, McpToolResult, RetryPolicy};
-use crate::providers::ProviderError;
 use crate::providers::execution::{ExecutionSettings, execute_v2};
 use crate::providers::shared::redacted_urls_message;
+use crate::types::ProviderError;
 use crate::types::{
     AttemptErrorKind, AttemptTarget, Context7DocsOutcome, Context7LibraryOutcome, Context7Outcome,
     Deadline, LibraryCandidate, ProviderAttempt,
@@ -105,7 +105,11 @@ impl Context7 {
                     .call_tool(&credential, operation_ref.tool(), operation_ref.arguments())
                     .await
                     .map_err(Context7Failure::from)
-                    .and_then(|result| operation_ref.decode(result).map(|outcome| (200, outcome)))
+                    .and_then(|result| {
+                        operation_ref
+                            .decode(result)
+                            .map(|outcome| (Some(200), outcome))
+                    })
                     .map_err(|failure| {
                         if let Some(target) = failure.redirected_library_id {
                             let target = redacted_urls_message(&target, &self.credentials);

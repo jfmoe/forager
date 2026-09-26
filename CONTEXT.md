@@ -125,8 +125,12 @@ _Avoid_: Research Evidence Index、inline failure index、evidence body archive
 _Avoid_: claim verification、source list
 
 **Provider Credential Pool**:
-某一供应方上由 TOML `keys` 真数组配置的认证凭据集合；八个供应方统一使用这一形状，单凭据是单元素数组。运行时按轮询选用，并在额度或限流类失败时于同一次请求内换用其他凭据。
+某一需要凭据的供应方上由 TOML `keys` 真数组配置的认证凭据集合；目前八个供应方都需要凭据并统一使用这一形状，单凭据是单元素数组。运行时按轮询选用，并在额度或限流类失败时于同一次请求内换用其他凭据。注册信息声明不需要凭据的供应方不选用、不轮换凭据，且恒视为已配置。
 _Avoid_: key pool、key rotation、API key list、high-availability credential pool
+
+**Access Policy**:
+供应方为自己的 endpoint 声明的请求节奏：最小间隔与最大并发。每次发送前在共享状态锁内预约时间窗口，同一状态目录下的所有 forager 进程共享这一节奏；锁或状态不可用时不发送，预算内等不到窗口时以超时结束。最大并发只在单个进程内限制。
+_Avoid_: throttle、retry backoff、provider quota
 
 **Capability Catalog**:
 每个 Capability Seam 的合法供应方集合的唯一出处；配置默认顺序、order 校验、供应方构造、doctor 探测与 smoke 用例投影都从它派生，供应方与 seam 的隶属关系不存在第二份平行清单。

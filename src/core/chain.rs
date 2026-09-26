@@ -17,7 +17,7 @@ use std::future::Future;
 
 use crate::attempt_trace;
 use crate::net::{combine_diagnostics, slice_budget};
-use crate::providers::ProviderError;
+use crate::types::ProviderError;
 use crate::types::{
     AttemptDisposition, AttemptErrorKind, AttemptTarget, Deadline, ProviderAttempt,
 };

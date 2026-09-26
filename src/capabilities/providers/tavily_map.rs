@@ -6,10 +6,10 @@ use serde::{Deserialize, Serialize};
 use crate::config::WebFetchProviderConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{AttemptFailure, RetryPolicy, read_complete_protocol, send_provider_request};
-use crate::providers::ProviderError;
 use crate::providers::execution::{ExecutionSettings, execute_v2};
 use crate::providers::shared::{redact_urls, redacted_urls_message};
 use crate::redact::Secret;
+use crate::types::ProviderError;
 use crate::types::{AttemptErrorKind, AttemptTarget, Deadline, MapOutcome};
 
 #[derive(Clone, Debug)]
@@ -92,7 +92,7 @@ impl TavilyMap {
         &self,
         request: &MapRequest,
         credential: &Secret,
-    ) -> Result<(u16, TavilyMapResponse), AttemptFailure> {
+    ) -> Result<(Option<u16>, TavilyMapResponse), AttemptFailure> {
         let endpoint = format!("{}/map", self.config.url.trim_end_matches('/'));
         let request = self
             .client
@@ -116,7 +116,7 @@ impl TavilyMap {
             status: Some(status),
             message: message.into(),
         })?;
-        Ok((status, response))
+        Ok((Some(status), response))
     }
 }
 

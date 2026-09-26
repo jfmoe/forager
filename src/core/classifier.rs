@@ -12,10 +12,10 @@ use crate::chain::{
 use crate::config::ClassifierRuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{AttemptFailure, RetryPolicy, read_complete_protocol, send_provider_request};
-use crate::providers::ProviderError;
 use crate::providers::execution::{ExecutionSettings, execute_v2};
 use crate::providers::shared::redacted_urls_message;
 use crate::redact::Secret;
+use crate::types::ProviderError;
 use crate::types::{
     AttemptErrorKind, AttemptTarget, Capability, CapabilitySet, Deadline, ProviderAttempt,
     ResearchPlan,
@@ -262,7 +262,7 @@ impl Classifier {
         model: &str,
         credential: &Secret,
         spec: &DecisionSpec<T>,
-    ) -> Result<(u16, T), AttemptFailure> {
+    ) -> Result<(Option<u16>, T), AttemptFailure> {
         let endpoint = format!("{}/chat/completions", self.config.url.trim_end_matches('/'));
         let instruction = format!(
             "Return only a JSON object that matches the following JSON Schema exactly. Do not wrap it in Markdown or code fences.\n\nJSON Schema:\n{}\n\n{}",
@@ -321,7 +321,7 @@ impl Classifier {
                 &self.credentials,
             ),
         })?;
-        Ok((status, decision))
+        Ok((Some(status), decision))
     }
 
     fn model_candidates(&self) -> Vec<String> {

@@ -21,8 +21,9 @@ use crate::providers::execution::{ExecutionSettings, execute_v2};
 use crate::providers::shared::{
     normalize_main_search, redact_and_deduplicate_sources, redacted_urls_message,
 };
-use crate::providers::{MainSearchRequest, MainSearchRequestKind, ProviderError};
+use crate::providers::{MainSearchRequest, MainSearchRequestKind};
 use crate::redact::Secret;
+use crate::types::ProviderError;
 use crate::types::{
     AttemptDisposition, AttemptErrorKind, AttemptTarget, Deadline, SearchOutcome, Source,
 };
@@ -399,7 +400,7 @@ impl OpenAiCompatible {
         credential: &Secret,
         stream: bool,
         request_kind: MainSearchRequestKind,
-    ) -> Result<(u16, (String, Vec<Source>)), AttemptFailure> {
+    ) -> Result<(Option<u16>, (String, Vec<Source>)), AttemptFailure> {
         let endpoint = format!("{}/chat/completions", self.config.url.trim_end_matches('/'));
         let input = request_kind.input(query);
         let mut messages = Vec::with_capacity(2);
@@ -438,7 +439,7 @@ impl OpenAiCompatible {
                 redact_and_deduplicate_sources(sources, &self.credentials),
             )
         };
-        Ok((status, value))
+        Ok((Some(status), value))
     }
 
     async fn http_response(

@@ -13,7 +13,7 @@
     {
       "id": "U03",
       "requirements": ["I0-2"],
-      "test": "src/infra/types.rs::strict_parser_rejects_each_schema_boundary"
+      "test": "src/infra/types/research.rs::strict_parser_rejects_each_schema_boundary"
     },
     {
       "id": "U04",
@@ -23,7 +23,7 @@
     {
       "id": "U05",
       "requirements": ["I0-1"],
-      "test": "src/infra/types.rs::provider_attempt_errors_preserve_their_public_and_control_flow_semantics"
+      "test": "src/infra/types/error.rs::provider_attempt_errors_preserve_their_public_and_control_flow_semantics"
     },
     {
       "id": "U06",

@@ -12,10 +12,11 @@ use crate::net::{
     AttemptFailure, CONTENT_TRUNCATED_DIAGNOSTIC, RetryPolicy, combine_diagnostics,
     json_string_prefix, read_truncatable_content, send_provider_request, truncate_message,
 };
+use crate::providers::ProviderId;
 use crate::providers::execution::{ExecutionSettings, execute_v2};
 use crate::providers::shared::redacted_urls_message;
-use crate::providers::{ProviderError, ProviderId};
 use crate::redact::Secret;
+use crate::types::ProviderError;
 use crate::types::{AttemptErrorKind, AttemptTarget, Deadline, ProviderAttempt};
 
 #[derive(Clone)]
@@ -127,7 +128,7 @@ impl HttpFetchProvider {
         &self,
         request: &FetchRequest,
         credential: &Secret,
-    ) -> Result<(u16, FetchBody), AttemptFailure> {
+    ) -> Result<(Option<u16>, FetchBody), AttemptFailure> {
         let request_builder = self.request(request, credential);
         let response = send_provider_request(request_builder, &self.credentials).await?;
         let body = read_truncatable_content(response, &self.credentials, failure_message).await?;
@@ -142,7 +143,7 @@ impl HttpFetchProvider {
             })
             .map(|content| {
                 (
-                    status,
+                    Some(status),
                     FetchBody {
                         content,
                         truncated: body.truncated,

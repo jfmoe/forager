@@ -2,7 +2,6 @@ use std::future::Future;
 use std::pin::Pin;
 
 use chrono::{Datelike, Local, Weekday};
-use thiserror::Error;
 
 use super::{
     Anysearch, AnysearchSearchRequest, Context7, Context7DocsRequest, Context7LibraryRequest, Exa,
@@ -10,9 +9,9 @@ use super::{
 };
 use crate::redact::redact_url;
 use crate::types::{
-    AnysearchOutcome, AttemptErrorKind, Context7Outcome, DocumentationEvidence,
-    DocumentationSearchOutcome, EvidenceLocator, ExaOutcome, ProviderAttempt, SearchCandidate,
-    Source, SupplementalSearchOutcome, VerticalSearchOutcome,
+    AnysearchOutcome, Context7Outcome, DocumentationEvidence, DocumentationSearchOutcome,
+    EvidenceLocator, ExaOutcome, ProviderError, SearchCandidate, Source, SupplementalSearchOutcome,
+    VerticalSearchOutcome,
 };
 
 #[derive(Clone, Debug)]
@@ -310,15 +309,4 @@ impl MainSearch for OpenAiCompatible {
     {
         Box::pin(self.probe(request))
     }
-}
-
-#[derive(Debug, Error)]
-#[error("{message}")]
-pub struct ProviderError {
-    pub kind: AttemptErrorKind,
-    pub message: String,
-    pub attempts: Vec<ProviderAttempt>,
-    pub verbose: bool,
-    pub diagnostic: Option<String>,
-    pub redirected_library_id: Option<String>,
 }

@@ -16,6 +16,7 @@ use crate::net::{self, RetryPolicy};
 use crate::providers::{
     self, AnysearchDomainsRequest, AnysearchSearchRequest, Context7DocsRequest,
     Context7LibraryRequest, ExaSearchRequest, ExaSimilarRequest, FetchRequest, MapRequest,
+    ProviderId,
 };
 use crate::types::{
     AnysearchOutcome, CapabilitySet, ClaimRisk, Context7Outcome, Deadline, EvidenceStrength,
@@ -28,10 +29,10 @@ pub use crate::attempt_trace::bounded_attempt_summary;
 #[doc(hidden)]
 pub use crate::net::combine_diagnostics;
 
-pub use crate::providers::ProviderError;
 pub use crate::research::{ResearchFailure, ResearchTerminal};
 pub use crate::search_fanout::SearchFailure;
 pub use crate::types::ExaOutcome;
+pub use crate::types::ProviderError;
 
 /// A command result ready for binary-side rendering.
 #[derive(Debug)]
@@ -506,7 +507,7 @@ impl AppContext<providers::Exa> {
         let dependencies = NetworkDependencies::load()?;
         let config = dependencies.config;
         let log_level = config.log_level;
-        if config.exa.keys.is_empty() {
+        if !config.provider_configured(ProviderId::Exa) {
             return Err(AppError::Config(ConfigError::Message(
                 "providers.exa.keys has no configured credentials".into(),
             )));
@@ -550,14 +551,13 @@ impl AppContext<providers::TavilyMap> {
     fn for_tavily_map(timeout: u64) -> Result<Self, AppError> {
         let dependencies = NetworkDependencies::load()?;
         let log_level = dependencies.config.log_level;
-        let config = dependencies.config.tavily;
-        if config.keys.is_empty() {
+        if !dependencies.config.provider_configured(ProviderId::Tavily) {
             return Err(AppError::Config(ConfigError::Message(
                 "providers.tavily.keys has no configured credentials".into(),
             )));
         }
         let provider = providers::build_tavily_map(
-            config,
+            dependencies.config.tavily,
             dependencies.client,
             dependencies.retry_policy,
             Deadline::new(Duration::from_secs(timeout)),
@@ -582,7 +582,7 @@ impl AppContext<providers::Context7> {
         let dependencies = NetworkDependencies::load()?;
         let config = dependencies.config;
         let log_level = config.log_level;
-        if config.context7.keys.is_empty() {
+        if !config.provider_configured(ProviderId::Context7) {
             return Err(AppError::Config(ConfigError::Message(
                 "providers.context7.keys has no configured credentials".into(),
             )));
@@ -631,7 +631,7 @@ impl AppContext<providers::Anysearch> {
         let dependencies = NetworkDependencies::load()?;
         let config = dependencies.config;
         let log_level = config.log_level;
-        if config.anysearch.keys.is_empty() {
+        if !config.provider_configured(ProviderId::Anysearch) {
             return Err(AppError::Config(ConfigError::Message(
                 "providers.anysearch.keys has no configured credentials".into(),
             )));
@@ -1282,7 +1282,7 @@ fn run_supplemental_smoke_probe(
 ) -> Result<CommandOutput, AppError> {
     let dependencies = NetworkDependencies::load()?;
     let mut config = dependencies.config.web_search;
-    let provider = crate::providers::ProviderId::parse(provider)
+    let provider = ProviderId::parse(provider)
         .ok_or_else(|| AppError::Argument(format!("unknown provider `{provider}`")))?;
     config.retain(provider);
     let outcome = dependencies

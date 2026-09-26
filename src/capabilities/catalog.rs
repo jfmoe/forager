@@ -151,6 +151,15 @@ pub(crate) struct ProviderRegistration {
     pub(crate) smoke_cases: &'static [ProviderSmokeCase],
 }
 
+impl ProviderRegistration {
+    /// Returns whether the provider can run with `key_count` configured credentials.
+    ///
+    /// A provider that requires no credentials is always configured.
+    pub(crate) fn is_configured(&self, key_count: usize) -> bool {
+        !self.credentials_required || key_count > 0
+    }
+}
+
 const XAI_PROBES: &[ProbeShape] = &[ProbeShape {
     name: "responses",
     transport: "sse",
@@ -401,8 +410,8 @@ mod tests {
     use serde::Deserialize;
 
     use super::{
-        CATALOGS, DOCS_SEARCH, DoctorProbe, MAIN_SEARCH, ProviderId, REGISTRY, WEB_FETCH,
-        WEB_SEARCH, registration, registrations, validate_registrations,
+        CATALOGS, DOCS_SEARCH, DoctorProbe, MAIN_SEARCH, ProviderId, ProviderRegistration,
+        REGISTRY, WEB_FETCH, WEB_SEARCH, registration, registrations, validate_registrations,
     };
 
     #[derive(Deserialize)]
@@ -492,5 +501,33 @@ mod tests {
                 registration.id.name()
             );
         }
+    }
+
+    #[test]
+    fn registration_without_credentials_is_configured_without_keys() {
+        let anonymous = ProviderRegistration {
+            credentials_required: false,
+            ..*registration(ProviderId::Jina)
+        };
+
+        assert!(anonymous.is_configured(0));
+    }
+
+    #[test]
+    fn registration_with_credentials_requires_at_least_one_key() {
+        let keyed = registration(ProviderId::Jina);
+
+        assert_eq!(
+            (keyed.is_configured(0), keyed.is_configured(1)),
+            (false, true)
+        );
+    }
+
+    #[test]
+    fn registry_validation_accepts_registrations_without_credentials() {
+        let mut registry = REGISTRY.to_vec();
+        registry[0].credentials_required = false;
+
+        assert!(validate_registrations(&registry).is_ok());
     }
 }

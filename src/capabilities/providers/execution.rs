@@ -5,8 +5,8 @@ use tokio::time::Instant;
 
 use crate::credentials::CredentialPool;
 use crate::net::{AttemptFailure, RetryPolicy, duration_millis};
-use crate::providers::ProviderError;
 use crate::redact::Secret;
+use crate::types::ProviderError;
 use crate::types::{
     AttemptDisposition, AttemptErrorKind, AttemptTarget, Deadline, ProviderAttempt,
 };
@@ -31,8 +31,9 @@ pub(crate) struct ExecutionSettings {
     pub(crate) breaker_event: Option<&'static str>,
 }
 
-// The shared retry loop keeps every terminal path under the same attempt accounting rules.
-#[expect(clippy::too_many_lines)]
+/// Runs a credentialed provider operation with credential claim, rotation, and retry.
+///
+/// An empty pool fails with `Auth` before any request is sent.
 pub(crate) async fn execute_v2<T, F, Fut>(
     credentials: &CredentialPool,
     settings: ExecutionSettings,
@@ -40,11 +41,84 @@ pub(crate) async fn execute_v2<T, F, Fut>(
 ) -> Result<ExecutionOutcome<T>, ProviderError>
 where
     F: FnMut(Secret, Deadline) -> Fut,
-    Fut: Future<Output = Result<(u16, T), AttemptFailure>>,
+    Fut: Future<Output = Result<(Option<u16>, T), AttemptFailure>>,
 {
+    if credentials.len() == 0 {
+        return Err(ProviderError {
+            kind: AttemptErrorKind::Auth,
+            message: format!("{} has no configured credentials", settings.provider),
+            attempts: Vec::new(),
+            verbose: settings.verbose,
+            diagnostic: None,
+            redirected_library_id: None,
+        });
+    }
     let selection = credentials.claim().await;
+    let rotation = CredentialRotation {
+        start: selection.index,
+        count: credentials.len(),
+    };
+    execute_attempts(
+        rotation,
+        selection.diagnostic,
+        settings,
+        |credential_index, deadline| send_once(credentials.key(credential_index).clone(), deadline),
+    )
+    .await
+}
+
+/// Runs an operation for a provider whose registration requires no credentials.
+///
+/// It never claims or rotates a credential, so every attempt records credential index 0.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "platform routes without credentials consume this (#165)"
+    )
+)]
+pub(crate) async fn execute_anonymous<T, F, Fut>(
+    settings: ExecutionSettings,
+    mut send_once: F,
+) -> Result<ExecutionOutcome<T>, ProviderError>
+where
+    F: FnMut(Deadline) -> Fut,
+    Fut: Future<Output = Result<(Option<u16>, T), AttemptFailure>>,
+{
+    let rotation = CredentialRotation { start: 0, count: 1 };
+    execute_attempts(rotation, None, settings, |_, deadline| send_once(deadline)).await
+}
+
+#[derive(Clone, Copy)]
+struct CredentialRotation {
+    start: usize,
+    count: usize,
+}
+
+impl CredentialRotation {
+    fn can_rotate(self, rotation_count: usize) -> bool {
+        rotation_count + 1 < self.count
+    }
+
+    fn index(self, rotation_count: usize) -> usize {
+        (self.start + rotation_count) % self.count
+    }
+}
+
+// The shared retry loop keeps every terminal path under the same attempt accounting rules.
+#[expect(clippy::too_many_lines)]
+async fn execute_attempts<T, F, Fut>(
+    rotation: CredentialRotation,
+    diagnostic: Option<String>,
+    settings: ExecutionSettings,
+    mut send_once: F,
+) -> Result<ExecutionOutcome<T>, ProviderError>
+where
+    F: FnMut(usize, Deadline) -> Fut,
+    Fut: Future<Output = Result<(Option<u16>, T), AttemptFailure>>,
+{
     let mut attempts = Vec::new();
-    let mut credential_index = selection.index;
+    let mut credential_index = rotation.index(0);
     let mut retry_count = 0;
     let mut rotation_count = 0;
 
@@ -55,17 +129,15 @@ where
                 AttemptErrorKind::Timeout,
                 attempts,
                 settings.verbose,
-                selection.diagnostic.clone(),
+                diagnostic,
             ));
         };
         let attempt_limit = remaining.min(settings.attempt_timeout);
         let attempt_deadline = Deadline::new(attempt_limit);
         let started = Instant::now();
-        let response = tokio::time::timeout(
-            attempt_limit,
-            send_once(credentials.key(credential_index).clone(), attempt_deadline),
-        )
-        .await;
+        let response =
+            tokio::time::timeout(attempt_limit, send_once(credential_index, attempt_deadline))
+                .await;
         let failure = match response {
             Ok(Ok((status, value))) => {
                 attempts.push(ProviderAttempt {
@@ -73,7 +145,7 @@ where
                     target: settings.target,
                     disposition: AttemptDisposition::Succeeded,
                     error_kind: None,
-                    http_status: Some(status),
+                    http_status: status,
                     duration_ms: duration_millis(started.elapsed()),
                     credential_index,
                     retry_count,
@@ -87,7 +159,7 @@ where
                 return Ok(ExecutionOutcome {
                     value,
                     attempts,
-                    diagnostic: selection.diagnostic,
+                    diagnostic,
                 });
             }
             Ok(Err(failure)) => failure,
@@ -115,9 +187,9 @@ where
             breaker_event: settings.breaker_event,
         });
 
-        if kind.rotates_credential() && rotation_count + 1 < credentials.len() {
+        if kind.rotates_credential() && rotation.can_rotate(rotation_count) {
             rotation_count += 1;
-            credential_index = credentials.rotated_index(selection.index, rotation_count);
+            credential_index = rotation.index(rotation_count);
             continue;
         }
         if kind.is_retryable()
@@ -135,7 +207,7 @@ where
                     AttemptErrorKind::Timeout,
                     attempts,
                     settings.verbose,
-                    selection.diagnostic.clone(),
+                    diagnostic,
                 ));
             }
             tokio::time::sleep(wait).await;
@@ -146,7 +218,7 @@ where
             kind,
             attempts,
             settings.verbose,
-            selection.diagnostic.clone(),
+            diagnostic,
         ));
     }
 }
@@ -176,12 +248,12 @@ fn terminal_error(
 mod tests {
     use std::cell::RefCell;
     use std::rc::Rc;
+    use std::time::Duration;
 
-    use super::{ExecutionSettings, execute_v2};
+    use super::{ExecutionSettings, execute_anonymous, execute_v2};
     use crate::credentials::CredentialPool;
     use crate::net::{AttemptFailure, RetryPolicy};
     use crate::types::{AttemptErrorKind, AttemptTarget, Deadline};
-    use std::time::Duration;
 
     fn runtime() -> tokio::runtime::Runtime {
         tokio::runtime::Builder::new_current_thread()
@@ -239,7 +311,7 @@ mod tests {
                             if call == 1 {
                                 tokio::time::sleep(Duration::from_secs(3)).await;
                             }
-                            Ok((200, "content"))
+                            Ok((Some(200), "content"))
                         }
                     }
                 },
@@ -287,7 +359,7 @@ mod tests {
                             if call < 4 {
                                 Err(network_failure())
                             } else {
-                                Ok((200, "content"))
+                                Ok((Some(200), "content"))
                             }
                         }
                     }
@@ -328,7 +400,7 @@ mod tests {
                     let calls = Rc::clone(&calls);
                     move |_, _| {
                         *calls.borrow_mut() += 1;
-                        async { Err::<(u16, ()), _>(network_failure()) }
+                        async { Err::<(Option<u16>, ()), _>(network_failure()) }
                     }
                 },
             )
@@ -369,7 +441,7 @@ mod tests {
                         *calls.borrow_mut() += 1;
                         async {
                             tokio::time::sleep(Duration::from_secs(3)).await;
-                            Ok::<_, AttemptFailure>((200, ()))
+                            Ok::<_, AttemptFailure>((Some(200), ()))
                         }
                     }
                 },
@@ -381,6 +453,105 @@ mod tests {
             assert_eq!(
                 (error.kind, error.attempts.len(), *calls.borrow()),
                 (AttemptErrorKind::Timeout, 1, 1)
+            );
+        });
+    }
+
+    #[test]
+    fn anonymous_execution_records_credential_index_zero_without_rotation() {
+        runtime().block_on(async {
+            let outcome = execute_anonymous(
+                settings(
+                    RetryPolicy::new(2, 1.0, Duration::from_secs(1)),
+                    Duration::from_secs(10),
+                    Duration::from_secs(10),
+                ),
+                |_| async { Ok((None, "content")) },
+            )
+            .await
+            .expect("anonymous request succeeds");
+
+            assert_eq!(
+                outcome
+                    .attempts
+                    .iter()
+                    .map(|attempt| (
+                        attempt.credential_index,
+                        attempt.rotation_count,
+                        attempt.http_status,
+                    ))
+                    .collect::<Vec<_>>(),
+                [(0, 0, None)]
+            );
+        });
+    }
+
+    #[test]
+    fn anonymous_rate_limit_is_terminal_because_there_is_no_credential_to_rotate() {
+        runtime().block_on(async {
+            let calls = Rc::new(RefCell::new(0));
+            let error = execute_anonymous(
+                settings(
+                    RetryPolicy::new(3, 1.0, Duration::from_secs(1)),
+                    Duration::from_secs(10),
+                    Duration::from_secs(10),
+                ),
+                {
+                    let calls = Rc::clone(&calls);
+                    move |_| {
+                        *calls.borrow_mut() += 1;
+                        async {
+                            Err::<(Option<u16>, ()), _>(AttemptFailure {
+                                kind: AttemptErrorKind::RateLimited,
+                                status: Some(429),
+                                message: "slow down".into(),
+                            })
+                        }
+                    }
+                },
+            )
+            .await
+            .err()
+            .expect("rate limit ends the anonymous provider");
+
+            assert_eq!(
+                (
+                    error.kind,
+                    *calls.borrow(),
+                    error.attempts[0].credential_index,
+                    error.attempts[0].rotation_count,
+                ),
+                (AttemptErrorKind::RateLimited, 1, 0, 0)
+            );
+        });
+    }
+
+    #[test]
+    fn keyed_execution_with_an_empty_pool_fails_without_sending() {
+        runtime().block_on(async {
+            let calls = Rc::new(RefCell::new(0));
+            let error = execute_v2(
+                &CredentialPool::new("test", Vec::new()),
+                settings(
+                    RetryPolicy::new(1, 1.0, Duration::from_secs(1)),
+                    Duration::from_secs(10),
+                    Duration::from_secs(10),
+                ),
+                {
+                    let calls = Rc::clone(&calls);
+                    move |_, _| {
+                        *calls.borrow_mut() += 1;
+                        async { Ok((Some(200), ())) }
+                    }
+                },
+            )
+            .await
+            .err()
+            .expect("an empty credential pool cannot authenticate");
+
+            assert_eq!(
+                (error.kind, error.attempts.len(), *calls.borrow()),
+                (AttemptErrorKind::Auth, 0, 0)
             );
         });
     }

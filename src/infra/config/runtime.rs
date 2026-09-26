@@ -111,11 +111,17 @@ pub(crate) enum MainSearchProviderConfig {
     OpenAiCompatible(OpenAiCompatibleRuntimeConfig),
 }
 
+fn provider_configured(id: ProviderId, keys: &[Secret]) -> bool {
+    catalog::registration(id).is_configured(keys.len())
+}
+
 impl MainSearchProviderConfig {
     pub(crate) fn configured(&self) -> bool {
         match self {
-            Self::Xai(config) => !config.keys.is_empty(),
-            Self::OpenAiCompatible(config) => !config.keys.is_empty(),
+            Self::Xai(config) => provider_configured(ProviderId::Xai, &config.keys),
+            Self::OpenAiCompatible(config) => {
+                provider_configured(ProviderId::OpenAiCompatible, &config.keys)
+            }
         }
     }
 
@@ -182,8 +188,8 @@ pub(crate) enum DocsSearchProviderConfig {
 impl DocsSearchProviderConfig {
     pub(crate) fn configured(&self) -> bool {
         match self {
-            Self::Exa(config) => !config.keys.is_empty(),
-            Self::Context7(config) => !config.keys.is_empty(),
+            Self::Exa(config) => provider_configured(ProviderId::Exa, &config.keys),
+            Self::Context7(config) => provider_configured(ProviderId::Context7, &config.keys),
         }
     }
 }
@@ -381,6 +387,12 @@ pub(crate) struct ProviderRuntime<'a> {
 }
 
 impl RuntimeConfig {
+    /// Applies the shared configured rule: credentials are needed only when the registration
+    /// requires them.
+    pub(crate) fn provider_configured(&self, id: ProviderId) -> bool {
+        provider_configured(id, self.provider_runtime(id).keys)
+    }
+
     pub(crate) fn provider_runtime(&self, id: ProviderId) -> ProviderRuntime<'_> {
         match id {
             ProviderId::Xai => ProviderRuntime {
@@ -597,7 +609,7 @@ fn vertical_search_entries(
             let id = ProviderId::parse(&name).ok_or_else(|| unknown_provider(&name, seam))?;
             let config = vertical_provider_config(id, anysearch)
                 .ok_or_else(|| unknown_provider(&name, seam))?;
-            let configured = !config.keys.is_empty();
+            let configured = provider_configured(id, &config.keys);
             Ok(SeamEntry::new(id, config, configured))
         })
         .collect()
@@ -617,7 +629,7 @@ fn web_entries(
             let id = ProviderId::parse(&name).ok_or_else(|| unknown_provider(&name, seam))?;
             let config = web_provider_config(catalog, id, tavily, firecrawl, jina)
                 .ok_or_else(|| unknown_provider(&name, seam))?;
-            let configured = !config.keys.is_empty();
+            let configured = provider_configured(id, &config.keys);
             Ok(SeamEntry::new(id, config, configured))
         })
         .collect()

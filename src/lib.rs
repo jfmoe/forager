@@ -28,6 +28,8 @@ mod journal;
 mod net;
 #[path = "capabilities/providers/mod.rs"]
 mod providers;
+#[path = "capabilities/rate_limit.rs"]
+mod rate_limit;
 #[path = "infra/redact.rs"]
 mod redact;
 #[path = "evidence/research.rs"]
@@ -38,5 +40,7 @@ mod search_fanout;
 mod secure_fs;
 #[path = "ops/smoke.rs"]
 mod smoke;
-#[path = "infra/types.rs"]
+#[path = "infra/state_file.rs"]
+mod state_file;
+#[path = "infra/types/mod.rs"]
 pub mod types;

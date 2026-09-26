@@ -12,8 +12,9 @@ use crate::config::{
     WebFetchRuntimeConfig, WebSearchRuntimeConfig,
 };
 use crate::net::RetryPolicy;
-use crate::providers::{self, FetchRequest, MainSearchRequest, ProviderError};
+use crate::providers::{self, FetchRequest, MainSearchRequest};
 use crate::redact::redact_url;
+use crate::types::ProviderError;
 use crate::types::{
     AttemptErrorKind, DENSITY_MAX_CHARS, DENSITY_MAX_UNIQUE_LINES, Deadline, DocumentationEvidence,
     DocumentationSearchOutcome, EvidenceLocator, FallbackPolicy, FetchOutcome,
@@ -541,7 +542,8 @@ mod tests {
 
     use super::{is_thin, web_fetch_chain_settings};
     use crate::chain::{ChainStep, StepSuccess, StepVerdict, run_chain};
-    use crate::providers::{ProviderError, ProviderId};
+    use crate::providers::ProviderId;
+    use crate::types::ProviderError;
     use crate::types::{AttemptErrorKind, Deadline};
 
     #[test]

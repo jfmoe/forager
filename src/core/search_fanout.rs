@@ -9,8 +9,9 @@ use crate::engine::{
     supplemental_web_search, vertical_search,
 };
 use crate::net::combine_diagnostics;
-use crate::providers::{FetchRequest, ProviderError};
+use crate::providers::FetchRequest;
 use crate::redact::redact_url;
+use crate::types::ProviderError;
 use crate::types::{
     Capability, CapabilityGap, CapabilitySet, ProviderAttempt, SearchCandidate, SearchOutcome,
     Source,

@@ -26,7 +26,6 @@ pub(crate) use factory::{
 pub(crate) use openai_compatible::{ModelBreakers, OpenAiCompatible};
 pub(crate) use supplemental::SupplementalSearch;
 pub(crate) use tavily_map::{MapRequest, TavilyMap};
-pub use types::ProviderError;
 pub(crate) use types::{
     DocsSearch, MainSearch, MainSearchRequest, MainSearchRequestKind, VerticalSearch, WebSearch,
 };

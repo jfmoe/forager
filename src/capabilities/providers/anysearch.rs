@@ -10,9 +10,9 @@ use serde_json::{Map, Value, json};
 use crate::config::AnysearchRuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{AttemptFailure, McpClient, McpToolResult, RetryPolicy, truncate_message};
-use crate::providers::ProviderError;
 use crate::providers::execution::{ExecutionSettings, execute_v2};
 use crate::providers::shared::redact_urls;
+use crate::types::ProviderError;
 use crate::types::{
     AnysearchDomain, AnysearchDomainsOutcome, AnysearchOutcome, AnysearchResult,
     AnysearchSearchOutcome, AttemptErrorKind, AttemptTarget, Deadline, ProviderAttempt,
@@ -230,7 +230,7 @@ impl Anysearch {
                     )
                     .call_tool(&credential, tool, attempt_arguments)
                     .await
-                    .map(|result| (200, result))
+                    .map(|result| (Some(200), result))
                     .map_err(|error| {
                         let mut message = redact_urls(&error.message, &self.credentials);
                         redact_argument_values(&mut message, arguments_ref);

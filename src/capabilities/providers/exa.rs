@@ -7,10 +7,10 @@ use serde::{Deserialize, Serialize};
 use crate::config::ExaRuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{AttemptFailure, RetryPolicy, read_complete_protocol, send_provider_request};
-use crate::providers::ProviderError;
 use crate::providers::execution::{ExecutionSettings, execute_v2};
 use crate::providers::shared::redacted_urls_message;
 use crate::redact::{Secret, redact_url};
+use crate::types::ProviderError;
 use crate::types::{AttemptErrorKind, AttemptTarget, Deadline, ExaInput, ExaOutcome, Source};
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -101,7 +101,7 @@ impl Exa {
             |credential, _| async move {
                 self.send_once(operation_ref, &credential)
                     .await
-                    .map(|value| (200, value))
+                    .map(|value| (Some(200), value))
             },
         )
         .await?;

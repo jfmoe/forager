@@ -13,10 +13,10 @@ use serde::Serialize;
 use serde_json::Value;
 use shared_child::SharedChild;
 
-use crate::catalog::{self, ProviderId};
+use crate::catalog::{self, ProviderId, ProviderRegistration};
 use crate::config::{self, RuntimeConfig};
-use crate::credentials;
 use crate::redact::{CREDENTIAL_MASK, Secret, redact_credentials, redact_url};
+use crate::state_file;
 use crate::types::Deadline;
 
 static PROBE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -927,7 +927,7 @@ fn case_is_configured(case_id: &str, runtime: &RuntimeConfig) -> bool {
 }
 
 fn provider_is_configured(runtime: &RuntimeConfig, provider: ProviderId) -> bool {
-    !runtime.provider_runtime(provider).keys.is_empty()
+    runtime.provider_configured(provider)
 }
 
 pub(crate) fn run_offline() -> Result<(SmokeReport, u8), config::ConfigError> {
@@ -940,7 +940,7 @@ pub(crate) fn run_offline() -> Result<(SmokeReport, u8), config::ConfigError> {
         ));
     }
 
-    let registry = registry_status();
+    let registry = registry_status(catalog::registrations());
     let providers = catalog::registrations()
         .iter()
         .map(|registration| credential_status(registration.id, &runtime, &effective))
@@ -957,7 +957,7 @@ pub(crate) fn run_offline() -> Result<(SmokeReport, u8), config::ConfigError> {
         &runtime.journal.dir,
         &runtime.journal.credentials,
     );
-    let credential_cursor = match credentials::state_directory() {
+    let credential_cursor = match state_file::state_directory() {
         Some(path) => directory_status(None, &path, &runtime.journal.credentials),
         None => DirectoryStatus {
             enabled: None,
@@ -982,8 +982,7 @@ pub(crate) fn run_offline() -> Result<(SmokeReport, u8), config::ConfigError> {
     ))
 }
 
-fn registry_status() -> RegistryStatus {
-    let registrations = catalog::registrations();
+fn registry_status(registrations: &[ProviderRegistration]) -> RegistryStatus {
     let names = registrations
         .iter()
         .map(|registration| registration.id.name())
@@ -993,11 +992,10 @@ fn registry_status() -> RegistryStatus {
         .map(ProviderId::name)
         .collect::<BTreeSet<_>>();
     let descriptions_are_complete = registrations.iter().all(|registration| {
-        registration.credentials_required
-            && (catalog::CATALOGS
-                .iter()
-                .any(|catalog| catalog.contains(registration.id))
-                || !registration.operations.is_empty())
+        catalog::CATALOGS
+            .iter()
+            .any(|catalog| catalog.contains(registration.id))
+            || !registration.operations.is_empty()
     });
     RegistryStatus {
         ok: registrations.len() == ProviderId::ALL.len()
@@ -1015,7 +1013,7 @@ fn credential_status(
     let key_count = runtime.provider_runtime(id).keys.len();
     CredentialStatus {
         provider: id.name(),
-        configured: key_count > 0,
+        configured: runtime.provider_configured(id),
         key_count,
         keys: vec![CREDENTIAL_MASK; key_count],
         source: effective["providers"][id.name()]["keys"]["source"]
@@ -1104,8 +1102,9 @@ mod tests {
 
     use super::{
         command_specs, execute_with_deadline, live_case_process, official_status_host,
-        status_host_matches_endpoint, status_page_reports_outage,
+        registry_status, status_host_matches_endpoint, status_page_reports_outage,
     };
+    use crate::catalog;
     use crate::types::Deadline;
 
     #[test]
@@ -1201,5 +1200,13 @@ mod tests {
             .map(status_page_reports_outage),
             [true, false, false, false]
         );
+    }
+
+    #[test]
+    fn registry_status_accepts_registrations_without_credentials() {
+        let mut registry = catalog::registrations().to_vec();
+        registry[0].credentials_required = false;
+
+        assert!(registry_status(&registry).ok);
     }
 }

@@ -81,10 +81,5 @@ pub(crate) fn build_anysearch(
 }
 
 pub(super) fn credentials(id: ProviderId, keys: &mut Vec<crate::redact::Secret>) -> CredentialPool {
-    let registration = registration(id);
-    assert!(
-        registration.credentials_required,
-        "provider uses credentials"
-    );
     CredentialPool::new(id.name(), std::mem::take(keys))
 }

@@ -12,9 +12,9 @@
 
 - **`cli/`**：CLI 参数定义、应用分发与 `app` 公共门面；参数树在 `args.rs`，分发在 `dispatch.rs`。
 - **`core/`**：engine（各 seam 的 provider 链）、search_fanout（普通 search 的辅助能力 fan-out 与结果合并）、chain、classifier 与 Attempt Trace。
-- **`capabilities/`**：Capability Catalog、Provider Credential Pool、Provider HTTP Read Contract（`net`）及 provider adapter。
+- **`capabilities/`**：Capability Catalog、Provider Credential Pool、跨进程限速（`rate_limit`）、Provider HTTP Read Contract（`net`）及 provider adapter。
 - **`evidence/`**：Research Evidence Pipeline、Search Result Journal 与 stderr attempt log。
-- **`infra/`**：config、secure filesystem、redaction 与零 IO 的 `types` 基底。
+- **`infra/`**：config、secure filesystem、共享私有状态文件（`state_file`）、redaction 与零 IO 的 `types` 基底。
 - **`ops/`**：doctor 与 smoke 运维入口。
 
 物理分组表达职责归属，调用关系仍遵守五层从上到下的单向纪律：
@@ -23,14 +23,14 @@
 入口（main）
   → 应用（cli/app、args、dispatch）
     → 能力编排（engine、search_fanout、research、classifier、doctor、smoke、journal）
-      → 能力基础设施（catalog、providers、credentials、net、config、secure_fs、redact）
+      → 能力基础设施（catalog、providers、credentials、rate_limit、net、config、secure_fs、state_file、redact）
         → 类型基底（types）
 ```
 
 上层可以依赖下层，下层不得反向依赖上层；同层共享行为必须放到该职责的唯一拥有模块，再以最窄的 crate 内可见性提供。`catalog` 独立于 config 与 providers，二者只单向消费它；provider adapter 只消费 `providers/shared`、`providers/execution` 等共享拥有模块，不互相 import。
 
 - **应用组合层**（F1）：`cli/app.rs` 只公开参数与分发门面；`dispatch.rs` 先构造共享 `NetworkDependencies`，再按命令建立 `AppContext<P>`、`FetchContext`、`SearchContext` 或 `ResearchContext`，各自持有所需的 runtime、配置与网络依赖。provider 实现与路由策略留在下层模块，Search Result Journal 仍由分发层在命令终态统一落笔。
-- **`types` 类型基底**：零 IO 纯类型层——ErrorKind、Capability、`PlanCapability`（plan 语境独立三值枚举）、各 Outcome、ProviderAttempt、Source、ResearchPlan Schema v1、Deadline、薄正文阈值常量。所有跨层形状的唯一定义点。
+- **`types` 类型基底**：零 IO 纯类型层——ErrorKind、ProviderError、Capability、`PlanCapability`（plan 语境独立三值枚举）、各 Outcome、ProviderAttempt、Source、ResearchPlan Schema v1、Deadline、薄正文阈值常量。所有跨层形状的唯一定义点。`infra/types/` 是目录模块，按职责分为 `capability`、`research`、`error`、`attempt`、`search`、`outcome`、`deadline` 私有子模块，由 `mod.rs` 统一再导出，公共路径保持 `forager::types::*`。
 - **`net` 网络边界**：共享 HTTP client 构造、RetryPolicy、SSE 解析、status→ErrorKind 唯一映射、McpClient。
 - 输出格式化保留在 bin 侧，出现第二个消费者再提升为独立共享模块。
 
@@ -38,6 +38,9 @@
 
 - **每 seam 一个 trait + 专属返回类型**：`WebSearch`/`DocsSearch`/`WebFetch`（supplemental 与主搜索共用 WebSearch 签名，registry 区分链序归属）；`SearchOutcome`/`DocsOutcome`/`FetchOutcome` 共享 ProviderAttempt/Source 构件。一个 provider＝一个 struct，同一 `Arc` 实例登记进多条 seam 链。
 - **seam 支持矩阵**＝「谁 impl 了哪个 trait」的编译期事实；`order` 校验查 registry。**`map` 命令**＝tavily 直连操作（`site_map`），不设独立 seam trait（唯一 provider，需要时提升为 trait 是纯增量）；registry 在 tavily 描述内登记该操作。
+- **凭据要求**：registry 的 `credentials_required` 是 provider 是否需要凭据的唯一来源。执行路径、doctor 与 smoke 用同一判定（`ProviderRegistration::is_configured`）决定「已配置」：需要凭据的 provider 要求 keys 非空，不需要凭据的 provider 恒为已配置。registry 校验与 smoke 的注册完整性检查都不要求 provider 需要凭据。
+- **匿名执行**：不需要凭据的 provider 经 `execute_anonymous` 执行：不 claim、不轮换、不注入认证；每个 attempt 的 `credential_index` 为 0，`rotation_count` 恒为 0，这两个字段对匿名 provider 没有凭据含义。需要凭据的执行入口 `execute_v2` 遇到空凭据池时在发送前以 Auth 失败，不 panic。共享构造器不断言 provider 需要凭据。
+- **单次发送契约**：每次发送返回可选的 status 与解码值。HTTP 调用方传入实际 HTTP status；非 HTTP 传输可以不带 status，attempt 的 `http_status` 随之为空。
 - **registry 最小职责**（F10）：唯一登记 `ProviderId`、支持 seam、凭据要求、doctor probe、构造入口；config/doctor/capability status 从同一描述读取身份，不各设 allowlist；engine 只调用 seam trait 并聚合 `ProviderAttempt`，禁止按 provider id/model 分支；openai-compatible 的 model 候选、断路器、transport fallback 全部封装在 provider 内。不引入宏、不生成 clap 树。
 
 ## 错误模型
@@ -47,7 +50,7 @@
 - **退出码两阶段**：飞行前（argv→2、config/未知 env→3）只由预检产生；飞行后由**归因总函数**产生。attempt 级 Parameter 不映射退 2。
 - **归因总函数**（F4 + #59 B3）：只按每个 provider 的**最终 attempt** 归约（重试不参与计数），对各 kind 按**优先级全序**取最大，与重试次数、失败顺序无关。已有成功响应进入质量/证据阶段且终局失败＝Content 优先退 5，不被后续网络失败覆盖；所有可用 provider 均未产生可验证响应才退 4；同质失败顶层透传原 kind（如全 401 报 auth_error，退出码仍按族）；attempts 永远带原始 kind。
   - **全序表定稿**（低 → 高；Content 族恒高于 Transport 族）：`Network < Timeout < RateLimited < QuotaExhausted < Auth < Parameter < Runtime < Quality < Evidence`。定义域为**飞行后 kind**（ErrorKind ∖ {Config}）：`Config` 只在飞行前预检产生（退 3），**`ProviderAttempt` 不得携带 Config**——此为类型不变量，进 unit 真值表。族间关系与全序存在性为契约（真值表穷举验证）；族内排布编码期可微调，调整须同步更新真值表。
-- `ProviderError`（thiserror）：kind + provider + status + 脱敏消息 + 耗时；status→kind 映射只在 net 一份。
+- `ProviderError`（thiserror）定义在 types 门面：kind + 脱敏消息 + attempts（每个 attempt 带 provider、status 与耗时）+ 非致命诊断；`forager::app::ProviderError` 作为再导出保留，types 下的新可达路径是预期结果。status→kind 映射只在 net 一份。
 - **分类器已配置但失败**：降级继续 + stderr 警告 + journal 落痕，不影响退出码；research 裸调用下采用**固定最小降级 plan**（单步 web_search）继续执行（#59 H8）。
 - miette 只渲染 text 人类报错；契约路径（JSON）不经 anyhow/miette。
 
@@ -70,8 +73,18 @@
 
 分界原则：跨进程必须共享的落盘，策略性短时效的留进程内。
 
-- **池**：游标落盘 `$XDG_STATE_HOME/forager/credential_pool_state.json`，fd-lock 有界文件锁，「锁内取号推进 / 拿不到锁乐观降级」语义保持。**状态文件不变量**（F6）：带 schema version、只存非敏感索引；同目录 `0600` 临时文件 + fsync + 原子 rename；解析失败只复位受影响 provider 的游标并发非致命诊断，不升 config_error、不阻断搜索。进程内轮换状态为显式 `CredentialPool` struct（`Arc<Mutex>`）参数传入，无全局、无 reset 钩子。`classifier.keys` 走同一实现。
+- **池**：游标落盘 `$XDG_STATE_HOME/forager/credential_pool_state.json`，fs2 有界文件锁，「锁内取号推进 / 拿不到锁乐观降级」语义保持。**状态文件不变量**（F6）：带 schema version、只存非敏感索引；同目录 `0600` 临时文件 + fsync + 原子 rename；解析失败只复位受影响 provider 的游标并发非致命诊断，不升 config_error、不阻断搜索。`CredentialPool` struct 作为显式参数传入，无 reset 钩子。`classifier.keys` 走同一实现。
+- **共享状态文件**：`state_file` 统一拥有状态目录解析（`XDG_STATE_HOME`，否则 `HOME/.local/state`，均须为绝对路径）、私有目录与有界文件锁、原子写，以及进程内串行化（咨询文件锁不能可靠排斥同进程内的其他句柄，因此进程内的状态读写经唯一互斥逐个执行）。凭据池与跨进程限速共用它，各自决定锁不可用时的策略。
 - **model 断路器**：进程内显式 `ModelBreakers` struct（阈值 2 / 冷却 600s），不落盘。
+
+## 跨进程限速
+
+`rate_limit` 统一负责跨进程请求节奏。访问策略包括最小间隔与最大并发；对受限 endpoint 的每次发送（包括重试）都必须先调用 `RateLimiter::acquire` 申请时间窗口。目前还没有 provider 声明访问策略，平台 route 接入时开始使用。
+
+- **算法**：先在进程内按最大并发取得 permit，等待时间计入 Deadline；再在共享状态锁内读取该 route 上次预留的时刻，计算下一个窗口 = max(现在, 上次预留 + 最小间隔)。需要等待的时间不小于剩余预算时，直接以 Timeout 结束，不写入预留；否则写入新的预留时刻，释放锁，然后在锁外等待到该时刻。permit 持有到发送结束。
+- **时钟**：预留时刻是墙钟毫秒，从构造时的墙钟起按 Tokio 时钟推进，因此预留、等待与 Deadline 在同一时间线上。
+- **失败语义**：状态目录无法解析、锁在有界等待内拿不到、状态文件不可读或不可写时，不发送请求，以 Runtime 结束；不复用凭据池拿不到锁时「乐观降级」的策略。状态文件损坏或 schema 不符时，视为该 route 在当前时刻已有一次预留，因此修复后的第一个窗口仍间隔完整的最小间隔。
+- **已知边界**：间隔按预留时刻保证，某个进程在预留之后被调度延迟时，实际发送间隔可能短于最小间隔，v1 接受，不做发送后复核；协调范围是共享同一状态目录的进程；最大并发只在单个进程内限制。
 
 ## web_fetch 薄正文质量门控
 
@@ -100,7 +113,7 @@ Research Evidence Pipeline 默认使用 standard 预算，将正文逐条写入 
 定位：结果面 + 过程面双记录。
 
 - **结果面**：search 保存 query、answer 全文、仅属于主回答的 sources[] 与独立 supplemental candidates（含 search-side Web Fetch preview，URL 经统一脱敏器）；主搜索失败时保存 error_kind、message、已取得的完整 `extra_sources` 与 `capability_gaps`；research 保存 Evidence Index、coverage、artifact 路径与 capability gaps，不保存机械 answer/citations，也不重复 evidence 正文。Vertical Discovery Result 不复制到其他来源集合。
-- **过程面**：plan 摘要（capabilities 终集 + 来源 + 分类器是否降级）、provider_attempts[]（provider、seam、error_kind、http_status、duration_ms、credential_index、retry/rotation 计数、脱敏截断 500 字符错误消息、model、endpoint_host、断路器事件）、终态归因、budget 视图 `{total_ms, consumed_ms, exhausted}`、分类器耗时、capability_gaps。
+- **过程面**：plan 摘要（capabilities 终集 + 来源 + 分类器是否降级）、provider_attempts[]（provider、seam、error_kind、http_status、duration_ms、credential_index、retry/rotation 计数（匿名 provider 的 credential_index 与 rotation 计数恒为 0）、脱敏截断 500 字符错误消息、model、endpoint_host、断路器事件）、终态归因、budget 视图 `{total_ms, consumed_ms, exhausted}`、分类器耗时、capability_gaps。
 - **字段白名单排除项**：请求/响应头、请求体、原始响应体、key 任何形式（含掩码）、分类器 prompt 原文。
 - `capability_gaps` 形状：`[{capability, reason: no_configured_provider|partial_failure|all_attempts_failed, providers_skipped[]}]`，空则省略；结果 JSON 顶层 + stderr 警告 + journal 三出口。
 - **落笔机制**（F7 修订）：`app` 层唯一终态写入器落笔一次，Ok/Err 皆写；panic hook 只做最小 stderr 诊断、**不写 journal**；孤儿任务 panic 与 kill -9 丢记录为已接受限制。

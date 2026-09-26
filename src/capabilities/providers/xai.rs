@@ -13,8 +13,9 @@ use crate::providers::execution::{ExecutionSettings, execute_v2};
 use crate::providers::shared::{
     normalize_main_search, redact_and_deduplicate_sources, redacted_urls_message,
 };
-use crate::providers::{MainSearchRequest, MainSearchRequestKind, ProviderError};
+use crate::providers::{MainSearchRequest, MainSearchRequestKind};
 use crate::redact::Secret;
+use crate::types::ProviderError;
 use crate::types::{AttemptErrorKind, AttemptTarget, Deadline, SearchOutcome, Source};
 
 pub(crate) struct Xai {
@@ -115,7 +116,7 @@ impl Xai {
         model: &str,
         credential: &Secret,
         request_kind: MainSearchRequestKind,
-    ) -> Result<(u16, (String, Vec<Source>)), AttemptFailure> {
+    ) -> Result<(Option<u16>, (String, Vec<Source>)), AttemptFailure> {
         let endpoint = format!("{}/responses", self.config.url.trim_end_matches('/'));
         let input = request_kind.input(query);
         let tools = if request_kind.uses_search_tools() {
@@ -160,7 +161,7 @@ impl Xai {
                 redact_and_deduplicate_sources(sources, &self.credentials),
             )
         };
-        Ok((status, outcome))
+        Ok((Some(status), outcome))
     }
 
     async fn completed_from_events<S>(
