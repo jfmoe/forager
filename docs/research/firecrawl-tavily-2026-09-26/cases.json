@@ -1,0 +1,77 @@
+[
+  {
+    "id": "mdn",
+    "kind": "ordinary",
+    "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch"
+  },
+  {
+    "id": "python",
+    "kind": "ordinary",
+    "url": "https://docs.python.org/3/tutorial/datastructures.html"
+  },
+  {
+    "id": "essay",
+    "kind": "ordinary",
+    "url": "https://paulgraham.com/greatwork.html"
+  },
+  {
+    "id": "chinese",
+    "kind": "ordinary",
+    "url": "https://zh.wikipedia.org/wiki/大语言模型"
+  },
+  {
+    "id": "chinese_docs",
+    "kind": "ordinary",
+    "url": "https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Guide/Introduction"
+  },
+  {
+    "id": "quotes_js",
+    "kind": "special",
+    "url": "https://quotes.toscrape.com/js/"
+  },
+  {
+    "id": "quotes_delay",
+    "kind": "special",
+    "url": "https://quotes.toscrape.com/js-delayed/"
+  },
+  {
+    "id": "hn",
+    "kind": "special",
+    "url": "https://news.ycombinator.com/item?id=8863"
+  },
+  {
+    "id": "ssrn",
+    "kind": "special",
+    "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2042750"
+  },
+  {
+    "id": "arxiv_html",
+    "kind": "special",
+    "url": "https://arxiv.org/html/2401.04088v1"
+  },
+  {
+    "id": "wiki_table",
+    "kind": "special",
+    "url": "https://en.wikipedia.org/wiki/List_of_countries_by_population_(United_Nations)"
+  },
+  {
+    "id": "pdf_simple",
+    "kind": "pdf",
+    "url": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
+  },
+  {
+    "id": "pdf_bitcoin",
+    "kind": "pdf",
+    "url": "https://bitcoin.org/bitcoin.pdf"
+  },
+  {
+    "id": "pdf_paper",
+    "kind": "pdf",
+    "url": "https://arxiv.org/pdf/2401.04088v1"
+  },
+  {
+    "id": "pdf_scan",
+    "kind": "pdf",
+    "url": "https://raw.githubusercontent.com/ocrmypdf/OCRmyPDF/main/tests/resources/ccitt.pdf"
+  }
+]

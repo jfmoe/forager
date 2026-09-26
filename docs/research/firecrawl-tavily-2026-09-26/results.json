@@ -1,0 +1,2525 @@
+[
+  {
+    "call": 29,
+    "id": "arxiv_html",
+    "kind": "special",
+    "provider": "tavily",
+    "mode": "advanced",
+    "suffix": "",
+    "file": "arxiv_html__advanced",
+    "url": "https://arxiv.org/html/2401.04088v1",
+    "utc": "2026-09-26T04:53:46.106931+00:00",
+    "request": {
+      "urls": [
+        "https://arxiv.org/html/2401.04088v1"
+      ],
+      "format": "markdown",
+      "extract_depth": "advanced",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 41877,
+    "tokens": 12592,
+    "seconds": 2.62,
+    "credits_reported": 0,
+    "sha256": "da5b9f73fc11f8d9816c2fa106971b3bf2e287e5b824a2a01766aa5e494e26fa",
+    "failed_results": [],
+    "scores": {
+      "paragraph_edges": {
+        "found": 63,
+        "total": 68
+      },
+      "headings": {
+        "found": 13,
+        "total": 13
+      },
+      "code_edges": {
+        "found": 0,
+        "total": 0
+      },
+      "captions": {
+        "found": 15,
+        "total": 15
+      },
+      "references": {
+        "found": 35,
+        "total": 35
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 28,
+    "id": "arxiv_html",
+    "kind": "special",
+    "provider": "tavily",
+    "mode": "basic",
+    "suffix": "",
+    "file": "arxiv_html__basic",
+    "url": "https://arxiv.org/html/2401.04088v1",
+    "utc": "2026-09-26T04:53:40.272281+00:00",
+    "request": {
+      "urls": [
+        "https://arxiv.org/html/2401.04088v1"
+      ],
+      "format": "markdown",
+      "extract_depth": "basic",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 31654,
+    "tokens": 9638,
+    "seconds": 2.518,
+    "credits_reported": 0,
+    "sha256": "a20c9b51e11c80e8a7950e4908a49a262446455b9c6b7b6f395d39940544bab3",
+    "failed_results": [],
+    "scores": {
+      "paragraph_edges": {
+        "found": 63,
+        "total": 68
+      },
+      "headings": {
+        "found": 13,
+        "total": 13
+      },
+      "code_edges": {
+        "found": 0,
+        "total": 0
+      },
+      "captions": {
+        "found": 6,
+        "total": 15
+      },
+      "references": {
+        "found": 35,
+        "total": 35
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 30,
+    "id": "arxiv_html",
+    "kind": "special",
+    "provider": "firecrawl",
+    "mode": "firecrawl",
+    "suffix": "",
+    "file": "arxiv_html__firecrawl",
+    "url": "https://arxiv.org/html/2401.04088v1",
+    "utc": "2026-09-26T04:53:52.048807+00:00",
+    "request": {
+      "url": "https://arxiv.org/html/2401.04088v1",
+      "formats": [
+        "markdown"
+      ],
+      "onlyMainContent": true,
+      "timeout": 60000
+    },
+    "http": 200,
+    "chars": 38959,
+    "tokens": 12187,
+    "seconds": 1.857,
+    "credits_reported": 1,
+    "sha256": "7c4a2fb8831f33893b1d4e30e178d15bb630032e8987737038ac05b4ec3a5006",
+    "error": null,
+    "scores": {
+      "paragraph_edges": {
+        "found": 68,
+        "total": 68
+      },
+      "headings": {
+        "found": 13,
+        "total": 13
+      },
+      "code_edges": {
+        "found": 0,
+        "total": 0
+      },
+      "captions": {
+        "found": 15,
+        "total": 15
+      },
+      "references": {
+        "found": 35,
+        "total": 35
+      }
+    },
+    "metadata": {
+      "statusCode": 200,
+      "cacheState": "hit",
+      "creditsUsed": 1
+    }
+  },
+  {
+    "call": 11,
+    "id": "chinese",
+    "kind": "ordinary",
+    "provider": "tavily",
+    "mode": "advanced",
+    "suffix": "",
+    "file": "chinese__advanced",
+    "url": "https://zh.wikipedia.org/wiki/大语言模型",
+    "utc": "2026-09-26T04:51:59.969125+00:00",
+    "request": {
+      "urls": [
+        "https://zh.wikipedia.org/wiki/大语言模型"
+      ],
+      "format": "markdown",
+      "extract_depth": "advanced",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 135308,
+    "tokens": 71720,
+    "seconds": 2.01,
+    "credits_reported": 0,
+    "sha256": "0197f7df805e15969ae8d8a2ac0b94713af329ba9b5c0d915b2e0ba8648d8898",
+    "failed_results": [],
+    "scores": {
+      "paragraph_edges": {
+        "found": 50,
+        "total": 84
+      },
+      "headings": {
+        "found": 36,
+        "total": 36
+      },
+      "code_edges": {
+        "found": 0,
+        "total": 0
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 10,
+    "id": "chinese",
+    "kind": "ordinary",
+    "provider": "tavily",
+    "mode": "basic",
+    "suffix": "",
+    "file": "chinese__basic",
+    "url": "https://zh.wikipedia.org/wiki/大语言模型",
+    "utc": "2026-09-26T04:51:54.406373+00:00",
+    "request": {
+      "urls": [
+        "https://zh.wikipedia.org/wiki/大语言模型"
+      ],
+      "format": "markdown",
+      "extract_depth": "basic",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 83170,
+    "tokens": 48141,
+    "seconds": 4.539,
+    "credits_reported": 0,
+    "sha256": "9a224cbcd85ae85eabdd35db9b51a76964e638d0aac876f8bb367659b208eb91",
+    "failed_results": [],
+    "scores": {
+      "paragraph_edges": {
+        "found": 50,
+        "total": 84
+      },
+      "headings": {
+        "found": 35,
+        "total": 36
+      },
+      "code_edges": {
+        "found": 0,
+        "total": 0
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 12,
+    "id": "chinese",
+    "kind": "ordinary",
+    "provider": "firecrawl",
+    "mode": "firecrawl",
+    "suffix": "",
+    "file": "chinese__firecrawl",
+    "url": "https://zh.wikipedia.org/wiki/大语言模型",
+    "utc": "2026-09-26T04:52:02.999828+00:00",
+    "request": {
+      "url": "https://zh.wikipedia.org/wiki/大语言模型",
+      "formats": [
+        "markdown"
+      ],
+      "onlyMainContent": true,
+      "timeout": 60000
+    },
+    "http": 200,
+    "chars": 138583,
+    "tokens": 67577,
+    "seconds": 5.222,
+    "credits_reported": 1,
+    "sha256": "0b07a9dee1036176ca94bd3f599a10c06c9e9bd66b198dd7ed1d2eea6a6459e7",
+    "error": null,
+    "scores": {
+      "paragraph_edges": {
+        "found": 50,
+        "total": 84
+      },
+      "headings": {
+        "found": 36,
+        "total": 36
+      },
+      "code_edges": {
+        "found": 0,
+        "total": 0
+      }
+    },
+    "metadata": {
+      "statusCode": 200,
+      "cacheState": "miss",
+      "creditsUsed": 1
+    }
+  },
+  {
+    "call": 13,
+    "id": "chinese_docs",
+    "kind": "ordinary",
+    "provider": "tavily",
+    "mode": "advanced",
+    "suffix": "",
+    "file": "chinese_docs__advanced",
+    "url": "https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Guide/Introduction",
+    "utc": "2026-09-26T04:52:09.254448+00:00",
+    "request": {
+      "urls": [
+        "https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Guide/Introduction"
+      ],
+      "format": "markdown",
+      "extract_depth": "advanced",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 8463,
+    "tokens": 4712,
+    "seconds": 2.728,
+    "credits_reported": 1,
+    "sha256": "2618f1834779fff42b5615b904bb636f515d034819392dec967a654cd0d4dea7",
+    "failed_results": [],
+    "scores": {
+      "paragraph_edges": {
+        "found": 28,
+        "total": 28
+      },
+      "headings": {
+        "found": 13,
+        "total": 14
+      },
+      "code_edges": {
+        "found": 2,
+        "total": 2
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 15,
+    "id": "chinese_docs",
+    "kind": "ordinary",
+    "provider": "tavily",
+    "mode": "basic",
+    "suffix": "",
+    "file": "chinese_docs__basic",
+    "url": "https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Guide/Introduction",
+    "utc": "2026-09-26T04:52:16.797985+00:00",
+    "request": {
+      "urls": [
+        "https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Guide/Introduction"
+      ],
+      "format": "markdown",
+      "extract_depth": "basic",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 8463,
+    "tokens": 4712,
+    "seconds": 1.649,
+    "credits_reported": 0,
+    "sha256": "2618f1834779fff42b5615b904bb636f515d034819392dec967a654cd0d4dea7",
+    "failed_results": [],
+    "scores": {
+      "paragraph_edges": {
+        "found": 28,
+        "total": 28
+      },
+      "headings": {
+        "found": 13,
+        "total": 14
+      },
+      "code_edges": {
+        "found": 2,
+        "total": 2
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 14,
+    "id": "chinese_docs",
+    "kind": "ordinary",
+    "provider": "firecrawl",
+    "mode": "firecrawl",
+    "suffix": "",
+    "file": "chinese_docs__firecrawl",
+    "url": "https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Guide/Introduction",
+    "utc": "2026-09-26T04:52:13.000092+00:00",
+    "request": {
+      "url": "https://developer.mozilla.org/zh-CN/docs/Web/JavaScript/Guide/Introduction",
+      "formats": [
+        "markdown"
+      ],
+      "onlyMainContent": true,
+      "timeout": 60000
+    },
+    "http": 200,
+    "chars": 10023,
+    "tokens": 5221,
+    "seconds": 2.783,
+    "credits_reported": 1,
+    "sha256": "a3e22e755dfdb5aa906b28b9ccec98929907aa57c537903b0dd07934f8d20a18",
+    "error": null,
+    "scores": {
+      "paragraph_edges": {
+        "found": 28,
+        "total": 28
+      },
+      "headings": {
+        "found": 13,
+        "total": 14
+      },
+      "code_edges": {
+        "found": 2,
+        "total": 2
+      }
+    },
+    "metadata": {
+      "statusCode": 200,
+      "cacheState": "miss",
+      "creditsUsed": 1
+    }
+  },
+  {
+    "call": 9,
+    "id": "essay",
+    "kind": "ordinary",
+    "provider": "tavily",
+    "mode": "advanced",
+    "suffix": "",
+    "file": "essay__advanced",
+    "url": "https://paulgraham.com/greatwork.html",
+    "utc": "2026-09-26T04:51:51.538794+00:00",
+    "request": {
+      "urls": [
+        "https://paulgraham.com/greatwork.html"
+      ],
+      "format": "markdown",
+      "extract_depth": "advanced",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 67469,
+    "tokens": 14621,
+    "seconds": 1.851,
+    "credits_reported": 1,
+    "sha256": "48603d11ed11db950f9f2576018a0942648f77993421269fcd43bd145bb797a0",
+    "failed_results": [],
+    "scores": {
+      "distributed_text": {
+        "found": 40,
+        "total": 40
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 8,
+    "id": "essay",
+    "kind": "ordinary",
+    "provider": "tavily",
+    "mode": "basic",
+    "suffix": "",
+    "file": "essay__basic",
+    "url": "https://paulgraham.com/greatwork.html",
+    "utc": "2026-09-26T04:51:47.766058+00:00",
+    "request": {
+      "urls": [
+        "https://paulgraham.com/greatwork.html"
+      ],
+      "format": "markdown",
+      "extract_depth": "basic",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 67469,
+    "tokens": 14621,
+    "seconds": 2.756,
+    "credits_reported": 0,
+    "sha256": "48603d11ed11db950f9f2576018a0942648f77993421269fcd43bd145bb797a0",
+    "failed_results": [],
+    "scores": {
+      "distributed_text": {
+        "found": 40,
+        "total": 40
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 7,
+    "id": "essay",
+    "kind": "ordinary",
+    "provider": "firecrawl",
+    "mode": "firecrawl",
+    "suffix": "",
+    "file": "essay__firecrawl",
+    "url": "https://paulgraham.com/greatwork.html",
+    "utc": "2026-09-26T04:51:44.988115+00:00",
+    "request": {
+      "url": "https://paulgraham.com/greatwork.html",
+      "formats": [
+        "markdown"
+      ],
+      "onlyMainContent": true,
+      "timeout": 60000
+    },
+    "http": 200,
+    "chars": 72130,
+    "tokens": 17325,
+    "seconds": 1.76,
+    "credits_reported": 1,
+    "sha256": "ffaca08f8189c85d8c761eb2df8f6453c0e681455ef872da2cafba1f80daa839",
+    "error": null,
+    "scores": {
+      "distributed_text": {
+        "found": 40,
+        "total": 40
+      }
+    },
+    "metadata": {
+      "statusCode": 200,
+      "cacheState": "hit",
+      "creditsUsed": 1
+    }
+  },
+  {
+    "call": 22,
+    "id": "hn",
+    "kind": "special",
+    "provider": "tavily",
+    "mode": "advanced",
+    "suffix": "",
+    "file": "hn__advanced",
+    "url": "https://news.ycombinator.com/item?id=8863",
+    "utc": "2026-09-26T04:53:16.383706+00:00",
+    "request": {
+      "urls": [
+        "https://news.ycombinator.com/item?id=8863"
+      ],
+      "format": "markdown",
+      "extract_depth": "advanced",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 145805,
+    "tokens": 41747,
+    "seconds": 6.606,
+    "credits_reported": 0,
+    "sha256": "51d7a0f90196ee5b545731b9b0301779c3a01218c292bc12976041437b257941",
+    "failed_results": [],
+    "scores": {
+      "comments": {
+        "found": 71,
+        "total": 71
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 24,
+    "id": "hn",
+    "kind": "special",
+    "provider": "tavily",
+    "mode": "basic",
+    "suffix": "",
+    "file": "hn__basic",
+    "url": "https://news.ycombinator.com/item?id=8863",
+    "utc": "2026-09-26T04:53:27.167871+00:00",
+    "request": {
+      "urls": [
+        "https://news.ycombinator.com/item?id=8863"
+      ],
+      "format": "markdown",
+      "extract_depth": "basic",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 145805,
+    "tokens": 41747,
+    "seconds": 3.165,
+    "credits_reported": 0,
+    "sha256": "51d7a0f90196ee5b545731b9b0301779c3a01218c292bc12976041437b257941",
+    "failed_results": [],
+    "scores": {
+      "comments": {
+        "found": 71,
+        "total": 71
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 23,
+    "id": "hn",
+    "kind": "special",
+    "provider": "firecrawl",
+    "mode": "firecrawl",
+    "suffix": "",
+    "file": "hn__firecrawl",
+    "url": "https://news.ycombinator.com/item?id=8863",
+    "utc": "2026-09-26T04:53:24.010075+00:00",
+    "request": {
+      "url": "https://news.ycombinator.com/item?id=8863",
+      "formats": [
+        "markdown"
+      ],
+      "onlyMainContent": true,
+      "timeout": 60000
+    },
+    "http": 200,
+    "chars": 52540,
+    "tokens": 15852,
+    "seconds": 2.141,
+    "credits_reported": 1,
+    "sha256": "07e5f84566bfaaeb70b38065353f2a1cd1057500521cf235ae66d84564247340",
+    "error": null,
+    "scores": {
+      "comments": {
+        "found": 71,
+        "total": 71
+      }
+    },
+    "metadata": {
+      "statusCode": 200,
+      "cacheState": "hit",
+      "creditsUsed": 1
+    }
+  },
+  {
+    "call": 2,
+    "id": "mdn",
+    "kind": "ordinary",
+    "provider": "tavily",
+    "mode": "advanced",
+    "suffix": "",
+    "file": "mdn__advanced",
+    "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+    "utc": "2026-09-26T04:51:27.884667+00:00",
+    "request": {
+      "urls": [
+        "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch"
+      ],
+      "format": "markdown",
+      "extract_depth": "advanced",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 29566,
+    "tokens": 7228,
+    "seconds": 2.837,
+    "credits_reported": 1,
+    "sha256": "c194139c94d4cbd9c9e0528314398aac65a1309683a4cafa4a499ac55484ec82",
+    "failed_results": [],
+    "scores": {
+      "paragraph_edges": {
+        "found": 90,
+        "total": 90
+      },
+      "headings": {
+        "found": 20,
+        "total": 21
+      },
+      "code_edges": {
+        "found": 46,
+        "total": 46
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 1,
+    "id": "mdn",
+    "kind": "ordinary",
+    "provider": "tavily",
+    "mode": "basic",
+    "suffix": "",
+    "file": "mdn__basic",
+    "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+    "utc": "2026-09-26T04:51:26.860755+00:00",
+    "request": {
+      "urls": [
+        "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch"
+      ],
+      "format": "markdown",
+      "extract_depth": "basic",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "chars": 0,
+    "tokens": 0,
+    "seconds": 0.018,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "error": "HTTPSConnectionPool(host='api.tavily.com', port=443): Max retries exceeded with url: /extract (Caused by SSLError(SSLEOFError(8, '[SSL: UNEXPECTED_EOF_WHILE_READING] EOF occurred in violation of protocol (_ssl.c:1010)')))",
+    "scores": {
+      "paragraph_edges": {
+        "found": 0,
+        "total": 90
+      },
+      "headings": {
+        "found": 0,
+        "total": 21
+      },
+      "code_edges": {
+        "found": 0,
+        "total": 46
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 46,
+    "id": "mdn",
+    "kind": "ordinary",
+    "provider": "tavily",
+    "mode": "basic",
+    "suffix": "network_retry",
+    "file": "mdn__basic__network_retry",
+    "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+    "utc": "2026-09-26T04:56:17.499623+00:00",
+    "request": {
+      "urls": [
+        "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch"
+      ],
+      "format": "markdown",
+      "extract_depth": "basic",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 29566,
+    "tokens": 7228,
+    "seconds": 2.676,
+    "credits_reported": 0,
+    "sha256": "c194139c94d4cbd9c9e0528314398aac65a1309683a4cafa4a499ac55484ec82",
+    "failed_results": [],
+    "scores": {
+      "paragraph_edges": {
+        "found": 90,
+        "total": 90
+      },
+      "headings": {
+        "found": 20,
+        "total": 21
+      },
+      "code_edges": {
+        "found": 46,
+        "total": 46
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 3,
+    "id": "mdn",
+    "kind": "ordinary",
+    "provider": "firecrawl",
+    "mode": "firecrawl",
+    "suffix": "",
+    "file": "mdn__firecrawl",
+    "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+    "utc": "2026-09-26T04:51:31.739497+00:00",
+    "request": {
+      "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API/Using_Fetch",
+      "formats": [
+        "markdown"
+      ],
+      "onlyMainContent": true,
+      "timeout": 60000
+    },
+    "http": 200,
+    "chars": 33938,
+    "tokens": 7957,
+    "seconds": 1.947,
+    "credits_reported": 1,
+    "sha256": "f95ae5aed298af08d883d4ec40b18b59116dde10b97b2e554fafa22b8fb4247f",
+    "error": null,
+    "scores": {
+      "paragraph_edges": {
+        "found": 90,
+        "total": 90
+      },
+      "headings": {
+        "found": 20,
+        "total": 21
+      },
+      "code_edges": {
+        "found": 46,
+        "total": 46
+      }
+    },
+    "metadata": {
+      "statusCode": 200,
+      "cacheState": "hit",
+      "creditsUsed": 1
+    }
+  },
+  {
+    "call": 38,
+    "id": "pdf_bitcoin",
+    "kind": "pdf",
+    "provider": "tavily",
+    "mode": "advanced",
+    "suffix": "",
+    "file": "pdf_bitcoin__advanced",
+    "url": "https://bitcoin.org/bitcoin.pdf",
+    "utc": "2026-09-26T04:54:20.309147+00:00",
+    "request": {
+      "urls": [
+        "https://bitcoin.org/bitcoin.pdf"
+      ],
+      "format": "markdown",
+      "extract_depth": "advanced",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 21217,
+    "tokens": 4679,
+    "seconds": 1.696,
+    "credits_reported": 1,
+    "sha256": "918dbb29193f3ec5c28add1b87e166e8529f7fd032ab462ed63e1a1ecae6267c",
+    "failed_results": [],
+    "scores": {
+      "distributed_lines": {
+        "found": 30,
+        "total": 30
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 37,
+    "id": "pdf_bitcoin",
+    "kind": "pdf",
+    "provider": "tavily",
+    "mode": "basic",
+    "suffix": "",
+    "file": "pdf_bitcoin__basic",
+    "url": "https://bitcoin.org/bitcoin.pdf",
+    "utc": "2026-09-26T04:54:17.601795+00:00",
+    "request": {
+      "urls": [
+        "https://bitcoin.org/bitcoin.pdf"
+      ],
+      "format": "markdown",
+      "extract_depth": "basic",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 21217,
+    "tokens": 4679,
+    "seconds": 1.69,
+    "credits_reported": 0,
+    "sha256": "918dbb29193f3ec5c28add1b87e166e8529f7fd032ab462ed63e1a1ecae6267c",
+    "failed_results": [],
+    "scores": {
+      "distributed_lines": {
+        "found": 30,
+        "total": 30
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 39,
+    "id": "pdf_bitcoin",
+    "kind": "pdf",
+    "provider": "firecrawl",
+    "mode": "firecrawl",
+    "suffix": "",
+    "file": "pdf_bitcoin__firecrawl",
+    "url": "https://bitcoin.org/bitcoin.pdf",
+    "utc": "2026-09-26T04:54:23.027556+00:00",
+    "request": {
+      "url": "https://bitcoin.org/bitcoin.pdf",
+      "formats": [
+        "markdown"
+      ],
+      "onlyMainContent": true,
+      "timeout": 60000
+    },
+    "http": 200,
+    "chars": 22114,
+    "tokens": 5237,
+    "seconds": 1.889,
+    "credits_reported": 9,
+    "sha256": "bba0cefffcf41f5ded0ec5dc6d57dec9f956dbf2010aaf536e6259cd1ac286c0",
+    "error": null,
+    "scores": {
+      "distributed_lines": {
+        "found": 30,
+        "total": 30
+      }
+    },
+    "metadata": {
+      "statusCode": 200,
+      "cacheState": "hit",
+      "numPages": 9,
+      "totalPages": 9,
+      "creditsUsed": 9
+    }
+  },
+  {
+    "call": 40,
+    "id": "pdf_paper",
+    "kind": "pdf",
+    "provider": "tavily",
+    "mode": "advanced",
+    "suffix": "",
+    "file": "pdf_paper__advanced",
+    "url": "https://arxiv.org/pdf/2401.04088v1",
+    "utc": "2026-09-26T04:54:25.928082+00:00",
+    "request": {
+      "urls": [
+        "https://arxiv.org/pdf/2401.04088v1"
+      ],
+      "format": "markdown",
+      "extract_depth": "advanced",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 32594,
+    "tokens": 9319,
+    "seconds": 3.485,
+    "credits_reported": 0,
+    "sha256": "aa063e400c7205c87421c2e02dcac9a0ae6c3014e7be34525b0ee687bbbbd2e3",
+    "failed_results": [],
+    "scores": {
+      "distributed_lines": {
+        "found": 30,
+        "total": 30
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 42,
+    "id": "pdf_paper",
+    "kind": "pdf",
+    "provider": "tavily",
+    "mode": "basic",
+    "suffix": "",
+    "file": "pdf_paper__basic",
+    "url": "https://arxiv.org/pdf/2401.04088v1",
+    "utc": "2026-09-26T04:54:38.505427+00:00",
+    "request": {
+      "urls": [
+        "https://arxiv.org/pdf/2401.04088v1"
+      ],
+      "format": "markdown",
+      "extract_depth": "basic",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 32594,
+    "tokens": 9319,
+    "seconds": 2.754,
+    "credits_reported": 0,
+    "sha256": "aa063e400c7205c87421c2e02dcac9a0ae6c3014e7be34525b0ee687bbbbd2e3",
+    "failed_results": [],
+    "scores": {
+      "distributed_lines": {
+        "found": 30,
+        "total": 30
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 41,
+    "id": "pdf_paper",
+    "kind": "pdf",
+    "provider": "firecrawl",
+    "mode": "firecrawl",
+    "suffix": "",
+    "file": "pdf_paper__firecrawl",
+    "url": "https://arxiv.org/pdf/2401.04088v1",
+    "utc": "2026-09-26T04:54:32.718444+00:00",
+    "request": {
+      "url": "https://arxiv.org/pdf/2401.04088v1",
+      "formats": [
+        "markdown"
+      ],
+      "onlyMainContent": true,
+      "timeout": 60000
+    },
+    "http": 200,
+    "chars": 28778,
+    "tokens": 7844,
+    "seconds": 2.464,
+    "credits_reported": 13,
+    "sha256": "63165806539f5ca8d65e45eaf1d9f3ade3427048dea6bd2fb39733a3745321f0",
+    "error": null,
+    "scores": {
+      "distributed_lines": {
+        "found": 23,
+        "total": 30
+      }
+    },
+    "metadata": {
+      "statusCode": 200,
+      "cacheState": "miss",
+      "numPages": 13,
+      "totalPages": 13,
+      "creditsUsed": 13
+    }
+  },
+  {
+    "call": 50,
+    "id": "pdf_paper",
+    "kind": "pdf",
+    "provider": "firecrawl",
+    "mode": "firecrawl",
+    "suffix": "auto_fresh",
+    "file": "pdf_paper__firecrawl__auto_fresh",
+    "url": "https://arxiv.org/pdf/2401.04088v1",
+    "utc": "2026-09-26T04:57:17.685878+00:00",
+    "request": {
+      "url": "https://arxiv.org/pdf/2401.04088v1",
+      "formats": [
+        "markdown"
+      ],
+      "onlyMainContent": true,
+      "timeout": 60000,
+      "maxAge": 0,
+      "parsers": [
+        {
+          "type": "pdf",
+          "mode": "auto",
+          "pages": true,
+          "blocks": true,
+          "pageMarkers": true
+        }
+      ]
+    },
+    "http": 200,
+    "chars": 49460,
+    "tokens": 17461,
+    "seconds": 52.231,
+    "credits_reported": 13,
+    "sha256": "ee5efbe1c785cbf375a52d8e05011dcd5b789e893b888aa7c25e859eff769f24",
+    "error": null,
+    "scores": {
+      "distributed_lines": {
+        "found": 30,
+        "total": 30
+      }
+    },
+    "metadata": {
+      "statusCode": 200,
+      "numPages": 13,
+      "totalPages": 13,
+      "creditsUsed": 13
+    }
+  },
+  {
+    "call": 55,
+    "id": "pdf_paper",
+    "kind": "pdf",
+    "provider": "firecrawl",
+    "mode": "firecrawl",
+    "suffix": "auto_plain_fresh",
+    "file": "pdf_paper__firecrawl__auto_plain_fresh",
+    "url": "https://arxiv.org/pdf/2401.04088v1",
+    "utc": "2026-09-26T04:59:39.037730+00:00",
+    "request": {
+      "url": "https://arxiv.org/pdf/2401.04088v1",
+      "formats": [
+        "markdown"
+      ],
+      "onlyMainContent": true,
+      "timeout": 60000,
+      "maxAge": 0,
+      "parsers": [
+        {
+          "type": "pdf",
+          "mode": "auto"
+        }
+      ]
+    },
+    "http": 200,
+    "chars": 28778,
+    "tokens": 7844,
+    "seconds": 2.314,
+    "credits_reported": 13,
+    "sha256": "63165806539f5ca8d65e45eaf1d9f3ade3427048dea6bd2fb39733a3745321f0",
+    "error": null,
+    "scores": {
+      "distributed_lines": {
+        "found": 23,
+        "total": 30
+      }
+    },
+    "metadata": {
+      "statusCode": 200,
+      "numPages": 13,
+      "totalPages": 13,
+      "creditsUsed": 13
+    }
+  },
+  {
+    "call": 57,
+    "id": "pdf_paper",
+    "kind": "pdf",
+    "provider": "firecrawl",
+    "mode": "firecrawl",
+    "suffix": "blocks_only_fresh",
+    "file": "pdf_paper__firecrawl__blocks_only_fresh",
+    "url": "https://arxiv.org/pdf/2401.04088v1",
+    "utc": "2026-09-26T05:01:28.822487+00:00",
+    "request": {
+      "url": "https://arxiv.org/pdf/2401.04088v1",
+      "formats": [
+        "markdown"
+      ],
+      "onlyMainContent": true,
+      "timeout": 60000,
+      "maxAge": 0,
+      "parsers": [
+        {
+          "type": "pdf",
+          "mode": "auto",
+          "blocks": true
+        }
+      ]
+    },
+    "http": 200,
+    "chars": 47729,
+    "tokens": 16513,
+    "seconds": 11.569,
+    "credits_reported": 13,
+    "sha256": "61e0e38681b3fe7fd74a2161c14bd999a356e916c51bc02f93c413b0db7f1d16",
+    "error": null,
+    "scores": {
+      "distributed_lines": {
+        "found": 30,
+        "total": 30
+      }
+    },
+    "metadata": {
+      "statusCode": 200,
+      "numPages": 13,
+      "totalPages": 13,
+      "creditsUsed": 13
+    }
+  },
+  {
+    "call": 54,
+    "id": "pdf_paper",
+    "kind": "pdf",
+    "provider": "firecrawl",
+    "mode": "firecrawl",
+    "suffix": "default_fresh",
+    "file": "pdf_paper__firecrawl__default_fresh",
+    "url": "https://arxiv.org/pdf/2401.04088v1",
+    "utc": "2026-09-26T04:59:33.365596+00:00",
+    "request": {
+      "url": "https://arxiv.org/pdf/2401.04088v1",
+      "formats": [
+        "markdown"
+      ],
+      "onlyMainContent": true,
+      "timeout": 60000,
+      "maxAge": 0
+    },
+    "http": 200,
+    "chars": 28778,
+    "tokens": 7844,
+    "seconds": 2.345,
+    "credits_reported": 13,
+    "sha256": "63165806539f5ca8d65e45eaf1d9f3ade3427048dea6bd2fb39733a3745321f0",
+    "error": null,
+    "scores": {
+      "distributed_lines": {
+        "found": 23,
+        "total": 30
+      }
+    },
+    "metadata": {
+      "statusCode": 200,
+      "numPages": 13,
+      "totalPages": 13,
+      "creditsUsed": 13
+    }
+  },
+  {
+    "call": 51,
+    "id": "pdf_paper",
+    "kind": "pdf",
+    "provider": "firecrawl",
+    "mode": "firecrawl",
+    "suffix": "fast_fresh",
+    "file": "pdf_paper__firecrawl__fast_fresh",
+    "url": "https://arxiv.org/pdf/2401.04088v1",
+    "utc": "2026-09-26T04:58:13.248330+00:00",
+    "request": {
+      "url": "https://arxiv.org/pdf/2401.04088v1",
+      "formats": [
+        "markdown"
+      ],
+      "onlyMainContent": true,
+      "timeout": 60000,
+      "maxAge": 0,
+      "parsers": [
+        {
+          "type": "pdf",
+          "mode": "fast",
+          "pages": true,
+          "blocks": true,
+          "pageMarkers": true
+        }
+      ]
+    },
+    "http": 200,
+    "chars": 49667,
+    "tokens": 17318,
+    "seconds": 12.686,
+    "credits_reported": 13,
+    "sha256": "8b1468ed27e4469adfb985993324ffc1c54fd0e171a28f80c9e57909b4a4760e",
+    "error": null,
+    "scores": {
+      "distributed_lines": {
+        "found": 30,
+        "total": 30
+      }
+    },
+    "metadata": {
+      "statusCode": 200,
+      "numPages": 13,
+      "totalPages": 13,
+      "creditsUsed": 13
+    }
+  },
+  {
+    "call": 52,
+    "id": "pdf_paper",
+    "kind": "pdf",
+    "provider": "firecrawl",
+    "mode": "firecrawl",
+    "suffix": "ocr_four_pages",
+    "file": "pdf_paper__firecrawl__ocr_four_pages",
+    "url": "https://arxiv.org/pdf/2401.04088v1",
+    "utc": "2026-09-26T04:58:29.247246+00:00",
+    "request": {
+      "url": "https://arxiv.org/pdf/2401.04088v1",
+      "formats": [
+        "markdown"
+      ],
+      "onlyMainContent": true,
+      "timeout": 60000,
+      "maxAge": 0,
+      "parsers": [
+        {
+          "type": "pdf",
+          "mode": "ocr",
+          "maxPages": 4,
+          "pages": true,
+          "blocks": true,
+          "pageMarkers": true
+        }
+      ]
+    },
+    "http": 200,
+    "chars": 15456,
+    "tokens": 5064,
+    "seconds": 15.983,
+    "credits_reported": 4,
+    "sha256": "e5c73bfa33c6f54616d78631390ff2582b07f9fbd9ef131bd53f7e898e95fa4c",
+    "error": null,
+    "scores": {
+      "distributed_lines": {
+        "found": 13,
+        "total": 30
+      }
+    },
+    "metadata": {
+      "statusCode": 200,
+      "numPages": 4,
+      "totalPages": 13,
+      "creditsUsed": 4
+    }
+  },
+  {
+    "call": 58,
+    "id": "pdf_paper",
+    "kind": "pdf",
+    "provider": "firecrawl",
+    "mode": "firecrawl",
+    "suffix": "pageMarkers_only_fresh",
+    "file": "pdf_paper__firecrawl__pageMarkers_only_fresh",
+    "url": "https://arxiv.org/pdf/2401.04088v1",
+    "utc": "2026-09-26T05:01:43.713011+00:00",
+    "request": {
+      "url": "https://arxiv.org/pdf/2401.04088v1",
+      "formats": [
+        "markdown"
+      ],
+      "onlyMainContent": true,
+      "timeout": 60000,
+      "maxAge": 0,
+      "parsers": [
+        {
+          "type": "pdf",
+          "mode": "auto",
+          "pageMarkers": true
+        }
+      ]
+    },
+    "http": 200,
+    "chars": 47771,
+    "tokens": 16476,
+    "seconds": 11.395,
+    "credits_reported": 13,
+    "sha256": "f2175f61fbe891deff8be876f17898c7afeb4c2913ae08cf6dfc3a263b6ae0a6",
+    "error": null,
+    "scores": {
+      "distributed_lines": {
+        "found": 30,
+        "total": 30
+      }
+    },
+    "metadata": {
+      "statusCode": 200,
+      "numPages": 13,
+      "totalPages": 13,
+      "creditsUsed": 13
+    }
+  },
+  {
+    "call": 56,
+    "id": "pdf_paper",
+    "kind": "pdf",
+    "provider": "firecrawl",
+    "mode": "firecrawl",
+    "suffix": "pages_only_fresh",
+    "file": "pdf_paper__firecrawl__pages_only_fresh",
+    "url": "https://arxiv.org/pdf/2401.04088v1",
+    "utc": "2026-09-26T05:00:32.948366+00:00",
+    "request": {
+      "url": "https://arxiv.org/pdf/2401.04088v1",
+      "formats": [
+        "markdown"
+      ],
+      "onlyMainContent": true,
+      "timeout": 60000,
+      "maxAge": 0,
+      "parsers": [
+        {
+          "type": "pdf",
+          "mode": "auto",
+          "pages": true
+        }
+      ]
+    },
+    "http": 200,
+    "chars": 49307,
+    "tokens": 17397,
+    "seconds": 52.553,
+    "credits_reported": 13,
+    "sha256": "f309204a424acacaf5ff547039ae34df801d305f5240cb1a61a6fd5288a9b0d1",
+    "error": null,
+    "scores": {
+      "distributed_lines": {
+        "found": 30,
+        "total": 30
+      }
+    },
+    "metadata": {
+      "statusCode": 200,
+      "numPages": 13,
+      "totalPages": 13,
+      "creditsUsed": 13
+    }
+  },
+  {
+    "call": 45,
+    "id": "pdf_scan",
+    "kind": "pdf",
+    "provider": "tavily",
+    "mode": "advanced",
+    "suffix": "",
+    "file": "pdf_scan__advanced",
+    "url": "https://raw.githubusercontent.com/ocrmypdf/OCRmyPDF/main/tests/resources/ccitt.pdf",
+    "utc": "2026-09-26T04:54:57.198704+00:00",
+    "request": {
+      "urls": [
+        "https://raw.githubusercontent.com/ocrmypdf/OCRmyPDF/main/tests/resources/ccitt.pdf"
+      ],
+      "format": "markdown",
+      "extract_depth": "advanced",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 0,
+    "tokens": 0,
+    "seconds": 2.333,
+    "credits_reported": 1,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "failed_results": [
+      {
+        "url": "https://raw.githubusercontent.com/ocrmypdf/OCRmyPDF/main/tests/resources/ccitt.pdf",
+        "error": "Failed to fetch url"
+      }
+    ],
+    "scores": {
+      "manual_anchors": {
+        "found": 0,
+        "total": 12
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 44,
+    "id": "pdf_scan",
+    "kind": "pdf",
+    "provider": "tavily",
+    "mode": "basic",
+    "suffix": "",
+    "file": "pdf_scan__basic",
+    "url": "https://raw.githubusercontent.com/ocrmypdf/OCRmyPDF/main/tests/resources/ccitt.pdf",
+    "utc": "2026-09-26T04:54:53.301522+00:00",
+    "request": {
+      "urls": [
+        "https://raw.githubusercontent.com/ocrmypdf/OCRmyPDF/main/tests/resources/ccitt.pdf"
+      ],
+      "format": "markdown",
+      "extract_depth": "basic",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 0,
+    "tokens": 0,
+    "seconds": 2.888,
+    "credits_reported": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "failed_results": [
+      {
+        "url": "https://raw.githubusercontent.com/ocrmypdf/OCRmyPDF/main/tests/resources/ccitt.pdf",
+        "error": "Failed to fetch url"
+      }
+    ],
+    "scores": {
+      "manual_anchors": {
+        "found": 0,
+        "total": 12
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 43,
+    "id": "pdf_scan",
+    "kind": "pdf",
+    "provider": "firecrawl",
+    "mode": "firecrawl",
+    "suffix": "",
+    "file": "pdf_scan__firecrawl",
+    "url": "https://raw.githubusercontent.com/ocrmypdf/OCRmyPDF/main/tests/resources/ccitt.pdf",
+    "utc": "2026-09-26T04:54:44.573349+00:00",
+    "request": {
+      "url": "https://raw.githubusercontent.com/ocrmypdf/OCRmyPDF/main/tests/resources/ccitt.pdf",
+      "formats": [
+        "markdown"
+      ],
+      "onlyMainContent": true,
+      "timeout": 60000
+    },
+    "http": 200,
+    "chars": 4387,
+    "tokens": 979,
+    "seconds": 7.716,
+    "credits_reported": 1,
+    "sha256": "089c71dd2905fd1404dd8678b888bdc1c8f6a333123fea4971641bbb92a50f21",
+    "error": null,
+    "scores": {
+      "manual_anchors": {
+        "found": 9,
+        "total": 12
+      }
+    },
+    "metadata": {
+      "statusCode": 200,
+      "cacheState": "miss",
+      "numPages": 1,
+      "totalPages": 1,
+      "creditsUsed": 1
+    }
+  },
+  {
+    "call": 48,
+    "id": "pdf_scan",
+    "kind": "pdf",
+    "provider": "firecrawl",
+    "mode": "firecrawl",
+    "suffix": "fast_fresh",
+    "file": "pdf_scan__firecrawl__fast_fresh",
+    "url": "https://raw.githubusercontent.com/ocrmypdf/OCRmyPDF/main/tests/resources/ccitt.pdf",
+    "utc": "2026-09-26T04:56:34.892539+00:00",
+    "request": {
+      "url": "https://raw.githubusercontent.com/ocrmypdf/OCRmyPDF/main/tests/resources/ccitt.pdf",
+      "formats": [
+        "markdown"
+      ],
+      "onlyMainContent": true,
+      "timeout": 60000,
+      "maxAge": 0,
+      "parsers": [
+        {
+          "type": "pdf",
+          "mode": "fast"
+        }
+      ]
+    },
+    "http": 500,
+    "chars": 0,
+    "tokens": 0,
+    "seconds": 1.852,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "error": "This PDF is scanned and requires OCR for text extraction, but the requested PDF mode is \"fast\" which only supports text-based PDFs. To process this PDF, use mode \"auto\" (which falls back to OCR automatically) or mode \"ocr\" (which forces OCR processing). Example: parsers: [{ type: \"pdf\", mode: \"auto\" }]",
+    "scores": {
+      "manual_anchors": {
+        "found": 0,
+        "total": 12
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 49,
+    "id": "pdf_scan",
+    "kind": "pdf",
+    "provider": "firecrawl",
+    "mode": "firecrawl",
+    "suffix": "ocr_full_fresh",
+    "file": "pdf_scan__firecrawl__ocr_full_fresh",
+    "url": "https://raw.githubusercontent.com/ocrmypdf/OCRmyPDF/main/tests/resources/ccitt.pdf",
+    "utc": "2026-09-26T04:57:09.131273+00:00",
+    "request": {
+      "url": "https://raw.githubusercontent.com/ocrmypdf/OCRmyPDF/main/tests/resources/ccitt.pdf",
+      "formats": [
+        "markdown"
+      ],
+      "onlyMainContent": false,
+      "timeout": 60000,
+      "maxAge": 0,
+      "parsers": [
+        {
+          "type": "pdf",
+          "mode": "ocr",
+          "pages": true,
+          "blocks": true,
+          "pageMarkers": true
+        }
+      ]
+    },
+    "http": 200,
+    "chars": 4387,
+    "tokens": 979,
+    "seconds": 7.542,
+    "credits_reported": 1,
+    "sha256": "089c71dd2905fd1404dd8678b888bdc1c8f6a333123fea4971641bbb92a50f21",
+    "error": null,
+    "scores": {
+      "manual_anchors": {
+        "found": 9,
+        "total": 12
+      }
+    },
+    "metadata": {
+      "statusCode": 200,
+      "numPages": 1,
+      "totalPages": 1,
+      "creditsUsed": 1
+    }
+  },
+  {
+    "call": 36,
+    "id": "pdf_simple",
+    "kind": "pdf",
+    "provider": "tavily",
+    "mode": "advanced",
+    "suffix": "",
+    "file": "pdf_simple__advanced",
+    "url": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+    "utc": "2026-09-26T04:54:14.681470+00:00",
+    "request": {
+      "urls": [
+        "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
+      ],
+      "format": "markdown",
+      "extract_depth": "advanced",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 0,
+    "tokens": 0,
+    "seconds": 1.909,
+    "credits_reported": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "failed_results": [
+      {
+        "url": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+        "error": "Failed to fetch url"
+      }
+    ],
+    "scores": {
+      "text": {
+        "found": 0,
+        "total": 1
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 35,
+    "id": "pdf_simple",
+    "kind": "pdf",
+    "provider": "tavily",
+    "mode": "basic",
+    "suffix": "",
+    "file": "pdf_simple__basic",
+    "url": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+    "utc": "2026-09-26T04:54:10.731350+00:00",
+    "request": {
+      "urls": [
+        "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf"
+      ],
+      "format": "markdown",
+      "extract_depth": "basic",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 0,
+    "tokens": 0,
+    "seconds": 2.937,
+    "credits_reported": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "failed_results": [
+      {
+        "url": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+        "error": "Failed to fetch url"
+      }
+    ],
+    "scores": {
+      "text": {
+        "found": 0,
+        "total": 1
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 34,
+    "id": "pdf_simple",
+    "kind": "pdf",
+    "provider": "firecrawl",
+    "mode": "firecrawl",
+    "suffix": "",
+    "file": "pdf_simple__firecrawl",
+    "url": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+    "utc": "2026-09-26T04:54:08.144451+00:00",
+    "request": {
+      "url": "https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf",
+      "formats": [
+        "markdown"
+      ],
+      "onlyMainContent": true,
+      "timeout": 60000
+    },
+    "http": 200,
+    "chars": 17,
+    "tokens": 4,
+    "seconds": 1.58,
+    "credits_reported": 1,
+    "sha256": "a054060abf5bea5d2cfc26ea549920a43caccf40f836bc211aaede0da402c726",
+    "error": null,
+    "scores": {
+      "text": {
+        "found": 1,
+        "total": 1
+      }
+    },
+    "metadata": {
+      "statusCode": 200,
+      "cacheState": "hit",
+      "numPages": 1,
+      "totalPages": 1,
+      "creditsUsed": 1
+    }
+  },
+  {
+    "call": 4,
+    "id": "python",
+    "kind": "ordinary",
+    "provider": "tavily",
+    "mode": "advanced",
+    "suffix": "",
+    "file": "python__advanced",
+    "url": "https://docs.python.org/3/tutorial/datastructures.html",
+    "utc": "2026-09-26T04:51:34.702585+00:00",
+    "request": {
+      "urls": [
+        "https://docs.python.org/3/tutorial/datastructures.html"
+      ],
+      "format": "markdown",
+      "extract_depth": "advanced",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 19207,
+    "tokens": 4688,
+    "seconds": 2.551,
+    "credits_reported": 0,
+    "sha256": "7cc996fd30c05eb607c43bcf84120bf725f4c3cc3285c0b083d4ab16afcf8add",
+    "failed_results": [],
+    "scores": {
+      "paragraph_edges": {
+        "found": 101,
+        "total": 102
+      },
+      "headings": {
+        "found": 13,
+        "total": 13
+      },
+      "code_edges": {
+        "found": 0,
+        "total": 46
+      },
+      "method_names": {
+        "found": 1,
+        "total": 11
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 53,
+    "id": "python",
+    "kind": "ordinary",
+    "provider": "tavily",
+    "mode": "advanced",
+    "suffix": "text",
+    "file": "python__advanced__text",
+    "url": "https://docs.python.org/3/tutorial/datastructures.html",
+    "utc": "2026-09-26T04:58:48.536527+00:00",
+    "request": {
+      "urls": [
+        "https://docs.python.org/3/tutorial/datastructures.html"
+      ],
+      "format": "text",
+      "extract_depth": "advanced",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 15774,
+    "tokens": 3620,
+    "seconds": 3.161,
+    "credits_reported": 1,
+    "sha256": "8055d52c5fad422ff0bed88ae86e413fd23fc124c9678d8b36cb996bebc5987e",
+    "failed_results": [],
+    "scores": {
+      "paragraph_edges": {
+        "found": 101,
+        "total": 102
+      },
+      "headings": {
+        "found": 13,
+        "total": 13
+      },
+      "code_edges": {
+        "found": 0,
+        "total": 46
+      },
+      "method_names": {
+        "found": 1,
+        "total": 11
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 6,
+    "id": "python",
+    "kind": "ordinary",
+    "provider": "tavily",
+    "mode": "basic",
+    "suffix": "",
+    "file": "python__basic",
+    "url": "https://docs.python.org/3/tutorial/datastructures.html",
+    "utc": "2026-09-26T04:51:41.246133+00:00",
+    "request": {
+      "urls": [
+        "https://docs.python.org/3/tutorial/datastructures.html"
+      ],
+      "format": "markdown",
+      "extract_depth": "basic",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 19207,
+    "tokens": 4688,
+    "seconds": 2.725,
+    "credits_reported": 0,
+    "sha256": "7cc996fd30c05eb607c43bcf84120bf725f4c3cc3285c0b083d4ab16afcf8add",
+    "failed_results": [],
+    "scores": {
+      "paragraph_edges": {
+        "found": 101,
+        "total": 102
+      },
+      "headings": {
+        "found": 13,
+        "total": 13
+      },
+      "code_edges": {
+        "found": 0,
+        "total": 46
+      },
+      "method_names": {
+        "found": 1,
+        "total": 11
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 5,
+    "id": "python",
+    "kind": "ordinary",
+    "provider": "firecrawl",
+    "mode": "firecrawl",
+    "suffix": "",
+    "file": "python__firecrawl",
+    "url": "https://docs.python.org/3/tutorial/datastructures.html",
+    "utc": "2026-09-26T04:51:38.263388+00:00",
+    "request": {
+      "url": "https://docs.python.org/3/tutorial/datastructures.html",
+      "formats": [
+        "markdown"
+      ],
+      "onlyMainContent": true,
+      "timeout": 60000
+    },
+    "http": 200,
+    "chars": 32032,
+    "tokens": 8991,
+    "seconds": 1.975,
+    "credits_reported": 1,
+    "sha256": "5a537e501424e38c728764696d736c1b74beecf552286ea1769987e933262310",
+    "error": null,
+    "scores": {
+      "paragraph_edges": {
+        "found": 99,
+        "total": 102
+      },
+      "headings": {
+        "found": 13,
+        "total": 13
+      },
+      "code_edges": {
+        "found": 46,
+        "total": 46
+      },
+      "method_names": {
+        "found": 11,
+        "total": 11
+      }
+    },
+    "metadata": {
+      "statusCode": 200,
+      "cacheState": "hit",
+      "creditsUsed": 1
+    }
+  },
+  {
+    "id": "python",
+    "kind": "ordinary",
+    "provider": "firecrawl",
+    "mode": "firecrawl",
+    "suffix": "cli",
+    "file": "python__firecrawl__cli",
+    "url": "https://docs.python.org/3/tutorial/datastructures.html",
+    "utc": "2026-09-26T04:59:48.384782+00:00",
+    "exit": 0,
+    "chars": 32032,
+    "tokens": 8991,
+    "seconds": 1.937,
+    "scores": {
+      "paragraph_edges": {
+        "found": 99,
+        "total": 102
+      },
+      "headings": {
+        "found": 13,
+        "total": 13
+      },
+      "code_edges": {
+        "found": 46,
+        "total": 46
+      },
+      "method_names": {
+        "found": 11,
+        "total": 11
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "id": "python",
+    "kind": "ordinary",
+    "provider": "tavily",
+    "mode": "tavily",
+    "suffix": "cli",
+    "file": "python__tavily__cli",
+    "url": "https://docs.python.org/3/tutorial/datastructures.html",
+    "utc": "2026-09-26T04:59:44.929074+00:00",
+    "exit": 4,
+    "chars": 0,
+    "tokens": 0,
+    "seconds": 0.559,
+    "scores": {
+      "paragraph_edges": {
+        "found": 0,
+        "total": 102
+      },
+      "headings": {
+        "found": 0,
+        "total": 13
+      },
+      "code_edges": {
+        "found": 0,
+        "total": 46
+      },
+      "method_names": {
+        "found": 0,
+        "total": 11
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "id": "python",
+    "kind": "ordinary",
+    "provider": "tavily",
+    "mode": "tavily",
+    "suffix": "cli_retry",
+    "file": "python__tavily__cli_retry",
+    "url": "https://docs.python.org/3/tutorial/datastructures.html",
+    "exit": 0,
+    "chars": 19207,
+    "tokens": 4688,
+    "seconds": 5.897,
+    "scores": {
+      "paragraph_edges": {
+        "found": 101,
+        "total": 102
+      },
+      "headings": {
+        "found": 13,
+        "total": 13
+      },
+      "code_edges": {
+        "found": 0,
+        "total": 46
+      },
+      "method_names": {
+        "found": 1,
+        "total": 11
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 20,
+    "id": "quotes_delay",
+    "kind": "special",
+    "provider": "tavily",
+    "mode": "advanced",
+    "suffix": "",
+    "file": "quotes_delay__advanced",
+    "url": "https://quotes.toscrape.com/js-delayed/",
+    "utc": "2026-09-26T04:53:05.807099+00:00",
+    "request": {
+      "urls": [
+        "https://quotes.toscrape.com/js-delayed/"
+      ],
+      "format": "markdown",
+      "extract_depth": "advanced",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 0,
+    "tokens": 0,
+    "seconds": 6.324,
+    "credits_reported": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "failed_results": [
+      {
+        "url": "https://quotes.toscrape.com/js-delayed/",
+        "error": "Failed to fetch url"
+      }
+    ],
+    "scores": {
+      "quotes": {
+        "found": 0,
+        "total": 10
+      },
+      "authors": {
+        "found": 0,
+        "total": 10
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 19,
+    "id": "quotes_delay",
+    "kind": "special",
+    "provider": "tavily",
+    "mode": "basic",
+    "suffix": "",
+    "file": "quotes_delay__basic",
+    "url": "https://quotes.toscrape.com/js-delayed/",
+    "utc": "2026-09-26T04:52:26.631379+00:00",
+    "request": {
+      "urls": [
+        "https://quotes.toscrape.com/js-delayed/"
+      ],
+      "format": "markdown",
+      "extract_depth": "basic",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 0,
+    "tokens": 0,
+    "seconds": 1.88,
+    "credits_reported": 0,
+    "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "failed_results": [
+      {
+        "url": "https://quotes.toscrape.com/js-delayed/",
+        "error": "Failed to fetch url"
+      }
+    ],
+    "scores": {
+      "quotes": {
+        "found": 0,
+        "total": 10
+      },
+      "authors": {
+        "found": 0,
+        "total": 10
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 21,
+    "id": "quotes_delay",
+    "kind": "special",
+    "provider": "firecrawl",
+    "mode": "firecrawl",
+    "suffix": "",
+    "file": "quotes_delay__firecrawl",
+    "url": "https://quotes.toscrape.com/js-delayed/",
+    "utc": "2026-09-26T04:53:13.143804+00:00",
+    "request": {
+      "url": "https://quotes.toscrape.com/js-delayed/",
+      "formats": [
+        "markdown"
+      ],
+      "onlyMainContent": true,
+      "timeout": 60000
+    },
+    "http": 200,
+    "chars": 94,
+    "tokens": 28,
+    "seconds": 2.221,
+    "credits_reported": 1,
+    "sha256": "d7c1a70dbfa0b0cdda9322886c337d0a704c573a9367720ba239b2043098dbc5",
+    "error": null,
+    "scores": {
+      "quotes": {
+        "found": 0,
+        "total": 10
+      },
+      "authors": {
+        "found": 0,
+        "total": 10
+      }
+    },
+    "metadata": {
+      "statusCode": 200,
+      "cacheState": "miss",
+      "creditsUsed": 1
+    }
+  },
+  {
+    "id": "quotes_delay",
+    "kind": "special",
+    "provider": "firecrawl",
+    "mode": "firecrawl",
+    "suffix": "cli",
+    "file": "quotes_delay__firecrawl__cli",
+    "url": "https://quotes.toscrape.com/js-delayed/",
+    "utc": "2026-09-26T04:59:55.020250+00:00",
+    "exit": 0,
+    "chars": 1505,
+    "tokens": 376,
+    "seconds": 1.694,
+    "scores": {
+      "quotes": {
+        "found": 10,
+        "total": 10
+      },
+      "authors": {
+        "found": 10,
+        "total": 10
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 47,
+    "id": "quotes_delay",
+    "kind": "special",
+    "provider": "firecrawl",
+    "mode": "firecrawl",
+    "suffix": "wait_fresh",
+    "file": "quotes_delay__firecrawl__wait_fresh",
+    "url": "https://quotes.toscrape.com/js-delayed/",
+    "utc": "2026-09-26T04:56:21.370157+00:00",
+    "request": {
+      "url": "https://quotes.toscrape.com/js-delayed/",
+      "formats": [
+        "markdown"
+      ],
+      "onlyMainContent": true,
+      "timeout": 60000,
+      "waitFor": 10000,
+      "maxAge": 0
+    },
+    "http": 200,
+    "chars": 1505,
+    "tokens": 376,
+    "seconds": 12.339,
+    "credits_reported": 1,
+    "sha256": "faaaf7a7f8c5538cea971994dd651ea3b88c565ffd10ea2dfcece08c97b7f188",
+    "error": null,
+    "scores": {
+      "quotes": {
+        "found": 10,
+        "total": 10
+      },
+      "authors": {
+        "found": 10,
+        "total": 10
+      }
+    },
+    "metadata": {
+      "statusCode": 200,
+      "creditsUsed": 1
+    }
+  },
+  {
+    "id": "quotes_delay",
+    "kind": "special",
+    "provider": "tavily",
+    "mode": "tavily",
+    "suffix": "cli",
+    "file": "quotes_delay__tavily__cli",
+    "url": "https://quotes.toscrape.com/js-delayed/",
+    "utc": "2026-09-26T04:59:52.319861+00:00",
+    "exit": 5,
+    "chars": 0,
+    "tokens": 0,
+    "seconds": 2.926,
+    "scores": {
+      "quotes": {
+        "found": 0,
+        "total": 10
+      },
+      "authors": {
+        "found": 0,
+        "total": 10
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 18,
+    "id": "quotes_js",
+    "kind": "special",
+    "provider": "tavily",
+    "mode": "advanced",
+    "suffix": "",
+    "file": "quotes_js__advanced",
+    "url": "https://quotes.toscrape.com/js/",
+    "utc": "2026-09-26T04:52:24.162097+00:00",
+    "request": {
+      "urls": [
+        "https://quotes.toscrape.com/js/"
+      ],
+      "format": "markdown",
+      "extract_depth": "advanced",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 1429,
+    "tokens": 331,
+    "seconds": 1.462,
+    "credits_reported": 1,
+    "sha256": "72b92ca198c96b5c72b75358ce5a9d39afa578adc66094b25c48d6073b5dfe43",
+    "failed_results": [],
+    "scores": {
+      "quotes": {
+        "found": 10,
+        "total": 10
+      },
+      "authors": {
+        "found": 10,
+        "total": 10
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 17,
+    "id": "quotes_js",
+    "kind": "special",
+    "provider": "tavily",
+    "mode": "basic",
+    "suffix": "",
+    "file": "quotes_js__basic",
+    "url": "https://quotes.toscrape.com/js/",
+    "utc": "2026-09-26T04:52:21.717415+00:00",
+    "request": {
+      "urls": [
+        "https://quotes.toscrape.com/js/"
+      ],
+      "format": "markdown",
+      "extract_depth": "basic",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 1429,
+    "tokens": 331,
+    "seconds": 1.435,
+    "credits_reported": 0,
+    "sha256": "72b92ca198c96b5c72b75358ce5a9d39afa578adc66094b25c48d6073b5dfe43",
+    "failed_results": [],
+    "scores": {
+      "quotes": {
+        "found": 10,
+        "total": 10
+      },
+      "authors": {
+        "found": 10,
+        "total": 10
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 16,
+    "id": "quotes_js",
+    "kind": "special",
+    "provider": "firecrawl",
+    "mode": "firecrawl",
+    "suffix": "",
+    "file": "quotes_js__firecrawl",
+    "url": "https://quotes.toscrape.com/js/",
+    "utc": "2026-09-26T04:52:19.459286+00:00",
+    "request": {
+      "url": "https://quotes.toscrape.com/js/",
+      "formats": [
+        "markdown"
+      ],
+      "onlyMainContent": true,
+      "timeout": 60000
+    },
+    "http": 200,
+    "chars": 1505,
+    "tokens": 376,
+    "seconds": 1.246,
+    "credits_reported": 1,
+    "sha256": "faaaf7a7f8c5538cea971994dd651ea3b88c565ffd10ea2dfcece08c97b7f188",
+    "error": null,
+    "scores": {
+      "quotes": {
+        "found": 10,
+        "total": 10
+      },
+      "authors": {
+        "found": 10,
+        "total": 10
+      }
+    },
+    "metadata": {
+      "statusCode": 200,
+      "cacheState": "hit",
+      "creditsUsed": 1
+    }
+  },
+  {
+    "call": 27,
+    "id": "ssrn",
+    "kind": "special",
+    "provider": "tavily",
+    "mode": "advanced",
+    "suffix": "",
+    "file": "ssrn__advanced",
+    "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2042750",
+    "utc": "2026-09-26T04:53:37.811095+00:00",
+    "request": {
+      "urls": [
+        "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2042750"
+      ],
+      "format": "markdown",
+      "extract_depth": "advanced",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 6953,
+    "tokens": 2203,
+    "seconds": 1.448,
+    "credits_reported": 1,
+    "sha256": "934f1ba22426deaa13cea1cab7dfc536e982a93197eace2c78e81fd5547898f3",
+    "failed_results": [],
+    "scores": {
+      "metadata": {
+        "found": 3,
+        "total": 3
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 26,
+    "id": "ssrn",
+    "kind": "special",
+    "provider": "tavily",
+    "mode": "basic",
+    "suffix": "",
+    "file": "ssrn__basic",
+    "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2042750",
+    "utc": "2026-09-26T04:53:34.346432+00:00",
+    "request": {
+      "urls": [
+        "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2042750"
+      ],
+      "format": "markdown",
+      "extract_depth": "basic",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 6953,
+    "tokens": 2203,
+    "seconds": 2.449,
+    "credits_reported": 0,
+    "sha256": "934f1ba22426deaa13cea1cab7dfc536e982a93197eace2c78e81fd5547898f3",
+    "failed_results": [],
+    "scores": {
+      "metadata": {
+        "found": 3,
+        "total": 3
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 25,
+    "id": "ssrn",
+    "kind": "special",
+    "provider": "firecrawl",
+    "mode": "firecrawl",
+    "suffix": "",
+    "file": "ssrn__firecrawl",
+    "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2042750",
+    "utc": "2026-09-26T04:53:31.355208+00:00",
+    "request": {
+      "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2042750",
+      "formats": [
+        "markdown"
+      ],
+      "onlyMainContent": true,
+      "timeout": 60000
+    },
+    "http": 200,
+    "chars": 12909,
+    "tokens": 4093,
+    "seconds": 1.98,
+    "credits_reported": 1,
+    "sha256": "bd2cc9b752d807943076436c149e7114d69fa380c1f3b202a0fd114273b78c4f",
+    "error": null,
+    "scores": {
+      "metadata": {
+        "found": 3,
+        "total": 3
+      }
+    },
+    "metadata": {
+      "statusCode": 200,
+      "cacheState": "hit",
+      "creditsUsed": 1
+    }
+  },
+  {
+    "call": 31,
+    "id": "wiki_table",
+    "kind": "special",
+    "provider": "tavily",
+    "mode": "advanced",
+    "suffix": "",
+    "file": "wiki_table__advanced",
+    "url": "https://en.wikipedia.org/wiki/List_of_countries_by_population_(United_Nations)",
+    "utc": "2026-09-26T04:53:57.216062+00:00",
+    "request": {
+      "urls": [
+        "https://en.wikipedia.org/wiki/List_of_countries_by_population_(United_Nations)"
+      ],
+      "format": "markdown",
+      "extract_depth": "advanced",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 107123,
+    "tokens": 31555,
+    "seconds": 3.105,
+    "credits_reported": 1,
+    "sha256": "d9eef490a287b12b139ec30f460fdfeeadf20dd88cbdca6268d8240c4e300096",
+    "failed_results": [],
+    "scores": {
+      "population_pairs": {
+        "found": 238,
+        "total": 238
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 33,
+    "id": "wiki_table",
+    "kind": "special",
+    "provider": "tavily",
+    "mode": "basic",
+    "suffix": "",
+    "file": "wiki_table__basic",
+    "url": "https://en.wikipedia.org/wiki/List_of_countries_by_population_(United_Nations)",
+    "utc": "2026-09-26T04:54:05.053812+00:00",
+    "request": {
+      "urls": [
+        "https://en.wikipedia.org/wiki/List_of_countries_by_population_(United_Nations)"
+      ],
+      "format": "markdown",
+      "extract_depth": "basic",
+      "timeout": 60,
+      "include_usage": true
+    },
+    "http": 200,
+    "chars": 107123,
+    "tokens": 31555,
+    "seconds": 2.067,
+    "credits_reported": 0,
+    "sha256": "d9eef490a287b12b139ec30f460fdfeeadf20dd88cbdca6268d8240c4e300096",
+    "failed_results": [],
+    "scores": {
+      "population_pairs": {
+        "found": 238,
+        "total": 238
+      }
+    },
+    "metadata": {}
+  },
+  {
+    "call": 32,
+    "id": "wiki_table",
+    "kind": "special",
+    "provider": "firecrawl",
+    "mode": "firecrawl",
+    "suffix": "",
+    "file": "wiki_table__firecrawl",
+    "url": "https://en.wikipedia.org/wiki/List_of_countries_by_population_(United_Nations)",
+    "utc": "2026-09-26T04:54:01.346317+00:00",
+    "request": {
+      "url": "https://en.wikipedia.org/wiki/List_of_countries_by_population_(United_Nations)",
+      "formats": [
+        "markdown"
+      ],
+      "onlyMainContent": true,
+      "timeout": 60000
+    },
+    "http": 200,
+    "chars": 151013,
+    "tokens": 41846,
+    "seconds": 2.689,
+    "credits_reported": 1,
+    "sha256": "a2810c46762fef3457b65c53c2a7495f05472aca96a063d7fe6123365caefbd0",
+    "error": null,
+    "scores": {
+      "population_pairs": {
+        "found": 238,
+        "total": 238
+      }
+    },
+    "metadata": {
+      "statusCode": 200,
+      "cacheState": "hit",
+      "creditsUsed": 1
+    }
+  }
+]

@@ -1,0 +1,104 @@
+{
+  "pdf_paper__firecrawl__ocr_four_pages": {
+    "table2_rows": 7,
+    "table2_columns": [
+      14,
+      14,
+      14,
+      14,
+      14,
+      14,
+      14
+    ],
+    "table2_exact_cells": 98,
+    "table2_expected_cells": 98
+  },
+  "pdf_paper__firecrawl__default_fresh": {
+    "table2_rows": 0,
+    "table2_columns": [],
+    "table2_exact_cells": 0,
+    "table2_expected_cells": 98
+  },
+  "pdf_paper__firecrawl__pageMarkers_only_fresh": {
+    "table2_rows": 7,
+    "table2_columns": [
+      14,
+      14,
+      14,
+      14,
+      14,
+      14,
+      14
+    ],
+    "table2_exact_cells": 98,
+    "table2_expected_cells": 98
+  },
+  "pdf_paper__firecrawl__auto_plain_fresh": {
+    "table2_rows": 0,
+    "table2_columns": [],
+    "table2_exact_cells": 0,
+    "table2_expected_cells": 98
+  },
+  "pdf_paper__firecrawl__auto_fresh": {
+    "table2_rows": 7,
+    "table2_columns": [
+      14,
+      14,
+      14,
+      14,
+      14,
+      14,
+      14
+    ],
+    "table2_exact_cells": 98,
+    "table2_expected_cells": 98
+  },
+  "pdf_paper__firecrawl__fast_fresh": {
+    "table2_rows": 7,
+    "table2_columns": [
+      14,
+      14,
+      14,
+      14,
+      14,
+      14,
+      14
+    ],
+    "table2_exact_cells": 98,
+    "table2_expected_cells": 98
+  },
+  "pdf_paper__firecrawl": {
+    "table2_rows": 0,
+    "table2_columns": [],
+    "table2_exact_cells": 0,
+    "table2_expected_cells": 98
+  },
+  "pdf_paper__firecrawl__blocks_only_fresh": {
+    "table2_rows": 7,
+    "table2_columns": [
+      14,
+      14,
+      14,
+      14,
+      14,
+      14,
+      14
+    ],
+    "table2_exact_cells": 98,
+    "table2_expected_cells": 98
+  },
+  "pdf_paper__firecrawl__pages_only_fresh": {
+    "table2_rows": 7,
+    "table2_columns": [
+      14,
+      14,
+      14,
+      14,
+      14,
+      14,
+      14
+    ],
+    "table2_exact_cells": 98,
+    "table2_expected_cells": 98
+  }
+}

@@ -1,0 +1,4 @@
+requests==2.34.2
+beautifulsoup4==4.15.0
+tiktoken==0.14.0
+PyMuPDF==1.28.2
