@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 
-const CONTRACT: &str = "forager-ssrn/2";
+const CONTRACT: &str = "forager-ssrn/3";
 
 const CALL_END: &str = "<<end of call>>";
 

@@ -33,7 +33,8 @@ pub(crate) use platform::{
 pub use platform_arxiv::{ArxivItemData, ArxivRef, ArxivSearchOptions, ArxivSort};
 pub use platform_ssrn::{SsrnItemData, SsrnRef};
 pub use platform_ssrn_search::{
-    SsrnDateRange, SsrnSearchOptions, SsrnSearchScope, SsrnSort, SsrnSortOrder, SsrnWorkType,
+    SsrnDatePreset, SsrnDateRange, SsrnSearchMode, SsrnSearchOptions, SsrnSearchScope, SsrnSort,
+    SsrnSortOrder, SsrnWorkType,
 };
 pub(crate) use research::DocumentationEvidence;
 pub use research::{

@@ -365,9 +365,12 @@ forager platform ssrn search QUERY [--limit N] [--cursor CURSOR]
 
 | Argument or option | Meaning | Default |
 | --- | --- | --- |
-| `QUERY` | Topic keywords, ranked by relevance; not every word must match. Required unless `--cursor` is given. | Required |
-| `--scope all\|title\|bibliographic` | Default, title, or bibliographic query fields. Title search is not exact phrase matching. | `all` |
-| `--author TEXT`, `--affiliation TEXT` | Query author names or affiliations. | Omitted |
+| `QUERY` | Query expression; matching follows the selected route and mode. Required unless `--cursor` is given. | Required |
+| `--scope all\|title\|bibliographic\|full-text` | Route default fields, title, Crossref bibliographic fields, or browser full-text fields. | `all` |
+| `--author TEXT` | Author text query; browser uses the native Author(s) field, not an identity selector. | Omitted |
+| `--affiliation TEXT` | Crossref affiliation query. | Omitted |
+| `--mode fuzzy\|boolean` | Browser only. Boolean supports AND, OR, NOT, and parentheses. | Native Fuzzy when omitted |
+| `--date PRESET` | Browser only: all-time, last-week, last-month, last-3-months, last-6-months, last-year, last-2-years, last-3-years. | Native all-time when omitted |
 | `--published-from DATE`, `--published-to DATE` | Inclusive publication date bounds, `YYYY-MM-DD`. Either bound can be omitted. | Omitted |
 | `--created-from DATE`, `--created-to DATE` | Inclusive Crossref first-registration date bounds. | Omitted |
 | `--updated-from DATE`, `--updated-to DATE` | Inclusive Crossref metadata deposit/update date bounds. | Omitted |
@@ -375,8 +378,8 @@ forager platform ssrn search QUERY [--limit N] [--cursor CURSOR]
 | `--type TYPE` | Exact registered Crossref work type; see help for accepted values. | Omitted |
 | `--orcid ID` | Exact contributor ORCID, as a bare ID with a valid check digit. | Omitted |
 | `--funder DOI` | Exact Open Funder Registry DOI, `10.13039/<digits>`. | Omitted |
-| `--sort relevance\|published\|created\|updated\|citations` | Crossref ranking metric. Citations are Crossref counts. | `relevance` |
-| `--order asc\|desc` | Ranking direction. | `desc` |
+| `--sort METRIC` | Crossref: relevance, published, created, updated, citations. Browser: relevance, posted, downloads, title. | `relevance` |
+| `--order asc\|desc` | Ranking direction. Browser relevance only accepts desc; title asc/desc means A–Z/Z–A. | `desc` |
 | `--limit N` | Results on this page, `1..=100`. | `10` |
 | `--cursor CURSOR` | `next_cursor` of a previous page; it restores the whole request, so pass no query, search criteria, or `--limit` with it. | Omitted |
 
@@ -396,11 +399,13 @@ an ISO date. A page never spans two 50-result SSRN pages, so it can hold fewer i
 `--limit`. An SSRN security check that did not clear is an `auth` failure; an unrecognized result
 page is a `runtime` failure, never an empty result.
 
-Advanced criteria currently require `ssrn_crossref`. Routes that cannot apply every criterion are
-skipped; if no configured route supports the request, the command exits 2 before IO. The browser
-route currently supports only default criteria. Affiliation, ORCID, and funder searches exclude
-records without the deposited metadata. Registration/update dates are not SSRN posting/revision
-dates. All criteria are applied upstream and restored by the page cursor.
+Both routes support title and author queries with their own matching rules. Browser-only options
+require an enabled browser route; explicit mode/date values retain native semantics even at their
+defaults. Crossref-only filters and date ranges are rejected by the browser. Routes that cannot
+apply every criterion are skipped; when none support the request, the command exits 2 before IO.
+Affiliation, ORCID, and funder searches depend on deposited metadata. Crossref publication,
+registration, and update dates are distinct from SSRN Posted dates. Cursors restore all criteria.
+Full-text search changes the matching scope only; it does not fetch papers or download PDFs.
 
 ### `platform ssrn fetch`
 

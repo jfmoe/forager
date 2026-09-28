@@ -14,6 +14,34 @@ pub enum SsrnSearchScope {
     Title,
     /// Crossref bibliographic fields.
     Bibliographic,
+    /// SSRN title, abstract, keywords, and full text.
+    FullText,
+}
+
+/// SSRN native matching mode. Absence uses each route's default matching.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SsrnSearchMode {
+    Fuzzy,
+    Boolean,
+}
+
+/// SSRN native date presets; these are not Crossref publication date ranges.
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SsrnDatePreset {
+    AllTime,
+    LastWeek,
+    LastMonth,
+    #[serde(rename = "last_3_months")]
+    Last3Months,
+    #[serde(rename = "last_6_months")]
+    Last6Months,
+    LastYear,
+    #[serde(rename = "last_2_years")]
+    Last2Years,
+    #[serde(rename = "last_3_years")]
+    Last3Years,
 }
 
 /// Complete SSRN search criteria, also stored in page cursors.
@@ -21,6 +49,8 @@ pub enum SsrnSearchScope {
 #[serde(default, deny_unknown_fields)]
 pub struct SsrnSearchOptions {
     pub scope: SsrnSearchScope,
+    pub mode: Option<SsrnSearchMode>,
+    pub date: Option<SsrnDatePreset>,
     pub author: Option<String>,
     pub affiliation: Option<String>,
     pub published: SsrnDateRange,
@@ -116,6 +146,9 @@ pub enum SsrnSort {
     Created,
     Updated,
     Citations,
+    Posted,
+    Downloads,
+    Title,
 }
 
 /// The direction of the selected ranking.

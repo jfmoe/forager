@@ -1,0 +1,454 @@
+[
+  {
+    "case": "author",
+    "args": [
+      "dual momentum",
+      "--scope",
+      "title",
+      "--mode",
+      "boolean",
+      "--author",
+      "Antonacci"
+    ],
+    "exit": 0,
+    "seconds": 18.12,
+    "status": "ok",
+    "url": "https://papers.ssrn.com/searchresults.cfm?term=dual+momentum&text_fields=title&search_mode=boolean&authors=Antonacci",
+    "range": "Displaying results 1 to 1 of 1",
+    "search_state": {
+      "author": "Antonacci",
+      "date": "All Time",
+      "mode": "boolean",
+      "request_url": "https://api.ssrn.com/papers/v1/papers/search/advanced?text=dual+momentum&text_fields=title&search_mode=boolean&sort_by=&page=1&authors=Antonacci&date=all_time",
+      "scope": "title",
+      "sort": "Relevancy"
+    },
+    "first_ref": "ssrn:2042750"
+  },
+  {
+    "case": "default_after_author",
+    "args": [
+      "dual momentum"
+    ],
+    "exit": 0,
+    "seconds": 3.03,
+    "status": "ok",
+    "url": "https://papers.ssrn.com/searchresults.cfm?term=dual+momentum",
+    "range": "Displaying results 1 to 50 of 10000",
+    "search_state": {
+      "author": "",
+      "date": "All Time",
+      "mode": "fuzzy",
+      "request_url": "https://api.ssrn.com/papers/v1/papers/search/advanced?text=dual+momentum&text_fields=title-abstract-keywords&search_mode=fuzzy&sort_by=&page=1&authors=&date=all_time",
+      "scope": "title-abstract-keywords",
+      "sort": "Relevancy"
+    },
+    "first_ref": "ssrn:3447702"
+  },
+  {
+    "case": "fulltext",
+    "args": [
+      "dual momentum",
+      "--scope",
+      "full-text",
+      "--mode",
+      "boolean"
+    ],
+    "exit": 0,
+    "seconds": 4.97,
+    "status": "ok",
+    "url": "https://papers.ssrn.com/searchresults.cfm?term=dual+momentum&text_fields=title-abstract-keywords-fulltext&search_mode=boolean",
+    "range": "Displaying results 1 to 50 of 10000",
+    "search_state": {
+      "author": "",
+      "date": "All Time",
+      "mode": "boolean",
+      "request_url": "https://api.ssrn.com/papers/v1/papers/search/advanced?text=dual+momentum&text_fields=title-abstract-keywords-fulltext&search_mode=boolean&sort_by=&page=1&authors=&date=all_time",
+      "scope": "title-abstract-keywords-fulltext",
+      "sort": "Relevancy"
+    },
+    "first_ref": "ssrn:2042750"
+  },
+  {
+    "case": "boolean_operators",
+    "args": [
+      "(momentum OR reversal) AND portfolio NOT quantum",
+      "--scope",
+      "title",
+      "--mode",
+      "boolean"
+    ],
+    "exit": 0,
+    "seconds": 5.04,
+    "status": "ok",
+    "url": "https://papers.ssrn.com/searchresults.cfm?term=%28momentum+OR+reversal%29+AND+portfolio+NOT+quantum&text_fields=title&search_mode=boolean",
+    "range": "Displaying results 1 to 35 of 35",
+    "search_state": {
+      "author": "",
+      "date": "All Time",
+      "mode": "boolean",
+      "request_url": "https://api.ssrn.com/papers/v1/papers/search/advanced?text=%28momentum+OR+reversal%29+AND+portfolio+NOT+quantum&text_fields=title&search_mode=boolean&sort_by=&page=1&authors=&date=all_time",
+      "scope": "title",
+      "sort": "Relevancy"
+    },
+    "first_ref": "ssrn:1349701"
+  },
+  {
+    "case": "all-time",
+    "args": [
+      "momentum",
+      "--date",
+      "all-time",
+      "--sort",
+      "relevance",
+      "--order",
+      "desc"
+    ],
+    "exit": 0,
+    "seconds": 4.96,
+    "status": "ok",
+    "url": "https://papers.ssrn.com/searchresults.cfm?term=momentum",
+    "range": "Displaying results 1 to 50 of 10000",
+    "search_state": {
+      "author": "",
+      "date": "All Time",
+      "mode": "fuzzy",
+      "request_url": "https://api.ssrn.com/papers/v1/papers/search/advanced?text=momentum&text_fields=title-abstract-keywords&search_mode=fuzzy&sort_by=&page=1&authors=&date=all_time",
+      "scope": "title-abstract-keywords",
+      "sort": "Relevancy"
+    },
+    "first_ref": "ssrn:3447702"
+  },
+  {
+    "case": "last-week",
+    "args": [
+      "momentum",
+      "--date",
+      "last-week",
+      "--sort",
+      "posted",
+      "--order",
+      "desc"
+    ],
+    "exit": 0,
+    "seconds": 5.06,
+    "status": "ok",
+    "url": "https://papers.ssrn.com/searchresults.cfm?term=momentum&sort_by=approval_date-desc&date=last_week",
+    "range": "Displaying results 1 to 50 of 124",
+    "search_state": {
+      "author": "",
+      "date": "Last Week",
+      "mode": "fuzzy",
+      "request_url": "https://api.ssrn.com/papers/v1/papers/search/advanced?text=momentum&text_fields=title-abstract-keywords&search_mode=fuzzy&sort_by=approval_date-desc&page=1&authors=&date=last_week",
+      "scope": "title-abstract-keywords",
+      "sort": "Date posted, Descending"
+    },
+    "first_ref": "ssrn:7526838"
+  },
+  {
+    "case": "last-month",
+    "args": [
+      "momentum",
+      "--date",
+      "last-month",
+      "--sort",
+      "posted",
+      "--order",
+      "asc"
+    ],
+    "exit": 0,
+    "seconds": 4.91,
+    "status": "ok",
+    "url": "https://papers.ssrn.com/searchresults.cfm?term=momentum&sort_by=approval_date-asc&date=last_month",
+    "range": "Displaying results 1 to 50 of 605",
+    "search_state": {
+      "author": "",
+      "date": "Last Month",
+      "mode": "fuzzy",
+      "request_url": "https://api.ssrn.com/papers/v1/papers/search/advanced?text=momentum&text_fields=title-abstract-keywords&search_mode=fuzzy&sort_by=approval_date-asc&page=1&authors=&date=last_month",
+      "scope": "title-abstract-keywords",
+      "sort": "Date posted, Ascending"
+    },
+    "first_ref": "ssrn:7362406"
+  },
+  {
+    "case": "last-3-months",
+    "args": [
+      "momentum",
+      "--date",
+      "last-3-months",
+      "--sort",
+      "downloads",
+      "--order",
+      "desc"
+    ],
+    "exit": 0,
+    "seconds": 4.74,
+    "status": "ok",
+    "url": "https://papers.ssrn.com/searchresults.cfm?term=momentum&sort_by=downloads-desc&date=last_3_months",
+    "range": "Displaying results 1 to 50 of 1893",
+    "search_state": {
+      "author": "",
+      "date": "Last 3 Months",
+      "mode": "fuzzy",
+      "request_url": "https://api.ssrn.com/papers/v1/papers/search/advanced?text=momentum&text_fields=title-abstract-keywords&search_mode=fuzzy&sort_by=downloads-desc&page=1&authors=&date=last_3_months",
+      "scope": "title-abstract-keywords",
+      "sort": "Downloads, Descending"
+    },
+    "first_ref": "ssrn:2801856"
+  },
+  {
+    "case": "last-6-months",
+    "args": [
+      "momentum",
+      "--date",
+      "last-6-months",
+      "--sort",
+      "downloads",
+      "--order",
+      "asc"
+    ],
+    "exit": 0,
+    "seconds": 5.3,
+    "status": "ok",
+    "url": "https://papers.ssrn.com/searchresults.cfm?term=momentum&sort_by=downloads-asc&date=last_6_months",
+    "range": "Displaying results 1 to 50 of 3481",
+    "search_state": {
+      "author": "",
+      "date": "Last 6 Months",
+      "mode": "fuzzy",
+      "request_url": "https://api.ssrn.com/papers/v1/papers/search/advanced?text=momentum&text_fields=title-abstract-keywords&search_mode=fuzzy&sort_by=downloads-asc&page=1&authors=&date=last_6_months",
+      "scope": "title-abstract-keywords",
+      "sort": "Downloads, Ascending"
+    },
+    "first_ref": "ssrn:6741338"
+  },
+  {
+    "case": "last-year",
+    "args": [
+      "momentum",
+      "--date",
+      "last-year",
+      "--sort",
+      "title",
+      "--order",
+      "asc"
+    ],
+    "exit": 0,
+    "seconds": 5.0,
+    "status": "ok",
+    "url": "https://papers.ssrn.com/searchresults.cfm?term=momentum&sort_by=title-asc&date=last_year",
+    "range": "Displaying results 1 to 50 of 5526",
+    "search_state": {
+      "author": "",
+      "date": "Last Year",
+      "mode": "fuzzy",
+      "request_url": "https://api.ssrn.com/papers/v1/papers/search/advanced?text=momentum&text_fields=title-abstract-keywords&search_mode=fuzzy&sort_by=title-asc&page=1&authors=&date=last_year",
+      "scope": "title-abstract-keywords",
+      "sort": "Title, A-Z"
+    },
+    "first_ref": "ssrn:6875234"
+  },
+  {
+    "case": "last-2-years",
+    "args": [
+      "momentum",
+      "--date",
+      "last-2-years",
+      "--sort",
+      "title",
+      "--order",
+      "desc"
+    ],
+    "exit": 0,
+    "seconds": 5.01,
+    "status": "ok",
+    "url": "https://papers.ssrn.com/searchresults.cfm?term=momentum&sort_by=title-desc&date=last_2_years",
+    "range": "Displaying results 1 to 50 of 8751",
+    "search_state": {
+      "author": "",
+      "date": "Last 2 Years",
+      "mode": "fuzzy",
+      "request_url": "https://api.ssrn.com/papers/v1/papers/search/advanced?text=momentum&text_fields=title-abstract-keywords&search_mode=fuzzy&sort_by=title-desc&page=1&authors=&date=last_2_years",
+      "scope": "title-abstract-keywords",
+      "sort": "Title, Z-A"
+    },
+    "first_ref": "ssrn:5867404"
+  },
+  {
+    "case": "last-3-years",
+    "args": [
+      "momentum",
+      "--date",
+      "last-3-years",
+      "--sort",
+      "relevance",
+      "--order",
+      "desc"
+    ],
+    "exit": 0,
+    "seconds": 4.99,
+    "status": "ok",
+    "url": "https://papers.ssrn.com/searchresults.cfm?term=momentum&date=last_3_years",
+    "range": "Displaying results 1 to 50 of 10000",
+    "search_state": {
+      "author": "",
+      "date": "Last 3 Years",
+      "mode": "fuzzy",
+      "request_url": "https://api.ssrn.com/papers/v1/papers/search/advanced?text=momentum&text_fields=title-abstract-keywords&search_mode=fuzzy&sort_by=&page=1&authors=&date=last_3_years",
+      "scope": "title-abstract-keywords",
+      "sort": "Relevancy"
+    },
+    "first_ref": "ssrn:5701713"
+  },
+  {
+    "case": "switch_sort_asc",
+    "args": [
+      "dual momentum",
+      "--scope",
+      "title",
+      "--mode",
+      "boolean",
+      "--sort",
+      "posted",
+      "--order",
+      "asc"
+    ],
+    "exit": 0,
+    "seconds": 4.99,
+    "status": "ok",
+    "url": "https://papers.ssrn.com/searchresults.cfm?term=dual+momentum&text_fields=title&search_mode=boolean&sort_by=approval_date-asc",
+    "range": "Displaying results 1 to 14 of 14",
+    "search_state": {
+      "author": "",
+      "date": "All Time",
+      "mode": "boolean",
+      "request_url": "https://api.ssrn.com/papers/v1/papers/search/advanced?text=dual+momentum&text_fields=title&search_mode=boolean&sort_by=approval_date-asc&page=1&authors=&date=all_time",
+      "scope": "title",
+      "sort": "Date posted, Ascending"
+    },
+    "first_ref": "ssrn:581323"
+  },
+  {
+    "case": "switch_sort_desc",
+    "args": [
+      "dual momentum",
+      "--scope",
+      "title",
+      "--mode",
+      "boolean",
+      "--sort",
+      "posted",
+      "--order",
+      "desc"
+    ],
+    "exit": 0,
+    "seconds": 4.95,
+    "status": "ok",
+    "url": "https://papers.ssrn.com/searchresults.cfm?term=dual+momentum&text_fields=title&search_mode=boolean&sort_by=approval_date-desc",
+    "range": "Displaying results 1 to 14 of 14",
+    "search_state": {
+      "author": "",
+      "date": "All Time",
+      "mode": "boolean",
+      "request_url": "https://api.ssrn.com/papers/v1/papers/search/advanced?text=dual+momentum&text_fields=title&search_mode=boolean&sort_by=approval_date-desc&page=1&authors=&date=all_time",
+      "scope": "title",
+      "sort": "Date posted, Descending"
+    },
+    "first_ref": "ssrn:7436501"
+  },
+  {
+    "case": "empty",
+    "args": [
+      "zzqxforagernomatch827392",
+      "--scope",
+      "title",
+      "--mode",
+      "boolean"
+    ],
+    "exit": 0,
+    "seconds": 4.99,
+    "status": "no_results",
+    "url": "https://papers.ssrn.com/searchresults.cfm?term=zzqxforagernomatch827392&text_fields=title&search_mode=boolean",
+    "range": null,
+    "search_state": {
+      "author": "",
+      "date": "All Time",
+      "mode": "boolean",
+      "request_url": "https://api.ssrn.com/papers/v1/papers/search/advanced?text=zzqxforagernomatch827392&text_fields=title&search_mode=boolean&sort_by=&page=1&authors=&date=all_time",
+      "scope": "title",
+      "sort": null
+    },
+    "first_ref": null
+  },
+  {
+    "case": "page1",
+    "args": [
+      "momentum",
+      "--scope",
+      "title",
+      "--mode",
+      "boolean",
+      "--sort",
+      "downloads",
+      "--limit",
+      "50"
+    ],
+    "exit": 0,
+    "seconds": 5.02,
+    "status": "ok",
+    "url": "https://papers.ssrn.com/searchresults.cfm?term=momentum&text_fields=title&search_mode=boolean&sort_by=downloads-desc",
+    "range": "Displaying results 1 to 50 of 1675",
+    "search_state": {
+      "author": "",
+      "date": "All Time",
+      "mode": "boolean",
+      "request_url": "https://api.ssrn.com/papers/v1/papers/search/advanced?text=momentum&text_fields=title&search_mode=boolean&sort_by=downloads-desc&page=1&authors=&date=all_time",
+      "scope": "title",
+      "sort": "Downloads, Descending"
+    },
+    "first_ref": "ssrn:2042750"
+  },
+  {
+    "case": "page2",
+    "args": [
+      "--cursor",
+      "<previous next_cursor>"
+    ],
+    "exit": 0,
+    "seconds": 4.99,
+    "status": "ok",
+    "url": "https://papers.ssrn.com/searchresults.cfm?term=momentum&text_fields=title&search_mode=boolean&sort_by=downloads-desc&page=2",
+    "range": "Displaying results 51 to 100 of 1675",
+    "search_state": {
+      "author": "",
+      "date": "All Time",
+      "mode": "boolean",
+      "request_url": "https://api.ssrn.com/papers/v1/papers/search/advanced?text=momentum&text_fields=title&search_mode=boolean&sort_by=downloads-desc&page=2&authors=&date=all_time",
+      "scope": "title",
+      "sort": "Downloads, Descending"
+    },
+    "first_ref": "ssrn:741244"
+  },
+  {
+    "case": "page3",
+    "args": [
+      "--cursor",
+      "<previous next_cursor>"
+    ],
+    "exit": 0,
+    "seconds": 4.98,
+    "status": "ok",
+    "url": "https://papers.ssrn.com/searchresults.cfm?term=momentum&text_fields=title&search_mode=boolean&sort_by=downloads-desc&page=3",
+    "range": "Displaying results 101 to 150 of 1675",
+    "search_state": {
+      "author": "",
+      "date": "All Time",
+      "mode": "boolean",
+      "request_url": "https://api.ssrn.com/papers/v1/papers/search/advanced?text=momentum&text_fields=title&search_mode=boolean&sort_by=downloads-desc&page=3&authors=&date=all_time",
+      "scope": "title",
+      "sort": "Downloads, Descending"
+    },
+    "first_ref": "ssrn:517822"
+  }
+]

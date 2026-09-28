@@ -93,3 +93,5 @@ AnySearch **extraction 裁决**（消解 #53 砍 `anysearch-extract` 与 #59 L8 
 3. **退役链**：以 [#61 原链为唯一权威](https://github.com/jfmoe/smartsearch/issues/61)（本章不复述，见第 6 章）。回退轻量化（H16）：archive 前验证本机旧 `smart-search` 命令已不可达；回退路径一行——archive 可逆、npm 旧版可重装；不做完整 rollback 方案。
 
 SSRN Crossref 高级检索的搜索专用实测记录见 [2026-09-28 验收](../../research/2026-09-28-ssrn-crossref-advanced-search.md)。动态结果数量不作为离线测试断言。
+
+SSRN browser 高级搜索的 fixture 覆盖完整条件 argv 与 cursor，进程内覆盖跨 route 支持拒绝及实际状态不一致；doctor 核对 `forager-ssrn/3`。原站搜索范围、模式、日期、排序、作者、分页和会话条件切换的真实验收见 [browser 高级搜索验收](../../research/2026-09-28-ssrn-browser-advanced-search.md)。

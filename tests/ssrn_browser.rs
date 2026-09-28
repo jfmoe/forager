@@ -60,6 +60,21 @@ fn result(id: u64) -> Value {
     })
 }
 
+fn default_search_state(query: &str, page: u64) -> Value {
+    let mut url =
+        reqwest::Url::parse("https://api.ssrn.com/papers/v1/papers/search/advanced").expect("URL");
+    url.query_pairs_mut().extend_pairs([
+        ("text", query),
+        ("text_fields", "title-abstract-keywords"),
+        ("search_mode", "fuzzy"),
+        ("authors", ""),
+        ("date", "all_time"),
+        ("sort_by", ""),
+        ("page", &page.to_string()),
+    ]);
+    json!({"scope":"title-abstract-keywords", "mode":"fuzzy", "author":"", "date":"All Time", "sort":"Relevancy", "request_url":url.to_string()})
+}
+
 fn results_page(native_page: u64, first: u64, last: u64, total: u64) -> Value {
     let suffix = if native_page == 1 {
         String::new()
@@ -69,6 +84,7 @@ fn results_page(native_page: u64, first: u64, last: u64, total: u64) -> Value {
     json!({
         "url": format!("https://papers.ssrn.com/searchresults.cfm?term=dual+momentum{suffix}"),
         "term": "dual momentum",
+        "search_state": default_search_state("dual momentum", native_page),
         "current_page": native_page.to_string(),
         "range": format!("Displaying results {first} to {last} of {total}"),
         "next_page": last < total,
@@ -114,9 +130,26 @@ fn search_runs_the_adapter_search_command_with_the_session_flags() {
         (
             Some(0),
             1,
-            ["ssrn", "search", "--query", "dual momentum", "--page", "1"]
-                .map(str::to_owned)
-                .to_vec()
+            [
+                "ssrn",
+                "search",
+                "--query",
+                "dual momentum",
+                "--page",
+                "1",
+                "--scope",
+                "title-abstract-keywords",
+                "--mode",
+                "fuzzy",
+                "--author",
+                "",
+                "--date",
+                "all_time",
+                "--sort",
+                ""
+            ]
+            .map(str::to_owned)
+            .to_vec()
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
@@ -214,7 +247,8 @@ fn the_site_notice_of_no_results_is_a_legitimate_empty_page() {
         "no_results",
         &json!({
             "url": "https://papers.ssrn.com/searchresults.cfm?term=zzqx",
-            "term": "zzqx"
+            "term": "zzqx",
+            "search_state": default_search_state("zzqx", 1)
         }),
     );
     let environment = browser_only(&fake);
@@ -623,4 +657,73 @@ fn the_default_order_never_runs_the_browser_route() {
         (Some(0), json!("ssrn_crossref"), 0)
     );
     crossref.finish();
+}
+
+#[test]
+fn advanced_search_and_cursor_send_complete_native_conditions() {
+    let mut page = results_page(1, 1, 3, 3);
+    page["url"] = json!(
+        "https://papers.ssrn.com/searchresults.cfm?term=dual+momentum&text_fields=title&search_mode=boolean&authors=Antonacci&date=last_3_years&sort_by=downloads-asc"
+    );
+    page["search_state"] = json!({
+        "scope":"title", "mode":"boolean", "author":"Antonacci",
+        "date":"Last 3 Years", "sort":"Downloads, Ascending",
+        "request_url":"https://api.ssrn.com/papers/v1/papers/search/advanced?text=dual+momentum&text_fields=title&search_mode=boolean&authors=Antonacci&date=last_3_years&sort_by=downloads-asc&page=1"
+    });
+    let fake = FakeOpenCli::envelope("ok", &page);
+    let environment = browser_only(&fake);
+    let first = environment.run(&[
+        "platform",
+        "ssrn",
+        "search",
+        "dual momentum",
+        "--scope",
+        "title",
+        "--mode",
+        "boolean",
+        "--author",
+        "Antonacci",
+        "--date",
+        "last-3-years",
+        "--sort",
+        "downloads",
+        "--order",
+        "asc",
+        "--limit",
+        "1",
+    ]);
+    assert_eq!(
+        first.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&first.stderr)
+    );
+    let cursor = payload(&first)["next_cursor"]
+        .as_str()
+        .expect("cursor")
+        .to_owned();
+    let second = environment.run(&["platform", "ssrn", "search", "--cursor", &cursor]);
+    assert_eq!(payload(&second)["items"][0]["ref"], "ssrn:2");
+    let calls = fake.calls();
+    let expected = [
+        "ssrn",
+        "search",
+        "--query",
+        "dual momentum",
+        "--page",
+        "1",
+        "--scope",
+        "title",
+        "--mode",
+        "boolean",
+        "--author",
+        "Antonacci",
+        "--date",
+        "last_3_years",
+        "--sort",
+        "downloads-asc",
+    ];
+    for call in calls {
+        assert_eq!(route_arguments(&call).0, expected);
+    }
 }

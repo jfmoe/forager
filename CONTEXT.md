@@ -179,3 +179,7 @@ _Avoid_: offset、page token
 **SSRN Search Criteria**:
 一次 SSRN 检索要求的搜索范围、作者与机构、日期、元数据条件和排序。每条 Platform Route 必须完整应用这些条件；名称相近但语义不同的条件不互相替代。
 _Avoid_: raw provider parameters、best-effort filters
+
+**SSRN Effective Search State**:
+原站已完成搜索对应的查询词、范围、模式、作者、日期、排序和页码。它是实际执行的条件，与用户要求的 SSRN Search Criteria 分别核对，不能仅以控件当前值推定结果已刷新。
+_Avoid_: requested search state、control values

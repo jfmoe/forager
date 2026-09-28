@@ -783,6 +783,7 @@ fn ssrn_browser_deep_doctor_runs_one_platform_search() {
         &serde_json::json!({
             "url": "https://papers.ssrn.com/searchresults.cfm?term=forager+doctor",
             "term": "forager doctor",
+            "search_state": {"scope":"title-abstract-keywords", "mode":"fuzzy", "author":"", "date":"All Time", "sort":"Relevancy", "request_url":"https://api.ssrn.com/papers/v1/papers/search/advanced?text=forager+doctor&text_fields=title-abstract-keywords&search_mode=fuzzy&authors=&date=all_time&sort_by=&page=1"},
             "current_page": "1",
             "range": "Displaying results 1 to 1 of 1",
             "results": [{

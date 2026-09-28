@@ -41,11 +41,22 @@ flags; see [`cli.md`](cli.md#platform-ssrn-search). For example:
 forager platform ssrn search "dual momentum" --scope title --author Antonacci --has-abstract
 ```
 
-These criteria currently use Crossref. Title queries do not require an exact phrase. Date filters
+The example uses Crossref because it requires an abstract field. Title queries do not require an exact phrase. Date filters
 separate publication, Crossref registration, and metadata updates. ORCID and funder filters only
 match deposited identifiers, so missing metadata can exclude relevant papers. If a configured
 route cannot apply the criteria, preserve the request and report the support error. Continue a
 result page with its cursor alone; do not repeat search criteria or fetch papers unless needed.
+
+For native SSRN search, use an enabled browser route with `--scope title|all|full-text`,
+`--mode fuzzy|boolean`, `--author`, `--date`, or `--sort posted|downloads|title` with `--order`.
+Boolean supports AND, OR, NOT, and parentheses. Author text follows the site's matching rules;
+try the surname when a full name has no matches, but report that changed condition.
+`--scope full-text` still returns search cards only. The browser rejects affiliation, type,
+abstract-presence, and arbitrary date-range filters; it does not approximate them locally.
+
+```console
+forager platform ssrn search "momentum AND portfolio" --scope title --mode boolean --date last-year --sort downloads
+```
 
 ## SSRN browser route
 
@@ -56,7 +67,8 @@ only when the user asks for it; it runs at most one browser command every 5 seco
   (`opencli doctor`), then copy the `opencli/ssrn` directory next to this skill's `SKILL.md` to
   `~/.opencli/clis/ssrn` (replace the whole directory to update). Run the same copy after updating
   forager, then `forager doctor` to check the adapter. A forager that expects a newer adapter
-  contract fails its commands with an install hint until the copy is updated.
+  contract fails its commands with an install hint until the copy is updated. The required contract
+  is `forager-ssrn/3`; copy all files, including `search-state.js`.
 - **Enable**: `forager config set platforms.ssrn.order '["ssrn_crossref", "ssrn_browser"]'`. With
   this order, a `--depth abstract` fetch that Crossref cannot serve falls through to the browser.
   Set `providers.ssrn_browser.command` when `opencli` is not on `PATH`.

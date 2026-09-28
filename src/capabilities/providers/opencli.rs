@@ -421,7 +421,7 @@ mod tests {
 
     const ADAPTER: OpenCliAdapter = OpenCliAdapter {
         site: "ssrn",
-        contract: "forager-ssrn/2",
+        contract: "forager-ssrn/3",
     };
 
     fn decode(value: &Value) -> Result<(EnvelopeStatus, Value), (AttemptErrorKind, String)> {
@@ -436,7 +436,7 @@ mod tests {
         #[test]
         fn returns_the_status_and_data_of_a_matching_contract() {
             let result = decode(&json!({
-                "contract": "forager-ssrn/2",
+                "contract": "forager-ssrn/3",
                 "status": "no_results",
                 "data": {"url": "https://example.test"}
             }));
@@ -453,7 +453,7 @@ mod tests {
         #[test]
         fn rejects_another_contract_version_with_a_reinstall_hint() {
             let (kind, message) = decode(&json!({
-                "contract": "forager-ssrn/3",
+                "contract": "forager-ssrn/2",
                 "status": "ok",
                 "data": {}
             }))
@@ -482,7 +482,7 @@ mod tests {
         #[test]
         fn rejects_an_unknown_status() {
             let result = decode(&json!({
-                "contract": "forager-ssrn/2",
+                "contract": "forager-ssrn/3",
                 "status": "partial",
                 "data": {}
             }));
@@ -506,7 +506,7 @@ mod tests {
         #[test]
         fn rejects_data_of_another_shape() {
             let result = decode_envelope::<Vec<String>>(
-                br#"{"contract":"forager-ssrn/2","status":"ok","data":{"items":[]}}"#,
+                br#"{"contract":"forager-ssrn/3","status":"ok","data":{"items":[]}}"#,
                 ADAPTER,
                 "search",
             );

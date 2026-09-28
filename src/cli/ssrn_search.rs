@@ -7,18 +7,37 @@ use super::{PlatformCommonArgs, SearchInput, parse_date, search};
 use crate::app::args::OutputFormat;
 use crate::app::dispatch::{AppError, CommandOutput};
 use crate::types::{Platform, PlatformSearchOptions, PlatformSearchRequest, SsrnSearchOptions};
-use crate::types::{SsrnDateRange, SsrnSearchScope, SsrnSort, SsrnSortOrder, SsrnWorkType};
+use crate::types::{
+    SsrnDatePreset, SsrnDateRange, SsrnSearchMode, SsrnSearchScope, SsrnSort, SsrnSortOrder,
+    SsrnWorkType,
+};
 use clap::builder::{PossibleValuesParser, TypedValueParser};
 
 #[derive(Debug, Args)]
 pub(in crate::app) struct SsrnSearchArgs {
-    /// Topic keywords, ranked by relevance.
+    /// Query expression; matching follows the route and mode.
     #[arg(conflicts_with = "cursor")]
     query: Option<String>,
-    /// Search fields (Crossref); title does not require an exact phrase.
+    /// Search fields: all uses route defaults; bibliographic is Crossref-only; full-text is browser-only.
     #[arg(long, value_enum, default_value_t = ScopeArg::All, conflicts_with = "cursor", help_heading = "Query")]
     scope: ScopeArg,
-    /// Author name query (Crossref).
+    /// SSRN native matching; Boolean accepts AND, OR, NOT, and parentheses.
+    #[arg(
+        long,
+        value_enum,
+        conflicts_with = "cursor",
+        help_heading = "Query (browser)"
+    )]
+    mode: Option<ModeArg>,
+    /// SSRN native date preset.
+    #[arg(
+        long,
+        value_enum,
+        conflicts_with = "cursor",
+        help_heading = "Dates (browser)"
+    )]
+    date: Option<DateArg>,
+    /// Author text query; browser uses the native Author(s) field, not an author ID.
     #[arg(long, conflicts_with = "cursor", help_heading = "Query")]
     author: Option<String>,
     /// Author affiliation query (Crossref).
@@ -54,11 +73,11 @@ pub(in crate::app) struct SsrnSearchArgs {
     /// Funder DOI (10.13039/<digits>); records without funding metadata are excluded.
     #[arg(long, conflicts_with = "cursor", help_heading = "Metadata (Crossref)")]
     funder: Option<String>,
-    /// Ranking metric; created/updated are Crossref timestamps, citations are Crossref counts.
-    #[arg(long, value_enum, default_value_t = SortArg::Relevance, conflicts_with = "cursor", help_heading = "Sorting (Crossref)")]
+    /// Crossref: relevance/published/created/updated/citations. Browser: relevance/posted/downloads/title.
+    #[arg(long, value_enum, default_value_t = SortArg::Relevance, conflicts_with = "cursor", help_heading = "Sorting")]
     sort: SortArg,
-    /// Ranking direction.
-    #[arg(long, value_enum, default_value_t = OrderArg::Desc, conflicts_with = "cursor", help_heading = "Sorting (Crossref)")]
+    /// Ranking direction; browser relevance requires desc; title asc/desc means A-Z/Z-A.
+    #[arg(long, value_enum, default_value_t = OrderArg::Desc, conflicts_with = "cursor", help_heading = "Sorting")]
     order: OrderArg,
     /// Maximum results on this page.
     #[arg(long, default_value_t = 10, value_parser = clap::value_parser!(u16).range(1..=100), conflicts_with = "cursor")]
@@ -76,6 +95,8 @@ pub(super) fn ssrn_search(arguments: SsrnSearchArgs) -> Result<CommandOutput, Ap
     let SsrnSearchArgs {
         query,
         scope,
+        mode,
+        date,
         author,
         affiliation,
         published_from,
@@ -103,6 +124,8 @@ pub(super) fn ssrn_search(arguments: SsrnSearchArgs) -> Result<CommandOutput, Ap
             limit,
             options: PlatformSearchOptions::Ssrn(SsrnSearchOptions {
                 scope: scope.into(),
+                mode: mode.map(Into::into),
+                date: date.map(Into::into),
                 author,
                 affiliation,
                 published: SsrnDateRange {
@@ -137,6 +160,7 @@ enum ScopeArg {
     All,
     Title,
     Bibliographic,
+    FullText,
 }
 
 impl From<ScopeArg> for SsrnSearchScope {
@@ -145,6 +169,7 @@ impl From<ScopeArg> for SsrnSearchScope {
             ScopeArg::All => Self::All,
             ScopeArg::Title => Self::Title,
             ScopeArg::Bibliographic => Self::Bibliographic,
+            ScopeArg::FullText => Self::FullText,
         }
     }
 }
@@ -156,6 +181,9 @@ enum SortArg {
     Created,
     Updated,
     Citations,
+    Posted,
+    Downloads,
+    Title,
 }
 
 impl From<SortArg> for SsrnSort {
@@ -166,6 +194,9 @@ impl From<SortArg> for SsrnSort {
             SortArg::Created => Self::Created,
             SortArg::Updated => Self::Updated,
             SortArg::Citations => Self::Citations,
+            SortArg::Posted => Self::Posted,
+            SortArg::Downloads => Self::Downloads,
+            SortArg::Title => Self::Title,
         }
     }
 }
@@ -181,6 +212,50 @@ impl From<OrderArg> for SsrnSortOrder {
         match value {
             OrderArg::Asc => Self::Asc,
             OrderArg::Desc => Self::Desc,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum ModeArg {
+    Fuzzy,
+    Boolean,
+}
+impl From<ModeArg> for SsrnSearchMode {
+    fn from(value: ModeArg) -> Self {
+        match value {
+            ModeArg::Fuzzy => Self::Fuzzy,
+            ModeArg::Boolean => Self::Boolean,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum DateArg {
+    AllTime,
+    LastWeek,
+    LastMonth,
+    #[value(name = "last-3-months")]
+    Last3Months,
+    #[value(name = "last-6-months")]
+    Last6Months,
+    LastYear,
+    #[value(name = "last-2-years")]
+    Last2Years,
+    #[value(name = "last-3-years")]
+    Last3Years,
+}
+impl From<DateArg> for SsrnDatePreset {
+    fn from(value: DateArg) -> Self {
+        match value {
+            DateArg::AllTime => Self::AllTime,
+            DateArg::LastWeek => Self::LastWeek,
+            DateArg::LastMonth => Self::LastMonth,
+            DateArg::Last3Months => Self::Last3Months,
+            DateArg::Last6Months => Self::Last6Months,
+            DateArg::LastYear => Self::LastYear,
+            DateArg::Last2Years => Self::Last2Years,
+            DateArg::Last3Years => Self::Last3Years,
         }
     }
 }

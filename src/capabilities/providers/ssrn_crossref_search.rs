@@ -18,8 +18,34 @@ const MAX_PAGE_END: u64 = 10_000;
 /// Returns whether the route can run the request; it never sends a request. Only a page
 /// position the route did not issue, or one past the Crossref offset limit, fails.
 pub(crate) fn search_support(request: &PlatformSearchRequest) -> Result<(), String> {
-    match request.options {
-        PlatformSearchOptions::Ssrn(_) => page_offset(request).map(|_| ()),
+    match &request.options {
+        PlatformSearchOptions::Ssrn(options) => {
+            let unsupported = [
+                (
+                    options.scope == SsrnSearchScope::FullText,
+                    "--scope full-text",
+                ),
+                (options.mode.is_some(), "--mode"),
+                (options.date.is_some(), "--date"),
+                (
+                    matches!(
+                        options.sort,
+                        SsrnSort::Posted | SsrnSort::Downloads | SsrnSort::Title
+                    ),
+                    "--sort",
+                ),
+            ]
+            .into_iter()
+            .filter_map(|(bad, name)| bad.then_some(name))
+            .collect::<Vec<_>>();
+            if !unsupported.is_empty() {
+                return Err(format!(
+                    "ssrn_crossref does not support {}",
+                    unsupported.join(", ")
+                ));
+            }
+            page_offset(request).map(|_| ())
+        }
         PlatformSearchOptions::Arxiv(_) => {
             Err(other_platform_message(ROUTE, request.options.platform()))
         }
@@ -34,6 +60,7 @@ impl SsrnCrossref {
         &self,
         request: &PlatformSearchRequest,
     ) -> Result<PlatformSearchOutcome, ProviderError> {
+        search_support(request).map_err(parameter_error)?;
         let PlatformSearchOptions::Ssrn(options) = &request.options else {
             return Err(parameter_error(other_platform_message(
                 ROUTE,
@@ -115,6 +142,7 @@ fn query_parameters(
         SsrnSearchScope::All => "query",
         SsrnSearchScope::Title => "query.title",
         SsrnSearchScope::Bibliographic => "query.bibliographic",
+        SsrnSearchScope::FullText => unreachable!("support checked"),
     };
     let mut query = vec![
         (query_field, request.query.clone()),
@@ -128,6 +156,9 @@ fn query_parameters(
                 SsrnSort::Created => "created",
                 SsrnSort::Updated => "updated",
                 SsrnSort::Citations => "is-referenced-by-count",
+                SsrnSort::Posted | SsrnSort::Downloads | SsrnSort::Title => {
+                    unreachable!("support checked")
+                }
             }
             .to_owned(),
         ),
@@ -176,4 +207,31 @@ fn query_parameters(
         query.push(("filter", filters.join(",")));
     }
     query
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn native_conditions_are_rejected_before_crossref_io() {
+        for value in [
+            serde_json::json!({"scope":"full_text"}),
+            serde_json::json!({"mode":"boolean"}),
+            serde_json::json!({"mode":"fuzzy"}),
+            serde_json::json!({"date":"all_time"}),
+            serde_json::json!({"date":"last_week"}),
+            serde_json::json!({"sort":"posted"}),
+            serde_json::json!({"sort":"downloads"}),
+            serde_json::json!({"sort":"title"}),
+        ] {
+            let request = crate::types::PlatformSearchRequest {
+                query: "momentum".into(),
+                limit: 10,
+                page: None,
+                options: crate::types::PlatformSearchOptions::Ssrn(
+                    serde_json::from_value(value.clone()).expect("criteria"),
+                ),
+            };
+            assert!(super::search_support(&request).is_err(), "{value}");
+        }
+    }
 }

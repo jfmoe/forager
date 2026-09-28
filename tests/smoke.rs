@@ -536,6 +536,7 @@ fn live_smoke_runs_the_browser_cases_only_when_the_order_lists_the_route() {
             json!({
                 "url": "https://papers.ssrn.com/searchresults.cfm?term=retrieval+augmented+generation",
                 "term": "retrieval augmented generation",
+                "search_state": {"scope":"title-abstract-keywords", "mode":"fuzzy", "author":"", "date":"All Time", "sort":"Relevancy", "request_url":"https://api.ssrn.com/papers/v1/papers/search/advanced?text=retrieval+augmented+generation&text_fields=title-abstract-keywords&search_mode=fuzzy&authors=&date=all_time&sort_by=&page=1"},
                 "current_page": "1",
                 "range": "Displaying results 1 to 1 of 1",
                 "results": [{

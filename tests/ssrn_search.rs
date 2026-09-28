@@ -527,8 +527,8 @@ fn metadata_filters_sort_and_cursor_preserve_the_complete_request() {
 #[test]
 fn invalid_advanced_criteria_fail_before_http() {
     for (flag, value, message) in [
-        ("--scope", "full-text", "invalid value"),
-        ("--sort", "downloads", "invalid value"),
+        ("--scope", "unknown", "invalid value"),
+        ("--sort", "unknown", "invalid value"),
         ("--order", "up", "invalid value"),
         ("--type", "fiction", "invalid value"),
         ("--published-from", "2023-02-29", "calendar date"),
@@ -556,6 +556,8 @@ fn every_explicit_criterion_conflicts_with_cursor_even_at_its_default() {
     let cursor = cursor("momentum", 2, "2");
     for args in [
         vec!["--scope", "all"],
+        vec!["--mode", "fuzzy"],
+        vec!["--date", "all-time"],
         vec!["--author", "A"],
         vec!["--affiliation", "U"],
         vec!["--published-from", "2024-01-01"],
@@ -620,7 +622,7 @@ fn browser_is_skipped_instead_of_dropping_advanced_criteria() {
 fn unsupported_browser_only_search_fails_before_io() {
     assert_preflight_exit(
         "[platforms.ssrn]\norder = [\"ssrn_browser\"]\n[providers.ssrn_browser]\ncommand = \"must-not-run-ssrn-browser\"\n",
-        &["momentum", "--author", "A"],
+        &["momentum", "--affiliation", "A"],
         2,
         "no configured ssrn route supports",
     );

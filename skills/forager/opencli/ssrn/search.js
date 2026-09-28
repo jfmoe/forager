@@ -1,5 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
+import { openSearch, readSearchState } from './search-state.js';
+
 import { SITE_DOMAIN, envelope, readDeadline, readPage } from './shared.js';
 
 // Reads one native results page (50 results) as SSRN shows it.
@@ -13,6 +15,7 @@ const READ_RESULTS = `
     state: range ? 'results' : 'no_results',
     data: {
       url: location.href,
+      search_state: searchState,
       term: document.querySelector('#term') ? document.querySelector('#term').value : null,
       current_page: document.querySelector('a[aria-current="page"]')
         ? document.querySelector('a[aria-current="page"]').textContent
@@ -47,15 +50,17 @@ cli({
   args: [
     { name: 'query', required: true, valueRequired: true, help: 'Search terms' },
     { name: 'page', type: 'int', default: 1, help: 'Native results page, 50 results each' },
+    { name: 'scope', default: 'title-abstract-keywords', valueRequired: true, help: 'Native text fields' },
+    { name: 'mode', default: 'fuzzy', valueRequired: true, help: 'Native matching mode' },
+    { name: 'author', default: '', valueRequired: true, help: 'Native author text query' },
+    { name: 'date', default: 'all_time', valueRequired: true, help: 'Native date preset' },
+    { name: 'sort', default: '', valueRequired: true, help: 'Native sort; empty means relevance' },
     { name: 'timeout', type: 'int', default: 60, help: 'Command timeout in seconds' },
   ],
   func: async (page, kwargs) => {
     const deadline = readDeadline(kwargs.timeout);
-    const pageNumber = Number(kwargs.page);
-    const url = `https://${SITE_DOMAIN}/searchresults.cfm?term=${encodeURIComponent(kwargs.query)}`
-      + (pageNumber > 1 ? `&page=${pageNumber}` : '');
-    await page.goto(url, { waitUntil: 'load', settleMs: 500 });
-    const facts = await readPage(page, deadline, READ_RESULTS);
+    await openSearch(page, kwargs);
+    const facts = await readPage(page, deadline, readSearchState(kwargs) + READ_RESULTS);
     return envelope(facts.state === 'no_results' ? 'no_results' : 'ok', facts.data);
   },
 });

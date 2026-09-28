@@ -1,9 +1,8 @@
-// Helpers shared by the forager SSRN adapter commands. The commands only read page facts;
-// forager checks and normalizes them.
+// Shared deadlines, page access checks, and output envelopes for SSRN commands.
 
 import { AuthRequiredError } from '@jackwener/opencli/errors';
 
-export const CONTRACT = 'forager-ssrn/2';
+export const CONTRACT = 'forager-ssrn/3';
 export const SITE_DOMAIN = 'papers.ssrn.com';
 
 // OpenCLI closes the tab after the command returns, so the page reads stop this long before

@@ -162,3 +162,7 @@ Research Evidence Pipeline 默认使用 standard 预算，将正文逐条写入 
 ### SSRN 检索职责
 
 `cli/ssrn_search.rs` 是 `cli/platform.rs` 的私有子模块，负责 SSRN 搜索参数与类型化请求构造。`infra/types/platform_ssrn_search.rs` 拥有 SSRN Search Criteria 及零 IO 校验，通过既有 types 门面导出；`platform_ssrn.rs` 负责身份与条目元数据。`providers/ssrn_crossref_search.rs` 是 `ssrn_crossref` 的私有子模块，负责搜索映射、搜索执行与 offset 分页；父模块拥有共享 HTTP 传输、记录解码与详情读取。外部仍通过 route 的入口访问，不增加 provider 横向依赖。
+
+`skills/forager/opencli/ssrn/search-state.js` 拥有原站搜索导航与完成状态读取，`search.js` 拥有命令注册和结果卡片读取；共享的 `shared.js` 只处理站点阻断、截止时间和协议外壳。
+
+`providers/ssrn_browser_search.rs` 是 `ssrn_browser` 的私有子模块，拥有原站搜索执行、实际查询状态校验与原生分页；父模块拥有 route 配置、执行设置和详情/全文读取，共享页面字段归一化仅在该 route 内使用。

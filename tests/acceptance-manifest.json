@@ -125,7 +125,7 @@
       "id": "F15",
       "provider": "ssrn_browser",
       "seam": "platform:ssrn:search",
-      "test": "tests/ssrn_browser.rs::search_maps_page_facts_to_snippet_items",
+      "test": "tests/ssrn_browser.rs::advanced_search_and_cursor_send_complete_native_conditions",
       "note": "A fake opencli executable proves the transport and the route adapter; the JavaScript adapter is covered only by the live smoke C22."
     },
     {
