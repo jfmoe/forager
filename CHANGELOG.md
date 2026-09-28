@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0](https://github.com/jfmoe/forager/compare/v0.6.0...v0.7.0) - 2026-09-28
+
+### Added
+
+- *(ssrn)* add native advanced search
+- *(ssrn)* add Crossref advanced search
+- *(platform)* deliver SSRN full text as Markdown from the browser download
+- *(platform)* add the opt-in ssrn_browser route over an OpenCLI transport
+- *(platform)* add the ssrn platform with the ssrn_crossref route
+
+### Fixed
+
+- *(cli)* box the large platform fetch output
+
+### Other
+
+- *(platform)* keep the fake opencli tests compiling on Windows
+- *(platform)* prepare platform seams for a second platform
+
 ## [0.6.0](https://github.com/jfmoe/forager/compare/v0.5.3...v0.6.0) - 2026-09-26
 
 ### Added
