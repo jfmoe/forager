@@ -11,9 +11,7 @@ use serde::de::DeserializeOwned;
 use crate::catalog::{PlatformOperation, ProviderId};
 use crate::config::HttpRouteRuntimeConfig;
 use crate::credentials::CredentialPool;
-use crate::net::{
-    AttemptFailure, RetryPolicy, combine_diagnostics, read_complete_protocol, send_provider_request,
-};
+use crate::net::{AttemptFailure, RetryPolicy, read_complete_protocol, send_provider_request};
 use crate::providers::execution::{ExecutionSettings, execute_anonymous};
 use crate::providers::shared::{
     acquire_window, other_platform_message, parameter_error, redacted_urls_message,
@@ -22,27 +20,13 @@ use crate::rate_limit::RateLimiter;
 use crate::types::{
     AttemptErrorKind, AttemptTarget, ContentDepth, Deadline, FullTextSource, Platform,
     PlatformFetchOutcome, PlatformFetchRequest, PlatformItem, PlatformItemData, PlatformRef,
-    PlatformSearchOptions, PlatformSearchOutcome, PlatformSearchRequest, ProviderError,
-    SsrnItemData, SsrnRef,
+    ProviderError, SsrnItemData, SsrnRef,
 };
 
 const ROUTE: ProviderId = ProviderId::SsrnCrossref;
-const SSRN_DOI_PREFIX: &str = "10.2139";
-const SELECT_FIELDS: &str = "DOI,title,author,abstract,published,type,created,resource";
-// Crossref rejects a page whose offset plus rows exceeds 10000 with HTTP 400 (checked
-// 2026-09-26); deeper pages need its cursor, which this route does not use.
-const MAX_PAGE_END: u64 = 10_000;
-
-/// Returns whether the route can run the request; it never sends a request. Only a page
-/// position the route did not issue, or one past the Crossref offset limit, fails.
-pub(crate) fn search_support(request: &PlatformSearchRequest) -> Result<(), String> {
-    match request.options {
-        PlatformSearchOptions::Ssrn(_) => page_offset(request).map(|_| ()),
-        PlatformSearchOptions::Arxiv(_) => {
-            Err(other_platform_message(ROUTE, request.options.platform()))
-        }
-    }
-}
+#[path = "ssrn_crossref_search.rs"]
+mod search;
+pub(crate) use search::search_support;
 
 /// Returns whether the route can fetch at the requested depth; it never sends a request.
 pub(crate) fn fetch_support(request: &PlatformFetchRequest) -> Result<(), String> {
@@ -82,66 +66,6 @@ impl SsrnCrossref {
             retry_policy,
             deadline,
         }
-    }
-
-    /// Searches the SSRN DOI prefix by relevance. The page position is an absolute offset, and
-    /// the last page is judged by the record count before records without an SSRN DOI are
-    /// dropped.
-    pub(crate) async fn search(
-        &self,
-        request: &PlatformSearchRequest,
-    ) -> Result<PlatformSearchOutcome, ProviderError> {
-        if !matches!(request.options, PlatformSearchOptions::Ssrn(_)) {
-            return Err(parameter_error(other_platform_message(
-                ROUTE,
-                request.options.platform(),
-            )));
-        }
-        let offset = page_offset(request).map_err(parameter_error)?;
-        let url = format!("{}/prefixes/{SSRN_DOI_PREFIX}/works", self.base_url());
-        let query = [
-            ("query", request.query.clone()),
-            ("rows", request.limit.to_string()),
-            ("offset", offset.to_string()),
-            ("sort", "score".to_owned()),
-            ("order", "desc".to_owned()),
-            ("select", SELECT_FIELDS.to_owned()),
-        ];
-        let (url, query) = (&url, &query);
-        let execution = execute_anonymous(
-            self.settings(PlatformOperation::Search),
-            move |deadline| async move {
-                self.send_once::<WorkList>(url, query, "work-list", deadline)
-                    .await
-            },
-        )
-        .await?;
-        let WorkList {
-            total_results,
-            items: works,
-        } = execution.value;
-        let rows = u64::from(request.limit);
-        let raw_count = works.len() as u64;
-        let mut skipped_dois = Vec::new();
-        let items = works
-            .into_iter()
-            .filter_map(|work| work.into_item().map_err(|doi| skipped_dois.push(doi)).ok())
-            .collect();
-        let next_offset = offset.saturating_add(raw_count);
-        let has_next_page = raw_count == rows
-            && next_offset < total_results
-            && next_offset.saturating_add(rows) <= MAX_PAGE_END;
-        Ok(PlatformSearchOutcome {
-            items,
-            next_page: has_next_page.then(|| next_offset.to_string()),
-            attempts: execution.attempts,
-            diagnostic: combine_diagnostics(
-                execution
-                    .diagnostic
-                    .into_iter()
-                    .chain(skipped_diagnostic(&skipped_dois)),
-            ),
-        })
     }
 
     /// Reads the Crossref record of the paper's SSRN DOI. A missing abstract fails only when
@@ -236,31 +160,6 @@ impl SsrnCrossref {
                 message: redacted_urls_message(&message, &self.credentials),
             })
     }
-}
-
-fn page_offset(request: &PlatformSearchRequest) -> Result<u64, String> {
-    let offset = request.page.as_deref().map_or(Ok(0), |page| {
-        page.parse::<u64>()
-            .map_err(|_| format!("invalid Crossref page position `{page}`"))
-    })?;
-    if offset.saturating_add(u64::from(request.limit)) > MAX_PAGE_END {
-        return Err(format!(
-            "{} cannot page past result {MAX_PAGE_END}",
-            ROUTE.name()
-        ));
-    }
-    Ok(offset)
-}
-
-fn skipped_diagnostic(dois: &[String]) -> Option<String> {
-    (!dois.is_empty()).then(|| {
-        format!(
-            "{} skipped {} Crossref records without an SSRN DOI: {}",
-            ROUTE.name(),
-            dois.len(),
-            dois.join(", ")
-        )
-    })
 }
 
 /// Returns the item of the Crossref record, which must carry the requested SSRN DOI.

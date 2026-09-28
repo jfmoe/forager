@@ -31,8 +31,45 @@ const SNIPPET_SEPARATOR: &str = " … ";
 
 /// Returns whether the route can run the request; it never starts a process.
 pub(crate) fn search_support(request: &PlatformSearchRequest) -> Result<(), String> {
-    match request.options {
-        PlatformSearchOptions::Ssrn(_) => page_offset(request).map(|_| ()),
+    match &request.options {
+        PlatformSearchOptions::Ssrn(options)
+            if *options == crate::types::SsrnSearchOptions::default() =>
+        {
+            page_offset(request).map(|_| ())
+        }
+        PlatformSearchOptions::Ssrn(options) => {
+            let defaults = crate::types::SsrnSearchOptions::default();
+            let unsupported = [
+                (options.scope != defaults.scope, "--scope"),
+                (options.author.is_some(), "--author"),
+                (options.affiliation.is_some(), "--affiliation"),
+                (
+                    options.published != defaults.published,
+                    "--published-from/--published-to",
+                ),
+                (
+                    options.created != defaults.created,
+                    "--created-from/--created-to",
+                ),
+                (
+                    options.updated != defaults.updated,
+                    "--updated-from/--updated-to",
+                ),
+                (options.has_abstract, "--has-abstract"),
+                (options.work_type.is_some(), "--type"),
+                (options.orcid.is_some(), "--orcid"),
+                (options.funder.is_some(), "--funder"),
+                (options.sort != defaults.sort, "--sort"),
+                (options.order != defaults.order, "--order"),
+            ]
+            .into_iter()
+            .filter_map(|(unsupported, name)| unsupported.then_some(name))
+            .collect::<Vec<_>>();
+            Err(format!(
+                "ssrn_browser does not support requested values for {}",
+                unsupported.join(", ")
+            ))
+        }
         PlatformSearchOptions::Arxiv(_) => {
             Err(other_platform_message(ROUTE, request.options.platform()))
         }
@@ -77,12 +114,7 @@ impl SsrnBrowser {
         &self,
         request: &PlatformSearchRequest,
     ) -> Result<PlatformSearchOutcome, ProviderError> {
-        if !matches!(request.options, PlatformSearchOptions::Ssrn(_)) {
-            return Err(parameter_error(other_platform_message(
-                ROUTE,
-                request.options.platform(),
-            )));
-        }
+        search_support(request).map_err(parameter_error)?;
         let offset = page_offset(request).map_err(parameter_error)?;
         let position = NativePosition::of(offset);
         let command = self.command(
@@ -648,6 +680,35 @@ mod tests {
     use super::{
         EnvelopeStatus, NativePosition, RawResult, ResultRange, ResultsPage, iso_date, read_results,
     };
+
+    #[test]
+    fn advanced_criteria_are_rejected_until_the_adapter_can_apply_them() {
+        for value in [
+            serde_json::json!({"scope":"title"}),
+            serde_json::json!({"scope":"bibliographic"}),
+            serde_json::json!({"author":"A"}),
+            serde_json::json!({"affiliation":"U"}),
+            serde_json::json!({"published":{"from":"2024-01-01"}}),
+            serde_json::json!({"created":{"to":"2024-01-01"}}),
+            serde_json::json!({"updated":{"from":"2024-01-01"}}),
+            serde_json::json!({"has_abstract":true}),
+            serde_json::json!({"work_type":"posted-content"}),
+            serde_json::json!({"orcid":"0000-0002-1825-0097"}),
+            serde_json::json!({"funder":"10.13039/100000001"}),
+            serde_json::json!({"sort":"published"}),
+            serde_json::json!({"order":"asc"}),
+        ] {
+            let request = crate::types::PlatformSearchRequest {
+                query: "momentum".into(),
+                limit: 10,
+                page: None,
+                options: crate::types::PlatformSearchOptions::Ssrn(
+                    serde_json::from_value(value.clone()).expect("criteria"),
+                ),
+            };
+            assert!(super::search_support(&request).is_err(), "{value}");
+        }
+    }
 
     #[test]
     fn offsets_map_to_a_native_page_and_a_start_on_it() {

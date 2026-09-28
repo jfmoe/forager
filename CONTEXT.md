@@ -175,3 +175,7 @@ _Avoid_: detail level、verbosity
 **Page Cursor**:
 平台检索结果的不透明翻页标识；它完整恢复原请求与下一页位置，只能在产出它的 route 上继续。
 _Avoid_: offset、page token
+
+**SSRN Search Criteria**:
+一次 SSRN 检索要求的搜索范围、作者与机构、日期、元数据条件和排序。每条 Platform Route 必须完整应用这些条件；名称相近但语义不同的条件不互相替代。
+_Avoid_: raw provider parameters、best-effort filters

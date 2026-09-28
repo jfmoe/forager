@@ -172,10 +172,23 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 | 参数 | 类型与取值 | 默认值 | 语义 |
 |---|---|---|---|
 | 查询词（位置参数） | 字符串，不带 cursor 时必填 | 无 | 主题关键词，按上游相关性排序，不要求每个词都出现 |
+| `--scope` | `all` / `title` / `bibliographic` | `all` | 默认字段、标题字段或书目信息；标题查询不承诺精确短语 |
+| `--author` / `--affiliation` | 非空字符串 | 无 | 作者名、作者机构字段查询 |
+| `--published-from` / `--published-to` | `YYYY-MM-DD` | 无 | 发表日期区间，含边界，可单端 |
+| `--created-from` / `--created-to` | `YYYY-MM-DD` | 无 | Crossref 首次登记日期区间，含边界，可单端 |
+| `--updated-from` / `--updated-to` | `YYYY-MM-DD` | 无 | Crossref 元数据存入或重新存入日期区间，含边界，可单端 |
+| `--has-abstract` | 开关 | false | 要求上游摘要字段存在；不 fetch，也不保证清理后有可用摘要 |
+| `--type` | Crossref 注册文献类型，help 列出取值 | 无 | 精确类型过滤；默认保留所有类型 |
+| `--orcid` | 带校验位的裸 ORCID | 无 | 精确匹配贡献者 ORCID，例如 `0000-0002-1825-0097` |
+| `--funder` | `10.13039/<数字>` | 无 | 精确匹配 Open Funder Registry DOI |
+| `--sort` | `relevance` / `published` / `created` / `updated` / `citations` | `relevance` | 相关性、发表时间、首次登记时间、元数据更新时间、Crossref 被引次数 |
+| `--order` | `asc` / `desc` | `desc` | 上游排序方向 |
 | `--limit` | 1..=100 | 10 | 本页最多返回的条数 |
 | `--cursor` | 上一页的 `next_cursor` | 无 | 翻页；完整恢复原请求 |
 
-- 通用 flag、cursor 独占规则与 arXiv search 相同。查询词为空或只有空白＝飞行前退 2。第一版没有查询词之外的选项。
+- 通用 flag、cursor 独占规则与 arXiv search 相同。查询词为空或只有空白＝飞行前退 2。日期须为有效日历日期，起点不晚于终点。cursor 与显式查询词、任一高级选项或 limit 互斥，包括显式传入默认值。
+- 上述高级条件目前由 `ssrn_crossref` 实现；`ssrn_browser` 只支持无筛选、`scope=all`、相关性降序。不能完整满足条件的 route 记为 Skipped，所有已配置 route 都不支持时飞行前退 2，不丢弃条件继续搜索。
+- 机构、ORCID 与资助机构筛选依赖已登记的 Crossref 元数据，缺失会漏检；资助机构标识符只支持 OFR DOI。Crossref 时间和被引次数不代表 SSRN Posted 时间或下载量。
 - 启用 `ssrn_browser` 时，该 route 的一页不跨越 SSRN 的 50 条原生页，可以短于 `--limit`；条目深度为 `snippet`（片段，绝不是摘要；卡片没有片段时为 `metadata`）。
 - **输出**：外层形状与 arXiv search 相同。每个 item 含 `ref`（`ssrn:<id>`，不带版本）、canonical `url`（SSRN 摘要页）、`depth`、`title`、`authors`、`published`，以及 SSRN 字段 `abstract`、`snippet`、`doi`、`crossref_type`、`crossref_created`、`posted`、`last_revised`、`date_written`；route 没有读到的字段为 `null`。`ssrn_crossref` 的条目有摘要时 `depth` 为 `abstract`，否则为 `metadata` 且 `abstract: null`；`ssrn_browser` 的条目为 `snippet`，卡片没有片段时为 `metadata`。`published` 保留 route 报告的原始日期精度（`2012`、`2012-04` 或 `2012-04-19`）。route 细节（分页上限、DOI 过滤、诊断、浏览器页校验）见第 7 章「SSRN」。
 - **退出码**：cursor 无效或越过上游分页上限、查询词为空＝飞行前退 2；`platforms.ssrn.order` 为空或操作可用 route 为空＝飞行前退 3；Crossref 429 为 RateLimited 退 4；浏览器 route 的站点验证未通过为 Auth、无法识别结果页为 Runtime，都退 4；其他上游失败沿用共享状态码映射；合法零结果为 `items: []` 且退 0。

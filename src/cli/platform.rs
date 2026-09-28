@@ -18,8 +18,12 @@ use crate::platform_fetch;
 use crate::types::{
     ArxivSearchOptions, ArxivSort, AttemptErrorKind, ContentDepth, Deadline, LocalFile, Platform,
     PlatformFetchRequest, PlatformFetchResult, PlatformRef, PlatformSearchOptions,
-    PlatformSearchRequest, ProviderError, SsrnSearchOptions,
+    PlatformSearchRequest, ProviderError,
 };
+
+#[path = "ssrn_search.rs"]
+mod ssrn_search;
+use ssrn_search::{SsrnSearchArgs, ssrn_search};
 
 const DEFAULT_TIMEOUT_SECONDS: u64 = 120;
 
@@ -105,23 +109,6 @@ pub(super) enum SsrnCommand {
     Search(SsrnSearchArgs),
     /// Fetch the metadata of one SSRN paper, with its abstract when available.
     Fetch(SsrnFetchArgs),
-}
-
-#[derive(Debug, Args)]
-pub(super) struct SsrnSearchArgs {
-    /// Topic keywords, ranked by relevance.
-    #[arg(conflicts_with = "cursor")]
-    query: Option<String>,
-    /// Maximum results on this page.
-    #[arg(long, default_value_t = 10, value_parser = clap::value_parser!(u16).range(1..=100), conflicts_with = "cursor")]
-    limit: u16,
-    /// Opaque `next_cursor` from a previous page; it restores the complete original request.
-    #[arg(long)]
-    cursor: Option<String>,
-    #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
-    format: OutputFormat,
-    #[command(flatten)]
-    common: PlatformCommonArgs,
 }
 
 #[derive(Debug, Args)]
@@ -273,29 +260,6 @@ fn arxiv_search(arguments: ArxivSearchArgs) -> Result<CommandOutput, AppError> {
         SearchInput::Request(request)
     };
     search(Platform::Arxiv, input, format, &common)
-}
-
-fn ssrn_search(arguments: SsrnSearchArgs) -> Result<CommandOutput, AppError> {
-    let SsrnSearchArgs {
-        query,
-        limit,
-        cursor,
-        format,
-        common,
-    } = arguments;
-    let input = if let Some(cursor) = cursor {
-        SearchInput::Cursor(cursor)
-    } else {
-        let request = PlatformSearchRequest {
-            query: query.unwrap_or_default(),
-            limit,
-            options: PlatformSearchOptions::Ssrn(SsrnSearchOptions::default()),
-            page: None,
-        };
-        request.validate().map_err(AppError::Argument)?;
-        SearchInput::Request(request)
-    };
-    search(Platform::Ssrn, input, format, &common)
 }
 
 enum SearchInput {

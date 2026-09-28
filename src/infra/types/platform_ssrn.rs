@@ -2,11 +2,10 @@
 
 use std::fmt;
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 
 use super::platform::{Platform, PlatformRefError};
 
-const SSRN_MAX_LIMIT: u16 = 100;
 const ABSTRACT_PAGE_HOST: &str = "papers.ssrn.com";
 const ABSTRACT_PAGE_PATH: &str = "sol3/papers.cfm";
 const SHORT_URL_HOSTS: [&str; 2] = ["ssrn.com", "www.ssrn.com"];
@@ -115,23 +114,6 @@ fn url_identifier(input: &str) -> Option<&str> {
         return doi_identifier(path);
     }
     None
-}
-
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
-#[serde(deny_unknown_fields)]
-/// SSRN search options; the query is the only criterion.
-pub struct SsrnSearchOptions {}
-
-impl SsrnSearchOptions {
-    pub(super) fn validate(query: &str, limit: u16) -> Result<(), String> {
-        if !(1..=SSRN_MAX_LIMIT).contains(&limit) {
-            return Err(format!("--limit must be between 1 and {SSRN_MAX_LIMIT}"));
-        }
-        if query.trim().is_empty() {
-            return Err("ssrn search needs a query".into());
-        }
-        Ok(())
-    }
 }
 
 #[derive(Clone, Debug, Default, Serialize)]
@@ -265,7 +247,7 @@ mod tests {
         PlatformSearchRequest {
             query: query.into(),
             limit,
-            options: PlatformSearchOptions::Ssrn(super::SsrnSearchOptions::default()),
+            options: PlatformSearchOptions::Ssrn(crate::types::SsrnSearchOptions::default()),
             page: None,
         }
     }

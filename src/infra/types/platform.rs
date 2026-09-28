@@ -11,7 +11,8 @@ use thiserror::Error;
 
 use super::ProviderAttempt;
 use super::platform_arxiv::{ArxivItemData, ArxivRef, ArxivSearchOptions};
-use super::platform_ssrn::{SsrnItemData, SsrnRef, SsrnSearchOptions};
+use super::platform_ssrn::{SsrnItemData, SsrnRef};
+use super::platform_ssrn_search::SsrnSearchOptions;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -196,7 +197,7 @@ impl PlatformSearchRequest {
     pub(crate) fn validate(&self) -> Result<(), String> {
         match &self.options {
             PlatformSearchOptions::Arxiv(options) => options.validate(&self.query, self.limit),
-            PlatformSearchOptions::Ssrn(_) => SsrnSearchOptions::validate(&self.query, self.limit),
+            PlatformSearchOptions::Ssrn(options) => options.validate(&self.query, self.limit),
         }
     }
 }

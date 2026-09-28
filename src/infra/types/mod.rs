@@ -8,6 +8,7 @@ mod outcome;
 mod platform;
 mod platform_arxiv;
 mod platform_ssrn;
+mod platform_ssrn_search;
 mod research;
 mod search;
 
@@ -30,7 +31,10 @@ pub(crate) use platform::{
     PlatformSearchOutcome, PlatformSearchRequest,
 };
 pub use platform_arxiv::{ArxivItemData, ArxivRef, ArxivSearchOptions, ArxivSort};
-pub use platform_ssrn::{SsrnItemData, SsrnRef, SsrnSearchOptions};
+pub use platform_ssrn::{SsrnItemData, SsrnRef};
+pub use platform_ssrn_search::{
+    SsrnDateRange, SsrnSearchOptions, SsrnSearchScope, SsrnSort, SsrnSortOrder, SsrnWorkType,
+};
 pub(crate) use research::DocumentationEvidence;
 pub use research::{
     ClaimRisk, EvidenceItem, EvidenceLocator, EvidenceStrength, RecencyRequirement, ResearchGap,

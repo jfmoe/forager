@@ -366,8 +366,19 @@ forager platform ssrn search QUERY [--limit N] [--cursor CURSOR]
 | Argument or option | Meaning | Default |
 | --- | --- | --- |
 | `QUERY` | Topic keywords, ranked by relevance; not every word must match. Required unless `--cursor` is given. | Required |
+| `--scope all\|title\|bibliographic` | Default, title, or bibliographic query fields. Title search is not exact phrase matching. | `all` |
+| `--author TEXT`, `--affiliation TEXT` | Query author names or affiliations. | Omitted |
+| `--published-from DATE`, `--published-to DATE` | Inclusive publication date bounds, `YYYY-MM-DD`. Either bound can be omitted. | Omitted |
+| `--created-from DATE`, `--created-to DATE` | Inclusive Crossref first-registration date bounds. | Omitted |
+| `--updated-from DATE`, `--updated-to DATE` | Inclusive Crossref metadata deposit/update date bounds. | Omitted |
+| `--has-abstract` | Require an upstream abstract field; does not fetch or guarantee usable abstract text. | Off |
+| `--type TYPE` | Exact registered Crossref work type; see help for accepted values. | Omitted |
+| `--orcid ID` | Exact contributor ORCID, as a bare ID with a valid check digit. | Omitted |
+| `--funder DOI` | Exact Open Funder Registry DOI, `10.13039/<digits>`. | Omitted |
+| `--sort relevance\|published\|created\|updated\|citations` | Crossref ranking metric. Citations are Crossref counts. | `relevance` |
+| `--order asc\|desc` | Ranking direction. | `desc` |
 | `--limit N` | Results on this page, `1..=100`. | `10` |
-| `--cursor CURSOR` | `next_cursor` of a previous page; it restores the whole request, so pass no query or `--limit` with it. | Omitted |
+| `--cursor CURSOR` | `next_cursor` of a previous page; it restores the whole request, so pass no query, search criteria, or `--limit` with it. | Omitted |
 
 The default `ssrn_crossref` route searches Crossref records under the SSRN DOI prefix; it needs no
 credentials. Each item has `ref`, `url` (the SSRN abstract page), `depth`, `title`, `authors`,
@@ -384,6 +395,12 @@ it). Its items have `depth: snippet` (`metadata` for a result card without an ex
 an ISO date. A page never spans two 50-result SSRN pages, so it can hold fewer items than
 `--limit`. An SSRN security check that did not clear is an `auth` failure; an unrecognized result
 page is a `runtime` failure, never an empty result.
+
+Advanced criteria currently require `ssrn_crossref`. Routes that cannot apply every criterion are
+skipped; if no configured route supports the request, the command exits 2 before IO. The browser
+route currently supports only default criteria. Affiliation, ORCID, and funder searches exclude
+records without the deposited metadata. Registration/update dates are not SSRN posting/revision
+dates. All criteria are applied upstream and restored by the page cursor.
 
 ### `platform ssrn fetch`
 

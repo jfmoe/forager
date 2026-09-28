@@ -427,3 +427,201 @@ fn an_empty_platform_order_is_a_configuration_error() {
         "platforms.ssrn.order has no configured route for ssrn search",
     );
 }
+
+#[test]
+fn title_and_author_search_reaches_crossref() {
+    let fixture = Fixture::start_sequence(vec![work_list(0, &[])]);
+    let environment = RunEnvironment::new(&config(&fixture.url));
+    let output = search(
+        &environment,
+        &["dual momentum", "--scope", "title", "--author", "Antonacci"],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let query = query_pairs(&fixture.finish());
+    assert_eq!(
+        query.get("query.title").map(String::as_str),
+        Some("dual momentum")
+    );
+    assert_eq!(
+        query.get("query.author").map(String::as_str),
+        Some("Antonacci")
+    );
+    assert!(!query.contains_key("query"));
+}
+
+#[test]
+fn metadata_filters_sort_and_cursor_preserve_the_complete_request() {
+    let fixture = Fixture::start_sequence(vec![work_list(2, &works(&["1"]))]);
+    let environment = RunEnvironment::new(&config(&fixture.url));
+    let output = search(
+        &environment,
+        &[
+            "risk & return",
+            "--scope",
+            "bibliographic",
+            "--author",
+            "A B",
+            "--affiliation",
+            "Example University",
+            "--published-from",
+            "2020-01-01",
+            "--published-to",
+            "2024-12-31",
+            "--created-from",
+            "2019-01-01",
+            "--created-to",
+            "2025-01-01",
+            "--updated-from",
+            "2024-01-01",
+            "--updated-to",
+            "2025-12-31",
+            "--has-abstract",
+            "--type",
+            "journal-article",
+            "--orcid",
+            "0000-0002-1825-0097",
+            "--funder",
+            "10.13039/100000001",
+            "--sort",
+            "citations",
+            "--order",
+            "asc",
+            "--limit",
+            "1",
+        ],
+    );
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let first = query_pairs(&fixture.finish());
+    assert_eq!(first, BTreeMap::from([
+        ("query.bibliographic".into(), "risk & return".into()),
+        ("query.author".into(), "A B".into()),
+        ("query.affiliation".into(), "Example University".into()),
+        ("rows".into(), "1".into()), ("offset".into(), "0".into()),
+        ("sort".into(), "is-referenced-by-count".into()), ("order".into(), "asc".into()),
+        ("select".into(), SELECT.into()),
+        ("filter".into(), "from-pub-date:2020-01-01,until-pub-date:2024-12-31,from-created-date:2019-01-01,until-created-date:2025-01-01,from-update-date:2024-01-01,until-update-date:2025-12-31,has-abstract:true,type:journal-article,orcid:0000-0002-1825-0097,funder:10.13039/100000001".into()),
+    ]));
+    let next = payload(&output)["next_cursor"]
+        .as_str()
+        .expect("cursor")
+        .to_owned();
+    let (output, request) = page(&["--cursor", &next], work_list(2, &works(&["2"])));
+    let mut expected = first;
+    expected.insert("offset".into(), "1".into());
+    assert_eq!(
+        (output.status.code(), query_pairs(&request)),
+        (Some(0), expected)
+    );
+}
+
+#[test]
+fn invalid_advanced_criteria_fail_before_http() {
+    for (flag, value, message) in [
+        ("--scope", "full-text", "invalid value"),
+        ("--sort", "downloads", "invalid value"),
+        ("--order", "up", "invalid value"),
+        ("--type", "fiction", "invalid value"),
+        ("--published-from", "2023-02-29", "calendar date"),
+        ("--author", " ", "must not be empty"),
+        ("--orcid", "0000-0002-1825-0098", "valid bare ORCID"),
+    ] {
+        assert_preflight_exit(ROUTE_CONFIG, &["momentum", flag, value], 2, message);
+    }
+    assert_preflight_exit(
+        ROUTE_CONFIG,
+        &[
+            "momentum",
+            "--created-from",
+            "2025-01-01",
+            "--created-to",
+            "2024-01-01",
+        ],
+        2,
+        "must not be after",
+    );
+}
+
+#[test]
+fn every_explicit_criterion_conflicts_with_cursor_even_at_its_default() {
+    let cursor = cursor("momentum", 2, "2");
+    for args in [
+        vec!["--scope", "all"],
+        vec!["--author", "A"],
+        vec!["--affiliation", "U"],
+        vec!["--published-from", "2024-01-01"],
+        vec!["--published-to", "2024-01-01"],
+        vec!["--created-from", "2024-01-01"],
+        vec!["--created-to", "2024-01-01"],
+        vec!["--updated-from", "2024-01-01"],
+        vec!["--updated-to", "2024-01-01"],
+        vec!["--has-abstract"],
+        vec!["--type", "posted-content"],
+        vec!["--orcid", "0000-0002-1825-0097"],
+        vec!["--funder", "10.13039/100000001"],
+        vec!["--sort", "relevance"],
+        vec!["--order", "desc"],
+    ] {
+        let mut arguments = vec!["--cursor", cursor.as_str()];
+        arguments.extend(args);
+        assert_preflight_exit(ROUTE_CONFIG, &arguments, 2, "cannot be used with");
+    }
+}
+
+#[test]
+fn crossref_date_sorts_map_to_their_own_fields() {
+    for (sort, expected) in [
+        ("published", "published"),
+        ("created", "created"),
+        ("updated", "updated"),
+    ] {
+        let (output, request) = page(&["momentum", "--sort", sort], work_list(0, &[]));
+        assert_eq!(
+            (output.status.code(), query_pairs(&request)["sort"].as_str()),
+            (Some(0), expected)
+        );
+    }
+}
+
+#[test]
+fn browser_is_skipped_instead_of_dropping_advanced_criteria() {
+    let fixture = Fixture::start_sequence(vec![work_list(0, &[])]);
+    let configuration = format!(
+        "{}\n[platforms.ssrn]\norder = [\"ssrn_browser\", \"ssrn_crossref\"]\n[providers.ssrn_browser]\ncommand = \"must-not-run-ssrn-browser\"\n",
+        config(&fixture.url)
+    );
+    let environment = RunEnvironment::new(&configuration);
+    let output = search(&environment, &["momentum", "--has-abstract", "--verbose"]);
+    assert_eq!(
+        output.status.code(),
+        Some(0),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let response = payload(&output);
+    assert_eq!(response["provider_attempts"][0]["disposition"], "skipped");
+    assert_eq!(response["provider_attempts"][0]["provider"], "ssrn_browser");
+    assert_eq!(
+        query_pairs(&fixture.finish())["filter"],
+        "has-abstract:true"
+    );
+}
+
+#[test]
+fn unsupported_browser_only_search_fails_before_io() {
+    assert_preflight_exit(
+        "[platforms.ssrn]\norder = [\"ssrn_browser\"]\n[providers.ssrn_browser]\ncommand = \"must-not-run-ssrn-browser\"\n",
+        &["momentum", "--author", "A"],
+        2,
+        "no configured ssrn route supports",
+    );
+}

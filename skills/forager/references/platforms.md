@@ -32,6 +32,21 @@ Every item carries `depth`, the content it actually holds: `metadata` (bibliogra
   `ssrn_browser` are `snippet` (`metadata` for a result card without an excerpt). A browser page never spans two SSRN result pages, so it can hold
   fewer items than `--limit`; follow `next_cursor` for more.
 
+## SSRN advanced search
+
+For title, author, affiliation, date, identifier, or ranking requirements, use typed SSRN search
+flags; see [`cli.md`](cli.md#platform-ssrn-search). For example:
+
+```console
+forager platform ssrn search "dual momentum" --scope title --author Antonacci --has-abstract
+```
+
+These criteria currently use Crossref. Title queries do not require an exact phrase. Date filters
+separate publication, Crossref registration, and metadata updates. ORCID and funder filters only
+match deposited identifiers, so missing metadata can exclude relevant papers. If a configured
+route cannot apply the criteria, preserve the request and report the support error. Continue a
+result page with its cursor alone; do not repeat search criteria or fetch papers unless needed.
+
 ## SSRN browser route
 
 `ssrn_browser` reads SSRN in the user's own Chrome through OpenCLI. It is off by default. Enable it

@@ -113,7 +113,7 @@
       "id": "F13",
       "provider": "ssrn_crossref",
       "seam": "platform:ssrn:search",
-      "test": "tests/ssrn_search.rs::search_returns_abstract_and_metadata_depth_items_and_skips_non_ssrn_dois"
+      "test": "tests/ssrn_search.rs::metadata_filters_sort_and_cursor_preserve_the_complete_request"
     },
     {
       "id": "F14",

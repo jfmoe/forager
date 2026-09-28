@@ -30,7 +30,7 @@
 上层可以依赖下层，下层不得反向依赖上层；同层共享行为必须放到该职责的唯一拥有模块，再以最窄的 crate 内可见性提供。`catalog` 独立于 config 与 providers，二者只单向消费它；`catalog` 只从 `rate_limit` 取访问策略类型，`rate_limit` 不依赖 `catalog`。provider adapter 只消费 `providers/shared`、`providers/execution`、`providers/opencli` 等共享拥有模块，不互相 import；`providers/opencli` 是 OpenCLI 进程传输（启动命令、进程组与截止时间、有界读取、输出外壳与退出码映射），不含任何站点知识，也不反向依赖 route adapter；平台 route adapter 同样不 import 任何 capability provider。平台 fetch 的正文段由编排层的 `platform_fetch` 调用 `engine::fetch`，route adapter 只声明候选正文来源（一组 URL，或一个已校验的本地文件）。
 
 - **应用组合层**（F1）：`cli/app.rs` 只公开参数与分发门面；`dispatch.rs` 先构造共享 `NetworkDependencies`，再按命令建立 `AppContext<P>`、`FetchContext`、`SearchContext` 或 `ResearchContext`，各自持有所需的 runtime、配置与网络依赖。provider 实现与路由策略留在下层模块，Search Result Journal 仍由分发层在命令终态统一落笔。
-- **`types` 类型基底**：零 IO 纯类型层——ErrorKind、ProviderError、Capability、`PlanCapability`（plan 语境独立三值枚举）、各 Outcome、ProviderAttempt、Source、ResearchPlan Schema v1、Deadline、薄正文阈值常量，以及平台形状（Platform、Platform Ref 与 canonical URL 推导、Content Depth、平台选项、条目、结果页与 fetch 结果）。所有跨层形状的唯一定义点。`infra/types/` 是目录模块，按职责分为 `capability`、`research`、`error`、`attempt`、`search`、`outcome`、`platform`、`platform_arxiv`、`platform_ssrn`、`deadline` 私有子模块，由 `mod.rs` 统一再导出，公共路径保持 `forager::types::*`。`platform` 叶子只放各平台共享的形状（Platform、Platform Ref、Content Depth、平台选项、条目、结果页与 fetch 结果的外层枚举与结构）；每个平台自己的形状（ref、选项、条目平台字段与校验）放在各自的 `platform_<id>` 叶子中，再以一个变体接入共享枚举。新增平台时新增该平台的叶子，并在共享枚举中各加一个变体。公开的平台身份类型不引用 crate 私有的 `ProviderId`。
+- **`types` 类型基底**：零 IO 纯类型层——ErrorKind、ProviderError、Capability、`PlanCapability`（plan 语境独立三值枚举）、各 Outcome、ProviderAttempt、Source、ResearchPlan Schema v1、Deadline、薄正文阈值常量，以及平台形状（Platform、Platform Ref 与 canonical URL 推导、Content Depth、平台选项、条目、结果页与 fetch 结果）。所有跨层形状的唯一定义点。`infra/types/` 是目录模块，按职责分为 `capability`、`research`、`error`、`attempt`、`search`、`outcome`、`platform`、`platform_arxiv`、`platform_ssrn`、`platform_ssrn_search`、`deadline` 私有子模块，由 `mod.rs` 统一再导出，公共路径保持 `forager::types::*`。`platform` 叶子只放各平台共享的形状（Platform、Platform Ref、Content Depth、平台选项、条目、结果页与 fetch 结果的外层枚举与结构）；每个平台自己的形状放在该平台的类型叶子中：arXiv 的 ref、选项、条目字段与校验由 `platform_arxiv` 拥有；SSRN 的 ref 与条目字段由 `platform_ssrn` 拥有，搜索选项与校验由 `platform_ssrn_search` 拥有，再以一个变体接入共享枚举。新增平台时新增该平台的叶子，并在共享枚举中各加一个变体。公开的平台身份类型不引用 crate 私有的 `ProviderId`。
 - **`net` 网络边界**：共享 HTTP client 构造、RetryPolicy、SSE 解析、status→ErrorKind 唯一映射、McpClient。
 - 输出格式化保留在 bin 侧，出现第二个消费者再提升为独立共享模块。
 
@@ -158,3 +158,7 @@ Research Evidence Pipeline 默认使用 standard 预算，将正文逐条写入 
 | 11 新 provider 多点登记 | registry 唯一描述 |
 | 12 路由分裂 | classifier 独立模块，app 唯一组合点 |
 | 13 engine 中 provider 特判 | F10 封装边界 |
+
+### SSRN 检索职责
+
+`cli/ssrn_search.rs` 是 `cli/platform.rs` 的私有子模块，负责 SSRN 搜索参数与类型化请求构造。`infra/types/platform_ssrn_search.rs` 拥有 SSRN Search Criteria 及零 IO 校验，通过既有 types 门面导出；`platform_ssrn.rs` 负责身份与条目元数据。`providers/ssrn_crossref_search.rs` 是 `ssrn_crossref` 的私有子模块，负责搜索映射、搜索执行与 offset 分页；父模块拥有共享 HTTP 传输、记录解码与详情读取。外部仍通过 route 的入口访问，不增加 provider 横向依赖。
