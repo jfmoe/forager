@@ -147,7 +147,7 @@ pub enum CommandOutput {
     PlatformFetch {
         /// Platform fetch result; a full-text body is already written unless the format is
         /// `content`.
-        result: Result<PlatformFetchResult, ProviderError>,
+        result: Box<Result<PlatformFetchResult, ProviderError>>,
         /// Requested output format.
         format: DocsOutputFormat,
         /// Optional output file destination.

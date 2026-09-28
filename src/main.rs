@@ -98,7 +98,7 @@ fn main() -> ExitCode {
             format,
             output,
             attempt_log,
-        }) => emit_logged(render_platform_fetch(result, format, output), attempt_log),
+        }) => emit_logged(render_platform_fetch(*result, format, output), attempt_log),
         Err(error) if json_preflight_errors => {
             let exit_code = error.exit_code();
             emit_rendered(apply_tee(

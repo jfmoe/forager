@@ -422,7 +422,7 @@ fn fetch(
         &fetched.attempts
     });
     Ok(CommandOutput::PlatformFetch {
-        result,
+        result: Box::new(result),
         format,
         output: common.output.target(),
         attempt_log,
