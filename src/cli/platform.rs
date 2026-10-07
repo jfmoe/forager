@@ -51,7 +51,8 @@ pub(super) enum ArxivCommand {
 
 #[derive(Debug, Args)]
 pub(super) struct ArxivSearchArgs {
-    /// Plain keywords that must all match; arXiv query syntax in them is literal text.
+    /// Keywords and double-quoted phrases that must all match; arXiv query syntax in them is
+    /// literal text.
     #[arg(conflicts_with = "cursor")]
     query: Option<String>,
     /// arXiv category code, for example q-fin.PM; repeat to match any of several.

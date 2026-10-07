@@ -100,7 +100,10 @@ impl ArxivApi {
         };
         let start = page_start(request.page.as_deref()).map_err(parameter_error)?;
         let query = [
-            ("search_query", search_query(&request.query, options)),
+            (
+                "search_query",
+                search_query(&request.query, options).map_err(parameter_error)?,
+            ),
             ("start", start.to_string()),
             ("max_results", request.limit.to_string()),
             ("sortBy", sort_by(options.sort).to_owned()),
@@ -351,11 +354,12 @@ fn page_start(page: Option<&str>) -> Result<u64, String> {
     })
 }
 
-/// Builds the `search_query` value: every word, category group, phrase, and date range must
-/// match. Each word is quoted, so arXiv query syntax in it stays literal.
-fn search_query(query: &str, options: &ArxivSearchOptions) -> String {
-    let mut clauses = ArxivSearchOptions::words(query)
-        .map(|word| format!("all:\"{word}\""))
+/// Builds the `search_query` value: every query term, category group, phrase, and date range
+/// must match. Each term is quoted, so arXiv query syntax in it stays literal.
+fn search_query(query: &str, options: &ArxivSearchOptions) -> Result<String, String> {
+    let mut clauses = ArxivSearchOptions::query_terms(query)?
+        .into_iter()
+        .map(|term| format!("all:\"{term}\""))
         .collect::<Vec<_>>();
     match options.categories.as_slice() {
         [] => {}
@@ -386,7 +390,7 @@ fn search_query(query: &str, options: &ArxivSearchOptions) -> String {
         );
         clauses.push(format!("submittedDate:[{from} TO {to}]"));
     }
-    clauses.join(" AND ")
+    Ok(clauses.join(" AND "))
 }
 
 fn sort_by(sort: ArxivSort) -> &'static str {

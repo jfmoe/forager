@@ -210,6 +210,32 @@ impl ArxivSearchOptions {
             .filter(|word| !word.is_empty())
     }
 
+    /// Splits a search query into the terms that must all match: each double-quoted part is
+    /// one phrase, and every other word is a term of its own.
+    ///
+    /// # Errors
+    ///
+    /// Returns a message when a double quote has no closing quote.
+    pub fn query_terms(query: &str) -> Result<Vec<String>, String> {
+        if query.matches('"').count() % 2 == 1 {
+            return Err(
+                "query has an unmatched double quote; close the phrase or remove the quote".into(),
+            );
+        }
+        let mut terms = Vec::new();
+        for (index, part) in query.split('"').enumerate() {
+            if index % 2 == 0 {
+                terms.extend(Self::words(part).map(str::to_owned));
+            } else {
+                let phrase = Self::words(part).collect::<Vec<_>>().join(" ");
+                if !phrase.is_empty() {
+                    terms.push(phrase);
+                }
+            }
+        }
+        Ok(terms)
+    }
+
     pub(super) fn validate(&self, query: &str, limit: u16) -> Result<(), String> {
         if !(1..=ARXIV_MAX_LIMIT).contains(&limit) {
             return Err(format!("--limit must be between 1 and {ARXIV_MAX_LIMIT}"));
@@ -236,7 +262,7 @@ impl ArxivSearchOptions {
         {
             return Err("--submitted-from must not be later than --submitted-to".into());
         }
-        let has_criterion = Self::words(query).next().is_some()
+        let has_criterion = !Self::query_terms(query)?.is_empty()
             || !self.categories.is_empty()
             || self.author.is_some()
             || self.title.is_some();

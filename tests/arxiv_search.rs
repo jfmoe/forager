@@ -120,8 +120,19 @@ type WireCase = (
 
 #[test]
 fn every_search_parameter_has_a_fixed_wire_encoding() {
-    let cases: [WireCase; 13] = [
+    let cases: [WireCase; 16] = [
         (&["dark matter"], r#"all:"dark" AND all:"matter""#, &[]),
+        (
+            &[r#""world  model" robot"#],
+            r#"all:"world model" AND all:"robot""#,
+            &[],
+        ),
+        (
+            &[r#"a"b c"d "" "\e""#],
+            r#"all:"a" AND all:"b c" AND all:"d" AND all:"e""#,
+            &[],
+        ),
+        (&[r#""ti:(foo) AND bar""#], r#"all:"ti:(foo) AND bar""#, &[]),
         (
             &[r#"ti:(foo) AND "bar""#],
             r#"all:"ti:(foo)" AND all:"AND" AND all:"bar""#,
@@ -259,7 +270,7 @@ fn page(arguments: &[&str], response: &str) -> (Value, BTreeMap<String, String>)
 #[test]
 fn cursors_page_through_results_and_restore_the_original_request() {
     let arguments = [
-        "neutrino",
+        r#""neutrino mass" hierarchy"#,
         "--category",
         "hep-ph",
         "--sort",
@@ -508,6 +519,7 @@ fn invalid_option_values_are_argument_errors() {
             "invalid arXiv category",
         ),
         (&["x", "--author", " "], "--author must contain"),
+        (&[r#""world model"#], "unmatched double quote"),
     ] {
         assert_preflight_exit(
             "[providers.arxiv_api]\nurl = \"{url}\"\n",

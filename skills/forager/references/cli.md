@@ -320,7 +320,7 @@ forager platform arxiv search [QUERY] [--category CODE]... [--author NAME] [--ti
 
 | Argument or option | Meaning | Default |
 | --- | --- | --- |
-| `QUERY` | Plain keywords that must all match; arXiv query syntax in them is literal text. | Omitted |
+| `QUERY` | Keywords and double-quoted phrases that must all match; arXiv query syntax in them is literal text. An unmatched double quote exits 2. | Omitted |
 | `--category CODE` | arXiv category such as `q-fin.PM`; repeat to match any of several. | None |
 | `--author NAME` / `--title TEXT` | Author-name or title phrase. | None |
 | `--submitted-from` / `--submitted-to` | Inclusive UTC submission-date range; either end may be omitted. | None |

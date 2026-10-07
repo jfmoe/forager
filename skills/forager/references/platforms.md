@@ -32,6 +32,17 @@ Every item carries `depth`, the content it actually holds: `metadata` (bibliogra
   `ssrn_browser` are `snippet` (`metadata` for a result card without an excerpt). A browser page never spans two SSRN result pages, so it can hold
   fewer items than `--limit`; follow `next_cursor` for more.
 
+## arXiv search queries
+
+arXiv matches literal words, not meaning, and every query term must match. Use a few distinctive
+keywords and quote multi-word concepts as phrases; scattered words match unrelated papers,
+especially with `--sort submitted`. For an open-ended topic question, discover papers through
+general search first and read them with `platform arxiv fetch`.
+
+```console
+forager platform arxiv search '"world model" robot manipulation' --category cs.RO --sort submitted
+```
+
 ## SSRN advanced search
 
 For title, author, affiliation, date, identifier, or ranking requirements, use typed SSRN search
