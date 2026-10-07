@@ -114,7 +114,7 @@ Skill 要求 `forager >= 0.5.2`。外部 Agent 的上下文保护方式见
 - 凭据保存在本地配置中；命令输出和持久化 journal 会对敏感 URL 参数脱敏。
 - 能力暂时不可用时，结果会明确报告 `capability_gaps`，不会把缺失能力伪装成成功覆盖。
 
-领域术语与约束见 [CONTEXT.md](CONTEXT.md)，完整规格见 [docs/spec/forager/](docs/spec/forager/)。
+领域术语与约束见 [GLOSSARY.md](GLOSSARY.md)，完整规格见 [docs/spec/forager/](docs/spec/forager/)。
 
 ## 从源码构建
 

@@ -2,7 +2,7 @@
 
 ### Issue tracker
 
-Issues and PRDs are tracked in this repository's GitHub Issues. See `docs/agents/issue-tracker.md`.
+Issues and specs are tracked in this repository's GitHub Issues. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
@@ -42,7 +42,7 @@ The six-group physical layering and the five-layer one-way dependency discipline
 
 ### Module placement
 
-Every module under `src/` belongs to exactly one of the six responsibility groups (`cli/`, `core/`, `capabilities/`, `evidence/`, `infra/`, `ops/`). Place a new module by the responsibility it owns — record new owned concepts in `CONTEXT.md` first — never by convenience. Directory depth stays at two levels.
+Every module under `src/` belongs to exactly one of the six responsibility groups (`cli/`, `core/`, `capabilities/`, `evidence/`, `infra/`, `ops/`). Place a new module by the responsibility it owns — record new owned concepts in `GLOSSARY.md` first — never by convenience. Directory depth stays at two levels.
 
 ### Dependency direction
 

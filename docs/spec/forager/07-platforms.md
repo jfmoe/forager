@@ -92,7 +92,7 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
 | R7 | `tests/acceptance-manifest.json` 为每个操作的每条 route 登记 `(route, platform:<id>:<op>)` fixture 与测试引用 | checklist 测试；`catalog` 单测 `provider_fixture_projection_matches_transport_manifest` |
 | R8 | ref 解析与 canonical URL 推导覆盖该平台每个 kind，并在 checklist 的样例表中登记样例 ref | checklist 测试；types 单测 |
 
-同一改动中还须更新：`CONTEXT.md`（新术语）、第 2 章（命令与参数表）、第 3 章（配置键）、第 4 章（模块与依赖）、第 5 章（fixture 与 smoke 用例）、本章的平台示例，以及 skill 的平台词表、平台 reference 与 CLI reference。
+同一改动中还须更新：`GLOSSARY.md`（新术语）、第 2 章（命令与参数表）、第 3 章（配置键）、第 4 章（模块与依赖）、第 5 章（fixture 与 smoke 用例）、本章的平台示例，以及 skill 的平台词表、平台 reference 与 CLI reference。
 
 ## 参考实现：arXiv
 
