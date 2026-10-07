@@ -1,0 +1,970 @@
+{
+  "method": "模型仅按标题盲评；不展示路线、排名、摘要或片段。分数不代表论文正文相关性。",
+  "rubric": {
+    "2": "标题直接覆盖核心查询主题，包含合理同义词或子类型",
+    "1": "部分相关，或标题信息不足",
+    "0": "标题明确偏离查询核心"
+  },
+  "queries": [
+    {
+      "query": "dual momentum",
+      "ratings": [
+        {
+          "title": "When Does Risk-Managed Momentum Add Value? An Out-of-Sample, Regime-Conditional, and Statistically Tested Study of a Volatility-Targeted Dual-Momentum Strategy",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Risk Premia Harvesting Through Dual Momentum",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Momentum, Size and Value Factors versus Systematic Co-Moments in Stock Returns",
+          "score": 1,
+          "reason": "涉及动量因子，未显示双动量"
+        },
+        {
+          "title": "Unraveling Momentum's Moments",
+          "score": 1,
+          "reason": "涉及动量，未显示双动量"
+        },
+        {
+          "title": "Global Equities Momentum, 1971–2026 - A Replication of Antonacci's Dual Momentum and a Decomposition of its Returns",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Dual and Canary Momentum with Rising Yields/Inflation: Hybrid Asset Allocation (HAA)",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Dual Momentum Allocation Between Physical Gold and Bitcoin (Digital Gold)",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "RAMP: Dual Momentum for Smarter Investing: A Volatility-Scaled, Drawdown-Controlled Equity Strategy",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        }
+      ]
+    },
+    {
+      "query": "carbon tax",
+      "ratings": [
+        {
+          "title": "Carbon Tax Heuristics and Politics: The Case of the Gasoline Tax",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Tax Policy Issues in Designing a Carbon Tax",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Discussion Paper on China’s Carbon Tax",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Carbon Shelters: Carbon Accounting as Tax Law",
+          "score": 1,
+          "reason": "涉及碳核算与税法，碳税不明确"
+        },
+        {
+          "title": "Taxation as Regulation: Carbon Tax, Health Care Tax, Bank Tax and Other Regulatory Taxes",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Incentivizing Carbon Taxation Using Border Carbon Adjustments: Tax Rebating Versus Carbon Crediting",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Carbon Emission Tax VS Carbon Emission Market, Which One Is Better",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Using the Tax System to Address Competition Issues with a Carbon Tax",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        }
+      ]
+    },
+    {
+      "query": "merger arbitrage",
+      "ratings": [
+        {
+          "title": "Merger Arbitrage and Idiosyncratic Risk",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Merger Arbitrage Risk Model",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Are Performance Based Arbitrage Effects Detectable? Evidence from Merger Arbitrage",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Merger Arbitrage Short Selling and Price Pressure",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Investmentstrategien im Rahmen von Übernahmen börsennotierter Gesellschaften – Merger Arbitrage und Maschinelles Lernen (Merger Arbitrage and Machine Learning)",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Improving Merger Arbitrage Returns with Machine Learning",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Profitability of Option Based Merger Arbitrage",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "A Theory of Mergers and Merger Waves",
+          "score": 1,
+          "reason": "涉及并购，未显示套利"
+        },
+        {
+          "title": "Extensions of the Merger Arbitrage Risk Model",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        }
+      ]
+    },
+    {
+      "query": "ESG ratings disagreement",
+      "ratings": [
+        {
+          "title": "ESG Rating Disagreement Dynamics and Stock Returns",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Managing ESG Ratings Disagreement in Sustainable Portfolio Selection",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Stock Price Reactions to ESG News: The Role of ESG Ratings and Disagreement",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "ESG Rating Disagreement: Implications and Aggregation Approaches",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "A Legal Origins Perspective on ESG Ratings Disagreement",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "ESG Ratings: Disagreement across Providers and Effects on Stock Returns",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "ESG Rating Disagreement and Stock Returns",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        }
+      ]
+    },
+    {
+      "query": "climate risk disclosure",
+      "ratings": [
+        {
+          "title": "Climate Risk Disclosure and Risk Sharing in Financial Markets",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Mandatory Climate Risk Disclosure, Housing Prices, and Credit Supply",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Disclosure of Climate Change Risk: The Obfuscation and the Disclosure Hypothesis",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Mandating Disclosure of Climate-Related Financial Risk",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Herding in Corporate Climate Risk Disclosure",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Climate Risk Disclosure and Institutional Investors",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Commanding Transparency: The Emerging Frontier of SEC-Mandated Climate Risk Disclosures",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Director Climatic Disaster Experience and Corporate Climate Risk Disclosure",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Material Risk: Climate-Risk Disclosure and the Capital Markets",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        }
+      ]
+    },
+    {
+      "query": "private credit",
+      "ratings": [
+        {
+          "title": "Corruption, trade credit, and bank credit in private firms",
+          "score": 0,
+          "reason": "标题讨论私人企业的贸易与银行信贷，偏离私人信贷资产主题"
+        },
+        {
+          "title": "Development of Green Credit Lines Through Mobilization of Private Credit Financing",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Private Credit: What Do We Know?",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "The Integration of Banking, Private Equity, and Private Credit <br>",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Benchmarking Private Credit",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Performance of Private Credit Funds: A First Look",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Financing Private Credit",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Life Insurers' Private Credit Investments and Annuity Market Share Capture",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Private Equity and Private Credit: Structural Parallels, Systemic Risks, and Regulatory Challenges",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        }
+      ]
+    },
+    {
+      "query": "cryptocurrency regulation",
+      "ratings": [
+        {
+          "title": "Bitcoin and Cryptocurrency Regulation in the Philippines",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "The Regulation of Cryptocurrency in China",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Cryptocurrency Crimes – Need for a Comprehensive Global Crypto Regulation",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Market Reactions to Cryptocurrency Regulation: Risk, Return, and the Role of Enforcement Quality",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Digital Assets and Cryptocurrency Regulation: A Roadmap for Financial Stability",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Cryptocurrency Regulation in Africa: Advantages, Motivation, Regulatory Models, Challenges, Consequences, and Principles vs. Rules-Based Regulation",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "The State of Cryptocurrency Regulation: Nigeria",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Reimagining a Centralized Cryptocurrency Regulation in the US: Looking through the Lens of Cryptoderivatives",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "U.S. Cryptocurrency Regulation: A Slowly Evolving State of Affairs",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        }
+      ]
+    },
+    {
+      "query": "central bank digital currency",
+      "ratings": [
+        {
+          "title": "Bank Profitability and Central Bank Digital Currency",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Will Central Bank Digital Currency Disintermediate Banks?",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Central Bank Digital Currency and Financial Stability",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "How Should Central Banks Explore Central Bank Digital Currency?",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Central Bank Digital Currency: The Case of Digital Chinese Yuan",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Central Bank Digital Currency in Azerbaijan",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Tango with Central Bank Digital Currency",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        }
+      ]
+    },
+    {
+      "query": "board gender diversity",
+      "ratings": [
+        {
+          "title": "Board Diversity: More than a Gender Issue?",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "IPO Price Formation and Board Gender Diversity",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Does gender diversity in boards affect corporate cash holdings? Evidence from global board gender diversity reforms",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "The Corporate Governance Case for Board Gender Diversity: Evidence from Delaware Cases",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Public Attention to Gender Equality and Board Gender Diversity",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Board Gender Diversity and Firm Risk Practices",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Board Gender Diversity and Investment Inefficiency",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Board Gender Diversity and Earnings Quality",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Does board gender diversity matter for short sellers?",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Women on Boards: Does Corporate Culture Influence Board Gender Diversity?",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        }
+      ]
+    },
+    {
+      "query": "insider trading enforcement",
+      "ratings": [
+        {
+          "title": "The Enforcement of Insider Trading Laws Around the World (1900-2022)",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "The Political Economy of Insider Trading Law and Enforcement: Law vs. Politics? International Evidence",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Evidence from Insider Trading Activity after SEC Enforcement Actions",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Insider Trading Enforcement in Australia",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "The Deterrent Effect of Insider Trading Enforcement Actions",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "A Comparative Study of Insider Trading Regulation Enforcement In the U.S. and China",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Insider Trading in Germany - Do Corporate Insiders Exploit Inside Information?",
+          "score": 1,
+          "reason": "讨论内幕交易，未显示执法"
+        },
+        {
+          "title": "Enforcement Without Foundation? - Insider Trading and China's Administrative Law Crisis",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "CEO Inside Debt and Insider Trading",
+          "score": 1,
+          "reason": "讨论内幕交易，未显示执法"
+        }
+      ]
+    },
+    {
+      "query": "antitrust digital platforms",
+      "ratings": [
+        {
+          "title": "Antitrust Regulation of Digital Platforms’ Abuse of a Dominant Market Position",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Dominant Digital Platforms: Is Antitrust Up to the Task?",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Digital Platforms and Antitrust Law",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Antitrust Presumptions for Digital Platforms",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Platform Antitrust",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "The Antitrust Red Flags of Digital Platforms",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Structural Antitrust Relief Against Digital Platforms",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Antitrust Economics of Digital Platforms",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Digital Platforms and Antitrust",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        }
+      ]
+    },
+    {
+      "query": "artificial intelligence liability",
+      "ratings": [
+        {
+          "title": "Artificial Intelligence, Liability and Agency",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Criminal Liability of Artificial Intelligence",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Artificial Intelligence: the Liability Paradox",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "EU Liability Rules for the Age of Artificial Intelligence",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Liability and Artificial Intelligence",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Criminal liability of the artificial intelligence entities",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Liability and Medical Artificial Intelligence: A Legal Exploration",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Consultation Paper on Artificial Intelligence and Civil Liability",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Fault-Based Liability for Artificial Intelligence Torts",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        }
+      ]
+    },
+    {
+      "query": "minimum wage employment",
+      "ratings": [
+        {
+          "title": "The Impact of Minimum Wages on Wages, Wage Spillovers, and Employment in China: Evidence from Longitudinal Individual-Level Data",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Minimum Wages, Minimum Labour Costs and the Tax Treatment of Low-Wage Employment",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Are Wage and Employment Effects Robust to Alternative Minimum Wage Variables?",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "The Impact of Minimum Wage Indexing: Employment and Wage Evidence from Oregon and Washington",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Minimum Wage and Employment",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Wage and Employment Effects of Non-Binding Minimum Wages",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Wage and Employment Impact of Minimum Wage: Evidence from Lithuania",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Minimum Wages and Employment",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "The Wage and Employment Effects of California's Fast-Food Minimum Wage",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        }
+      ]
+    },
+    {
+      "query": "inflation expectations",
+      "ratings": [
+        {
+          "title": "Formation of Inflation Expectations in Turbulent Times: Can ECB Manage Inflation Expectations of Professional Forecasters?",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Extrapolative Inflation Expectations and the Eurozone Missing Inflation Puzzle",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Nexus between Inflation, Inflation Perceptions and Expectations",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Inflation Expectations and Surprise Inflation",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Inflation Expectations and Inflation Persistence",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Shocks to Inflation Expectations",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Inflation Expectations and Monetary Policy",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Three Stylized Facts about Inflation Expectations During the 2021-23 Inflation Surge",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Inflation Regimes and Inflation Expectations",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        }
+      ]
+    },
+    {
+      "query": "housing affordability",
+      "ratings": [
+        {
+          "title": "Housing Cooperatives, Housing Affordability, and Rent Control",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Is America’s Housing Affordability Problem a Housing Problem?",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Aging, Housing Affordability, and Homelessness",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Weaknesses of Housing Affordability Indices Used by Practitioners",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Housing Affordability",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "A Housing Affordability Revolution?",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Housing Affordability in Czech Regions and Demographic Behaviour – Does Housing Affordability Impact Fertility?",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Housing Price Appreciation, Housing Affordability, and the Spatial Restructuring of Toronto Commuting",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Housing Supply and Housing Affordability",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Housing Affordability for Greek Households",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        }
+      ]
+    },
+    {
+      "query": "venture capital returns",
+      "ratings": [
+        {
+          "title": "Efficient Venture Capital Market",
+          "score": 1,
+          "reason": "讨论风险投资市场，未显示回报"
+        },
+        {
+          "title": "The Role of Contracts in Venture Capital Returns",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "The Risk and Return of Venture Capital",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Risk-Adjusting the Returns to Venture Capital",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Power-Law Distribution in Venture Capital Returns and Its Implications for Venture Capital Portfolio Construction Arjun 2026",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "The Role of Experience in UK Venture Capital Returns",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Cryptocurrency Investment DAOs As a New Venture Capital Platform: Power Law in Startup Returns",
+          "score": 1,
+          "reason": "涉及风投平台与创业企业回报，投资者回报不明确"
+        },
+        {
+          "title": "Insider Financing and Venture Capital Returns",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        }
+      ]
+    },
+    {
+      "query": "deposit insurance bank runs",
+      "ratings": [
+        {
+          "title": "Bank Runs and Design Flaws of Deposit Insurance",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "On the Effects of Deposit Insurance and Observability on Bank Runs: An Experimental Study",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Bank Runs and Partial Deposit Convertibility",
+          "score": 1,
+          "reason": "讨论挤兑与存款可兑换性，未显示保险"
+        },
+        {
+          "title": "Experimental Evidence on Bank Runs Under Partial Deposit Insurance",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Bank Runs and Self-Insured Bank Deposits",
+          "score": 1,
+          "reason": "讨论挤兑与存款自保，保险机制不明确"
+        },
+        {
+          "title": "Understanding Bank Runs: The Importance of Depositor-Bank Relationships and Networks",
+          "score": 1,
+          "reason": "讨论挤兑，未显示存款保险"
+        },
+        {
+          "title": "Bank Runs: The Pre-Deposit Game",
+          "score": 1,
+          "reason": "讨论挤兑，未显示存款保险"
+        }
+      ]
+    },
+    {
+      "query": "stablecoins",
+      "ratings": [
+        {
+          "title": "Stablecoins: Designs, Effectiveness, Opportunities",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Stablecoin Regulation: EU, UK and US Perspectives",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Stablecoins and Banks",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Stablecoins Regulatory Approaches: The Positive and Negative Externalities of Adopting Stablecoins in Regulated Financial Systems",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Stablecoins as Perpetual Convertible Bonds -A new solution to the stablecoin trilemma",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Toss a Stablecoin to Your Banker - Stablecoins’ Impact on Banks’ Balance Sheets and Prudential Ratios",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Extremely Stablecoins",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Making Stablecoins Stable",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "A Note On Stablecoin – Anti-Stablecoin Asymmetry",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Tokenized Cash, Stablecoins and Regulatory Developments",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        }
+      ]
+    },
+    {
+      "query": "securities class actions",
+      "ratings": [
+        {
+          "title": "Securities Class Actions in State Court",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Bondholders and Securities Class Actions",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Internal and External Discipline Following Securities Class Actions",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Securities Class Actions Move North: A Doctrinal and Empirical Analysis of Securities Class Actions in Canada",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Closing the Gate on Ontario's Securities Class Actions",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Securities Class Actions and Bankrupt Companies",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Securities Class Actions Against Bankrupt Companies",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "The Evidence on Securities Class Actions",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        }
+      ]
+    },
+    {
+      "query": "multinational tax avoidance",
+      "ratings": [
+        {
+          "title": "Tax Avoidance and Multinational Firm Behavior",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Tax Avoidance Activities of U.S. Multinational Corporations",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "The Anti-Tax Avoidance Legislation and the Operations of Multinational Companies in Ghana: The Way Forward for the Multinational Companies",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Multinational Ownership Structures and Anti Tax Avoidance Legislation",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Transfer Pricing: A Tax Avoidance Tool of Multinational Corporations",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Tax Avoidance by Multinational Companies: Methods, Policies, and Ethics",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Curbing Multinational Digital Tax Avoidance with The General Anti-Avoidance Rule",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        },
+        {
+          "title": "Multinational Anti-Avoidance Law (MAAL) and Pt IVA — a Critical Analysis of the Tax Laws Amendment (Combating Multinational Tax Avoidance) Bill 2015 (Cth) and Treasury Laws Amendment (Combating Multinational Tax Avoidance) Bill 2017 (Cth) and Comparison with General Anti-Avoidance Provisions",
+          "score": 2,
+          "reason": "标题直接覆盖查询主题"
+        }
+      ]
+    }
+  ]
+}

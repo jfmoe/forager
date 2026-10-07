@@ -1,0 +1,432 @@
+{
+  "routes": {
+    "ssrn_crossref": {
+      "attempts": 30,
+      "success": 30,
+      "errors": [],
+      "items": 600,
+      "fields": {
+        "abstract": 415,
+        "snippet": 0,
+        "authors": 600,
+        "posted": 0,
+        "published": 600
+      },
+      "depths": {
+        "abstract": 415,
+        "metadata": 185
+      },
+      "p50_seconds": 1.58,
+      "p95_seconds": 2.31,
+      "duplicates_within_pages": 0
+    },
+    "ssrn_browser": {
+      "attempts": 30,
+      "success": 30,
+      "errors": [],
+      "items": 589,
+      "fields": {
+        "abstract": 0,
+        "snippet": 589,
+        "authors": 589,
+        "posted": 589,
+        "published": 589
+      },
+      "depths": {
+        "snippet": 589
+      },
+      "p50_seconds": 3.79,
+      "p95_seconds": 5.08,
+      "duplicates_within_pages": 0
+    }
+  },
+  "known": [
+    {
+      "query": "betting against beta",
+      "target": "2049939",
+      "ssrn_crossref": 4,
+      "ssrn_browser": 9
+    },
+    {
+      "query": "gross profitability premium",
+      "target": "1598056",
+      "ssrn_crossref": null,
+      "ssrn_browser": 5
+    },
+    {
+      "query": "quality minus junk",
+      "target": "2312432",
+      "ssrn_crossref": 1,
+      "ssrn_browser": 1
+    },
+    {
+      "query": "value and momentum everywhere",
+      "target": "2174501",
+      "ssrn_crossref": 2,
+      "ssrn_browser": 2
+    },
+    {
+      "query": "time series momentum",
+      "target": "2089463",
+      "ssrn_crossref": null,
+      "ssrn_browser": null
+    },
+    {
+      "query": "five-factor asset pricing model",
+      "target": "2287202",
+      "ssrn_crossref": 1,
+      "ssrn_browser": null
+    },
+    {
+      "query": "fact fiction momentum investing",
+      "target": "2435323",
+      "ssrn_crossref": 1,
+      "ssrn_browser": 2
+    },
+    {
+      "query": "factor momentum and the momentum factor",
+      "target": "3014521",
+      "ssrn_crossref": 1,
+      "ssrn_browser": 2
+    },
+    {
+      "query": "dual momentum risk premia harvesting",
+      "target": "2042750",
+      "ssrn_crossref": 1,
+      "ssrn_browser": 1
+    },
+    {
+      "query": "momentum has its moments",
+      "target": "2041429",
+      "ssrn_crossref": null,
+      "ssrn_browser": 1
+    }
+  ],
+  "overlap": [
+    {
+      "query": "dual momentum",
+      "common": 8,
+      "crossref_only": 12,
+      "browser_only": 12,
+      "jaccard": 0.25
+    },
+    {
+      "query": "carbon tax",
+      "common": 5,
+      "crossref_only": 15,
+      "browser_only": 15,
+      "jaccard": 0.14285714285714285
+    },
+    {
+      "query": "merger arbitrage",
+      "common": 8,
+      "crossref_only": 12,
+      "browser_only": 12,
+      "jaccard": 0.25
+    },
+    {
+      "query": "ESG ratings disagreement",
+      "common": 7,
+      "crossref_only": 13,
+      "browser_only": 13,
+      "jaccard": 0.21212121212121213
+    },
+    {
+      "query": "climate risk disclosure",
+      "common": 6,
+      "crossref_only": 14,
+      "browser_only": 14,
+      "jaccard": 0.17647058823529413
+    },
+    {
+      "query": "private credit",
+      "common": 6,
+      "crossref_only": 14,
+      "browser_only": 14,
+      "jaccard": 0.17647058823529413
+    },
+    {
+      "query": "cryptocurrency regulation",
+      "common": 12,
+      "crossref_only": 8,
+      "browser_only": 8,
+      "jaccard": 0.42857142857142855
+    },
+    {
+      "query": "central bank digital currency",
+      "common": 3,
+      "crossref_only": 17,
+      "browser_only": 17,
+      "jaccard": 0.08108108108108109
+    },
+    {
+      "query": "board gender diversity",
+      "common": 5,
+      "crossref_only": 15,
+      "browser_only": 15,
+      "jaccard": 0.14285714285714285
+    },
+    {
+      "query": "insider trading enforcement",
+      "common": 4,
+      "crossref_only": 16,
+      "browser_only": 16,
+      "jaccard": 0.1111111111111111
+    },
+    {
+      "query": "antitrust digital platforms",
+      "common": 6,
+      "crossref_only": 14,
+      "browser_only": 14,
+      "jaccard": 0.17647058823529413
+    },
+    {
+      "query": "artificial intelligence liability",
+      "common": 7,
+      "crossref_only": 13,
+      "browser_only": 13,
+      "jaccard": 0.21212121212121213
+    },
+    {
+      "query": "minimum wage employment",
+      "common": 8,
+      "crossref_only": 12,
+      "browser_only": 12,
+      "jaccard": 0.25
+    },
+    {
+      "query": "inflation expectations",
+      "common": 4,
+      "crossref_only": 16,
+      "browser_only": 16,
+      "jaccard": 0.1111111111111111
+    },
+    {
+      "query": "housing affordability",
+      "common": 2,
+      "crossref_only": 18,
+      "browser_only": 18,
+      "jaccard": 0.05263157894736842
+    },
+    {
+      "query": "venture capital returns",
+      "common": 5,
+      "crossref_only": 15,
+      "browser_only": 15,
+      "jaccard": 0.14285714285714285
+    },
+    {
+      "query": "deposit insurance bank runs",
+      "common": 7,
+      "crossref_only": 13,
+      "browser_only": 13,
+      "jaccard": 0.21212121212121213
+    },
+    {
+      "query": "stablecoins",
+      "common": 2,
+      "crossref_only": 18,
+      "browser_only": 18,
+      "jaccard": 0.05263157894736842
+    },
+    {
+      "query": "securities class actions",
+      "common": 5,
+      "crossref_only": 15,
+      "browser_only": 15,
+      "jaccard": 0.14285714285714285
+    },
+    {
+      "query": "multinational tax avoidance",
+      "common": 6,
+      "crossref_only": 14,
+      "browser_only": 14,
+      "jaccard": 0.17647058823529413
+    },
+    {
+      "query": "betting against beta",
+      "common": 15,
+      "crossref_only": 5,
+      "browser_only": 5,
+      "jaccard": 0.6
+    },
+    {
+      "query": "gross profitability premium",
+      "common": 15,
+      "crossref_only": 5,
+      "browser_only": 5,
+      "jaccard": 0.6
+    },
+    {
+      "query": "quality minus junk",
+      "common": 1,
+      "crossref_only": 19,
+      "browser_only": 19,
+      "jaccard": 0.02564102564102564
+    },
+    {
+      "query": "value and momentum everywhere",
+      "common": 8,
+      "crossref_only": 12,
+      "browser_only": 12,
+      "jaccard": 0.25
+    },
+    {
+      "query": "time series momentum",
+      "common": 10,
+      "crossref_only": 10,
+      "browser_only": 10,
+      "jaccard": 0.3333333333333333
+    },
+    {
+      "query": "five-factor asset pricing model",
+      "common": 3,
+      "crossref_only": 17,
+      "browser_only": 17,
+      "jaccard": 0.08108108108108109
+    },
+    {
+      "query": "fact fiction momentum investing",
+      "common": 4,
+      "crossref_only": 16,
+      "browser_only": 16,
+      "jaccard": 0.1111111111111111
+    },
+    {
+      "query": "factor momentum and the momentum factor",
+      "common": 8,
+      "crossref_only": 12,
+      "browser_only": 12,
+      "jaccard": 0.25
+    },
+    {
+      "query": "dual momentum risk premia harvesting",
+      "common": 1,
+      "crossref_only": 19,
+      "browser_only": 8,
+      "jaccard": 0.03571428571428571
+    },
+    {
+      "query": "momentum has its moments",
+      "common": 5,
+      "crossref_only": 15,
+      "browser_only": 15,
+      "jaccard": 0.14285714285714285
+    }
+  ],
+  "title_match": {
+    "routes": {
+      "ssrn_crossref": {
+        "0": 1,
+        "1": 4,
+        "2": 95
+      },
+      "ssrn_browser": {
+        "1": 11,
+        "2": 89
+      }
+    },
+    "queries": [
+      {
+        "query": "dual momentum",
+        "ssrn_crossref": 5,
+        "ssrn_browser": 3
+      },
+      {
+        "query": "carbon tax",
+        "ssrn_crossref": 4,
+        "ssrn_browser": 4
+      },
+      {
+        "query": "merger arbitrage",
+        "ssrn_crossref": 5,
+        "ssrn_browser": 4
+      },
+      {
+        "query": "ESG ratings disagreement",
+        "ssrn_crossref": 5,
+        "ssrn_browser": 5
+      },
+      {
+        "query": "climate risk disclosure",
+        "ssrn_crossref": 5,
+        "ssrn_browser": 5
+      },
+      {
+        "query": "private credit",
+        "ssrn_crossref": 4,
+        "ssrn_browser": 5
+      },
+      {
+        "query": "cryptocurrency regulation",
+        "ssrn_crossref": 5,
+        "ssrn_browser": 5
+      },
+      {
+        "query": "central bank digital currency",
+        "ssrn_crossref": 5,
+        "ssrn_browser": 5
+      },
+      {
+        "query": "board gender diversity",
+        "ssrn_crossref": 5,
+        "ssrn_browser": 5
+      },
+      {
+        "query": "insider trading enforcement",
+        "ssrn_crossref": 5,
+        "ssrn_browser": 3
+      },
+      {
+        "query": "antitrust digital platforms",
+        "ssrn_crossref": 5,
+        "ssrn_browser": 5
+      },
+      {
+        "query": "artificial intelligence liability",
+        "ssrn_crossref": 5,
+        "ssrn_browser": 5
+      },
+      {
+        "query": "minimum wage employment",
+        "ssrn_crossref": 5,
+        "ssrn_browser": 5
+      },
+      {
+        "query": "inflation expectations",
+        "ssrn_crossref": 5,
+        "ssrn_browser": 5
+      },
+      {
+        "query": "housing affordability",
+        "ssrn_crossref": 5,
+        "ssrn_browser": 5
+      },
+      {
+        "query": "venture capital returns",
+        "ssrn_crossref": 4,
+        "ssrn_browser": 2
+      },
+      {
+        "query": "deposit insurance bank runs",
+        "ssrn_crossref": 3,
+        "ssrn_browser": 3
+      },
+      {
+        "query": "stablecoins",
+        "ssrn_crossref": 5,
+        "ssrn_browser": 5
+      },
+      {
+        "query": "securities class actions",
+        "ssrn_crossref": 5,
+        "ssrn_browser": 5
+      },
+      {
+        "query": "multinational tax avoidance",
+        "ssrn_crossref": 5,
+        "ssrn_browser": 5
+      }
+    ]
+  }
+}
