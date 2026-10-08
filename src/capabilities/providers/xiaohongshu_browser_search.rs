@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use chrono::{Datelike, FixedOffset, NaiveDate, Utc};
+use chrono::{Datelike, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeDelta};
 use serde::Deserialize;
 
 use super::{
@@ -91,7 +91,7 @@ impl XiaohongshuBrowser {
                     ));
                 }
                 let verified = read_search(&envelope.data, query, expected, pages)?;
-                let decoded = decode(&verified, request.limit, beijing_today()).map_err(runtime)?;
+                let decoded = decode(&verified, request.limit, local_now()).map_err(runtime)?;
                 Ok((None, decoded))
             },
         )
@@ -422,7 +422,7 @@ struct Decoded {
 
 /// Decodes the note cards across pages, skips other cards and unusable notes, removes repeated
 /// notes, and keeps at most `limit`. Only Xiaohongshu itself can say a search has no results.
-fn decode(verified: &VerifiedPages, limit: u16, today: NaiveDate) -> Result<Decoded, String> {
+fn decode(verified: &VerifiedPages, limit: u16, now: NaiveDateTime) -> Result<Decoded, String> {
     let first = &verified.pages[0];
     let notes = verified
         .pages
@@ -447,7 +447,7 @@ fn decode(verified: &VerifiedPages, limit: u16, today: NaiveDate) -> Result<Deco
     let mut items = Vec::new();
     let mut skipped = 0_usize;
     for note in &notes {
-        let Some(item) = decode_note(note, today) else {
+        let Some(item) = decode_note(note, now) else {
             skipped += 1;
             continue;
         };
@@ -476,7 +476,7 @@ fn decode(verified: &VerifiedPages, limit: u16, today: NaiveDate) -> Result<Deco
     })
 }
 
-fn decode_note(note: &serde_json::Value, today: NaiveDate) -> Option<PlatformItem> {
+fn decode_note(note: &serde_json::Value, now: NaiveDateTime) -> Option<PlatformItem> {
     let reference = note["id"].as_str().and_then(XiaohongshuRef::from_note_id)?;
     let token = note["xsec_token"].as_str().and_then(AccessToken::new)?;
     let card = &note["note_card"];
@@ -503,7 +503,7 @@ fn decode_note(note: &serde_json::Value, today: NaiveDate) -> Option<PlatformIte
             .unwrap_or_default(),
         published: published_text
             .as_deref()
-            .and_then(|shown| published_date(shown, today)),
+            .and_then(|shown| published_date(shown, now)),
         data: PlatformItemData::Xiaohongshu(XiaohongshuItemData {
             note_type: card["type"].as_str().map(|kind| match kind {
                 "normal" => "image".to_owned(),
@@ -521,50 +521,88 @@ fn decode_note(note: &serde_json::Value, today: NaiveDate) -> Option<PlatformIte
     })
 }
 
-fn beijing_today() -> NaiveDate {
-    let beijing = FixedOffset::east_opt(8 * 3600).expect("UTC+8 is a valid offset");
-    Utc::now().with_timezone(&beijing).date_naive()
+/// The system clock as a time in the system local timezone, the reference for the dates a card
+/// shows without a year or as a relative time.
+fn local_now() -> NaiveDateTime {
+    Local::now().naive_local()
 }
 
-/// Normalizes the publication date a note card shows: `YYYY-MM-DD` as is, and `MM-DD` in the
-/// year of `today` (Beijing time), or the year before when that date lies in the future. Any
-/// other text, such as a relative time, has no date.
-fn published_date(shown: &str, today: NaiveDate) -> Option<String> {
+/// Normalizes the publication date a note card shows to a calendar date, counted from `now` (the
+/// request time in the system local timezone): `YYYY-MM-DD` as is; `MM-DD` in the year of `now`,
+/// or the year before when that date lies in the future; and the relative forms `刚刚`,
+/// `N分钟前`, `N小时前`, `N天前`, `昨天`, and `昨天 HH:MM`. Any other text has no date.
+fn published_date(shown: &str, now: NaiveDateTime) -> Option<String> {
     let shown = shown.trim();
+    let date = relative_date(shown, now).or_else(|| calendar_date(shown, now.date()))?;
+    Some(date.format("%Y-%m-%d").to_string())
+}
+
+fn relative_date(shown: &str, now: NaiveDateTime) -> Option<NaiveDate> {
+    let today = now.date();
+    if shown == "刚刚" {
+        return Some(today);
+    }
+    if let Some(rest) = shown.strip_prefix("昨天") {
+        let valid = rest.is_empty()
+            || rest.strip_prefix(' ').is_some_and(|time| {
+                time.len() == "HH:MM".len() && NaiveTime::parse_from_str(time, "%H:%M").is_ok()
+            });
+        return valid.then(|| today.pred_opt()).flatten();
+    }
+    let count = |unit: &str| {
+        shown
+            .strip_suffix(unit)
+            .filter(|count| !count.is_empty() && count.bytes().all(|byte| byte.is_ascii_digit()))
+            .and_then(|count| count.parse::<i64>().ok())
+    };
+    if let Some(days) = count("天前") {
+        return today.checked_sub_signed(TimeDelta::try_days(days)?);
+    }
+    let ago = match count("分钟前") {
+        Some(minutes) => TimeDelta::try_minutes(minutes)?,
+        None => TimeDelta::try_hours(count("小时前")?)?,
+    };
+    now.checked_sub_signed(ago).map(|then| then.date())
+}
+
+fn calendar_date(shown: &str, today: NaiveDate) -> Option<NaiveDate> {
     let digits = |part: &str, length: usize| {
         (part.len() == length && part.bytes().all(|byte| byte.is_ascii_digit()))
             .then(|| part.parse::<u32>().ok())
             .flatten()
     };
-    let parts = shown.split('-').collect::<Vec<_>>();
-    let date = match parts.as_slice() {
+    match shown.split('-').collect::<Vec<_>>().as_slice() {
         [year, month, day] => NaiveDate::from_ymd_opt(
             i32::try_from(digits(year, 4)?).ok()?,
             digits(month, 2)?,
             digits(day, 2)?,
-        )?,
+        ),
         [month, day] => {
             let (month, day) = (digits(month, 2)?, digits(day, 2)?);
-            let this_year = NaiveDate::from_ymd_opt(today.year(), month, day);
-            match this_year {
-                Some(date) if date <= today => date,
-                _ => NaiveDate::from_ymd_opt(today.year() - 1, month, day)?,
+            match NaiveDate::from_ymd_opt(today.year(), month, day) {
+                Some(date) if date <= today => Some(date),
+                _ => NaiveDate::from_ymd_opt(today.year() - 1, month, day),
             }
         }
-        _ => return None,
-    };
-    Some(date.format("%Y-%m-%d").to_string())
+        _ => None,
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use chrono::NaiveDate;
+    use chrono::{NaiveDate, NaiveDateTime};
 
     use super::published_date;
 
+    fn at(date: (i32, u32, u32), time: (u32, u32)) -> NaiveDateTime {
+        NaiveDate::from_ymd_opt(date.0, date.1, date.2)
+            .and_then(|date| date.and_hms_opt(time.0, time.1, 0))
+            .expect("valid local time")
+    }
+
     #[test]
     fn a_month_and_day_take_the_latest_year_that_is_not_in_the_future() {
-        let today = NaiveDate::from_ymd_opt(2026, 3, 1).expect("date");
+        let now = at((2026, 3, 1), (12, 0));
 
         let dates = [
             "07-09",
@@ -572,10 +610,9 @@ mod tests {
             "02-28",
             "2025-06-13",
             "02-29",
-            "3天前",
             "2025-6-13",
         ]
-        .map(|shown| published_date(shown, today));
+        .map(|shown| published_date(shown, now));
 
         assert_eq!(
             dates,
@@ -586,8 +623,55 @@ mod tests {
                 Some("2025-06-13".to_owned()),
                 None,
                 None,
-                None,
             ]
         );
+    }
+
+    #[test]
+    fn a_relative_time_counts_back_from_now_to_a_local_date() {
+        let now = at((2026, 3, 1), (0, 30));
+
+        let dates = [
+            "刚刚",
+            "5分钟前",
+            "45分钟前",
+            "1小时前",
+            "3天前",
+            "昨天",
+            "昨天 23:09",
+        ]
+        .map(|shown| published_date(shown, now));
+
+        assert_eq!(
+            dates,
+            [
+                Some("2026-03-01".to_owned()),
+                Some("2026-03-01".to_owned()),
+                Some("2026-02-28".to_owned()),
+                Some("2026-02-28".to_owned()),
+                Some("2026-02-26".to_owned()),
+                Some("2026-02-28".to_owned()),
+                Some("2026-02-28".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn other_texts_have_no_date() {
+        let now = at((2026, 3, 1), (12, 0));
+
+        let dates = [
+            "前天",
+            "3周前",
+            "分钟前",
+            "-3天前",
+            "3 天前",
+            "昨天 25:00",
+            "昨天23:09",
+            "今天 08:00",
+        ]
+        .map(|shown| published_date(shown, now));
+
+        assert_eq!(dates, [None, None, None, None, None, None, None, None]);
     }
 }

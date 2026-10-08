@@ -156,7 +156,7 @@ Rust 侧按以下顺序分类，排在前面的优先：
 | `depth` | `metadata` |
 | `title` | `note_card.display_title`，去空白后为空则为 `""`（小红书允许无标题笔记） |
 | `authors` | `[note_card.user.nickname]`，缺失时为 `[]` |
-| `published` | `corner_tag_info` 中 `type` 为 `publish_time` 的 `text`：`YYYY-MM-DD` 原样输出；`MM-DD` 补上请求时的北京时间年份，若得到的日期晚于请求当天则用上一年；其他形式（例如相对时间）为 `null` |
+| `published` | `corner_tag_info` 中 `type` 为 `publish_time` 的 `text`，换算为日历日期，参照请求时的系统时钟与系统本地时区，只精确到日：`YYYY-MM-DD` 原样输出；`MM-DD` 补上参照日期的年份，若得到的日期晚于参照日期则用上一年；`刚刚` 为参照日期；`N分钟前`、`N小时前` 为参照时刻减去该时长后的日期；`N天前` 为参照日期减 N 天；`昨天` 与 `昨天 HH:MM` 为前一天；其他形式（如 `前天`、`N周前`）为 `null` |
 | 平台字段 `note_type` | `note_card.type`：`normal` 输出为 `image`，`video` 原样 |
 | 平台字段 `author_id` | `note_card.user.user_id` |
 | 平台字段 `likes`、`collects`、`comments`、`shares` | `interact_info` 的计数原文（字符串，可能是 `1.2万` 这类缩写），缺失为 `null` |
@@ -313,7 +313,7 @@ OpenCLI 退出码到 attempt 错误类型的映射完全沿用 `providers/opencl
 | 5 | 同运行 3，读取模块改为只在完成信号之后的读取中判定 `body_missing`（结束时读到的在途请求不再计入） | 35 秒，退 0：25 条，`next_cursor: null`，"未列全"诊断 |
 | 6 | `forager platform xiaohongshu search 咖啡 --limit 5 --note-type video --sort most-liked` | 24 秒，退 0：5 条全部为视频，点赞数依次递减，`published` 均为 `YYYY-MM-DD` |
 
-条目字段与本设计的实测一致：笔记条目为 `{id, model_type, note_card, xsec_token}`，`interact_info` 含 `liked_count`、`collected_count`、`comment_count`、`shared_count`。新观察：按"最新"排序、限一周内时，`publish_time` 全部是相对时间（`1分钟前`、`9小时前`、`3天前`），因此这类检索的 `published` 全部为 `null`，只有 `published_text` 有值。是否把相对时间换算成日期，等用过之后再定。
+条目字段与本设计的实测一致：笔记条目为 `{id, model_type, note_card, xsec_token}`，`interact_info` 含 `liked_count`、`collected_count`、`comment_count`、`shared_count`。新观察：按"最新"排序、限一周内时，`publish_time` 全部是相对时间（`1分钟前`、`9小时前`、`3天前`），因此这类检索的 `published` 全部为 `null`，只有 `published_text` 有值。之后决定把相对时间换算为日期，规则见「解码」。
 
 ### 第一期验收（fetch）
 
@@ -363,6 +363,8 @@ OpenCLI 退出码到 attempt 错误类型的映射完全沿用 `providers/opencl
 | 1 | `forager doctor --provider xiaohongshu_browser` | 10 秒，深探通过 |
 | 2 | `forager platform xiaohongshu search 咖啡 --limit 25 --sort latest --publish-time week` | 30 秒，退 0：25 条，ref 无重复，"未列全"诊断 |
 | 3 | 同运行 1 | 18 秒，深探通过 |
+| 4 | `forager platform xiaohongshu search 咖啡 --limit 20 --sort latest --publish-time week`（相对时间换算之后） | 16 秒，退 0：20 条，本机时区 10 月 9 日 01:43 运行，`1小时前` 与 `55分钟前` 为 `2026-10-09`，`昨天 23:09` 与 `1天前` 为 `2026-10-08`，`2天前` 为 `2026-10-07` |
+| 5 | 同运行 1 | 10 秒，退 4：Runtime，`a Xiaohongshu search response arrived without its body`，见「仍未实测的部分」 |
 
 运行 2 的 `published_text` 出现了 `N分钟前`、`N小时前`、`N天前`、`1天前` 与 `昨天 HH:MM`（9 条）。
 
@@ -373,8 +375,8 @@ OpenCLI 退出码到 attempt 错误类型的映射完全沿用 `providers/opencl
 - **图片 URL 的有效期**：fetch 输出的图片 URL 路径带时间与摘要段，可能会过期，未验证。
 - **合法空集**：两个无意义查询都返回了笔记，没能观察到真正的空结果；判定规则按接口字段设计，未经实测。
 - **Chrome 错误页**：`load_error` 的识别（`chrome-error:` 页面中的 `.error-code`）只在本机对一个拒绝连接的端口验证过；小红书上的错误页每次都在命令第一次读取页面状态之前被 Chrome 重新加载掉，所以没有读到过真实错误码。Chrome 连续重新加载失败、退避间隔变长时，命令会以 Network 结束。
-- **相对时间**：第一期验收观察到 `N分钟前`、`N小时前`、`N天前`，按规则输出 `null` 与原文；"昨天"等其他形式仍未出现。
-- **抓包完成条件**：第一期验收中五次成功运行的全部搜索响应都带响应体；慢响应下的表现仍只有这两次样本。
+- **相对时间**：真实卡片上已观察到 `N分钟前`、`N小时前`、`N天前`（含 `1天前`）与 `昨天 HH:MM`；`刚刚`、不带时间的 `昨天` 尚未出现，按同一规则换算。`昨天` 由站点按哪个时区判定未核实：本机时区与站点不同时，换算出的日期可能差一天。
+- **抓包完成条件**：第一期验收中五次成功运行的全部搜索响应都带响应体。「第一页偶发未完成的原因」的运行 5 在 10 秒内以 `body_missing` 失败：完成信号之后 1 秒读到的搜索条目没有响应体。为控制访问次数没有再复现，原因未确认；可能是页面又发出了一次搜索请求而它仍在途，也可能是扩展取响应体慢于 1 秒。
 - **楼中楼 cursor**：楼中楼第一页的请求 `cursor` 是否等于 `sub_comment_cursor` 未比较，暂不作为核对条件。
 - **截图驱动渲染的稳定性**：依赖 Chrome 在后台窗口中为截图渲染一帧的行为。若某个 Chrome 版本不再这样，翻页会以 Timeout 失败而不是返回不完整结果，届时再评估。
 - **评论翻页的跨次一致性**：评论顺序在两次运行中第一页相同，但只看了前两条 ID，没有系统比较；comments 不签发 cursor，不依赖这一点。

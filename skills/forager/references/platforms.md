@@ -229,10 +229,11 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
   token. A search item is a card, not the note: it supports claims about the title, author, date,
   and counts only; fetch the note before making claims about what it says. A fetched note is one
   person's post: attribute its claims to the author, and note that images and videos were not
-  read. `published` is `null` for a relative time such as `3天前`; quote
-  `published_text` instead. Counts are Xiaohongshu's display text (`1.2万`), not exact numbers.
-  Results are personalized and change between runs; do not present them as a complete or stable
-  ranking.
+  read. A card's relative time (`3天前`, `昨天 21:38`) is converted to a `published` date from
+  this machine's clock, so it is accurate to the day at best; quote `published_text` when the
+  exact wording matters, and when `published` is `null`. Counts are Xiaohongshu's display text
+  (`1.2万`), not exact numbers. Results are personalized and change between runs; do not present
+  them as a complete or stable ranking.
 
 ## Recover
 

@@ -287,7 +287,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 - 通用 flag 为 `--timeout`（默认 120 秒，计入等待限速窗口的时间）、`--output`/`--receipt`、`--verbose`。没有 `--cursor`。
 - **不续页**：小红书每次访问的排序都不同，跨命令续页既不能复现也无法去重，所以 `next_cursor` 恒为 `null`。上游最后一页仍有结果，或去重后的条目在截到 `--limit` 时有余项，stderr 输出一条诊断，说明还有更多结果、需要更多时加大 `--limit`。
-- **输出**：外层形状与 arXiv search 相同。每个 item 含 `ref`（`xiaohongshu:<note_id>`）、canonical `url`（`https://www.xiaohongshu.com/explore/<note_id>`）、`depth`（恒为 `metadata`，卡片没有正文片段）、`title`（可以为空字符串）、`authors`（作者昵称）、`published`（见第 7 章，相对时间为 `null`），以及小红书字段 `note_type`（`image` / `video`）、`author_id`、`likes`、`collects`、`comments`、`shares`（计数原文，可能是 `1.2万` 这类缩写）、`published_text`（卡片上的时间原文）与 `access_url`（带 Access Token 的访问链接，打开该笔记的推荐入口）。ID 不合法或缺少 Access Token 的笔记被跳过并写入 stderr 诊断。
+- **输出**：外层形状与 arXiv search 相同。每个 item 含 `ref`（`xiaohongshu:<note_id>`）、canonical `url`（`https://www.xiaohongshu.com/explore/<note_id>`）、`depth`（恒为 `metadata`，卡片没有正文片段）、`title`（可以为空字符串）、`authors`（作者昵称）、`published`（日期，相对时间按本机时钟换算，规则见第 7 章；无法识别的形式为 `null`），以及小红书字段 `note_type`（`image` / `video`）、`author_id`、`likes`、`collects`、`comments`、`shares`（计数原文，可能是 `1.2万` 这类缩写）、`published_text`（卡片上的时间原文）与 `access_url`（带 Access Token 的访问链接，打开该笔记的推荐入口）。ID 不合法或缺少 Access Token 的笔记被跳过并写入 stderr 诊断。
 - **退出码**：查询词为空、`--limit` 越界＝飞行前退 2；`platforms.xiaohongshu.order` 为空（默认）＝飞行前退 3，消息给出启用步骤，不启动进程；会话未登录或站点返回 461 为 Auth，站点安全限制（300031、300017）为 attempt 级 Parameter，截止点前仍停在结果页为 Timeout，都退 4；条件、页序或关键词与请求不符、响应体缺失、停在非预期页面、上游有笔记但全部被跳过为 Runtime，退 4；合法零结果为 `items: []` 且退 0。
 
 ### `platform xiaohongshu fetch`

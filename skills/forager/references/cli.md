@@ -578,7 +578,7 @@ JSON output is `{platform, provider, items, next_cursor}`. Each item has:
 | `ref`, `url` | `xiaohongshu:<note_id>` and the note's canonical page, which does not open without an access token. |
 | `depth` | Always `metadata`: a result card has no body text. |
 | `title`, `authors` | The card title (may be `""`) and the author's nickname. |
-| `published` | `YYYY-MM-DD`, or `null` when the card shows a relative time such as `3天前`. |
+| `published` | `YYYY-MM-DD`. A relative time such as `3天前` or `昨天 21:38` is counted back from this machine's clock, in its local timezone; `null` for any other form. |
 | `published_text` | The card's time text exactly as shown. |
 | `note_type`, `author_id` | `image` or `video`, and the author's user ID. |
 | `likes`, `collects`, `comments`, `shares` | Counts as Xiaohongshu shows them, possibly abbreviated such as `1.2万`. |

@@ -375,34 +375,35 @@ fn a_page_whose_notes_are_all_unusable_fails_instead_of_returning_nothing() {
 }
 
 #[test]
-fn published_dates_without_a_year_take_the_beijing_year_and_relative_dates_have_none() {
+fn published_dates_without_a_year_or_shown_as_relative_take_the_local_clock() {
     let mut new_year = note(1);
     new_year["note_card"]["corner_tag_info"] = json!([{"type": "publish_time", "text": "01-01"}]);
     let mut relative = note(2);
     relative["note_card"]["corner_tag_info"] = json!([{"type": "publish_time", "text": "3天前"}]);
+    let mut unknown = note(3);
+    unknown["note_card"]["corner_tag_info"] = json!([{"type": "publish_time", "text": "前天"}]);
     let fake = fake(&search_data(
         0,
-        &[default_page(false, &[new_year, relative])],
+        &[default_page(false, &[new_year, relative, unknown])],
     ));
-    // January 1 is never in the future, so it falls in the current Beijing year.
-    let beijing_year = (chrono::Utc::now() + chrono::Duration::hours(8)).format("%Y");
+    let today = chrono::Local::now().date_naive();
+    // January 1 is never in the future, so it falls in the current local year.
+    let year = today.format("%Y");
+    let three_days_ago = (today - chrono::Days::new(3)).format("%Y-%m-%d");
 
     let output = search(&fake, &[]);
     let items = payload(&output)["items"].clone();
 
     assert_eq!(
-        (
-            &items[0]["published"],
-            &items[0]["published_text"],
-            &items[1]["published"],
-            &items[1]["published_text"]
-        ),
-        (
-            &json!(format!("{beijing_year}-01-01")),
-            &json!("01-01"),
-            &Value::Null,
-            &json!("3天前")
-        )
+        [0, 1, 2].map(|index| (
+            items[index]["published"].clone(),
+            items[index]["published_text"].clone()
+        )),
+        [
+            (json!(format!("{year}-01-01")), json!("01-01")),
+            (json!(three_days_ago.to_string()), json!("3天前")),
+            (Value::Null, json!("前天")),
+        ]
     );
 }
 
