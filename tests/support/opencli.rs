@@ -42,6 +42,11 @@ impl FakeOpenCli {
 
     /// Answers each command, selected by its second argument, with an `ok` envelope.
     pub(crate) fn by_command(pages: &[(&str, Value)]) -> Self {
+        Self::contract_by_command(CONTRACT, pages)
+    }
+
+    /// Answers each command of another adapter contract with an `ok` envelope.
+    pub(crate) fn contract_by_command(contract: &str, pages: &[(&str, Value)]) -> Self {
         let cases = pages.iter().fold(String::new(), |mut cases, (command, _)| {
             let _ = writeln!(cases, "  {command}) /bin/cat \"$dir/{command}.json\" ;;");
             cases
@@ -50,7 +55,7 @@ impl FakeOpenCli {
         for (command, data) in pages {
             fs::write(
                 fake.path(&format!("{command}.json")),
-                json!({"contract": CONTRACT, "status": "ok", "data": data}).to_string(),
+                json!({"contract": contract, "status": "ok", "data": data}).to_string(),
             )
             .expect("write fake page");
         }

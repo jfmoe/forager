@@ -145,7 +145,7 @@ ssl_verify = true
 
 `[platforms.<id>].order`＝该平台 route 的完全权威顺序（ADR 0019），默认值是 platform catalog 为该平台声明的默认 order（不是 route 集合的并集），需要用户手动启用的 route 是合法取值但不出现在默认值中。校验：拒绝重复项与不属于该平台的 route（config_error 退 3；`config set` 退 2）；允许为空，含义是禁用该平台。某个操作实际使用的 route＝该 order ∩ 该操作的 route 集合 ∩ 已配置的 route，集合为空时平台命令飞行前退 3，消息指出该配置键；order 中有 route 只因缺凭据而未配置时，消息另外点名 `providers.<route>.keys`。env 按既有公式派生，例如 `FORAGER_PLATFORMS__ARXIV__ORDER='["arxiv_api"]'`。
 
-平台 fetch 的正文段不设平台级顺序：它复用 `[capabilities.web_fetch].order` 与各 provider 的凭据（例如 arXiv 全文读取 HTML/PDF 时）。`full_text` 深度下该链没有已配置的 provider 时，平台 fetch 飞行前退 3；只取元数据与摘要的深度不需要 Web Fetch 配置。`providers.arxiv_api.url` 同时决定 HTML 可用性探测所在的主机（默认 export 镜像，与 arxiv.org 返回同一结果）。
+平台 fetch 的正文段不设平台级顺序：它复用 `[capabilities.web_fetch].order` 与各 provider 的凭据（例如 arXiv 全文读取 HTML/PDF 时）。`full_text` 深度下计划需要 Web Fetch（计划中有 route 不自己读取正文，见第 7 章「fetch」）而该链没有已配置的 provider 时，平台 fetch 飞行前退 3；只取元数据与摘要的深度，以及只含原生正文 route 的计划（`xiaohongshu_browser`），不需要 Web Fetch 配置。`providers.arxiv_api.url` 同时决定 HTML 可用性探测所在的主机（默认 export 镜像，与 arxiv.org 返回同一结果）。
 
 ### 值域与交叉约束（进 schema 与验收）
 

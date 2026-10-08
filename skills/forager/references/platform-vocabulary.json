@@ -67,12 +67,13 @@
     },
     {
       "id": "xiaohongshu",
-      "purpose": "Search Xiaohongshu (小红书, RED) notes in the user's own logged-in Chrome: note identity, card title, author, publish date, interaction counts, and an access URL that opens the note.",
-      "select_when": "The request names Xiaohongshu, 小红书 or RED, supplies a xiaohongshu.com note URL or xiaohongshu: ref, or needs Chinese consumer experience, reviews, and lifestyle posts rather than web pages; it needs the xiaohongshu_browser route enabled by the user.",
+      "purpose": "Search and read Xiaohongshu (小红书, RED) notes in the user's own logged-in Chrome: note identity, title, author, publish time, tags, interaction counts, images, the note text, and an access URL that opens the note.",
+      "select_when": "The request names Xiaohongshu, 小红书 or RED, supplies a xiaohongshu.com note URL, access_url or xiaohongshu: ref, or needs Chinese consumer experience, reviews, and lifestyle posts rather than web pages; it needs the xiaohongshu_browser route enabled by the user.",
       "examples": [
         "search Xiaohongshu for coffee grinder reviews",
         "小红书上最近一周关于露营装备的笔记",
-        "find the most liked 小红书 notes about Shanghai cafes"
+        "find the most liked 小红书 notes about Shanghai cafes",
+        "read this 小红书 note: https://www.xiaohongshu.com/explore/<note_id>?xsec_token=<token>"
       ],
       "ref_syntax": {
         "ref": "xiaohongshu:<note_id>",

@@ -181,7 +181,7 @@ _Avoid_: platform option、sub-command flag
 _Avoid_: citations、references、backlinks
 
 **Platform Fetch**:
-按 Platform Ref 取回单个平台条目的操作；它不同于 Web Fetch Capability，尽管其正文段可以复用 Web Fetch。先由平台 route 取元数据并确定实际版本，全文深度再由 route 声明的正文来源（一组 URL，或一个在同一 attempt 内校验过的本地文件）走同一条 Web Fetch 链；全文写入本地文件，结果只按路径引用它。
+按 Platform Ref 取回单个平台条目的操作；它不同于 Web Fetch Capability，尽管其正文段可以复用 Web Fetch。先由平台 route 取元数据并确定实际版本，全文深度再按 route 声明的正文来源取正文：一组 URL 或一个在同一 attempt 内校验过的本地文件走同一条 Web Fetch 链；route 在同一 attempt 内自己读到并核对过的平台原生正文（Native，例如小红书笔记）不经 Web Fetch（ADR 0022）。全文写入本地文件，结果只按路径引用它。
 _Avoid_: web fetch、platform download
 
 **Content Depth**:

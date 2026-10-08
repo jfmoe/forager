@@ -717,6 +717,7 @@ mod tests {
             fetch_support(&PlatformFetchRequest {
                 reference: reference.clone(),
                 depth,
+                access: None,
             })
             .is_ok()
         });

@@ -160,6 +160,13 @@
       "seam": "platform:xiaohongshu:search",
       "test": "tests/xiaohongshu_search.rs::search_reads_the_pages_after_the_last_filter_click_into_note_items",
       "note": "A fake opencli executable answering live-shaped page facts proves the transport, the page-fact classification, the condition checks, and the decoding; the JavaScript adapter is covered only by the live smoke C27."
+    },
+    {
+      "id": "F21",
+      "provider": "xiaohongshu_browser",
+      "seam": "platform:xiaohongshu:fetch",
+      "test": "tests/xiaohongshu_fetch.rs::full_text_writes_the_native_note_body_without_any_web_fetch_provider",
+      "note": "A fake opencli executable answering live-shaped note page facts proves the transport, the identity check, the metadata decoding, and the native full-text delivery; the JavaScript adapter is covered only by the live smoke C28."
     }
   ],
   "offline_e2e": [

@@ -595,6 +595,53 @@ Xiaohongshu answered 461 and wants a verification), `parameter` (a security rest
 `300031` or `300017`), `timeout` (the results did not arrive before the deadline), and `runtime`
 (the page or the responses did not match the request, or the adapter is missing or outdated).
 
+### `platform xiaohongshu fetch`
+
+```console
+forager platform xiaohongshu fetch ACCESS_URL [--depth metadata|full_text]
+                                   [--content-dir DIR] [--timeout SECONDS]
+                                   [--format json|markdown|content]
+                                   [--output FILE [--receipt]] [--verbose]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `ACCESS_URL` | A search item's `access_url`, or a full xiaohongshu.com note URL with its `xsec_token` copied from the browser. A ref or a URL without the token exits `2`. | Required |
+| `--depth DEPTH` | `full_text` writes the note as a Markdown file; `metadata` returns only the note fields. | `full_text` |
+| `--content-dir DIR` | Directory for the Markdown file. | A new directory under the system temporary directory |
+| `--format content` | Print the note text to stdout and write no file. | `json` |
+
+The note opens in the user's own logged-in Chrome through `xiaohongshu_browser`, like search; a
+fetch takes about 20 seconds. The full text needs no Web Fetch provider: the route reads it from
+the note page itself.
+
+JSON output has `platform`, `provider`, `ref`, `url` (the canonical page, without the token),
+`depth`, `title` (may be `""`), `authors` (the nickname), and `published` (exact Beijing time,
+such as `2025-10-08T13:06:40+08:00`), plus:
+
+| Field | Meaning |
+| --- | --- |
+| `updated` | When the note was last edited, in the same format. |
+| `note_type`, `author_id` | `image` or `video`, and the author's user ID. |
+| `likes`, `collects`, `comments`, `shares` | Counts as Xiaohongshu shows them. |
+| `tags` | The note's topic names. |
+| `images` | `[{url, width, height}]`; the URLs are Xiaohongshu CDN images. |
+| `video` | `{duration_seconds, width, height}` for a video note, else `null`; the video itself is never downloaded or linked. |
+| `ip_location` | The region Xiaohongshu shows for the author, or `null`. |
+| `access_url` | The note URL with its access token, rebuilt from the ref and token. |
+
+At `full_text`, the output adds `content_url` (the canonical page), `content_provider`
+(`xiaohongshu_browser`), `content_path` (`xiaohongshu-<note_id>.md`), and `content_len`. The file
+holds the title as a heading, the text exactly as shown (topics stay as `#话题[话题]#`), a `标签：`
+line, one `![](url)` line per image, and, for a video note, a line giving its length.
+
+Exit codes: `2` before any request for a missing or malformed token, a short link, a
+`rednote.com` link, or another depth; `3` for an empty `platforms.xiaohongshu.order`; `4` for
+`auth` and `timeout` as under search, `parameter` for a note Xiaohongshu would not open
+(`300031` or `300017`: the token may be stale, the note restricted or removed, or the account
+rate-limited), and `runtime` (the page showed another note or an unexpected page, or the file
+could not be written); `5` for `quality` (the note has no title, text, or images).
+
 ## Configuration and diagnostics
 
 ### `config`

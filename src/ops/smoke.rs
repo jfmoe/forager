@@ -29,11 +29,14 @@ const ANYSEARCH_CANARY_QUERY: &str = "retrieval augmented generation";
 const PLATFORM_CANARY_QUERY: &str = "retrieval augmented generation";
 // Xiaohongshu has new coffee notes every week, so the filtered search reaches its second page.
 const XIAOHONGSHU_CANARY_QUERY: &str = "咖啡";
-const SPECIFICATION_CASE_IDS: [&str; 29] = [
+const SPECIFICATION_CASE_IDS: [&str; 30] = [
     "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12",
     "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24", "C25",
-    "C26", "C27",
+    "C26", "C27", "C28",
 ];
+const XIAOHONGSHU_STOPPED: &str = "not started: an earlier Xiaohongshu case met a login wall or a block, so this run stops all Xiaohongshu access";
+const XIAOHONGSHU_NO_ACCESS_URL: &str =
+    "not started: the Xiaohongshu search case returned no access_url to fetch";
 const PIPELINE_CASES: [LiveCaseDefinition; 3] = [
     LiveCaseDefinition::pipeline("P1", "search"),
     LiveCaseDefinition::pipeline("P2", "research"),
@@ -168,6 +171,33 @@ enum ResultShape {
     Map,
     PlatformSearch,
     PlatformFetch,
+    PlatformFullText,
+}
+
+/// What one live run carries between its Xiaohongshu cases, in memory only: a note opens only
+/// with an access token, which expires, so the fetch case reads the first search result.
+#[derive(Default)]
+struct XiaohongshuRun {
+    access_url: Option<String>,
+    /// A case met a login wall or a block; more page loads would push the account further into
+    /// risk control.
+    stopped: bool,
+}
+
+/// Why one execution of a live case failed.
+struct CaseFailure {
+    message: &'static str,
+    /// The route reported Auth or an attempt-level Parameter failure.
+    login_wall_or_block: bool,
+}
+
+impl From<&'static str> for CaseFailure {
+    fn from(message: &'static str) -> Self {
+        Self {
+            message,
+            login_wall_or_block: false,
+        }
+    }
 }
 
 /// A stable item and a depth that its route serves without Web Fetch, so the platform fetch
@@ -488,10 +518,20 @@ pub(crate) fn run_live(
     let deadline = Deadline::new(Duration::from_secs(timeout_seconds));
     let mut results = Vec::with_capacity(LIVE_CASES.len());
     let mut summary = LiveSummary::default();
+    let mut xiaohongshu = XiaohongshuRun::default();
 
     for definition in LIVE_CASES.iter().copied() {
         let result = if case_is_configured(definition.id, &runtime) {
-            run_configured_case(definition, &runtime, deadline, outage_evidence)
+            match xiaohongshu_blocker(definition, &xiaohongshu) {
+                Some(message) => not_started(definition, message),
+                None => run_configured_case(
+                    definition,
+                    &runtime,
+                    deadline,
+                    outage_evidence,
+                    &mut xiaohongshu,
+                ),
+            }
         } else {
             LiveCaseResult {
                 definition,
@@ -529,11 +569,39 @@ pub(crate) fn run_live(
     ))
 }
 
+/// Returns why a Xiaohongshu case must not start: an earlier case met a login wall or a block,
+/// or the fetch case has no access URL from the search case.
+fn xiaohongshu_blocker(
+    definition: LiveCaseDefinition,
+    run: &XiaohongshuRun,
+) -> Option<&'static str> {
+    if definition.platform != Some(Platform::Xiaohongshu) {
+        return None;
+    }
+    if run.stopped {
+        return Some(XIAOHONGSHU_STOPPED);
+    }
+    (definition.operation == "fetch" && run.access_url.is_none())
+        .then_some(XIAOHONGSHU_NO_ACCESS_URL)
+}
+
+fn not_started(definition: LiveCaseDefinition, message: &'static str) -> LiveCaseResult {
+    LiveCaseResult {
+        definition,
+        status: LiveCaseStatus::Failed,
+        attempts: 0,
+        checked_at_unix_seconds: unix_timestamp(),
+        outage_evidence: None,
+        message: Some(message),
+    }
+}
+
 fn run_configured_case(
     definition: LiveCaseDefinition,
     runtime: &RuntimeConfig,
     deadline: Deadline,
     outage_evidence: &BTreeMap<String, String>,
+    xiaohongshu: &mut XiaohongshuRun,
 ) -> LiveCaseResult {
     let mut failure = "live case failed";
     let mut attempts = 0;
@@ -543,8 +611,15 @@ fn run_configured_case(
             break;
         }
         attempts = attempt;
-        match run_case_once(definition.id, deadline) {
-            Ok(()) => {
+        match run_case_once(definition, deadline, xiaohongshu.access_url.as_deref()) {
+            Ok(payload) => {
+                if definition.platform == Some(Platform::Xiaohongshu)
+                    && definition.operation == "search"
+                {
+                    xiaohongshu.access_url = payload["items"][0]["access_url"]
+                        .as_str()
+                        .map(str::to_owned);
+                }
                 return LiveCaseResult {
                     definition,
                     status: LiveCaseStatus::Passed,
@@ -554,7 +629,14 @@ fn run_configured_case(
                     message: None,
                 };
             }
-            Err(message) => failure = message,
+            Err(case_failure) => {
+                failure = case_failure.message;
+                if definition.platform == Some(Platform::Xiaohongshu)
+                    && case_failure.login_wall_or_block
+                {
+                    xiaohongshu.stopped = true;
+                }
+            }
         }
     }
     let evidence = outage_evidence
@@ -584,42 +666,67 @@ fn max_attempts(definition: LiveCaseDefinition) -> usize {
     }
 }
 
-fn run_case_once(case_id: &str, deadline: Deadline) -> Result<(), &'static str> {
+/// Runs every command of a case once and returns the payload of the last one.
+fn run_case_once(
+    definition: LiveCaseDefinition,
+    deadline: Deadline,
+    xiaohongshu_access_url: Option<&str>,
+) -> Result<Value, CaseFailure> {
+    let case_id = definition.id;
     let timeout_seconds = remaining_seconds(deadline).ok_or("live smoke hard deadline elapsed")?;
     let executable = std::env::current_exe().map_err(|_| "cannot resolve forager executable")?;
-    let p2_evidence = (case_id == "P2")
+    // P2 writes its evidence and the Xiaohongshu fetch writes its full text here.
+    let scratch = (case_id == "P2" || is_xiaohongshu_fetch(definition))
         .then(tempfile::tempdir)
         .transpose()
-        .map_err(|_| "cannot create temporary P2 evidence directory")?;
+        .map_err(|_| "cannot create a temporary directory for the live case")?;
     let commands = command_specs(
         case_id,
         timeout_seconds,
-        p2_evidence.as_ref().map(tempfile::TempDir::path),
+        scratch.as_ref().map(tempfile::TempDir::path),
+        xiaohongshu_access_url,
     )
     .ok_or("registered live case has no execution mapping")?;
+    let mut payload = Value::Null;
     for mut command in commands {
         if command.arguments.first().map(String::as_str) != Some("smoke") {
             command.arguments.push("--verbose".into());
         }
         let output = execute_with_deadline(live_case_process(&executable, &command), deadline)?;
         if output.status.code() != Some(0) {
-            return Err("live case command returned a nonzero terminal");
+            return Err(CaseFailure {
+                message: "live case command returned a nonzero terminal",
+                login_wall_or_block: is_login_wall_or_block(&output),
+            });
         }
         if matches!(case_id, "P1" | "P2")
             && String::from_utf8_lossy(&output.stderr).contains("Classifier warning")
         {
-            return Err("pipeline used classifier degradation instead of the live contract");
+            return Err("pipeline used classifier degradation instead of the live contract".into());
         }
-        let payload: Value = serde_json::from_slice(&output.stdout)
+        payload = serde_json::from_slice(&output.stdout)
             .map_err(|_| "live case returned invalid JSON")?;
         if !result_shape_is_nonempty(command.shape, &payload) {
-            return Err("live case returned an empty or unexpected result shape");
+            return Err("live case returned an empty or unexpected result shape".into());
         }
         if contains_runtime_error(&payload) {
-            return Err("live case included a runtime-class provider attempt");
+            return Err("live case included a runtime-class provider attempt".into());
         }
     }
-    Ok(())
+    Ok(payload)
+}
+
+fn is_xiaohongshu_fetch(definition: LiveCaseDefinition) -> bool {
+    definition.platform == Some(Platform::Xiaohongshu) && definition.operation == "fetch"
+}
+
+/// Whether a failed platform command ended on Auth or an attempt-level Parameter failure, which
+/// is how a Xiaohongshu route reports a login wall, risk control, or a block page.
+fn is_login_wall_or_block(output: &Output) -> bool {
+    output.status.code() == Some(4)
+        && serde_json::from_slice::<Value>(&output.stdout).is_ok_and(|payload| {
+            matches!(payload["error_kind"].as_str(), Some("auth" | "parameter"))
+        })
 }
 
 // Live cases are canaries, not user searches, so they stay out of the Search Result Journal.
@@ -698,7 +805,8 @@ fn remaining_seconds(deadline: Deadline) -> Option<u64> {
 fn command_specs(
     case_id: &str,
     timeout_seconds: u64,
-    p2_evidence_dir: Option<&Path>,
+    scratch_dir: Option<&Path>,
+    xiaohongshu_access_url: Option<&str>,
 ) -> Option<Vec<CommandSpec>> {
     let timeout = timeout_seconds.to_string();
     let map_timeout = timeout_seconds.clamp(10, 150).to_string();
@@ -712,7 +820,24 @@ fn command_specs(
     let definition = live_case(case_id)?;
     if let Some(platform) = definition.platform {
         let provider = definition.provider?;
-        let mut commands = if platform == Platform::Xiaohongshu {
+        let mut commands = if platform == Platform::Xiaohongshu && definition.operation == "fetch" {
+            let content_dir = scratch_dir?.display().to_string();
+            one(
+                &[
+                    "platform",
+                    platform.as_str(),
+                    definition.operation,
+                    xiaohongshu_access_url?,
+                    "--depth",
+                    "full_text",
+                    "--content-dir",
+                    &content_dir,
+                    "--timeout",
+                    &timeout,
+                ],
+                ResultShape::PlatformFullText,
+            )
+        } else if platform == Platform::Xiaohongshu {
             one(
                 &[
                     "platform",
@@ -842,7 +967,7 @@ fn command_specs(
             ResultShape::PipelineSearch,
         ),
         "P2" => {
-            let evidence_dir = p2_evidence_dir?.display().to_string();
+            let evidence_dir = scratch_dir?.display().to_string();
             one(
                 &[
                     "research",
@@ -981,6 +1106,11 @@ fn result_shape_is_nonempty(shape: ResultShape, payload: &Value) -> bool {
         ResultShape::PlatformSearch => nonempty_array(payload, "items"),
         ResultShape::PlatformFetch => {
             nonempty_string(payload, "ref") && nonempty_string(payload, "title")
+        }
+        // Many Xiaohongshu notes have no title, so only the body proves the read.
+        ResultShape::PlatformFullText => {
+            nonempty_string(payload, "ref")
+                && payload["content_len"].as_u64().is_some_and(|len| len > 0)
         }
         ResultShape::Fetch | ResultShape::Context7Docs => nonempty_string(payload, "content"),
     }
@@ -1237,7 +1367,7 @@ mod tests {
 
     #[test]
     fn live_case_processes_disable_the_search_result_journal() {
-        let specs = command_specs("P1", 60, None).expect("P1 is a registered live case");
+        let specs = command_specs("P1", 60, None, None).expect("P1 is a registered live case");
 
         let journal_settings = specs
             .iter()
@@ -1291,7 +1421,7 @@ mod tests {
     #[test]
     fn map_live_case_uses_a_legal_command_timeout() {
         let timeouts = [1, 10, 150, 600].map(|budget| {
-            let commands = command_specs("C17", budget, None).expect("C17 command");
+            let commands = command_specs("C17", budget, None, None).expect("C17 command");
             commands[0].arguments[5].clone()
         });
 

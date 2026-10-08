@@ -566,6 +566,19 @@ fn page_facts_classify_a_search_that_returned_no_results() {
 }
 
 #[test]
+fn a_read_deadline_on_the_results_page_with_a_trailing_slash_is_a_timeout() {
+    // Observed live on 2026-10-09: Xiaohongshu served the results under `/search_result/`.
+    let mut page = results_page();
+    page["url"] = json!(
+        "https://www.xiaohongshu.com/search_result/?keyword=%E5%92%96%E5%95%A1&source=web_explore_feed"
+    );
+
+    let (code, kind, _) = failure(&search(&fake(&with_page(&page, true, false)), &[]));
+
+    assert_eq!((code, kind), (Some(4), json!("timeout")));
+}
+
+#[test]
 fn a_read_deadline_before_the_last_filter_click_is_a_timeout() {
     let mut data = search_data(
         1,

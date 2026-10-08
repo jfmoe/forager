@@ -106,12 +106,11 @@ pub(crate) const SCHOLAR: PlatformCatalog = PlatformCatalog {
 };
 
 // Xiaohongshu has no public API and forbids crawlers, so its only route reads the pages of the
-// user's own logged-in Chrome and stays out of every default order (ADR 0020). Its fetch route
-// set is empty until fetch exists (jfmoe/forager#188).
+// user's own logged-in Chrome and stays out of every default order (ADR 0020).
 pub(crate) const XIAOHONGSHU: PlatformCatalog = PlatformCatalog {
     platform: Platform::Xiaohongshu,
     search: &[ProviderId::XiaohongshuBrowser],
-    fetch: &[],
+    fetch: &[ProviderId::XiaohongshuBrowser],
     default_order: &[],
 };
 
@@ -305,6 +304,9 @@ pub(crate) struct ProviderRegistration {
     pub(crate) access_policy: Option<AccessPolicy>,
     pub(crate) probe: DoctorProbe,
     pub(crate) smoke_cases: &'static [ProviderSmokeCase],
+    /// Whether the route's platform fetch reads the full text itself, so a full-text fetch
+    /// through it needs no Web Fetch provider.
+    pub(crate) native_full_text: bool,
 }
 
 impl ProviderRegistration {
@@ -509,12 +511,20 @@ const SERPAPI_SMOKE: &[ProviderSmokeCase] = &[
     },
 ];
 
-const XIAOHONGSHU_BROWSER_SMOKE: &[ProviderSmokeCase] = &[ProviderSmokeCase {
-    id: "C27",
-    platform: Some(Platform::Xiaohongshu),
-    operation: "search",
-    transport: "process",
-}];
+const XIAOHONGSHU_BROWSER_SMOKE: &[ProviderSmokeCase] = &[
+    ProviderSmokeCase {
+        id: "C27",
+        platform: Some(Platform::Xiaohongshu),
+        operation: "search",
+        transport: "process",
+    },
+    ProviderSmokeCase {
+        id: "C28",
+        platform: Some(Platform::Xiaohongshu),
+        operation: "fetch",
+        transport: "process",
+    },
+];
 
 // arXiv terms of use allow one request every three seconds over one connection.
 const ARXIV_API_ACCESS: AccessPolicy = AccessPolicy {
@@ -551,6 +561,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         access_policy: None,
         probe: DoctorProbe::MainSearch(XAI_PROBES),
         smoke_cases: XAI_SMOKE,
+        native_full_text: false,
     },
     ProviderRegistration {
         id: ProviderId::OpenAiCompatible,
@@ -560,6 +571,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         access_policy: None,
         probe: DoctorProbe::MainSearch(OPENAI_PROBES),
         smoke_cases: OPENAI_SMOKE,
+        native_full_text: false,
     },
     ProviderRegistration {
         id: ProviderId::Tavily,
@@ -572,6 +584,7 @@ const REGISTRY: &[ProviderRegistration] = &[
             transport: "http",
         },
         smoke_cases: TAVILY_SMOKE,
+        native_full_text: false,
     },
     ProviderRegistration {
         id: ProviderId::Firecrawl,
@@ -584,6 +597,7 @@ const REGISTRY: &[ProviderRegistration] = &[
             transport: "http",
         },
         smoke_cases: FIRECRAWL_SMOKE,
+        native_full_text: false,
     },
     ProviderRegistration {
         id: ProviderId::Jina,
@@ -596,6 +610,7 @@ const REGISTRY: &[ProviderRegistration] = &[
             transport: "http",
         },
         smoke_cases: JINA_SMOKE,
+        native_full_text: false,
     },
     ProviderRegistration {
         id: ProviderId::Context7,
@@ -608,6 +623,7 @@ const REGISTRY: &[ProviderRegistration] = &[
             transport: "mcp",
         },
         smoke_cases: CONTEXT7_SMOKE,
+        native_full_text: false,
     },
     ProviderRegistration {
         id: ProviderId::Exa,
@@ -620,6 +636,7 @@ const REGISTRY: &[ProviderRegistration] = &[
             transport: "http",
         },
         smoke_cases: EXA_SMOKE,
+        native_full_text: false,
     },
     ProviderRegistration {
         id: ProviderId::Anysearch,
@@ -632,6 +649,7 @@ const REGISTRY: &[ProviderRegistration] = &[
             transport: "mcp",
         },
         smoke_cases: ANYSEARCH_SMOKE,
+        native_full_text: false,
     },
     ProviderRegistration {
         id: ProviderId::ArxivApi,
@@ -645,6 +663,7 @@ const REGISTRY: &[ProviderRegistration] = &[
             transport: "http",
         },
         smoke_cases: ARXIV_API_SMOKE,
+        native_full_text: false,
     },
     ProviderRegistration {
         id: ProviderId::SsrnCrossref,
@@ -658,6 +677,7 @@ const REGISTRY: &[ProviderRegistration] = &[
             transport: "http",
         },
         smoke_cases: SSRN_CROSSREF_SMOKE,
+        native_full_text: false,
     },
     ProviderRegistration {
         id: ProviderId::SsrnBrowser,
@@ -674,6 +694,7 @@ const REGISTRY: &[ProviderRegistration] = &[
             transport: "process",
         },
         smoke_cases: SSRN_BROWSER_SMOKE,
+        native_full_text: false,
     },
     // SerpApi limits throughput per account; a 429 rotates to the next key instead of pacing.
     ProviderRegistration {
@@ -687,6 +708,7 @@ const REGISTRY: &[ProviderRegistration] = &[
             transport: "http",
         },
         smoke_cases: SERPAPI_SMOKE,
+        native_full_text: false,
     },
     ProviderRegistration {
         id: ProviderId::XiaohongshuBrowser,
@@ -703,6 +725,7 @@ const REGISTRY: &[ProviderRegistration] = &[
             transport: "process",
         },
         smoke_cases: XIAOHONGSHU_BROWSER_SMOKE,
+        native_full_text: true,
     },
 ];
 

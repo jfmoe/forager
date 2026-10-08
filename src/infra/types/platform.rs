@@ -14,7 +14,9 @@ use super::platform_arxiv::{ArxivItemData, ArxivRef, ArxivSearchOptions};
 use super::platform_scholar::{ScholarItemData, ScholarRef, ScholarSearchOptions};
 use super::platform_ssrn::{SsrnItemData, SsrnRef};
 use super::platform_ssrn_search::SsrnSearchOptions;
-use super::platform_xiaohongshu::{XiaohongshuItemData, XiaohongshuRef, XiaohongshuSearchOptions};
+use super::platform_xiaohongshu::{
+    AccessToken, XiaohongshuItemData, XiaohongshuNoteData, XiaohongshuRef, XiaohongshuSearchOptions,
+};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -269,8 +271,10 @@ pub enum PlatformItemData {
     Ssrn(SsrnItemData),
     /// Google Scholar metadata.
     Scholar(ScholarItemData),
-    /// Xiaohongshu note-card fields.
+    /// Xiaohongshu note-card fields of a search result.
     Xiaohongshu(XiaohongshuItemData),
+    /// Xiaohongshu fields of a fetched note.
+    XiaohongshuNote(XiaohongshuNoteData),
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -304,6 +308,9 @@ pub(crate) struct PlatformSearchOutcome {
 pub(crate) struct PlatformFetchRequest {
     pub(crate) reference: PlatformRef,
     pub(crate) depth: ContentDepth,
+    /// The access token that opens the entity, for a platform that needs one; it never reaches
+    /// the ref, the canonical URL, or the journal.
+    pub(crate) access: Option<AccessToken>,
 }
 
 /// One route's fetch result before the full-text stage.
@@ -317,13 +324,16 @@ pub(crate) struct PlatformFetchOutcome {
 }
 
 #[derive(Clone, Debug)]
-/// Where the full text of an item lives: URLs to read in order, or one local file the route
-/// produced and verified in the same command.
+/// Where the full text of an item lives: URLs to read in order, one local file the route
+/// produced and verified in the same command, or the Markdown body the route itself read and
+/// verified in the same attempt.
 pub(crate) enum FullTextSource {
     /// URLs to read in order; empty unless the request asks for the full text.
     Urls(Vec<String>),
     /// One verified local file.
     LocalFile(LocalFile),
+    /// The platform-native Markdown body; it needs no Web Fetch provider.
+    Native(String),
 }
 
 #[derive(Clone, Debug)]
@@ -375,11 +385,13 @@ pub struct PlatformFetchResult {
 #[derive(Clone, Debug, Serialize)]
 /// The full text of a platform item; the body itself never serializes.
 pub struct PlatformContent {
-    /// The URL the body was read from; for a body converted from a local file, the item's
-    /// canonical URL.
+    /// The URL the body was read from; for a body converted from a local file or read natively
+    /// by the route, the item's canonical URL, which names the source but may not open
+    /// anonymously.
     #[serde(rename = "content_url")]
     pub url: String,
-    /// The Web Fetch provider that returned the body.
+    /// The provider that produced the Markdown: the Web Fetch provider, or the route itself for
+    /// a native body.
     #[serde(rename = "content_provider")]
     pub provider: &'static str,
     /// The local Markdown file that holds the body, once written.

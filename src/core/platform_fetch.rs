@@ -2,9 +2,9 @@
 //!
 //! The platform's fetch routes form a fallback chain that returns the item metadata; a metadata
 //! failure ends the command. At full-text depth, the route that answered declares the full-text
-//! source of the version it returned: URLs to read in order, or one verified local file. Each
-//! runs the global Web Fetch chain until one succeeds. Route adapters never import Web Fetch
-//! providers.
+//! source of the version it returned: URLs to read in order or one verified local file, each of
+//! which runs the global Web Fetch chain until one succeeds, or a native body the route already
+//! read and verified, which needs no Web Fetch. Route adapters never import Web Fetch providers.
 
 use reqwest::Client;
 
@@ -31,6 +31,18 @@ pub(crate) struct PlatformFetchPlan {
     request: PlatformFetchRequest,
     routes: Vec<PlatformRouteConfig>,
     skipped: Vec<ProviderAttempt>,
+}
+
+impl PlatformFetchPlan {
+    /// Returns whether running the plan may read a full text through Web Fetch: the request asks
+    /// for the full text and some planned route does not read it natively.
+    pub(crate) fn needs_web_fetch(&self) -> bool {
+        self.request.depth == ContentDepth::FullText
+            && self
+                .routes
+                .iter()
+                .any(|route| !catalog::registration(route.route()).native_full_text)
+    }
 }
 
 /// Plans a fetch over the configured routes that can serve the requested depth.
@@ -63,7 +75,7 @@ pub(crate) struct PlatformFetchError {
 }
 
 /// Runs a planned fetch. At full-text depth the body comes from `web_fetch`, which must have a
-/// configured provider.
+/// configured provider when [`PlatformFetchPlan::needs_web_fetch`] says so.
 pub(crate) async fn fetch(
     plan: PlatformFetchPlan,
     web_fetch: WebFetchRuntimeConfig,
@@ -106,6 +118,11 @@ pub(crate) async fn fetch(
     let mut content = None;
     if request.depth == ContentDepth::FullText {
         let full_text = match metadata.content_source {
+            FullTextSource::Native(body) => Ok(FullText {
+                content: PlatformContent::new(item.url.clone(), metadata.route.name(), body),
+                attempts: Vec::new(),
+                diagnostic: None,
+            }),
             FullTextSource::Urls(urls) => {
                 read_url_full_text(urls, &web_fetch, &client, retry_policy, deadline)
                     .await

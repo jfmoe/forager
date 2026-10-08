@@ -20,6 +20,7 @@ const REF_HINT: &str = "pass a `xiaohongshu:<note_id>` ref or a xiaohongshu.com 
 const TOKEN_HINT: &str = "the xsec_token of the note URL must be 1 to 128 URL-safe base64 characters (A-Z, a-z, 0-9, `_`, `=`, `-`)";
 const SHORT_LINK_HINT: &str = "xhslink.com short links need a network request to expand: open the link in a browser and pass the full xiaohongshu.com note URL";
 const REDNOTE_HINT: &str = "rednote.com links are not supported: pass a xiaohongshu.com note URL";
+const MISSING_TOKEN: &str = "xiaohongshu fetch needs the note's access token: pass the `access_url` of a xiaohongshu search result, or the full note URL with its `xsec_token` copied from the browser";
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 /// A Xiaohongshu note identity: its 24-digit hexadecimal note ID, in lowercase. Notes have no
@@ -58,6 +59,20 @@ impl XiaohongshuRef {
             input: None,
             hint,
         })
+    }
+
+    /// Parses a note URL that carries the access token an operation on the note needs.
+    ///
+    /// # Errors
+    ///
+    /// Returns the message for an unrecognized input or for a ref or URL without a token; it
+    /// never echoes the input.
+    pub(crate) fn parse_accessible(input: &str) -> Result<(Self, AccessToken), String> {
+        match Self::parse_with_access(input) {
+            Ok((reference, Some(token))) => Ok((reference, token)),
+            Ok((_, None)) => Err(MISSING_TOKEN.to_owned()),
+            Err(error) => Err(error.to_string()),
+        }
     }
 
     /// Returns the ref of a note ID as Xiaohongshu prints it.
@@ -269,6 +284,46 @@ pub struct XiaohongshuItemData {
     pub published_text: Option<String>,
     /// The link that opens the note in a logged-in browser; it carries the access token.
     pub access_url: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+/// The Xiaohongshu fields of a fetched note, read from the note page.
+pub struct XiaohongshuNoteData {
+    /// When the note was last edited, in Beijing time.
+    pub updated: Option<String>,
+    /// `image` or `video`, or Xiaohongshu's own value for another kind.
+    pub note_type: Option<String>,
+    pub author_id: Option<String>,
+    /// The counts exactly as Xiaohongshu shows them, such as `1.2万`.
+    pub likes: Option<String>,
+    pub collects: Option<String>,
+    pub comments: Option<String>,
+    pub shares: Option<String>,
+    /// The topic names of the note.
+    pub tags: Vec<String>,
+    pub images: Vec<XiaohongshuImage>,
+    /// The video of a video note; `null` for an image note.
+    pub video: Option<XiaohongshuVideo>,
+    /// The region Xiaohongshu shows for the author's IP address.
+    pub ip_location: Option<String>,
+    /// The link that opens the note in a logged-in browser; it carries the access token.
+    pub access_url: String,
+}
+
+#[derive(Clone, Debug, Serialize)]
+/// One image of a note: an unsigned CDN URL and its pixel size.
+pub struct XiaohongshuImage {
+    pub url: String,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+/// The video of a note. Its signed, expiring stream URL is never reported.
+pub struct XiaohongshuVideo {
+    pub duration_seconds: Option<u64>,
+    pub width: Option<u32>,
+    pub height: Option<u32>,
 }
 
 #[cfg(test)]

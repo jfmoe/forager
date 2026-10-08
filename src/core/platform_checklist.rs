@@ -36,17 +36,6 @@ fn sample_refs(platform: Platform) -> &'static [&'static str] {
     }
 }
 
-/// Operations a platform does not provide yet, whose registration points the checklist skips.
-/// Xiaohongshu fetch is tracked in jfmoe/forager#188.
-const PENDING_OPERATIONS: &[(Platform, PlatformOperation)] =
-    &[(Platform::Xiaohongshu, PlatformOperation::Fetch)];
-
-fn provided_operations(platform: Platform) -> impl Iterator<Item = PlatformOperation> {
-    PlatformOperation::ALL
-        .into_iter()
-        .filter(move |operation| !PENDING_OPERATIONS.contains(&(platform, *operation)))
-}
-
 /// The registration points the checklist inspects; tests replace one at a time.
 struct Registry<'a> {
     platforms: &'a [PlatformCatalog],
@@ -70,7 +59,7 @@ fn violations(platform: Platform, registry: &Registry<'_>) -> Vec<String> {
     else {
         return vec![violation(platform, "R1", "no platform catalog lists it")];
     };
-    for operation in provided_operations(platform) {
+    for operation in PlatformOperation::ALL {
         if catalog.routes(operation).is_empty() {
             found.push(violation(
                 platform,
@@ -90,7 +79,7 @@ fn violations(platform: Platform, registry: &Registry<'_>) -> Vec<String> {
     for route in catalog.all_routes() {
         check_route(platform, route, registry, &mut found);
     }
-    for operation in provided_operations(platform) {
+    for operation in PlatformOperation::ALL {
         check_operation(
             platform,
             operation,
@@ -282,6 +271,7 @@ fn has_adapter(platform: Platform, operation: PlatformOperation, route: Provider
                 let request = PlatformFetchRequest {
                     reference,
                     depth: ContentDepth::Abstract,
+                    access: None,
                 };
                 providers::platform_fetch_support(route, &request).is_some()
             }),

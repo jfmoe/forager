@@ -235,6 +235,16 @@ impl PlatformFetch for Serpapi {
     }
 }
 
+impl PlatformFetch for XiaohongshuBrowser {
+    fn fetch<'a>(
+        &'a self,
+        request: &'a PlatformFetchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(XiaohongshuBrowser::fetch(self, request))
+    }
+}
+
 impl VerticalSearch for Anysearch {
     fn search<'a>(
         &'a self,

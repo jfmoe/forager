@@ -499,3 +499,22 @@ fn format_content_with_keep_pdf_writes_only_the_pdf() {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+#[test]
+fn full_text_without_a_configured_web_fetch_provider_fails_before_opening_the_browser() {
+    let fake = FakeOpenCli::downloading(&paper_page("2042750"), "paper.pdf", PDF);
+    let environment = RunEnvironment::new(&fake.config("[\"ssrn_browser\"]"));
+
+    let output = fetch(&environment, &[]);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            stderr.contains("capabilities.web_fetch.order has no configured provider"),
+            fake.calls().len(),
+        ),
+        (Some(3), true, 0),
+        "{stderr}"
+    );
+}

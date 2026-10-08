@@ -13,10 +13,11 @@ example, `x.com` links keep the authenticated-client guidance).
   returns the platform ref, metadata, and the content its routes can read.
 - **Platform-only results, or platform options** (category, author, title, date range, sort): run
   `forager platform <id> search QUERY`. Set only options the request states or clearly implies.
-- **Xiaohongshu (小红书) notes**: only `forager platform xiaohongshu search QUERY` exists so far;
-  there is no Xiaohongshu fetch yet. For a xiaohongshu.com link, give the user the link (or a
-  result's `access_url`) to open; `forager fetch` cannot read it, because the page needs the
-  user's login.
+- **Xiaohongshu (小红书) notes**: a note opens only with its access token, so fetch takes a search
+  item's `access_url`, or a xiaohongshu.com note URL that carries `xsec_token`, exactly as given:
+  `forager platform xiaohongshu fetch 'ACCESS_URL'`. For a link without the token (or a bare
+  `xiaohongshu:` ref), search for the note first and fetch its `access_url`; `forager fetch` cannot
+  read a note, because the page needs the user's login.
 - **Papers citing a known paper** (follow-up work, replications, or rebuttals): run
   `forager platform scholar cited-by 'REF_OR_URL'`; see "Google Scholar cited-by".
 
@@ -38,7 +39,9 @@ Every item carries `depth`, the content it actually holds: `metadata` (bibliogra
   `ssrn_browser` are `snippet` (`metadata` for a result card without an excerpt). A browser page never spans two SSRN result pages, so it can hold
   fewer items than `--limit`; follow `next_cursor` for more.
 - **Xiaohongshu** search items are `metadata`: the card title, author, date, and counts, never the
-  note body.
+  note body. `fetch` defaults to `--depth full_text`: it writes the note text, tags, and image links
+  to `xiaohongshu-<id>.md` and needs no Web Fetch provider; `--depth metadata` returns the exact
+  publish and edit times, tags, counts, images, video length and size, and IP region inline.
 - **Scholar** search items are `snippet` (`metadata` for a result without an excerpt); `fetch` is
   `metadata` only and lists the paper's versions. Google Scholar holds no body; read it from the
   source, see "Read a Scholar paper".
@@ -145,11 +148,12 @@ only when the user asks for it; it runs at most one browser command every 5 seco
 
 ## Xiaohongshu browser route
 
-`xiaohongshu_browser` searches Xiaohongshu in the user's own Chrome through OpenCLI, using the
-account the user is logged in with. It is off by default; enable it only when the user asks for
+`xiaohongshu_browser` searches and reads Xiaohongshu notes in the user's own Chrome through
+OpenCLI, using the account the user is logged in with. It is off by default; enable it only when the user asks for
 it. It runs at most one browser command every 10 seconds and never retries. Xiaohongshu's user
-agreement forbids scraping and the site rate-limits accounts: tell the user that the searches run
-under their account, suggest a secondary account, and keep the number of searches small.
+agreement forbids scraping and the site rate-limits accounts: tell the user that the searches and
+fetches run under their account, suggest a secondary account rather than their main one, and keep
+the number of commands small.
 
 - **Install** (verified with OpenCLI 1.8.6): OpenCLI with its Chrome Browser Bridge connected
   (`opencli doctor`), then copy the `opencli/forager-xhs` directory next to this skill's `SKILL.md`
@@ -160,8 +164,13 @@ under their account, suggest a secondary account, and keep the number of searche
 - **Enable**: `forager config set platforms.xiaohongshu.order '["xiaohongshu_browser"]'`. Set
   `providers.xiaohongshu_browser.command` when `opencli` is not on `PATH`.
 - **Search**: set `--sort`, `--note-type`, and `--publish-time` only when the request implies them.
-  A search cannot continue in a later command (`next_cursor` is always `null`); when stderr says
-  more results remain, rerun once with a larger `--limit` (at most 100) rather than paging.
+  A search cannot continue in a later command: `next_cursor` is always `null`, which here means no
+  continuation exists, not that the results are complete. When stderr says more results remain,
+  rerun once with a larger `--limit` (at most 100) rather than paging.
+- **Fetch**: pass the `access_url` of a search item unchanged. Its token works for that note only,
+  in the logged-in session, and was still valid 22 minutes later; fetch soon after searching
+  rather than storing access URLs. The output's `access_url` contains the token; the ref and `url`
+  never do.
 
 ## Read full text
 
@@ -218,7 +227,9 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
 - **Xiaohongshu evidence**: cite the ref (`xiaohongshu:<note_id>`) with the title, and give the
   user the `access_url` to open the note; the canonical `url` does not open without the access
   token. A search item is a card, not the note: it supports claims about the title, author, date,
-  and counts only. `published` is `null` for a relative time such as `3天前`; quote
+  and counts only; fetch the note before making claims about what it says. A fetched note is one
+  person's post: attribute its claims to the author, and note that images and videos were not
+  read. `published` is `null` for a relative time such as `3天前`; quote
   `published_text` instead. Counts are Xiaohongshu's display text (`1.2万`), not exact numbers.
   Results are personalized and change between runs; do not present them as a complete or stable
   ranking.
@@ -255,9 +266,14 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
 - A `xiaohongshu_browser` `auth` error: the Chrome session is logged out, or Xiaohongshu wants a
   verification (461). Ask the user to open xiaohongshu.com in Chrome, log in or complete the check
   by hand, then retry once.
-- A `xiaohongshu_browser` `parameter` error naming `300031`, `300017`, or a security restriction:
-  Xiaohongshu is limiting the account. Stop using Xiaohongshu for this task, tell the user, and do
-  not retry; it may clear after a long pause.
+- A `xiaohongshu_browser` `parameter` error naming `300031`, `300017`, or a security restriction on
+  a search: Xiaohongshu is limiting the account. Stop using Xiaohongshu for this task, tell the
+  user, and do not retry; it may clear after a long pause.
+- The same error on a fetch (`Xiaohongshu note unavailable`): the token may be stale, the note
+  restricted or removed, or the account rate-limited, and the site does not say which. Search once
+  more for the note and fetch the new `access_url`; when that also fails with `300031` or
+  `300017`, stop using Xiaohongshu, tell the user, and try again only after a long pause.
+- Exit 5 on a Xiaohongshu fetch: the note has no title, text, or images; report it.
 - A `xiaohongshu_browser` `timeout`: retry once with `--timeout 180`; when it times out again,
   report it.
 - A `xiaohongshu_browser` error that names the forager OpenCLI adapter, or a doctor `message`

@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use chrono::{Datelike, FixedOffset, NaiveDate, Utc};
 use serde::Deserialize;
 
-use super::{ROUTE, XiaohongshuBrowser};
+use super::{PageFacts, ROUTE, XiaohongshuBrowser, classify_blocks, describe, runtime};
 use crate::catalog::PlatformOperation;
 use crate::net::{AttemptFailure, combine_diagnostics};
 use crate::providers::execution::execute_anonymous;
@@ -27,10 +27,6 @@ const TIME_FILTER: &str = "filter_note_time";
 // The filter groups forager never sets; they depend on browsing history and location.
 const UNSET_FILTERS: [&str; 2] = ["filter_note_range", "filter_pos_distance"];
 const ANY: &str = "不限";
-const LOGIN_NOTICES: [&str; 2] = ["登录后查看", "登录"];
-const BLOCK_NOTICES: [&str; 2] = ["安全限制", "访问链接异常"];
-const BLOCK_CODES: [&str; 2] = ["300031", "300017"];
-const RISK_CONTROL_STATUS: u16 = 461;
 
 /// Returns whether the route can run the request; it never starts a process. Xiaohongshu
 /// search issues no cursor, so only a first page can run.
@@ -109,14 +105,6 @@ impl XiaohongshuBrowser {
                     .flatten(),
             ),
         })
-    }
-}
-
-fn runtime(message: String) -> AttemptFailure {
-    AttemptFailure {
-        kind: AttemptErrorKind::Runtime,
-        status: None,
-        message,
     }
 }
 
@@ -240,23 +228,6 @@ struct SearchData {
     responses: Vec<CapturedSearch>,
 }
 
-/// Where the page ended up and what the site showed there.
-#[derive(Debug, Default, Deserialize)]
-#[serde(default)]
-pub(super) struct PageFacts {
-    /// The final page URL, without any access token value.
-    url: String,
-    title: String,
-    /// Whether the site treats the session as logged out.
-    guest: bool,
-    /// The `error_code` of a `/404` or `website-login/error` redirect.
-    error_code: Option<String>,
-    /// A notice the site showed, such as `安全限制`.
-    notice: Option<String>,
-    /// The status of a Xiaohongshu API call that answered 461.
-    blocked_status: Option<u16>,
-}
-
 #[derive(Debug, Deserialize)]
 struct CapturedSearch {
     /// The number of filter clicks made before the request.
@@ -311,7 +282,11 @@ fn read_search(
     pages: usize,
 ) -> Result<VerifiedPages, AttemptFailure> {
     let facts = &data.page;
-    classify_blocks(facts)?;
+    classify_blocks(facts, |code, notice| {
+        format!(
+            "Xiaohongshu blocked the page ({code}: {notice}); the account may be rate-limited, so stop and retry later"
+        )
+    })?;
     if data.body_missing {
         return Err(runtime(format!(
             "a Xiaohongshu search response arrived without its body on {}",
@@ -425,52 +400,10 @@ fn incomplete(
     ))
 }
 
-/// Fails on the facts that end any Xiaohongshu page read: a logged-out session, risk control,
-/// and the site's own block pages.
-pub(super) fn classify_blocks(facts: &PageFacts) -> Result<(), AttemptFailure> {
-    let notice = facts.notice.as_deref().map(str::trim).unwrap_or_default();
-    if facts.guest || LOGIN_NOTICES.iter().any(|login| notice.contains(login)) {
-        return Err(AttemptFailure {
-            kind: AttemptErrorKind::Auth,
-            status: None,
-            message: "Xiaohongshu treats the browser session as logged out; log in to xiaohongshu.com in the Chrome that OpenCLI drives, then retry".into(),
-        });
-    }
-    if facts.blocked_status == Some(RISK_CONTROL_STATUS) {
-        return Err(AttemptFailure {
-            kind: AttemptErrorKind::Auth,
-            status: Some(RISK_CONTROL_STATUS),
-            message: "Xiaohongshu answered HTTP 461 and wants a verification; open xiaohongshu.com in Chrome, complete any check it shows, then retry".into(),
-        });
-    }
-    let code = facts.error_code.as_deref().map(str::trim);
-    if code.is_some_and(|code| BLOCK_CODES.contains(&code))
-        || BLOCK_NOTICES.iter().any(|block| notice.contains(block))
-    {
-        return Err(AttemptFailure {
-            kind: AttemptErrorKind::Parameter,
-            status: None,
-            message: format!(
-                "Xiaohongshu blocked the page ({}: {}); the account may be rate-limited, so stop and retry later",
-                code.unwrap_or("no code"),
-                if notice.is_empty() {
-                    "no notice"
-                } else {
-                    notice
-                }
-            ),
-        });
-    }
-    Ok(())
-}
-
 fn is_results_page(url: &str) -> bool {
-    reqwest::Url::parse(url)
-        .is_ok_and(|url| url.host_str() == Some(SITE_HOST) && url.path() == RESULTS_PATH)
-}
-
-fn describe(facts: &PageFacts) -> String {
-    format!("`{}` ({})", facts.title.trim(), facts.url)
+    reqwest::Url::parse(url).is_ok_and(|url| {
+        url.host_str() == Some(SITE_HOST) && url.path().trim_end_matches('/') == RESULTS_PATH
+    })
 }
 
 /// The decoded items and the diagnostics that say what they leave out.

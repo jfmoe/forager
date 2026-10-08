@@ -212,6 +212,7 @@ fn scholar_fetch(arguments: ScholarFetchArgs) -> Result<CommandOutput, AppError>
     let request = PlatformFetchRequest {
         reference,
         depth: depth.into(),
+        access: None,
     };
     let format = match format {
         OutputFormat::Json => DocsOutputFormat::Json,

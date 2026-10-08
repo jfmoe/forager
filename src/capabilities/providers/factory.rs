@@ -159,8 +159,8 @@ pub(crate) fn build_platform_fetch(
         PlatformRouteConfig::Serpapi(config) => {
             Box::new(build_serpapi(config, client, retry_policy, deadline))
         }
-        PlatformRouteConfig::XiaohongshuBrowser(_) => {
-            unreachable!("the platform catalog lists no xiaohongshu fetch route")
+        PlatformRouteConfig::XiaohongshuBrowser(config) => {
+            Box::new(build_xiaohongshu_browser(config, deadline))
         }
     }
 }
@@ -287,6 +287,7 @@ pub(crate) fn platform_fetch_support(
         ProviderId::SsrnCrossref => ssrn_crossref::fetch_support(request),
         ProviderId::SsrnBrowser => ssrn_browser::fetch_support(request),
         ProviderId::Serpapi => serpapi::fetch_support(request),
+        ProviderId::XiaohongshuBrowser => xiaohongshu_browser::fetch_support(request),
         _ => return None,
     };
     Some(transport_support(id).and(route))

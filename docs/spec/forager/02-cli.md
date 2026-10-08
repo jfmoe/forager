@@ -51,6 +51,8 @@ forager platform xiaohongshu search QUERY [--limit 1..=100（默认 20）]
                                     [--sort comprehensive|latest|most-liked|most-commented|most-collected]
                                     [--note-type all|image|video] [--publish-time any|day|week|half-year]
                                     [--timeout 120] [--format json|markdown] [...]
+forager platform xiaohongshu fetch ACCESS_URL [--depth metadata|full_text（默认 full_text）]
+                                   [--content-dir DIR] [--timeout 120] [--format json|markdown|content] [...]
 forager doctor [--provider PROVIDER] [--timeout 30] [--format json|markdown]
 forager smoke [--live] [...]
 forager config path|list|set|unset
@@ -146,7 +148,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 ## 平台命令
 
-`forager platform <id> <op>` 直连检索内置平台（ADR 0019；接入契约见第 7 章）。每个平台一棵静态 clap 子树；`forager platform <id> --help` 及各操作的 help 是参数语法的唯一权威。arXiv、SSRN 与 Google Scholar 都提供 `search` 与 `fetch`；Google Scholar 另有 L2 平台操作 `cited-by`。小红书目前只提供 `search`，`fetch` 在后续一期加入（见第 7 章「小红书」）。
+`forager platform <id> <op>` 直连检索内置平台（ADR 0019；接入契约见第 7 章）。每个平台一棵静态 clap 子树；`forager platform <id> --help` 及各操作的 help 是参数语法的唯一权威。arXiv、SSRN 与 Google Scholar 都提供 `search` 与 `fetch`；Google Scholar 另有 L2 平台操作 `cited-by`。小红书提供 `search` 与 `fetch`（见第 7 章「小红书」）。
 
 ### `platform arxiv search`
 
@@ -287,6 +289,21 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 - **不续页**：小红书每次访问的排序都不同，跨命令续页既不能复现也无法去重，所以 `next_cursor` 恒为 `null`。上游最后一页仍有结果，或去重后的条目在截到 `--limit` 时有余项，stderr 输出一条诊断，说明还有更多结果、需要更多时加大 `--limit`。
 - **输出**：外层形状与 arXiv search 相同。每个 item 含 `ref`（`xiaohongshu:<note_id>`）、canonical `url`（`https://www.xiaohongshu.com/explore/<note_id>`）、`depth`（恒为 `metadata`，卡片没有正文片段）、`title`（可以为空字符串）、`authors`（作者昵称）、`published`（见第 7 章，相对时间为 `null`），以及小红书字段 `note_type`（`image` / `video`）、`author_id`、`likes`、`collects`、`comments`、`shares`（计数原文，可能是 `1.2万` 这类缩写）、`published_text`（卡片上的时间原文）与 `access_url`（带 Access Token 的访问链接，打开该笔记的推荐入口）。ID 不合法或缺少 Access Token 的笔记被跳过并写入 stderr 诊断。
 - **退出码**：查询词为空、`--limit` 越界＝飞行前退 2；`platforms.xiaohongshu.order` 为空（默认）＝飞行前退 3，消息给出启用步骤，不启动进程；会话未登录或站点返回 461 为 Auth，站点安全限制（300031、300017）为 attempt 级 Parameter，截止点前仍停在结果页为 Timeout，都退 4；条件、页序或关键词与请求不符、响应体缺失、停在非预期页面、上游有笔记但全部被跳过为 Runtime，退 4；合法零结果为 `items: []` 且退 0。
+
+### `platform xiaohongshu fetch`
+
+在用户自己已登录的 Chrome 中打开一篇小红书笔记，经 `xiaohongshu_browser` route（第 7 章「小红书」）。
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| 访问链接（位置参数） | search 条目的 `access_url`，或带 `xsec_token` 的可识别笔记链接 | 必填 | 只给 ref 或不带 token 的链接时飞行前退 2 |
+| `--depth` | `metadata` / `full_text` | `full_text` | `metadata` 内联返回笔记字段；`full_text` 另把正文写成本地 Markdown 文件 |
+| `--content-dir` | 目录 | 系统临时目录下按调用隔离的新目录 | 全文文件所在目录 |
+| `--format` | `json` / `markdown` / `content` | `json` | `content` 把正文输出到 stdout，不写文件 |
+
+- 通用 flag 同 search。没有 `--keep-pdf`。全文不需要配置任何 Web Fetch provider（ADR 0022）。
+- **输出**：JSON 顶层为 `platform`、`provider`、`ref`、`url`（canonical URL，不含 token）、`depth`、`title`（可为空串）、`authors`、`published`（北京时间 ISO 8601 时间戳），以及小红书字段 `updated`、`note_type`、`author_id`、`likes`、`collects`、`comments`、`shares`、`tags`、`images`（`[{url, width, height}]`）、`video`（`{duration_seconds, width, height}` 或 `null`，不含视频地址）、`ip_location` 与 `access_url`（由 ref 与 token 重新构造，含 token）。`full_text` 时另有 `content_url`（canonical URL）、`content_provider`（`xiaohongshu_browser`）、`content_path`（`xiaohongshu-<id>.md`）与 `content_len`。正文格式见第 7 章。不写 Search Result Journal。
+- **退出码**：输入无法识别、短链、`rednote.com`、token 格式不对或缺少 token＝飞行前退 2，不启动进程；`platforms.xiaohongshu.order` 为空（默认）＝飞行前退 3；会话未登录或 461 为 Auth，300031/300017 或安全限制为 attempt 级 Parameter（消息列出 token 过期、笔记受限或删除、账号被限频三种可能），截止点前仍停在该笔记页为 Timeout，`noteId` 不符、停在非预期页面或外壳形状不对为 Runtime，正文文件写入失败为 Runtime，都退 4；标题、正文与图片全为空为 Quality，退 5。token 永不出现在 attempt 消息、`--verbose` attempts 与失败时的 stderr 中。
 
 ## 收尾
 

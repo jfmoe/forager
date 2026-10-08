@@ -1,6 +1,6 @@
 # 小红书平台与 OpenCLI 浏览器 route 设计
 
-状态：第一期的 search 已实现（#187），fetch 与 comments 未实现；实现与设计的差异见「第一期实现记录」。日期：2026-10-08。前置调研见 [小红书 Platform 接入可行性](../research/2026-10-08-xiaohongshu-integration.md)。那份调研推荐第三方 API TikHub；本设计根据下文实测改用浏览器 route，理由见「路线选择」。
+状态：第一期已实现（search 见 #187，fetch 见 #188），comments 未实现；实现与设计的差异见「第一期实现记录」。日期：2026-10-08。前置调研见 [小红书 Platform 接入可行性](../research/2026-10-08-xiaohongshu-integration.md)。那份调研推荐第三方 API TikHub；本设计根据下文实测改用浏览器 route，理由见「路线选择」。
 
 ## 目标与边界
 
@@ -284,15 +284,18 @@ OpenCLI 退出码到 attempt 错误类型的映射完全沿用 `providers/opencl
 
 ## 第一期实现记录
 
-第一期（#187）交付平台骨架与 search。以下是实现时对本设计所做的决定与修正，规格第 7 章「小红书」已按实现写明。
+第一期分两次交付：#187 交付平台骨架与 search，#188 交付 fetch、Native 正文、smoke C28 与停止规则。以下是实现时对本设计所做的决定与修正，规格第 7 章「小红书」已按实现写明。
 
-- **fetch 暂缺时的接入清单**：清单 R1、R6、R7 要求每个平台的 search 与 fetch 都有 route、smoke 用例与 fixture，而第一期只交付 search。checklist 增加待交付操作表 `PENDING_OPERATIONS = [(xiaohongshu, fetch)]`（引 #188），只豁免这一组合的 fetch 检查；catalog 的 fetch route 集合暂为空，factory 的 fetch 分支不可达。fetch 交付时删除该豁免。
+- **fetch 暂缺时的接入清单**：#187 只交付 search，checklist 曾以待交付操作表豁免 `(xiaohongshu, fetch)` 的 R1、R6、R7 检查。#188 交付 fetch 后已删除该豁免，fetch 的 route 集合、C28 与 fixture `F21` 都已登记。
 - **请求体字段**：OpenCLI Browser Bridge 扩展 1.0.24 的抓包条目以 `requestBodyPreview` 携带请求体（扩展源码 `extension/src/cdp.ts`），与响应体的 `responsePreview` 对应。
 - **抓包完成条件**：扩展在 `readNetworkCapture()` 时取走条目并清空请求索引，此后同一请求的 `loadingFinished` 不再写回响应体，所以读走后"继续等待同一请求"做不到。读取模块改为：Resource Timing 出现完成记录后再等 1 秒（扩展在 `loadingFinished` 后异步取响应体），再读抓包；读到的搜索条目仍无响应体就记为 `body_missing`，不再等待；命令结束或到达截止点时读到的在途请求不是命令等待的响应，不计入。完成记录由页面加载后注册的 `PerformanceObserver`（`buffered: true`）计数。
 - **第一页的完成信号**：第二次真实运行中，第一页响应始终没有被计数，命令一直等到截止点（当时的分类把它报成"筛选点击数不符"）。原因没有确认，最可能是响应在计数开始之前已完成且记录已不在缓冲区。修正：第一页另以页面出现笔记卡片为完成信号（抓包在导航之前开启，响应已在其中）；筛选点击与翻页之后的响应仍以计数为准，因为那时计数已在运行。分类同时调整为先判断截止与页面，再判断点击数：截止时仍在结果页为 Timeout，消息说明完成了几次点击。
 - **筛选点击**：沿用 OpenCLI 内置小红书模块已验证的 DOM 结构（`.search-layout__top > .filter` 触发、`.filter-panel` 面板、`.filters` 分组的标签文本、`.tags` 选项），先对触发元素派发悬停事件，面板未出现时再点击它，然后在页面内点击选项。点击失败时读取模块在 `filter_failure` 中写明原因（例如 `no_filter_panel for 排序依据 最新`），route 把它附在 Runtime 消息后。
-- **token 脱敏**：本设计要求 route 按请求携带的 token 值清理诊断。search 的请求不带 token，响应中的 token 只经解码进入 `access_url`，所以第一期没有需要按值清理的消息；按值脱敏随 fetch 一起实现。
-- **smoke 停止规则**：第一期只有 C27，它只执行一次、不重试；"阻断后后续小红书用例不启动"随 C28 一起实现。
+- **token 脱敏**：search 的请求不带 token，没有需要按值清理的消息。fetch 的 route 在记录 attempt 之前清理消息，清理的是去掉末尾 `=` 填充后的 token：登录跳转的 `redirectPath` 会把原链接（含 token）再做一到两次百分号编码，`=` 变成 `%3D` 或 `%253D`，而 token 的其余字符（`A-Za-z0-9_-`）在 URL 编码下不变。读取模块回报的 `url` 只删去顶层的 `xsec_token`，嵌套在跳转参数里的 token 由这条规则兜住。
+- **Web Fetch 预检的声明**：注册信息的字段为 `native_full_text`（route 的 fetch 全文是否由它自己读取），所有注册项都声明，只有 `xiaohongshu_browser` 为 true。`plan_fetch` 返回的计划提供 `needs_web_fetch()`：`full_text` 且计划中有任一 route 不读原生正文时为真。
+- **读取模块 `note` 命令**：回报 `{page, note, timed_out}`，暂不回报设计中的 `comments_state`（第二期 comments 才需要）。`note` 只保留 route 解码的字段，视频流只保留各档的宽高，`masterUrl` 与笔记自带的 `xsecToken` 不离开页面。页面渲染出笔记时清空 `notice`：笔记正文或评论里出现"安全限制"等字样不应被当成站点提示。契约版本仍为 `forager-xhs/1`，因为 #187 的读取模块没有发布过。
+- **smoke 停止规则**：小红书用例只执行一次。route 以退出码 4 且 `error_kind` 为 `auth` 或 `parameter` 失败时视为登录墙或封锁（小红书 route 只有站点封锁会产生 attempt 级 Parameter），本轮其余小红书用例不启动，记为 `failed`、`attempts: 0`，消息说明本轮已停止小红书访问；现有报告没有"跳过"状态，`failed` 已满足"不计为通过"。C27 成功但没有 `access_url` 时 C28 同样不启动。C28 把正文写进本用例的临时目录，通过条件为退 0、`ref` 非空且 `content_len` 大于 0。
+- **结果页路径**：真实验收中两次 doctor 检索停在 `/search_result/?keyword=…`（带末尾 `/`），旧的路径判断只认 `/search_result`，把截止时仍在结果页的情况报成 Runtime。现在忽略末尾 `/`，这种情况为 Timeout。
 
 ### 第一期验收
 
@@ -309,10 +312,34 @@ OpenCLI 退出码到 attempt 错误类型的映射完全沿用 `providers/opencl
 
 条目字段与本设计的实测一致：笔记条目为 `{id, model_type, note_card, xsec_token}`，`interact_info` 含 `liked_count`、`collected_count`、`comment_count`、`shared_count`。新观察：按"最新"排序、限一周内时，`publish_time` 全部是相对时间（`1分钟前`、`9小时前`、`3天前`），因此这类检索的 `published` 全部为 `null`，只有 `published_text` 有值。是否把相对时间换算成日期，等用过之后再定。
 
+### 第一期验收（fetch）
+
+2026-10-08 16:42–16:50 UTC（北京时间 10 月 9 日凌晨），OpenCLI 1.8.6，用户自己已登录的 Chrome，读取模块按 skill 的方式重新安装为 `~/.opencli/clis/forager-xhs`。共 7 次页面命令（相邻两次之间至少间隔 20 秒）与 1 次不打开浏览器的 `contract`，没有出现登录墙、461、300031/300017 或安全限制。C27 与 C28 按 smoke 的命令逐条手动运行（C28 的 `access_url` 只在 shell 变量中传递，事后删除了全部临时文件），而不是运行 `smoke --live`：后者会运行所有已配置的用例，并在 C27 结束后立即启动 C28。smoke 运行器的 C27→C28 交接由 `tests/smoke.rs` 的假 OpenCLI 测试证明。
+
+| 运行 | 命令 | 结果 |
+|---|---|---|
+| 1 | `forager doctor --provider xiaohongshu_browser` | 23 秒，退 4：截止时页面停在 `/search_result/?keyword=forager+doctor`（带末尾 `/`），被报成 Runtime。据此修正了结果页路径判断（见上文） |
+| 2 | C27：`forager platform xiaohongshu search 咖啡 --limit 25 --sort latest --publish-time week` | 42 秒，退 0：25 条（24 条图文、1 条视频），ref 无重复，`next_cursor: null`，stderr 给出"未列全"诊断；`published` 全部为 `null`（卡片都是相对时间） |
+| 3 | C28：`forager platform xiaohongshu fetch <C27 第一条的 access_url> --depth full_text --content-dir <临时目录>` | 17 秒，退 0：`content_provider` 为 `xiaohongshu_browser`，`content_len` 527，Markdown 含标题、正文（话题写法原样）、`标签：` 行与 2 行图片；attempts 只有 route 的一条 fetch attempt，没有 Web Fetch attempt（本机配置了 Web Fetch provider；没有 provider 时照常写文件由假 OpenCLI 测试证明）。`published` 与 `updated` 为带 `+08:00` 的时间戳，`ip_location` 有值，输出的 `access_url` 含 token，Markdown 文件不含 token |
+| 4 | `fetch <C27 中视频笔记的 access_url> --depth metadata` | 16 秒，退 0：`video` 为 `{duration_seconds: 13, width: 720, height: 1280}`，输出中没有视频地址 |
+| 5 | 同运行 1（修正后） | 22 秒，退 4：Timeout，`Xiaohongshu returned 0 of 1 search pages before the read deadline` |
+| 6 | 同运行 1，`--timeout 60` | 52 秒，退 4：同样的 Timeout，所以不是截止时间太紧 |
+| 7 | 读取模块直接运行：`search --query "forager doctor" --pages 1 --timeout 60` | 19 秒：1 个响应、20 条笔记，最终 URL 为 `/search_result?…&type=51`（不带末尾 `/`） |
+| 8 | 同运行 1 | 18 秒，退 0：深探通过 |
+
+新观察：
+
+- **第一页偶发未完成**：同一查询 4 次中有 2 次第一页一直没有被判定完成，两次的最终 URL 都是带末尾 `/`、不带 `type=51` 的 `/search_result/`；成功的两次是不带末尾 `/` 的形式。原因没有确认，可能是页面在两种路由之间跳转后没有再渲染笔记卡片，而第一页响应又不在完成计数里（与 #187 的「第一页的完成信号」同源）。结果是 Timeout 而不是错误数据；deep doctor 因此可能偶发失败，重跑通常能通过。
+- **零值计数**：新笔记的 `collects`、`comments`、`shares` 为空字符串 `""`（上游原样），不是 `"0"`。search 与 fetch 都原样输出。
+- **`updated` 早于 `published`**：视频笔记的 `lastUpdateTime` 比 `time` 早约 3 小时，按上游原样输出，不做校正。
+- **图片 URL**：`urlDefault` 形如 `http://sns-webpic-qc.xhscdn.com/<yyyymmddhhmm>/<32 位十六进制>/<文件名>`，路径里带时间与摘要段，可能会过期；本次没有验证它的有效期。
+
 ## 仍未实测的部分
 
 - **token 的有效期上限**：实测到 22 分钟仍有效，更长时间未测。过期表现预计与 300031 相同，已按 Parameter 处理并提示重新搜索。
 - **验证码**：本次没有触发，页面特征未知。读取模块把 461 归为 Auth，把无法识别的页面归为 Runtime，第一次真实遇到时补充特征。
+- **图片 URL 的有效期**：fetch 输出的图片 URL 路径带时间与摘要段，可能会过期，未验证。
+- **第一页偶发未完成**：见「第一期验收（fetch）」，原因未确认。
 - **合法空集**：两个无意义查询都返回了笔记，没能观察到真正的空结果；判定规则按接口字段设计，未经实测。
 - **相对时间**：第一期验收观察到 `N分钟前`、`N小时前`、`N天前`，按规则输出 `null` 与原文；"昨天"等其他形式仍未出现。
 - **抓包完成条件**：第一期验收中五次成功运行的全部搜索响应都带响应体；慢响应下的表现仍只有这两次样本。第一页响应未被计数的原因没有确认（见「第一期实现记录」）。

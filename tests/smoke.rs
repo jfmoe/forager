@@ -125,7 +125,7 @@ fn live_smoke_lists_exactly_the_specification_case_registry_without_l0_doctor_ga
     let expected = json!([
         "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11",
         "C12", "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24",
-        "C25", "C26", "C27"
+        "C25", "C26", "C27", "C28"
     ]);
 
     assert_eq!(
@@ -177,7 +177,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
             Some(4),
             &Value::String("live".into()),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 28}),
+            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 29}),
             &Value::String("failed".into()),
             &Value::Number(3.into()),
             &Value::String("unconfigured".into()),
@@ -214,7 +214,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
         (
             Some(4),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 28}),
+            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 29}),
             &Value::String("deferred".into()),
             &Value::Number(3.into()),
             &Value::String("http://127.0.0.1:9?token=********".into()),
@@ -302,7 +302,7 @@ fn live_smoke_passes_a_configured_case_only_after_a_zero_parseable_nonempty_term
         ),
         (
             Some(4),
-            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 28}),
+            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 29}),
             &Value::String("passed".into()),
             &Value::Number(1.into()),
         ),
@@ -510,7 +510,7 @@ fn live_smoke_runs_the_platform_cases_through_their_configured_route() {
             crossref_requests[1].contains("/works/10.2139/ssrn.2042750"),
         ),
         (
-            &json!({"passed": 4, "failed": 0, "deferred": 0, "unconfigured": 25}),
+            &json!({"passed": 4, "failed": 0, "deferred": 0, "unconfigured": 26}),
             [(); 4].map(|()| Value::String("passed".into())),
             [
                 &Value::String("arxiv".into()),
@@ -674,6 +674,144 @@ fn live_smoke_runs_the_xiaohongshu_search_once_and_only_when_the_order_lists_the
             "2"
         ]
     );
+}
+
+const XHS_NOTE_ID: &str = "66f0a1b2c3d4e5f607100001";
+const XHS_TOKEN: &str = "ABsmokeToken1=";
+
+fn xhs_page(url: &str) -> Value {
+    json!({"url": url, "title": "小红书", "guest": false, "error_code": null, "notice": null, "blocked_status": null})
+}
+
+/// The C27 search as the adapter reports it after both filter clicks: one note on one page.
+fn xhs_search(page: &Value) -> Value {
+    json!({
+        "page": page,
+        "filter_clicks": 2,
+        "timed_out": false,
+        "body_missing": false,
+        "responses": [{
+            "click": 2,
+            "request": {"keyword": "咖啡", "page": 1, "search_id": "2fhpxs5cks5vx6nvw1ar4@2fhpxsfv1qadn0lsg9txa", "filters": [
+                {"tags": ["time_descending"], "type": "sort_type"},
+                {"tags": ["不限"], "type": "filter_note_type"},
+                {"tags": ["一周内"], "type": "filter_note_time"},
+                {"tags": ["不限"], "type": "filter_note_range"},
+                {"tags": ["不限"], "type": "filter_pos_distance"}
+            ]},
+            "body": {"code": 0, "success": true, "data": {"has_more": false, "items": [{
+                "id": XHS_NOTE_ID,
+                "model_type": "note",
+                "xsec_token": XHS_TOKEN,
+                "note_card": {"type": "normal", "display_title": "", "user": {"user_id": "5ff0e6410000000001008400", "nickname": "豆子"}, "interact_info": {}, "corner_tag_info": [{"type": "publish_time", "text": "3天前"}]}
+            }]}}
+        }]
+    })
+}
+
+fn xhs_smoke(fake: &support::opencli::FakeOpenCli) -> Value {
+    let environment = SmokeEnvironment::new(|journal_dir| {
+        format!(
+            "{}[journal]\ndir = {:?}\n[platforms.arxiv]\norder = []\n[platforms.ssrn]\norder = []\n",
+            fake.route_config(
+                "xiaohongshu_browser",
+                "xiaohongshu",
+                "[\"xiaohongshu_browser\"]"
+            ),
+            journal_dir.display().to_string()
+        )
+    });
+    let output = environment.run(&["smoke", "--live", "--timeout", "60"]);
+    serde_json::from_slice(&output.stdout).expect("parse live smoke JSON")
+}
+
+fn status_and_attempts(payload: &Value, id: &str) -> (Value, Value) {
+    let case = case(payload, id);
+    (case["status"].clone(), case["attempts"].clone())
+}
+
+#[cfg(unix)]
+#[test]
+fn live_smoke_fetches_the_first_xiaohongshu_search_result_through_its_access_url() {
+    use support::opencli::{FakeOpenCli, XHS_CONTRACT};
+
+    let fake = FakeOpenCli::contract_by_command(
+        XHS_CONTRACT,
+        &[
+            (
+                "search",
+                xhs_search(&xhs_page(
+                    "https://www.xiaohongshu.com/search_result?keyword=%E5%92%96%E5%95%A1",
+                )),
+            ),
+            (
+                "note",
+                json!({
+                    "page": xhs_page(&format!("https://www.xiaohongshu.com/explore/{XHS_NOTE_ID}?xsec_source=pc_search")),
+                    "note": {"noteId": XHS_NOTE_ID, "type": "normal", "title": "", "desc": "第一次手冲", "imageList": []},
+                    "timed_out": false
+                }),
+            ),
+        ],
+    );
+
+    let payload = xhs_smoke(&fake);
+    let calls = fake.calls();
+
+    assert_eq!(
+        (
+            status_and_attempts(&payload, "C27"),
+            status_and_attempts(&payload, "C28"),
+            calls.len(),
+        ),
+        ((json!("passed"), json!(1)), (json!("passed"), json!(1)), 2),
+        "{payload}"
+    );
+    assert_eq!(
+        calls[1][..6],
+        [
+            "forager-xhs",
+            "note",
+            "--id",
+            XHS_NOTE_ID,
+            "--xsec-token",
+            XHS_TOKEN
+        ]
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_xiaohongshu_login_wall_or_block_stops_every_later_xiaohongshu_case() {
+    use support::opencli::{FakeOpenCli, XHS_CONTRACT};
+
+    let mut logged_out =
+        xhs_page("https://www.xiaohongshu.com/search_result?keyword=%E5%92%96%E5%95%A1");
+    logged_out["guest"] = json!(true);
+    let mut blocked = xhs_page("https://www.xiaohongshu.com/website-login/error?error_code=300017");
+    blocked["error_code"] = json!("300017");
+    blocked["notice"] = json!("安全限制");
+
+    let outcomes = [logged_out, blocked].map(|page| {
+        let fake = FakeOpenCli::contract_envelope(XHS_CONTRACT, "ok", &xhs_search(&page));
+        let payload = xhs_smoke(&fake);
+        (
+            status_and_attempts(&payload, "C27"),
+            status_and_attempts(&payload, "C28"),
+            case(&payload, "C28")["message"].clone(),
+            fake.calls().len(),
+        )
+    });
+
+    let stopped = (
+        (json!("failed"), json!(1)),
+        (json!("failed"), json!(0)),
+        json!(
+            "not started: an earlier Xiaohongshu case met a login wall or a block, so this run stops all Xiaohongshu access"
+        ),
+        1,
+    );
+    assert_eq!(outcomes, [stopped.clone(), stopped]);
 }
 
 #[test]

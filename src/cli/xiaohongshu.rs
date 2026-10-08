@@ -1,13 +1,16 @@
 //! Xiaohongshu arguments and request construction.
 
+use std::path::PathBuf;
+
 use clap::{Args, Subcommand, ValueEnum};
 
-use super::{PageInput, PlatformCommonArgs, search};
-use crate::app::args::OutputFormat;
+use super::{PageInput, PlatformCommonArgs, fetch, search};
+use crate::app::args::{DocsOutputFormat, OutputFormat};
 use crate::app::dispatch::{AppError, CommandOutput};
 use crate::types::{
-    Platform, PlatformSearchOptions, PlatformSearchRequest, XiaohongshuNoteType,
-    XiaohongshuPublishTime, XiaohongshuSearchOptions, XiaohongshuSort,
+    ContentDepth, Platform, PlatformFetchRequest, PlatformRef, PlatformSearchOptions,
+    PlatformSearchRequest, XiaohongshuNoteType, XiaohongshuPublishTime, XiaohongshuRef,
+    XiaohongshuSearchOptions, XiaohongshuSort,
 };
 
 #[derive(Debug, Subcommand)]
@@ -16,6 +19,46 @@ pub(in crate::app) enum XiaohongshuCommand {
     /// and an `access_url` that opens the note. Needs `xiaohongshu_browser` in
     /// `platforms.xiaohongshu.order`.
     Search(XiaohongshuSearchArgs),
+    /// Read one Xiaohongshu note in your own logged-in Chrome; by default its text is written to
+    /// a local Markdown file. Needs the note's access token, as in a search result's
+    /// `access_url`.
+    Fetch(XiaohongshuFetchArgs),
+}
+
+#[derive(Debug, Args)]
+pub(in crate::app) struct XiaohongshuFetchArgs {
+    /// The `access_url` of a search result, or a xiaohongshu.com note URL with its
+    /// `xsec_token`.
+    reference: String,
+    /// `full_text` writes the note text to a Markdown file; `metadata` returns only the note
+    /// fields.
+    #[arg(long, value_enum, default_value_t = FetchDepthArg::FullText)]
+    depth: FetchDepthArg,
+    /// Directory for the full-text Markdown file; defaults to a new directory under the system
+    /// temporary directory.
+    #[arg(long, value_name = "DIR")]
+    content_dir: Option<PathBuf>,
+    /// `content` prints the note text to stdout and writes no file.
+    #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
+    format: DocsOutputFormat,
+    #[command(flatten)]
+    common: PlatformCommonArgs,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum FetchDepthArg {
+    Metadata,
+    #[value(name = "full_text")]
+    FullText,
+}
+
+impl From<FetchDepthArg> for ContentDepth {
+    fn from(value: FetchDepthArg) -> Self {
+        match value {
+            FetchDepthArg::Metadata => Self::Metadata,
+            FetchDepthArg::FullText => Self::FullText,
+        }
+    }
 }
 
 #[derive(Debug, Args)]
@@ -100,7 +143,33 @@ impl From<PublishTimeArg> for XiaohongshuPublishTime {
 pub(in crate::app) fn run(command: XiaohongshuCommand) -> Result<CommandOutput, AppError> {
     match command {
         XiaohongshuCommand::Search(arguments) => xiaohongshu_search(arguments),
+        XiaohongshuCommand::Fetch(arguments) => xiaohongshu_fetch(arguments),
     }
+}
+
+fn xiaohongshu_fetch(arguments: XiaohongshuFetchArgs) -> Result<CommandOutput, AppError> {
+    let XiaohongshuFetchArgs {
+        reference,
+        depth,
+        content_dir,
+        format,
+        common,
+    } = arguments;
+    let (reference, token) =
+        XiaohongshuRef::parse_accessible(&reference).map_err(AppError::Argument)?;
+    let request = PlatformFetchRequest {
+        reference: PlatformRef::Xiaohongshu(reference),
+        depth: depth.into(),
+        access: Some(token),
+    };
+    fetch(
+        Platform::Xiaohongshu,
+        request,
+        format,
+        content_dir,
+        false,
+        &common,
+    )
 }
 
 fn xiaohongshu_search(arguments: XiaohongshuSearchArgs) -> Result<CommandOutput, AppError> {

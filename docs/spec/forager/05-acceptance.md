@@ -68,13 +68,14 @@
 | C25 | serpapi | platform scholar：fetch（`platform scholar fetch scholar:18208131694456651388 --depth metadata`；只在有 key 时运行，计 1 次额度） | HTTP |
 | C26 | serpapi | platform scholar：cited_by（`platform scholar cited-by scholar:18208131694456651388 --limit 3`；只在有 key 时运行，计 1 次额度） | HTTP |
 | C27 | xiaohongshu_browser | platform xiaohongshu：search（`platform xiaohongshu search 咖啡 --limit 25 --sort latest --publish-time week`，覆盖非默认筛选与第 2 页；只在 `platforms.xiaohongshu.order` 含该 route 时运行；需要真实 OpenCLI、已登录小红书的 Chrome 与已安装的读取模块；只执行一次） | process |
+| C28 | xiaohongshu_browser | platform xiaohongshu：fetch（在内存中接收 C27 第一条的 `access_url`，`--depth full_text`，正文写入本次用例的临时目录；通过时要求 `content_len` 大于 0，不要求 `title` 非空；门控与只执行一次同 C27） | process |
 
 AnySearch **extraction 裁决**（消解 #53 砍 `anysearch-extract` 与 #59 L8 原文的矛盾）：extraction 本质为纯 fetch，**彻底删除**——不保留内部操作、不入矩阵、不入 registry。
 
 - 断言统一：退 0 + 可解析 + 该 seam 形状非空 + 无 Parse/Runtime 类 ErrorKind；不断言内容质量。失败模式排列全留 offline-e2e。
-- 抗瞬时故障（H13）：金丝雀查询固定；每用例最多重试 2 次（共 3 次尝试）。**例外**：小红书用例（C27）只执行一次、不重试，因为对处于风控状态的账号重复访问会加重风控；失败即记为失败。失败可按 **outage 豁免规则**延期：证据须为 provider 官方状态页异常，或规格外最小独立探测（如 `curl` 同端点）同样失败；留档记录 case ID、时间戳、证据链接。**豁免仅延期、不计 PASS**——必须择日重跑转绿后才能过切换门；不设定时哨兵。
+- 抗瞬时故障（H13）：金丝雀查询固定；每用例最多重试 2 次（共 3 次尝试）。**例外**：小红书用例（C27、C28）只执行一次、不重试，因为对处于风控状态的账号重复访问会加重风控；失败即记为失败。任一小红书用例以 Auth 或 attempt 级 Parameter（登录墙、461、300031/300017）失败时，本轮其余小红书用例不启动，记为失败（`attempts: 0`，消息说明本轮已停止小红书访问），不计 PASS；C27 没有返回 `access_url` 时 C28 同样不启动。失败可按 **outage 豁免规则**延期：证据须为 provider 官方状态页异常，或规格外最小独立探测（如 `curl` 同端点）同样失败；留档记录 case ID、时间戳、证据链接。**豁免仅延期、不计 PASS**——必须择日重跑转绿后才能过切换门；不设定时哨兵。
 - 凭据只走统一体系（`keys` + `FORAGER_` env）；废除 `ANYSEARCH_API_KEY(S)` 特读与 `ANYSEARCH_LIVE_ACCEPTANCE` 分档。退出码：全 PASS（SKIP 不计）→0、任一已配置凭据探测失败→4、配置坏→3。
-- 档次落流程不落旗标：每里程碑跑 L0 全绿 + 手动 P1/P2/C14；切换前跑 `smoke --live` 全量（P1–P2 + C01–C27）；live 档不进 PR CI。
+- 档次落流程不落旗标：每里程碑跑 L0 全绿 + 手动 P1/P2/C14；切换前跑 `smoke --live` 全量（P1–P2 + C01–C28）；live 档不进 PR CI。
 
 ## Medium 落地件（补充决议② M17–M21 定稿）
 
@@ -101,3 +102,5 @@ SSRN Crossref 高级检索的搜索专用实测记录见 [2026-09-28 验收](../
 SSRN browser 高级搜索的 fixture 覆盖完整条件 argv 与 cursor，进程内覆盖跨 route 支持拒绝及实际状态不一致；doctor 核对 `forager-ssrn/3`。原站搜索范围、模式、日期、排序、作者、分页和会话条件切换的真实验收见 [browser 高级搜索验收](../../research/2026-09-28-ssrn-browser-advanced-search.md)。
 
 小红书 search 的 transport fixture 为 `(xiaohongshu_browser, platform:xiaohongshu:search)`：假 OpenCLI 输出按实测结构录制的外壳，进程级测试覆盖页面事实分类、条件与页序核对、去重截断、合法空集与"未列全"诊断，期望值为字面量；doctor 核对 `forager-xhs/1`。读取模块的筛选点击、翻页与抓包完成条件不由 fixture 证明，由 C27 与每期一次的真实页面验收证明（记录见 [小红书 OpenCLI route 设计](../../design/2026-10-08-xiaohongshu-opencli-route.md)「第一期验收」）。
+
+小红书 fetch 的 transport fixture 为 `(xiaohongshu_browser, platform:xiaohongshu:fetch)`：进程级测试覆盖不带 token 的输入退 2 且不启动假 OpenCLI、`noteId` 不符、300031 消息、超时与非预期页面、没有 Web Fetch provider 时 Native 全文照常写成文件、`--format content` 不落盘、写文件失败退 4、空笔记为 Quality、视频不输出 `masterUrl`，以及 token 卫生：一个可识别的假 token 不出现在 ref、`url`、attempt 消息、`--verbose` attempts 与失败时的 stderr 中（来源为 OpenCLI stderr 回显 `--xsec-token`、外壳解码错误与非法输入链接），成功输出的 `access_url` 含它。没有 Web Fetch provider 时 arXiv 与 SSRN 的 `full_text` 仍零调用退 3。smoke 的停止规则由 `tests/smoke.rs` 以假 OpenCLI 覆盖：C28 收到 C27 第一条的 `access_url`，登录墙或封锁后 C28 零调用、不计 PASS。读取模块的 `note` 命令由 C28 与真实验收证明。

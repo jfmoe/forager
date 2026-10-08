@@ -370,6 +370,7 @@ fn arxiv_fetch(arguments: ArxivFetchArgs) -> Result<CommandOutput, AppError> {
     let request = PlatformFetchRequest {
         reference,
         depth: depth.into(),
+        access: None,
     };
     fetch(
         Platform::Arxiv,
@@ -395,6 +396,7 @@ fn ssrn_fetch(arguments: SsrnFetchArgs) -> Result<CommandOutput, AppError> {
     let request = PlatformFetchRequest {
         reference,
         depth: depth.into(),
+        access: None,
     };
     fetch(
         Platform::Ssrn,
@@ -415,12 +417,11 @@ fn fetch(
     common: &PlatformCommonArgs,
 ) -> Result<CommandOutput, AppError> {
     let dependencies = NetworkDependencies::load()?;
-    let full_text = request.depth == ContentDepth::FullText;
     let reference = request.reference.clone();
     let plan = platform_fetch::plan_fetch(dependencies.config.platforms.get(platform), request)
         .map_err(preflight_error)?;
     let web_fetch = dependencies.config.web_fetch;
-    if full_text && web_fetch.configured_provider_count() == 0 {
+    if plan.needs_web_fetch() && web_fetch.configured_provider_count() == 0 {
         return Err(AppError::Config(ConfigError::Message(
             "capabilities.web_fetch.order has no configured provider".into(),
         )));

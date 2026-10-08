@@ -47,8 +47,9 @@ pub use platform_ssrn_search::{
 };
 pub(crate) use platform_xiaohongshu::AccessToken;
 pub use platform_xiaohongshu::{
-    XiaohongshuItemData, XiaohongshuNoteType, XiaohongshuPublishTime, XiaohongshuRef,
-    XiaohongshuSearchOptions, XiaohongshuSort,
+    XiaohongshuImage, XiaohongshuItemData, XiaohongshuNoteData, XiaohongshuNoteType,
+    XiaohongshuPublishTime, XiaohongshuRef, XiaohongshuSearchOptions, XiaohongshuSort,
+    XiaohongshuVideo,
 };
 pub(crate) use research::DocumentationEvidence;
 pub use research::{
