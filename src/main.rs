@@ -13,7 +13,7 @@ use forager::app::{
 use forager::types::{
     AnysearchOutcome, AttemptErrorKind, Context7Outcome, ErrorFamily, ErrorKind, FetchOutcome,
     JournalOutcome, MapOutcome, PlatformFetchResult, PlatformItem, PlatformItemData,
-    PlatformSearchPage, ScholarItemData, SearchCandidate, SearchOutcome,
+    PlatformSearchPage, ScholarItemData, SearchCandidate, SearchOutcome, XiaohongshuCommentsPage,
 };
 use serde_json::{Value, json};
 
@@ -99,6 +99,12 @@ fn main() -> ExitCode {
             output,
             attempt_log,
         }) => emit_logged(render_platform_fetch(*result, format, output), attempt_log),
+        Ok(CommandOutput::XiaohongshuComments {
+            result,
+            format,
+            output,
+            attempt_log,
+        }) => emit_logged(render_comments(result, format, output), attempt_log),
         Err(error) if json_preflight_errors => {
             let exit_code = error.exit_code();
             emit_rendered(apply_tee(
@@ -710,6 +716,73 @@ fn item_snippet(item: &PlatformItem) -> Option<&str> {
         PlatformItemData::Ssrn(data) => data.snippet.as_deref(),
         PlatformItemData::Scholar(ScholarItemData::Result(data)) => data.snippet.as_deref(),
     }
+}
+
+fn render_comments(
+    result: Result<XiaohongshuCommentsPage, ProviderError>,
+    format: OutputFormat,
+    output: Option<OutputTarget>,
+) -> Result<RenderedOutput, String> {
+    let (stdout, exit_code, diagnostic) = match result {
+        Ok(page) => (format_comments(&page, format)?, 0, page.diagnostic),
+        Err(error) => {
+            let stdout = match format {
+                OutputFormat::Json => format_failure_json(&error)?,
+                OutputFormat::Markdown => format!(
+                    "# Comments failed\n\n**{}**: {}",
+                    error.kind.as_str(),
+                    error.message
+                ),
+            };
+            (stdout, postflight_exit_code(error.kind), error.diagnostic)
+        }
+    };
+    apply_tee(
+        stdout,
+        exit_code,
+        format == OutputFormat::Json,
+        output,
+        diagnostic,
+    )
+}
+
+fn format_comments(page: &XiaohongshuCommentsPage, format: OutputFormat) -> Result<String, String> {
+    if format == OutputFormat::Json {
+        return serde_json::to_string(page).map_err(|error| error.to_string());
+    }
+    let mut markdown = format!(
+        "# {} comments on `{}` ({})\n",
+        page.platform, page.note, page.provider
+    );
+    let one_line = |text: &str| text.split_whitespace().collect::<Vec<_>>().join(" ");
+    for comment in &page.comments {
+        let _ = write!(
+            markdown,
+            "\n- **{}** ({}): {}",
+            comment.author.as_deref().unwrap_or("unknown"),
+            comment.published.as_deref().unwrap_or("undated"),
+            one_line(&comment.text)
+        );
+        for reply in &comment.replies {
+            let _ = write!(
+                markdown,
+                "\n  - **{}** ({}): {}",
+                reply.author.as_deref().unwrap_or("unknown"),
+                reply.published.as_deref().unwrap_or("undated"),
+                one_line(&reply.text)
+            );
+        }
+        if comment.replies_has_more {
+            markdown.push_str("\n  - more replies not read");
+        }
+    }
+    if page.comments.is_empty() {
+        markdown.push_str("\n\nNo comments.");
+    }
+    if page.has_more {
+        markdown.push_str("\n\nMore comments remain.");
+    }
+    Ok(markdown)
 }
 
 fn render_platform_fetch(

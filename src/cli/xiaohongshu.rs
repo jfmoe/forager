@@ -1,16 +1,18 @@
 //! Xiaohongshu arguments and request construction.
 
 use std::path::PathBuf;
+use std::time::Duration;
 
 use clap::{Args, Subcommand, ValueEnum};
 
-use super::{PageInput, PlatformCommonArgs, fetch, search};
+use super::{PageInput, PlatformCommonArgs, fetch, preflight_error, search};
 use crate::app::args::{DocsOutputFormat, OutputFormat};
-use crate::app::dispatch::{AppError, CommandOutput};
+use crate::app::dispatch::{AppError, CommandOutput, NetworkDependencies, provider_attempt_log};
+use crate::platform_comments;
 use crate::types::{
-    ContentDepth, Platform, PlatformFetchRequest, PlatformRef, PlatformSearchOptions,
-    PlatformSearchRequest, XiaohongshuNoteType, XiaohongshuPublishTime, XiaohongshuRef,
-    XiaohongshuSearchOptions, XiaohongshuSort,
+    COMMENTS, ContentDepth, Deadline, Platform, PlatformFetchRequest, PlatformRef,
+    PlatformSearchOptions, PlatformSearchRequest, XiaohongshuCommentsRequest, XiaohongshuNoteType,
+    XiaohongshuPublishTime, XiaohongshuRef, XiaohongshuSearchOptions, XiaohongshuSort,
 };
 
 #[derive(Debug, Subcommand)]
@@ -23,6 +25,29 @@ pub(in crate::app) enum XiaohongshuCommand {
     /// a local Markdown file. Needs the note's access token, as in a search result's
     /// `access_url`.
     Fetch(XiaohongshuFetchArgs),
+    /// List the top-level comments of one Xiaohongshu note in your own logged-in Chrome, and
+    /// optionally the first page of replies under the first few. Needs the note's access token,
+    /// as in a search result's `access_url`.
+    Comments(XiaohongshuCommentsArgs),
+}
+
+#[derive(Debug, Args)]
+pub(in crate::app) struct XiaohongshuCommentsArgs {
+    /// The `access_url` of a search result, or a xiaohongshu.com note URL with its
+    /// `xsec_token`.
+    reference: String,
+    /// Maximum top-level comments; one command reads up to five pages of 10 and cannot
+    /// continue later.
+    #[arg(long, default_value_t = 20, value_parser = clap::value_parser!(u16).range(1..=50))]
+    limit: u16,
+    /// Expand the replies of this many returned comments that have more replies, reading the
+    /// first page of each.
+    #[arg(long, default_value_t = 0, value_parser = clap::value_parser!(u16).range(0..=10))]
+    replies: u16,
+    #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
+    format: OutputFormat,
+    #[command(flatten)]
+    common: PlatformCommonArgs,
 }
 
 #[derive(Debug, Args)]
@@ -144,7 +169,48 @@ pub(in crate::app) fn run(command: XiaohongshuCommand) -> Result<CommandOutput, 
     match command {
         XiaohongshuCommand::Search(arguments) => xiaohongshu_search(arguments),
         XiaohongshuCommand::Fetch(arguments) => xiaohongshu_fetch(arguments),
+        XiaohongshuCommand::Comments(arguments) => xiaohongshu_comments(arguments),
     }
+}
+
+fn xiaohongshu_comments(arguments: XiaohongshuCommentsArgs) -> Result<CommandOutput, AppError> {
+    let XiaohongshuCommentsArgs {
+        reference,
+        limit,
+        replies,
+        format,
+        common,
+    } = arguments;
+    let (note, access) =
+        XiaohongshuRef::parse_accessible(&reference, COMMENTS).map_err(AppError::Argument)?;
+    let request = XiaohongshuCommentsRequest {
+        note,
+        access,
+        limit,
+        replies,
+    };
+    let dependencies = NetworkDependencies::load()?;
+    let plan = platform_comments::plan_comments(
+        dependencies.config.platforms.get(Platform::Xiaohongshu),
+        request,
+    )
+    .map_err(preflight_error)?;
+    let result = dependencies
+        .runtime
+        .block_on(platform_comments::run_comments(
+            plan,
+            Deadline::new(Duration::from_secs(common.timeout)),
+            common.verbose,
+        ));
+    let attempt_log = provider_attempt_log(dependencies.config.log_level, &result, |page| {
+        &page.attempts
+    });
+    Ok(CommandOutput::XiaohongshuComments {
+        result,
+        format,
+        output: common.output.target(),
+        attempt_log,
+    })
 }
 
 fn xiaohongshu_fetch(arguments: XiaohongshuFetchArgs) -> Result<CommandOutput, AppError> {
@@ -156,7 +222,7 @@ fn xiaohongshu_fetch(arguments: XiaohongshuFetchArgs) -> Result<CommandOutput, A
         common,
     } = arguments;
     let (reference, token) =
-        XiaohongshuRef::parse_accessible(&reference).map_err(AppError::Argument)?;
+        XiaohongshuRef::parse_accessible(&reference, "fetch").map_err(AppError::Argument)?;
     let request = PlatformFetchRequest {
         reference: PlatformRef::Xiaohongshu(reference),
         depth: depth.into(),

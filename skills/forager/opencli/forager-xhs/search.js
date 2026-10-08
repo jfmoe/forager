@@ -126,14 +126,14 @@ cli({
     };
     // Waits for a search response after the `seen` completed ones; returns whether the command
     // can go on.
-    const next = async (seen, nudge, orRendered = false) => {
+    const next = async (seen, nudge, ready = null) => {
       const result = await awaitCompletion(page, facts, {
         path: SEARCH_PATH,
         seen,
         deadline,
         nudge,
         nudgeEveryMs: SCROLL_EVERY_MS,
-        orRendered,
+        ready,
       });
       keep(result.exchanges);
       if (result.state === 'body_missing') bodyMissing = true;
@@ -157,7 +157,7 @@ cli({
     await page.startNetworkCapture('xiaohongshu.com');
     const params = new URLSearchParams({ keyword: String(kwargs.query), source: 'web_explore_feed' });
     await page.goto(`https://${SITE_DOMAIN}/search_result?${params}`, { waitUntil: 'load', settleMs: 1000 });
-    if (!await next(0, null, true)) return finish();
+    if (!await next(0, null, () => facts.cards > 0)) return finish();
 
     for (const filter of FILTERS) {
       const value = String(kwargs[filter.arg] ?? filter.defaultValue);

@@ -11,6 +11,7 @@ mod platform_scholar;
 mod platform_ssrn;
 mod platform_ssrn_search;
 mod platform_xiaohongshu;
+mod platform_xiaohongshu_comments;
 mod research;
 mod search;
 
@@ -50,6 +51,12 @@ pub use platform_xiaohongshu::{
     XiaohongshuImage, XiaohongshuItemData, XiaohongshuNoteData, XiaohongshuNoteType,
     XiaohongshuPublishTime, XiaohongshuRef, XiaohongshuSearchOptions, XiaohongshuSort,
     XiaohongshuVideo,
+};
+pub(crate) use platform_xiaohongshu_comments::{
+    COMMENTS, XiaohongshuCommentsOutcome, XiaohongshuCommentsRequest,
+};
+pub use platform_xiaohongshu_comments::{
+    XiaohongshuComment, XiaohongshuCommentsPage, XiaohongshuReply,
 };
 pub(crate) use research::DocumentationEvidence;
 pub use research::{

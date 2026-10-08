@@ -17,7 +17,7 @@ use crate::catalog::{self, ProviderId, ProviderRegistration};
 use crate::config::{self, RuntimeConfig};
 use crate::redact::{CREDENTIAL_MASK, Secret, redact_credentials, redact_url};
 use crate::state_file;
-use crate::types::{CITED_BY, Deadline, Platform};
+use crate::types::{CITED_BY, COMMENTS, Deadline, Platform};
 
 static PROBE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 pub(crate) const MAIN_CANARY_QUERY: &str = "What is the latest stable Rust release?";
@@ -29,14 +29,18 @@ const ANYSEARCH_CANARY_QUERY: &str = "retrieval augmented generation";
 const PLATFORM_CANARY_QUERY: &str = "retrieval augmented generation";
 // Xiaohongshu has new coffee notes every week, so the filtered search reaches its second page.
 const XIAOHONGSHU_CANARY_QUERY: &str = "咖啡";
-const SPECIFICATION_CASE_IDS: [&str; 30] = [
+const SPECIFICATION_CASE_IDS: [&str; 31] = [
     "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12",
     "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24", "C25",
-    "C26", "C27", "C28",
+    "C26", "C27", "C28", "C29",
 ];
+// One comment page holds 10 top-level comments, so 15 needs the second page.
+const XIAOHONGSHU_COMMENTS_LIMIT: &str = "15";
 const XIAOHONGSHU_STOPPED: &str = "not started: an earlier Xiaohongshu case met a login wall or a block, so this run stops all Xiaohongshu access";
 const XIAOHONGSHU_NO_ACCESS_URL: &str =
-    "not started: the Xiaohongshu search case returned no access_url to fetch";
+    "not started: the Xiaohongshu search case returned no access_url to read";
+const XIAOHONGSHU_ONE_COMMENT_PAGE: &str = "not verified: the most-commented note of the Xiaohongshu search has 10 or fewer comments, so the second comment page was not read";
+const XIAOHONGSHU_NO_REPLIES: &str = "not verified: no returned comment of the most-commented Xiaohongshu note had more replies to expand";
 const PIPELINE_CASES: [LiveCaseDefinition; 3] = [
     LiveCaseDefinition::pipeline("P1", "search"),
     LiveCaseDefinition::pipeline("P2", "research"),
@@ -172,13 +176,16 @@ enum ResultShape {
     PlatformSearch,
     PlatformFetch,
     PlatformFullText,
+    XiaohongshuComments,
 }
 
 /// What one live run carries between its Xiaohongshu cases, in memory only: a note opens only
-/// with an access token, which expires, so the fetch case reads the first search result.
+/// with an access token, which expires, so the fetch case reads the first search result and the
+/// comments case the most-commented one.
 #[derive(Default)]
 struct XiaohongshuRun {
     access_url: Option<String>,
+    most_commented_access_url: Option<String>,
     /// A case met a login wall or a block; more page loads would push the account further into
     /// risk control.
     stopped: bool,
@@ -581,7 +588,7 @@ fn xiaohongshu_blocker(
     if run.stopped {
         return Some(XIAOHONGSHU_STOPPED);
     }
-    (definition.operation == "fetch" && run.access_url.is_none())
+    (definition.operation != "search" && run.access_url.is_none())
         .then_some(XIAOHONGSHU_NO_ACCESS_URL)
 }
 
@@ -611,7 +618,7 @@ fn run_configured_case(
             break;
         }
         attempts = attempt;
-        match run_case_once(definition, deadline, xiaohongshu.access_url.as_deref()) {
+        match run_case_once(definition, deadline, xiaohongshu) {
             Ok(payload) => {
                 if definition.platform == Some(Platform::Xiaohongshu)
                     && definition.operation == "search"
@@ -619,6 +626,7 @@ fn run_configured_case(
                     xiaohongshu.access_url = payload["items"][0]["access_url"]
                         .as_str()
                         .map(str::to_owned);
+                    xiaohongshu.most_commented_access_url = most_commented_access_url(&payload);
                 }
                 return LiveCaseResult {
                     definition,
@@ -670,7 +678,7 @@ fn max_attempts(definition: LiveCaseDefinition) -> usize {
 fn run_case_once(
     definition: LiveCaseDefinition,
     deadline: Deadline,
-    xiaohongshu_access_url: Option<&str>,
+    xiaohongshu: &XiaohongshuRun,
 ) -> Result<Value, CaseFailure> {
     let case_id = definition.id;
     let timeout_seconds = remaining_seconds(deadline).ok_or("live smoke hard deadline elapsed")?;
@@ -684,7 +692,7 @@ fn run_case_once(
         case_id,
         timeout_seconds,
         scratch.as_ref().map(tempfile::TempDir::path),
-        xiaohongshu_access_url,
+        xiaohongshu,
     )
     .ok_or("registered live case has no execution mapping")?;
     let mut payload = Value::Null;
@@ -712,8 +720,52 @@ fn run_case_once(
         if contains_runtime_error(&payload) {
             return Err("live case included a runtime-class provider attempt".into());
         }
+        if let ResultShape::XiaohongshuComments = command.shape {
+            comments_coverage(&payload)?;
+        }
     }
     Ok(payload)
+}
+
+/// Returns the access URL of the search result with the most comments, the first on a tie.
+/// Xiaohongshu writes counts as text such as `156` or `1.2万`; an empty or missing count is 0.
+fn most_commented_access_url(payload: &Value) -> Option<String> {
+    let count = |item: &Value| {
+        let text = item["comments"].as_str().unwrap_or_default().trim();
+        let (number, scale) = text
+            .strip_suffix('万')
+            .map_or((text, 1.0), |number| (number, 10_000.0));
+        number.parse::<f64>().map_or(0.0, |number| number * scale)
+    };
+    payload["items"]
+        .as_array()?
+        .iter()
+        .fold(None::<(&Value, f64)>, |best, item| match best {
+            Some((_, most)) if count(item) <= most => best,
+            _ => Some((item, count(item))),
+        })
+        .and_then(|(item, _)| item["access_url"].as_str().map(str::to_owned))
+}
+
+/// Proves that the comments case read the second comment page and expanded one comment's
+/// replies. A comment carries one reply, so more replies prove the expansion. A note that
+/// cannot show either leaves the case unverified rather than passed.
+fn comments_coverage(payload: &Value) -> Result<(), CaseFailure> {
+    let comments = payload["comments"]
+        .as_array()
+        .map_or(&[][..], Vec::as_slice);
+    if comments.len() <= 10 {
+        return Err(XIAOHONGSHU_ONE_COMMENT_PAGE.into());
+    }
+    let expanded = comments.iter().any(|comment| {
+        comment["replies"]
+            .as_array()
+            .is_some_and(|replies| replies.len() > 1)
+    });
+    if !expanded {
+        return Err(XIAOHONGSHU_NO_REPLIES.into());
+    }
+    Ok(())
 }
 
 fn is_xiaohongshu_fetch(definition: LiveCaseDefinition) -> bool {
@@ -806,7 +858,7 @@ fn command_specs(
     case_id: &str,
     timeout_seconds: u64,
     scratch_dir: Option<&Path>,
-    xiaohongshu_access_url: Option<&str>,
+    xiaohongshu: &XiaohongshuRun,
 ) -> Option<Vec<CommandSpec>> {
     let timeout = timeout_seconds.to_string();
     let map_timeout = timeout_seconds.clamp(10, 150).to_string();
@@ -827,7 +879,7 @@ fn command_specs(
                     "platform",
                     platform.as_str(),
                     definition.operation,
-                    xiaohongshu_access_url?,
+                    xiaohongshu.access_url.as_deref()?,
                     "--depth",
                     "full_text",
                     "--content-dir",
@@ -836,6 +888,22 @@ fn command_specs(
                     &timeout,
                 ],
                 ResultShape::PlatformFullText,
+            )
+        } else if platform == Platform::Xiaohongshu && definition.operation == COMMENTS {
+            one(
+                &[
+                    "platform",
+                    platform.as_str(),
+                    definition.operation,
+                    xiaohongshu.most_commented_access_url.as_deref()?,
+                    "--limit",
+                    XIAOHONGSHU_COMMENTS_LIMIT,
+                    "--replies",
+                    "1",
+                    "--timeout",
+                    &timeout,
+                ],
+                ResultShape::XiaohongshuComments,
             )
         } else if platform == Platform::Xiaohongshu {
             one(
@@ -1113,6 +1181,8 @@ fn result_shape_is_nonempty(shape: ResultShape, payload: &Value) -> bool {
                 && payload["content_len"].as_u64().is_some_and(|len| len > 0)
         }
         ResultShape::Fetch | ResultShape::Context7Docs => nonempty_string(payload, "content"),
+        // A note without comments is a legitimate result, but it proves nothing here.
+        ResultShape::XiaohongshuComments => nonempty_string(payload, "note"),
     }
 }
 
@@ -1359,15 +1429,17 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use super::{
-        command_specs, execute_with_deadline, live_case_process, official_status_host,
-        registry_status, status_host_matches_endpoint, status_page_reports_outage,
+        XiaohongshuRun, command_specs, execute_with_deadline, live_case_process,
+        official_status_host, registry_status, status_host_matches_endpoint,
+        status_page_reports_outage,
     };
     use crate::catalog;
     use crate::types::Deadline;
 
     #[test]
     fn live_case_processes_disable_the_search_result_journal() {
-        let specs = command_specs("P1", 60, None, None).expect("P1 is a registered live case");
+        let specs = command_specs("P1", 60, None, &XiaohongshuRun::default())
+            .expect("P1 is a registered live case");
 
         let journal_settings = specs
             .iter()
@@ -1421,7 +1493,8 @@ mod tests {
     #[test]
     fn map_live_case_uses_a_legal_command_timeout() {
         let timeouts = [1, 10, 150, 600].map(|budget| {
-            let commands = command_specs("C17", budget, None, None).expect("C17 command");
+            let commands = command_specs("C17", budget, None, &XiaohongshuRun::default())
+                .expect("C17 command");
             commands[0].arguments[5].clone()
         });
 

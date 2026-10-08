@@ -125,7 +125,7 @@ fn live_smoke_lists_exactly_the_specification_case_registry_without_l0_doctor_ga
     let expected = json!([
         "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11",
         "C12", "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24",
-        "C25", "C26", "C27", "C28"
+        "C25", "C26", "C27", "C28", "C29"
     ]);
 
     assert_eq!(
@@ -177,7 +177,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
             Some(4),
             &Value::String("live".into()),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 29}),
+            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 30}),
             &Value::String("failed".into()),
             &Value::Number(3.into()),
             &Value::String("unconfigured".into()),
@@ -214,7 +214,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
         (
             Some(4),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 29}),
+            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 30}),
             &Value::String("deferred".into()),
             &Value::Number(3.into()),
             &Value::String("http://127.0.0.1:9?token=********".into()),
@@ -302,7 +302,7 @@ fn live_smoke_passes_a_configured_case_only_after_a_zero_parseable_nonempty_term
         ),
         (
             Some(4),
-            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 29}),
+            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 30}),
             &Value::String("passed".into()),
             &Value::Number(1.into()),
         ),
@@ -510,7 +510,7 @@ fn live_smoke_runs_the_platform_cases_through_their_configured_route() {
             crossref_requests[1].contains("/works/10.2139/ssrn.2042750"),
         ),
         (
-            &json!({"passed": 4, "failed": 0, "deferred": 0, "unconfigured": 26}),
+            &json!({"passed": 4, "failed": 0, "deferred": 0, "unconfigured": 27}),
             [(); 4].map(|()| Value::String("passed".into())),
             [
                 &Value::String("arxiv".into()),
@@ -678,12 +678,24 @@ fn live_smoke_runs_the_xiaohongshu_search_once_and_only_when_the_order_lists_the
 
 const XHS_NOTE_ID: &str = "66f0a1b2c3d4e5f607100001";
 const XHS_TOKEN: &str = "ABsmokeToken1=";
+const XHS_COMMENTED_NOTE_ID: &str = "66f0a1b2c3d4e5f607100002";
+const XHS_COMMENTED_TOKEN: &str = "ABsmokeToken2=";
 
 fn xhs_page(url: &str) -> Value {
     json!({"url": url, "title": "小红书", "guest": false, "error_code": null, "notice": null, "blocked_status": null})
 }
 
-/// The C27 search as the adapter reports it after both filter clicks: one note on one page.
+fn xhs_note(id: &str, token: &str, comments: &str) -> Value {
+    json!({
+        "id": id,
+        "model_type": "note",
+        "xsec_token": token,
+        "note_card": {"type": "normal", "display_title": "", "user": {"user_id": "5ff0e6410000000001008400", "nickname": "豆子"}, "interact_info": {"comment_count": comments}, "corner_tag_info": [{"type": "publish_time", "text": "3天前"}]}
+    })
+}
+
+/// The C27 search as the adapter reports it after both filter clicks: on one page, a note with
+/// 3 comments, then one with 1.2万, then one with 999.
 fn xhs_search(page: &Value) -> Value {
     json!({
         "page": page,
@@ -699,13 +711,61 @@ fn xhs_search(page: &Value) -> Value {
                 {"tags": ["不限"], "type": "filter_note_range"},
                 {"tags": ["不限"], "type": "filter_pos_distance"}
             ]},
-            "body": {"code": 0, "success": true, "data": {"has_more": false, "items": [{
-                "id": XHS_NOTE_ID,
-                "model_type": "note",
-                "xsec_token": XHS_TOKEN,
-                "note_card": {"type": "normal", "display_title": "", "user": {"user_id": "5ff0e6410000000001008400", "nickname": "豆子"}, "interact_info": {}, "corner_tag_info": [{"type": "publish_time", "text": "3天前"}]}
-            }]}}
+            "body": {"code": 0, "success": true, "data": {"has_more": false, "items": [
+                xhs_note(XHS_NOTE_ID, XHS_TOKEN, "3"),
+                xhs_note(XHS_COMMENTED_NOTE_ID, XHS_COMMENTED_TOKEN, "1.2万"),
+                xhs_note("66f0a1b2c3d4e5f607100003", "ABsmokeToken3=", "999")
+            ]}}
         }]
+    })
+}
+
+/// A top-level comment of the most-commented note; with `inline`, it carries that reply and has
+/// more.
+fn xhs_comment(serial: u32, inline: Option<u32>) -> Value {
+    let id = |serial: u32| format!("6a9eda8f00000000140{serial:05}");
+    let replies = inline.map_or_else(Vec::new, |reply| {
+        vec![json!({"id": id(reply), "content": "回复", "target_comment": {"id": id(serial)}})]
+    });
+    json!({
+        "id": id(serial),
+        "content": "评论",
+        "sub_comment_cursor": inline.map(id),
+        "sub_comment_has_more": inline.is_some(),
+        "sub_comments": replies
+    })
+}
+
+/// The C29 comments as the adapter reports them: `count` comments on one or two pages, and the
+/// first page of replies of the first comment when it has more.
+fn xhs_comments(count: u32, expandable: bool) -> Value {
+    let params = |cursor: &str| json!({"note_id": XHS_COMMENTED_NOTE_ID, "cursor": cursor});
+    let comments = (1..=count)
+        .map(|serial| xhs_comment(serial, (expandable && serial == 1).then_some(101)))
+        .collect::<Vec<_>>();
+    let mut responses = comments
+        .chunks(10)
+        .enumerate()
+        .map(|(index, page)| {
+            json!({
+                "kind": "page",
+                "params": params(if index == 0 { "" } else { "c1" }),
+                "body": {"data": {"comments": page, "cursor": "c1", "has_more": index == 0 && count > 10}}
+            })
+        })
+        .collect::<Vec<_>>();
+    if expandable {
+        responses.push(json!({
+            "kind": "sub",
+            "params": {"note_id": XHS_COMMENTED_NOTE_ID, "cursor": "6a9eda8f0000000014000101", "root_comment_id": "6a9eda8f0000000014000001"},
+            "body": {"data": {"comments": [xhs_comment(102, None)], "cursor": "", "has_more": false}}
+        }));
+    }
+    json!({
+        "page": xhs_page(&format!("https://www.xiaohongshu.com/explore/{XHS_COMMENTED_NOTE_ID}?xsec_source=pc_search")),
+        "timed_out": false,
+        "body_missing": false,
+        "responses": responses
     })
 }
 
@@ -732,7 +792,8 @@ fn status_and_attempts(payload: &Value, id: &str) -> (Value, Value) {
 
 #[cfg(unix)]
 #[test]
-fn live_smoke_fetches_the_first_xiaohongshu_search_result_through_its_access_url() {
+fn live_smoke_fetches_the_first_xiaohongshu_search_result_and_reads_the_comments_of_the_most_commented()
+ {
     use support::opencli::{FakeOpenCli, XHS_CONTRACT};
 
     let fake = FakeOpenCli::contract_by_command(
@@ -752,6 +813,7 @@ fn live_smoke_fetches_the_first_xiaohongshu_search_result_through_its_access_url
                     "timed_out": false
                 }),
             ),
+            ("comments", xhs_comments(11, true)),
         ],
     );
 
@@ -762,10 +824,31 @@ fn live_smoke_fetches_the_first_xiaohongshu_search_result_through_its_access_url
         (
             status_and_attempts(&payload, "C27"),
             status_and_attempts(&payload, "C28"),
+            status_and_attempts(&payload, "C29"),
             calls.len(),
         ),
-        ((json!("passed"), json!(1)), (json!("passed"), json!(1)), 2),
+        (
+            (json!("passed"), json!(1)),
+            (json!("passed"), json!(1)),
+            (json!("passed"), json!(1)),
+            3
+        ),
         "{payload}"
+    );
+    assert_eq!(
+        calls[2][..10],
+        [
+            "forager-xhs",
+            "comments",
+            "--id",
+            XHS_COMMENTED_NOTE_ID,
+            "--xsec-token",
+            XHS_COMMENTED_TOKEN,
+            "--limit",
+            "15",
+            "--expand",
+            "1"
+        ]
     );
     assert_eq!(
         calls[1][..6],
@@ -797,21 +880,71 @@ fn a_xiaohongshu_login_wall_or_block_stops_every_later_xiaohongshu_case() {
         let payload = xhs_smoke(&fake);
         (
             status_and_attempts(&payload, "C27"),
-            status_and_attempts(&payload, "C28"),
-            case(&payload, "C28")["message"].clone(),
+            ["C28", "C29"].map(|id| {
+                let (status, attempts) = status_and_attempts(&payload, id);
+                (status, attempts, case(&payload, id)["message"].clone())
+            }),
             fake.calls().len(),
         )
     });
 
-    let stopped = (
-        (json!("failed"), json!(1)),
-        (json!("failed"), json!(0)),
+    let not_started = (
+        json!("failed"),
+        json!(0),
         json!(
             "not started: an earlier Xiaohongshu case met a login wall or a block, so this run stops all Xiaohongshu access"
         ),
+    );
+    let stopped = (
+        (json!("failed"), json!(1)),
+        [not_started.clone(), not_started],
         1,
     );
     assert_eq!(outcomes, [stopped.clone(), stopped]);
+}
+
+#[cfg(unix)]
+#[test]
+fn live_smoke_leaves_the_comments_case_unverified_without_a_second_page_or_an_expansion() {
+    use support::opencli::{FakeOpenCli, XHS_CONTRACT};
+
+    let outcomes = [xhs_comments(10, true), xhs_comments(11, false)].map(|comments| {
+        let fake = FakeOpenCli::contract_by_command(
+            XHS_CONTRACT,
+            &[
+                (
+                    "search",
+                    xhs_search(&xhs_page(
+                        "https://www.xiaohongshu.com/search_result?keyword=%E5%92%96%E5%95%A1",
+                    )),
+                ),
+                ("comments", comments),
+            ],
+        );
+        let payload = xhs_smoke(&fake);
+        (
+            status_and_attempts(&payload, "C29"),
+            case(&payload, "C29")["message"].clone(),
+        )
+    });
+
+    assert_eq!(
+        outcomes,
+        [
+            (
+                (json!("failed"), json!(1)),
+                json!(
+                    "not verified: the most-commented note of the Xiaohongshu search has 10 or fewer comments, so the second comment page was not read"
+                )
+            ),
+            (
+                (json!("failed"), json!(1)),
+                json!(
+                    "not verified: no returned comment of the most-commented Xiaohongshu note had more replies to expand"
+                )
+            ),
+        ]
+    );
 }
 
 #[test]

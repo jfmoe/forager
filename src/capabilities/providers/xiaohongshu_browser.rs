@@ -1,5 +1,5 @@
-//! The `xiaohongshu_browser` route: Xiaohongshu search and note pages, read in the user's own
-//! logged-in Chrome through the forager OpenCLI adapter `forager-xhs`.
+//! The `xiaohongshu_browser` route: Xiaohongshu search, note, and comment pages, read in the
+//! user's own logged-in Chrome through the forager OpenCLI adapter `forager-xhs`.
 //!
 //! The JavaScript adapter only navigates, hovers, clicks, and scrolls, and reports what the page
 //! itself requested, received, and rendered. This route classifies the page facts, checks that
@@ -7,23 +7,30 @@
 
 use std::time::Duration;
 
+use chrono::{DateTime, FixedOffset, SecondsFormat};
 use serde::Deserialize;
 
-use crate::catalog::{PlatformOperation, ProviderId, ProviderTransport, registration};
+use crate::catalog::{ProviderId, ProviderTransport, registration};
 use crate::config::ProcessRouteRuntimeConfig;
 use crate::net::{AttemptFailure, RetryPolicy};
 use crate::providers::execution::ExecutionSettings;
 use crate::providers::opencli::OpenCliCommand;
 use crate::rate_limit::RateLimiter;
 use crate::redact::CREDENTIAL_MASK;
-use crate::types::{AccessToken, AttemptErrorKind, AttemptTarget, Deadline, Platform};
+use crate::types::{
+    AccessToken, AttemptErrorKind, AttemptTarget, Deadline, Platform, XiaohongshuRef,
+};
 
 const ROUTE: ProviderId = ProviderId::XiaohongshuBrowser;
 const LOGIN_NOTICES: [&str; 2] = ["登录后查看", "登录"];
 const BLOCK_NOTICES: [&str; 2] = ["安全限制", "访问链接异常"];
 const BLOCK_CODES: [&str; 2] = ["300031", "300017"];
 const RISK_CONTROL_STATUS: u16 = 461;
+const SITE_HOST: &str = "www.xiaohongshu.com";
+const BEIJING_SECONDS: i32 = 8 * 3600;
 
+#[path = "xiaohongshu_browser_comments.rs"]
+mod comments;
 #[path = "xiaohongshu_browser_note.rs"]
 mod note;
 #[path = "xiaohongshu_browser_search.rs"]
@@ -69,10 +76,10 @@ impl XiaohongshuBrowser {
 
     // The route never retries: repeating a blocked page pushes the account further into risk
     // control.
-    fn settings(&self, operation: PlatformOperation) -> ExecutionSettings {
+    fn settings(&self, operation: &'static str) -> ExecutionSettings {
         ExecutionSettings {
             provider: ROUTE.name(),
-            target: AttemptTarget::platform(Platform::Xiaohongshu.as_str(), operation.as_str()),
+            target: AttemptTarget::platform(Platform::Xiaohongshu.as_str(), operation),
             retry_policy: RetryPolicy::new(1, 1.0, Duration::ZERO),
             deadline: self.deadline,
             attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
@@ -187,4 +194,39 @@ fn load_failure(facts: &PageFacts) -> Option<AttemptFailure> {
 
 fn describe(facts: &PageFacts) -> String {
     format!("`{}` ({})", facts.title.trim(), facts.url)
+}
+
+/// The message of a note page the site blocked: the token may be stale, the note restricted or
+/// removed, or the account rate-limited, and the page cannot tell which.
+fn note_unavailable(requested: &XiaohongshuRef, code: &str, notice: &str) -> String {
+    format!(
+        "Xiaohongshu note unavailable: xiaohongshu:{requested} ({code}: {notice}); the access token may be stale, the note restricted or removed, or the account rate-limited"
+    )
+}
+
+fn is_note_page(url: &str, requested: &XiaohongshuRef) -> bool {
+    reqwest::Url::parse(url).is_ok_and(|url| {
+        url.host_str() == Some(SITE_HOST)
+            && url.path().trim_end_matches('/')
+                == format!("/explore/{}", requested.note_id()).as_str()
+    })
+}
+
+/// Returns a count as Xiaohongshu shows it, such as `1.2万`; the site writes counts as text and
+/// occasionally as numbers.
+fn count_text(value: Option<&serde_json::Value>) -> Option<String> {
+    match value {
+        Some(serde_json::Value::String(text)) => Some(text.clone()),
+        Some(serde_json::Value::Number(number)) => Some(number.to_string()),
+        _ => None,
+    }
+}
+
+/// Converts milliseconds since the Unix epoch to an ISO 8601 timestamp in Beijing time.
+fn beijing_time(milliseconds: i64) -> Option<String> {
+    let beijing = FixedOffset::east_opt(BEIJING_SECONDS)?;
+    DateTime::from_timestamp_millis(milliseconds).map(|time| {
+        time.with_timezone(&beijing)
+            .to_rfc3339_opts(SecondsFormat::Secs, false)
+    })
 }

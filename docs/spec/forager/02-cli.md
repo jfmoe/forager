@@ -53,6 +53,8 @@ forager platform xiaohongshu search QUERY [--limit 1..=100（默认 20）]
                                     [--timeout 120] [--format json|markdown] [...]
 forager platform xiaohongshu fetch ACCESS_URL [--depth metadata|full_text（默认 full_text）]
                                    [--content-dir DIR] [--timeout 120] [--format json|markdown|content] [...]
+forager platform xiaohongshu comments ACCESS_URL [--limit 1..=50（默认 20）] [--replies 0..=10（默认 0）]
+                                      [--timeout 120] [--format json|markdown] [...]
 forager doctor [--provider PROVIDER] [--timeout 30] [--format json|markdown]
 forager smoke [--live] [...]
 forager config path|list|set|unset
@@ -304,6 +306,21 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 - 通用 flag 同 search。没有 `--keep-pdf`。全文不需要配置任何 Web Fetch provider（ADR 0022）。
 - **输出**：JSON 顶层为 `platform`、`provider`、`ref`、`url`（canonical URL，不含 token）、`depth`、`title`（可为空串）、`authors`、`published`（北京时间 ISO 8601 时间戳），以及小红书字段 `updated`、`note_type`、`author_id`、`likes`、`collects`、`comments`、`shares`、`tags`、`images`（`[{url, width, height}]`）、`video`（`{duration_seconds, width, height}` 或 `null`，不含视频地址）、`ip_location` 与 `access_url`（由 ref 与 token 重新构造，含 token）。`full_text` 时另有 `content_url`（canonical URL）、`content_provider`（`xiaohongshu_browser`）、`content_path`（`xiaohongshu-<id>.md`）与 `content_len`。正文格式见第 7 章。不写 Search Result Journal。
 - **退出码**：输入无法识别、短链、`rednote.com`、token 格式不对或缺少 token＝飞行前退 2，不启动进程；`platforms.xiaohongshu.order` 为空（默认）＝飞行前退 3；会话未登录或 461 为 Auth，300031/300017 或安全限制为 attempt 级 Parameter（消息列出 token 过期、笔记受限或删除、账号被限频三种可能），截止点前仍停在该笔记页为 Timeout，`noteId` 不符、停在非预期页面或外壳形状不对为 Runtime，正文文件写入失败为 Runtime，都退 4；标题、正文与图片全为空为 Quality，退 5。token 永不出现在 attempt 消息、`--verbose` attempts 与失败时的 stderr 中。
+
+### `platform xiaohongshu comments`
+
+在用户自己已登录的 Chrome 中读取一篇小红书笔记的一级评论，并可展开前几条评论的楼中楼，经 `xiaohongshu_browser` route（第 7 章「小红书」）。这是只有一条 route 的 L2 平台操作。
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| 访问链接（位置参数） | 同 fetch | 必填 | 只给 ref 或不带 token 的链接时飞行前退 2 |
+| `--limit` | 1–50 | 20 | 最多返回的一级评论条数；一次命令读取 ⌈limit / 10⌉ 页（最多 5 页） |
+| `--replies` | 0–10 | 0 | 在返回的一级评论中，对前 N 条还有未显示回复的评论各点击一次"展开 N 条回复"，只读回复的第一页 |
+| `--format` | `json` / `markdown` | `json` | 输出格式 |
+
+- 通用 flag 同 search。没有 `--cursor`：页面只能从第一页起按顺序加载评论，命令之间无法续读。
+- **输出**：JSON 为 `{platform, provider, note, comments, has_more}`。`note` 为笔记 ref；`has_more` 表示还有未交付的一级评论（上游最后一页仍有更多，或读到的评论截到 `--limit` 时有余项）。每条评论为 `{id, author, author_id, text, likes, published, ip_location, reply_count, replies, replies_has_more}`，回复为 `{id, author, author_id, text, likes, published, ip_location, reply_to}`：`text` 为原文，`likes` 与 `reply_count` 为计数原文，`published` 为北京时间 ISO 8601 时间戳，`reply_to` 为该回复所回复的评论或回复的 ID。`replies` 先放评论自带的一条回复，展开时再追加第一页回复，按 ID 去重；`replies_has_more` 表示该评论还有未交付的回复。输出不含 token。不写 Search Result Journal。
+- **退出码**：输入无法识别或缺少 token、`--limit` 或 `--replies` 越界＝飞行前退 2，不启动进程；`platforms.xiaohongshu.order` 为空（默认）＝飞行前退 3；会话未登录或 461 为 Auth，300031/300017 或安全限制为 attempt 级 Parameter，截止点前仍停在该笔记页为 Timeout，都退 4；评论页的笔记或 cursor 链不符、楼中楼不属于选中的评论或起始 cursor 不符、读取模块无法点击展开（消息附原因）、响应体缺失、停在非预期页面、第一页没有评论却声称还有更多为 Runtime，退 4；笔记没有评论为 `comments: []` 且退 0。token 卫生同 fetch。
 
 ## 收尾
 

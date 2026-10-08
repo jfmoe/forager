@@ -2,7 +2,7 @@ use std::sync::LazyLock;
 use std::time::Duration;
 
 use crate::rate_limit::AccessPolicy;
-use crate::types::{CITED_BY, Platform};
+use crate::types::{CITED_BY, COMMENTS, Platform};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct CapabilityCatalog {
@@ -522,6 +522,12 @@ const XIAOHONGSHU_BROWSER_SMOKE: &[ProviderSmokeCase] = &[
         id: "C28",
         platform: Some(Platform::Xiaohongshu),
         operation: "fetch",
+        transport: "process",
+    },
+    ProviderSmokeCase {
+        id: "C29",
+        platform: Some(Platform::Xiaohongshu),
+        operation: COMMENTS,
         transport: "process",
     },
 ];

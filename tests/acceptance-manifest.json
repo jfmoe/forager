@@ -167,6 +167,13 @@
       "seam": "platform:xiaohongshu:fetch",
       "test": "tests/xiaohongshu_fetch.rs::full_text_writes_the_native_note_body_without_any_web_fetch_provider",
       "note": "A fake opencli executable answering live-shaped note page facts proves the transport, the identity check, the metadata decoding, and the native full-text delivery; the JavaScript adapter is covered only by the live smoke C28."
+    },
+    {
+      "id": "F22",
+      "provider": "xiaohongshu_browser",
+      "seam": "platform:xiaohongshu:comments",
+      "test": "tests/xiaohongshu_comments.rs::comments_follow_the_cursor_chain_and_expand_the_first_selected_replies",
+      "note": "comments is a single-route platform operation outside the platform catalog; the platform checklist matches this entry against the provider factory's comments routes. A fake opencli executable answering live-shaped comment responses proves the transport, the order and ownership checks, and the decoding; the JavaScript adapter is covered only by the live smoke C29."
     }
   ],
   "offline_e2e": [

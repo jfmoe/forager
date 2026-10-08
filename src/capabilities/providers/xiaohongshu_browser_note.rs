@@ -2,12 +2,11 @@
 
 use std::collections::BTreeMap;
 
-use chrono::{DateTime, FixedOffset, SecondsFormat};
 use serde::Deserialize;
 
 use super::{
-    PageFacts, ROUTE, XiaohongshuBrowser, classify_blocks, describe, load_failure, runtime,
-    without_token,
+    PageFacts, ROUTE, XiaohongshuBrowser, beijing_time, classify_blocks, count_text, describe,
+    is_note_page, load_failure, note_unavailable, runtime, without_token,
 };
 use crate::catalog::PlatformOperation;
 use crate::net::AttemptFailure;
@@ -19,9 +18,6 @@ use crate::types::{
     PlatformFetchRequest, PlatformItem, PlatformItemData, PlatformRef, ProviderError,
     XiaohongshuImage, XiaohongshuNoteData, XiaohongshuRef, XiaohongshuVideo,
 };
-
-const SITE_HOST: &str = "www.xiaohongshu.com";
-const BEIJING_SECONDS: i32 = 8 * 3600;
 
 /// Returns whether the route can fetch the request; it never starts a process. A note opens
 /// only with its access token.
@@ -66,7 +62,7 @@ impl XiaohongshuBrowser {
         );
         let command = &command;
         let execution = execute_anonymous(
-            self.settings(PlatformOperation::Fetch),
+            self.settings(PlatformOperation::Fetch.as_str()),
             move |deadline| async move {
                 read_note(command, self, requested, token, full_text, deadline)
                     .await
@@ -101,9 +97,7 @@ async fn read_note(
     }
     let data = envelope.data;
     classify_blocks(&data.page, |code, notice| {
-        format!(
-            "Xiaohongshu note unavailable: xiaohongshu:{requested} ({code}: {notice}); the access token may be stale, the note restricted or removed, or the account rate-limited"
-        )
+        note_unavailable(requested, code, notice)
     })?;
     let Some(note) = data.note else {
         if data.timed_out
@@ -142,14 +136,6 @@ async fn read_note(
         ),
     })?;
     Ok((item, FullTextSource::Native(body)))
-}
-
-fn is_note_page(url: &str, requested: &XiaohongshuRef) -> bool {
-    reqwest::Url::parse(url).is_ok_and(|url| {
-        url.host_str() == Some(SITE_HOST)
-            && url.path().trim_end_matches('/')
-                == format!("/explore/{}", requested.note_id()).as_str()
-    })
 }
 
 /// The facts the adapter reports for one note page.
@@ -251,11 +237,6 @@ fn note_item(note: &NoteState, reference: &XiaohongshuRef, token: &AccessToken) 
             .map(|value| value.trim().to_owned())
             .filter(|value| !value.is_empty())
     };
-    let count = |value: Option<&serde_json::Value>| match value {
-        Some(serde_json::Value::String(text)) => Some(text.clone()),
-        Some(serde_json::Value::Number(number)) => Some(number.to_string()),
-        _ => None,
-    };
     let video = note.video.as_ref().map(|video| {
         let rendition = video
             .media
@@ -286,10 +267,10 @@ fn note_item(note: &NoteState, reference: &XiaohongshuRef, token: &AccessToken) 
                 other => other.to_owned(),
             }),
             author_id: text(note.user.user_id.as_ref()),
-            likes: count(note.interact_info.likes.as_ref()),
-            collects: count(note.interact_info.collects.as_ref()),
-            comments: count(note.interact_info.comments.as_ref()),
-            shares: count(note.interact_info.shares.as_ref()),
+            likes: count_text(note.interact_info.likes.as_ref()),
+            collects: count_text(note.interact_info.collects.as_ref()),
+            comments: count_text(note.interact_info.comments.as_ref()),
+            shares: count_text(note.interact_info.shares.as_ref()),
             tags: note
                 .tag_list
                 .iter()
@@ -354,13 +335,4 @@ fn native_body(item: &PlatformItem, desc: Option<&str>) -> Option<String> {
         blocks.push(format!("（视频笔记，时长 {duration} 秒，视频文件未下载）"));
     }
     Some(blocks.join("\n\n"))
-}
-
-/// Converts milliseconds since the Unix epoch to an ISO 8601 timestamp in Beijing time.
-fn beijing_time(milliseconds: i64) -> Option<String> {
-    let beijing = FixedOffset::east_opt(BEIJING_SECONDS)?;
-    DateTime::from_timestamp_millis(milliseconds).map(|time| {
-        time.with_timezone(&beijing)
-            .to_rfc3339_opts(SecondsFormat::Secs, false)
-    })
 }

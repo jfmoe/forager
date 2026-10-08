@@ -22,7 +22,7 @@ use crate::types::{
     AnysearchOutcome, CapabilitySet, ClaimRisk, Context7Outcome, Deadline, EvidenceStrength,
     FallbackPolicy, FetchOutcome, JournalOutcome, MapOutcome, PlanCapability, PlatformFetchResult,
     PlatformSearchPage, ProviderAttempt, RecencyRequirement, ResearchIntentSignals, ResearchPlan,
-    ResearchSubquestion, SearchOutcome,
+    ResearchSubquestion, SearchOutcome, XiaohongshuCommentsPage,
 };
 
 #[doc(hidden)]
@@ -150,6 +150,17 @@ pub enum CommandOutput {
         result: Box<Result<PlatformFetchResult, ProviderError>>,
         /// Requested output format.
         format: DocsOutputFormat,
+        /// Optional output file destination.
+        output: Option<OutputTarget>,
+        /// Optional terminal projection selected by `log.level`.
+        attempt_log: Option<String>,
+    },
+    /// Typed Xiaohongshu comments terminal state for binary-side formatting and tee output.
+    XiaohongshuComments {
+        /// Comments result.
+        result: Result<XiaohongshuCommentsPage, ProviderError>,
+        /// Requested output format.
+        format: OutputFormat,
         /// Optional output file destination.
         output: Option<OutputTarget>,
         /// Optional terminal projection selected by `log.level`.

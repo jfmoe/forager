@@ -18,13 +18,17 @@ use crate::config::{
 use crate::net::RetryPolicy;
 use crate::types::{
     Deadline, PlatformFetchRequest, PlatformSearchOutcome, PlatformSearchRequest, ProviderError,
-    ScholarCitedByRequest,
+    ScholarCitedByRequest, XiaohongshuCommentsOutcome, XiaohongshuCommentsRequest,
 };
 
 /// The routes that list the works citing a Google Scholar paper. Cited-by has one route, so it
 /// is an inherent method of that route and its route set lives here, not in the platform
 /// catalog.
 pub(crate) const SCHOLAR_CITED_BY_ROUTES: &[ProviderId] = &[ProviderId::Serpapi];
+
+/// The routes that list the comments of a Xiaohongshu note; like cited-by, a single-route
+/// operation whose route set lives here.
+pub(crate) const XIAOHONGSHU_COMMENTS_ROUTES: &[ProviderId] = &[ProviderId::XiaohongshuBrowser];
 
 pub(crate) fn build_main_search(
     id: ProviderId,
@@ -181,6 +185,20 @@ pub(crate) async fn scholar_cited_by(
         .await
 }
 
+/// Lists the comments of a Xiaohongshu note through a comments route.
+pub(crate) async fn xiaohongshu_comments(
+    config: PlatformRouteConfig,
+    deadline: Deadline,
+    request: &XiaohongshuCommentsRequest,
+) -> Result<XiaohongshuCommentsOutcome, ProviderError> {
+    let PlatformRouteConfig::XiaohongshuBrowser(config) = config else {
+        unreachable!("planning selects only comments routes")
+    };
+    build_xiaohongshu_browser(config, deadline)
+        .comments(request)
+        .await
+}
+
 /// Checks the account of every key of a route that registers an account probe.
 pub(crate) async fn route_accounts(
     config: PlatformRouteConfig,
@@ -304,6 +322,15 @@ pub(crate) fn scholar_cited_by_support(
         _ => return None,
     };
     Some(transport_support(id).and(route))
+}
+
+/// Returns whether a comments route can run, or `None` for a provider that does not list
+/// Xiaohongshu comments. The request needs no check beyond what parsing guarantees.
+pub(crate) fn xiaohongshu_comments_support(id: ProviderId) -> Option<Result<(), String>> {
+    match id {
+        ProviderId::XiaohongshuBrowser => Some(transport_support(id)),
+        _ => None,
+    }
 }
 
 /// Returns whether this host can run the route's transport at all.

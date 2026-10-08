@@ -27,7 +27,8 @@ export function sleep(ms) {
 }
 
 // The page state that ends any read: login walls, block pages, and their notices. A notice is
-// read only while no note card is shown, so a note title never counts as one.
+// read only while no note card and no note is shown, so text in a note title, a note, or its
+// comments never counts as one.
 //
 // Each read also makes sure the current document counts the completed requests to the tracked
 // paths on any xiaohongshu.com host. A document keeps its own count, and the page the command
@@ -61,12 +62,15 @@ function pageStateScript(tracked) {
   if (url.searchParams.has('xsec_token')) url.searchParams.delete('xsec_token');
   const errorPage = /^\\/(404|website-login\\/error)/.test(url.pathname);
   const cards = document.querySelectorAll('section.note-item').length;
+  const state = window.__INITIAL_STATE__;
+  const notes = state && state.note && state.note.noteDetailMap;
+  const noteShown = Boolean(notes) && Object.values(notes).some((entry) => entry && entry.note && entry.note.noteId);
+  const rendered = cards > 0 || noteShown;
   const text = document.body && !loadError ? document.body.innerText : '';
-  const notice = cards === 0
-    ? (text.match(/[^\\n]*(安全限制|访问链接异常|登录后查看|请求太频繁|访问频次异常)[^\\n]*/) || [null])[0]
-    : null;
-  let loggedIn = window.__INITIAL_STATE__ && window.__INITIAL_STATE__.user
-    ? window.__INITIAL_STATE__.user.loggedIn : undefined;
+  const notice = rendered
+    ? null
+    : (text.match(/[^\\n]*(安全限制|访问链接异常|登录后查看|请求太频繁|访问频次异常)[^\\n]*/) || [null])[0];
+  let loggedIn = state && state.user ? state.user.loggedIn : undefined;
   if (loggedIn && typeof loggedIn === 'object') loggedIn = 'value' in loggedIn ? loggedIn.value : loggedIn._value;
   return {
     url: url.href,
@@ -74,7 +78,7 @@ function pageStateScript(tracked) {
     error_code: errorPage ? url.searchParams.get('error_code') : null,
     notice: notice ? notice.trim().slice(0, 120) : null,
     load_error: loadError,
-    logged_out: loggedIn === false && cards === 0,
+    logged_out: loggedIn === false && !rendered,
     cards,
     counts: window.__foragerXhs || {},
   };
@@ -141,8 +145,9 @@ function decodeBody(text) {
 }
 
 /**
- * Drains the network capture into exchanges `{path, method, status, request, body, has_body}`.
- * OPTIONS preflights and other methods are dropped.
+ * Drains the network capture into exchanges `{path, query, method, status, request, body,
+ * has_body}`; `query` never holds an access token. OPTIONS preflights and other methods are
+ * dropped.
  */
 export async function readExchanges(page) {
   const entries = await page.readNetworkCapture();
@@ -150,9 +155,15 @@ export async function readExchanges(page) {
     .filter((entry) => entry.method === 'GET' || entry.method === 'POST')
     .map((entry) => {
       let path = '';
-      try { path = new URL(entry.url).pathname; } catch { /* keep empty */ }
+      const query = {};
+      try {
+        const url = new URL(entry.url);
+        path = url.pathname;
+        for (const [name, value] of url.searchParams) if (name !== 'xsec_token') query[name] = value;
+      } catch { /* keep empty */ }
       return {
         path,
+        query,
         method: entry.method,
         status: entry.responseStatus || null,
         request: decodeBody(entry.requestBodyPreview),
@@ -164,19 +175,20 @@ export async function readExchanges(page) {
 
 /**
  * Waits until `path` has completed more than `seen` times, the page reaches a final state, or
- * the deadline passes. `nudge` runs before each wait round, for example to scroll. With
- * `orRendered`, note cards on the page also count as the completion: the first response of a
- * page usually completes before the navigation returns and the count starts, and the page clears
- * its Resource Timing buffer at its load event. Returns the exchanges read after the completion
+ * the deadline passes. `nudge` runs before each wait round, for example to scroll. `ready`, when
+ * given, is a page state that also counts as the completion, such as rendered note cards: the
+ * first response of a page usually completes before the navigation returns and the count
+ * starts, and the page clears its Resource Timing buffer at its load event. Returns the exchanges
+ * read after the completion
  * with `completed`, or with `body_missing` when none of them holds a body for `path`; `ended`; or
  * `timed_out`. Exchanges for `path` without a body are other requests still in flight or
  * aborted, not the completed one.
  */
-export async function awaitCompletion(page, facts, { path, seen, deadline, nudge, nudgeEveryMs, orRendered }) {
+export async function awaitCompletion(page, facts, { path, seen, deadline, nudge, nudgeEveryMs, ready }) {
   let nudgedAt = 0;
   while (Date.now() < deadline) {
     if (await facts.observe(page)) return { state: 'ended', exchanges: [] };
-    if (facts.completions(path) > seen || (orRendered && facts.cards > 0)) {
+    if (facts.completions(path) > seen || (ready && await ready())) {
       // Reading the capture drains it, and an entry drained before the extension stores its
       // body never gets one. The extension asks Chrome for the body on the request's
       // loadingFinished event, which Chrome sends before the page can see the completion, and

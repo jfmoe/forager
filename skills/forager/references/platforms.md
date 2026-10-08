@@ -17,7 +17,8 @@ example, `x.com` links keep the authenticated-client guidance).
   item's `access_url`, or a xiaohongshu.com note URL that carries `xsec_token`, exactly as given:
   `forager platform xiaohongshu fetch 'ACCESS_URL'`. For a link without the token (or a bare
   `xiaohongshu:` ref), search for the note first and fetch its `access_url`; `forager fetch` cannot
-  read a note, because the page needs the user's login.
+  read a note, because the page needs the user's login. For what readers say about a note, run
+  `forager platform xiaohongshu comments 'ACCESS_URL'` with the same URL.
 - **Papers citing a known paper** (follow-up work, replications, or rebuttals): run
   `forager platform scholar cited-by 'REF_OR_URL'`; see "Google Scholar cited-by".
 
@@ -148,11 +149,11 @@ only when the user asks for it; it runs at most one browser command every 5 seco
 
 ## Xiaohongshu browser route
 
-`xiaohongshu_browser` searches and reads Xiaohongshu notes in the user's own Chrome through
+`xiaohongshu_browser` searches and reads Xiaohongshu notes and their comments in the user's own Chrome through
 OpenCLI, using the account the user is logged in with. It is off by default; enable it only when the user asks for
 it. It runs at most one browser command every 10 seconds and never retries. Xiaohongshu's user
-agreement forbids scraping and the site rate-limits accounts: tell the user that the searches and
-fetches run under their account, suggest a secondary account rather than their main one, and keep
+agreement forbids scraping and the site rate-limits accounts: tell the user that the searches,
+fetches, and comment reads run under their account, suggest a secondary account rather than their main one, and keep
 the number of commands small.
 
 - **Install** (verified with OpenCLI 1.8.6): OpenCLI with its Chrome Browser Bridge connected
@@ -171,6 +172,10 @@ the number of commands small.
   in the logged-in session, and was still valid 22 minutes later; fetch soon after searching
   rather than storing access URLs. The output's `access_url` contains the token; the ref and `url`
   never do.
+- **Comments**: pass the same `access_url`. Keep the default `--replies 0` unless the request is
+  about the discussion under particular comments; each expanded comment is one more click in the
+  user's account. The result never continues in a later command; when `has_more` is `true` and more
+  comments matter, rerun once with a larger `--limit` (at most 50).
 
 ## Read full text
 
@@ -233,7 +238,9 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
   this machine's clock, so it is accurate to the day at best; quote `published_text` when the
   exact wording matters, and when `published` is `null`. Counts are Xiaohongshu's display text
   (`1.2万`), not exact numbers. Results are personalized and change between runs; do not present
-  them as a complete or stable ranking.
+  them as a complete or stable ranking. Comments are individual readers' reactions: report them
+  as opinions with their counts, not as facts about the note's subject, and say how many of the
+  note's comments you read (`has_more`, `replies_has_more`).
 
 ## Recover
 
@@ -270,11 +277,14 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
 - A `xiaohongshu_browser` `parameter` error naming `300031`, `300017`, or a security restriction on
   a search: Xiaohongshu is limiting the account. Stop using Xiaohongshu for this task, tell the
   user, and do not retry; it may clear after a long pause.
-- The same error on a fetch (`Xiaohongshu note unavailable`): the token may be stale, the note
-  restricted or removed, or the account rate-limited, and the site does not say which. Search once
-  more for the note and fetch the new `access_url`; when that also fails with `300031` or
+- The same error on a fetch or a comments read (`Xiaohongshu note unavailable`): the token may be
+  stale, the note restricted or removed, or the account rate-limited, and the site does not say
+  which. Search once more for the note and retry with the new `access_url`; when that also fails with `300031` or
   `300017`, stop using Xiaohongshu, tell the user, and try again only after a long pause.
 - Exit 5 on a Xiaohongshu fetch: the note has no title, text, or images; report it.
+- A Xiaohongshu comments `runtime` error saying the adapter could not expand the replies of a
+  comment: the page did not show the expected button. Retry once without `--replies`, and tell the
+  user the replies were not read.
 - A `xiaohongshu_browser` `timeout`: retry once with `--timeout 180`; when it times out again,
   report it.
 - A `xiaohongshu_browser` `network` error saying Chrome could not load the page: the browser could

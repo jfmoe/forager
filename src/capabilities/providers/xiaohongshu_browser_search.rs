@@ -82,7 +82,7 @@ impl XiaohongshuBrowser {
         let expected = &expected;
         let pages = usize::from(request.limit.div_ceil(PAGE_SIZE));
         let execution = execute_anonymous(
-            self.settings(PlatformOperation::Search),
+            self.settings(PlatformOperation::Search.as_str()),
             move |deadline| async move {
                 let envelope = opencli::run::<SearchData>(command, &self.limiter, deadline).await?;
                 if envelope.status != EnvelopeStatus::Ok {

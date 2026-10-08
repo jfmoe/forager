@@ -1,6 +1,6 @@
 # 小红书平台与 OpenCLI 浏览器 route 设计
 
-状态：第一期已实现（search 见 #187，fetch 见 #188），comments 未实现；实现与设计的差异见「第一期实现记录」。日期：2026-10-08。前置调研见 [小红书 Platform 接入可行性](../research/2026-10-08-xiaohongshu-integration.md)。那份调研推荐第三方 API TikHub；本设计根据下文实测改用浏览器 route，理由见「路线选择」。
+状态：已实现（search 见 #187，fetch 见 #188，comments 见 #189）；实现与设计的差异见「第一期实现记录」与「第二期实现记录」。日期：2026-10-08。前置调研见 [小红书 Platform 接入可行性](../research/2026-10-08-xiaohongshu-integration.md)。那份调研推荐第三方 API TikHub；本设计根据下文实测改用浏览器 route，理由见「路线选择」。
 
 ## 目标与边界
 
@@ -104,7 +104,7 @@ stdout 外壳沿用 `{contract, status, data}`，`contract` 为 `forager-xhs/1`�
 | `contract` | 无（不需要浏览器） | `{commands}` |
 | `search` | `query`、`sort`、`note-type`、`publish-time`、`pages`（1–5） | `{page, filter_clicks, responses: [{request, body}]}`：设置筛选后按顺序抓到的搜索响应；`request` 只含 `keyword`、`page`、`search_id`、`filters` |
 | `note` | `id`、`xsec-token` | `{page, note, comments_state}`：SSR 中的笔记对象（媒体只保留下文用到的字段） |
-| `comments` | `id`、`xsec-token`、`pages`（1–5）、`expand`（0–10） | `{page, responses: [{kind, params, body}]}`：一级评论与楼中楼的响应，`params` 只含 `note_id`、`cursor`、`root_comment_id`、`num`；`expand` 只对读取模块收到的前 `expand` 条可展开一级评论点击 |
+| `comments` | `id`、`xsec-token`、`limit`（1–50）、`expand`（0–10） | `{page, timed_out, body_missing, expand_failure, responses: [{kind, params, body}]}`：一级评论与楼中楼的响应，`params` 只含 `note_id`、`cursor`、`root_comment_id`、`num`；读取 ⌈limit / 10⌉ 页，`expand` 只对读到的前 `limit` 条一级评论中前 `expand` 条可展开的评论点击（实现时由 `pages` 改为 `limit`，见「第二期实现记录」） |
 
 `page` 为页面事实：`{url, title, guest, error_code, notice, blocked_status, load_error}`。`url` 去掉 `xsec_token` 的值；`guest` 来自 `user/me` 或 `__INITIAL_STATE__.user.loggedIn`；`error_code` 取自跳转 URL（`/404` 或 `website-login/error`）的 `error_code` 参数；`notice` 是页面上"安全限制""访问链接异常""登录后查看"等提示原文；`blocked_status` 是任一小红书接口返回的 461；`load_error` 是 Chrome 因导航失败显示自己的错误页时的错误码（实现时加入，见「第一页偶发未完成的原因」）。读取模块看到前五项终态事实就停止等待并返回；`load_error` 不是终态，因为 Chrome 会自行重新加载错误页。外壳 `status` 恒为 `ok`；截止点前既没有等到预期响应、也没有出现终态事实时，同样返回页面事实，并带 `timed_out: true`。
 
@@ -215,7 +215,7 @@ Rust 侧按以下顺序分类，排在前面的优先：
 - **输入**：与 fetch 相同，必须带 `xsec_token`。
 - **`--limit`**：一级评论条数，1–50，默认 20；读取 ⌈limit / 10⌉ 页，翻页方式与 search 相同（滚到底 + 截图）。
 - **`--replies`**：展开楼中楼的一级评论数，0–10，默认 0。只对最终交付的一级评论中、`sub_comment_has_more` 为 true 的前 M 条各点击一次"展开 N 条回复"，只读第一页回复（实测每页 5 条）。
-- **核对**：每个一级评论响应的请求 `note_id` 必须等于请求的笔记，请求 `cursor` 必须等于上一个响应返回的 `cursor`（第一页为空）；每个楼中楼响应的 `note_id` 与 `root_comment_id` 必须对应一条本次选中展开的一级评论。任何不符为 Runtime。楼中楼第一页的请求 `cursor` 是否恒等于该评论的 `sub_comment_cursor` 未经实测，不作为核对条件，实现阶段确认后再加。
+- **核对**：每个一级评论响应的请求 `note_id` 必须等于请求的笔记，请求 `cursor` 必须等于上一个响应返回的 `cursor`（第一页为空）；每个楼中楼响应的 `note_id` 与 `root_comment_id` 必须对应一条本次选中展开的一级评论。任何不符为 Runtime。楼中楼第一页的请求 `cursor` 必须等于该评论的 `sub_comment_cursor`（实现时实测确认后加入，见「第二期实现记录」）。
 - **输出**：`{platform, provider, note: ref, comments, has_more}`。评论条目为 `{id, author, author_id, text, likes, published, ip_location, reply_count, replies, replies_has_more}`；回复条目为 `{id, author, author_id, text, likes, published, ip_location, reply_to}`，`reply_to` 为 `target_comment.id`（缺失时为所属一级评论的 id）。`published` 由 `create_time` 转为北京时间 ISO 8601 时间戳。`replies` 先放内嵌的一条，再追加展开得到的回复，按 `id` 去重。
 - **不签发 cursor**：页面只能在打开笔记后从第一页顺序加载，命令之间无法注入 cursor。`has_more` 表示"还有未交付的一级评论"：上游最后一页 `has_more` 为 true，或已读取的评论在截到 `limit` 时有余项，都为 true。`replies_has_more` 按展开后的结果计算：该评论仍有未交付的回复即为 true。
 - **空评论**：笔记没有评论时返回空列表，退 0，不按 fetch 的"不存在"语义报错。
@@ -259,7 +259,7 @@ OpenCLI 退出码到 attempt 错误类型的映射完全沿用 `providers/opencl
 1. **types**：`Platform::Xiaohongshu`；`platform_xiaohongshu` 叶子模块包含 `XiaohongshuRef`（解析、canonical URL、URL 拆出 token、构造 `access_url`）、`AccessToken`、`XiaohongshuSearchOptions`、`XiaohongshuItemData` 与 comments 的请求和结果形状；`PlatformFetchRequest.access`；`FullTextSource::Native`；`PlatformRef`、`PlatformSearchOptions`、`PlatformItemData` 各加一个变体。新增的内部类型沿用 `pub(crate)`，只有 CLI 需要渲染的结果形状经 types 门面公开；types 保持零 IO，不依赖 redact 或 config。
 2. **config**：`providers.xiaohongshu_browser.command` 与 `.timeout`，`platforms.xiaohongshu.order`（默认空）；runtime 投影与 `platform_route_config` 覆盖新 route。
 3. **route**：`providers/xiaohongshu_browser` 模块，按 SSRN 的拆法分为命令调用与解码（search、note、comments 各自的 DTO），只依赖 `providers/opencli`；页面事实分类、条件核对与 token 值脱敏都在这里。注册信息增加"全文是否依赖 Web Fetch"的声明。
-4. **core**：`plan_fetch` 暴露计划是否需要 Web Fetch；`platform_fetch` 处理 `Native` 来源；comments 的规划与执行入口。
+4. **core**：`plan_fetch` 暴露计划是否需要 Web Fetch；`platform_fetch` 处理 `Native` 来源；comments 的规划与执行入口（`core/platform_comments`）。
 4a. **ops**：smoke 的小红书用例单次执行、阻断即停、C27 的访问链接在本轮内传给 C28/C29。
 5. **catalog**：`ProviderId::XiaohongshuBrowser`、注册信息、`PLATFORMS` 条目（search 与 fetch 的 route 集合为 `[xiaohongshu_browser]`，默认 order 为空），smoke 用例 C27–C29。
 6. **CLI**：`XiaohongshuSearchArgs`、`XiaohongshuFetchArgs`、`XiaohongshuCommentsArgs`；缺 token 与 order 为空的消息。
@@ -402,6 +402,50 @@ OpenCLI 退出码到 attempt 错误类型的映射完全沿用 `providers/opencl
 
 8 次运行中共 10 次以计数为完成信号的等待（筛选点击后与滚动翻页后）和 8 次以卡片为信号的第一页等待，全部读到响应体，没有 `body_missing`。
 
+## 第二期实现记录
+
+#189 交付 comments 与 smoke C29。以下是实现时对本设计所做的决定与修正，规格第 2、5、7 章已按实现写明。
+
+- **楼中楼起始 cursor 的核对**：实测（见下文「评论页面结构的依据」）中，楼中楼第一页请求的 `cursor` 都等于该评论的 `sub_comment_cursor`，即评论自带的那条回复的 ID；返回的回复不含自带的那条，从它之后开始。据此加入核对：楼中楼响应的请求 `cursor` 不等于 `sub_comment_cursor` 为 Runtime。证据只有 2 篇笔记的 5 次展开，见「仍未实测的部分」。
+- **读取模块的参数由 `pages` 改为 `limit`**：设计让读取模块"只对收到的前 `expand` 条可展开一级评论点击"，而 route 只展开最终交付的评论。`limit` 不是 10 的倍数时（例如 C29 的 15），收到的评论多于交付的评论，读取模块可能点开一条不会交付的评论，route 再把它的回复页判为"未选中的根评论"。最小改法是让读取模块接收 `limit`：它读取 ⌈limit / 10⌉ 页，并只在前 `limit` 条（按 ID 去重）中选择要展开的评论，与 route 的选择一致。契约版本仍为 `forager-xhs/1`，因为读取模块还没有发布过。
+- **第一页的完成信号**：与搜索第一页同理，第一个 `comment/page` 响应通常在导航返回、计数开始之前完成，所以第一页另以页面状态 `noteDetailMap[<id>].comments.firstRequestFinish` 为真作为完成信号（读取页面已有的状态，不调用页面方法）。共享的 `awaitCompletion` 把原来的"笔记卡片已渲染"开关改为通用的 `ready` 判断，search 传入笔记卡片，comments 传入这一状态。
+- **翻页**：评论在 `.note-scroller` 面板内滚动，不在窗口中；读取模块把面板与窗口都滚到底，再截图两次强制渲染。
+- **展开点击**：按 `#comment-<id>` 找到评论元素所在的 `.parent-comment`，在其中找文本为"展开 N 条回复"的 `.reply-container .show-more` 并点击，等到对应的 `comment/sub/page` 完成后再处理下一条。找不到时最多重找 2 秒（20 次），仍没有就停止，在 `expand_failure` 中写明原因（`no_comment_element`、`no_parent_comment` 或 `no_expand_button` 加评论 ID），route 报 Runtime 并附上原因。点击后不重试：再点一次会变成"展开更多回复"，读到第二页回复。
+- **页面提示与笔记**：页面事实的 `notice` 与"未登录"原来只在页面没有笔记卡片时读取；笔记页本来就没有笔记卡片，评论里出现"安全限制"等字样会让 comments 在等待中途结束。现在只要 `__INITIAL_STATE__.note.noteDetailMap` 中有笔记，也不读取提示与登录状态。fetch 原有的"渲染出笔记时清空提示"仍保留。
+- **抓包条目的请求参数**：评论接口是 GET，条件在查询串里。共享的 `readExchanges` 为每个条目增加 `query`（去掉 `xsec_token`）；读取模块只把 `note_id`、`cursor`、`root_comment_id`、`num` 交给 route，评论只保留 route 解码的字段，评论者自己的 `xsec_token` 不离开页面。
+- **第一页没有评论却声称还有更多**：设计只规定"没有评论返回空列表"。与 search 的合法空集规则一致，第一个响应没有评论且 `has_more` 为 true 时为 Runtime，避免把读取异常当成空集。
+- **core 落点**：comments 不分页、不签发 cursor，不进入 `platform_chain` 的 `PageRequest`。新模块 `core/platform_comments` 以同一 `plan_routes` 规划（route 集合为 factory 的 `XIAOHONGSHU_COMMENTS_ROUTES`），以同一链执行器运行；CLI 的结果经新的 `CommandOutput::XiaohongshuComments` 渲染，支持 `json` 与 `markdown`。
+- **smoke C29 的判定**：C29 取 C27 中评论数最多的一条（计数原文 `1.2万` 按 12000 计，空串与缺失按 0 计，相同取靠前者）。现有报告没有"未验证"状态，所以与 C28 的处理一致，未覆盖时记为 `failed`，消息以 `not verified:` 开头：返回的评论不超过 10 条说明没有读到第 2 页；没有任何评论的 `replies` 多于自带的 1 条说明没有展开。实测每条有回复的评论都只自带 1 条回复，所以多于 1 条即证明展开发生。
+
+### 评论页面结构的依据
+
+2026-10-09 18:20 UTC，用一个临时读取模块（site `xhsprobe`，测完删除）打开一篇约 156 条评论的笔记，记录页面状态、评论 DOM 与抓包条目的结构（不记录 token 与用户资料）。1 次页面命令，没有出现登录墙、461、300031/300017 或安全限制。
+
+| 观察 | 设计结论 |
+|---|---|
+| 后台窗口 `visibilityState` 为 `hidden`；`noteDetailMap[<id>].comments` 的键为 `list`、`cursor`、`hasMore`、`loading`、`firstRequestFinish`，第一页后 `firstRequestFinish` 为 true | 第一页以该状态为完成信号 |
+| 第一页请求 `cursor` 为空串，响应带 `cursor`（本页最后一条评论的 ID）与 `has_more`；在 `.note-scroller` 中滚到底并截图后，第二页请求的 `cursor` 等于第一页返回的 `cursor` | cursor 链核对成立；翻页滚动评论面板 |
+| 每条一级评论是 `.parent-comment > .comment-item#comment-<id>`；有更多回复时其中有 `.reply-container > .show-more`，文本为"展开 N 条回复"（N 为 `sub_comment_count` 减自带的 1 条） | 按评论 ID 定位并点击 |
+| `sub_comment_count` 不为 0 的评论都恰好自带 1 条回复（`sub_comments`），其 `target_comment.id` 为该评论；`sub_comment_cursor` 等于这条回复的 ID | `reply_to` 取 `target_comment.id`；自带回复多于 1 条即说明发生过展开 |
+| 点击"展开 19 条回复"后发出 `comment/sub/page`（`root_comment_id`、`num=10`、`cursor` 等于 `sub_comment_cursor`），返回 5 条回复，不含自带的那条，带 `cursor` 与 `has_more: true` | 加入楼中楼起始 cursor 的核对 |
+| `like_count` 与 `sub_comment_count` 是字符串，`create_time` 是毫秒数；响应 `data` 与每个 `user_info` 都带 `xsec_token` | 读取模块只保留 route 解码的字段 |
+
+### 第二期验收
+
+2026-10-09 18:17–18:44 UTC，OpenCLI 1.8.6，用户自己已登录的 Chrome，读取模块按 skill 的方式重新安装为 `~/.opencli/clis/forager-xhs`，route 经环境变量 `FORAGER_PLATFORMS__XIAOHONGSHU__ORDER` 启用。共 7 次页面命令（含上文的结构探测；相邻两次之间至少间隔 20 秒）与 1 次不打开浏览器的 `contract`，没有出现登录墙、461、300031/300017 或安全限制。C27 与 C29 按 smoke 的命令逐条手动运行（访问链接只在临时文件与 shell 变量中传递，事后删除），理由同第一期。
+
+| 运行 | 命令 | 结果 |
+|---|---|---|
+| 1 | `forager platform xiaohongshu search 咖啡 --limit 5 --sort most-commented`（为结构探测挑选评论多的笔记） | 114 秒，退 4：Timeout，`the read deadline passed after 0 of 1 Xiaohongshu filter clicks`，见「仍未实测的部分」 |
+| 2 | `forager platform xiaohongshu search 咖啡 --limit 20` | 14 秒，退 0：20 条 |
+| 3 | 结构探测（见上文） | 31 秒 |
+| 4 | C27：`forager platform xiaohongshu search 咖啡 --limit 25 --sort latest --publish-time week` | 28 秒，退 0：25 条，"未列全"诊断；评论数原文多为 `0`，最多的一条为 `140` |
+| 5 | C29：`forager platform xiaohongshu comments <C27 中评论最多的一条的 access_url> --limit 15 --replies 1 --verbose` | 22 秒，退 0：15 条评论（两页），ID 无重复，`has_more: true`；第 1 条评论（`reply_count` 13）的 `replies` 为自带 1 条加展开的 5 条，其中 1 条的 `reply_to` 是该评论，另 5 条指向其他评论者，`replies_has_more: true`；其余评论各自带 0 或 1 条回复。attempts 只有 route 的一条 comments attempt。C29 的两项覆盖条件都满足 |
+| 6 | `comments <C27 第一条（评论数 0）的 access_url> --replies 2` | 17 秒，退 0：`comments: []`，`has_more: false` |
+| 7 | `comments <同运行 5> --limit 30 --replies 3` | 24 秒，退 0：三页 30 条，ID 无重复；前三条可展开的评论各展开一次：两条得到 5 条回复（共 6 条），一条（`reply_count` 2）得到 1 条（共 2 条，`replies_has_more: false`） |
+
+运行 5 与 7 的 4 次展开都通过了楼中楼起始 cursor 的核对，加上结构探测共 5 次一致。
+
 ## 仍未实测的部分
 
 - **token 的有效期上限**：实测到 22 分钟仍有效，更长时间未测。过期表现预计与 300031 相同，已按 Parameter 处理并提示重新搜索。
@@ -411,7 +455,9 @@ OpenCLI 退出码到 attempt 错误类型的映射完全沿用 `providers/opencl
 - **Chrome 错误页**：`load_error` 的识别（`chrome-error:` 页面中的 `.error-code`）只在本机对一个拒绝连接的端口验证过；小红书上的错误页每次都在命令第一次读取页面状态之前被 Chrome 重新加载掉，所以没有读到过真实错误码。Chrome 连续重新加载失败、退避间隔变长时，命令会以 Network 结束。
 - **相对时间**：真实卡片上已观察到 `N分钟前`、`N小时前`、`N天前`（含 `1天前`）与 `昨天 HH:MM`；`刚刚`、不带时间的 `昨天` 尚未出现，按同一规则换算。`昨天` 由站点按哪个时区判定未核实：本机时区与站点不同时，换算出的日期可能差一天。
 - **抓包完成条件**：页面往返屏障依赖 Chrome 按序处理同一调试会话的命令，没有核对 Chromium 源码；8 次修正后的运行中没有出现 `body_missing`。旧条件下运行 5 失败的具体原因（取响应体慢于 1 秒，还是另一个在途或中止的请求）没有现场证据可以区分，新条件对两者都成立。若屏障假设不成立，表现为偶发 Runtime（`body_missing`），不会静默丢页。
-- **楼中楼 cursor**：楼中楼第一页的请求 `cursor` 是否等于 `sub_comment_cursor` 未比较，暂不作为核对条件。
+- **楼中楼 cursor**：楼中楼第一页的请求 `cursor` 等于评论的 `sub_comment_cursor` 只在 2 篇笔记的 5 次展开中观察到，没有上游文档保证；若站点改变这一点，comments 会以 Runtime 失败（消息给出两个 cursor），而不是交付错位的回复。
+- **评论 DOM**：展开按钮依赖 `#comment-<id>`、`.parent-comment` 与 `.reply-container .show-more` 的结构（2026-10-09 实测）；结构变化时 comments 以 Runtime 报告 `no_comment_element` 或 `no_expand_button`，不会少交付回复。
 - **截图驱动渲染的稳定性**：依赖 Chrome 在后台窗口中为截图渲染一帧的行为。若某个 Chrome 版本不再这样，翻页会以 Timeout 失败而不是返回不完整结果，届时再评估。
 - **评论翻页的跨次一致性**：评论顺序在两次运行中第一页相同，但只看了前两条 ID，没有系统比较；comments 不签发 cursor，不依赖这一点。
+- **筛选后第一页偶发超时**：第二期验收的第一次 search（`--sort most-commented --limit 5`）在 114 秒后以 `the read deadline passed after 0 of 1 Xiaohongshu filter clicks` 失败，没有现场证据区分是第一页未完成还是筛选点击后的等待；同一会话随后的 6 次页面命令都正常。与「第一页偶发未完成的原因」可能同源，未再调查。
 - **账号风险**：约 55 次命令、5–10 秒间隔未触发风控，不代表长期安全；社区有只读访问被判违规的报告。skill 的平台 reference 建议使用非主力账号。

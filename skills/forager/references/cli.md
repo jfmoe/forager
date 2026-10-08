@@ -642,6 +642,49 @@ Exit codes: `2` before any request for a missing or malformed token, a short lin
 rate-limited), and `runtime` (the page showed another note or an unexpected page, or the file
 could not be written); `5` for `quality` (the note has no title, text, or images).
 
+### `platform xiaohongshu comments`
+
+```console
+forager platform xiaohongshu comments ACCESS_URL [--limit N] [--replies N]
+                                      [--timeout SECONDS] [--format json|markdown]
+                                      [--output FILE [--receipt]] [--verbose]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `ACCESS_URL` | As for fetch: a search item's `access_url`, or a note URL with its `xsec_token`. A ref or a URL without the token exits `2`. | Required |
+| `--limit N` | Top-level comments, `1..=50`; one command reads up to five pages of 10. | `20` |
+| `--replies N` | Expand the replies of the first `N` returned comments that have more replies than they show, `0..=10`; reads the first page (about 5 replies) of each. | `0` |
+
+The comments are read on the note page in the user's own logged-in Chrome through
+`xiaohongshu_browser`, like fetch; a read takes about 20 to 30 seconds. There is no cursor: a
+later command cannot continue where this one stopped.
+
+JSON output is `{platform, provider, note, comments, has_more}`. `note` is the note ref;
+`has_more` is `true` when the note has top-level comments this result did not return. Each
+comment has:
+
+| Field | Meaning |
+| --- | --- |
+| `id` | The comment ID. |
+| `author`, `author_id` | The commenter's nickname and user ID. |
+| `text` | The comment text exactly as stored; emoji codes such as `[doge]` stay as written. |
+| `likes`, `reply_count` | Counts as Xiaohongshu shows them. |
+| `published` | Exact Beijing time, such as `2026-10-06T18:30:18+08:00`. |
+| `ip_location` | The region Xiaohongshu shows for the commenter, or `null`. |
+| `replies` | The one reply a comment shows by itself, plus the first page of an expanded comment's replies. Each reply has the same fields without `reply_count` and `replies`, plus `reply_to`, the ID of the comment or reply it answers. |
+| `replies_has_more` | Whether the comment has replies this result did not return. |
+
+A note without comments returns `comments: []` with exit 0. The output never contains the
+access token.
+
+Exit codes: `2` before any request for a missing or malformed token, a short link, a
+`rednote.com` link, or `--limit` or `--replies` out of range; `3` for an empty
+`platforms.xiaohongshu.order`; `4` for `auth`, `parameter`, and `timeout` as under fetch, and
+`runtime` (a comment response belonged to another note, broke the page order, or answered a
+comment that was not expanded; the adapter could not click "展开 N 条回复", with the reason; or the
+page was unexpected).
+
 ## Configuration and diagnostics
 
 ### `config`

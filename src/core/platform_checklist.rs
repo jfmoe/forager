@@ -16,8 +16,8 @@ use crate::config::{
 };
 use crate::providers;
 use crate::types::{
-    CITED_BY, ContentDepth, Platform, PlatformFetchRequest, PlatformRef, PlatformSearchOptions,
-    PlatformSearchRequest,
+    CITED_BY, COMMENTS, ContentDepth, Platform, PlatformFetchRequest, PlatformRef,
+    PlatformSearchOptions, PlatformSearchRequest,
 };
 
 const CHECKLIST: &str = "docs/spec/forager/07-platforms.md";
@@ -341,13 +341,27 @@ fn single_route_operations_have_transport_fixtures() {
                 .is_some_and(|(_, operation)| !catalog_operations.contains(&operation))
         })
         .collect::<BTreeSet<_>>();
-    let routes = providers::SCHOLAR_CITED_BY_ROUTES
-        .iter()
-        .map(|route| {
-            (
-                route.name().to_owned(),
-                format!("platform:{}:{CITED_BY}", Platform::Scholar),
-            )
+    let single_route_operations = [
+        (
+            Platform::Scholar,
+            CITED_BY,
+            providers::SCHOLAR_CITED_BY_ROUTES,
+        ),
+        (
+            Platform::Xiaohongshu,
+            COMMENTS,
+            providers::XIAOHONGSHU_COMMENTS_ROUTES,
+        ),
+    ];
+    let routes = single_route_operations
+        .into_iter()
+        .flat_map(|(platform, operation, routes)| {
+            routes.iter().map(move |route| {
+                (
+                    route.name().to_owned(),
+                    format!("platform:{platform}:{operation}"),
+                )
+            })
         })
         .collect::<BTreeSet<_>>();
 
