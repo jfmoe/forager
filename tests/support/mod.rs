@@ -19,6 +19,7 @@ use std::time::{Duration, Instant};
 
 pub(crate) mod doctor;
 pub(crate) mod opencli;
+pub(crate) mod scholar;
 
 const ACCEPT_DEADLINE: Duration = Duration::from_secs(10);
 const ACCEPT_POLL_INTERVAL: Duration = Duration::from_millis(10);

@@ -11,7 +11,7 @@
 `src/` 以职责形成六个物理分组；`lib.rs` 用显式 `#[path]` 声明保持既有 crate 内模块名，不把目录本身变成新的公共 API 层级。
 
 - **`cli/`**：CLI 参数定义、应用分发与 `app` 公共门面；参数树在 `args.rs`，分发在 `dispatch.rs`；`forager platform` 命令组的静态参数树与分发在 `platform.rs`。
-- **`core/`**：engine（各 seam 的 provider 链）、platform_chain（平台 route 规划、cursor 与 search 链）、platform_fetch（平台 fetch 的元数据链与正文段）、platform_checklist（仅测试构建：新平台接入清单一致性检查）、search_fanout（普通 search 的辅助能力 fan-out 与结果合并）、chain、classifier 与 Attempt Trace。
+- **`core/`**：engine（各 seam 的 provider 链）、platform_chain（平台 route 规划、cursor 与分页操作链：search 与 Google Scholar cited-by）、platform_fetch（平台 fetch 的元数据链与正文段）、platform_checklist（仅测试构建：新平台接入清单一致性检查）、search_fanout（普通 search 的辅助能力 fan-out 与结果合并）、chain、classifier 与 Attempt Trace。
 - **`capabilities/`**：Capability Catalog 与 platform catalog、Provider Credential Pool、跨进程限速（`rate_limit`）、Provider HTTP Read Contract（`net`）及 provider adapter（含平台 route adapter）。
 - **`evidence/`**：Research Evidence Pipeline、Search Result Journal 与 stderr attempt log。
 - **`infra/`**：config、secure filesystem、共享私有状态文件（`state_file`）、redaction 与零 IO 的 `types` 基底。
@@ -51,9 +51,9 @@ Platform 与 Capability Seam 并列（ADR 0019），完整接入契约见第 7 �
 - **platform catalog**：`catalog::PLATFORMS` 为每个平台登记平台 id、search 与 fetch 的 route 集合、默认 order（`default_order`），以及已提升为 trait 的平台操作的 route 集合。它是平台 route 隶属关系的唯一出处；Capability Catalog 集合保持原含义，不塞入平台 route。默认 order 只列该平台的 route，且不重复；需要用户手动启用的 route 是合法的 order 取值，但不出现在默认 order 中。
 - **配置**：`platforms.<id>.order` 的默认值由 catalog 的 `default_order` 派生，不取 route 集合的并集。它以 `Rule::PlatformOrder` 对照 platform catalog 校验，拒绝重复项与不属于该平台的 route，允许为空（禁用平台）；文件加载与 `config set` 走同一规则，env 按既有公式派生。所有平台 route 的配置合成一个整体值 `PlatformRoutesRuntimeConfig`，`platform_route_config` 接收这个整体值，因此新增 route 时，runtime 投影、doctor 与 checklist 测试调用的函数签名都不变。runtime 投影为 `PlatformRuntimeConfig`，每项是 `SeamEntry<PlatformRouteConfig>`。
 - **平台 seam trait**：`PlatformSearch` 与 `PlatformFetch` 不使用泛型，形状与兄弟 seam 相同，分别返回 `ProviderError` 或 `PlatformSearchOutcome`／`PlatformFetchOutcome`。factory 的 `build_platform_search` 与 `build_platform_fetch` 按 `PlatformRouteConfig` 的变体构造 route（route 身份由配置变体决定，不另传 `ProviderId`），`platform_search_support` 与 `platform_fetch_support` 调用 route 的纯函数支持检查；支持检查只读取请求（search 为选项与页位置，fetch 为深度），不联网。
-- **平台链**：`platform_chain::plan_routes` 为每个平台操作做纯规划——可用 route＝order ∩ 该操作的 route 集合 ∩ 已配置 route；集合为空为 Config（退 3）；不支持显式选项的 route 记为 Skipped attempt（`error_kind` 为空），全部不支持为参数错误（退 2）；cursor 的 route 不能运行该请求（例如页位置不是它签发的）同样为参数错误。这些判定不经过链执行器的 gate。然后以共享链执行器按 `SlicedEven` 运行 route 链，沿用 LegitimateEmpty 语义，永不跨平台 fallback。
+- **平台链**：`platform_chain::plan_routes` 为每个平台操作做纯规划——可用 route＝order ∩ 该操作的 route 集合 ∩ 已配置 route；集合为空为 Config（退 3）；不支持显式选项的 route 记为 Skipped attempt（`error_kind` 为空），全部不支持为参数错误（退 2）；cursor 的 route 不能运行该请求（例如页位置不是它签发的）同样为参数错误。这些判定不经过链执行器的 gate。然后以共享链执行器按 `SlicedEven` 运行 route 链，沿用 LegitimateEmpty 语义，永不跨平台 fallback。search 与 Google Scholar cited-by 是分页操作，共用同一规划、链执行与 cursor 编码；cited-by 只有一条 route，它的 route 集合由 provider factory 的 `SCHOLAR_CITED_BY_ROUTES` 声明，不进 platform catalog（第 7 章 L2 规则）。
 - **平台 fetch**：`platform_fetch` 以同一规划与链执行器运行 fetch route 链取得元数据；元数据失败即命令终态。`full_text` 深度下，答复的 route 在 `PlatformFetchOutcome.content_source` 中声明该版本的正文来源：一组按序读取的 URL（arXiv：HEAD 探测为 404 时只有 PDF，否则 HTML 在前、PDF 在后），或一个在同一 attempt 内校验过的本地文件（SSRN 浏览器下载的 PDF）。`platform_fetch` 对两种来源用同样方式运行 `engine::fetch`，不含站点知识：URL 来源首个成功者即正文，有后续 URL 时本段最多使用剩余预算的一半，全部失败时以最后一条链的 `ProviderError` 为终态；本地文件来源只运行一次链。attempts 按元数据、探测、正文的顺序合并。正文落盘、原始文件的保留或删除与 `--format content` 的交付由 `cli/platform.rs` 负责，写入失败为 Runtime。
-- **cursor**：`v1.<route>.<payload>`，payload 是 base64url（无填充）编码的 JSON 请求（查询词、limit、选项与 route 自有的页位置）。带 cursor 的请求只在该 route 上执行；route 已不可用、版本未知、无法解码、route 未知或属于其他平台均为飞行前参数错误。
+- **cursor**：`v1.<route>.<payload>`，payload 是 base64url（无填充）编码的 JSON 请求（search 为查询词、limit、选项与 route 自有的页位置；cited-by 另含被引 cluster，没有平台选项）。两种请求互不接受对方的字段，所以 payload 只能解码为其中一种操作。带 cursor 的请求只在该 route 上执行；route 已不可用、版本未知、无法解码、route 未知、属于其他平台或其他操作均为飞行前参数错误。
 - **attempt target**：平台操作的 attempt 以 `AttemptTarget::Platform { platform, operation }` 序列化为 `{"platform", "operation"}`；链执行器的合成 attempt 使用调用方传入的 `AttemptTarget`。
 
 ## 错误模型
@@ -167,4 +167,4 @@ Research Evidence Pipeline 默认使用 standard 预算，将正文逐条写入 
 
 `providers/ssrn_browser_search.rs` 是 `ssrn_browser` 的私有子模块，拥有原站搜索执行、实际查询状态校验与原生分页；父模块拥有 route 配置、执行设置和详情/全文读取，共享页面字段归一化仅在该 route 内使用。
 
-`providers/serpapi.rs` 是 `serpapi` route 的 SerpApi 通用部分：端点、`api_key` 查询参数、经 `execute_v2` 的凭据领取与轮换、HTTP 200 成功协议判定，以及 route 自产消息的凭据脱敏；HTTP 状态码归因仍只在 net 的共享读取边界。它的私有子模块 `providers/serpapi_scholar.rs` 是 Google Scholar 引擎部分：请求参数、响应 DTO 与解码（cluster 身份、作者、年份、资源）以及 search 与 fetch 的支持检查。以后接入 SerpApi 的其他引擎时只新增引擎子模块。`cli/scholar.rs` 是 `cli/platform.rs` 的私有子模块，负责 Google Scholar 的参数树与类型化请求构造。
+`providers/serpapi.rs` 是 `serpapi` route 的 SerpApi 通用部分：端点、`api_key` 查询参数、经 `execute_v2` 的凭据领取与轮换、HTTP 200 成功协议判定，以及 route 自产消息的凭据脱敏；HTTP 状态码归因仍只在 net 的共享读取边界。它的私有子模块 `providers/serpapi_scholar.rs` 是 Google Scholar 引擎部分：请求参数、响应 DTO 与解码（cluster 身份、作者、年份、资源）以及 search、fetch 与 cited-by 的支持检查；cited-by 是 `Serpapi` 的 inherent 方法，与 search 共用分页执行。以后接入 SerpApi 的其他引擎时只新增引擎子模块。`cli/scholar.rs` 是 `cli/platform.rs` 的私有子模块，负责 Google Scholar 的参数树与类型化请求构造。

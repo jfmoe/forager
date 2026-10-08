@@ -20,7 +20,7 @@ forager 的第三个平台 `scholar`（Google Scholar）只经第三方 SERP API
 - search 的 `--limit` 默认取满页 20：每页无论多少条都计 1 次。
 - fetch 只取一页 cluster，不自动翻页；只提供 `metadata` 深度，正文交给目标平台或 Web Fetch。
 - 不持久化配额状态：额度用尽的 key 轮到时先收到一次不计费的 429 再换 key，代价只是一次往返。
-- 普通 `doctor` 只对端点发一次不带 key 的 GET（不计费）；只有显式的 `doctor --provider serpapi` 与 live smoke（C24、C25）会消耗额度，smoke 只在配置了 key 时运行。
+- 普通 `doctor` 只对端点发一次不带 key 的 GET（不计费）；只有显式的 `doctor --provider serpapi` 与 live smoke（C24–C26）会消耗额度，smoke 只在配置了 key 时运行。
 
 ## 影响
 

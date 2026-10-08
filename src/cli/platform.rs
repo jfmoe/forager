@@ -11,14 +11,14 @@ use super::args::{DocsOutputFormat, OutputArgs, OutputFormat};
 use super::dispatch::{
     AppError, CommandOutput, NetworkDependencies, invocation_temp_dir, provider_attempt_log,
 };
-use crate::config::ConfigError;
+use crate::config::{ConfigError, PlatformRuntimeConfig};
 use crate::net::combine_diagnostics;
-use crate::platform_chain::{self, PlatformPreflightError, PlatformSearchPlan};
+use crate::platform_chain::{self, PlatformPagePlan, PlatformPreflightError};
 use crate::platform_fetch;
 use crate::types::{
     ArxivSearchOptions, ArxivSort, AttemptErrorKind, ContentDepth, Deadline, LocalFile, Platform,
     PlatformFetchRequest, PlatformFetchResult, PlatformRef, PlatformSearchOptions,
-    PlatformSearchRequest, ProviderError,
+    PlatformSearchRequest, ProviderError, ScholarCitedByRequest,
 };
 
 #[path = "ssrn_search.rs"]
@@ -252,7 +252,7 @@ fn arxiv_search(arguments: ArxivSearchArgs) -> Result<CommandOutput, AppError> {
         common,
     } = arguments;
     let input = if let Some(cursor) = cursor {
-        SearchInput::Cursor(cursor)
+        PageInput::Cursor(cursor)
     } else {
         let request = PlatformSearchRequest {
             query: query.unwrap_or_default(),
@@ -268,30 +268,60 @@ fn arxiv_search(arguments: ArxivSearchArgs) -> Result<CommandOutput, AppError> {
             page: None,
         };
         request.validate().map_err(AppError::Argument)?;
-        SearchInput::Request(request)
+        PageInput::Request(request)
     };
     search(Platform::Arxiv, input, format, &common)
 }
 
-enum SearchInput {
-    Request(PlatformSearchRequest),
+/// The page a paged command asks for: a first page, or the page a cursor names.
+enum PageInput<R> {
+    Request(R),
     Cursor(String),
 }
 
 fn search(
     platform: Platform,
-    input: SearchInput,
+    input: PageInput<PlatformSearchRequest>,
+    format: OutputFormat,
+    common: &PlatformCommonArgs,
+) -> Result<CommandOutput, AppError> {
+    run_page(
+        platform,
+        |config| match input {
+            PageInput::Request(request) => platform_chain::plan_search(config, request),
+            PageInput::Cursor(cursor) => platform_chain::plan_cursor_search(config, &cursor),
+        },
+        format,
+        common,
+    )
+}
+
+fn scholar_cited_by(
+    input: PageInput<ScholarCitedByRequest>,
+    format: OutputFormat,
+    common: &PlatformCommonArgs,
+) -> Result<CommandOutput, AppError> {
+    run_page(
+        Platform::Scholar,
+        |config| match input {
+            PageInput::Request(request) => platform_chain::plan_cited_by(config, request),
+            PageInput::Cursor(cursor) => platform_chain::plan_cursor_cited_by(config, &cursor),
+        },
+        format,
+        common,
+    )
+}
+
+/// Plans one page of a paged operation over the platform's configuration and runs it.
+fn run_page(
+    platform: Platform,
+    plan: impl FnOnce(&PlatformRuntimeConfig) -> Result<PlatformPagePlan, PlatformPreflightError>,
     format: OutputFormat,
     common: &PlatformCommonArgs,
 ) -> Result<CommandOutput, AppError> {
     let dependencies = NetworkDependencies::load()?;
-    let config = dependencies.config.platforms.get(platform);
-    let plan: PlatformSearchPlan = match input {
-        SearchInput::Request(request) => platform_chain::plan_search(config, request),
-        SearchInput::Cursor(cursor) => platform_chain::plan_cursor_search(config, &cursor),
-    }
-    .map_err(preflight_error)?;
-    let result = dependencies.runtime.block_on(platform_chain::search(
+    let plan = plan(dependencies.config.platforms.get(platform)).map_err(preflight_error)?;
+    let result = dependencies.runtime.block_on(platform_chain::run_page(
         plan,
         dependencies.client,
         dependencies.retry_policy,

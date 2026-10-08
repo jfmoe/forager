@@ -10,7 +10,7 @@ use reqwest::Client;
 use serde::Deserialize;
 use serde_json::Value;
 
-use crate::catalog::{PlatformOperation, ProviderId};
+use crate::catalog::ProviderId;
 use crate::config::KeyedHttpRouteRuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{AttemptFailure, RetryPolicy, read_complete_protocol};
@@ -22,7 +22,7 @@ use crate::types::{AttemptErrorKind, AttemptTarget, Deadline, ProviderError};
 const ROUTE: ProviderId = ProviderId::Serpapi;
 #[path = "serpapi_scholar.rs"]
 mod scholar;
-pub(crate) use scholar::{fetch_support, search_support};
+pub(crate) use scholar::{cited_by_support, fetch_support, search_support};
 
 pub(crate) struct Serpapi {
     url: String,
@@ -72,12 +72,12 @@ impl Serpapi {
         }
     }
 
-    /// Runs one logical search with credential claim, rotation, and retry. `decode` turns the
-    /// results into the operation's value inside the attempt, so a refusal is that attempt's
-    /// failure.
+    /// Runs one logical search of the named platform operation with credential claim, rotation,
+    /// and retry. `decode` turns the results into the operation's value inside the attempt, so a
+    /// refusal is that attempt's failure.
     async fn run<T>(
         &self,
-        operation: PlatformOperation,
+        operation: &'static str,
         parameters: &[(&'static str, String)],
         decode: impl Fn(SearchResults) -> Result<T, AttemptFailure>,
     ) -> Result<ExecutionOutcome<T>, ProviderError> {
@@ -120,10 +120,10 @@ impl Serpapi {
         failure
     }
 
-    fn settings(&self, operation: PlatformOperation) -> ExecutionSettings {
+    fn settings(&self, operation: &'static str) -> ExecutionSettings {
         ExecutionSettings {
             provider: ROUTE.name(),
-            target: AttemptTarget::platform(scholar::PLATFORM.as_str(), operation.as_str()),
+            target: AttemptTarget::platform(scholar::PLATFORM.as_str(), operation),
             retry_policy: self.retry_policy,
             deadline: self.deadline,
             attempt_timeout: Duration::from_secs(self.timeout_seconds),

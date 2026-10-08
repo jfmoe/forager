@@ -518,6 +518,35 @@ repeated or overflowing `cluster`, or a depth other than `metadata`; `3` for no 
 order; `4` for a cluster that Google Scholar does not know (`parameter`, message
 `Google Scholar has no cluster scholar:<id>`) and for the failures listed under search.
 
+### `platform scholar cited-by`
+
+```console
+forager platform scholar cited-by REF_OR_URL [--query TEXT] [--limit N]
+                                  [--year-from YYYY] [--year-to YYYY]
+                                  [--sort relevance|date] [--cursor CURSOR]
+                                  [--timeout SECONDS] [--format json|markdown]
+                                  [--output FILE [--receipt]] [--verbose]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `REF_OR_URL` | The cited paper: `scholar:<cluster_id>`, or a `scholar.google.com/scholar?cluster=<id>` URL. Required unless `--cursor` is given. | Required |
+| `--query TEXT` | Only citing papers that match this Google Scholar query; its operators apply. | None |
+| `--limit N` | Results on this page, `1..=20`; every page costs one SerpApi search whatever its size. | `20` |
+| `--year-from` / `--year-to` | Inclusive publication-year range of the citing papers, `1000..=9999`. | None |
+| `--sort relevance\|date` | `date` lists the most recently indexed citing papers first; it cannot take years. | `relevance` |
+| `--cursor CURSOR` | `next_cursor` of a previous cited-by page; pass no ref, query, option, or `--limit` with it. | Omitted |
+
+JSON output and items are the same as `platform scholar search`, as are paging, the key, and the
+cost of each page. With `--sort date`, each `snippet` starts with Google Scholar's indexing age,
+such as `6 days ago - `. A paper nobody cites and a ref Google Scholar does not know both return
+`items: []` with exit 0, and both cost one search.
+
+Exit codes: `2` before any request for an unrecognized ref or URL, a blank `--query`, `--limit`
+outside `1..=20`, a year out of range or `--year-from` after `--year-to`, `--sort date` with a year,
+a search cursor, a tampered cursor, or a cursor combined with a ref, query, option, or `--limit`;
+`3` and `4` as under search.
+
 ## Configuration and diagnostics
 
 ### `config`

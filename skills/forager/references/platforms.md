@@ -13,6 +13,8 @@ example, `x.com` links keep the authenticated-client guidance).
   returns the platform ref, metadata, and the content its routes can read.
 - **Platform-only results, or platform options** (category, author, title, date range, sort): run
   `forager platform <id> search QUERY`. Set only options the request states or clearly implies.
+- **Papers citing a known paper** (follow-up work, replications, or rebuttals): run
+  `forager platform scholar cited-by 'REF_OR_URL'`; see "Google Scholar cited-by".
 
 `forager platform <id> <op> --help` is the syntax authority; see the platform section of
 [`cli.md`](cli.md) for output fields and exit codes.
@@ -75,8 +77,8 @@ forager platform ssrn search "momentum AND portfolio" --scope title --mode boole
 ## Google Scholar search
 
 Scholar runs on the user's own SerpApi key and its monthly search quota (250 on the free plan).
-Every search page and every fetch costs one search, including a search with no results and a fetch
-of a ref that does not exist. Repeating an identical request within one hour costs nothing.
+Every search page, every fetch, and every cited-by page costs one search, including a search with
+no results and a fetch of a ref that does not exist. Repeating an identical request within one hour costs nothing.
 
 - Search once with the default `--limit 20` and pick candidates from that page. Do not page with
   `--cursor` to collect more results; narrow the query or the years instead.
@@ -94,6 +96,29 @@ forager platform scholar search 'time series momentum' --review-only
 
 `--year-from` and `--year-to` bound the publication year and can be used alone; `--review-only`
 keeps review articles. Set them only when the request states or clearly implies them.
+
+## Google Scholar cited-by
+
+`cited-by` lists the papers Google Scholar counts as citing one paper, as search results with the
+same fields. Use it to trace work forward from a known paper; arXiv and SSRN cannot. Pass the ref
+or cluster URL exactly as forager or the user gave it.
+
+- Narrow before paging: a well-cited paper has thousands of citing works, and each page costs one
+  search. Use `--query` to match words within the citing papers, `--year-from`/`--year-to` for
+  their publication years, or `--sort date` for the most recently indexed citations. Do not page
+  with `--cursor` to collect more.
+- `--sort date` cannot take years (exit 2): Google Scholar ignores the year range when it sorts by
+  date. Its snippets start with Google Scholar's indexing age, such as `6 days ago - `; that is
+  when Google Scholar indexed the citation, not the publication date.
+- An empty list (exit 0) means either nobody cites the paper or Google Scholar does not know the
+  ref; it cannot tell the two apart. Check the ref with `fetch` before reporting "no citations".
+- A cited-by cursor works only with `cited-by`, and a search cursor only with `search`.
+
+```console
+forager platform scholar cited-by scholar:18208131694456651388 --query crash
+forager platform scholar cited-by scholar:18208131694456651388 --year-from 2024
+forager platform scholar cited-by scholar:18208131694456651388 --sort date
+```
 
 ## SSRN browser route
 

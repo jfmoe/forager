@@ -1,4 +1,4 @@
-//! Google Scholar shapes: cluster refs, search options, and item metadata.
+//! Google Scholar shapes: cluster refs, search options, the cited-by request, and item metadata.
 
 use std::fmt;
 use std::ops::RangeInclusive;
@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 use super::platform::{Platform, PlatformRefError};
 
 pub(crate) const SCHOLAR_MAX_LIMIT: u16 = 20;
+/// The attempt-target name of the cited-by operation.
+pub(crate) const CITED_BY: &str = "cited_by";
 const SCHOLAR_YEARS: RangeInclusive<u16> = 1000..=9999;
 const SCHOLAR_HOST: &str = "scholar.google.com";
 const REF_PREFIX: &str = "scholar:";
@@ -93,28 +95,119 @@ pub struct ScholarSearchOptions {
 
 impl ScholarSearchOptions {
     pub(super) fn validate(&self, query: &str, limit: u16) -> Result<(), String> {
-        if !(1..=SCHOLAR_MAX_LIMIT).contains(&limit) {
-            return Err(format!("--limit must be between 1 and {SCHOLAR_MAX_LIMIT}"));
-        }
-        for (flag, year) in [("--year-from", self.year_from), ("--year-to", self.year_to)] {
-            if year.is_some_and(|year| !SCHOLAR_YEARS.contains(&year)) {
-                return Err(format!(
-                    "{flag} must be between {} and {}",
-                    SCHOLAR_YEARS.start(),
-                    SCHOLAR_YEARS.end()
-                ));
-            }
-        }
-        if let (Some(from), Some(to)) = (self.year_from, self.year_to)
-            && from > to
-        {
-            return Err("--year-from must not be later than --year-to".into());
-        }
+        validate_limit(limit)?;
+        validate_years(self.year_from, self.year_to)?;
         if query.trim().is_empty() {
             return Err("scholar search needs a query".into());
         }
         Ok(())
     }
+}
+
+/// The order of the works that cite a paper.
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(crate) enum ScholarCitedBySort {
+    /// Google Scholar's relevance order.
+    #[default]
+    Relevance,
+    /// The most recently indexed first.
+    Date,
+}
+
+/// A request for one page of the works Google Scholar counts as citing a paper; a page cursor
+/// encodes it completely.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct ScholarCitedByRequest {
+    /// The cited paper.
+    #[serde(with = "cluster_id")]
+    pub(crate) cited: ScholarRef,
+    /// Words that the citing works must match, in Google Scholar's own query syntax.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) query: Option<String>,
+    pub(crate) limit: u16,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) year_from: Option<u16>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) year_to: Option<u16>,
+    #[serde(default)]
+    pub(crate) sort: ScholarCitedBySort,
+    /// The route-owned position of the requested page; absent for the first page.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub(crate) page: Option<String>,
+}
+
+impl ScholarCitedByRequest {
+    /// Checks the cross-field rules that argument parsing cannot express.
+    pub(crate) fn validate(&self) -> Result<(), String> {
+        validate_limit(self.limit)?;
+        validate_years(self.year_from, self.year_to)?;
+        // Google Scholar ignores the year range when it sorts by date.
+        if self.sort == ScholarCitedBySort::Date
+            && (self.year_from.is_some() || self.year_to.is_some())
+        {
+            return Err("--sort date cannot be combined with --year-from or --year-to".into());
+        }
+        if self
+            .query
+            .as_deref()
+            .is_some_and(|query| query.trim().is_empty())
+        {
+            return Err("--query needs a word".into());
+        }
+        Ok(())
+    }
+}
+
+/// Serializes a ref as its bare cluster ID, keeping serde off the public ref type.
+mod cluster_id {
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    use super::ScholarRef;
+
+    #[expect(
+        clippy::trivially_copy_pass_by_ref,
+        reason = "serde's `with` contract passes the field by reference"
+    )]
+    pub(super) fn serialize<S: Serializer>(
+        reference: &ScholarRef,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        serializer.serialize_u64(reference.cluster_id())
+    }
+
+    pub(super) fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<ScholarRef, D::Error> {
+        u64::deserialize(deserializer).map(ScholarRef::from)
+    }
+}
+
+fn validate_limit(limit: u16) -> Result<(), String> {
+    if (1..=SCHOLAR_MAX_LIMIT).contains(&limit) {
+        Ok(())
+    } else {
+        Err(format!("--limit must be between 1 and {SCHOLAR_MAX_LIMIT}"))
+    }
+}
+
+fn validate_years(from: Option<u16>, to: Option<u16>) -> Result<(), String> {
+    for (flag, year) in [("--year-from", from), ("--year-to", to)] {
+        if year.is_some_and(|year| !SCHOLAR_YEARS.contains(&year)) {
+            return Err(format!(
+                "{flag} must be between {} and {}",
+                SCHOLAR_YEARS.start(),
+                SCHOLAR_YEARS.end()
+            ));
+        }
+    }
+    if let (Some(from), Some(to)) = (from, to)
+        && from > to
+    {
+        return Err("--year-from must not be later than --year-to".into());
+    }
+    Ok(())
 }
 
 /// Returns the `cluster` value of a Google Scholar results URL. The query must name exactly one

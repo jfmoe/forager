@@ -3,7 +3,7 @@
 use chrono::NaiveDate;
 use clap::{Args, ValueEnum};
 
-use super::{PlatformCommonArgs, SearchInput, parse_date, search};
+use super::{PageInput, PlatformCommonArgs, parse_date, search};
 use crate::app::args::OutputFormat;
 use crate::app::dispatch::{AppError, CommandOutput};
 use crate::types::{Platform, PlatformSearchOptions, PlatformSearchRequest, SsrnSearchOptions};
@@ -117,7 +117,7 @@ pub(super) fn ssrn_search(arguments: SsrnSearchArgs) -> Result<CommandOutput, Ap
         common,
     } = arguments;
     let input = if let Some(cursor) = cursor {
-        SearchInput::Cursor(cursor)
+        PageInput::Cursor(cursor)
     } else {
         let request = PlatformSearchRequest {
             query: query.unwrap_or_default(),
@@ -150,7 +150,7 @@ pub(super) fn ssrn_search(arguments: SsrnSearchArgs) -> Result<CommandOutput, Ap
             page: None,
         };
         request.validate().map_err(AppError::Argument)?;
-        SearchInput::Request(request)
+        PageInput::Request(request)
     };
     search(Platform::Ssrn, input, format, &common)
 }

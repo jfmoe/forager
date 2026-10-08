@@ -7,34 +7,11 @@ use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use serde_json::{Value, json};
 
+use support::scholar::{config, fixture, ok, payload, query_pairs, refs, request_target, stderr};
 use support::{Fixture, Response, RunEnvironment};
 
 const KEY: &str = "test-serpapi-key-a";
 const SECOND_KEY: &str = "test-serpapi-key-b";
-
-/// Reads a trimmed real SerpApi response captured on 2026-10-07.
-fn fixture(name: &str) -> Value {
-    let path = format!(
-        "{}/tests/fixtures/scholar/{name}",
-        env!("CARGO_MANIFEST_DIR")
-    );
-    serde_json::from_str(&std::fs::read_to_string(path).expect("read fixture")).expect("fixture")
-}
-
-fn ok(body: &Value) -> Response {
-    Response::json(200, &body.to_string())
-}
-
-fn config(url: &str, keys: &[&str]) -> String {
-    let keys = keys
-        .iter()
-        .map(|key| format!("\"{key}\""))
-        .collect::<Vec<_>>()
-        .join(", ");
-    format!(
-        "[providers.serpapi]\nurl = \"{url}/search.json\"\nkeys = [{keys}]\n[retry]\nmax_wait = 0\n"
-    )
-}
 
 fn search(environment: &RunEnvironment, arguments: &[&str]) -> Output {
     let mut command = vec!["platform", "scholar", "search"];
@@ -48,41 +25,6 @@ fn run(keys: &[&str], arguments: &[&str], responses: Vec<Response>) -> (Output, 
     let environment = RunEnvironment::new(&config(&fixture.url, keys));
     let output = search(&environment, arguments);
     (output, fixture.finish_all())
-}
-
-fn payload(output: &Output) -> Value {
-    serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
-        panic!(
-            "parse JSON stdout: {error}\nstdout: {}\nstderr: {}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        )
-    })
-}
-
-fn stderr(output: &Output) -> String {
-    String::from_utf8_lossy(&output.stderr).into_owned()
-}
-
-fn request_target(request: &str) -> reqwest::Url {
-    let target = request.split_whitespace().nth(1).expect("request target");
-    reqwest::Url::parse(&format!("http://fixture.test{target}")).expect("request URL")
-}
-
-fn query_pairs(request: &str) -> BTreeMap<String, String> {
-    request_target(request)
-        .query_pairs()
-        .map(|(name, value)| (name.into_owned(), value.into_owned()))
-        .collect()
-}
-
-fn refs(page: &Value) -> Vec<String> {
-    page["items"]
-        .as_array()
-        .expect("items")
-        .iter()
-        .map(|item| item["ref"].as_str().expect("ref").to_owned())
-        .collect()
 }
 
 /// A cursor as the route issues it, for a page the caller names.

@@ -212,8 +212,10 @@ SerpApi 响应的 DTO 与解码属于 route，不进 types 门面。
 
 ## 分期
 
-1. **第一期**：上述 search 与 fetch。
-2. **第二期**：L2 操作 `cited-by REF`（`cites=<cluster_id>`）；provider 深探改用 Account API；如有需要再评估按日期排序。
+1. **第一期**（已实现）：上述 search 与 fetch。
+2. **第二期**：
+   - L2 操作 `cited-by REF`（`cites=<cluster_id>`）**已实现**，含 `--query`、年份与 `--sort date`（`scisbd=2`，与年份互斥）。2026-10-08 的实测与决定见 #183，现行契约见规格第 7 章「Google Scholar」。
+   - provider 深探改用 Account API：未实现。
 3. **按需**：`scholar_browser` process route（复用 OpenCLI，需用户手动开启）。
 
 ## 仍未实测的部分

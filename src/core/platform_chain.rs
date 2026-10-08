@@ -3,11 +3,13 @@
 //! The routes of one platform form a fallback chain in configured order through the shared
 //! chain runner; a result never falls back to another platform. Planning is pure: it decides
 //! before any request which routes run, which are skipped, and which preflight error ends the
-//! command.
+//! command. Search and Google Scholar cited-by are the paged operations: both return a search
+//! page and issue cursors bound to their own operation.
 
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use reqwest::Client;
+use serde::{Deserialize, Serialize};
 
 use crate::catalog::{self, PlatformOperation, ProviderId};
 use crate::chain::{
@@ -18,8 +20,8 @@ use crate::config::{self, PlatformRouteConfig, PlatformRuntimeConfig};
 use crate::net::RetryPolicy;
 use crate::providers;
 use crate::types::{
-    AttemptTarget, Deadline, Platform, PlatformSearchPage, PlatformSearchRequest, ProviderAttempt,
-    ProviderError,
+    AttemptTarget, CITED_BY, Deadline, Platform, PlatformSearchOutcome, PlatformSearchPage,
+    PlatformSearchRequest, ProviderAttempt, ProviderError, ScholarCitedByRequest,
 };
 
 const CURSOR_VERSION: &str = "v1";
@@ -33,10 +35,100 @@ pub(crate) enum PlatformPreflightError {
     Config(String),
 }
 
-/// The routes a platform search runs, in order, and the routes skipped before it runs.
-pub(crate) struct PlatformSearchPlan {
+/// The request of one page of a paged operation; a page cursor encodes it completely. Each
+/// variant denies the other's fields, so a cursor payload decodes as exactly one operation. The
+/// enum is untagged so a search payload is the bare search request.
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(untagged)]
+enum PageRequest {
+    Search(PlatformSearchRequest),
+    ScholarCitedBy(ScholarCitedByRequest),
+}
+
+impl PageRequest {
+    fn platform(&self) -> Platform {
+        match self {
+            Self::Search(request) => request.options.platform(),
+            Self::ScholarCitedBy(_) => Platform::Scholar,
+        }
+    }
+
+    fn operation(&self) -> &'static str {
+        match self {
+            Self::Search(_) => PlatformOperation::Search.as_str(),
+            Self::ScholarCitedBy(_) => CITED_BY,
+        }
+    }
+
+    fn validate(&self) -> Result<(), String> {
+        match self {
+            Self::Search(request) => request.validate(),
+            Self::ScholarCitedBy(request) => request.validate(),
+        }
+    }
+
+    /// Returns the routes that implement the operation.
+    fn routes(&self) -> &'static [ProviderId] {
+        match self {
+            Self::Search(request) => {
+                catalog::platform(request.options.platform()).routes(PlatformOperation::Search)
+            }
+            Self::ScholarCitedBy(_) => providers::SCHOLAR_CITED_BY_ROUTES,
+        }
+    }
+
+    fn support(&self, id: ProviderId) -> Option<Result<(), String>> {
+        match self {
+            Self::Search(request) => providers::platform_search_support(id, request),
+            Self::ScholarCitedBy(request) => providers::scholar_cited_by_support(id, request),
+        }
+    }
+
+    fn deadline_message(&self) -> &'static str {
+        match self {
+            Self::Search(_) => "platform search deadline elapsed",
+            Self::ScholarCitedBy(_) => "platform cited-by deadline elapsed",
+        }
+    }
+
+    /// Runs the page on one route that planning selected for the operation.
+    async fn run(
+        &self,
+        config: PlatformRouteConfig,
+        client: Client,
+        retry_policy: RetryPolicy,
+        deadline: Deadline,
+    ) -> Result<PlatformSearchOutcome, ProviderError> {
+        match self {
+            Self::Search(request) => {
+                providers::build_platform_search(config, client, retry_policy, deadline)
+                    .search(request)
+                    .await
+            }
+            Self::ScholarCitedBy(request) => {
+                providers::scholar_cited_by(config, client, retry_policy, deadline, request).await
+            }
+        }
+    }
+
+    fn at_page(&self, page: String) -> Self {
+        match self {
+            Self::Search(request) => Self::Search(PlatformSearchRequest {
+                page: Some(page),
+                ..request.clone()
+            }),
+            Self::ScholarCitedBy(request) => Self::ScholarCitedBy(ScholarCitedByRequest {
+                page: Some(page),
+                ..request.clone()
+            }),
+        }
+    }
+}
+
+/// The routes a paged operation runs, in order, and the routes skipped before it runs.
+pub(crate) struct PlatformPagePlan {
     platform: Platform,
-    request: PlatformSearchRequest,
+    request: PageRequest,
     routes: Vec<PlatformRouteConfig>,
     skipped: Vec<ProviderAttempt>,
 }
@@ -45,17 +137,49 @@ pub(crate) struct PlatformSearchPlan {
 pub(crate) fn plan_search(
     config: &PlatformRuntimeConfig,
     request: PlatformSearchRequest,
-) -> Result<PlatformSearchPlan, PlatformPreflightError> {
-    plan(config, request, None)
+) -> Result<PlatformPagePlan, PlatformPreflightError> {
+    plan(config, PageRequest::Search(request), None)
 }
 
-/// Plans the page a cursor names; only the route that produced the cursor may run it.
+/// Plans the search page a cursor names; only the route that produced the cursor may run it.
 pub(crate) fn plan_cursor_search(
     config: &PlatformRuntimeConfig,
     cursor: &str,
-) -> Result<PlatformSearchPlan, PlatformPreflightError> {
-    let (route, request) =
-        decode_cursor(config.platform(), cursor).map_err(PlatformPreflightError::Argument)?;
+) -> Result<PlatformPagePlan, PlatformPreflightError> {
+    plan_cursor(config, PlatformOperation::Search.as_str(), cursor)
+}
+
+/// Plans the first page of the works citing a Google Scholar paper; `config` is Google
+/// Scholar's.
+pub(crate) fn plan_cited_by(
+    config: &PlatformRuntimeConfig,
+    request: ScholarCitedByRequest,
+) -> Result<PlatformPagePlan, PlatformPreflightError> {
+    plan(config, PageRequest::ScholarCitedBy(request), None)
+}
+
+/// Plans the cited-by page a cursor names; only the route that produced the cursor may run it.
+pub(crate) fn plan_cursor_cited_by(
+    config: &PlatformRuntimeConfig,
+    cursor: &str,
+) -> Result<PlatformPagePlan, PlatformPreflightError> {
+    plan_cursor(config, CITED_BY, cursor)
+}
+
+fn plan_cursor(
+    config: &PlatformRuntimeConfig,
+    operation: &'static str,
+    cursor: &str,
+) -> Result<PlatformPagePlan, PlatformPreflightError> {
+    let platform = config.platform();
+    let (route, request) = decode_cursor(cursor).map_err(PlatformPreflightError::Argument)?;
+    let owner = (request.platform(), request.operation());
+    if owner != (platform, operation) {
+        return Err(PlatformPreflightError::Argument(format!(
+            "the cursor belongs to {} {}, not {platform} {operation}",
+            owner.0, owner.1
+        )));
+    }
     request
         .validate()
         .map_err(|error| PlatformPreflightError::Argument(format!("invalid cursor: {error}")))?;
@@ -64,19 +188,19 @@ pub(crate) fn plan_cursor_search(
 
 fn plan(
     config: &PlatformRuntimeConfig,
-    request: PlatformSearchRequest,
+    request: PageRequest,
     pinned: Option<ProviderId>,
-) -> Result<PlatformSearchPlan, PlatformPreflightError> {
+) -> Result<PlatformPagePlan, PlatformPreflightError> {
     let plan = plan_routes(
-        PlatformOperation::Search,
+        request.operation(),
         config.platform(),
         &config.order_key(),
-        catalog::platform(config.platform()).routes(PlatformOperation::Search),
+        request.routes(),
         &route_candidates(config),
         pinned,
-        |id| providers::platform_search_support(id, &request),
+        |id| request.support(id),
     )?;
-    Ok(PlatformSearchPlan {
+    Ok(PlatformPagePlan {
         platform: config.platform(),
         request,
         routes: plan.routes.into_iter().map(|(_, config)| config).collect(),
@@ -84,15 +208,15 @@ fn plan(
     })
 }
 
-/// Runs a planned search and encodes the next-page cursor.
-pub(crate) async fn search(
-    plan: PlatformSearchPlan,
+/// Runs a planned page and encodes the next-page cursor.
+pub(crate) async fn run_page(
+    plan: PlatformPagePlan,
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
     verbose: bool,
 ) -> Result<PlatformSearchPage, ProviderError> {
-    let PlatformSearchPlan {
+    let PlatformPagePlan {
         platform,
         request,
         routes,
@@ -110,7 +234,7 @@ pub(crate) async fn search(
     let result = chain::run_chain(
         steps,
         ChainSettings {
-            target: search_target(platform),
+            target: operation_target(platform, request.operation()),
             budget_policy: BudgetPolicy::SlicedEven {
                 skipped_message: "skipped to preserve fallback deadline budget",
             },
@@ -118,7 +242,7 @@ pub(crate) async fn search(
             diagnostic_merge: DiagnosticMerge::Join,
             terminal: TerminalPolicy::ChainWide {
                 verbose,
-                exhausted_message: "platform search deadline elapsed",
+                exhausted_message: request.deadline_message(),
             },
             identity: &route_identity,
             continue_on_failure: &chain::always_continue,
@@ -128,9 +252,10 @@ pub(crate) async fn search(
             let client = client.clone();
             async move {
                 let route = config.route();
-                let adapter =
-                    providers::build_platform_search(config, client, retry_policy, step_deadline);
-                match adapter.search(request_ref).await {
+                match request_ref
+                    .run(config, client, retry_policy, step_deadline)
+                    .await
+                {
                     Ok(outcome) => {
                         let empty = outcome.items.is_empty();
                         let success = StepSuccess {
@@ -158,15 +283,7 @@ pub(crate) async fn search(
                 platform,
                 provider: route.name(),
                 items,
-                next_cursor: next_page.map(|page| {
-                    encode_cursor(
-                        route,
-                        &PlatformSearchRequest {
-                            page: Some(page),
-                            ..request.clone()
-                        },
-                    )
-                }),
+                next_cursor: next_page.map(|page| encode_cursor(route, &request.at_page(page))),
                 attempts: if verbose { skipped } else { Vec::new() },
                 diagnostic: outcome.diagnostic,
             })
@@ -187,12 +304,8 @@ pub(crate) fn route_identity(config: &PlatformRouteConfig) -> StepIdentity {
     }
 }
 
-pub(crate) fn operation_target(platform: Platform, operation: PlatformOperation) -> AttemptTarget {
-    AttemptTarget::platform(platform.as_str(), operation.as_str())
-}
-
-fn search_target(platform: Platform) -> AttemptTarget {
-    operation_target(platform, PlatformOperation::Search)
+pub(crate) fn operation_target(platform: Platform, operation: &'static str) -> AttemptTarget {
+    AttemptTarget::platform(platform.as_str(), operation)
 }
 
 /// One configured route in platform order.
@@ -226,7 +339,7 @@ pub(crate) fn route_candidates(
 /// request and must not send requests. A `pinned` route (from a cursor) is the only route that
 /// may run.
 pub(crate) fn plan_routes<C: Clone>(
-    operation: PlatformOperation,
+    operation: &'static str,
     platform: Platform,
     order_key: &str,
     operation_routes: &[ProviderId],
@@ -234,7 +347,6 @@ pub(crate) fn plan_routes<C: Clone>(
     pinned: Option<ProviderId>,
     support: impl Fn(ProviderId) -> Option<Result<(), String>>,
 ) -> Result<RoutePlan<C>, PlatformPreflightError> {
-    let operation_name = operation.as_str();
     let available = candidates
         .iter()
         .filter(|candidate| candidate.configured && operation_routes.contains(&candidate.id))
@@ -242,7 +354,7 @@ pub(crate) fn plan_routes<C: Clone>(
     let check = |id: ProviderId| {
         support(id).unwrap_or_else(|| {
             Err(format!(
-                "{} has no {platform} {operation_name} adapter",
+                "{} has no {platform} {operation} adapter",
                 id.name()
             ))
         })
@@ -253,7 +365,7 @@ pub(crate) fn plan_routes<C: Clone>(
             .find(|candidate| candidate.id == route)
             .ok_or_else(|| {
                 PlatformPreflightError::Argument(format!(
-                    "the cursor route `{}` is no longer available for {platform} {operation_name}; search again without --cursor",
+                    "the cursor route `{}` is no longer available for {platform} {operation}; search again without --cursor",
                     route.name()
                 ))
             })?;
@@ -280,7 +392,7 @@ pub(crate) fn plan_routes<C: Clone>(
             format!("; set {}", missing_keys.join(" or "))
         };
         return Err(PlatformPreflightError::Config(format!(
-            "{order_key} has no configured route for {platform} {operation_name}{hint}"
+            "{order_key} has no configured route for {platform} {operation}{hint}"
         )));
     }
     let mut plan = RoutePlan {
@@ -316,8 +428,8 @@ pub(crate) fn plan_routes<C: Clone>(
 }
 
 /// Encodes `v1.<route>.<payload>`; the payload restores the complete request and page.
-fn encode_cursor(route: ProviderId, request: &PlatformSearchRequest) -> String {
-    let payload = serde_json::to_vec(request).expect("a search request always serializes to JSON");
+fn encode_cursor(route: ProviderId, request: &PageRequest) -> String {
+    let payload = serde_json::to_vec(request).expect("a page request always serializes to JSON");
     format!(
         "{CURSOR_VERSION}.{}.{}",
         route.name(),
@@ -325,10 +437,7 @@ fn encode_cursor(route: ProviderId, request: &PlatformSearchRequest) -> String {
     )
 }
 
-fn decode_cursor(
-    platform: Platform,
-    cursor: &str,
-) -> Result<(ProviderId, PlatformSearchRequest), String> {
+fn decode_cursor(cursor: &str) -> Result<(ProviderId, PageRequest), String> {
     let mut parts = cursor.splitn(3, '.');
     let (Some(version), Some(route), Some(payload)) = (parts.next(), parts.next(), parts.next())
     else {
@@ -344,22 +453,16 @@ fn decode_cursor(
     let request = URL_SAFE_NO_PAD
         .decode(payload)
         .ok()
-        .and_then(|payload| serde_json::from_slice::<PlatformSearchRequest>(&payload).ok())
+        .and_then(|payload| serde_json::from_slice::<PageRequest>(&payload).ok())
         .ok_or("the cursor cannot be decoded; search again without --cursor")?;
-    let owner = request.options.platform();
-    if owner != platform {
-        return Err(format!(
-            "the cursor belongs to {owner} search, not {platform} search"
-        ));
-    }
     Ok((route, request))
 }
 
 #[cfg(test)]
 mod tests {
     use super::{
-        PlatformPreflightError, RouteCandidate, RoutePlan, decode_cursor, encode_cursor,
-        plan_routes,
+        PageRequest, PlatformPreflightError, RouteCandidate, RoutePlan, decode_cursor,
+        encode_cursor, plan_routes,
     };
     use crate::catalog::{PlatformOperation, ProviderId};
     use crate::types::{
@@ -416,7 +519,7 @@ mod tests {
     ) -> Result<RoutePlan<()>, PlatformPreflightError> {
         let request = first_page();
         plan_routes(
-            PlatformOperation::Search,
+            PlatformOperation::Search.as_str(),
             Platform::Arxiv,
             ORDER_KEY,
             TEST_ROUTES,
@@ -591,19 +694,22 @@ mod tests {
 
     #[test]
     fn a_cursor_restores_the_route_and_the_complete_request() {
-        let cursor = encode_cursor(ProviderId::ArxivApi, &request());
+        let cursor = encode_cursor(ProviderId::ArxivApi, &PageRequest::Search(request()));
 
-        let decoded = decode_cursor(Platform::Arxiv, &cursor);
+        let decoded = decode_cursor(&cursor);
 
         assert_eq!(
             (cursor.starts_with("v1.arxiv_api."), decoded),
-            (true, Ok((ProviderId::ArxivApi, request())))
+            (
+                true,
+                Ok((ProviderId::ArxivApi, PageRequest::Search(request())))
+            )
         );
     }
 
     #[test]
     fn malformed_cursors_are_rejected() {
-        let valid = encode_cursor(ProviderId::ArxivApi, &request());
+        let valid = encode_cursor(ProviderId::ArxivApi, &PageRequest::Search(request()));
         let payload = valid.rsplit('.').next().expect("payload");
         let results = [
             "garbage".to_owned(),
@@ -612,7 +718,7 @@ mod tests {
             "v1.arxiv_api.not-base64!".to_owned(),
             "v1.arxiv_api.e30".to_owned(),
         ]
-        .map(|cursor| decode_cursor(Platform::Arxiv, &cursor).err());
+        .map(|cursor| decode_cursor(&cursor).err());
 
         assert_eq!(
             results,

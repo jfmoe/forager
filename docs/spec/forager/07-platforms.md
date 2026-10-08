@@ -18,7 +18,7 @@
 
 - **L0 公共参数**：search 为查询词与 `--limit`；fetch 为 ref 或 URL，以及 `--depth`。时间窗和排序不进公共层，因为各平台语义不同。查询词的语法由平台定义：arXiv 把查询词编码成字面词与短语，Google Scholar 原样发送、由谷歌学术解释自己的运算符；平台在本章写明自己的规则。
 - **L1 平台选项**：类型化、全部可选、有默认值，定义为 types 门面中平台选项类型（例如 `PlatformSearchOptions`）下按平台划分的封闭变体。CLI 参数是每个平台的静态 clap 定义，再转换到 types 门面，types 不依赖 clap。clap 在飞行前校验枚举和取值范围；跨字段规则（例如日期区间顺序）由 types 中的校验函数负责；两者出错都退 2。
-- **L2 平台操作**：凡改变结果种类或必需输入的，就是新操作，不是参数。只有一个 route 实现的操作写成该 route 适配器的 inherent 方法；出现第二个实现它的 route 时，提升为 trait，并在 platform catalog 中为该操作登记 route 集合。
+- **L2 平台操作**：凡改变结果种类或必需输入的，就是新操作，不是参数。只有一个 route 实现的操作写成该 route 适配器的 inherent 方法；出现第二个实现它的 route 时，提升为 trait，并在 platform catalog 中为该操作登记 route 集合。在此之前，provider factory 声明它唯一的 route 集合与支持检查，core 按与 search 相同的规划规则选 route（order ∩ 该集合 ∩ 已配置 route），配置错误的消息同样点名 order 或 keys。第一个 L2 操作是 Google Scholar 的 `cited-by`，见文末。
 - **不提供原样透传。** 新增一个参数需要：一个选项字段、一个 clap flag、每条 route 各自的映射。这条约束针对结构化选项与上游 API 参数；L0 查询词按平台定义的语法发送，不算透传。
 - **不支持的选项**：每条 route 提供一个只读请求（选项与页位置）、不联网的支持检查。检查在构造链之前完成：
   - 部分 route 不支持：被跳过的 route 记一条 disposition 为 Skipped、`error_kind` 为空的 attempt，消息写明选项与 route。
@@ -90,7 +90,7 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
 | R4 | 配置 schema 有 `platforms.<id>.order`，并按 route 的传输类型有配置叶子：HTTP route 为 `providers.<route>.url` 与 `.timeout`，process route 为 `providers.<route>.command` 与 `.timeout`；`keys` 叶子当且仅当 route 需要凭据；runtime 投影与 `platform_route_config` 覆盖该 route | checklist 测试；`config` schema 单测 |
 | R5 | route 的 doctor probe 为 `DoctorProbe::PlatformSearch`（或它所服务的 capability 的 probe） | checklist 测试 |
 | R6 | search 与 fetch 各至少有一条 route 登记 smoke 用例，`SPECIFICATION_CASE_IDS` 与第 5 章矩阵同步 | checklist 测试；`tests/smoke.rs` 列表断言 |
-| R7 | `tests/acceptance-manifest.json` 为每个操作的每条 route 登记 `(route, platform:<id>:<op>)` fixture 与测试引用 | checklist 测试；`catalog` 单测 `provider_fixture_projection_matches_transport_manifest` |
+| R7 | `tests/acceptance-manifest.json` 为每个操作的每条 route 登记 `(route, platform:<id>:<op>)` fixture 与测试引用；只有一条 route 的 L2 操作同样登记，如 `(serpapi, platform:scholar:cited_by)` | checklist 测试（含 `single_route_operations_have_transport_fixtures`）；`catalog` 单测 `provider_fixture_projection_matches_transport_manifest` |
 | R8 | ref 解析与 canonical URL 推导覆盖该平台每个 kind，并在 checklist 的样例表中登记样例 ref | checklist 测试；types 单测 |
 
 同一改动中还须更新：`GLOSSARY.md`（新术语）、第 2 章（命令与参数表）、第 3 章（配置键）、第 4 章（模块与依赖）、第 5 章（fixture 与 smoke 用例）、本章的平台示例，以及 skill 的平台词表、平台 reference 与 CLI reference。
@@ -159,7 +159,7 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
 
 设计与实测证据见 [Google Scholar 平台与 SerpApi provider 设计](../../design/2026-10-07-scholar-serpapi-route.md)（2026-10-07）；只经第三方 SERP API 接入的决定见 ADR 0021。
 
-- **route**：search 与 fetch 的 route 集合与默认 order 都是 `[serpapi]`。谷歌学术没有公共 API，`/scholar` 被 robots.txt 禁止，forager 不自建抓取。`serpapi` 按供应商命名：同一账号的额度与吞吐不分引擎，以后接入 SerpApi 的其他引擎时复用同一 key 池与凭据游标。
+- **route**：search 与 fetch 的 route 集合与默认 order 都是 `[serpapi]`；cited-by 只由 `serpapi` 实现。谷歌学术没有公共 API，`/scholar` 被 robots.txt 禁止，forager 不自建抓取。`serpapi` 按供应商命名：同一账号的额度与吞吐不分引擎，以后接入 SerpApi 的其他引擎时复用同一 key 池与凭据游标。
 - **`serpapi`**：SerpApi 搜索端点（默认 `https://serpapi.com/search.json`），HTTP route，需要凭据：`providers.serpapi.keys` 为空时视为未配置，平台命令飞行前退 3，消息点名该键。默认 timeout 30 秒，不设访问策略，每小时吞吐由 429 加 key 轮换处理。key 只能放在查询参数 `api_key` 中，所以 reqwest 错误先去掉 URL 再格式化，route 自己产生的消息先按凭据值脱敏再进入 attempt；输出不投影 `search_metadata`、`search_parameters` 与分页链接。
 - **ref**：`scholar:<cluster_id>`，cluster ID 是不带前导零、不溢出 u64 的十进制数，kind 为 `paper`，没有版本；前缀不区分大小写。canonical URL 是 `https://scholar.google.com/scholar?cluster=<cluster_id>`。也接受 `scholar.google.com/scholar` URL（http 或 https，可带末尾 `/`），其查询参数须恰有一个 `cluster` 且没有 `cites`，忽略其他参数与 fragment。被引页（带 `cites`，包括与 `cluster` 同时出现）、`cluster` 重复或溢出、作者主页等其他 URL 都在飞行前退 2。
 - **查询语法**：查询词原样作为 `q` 发送，谷歌学术的运算符（`"短语"`、`OR`、`-词`、`author:`、`source:`）照常生效；实测 `author:` 作用于整个查询。去空白后为空的查询词飞行前退 2。
@@ -178,6 +178,7 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
 - **身份**：ref 优先取 `inline_links.versions.cluster_id`，其次 `inline_links.cited_by.cites_id`；两者都存在但不一致时跳过该条。两者都没有时解码 `result_id`：无填充 base64url、恰为 9 字节、末字节 `0x09`，取前 8 字节小端序整数。这条规律没有上游文档保证，但实测与显式 ID 全部一致，回查 cluster 也取回原论文；新论文常常没有显式 ID，所以它是常用来源。显式 ID 格式不合法或 `result_id` 不满足上述规律时跳过该条。被跳过的条目在 stderr 汇总为一条诊断（标题与原因）；上游有非空结果但全部被跳过时 attempt 为 Runtime，不当作合法空集。
 - **解码**：`depth` 有非空 snippet 时为 `snippet`，否则为 `metadata`（`snippet: null`）；Scholar 的片段永不当作摘要。`authors` 取 `publication_info.authors[].name`（丢弃空名），没有作者数组时取 `summary` 第一个 ` - ` 之前的部分，按 `, ` 切分并去掉 `…`；作者名可能是缩写或截断的。`published` 只取 `summary` 第二段（来源与年份）末尾的 `, YYYY`，或整段恰为 `YYYY` 时的年份，取不到为 `null`，因此 arXiv 编号之类的数字不会被当作年份。平台字段为 `snippet`、`link`（可空）、`source`（`summary` 原文）、`cited_by` 与 `version_count`（整数或 `null`）、`resources`、`result_type`（上游 `type` 原值，可空）。`resources` 形如 `[{title, file_format, url}]`，只保留 HTTP(S) 链接，按 URL 稳定去重，search 与 fetch 共用这条规则。
 - **fetch**：只支持 `metadata`（默认），其他深度由支持检查拒绝，飞行前退 2。请求 `engine=google_scholar&hl=en&cluster=<id>&num=20`，只取一页。`ref` 与 `url` 来自请求的 cluster；`title`、`authors`、`published` 取第一个版本；平台字段 `versions` 按谷歌学术的顺序列出本页每个版本的 `{title, link, source, resources}`。第一个版本可能是第三方副本，簇内也可能混入别的论文，所以不把它当作规范出版版本。响应带下一页信号时，stderr 诊断说明版本没有列全并指向 canonical URL；search 的 `version_count` 与 cluster 的条数不是同一计数。`Fully empty` 表示 cluster 不存在，为 attempt 级 Parameter（`Google Scholar has no cluster scholar:<id>`），退 4，且消耗 1 次额度。正文不提供。
+- **cited-by（L2 平台操作）**：`platform scholar cited-by REF|URL` 列出谷歌学术统计为引用该论文的文献。它改变了必需输入（被引论文而不是查询词）与结果含义，所以是新操作，不是 search 的参数；目前只有 `serpapi` 实现，写成 `Serpapi::cited_by` inherent 方法，不新增 trait，也不在 platform catalog 登记 route 集合。被引对象沿用 fetch 的 ref 与 URL 解析。请求为 `engine=google_scholar&hl=en&cites=<cluster_id>&num=<limit>`，`--query` 映射为 `q`（在施引文献内筛选，运算符同 search），年份映射同 search，`--sort date` 映射为 `scisbd=2`（按收录时间倒序，`snippet` 带上游的收录时间前缀，原样保留）。实测 `scisbd=2` 会忽略年份区间，所以 `--sort date` 与年份参数同时出现时飞行前退 2；不提供 `--review-only`（`as_rr` 与 `cites` 合用没有实测过）。实测 `cites` 的结果结构与 search 相同（`total_results` 等于 search 条目的 `cited_by`，结果不含被引论文自身），所以输出形状、条目解码、成功协议与分页规则都与 search 共用。上游对无人引用的论文与不存在的 cluster 都返回 `Fully empty`，无法区分，所以 cited-by 的空集是合法结果（`items: []`，退 0），不同于 fetch 的 Parameter。cited-by 的 payload 含被引 cluster、可选查询词、limit、年份、排序与页位置，与 search 的 payload 互不接受对方的字段：把 search 的 cursor 交给 cited-by 或反过来，飞行前退 2，消息写明 cursor 属于哪个操作。响应里的 `citations_per_year` 与 `profiles` 不投影。
 - **额度**：成功的搜索计 1 次（含合法空集与不存在的 cluster）；4xx、429 与 1 小时内参数完全相同的缓存命中不计。不持久化配额状态：额度用尽的 key 轮到时先收到一次不计费的 429 再换 key。
 - **doctor**：shallow 对端点发一次不带 key 的 GET，任何 HTTP 响应都算可达，不计费；deep（`doctor --provider serpapi`）运行一次真实检索，通常计 1 次，没有 key 时以 config 失败退 3，不发请求。
-- **smoke**：C24（search）与 C25（fetch，canary `scholar:18208131694456651388`）只在 `providers.serpapi.keys` 非空且 `platforms.scholar.order` 含 `serpapi` 时运行，各计 1 次额度。
+- **smoke**：C24（search）、C25（fetch，canary `scholar:18208131694456651388`）与 C26（cited-by，同一 canary，`--limit 3`）只在 `providers.serpapi.keys` 非空且 `platforms.scholar.order` 含 `serpapi` 时运行，各计 1 次额度。

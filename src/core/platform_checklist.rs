@@ -16,7 +16,7 @@ use crate::config::{
 };
 use crate::providers;
 use crate::types::{
-    ContentDepth, Platform, PlatformFetchRequest, PlatformRef, PlatformSearchOptions,
+    CITED_BY, ContentDepth, Platform, PlatformFetchRequest, PlatformRef, PlatformSearchOptions,
     PlatformSearchRequest,
 };
 
@@ -318,6 +318,30 @@ fn every_platform_satisfies_the_integration_checklist() {
         "missing registration points:\n{}",
         found.join("\n")
     );
+}
+
+#[test]
+fn single_route_operations_have_transport_fixtures() {
+    let catalog_operations = PlatformOperation::ALL.map(PlatformOperation::as_str);
+    let fixtures = manifest_fixtures()
+        .into_iter()
+        .filter(|(_, seam)| {
+            seam.strip_prefix("platform:")
+                .and_then(|rest| rest.split_once(':'))
+                .is_some_and(|(_, operation)| !catalog_operations.contains(&operation))
+        })
+        .collect::<BTreeSet<_>>();
+    let routes = providers::SCHOLAR_CITED_BY_ROUTES
+        .iter()
+        .map(|route| {
+            (
+                route.name().to_owned(),
+                format!("platform:{}:{CITED_BY}", Platform::Scholar),
+            )
+        })
+        .collect::<BTreeSet<_>>();
+
+    assert_eq!(fixtures, routes);
 }
 
 fn assert_reports(found: &[String], item: &str) {

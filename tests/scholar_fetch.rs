@@ -5,23 +5,11 @@ use std::process::Output;
 
 use serde_json::{Value, json};
 
-use support::{Fixture, Response, RunEnvironment};
+use support::scholar::{config, fixture, ok, payload, query_pairs};
+use support::{Fixture, RunEnvironment};
 
 const KEY: &str = "test-serpapi-key-a";
 const CLUSTER: &str = "scholar:18208131694456651388";
-
-/// Reads a trimmed real SerpApi response captured on 2026-10-07.
-fn fixture(name: &str) -> Value {
-    let path = format!(
-        "{}/tests/fixtures/scholar/{name}",
-        env!("CARGO_MANIFEST_DIR")
-    );
-    serde_json::from_str(&std::fs::read_to_string(path).expect("read fixture")).expect("fixture")
-}
-
-fn config(url: &str) -> String {
-    format!("[providers.serpapi]\nurl = \"{url}/search.json\"\nkeys = [\"{KEY}\"]\n")
-}
 
 fn fetch(environment: &RunEnvironment, arguments: &[&str]) -> Output {
     let mut command = vec!["platform", "scholar", "fetch"];
@@ -30,29 +18,10 @@ fn fetch(environment: &RunEnvironment, arguments: &[&str]) -> Output {
 }
 
 fn run(arguments: &[&str], body: &Value) -> (Output, String) {
-    let fixture = Fixture::start_sequence(vec![Response::json(200, &body.to_string())]);
-    let environment = RunEnvironment::new(&config(&fixture.url));
+    let fixture = Fixture::start_sequence(vec![ok(body)]);
+    let environment = RunEnvironment::new(&config(&fixture.url, &[KEY]));
     let output = fetch(&environment, arguments);
     (output, fixture.finish())
-}
-
-fn payload(output: &Output) -> Value {
-    serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
-        panic!(
-            "parse JSON stdout: {error}\nstdout: {}\nstderr: {}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        )
-    })
-}
-
-fn query_pairs(request: &str) -> BTreeMap<String, String> {
-    let target = request.split_whitespace().nth(1).expect("request target");
-    reqwest::Url::parse(&format!("http://fixture.test{target}"))
-        .expect("request URL")
-        .query_pairs()
-        .map(|(name, value)| (name.into_owned(), value.into_owned()))
-        .collect()
 }
 
 #[test]
@@ -157,7 +126,7 @@ fn unrecognized_urls_and_depths_other_than_metadata_are_rejected_before_any_requ
         &[CLUSTER, "--depth", "full_text"],
     ] {
         let fixture = Fixture::start_canary();
-        let environment = RunEnvironment::new(&config(&fixture.url));
+        let environment = RunEnvironment::new(&config(&fixture.url, &[KEY]));
 
         let output = fetch(&environment, arguments);
 

@@ -169,8 +169,12 @@ _Avoid_: scholar paper id、result id、version
 _Avoid_: scholar scraper、scholar_serpapi
 
 **Platform Operation**:
-Platform 的一项操作。每个 Platform 都提供 search 与 fetch；改变结果种类或必需输入的操作是新的 Platform Operation，不是参数。
+Platform 的一项操作。每个 Platform 都提供 search 与 fetch；改变结果种类或必需输入的操作是新的 Platform Operation，不是参数，例如 Google Scholar 的 Cited-by。
 _Avoid_: platform option、sub-command flag
+
+**Cited-by**:
+列出 Google Scholar 统计为引用某篇论文的文献的 Platform Operation；结果形状与 search 相同，无人引用与论文不存在都给出空列表。
+_Avoid_: citations、references、backlinks
 
 **Platform Fetch**:
 按 Platform Ref 取回单个平台条目的操作；它不同于 Web Fetch Capability，尽管其正文段可以复用 Web Fetch。先由平台 route 取元数据并确定实际版本，全文深度再由 route 声明的正文来源（一组 URL，或一个在同一 attempt 内校验过的本地文件）走同一条 Web Fetch 链；全文写入本地文件，结果只按路径引用它。
@@ -181,7 +185,7 @@ _Avoid_: web fetch、platform download
 _Avoid_: detail level、verbosity
 
 **Page Cursor**:
-平台检索结果的不透明翻页标识；它完整恢复原请求与下一页位置，只能在产出它的 route 上继续。
+平台检索结果的不透明翻页标识；它完整恢复原请求与下一页位置，只能在产出它的 route 与 Platform Operation 上继续。
 _Avoid_: offset、page token
 
 **SSRN Search Criteria**:

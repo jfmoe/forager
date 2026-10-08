@@ -146,6 +146,13 @@
       "provider": "serpapi",
       "seam": "platform:scholar:fetch",
       "test": "tests/scholar_fetch.rs::fetch_lists_the_cluster_versions_at_metadata_depth"
+    },
+    {
+      "id": "F19",
+      "provider": "serpapi",
+      "seam": "platform:scholar:cited_by",
+      "test": "tests/scholar_cited_by.rs::cited_by_decodes_citing_works_like_search_results",
+      "note": "cited-by is a single-route platform operation outside the platform catalog; the platform checklist matches this entry against the provider factory's cited-by routes."
     }
   ],
   "offline_e2e": [

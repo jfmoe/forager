@@ -27,9 +27,9 @@ pub(crate) use constructors::{
 pub(crate) use context7::{Context7, Context7DocsRequest, Context7LibraryRequest};
 pub(crate) use exa::{Exa, ExaSearchRequest, ExaSimilarRequest, SearchType};
 pub(crate) use factory::{
-    build_docs_search, build_main_search, build_platform_fetch, build_platform_search,
-    build_vertical_search, build_web_fetch, build_web_search, platform_fetch_support,
-    platform_search_support,
+    SCHOLAR_CITED_BY_ROUTES, build_docs_search, build_main_search, build_platform_fetch,
+    build_platform_search, build_vertical_search, build_web_fetch, build_web_search,
+    platform_fetch_support, platform_search_support, scholar_cited_by, scholar_cited_by_support,
 };
 pub(crate) use openai_compatible::{ModelBreakers, OpenAiCompatible};
 pub(crate) use opencli::check_contract as check_opencli_contract;

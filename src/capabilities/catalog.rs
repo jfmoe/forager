@@ -2,7 +2,7 @@ use std::sync::LazyLock;
 use std::time::Duration;
 
 use crate::rate_limit::AccessPolicy;
-use crate::types::Platform;
+use crate::types::{CITED_BY, Platform};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct CapabilityCatalog {
@@ -481,6 +481,12 @@ const SERPAPI_SMOKE: &[ProviderSmokeCase] = &[
         operation: "fetch",
         transport: "http",
     },
+    ProviderSmokeCase {
+        id: "C26",
+        platform: Some(Platform::Scholar),
+        operation: CITED_BY,
+        transport: "http",
+    },
 ];
 
 // arXiv terms of use allow one request every three seconds over one connection.
@@ -738,6 +744,17 @@ mod tests {
         test: String,
     }
 
+    /// Returns whether a seam names a platform operation that no platform catalog lists.
+    fn is_single_route_operation_seam(seam: &str) -> bool {
+        seam.strip_prefix("platform:")
+            .and_then(|rest| rest.split_once(':'))
+            .is_some_and(|(_, operation)| {
+                !PlatformOperation::ALL
+                    .iter()
+                    .any(|catalog_operation| catalog_operation.as_str() == operation)
+            })
+    }
+
     #[test]
     fn provider_fixture_projection_matches_transport_manifest() {
         let manifest: AcceptanceManifest = serde_json::from_str(include_str!(concat!(
@@ -766,9 +783,12 @@ mod tests {
         let registry = capability_projection
             .chain(platform_projection)
             .collect::<BTreeSet<_>>();
+        // Single-route platform operations live outside the catalog; the platform checklist
+        // checks their fixtures.
         let fixture_projection = manifest
             .transport_fixtures
             .iter()
+            .filter(|fixture| !is_single_route_operation_seam(&fixture.seam))
             .map(|fixture| (fixture.provider.clone(), fixture.seam.clone()))
             .collect::<BTreeSet<_>>();
 

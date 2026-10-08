@@ -32,7 +32,9 @@ pub(crate) use platform::{
     PlatformSearchOutcome, PlatformSearchRequest,
 };
 pub use platform_arxiv::{ArxivItemData, ArxivRef, ArxivSearchOptions, ArxivSort};
-pub(crate) use platform_scholar::SCHOLAR_MAX_LIMIT;
+pub(crate) use platform_scholar::{
+    CITED_BY, SCHOLAR_MAX_LIMIT, ScholarCitedByRequest, ScholarCitedBySort,
+};
 pub use platform_scholar::{
     ScholarCluster, ScholarItemData, ScholarRef, ScholarResource, ScholarResult,
     ScholarSearchOptions, ScholarVersion,

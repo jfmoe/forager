@@ -43,6 +43,10 @@ forager platform scholar search QUERY [--limit 1..=20（默认 20）]
 forager platform scholar search --cursor CURSOR [--timeout 120] [--format json|markdown] [...]
 forager platform scholar fetch REF_OR_URL [--depth metadata]
                                [--timeout 120] [--format json|markdown] [...]
+forager platform scholar cited-by REF_OR_URL [--query TEXT] [--limit 1..=20（默认 20）]
+                                  [--year-from YYYY] [--year-to YYYY] [--sort relevance|date]
+                                  [--timeout 120] [--format json|markdown] [...]
+forager platform scholar cited-by --cursor CURSOR [--timeout 120] [--format json|markdown] [...]
 forager doctor [--provider PROVIDER] [--timeout 30] [--format json|markdown]
 forager smoke [--live] [...]
 forager config path|list|set|unset
@@ -138,7 +142,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 ## 平台命令
 
-`forager platform <id> <op>` 直连检索内置平台（ADR 0019；接入契约见第 7 章）。每个平台一棵静态 clap 子树；`forager platform <id> --help` 及各操作的 help 是参数语法的唯一权威。arXiv、SSRN 与 Google Scholar 都提供 `search` 与 `fetch`。
+`forager platform <id> <op>` 直连检索内置平台（ADR 0019；接入契约见第 7 章）。每个平台一棵静态 clap 子树；`forager platform <id> --help` 及各操作的 help 是参数语法的唯一权威。arXiv、SSRN 与 Google Scholar 都提供 `search` 与 `fetch`；Google Scholar 另有 L2 平台操作 `cited-by`。
 
 ### `platform arxiv search`
 
@@ -243,6 +247,24 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 - 通用 flag 同 search。
 - **输出**：JSON 顶层为 `platform`、`provider`、`ref`、`url`、`depth`（恒为 `metadata`）、`title`、`authors`、`published`（取第一个版本），以及 `versions`：本页最多 20 个版本，每个为 `{title, link, source, resources}`。cluster 还有更多版本时，stderr 诊断说明版本没有列全并给出 canonical URL。不写文件，不写 Search Result Journal。
 - **退出码**：ref 或 URL 无法识别（被引页 `cites`、`cluster` 重复或溢出、作者主页等）、`metadata` 以外的深度＝飞行前退 2；`platforms.scholar.order` 为空或 `providers.serpapi.keys` 为空＝飞行前退 3；cluster 不存在为 attempt 级 Parameter（`Google Scholar has no cluster scholar:<id>`），退 4；其他失败同 search。
+
+### `platform scholar cited-by`
+
+列出谷歌学术统计为引用某篇论文的文献，用于向后追踪：一篇论文之后有哪些延伸、复现或反驳的研究。
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| ref 或 URL（位置参数） | 同 fetch | 必填（带 `--cursor` 时不能给） | 被引论文 |
+| `--query` | 字符串，去空白后不能为空 | 无 | 只返回匹配该谷歌学术查询的施引文献，运算符同 search |
+| `--limit` | 1–20 | 20 | 本页条数；每页无论多少条都计 1 次 SerpApi 额度 |
+| `--year-from` / `--year-to` | `YYYY`，1000–9999 | 无 | 施引文献的发表年份区间，规则同 search |
+| `--sort` | `relevance` / `date` | `relevance` | `date` 按收录时间倒序列出最新的引用，不能与年份参数同时使用 |
+| `--cursor` | 上一页 cited-by 的 `next_cursor` | 无 | 翻页；完整恢复原请求 |
+| `--format` | `json` / `markdown` | `json` | 输出格式 |
+
+- 通用 flag 同 search。cursor 与 ref、`--query`、年份、`--sort` 或 `--limit` 互斥，包括显式传入默认值。翻页规则与额度同 search。
+- **输出**：与 `platform scholar search` 相同的结果页，条目解码规则相同。`--sort date` 时 `snippet` 保留上游加上的收录时间前缀（如 `6 days ago - `）。
+- **退出码**：ref 或 URL 无法识别、`--limit` 或年份越界、`--year-from` 晚于 `--year-to`、`--sort date` 与年份参数同时出现、`--query` 为空＝飞行前退 2；search 的 cursor 交给 cited-by 或反过来、cursor 被改动或其 route 不再可用＝飞行前退 2；配置错误与 search 相同，退 3，消息点名 `platforms.scholar.order` 或 `providers.serpapi.keys`。谷歌学术对无人引用的论文与不存在的 cluster 给出同样的空结果，所以两者都是 `items: []` 且退 0，并都计 1 次额度。其他失败同 search。
 
 ## 收尾
 

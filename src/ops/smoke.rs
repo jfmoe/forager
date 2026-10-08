@@ -17,7 +17,7 @@ use crate::catalog::{self, ProviderId, ProviderRegistration};
 use crate::config::{self, RuntimeConfig};
 use crate::redact::{CREDENTIAL_MASK, Secret, redact_credentials, redact_url};
 use crate::state_file;
-use crate::types::{Deadline, Platform};
+use crate::types::{CITED_BY, Deadline, Platform};
 
 static PROBE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 pub(crate) const MAIN_CANARY_QUERY: &str = "What is the latest stable Rust release?";
@@ -27,9 +27,10 @@ pub(crate) const RESEARCH_CANARY_QUERY: &str = "What is the current status of as
 const FETCH_CANARY_URL: &str = "https://www.rust-lang.org/";
 const ANYSEARCH_CANARY_QUERY: &str = "retrieval augmented generation";
 const PLATFORM_CANARY_QUERY: &str = "retrieval augmented generation";
-const SPECIFICATION_CASE_IDS: [&str; 27] = [
+const SPECIFICATION_CASE_IDS: [&str; 28] = [
     "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12",
     "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24", "C25",
+    "C26",
 ];
 const PIPELINE_CASES: [LiveCaseDefinition; 3] = [
     LiveCaseDefinition::pipeline("P1", "search"),
@@ -176,6 +177,10 @@ fn platform_fetch_canary(platform: Platform) -> (&'static str, &'static str) {
         Platform::Scholar => ("scholar:18208131694456651388", "metadata"),
     }
 }
+
+/// A Google Scholar paper with thousands of citing works, so its first cited-by page is never
+/// empty.
+const CITED_BY_CANARY: &str = "scholar:18208131694456651388";
 
 pub(crate) enum ProbeKind {
     Classifier,
@@ -707,6 +712,20 @@ fn command_specs(
                     &timeout,
                 ],
                 ResultShape::PlatformFetch,
+            )
+        } else if definition.operation == CITED_BY {
+            one(
+                &[
+                    "platform",
+                    platform.as_str(),
+                    "cited-by",
+                    CITED_BY_CANARY,
+                    "--limit",
+                    "3",
+                    "--timeout",
+                    &timeout,
+                ],
+                ResultShape::PlatformSearch,
             )
         } else {
             one(

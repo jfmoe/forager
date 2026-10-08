@@ -11,11 +11,11 @@ use crate::catalog::PlatformOperation;
 use crate::net::{AttemptFailure, combine_diagnostics};
 use crate::providers::shared::{is_http_url, other_platform_message, parameter_error};
 use crate::types::{
-    AttemptErrorKind, ContentDepth, FullTextSource, Platform, PlatformFetchOutcome,
+    AttemptErrorKind, CITED_BY, ContentDepth, FullTextSource, Platform, PlatformFetchOutcome,
     PlatformFetchRequest, PlatformItem, PlatformItemData, PlatformRef, PlatformSearchOptions,
-    PlatformSearchOutcome, PlatformSearchRequest, ProviderError, SCHOLAR_MAX_LIMIT, ScholarCluster,
-    ScholarItemData, ScholarRef, ScholarResource, ScholarResult, ScholarSearchOptions,
-    ScholarVersion,
+    PlatformSearchOutcome, PlatformSearchRequest, ProviderError, SCHOLAR_MAX_LIMIT,
+    ScholarCitedByRequest, ScholarCitedBySort, ScholarCluster, ScholarItemData, ScholarRef,
+    ScholarResource, ScholarResult, ScholarVersion,
 };
 
 /// The platform this engine serves.
@@ -47,7 +47,13 @@ pub(crate) fn search_support(request: &PlatformSearchRequest) -> Result<(), Stri
     if !matches!(request.options, PlatformSearchOptions::Scholar(_)) {
         return Err(other_platform_message(ROUTE, request.options.platform()));
     }
-    page_start(request).map(|_| ())
+    page_start(request.page.as_deref(), request.limit).map(|_| ())
+}
+
+/// Returns whether the route can list the requested page of citing works; it never sends a
+/// request.
+pub(crate) fn cited_by_support(request: &ScholarCitedByRequest) -> Result<(), String> {
+    page_start(request.page.as_deref(), request.limit).map(|_| ())
 }
 
 /// Returns whether the route can fetch the item at the requested depth; it never sends a
@@ -71,9 +77,7 @@ fn fetch_target(request: &PlatformFetchRequest) -> Result<ScholarRef, String> {
 }
 
 impl Serpapi {
-    /// Searches one page of Google Scholar results at an absolute offset. Results without a
-    /// verifiable cluster ID are skipped and reported in the diagnostic; the next page starts
-    /// one page size later however many results were skipped.
+    /// Searches one page of Google Scholar results at an absolute offset.
     pub(crate) async fn search(
         &self,
         request: &PlatformSearchRequest,
@@ -84,17 +88,59 @@ impl Serpapi {
                 request.options.platform(),
             )));
         };
-        let start = page_start(request).map_err(parameter_error)?;
-        let parameters = search_parameters(request, options, start);
-        let execution = self
-            .run(PlatformOperation::Search, &parameters, decode_page)
-            .await?;
+        let start = page_start(request.page.as_deref(), request.limit).map_err(parameter_error)?;
+        let mut parameters = page_parameters(request.limit, start);
+        parameters.push(("q", request.query.clone()));
+        push_years(&mut parameters, options.year_from, options.year_to);
+        if options.review_only {
+            parameters.push(("as_rr", "1".to_owned()));
+        }
+        self.results_page(
+            PlatformOperation::Search.as_str(),
+            &parameters,
+            start,
+            request.limit,
+        )
+        .await
+    }
+
+    /// Lists one page of the works Google Scholar counts as citing the requested paper. Google
+    /// Scholar answers an unknown paper exactly like an uncited one, so neither is an error.
+    pub(crate) async fn cited_by(
+        &self,
+        request: &ScholarCitedByRequest,
+    ) -> Result<PlatformSearchOutcome, ProviderError> {
+        let start = page_start(request.page.as_deref(), request.limit).map_err(parameter_error)?;
+        let mut parameters = page_parameters(request.limit, start);
+        parameters.push(("cites", request.cited.cluster_id().to_string()));
+        if let Some(query) = &request.query {
+            parameters.push(("q", query.clone()));
+        }
+        push_years(&mut parameters, request.year_from, request.year_to);
+        if request.sort == ScholarCitedBySort::Date {
+            parameters.push(("scisbd", "2".to_owned()));
+        }
+        self.results_page(CITED_BY, &parameters, start, request.limit)
+            .await
+    }
+
+    /// Runs one results page at an absolute offset. Results without a verifiable cluster ID are
+    /// skipped and reported in the diagnostic; the next page starts one page size later however
+    /// many results were skipped.
+    async fn results_page(
+        &self,
+        operation: &'static str,
+        parameters: &[(&'static str, String)],
+        start: u64,
+        limit: u16,
+    ) -> Result<PlatformSearchOutcome, ProviderError> {
+        let execution = self.run(operation, parameters, decode_page).await?;
         let DecodedPage {
             items,
             skipped,
             has_next_page,
         } = execution.value;
-        let page_size = u64::from(request.limit);
+        let page_size = u64::from(limit);
         let next_start = start.saturating_add(page_size);
         let has_next_page = has_next_page && next_start.saturating_add(page_size) <= MAX_PAGE_END;
         Ok(PlatformSearchOutcome {
@@ -121,7 +167,7 @@ impl Serpapi {
             ("num", SCHOLAR_MAX_LIMIT.to_string()),
         ];
         let execution = self
-            .run(PlatformOperation::Fetch, &parameters, |results| {
+            .run(PlatformOperation::Fetch.as_str(), &parameters, |results| {
                 decode_cluster(results, requested)
             })
             .await?;
@@ -146,12 +192,12 @@ impl Serpapi {
 
 /// Returns the absolute offset of the requested page. Google Scholar serves at most
 /// `MAX_PAGE_END` results, and a page past them still costs a search.
-fn page_start(request: &PlatformSearchRequest) -> Result<u64, String> {
-    let start = request.page.as_deref().map_or(Ok(0), |page| {
+fn page_start(page: Option<&str>, limit: u16) -> Result<u64, String> {
+    let start = page.map_or(Ok(0), |page| {
         page.parse::<u64>()
             .map_err(|_| format!("invalid Google Scholar page position `{page}`"))
     })?;
-    if start.saturating_add(u64::from(request.limit)) > MAX_PAGE_END {
+    if start.saturating_add(u64::from(limit)) > MAX_PAGE_END {
         return Err(format!(
             "{} cannot page past Google Scholar result {MAX_PAGE_END}",
             ROUTE.name()
@@ -160,30 +206,26 @@ fn page_start(request: &PlatformSearchRequest) -> Result<u64, String> {
     Ok(start)
 }
 
-fn search_parameters(
-    request: &PlatformSearchRequest,
-    options: &ScholarSearchOptions,
-    start: u64,
-) -> Vec<(&'static str, String)> {
+/// Returns the parameters every results page sends; the first page sends no `start`.
+fn page_parameters(limit: u16, start: u64) -> Vec<(&'static str, String)> {
     let mut parameters = vec![
         ("engine", ENGINE.to_owned()),
         ("hl", LANGUAGE.to_owned()),
-        ("q", request.query.clone()),
-        ("num", request.limit.to_string()),
+        ("num", limit.to_string()),
     ];
     if start > 0 {
         parameters.push(("start", start.to_string()));
     }
-    if let Some(from) = options.year_from {
+    parameters
+}
+
+fn push_years(parameters: &mut Vec<(&'static str, String)>, from: Option<u16>, to: Option<u16>) {
+    if let Some(from) = from {
         parameters.push(("as_ylo", from.to_string()));
     }
-    if let Some(to) = options.year_to {
+    if let Some(to) = to {
         parameters.push(("as_yhi", to.to_string()));
     }
-    if options.review_only {
-        parameters.push(("as_rr", "1".to_owned()));
-    }
-    parameters
 }
 
 /// Decodes a search page into items, the diagnostic of skipped results, and whether Google

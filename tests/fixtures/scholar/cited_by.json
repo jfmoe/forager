@@ -1,0 +1,159 @@
+{
+  "search_metadata": {
+    "id": "000000000000000000000000",
+    "status": "Success"
+  },
+  "search_information": {
+    "organic_results_state": "Results for exact spelling",
+    "total_results": 853,
+    "time_taken_displayed": 0.11,
+    "query_displayed": "crash"
+  },
+  "citations_per_year": [
+    {
+      "year": 2011,
+      "citations": 7
+    },
+    {
+      "year": 2012,
+      "citations": 29
+    }
+  ],
+  "profiles": {
+    "link": "https://scholar.google.com/scholar?cluster=18208131694456651388&hl=en&num=20&as_sdt=2005&sciodt=0,5",
+    "serpapi_link": "https://serpapi.com/search.json?engine=google_scholar_profiles&hl=en&mauthors=crash"
+  },
+  "organic_results": [
+    {
+      "position": 2,
+      "title": "Momentum crashes",
+      "result_id": "zlwTMNIznBwJ",
+      "type": "Html",
+      "link": "https://www.sciencedirect.com/science/article/pii/S0304405X16301490",
+      "snippet": "Despite their strong positive average returns across numerous asset classes, momentum strategies can experience infrequent and persistent strings of negative returns. These …",
+      "publication_info": {
+        "summary": "K Daniel, TJ Moskowitz - Journal of Financial economics, 2016 - Elsevier",
+        "authors": [
+          {
+            "name": "K Daniel",
+            "link": "https://scholar.google.com/citations?user=A9DgoAEAAAAJ&hl=en&num=20&oi=sra",
+            "author_id": "A9DgoAEAAAAJ",
+            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=A9DgoAEAAAAJ&engine=google_scholar_author&hl=en"
+          },
+          {
+            "name": "TJ Moskowitz",
+            "link": "https://scholar.google.com/citations?user=q9g8tuAAAAAJ&hl=en&num=20&oi=sra",
+            "author_id": "q9g8tuAAAAAJ",
+            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=q9g8tuAAAAAJ&engine=google_scholar_author&hl=en"
+          }
+        ]
+      },
+      "resources": [
+        {
+          "title": "",
+          "file_format": "HTML",
+          "link": null
+        },
+        {
+          "title": "sciencedirect.com",
+          "file_format": "HTML",
+          "link": "https://www.sciencedirect.com/science/article/pii/S0304405X16301490"
+        }
+      ],
+      "inline_links": {
+        "serpapi_cite_link": "https://serpapi.com/search.json?engine=google_scholar_cite&hl=en&q=zlwTMNIznBwJ",
+        "html_version": "https://www.sciencedirect.com/science/article/pii/S0304405X16301490",
+        "cited_by": {
+          "total": 1851,
+          "link": "https://scholar.google.com/scholar?cites=2061579707271568590&as_sdt=2005&sciodt=0,5&hl=en&num=20",
+          "cites_id": "2061579707271568590",
+          "serpapi_scholar_link": "https://serpapi.com/search.json?as_sdt=2005&cites=2061579707271568590&engine=google_scholar&hl=en&num=20"
+        },
+        "related_pages_link": "https://scholar.google.com/scholar?q=related:zlwTMNIznBwJ:scholar.google.com/&scioq=crash&hl=en&num=20&as_sdt=2005&sciodt=0,5",
+        "serpapi_related_pages_link": "https://serpapi.com/search.json?as_sdt=2005&cites=18208131694456651388&engine=google_scholar&hl=en&num=20&q=related%3AzlwTMNIznBwJ%3Ascholar.google.com%2F",
+        "versions": {
+          "total": 28,
+          "link": "https://scholar.google.com/scholar?cluster=2061579707271568590&hl=en&num=20&as_sdt=2005&sciodt=0,5",
+          "cluster_id": "2061579707271568590",
+          "serpapi_scholar_link": "https://serpapi.com/search.json?as_sdt=2005&cluster=2061579707271568590&engine=google_scholar&hl=en&num=20"
+        }
+      }
+    },
+    {
+      "position": 6,
+      "title": "Time-Varying Skewness and Momentum Crashes",
+      "result_id": "8C6UIQbkhboJ",
+      "link": "https://academic.oup.com/raps/advance-article-abstract/doi/10.1093/rapstu/raag010/8778789",
+      "snippet": "… ens during momentum crashes. We exploit this feature and propose a crash indicator— based … daily frequency, capturing information about crash risk beyond volatility alone. Building on …",
+      "publication_info": {
+        "summary": "D Bianchi, A De Polis, I Petrella - The Review of Asset Pricing …, 2026 - academic.oup.com",
+        "authors": [
+          {
+            "name": "D Bianchi"
+          },
+          {
+            "name": "A De Polis",
+            "link": "https://scholar.google.com/citations?user=hM0IWi0AAAAJ&hl=en&num=20&oi=sra",
+            "author_id": "hM0IWi0AAAAJ",
+            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=hM0IWi0AAAAJ&engine=google_scholar_author&hl=en"
+          },
+          {
+            "name": "I Petrella",
+            "link": "https://scholar.google.com/citations?user=7V0m47YAAAAJ&hl=en&num=20&oi=sra",
+            "author_id": "7V0m47YAAAAJ",
+            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=7V0m47YAAAAJ&engine=google_scholar_author&hl=en"
+          }
+        ]
+      },
+      "inline_links": {
+        "serpapi_cite_link": "https://serpapi.com/search.json?engine=google_scholar_cite&hl=en&q=8C6UIQbkhboJ",
+        "related_pages_link": "https://scholar.google.com/scholar?q=related:8C6UIQbkhboJ:scholar.google.com/&scioq=crash&hl=en&num=20&as_sdt=2005&sciodt=0,5",
+        "serpapi_related_pages_link": "https://serpapi.com/search.json?as_sdt=2005&cites=18208131694456651388&engine=google_scholar&hl=en&num=20&q=related%3A8C6UIQbkhboJ%3Ascholar.google.com%2F"
+      }
+    },
+    {
+      "position": 9,
+      "title": "Crowded trades, short covering, and momentum crashes",
+      "result_id": "87GpyXlHUgMJ",
+      "link": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2404272",
+      "snippet": "… I argue that momentum crashes are due to crowded trades … , I show that momentum crashes can be avoided in the cross … This paper explains momentum crashes and the asymmetry …",
+      "publication_info": {
+        "summary": "P Yan - … Covering, and Momentum Crashes (November 1, 2013 …, 2013 - papers.ssrn.com",
+        "authors": [
+          {
+            "name": "P Yan"
+          }
+        ]
+      },
+      "resources": [
+        {
+          "title": "",
+          "file_format": "PDF",
+          "link": null
+        },
+        {
+          "title": "ssrn.com",
+          "file_format": "PDF",
+          "link": "https://papers.ssrn.com/sol3/Delivery.cfm?abstractid=2404272"
+        }
+      ],
+      "inline_links": {
+        "serpapi_cite_link": "https://serpapi.com/search.json?engine=google_scholar_cite&hl=en&q=87GpyXlHUgMJ",
+        "cited_by": {
+          "total": 30,
+          "link": "https://scholar.google.com/scholar?cites=239332318604014067&as_sdt=2005&sciodt=0,5&hl=en&num=20",
+          "cites_id": "239332318604014067",
+          "serpapi_scholar_link": "https://serpapi.com/search.json?as_sdt=2005&cites=239332318604014067&engine=google_scholar&hl=en&num=20"
+        },
+        "related_pages_link": "https://scholar.google.com/scholar?q=related:87GpyXlHUgMJ:scholar.google.com/&scioq=crash&hl=en&num=20&as_sdt=2005&sciodt=0,5",
+        "serpapi_related_pages_link": "https://serpapi.com/search.json?as_sdt=2005&cites=18208131694456651388&engine=google_scholar&hl=en&num=20&q=related%3A87GpyXlHUgMJ%3Ascholar.google.com%2F",
+        "cached_page_link": "https://scholar.googleusercontent.com/scholar?q=cache:87GpyXlHUgMJ:scholar.google.com/+crash&hl=en&num=20&as_sdt=2005&sciodt=0,5"
+      }
+    }
+  ],
+  "serpapi_pagination": {
+    "current": 1,
+    "next_link": "https://serpapi.com/search.json?as_sdt=2005&cites=18208131694456651388&engine=google_scholar&hl=en&num=20&q=crash&start=20",
+    "next": "https://serpapi.com/search.json?as_sdt=2005&cites=18208131694456651388&engine=google_scholar&hl=en&num=20&q=crash&start=20"
+  }
+}

@@ -39,7 +39,7 @@ pub(crate) fn plan_fetch(
     request: PlatformFetchRequest,
 ) -> Result<PlatformFetchPlan, PlatformPreflightError> {
     let plan = plan_routes(
-        PlatformOperation::Fetch,
+        PlatformOperation::Fetch.as_str(),
         config.platform(),
         &config.order_key(),
         catalog::platform(config.platform()).routes(PlatformOperation::Fetch),
@@ -178,7 +178,7 @@ async fn fetch_metadata(
     let outcome = chain::run_chain(
         steps,
         ChainSettings {
-            target: operation_target(platform, PlatformOperation::Fetch),
+            target: operation_target(platform, PlatformOperation::Fetch.as_str()),
             budget_policy: BudgetPolicy::SlicedEven {
                 skipped_message: "skipped to preserve fallback deadline budget",
             },

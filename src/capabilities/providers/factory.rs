@@ -15,7 +15,15 @@ use crate::config::{
     ProcessRouteRuntimeConfig, WebFetchProviderConfig,
 };
 use crate::net::RetryPolicy;
-use crate::types::{Deadline, PlatformFetchRequest, PlatformSearchRequest};
+use crate::types::{
+    Deadline, PlatformFetchRequest, PlatformSearchOutcome, PlatformSearchRequest, ProviderError,
+    ScholarCitedByRequest,
+};
+
+/// The routes that list the works citing a Google Scholar paper. Cited-by has one route, so it
+/// is an inherent method of that route and its route set lives here, not in the platform
+/// catalog.
+pub(crate) const SCHOLAR_CITED_BY_ROUTES: &[ProviderId] = &[ProviderId::Serpapi];
 
 pub(crate) fn build_main_search(
     id: ProviderId,
@@ -150,6 +158,22 @@ pub(crate) fn build_platform_fetch(
     }
 }
 
+/// Lists one page of the works citing a Google Scholar paper through a cited-by route.
+pub(crate) async fn scholar_cited_by(
+    config: PlatformRouteConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+    request: &ScholarCitedByRequest,
+) -> Result<PlatformSearchOutcome, ProviderError> {
+    let PlatformRouteConfig::Serpapi(config) = config else {
+        unreachable!("planning selects only cited-by routes")
+    };
+    build_serpapi(config, client, retry_policy, deadline)
+        .cited_by(request)
+        .await
+}
+
 fn build_arxiv_api(
     config: HttpRouteRuntimeConfig,
     client: Client,
@@ -228,6 +252,19 @@ pub(crate) fn platform_fetch_support(
         ProviderId::SsrnCrossref => ssrn_crossref::fetch_support(request),
         ProviderId::SsrnBrowser => ssrn_browser::fetch_support(request),
         ProviderId::Serpapi => serpapi::fetch_support(request),
+        _ => return None,
+    };
+    Some(transport_support(id).and(route))
+}
+
+/// Returns whether a cited-by route can run the request, or `None` for a provider that does not
+/// implement cited-by.
+pub(crate) fn scholar_cited_by_support(
+    id: ProviderId,
+    request: &ScholarCitedByRequest,
+) -> Option<Result<(), String>> {
+    let route = match id {
+        ProviderId::Serpapi => serpapi::cited_by_support(request),
         _ => return None,
     };
     Some(transport_support(id).and(route))
