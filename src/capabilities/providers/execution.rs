@@ -56,7 +56,8 @@ where
     let selection = credentials.claim().await;
     let rotation = CredentialRotation {
         start: selection.index,
-        count: credentials.len(),
+        candidates: credentials.len(),
+        pool_size: credentials.len(),
     };
     execute_attempts(
         rotation,
@@ -78,23 +79,52 @@ where
     F: FnMut(Deadline) -> Fut,
     Fut: Future<Output = Result<(Option<u16>, T), AttemptFailure>>,
 {
-    let rotation = CredentialRotation { start: 0, count: 1 };
+    let rotation = CredentialRotation {
+        start: 0,
+        candidates: 1,
+        pool_size: 1,
+    };
     execute_attempts(rotation, None, settings, |_, deadline| send_once(deadline)).await
+}
+
+/// Runs an operation with the pool's credential at `index` only: it neither claims nor rotates,
+/// so the persistent credential cursor stays where it was. Retries follow the shared policy.
+pub(crate) async fn execute_pinned<T, F, Fut>(
+    credentials: &CredentialPool,
+    index: usize,
+    settings: ExecutionSettings,
+    mut send_once: F,
+) -> Result<ExecutionOutcome<T>, ProviderError>
+where
+    F: FnMut(Secret, Deadline) -> Fut,
+    Fut: Future<Output = Result<(Option<u16>, T), AttemptFailure>>,
+{
+    let rotation = CredentialRotation {
+        start: index,
+        candidates: 1,
+        pool_size: credentials.len(),
+    };
+    execute_attempts(rotation, None, settings, |credential_index, deadline| {
+        send_once(credentials.key(credential_index).clone(), deadline)
+    })
+    .await
 }
 
 #[derive(Clone, Copy)]
 struct CredentialRotation {
     start: usize,
-    count: usize,
+    /// How many distinct credentials, from `start` on, the operation may try.
+    candidates: usize,
+    pool_size: usize,
 }
 
 impl CredentialRotation {
     fn can_rotate(self, rotation_count: usize) -> bool {
-        rotation_count + 1 < self.count
+        rotation_count + 1 < self.candidates
     }
 
     fn index(self, rotation_count: usize) -> usize {
-        (self.start + rotation_count) % self.count
+        (self.start + rotation_count) % self.pool_size
     }
 }
 
@@ -243,7 +273,7 @@ mod tests {
     use std::rc::Rc;
     use std::time::Duration;
 
-    use super::{ExecutionSettings, execute_anonymous, execute_v2};
+    use super::{ExecutionSettings, execute_anonymous, execute_pinned, execute_v2};
     use crate::credentials::CredentialPool;
     use crate::net::{AttemptFailure, RetryPolicy};
     use crate::types::{AttemptErrorKind, AttemptTarget, Deadline};
@@ -545,6 +575,67 @@ mod tests {
             assert_eq!(
                 (error.kind, error.attempts.len(), *calls.borrow()),
                 (AttemptErrorKind::Auth, 0, 0)
+            );
+        });
+    }
+
+    #[test]
+    fn pinned_execution_sends_only_its_key_and_retries_without_rotating() {
+        runtime().block_on(async {
+            let sent = Rc::new(RefCell::new(Vec::new()));
+            let error = execute_pinned(
+                &CredentialPool::new(
+                    "test",
+                    vec!["first".into(), "second".into(), "third".into()],
+                ),
+                1,
+                settings(
+                    RetryPolicy::new(2, 1.0, Duration::from_secs(1)),
+                    Duration::from_secs(10),
+                    Duration::from_secs(10),
+                ),
+                {
+                    let sent = Rc::clone(&sent);
+                    move |credential, _| {
+                        sent.borrow_mut().push(credential.expose().to_owned());
+                        let kind = if sent.borrow().len() == 1 {
+                            AttemptErrorKind::Network
+                        } else {
+                            AttemptErrorKind::Auth
+                        };
+                        async move {
+                            Err::<(Option<u16>, ()), _>(AttemptFailure {
+                                kind,
+                                status: None,
+                                message: "refused".into(),
+                            })
+                        }
+                    }
+                },
+            )
+            .await
+            .err()
+            .expect("an invalid pinned key fails");
+
+            assert_eq!(
+                (
+                    error.kind,
+                    sent.borrow().clone(),
+                    error
+                        .attempts
+                        .iter()
+                        .map(|attempt| (
+                            attempt.credential_index,
+                            attempt.retry_count,
+                            attempt.rotation_count
+                        ))
+                        .collect::<Vec<_>>(),
+                ),
+                (
+                    AttemptErrorKind::Auth,
+                    vec!["second".to_owned(), "second".to_owned()],
+                    vec![(1, 0, 0), (1, 1, 0)],
+                )
             );
         });
     }

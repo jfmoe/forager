@@ -176,7 +176,7 @@ SerpApi 响应的 DTO 与解码属于 route，不进 types 门面。
 | `platform scholar fetch`（含 ref 不存在） | 通常 1 |
 | HTTP 4xx、429、缓存命中 | 0（4xx 仍计入每小时吞吐） |
 | `forager doctor` | 0（只对端点发一次不带 key 的 GET，任何 HTTP 响应都算可达） |
-| `forager doctor --provider serpapi` | 通常 1（一次逻辑检索，默认选项、limit 1） |
+| `forager doctor --provider serpapi` | 0（每个 key 调用一次 Account API） |
 
 "通常"的含义：一次逻辑检索成功且未命中缓存时计 1 次；重试、超时等故障下，本机拿不到结果并不能证明上游没有处理，因此不保证精确账单。
 
@@ -184,7 +184,7 @@ SerpApi 响应的 DTO 与解码属于 route，不进 types 门面。
 
 `platforms.scholar.order` 设为空会禁用平台命令及其 smoke，但不影响显式的 `doctor --provider`：HTTP route 的 provider 深探按 key 是否存在决定能否运行，不看 platform order。
 
-第二期可以把 provider 深探改为调用 Account API，这样不计费，还能报告剩余额度。注意 Account API 的响应里有 `api_key` 和 `account_email`，只能投影数字字段。
+provider 深探调用 Account API，不计费，并报告每个 key 的剩余额度与本小时吞吐。Account API 的响应里有 `api_key` 和 `account_email`，因此只解码数字字段。
 
 ## 实现改动清单
 
@@ -215,7 +215,7 @@ SerpApi 响应的 DTO 与解码属于 route，不进 types 门面。
 1. **第一期**（已实现）：上述 search 与 fetch。
 2. **第二期**：
    - L2 操作 `cited-by REF`（`cites=<cluster_id>`）**已实现**，含 `--query`、年份与 `--sort date`（`scisbd=2`，与年份互斥）。2026-10-08 的实测与决定见 #183，现行契约见规格第 7 章「Google Scholar」。
-   - provider 深探改用 Account API：未实现。
+   - provider 深探改用 Account API **已实现**：逐 key 报告剩余额度，不计费，见 #184 与规格第 2 章契约③。
 3. **按需**：`scholar_browser` process route（复用 OpenCLI，需用户手动开启）。
 
 ## 仍未实测的部分

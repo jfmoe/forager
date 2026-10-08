@@ -29,11 +29,12 @@ pub(crate) use exa::{Exa, ExaSearchRequest, ExaSimilarRequest, SearchType};
 pub(crate) use factory::{
     SCHOLAR_CITED_BY_ROUTES, build_docs_search, build_main_search, build_platform_fetch,
     build_platform_search, build_vertical_search, build_web_fetch, build_web_search,
-    platform_fetch_support, platform_search_support, scholar_cited_by, scholar_cited_by_support,
+    platform_fetch_support, platform_search_support, route_accounts, scholar_cited_by,
+    scholar_cited_by_support,
 };
 pub(crate) use openai_compatible::{ModelBreakers, OpenAiCompatible};
 pub(crate) use opencli::check_contract as check_opencli_contract;
-pub(crate) use serpapi::Serpapi;
+pub(crate) use serpapi::{KeyAccount, Serpapi};
 pub(crate) use ssrn_browser::SsrnBrowser;
 pub(crate) use ssrn_crossref::SsrnCrossref;
 pub(crate) use supplemental::SupplementalSearch;

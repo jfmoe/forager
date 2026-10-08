@@ -2,7 +2,8 @@
 //!
 //! This module owns what every SerpApi engine shares: the endpoint, the `api_key` parameter,
 //! the HTTP 200 success protocol, and credential redaction. Engine modules own their request
-//! parameters, response decoding, and support checks.
+//! parameters, response decoding, and support checks; the account module owns the free
+//! per-key quota report.
 
 use std::time::Duration;
 
@@ -13,15 +14,18 @@ use serde_json::Value;
 use crate::catalog::ProviderId;
 use crate::config::KeyedHttpRouteRuntimeConfig;
 use crate::credentials::CredentialPool;
-use crate::net::{AttemptFailure, RetryPolicy, read_complete_protocol};
+use crate::net::{AttemptFailure, ProviderResponseBody, RetryPolicy, read_complete_protocol};
 use crate::providers::execution::{ExecutionOutcome, ExecutionSettings, execute_v2};
 use crate::providers::shared::redacted_urls_message;
 use crate::redact::Secret;
 use crate::types::{AttemptErrorKind, AttemptTarget, Deadline, ProviderError};
 
 const ROUTE: ProviderId = ProviderId::Serpapi;
+#[path = "serpapi_account.rs"]
+mod account;
 #[path = "serpapi_scholar.rs"]
 mod scholar;
+pub(crate) use account::KeyAccount;
 pub(crate) use scholar::{cited_by_support, fetch_support, search_support};
 
 pub(crate) struct Serpapi {
@@ -84,7 +88,10 @@ impl Serpapi {
         let decode = &decode;
         execute_v2(
             &self.credentials,
-            self.settings(operation),
+            self.settings(AttemptTarget::platform(
+                scholar::PLATFORM.as_str(),
+                operation,
+            )),
             |credential, _| async move {
                 let results = self.send_once(parameters, &credential).await?;
                 decode(results)
@@ -100,9 +107,20 @@ impl Serpapi {
         parameters: &[(&'static str, String)],
         credential: &Secret,
     ) -> Result<SearchResults, AttemptFailure> {
+        let body = self.get(self.url.as_str(), parameters, credential).await?;
+        success_protocol(&body.text).map_err(|failure| self.redacted(failure))
+    }
+
+    /// Sends one keyed GET and reads the complete body; any HTTP error status is a failure.
+    async fn get(
+        &self,
+        url: &str,
+        parameters: &[(&'static str, String)],
+        credential: &Secret,
+    ) -> Result<ProviderResponseBody, AttemptFailure> {
         let request = self
             .client
-            .get(&self.url)
+            .get(url)
             .query(parameters)
             .query(&[("api_key", credential.expose())]);
         // The key travels in the URL, so the URL never reaches the message.
@@ -111,8 +129,7 @@ impl Serpapi {
             status: error.status().map(|status| status.as_u16()),
             message: redacted_urls_message(&error.without_url().to_string(), &self.credentials),
         })?;
-        let body = read_complete_protocol(response, &self.credentials, failure_message).await?;
-        success_protocol(&body.text).map_err(|failure| self.redacted(failure))
+        read_complete_protocol(response, &self.credentials, failure_message).await
     }
 
     fn redacted(&self, mut failure: AttemptFailure) -> AttemptFailure {
@@ -120,10 +137,10 @@ impl Serpapi {
         failure
     }
 
-    fn settings(&self, operation: &'static str) -> ExecutionSettings {
+    fn settings(&self, target: AttemptTarget) -> ExecutionSettings {
         ExecutionSettings {
             provider: ROUTE.name(),
-            target: AttemptTarget::platform(scholar::PLATFORM.as_str(), operation),
+            target,
             retry_policy: self.retry_policy,
             deadline: self.deadline,
             attempt_timeout: Duration::from_secs(self.timeout_seconds),

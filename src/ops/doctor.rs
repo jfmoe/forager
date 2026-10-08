@@ -13,7 +13,8 @@ use crate::config::{
 };
 use crate::net::{self, RetryPolicy};
 use crate::providers::{
-    self, AnysearchDomainsRequest, FetchRequest, FetchSource, MainSearchRequest, ModelBreakers,
+    self, AnysearchDomainsRequest, FetchRequest, FetchSource, KeyAccount, MainSearchRequest,
+    ModelBreakers,
 };
 use crate::rate_limit::RateLimiter;
 use crate::types::{
@@ -52,6 +53,9 @@ pub(crate) struct DeepDoctorReport {
     source: String,
     deadline_seconds: u64,
     checks: Vec<ProbeCheck>,
+    /// One entry per configured key, only for a provider whose probe is an account probe.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    keys: Option<Vec<KeyStatus>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     error_kind: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -65,9 +69,40 @@ struct ProbeCheck {
     ok: bool,
 }
 
-struct ProbeFailure {
-    error: Box<ProviderError>,
+/// The account report of one key, named by its position in the pool; a quota the service did
+/// not report is `null`.
+#[derive(Debug, Serialize)]
+struct KeyStatus {
+    key_index: usize,
+    ok: bool,
+    searches_left: Option<i64>,
+    plan_searches_left: Option<i64>,
+    this_month_usage: Option<i64>,
+    this_hour_searches: Option<i64>,
+    hourly_limit: Option<i64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error_kind: Option<&'static str>,
+}
+
+/// What a deep probe found; `failure` is the first failure, which fails the probe.
+struct ProbeOutcome {
     checks: Vec<ProbeCheck>,
+    keys: Option<Vec<KeyStatus>>,
+    failure: Option<ProbeFailure>,
+}
+
+struct ProbeFailure {
+    kind: AttemptErrorKind,
+    message: String,
+}
+
+impl From<ProviderError> for ProbeFailure {
+    fn from(error: ProviderError) -> Self {
+        Self {
+            kind: error.kind,
+            message: error.message,
+        }
+    }
 }
 
 pub(crate) fn shallow(
@@ -143,6 +178,7 @@ pub(crate) fn deep(
                 source: provider_status.source,
                 deadline_seconds: timeout_seconds,
                 checks: Vec::new(),
+                keys: None,
                 error_kind: Some("config"),
                 message: Some(reason),
             },
@@ -162,45 +198,34 @@ pub(crate) fn deep(
     let client = runtime
         .block_on(async { net::build_client(runtime_config.ssl_verify) })
         .map_err(|error| config::ConfigError::Message(error.to_string()))?;
-    let result = runtime.block_on(run_probe(
+    let outcome = runtime.block_on(run_probe(
         provider,
         runtime_config,
         client,
         retry_policy,
         deadline,
     ));
-    match result {
-        Ok(checks) => Ok((
-            DeepDoctorReport {
-                mode: "deep",
-                ok: true,
-                provider: provider.name(),
-                configured: true,
-                key_count: provider_status.key_count,
-                source: provider_status.source,
-                deadline_seconds: timeout_seconds,
-                checks,
-                error_kind: None,
-                message: None,
-            },
-            0,
-        )),
-        Err(failure) => Ok((
-            DeepDoctorReport {
-                mode: "deep",
-                ok: false,
-                provider: provider.name(),
-                configured: true,
-                key_count: provider_status.key_count,
-                source: provider_status.source,
-                deadline_seconds: timeout_seconds,
-                checks: failure.checks,
-                error_kind: Some(failure.error.kind.as_str()),
-                message: Some(failure.error.message),
-            },
-            4,
-        )),
-    }
+    let ok = outcome.failure.is_none();
+    let (error_kind, message) = outcome
+        .failure
+        .map(|failure| (failure.kind.as_str(), failure.message))
+        .unzip();
+    Ok((
+        DeepDoctorReport {
+            mode: "deep",
+            ok,
+            provider: provider.name(),
+            configured: true,
+            key_count: provider_status.key_count,
+            source: provider_status.source,
+            deadline_seconds: timeout_seconds,
+            checks: outcome.checks,
+            keys: outcome.keys,
+            error_kind,
+            message,
+        },
+        if ok { 0 } else { 4 },
+    ))
 }
 
 async fn run_probe(
@@ -209,7 +234,7 @@ async fn run_probe(
     client: reqwest::Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
-) -> Result<Vec<ProbeCheck>, ProbeFailure> {
+) -> ProbeOutcome {
     match catalog::registration(provider).probe {
         DoctorProbe::MainSearch(shapes) => {
             probe_main_search(provider, shapes, config, client, retry_policy, deadline).await
@@ -283,6 +308,13 @@ async fn run_probe(
                 probe_platform_search(platform, route_config, client, retry_policy, deadline).await;
             one_check(result, name, transport)
         }
+        DoctorProbe::ServiceAccount { name, transport } => {
+            let route_config = config::platform_route_config(provider, &config.platform_routes)
+                .expect("an account probe belongs to a platform route");
+            let accounts =
+                providers::route_accounts(route_config, client, retry_policy, deadline).await;
+            account_outcome(provider, accounts, name, transport)
+        }
         DoctorProbe::AnysearchDomains { name, transport } => {
             let adapter =
                 providers::build_anysearch(config.anysearch, client, retry_policy, deadline);
@@ -325,7 +357,7 @@ async fn probe_main_search(
     client: reqwest::Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
-) -> Result<Vec<ProbeCheck>, ProbeFailure> {
+) -> ProbeOutcome {
     let breakers = Arc::new(ModelBreakers::default());
     let mut checks = Vec::new();
     for shape in shapes {
@@ -362,14 +394,19 @@ async fn probe_main_search(
                     transport: shape.transport,
                     ok: false,
                 });
-                return Err(ProbeFailure {
-                    error: Box::new(error),
+                return ProbeOutcome {
                     checks,
-                });
+                    keys: None,
+                    failure: Some(error.into()),
+                };
             }
         }
     }
-    Ok(checks)
+    ProbeOutcome {
+        checks,
+        keys: None,
+        failure: None,
+    }
 }
 
 fn validate_transport(
@@ -398,21 +435,68 @@ fn one_check<T>(
     result: Result<T, ProviderError>,
     name: &'static str,
     transport: &'static str,
-) -> Result<Vec<ProbeCheck>, ProbeFailure> {
-    match result {
-        Ok(_) => Ok(vec![ProbeCheck {
+) -> ProbeOutcome {
+    let failure = result.err().map(ProbeFailure::from);
+    ProbeOutcome {
+        checks: vec![ProbeCheck {
             name,
             transport,
-            ok: true,
-        }]),
-        Err(error) => Err(ProbeFailure {
-            error: Box::new(error),
-            checks: vec![ProbeCheck {
-                name,
-                transport,
-                ok: false,
-            }],
-        }),
+            ok: failure.is_none(),
+        }],
+        keys: None,
+        failure,
+    }
+}
+
+/// Reports every key's account; the first failing key, named by its config position, fails the
+/// probe.
+fn account_outcome(
+    provider: ProviderId,
+    accounts: Vec<KeyAccount>,
+    name: &'static str,
+    transport: &'static str,
+) -> ProbeOutcome {
+    let keys_key = config::provider_keys_key(provider.name());
+    let mut failure = None;
+    let keys = accounts
+        .into_iter()
+        .enumerate()
+        .map(
+            |(
+                key_index,
+                KeyAccount {
+                    quota,
+                    failure: key_failure,
+                },
+            )| {
+                let error_kind = key_failure.as_ref().map(|error| error.kind.as_str());
+                if let Some(error) = key_failure {
+                    failure.get_or_insert_with(|| ProbeFailure {
+                        kind: error.kind,
+                        message: format!("{keys_key}[{key_index}]: {}", error.message),
+                    });
+                }
+                KeyStatus {
+                    key_index,
+                    ok: error_kind.is_none(),
+                    searches_left: quota.map(|quota| quota.searches_left),
+                    plan_searches_left: quota.map(|quota| quota.plan_searches_left),
+                    this_month_usage: quota.map(|quota| quota.this_month_usage),
+                    this_hour_searches: quota.map(|quota| quota.this_hour_searches),
+                    hourly_limit: quota.map(|quota| quota.hourly_limit),
+                    error_kind,
+                }
+            },
+        )
+        .collect();
+    ProbeOutcome {
+        checks: vec![ProbeCheck {
+            name,
+            transport,
+            ok: failure.is_none(),
+        }],
+        keys: Some(keys),
+        failure,
     }
 }
 

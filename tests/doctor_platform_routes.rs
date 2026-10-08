@@ -25,56 +25,6 @@ fn arxiv_api_deep_doctor_executes_the_registry_search_probe_without_credentials(
 }
 
 #[test]
-fn serpapi_deep_doctor_runs_one_keyed_scholar_search() {
-    let body = std::fs::read_to_string(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/fixtures/scholar/search.json"
-    ))
-    .expect("read scholar fixture");
-    let fixture = Fixture::start_json(200, &body);
-    let environment = RunEnvironment::new(&format!(
-        "[providers.serpapi]\nurl = \"{}/search.json\"\nkeys = [\"test-serpapi-key\"]\n",
-        fixture.url
-    ));
-
-    let output = environment.run(&["doctor", "--provider", "serpapi"]);
-    assert_deep_success(&output, "serpapi", &[("search", "http")]);
-    let request = fixture.finish();
-    assert!(
-        request.starts_with("GET /search.json?engine=google_scholar&")
-            && request.contains("api_key=test-serpapi-key"),
-        "{request}"
-    );
-}
-
-#[test]
-fn serpapi_deep_doctor_without_keys_fails_before_any_request() {
-    let fixture = Fixture::start_canary();
-    let environment = RunEnvironment::new(&format!(
-        "[providers.serpapi]\nurl = \"{}/search.json\"\n",
-        fixture.url
-    ));
-
-    let output = environment.run(&["doctor", "--provider", "serpapi"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["configured"],
-            &payload["error_kind"],
-            fixture.finish_all().len(),
-        ),
-        (
-            Some(3),
-            &Value::Bool(false),
-            &Value::String("config".into()),
-            0,
-        )
-    );
-}
-
-#[test]
 fn shallow_doctor_reaches_serpapi_with_a_keyless_get() {
     let fixture = Fixture::start_sequence(reachable_responses(3));
     let environment = RunEnvironment::new(&format!(

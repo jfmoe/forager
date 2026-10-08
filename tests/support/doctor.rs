@@ -33,6 +33,7 @@ pub(crate) fn assert_deep_success(
             &payload["ok"],
             &payload["provider"],
             checks,
+            payload.get("keys"),
         ),
         (
             Some(0),
@@ -40,6 +41,7 @@ pub(crate) fn assert_deep_success(
             &Value::Bool(true),
             &Value::String(provider.into()),
             expected,
+            None,
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)

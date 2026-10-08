@@ -263,6 +263,12 @@ pub(crate) enum DoctorProbe {
         name: &'static str,
         transport: &'static str,
     },
+    /// Asks the service's account endpoint about every configured key; it proves the endpoint
+    /// and keys, not any operation's request or decoding.
+    ServiceAccount {
+        name: &'static str,
+        transport: &'static str,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -648,9 +654,8 @@ const REGISTRY: &[ProviderRegistration] = &[
         credentials_required: true,
         transport: ProviderTransport::Http,
         access_policy: None,
-        probe: DoctorProbe::PlatformSearch {
-            platform: Platform::Scholar,
-            name: "search",
+        probe: DoctorProbe::ServiceAccount {
+            name: "account",
             transport: "http",
         },
         smoke_cases: SERPAPI_SMOKE,
@@ -841,6 +846,7 @@ mod tests {
                 DoctorProbe::PlatformSearch {
                     platform: probed, ..
                 } => platform(probed).search.contains(&registration.id),
+                DoctorProbe::ServiceAccount { .. } => registration.credentials_required,
             };
             assert!(probe_is_supported, "{} probe", registration.id.name());
             assert!(

@@ -4,9 +4,9 @@ use reqwest::Client;
 
 use super::constructors::{credentials, route_limiter};
 use super::{
-    ArxivApi, DocsSearch, MainSearch, ModelBreakers, PlatformFetch, PlatformSearch, ProviderId,
-    Serpapi, SsrnBrowser, SsrnCrossref, SupplementalSearch, VerticalSearch, WebFetch, WebSearch,
-    arxiv, opencli, serpapi, ssrn_browser, ssrn_crossref, web_fetch,
+    ArxivApi, DocsSearch, KeyAccount, MainSearch, ModelBreakers, PlatformFetch, PlatformSearch,
+    ProviderId, Serpapi, SsrnBrowser, SsrnCrossref, SupplementalSearch, VerticalSearch, WebFetch,
+    WebSearch, arxiv, opencli, serpapi, ssrn_browser, ssrn_crossref, web_fetch,
 };
 use crate::catalog::{ProviderTransport, VERTICAL_SEARCH, WEB_FETCH, WEB_SEARCH, registration};
 use crate::config::{
@@ -171,6 +171,21 @@ pub(crate) async fn scholar_cited_by(
     };
     build_serpapi(config, client, retry_policy, deadline)
         .cited_by(request)
+        .await
+}
+
+/// Checks the account of every key of a route that registers an account probe.
+pub(crate) async fn route_accounts(
+    config: PlatformRouteConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> Vec<KeyAccount> {
+    let PlatformRouteConfig::Serpapi(config) = config else {
+        unreachable!("only serpapi registers an account probe")
+    };
+    build_serpapi(config, client, retry_policy, deadline)
+        .accounts()
         .await
 }
 

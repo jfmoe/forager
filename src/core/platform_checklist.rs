@@ -191,10 +191,14 @@ fn check_route(
             ),
         ));
     }
-    let probes_platform = matches!(
-        registration.probe,
-        DoctorProbe::PlatformSearch { platform: probed, .. } if probed == platform
-    );
+    // A keyed route may instead ask its service about every key, which costs no quota.
+    let probes_platform = match registration.probe {
+        DoctorProbe::PlatformSearch {
+            platform: probed, ..
+        } => probed == platform,
+        DoctorProbe::ServiceAccount { .. } => registration.credentials_required,
+        _ => false,
+    };
     let serves_capability = catalog::CATALOGS
         .iter()
         .any(|catalog| catalog.contains(route));
@@ -453,6 +457,33 @@ fn a_route_without_a_platform_probe_violates_r5() {
     };
 
     assert_reports(&violations(Platform::Arxiv, &registry), "R5");
+}
+
+#[test]
+fn a_keyless_route_with_an_account_probe_violates_r5() {
+    let fixtures = manifest_fixtures();
+    let registrations = catalog::registrations()
+        .iter()
+        .map(|registration| ProviderRegistration {
+            probe: DoctorProbe::ServiceAccount {
+                name: "account",
+                transport: "http",
+            },
+            ..*registration
+        })
+        .collect::<Vec<_>>();
+    let registry = Registry {
+        registrations: &registrations,
+        ..baseline(&fixtures)
+    };
+
+    assert_reports(&violations(Platform::Arxiv, &registry), "R5");
+    assert!(
+        !violations(Platform::Scholar, &registry)
+            .iter()
+            .any(|message| message.ends_with("integration checklist R5)")),
+        "a keyed route may probe its service account"
+    );
 }
 
 #[test]

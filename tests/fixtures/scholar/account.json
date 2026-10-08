@@ -1,0 +1,18 @@
+{
+  "account_id": "fixture-account-id-5e21",
+  "api_key": "fixture-account-api-key-3b9d",
+  "account_email": "fixture-owner@example.test",
+  "account_status": "Active",
+  "plan_id": "free",
+  "plan_name": "Free Plan",
+  "plan_monthly_price": 0.0,
+  "plan_renewal_date": "2026-11-07",
+  "searches_per_month": 250,
+  "plan_searches_left": 219,
+  "extra_credits": 0,
+  "total_searches_left": 219,
+  "this_month_usage": 31,
+  "this_hour_searches": 2,
+  "last_hour_searches": 0,
+  "account_rate_limit_per_hour": 250
+}

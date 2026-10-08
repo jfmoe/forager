@@ -592,7 +592,7 @@ forager doctor [--provider PROVIDER] [--timeout SECONDS] [--format json|markdown
 
 | Option | Meaning | Default |
 | --- | --- | --- |
-| `--provider PROVIDER` | Deep-probe one of `xai`, `openai_compatible`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, `anysearch`, `arxiv_api`, `ssrn_crossref`, `ssrn_browser`, or `serpapi` (costs one SerpApi search). Without it, run the shallow all-provider report. | Omitted |
+| `--provider PROVIDER` | Deep-probe one of `xai`, `openai_compatible`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, `anysearch`, `arxiv_api`, `ssrn_crossref`, `ssrn_browser`, or `serpapi`. Without it, run the shallow all-provider report. | Omitted |
 | `--timeout SECONDS` | Set the diagnostic deadline. | `30` |
 | `--format FORMAT` | Use `json` or `markdown`. | `json` |
 
@@ -601,7 +601,13 @@ inspection. In shallow mode, `ok` covers every configured provider: if any confi
 unreachable, the top-level result is false and the command uses exit code 4. The browser route
 `ssrn_browser` is checked only when `platforms.ssrn.order` lists it: doctor runs its OpenCLI
 `contract` command, and a failed check carries a `message` with install steps; `--provider ssrn_browser`
-also needs the route in the order. Do not use doctor as
+also needs the route in the order. `--provider serpapi` runs no search and costs nothing: it asks
+SerpApi's account endpoint about every configured key and adds a `keys` array, one entry per key
+with `key_index`, `ok`, `searches_left`, `plan_searches_left`, `this_month_usage`,
+`this_hour_searches`, and `hourly_limit`, plus `error_kind` for a failing key (`auth`,
+`quota_exhausted` with no searches left, `rate_limited` at the hourly limit). Any failing key fails
+the probe with exit 4, and `message` names it as `providers.serpapi.keys[N]`. It does not prove
+that Scholar searches decode; `smoke --live` does. Do not use doctor as
 the recovery path for configuration that cannot be loaded.
 
 ### `smoke`

@@ -79,6 +79,8 @@ forager platform ssrn search "momentum AND portfolio" --scope title --mode boole
 Scholar runs on the user's own SerpApi key and its monthly search quota (250 on the free plan).
 Every search page, every fetch, and every cited-by page costs one search, including a search with
 no results and a fetch of a ref that does not exist. Repeating an identical request within one hour costs nothing.
+`forager doctor --provider serpapi` costs nothing and reports each key's searches left and this
+hour's usage; run it when the user asks how much Scholar quota remains.
 
 - Search once with the default `--limit 20` and pick candidates from that page. Do not page with
   `--cursor` to collect more results; narrow the query or the years instead.

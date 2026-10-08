@@ -1431,6 +1431,26 @@ fn render_deep_doctor_markdown(
             },
         );
     }
+    for key in value["keys"].as_array().into_iter().flatten() {
+        let _ = write!(
+            output,
+            "- key {}: {}",
+            key["key_index"].as_u64().unwrap_or_default(),
+            key["error_kind"].as_str().unwrap_or("ok"),
+        );
+        for field in [
+            "searches_left",
+            "plan_searches_left",
+            "this_month_usage",
+            "this_hour_searches",
+            "hourly_limit",
+        ] {
+            if let Some(count) = key[field].as_i64() {
+                let _ = write!(output, ", {field}={count}");
+            }
+        }
+        output.push('\n');
+    }
     if let Some(message) = value["message"].as_str() {
         let _ = write!(
             output,
