@@ -579,6 +579,29 @@ fn a_read_deadline_on_the_results_page_with_a_trailing_slash_is_a_timeout() {
 }
 
 #[test]
+fn a_read_deadline_on_the_browser_load_error_page_is_a_network_failure() {
+    // Observed live on 2026-10-09: the first navigation failed and Chrome showed its own error
+    // page; the command then waits for Chrome to reload the page.
+    let mut page = results_page();
+    page["url"] = json!(
+        "https://www.xiaohongshu.com/search_result/?keyword=%E5%92%96%E5%95%A1&source=web_explore_feed"
+    );
+    page["title"] = json!("www.xiaohongshu.com");
+    page["load_error"] = json!("ERR_CONNECTION_CLOSED");
+
+    let result = failure(&search(&fake(&with_page(&page, true, false)), &[]));
+
+    assert_eq!(
+        result,
+        (
+            Some(4),
+            json!("network"),
+            "Chrome could not load the Xiaohongshu page (ERR_CONNECTION_CLOSED) and had not loaded it again by the read deadline; check the network and retry".to_owned()
+        )
+    );
+}
+
+#[test]
 fn a_read_deadline_before_the_last_filter_click_is_a_timeout() {
     let mut data = search_data(
         1,

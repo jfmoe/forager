@@ -29,37 +29,42 @@ export function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/**
- * Starts counting the completed page requests to `path` on any xiaohongshu.com host. Resource
- * Timing records a request only once its response has ended, which is the signal that the
- * capture holds its body.
- */
-export async function trackCompletions(page, path) {
-  await page.evaluate(`(() => {
-    const path = ${JSON.stringify(path)};
-    window.__foragerXhs = window.__foragerXhs || {};
-    if (window.__foragerXhs[path] !== undefined) return;
-    window.__foragerXhs[path] = 0;
+// The page state that ends any read: login walls, block pages, and their notices. A notice is
+// read only while no note card is shown, so a note title never counts as one.
+//
+// Each read also makes sure the current document counts the completed requests to the tracked
+// paths on any xiaohongshu.com host. A document keeps its own count, and the page the command
+// opened is not always the one that answers: when the first load fails, Chrome shows its own
+// error page and reloads it into a new document. Resource Timing records a request only once its
+// response has ended, which is the signal that the capture holds its body.
+function pageStateScript(tracked) {
+  return `(() => {
+  const tracked = ${JSON.stringify(tracked)};
+  if (!window.__foragerXhs && tracked.length > 0) {
+    const counts = {};
+    for (const path of tracked) counts[path] = 0;
+    window.__foragerXhs = counts;
     new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
         let url;
         try { url = new URL(entry.name); } catch { continue; }
-        if (url.hostname.endsWith('xiaohongshu.com') && url.pathname === path && entry.responseEnd > 0) {
-          window.__foragerXhs[path] += 1;
+        if (url.hostname.endsWith('xiaohongshu.com') && url.pathname in counts && entry.responseEnd > 0) {
+          counts[url.pathname] += 1;
         }
       }
     }).observe({ type: 'resource', buffered: true });
-  })()`);
-}
-
-// The page state that ends any read: login walls, block pages, and their notices. A notice is
-// read only while no note card is shown, so a note title never counts as one.
-const PAGE_STATE = `(() => {
-  const url = new URL(location.href);
+  }
+  // Chrome's own error page for a navigation that failed, such as ERR_CONNECTION_CLOSED. Its
+  // location is chrome-error://chromewebdata/; the navigation entry keeps the URL it tried.
+  const loadError = location.protocol === 'chrome-error:'
+    ? ((document.querySelector('.error-code') || {}).textContent || '').trim() || 'unknown network error'
+    : null;
+  const navigation = performance.getEntriesByType('navigation')[0];
+  const url = new URL(loadError && navigation ? navigation.name : location.href);
   if (url.searchParams.has('xsec_token')) url.searchParams.delete('xsec_token');
   const errorPage = /^\\/(404|website-login\\/error)/.test(url.pathname);
   const cards = document.querySelectorAll('section.note-item').length;
-  const text = document.body ? document.body.innerText : '';
+  const text = document.body && !loadError ? document.body.innerText : '';
   const notice = cards === 0
     ? (text.match(/[^\\n]*(安全限制|访问链接异常|登录后查看|请求太频繁|访问频次异常)[^\\n]*/) || [null])[0]
     : null;
@@ -71,23 +76,29 @@ const PAGE_STATE = `(() => {
     title: document.title,
     error_code: errorPage ? url.searchParams.get('error_code') : null,
     notice: notice ? notice.trim().slice(0, 120) : null,
+    load_error: loadError,
     logged_out: loggedIn === false && cards === 0,
     cards,
     counts: window.__foragerXhs || {},
   };
 })()`;
+}
 
 /** Collects the facts about where the page is and what the site said there. */
 export class PageFacts {
-  constructor() {
-    this.facts = { url: '', title: '', guest: false, error_code: null, notice: null, blocked_status: null };
+  /** `tracked` lists the request paths whose completions the page counts. */
+  constructor(tracked = []) {
+    this.script = pageStateScript(tracked);
+    this.facts = {
+      url: '', title: '', guest: false, error_code: null, notice: null, blocked_status: null, load_error: null,
+    };
     this.counts = {};
     this.cards = 0;
   }
 
   /** Reads the page state; returns whether it ends the command. */
   async observe(page) {
-    const state = await page.evaluate(PAGE_STATE);
+    const state = await page.evaluate(this.script);
     this.counts = state.counts || {};
     this.cards = state.cards;
     Object.assign(this.facts, {
@@ -95,6 +106,7 @@ export class PageFacts {
       title: state.title,
       error_code: state.error_code,
       notice: state.notice,
+      load_error: state.load_error,
     });
     if (state.logged_out) this.facts.guest = true;
     return this.ended();
@@ -157,8 +169,9 @@ export async function readExchanges(page) {
  * Waits until `path` has completed more than `seen` times, the page reaches a final state, or
  * the deadline passes. `nudge` runs before each wait round, for example to scroll. With
  * `orRendered`, note cards on the page also count as the completion: the first response of a
- * page can complete before the completion count starts. Returns the exchanges read after the
- * completion, `ended`, or `timed_out`.
+ * page usually completes before the navigation returns and the count starts, and the page clears
+ * its Resource Timing buffer at its load event. Returns the exchanges read after the completion,
+ * `ended`, or `timed_out`.
  */
 export async function awaitCompletion(page, facts, { path, seen, deadline, nudge, nudgeEveryMs, orRendered }) {
   let nudgedAt = 0;

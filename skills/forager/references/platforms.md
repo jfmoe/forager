@@ -276,6 +276,9 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
 - Exit 5 on a Xiaohongshu fetch: the note has no title, text, or images; report it.
 - A `xiaohongshu_browser` `timeout`: retry once with `--timeout 180`; when it times out again,
   report it.
+- A `xiaohongshu_browser` `network` error saying Chrome could not load the page: the browser could
+  not reach Xiaohongshu. Retry once after a short pause; when it fails again, tell the user to
+  check the network in that Chrome.
 - A `xiaohongshu_browser` error that names the forager OpenCLI adapter, or a doctor `message`
   with install steps: repeat the install step in "Xiaohongshu browser route".
 

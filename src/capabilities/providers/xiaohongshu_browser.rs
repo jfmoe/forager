@@ -124,6 +124,9 @@ struct PageFacts {
     notice: Option<String>,
     /// The status of a Xiaohongshu API call that answered 461.
     blocked_status: Option<u16>,
+    /// The network error code, such as `ERR_CONNECTION_CLOSED`, while Chrome shows its own
+    /// error page instead of the Xiaohongshu page.
+    load_error: Option<String>,
 }
 
 /// Fails on the facts that end any Xiaohongshu page read: a logged-out session and risk control
@@ -166,6 +169,20 @@ fn classify_blocks(
         });
     }
     Ok(())
+}
+
+/// Fails a read whose deadline passed while Chrome still showed its own error page: the page
+/// never loaded, so no response was due. Chrome reloads its error page by itself, which is why
+/// the adapter keeps waiting until the deadline.
+fn load_failure(facts: &PageFacts) -> Option<AttemptFailure> {
+    let code = facts.load_error.as_deref()?.trim();
+    Some(AttemptFailure {
+        kind: AttemptErrorKind::Network,
+        status: None,
+        message: format!(
+            "Chrome could not load the Xiaohongshu page ({code}) and had not loaded it again by the read deadline; check the network and retry"
+        ),
+    })
 }
 
 fn describe(facts: &PageFacts) -> String {

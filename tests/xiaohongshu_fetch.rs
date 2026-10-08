@@ -449,6 +449,24 @@ fn a_page_without_the_note_is_a_timeout_only_while_it_stays_on_the_note_page() {
     );
 }
 
+#[test]
+fn a_read_deadline_on_the_browser_load_error_page_is_a_network_failure() {
+    let mut data = json!({"page": note_page(), "note": null, "timed_out": true});
+    data["page"]["title"] = json!("www.xiaohongshu.com");
+    data["page"]["load_error"] = json!("ERR_TIMED_OUT");
+
+    let result = failure(&fetch(&enabled(&fake(&data)), &access_url(), &[]));
+
+    assert_eq!(
+        result,
+        (
+            Some(4),
+            json!("network"),
+            "Chrome could not load the Xiaohongshu page (ERR_TIMED_OUT) and had not loaded it again by the read deadline; check the network and retry".to_owned()
+        )
+    );
+}
+
 fn printed(output: &Output) -> String {
     format!(
         "{}{}",

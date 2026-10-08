@@ -106,7 +106,7 @@ stdout 外壳沿用 `{contract, status, data}`，`contract` 为 `forager-xhs/1`�
 | `note` | `id`、`xsec-token` | `{page, note, comments_state}`：SSR 中的笔记对象（媒体只保留下文用到的字段） |
 | `comments` | `id`、`xsec-token`、`pages`（1–5）、`expand`（0–10） | `{page, responses: [{kind, params, body}]}`：一级评论与楼中楼的响应，`params` 只含 `note_id`、`cursor`、`root_comment_id`、`num`；`expand` 只对读取模块收到的前 `expand` 条可展开一级评论点击 |
 
-`page` 为页面事实：`{url, title, guest, error_code, notice, blocked_status}`。`url` 去掉 `xsec_token` 的值；`guest` 来自 `user/me` 或 `__INITIAL_STATE__.user.loggedIn`；`error_code` 取自跳转 URL（`/404` 或 `website-login/error`）的 `error_code` 参数；`notice` 是页面上"安全限制""访问链接异常""登录后查看"等提示原文；`blocked_status` 是任一小红书接口返回的 461。读取模块看到这些终态事实就停止等待并返回。外壳 `status` 恒为 `ok`；截止点前既没有等到预期响应、也没有出现终态事实时，同样返回页面事实，并带 `timed_out: true`。
+`page` 为页面事实：`{url, title, guest, error_code, notice, blocked_status, load_error}`。`url` 去掉 `xsec_token` 的值；`guest` 来自 `user/me` 或 `__INITIAL_STATE__.user.loggedIn`；`error_code` 取自跳转 URL（`/404` 或 `website-login/error`）的 `error_code` 参数；`notice` 是页面上"安全限制""访问链接异常""登录后查看"等提示原文；`blocked_status` 是任一小红书接口返回的 461；`load_error` 是 Chrome 因导航失败显示自己的错误页时的错误码（实现时加入，见「第一页偶发未完成的原因」）。读取模块看到前五项终态事实就停止等待并返回；`load_error` 不是终态，因为 Chrome 会自行重新加载错误页。外壳 `status` 恒为 `ok`；截止点前既没有等到预期响应、也没有出现终态事实时，同样返回页面事实，并带 `timed_out: true`。
 
 **抓包的完成条件**：`readNetworkCapture()` 是消费式读取，读到的条目不会再次投递；实测点击后立刻读取，会取走一条还没有响应体的搜索响应，导致该页永久丢失。因此读取模块先等页面的 Performance Resource Timing 中出现对应请求的完成记录（`responseEnd > 0`，SSRN 读取模块已用同一信号），再读取抓包；读到的匹配条目仍没有响应体时，在截止点前继续等待同一请求的完整记录，截止点到达仍缺响应体则在事实中记为 `body_missing`，Rust 侧为 Runtime，绝不静默丢弃。`OPTIONS` 预检等非 GET/POST 条目按方法过滤。这一读取循环是否能在慢响应下拿到完整响应体，需要在实现阶段用真实页面验证一次。
 
@@ -118,6 +118,7 @@ Rust 侧按以下顺序分类，排在前面的优先：
 | `blocked_status` 为 461 | Auth，消息提示在 Chrome 中打开小红书，确认没有验证要求后再试 |
 | `error_code` 为 300031 或 300017，或 `notice` 为"安全限制""访问链接异常" | attempt 级 Parameter（消息见「fetch」） |
 | 预期数据存在 | 进入条件核对与解码 |
+| `timed_out` 且 `load_error` 非空 | Network，消息给出错误码 |
 | `timed_out` 且最终 URL 仍是预期页面（搜索结果页或该笔记页） | Timeout |
 | 其他（最终 URL 不是预期页面，包括本次未见过的验证码页；`body_missing`） | Runtime，消息带页面标题与去掉 token 的 URL |
 
@@ -230,6 +231,7 @@ Rust 侧按以下顺序分类，排在前面的优先：
 | 非 Unix 系统 | 支持检查 | route 记为 Skipped，全链不可用时退 2（沿用 process route 规则） |
 | 页面事实为未登录或 HTTP 461 | 飞行后 | Auth，退 4，消息提示在 Chrome 中手动处理 |
 | 300031 / 300017 | 飞行后 | attempt 级 Parameter，退 4 |
+| 截止点时 Chrome 仍显示自己的网络错误页 | 飞行后 | Network，退 4 |
 | 截止点前没有等到预期响应，且仍停在预期页面 | 飞行后 | Timeout，退 4 |
 | 请求体条件、页序、cursor 链、评论所属笔记或根评论、`noteId` 与请求不符；响应体缺失；最终页面不是预期页面；外壳或数据形状不对 | 飞行后 | Runtime，退 4 |
 | 首个搜索响应没有笔记且 `has_more` 为 false | 成功 | `items: []`，退 0 |
@@ -288,13 +290,14 @@ OpenCLI 退出码到 attempt 错误类型的映射完全沿用 `providers/opencl
 
 - **fetch 暂缺时的接入清单**：#187 只交付 search，checklist 曾以待交付操作表豁免 `(xiaohongshu, fetch)` 的 R1、R6、R7 检查。#188 交付 fetch 后已删除该豁免，fetch 的 route 集合、C28 与 fixture `F21` 都已登记。
 - **请求体字段**：OpenCLI Browser Bridge 扩展 1.0.24 的抓包条目以 `requestBodyPreview` 携带请求体（扩展源码 `extension/src/cdp.ts`），与响应体的 `responsePreview` 对应。
-- **抓包完成条件**：扩展在 `readNetworkCapture()` 时取走条目并清空请求索引，此后同一请求的 `loadingFinished` 不再写回响应体，所以读走后"继续等待同一请求"做不到。读取模块改为：Resource Timing 出现完成记录后再等 1 秒（扩展在 `loadingFinished` 后异步取响应体），再读抓包；读到的搜索条目仍无响应体就记为 `body_missing`，不再等待；命令结束或到达截止点时读到的在途请求不是命令等待的响应，不计入。完成记录由页面加载后注册的 `PerformanceObserver`（`buffered: true`）计数。
-- **第一页的完成信号**：第二次真实运行中，第一页响应始终没有被计数，命令一直等到截止点（当时的分类把它报成"筛选点击数不符"）。原因没有确认，最可能是响应在计数开始之前已完成且记录已不在缓冲区。修正：第一页另以页面出现笔记卡片为完成信号（抓包在导航之前开启，响应已在其中）；筛选点击与翻页之后的响应仍以计数为准，因为那时计数已在运行。分类同时调整为先判断截止与页面，再判断点击数：截止时仍在结果页为 Timeout，消息说明完成了几次点击。
+- **抓包完成条件**：扩展在 `readNetworkCapture()` 时取走条目并清空请求索引，此后同一请求的 `loadingFinished` 不再写回响应体，所以读走后"继续等待同一请求"做不到。读取模块改为：Resource Timing 出现完成记录后再等 1 秒（扩展在 `loadingFinished` 后异步取响应体），再读抓包；读到的搜索条目仍无响应体就记为 `body_missing`，不再等待；命令结束或到达截止点时读到的在途请求不是命令等待的响应，不计入。完成记录由 `PerformanceObserver`（`buffered: true`）计数；计数器属于文档，读取模块每次读取页面状态时都确认当前文档已装上计数器（见「第一页偶发未完成的原因」）。
+- **第一页的完成信号**：第二次真实运行中，第一页响应始终没有被计数，命令一直等到截止点（当时的分类把它报成"筛选点击数不符"）。后续实测确认了这一点：页面在 load 事件时清空 Resource Timing 缓冲，而导航要等到 load 事件（或扩展的 15 秒兜底）才返回。修正：第一页另以页面出现笔记卡片为完成信号（抓包在导航之前开启，响应已在其中）；筛选点击与翻页之后的响应仍以计数为准，因为那时计数已在运行。分类同时调整为先判断截止与页面，再判断点击数：截止时仍在结果页为 Timeout，消息说明完成了几次点击。
 - **筛选点击**：沿用 OpenCLI 内置小红书模块已验证的 DOM 结构（`.search-layout__top > .filter` 触发、`.filter-panel` 面板、`.filters` 分组的标签文本、`.tags` 选项），先对触发元素派发悬停事件，面板未出现时再点击它，然后在页面内点击选项。点击失败时读取模块在 `filter_failure` 中写明原因（例如 `no_filter_panel for 排序依据 最新`），route 把它附在 Runtime 消息后。
 - **token 脱敏**：search 的请求不带 token，没有需要按值清理的消息。fetch 的 route 在记录 attempt 之前清理消息，清理的是去掉末尾 `=` 填充后的 token：登录跳转的 `redirectPath` 会把原链接（含 token）再做一到两次百分号编码，`=` 变成 `%3D` 或 `%253D`，而 token 的其余字符（`A-Za-z0-9_-`）在 URL 编码下不变。读取模块回报的 `url` 只删去顶层的 `xsec_token`，嵌套在跳转参数里的 token 由这条规则兜住。
 - **Web Fetch 预检的声明**：注册信息的字段为 `native_full_text`（route 的 fetch 全文是否由它自己读取），所有注册项都声明，只有 `xiaohongshu_browser` 为 true。`plan_fetch` 返回的计划提供 `needs_web_fetch()`：`full_text` 且计划中有任一 route 不读原生正文时为真。
 - **读取模块 `note` 命令**：回报 `{page, note, timed_out}`，暂不回报设计中的 `comments_state`（第二期 comments 才需要）。`note` 只保留 route 解码的字段，视频流只保留各档的宽高，`masterUrl` 与笔记自带的 `xsecToken` 不离开页面。页面渲染出笔记时清空 `notice`：笔记正文或评论里出现"安全限制"等字样不应被当成站点提示。契约版本仍为 `forager-xhs/1`，因为 #187 的读取模块没有发布过。
 - **smoke 停止规则**：小红书用例只执行一次。route 以退出码 4 且 `error_kind` 为 `auth` 或 `parameter` 失败时视为登录墙或封锁（小红书 route 只有站点封锁会产生 attempt 级 Parameter），本轮其余小红书用例不启动，记为 `failed`、`attempts: 0`，消息说明本轮已停止小红书访问；现有报告没有"跳过"状态，`failed` 已满足"不计为通过"。C27 成功但没有 `access_url` 时 C28 同样不启动。C28 把正文写进本用例的临时目录，通过条件为退 0、`ref` 非空且 `content_len` 大于 0。
+- **首次加载失败**：见「第一页偶发未完成的原因」。读取模块改为每次读取页面状态时在当前文档中装上计数器（已有则不重复），并在页面事实中回报 Chrome 错误页的错误码 `load_error`；截止时仍是错误页，route 报 Network 而不是 Timeout。
 - **结果页路径**：真实验收中两次 doctor 检索停在 `/search_result/?keyword=…`（带末尾 `/`），旧的路径判断只认 `/search_result`，把截止时仍在结果页的情况报成 Runtime。现在忽略末尾 `/`，这种情况为 Timeout。
 
 ### 第一期验收
@@ -329,20 +332,49 @@ OpenCLI 退出码到 attempt 错误类型的映射完全沿用 `providers/opencl
 
 新观察：
 
-- **第一页偶发未完成**：同一查询 4 次中有 2 次第一页一直没有被判定完成，两次的最终 URL 都是带末尾 `/`、不带 `type=51` 的 `/search_result/`；成功的两次是不带末尾 `/` 的形式。原因没有确认，可能是页面在两种路由之间跳转后没有再渲染笔记卡片，而第一页响应又不在完成计数里（与 #187 的「第一页的完成信号」同源）。结果是 Timeout 而不是错误数据；deep doctor 因此可能偶发失败，重跑通常能通过。
+- **第一页偶发未完成**：同一查询 4 次中有 2 次第一页一直没有被判定完成，两次的最终 URL 都是带末尾 `/`、不带 `type=51` 的 `/search_result/`；成功的两次是不带末尾 `/` 的形式。原因见「第一页偶发未完成的原因」。
 - **零值计数**：新笔记的 `collects`、`comments`、`shares` 为空字符串 `""`（上游原样），不是 `"0"`。search 与 fetch 都原样输出。
 - **`updated` 早于 `published`**：视频笔记的 `lastUpdateTime` 比 `time` 早约 3 小时，按上游原样输出，不做校正。
 - **图片 URL**：`urlDefault` 形如 `http://sns-webpic-qc.xhscdn.com/<yyyymmddhhmm>/<32 位十六进制>/<文件名>`，路径里带时间与摘要段，可能会过期；本次没有验证它的有效期。
+
+### 第一页偶发未完成的原因
+
+2026-10-09 17:04–17:25 UTC，OpenCLI 1.8.6，用户自己已登录的 Chrome。用一个临时读取模块（site `xhsprobe`，测完删除）按 `search` 的方式打开 `forager doctor` 的结果页，每 0.5 秒记录页面的 URL、`performance.timeOrigin`、导航条目类型、`readyState`、笔记卡片数、计数器与 Resource Timing 条目，结束时读取抓包中的文档请求与搜索请求。共 6 次页面命令，相邻两次之间至少间隔 20 秒，没有出现登录墙、461、300031/300017 或安全限制。
+
+| 观察 | 次数 |
+|---|---|
+| 第一次导航失败：抓包中第一个文档请求没有 HTTP 状态，响应体是 Chrome 自己的网络错误页（`<html dir="ltr" lang="zh">`、`color-scheme` 与 `theme-color` meta，约 180 KB，标题为主机名）；约 1 秒后 Chrome 把它重新加载成新文档，导航条目类型为 `reload`，URL 为服务端跳转后的 `/search_result/?keyword=…&source=…` | 6 次中 2 次 |
+| 重新加载后的文档很慢：首字节 5.2 秒（另一次在 `loading` 状态停留约 20 秒），之后单页应用才把 URL 改成 `/search_result?…&type=51` 并发出搜索请求。命令开始后 12 秒和 28 秒才拿到第一页 | 同上 2 次 |
+| 正常加载：第一页响应在命令开始后 6–13 秒完成，导航（扩展的 `navigate` 等 load 事件，最长 15 秒兜底）在 15.6–16.6 秒才返回 | 4 次 |
+| 页面在 load 事件时调用了 `clearResourceTimings`：Resource Timing 条目从 70–120 条降到个位数，搜索请求的记录随之消失 | 3 次可见 |
+| 后台窗口 `visibilityState` 为 `hidden`，`requestAnimationFrame` 一次也没有触发；笔记卡片在响应之后 0.5–5 秒才出现 | 全部 |
+
+结论：
+
+- **超时的直接原因**：失败的两次第一期运行停在不带 `type=51` 的 `/search_result/`，与上面"重新加载后的文档还没发出搜索"的状态一致。第一次导航在网络层失败，Chrome 显示错误页并自行重新加载；重新加载的文档本身很慢，doctor 的 30 秒预算可能不够。Chrome 的自动重新加载在连续失败时会退避，所以 60 秒的运行同样可能停在这里。网络失败本身不在读取模块控制之内。
+- **读取模块的缺陷**：计数器只在导航返回后装一次。错误页的重新加载恰好发生在导航返回的时刻：两次探测中重新加载分别只比装计数器早 6 毫秒与约 0.4 秒，计数器都落进了新文档；再早一点它就会落进即将被替换的错误页，新文档里的第一页响应不会被计数，只能等笔记卡片出现。现在每次读取页面状态时都确认当前文档已装上计数器，新文档在 `loading` 阶段就开始计数，早于它的搜索请求。
+- **截止时仍是错误页**：读取模块回报 `load_error`（Chrome 错误页中的错误码），route 报 Network，不再报成"返回了 0 页"的 Timeout。
+- **第一页的卡片信号仍然需要**：正常加载时第一页响应在导航返回之前完成，页面又在 load 事件时清空缓冲，计数器只有在 load 晚于 15 秒兜底时才能从缓冲中补到这条记录。
+
+修正后的真实运行（读取模块按 skill 的方式重新安装为 `~/.opencli/clis/forager-xhs`，route 经环境变量 `FORAGER_PLATFORMS__XIAOHONGSHU__ORDER` 启用，相邻两次之间至少间隔 20 秒）：
+
+| 运行 | 命令 | 结果 |
+|---|---|---|
+| 1 | `forager doctor --provider xiaohongshu_browser` | 10 秒，深探通过 |
+| 2 | `forager platform xiaohongshu search 咖啡 --limit 25 --sort latest --publish-time week` | 30 秒，退 0：25 条，ref 无重复，"未列全"诊断 |
+| 3 | 同运行 1 | 18 秒，深探通过 |
+
+运行 2 的 `published_text` 出现了 `N分钟前`、`N小时前`、`N天前`、`1天前` 与 `昨天 HH:MM`（9 条）。
 
 ## 仍未实测的部分
 
 - **token 的有效期上限**：实测到 22 分钟仍有效，更长时间未测。过期表现预计与 300031 相同，已按 Parameter 处理并提示重新搜索。
 - **验证码**：本次没有触发，页面特征未知。读取模块把 461 归为 Auth，把无法识别的页面归为 Runtime，第一次真实遇到时补充特征。
 - **图片 URL 的有效期**：fetch 输出的图片 URL 路径带时间与摘要段，可能会过期，未验证。
-- **第一页偶发未完成**：见「第一期验收（fetch）」，原因未确认。
 - **合法空集**：两个无意义查询都返回了笔记，没能观察到真正的空结果；判定规则按接口字段设计，未经实测。
+- **Chrome 错误页**：`load_error` 的识别（`chrome-error:` 页面中的 `.error-code`）只在本机对一个拒绝连接的端口验证过；小红书上的错误页每次都在命令第一次读取页面状态之前被 Chrome 重新加载掉，所以没有读到过真实错误码。Chrome 连续重新加载失败、退避间隔变长时，命令会以 Network 结束。
 - **相对时间**：第一期验收观察到 `N分钟前`、`N小时前`、`N天前`，按规则输出 `null` 与原文；"昨天"等其他形式仍未出现。
-- **抓包完成条件**：第一期验收中五次成功运行的全部搜索响应都带响应体；慢响应下的表现仍只有这两次样本。第一页响应未被计数的原因没有确认（见「第一期实现记录」）。
+- **抓包完成条件**：第一期验收中五次成功运行的全部搜索响应都带响应体；慢响应下的表现仍只有这两次样本。
 - **楼中楼 cursor**：楼中楼第一页的请求 `cursor` 是否等于 `sub_comment_cursor` 未比较，暂不作为核对条件。
 - **截图驱动渲染的稳定性**：依赖 Chrome 在后台窗口中为截图渲染一帧的行为。若某个 Chrome 版本不再这样，翻页会以 Timeout 失败而不是返回不完整结果，届时再评估。
 - **评论翻页的跨次一致性**：评论顺序在两次运行中第一页相同，但只看了前两条 ID，没有系统比较；comments 不签发 cursor，不依赖这一点。

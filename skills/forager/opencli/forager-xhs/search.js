@@ -1,7 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
 import {
-  PageFacts, SITE, SITE_DOMAIN, awaitCompletion, envelope, readDeadline, readExchanges, trackCompletions,
+  PageFacts, SITE, SITE_DOMAIN, awaitCompletion, envelope, readDeadline, readExchanges,
 } from './shared.js';
 
 const SEARCH_PATH = '/api/sns/web/v2/search/notes';
@@ -92,7 +92,7 @@ cli({
   func: async (page, kwargs) => {
     const deadline = readDeadline(kwargs.timeout);
     const pages = Math.min(MAX_PAGES, Math.max(1, Number(kwargs.pages) || 1));
-    const facts = new PageFacts();
+    const facts = new PageFacts([SEARCH_PATH]);
     const responses = [];
     let filterClicks = 0;
     let filterFailure = null;
@@ -162,7 +162,6 @@ cli({
     await page.startNetworkCapture('xiaohongshu.com');
     const params = new URLSearchParams({ keyword: String(kwargs.query), source: 'web_explore_feed' });
     await page.goto(`https://${SITE_DOMAIN}/search_result?${params}`, { waitUntil: 'load', settleMs: 1000 });
-    await trackCompletions(page, SEARCH_PATH);
     if (!await next(0, null, true)) return finish();
 
     for (const filter of FILTERS) {

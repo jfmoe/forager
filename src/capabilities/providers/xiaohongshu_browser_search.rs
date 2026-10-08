@@ -5,7 +5,9 @@ use std::collections::HashSet;
 use chrono::{Datelike, FixedOffset, NaiveDate, Utc};
 use serde::Deserialize;
 
-use super::{PageFacts, ROUTE, XiaohongshuBrowser, classify_blocks, describe, runtime};
+use super::{
+    PageFacts, ROUTE, XiaohongshuBrowser, classify_blocks, describe, load_failure, runtime,
+};
 use crate::catalog::PlatformOperation;
 use crate::net::{AttemptFailure, combine_diagnostics};
 use crate::providers::execution::execute_anonymous;
@@ -360,6 +362,11 @@ fn incomplete(
 ) -> AttemptFailure {
     let facts = &data.page;
     let clicked = data.filter_clicks == expected.clicks;
+    if data.timed_out
+        && let Some(failure) = load_failure(facts)
+    {
+        return failure;
+    }
     let on_results = is_results_page(&facts.url);
     if data.timed_out && on_results {
         let message = if clicked {

@@ -6,7 +6,8 @@ use chrono::{DateTime, FixedOffset, SecondsFormat};
 use serde::Deserialize;
 
 use super::{
-    PageFacts, ROUTE, XiaohongshuBrowser, classify_blocks, describe, runtime, without_token,
+    PageFacts, ROUTE, XiaohongshuBrowser, classify_blocks, describe, load_failure, runtime,
+    without_token,
 };
 use crate::catalog::PlatformOperation;
 use crate::net::AttemptFailure;
@@ -105,6 +106,11 @@ async fn read_note(
         )
     })?;
     let Some(note) = data.note else {
+        if data.timed_out
+            && let Some(failure) = load_failure(&data.page)
+        {
+            return Err(failure);
+        }
         if data.timed_out && is_note_page(&data.page.url, requested) {
             return Err(AttemptFailure {
                 kind: AttemptErrorKind::Timeout,
