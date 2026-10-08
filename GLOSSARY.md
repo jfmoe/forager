@@ -160,6 +160,10 @@ _Avoid_: OpenCLI plugin、browser script、built-in OpenCLI site adapter
 Platform 实体的类型化身份，由平台、平台自有的 kind 与 id 组成，可以带版本（SSRN 修订论文时 DOI 不变，无法据此推出版本，因此 SSRN ref 不带版本）；它与 canonical URL 可以互相推导。kind 只按身份空间或取回结果形状划分，不按对话角色划分。
 _Avoid_: platform URL、raw id
 
+**Access Token**:
+打开某个平台实体所需、却不属于其身份的访问参数，例如小红书笔记 URL 中的 `xsec_token`。同一实体在不同时间、从不同入口得到的 token 不同；它只在用户自己的登录会话中起作用。它不进入 Platform Ref、canonical URL、Page Cursor 与 Search Result Journal，只出现在 route 构造的访问链接（`access_url`）中；调试输出打码，不可序列化。
+_Avoid_: credential、key、session token、ref version
+
 **Scholar Cluster**:
 Google Scholar 把同一论文的多个版本（出版社页面、预印本、第三方副本）归为一组的身份，以十进制 cluster ID 表示；Google Scholar 的 Platform Ref 指向 cluster，不指向其中某个版本。cluster 里第一个版本不一定是正式出版版本，也可能混入别的论文。
 _Avoid_: scholar paper id、result id、version
@@ -169,7 +173,7 @@ _Avoid_: scholar paper id、result id、version
 _Avoid_: scholar scraper、scholar_serpapi
 
 **Platform Operation**:
-Platform 的一项操作。每个 Platform 都提供 search 与 fetch；改变结果种类或必需输入的操作是新的 Platform Operation，不是参数，例如 Google Scholar 的 Cited-by。
+Platform 的一项操作。每个 Platform 都提供 search 与 fetch（分期接入的 Platform 可以暂缺 fetch，见规格第 7 章）；改变结果种类或必需输入的操作是新的 Platform Operation，不是参数，例如 Google Scholar 的 Cited-by。
 _Avoid_: platform option、sub-command flag
 
 **Cited-by**:
@@ -185,7 +189,7 @@ _Avoid_: web fetch、platform download
 _Avoid_: detail level、verbosity
 
 **Page Cursor**:
-平台检索结果的不透明翻页标识；它完整恢复原请求与下一页位置，只能在产出它的 route 与 Platform Operation 上继续。
+平台检索结果的不透明翻页标识；它完整恢复原请求与下一页位置，只能在产出它的 route 与 Platform Operation 上继续。没有 cursor 只表示无法跨命令续页，不证明结果已读完：小红书每次访问的排序都不同，它的检索从不签发 cursor。
 _Avoid_: offset、page token
 
 **SSRN Search Criteria**:

@@ -32,7 +32,19 @@ fn sample_refs(platform: Platform) -> &'static [&'static str] {
         ],
         Platform::Ssrn => &["ssrn:2042750"],
         Platform::Scholar => &["scholar:18208131694456651388"],
+        Platform::Xiaohongshu => &["xiaohongshu:64a1b2c3d4e5f60718293a4b"],
     }
+}
+
+/// Operations a platform does not provide yet, whose registration points the checklist skips.
+/// Xiaohongshu fetch is tracked in jfmoe/forager#188.
+const PENDING_OPERATIONS: &[(Platform, PlatformOperation)] =
+    &[(Platform::Xiaohongshu, PlatformOperation::Fetch)];
+
+fn provided_operations(platform: Platform) -> impl Iterator<Item = PlatformOperation> {
+    PlatformOperation::ALL
+        .into_iter()
+        .filter(move |operation| !PENDING_OPERATIONS.contains(&(platform, *operation)))
 }
 
 /// The registration points the checklist inspects; tests replace one at a time.
@@ -58,7 +70,7 @@ fn violations(platform: Platform, registry: &Registry<'_>) -> Vec<String> {
     else {
         return vec![violation(platform, "R1", "no platform catalog lists it")];
     };
-    for operation in PlatformOperation::ALL {
+    for operation in provided_operations(platform) {
         if catalog.routes(operation).is_empty() {
             found.push(violation(
                 platform,
@@ -78,7 +90,7 @@ fn violations(platform: Platform, registry: &Registry<'_>) -> Vec<String> {
     for route in catalog.all_routes() {
         check_route(platform, route, registry, &mut found);
     }
-    for operation in PlatformOperation::ALL {
+    for operation in provided_operations(platform) {
         check_operation(
             platform,
             operation,
@@ -288,6 +300,10 @@ fn has_adapter(platform: Platform, operation: PlatformOperation, route: Provider
         serpapi: KeyedHttpRouteRuntimeConfig {
             url: String::new(),
             keys: Vec::new(),
+            timeout_seconds: 1,
+        },
+        xiaohongshu_browser: ProcessRouteRuntimeConfig {
+            command: String::new(),
             timeout_seconds: 1,
         },
     };

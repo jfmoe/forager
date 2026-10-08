@@ -695,13 +695,15 @@ fn item_abstract(item: &PlatformItem) -> Option<&str> {
     match &item.data {
         PlatformItemData::Arxiv(data) => Some(&data.abstract_text),
         PlatformItemData::Ssrn(data) => data.abstract_text.as_deref(),
-        PlatformItemData::Scholar(_) => None,
+        PlatformItemData::Scholar(_) | PlatformItemData::Xiaohongshu(_) => None,
     }
 }
 
 fn item_snippet(item: &PlatformItem) -> Option<&str> {
     match &item.data {
-        PlatformItemData::Arxiv(_) | PlatformItemData::Scholar(ScholarItemData::Cluster(_)) => None,
+        PlatformItemData::Arxiv(_)
+        | PlatformItemData::Scholar(ScholarItemData::Cluster(_))
+        | PlatformItemData::Xiaohongshu(_) => None,
         PlatformItemData::Ssrn(data) => data.snippet.as_deref(),
         PlatformItemData::Scholar(ScholarItemData::Result(data)) => data.snippet.as_deref(),
     }

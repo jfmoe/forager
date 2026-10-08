@@ -29,6 +29,10 @@ use ssrn_search::{SsrnSearchArgs, ssrn_search};
 mod scholar;
 use scholar::ScholarCommand;
 
+#[path = "xiaohongshu.rs"]
+mod xiaohongshu;
+use xiaohongshu::XiaohongshuCommand;
+
 const DEFAULT_TIMEOUT_SECONDS: u64 = 120;
 
 #[derive(Debug, Subcommand)]
@@ -47,6 +51,12 @@ pub(super) enum PlatformCommand {
     Scholar {
         #[command(subcommand)]
         command: ScholarCommand,
+    },
+    /// Search Xiaohongshu (小红书) notes through your own logged-in Chrome; disabled until you
+    /// enable its browser route.
+    Xiaohongshu {
+        #[command(subcommand)]
+        command: XiaohongshuCommand,
     },
 }
 
@@ -234,6 +244,7 @@ pub(super) fn run(command: PlatformCommand) -> Result<CommandOutput, AppError> {
             command: SsrnCommand::Fetch(arguments),
         } => ssrn_fetch(arguments),
         PlatformCommand::Scholar { command } => scholar::run(command),
+        PlatformCommand::Xiaohongshu { command } => xiaohongshu::run(command),
     }
 }
 

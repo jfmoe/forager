@@ -87,6 +87,10 @@ timeout = 30
 command = "opencli"          # 不能为空
 timeout = 90                 # 一次 OpenCLI 命令的 attempt 超时
 
+[providers.xiaohongshu_browser]  # process route：没有 url 与 keys；只选择 OpenCLI 可执行文件
+command = "opencli"          # 不能为空
+timeout = 120                # 一次 OpenCLI 命令的 attempt 超时
+
 [providers.serpapi]          # 需要凭据的平台 route；key 由用户自备（ADR 0021）
 url = "https://serpapi.com/search.json"
 keys = []                    # 为空＝未配置，scholar 平台命令飞行前退 3
@@ -107,6 +111,8 @@ order = ["arxiv_api"]        # 置空＝禁用该平台
 order = ["ssrn_crossref"]    # 加入 "ssrn_browser" 才启用浏览器 route（ADR 0020）
 [platforms.scholar]
 order = ["serpapi"]          # 默认含 serpapi，但没有 key 时不算已配置
+[platforms.xiaohongshu]
+order = []                   # 默认为空；加入 "xiaohongshu_browser" 才启用（第 7 章「小红书」）
 
 [log]
 level = "info"               # error|warn|info|debug|trace；见下方运行时语义
@@ -129,7 +135,7 @@ ssl_verify = true
 
 ### 凭据形状
 
-唯一形状：每个需要凭据的 provider 节一个 `keys` **真数组**（单凭据＝单元素数组）；注册信息声明不需要凭据的 provider（`arxiv_api`、`ssrn_crossref`、`ssrn_browser`）的节没有 `keys`：HTTP route 只有 `url` 与 `timeout`，process route（`ssrn_browser`）只有 `command` 与 `timeout`，写入 `keys` 为未知键（文件层退 3，`config set` 退 2），该 provider 恒为已配置。`*_API_KEY`/`*_API_KEYS` 双形态与「KEYS 覆盖 KEY」优先级消灭。`classifier.keys` 沿用凭据池全套语义（去空去重、轮询、配额/限流失败同请求内换用）。
+唯一形状：每个需要凭据的 provider 节一个 `keys` **真数组**（单凭据＝单元素数组）；注册信息声明不需要凭据的 provider（`arxiv_api`、`ssrn_crossref`、`ssrn_browser`、`xiaohongshu_browser`）的节没有 `keys`：HTTP route 只有 `url` 与 `timeout`，process route（`ssrn_browser`、`xiaohongshu_browser`）只有 `command` 与 `timeout`，写入 `keys` 为未知键（文件层退 3，`config set` 退 2），该 provider 恒为已配置。`*_API_KEY`/`*_API_KEYS` 双形态与「KEYS 覆盖 KEY」优先级消灭。`classifier.keys` 沿用凭据池全套语义（去空去重、轮询、配额/限流失败同请求内换用）。
 
 ### 链序权威
 

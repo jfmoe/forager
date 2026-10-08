@@ -306,8 +306,8 @@ forager anysearch domains DOMAIN [--timeout SECONDS] [--format json|markdown]
 [`platform-vocabulary.json`](platform-vocabulary.json). Platform commands write no result journal.
 Their `--timeout` defaults to `120` and includes waits for the platform's request window, shared
 across all local processes (arXiv: one request every 3 seconds; SSRN through Crossref: one request
-per second; SSRN through the browser: one OpenCLI command every 5 seconds; Google Scholar through
-SerpApi has no local window).
+per second; SSRN through the browser: one OpenCLI command every 5 seconds; Xiaohongshu: one OpenCLI
+command every 10 seconds; Google Scholar through SerpApi has no local window).
 
 ### `platform arxiv search`
 
@@ -547,6 +547,54 @@ outside `1..=20`, a year out of range or `--year-from` after `--year-to`, `--sor
 a search cursor, a tampered cursor, or a cursor combined with a ref, query, option, or `--limit`;
 `3` and `4` as under search.
 
+### `platform xiaohongshu search`
+
+```console
+forager platform xiaohongshu search QUERY [--limit N]
+                                    [--sort comprehensive|latest|most-liked|most-commented|most-collected]
+                                    [--note-type all|image|video] [--publish-time any|day|week|half-year]
+                                    [--timeout SECONDS] [--format json|markdown]
+                                    [--output FILE [--receipt]] [--verbose]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `QUERY` | Search words, typed into Xiaohongshu unchanged; no phrase or operator syntax is promised. | Required |
+| `--limit N` | Results, `1..=100`; one command reads up to five pages of 20. | `20` |
+| `--sort ORDER` | `comprehensive`, `latest`, `most-liked`, `most-commented`, or `most-collected`. | `comprehensive` |
+| `--note-type TYPE` | `all`, `image`, or `video`. | `all` |
+| `--publish-time PERIOD` | `any`, `day`, `week`, or `half-year`. | `any` |
+
+Xiaohongshu is reached only through the opt-in `xiaohongshu_browser` route, which searches in the
+user's own logged-in Chrome through OpenCLI; see "Xiaohongshu browser route" in
+[`platforms.md`](platforms.md). With the default empty `platforms.xiaohongshu.order` the command
+exits `3` before starting any browser and names the steps to enable it. A search takes about 30 to
+60 seconds.
+
+JSON output is `{platform, provider, items, next_cursor}`. Each item has:
+
+| Field | Meaning |
+| --- | --- |
+| `ref`, `url` | `xiaohongshu:<note_id>` and the note's canonical page, which does not open without an access token. |
+| `depth` | Always `metadata`: a result card has no body text. |
+| `title`, `authors` | The card title (may be `""`) and the author's nickname. |
+| `published` | `YYYY-MM-DD`, or `null` when the card shows a relative time such as `3天前`. |
+| `published_text` | The card's time text exactly as shown. |
+| `note_type`, `author_id` | `image` or `video`, and the author's user ID. |
+| `likes`, `collects`, `comments`, `shares` | Counts as Xiaohongshu shows them, possibly abbreviated such as `1.2万`. |
+| `access_url` | The note URL with its access token; the link that opens the note. |
+
+`next_cursor` is always `null`: Xiaohongshu ranks differently on every visit, so a search cannot
+continue in a later command. When more results remain, stderr says so; raise `--limit` instead.
+Notes without a valid ID or access token are skipped and reported on stderr. A valid empty search
+returns `items: []` with exit 0.
+
+Exit codes: `2` before any request for a blank query or `--limit` outside `1..=100`; `3` for an
+empty `platforms.xiaohongshu.order`; `4` for `auth` (the Chrome session is logged out, or
+Xiaohongshu answered 461 and wants a verification), `parameter` (a security restriction such as
+`300031` or `300017`), `timeout` (the results did not arrive before the deadline), and `runtime`
+(the page or the responses did not match the request, or the adapter is missing or outdated).
+
 ## Configuration and diagnostics
 
 ### `config`
@@ -592,16 +640,17 @@ forager doctor [--provider PROVIDER] [--timeout SECONDS] [--format json|markdown
 
 | Option | Meaning | Default |
 | --- | --- | --- |
-| `--provider PROVIDER` | Deep-probe one of `xai`, `openai_compatible`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, `anysearch`, `arxiv_api`, `ssrn_crossref`, `ssrn_browser`, or `serpapi`. Without it, run the shallow all-provider report. | Omitted |
+| `--provider PROVIDER` | Deep-probe one of `xai`, `openai_compatible`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, `anysearch`, `arxiv_api`, `ssrn_crossref`, `ssrn_browser`, `serpapi`, or `xiaohongshu_browser`. Without it, run the shallow all-provider report. | Omitted |
 | `--timeout SECONDS` | Set the diagnostic deadline. | `30` |
 | `--format FORMAT` | Use `json` or `markdown`. | `json` |
 
 Use `doctor` for credentials, connectivity, provider responses, and effective configuration
 inspection. In shallow mode, `ok` covers every configured provider: if any configured provider is
-unreachable, the top-level result is false and the command uses exit code 4. The browser route
-`ssrn_browser` is checked only when `platforms.ssrn.order` lists it: doctor runs its OpenCLI
-`contract` command, and a failed check carries a `message` with install steps; `--provider ssrn_browser`
-also needs the route in the order. `--provider serpapi` runs no search and costs nothing: it asks
+unreachable, the top-level result is false and the command uses exit code 4. The browser routes
+`ssrn_browser` and `xiaohongshu_browser` are checked only when their platform's order lists them:
+doctor runs their OpenCLI `contract` command, and a failed check carries a `message` with install
+steps; `--provider ssrn_browser` or `--provider xiaohongshu_browser` also needs the route in the
+order and runs one real search in Chrome. `--provider serpapi` runs no search and costs nothing: it asks
 SerpApi's account endpoint about every configured key and adds a `keys` array, one entry per key
 with `key_index`, `ok`, `searches_left`, `plan_searches_left`, `this_month_usage`,
 `this_hour_searches`, and `hourly_limit`, plus `error_kind` for a failing key (`auth`,

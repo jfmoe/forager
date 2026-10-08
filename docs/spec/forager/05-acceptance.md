@@ -67,13 +67,14 @@
 | C24 | serpapi | platform scholar：search（`platform scholar search` 直连；只在 `providers.serpapi.keys` 非空时运行，计 1 次 SerpApi 额度） | HTTP |
 | C25 | serpapi | platform scholar：fetch（`platform scholar fetch scholar:18208131694456651388 --depth metadata`；只在有 key 时运行，计 1 次额度） | HTTP |
 | C26 | serpapi | platform scholar：cited_by（`platform scholar cited-by scholar:18208131694456651388 --limit 3`；只在有 key 时运行，计 1 次额度） | HTTP |
+| C27 | xiaohongshu_browser | platform xiaohongshu：search（`platform xiaohongshu search 咖啡 --limit 25 --sort latest --publish-time week`，覆盖非默认筛选与第 2 页；只在 `platforms.xiaohongshu.order` 含该 route 时运行；需要真实 OpenCLI、已登录小红书的 Chrome 与已安装的读取模块；只执行一次） | process |
 
 AnySearch **extraction 裁决**（消解 #53 砍 `anysearch-extract` 与 #59 L8 原文的矛盾）：extraction 本质为纯 fetch，**彻底删除**——不保留内部操作、不入矩阵、不入 registry。
 
 - 断言统一：退 0 + 可解析 + 该 seam 形状非空 + 无 Parse/Runtime 类 ErrorKind；不断言内容质量。失败模式排列全留 offline-e2e。
-- 抗瞬时故障（H13）：金丝雀查询固定；每用例最多重试 2 次（共 3 次尝试）。失败可按 **outage 豁免规则**延期：证据须为 provider 官方状态页异常，或规格外最小独立探测（如 `curl` 同端点）同样失败；留档记录 case ID、时间戳、证据链接。**豁免仅延期、不计 PASS**——必须择日重跑转绿后才能过切换门；不设定时哨兵。
+- 抗瞬时故障（H13）：金丝雀查询固定；每用例最多重试 2 次（共 3 次尝试）。**例外**：小红书用例（C27）只执行一次、不重试，因为对处于风控状态的账号重复访问会加重风控；失败即记为失败。失败可按 **outage 豁免规则**延期：证据须为 provider 官方状态页异常，或规格外最小独立探测（如 `curl` 同端点）同样失败；留档记录 case ID、时间戳、证据链接。**豁免仅延期、不计 PASS**——必须择日重跑转绿后才能过切换门；不设定时哨兵。
 - 凭据只走统一体系（`keys` + `FORAGER_` env）；废除 `ANYSEARCH_API_KEY(S)` 特读与 `ANYSEARCH_LIVE_ACCEPTANCE` 分档。退出码：全 PASS（SKIP 不计）→0、任一已配置凭据探测失败→4、配置坏→3。
-- 档次落流程不落旗标：每里程碑跑 L0 全绿 + 手动 P1/P2/C14；切换前跑 `smoke --live` 全量（P1–P2 + C01–C26）；live 档不进 PR CI。
+- 档次落流程不落旗标：每里程碑跑 L0 全绿 + 手动 P1/P2/C14；切换前跑 `smoke --live` 全量（P1–P2 + C01–C27）；live 档不进 PR CI。
 
 ## Medium 落地件（补充决议② M17–M21 定稿）
 
@@ -98,3 +99,5 @@ AnySearch **extraction 裁决**（消解 #53 砍 `anysearch-extract` 与 #59 L8 
 SSRN Crossref 高级检索的搜索专用实测记录见 [2026-09-28 验收](../../research/2026-09-28-ssrn-crossref-advanced-search.md)。动态结果数量不作为离线测试断言。
 
 SSRN browser 高级搜索的 fixture 覆盖完整条件 argv 与 cursor，进程内覆盖跨 route 支持拒绝及实际状态不一致；doctor 核对 `forager-ssrn/3`。原站搜索范围、模式、日期、排序、作者、分页和会话条件切换的真实验收见 [browser 高级搜索验收](../../research/2026-09-28-ssrn-browser-advanced-search.md)。
+
+小红书 search 的 transport fixture 为 `(xiaohongshu_browser, platform:xiaohongshu:search)`：假 OpenCLI 输出按实测结构录制的外壳，进程级测试覆盖页面事实分类、条件与页序核对、去重截断、合法空集与"未列全"诊断，期望值为字面量；doctor 核对 `forager-xhs/1`。读取模块的筛选点击、翻页与抓包完成条件不由 fixture 证明，由 C27 与每期一次的真实页面验收证明（记录见 [小红书 OpenCLI route 设计](../../design/2026-10-08-xiaohongshu-opencli-route.md)「第一期验收」）。

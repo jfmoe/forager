@@ -11,7 +11,7 @@ use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-use crate::catalog::{self, PlatformOperation, ProviderId};
+use crate::catalog::{self, PlatformOperation, ProviderId, ProviderTransport};
 use crate::chain::{
     self, BudgetPolicy, ChainSettings, ChainStep, DiagnosticMerge, StepIdentity, StepSuccess,
     StepVerdict, TerminalPolicy,
@@ -387,7 +387,7 @@ pub(crate) fn plan_routes<C: Clone>(
             .map(|candidate| config::provider_keys_key(candidate.id.name()))
             .collect::<Vec<_>>();
         let hint = if missing_keys.is_empty() {
-            String::new()
+            opt_in_hint(order_key, operation_routes, candidates)
         } else {
             format!("; set {}", missing_keys.join(" or "))
         };
@@ -425,6 +425,27 @@ pub(crate) fn plan_routes<C: Clone>(
         )));
     }
     Ok(plan)
+}
+
+/// Says how to enable the operation's process routes that the order leaves out. They drive the
+/// user's own browser, so only the user can enable them (ADR 0020).
+fn opt_in_hint<C>(
+    order_key: &str,
+    operation_routes: &[ProviderId],
+    candidates: &[RouteCandidate<'_, C>],
+) -> String {
+    operation_routes
+        .iter()
+        .filter(|route| !candidates.iter().any(|candidate| candidate.id == **route))
+        .filter_map(|route| match catalog::registration(*route).transport {
+            ProviderTransport::OpenCli(adapter) => Some(format!(
+                "; to use {route}, install the forager OpenCLI adapter `{site}` (copy the `opencli/{site}` directory of the forager skill to `~/.opencli/clis/{site}`), open the site in the Chrome that OpenCLI drives and log in if it asks, then add `{route}` to {order_key}",
+                route = route.name(),
+                site = adapter.site,
+            )),
+            ProviderTransport::Http => None,
+        })
+        .collect()
 }
 
 /// Encodes `v1.<route>.<payload>`; the payload restores the complete request and page.

@@ -6,7 +6,8 @@ use super::constructors::{credentials, route_limiter};
 use super::{
     ArxivApi, DocsSearch, KeyAccount, MainSearch, ModelBreakers, PlatformFetch, PlatformSearch,
     ProviderId, Serpapi, SsrnBrowser, SsrnCrossref, SupplementalSearch, VerticalSearch, WebFetch,
-    WebSearch, arxiv, opencli, serpapi, ssrn_browser, ssrn_crossref, web_fetch,
+    WebSearch, XiaohongshuBrowser, arxiv, opencli, serpapi, ssrn_browser, ssrn_crossref, web_fetch,
+    xiaohongshu_browser,
 };
 use crate::catalog::{ProviderTransport, VERTICAL_SEARCH, WEB_FETCH, WEB_SEARCH, registration};
 use crate::config::{
@@ -135,6 +136,9 @@ pub(crate) fn build_platform_search(
         PlatformRouteConfig::Serpapi(config) => {
             Box::new(build_serpapi(config, client, retry_policy, deadline))
         }
+        PlatformRouteConfig::XiaohongshuBrowser(config) => {
+            Box::new(build_xiaohongshu_browser(config, deadline))
+        }
     }
 }
 
@@ -154,6 +158,9 @@ pub(crate) fn build_platform_fetch(
         PlatformRouteConfig::SsrnBrowser(config) => Box::new(build_ssrn_browser(config, deadline)),
         PlatformRouteConfig::Serpapi(config) => {
             Box::new(build_serpapi(config, client, retry_policy, deadline))
+        }
+        PlatformRouteConfig::XiaohongshuBrowser(_) => {
+            unreachable!("the platform catalog lists no xiaohongshu fetch route")
         }
     }
 }
@@ -230,6 +237,18 @@ fn build_ssrn_browser(config: ProcessRouteRuntimeConfig, deadline: Deadline) -> 
     )
 }
 
+fn build_xiaohongshu_browser(
+    config: ProcessRouteRuntimeConfig,
+    deadline: Deadline,
+) -> XiaohongshuBrowser {
+    XiaohongshuBrowser::new(
+        config,
+        route_limiter(ProviderId::XiaohongshuBrowser)
+            .expect("xiaohongshu_browser registration declares an access policy"),
+        deadline,
+    )
+}
+
 fn build_serpapi(
     mut config: KeyedHttpRouteRuntimeConfig,
     client: Client,
@@ -251,6 +270,7 @@ pub(crate) fn platform_search_support(
         ProviderId::SsrnCrossref => ssrn_crossref::search_support(request),
         ProviderId::SsrnBrowser => ssrn_browser::search_support(request),
         ProviderId::Serpapi => serpapi::search_support(request),
+        ProviderId::XiaohongshuBrowser => xiaohongshu_browser::search_support(request),
         _ => return None,
     };
     Some(transport_support(id).and(route))

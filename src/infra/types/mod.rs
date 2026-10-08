@@ -10,6 +10,7 @@ mod platform_arxiv;
 mod platform_scholar;
 mod platform_ssrn;
 mod platform_ssrn_search;
+mod platform_xiaohongshu;
 mod research;
 mod search;
 
@@ -43,6 +44,11 @@ pub use platform_ssrn::{SsrnItemData, SsrnRef};
 pub use platform_ssrn_search::{
     SsrnDatePreset, SsrnDateRange, SsrnSearchMode, SsrnSearchOptions, SsrnSearchScope, SsrnSort,
     SsrnSortOrder, SsrnWorkType,
+};
+pub(crate) use platform_xiaohongshu::AccessToken;
+pub use platform_xiaohongshu::{
+    XiaohongshuItemData, XiaohongshuNoteType, XiaohongshuPublishTime, XiaohongshuRef,
+    XiaohongshuSearchOptions, XiaohongshuSort,
 };
 pub(crate) use research::DocumentationEvidence;
 pub use research::{

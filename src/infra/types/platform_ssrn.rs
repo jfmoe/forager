@@ -37,7 +37,7 @@ impl SsrnRef {
             .and_then(Self::from_id)
             .ok_or_else(|| PlatformRefError {
                 platform: Platform::Ssrn,
-                input: input.to_owned(),
+                input: Some(input.to_owned()),
                 hint: "pass an `ssrn:<id>` ref, an SSRN abstract page URL, or a 10.2139/ssrn.<id> DOI",
             })
     }

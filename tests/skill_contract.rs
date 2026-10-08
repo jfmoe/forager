@@ -2,6 +2,8 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::Path;
 
+use clap::CommandFactory;
+use forager::app::Cli;
 use forager::types::{Platform, PlatformRef, ResearchPlan};
 
 #[test]
@@ -149,10 +151,19 @@ fn every_relative_link_in_the_skill_resolves_to_a_file() {
 fn cli_reference_documents_every_platform_operation() {
     let reference =
         fs::read_to_string(skill_path("references/cli.md")).expect("read CLI reference");
-    let missing = Platform::ALL
-        .into_iter()
+    let command = Cli::command();
+    let missing = command
+        .find_subcommand("platform")
+        .expect("platform command")
+        .get_subcommands()
         .flat_map(|platform| {
-            ["search", "fetch"].map(|operation| format!("### `platform {platform} {operation}`"))
+            platform.get_subcommands().map(move |operation| {
+                format!(
+                    "### `platform {} {}`",
+                    platform.get_name(),
+                    operation.get_name()
+                )
+            })
         })
         .filter(|heading| !reference.contains(heading.as_str()))
         .collect::<Vec<_>>();

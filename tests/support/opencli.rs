@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use serde_json::{Value, json};
 
 const CONTRACT: &str = "forager-ssrn/3";
+pub(crate) const XHS_CONTRACT: &str = "forager-xhs/1";
 
 const CALL_END: &str = "<<end of call>>";
 
@@ -27,8 +28,13 @@ impl FakeOpenCli {
     }
 
     pub(crate) fn envelope(status: &str, data: &Value) -> Self {
+        Self::contract_envelope(CONTRACT, status, data)
+    }
+
+    /// Answers an envelope of another adapter contract.
+    pub(crate) fn contract_envelope(contract: &str, status: &str, data: &Value) -> Self {
         Self::answering(
-            &json!({"contract": CONTRACT, "status": status, "data": data}).to_string(),
+            &json!({"contract": contract, "status": status, "data": data}).to_string(),
             "",
             0,
         )
@@ -109,8 +115,13 @@ impl FakeOpenCli {
     }
 
     pub(crate) fn config(&self, order: &str) -> String {
+        self.route_config("ssrn_browser", "ssrn", order)
+    }
+
+    /// Points `route` at this fake and sets the order of `platform`.
+    pub(crate) fn route_config(&self, route: &str, platform: &str, order: &str) -> String {
         format!(
-            "[providers.ssrn_browser]\ncommand = {:?}\n\n[platforms.ssrn]\norder = {order}\n",
+            "[providers.{route}]\ncommand = {:?}\n\n[platforms.{platform}]\norder = {order}\n",
             self.executable().display().to_string()
         )
     }

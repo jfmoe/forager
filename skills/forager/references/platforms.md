@@ -13,6 +13,10 @@ example, `x.com` links keep the authenticated-client guidance).
   returns the platform ref, metadata, and the content its routes can read.
 - **Platform-only results, or platform options** (category, author, title, date range, sort): run
   `forager platform <id> search QUERY`. Set only options the request states or clearly implies.
+- **Xiaohongshu (小红书) notes**: only `forager platform xiaohongshu search QUERY` exists so far;
+  there is no Xiaohongshu fetch yet. For a xiaohongshu.com link, give the user the link (or a
+  result's `access_url`) to open; `forager fetch` cannot read it, because the page needs the
+  user's login.
 - **Papers citing a known paper** (follow-up work, replications, or rebuttals): run
   `forager platform scholar cited-by 'REF_OR_URL'`; see "Google Scholar cited-by".
 
@@ -33,6 +37,8 @@ Every item carries `depth`, the content it actually holds: `metadata` (bibliogra
 - **SSRN search** items from `ssrn_crossref` are `abstract` or `metadata`; items from
   `ssrn_browser` are `snippet` (`metadata` for a result card without an excerpt). A browser page never spans two SSRN result pages, so it can hold
   fewer items than `--limit`; follow `next_cursor` for more.
+- **Xiaohongshu** search items are `metadata`: the card title, author, date, and counts, never the
+  note body.
 - **Scholar** search items are `snippet` (`metadata` for a result without an excerpt); `fetch` is
   `metadata` only and lists the paper's versions. Google Scholar holds no body; read it from the
   source, see "Read a Scholar paper".
@@ -137,6 +143,26 @@ only when the user asks for it; it runs at most one browser command every 5 seco
   this order, a `--depth abstract` fetch that Crossref cannot serve falls through to the browser.
   Set `providers.ssrn_browser.command` when `opencli` is not on `PATH`.
 
+## Xiaohongshu browser route
+
+`xiaohongshu_browser` searches Xiaohongshu in the user's own Chrome through OpenCLI, using the
+account the user is logged in with. It is off by default; enable it only when the user asks for
+it. It runs at most one browser command every 10 seconds and never retries. Xiaohongshu's user
+agreement forbids scraping and the site rate-limits accounts: tell the user that the searches run
+under their account, suggest a secondary account, and keep the number of searches small.
+
+- **Install** (verified with OpenCLI 1.8.6): OpenCLI with its Chrome Browser Bridge connected
+  (`opencli doctor`), then copy the `opencli/forager-xhs` directory next to this skill's `SKILL.md`
+  to `~/.opencli/clis/forager-xhs` (replace the whole directory to update), and run
+  `forager doctor`. The required contract is `forager-xhs/1`.
+- **Log in**: the user opens xiaohongshu.com in the Chrome that OpenCLI drives and logs in there.
+  Never log in, solve a verification, or switch accounts for them.
+- **Enable**: `forager config set platforms.xiaohongshu.order '["xiaohongshu_browser"]'`. Set
+  `providers.xiaohongshu_browser.command` when `opencli` is not on `PATH`.
+- **Search**: set `--sort`, `--note-type`, and `--publish-time` only when the request implies them.
+  A search cannot continue in a later command (`next_cursor` is always `null`); when stderr says
+  more results remain, rerun once with a larger `--limit` (at most 100) rather than paging.
+
 ## Read full text
 
 A full-text fetch writes the body to a Markdown file and stdout carries only metadata and
@@ -189,6 +215,14 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
   count a search reports, not the number of versions a fetch lists (at most 20, often fewer); never
   report one as the other.
 
+- **Xiaohongshu evidence**: cite the ref (`xiaohongshu:<note_id>`) with the title, and give the
+  user the `access_url` to open the note; the canonical `url` does not open without the access
+  token. A search item is a card, not the note: it supports claims about the title, author, date,
+  and counts only. `published` is `null` for a relative time such as `3天前`; quote
+  `published_text` instead. Counts are Xiaohongshu's display text (`1.2万`), not exact numbers.
+  Results are personalized and change between runs; do not present them as a complete or stable
+  ranking.
+
 ## Recover
 
 - Exit 2 naming an unsupported option: retry once without that option and tell the user which
@@ -218,6 +252,16 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
   open SSRN in Chrome and pass the check by hand, then retry. Never try to pass it for them.
 - An `ssrn_browser` error that names the forager OpenCLI adapter, or a doctor `message` with
   install steps: repeat the install step in "SSRN browser route".
+- A `xiaohongshu_browser` `auth` error: the Chrome session is logged out, or Xiaohongshu wants a
+  verification (461). Ask the user to open xiaohongshu.com in Chrome, log in or complete the check
+  by hand, then retry once.
+- A `xiaohongshu_browser` `parameter` error naming `300031`, `300017`, or a security restriction:
+  Xiaohongshu is limiting the account. Stop using Xiaohongshu for this task, tell the user, and do
+  not retry; it may clear after a long pause.
+- A `xiaohongshu_browser` `timeout`: retry once with `--timeout 180`; when it times out again,
+  report it.
+- A `xiaohongshu_browser` error that names the forager OpenCLI adapter, or a doctor `message`
+  with install steps: repeat the install step in "Xiaohongshu browser route".
 
 Platform retrieval is complete when the requested items or content are read at the depth the answer
 needs, or a terminal failure is reported with its recovery.

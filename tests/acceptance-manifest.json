@@ -153,6 +153,13 @@
       "seam": "platform:scholar:cited_by",
       "test": "tests/scholar_cited_by.rs::cited_by_decodes_citing_works_like_search_results",
       "note": "cited-by is a single-route platform operation outside the platform catalog; the platform checklist matches this entry against the provider factory's cited-by routes."
+    },
+    {
+      "id": "F20",
+      "provider": "xiaohongshu_browser",
+      "seam": "platform:xiaohongshu:search",
+      "test": "tests/xiaohongshu_search.rs::search_reads_the_pages_after_the_last_filter_click_into_note_items",
+      "note": "A fake opencli executable answering live-shaped page facts proves the transport, the page-fact classification, the condition checks, and the decoding; the JavaScript adapter is covered only by the live smoke C27."
     }
   ],
   "offline_e2e": [

@@ -14,6 +14,7 @@ use super::platform_arxiv::{ArxivItemData, ArxivRef, ArxivSearchOptions};
 use super::platform_scholar::{ScholarItemData, ScholarRef, ScholarSearchOptions};
 use super::platform_ssrn::{SsrnItemData, SsrnRef};
 use super::platform_ssrn_search::SsrnSearchOptions;
+use super::platform_xiaohongshu::{XiaohongshuItemData, XiaohongshuRef, XiaohongshuSearchOptions};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -25,11 +26,13 @@ pub enum Platform {
     Ssrn,
     /// Google Scholar, an index of papers across publishers.
     Scholar,
+    /// Xiaohongshu (小红书), a social platform of user notes.
+    Xiaohongshu,
 }
 
 impl Platform {
     /// Every built-in platform.
-    pub const ALL: [Self; 3] = [Self::Arxiv, Self::Ssrn, Self::Scholar];
+    pub const ALL: [Self; 4] = [Self::Arxiv, Self::Ssrn, Self::Scholar, Self::Xiaohongshu];
 
     /// Returns the stable platform identifier used by commands and configuration.
     #[must_use]
@@ -38,6 +41,7 @@ impl Platform {
             Self::Arxiv => "arxiv",
             Self::Ssrn => "ssrn",
             Self::Scholar => "scholar",
+            Self::Xiaohongshu => "xiaohongshu",
         }
     }
 }
@@ -79,12 +83,22 @@ impl ContentDepth {
 }
 
 #[derive(Debug, Error)]
-#[error("unrecognized {platform} reference `{input}`; {hint}")]
 /// An input that is not a recognizable reference or original URL for the platform.
 pub struct PlatformRefError {
     pub(super) platform: Platform,
-    pub(super) input: String,
+    /// The input to echo, or `None` for a platform whose URLs may carry an access token.
+    pub(super) input: Option<String>,
     pub(super) hint: &'static str,
+}
+
+impl fmt::Display for PlatformRefError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "unrecognized {} reference", self.platform)?;
+        if let Some(input) = &self.input {
+            write!(formatter, " `{input}`")?;
+        }
+        write!(formatter, "; {}", self.hint)
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -99,6 +113,8 @@ pub enum PlatformRef {
     Ssrn(SsrnRef),
     /// A Google Scholar paper cluster.
     Scholar(ScholarRef),
+    /// A Xiaohongshu note.
+    Xiaohongshu(XiaohongshuRef),
 }
 
 impl PlatformRef {
@@ -112,6 +128,7 @@ impl PlatformRef {
             Platform::Arxiv => ArxivRef::parse(input).map(Self::Arxiv),
             Platform::Ssrn => SsrnRef::parse(input).map(Self::Ssrn),
             Platform::Scholar => ScholarRef::parse(input).map(Self::Scholar),
+            Platform::Xiaohongshu => XiaohongshuRef::parse(input).map(Self::Xiaohongshu),
         }
     }
 
@@ -122,6 +139,7 @@ impl PlatformRef {
             Self::Arxiv(_) => Platform::Arxiv,
             Self::Ssrn(_) => Platform::Ssrn,
             Self::Scholar(_) => Platform::Scholar,
+            Self::Xiaohongshu(_) => Platform::Xiaohongshu,
         }
     }
 
@@ -130,6 +148,7 @@ impl PlatformRef {
     pub const fn kind(&self) -> &'static str {
         match self {
             Self::Arxiv(_) | Self::Ssrn(_) | Self::Scholar(_) => "paper",
+            Self::Xiaohongshu(_) => "note",
         }
     }
 
@@ -140,6 +159,7 @@ impl PlatformRef {
             Self::Arxiv(reference) => reference.canonical_url(),
             Self::Ssrn(reference) => reference.canonical_url(),
             Self::Scholar(reference) => reference.canonical_url(),
+            Self::Xiaohongshu(reference) => reference.canonical_url(),
         }
     }
 }
@@ -150,6 +170,7 @@ impl fmt::Display for PlatformRef {
             Self::Arxiv(reference) => write!(formatter, "arxiv:{reference}"),
             Self::Ssrn(reference) => write!(formatter, "ssrn:{reference}"),
             Self::Scholar(reference) => write!(formatter, "scholar:{reference}"),
+            Self::Xiaohongshu(reference) => write!(formatter, "xiaohongshu:{reference}"),
         }
     }
 }
@@ -170,6 +191,8 @@ pub enum PlatformSearchOptions {
     Ssrn(SsrnSearchOptions),
     /// Google Scholar options.
     Scholar(ScholarSearchOptions),
+    /// Xiaohongshu options.
+    Xiaohongshu(XiaohongshuSearchOptions),
 }
 
 impl PlatformSearchOptions {
@@ -180,6 +203,7 @@ impl PlatformSearchOptions {
             Platform::Arxiv => Self::Arxiv(ArxivSearchOptions::default()),
             Platform::Ssrn => Self::Ssrn(SsrnSearchOptions::default()),
             Platform::Scholar => Self::Scholar(ScholarSearchOptions::default()),
+            Platform::Xiaohongshu => Self::Xiaohongshu(XiaohongshuSearchOptions::default()),
         }
     }
 
@@ -190,6 +214,7 @@ impl PlatformSearchOptions {
             Self::Arxiv(_) => Platform::Arxiv,
             Self::Ssrn(_) => Platform::Ssrn,
             Self::Scholar(_) => Platform::Scholar,
+            Self::Xiaohongshu(_) => Platform::Xiaohongshu,
         }
     }
 }
@@ -213,6 +238,9 @@ impl PlatformSearchRequest {
             PlatformSearchOptions::Arxiv(options) => options.validate(&self.query, self.limit),
             PlatformSearchOptions::Ssrn(options) => options.validate(&self.query, self.limit),
             PlatformSearchOptions::Scholar(options) => options.validate(&self.query, self.limit),
+            PlatformSearchOptions::Xiaohongshu(_) => {
+                XiaohongshuSearchOptions::validate(&self.query, self.limit)
+            }
         }
     }
 }
@@ -241,6 +269,8 @@ pub enum PlatformItemData {
     Ssrn(SsrnItemData),
     /// Google Scholar metadata.
     Scholar(ScholarItemData),
+    /// Xiaohongshu note-card fields.
+    Xiaohongshu(XiaohongshuItemData),
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -250,7 +280,9 @@ pub struct PlatformSearchPage {
     /// The route that produced the page.
     pub provider: &'static str,
     pub items: Vec<PlatformItem>,
-    /// An opaque cursor for the next page, or `null` on the last page.
+    /// An opaque cursor for the next page, or `null` when the route issues no cursor that
+    /// another command can continue from. `null` alone does not prove the results are
+    /// exhausted: Xiaohongshu search never issues a cursor.
     pub next_cursor: Option<String>,
     #[serde(rename = "provider_attempts", skip_serializing_if = "Vec::is_empty")]
     pub attempts: Vec<ProviderAttempt>,

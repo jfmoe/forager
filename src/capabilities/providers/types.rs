@@ -6,7 +6,7 @@ use chrono::{Datelike, Local, Weekday};
 use super::{
     Anysearch, AnysearchSearchRequest, ArxivApi, Context7, Context7DocsRequest,
     Context7LibraryRequest, Exa, ExaSearchRequest, OpenAiCompatible, SearchType, Serpapi,
-    SsrnBrowser, SsrnCrossref, SupplementalSearch, Xai,
+    SsrnBrowser, SsrnCrossref, SupplementalSearch, Xai, XiaohongshuBrowser,
 };
 use crate::redact::redact_url;
 use crate::types::{
@@ -174,6 +174,16 @@ impl PlatformSearch for Serpapi {
     ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>
     {
         Box::pin(Serpapi::search(self, request))
+    }
+}
+
+impl PlatformSearch for XiaohongshuBrowser {
+    fn search<'a>(
+        &'a self,
+        request: &'a PlatformSearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(XiaohongshuBrowser::search(self, request))
     }
 }
 

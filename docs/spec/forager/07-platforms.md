@@ -1,6 +1,6 @@
 # 7. 平台接入
 
-本章是接入任何内置平台的权威契约。新增或修改平台时先读本章，并保持新平台 checklist 测试（`src/core/platform_checklist.rs`）通过。决策依据见 ADR 0019；arXiv 是参考实现，各节以它举例；SSRN 是第二个平台，Google Scholar 是第三个平台，见文末。
+本章是接入任何内置平台的权威契约。新增或修改平台时先读本章，并保持新平台 checklist 测试（`src/core/platform_checklist.rs`）通过。决策依据见 ADR 0019；arXiv 是参考实现，各节以它举例；SSRN 是第二个平台，Google Scholar 是第三个平台，小红书是第四个平台，见文末。
 
 ## 概念与规则
 
@@ -27,9 +27,9 @@
 
 ## 必须提供的操作与输出形状
 
-- 每个平台都提供 **search** 与 **fetch**，命令为 `forager platform <id> search|fetch`。
+- 每个平台都提供 **search** 与 **fetch**，命令为 `forager platform <id> search|fetch`。分期接入的平台可以暂缺 fetch：小红书第一期只提供 search，它的 fetch 在 checklist 的待交付操作表（`PENDING_OPERATIONS`，引 #188）中豁免 R1、R6、R7 的 fetch 检查，catalog 的 fetch route 集合暂为空；fetch 交付时删除该豁免。
 - **search 结果页**：`{platform, provider, items, next_cursor}`；`provider` 是产出该页的 route；`--verbose` 时附 `provider_attempts`（含 Skipped attempt）。每个 item 含 `ref`、canonical `url`、`depth`、`title`、`authors`、`published`，以及平台自有字段（与公共字段同层）。
-- **cursor**：不透明值，格式 `v1.<route>.<payload>`，payload 能完整恢复上一次请求的查询词、选项、limit 与下一页位置。带 cursor 的请求只在产出它的 route 上执行，不 fallback；该 route 必须仍在当前 order 中、支持该操作且已配置。cursor 与显式传入的查询词、L1 选项或 `--limit` 互斥（默认值不算冲突），通用 flag 可以同时使用。
+- **cursor**：不透明值，格式 `v1.<route>.<payload>`，payload 能完整恢复上一次请求的查询词、选项、limit 与下一页位置。带 cursor 的请求只在产出它的 route 上执行，不 fallback；该 route 必须仍在当前 order 中、支持该操作且已配置。cursor 与显式传入的查询词、L1 选项或 `--limit` 互斥（默认值不算冲突），通用 flag 可以同时使用。`next_cursor` 为 `null` 表示没有可供下一条命令续页的标识，本身不证明结果已穷尽：小红书 search 从不签发 cursor（见「小红书」）。
 - 平台直连命令不写 Search Result Journal。
 
 ### fetch
@@ -132,7 +132,7 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
 
     | OpenCLI 结果 | 映射 |
     |---|---|
-    | 0，且外壳有效 | 成功 |
+    | 0，且外壳有效 | 传输成功；业务结果由 route 判定（例如小红书 route 的页面事实分类） |
     | 66（EMPTY_RESULT） | Runtime（永远不算合法空结果） |
     | 69，且 stderr 的 `code` 为 `ADAPTER_LOAD` | Runtime，附安装提示 |
     | 其他 69 | Network |
@@ -182,3 +182,21 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
 - **额度**：成功的搜索计 1 次（含合法空集与不存在的 cluster）；4xx、429 与 1 小时内参数完全相同的缓存命中不计。不持久化配额状态：额度用尽的 key 轮到时先收到一次不计费的 429 再换 key。
 - **doctor**：shallow 对端点发一次不带 key 的 GET，任何 HTTP 响应都算可达，不计费；deep（`doctor --provider serpapi`）对每个 key 调用一次 Account API（`/account.json`，与 `providers.serpapi.url` 同源），不计费，报告每个 key 的剩余额度与本小时吞吐（输出字段见第 2 章契约③）；它不运行检索，Scholar 检索的请求与解码由 smoke C24–C26 证明；没有 key 时以 config 失败退 3，不发请求。
 - **smoke**：C24（search）、C25（fetch，canary `scholar:18208131694456651388`）与 C26（cited-by，同一 canary，`--limit 3`）只在 `providers.serpapi.keys` 非空且 `platforms.scholar.order` 含 `serpapi` 时运行，各计 1 次额度。
+
+## 小红书
+
+第四个平台，只有一条 process route `xiaohongshu_browser`，经本机 OpenCLI 驱动用户自己已登录的 Chrome，只读取页面自身发出的接口响应。设计依据与实测证据见 [小红书 OpenCLI route 设计](../../design/2026-10-08-xiaohongshu-opencli-route.md)。第一期只提供 search；fetch 与 comments 在后续一期加入（#188 起）。
+
+- **身份**：kind 只有 `note`。ref 为 `xiaohongshu:<note_id>`，`note_id` 是 24 位十六进制，统一为小写，没有版本。canonical URL 为 `https://www.xiaohongshu.com/explore/<note_id>`，不含查询参数，满足往返性质。可识别的 URL：主机为 `www.xiaohongshu.com` 或 `xiaohongshu.com`（http 或 https），路径为 `/explore/<id>`、`/discovery/item/<id>`、`/search_result/<id>` 或 `/user/profile/<user_id>/<id>`，忽略 fragment 与末尾 `/`。`xhslink.com` 短链需要联网展开、`rednote.com` 适用另一份用户协议，两者都在飞行前退 2，消息分别说明替代做法。
+- **Access Token**：笔记 URL 中的 `xsec_token` 是打开该笔记所需的访问参数，不是身份，不进入 ref、canonical URL、cursor 与 journal。解析纯函数把 URL 拆成 `(ref, Option<AccessToken>)`；token 须为 URL 解码后 1–128 个 `A-Za-z0-9_=-` 字符，重复、含 `+` 或转义非法时飞行前退 2。解析错误消息不回显原始输入。`AccessToken` 的 Debug 输出打码，不可序列化。`access_url` 由 ref 与 token 构造：`https://www.xiaohongshu.com/explore/<id>?xsec_token=<token>&xsec_source=pc_search`，不回显用户输入的链接。
+- **route 与启用**：传输为 `OpenCli { site: "forager-xhs", contract: "forager-xhs/1" }`；配置为 `providers.xiaohongshu_browser.command`（默认 `opencli`）与 `.timeout`（默认 120 秒）。访问策略为每 10 秒 1 次 OpenCLI 命令、并发 1，跨进程生效；10 秒是实测未触发风控的节奏，不是站点给出的安全阈值。route 不重试（对风控中的账号重复访问会加重风控）。catalog 的默认 order 为空：order 为空时平台命令飞行前退 3、不启动进程，消息给出启用步骤（安装读取模块、在 OpenCLI 驱动的 Chrome 中登录、把 route 加入 `platforms.xiaohongshu.order`）。
+- **读取模块**：`skills/forager/opencli/forager-xhs/`（`contract.js`、`search.js` 与共享的 `shared.js`），安装方式是把该目录复制为 `~/.opencli/clis/forager-xhs/`。它只做导航、悬停、点击与滚动；翻页时滚到底后调用两次 `page.screenshot()`，在不可见的后台窗口里强制渲染一帧，页面才会加载下一页。它只读网络抓包（`page.startNetworkCapture` / `page.readNetworkCapture`）与页面状态，不使用 `fetchJson`、store、组件方法或 `installInterceptor`。
+- **抓包完成条件**：`readNetworkCapture()` 是消费式读取，读走还没有响应体的条目会让该页永久丢失。因此读取模块以页面 Performance Resource Timing 中搜索请求的完成记录（`responseEnd > 0`，由 `PerformanceObserver` 计数）为信号，再留 1 秒让扩展存下响应体，然后才读抓包。第一页的请求可能在计数开始前已经完成，所以第一页另以页面出现笔记卡片为完成信号（抓包在导航之前已开启，响应已在其中）。在完成信号之后读到的搜索条目仍没有响应体时记为 `body_missing`（命令结束或截止时读到的在途请求不计入）。只保留 GET 与 POST，OPTIONS 预检被过滤。
+- **页面事实**：读取模块回报 `{url, title, guest, error_code, notice, blocked_status}`：`url` 去掉 `xsec_token`；`guest` 来自 `user/me` 响应的 `guest`，或页面没有笔记卡片时 `__INITIAL_STATE__.user.loggedIn` 为 false；`error_code` 取自 `/404` 或 `website-login/error` 跳转的参数；`notice` 是页面没有笔记卡片时的安全限制、访问链接异常、登录后查看、请求太频繁等提示原文；`blocked_status` 是任一小红书接口返回的 461。遇到这些终态事实即停止等待。截止点（`--timeout` 之前 3 秒）前没有读到预期响应时同样返回页面事实，带 `timed_out: true`，不以 75 退出。外壳 `status` 恒为 `ok`。
+- **分类**：在 route 的 `execute_anonymous` 闭包内、成功 attempt 记录之前，按顺序：未登录（`guest` 或登录提示）为 Auth；461 为 Auth；300031、300017 或安全限制、访问链接异常提示为 attempt 级 Parameter；`body_missing` 为 Runtime；之后若筛选点击数与请求不符或响应页数不足：`timed_out` 且仍在搜索结果页为 Timeout，停在其他页面为 Runtime（消息带页面标题与去掉 token 的 URL），否则为 Runtime（筛选点击失败时附读取模块报告的原因）；页数足够时进入核对与解码。
+- **search**：读取模块打开 `/search_result?keyword=<查询词>&source=web_explore_feed`，只在选项取非默认值时按 sort、note-type、publish-time 的顺序打开筛选面板并点击对应文本（排序依据：综合 / 最新 / 最多点赞 / 最多评论 / 最多收藏；笔记类型：不限 / 图文 / 视频；发布时间：不限 / 一天内 / 一周内 / 半年内），每次点击后等到新的第 1 页响应；之后读取 ⌈limit / 20⌉ 页，`has_more` 为 false 时提前结束。每个响应带上发出前的点击次数，回报 `request: {keyword, page, search_id, filters}` 与 `body`。route 只采用最后一次点击之后的响应，逐页核对：`keyword` 等于去空白后的查询词；`filters` 中 `sort_type`、`filter_note_type`、`filter_note_time` 的取值等于请求（没有 `filters` 时视为全部默认；`general` 与 `不限` 为默认值），`filter_note_range` 与 `filter_pos_distance` 若出现须为 `不限`；`page` 从 1 依次递增；`search_id` 不变；每页都有 `data`。任何不符为 Runtime。请求体顶层的 `sort` 与 `note_type` 不反映筛选，不参与核对。
+- **解码**：只解码 `model_type` 为 `note` 的条目（跳过 `hot_query` 等）。`id` 不是 24 位十六进制或 `xsec_token` 不合法的笔记被跳过，并在 stderr 汇总一条诊断；上游有笔记而全部被跳过为 Runtime。跨页按笔记 ID 去重后截到 limit。条目深度恒为 `metadata`；`title` 取 `display_title`（可为空串）；`authors` 为 `[user.nickname]`；平台字段 `note_type`（`normal` 输出为 `image`）、`author_id`、`likes` / `collects` / `comments` / `shares`（`interact_info` 的 `liked_count`、`collected_count`、`comment_count`、`shared_count` 原文）、`published_text`（`corner_tag_info` 中 `publish_time` 的原文）与 `access_url`。`published`：`YYYY-MM-DD` 原样；`MM-DD` 补上请求时的北京时间年份，得到的日期晚于当天时改用上一年；相对时间（`3天前`、`5分钟前` 等）与其他形式为 `null`。
+- **合法空集与未列全**：第一个采用的响应没有笔记且 `has_more` 为 false 才是空成功；没有笔记而 `has_more` 为 true 为 Runtime。search 不签发 cursor，`next_cursor` 恒为 `null`，CLI 没有 `--cursor`，支持检查拒绝任何非首页的页位置：小红书每次访问的排序都不同，续页既不能复现也无法去重。最后一页 `has_more` 仍为 true，或去重后的条目截到 limit 时有余项，stderr 输出"未列全"诊断，提示加大 `--limit`（上限 100）。
+- **doctor**：shallow 只在 order 启用该 route 时运行 `contract` 并核对契约版本，否则报告 `configured: false`；deep（`doctor --provider xiaohongshu_browser`）沿用 `PlatformSearch` 探针执行一次真实检索（同时证明登录态），未启用时以 config 失败退 3。
+- **smoke**：C27 只在 `platforms.xiaohongshu.order` 含该 route 时运行，`platform xiaohongshu search 咖啡 --limit 25 --sort latest --publish-time week`，只执行一次、不重试（第 5 章）。
+- **待交付**：fetch（Native 正文来源与 Web Fetch 预检调整）、comments、smoke C28–C29 与对应的 ADR，见设计文档的分期。

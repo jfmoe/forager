@@ -73,8 +73,9 @@ pub(super) struct Providers {
     pub(super) anysearch: Endpoint<AnysearchEndpoint>,
     pub(super) arxiv_api: AnonymousEndpoint<ArxivApiEndpoint>,
     pub(super) ssrn_crossref: AnonymousEndpoint<SsrnCrossrefEndpoint>,
-    pub(super) ssrn_browser: ProcessRoute,
+    pub(super) ssrn_browser: ProcessRoute<SsrnBrowserProcess>,
     pub(super) serpapi: Endpoint<SerpapiEndpoint>,
+    pub(super) xiaohongshu_browser: ProcessRoute<XiaohongshuBrowserProcess>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -166,19 +167,41 @@ impl<D: EndpointDefaults> Default for AnonymousEndpoint<D> {
 /// The configuration selects only the executable; the route owns every argument (ADR 0019).
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
-pub(super) struct ProcessRoute {
+pub(super) struct ProcessRoute<D: ProcessDefaults> {
     pub(super) command: String,
     #[serde(deserialize_with = "deserialize_integer")]
     pub(super) timeout: u64,
+    #[serde(skip)]
+    pub(super) defaults: PhantomData<D>,
 }
 
-impl Default for ProcessRoute {
+impl<D: ProcessDefaults> Default for ProcessRoute<D> {
     fn default() -> Self {
         Self {
             command: "opencli".into(),
-            timeout: 90,
+            timeout: D::TIMEOUT_SECONDS,
+            defaults: PhantomData,
         }
     }
+}
+
+pub(super) trait ProcessDefaults {
+    const TIMEOUT_SECONDS: u64;
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct SsrnBrowserProcess;
+
+impl ProcessDefaults for SsrnBrowserProcess {
+    const TIMEOUT_SECONDS: u64 = 90;
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct XiaohongshuBrowserProcess;
+
+// One command opens the results page in about 20 seconds and then reads up to four more pages.
+impl ProcessDefaults for XiaohongshuBrowserProcess {
+    const TIMEOUT_SECONDS: u64 = 120;
 }
 
 pub(super) trait EndpointDefaults {
@@ -272,6 +295,7 @@ pub(super) struct Platforms {
     pub(super) arxiv: Order,
     pub(super) ssrn: Order,
     pub(super) scholar: Order,
+    pub(super) xiaohongshu: Order,
 }
 
 impl Default for Platforms {
@@ -280,6 +304,7 @@ impl Default for Platforms {
             arxiv: platform_order(catalog::ARXIV),
             ssrn: platform_order(catalog::SSRN),
             scholar: platform_order(catalog::SCHOLAR),
+            xiaohongshu: platform_order(catalog::XIAOHONGSHU),
         }
     }
 }
@@ -544,6 +569,8 @@ pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("providers.serpapi.url", providers.serpapi.url: String, Rule::Any, View::Url, "service endpoint URL"),
     leaf!("providers.serpapi.keys", providers.serpapi.keys: Secrets, Rule::Any, View::Keys, "credential pool; keep empty until credentials are available"),
     leaf!("providers.serpapi.timeout", providers.serpapi.timeout: U64, Rule::Positive, View::Plain, "shared timeout in seconds; must be greater than zero"),
+    leaf!("providers.xiaohongshu_browser.command", providers.xiaohongshu_browser.command: String, Rule::NonEmpty, View::Plain, "OpenCLI executable name or path; this route needs no credentials"),
+    leaf!("providers.xiaohongshu_browser.timeout", providers.xiaohongshu_browser.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one OpenCLI command; must be greater than zero"),
     leaf!("capabilities.web_search.order", capabilities.web_search.order: Strings, Rule::CapabilityOrder { capability: "web_search", allow_empty: true }, View::Plain, "authoritative provider order for this capability"),
     leaf!("capabilities.web_fetch.order", capabilities.web_fetch.order: Strings, Rule::CapabilityOrder { capability: "web_fetch", allow_empty: false }, View::Plain, "authoritative provider order for this capability"),
     leaf!("capabilities.docs_search.order", capabilities.docs_search.order: Strings, Rule::CapabilityOrder { capability: "docs_search", allow_empty: true }, View::Plain, "authoritative provider order for this capability"),
@@ -551,6 +578,7 @@ pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("platforms.arxiv.order", platforms.arxiv.order: Strings, Rule::PlatformOrder { platform: Platform::Arxiv }, View::Plain, "authoritative route order for this platform; empty disables it"),
     leaf!("platforms.ssrn.order", platforms.ssrn.order: Strings, Rule::PlatformOrder { platform: Platform::Ssrn }, View::Plain, "authoritative route order for this platform; empty disables it"),
     leaf!("platforms.scholar.order", platforms.scholar.order: Strings, Rule::PlatformOrder { platform: Platform::Scholar }, View::Plain, "authoritative route order for this platform; empty disables it"),
+    leaf!("platforms.xiaohongshu.order", platforms.xiaohongshu.order: Strings, Rule::PlatformOrder { platform: Platform::Xiaohongshu }, View::Plain, "authoritative route order for this platform; empty disables it"),
     leaf!("log.level", log.level: String, Rule::OneOf(LOG_LEVELS), View::Plain, "stderr log level"),
     leaf!("journal.enabled", journal.enabled: Bool, Rule::Any, View::Plain, "record search result journals"),
     leaf!("journal.dir", journal.dir: String, Rule::Any, View::Plain, "journal storage directory"),
@@ -653,6 +681,7 @@ mod tests {
             config.platforms.scholar.order,
             default_order(catalog::SCHOLAR)
         );
+        assert_eq!(config.platforms.xiaohongshu.order, Vec::<String>::new());
     }
 
     fn toml_leaf_paths(value: &toml::Value, prefix: &str, paths: &mut BTreeSet<String>) {

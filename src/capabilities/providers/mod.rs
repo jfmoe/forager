@@ -16,6 +16,7 @@ mod tavily_map;
 mod types;
 mod web_fetch;
 mod xai;
+mod xiaohongshu_browser;
 
 pub(crate) use crate::catalog::ProviderId;
 pub(crate) use anysearch::{Anysearch, AnysearchDomainsRequest, AnysearchSearchRequest};
@@ -45,3 +46,4 @@ pub(crate) use types::{
 };
 pub(crate) use web_fetch::{FetchRequest, FetchSource, WebFetch, is_pdf_url, source_support};
 pub(crate) use xai::Xai;
+pub(crate) use xiaohongshu_browser::XiaohongshuBrowser;

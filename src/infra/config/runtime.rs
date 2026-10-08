@@ -209,6 +209,7 @@ pub(crate) struct PlatformRoutesRuntimeConfig {
     pub(crate) ssrn_crossref: HttpRouteRuntimeConfig,
     pub(crate) ssrn_browser: ProcessRouteRuntimeConfig,
     pub(crate) serpapi: KeyedHttpRouteRuntimeConfig,
+    pub(crate) xiaohongshu_browser: ProcessRouteRuntimeConfig,
 }
 
 /// The configuration of one platform route.
@@ -218,6 +219,7 @@ pub(crate) enum PlatformRouteConfig {
     SsrnCrossref(HttpRouteRuntimeConfig),
     SsrnBrowser(ProcessRouteRuntimeConfig),
     Serpapi(KeyedHttpRouteRuntimeConfig),
+    XiaohongshuBrowser(ProcessRouteRuntimeConfig),
 }
 
 impl PlatformRouteConfig {
@@ -227,14 +229,16 @@ impl PlatformRouteConfig {
             Self::SsrnCrossref(_) => ProviderId::SsrnCrossref,
             Self::SsrnBrowser(_) => ProviderId::SsrnBrowser,
             Self::Serpapi(_) => ProviderId::Serpapi,
+            Self::XiaohongshuBrowser(_) => ProviderId::XiaohongshuBrowser,
         }
     }
 
     pub(crate) fn configured(&self) -> bool {
         match self {
-            Self::ArxivApi(_) | Self::SsrnCrossref(_) | Self::SsrnBrowser(_) => {
-                provider_configured(self.route(), &[])
-            }
+            Self::ArxivApi(_)
+            | Self::SsrnCrossref(_)
+            | Self::SsrnBrowser(_)
+            | Self::XiaohongshuBrowser(_) => provider_configured(self.route(), &[]),
             Self::Serpapi(config) => provider_configured(self.route(), &config.keys),
         }
     }
@@ -267,6 +271,7 @@ pub(crate) struct PlatformsRuntimeConfig {
     arxiv: PlatformRuntimeConfig,
     ssrn: PlatformRuntimeConfig,
     scholar: PlatformRuntimeConfig,
+    xiaohongshu: PlatformRuntimeConfig,
 }
 
 impl PlatformsRuntimeConfig {
@@ -275,6 +280,7 @@ impl PlatformsRuntimeConfig {
             Platform::Arxiv => &self.arxiv,
             Platform::Ssrn => &self.ssrn,
             Platform::Scholar => &self.scholar,
+            Platform::Xiaohongshu => &self.xiaohongshu,
         }
     }
 }
@@ -546,6 +552,10 @@ impl RuntimeConfig {
                 endpoint: &self.platform_routes.serpapi.url,
                 keys: &self.platform_routes.serpapi.keys,
             },
+            ProviderId::XiaohongshuBrowser => ProviderRuntime {
+                endpoint: &self.platform_routes.xiaohongshu_browser.command,
+                keys: &[],
+            },
         }
     }
 }
@@ -618,6 +628,10 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
             keys: config.providers.serpapi.keys,
             timeout_seconds: config.providers.serpapi.timeout,
         },
+        xiaohongshu_browser: ProcessRouteRuntimeConfig {
+            command: config.providers.xiaohongshu_browser.command,
+            timeout_seconds: config.providers.xiaohongshu_browser.timeout,
+        },
     };
     let classifier = ClassifierRuntimeConfig {
         url: config.classifier.url,
@@ -671,6 +685,11 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         scholar: platform_entries(
             Platform::Scholar,
             config.platforms.scholar.order,
+            &platform_routes,
+        )?,
+        xiaohongshu: platform_entries(
+            Platform::Xiaohongshu,
+            config.platforms.xiaohongshu.order,
             &platform_routes,
         )?,
     };
@@ -837,6 +856,9 @@ pub(crate) fn platform_route_config(
             routes.ssrn_browser.clone(),
         )),
         ProviderId::Serpapi => Some(PlatformRouteConfig::Serpapi(routes.serpapi.clone())),
+        ProviderId::XiaohongshuBrowser => Some(PlatformRouteConfig::XiaohongshuBrowser(
+            routes.xiaohongshu_browser.clone(),
+        )),
         _ => None,
     }
 }

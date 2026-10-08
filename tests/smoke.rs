@@ -97,8 +97,8 @@ fn offline_smoke_reports_local_readiness_without_contacting_provider_endpoints()
             Some(0),
             &Value::String("offline".into()),
             &Value::Bool(true),
-            &json!({"ok": true, "provider_count": 12}),
-            Some(12),
+            &json!({"ok": true, "provider_count": 13}),
+            Some(13),
             &json!(["********"]),
             &json!(["********"]),
             &Value::Bool(true),
@@ -125,7 +125,7 @@ fn live_smoke_lists_exactly_the_specification_case_registry_without_l0_doctor_ga
     let expected = json!([
         "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11",
         "C12", "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24",
-        "C25", "C26"
+        "C25", "C26", "C27"
     ]);
 
     assert_eq!(
@@ -177,7 +177,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
             Some(4),
             &Value::String("live".into()),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 27}),
+            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 28}),
             &Value::String("failed".into()),
             &Value::Number(3.into()),
             &Value::String("unconfigured".into()),
@@ -214,7 +214,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
         (
             Some(4),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 27}),
+            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 28}),
             &Value::String("deferred".into()),
             &Value::Number(3.into()),
             &Value::String("http://127.0.0.1:9?token=********".into()),
@@ -302,7 +302,7 @@ fn live_smoke_passes_a_configured_case_only_after_a_zero_parseable_nonempty_term
         ),
         (
             Some(4),
-            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 27}),
+            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 28}),
             &Value::String("passed".into()),
             &Value::Number(1.into()),
         ),
@@ -510,7 +510,7 @@ fn live_smoke_runs_the_platform_cases_through_their_configured_route() {
             crossref_requests[1].contains("/works/10.2139/ssrn.2042750"),
         ),
         (
-            &json!({"passed": 4, "failed": 0, "deferred": 0, "unconfigured": 24}),
+            &json!({"passed": 4, "failed": 0, "deferred": 0, "unconfigured": 25}),
             [(); 4].map(|()| Value::String("passed".into())),
             [
                 &Value::String("arxiv".into()),
@@ -621,6 +621,58 @@ fn live_smoke_runs_the_browser_cases_only_when_the_order_lists_the_route() {
             [(); 2].map(|()| Value::String("passed".into())),
             2
         )
+    );
+}
+
+#[test]
+fn live_smoke_runs_the_xiaohongshu_search_once_and_only_when_the_order_lists_the_route() {
+    use support::opencli::FakeOpenCli;
+
+    // A failing command would be retried for any other case.
+    let fake = FakeOpenCli::answering("", "ok: false\nerror:\n  code: COMMAND_EXEC\n", 1);
+    let run = |order: &str| {
+        let environment = SmokeEnvironment::new(|journal_dir| {
+            format!(
+                "{}[journal]\ndir = {journal_dir:?}\n[platforms.arxiv]\norder = []\n[platforms.ssrn]\norder = []\n",
+                fake.route_config("xiaohongshu_browser", "xiaohongshu", order)
+            )
+        });
+        let output = environment.run(&["smoke", "--live", "--timeout", "60"]);
+        let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live smoke JSON");
+        let c27 = case(&payload, "C27");
+        (c27["status"].clone(), c27["attempts"].clone())
+    };
+
+    let disabled = run("[]");
+    let calls_while_disabled = fake.calls().len();
+    let enabled = run("[\"xiaohongshu_browser\"]");
+    let calls = fake.calls();
+
+    assert_eq!(
+        (disabled, calls_while_disabled, enabled, calls.len()),
+        (
+            (json!("unconfigured"), json!(0)),
+            0,
+            (json!("failed"), json!(1)),
+            1
+        )
+    );
+    assert_eq!(
+        calls[0][..12],
+        [
+            "forager-xhs",
+            "search",
+            "--query",
+            "咖啡",
+            "--sort",
+            "latest",
+            "--note-type",
+            "all",
+            "--publish-time",
+            "week",
+            "--pages",
+            "2"
+        ]
     );
 }
 

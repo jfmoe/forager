@@ -105,7 +105,17 @@ pub(crate) const SCHOLAR: PlatformCatalog = PlatformCatalog {
     default_order: &[ProviderId::Serpapi],
 };
 
-pub(crate) const PLATFORMS: &[PlatformCatalog] = &[ARXIV, SSRN, SCHOLAR];
+// Xiaohongshu has no public API and forbids crawlers, so its only route reads the pages of the
+// user's own logged-in Chrome and stays out of every default order (ADR 0020). Its fetch route
+// set is empty until fetch exists (jfmoe/forager#188).
+pub(crate) const XIAOHONGSHU: PlatformCatalog = PlatformCatalog {
+    platform: Platform::Xiaohongshu,
+    search: &[ProviderId::XiaohongshuBrowser],
+    fetch: &[],
+    default_order: &[],
+};
+
+pub(crate) const PLATFORMS: &[PlatformCatalog] = &[ARXIV, SSRN, SCHOLAR, XIAOHONGSHU];
 
 impl PlatformCatalog {
     pub(crate) fn routes(self, operation: PlatformOperation) -> &'static [ProviderId] {
@@ -160,10 +170,11 @@ pub(crate) enum ProviderId {
     SsrnCrossref,
     SsrnBrowser,
     Serpapi,
+    XiaohongshuBrowser,
 }
 
 impl ProviderId {
-    pub(crate) const ALL: [Self; 12] = [
+    pub(crate) const ALL: [Self; 13] = [
         Self::Xai,
         Self::OpenAiCompatible,
         Self::Exa,
@@ -176,6 +187,7 @@ impl ProviderId {
         Self::SsrnCrossref,
         Self::SsrnBrowser,
         Self::Serpapi,
+        Self::XiaohongshuBrowser,
     ];
 
     pub(crate) fn parse(value: &str) -> Option<Self> {
@@ -192,6 +204,7 @@ impl ProviderId {
             "ssrn_crossref" => Some(Self::SsrnCrossref),
             "ssrn_browser" => Some(Self::SsrnBrowser),
             "serpapi" => Some(Self::Serpapi),
+            "xiaohongshu_browser" => Some(Self::XiaohongshuBrowser),
             _ => None,
         }
     }
@@ -210,6 +223,7 @@ impl ProviderId {
             Self::SsrnCrossref => "ssrn_crossref",
             Self::SsrnBrowser => "ssrn_browser",
             Self::Serpapi => "serpapi",
+            Self::XiaohongshuBrowser => "xiaohongshu_browser",
         }
     }
 }
@@ -495,6 +509,13 @@ const SERPAPI_SMOKE: &[ProviderSmokeCase] = &[
     },
 ];
 
+const XIAOHONGSHU_BROWSER_SMOKE: &[ProviderSmokeCase] = &[ProviderSmokeCase {
+    id: "C27",
+    platform: Some(Platform::Xiaohongshu),
+    operation: "search",
+    transport: "process",
+}];
+
 // arXiv terms of use allow one request every three seconds over one connection.
 const ARXIV_API_ACCESS: AccessPolicy = AccessPolicy {
     min_interval: Duration::from_secs(3),
@@ -511,6 +532,13 @@ const SSRN_CROSSREF_ACCESS: AccessPolicy = AccessPolicy {
 // One browser operation every five seconds keeps the pace close to a person's (ADR 0020).
 const SSRN_BROWSER_ACCESS: AccessPolicy = AccessPolicy {
     min_interval: Duration::from_secs(5),
+    max_concurrency: 1,
+};
+
+// About 55 read-only commands 5 to 10 seconds apart raised no risk control on 2026-10-08; ten
+// seconds is the slowest pace measured, not a limit the site states (ADR 0020).
+const XIAOHONGSHU_BROWSER_ACCESS: AccessPolicy = AccessPolicy {
+    min_interval: Duration::from_secs(10),
     max_concurrency: 1,
 };
 
@@ -659,6 +687,22 @@ const REGISTRY: &[ProviderRegistration] = &[
             transport: "http",
         },
         smoke_cases: SERPAPI_SMOKE,
+    },
+    ProviderRegistration {
+        id: ProviderId::XiaohongshuBrowser,
+        operations: &[],
+        credentials_required: false,
+        transport: ProviderTransport::OpenCli(OpenCliAdapter {
+            site: "forager-xhs",
+            contract: "forager-xhs/1",
+        }),
+        access_policy: Some(XIAOHONGSHU_BROWSER_ACCESS),
+        probe: DoctorProbe::PlatformSearch {
+            platform: Platform::Xiaohongshu,
+            name: "search",
+            transport: "process",
+        },
+        smoke_cases: XIAOHONGSHU_BROWSER_SMOKE,
     },
 ];
 

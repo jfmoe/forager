@@ -1,6 +1,6 @@
 # 小红书平台与 OpenCLI 浏览器 route 设计
 
-状态：设计草案，未实现。日期：2026-10-08。前置调研见 [小红书 Platform 接入可行性](../research/2026-10-08-xiaohongshu-integration.md)。那份调研推荐第三方 API TikHub；本设计根据下文实测改用浏览器 route，理由见「路线选择」。
+状态：第一期的 search 已实现（#187），fetch 与 comments 未实现；实现与设计的差异见「第一期实现记录」。日期：2026-10-08。前置调研见 [小红书 Platform 接入可行性](../research/2026-10-08-xiaohongshu-integration.md)。那份调研推荐第三方 API TikHub；本设计根据下文实测改用浏览器 route，理由见「路线选择」。
 
 ## 目标与边界
 
@@ -282,13 +282,40 @@ OpenCLI 退出码到 attempt 错误类型的映射完全沿用 `providers/opencl
 2. **第二期**：comments（含 `--replies`）、smoke C29、对应的规格与 skill 指引更新，以及本期真实验收（两页评论、一次楼中楼展开）。
 3. **按需**：用户主页笔记列表；`thread` 深度（笔记加有界评论）是否值得引入，等 comments 用过之后再评估。
 
+## 第一期实现记录
+
+第一期（#187）交付平台骨架与 search。以下是实现时对本设计所做的决定与修正，规格第 7 章「小红书」已按实现写明。
+
+- **fetch 暂缺时的接入清单**：清单 R1、R6、R7 要求每个平台的 search 与 fetch 都有 route、smoke 用例与 fixture，而第一期只交付 search。checklist 增加待交付操作表 `PENDING_OPERATIONS = [(xiaohongshu, fetch)]`（引 #188），只豁免这一组合的 fetch 检查；catalog 的 fetch route 集合暂为空，factory 的 fetch 分支不可达。fetch 交付时删除该豁免。
+- **请求体字段**：OpenCLI Browser Bridge 扩展 1.0.24 的抓包条目以 `requestBodyPreview` 携带请求体（扩展源码 `extension/src/cdp.ts`），与响应体的 `responsePreview` 对应。
+- **抓包完成条件**：扩展在 `readNetworkCapture()` 时取走条目并清空请求索引，此后同一请求的 `loadingFinished` 不再写回响应体，所以读走后"继续等待同一请求"做不到。读取模块改为：Resource Timing 出现完成记录后再等 1 秒（扩展在 `loadingFinished` 后异步取响应体），再读抓包；读到的搜索条目仍无响应体就记为 `body_missing`，不再等待；命令结束或到达截止点时读到的在途请求不是命令等待的响应，不计入。完成记录由页面加载后注册的 `PerformanceObserver`（`buffered: true`）计数。
+- **第一页的完成信号**：第二次真实运行中，第一页响应始终没有被计数，命令一直等到截止点（当时的分类把它报成"筛选点击数不符"）。原因没有确认，最可能是响应在计数开始之前已完成且记录已不在缓冲区。修正：第一页另以页面出现笔记卡片为完成信号（抓包在导航之前开启，响应已在其中）；筛选点击与翻页之后的响应仍以计数为准，因为那时计数已在运行。分类同时调整为先判断截止与页面，再判断点击数：截止时仍在结果页为 Timeout，消息说明完成了几次点击。
+- **筛选点击**：沿用 OpenCLI 内置小红书模块已验证的 DOM 结构（`.search-layout__top > .filter` 触发、`.filter-panel` 面板、`.filters` 分组的标签文本、`.tags` 选项），先对触发元素派发悬停事件，面板未出现时再点击它，然后在页面内点击选项。点击失败时读取模块在 `filter_failure` 中写明原因（例如 `no_filter_panel for 排序依据 最新`），route 把它附在 Runtime 消息后。
+- **token 脱敏**：本设计要求 route 按请求携带的 token 值清理诊断。search 的请求不带 token，响应中的 token 只经解码进入 `access_url`，所以第一期没有需要按值清理的消息；按值脱敏随 fetch 一起实现。
+- **smoke 停止规则**：第一期只有 C27，它只执行一次、不重试；"阻断后后续小红书用例不启动"随 C28 一起实现。
+
+### 第一期验收
+
+2026-10-08 14:35–14:52 UTC，OpenCLI 1.8.6（Browser Bridge 扩展 1.0.24），用户自己已登录的 Chrome，读取模块按 skill 的方式安装为 `~/.opencli/clis/forager-xhs`。共 6 次页面命令（相邻两次之间至少间隔 20 秒）与 1 次不打开浏览器的 `contract`，没有出现登录墙、461、300031/300017 或安全限制。
+
+| 运行 | 命令 | 结果 |
+|---|---|---|
+| 1 | 读取模块直接运行：`search --query 咖啡 --sort latest --publish-time week --pages 2` | 52 秒。两次筛选点击后共 4 个响应，全部有响应体：第 0 次点击的第 1 页、第 1 次点击（`sort_type=time_descending`）的第 1 页、第 2 次点击（另加 `filter_note_time=一周内`）的第 1、2 页；`search_id` 在点击后变为 `<根 id>@<子 id>`，第 2 次点击后的两页相同；`filter_note_range` 与 `filter_pos_distance` 为 `不限`。最后两页 43 条中 39 条笔记、4 条 `hot_query`，笔记 ID 无重复，token 全部为 46 个合法字符 |
+| 2 | `forager platform xiaohongshu search 咖啡 --limit 25 --sort latest --publish-time week` | 112 秒后失败：第一页响应没有被计数，读取模块等到截止点。据此做了上文「第一页的完成信号」的修正 |
+| 3 | 同运行 2（修正后） | 32 秒，退 0：25 条，`next_cursor: null`，stderr 给出"未列全"诊断；22 条图文、3 条视频，ref 无重复 |
+| 4 | `forager doctor --provider xiaohongshu_browser` | 18 秒，深探通过（默认条件、limit 1） |
+| 5 | 同运行 3，读取模块改为只在完成信号之后的读取中判定 `body_missing`（结束时读到的在途请求不再计入） | 35 秒，退 0：25 条，`next_cursor: null`，"未列全"诊断 |
+| 6 | `forager platform xiaohongshu search 咖啡 --limit 5 --note-type video --sort most-liked` | 24 秒，退 0：5 条全部为视频，点赞数依次递减，`published` 均为 `YYYY-MM-DD` |
+
+条目字段与本设计的实测一致：笔记条目为 `{id, model_type, note_card, xsec_token}`，`interact_info` 含 `liked_count`、`collected_count`、`comment_count`、`shared_count`。新观察：按"最新"排序、限一周内时，`publish_time` 全部是相对时间（`1分钟前`、`9小时前`、`3天前`），因此这类检索的 `published` 全部为 `null`，只有 `published_text` 有值。是否把相对时间换算成日期，等用过之后再定。
+
 ## 仍未实测的部分
 
 - **token 的有效期上限**：实测到 22 分钟仍有效，更长时间未测。过期表现预计与 300031 相同，已按 Parameter 处理并提示重新搜索。
 - **验证码**：本次没有触发，页面特征未知。读取模块把 461 归为 Auth，把无法识别的页面归为 Runtime，第一次真实遇到时补充特征。
 - **合法空集**：两个无意义查询都返回了笔记，没能观察到真正的空结果；判定规则按接口字段设计，未经实测。
-- **相对时间**：`publish_time` 只观察到 `MM-DD` 与 `YYYY-MM-DD` 两种形式；"N 天前""昨天"等相对形式未出现，按规则输出 `null` 与原文。
-- **抓包完成条件**：以 Resource Timing 完成记录为前提读取抓包，能否在慢响应下稳定拿到响应体，需要在第一期实现时用真实页面验证。
+- **相对时间**：第一期验收观察到 `N分钟前`、`N小时前`、`N天前`，按规则输出 `null` 与原文；"昨天"等其他形式仍未出现。
+- **抓包完成条件**：第一期验收中五次成功运行的全部搜索响应都带响应体；慢响应下的表现仍只有这两次样本。第一页响应未被计数的原因没有确认（见「第一期实现记录」）。
 - **楼中楼 cursor**：楼中楼第一页的请求 `cursor` 是否等于 `sub_comment_cursor` 未比较，暂不作为核对条件。
 - **截图驱动渲染的稳定性**：依赖 Chrome 在后台窗口中为截图渲染一帧的行为。若某个 Chrome 版本不再这样，翻页会以 Timeout 失败而不是返回不完整结果，届时再评估。
 - **评论翻页的跨次一致性**：评论顺序在两次运行中第一页相同，但只看了前两条 ID，没有系统比较；comments 不签发 cursor，不依赖这一点。

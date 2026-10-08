@@ -275,3 +275,106 @@ fn ssrn_browser_deep_doctor_refuses_a_route_that_no_order_enables() {
         (Some(3), &Value::String("config".into()), 0)
     );
 }
+
+#[test]
+fn xiaohongshu_browser_deep_doctor_runs_one_first_page_search() {
+    let fake = FakeOpenCli::contract_envelope(
+        support::opencli::XHS_CONTRACT,
+        "ok",
+        &serde_json::json!({
+            "page": {
+                "url": "https://www.xiaohongshu.com/search_result?keyword=forager%20doctor&source=web_explore_feed",
+                "title": "forager doctor - 小红书搜索",
+                "guest": false
+            },
+            "filter_clicks": 0,
+            "responses": [{
+                "click": 0,
+                "request": {"keyword": "forager doctor", "page": 1, "search_id": "2fhpxs5cks5vx6nvw1ar4"},
+                "body": {"code": 0, "success": true, "data": {"has_more": true, "items": [{
+                    "id": "66f0a1b2c3d4e5f607100001",
+                    "model_type": "note",
+                    "xsec_token": "ABtoken1=",
+                    "note_card": {"type": "normal", "display_title": "Note"}
+                }]}}
+            }]
+        }),
+    );
+    let environment = RunEnvironment::new(&fake.route_config(
+        "xiaohongshu_browser",
+        "xiaohongshu",
+        "[\"xiaohongshu_browser\"]",
+    ));
+
+    let output = environment.run(&["doctor", "--provider", "xiaohongshu_browser"]);
+
+    assert_deep_success(&output, "xiaohongshu_browser", &[("search", "process")]);
+    let calls = fake.calls();
+    assert_eq!(
+        calls[0][..12],
+        [
+            "forager-xhs",
+            "search",
+            "--query",
+            "forager doctor",
+            "--sort",
+            "comprehensive",
+            "--note-type",
+            "all",
+            "--publish-time",
+            "any",
+            "--pages",
+            "1"
+        ]
+    );
+}
+
+#[test]
+fn shallow_doctor_checks_the_enabled_xiaohongshu_adapter_contract() {
+    let fixture = Fixture::start_sequence(reachable_responses(10));
+    let fake = FakeOpenCli::contract_envelope(
+        support::opencli::XHS_CONTRACT,
+        "ok",
+        &serde_json::json!({"commands": ["contract", "search"]}),
+    );
+    let environment = RunEnvironment::new(&format!(
+        "{}\n{}",
+        shallow_config(&fixture.url),
+        fake.route_config(
+            "xiaohongshu_browser",
+            "xiaohongshu",
+            "[\"xiaohongshu_browser\"]"
+        )
+    ));
+
+    let output = environment.run(&["doctor"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
+    let status = payload["providers"]
+        .as_array()
+        .expect("providers")
+        .iter()
+        .find(|provider| provider["provider"] == "xiaohongshu_browser")
+        .expect("xiaohongshu_browser status")
+        .clone();
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &status["configured"],
+            &status["reachable"],
+            fake.calls()
+                .iter()
+                .map(|call| call[..2].to_vec())
+                .collect::<Vec<_>>(),
+        ),
+        (
+            Some(0),
+            &Value::Bool(true),
+            &Value::Bool(true),
+            vec![vec!["forager-xhs".to_owned(), "contract".to_owned()]],
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(fixture.finish_all().len(), 10);
+}

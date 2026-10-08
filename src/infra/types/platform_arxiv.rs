@@ -35,7 +35,7 @@ impl ArxivRef {
             .and_then(Self::from_identifier)
             .ok_or_else(|| PlatformRefError {
                 platform: Platform::Arxiv,
-                input: input.to_owned(),
+                input: Some(input.to_owned()),
                 hint: "pass an `arxiv:<id>[v<n>]` ref or an original arxiv.org URL",
             })
     }

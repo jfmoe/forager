@@ -27,10 +27,12 @@ pub(crate) const RESEARCH_CANARY_QUERY: &str = "What is the current status of as
 const FETCH_CANARY_URL: &str = "https://www.rust-lang.org/";
 const ANYSEARCH_CANARY_QUERY: &str = "retrieval augmented generation";
 const PLATFORM_CANARY_QUERY: &str = "retrieval augmented generation";
-const SPECIFICATION_CASE_IDS: [&str; 28] = [
+// Xiaohongshu has new coffee notes every week, so the filtered search reaches its second page.
+const XIAOHONGSHU_CANARY_QUERY: &str = "咖啡";
+const SPECIFICATION_CASE_IDS: [&str; 29] = [
     "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12",
     "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24", "C25",
-    "C26",
+    "C26", "C27",
 ];
 const PIPELINE_CASES: [LiveCaseDefinition; 3] = [
     LiveCaseDefinition::pipeline("P1", "search"),
@@ -169,12 +171,14 @@ enum ResultShape {
 }
 
 /// A stable item and a depth that its route serves without Web Fetch, so the platform fetch
-/// case checks only the route contract.
-fn platform_fetch_canary(platform: Platform) -> (&'static str, &'static str) {
+/// case checks only the route contract. Xiaohongshu has no stable item: a note opens only with
+/// an access token, which expires.
+fn platform_fetch_canary(platform: Platform) -> Option<(&'static str, &'static str)> {
     match platform {
-        Platform::Arxiv => ("arxiv:1706.03762", "abstract"),
-        Platform::Ssrn => ("ssrn:2042750", "metadata"),
-        Platform::Scholar => ("scholar:18208131694456651388", "metadata"),
+        Platform::Arxiv => Some(("arxiv:1706.03762", "abstract")),
+        Platform::Ssrn => Some(("ssrn:2042750", "metadata")),
+        Platform::Scholar => Some(("scholar:18208131694456651388", "metadata")),
+        Platform::Xiaohongshu => None,
     }
 }
 
@@ -533,7 +537,7 @@ fn run_configured_case(
 ) -> LiveCaseResult {
     let mut failure = "live case failed";
     let mut attempts = 0;
-    for attempt in 1..=3 {
+    for attempt in 1..=max_attempts(definition) {
         if deadline.remaining().is_none() {
             failure = "live smoke hard deadline elapsed";
             break;
@@ -567,6 +571,16 @@ fn run_configured_case(
         checked_at_unix_seconds: unix_timestamp(),
         outage_evidence: evidence,
         message: Some(failure),
+    }
+}
+
+/// Xiaohongshu cases run once: repeating a page the site blocked pushes the user's account
+/// further into risk control.
+fn max_attempts(definition: LiveCaseDefinition) -> usize {
+    if definition.platform == Some(Platform::Xiaohongshu) {
+        1
+    } else {
+        3
     }
 }
 
@@ -698,8 +712,26 @@ fn command_specs(
     let definition = live_case(case_id)?;
     if let Some(platform) = definition.platform {
         let provider = definition.provider?;
-        let mut commands = if definition.operation == "fetch" {
-            let (reference, depth) = platform_fetch_canary(platform);
+        let mut commands = if platform == Platform::Xiaohongshu {
+            one(
+                &[
+                    "platform",
+                    platform.as_str(),
+                    definition.operation,
+                    XIAOHONGSHU_CANARY_QUERY,
+                    "--limit",
+                    "25",
+                    "--sort",
+                    "latest",
+                    "--publish-time",
+                    "week",
+                    "--timeout",
+                    &timeout,
+                ],
+                ResultShape::PlatformSearch,
+            )
+        } else if definition.operation == "fetch" {
+            let (reference, depth) = platform_fetch_canary(platform)?;
             one(
                 &[
                     "platform",
