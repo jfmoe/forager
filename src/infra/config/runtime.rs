@@ -186,6 +186,14 @@ pub(crate) struct HttpRouteRuntimeConfig {
     pub(crate) timeout_seconds: u64,
 }
 
+/// The configuration of a platform route that sends HTTP requests with pooled credentials.
+#[derive(Clone, Debug)]
+pub(crate) struct KeyedHttpRouteRuntimeConfig {
+    pub(crate) url: String,
+    pub(crate) keys: Vec<Secret>,
+    pub(crate) timeout_seconds: u64,
+}
+
 /// The configuration of a platform route that runs local OpenCLI commands.
 #[derive(Clone, Debug)]
 pub(crate) struct ProcessRouteRuntimeConfig {
@@ -200,6 +208,7 @@ pub(crate) struct PlatformRoutesRuntimeConfig {
     pub(crate) arxiv_api: HttpRouteRuntimeConfig,
     pub(crate) ssrn_crossref: HttpRouteRuntimeConfig,
     pub(crate) ssrn_browser: ProcessRouteRuntimeConfig,
+    pub(crate) serpapi: KeyedHttpRouteRuntimeConfig,
 }
 
 /// The configuration of one platform route.
@@ -208,6 +217,7 @@ pub(crate) enum PlatformRouteConfig {
     ArxivApi(HttpRouteRuntimeConfig),
     SsrnCrossref(HttpRouteRuntimeConfig),
     SsrnBrowser(ProcessRouteRuntimeConfig),
+    Serpapi(KeyedHttpRouteRuntimeConfig),
 }
 
 impl PlatformRouteConfig {
@@ -216,6 +226,7 @@ impl PlatformRouteConfig {
             Self::ArxivApi(_) => ProviderId::ArxivApi,
             Self::SsrnCrossref(_) => ProviderId::SsrnCrossref,
             Self::SsrnBrowser(_) => ProviderId::SsrnBrowser,
+            Self::Serpapi(_) => ProviderId::Serpapi,
         }
     }
 
@@ -224,6 +235,7 @@ impl PlatformRouteConfig {
             Self::ArxivApi(_) | Self::SsrnCrossref(_) | Self::SsrnBrowser(_) => {
                 provider_configured(self.route(), &[])
             }
+            Self::Serpapi(config) => provider_configured(self.route(), &config.keys),
         }
     }
 }
@@ -254,6 +266,7 @@ impl PlatformRuntimeConfig {
 pub(crate) struct PlatformsRuntimeConfig {
     arxiv: PlatformRuntimeConfig,
     ssrn: PlatformRuntimeConfig,
+    scholar: PlatformRuntimeConfig,
 }
 
 impl PlatformsRuntimeConfig {
@@ -261,6 +274,7 @@ impl PlatformsRuntimeConfig {
         match platform {
             Platform::Arxiv => &self.arxiv,
             Platform::Ssrn => &self.ssrn,
+            Platform::Scholar => &self.scholar,
         }
     }
 }
@@ -528,6 +542,10 @@ impl RuntimeConfig {
                 endpoint: &self.platform_routes.ssrn_browser.command,
                 keys: &[],
             },
+            ProviderId::Serpapi => ProviderRuntime {
+                endpoint: &self.platform_routes.serpapi.url,
+                keys: &self.platform_routes.serpapi.keys,
+            },
         }
     }
 }
@@ -595,6 +613,11 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
             command: config.providers.ssrn_browser.command,
             timeout_seconds: config.providers.ssrn_browser.timeout,
         },
+        serpapi: KeyedHttpRouteRuntimeConfig {
+            url: config.providers.serpapi.url,
+            keys: config.providers.serpapi.keys,
+            timeout_seconds: config.providers.serpapi.timeout,
+        },
     };
     let classifier = ClassifierRuntimeConfig {
         url: config.classifier.url,
@@ -643,6 +666,11 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         ssrn: platform_entries(
             Platform::Ssrn,
             config.platforms.ssrn.order,
+            &platform_routes,
+        )?,
+        scholar: platform_entries(
+            Platform::Scholar,
+            config.platforms.scholar.order,
             &platform_routes,
         )?,
     };
@@ -790,6 +818,11 @@ pub(crate) fn platform_order_key(platform: Platform) -> String {
     format!("platforms.{platform}.order")
 }
 
+/// Returns the configuration key that holds the credential pool of `provider`.
+pub(crate) fn provider_keys_key(provider: &str) -> String {
+    format!("providers.{provider}.keys")
+}
+
 /// Returns the configuration of a platform route, or `None` for a provider that is no route.
 pub(crate) fn platform_route_config(
     id: ProviderId,
@@ -803,6 +836,7 @@ pub(crate) fn platform_route_config(
         ProviderId::SsrnBrowser => Some(PlatformRouteConfig::SsrnBrowser(
             routes.ssrn_browser.clone(),
         )),
+        ProviderId::Serpapi => Some(PlatformRouteConfig::Serpapi(routes.serpapi.clone())),
         _ => None,
     }
 }
@@ -911,7 +945,7 @@ mod tests {
     use crate::config::schema::Config;
 
     #[test]
-    fn configured_credentials_collects_all_nine_pools_without_debug_leakage() {
+    fn configured_credentials_collects_every_pool_without_debug_leakage() {
         let mut config = Config::default();
         config.classifier.keys = vec![Secret::from("classifier-canary")];
         config.providers.xai.keys = vec![Secret::from("xai-canary")];
@@ -922,12 +956,13 @@ mod tests {
         config.providers.tavily.keys = vec![Secret::from("tavily-canary")];
         config.providers.firecrawl.keys = vec![Secret::from("firecrawl-canary")];
         config.providers.anysearch.keys = vec![Secret::from("anysearch-canary")];
+        config.providers.serpapi.keys = vec![Secret::from("serpapi-canary")];
 
         let credentials = configured_credentials(&config);
         let debug = format!("{credentials:?}");
 
-        assert_eq!(credentials.len(), 9);
-        assert_eq!(debug.matches(CREDENTIAL_MASK).count(), 9);
+        assert_eq!(credentials.len(), 10);
+        assert_eq!(debug.matches(CREDENTIAL_MASK).count(), 10);
         assert!(!debug.contains("canary"));
     }
 

@@ -5,14 +5,14 @@ use reqwest::Client;
 use super::constructors::{credentials, route_limiter};
 use super::{
     ArxivApi, DocsSearch, MainSearch, ModelBreakers, PlatformFetch, PlatformSearch, ProviderId,
-    SsrnBrowser, SsrnCrossref, SupplementalSearch, VerticalSearch, WebFetch, WebSearch, arxiv,
-    opencli, ssrn_browser, ssrn_crossref, web_fetch,
+    Serpapi, SsrnBrowser, SsrnCrossref, SupplementalSearch, VerticalSearch, WebFetch, WebSearch,
+    arxiv, opencli, serpapi, ssrn_browser, ssrn_crossref, web_fetch,
 };
 use crate::catalog::{ProviderTransport, VERTICAL_SEARCH, WEB_FETCH, WEB_SEARCH, registration};
 use crate::config::{
     AnysearchRuntimeConfig, DocsSearchProviderConfig, HttpRouteRuntimeConfig,
-    MainSearchProviderConfig, PlatformRouteConfig, ProcessRouteRuntimeConfig,
-    WebFetchProviderConfig,
+    KeyedHttpRouteRuntimeConfig, MainSearchProviderConfig, PlatformRouteConfig,
+    ProcessRouteRuntimeConfig, WebFetchProviderConfig,
 };
 use crate::net::RetryPolicy;
 use crate::types::{Deadline, PlatformFetchRequest, PlatformSearchRequest};
@@ -124,6 +124,9 @@ pub(crate) fn build_platform_search(
             Box::new(build_ssrn_crossref(config, client, retry_policy, deadline))
         }
         PlatformRouteConfig::SsrnBrowser(config) => Box::new(build_ssrn_browser(config, deadline)),
+        PlatformRouteConfig::Serpapi(config) => {
+            Box::new(build_serpapi(config, client, retry_policy, deadline))
+        }
     }
 }
 
@@ -141,6 +144,9 @@ pub(crate) fn build_platform_fetch(
             Box::new(build_ssrn_crossref(config, client, retry_policy, deadline))
         }
         PlatformRouteConfig::SsrnBrowser(config) => Box::new(build_ssrn_browser(config, deadline)),
+        PlatformRouteConfig::Serpapi(config) => {
+            Box::new(build_serpapi(config, client, retry_policy, deadline))
+        }
     }
 }
 
@@ -185,6 +191,16 @@ fn build_ssrn_browser(config: ProcessRouteRuntimeConfig, deadline: Deadline) -> 
     )
 }
 
+fn build_serpapi(
+    mut config: KeyedHttpRouteRuntimeConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> Serpapi {
+    let credentials = credentials(ProviderId::Serpapi, &mut config.keys);
+    Serpapi::new(config, client, credentials, retry_policy, deadline)
+}
+
 /// Returns whether a platform search route can run the request with every explicit option, or
 /// `None` for a provider that has no platform search adapter.
 pub(crate) fn platform_search_support(
@@ -195,6 +211,7 @@ pub(crate) fn platform_search_support(
         ProviderId::ArxivApi => arxiv::search_support(request),
         ProviderId::SsrnCrossref => ssrn_crossref::search_support(request),
         ProviderId::SsrnBrowser => ssrn_browser::search_support(request),
+        ProviderId::Serpapi => serpapi::search_support(request),
         _ => return None,
     };
     Some(transport_support(id).and(route))
@@ -210,6 +227,7 @@ pub(crate) fn platform_fetch_support(
         ProviderId::ArxivApi => arxiv::fetch_support(request),
         ProviderId::SsrnCrossref => ssrn_crossref::fetch_support(request),
         ProviderId::SsrnBrowser => ssrn_browser::fetch_support(request),
+        ProviderId::Serpapi => serpapi::fetch_support(request),
         _ => return None,
     };
     Some(transport_support(id).and(route))

@@ -7,6 +7,7 @@ pub(crate) mod execution;
 mod factory;
 mod openai_compatible;
 mod opencli;
+mod serpapi;
 pub(crate) mod shared;
 mod ssrn_browser;
 mod ssrn_crossref;
@@ -32,6 +33,7 @@ pub(crate) use factory::{
 };
 pub(crate) use openai_compatible::{ModelBreakers, OpenAiCompatible};
 pub(crate) use opencli::check_contract as check_opencli_contract;
+pub(crate) use serpapi::Serpapi;
 pub(crate) use ssrn_browser::SsrnBrowser;
 pub(crate) use ssrn_crossref::SsrnCrossref;
 pub(crate) use supplemental::SupplementalSearch;

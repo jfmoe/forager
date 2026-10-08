@@ -134,6 +134,18 @@
       "seam": "platform:ssrn:fetch",
       "test": "tests/ssrn_full_text.rs::full_text_delivers_markdown_and_removes_the_pdf_by_default",
       "note": "A fake opencli executable proves the transport, the route adapter, and the full-text delivery; the JavaScript adapter is covered only by the live smoke C23."
+    },
+    {
+      "id": "F17",
+      "provider": "serpapi",
+      "seam": "platform:scholar:search",
+      "test": "tests/scholar_search.rs::search_decodes_results_with_cluster_refs_and_metadata"
+    },
+    {
+      "id": "F18",
+      "provider": "serpapi",
+      "seam": "platform:scholar:fetch",
+      "test": "tests/scholar_fetch.rs::fetch_lists_the_cluster_versions_at_metadata_depth"
     }
   ],
   "offline_e2e": [

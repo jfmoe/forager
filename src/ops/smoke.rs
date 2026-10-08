@@ -27,9 +27,9 @@ pub(crate) const RESEARCH_CANARY_QUERY: &str = "What is the current status of as
 const FETCH_CANARY_URL: &str = "https://www.rust-lang.org/";
 const ANYSEARCH_CANARY_QUERY: &str = "retrieval augmented generation";
 const PLATFORM_CANARY_QUERY: &str = "retrieval augmented generation";
-const SPECIFICATION_CASE_IDS: [&str; 25] = [
+const SPECIFICATION_CASE_IDS: [&str; 27] = [
     "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12",
-    "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23",
+    "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24", "C25",
 ];
 const PIPELINE_CASES: [LiveCaseDefinition; 3] = [
     LiveCaseDefinition::pipeline("P1", "search"),
@@ -173,6 +173,7 @@ fn platform_fetch_canary(platform: Platform) -> (&'static str, &'static str) {
     match platform {
         Platform::Arxiv => ("arxiv:1706.03762", "abstract"),
         Platform::Ssrn => ("ssrn:2042750", "metadata"),
+        Platform::Scholar => ("scholar:18208131694456651388", "metadata"),
     }
 }
 
@@ -490,7 +491,7 @@ pub(crate) fn run_live(
                 checked_at_unix_seconds: unix_timestamp(),
                 outage_evidence: None,
                 message: Some(if definition.platform.is_some() {
-                    "the platform order does not list this route"
+                    "the platform order does not list this route, or the route has no credentials"
                 } else {
                     "required unified credentials are not configured"
                 }),
@@ -993,7 +994,8 @@ fn case_is_configured(case_id: &str, runtime: &RuntimeConfig) -> bool {
                 return false;
             };
             match definition.platform {
-                // A platform case runs only when the route stays in the platform order.
+                // A platform case runs only when the route stays in the platform order and has its
+                // credentials.
                 Some(platform) => runtime
                     .platforms
                     .get(platform)

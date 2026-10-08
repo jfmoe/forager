@@ -37,6 +37,12 @@ forager platform ssrn search QUERY [--limit 1..=100（默认 10）] [--cursor CU
 forager platform ssrn fetch REF_OR_URL [--depth metadata|abstract|full_text]
                             [--content-dir DIR] [--keep-pdf]
                             [--timeout 120] [--format json|markdown|content] [...]
+forager platform scholar search QUERY [--limit 1..=20（默认 20）]
+                                [--year-from YYYY] [--year-to YYYY] [--review-only]
+                                [--timeout 120] [--format json|markdown] [...]
+forager platform scholar search --cursor CURSOR [--timeout 120] [--format json|markdown] [...]
+forager platform scholar fetch REF_OR_URL [--depth metadata]
+                               [--timeout 120] [--format json|markdown] [...]
 forager doctor [--provider PROVIDER] [--timeout 30] [--format json|markdown]
 forager smoke [--live] [...]
 forager config path|list|set|unset
@@ -126,13 +132,13 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 ## 契约③：`doctor --provider`
 
-两档：`doctor` 浅检全体（掩码配置 + 凭据存在 + 可达性（对 endpoint 发 GET 并只等待响应头，任何 HTTP 响应都算可达；部分 endpoint 对 HEAD 不响应）+ 过宽权限报告 + config list 同构生效值块）；顶层 `ok` 等于所有 `configured=true` provider 均 `reachable=true`，零配置为 true，任一不可达则 JSON/Markdown 均为 false 并退出 4，permission warning 不改变 `ok`。`config_warnings` 报告主搜索链中与首个已配置 backend 使用相同 endpoint（忽略末尾 `/`）和相同主模型的后续 backend——这类 fallback 与主 backend 处于同一故障域；该警告同样不改变 `ok`。`--provider NAME` 深探单体，值域＝provider 注册表的编译期 enum。需要凭据的 8 个 provider 执行凭据有效性 + 最小活体调用；平台 route（`arxiv_api`、`ssrn_crossref`、`ssrn_browser`）不需要凭据，恒为已配置，深探执行一次最小平台检索；openai-compatible 额外保留 stream/no-stream 双形状判定。声明访问策略的 provider（三条平台 route）的浅检检查与深探请求都先经过跨进程限速，等不到窗口时浅检记为不可达、深探以 timeout 失败，且都不发送请求。
+两档：`doctor` 浅检全体（掩码配置 + 凭据存在 + 可达性（对 endpoint 发 GET 并只等待响应头，任何 HTTP 响应都算可达；部分 endpoint 对 HEAD 不响应）+ 过宽权限报告 + config list 同构生效值块）；顶层 `ok` 等于所有 `configured=true` provider 均 `reachable=true`，零配置为 true，任一不可达则 JSON/Markdown 均为 false 并退出 4，permission warning 不改变 `ok`。`config_warnings` 报告主搜索链中与首个已配置 backend 使用相同 endpoint（忽略末尾 `/`）和相同主模型的后续 backend——这类 fallback 与主 backend 处于同一故障域；该警告同样不改变 `ok`。`--provider NAME` 深探单体，值域＝provider 注册表的编译期 enum。需要凭据的 8 个 provider 执行凭据有效性 + 最小活体调用；平台 route（`arxiv_api`、`ssrn_crossref`、`ssrn_browser`）不需要凭据，恒为已配置，深探执行一次最小平台检索；需要凭据的平台 route `serpapi` 有 key 时才算已配置，浅检对端点发一次不带 key 的 GET（不计额度），深探带 key 执行一次最小平台检索（通常计 1 次额度），没有 key 时以 config 失败退 3 且不发请求；openai-compatible 额外保留 stream/no-stream 双形状判定。声明访问策略的 provider（三条平台 route）的浅检检查与深探请求都先经过跨进程限速，等不到窗口时浅检记为不可达、深探以 timeout 失败，且都不发送请求。
 
 传输类型为 process 的 route（`ssrn_browser`）不发 GET：浅检只在它出现在所属平台的 order 中时参与，运行 adapter 的 `contract` 命令并核对契约版本；未启用时报告 `configured: false`，不影响 `ok`。检查失败时该 provider 状态带 `message`（含安装提示），Markdown 在同一行括号中显示。深探（`doctor --provider ssrn_browser`）同样只在 order 启用该 route 时运行一次真实的平台检索；未启用时以 config 失败退 3，不启动进程。
 
 ## 平台命令
 
-`forager platform <id> <op>` 直连检索内置平台（ADR 0019；接入契约见第 7 章）。每个平台一棵静态 clap 子树；`forager platform <id> --help` 及各操作的 help 是参数语法的唯一权威。arXiv 与 SSRN 都提供 `search` 与 `fetch`。
+`forager platform <id> <op>` 直连检索内置平台（ADR 0019；接入契约见第 7 章）。每个平台一棵静态 clap 子树；`forager platform <id> --help` 及各操作的 help 是参数语法的唯一权威。arXiv、SSRN 与 Google Scholar 都提供 `search` 与 `fetch`。
 
 ### `platform arxiv search`
 
@@ -209,6 +215,34 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 - 通用 flag 为 `--timeout`（默认 120 秒）、`--output`/`--receipt`、`--verbose`。
 - **输出**：JSON 顶层为 `platform`、`provider`、`ref`、`url`、`depth`、`title`、`authors`、`published`，以及与 search item 相同的 SSRN 字段；`depth` 记录 route 实际拿到的内容。`metadata` 与 `abstract` 不写文件。**`full_text`** 时浏览器 route 下载 PDF 并校验后交给全局 Web Fetch 链转换成 Markdown：默认写入 `ssrn-<id>.md` 并删除 PDF，stdout 另有 `content_url`（SSRN 规范摘要页，永不指向有时效的签名下载地址）、`content_provider`、`content_path` 与 `content_len`；`--keep-pdf` 时 PDF 移入内容目录（`ssrn-<id>.pdf`）并报告 `pdf_path` 与 `pdf_bytes`；转换失败时 PDF 一律保留，错误消息写明它的路径。不写 Search Result Journal。
 - **退出码**：ref 或 URL 无法识别（包括 SSRN 的 `Delivery.cfm` PDF 链接、相似域名与短链）＝飞行前退 2；`--depth full_text` 时没有已配置的 route 支持全文＝飞行前退 2；`platforms.ssrn.order` 为空、`full_text` 时没有已配置的 Web Fetch provider＝飞行前退 3；Crossref 中找不到该 DOI 为 attempt 级 Parameter（`SSRN paper not found in Crossref: ssrn:<id>`），SSRN 页面显示论文审核中或已撤下为 attempt 级 Parameter（`SSRN paper not available: ssrn:<id> (…)`），都退 4；`--depth abstract` 但所有 route 都没有摘要为 Quality 退 5；全文的下载校验（下载未完成、文件不存在、不是 PDF、详情页 id 不一致）与转换后正文过薄为 Quality 退 5，转换的上游失败沿用 Web Fetch 链终态。
+
+### `platform scholar search`
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| 查询词（位置参数） | 字符串，去空白后不能为空 | 必填 | 原样作为谷歌学术查询发送，`"短语"`、`OR`、`-词`、`author:`、`source:` 等运算符照常生效 |
+| `--limit` | 1–20 | 20 | 本页条数；每页无论多少条都计 1 次 SerpApi 额度 |
+| `--year-from` / `--year-to` | `YYYY`，1000–9999 | 无 | 发表年份区间，含边界，可单端；起始不晚于结束 |
+| `--review-only` | 开关 | false | 只返回综述论文 |
+| `--cursor` | 上一页的 `next_cursor` | 无 | 翻页；完整恢复原请求 |
+| `--format` | `json` / `markdown` | `json` | 输出格式 |
+
+- 通用 flag 为 `--timeout`（默认 120 秒）、`--output`/`--receipt`、`--verbose`。cursor 与显式查询词、`--year-from`、`--year-to`、`--review-only` 或 `--limit` 互斥，包括显式传入默认值。
+- 翻页：上游带下一页信号，且下一页不越过谷歌学术的第 1000 条结果时才签发 `next_cursor`，否则为 `null`；`--limit` 不整除 1000 时会在第 1000 条之前结束。每一页都计 1 次额度。
+- **输出**：外层形状与 arXiv search 相同。每个 item 含 `ref`（`scholar:<cluster_id>`）、canonical `url`（`https://scholar.google.com/scholar?cluster=<cluster_id>`）、`depth`（有片段为 `snippet`，否则为 `metadata`）、`title`、`authors`、`published`（年份或 `null`），以及 Scholar 字段 `snippet`、`link`、`source`、`cited_by`、`version_count`、`resources`、`result_type`。无法确定 cluster ID 的条目被跳过并写入 stderr 诊断。解码规则见第 7 章「Google Scholar」。
+- **退出码**：`--limit` 或年份越界、`--year-from` 晚于 `--year-to`、查询词为空、cursor 无效、被改动（limit、年份或页位置越界）或其 route 已移出 order 或已无 key＝飞行前退 2；`platforms.scholar.order` 为空＝飞行前退 3，消息只提示 order；`providers.serpapi.keys` 为空＝飞行前退 3，消息点名该键，零请求；无效 key（401/403）为 Auth，只发一次、不换 key，退 4；所有 key 额度用尽为 QuotaExhausted、限流为 RateLimited，都退 4；上游结果全部无法确定身份或响应形状不对为 Runtime，退 4；合法零结果为 `items: []` 且退 0。
+
+### `platform scholar fetch`
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| ref 或 URL（位置参数） | `scholar:<cluster_id>`，或查询参数恰有一个 `cluster`、没有 `cites` 的 `scholar.google.com/scholar` URL | 必填 | 其他查询参数与 fragment 被忽略 |
+| `--depth` | `metadata` / `snippet` / `abstract` / `full_text` | `metadata` | 只支持 `metadata`，其他深度飞行前退 2 |
+| `--format` | `json` / `markdown` | `json` | 输出格式 |
+
+- 通用 flag 同 search。
+- **输出**：JSON 顶层为 `platform`、`provider`、`ref`、`url`、`depth`（恒为 `metadata`）、`title`、`authors`、`published`（取第一个版本），以及 `versions`：本页最多 20 个版本，每个为 `{title, link, source, resources}`。cluster 还有更多版本时，stderr 诊断说明版本没有列全并给出 canonical URL。不写文件，不写 Search Result Journal。
+- **退出码**：ref 或 URL 无法识别（被引页 `cites`、`cluster` 重复或溢出、作者主页等）、`metadata` 以外的深度＝飞行前退 2；`platforms.scholar.order` 为空或 `providers.serpapi.keys` 为空＝飞行前退 3；cluster 不存在为 attempt 级 Parameter（`Google Scholar has no cluster scholar:<id>`），退 4；其他失败同 search。
 
 ## 收尾
 

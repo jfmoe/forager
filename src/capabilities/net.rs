@@ -349,13 +349,13 @@ impl RetryPolicy {
 
 #[cfg(test)]
 mod tests {
-    use std::io::{Read, Write};
+    use std::io::{self, Read, Write};
     use std::net::TcpListener;
     use std::sync::mpsc;
     use std::thread;
     use std::time::Duration;
 
-    use reqwest::StatusCode;
+    use reqwest::{Body, Response, StatusCode};
 
     use super::{
         MAX_ERROR_BODY_BYTES, MAX_RESPONSE_BYTES, RESPONSE_LIMIT_MESSAGE, ResponseBodyPolicy,
@@ -531,38 +531,19 @@ mod tests {
 
     #[test]
     fn complete_protocol_maps_a_stalled_body_to_network() {
-        let listener = TcpListener::bind("127.0.0.1:0").expect("bind stall server");
-        let address = listener.local_addr().expect("stall server address");
-        let (release, released) = mpsc::channel();
-        let server = thread::spawn(move || {
-            let (mut stream, _) = listener.accept().expect("accept request");
-            let mut request = [0_u8; 4096];
-            let read = stream.read(&mut request).expect("read request");
-            assert!(read > 0, "fixture received an empty request");
-            stream
-                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nx")
-                .expect("write partial response");
-            stream.flush().expect("flush partial response");
-            released
-                .recv_timeout(Duration::from_secs(1))
-                .expect("wait for client timeout");
-        });
-        let runtime = test_runtime();
+        let stalled_body = futures_util::stream::iter([
+            Ok(&b"x"[..]),
+            Err(io::Error::from(io::ErrorKind::TimedOut)),
+        ]);
+        let response = Response::from(http::Response::new(Body::wrap_stream(stalled_body)));
 
-        let failure = runtime.block_on(async {
-            let client = build_client_with_read_timeout(true, Duration::from_millis(50))
-                .expect("build client");
-            let response = client
-                .get(format!("http://{address}"))
-                .send()
-                .await
-                .expect("receive response headers");
-            read_complete_protocol(response, &credentials(), raw_error_body)
-                .await
-                .expect_err("stalled body must fail")
-        });
-        release.send(()).expect("release stall server");
-        server.join().expect("join stall server");
+        let failure = test_runtime()
+            .block_on(read_complete_protocol(
+                response,
+                &credentials(),
+                raw_error_body,
+            ))
+            .expect_err("stalled body must fail");
 
         assert_eq!(failure.kind, AttemptErrorKind::Network);
     }
@@ -753,6 +734,24 @@ mod tests {
                 "QuOtA exceeded",
                 AttemptErrorKind::QuotaExhausted,
             ),
+            (
+                "serpapi_searches_exhausted",
+                429,
+                r#"{"error":"Your account has run out of searches."}"#,
+                AttemptErrorKind::QuotaExhausted,
+            ),
+            (
+                "searches_exhausted_mixed_case",
+                429,
+                "Run Out Of Searches",
+                AttemptErrorKind::QuotaExhausted,
+            ),
+            (
+                "serpapi_hourly_throughput",
+                429,
+                r#"{"error":"Your account has exceeded the hourly searches limit."}"#,
+                AttemptErrorKind::RateLimited,
+            ),
             ("request_timeout", 408, "", AttemptErrorKind::Timeout),
             ("gateway_timeout", 504, "", AttemptErrorKind::Timeout),
             ("server_error_lower", 500, "", AttemptErrorKind::Network),
@@ -812,39 +811,35 @@ mod tests {
     }
 
     #[test]
-    fn build_client_times_out_when_the_response_body_stalls() {
+    fn build_client_times_out_a_stalled_response() {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind test server");
         let address = listener.local_addr().expect("test server address");
-        let (release, released) = std::sync::mpsc::channel();
+        let (release, released) = mpsc::channel::<()>();
         let server = thread::spawn(move || {
             let (mut stream, _) = listener.accept().expect("accept request");
+            // The read timeout also bounds the wait for headers, so on a loaded host the
+            // client may give up before this fixture runs; the connection stalls either
+            // way, which makes failed writes here expected rather than fatal.
             let mut request = [0_u8; 4096];
-            let read = stream.read(&mut request).expect("read request");
-            assert!(read > 0, "fixture received an empty request");
-            stream
-                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nx")
-                .expect("write partial response");
-            stream.flush().expect("flush partial response");
-            released
-                .recv_timeout(Duration::from_secs(1))
-                .expect("wait for client timeout");
+            let _ = stream.read(&mut request);
+            let _ = stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nx");
+            // The bound expires only when the client has no read timeout; closing then
+            // ends the stall with a non-timeout error instead of hanging the test.
+            let _ = released.recv_timeout(Duration::from_secs(10));
         });
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("build runtime");
 
-        let result = runtime.block_on(async {
+        let result = test_runtime().block_on(async {
             let client = build_client_with_read_timeout(true, Duration::from_millis(200))
                 .expect("build client");
-            let response = client
+            client
                 .get(format!("http://{address}"))
                 .send()
+                .await?
+                .bytes()
                 .await
-                .expect("receive response headers");
-            response.bytes().await
         });
-        release.send(()).expect("release test server");
+        drop(release);
         server.join().expect("join test server");
 
         assert!(
@@ -879,7 +874,10 @@ pub(crate) fn error_kind_for_status(status: StatusCode, body: &str) -> AttemptEr
         403 if mentions(body, "support this site") => AttemptErrorKind::Parameter,
         401 | 403 => AttemptErrorKind::Auth,
         402 => AttemptErrorKind::QuotaExhausted,
-        429 if mentions(body, "quota") => AttemptErrorKind::QuotaExhausted,
+        // SerpApi reports a used-up monthly plan as "run out of searches".
+        429 if mentions(body, "quota") || mentions(body, "run out of searches") => {
+            AttemptErrorKind::QuotaExhausted
+        }
         429 => AttemptErrorKind::RateLimited,
         408 | 504 => AttemptErrorKind::Timeout,
         500..=599 => AttemptErrorKind::Network,

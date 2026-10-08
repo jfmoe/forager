@@ -1,2 +1,2 @@
 # Product names that doc comments spell as prose, not code.
-doc-valid-idents = ["OpenCLI", ".."]
+doc-valid-idents = ["OpenCLI", "SerpApi", ".."]

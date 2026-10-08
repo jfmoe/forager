@@ -1,0 +1,16 @@
+{
+  "search_metadata": {
+    "id": "000000000000000000000000",
+    "status": "Success"
+  },
+  "search_information": {
+    "organic_results_state": "Fully empty",
+    "query_displayed": "\"zxqvbn qqqzzz momentum kkkwww\"",
+    "spelling_fix": "zxcvbn"
+  },
+  "error": "Google hasn't returned any results for this query.",
+  "profiles": {
+    "link": "https://scholar.google.com/scholar?hl=en&as_sdt=0,23&q=%22zxcvbn+qqqzzz+momentum+kkkwww%22",
+    "serpapi_link": "https://serpapi.com/search.json?engine=google_scholar_profiles&hl=en&mauthors=%22zxqvbn+qqqzzz+momentum+kkkwww%22"
+  }
+}

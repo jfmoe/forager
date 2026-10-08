@@ -1,0 +1,96 @@
+{
+  "search_metadata": {
+    "id": "000000000000000000000000",
+    "status": "Success"
+  },
+  "search_information": {
+    "organic_results_state": "Results for exact spelling",
+    "total_results": 11,
+    "time_taken_displayed": 0.05
+  },
+  "organic_results": [
+    {
+      "position": 1,
+      "title": "Time series momentum$",
+      "result_id": "lhCHbfhqghQJ",
+      "type": "Pdf",
+      "link": "https://www.trendfollowing.com/whitepaper/b.pdf",
+      "snippet": "abstract We document significant ''time series momentum''in equity index, currency, commodity, and bond futures for each of the 58 liquid instruments we consider. We find …",
+      "publication_info": {
+        "summary": "TJ Moskowitz, YH Ooi… - Journal of Financial …, 2012 - trendfollowing.com",
+        "authors": [
+          {
+            "name": "TJ Moskowitz"
+          },
+          {
+            "name": "YH Ooi"
+          }
+        ]
+      },
+      "resources": [
+        {
+          "title": "",
+          "file_format": "PDF",
+          "link": null
+        },
+        {
+          "title": "trendfollowing.com",
+          "file_format": "PDF",
+          "link": "https://www.trendfollowing.com/whitepaper/b.pdf"
+        }
+      ],
+      "inline_links": {
+        "serpapi_cite_link": "https://serpapi.com/search.json?engine=google_scholar_cite&hl=en&q=lhCHbfhqghQJ",
+        "cached_page_link": "https://scholar.googleusercontent.com/scholar?q=cache:lhCHbfhqghQJ:scholar.google.com/&hl=en&num=20&as_sdt=0,23"
+      }
+    },
+    {
+      "position": 3,
+      "title": "Replication of “Time series momentum”",
+      "result_id": "dQoin7UCqjkJ",
+      "link": "https://dmurav.com/replications/releases/v2026-09-06/reports/paper-f920fb6a4696.pdf",
+      "snippet": "2 Results Table 1: Table 2 Panel A replication: alpha t-statistics k< h 1 3 6 9 12 24 36 48 1 2.58 2.30 1.09 1.07 2.37-0.16-1.00-1.70 3 3.29 1.07-0.16 1.17 1.47-0.59-1.64-1.84 6 1.40 …",
+      "publication_info": {
+        "summary": "TJ Moskowitz, YH Ooi, LH Pedersen - Journal of Financial Economics, 2012 - dmurav.com",
+        "authors": [
+          {
+            "name": "TJ Moskowitz"
+          },
+          {
+            "name": "YH Ooi"
+          },
+          {
+            "name": "LH Pedersen"
+          }
+        ]
+      },
+      "inline_links": {
+        "serpapi_cite_link": "https://serpapi.com/search.json?engine=google_scholar_cite&hl=en&q=dQoin7UCqjkJ"
+      }
+    },
+    {
+      "position": 7,
+      "title": "Time series momentum",
+      "result_id": "N8S8rUxjn7IJ",
+      "type": "Citation",
+      "snippet": "",
+      "publication_info": {
+        "summary": "TJ Moskowitz, YH Ooi, LH Pedersen - Journal of Financial Economics, 2012",
+        "authors": [
+          {
+            "name": "TJ Moskowitz"
+          },
+          {
+            "name": "YH Ooi"
+          },
+          {
+            "name": "LH Pedersen"
+          }
+        ]
+      },
+      "inline_links": {
+        "serpapi_cite_link": "https://serpapi.com/search.json?engine=google_scholar_cite&hl=en&q=N8S8rUxjn7IJ"
+      }
+    }
+  ]
+}

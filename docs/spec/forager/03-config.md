@@ -87,6 +87,11 @@ timeout = 30
 command = "opencli"          # 不能为空
 timeout = 90                 # 一次 OpenCLI 命令的 attempt 超时
 
+[providers.serpapi]          # 需要凭据的平台 route；key 由用户自备（ADR 0021）
+url = "https://serpapi.com/search.json"
+keys = []                    # 为空＝未配置，scholar 平台命令飞行前退 3
+timeout = 30
+
 [capabilities.web_search]
 order = ["tavily", "firecrawl"]
 [capabilities.web_fetch]
@@ -100,6 +105,8 @@ order = ["anysearch"]
 order = ["arxiv_api"]        # 置空＝禁用该平台
 [platforms.ssrn]
 order = ["ssrn_crossref"]    # 加入 "ssrn_browser" 才启用浏览器 route（ADR 0020）
+[platforms.scholar]
+order = ["serpapi"]          # 默认含 serpapi，但没有 key 时不算已配置
 
 [log]
 level = "info"               # error|warn|info|debug|trace；见下方运行时语义
@@ -130,7 +137,7 @@ ssl_verify = true
 
 ### 平台 route 顺序
 
-`[platforms.<id>].order`＝该平台 route 的完全权威顺序（ADR 0019），默认值是 platform catalog 为该平台声明的默认 order（不是 route 集合的并集），需要用户手动启用的 route 是合法取值但不出现在默认值中。校验：拒绝重复项与不属于该平台的 route（config_error 退 3；`config set` 退 2）；允许为空，含义是禁用该平台。某个操作实际使用的 route＝该 order ∩ 该操作的 route 集合 ∩ 已配置的 route，集合为空时平台命令飞行前退 3，消息指出该配置键。env 按既有公式派生，例如 `FORAGER_PLATFORMS__ARXIV__ORDER='["arxiv_api"]'`。
+`[platforms.<id>].order`＝该平台 route 的完全权威顺序（ADR 0019），默认值是 platform catalog 为该平台声明的默认 order（不是 route 集合的并集），需要用户手动启用的 route 是合法取值但不出现在默认值中。校验：拒绝重复项与不属于该平台的 route（config_error 退 3；`config set` 退 2）；允许为空，含义是禁用该平台。某个操作实际使用的 route＝该 order ∩ 该操作的 route 集合 ∩ 已配置的 route，集合为空时平台命令飞行前退 3，消息指出该配置键；order 中有 route 只因缺凭据而未配置时，消息另外点名 `providers.<route>.keys`。env 按既有公式派生，例如 `FORAGER_PLATFORMS__ARXIV__ORDER='["arxiv_api"]'`。
 
 平台 fetch 的正文段不设平台级顺序：它复用 `[capabilities.web_fetch].order` 与各 provider 的凭据（例如 arXiv 全文读取 HTML/PDF 时）。`full_text` 深度下该链没有已配置的 provider 时，平台 fetch 飞行前退 3；只取元数据与摘要的深度不需要 Web Fetch 配置。`providers.arxiv_api.url` 同时决定 HTML 可用性探测所在的主机（默认 export 镜像，与 arxiv.org 返回同一结果）。
 
@@ -160,7 +167,7 @@ ssl_verify = true
 
 ## `setup` 向导
 
-交互四步：①语言 → ②主模型（选 backend，回车取默认）→ ③分类器（可跳过，明示后果）→ ④补强 provider ×6 逐个贴 keys 或跳过。写盘后提示跑 `forager doctor`（setup 不做连通性探测）。只问凭据与模型级键；行为键出口是 `config set` 与手编。二跑＝增量更新。`--non-interactive`＝生成全键注释模板（table 形式，凭据留空），目标已存在拒绝覆盖。
+交互五步：①语言 → ②主模型（选 backend，回车取默认）→ ③分类器（可跳过，明示后果）→ ④补强 provider ×6 逐个贴 keys 或跳过 → ⑤需要凭据的平台 route（目前只有 `serpapi`）贴 keys 或跳过。写盘后提示跑 `forager doctor`（setup 不做连通性探测）。只问凭据与模型级键；行为键出口是 `config set` 与手编。二跑＝增量更新。`--non-interactive`＝生成全键注释模板（table 形式，凭据留空），目标已存在拒绝覆盖。
 
 ## 旧键→新键映射表（迁移的唯一交付物）
 

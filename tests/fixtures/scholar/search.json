@@ -1,0 +1,410 @@
+{
+  "search_metadata": {
+    "id": "000000000000000000000000",
+    "status": "Success"
+  },
+  "search_information": {
+    "organic_results_state": "Results for exact spelling",
+    "total_results": 4670000,
+    "time_taken_displayed": 0.14,
+    "query_displayed": "time series momentum"
+  },
+  "organic_results": [
+    {
+      "position": 1,
+      "title": "Time series momentum",
+      "result_id": "fL6eJ05HsPwJ",
+      "type": "Html",
+      "link": "https://www.sciencedirect.com/science/article/pii/S0304405X11002613",
+      "snippet": "… to explain time series momentum. Our finding that time series and cross-sectional momentum profits … In addition, we find that time series momentum captures the returns associated with …",
+      "publication_info": {
+        "summary": "TJ Moskowitz, YH Ooi, LH Pedersen - Journal of financial economics, 2012 - Elsevier",
+        "authors": [
+          {
+            "name": "TJ Moskowitz",
+            "link": "https://scholar.google.com/citations?user=q9g8tuAAAAAJ&hl=en&num=20&oi=sra",
+            "author_id": "q9g8tuAAAAAJ",
+            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=q9g8tuAAAAAJ&engine=google_scholar_author&hl=en"
+          },
+          {
+            "name": "YH Ooi",
+            "link": "https://scholar.google.com/citations?user=-zheQv4AAAAJ&hl=en&num=20&oi=sra",
+            "author_id": "-zheQv4AAAAJ",
+            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=-zheQv4AAAAJ&engine=google_scholar_author&hl=en"
+          },
+          {
+            "name": "LH Pedersen",
+            "link": "https://scholar.google.com/citations?user=XhSFeucAAAAJ&hl=en&num=20&oi=sra",
+            "author_id": "XhSFeucAAAAJ",
+            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=XhSFeucAAAAJ&engine=google_scholar_author&hl=en"
+          }
+        ]
+      },
+      "resources": [
+        {
+          "title": "",
+          "file_format": "HTML",
+          "link": null
+        },
+        {
+          "title": "sciencedirect.com",
+          "file_format": "HTML",
+          "link": "https://www.sciencedirect.com/science/article/pii/S0304405X11002613"
+        }
+      ],
+      "inline_links": {
+        "serpapi_cite_link": "https://serpapi.com/search.json?engine=google_scholar_cite&hl=en&q=fL6eJ05HsPwJ",
+        "html_version": "https://www.sciencedirect.com/science/article/pii/S0304405X11002613",
+        "cited_by": {
+          "total": 2307,
+          "link": "https://scholar.google.com/scholar?cites=18208131694456651388&as_sdt=5,27&sciodt=0,27&hl=en&num=20",
+          "cites_id": "18208131694456651388",
+          "serpapi_scholar_link": "https://serpapi.com/search.json?as_sdt=5%2C27&cites=18208131694456651388&engine=google_scholar&hl=en&num=20"
+        },
+        "related_pages_link": "https://scholar.google.com/scholar?q=related:fL6eJ05HsPwJ:scholar.google.com/&scioq=time+series+momentum&hl=en&num=20&as_sdt=0,27",
+        "serpapi_related_pages_link": "https://serpapi.com/search.json?as_sdt=0%2C27&engine=google_scholar&hl=en&num=20&q=related%3AfL6eJ05HsPwJ%3Ascholar.google.com%2F",
+        "versions": {
+          "total": 45,
+          "link": "https://scholar.google.com/scholar?cluster=18208131694456651388&hl=en&num=20&as_sdt=0,27",
+          "cluster_id": "18208131694456651388",
+          "serpapi_scholar_link": "https://serpapi.com/search.json?as_sdt=0%2C27&cluster=18208131694456651388&engine=google_scholar&hl=en&num=20"
+        }
+      }
+    },
+    {
+      "position": 5,
+      "title": "Enhancing time series momentum strategies using deep neural networks",
+      "result_id": "8Yd6qaJYGJUJ",
+      "link": "https://arxiv.org/abs/1904.04912",
+      "snippet": "… —While time series momentum [1… Momentum Networks – a hybrid approach which injects deep learning based trading rules into the volatility scaling framework of time series momentum…",
+      "publication_info": {
+        "summary": "B Lim, S Zohren, S Roberts - arXiv preprint arXiv:1904.04912, 2019 - arxiv.org",
+        "authors": [
+          {
+            "name": "B Lim",
+            "link": "https://scholar.google.com/citations?user=NECavRYAAAAJ&hl=en&num=20&oi=sra",
+            "author_id": "NECavRYAAAAJ",
+            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=NECavRYAAAAJ&engine=google_scholar_author&hl=en"
+          },
+          {
+            "name": "S Zohren",
+            "link": "https://scholar.google.com/citations?user=mtNQD-8AAAAJ&hl=en&num=20&oi=sra",
+            "author_id": "mtNQD-8AAAAJ",
+            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=mtNQD-8AAAAJ&engine=google_scholar_author&hl=en"
+          },
+          {
+            "name": "S Roberts",
+            "link": "https://scholar.google.com/citations?user=T1lNNLkAAAAJ&hl=en&num=20&oi=sra",
+            "author_id": "T1lNNLkAAAAJ",
+            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=T1lNNLkAAAAJ&engine=google_scholar_author&hl=en"
+          }
+        ]
+      },
+      "resources": [
+        {
+          "title": "",
+          "file_format": "PDF",
+          "link": null
+        },
+        {
+          "title": "arxiv.org",
+          "file_format": "PDF",
+          "link": "https://arxiv.org/pdf/1904.04912"
+        }
+      ],
+      "inline_links": {
+        "serpapi_cite_link": "https://serpapi.com/search.json?engine=google_scholar_cite&hl=en&q=8Yd6qaJYGJUJ",
+        "cited_by": {
+          "total": 151,
+          "link": "https://scholar.google.com/scholar?cites=10743434366743644145&as_sdt=5,27&sciodt=0,27&hl=en&num=20",
+          "cites_id": "10743434366743644145",
+          "serpapi_scholar_link": "https://serpapi.com/search.json?as_sdt=5%2C27&cites=10743434366743644145&engine=google_scholar&hl=en&num=20"
+        },
+        "related_pages_link": "https://scholar.google.com/scholar?q=related:8Yd6qaJYGJUJ:scholar.google.com/&scioq=time+series+momentum&hl=en&num=20&as_sdt=0,27",
+        "serpapi_related_pages_link": "https://serpapi.com/search.json?as_sdt=0%2C27&engine=google_scholar&hl=en&num=20&q=related%3A8Yd6qaJYGJUJ%3Ascholar.google.com%2F",
+        "versions": {
+          "total": 18,
+          "link": "https://scholar.google.com/scholar?cluster=10743434366743644145&hl=en&num=20&as_sdt=0,27",
+          "cluster_id": "10743434366743644145",
+          "serpapi_scholar_link": "https://serpapi.com/search.json?as_sdt=0%2C27&cluster=10743434366743644145&engine=google_scholar&hl=en&num=20"
+        },
+        "cached_page_link": "https://scholar.googleusercontent.com/scholar?q=cache:8Yd6qaJYGJUJ:scholar.google.com/+time+series+momentum&hl=en&num=20&as_sdt=0,27"
+      }
+    },
+    {
+      "position": 1,
+      "title": "When Does Risk-Managed Momentum Add Value? An Out-of-Sample, Regime-Conditional, and Statistically Tested Study of a Volatility-Targeted Dual-Momentum …",
+      "result_id": "qzdExiweMh4J",
+      "link": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7143882",
+      "snippet": "… 2022 was one of the worst years on record for balanced portfolios because stocks and … insight: risk-managed momentum protects against slow bear markets but not fast crashes. The …",
+      "publication_info": {
+        "summary": "A Goyal - … Volatility-Targeted Dual-Momentum Strategy (June 15 …, 2026 - papers.ssrn.com",
+        "authors": [
+          {
+            "name": "A Goyal"
+          }
+        ]
+      },
+      "resources": [
+        {
+          "title": "",
+          "file_format": "PDF",
+          "link": null
+        },
+        {
+          "title": "ssrn.com",
+          "file_format": "PDF",
+          "link": "https://papers.ssrn.com/sol3/Delivery.cfm?abstractid=7143882"
+        }
+      ],
+      "inline_links": {
+        "serpapi_cite_link": "https://serpapi.com/search.json?engine=google_scholar_cite&hl=en&q=qzdExiweMh4J",
+        "related_pages_link": "https://scholar.google.com/scholar?q=related:qzdExiweMh4J:scholar.google.com/&scioq=momentum+crash+hedging+portfolio&hl=en&num=20&as_sdt=0,48&as_ylo=2026",
+        "serpapi_related_pages_link": "https://serpapi.com/search.json?as_sdt=0%2C48&as_ylo=2026&engine=google_scholar&hl=en&num=20&q=related%3AqzdExiweMh4J%3Ascholar.google.com%2F",
+        "cached_page_link": "https://scholar.googleusercontent.com/scholar?q=cache:qzdExiweMh4J:scholar.google.com/+momentum+crash+hedging+portfolio&hl=en&num=20&as_sdt=0,48&as_ylo=2026"
+      }
+    },
+    {
+      "position": 18,
+      "title": "Resilience Anomaly and Asset Pricing in the Chinese Stock Market",
+      "result_id": "nA5StemgftIJ",
+      "link": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7506942",
+      "snippet": "… , and momentum factors do not capture the risk premia embedded in our sorted portfolios. … pushing up investors’ demand for crash hedging and forming obvious resilience premiums. …",
+      "publication_info": {
+        "summary": "J Hu, X Li, T Wang - papers.ssrn.com",
+        "authors": [
+          {
+            "name": "J Hu"
+          },
+          {
+            "name": "X Li"
+          },
+          {
+            "name": "T Wang"
+          }
+        ]
+      },
+      "resources": [
+        {
+          "title": "",
+          "file_format": "PDF",
+          "link": null
+        },
+        {
+          "title": "ssrn.com",
+          "file_format": "PDF",
+          "link": "https://papers.ssrn.com/sol3/Delivery.cfm?abstractid=7506942"
+        }
+      ],
+      "inline_links": {
+        "serpapi_cite_link": "https://serpapi.com/search.json?engine=google_scholar_cite&hl=en&q=nA5StemgftIJ",
+        "related_pages_link": "https://scholar.google.com/scholar?q=related:nA5StemgftIJ:scholar.google.com/&scioq=momentum+crash+hedging+portfolio&hl=en&num=20&as_sdt=0,48&as_ylo=2026",
+        "serpapi_related_pages_link": "https://serpapi.com/search.json?as_sdt=0%2C48&as_ylo=2026&engine=google_scholar&hl=en&num=20&q=related%3AnA5StemgftIJ%3Ascholar.google.com%2F",
+        "cached_page_link": "https://scholar.googleusercontent.com/scholar?q=cache:nA5StemgftIJ:scholar.google.com/+momentum+crash+hedging+portfolio&hl=en&num=20&as_sdt=0,48&as_ylo=2026"
+      }
+    },
+    {
+      "position": 1,
+      "title": "A century of evidence on trend-following investing",
+      "result_id": "r32K4G-xWvsJ",
+      "link": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2993026",
+      "snippet": "… We construct a time-series momentum strategy all the way … We find that time series momentum has been consistently profitable … We follow the time series momentum methodology of …",
+      "publication_info": {
+        "summary": "B Hurst, YH Ooi, LH Pedersen - Available at SSRN 2993026, 2017 - papers.ssrn.com",
+        "authors": [
+          {
+            "name": "B Hurst"
+          },
+          {
+            "name": "YH Ooi",
+            "link": "https://scholar.google.com/citations?user=-zheQv4AAAAJ&hl=en&num=20&oi=sra",
+            "author_id": "-zheQv4AAAAJ",
+            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=-zheQv4AAAAJ&engine=google_scholar_author&hl=en"
+          },
+          {
+            "name": "LH Pedersen",
+            "link": "https://scholar.google.com/citations?user=XhSFeucAAAAJ&hl=en&num=20&oi=sra",
+            "author_id": "XhSFeucAAAAJ",
+            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=XhSFeucAAAAJ&engine=google_scholar_author&hl=en"
+          }
+        ]
+      },
+      "resources": [
+        {
+          "title": "",
+          "file_format": "PDF",
+          "link": null
+        },
+        {
+          "title": "ssrn.com",
+          "file_format": "PDF",
+          "link": "https://papers.ssrn.com/sol3/Delivery.cfm?abstractid=2993026"
+        }
+      ],
+      "inline_links": {
+        "serpapi_cite_link": "https://serpapi.com/search.json?engine=google_scholar_cite&hl=en&q=r32K4G-xWvsJ",
+        "cited_by": {
+          "total": 382,
+          "link": "https://scholar.google.com/scholar?cites=18111983945490529711&as_sdt=2005&sciodt=0,5&hl=en&num=20",
+          "cites_id": "18111983945490529711",
+          "serpapi_scholar_link": "https://serpapi.com/search.json?as_sdt=2005&cites=18111983945490529711&engine=google_scholar&hl=en&num=20"
+        },
+        "related_pages_link": "https://scholar.google.com/scholar?q=related:r32K4G-xWvsJ:scholar.google.com/&scioq=%22time+series+momentum%22+author:%22Pedersen%22&hl=en&num=20&as_sdt=0,5",
+        "serpapi_related_pages_link": "https://serpapi.com/search.json?as_sdt=0%2C5&engine=google_scholar&hl=en&num=20&q=related%3Ar32K4G-xWvsJ%3Ascholar.google.com%2F",
+        "versions": {
+          "total": 34,
+          "link": "https://scholar.google.com/scholar?cluster=18111983945490529711&hl=en&num=20&as_sdt=0,5",
+          "cluster_id": "18111983945490529711",
+          "serpapi_scholar_link": "https://serpapi.com/search.json?as_sdt=0%2C5&cluster=18111983945490529711&engine=google_scholar&hl=en&num=20"
+        },
+        "cached_page_link": "https://scholar.googleusercontent.com/scholar?q=cache:r32K4G-xWvsJ:scholar.google.com/+%22time+series+momentum%22+author:%22Pedersen%22&hl=en&num=20&as_sdt=0,5"
+      }
+    },
+    {
+      "position": 3,
+      "title": "Time Series Momentum",
+      "result_id": "CFXLZdAFrk4J",
+      "type": "Citation",
+      "snippet": "",
+      "publication_info": {
+        "summary": "B Hurst, YH Ooi, LH Pedersen - Journal of Financial Economics, 2014",
+        "authors": [
+          {
+            "name": "B Hurst"
+          },
+          {
+            "name": "YH Ooi"
+          },
+          {
+            "name": "LH Pedersen"
+          }
+        ]
+      },
+      "inline_links": {
+        "serpapi_cite_link": "https://serpapi.com/search.json?engine=google_scholar_cite&hl=en&q=CFXLZdAFrk4J",
+        "cited_by": {
+          "total": 2,
+          "link": "https://scholar.google.com/scholar?cites=5669475373525193992&as_sdt=2005&sciodt=0,5&hl=en&num=20",
+          "cites_id": "5669475373525193992",
+          "serpapi_scholar_link": "https://serpapi.com/search.json?as_sdt=2005&cites=5669475373525193992&engine=google_scholar&hl=en&num=20"
+        },
+        "related_pages_link": "https://scholar.google.com/scholar?q=related:CFXLZdAFrk4J:scholar.google.com/&scioq=%22time+series+momentum%22+author:%22Pedersen%22&hl=en&num=20&as_sdt=0,5",
+        "serpapi_related_pages_link": "https://serpapi.com/search.json?as_sdt=0%2C5&engine=google_scholar&hl=en&num=20&q=related%3ACFXLZdAFrk4J%3Ascholar.google.com%2F"
+      }
+    },
+    {
+      "position": 3,
+      "title": "Data for Paper: Wind-wave momentum flux in steep, strongly forced, surface gravity wave conditions",
+      "result_id": "ur4iIE0ChnUJ",
+      "link": "https://scholarship.miami.edu/esploro/outputs/dataset/Data-for-Paper-Wind-wave-momentum-flux/991032077272902976",
+      "snippet": "… manuscript Tan et al (2024): Wind-wave momentum flux in steep, strongly forced, surface gravity wave conditions. Fig_3: time series static pressure p sampled at 100 Hz and horizontal/…",
+      "publication_info": {
+        "summary": "P Tan, M Curcic, B Haus, I Savelyev, S Matt - 2024 - scholarship.miami.edu",
+        "authors": [
+          {
+            "name": "P Tan",
+            "link": "https://scholar.google.com/citations?user=wlLQBswAAAAJ&hl=en&num=20&oi=sra",
+            "author_id": "wlLQBswAAAAJ",
+            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=wlLQBswAAAAJ&engine=google_scholar_author&hl=en"
+          },
+          {
+            "name": "M Curcic",
+            "link": "https://scholar.google.com/citations?user=NS217eUAAAAJ&hl=en&num=20&oi=sra",
+            "author_id": "NS217eUAAAAJ",
+            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=NS217eUAAAAJ&engine=google_scholar_author&hl=en"
+          },
+          {
+            "name": "B Haus"
+          },
+          {
+            "name": "I Savelyev",
+            "link": "https://scholar.google.com/citations?user=suyEwsYAAAAJ&hl=en&num=20&oi=sra",
+            "author_id": "suyEwsYAAAAJ",
+            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=suyEwsYAAAAJ&engine=google_scholar_author&hl=en"
+          },
+          {
+            "name": "S Matt",
+            "link": "https://scholar.google.com/citations?user=EQFaXeEAAAAJ&hl=en&num=20&oi=sra",
+            "author_id": "EQFaXeEAAAAJ",
+            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=EQFaXeEAAAAJ&engine=google_scholar_author&hl=en"
+          }
+        ]
+      },
+      "inline_links": {
+        "serpapi_cite_link": "https://serpapi.com/search.json?engine=google_scholar_cite&hl=en&q=ur4iIE0ChnUJ",
+        "cited_by": {
+          "total": 1,
+          "link": "https://scholar.google.com/scholar?cites=8468458679591681722&as_sdt=2005&sciodt=0,5&hl=en&num=20",
+          "cites_id": "8468458679591681722",
+          "serpapi_scholar_link": "https://serpapi.com/search.json?as_sdt=2005&cites=8468458679591681722&engine=google_scholar&hl=en&num=20"
+        },
+        "related_pages_link": "https://scholar.google.com/scholar?q=related:ur4iIE0ChnUJ:scholar.google.com/&scioq=time+series+momentum&hl=en&num=20&as_sdt=0,5",
+        "serpapi_related_pages_link": "https://serpapi.com/search.json?as_sdt=0%2C5&engine=google_scholar&hl=en&num=20&q=related%3Aur4iIE0ChnUJ%3Ascholar.google.com%2F&start=980",
+        "versions": {
+          "total": 2,
+          "link": "https://scholar.google.com/scholar?cluster=8468458679591681722&hl=en&num=20&as_sdt=0,5",
+          "cluster_id": "8468458679591681722",
+          "serpapi_scholar_link": "https://serpapi.com/search.json?as_sdt=0%2C5&cluster=8468458679591681722&engine=google_scholar&hl=en&num=20"
+        },
+        "cached_page_link": "https://scholar.googleusercontent.com/scholar?q=cache:ur4iIE0ChnUJ:scholar.google.com/+time+series+momentum&hl=en&num=20&as_sdt=0,5"
+      }
+    },
+    {
+      "position": 7,
+      "title": "Analysis of gender-related differences in lower extremity peripheral arterial disease",
+      "result_id": "IcZO5L4z6bEJ",
+      "link": "https://www.jvascsurg.org/article/S0741-5214(09)01836-9/fulltext",
+      "snippet": "Introduction Gender-related differences continue to challenge the management of lower extremity (LE) peripheral arterial disease (PAD) in women. We analyzed the time-trends in …",
+      "publication_info": {
+        "summary": "…, J Quin, S Guillerme, A Moskowitz… - Journal of vascular …, 2010 - jvascsurg.org",
+        "authors": [
+          {
+            "name": ""
+          },
+          {
+            "name": "J Quin"
+          },
+          {
+            "name": "S Guillerme"
+          },
+          {
+            "name": "A Moskowitz"
+          }
+        ]
+      },
+      "resources": [
+        {
+          "title": "",
+          "file_format": "PDF",
+          "link": null
+        },
+        {
+          "title": "jvascsurg.org",
+          "file_format": "PDF",
+          "link": "https://www.jvascsurg.org/article/S0741-5214(09)01836-9/pdf"
+        }
+      ],
+      "inline_links": {
+        "serpapi_cite_link": "https://serpapi.com/search.json?engine=google_scholar_cite&hl=en&q=IcZO5L4z6bEJ",
+        "cited_by": {
+          "total": 188,
+          "link": "https://scholar.google.com/scholar?cites=12819834709253998113&as_sdt=5,38&sciodt=0,38&hl=en&num=20",
+          "cites_id": "12819834709253998113",
+          "serpapi_scholar_link": "https://serpapi.com/search.json?as_sdt=5%2C38&cites=12819834709253998113&engine=google_scholar&hl=en&num=20"
+        },
+        "related_pages_link": "https://scholar.google.com/scholar?q=related:IcZO5L4z6bEJ:scholar.google.com/&scioq=trend+OR+reversal+author:%22Moskowitz%22&hl=en&num=20&as_sdt=0,38",
+        "serpapi_related_pages_link": "https://serpapi.com/search.json?as_sdt=0%2C38&engine=google_scholar&hl=en&num=20&q=related%3AIcZO5L4z6bEJ%3Ascholar.google.com%2F",
+        "versions": {
+          "total": 11,
+          "link": "https://scholar.google.com/scholar?cluster=12819834709253998113&hl=en&num=20&as_sdt=0,38",
+          "cluster_id": "12819834709253998113",
+          "serpapi_scholar_link": "https://serpapi.com/search.json?as_sdt=0%2C38&cluster=12819834709253998113&engine=google_scholar&hl=en&num=20"
+        }
+      }
+    }
+  ],
+  "serpapi_pagination": {
+    "current": 1,
+    "next": "https://serpapi.com/search.json?as_sdt=0%2C27&engine=google_scholar&hl=en&num=20&q=time+series+momentum&start=20"
+  }
+}

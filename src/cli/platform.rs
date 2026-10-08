@@ -25,6 +25,10 @@ use crate::types::{
 mod ssrn_search;
 use ssrn_search::{SsrnSearchArgs, ssrn_search};
 
+#[path = "scholar.rs"]
+mod scholar;
+use scholar::ScholarCommand;
+
 const DEFAULT_TIMEOUT_SECONDS: u64 = 120;
 
 #[derive(Debug, Subcommand)]
@@ -38,6 +42,11 @@ pub(super) enum PlatformCommand {
     Ssrn {
         #[command(subcommand)]
         command: SsrnCommand,
+    },
+    /// Find papers across publishers through Google Scholar; needs a SerpApi key.
+    Scholar {
+        #[command(subcommand)]
+        command: ScholarCommand,
     },
 }
 
@@ -224,6 +233,7 @@ pub(super) fn run(command: PlatformCommand) -> Result<CommandOutput, AppError> {
         PlatformCommand::Ssrn {
             command: SsrnCommand::Fetch(arguments),
         } => ssrn_fetch(arguments),
+        PlatformCommand::Scholar { command } => scholar::run(command),
     }
 }
 

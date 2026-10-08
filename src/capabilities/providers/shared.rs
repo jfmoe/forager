@@ -182,7 +182,7 @@ fn extract_inline_bindings(answer: &str) -> Vec<Source> {
         let url = answer[url_start..url_end].trim();
         if !number.is_empty()
             && number.chars().all(|character| character.is_ascii_digit())
-            && valid_http_url(url)
+            && is_http_url(url)
         {
             sources.push(source("", url));
         }
@@ -232,7 +232,7 @@ fn extract_link_sources(block: &str) -> Vec<Source> {
             continue;
         };
         let url = block[url_start..url_end].trim();
-        if valid_http_url(url) {
+        if is_http_url(url) {
             sources.push((open, source(&block[open + 1..label_end], url)));
             markdown_urls.push(url_start..url_end);
         }
@@ -256,7 +256,7 @@ fn extract_link_sources(block: &str) -> Vec<Source> {
             let url = block[start..end].trim_end_matches([
                 '.', ',', ';', ':', '!', '?', '，', '。', '；', '：', '！', '？',
             ]);
-            if valid_http_url(url) {
+            if is_http_url(url) {
                 sources.push((start, source("", url)));
             }
         }
@@ -265,7 +265,8 @@ fn extract_link_sources(block: &str) -> Vec<Source> {
     sources.into_iter().map(|(_, source)| source).collect()
 }
 
-fn valid_http_url(value: &str) -> bool {
+/// Returns whether the value is an absolute HTTP(S) URL with a host.
+pub(super) fn is_http_url(value: &str) -> bool {
     reqwest::Url::parse(value)
         .is_ok_and(|url| matches!(url.scheme(), "http" | "https") && url.host_str().is_some())
 }

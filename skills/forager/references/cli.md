@@ -306,7 +306,8 @@ forager anysearch domains DOMAIN [--timeout SECONDS] [--format json|markdown]
 [`platform-vocabulary.json`](platform-vocabulary.json). Platform commands write no result journal.
 Their `--timeout` defaults to `120` and includes waits for the platform's request window, shared
 across all local processes (arXiv: one request every 3 seconds; SSRN through Crossref: one request
-per second; SSRN through the browser: one OpenCLI command every 5 seconds).
+per second; SSRN through the browser: one OpenCLI command every 5 seconds; Google Scholar through
+SerpApi has no local window).
 
 ### `platform arxiv search`
 
@@ -443,6 +444,80 @@ message names its path. `full_text` with no configured Web Fetch provider exits 
 download and the conversion room: pass a larger `--timeout` than the default 120 seconds when a
 full-text fetch times out.
 
+### `platform scholar search`
+
+```console
+forager platform scholar search QUERY [--limit N] [--year-from YYYY] [--year-to YYYY]
+                                [--review-only] [--cursor CURSOR]
+                                [--timeout SECONDS] [--format json|markdown]
+                                [--output FILE [--receipt]] [--verbose]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `QUERY` | Google Scholar query, sent unchanged; Google Scholar's own operators apply. Required unless `--cursor` is given. | Required |
+| `--limit N` | Results on this page, `1..=20`; every page costs one SerpApi search whatever its size. | `20` |
+| `--year-from` / `--year-to` | Inclusive publication-year range, `1000..=9999`; either end may be omitted. | None |
+| `--review-only` | Only review articles. | Off |
+| `--cursor CURSOR` | `next_cursor` of a previous page; it restores the whole request, so pass no query, option, or `--limit` with it. Every page costs one search. | Omitted |
+
+Google Scholar is reached only through the `serpapi` route, which needs a SerpApi key in
+`providers.serpapi.keys`; without one the command exits `3` before any request and names that
+key. Every page costs one search of the key's quota, including an empty page; an identical
+request repeated within one hour is served from SerpApi's cache and costs none.
+
+JSON output is `{platform, provider, items, next_cursor}`. Each item has:
+
+| Field | Meaning |
+| --- | --- |
+| `ref`, `url` | `scholar:<cluster_id>` and the cluster's Google Scholar page. |
+| `depth` | `snippet`, or `metadata` when the result has no excerpt. |
+| `title`, `authors`, `published` | Title, the byline's author names (often initials, possibly cut short), and the year. |
+| `snippet` | Google Scholar's excerpt; never the abstract. |
+| `link` | The page the result title links to, or `null`. |
+| `source` | The byline exactly as Google Scholar shows it. |
+| `cited_by`, `version_count` | Google Scholar's citation and version counts, or `null`. |
+| `resources` | PDF or HTML copies, each `{title, file_format, url}`. |
+| `result_type` | Google Scholar's result type such as `Pdf` or `Html`, or `null`. |
+
+Results without a verifiable cluster ID are skipped and reported on stderr; a page whose every
+result was skipped is a `runtime` failure. A valid empty search returns `items: []` with exit 0.
+`next_cursor` is `null` on the last page and before any page that would pass result 1000, the
+most Google Scholar serves.
+
+Exit codes: `2` before any request for a blank query, `--limit` outside `1..=20`, a year out of
+range or `--year-from` after `--year-to`, a cursor combined with a query, option, or `--limit`, a
+tampered cursor, or a cursor whose route left the order or lost its keys; `3` for no key or an
+empty `platforms.scholar.order`; `4` for `auth` (SerpApi rejected the key), `quota_exhausted`
+(every key has used its monthly searches), `rate_limited` (the hourly limit), `network`, `timeout`,
+and `runtime` failures.
+
+### `platform scholar fetch`
+
+```console
+forager platform scholar fetch REF_OR_URL [--depth metadata]
+                               [--timeout SECONDS] [--format json|markdown]
+                               [--output FILE [--receipt]] [--verbose]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `REF_OR_URL` | `scholar:<cluster_id>`, or a `scholar.google.com/scholar?cluster=<id>` URL. | Required |
+| `--depth DEPTH` | Only `metadata`; any other depth exits `2` before any request. | `metadata` |
+
+Fetch costs one search, including a fetch of a cluster that does not exist. JSON output has
+`platform`, `provider`, `ref` and `url` (the requested cluster), `depth: "metadata"`, `title`,
+`authors`, and `published` taken from the first version, and `versions`: the versions Google
+Scholar groups under the cluster, at most 20, in its order, each `{title, link, source,
+resources}`. The first version is not marked canonical and is often not the published version.
+The number of versions differs from a search item's `version_count`. When the cluster has more
+versions, stderr says so and names the cluster's Google Scholar page.
+
+Exit codes: `2` before any request for citation lists, author profiles, other Scholar URLs, a
+repeated or overflowing `cluster`, or a depth other than `metadata`; `3` for no key or an empty
+order; `4` for a cluster that Google Scholar does not know (`parameter`, message
+`Google Scholar has no cluster scholar:<id>`) and for the failures listed under search.
+
 ## Configuration and diagnostics
 
 ### `config`
@@ -488,7 +563,7 @@ forager doctor [--provider PROVIDER] [--timeout SECONDS] [--format json|markdown
 
 | Option | Meaning | Default |
 | --- | --- | --- |
-| `--provider PROVIDER` | Deep-probe one of `xai`, `openai_compatible`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, `anysearch`, `arxiv_api`, `ssrn_crossref`, or `ssrn_browser`. Without it, run the shallow all-provider report. | Omitted |
+| `--provider PROVIDER` | Deep-probe one of `xai`, `openai_compatible`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, `anysearch`, `arxiv_api`, `ssrn_crossref`, `ssrn_browser`, or `serpapi` (costs one SerpApi search). Without it, run the shallow all-provider report. | Omitted |
 | `--timeout SECONDS` | Set the diagnostic deadline. | `30` |
 | `--format FORMAT` | Use `json` or `markdown`. | `json` |
 

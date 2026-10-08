@@ -14,7 +14,7 @@ use crate::chain::{
     self, BudgetPolicy, ChainSettings, ChainStep, DiagnosticMerge, StepIdentity, StepSuccess,
     StepVerdict, TerminalPolicy,
 };
-use crate::config::{PlatformRouteConfig, PlatformRuntimeConfig};
+use crate::config::{self, PlatformRouteConfig, PlatformRuntimeConfig};
 use crate::net::RetryPolicy;
 use crate::providers;
 use crate::types::{
@@ -268,8 +268,19 @@ pub(crate) fn plan_routes<C: Clone>(
         });
     }
     if available.is_empty() {
+        // Configuration only fails for a route that requires credentials and has none.
+        let missing_keys = candidates
+            .iter()
+            .filter(|candidate| !candidate.configured && operation_routes.contains(&candidate.id))
+            .map(|candidate| config::provider_keys_key(candidate.id.name()))
+            .collect::<Vec<_>>();
+        let hint = if missing_keys.is_empty() {
+            String::new()
+        } else {
+            format!("; set {}", missing_keys.join(" or "))
+        };
         return Err(PlatformPreflightError::Config(format!(
-            "{order_key} has no configured route for {platform} {operation_name}"
+            "{order_key} has no configured route for {platform} {operation_name}{hint}"
         )));
     }
     let mut plan = RoutePlan {
@@ -476,12 +487,9 @@ mod tests {
     }
 
     #[test]
-    fn routes_outside_the_operation_or_without_configuration_do_not_run() {
+    fn routes_outside_the_operation_do_not_run() {
         let result = plan(
-            &[
-                candidate(ProviderId::Tavily, true),
-                candidate(ProviderId::ArxivApi, false),
-            ],
+            &[candidate(ProviderId::Tavily, true)],
             None,
             jina_without_categories,
         );
@@ -490,6 +498,25 @@ mod tests {
             result.err(),
             Some(PlatformPreflightError::Config(
                 "platforms.arxiv.order has no configured route for arxiv search".into()
+            ))
+        );
+    }
+
+    #[test]
+    fn routes_without_credentials_do_not_run_and_the_error_names_their_keys() {
+        let result = plan(
+            &[
+                candidate(ProviderId::Tavily, true),
+                candidate(ProviderId::Jina, false),
+            ],
+            None,
+            jina_without_categories,
+        );
+
+        assert_eq!(
+            result.err(),
+            Some(PlatformPreflightError::Config(
+                "platforms.arxiv.order has no configured route for arxiv search; set providers.jina.keys".into()
             ))
         );
     }

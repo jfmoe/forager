@@ -8,7 +8,7 @@ use crate::config::ExaRuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{AttemptFailure, RetryPolicy, read_complete_protocol, send_provider_request};
 use crate::providers::execution::{ExecutionSettings, execute_v2};
-use crate::providers::shared::redacted_urls_message;
+use crate::providers::shared::{is_http_url, redacted_urls_message};
 use crate::redact::{Secret, redact_url};
 use crate::types::ProviderError;
 use crate::types::{AttemptErrorKind, AttemptTarget, Deadline, ExaInput, ExaOutcome, Source};
@@ -366,9 +366,4 @@ fn failure_message(body: &str, status: u16) -> String {
 
 fn slice_is_empty<T>(values: &[T]) -> bool {
     values.is_empty()
-}
-
-fn is_http_url(value: &str) -> bool {
-    reqwest::Url::parse(value)
-        .is_ok_and(|url| matches!(url.scheme(), "http" | "https") && url.host().is_some())
 }

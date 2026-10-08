@@ -82,7 +82,8 @@ fn platform_commands_nest_operations_under_each_platform() {
         platforms,
         [
             ("arxiv", vec!["search", "fetch"]),
-            ("ssrn", vec!["search", "fetch"])
+            ("ssrn", vec!["search", "fetch"]),
+            ("scholar", vec!["search", "fetch"])
         ]
     );
 }

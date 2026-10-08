@@ -37,7 +37,7 @@ const LATEST_SUBMISSION: &str = "999912312359";
 pub(crate) fn search_support(request: &PlatformSearchRequest) -> Result<(), String> {
     match request.options {
         PlatformSearchOptions::Arxiv(_) => page_start(request.page.as_deref()).map(|_| ()),
-        PlatformSearchOptions::Ssrn(_) => {
+        PlatformSearchOptions::Ssrn(_) | PlatformSearchOptions::Scholar(_) => {
             Err(other_platform_message(ROUTE, request.options.platform()))
         }
     }

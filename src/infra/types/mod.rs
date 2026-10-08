@@ -7,6 +7,7 @@ mod error;
 mod outcome;
 mod platform;
 mod platform_arxiv;
+mod platform_scholar;
 mod platform_ssrn;
 mod platform_ssrn_search;
 mod research;
@@ -31,6 +32,11 @@ pub(crate) use platform::{
     PlatformSearchOutcome, PlatformSearchRequest,
 };
 pub use platform_arxiv::{ArxivItemData, ArxivRef, ArxivSearchOptions, ArxivSort};
+pub(crate) use platform_scholar::SCHOLAR_MAX_LIMIT;
+pub use platform_scholar::{
+    ScholarCluster, ScholarItemData, ScholarRef, ScholarResource, ScholarResult,
+    ScholarSearchOptions, ScholarVersion,
+};
 pub use platform_ssrn::{SsrnItemData, SsrnRef};
 pub use platform_ssrn_search::{
     SsrnDatePreset, SsrnDateRange, SsrnSearchMode, SsrnSearchOptions, SsrnSearchScope, SsrnSort,

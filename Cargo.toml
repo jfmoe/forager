@@ -37,6 +37,7 @@ winapi = { version = "0.3.9", features = ["winnt"] }
 windows-acl = "0.3.0"
 
 [dev-dependencies]
+http = "1.4.2"
 serde_yaml_ng = "0.10.0"
 sha2 = "0.10.9"
 tokio = { version = "1.47.1", features = ["test-util"] }

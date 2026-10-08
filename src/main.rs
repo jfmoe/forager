@@ -13,7 +13,7 @@ use forager::app::{
 use forager::types::{
     AnysearchOutcome, AttemptErrorKind, Context7Outcome, ErrorFamily, ErrorKind, FetchOutcome,
     JournalOutcome, MapOutcome, PlatformFetchResult, PlatformItem, PlatformItemData,
-    PlatformSearchPage, SearchCandidate, SearchOutcome,
+    PlatformSearchPage, ScholarItemData, SearchCandidate, SearchOutcome,
 };
 use serde_json::{Value, json};
 
@@ -695,13 +695,15 @@ fn item_abstract(item: &PlatformItem) -> Option<&str> {
     match &item.data {
         PlatformItemData::Arxiv(data) => Some(&data.abstract_text),
         PlatformItemData::Ssrn(data) => data.abstract_text.as_deref(),
+        PlatformItemData::Scholar(_) => None,
     }
 }
 
 fn item_snippet(item: &PlatformItem) -> Option<&str> {
     match &item.data {
-        PlatformItemData::Arxiv(_) => None,
+        PlatformItemData::Arxiv(_) | PlatformItemData::Scholar(ScholarItemData::Cluster(_)) => None,
         PlatformItemData::Ssrn(data) => data.snippet.as_deref(),
+        PlatformItemData::Scholar(ScholarItemData::Result(data)) => data.snippet.as_deref(),
     }
 }
 

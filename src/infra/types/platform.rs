@@ -11,6 +11,7 @@ use thiserror::Error;
 
 use super::ProviderAttempt;
 use super::platform_arxiv::{ArxivItemData, ArxivRef, ArxivSearchOptions};
+use super::platform_scholar::{ScholarItemData, ScholarRef, ScholarSearchOptions};
 use super::platform_ssrn::{SsrnItemData, SsrnRef};
 use super::platform_ssrn_search::SsrnSearchOptions;
 
@@ -22,11 +23,13 @@ pub enum Platform {
     Arxiv,
     /// The Social Science Research Network (SSRN).
     Ssrn,
+    /// Google Scholar, an index of papers across publishers.
+    Scholar,
 }
 
 impl Platform {
     /// Every built-in platform.
-    pub const ALL: [Self; 2] = [Self::Arxiv, Self::Ssrn];
+    pub const ALL: [Self; 3] = [Self::Arxiv, Self::Ssrn, Self::Scholar];
 
     /// Returns the stable platform identifier used by commands and configuration.
     #[must_use]
@@ -34,6 +37,7 @@ impl Platform {
         match self {
             Self::Arxiv => "arxiv",
             Self::Ssrn => "ssrn",
+            Self::Scholar => "scholar",
         }
     }
 }
@@ -93,6 +97,8 @@ pub enum PlatformRef {
     Arxiv(ArxivRef),
     /// An SSRN paper.
     Ssrn(SsrnRef),
+    /// A Google Scholar paper cluster.
+    Scholar(ScholarRef),
 }
 
 impl PlatformRef {
@@ -105,6 +111,7 @@ impl PlatformRef {
         match platform {
             Platform::Arxiv => ArxivRef::parse(input).map(Self::Arxiv),
             Platform::Ssrn => SsrnRef::parse(input).map(Self::Ssrn),
+            Platform::Scholar => ScholarRef::parse(input).map(Self::Scholar),
         }
     }
 
@@ -114,6 +121,7 @@ impl PlatformRef {
         match self {
             Self::Arxiv(_) => Platform::Arxiv,
             Self::Ssrn(_) => Platform::Ssrn,
+            Self::Scholar(_) => Platform::Scholar,
         }
     }
 
@@ -121,7 +129,7 @@ impl PlatformRef {
     #[must_use]
     pub const fn kind(&self) -> &'static str {
         match self {
-            Self::Arxiv(_) | Self::Ssrn(_) => "paper",
+            Self::Arxiv(_) | Self::Ssrn(_) | Self::Scholar(_) => "paper",
         }
     }
 
@@ -131,6 +139,7 @@ impl PlatformRef {
         match self {
             Self::Arxiv(reference) => reference.canonical_url(),
             Self::Ssrn(reference) => reference.canonical_url(),
+            Self::Scholar(reference) => reference.canonical_url(),
         }
     }
 }
@@ -140,6 +149,7 @@ impl fmt::Display for PlatformRef {
         match self {
             Self::Arxiv(reference) => write!(formatter, "arxiv:{reference}"),
             Self::Ssrn(reference) => write!(formatter, "ssrn:{reference}"),
+            Self::Scholar(reference) => write!(formatter, "scholar:{reference}"),
         }
     }
 }
@@ -158,6 +168,8 @@ pub enum PlatformSearchOptions {
     Arxiv(ArxivSearchOptions),
     /// SSRN options.
     Ssrn(SsrnSearchOptions),
+    /// Google Scholar options.
+    Scholar(ScholarSearchOptions),
 }
 
 impl PlatformSearchOptions {
@@ -167,6 +179,7 @@ impl PlatformSearchOptions {
         match platform {
             Platform::Arxiv => Self::Arxiv(ArxivSearchOptions::default()),
             Platform::Ssrn => Self::Ssrn(SsrnSearchOptions::default()),
+            Platform::Scholar => Self::Scholar(ScholarSearchOptions::default()),
         }
     }
 
@@ -176,6 +189,7 @@ impl PlatformSearchOptions {
         match self {
             Self::Arxiv(_) => Platform::Arxiv,
             Self::Ssrn(_) => Platform::Ssrn,
+            Self::Scholar(_) => Platform::Scholar,
         }
     }
 }
@@ -198,6 +212,7 @@ impl PlatformSearchRequest {
         match &self.options {
             PlatformSearchOptions::Arxiv(options) => options.validate(&self.query, self.limit),
             PlatformSearchOptions::Ssrn(options) => options.validate(&self.query, self.limit),
+            PlatformSearchOptions::Scholar(options) => options.validate(&self.query, self.limit),
         }
     }
 }
@@ -224,6 +239,8 @@ pub enum PlatformItemData {
     Arxiv(ArxivItemData),
     /// SSRN metadata.
     Ssrn(SsrnItemData),
+    /// Google Scholar metadata.
+    Scholar(ScholarItemData),
 }
 
 #[derive(Clone, Debug, Serialize)]

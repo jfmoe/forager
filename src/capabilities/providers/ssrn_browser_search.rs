@@ -74,7 +74,7 @@ pub(crate) fn search_support(request: &PlatformSearchRequest) -> Result<(), Stri
             }
             page_offset(request).map(|_| ())
         }
-        PlatformSearchOptions::Arxiv(_) => {
+        PlatformSearchOptions::Arxiv(_) | PlatformSearchOptions::Scholar(_) => {
             Err(other_platform_message(ROUTE, request.options.platform()))
         }
     }

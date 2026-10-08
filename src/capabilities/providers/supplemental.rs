@@ -8,7 +8,7 @@ use crate::credentials::CredentialPool;
 use crate::net::{AttemptFailure, RetryPolicy, read_complete_protocol, send_provider_request};
 use crate::providers::ProviderId;
 use crate::providers::execution::{self, ExecutionSettings};
-use crate::providers::shared::redacted_urls_message;
+use crate::providers::shared::{is_http_url, redacted_urls_message};
 use crate::redact::{Secret, redact_url, redact_urls};
 use crate::types::ProviderError;
 use crate::types::{AttemptErrorKind, AttemptTarget, Deadline, Source, SupplementalSearchOutcome};
@@ -170,11 +170,6 @@ impl SupplementalSearch {
         }
         Ok(sources)
     }
-}
-
-fn is_http_url(value: &str) -> bool {
-    reqwest::Url::parse(value)
-        .is_ok_and(|url| matches!(url.scheme(), "http" | "https") && url.host_str().is_some())
 }
 
 #[derive(Serialize)]

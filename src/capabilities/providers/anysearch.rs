@@ -11,7 +11,7 @@ use crate::config::AnysearchRuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{AttemptFailure, McpClient, McpToolResult, RetryPolicy, truncate_message};
 use crate::providers::execution::{ExecutionSettings, execute_v2};
-use crate::providers::shared::redact_urls;
+use crate::providers::shared::{is_http_url, redact_urls};
 use crate::types::ProviderError;
 use crate::types::{
     AnysearchDomain, AnysearchDomainsOutcome, AnysearchOutcome, AnysearchResult,
@@ -330,7 +330,7 @@ fn decode_search(result: &McpToolResult) -> Vec<AnysearchResult> {
             });
         } else if let Some(url) = labeled_url(line) {
             if let Some(result) = &mut current
-                && is_http_url_with_host(url)
+                && is_http_url(url)
             {
                 url.clone_into(&mut result.url);
             }
@@ -399,11 +399,6 @@ fn strip_ascii_whitespace(value: &str) -> Option<&str> {
     (trimmed.len() < value.len()).then_some(trimmed)
 }
 
-fn is_http_url_with_host(value: &str) -> bool {
-    reqwest::Url::parse(value)
-        .is_ok_and(|url| matches!(url.scheme(), "http" | "https") && url.host().is_some())
-}
-
 fn bare_http_urls(text: &str) -> Vec<&str> {
     let mut seen = HashSet::new();
     let mut urls = Vec::new();
@@ -420,7 +415,7 @@ fn bare_http_urls(text: &str) -> Vec<&str> {
         offset = start + end;
         if !is_formatted_url(text, start)
             && !is_inside_details(text, start)
-            && is_http_url_with_host(url)
+            && is_http_url(url)
             && seen.insert(url)
         {
             urls.push(url);

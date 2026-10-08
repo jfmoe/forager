@@ -1,10 +1,10 @@
-# Google Scholar 平台与 `scholar_serpapi` route 设计
+# Google Scholar 平台与 SerpApi provider 设计
 
-状态：提案，未实现。日期：2026-10-07。规格 issue 见 GitHub（`ready-for-agent`）。
+状态：search、fetch 与 skill 的 Scholar 指引均已实现。日期：2026-10-07。规格 issue 见 GitHub（`ready-for-agent`）。
 
 ## 目标与边界
 
-为 forager 新增第三个平台 `scholar`，首条 route 为 `scholar_serpapi`：经 SerpApi 的 Google Scholar API 检索，凭据沿用现有 Provider Credential Pool（ADR 0005），以 SerpApi 免费计划为默认使用场景。
+为 forager 新增第三个平台 `scholar`，首条 route 为 provider `serpapi`：经 SerpApi 的 Google Scholar API 检索，凭据沿用现有 Provider Credential Pool（ADR 0005），以 SerpApi 免费计划为默认使用场景。
 
 - **要解决的问题**：arXiv 与 SSRN 只覆盖各自的预印本；Google Scholar 覆盖期刊、会议与各类预印本，并提供被引数与版本聚合，适合跨出版方的文献发现。
 - **不做**：自建 Scholar 抓取（官方无公共 API，robots.txt 禁止 `/scholar`，见 `docs/research/2026-09-25-scholarly-agent-access.md`）；全文读取（Scholar 只是索引，正文交给目标平台或 Web Fetch）；跨调用的配额状态持久化；第一期不做被引列表、作者主页与引文导出。
@@ -47,6 +47,7 @@
 | 用两条无显式 ID 条目的 `result_id` 解码值请求 `cluster=` | 2/2 各返回 1 条，正是原论文 | `result_id` 解码值可以回查到原论文，作为身份来源可靠 |
 | `Attention is all you need` 的 cluster（search 报 26 个版本） | cluster 只返回 9 条，没有下一页；第一条是 NeurIPS 正式版 | 与 `time series momentum`（45 对 11）一致：`version_count` 与 cluster 条数不是同一计数；第一条有时是正式版，有时不是 |
 | `as_rr=1` | 返回综述类论文，且有下一页 | `--review-only` 可用 |
+| `cluster=18208131694456651388`，`num=20`（2026-10-08） | 20 个版本，且有下一页 | 簇的版本可能多于一页；「未列全」诊断会实际触发 |
 | 按设计投影 20 条 search 结果 | JSON 约 19 KB，约 4.8k token；10 条约 2.5k token | 默认 `--limit 20` 的上下文成本可接受 |
 | 不带 key 的 `GET /search.json` | HTTP 401 | 普通 doctor 的可达性探测可用，不计费 |
 
@@ -59,7 +60,9 @@
 - **Content Depth**：search 条目有 snippet 时为 `snippet`，否则为 `metadata`；fetch 只支持 `metadata`。Scholar 的片段永不当作摘要。
 - **查询语法**：QUERY 属于 L0，原样发送，谷歌学术的运算符（`"短语"`、`OR`、`-词`、`author:`、`source:`）照常生效。第 7 章「不提供原样透传」约束的是结构化选项与 API 参数出口，第 7 章需写明 L0 查询语法由平台定义。
 
-## Route `scholar_serpapi`
+## Route `serpapi`
+
+**命名**：provider 按供应商命名为 `serpapi`，不叫 `scholar_serpapi`。SerpApi 的同一端点、同一账号还提供 Google、Google Patents 等其他引擎，额度和每小时吞吐按账号计算，与引擎无关。`providers.<id>` 本来就按供应商分节（tavily、jina 同时服务 web_search 与 web_fetch），所以 key 池 `providers.serpapi.keys` 和凭据游标（键 `serpapi`）可以直接给以后的其他 SerpApi 平台复用，一个账号的轮换状态也只有一份。目前它只出现在 `scholar` 平台的 route 集合中；以后接入其他引擎时，把 `serpapi` 加进对应平台的 route 集合，并按平台分派请求构造与解码。
 
 | 注册项 | 取值 |
 |---|---|
@@ -67,8 +70,8 @@
 | `transport` | `Http` |
 | `access_policy` | 不设，与其他需要凭据的 SaaS provider 一致；吞吐上限由 429 加凭据轮换处理 |
 | `probe` | `DoctorProbe::PlatformSearch { platform: Scholar, name: "search", transport: "http" }` |
-| 配置 | `providers.scholar_serpapi.url`（默认 `https://serpapi.com/search.json`）、`.keys`、`.timeout`（默认 30 秒） |
-| 默认 order | `platforms.scholar.order = ["scholar_serpapi"]` |
+| 配置 | `providers.serpapi.url`（默认 `https://serpapi.com/search.json`）、`.keys`、`.timeout`（默认 30 秒） |
+| 默认 order | `platforms.scholar.order = ["serpapi"]` |
 
 它不是 process route，可以进入默认 order。默认 order 中有它不等于已配置，也不会让普通 search 自动调用它。
 
@@ -76,7 +79,7 @@
 
 | 情况 | 结果 |
 |---|---|
-| keys 为空 | 飞行前 Config，退 3，零请求；消息额外点名 `providers.scholar_serpapi.keys`（现有消息只写 order 键） |
+| keys 为空 | 飞行前 Config，退 3，零请求；消息额外点名 `providers.serpapi.keys`（现有消息只写 order 键） |
 | order 为空 | 飞行前退 3，消息只提示 order |
 | cursor 指定的 route 已移出 order 或已无 key | 沿用现有 pinned route 规则，退 2 |
 | keys 非空，上游 401/403 | attempt 级 Auth，不换 key、不重试，退 4（飞行后传输错误） |
@@ -140,13 +143,13 @@ SerpApi 响应的 DTO 与解码属于 route，不进 types 门面。
 | `depth` | 有 `snippet` 为 `snippet`，否则为 `metadata` |
 | `title` | `title` |
 | `authors` | `publication_info.authors[].name`；没有时取 `summary` 第一个 ` - ` 之前的部分，按 `, ` 切分并去掉 `…`。Scholar 显示的作者名可能是缩写或截断后的，这一点在 skill 的证据规则里要写明 |
-| `published` | 只从 `summary` 中间一段（来源和年份所在的那段）末尾的 `, YYYY` 取年份；取不到时为 `null`。这样避免把 arXiv 编号这类数字误当年份（OpenCLI 适配器就有这个 bug） |
+| `published` | 只从 `summary` 中间一段（来源和年份所在的那段）取年份：该段末尾的 `, YYYY`，或整段恰为 `YYYY`（实测有 `Authors - 2024 - domain` 这种无来源的形式）；取不到时为 `null`。这样避免把 arXiv 编号这类数字误当年份（OpenCLI 适配器就有这个 bug） |
 | 平台字段 | `snippet`、`link`（可空）、`source`（`summary` 原文）、`cited_by`（整数或 `null`）、`version_count`（整数或 `null`）、`resources`、`result_type`（`type` 原值，可空） |
 | `resources` | 允许上游资源的 `link` 缺失或为 null；只输出带有效 HTTP(S) URL 的资源，形状 `[{title, file_format, url}]`，`url` 非空，按 URL 稳定去重，空 `title` 合法。search 与 fetch 共用这条规则 |
 
 ### 分页
 
-- 页位置为绝对偏移 `start`。cursor 是 `v1.scholar_serpapi.<payload>`，payload 复用现有 `PlatformSearchRequest`，保存查询词、L1 选项、`limit` 和下一页的 `start`，无需另写编解码。
+- 页位置为绝对偏移 `start`。cursor 是 `v1.serpapi.<payload>`，payload 复用现有 `PlatformSearchRequest`，保存查询词、L1 选项、`limit` 和下一页的 `start`，无需另写编解码。
 - 沿用 SSRN Crossref 的页尾规则：只有响应带 `serpapi_pagination.next`（只看是否存在，不使用其链接），且下一页的页尾 `start + limit` 不超过 1000 时才签发 cursor。limit 不整除 1000 时会提前结束。下一页按原始偏移推进，不按身份过滤后的条目数推进。
 - route 的支持检查拒绝页尾越界的页位置，退 2。
 - 每翻一页都是一次计费搜索；用 cursor 重放同一页时，如果在 1 小时缓存期内则不计费。
@@ -159,7 +162,7 @@ SerpApi 响应的 DTO 与解码属于 route，不进 types 门面。
   - `ref` 和 `url` 来自请求的 cluster；`depth` 固定为 `metadata`，不带 snippet。
   - `title`、`authors`、`published` 是第一个版本的代表性书目信息。
   - 平台字段 `versions` 按谷歌学术的顺序列出本页每个版本的 `{title, link, source, resources}`。
-  - 响应带下一页信号时，用 diagnostic 说明版本没有列全，并指向 canonical cluster URL。实测 3 个 cluster 都只有一页（11、9、1 条），这条诊断是防御上游变化的低成本规则。
+  - 响应带下一页信号时，用 diagnostic 说明版本没有列全，并指向 canonical cluster URL。2026-10-08 实测 cluster 18208131694456651388 在 `num=20` 下返回 20 个版本并带下一页，所以这条诊断会实际触发。
   - 不把 search 的 `version_count`、cluster 的 `total_results` 和本页条数当作同一个计数。
 - 实测第一个版本可能是第三方托管的副本、标题带杂字符，簇内也可能混入别的论文，所以 skill 要求按 `versions` 挑选来源，不把第一个版本当作规范出版版本。
 - 返回空集时为 attempt 级 Parameter（条目不存在），退 4。
@@ -173,7 +176,7 @@ SerpApi 响应的 DTO 与解码属于 route，不进 types 门面。
 | `platform scholar fetch`（含 ref 不存在） | 通常 1 |
 | HTTP 4xx、429、缓存命中 | 0（4xx 仍计入每小时吞吐） |
 | `forager doctor` | 0（只对端点发一次不带 key 的 GET，任何 HTTP 响应都算可达） |
-| `forager doctor --provider scholar_serpapi` | 通常 1（一次逻辑检索，默认选项、limit 1） |
+| `forager doctor --provider serpapi` | 通常 1（一次逻辑检索，默认选项、limit 1） |
 
 "通常"的含义：一次逻辑检索成功且未命中缓存时计 1 次；重试、超时等故障下，本机拿不到结果并不能证明上游没有处理，因此不保证精确账单。
 
@@ -188,12 +191,12 @@ SerpApi 响应的 DTO 与解码属于 route，不进 types 门面。
 按 07-platforms.md 接入清单逐项完成：
 
 1. **types**：`Platform::Scholar`；`platform_scholar` 叶子模块包含 `ScholarRef`（解析、canonical URL）、`ScholarSearchOptions`、`ScholarItemData`；请求校验覆盖上文的值域；`PlatformRef`、`PlatformSearchOptions`、`PlatformItemData` 各加一个变体。
-2. **config**：新增需要凭据的 HTTP route 配置形状 `KeyedHttpRouteRuntimeConfig { url, keys, timeout_seconds }`，作为现有 `HttpRouteRuntimeConfig` 的姊妹类型；schema 增加 `providers.scholar_serpapi.*`（`keys` 用现有 Secrets 叶子）与 `platforms.scholar.order`；`PlatformRoutesRuntimeConfig`、`PlatformRouteConfig`（含 `configured()`）、`platform_route_config`、`provider_runtime` 覆盖新 route。
+2. **config**：新增需要凭据的 HTTP route 配置形状 `KeyedHttpRouteRuntimeConfig { url, keys, timeout_seconds }`，作为现有 `HttpRouteRuntimeConfig` 的姊妹类型；schema 增加 `providers.serpapi.*`（`keys` 用现有 Secrets 叶子）与 `platforms.scholar.order`；`PlatformRoutesRuntimeConfig`、`PlatformRouteConfig`（含 `configured()`）、`platform_route_config`、`provider_runtime` 覆盖新 route。
 3. **net**：429 额度嗅探增加 `run out of searches`。
-4. **route**：`providers/scholar_serpapi.rs`，内容包括请求构造、200 响应的解码与成功协议判定、search 与 fetch 的支持检查；`factory` 中补齐 build 与 support 分支。
-5. **catalog**：`ProviderId::ScholarSerpapi`、注册信息、`PLATFORMS` 条目（search 与 fetch 的 route 集合、默认 order）、search 与 fetch 各一个 smoke 用例。
+4. **route**：`providers/serpapi` 模块。SerpApi 通用部分（端点、`api_key` 参数、200 成功协议判定、凭据脱敏）与 Google Scholar 引擎部分（请求参数、DTO 解码、search 与 fetch 的支持检查）分开，以后加引擎只新增引擎部分；`factory` 中补齐 build 与 support 分支。
+5. **catalog**：`ProviderId::Serpapi`、注册信息、`PLATFORMS` 条目（search 与 fetch 的 route 集合、默认 order）、search 与 fetch 各一个 smoke 用例。
 6. **CLI**：`ScholarSearchArgs`、`ScholarFetchArgs`；缺 key 时的退 3 消息点名 keys 配置键。
-7. **测试与清单**：`tests/acceptance-manifest.json` 的 `(scholar_serpapi, platform:scholar:search)` 与 `(scholar_serpapi, platform:scholar:fetch)`、smoke 用例 ID 与第 5 章矩阵、checklist 的样例 ref 与 keyed route 配置夹具。
+7. **测试与清单**：`tests/acceptance-manifest.json` 的 `(serpapi, platform:scholar:search)` 与 `(serpapi, platform:scholar:fetch)`、smoke 用例 ID 与第 5 章矩阵、checklist 的样例 ref 与 keyed route 配置夹具。
 8. **文档**：`GLOSSARY.md`、规格第 2、3、4、5、7 章；skill 的 `platform-vocabulary.json`、`references/platforms.md`、`references/cli.md`；新增 ADR，记录"Scholar 只经第三方 SERP API 接入、需用户自备 key、免费额度优先"这一决定。
 
 ## 测试接缝

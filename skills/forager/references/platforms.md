@@ -31,6 +31,9 @@ Every item carries `depth`, the content it actually holds: `metadata` (bibliogra
 - **SSRN search** items from `ssrn_crossref` are `abstract` or `metadata`; items from
   `ssrn_browser` are `snippet` (`metadata` for a result card without an excerpt). A browser page never spans two SSRN result pages, so it can hold
   fewer items than `--limit`; follow `next_cursor` for more.
+- **Scholar** search items are `snippet` (`metadata` for a result without an excerpt); `fetch` is
+  `metadata` only and lists the paper's versions. Google Scholar holds no body; read it from the
+  source, see "Read a Scholar paper".
 
 ## arXiv search queries
 
@@ -69,6 +72,29 @@ abstract-presence, and arbitrary date-range filters; it does not approximate the
 forager platform ssrn search "momentum AND portfolio" --scope title --mode boolean --date last-year --sort downloads
 ```
 
+## Google Scholar search
+
+Scholar runs on the user's own SerpApi key and its monthly search quota (250 on the free plan).
+Every search page and every fetch costs one search, including a search with no results and a fetch
+of a ref that does not exist. Repeating an identical request within one hour costs nothing.
+
+- Search once with the default `--limit 20` and pick candidates from that page. Do not page with
+  `--cursor` to collect more results; narrow the query or the years instead.
+- Fetch a cluster only when you need its version links, for example to find a readable copy.
+
+The query goes to Google Scholar unchanged. Quote phrases; `author:"Surname"` restricts the whole
+query, including both sides of `OR`. These forms were checked against live Google Scholar:
+
+```console
+forager platform scholar search '"time series momentum" author:"Pedersen"'
+forager platform scholar search 'trend OR reversal author:"Moskowitz"'
+forager platform scholar search 'time series momentum' --year-from 2020
+forager platform scholar search 'time series momentum' --review-only
+```
+
+`--year-from` and `--year-to` bound the publication year and can be used alone; `--review-only`
+keeps review articles. Set them only when the request states or clearly implies them.
+
 ## SSRN browser route
 
 `ssrn_browser` reads SSRN in the user's own Chrome through OpenCLI. It is off by default. Enable it
@@ -102,6 +128,17 @@ reported), the download and the conversion share the command deadline, so retry 
 full-text fetch with a larger `--timeout` (for example 300), and pass `--keep-pdf` when the
 original PDF must be checked against the Markdown.
 
+## Read a Scholar paper
+
+Take a `link`, `versions[].link`, or `resources[].url` exactly as forager returned it:
+
+- an arxiv.org URL: `forager platform arxiv fetch 'URL'`;
+- an SSRN URL: `forager platform ssrn fetch 'URL'`;
+- any other URL, or an arXiv or SSRN URL that the platform command rejects with exit 2:
+  `forager fetch 'URL'`.
+
+Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snippet.
+
 ## Consume results
 
 - Search results are candidates at `abstract` or `metadata` depth, not evidence of the paper body.
@@ -116,6 +153,14 @@ original PDF must be checked against the Markdown.
   version. `published` is the date the route reports, at its own precision (often only a year);
   `crossref_created` is when Crossref registered the DOI, never the SSRN posting date. Use only the
   URLs forager returns; SSRN download links are never derived from the abstract ID.
+- **Scholar evidence**: cite the ref (`scholar:18208131694456651388`) and the title. A `snippet` is
+  a search excerpt, not the abstract, and supports no claim about the paper's findings. `authors`
+  and `source` copy Google Scholar's byline, whose names are often initials and whose author lists
+  may be cut short with `…`; never present them as a complete author list. `cited_by` measures
+  attention, not quality. The first entry of a fetch's `versions` is not necessarily the published
+  version; choose the source from `versions` by its `link` and `source`. `version_count` is the
+  count a search reports, not the number of versions a fetch lists (at most 20, often fewer); never
+  report one as the other.
 
 ## Recover
 
@@ -123,6 +168,16 @@ original PDF must be checked against the Markdown.
   condition you relaxed.
 - A `--cursor` failure: drop the cursor and search again from the first page.
 - Exit 3, or an `auth` error: go to Diagnose or configure in `SKILL.md`.
+- Scholar `quota_exhausted` (exit 4): every configured SerpApi key has used up its searches. Tell
+  the user the Scholar quota is exhausted and continue with `forager search` or the arXiv or SSRN
+  platform. Do not retry Scholar.
+- Scholar `rate_limited` (exit 4): SerpApi's hourly limit; tell the user and retry later, not in
+  a loop.
+- Scholar `auth` (exit 4): SerpApi rejected the key; ask the user to check
+  `providers.serpapi.keys`.
+- Scholar exit 3 naming `providers.serpapi.keys`: no SerpApi key is configured. Ask the user to
+  run `forager config set providers.serpapi.keys -` and type `["THEIR_KEY"]` on stdin (or rerun
+  `forager setup`), so the key stays out of shell history and out of this conversation.
 - Exit 5 on full-text fetch (both HTML and PDF too thin): report it; use `--depth abstract` only
   when the abstract still answers the request, and say so.
 - Exit 5 on an SSRN `--depth abstract` fetch: no route had the abstract. Fetch at the default

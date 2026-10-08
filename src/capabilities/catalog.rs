@@ -97,7 +97,15 @@ pub(crate) const SSRN: PlatformCatalog = PlatformCatalog {
     default_order: &[ProviderId::SsrnCrossref],
 };
 
-pub(crate) const PLATFORMS: &[PlatformCatalog] = &[ARXIV, SSRN];
+// Google Scholar has no public API; SerpApi is its only route (ADR 0021).
+pub(crate) const SCHOLAR: PlatformCatalog = PlatformCatalog {
+    platform: Platform::Scholar,
+    search: &[ProviderId::Serpapi],
+    fetch: &[ProviderId::Serpapi],
+    default_order: &[ProviderId::Serpapi],
+};
+
+pub(crate) const PLATFORMS: &[PlatformCatalog] = &[ARXIV, SSRN, SCHOLAR];
 
 impl PlatformCatalog {
     pub(crate) fn routes(self, operation: PlatformOperation) -> &'static [ProviderId] {
@@ -151,10 +159,11 @@ pub(crate) enum ProviderId {
     ArxivApi,
     SsrnCrossref,
     SsrnBrowser,
+    Serpapi,
 }
 
 impl ProviderId {
-    pub(crate) const ALL: [Self; 11] = [
+    pub(crate) const ALL: [Self; 12] = [
         Self::Xai,
         Self::OpenAiCompatible,
         Self::Exa,
@@ -166,6 +175,7 @@ impl ProviderId {
         Self::ArxivApi,
         Self::SsrnCrossref,
         Self::SsrnBrowser,
+        Self::Serpapi,
     ];
 
     pub(crate) fn parse(value: &str) -> Option<Self> {
@@ -181,6 +191,7 @@ impl ProviderId {
             "arxiv_api" => Some(Self::ArxivApi),
             "ssrn_crossref" => Some(Self::SsrnCrossref),
             "ssrn_browser" => Some(Self::SsrnBrowser),
+            "serpapi" => Some(Self::Serpapi),
             _ => None,
         }
     }
@@ -198,6 +209,7 @@ impl ProviderId {
             Self::ArxivApi => "arxiv_api",
             Self::SsrnCrossref => "ssrn_crossref",
             Self::SsrnBrowser => "ssrn_browser",
+            Self::Serpapi => "serpapi",
         }
     }
 }
@@ -456,6 +468,21 @@ const SSRN_BROWSER_SMOKE: &[ProviderSmokeCase] = &[
     },
 ];
 
+const SERPAPI_SMOKE: &[ProviderSmokeCase] = &[
+    ProviderSmokeCase {
+        id: "C24",
+        platform: Some(Platform::Scholar),
+        operation: "search",
+        transport: "http",
+    },
+    ProviderSmokeCase {
+        id: "C25",
+        platform: Some(Platform::Scholar),
+        operation: "fetch",
+        transport: "http",
+    },
+];
+
 // arXiv terms of use allow one request every three seconds over one connection.
 const ARXIV_API_ACCESS: AccessPolicy = AccessPolicy {
     min_interval: Duration::from_secs(3),
@@ -607,6 +634,20 @@ const REGISTRY: &[ProviderRegistration] = &[
             transport: "process",
         },
         smoke_cases: SSRN_BROWSER_SMOKE,
+    },
+    // SerpApi limits throughput per account; a 429 rotates to the next key instead of pacing.
+    ProviderRegistration {
+        id: ProviderId::Serpapi,
+        operations: &[],
+        credentials_required: true,
+        transport: ProviderTransport::Http,
+        access_policy: None,
+        probe: DoctorProbe::PlatformSearch {
+            platform: Platform::Scholar,
+            name: "search",
+            transport: "http",
+        },
+        smoke_cases: SERPAPI_SMOKE,
     },
 ];
 

@@ -141,7 +141,7 @@ _Avoid_: provider registry、BACKENDS allowlist、per-call-site provider list
 _Avoid_: per-adapter read recipe、raw reqwest handling
 
 **Platform**:
-内置的外部内容源，拥有自己的身份空间，例如 arXiv 与 SSRN；它与 Capability Seam 并列，平台之间永不互相 fallback。它不是供应方，也不是 Vertical Search 的垂直域。
+内置的外部内容源，拥有自己的身份空间，例如 arXiv、SSRN 与 Google Scholar；它与 Capability Seam 并列，平台之间永不互相 fallback。它不是供应方，也不是 Vertical Search 的垂直域。
 _Avoid_: platform provider、vertical domain、custom platform
 
 **Platform Route**:
@@ -149,7 +149,7 @@ _Avoid_: platform provider、vertical domain、custom platform
 _Avoid_: platform backend、platform provider list
 
 **Route Transport**:
-Platform Route 到达外部内容源的方式，在供应方注册信息中声明：HTTP（配置 `url`），或本机 OpenCLI 命令（配置 `command`，这类 route 称为 process route）。配置检查、doctor 与接入清单按传输类型判断，不按 route id 判断。process route 只能由用户在平台 order 中手动启用（ADR 0020）。
+Platform Route 到达外部内容源的方式，在供应方注册信息中声明：HTTP（配置 `url`；需要凭据的 HTTP route 另有 `keys`），或本机 OpenCLI 命令（配置 `command`，这类 route 称为 process route）。配置检查、doctor 与接入清单按传输类型判断，不按 route id 判断。process route 只能由用户在平台 order 中手动启用（ADR 0020）。
 _Avoid_: route kind、backend type
 
 **OpenCLI Adapter**:
@@ -159,6 +159,14 @@ _Avoid_: OpenCLI plugin、browser script、built-in OpenCLI site adapter
 **Platform Ref**:
 Platform 实体的类型化身份，由平台、平台自有的 kind 与 id 组成，可以带版本（SSRN 修订论文时 DOI 不变，无法据此推出版本，因此 SSRN ref 不带版本）；它与 canonical URL 可以互相推导。kind 只按身份空间或取回结果形状划分，不按对话角色划分。
 _Avoid_: platform URL、raw id
+
+**Scholar Cluster**:
+Google Scholar 把同一论文的多个版本（出版社页面、预印本、第三方副本）归为一组的身份，以十进制 cluster ID 表示；Google Scholar 的 Platform Ref 指向 cluster，不指向其中某个版本。cluster 里第一个版本不一定是正式出版版本，也可能混入别的论文。
+_Avoid_: scholar paper id、result id、version
+
+**SERP API Route**:
+经第三方搜索结果 API 读取搜索引擎结果页的 Platform Route，例如 `serpapi`。它按供应商命名，key 由用户自备并进入 Provider Credential Pool，同一账号的额度与吞吐不分引擎；每次成功检索都消耗用户的额度，forager 不持久化额度状态（ADR 0021）。
+_Avoid_: scholar scraper、scholar_serpapi
 
 **Platform Operation**:
 Platform 的一项操作。每个 Platform 都提供 search 与 fetch；改变结果种类或必需输入的操作是新的 Platform Operation，不是参数。

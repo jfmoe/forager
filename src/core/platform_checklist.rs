@@ -11,7 +11,8 @@ use crate::catalog::{
     ProviderRegistration, ProviderTransport,
 };
 use crate::config::{
-    self, HttpRouteRuntimeConfig, PlatformRoutesRuntimeConfig, ProcessRouteRuntimeConfig,
+    self, HttpRouteRuntimeConfig, KeyedHttpRouteRuntimeConfig, PlatformRoutesRuntimeConfig,
+    ProcessRouteRuntimeConfig,
 };
 use crate::providers;
 use crate::types::{
@@ -30,6 +31,7 @@ fn sample_refs(platform: Platform) -> &'static [&'static str] {
             "arxiv:hep-th/9901001v1",
         ],
         Platform::Ssrn => &["ssrn:2042750"],
+        Platform::Scholar => &["scholar:18208131694456651388"],
     }
 }
 
@@ -178,7 +180,7 @@ fn check_route(
             ));
         }
     }
-    let keys = format!("providers.{name}.keys");
+    let keys = config::provider_keys_key(name);
     if (registry.is_config_leaf)(&keys) != registration.credentials_required {
         found.push(violation(
             platform,
@@ -277,6 +279,11 @@ fn has_adapter(platform: Platform, operation: PlatformOperation, route: Provider
         ssrn_crossref: http_route,
         ssrn_browser: ProcessRouteRuntimeConfig {
             command: String::new(),
+            timeout_seconds: 1,
+        },
+        serpapi: KeyedHttpRouteRuntimeConfig {
+            url: String::new(),
+            keys: Vec::new(),
             timeout_seconds: 1,
         },
     };

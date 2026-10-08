@@ -43,6 +43,26 @@
         ],
         "examples": ["ssrn:2042750", "10.2139/ssrn.2042750", "https://ssrn.com/abstract=2042750"]
       }
+    },
+    {
+      "id": "scholar",
+      "purpose": "Find papers across publishers through Google Scholar: cluster identity, byline metadata, citation counts, snippets, and links to the versions Google Scholar groups together.",
+      "select_when": "The request names Google Scholar, supplies a scholar.google.com cluster URL or scholar: ref, or needs cross-publisher academic discovery or citation counts that arXiv and SSRN do not cover; it needs the user's SerpApi key.",
+      "examples": [
+        "search Google Scholar for time series momentum",
+        "how often is \"Time series momentum\" cited on Google Scholar",
+        "list the versions of scholar:18208131694456651388",
+        "在谷歌学术上查一下行为金融学的综述"
+      ],
+      "ref_syntax": {
+        "ref": "scholar:<cluster_id>",
+        "id_forms": ["18208131694456651388"],
+        "urls": ["https://scholar.google.com/scholar?cluster=<cluster_id>"],
+        "examples": [
+          "scholar:18208131694456651388",
+          "https://scholar.google.com/scholar?cluster=18208131694456651388&hl=en"
+        ]
+      }
     }
   ]
 }

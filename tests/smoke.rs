@@ -96,8 +96,8 @@ fn offline_smoke_reports_local_readiness_without_contacting_provider_endpoints()
             Some(0),
             &Value::String("offline".into()),
             &Value::Bool(true),
-            &json!({"ok": true, "provider_count": 11}),
-            Some(11),
+            &json!({"ok": true, "provider_count": 12}),
+            Some(12),
             &json!(["********"]),
             &json!(["********"]),
             &Value::Bool(true),
@@ -123,7 +123,8 @@ fn live_smoke_lists_exactly_the_specification_case_registry_without_l0_doctor_ga
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live registry JSON");
     let expected = json!([
         "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11",
-        "C12", "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23"
+        "C12", "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24",
+        "C25"
     ]);
 
     assert_eq!(
@@ -175,7 +176,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
             Some(4),
             &Value::String("live".into()),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 24}),
+            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 26}),
             &Value::String("failed".into()),
             &Value::Number(3.into()),
             &Value::String("unconfigured".into()),
@@ -212,7 +213,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
         (
             Some(4),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 24}),
+            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 26}),
             &Value::String("deferred".into()),
             &Value::Number(3.into()),
             &Value::String("http://127.0.0.1:9?token=********".into()),
@@ -300,7 +301,7 @@ fn live_smoke_passes_a_configured_case_only_after_a_zero_parseable_nonempty_term
         ),
         (
             Some(4),
-            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 24}),
+            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 26}),
             &Value::String("passed".into()),
             &Value::Number(1.into()),
         ),
@@ -508,7 +509,7 @@ fn live_smoke_runs_the_platform_cases_through_their_configured_route() {
             crossref_requests[1].contains("/works/10.2139/ssrn.2042750"),
         ),
         (
-            &json!({"passed": 4, "failed": 0, "deferred": 0, "unconfigured": 21}),
+            &json!({"passed": 4, "failed": 0, "deferred": 0, "unconfigured": 23}),
             [(); 4].map(|()| Value::String("passed".into())),
             [
                 &Value::String("arxiv".into()),
@@ -522,6 +523,53 @@ fn live_smoke_runs_the_platform_cases_through_their_configured_route() {
         "stdout: {}\nstderr: {}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn live_smoke_runs_the_scholar_cases_only_with_a_serpapi_key() {
+    let scholar_fixture = |name: &str| {
+        std::fs::read_to_string(format!(
+            "{}/tests/fixtures/scholar/{name}",
+            env!("CARGO_MANIFEST_DIR")
+        ))
+        .expect("read scholar fixture")
+    };
+    let serpapi = Fixture::start_sequence(vec![
+        Response::json(200, &scholar_fixture("search.json")),
+        Response::json(200, &scholar_fixture("cluster.json")),
+    ]);
+    let run = |keys: &str| {
+        let environment = SmokeEnvironment::new(|journal_dir| {
+            format!(
+                "[providers.serpapi]\nurl = \"{}/search.json\"\nkeys = {keys}\n[journal]\ndir = {journal_dir:?}\n[platforms.arxiv]\norder = []\n[platforms.ssrn]\norder = []\n",
+                serpapi.url
+            )
+        });
+        let output = environment.run(&["smoke", "--live", "--timeout", "10"]);
+        let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live smoke JSON");
+        ["C24", "C25"].map(|id| case(&payload, id)["status"].clone())
+    };
+
+    let without_key = run("[]");
+    let with_key = run("[\"test-serpapi-key\"]");
+    let requests = serpapi.finish_all();
+
+    assert_eq!(
+        (
+            without_key,
+            with_key,
+            requests.len(),
+            requests[0].contains("engine=google_scholar") && requests[0].contains("num=3"),
+            requests[1].contains("cluster=18208131694456651388"),
+        ),
+        (
+            [(); 2].map(|()| Value::String("unconfigured".into())),
+            [(); 2].map(|()| Value::String("passed".into())),
+            2,
+            true,
+            true,
+        )
     );
 }
 

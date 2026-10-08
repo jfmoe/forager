@@ -7,7 +7,7 @@ use crate::config::WebFetchProviderConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{AttemptFailure, RetryPolicy, read_complete_protocol, send_provider_request};
 use crate::providers::execution::{ExecutionSettings, execute_v2};
-use crate::providers::shared::{redact_urls, redacted_urls_message};
+use crate::providers::shared::{is_http_url, redact_urls, redacted_urls_message};
 use crate::redact::Secret;
 use crate::types::ProviderError;
 use crate::types::{AttemptErrorKind, AttemptTarget, Deadline, MapOutcome};
@@ -162,11 +162,6 @@ impl TavilyMapResponse {
         }
         Ok(())
     }
-}
-
-fn is_http_url(value: &str) -> bool {
-    reqwest::Url::parse(value)
-        .is_ok_and(|url| matches!(url.scheme(), "http" | "https") && url.host().is_some())
 }
 
 fn failure_message(body: &str, status: u16) -> String {

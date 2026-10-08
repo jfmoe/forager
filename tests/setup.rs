@@ -32,7 +32,7 @@ fn non_interactive_setup_creates_a_complete_template() {
         ),
         (
             Some(0),
-            55,
+            59,
             Some(0),
             Some(0),
             &toml::Value::Array(
@@ -143,18 +143,18 @@ fn interactive_setup_holds_the_config_lock_until_its_update_is_saved() {
     setup
         .take_stdin()
         .expect("open setup stdin")
-        .write_all(b"\n\n\nn\n\n\n\n\n\n\n\n")
+        .write_all(b"\n\n\nn\n\n\n\n\n\n\n\n\n")
         .expect("complete setup input");
     let output = wait_for_child(setup, "interactive setup");
     assert_eq!(output.status.code(), Some(0), "{output:?}");
 }
 
 #[test]
-fn interactive_setup_configures_the_four_stages_without_echoing_credentials() {
+fn interactive_setup_configures_the_five_stages_without_echoing_credentials() {
     let config_dir = tempfile::tempdir().expect("create config directory");
     let canary = "setup-canary-secret";
     let input = format!(
-        "xai\nhttps://main.example/v1\n{canary}\nmain-model\ny\nhttps://classifier.example/v1\nclassifier-secret\nclassifier-model\nexa-secret\ncontext7-secret\njina-secret\ntavily-secret\nfirecrawl-secret\nanysearch-secret\n"
+        "xai\nhttps://main.example/v1\n{canary}\nmain-model\ny\nhttps://classifier.example/v1\nclassifier-secret\nclassifier-model\nexa-secret\ncontext7-secret\njina-secret\ntavily-secret\nfirecrawl-secret\nanysearch-secret\nserpapi-secret\n"
     );
 
     let output = run(config_dir.path(), &["setup", "--lang", "zh"], Some(&input));
@@ -175,6 +175,7 @@ fn interactive_setup_configures_the_four_stages_without_echoing_credentials() {
             config["providers"]["xai"]["model"].as_str(),
             config["classifier"]["model"].as_str(),
             combined.contains("第 3 步：分类器（跳过后无法自动路由或生成 research 计划）"),
+            combined.contains("第 5 步：平台 route"),
             combined.contains("forager doctor"),
             combined.contains(canary),
         ),
@@ -183,6 +184,7 @@ fn interactive_setup_configures_the_four_stages_without_echoing_credentials() {
             true,
             Some("main-model"),
             Some("classifier-model"),
+            true,
             true,
             true,
             false,
@@ -197,6 +199,7 @@ fn interactive_setup_configures_the_four_stages_without_echoing_credentials() {
         ("tavily", "tavily-secret"),
         ("firecrawl", "firecrawl-secret"),
         ("anysearch", "anysearch-secret"),
+        ("serpapi", "serpapi-secret"),
     ] {
         assert_eq!(
             config["providers"][provider]["keys"][0].as_str(),
@@ -217,7 +220,7 @@ fn interactive_setup_second_run_preserves_skipped_and_unrelated_values() {
          [unknown]\nvalue = true\n",
     )
     .expect("write existing config");
-    let input = "\n\n\nnew-model\nn\nnew-exa\n\n\n\n\n\n";
+    let input = "\n\n\nnew-model\nn\nnew-exa\n\n\n\n\n\n\n";
 
     let output = run(config_dir.path(), &["setup", "--lang", "en"], Some(input));
     let content = fs::read_to_string(path).expect("read updated config");
@@ -262,7 +265,7 @@ fn interactive_setup_enter_preserves_a_single_backend_array() {
     let output = run(
         config_dir.path(),
         &["setup", "--lang", "en"],
-        Some("\n\n\n\nn\n\n\n\n\n\n\n"),
+        Some("\n\n\n\nn\n\n\n\n\n\n\n\n"),
     );
     let config: toml::Value =
         toml::from_str(&fs::read_to_string(path).expect("read config")).expect("parse config");
@@ -350,7 +353,7 @@ fn both_setup_modes_enforce_private_permissions_and_remove_temporary_files() {
     let output = run(
         interactive_dir.path(),
         &["setup", "--lang", "en"],
-        Some("\n\n\nn\n\n\n\n\n\n\n\n"),
+        Some("\n\n\nn\n\n\n\n\n\n\n\n\n"),
     );
     assert_eq!(output.status.code(), Some(0), "{output:?}");
 

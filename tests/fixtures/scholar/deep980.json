@@ -1,0 +1,86 @@
+{
+  "search_metadata": {
+    "id": "000000000000000000000000",
+    "status": "Success"
+  },
+  "search_information": {
+    "organic_results_state": "Results for exact spelling",
+    "total_results": 4670000,
+    "page_number": 50,
+    "time_taken_displayed": 1.25,
+    "query_displayed": "time series momentum"
+  },
+  "organic_results": [
+    {
+      "position": 1,
+      "title": "Atmospheric Angular Momentum Functions from NCEP Reanalysis Data Sets",
+      "result_id": "X089c_gC_1QJ",
+      "link": "https://www2.jpgu.org/meeting/2004/pdf/d006/d006-005_e.pdf",
+      "snippet": "Atmospheric Angular Momentum Functions from NCEP Reanalysis Data Sets … series in non-periodic wind terms of Chi-1 or Chi2. A step-shaped bias in Chi-3 time series is observed …",
+      "publication_info": {
+        "summary": "Y Masaki, Y Aoyama, I Naito - jpgu.org",
+        "authors": [
+          {
+            "name": "Y Masaki"
+          },
+          {
+            "name": "Y Aoyama"
+          },
+          {
+            "name": "I Naito"
+          }
+        ]
+      },
+      "inline_links": {
+        "serpapi_cite_link": "https://serpapi.com/search.json?engine=google_scholar_cite&hl=en&q=X089c_gC_1QJ",
+        "related_pages_link": "https://scholar.google.com/scholar?q=related:X089c_gC_1QJ:scholar.google.com/&scioq=time+series+momentum&hl=en&num=20&as_sdt=0,5",
+        "serpapi_related_pages_link": "https://serpapi.com/search.json?as_sdt=0%2C5&engine=google_scholar&hl=en&num=20&q=related%3AX089c_gC_1QJ%3Ascholar.google.com%2F&start=980",
+        "cached_page_link": "https://scholar.googleusercontent.com/scholar?q=cache:X089c_gC_1QJ:scholar.google.com/+time+series+momentum&hl=en&num=20&as_sdt=0,5"
+      }
+    },
+    {
+      "position": 2,
+      "title": "Atmosphere Angular Momentum Time Series for CONT05",
+      "result_id": "42W1NoXLedkJ",
+      "type": "Citation",
+      "link": "https://repositum.tuwien.at/handle/20.500.12708/170670",
+      "snippet": "reposiTUm: Atmosphere Angular Momentum Time Series for CONT05 … Open Access Series … Atmosphere Angular Momentum Time Series for CONT05 …",
+      "publication_info": {
+        "summary": "J Boehm, P Mendes Cerveira… - IVS General Meeting …, 2008 - repositum.tuwien.at",
+        "authors": [
+          {
+            "name": "J Boehm",
+            "link": "https://scholar.google.com/citations?user=Lv-4d2wAAAAJ&hl=en&num=20&oi=sra",
+            "author_id": "Lv-4d2wAAAAJ",
+            "serpapi_scholar_link": "https://serpapi.com/search.json?author_id=Lv-4d2wAAAAJ&engine=google_scholar_author&hl=en"
+          },
+          {
+            "name": "P Mendes Cerveira"
+          }
+        ]
+      },
+      "inline_links": {
+        "serpapi_cite_link": "https://serpapi.com/search.json?engine=google_scholar_cite&hl=en&q=42W1NoXLedkJ",
+        "cited_by": {
+          "total": 2,
+          "link": "https://scholar.google.com/scholar?cites=15670780151421298147&as_sdt=2005&sciodt=0,5&hl=en&num=20",
+          "cites_id": "15670780151421298147",
+          "serpapi_scholar_link": "https://serpapi.com/search.json?as_sdt=2005&cites=15670780151421298147&engine=google_scholar&hl=en&num=20"
+        },
+        "related_pages_link": "https://scholar.google.com/scholar?q=related:42W1NoXLedkJ:scholar.google.com/&scioq=time+series+momentum&hl=en&num=20&as_sdt=0,5",
+        "serpapi_related_pages_link": "https://serpapi.com/search.json?as_sdt=0%2C5&engine=google_scholar&hl=en&num=20&q=related%3A42W1NoXLedkJ%3Ascholar.google.com%2F&start=980",
+        "versions": {
+          "total": 2,
+          "link": "https://scholar.google.com/scholar?cluster=15670780151421298147&hl=en&num=20&as_sdt=0,5",
+          "cluster_id": "15670780151421298147",
+          "serpapi_scholar_link": "https://serpapi.com/search.json?as_sdt=0%2C5&cluster=15670780151421298147&engine=google_scholar&hl=en&num=20"
+        },
+        "cached_page_link": "https://scholar.googleusercontent.com/scholar?q=cache:42W1NoXLedkJ:scholar.google.com/+time+series+momentum&hl=en&num=20&as_sdt=0,5"
+      }
+    }
+  ],
+  "serpapi_pagination": {
+    "current": 50,
+    "previous": "https://serpapi.com/search.json?as_sdt=0%2C5&engine=google_scholar&hl=en&num=20&q=time+series+momentum&start=960"
+  }
+}

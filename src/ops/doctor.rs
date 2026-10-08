@@ -500,8 +500,12 @@ fn deep_unconfigured_reason(provider: ProviderId, runtime: &RuntimeConfig) -> Op
     match catalog::registration(provider).transport {
         ProviderTransport::OpenCli(_) => (!route_enabled(provider, runtime))
             .then(|| format!("no platform order lists `{name}`; add it to the order to enable it")),
-        ProviderTransport::Http => (!runtime.provider_configured(provider))
-            .then(|| format!("providers.{name}.keys has no configured credentials")),
+        ProviderTransport::Http => (!runtime.provider_configured(provider)).then(|| {
+            format!(
+                "{} has no configured credentials",
+                config::provider_keys_key(name)
+            )
+        }),
     }
 }
 
