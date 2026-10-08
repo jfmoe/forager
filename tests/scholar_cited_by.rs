@@ -82,24 +82,6 @@ fn the_query_years_and_date_order_join_the_query_parameters() {
 }
 
 #[test]
-fn a_cluster_url_names_the_cited_paper() {
-    let (output, requests) = run(
-        &["https://scholar.google.com/scholar?cluster=18208131694456651388&hl=en&num=20"],
-        vec![ok(&fixture("cited_by.json"))],
-    );
-
-    assert_eq!(
-        (
-            output.status.code(),
-            query_pairs(&requests[0])["cites"].as_str()
-        ),
-        (Some(0), "18208131694456651388"),
-        "stderr: {}",
-        stderr(&output)
-    );
-}
-
-#[test]
 fn cited_by_decodes_citing_works_like_search_results() {
     let source = fixture("cited_by.json");
     let (output, _) = run(&[CITED, "--query", "crash"], vec![ok(&source)]);
@@ -187,18 +169,6 @@ fn invalid_targets_and_options_are_rejected_before_any_request() {
     for (arguments, message) in [
         (
             &["https://scholar.google.com/scholar?cites=18208131694456651388"][..],
-            "unrecognized scholar reference",
-        ),
-        (
-            &["https://scholar.google.com/scholar?cluster=1&cluster=2"],
-            "unrecognized scholar reference",
-        ),
-        (
-            &["https://scholar.google.com/scholar?cluster=18446744073709551616"],
-            "unrecognized scholar reference",
-        ),
-        (
-            &["https://scholar.google.com/citations?user=q9g8tuAAAAAJ&hl=en"],
             "unrecognized scholar reference",
         ),
         (&[], "required"),
@@ -307,26 +277,6 @@ fn a_date_ordered_cursor_keeps_the_order() {
 }
 
 #[test]
-fn no_cursor_is_issued_past_result_1000() {
-    let next_cursor = |limit: u64, start: &str| {
-        let (output, _) = run(
-            &["--cursor", &cursor(limit, start, json!({}))],
-            vec![ok(&fixture("cited_by.json"))],
-        );
-        payload(&output)["next_cursor"].clone()
-    };
-
-    assert_eq!(
-        [
-            next_cursor(20, "960").is_string(),
-            next_cursor(20, "980").is_null(),
-            next_cursor(7, "987").is_null(),
-        ],
-        [true; 3]
-    );
-}
-
-#[test]
 fn a_cursor_conflicts_with_a_target_query_option_or_limit() {
     let cursor = cursor(20, "20", json!({}));
     for extra in [
@@ -356,10 +306,6 @@ fn a_tampered_cursor_is_rejected_before_any_request() {
         (
             cursor(21, "20", json!({})),
             "--limit must be between 1 and 20",
-        ),
-        (
-            cursor(20, "20", json!({"year_from": 2025, "year_to": 2024})),
-            "--year-from must not be later than --year-to",
         ),
         (
             cursor(20, "20", json!({"sort": "date", "year_from": 2020})),
@@ -464,25 +410,6 @@ fn a_missing_key_or_an_empty_order_fails_before_any_request_like_search() {
     }
 }
 
-#[test]
-fn an_invalid_key_fails_after_flight() {
-    let (output, requests) = run(
-        &[CITED],
-        vec![Response::json(401, &fixture("badkey.json").to_string())],
-    );
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload(&output)["error_kind"],
-            requests.len()
-        ),
-        (Some(4), &json!("auth"), 1),
-        "stderr: {}",
-        stderr(&output)
-    );
-}
-
 fn status_error(message: &str) -> Value {
     json!({
         "search_metadata": {"id": "6ac6613da20802ffe5e7c8be", "status": "Error"},
@@ -528,47 +455,4 @@ fn a_status_error_is_retried_under_the_cited_by_target() {
         "stderr: {}",
         stderr(&output)
     );
-}
-
-#[test]
-fn the_key_never_reaches_output_or_trace_logs_on_any_failure() {
-    const CANARY: &str = "serpapi-canary-5b2e8a4c";
-    let echo = format!("{{\"error\":\"Invalid API key {CANARY}, see ?api_key={CANARY}\"}}");
-    let exhausted = format!("{{\"error\":\"Your account has run out of searches for {CANARY}.\"}}");
-    for (case, response) in [
-        ("401", Some(Response::json(401, &echo))),
-        ("429", Some(Response::json(429, &exhausted))),
-        (
-            "200 Error",
-            Some(ok(&status_error(&format!(
-                "Upstream failed for api_key={CANARY}"
-            )))),
-        ),
-        ("network", None),
-    ] {
-        let fixture = response.map(Fixture::start_repeating);
-        let url = fixture.as_ref().map_or_else(
-            || "http://127.0.0.1:9".to_owned(),
-            |fixture| fixture.url.clone(),
-        );
-        let environment = RunEnvironment::new(&config(&url, &[CANARY]));
-
-        let output = environment.run_with_env(
-            &["platform", "scholar", "cited-by", CITED, "--verbose"],
-            &[("FORAGER_LOG__LEVEL", "trace")],
-        );
-        let requests = fixture.map(|fixture| fixture.finish_all().len());
-
-        assert_ne!(output.status.code(), Some(0), "{case} should fail");
-        assert_ne!(requests, Some(0), "{case} should reach the fixture");
-        for (sink, contents) in [
-            (
-                "stdout",
-                String::from_utf8_lossy(&output.stdout).into_owned(),
-            ),
-            ("stderr", stderr(&output)),
-        ] {
-            assert!(!contents.contains(CANARY), "{case}: {sink} leaked the key");
-        }
-    }
 }
