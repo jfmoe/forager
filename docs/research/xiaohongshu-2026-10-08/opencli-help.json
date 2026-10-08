@@ -1,0 +1,320 @@
+{
+  "checked_at": "2026-10-08T11:26:19.937759+00:00",
+  "version": "1.8.6",
+  "commands": [
+    {
+      "name": "comments",
+      "command": "opencli xiaohongshu comments",
+      "usage": "opencli xiaohongshu comments <note-id> [options]",
+      "access": "read",
+      "description": "获取小红书笔记评论（支持楼中楼子回复）",
+      "browser": true,
+      "domain": "www.xiaohongshu.com",
+      "positionals": [
+        {
+          "name": "note-id",
+          "type": "str",
+          "positional": true,
+          "required": true,
+          "help": "Full Xiaohongshu note URL with xsec_token"
+        }
+      ],
+      "command_options": [
+        {
+          "name": "limit",
+          "type": "int",
+          "default": 20,
+          "help": "Number of top-level comments (max 50)"
+        },
+        {
+          "name": "with-replies",
+          "type": "boolean",
+          "default": false,
+          "help": "Include nested replies (楼中楼)"
+        }
+      ],
+      "browser_common_options": [
+        {
+          "name": "window",
+          "flags": "--window <mode>",
+          "help": "Browser window mode: foreground or background",
+          "choices": [
+            "foreground",
+            "background"
+          ]
+        },
+        {
+          "name": "site-session",
+          "flags": "--site-session <mode>",
+          "help": "Adapter site session lifecycle: ephemeral or persistent",
+          "choices": [
+            "ephemeral",
+            "persistent"
+          ]
+        },
+        {
+          "name": "keep-tab",
+          "flags": "--keep-tab <bool>",
+          "help": "Keep the browser tab lease after the command finishes",
+          "choices": [
+            "true",
+            "false"
+          ]
+        }
+      ],
+      "example": "opencli xiaohongshu comments <note-id> -f yaml",
+      "columns": [
+        "rank",
+        "author",
+        "userId",
+        "profileUrl",
+        "text",
+        "likes",
+        "time",
+        "is_reply",
+        "reply_to"
+      ]
+    },
+    {
+      "name": "download",
+      "command": "opencli xiaohongshu download",
+      "usage": "opencli xiaohongshu download <note-id> [options]",
+      "access": "read",
+      "description": "下载小红书笔记中的图片和视频",
+      "browser": true,
+      "domain": "www.xiaohongshu.com",
+      "positionals": [
+        {
+          "name": "note-id",
+          "type": "str",
+          "positional": true,
+          "required": true,
+          "help": "Full Xiaohongshu note URL with xsec_token, or xhslink short link"
+        }
+      ],
+      "command_options": [
+        {
+          "name": "output",
+          "type": "str",
+          "default": "./xiaohongshu-downloads",
+          "help": "Output directory"
+        }
+      ],
+      "browser_common_options": [
+        {
+          "name": "window",
+          "flags": "--window <mode>",
+          "help": "Browser window mode: foreground or background",
+          "choices": [
+            "foreground",
+            "background"
+          ]
+        },
+        {
+          "name": "site-session",
+          "flags": "--site-session <mode>",
+          "help": "Adapter site session lifecycle: ephemeral or persistent",
+          "choices": [
+            "ephemeral",
+            "persistent"
+          ]
+        },
+        {
+          "name": "keep-tab",
+          "flags": "--keep-tab <bool>",
+          "help": "Keep the browser tab lease after the command finishes",
+          "choices": [
+            "true",
+            "false"
+          ]
+        }
+      ],
+      "example": "opencli xiaohongshu download <note-id> -f yaml",
+      "columns": [
+        "index",
+        "type",
+        "status",
+        "size"
+      ]
+    },
+    {
+      "name": "note",
+      "command": "opencli xiaohongshu note",
+      "usage": "opencli xiaohongshu note <note-id> [options]",
+      "access": "read",
+      "description": "获取小红书笔记正文和互动数据",
+      "browser": true,
+      "domain": "www.xiaohongshu.com",
+      "positionals": [
+        {
+          "name": "note-id",
+          "type": "str",
+          "positional": true,
+          "required": true,
+          "help": "Full Xiaohongshu note URL with xsec_token"
+        }
+      ],
+      "command_options": [],
+      "browser_common_options": [
+        {
+          "name": "window",
+          "flags": "--window <mode>",
+          "help": "Browser window mode: foreground or background",
+          "choices": [
+            "foreground",
+            "background"
+          ]
+        },
+        {
+          "name": "site-session",
+          "flags": "--site-session <mode>",
+          "help": "Adapter site session lifecycle: ephemeral or persistent",
+          "choices": [
+            "ephemeral",
+            "persistent"
+          ]
+        },
+        {
+          "name": "keep-tab",
+          "flags": "--keep-tab <bool>",
+          "help": "Keep the browser tab lease after the command finishes",
+          "choices": [
+            "true",
+            "false"
+          ]
+        }
+      ],
+      "example": "opencli xiaohongshu note <note-id> -f yaml",
+      "columns": [
+        "field",
+        "value"
+      ]
+    },
+    {
+      "name": "search",
+      "command": "opencli xiaohongshu search",
+      "usage": "opencli xiaohongshu search <query> [options]",
+      "access": "read",
+      "description": "搜索小红书笔记",
+      "browser": true,
+      "domain": "www.xiaohongshu.com",
+      "positionals": [
+        {
+          "name": "query",
+          "type": "str",
+          "positional": true,
+          "required": true,
+          "help": "Search keyword"
+        }
+      ],
+      "command_options": [
+        {
+          "name": "limit",
+          "type": "int",
+          "default": 20,
+          "help": "Number of results"
+        }
+      ],
+      "browser_common_options": [
+        {
+          "name": "window",
+          "flags": "--window <mode>",
+          "help": "Browser window mode: foreground or background",
+          "choices": [
+            "foreground",
+            "background"
+          ]
+        },
+        {
+          "name": "site-session",
+          "flags": "--site-session <mode>",
+          "help": "Adapter site session lifecycle: ephemeral or persistent",
+          "choices": [
+            "ephemeral",
+            "persistent"
+          ]
+        },
+        {
+          "name": "keep-tab",
+          "flags": "--keep-tab <bool>",
+          "help": "Keep the browser tab lease after the command finishes",
+          "choices": [
+            "true",
+            "false"
+          ]
+        }
+      ],
+      "example": "opencli xiaohongshu search <query> -f yaml",
+      "columns": [
+        "rank",
+        "title",
+        "author",
+        "likes",
+        "published_at",
+        "url"
+      ]
+    },
+    {
+      "name": "user",
+      "command": "opencli xiaohongshu user",
+      "usage": "opencli xiaohongshu user <id> [options]",
+      "access": "read",
+      "description": "Get public notes from a Xiaohongshu user profile",
+      "browser": true,
+      "domain": "www.xiaohongshu.com",
+      "positionals": [
+        {
+          "name": "id",
+          "positional": true,
+          "required": true,
+          "help": "User id or profile URL"
+        }
+      ],
+      "command_options": [
+        {
+          "name": "limit",
+          "type": "int",
+          "default": 15,
+          "help": "Number of notes to return"
+        }
+      ],
+      "browser_common_options": [
+        {
+          "name": "window",
+          "flags": "--window <mode>",
+          "help": "Browser window mode: foreground or background",
+          "choices": [
+            "foreground",
+            "background"
+          ]
+        },
+        {
+          "name": "site-session",
+          "flags": "--site-session <mode>",
+          "help": "Adapter site session lifecycle: ephemeral or persistent",
+          "choices": [
+            "ephemeral",
+            "persistent"
+          ]
+        },
+        {
+          "name": "keep-tab",
+          "flags": "--keep-tab <bool>",
+          "help": "Keep the browser tab lease after the command finishes",
+          "choices": [
+            "true",
+            "false"
+          ]
+        }
+      ],
+      "example": "opencli xiaohongshu user <id> -f yaml",
+      "columns": [
+        "id",
+        "title",
+        "type",
+        "likes",
+        "url"
+      ]
+    }
+  ]
+}

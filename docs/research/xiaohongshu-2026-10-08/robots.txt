@@ -1,0 +1,27 @@
+User-agent: Googlebot
+Disallow: /
+Allow: /worldcup26
+
+User-agent: Baiduspider
+User-agent: BaiduSpider-ads
+User-agent: bingbot
+User-agent: 360Spider
+User-agent: Sogou web spider
+User-agent: Sogou wap spider
+User-agent: YisouSpider
+Disallow: /
+Allow: /$
+Allow: /explore
+Allow: /worldcup26
+Allow: /download
+Allow: /sitemap.xml
+Allow: /sitemap-notes-
+Allow: /sitemap-worldcup.xml
+Allow: /robots.txt
+Allow: /favicon.ico
+
+User-agent: *
+Disallow: /
+
+Sitemap: https://www.xiaohongshu.com/sitemap.xml
+

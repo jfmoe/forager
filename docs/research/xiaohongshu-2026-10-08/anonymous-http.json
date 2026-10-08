@@ -1,0 +1,37 @@
+{
+  "records": [
+    {
+      "time_utc": "2026-10-08T11:32:01.202982+00:00",
+      "url": "https://www.xiaohongshu.com/explore/6a6f376f000000002203370b",
+      "method": "GET",
+      "authentication": "No Cookie or Authorization header supplied; default Python urllib User-Agent; no browser.",
+      "status": 200,
+      "final_url": "https://www.xiaohongshu.com/explore/6a6f376f000000002203370b",
+      "error_code": null,
+      "bytes": 71828,
+      "has_initial_state": true,
+      "has_note_title_text": true,
+      "has_login_text": false,
+      "html_title": [
+        "电影Top250爬虫案例（个人学习） - 小红书"
+      ]
+    },
+    {
+      "time_utc": "2026-10-08T11:32:03.709942+00:00",
+      "url": "https://www.xiaohongshu.com/explore/69afda73000000002800b3f2",
+      "method": "GET",
+      "authentication": "No Cookie or Authorization header supplied; default Python urllib User-Agent; no browser.",
+      "exception": "URLError",
+      "message": "<urlopen error _ssl.c:1064: The handshake operation timed out>"
+    },
+    {
+      "time_utc": "2026-10-08T11:33:03.289547+00:00",
+      "url": "https://www.xiaohongshu.com/explore/6a6f376f000000002203370b",
+      "method": "GET",
+      "authentication": "No Cookie or Authorization header supplied",
+      "purpose": "Inspect anonymous SSR fields; do not retain source HTML, state, tokens, or media URLs.",
+      "exception": "TimeoutError",
+      "message": "The read operation timed out"
+    }
+  ]
+}

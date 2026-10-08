@@ -1,0 +1,35 @@
+{
+  "recorded_at": "2026-10-08T11:32:02.377946+00:00",
+  "observations": [
+    {
+      "source": "https://www.xiaohongshu.com/explore/6a6f376f000000002203370b",
+      "command": "forager fetch <source-url> --format content --output <temporary-file> --receipt",
+      "provider": "forager configured Web Fetch chain; winning provider was not included in the retained content-format receipt",
+      "projection": {
+        "title": "电影Top250爬虫案例（个人学习）",
+        "author": "青衫烟雨客",
+        "body_present": true,
+        "image_link_present": true,
+        "image_urls_retained": false,
+        "display_date": "编辑于 08-02",
+        "metrics_present": false,
+        "comments_state": "加载中",
+        "local_site_credentials_supplied": false,
+        "remote_provider_session_state": "unknown"
+      }
+    },
+    {
+      "source": "https://www.xiaohongshu.com/explore/69afda73000000002800b3f2",
+      "command": "forager fetch <source-url> --format content --output <temporary-file> --receipt",
+      "provider": "forager configured Web Fetch chain; winning provider was not included in the retained content-format receipt",
+      "projection": {
+        "note_body_present": false,
+        "error_code": "300031",
+        "rendered_path": "/404",
+        "raw_error_query_retained": false,
+        "local_site_credentials_supplied": false,
+        "remote_provider_session_state": "unknown"
+      }
+    }
+  ]
+}

@@ -1,0 +1,100 @@
+{
+  "checked_at": "2026-10-08T11:30:44.255319+00:00",
+  "forager_commit": "79bd9ac3928f38230366aafb06f157851798f7cc",
+  "opencli_version": "1.8.6",
+  "opencli_tag_commit": "cad35e7a6a5ff3f7d6b859bfa4c45195c0390260",
+  "repositories": [
+    {
+      "name": "OpenCLI",
+      "source": "https://github.com/jackwener/OpenCLI",
+      "commit": "24136945847afbfad266c6c46a8cd335377f9112",
+      "commit_date": "2026-09-25T02:55:12+08:00",
+      "pushed_at": "2026-09-24T18:55:16Z",
+      "archived": false,
+      "github_license": "Apache-2.0"
+    },
+    {
+      "name": "MediaCrawler",
+      "source": "https://github.com/NanmiCoder/MediaCrawler",
+      "commit": "93c405f89a8b3bc718c181a39106f6c0da83ff5f",
+      "commit_date": "2026-10-08T17:17:12+08:00",
+      "pushed_at": "2026-10-08T09:17:16Z",
+      "archived": false,
+      "github_license": "NOASSERTION"
+    },
+    {
+      "name": "xhs",
+      "source": "https://github.com/ReaJason/xhs",
+      "commit": "f4b62d9f8e4078e631fc6e4ec8e430bc711ee9f0",
+      "commit_date": "2025-07-01T16:14:59+08:00",
+      "pushed_at": "2025-07-01T08:14:59Z",
+      "archived": false,
+      "github_license": "MIT"
+    },
+    {
+      "name": "xiaohongshu-mcp",
+      "source": "https://github.com/xpzouying/xiaohongshu-mcp",
+      "commit": "a5c8f7799980ba1fdd501999843eb2d17e4c9a9f",
+      "commit_date": "2026-09-23T02:53:47+08:00",
+      "pushed_at": "2026-10-05T05:06:45Z",
+      "archived": false,
+      "github_license": "Apache-2.0"
+    },
+    {
+      "name": "Spider_XHS",
+      "source": "https://github.com/cv-cat/Spider_XHS",
+      "commit": "ebb6c4fbeaedf1237190ebc0c8e3ae8b7ddd030e",
+      "commit_date": "2026-09-27T18:04:13+08:00",
+      "pushed_at": "2026-09-27T10:04:13Z",
+      "archived": false,
+      "github_license": null
+    },
+    {
+      "name": "TikHub-API-Python-SDK",
+      "source": "https://github.com/TikHub/TikHub-API-Python-SDK",
+      "commit": "1ede56bcc53f8c037744cbe2b70c93541b5cf840",
+      "commit_date": "2026-10-02T23:39:55-07:00",
+      "pushed_at": "2026-10-03T06:40:44Z",
+      "archived": false,
+      "github_license": "Apache-2.0"
+    }
+  ],
+  "local_tag_comparison": [
+    {
+      "file": "clis/xiaohongshu/search.js",
+      "local_sha256": "effa49c58cbcc6e3871e89875073f23a187366b96604718690a856d45be3d1fc",
+      "tag_sha256": "effa49c58cbcc6e3871e89875073f23a187366b96604718690a856d45be3d1fc",
+      "equal": true
+    },
+    {
+      "file": "clis/xiaohongshu/note.js",
+      "local_sha256": "8dbf8022a8c0688a83d767a1ec5dfec68b4515c6b56dadda01c5a3e8d5d49cca",
+      "tag_sha256": "8dbf8022a8c0688a83d767a1ec5dfec68b4515c6b56dadda01c5a3e8d5d49cca",
+      "equal": true
+    },
+    {
+      "file": "clis/xiaohongshu/comments.js",
+      "local_sha256": "e3978510e2c52960f97b76761ae1eec35d012f3313350a188a4f00da62bc5419",
+      "tag_sha256": "e3978510e2c52960f97b76761ae1eec35d012f3313350a188a4f00da62bc5419",
+      "equal": true
+    },
+    {
+      "file": "clis/xiaohongshu/user.js",
+      "local_sha256": "f5a3b24ec3bf7104009e672f27f89db1192926be2794d21fc3789dd3d3fb4297",
+      "tag_sha256": "f5a3b24ec3bf7104009e672f27f89db1192926be2794d21fc3789dd3d3fb4297",
+      "equal": true
+    },
+    {
+      "file": "clis/xiaohongshu/download.js",
+      "local_sha256": "c0007783cbffae9151f8f741826919e68bddccd11171ba5070cae5610ba21ecd",
+      "tag_sha256": "c0007783cbffae9151f8f741826919e68bddccd11171ba5070cae5610ba21ecd",
+      "equal": true
+    },
+    {
+      "file": "clis/xiaohongshu/note-helpers.js",
+      "local_sha256": "af2bae92537e8b9e2604a7ae0fce41aa563821c7437703d55f6a13978ae872f8",
+      "tag_sha256": "af2bae92537e8b9e2604a7ae0fce41aa563821c7437703d55f6a13978ae872f8",
+      "equal": true
+    }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "version": "1.8.6",
+  "policy": "Sequential read-only commands; no tokens or cookies retained. Stop on auth/security failure.",
+  "records": [
+    {
+      "label": "search",
+      "time_utc": "2026-10-08T11:26:19.938073+00:00",
+      "command": [
+        "opencli",
+        "xiaohongshu",
+        "search",
+        "咖啡",
+        "--limit",
+        "3",
+        "-f",
+        "json",
+        "--trace",
+        "off"
+      ],
+      "exit_code": 77,
+      "stdout": "",
+      "stderr": "ok: false\nerror:\n  code: AUTH_REQUIRED\n  message: Xiaohongshu search results are blocked behind a login wall\n  help: Please open Chrome or Chromium and log in to https://www.xiaohongshu.com\n  exitCode: 77\n"
+    }
+  ],
+  "bridge_check": {
+    "observed_date": "2026-10-08",
+    "command": [
+      "opencli",
+      "doctor"
+    ],
+    "exit_code": 0,
+    "projection": {
+      "cli_version": "1.8.6",
+      "node_version": "24.16.0",
+      "daemon": "running",
+      "daemon_version": "1.8.6",
+      "extension": "connected",
+      "extension_version": "1.0.24",
+      "connectivity": "connected",
+      "site_login_checked": false
+    },
+    "note": "Transcribed from the completed terminal command; browser profile identifier omitted."
+  }
+}
