@@ -224,7 +224,7 @@ struct SearchData {
     filter_failure: Option<String>,
     /// The read deadline passed before the expected responses arrived.
     timed_out: bool,
-    /// A matching response never got its body before the read deadline.
+    /// An awaited search response completed, but the capture held no body for it.
     body_missing: bool,
     /// Every captured `search/notes` exchange, in order.
     responses: Vec<CapturedSearch>,

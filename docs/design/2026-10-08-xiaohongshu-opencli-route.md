@@ -290,7 +290,7 @@ OpenCLI 退出码到 attempt 错误类型的映射完全沿用 `providers/opencl
 
 - **fetch 暂缺时的接入清单**：#187 只交付 search，checklist 曾以待交付操作表豁免 `(xiaohongshu, fetch)` 的 R1、R6、R7 检查。#188 交付 fetch 后已删除该豁免，fetch 的 route 集合、C28 与 fixture `F21` 都已登记。
 - **请求体字段**：OpenCLI Browser Bridge 扩展 1.0.24 的抓包条目以 `requestBodyPreview` 携带请求体（扩展源码 `extension/src/cdp.ts`），与响应体的 `responsePreview` 对应。
-- **抓包完成条件**：扩展在 `readNetworkCapture()` 时取走条目并清空请求索引，此后同一请求的 `loadingFinished` 不再写回响应体，所以读走后"继续等待同一请求"做不到。读取模块改为：Resource Timing 出现完成记录后再等 1 秒（扩展在 `loadingFinished` 后异步取响应体），再读抓包；读到的搜索条目仍无响应体就记为 `body_missing`，不再等待；命令结束或到达截止点时读到的在途请求不是命令等待的响应，不计入。完成记录由 `PerformanceObserver`（`buffered: true`）计数；计数器属于文档，读取模块每次读取页面状态时都确认当前文档已装上计数器（见「第一页偶发未完成的原因」）。
+- **抓包完成条件**：扩展在 `readNetworkCapture()` 时取走条目并清空请求索引，此后同一请求的事件不再写回，读走时还没有响应体的条目永远拿不到响应体，所以读走后"继续等待同一请求"做不到。读取模块在 Resource Timing 出现完成记录（或第一页出现笔记卡片）之后，先再做一次页面往返，再读抓包；读到的条目中有该路径带响应体的条目即为完成，没有则记为 `body_missing`。同一次读取中其他没有响应体的同路径条目是仍在途或已中止的请求，不计入。依据与验证见「抓包完成条件的依据」。完成记录由 `PerformanceObserver`（`buffered: true`）计数；计数器属于文档，读取模块每次读取页面状态时都确认当前文档已装上计数器（见「第一页偶发未完成的原因」）。
 - **第一页的完成信号**：第二次真实运行中，第一页响应始终没有被计数，命令一直等到截止点（当时的分类把它报成"筛选点击数不符"）。后续实测确认了这一点：页面在 load 事件时清空 Resource Timing 缓冲，而导航要等到 load 事件（或扩展的 15 秒兜底）才返回。修正：第一页另以页面出现笔记卡片为完成信号（抓包在导航之前开启，响应已在其中）；筛选点击与翻页之后的响应仍以计数为准，因为那时计数已在运行。分类同时调整为先判断截止与页面，再判断点击数：截止时仍在结果页为 Timeout，消息说明完成了几次点击。
 - **筛选点击**：沿用 OpenCLI 内置小红书模块已验证的 DOM 结构（`.search-layout__top > .filter` 触发、`.filter-panel` 面板、`.filters` 分组的标签文本、`.tags` 选项），先对触发元素派发悬停事件，面板未出现时再点击它，然后在页面内点击选项。点击失败时读取模块在 `filter_failure` 中写明原因（例如 `no_filter_panel for 排序依据 最新`），route 把它附在 Runtime 消息后。
 - **token 脱敏**：search 的请求不带 token，没有需要按值清理的消息。fetch 的 route 在记录 attempt 之前清理消息，清理的是去掉末尾 `=` 填充后的 token：登录跳转的 `redirectPath` 会把原链接（含 token）再做一到两次百分号编码，`=` 变成 `%3D` 或 `%253D`，而 token 的其余字符（`A-Za-z0-9_-`）在 URL 编码下不变。读取模块回报的 `url` 只删去顶层的 `xsec_token`，嵌套在跳转参数里的 token 由这条规则兜住。
@@ -368,6 +368,40 @@ OpenCLI 退出码到 attempt 错误类型的映射完全沿用 `providers/opencl
 
 运行 2 的 `published_text` 出现了 `N分钟前`、`N小时前`、`N天前`、`1天前` 与 `昨天 HH:MM`（9 条）。
 
+### 抓包完成条件的依据
+
+「第一页偶发未完成的原因」修正后的运行 5 以 `body_missing` 失败。当时的读取模块在完成信号之后固定等待 1 秒再读抓包，读到的任一搜索条目没有响应体就记为 `body_missing`。依据 Browser Bridge 扩展 1.0.24 的源码（`extension/src/cdp.ts`、`extension/src/background.ts`），抓包条目的生命周期是：
+
+- `Network.requestWillBeSent` 时建立条目并登记请求 ID，此时条目已可读，只有请求信息；`Network.responseReceived` 时写入状态码；`Network.loadingFinished` 时扩展才发出 `Network.getResponseBody`，等 Chrome 回复后写入响应体。取响应体失败被静默忽略；`Network.loadingFailed`（例如页面中止请求）没有处理，这类条目永远没有响应体。
+- `readNetworkCapture()` 返回条目快照后清空条目与请求索引。之后到达的 `responseReceived` 与 `loadingFinished` 只按索引查找，找不到就丢弃；读取时正在进行的 `getResponseBody` 写进的是已经交出的对象。读走的无响应体条目不会带着响应体再出现。
+- 读抓包不经过 CDP，直接取扩展内存中的条目；`page.evaluate` 则经同一个调试会话（先发 `Runtime.evaluate` 探活，再执行脚本）。扩展没有非消费式的读取，也不允许读取模块直接调用 `Network` 域的 CDP 方法。
+
+因此旧条件有两个缺陷，运行 5 是哪一个没有现场证据可以区分：
+
+- **固定 1 秒与取响应体之间没有先后关系**：`getResponseBody` 由页面渲染进程回答，页面主线程繁忙（后台窗口中的首屏脚本与渲染）时可能晚于 1 秒；读抓包本身不排在它后面，读早了响应体就永久丢失。
+- **把其他请求当成等待的响应**：完成信号之后读到的同路径条目不一定是等待的那一个。页面可能另发了一次请求而它仍在途，或中止了一次请求；这类条目没有响应体，但等待的响应可能已经完整读到。
+
+现在的条件：
+
+- **一次页面往返作为屏障**：Chrome 发出 `loadingFinished` 事件与 Resource Timing 记录完成发生在同一个任务里，`PerformanceObserver` 的回调在其后的任务中，页面渲染笔记卡片更晚；所以读取模块看到完成信号时，扩展已经收到事件并发出了 `getResponseBody`。随后再做一次 `page.evaluate`，它的 CDP 命令排在 `getResponseBody` 之后；Chrome 按序处理同一会话的命令，往返返回时响应体已经写入条目。"按序处理"与"事件先于页面可见的完成"来自对 Chrome DevTools 协议实现的理解，没有逐行核对 Chromium 源码；下表的实测与之相符。
+- **按"是否持有"判定**：读到的条目中有该路径带响应体的条目即为完成；一个都没有才是 `body_missing`（等待的响应已完成，响应体却没有被存下或已丢失），Rust 侧仍为 Runtime。判定只在这一次读取后做，不再等待，因为读走后丢失的响应体不会再出现；上界是这次页面往返本身。
+- **评论沿用**：`comment/page` 与 `comment/sub/page` 走同一个 `awaitCompletion`，按 GET 路径判定，不需要另写完成条件。
+
+修正后的真实运行，2026-10-08 17:57–18:03 UTC，OpenCLI 1.8.6，用户自己已登录的 Chrome，读取模块按 skill 的方式重新安装，route 经环境变量 `FORAGER_PLATFORMS__XIAOHONGSHU__ORDER` 启用。共 8 次页面命令，相邻两次之间至少间隔 25 秒，没有出现登录墙、461、300031/300017 或安全限制。
+
+| 运行 | 命令 | 结果 |
+|---|---|---|
+| 1 | `forager doctor --provider xiaohongshu_browser` | 5 秒，深探通过 |
+| 2 | 读取模块直接运行：`search --query 咖啡 --sort latest --publish-time week --pages 2` | 13 秒（第一期验收同一命令为 52 秒）：两次筛选点击，4 个响应全部有响应体，页序与 `search_id` 与第一期一致 |
+| 3 | `forager platform xiaohongshu search 咖啡 --limit 25 --sort latest --publish-time week` | 24 秒，退 0：25 条，ref 无重复，"未列全"诊断 |
+| 4 | 同运行 1 | 8 秒，深探通过 |
+| 5 | 读取模块直接运行：`search --query 咖啡 --note-type video --sort most-liked --pages 3` | 28 秒：第一页有响应体；第一次筛选点击以 `no_filter_panel for 排序依据 最多点赞` 失败（筛选面板没有打开，与抓包无关；运行 7 同一组筛选成功） |
+| 6 | 读取模块直接运行：`search --query 咖啡 --pages 3` | 25 秒：3 页（两次滚动翻页）全部有响应体，页序 1、2、3，`search_id` 不变 |
+| 7 | `forager platform xiaohongshu search 咖啡 --limit 5 --note-type video --sort most-liked` | 18 秒，退 0：5 条，点赞数递减 |
+| 8 | 同运行 1 | 8 秒，深探通过 |
+
+8 次运行中共 10 次以计数为完成信号的等待（筛选点击后与滚动翻页后）和 8 次以卡片为信号的第一页等待，全部读到响应体，没有 `body_missing`。
+
 ## 仍未实测的部分
 
 - **token 的有效期上限**：实测到 22 分钟仍有效，更长时间未测。过期表现预计与 300031 相同，已按 Parameter 处理并提示重新搜索。
@@ -376,7 +410,7 @@ OpenCLI 退出码到 attempt 错误类型的映射完全沿用 `providers/opencl
 - **合法空集**：两个无意义查询都返回了笔记，没能观察到真正的空结果；判定规则按接口字段设计，未经实测。
 - **Chrome 错误页**：`load_error` 的识别（`chrome-error:` 页面中的 `.error-code`）只在本机对一个拒绝连接的端口验证过；小红书上的错误页每次都在命令第一次读取页面状态之前被 Chrome 重新加载掉，所以没有读到过真实错误码。Chrome 连续重新加载失败、退避间隔变长时，命令会以 Network 结束。
 - **相对时间**：真实卡片上已观察到 `N分钟前`、`N小时前`、`N天前`（含 `1天前`）与 `昨天 HH:MM`；`刚刚`、不带时间的 `昨天` 尚未出现，按同一规则换算。`昨天` 由站点按哪个时区判定未核实：本机时区与站点不同时，换算出的日期可能差一天。
-- **抓包完成条件**：第一期验收中五次成功运行的全部搜索响应都带响应体。「第一页偶发未完成的原因」的运行 5 在 10 秒内以 `body_missing` 失败：完成信号之后 1 秒读到的搜索条目没有响应体。为控制访问次数没有再复现，原因未确认；可能是页面又发出了一次搜索请求而它仍在途，也可能是扩展取响应体慢于 1 秒。
+- **抓包完成条件**：页面往返屏障依赖 Chrome 按序处理同一调试会话的命令，没有核对 Chromium 源码；8 次修正后的运行中没有出现 `body_missing`。旧条件下运行 5 失败的具体原因（取响应体慢于 1 秒，还是另一个在途或中止的请求）没有现场证据可以区分，新条件对两者都成立。若屏障假设不成立，表现为偶发 Runtime（`body_missing`），不会静默丢页。
 - **楼中楼 cursor**：楼中楼第一页的请求 `cursor` 是否等于 `sub_comment_cursor` 未比较，暂不作为核对条件。
 - **截图驱动渲染的稳定性**：依赖 Chrome 在后台窗口中为截图渲染一帧的行为。若某个 Chrome 版本不再这样，翻页会以 Timeout 失败而不是返回不完整结果，届时再评估。
 - **评论翻页的跨次一致性**：评论顺序在两次运行中第一页相同，但只看了前两条 ID，没有系统比较；comments 不签发 cursor，不依赖这一点。

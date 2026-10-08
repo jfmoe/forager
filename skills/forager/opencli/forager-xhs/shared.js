@@ -10,9 +10,6 @@ export const SITE_DOMAIN = 'www.xiaohongshu.com';
 // the timeout that forager passes.
 const CLOSE_RESERVE_MS = 3000;
 const POLL_MS = 500;
-// The extension stores a response body shortly after the request completes; reading the
-// capture drains it, so a read must not overtake that store.
-const BODY_GRACE_MS = 1000;
 const RISK_CONTROL_STATUS = 461;
 const USER_ME_PATH = '/api/sns/web/v2/user/me';
 
@@ -36,7 +33,7 @@ export function sleep(ms) {
 // paths on any xiaohongshu.com host. A document keeps its own count, and the page the command
 // opened is not always the one that answers: when the first load fails, Chrome shows its own
 // error page and reloads it into a new document. Resource Timing records a request only once its
-// response has ended, which is the signal that the capture holds its body.
+// response has ended.
 function pageStateScript(tracked) {
   return `(() => {
   const tracked = ${JSON.stringify(tracked)};
@@ -170,18 +167,26 @@ export async function readExchanges(page) {
  * the deadline passes. `nudge` runs before each wait round, for example to scroll. With
  * `orRendered`, note cards on the page also count as the completion: the first response of a
  * page usually completes before the navigation returns and the count starts, and the page clears
- * its Resource Timing buffer at its load event. Returns the exchanges read after the completion,
- * `ended`, or `timed_out`.
+ * its Resource Timing buffer at its load event. Returns the exchanges read after the completion
+ * with `completed`, or with `body_missing` when none of them holds a body for `path`; `ended`; or
+ * `timed_out`. Exchanges for `path` without a body are other requests still in flight or
+ * aborted, not the completed one.
  */
 export async function awaitCompletion(page, facts, { path, seen, deadline, nudge, nudgeEveryMs, orRendered }) {
   let nudgedAt = 0;
   while (Date.now() < deadline) {
     if (await facts.observe(page)) return { state: 'ended', exchanges: [] };
     if (facts.completions(path) > seen || (orRendered && facts.cards > 0)) {
-      await sleep(BODY_GRACE_MS);
+      // Reading the capture drains it, and an entry drained before the extension stores its
+      // body never gets one. The extension asks Chrome for the body on the request's
+      // loadingFinished event, which Chrome sends before the page can see the completion, and
+      // a tab answers DevTools commands in order. One more page round trip therefore returns
+      // only after the body request has been answered.
+      await facts.observe(page);
       const exchanges = await readExchanges(page);
       facts.absorb(exchanges);
-      return { state: 'completed', exchanges };
+      const held = exchanges.some((exchange) => exchange.path === path && exchange.has_body);
+      return { state: held ? 'completed' : 'body_missing', exchanges };
     }
     if (nudge && Date.now() - nudgedAt >= nudgeEveryMs) {
       nudgedAt = Date.now();

@@ -99,16 +99,10 @@ cli({
     let bodyMissing = false;
     let timedOut = false;
 
-    // Keeps the search exchanges of a read, tagged with the filter clicks made so far. Only a
-    // read after a completion signal expects every body; a request still in flight at a final
-    // or deadline read is not one the command waited for.
-    const keep = (exchanges, afterCompletion) => {
+    // Keeps the search responses of a read, tagged with the filter clicks made so far.
+    const keep = (exchanges) => {
       for (const exchange of exchanges) {
-        if (exchange.path !== SEARCH_PATH || exchange.method !== 'POST') continue;
-        if (!exchange.has_body) {
-          if (afterCompletion) bodyMissing = true;
-          continue;
-        }
+        if (exchange.path !== SEARCH_PATH || exchange.method !== 'POST' || !exchange.has_body) continue;
         const request = exchange.request || {};
         const body = exchange.body || {};
         responses.push({
@@ -141,14 +135,15 @@ cli({
         nudgeEveryMs: SCROLL_EVERY_MS,
         orRendered,
       });
-      keep(result.exchanges, result.state === 'completed');
+      keep(result.exchanges);
+      if (result.state === 'body_missing') bodyMissing = true;
       if (result.state === 'timed_out') timedOut = true;
-      return result.state === 'completed' && !bodyMissing && !facts.ended();
+      return result.state === 'completed' && !facts.ended();
     };
     const finish = async () => {
       const exchanges = await readExchanges(page);
       facts.absorb(exchanges);
-      keep(exchanges, false);
+      keep(exchanges);
       return envelope({
         page: facts.facts,
         filter_clicks: filterClicks,
