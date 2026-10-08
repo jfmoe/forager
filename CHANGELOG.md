@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0](https://github.com/jfmoe/forager/compare/v0.7.0...v0.8.0) - 2026-10-08
+
+### Added
+
+- *(serpapi)* probe every key through the free Account API
+- *(scholar)* list citing papers with platform scholar cited-by
+- *(scholar)* add Google Scholar platform through SerpApi
+- *(arxiv)* match double-quoted phrases in search queries
+
+### Other
+
+- *(scholar)* drop cited-by tests that repeat shared search rules
+- *(design)* add Google Scholar platform via SerpApi
+- *(research)* compare SSRN Crossref and browser search quality
+- rename CONTEXT.md to GLOSSARY.md for agent skills
+
 ## [0.7.0](https://github.com/jfmoe/forager/compare/v0.6.0...v0.7.0) - 2026-09-28
 
 ### Added
