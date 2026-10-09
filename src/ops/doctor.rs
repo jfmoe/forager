@@ -257,33 +257,11 @@ async fn run_probe(
             );
             one_check(adapter.search("forager doctor", 1).await, name, transport)
         }
-        DoctorProbe::WebFetch { name, transport } => {
-            let provider_config = config::web_provider_config(
-                catalog::WEB_FETCH,
-                provider,
-                &config.tavily,
-                &config.firecrawl,
-                &config.jina,
-            )
-            .expect("probe registration belongs to the web-fetch catalog");
-            let adapter = providers::build_web_fetch(
-                provider,
-                provider_config,
-                client,
-                retry_policy,
-                deadline,
-            );
-            one_check(
-                adapter
-                    .fetch(&FetchRequest {
-                        source: FetchSource::Url("https://example.com/".into()),
-                        verbose: false,
-                    })
-                    .await,
-                name,
-                transport,
-            )
-        }
+        DoctorProbe::WebFetch { name, transport } => one_check(
+            probe_web_fetch(provider, &config, client, retry_policy, deadline).await,
+            name,
+            transport,
+        ),
         DoctorProbe::DocsSearch { name, transport } => {
             let provider_config =
                 config::docs_provider_config(provider, &config.exa, &config.context7)
@@ -315,6 +293,11 @@ async fn run_probe(
                 providers::route_accounts(route_config, client, retry_policy, deadline).await;
             account_outcome(provider, accounts, name, transport)
         }
+        DoctorProbe::AdapterStatus { name, transport } => one_check(
+            providers::adapter_status(provider, &config, retry_policy, deadline).await,
+            name,
+            transport,
+        ),
         DoctorProbe::AnysearchDomains { name, transport } => {
             let adapter =
                 providers::build_anysearch(config.anysearch, client, retry_policy, deadline);
@@ -330,6 +313,32 @@ async fn run_probe(
             )
         }
     }
+}
+
+async fn probe_web_fetch(
+    provider: ProviderId,
+    config: &RuntimeConfig,
+    client: reqwest::Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> Result<(), ProviderError> {
+    let provider_config = config::web_provider_config(
+        catalog::WEB_FETCH,
+        provider,
+        &config.tavily,
+        &config.firecrawl,
+        &config.jina,
+    )
+    .expect("probe registration belongs to the web-fetch catalog");
+    let adapter =
+        providers::build_web_fetch(provider, provider_config, client, retry_policy, deadline);
+    adapter
+        .fetch(&FetchRequest {
+            source: FetchSource::Url("https://example.com/".into()),
+            verbose: false,
+        })
+        .await
+        .map(|_| ())
 }
 
 async fn probe_platform_search(
@@ -543,7 +552,8 @@ struct ShallowCheck {
 }
 
 /// Checks an HTTP provider by a GET to its endpoint. A process route takes part only when its
-/// platform order enables it; its check runs the adapter's `contract` command.
+/// platform order enables it; its check runs the adapter's `contract` command. A process
+/// provider that only its own commands run never takes part.
 async fn shallow_check(
     registration: &ProviderRegistration,
     runtime: &RuntimeConfig,
@@ -561,6 +571,16 @@ async fn shallow_check(
             message: None,
         };
     };
+    if !is_platform_route(id) {
+        return ShallowCheck {
+            configured: false,
+            reachable: false,
+            message: Some(format!(
+                "checked only by `forager doctor --provider {}`",
+                id.name()
+            )),
+        };
+    }
     if !route_enabled(id, runtime) {
         return ShallowCheck {
             configured: false,
@@ -578,12 +598,14 @@ async fn shallow_check(
 }
 
 /// Returns why the deep probe cannot run the provider, or `None` when it can. A process route
-/// drives the user's browser, so doctor runs it only when a platform order enables it.
+/// drives the user's browser, so doctor runs it only when a platform order enables it; a
+/// process provider outside every platform runs because the user named it.
 fn deep_unconfigured_reason(provider: ProviderId, runtime: &RuntimeConfig) -> Option<String> {
     let name = provider.name();
     match catalog::registration(provider).transport {
-        ProviderTransport::OpenCli(_) => (!route_enabled(provider, runtime))
-            .then(|| format!("no platform order lists `{name}`; add it to the order to enable it")),
+        ProviderTransport::OpenCli(_) => (is_platform_route(provider)
+            && !route_enabled(provider, runtime))
+        .then(|| format!("no platform order lists `{name}`; add it to the order to enable it")),
         ProviderTransport::Http => (!runtime.provider_configured(provider)).then(|| {
             format!(
                 "{} has no configured credentials",
@@ -591,6 +613,12 @@ fn deep_unconfigured_reason(provider: ProviderId, runtime: &RuntimeConfig) -> Op
             )
         }),
     }
+}
+
+fn is_platform_route(id: ProviderId) -> bool {
+    catalog::PLATFORMS
+        .iter()
+        .any(|platform| platform.contains(id))
 }
 
 /// Returns whether any platform order lists the route.

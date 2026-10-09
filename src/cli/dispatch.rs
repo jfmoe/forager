@@ -20,9 +20,10 @@ use crate::providers::{
 };
 use crate::types::{
     AnysearchOutcome, CapabilitySet, ClaimRisk, Context7Outcome, Deadline, EvidenceStrength,
-    FallbackPolicy, FetchOutcome, JournalOutcome, MapOutcome, PlanCapability, PlatformFetchResult,
-    PlatformSearchPage, ProviderAttempt, RecencyRequirement, ResearchIntentSignals, ResearchPlan,
-    ResearchSubquestion, SearchOutcome, XiaohongshuCommentsPage,
+    FallbackPolicy, FetchOutcome, GeminiResearchFailure, GeminiResearchResult, JournalOutcome,
+    MapOutcome, PlanCapability, PlatformFetchResult, PlatformSearchPage, ProviderAttempt,
+    RecencyRequirement, ResearchIntentSignals, ResearchPlan, ResearchSubquestion, SearchOutcome,
+    XiaohongshuCommentsPage,
 };
 
 #[doc(hidden)]
@@ -161,6 +162,18 @@ pub enum CommandOutput {
         result: Result<XiaohongshuCommentsPage, ProviderError>,
         /// Requested output format.
         format: OutputFormat,
+        /// Optional output file destination.
+        output: Option<OutputTarget>,
+        /// Optional terminal projection selected by `log.level`.
+        attempt_log: Option<String>,
+    },
+    /// Typed Gemini Deep Research terminal state for binary-side formatting and tee output.
+    GeminiResearch {
+        /// Research result; a completed report is already written unless the format is
+        /// `content`.
+        result: Box<Result<GeminiResearchResult, GeminiResearchFailure>>,
+        /// Requested output format.
+        format: DocsOutputFormat,
         /// Optional output file destination.
         output: Option<OutputTarget>,
         /// Optional terminal projection selected by `log.level`.
@@ -1061,6 +1074,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             output.target(),
         ),
         Command::Platform { command } => super::platform::run(command),
+        Command::Gemini { command } => super::gemini::run(command),
         Command::Config {
             command: ConfigCommand::Path,
         } => Ok(CommandOutput::Text {

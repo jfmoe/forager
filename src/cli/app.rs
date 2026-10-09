@@ -2,6 +2,7 @@
 
 mod args;
 mod dispatch;
+mod gemini;
 mod platform;
 
 pub use args::{Cli, DocsOutputFormat, OutputFormat, OutputTarget};

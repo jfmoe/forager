@@ -91,6 +91,10 @@ timeout = 90                 # 一次 OpenCLI 命令的 attempt 超时
 command = "opencli"          # 不能为空
 timeout = 120                # 一次 OpenCLI 命令的 attempt 超时
 
+[providers.gemini_browser]   # process 供应方，不属于任何平台，只由 `forager gemini` 命令运行（ADR 0023）
+command = "opencli"          # 不能为空
+timeout = 240                # 一次 OpenCLI 命令的 attempt 超时
+
 [providers.serpapi]          # 需要凭据的平台 route；key 由用户自备（ADR 0021）
 url = "https://serpapi.com/search.json"
 keys = []                    # 为空＝未配置，scholar 平台命令飞行前退 3
@@ -135,7 +139,7 @@ ssl_verify = true
 
 ### 凭据形状
 
-唯一形状：每个需要凭据的 provider 节一个 `keys` **真数组**（单凭据＝单元素数组）；注册信息声明不需要凭据的 provider（`arxiv_api`、`ssrn_crossref`、`ssrn_browser`、`xiaohongshu_browser`）的节没有 `keys`：HTTP route 只有 `url` 与 `timeout`，process route（`ssrn_browser`、`xiaohongshu_browser`）只有 `command` 与 `timeout`，写入 `keys` 为未知键（文件层退 3，`config set` 退 2），该 provider 恒为已配置。`*_API_KEY`/`*_API_KEYS` 双形态与「KEYS 覆盖 KEY」优先级消灭。`classifier.keys` 沿用凭据池全套语义（去空去重、轮询、配额/限流失败同请求内换用）。
+唯一形状：每个需要凭据的 provider 节一个 `keys` **真数组**（单凭据＝单元素数组）；注册信息声明不需要凭据的 provider（`arxiv_api`、`ssrn_crossref`、`ssrn_browser`、`xiaohongshu_browser`、`gemini_browser`）的节没有 `keys`：HTTP route 只有 `url` 与 `timeout`，process 供应方（`ssrn_browser`、`xiaohongshu_browser`、`gemini_browser`）只有 `command` 与 `timeout`，写入 `keys` 为未知键（文件层退 3，`config set` 退 2），该 provider 恒为已配置。`*_API_KEY`/`*_API_KEYS` 双形态与「KEYS 覆盖 KEY」优先级消灭。`classifier.keys` 沿用凭据池全套语义（去空去重、轮询、配额/限流失败同请求内换用）。
 
 ### 链序权威
 
@@ -149,7 +153,7 @@ ssl_verify = true
 
 ### 值域与交叉约束（进 schema 与验收）
 
-`search.backends` 非空、去重、限 `{xai, openai_compatible}`；全部 backend 无凭据＝退 3；`providers.xai.tools` 限 `{web_search, x_search}`；所有 `timeout > 0`；process route 的 `command` 去掉空白后不能为空；`retry.max_attempts >= 1`、`multiplier > 0`、`max_wait >= 0`；`journal.retention_days >= 0` 且 0＝无限期。`search.validation` 已从 schema 删除；旧文件键或 `FORAGER_SEARCH__VALIDATION` 都按未知输入退出 3。文件层严格 schema：未知键＝退 3、报错点名坏键。
+`search.backends` 非空、去重、限 `{xai, openai_compatible}`；全部 backend 无凭据＝退 3；`providers.xai.tools` 限 `{web_search, x_search}`；所有 `timeout > 0`；process 供应方的 `command` 去掉空白后不能为空；`retry.max_attempts >= 1`、`multiplier > 0`、`max_wait >= 0`；`journal.retention_days >= 0` 且 0＝无限期。`search.validation` 已从 schema 删除；旧文件键或 `FORAGER_SEARCH__VALIDATION` 都按未知输入退出 3。文件层严格 schema：未知键＝退 3、报错点名坏键。
 
 ### `log.level` 运行时语义
 

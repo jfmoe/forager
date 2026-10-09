@@ -24,7 +24,7 @@ fn config_list_reports_the_complete_default_effective_view() {
         ),
         (
             Some(0),
-            62,
+            64,
             None,
             &serde_json::json!({
                 "value": [],
@@ -170,6 +170,40 @@ fn config_set_rejects_an_empty_process_command() {
     );
 
     assert_eq!(output.status.code(), Some(2), "{output:?}");
+}
+
+#[test]
+fn the_gemini_route_has_a_command_and_a_timeout_but_no_keys() {
+    let config_dir = tempfile::tempdir().expect("create config directory");
+    let set = |path: &str, value: &str| {
+        run(
+            config_dir.path(),
+            &["config", "set", path, value],
+            &[],
+            None,
+        )
+        .status
+        .code()
+    };
+
+    let defaults = run(config_dir.path(), &["config", "list"], &[], None);
+    let codes = [
+        set("providers.gemini_browser.keys", "[\"secret\"]"),
+        set("providers.gemini_browser.command", " "),
+        set("providers.gemini_browser.timeout", "0"),
+    ];
+    let view: Value = serde_json::from_slice(&defaults.stdout).expect("parse config view");
+
+    assert_eq!(
+        (&view["providers"]["gemini_browser"], codes),
+        (
+            &serde_json::json!({
+                "command": {"value": "opencli", "source": "default"},
+                "timeout": {"value": 240, "source": "default"}
+            }),
+            [Some(2); 3]
+        )
+    );
 }
 
 #[test]

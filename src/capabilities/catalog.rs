@@ -2,7 +2,7 @@ use std::sync::LazyLock;
 use std::time::Duration;
 
 use crate::rate_limit::AccessPolicy;
-use crate::types::{CITED_BY, COMMENTS, Platform};
+use crate::types::{CITED_BY, COMMENTS, GEMINI_RESEARCH_RESULT, GEMINI_RESEARCH_START, Platform};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct CapabilityCatalog {
@@ -170,10 +170,11 @@ pub(crate) enum ProviderId {
     SsrnBrowser,
     Serpapi,
     XiaohongshuBrowser,
+    GeminiBrowser,
 }
 
 impl ProviderId {
-    pub(crate) const ALL: [Self; 13] = [
+    pub(crate) const ALL: [Self; 14] = [
         Self::Xai,
         Self::OpenAiCompatible,
         Self::Exa,
@@ -187,6 +188,7 @@ impl ProviderId {
         Self::SsrnBrowser,
         Self::Serpapi,
         Self::XiaohongshuBrowser,
+        Self::GeminiBrowser,
     ];
 
     pub(crate) fn parse(value: &str) -> Option<Self> {
@@ -204,6 +206,7 @@ impl ProviderId {
             "ssrn_browser" => Some(Self::SsrnBrowser),
             "serpapi" => Some(Self::Serpapi),
             "xiaohongshu_browser" => Some(Self::XiaohongshuBrowser),
+            "gemini_browser" => Some(Self::GeminiBrowser),
             _ => None,
         }
     }
@@ -223,6 +226,7 @@ impl ProviderId {
             Self::SsrnBrowser => "ssrn_browser",
             Self::Serpapi => "serpapi",
             Self::XiaohongshuBrowser => "xiaohongshu_browser",
+            Self::GeminiBrowser => "gemini_browser",
         }
     }
 }
@@ -279,6 +283,12 @@ pub(crate) enum DoctorProbe {
     /// Asks the service's account endpoint about every configured key; it proves the endpoint
     /// and keys, not any operation's request or decoding.
     ServiceAccount {
+        name: &'static str,
+        transport: &'static str,
+    },
+    /// Runs the OpenCLI adapter's read-only `status` command: it proves OpenCLI, the adapter
+    /// contract, and the site login, never an operation.
+    AdapterStatus {
         name: &'static str,
         transport: &'static str,
     },
@@ -558,6 +568,13 @@ const XIAOHONGSHU_BROWSER_ACCESS: AccessPolicy = AccessPolicy {
     max_concurrency: 1,
 };
 
+// The Gemini page itself polls its conversation about every ten seconds while a research runs
+// (2026-10-09), so one command every ten seconds stays at a person's pace (ADR 0020).
+const GEMINI_BROWSER_ACCESS: AccessPolicy = AccessPolicy {
+    min_interval: Duration::from_secs(10),
+    max_concurrency: 1,
+};
+
 const REGISTRY: &[ProviderRegistration] = &[
     ProviderRegistration {
         id: ProviderId::Xai,
@@ -733,6 +750,24 @@ const REGISTRY: &[ProviderRegistration] = &[
         smoke_cases: XIAOHONGSHU_BROWSER_SMOKE,
         native_full_text: true,
     },
+    // Only `forager gemini` commands run it, never a chain. No live smoke case exists: starting
+    // a research spends the user's quota, and reading one needs a conversation of the user.
+    ProviderRegistration {
+        id: ProviderId::GeminiBrowser,
+        operations: &[GEMINI_RESEARCH_START, GEMINI_RESEARCH_RESULT],
+        credentials_required: false,
+        transport: ProviderTransport::OpenCli(OpenCliAdapter {
+            site: "forager-gemini",
+            contract: "forager-gemini/1",
+        }),
+        access_policy: Some(GEMINI_BROWSER_ACCESS),
+        probe: DoctorProbe::AdapterStatus {
+            name: "status",
+            transport: "process",
+        },
+        smoke_cases: &[],
+        native_full_text: false,
+    },
 ];
 
 /// Returns whether a registration is legitimate: it belongs to a capability catalog or a
@@ -799,196 +834,5 @@ fn validate_registrations(registry: &[ProviderRegistration]) -> Result<(), Strin
 }
 
 #[cfg(test)]
-mod tests {
-    use std::collections::BTreeSet;
-
-    use serde::Deserialize;
-
-    use super::{
-        CATALOGS, DOCS_SEARCH, DoctorProbe, MAIN_SEARCH, PLATFORMS, PlatformOperation, ProviderId,
-        ProviderRegistration, REGISTRY, WEB_FETCH, WEB_SEARCH, platform, registration,
-        registrations, validate_registrations,
-    };
-
-    #[derive(Deserialize)]
-    struct AcceptanceManifest {
-        transport_fixtures: Vec<TransportFixture>,
-    }
-
-    #[derive(Deserialize)]
-    struct TransportFixture {
-        provider: String,
-        seam: String,
-        test: String,
-    }
-
-    /// Returns whether a seam names a platform operation that no platform catalog lists.
-    fn is_single_route_operation_seam(seam: &str) -> bool {
-        seam.strip_prefix("platform:")
-            .and_then(|rest| rest.split_once(':'))
-            .is_some_and(|(_, operation)| {
-                !PlatformOperation::ALL
-                    .iter()
-                    .any(|catalog_operation| catalog_operation.as_str() == operation)
-            })
-    }
-
-    #[test]
-    fn provider_fixture_projection_matches_transport_manifest() {
-        let manifest: AcceptanceManifest = serde_json::from_str(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/tests/acceptance-manifest.json"
-        )))
-        .expect("acceptance manifest");
-        let capability_projection = CATALOGS.iter().flat_map(|catalog| {
-            catalog
-                .providers
-                .iter()
-                .map(move |provider| (provider.name().to_owned(), catalog.seam.to_owned()))
-        });
-        let platform_projection = PLATFORMS.iter().flat_map(|catalog| {
-            PlatformOperation::ALL
-                .into_iter()
-                .flat_map(move |operation| {
-                    catalog.routes(operation).iter().map(move |route| {
-                        (
-                            route.name().to_owned(),
-                            format!("platform:{}:{}", catalog.platform, operation.as_str()),
-                        )
-                    })
-                })
-        });
-        let registry = capability_projection
-            .chain(platform_projection)
-            .collect::<BTreeSet<_>>();
-        // Single-route platform operations live outside the catalog; the platform checklist
-        // checks their fixtures.
-        let fixture_projection = manifest
-            .transport_fixtures
-            .iter()
-            .filter(|fixture| !is_single_route_operation_seam(&fixture.seam))
-            .map(|fixture| (fixture.provider.clone(), fixture.seam.clone()))
-            .collect::<BTreeSet<_>>();
-
-        assert_eq!(fixture_projection, registry);
-        for fixture in manifest.transport_fixtures {
-            assert!(
-                !fixture.test.trim().is_empty(),
-                "{} / {} lacks a fixture test",
-                fixture.provider,
-                fixture.seam
-            );
-        }
-    }
-
-    #[test]
-    fn registration_lookup_is_identifier_based_and_rejects_missing_or_duplicate_ids() {
-        let mut reordered = REGISTRY.to_vec();
-        reordered.swap(0, 6);
-        assert!(validate_registrations(&reordered).is_ok());
-
-        let mut misaligned = reordered;
-        misaligned[0] = misaligned[1];
-
-        assert!(validate_registrations(&misaligned).is_err());
-        for id in ProviderId::ALL {
-            assert_eq!(registration(id).id, id);
-        }
-    }
-
-    #[test]
-    fn catalogs_project_every_registration_probe_and_smoke_case_consistently() {
-        let catalog_ids = CATALOGS
-            .iter()
-            .flat_map(|catalog| catalog.providers.iter().copied())
-            .chain(PLATFORMS.iter().flat_map(|catalog| catalog.all_routes()))
-            .collect::<BTreeSet<_>>();
-        let registration_ids = registrations()
-            .iter()
-            .map(|registration| registration.id)
-            .collect::<BTreeSet<_>>();
-        assert_eq!(catalog_ids, registration_ids);
-
-        for registration in registrations() {
-            let probe_is_supported = match registration.probe {
-                DoctorProbe::MainSearch(_) => MAIN_SEARCH.contains(registration.id),
-                DoctorProbe::WebSearch { .. } => WEB_SEARCH.contains(registration.id),
-                DoctorProbe::WebFetch { .. } => WEB_FETCH.contains(registration.id),
-                DoctorProbe::DocsSearch { .. } => DOCS_SEARCH.contains(registration.id),
-                DoctorProbe::AnysearchDomains { .. } => registration.id == ProviderId::Anysearch,
-                DoctorProbe::PlatformSearch {
-                    platform: probed, ..
-                } => platform(probed).search.contains(&registration.id),
-                DoctorProbe::ServiceAccount { .. } => registration.credentials_required,
-            };
-            assert!(probe_is_supported, "{} probe", registration.id.name());
-            assert!(
-                !registration.smoke_cases.is_empty(),
-                "{} smoke",
-                registration.id.name()
-            );
-        }
-    }
-
-    #[test]
-    fn every_default_platform_order_lists_unique_routes_of_its_platform() {
-        for catalog in PLATFORMS {
-            let unique = catalog.default_order.iter().collect::<BTreeSet<_>>();
-
-            assert!(
-                catalog
-                    .default_order
-                    .iter()
-                    .all(|route| catalog.contains(*route))
-                    && unique.len() == catalog.default_order.len(),
-                "{} default order {:?}",
-                catalog.platform,
-                catalog.default_order
-            );
-        }
-    }
-
-    #[test]
-    fn registration_without_credentials_is_configured_without_keys() {
-        let anonymous = ProviderRegistration {
-            credentials_required: false,
-            ..*registration(ProviderId::Jina)
-        };
-
-        assert!(anonymous.is_configured(0));
-    }
-
-    #[test]
-    fn registration_with_credentials_requires_at_least_one_key() {
-        let keyed = registration(ProviderId::Jina);
-
-        assert_eq!(
-            (keyed.is_configured(0), keyed.is_configured(1)),
-            (false, true)
-        );
-    }
-
-    #[test]
-    fn registry_validation_accepts_a_route_that_only_a_platform_catalog_lists() {
-        let arxiv_api = registration(ProviderId::ArxivApi);
-
-        assert_eq!(
-            (
-                CATALOGS
-                    .iter()
-                    .any(|catalog| catalog.contains(ProviderId::ArxivApi)),
-                arxiv_api.operations.is_empty(),
-                validate_registrations(REGISTRY),
-            ),
-            (false, true, Ok(()))
-        );
-    }
-
-    #[test]
-    fn registry_validation_accepts_registrations_without_credentials() {
-        let mut registry = REGISTRY.to_vec();
-        registry[0].credentials_required = false;
-
-        assert!(validate_registrations(&registry).is_ok());
-    }
-}
+#[path = "catalog_tests.rs"]
+mod tests;

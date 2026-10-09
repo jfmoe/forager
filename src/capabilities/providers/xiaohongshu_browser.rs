@@ -15,7 +15,7 @@ use crate::catalog::{ProviderId, ProviderTransport, registration};
 use crate::config::ProcessRouteRuntimeConfig;
 use crate::net::{AttemptFailure, RetryPolicy};
 use crate::providers::execution::ExecutionSettings;
-use crate::providers::opencli::{self, EnvelopeStatus, OpenCliCommand};
+use crate::providers::opencli::{self, EnvelopeStatus, OpenCliCommand, Window};
 use crate::rate_limit::RateLimiter;
 use crate::redact::CREDENTIAL_MASK;
 use crate::types::{
@@ -74,6 +74,7 @@ impl XiaohongshuBrowser {
             adapter,
             command,
             options,
+            window: Window::Background,
         }
     }
 

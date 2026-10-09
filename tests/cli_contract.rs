@@ -30,6 +30,7 @@ fn command_tree_aliases_and_exact_subcommands_match_the_contract() {
             ("context7", vec!["c7"]),
             ("exa", vec![]),
             ("platform", vec![]),
+            ("gemini", vec![]),
             ("config", vec![]),
             ("setup", vec![]),
             ("doctor", vec![]),
@@ -87,6 +88,27 @@ fn platform_commands_nest_operations_under_each_platform() {
             ("xiaohongshu", vec!["search", "fetch", "comments"])
         ]
     );
+}
+
+#[test]
+fn gemini_research_result_help_lists_every_option_and_value() {
+    let output = run(&["gemini", "research", "result", "--help"]);
+    let help = String::from_utf8(output.stdout).expect("UTF-8 help");
+
+    for expected in [
+        "<CONVERSATION>",
+        "--report-dir <DIR>",
+        "--timeout <TIMEOUT>",
+        "[default: 120]",
+        "[possible values: json, markdown, content]",
+        "--output <OUTPUT>",
+        "--receipt",
+    ] {
+        assert!(
+            help.contains(expected),
+            "missing {expected} in help:\n{help}"
+        );
+    }
 }
 
 #[test]

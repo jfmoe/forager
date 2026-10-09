@@ -18,6 +18,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 pub(crate) mod doctor;
+pub(crate) mod gemini;
 pub(crate) mod opencli;
 pub(crate) mod scholar;
 

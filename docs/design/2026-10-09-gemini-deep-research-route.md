@@ -1,6 +1,6 @@
 # Gemini Deep Research 浏览器 route 设计
 
-状态：提案，未实现；可行性已于 2026-10-09 实测确认。日期：2026-10-09。前置调研与实测见 [Gemini Deep Research 接入可行性](../research/2026-10-09-gemini-deep-research.md)。
+状态：第一期（只读的 `result`）已实现，规格见第 2 章「Gemini 命令」与 ADR 0023；`start` 仍为提案。可行性已于 2026-10-09 实测确认。日期：2026-10-09。前置调研与实测见 [Gemini Deep Research 接入可行性](../research/2026-10-09-gemini-deep-research.md)。
 
 ## 目标与边界
 
@@ -125,7 +125,7 @@ Rust 端 `gemini_browser` 解码模块是纯函数，输入为响应体文本。
 | 页面提示 Deep Research 额度已用尽，或响应带用量超限错误码 | QuotaExhausted |
 | 工具菜单中没有 Deep Research 入口 | Runtime，提示检查账号是否可用该功能 |
 | Gemini 回复了普通文本而非计划（拒绝或模型不支持） | Runtime，消息附回复开头（有界） |
-| 会话不存在或无权访问 | 参数错误（退 2） |
+| 会话不存在或无权访问 | attempt 级 Parameter（退 4）；只有无法识别的会话参数在飞行前退 2 |
 | 响应结构变化 | Runtime |
 | 其余 OpenCLI 退出码 | 沿用第 7 章的 OpenCLI 退出码映射 |
 

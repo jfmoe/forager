@@ -6,7 +6,7 @@
 
 - **Platform**：内置的外部内容源，拥有自己的身份空间。它与 Capability Seam 并列，不是 provider，也不是 Vertical Search 的垂直域。只支持随版本发布的内置平台；配置不能定义平台或通用 MCP/CLI route。
 - **Platform Route**：接入某个平台的一条路线。route 就是 provider，沿用 provider 身份、凭据池（需要凭据时）、provider 配置段、doctor 探针与 smoke 登记。route id 绝不使用裸平台名（用 `arxiv_api`，不用 `arxiv`）。一个 provider 可以服务多个平台和 seam。
-- **Route 传输类型**：注册信息的 `transport` 声明 route 到达内容源的方式：`Http`（发 HTTP 请求），或 `OpenCli`（运行本机 OpenCLI 中 forager 自有 adapter 的命令，附 site 与契约版本；这类 route 称为 process route）。配置检查、doctor 与 checklist 测试按传输类型判断，不按 route id 判断。process route 只能由用户手动加入平台 order，永不进入 `default_order`（ADR 0020）。
+- **Route 传输类型**：注册信息的 `transport` 声明 route 到达内容源的方式：`Http`（发 HTTP 请求），或 `OpenCli`（运行本机 OpenCLI 中 forager 自有 adapter 的命令，附 site 与契约版本；这类 route 称为 process route）。配置检查、doctor 与 checklist 测试按传输类型判断，不按 route id 判断。process route 只能由用户手动加入平台 order，永不进入 `default_order`（ADR 0020）。OpenCLI 传输也服务不属于任何平台的 process 供应方 `gemini_browser`：它不进入任何 order，只由 `forager gemini` 命令运行，doctor 默认跳过它（ADR 0023，第 2 章「Gemini 命令」）；本章的 OpenCLI 进程传输、退出码映射与 process 访问策略规则同样适用于它。
 - **链语义**：同平台的 route 按 `platforms.<id>.order` 组成 fallback 链，由共享链执行器运行，沿用 LegitimateEmpty 语义：至少一条 route 返回合法空结果、之后没有 route 被接受时，结果为空成功。结果永不跨平台 fallback。
 - **Platform Ref**：平台实体的类型化身份，由平台、平台自有的 kind 和 id 组成。kind 只按「身份空间不同」或「fetch 结果形状不同」划分，不按对话角色划分。字符串形式为 `<platform>:<id>`，例如 `arxiv:2401.01234v2`。
   - ref 解析与 canonical URL 推导是 types 门面中的零 IO 纯函数。每个 kind 都满足往返性质：解析 ref 的 canonical URL，得到同一个 ref。
@@ -123,7 +123,7 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
 
 - **传输与配置**：process route，经本机 OpenCLI 驱动用户自己的 Chrome，读取 SSRN 原站。配置项为 `providers.ssrn_browser.command`（OpenCLI 可执行文件，默认 `opencli`，不能为空）与 `.timeout`（一次命令的 attempt 超时，默认 90 秒），没有 `url` 与 `keys`；它是匿名 route，始终视为已配置。命令只能选择可执行文件，参数全部由 route 决定（ADR 0019）。访问策略为每 5 秒一次 OpenCLI 命令、并发 1。route 不重试，失败直接落到下一条 route。
 - **OpenCLI 进程传输**（`providers/opencli`，不含站点知识）：输入为可执行文件、adapter（site 与契约版本）、命令、具名参数与 attempt 截止时间。
-  - 调用形式：`<command> <site> <命令> --<参数> <值>… --timeout <秒> -f json --window background --site-session ephemeral --keep-tab false`。forager 自有 adapter 的每个命令都接受这些 flag。
+  - 调用形式：`<command> <site> <命令> --<参数> <值>… --timeout <秒> -f json --window <background|foreground> --site-session ephemeral --keep-tab false`。forager 自有 adapter 的每个命令都接受这些 flag。窗口模式由每条命令声明（ADR 0023）：SSRN、小红书与 Gemini 的读取命令都声明 `background`；`foreground` 只留给必须在可见窗口中操作、且由用户主动发起的命令。
   - 截止时间：attempt 截止时间之前预留 5 秒得到工作截止点，剩余整秒数作为 adapter 命令的 `--timeout` 参数传入。OpenCLI 据此设置 daemon 每次操作的截止时间；adapter 在 `--timeout` 之前 3 秒停止读取页面并返回，让 OpenCLI 在工作截止点之前关闭标签页。5 秒预留用于强杀、回收子进程与报告 attempt。子进程放入独立进程组；到达工作截止点或 future 被丢弃时，强杀整个进程组，不做分步终止。access permit 持有到子进程被回收为止。剩余时间不足时 attempt 以 Timeout 结束，不启动进程。
   - 输出上限：stdout 最多 4 MiB（协议上限），超出为 Runtime 并强杀进程组；stderr 只保留前 64 KiB 并做 URL 脱敏。
   - 非 Unix 系统：传输在启动进程之前以 Runtime 拒绝；factory 的支持检查同样拒绝，因此该 route 记为 Skipped。

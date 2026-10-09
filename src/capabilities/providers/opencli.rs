@@ -23,18 +23,26 @@ const CLEANUP_RESERVE: Duration = Duration::from_secs(5);
 const REAP_POLLS: u32 = 1000;
 const REAP_POLL_INTERVAL: Duration = Duration::from_millis(1);
 
-// Every forager-owned adapter command accepts these flags: JSON output, a background window, a
-// site session that ends with the command, and no tab kept after it.
-const SESSION_FLAGS: [&str; 8] = [
-    "-f",
-    "json",
-    "--window",
-    "background",
-    "--site-session",
-    "ephemeral",
-    "--keep-tab",
-    "false",
-];
+/// The Chrome window an adapter command runs in. A background window keeps the user's screen
+/// free, but a hidden page may not render menus, so each command declares the window it needs.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Window {
+    Background,
+    #[expect(
+        dead_code,
+        reason = "Gemini `start` (#194) needs a foreground window to render the tools menu"
+    )]
+    Foreground,
+}
+
+impl Window {
+    const fn flag(self) -> &'static str {
+        match self {
+            Self::Background => "background",
+            Self::Foreground => "foreground",
+        }
+    }
+}
 
 /// One command of a forager-owned OpenCLI adapter.
 pub(crate) struct OpenCliCommand<'a> {
@@ -44,6 +52,24 @@ pub(crate) struct OpenCliCommand<'a> {
     pub(crate) command: &'static str,
     /// Named options, passed as `--<name> <value>`.
     pub(crate) options: Vec<(&'static str, String)>,
+    pub(crate) window: Window,
+}
+
+impl OpenCliCommand<'_> {
+    // Every forager-owned adapter command accepts these flags: JSON output, the declared window,
+    // a site session that ends with the command, and no tab kept after it.
+    fn session_flags(&self) -> [&'static str; 8] {
+        [
+            "-f",
+            "json",
+            "--window",
+            self.window.flag(),
+            "--site-session",
+            "ephemeral",
+            "--keep-tab",
+            "false",
+        ]
+    }
 }
 
 /// Returns whether this host can run process routes: they need Unix process groups to stop
@@ -115,6 +141,7 @@ pub(crate) async fn check_contract(
         adapter,
         command: "contract",
         options: Vec::new(),
+        window: Window::Background,
     };
     run::<serde_json::Value>(&command, limiter, deadline)
         .await
@@ -160,7 +187,7 @@ impl ProcessGroup {
                     .flat_map(|(name, value)| [format!("--{name}"), value.clone()]),
             )
             .args(["--timeout", &timeout_seconds.to_string()])
-            .args(SESSION_FLAGS)
+            .args(command.session_flags())
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -317,7 +344,7 @@ fn runtime(message: String) -> AttemptFailure {
 
 fn install_hint(adapter: OpenCliAdapter) -> String {
     format!(
-        "install or update the forager OpenCLI adapter: copy the `opencli/{site}` directory of the forager skill to `~/.opencli/clis/{site}` (see the skill platform reference)",
+        "install or update the forager OpenCLI adapter: copy the `opencli/{site}` directory of the forager skill to `~/.opencli/clis/{site}` (see the forager skill references)",
         site = adapter.site
     )
 }
@@ -575,7 +602,7 @@ mod tests {
 
             assert_eq!(
                 failure.message,
-                "OpenCLI exited with 69: cannot load ssrn/search; install or update the forager OpenCLI adapter: copy the `opencli/ssrn` directory of the forager skill to `~/.opencli/clis/ssrn` (see the skill platform reference)"
+                "OpenCLI exited with 69: cannot load ssrn/search; install or update the forager OpenCLI adapter: copy the `opencli/ssrn` directory of the forager skill to `~/.opencli/clis/ssrn` (see the forager skill references)"
             );
         }
 

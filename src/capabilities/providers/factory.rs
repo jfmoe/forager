@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use reqwest::Client;
 
-use super::constructors::{credentials, route_limiter};
+use super::constructors::{build_gemini_browser, credentials, route_limiter};
 use super::{
     ArxivApi, DocsSearch, KeyAccount, MainSearch, ModelBreakers, PlatformFetch, PlatformSearch,
     ProviderId, Serpapi, SsrnBrowser, SsrnCrossref, SupplementalSearch, VerticalSearch, WebFetch,
@@ -13,7 +13,7 @@ use crate::catalog::{ProviderTransport, VERTICAL_SEARCH, WEB_FETCH, WEB_SEARCH, 
 use crate::config::{
     AnysearchRuntimeConfig, DocsSearchProviderConfig, HttpRouteRuntimeConfig,
     KeyedHttpRouteRuntimeConfig, MainSearchProviderConfig, PlatformRouteConfig,
-    ProcessRouteRuntimeConfig, WebFetchProviderConfig,
+    ProcessRouteRuntimeConfig, RuntimeConfig, WebFetchProviderConfig,
 };
 use crate::net::RetryPolicy;
 use crate::types::{
@@ -212,6 +212,23 @@ pub(crate) async fn route_accounts(
     build_serpapi(config, client, retry_policy, deadline)
         .accounts()
         .await
+}
+
+/// Runs the read-only `status` command of a provider that registers an adapter status probe.
+pub(crate) async fn adapter_status(
+    id: ProviderId,
+    config: &RuntimeConfig,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> Result<(), ProviderError> {
+    match id {
+        ProviderId::GeminiBrowser => {
+            build_gemini_browser(config.gemini_browser.clone(), retry_policy, deadline)
+                .status()
+                .await
+        }
+        other => unreachable!("{} registers no adapter status probe", other.name()),
+    }
 }
 
 fn build_arxiv_api(
