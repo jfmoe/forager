@@ -296,7 +296,7 @@ OpenCLI 退出码到 attempt 错误类型的映射完全沿用 `providers/opencl
 - **token 脱敏**：search 的请求不带 token，没有需要按值清理的消息。fetch 的 route 在记录 attempt 之前清理消息，清理的是去掉末尾 `=` 填充后的 token：登录跳转的 `redirectPath` 会把原链接（含 token）再做一到两次百分号编码，`=` 变成 `%3D` 或 `%253D`，而 token 的其余字符（`A-Za-z0-9_-`）在 URL 编码下不变。读取模块回报的 `url` 只删去顶层的 `xsec_token`，嵌套在跳转参数里的 token 由这条规则兜住。
 - **Web Fetch 预检的声明**：注册信息的字段为 `native_full_text`（route 的 fetch 全文是否由它自己读取），所有注册项都声明，只有 `xiaohongshu_browser` 为 true。`plan_fetch` 返回的计划提供 `needs_web_fetch()`：`full_text` 且计划中有任一 route 不读原生正文时为真。
 - **读取模块 `note` 命令**：回报 `{page, note, timed_out}`，暂不回报设计中的 `comments_state`（第二期 comments 才需要）。`note` 只保留 route 解码的字段，视频流只保留各档的宽高，`masterUrl` 与笔记自带的 `xsecToken` 不离开页面。页面渲染出笔记时清空 `notice`：笔记正文或评论里出现"安全限制"等字样不应被当成站点提示。契约版本仍为 `forager-xhs/1`，因为 #187 的读取模块没有发布过。
-- **smoke 停止规则**：小红书用例只执行一次。route 以退出码 4 且 `error_kind` 为 `auth` 或 `parameter` 失败时视为登录墙或封锁（小红书 route 只有站点封锁会产生 attempt 级 Parameter），本轮其余小红书用例不启动，记为 `failed`、`attempts: 0`，消息说明本轮已停止小红书访问；现有报告没有"跳过"状态，`failed` 已满足"不计为通过"。C27 成功但没有 `access_url` 时 C28 同样不启动。C28 把正文写进本用例的临时目录，通过条件为退 0、`ref` 非空且 `content_len` 大于 0。
+- **smoke 停止规则**：小红书用例只执行一次。route 以退出码 4 且 `error_kind` 为 `auth` 或 `parameter` 失败时视为登录墙或封锁（小红书 route 只有站点封锁会产生 attempt 级 Parameter），该用例本身记为 `failed`，本轮其余小红书用例不启动，记为 `skipped`、`attempts: 0`，消息说明本轮已停止小红书访问。live 报告用单独的 `skipped` 状态（汇总计入 `skipped`）记录"依赖的用例被拦截"与"样本没能覆盖"：`unconfigured` 表示配置未启用，`deferred` 表示有已核实的故障证据，二者的含义都不符合；`skipped` 与它们一样不计 PASS，`ok` 为 false。C27 成功但没有 `access_url` 时 C28 同样不启动。C28 把正文写进本用例的临时目录，通过条件为退 0、`ref` 非空且 `content_len` 大于 0。
 - **首次加载失败**：见「第一页偶发未完成的原因」。读取模块改为每次读取页面状态时在当前文档中装上计数器（已有则不重复），并在页面事实中回报 Chrome 错误页的错误码 `load_error`；截止时仍是错误页，route 报 Network 而不是 Timeout。
 - **结果页路径**：真实验收中两次 doctor 检索停在 `/search_result/?keyword=…`（带末尾 `/`），旧的路径判断只认 `/search_result`，把截止时仍在结果页的情况报成 Runtime。现在忽略末尾 `/`，这种情况为 Timeout。
 
@@ -415,7 +415,7 @@ OpenCLI 退出码到 attempt 错误类型的映射完全沿用 `providers/opencl
 - **抓包条目的请求参数**：评论接口是 GET，条件在查询串里。共享的 `readExchanges` 为每个条目增加 `query`（去掉 `xsec_token`）；读取模块只把 `note_id`、`cursor`、`root_comment_id`、`num` 交给 route，评论只保留 route 解码的字段，评论者自己的 `xsec_token` 不离开页面。
 - **第一页没有评论却声称还有更多**：设计只规定"没有评论返回空列表"。与 search 的合法空集规则一致，第一个响应没有评论且 `has_more` 为 true 时为 Runtime，避免把读取异常当成空集。
 - **core 落点**：comments 不分页、不签发 cursor，不进入 `platform_chain` 的 `PageRequest`。新模块 `core/platform_comments` 以同一 `plan_routes` 规划（route 集合为 factory 的 `XIAOHONGSHU_COMMENTS_ROUTES`），以同一链执行器运行；CLI 的结果经新的 `CommandOutput::XiaohongshuComments` 渲染，支持 `json` 与 `markdown`。
-- **smoke C29 的判定**：C29 取 C27 中评论数最多的一条（计数原文 `1.2万` 按 12000 计，空串与缺失按 0 计，相同取靠前者）。现有报告没有"未验证"状态，所以与 C28 的处理一致，未覆盖时记为 `failed`，消息以 `not verified:` 开头：返回的评论不超过 10 条说明没有读到第 2 页；没有任何评论的 `replies` 多于自带的 1 条说明没有展开。实测每条有回复的评论都只自带 1 条回复，所以多于 1 条即证明展开发生。
+- **smoke C29 的判定**：C29 取 C27 中评论数最多的一条（计数原文 `1.2万` 按 12000 计，空串与缺失按 0 计，相同取靠前者）。未覆盖时记为 `skipped`，消息以 `not verified:` 开头：返回的评论不超过 10 条说明没有读到第 2 页；没有任何评论的 `replies` 多于自带的 1 条说明没有展开。实测每条有回复的评论都只自带 1 条回复，所以多于 1 条即证明展开发生。
 
 ### 评论页面结构的依据
 

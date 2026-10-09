@@ -136,6 +136,7 @@ struct LiveSummary {
     failed: usize,
     deferred: usize,
     unconfigured: usize,
+    skipped: usize,
 }
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -145,6 +146,9 @@ enum LiveCaseStatus {
     Failed,
     Deferred,
     Unconfigured,
+    /// The case did not start because a case it depends on stopped the run, or it ran without
+    /// covering what it must prove; never a pass.
+    Skipped,
 }
 
 #[derive(Debug, Serialize)]
@@ -191,18 +195,26 @@ struct XiaohongshuRun {
     stopped: bool,
 }
 
-/// Why one execution of a live case failed.
+/// Why one execution of a live case did not pass.
 struct CaseFailure {
     message: &'static str,
+    kind: FailureKind,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum FailureKind {
+    Failed,
     /// The route reported Auth or an attempt-level Parameter failure.
-    login_wall_or_block: bool,
+    LoginWallOrBlock,
+    /// The case ran, but its sample could not show what the case covers.
+    Unverified,
 }
 
 impl From<&'static str> for CaseFailure {
     fn from(message: &'static str) -> Self {
         Self {
             message,
-            login_wall_or_block: false,
+            kind: FailureKind::Failed,
         }
     }
 }
@@ -530,7 +542,7 @@ pub(crate) fn run_live(
     for definition in LIVE_CASES.iter().copied() {
         let result = if case_is_configured(definition.id, &runtime) {
             match xiaohongshu_blocker(definition, &xiaohongshu) {
-                Some(message) => not_started(definition, message),
+                Some(message) => skipped(definition, 0, message),
                 None => run_configured_case(
                     definition,
                     &runtime,
@@ -558,6 +570,7 @@ pub(crate) fn run_live(
             LiveCaseStatus::Failed => summary.failed += 1,
             LiveCaseStatus::Deferred => summary.deferred += 1,
             LiveCaseStatus::Unconfigured => summary.unconfigured += 1,
+            LiveCaseStatus::Skipped => summary.skipped += 1,
         }
         results.push(result);
     }
@@ -592,11 +605,15 @@ fn xiaohongshu_blocker(
         .then_some(XIAOHONGSHU_NO_ACCESS_URL)
 }
 
-fn not_started(definition: LiveCaseDefinition, message: &'static str) -> LiveCaseResult {
+fn skipped(
+    definition: LiveCaseDefinition,
+    attempts: usize,
+    message: &'static str,
+) -> LiveCaseResult {
     LiveCaseResult {
         definition,
-        status: LiveCaseStatus::Failed,
-        attempts: 0,
+        status: LiveCaseStatus::Skipped,
+        attempts,
         checked_at_unix_seconds: unix_timestamp(),
         outage_evidence: None,
         message: Some(message),
@@ -638,9 +655,12 @@ fn run_configured_case(
                 };
             }
             Err(case_failure) => {
+                if case_failure.kind == FailureKind::Unverified {
+                    return skipped(definition, attempt, case_failure.message);
+                }
                 failure = case_failure.message;
                 if definition.platform == Some(Platform::Xiaohongshu)
-                    && case_failure.login_wall_or_block
+                    && case_failure.kind == FailureKind::LoginWallOrBlock
                 {
                     xiaohongshu.stopped = true;
                 }
@@ -704,7 +724,11 @@ fn run_case_once(
         if output.status.code() != Some(0) {
             return Err(CaseFailure {
                 message: "live case command returned a nonzero terminal",
-                login_wall_or_block: is_login_wall_or_block(&output),
+                kind: if is_login_wall_or_block(&output) {
+                    FailureKind::LoginWallOrBlock
+                } else {
+                    FailureKind::Failed
+                },
             });
         }
         if matches!(case_id, "P1" | "P2")
@@ -751,11 +775,15 @@ fn most_commented_access_url(payload: &Value) -> Option<String> {
 /// replies. A comment carries one reply, so more replies prove the expansion. A note that
 /// cannot show either leaves the case unverified rather than passed.
 fn comments_coverage(payload: &Value) -> Result<(), CaseFailure> {
+    let unverified = |message| CaseFailure {
+        message,
+        kind: FailureKind::Unverified,
+    };
     let comments = payload["comments"]
         .as_array()
         .map_or(&[][..], Vec::as_slice);
     if comments.len() <= 10 {
-        return Err(XIAOHONGSHU_ONE_COMMENT_PAGE.into());
+        return Err(unverified(XIAOHONGSHU_ONE_COMMENT_PAGE));
     }
     let expanded = comments.iter().any(|comment| {
         comment["replies"]
@@ -763,7 +791,7 @@ fn comments_coverage(payload: &Value) -> Result<(), CaseFailure> {
             .is_some_and(|replies| replies.len() > 1)
     });
     if !expanded {
-        return Err(XIAOHONGSHU_NO_REPLIES.into());
+        return Err(unverified(XIAOHONGSHU_NO_REPLIES));
     }
     Ok(())
 }

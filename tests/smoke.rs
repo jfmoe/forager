@@ -177,7 +177,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
             Some(4),
             &Value::String("live".into()),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 30}),
+            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 30, "skipped": 0}),
             &Value::String("failed".into()),
             &Value::Number(3.into()),
             &Value::String("unconfigured".into()),
@@ -214,7 +214,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
         (
             Some(4),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 30}),
+            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 30, "skipped": 0}),
             &Value::String("deferred".into()),
             &Value::Number(3.into()),
             &Value::String("http://127.0.0.1:9?token=********".into()),
@@ -302,7 +302,7 @@ fn live_smoke_passes_a_configured_case_only_after_a_zero_parseable_nonempty_term
         ),
         (
             Some(4),
-            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 30}),
+            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 30, "skipped": 0}),
             &Value::String("passed".into()),
             &Value::Number(1.into()),
         ),
@@ -510,7 +510,7 @@ fn live_smoke_runs_the_platform_cases_through_their_configured_route() {
             crossref_requests[1].contains("/works/10.2139/ssrn.2042750"),
         ),
         (
-            &json!({"passed": 4, "failed": 0, "deferred": 0, "unconfigured": 27}),
+            &json!({"passed": 4, "failed": 0, "deferred": 0, "unconfigured": 27, "skipped": 0}),
             [(); 4].map(|()| Value::String("passed".into())),
             [
                 &Value::String("arxiv".into()),
@@ -885,11 +885,12 @@ fn a_xiaohongshu_login_wall_or_block_stops_every_later_xiaohongshu_case() {
                 (status, attempts, case(&payload, id)["message"].clone())
             }),
             fake.calls().len(),
+            payload["ok"].clone(),
         )
     });
 
     let not_started = (
-        json!("failed"),
+        json!("skipped"),
         json!(0),
         json!(
             "not started: an earlier Xiaohongshu case met a login wall or a block, so this run stops all Xiaohongshu access"
@@ -899,6 +900,7 @@ fn a_xiaohongshu_login_wall_or_block_stops_every_later_xiaohongshu_case() {
         (json!("failed"), json!(1)),
         [not_started.clone(), not_started],
         1,
+        json!(false),
     );
     assert_eq!(outcomes, [stopped.clone(), stopped]);
 }
@@ -925,6 +927,7 @@ fn live_smoke_leaves_the_comments_case_unverified_without_a_second_page_or_an_ex
         (
             status_and_attempts(&payload, "C29"),
             case(&payload, "C29")["message"].clone(),
+            payload["ok"].clone(),
         )
     });
 
@@ -932,16 +935,18 @@ fn live_smoke_leaves_the_comments_case_unverified_without_a_second_page_or_an_ex
         outcomes,
         [
             (
-                (json!("failed"), json!(1)),
+                (json!("skipped"), json!(1)),
                 json!(
                     "not verified: the most-commented note of the Xiaohongshu search has 10 or fewer comments, so the second comment page was not read"
-                )
+                ),
+                json!(false)
             ),
             (
-                (json!("failed"), json!(1)),
+                (json!("skipped"), json!(1)),
                 json!(
                     "not verified: no returned comment of the most-commented Xiaohongshu note had more replies to expand"
-                )
+                ),
+                json!(false)
             ),
         ]
     );
