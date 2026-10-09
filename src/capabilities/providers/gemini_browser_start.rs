@@ -12,6 +12,7 @@ use serde::Deserialize;
 use super::decode::{self, PlanReply, StreamReply};
 use super::{PageFacts, changed_structure, runtime, signed_out};
 use crate::net::{AttemptFailure, truncate_message};
+use crate::providers::opencli::CommandFailure;
 use crate::types::{AttemptErrorKind, GeminiConversationId, GeminiPlan};
 
 /// The `StreamGenerate` error code of an exhausted usage limit.
@@ -73,6 +74,8 @@ pub(super) struct StartData {
     steps: Vec<Step>,
     /// Whether the tools menu rendered, but without a Deep Research entry.
     deep_research_missing: bool,
+    /// Whether the tools menu shows Deep Research, but disabled.
+    deep_research_disabled: bool,
     /// A notice that the Deep Research quota is used up, as the page words it.
     quota_notice: Option<String>,
     /// Why the adapter stopped before the deadline, in its own words.
@@ -169,8 +172,9 @@ pub(super) fn read_start(
     Ok((conversation, plan))
 }
 
-/// Fails on an error Gemini answered in a response, or on a quota notice the page showed
-/// before the research started.
+/// Fails on an error Gemini answered in a response, or on a quota notice the page showed while
+/// Gemini had not answered the question. Once Gemini answered, page text that reads like a
+/// quota notice (a question or a reply about limits) never overrides what the answer says.
 fn check_gemini_errors(
     facts: &StartData,
     replies: [Option<&StreamReply>; 2],
@@ -199,7 +203,7 @@ fn check_gemini_errors(
     }
     if let Some(notice) = facts.quota_notice.as_deref().map(str::trim)
         && !notice.is_empty()
-        && !facts.reached(Step::Started)
+        && !facts.reached(Step::Answered)
     {
         return Err(failure(
             AttemptErrorKind::QuotaExhausted,
@@ -218,6 +222,11 @@ fn unsent(facts: &StartData) -> AttemptFailure {
     if facts.deep_research_missing {
         return runtime(
             "Gemini's tools menu offers no Deep Research; check that this Google account can use Deep Research in the Gemini web app; nothing was sent".into(),
+        );
+    }
+    if facts.deep_research_disabled {
+        return runtime(
+            "Gemini's tools menu shows Deep Research but does not let it be selected; the account's Deep Research quota may be used up, or Deep Research may be unavailable right now; nothing was sent".into(),
         );
     }
     let (kind, problem) = stopped(facts, "the question was sent");
@@ -304,15 +313,24 @@ fn failure(
     }
 }
 
-/// Adds the unknown-outcome hint to a failure of the `start` command itself, which leaves no
-/// page facts: the process may have stopped after Gemini received the question. A browser that
-/// asks to sign in never got that far.
-pub(super) fn unknown_outcome(failure: AttemptFailure) -> AttemptFailure {
-    if failure.kind == AttemptErrorKind::Auth {
-        return failure;
+/// Words a failure of the `start` command itself, which leaves no page facts. A command OpenCLI
+/// never ran sent nothing, and neither did a browser that asks to sign in; any other failure
+/// may have stopped after Gemini received the question.
+pub(super) fn command_failed(failure: CommandFailure) -> AttemptFailure {
+    let CommandFailure {
+        attempt,
+        may_have_run,
+    } = failure;
+    if may_have_run && attempt.kind == AttemptErrorKind::Auth {
+        return attempt;
     }
+    let hint = if may_have_run {
+        UNKNOWN_OUTCOME
+    } else {
+        "nothing was sent"
+    };
     AttemptFailure {
-        message: format!("{}; {UNKNOWN_OUTCOME}", failure.message),
-        ..failure
+        message: format!("{}; {hint}", attempt.message),
+        ..attempt
     }
 }

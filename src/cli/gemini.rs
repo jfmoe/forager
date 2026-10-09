@@ -155,13 +155,13 @@ fn deliver(
     mut found: GeminiResearchResult,
     directory: &Path,
 ) -> Result<GeminiResearchResult, ProviderError> {
-    let GeminiResearchState::Completed(report) = &mut found.state else {
+    let GeminiResearchState::Completed(report) = &found.state else {
         return Ok(found);
     };
     let stem = format!("gemini-{}", found.conversation);
     match write_report(report, directory, &stem) {
         Ok(files) => {
-            report.files = Some(files);
+            found.report_files = Some(files);
             Ok(found)
         }
         Err(message) => Err(ProviderError {

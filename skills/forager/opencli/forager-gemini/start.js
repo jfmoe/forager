@@ -16,8 +16,16 @@ const DESELECT = ['取消选择', 'deselect'];
 const SEND = ['发送', 'send message', 'send'];
 const CONFIRM = ['start research', '开始研究', '开始调研'];
 
-// The quota wording is an unverified guess; it is read only after the question was sent.
+// The quota wording is an unverified guess. It counts only while Gemini has not answered the
+// question, outside the conversation turns and the navigation (whose chat titles and replies
+// can mention limits), and only as a line the page did not show before sending. The container
+// selectors are unverified as well; forager also ignores a notice once an answer arrived.
 const QUOTA_PATTERN = '(reached|hit) (your|the) [^\\n]{0,40}limit|limit for deep research|usage limit|已达到[^\\n]{0,20}(上限|限额)|额度已用(完|尽)|用量已达上限';
+const NOT_A_NOTICE = [
+  'nav', 'aside', '[role="navigation"]', 'user-query', 'model-response',
+  '[class*="conversation-turn"]', '[class*="query-text"]', '[class*="response-text"]',
+  'rich-textarea', '[contenteditable="true"]',
+].join(', ');
 
 const MENU_WAIT_MS = 10000;
 const SELECT_WAIT_MS = 8000;
@@ -48,11 +56,12 @@ const HELPERS = `
   };
   const buttons = (root) => Array.from(root.querySelectorAll('button, [role="button"]'))
     .filter((el) => isVisible(el) && isEnabled(el));
-  const menuItems = () => Array.from(document.querySelectorAll(
+  const visibleMenuItems = () => Array.from(document.querySelectorAll(
     '[role="menu"], [role="listbox"], .mat-mdc-menu-panel, .cdk-overlay-pane',
   )).filter(isVisible).flatMap((menu) => Array.from(menu.querySelectorAll(
     'button, [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [role="option"]',
-  ))).filter((el) => isVisible(el) && isEnabled(el));
+  ))).filter(isVisible);
+  const menuItems = () => visibleMenuItems().filter(isEnabled);
 `;
 
 function script(body, ...values) {
@@ -66,7 +75,7 @@ const openToolsMenu = script(`
   return true;
 `, TOOLS_BUTTON, [...DESELECT, ...DEEP_RESEARCH]);
 
-const menuItemCount = script('return menuItems().length;');
+const menuItemCount = script('return visibleMenuItems().length;');
 
 /** Clicks the first menu item with one of the labels; returns whether it clicked. */
 const clickMenuItem = (labels) => script(`
@@ -74,6 +83,11 @@ const clickMenuItem = (labels) => script(`
   if (!item) return false;
   item.click();
   return true;
+`, labels);
+
+/** Whether a visible menu item has one of the labels but is disabled. */
+const disabledMenuItem = (labels) => script(`
+  return visibleMenuItems().some((el) => !isEnabled(el) && matches(el, arg0));
 `, labels);
 
 const deepResearchSelected = script(`
@@ -125,12 +139,20 @@ const findConfirm = script(`
   return buttons(document).some((el) => matches(el, arg0));
 `, CONFIRM);
 
-const quotaNotice = (query) => script(`
+/** The lines that read like a quota notice, outside the turns and the navigation. */
+const quotaLines = script(`
   const pattern = new RegExp(arg0, 'i');
-  const lines = (document.body ? document.body.innerText : '').split('\\n');
-  const line = lines.find((text) => pattern.test(text) && !arg1.includes(text.trim()));
-  return line ? line.trim().slice(0, 160) : null;
-`, QUOTA_PATTERN, query);
+  const linesOf = (el) => (el.innerText || '').split('\\n').map((line) => line.trim());
+  const excluded = new Set(Array.from(document.querySelectorAll(arg1)).flatMap(linesOf));
+  return (document.body ? linesOf(document.body) : [])
+    .filter((line) => line && pattern.test(line) && !excluded.has(line));
+`, QUOTA_PATTERN, NOT_A_NOTICE);
+
+/** The first quota line that is new since `shown` and is not the question itself. */
+function newQuotaNotice(lines, shown, query) {
+  const line = lines.find((text) => !shown.has(text) && !query.includes(text));
+  return line ? line.slice(0, 160) : null;
+}
 
 function normalize(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
@@ -174,7 +196,8 @@ async function startResearch(page, query, deadline, facts, run) {
     selected = await waitFor(within(SELECT_WAIT_MS), () => page.evaluate(clickMenuItem(DEEP_RESEARCH)));
   }
   if (!selected) {
-    run.deep_research_missing = !passed();
+    if (await page.evaluate(disabledMenuItem(DEEP_RESEARCH))) run.deep_research_disabled = true;
+    else run.deep_research_missing = !passed();
     return;
   }
   if (!await waitFor(within(SELECT_WAIT_MS), () => page.evaluate(deepResearchSelected))) {
@@ -189,15 +212,17 @@ async function startResearch(page, query, deadline, facts, run) {
   if (!typed) return stop('the composer did not take the question');
   run.steps.push('query');
 
+  const shown = new Set(await page.evaluate(quotaLines));
   if (!await page.evaluate(clickSend)) return stop('found no send button');
   run.steps.push('sent');
 
-  const answered = await waitFor(deadline, async () => {
+  await waitFor(deadline, async () => {
     await facts.observe(page);
-    run.quota_notice = await page.evaluate(quotaNotice(query));
-    return facts.completions >= 1 || Boolean(run.quota_notice);
+    if (facts.completions >= 1) return true;
+    run.quota_notice = newQuotaNotice(await page.evaluate(quotaLines), shown, query);
+    return Boolean(run.quota_notice);
   });
-  if (!answered || run.quota_notice) return;
+  if (facts.completions < 1) return;
   // OpenCLI asks Chrome for a body on the request's loadingFinished event, which Chrome sends
   // before the page sees the completion, and a tab answers DevTools commands in order. One more
   // page round trip therefore returns only after the body request has been answered.
@@ -237,7 +262,13 @@ cli({
     const deadline = readDeadline(kwargs.timeout);
     const query = String(kwargs.query);
     const facts = new PageFacts(STREAM_GENERATE);
-    const run = { steps: [], deep_research_missing: false, quota_notice: null, problem: null };
+    const run = {
+      steps: [],
+      deep_research_missing: false,
+      deep_research_disabled: false,
+      quota_notice: null,
+      problem: null,
+    };
 
     // Capture first: the answer streams in while the page is still busy.
     await page.startNetworkCapture(SITE_DOMAIN);
@@ -258,11 +289,13 @@ cli({
       page: facts.facts,
       steps: run.steps,
       deep_research_missing: run.deep_research_missing,
+      deep_research_disabled: run.deep_research_disabled,
       quota_notice: run.quota_notice,
       problem: run.problem ? String(run.problem).slice(0, 300) : null,
       plan_response: calls[0] ? calls[0].body : null,
       confirm_response: calls[1] ? calls[1].body : null,
-      timed_out: !finished && !run.problem && !run.deep_research_missing && !run.quota_notice
+      timed_out: !finished && !run.problem && !run.deep_research_missing
+        && !run.deep_research_disabled && !run.quota_notice
         && !facts.facts.signed_out && Date.now() >= deadline,
     });
   },

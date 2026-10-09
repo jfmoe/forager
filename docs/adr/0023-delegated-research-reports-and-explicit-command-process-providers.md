@@ -16,7 +16,7 @@
 
 - `start` 只执行一次 attempt，不受 `retry` 配置影响；Timeout 与 Network 也不重试。adapter 内部同样只点击一次发送、一次确认，失败的步骤不再尝试。
 - 计划已生成但确认没有点到时，返回 Runtime，附会话 URL，请用户在网页上手动点击开始研究；forager 不再次点击，也不重发问题。
-- forager 一旦拿到并校验过会话 id，失败载荷的 `conversation_url` 与消息都指向该会话。adapter 进程本身失败、没有交回页面事实时，消息说明提交结果未知，提示先在 Gemini 历史中检查，绝不建议重新发起。
+- forager 一旦拿到并校验过会话 id，失败载荷的 `conversation_url` 与消息都指向该会话。adapter 进程本身失败、没有交回页面事实时，消息说明提交结果未知，提示先在 Gemini 历史中检查，绝不建议重新发起；只有 OpenCLI 确定没有运行 adapter 命令时，消息改为说明什么都没发送。
 - 只读操作（`result`、`status`）不受此约束，`result` 沿用共享重试策略。以后的写操作沿用同一规则。
 
 ## 窗口模式由命令声明

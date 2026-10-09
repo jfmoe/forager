@@ -142,6 +142,8 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
     | 找不到可执行文件 | Runtime，提示安装 OpenCLI 或设置 `command` |
     | 其他退出码、输出无法解码 | Runtime |
 
+    失败同时说明 adapter 命令是否可能已经运行：只有进程没有启动（含剩余时间不足、等不到访问窗口、找不到可执行文件）、OpenCLI 以 2 拒绝命令行或加载不到 adapter 命令时，forager 才确定它没有运行；其余失败（含浏览器连接失败，它也可能发生在命令中途）都按可能已经运行处理。读取 route 不区分两者；会改变账号状态的 Gemini `start` 据此决定提示“什么都没发送”还是“结果未知”（第 2 章）。
+
 - **search**：adapter 显式构造完整查询：`term`、`text_fields`、`search_mode`、`authors`、`date`、`sort_by` 和 `page`。scope all/title/full-text 对应 `title-abstract-keywords` / `title` / `title-abstract-keywords-fulltext`；mode 省略为 fuzzy；author 省略为空串；date 省略为 all_time，其他预设使用 CLI 名的下划线形式；relevance 的 sort_by 为空串，posted/downloads/title 对应 `approval_date` / `downloads` / `title` 加 `-asc` 或 `-desc`。Boolean 只承诺原站 Help 所列 AND、OR、NOT、括号，不承诺额外 DSL。作者文本直接提交 Author(s)，不是作者身份选择；真实样例中姓氏与全名的召回可能不同。
 - **实际状态与刷新**：`forager-ssrn/3` 的 search data 必须含 `search_state`（scope、mode、author、date 显示文本、sort 显示文本或 null、request_url）。adapter 用仅供导航的一次性 `_forager_search` 参数避免 OpenCLI 同 URL 快速复用旧页面；原站在搜索成功后重写 URL 并移除它。adapter 等待这一事实、当前文档 Performance Resource Timing 中已完成的原站搜索请求和结果区域，再读取控件与结果。Rust 同时校验结果页 URL、查询框、已完成请求中的完整条件及页码、radio/作者/日期/排序的实际值。无结果页面不显示排序控件时允许 sort=null，但已完成请求仍须匹配排序。状态缺失、不符或页面不识别均为 Runtime，不能返回假空结果。
 - **分页与结果**：SSRN 每个原生页 50 条；页位置为绝对 offset，页码 = offset / 50 + 1，页内位置 = offset mod 50。一页最多 limit 条且不跨原生页；cursor 恢复全部条件并固定 route，不 fallback。页码、范围 `Displaying results <first> to <last> of <total>` 与卡片数须一致。结果深度为 snippet，无片段为 metadata；full-text 搜索只扩大原站匹配范围，不打开详情或下载 PDF。
