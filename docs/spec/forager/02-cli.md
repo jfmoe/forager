@@ -6,7 +6,7 @@
 
 项目 / binary 名 **forager**（脱离上游 fork 网络的独立身份；crates.io / GitHub 撞名验证通过）。
 
-## 命令面（12 顶层）
+## 命令面（13 顶层）
 
 ```
 forager search QUERY [--capabilities CSV|none] [--model ID] [--extra-sources N]
@@ -55,18 +55,20 @@ forager platform xiaohongshu fetch ACCESS_URL [--depth metadata|full_text（默�
                                    [--content-dir DIR] [--timeout 120] [--format json|markdown|content] [...]
 forager platform xiaohongshu comments ACCESS_URL [--limit 1..=50（默认 20）] [--replies 0..=10（默认 0）]
                                       [--timeout 120] [--format json|markdown] [...]
+forager gemini research result CONVERSATION [--report-dir DIR]
+                               [--timeout 120] [--format json|markdown|content] [...]
 forager doctor [--provider PROVIDER] [--timeout 30] [--format json|markdown]
 forager smoke [--live] [...]
 forager config path|list|set|unset
 forager setup [--non-interactive] [--lang zh|en]
 ```
 
-- **分界规则**：点名 provider 的命令按 provider 分组嵌套（exa/context7/anysearch）；操作语义 + fallback 链的按操作命名保持顶层（fetch、map）；平台直连命令按 `platform <id> <op>` 嵌套。裸动词＝智能管线，provider 前缀＝旁路直连。
+- **分界规则**：点名 provider 的命令按 provider 分组嵌套（exa/context7/anysearch/gemini）；操作语义 + fallback 链的按操作命名保持顶层（fetch、map）；平台直连命令按 `platform <id> <op>` 嵌套。裸动词＝智能管线，provider 前缀＝旁路直连。
 - **别名六槽**（全部 visible_alias）：`s`=search、`f`=fetch、`rs`=research、`c7`=context7、`as`=anysearch、`ls`=config list。关闭 clap `infer_subcommands`。
 
 ## 输出与退出码
 
-- `--format json(默认)/markdown/content` 三态；**content 收窄**到 search、fetch、context7 docs 与 research，per-command ValueEnum 在解析层强制。research 的 Markdown/content 都渲染 Research Evidence Index 与 unresolved gaps，不渲染证据正文或机械答案。doctor 默认 json。
+- `--format json(默认)/markdown/content` 三态；**content 收窄**到 search、fetch、context7 docs、research、平台 fetch 与 `gemini research result`，per-command ValueEnum 在解析层强制。research 的 Markdown/content 都渲染 Research Evidence Index 与 unresolved gaps，不渲染证据正文或机械答案。doctor 默认 json。
 - `--output FILE` 为 **tee 语义**（写文件 + stdout 照常）。写失败＝非零终态退 3，stdout JSON 照常输出并标注写失败（#59 H15）；与 journal 旁路（非致命）区分。
 - `--receipt`（须与 `--output` 同用，所有带 `--output` 的命令均支持）为**回执语义**：文件内容与 tee 完全相同；仅当命令成功（退 0）且文件写入成功时，stdout 改为单行 JSON 回执 `{"output_path", "bytes", "lines"}`，其中 `bytes`/`lines` 描述写入文件的内容。命令失败时 stdout 仍是该失败的完整瘦载荷；写失败时退回 tee 的写失败行为（完整 stdout + 标注，退 3）。它让调用方把长结果留在文件中、按需读取片段，而不是让全文进入调用方上下文。
 - 退出码：`0` 成功（含直连命令的合法空结果）；`2` 参数错（clap 天然 + 坏 plan + `config set` 非法路径）；`3` config_error（含未知文件键、未知 `FORAGER_*` env、web_fetch 空链、`--output` 写失败）；`4` transport 族终态；`5` content 族终态（quality/evidence；**evidence_error 由 4 改 5**）。`1` 空缺；panic 101 不拦，为非契约异常出口。
@@ -147,6 +149,8 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 两档：`doctor` 浅检全体（掩码配置 + 凭据存在 + 可达性（对 endpoint 发 GET 并只等待响应头，任何 HTTP 响应都算可达；部分 endpoint 对 HEAD 不响应）+ 过宽权限报告 + config list 同构生效值块）；顶层 `ok` 等于所有 `configured=true` provider 均 `reachable=true`，零配置为 true，任一不可达则 JSON/Markdown 均为 false 并退出 4，permission warning 不改变 `ok`。`config_warnings` 报告主搜索链中与首个已配置 backend 使用相同 endpoint（忽略末尾 `/`）和相同主模型的后续 backend——这类 fallback 与主 backend 处于同一故障域；该警告同样不改变 `ok`。`--provider NAME` 深探单体，值域＝provider 注册表的编译期 enum。需要凭据的 8 个 provider 执行凭据有效性 + 最小活体调用；平台 route（`arxiv_api`、`ssrn_crossref`、`ssrn_browser`、`xiaohongshu_browser`）不需要凭据，恒为已配置，深探执行一次最小平台检索；需要凭据的平台 route `serpapi` 有 key 时才算已配置，浅检对端点发一次不带 key 的 GET（不计额度）；深探不做检索，而是按池中顺序对每个 key 各调用一次同源的 SerpApi Account API（`/account.json`，不计额度），不经凭据轮换、不推进凭据游标，输出增加 `keys` 数组，每个 key 一项 `{key_index, ok, searches_left, plan_searches_left, this_month_usage, this_hour_searches, hourly_limit}`，失败项带 `error_kind`，取不到的数字为 `null`；HTTP 失败沿用共享归因（401/403 为 auth），剩余额度为 0 为 `quota_exhausted`，本小时检索数达到上限为 `rate_limited`，缺数字字段为 `runtime`；任一 key 失败则深探失败退 4，顶层 `error_kind` 与 `message` 取第一个失败的 key，`message` 以 `providers.serpapi.keys[N]` 指明它；响应中的 key、账户邮箱与账户 ID 不被解码，也不进入任何输出；这个深探只证明端点、key 与额度状态，不证明 Scholar 检索的请求与解码（由 live smoke C24–C26 证明）；没有 key 时以 config 失败退 3 且不发请求；其他 provider 的深探输出没有 `keys`；openai-compatible 额外保留 stream/no-stream 双形状判定。声明访问策略的 provider（三条平台 route）的浅检检查与深探请求都先经过跨进程限速，等不到窗口时浅检记为不可达、深探以 timeout 失败，且都不发送请求。
 
 传输类型为 process 的 route（`ssrn_browser`、`xiaohongshu_browser`）不发 GET：浅检只在它出现在所属平台的 order 中时参与，运行 adapter 的 `contract` 命令并核对契约版本；未启用时报告 `configured: false`，不影响 `ok`。检查失败时该 provider 状态带 `message`（含安装提示），Markdown 在同一行括号中显示。深探（`doctor --provider ssrn_browser` 或 `xiaohongshu_browser`）同样只在 order 启用该 route 时运行一次真实的平台检索；未启用时以 config 失败退 3，不启动进程。
+
+不属于任何平台、只由点名命令运行的 process 供应方（`gemini_browser`，ADR 0023）不参与浅检：不启动进程，报告 `configured: false`、`reachable: false` 与提示改用 `--provider` 的 `message`，不影响 `ok`。深探 `doctor --provider gemini_browser` 在后台窗口运行 adapter 的只读 `status` 命令，检查记为 `[{name: "status", transport: "process"}]`：OpenCLI 不可用、adapter 缺失或契约版本不符为 runtime（消息含安装提示），浏览器未登录 Gemini 为 auth，都退 4。它不读取会话，也不发起研究。
 
 ## 平台命令
 
@@ -321,6 +325,30 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 - 通用 flag 同 search。没有 `--cursor`：页面只能从第一页起按顺序加载评论，命令之间无法续读。
 - **输出**：JSON 为 `{platform, provider, note, comments, has_more}`。`note` 为笔记 ref；`has_more` 表示还有未交付的一级评论（上游最后一页仍有更多，或读到的评论截到 `--limit` 时有余项）。每条评论为 `{id, author, author_id, text, likes, published, ip_location, reply_count, replies, replies_has_more}`，回复为 `{id, author, author_id, text, likes, published, ip_location, reply_to}`：`text` 为原文，`likes` 与 `reply_count` 为计数原文，`published` 为北京时间 ISO 8601 时间戳，`reply_to` 为该回复所回复的评论或回复的 ID。`replies` 先放评论自带的一条回复，展开时再追加第一页回复，按 ID 去重；`replies_has_more` 表示该评论还有未交付的回复。输出不含 token。不写 Search Result Journal。
 - **退出码**：输入无法识别或缺少 token、`--limit` 或 `--replies` 越界＝飞行前退 2，不启动进程；`platforms.xiaohongshu.order` 为空（默认）＝飞行前退 3；会话未登录或 461 为 Auth，300031/300017 或安全限制为 attempt 级 Parameter，截止点前仍停在该笔记页为 Timeout，都退 4；评论页的笔记或 cursor 链不符、楼中楼不属于选中的评论或起始 cursor 不符、读取模块无法点击展开（消息附原因）、响应体缺失、停在非预期页面、第一页没有评论却声称还有更多为 Runtime，退 4；笔记没有评论为 `comments: []` 且退 0。token 卫生同 fetch。
+
+## Gemini 命令
+
+`gemini` 命令组经 `gemini_browser`（第 7 章「Gemini Deep Research」）在用户自己已登录的 Chrome 中操作 Gemini Deep Research 会话。产物是 Delegated Research Report（委托研究报告），不是 Research Evidence（ADR 0023）：不写 Search Result Journal，不进入 research 流水线。发起研究（`start`）尚未实现。
+
+### `gemini research result`
+
+只读地报告一个 Deep Research 会话最新研究轮次的状态；完成时把报告与来源落盘。
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| 会话（位置参数） | `https://gemini.google.com/app/<id>` 或 `<id>`；`<id>` 为 8–64 位十六进制，大小写不敏感 | 必填 | 其他输入飞行前退 2，不启动进程 |
+| `--report-dir` | 目录路径 | 系统临时目录下按调用隔离的新目录 | 报告与来源文件的写入目录 |
+| `--timeout` | 秒，≥1 | 120 | 整条命令的截止时间 |
+| `--format` | `json` / `markdown` / `content` | `json` | `content` 只在 `completed` 时输出报告 Markdown 与来源列表且不写文件；其他状态与 json 相同 |
+
+- 通用 flag：`--output FILE [--receipt]` 语义同上。只读命令，沿用共享重试策略。
+- **输出**：JSON 恒含 `route`（`gemini_browser`）、`conversation_id`、`conversation_url` 与 `status`：
+  - `awaiting_confirmation`：另有 `plan: {title, steps: [{index, label, description}], eta_text}`。这是 Gemini 提出的研究计划，与 Research Plan Schema v1 无关。
+  - `running`：另有 `progress: {sources_visited, thoughts, latest_thought}`，取自页面自己显示的进度。
+  - `completed`：另有 `title`、`report_path`、`sources_path`、`content_len`（正文字符数）与 `source_count`；`--format content` 时没有两个路径。
+- **文件**：`gemini-<id>.md` 为报告正文原样，末尾附 `## Sources` 编号列表（每行 `- [N] 标题 <URL>`），使 `[cite: N]` 离开 Gemini 后仍可解析；`gemini-<id>.sources.json` 为 `[{id, title, url}]`，同一编号以首次出现为准，按编号排序。写入失败为 Runtime 退 4，不回退为内联输出。
+- **失败载荷**：普通瘦载荷另加可空的 `conversation_url`；`result` 总是填写它。
+- **退出码**：会话无法识别＝飞行前退 2；浏览器未登录为 Auth；会话不存在、无权访问或其中没有研究计划与研究文档为 attempt 级 Parameter；页面显示的是另一个会话、状态与正文矛盾、必需字段缺失或类型不符（消息写明 Gemini 响应结构已变化及其位置）、adapter 缺失或过期（附安装提示）、报告写入失败为 Runtime；截止点前没有读到会话响应为 Timeout；以上都退 4。`--output` 写失败退 3。
 
 ## 收尾
 

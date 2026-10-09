@@ -120,6 +120,10 @@ _Avoid_: evidence preview、inline evidence content、research answer
 Research Evidence Pipeline 写入 `summary.json` 的无正文恢复清单；它记录终态、计划与预算来源、能力、fallback、证据身份和路径、未消费候选、覆盖缺口、供应方尝试及综合策略，使失败调用方能通过稳定的 `summary_path` 恢复制品。它不是成功 stdout 交付的 Research Evidence Index。
 _Avoid_: Research Evidence Index、inline failure index、evidence body archive
 
+**Delegated Research Report（委托研究报告）**:
+第三方研究 agent（例如 Gemini Deep Research）针对一个问题生成并交付的综合报告，附带它自己声明的来源。它不是 Research Evidence：报告正文只能用于定向，或作为归属明确的第三方观点；其中的论断须经 forager 取证后才能作为事实引用（ADR 0023）。
+_Avoid_: research evidence、research result、deep research evidence
+
 **Citation Binding**:
 回答文本中的内联标记与某条来源或证据之间可机器读取的对应关系；它表达引用归属，不代表系统已验证该证据确实支持对应陈述。
 _Avoid_: claim verification、source list
@@ -149,7 +153,7 @@ _Avoid_: platform provider、vertical domain、custom platform
 _Avoid_: platform backend、platform provider list
 
 **Route Transport**:
-Platform Route 到达外部内容源的方式，在供应方注册信息中声明：HTTP（配置 `url`；需要凭据的 HTTP route 另有 `keys`），或本机 OpenCLI 命令（配置 `command`，这类 route 称为 process route）。配置检查、doctor 与接入清单按传输类型判断，不按 route id 判断。process route 只能由用户在平台 order 中手动启用（ADR 0020）。
+Platform Route 到达外部内容源的方式，在供应方注册信息中声明：HTTP（配置 `url`；需要凭据的 HTTP route 另有 `keys`），或本机 OpenCLI 命令（配置 `command`，这类 route 称为 process route）。配置检查、doctor 与接入清单按传输类型判断，不按 route id 判断。作为 Platform Route 的 process route 只能由用户在平台 order 中手动启用（ADR 0020）；不属于任何平台的 process 供应方（例如 `gemini_browser`）不进入任何 order，只由点名它的命令运行（ADR 0023）。
 _Avoid_: route kind、backend type
 
 **OpenCLI Adapter**:

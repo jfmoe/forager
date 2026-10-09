@@ -7,7 +7,7 @@ use std::process::ExitCode;
 
 use clap::Parser;
 use forager::app::{
-    self, Cli, CommandOutput, DocsOutputFormat, ExaOutcome, OutputFormat, OutputTarget,
+    self, AppError, Cli, CommandOutput, DocsOutputFormat, ExaOutcome, OutputFormat, OutputTarget,
     ProviderError, ResearchFailure, ResearchTerminal, SearchFailure, bounded_attempt_summary,
 };
 use forager::types::{
@@ -16,6 +16,9 @@ use forager::types::{
     PlatformSearchPage, ScholarItemData, SearchCandidate, SearchOutcome, XiaohongshuCommentsPage,
 };
 use serde_json::{Value, json};
+
+#[path = "cli/gemini_render.rs"]
+mod gemini_render;
 
 const FAILURE_PAYLOAD_TARGET_BYTES: usize = 4096;
 
@@ -105,21 +108,30 @@ fn main() -> ExitCode {
             output,
             attempt_log,
         }) => emit_logged(render_comments(result, format, output), attempt_log),
-        Err(error) if json_preflight_errors => {
-            let exit_code = error.exit_code();
-            emit_rendered(apply_tee(
-                error.json_preflight_payload().to_string(),
-                exit_code,
-                true,
-                json_preflight_output,
-                None,
-            ))
-        }
-        Err(error) => {
-            eprintln!("{}: {error}", error.category());
-            ExitCode::from(error.exit_code())
-        }
+        Ok(CommandOutput::GeminiResearch {
+            result,
+            format,
+            output,
+            attempt_log,
+        }) => emit_logged(gemini_render::render(*result, format, output), attempt_log),
+        Err(error) => emit_error(&error, json_preflight_errors, json_preflight_output),
     }
+}
+
+/// Emits a failure that ended the command before a rendered result: as the JSON preflight
+/// payload when JSON was selected, else as one stderr line.
+fn emit_error(error: &AppError, json: bool, output: Option<OutputTarget>) -> ExitCode {
+    if !json {
+        eprintln!("{}: {error}", error.category());
+        return ExitCode::from(error.exit_code());
+    }
+    emit_rendered(apply_tee(
+        error.json_preflight_payload().to_string(),
+        error.exit_code(),
+        true,
+        output,
+        None,
+    ))
 }
 
 fn render_research(

@@ -1,10 +1,12 @@
 use reqwest::Client;
 
-use super::{Anysearch, Context7, Exa, ModelBreakers, OpenAiCompatible, TavilyMap, Xai};
+use super::{
+    Anysearch, Context7, Exa, GeminiBrowser, ModelBreakers, OpenAiCompatible, TavilyMap, Xai,
+};
 use crate::catalog::{ProviderId, registration};
 use crate::config::{
     AnysearchRuntimeConfig, Context7RuntimeConfig, ExaRuntimeConfig, OpenAiCompatibleRuntimeConfig,
-    WebFetchProviderConfig, XaiRuntimeConfig,
+    ProcessRouteRuntimeConfig, WebFetchProviderConfig, XaiRuntimeConfig,
 };
 use crate::credentials::CredentialPool;
 use crate::net::RetryPolicy;
@@ -79,6 +81,16 @@ pub(crate) fn build_anysearch(
 ) -> Anysearch {
     let credentials = credentials(ProviderId::Anysearch, &mut config.keys);
     Anysearch::new(config, client, credentials, retry_policy, deadline)
+}
+
+pub(crate) fn build_gemini_browser(
+    config: ProcessRouteRuntimeConfig,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> GeminiBrowser {
+    let limiter = route_limiter(ProviderId::GeminiBrowser)
+        .expect("gemini_browser registration declares an access policy");
+    GeminiBrowser::new(config, limiter, retry_policy, deadline)
 }
 
 /// Returns a limiter for a provider whose registration declares an access policy.

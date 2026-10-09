@@ -150,6 +150,12 @@ pub(super) enum Command {
         #[command(subcommand)]
         command: super::platform::PlatformCommand,
     },
+    /// Delegate research to Gemini Deep Research in your own logged-in Chrome; use it only
+    /// when the user asks for Gemini Deep Research.
+    Gemini {
+        #[command(subcommand)]
+        command: super::gemini::GeminiCommand,
+    },
     Config {
         #[command(subcommand)]
         command: ConfigCommand,

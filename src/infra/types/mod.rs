@@ -4,6 +4,7 @@ mod attempt;
 mod capability;
 mod deadline;
 mod error;
+mod gemini_research;
 mod outcome;
 mod platform;
 mod platform_arxiv;
@@ -19,6 +20,12 @@ pub use attempt::{AttemptDisposition, AttemptTarget, ProviderAttempt};
 pub use capability::{Capability, CapabilitySet, FallbackPolicy, PlanCapability};
 pub(crate) use deadline::{Deadline, MIN_USEFUL_SLICE_SECONDS};
 pub use error::{AttemptErrorKind, ErrorFamily, ErrorKind, ProviderError};
+pub(crate) use gemini_research::{GEMINI_RESEARCH_RESULT, GEMINI_RESEARCH_START};
+pub use gemini_research::{
+    GeminiConversationId, GeminiPlan, GeminiPlanStep, GeminiProgress, GeminiReport,
+    GeminiReportFiles, GeminiResearchFailure, GeminiResearchResult, GeminiResearchState,
+    GeminiSource,
+};
 pub use outcome::{
     AnysearchDomain, AnysearchDomainsOutcome, AnysearchOutcome, AnysearchResult,
     AnysearchSearchOutcome, Context7DocsOutcome, Context7LibraryOutcome, Context7Outcome, ExaInput,

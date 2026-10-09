@@ -12,7 +12,7 @@ use crate::catalog::{PlatformOperation, ProviderId, ProviderTransport, registrat
 use crate::config::ProcessRouteRuntimeConfig;
 use crate::net::{AttemptFailure, RetryPolicy};
 use crate::providers::execution::{ExecutionSettings, execute_anonymous};
-use crate::providers::opencli::{self, EnvelopeStatus, OpenCliCommand};
+use crate::providers::opencli::{self, EnvelopeStatus, OpenCliCommand, Window};
 use crate::providers::shared::{other_platform_message, parameter_error};
 use crate::rate_limit::RateLimiter;
 use crate::types::{
@@ -132,6 +132,7 @@ impl SsrnBrowser {
             adapter,
             command,
             options,
+            window: Window::Background,
         }
     }
 

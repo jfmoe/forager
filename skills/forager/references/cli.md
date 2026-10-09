@@ -12,14 +12,15 @@ Routine `search` and `research` stay on their branch references. Treat
 - [Direct operations](#direct-operations)
 - [Provider-direct commands](#provider-direct-commands)
 - [Platform commands](#platform-commands)
+- [Gemini Deep Research](#gemini-deep-research)
 - [Configuration and diagnostics](#configuration-and-diagnostics)
 - [Exit codes](#exit-codes)
 
 ## Shared behavior
 
 The public top-level commands are `search`, `research`, `fetch`, `map`, `exa`, `context7`,
-`anysearch`, `platform`, `config`, `setup`, `doctor`, and `smoke`. Use `-h` or `--help` on any
-command for parser-generated help. Available aliases are:
+`anysearch`, `platform`, `gemini`, `config`, `setup`, `doctor`, and `smoke`. Use `-h` or
+`--help` on any command for parser-generated help. Available aliases are:
 
 | Command | Alias |
 | --- | --- |
@@ -685,6 +686,55 @@ Exit codes: `2` before any request for a missing or malformed token, a short lin
 comment that was not expanded; the adapter could not click "展开 N 条回复", with the reason; or the
 page was unexpected).
 
+## Gemini Deep Research
+
+Run these commands only when the user explicitly asks for Gemini Deep Research. They drive
+Gemini in the user's own logged-in Chrome through OpenCLI and the `forager-gemini` adapter: install
+OpenCLI and its Browser Bridge extension (`opencli doctor`), then copy the `opencli/forager-gemini`
+directory next to this skill's `SKILL.md` to `~/.opencli/clis/forager-gemini` (replace the whole
+directory to update), and check with `forager doctor --provider gemini_browser`. No platform
+order or other setting enables them; `providers.gemini_browser.command` and `.timeout` (default
+`opencli` and 240 seconds per OpenCLI command) configure them.
+
+A Gemini report is a Delegated Research Report, not research evidence: relay it as Gemini's
+conclusions with attribution, and fetch a cited source with `forager fetch` before stating one of
+its claims as fact.
+
+### `gemini research result`
+
+```console
+forager gemini research result CONVERSATION [--report-dir DIR] [--timeout SECONDS]
+                               [--format json|markdown|content]
+                               [--output FILE [--receipt]]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `CONVERSATION` | A `https://gemini.google.com/app/<id>` URL or its hexadecimal `<id>`. Anything else exits `2` before Chrome opens. | Required |
+| `--report-dir DIR` | Directory for the report and sources files. | A new directory under the system temporary directory |
+| `--timeout SECONDS` | Whole-command deadline. | `120` |
+| `--format content` | Print a completed report and its sources to stdout and write no file; any other status prints the JSON below. | `json` |
+
+The command opens the conversation in a background Chrome window and reads where its newest
+research turn stands; it changes nothing in the conversation and takes about 15 to 30 seconds.
+JSON output has `route` (`gemini_browser`), `conversation_id`, `conversation_url`, and `status`:
+
+| `status` | Further fields |
+| --- | --- |
+| `awaiting_confirmation` | `plan`: `{title, steps: [{index, label, description}], eta_text}`. Gemini waits for the user to click "Start research" on the conversation page. |
+| `running` | `progress`: `{sources_visited, thoughts, latest_thought}`, as far as the page shows them. |
+| `completed` | `title`, `report_path`, `sources_path`, `content_len` (characters), and `source_count`. |
+
+A completed report is written as `gemini-<id>.md`, Gemini's Markdown body unchanged followed by a
+`## Sources` list that resolves every `[cite: N]`, and `gemini-<id>.sources.json`,
+`[{id, title, url}]` ordered by `id`.
+
+Exit codes: `2` for an unrecognized conversation; `4` for `auth` (Gemini asks the browser to sign
+in), `parameter` (the conversation is unavailable to this account or holds no Deep Research),
+`timeout`, and `runtime` (the page showed another conversation; the Gemini response structure
+changed, with its location; the adapter is missing or outdated, with install steps; or the report
+could not be written). A failure payload adds `conversation_url`.
+
 ## Configuration and diagnostics
 
 ### `config`
@@ -730,7 +780,7 @@ forager doctor [--provider PROVIDER] [--timeout SECONDS] [--format json|markdown
 
 | Option | Meaning | Default |
 | --- | --- | --- |
-| `--provider PROVIDER` | Deep-probe one of `xai`, `openai_compatible`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, `anysearch`, `arxiv_api`, `ssrn_crossref`, `ssrn_browser`, `serpapi`, or `xiaohongshu_browser`. Without it, run the shallow all-provider report. | Omitted |
+| `--provider PROVIDER` | Deep-probe one of `xai`, `openai_compatible`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, `anysearch`, `arxiv_api`, `ssrn_crossref`, `ssrn_browser`, `serpapi`, `xiaohongshu_browser`, or `gemini_browser`. Without it, run the shallow all-provider report. | Omitted |
 | `--timeout SECONDS` | Set the diagnostic deadline. | `30` |
 | `--format FORMAT` | Use `json` or `markdown`. | `json` |
 
@@ -740,7 +790,10 @@ unreachable, the top-level result is false and the command uses exit code 4. The
 `ssrn_browser` and `xiaohongshu_browser` are checked only when their platform's order lists them:
 doctor runs their OpenCLI `contract` command, and a failed check carries a `message` with install
 steps; `--provider ssrn_browser` or `--provider xiaohongshu_browser` also needs the route in the
-order and runs one real search in Chrome. `--provider serpapi` runs no search and costs nothing: it asks
+order and runs one real search in Chrome. The shallow report never checks `gemini_browser`;
+`--provider gemini_browser` opens the Gemini app in a background Chrome window and reports whether
+the adapter is installed and current and the browser is signed in, without reading or starting
+any research. `--provider serpapi` runs no search and costs nothing: it asks
 SerpApi's account endpoint about every configured key and adds a `keys` array, one entry per key
 with `key_index`, `ok`, `searches_left`, `plan_searches_left`, `this_month_usage`,
 `this_hour_searches`, and `hourly_limit`, plus `error_kind` for a failing key (`auth`,

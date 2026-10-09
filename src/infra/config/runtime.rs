@@ -475,6 +475,8 @@ pub(crate) struct RuntimeConfig {
     pub(crate) context7: Context7RuntimeConfig,
     pub(crate) anysearch: AnysearchRuntimeConfig,
     pub(crate) platform_routes: PlatformRoutesRuntimeConfig,
+    /// The provider that only `forager gemini` commands run.
+    pub(crate) gemini_browser: ProcessRouteRuntimeConfig,
     pub(crate) tavily: WebFetchProviderConfig,
     pub(crate) firecrawl: WebFetchProviderConfig,
     pub(crate) jina: WebFetchProviderConfig,
@@ -554,6 +556,10 @@ impl RuntimeConfig {
             },
             ProviderId::XiaohongshuBrowser => ProviderRuntime {
                 endpoint: &self.platform_routes.xiaohongshu_browser.command,
+                keys: &[],
+            },
+            ProviderId::GeminiBrowser => ProviderRuntime {
+                endpoint: &self.gemini_browser.command,
                 keys: &[],
             },
         }
@@ -705,6 +711,10 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         context7,
         anysearch,
         platform_routes,
+        gemini_browser: ProcessRouteRuntimeConfig {
+            command: config.providers.gemini_browser.command,
+            timeout_seconds: config.providers.gemini_browser.timeout,
+        },
         tavily,
         firecrawl,
         jina,
