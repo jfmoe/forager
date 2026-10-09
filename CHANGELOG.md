@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0](https://github.com/jfmoe/forager/compare/v0.8.0...v0.9.0) - 2026-10-09
+
+### Added
+
+- *(xiaohongshu)* list note comments and expand their replies
+- *(xiaohongshu)* date relative publish times from the local clock
+- *(xiaohongshu)* fetch notes with a native full text
+- *(xiaohongshu)* search notes through the user's logged-in Chrome
+
+### Fixed
+
+- *(smoke)* skip Xiaohongshu cases that cannot prove their coverage
+- *(xiaohongshu)* treat only the login wall notice as logged out
+- *(xiaohongshu)* read the capture only after the body is stored
+- *(xiaohongshu)* count search responses in every page document
+
+### Other
+
+- *(smoke)* run the Xiaohongshu search case only on Unix
+- *(smoke)* compile Xiaohongshu fixtures only on Unix
+- *(doctor)* cover the Xiaohongshu route while no order enables it
+- *(xiaohongshu)* classify unfinished reads in the route entry
+- *(xiaohongshu)* share the read session and page helpers
+- *(xiaohongshu)* design OpenCLI browser route from live probes
+
 ## [0.8.0](https://github.com/jfmoe/forager/compare/v0.7.0...v0.8.0) - 2026-10-08
 
 ### Added
