@@ -1,12 +1,9 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
-import {
-  PageFacts, SITE, SITE_DOMAIN, awaitCompletion, envelope, readDeadline, readExchanges,
-} from './shared.js';
+import { ReadSession, SITE, SITE_DOMAIN, readDeadline } from './shared.js';
 
 const SEARCH_PATH = '/api/sns/web/v2/search/notes';
 const MAX_PAGES = 5;
-const SCROLL_EVERY_MS = 4000;
 
 // The filter panel's option text for each non-default option, in the order they are set.
 const FILTERS = [
@@ -60,18 +57,6 @@ function clickOptionScript(group, option) {
   })()`;
 }
 
-const SCROLL_TO_END = `(() => {
-  window.scrollTo(0, document.documentElement.scrollHeight);
-})()`;
-
-// A hidden background window renders no frame, so scrolling alone never loads the next page;
-// a screenshot forces one.
-async function scrollForMore(page) {
-  await page.evaluate(SCROLL_TO_END);
-  await page.screenshot();
-  await page.screenshot();
-}
-
 cli({
   site: SITE,
   name: 'search',
@@ -90,14 +75,10 @@ cli({
     { name: 'timeout', type: 'int', default: 120, help: 'Command timeout in seconds' },
   ],
   func: async (page, kwargs) => {
-    const deadline = readDeadline(kwargs.timeout);
     const pages = Math.min(MAX_PAGES, Math.max(1, Number(kwargs.pages) || 1));
-    const facts = new PageFacts([SEARCH_PATH]);
     const responses = [];
     let filterClicks = 0;
     let filterFailure = null;
-    let bodyMissing = false;
-    let timedOut = false;
 
     // Keeps the search responses of a read, tagged with the filter clicks made so far.
     const keep = (exchanges) => {
@@ -120,44 +101,17 @@ cli({
         });
       }
     };
-    const completions = async () => {
-      await facts.observe(page);
-      return facts.completions(SEARCH_PATH);
-    };
-    // Waits for a search response after the `seen` completed ones; returns whether the command
-    // can go on.
-    const next = async (seen, nudge, ready = null) => {
-      const result = await awaitCompletion(page, facts, {
-        path: SEARCH_PATH,
-        seen,
-        deadline,
-        nudge,
-        nudgeEveryMs: SCROLL_EVERY_MS,
-        ready,
-      });
-      keep(result.exchanges);
-      if (result.state === 'body_missing') bodyMissing = true;
-      if (result.state === 'timed_out') timedOut = true;
-      return result.state === 'completed' && !facts.ended();
-    };
-    const finish = async () => {
-      const exchanges = await readExchanges(page);
-      facts.absorb(exchanges);
-      keep(exchanges);
-      return envelope({
-        page: facts.facts,
-        filter_clicks: filterClicks,
-        filter_failure: filterFailure,
-        timed_out: timedOut,
-        body_missing: bodyMissing,
-        responses,
-      });
-    };
+    const session = new ReadSession(page, {
+      paths: [SEARCH_PATH],
+      deadline: readDeadline(kwargs.timeout),
+      keep,
+      fields: () => ({ filter_clicks: filterClicks, filter_failure: filterFailure, responses }),
+    });
 
     await page.startNetworkCapture('xiaohongshu.com');
     const params = new URLSearchParams({ keyword: String(kwargs.query), source: 'web_explore_feed' });
     await page.goto(`https://${SITE_DOMAIN}/search_result?${params}`, { waitUntil: 'load', settleMs: 1000 });
-    if (!await next(0, null, () => facts.cards > 0)) return finish();
+    if (!await session.next(SEARCH_PATH, 0, { ready: () => session.facts.cards > 0 })) return session.finish();
 
     for (const filter of FILTERS) {
       const value = String(kwargs[filter.arg] ?? filter.defaultValue);
@@ -165,23 +119,23 @@ cli({
       const option = filter.options[value];
       if (!option) {
         filterFailure = `unknown ${filter.arg} ${value}`;
-        return finish();
+        return session.finish();
       }
-      const seen = await completions();
+      const seen = await session.completions(SEARCH_PATH);
       const clicked = await page.evaluate(clickOptionScript(filter.group, option));
       if (clicked !== 'clicked') {
         filterFailure = `${clicked} for ${filter.group} ${option}`;
-        return finish();
+        return session.finish();
       }
       filterClicks += 1;
-      if (!await next(seen, null)) return finish();
+      if (!await session.next(SEARCH_PATH, seen)) return session.finish();
     }
 
     for (let read = 1; read < pages; read += 1) {
       const last = responses.at(-1);
       if (!last || !last.body.data || !last.body.data.has_more) break;
-      if (!await next(await completions(), () => scrollForMore(page))) break;
+      if (!await session.more(SEARCH_PATH)) break;
     }
-    return finish();
+    return session.finish();
   },
 });

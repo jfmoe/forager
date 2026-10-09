@@ -1,26 +1,20 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
-import { PageFacts, SITE, SITE_DOMAIN, envelope, readDeadline, readExchanges, sleep } from './shared.js';
-
-const POLL_MS = 500;
+import {
+  POLL_MS, PageFacts, SITE, SITE_DOMAIN, envelope, openNote, pageScript, readDeadline, readExchanges, sleep,
+} from './shared.js';
 
 // Reads the note the page rendered from its server-side state, keeping only the fields forager
 // decodes. The signed, expiring video stream URLs and the page's own access token never leave
 // the page.
 function noteScript(id) {
-  return `(() => {
+  return pageScript(`
     const id = ${JSON.stringify(id)};
-    const state = window.__INITIAL_STATE__;
-    const map = state && state.note && state.note.noteDetailMap;
+    const map = noteDetailMap();
     const entry = map && map[id];
     const raw = entry && entry.note;
     if (!raw || typeof raw !== 'object' || !raw.noteId) return null;
     const note = JSON.parse(JSON.stringify(raw));
-    const pick = (object, keys) => {
-      const picked = {};
-      for (const key of keys) if (object && object[key] !== undefined) picked[key] = object[key];
-      return picked;
-    };
     let video = null;
     if (note.video && typeof note.video === 'object') {
       const stream = {};
@@ -38,7 +32,7 @@ function noteScript(id) {
       user: pick(note.user, ['userId', 'nickname']),
       video,
     };
-  })()`;
+  `);
 }
 
 cli({
@@ -63,11 +57,7 @@ cli({
     let timedOut = true;
 
     await page.startNetworkCapture('xiaohongshu.com');
-    const params = new URLSearchParams({ xsec_token: String(kwargs['xsec-token']), xsec_source: 'pc_search' });
-    await page.goto(`https://${SITE_DOMAIN}/explore/${encodeURIComponent(id)}?${params}`, {
-      waitUntil: 'load',
-      settleMs: 1000,
-    });
+    await openNote(page, id, kwargs['xsec-token']);
     while (Date.now() < deadline) {
       note = await page.evaluate(noteScript(id));
       facts.absorb(await readExchanges(page));

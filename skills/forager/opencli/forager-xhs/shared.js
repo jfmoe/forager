@@ -1,6 +1,6 @@
-// Shared deadlines, network capture reads, page facts, and output envelopes for the
-// forager Xiaohongshu commands. The commands only operate the page as a user would and report
-// what the page itself requested and received; forager judges the facts.
+// Shared deadlines, page helpers, network capture reads, read sessions, page facts, and output
+// envelopes for the forager Xiaohongshu commands. The commands only operate the page as a user
+// would and report what the page itself requested and received; forager judges the facts.
 
 export const CONTRACT = 'forager-xhs/1';
 export const SITE = 'forager-xhs';
@@ -9,7 +9,8 @@ export const SITE_DOMAIN = 'www.xiaohongshu.com';
 // OpenCLI closes the tab after the command returns, so the page reads stop this long before
 // the timeout that forager passes.
 const CLOSE_RESERVE_MS = 3000;
-const POLL_MS = 500;
+export const POLL_MS = 500;
+const SCROLL_EVERY_MS = 4000;
 const RISK_CONTROL_STATUS = 461;
 const USER_ME_PATH = '/api/sns/web/v2/user/me';
 
@@ -26,6 +27,38 @@ export function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** Copies the listed keys that `object` defines. Also injected into the page scripts. */
+export function pick(object, keys) {
+  const picked = {};
+  for (const key of keys) if (object && object[key] !== undefined) picked[key] = object[key];
+  return picked;
+}
+
+// The helpers every page script can use. The site keeps its state in Vue refs, which hold their
+// value in `value` or `_value`.
+const PAGE_HELPERS = `
+  ${pick}
+  const unwrap = (value) => (value && typeof value === 'object' ? ('value' in value ? value.value : value._value) : value);
+  const pageState = () => window.__INITIAL_STATE__;
+  const noteDetailMap = () => {
+    const state = pageState();
+    return state && state.note && state.note.noteDetailMap;
+  };`;
+
+/** Wraps a script body to evaluate in the page, with the shared page helpers in scope. */
+export function pageScript(body) {
+  return `(() => {${PAGE_HELPERS}\n${body}\n})()`;
+}
+
+/** Opens a note page the way a search result link does, with the note's access token. */
+export async function openNote(page, id, token) {
+  const params = new URLSearchParams({ xsec_token: String(token), xsec_source: 'pc_search' });
+  await page.goto(`https://${SITE_DOMAIN}/explore/${encodeURIComponent(id)}?${params}`, {
+    waitUntil: 'load',
+    settleMs: 1000,
+  });
+}
+
 // The page state that ends any read: login walls, block pages, and their notices. A notice is
 // read only while no note card and no note is shown, so text in a note title, a note, or its
 // comments never counts as one.
@@ -36,7 +69,7 @@ export function sleep(ms) {
 // error page and reloads it into a new document. Resource Timing records a request only once its
 // response has ended.
 function pageStateScript(tracked) {
-  return `(() => {
+  return pageScript(`
   const tracked = ${JSON.stringify(tracked)};
   if (!window.__foragerXhs && tracked.length > 0) {
     const counts = {};
@@ -62,16 +95,15 @@ function pageStateScript(tracked) {
   if (url.searchParams.has('xsec_token')) url.searchParams.delete('xsec_token');
   const errorPage = /^\\/(404|website-login\\/error)/.test(url.pathname);
   const cards = document.querySelectorAll('section.note-item').length;
-  const state = window.__INITIAL_STATE__;
-  const notes = state && state.note && state.note.noteDetailMap;
+  const notes = noteDetailMap();
   const noteShown = Boolean(notes) && Object.values(notes).some((entry) => entry && entry.note && entry.note.noteId);
   const rendered = cards > 0 || noteShown;
   const text = document.body && !loadError ? document.body.innerText : '';
   const notice = rendered
     ? null
     : (text.match(/[^\\n]*(安全限制|访问链接异常|登录后查看|请求太频繁|访问频次异常)[^\\n]*/) || [null])[0];
-  let loggedIn = state && state.user ? state.user.loggedIn : undefined;
-  if (loggedIn && typeof loggedIn === 'object') loggedIn = 'value' in loggedIn ? loggedIn.value : loggedIn._value;
+  const state = pageState();
+  const loggedIn = unwrap(state && state.user ? state.user.loggedIn : undefined);
   return {
     url: url.href,
     title: document.title,
@@ -81,8 +113,7 @@ function pageStateScript(tracked) {
     logged_out: loggedIn === false && !rendered,
     cards,
     counts: window.__foragerXhs || {},
-  };
-})()`;
+  };`);
 }
 
 /** Collects the facts about where the page is and what the site said there. */
@@ -173,19 +204,32 @@ export async function readExchanges(page) {
     });
 }
 
+// A hidden background window renders no frame, so scrolling alone never loads the next page;
+// a screenshot forces one. A note page lists its comments in its own scrolling panel.
+const SCROLL_TO_END = `(() => {
+  const scroller = document.querySelector('.note-scroller');
+  if (scroller) scroller.scrollTop = scroller.scrollHeight;
+  window.scrollTo(0, document.documentElement.scrollHeight);
+})()`;
+
+async function scrollToEnd(page) {
+  await page.evaluate(SCROLL_TO_END);
+  await page.screenshot();
+  await page.screenshot();
+}
+
 /**
  * Waits until `path` has completed more than `seen` times, the page reaches a final state, or
- * the deadline passes. `nudge` runs before each wait round, for example to scroll. `ready`, when
+ * the deadline passes, scrolling to the end every few seconds when `scroll` is set. `ready`, when
  * given, is a page state that also counts as the completion, such as rendered note cards: the
  * first response of a page usually completes before the navigation returns and the count
  * starts, and the page clears its Resource Timing buffer at its load event. Returns the exchanges
- * read after the completion
- * with `completed`, or with `body_missing` when none of them holds a body for `path`; `ended`; or
- * `timed_out`. Exchanges for `path` without a body are other requests still in flight or
- * aborted, not the completed one.
+ * read after the completion with `completed`, or with `body_missing` when none of them holds a
+ * body for `path`; `ended`; or `timed_out`. Exchanges for `path` without a body are other
+ * requests still in flight or aborted, not the completed one.
  */
-export async function awaitCompletion(page, facts, { path, seen, deadline, nudge, nudgeEveryMs, ready }) {
-  let nudgedAt = 0;
+async function awaitCompletion(page, facts, { path, seen, deadline, scroll, ready }) {
+  let scrolledAt = 0;
   while (Date.now() < deadline) {
     if (await facts.observe(page)) return { state: 'ended', exchanges: [] };
     if (facts.completions(path) > seen || (ready && await ready())) {
@@ -200,9 +244,9 @@ export async function awaitCompletion(page, facts, { path, seen, deadline, nudge
       const held = exchanges.some((exchange) => exchange.path === path && exchange.has_body);
       return { state: held ? 'completed' : 'body_missing', exchanges };
     }
-    if (nudge && Date.now() - nudgedAt >= nudgeEveryMs) {
-      nudgedAt = Date.now();
-      await nudge();
+    if (scroll && Date.now() - scrolledAt >= SCROLL_EVERY_MS) {
+      scrolledAt = Date.now();
+      await scrollToEnd(page);
     }
     await sleep(POLL_MS);
   }
@@ -210,4 +254,59 @@ export async function awaitCompletion(page, facts, { path, seen, deadline, nudge
   facts.absorb(exchanges);
   await facts.observe(page);
   return { state: 'timed_out', exchanges };
+}
+
+/**
+ * One command's read of the page: it waits for responses to the tracked `paths`, hands every
+ * exchange it reads to `keep`, and reports what ended the read. `fields` returns the command's
+ * own envelope fields when the read finishes.
+ */
+export class ReadSession {
+  constructor(page, { paths, deadline, keep, fields }) {
+    this.page = page;
+    this.deadline = deadline;
+    this.keep = keep;
+    this.fields = fields;
+    this.facts = new PageFacts(paths);
+    this.timedOut = false;
+    this.bodyMissing = false;
+  }
+
+  /** The completed requests to `path` the page has counted. */
+  async completions(path) {
+    await this.facts.observe(this.page);
+    return this.facts.completions(path);
+  }
+
+  /**
+   * Waits for a response to `path` after the `seen` completed ones, with the `ready` and
+   * `scroll` of `awaitCompletion`; returns whether the command can go on.
+   */
+  async next(path, seen, { ready = null, scroll = false } = {}) {
+    const result = await awaitCompletion(this.page, this.facts, {
+      path, seen, deadline: this.deadline, scroll, ready,
+    });
+    this.keep(result.exchanges);
+    if (result.state === 'body_missing') this.bodyMissing = true;
+    if (result.state === 'timed_out') this.timedOut = true;
+    return result.state === 'completed' && !this.facts.ended();
+  }
+
+  /** Scrolls until one more response to `path` completes; returns whether the command can go on. */
+  async more(path) {
+    return this.next(path, await this.completions(path), { scroll: true });
+  }
+
+  /** Reads the exchanges still in the capture and returns the envelope. */
+  async finish() {
+    const exchanges = await readExchanges(this.page);
+    this.facts.absorb(exchanges);
+    this.keep(exchanges);
+    return envelope({
+      page: this.facts.facts,
+      timed_out: this.timedOut,
+      body_missing: this.bodyMissing,
+      ...this.fields(),
+    });
+  }
 }

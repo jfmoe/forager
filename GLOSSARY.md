@@ -173,7 +173,7 @@ _Avoid_: scholar paper id、result id、version
 _Avoid_: scholar scraper、scholar_serpapi
 
 **Platform Operation**:
-Platform 的一项操作。每个 Platform 都提供 search 与 fetch（分期接入的 Platform 可以暂缺 fetch，见规格第 7 章）；改变结果种类或必需输入的操作是新的 Platform Operation，不是参数，例如 Google Scholar 的 Cited-by 与小红书的 Comments。
+Platform 的一项操作。每个 Platform 都提供 search 与 fetch；改变结果种类或必需输入的操作是新的 Platform Operation，不是参数，例如 Google Scholar 的 Cited-by 与小红书的 Comments。
 _Avoid_: platform option、sub-command flag
 
 **Cited-by**:

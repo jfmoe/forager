@@ -1,7 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
 import {
-  PageFacts, SITE, SITE_DOMAIN, awaitCompletion, envelope, readDeadline, readExchanges,
+  ReadSession, SITE, SITE_DOMAIN, openNote, pageScript, pick, readDeadline,
 } from './shared.js';
 
 const PAGE_PATH = '/api/sns/web/v2/comment/page';
@@ -10,33 +10,15 @@ const SUB_PATH = '/api/sns/web/v2/comment/sub/page';
 const PAGE_SIZE = 10;
 const MAX_LIMIT = 50;
 const MAX_EXPAND = 10;
-const SCROLL_EVERY_MS = 4000;
 
 // Whether the note page has finished its first comment request, from its own state.
 function firstPageScript(id) {
-  return `(() => {
-    const state = window.__INITIAL_STATE__;
-    const map = state && state.note && state.note.noteDetailMap;
-    const comments = map && map[${JSON.stringify(id)}] && map[${JSON.stringify(id)}].comments;
-    let finished = comments && comments.firstRequestFinish;
-    if (finished && typeof finished === 'object') finished = 'value' in finished ? finished.value : finished._value;
-    return finished === true;
-  })()`;
-}
-
-// The comment list scrolls inside the note panel, not the window.
-const SCROLL_TO_END = `(() => {
-  const scroller = document.querySelector('.note-scroller');
-  if (scroller) scroller.scrollTop = scroller.scrollHeight;
-  window.scrollTo(0, document.documentElement.scrollHeight);
-})()`;
-
-// A hidden background window renders no frame, so scrolling alone never loads the next page;
-// a screenshot forces one.
-async function scrollForMore(page) {
-  await page.evaluate(SCROLL_TO_END);
-  await page.screenshot();
-  await page.screenshot();
+  return pageScript(`
+    const map = noteDetailMap();
+    const entry = map && map[${JSON.stringify(id)}];
+    const comments = entry && entry.comments;
+    return unwrap(comments && comments.firstRequestFinish) === true;
+  `);
 }
 
 // Clicks "展开 N 条回复" under one top-level comment, the way a user does. Returns `clicked` or
@@ -60,12 +42,6 @@ function expandScript(id) {
     button.click();
     return 'clicked';
   })()`;
-}
-
-function pick(object, keys) {
-  const picked = {};
-  for (const key of keys) if (object && object[key] !== undefined) picked[key] = object[key];
-  return picked;
 }
 
 // Keeps the comment fields forager decodes; the users' own access tokens never leave the page.
@@ -98,15 +74,11 @@ cli({
     { name: 'timeout', type: 'int', default: 120, help: 'Command timeout in seconds' },
   ],
   func: async (page, kwargs) => {
-    const deadline = readDeadline(kwargs.timeout);
     const id = String(kwargs.id);
     const limit = Math.min(MAX_LIMIT, Math.max(1, Number(kwargs.limit) || 1));
     const expand = Math.min(MAX_EXPAND, Math.max(0, Number(kwargs.expand) || 0));
-    const facts = new PageFacts([PAGE_PATH, SUB_PATH]);
     const responses = [];
     let expandFailure = null;
-    let bodyMissing = false;
-    let timedOut = false;
 
     // Keeps the comment and reply responses of a read, with the request parameters that say
     // which note, page, and comment they answer.
@@ -128,53 +100,24 @@ cli({
         });
       }
     };
-    const completions = async (path) => {
-      await facts.observe(page);
-      return facts.completions(path);
-    };
-    // Waits for a response to `path` after the `seen` completed ones; returns whether the
-    // command can go on.
-    const next = async (path, seen, nudge, ready = null) => {
-      const result = await awaitCompletion(page, facts, {
-        path,
-        seen,
-        deadline,
-        nudge,
-        nudgeEveryMs: SCROLL_EVERY_MS,
-        ready,
-      });
-      keep(result.exchanges);
-      if (result.state === 'body_missing') bodyMissing = true;
-      if (result.state === 'timed_out') timedOut = true;
-      return result.state === 'completed' && !facts.ended();
-    };
-    const finish = async () => {
-      const exchanges = await readExchanges(page);
-      facts.absorb(exchanges);
-      keep(exchanges);
-      return envelope({
-        page: facts.facts,
-        timed_out: timedOut,
-        body_missing: bodyMissing,
-        expand_failure: expandFailure,
-        responses,
-      });
-    };
+    const session = new ReadSession(page, {
+      paths: [PAGE_PATH, SUB_PATH],
+      deadline: readDeadline(kwargs.timeout),
+      keep,
+      fields: () => ({ expand_failure: expandFailure, responses }),
+    });
     const pages = () => responses.filter((response) => response.kind === 'page');
 
     await page.startNetworkCapture('xiaohongshu.com');
-    const params = new URLSearchParams({ xsec_token: String(kwargs['xsec-token']), xsec_source: 'pc_search' });
-    await page.goto(`https://${SITE_DOMAIN}/explore/${encodeURIComponent(id)}?${params}`, {
-      waitUntil: 'load',
-      settleMs: 1000,
-    });
-    if (!await next(PAGE_PATH, 0, null, () => page.evaluate(firstPageScript(id)))) return finish();
+    await openNote(page, id, kwargs['xsec-token']);
+    const ready = () => page.evaluate(firstPageScript(id));
+    if (!await session.next(PAGE_PATH, 0, { ready })) return session.finish();
 
     const needed = Math.ceil(limit / PAGE_SIZE);
     while (pages().length < needed) {
       const last = pages().at(-1);
       if (!last || !last.body.data || !last.body.data.has_more) break;
-      if (!await next(PAGE_PATH, await completions(PAGE_PATH), () => scrollForMore(page))) return finish();
+      if (!await session.more(PAGE_PATH)) return session.finish();
     }
 
     // Only comments among the first `limit` are delivered, so only they are expanded.
@@ -185,14 +128,14 @@ cli({
       .slice(0, limit);
     const targets = delivered.filter((item) => item.sub_comment_has_more === true).slice(0, expand);
     for (const target of targets) {
-      const seen = await completions(SUB_PATH);
+      const seen = await session.completions(SUB_PATH);
       const clicked = await page.evaluate(expandScript(target.id));
       if (clicked !== 'clicked') {
         expandFailure = `${clicked} for comment ${target.id}`;
-        return finish();
+        return session.finish();
       }
-      if (!await next(SUB_PATH, seen, null)) return finish();
+      if (!await session.next(SUB_PATH, seen)) return session.finish();
     }
-    return finish();
+    return session.finish();
   },
 });
