@@ -133,13 +133,17 @@ fn shallow_doctor_reachability_probe_waits_for_the_request_window() {
     );
 }
 
-fn ssrn_browser_status(payload: &Value) -> &Value {
+fn route_status<'a>(payload: &'a Value, route: &str) -> &'a Value {
     payload["providers"]
         .as_array()
         .expect("providers")
         .iter()
-        .find(|provider| provider["provider"] == "ssrn_browser")
-        .expect("ssrn_browser status")
+        .find(|provider| provider["provider"] == route)
+        .unwrap_or_else(|| panic!("{route} status"))
+}
+
+fn ssrn_browser_status(payload: &Value) -> &Value {
+    route_status(payload, "ssrn_browser")
 }
 
 /// Runs a shallow doctor where every HTTP provider is reachable and `fake` answers for
@@ -349,13 +353,7 @@ fn shallow_doctor_checks_the_enabled_xiaohongshu_adapter_contract() {
 
     let output = environment.run(&["doctor"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
-    let status = payload["providers"]
-        .as_array()
-        .expect("providers")
-        .iter()
-        .find(|provider| provider["provider"] == "xiaohongshu_browser")
-        .expect("xiaohongshu_browser status")
-        .clone();
+    let status = route_status(&payload, "xiaohongshu_browser").clone();
 
     assert_eq!(
         (
@@ -377,4 +375,62 @@ fn shallow_doctor_checks_the_enabled_xiaohongshu_adapter_contract() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert_eq!(fixture.finish_all().len(), 10);
+}
+
+#[test]
+fn shallow_doctor_skips_the_xiaohongshu_route_while_its_order_is_empty() {
+    let fixture = Fixture::start_sequence(reachable_responses(10));
+    let fake = FakeOpenCli::answering("", "", 1);
+    let environment = RunEnvironment::new(&format!(
+        "{}\n{}",
+        shallow_config(&fixture.url),
+        fake.route_config("xiaohongshu_browser", "xiaohongshu", "[]")
+    ));
+
+    let output = environment.run(&["doctor"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["ok"],
+            route_status(&payload, "xiaohongshu_browser")["configured"].clone(),
+            fake.calls().len(),
+        ),
+        (Some(0), &Value::Bool(true), Value::Bool(false), 0),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(fixture.finish_all().len(), 10);
+}
+
+#[test]
+fn xiaohongshu_browser_deep_doctor_refuses_the_route_while_its_order_is_empty() {
+    let fake = FakeOpenCli::answering("", "", 1);
+    let environment =
+        RunEnvironment::new(&fake.route_config("xiaohongshu_browser", "xiaohongshu", "[]"));
+
+    let output = environment.run(&["doctor", "--provider", "xiaohongshu_browser"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["error_kind"],
+            &payload["message"],
+            fake.calls().len()
+        ),
+        (
+            Some(3),
+            &Value::String("config".into()),
+            &Value::String(
+                "no platform order lists `xiaohongshu_browser`; add it to the order to enable it"
+                    .into()
+            ),
+            0
+        ),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
 }
