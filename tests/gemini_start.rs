@@ -11,20 +11,10 @@ use std::process::Output;
 use serde_json::{Value, json};
 
 use support::RunEnvironment;
-use support::gemini::{self, CONVERSATION_URL};
+use support::gemini::{self, CONVERSATION_URL, failure, payload};
 use support::opencli::FakeOpenCli;
 
 const QUERY: &str = "Compare Rust crates that convert HTML to Markdown.";
-
-fn payload(output: &Output) -> Value {
-    serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
-        panic!(
-            "parse JSON stdout: {error}\nstdout: {}\nstderr: {}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        )
-    })
-}
 
 fn start(environment: &RunEnvironment, arguments: &[&str]) -> Output {
     let mut command = vec!["gemini", "research", "start", QUERY];
@@ -38,17 +28,6 @@ fn run(data: Value) -> (FakeOpenCli, Output) {
     let environment = RunEnvironment::new(&gemini::config(&fake));
     let output = start(&environment, &[]);
     (fake, output)
-}
-
-/// Exit code, error kind, message, and conversation URL of a failure payload.
-fn failure(output: &Output) -> (Option<i32>, Value, String, Value) {
-    let payload = payload(output);
-    (
-        output.status.code(),
-        payload["error_kind"].clone(),
-        payload["message"].as_str().unwrap_or_default().to_owned(),
-        payload["conversation_url"].clone(),
-    )
 }
 
 const FOREGROUND_SESSION: [&str; 8] = [

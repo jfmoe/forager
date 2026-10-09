@@ -13,18 +13,8 @@ use std::process::Output;
 use serde_json::{Value, json};
 
 use support::RunEnvironment;
-use support::gemini::{self, CONVERSATION, CONVERSATION_URL};
+use support::gemini::{self, CONVERSATION, CONVERSATION_URL, failure, payload};
 use support::opencli::FakeOpenCli;
-
-fn payload(output: &Output) -> Value {
-    serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
-        panic!(
-            "parse JSON stdout: {error}\nstdout: {}\nstderr: {}",
-            String::from_utf8_lossy(&output.stdout),
-            String::from_utf8_lossy(&output.stderr)
-        )
-    })
-}
 
 fn stderr(output: &Output) -> String {
     String::from_utf8_lossy(&output.stderr).into_owned()
@@ -47,17 +37,6 @@ fn read(data: Value) -> (FakeOpenCli, Output) {
 /// Reads `conversation` from a fake that answers `report` with `turns`.
 fn read_turns(turns: &[Value]) -> Output {
     read(gemini::report(&gemini::hnvqhb_body(turns))).1
-}
-
-/// Exit code, error kind, message, and conversation URL of a failure payload.
-fn failure(output: &Output) -> (Option<i32>, Value, String, Value) {
-    let payload = payload(output);
-    (
-        output.status.code(),
-        payload["error_kind"].clone(),
-        payload["message"].as_str().unwrap_or_default().to_owned(),
-        payload["conversation_url"].clone(),
-    )
 }
 
 fn report_dir(directory: &Path) -> String {

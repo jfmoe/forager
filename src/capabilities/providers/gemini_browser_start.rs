@@ -33,7 +33,7 @@ pub(super) const TIMEOUT_MESSAGE: &str = concat!("OpenCLI command timed out; ", 
 
 /// The steps of `start`, in the order the adapter reaches them.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd)]
-#[serde(rename_all = "snake_case")]
+#[serde(try_from = "String")]
 enum Step {
     /// The tools menu rendered its items.
     ToolsMenu,
@@ -52,6 +52,17 @@ enum Step {
 }
 
 impl Step {
+    const ALL: [Self; 7] = [
+        Self::ToolsMenu,
+        Self::DeepResearch,
+        Self::Query,
+        Self::Sent,
+        Self::Answered,
+        Self::Confirmed,
+        Self::Started,
+    ];
+
+    /// The name the adapter reports the step by.
     const fn name(self) -> &'static str {
         match self {
             Self::ToolsMenu => "tools_menu",
@@ -62,6 +73,17 @@ impl Step {
             Self::Confirmed => "confirmed",
             Self::Started => "started",
         }
+    }
+}
+
+impl TryFrom<String> for Step {
+    type Error = String;
+
+    fn try_from(name: String) -> Result<Self, Self::Error> {
+        Self::ALL
+            .into_iter()
+            .find(|step| step.name() == name)
+            .ok_or_else(|| format!("unknown start step `{name}`"))
     }
 }
 
@@ -120,11 +142,7 @@ pub(super) fn read_start(
     if let Some(conversation) = &conversation {
         let _ = created.set(conversation.clone());
     }
-    let changed = |error: decode::ShapeError| changed_structure(&error.0);
-    let (plan_reply, confirm_reply) = (
-        plan_reply.map_err(changed)?,
-        confirm_reply.map_err(changed)?,
-    );
+    let (plan_reply, confirm_reply) = (plan_reply?, confirm_reply?);
     let at = conversation.as_ref();
     check_gemini_errors(facts, [plan_reply.as_ref(), confirm_reply.as_ref()], at)?;
     if !facts.reached(Step::Sent) {
@@ -162,7 +180,7 @@ pub(super) fn read_start(
         .candidate
         .as_ref()
         .ok_or_else(|| changed_structure("StreamGenerate[4]: no reply candidate"))?;
-    decode::research_started(candidate).map_err(|error| changed_structure(&error.0))?;
+    decode::research_started(candidate)?;
     if shown.as_ref() != Some(&conversation) {
         return Err(runtime(format!(
             "the Gemini page shows `{}` instead of the started conversation {url}",
@@ -267,7 +285,7 @@ fn read_plan(
         .candidate
         .as_ref()
         .ok_or_else(|| changed_structure("StreamGenerate[4]: no reply candidate"))?;
-    match decode::plan_reply(candidate).map_err(|error| changed_structure(&error.0))? {
+    match decode::plan_reply(candidate)? {
         PlanReply::Plan(plan) => Ok(plan),
         PlanReply::Text(text) => {
             let head = text.split_whitespace().collect::<Vec<_>>().join(" ");

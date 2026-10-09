@@ -91,7 +91,7 @@ impl GeminiBrowser {
     ///
     /// Starting creates a conversation and spends the account's Deep Research quota, so it runs
     /// exactly one attempt whatever the retry configuration (ADR 0023). A failure carries the
-    /// conversation URL once forager knows the conversation.
+    /// conversation once forager knows it.
     pub(crate) async fn start(
         &self,
         query: &str,
@@ -126,15 +126,15 @@ impl GeminiBrowser {
                 })
             }
             Err(mut error) => {
-                let conversation_url = created.get().map(GeminiConversationId::url);
-                if let Some(url) = &conversation_url
+                let conversation = created.into_inner();
+                if let Some(url) = conversation.as_ref().map(GeminiConversationId::url)
                     && !error.message.contains(url.as_str())
                 {
                     error.message = format!("{}; see {url}", error.message);
                 }
                 Err(GeminiResearchFailure {
                     error,
-                    conversation_url,
+                    conversation,
                 })
             }
         }
@@ -284,6 +284,12 @@ fn changed_structure(problem: &str) -> AttemptFailure {
     ))
 }
 
+impl From<decode::ShapeError> for AttemptFailure {
+    fn from(error: decode::ShapeError) -> Self {
+        changed_structure(&error.to_string())
+    }
+}
+
 /// Classifies the page facts of a `report` command, then decodes the conversation response.
 /// A signed-out page comes first: it hides whether the conversation exists.
 fn read_research(
@@ -309,9 +315,8 @@ fn read_research(
     if shown.as_ref() != Some(conversation) {
         return Err(other_conversation(&page.url, conversation));
     }
-    let payload = decode::batchexecute_payload(body, CONVERSATION_RPC)
-        .map_err(|error| changed_structure(&error.0))?;
-    match decode::research_state(&payload).map_err(|error| changed_structure(&error.0))? {
+    let payload = decode::batchexecute_payload(body, CONVERSATION_RPC)?;
+    match decode::research_state(&payload)? {
         Some(state) => Ok(state),
         None => Err(AttemptFailure {
             kind: AttemptErrorKind::Parameter,

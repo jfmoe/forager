@@ -8,13 +8,13 @@ use std::time::Duration;
 use clap::{Args, Subcommand};
 
 use super::args::{DocsOutputFormat, OutputArgs, OutputFormat};
-use super::dispatch::{
-    AppError, CommandOutput, NetworkDependencies, invocation_temp_dir, provider_attempt_log,
-};
-use crate::providers;
+use super::dispatch::{AppError, CommandOutput, NetworkDependencies, invocation_temp_dir};
+use crate::config::LogLevel;
+use crate::providers::{self, GeminiBrowser};
 use crate::types::{
     AttemptErrorKind, Deadline, GeminiConversationId, GeminiReport, GeminiReportFiles,
-    GeminiResearchFailure, GeminiResearchResult, GeminiResearchState, ProviderError,
+    GeminiResearchFailure, GeminiResearchResult, GeminiResearchState, ProviderAttempt,
+    ProviderError,
 };
 
 const DEFAULT_START_TIMEOUT_SECONDS: u64 = 240;
@@ -91,18 +91,9 @@ fn start(arguments: GeminiStartArgs) -> Result<CommandOutput, AppError> {
             "the Gemini Deep Research question must not be empty".into(),
         ));
     }
-    let dependencies = NetworkDependencies::load()?;
-    let provider = providers::build_gemini_browser(
-        dependencies.config.gemini_browser,
-        dependencies.retry_policy,
-        Deadline::new(Duration::from_secs(timeout)),
-    );
-    let result = dependencies.runtime.block_on(provider.start(&query));
-    let attempts = match &result {
-        Ok(started) => &started.attempts,
-        Err(failure) => &failure.error.attempts,
-    };
-    let attempt_log = crate::attempt_log::render(dependencies.config.log_level, attempts);
+    let session = Session::load(timeout)?;
+    let result = session.runtime.block_on(session.provider.start(&query));
+    let attempt_log = session.attempt_log(&result, |started| &started.attempts);
     Ok(CommandOutput::GeminiResearchStart {
         result: Box::new(result),
         format,
@@ -119,34 +110,63 @@ fn result(arguments: GeminiResultArgs) -> Result<CommandOutput, AppError> {
         output,
     } = arguments;
     let conversation = GeminiConversationId::parse(&conversation).map_err(AppError::Argument)?;
-    let dependencies = NetworkDependencies::load()?;
-    let provider = providers::build_gemini_browser(
-        dependencies.config.gemini_browser,
-        dependencies.retry_policy,
-        Deadline::new(Duration::from_secs(timeout)),
-    );
-    let result = dependencies
+    let session = Session::load(timeout)?;
+    let result = session
         .runtime
-        .block_on(provider.result(&conversation))
+        .block_on(session.provider.result(&conversation))
         .and_then(|found| {
             if format == DocsOutputFormat::Content {
                 return Ok(found);
             }
             let directory = report_dir.unwrap_or_else(|| invocation_temp_dir("forager-gemini"));
             deliver(found, &directory)
-        });
-    let attempt_log = provider_attempt_log(dependencies.config.log_level, &result, |found| {
-        &found.attempts
-    });
-    Ok(CommandOutput::GeminiResearch {
-        result: Box::new(result.map_err(|error| GeminiResearchFailure {
+        })
+        .map_err(|error| GeminiResearchFailure {
             error,
-            conversation_url: Some(conversation.url()),
-        })),
+            conversation: Some(conversation),
+        });
+    let attempt_log = session.attempt_log(&result, |found| &found.attempts);
+    Ok(CommandOutput::GeminiResearch {
+        result: Box::new(result),
         format,
         output: output.target(),
         attempt_log,
     })
+}
+
+/// The `gemini_browser` provider of one command and what running it needs.
+struct Session {
+    provider: GeminiBrowser,
+    runtime: tokio::runtime::Runtime,
+    log_level: LogLevel,
+}
+
+impl Session {
+    fn load(timeout: u64) -> Result<Self, AppError> {
+        let dependencies = NetworkDependencies::load()?;
+        Ok(Self {
+            provider: providers::build_gemini_browser(
+                dependencies.config.gemini_browser,
+                dependencies.retry_policy,
+                Deadline::new(Duration::from_secs(timeout)),
+            ),
+            runtime: dependencies.runtime,
+            log_level: dependencies.config.log_level,
+        })
+    }
+
+    /// The terminal projection of the attempts behind `result`, as `log.level` selects.
+    fn attempt_log<'a, T>(
+        &self,
+        result: &'a Result<T, GeminiResearchFailure>,
+        success_attempts: impl FnOnce(&'a T) -> &'a [ProviderAttempt],
+    ) -> Option<String> {
+        let attempts = match result {
+            Ok(value) => success_attempts(value),
+            Err(failure) => &failure.error.attempts,
+        };
+        crate::attempt_log::render(self.log_level, attempts)
+    }
 }
 
 /// Writes a completed report and its sources next to each other. A write failure is Runtime

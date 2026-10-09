@@ -1127,33 +1127,42 @@ fn format_failure(error: &ProviderError, format: OutputFormat) -> Result<String,
 }
 
 fn format_failure_json(error: &ProviderError) -> Result<String, String> {
-    let mut payload = json!({
-        "error_kind": error.kind.as_str(),
-        "message": error.message.chars().take(500).collect::<String>(),
-        "attempts": bounded_attempt_summary(&error.attempts),
-        "journal_ref": Value::Null,
-        "journal_status": "not_applicable"
-    });
+    encode_failure_payload(error, &failure_payload(error)?)
+}
+
+/// The fields of the stable failure payload, for commands that add their own fields.
+fn failure_payload(error: &ProviderError) -> Result<serde_json::Map<String, Value>, String> {
+    let mut payload = serde_json::Map::new();
+    payload.insert("error_kind".into(), error.kind.as_str().into());
+    payload.insert(
+        "message".into(),
+        error.message.chars().take(500).collect::<String>().into(),
+    );
+    payload.insert("attempts".into(), bounded_attempt_summary(&error.attempts));
+    payload.insert("journal_ref".into(), Value::Null);
+    payload.insert("journal_status".into(), "not_applicable".into());
     if let Some(target) = &error.redirected_library_id {
-        payload
-            .as_object_mut()
-            .expect("failure payload is an object")
-            .insert(
-                "redirected_library_id".into(),
-                Value::String(target.chars().take(500).collect()),
-            );
+        payload.insert(
+            "redirected_library_id".into(),
+            Value::String(target.chars().take(500).collect()),
+        );
     }
     if error.verbose {
-        payload
-            .as_object_mut()
-            .expect("failure payload is an object")
-            .insert(
-                "provider_attempts".into(),
-                serde_json::to_value(&error.attempts)
-                    .map_err(|serialize_error| serialize_error.to_string())?,
-            );
+        payload.insert(
+            "provider_attempts".into(),
+            serde_json::to_value(&error.attempts)
+                .map_err(|serialize_error| serialize_error.to_string())?,
+        );
     }
-    let encoded = serde_json::to_string(&payload).map_err(|error| error.to_string())?;
+    Ok(payload)
+}
+
+/// Encodes a failure payload; without `--verbose` it must stay within 4 KiB.
+fn encode_failure_payload(
+    error: &ProviderError,
+    payload: &serde_json::Map<String, Value>,
+) -> Result<String, String> {
+    let encoded = serde_json::to_string(payload).map_err(|error| error.to_string())?;
     if !error.verbose && encoded.len() > FAILURE_PAYLOAD_TARGET_BYTES {
         return Err("default failure payload exceeded 4 KiB".into());
     }

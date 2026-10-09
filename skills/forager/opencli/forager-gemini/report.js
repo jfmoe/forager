@@ -1,7 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
 import {
-  APP_URL, POLL_MS, PageFacts, SITE, SITE_DOMAIN, envelope, readDeadline, readRpcCalls, sleep,
+  APP_URL, PageFacts, SITE, SITE_DOMAIN, envelope, readDeadline, readTrackedCalls, waitFor,
 } from './shared.js';
 
 // The RPC that lists a conversation's turns; the page calls it when it opens a conversation.
@@ -23,8 +23,6 @@ cli({
   func: async (page, kwargs) => {
     const deadline = readDeadline(kwargs.timeout);
     const facts = new PageFacts(CONVERSATION_RPC);
-    const calls = [];
-    let completed = false;
 
     // Capture first: the page calls the RPC while the navigation is still settling.
     await page.startNetworkCapture(SITE_DOMAIN);
@@ -32,21 +30,13 @@ cli({
       waitUntil: 'load',
       settleMs: 1000,
     });
-    while (Date.now() < deadline) {
-      if (await facts.observe(page)) break;
-      if (facts.completions > 0) {
-        // Reading the capture drains it, and an entry drained before OpenCLI stores its body
-        // never gets one. OpenCLI asks Chrome for the body on the request's loadingFinished
-        // event, which Chrome sends before the page can see the completion, and a tab answers
-        // DevTools commands in order. One more page round trip therefore returns only after
-        // the body request has been answered.
-        await facts.observe(page);
-        completed = true;
-        break;
-      }
-      await sleep(POLL_MS);
-    }
-    calls.push(...await readRpcCalls(page, CONVERSATION_RPC));
+    const ended = await waitFor(deadline, async () => {
+      if (await facts.observe(page)) return 'page';
+      return facts.completions > 0 ? 'completed' : null;
+    });
+    const completed = ended === 'completed';
+    if (completed) await facts.settle(page);
+    const calls = await readTrackedCalls(page, CONVERSATION_RPC);
     const answered = calls.find((call) => call.body !== null);
     // The page shows the conversation once the response arrived; its text is no notice.
     if (answered) facts.facts.notice = null;

@@ -10,7 +10,7 @@ export const APP_URL = `https://${SITE_DOMAIN}/app`;
 // OpenCLI closes the tab after the command returns, so the page reads stop this long before
 // the timeout that forager passes.
 const CLOSE_RESERVE_MS = 3000;
-export const POLL_MS = 500;
+const POLL_MS = 500;
 
 export function envelope(data) {
   return { contract: CONTRACT, status: 'ok', data };
@@ -21,8 +21,17 @@ export function readDeadline(timeoutSeconds) {
   return Date.now() + Math.max(1000, Number(timeoutSeconds) * 1000 - CLOSE_RESERVE_MS);
 }
 
-export function sleep(ms) {
+function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Polls `probe` until it returns a truthy value or `until` passes; returns the last value. */
+export async function waitFor(until, probe) {
+  for (;;) {
+    const value = await probe();
+    if (value || Date.now() >= until) return value;
+    await sleep(POLL_MS);
+  }
 }
 
 /** The tracked request that answers a prompt, instead of a batchexecute RPC id. */
@@ -100,6 +109,17 @@ export class PageFacts {
     this.completions = state.completions;
     return this.facts.signed_out || Boolean(this.facts.notice);
   }
+
+  /**
+   * Waits until the bodies of the completed tracked calls are stored. Reading the capture
+   * drains it, and an entry drained before OpenCLI stores its body never gets one. OpenCLI asks
+   * Chrome for the body on the request's loadingFinished event, which Chrome sends before the
+   * page can see the completion, and a tab answers DevTools commands in order, so one more page
+   * round trip returns only after the body request has been answered.
+   */
+  async settle(page) {
+    await this.observe(page);
+  }
 }
 
 function decodeText(preview) {
@@ -111,7 +131,7 @@ function decodeText(preview) {
  * Drains the network capture into the tracked calls (an RPC id or `STREAM_GENERATE`), in
  * request order, as `{status, body}`. A body OpenCLI truncated counts as no body.
  */
-export async function readRpcCalls(page, track) {
+export async function readTrackedCalls(page, track) {
   const entries = await page.readNetworkCapture();
   return entries
     .filter((entry) => entry.method === 'POST' && isTracked(entry.url, track))
