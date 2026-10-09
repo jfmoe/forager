@@ -9,12 +9,13 @@ use std::time::Duration;
 
 use chrono::{DateTime, FixedOffset, SecondsFormat};
 use serde::Deserialize;
+use serde::de::DeserializeOwned;
 
 use crate::catalog::{ProviderId, ProviderTransport, registration};
 use crate::config::ProcessRouteRuntimeConfig;
 use crate::net::{AttemptFailure, RetryPolicy};
 use crate::providers::execution::ExecutionSettings;
-use crate::providers::opencli::OpenCliCommand;
+use crate::providers::opencli::{self, EnvelopeStatus, OpenCliCommand};
 use crate::rate_limit::RateLimiter;
 use crate::redact::CREDENTIAL_MASK;
 use crate::types::{
@@ -90,6 +91,22 @@ impl XiaohongshuBrowser {
             endpoint_host: None,
             breaker_event: None,
         }
+    }
+
+    /// Runs one adapter command and returns the page facts it reported. The adapter never
+    /// reports `no_results`: forager judges an empty page from the facts.
+    async fn read_page<T: DeserializeOwned>(
+        &self,
+        command: &OpenCliCommand<'_>,
+        deadline: Deadline,
+    ) -> Result<T, AttemptFailure> {
+        let envelope = opencli::run::<T>(command, &self.limiter, deadline).await?;
+        if envelope.status != EnvelopeStatus::Ok {
+            return Err(runtime(
+                "the forager-xhs adapter reported no results instead of page facts".into(),
+            ));
+        }
+        Ok(envelope.data)
     }
 }
 
@@ -178,9 +195,32 @@ fn classify_blocks(
     Ok(())
 }
 
-/// Fails a read whose deadline passed while Chrome still showed its own error page: the page
-/// never loaded, so no response was due. Chrome reloads its error page by itself, which is why
-/// the adapter keeps waiting until the deadline.
+/// Fails a read that ended before it had what it needed: Chrome never loaded the page by the
+/// deadline (Network), the deadline passed on the expected page (Timeout, with
+/// `timeout_message`), or the adapter stopped at another page (Runtime). Returns `None` for a
+/// read that stopped on the expected page before the deadline; the caller knows why.
+fn unfinished_read(
+    facts: &PageFacts,
+    timed_out: bool,
+    on_expected_page: bool,
+    timeout_message: impl FnOnce() -> String,
+) -> Option<AttemptFailure> {
+    if timed_out && let Some(failure) = load_failure(facts) {
+        return Some(failure);
+    }
+    if !on_expected_page {
+        return Some(unexpected_page(facts));
+    }
+    timed_out.then(|| AttemptFailure {
+        kind: AttemptErrorKind::Timeout,
+        status: None,
+        message: timeout_message(),
+    })
+}
+
+/// Chrome still showed its own error page at the read deadline: the page never loaded, so no
+/// response was due. Chrome reloads its error page by itself, which is why the adapter keeps
+/// waiting until the deadline.
 fn load_failure(facts: &PageFacts) -> Option<AttemptFailure> {
     let code = facts.load_error.as_deref()?.trim();
     Some(AttemptFailure {
@@ -190,6 +230,13 @@ fn load_failure(facts: &PageFacts) -> Option<AttemptFailure> {
             "Chrome could not load the Xiaohongshu page ({code}) and had not loaded it again by the read deadline; check the network and retry"
         ),
     })
+}
+
+fn unexpected_page(facts: &PageFacts) -> AttemptFailure {
+    runtime(format!(
+        "the forager-xhs adapter stopped at an unexpected page: {}",
+        describe(facts)
+    ))
 }
 
 fn describe(facts: &PageFacts) -> String {

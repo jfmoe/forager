@@ -5,13 +5,13 @@ use std::collections::BTreeMap;
 use serde::Deserialize;
 
 use super::{
-    PageFacts, ROUTE, XiaohongshuBrowser, beijing_time, classify_blocks, count_text, describe,
-    is_note_page, load_failure, note_unavailable, runtime, without_token,
+    PageFacts, ROUTE, XiaohongshuBrowser, beijing_time, classify_blocks, count_text, is_note_page,
+    note_unavailable, runtime, unexpected_page, unfinished_read, without_token,
 };
 use crate::catalog::PlatformOperation;
 use crate::net::AttemptFailure;
 use crate::providers::execution::execute_anonymous;
-use crate::providers::opencli::{self, EnvelopeStatus};
+use crate::providers::opencli;
 use crate::providers::shared::{other_platform_message, parameter_error};
 use crate::types::{
     AccessToken, AttemptErrorKind, ContentDepth, Deadline, FullTextSource, PlatformFetchOutcome,
@@ -89,33 +89,16 @@ async fn read_note(
     full_text: bool,
     deadline: Deadline,
 ) -> Result<(PlatformItem, FullTextSource), AttemptFailure> {
-    let envelope = opencli::run::<NoteData>(command, &route.limiter, deadline).await?;
-    if envelope.status != EnvelopeStatus::Ok {
-        return Err(runtime(
-            "the forager-xhs adapter reported no results instead of page facts".into(),
-        ));
-    }
-    let data = envelope.data;
+    let data: NoteData = route.read_page(command, deadline).await?;
     classify_blocks(&data.page, |code, notice| {
         note_unavailable(requested, code, notice)
     })?;
     let Some(note) = data.note else {
-        if data.timed_out
-            && let Some(failure) = load_failure(&data.page)
-        {
-            return Err(failure);
-        }
-        if data.timed_out && is_note_page(&data.page.url, requested) {
-            return Err(AttemptFailure {
-                kind: AttemptErrorKind::Timeout,
-                status: None,
-                message: "the Xiaohongshu note page showed no note before the read deadline".into(),
-            });
-        }
-        return Err(runtime(format!(
-            "the forager-xhs adapter stopped at an unexpected page: {}",
-            describe(&data.page)
-        )));
+        let on_note = is_note_page(&data.page.url, requested);
+        return Err(unfinished_read(&data.page, data.timed_out, on_note, || {
+            "the Xiaohongshu note page showed no note before the read deadline".into()
+        })
+        .unwrap_or_else(|| unexpected_page(&data.page)));
     };
     let shown = XiaohongshuRef::from_note_id(&note.note_id);
     if shown.as_ref() != Some(requested) {

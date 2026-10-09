@@ -8,6 +8,7 @@ use clap::{Args, Subcommand, ValueEnum};
 use super::{PageInput, PlatformCommonArgs, fetch, preflight_error, search};
 use crate::app::args::{DocsOutputFormat, OutputFormat};
 use crate::app::dispatch::{AppError, CommandOutput, NetworkDependencies, provider_attempt_log};
+use crate::catalog::PlatformOperation;
 use crate::platform_comments;
 use crate::types::{
     COMMENTS, ContentDepth, Deadline, Platform, PlatformFetchRequest, PlatformRef,
@@ -222,7 +223,8 @@ fn xiaohongshu_fetch(arguments: XiaohongshuFetchArgs) -> Result<CommandOutput, A
         common,
     } = arguments;
     let (reference, token) =
-        XiaohongshuRef::parse_accessible(&reference, "fetch").map_err(AppError::Argument)?;
+        XiaohongshuRef::parse_accessible(&reference, PlatformOperation::Fetch.as_str())
+            .map_err(AppError::Argument)?;
     let request = PlatformFetchRequest {
         reference: PlatformRef::Xiaohongshu(reference),
         depth: depth.into(),

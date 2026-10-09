@@ -7,13 +7,12 @@ use serde::Deserialize;
 
 use super::{
     PageFacts, XiaohongshuBrowser, beijing_time, classify_blocks, count_text, describe,
-    is_note_page, load_failure, note_unavailable, runtime, without_token,
+    is_note_page, note_unavailable, runtime, unfinished_read, without_token,
 };
 use crate::net::AttemptFailure;
 use crate::providers::execution::execute_anonymous;
-use crate::providers::opencli::{self, EnvelopeStatus};
 use crate::types::{
-    AttemptErrorKind, COMMENTS, XiaohongshuComment, XiaohongshuCommentsOutcome,
+    COMMENTS, ProviderError, XiaohongshuComment, XiaohongshuCommentsOutcome,
     XiaohongshuCommentsRequest, XiaohongshuRef, XiaohongshuReply,
 };
 
@@ -26,7 +25,7 @@ impl XiaohongshuBrowser {
     pub(crate) async fn comments(
         &self,
         request: &XiaohongshuCommentsRequest,
-    ) -> Result<XiaohongshuCommentsOutcome, crate::types::ProviderError> {
+    ) -> Result<XiaohongshuCommentsOutcome, ProviderError> {
         let token = &request.access;
         let command = self.command(
             "comments",
@@ -40,14 +39,8 @@ impl XiaohongshuBrowser {
         let command = &command;
         let execution = execute_anonymous(self.settings(COMMENTS), move |deadline| async move {
             let read = async {
-                let envelope =
-                    opencli::run::<CommentsData>(command, &self.limiter, deadline).await?;
-                if envelope.status != EnvelopeStatus::Ok {
-                    return Err(runtime(
-                        "the forager-xhs adapter reported no results instead of page facts".into(),
-                    ));
-                }
-                read_comments(&envelope.data, request)
+                let data: CommentsData = self.read_page(command, deadline).await?;
+                read_comments(&data, request)
             };
             read.await
                 .map(|value| (None, value))
@@ -329,29 +322,15 @@ fn check_note(params: &CommentParams, requested: &XiaohongshuRef) -> Result<(), 
 
 /// Explains a read that ended before it had every comment page or reply page it needed.
 fn incomplete(data: &CommentsData, requested: &XiaohongshuRef, missing: &str) -> AttemptFailure {
-    let facts = &data.page;
-    if data.timed_out
-        && let Some(failure) = load_failure(facts)
-    {
-        return failure;
-    }
-    let on_note = is_note_page(&facts.url, requested);
-    if data.timed_out && on_note {
-        return AttemptFailure {
-            kind: AttemptErrorKind::Timeout,
-            status: None,
-            message: format!("Xiaohongshu returned {missing} before the read deadline"),
-        };
-    }
-    if !on_note {
-        return runtime(format!(
-            "the forager-xhs adapter stopped at an unexpected page: {}",
-            describe(facts)
-        ));
-    }
-    runtime(format!(
-        "the forager-xhs adapter returned {missing} without timing out"
-    ))
+    let on_note = is_note_page(&data.page.url, requested);
+    unfinished_read(&data.page, data.timed_out, on_note, || {
+        format!("Xiaohongshu returned {missing} before the read deadline")
+    })
+    .unwrap_or_else(|| {
+        runtime(format!(
+            "the forager-xhs adapter returned {missing} without timing out"
+        ))
+    })
 }
 
 fn decode_comment(comment: &RawComment, expanded: Option<&CommentsPage>) -> XiaohongshuComment {

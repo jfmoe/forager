@@ -6,22 +6,21 @@ use chrono::{Datelike, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeDelta};
 use serde::Deserialize;
 
 use super::{
-    PageFacts, ROUTE, XiaohongshuBrowser, classify_blocks, describe, load_failure, runtime,
+    PageFacts, ROUTE, SITE_HOST, XiaohongshuBrowser, classify_blocks, describe, runtime,
+    unfinished_read,
 };
 use crate::catalog::PlatformOperation;
 use crate::net::{AttemptFailure, combine_diagnostics};
 use crate::providers::execution::execute_anonymous;
-use crate::providers::opencli::{self, EnvelopeStatus};
 use crate::providers::shared::{other_platform_message, parameter_error};
 use crate::types::{
-    AccessToken, AttemptErrorKind, ContentDepth, PlatformItem, PlatformItemData, PlatformRef,
-    PlatformSearchOptions, PlatformSearchOutcome, PlatformSearchRequest, ProviderError,
-    XiaohongshuItemData, XiaohongshuNoteType, XiaohongshuPublishTime, XiaohongshuRef,
-    XiaohongshuSearchOptions, XiaohongshuSort,
+    AccessToken, ContentDepth, PlatformItem, PlatformItemData, PlatformRef, PlatformSearchOptions,
+    PlatformSearchOutcome, PlatformSearchRequest, ProviderError, XiaohongshuItemData,
+    XiaohongshuNoteType, XiaohongshuPublishTime, XiaohongshuRef, XiaohongshuSearchOptions,
+    XiaohongshuSort,
 };
 
 const PAGE_SIZE: u16 = 20;
-const SITE_HOST: &str = "www.xiaohongshu.com";
 const RESULTS_PATH: &str = "/search_result";
 const SORT_FILTER: &str = "sort_type";
 const NOTE_TYPE_FILTER: &str = "filter_note_type";
@@ -84,13 +83,8 @@ impl XiaohongshuBrowser {
         let execution = execute_anonymous(
             self.settings(PlatformOperation::Search.as_str()),
             move |deadline| async move {
-                let envelope = opencli::run::<SearchData>(command, &self.limiter, deadline).await?;
-                if envelope.status != EnvelopeStatus::Ok {
-                    return Err(runtime(
-                        "the forager-xhs adapter reported no results instead of page facts".into(),
-                    ));
-                }
-                let verified = read_search(&envelope.data, query, expected, pages)?;
+                let data: SearchData = self.read_page(command, deadline).await?;
+                let verified = read_search(&data, query, expected, pages)?;
                 let decoded = decode(&verified, request.limit, local_now()).map_err(runtime)?;
                 Ok((None, decoded))
             },
@@ -360,16 +354,10 @@ fn incomplete(
     answered: usize,
     pages: usize,
 ) -> AttemptFailure {
-    let facts = &data.page;
     let clicked = data.filter_clicks == expected.clicks;
-    if data.timed_out
-        && let Some(failure) = load_failure(facts)
-    {
-        return failure;
-    }
-    let on_results = is_results_page(&facts.url);
-    if data.timed_out && on_results {
-        let message = if clicked {
+    let on_results = is_results_page(&data.page.url);
+    let unfinished = unfinished_read(&data.page, data.timed_out, on_results, || {
+        if clicked {
             format!(
                 "Xiaohongshu returned {answered} of {pages} search pages before the read deadline"
             )
@@ -378,18 +366,10 @@ fn incomplete(
                 "the read deadline passed after {} of {} Xiaohongshu filter clicks",
                 data.filter_clicks, expected.clicks
             )
-        };
-        return AttemptFailure {
-            kind: AttemptErrorKind::Timeout,
-            status: None,
-            message,
-        };
-    }
-    if !on_results {
-        return runtime(format!(
-            "the forager-xhs adapter stopped at an unexpected page: {}",
-            describe(facts)
-        ));
+        }
+    });
+    if let Some(failure) = unfinished {
+        return failure;
     }
     if !clicked {
         let reason = data
