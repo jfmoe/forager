@@ -23,7 +23,9 @@ use crate::types::{
 };
 
 const ROUTE: ProviderId = ProviderId::XiaohongshuBrowser;
-const LOGIN_NOTICES: [&str; 2] = ["登录后查看", "登录"];
+// The login wall's own notice, such as `登录后查看搜索结果`; a bare `登录` would also match a
+// block notice that mentions logging in.
+const LOGIN_NOTICES: [&str; 1] = ["登录后查看"];
 const BLOCK_NOTICES: [&str; 2] = ["安全限制", "访问链接异常"];
 const BLOCK_CODES: [&str; 2] = ["300031", "300017"];
 const RISK_CONTROL_STATUS: u16 = 461;

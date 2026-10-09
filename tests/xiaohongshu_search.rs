@@ -510,8 +510,18 @@ fn page_facts_classify_a_search_that_returned_no_results() {
     let mut guest = results_page();
     guest["guest"] = json!(true);
     guest["notice"] = json!("登录后查看搜索结果");
+    let mut login_wall = results_page();
+    login_wall["notice"] = json!("登录后查看搜索结果");
     let mut blocked = results_page();
     blocked["blocked_status"] = json!(461);
+    let link_error = json!({
+        "url": "https://www.xiaohongshu.com/website-login/error?error_code=300031&redirectPath=",
+        "title": "访问链接异常",
+        "guest": false,
+        "error_code": "300031",
+        "notice": "访问链接异常，请重新登录或返回首页",
+        "blocked_status": null
+    });
     let restricted = json!({
         "url": "https://www.xiaohongshu.com/website-login/error?error_code=300031&redirectPath=",
         "title": "安全限制",
@@ -530,7 +540,9 @@ fn page_facts_classify_a_search_that_returned_no_results() {
     });
     let kinds = [
         with_page(&guest, true, false),
+        with_page(&login_wall, false, false),
         with_page(&blocked, false, false),
+        with_page(&link_error, false, false),
         with_page(&restricted, false, false),
         with_page(&results_page(), true, false),
         with_page(&unknown, true, false),
@@ -549,7 +561,13 @@ fn page_facts_classify_a_search_that_returned_no_results() {
         kinds,
         [
             (Some(4), json!("auth"), "Xiaohongshu treats the browser session as logged out".to_owned()),
+            (Some(4), json!("auth"), "Xiaohongshu treats the browser session as logged out".to_owned()),
             (Some(4), json!("auth"), "Xiaohongshu answered HTTP 461 and wants a verification".to_owned()),
+            (
+                Some(4),
+                json!("parameter"),
+                "Xiaohongshu blocked the page (300031: 访问链接异常，请重新登录或返回首页)".to_owned()
+            ),
             (Some(4), json!("parameter"), "Xiaohongshu blocked the page (300031: 安全限制)".to_owned()),
             (Some(4), json!("timeout"), "Xiaohongshu returned 0 of 1 search pages before the read deadline".to_owned()),
             (
