@@ -624,6 +624,7 @@ fn live_smoke_runs_the_browser_cases_only_when_the_order_lists_the_route() {
     );
 }
 
+#[cfg(unix)]
 #[test]
 fn live_smoke_runs_the_xiaohongshu_search_once_and_only_when_the_order_lists_the_route() {
     use support::opencli::FakeOpenCli;
