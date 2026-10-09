@@ -1,0 +1,84 @@
+{
+  "date": "2026-10-09",
+  "environment": {
+    "opencli": "1.8.6",
+    "browser": "user's own Chrome, logged in to Gemini, zh-CN UI, account with a Google One subscription",
+    "method": "opencli browser sessions; page operated by DOM clicks and fill; responses read from OpenCLI network capture; no request was constructed by the probe"
+  },
+  "redaction": "No cookies, tokens, account identity, conversation ids, or other conversation titles are recorded. Sizes are response body characters as reported by OpenCLI.",
+  "prompt": "Compare actively maintained Rust crates for converting HTML to Markdown as of October 2026 (for example htmd, html2md, fast_html2md, mdka): maintenance status, fidelity for tables, code blocks and links, performance, and license. Recommend one for a CLI tool that converts fetched web pages to Markdown.",
+  "timeline_utc": {
+    "prompt_sent": "14:38:58",
+    "plan_card_visible": "within 15 s of sending",
+    "confirm_clicked": "14:39:56",
+    "report_seen_complete": "14:45:24 (previous check at 14:43:23 was still running)"
+  },
+  "tool_selection": {
+    "background_window_first_session": "document.hidden=true; the 上传和工具 menu opened (aria-expanded=true) but rendered no items",
+    "foreground_window": "menu rendered; Deep Research is not in the first level but under 更多工具 (items: 制作音乐, Canvas, Deep Research, 学习辅导, 个性化智能服务)",
+    "selected_marker": "a button labelled 取消选择“Deep Research” appears after selection",
+    "send_button_label": "发送",
+    "confirm_button_label": "Start research (English label in the zh-CN UI)"
+  },
+  "plan_turn_stream_generate": {
+    "size": 24642,
+    "url_after_reply": "/app/<conversation id>",
+    "candidate_rich_content_keys": ["8", "56", "70"],
+    "field_55_plan": "[title, steps[[n, label, body]...], eta_text, [confirm_label], [confirmation_content_url, 0], [modify_label, ...]]",
+    "observed_plan": {
+      "title": "Rust HTML to Markdown Crates",
+      "steps": ["Research Websites", "Analyze Results", "Create Report"],
+      "eta_text": "Ready in a few mins",
+      "confirm": "Start research",
+      "modify": "Edit plan"
+    },
+    "field_69_state": 2,
+    "candidate_30": null
+  },
+  "confirm_turn_stream_generate": {
+    "size": 6415,
+    "candidate_rich_content_keys": ["57", "58", "70"],
+    "field_69_state": 3,
+    "candidate_30_0": "research document present: title set, task id = agency-placeholder-task-id, body empty"
+  },
+  "page_polling_while_open": {
+    "rpc": "hNvQHb",
+    "interval": "about 10 s while the research runs",
+    "sizes": [6887, 27907, 43856, 43855, 71336, 71992, 92155, 93403, 463592]
+  },
+  "running_hnvqhb": {
+    "turns": 2,
+    "newest_turn_candidate_30_0": "title set, [3] = agency-placeholder-task-id, [4] empty, [17][0] empty, [10] = 3",
+    "field_56_entry": "[[immersive_entry_chip url], document id 'im_...', task id placeholder, title, null, [seconds, nanos], null, 3]",
+    "field_57_progress": "[task id placeholder, [null, null, null, null, [title, null, items[]]], ...]; items are thoughts ([5] = [heading, text]) or visited sources ([4][2] = [favicon, url, title, null, []])",
+    "progress_counts_at_14_40_55": {"items": 137, "visited_sources": 123, "thoughts": 13},
+    "field_69_state": 3,
+    "page_text": "正在研究 N 个网站… (15 → 28 → 51 → 59 over the first minute)"
+  },
+  "completed_hnvqhb": {
+    "size": 463592,
+    "field_69_state": 5,
+    "reply_text": "I've completed your research. ...",
+    "candidate_30_0": {
+      "task_id": "agency-placeholder-task-id (still a placeholder after completion)",
+      "body_4_chars": 15170,
+      "mirror_17_0_equal": true,
+      "report_language": "zh-CN, following the UI rather than the English prompt",
+      "cite_markers": 84,
+      "distinct_cited_numbers": 26
+    },
+    "citations_field_43": {
+      "in_17_1_groups": 35,
+      "in_5_groups": 35,
+      "group_shape": "[[marker like '[cite: 2, 3, 4]'], [entry...]]; entry[3][0] = [favicon, url, title, null, null, snippet]",
+      "resolved": 26,
+      "unresolved_cited_numbers": 0,
+      "redirect_urls": 0,
+      "hosts": {"github.com": 10, "crates.io": 9, "pypi.org": 1, "lib.rs": 1, "docs.rs": 1, "www.reddit.com": 1, "emschwartz.me": 1, "my.diffend.io": 1, "deepwiki.com": 1}
+    }
+  },
+  "fresh_reads": [
+    {"when": "running", "window": "background", "document_hidden": false, "hnvqhb_size": 93225, "result": "same running document container"},
+    {"when": "completed", "window": "background", "document_hidden": true, "first_hnvqhb_after_open": "within 14 s", "hnvqhb_size": 463591, "result": "full body (15170 chars) and 35 citation groups"}
+  ]
+}
