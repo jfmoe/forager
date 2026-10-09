@@ -17,5 +17,5 @@ cli({
     { name: 'site-session', help: 'Accepted for forager; unused' },
     { name: 'keep-tab', help: 'Accepted for forager; unused' },
   ],
-  func: async () => envelope({ commands: ['contract', 'status', 'report'] }),
+  func: async () => envelope({ commands: ['contract', 'status', 'report', 'start'] }),
 });

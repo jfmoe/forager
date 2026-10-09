@@ -700,6 +700,34 @@ A Gemini report is a Delegated Research Report, not research evidence: relay it 
 conclusions with attribution, and fetch a cited source with `forager fetch` before stating one of
 its claims as fact.
 
+### `gemini research start`
+
+```console
+forager gemini research start QUERY [--timeout SECONDS] [--format json|markdown]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `QUERY` | The research question, sent to Gemini as written. An empty question exits `2` before Chrome opens. | Required |
+| `--timeout SECONDS` | Whole-command deadline. | `240` |
+
+The command brings a Chrome window to the front, opens a new Gemini chat, selects Deep Research,
+sends the question once, and clicks "Start research" on the plan Gemini proposes. It creates a
+conversation and spends the account's Deep Research quota, so it runs exactly one attempt whatever
+the `retry` configuration; never run it again after a failure without the user's go-ahead. JSON
+output has `route` (`gemini_browser`), `conversation_id`, `conversation_url`, and `plan`
+(`{title, steps: [{index, label, description}], eta_text}`, Gemini's own research plan). Poll the
+conversation with `gemini research result`.
+
+Exit codes: `2` for an empty question; `4` for `auth` (Gemini asks the browser to sign in),
+`quota_exhausted` (the Deep Research quota is used up), `timeout`, and `runtime` (the account's
+tools menu offers no Deep Research; Gemini replied with text instead of a plan, quoted; the plan
+could not be confirmed, so the user must click "Start research" on the conversation page; the
+Gemini response structure changed; or the adapter is missing or outdated). A failure payload adds
+`conversation_url` once forager knows the conversation. A failure without one whose message says
+forager does not know whether Gemini received the question means the user should look in the
+Gemini history before anything is started again.
+
 ### `gemini research result`
 
 ```console

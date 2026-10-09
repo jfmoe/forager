@@ -115,44 +115,158 @@ impl<'a> Node<'a> {
     }
 }
 
-/// Returns the payload of the `rpc` call in a batchexecute response body: the guard line, then
-/// length-prefixed JSON chunks whose `wrb.fr` envelopes carry each payload as a JSON string.
+/// Returns the `wrb.fr` envelopes of a response body, in order: the `)]}'` guard, then
+/// length-prefixed JSON chunks, each an array of envelopes. `label` names the response in
+/// errors.
+fn envelopes(body: &str, label: &str) -> Result<Vec<Vec<Value>>, ShapeError> {
+    let chunks = body
+        .trim_start()
+        .strip_prefix(")]}'")
+        .ok_or_else(|| ShapeError(format!("{label}: the response lacks the `)]}}'` guard")))?;
+    let mut found = Vec::new();
+    // The length prefixes parse as numbers between the chunks, so every array is a chunk.
+    for chunk in serde_json::Deserializer::from_str(chunks).into_iter::<Value>() {
+        let chunk =
+            chunk.map_err(|error| ShapeError(format!("{label}: a chunk is not JSON: {error}")))?;
+        let Value::Array(envelopes) = chunk else {
+            continue;
+        };
+        found.extend(envelopes.into_iter().filter_map(|envelope| match envelope {
+            Value::Array(fields) if fields.first().and_then(Value::as_str) == Some("wrb.fr") => {
+                Some(fields)
+            }
+            _ => None,
+        }));
+    }
+    Ok(found)
+}
+
+fn inner_payload(fields: &[Value], label: &str) -> Result<Value, ShapeError> {
+    let payload = fields
+        .get(2)
+        .and_then(Value::as_str)
+        .ok_or_else(|| ShapeError(format!("{label}: the envelope carries no payload")))?;
+    serde_json::from_str(payload)
+        .map_err(|error| ShapeError(format!("{label}: the payload is not JSON: {error}")))
+}
+
+/// Returns the payload of the `rpc` call in a batchexecute response body, whose `wrb.fr`
+/// envelopes carry each payload as a JSON string after the rpc id.
 ///
 /// # Errors
 ///
 /// Fails when the body is no batchexecute response or carries no payload for `rpc`.
 pub(super) fn batchexecute_payload(body: &str, rpc: &str) -> Result<Value, ShapeError> {
-    let chunks = body
-        .trim_start()
-        .strip_prefix(")]}'")
-        .ok_or_else(|| ShapeError(format!("{rpc}: the response lacks the `)]}}'` guard")))?;
-    // The length prefixes parse as numbers between the chunks, so every array is a chunk.
-    for chunk in serde_json::Deserializer::from_str(chunks).into_iter::<Value>() {
-        let chunk =
-            chunk.map_err(|error| ShapeError(format!("{rpc}: a chunk is not JSON: {error}")))?;
-        let Some(envelopes) = chunk.as_array() else {
+    let fields = envelopes(body, rpc)?
+        .into_iter()
+        .find(|fields| fields.get(1).and_then(Value::as_str) == Some(rpc))
+        .ok_or_else(|| ShapeError(format!("{rpc}: the response has no `wrb.fr` envelope")))?;
+    inner_payload(&fields, rpc)
+}
+
+const STREAM: &str = "StreamGenerate";
+
+/// What one `StreamGenerate` response says about the turn it answered.
+#[derive(Debug, Default)]
+pub(super) struct StreamReply {
+    /// The id of the conversation, without its `c_` prefix.
+    pub(super) conversation: Option<String>,
+    /// The error code Gemini answered instead of a reply, such as 1037 for an exhausted quota.
+    pub(super) error_code: Option<u64>,
+    /// The newest snapshot of the reply's first candidate: each envelope repeats the reply so
+    /// far, so the last one is the most complete.
+    pub(super) candidate: Option<Value>,
+}
+
+/// Reads a `StreamGenerate` response body. Each envelope carries a snapshot of the reply as a
+/// JSON string at `[2]`, whose `[1][0]` is the conversation and whose `[4]` lists the
+/// candidates; an envelope that carries an error has its code at `[5][2][0][1][0]`.
+///
+/// # Errors
+///
+/// Fails when the body is no stream of envelopes or a snapshot is not JSON.
+pub(super) fn stream_reply(body: &str) -> Result<StreamReply, ShapeError> {
+    let mut reply = StreamReply::default();
+    for fields in envelopes(body, STREAM)? {
+        let error_code = fields
+            .get(5)
+            .and_then(|error| error.pointer("/2/0/1/0"))
+            .and_then(Value::as_u64);
+        reply.error_code = reply.error_code.or(error_code);
+        if fields.get(2).is_none_or(Value::is_null) {
             continue;
-        };
-        for envelope in envelopes {
-            let Some(fields) = envelope.as_array() else {
-                continue;
-            };
-            if fields.first().and_then(Value::as_str) != Some("wrb.fr")
-                || fields.get(1).and_then(Value::as_str) != Some(rpc)
-            {
-                continue;
-            }
-            let payload = fields
-                .get(2)
-                .and_then(Value::as_str)
-                .ok_or_else(|| ShapeError(format!("{rpc}: the envelope carries no payload")))?;
-            return serde_json::from_str(payload)
-                .map_err(|error| ShapeError(format!("{rpc}: the payload is not JSON: {error}")));
+        }
+        let snapshot = inner_payload(&fields, STREAM)?;
+        if let Some(conversation) = snapshot
+            .pointer("/1/0")
+            .and_then(Value::as_str)
+            .and_then(|id| id.strip_prefix("c_"))
+        {
+            reply.conversation = Some(conversation.to_owned());
+        }
+        if let Some(candidate) = snapshot.pointer("/4/0") {
+            reply.candidate = Some(candidate.clone());
         }
     }
-    Err(ShapeError(format!(
-        "{rpc}: the response has no `wrb.fr` envelope"
-    )))
+    Ok(reply)
+}
+
+/// How Gemini answered the question of a new Deep Research.
+pub(super) enum PlanReply {
+    /// A research plan that waits for confirmation.
+    Plan(GeminiPlan),
+    /// Plain reply text instead of a plan, such as a refusal.
+    Text(String),
+}
+
+/// Judges the reply candidate of the first `StreamGenerate`: a plan with status 2, or text.
+///
+/// # Errors
+///
+/// Fails with the location where a plan stops matching the recorded shape.
+pub(super) fn plan_reply(candidate: &Value) -> Result<PlanReply, ShapeError> {
+    let candidate = Node::root(candidate, "StreamGenerate[4][0]");
+    let rich = candidate.get(12);
+    let Some((rich, plan)) = rich.and_then(|rich| rich.field(PLAN_FIELD).map(|plan| (rich, plan)))
+    else {
+        let text = candidate
+            .get(1)
+            .and_then(|reply| reply.get(0))
+            .and_then(|text| text.value.as_str())
+            .unwrap_or_default();
+        return Ok(PlanReply::Text(text.to_owned()));
+    };
+    let status = rich
+        .field(STATUS_FIELD)
+        .ok_or_else(|| rich.error(&format!("no status field {STATUS_FIELD}")))?;
+    match status.number()? {
+        AWAITING_CONFIRMATION => decode_plan(&plan).map(PlanReply::Plan),
+        other => Err(status.error(&format!("a plan with status {other}"))),
+    }
+}
+
+/// Checks that the reply candidate of the confirming `StreamGenerate` started the research:
+/// status 3 next to a research document.
+///
+/// # Errors
+///
+/// Fails with the location where the candidate stops matching a started research.
+pub(super) fn research_started(candidate: &Value) -> Result<(), ShapeError> {
+    let candidate = Node::root(candidate, "StreamGenerate[4][0]");
+    let rich = candidate.at(12)?;
+    let status = rich
+        .field(STATUS_FIELD)
+        .ok_or_else(|| rich.error(&format!("no status field {STATUS_FIELD}")))?;
+    match status.number()? {
+        RUNNING => {
+            let task = candidate.at(30)?.at(0)?.at(3)?;
+            if task.text()?.is_empty() {
+                return Err(task.error("an empty research task id"));
+            }
+            Ok(())
+        }
+        other => Err(status.error(&format!("status {other} after confirming the plan"))),
+    }
 }
 
 /// A turn that holds a research plan or a research document.

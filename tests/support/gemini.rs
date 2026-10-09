@@ -2,6 +2,8 @@
 //! conversation and turn ids are replaced, and progress, report bodies, and citations are cut to
 //! what each case needs. No recorded response body is kept in the repository.
 
+use std::fmt::Write as _;
+
 use serde_json::{Value, json};
 
 use super::opencli::FakeOpenCli;
@@ -52,14 +54,20 @@ pub(crate) fn plan() -> Value {
     ])
 }
 
-/// One model turn: ids, the prompt, and the candidate whose `[12]` is the rich content and
-/// whose `[30]` holds the research document.
-fn turn(index: usize, prompt: &str, reply: &str, rich: Value, document: Option<Value>) -> Value {
+/// A model candidate: its id, the reply text, the rich content in `[12]`, and the research
+/// document in `[30]`.
+fn candidate(index: usize, reply: &str, rich: Value, document: Option<Value>) -> Value {
     let mut candidate = vec![Value::Null; 31];
     candidate[0] = json!(format!("rc_{index:04}"));
     candidate[1] = json!([reply]);
     candidate[12] = rich;
     candidate[30] = document.map_or(Value::Null, |document| json!([document]));
+    Value::Array(candidate)
+}
+
+/// One model turn: ids, the prompt, and its candidate.
+fn turn(index: usize, prompt: &str, reply: &str, rich: Value, document: Option<Value>) -> Value {
+    let candidate = candidate(index, reply, rich, document);
     json!([
         [format!("c_{CONVERSATION}"), format!("r_{index:04}")],
         [
@@ -68,7 +76,7 @@ fn turn(index: usize, prompt: &str, reply: &str, rich: Value, document: Option<V
             format!("rc_{index:04}")
         ],
         [[prompt], 1, null, 0],
-        [[Value::Array(candidate)]]
+        [[candidate]]
     ])
 }
 
@@ -289,6 +297,116 @@ pub(crate) fn status(signed_out: bool) -> Value {
         "page": {"url": "https://gemini.google.com/app", "signed_out": signed_out, "notice": null},
         "timed_out": false
     })
+}
+
+/// The candidate of the first `StreamGenerate`: field 55 holds the plan, field 69 is 2.
+pub(crate) fn plan_candidate() -> Value {
+    candidate(
+        1,
+        "Here's a research plan for that topic.",
+        rich_content(&[(55, plan()), (69, json!(2))]),
+        None,
+    )
+}
+
+/// The candidate of the confirming `StreamGenerate`: field 69 is 3 and the research document
+/// has a title but no body yet.
+pub(crate) fn started_candidate() -> Value {
+    candidate(
+        2,
+        "I'm on it.",
+        rich_content(&[(69, json!(3))]),
+        Some(document("Rust HTML to Markdown Crates", "", None)),
+    )
+}
+
+/// A reply candidate with text only: no plan and no research document.
+pub(crate) fn text_candidate(reply: &str) -> Value {
+    candidate(1, reply, rich_content(&[]), None)
+}
+
+/// A `StreamGenerate` response body: the `)]}'` guard, then length-prefixed frames whose
+/// `wrb.fr` parts carry growing snapshots of the reply. The first snapshot holds only the start
+/// of the reply text; the last one holds `candidate`.
+pub(crate) fn stream_body(candidate: &Value) -> String {
+    let ids = json!([format!("c_{CONVERSATION}"), "r_0001"]);
+    let partial = json!([null, ids, null, null, [[candidate[0], ["Here"]]]]);
+    let complete = json!([null, ids, null, null, [candidate]]);
+    frames(&[
+        json!([["wrb.fr", null, partial.to_string()]]),
+        json!([["wrb.fr", null, complete.to_string()]]),
+        json!([["di", 4120], ["af.httprm", 4119, "-1", 21]]),
+    ])
+}
+
+/// A `StreamGenerate` response body whose only part carries Gemini's error `code` at
+/// `[5][2][0][1][0]`.
+pub(crate) fn stream_error_body(code: u64) -> String {
+    frames(&[json!([[
+        "wrb.fr",
+        null,
+        null,
+        null,
+        null,
+        [
+            3,
+            null,
+            [[
+                "type.googleapis.com/assistant.boq.bard.application.BardErrorInfo",
+                [code]
+            ]]
+        ]
+    ]])])
+}
+
+fn frames(frames: &[Value]) -> String {
+    let mut body = ")]}'\n".to_owned();
+    for frame in frames {
+        let text = frame.to_string();
+        let _ = write!(body, "\n{}\n{text}", text.len());
+    }
+    body.push('\n');
+    body
+}
+
+/// Every step of a `start` command, in the order the adapter reaches them.
+pub(crate) const START_STEPS: [&str; 7] = [
+    "tools_menu",
+    "deep_research",
+    "query",
+    "sent",
+    "answered",
+    "confirmed",
+    "started",
+];
+
+/// The page facts of a `start` command at the conversation page after `steps`, with the
+/// `StreamGenerate` bodies it read.
+pub(crate) fn start_facts(steps: &[&str], plan: Option<String>, confirm: Option<String>) -> Value {
+    let [plan, confirm] = [plan, confirm].map(|body| body.map_or(Value::Null, Value::String));
+    json!({
+        "page": {"url": CONVERSATION_URL, "signed_out": false, "notice": null},
+        "steps": steps,
+        "deep_research_missing": false,
+        "quota_notice": null,
+        "plan_response": plan,
+        "confirm_response": confirm,
+        "timed_out": false
+    })
+}
+
+/// The page facts of a `start` command that reached every step.
+pub(crate) fn started_facts() -> Value {
+    start_facts(
+        &START_STEPS,
+        Some(stream_body(&plan_candidate())),
+        Some(stream_body(&started_candidate())),
+    )
+}
+
+/// A fake `opencli` whose `start` answers `data` as its page facts.
+pub(crate) fn starting(data: Value) -> FakeOpenCli {
+    FakeOpenCli::contract_by_command(CONTRACT, &[("start", data)])
 }
 
 /// Points `gemini_browser` at `fake`.

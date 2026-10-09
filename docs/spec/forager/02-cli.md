@@ -55,6 +55,7 @@ forager platform xiaohongshu fetch ACCESS_URL [--depth metadata|full_text（默�
                                    [--content-dir DIR] [--timeout 120] [--format json|markdown|content] [...]
 forager platform xiaohongshu comments ACCESS_URL [--limit 1..=50（默认 20）] [--replies 0..=10（默认 0）]
                                       [--timeout 120] [--format json|markdown] [...]
+forager gemini research start QUERY [--timeout 240] [--format json|markdown]
 forager gemini research result CONVERSATION [--report-dir DIR]
                                [--timeout 120] [--format json|markdown|content] [...]
 forager doctor [--provider PROVIDER] [--timeout 30] [--format json|markdown]
@@ -328,7 +329,27 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 ## Gemini 命令
 
-`gemini` 命令组经 `gemini_browser`（第 7 章「Gemini Deep Research」）在用户自己已登录的 Chrome 中操作 Gemini Deep Research 会话。产物是 Delegated Research Report（委托研究报告），不是 Research Evidence（ADR 0023）：不写 Search Result Journal，不进入 research 流水线。发起研究（`start`）尚未实现。
+`gemini` 命令组经 `gemini_browser`（第 4 章「Gemini Deep Research 职责」）在用户自己已登录的 Chrome 中操作 Gemini Deep Research 会话。产物是 Delegated Research Report（委托研究报告），不是 Research Evidence（ADR 0023）：不写 Search Result Journal，不进入 research 流水线。
+
+### `gemini research start`
+
+在前台 Chrome 窗口中发起一次 Deep Research：打开新会话，选择 Deep Research，提交问题一次，并确认 Gemini 提出的研究计划。
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| 问题（位置参数） | 字符串，去空白后不能为空 | 必填 | 原样提交给 Gemini；为空时飞行前退 2，不启动进程 |
+| `--timeout` | 秒，≥1 | 240 | 整条命令的截止时间 |
+| `--format` | `json` / `markdown` | `json` | 没有 `content`，也没有 `--output` |
+
+- **单次 attempt**：`start` 新建会话并消耗 Deep Research 额度，是会改变用户账号状态的写操作（ADR 0023），只执行一次 attempt，不受 `retry` 配置影响，Timeout 与 Network 也不重试。计划已生成但确认按钮没有点到时不再点击，也不重发问题。
+- **成功判定**：回答问题的第一轮 `StreamGenerate` 带计划（rich content 字段 55）且状态为 2；回答确认的第二轮带研究文档容器（候选结果 `[30][0]` 的任务 id 非空）且状态为 3；页面最终 URL 为该会话的 `/app/<id>`。
+- **输出**：JSON 为 `{route, conversation_id, conversation_url, plan}`，`plan` 形状同 `result` 的 `awaiting_confirmation`，与 Research Plan Schema v1 无关。Markdown 渲染会话 URL、计划与轮询提示。
+- **失败载荷**：普通瘦载荷另加可空的 `conversation_url`。forager 从第一轮响应或页面 URL 得到并校验过会话 id 后填入，消息也指向它；还没有会话 id 时为 `null`。adapter 进程本身失败、没有交回页面事实时（非零退出、被强杀），消息说明 forager 不知道 Gemini 是否收到了问题，提示先在 Gemini 历史中检查，不建议重新发起；Auth 除外，此时浏览器还没走到发送。
+- **退出码**：问题为空＝飞行前退 2。以下都退 4：
+  - 浏览器未登录（adapter 退 77 或页面要求登录）为 Auth；
+  - 任一轮响应的用量超限错误码（1037）或研究开始前页面上的额度提示为 QuotaExhausted；其他错误码为 Runtime；
+  - 工具菜单中没有 Deep Research（消息提示检查账号能力，说明什么都没发送）、adapter 在发送前停下（附原因与最后到达的步骤）、Gemini 回复普通文本而非计划（附有界的回复开头）、计划已生成但没有点到确认（附会话 URL 与“在网页上点击 Start research”的提示）、确认后停在另一个页面、响应结构不符（附位置）、adapter 缺失或过期为 Runtime；
+  - 读取截止点前没有走完（adapter 带 `timed_out: true` 交回已取得的页面事实）或命令被强杀为 Timeout；已点击确认但第二轮响应未到时，消息提示用 `result` 读取该会话。
 
 ### `gemini research result`
 

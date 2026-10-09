@@ -2,10 +2,10 @@
 
 use std::fmt::Write as _;
 
-use forager::app::{DocsOutputFormat, OutputTarget};
+use forager::app::{DocsOutputFormat, OutputFormat, OutputTarget};
 use forager::types::{
     GeminiPlan, GeminiProgress, GeminiReport, GeminiResearchFailure, GeminiResearchResult,
-    GeminiResearchState,
+    GeminiResearchStarted, GeminiResearchState,
 };
 use serde_json::Value;
 
@@ -21,33 +21,83 @@ pub(crate) fn render(
             let (stdout, is_json) = format_result(&found, format)?;
             (stdout, is_json, 0, found.diagnostic)
         }
-        Err(failure) => {
-            let error = &failure.error;
-            let (stdout, is_json) = match format {
-                DocsOutputFormat::Json | DocsOutputFormat::Content => {
-                    (format_failure(&failure)?, true)
-                }
-                DocsOutputFormat::Markdown => {
-                    let mut markdown = format!(
-                        "# Gemini Deep Research failed\n\n**{}**: {}",
-                        error.kind.as_str(),
-                        error.message
-                    );
-                    if let Some(url) = &failure.conversation_url {
-                        let _ = write!(markdown, "\n\nConversation: <{url}>");
-                    }
-                    (markdown, false)
-                }
-            };
-            (
-                stdout,
-                is_json,
-                postflight_exit_code(error.kind),
-                failure.error.diagnostic,
-            )
-        }
+        Err(failure) => render_failure(failure, format != DocsOutputFormat::Markdown)?,
     };
     apply_tee(stdout, exit_code, is_json, output, diagnostic)
+}
+
+pub(crate) fn render_start(
+    result: Result<GeminiResearchStarted, GeminiResearchFailure>,
+    format: OutputFormat,
+) -> Result<RenderedOutput, String> {
+    let (stdout, is_json, exit_code, diagnostic) = match result {
+        Ok(started) => {
+            let stdout = match format {
+                OutputFormat::Json => {
+                    serde_json::to_string(&started).map_err(|error| error.to_string())?
+                }
+                OutputFormat::Markdown => started_markdown(&started),
+            };
+            (stdout, format == OutputFormat::Json, 0, started.diagnostic)
+        }
+        Err(failure) => render_failure(failure, format == OutputFormat::Json)?,
+    };
+    apply_tee(stdout, exit_code, is_json, None, diagnostic)
+}
+
+/// Returns the rendered failure, whether it is JSON, its exit code, and its diagnostic.
+fn render_failure(
+    failure: GeminiResearchFailure,
+    json: bool,
+) -> Result<(String, bool, u8, Option<String>), String> {
+    let error = &failure.error;
+    let stdout = if json {
+        format_failure(&failure)?
+    } else {
+        let mut markdown = format!(
+            "# Gemini Deep Research failed\n\n**{}**: {}",
+            error.kind.as_str(),
+            error.message
+        );
+        if let Some(url) = &failure.conversation_url {
+            let _ = write!(markdown, "\n\nConversation: <{url}>");
+        }
+        markdown
+    };
+    Ok((
+        stdout,
+        json,
+        postflight_exit_code(error.kind),
+        failure.error.diagnostic,
+    ))
+}
+
+fn started_markdown(started: &GeminiResearchStarted) -> String {
+    let url = started.conversation.url();
+    let mut markdown = format!(
+        "# Gemini Deep Research started\n\nConversation: <{url}>\n\n{}",
+        plan_markdown(&started.plan)
+    );
+    let _ = write!(
+        markdown,
+        "\n\nRead where it stands with `forager gemini research result {url}`."
+    );
+    markdown
+}
+
+fn plan_markdown(plan: &GeminiPlan) -> String {
+    let mut markdown = format!("## Plan: {}\n", plan.title);
+    for step in &plan.steps {
+        let _ = write!(
+            markdown,
+            "\n{}. **{}** — {}",
+            step.index, step.label, step.description
+        );
+    }
+    if let Some(eta) = &plan.eta_text {
+        let _ = write!(markdown, "\n\n{eta}");
+    }
+    markdown
 }
 
 /// Returns the rendered result and whether it is JSON. Only a completed report has content to
@@ -78,19 +128,9 @@ fn format_markdown(url: &str, state: &GeminiResearchState) -> String {
 
 fn awaiting_markdown(url: &str, plan: &GeminiPlan) -> String {
     let mut markdown = format!(
-        "# Gemini Deep Research: awaiting confirmation\n\nConversation: <{url}>\n\n## Plan: {}\n",
-        plan.title
+        "# Gemini Deep Research: awaiting confirmation\n\nConversation: <{url}>\n\n{}",
+        plan_markdown(plan)
     );
-    for step in &plan.steps {
-        let _ = write!(
-            markdown,
-            "\n{}. **{}** — {}",
-            step.index, step.label, step.description
-        );
-    }
-    if let Some(eta) = &plan.eta_text {
-        let _ = write!(markdown, "\n\n{eta}");
-    }
     markdown
         .push_str("\n\nStart the research on the conversation page, then read the result again.");
     markdown

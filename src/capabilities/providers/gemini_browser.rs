@@ -1,10 +1,12 @@
-//! The `gemini_browser` provider: Gemini Deep Research conversations, read in the user's own
-//! logged-in Chrome through the forager OpenCLI adapter `forager-gemini`.
+//! The `gemini_browser` provider: Gemini Deep Research conversations, started and read in the
+//! user's own logged-in Chrome through the forager OpenCLI adapter `forager-gemini`.
 //!
-//! The JavaScript adapter only opens pages and reports what the page itself received. This
-//! provider classifies the page facts, checks that the page shows the requested conversation,
-//! and decodes the response. Only `forager gemini` commands run it; no chain does.
+//! The JavaScript adapter only operates pages as a user would and reports what the page itself
+//! received. This provider classifies the page facts, checks that the page shows the expected
+//! conversation, and decodes the responses. Only `forager gemini` commands run it; no chain
+//! does.
 
+use std::cell::OnceCell;
 use std::time::Duration;
 
 use serde::Deserialize;
@@ -17,12 +19,15 @@ use crate::providers::execution::{ExecutionSettings, execute_anonymous};
 use crate::providers::opencli::{self, EnvelopeStatus, OpenCliCommand, Window};
 use crate::rate_limit::RateLimiter;
 use crate::types::{
-    AttemptErrorKind, AttemptTarget, Deadline, GEMINI_RESEARCH_RESULT, GeminiConversationId,
-    GeminiResearchResult, GeminiResearchState, ProviderError,
+    AttemptErrorKind, AttemptTarget, Deadline, GEMINI_RESEARCH_RESULT, GEMINI_RESEARCH_START,
+    GeminiConversationId, GeminiResearchFailure, GeminiResearchResult, GeminiResearchStarted,
+    GeminiResearchState, ProviderError,
 };
 
 #[path = "gemini_browser_decode.rs"]
 mod decode;
+#[path = "gemini_browser_start.rs"]
+mod start;
 
 const ROUTE: ProviderId = ProviderId::GeminiBrowser;
 const CONVERSATION_RPC: &str = "hNvQHb";
@@ -80,13 +85,67 @@ impl GeminiBrowser {
         })
     }
 
+    /// Starts a Deep Research in a foreground window, where the tools menu renders: selects
+    /// Deep Research, sends `query` once, and confirms the plan Gemini proposes.
+    ///
+    /// Starting creates a conversation and spends the account's Deep Research quota, so it runs
+    /// exactly one attempt whatever the retry configuration (ADR 0023). A failure carries the
+    /// conversation URL once forager knows the conversation.
+    pub(crate) async fn start(
+        &self,
+        query: &str,
+    ) -> Result<GeminiResearchStarted, GeminiResearchFailure> {
+        let command = self.command(
+            "start",
+            vec![("query", query.to_owned())],
+            Window::Foreground,
+        );
+        let command = &command;
+        let created = OnceCell::new();
+        let created_ref = &created;
+        let mut settings = self.settings(GEMINI_RESEARCH_START, single_attempt());
+        settings.timeout_message = start::TIMEOUT_MESSAGE;
+        let execution = execute_anonymous(settings, move |deadline| async move {
+            let facts = self
+                .read(command, deadline)
+                .await
+                .map_err(start::unknown_outcome)?;
+            start::read_start(&facts, created_ref).map(|started| (None, started))
+        })
+        .await;
+        match execution {
+            Ok(execution) => {
+                let (conversation, plan) = execution.value;
+                Ok(GeminiResearchStarted {
+                    route: ROUTE.name(),
+                    conversation,
+                    plan,
+                    attempts: execution.attempts,
+                    diagnostic: execution.diagnostic,
+                })
+            }
+            Err(mut error) => {
+                let conversation_url = created.get().map(GeminiConversationId::url);
+                if let Some(url) = &conversation_url
+                    && !error.message.contains(url.as_str())
+                {
+                    error.message = format!("{}; see {url}", error.message);
+                }
+                Err(GeminiResearchFailure {
+                    error,
+                    conversation_url,
+                })
+            }
+        }
+    }
+
     /// Opens the Gemini app in a background window and checks that the browser is signed in.
     /// The adapter contract and OpenCLI itself are checked on the way.
     pub(crate) async fn status(&self) -> Result<(), ProviderError> {
         let command = self.command(STATUS_OPERATION, Vec::new(), Window::Background);
         let command = &command;
         execute_anonymous(
-            self.settings(STATUS_OPERATION, RetryPolicy::new(1, 1.0, Duration::ZERO)),
+            self.settings(STATUS_OPERATION, single_attempt()),
             move |deadline| async move {
                 let status: StatusData = self.read(command, deadline).await?;
                 if status.page.signed_out {
@@ -184,6 +243,10 @@ struct ReportData {
     /// Whether the conversation response completed but its body was gone when read.
     body_missing: bool,
     timed_out: bool,
+}
+
+fn single_attempt() -> RetryPolicy {
+    RetryPolicy::new(1, 1.0, Duration::ZERO)
 }
 
 fn runtime(message: String) -> AttemptFailure {

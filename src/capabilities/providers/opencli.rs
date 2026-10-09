@@ -28,10 +28,6 @@ const REAP_POLL_INTERVAL: Duration = Duration::from_millis(1);
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum Window {
     Background,
-    #[expect(
-        dead_code,
-        reason = "Gemini `start` (#194) needs a foreground window to render the tools menu"
-    )]
     Foreground,
 }
 

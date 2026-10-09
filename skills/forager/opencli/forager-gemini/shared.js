@@ -25,32 +25,39 @@ export function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/** Whether a batchexecute request URL calls `rpc`; one request can batch several RPCs. */
-function callsRpc(href, rpc) {
+/** The tracked request that answers a prompt, instead of a batchexecute RPC id. */
+export const STREAM_GENERATE = 'StreamGenerate';
+
+/**
+ * Whether a request URL is the tracked call: the streamed answer to a prompt, or a batchexecute
+ * request that calls the RPC `track` (one request can batch several RPCs).
+ */
+function isTracked(href, track) {
   try {
     const url = new URL(href);
+    if (track === 'StreamGenerate') return url.pathname.endsWith('/StreamGenerate');
     return url.pathname.endsWith('/batchexecute')
-      && (url.searchParams.get('rpcids') || '').split(',').includes(rpc);
+      && (url.searchParams.get('rpcids') || '').split(',').includes(track);
   } catch {
     return false;
   }
 }
 
-// The page state that ends a read, and the completed calls to the tracked RPC. Resource Timing
-// records a request only once its response has ended, and `buffered` also counts the calls that
-// completed before the first read. The sign-in check follows OpenCLI's own Gemini adapter. The
-// notice wording of a missing or foreign conversation is an unverified guess in both interface
+// The page state that ends a read, and the completed tracked calls. Resource Timing records a
+// request only once its response has ended, and `buffered` also counts the calls that completed
+// before the first read. The sign-in check follows OpenCLI's own Gemini adapter. The notice
+// wording of a missing or foreign conversation is an unverified guess in both interface
 // languages; it is read only while no conversation response has arrived, so text inside a
 // conversation never counts.
-function pageStateScript(rpc) {
+function pageStateScript(track) {
   return `(() => {
-    const rpc = ${JSON.stringify(rpc)};
-    const callsRpc = ${callsRpc};
-    if (rpc && !window.__foragerGemini) {
+    const track = ${JSON.stringify(track)};
+    const isTracked = ${isTracked};
+    if (track && !window.__foragerGemini) {
       window.__foragerGemini = { completions: 0 };
       new PerformanceObserver((list) => {
         for (const entry of list.getEntries()) {
-          if (entry.responseEnd > 0 && callsRpc(entry.name, rpc)) window.__foragerGemini.completions += 1;
+          if (entry.responseEnd > 0 && isTracked(entry.name, track)) window.__foragerGemini.completions += 1;
         }
       }).observe({ type: 'resource', buffered: true });
     }
@@ -77,9 +84,9 @@ function pageStateScript(rpc) {
 
 /** Collects the facts about where the page is and what Gemini showed there. */
 export class PageFacts {
-  /** `rpc`, when given, is the RPC whose completed calls the page counts. */
-  constructor(rpc = null) {
-    this.script = pageStateScript(rpc);
+  /** `track`, when given, is the RPC id or `STREAM_GENERATE` whose completed calls the page counts. */
+  constructor(track = null) {
+    this.script = pageStateScript(track);
     this.facts = { url: '', signed_out: false, notice: null };
     this.ready = false;
     this.completions = 0;
@@ -101,13 +108,13 @@ function decodeText(preview) {
 }
 
 /**
- * Drains the network capture into the calls of `rpc`, in request order, as `{status, body}`.
- * A body OpenCLI truncated counts as no body.
+ * Drains the network capture into the tracked calls (an RPC id or `STREAM_GENERATE`), in
+ * request order, as `{status, body}`. A body OpenCLI truncated counts as no body.
  */
-export async function readRpcCalls(page, rpc) {
+export async function readRpcCalls(page, track) {
   const entries = await page.readNetworkCapture();
   return entries
-    .filter((entry) => entry.method === 'POST' && callsRpc(entry.url, rpc))
+    .filter((entry) => entry.method === 'POST' && isTracked(entry.url, track))
     .map((entry) => ({
       status: entry.responseStatus || null,
       body: entry.responseBodyTruncated ? null : decodeText(entry.responsePreview),
