@@ -20,8 +20,9 @@ const RUNNING: u64 = 3;
 const COMPLETED: u64 = 5;
 
 /// Where a response stopped matching the shape forager decodes.
-#[derive(Debug)]
-pub(super) struct ShapeError(pub(super) String);
+#[derive(Debug, thiserror::Error)]
+#[error("{0}")]
+pub(super) struct ShapeError(String);
 
 /// A JSON value and its path from the root of the response, for shape errors.
 #[derive(Clone)]
@@ -102,6 +103,20 @@ impl<'a> Node<'a> {
         self.value
             .as_str()
             .ok_or_else(|| self.error("not a string"))
+    }
+
+    /// The text at `index`, or `None` when the element is absent.
+    fn optional_text(&self, index: usize) -> Result<Option<&'a str>, ShapeError> {
+        self.get(index).map(|text| text.text()).transpose()
+    }
+
+    /// The status field of a rich content block and its value.
+    fn status(&self) -> Result<(Self, u64), ShapeError> {
+        let status = self
+            .field(STATUS_FIELD)
+            .ok_or_else(|| self.error(&format!("no status field {STATUS_FIELD}")))?;
+        let value = status.number()?;
+        Ok((status, value))
     }
 
     fn number(&self) -> Result<u64, ShapeError> {
@@ -236,10 +251,8 @@ pub(super) fn plan_reply(candidate: &Value) -> Result<PlanReply, ShapeError> {
             .unwrap_or_default();
         return Ok(PlanReply::Text(text.to_owned()));
     };
-    let status = rich
-        .field(STATUS_FIELD)
-        .ok_or_else(|| rich.error(&format!("no status field {STATUS_FIELD}")))?;
-    match status.number()? {
+    let (status, value) = rich.status()?;
+    match value {
         AWAITING_CONFIRMATION => decode_plan(&plan).map(PlanReply::Plan),
         other => Err(status.error(&format!("a plan with status {other}"))),
     }
@@ -253,11 +266,8 @@ pub(super) fn plan_reply(candidate: &Value) -> Result<PlanReply, ShapeError> {
 /// Fails with the location where the candidate stops matching a started research.
 pub(super) fn research_started(candidate: &Value) -> Result<(), ShapeError> {
     let candidate = Node::root(candidate, "StreamGenerate[4][0]");
-    let rich = candidate.at(12)?;
-    let status = rich
-        .field(STATUS_FIELD)
-        .ok_or_else(|| rich.error(&format!("no status field {STATUS_FIELD}")))?;
-    match status.number()? {
+    let (status, value) = candidate.at(12)?.status()?;
+    match value {
         RUNNING => {
             let task = candidate.at(30)?.at(0)?.at(3)?;
             if task.text()?.is_empty() {
@@ -318,12 +328,9 @@ fn judge(turn: &ResearchTurn<'_>) -> Result<GeminiResearchState, ShapeError> {
         .rich
         .as_ref()
         .ok_or_else(|| ShapeError("the research turn has no rich content".into()))?;
-    let status_node = rich
-        .field(STATUS_FIELD)
-        .ok_or_else(|| rich.error(&format!("no status field {STATUS_FIELD}")))?;
-    let status = status_node.number()?;
+    let (status_node, status) = rich.status()?;
     let body = match &turn.document {
-        Some(document) => document.get(4).map(|body| body.text()).transpose()?,
+        Some(document) => document.optional_text(4)?,
         None => None,
     }
     .unwrap_or_default();
@@ -357,21 +364,14 @@ fn decode_plan(plan: &Node<'_>) -> Result<GeminiPlan, ShapeError> {
             Ok(GeminiPlanStep {
                 index: step.at(0)?.number()?,
                 label: step.at(1)?.text()?.to_owned(),
-                description: step
-                    .get(2)
-                    .map(|text| text.text().map(ToOwned::to_owned))
-                    .transpose()?
-                    .unwrap_or_default(),
+                description: step.optional_text(2)?.unwrap_or_default().to_owned(),
             })
         })
         .collect::<Result<_, ShapeError>>()?;
     Ok(GeminiPlan {
         title: plan.at(0)?.text()?.to_owned(),
         steps,
-        eta_text: plan
-            .get(2)
-            .map(|text| text.text().map(ToOwned::to_owned))
-            .transpose()?,
+        eta_text: plan.optional_text(2)?.map(ToOwned::to_owned),
     })
 }
 
@@ -422,11 +422,7 @@ fn decode_sources(groups: &Node<'_>) -> Result<Vec<GeminiSource>, ShapeError> {
                 continue;
             }
             let link = entry.at(3)?.at(0)?;
-            let title = link
-                .get(2)
-                .map(|title| title.text().map(ToOwned::to_owned))
-                .transpose()?
-                .unwrap_or_default();
+            let title = link.optional_text(2)?.unwrap_or_default().to_owned();
             sources.insert(
                 number,
                 GeminiSource {

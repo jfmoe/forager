@@ -1,8 +1,8 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
 import {
-  APP_URL, POLL_MS, PageFacts, SITE, SITE_DOMAIN, STREAM_GENERATE, envelope, readDeadline,
-  readRpcCalls, sleep,
+  APP_URL, PageFacts, SITE, SITE_DOMAIN, STREAM_GENERATE, envelope, readDeadline,
+  readTrackedCalls, waitFor,
 } from './shared.js';
 
 // Labels in both interface languages. In the zh-CN interface of 2026-10-09 the tools button
@@ -62,6 +62,9 @@ const HELPERS = `
     'button, [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [role="option"]',
   ))).filter(isVisible);
   const menuItems = () => visibleMenuItems().filter(isEnabled);
+  const composer = () => Array.from(document.querySelectorAll(
+    'rich-textarea [contenteditable="true"], div.ql-editor[contenteditable="true"], [contenteditable="true"][role="textbox"]',
+  )).find(isVisible);
 `;
 
 function script(body, ...values) {
@@ -96,21 +99,17 @@ const deepResearchSelected = script(`
 
 /** Finds the composer, focuses it, and empties it. */
 const focusComposer = script(`
-  const composer = Array.from(document.querySelectorAll(
-    'rich-textarea [contenteditable="true"], div.ql-editor[contenteditable="true"], [contenteditable="true"][role="textbox"]',
-  )).find(isVisible);
-  if (!composer) return false;
-  composer.focus();
-  composer.textContent = '';
-  composer.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' }));
+  const target = composer();
+  if (!target) return false;
+  target.focus();
+  target.textContent = '';
+  target.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' }));
   return true;
 `);
 
 const composerText = script(`
-  const composer = Array.from(document.querySelectorAll(
-    'rich-textarea [contenteditable="true"], div.ql-editor[contenteditable="true"], [contenteditable="true"][role="textbox"]',
-  )).find(isVisible);
-  return composer ? (composer.innerText || composer.textContent || '') : null;
+  const target = composer();
+  return target ? (target.innerText || target.textContent || '') : null;
 `);
 
 const insertTextFallback = (text) => script(`
@@ -127,17 +126,14 @@ const clickSend = script(`
   return true;
 `, SEND, [...TOOLS_BUTTON, ...DESELECT]);
 
-/** Clicks the plan's confirm button once; returns whether it found one. */
-const clickConfirm = script(`
+/** Finds the plan's confirm button and, when `click`, clicks it once; returns whether found. */
+const confirmButton = (click) => script(`
   const target = buttons(document).find((el) => matches(el, arg0));
-  if (!target) return false;
-  target.click();
-  return true;
-`, CONFIRM);
-
-const findConfirm = script(`
-  return buttons(document).some((el) => matches(el, arg0));
-`, CONFIRM);
+  if (target && arg1) target.click();
+  return Boolean(target);
+`, CONFIRM, click);
+const findConfirm = confirmButton(false);
+const clickConfirm = confirmButton(true);
 
 /** The lines that read like a quota notice, outside the turns and the navigation. */
 const quotaLines = script(`
@@ -156,15 +152,6 @@ function newQuotaNotice(lines, shown, query) {
 
 function normalize(text) {
   return String(text || '').replace(/\s+/g, ' ').trim();
-}
-
-/** Polls `probe` until it returns a truthy value or `until` passes; returns the last value. */
-async function waitFor(until, probe) {
-  for (;;) {
-    const value = await probe();
-    if (value || Date.now() >= until) return value;
-    await sleep(POLL_MS);
-  }
 }
 
 /**
@@ -223,10 +210,7 @@ async function startResearch(page, query, deadline, facts, run) {
     return Boolean(run.quota_notice);
   });
   if (facts.completions < 1) return;
-  // OpenCLI asks Chrome for a body on the request's loadingFinished event, which Chrome sends
-  // before the page sees the completion, and a tab answers DevTools commands in order. One more
-  // page round trip therefore returns only after the body request has been answered.
-  await facts.observe(page);
+  await facts.settle(page);
   run.steps.push('answered');
 
   if (!await waitFor(within(CARD_WAIT_MS), () => page.evaluate(findConfirm))) {
@@ -241,7 +225,7 @@ async function startResearch(page, query, deadline, facts, run) {
     return facts.completions >= 2;
   });
   if (!started) return;
-  await facts.observe(page);
+  await facts.settle(page);
   run.steps.push('started');
 }
 
@@ -283,7 +267,7 @@ cli({
       await facts.observe(page);
     } catch { /* keep the last facts */ }
     // Reading drains the capture; every awaited answer has completed by now.
-    const calls = await readRpcCalls(page, STREAM_GENERATE);
+    const calls = await readTrackedCalls(page, STREAM_GENERATE);
     const finished = run.steps.includes('started');
     return envelope({
       page: facts.facts,

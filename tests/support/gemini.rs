@@ -3,6 +3,7 @@
 //! what each case needs. No recorded response body is kept in the repository.
 
 use std::fmt::Write as _;
+use std::process::Output;
 
 use serde_json::{Value, json};
 
@@ -415,5 +416,27 @@ pub(crate) fn config(fake: &FakeOpenCli) -> String {
     format!(
         "[providers.gemini_browser]\ncommand = {:?}\n",
         fake.executable().display().to_string()
+    )
+}
+
+/// The JSON stdout of a command.
+pub(crate) fn payload(output: &Output) -> Value {
+    serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
+        panic!(
+            "parse JSON stdout: {error}\nstdout: {}\nstderr: {}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        )
+    })
+}
+
+/// Exit code, error kind, message, and conversation URL of a failure payload.
+pub(crate) fn failure(output: &Output) -> (Option<i32>, Value, String, Value) {
+    let payload = payload(output);
+    (
+        output.status.code(),
+        payload["error_kind"].clone(),
+        payload["message"].as_str().unwrap_or_default().to_owned(),
+        payload["conversation_url"].clone(),
     )
 }

@@ -4,33 +4,64 @@ use std::fmt::Write as _;
 
 use forager::app::{DocsOutputFormat, OutputFormat, OutputTarget};
 use forager::types::{
-    GeminiPlan, GeminiProgress, GeminiReport, GeminiReportFiles, GeminiResearchFailure,
-    GeminiResearchResult, GeminiResearchStarted, GeminiResearchState,
+    GeminiConversationId, GeminiPlan, GeminiProgress, GeminiReport, GeminiReportFiles,
+    GeminiResearchFailure, GeminiResearchResult, GeminiResearchStarted, GeminiResearchState,
 };
 use serde_json::Value;
 
-use crate::{RenderedOutput, apply_tee, format_failure_json, postflight_exit_code};
+use crate::{
+    RenderedOutput, apply_tee, encode_failure_payload, failure_payload, postflight_exit_code,
+};
+
+/// A rendered result before `--output` handling.
+struct Rendered {
+    stdout: String,
+    is_json: bool,
+    exit_code: u8,
+    diagnostic: Option<String>,
+}
+
+impl Rendered {
+    fn success(stdout: String, is_json: bool, diagnostic: Option<String>) -> Self {
+        Self {
+            stdout,
+            is_json,
+            exit_code: 0,
+            diagnostic,
+        }
+    }
+
+    fn emit(self, output: Option<OutputTarget>) -> Result<RenderedOutput, String> {
+        apply_tee(
+            self.stdout,
+            self.exit_code,
+            self.is_json,
+            output,
+            self.diagnostic,
+        )
+    }
+}
 
 pub(crate) fn render(
     result: Result<GeminiResearchResult, GeminiResearchFailure>,
     format: DocsOutputFormat,
     output: Option<OutputTarget>,
 ) -> Result<RenderedOutput, String> {
-    let (stdout, is_json, exit_code, diagnostic) = match result {
+    let rendered = match result {
         Ok(found) => {
             let (stdout, is_json) = format_result(&found, format)?;
-            (stdout, is_json, 0, found.diagnostic)
+            Rendered::success(stdout, is_json, found.diagnostic)
         }
         Err(failure) => render_failure(failure, format != DocsOutputFormat::Markdown)?,
     };
-    apply_tee(stdout, exit_code, is_json, output, diagnostic)
+    rendered.emit(output)
 }
 
 pub(crate) fn render_start(
     result: Result<GeminiResearchStarted, GeminiResearchFailure>,
     format: OutputFormat,
 ) -> Result<RenderedOutput, String> {
-    let (stdout, is_json, exit_code, diagnostic) = match result {
+    let rendered = match result {
         Ok(started) => {
             let stdout = match format {
                 OutputFormat::Json => {
@@ -38,38 +69,43 @@ pub(crate) fn render_start(
                 }
                 OutputFormat::Markdown => started_markdown(&started),
             };
-            (stdout, format == OutputFormat::Json, 0, started.diagnostic)
+            Rendered::success(stdout, format == OutputFormat::Json, started.diagnostic)
         }
         Err(failure) => render_failure(failure, format == OutputFormat::Json)?,
     };
-    apply_tee(stdout, exit_code, is_json, None, diagnostic)
+    rendered.emit(None)
 }
 
-/// Returns the rendered failure, whether it is JSON, its exit code, and its diagnostic.
-fn render_failure(
-    failure: GeminiResearchFailure,
-    json: bool,
-) -> Result<(String, bool, u8, Option<String>), String> {
-    let error = &failure.error;
+fn render_failure(failure: GeminiResearchFailure, json: bool) -> Result<Rendered, String> {
+    let GeminiResearchFailure {
+        error,
+        conversation,
+    } = failure;
+    let url = conversation.as_ref().map(GeminiConversationId::url);
     let stdout = if json {
-        format_failure(&failure)?
+        let mut payload = failure_payload(&error)?;
+        payload.insert(
+            "conversation_url".into(),
+            url.map_or(Value::Null, Value::String),
+        );
+        encode_failure_payload(&error, &payload)?
     } else {
         let mut markdown = format!(
             "# Gemini Deep Research failed\n\n**{}**: {}",
             error.kind.as_str(),
             error.message
         );
-        if let Some(url) = &failure.conversation_url {
+        if let Some(url) = url {
             let _ = write!(markdown, "\n\nConversation: <{url}>");
         }
         markdown
     };
-    Ok((
+    Ok(Rendered {
         stdout,
-        json,
-        postflight_exit_code(error.kind),
-        failure.error.diagnostic,
-    ))
+        is_json: json,
+        exit_code: postflight_exit_code(error.kind),
+        diagnostic: error.diagnostic,
+    })
 }
 
 fn started_markdown(started: &GeminiResearchStarted) -> String {
@@ -167,21 +203,4 @@ fn completed_markdown(
         );
     }
     markdown
-}
-
-/// The stable failure payload plus the conversation it concerns.
-fn format_failure(failure: &GeminiResearchFailure) -> Result<String, String> {
-    let mut payload: Value = serde_json::from_str(&format_failure_json(&failure.error)?)
-        .map_err(|error| error.to_string())?;
-    payload
-        .as_object_mut()
-        .ok_or_else(|| "failure payload is not a JSON object".to_owned())?
-        .insert(
-            "conversation_url".into(),
-            failure
-                .conversation_url
-                .clone()
-                .map_or(Value::Null, Value::String),
-        );
-    serde_json::to_string(&payload).map_err(|error| error.to_string())
 }

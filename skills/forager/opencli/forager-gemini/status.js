@@ -1,7 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
 import {
-  APP_URL, POLL_MS, PageFacts, SITE, SITE_DOMAIN, envelope, readDeadline, sleep,
+  APP_URL, PageFacts, SITE, SITE_DOMAIN, envelope, readDeadline, waitFor,
 } from './shared.js';
 
 cli({
@@ -19,17 +19,12 @@ cli({
   func: async (page, kwargs) => {
     const deadline = readDeadline(kwargs.timeout);
     const facts = new PageFacts();
-    let timedOut = true;
 
     await page.goto(APP_URL, { waitUntil: 'load', settleMs: 1000 });
-    while (Date.now() < deadline) {
+    await waitFor(deadline, async () => {
       await facts.observe(page);
-      if (facts.ready) {
-        timedOut = false;
-        break;
-      }
-      await sleep(POLL_MS);
-    }
-    return envelope({ page: facts.facts, timed_out: timedOut });
+      return facts.ready;
+    });
+    return envelope({ page: facts.facts, timed_out: !facts.ready });
   },
 });

@@ -231,7 +231,7 @@ impl Serialize for GeminiResearchStarted {
 /// a checked conversation id, so the user can open it.
 pub struct GeminiResearchFailure {
     pub error: ProviderError,
-    pub conversation_url: Option<String>,
+    pub conversation: Option<GeminiConversationId>,
 }
 
 #[cfg(test)]
