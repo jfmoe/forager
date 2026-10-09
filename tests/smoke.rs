@@ -676,15 +676,21 @@ fn live_smoke_runs_the_xiaohongshu_search_once_and_only_when_the_order_lists_the
     );
 }
 
+#[cfg(unix)]
 const XHS_NOTE_ID: &str = "66f0a1b2c3d4e5f607100001";
+#[cfg(unix)]
 const XHS_TOKEN: &str = "ABsmokeToken1=";
+#[cfg(unix)]
 const XHS_COMMENTED_NOTE_ID: &str = "66f0a1b2c3d4e5f607100002";
+#[cfg(unix)]
 const XHS_COMMENTED_TOKEN: &str = "ABsmokeToken2=";
 
+#[cfg(unix)]
 fn xhs_page(url: &str) -> Value {
     json!({"url": url, "title": "小红书", "guest": false, "error_code": null, "notice": null, "blocked_status": null})
 }
 
+#[cfg(unix)]
 fn xhs_note(id: &str, token: &str, comments: &str) -> Value {
     json!({
         "id": id,
@@ -696,6 +702,7 @@ fn xhs_note(id: &str, token: &str, comments: &str) -> Value {
 
 /// The C27 search as the adapter reports it after both filter clicks: on one page, a note with
 /// 3 comments, then one with 1.2万, then one with 999.
+#[cfg(unix)]
 fn xhs_search(page: &Value) -> Value {
     json!({
         "page": page,
@@ -722,6 +729,7 @@ fn xhs_search(page: &Value) -> Value {
 
 /// A top-level comment of the most-commented note; with `inline`, it carries that reply and has
 /// more.
+#[cfg(unix)]
 fn xhs_comment(serial: u32, inline: Option<u32>) -> Value {
     let id = |serial: u32| format!("6a9eda8f00000000140{serial:05}");
     let replies = inline.map_or_else(Vec::new, |reply| {
@@ -738,6 +746,7 @@ fn xhs_comment(serial: u32, inline: Option<u32>) -> Value {
 
 /// The C29 comments as the adapter reports them: `count` comments on one or two pages, and the
 /// first page of replies of the first comment when it has more.
+#[cfg(unix)]
 fn xhs_comments(count: u32, expandable: bool) -> Value {
     let params = |cursor: &str| json!({"note_id": XHS_COMMENTED_NOTE_ID, "cursor": cursor});
     let comments = (1..=count)
@@ -769,6 +778,7 @@ fn xhs_comments(count: u32, expandable: bool) -> Value {
     })
 }
 
+#[cfg(unix)]
 fn xhs_smoke(fake: &support::opencli::FakeOpenCli) -> Value {
     let environment = SmokeEnvironment::new(|journal_dir| {
         format!(
@@ -785,6 +795,7 @@ fn xhs_smoke(fake: &support::opencli::FakeOpenCli) -> Value {
     serde_json::from_slice(&output.stdout).expect("parse live smoke JSON")
 }
 
+#[cfg(unix)]
 fn status_and_attempts(payload: &Value, id: &str) -> (Value, Value) {
     let case = case(payload, id);
     (case["status"].clone(), case["attempts"].clone())
