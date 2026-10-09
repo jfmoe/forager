@@ -406,7 +406,6 @@ fn decode_report(document: &Node<'_>, body: &str) -> Result<GeminiReport, ShapeE
         title: document.at(2)?.text()?.to_owned(),
         body: body.to_owned(),
         sources,
-        files: None,
     })
 }
 

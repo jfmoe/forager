@@ -179,6 +179,29 @@ fn an_exhausted_quota_is_quota_exhausted() {
 }
 
 #[test]
+fn page_text_about_limits_does_not_count_as_a_quota_notice_once_gemini_proposed_a_plan() {
+    let mut facts = gemini::start_facts(
+        &gemini::START_STEPS[..5],
+        Some(gemini::stream_body(&gemini::plan_candidate())),
+        None,
+    );
+    facts["quota_notice"] = json!("What usage limits apply to the Gemini API?");
+
+    let (_, output) = run(facts);
+
+    let (code, kind, message, url) = failure(&output);
+    assert_eq!(
+        (code, kind, url),
+        (Some(4), json!("runtime"), json!(CONVERSATION_URL)),
+        "{message}"
+    );
+    assert!(
+        message.starts_with("Gemini proposed a research plan"),
+        "{message}"
+    );
+}
+
+#[test]
 fn a_signed_out_browser_is_an_auth_failure() {
     let fake = FakeOpenCli::answering(
         "",
@@ -397,5 +420,50 @@ fn a_missing_deep_research_tool_is_runtime_and_sends_nothing() {
             "Gemini's tools menu offers no Deep Research; check that this Google account can use Deep Research in the Gemini web app; nothing was sent".to_owned(),
             Value::Null
         )
+    );
+}
+
+#[test]
+fn a_disabled_deep_research_tool_names_a_used_up_quota_and_sends_nothing() {
+    let mut facts = gemini::start_facts(&gemini::START_STEPS[..1], None, None);
+    facts["page"]["url"] = json!("https://gemini.google.com/app");
+    facts["deep_research_disabled"] = json!(true);
+
+    let (_, output) = run(facts);
+
+    assert_eq!(
+        failure(&output),
+        (
+            Some(4),
+            json!("runtime"),
+            "Gemini's tools menu shows Deep Research but does not let it be selected; the account's Deep Research quota may be used up, or Deep Research may be unavailable right now; nothing was sent".to_owned(),
+            Value::Null
+        )
+    );
+}
+
+#[test]
+fn a_start_that_opencli_never_ran_says_nothing_was_sent() {
+    let missing_adapter = FakeOpenCli::answering(
+        "",
+        "ok: false\nerror:\n  code: ADAPTER_LOAD\n  message: cannot load forager-gemini/start\n",
+        69,
+    );
+    let configs = [
+        gemini::config(&missing_adapter),
+        "[providers.gemini_browser]\ncommand = \"/nonexistent/forager-test/opencli\"\n".to_owned(),
+    ];
+
+    let failures = configs.map(|config| {
+        let (_, kind, message, url) = failure(&start(&RunEnvironment::new(&config), &[]));
+        (kind, message.ends_with("; nothing was sent"), url)
+    });
+
+    assert_eq!(
+        failures,
+        [
+            (json!("runtime"), true, Value::Null),
+            (json!("runtime"), true, Value::Null)
+        ]
     );
 }

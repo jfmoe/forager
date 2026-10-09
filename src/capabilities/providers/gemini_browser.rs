@@ -16,7 +16,7 @@ use crate::catalog::{ProviderId, ProviderTransport, registration};
 use crate::config::ProcessRouteRuntimeConfig;
 use crate::net::{AttemptFailure, RetryPolicy, truncate_message};
 use crate::providers::execution::{ExecutionSettings, execute_anonymous};
-use crate::providers::opencli::{self, EnvelopeStatus, OpenCliCommand, Window};
+use crate::providers::opencli::{self, CommandFailure, EnvelopeStatus, OpenCliCommand, Window};
 use crate::rate_limit::RateLimiter;
 use crate::types::{
     AttemptErrorKind, AttemptTarget, Deadline, GEMINI_RESEARCH_RESULT, GEMINI_RESEARCH_START,
@@ -80,6 +80,7 @@ impl GeminiBrowser {
             route: ROUTE.name(),
             conversation: conversation.clone(),
             state: execution.value,
+            report_files: None,
             attempts: execution.attempts,
             diagnostic: execution.diagnostic,
         })
@@ -109,7 +110,7 @@ impl GeminiBrowser {
             let facts = self
                 .read(command, deadline)
                 .await
-                .map_err(start::unknown_outcome)?;
+                .map_err(start::command_failed)?;
             start::read_start(&facts, created_ref).map(|started| (None, started))
         })
         .await;
@@ -205,12 +206,13 @@ impl GeminiBrowser {
         &self,
         command: &OpenCliCommand<'_>,
         deadline: Deadline,
-    ) -> Result<T, AttemptFailure> {
+    ) -> Result<T, CommandFailure> {
         let envelope = opencli::run::<T>(command, &self.limiter, deadline).await?;
         if envelope.status != EnvelopeStatus::Ok {
             return Err(runtime(
                 "the forager-gemini adapter reported no results instead of page facts".into(),
-            ));
+            )
+            .into());
         }
         Ok(envelope.data)
     }

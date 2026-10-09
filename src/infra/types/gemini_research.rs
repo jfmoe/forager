@@ -120,22 +120,25 @@ pub struct GeminiReport {
     pub title: String,
     pub body: String,
     pub sources: Vec<GeminiSource>,
-    /// Where the report was written; `None` when it was printed instead.
-    pub files: Option<GeminiReportFiles>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+/// Where `gemini research result` wrote a completed report and its sources.
 pub struct GeminiReportFiles {
     pub report_path: String,
     pub sources_path: String,
 }
 
 impl GeminiReport {
-    /// The body followed by a `## Sources` list that resolves every `[cite: N]` without Gemini.
+    /// The body, verbatim, followed by a `## Sources` list that resolves every `[cite: N]`
+    /// without Gemini.
     #[must_use]
     pub fn markdown(&self) -> String {
-        let mut markdown = self.body.trim_end().to_owned();
-        markdown.push_str("\n\n## Sources\n");
+        let mut markdown = self.body.clone();
+        if !markdown.ends_with('\n') {
+            markdown.push('\n');
+        }
+        markdown.push_str("\n## Sources\n");
         for source in &self.sources {
             let _ = write!(
                 markdown,
@@ -164,6 +167,8 @@ pub struct GeminiResearchResult {
     pub route: &'static str,
     pub conversation: GeminiConversationId,
     pub state: GeminiResearchState,
+    /// Where the completed report was written; `None` before delivery or when it was printed.
+    pub report_files: Option<GeminiReportFiles>,
     pub attempts: Vec<ProviderAttempt>,
     pub diagnostic: Option<String>,
 }
@@ -186,7 +191,7 @@ impl Serialize for GeminiResearchResult {
             GeminiResearchState::Completed(report) => {
                 map.serialize_entry("status", "completed")?;
                 map.serialize_entry("title", &report.title)?;
-                if let Some(files) = &report.files {
+                if let Some(files) = &self.report_files {
                     map.serialize_entry("report_path", &files.report_path)?;
                     map.serialize_entry("sources_path", &files.sources_path)?;
                 }
@@ -231,7 +236,25 @@ pub struct GeminiResearchFailure {
 
 #[cfg(test)]
 mod tests {
-    use super::GeminiConversationId;
+    use super::{GeminiConversationId, GeminiReport, GeminiSource};
+
+    #[test]
+    fn markdown_keeps_the_body_verbatim_before_the_sources() {
+        let report = GeminiReport {
+            title: "Title".into(),
+            body: "Body  \n\n".into(),
+            sources: vec![GeminiSource {
+                id: 1,
+                title: "Source".into(),
+                url: "https://example.test".into(),
+            }],
+        };
+
+        assert_eq!(
+            report.markdown(),
+            "Body  \n\n\n## Sources\n\n- [1] Source <https://example.test>\n"
+        );
+    }
 
     #[test]
     fn a_conversation_is_its_url_or_its_hexadecimal_id() {

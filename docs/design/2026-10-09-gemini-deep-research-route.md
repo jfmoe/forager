@@ -122,8 +122,9 @@ Rust 端 `gemini_browser` 解码模块是纯函数，输入为响应体文本。
 | 情况 | 归因 |
 |---|---|
 | 未登录、登录页、账号需要验证 | Auth（adapter 以 77 退出） |
-| 页面提示 Deep Research 额度已用尽，或响应带用量超限错误码 | QuotaExhausted |
+| Gemini 回答问题之前页面新出现 Deep Research 额度已用尽的提示，或响应带用量超限错误码 | QuotaExhausted |
 | 工具菜单中没有 Deep Research 入口 | Runtime，提示检查账号是否可用该功能 |
+| 工具菜单中的 Deep Research 入口不可选 | Runtime，提示额度可能已用尽或功能暂不可用；尚未验证不可选与额度的关系 |
 | Gemini 回复了普通文本而非计划（拒绝或模型不支持） | Runtime，消息附回复开头（有界） |
 | 会话不存在或无权访问 | attempt 级 Parameter（退 4）；只有无法识别的会话参数在飞行前退 2 |
 | 响应结构变化 | Runtime |

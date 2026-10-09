@@ -4,8 +4,8 @@ use std::fmt::Write as _;
 
 use forager::app::{DocsOutputFormat, OutputFormat, OutputTarget};
 use forager::types::{
-    GeminiPlan, GeminiProgress, GeminiReport, GeminiResearchFailure, GeminiResearchResult,
-    GeminiResearchStarted, GeminiResearchState,
+    GeminiPlan, GeminiProgress, GeminiReport, GeminiReportFiles, GeminiResearchFailure,
+    GeminiResearchResult, GeminiResearchStarted, GeminiResearchState,
 };
 use serde_json::Value;
 
@@ -112,17 +112,18 @@ fn format_result(
             Ok((report.markdown(), false))
         }
         (DocsOutputFormat::Json | DocsOutputFormat::Content, _) => Ok((json()?, true)),
-        (DocsOutputFormat::Markdown, state) => {
-            Ok((format_markdown(&found.conversation.url(), state), false))
-        }
+        (DocsOutputFormat::Markdown, _) => Ok((format_markdown(found), false)),
     }
 }
 
-fn format_markdown(url: &str, state: &GeminiResearchState) -> String {
-    match state {
-        GeminiResearchState::AwaitingConfirmation(plan) => awaiting_markdown(url, plan),
-        GeminiResearchState::Running(progress) => running_markdown(url, progress),
-        GeminiResearchState::Completed(report) => completed_markdown(url, report),
+fn format_markdown(found: &GeminiResearchResult) -> String {
+    let url = found.conversation.url();
+    match &found.state {
+        GeminiResearchState::AwaitingConfirmation(plan) => awaiting_markdown(&url, plan),
+        GeminiResearchState::Running(progress) => running_markdown(&url, progress),
+        GeminiResearchState::Completed(report) => {
+            completed_markdown(&url, report, found.report_files.as_ref())
+        }
     }
 }
 
@@ -147,14 +148,18 @@ fn running_markdown(url: &str, progress: &GeminiProgress) -> String {
     markdown
 }
 
-fn completed_markdown(url: &str, report: &GeminiReport) -> String {
+fn completed_markdown(
+    url: &str,
+    report: &GeminiReport,
+    files: Option<&GeminiReportFiles>,
+) -> String {
     let mut markdown = format!(
         "# {}\n\nGemini Deep Research report of <{url}>: {} characters, {} sources",
         report.title,
         report.body.chars().count(),
         report.sources.len()
     );
-    if let Some(files) = &report.files {
+    if let Some(files) = files {
         let _ = write!(
             markdown,
             "\n\nReport: `{}`\n\nSources: `{}`",

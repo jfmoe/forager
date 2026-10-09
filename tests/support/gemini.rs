@@ -388,6 +388,7 @@ pub(crate) fn start_facts(steps: &[&str], plan: Option<String>, confirm: Option<
         "page": {"url": CONVERSATION_URL, "signed_out": false, "notice": null},
         "steps": steps,
         "deep_research_missing": false,
+        "deep_research_disabled": false,
         "quota_notice": null,
         "plan_response": plan,
         "confirm_response": confirm,
