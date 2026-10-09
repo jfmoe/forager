@@ -20,10 +20,10 @@ use crate::providers::{
 };
 use crate::types::{
     AnysearchOutcome, CapabilitySet, ClaimRisk, Context7Outcome, Deadline, EvidenceStrength,
-    FallbackPolicy, FetchOutcome, GeminiResearchFailure, GeminiResearchResult, JournalOutcome,
-    MapOutcome, PlanCapability, PlatformFetchResult, PlatformSearchPage, ProviderAttempt,
-    RecencyRequirement, ResearchIntentSignals, ResearchPlan, ResearchSubquestion, SearchOutcome,
-    XiaohongshuCommentsPage,
+    FallbackPolicy, FetchOutcome, GeminiResearchFailure, GeminiResearchResult,
+    GeminiResearchStarted, JournalOutcome, MapOutcome, PlanCapability, PlatformFetchResult,
+    PlatformSearchPage, ProviderAttempt, RecencyRequirement, ResearchIntentSignals, ResearchPlan,
+    ResearchSubquestion, SearchOutcome, XiaohongshuCommentsPage,
 };
 
 #[doc(hidden)]
@@ -176,6 +176,15 @@ pub enum CommandOutput {
         format: DocsOutputFormat,
         /// Optional output file destination.
         output: Option<OutputTarget>,
+        /// Optional terminal projection selected by `log.level`.
+        attempt_log: Option<String>,
+    },
+    /// Typed Gemini Deep Research start terminal state for binary-side formatting.
+    GeminiResearchStart {
+        /// The started research, or the failure with the conversation when forager knows it.
+        result: Box<Result<GeminiResearchStarted, GeminiResearchFailure>>,
+        /// Requested output format.
+        format: OutputFormat,
         /// Optional terminal projection selected by `log.level`.
         attempt_log: Option<String>,
     },

@@ -198,6 +198,29 @@ impl Serialize for GeminiResearchResult {
     }
 }
 
+#[derive(Clone, Debug)]
+/// A Deep Research that `gemini_browser` started: the new conversation and the plan Gemini
+/// proposed and forager confirmed.
+pub struct GeminiResearchStarted {
+    /// The provider that started the research.
+    pub route: &'static str,
+    pub conversation: GeminiConversationId,
+    pub plan: GeminiPlan,
+    pub attempts: Vec<ProviderAttempt>,
+    pub diagnostic: Option<String>,
+}
+
+impl Serialize for GeminiResearchStarted {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut map = serializer.serialize_map(Some(4))?;
+        map.serialize_entry("route", self.route)?;
+        map.serialize_entry("conversation_id", &self.conversation)?;
+        map.serialize_entry("conversation_url", &self.conversation.url())?;
+        map.serialize_entry("plan", &self.plan)?;
+        map.end()
+    }
+}
+
 #[derive(Debug)]
 /// A failed Gemini Deep Research command, with the conversation it concerns when forager knows
 /// a checked conversation id, so the user can open it.

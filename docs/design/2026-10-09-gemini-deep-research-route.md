@@ -174,6 +174,8 @@ Rust 端 `gemini_browser` 解码模块是纯函数，输入为响应体文本。
 
 - 2026-10-09 起无订阅账号只能用 Flash-Lite；这类账号能否在网页版发起 Deep Research，以及能用几次（实测账号有订阅）。
 - 研究失败、额度用尽、模型拒绝时的响应字段与页面文案；错误归因表中这几行目前是推断。
+  - `start` 按 gemini-webapi 的约定，从 `StreamGenerate` 外壳的 `[5][2][0][1][0]` 读取错误码，并把 1037（用量超限）归为 QuotaExhausted；页面额度文案按中英文猜测的模式匹配。两者都未在真实额度用尽时验证。
+- `start` 期间页面是否还会发出发送与确认之外的 `StreamGenerate`；adapter 按请求顺序把前两个当作两轮响应。
 - 英文界面下的菜单与按钮标签。
 - Deep Research Max 或长时间研究的响应大小。
 - Gemini 消费者版对输出再使用的条款。

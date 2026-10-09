@@ -7,7 +7,7 @@ use std::time::Duration;
 
 use clap::{Args, Subcommand};
 
-use super::args::{DocsOutputFormat, OutputArgs};
+use super::args::{DocsOutputFormat, OutputArgs, OutputFormat};
 use super::dispatch::{
     AppError, CommandOutput, NetworkDependencies, invocation_temp_dir, provider_attempt_log,
 };
@@ -17,6 +17,7 @@ use crate::types::{
     GeminiResearchFailure, GeminiResearchResult, GeminiResearchState, ProviderError,
 };
 
+const DEFAULT_START_TIMEOUT_SECONDS: u64 = 240;
 const DEFAULT_RESULT_TIMEOUT_SECONDS: u64 = 120;
 
 #[derive(Debug, Subcommand)]
@@ -30,9 +31,24 @@ pub(super) enum GeminiCommand {
 
 #[derive(Debug, Subcommand)]
 pub(super) enum GeminiResearchCommand {
+    /// Start a Deep Research in a foreground Chrome window: select Deep Research, send the
+    /// question once, and confirm the plan Gemini proposes. It spends the account's Deep
+    /// Research quota and is never retried.
+    Start(GeminiStartArgs),
     /// Read where a Deep Research conversation stands, without changing it; a completed report
     /// and its sources are written to local files.
     Result(GeminiResultArgs),
+}
+
+#[derive(Debug, Args)]
+pub(super) struct GeminiStartArgs {
+    /// The research question, sent to Gemini as written.
+    query: String,
+    /// Whole-command deadline in seconds, including waits for the request window.
+    #[arg(long, default_value_t = DEFAULT_START_TIMEOUT_SECONDS, value_parser = clap::value_parser!(u64).range(1..))]
+    timeout: u64,
+    #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
+    format: OutputFormat,
 }
 
 #[derive(Debug, Args)]
@@ -56,9 +72,42 @@ pub(super) struct GeminiResultArgs {
 pub(super) fn run(command: GeminiCommand) -> Result<CommandOutput, AppError> {
     match command {
         GeminiCommand::Research {
+            command: GeminiResearchCommand::Start(arguments),
+        } => start(arguments),
+        GeminiCommand::Research {
             command: GeminiResearchCommand::Result(arguments),
         } => result(arguments),
     }
+}
+
+fn start(arguments: GeminiStartArgs) -> Result<CommandOutput, AppError> {
+    let GeminiStartArgs {
+        query,
+        timeout,
+        format,
+    } = arguments;
+    if query.trim().is_empty() {
+        return Err(AppError::Argument(
+            "the Gemini Deep Research question must not be empty".into(),
+        ));
+    }
+    let dependencies = NetworkDependencies::load()?;
+    let provider = providers::build_gemini_browser(
+        dependencies.config.gemini_browser,
+        dependencies.retry_policy,
+        Deadline::new(Duration::from_secs(timeout)),
+    );
+    let result = dependencies.runtime.block_on(provider.start(&query));
+    let attempts = match &result {
+        Ok(started) => &started.attempts,
+        Err(failure) => &failure.error.attempts,
+    };
+    let attempt_log = crate::attempt_log::render(dependencies.config.log_level, attempts);
+    Ok(CommandOutput::GeminiResearchStart {
+        result: Box::new(result),
+        format,
+        attempt_log,
+    })
 }
 
 fn result(arguments: GeminiResultArgs) -> Result<CommandOutput, AppError> {

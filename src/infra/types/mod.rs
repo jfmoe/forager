@@ -23,8 +23,8 @@ pub use error::{AttemptErrorKind, ErrorFamily, ErrorKind, ProviderError};
 pub(crate) use gemini_research::{GEMINI_RESEARCH_RESULT, GEMINI_RESEARCH_START};
 pub use gemini_research::{
     GeminiConversationId, GeminiPlan, GeminiPlanStep, GeminiProgress, GeminiReport,
-    GeminiReportFiles, GeminiResearchFailure, GeminiResearchResult, GeminiResearchState,
-    GeminiSource,
+    GeminiReportFiles, GeminiResearchFailure, GeminiResearchResult, GeminiResearchStarted,
+    GeminiResearchState, GeminiSource,
 };
 pub use outcome::{
     AnysearchDomain, AnysearchDomainsOutcome, AnysearchOutcome, AnysearchResult,

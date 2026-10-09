@@ -123,7 +123,7 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
 
 - **传输与配置**：process route，经本机 OpenCLI 驱动用户自己的 Chrome，读取 SSRN 原站。配置项为 `providers.ssrn_browser.command`（OpenCLI 可执行文件，默认 `opencli`，不能为空）与 `.timeout`（一次命令的 attempt 超时，默认 90 秒），没有 `url` 与 `keys`；它是匿名 route，始终视为已配置。命令只能选择可执行文件，参数全部由 route 决定（ADR 0019）。访问策略为每 5 秒一次 OpenCLI 命令、并发 1。route 不重试，失败直接落到下一条 route。
 - **OpenCLI 进程传输**（`providers/opencli`，不含站点知识）：输入为可执行文件、adapter（site 与契约版本）、命令、具名参数与 attempt 截止时间。
-  - 调用形式：`<command> <site> <命令> --<参数> <值>… --timeout <秒> -f json --window <background|foreground> --site-session ephemeral --keep-tab false`。forager 自有 adapter 的每个命令都接受这些 flag。窗口模式由每条命令声明（ADR 0023）：SSRN、小红书与 Gemini 的读取命令都声明 `background`；`foreground` 只留给必须在可见窗口中操作、且由用户主动发起的命令。
+  - 调用形式：`<command> <site> <命令> --<参数> <值>… --timeout <秒> -f json --window <background|foreground> --site-session ephemeral --keep-tab false`。forager 自有 adapter 的每个命令都接受这些 flag。窗口模式由每条命令声明（ADR 0023）：SSRN、小红书与 Gemini 的读取命令都声明 `background`；`foreground` 只留给必须在可见窗口中操作、且由用户主动发起的命令，目前只有 Gemini 的 `start`。
   - 截止时间：attempt 截止时间之前预留 5 秒得到工作截止点，剩余整秒数作为 adapter 命令的 `--timeout` 参数传入。OpenCLI 据此设置 daemon 每次操作的截止时间；adapter 在 `--timeout` 之前 3 秒停止读取页面并返回，让 OpenCLI 在工作截止点之前关闭标签页。5 秒预留用于强杀、回收子进程与报告 attempt。子进程放入独立进程组；到达工作截止点或 future 被丢弃时，强杀整个进程组，不做分步终止。access permit 持有到子进程被回收为止。剩余时间不足时 attempt 以 Timeout 结束，不启动进程。
   - 输出上限：stdout 最多 4 MiB（协议上限），超出为 Runtime 并强杀进程组；stderr 只保留前 64 KiB 并做 URL 脱敏。
   - 非 Unix 系统：传输在启动进程之前以 Runtime 拒绝；factory 的支持检查同样拒绝，因此该 route 记为 Skipped。
