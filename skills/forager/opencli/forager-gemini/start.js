@@ -29,8 +29,9 @@ const NOT_A_NOTICE = [
 
 const MENU_WAIT_MS = 10000;
 const SELECT_WAIT_MS = 8000;
-// The plan card renders shortly after the answer completes; a text answer never shows one.
-const CARD_WAIT_MS = 10000;
+// The plan card renders after the answer completes, live sometimes later than 10 s; a text
+// answer never shows one.
+const CARD_WAIT_MS = 45000;
 
 /** Page-side helpers shared by the scripts: visibility, labels, and clicks. */
 const HELPERS = `
@@ -135,6 +136,21 @@ const confirmButton = (click) => script(`
 const findConfirm = confirmButton(false);
 const clickConfirm = confirmButton(true);
 
+/** Why no confirm button counts as clickable: the label matches and what rules each out. */
+const describeConfirm = script(`
+  const found = Array.from(document.querySelectorAll('button, [role="button"]'))
+    .filter((el) => matches(el, arg0));
+  if (found.length === 0) return 'no button is labelled like it';
+  return found.slice(0, 3).map((el) => {
+    const reasons = [];
+    if (el.closest('[aria-hidden="true"]')) reasons.push('inside aria-hidden');
+    if (el.closest('[hidden]')) reasons.push('inside hidden');
+    if (!isVisible(el)) reasons.push('not visible');
+    if (!isEnabled(el)) reasons.push('disabled');
+    return (reasons.join(', ') || 'clickable now');
+  }).join('; ') + ' (' + found.length + ' labelled like it)';
+`, CONFIRM);
+
 /** The lines that read like a quota notice, outside the turns and the navigation. */
 const quotaLines = script(`
   const pattern = new RegExp(arg0, 'i');
@@ -214,7 +230,7 @@ async function startResearch(page, query, deadline, facts, run) {
   run.steps.push('answered');
 
   if (!await waitFor(within(CARD_WAIT_MS), () => page.evaluate(findConfirm))) {
-    if (!passed()) stop('Gemini showed no "Start research" button');
+    if (!passed()) stop(`Gemini showed no "Start research" button: ${await page.evaluate(describeConfirm)}`);
     return;
   }
   if (!await page.evaluate(clickConfirm)) return stop('the "Start research" button went away');

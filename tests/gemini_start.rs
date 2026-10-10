@@ -109,6 +109,51 @@ fn an_unconfirmed_plan_is_runtime_and_points_to_the_conversation() {
 }
 
 #[test]
+fn an_unconfirmed_plan_carries_why_the_adapter_stopped() {
+    let mut facts = gemini::start_facts(
+        &gemini::START_STEPS[..5],
+        Some(gemini::stream_body(&gemini::plan_candidate())),
+        None,
+    );
+    facts["problem"] = json!("Gemini showed no \"Start research\" button (1 matching button hidden)");
+
+    let (_fake, output) = run(facts);
+
+    let (code, kind, message, _url) = failure(&output);
+    assert_eq!((code, kind), (Some(4), json!("runtime")));
+    assert_eq!(
+        message,
+        format!(
+            "Gemini proposed a research plan, but forager could not click its confirm button (Gemini showed no \"Start research\" button (1 matching button hidden)): open {CONVERSATION_URL} and click \"Start research\" there; forager does not click again or resend the question"
+        )
+    );
+}
+
+#[test]
+fn an_unconfirmed_plan_after_the_deadline_is_a_timeout() {
+    let mut facts = gemini::start_facts(
+        &gemini::START_STEPS[..5],
+        Some(gemini::stream_body(&gemini::plan_candidate())),
+        None,
+    );
+    facts["timed_out"] = json!(true);
+
+    let (_fake, output) = run(facts);
+
+    let (code, kind, message, url) = failure(&output);
+    assert_eq!(
+        (code, kind, url),
+        (Some(4), json!("timeout"), json!(CONVERSATION_URL))
+    );
+    assert_eq!(
+        message,
+        format!(
+            "Gemini proposed a research plan, but the read deadline passed before forager clicked its confirm button: open {CONVERSATION_URL} and click \"Start research\" there; forager does not click again or resend the question"
+        )
+    );
+}
+
+#[test]
 fn a_text_reply_instead_of_a_plan_is_runtime_with_the_start_of_the_reply() {
     let reply = "I can't help with that request.\n\nTry asking something else.";
     let facts = gemini::start_facts(

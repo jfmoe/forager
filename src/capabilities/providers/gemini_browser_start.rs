@@ -114,6 +114,15 @@ impl StartData {
         self.steps.contains(&step)
     }
 
+    /// Why the adapter stopped, in its own words, when it said.
+    fn reason(&self) -> Option<String> {
+        self.problem
+            .as_deref()
+            .map(str::trim)
+            .filter(|reason| !reason.is_empty())
+            .map(truncate_message)
+    }
+
     fn last_step(&self) -> &'static str {
         self.steps.iter().max().map_or("none", |step| step.name())
     }
@@ -160,9 +169,28 @@ pub(super) fn read_start(
     };
     let url = conversation.url();
     if !facts.reached(Step::Confirmed) {
-        return Err(runtime(format!(
-            "Gemini proposed a research plan, but forager could not click its confirm button: open {url} and click \"Start research\" there; forager does not click again or resend the question"
-        )));
+        let (kind, problem) = if facts.timed_out {
+            (
+                AttemptErrorKind::Timeout,
+                "the read deadline passed before forager clicked its confirm button".to_owned(),
+            )
+        } else {
+            let reason = facts
+                .reason()
+                .map(|reason| format!(" ({reason})"))
+                .unwrap_or_default();
+            (
+                AttemptErrorKind::Runtime,
+                format!("forager could not click its confirm button{reason}"),
+            )
+        };
+        return Err(AttemptFailure {
+            kind,
+            status: None,
+            message: format!(
+                "Gemini proposed a research plan, but {problem}: open {url} and click \"Start research\" there; forager does not click again or resend the question"
+            ),
+        });
     }
     if !facts.reached(Step::Started) {
         let (kind, problem) = stopped(facts, "Gemini answered the confirmation");
@@ -267,10 +295,8 @@ fn stopped(facts: &StartData, awaited: &str) -> (AttemptErrorKind, String) {
         )
     } else {
         let mut problem = format!("the forager-gemini adapter stopped before {awaited}");
-        if let Some(reason) = facts.problem.as_deref().map(str::trim)
-            && !reason.is_empty()
-        {
-            problem = format!("{problem}: {}", truncate_message(reason));
+        if let Some(reason) = facts.reason() {
+            problem = format!("{problem}: {reason}");
         }
         (AttemptErrorKind::Runtime, problem)
     }
