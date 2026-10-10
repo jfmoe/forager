@@ -200,9 +200,10 @@ impl Research<'_> {
     /// message carries as a JSON string, and it alone decides. Before that the message has no
     /// `widget_state`, and the snapshot `tool_response_metadata.venus_widget_state`, taken when
     /// the tool was called, holds the plan. The snapshot stands in only while it waits on the
-    /// plan, because it never follows the research after it starts.
+    /// plan, because it never follows the research after it starts. Only a missing
+    /// `widget_state` lets the snapshot stand in; a null one is a shape error.
     fn current_state(&self) -> Result<(Cow<'_, Value>, String), ShapeError> {
-        if let Some(widget_state) = self.sdk.get("widget_state") {
+        if let Some(widget_state) = self.sdk.member("widget_state") {
             let value = serde_json::from_str(widget_state.text()?)
                 .map_err(|error| widget_state.error(&format!("not JSON: {error}")))?;
             return Ok((Cow::Owned(value), widget_state.path().to_owned()));

@@ -416,8 +416,8 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 - 通用 flag：`--output FILE [--receipt]` 语义同上。只读命令，沿用共享重试策略。adapter 在后台窗口先开始网络捕获，再打开 `/c/<uuid>`，只回报页面自己发出的 `GET /backend-api/conversations/<uuid>` 在响应完整到达后的响应体、最终 URL，以及登录或“会话不存在”提示。
 - **判定**：在响应的 `messages`（从旧到新）中取最近一个研究消息，即作者为 `tool`、`author.name` 为 `api_tool.call_tool` 且带 `metadata.chatgpt_sdk` 的消息；它异常时不回退到更早的研究。状态来源：
-  - 有 `widget_state` 时只取它（JSON 字符串，二次解析）的 `status`；`tool_response_metadata` 中的 `venus_widget_state` 与 `openai/asyncStatus` 是工具调用时的快照，不参与判定。
-  - ChatGPT 在研究开始时才写入 `widget_state`。研究开始之前消息没有 `widget_state`，计划与状态只在快照 `tool_response_metadata.venus_widget_state`（对象）中；此时只有快照 `status` 为 `waiting_for_user_response_on_plan` 才按快照判定（取其 `plan`），快照为其他状态或也缺失时为 Runtime（响应结构已变化）。
+  - 有 `widget_state` 时只取它（JSON 字符串，二次解析）的 `status`；`tool_response_metadata` 中的 `venus_widget_state` 与 `openai/asyncStatus` 是工具调用时的快照，不参与判定。`widget_state` 存在但为 null 时为 Runtime（响应结构已变化），不回退到快照。
+  - ChatGPT 在研究开始时才写入 `widget_state`。研究开始之前消息没有 `widget_state` 字段，计划与状态只在快照 `tool_response_metadata.venus_widget_state`（对象）中；此时只有快照 `status` 为 `waiting_for_user_response_on_plan` 才按快照判定（取其 `plan`），快照为其他状态或也缺失时为 Runtime（响应结构已变化）。
   - 取得的状态中，`waiting_for_user_response_on_plan` 且没有 `report_message` 为 `awaiting_confirmation`；`researching` 且没有 `report_message` 为 `running`；`completed` 且 `report_message.content.parts[0]` 非空为 `completed`。
 - **输出**：JSON 恒含 `route`（`chatgpt_browser`）、`conversation_id`、`conversation_url` 与 `status`：
   - `awaiting_confirmation`：另有 `plan: {title, steps: [{index, text}]}`。这是 ChatGPT 提出的研究计划，与 Research Plan Schema v1 无关，输出中不叫 `research_plan`。

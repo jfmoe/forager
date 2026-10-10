@@ -34,15 +34,17 @@ impl<'a> Node<'a> {
         &self.path
     }
 
+    /// The member `name`, null included, or `None` when it is absent.
+    pub(super) fn member(&self, name: &str) -> Option<Self> {
+        self.value.get(name).map(|value| Self {
+            value,
+            path: format!("{}.{name}", self.path),
+        })
+    }
+
     /// The non-null member `name`, or `None`.
     pub(super) fn get(&self, name: &str) -> Option<Self> {
-        self.value
-            .get(name)
-            .filter(|value| !value.is_null())
-            .map(|value| Self {
-                value,
-                path: format!("{}.{name}", self.path),
-            })
+        self.member(name).filter(|member| !member.value.is_null())
     }
 
     pub(super) fn field(&self, name: &str) -> Result<Self, ShapeError> {
