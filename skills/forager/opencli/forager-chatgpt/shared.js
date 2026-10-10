@@ -37,7 +37,7 @@ export async function waitFor(until, probe) {
 }
 
 /** The path of the request the page sends for a conversation when it opens `/c/<id>`. */
-export function conversationPath(id) {
+function conversationPath(id) {
   return `/backend-api/conversations/${id}`;
 }
 
@@ -129,7 +129,7 @@ function decodeText(preview) {
  * Drains the network capture into the page's own reads of the conversation at `path`, in
  * request order, as `{status, body}`. A body OpenCLI truncated counts as no body.
  */
-export async function readConversationReads(page, path) {
+async function readConversationReads(page, path) {
   const entries = await page.readNetworkCapture();
   return entries
     .filter((entry) => entry.method === 'GET' && isConversationRead(entry.url, path))
@@ -137,4 +137,29 @@ export async function readConversationReads(page, path) {
       status: entry.responseStatus || null,
       body: entry.responseBodyTruncated ? null : decodeText(entry.responsePreview),
     }));
+}
+
+/**
+ * Opens the conversation `id` and reads the conversation response the page receives once it has
+ * fully arrived: capture first, because the page reads the conversation while the navigation is
+ * still settling. Stops at a sign-in prompt, a notice, or `deadline`. Returns the page facts,
+ * the first complete response body or null, and whether a conversation read completed.
+ */
+export async function openConversation(page, id, deadline) {
+  const path = conversationPath(id);
+  const facts = new PageFacts(path);
+  await page.startNetworkCapture(SITE_DOMAIN);
+  await page.goto(`${HOME_URL}c/${encodeURIComponent(id)}`, {
+    waitUntil: 'load',
+    settleMs: 1000,
+  });
+  const ended = await waitFor(deadline, async () => {
+    if (await facts.observe(page)) return 'page';
+    return facts.completions > 0 ? 'completed' : null;
+  });
+  const completed = ended === 'completed';
+  if (completed) await facts.settle(page);
+  const reads = await readConversationReads(page, path);
+  const answered = reads.find((read) => read.body !== null);
+  return { page: facts.facts, body: answered ? answered.body : null, completed };
 }
