@@ -376,16 +376,19 @@ fn decode_plan(plan: &Node<'_>) -> Result<GeminiPlan, ShapeError> {
 }
 
 /// Counts the progress items: a thought has `[5] = [heading, text]`, a visited source has
-/// `[4][2] = [favicon, url, title, …]`. The newest thought is the last one listed.
+/// `[4][2] = [favicon, url, title, …]`. The newest thought is the last one listed. Progress
+/// only informs the caller, so items of other shapes (live, a `[5]` without a heading) are
+/// skipped rather than failing the read.
 fn decode_progress(progress: Option<Node<'_>>) -> Result<GeminiProgress, ShapeError> {
     let Some(items) = progress.and_then(|progress| progress.get(1)?.get(4)?.get(2)) else {
         return Ok(GeminiProgress::default());
     };
     let mut decoded = GeminiProgress::default();
     for item in items.items()? {
-        if let Some(thought) = item.get(5) {
+        let heading = item.get(5).and_then(|thought| thought.get(0));
+        if let Some(heading) = heading.and_then(|heading| heading.text().ok()) {
             decoded.thoughts += 1;
-            decoded.latest_thought = Some(thought.at(0)?.text()?.to_owned());
+            decoded.latest_thought = Some(heading.to_owned());
         } else if item.get(4).and_then(|source| source.get(2)).is_some() {
             decoded.sources_visited += 1;
         }
