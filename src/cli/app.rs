@@ -1,6 +1,7 @@
 //! CLI parsing and application dispatch.
 
 mod args;
+mod delegated_report;
 mod dispatch;
 mod gemini;
 mod platform;

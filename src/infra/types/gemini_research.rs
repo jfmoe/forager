@@ -2,12 +2,12 @@
 //! progress, and the Delegated Research Report it delivers. None of these is Research Evidence.
 
 use std::fmt;
-use std::fmt::Write as _;
 
 use serde::Serialize;
 use serde::ser::{SerializeMap, Serializer};
 
 use super::attempt::ProviderAttempt;
+use super::delegated_report::{DelegatedReport, ReportFiles};
 use super::error::ProviderError;
 
 /// The attempt-target name of starting a Gemini Deep Research.
@@ -105,59 +105,13 @@ pub struct GeminiProgress {
     pub latest_thought: Option<String>,
 }
 
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
-/// A source the report cites as `[cite: <id>]`.
-pub struct GeminiSource {
-    pub id: u64,
-    pub title: String,
-    pub url: String,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-/// A completed Delegated Research Report: Gemini's Markdown body, unchanged, and the sources it
-/// declares, ordered by citation number.
-pub struct GeminiReport {
-    pub title: String,
-    pub body: String,
-    pub sources: Vec<GeminiSource>,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-/// Where `gemini research result` wrote a completed report and its sources.
-pub struct GeminiReportFiles {
-    pub report_path: String,
-    pub sources_path: String,
-}
-
-impl GeminiReport {
-    /// The body, verbatim, followed by a `## Sources` list that resolves every `[cite: N]`
-    /// without Gemini.
-    #[must_use]
-    pub fn markdown(&self) -> String {
-        let mut markdown = self.body.clone();
-        if !markdown.ends_with('\n') {
-            markdown.push('\n');
-        }
-        markdown.push_str("\n## Sources\n");
-        for source in &self.sources {
-            let _ = write!(
-                markdown,
-                "\n- [{}] {} <{}>",
-                source.id, source.title, source.url
-            );
-        }
-        markdown.push('\n');
-        markdown
-    }
-}
-
 #[derive(Clone, Debug, Eq, PartialEq)]
 /// Where a Deep Research conversation stands.
 pub enum GeminiResearchState {
     /// Gemini proposed a plan and waits for the user to start the research.
     AwaitingConfirmation(GeminiPlan),
     Running(GeminiProgress),
-    Completed(GeminiReport),
+    Completed(DelegatedReport),
 }
 
 #[derive(Clone, Debug)]
@@ -168,7 +122,7 @@ pub struct GeminiResearchResult {
     pub conversation: GeminiConversationId,
     pub state: GeminiResearchState,
     /// Where the completed report was written; `None` before delivery or when it was printed.
-    pub report_files: Option<GeminiReportFiles>,
+    pub report_files: Option<ReportFiles>,
     pub attempts: Vec<ProviderAttempt>,
     pub diagnostic: Option<String>,
 }
@@ -195,7 +149,7 @@ impl Serialize for GeminiResearchResult {
                     map.serialize_entry("report_path", &files.report_path)?;
                     map.serialize_entry("sources_path", &files.sources_path)?;
                 }
-                map.serialize_entry("content_len", &report.body.chars().count())?;
+                map.serialize_entry("content_len", &report.content_len())?;
                 map.serialize_entry("source_count", &report.sources.len())?;
             }
         }
@@ -236,25 +190,7 @@ pub struct GeminiResearchFailure {
 
 #[cfg(test)]
 mod tests {
-    use super::{GeminiConversationId, GeminiReport, GeminiSource};
-
-    #[test]
-    fn markdown_keeps_the_body_verbatim_before_the_sources() {
-        let report = GeminiReport {
-            title: "Title".into(),
-            body: "Body  \n\n".into(),
-            sources: vec![GeminiSource {
-                id: 1,
-                title: "Source".into(),
-                url: "https://example.test".into(),
-            }],
-        };
-
-        assert_eq!(
-            report.markdown(),
-            "Body  \n\n\n## Sources\n\n- [1] Source <https://example.test>\n"
-        );
-    }
+    use super::GeminiConversationId;
 
     #[test]
     fn a_conversation_is_its_url_or_its_hexadecimal_id() {
