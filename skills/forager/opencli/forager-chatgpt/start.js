@@ -1,8 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
 import {
-  HOME_URL, PageFacts, SITE, SITE_DOMAIN, conversationPath, envelope, readConversationReads,
-  readDeadline, waitFor,
+  HOME_URL, PageFacts, SITE, SITE_DOMAIN, envelope, openConversation, readDeadline, waitFor,
 } from './shared.js';
 
 // Labels in both interface languages. The zh-CN interface of 2026-10-10 showed a 撰写器模式
@@ -323,30 +322,12 @@ async function startResearch(page, query, deadline, facts, run) {
   await reopen(page, deadline, run);
 }
 
-/**
- * Opens the conversation again and reports the conversation response the page receives once it
- * has fully arrived: capture first, because the page reads the conversation while the
- * navigation is still settling.
- */
+/** Opens the conversation again and reports the conversation response the page receives. */
 async function reopen(page, deadline, run) {
-  const path = conversationPath(run.conversation);
-  const facts = new PageFacts(path);
-  await page.startNetworkCapture(SITE_DOMAIN);
-  await page.goto(`${HOME_URL}c/${encodeURIComponent(run.conversation)}`, {
-    waitUntil: 'load',
-    settleMs: 1000,
-  });
-  const ended = await waitFor(deadline, async () => {
-    if (await facts.observe(page)) return 'page';
-    return facts.completions > 0 ? 'completed' : null;
-  });
-  const completed = ended === 'completed';
-  if (completed) await facts.settle(page);
-  const reads = await readConversationReads(page, path);
-  const answered = reads.find((read) => read.body !== null);
-  run.page = facts.facts;
-  if (answered) {
-    run.response = answered.body;
+  const { page: facts, body, completed } = await openConversation(page, run.conversation, deadline);
+  run.page = facts;
+  if (body !== null) {
+    run.response = body;
     run.steps.push('reopened');
   } else {
     run.body_missing = completed;
