@@ -1,6 +1,6 @@
 ---
 name: forager
-description: "Search current web and X/Twitter sources with the local forager CLI. Use for known-URL retrieval, platform items such as arXiv, SSRN, or Google Scholar papers and Xiaohongshu (小红书) notes, site mapping, official/API documentation lookup, vertical discovery, source-backed fact checking, deep research, Gemini Deep Research the user explicitly asks for, or forager configuration and diagnostics."
+description: "Search current web and X/Twitter sources with the local forager CLI. Use for known-URL retrieval, platform items such as arXiv, SSRN, or Google Scholar papers and Xiaohongshu (小红书) notes, site mapping, official/API documentation lookup, vertical discovery, source-backed fact checking, deep research, Gemini or ChatGPT Deep Research the user explicitly asks for, or forager configuration and diagnostics."
 ---
 
 # forager
@@ -41,12 +41,15 @@ expensive branch.
 Routing is complete when exactly one branch matches the request shape or the preceding branch has
 returned an observable reason to escalate.
 
-## Delegate to Gemini Deep Research only on request
+## Delegate to a Deep Research agent only on request
 
-Gemini Deep Research sits outside the cost ladder: it spends the user's Deep Research quota and
-runs for many minutes. Never choose it as an escalation step. When the user explicitly asks for
-Gemini Deep Research, read [`references/gemini-deep-research.md`](references/gemini-deep-research.md)
-and follow it through completion.
+Gemini and ChatGPT Deep Research sit outside the cost ladder: each spends the user's Deep Research
+quota and runs for many minutes. Never choose either as an escalation step. When the user
+explicitly names one, read its reference and follow it through completion:
+
+- Gemini Deep Research: [`references/gemini-deep-research.md`](references/gemini-deep-research.md).
+- ChatGPT Deep Research:
+  [`references/chatgpt-deep-research.md`](references/chatgpt-deep-research.md).
 
 ## Diagnose or configure
 
