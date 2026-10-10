@@ -115,7 +115,8 @@ fn an_unconfirmed_plan_carries_why_the_adapter_stopped() {
         Some(gemini::stream_body(&gemini::plan_candidate())),
         None,
     );
-    facts["problem"] = json!("Gemini showed no \"Start research\" button (1 matching button hidden)");
+    facts["problem"] =
+        json!("Gemini showed no \"Start research\" button (1 matching button hidden)");
 
     let (_fake, output) = run(facts);
 
