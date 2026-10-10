@@ -8,7 +8,7 @@
 use std::collections::HashMap;
 use std::fmt::Write as _;
 
-use super::decode::{Node, ShapeError};
+use super::shape::{Node, ShapeError};
 use crate::types::ReportSource;
 
 const MARKER_START: char = '\u{e200}';
