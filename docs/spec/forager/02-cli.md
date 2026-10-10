@@ -393,9 +393,9 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 - **截止时间**：默认 240 秒覆盖发送、等卡片、倒计时与重新打开：实测发送到进入会话约 15 秒、卡片在 15 秒内出现，加上 90 秒倒计时等待与重新打开，通常约 2.5 分钟；各步有上限的等待全部用满约 205 秒，仍在 240 秒之内。截止时间不够时倒计时等待先缩短，读到的仍在等待开始按下述 Runtime 处理。
 - **成功判定**：最终 URL 为该会话的 `/c/<uuid>`，响应的 `conversation_id` 为该会话，且按 `result` 的规则选出的最近研究消息 `widget_state.status` 为 `researching` 或 `completed`。
 - **输出**：JSON 为 `{route, conversation_id, conversation_url, plan}`，`plan` 为该研究消息的 `widget_state.plan`，形状同 `result` 的 `awaiting_confirmation`，与 Research Plan Schema v1 无关。Markdown 渲染会话 URL、计划与轮询提示。
-- **失败载荷**：普通瘦载荷另加可空的 `conversation_url`。adapter 发送后从页面 URL 得到并校验过会话 id 时填入，消息也指向它；还没有会话 id 时为 `null`。adapter 进程本身失败、没有交回页面事实时（非零退出、被强杀），以及已发送却没有得到会话时，消息说明 forager 不知道 ChatGPT 是否收到了问题，提示先在 ChatGPT 历史中检查，不建议重新发起。两种情况除外：Auth，此时浏览器还没走到发送；OpenCLI 确定没有运行 adapter 命令，此时消息说明什么都没发送。
+- **失败载荷**：普通瘦载荷另加可空的 `conversation_url`。adapter 发送后从页面 URL 得到并校验过会话 id 时填入，消息也指向它；还没有会话 id 时为 `null`。adapter 进程本身失败、没有交回页面事实时（非零退出、被强杀），以及已发送却没有得到会话时，消息说明 forager 不知道 ChatGPT 是否收到了问题，提示先在 ChatGPT 历史中检查，不建议重新发起。两种情况除外：adapter 进程以 Auth 失败，此时浏览器还没走到发送；OpenCLI 确定没有运行 adapter 命令，此时消息说明什么都没发送。
 - **退出码**：问题为空＝飞行前退 2。以下都退 4：
-  - 浏览器未登录（adapter 退 77 或页面要求登录）为 Auth；
+  - 浏览器未登录（adapter 退 77 或页面要求登录）为 Auth，先于其他判定；还没有会话 id 时提示登录后重试，已校验会话 id 后（例如倒计时后重新打开时要求登录）载荷与消息指向该会话，提示登录后先用 `result` 查看，不提示重试；
   - 研究消息的用量回执超限（规则同 `result`；研究已在进行或已完成时以状态为准），或发送后、ChatGPT 回答之前页面上新出现的用量提示，为 QuotaExhausted；会话轮次、导航栏中的文字与发送前已显示的文字不算用量提示；
   - 聊天模式菜单中没有“深度研究”（消息提示检查账号能力，说明什么都没发送）、adapter 在发送前停下（附停止原因与最后到达的步骤，说明什么都没发送并报告草稿是否已清空）为 Runtime；
   - 重新打开后研究仍为 `waiting_for_user_response_on_plan`，或计划已出现但没有读到会话，为 Runtime，附会话 URL，并提示倒计时仍可能让研究自行开始，应先用 `result` 查看，不要重新发起，forager 也不重发（没有读到会话且截止时间先到时为 Timeout）；

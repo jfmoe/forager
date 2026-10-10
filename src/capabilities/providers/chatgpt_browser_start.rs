@@ -11,7 +11,7 @@ use std::cell::OnceCell;
 use serde::Deserialize;
 
 use super::decode::Conversation;
-use super::{PageFacts, runtime, signed_out};
+use super::{PageFacts, runtime, signed_out, signed_out_then};
 use crate::net::{AttemptFailure, truncate_message};
 use crate::providers::opencli::CommandFailure;
 use crate::types::{AttemptErrorKind, ChatgptConversationId, ChatgptPlan, ChatgptResearchState};
@@ -157,12 +157,18 @@ pub(super) fn read_start(
     facts: &StartData,
     created: &OnceCell<ChatgptConversationId>,
 ) -> Result<(ChatgptConversationId, ChatgptPlan), AttemptFailure> {
-    if facts.page.signed_out {
-        return Err(signed_out());
-    }
     let conversation = facts.conversation();
     if let Some(conversation) = &conversation {
         let _ = created.set(conversation.clone());
+    }
+    if facts.page.signed_out {
+        return Err(match &conversation {
+            Some(conversation) => signed_out_then(&format!(
+                "read the research with `forager chatgpt research result {}` before starting again",
+                conversation.url()
+            )),
+            None => signed_out(),
+        });
     }
     if let Some(notice) = facts.quota_notice.as_deref().map(str::trim)
         && !notice.is_empty()
