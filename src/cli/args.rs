@@ -156,6 +156,12 @@ pub(super) enum Command {
         #[command(subcommand)]
         command: super::gemini::GeminiCommand,
     },
+    /// Delegate research to ChatGPT Deep Research in your own logged-in Chrome; use it only
+    /// when the user asks for ChatGPT Deep Research.
+    Chatgpt {
+        #[command(subcommand)]
+        command: super::chatgpt::ChatgptCommand,
+    },
     Config {
         #[command(subcommand)]
         command: ConfigCommand,

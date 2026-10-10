@@ -1,5 +1,6 @@
 mod anysearch;
 mod arxiv;
+mod chatgpt_browser;
 mod constructors;
 mod context7;
 mod exa;
@@ -22,9 +23,10 @@ mod xiaohongshu_browser;
 pub(crate) use crate::catalog::ProviderId;
 pub(crate) use anysearch::{Anysearch, AnysearchDomainsRequest, AnysearchSearchRequest};
 pub(crate) use arxiv::ArxivApi;
+pub(crate) use chatgpt_browser::ChatgptBrowser;
 pub(crate) use constructors::{
-    build_anysearch, build_context7, build_exa, build_gemini_browser, build_openai_compatible,
-    build_tavily_map, build_xai, route_limiter,
+    build_anysearch, build_chatgpt_browser, build_context7, build_exa, build_gemini_browser,
+    build_openai_compatible, build_tavily_map, build_xai, route_limiter,
 };
 pub(crate) use context7::{Context7, Context7DocsRequest, Context7LibraryRequest};
 pub(crate) use exa::{Exa, ExaSearchRequest, ExaSimilarRequest, SearchType};

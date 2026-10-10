@@ -77,6 +77,7 @@ pub(super) struct Providers {
     pub(super) serpapi: Endpoint<SerpapiEndpoint>,
     pub(super) xiaohongshu_browser: ProcessRoute<XiaohongshuBrowserProcess>,
     pub(super) gemini_browser: ProcessRoute<GeminiBrowserProcess>,
+    pub(super) chatgpt_browser: ProcessRoute<ChatgptBrowserProcess>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -210,6 +211,14 @@ pub(super) struct GeminiBrowserProcess;
 
 // Starting a research waits for the plan and then for the confirmed turn, about a minute live.
 impl ProcessDefaults for GeminiBrowserProcess {
+    const TIMEOUT_SECONDS: u64 = 240;
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct ChatgptBrowserProcess;
+
+// The same budget as Gemini: starting a research sends once and then waits for the plan card.
+impl ProcessDefaults for ChatgptBrowserProcess {
     const TIMEOUT_SECONDS: u64 = 240;
 }
 
@@ -582,6 +591,8 @@ pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("providers.xiaohongshu_browser.timeout", providers.xiaohongshu_browser.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one OpenCLI command; must be greater than zero"),
     leaf!("providers.gemini_browser.command", providers.gemini_browser.command: String, Rule::NonEmpty, View::Plain, "OpenCLI executable name or path; this provider needs no credentials"),
     leaf!("providers.gemini_browser.timeout", providers.gemini_browser.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one OpenCLI command; must be greater than zero"),
+    leaf!("providers.chatgpt_browser.command", providers.chatgpt_browser.command: String, Rule::NonEmpty, View::Plain, "OpenCLI executable name or path; this provider needs no credentials"),
+    leaf!("providers.chatgpt_browser.timeout", providers.chatgpt_browser.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one OpenCLI command; must be greater than zero"),
     leaf!("capabilities.web_search.order", capabilities.web_search.order: Strings, Rule::CapabilityOrder { capability: "web_search", allow_empty: true }, View::Plain, "authoritative provider order for this capability"),
     leaf!("capabilities.web_fetch.order", capabilities.web_fetch.order: Strings, Rule::CapabilityOrder { capability: "web_fetch", allow_empty: false }, View::Plain, "authoritative provider order for this capability"),
     leaf!("capabilities.docs_search.order", capabilities.docs_search.order: Strings, Rule::CapabilityOrder { capability: "docs_search", allow_empty: true }, View::Plain, "authoritative provider order for this capability"),

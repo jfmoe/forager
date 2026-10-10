@@ -2,7 +2,10 @@ use std::sync::LazyLock;
 use std::time::Duration;
 
 use crate::rate_limit::AccessPolicy;
-use crate::types::{CITED_BY, COMMENTS, GEMINI_RESEARCH_RESULT, GEMINI_RESEARCH_START, Platform};
+use crate::types::{
+    CHATGPT_RESEARCH_RESULT, CHATGPT_RESEARCH_START, CITED_BY, COMMENTS, GEMINI_RESEARCH_RESULT,
+    GEMINI_RESEARCH_START, Platform,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct CapabilityCatalog {
@@ -171,10 +174,11 @@ pub(crate) enum ProviderId {
     Serpapi,
     XiaohongshuBrowser,
     GeminiBrowser,
+    ChatgptBrowser,
 }
 
 impl ProviderId {
-    pub(crate) const ALL: [Self; 14] = [
+    pub(crate) const ALL: [Self; 15] = [
         Self::Xai,
         Self::OpenAiCompatible,
         Self::Exa,
@@ -189,6 +193,7 @@ impl ProviderId {
         Self::Serpapi,
         Self::XiaohongshuBrowser,
         Self::GeminiBrowser,
+        Self::ChatgptBrowser,
     ];
 
     pub(crate) fn parse(value: &str) -> Option<Self> {
@@ -207,6 +212,7 @@ impl ProviderId {
             "serpapi" => Some(Self::Serpapi),
             "xiaohongshu_browser" => Some(Self::XiaohongshuBrowser),
             "gemini_browser" => Some(Self::GeminiBrowser),
+            "chatgpt_browser" => Some(Self::ChatgptBrowser),
             _ => None,
         }
     }
@@ -227,6 +233,7 @@ impl ProviderId {
             Self::Serpapi => "serpapi",
             Self::XiaohongshuBrowser => "xiaohongshu_browser",
             Self::GeminiBrowser => "gemini_browser",
+            Self::ChatgptBrowser => "chatgpt_browser",
         }
     }
 }
@@ -575,6 +582,13 @@ const GEMINI_BROWSER_ACCESS: AccessPolicy = AccessPolicy {
     max_concurrency: 1,
 };
 
+// One command every ten seconds keeps reading a ChatGPT conversation at a person's pace, a
+// condition of accepting the OpenAI terms risk (ADR 0024).
+const CHATGPT_BROWSER_ACCESS: AccessPolicy = AccessPolicy {
+    min_interval: Duration::from_secs(10),
+    max_concurrency: 1,
+};
+
 const REGISTRY: &[ProviderRegistration] = &[
     ProviderRegistration {
         id: ProviderId::Xai,
@@ -768,6 +782,24 @@ const REGISTRY: &[ProviderRegistration] = &[
         smoke_cases: &[],
         native_full_text: false,
     },
+    // Like `gemini_browser`: only `forager chatgpt` commands run it, and it has no live smoke
+    // case.
+    ProviderRegistration {
+        id: ProviderId::ChatgptBrowser,
+        operations: &[CHATGPT_RESEARCH_START, CHATGPT_RESEARCH_RESULT],
+        credentials_required: false,
+        transport: ProviderTransport::OpenCli(OpenCliAdapter {
+            site: "forager-chatgpt",
+            contract: "forager-chatgpt/1",
+        }),
+        access_policy: Some(CHATGPT_BROWSER_ACCESS),
+        probe: DoctorProbe::AdapterStatus {
+            name: "status",
+            transport: "process",
+        },
+        smoke_cases: &[],
+        native_full_text: false,
+    },
 ];
 
 /// Returns whether a registration is legitimate: it belongs to a capability catalog or a
@@ -845,9 +877,11 @@ mod tests {
         platform, registration, registrations, validate_registrations,
     };
 
-    /// Providers without a live smoke case. `gemini_browser` gets only the offline registration
-    /// check: a live case would spend the user's Deep Research quota or read their conversations.
-    const WITHOUT_LIVE_SMOKE: &[ProviderId] = &[ProviderId::GeminiBrowser];
+    /// Providers without a live smoke case. `gemini_browser` and `chatgpt_browser` get only the
+    /// offline registration check: a live case would spend the user's Deep Research quota or read
+    /// their conversations.
+    const WITHOUT_LIVE_SMOKE: &[ProviderId] =
+        &[ProviderId::GeminiBrowser, ProviderId::ChatgptBrowser];
 
     #[derive(Deserialize)]
     struct AcceptanceManifest {
@@ -965,21 +999,32 @@ mod tests {
 
     #[test]
     fn a_provider_outside_every_catalog_is_registered_through_its_operations() {
-        let gemini = registration(ProviderId::GeminiBrowser);
+        let registered = [ProviderId::GeminiBrowser, ProviderId::ChatgptBrowser].map(|id| {
+            let registration = registration(id);
+            (
+                CATALOGS.iter().any(|catalog| catalog.contains(id)),
+                PLATFORMS.iter().any(|catalog| catalog.contains(id)),
+                registration.operations,
+                has_owner(registration),
+            )
+        });
 
         assert_eq!(
-            (
-                CATALOGS.iter().any(|catalog| catalog.contains(gemini.id)),
-                PLATFORMS.iter().any(|catalog| catalog.contains(gemini.id)),
-                gemini.operations,
-                has_owner(gemini),
-            ),
-            (
-                false,
-                false,
-                &["gemini_research_start", "gemini_research_result"][..],
-                true
-            )
+            registered,
+            [
+                (
+                    false,
+                    false,
+                    &["gemini_research_start", "gemini_research_result"][..],
+                    true
+                ),
+                (
+                    false,
+                    false,
+                    &["chatgpt_research_start", "chatgpt_research_result"][..],
+                    true
+                ),
+            ]
         );
     }
 

@@ -170,6 +170,23 @@ fn cli_reference_documents_every_gemini_research_command() {
 }
 
 #[test]
+fn cli_reference_documents_every_chatgpt_research_command() {
+    let reference =
+        fs::read_to_string(skill_path("references/cli.md")).expect("read CLI reference");
+    let command = Cli::command();
+    let missing = command
+        .find_subcommand("chatgpt")
+        .and_then(|chatgpt| chatgpt.find_subcommand("research"))
+        .expect("chatgpt research command")
+        .get_subcommands()
+        .map(|operation| format!("### `chatgpt research {}`", operation.get_name()))
+        .filter(|heading| !reference.contains(heading.as_str()))
+        .collect::<Vec<_>>();
+
+    assert_eq!(missing, Vec::<String>::new());
+}
+
+#[test]
 fn cli_reference_documents_every_platform_operation() {
     let reference =
         fs::read_to_string(skill_path("references/cli.md")).expect("read CLI reference");

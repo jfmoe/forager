@@ -763,6 +763,62 @@ in), `parameter` (the conversation is unavailable to this account or holds no De
 changed, with its location; the adapter is missing or outdated, with install steps; or the report
 could not be written). A failure payload adds `conversation_url`.
 
+## ChatGPT Deep Research
+
+Run these commands only when the user explicitly asks for ChatGPT Deep Research. They read
+ChatGPT in the user's own logged-in Chrome through OpenCLI and the `forager-chatgpt` adapter:
+install OpenCLI and its Browser Bridge extension (`opencli doctor`), then copy the
+`opencli/forager-chatgpt` directory next to this skill's `SKILL.md` to
+`~/.opencli/clis/forager-chatgpt` (replace the whole directory to update), and check with
+`forager doctor --provider chatgpt_browser`. No platform order or other setting enables them;
+`providers.chatgpt_browser.command` and `.timeout` (default `opencli` and 240 seconds per OpenCLI
+command) configure them. The user starts the research on the ChatGPT web page; forager only reads
+the conversation.
+
+A ChatGPT report is a Delegated Research Report, not research evidence: relay it as ChatGPT's
+conclusions with attribution, and fetch a cited source with `forager fetch` before stating one of
+its claims as fact.
+
+### `chatgpt research result`
+
+```console
+forager chatgpt research result CONVERSATION [--report-dir DIR] [--timeout SECONDS]
+                                [--format json|markdown|content]
+                                [--output FILE [--receipt]]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `CONVERSATION` | A `https://chatgpt.com/c/<uuid>` or `https://chatgpt.com/g/<project>/c/<uuid>` URL, or the `<uuid>`. Anything else exits `2` before Chrome opens. | Required |
+| `--report-dir DIR` | Directory for the report and sources files. | A new directory under the system temporary directory |
+| `--timeout SECONDS` | Whole-command deadline. | `120` |
+| `--format content` | Print a completed report and its sources to stdout and write no file; any other status prints the JSON below. | `json` |
+
+The command opens the conversation in a background Chrome window and reads where its newest Deep
+Research stands from the conversation response the page receives; it changes nothing in the
+conversation. JSON output has `route` (`chatgpt_browser`), `conversation_id`,
+`conversation_url`, and `status`:
+
+| `status` | Further fields |
+| --- | --- |
+| `awaiting_confirmation` | `plan`: `{title, steps: [{index, text}]}`. ChatGPT waits for the user to click "Start" on the conversation page, or for its countdown to run out. |
+| `running` | `plan_title`, and `progress`: `{steps_completed, steps_total}`. |
+| `completed` | `title`, `report_path`, `sources_path`, `content_len` (characters, without the sources list), and `source_count`. |
+
+A completed report is written as `chatgpt-<uuid>.md`, ChatGPT's Markdown body with every citation
+marker replaced by `[N]` or `[N, M]`, followed by a `## Sources` list, and
+`chatgpt-<uuid>.sources.json`, `[{id, title, url}]` ordered by `id`. Source URLs lose the
+`utm_source=chatgpt.com` parameter; a source without a title has `"title": null` and is listed
+as `- [N] <URL>`. The report may be written in another language variant than the prompt.
+
+Exit codes: `2` for an unrecognized conversation; `4` for `auth` (ChatGPT asks the browser to
+sign in), `parameter` (the conversation is unavailable to this account or holds no Deep Research),
+`quota_exhausted` (the usage receipt says the Deep Research limit is reached), `timeout`, and
+`runtime` (the page or the response showed another conversation, and nothing was written; the
+ChatGPT response structure changed, with its location or status; the adapter is missing or
+outdated, with install steps; or the report could not be written). A failure payload adds
+`conversation_url`.
+
 ## Configuration and diagnostics
 
 ### `config`
