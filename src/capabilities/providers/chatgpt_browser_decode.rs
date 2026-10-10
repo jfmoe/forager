@@ -118,10 +118,37 @@ fn research<'a>(message: &Node<'a>) -> Option<Research<'a>> {
     is_research_tool.then_some(Research { sdk })
 }
 
+/// Why where a research stands could not be read.
+#[derive(Debug)]
+pub(super) enum StandingError {
+    /// The usage receipt says that the account's Deep Research limit refused the research.
+    QuotaExhausted,
+    Shape(ShapeError),
+}
+
 impl Research<'_> {
+    /// Judges where the research stands, weighing its usage receipt. The receipt sits in
+    /// `tool_response_metadata`, the snapshot taken when the tool was called, so a current
+    /// state that shows the research running or completed outweighs it; any other state, or
+    /// none, yields to a receipt that refused the research.
+    ///
+    /// # Errors
+    ///
+    /// Fails with `QuotaExhausted` when the receipt decides, and otherwise with the location
+    /// where the state stops matching the recorded shape (see `state`).
+    pub(super) fn standing(&self) -> Result<ChatgptResearchState, StandingError> {
+        match self.state() {
+            Ok(
+                state @ (ChatgptResearchState::Running { .. } | ChatgptResearchState::Completed(_)),
+            ) => Ok(state),
+            _ if self.quota_exhausted() => Err(StandingError::QuotaExhausted),
+            state => state.map_err(StandingError::Shape),
+        }
+    }
+
     /// Whether the usage receipt of the research says that the account's Deep Research limit
     /// refused it.
-    pub(super) fn quota_exhausted(&self) -> bool {
+    fn quota_exhausted(&self) -> bool {
         let Some(receipt) = self
             .sdk
             .get("tool_response_metadata")
@@ -149,7 +176,7 @@ impl Research<'_> {
     ///
     /// Fails with the location where the state stops matching the recorded shape: an unknown
     /// status, a status that contradicts the report, or a missing field.
-    pub(super) fn state(&self) -> Result<ChatgptResearchState, ShapeError> {
+    fn state(&self) -> Result<ChatgptResearchState, ShapeError> {
         let (value, path) = self.current_state()?;
         let state = Node::root(&value, &path);
         let status_node = state.field("status")?;

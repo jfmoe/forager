@@ -174,6 +174,32 @@ fn a_usage_receipt_over_the_limit_is_quota_exhausted() {
 }
 
 #[test]
+fn a_running_research_outweighs_a_refusing_usage_receipt() {
+    let receipt = json!({
+        "allowed": false,
+        "outcome": "rate_limit_reached",
+        "rate_limit": {"limit_reached": true}
+    });
+    let messages = [
+        chatgpt::user_message(1, QUERY),
+        chatgpt::research_message_with(2, &chatgpt::running_state(), &receipt),
+    ];
+    let facts = chatgpt::start_facts(&START_STEPS, Some(chatgpt::conversation_body(&messages)));
+
+    let (_, output) = run(facts);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            payload(&output)["conversation_url"].clone()
+        ),
+        (Some(0), json!(CONVERSATION_URL)),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
 fn a_usage_notice_after_sending_is_quota_exhausted() {
     let mut facts = chatgpt::start_facts(&START_STEPS[..6], None);
     facts["quota_notice"] = json!("你已達到深度研究的使用上限");

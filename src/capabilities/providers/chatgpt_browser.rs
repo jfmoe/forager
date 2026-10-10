@@ -356,18 +356,26 @@ fn read_research(
             ),
         });
     };
-    // A delivered report outweighs a receipt; any other state of a refused research is moot.
-    match research.state() {
-        Ok(state @ ChatgptResearchState::Completed(_)) => Ok(state),
-        _ if research.quota_exhausted() => Err(AttemptFailure {
+    research
+        .standing()
+        .map_err(|error| standing_failure(error, conversation))
+}
+
+/// The failure of a research whose standing could not be read.
+fn standing_failure(
+    error: decode::StandingError,
+    conversation: &ChatgptConversationId,
+) -> AttemptFailure {
+    match error {
+        decode::StandingError::QuotaExhausted => AttemptFailure {
             kind: AttemptErrorKind::QuotaExhausted,
             status: None,
             message: format!(
                 "ChatGPT's usage receipt for {} says the account's Deep Research limit is reached; wait until it resets",
                 conversation.url()
             ),
-        }),
-        state => state.map_err(AttemptFailure::from),
+        },
+        decode::StandingError::Shape(error) => error.into(),
     }
 }
 

@@ -562,6 +562,24 @@ fn a_usage_receipt_over_the_limit_is_quota_exhausted() {
 }
 
 #[test]
+fn a_running_research_outweighs_a_refusing_usage_receipt() {
+    let refused = chatgpt::research_message_with(
+        4,
+        &chatgpt::running_state(),
+        &json!({"allowed": false, "outcome": "rate_limit_reached", "rate_limit": {"limit_reached": true}}),
+    );
+
+    let output = read_messages(&[chatgpt::user_message(1, "研究 async-std。"), refused]);
+
+    assert_eq!(
+        (output.status.code(), payload(&output)["status"].clone()),
+        (Some(0), json!("running")),
+        "stderr: {}",
+        stderr(&output)
+    );
+}
+
+#[test]
 fn another_conversation_on_the_page_or_in_the_response_is_runtime_and_writes_nothing() {
     let other = "7b1f2d3e-4c5d-4e6f-9a0b-1c2d3e4f5a6b";
     let other_url = format!("https://chatgpt.com/c/{other}");

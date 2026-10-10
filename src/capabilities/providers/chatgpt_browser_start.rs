@@ -11,7 +11,7 @@ use std::cell::OnceCell;
 use serde::Deserialize;
 
 use super::decode::Conversation;
-use super::{PageFacts, runtime, signed_out, signed_out_then};
+use super::{PageFacts, runtime, signed_out, signed_out_then, standing_failure};
 use crate::net::{AttemptFailure, truncate_message};
 use crate::providers::opencli::CommandFailure;
 use crate::types::{AttemptErrorKind, ChatgptConversationId, ChatgptPlan, ChatgptResearchState};
@@ -236,17 +236,10 @@ fn read_started(
             ),
         }));
     };
-    match research.state() {
+    match research.standing() {
         Ok(ChatgptResearchState::Running { .. } | ChatgptResearchState::Completed(_)) => {
             Ok(research.plan()?)
         }
-        _ if research.quota_exhausted() => Err(AttemptFailure {
-            kind: AttemptErrorKind::QuotaExhausted,
-            status: None,
-            message: format!(
-                "ChatGPT's usage receipt for {url} says the account's Deep Research limit is reached; wait until it resets"
-            ),
-        }),
         Ok(ChatgptResearchState::AwaitingConfirmation(_)) => {
             let after = if facts.reached(Step::Plan) {
                 " after the plan's countdown"
@@ -258,7 +251,7 @@ fn read_started(
                 not_started_hint(&url)
             )))
         }
-        Err(error) => Err(error.into()),
+        Err(error) => Err(standing_failure(error, conversation)),
     }
 }
 
