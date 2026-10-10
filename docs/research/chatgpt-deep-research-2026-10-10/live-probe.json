@@ -1,0 +1,86 @@
+{
+  "date": "2026-10-10",
+  "environment": {
+    "opencli": "1.8.6",
+    "browser": "user's own Chrome, logged in to ChatGPT, zh-CN UI, Team workspace account",
+    "method": "opencli browser sessions; page operated by OpenCLI click/type; responses read from OpenCLI network capture; no request was constructed by the probe"
+  },
+  "redaction": "No cookies, tokens, account identity, conversation ids, or other conversation titles are recorded. Sizes are response body bytes as reported by OpenCLI.",
+  "prompt": "用不超过 500 字总结：截至 2026 年，Rust 异步运行时 async-std 的维护状态，以及其官方推荐的替代方案。",
+  "timeline_utc": {
+    "prompt_sent": "13:11:44",
+    "plan_card_visible": "within 15 s of sending; the host model thought for 4 s and called the Deep Research app tool at 13:11:48",
+    "countdown": "button 开始 with a countdown of about 60 s; not clicked",
+    "research_started_at": "13:12:51 (auto start after the countdown)",
+    "report_message_created": "13:16:15",
+    "research_stopped_at": "13:16:33",
+    "report_seen_complete": "13:18:34 poll (previous poll at about 13:16:20 was still running)"
+  },
+  "tool_selection": {
+    "deep_research_url": "/deep-research loads, then the client rewrites the path to /",
+    "composer_mode": "a 聊天 / 工作 toggle (aria-label 撰写器模式); 深度研究 is only in the 聊天 mode menu",
+    "menu_button": "aria-label 添加文件等内容; no data-testid composer-plus-btn",
+    "menu_items_chat_mode": ["添加照片和文件", "从资料库添加", "创建图像", "网页搜索", "深度研究", "绘图"],
+    "menu_items_work_mode": ["添加照片和文件", "从资料库添加", "创建图像", "网页搜索"],
+    "selected_marker": "an inline mention span in the composer with app-mention-path app://connector_openai_deep_research",
+    "app_settings_page": "/settings/plugins-settings/apps/connector_openai_deep_research (title Deep Research App)",
+    "typing_caveat": "OpenCLI type replaced the composer content and removed the mention; the mention was inserted again after the text",
+    "draft_caveat": "composer content persists as a draft across page loads",
+    "send_button_label": "发送",
+    "plan_card_buttons": ["编辑", "取消", "开始 (countdown)"],
+    "clarifying_question": "none in this run"
+  },
+  "conversation_read": {
+    "endpoint": "GET /backend-api/conversations/<id>?num_turns=10&include_has_versions=true, requested by the page itself when /c/<id> opens",
+    "window": "OpenCLI background window; document.hidden was false",
+    "shape": "flat messages[] list with page_info cursors; no mapping tree",
+    "conversation_async_status": {"running": 7, "completed": null},
+    "turn_messages": [
+      "system", "user", "system",
+      "assistant -> functions.exec",
+      "assistant code -> api_tool.call_tool (metadata.chatgpt_sdk, connector_tool_payload)",
+      "tool api_tool.call_tool (metadata.chatgpt_sdk.tool_response_metadata, metadata.chatgpt_sdk.widget_state)",
+      "tool functions.exec", "assistant thoughts", "assistant reasoning_recap",
+      "assistant text (short notice that deep research started; not the report)"
+    ],
+    "tool_response_metadata": {
+      "openai/asyncStatus": 7,
+      "venus_message_type": "initial_loading_message",
+      "venus_widget_state.status": "waiting_for_user_response_on_plan (snapshot at tool call time; does not change)",
+      "other_keys": ["async_task_conversation_id", "openai/widgetSessionId", "websocket_url", "venus_plan", "usage_refund_receipt"]
+    },
+    "widget_state": {
+      "type": "JSON string, the current state",
+      "keys_running": ["last_updated_at", "plan", "research_started_at", "research_stopped_at", "status", "step_statuses_by_plan", "waiting_for_user_response_on_plan_until"],
+      "keys_completed": "same plus report_message",
+      "status_values_seen": ["researching", "completed"],
+      "step_statuses": "running: all pending; completed: completed x3, in_progress x1 (not reliable as a completion signal)"
+    },
+    "sizes": {"running": 22748, "completed": 133267}
+  },
+  "report_message": {
+    "location": "widget_state.report_message",
+    "author": "assistant, metadata.real_author tool:web",
+    "status": "finished_successfully",
+    "channel": "final",
+    "body": "content.parts[0], Markdown, 830 characters; written in Traditional Chinese although the prompt was Simplified Chinese",
+    "citation_markers": "U+E200 cite U+E202 turnNsearchM|turnNviewM ... U+E201; 5 markers, 15 ids, 12 unique",
+    "content_references": "6 entries: 5 grouped_webpages (start_idx/end_idx match the marker span exactly; items[0] has title, url, attribution, pub_date, snippet; safe_urls lists every cited URL, each also with a ?utm_source=chatgpt.com variant) and 1 sources_footnote (3 sources)",
+    "search_result_groups": "26 groups; entries carry ref_id {turn_index, ref_type, ref_index}; only 3 of 12 cited ids resolve through them",
+    "cited_urls": "12 unique direct URLs (no redirect links); count of non-utm safe_urls per marker equals the id count of that marker",
+    "safe_urls_total": 12
+  },
+  "progress_channel": {
+    "endpoint": "POST /backend-api/ecosystem/call_mcp, sent by the widget iframe (web-sandbox.oaiusercontent.com, app=skybridge)",
+    "response": "_meta.deep_research_widget_messages (reasoning titles, search queries, web.run calls) and _meta.source_searches (domain, url, titles[].items[] with snippet)",
+    "observed": "running: 32 messages, 60 source searches, 133 KB; completed: 35 messages, 150 source searches, 303 KB",
+    "also": "_meta.websocket_url for live updates"
+  },
+  "usage": {
+    "receipt": "tool_response_metadata.usage_refund_receipt",
+    "outcome": "rate_limit_not_reached",
+    "user_plan_type": "team",
+    "rate_limit_window": {"limit": 25, "limit_window_mins": 43200, "remaining_after_run": 24},
+    "credit_usage_amount": "0"
+  }
+}
