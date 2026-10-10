@@ -35,8 +35,9 @@ pub(super) enum ChatgptCommand {
 #[derive(Debug, Subcommand)]
 pub(super) enum ChatgptResearchCommand {
     /// Start a Deep Research in a foreground Chrome window: switch the composer to chat mode,
-    /// select Deep Research, send the question once, and click the plan's Start button once.
-    /// It spends the account's Deep Research quota and is never retried.
+    /// select Deep Research, send the question once, and keep the page open through the plan's
+    /// countdown until the research starts. It spends the account's Deep Research quota and is
+    /// never retried.
     Start(ChatgptStartArgs),
     /// Read where a Deep Research conversation stands, without changing it; a completed report
     /// and its sources are written to local files.

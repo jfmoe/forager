@@ -380,7 +380,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 ### `chatgpt research start`
 
-在前台 Chrome 窗口中发起一次 Deep Research：切到聊天模式，选择“深度研究”，提交问题一次，点击计划卡片的“开始”一次，再重新打开会话确认研究已在进行。
+在前台 Chrome 窗口中发起一次 Deep Research：切到聊天模式，选择“深度研究”，提交问题一次，保持页面打开直到计划倒计时让研究自行开始，再重新打开会话确认研究已在进行。forager 不点击计划卡片的“开始”：卡片在 OpenCLI 无法访问的跨源沙箱 iframe 中。
 
 | 参数 | 类型与取值 | 默认值 | 语义 |
 |---|---|---|---|
@@ -388,8 +388,9 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 | `--timeout` | 秒，≥1 | 240 | 整条命令的截止时间 |
 | `--format` | `json` / `markdown` | `json` | 没有 `content`，也没有 `--output` |
 
-- **页面操作**：adapter 打开 `/`；输入框处于“工作”模式时点“撰写器模式”中的“聊天”，之后不恢复原来的模式；先输入问题，再点“添加文件等内容”并选“深度研究”（OpenCLI 输入会替换输入框全部内容并删掉已插入的提及标记）；核对输入框同时含问题文本和指向 `app://connector_openai_deep_research` 的提及标记；点“发送”一次；等 URL 变为 `/c/<uuid>`，再等计划卡片的“开始”按钮或 assistant 的普通回复；有“开始”按钮时点一次（按钮可能在跨源沙箱 iframe 中，经 OpenCLI 的无障碍快照定位）；然后先开始网络捕获，再重新打开 `/c/<uuid>`，以页面自己发出的会话响应完整到达为准读取。所有点击与输入都使用 OpenCLI 的浏览器原语。发送之前停下时，adapter 清空输入框再退出并回报是否清空，因为输入框内容会作为草稿跨页面保存。
-- **单次 attempt**：`start` 新建会话并消耗 Deep Research 额度，是会改变用户账号状态的写操作（ADR 0023），只执行一次 attempt，不受 `retry` 配置影响，Timeout 与 Network 也不重试；adapter 内部发送与“开始”各至多点击一次。
+- **页面操作**：adapter 打开 `/`；输入框处于“工作”模式时点“撰写器模式”中的“聊天”，之后不恢复原来的模式；先输入问题，再点“添加文件等内容”并选“深度研究”（OpenCLI 输入会替换输入框全部内容并删掉已插入的提及标记）；核对输入框同时含问题文本和指向 `app://connector_openai_deep_research` 的提及标记；点“发送”一次；等 URL 变为 `/c/<uuid>`，再等计划卡片（来自 `web-sandbox.oaiusercontent.com`、标题为“深度研究”的 iframe）或 assistant 的普通回复；出现计划卡片时，前台标签页保持在该会话上 90 秒，等计划倒计时结束、研究自行开始（实测在卡片出现约 60 秒后、`waiting_for_user_response_on_plan_until` 之后 1 秒开始；多出的 30 秒覆盖卡片被晚发现与研究状态写入会话的延迟），但至少给重新打开留出 20 秒，截止时间不够时提前结束等待；然后先开始网络捕获，再重新打开 `/c/<uuid>`，以页面自己发出的会话响应完整到达为准读取。所有点击与输入都使用 OpenCLI 的浏览器原语。发送之前停下时，adapter 清空输入框再退出并回报是否清空，因为输入框内容会作为草稿跨页面保存。
+- **单次 attempt**：`start` 新建会话并消耗 Deep Research 额度，是会改变用户账号状态的写操作（ADR 0023），只执行一次 attempt，不受 `retry` 配置影响，Timeout 与 Network 也不重试；adapter 内部至多点击一次“发送”，不点击计划卡片。
+- **截止时间**：默认 240 秒覆盖发送、等卡片、倒计时与重新打开：实测发送到进入会话约 15 秒、卡片在 15 秒内出现，加上 90 秒倒计时等待与重新打开，通常约 2.5 分钟；各步有上限的等待全部用满约 205 秒，仍在 240 秒之内。截止时间不够时倒计时等待先缩短，读到的仍在等待开始按下述 Runtime 处理。
 - **成功判定**：最终 URL 为该会话的 `/c/<uuid>`，响应的 `conversation_id` 为该会话，且按 `result` 的规则选出的最近研究消息 `widget_state.status` 为 `researching` 或 `completed`。
 - **输出**：JSON 为 `{route, conversation_id, conversation_url, plan}`，`plan` 为该研究消息的 `widget_state.plan`，形状同 `result` 的 `awaiting_confirmation`，与 Research Plan Schema v1 无关。Markdown 渲染会话 URL、计划与轮询提示。
 - **失败载荷**：普通瘦载荷另加可空的 `conversation_url`。adapter 发送后从页面 URL 得到并校验过会话 id 时填入，消息也指向它；还没有会话 id 时为 `null`。adapter 进程本身失败、没有交回页面事实时（非零退出、被强杀），以及已发送却没有得到会话时，消息说明 forager 不知道 ChatGPT 是否收到了问题，提示先在 ChatGPT 历史中检查，不建议重新发起。两种情况除外：Auth，此时浏览器还没走到发送；OpenCLI 确定没有运行 adapter 命令，此时消息说明什么都没发送。
@@ -397,10 +398,10 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
   - 浏览器未登录（adapter 退 77 或页面要求登录）为 Auth；
   - 研究消息的用量回执超限（规则同 `result`；研究已在进行或已完成时以状态为准），或发送后、ChatGPT 回答之前页面上新出现的用量提示，为 QuotaExhausted；会话轮次、导航栏中的文字与发送前已显示的文字不算用量提示；
   - 聊天模式菜单中没有“深度研究”（消息提示检查账号能力，说明什么都没发送）、adapter 在发送前停下（附停止原因与最后到达的步骤，说明什么都没发送并报告草稿是否已清空）为 Runtime；
-  - 重新打开后研究仍为 `waiting_for_user_response_on_plan`，或计划已出现但“开始”没有点到且没有读到会话，为 Runtime，附会话 URL，并提示倒计时结束后研究可能自行开始，应先用 `result` 查看，不要重新发起，forager 也不再点击或重发（没有读到会话且截止时间先到时为 Timeout）；
+  - 重新打开后研究仍为 `waiting_for_user_response_on_plan`，或计划已出现但没有读到会话，为 Runtime，附会话 URL，并提示倒计时仍可能让研究自行开始，应先用 `result` 查看，不要重新发起，forager 也不重发（没有读到会话且截止时间先到时为 Timeout）；
   - 会话中没有研究消息、最近一条有文字的 assistant 消息是普通文本（澄清问题或拒绝）为 Runtime，附会话 URL、有界的回复开头，以及在网页上回答后用 `result` 查看的提示；
   - 页面或响应指向另一个会话、响应结构不符（附位置）、adapter 缺失或过期为 Runtime；
-  - 读取截止点前没有走完（adapter 带 `timed_out: true` 交回已取得的页面事实）或命令被强杀为 Timeout；已点击“开始”但没有读到会话时，消息提示研究可能已在进行，用 `result` 读取该会话。
+  - 读取截止点前没有走完（adapter 带 `timed_out: true` 交回已取得的页面事实）或命令被强杀为 Timeout。
 
 ### `chatgpt research result`
 

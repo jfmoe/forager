@@ -86,31 +86,17 @@ fn a_started_research_returns_the_conversation_and_the_plan() {
     );
 }
 
-const NOT_STARTED_HINT: &str = "its countdown may start the research by itself, so read it with `forager chatgpt research result https://chatgpt.com/c/6a0f1c2e-3b4d-4e5f-8a9b-0c1d2e3f4a5b` before starting again; forager does not click again or resend the question";
-
-/// The steps of a `start` that saw the plan but did not click its Start button.
-const UNCLICKED_STEPS: [&str; 9] = [
-    "chat_mode",
-    "query",
-    "deep_research",
-    "mention",
-    "sent",
-    "conversation",
-    "answered",
-    "plan",
-    "reopened",
-];
+const NOT_STARTED_HINT: &str = "the plan's countdown may still start the research, so read it with `forager chatgpt research result https://chatgpt.com/c/6a0f1c2e-3b4d-4e5f-8a9b-0c1d2e3f4a5b` before starting again; forager does not resend the question";
 
 #[test]
-fn a_plan_that_did_not_start_is_runtime_and_says_to_read_the_result_first() {
-    let mut facts = chatgpt::start_facts(
-        &UNCLICKED_STEPS,
+fn a_plan_still_waiting_after_its_countdown_is_runtime_and_says_to_read_the_result_first() {
+    let facts = chatgpt::start_facts(
+        &START_STEPS,
         Some(chatgpt::conversation_body(&chatgpt::research_turn(
             1,
             &chatgpt::awaiting_state(),
         ))),
     );
-    facts["problem"] = json!("the Start button went away");
 
     let (fake, output) = run(facts);
 
@@ -121,7 +107,7 @@ fn a_plan_that_did_not_start_is_runtime_and_says_to_read_the_result_first() {
                 Some(4),
                 json!("runtime"),
                 format!(
-                    "ChatGPT proposed a research plan, but forager could not click its Start button (the Start button went away): {NOT_STARTED_HINT}"
+                    "ChatGPT proposed a research plan, but the research had not started when forager read the conversation again after the plan's countdown: {NOT_STARTED_HINT}"
                 ),
                 json!(CONVERSATION_URL)
             ),
@@ -314,22 +300,34 @@ fn partial_facts_at_the_read_deadline_point_to_the_conversation() {
 }
 
 #[test]
-fn a_clicked_start_without_a_reread_says_the_research_may_be_running() {
-    let mut facts = chatgpt::start_facts(&START_STEPS[..9], None);
-    facts["timed_out"] = json!(true);
+fn a_plan_without_a_reread_says_to_read_the_result_first() {
+    let mut timed_out = chatgpt::start_facts(&START_STEPS[..8], None);
+    timed_out["timed_out"] = json!(true);
+    let mut stopped = chatgpt::start_facts(&START_STEPS[..8], None);
+    stopped["problem"] = json!("Target closed");
 
-    let (_, output) = run(facts);
+    let failures = [timed_out, stopped].map(|facts| failure(&run(facts).1));
 
     assert_eq!(
-        failure(&output),
-        (
-            Some(4),
-            json!("timeout"),
-            format!(
-                "forager clicked the plan's Start button, but the read deadline passed before forager read the conversation again; the research may be running: read it with `forager chatgpt research result {CONVERSATION_URL}`"
+        failures,
+        [
+            (
+                Some(4),
+                json!("timeout"),
+                format!(
+                    "ChatGPT proposed a research plan, but the read deadline passed before forager read the conversation again: {NOT_STARTED_HINT}"
+                ),
+                json!(CONVERSATION_URL)
             ),
-            json!(CONVERSATION_URL)
-        )
+            (
+                Some(4),
+                json!("runtime"),
+                format!(
+                    "ChatGPT proposed a research plan, but the forager-chatgpt adapter stopped before forager read the conversation again: Target closed: {NOT_STARTED_HINT}"
+                ),
+                json!(CONVERSATION_URL)
+            ),
+        ]
     );
 }
 

@@ -791,8 +791,9 @@ forager chatgpt research start QUERY [--timeout SECONDS] [--format json|markdown
 
 The command brings a Chrome window to the front, switches the ChatGPT composer to chat mode (and
 leaves it there), types the question, selects Deep Research in the "Add files and more" menu,
-sends once, clicks the plan's "Start" button once, and reopens the conversation to check that the
-research runs. It creates a conversation and spends the account's Deep Research quota, so it runs
+sends once, keeps the page open for about 90 seconds after the plan shows so that the plan's
+countdown starts the research (forager never clicks "Start"), and reopens the conversation to
+check that the research runs; a run usually takes two to three minutes. It creates a conversation and spends the account's Deep Research quota, so it runs
 exactly one attempt whatever the `retry` configuration; never run it again after a failure without
 the user's go-ahead. JSON output has `route` (`chatgpt_browser`), `conversation_id`,
 `conversation_url`, and `plan` (`{title, steps: [{index, text}]}`, ChatGPT's own research plan).
