@@ -153,6 +153,29 @@ impl Conversation {
             .filter_map(|message| research(&message))
             .last())
     }
+
+    /// The text of the newest assistant message that has any, such as a clarifying question
+    /// or a refusal, or `None` when no loaded assistant message has text.
+    pub(super) fn newest_reply(&self) -> Option<String> {
+        self.root
+            .get("messages")?
+            .as_array()?
+            .iter()
+            .rev()
+            .filter(|message| {
+                message.pointer("/author/role").and_then(Value::as_str) == Some("assistant")
+            })
+            .find_map(|message| {
+                let text = message
+                    .pointer("/content/parts")?
+                    .as_array()?
+                    .iter()
+                    .filter_map(Value::as_str)
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                (!text.trim().is_empty()).then_some(text)
+            })
+    }
 }
 
 /// A Deep Research message: a tool message from `api_tool.call_tool` that carries a widget
@@ -204,9 +227,7 @@ impl Research<'_> {
     /// Fails with the location where the state stops matching the recorded shape: an unknown
     /// status, a status that contradicts the report, or a missing field.
     pub(super) fn state(&self) -> Result<ChatgptResearchState, ShapeError> {
-        let text = self.widget_state.text()?;
-        let value: Value = serde_json::from_str(text)
-            .map_err(|error| self.widget_state.error(&format!("not JSON: {error}")))?;
+        let value = self.widget_state()?;
         let state = Node::root(&value, self.widget_state.path());
         let status_node = state.field("status")?;
         let status = status_node.text()?;
@@ -240,6 +261,23 @@ impl Research<'_> {
             }
             other => Err(status_node.error(&format!("unknown status `{other}`"))),
         }
+    }
+
+    /// The plan the research follows, whatever its status.
+    ///
+    /// # Errors
+    ///
+    /// Fails with the location where the plan stops matching the recorded shape.
+    pub(super) fn plan(&self) -> Result<ChatgptPlan, ShapeError> {
+        let value = self.widget_state()?;
+        decode_plan(&Node::root(&value, self.widget_state.path()).field("plan")?)
+    }
+
+    /// The widget state, which the message carries as a JSON string.
+    fn widget_state(&self) -> Result<Value, ShapeError> {
+        let text = self.widget_state.text()?;
+        serde_json::from_str(text)
+            .map_err(|error| self.widget_state.error(&format!("not JSON: {error}")))
     }
 }
 

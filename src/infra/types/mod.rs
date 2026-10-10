@@ -23,7 +23,7 @@ pub use capability::{Capability, CapabilitySet, FallbackPolicy, PlanCapability};
 pub(crate) use chatgpt_research::{CHATGPT_RESEARCH_RESULT, CHATGPT_RESEARCH_START};
 pub use chatgpt_research::{
     ChatgptConversationId, ChatgptPlan, ChatgptPlanStep, ChatgptProgress, ChatgptResearchFailure,
-    ChatgptResearchResult, ChatgptResearchState,
+    ChatgptResearchResult, ChatgptResearchStarted, ChatgptResearchState,
 };
 pub(crate) use deadline::{Deadline, MIN_USEFUL_SLICE_SECONDS};
 pub use delegated_report::{DelegatedReport, ReportFiles, ReportSource};

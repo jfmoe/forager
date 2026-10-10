@@ -6,6 +6,7 @@
 //! show the requested conversation, and decodes the response. Only `forager chatgpt` commands
 //! run it; no chain does. ADR 0024 lists the conditions every change here must keep.
 
+use std::cell::OnceCell;
 use std::time::Duration;
 
 use serde::Deserialize;
@@ -18,14 +19,17 @@ use crate::providers::execution::{ExecutionSettings, execute_anonymous};
 use crate::providers::opencli::{self, CommandFailure, EnvelopeStatus, OpenCliCommand, Window};
 use crate::rate_limit::RateLimiter;
 use crate::types::{
-    AttemptErrorKind, AttemptTarget, CHATGPT_RESEARCH_RESULT, ChatgptConversationId,
-    ChatgptResearchResult, ChatgptResearchState, Deadline, ProviderError,
+    AttemptErrorKind, AttemptTarget, CHATGPT_RESEARCH_RESULT, CHATGPT_RESEARCH_START,
+    ChatgptConversationId, ChatgptResearchFailure, ChatgptResearchResult, ChatgptResearchStarted,
+    ChatgptResearchState, Deadline, ProviderError,
 };
 
 #[path = "chatgpt_browser_citations.rs"]
 mod citations;
 #[path = "chatgpt_browser_decode.rs"]
 mod decode;
+#[path = "chatgpt_browser_start.rs"]
+mod start;
 
 const ROUTE: ProviderId = ProviderId::ChatgptBrowser;
 const STATUS_OPERATION: &str = "status";
@@ -62,6 +66,7 @@ impl ChatgptBrowser {
         let command = self.command(
             "report",
             vec![("conversation", conversation.as_str().to_owned())],
+            Window::Background,
         );
         let command = &command;
         let execution = execute_anonymous(
@@ -82,11 +87,66 @@ impl ChatgptBrowser {
         })
     }
 
+    /// Starts a Deep Research in a foreground window: switches the composer to chat mode,
+    /// selects Deep Research, sends `query` once, clicks the plan's Start button once, and
+    /// reopens the conversation to check that the research runs.
+    ///
+    /// Starting creates a conversation and spends the account's Deep Research quota, so it runs
+    /// exactly one attempt whatever the retry configuration (ADR 0023). A failure carries the
+    /// conversation once forager knows it.
+    pub(crate) async fn start(
+        &self,
+        query: &str,
+    ) -> Result<ChatgptResearchStarted, ChatgptResearchFailure> {
+        let command = self.command(
+            "start",
+            vec![("query", query.to_owned())],
+            Window::Foreground,
+        );
+        let command = &command;
+        let created = OnceCell::new();
+        let created_ref = &created;
+        let mut settings = self.settings(CHATGPT_RESEARCH_START, single_attempt());
+        settings.timeout_message = start::TIMEOUT_MESSAGE;
+        let execution = execute_anonymous(settings, move |deadline| async move {
+            let facts = self
+                .read(command, deadline)
+                .await
+                .map_err(start::command_failed)?;
+            start::read_start(&facts, created_ref).map(|started| (None, started))
+        })
+        .await;
+        match execution {
+            Ok(execution) => {
+                let (conversation, plan) = execution.value;
+                Ok(ChatgptResearchStarted {
+                    route: ROUTE.name(),
+                    conversation,
+                    plan,
+                    attempts: execution.attempts,
+                    diagnostic: execution.diagnostic,
+                })
+            }
+            Err(mut error) => {
+                let conversation = created.into_inner();
+                if let Some(url) = conversation.as_ref().map(ChatgptConversationId::url)
+                    && !error.message.contains(url.as_str())
+                {
+                    error.message = format!("{}; see {url}", error.message);
+                }
+                Err(ChatgptResearchFailure {
+                    error,
+                    conversation,
+                })
+            }
+        }
+    }
+
     /// Opens the ChatGPT home page in a background window and checks that the browser is
     /// signed in, without switching modes or opening menus. The adapter contract and OpenCLI
     /// itself are checked on the way.
     pub(crate) async fn status(&self) -> Result<(), ProviderError> {
-        let command = self.command(STATUS_OPERATION, Vec::new());
+        let command = self.command(STATUS_OPERATION, Vec::new(), Window::Background);
         let command = &command;
         execute_anonymous(
             self.settings(STATUS_OPERATION, single_attempt()),
@@ -111,11 +171,11 @@ impl ChatgptBrowser {
         .map(|_| ())
     }
 
-    /// A read-only adapter command, run in a background window.
     fn command(
         &self,
         command: &'static str,
         options: Vec<(&'static str, String)>,
+        window: Window,
     ) -> OpenCliCommand<'_> {
         let ProviderTransport::OpenCli(adapter) = registration(ROUTE).transport else {
             unreachable!("chatgpt_browser registers an OpenCLI transport");
@@ -125,7 +185,7 @@ impl ChatgptBrowser {
             adapter,
             command,
             options,
-            window: Window::Background,
+            window,
         }
     }
 
