@@ -120,6 +120,7 @@ fn every_relative_link_in_the_skill_resolves_to_a_file() {
         "references/ordinary-search.md",
         "references/research.md",
         "references/gemini-deep-research.md",
+        "references/chatgpt-deep-research.md",
         "references/cli.md",
     ];
     let broken = documents
@@ -146,9 +147,10 @@ fn every_relative_link_in_the_skill_resolves_to_a_file() {
         (
             broken,
             skill.contains("](references/platforms.md)"),
-            skill.contains("](references/gemini-deep-research.md)")
+            skill.contains("](references/gemini-deep-research.md)"),
+            skill.contains("](references/chatgpt-deep-research.md)")
         ),
-        (Vec::<String>::new(), true, true)
+        (Vec::<String>::new(), true, true, true)
     );
 }
 
