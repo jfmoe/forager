@@ -28,6 +28,8 @@ use crate::types::{
 mod citations;
 #[path = "chatgpt_browser_decode.rs"]
 mod decode;
+#[path = "chatgpt_browser_shape.rs"]
+mod shape;
 #[path = "chatgpt_browser_start.rs"]
 mod start;
 
@@ -297,8 +299,8 @@ fn changed_structure(problem: &str) -> AttemptFailure {
     ))
 }
 
-impl From<decode::ShapeError> for AttemptFailure {
-    fn from(error: decode::ShapeError) -> Self {
+impl From<shape::ShapeError> for AttemptFailure {
+    fn from(error: shape::ShapeError) -> Self {
         changed_structure(&error.to_string())
     }
 }
