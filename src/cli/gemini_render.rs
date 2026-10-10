@@ -4,8 +4,8 @@ use std::fmt::Write as _;
 
 use forager::app::{DocsOutputFormat, OutputFormat, OutputTarget};
 use forager::types::{
-    GeminiConversationId, GeminiPlan, GeminiProgress, GeminiReport, GeminiReportFiles,
-    GeminiResearchFailure, GeminiResearchResult, GeminiResearchStarted, GeminiResearchState,
+    DelegatedReport, GeminiConversationId, GeminiPlan, GeminiProgress, GeminiResearchFailure,
+    GeminiResearchResult, GeminiResearchStarted, GeminiResearchState, ReportFiles,
 };
 use serde_json::Value;
 
@@ -184,15 +184,11 @@ fn running_markdown(url: &str, progress: &GeminiProgress) -> String {
     markdown
 }
 
-fn completed_markdown(
-    url: &str,
-    report: &GeminiReport,
-    files: Option<&GeminiReportFiles>,
-) -> String {
+fn completed_markdown(url: &str, report: &DelegatedReport, files: Option<&ReportFiles>) -> String {
     let mut markdown = format!(
         "# {}\n\nGemini Deep Research report of <{url}>: {} characters, {} sources",
         report.title,
-        report.body.chars().count(),
+        report.content_len(),
         report.sources.len()
     );
     if let Some(files) = files {

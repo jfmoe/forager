@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use serde_json::Value;
 
 use crate::types::{
-    GeminiPlan, GeminiPlanStep, GeminiProgress, GeminiReport, GeminiResearchState, GeminiSource,
+    DelegatedReport, GeminiPlan, GeminiPlanStep, GeminiProgress, GeminiResearchState, ReportSource,
 };
 
 // Rich content fields of a candidate, numbered from zero as the page's JSPB does.
@@ -396,7 +396,7 @@ fn decode_progress(progress: Option<Node<'_>>) -> Result<GeminiProgress, ShapeEr
     Ok(decoded)
 }
 
-fn decode_report(document: &Node<'_>, body: &str) -> Result<GeminiReport, ShapeError> {
+fn decode_report(document: &Node<'_>, body: &str) -> Result<DelegatedReport, ShapeError> {
     let container = document
         .get(17)
         .and_then(|mirror| mirror.get(1))
@@ -405,7 +405,7 @@ fn decode_report(document: &Node<'_>, body: &str) -> Result<GeminiReport, ShapeE
         Some(groups) => decode_sources(&groups)?,
         None => Vec::new(),
     };
-    Ok(GeminiReport {
+    Ok(DelegatedReport {
         title: document.at(2)?.text()?.to_owned(),
         body: body.to_owned(),
         sources,
@@ -414,7 +414,7 @@ fn decode_report(document: &Node<'_>, body: &str) -> Result<GeminiReport, ShapeE
 
 /// Pairs each citation group's numbers, read from its marker such as `[cite: 2, 3, 4]`, with
 /// its entries in marker order. The first entry of a number wins; sources come out by number.
-fn decode_sources(groups: &Node<'_>) -> Result<Vec<GeminiSource>, ShapeError> {
+fn decode_sources(groups: &Node<'_>) -> Result<Vec<ReportSource>, ShapeError> {
     let mut sources = BTreeMap::new();
     for group in groups.items()? {
         let marker = group.at(0)?.at(0)?;
@@ -428,9 +428,9 @@ fn decode_sources(groups: &Node<'_>) -> Result<Vec<GeminiSource>, ShapeError> {
             let title = link.optional_text(2)?.unwrap_or_default().to_owned();
             sources.insert(
                 number,
-                GeminiSource {
+                ReportSource {
                     id: number,
-                    title,
+                    title: Some(title),
                     url: link.at(1)?.text()?.to_owned(),
                 },
             );

@@ -1,24 +1,27 @@
 //! The `forager gemini` command group: Gemini Deep Research in the user's own logged-in Chrome,
 //! and delivery of the Delegated Research Report it produces.
 
-use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Duration;
 
 use clap::{Args, Subcommand};
 
 use super::args::{DocsOutputFormat, OutputArgs, OutputFormat};
-use super::dispatch::{AppError, CommandOutput, NetworkDependencies, invocation_temp_dir};
+use super::delegated_report::ReportFiling;
+use super::dispatch::{AppError, CommandOutput, NetworkDependencies};
 use crate::config::LogLevel;
 use crate::providers::{self, GeminiBrowser};
 use crate::types::{
-    AttemptErrorKind, Deadline, GeminiConversationId, GeminiReport, GeminiReportFiles,
-    GeminiResearchFailure, GeminiResearchResult, GeminiResearchState, ProviderAttempt,
-    ProviderError,
+    Deadline, GeminiConversationId, GeminiResearchFailure, GeminiResearchResult,
+    GeminiResearchState, ProviderAttempt, ProviderError,
 };
 
 const DEFAULT_START_TIMEOUT_SECONDS: u64 = 240;
 const DEFAULT_RESULT_TIMEOUT_SECONDS: u64 = 120;
+const REPORT_FILING: ReportFiling = ReportFiling {
+    agent: "Gemini",
+    prefix: "gemini",
+};
 
 #[derive(Debug, Subcommand)]
 pub(super) enum GeminiCommand {
@@ -118,8 +121,7 @@ fn result(arguments: GeminiResultArgs) -> Result<CommandOutput, AppError> {
             if format == DocsOutputFormat::Content {
                 return Ok(found);
             }
-            let directory = report_dir.unwrap_or_else(|| invocation_temp_dir("forager-gemini"));
-            deliver(found, &directory)
+            deliver(found, report_dir)
         })
         .map_err(|error| GeminiResearchFailure {
             error,
@@ -169,52 +171,21 @@ impl Session {
     }
 }
 
-/// Writes a completed report and its sources next to each other. A write failure is Runtime
-/// and never falls back to inline output.
+/// Writes a completed report and its sources, unless the research is unfinished.
 fn deliver(
     mut found: GeminiResearchResult,
-    directory: &Path,
+    report_dir: Option<PathBuf>,
 ) -> Result<GeminiResearchResult, ProviderError> {
     let GeminiResearchState::Completed(report) = &found.state else {
         return Ok(found);
     };
-    let stem = format!("gemini-{}", found.conversation);
-    match write_report(report, directory, &stem) {
-        Ok(files) => {
-            found.report_files = Some(files);
-            Ok(found)
-        }
-        Err(message) => Err(ProviderError {
-            kind: AttemptErrorKind::Runtime,
-            message,
-            attempts: found.attempts,
-            verbose: false,
-            diagnostic: found.diagnostic,
-            redirected_library_id: None,
-        }),
-    }
-}
-
-fn write_report(
-    report: &GeminiReport,
-    directory: &Path,
-    stem: &str,
-) -> Result<GeminiReportFiles, String> {
-    let report_path = directory.join(format!("{stem}.md"));
-    let sources_path = directory.join(format!("{stem}.sources.json"));
-    let failed = |path: &Path, error: std::io::Error| {
-        format!(
-            "cannot write the Gemini report to {}: {error}",
-            path.display()
-        )
-    };
-    fs::create_dir_all(directory).map_err(|error| failed(directory, error))?;
-    fs::write(&report_path, report.markdown()).map_err(|error| failed(&report_path, error))?;
-    let sources = serde_json::to_vec_pretty(&report.sources)
-        .map_err(|error| failed(&sources_path, std::io::Error::other(error)))?;
-    fs::write(&sources_path, sources).map_err(|error| failed(&sources_path, error))?;
-    Ok(GeminiReportFiles {
-        report_path: report_path.display().to_string(),
-        sources_path: sources_path.display().to_string(),
-    })
+    let files = REPORT_FILING.write(
+        found.conversation.as_str(),
+        report,
+        report_dir,
+        &mut found.attempts,
+        &mut found.diagnostic,
+    )?;
+    found.report_files = Some(files);
+    Ok(found)
 }

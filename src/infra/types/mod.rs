@@ -3,6 +3,7 @@
 mod attempt;
 mod capability;
 mod deadline;
+mod delegated_report;
 mod error;
 mod gemini_research;
 mod outcome;
@@ -19,12 +20,12 @@ mod search;
 pub use attempt::{AttemptDisposition, AttemptTarget, ProviderAttempt};
 pub use capability::{Capability, CapabilitySet, FallbackPolicy, PlanCapability};
 pub(crate) use deadline::{Deadline, MIN_USEFUL_SLICE_SECONDS};
+pub use delegated_report::{DelegatedReport, ReportFiles, ReportSource};
 pub use error::{AttemptErrorKind, ErrorFamily, ErrorKind, ProviderError};
 pub(crate) use gemini_research::{GEMINI_RESEARCH_RESULT, GEMINI_RESEARCH_START};
 pub use gemini_research::{
-    GeminiConversationId, GeminiPlan, GeminiPlanStep, GeminiProgress, GeminiReport,
-    GeminiReportFiles, GeminiResearchFailure, GeminiResearchResult, GeminiResearchStarted,
-    GeminiResearchState, GeminiSource,
+    GeminiConversationId, GeminiPlan, GeminiPlanStep, GeminiProgress, GeminiResearchFailure,
+    GeminiResearchResult, GeminiResearchStarted, GeminiResearchState,
 };
 pub use outcome::{
     AnysearchDomain, AnysearchDomainsOutcome, AnysearchOutcome, AnysearchResult,
