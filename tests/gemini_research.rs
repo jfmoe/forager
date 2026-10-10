@@ -146,6 +146,32 @@ fn a_running_research_reports_its_progress() {
 }
 
 #[test]
+fn progress_items_without_a_thought_heading_do_not_fail_a_running_read() {
+    let output = read_turns(&[gemini::running_turn(
+        2,
+        &[
+            gemini::thought("Comparing table support"),
+            json!([null, null, null, null, null, []]),
+            gemini::visited("https://crates.io/crates/htmd"),
+        ],
+    )]);
+
+    assert_eq!(
+        (output.status.code(), payload(&output)["progress"].clone()),
+        (
+            Some(0),
+            json!({
+                "sources_visited": 1,
+                "thoughts": 1,
+                "latest_thought": "Comparing table support"
+            })
+        ),
+        "stderr: {}",
+        stderr(&output)
+    );
+}
+
+#[test]
 fn a_completed_report_is_written_with_its_sources() {
     let fake = gemini::reporting(&[gemini::completed_turn(2, gemini::report_citations())]);
     let environment = RunEnvironment::new(&gemini::config(&fake));
