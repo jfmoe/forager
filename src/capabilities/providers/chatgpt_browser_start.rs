@@ -46,18 +46,17 @@ enum Step {
     Sent,
     /// The page moved to the new conversation's `/c/<uuid>`.
     Conversation,
-    /// ChatGPT answered: a plan with a Start button, or a reply.
+    /// ChatGPT answered: a plan card, or a reply.
     Answered,
-    /// The plan's Start button showed.
+    /// The plan card showed; the adapter then keeps the page open through its countdown, after
+    /// which ChatGPT starts the research by itself.
     Plan,
-    /// The Start button was clicked, once.
-    Started,
     /// The conversation was opened again and its response read.
     Reopened,
 }
 
 impl Step {
-    const ALL: [Self; 10] = [
+    const ALL: [Self; 9] = [
         Self::ChatMode,
         Self::Query,
         Self::DeepResearch,
@@ -66,7 +65,6 @@ impl Step {
         Self::Conversation,
         Self::Answered,
         Self::Plan,
-        Self::Started,
         Self::Reopened,
     ];
 
@@ -81,7 +79,6 @@ impl Step {
             Self::Conversation => "conversation",
             Self::Answered => "answered",
             Self::Plan => "plan",
-            Self::Started => "started",
             Self::Reopened => "reopened",
         }
     }
@@ -245,16 +242,15 @@ fn read_started(
             ),
         }),
         Ok(ChatgptResearchState::AwaitingConfirmation(_)) => {
-            let problem = if facts.reached(Step::Started) {
-                "ChatGPT has not started the research after forager clicked its Start button"
-                    .to_owned()
+            let after = if facts.reached(Step::Plan) {
+                " after the plan's countdown"
             } else {
-                format!(
-                    "ChatGPT proposed a research plan, but forager {}",
-                    unclicked(facts).1
-                )
+                ""
             };
-            Err(runtime(format!("{problem}: {}", not_started_hint(&url))))
+            Err(runtime(format!(
+                "ChatGPT proposed a research plan, but the research had not started when forager read the conversation again{after}: {}",
+                not_started_hint(&url)
+            )))
         }
         Err(error) => Err(error.into()),
     }
@@ -264,20 +260,12 @@ fn read_started(
 /// response.
 fn unread(facts: &StartData, url: &str) -> AttemptFailure {
     let result_hint = format!("read it with `forager chatgpt research result {url}`");
-    let (kind, message) = if facts.reached(Step::Started) {
+    let (kind, message) = if facts.reached(Step::Plan) {
         let (kind, problem) = stopped(facts, "forager read the conversation again");
         (
             kind,
             format!(
-                "forager clicked the plan's Start button, but {problem}; the research may be running: {result_hint}"
-            ),
-        )
-    } else if facts.reached(Step::Plan) {
-        let (kind, problem) = unclicked(facts);
-        (
-            kind,
-            format!(
-                "ChatGPT proposed a research plan, but forager {problem}: {}",
+                "ChatGPT proposed a research plan, but {problem}: {}",
                 not_started_hint(url)
             ),
         )
@@ -303,27 +291,9 @@ fn unread(facts: &StartData, url: &str) -> AttemptFailure {
     }
 }
 
-/// The kind and wording of a Start button the adapter showed but did not click.
-fn unclicked(facts: &StartData) -> (AttemptErrorKind, String) {
-    if facts.timed_out {
-        return (
-            AttemptErrorKind::Timeout,
-            "did not click its Start button before the read deadline".to_owned(),
-        );
-    }
-    let reason = facts
-        .reason()
-        .map(|reason| format!(" ({reason})"))
-        .unwrap_or_default();
-    (
-        AttemptErrorKind::Runtime,
-        format!("could not click its Start button{reason}"),
-    )
-}
-
 fn not_started_hint(url: &str) -> String {
     format!(
-        "its countdown may start the research by itself, so read it with `forager chatgpt research result {url}` before starting again; forager does not click again or resend the question"
+        "the plan's countdown may still start the research, so read it with `forager chatgpt research result {url}` before starting again; forager does not resend the question"
     )
 }
 

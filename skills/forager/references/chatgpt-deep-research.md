@@ -8,8 +8,8 @@ read the ChatGPT Deep Research section of [`cli.md`](cli.md#chatgpt-deep-researc
 ## Start once
 
 Run `forager chatgpt research start 'QUESTION' --format json` once. It brings a Chrome window to
-the front for up to a few minutes and leaves the ChatGPT composer in chat mode; tell the user that
-side effect. Tell the user the returned `conversation_url` and ChatGPT's `plan`: its title and
+the front for two to four minutes, because it keeps the page open until the plan's countdown starts
+the research, and it leaves the ChatGPT composer in chat mode; tell the user both side effects. Tell the user the returned `conversation_url` and ChatGPT's `plan`: its title and
 steps.
 
 Never rerun `start` on your own after a failure: every run can create a conversation and spend
@@ -34,8 +34,9 @@ user with its recovery step.
 Run `forager chatgpt research result 'CONVERSATION_URL' --format json` about every 2 minutes. Each
 poll takes 15 to 30 seconds in a background window.
 
-- `awaiting_confirmation`: the plan waits for "Start" or for its countdown; keep polling, and ask
-  the user to click "Start" on the conversation page if it still waits after a few minutes.
+- `awaiting_confirmation`: the plan waits for its countdown, or for the user to click "Start";
+  keep polling, and ask the user to click "Start" on the conversation page if it still waits
+  after a few minutes.
 - `running`: report `plan_title` and `progress.steps_completed` of `progress.steps_total` when
   they change, then keep polling.
 - `completed`: read `report_path`. For a long report, list its headings with

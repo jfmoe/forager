@@ -88,8 +88,9 @@ impl ChatgptBrowser {
     }
 
     /// Starts a Deep Research in a foreground window: switches the composer to chat mode,
-    /// selects Deep Research, sends `query` once, clicks the plan's Start button once, and
-    /// reopens the conversation to check that the research runs.
+    /// selects Deep Research, sends `query` once, keeps the page open through the plan's
+    /// countdown, after which ChatGPT starts the research by itself, and reopens the
+    /// conversation to check that the research runs.
     ///
     /// Starting creates a conversation and spends the account's Deep Research quota, so it runs
     /// exactly one attempt whatever the retry configuration (ADR 0023). A failure carries the

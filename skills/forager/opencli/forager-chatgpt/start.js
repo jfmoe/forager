@@ -7,9 +7,11 @@ import {
 
 // Labels in both interface languages. The zh-CN interface of 2026-10-10 showed a 撰写器模式
 // switch with 聊天 and 工作, an 添加文件等内容 button whose chat-mode menu holds 深度研究, and a
-// plan card with 编辑, 取消, and a counting-down 开始. The English labels, the send button, the
-// reply and usage-notice detection, and where the Start button lives (the main document or the
-// card's cross-origin sandbox iframe) are unverified; the live acceptance run confirms them.
+// plan card with 编辑, 取消, and a counting-down 开始. The card lives in a cross-origin iframe
+// from web-sandbox.oaiusercontent.com titled 深度研究, which OpenCLI can neither inspect nor
+// click into, so the adapter never clicks 开始 and waits out the countdown instead. The English
+// labels, the send button, and the reply and usage-notice detection are unverified; the live
+// acceptance run confirms them.
 const COMPOSER = '#prompt-textarea';
 const MODE_SWITCH = ['撰写器模式', 'composer mode'];
 const CHAT_MODE = ['聊天', 'chat'];
@@ -17,8 +19,7 @@ const TOOLS_BUTTON = ['添加文件等内容', 'add files and more'];
 const DEEP_RESEARCH = ['深度研究', 'deep research'];
 const SEND = ['发送提示', '发送', 'send prompt', 'send'];
 const DEEP_RESEARCH_APP = 'connector_openai_deep_research';
-// "开始" or "Start", optionally followed by the countdown.
-const START_PATTERN = '^(开始|start)\\s*[(（]?\\s*\\d*\\s*(s|秒)?\\s*[)）]?$';
+const CARD_FRAME_DOMAIN = 'oaiusercontent.com';
 
 // The usage wording is an unverified guess. It counts only after sending, outside the
 // conversation turns and the navigation, and only as a line the page did not show before
@@ -34,12 +35,17 @@ const MENU_WAIT_MS = 10000;
 const SWITCH_WAIT_MS = 5000;
 const MENTION_WAIT_MS = 5000;
 const CONVERSATION_WAIT_MS = 30000;
-// The plan card showed within 15 s live. A reply only counts once it stayed without a Start
-// button this long, so a card still loading never reads as a reply.
+// The plan card showed within 15 s live. A reply only counts once it stayed without a plan
+// card this long, so a card still loading never reads as a reply.
 const CARD_WAIT_MS = 60000;
 const REPLY_STABLE_MS = 10000;
-const START_GONE_WAIT_MS = 15000;
 const CARD_POLL_MS = 2000;
+// With the tab kept open, ChatGPT started the research by itself 1 s after
+// `waiting_for_user_response_on_plan_until`, about 60 s after the plan card showed. The wait
+// leaves 30 s on top for a card noticed late and for the start to reach the conversation, but
+// always stops early enough to leave the reopen its time.
+const COUNTDOWN_WAIT_MS = 90000;
+const REOPEN_RESERVE_MS = 20000;
 
 /** Page-side helpers shared by the scripts: visibility, labels, and targets. */
 const HELPERS = `
@@ -147,6 +153,22 @@ const settledReply = script(`
   return text ? text.slice(0, 200) : null;
 `);
 
+/**
+ * Whether the page shows the plan card: the iframe of the card's sandbox, known by its domain or
+ * its title, since its content is out of reach.
+ */
+const planCard = script(`
+  return Array.from(document.querySelectorAll('iframe')).some((frame) => {
+    if (!isVisible(frame)) return false;
+    let host = '';
+    try {
+      host = new URL(frame.src, location.href).hostname;
+    } catch { /* no usable src */ }
+    const title = (frame.getAttribute('title') || '').toLowerCase();
+    return host === arg0 || host.endsWith('.' + arg0) || arg1.some((label) => title.includes(label));
+  });
+`, CARD_FRAME_DOMAIN, DEEP_RESEARCH);
+
 /** The lines that read like a usage notice, outside the turns and the navigation. */
 const quotaLines = script(`
   const pattern = new RegExp(arg0, 'i');
@@ -179,32 +201,6 @@ function conversationOf(href) {
 }
 
 /**
- * Finds the plan's Start button in OpenCLI's accessibility snapshot, which also covers the
- * card's cross-origin iframe. Returns `{ref, document}` with the snapshot ref OpenCLI clicks,
- * or null.
- */
-async function findStart(page) {
-  const snapshot = await page.snapshot({ source: 'ax', interactive: true });
-  const pattern = new RegExp(START_PATTERN, 'i');
-  let document = 'main';
-  for (const line of String(snapshot).split('\n')) {
-    const frame = line.match(/^frame (".*"):$/);
-    if (frame) {
-      try {
-        document = new URL(JSON.parse(frame[1])).hostname;
-      } catch {
-        document = 'frame';
-      }
-      continue;
-    }
-    const button = line.match(/^\s*\[(\d+)\]button ("(?:[^"\\]|\\.)*")/);
-    if (!button || /\bdisabled\b/.test(line.slice(button[0].length))) continue;
-    if (pattern.test(normalize(JSON.parse(button[2])))) return { ref: button[1], document };
-  }
-  return null;
-}
-
-/**
  * Empties the composer with OpenCLI's key and typing primitives, after closing a menu left open;
  * returns whether it is empty.
  */
@@ -217,9 +213,10 @@ async function clearDraft(page) {
 }
 
 /**
- * Operates the page step by step and records each step it completed in `run.steps`. Every step
- * that changes the account (send, Start) runs at most once; a failed step stops the command
- * instead of trying again. Returns normally when it stopped, with `run.problem` saying why.
+ * Operates the page step by step and records each step it completed in `run.steps`. The only
+ * step that changes the account, send, runs at most once, and nothing clicks the plan card; a
+ * failed step stops the command instead of trying again. Returns normally when it stopped, with
+ * `run.problem` saying why.
  */
 async function startResearch(page, query, deadline, facts, run) {
   const stop = (problem) => {
@@ -296,10 +293,8 @@ async function startResearch(page, query, deadline, facts, run) {
   run.steps.push('conversation');
 
   let replySince = null;
-  let start = null;
   const answered = await waitFor(within(CARD_WAIT_MS), async () => {
-    start = await findStart(page);
-    if (start) return 'plan';
+    if (await page.evaluate(planCard)) return 'plan';
     run.quota_notice = newQuotaNotice(await page.evaluate(quotaLines), shown, query);
     if (run.quota_notice) return 'quota';
     if (await page.evaluate(settledReply)) {
@@ -319,15 +314,10 @@ async function startResearch(page, query, deadline, facts, run) {
 
   if (answered === 'plan') {
     run.steps.push('plan');
-    run.start_button = start.document;
-    try {
-      await page.click(start.ref);
-    } catch (error) {
-      return stop(`the Start button could not be clicked: ${error instanceof Error ? error.message : String(error)}`);
-    }
-    run.steps.push('started');
-    // Leave the page only after the card took the click.
-    await waitFor(within(START_GONE_WAIT_MS), async () => !(await findStart(page)));
+    // The countdown was seen starting the research only with the card kept open, so the tab
+    // stays on it.
+    const until = Math.min(Date.now() + COUNTDOWN_WAIT_MS, deadline - REOPEN_RESERVE_MS);
+    if (until > Date.now()) await new Promise((resolve) => setTimeout(resolve, until - Date.now()));
   }
 
   await reopen(page, deadline, run);
@@ -367,7 +357,7 @@ cli({
   site: SITE,
   name: 'start',
   access: 'write',
-  description: 'Start one ChatGPT Deep Research and click its plan\'s Start button, for forager; never sends twice',
+  description: 'Start one ChatGPT Deep Research and wait out its plan countdown, for forager; never sends twice',
   domain: SITE_DOMAIN,
   strategy: Strategy.COOKIE,
   browser: true,
@@ -388,7 +378,6 @@ cli({
       quota_notice: null,
       problem: null,
       draft_cleared: null,
-      start_button: null,
       page: null,
       response: null,
       body_missing: false,
@@ -424,8 +413,6 @@ cli({
       quota_notice: run.quota_notice,
       problem: run.problem ? String(run.problem).slice(0, 300) : null,
       draft_cleared: run.draft_cleared,
-      // Not judged by forager; it records for the live acceptance run where the Start button was.
-      start_button: run.start_button,
       response: run.response,
       body_missing: run.body_missing,
       timed_out: !finished && !run.problem && !run.deep_research_missing && !run.quota_notice

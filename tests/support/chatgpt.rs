@@ -387,7 +387,7 @@ pub(crate) fn failure(output: &Output) -> (Option<i32>, Value, String, Value) {
 }
 
 /// The steps of the adapter's `start` command, in the order it reaches them.
-pub(crate) const START_STEPS: [&str; 10] = [
+pub(crate) const START_STEPS: [&str; 9] = [
     "chat_mode",
     "query",
     "deep_research",
@@ -396,7 +396,6 @@ pub(crate) const START_STEPS: [&str; 10] = [
     "conversation",
     "answered",
     "plan",
-    "started",
     "reopened",
 ];
 
