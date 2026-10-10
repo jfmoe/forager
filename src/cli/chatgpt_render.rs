@@ -2,10 +2,11 @@
 
 use std::fmt::Write as _;
 
-use forager::app::{DocsOutputFormat, OutputTarget};
+use forager::app::{DocsOutputFormat, OutputFormat, OutputTarget};
 use forager::types::{
     ChatgptConversationId, ChatgptPlan, ChatgptProgress, ChatgptResearchFailure,
-    ChatgptResearchResult, ChatgptResearchState, DelegatedReport, ReportFiles,
+    ChatgptResearchResult, ChatgptResearchStarted, ChatgptResearchState, DelegatedReport,
+    ReportFiles,
 };
 
 use crate::RenderedOutput;
@@ -21,20 +22,52 @@ pub(crate) fn render(
             let (stdout, is_json) = format_result(&found, format)?;
             Rendered::success(stdout, is_json, found.diagnostic)
         }
-        Err(failure) => {
-            let url = failure
-                .conversation
-                .as_ref()
-                .map(ChatgptConversationId::url);
-            Rendered::failure(
-                "ChatGPT",
-                failure.error,
-                url,
-                format != DocsOutputFormat::Markdown,
-            )?
-        }
+        Err(failure) => render_failure(failure, format != DocsOutputFormat::Markdown)?,
     };
     rendered.emit(output)
+}
+
+pub(crate) fn render_start(
+    result: Result<ChatgptResearchStarted, ChatgptResearchFailure>,
+    format: OutputFormat,
+) -> Result<RenderedOutput, String> {
+    let rendered = match result {
+        Ok(started) => {
+            let stdout = match format {
+                OutputFormat::Json => {
+                    serde_json::to_string(&started).map_err(|error| error.to_string())?
+                }
+                OutputFormat::Markdown => started_markdown(&started),
+            };
+            Rendered::success(stdout, format == OutputFormat::Json, started.diagnostic)
+        }
+        Err(failure) => render_failure(failure, format == OutputFormat::Json)?,
+    };
+    rendered.emit(None)
+}
+
+fn render_failure(failure: ChatgptResearchFailure, json: bool) -> Result<Rendered, String> {
+    let url = failure
+        .conversation
+        .as_ref()
+        .map(ChatgptConversationId::url);
+    Rendered::failure("ChatGPT", failure.error, url, json)
+}
+
+fn started_markdown(started: &ChatgptResearchStarted) -> String {
+    let url = started.conversation.url();
+    format!(
+        "# ChatGPT Deep Research started\n\nConversation: <{url}>\n\n{}\n\nRead where it stands with `forager chatgpt research result {url}`.",
+        plan_markdown(&started.plan)
+    )
+}
+
+fn plan_markdown(plan: &ChatgptPlan) -> String {
+    let mut markdown = format!("## Plan: {}\n", plan.title);
+    for step in &plan.steps {
+        let _ = write!(markdown, "\n{}. {}", step.index, step.text);
+    }
+    markdown
 }
 
 /// Returns the rendered result and whether it is JSON. Only a completed report has content to
@@ -69,12 +102,9 @@ fn format_markdown(found: &ChatgptResearchResult) -> String {
 
 fn awaiting_markdown(url: &str, plan: &ChatgptPlan) -> String {
     let mut markdown = format!(
-        "# ChatGPT Deep Research: awaiting confirmation\n\nConversation: <{url}>\n\n## Plan: {}\n",
-        plan.title
+        "# ChatGPT Deep Research: awaiting confirmation\n\nConversation: <{url}>\n\n{}",
+        plan_markdown(plan)
     );
-    for step in &plan.steps {
-        let _ = write!(markdown, "\n{}. {}", step.index, step.text);
-    }
     markdown.push_str(
         "\n\nStart the research on the conversation page, or wait for its countdown, then read the result again.",
     );

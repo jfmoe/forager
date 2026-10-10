@@ -383,3 +383,53 @@ pub(crate) fn failure(output: &Output) -> (Option<i32>, Value, String, Value) {
         payload["conversation_url"].clone(),
     )
 }
+
+/// The steps of the adapter's `start` command, in the order it reaches them.
+pub(crate) const START_STEPS: [&str; 10] = [
+    "chat_mode",
+    "query",
+    "deep_research",
+    "mention",
+    "sent",
+    "conversation",
+    "answered",
+    "plan",
+    "started",
+    "reopened",
+];
+
+/// The page facts of a `start` command after `steps`, with the conversation response it read
+/// after reopening the conversation. The page shows the conversation once the steps reach it,
+/// and the home page before.
+pub(crate) fn start_facts(steps: &[&str], response: Option<String>) -> Value {
+    let created = steps.contains(&"conversation");
+    json!({
+        "page": {
+            "url": if created { CONVERSATION_URL } else { "https://chatgpt.com/" },
+            "signed_out": false,
+            "notice": null
+        },
+        "steps": steps,
+        "conversation": if created { json!(CONVERSATION) } else { Value::Null },
+        "deep_research_missing": false,
+        "quota_notice": null,
+        "problem": null,
+        "draft_cleared": null,
+        "response": response.map_or(Value::Null, Value::String),
+        "body_missing": false,
+        "timed_out": false
+    })
+}
+
+/// The page facts of a `start` command that reached every step and read the running research.
+pub(crate) fn started_facts() -> Value {
+    start_facts(
+        &START_STEPS,
+        Some(conversation_body(&research_turn(1, &running_state()))),
+    )
+}
+
+/// A fake `opencli` whose `start` answers `data` as its page facts.
+pub(crate) fn starting(data: Value) -> FakeOpenCli {
+    FakeOpenCli::contract_by_command(CONTRACT, &[("start", data)])
+}

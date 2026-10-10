@@ -19,12 +19,12 @@ use crate::providers::{
     MapRequest, ProviderId,
 };
 use crate::types::{
-    AnysearchOutcome, CapabilitySet, ChatgptResearchFailure, ChatgptResearchResult, ClaimRisk,
-    Context7Outcome, Deadline, EvidenceStrength, FallbackPolicy, FetchOutcome,
-    GeminiResearchFailure, GeminiResearchResult, GeminiResearchStarted, JournalOutcome, MapOutcome,
-    PlanCapability, PlatformFetchResult, PlatformSearchPage, ProviderAttempt, RecencyRequirement,
-    ResearchIntentSignals, ResearchPlan, ResearchSubquestion, SearchOutcome,
-    XiaohongshuCommentsPage,
+    AnysearchOutcome, CapabilitySet, ChatgptResearchFailure, ChatgptResearchResult,
+    ChatgptResearchStarted, ClaimRisk, Context7Outcome, Deadline, EvidenceStrength, FallbackPolicy,
+    FetchOutcome, GeminiResearchFailure, GeminiResearchResult, GeminiResearchStarted,
+    JournalOutcome, MapOutcome, PlanCapability, PlatformFetchResult, PlatformSearchPage,
+    ProviderAttempt, RecencyRequirement, ResearchIntentSignals, ResearchPlan, ResearchSubquestion,
+    SearchOutcome, XiaohongshuCommentsPage,
 };
 
 #[doc(hidden)]
@@ -198,6 +198,15 @@ pub enum CommandOutput {
         format: DocsOutputFormat,
         /// Optional output file destination.
         output: Option<OutputTarget>,
+        /// Optional terminal projection selected by `log.level`.
+        attempt_log: Option<String>,
+    },
+    /// Typed ChatGPT Deep Research start terminal state for binary-side formatting.
+    ChatgptResearchStart {
+        /// The started research, or the failure with the conversation when forager knows it.
+        result: Box<Result<ChatgptResearchStarted, ChatgptResearchFailure>>,
+        /// Requested output format.
+        format: OutputFormat,
         /// Optional terminal projection selected by `log.level`.
         attempt_log: Option<String>,
     },

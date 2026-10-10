@@ -765,19 +765,50 @@ could not be written). A failure payload adds `conversation_url`.
 
 ## ChatGPT Deep Research
 
-Run these commands only when the user explicitly asks for ChatGPT Deep Research. They read
+Run these commands only when the user explicitly asks for ChatGPT Deep Research. They drive
 ChatGPT in the user's own logged-in Chrome through OpenCLI and the `forager-chatgpt` adapter:
 install OpenCLI and its Browser Bridge extension (`opencli doctor`), then copy the
 `opencli/forager-chatgpt` directory next to this skill's `SKILL.md` to
 `~/.opencli/clis/forager-chatgpt` (replace the whole directory to update), and check with
 `forager doctor --provider chatgpt_browser`. No platform order or other setting enables them;
 `providers.chatgpt_browser.command` and `.timeout` (default `opencli` and 240 seconds per OpenCLI
-command) configure them. The user starts the research on the ChatGPT web page; forager only reads
-the conversation.
+command) configure them.
 
 A ChatGPT report is a Delegated Research Report, not research evidence: relay it as ChatGPT's
 conclusions with attribution, and fetch a cited source with `forager fetch` before stating one of
 its claims as fact.
+
+### `chatgpt research start`
+
+```console
+forager chatgpt research start QUERY [--timeout SECONDS] [--format json|markdown]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `QUERY` | The research question, sent to ChatGPT as written. An empty question exits `2` before Chrome opens. | Required |
+| `--timeout SECONDS` | Whole-command deadline. | `240` |
+
+The command brings a Chrome window to the front, switches the ChatGPT composer to chat mode (and
+leaves it there), types the question, selects Deep Research in the "Add files and more" menu,
+sends once, clicks the plan's "Start" button once, and reopens the conversation to check that the
+research runs. It creates a conversation and spends the account's Deep Research quota, so it runs
+exactly one attempt whatever the `retry` configuration; never run it again after a failure without
+the user's go-ahead. JSON output has `route` (`chatgpt_browser`), `conversation_id`,
+`conversation_url`, and `plan` (`{title, steps: [{index, text}]}`, ChatGPT's own research plan).
+Poll the conversation with `chatgpt research result`.
+
+Exit codes: `2` for an empty question; `4` for `auth` (ChatGPT asks the browser to sign in),
+`quota_exhausted` (the usage receipt or a new usage notice says the Deep Research limit is
+reached), `timeout`, and `runtime` (the chat-mode menu offers no Deep Research; the adapter
+stopped before sending, with its reason, last step, and whether the composer draft was cleared;
+ChatGPT replied with text instead of a plan, quoted, so the user answers on the page; the plan has
+not started, and its countdown may still start it, so read the result before anything else; the
+ChatGPT response structure changed; or the adapter is missing or outdated). A message that says
+nothing was sent means no conversation exists. A failure payload adds `conversation_url` once
+forager knows the conversation. A failure without one whose message says forager does not know
+whether ChatGPT received the question means the user should look in the ChatGPT history before
+anything is started again.
 
 ### `chatgpt research result`
 
@@ -796,8 +827,8 @@ forager chatgpt research result CONVERSATION [--report-dir DIR] [--timeout SECON
 
 The command opens the conversation in a background Chrome window and reads where its newest Deep
 Research stands from the conversation response the page receives; it changes nothing in the
-conversation. JSON output has `route` (`chatgpt_browser`), `conversation_id`,
-`conversation_url`, and `status`:
+conversation, and also reads a research the user started on the web page. JSON output has
+`route` (`chatgpt_browser`), `conversation_id`, `conversation_url`, and `status`:
 
 | `status` | Further fields |
 | --- | --- |

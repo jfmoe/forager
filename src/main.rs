@@ -131,6 +131,11 @@ fn main() -> ExitCode {
             output,
             attempt_log,
         }) => emit_logged(chatgpt_render::render(*result, format, output), attempt_log),
+        Ok(CommandOutput::ChatgptResearchStart {
+            result,
+            format,
+            attempt_log,
+        }) => emit_logged(chatgpt_render::render_start(*result, format), attempt_log),
         Err(error) => emit_error(&error, json_preflight_errors, json_preflight_output),
     }
 }

@@ -58,6 +58,7 @@ forager platform xiaohongshu comments ACCESS_URL [--limit 1..=50（默认 20）]
 forager gemini research start QUERY [--timeout 240] [--format json|markdown]
 forager gemini research result CONVERSATION [--report-dir DIR]
                                [--timeout 120] [--format json|markdown|content] [...]
+forager chatgpt research start QUERY [--timeout 240] [--format json|markdown]
 forager chatgpt research result CONVERSATION [--report-dir DIR]
                                 [--timeout 120] [--format json|markdown|content] [...]
 forager doctor [--provider PROVIDER] [--timeout 30] [--format json|markdown]
@@ -375,7 +376,31 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 ## ChatGPT 命令
 
-`chatgpt` 命令组经 `chatgpt_browser`（第 4 章「ChatGPT Deep Research 职责」）在用户自己已登录的 Chrome 中读取 ChatGPT Deep Research 会话。产物是 Delegated Research Report，不是 Research Evidence（ADR 0023）；访问受 ADR 0024 的条件约束：只读取页面自己收到的响应，不导出 cookie 或令牌，不构造请求。目前只有只读的 `result`；用户在网页上手动发起研究后即可使用。
+`chatgpt` 命令组经 `chatgpt_browser`（第 4 章「ChatGPT Deep Research 职责」）在用户自己已登录的 Chrome 中发起与读取 ChatGPT Deep Research 会话。产物是 Delegated Research Report，不是 Research Evidence（ADR 0023）；访问受 ADR 0024 的条件约束：只像用户一样操作页面、只读取页面自己收到的响应，不导出 cookie 或令牌，不构造请求。`result` 也能读取用户在网页上手动发起的研究。
+
+### `chatgpt research start`
+
+在前台 Chrome 窗口中发起一次 Deep Research：切到聊天模式，选择“深度研究”，提交问题一次，点击计划卡片的“开始”一次，再重新打开会话确认研究已在进行。
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| 问题（位置参数） | 字符串，去空白后不能为空 | 必填 | 原样提交给 ChatGPT；为空时飞行前退 2，不启动进程 |
+| `--timeout` | 秒，≥1 | 240 | 整条命令的截止时间 |
+| `--format` | `json` / `markdown` | `json` | 没有 `content`，也没有 `--output` |
+
+- **页面操作**：adapter 打开 `/`；输入框处于“工作”模式时点“撰写器模式”中的“聊天”，之后不恢复原来的模式；先输入问题，再点“添加文件等内容”并选“深度研究”（OpenCLI 输入会替换输入框全部内容并删掉已插入的提及标记）；核对输入框同时含问题文本和指向 `app://connector_openai_deep_research` 的提及标记；点“发送”一次；等 URL 变为 `/c/<uuid>`，再等计划卡片的“开始”按钮或 assistant 的普通回复；有“开始”按钮时点一次（按钮可能在跨源沙箱 iframe 中，经 OpenCLI 的无障碍快照定位）；然后先开始网络捕获，再重新打开 `/c/<uuid>`，以页面自己发出的会话响应完整到达为准读取。所有点击与输入都使用 OpenCLI 的浏览器原语。发送之前停下时，adapter 清空输入框再退出并回报是否清空，因为输入框内容会作为草稿跨页面保存。
+- **单次 attempt**：`start` 新建会话并消耗 Deep Research 额度，是会改变用户账号状态的写操作（ADR 0023），只执行一次 attempt，不受 `retry` 配置影响，Timeout 与 Network 也不重试；adapter 内部发送与“开始”各至多点击一次。
+- **成功判定**：最终 URL 为该会话的 `/c/<uuid>`，响应的 `conversation_id` 为该会话，且按 `result` 的规则选出的最近研究消息 `widget_state.status` 为 `researching` 或 `completed`。
+- **输出**：JSON 为 `{route, conversation_id, conversation_url, plan}`，`plan` 为该研究消息的 `widget_state.plan`，形状同 `result` 的 `awaiting_confirmation`，与 Research Plan Schema v1 无关。Markdown 渲染会话 URL、计划与轮询提示。
+- **失败载荷**：普通瘦载荷另加可空的 `conversation_url`。adapter 发送后从页面 URL 得到并校验过会话 id 时填入，消息也指向它；还没有会话 id 时为 `null`。adapter 进程本身失败、没有交回页面事实时（非零退出、被强杀），以及已发送却没有得到会话时，消息说明 forager 不知道 ChatGPT 是否收到了问题，提示先在 ChatGPT 历史中检查，不建议重新发起。两种情况除外：Auth，此时浏览器还没走到发送；OpenCLI 确定没有运行 adapter 命令，此时消息说明什么都没发送。
+- **退出码**：问题为空＝飞行前退 2。以下都退 4：
+  - 浏览器未登录（adapter 退 77 或页面要求登录）为 Auth；
+  - 研究消息的用量回执超限（规则同 `result`；研究已在进行或已完成时以状态为准），或发送后、ChatGPT 回答之前页面上新出现的用量提示，为 QuotaExhausted；会话轮次、导航栏中的文字与发送前已显示的文字不算用量提示；
+  - 聊天模式菜单中没有“深度研究”（消息提示检查账号能力，说明什么都没发送）、adapter 在发送前停下（附停止原因与最后到达的步骤，说明什么都没发送并报告草稿是否已清空）为 Runtime；
+  - 重新打开后研究仍为 `waiting_for_user_response_on_plan`，或计划已出现但“开始”没有点到且没有读到会话，为 Runtime，附会话 URL，并提示倒计时结束后研究可能自行开始，应先用 `result` 查看，不要重新发起，forager 也不再点击或重发（没有读到会话且截止时间先到时为 Timeout）；
+  - 会话中没有研究消息、最近一条有文字的 assistant 消息是普通文本（澄清问题或拒绝）为 Runtime，附会话 URL、有界的回复开头，以及在网页上回答后用 `result` 查看的提示；
+  - 页面或响应指向另一个会话、响应结构不符（附位置）、adapter 缺失或过期为 Runtime；
+  - 读取截止点前没有走完（adapter 带 `timed_out: true` 交回已取得的页面事实）或命令被强杀为 Timeout；已点击“开始”但没有读到会话时，消息提示研究可能已在进行，用 `result` 读取该会话。
 
 ### `chatgpt research result`
 
