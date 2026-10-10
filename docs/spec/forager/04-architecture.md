@@ -10,7 +10,7 @@
 
 `src/` 以职责形成六个物理分组；`lib.rs` 用显式 `#[path]` 声明保持既有 crate 内模块名，不把目录本身变成新的公共 API 层级。
 
-- **`cli/`**：CLI 参数定义、应用分发与 `app` 公共门面；参数树在 `args.rs`，分发在 `dispatch.rs`；`forager platform` 命令组的静态参数树与分发在 `platform.rs`，`forager gemini` 命令组的在 `gemini.rs`；委托研究报告的落盘规则在 `delegated_report.rs`，由各 `research result` 命令共用；二进制侧的 Gemini 结果渲染在 `gemini_render.rs`，由 `main.rs` 声明为 bin 私有模块，不属于 lib。
+- **`cli/`**：CLI 参数定义、应用分发与 `app` 公共门面；参数树在 `args.rs`，分发在 `dispatch.rs`；`forager platform` 命令组的静态参数树与分发在 `platform.rs`，`forager gemini` 命令组的在 `gemini.rs`；委托研究报告的落盘规则在 `delegated_report.rs`，由各 `research result` 命令共用；二进制侧的 Gemini 结果渲染在 `gemini_render.rs`，委托研究命令共用的渲染结果与带会话 URL 的失败渲染在 `delegated_render.rs`，两者都由 `main.rs` 声明为 bin 私有模块，不属于 lib。
 - **`core/`**：engine（各 seam 的 provider 链）、platform_chain（平台 route 规划、cursor 与分页操作链：search 与 Google Scholar cited-by）、platform_fetch（平台 fetch 的元数据链与正文段）、platform_comments（小红书 comments 这一单 route L2 操作的规划与 route 链）、platform_checklist（仅测试构建：新平台接入清单一致性检查）、search_fanout（普通 search 的辅助能力 fan-out 与结果合并）、chain、classifier 与 Attempt Trace。
 - **`capabilities/`**：Capability Catalog 与 platform catalog、Provider Credential Pool、跨进程限速（`rate_limit`）、Provider HTTP Read Contract（`net`）及 provider adapter（含平台 route adapter）。
 - **`evidence/`**：Research Evidence Pipeline、Search Result Journal 与 stderr attempt log。

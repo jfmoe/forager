@@ -17,6 +17,8 @@ use forager::types::{
 };
 use serde_json::{Value, json};
 
+#[path = "cli/delegated_render.rs"]
+mod delegated_render;
 #[path = "cli/gemini_render.rs"]
 mod gemini_render;
 

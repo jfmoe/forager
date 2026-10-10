@@ -2,45 +2,13 @@
 
 use std::fmt::Write as _;
 
+use crate::RenderedOutput;
+use crate::delegated_render::Rendered;
 use forager::app::{DocsOutputFormat, OutputFormat, OutputTarget};
 use forager::types::{
     DelegatedReport, GeminiConversationId, GeminiPlan, GeminiProgress, GeminiResearchFailure,
     GeminiResearchResult, GeminiResearchStarted, GeminiResearchState, ReportFiles,
 };
-use serde_json::Value;
-
-use crate::{
-    RenderedOutput, apply_tee, encode_failure_payload, failure_payload, postflight_exit_code,
-};
-
-/// A rendered result before `--output` handling.
-struct Rendered {
-    stdout: String,
-    is_json: bool,
-    exit_code: u8,
-    diagnostic: Option<String>,
-}
-
-impl Rendered {
-    fn success(stdout: String, is_json: bool, diagnostic: Option<String>) -> Self {
-        Self {
-            stdout,
-            is_json,
-            exit_code: 0,
-            diagnostic,
-        }
-    }
-
-    fn emit(self, output: Option<OutputTarget>) -> Result<RenderedOutput, String> {
-        apply_tee(
-            self.stdout,
-            self.exit_code,
-            self.is_json,
-            output,
-            self.diagnostic,
-        )
-    }
-}
 
 pub(crate) fn render(
     result: Result<GeminiResearchResult, GeminiResearchFailure>,
@@ -77,35 +45,8 @@ pub(crate) fn render_start(
 }
 
 fn render_failure(failure: GeminiResearchFailure, json: bool) -> Result<Rendered, String> {
-    let GeminiResearchFailure {
-        error,
-        conversation,
-    } = failure;
-    let url = conversation.as_ref().map(GeminiConversationId::url);
-    let stdout = if json {
-        let mut payload = failure_payload(&error)?;
-        payload.insert(
-            "conversation_url".into(),
-            url.map_or(Value::Null, Value::String),
-        );
-        encode_failure_payload(&error, &payload)?
-    } else {
-        let mut markdown = format!(
-            "# Gemini Deep Research failed\n\n**{}**: {}",
-            error.kind.as_str(),
-            error.message
-        );
-        if let Some(url) = url {
-            let _ = write!(markdown, "\n\nConversation: <{url}>");
-        }
-        markdown
-    };
-    Ok(Rendered {
-        stdout,
-        is_json: json,
-        exit_code: postflight_exit_code(error.kind),
-        diagnostic: error.diagnostic,
-    })
+    let url = failure.conversation.as_ref().map(GeminiConversationId::url);
+    Rendered::failure("Gemini", failure.error, url, json)
 }
 
 fn started_markdown(started: &GeminiResearchStarted) -> String {
