@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0](https://github.com/jfmoe/forager/compare/v0.9.0...v0.10.0) - 2026-10-10
+
+### Added
+
+- *(gemini)* start Deep Research from the command line
+- *(gemini)* read Deep Research results through OpenCLI
+
+### Fixed
+
+- *(gemini)* skip unrecognised progress items in a running read
+- *(gemini)* wait longer for the plan card and say why confirm failed
+- *(gemini)* attribute start failures only from real evidence
+
+### Other
+
+- format the Gemini start test
+- *(gemini)* remove duplication from the Deep Research route
+- add Gemini Deep Research route design and probe
+
 ## [0.9.0](https://github.com/jfmoe/forager/compare/v0.8.0...v0.9.0) - 2026-10-09
 
 ### Added
