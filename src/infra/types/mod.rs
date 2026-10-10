@@ -2,6 +2,7 @@
 
 mod attempt;
 mod capability;
+mod chatgpt_research;
 mod deadline;
 mod delegated_report;
 mod error;
@@ -19,6 +20,11 @@ mod search;
 
 pub use attempt::{AttemptDisposition, AttemptTarget, ProviderAttempt};
 pub use capability::{Capability, CapabilitySet, FallbackPolicy, PlanCapability};
+pub(crate) use chatgpt_research::{CHATGPT_RESEARCH_RESULT, CHATGPT_RESEARCH_START};
+pub use chatgpt_research::{
+    ChatgptConversationId, ChatgptPlan, ChatgptPlanStep, ChatgptProgress, ChatgptResearchFailure,
+    ChatgptResearchResult, ChatgptResearchState,
+};
 pub(crate) use deadline::{Deadline, MIN_USEFUL_SLICE_SECONDS};
 pub use delegated_report::{DelegatedReport, ReportFiles, ReportSource};
 pub use error::{AttemptErrorKind, ErrorFamily, ErrorKind, ProviderError};

@@ -17,6 +17,8 @@ use forager::types::{
 };
 use serde_json::{Value, json};
 
+#[path = "cli/chatgpt_render.rs"]
+mod chatgpt_render;
 #[path = "cli/delegated_render.rs"]
 mod delegated_render;
 #[path = "cli/gemini_render.rs"]
@@ -24,6 +26,8 @@ mod gemini_render;
 
 const FAILURE_PAYLOAD_TARGET_BYTES: usize = 4096;
 
+// One arm per typed command output; each arm only hands its fields to that output's renderer.
+#[expect(clippy::too_many_lines)]
 fn main() -> ExitCode {
     let cli = Cli::parse();
     let json_preflight_errors = cli.uses_json_preflight_errors();
@@ -121,6 +125,12 @@ fn main() -> ExitCode {
             format,
             attempt_log,
         }) => emit_logged(gemini_render::render_start(*result, format), attempt_log),
+        Ok(CommandOutput::ChatgptResearch {
+            result,
+            format,
+            output,
+            attempt_log,
+        }) => emit_logged(chatgpt_render::render(*result, format, output), attempt_log),
         Err(error) => emit_error(&error, json_preflight_errors, json_preflight_output),
     }
 }

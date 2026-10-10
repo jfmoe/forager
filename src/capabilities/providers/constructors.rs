@@ -1,7 +1,8 @@
 use reqwest::Client;
 
 use super::{
-    Anysearch, Context7, Exa, GeminiBrowser, ModelBreakers, OpenAiCompatible, TavilyMap, Xai,
+    Anysearch, ChatgptBrowser, Context7, Exa, GeminiBrowser, ModelBreakers, OpenAiCompatible,
+    TavilyMap, Xai,
 };
 use crate::catalog::{ProviderId, registration};
 use crate::config::{
@@ -91,6 +92,16 @@ pub(crate) fn build_gemini_browser(
     let limiter = route_limiter(ProviderId::GeminiBrowser)
         .expect("gemini_browser registration declares an access policy");
     GeminiBrowser::new(config, limiter, retry_policy, deadline)
+}
+
+pub(crate) fn build_chatgpt_browser(
+    config: ProcessRouteRuntimeConfig,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> ChatgptBrowser {
+    let limiter = route_limiter(ProviderId::ChatgptBrowser)
+        .expect("chatgpt_browser registration declares an access policy");
+    ChatgptBrowser::new(config, limiter, retry_policy, deadline)
 }
 
 /// Returns a limiter for a provider whose registration declares an access policy.

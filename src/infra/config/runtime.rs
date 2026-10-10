@@ -477,6 +477,8 @@ pub(crate) struct RuntimeConfig {
     pub(crate) platform_routes: PlatformRoutesRuntimeConfig,
     /// The provider that only `forager gemini` commands run.
     pub(crate) gemini_browser: ProcessRouteRuntimeConfig,
+    /// The provider that only `forager chatgpt` commands run.
+    pub(crate) chatgpt_browser: ProcessRouteRuntimeConfig,
     pub(crate) tavily: WebFetchProviderConfig,
     pub(crate) firecrawl: WebFetchProviderConfig,
     pub(crate) jina: WebFetchProviderConfig,
@@ -560,6 +562,10 @@ impl RuntimeConfig {
             },
             ProviderId::GeminiBrowser => ProviderRuntime {
                 endpoint: &self.gemini_browser.command,
+                keys: &[],
+            },
+            ProviderId::ChatgptBrowser => ProviderRuntime {
+                endpoint: &self.chatgpt_browser.command,
                 keys: &[],
             },
         }
@@ -714,6 +720,10 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         gemini_browser: ProcessRouteRuntimeConfig {
             command: config.providers.gemini_browser.command,
             timeout_seconds: config.providers.gemini_browser.timeout,
+        },
+        chatgpt_browser: ProcessRouteRuntimeConfig {
+            command: config.providers.chatgpt_browser.command,
+            timeout_seconds: config.providers.chatgpt_browser.timeout,
         },
         tavily,
         firecrawl,

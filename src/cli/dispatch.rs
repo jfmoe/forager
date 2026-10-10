@@ -19,11 +19,12 @@ use crate::providers::{
     MapRequest, ProviderId,
 };
 use crate::types::{
-    AnysearchOutcome, CapabilitySet, ClaimRisk, Context7Outcome, Deadline, EvidenceStrength,
-    FallbackPolicy, FetchOutcome, GeminiResearchFailure, GeminiResearchResult,
-    GeminiResearchStarted, JournalOutcome, MapOutcome, PlanCapability, PlatformFetchResult,
-    PlatformSearchPage, ProviderAttempt, RecencyRequirement, ResearchIntentSignals, ResearchPlan,
-    ResearchSubquestion, SearchOutcome, XiaohongshuCommentsPage,
+    AnysearchOutcome, CapabilitySet, ChatgptResearchFailure, ChatgptResearchResult, ClaimRisk,
+    Context7Outcome, Deadline, EvidenceStrength, FallbackPolicy, FetchOutcome,
+    GeminiResearchFailure, GeminiResearchResult, GeminiResearchStarted, JournalOutcome, MapOutcome,
+    PlanCapability, PlatformFetchResult, PlatformSearchPage, ProviderAttempt, RecencyRequirement,
+    ResearchIntentSignals, ResearchPlan, ResearchSubquestion, SearchOutcome,
+    XiaohongshuCommentsPage,
 };
 
 #[doc(hidden)]
@@ -185,6 +186,18 @@ pub enum CommandOutput {
         result: Box<Result<GeminiResearchStarted, GeminiResearchFailure>>,
         /// Requested output format.
         format: OutputFormat,
+        /// Optional terminal projection selected by `log.level`.
+        attempt_log: Option<String>,
+    },
+    /// Typed ChatGPT Deep Research terminal state for binary-side formatting and tee output.
+    ChatgptResearch {
+        /// Research result; a completed report is already written unless the format is
+        /// `content`.
+        result: Box<Result<ChatgptResearchResult, ChatgptResearchFailure>>,
+        /// Requested output format.
+        format: DocsOutputFormat,
+        /// Optional output file destination.
+        output: Option<OutputTarget>,
         /// Optional terminal projection selected by `log.level`.
         attempt_log: Option<String>,
     },
@@ -1084,6 +1097,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
         ),
         Command::Platform { command } => super::platform::run(command),
         Command::Gemini { command } => super::gemini::run(command),
+        Command::Chatgpt { command } => super::chatgpt::run(command),
         Command::Config {
             command: ConfigCommand::Path,
         } => Ok(CommandOutput::Text {

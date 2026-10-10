@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 use reqwest::Client;
 
-use super::constructors::{build_gemini_browser, credentials, route_limiter};
+use super::constructors::{
+    build_chatgpt_browser, build_gemini_browser, credentials, route_limiter,
+};
 use super::{
     ArxivApi, DocsSearch, KeyAccount, MainSearch, ModelBreakers, PlatformFetch, PlatformSearch,
     ProviderId, Serpapi, SsrnBrowser, SsrnCrossref, SupplementalSearch, VerticalSearch, WebFetch,
@@ -224,6 +226,11 @@ pub(crate) async fn adapter_status(
     match id {
         ProviderId::GeminiBrowser => {
             build_gemini_browser(config.gemini_browser.clone(), retry_policy, deadline)
+                .status()
+                .await
+        }
+        ProviderId::ChatgptBrowser => {
+            build_chatgpt_browser(config.chatgpt_browser.clone(), retry_policy, deadline)
                 .status()
                 .await
         }
