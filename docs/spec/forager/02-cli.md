@@ -396,7 +396,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 - **失败载荷**：普通瘦载荷另加可空的 `conversation_url`。adapter 发送后从页面 URL 得到并校验过会话 id 时填入，消息也指向它；还没有会话 id 时为 `null`。adapter 进程本身失败、没有交回页面事实时（非零退出、被强杀），以及已发送却没有得到会话时，消息说明 forager 不知道 ChatGPT 是否收到了问题，提示先在 ChatGPT 历史中检查，不建议重新发起。两种情况除外：adapter 进程以 Auth 失败，此时浏览器还没走到发送；OpenCLI 确定没有运行 adapter 命令，此时消息说明什么都没发送。
 - **退出码**：问题为空＝飞行前退 2。以下都退 4：
   - 浏览器未登录（adapter 退 77 或页面要求登录）为 Auth，先于其他判定；还没有会话 id 时提示登录后重试，已校验会话 id 后（例如倒计时后重新打开时要求登录）载荷与消息指向该会话，提示登录后先用 `result` 查看，不提示重试；
-  - 研究消息的用量回执超限（规则同 `result`；研究已在进行或已完成时以状态为准），或发送后、ChatGPT 回答之前页面上新出现的用量提示，为 QuotaExhausted；会话轮次、导航栏中的文字与发送前已显示的文字不算用量提示；
+  - 研究消息的用量回执超限（规则同 `result`：当前状态为研究中或已完成时以状态为准），或发送后、ChatGPT 回答之前页面上新出现的用量提示，为 QuotaExhausted；会话轮次、导航栏中的文字与发送前已显示的文字不算用量提示；
   - 聊天模式菜单中没有“深度研究”（消息提示检查账号能力，说明什么都没发送）、adapter 在发送前停下（附停止原因与最后到达的步骤，说明什么都没发送并报告草稿是否已清空）为 Runtime；
   - 重新打开后研究仍为 `waiting_for_user_response_on_plan`，或计划已出现但没有读到会话，为 Runtime，附会话 URL，并提示倒计时仍可能让研究自行开始，应先用 `result` 查看，不要重新发起，forager 也不重发（没有读到会话且截止时间先到时为 Timeout）；
   - 会话中没有研究消息、最近一条有文字的 assistant 消息是普通文本（澄清问题或拒绝）为 Runtime，附会话 URL、有界的回复开头，以及在网页上回答后用 `result` 查看的提示；
@@ -429,7 +429,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 - **退出码**：会话无法识别＝飞行前退 2。以下都退 4：
   - 浏览器未登录（先于其他判定）为 Auth；
   - 会话不存在或无权访问（页面提示、被送回首页，或响应只有 `detail` 没有 `messages`）、返回的消息中没有研究消息为 attempt 级 Parameter，消息区分原因；
-  - 研究消息的用量回执 `tool_response_metadata.usage_refund_receipt` 中 `allowed` 为 false 或 `rate_limit.limit_reached` 为 true 为 QuotaExhausted；研究已经交付报告时以报告为准；
+  - 研究消息的用量回执 `tool_response_metadata.usage_refund_receipt` 中 `allowed` 为 false 或 `rate_limit.limit_reached` 为 true 为 QuotaExhausted，但只在当前状态不是 `researching` 或 `completed` 时（等待开始，或没有可判定的状态）：回执与快照 `venus_widget_state` 同在 `tool_response_metadata` 中，是工具调用时写下的，研究之后的进展以当前 `widget_state` 为准；`start` 用同一规则；
   - 页面显示的是另一个会话，或响应的 `conversation_id` 不是所请求的会话，为 Runtime，且不写任何文件；
   - 状态与正文矛盾、未知状态值（不当作 `running`）、必需字段缺失或类型不符、引用条目不覆盖标记或缺 `safe_urls`、改写后仍残留私有区标记，为 Runtime，消息写明 ChatGPT 响应结构已变化及其位置或状态值；
   - adapter 缺失或过期（附安装提示）、报告写入失败为 Runtime；
