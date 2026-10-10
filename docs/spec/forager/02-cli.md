@@ -348,7 +348,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 - **退出码**：问题为空＝飞行前退 2。以下都退 4：
   - 浏览器未登录（adapter 退 77 或页面要求登录）为 Auth；
   - 任一轮响应的用量超限错误码（1037）为 QuotaExhausted，其他错误码为 Runtime；Gemini 回答问题之前页面上新出现的额度提示为 QuotaExhausted，会话轮次、导航栏中的文字与发送前已显示的文字不算额度提示，Gemini 一旦回答，页面文字不再影响判定；
-  - 工具菜单中没有 Deep Research（消息提示检查账号能力，说明什么都没发送）、Deep Research 菜单项存在但不可选（消息说明额度可能已用尽或功能暂不可用，什么都没发送）、adapter 在发送前停下（附原因与最后到达的步骤）、Gemini 回复普通文本而非计划（附有界的回复开头）、计划已生成但没有点到确认（附会话 URL 与“在网页上点击 Start research”的提示）、确认后停在另一个页面、响应结构不符（附位置）、adapter 缺失或过期为 Runtime；
+  - 工具菜单中没有 Deep Research（消息提示检查账号能力，说明什么都没发送）、Deep Research 菜单项存在但不可选（消息说明额度可能已用尽或功能暂不可用，什么都没发送）、adapter 在发送前停下（附原因与最后到达的步骤）、Gemini 回复普通文本而非计划（附有界的回复开头）、计划已生成但没有点到确认（附 adapter 的停止原因、会话 URL 与“在网页上点击 Start research”的提示；截止时间先到则为 Timeout）、确认后停在另一个页面、响应结构不符（附位置）、adapter 缺失或过期为 Runtime；
   - 读取截止点前没有走完（adapter 带 `timed_out: true` 交回已取得的页面事实）或命令被强杀为 Timeout；已点击确认但第二轮响应未到时，消息提示用 `result` 读取该会话。
 
 ### `gemini research result`
@@ -365,7 +365,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 - 通用 flag：`--output FILE [--receipt]` 语义同上。只读命令，沿用共享重试策略。
 - **输出**：JSON 恒含 `route`（`gemini_browser`）、`conversation_id`、`conversation_url` 与 `status`：
   - `awaiting_confirmation`：另有 `plan: {title, steps: [{index, label, description}], eta_text}`。这是 Gemini 提出的研究计划，与 Research Plan Schema v1 无关。
-  - `running`：另有 `progress: {sources_visited, thoughts, latest_thought}`，取自页面自己显示的进度。
+  - `running`：另有 `progress: {sources_visited, thoughts, latest_thought}`，取自页面自己显示的进度；进度只作参考，形状不认识的进度项（如没有标题的思考项）被跳过而不使读取失败。
   - `completed`：另有 `title`、`report_path`、`sources_path`、`content_len`（正文字符数）与 `source_count`；`--format content` 时没有两个路径。
 - **文件**：`gemini-<id>.md` 为报告正文原样，末尾附 `## Sources` 编号列表（每行 `- [N] 标题 <URL>`），使 `[cite: N]` 离开 Gemini 后仍可解析；`gemini-<id>.sources.json` 为 `[{id, title, url}]`，同一编号以首次出现为准，按编号排序。写入失败为 Runtime 退 4，不回退为内联输出。
 - **失败载荷**：普通瘦载荷另加可空的 `conversation_url`；`result` 总是填写它。
