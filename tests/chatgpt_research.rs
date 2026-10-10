@@ -208,6 +208,43 @@ fn the_current_widget_state_decides_over_the_snapshot_taken_at_the_tool_call() {
 }
 
 #[test]
+fn without_a_widget_state_only_a_snapshot_waiting_on_its_plan_decides() {
+    let mut started_snapshot = chatgpt::research_message(4, &chatgpt::awaiting_state());
+    started_snapshot["metadata"]["chatgpt_sdk"]["tool_response_metadata"]["venus_widget_state"]["status"] =
+        json!("researching");
+    let mut without_snapshot = chatgpt::research_message(4, &chatgpt::awaiting_state());
+    without_snapshot["metadata"]["chatgpt_sdk"]["tool_response_metadata"]
+        .as_object_mut()
+        .expect("tool response metadata")
+        .remove("venus_widget_state");
+
+    let failures = [started_snapshot, without_snapshot].map(|message| {
+        let output = read_messages(&[chatgpt::user_message(1, "研究 async-std。"), message]);
+        let (code, kind, message, _) = failure(&output);
+        (code, kind, message)
+    });
+
+    let location = "the ChatGPT response structure has changed at conversation.messages[1].metadata.chatgpt_sdk";
+    assert_eq!(
+        failures,
+        [
+            (
+                Some(4),
+                json!("runtime"),
+                format!(
+                    "{location}.tool_response_metadata.venus_widget_state.status: status `researching` without a `widget_state`"
+                )
+            ),
+            (
+                Some(4),
+                json!("runtime"),
+                format!("{location}: no `widget_state`")
+            ),
+        ]
+    );
+}
+
+#[test]
 fn a_completed_report_goes_to_a_new_temporary_directory_by_default() {
     let output = read_messages(&chatgpt::research_turn(1, &chatgpt::completed_state()));
 

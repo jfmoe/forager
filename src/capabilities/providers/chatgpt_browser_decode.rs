@@ -1,5 +1,6 @@
 //! Pure decoding of the conversation response the ChatGPT page itself received: the flat message
-//! list, the newest Deep Research message, and the state in its `widget_state`. Field positions
+//! list, the newest Deep Research message, and the state in its `widget_state`, or before the
+//! research starts, in its plan snapshot. Field positions
 //! follow the live responses of 2026-10-10 (`docs/research/2026-10-10-chatgpt-deep-research.md`).
 
 use std::borrow::Cow;
@@ -178,11 +179,10 @@ impl Conversation {
     }
 }
 
-/// A Deep Research message: a tool message from `api_tool.call_tool` that carries a widget
-/// state.
+/// A Deep Research message: a tool message from `api_tool.call_tool` that carries
+/// `metadata.chatgpt_sdk`. ChatGPT writes its `widget_state` only once the research starts.
 pub(super) struct Research<'a> {
     sdk: Node<'a>,
-    widget_state: Node<'a>,
 }
 
 fn research<'a>(message: &Node<'a>) -> Option<Research<'a>> {
@@ -190,8 +190,7 @@ fn research<'a>(message: &Node<'a>) -> Option<Research<'a>> {
     let is_research_tool = author.get("role")?.value.as_str() == Some("tool")
         && author.get("name")?.value.as_str() == Some(RESEARCH_TOOL);
     let sdk = message.get("metadata")?.get("chatgpt_sdk")?;
-    let widget_state = sdk.get("widget_state")?;
-    is_research_tool.then_some(Research { sdk, widget_state })
+    is_research_tool.then_some(Research { sdk })
 }
 
 impl Research<'_> {
@@ -219,16 +218,15 @@ impl Research<'_> {
                 == Some(true)
     }
 
-    /// Judges where the research stands from `widget_state.status`, the current state. The
-    /// statuses in `tool_response_metadata` are snapshots taken when the tool was called.
+    /// Judges where the research stands from its current state (see `current_state`).
     ///
     /// # Errors
     ///
     /// Fails with the location where the state stops matching the recorded shape: an unknown
     /// status, a status that contradicts the report, or a missing field.
     pub(super) fn state(&self) -> Result<ChatgptResearchState, ShapeError> {
-        let value = self.widget_state()?;
-        let state = Node::root(&value, self.widget_state.path());
+        let (value, path) = self.current_state()?;
+        let state = Node::root(&value, &path);
         let status_node = state.field("status")?;
         let status = status_node.text()?;
         let report = state.get("report_message");
@@ -269,15 +267,35 @@ impl Research<'_> {
     ///
     /// Fails with the location where the plan stops matching the recorded shape.
     pub(super) fn plan(&self) -> Result<ChatgptPlan, ShapeError> {
-        let value = self.widget_state()?;
-        decode_plan(&Node::root(&value, self.widget_state.path()).field("plan")?)
+        let (value, path) = self.current_state()?;
+        decode_plan(&Node::root(&value, &path).field("plan")?)
     }
 
-    /// The widget state, which the message carries as a JSON string.
-    fn widget_state(&self) -> Result<Value, ShapeError> {
-        let text = self.widget_state.text()?;
-        serde_json::from_str(text)
-            .map_err(|error| self.widget_state.error(&format!("not JSON: {error}")))
+    /// The current state and its path. Once the research starts it is `widget_state`, which the
+    /// message carries as a JSON string, and it alone decides. Before that the message has no
+    /// `widget_state`, and the snapshot `tool_response_metadata.venus_widget_state`, taken when
+    /// the tool was called, holds the plan. The snapshot stands in only while it waits on the
+    /// plan, because it never follows the research after it starts.
+    fn current_state(&self) -> Result<(Cow<'_, Value>, String), ShapeError> {
+        if let Some(widget_state) = self.sdk.get("widget_state") {
+            let value = serde_json::from_str(widget_state.text()?)
+                .map_err(|error| widget_state.error(&format!("not JSON: {error}")))?;
+            return Ok((Cow::Owned(value), widget_state.path().to_owned()));
+        }
+        let Some(snapshot) = self
+            .sdk
+            .get("tool_response_metadata")
+            .and_then(|metadata| metadata.get("venus_widget_state"))
+        else {
+            return Err(self.sdk.error("no `widget_state`"));
+        };
+        let status = snapshot.field("status")?;
+        match status.text()? {
+            AWAITING_CONFIRMATION => {
+                Ok((Cow::Borrowed(snapshot.value), snapshot.path().to_owned()))
+            }
+            other => Err(status.error(&format!("status `{other}` without a `widget_state`"))),
+        }
     }
 }
 

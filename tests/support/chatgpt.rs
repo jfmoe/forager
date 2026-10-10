@@ -70,28 +70,30 @@ pub(crate) fn receipt_within_limit() -> Value {
     })
 }
 
-/// The `api_tool.call_tool` tool message of a research: `tool_response_metadata` is the
-/// snapshot taken when the tool was called, and `widget_state` is the current state as a JSON
-/// string.
+/// The `api_tool.call_tool` tool message of a research. `tool_response_metadata` holds the
+/// snapshot `venus_widget_state`, taken while the plan waited for confirmation, as an object.
+/// ChatGPT writes `widget_state`, the current state as a JSON string, only once the research
+/// starts, so a `state` that still waits on its plan leaves the message without one.
 pub(crate) fn research_message_with(index: usize, state: &Value, receipt: &Value) -> Value {
+    let mut sdk = json!({
+        "tool_response_metadata": {
+            "openai/asyncStatus": 7,
+            "openai/widgetSessionId": "widget-session-placeholder",
+            "venus_message_type": "initial_loading_message",
+            "venus_widget_state": awaiting_state(),
+            "usage_refund_receipt": receipt
+        }
+    });
+    if state["status"] != "waiting_for_user_response_on_plan" {
+        sdk["widget_state"] = json!(state.to_string());
+    }
     json!({
         "id": format!("msg-{index:04}"),
         "author": {"role": "tool", "name": "api_tool.call_tool", "metadata": {}},
         "recipient": "all",
         "create_time": 1_791_637_908 + index,
         "content": {"content_type": "text", "parts": [""]},
-        "metadata": {
-            "chatgpt_sdk": {
-                "tool_response_metadata": {
-                    "openai/asyncStatus": 7,
-                    "openai/widgetSessionId": "widget-session-placeholder",
-                    "venus_message_type": "initial_loading_message",
-                    "venus_widget_state": {"status": "waiting_for_user_response_on_plan"},
-                    "usage_refund_receipt": receipt
-                },
-                "widget_state": state.to_string()
-            }
-        }
+        "metadata": {"chatgpt_sdk": sdk}
     })
 }
 
