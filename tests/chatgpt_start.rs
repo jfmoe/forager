@@ -211,6 +211,26 @@ fn a_signed_out_browser_is_an_auth_failure() {
     );
 }
 
+#[test]
+fn a_sign_in_prompt_after_sending_is_auth_and_points_to_the_conversation() {
+    let mut facts = chatgpt::start_facts(&START_STEPS[..8], None);
+    facts["page"]["signed_out"] = json!(true);
+
+    let (_, output) = run(facts);
+
+    assert_eq!(
+        failure(&output),
+        (
+            Some(4),
+            json!("auth"),
+            format!(
+                "ChatGPT asks the browser to sign in; sign in to chatgpt.com in the Chrome that OpenCLI drives, then read the research with `forager chatgpt research result {CONVERSATION_URL}` before starting again"
+            ),
+            json!(CONVERSATION_URL)
+        )
+    );
+}
+
 /// Points `chatgpt_browser` at `fake` with a 7-second attempt and allows three attempts, so a
 /// retry would fit in the 30-second command deadline the tests pass.
 fn retrying_config(fake: &FakeOpenCli) -> String {
