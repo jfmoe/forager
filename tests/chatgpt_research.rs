@@ -245,6 +245,24 @@ fn without_a_widget_state_only_a_snapshot_waiting_on_its_plan_decides() {
 }
 
 #[test]
+fn a_null_widget_state_is_a_structure_change_and_the_snapshot_does_not_stand_in() {
+    let mut message = chatgpt::research_message(4, &chatgpt::awaiting_state());
+    message["metadata"]["chatgpt_sdk"]["widget_state"] = Value::Null;
+
+    let output = read_messages(&[chatgpt::user_message(1, "研究 async-std。"), message]);
+
+    let (code, kind, message, _) = failure(&output);
+    assert_eq!(
+        (code, kind, message),
+        (
+            Some(4),
+            json!("runtime"),
+            "the ChatGPT response structure has changed at conversation.messages[1].metadata.chatgpt_sdk.widget_state: not a string".to_owned()
+        )
+    );
+}
+
+#[test]
 fn a_completed_report_goes_to_a_new_temporary_directory_by_default() {
     let output = read_messages(&chatgpt::research_turn(1, &chatgpt::completed_state()));
 
