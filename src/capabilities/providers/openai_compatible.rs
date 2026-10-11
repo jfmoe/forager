@@ -686,6 +686,34 @@ mod tests {
         apply_online_suffix, finish, push_model,
     };
 
+    /// Reads one whole request. Closing a connection with request bytes still unread resets it,
+    /// which can cut off the response the client is reading.
+    fn read_request(stream: &mut impl Read) {
+        let mut request = Vec::new();
+        let mut chunk = [0_u8; 4096];
+        loop {
+            let read = stream.read(&mut chunk).expect("read provider request");
+            if read == 0 {
+                return;
+            }
+            request.extend_from_slice(&chunk[..read]);
+            let Some(head_end) = request.windows(4).position(|window| window == b"\r\n\r\n") else {
+                continue;
+            };
+            let body_length = String::from_utf8_lossy(&request[..head_end])
+                .lines()
+                .find_map(|line| {
+                    let (name, value) = line.split_once(':')?;
+                    name.eq_ignore_ascii_case("content-length")
+                        .then(|| value.trim().parse::<usize>().ok())?
+                })
+                .unwrap_or(0);
+            if request.len() >= head_end + 4 + body_length {
+                return;
+            }
+        }
+    }
+
     fn provider() -> OpenAiCompatible {
         OpenAiCompatible::new(
             OpenAiCompatibleRuntimeConfig {
@@ -796,8 +824,7 @@ mod tests {
         let server = thread::spawn(move || {
             for status in ["503 Error", "503 Error", "200 OK"] {
                 let (mut stream, _) = listener.accept().expect("accept provider request");
-                let mut request = [0_u8; 4096];
-                let _ = stream.read(&mut request).expect("read provider request");
+                read_request(&mut stream);
                 let body = if status.starts_with("200") {
                     r#"{"choices":[{"message":{"content":"recovered"}}]}"#
                 } else {
