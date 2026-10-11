@@ -7,6 +7,7 @@ mod exa;
 pub(crate) mod execution;
 mod factory;
 mod gemini_browser;
+mod markup;
 mod openai_compatible;
 mod opencli;
 mod serpapi;

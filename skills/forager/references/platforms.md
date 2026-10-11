@@ -134,15 +134,17 @@ forager platform scholar cited-by scholar:18208131694456651388 --sort date
 
 ## SSRN browser route
 
-`ssrn_browser` reads SSRN in the user's own Chrome through OpenCLI. It is off by default. Enable it
-only when the user asks for it; it runs at most one browser command every 5 seconds.
+`ssrn_browser` searches and reads SSRN in the user's own Chrome through OpenCLI: search sends
+SSRN's own search request from a blank tab, and fetch reads the paper page. It is off by default.
+Enable it only when the user asks for it; it runs at most one browser command every 5 seconds.
 
 - **Install** (verified with OpenCLI 1.8.6): OpenCLI with its Chrome Browser Bridge connected
   (`opencli doctor`), then copy the `opencli/ssrn` directory next to this skill's `SKILL.md` to
   `~/.opencli/clis/ssrn` (replace the whole directory to update). Run the same copy after updating
   forager, then `forager doctor` to check the adapter. A forager that expects a newer adapter
   contract fails its commands with an install hint until the copy is updated. The required contract
-  is `forager-ssrn/3`; copy all files, including `search-state.js`.
+  is `forager-ssrn/4`; replace the whole directory so that files the new contract dropped, such as
+  `search-state.js`, are removed.
 - **Enable**: `forager config set platforms.ssrn.order '["ssrn_crossref", "ssrn_browser"]'`. With
   this order, a `--depth abstract` fetch that Crossref cannot serve falls through to the browser.
   Set `providers.ssrn_browser.command` when `opencli` is not on `PATH`.

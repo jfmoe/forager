@@ -394,12 +394,16 @@ at result 10000, where Crossref stops offset paging; `next_cursor` is then `null
 is not an SSRN DOI are dropped and reported on stderr. A valid empty search returns `items: []`
 with exit 0.
 
-When `platforms.ssrn.order` includes the opt-in `ssrn_browser` route, that route reads SSRN's own
-result pages in Chrome through OpenCLI (see [`platforms.md`](platforms.md) to install and enable
-it). Its items have `depth: snippet` (`metadata` for a result card without an excerpt), `snippet`, `posted` as the page shows it, and `published` as
-an ISO date. A page never spans two 50-result SSRN pages, so it can hold fewer items than
-`--limit`. An SSRN security check that did not clear is an `auth` failure; an unrecognized result
-page is a `runtime` failure, never an empty result.
+When `platforms.ssrn.order` includes the opt-in `ssrn_browser` route, that route sends SSRN's own
+search request in Chrome through OpenCLI (see [`platforms.md`](platforms.md) to install and enable
+it). Its items have `depth: snippet` (`metadata` for a result without an excerpt), `snippet`,
+`posted` as the UTC date in SSRN's page format (`07 Sep 2019`), `published` as the same date in ISO
+form, and `last_revised` when SSRN reports a revision. A page never spans two 50-result SSRN pages,
+so it can hold fewer items than `--limit`; SSRN lists at most 10,000 results, and the last cursor
+stops there. SSRN does not keep the order of results stable between requests, so deduplicate items
+by `ref` across pages. An SSRN security check that blocked the request is an `auth` failure: ask the
+user to open SSRN in Chrome and pass the check, then retry once; never try to pass it yourself. An
+unrecognized answer is a `runtime` failure, never an empty result.
 
 Both routes support title and author queries with their own matching rules. Browser-only options
 require an enabled browser route; explicit mode/date values retain native semantics even at their

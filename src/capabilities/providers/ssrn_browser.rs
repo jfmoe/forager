@@ -1,8 +1,9 @@
-//! The `ssrn_browser` route: SSRN search results and paper pages, read in the user's own Chrome
-//! through the forager OpenCLI adapter for `ssrn`.
+//! The `ssrn_browser` route: SSRN native search and paper pages, through the forager OpenCLI
+//! adapter for `ssrn` in the user's own Chrome.
 //!
-//! The JavaScript adapter applies search conditions and reads page facts. This route checks
-//! the page identity and effective search state, then normalizes the facts into items.
+//! The JavaScript adapter sends SSRN's own search request or reads the paper page, and returns
+//! the facts. This route checks the request conditions or the page identity, then normalizes
+//! the facts into items.
 
 use std::time::Duration;
 
@@ -12,6 +13,7 @@ use crate::catalog::{PlatformOperation, ProviderId, ProviderTransport, registrat
 use crate::config::ProcessRouteRuntimeConfig;
 use crate::net::{AttemptFailure, RetryPolicy};
 use crate::providers::execution::{ExecutionSettings, execute_anonymous};
+use crate::providers::markup::fold_whitespace;
 use crate::providers::opencli::{self, EnvelopeStatus, OpenCliCommand, Window};
 use crate::providers::shared::{other_platform_message, parameter_error};
 use crate::rate_limit::RateLimiter;
@@ -341,10 +343,6 @@ fn iso_date(value: &str) -> Option<String> {
         }
         _ => None,
     }
-}
-
-fn fold_whitespace(value: &str) -> String {
-    value.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 #[cfg(test)]
