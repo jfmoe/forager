@@ -9,10 +9,10 @@ import {
 // switch with 聊天 and 工作, an 添加文件等内容 button whose chat-mode menu holds 深度研究, and a
 // plan card with 编辑, 取消, and a counting-down 开始. The card lives in a cross-origin iframe
 // from web-sandbox.oaiusercontent.com titled 深度研究, which OpenCLI can neither inspect nor
-// click into, so the adapter never clicks 开始 and waits out the countdown instead. The English
-// labels, the send button, and the reply and usage-notice detection are unverified; the live
-// acceptance run confirms them.
-const COMPOSER = '#prompt-textarea';
+// click into, so the adapter never clicks 开始 and waits out the countdown instead. The zh-CN
+// path through send and the countdown passed a live run on 2026-10-11; the English labels and
+// the reply and usage-notice detection are unverified.
+const COMPOSER = '[contenteditable="true"][role="textbox"]';
 const MODE_SWITCH = ['撰写器模式', 'composer mode'];
 const CHAT_MODE = ['聊天', 'chat'];
 const TOOLS_BUTTON = ['添加文件等内容', 'add files and more'];
@@ -30,6 +30,9 @@ const NOT_A_NOTICE = [
   '[contenteditable="true"]', 'textarea',
 ].join(', ');
 
+// The add-files menu renders its items in plain divs grouped by `data-mention-section-id`,
+// with no menu role (live 2026-10-11).
+const MENU = '[role="menu"], [role="listbox"], [data-radix-popper-content-wrapper], [data-mention-section-id]';
 const TARGET_ATTRIBUTE = 'data-forager-target';
 const MENU_WAIT_MS = 10000;
 const SWITCH_WAIT_MS = 5000;
@@ -74,9 +77,7 @@ const HELPERS = `
   const isSelected = (el) => ['aria-checked', 'aria-selected', 'aria-pressed']
     .some((name) => el.getAttribute(name) === 'true')
     || ['on', 'active', 'checked'].includes(el.getAttribute('data-state') || '');
-  const composer = () => Array.from(document.querySelectorAll(
-    '${COMPOSER}, [contenteditable="true"][role="textbox"]',
-  )).find(isVisible);
+  const composer = () => Array.from(document.querySelectorAll('${COMPOSER}')).find(isVisible);
   // Marks one element so that OpenCLI's click primitive can find it by selector.
   const mark = (el, name) => {
     for (const old of document.querySelectorAll('[${TARGET_ATTRIBUTE}="' + name + '"]')) old.removeAttribute('${TARGET_ATTRIBUTE}');
@@ -117,6 +118,10 @@ const composerState = script(`
   return { text: target.innerText || target.textContent || '', html: target.innerHTML };
 `);
 
+const markComposer = script(`
+  return mark(composer(), 'composer');
+`);
+
 const markTools = script(`
   const found = document.querySelector('[data-testid="composer-plus-btn"]')
     || byLabels(clickables(document), arg0);
@@ -124,13 +129,13 @@ const markTools = script(`
 `, TOOLS_BUTTON);
 
 const menuItems = script(`
-  return Array.from(document.querySelectorAll('[role="menu"], [role="listbox"], [data-radix-popper-content-wrapper]'))
+  return Array.from(document.querySelectorAll('${MENU}'))
     .filter(isVisible)
     .flatMap((menu) => clickables(menu)).length;
 `);
 
 const markDeepResearch = script(`
-  const items = Array.from(document.querySelectorAll('[role="menu"], [role="listbox"], [data-radix-popper-content-wrapper]'))
+  const items = Array.from(document.querySelectorAll('${MENU}'))
     .filter(isVisible)
     .flatMap((menu) => clickables(menu));
   return mark(byLabels(items, arg0), 'deep-research');
@@ -206,7 +211,8 @@ function conversationOf(href) {
  */
 async function clearDraft(page) {
   await page.pressKey('Escape');
-  await page.typeText(COMPOSER, ' ');
+  if (!(await page.evaluate(markComposer))) return false;
+  await page.typeText(target('composer'), ' ');
   await page.pressKey('Backspace');
   const state = await page.evaluate(composerState);
   return Boolean(state) && normalize(state.text) === '' && !state.html.includes(DEEP_RESEARCH_APP);
@@ -244,8 +250,9 @@ async function startResearch(page, query, deadline, facts, run) {
   run.steps.push('chat_mode');
 
   // Typing replaces the whole composer, mention included, so the question goes in first.
+  if (!(await page.evaluate(markComposer))) return stop('the home page shows no composer');
   run.typed = true;
-  await page.typeText(COMPOSER, query);
+  await page.typeText(target('composer'), query);
   const typed = await waitFor(within(3000), async () => {
     const state = await page.evaluate(composerState);
     return state && normalize(state.text) === normalize(query);
