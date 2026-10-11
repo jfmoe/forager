@@ -12,9 +12,9 @@
 
 - **`cli/`**：CLI 参数定义、应用分发与 `app` 公共门面；参数树在 `args.rs`，分发在 `dispatch.rs`；`forager platform` 命令组的静态参数树与分发在 `platform.rs`，`forager gemini` 命令组的在 `gemini.rs`，`forager chatgpt` 命令组的在 `chatgpt.rs`；委托研究报告的落盘规则在 `delegated_report.rs`，由各 `research result` 命令共用；二进制侧的 Gemini 与 ChatGPT 结果渲染分别在 `gemini_render.rs` 与 `chatgpt_render.rs`，两者共用的渲染结果与带会话 URL 的失败渲染在 `delegated_render.rs`，三者都由 `main.rs` 声明为 bin 私有模块，不属于 lib。
 - **`core/`**：engine（各 seam 的 provider 链）、platform_chain（平台 route 规划、cursor 与分页操作链：search 与 Google Scholar cited-by）、platform_fetch（平台 fetch 的元数据链与正文段）、platform_comments（小红书 comments 这一单 route L2 操作的规划与 route 链）、platform_checklist（仅测试构建：新平台接入清单一致性检查）、search_fanout（普通 search 的辅助能力 fan-out 与结果合并）、chain、classifier 与 Attempt Trace。
-- **`capabilities/`**：Capability Catalog 与 platform catalog、Provider Credential Pool、跨进程限速（`rate_limit`）、Provider HTTP Read Contract（`net`）及 provider adapter（含平台 route adapter）。
+- **`capabilities/`**：Capability Catalog 与 platform catalog、Provider Credential Pool、跨进程限速（`rate_limit`）、Provider HTTP Read Contract（`net`）及 provider adapter（含平台 route adapter）；capability provider 与委托研究供应方的构造函数，以及按注册信息组装访问限速器与 Provider Credential Pool 的助手，在 `providers/constructors.rs`，经 `providers` 再导出。
 - **`evidence/`**：Research Evidence Pipeline、Search Result Journal 与 stderr attempt log。
-- **`infra/`**：config、secure filesystem、共享私有状态文件（`state_file`）、redaction 与零 IO 的 `types` 基底。
+- **`infra/`**：config、secure filesystem、共享私有状态文件（`state_file`）、redaction 与零 IO 的 `types` 基底。config 的加载在 `config/load.rs`：读取配置文件、按 schema 反序列化并交给校验；规则校验在 `config/validate.rs`：加载时校验整份配置，`config set` 写入前按同一 schema 规则校验单个值；`config/view.rs` 生成凭据安全的有效配置视图。
 - **`ops/`**：doctor 与 smoke 运维入口。
 
 物理分组表达职责归属，调用关系仍遵守五层从上到下的单向纪律：
@@ -163,7 +163,7 @@ Research Evidence Pipeline 默认使用 standard 预算，将正文逐条写入 
 
 `cli/ssrn_search.rs` 是 `cli/platform.rs` 的私有子模块，负责 SSRN 搜索参数与类型化请求构造。`infra/types/platform_ssrn_search.rs` 拥有 SSRN Search Criteria 及零 IO 校验，通过既有 types 门面导出；`platform_ssrn.rs` 负责身份与条目元数据。`providers/ssrn_crossref_search.rs` 是 `ssrn_crossref` 的私有子模块，负责搜索映射、搜索执行与 offset 分页；父模块拥有共享 HTTP 传输、记录解码与详情读取。外部仍通过 route 的入口访问，不增加 provider 横向依赖。
 
-`skills/forager/opencli/ssrn/search.js` 拥有命令注册、原站检索请求的发出与请求事实的回报，并自行判定两件事：Cloudflare 拦截（403 或 503 且响应体不是 JSON）与站点的无结果答复；共享的 `shared.js` 处理页面的站点阻断、截止时间、验证消息和协议外壳。
+`skills/forager/opencli/ssrn/search.js` 拥有命令注册、原站检索请求的发出与请求事实的回报，并自行判定两件事：Cloudflare 拦截（403 或 503 且响应体不是 JSON）与站点的无结果答复；共享的 `shared.js` 处理页面的站点阻断、截止时间、验证消息和协议外壳。`paper.js` 读取论文摘要页的事实，并在 `full_text` 时点击页面自己的下载链接、只回报下载状态与本地文件；`contract.js` 报告契约。
 
 `providers/ssrn_browser_search.rs` 是 `ssrn_browser` 的私有子模块，拥有原站检索执行、请求地址的条件核对、接口响应解码与原生分页；父模块拥有 route 配置、执行设置和详情/全文读取。
 

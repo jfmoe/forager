@@ -18,7 +18,7 @@ Before writing, modifying, or reviewing Rust, use `rust-code-quality`: read its 
 
 ### Source file size
 
-Split source files by responsibility, not merely to satisfy a line limit. A Rust source file over approximately 1000 lines requires an explicit justification in the PR. Keep unit tests inline by default; when a test module overwhelms the production code, move it to a sibling test module file.
+Split source files by responsibility, not merely to satisfy a line limit. `tests/repository_rules.rs` caps Rust sources at 1000 lines and holds files already over it to their listed ceiling; raising a ceiling or listing a new file needs its reason in the commit message. Keep unit tests inline by default; when a test module overwhelms the production code, move it to a sibling test module file.
 
 ### Target hygiene
 
@@ -26,7 +26,7 @@ Run `cargo sweep` periodically to remove stale build artifacts. Do not disable i
 
 ### Full local test suite
 
-Run `cargo test --all-targets --all-features --locked --no-fail-fast -- --quiet` for complete local validation. `--no-fail-fast` continues running remaining targets but any failure still makes the command fail; `-- --quiet` reduces successful-test output while preserving failure details.
+Run `cargo nextest run --all-targets --all-features --locked --no-fail-fast --status-level fail && cargo test --doc --locked` for complete local validation (install with `brew install cargo-nextest`). nextest runs the test binaries in parallel and ends with a summary that names every failed test; read failures from that summary instead of filtering the output. A test that fails under the full suite but passes alone is flaky: find its cause before closing the task.
 
 ### Windows-only CI
 
@@ -58,4 +58,4 @@ Before you add or change a platform or a platform route, read `docs/spec/forager
 
 ### Spec-code lockstep
 
-A change that adds, moves, or removes a module, or alters a module's ownership or dependency direction, updates `docs/spec/forager/04-architecture.md` in the same commit. A spec claim the code no longer satisfies is corrected or deleted immediately — never left to drift.
+A change that adds, moves, or removes a module, or alters a module's ownership or dependency direction, updates `docs/spec/forager/04-architecture.md` in the same commit. `tests/repository_rules.rs` fails while a module or OpenCLI adapter file goes unnamed in that chapter; ownership and dependency claims remain the reviewer's to check. A spec claim the code no longer satisfies is corrected or deleted immediately — never left to drift.

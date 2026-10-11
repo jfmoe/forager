@@ -1,0 +1,3 @@
+#!/bin/sh
+# CI rejects unformatted code; catch it before the commit exists.
+exec cargo fmt --check
