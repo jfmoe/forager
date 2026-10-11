@@ -1,6 +1,6 @@
-// Shared deadlines, page facts, network capture reads, and output envelopes for the forager
-// Gemini commands. The commands only operate the page as a user would and report what the page
-// itself received; forager decodes and judges the responses.
+// Shared deadlines, navigation, page facts, network capture reads, and output envelopes for the
+// forager Gemini commands. The commands only operate the page as a user would and report what
+// the page itself received; forager decodes and judges the responses.
 
 export const CONTRACT = 'forager-gemini/1';
 export const SITE = 'forager-gemini';
@@ -32,6 +32,20 @@ export async function waitFor(until, probe) {
     if (value || Date.now() >= until) return value;
     await sleep(POLL_MS);
   }
+}
+
+/**
+ * Opens `url` in the tab with the network capture on `SITE_DOMAIN` armed and emptied, so a later
+ * read holds only requests from this navigation on.
+ */
+export async function navigate(page, url) {
+  // OpenCLI's extension detaches its debugger before a navigation unless capture is armed on the
+  // tab, and Chrome rejects that navigation ("Navigation rejected."). Arming first avoids the
+  // detach; drop this once OpenCLI navigates without detaching. Re-arming does not empty the
+  // capture in OpenCLI's direct CDP mode, so the read discards what earlier pages left.
+  await page.startNetworkCapture(SITE_DOMAIN);
+  await page.readNetworkCapture();
+  await page.goto(url, { waitUntil: 'load', settleMs: 1000 });
 }
 
 /** The tracked request that answers a prompt, instead of a batchexecute RPC id. */

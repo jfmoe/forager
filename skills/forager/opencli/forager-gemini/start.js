@@ -1,7 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
 import {
-  APP_URL, PageFacts, SITE, SITE_DOMAIN, STREAM_GENERATE, envelope, readDeadline,
+  APP_URL, PageFacts, SITE, SITE_DOMAIN, STREAM_GENERATE, envelope, navigate, readDeadline,
   readTrackedCalls, waitFor,
 } from './shared.js';
 
@@ -270,9 +270,8 @@ cli({
       problem: null,
     };
 
-    // Capture first: the answer streams in while the page is still busy.
-    await page.startNetworkCapture(SITE_DOMAIN);
-    await page.goto(APP_URL, { waitUntil: 'load', settleMs: 1000 });
+    // The capture starts before the navigation: the answer streams in while the page is busy.
+    await navigate(page, APP_URL);
     try {
       await startResearch(page, query, deadline, facts, run);
     } catch (error) {
