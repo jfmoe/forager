@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.0](https://github.com/jfmoe/forager/compare/v0.10.0...v0.11.0) - 2026-10-11
+
+### Added
+
+- *(ssrn)* search through SSRN's own search API in the browser
+- *(chatgpt)* start a Deep Research in a foreground window
+- *(chatgpt)* read Deep Research results through OpenCLI
+
+### Fixed
+
+- *(gemini)* point a sign-in prompt after sending to the conversation
+- *(gemini)* arm the capture before every navigation
+- *(chatgpt)* find the composer and add-files menu on the live page
+- *(chatgpt)* arm the capture before every navigation
+- *(chatgpt)* weigh the usage receipt the same way in start and result
+- *(chatgpt)* treat a null widget_state as a structure change
+- *(chatgpt)* point a sign-in prompt after sending to the conversation
+- *(chatgpt)* wait out the plan countdown instead of clicking Start
+- *(chatgpt)* read a plan awaiting confirmation from its snapshot
+
+### Other
+
+- *(chatgpt)* share the conversation read between report and start
+- *(spec)* list ChatGPT start among foreground commands
+- *(chatgpt)* move the response cursor into a shared leaf module
+- *(skill)* route explicit ChatGPT Deep Research requests
+- *(adr)* accept the OpenAI terms risk under conditions
+- *(cli)* share delegated research failure rendering
+- *(cli)* share the Delegated Research Report writer
+- *(research)* add ChatGPT Deep Research survey and live probe
+
 ## [0.10.0](https://github.com/jfmoe/forager/compare/v0.9.0...v0.10.0) - 2026-10-10
 
 ### Added
