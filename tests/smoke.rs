@@ -228,6 +228,28 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
 }
 
 #[test]
+fn live_smoke_runs_a_case_that_fails_on_auth_once() {
+    let fixture = Fixture::start_repeating(Response::json(401, r#"{"error":"invalid key"}"#));
+    let endpoint = format!("{}/v1", fixture.url);
+    let environment = SmokeEnvironment::new(|journal_dir| minimal_config(&endpoint, journal_dir));
+
+    let output = environment.run(&["smoke", "--live", "--timeout", "10"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live smoke JSON");
+
+    assert_eq!(
+        (
+            &case(&payload, "C01")["status"],
+            &case(&payload, "C01")["attempts"],
+            fixture.finish_all().len(),
+        ),
+        (&Value::String("failed".into()), &Value::Number(1.into()), 1),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
 fn independent_outage_probe_reports_a_failed_same_endpoint_request() {
     let endpoint = "http://127.0.0.1:9";
     let environment = SmokeEnvironment::new(|journal_dir| minimal_config(endpoint, journal_dir));
@@ -360,12 +382,17 @@ fn live_smoke_drains_large_child_output_without_false_timeout() {
 }
 
 #[test]
-fn live_smoke_enforces_one_hard_deadline_across_retries() {
+fn live_smoke_enforces_one_hard_deadline_and_reports_the_cases_it_left_no_time_for() {
     let fixture = Fixture::start_sequence(vec![
-        Response::json(200, "").with_delay(Duration::from_secs(3)),
+        Response::json(200, "").with_delay(Duration::from_secs(6)),
     ]);
     let endpoint = format!("{}/v1", fixture.url);
-    let environment = SmokeEnvironment::new(|journal_dir| minimal_config(&endpoint, journal_dir));
+    let environment = SmokeEnvironment::new(|journal_dir| {
+        format!(
+            "{}[providers.tavily]\nurl = \"http://127.0.0.1:9\"\nkeys = [\"tavily-secret\"]\n",
+            minimal_config(&endpoint, journal_dir)
+        )
+    });
 
     let started = Instant::now();
     let output = environment.run(&["smoke", "--live", "--timeout", "1"]);
@@ -377,18 +404,27 @@ fn live_smoke_enforces_one_hard_deadline_across_retries() {
             output.status.code(),
             &case(&payload, "C01")["status"],
             &case(&payload, "C01")["attempts"],
+            &case(&payload, "C05")["status"],
+            &case(&payload, "C05")["attempts"],
+            &case(&payload, "C05")["message"],
         ),
         (
             Some(4),
             &Value::String("failed".into()),
             &Value::Number(1.into()),
+            &Value::String("skipped".into()),
+            &Value::Number(0.into()),
+            &Value::String(
+                "not started: the live smoke deadline elapsed before this case began".into()
+            ),
         ),
         "stdout: {}\nstderr: {}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
+    // The provider answers after 6 s; finishing well before that proves the 1 s deadline.
     assert!(
-        elapsed < Duration::from_millis(2500),
+        elapsed < Duration::from_secs(4),
         "live smoke exceeded its hard deadline: {elapsed:?}"
     );
     fixture.finish();

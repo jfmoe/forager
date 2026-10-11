@@ -185,7 +185,7 @@ pub(super) enum Command {
         live: bool,
         #[arg(long, requires = "live")]
         list: bool,
-        #[arg(long, requires = "live", default_value_t = 180, value_parser = clap::value_parser!(u64).range(1..))]
+        #[arg(long, requires = "live", default_value_t = 420, value_parser = clap::value_parser!(u64).range(1..))]
         timeout: u64,
         #[arg(long, requires = "live", value_name = "CASE_ID=EVIDENCE_URL")]
         outage_evidence: Vec<String>,
