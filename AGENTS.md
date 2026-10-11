@@ -22,7 +22,7 @@ Split source files by responsibility, not merely to satisfy a line limit. `tests
 
 ### Target hygiene
 
-Run `cargo sweep` periodically to remove stale build artifacts. Do not disable incremental compilation globally. Prefer a separate `CARGO_TARGET_DIR` for cross-compilation artifacts so host and target builds do not accumulate in one directory.
+Stale build artifacts are removed by the last step of a release (`docs/agents/release.md`). Do not disable incremental compilation globally. Prefer a separate `CARGO_TARGET_DIR` for cross-compilation artifacts so host and target builds do not accumulate in one directory.
 
 ### Full local test suite
 
@@ -32,9 +32,9 @@ Run `cargo nextest run --all-targets --all-features --locked --no-fail-fast --st
 
 The `windows-permissions` job is CI-only. On non-Windows hosts, do not report a missing local run as a risk; report only an observed CI failure, and claim success only from a successful remote run.
 
-### Release completion
+### Merging and releasing
 
-After publishing a release, update the local CLI, run `npx skills add jfmoe/forager -g -s forager -a '*' -y`, then run the live-provider end-to-end test before closing the task.
+Merge to `main`, release, and finish a release by `docs/agents/release.md`. A release task closes only after every step of its completion section.
 
 ## Architecture
 
@@ -54,7 +54,7 @@ Dependencies flow one way, top to bottom: entry → cli → orchestration (`core
 
 ### Platforms
 
-Before you add or change a platform or a platform route, read `docs/spec/forager/07-platforms.md`. Complete its integration checklist and keep the new-platform checklist test (`src/core/platform_checklist.rs`) passing.
+Before you add or change a platform or a platform route, read `docs/spec/forager/07-platforms.md`. Complete its integration checklist and keep the new-platform checklist test (`src/core/platform_checklist.rs`) passing. Before installing, changing, or live-testing an OpenCLI adapter, read `docs/agents/opencli.md`.
 
 ### Spec-code lockstep
 
