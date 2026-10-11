@@ -1,7 +1,8 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
 import {
-  HOME_URL, PageFacts, SITE, SITE_DOMAIN, envelope, openConversation, readDeadline, waitFor,
+  HOME_URL, PageFacts, SITE, SITE_DOMAIN, envelope, navigate, openConversation, readDeadline,
+  waitFor,
 } from './shared.js';
 
 // Labels in both interface languages. The zh-CN interface of 2026-10-10 showed a 撰写器模式
@@ -364,7 +365,7 @@ cli({
       body_missing: false,
     };
 
-    await page.goto(HOME_URL, { waitUntil: 'load', settleMs: 1000 });
+    await navigate(page, HOME_URL);
     try {
       await startResearch(page, query, deadline, facts, run);
     } catch (error) {
