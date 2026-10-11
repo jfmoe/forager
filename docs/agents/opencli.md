@@ -15,5 +15,5 @@
 
 ## 已知问题
 
-- **`Navigation rejected.`**：标签页没开网络抓包时，OpenCLI 扩展会在导航前断开调试器，Chrome 随即拒绝这次导航。所以 adapter 每次顶层导航前都要先开抓包，Gemini 和 ChatGPT 的 `shared.js` 已经这样做。新 adapter 或新命令遇到这个报错，按同样方式处理。重启 Chrome 也能暂时消除。还观察到运行过带 `--trace` 的命令后，不带 trace 的命令会连续被拒，但没有确认原因。
+- **`Navigation rejected.`**：标签页没开网络抓包时，OpenCLI 扩展会在导航前断开调试器，Chrome 随即拒绝这次导航。所以 adapter 每次顶层导航前都要先开抓包，Gemini 和 ChatGPT 的 `shared.js`、SSRN 的 `paper.js` 已经这样做。新 adapter 或新命令遇到这个报错，按同样方式处理。重启 Chrome 也能暂时消除。还观察到运行过带 `--trace` 的命令后，不带 trace 的命令会连续被拒，但没有确认原因。
 - **只有实测能证明 JS 的行为**：Rust 侧的测试用的是假 `opencli`，只证明外壳解码、退出码映射和核对规则。adapter 的页面读取、抓包完成条件和点击路径，只能靠实测证明：SSRN 和小红书有 live smoke 用例（C22、C23、C27–C29），Gemini 和 ChatGPT 没有 live 用例，只能在用户授权下做真实验收（第 5 章）。

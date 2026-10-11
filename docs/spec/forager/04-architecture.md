@@ -163,7 +163,7 @@ Research Evidence Pipeline 默认使用 standard 预算，将正文逐条写入 
 
 `cli/ssrn_search.rs` 是 `cli/platform.rs` 的私有子模块，负责 SSRN 搜索参数与类型化请求构造。`infra/types/platform_ssrn_search.rs` 拥有 SSRN Search Criteria 及零 IO 校验，通过既有 types 门面导出；`platform_ssrn.rs` 负责身份与条目元数据。`providers/ssrn_crossref_search.rs` 是 `ssrn_crossref` 的私有子模块，负责搜索映射、搜索执行与 offset 分页；父模块拥有共享 HTTP 传输、记录解码与详情读取。外部仍通过 route 的入口访问，不增加 provider 横向依赖。
 
-`skills/forager/opencli/ssrn/search.js` 拥有命令注册、原站检索请求的发出与请求事实的回报，并自行判定两件事：Cloudflare 拦截（403 或 503 且响应体不是 JSON）与站点的无结果答复；共享的 `shared.js` 处理页面的站点阻断、截止时间、验证消息和协议外壳。`paper.js` 读取论文摘要页的事实，并在 `full_text` 时点击页面自己的下载链接、只回报下载状态与本地文件；`contract.js` 报告契约。
+`skills/forager/opencli/ssrn/search.js` 拥有命令注册、原站检索请求的发出与请求事实的回报，并自行判定两件事：Cloudflare 拦截（403 或 503 且响应体不是 JSON）与站点的无结果答复；共享的 `shared.js` 处理页面的站点阻断、截止时间、验证消息和协议外壳。`paper.js` 先在 `papers.ssrn.com` 开启抓包再打开论文摘要页（OpenCLI 扩展在未开启抓包的标签页上导航前会断开调试器，Chrome 拒绝这次导航；抓包本身不读取），读取摘要页的事实，并在 `full_text` 时点击页面自己的下载链接、只回报下载状态与本地文件；`contract.js` 报告契约。
 
 `providers/ssrn_browser_search.rs` 是 `ssrn_browser` 的私有子模块，拥有原站检索执行、请求地址的条件核对、接口响应解码与原生分页；父模块拥有 route 配置、执行设置和详情/全文读取。
 
