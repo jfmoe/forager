@@ -68,6 +68,10 @@ cli({
   func: async (page, kwargs) => {
     const deadline = readDeadline(kwargs.timeout);
     const id = String(kwargs.id);
+    // OpenCLI's extension detaches its debugger before a navigation unless capture is armed on the
+    // tab, and Chrome rejects that navigation ("Navigation rejected."). The capture is never read;
+    // drop this once OpenCLI navigates without detaching.
+    await page.startNetworkCapture(SITE_DOMAIN);
     await page.goto(`https://${SITE_DOMAIN}/sol3/papers.cfm?abstract_id=${encodeURIComponent(id)}`, {
       waitUntil: 'load',
       settleMs: 500,
