@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.11.1](https://github.com/jfmoe/forager/compare/v0.11.0...v0.11.1) - 2026-10-11
+
+### Fixed
+
+- *(smoke)* stop one live case from starving the rest
+
+### Other
+
+- *(agents)* record the release procedure and OpenCLI dev loop
+- check two repository rules and run the suite with nextest
+- *(openai-compatible)* read the whole request before answering
+
 ## [0.11.0](https://github.com/jfmoe/forager/compare/v0.10.0...v0.11.0) - 2026-10-11
 
 ### Added
