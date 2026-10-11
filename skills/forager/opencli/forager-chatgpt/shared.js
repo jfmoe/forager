@@ -36,6 +36,20 @@ export async function waitFor(until, probe) {
   }
 }
 
+/**
+ * Opens `url` in the tab with the network capture on `SITE_DOMAIN` armed and emptied, so a later
+ * read holds only requests from this navigation on.
+ */
+export async function navigate(page, url) {
+  // OpenCLI's extension detaches its debugger before a navigation unless capture is armed on the
+  // tab, and Chrome rejects that navigation ("Navigation rejected."). Arming first avoids the
+  // detach; drop this once OpenCLI navigates without detaching. Re-arming does not empty the
+  // capture in OpenCLI's direct CDP mode, so the read discards what earlier pages left.
+  await page.startNetworkCapture(SITE_DOMAIN);
+  await page.readNetworkCapture();
+  await page.goto(url, { waitUntil: 'load', settleMs: 1000 });
+}
+
 /** The path of the request the page sends for a conversation when it opens `/c/<id>`. */
 function conversationPath(id) {
   return `/backend-api/conversations/${id}`;
@@ -141,18 +155,14 @@ async function readConversationReads(page, path) {
 
 /**
  * Opens the conversation `id` and reads the conversation response the page receives once it has
- * fully arrived: capture first, because the page reads the conversation while the navigation is
- * still settling. Stops at a sign-in prompt, a notice, or `deadline`. Returns the page facts,
+ * fully arrived: the capture starts before the navigation, because the page reads the
+ * conversation while the navigation is still settling, and holds nothing from earlier pages. Stops at a sign-in prompt, a notice, or `deadline`. Returns the page facts,
  * the first complete response body or null, and whether a conversation read completed.
  */
 export async function openConversation(page, id, deadline) {
   const path = conversationPath(id);
   const facts = new PageFacts(path);
-  await page.startNetworkCapture(SITE_DOMAIN);
-  await page.goto(`${HOME_URL}c/${encodeURIComponent(id)}`, {
-    waitUntil: 'load',
-    settleMs: 1000,
-  });
+  await navigate(page, `${HOME_URL}c/${encodeURIComponent(id)}`);
   const ended = await waitFor(deadline, async () => {
     if (await facts.observe(page)) return 'page';
     return facts.completions > 0 ? 'completed' : null;
