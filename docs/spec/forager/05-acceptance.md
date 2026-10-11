@@ -74,7 +74,7 @@
 AnySearch **extraction 裁决**（消解 #53 砍 `anysearch-extract` 与 #59 L8 原文的矛盾）：extraction 本质为纯 fetch，**彻底删除**——不保留内部操作、不入矩阵、不入 registry。
 
 - 断言统一：退 0 + 可解析 + 该 seam 形状非空 + 无 Parse/Runtime 类 ErrorKind；不断言内容质量。失败模式排列全留 offline-e2e。
-- 抗瞬时故障（H13）：金丝雀查询固定；每用例最多重试 2 次（共 3 次尝试）。**例外**：小红书用例（C27–C29）只执行一次、不重试，因为对处于风控状态的账号重复访问会加重风控；失败即记为失败。任一小红书用例以 Auth 或 attempt 级 Parameter（登录墙、461、300031/300017）失败时，该用例本身记为失败，本轮其余小红书用例不启动，记为 `skipped`（`attempts: 0`，消息说明本轮已停止小红书访问），不计 PASS；C27 没有返回 `access_url` 时 C28 与 C29 同样不启动、记为 `skipped`。失败可按 **outage 豁免规则**延期：证据须为 provider 官方状态页异常，或规格外最小独立探测（如 `curl` 同端点）同样失败；留档记录 case ID、时间戳、证据链接。**豁免仅延期、不计 PASS**——必须择日重跑转绿后才能过切换门；不设定时哨兵。
+- 抗瞬时故障（H13）：金丝雀查询固定；每用例最多重试 2 次（共 3 次尝试）。以 Auth 或 attempt 级 Parameter 失败的用例不再重试，因为重试得到的仍是同一个答复。所有用例共用 `--timeout`（默认 420 秒）这一个 hard deadline：截止时正在执行的用例记为失败；截止前一次尝试已失败的用例保留那次失败的消息；尚未开始的用例记为 `skipped`（`attempts: 0`，消息以 `not started:` 开头），不计 PASS。**例外**：小红书用例（C27–C29）只执行一次、不重试，因为对处于风控状态的账号重复访问会加重风控；失败即记为失败。任一小红书用例以 Auth 或 attempt 级 Parameter（登录墙、461、300031/300017）失败时，该用例本身记为失败，本轮其余小红书用例不启动，记为 `skipped`（`attempts: 0`，消息说明本轮已停止小红书访问），不计 PASS；C27 没有返回 `access_url` 时 C28 与 C29 同样不启动、记为 `skipped`。失败可按 **outage 豁免规则**延期：证据须为 provider 官方状态页异常，或规格外最小独立探测（如 `curl` 同端点）同样失败；留档记录 case ID、时间戳、证据链接。**豁免仅延期、不计 PASS**——必须择日重跑转绿后才能过切换门；不设定时哨兵。
 - 凭据只走统一体系（`keys` + `FORAGER_` env）；废除 `ANYSEARCH_API_KEY(S)` 特读与 `ANYSEARCH_LIVE_ACCEPTANCE` 分档。退出码：全 PASS →0（SKIP 不计为 PASS：`unconfigured`、`deferred` 与 `skipped` 都使 `ok` 为 false，退 4）、任一已配置凭据探测失败→4、配置坏→3。
 - 档次落流程不落旗标：每里程碑跑 L0 全绿 + 手动 P1/P2/C14；切换前跑 `smoke --live` 全量（P1–P2 + C01–C29）；live 档不进 PR CI。
 

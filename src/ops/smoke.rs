@@ -39,6 +39,8 @@ const XIAOHONGSHU_COMMENTS_LIMIT: &str = "15";
 const XIAOHONGSHU_STOPPED: &str = "not started: an earlier Xiaohongshu case met a login wall or a block, so this run stops all Xiaohongshu access";
 const XIAOHONGSHU_NO_ACCESS_URL: &str =
     "not started: the Xiaohongshu search case returned no access_url to read";
+const DEADLINE_NOT_STARTED: &str =
+    "not started: the live smoke deadline elapsed before this case began";
 const XIAOHONGSHU_ONE_COMMENT_PAGE: &str = "not verified: the most-commented note of the Xiaohongshu search has 10 or fewer comments, so the second comment page was not read";
 const XIAOHONGSHU_NO_REPLIES: &str = "not verified: no returned comment of the most-commented Xiaohongshu note had more replies to expand";
 const PIPELINE_CASES: [LiveCaseDefinition; 3] = [
@@ -204,8 +206,10 @@ struct CaseFailure {
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum FailureKind {
     Failed,
-    /// The route reported Auth or an attempt-level Parameter failure.
-    LoginWallOrBlock,
+    /// The provider refused the canary with Auth or an attempt-level Parameter failure, so a
+    /// retry gets the same answer. On Xiaohongshu this marks a login wall, risk control, or a
+    /// block page.
+    Refused,
     /// The case ran, but its sample could not show what the case covers.
     Unverified,
 }
@@ -631,7 +635,9 @@ fn run_configured_case(
     let mut attempts = 0;
     for attempt in 1..=max_attempts(definition) {
         if deadline.remaining().is_none() {
-            failure = "live smoke hard deadline elapsed";
+            if attempt == 1 {
+                return skipped(definition, 0, DEADLINE_NOT_STARTED);
+            }
             break;
         }
         attempts = attempt;
@@ -659,10 +665,11 @@ fn run_configured_case(
                     return skipped(definition, attempt, case_failure.message);
                 }
                 failure = case_failure.message;
-                if definition.platform == Some(Platform::Xiaohongshu)
-                    && case_failure.kind == FailureKind::LoginWallOrBlock
-                {
-                    xiaohongshu.stopped = true;
+                if case_failure.kind == FailureKind::Refused {
+                    if definition.platform == Some(Platform::Xiaohongshu) {
+                        xiaohongshu.stopped = true;
+                    }
+                    break;
                 }
             }
         }
@@ -724,8 +731,8 @@ fn run_case_once(
         if output.status.code() != Some(0) {
             return Err(CaseFailure {
                 message: "live case command returned a nonzero terminal",
-                kind: if is_login_wall_or_block(&output) {
-                    FailureKind::LoginWallOrBlock
+                kind: if is_refusal(&output) {
+                    FailureKind::Refused
                 } else {
                     FailureKind::Failed
                 },
@@ -800,9 +807,8 @@ fn is_xiaohongshu_fetch(definition: LiveCaseDefinition) -> bool {
     definition.platform == Some(Platform::Xiaohongshu) && definition.operation == "fetch"
 }
 
-/// Whether a failed platform command ended on Auth or an attempt-level Parameter failure, which
-/// is how a Xiaohongshu route reports a login wall, risk control, or a block page.
-fn is_login_wall_or_block(output: &Output) -> bool {
+/// Whether a failed command ended on Auth or an attempt-level Parameter failure.
+fn is_refusal(output: &Output) -> bool {
     output.status.code() == Some(4)
         && serde_json::from_slice::<Value>(&output.stdout).is_ok_and(|payload| {
             matches!(payload["error_kind"].as_str(), Some("auth" | "parameter"))

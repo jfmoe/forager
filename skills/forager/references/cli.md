@@ -935,12 +935,17 @@ forager smoke --live --list
 | --- | --- | --- |
 | `--live` | Run the live acceptance registry instead of offline checks. | Off |
 | `--list` | Print the live case registry without running it. Requires `--live`. | Off |
-| `--timeout SECONDS` | Set the live run deadline. Requires `--live`. | `180` |
+| `--timeout SECONDS` | Set the live run deadline. Requires `--live`. | `420` |
 | `--outage-evidence CASE_ID=EVIDENCE_URL` | Attach repeatable provider-outage evidence to a live case. Requires `--live`. | Empty |
 
 The offline form performs local configuration, registry, credential-presence, and journal
 writability checks without contacting providers. `smoke` emits JSON. Hidden acceptance-harness
 probe flags are internal and are not part of the public CLI.
+
+All live cases share the one `--timeout` deadline. A case runs up to three times, but only once
+when it fails on Auth or an attempt-level Parameter error. A case that the deadline left no time to
+start is `skipped` with a message beginning `not started:`; raise `--timeout` and rerun rather than
+treating it as a provider failure.
 
 ## Exit codes
 
