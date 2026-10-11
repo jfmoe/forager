@@ -260,10 +260,17 @@ fn runtime(message: String) -> AttemptFailure {
 }
 
 fn signed_out() -> AttemptFailure {
+    signed_out_then("retry")
+}
+
+/// A signed-out failure whose message ends with what to do after signing in.
+fn signed_out_then(next: &str) -> AttemptFailure {
     AttemptFailure {
         kind: AttemptErrorKind::Auth,
         status: None,
-        message: "Gemini asks the browser to sign in; sign in to gemini.google.com in the Chrome that OpenCLI drives, then retry".into(),
+        message: format!(
+            "Gemini asks the browser to sign in; sign in to gemini.google.com in the Chrome that OpenCLI drives, then {next}"
+        ),
     }
 }
 

@@ -10,7 +10,7 @@ use std::cell::OnceCell;
 use serde::Deserialize;
 
 use super::decode::{self, PlanReply, StreamReply};
-use super::{PageFacts, changed_structure, runtime, signed_out};
+use super::{PageFacts, changed_structure, runtime, signed_out, signed_out_then};
 use crate::net::{AttemptFailure, truncate_message};
 use crate::providers::opencli::CommandFailure;
 use crate::types::{AttemptErrorKind, GeminiConversationId, GeminiPlan};
@@ -135,9 +135,6 @@ pub(super) fn read_start(
     facts: &StartData,
     created: &OnceCell<GeminiConversationId>,
 ) -> Result<(GeminiConversationId, GeminiPlan), AttemptFailure> {
-    if facts.page.signed_out {
-        return Err(signed_out());
-    }
     let [plan_reply, confirm_reply] = [&facts.plan_response, &facts.confirm_response]
         .map(|body| body.as_deref().map(decode::stream_reply).transpose());
     let shown = GeminiConversationId::from_url(&facts.page.url);
@@ -150,6 +147,15 @@ pub(super) fn read_start(
         .or_else(|| shown.clone());
     if let Some(conversation) = &conversation {
         let _ = created.set(conversation.clone());
+    }
+    if facts.page.signed_out {
+        return Err(match &conversation {
+            Some(conversation) => signed_out_then(&format!(
+                "read the research with `forager gemini research result {}` before starting again",
+                conversation.url()
+            )),
+            None => signed_out(),
+        });
     }
     let (plan_reply, confirm_reply) = (plan_reply?, confirm_reply?);
     let at = conversation.as_ref();

@@ -244,6 +244,30 @@ fn a_signed_out_browser_is_an_auth_failure() {
     );
 }
 
+#[test]
+fn a_sign_in_prompt_after_sending_is_auth_and_points_to_the_conversation() {
+    let mut facts = gemini::start_facts(
+        &gemini::START_STEPS[..5],
+        Some(gemini::stream_body(&gemini::plan_candidate())),
+        None,
+    );
+    facts["page"]["signed_out"] = json!(true);
+
+    let (_, output) = run(facts);
+
+    assert_eq!(
+        failure(&output),
+        (
+            Some(4),
+            json!("auth"),
+            format!(
+                "Gemini asks the browser to sign in; sign in to gemini.google.com in the Chrome that OpenCLI drives, then read the research with `forager gemini research result {CONVERSATION_URL}` before starting again"
+            ),
+            json!(CONVERSATION_URL)
+        )
+    );
+}
+
 /// Points `gemini_browser` at `fake` with a 7-second attempt and allows three attempts, so a
 /// retry would fit in the 30-second command deadline the tests pass.
 fn retrying_config(fake: &FakeOpenCli) -> String {
