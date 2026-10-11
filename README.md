@@ -123,16 +123,18 @@ Skill 要求 `forager >= 0.5.2`。外部 Agent 的上下文保护方式见
 ```sh
 git clone https://github.com/jfmoe/forager.git
 cd forager
+git config core.hooksPath .githooks  # 提交前检查格式
 cargo install --path . --locked
 ```
 
-提交前运行与 CI 对齐的检查：
+提交前运行与 CI 对齐的检查（测试需要先安装 [cargo-nextest](https://nexte.st)）：
 
 ```sh
 cargo fmt --check
 cargo check --all-targets --all-features --locked
 cargo clippy --all-targets --all-features --locked -- -D warnings
-cargo test --all-targets --all-features --locked --no-fail-fast -- --quiet
+cargo nextest run --all-targets --all-features --locked --no-fail-fast --status-level fail
+cargo test --doc --locked
 ```
 
 ## 发布
