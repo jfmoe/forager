@@ -1,7 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
 import {
-  APP_URL, PageFacts, SITE, SITE_DOMAIN, envelope, readDeadline, waitFor,
+  APP_URL, PageFacts, SITE, SITE_DOMAIN, envelope, navigate, readDeadline, waitFor,
 } from './shared.js';
 
 cli({
@@ -20,7 +20,7 @@ cli({
     const deadline = readDeadline(kwargs.timeout);
     const facts = new PageFacts();
 
-    await page.goto(APP_URL, { waitUntil: 'load', settleMs: 1000 });
+    await navigate(page, APP_URL);
     await waitFor(deadline, async () => {
       await facts.observe(page);
       return facts.ready;

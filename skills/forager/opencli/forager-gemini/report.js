@@ -1,7 +1,8 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
 import {
-  APP_URL, PageFacts, SITE, SITE_DOMAIN, envelope, readDeadline, readTrackedCalls, waitFor,
+  APP_URL, PageFacts, SITE, SITE_DOMAIN, envelope, navigate, readDeadline, readTrackedCalls,
+  waitFor,
 } from './shared.js';
 
 // The RPC that lists a conversation's turns; the page calls it when it opens a conversation.
@@ -24,12 +25,9 @@ cli({
     const deadline = readDeadline(kwargs.timeout);
     const facts = new PageFacts(CONVERSATION_RPC);
 
-    // Capture first: the page calls the RPC while the navigation is still settling.
-    await page.startNetworkCapture(SITE_DOMAIN);
-    await page.goto(`${APP_URL}/${encodeURIComponent(String(kwargs.conversation))}`, {
-      waitUntil: 'load',
-      settleMs: 1000,
-    });
+    // The capture starts before the navigation: the page calls the RPC while the navigation is
+    // still settling.
+    await navigate(page, `${APP_URL}/${encodeURIComponent(String(kwargs.conversation))}`);
     const ended = await waitFor(deadline, async () => {
       if (await facts.observe(page)) return 'page';
       return facts.completions > 0 ? 'completed' : null;
