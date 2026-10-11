@@ -218,9 +218,9 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 - 通用 flag、cursor 独占规则与 arXiv search 相同。查询词为空或只有空白＝飞行前退 2。日期须为有效日历日期，起点不晚于终点。cursor 与显式查询词、任一高级选项或 limit 互斥，包括显式传入默认值。
 - 两条 route 的支持矩阵见第 7 章；browser 不支持 Crossref 元数据筛选和任意日期区间，Crossref 不支持原站 mode、date、全文范围及原站专属排序。不能完整满足条件的 route 记为 Skipped，所有已配置 route 都不支持时飞行前退 2，不丢弃条件继续搜索。
 - 机构、ORCID 与资助机构筛选依赖已登记的 Crossref 元数据，缺失会漏检；资助机构标识符只支持 OFR DOI。Crossref 时间和被引次数不代表 SSRN Posted 时间或下载量。
-- 启用 `ssrn_browser` 时，该 route 的一页不跨越 SSRN 的 50 条原生页，可以短于 `--limit`；条目深度为 `snippet`（片段，绝不是摘要；卡片没有片段时为 `metadata`）。
-- **输出**：外层形状与 arXiv search 相同。每个 item 含 `ref`（`ssrn:<id>`，不带版本）、canonical `url`（SSRN 摘要页）、`depth`、`title`、`authors`、`published`，以及 SSRN 字段 `abstract`、`snippet`、`doi`、`crossref_type`、`crossref_created`、`posted`、`last_revised`、`date_written`；route 没有读到的字段为 `null`。`ssrn_crossref` 的条目有摘要时 `depth` 为 `abstract`，否则为 `metadata` 且 `abstract: null`；`ssrn_browser` 的条目为 `snippet`，卡片没有片段时为 `metadata`。`published` 保留 route 报告的原始日期精度（`2012`、`2012-04` 或 `2012-04-19`）。route 细节（分页上限、DOI 过滤、诊断、浏览器页校验）见第 7 章「SSRN」。
-- **退出码**：cursor 无效或越过上游分页上限、查询词为空＝飞行前退 2；`platforms.ssrn.order` 为空或操作可用 route 为空＝飞行前退 3；Crossref 429 为 RateLimited 退 4；浏览器 route 的站点验证未通过为 Auth、无法识别结果页为 Runtime，都退 4；其他上游失败沿用共享状态码映射；合法零结果为 `items: []` 且退 0。
+- 启用 `ssrn_browser` 时，该 route 的一页不跨越 SSRN 的 50 条原生页，可以短于 `--limit`；SSRN 最多列出 10,000 条，末页不签发 cursor；条目深度为 `snippet`（片段，绝不是摘要；没有片段时为 `metadata`）。
+- **输出**：外层形状与 arXiv search 相同。每个 item 含 `ref`（`ssrn:<id>`，不带版本）、canonical `url`（SSRN 摘要页）、`depth`、`title`、`authors`、`published`，以及 SSRN 字段 `abstract`、`snippet`、`doi`、`crossref_type`、`crossref_created`、`posted`、`last_revised`、`date_written`；route 没有读到的字段为 `null`。`ssrn_crossref` 的条目有摘要时 `depth` 为 `abstract`，否则为 `metadata` 且 `abstract: null`；`ssrn_browser` 的条目为 `snippet`，没有片段时为 `metadata`；它的 `posted` 是 UTC 日期（`07 Sep 2019` 形式），有修订记录时带 `last_revised`。`published` 保留 route 报告的原始日期精度（`2012`、`2012-04` 或 `2012-04-19`）。route 细节（分页上限、DOI 过滤、诊断、浏览器检索请求核对）见第 7 章「SSRN」。
+- **退出码**：cursor 无效或越过上游分页上限、查询词为空＝飞行前退 2；`platforms.ssrn.order` 为空或操作可用 route 为空＝飞行前退 3；Crossref 429 为 RateLimited 退 4；浏览器 route 的站点验证未通过为 Auth、无法识别的接口响应为 Runtime，都退 4；其他上游失败沿用共享状态码映射；合法零结果为 `items: []` 且退 0。
 
 ### `platform ssrn fetch`
 

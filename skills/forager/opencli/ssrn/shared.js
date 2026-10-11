@@ -2,11 +2,13 @@
 
 import { AuthRequiredError } from '@jackwener/opencli/errors';
 
-export const CONTRACT = 'forager-ssrn/3';
+export const CONTRACT = 'forager-ssrn/4';
 export const SITE_DOMAIN = 'papers.ssrn.com';
+export const VERIFICATION_MESSAGE =
+  'SSRN security verification did not clear; open SSRN in Chrome once, then retry';
 
-// OpenCLI closes the tab after the command returns, so the page reads stop this long before
-// the timeout that forager passes.
+// OpenCLI closes the tab after the command returns, so page reads and requests stop this long
+// before the timeout that forager passes.
 const CLOSE_RESERVE_MS = 3000;
 const POLL_MS = 1000;
 
@@ -14,7 +16,7 @@ export function envelope(status, data) {
   return { contract: CONTRACT, status, data };
 }
 
-/** Returns the time at which page reads must stop, from the `--timeout` seconds. */
+/** Returns the time at which page reads and requests must stop, from the `--timeout` seconds. */
 export function readDeadline(timeoutSeconds) {
   return Date.now() + Math.max(1000, Number(timeoutSeconds) * 1000 - CLOSE_RESERVE_MS);
 }
@@ -47,10 +49,7 @@ export async function readPage(page, deadline, readScript) {
     await page.wait(POLL_MS / 1000);
   }
   if (facts.state === 'challenge') {
-    throw new AuthRequiredError(
-      SITE_DOMAIN,
-      'SSRN security verification did not clear; open SSRN in Chrome once, then retry',
-    );
+    throw new AuthRequiredError(SITE_DOMAIN, VERIFICATION_MESSAGE);
   }
   if (facts.state === 'blocked') {
     throw new AuthRequiredError(SITE_DOMAIN, 'SSRN blocked the automated browser session');

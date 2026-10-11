@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 
-const CONTRACT: &str = "forager-ssrn/3";
+const CONTRACT: &str = "forager-ssrn/4";
 pub(crate) const XHS_CONTRACT: &str = "forager-xhs/1";
 
 const CALL_END: &str = "<<end of call>>";
@@ -58,6 +58,21 @@ impl FakeOpenCli {
                 json!({"contract": contract, "status": "ok", "data": data}).to_string(),
             )
             .expect("write fake page");
+        }
+        fake
+    }
+
+    /// Answers the n-th call with the n-th envelope of `(status, data)`.
+    pub(crate) fn sequence(envelopes: &[(&str, Value)]) -> Self {
+        let fake = Self::with_body(&format!(
+            "call=$(/usr/bin/grep -cxF '{CALL_END}' \"$dir/argv\")\n/bin/cat \"$dir/$call.json\"\n"
+        ));
+        for (index, (status, data)) in envelopes.iter().enumerate() {
+            fs::write(
+                fake.path(&format!("{}.json", index + 1)),
+                json!({"contract": CONTRACT, "status": status, "data": data}).to_string(),
+            )
+            .expect("write fake envelope");
         }
         fake
     }

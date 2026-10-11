@@ -157,7 +157,7 @@ Platform Route 到达外部内容源的方式，在供应方注册信息中声�
 _Avoid_: route kind、backend type
 
 **OpenCLI Adapter**:
-forager 自有、安装到本机 OpenCLI 的站点命令集合，例如 SSRN 的 `search`、`paper` 与 `contract`。每个命令只读取页面事实，输出带契约版本的统一外壳（`contract`、`status`、`data`）；校验与归一化由 route adapter 完成。只有 adapter 核实了站点自己的无结果提示时，`status` 才是 `no_results`。
+forager 自有、安装到本机 OpenCLI 的站点命令集合，例如 SSRN 的 `search`、`paper` 与 `contract`。每个命令只读取页面或站点自身请求的事实，输出带契约版本的统一外壳（`contract`、`status`、`data`）；校验与归一化由 route adapter 完成。只有 adapter 核实了站点自己的无结果答复时，`status` 才是 `no_results`。
 _Avoid_: OpenCLI plugin、browser script、built-in OpenCLI site adapter
 
 **Platform Ref**:
@@ -205,5 +205,5 @@ _Avoid_: offset、page token
 _Avoid_: raw provider parameters、best-effort filters
 
 **SSRN Effective Search State**:
-原站已完成搜索对应的查询词、范围、模式、作者、日期、排序和页码。它是实际执行的条件，与用户要求的 SSRN Search Criteria 分别核对，不能仅以控件当前值推定结果已刷新。
+adapter 实际发出的原站检索请求所含的查询词、范围、模式、作者、日期、排序和页码。它是实际执行的条件，与用户要求的 SSRN Search Criteria 分别核对，不能以 adapter 收到的参数推定请求如此发出。
 _Avoid_: requested search state、control values

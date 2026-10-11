@@ -1,48 +1,40 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
+import { AuthRequiredError, TimeoutError } from '@jackwener/opencli/errors';
 
-import { openSearch, readSearchState } from './search-state.js';
+import { SITE_DOMAIN, VERIFICATION_MESSAGE, envelope, readDeadline } from './shared.js';
 
-import { SITE_DOMAIN, envelope, readDeadline, readPage } from './shared.js';
+const SEARCH_API = 'https://api.ssrn.com/papers/v1/papers/search/advanced';
 
-// Reads one native results page (50 results) as SSRN shows it.
-const READ_RESULTS = `
-  const range = (text.match(/Displaying results[^\\n]*/) || [null])[0];
-  const links = [...document.querySelectorAll('h3 a[href*="abstract_id="]')];
-  const noResults = /(^|\\n)\\s*No results\\.?\\s*(\\n|$)/.test(text);
-  if (!range && !(noResults && links.length === 0)) return { state: 'pending', data: {} };
-  const next = document.querySelector('a[aria-label="Next page"]');
-  return {
-    state: range ? 'results' : 'no_results',
-    data: {
-      url: location.href,
-      search_state: searchState,
-      term: document.querySelector('#term') ? document.querySelector('#term').value : null,
-      current_page: document.querySelector('a[aria-current="page"]')
-        ? document.querySelector('a[aria-current="page"]').textContent
-        : null,
-      range,
-      next_page: Boolean(next) && next.getAttribute('aria-hidden') !== 'true'
-        && !/disabled/.test(next.className),
-      results: links.map((link) => {
-        const card = link.closest('[data-component="Stack"]') || link.parentElement;
-        return {
-          url: link.href,
-          title: link.textContent,
-          authors: [...card.querySelectorAll('a[href*="AbsByAuth.cfm"]')].map((a) => a.textContent),
-          details: [...card.querySelectorAll('p')].map((p) => p.textContent)
-            .find((line) => /Posted:/.test(line)) || '',
-          snippets: [...card.querySelectorAll('.snippet-mark > div')].map((div) => div.textContent),
-        };
-      }),
-    },
-  };
-`;
+// Sends the request the SSRN results page itself sends, from the command tab without navigating:
+// the API needs no cookie, so the tab stays blank and page challenges never load. Network
+// failures are returned as facts.
+function requestScript(url, timeoutMs) {
+  return `(async () => {
+    const url = ${JSON.stringify(url)};
+    try {
+      const response = await fetch(url, {
+        credentials: 'omit',
+        signal: AbortSignal.timeout(${timeoutMs}),
+      });
+      const contentType = response.headers.get('content-type');
+      const text = await response.text();
+      let body = text;
+      if (/json/i.test(contentType || '')) {
+        try { body = JSON.parse(text); } catch { body = text; }
+      }
+      return { request_url: url, http_status: response.status, content_type: contentType, body };
+    } catch (error) {
+      if (error && error.name === 'TimeoutError') return { timed_out: true };
+      return { request_url: url, network_error: String(error) };
+    }
+  })()`;
+}
 
 cli({
   site: 'ssrn',
   name: 'search',
   access: 'read',
-  description: 'Read one SSRN results page for forager',
+  description: 'Request one SSRN native search page for forager',
   domain: SITE_DOMAIN,
   strategy: Strategy.PUBLIC,
   browser: true,
@@ -59,8 +51,19 @@ cli({
   ],
   func: async (page, kwargs) => {
     const deadline = readDeadline(kwargs.timeout);
-    await openSearch(page, kwargs);
-    const facts = await readPage(page, deadline, readSearchState(kwargs) + READ_RESULTS);
-    return envelope(facts.state === 'no_results' ? 'no_results' : 'ok', facts.data);
+    const params = new URLSearchParams({
+      text: kwargs.query, text_fields: kwargs.scope, search_mode: kwargs.mode,
+      authors: kwargs.author, date: kwargs.date, sort_by: kwargs.sort, page: String(kwargs.page),
+    });
+    const facts = await page.evaluate(requestScript(`${SEARCH_API}?${params}`, deadline - Date.now()));
+    if (facts.timed_out) throw new TimeoutError('ssrn/search', kwargs.timeout);
+    // Cloudflare answers a challenge or a block with an HTML page; the API itself answers JSON.
+    const bodyIsJson = facts.body !== null && typeof facts.body === 'object';
+    if ((facts.http_status === 403 || facts.http_status === 503) && !bodyIsJson) {
+      throw new AuthRequiredError(SITE_DOMAIN, VERIFICATION_MESSAGE);
+    }
+    const empty = facts.http_status === 200 && bodyIsJson && facts.body.total === 0
+      && Array.isArray(facts.body.papers) && facts.body.papers.length === 0;
+    return envelope(empty ? 'no_results' : 'ok', facts);
   },
 });

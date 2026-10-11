@@ -9,6 +9,8 @@ use std::process::{Command, Output};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use base64::Engine as _;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use serde_json::{Value, json};
 
 use support::opencli::FakeOpenCli;
@@ -50,46 +52,62 @@ fn route_arguments(call: &[String]) -> (Vec<String>, u64) {
     )
 }
 
-fn result(id: u64) -> Value {
+fn paper(id: u64) -> Value {
     json!({
-        "url": format!("https://papers.ssrn.com/sol3/papers.cfm?abstract_id={id}"),
-        "title": format!("  Paper   {id} "),
-        "authors": ["Gary  Antonacci"],
-        "details": "Number of pages: 37 • Posted: 20 Apr 2012",
-        "snippets": ["Dual  momentum", "absolute momentum"]
+        "id": id,
+        "title": format!(" Paper <em>{id}</em>  &amp; Co "),
+        "authors": [{"id": 3_105_613, "full_name": "Gary  Antonacci"}],
+        "approved_date": "2012-04-19T20:00:00.000Z",
+        "revision_date": null,
+        "snippets": ["Dual <em>momentum</em>", "absolute  momentum"],
+        "page_count": 37
     })
 }
 
-fn default_search_state(query: &str, page: u64) -> Value {
-    let mut url =
-        reqwest::Url::parse("https://api.ssrn.com/papers/v1/papers/search/advanced").expect("URL");
-    url.query_pairs_mut().extend_pairs([
+/// The address of the native search request for `query` on `native_page`, with `conditions`
+/// replacing the default conditions.
+fn request_url(query: &str, native_page: u64, conditions: &[(&str, &str)]) -> String {
+    let page = native_page.to_string();
+    let mut pairs = vec![
         ("text", query),
         ("text_fields", "title-abstract-keywords"),
         ("search_mode", "fuzzy"),
         ("authors", ""),
         ("date", "all_time"),
         ("sort_by", ""),
-        ("page", &page.to_string()),
-    ]);
-    json!({"scope":"title-abstract-keywords", "mode":"fuzzy", "author":"", "date":"All Time", "sort":"Relevancy", "request_url":url.to_string()})
+        ("page", page.as_str()),
+    ];
+    for (name, value) in conditions {
+        pairs
+            .iter_mut()
+            .find(|(key, _)| key == name)
+            .expect("condition")
+            .1 = value;
+    }
+    let mut url =
+        reqwest::Url::parse("https://api.ssrn.com/papers/v1/papers/search/advanced").expect("URL");
+    url.query_pairs_mut().extend_pairs(pairs);
+    url.to_string()
 }
 
-fn results_page(native_page: u64, first: u64, last: u64, total: u64) -> Value {
-    let suffix = if native_page == 1 {
-        String::new()
-    } else {
-        format!("&page={native_page}")
-    };
+/// The facts the adapter returns when the native search for `dual momentum` answers `papers`
+/// of `total` on `native_page`.
+fn answer(native_page: u64, total: u64, papers: &[Value]) -> Value {
     json!({
-        "url": format!("https://papers.ssrn.com/searchresults.cfm?term=dual+momentum{suffix}"),
-        "term": "dual momentum",
-        "search_state": default_search_state("dual momentum", native_page),
-        "current_page": native_page.to_string(),
-        "range": format!("Displaying results {first} to {last} of {total}"),
-        "next_page": last < total,
-        "results": (first..=last).map(result).collect::<Vec<_>>()
+        "request_url": request_url("dual momentum", native_page, &[]),
+        "http_status": 200,
+        "content_type": "application/json; charset=utf-8",
+        "body": {"total": total, "papers": papers}
     })
+}
+
+/// The facts of a native page that lists the papers with IDs `first..=last`.
+fn results(native_page: u64, first: u64, last: u64, total: u64) -> Value {
+    answer(
+        native_page,
+        total,
+        &(first..=last).map(paper).collect::<Vec<_>>(),
+    )
 }
 
 fn paper_page(id: &str, abstract_paragraphs: &[&str]) -> Value {
@@ -111,7 +129,7 @@ fn browser_only(fake: &FakeOpenCli) -> RunEnvironment {
 
 #[test]
 fn search_runs_the_adapter_search_command_with_the_session_flags() {
-    let fake = FakeOpenCli::envelope("ok", &results_page(1, 1, 50, 10_000));
+    let fake = FakeOpenCli::envelope("ok", &results(1, 1, 50, 10_000));
     let environment = browser_only(&fake);
 
     let output = environment.run(&[
@@ -161,40 +179,57 @@ fn search_runs_the_adapter_search_command_with_the_session_flags() {
 }
 
 #[test]
-fn search_maps_page_facts_to_snippet_items() {
-    let fake = FakeOpenCli::envelope("ok", &results_page(1, 1, 50, 10_000));
+fn search_maps_native_papers_to_items_with_utc_dates_and_plain_text() {
+    let mut revised = paper(2);
+    revised["snippets"] = Value::Null;
+    revised["approved_date"] = json!("2019-09-07T19:00:38.000Z");
+    revised["revision_date"] = json!("2021-03-31T23:30:00.000Z");
+    let fake = FakeOpenCli::envelope("ok", &answer(1, 2, &[paper(1), revised]));
     let environment = browser_only(&fake);
 
-    let output = environment.run(&[
-        "platform",
-        "ssrn",
-        "search",
-        "dual momentum",
-        "--limit",
-        "1",
-    ]);
+    let output = environment.run(&["platform", "ssrn", "search", "dual momentum"]);
     let payload = payload(&output);
 
     assert_eq!(
-        (&payload["provider"], &payload["items"]),
+        (
+            &payload["provider"],
+            &payload["items"],
+            &payload["next_cursor"]
+        ),
         (
             &json!("ssrn_browser"),
             &json!([{
                 "ref": "ssrn:1",
                 "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=1",
                 "depth": "snippet",
-                "title": "Paper 1",
+                "title": "Paper 1 & Co",
                 "authors": ["Gary Antonacci"],
-                "published": "2012-04-20",
+                "published": "2012-04-19",
                 "abstract": null,
                 "snippet": "Dual momentum … absolute momentum",
                 "doi": null,
                 "crossref_type": null,
                 "crossref_created": null,
-                "posted": "20 Apr 2012",
+                "posted": "19 Apr 2012",
                 "last_revised": null,
                 "date_written": null
-            }])
+            }, {
+                "ref": "ssrn:2",
+                "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2",
+                "depth": "metadata",
+                "title": "Paper 2 & Co",
+                "authors": ["Gary Antonacci"],
+                "published": "2019-09-07",
+                "abstract": null,
+                "snippet": null,
+                "doi": null,
+                "crossref_type": null,
+                "crossref_created": null,
+                "posted": "07 Sep 2019",
+                "last_revised": "31 Mar 2021",
+                "date_written": null
+            }]),
+            &Value::Null
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
@@ -203,7 +238,7 @@ fn search_maps_page_facts_to_snippet_items() {
 
 #[test]
 fn a_cursor_resumes_at_the_consumed_position_on_the_same_native_page() {
-    let fake = FakeOpenCli::envelope("ok", &results_page(1, 1, 50, 10_000));
+    let fake = FakeOpenCli::envelope("ok", &results(1, 1, 50, 10_000));
     let environment = browser_only(&fake);
     let first = environment.run(&[
         "platform",
@@ -241,16 +276,120 @@ fn a_cursor_resumes_at_the_consumed_position_on_the_same_native_page() {
     );
 }
 
+/// A cursor of the browser route at result offset `page` for `dual momentum`.
+fn cursor(page: &str) -> String {
+    let payload = json!({
+        "query": "dual momentum",
+        "limit": 50,
+        "options": {"platform": "ssrn"},
+        "page": page
+    });
+    format!(
+        "v1.ssrn_browser.{}",
+        URL_SAFE_NO_PAD.encode(payload.to_string())
+    )
+}
+
 #[test]
-fn the_site_notice_of_no_results_is_a_legitimate_empty_page() {
-    let fake = FakeOpenCli::envelope(
-        "no_results",
-        &json!({
-            "url": "https://papers.ssrn.com/searchresults.cfm?term=zzqx",
-            "term": "zzqx",
-            "search_state": default_search_state("zzqx", 1)
-        }),
+fn the_last_page_within_the_site_result_limit_has_no_next_page() {
+    let fake = FakeOpenCli::envelope("ok", &results(200, 9_951, 10_000, 10_000));
+    let environment = browser_only(&fake);
+
+    let output = environment.run(&["platform", "ssrn", "search", "--cursor", &cursor("9950")]);
+    let payload = payload(&output);
+    let (arguments, _) = route_arguments(&fake.calls()[0]);
+
+    assert_eq!(
+        (
+            arguments[5].as_str(),
+            payload["items"].as_array().map(Vec::len),
+            &payload["next_cursor"]
+        ),
+        ("200", Some(50), &Value::Null),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
     );
+}
+
+#[test]
+fn a_cursor_past_the_site_result_limit_is_rejected_before_any_command() {
+    let fake = FakeOpenCli::envelope("ok", &results(1, 1, 50, 10_000));
+    let environment = browser_only(&fake);
+
+    let output = environment.run(&["platform", "ssrn", "search", "--cursor", &cursor("10000")]);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            String::from_utf8_lossy(&output.stderr).contains("past the 10000 results SSRN lists"),
+            fake.calls().len()
+        ),
+        (Some(2), true, 0),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+fn a_cursor_after_a_whole_native_page_requests_the_next_native_page() {
+    let fake = FakeOpenCli::sequence(&[
+        ("ok", results(1, 1, 50, 120)),
+        ("ok", results(2, 51, 100, 120)),
+    ]);
+    let environment = browser_only(&fake);
+    let first = environment.run(&[
+        "platform",
+        "ssrn",
+        "search",
+        "dual momentum",
+        "--limit",
+        "50",
+    ]);
+    let cursor = payload(&first)["next_cursor"]
+        .as_str()
+        .expect("next cursor")
+        .to_owned();
+
+    let second = payload(&environment.run(&["platform", "ssrn", "search", "--cursor", &cursor]));
+    let (arguments, _) = route_arguments(&fake.calls()[1]);
+
+    assert_eq!(
+        (
+            arguments[5].as_str(),
+            &second["items"][0]["ref"],
+            second["next_cursor"].is_string()
+        ),
+        ("2", &json!("ssrn:51"), true)
+    );
+}
+
+#[test]
+fn a_cursor_past_the_results_of_its_native_page_fails() {
+    let fake = FakeOpenCli::envelope("ok", &results(1, 1, 20, 20));
+    let environment = browser_only(&fake);
+
+    let output = environment.run(&["platform", "ssrn", "search", "--cursor", &cursor("25")]);
+    let payload = payload(&output);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["error_kind"],
+            &payload["message"]
+        ),
+        (
+            Some(4),
+            &json!("runtime"),
+            &json!("SSRN page 1 has 20 results; the requested position is past them")
+        )
+    );
+}
+
+#[test]
+fn the_site_answer_of_no_results_is_a_legitimate_empty_page() {
+    let mut facts = answer(1, 0, &[]);
+    facts["request_url"] = json!(request_url("zzqx", 1, &[]));
+    let fake = FakeOpenCli::envelope("no_results", &facts);
     let environment = browser_only(&fake);
 
     let output = environment.run(&["platform", "ssrn", "search", "zzqx"]);
@@ -262,20 +401,17 @@ fn the_site_notice_of_no_results_is_a_legitimate_empty_page() {
             &payload["items"],
             &payload["next_cursor"]
         ),
-        (Some(0), &json!([]), &Value::Null)
+        (Some(0), &json!([]), &Value::Null),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
     );
 }
 
 #[test]
-fn an_unrecognized_results_page_fails_instead_of_returning_no_items() {
-    let fake = FakeOpenCli::envelope(
-        "ok",
-        &json!({
-            "url": "https://papers.ssrn.com/searchresults.cfm?term=dual+momentum",
-            "term": "dual momentum",
-            "results": []
-        }),
-    );
+fn an_unrecognized_answer_fails_instead_of_returning_no_items() {
+    let mut facts = answer(1, 0, &[]);
+    facts["body"] = json!({"items": []});
+    let fake = FakeOpenCli::envelope("ok", &facts);
     let environment = browser_only(&fake);
 
     let output = environment.run(&["platform", "ssrn", "search", "dual momentum"]);
@@ -284,6 +420,79 @@ fn an_unrecognized_results_page_fails_instead_of_returning_no_items() {
         (output.status.code(), payload(&output)["error_kind"].clone()),
         (Some(4), json!("runtime"))
     );
+}
+
+/// Runs a browser-only search for `dual momentum` against `facts`, and returns the exit code,
+/// error kind, and message.
+fn failed_answer(facts: &Value) -> (Option<i32>, Value, String) {
+    let fake = FakeOpenCli::envelope("ok", facts);
+    let output = browser_only(&fake).run(&["platform", "ssrn", "search", "dual momentum"]);
+    let payload = payload(&output);
+    (
+        output.status.code(),
+        payload["error_kind"].clone(),
+        payload["message"].as_str().unwrap_or_default().to_owned(),
+    )
+}
+
+#[test]
+fn a_request_with_other_conditions_cannot_validate_its_answer() {
+    let mut facts = results(1, 1, 50, 10_000);
+    facts["request_url"] = json!(request_url(
+        "dual momentum",
+        1,
+        &[("sort_by", "downloads-desc")]
+    ));
+
+    assert_eq!(
+        failed_answer(&facts),
+        (
+            Some(4),
+            json!("runtime"),
+            "the SSRN search request has different sort_by".to_owned()
+        )
+    );
+}
+
+#[test]
+fn failed_http_answers_are_runtime_failures_that_name_the_status() {
+    let failures = [400, 500].map(|status| {
+        let mut facts = answer(1, 0, &[]);
+        facts["http_status"] = json!(status);
+        facts["body"] = json!({"message": "Internal Server Error"});
+        failed_answer(&facts)
+    });
+
+    assert_eq!(
+        failures,
+        [400, 500].map(|status| (
+            Some(4),
+            json!("runtime"),
+            format!("the SSRN search API answered HTTP {status}")
+        ))
+    );
+}
+
+#[test]
+fn a_browser_network_error_is_a_network_failure() {
+    let facts = json!({
+        "request_url": request_url("dual momentum", 1, &[]),
+        "network_error": "TypeError: Failed to fetch"
+    });
+
+    let (_, kind, message) = failed_answer(&facts);
+
+    assert_eq!(
+        (kind, message.contains("TypeError: Failed to fetch")),
+        (json!("network"), true)
+    );
+}
+
+#[test]
+fn a_listing_that_disagrees_with_the_total_fails() {
+    let (code, kind, _) = failed_answer(&results(1, 1, 10, 10_000));
+
+    assert_eq!((code, kind), (Some(4), json!("runtime")));
 }
 
 /// Runs a browser-only search against a fake that exits with `code`, and returns the error kind
@@ -639,7 +848,7 @@ fn the_default_order_never_runs_the_browser_route() {
         })
         .to_string(),
     )]);
-    let fake = FakeOpenCli::envelope("ok", &results_page(1, 1, 50, 100));
+    let fake = FakeOpenCli::envelope("ok", &results(1, 1, 50, 100));
     let environment = RunEnvironment::new(&format!(
         "[providers.ssrn_crossref]\nurl = {:?}\n\n[providers.ssrn_browser]\ncommand = {:?}\n",
         crossref.url,
@@ -661,15 +870,18 @@ fn the_default_order_never_runs_the_browser_route() {
 
 #[test]
 fn advanced_search_and_cursor_send_complete_native_conditions() {
-    let mut page = results_page(1, 1, 3, 3);
-    page["url"] = json!(
-        "https://papers.ssrn.com/searchresults.cfm?term=dual+momentum&text_fields=title&search_mode=boolean&authors=Antonacci&date=last_3_years&sort_by=downloads-asc"
-    );
-    page["search_state"] = json!({
-        "scope":"title", "mode":"boolean", "author":"Antonacci",
-        "date":"Last 3 Years", "sort":"Downloads, Ascending",
-        "request_url":"https://api.ssrn.com/papers/v1/papers/search/advanced?text=dual+momentum&text_fields=title&search_mode=boolean&authors=Antonacci&date=last_3_years&sort_by=downloads-asc&page=1"
-    });
+    let mut page = results(1, 1, 3, 3);
+    page["request_url"] = json!(request_url(
+        "dual momentum",
+        1,
+        &[
+            ("text_fields", "title"),
+            ("search_mode", "boolean"),
+            ("authors", "Antonacci"),
+            ("date", "last_3_years"),
+            ("sort_by", "downloads-asc"),
+        ]
+    ));
     let fake = FakeOpenCli::envelope("ok", &page);
     let environment = browser_only(&fake);
     let first = environment.run(&[
