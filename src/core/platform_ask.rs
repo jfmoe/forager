@@ -6,85 +6,82 @@
 //! read first by the precheck; X needs none. An answer is never empty, so every route success
 //! is accepted as is.
 
+use std::future::Future;
+
 use reqwest::Client;
 
 use crate::catalog::ProviderId;
 use crate::chain::{
-    self, BudgetPolicy, ChainSettings, ChainStep, DiagnosticMerge, StepSuccess, StepVerdict,
-    TerminalPolicy,
+    self, BudgetPolicy, ChainOutcome, ChainSettings, ChainStep, DiagnosticMerge, StepSuccess,
+    StepVerdict, TerminalPolicy,
 };
 use crate::config::{PlatformRouteConfig, PlatformRuntimeConfig};
-use crate::net::{RetryPolicy, combine_diagnostics};
+use crate::net::RetryPolicy;
 use crate::platform_chain::{
     PlatformPreflightError, operation_target, plan_routes, route_candidates, route_identity,
 };
-use crate::platform_precheck::{PrecheckDepth, PrecheckPlan, plan_precheck, run_precheck};
+use crate::platform_precheck::{
+    PrecheckDepth, PrecheckPlan, Prechecked, plan_precheck, run_precheck,
+};
 use crate::providers;
 use crate::types::{
-    ASK, AskedVideo, Deadline, ModelUsage, Platform, PlatformAskRequest, PlatformAskResult,
-    PlatformItem, PlatformRef, ProviderAttempt, ProviderError, XAskResult, XSource,
-    YoutubeAskResult,
+    ASK, AskedVideo, Deadline, Platform, PlatformAskRequest, PlatformAskResult, ProviderAttempt,
+    ProviderError, XAskRequest, XAskResult, YoutubeAskRequest, YoutubeAskResult,
 };
 
-/// The routes an ask runs, in order, the routes skipped before it runs, and the precheck of a
-/// platform whose answer reads one item.
+/// The routes an ask runs, in order, the routes skipped before it runs, and what the ask needs
+/// on its platform.
 pub(crate) struct AskPlan {
-    request: PlatformAskRequest,
-    precheck: Option<PrecheckPlan>,
+    ask: PlannedAsk,
     routes: Vec<PlatformRouteConfig>,
     skipped: Vec<ProviderAttempt>,
 }
 
-type SupportCheck = fn(ProviderId) -> Option<Result<(), String>>;
+/// An ask on its platform: an X ask needs nothing before its routes; a YouTube ask is about one
+/// video, which its precheck reads first.
+enum PlannedAsk {
+    X(XAskRequest),
+    Youtube {
+        request: YoutubeAskRequest,
+        precheck: PrecheckPlan,
+    },
+}
 
 /// Plans an ask; `config` is the request platform's.
 pub(crate) fn plan_ask(
     config: &PlatformRuntimeConfig,
     request: PlatformAskRequest,
 ) -> Result<AskPlan, PlatformPreflightError> {
-    let (routes, support): (&[ProviderId], SupportCheck) = match &request {
-        PlatformAskRequest::X(_) => (providers::X_ASK_ROUTES, providers::x_ask_support),
-        PlatformAskRequest::Youtube(_) => (
-            providers::YOUTUBE_ASK_ROUTES,
-            providers::youtube_ask_support,
-        ),
+    let platform_routes = |routes, support: fn(ProviderId) -> Option<Result<(), String>>| {
+        plan_routes(
+            ASK,
+            config.platform(),
+            &config.order_key(),
+            routes,
+            &route_candidates(config),
+            None,
+            support,
+        )
     };
-    let plan = plan_routes(
-        ASK,
-        config.platform(),
-        &config.order_key(),
-        routes,
-        &route_candidates(config),
-        None,
-        support,
-    )?;
-    let precheck = match &request {
-        PlatformAskRequest::X(_) => None,
-        PlatformAskRequest::Youtube(request) => Some(plan_precheck(
-            config,
-            PlatformRef::Youtube(request.video.clone()),
-            PrecheckDepth::Metadata,
-        )?),
+    let (ask, plan) = match request {
+        PlatformAskRequest::X(request) => {
+            let plan = platform_routes(providers::X_ASK_ROUTES, providers::x_ask_support)?;
+            (PlannedAsk::X(request), plan)
+        }
+        PlatformAskRequest::Youtube(request) => {
+            let plan = platform_routes(
+                providers::YOUTUBE_ASK_ROUTES,
+                providers::youtube_ask_support,
+            )?;
+            let precheck = plan_precheck(config, request.video.clone(), PrecheckDepth::Metadata)?;
+            (PlannedAsk::Youtube { request, precheck }, plan)
+        }
     };
     Ok(AskPlan {
-        request,
-        precheck,
+        ask,
         routes: plan.routes.into_iter().map(|(_, config)| config).collect(),
         skipped: plan.skipped,
     })
-}
-
-/// One route's answer, in the platform's own shape.
-enum RouteAnswer {
-    X {
-        answer: String,
-        sources: Vec<XSource>,
-    },
-    Youtube {
-        answer: String,
-        model: Option<String>,
-        usage: Option<ModelUsage>,
-    },
 }
 
 /// Runs a planned ask: the precheck, when the platform has one, then the route chain.
@@ -96,14 +93,62 @@ pub(crate) async fn run_ask(
     verbose: bool,
 ) -> Result<PlatformAskResult, ProviderError> {
     let AskPlan {
-        request,
-        precheck,
+        ask,
         routes,
-        skipped,
+        mut skipped,
     } = plan;
-    let (video, mut attempts, diagnostic) = match precheck {
-        Some(precheck) => {
-            let checked = run_precheck(
+    match ask {
+        PlannedAsk::X(request) => {
+            let request = &request;
+            let result = run_routes(
+                Platform::X,
+                routes,
+                deadline,
+                verbose,
+                |config, deadline| {
+                    let client = client.clone();
+                    async move {
+                        let outcome =
+                            providers::x_ask(config, client, retry_policy, deadline, request)
+                                .await?;
+                        Ok(StepSuccess {
+                            value: (outcome.answer, outcome.sources),
+                            attempts: outcome.attempts,
+                            diagnostic: outcome.diagnostic,
+                        })
+                    }
+                },
+            )
+            .await;
+            let outcome = match result {
+                Ok(mut outcome) => {
+                    skipped.append(&mut outcome.attempts);
+                    outcome.attempts = skipped;
+                    outcome
+                }
+                Err(mut error) => {
+                    skipped.append(&mut error.attempts);
+                    error.attempts = skipped;
+                    return Err(error);
+                }
+            };
+            let (route, (answer, sources)) = outcome.value;
+            Ok(PlatformAskResult::X(XAskResult {
+                platform: Platform::X,
+                provider: route.name(),
+                query: request.query.clone(),
+                answer,
+                sources,
+                attempts: if verbose {
+                    outcome.attempts
+                } else {
+                    Vec::new()
+                },
+                diagnostic: outcome.diagnostic,
+            }))
+        }
+        PlannedAsk::Youtube { request, precheck } => {
+            let Prechecked { video, trace } = run_precheck(
                 precheck,
                 skipped,
                 client.clone(),
@@ -112,11 +157,71 @@ pub(crate) async fn run_ask(
                 verbose,
             )
             .await?;
-            (Some(checked.item), checked.attempts, checked.diagnostic)
+            let (question, checked) = (&request.question, &video);
+            let result = run_routes(
+                Platform::Youtube,
+                routes,
+                deadline,
+                verbose,
+                |config, deadline| {
+                    let client = client.clone();
+                    async move {
+                        let outcome = providers::youtube_ask(
+                            config,
+                            client,
+                            retry_policy,
+                            deadline,
+                            checked,
+                            question,
+                        )
+                        .await?;
+                        Ok(StepSuccess {
+                            value: (outcome.answer, outcome.model, outcome.usage),
+                            attempts: outcome.attempts,
+                            diagnostic: outcome.diagnostic,
+                        })
+                    }
+                },
+            )
+            .await;
+            let outcome = trace.lead(result)?;
+            let (route, (answer, model, usage)) = outcome.value;
+            Ok(PlatformAskResult::Youtube(YoutubeAskResult {
+                platform: Platform::Youtube,
+                provider: route.name(),
+                video: AskedVideo {
+                    reference: video.reference,
+                    url: video.url,
+                    title: video.title,
+                },
+                question: request.question,
+                answer,
+                model,
+                usage,
+                attempts: if verbose {
+                    outcome.attempts
+                } else {
+                    Vec::new()
+                },
+                diagnostic: outcome.diagnostic,
+            }))
         }
-        None => (None, skipped, None),
-    };
-    let (request, video) = (&request, video.as_ref());
+    }
+}
+
+/// Runs the ask's route chain; `answer` answers on one route, without the route's identity,
+/// which the chain's value pairs with it.
+async fn run_routes<T, Answer, Fut>(
+    platform: Platform,
+    routes: Vec<PlatformRouteConfig>,
+    deadline: Deadline,
+    verbose: bool,
+    answer: Answer,
+) -> Result<ChainOutcome<(ProviderId, T)>, ProviderError>
+where
+    Answer: Fn(PlatformRouteConfig, Deadline) -> Fut,
+    Fut: Future<Output = Result<StepSuccess<T>, ProviderError>>,
+{
     let steps = routes
         .into_iter()
         .map(|context| ChainStep {
@@ -125,10 +230,10 @@ pub(crate) async fn run_ask(
             gate_attempt: None,
         })
         .collect();
-    let result = chain::run_chain(
+    chain::run_chain(
         steps,
         ChainSettings {
-            target: operation_target(request.platform(), ASK),
+            target: operation_target(platform, ASK),
             budget_policy: BudgetPolicy::SlicedEven {
                 skipped_message: "skipped to preserve fallback deadline budget",
             },
@@ -143,133 +248,19 @@ pub(crate) async fn run_ask(
         },
         deadline,
         |config: PlatformRouteConfig, step_deadline| {
-            let client = client.clone();
+            let route = config.route();
+            let answered = answer(config, step_deadline);
             async move {
-                let route = config.route();
-                match answer(config, client, retry_policy, step_deadline, request, video).await {
-                    Ok((answer, attempts, diagnostic)) => StepVerdict::Accepted(StepSuccess {
-                        value: (route, answer),
-                        attempts,
-                        diagnostic,
+                match answered.await {
+                    Ok(success) => StepVerdict::Accepted(StepSuccess {
+                        value: (route, success.value),
+                        attempts: success.attempts,
+                        diagnostic: success.diagnostic,
                     }),
                     Err(error) => StepVerdict::Failed(error),
                 }
             }
         },
     )
-    .await;
-    match result {
-        Ok(outcome) => {
-            let (route, answer) = outcome.value;
-            attempts.extend(outcome.attempts);
-            let attempts = if verbose { attempts } else { Vec::new() };
-            let diagnostic =
-                combine_diagnostics([diagnostic, outcome.diagnostic].into_iter().flatten());
-            Ok(asked(request, video, route, answer, attempts, diagnostic))
-        }
-        Err(mut error) => {
-            attempts.append(&mut error.attempts);
-            error.attempts = attempts;
-            error.diagnostic =
-                combine_diagnostics([diagnostic, error.diagnostic].into_iter().flatten());
-            Err(error)
-        }
-    }
-}
-
-/// The result of an ask in its platform's shape. `video` is the item the precheck read, for a
-/// platform that has one.
-fn asked(
-    request: &PlatformAskRequest,
-    video: Option<&PlatformItem>,
-    route: ProviderId,
-    answer: RouteAnswer,
-    attempts: Vec<ProviderAttempt>,
-    diagnostic: Option<String>,
-) -> PlatformAskResult {
-    match (request, answer) {
-        (PlatformAskRequest::X(request), RouteAnswer::X { answer, sources }) => {
-            PlatformAskResult::X(XAskResult {
-                platform: Platform::X,
-                provider: route.name(),
-                query: request.query.clone(),
-                answer,
-                sources,
-                attempts,
-                diagnostic,
-            })
-        }
-        (
-            PlatformAskRequest::Youtube(request),
-            RouteAnswer::Youtube {
-                answer,
-                model,
-                usage,
-            },
-        ) => {
-            let video = video.expect("a YouTube ask runs after its precheck");
-            PlatformAskResult::Youtube(YoutubeAskResult {
-                platform: Platform::Youtube,
-                provider: route.name(),
-                video: AskedVideo {
-                    reference: video.reference.clone(),
-                    url: video.url.clone(),
-                    title: video.title.clone(),
-                },
-                question: request.question.clone(),
-                answer,
-                model,
-                usage,
-                attempts,
-                diagnostic,
-            })
-        }
-        _ => unreachable!("every route answers in its request's platform shape"),
-    }
-}
-
-/// Answers on one route: the answer without its trace, then the route's attempts and
-/// diagnostic. `video` is the item the precheck read, for a platform that has one.
-async fn answer(
-    config: PlatformRouteConfig,
-    client: Client,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
-    request: &PlatformAskRequest,
-    video: Option<&PlatformItem>,
-) -> Result<(RouteAnswer, Vec<ProviderAttempt>, Option<String>), ProviderError> {
-    match request {
-        PlatformAskRequest::X(request) => {
-            let outcome = providers::x_ask(config, client, retry_policy, deadline, request).await?;
-            Ok((
-                RouteAnswer::X {
-                    answer: outcome.answer,
-                    sources: outcome.sources,
-                },
-                outcome.attempts,
-                outcome.diagnostic,
-            ))
-        }
-        PlatformAskRequest::Youtube(request) => {
-            let video = video.expect("a YouTube ask runs after its precheck");
-            let outcome = providers::youtube_ask(
-                config,
-                client,
-                retry_policy,
-                deadline,
-                video,
-                &request.question,
-            )
-            .await?;
-            Ok((
-                RouteAnswer::Youtube {
-                    answer: outcome.answer,
-                    model: outcome.model,
-                    usage: outcome.usage,
-                },
-                outcome.attempts,
-                outcome.diagnostic,
-            ))
-        }
-    }
+    .await
 }
