@@ -16,7 +16,8 @@ use reqwest::{Client, RequestBuilder};
 use serde::Deserialize;
 use serde_json::json;
 
-use super::transcript::{Transcript, TranscriptChapter, TranscriptSubject};
+use super::transcript::Transcript;
+use super::youtube_transcript::YoutubeVideo;
 use crate::catalog::ProviderId;
 use crate::config::HttpRouteRuntimeConfig;
 use crate::credentials::CredentialPool;
@@ -622,29 +623,10 @@ fn render_transcript(
         ),
         Srv1Error::Invalid(message) => Refusal::new(AttemptErrorKind::Runtime, message),
     })?;
-    let chapters = chapters_from_description(description)
-        .into_iter()
-        .map(|chapter| TranscriptChapter {
-            start_seconds: chapter.start_seconds,
-            title: chapter.title,
-        })
-        .collect::<Vec<_>>();
-    let PlatformItemData::Youtube(data) = &item.data else {
-        unreachable!("youtube_web builds YouTube items")
-    };
-    let reference = item.reference.to_string();
-    let subject = TranscriptSubject {
-        title: item.title.as_deref(),
-        reference: &reference,
-        channel: item.authors.first().map(String::as_str),
-        published: item.published.as_deref(),
-        duration_seconds: data.duration_seconds,
+    let rendered = YoutubeVideo::of(item).render(
+        &Transcript::new(&caption.language, caption.source, cues),
         description,
-    };
-    let rendered = Transcript::new(&caption.language, caption.source, cues).render(
-        &subject,
-        &chapters,
-        &|seconds| format!("{}&t={seconds}s", item.url),
+        &chapters_from_description(description),
     );
     Ok((rendered.markdown, rendered.info))
 }
