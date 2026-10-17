@@ -25,6 +25,10 @@ platform absent from it has no platform command; follow
   `forager platform x search QUERY`; for a post URL or its replies, run
   `forager platform x fetch 'REF_OR_URL'`. A general question that X may inform keeps using
   `forager search`, which already reads X. See "X posts".
+- **Hacker News**: for what HN says about a topic, run `forager platform hn search QUERY`; for a
+  discussion (an HN link the user gave, or a ref forager returned), run
+  `forager platform hn fetch 'REF_OR_URL'`; for what is on the front page, run
+  `forager platform hn stories`. See "Hacker News".
 
 `forager platform <id> <op> --help` is the syntax authority; see the platform section of
 [`cli.md`](cli.md) for output fields and exit codes.
@@ -54,6 +58,11 @@ Every item carries `depth`, the content it actually holds: `metadata` (bibliogra
 - **X** search items are `snippet`: the post text as the model relayed it. `fetch` defaults to
   `--depth thread` and adds the posts it replies to, its replies, and the posts it quotes;
   `--depth metadata` returns the post alone.
+- **Hacker News** search and `stories` items are `snippet` when the item has its own text (a
+  comment, an Ask HN post) and `metadata` otherwise. `fetch` defaults to `--depth thread`, which
+  writes the item and its whole discussion to `hn-<id>.md`; `--depth metadata` returns the item
+  alone; `--depth full_text` reads the page a story links to through Web Fetch, or a text post's
+  own body.
 
 ## arXiv search queries
 
@@ -162,6 +171,28 @@ the post ID, not the model.
 forager platform x ask 'What are people saying about the Rust 2027 edition?'
 forager platform x search 'Starship' --handle SpaceX --from 2026-10-01 --to 2026-10-14
 forager platform x fetch 'https://x.com/SpaceX/status/2110126570233094527'
+```
+
+## Hacker News
+
+Hacker News runs through the `hn_api` route and needs no key or setup: Algolia's HN Search API
+searches, and the official Firebase API supplies the rank HN shows and live counts.
+
+- Search queries take `"double quotes"` for a phrase and `-word` to exclude a word. Set `--type`,
+  `--author`, `--story`, `--from`/`--to`, `--min-points`, and `--min-comments` only when the
+  request implies them. To find comments inside one big discussion, search with `--story ID`
+  instead of reading the whole file.
+- A discussion can hold thousands of comments and a million characters. Read the file like a full
+  text: the metadata on stdout first, then only the part you need. Top-level comments are in the
+  rank HN shows (`order: ranked_top_level`), so the start of the file holds the most upvoted
+  threads; replies are in time order. With `order: chronological` the rank was unavailable.
+- For the HN discussion of a web page, search its title or URL words with `--type story`, then
+  fetch the story.
+
+```console
+forager platform hn search 'rust async' --type story --min-points 100
+forager platform hn fetch 'https://news.ycombinator.com/item?id=8863'
+forager platform hn stories top --limit 10
 ```
 
 ## SSRN browser route
@@ -283,6 +314,13 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
   Thread replies are not checked against the response, so treat them with more caution than the
   root. An `ask` answer without `sources` is unverified. Results reflect what the model chose to
   read, not a complete or ranked view of X.
+
+- **Hacker News evidence**: cite the ref (`hn:<id>`) and the `url`. A comment is one user's
+  opinion: attribute it to its author and report it as an opinion, never as a fact about the
+  subject. A discussion file is not a complete mirror of the HN page: deleted and dead comments
+  are absent and comments from the last few minutes may be missing. Search and `stories` counts
+  may lag the site by a few minutes; `metadata` and `thread` counts are live. Use only the refs
+  forager returns; construct no item ID yourself.
 
 ## Recover
 

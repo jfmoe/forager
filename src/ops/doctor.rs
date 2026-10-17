@@ -283,9 +283,15 @@ async fn run_probe(
         } => {
             let route_config = config::platform_route_config(provider, &config.platform_routes)
                 .expect("probe registration belongs to a platform catalog");
-            let result =
-                probe_platform_search(platform, route_config, client, retry_policy, deadline).await;
-            one_check(result, name, transport)
+            probe_platform_route(
+                platform,
+                route_config,
+                (name, transport),
+                client,
+                retry_policy,
+                deadline,
+            )
+            .await
         }
         DoctorProbe::ServiceAccount { name, transport } => {
             let route_config = config::platform_route_config(provider, &config.platform_routes)
@@ -359,6 +365,40 @@ async fn probe_main_search_backend(
         let platform_outcome = one_check(result, platform_probe_name(platform), "sse");
         outcome.checks.extend(platform_outcome.checks);
         outcome.failure = platform_outcome.failure;
+    }
+    outcome
+}
+
+/// Probes a platform route with one search, then each extra endpoint it combines (ADR 0027).
+async fn probe_platform_route(
+    platform: Platform,
+    route_config: PlatformRouteConfig,
+    (name, transport): (&'static str, &'static str),
+    client: reqwest::Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> ProbeOutcome {
+    let result = probe_platform_search(
+        platform,
+        route_config.clone(),
+        client.clone(),
+        retry_policy,
+        deadline,
+    )
+    .await;
+    let mut outcome = one_check(result, name, transport);
+    if outcome.failure.is_some() {
+        return outcome;
+    }
+    for (check, result) in
+        providers::platform_route_extra_checks(route_config, client, retry_policy, deadline).await
+    {
+        let extra = one_check(result, check, transport);
+        outcome.checks.extend(extra.checks);
+        if extra.failure.is_some() {
+            outcome.failure = extra.failure;
+            break;
+        }
     }
     outcome
 }

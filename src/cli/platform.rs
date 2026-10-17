@@ -37,6 +37,10 @@ use xiaohongshu::XiaohongshuCommand;
 mod x;
 use x::XCommand;
 
+#[path = "hn.rs"]
+mod hn;
+use hn::HnCommand;
+
 const DEFAULT_TIMEOUT_SECONDS: u64 = 120;
 
 #[derive(Debug, Subcommand)]
@@ -67,6 +71,11 @@ pub(super) enum PlatformCommand {
     X {
         #[command(subcommand)]
         command: XCommand,
+    },
+    /// Search Hacker News, read whole discussions, and list the front page; needs no key.
+    Hn {
+        #[command(subcommand)]
+        command: HnCommand,
     },
 }
 
@@ -256,6 +265,7 @@ pub(super) fn run(command: PlatformCommand) -> Result<CommandOutput, AppError> {
         PlatformCommand::Scholar { command } => scholar::run(command),
         PlatformCommand::Xiaohongshu { command } => xiaohongshu::run(command),
         PlatformCommand::X { command } => x::run(command),
+        PlatformCommand::Hn { command } => hn::run(command),
     }
 }
 

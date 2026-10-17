@@ -63,6 +63,15 @@ forager platform x fetch REF_OR_URL [--depth thread|metadata（默认 thread）]
 forager platform x ask QUERY [--handle HANDLE]... [--exclude-handle HANDLE]...
                        [--from YYYY-MM-DD] [--to YYYY-MM-DD]
                        [--timeout 120] [--format json|markdown] [...]
+forager platform hn search QUERY [--sort relevance|date] [--type TYPE]... [--author USER]
+                           [--story ID] [--from YYYY-MM-DD] [--to YYYY-MM-DD]
+                           [--min-points N] [--min-comments N] [--limit 1..=100（默认 20）]
+                           [--timeout 120] [--format json|markdown] [...]
+forager platform hn search --cursor CURSOR [--timeout 120] [--format json|markdown] [...]
+forager platform hn fetch REF_OR_URL [--depth thread|metadata|full_text（默认 thread）]
+                          [--content-dir DIR] [--timeout 120] [--format json|markdown|content] [...]
+forager platform hn stories [top|new|best|ask|show|job（默认 top）] [--limit 1..=100（默认 30）]
+                            [--timeout 120] [--format json|markdown] [...]
 forager gemini research start QUERY [--timeout 240] [--format json|markdown]
 forager gemini research result CONVERSATION [--report-dir DIR]
                                [--timeout 120] [--format json|markdown|content] [...]
@@ -158,7 +167,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 ## 契约③：`doctor --provider`
 
-两档：`doctor` 浅检全体（掩码配置 + 凭据存在 + 可达性（对 endpoint 发 GET 并只等待响应头，任何 HTTP 响应都算可达；部分 endpoint 对 HEAD 不响应）+ 过宽权限报告 + config list 同构生效值块）；顶层 `ok` 等于所有 `configured=true` provider 均 `reachable=true`，零配置为 true，任一不可达则 JSON/Markdown 均为 false 并退出 4，permission warning 不改变 `ok`。`config_warnings` 报告主搜索链中与首个已配置 backend 使用相同 endpoint（忽略末尾 `/`）和相同主模型的后续 backend——这类 fallback 与主 backend 处于同一故障域；该警告同样不改变 `ok`。`--provider NAME` 深探单体，值域＝provider 注册表的编译期 enum。需要凭据的 8 个 provider 执行凭据有效性 + 最小活体调用；平台 route（`arxiv_api`、`ssrn_crossref`、`ssrn_browser`、`xiaohongshu_browser`）不需要凭据，恒为已配置，深探执行一次最小平台检索；主搜索 backend `xai` 同时是 X 平台的 route，`platforms.x.order` 含 `xai` 时，深探在主搜索检查之后再执行一次最小 X 检索，记为 `x_search` 检查；需要凭据的平台 route `serpapi` 有 key 时才算已配置，浅检对端点发一次不带 key 的 GET（不计额度）；深探不做检索，而是按池中顺序对每个 key 各调用一次同源的 SerpApi Account API（`/account.json`，不计额度），不经凭据轮换、不推进凭据游标，输出增加 `keys` 数组，每个 key 一项 `{key_index, ok, searches_left, plan_searches_left, this_month_usage, this_hour_searches, hourly_limit}`，失败项带 `error_kind`，取不到的数字为 `null`；HTTP 失败沿用共享归因（401/403 为 auth），剩余额度为 0 为 `quota_exhausted`，本小时检索数达到上限为 `rate_limited`，缺数字字段为 `runtime`；任一 key 失败则深探失败退 4，顶层 `error_kind` 与 `message` 取第一个失败的 key，`message` 以 `providers.serpapi.keys[N]` 指明它；响应中的 key、账户邮箱与账户 ID 不被解码，也不进入任何输出；这个深探只证明端点、key 与额度状态，不证明 Scholar 检索的请求与解码（由 live smoke C24–C26 证明）；没有 key 时以 config 失败退 3 且不发请求；其他 provider 的深探输出没有 `keys`；openai-compatible 额外保留 stream/no-stream 双形状判定。声明访问策略的 provider（三条平台 route）的浅检检查与深探请求都先经过跨进程限速，等不到窗口时浅检记为不可达、深探以 timeout 失败，且都不发送请求。
+两档：`doctor` 浅检全体（掩码配置 + 凭据存在 + 可达性（对 endpoint 发 GET 并只等待响应头，任何 HTTP 响应都算可达；部分 endpoint 对 HEAD 不响应）+ 过宽权限报告 + config list 同构生效值块）；顶层 `ok` 等于所有 `configured=true` provider 均 `reachable=true`，零配置为 true，任一不可达则 JSON/Markdown 均为 false 并退出 4，permission warning 不改变 `ok`。`config_warnings` 报告主搜索链中与首个已配置 backend 使用相同 endpoint（忽略末尾 `/`）和相同主模型的后续 backend——这类 fallback 与主 backend 处于同一故障域；该警告同样不改变 `ok`。`--provider NAME` 深探单体，值域＝provider 注册表的编译期 enum。需要凭据的 8 个 provider 执行凭据有效性 + 最小活体调用；平台 route（`arxiv_api`、`ssrn_crossref`、`ssrn_browser`、`xiaohongshu_browser`、`hn_api`）不需要凭据，恒为已配置，深探执行一次最小平台检索；`hn_api` 访问两个端点，深探在检索之后再向 Firebase 发一个请求，记为 `firebase` 检查；主搜索 backend `xai` 同时是 X 平台的 route，`platforms.x.order` 含 `xai` 时，深探在主搜索检查之后再执行一次最小 X 检索，记为 `x_search` 检查；需要凭据的平台 route `serpapi` 有 key 时才算已配置，浅检对端点发一次不带 key 的 GET（不计额度）；深探不做检索，而是按池中顺序对每个 key 各调用一次同源的 SerpApi Account API（`/account.json`，不计额度），不经凭据轮换、不推进凭据游标，输出增加 `keys` 数组，每个 key 一项 `{key_index, ok, searches_left, plan_searches_left, this_month_usage, this_hour_searches, hourly_limit}`，失败项带 `error_kind`，取不到的数字为 `null`；HTTP 失败沿用共享归因（401/403 为 auth），剩余额度为 0 为 `quota_exhausted`，本小时检索数达到上限为 `rate_limited`，缺数字字段为 `runtime`；任一 key 失败则深探失败退 4，顶层 `error_kind` 与 `message` 取第一个失败的 key，`message` 以 `providers.serpapi.keys[N]` 指明它；响应中的 key、账户邮箱与账户 ID 不被解码，也不进入任何输出；这个深探只证明端点、key 与额度状态，不证明 Scholar 检索的请求与解码（由 live smoke C24–C26 证明）；没有 key 时以 config 失败退 3 且不发请求；其他 provider 的深探输出没有 `keys`；openai-compatible 额外保留 stream/no-stream 双形状判定。声明访问策略的 provider（平台 route）的浅检检查与深探请求都先经过跨进程限速，等不到窗口时浅检记为不可达、深探以 timeout 失败，且都不发送请求。
 
 传输类型为 process 的 route（`ssrn_browser`、`xiaohongshu_browser`）不发 GET：浅检只在它出现在所属平台的 order 中时参与，运行 adapter 的 `contract` 命令并核对契约版本；未启用时报告 `configured: false`，不影响 `ok`。检查失败时该 provider 状态带 `message`（含安装提示），Markdown 在同一行括号中显示。深探（`doctor --provider ssrn_browser` 或 `xiaohongshu_browser`）同样只在 order 启用该 route 时运行一次真实的平台检索；未启用时以 config 失败退 3，不启动进程。
 
@@ -382,6 +391,56 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 - 通用 flag 同 search。
 - **输出**：JSON 为 `{platform, provider, query, answer, sources}`；`--verbose` 附 `provider_attempts`。`answer` 经主搜索的 normalizer，保留 `[[N]](url)` 逐句引用；`sources` 为 `{ref, url, title}`：帖子 URL 映射为 `x:<post_id>` 与 canonical URL，用户主页与其他页面 `ref` 为 `null` 并保留原 URL，按 URL 去重。`sources` 可以为空。不写 Search Result Journal。
 - **退出码**：问题为空、过滤参数非法同 search，飞行前退 2；配置错误同 search，退 3；规范化后回答为空为 Runtime，退 4；xAI 终态失败同 search。
+
+### `platform hn search`
+
+只在 Hacker News 上检索条目，经 `hn_api` route（第 7 章「Hacker News」）。
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| 查询词（位置参数） | 非空字符串 | 无 `--cursor` 时必填 | 原样发送；引号为短语，`-词` 为排除 |
+| `--sort` | `relevance` / `date` | `relevance` | 相关度，或按时间倒序 |
+| `--type` | 可重复：`story`、`comment`、`ask_hn`、`show_hn`、`launch_hn`、`job`、`poll` | 任意类型 | 多个类型之间为「或」，按出现顺序去重 |
+| `--author` | 2–15 个 `[A-Za-z0-9_-]` | 无 | 只要该用户的条目 |
+| `--story` | 条目 ID（规则同 ref） | 无 | 只要该 story 讨论串中的条目 |
+| `--from` / `--to` | `YYYY-MM-DD` | 无 | UTC 发布日期区间，两端都含当天，可只给一端 |
+| `--min-points` / `--min-comments` | 非负整数 | 无 | 最低分数与评论数；评论没有分数 |
+| `--limit` | 1–100 | 20 | 本页条目数 |
+| `--cursor` | 上一页的 `next_cursor` | 无 | 与查询词、选项和 `--limit` 互斥 |
+| `--format` | `json` / `markdown` | `json` | 输出格式 |
+
+- 通用 flag 同 arXiv search。只在下一页仍在前 1000 条之内时签发 cursor。
+- **输出**：外层形状与 arXiv search 相同。每个 item 含 `ref`（`hn:<id>`）、canonical `url`（`https://news.ycombinator.com/item?id=<id>`）、`depth`（带正文为 `snippet`，否则为 `metadata`）、`title`（comment 为 `null`）、`authors`、`published`（UTC，精确到秒），以及 HN 字段 `item_type`、`link_url`、`points`、`comments`、`text`（条目自身正文的 Markdown）、`story_ref`、`story_title`、`parent_ref`（后三者只对 comment 填写）。计数可能滞后几分钟。不写 Search Result Journal。
+- **退出码**：查询词为空、用户名或 story ID 非法、日期非法或 `--from` 晚于 `--to`、`--min-points` 与只含 `comment` 的 `--type` 同时出现、`--limit` 越界、cursor 越过前 1000 条＝飞行前退 2；`platforms.hn.order` 为空＝飞行前退 3；Algolia 400 为 attempt 级 Parameter，429 为 RateLimited，响应不是预期的 JSON 为 Runtime，都退 4；合法零结果为 `items: []` 且退 0。
+
+### `platform hn fetch`
+
+读取一个 Hacker News 条目，默认把整个讨论串写成 Markdown 文件。
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| ref 或 URL（位置参数） | `hn:<id>`，或 `news.ycombinator.com/item?id=<id>` | 必填 | 前缀不区分大小写；忽略其他 query 参数（如 `p`）、fragment 与末尾 `/` |
+| `--depth` | `thread` / `metadata` / `full_text` | `thread` | `thread` 写讨论串文件；`metadata` 只返回条目与实时计数；`full_text` 读外链文章或条目自身正文 |
+| `--content-dir` | 目录 | 系统临时目录下的新目录 | 讨论串或全文文件 `hn-<id>.md` 的写入位置 |
+| `--format` | `json` / `markdown` / `content` | `json` | `content` 把讨论串或全文输出到 stdout，不写文件 |
+
+- 通用 flag 同 search。
+- **输出**：JSON 顶层为 `platform`、`provider`，条目的公共字段与 HN 字段（`points` 与 `comments` 为 Firebase 的实时值）。`thread` 深度另有 `content_url`、`content_provider`（`hn_api`）、`content_path`、`content_len`、`comments_delivered` 与 `order`（`ranked_top_level` 或 `chronological`）；`full_text` 深度另有正文的四个 `content_*` 字段。
+- **退出码**：用户页、站点页等无法识别的输入，`thread`、`metadata`、`full_text` 以外的深度＝飞行前退 2；`platforms.hn.order` 为空、`full_text` 而没有已配置的 Web Fetch provider＝飞行前退 3；条目不存在（`HN item not found: hn:<id>`）、已删除或 dead（`HN item hn:<id> is deleted or dead`）、对 comment 请求 `full_text` 为 attempt 级 Parameter，退 4；没有标题与正文的帖子请求 `full_text` 为 Quality，退 5；文件写入失败为 Runtime，退 4；传输失败同 search。
+
+### `platform hn stories`
+
+列出 Hacker News 某个官方榜单的当前条目，这是只有一条 route 的 L2 平台操作（第 7 章「Hacker News」）。
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| 榜单（位置参数） | `top` / `new` / `best` / `ask` / `show` / `job` | `top` | `top` 为首页 |
+| `--limit` | 1–100 | 30 | 最多返回的条目数 |
+| `--format` | `json` / `markdown` | `json` | 输出格式 |
+
+- 通用 flag 同 search。没有 `--cursor`：榜单随时在变，翻页无法复现。
+- **输出**：JSON 为 `{platform, provider, list, items}`；`--verbose` 附 `provider_attempts`。条目为 search 的条目字段加 `rank`（榜单中的 1-based 名次），按名次排列；已删除、dead 或不存在的条目被跳过，stderr 汇总一条诊断。计数可能滞后几分钟。不写 Search Result Journal。
+- **退出码**：未知榜单、`--limit` 越界＝飞行前退 2；`platforms.hn.order` 为空＝飞行前退 3；榜单列表读取失败或不是数组、传输失败，退 4；列表为空为 `items: []` 且退 0。
 
 ## Gemini 命令
 

@@ -17,7 +17,7 @@ use crate::catalog::{self, ProviderId, ProviderRegistration};
 use crate::config::{self, RuntimeConfig};
 use crate::redact::{CREDENTIAL_MASK, Secret, redact_credentials, redact_url};
 use crate::state_file;
-use crate::types::{ASK, CITED_BY, COMMENTS, Deadline, Platform};
+use crate::types::{ASK, CITED_BY, COMMENTS, Deadline, Platform, STORIES};
 
 static PROBE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 pub(crate) const MAIN_CANARY_QUERY: &str = "What is the latest stable Rust release?";
@@ -31,10 +31,12 @@ const PLATFORM_CANARY_QUERY: &str = "retrieval augmented generation";
 const XIAOHONGSHU_CANARY_QUERY: &str = "咖啡";
 // SpaceX posts about Starship every week, so the answer always has posts to cite.
 const X_ASK_CANARY_QUERY: &str = "What has SpaceX posted about Starship recently?";
-const SPECIFICATION_CASE_IDS: [&str; 34] = [
+// Hacker News discusses Rust every day, so the search is never empty.
+const HN_CANARY_QUERY: &str = "rust";
+const SPECIFICATION_CASE_IDS: [&str; 37] = [
     "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12",
     "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24", "C25",
-    "C26", "C27", "C28", "C29", "C30", "C31", "C32",
+    "C26", "C27", "C28", "C29", "C30", "C31", "C32", "C33", "C34", "C35",
 ];
 // One comment page holds 10 top-level comments, so 15 needs the second page.
 const XIAOHONGSHU_COMMENTS_LIMIT: &str = "15";
@@ -237,6 +239,8 @@ fn platform_fetch_canary(platform: Platform) -> Option<(&'static str, &'static s
         Platform::Scholar => Some(("scholar:18208131694456651388", "metadata")),
         Platform::Xiaohongshu => None,
         Platform::X => Some(("x:2110126570233094527", "metadata")),
+        // The 2007 Dropbox launch discussion: about 70 comments that no longer change.
+        Platform::Hn => Some(("hn:8863", "thread")),
     }
 }
 
@@ -715,8 +719,9 @@ fn run_case_once(
     let case_id = definition.id;
     let timeout_seconds = remaining_seconds(deadline).ok_or("live smoke hard deadline elapsed")?;
     let executable = std::env::current_exe().map_err(|_| "cannot resolve forager executable")?;
-    // P2 writes its evidence and the Xiaohongshu fetch writes its full text here.
-    let scratch = (case_id == "P2" || is_xiaohongshu_fetch(definition))
+    // P2 writes its evidence, the Xiaohongshu fetch its full text, and the Hacker News fetch its
+    // discussion here.
+    let scratch = (case_id == "P2" || is_xiaohongshu_fetch(definition) || is_hn_fetch(definition))
         .then(tempfile::tempdir)
         .transpose()
         .map_err(|_| "cannot create a temporary directory for the live case")?;
@@ -810,6 +815,10 @@ fn comments_coverage(payload: &Value) -> Result<(), CaseFailure> {
 
 fn is_xiaohongshu_fetch(definition: LiveCaseDefinition) -> bool {
     definition.platform == Some(Platform::Xiaohongshu) && definition.operation == "fetch"
+}
+
+fn is_hn_fetch(definition: LiveCaseDefinition) -> bool {
+    definition.platform == Some(Platform::Hn) && definition.operation == "fetch"
 }
 
 /// Whether a failed command ended on Auth or an attempt-level Parameter failure.
@@ -957,6 +966,52 @@ fn command_specs(
                     "latest",
                     "--publish-time",
                     "week",
+                    "--timeout",
+                    &timeout,
+                ],
+                ResultShape::PlatformSearch,
+            )
+        } else if is_hn_fetch(definition) {
+            let (reference, depth) = platform_fetch_canary(platform)?;
+            let content_dir = scratch_dir?.display().to_string();
+            one(
+                &[
+                    "platform",
+                    platform.as_str(),
+                    definition.operation,
+                    reference,
+                    "--depth",
+                    depth,
+                    "--content-dir",
+                    &content_dir,
+                    "--timeout",
+                    &timeout,
+                ],
+                ResultShape::PlatformFullText,
+            )
+        } else if definition.operation == STORIES {
+            one(
+                &[
+                    "platform",
+                    platform.as_str(),
+                    STORIES,
+                    "top",
+                    "--limit",
+                    "10",
+                    "--timeout",
+                    &timeout,
+                ],
+                ResultShape::PlatformSearch,
+            )
+        } else if platform == Platform::Hn {
+            one(
+                &[
+                    "platform",
+                    platform.as_str(),
+                    definition.operation,
+                    HN_CANARY_QUERY,
+                    "--limit",
+                    "5",
                     "--timeout",
                     &timeout,
                 ],

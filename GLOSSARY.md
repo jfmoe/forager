@@ -177,7 +177,7 @@ _Avoid_: scholar paper id、result id、version
 _Avoid_: scholar scraper、scholar_serpapi
 
 **Platform Operation**:
-Platform 的一项操作。每个 Platform 都提供 search 与 fetch；改变结果种类或必需输入的操作是新的 Platform Operation，不是参数，例如 Google Scholar 的 Cited-by、小红书的 Comments 与 X 的 Ask。
+Platform 的一项操作。每个 Platform 都提供 search 与 fetch；改变结果种类或必需输入的操作是新的 Platform Operation，不是参数，例如 Google Scholar 的 Cited-by、小红书的 Comments、X 的 Ask 与 Hacker News 的 Stories。
 _Avoid_: platform option、sub-command flag
 
 **Cited-by**:
@@ -191,6 +191,10 @@ _Avoid_: replies（指楼中楼回复本身）、thread
 **Ask**:
 只在 X 上检索、由模型写出带引用回答的 Platform Operation；结果是一段回答及其引用的来源，不是条目列表，回答整体是 Relayed Content。
 _Avoid_: X answer search、summary、main search
+
+**Stories**:
+列出 Hacker News 某个官方榜单当前条目的 Platform Operation；条目按榜单排名排列，不签发 cursor。
+_Avoid_: front page search、HN feed
 
 **Platform Fetch**:
 按 Platform Ref 取回单个平台条目的操作；它不同于 Web Fetch Capability，尽管其正文段可以复用 Web Fetch。先由平台 route 取元数据并确定实际版本，全文深度再按 route 声明的正文来源取正文：一组 URL 或一个在同一 attempt 内校验过的本地文件走同一条 Web Fetch 链；route 在同一 attempt 内自己读到并核对过的平台原生正文（Native，例如小红书笔记）不经 Web Fetch（ADR 0022）。全文写入本地文件，结果只按路径引用它。

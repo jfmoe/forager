@@ -6,22 +6,22 @@ use super::constructors::{
     build_chatgpt_browser, build_gemini_browser, credentials, route_limiter,
 };
 use super::{
-    ArxivApi, DocsSearch, KeyAccount, MainSearch, ModelBreakers, PlatformFetch, PlatformSearch,
-    ProviderId, Serpapi, SsrnBrowser, SsrnCrossref, SupplementalSearch, VerticalSearch, WebFetch,
-    WebSearch, XiaohongshuBrowser, arxiv, opencli, serpapi, ssrn_browser, ssrn_crossref, web_fetch,
-    xai, xiaohongshu_browser,
+    ArxivApi, DocsSearch, HnApi, KeyAccount, MainSearch, ModelBreakers, PlatformFetch,
+    PlatformSearch, ProviderId, Serpapi, SsrnBrowser, SsrnCrossref, SupplementalSearch,
+    VerticalSearch, WebFetch, WebSearch, XiaohongshuBrowser, arxiv, hn_api, opencli, serpapi,
+    ssrn_browser, ssrn_crossref, web_fetch, xai, xiaohongshu_browser,
 };
 use crate::catalog::{ProviderTransport, VERTICAL_SEARCH, WEB_FETCH, WEB_SEARCH, registration};
 use crate::config::{
-    AnysearchRuntimeConfig, DocsSearchProviderConfig, HttpRouteRuntimeConfig,
+    AnysearchRuntimeConfig, DocsSearchProviderConfig, HnRouteRuntimeConfig, HttpRouteRuntimeConfig,
     KeyedHttpRouteRuntimeConfig, MainSearchProviderConfig, PlatformRouteConfig,
     ProcessRouteRuntimeConfig, RuntimeConfig, WebFetchProviderConfig,
 };
 use crate::net::RetryPolicy;
 use crate::types::{
-    Deadline, PlatformFetchRequest, PlatformSearchOutcome, PlatformSearchRequest, ProviderError,
-    ScholarCitedByRequest, XAskOutcome, XAskRequest, XiaohongshuCommentsOutcome,
-    XiaohongshuCommentsRequest,
+    Deadline, HnStoriesOutcome, HnStoriesRequest, PlatformFetchRequest, PlatformSearchOutcome,
+    PlatformSearchRequest, ProviderError, ScholarCitedByRequest, XAskOutcome, XAskRequest,
+    XiaohongshuCommentsOutcome, XiaohongshuCommentsRequest,
 };
 
 /// The routes that list the works citing a Google Scholar paper. Cited-by has one route, so it
@@ -36,6 +36,10 @@ pub(crate) const XIAOHONGSHU_COMMENTS_ROUTES: &[ProviderId] = &[ProviderId::Xiao
 /// The routes that answer a question from X posts; like cited-by, a single-route operation
 /// whose route set lives here.
 pub(crate) const X_ASK_ROUTES: &[ProviderId] = &[ProviderId::Xai];
+
+/// The routes that list a Hacker News story list; like cited-by, a single-route operation whose
+/// route set lives here.
+pub(crate) const HN_STORIES_ROUTES: &[ProviderId] = &[ProviderId::HnApi];
 
 pub(crate) fn build_main_search(
     id: ProviderId,
@@ -153,6 +157,9 @@ pub(crate) fn build_platform_search(
         PlatformRouteConfig::Xai(config) => {
             Box::new(super::build_xai(config, client, retry_policy, deadline))
         }
+        PlatformRouteConfig::HnApi(config) => {
+            Box::new(build_hn_api(config, client, retry_policy, deadline))
+        }
     }
 }
 
@@ -178,6 +185,9 @@ pub(crate) fn build_platform_fetch(
         }
         PlatformRouteConfig::Xai(config) => {
             Box::new(super::build_xai(config, client, retry_policy, deadline))
+        }
+        PlatformRouteConfig::HnApi(config) => {
+            Box::new(build_hn_api(config, client, retry_policy, deadline))
         }
     }
 }
@@ -228,6 +238,41 @@ pub(crate) async fn xiaohongshu_comments(
         .await
 }
 
+/// Lists the current items of a Hacker News story list through a stories route.
+pub(crate) async fn hn_stories(
+    config: PlatformRouteConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+    request: &HnStoriesRequest,
+) -> Result<HnStoriesOutcome, ProviderError> {
+    let PlatformRouteConfig::HnApi(config) = config else {
+        unreachable!("planning selects only stories routes")
+    };
+    build_hn_api(config, client, retry_policy, deadline)
+        .stories(request)
+        .await
+}
+
+/// Runs the checks a platform route needs beyond its platform search probe: one per extra
+/// endpoint it combines. Each check is named; most routes have none.
+pub(crate) async fn platform_route_extra_checks(
+    config: PlatformRouteConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> Vec<(&'static str, Result<(), ProviderError>)> {
+    match config {
+        PlatformRouteConfig::HnApi(config) => vec![(
+            "firebase",
+            build_hn_api(config, client, retry_policy, deadline)
+                .probe_firebase()
+                .await,
+        )],
+        _ => Vec::new(),
+    }
+}
+
 /// Checks the account of every key of a route that registers an account probe.
 pub(crate) async fn route_accounts(
     config: PlatformRouteConfig,
@@ -276,6 +321,21 @@ fn build_arxiv_api(
         client,
         route_limiter(ProviderId::ArxivApi)
             .expect("arxiv_api registration declares an access policy"),
+        retry_policy,
+        deadline,
+    )
+}
+
+fn build_hn_api(
+    config: HnRouteRuntimeConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> HnApi {
+    HnApi::new(
+        config,
+        client,
+        route_limiter(ProviderId::HnApi).expect("hn_api registration declares an access policy"),
         retry_policy,
         deadline,
     )
@@ -341,6 +401,7 @@ pub(crate) fn platform_search_support(
         ProviderId::Serpapi => serpapi::search_support(request),
         ProviderId::XiaohongshuBrowser => xiaohongshu_browser::search_support(request),
         ProviderId::Xai => xai::search_support(request),
+        ProviderId::HnApi => hn_api::search_support(request),
         _ => return None,
     };
     Some(transport_support(id).and(route))
@@ -359,6 +420,7 @@ pub(crate) fn platform_fetch_support(
         ProviderId::Serpapi => serpapi::fetch_support(request),
         ProviderId::XiaohongshuBrowser => xiaohongshu_browser::fetch_support(request),
         ProviderId::Xai => xai::fetch_support(request),
+        ProviderId::HnApi => hn_api::fetch_support(request),
         _ => return None,
     };
     Some(transport_support(id).and(route))
@@ -391,6 +453,15 @@ pub(crate) fn xiaohongshu_comments_support(id: ProviderId) -> Option<Result<(), 
 pub(crate) fn x_ask_support(id: ProviderId) -> Option<Result<(), String>> {
     match id {
         ProviderId::Xai => Some(transport_support(id)),
+        _ => None,
+    }
+}
+
+/// Returns whether a stories route can run, or `None` for a provider that does not list Hacker
+/// News stories. The request needs no check beyond what parsing guarantees.
+pub(crate) fn hn_stories_support(id: ProviderId) -> Option<Result<(), String>> {
+    match id {
+        ProviderId::HnApi => Some(transport_support(id)),
         _ => None,
     }
 }

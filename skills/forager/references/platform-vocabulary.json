@@ -112,6 +112,24 @@
         ],
         "examples": ["x:2110126570233094527", "https://x.com/SpaceX/status/2110126570233094527"]
       }
+    },
+    {
+      "id": "hn",
+      "purpose": "Search and read Hacker News (HN) through its public APIs: item identity for stories, comments, polls, and jobs, points and comment counts, a comment's story, whole discussions written to a Markdown file with top-level comments in the rank HN shows, and the current front page and other official lists.",
+      "select_when": "The request names Hacker News or HN, supplies a news.ycombinator.com item URL or hn: ref, asks what HN thinks about a topic or what is on the HN front page, or needs the HN discussion of a link; it needs no key. General questions keep using forager search.",
+      "examples": [
+        "what does Hacker News think about the Rust 2027 edition",
+        "what is on the HN front page right now",
+        "read the discussion at https://news.ycombinator.com/item?id=8863",
+        "find Show HN posts about self-hosted search from 2025",
+        "看看 HN 上大家怎么评价这篇文章"
+      ],
+      "ref_syntax": {
+        "ref": "hn:<id>",
+        "id_forms": ["8863"],
+        "urls": ["https://news.ycombinator.com/item?id=<id>"],
+        "examples": ["hn:8863", "https://news.ycombinator.com/item?id=8863"]
+      }
     }
   ]
 }

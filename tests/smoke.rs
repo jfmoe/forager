@@ -7,6 +7,7 @@ use std::process::{Command, Output};
 use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
+use support::hn::{search_page, story_hit, story_item, story_tree};
 use support::scholar::{fixture, ok};
 use support::{Fixture, Response, run_command};
 
@@ -97,8 +98,8 @@ fn offline_smoke_reports_local_readiness_without_contacting_provider_endpoints()
             Some(0),
             &Value::String("offline".into()),
             &Value::Bool(true),
-            &json!({"ok": true, "provider_count": 15}),
-            Some(15),
+            &json!({"ok": true, "provider_count": 16}),
+            Some(16),
             &json!(["********"]),
             &json!(["********"]),
             &Value::Bool(true),
@@ -125,7 +126,7 @@ fn live_smoke_lists_exactly_the_specification_case_registry_without_l0_doctor_ga
     let expected = json!([
         "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11",
         "C12", "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24",
-        "C25", "C26", "C27", "C28", "C29", "C30", "C31", "C32"
+        "C25", "C26", "C27", "C28", "C29", "C30", "C31", "C32", "C33", "C34", "C35"
     ]);
 
     assert_eq!(
@@ -177,7 +178,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
             Some(4),
             &Value::String("live".into()),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 33, "skipped": 0}),
+            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 36, "skipped": 0}),
             &Value::String("failed".into()),
             &Value::Number(3.into()),
             &Value::String("unconfigured".into()),
@@ -214,7 +215,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
         (
             Some(4),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 33, "skipped": 0}),
+            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 36, "skipped": 0}),
             &Value::String("deferred".into()),
             &Value::Number(3.into()),
             &Value::String("http://127.0.0.1:9?token=********".into()),
@@ -324,7 +325,7 @@ fn live_smoke_passes_a_configured_case_only_after_a_zero_parseable_nonempty_term
         ),
         (
             Some(4),
-            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 33, "skipped": 0}),
+            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 36, "skipped": 0}),
             &Value::String("passed".into()),
             &Value::Number(1.into()),
         ),
@@ -520,22 +521,34 @@ fn live_smoke_runs_the_platform_cases_through_their_configured_route() {
         ),
         crossref_response("work", &crossref_work("2042750")),
     ]);
+    let algolia = Fixture::start_sequence(vec![
+        search_page(&[story_hit()], 0, 1),
+        support::hn::json(&story_tree(&[])),
+        search_page(&[story_hit()], 0, 1),
+    ]);
+    let firebase = Fixture::start_sequence(vec![
+        support::hn::json(&story_item(&[])),
+        Response::json(200, "[8863]"),
+    ]);
     let environment = SmokeEnvironment::new(|journal_dir| {
         format!(
-            "[providers.arxiv_api]\nurl = \"{}/api/query\"\n[providers.ssrn_crossref]\nurl = \"{}\"\n[journal]\ndir = {journal_dir:?}\n",
-            arxiv.url, crossref.url
+            "[providers.arxiv_api]\nurl = \"{}/api/query\"\n[providers.ssrn_crossref]\nurl = \"{}\"\n[providers.hn_api]\nurl = \"{}\"\nfirebase_url = \"{}\"\n[journal]\ndir = {journal_dir:?}\n",
+            arxiv.url, crossref.url, algolia.url, firebase.url
         )
     });
 
-    let output = environment.run(&["smoke", "--live", "--timeout", "10"]);
+    let output = environment.run(&["smoke", "--live", "--timeout", "20"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live smoke JSON");
     let arxiv_requests = arxiv.finish_all();
     let crossref_requests = crossref.finish_all();
+    let algolia_requests = algolia.finish_all();
+    firebase.finish_all();
 
     assert_eq!(
         (
             &payload["summary"],
-            ["C18", "C19", "C20", "C21"].map(|id| case(&payload, id)["status"].clone()),
+            ["C18", "C19", "C20", "C21", "C33", "C34", "C35"]
+                .map(|id| case(&payload, id)["status"].clone()),
             [
                 &case(&payload, "C18")["platform"],
                 &case(&payload, "C20")["platform"]
@@ -544,14 +557,18 @@ fn live_smoke_runs_the_platform_cases_through_their_configured_route() {
             arxiv_requests[1].contains("id_list=1706.03762"),
             crossref_requests[0].contains("rows=3"),
             crossref_requests[1].contains("/works/10.2139/ssrn.2042750"),
+            algolia_requests[0].starts_with("GET /search?query=rust&hitsPerPage=5 "),
+            algolia_requests[1].starts_with("GET /items/8863 "),
         ),
         (
-            &json!({"passed": 4, "failed": 0, "deferred": 0, "unconfigured": 30, "skipped": 0}),
-            [(); 4].map(|()| Value::String("passed".into())),
+            &json!({"passed": 7, "failed": 0, "deferred": 0, "unconfigured": 30, "skipped": 0}),
+            [(); 7].map(|()| Value::String("passed".into())),
             [
                 &Value::String("arxiv".into()),
                 &Value::String("ssrn".into())
             ],
+            true,
+            true,
             true,
             true,
             true,
@@ -573,7 +590,7 @@ fn live_smoke_runs_the_scholar_cases_only_with_a_serpapi_key() {
     let run = |keys: &str| {
         let environment = SmokeEnvironment::new(|journal_dir| {
             format!(
-                "[providers.serpapi]\nurl = \"{}/search.json\"\nkeys = {keys}\n[journal]\ndir = {journal_dir:?}\n[platforms.arxiv]\norder = []\n[platforms.ssrn]\norder = []\n",
+                "[providers.serpapi]\nurl = \"{}/search.json\"\nkeys = {keys}\n[journal]\ndir = {journal_dir:?}\n[platforms.arxiv]\norder = []\n[platforms.hn]\norder = []\n[platforms.ssrn]\norder = []\n",
                 serpapi.url
             )
         });
@@ -619,7 +636,7 @@ fn live_smoke_runs_the_x_cases_through_the_xai_route_only_when_the_order_lists_i
     let run = |order: &str| {
         let environment = SmokeEnvironment::new(|journal_dir| {
             format!(
-                "[providers.xai]\nurl = \"{}\"\nkeys = [\"xai-secret\"]\n[journal]\ndir = {journal_dir:?}\n[platforms.arxiv]\norder = []\n[platforms.ssrn]\norder = []\n[platforms.x]\norder = {order}\n",
+                "[providers.xai]\nurl = \"{}\"\nkeys = [\"xai-secret\"]\n[journal]\ndir = {journal_dir:?}\n[platforms.arxiv]\norder = []\n[platforms.hn]\norder = []\n[platforms.ssrn]\norder = []\n[platforms.x]\norder = {order}\n",
                 xai.url
             )
         });
@@ -685,7 +702,7 @@ fn live_smoke_runs_the_browser_cases_only_when_the_order_lists_the_route() {
     let run = |order: &str| {
         let environment = SmokeEnvironment::new(|journal_dir| {
             format!(
-                "{}[journal]\ndir = {journal_dir:?}\n[platforms.arxiv]\norder = []\n",
+                "{}[journal]\ndir = {journal_dir:?}\n[platforms.arxiv]\norder = []\n[platforms.hn]\norder = []\n",
                 fake.config(order)
             )
         });
@@ -717,7 +734,7 @@ fn live_smoke_runs_the_xiaohongshu_search_once_and_only_when_the_order_lists_the
     let run = |order: &str| {
         let environment = SmokeEnvironment::new(|journal_dir| {
             format!(
-                "{}[journal]\ndir = {journal_dir:?}\n[platforms.arxiv]\norder = []\n[platforms.ssrn]\norder = []\n",
+                "{}[journal]\ndir = {journal_dir:?}\n[platforms.arxiv]\norder = []\n[platforms.hn]\norder = []\n[platforms.ssrn]\norder = []\n",
                 fake.route_config("xiaohongshu_browser", "xiaohongshu", order)
             )
         });
@@ -866,7 +883,7 @@ fn xhs_comments(count: u32, expandable: bool) -> Value {
 fn xhs_smoke(fake: &support::opencli::FakeOpenCli) -> Value {
     let environment = SmokeEnvironment::new(|journal_dir| {
         format!(
-            "{}[journal]\ndir = {:?}\n[platforms.arxiv]\norder = []\n[platforms.ssrn]\norder = []\n",
+            "{}[journal]\ndir = {:?}\n[platforms.arxiv]\norder = []\n[platforms.hn]\norder = []\n[platforms.ssrn]\norder = []\n",
             fake.route_config(
                 "xiaohongshu_browser",
                 "xiaohongshu",
@@ -1255,8 +1272,7 @@ fn minimal_config(endpoint: &str, journal_dir: &Path) -> String {
 
 // Platform routes need no credentials, and the X route shares the main search key, so live
 // smoke would run their cases unless the platform orders disable them.
-const DISABLED_PLATFORMS: &str =
-    "[platforms.arxiv]\norder = []\n[platforms.ssrn]\norder = []\n[platforms.x]\norder = []\n";
+const DISABLED_PLATFORMS: &str = "[platforms.arxiv]\norder = []\n[platforms.ssrn]\norder = []\n[platforms.x]\norder = []\n[platforms.hn]\norder = []\n";
 
 // Debug path formatting supplies the quoted and escaped TOML string literal required by fixtures.
 #[expect(clippy::unnecessary_debug_formatting)]

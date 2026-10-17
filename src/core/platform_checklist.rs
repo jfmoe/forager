@@ -11,13 +11,13 @@ use crate::catalog::{
     ProviderRegistration, ProviderTransport,
 };
 use crate::config::{
-    self, HttpRouteRuntimeConfig, KeyedHttpRouteRuntimeConfig, PlatformRoutesRuntimeConfig,
-    ProcessRouteRuntimeConfig, XaiRuntimeConfig,
+    self, HnRouteRuntimeConfig, HttpRouteRuntimeConfig, KeyedHttpRouteRuntimeConfig,
+    PlatformRoutesRuntimeConfig, ProcessRouteRuntimeConfig, XaiRuntimeConfig,
 };
 use crate::providers;
 use crate::types::{
     ASK, CITED_BY, COMMENTS, ContentDepth, Platform, PlatformFetchRequest, PlatformRef,
-    PlatformSearchOptions, PlatformSearchRequest,
+    PlatformSearchOptions, PlatformSearchRequest, STORIES,
 };
 
 const CHECKLIST: &str = "docs/spec/forager/07-platforms.md";
@@ -34,6 +34,7 @@ fn sample_refs(platform: Platform) -> &'static [&'static str] {
         Platform::Scholar => &["scholar:18208131694456651388"],
         Platform::Xiaohongshu => &["xiaohongshu:64a1b2c3d4e5f60718293a4b"],
         Platform::X => &["x:2110126570233094527"],
+        Platform::Hn => &["hn:8863"],
     }
 }
 
@@ -306,6 +307,11 @@ fn has_adapter(platform: Platform, operation: PlatformOperation, route: Provider
             model: String::new(),
             tools: Vec::new(),
         },
+        hn_api: HnRouteRuntimeConfig {
+            url: String::new(),
+            firebase_url: String::new(),
+            timeout_seconds: 1,
+        },
     };
     has_support
         && config::platform_route_config(route, &routes)
@@ -363,6 +369,7 @@ fn single_route_operations_have_transport_fixtures() {
             providers::XIAOHONGSHU_COMMENTS_ROUTES,
         ),
         (Platform::X, ASK, providers::X_ASK_ROUTES),
+        (Platform::Hn, STORIES, providers::HN_STORIES_ROUTES),
     ];
     let routes = single_route_operations
         .into_iter()

@@ -1,12 +1,12 @@
 //! Binary-side rendering of platform command results: search pages, fetched items,
-//! Xiaohongshu comments, and X answers.
+//! Xiaohongshu comments, X answers, and Hacker News story lists.
 
 use std::fmt::Write as _;
 
 use forager::app::{DocsOutputFormat, OutputFormat, OutputTarget, ProviderError};
 use forager::types::{
-    PlatformFetchResult, PlatformItem, PlatformItemData, PlatformSearchPage, ScholarItemData,
-    XAskResult, XPostData, XiaohongshuCommentsPage,
+    ContentDepth, HnStoriesResult, PlatformFetchResult, PlatformItem, PlatformItemData,
+    PlatformSearchPage, ScholarItemData, XAskResult, XPostData, XiaohongshuCommentsPage,
 };
 
 use crate::{RenderedOutput, apply_tee, format_failure_json, postflight_exit_code};
@@ -68,6 +68,69 @@ fn format_platform_page(page: &PlatformSearchPage, format: OutputFormat) -> Resu
     Ok(markdown)
 }
 
+pub(crate) fn render_stories(
+    result: Result<HnStoriesResult, ProviderError>,
+    format: OutputFormat,
+    output: Option<OutputTarget>,
+) -> Result<RenderedOutput, String> {
+    let (stdout, exit_code, diagnostic) = match result {
+        Ok(listing) => (format_stories(&listing, format)?, 0, listing.diagnostic),
+        Err(error) => {
+            let stdout = match format {
+                OutputFormat::Json => format_failure_json(&error)?,
+                OutputFormat::Markdown => format!(
+                    "# HN stories failed\n\n**{}**: {}",
+                    error.kind.as_str(),
+                    error.message
+                ),
+            };
+            (stdout, postflight_exit_code(error.kind), error.diagnostic)
+        }
+    };
+    apply_tee(
+        stdout,
+        exit_code,
+        format == OutputFormat::Json,
+        output,
+        diagnostic,
+    )
+}
+
+fn format_stories(listing: &HnStoriesResult, format: OutputFormat) -> Result<String, String> {
+    if format == OutputFormat::Json {
+        return serde_json::to_string(listing).map_err(|error| error.to_string());
+    }
+    let mut markdown = format!(
+        "# HN {} stories ({})\n",
+        listing.list.as_str(),
+        listing.provider
+    );
+    for ranked in &listing.items {
+        let item = &ranked.item;
+        let reference = item.reference.to_string();
+        let _ = write!(
+            markdown,
+            "\n{}. [{}]({}) `{reference}`",
+            ranked.rank,
+            item.title.as_deref().unwrap_or(&reference),
+            item.url
+        );
+        if let PlatformItemData::Hn(data) = &item.data {
+            let _ = write!(
+                markdown,
+                " — {} points, {} comments",
+                data.points.unwrap_or_default(),
+                data.comments.unwrap_or_default()
+            );
+        }
+        append_byline(&mut markdown, item);
+    }
+    if listing.items.is_empty() {
+        markdown.push_str("\n\nNo stories.");
+    }
+    Ok(markdown)
+}
+
 fn append_byline(markdown: &mut String, item: &PlatformItem) {
     if !item.authors.is_empty() {
         let _ = write!(markdown, " — {}", item.authors.join(", "));
@@ -84,7 +147,8 @@ fn item_abstract(item: &PlatformItem) -> Option<&str> {
         PlatformItemData::Scholar(_)
         | PlatformItemData::Xiaohongshu(_)
         | PlatformItemData::XiaohongshuNote(_)
-        | PlatformItemData::X(_) => None,
+        | PlatformItemData::X(_)
+        | PlatformItemData::Hn(_) => None,
     }
 }
 
@@ -97,6 +161,7 @@ fn item_snippet(item: &PlatformItem) -> Option<&str> {
         PlatformItemData::Ssrn(data) => data.snippet.as_deref(),
         PlatformItemData::Scholar(ScholarItemData::Result(data)) => data.snippet.as_deref(),
         PlatformItemData::X(data) => Some(&data.text),
+        PlatformItemData::Hn(data) => data.text.as_deref(),
     }
 }
 
@@ -232,6 +297,7 @@ fn format_platform_fetch(
             (None, PlatformItemData::X(data)) => {
                 x_thread_markdown(data).unwrap_or_else(|| data.text.clone())
             }
+            (None, PlatformItemData::Hn(data)) => data.text.clone().unwrap_or_default(),
             (None, _) => item_abstract(item).unwrap_or_default().to_owned(),
         }),
         DocsOutputFormat::Markdown => {
@@ -254,10 +320,21 @@ fn format_platform_fetch(
                     let _ = write!(markdown, "\n\n## Thread\n\n{thread}");
                 }
             }
+            if let PlatformItemData::Hn(data) = &item.data
+                && fetched.content.is_none()
+                && let Some(text) = &data.text
+            {
+                let _ = write!(markdown, "\n\n{text}");
+            }
             if let Some(content) = &fetched.content {
+                let section = if item.depth == ContentDepth::Thread {
+                    "Thread"
+                } else {
+                    "Full text"
+                };
                 let _ = write!(
                     markdown,
-                    "\n\n## Full text\n\n{} characters from <{}> via {}: `{}`",
+                    "\n\n## {section}\n\n{} characters from <{}> via {}: `{}`",
                     content.len,
                     content.url,
                     content.provider,

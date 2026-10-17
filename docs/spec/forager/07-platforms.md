@@ -1,11 +1,11 @@
 # 7. 平台接入
 
-本章是接入任何内置平台的权威契约。新增或修改平台时先读本章，并保持新平台 checklist 测试（`src/core/platform_checklist.rs`）通过。决策依据见 ADR 0019；arXiv 是参考实现，各节以它举例；SSRN 是第二个平台，Google Scholar 是第三个平台，小红书是第四个平台，X 是第五个平台，见文末。
+本章是接入任何内置平台的权威契约。新增或修改平台时先读本章，并保持新平台 checklist 测试（`src/core/platform_checklist.rs`）通过。决策依据见 ADR 0019；arXiv 是参考实现，各节以它举例；SSRN 是第二个平台，Google Scholar 是第三个平台，小红书是第四个平台，X 是第五个平台，Hacker News 是第六个平台，见文末。
 
 ## 概念与规则
 
 - **Platform**：内置的外部内容源，拥有自己的身份空间。它与 Capability Seam 并列，不是 provider，也不是 Vertical Search 的垂直域。只支持随版本发布的内置平台；配置不能定义平台或通用 MCP/CLI route。
-- **Platform Route**：接入某个平台的一条路线。route 就是 provider，沿用 provider 身份、凭据池（需要凭据时）、provider 配置段、doctor 探针与 smoke 登记。route id 绝不使用裸平台名（用 `arxiv_api`，不用 `arxiv`）。一个 provider 可以服务多个平台和 seam。
+- **Platform Route**：接入某个平台的一条路线。route 就是 provider，沿用 provider 身份、凭据池（需要凭据时）、provider 配置段、doctor 探针与 smoke 登记。route id 绝不使用裸平台名（用 `arxiv_api`，不用 `arxiv`）。一个 provider 可以服务多个平台和 seam。一条 route 也可以访问同一平台的多个官方端点：每个端点各有一个 URL 配置键（例如 `providers.hn_api.url` 与 `.firebase_url`），所有端点共用这条 route 的访问策略与 timeout；只用来增强结果的端点失败时，route 保留主端点的结果并汇总一条诊断，不判失败（ADR 0027）。
 - **Route 传输类型**：注册信息的 `transport` 声明 route 到达内容源的方式：`Http`（发 HTTP 请求），或 `OpenCli`（运行本机 OpenCLI 中 forager 自有 adapter 的命令，附 site 与契约版本；这类 route 称为 process route）。配置检查、doctor 与 checklist 测试按传输类型判断，不按 route id 判断。process route 只能由用户手动加入平台 order，永不进入 `default_order`（ADR 0020）。OpenCLI 传输也服务不属于任何平台的 process 供应方 `gemini_browser` 与 `chatgpt_browser`：它们不进入任何 order，只由 `forager gemini` 或 `forager chatgpt` 命令运行，doctor 默认跳过它们（ADR 0023，第 2 章「Gemini 命令」「ChatGPT 命令」）；本章的 OpenCLI 进程传输、退出码映射与 process 访问策略规则同样适用于它们。
 - **链语义**：同平台的 route 按 `platforms.<id>.order` 组成 fallback 链，由共享链执行器运行，沿用 LegitimateEmpty 语义：至少一条 route 返回合法空结果、之后没有 route 被接受时，结果为空成功。结果永不跨平台 fallback。
 - **Platform Ref**：平台实体的类型化身份，由平台、平台自有的 kind 和 id 组成。kind 只按「身份空间不同」或「fetch 结果形状不同」划分，不按对话角色划分。字符串形式为 `<platform>:<id>`，例如 `arxiv:2401.01234v2`。
@@ -18,7 +18,7 @@
 
 - **L0 公共参数**：search 为查询词与 `--limit`；fetch 为 ref 或 URL，以及 `--depth`。时间窗和排序不进公共层，因为各平台语义不同。查询词的语法由平台定义：arXiv 把查询词编码成字面词与短语，Google Scholar 原样发送、由谷歌学术解释自己的运算符；平台在本章写明自己的规则。
 - **L1 平台选项**：类型化、全部可选、有默认值，定义为 types 门面中平台选项类型（例如 `PlatformSearchOptions`）下按平台划分的封闭变体。CLI 参数是每个平台的静态 clap 定义，再转换到 types 门面，types 不依赖 clap。clap 在飞行前校验枚举和取值范围；跨字段规则（例如日期区间顺序）由 types 中的校验函数负责；两者出错都退 2。
-- **L2 平台操作**：凡改变结果种类或必需输入的，就是新操作，不是参数。只有一个 route 实现的操作写成该 route 适配器的 inherent 方法；出现第二个实现它的 route 时，提升为 trait，并在 platform catalog 中为该操作登记 route 集合。在此之前，provider factory 声明它唯一的 route 集合与支持检查，core 按与 search 相同的规划规则选 route（order ∩ 该集合 ∩ 已配置 route），配置错误的消息同样点名 order 或 keys。第一个 L2 操作是 Google Scholar 的 `cited-by`，第二个是小红书的 `comments`，第三个是 X 的 `ask`，见文末。
+- **L2 平台操作**：凡改变结果种类或必需输入的，就是新操作，不是参数。只有一个 route 实现的操作写成该 route 适配器的 inherent 方法；出现第二个实现它的 route 时，提升为 trait，并在 platform catalog 中为该操作登记 route 集合。在此之前，provider factory 声明它唯一的 route 集合与支持检查，core 按与 search 相同的规划规则选 route（order ∩ 该集合 ∩ 已配置 route），配置错误的消息同样点名 order 或 keys。第一个 L2 操作是 Google Scholar 的 `cited-by`，第二个是小红书的 `comments`，第三个是 X 的 `ask`，第四个是 Hacker News 的 `stories`，见文末。
 - **不提供原样透传。** 新增一个参数需要：一个选项字段、一个 clap flag、每条 route 各自的映射。这条约束针对结构化选项与上游 API 参数；L0 查询词按平台定义的语法发送，不算透传。
 - **不支持的选项**：每条 route 提供一个只读请求（选项与页位置）、不联网的支持检查。检查在构造链之前完成：
   - 部分 route 不支持：被跳过的 route 记一条 disposition 为 Skipped、`error_kind` 为空的 attempt，消息写明选项与 route。
@@ -44,8 +44,9 @@
 
 - **`full_text`**：正文写入本地 Markdown 文件；stdout 返回 `platform`、`provider`（元数据 route）、条目公共字段与平台字段（`depth` 为 `full_text`），以及 `content_url`、`content_provider`（实际产出 Markdown 的 provider：Web Fetch provider，Native 来源时为 route id）、`content_path`（可直接读取的文件）与 `content_len`（正文字符数）。正文不出现在 stdout。`content_url` 是正文实际来自的 URL；正文由本地文件转换而来或是 Native 来源时，它是条目的 canonical URL（正文来自平台，不是某个可抓取的地址，不承诺可以匿名打开），永不指向有时效的签名下载地址。
 - **原始文件**：正文来源是本地文件时，`--keep-pdf` 把它移入内容目录（文件名由 ref 与媒体类型派生，如 `ssrn-<id>.pdf`），输出增加 `pdf_path` 与 `pdf_bytes`；默认在交付成功后删除它；转换失败时一律保留，错误消息写明它的路径。跨文件系统的移动采用先复制再删除。
+- **`thread`**：交付方式由平台声明。route 在 `content_source` 中返回 Native 正文时（Hacker News），这份正文就是讨论串文档，与 `full_text` 一样写入文件、按引用交付：stdout 带 `content_url`（条目 canonical URL）、`content_provider`（route id）、`content_path` 与 `content_len`，条目 `depth` 仍为 `thread`。其他 route（X）把讨论串内联在条目中，不写文件。
 - **其他深度**：元数据与该深度的内容直接内联，不写文件。
-- **`--format content`**：显式把正文（非全文深度时为该深度的内容）输出到 stdout，不写文件。
+- **`--format content`**：显式把正文（非全文深度时为该深度的内容，写文件的 `thread` 为讨论串文档）输出到 stdout，不写文件。
 - **文件位置**：默认写入系统临时目录下按调用隔离的目录 `forager-platform/<pid>-<时间戳>`（与 research 默认证据目录同一规则），`--content-dir DIR` 可以覆盖；文件名由带版本的 ref 把 `:` 与 `/` 换成 `-` 后加 `.md` 派生。写入方式与 research 证据文件相同；写入失败为 Runtime（退 4），不回退为内联输出。不做跨调用缓存。
 - `--verbose` 时 `provider_attempts` 依次包含 Skipped route、元数据 attempt、探测 attempt 与各 Web Fetch attempt。
 
@@ -69,7 +70,7 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
 - route 在注册信息中以 `access_policy` 声明最小间隔与最大并发。对该 route endpoint 的**每次发送**都先经过 `RateLimiter::acquire`，包括重试、doctor 的 shallow 可达性探测与 deep 探测。
 - process route 的访问策略以一次 OpenCLI 命令为单位：浏览器在一次命令内发出的请求不逐个限速。permit 持有到子进程被回收为止（ADR 0020）。
 - 等待窗口的时间计入 attempt 与命令的 Deadline；算法、跨进程协调范围与已知边界见第 4 章「跨进程限速」。
-- 不需要凭据的 route 在注册信息中声明 `credentials_required: false`：配置节没有 `keys`（HTTP route 只有 `url` 与 `timeout`，process route 只有 `command` 与 `timeout`），经 `execute_anonymous` 执行，attempt 的 `credential_index` 与 `rotation_count` 恒为 0。
+- 不需要凭据的 route 在注册信息中声明 `credentials_required: false`：配置节没有 `keys`（HTTP route 只有 `url` 与 `timeout`，访问多个端点的 route 另有每个端点的 URL 键；process route 只有 `command` 与 `timeout`），经 `execute_anonymous` 执行，attempt 的 `credential_index` 与 `rotation_count` 恒为 0。
 - 需要凭据的 HTTP route 声明 `credentials_required: true`：配置节为 `url`、`keys` 与 `timeout`（runtime 投影 `KeyedHttpRouteRuntimeConfig`），经 `execute_v2` 使用 Provider Credential Pool（ADR 0005），额度耗尽与限流时换 key。keys 为空的 route 视为未配置，不进入平台链。
 
 ## skill 与平台词表
@@ -87,10 +88,10 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
 | R1 | `catalog::PLATFORMS` 登记平台，search 与 fetch 的 route 集合都非空，并声明默认 order（`default_order`，只含该平台的 route）；`types::Platform` 增加变体，平台形状放在新的 `platform_<id>` 类型叶子中 | checklist 测试；`catalog` 单测 `catalogs_project_every_registration_probe_and_smoke_case_consistently` |
 | R2 | 每条 route 有 `ProviderId`（全集、解析与名称）和 `ProviderRegistration`；route id 不是裸平台名 | checklist 测试；`catalog` 注册校验 |
 | R3 | factory 覆盖每个操作的每条 route：`platform_search_support`／`platform_fetch_support` 有该 route 的分支（process route 在非 Unix 系统上由支持检查拒绝），`PlatformRoutesRuntimeConfig` 有该 route 的字段，`platform_route_config` 返回以该 route 为身份的 `PlatformRouteConfig`（`build_platform_search`／`build_platform_fetch` 按该变体构造）；route 适配器只构造请求、解码响应、声明正文 URL 并提供支持检查 | checklist 测试 |
-| R4 | 配置 schema 有 `platforms.<id>.order`，并按 route 的传输类型有配置叶子：HTTP route 为 `providers.<route>.url` 与 `.timeout`（同时是主搜索 backend 的 provider 豁免 `.timeout`，平台 attempt 与主搜索一样使用命令的剩余时限），process route 为 `providers.<route>.command` 与 `.timeout`；`keys` 叶子当且仅当 route 需要凭据；runtime 投影与 `platform_route_config` 覆盖该 route | checklist 测试；`config` schema 单测 |
+| R4 | 配置 schema 有 `platforms.<id>.order`，并按 route 的传输类型有配置叶子：HTTP route 为 `providers.<route>.url` 与 `.timeout`（同时是主搜索 backend 的 provider 豁免 `.timeout`，平台 attempt 与主搜索一样使用命令的剩余时限），process route 为 `providers.<route>.command` 与 `.timeout`；访问多个端点的 route 另有的 URL 叶子不受此限；`keys` 叶子当且仅当 route 需要凭据；runtime 投影与 `platform_route_config` 覆盖该 route | checklist 测试；`config` schema 单测 |
 | R5 | route 的 doctor probe 为 `DoctorProbe::PlatformSearch`（或它所服务的 capability 的 probe）；需要凭据的 route 也可用 `DoctorProbe::ServiceAccount`，向供应商的账户接口逐 key 查询 | checklist 测试 |
 | R6 | search 与 fetch 各至少有一条 route 登记 smoke 用例，`SPECIFICATION_CASE_IDS` 与第 5 章矩阵同步 | checklist 测试；`tests/smoke.rs` 列表断言 |
-| R7 | `tests/acceptance-manifest.json` 为每个操作的每条 route 登记 `(route, platform:<id>:<op>)` fixture 与测试引用；只有一条 route 的 L2 操作同样登记，如 `(serpapi, platform:scholar:cited_by)`、`(xiaohongshu_browser, platform:xiaohongshu:comments)` 与 `(xai, platform:x:ask)` | checklist 测试（含 `single_route_operations_have_transport_fixtures`）；`catalog` 单测 `provider_fixture_projection_matches_transport_manifest` |
+| R7 | `tests/acceptance-manifest.json` 为每个操作的每条 route 登记 `(route, platform:<id>:<op>)` fixture 与测试引用；只有一条 route 的 L2 操作同样登记，如 `(serpapi, platform:scholar:cited_by)`、`(xiaohongshu_browser, platform:xiaohongshu:comments)`、`(xai, platform:x:ask)` 与 `(hn_api, platform:hn:stories)` | checklist 测试（含 `single_route_operations_have_transport_fixtures`）；`catalog` 单测 `provider_fixture_projection_matches_transport_manifest` |
 | R8 | ref 解析与 canonical URL 推导覆盖该平台每个 kind，并在 checklist 的样例表中登记样例 ref | checklist 测试；types 单测 |
 
 同一改动中还须更新：`GLOSSARY.md`（新术语）、第 2 章（命令与参数表）、第 3 章（配置键）、第 4 章（模块与依赖）、第 5 章（fixture 与 smoke 用例）、本章的平台示例，以及 skill 的平台词表、平台 reference 与 CLI reference。
@@ -227,3 +228,22 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
 - **ask（L2 平台操作）**：`platform x ask QUERY` 只依据 X 上的帖子回答。它的结果种类不同于 search（一段回答及其引用的来源，不是条目列表），所以是新操作；结构化输出会让回答失去逐句引用（实测注释位置全为 0），所以不是 search 的字段或开关。只由 `xai` 实现，写成 inherent 方法 `Xai::ask`，provider factory 声明 route 集合 `X_ASK_ROUTES` 与支持检查，core 的 `platform_ask` 按 order ∩ 该集合规划，经共享链执行器与 `AttemptTarget::Platform`（operation 为 `ask`）记录 attempt。过滤参数同 search。请求不带结构化输出，保留 `[[N]](url)` 引用；用户消息前加本机当前时间。`answer` 与来源经主搜索的 normalizer（去 `<think>`、投影 `[[N]](url)` 与来源标题块、URL 脱敏去重），规范化后为空为 Runtime。来源中帖子 URL 映射为 `{ref: "x:<id>", url: canonical, title}`，其他 URL（用户主页等）为 `{ref: null, url, title}`，按 URL 去重。输出 `{platform, provider, query, answer, sources}`，`--verbose` 附 `provider_attempts`，不写 Search Result Journal。
 - **成本**：每次请求读取多少帖子由模型决定；实测一次 search 有 16 次工具调用、读取 52 条帖子，约 22 秒，有 handle 与日期过滤时 2 次调用、约 9 秒。经 xAI 官方 API 时按读取的帖子数与用户数计费。
 - **smoke**：C30（search）、C31（fetch，canary `x:2110126570233094527`，`--depth metadata`）与 C32（ask）只在 `providers.xai.keys` 非空且 `platforms.x.order` 含 `xai` 时运行。
+
+## Hacker News
+
+第六个平台，只有一条匿名 HTTP route `hn_api`，结合 HN 的两个公开端点：Algolia HN Search API（检索与整棵评论树）与 HN 官方 Firebase API（排名顺序、实时计数与官方榜单）；提供 search、fetch 与 L2 操作 stories。设计依据与 2026-10-17 的实测见 ADR 0027。
+
+- **身份**：kind 只有 `item`：story、comment、poll、pollopt 与 job 共用一个 id 空间，fetch 结果的形状由条目自身的类型决定。ref 为 `hn:<id>`，`id` 是不带前导零、不溢出 u64 的十进制数，前缀不区分大小写，没有版本。canonical URL 为 `https://news.ycombinator.com/item?id=<id>`，满足往返性质。可识别的 URL：主机 `news.ycombinator.com`（不区分大小写，http 或 https），路径 `/item`（可带末尾 `/`），取 query 中的 `id`，忽略其他参数（如 `p`）与 fragment。用户页 `/user`、站点页 `/from`、其他路径、其他主机与相似域名飞行前退 2。解析在 types 叶子 `platform_hn` 中。
+- **route 与配置**：`providers.hn_api.url`（Algolia，默认 `https://hn.algolia.com/api/v1`）、`.firebase_url`（Firebase，默认 `https://hacker-news.firebaseio.com/v0`）与 `.timeout`（默认 30 秒，每个请求）。`platforms.hn.order` 默认 `[hn_api]`。访问策略为每 0.5 秒 1 个请求、并发 1，两个端点共用，合每小时最多 7200 次，低于 Algolia 每个 IP 每小时 10,000 次的上限；Firebase 官方说明「目前没有限速」。每个操作的请求数是常数（最多 3 次），只有 stories 在 Algolia 漏掉条目时逐条补取。
+- **组合规则**：Firebase 只用来增强 Algolia 的结果；增强请求失败时保留 Algolia 的结果并汇总一条诊断，不判失败。唯一例外是 stories 的榜单列表只有 Firebase 能提供，列表请求失败即命令失败。
+- **条目字段**：公共字段之外，`item_type`（`story | comment | poll | pollopt | job`）、`link_url`（条目外链，可为 `null`）、`points`、`comments`（评论数）、`text`（条目自身正文转成的 Markdown，不含评论与外链内容，可为 `null`），以及只对 comment 填写的 `story_ref`、`story_title`、`parent_ref`。comment 的 `title` 为 `null`；`published` 为精确到秒的 UTC。HN 正文是受限 HTML，由 HN 专用的零 IO 转换函数转成 Markdown：`<p>` 为段落分隔，`<a href>` 为 `[文字](href)`（文字是 href 的前缀，常被 HN 截成 `...`，此时直接输出 href），`<i>` 为 `*…*`，`<pre><code>` 为保留空白的代码块，并解码实体。共享的摘要清理函数会折叠空白、丢弃链接，不复用。
+- **search**：查询词必填，原样发送（服务端自动启用 advancedSyntax：引号为短语，`-词` 为排除）。`--sort relevance|date` 选 `/search` 或 `/search_by_date`；`--type`（可重复，按出现顺序去重）放进一个括号作为 OR 的 tags；`--author USER`（2–15 个 `[A-Za-z0-9_-]`）为 `author_<USER>`；`--story ID` 为 `story_<ID>`；多个 tag 条件之间为 AND。`--from`/`--to` 为 `created_at_i>=` 起始日 00:00:00Z 与 `created_at_i<=` 结束日 23:59:59Z（UTC，含两端）；`--min-points`/`--min-comments` 为 `points>=`/`num_comments>=`；`--min-points` 与只含 `comment` 的 `--type` 同时出现时退 2（评论没有分数）。未给的选项不发送。`--limit` 为 1–100，默认 20。页位置为 Algolia 的 `page`；只在 `page + 1 < nbPages` 且 `(page + 2) × limit ≤ 1000` 时签发 cursor（Algolia 每个查询只返回前 1000 条），支持检查在飞行前拒绝越过 1000 条的 cursor。带正文的条目 `depth` 为 `snippet`，其余为 `metadata`。计数可能滞后几分钟。
+- **fetch**：深度 `thread`（默认）、`metadata` 与 `full_text`，其他深度由支持检查拒绝、飞行前退 2。
+  - `metadata`：用 Algolia 的 objectID 检索（`filters=objectID:<id>`）取条目，再取 Firebase item 校正 `points` 与 `comments` 并检查 `deleted`/`dead`，不下载评论树。Algolia 查不到而 Firebase 有（索引延迟）时用 Firebase 的数据构造，comment 的 `story_ref` 与 `story_title` 为 `null`。两边都查不到为 attempt 级 Parameter（`HN item not found: hn:<id>`），Firebase 标记删除或 dead 为 attempt 级 Parameter（`HN item hn:<id> is deleted or dead`）。
+  - `thread`：Algolia `/items/<id>` 取以该条目为根的整棵树（404 为 `HN item not found`），Firebase item 取根的 `kids` 与实时计数，comment 根另取所属 story 的标题。根的直接子评论按 `kids` 排列：`kids` 中有、树中没有的跳过，树中有、`kids` 中没有的按时间排在最后；更深层按时间排序。Firebase 失败时全部按时间排序并给出诊断。树不含已删除与 dead 的评论。讨论串文档写入 `hn-<id>.md`（交付规则见「fetch 输出与正文交付」的 `thread`）：开头是标题（comment 根为 `Comment by <author>`）、ref、外链、所属 story、作者、分数、评论数、时间与正文，之后按层级缩进输出评论，每条标出作者、时间与 `hn:<id>`。stdout 另有 `comments_delivered`（文件中的评论数）与 `order`（`ranked_top_level` 或 `chronological`）。评论树嵌套超过 250 层为 Runtime；响应受共享的 4 MiB 上限约束（实测 3768 个节点约 2MB）。
+  - `full_text`：元数据段同 `metadata`。有 `link_url` 的 story 或 job 以 `[link_url]` 为 URL 来源走 Web Fetch 链；没有外链的 story、poll 或 job 是 Native 来源（标题加正文的 Markdown，`content_provider` 为 `hn_api`），标题与正文都为空时为 Quality。注册信息的 `native_full_text` 为 false，计划需要 Web Fetch 预检。comment 与 pollopt 在元数据段之后报 attempt 级 Parameter（`hn:<id> is a comment; full_text applies to stories, polls, and jobs; use --depth thread`）：支持检查不联网，无法预知条目类型。
+  - 取回后才判定的错误记在最后一个 attempt 上，由链执行器归因到 route。
+- **错误映射**：Algolia 400 为 Parameter（消息取 `message`）；429 为 RateLimited（匿名 route 不换 key，直接为终态）；响应不是预期的 JSON 为 Runtime；其他状态码沿用共享映射。
+- **stories（L2 平台操作）**：`platform hn stories [top|new|best|ask|show|job] [--limit 1–100，默认 30]` 列出官方榜单的当前条目。它不需要查询词，属于改变必需输入的新操作；只由 `hn_api` 实现，写成 inherent 方法，provider factory 声明 route 集合 `HN_STORIES_ROUTES` 与支持检查，core 的 `platform_stories` 按 order ∩ 该集合规划，经共享链执行器与 `AttemptTarget::Platform`（operation 为 `stories`）记录 attempt。请求顺序：Firebase `<list>stories.json`（`null` 或不是数组为 Runtime），取前 limit 个 id；一次 Algolia objectID 检索批量取回，按榜单顺序排列；Algolia 漏掉的条目逐条用 Firebase item 补取，`null`、deleted 或 dead 的跳过并汇总一条诊断；补取请求失败的条目同样跳过并汇总一条诊断，只有列表请求失败才判命令失败。输出 `{platform, provider, list, items}`，条目为共享条目字段加 `rank`（榜单中的 1-based 名次，跳过的条目留下空位）。不签发 cursor；列表为空时 `items: []`、退 0。计数来自 Algolia，可能滞后几分钟。
+- **doctor**：注册探针为 `DoctorProbe::PlatformSearch`；deep `doctor --provider hn_api` 在检索检查通过后另向 Firebase 请求 `maxitem.json`，报告为 `firebase` 检查，任一项失败即 doctor 失败。shallow 检查沿用匿名 HTTP route 对 `url` 的可达性检查。
+- **smoke**：C33（`search rust --limit 5`）、C34（fetch canary `hn:8863`，2007 年 Dropbox 发布帖，约 70 条早已稳定的评论，`--depth thread`，写入临时目录）与 C35（`stories top --limit 10`）。route 匿名且在默认 order 中，所以默认运行。

@@ -75,7 +75,7 @@ fn push_paragraph(paragraphs: &mut Vec<String>, paragraph: &mut String) {
     paragraph.clear();
 }
 
-fn decode_entities(text: &str) -> String {
+pub(super) fn decode_entities(text: &str) -> String {
     let mut decoded = String::with_capacity(text.len());
     let mut rest = text;
     while let Some(start) = rest.find('&') {

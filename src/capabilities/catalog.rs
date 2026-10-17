@@ -4,7 +4,7 @@ use std::time::Duration;
 use crate::rate_limit::AccessPolicy;
 use crate::types::{
     ASK, CHATGPT_RESEARCH_RESULT, CHATGPT_RESEARCH_START, CITED_BY, COMMENTS,
-    GEMINI_RESEARCH_RESULT, GEMINI_RESEARCH_START, Platform,
+    GEMINI_RESEARCH_RESULT, GEMINI_RESEARCH_START, Platform, STORIES,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -126,7 +126,15 @@ pub(crate) const X: PlatformCatalog = PlatformCatalog {
     default_order: &[ProviderId::Xai],
 };
 
-pub(crate) const PLATFORMS: &[PlatformCatalog] = &[ARXIV, SSRN, SCHOLAR, XIAOHONGSHU, X];
+// One route combines Algolia's HN Search API with the official Firebase API (ADR 0027).
+pub(crate) const HN: PlatformCatalog = PlatformCatalog {
+    platform: Platform::Hn,
+    search: &[ProviderId::HnApi],
+    fetch: &[ProviderId::HnApi],
+    default_order: &[ProviderId::HnApi],
+};
+
+pub(crate) const PLATFORMS: &[PlatformCatalog] = &[ARXIV, SSRN, SCHOLAR, XIAOHONGSHU, X, HN];
 
 impl PlatformCatalog {
     pub(crate) fn routes(self, operation: PlatformOperation) -> &'static [ProviderId] {
@@ -182,12 +190,13 @@ pub(crate) enum ProviderId {
     SsrnBrowser,
     Serpapi,
     XiaohongshuBrowser,
+    HnApi,
     GeminiBrowser,
     ChatgptBrowser,
 }
 
 impl ProviderId {
-    pub(crate) const ALL: [Self; 15] = [
+    pub(crate) const ALL: [Self; 16] = [
         Self::Xai,
         Self::OpenAiCompatible,
         Self::Exa,
@@ -201,6 +210,7 @@ impl ProviderId {
         Self::SsrnBrowser,
         Self::Serpapi,
         Self::XiaohongshuBrowser,
+        Self::HnApi,
         Self::GeminiBrowser,
         Self::ChatgptBrowser,
     ];
@@ -220,6 +230,7 @@ impl ProviderId {
             "ssrn_browser" => Some(Self::SsrnBrowser),
             "serpapi" => Some(Self::Serpapi),
             "xiaohongshu_browser" => Some(Self::XiaohongshuBrowser),
+            "hn_api" => Some(Self::HnApi),
             "gemini_browser" => Some(Self::GeminiBrowser),
             "chatgpt_browser" => Some(Self::ChatgptBrowser),
             _ => None,
@@ -241,6 +252,7 @@ impl ProviderId {
             Self::SsrnBrowser => "ssrn_browser",
             Self::Serpapi => "serpapi",
             Self::XiaohongshuBrowser => "xiaohongshu_browser",
+            Self::HnApi => "hn_api",
             Self::GeminiBrowser => "gemini_browser",
             Self::ChatgptBrowser => "chatgpt_browser",
         }
@@ -578,6 +590,27 @@ const XIAOHONGSHU_BROWSER_SMOKE: &[ProviderSmokeCase] = &[
     },
 ];
 
+const HN_API_SMOKE: &[ProviderSmokeCase] = &[
+    ProviderSmokeCase {
+        id: "C33",
+        platform: Some(Platform::Hn),
+        operation: "search",
+        transport: "http",
+    },
+    ProviderSmokeCase {
+        id: "C34",
+        platform: Some(Platform::Hn),
+        operation: "fetch",
+        transport: "http",
+    },
+    ProviderSmokeCase {
+        id: "C35",
+        platform: Some(Platform::Hn),
+        operation: STORIES,
+        transport: "http",
+    },
+];
+
 // arXiv terms of use allow one request every three seconds over one connection.
 const ARXIV_API_ACCESS: AccessPolicy = AccessPolicy {
     min_interval: Duration::from_secs(3),
@@ -601,6 +634,13 @@ const SSRN_BROWSER_ACCESS: AccessPolicy = AccessPolicy {
 // seconds is the slowest pace measured, not a limit the site states (ADR 0020).
 const XIAOHONGSHU_BROWSER_ACCESS: AccessPolicy = AccessPolicy {
     min_interval: Duration::from_secs(10),
+    max_concurrency: 1,
+};
+
+// Algolia allows 10,000 HN Search requests per IP per hour; the official Firebase API states no
+// limit. Both endpoints share this pace, at most 7,200 requests per hour.
+const HN_API_ACCESS: AccessPolicy = AccessPolicy {
+    min_interval: Duration::from_millis(500),
     max_concurrency: 1,
 };
 
@@ -792,6 +832,21 @@ const REGISTRY: &[ProviderRegistration] = &[
         },
         smoke_cases: XIAOHONGSHU_BROWSER_SMOKE,
         native_full_text: true,
+    },
+    // A full-text fetch of a link story reads the linked page through Web Fetch.
+    ProviderRegistration {
+        id: ProviderId::HnApi,
+        operations: &[],
+        credentials_required: false,
+        transport: ProviderTransport::Http,
+        access_policy: Some(HN_API_ACCESS),
+        probe: DoctorProbe::PlatformSearch {
+            platform: Platform::Hn,
+            name: "search",
+            transport: "http",
+        },
+        smoke_cases: HN_API_SMOKE,
+        native_full_text: false,
     },
     // Only `forager gemini` commands run it, never a chain. No live smoke case exists: starting
     // a research spends the user's quota, and reading one needs a conversation of the user.

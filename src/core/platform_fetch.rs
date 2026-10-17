@@ -5,6 +5,10 @@
 //! source of the version it returned: URLs to read in order or one verified local file, each of
 //! which runs the global Web Fetch chain until one succeeds, or a native body the route already
 //! read and verified, which needs no Web Fetch. Route adapters never import Web Fetch providers.
+//!
+//! At thread depth each platform declares how the discussion is delivered: a route that returns
+//! a native body (Hacker News) has it delivered by reference like a full text; any other route
+//! carries the thread inline in its item (X).
 
 use reqwest::Client;
 
@@ -116,7 +120,15 @@ pub(crate) async fn fetch(
     let mut item = metadata.item;
     let mut diagnostic = metadata.diagnostic;
     let mut content = None;
-    if request.depth == ContentDepth::FullText {
+    if request.depth == ContentDepth::Thread
+        && let FullTextSource::Native(body) = metadata.content_source
+    {
+        content = Some(PlatformContent::new(
+            item.url.clone(),
+            metadata.route.name(),
+            body,
+        ));
+    } else if request.depth == ContentDepth::FullText {
         let full_text = match metadata.content_source {
             FullTextSource::Native(body) => Ok(FullText {
                 content: PlatformContent::new(item.url.clone(), metadata.route.name(), body),

@@ -186,6 +186,17 @@ pub(crate) struct HttpRouteRuntimeConfig {
     pub(crate) timeout_seconds: u64,
 }
 
+/// The configuration of the Hacker News route, which combines two official endpoints under one
+/// access policy.
+#[derive(Clone, Debug)]
+pub(crate) struct HnRouteRuntimeConfig {
+    /// The Algolia Hacker News Search API.
+    pub(crate) url: String,
+    /// The official Hacker News Firebase API.
+    pub(crate) firebase_url: String,
+    pub(crate) timeout_seconds: u64,
+}
+
 /// The configuration of a platform route that sends HTTP requests with pooled credentials.
 #[derive(Clone, Debug)]
 pub(crate) struct KeyedHttpRouteRuntimeConfig {
@@ -212,6 +223,7 @@ pub(crate) struct PlatformRoutesRuntimeConfig {
     pub(crate) xiaohongshu_browser: ProcessRouteRuntimeConfig,
     /// The main search provider, which also reads X.
     pub(crate) xai: XaiRuntimeConfig,
+    pub(crate) hn_api: HnRouteRuntimeConfig,
 }
 
 /// The configuration of one platform route.
@@ -223,6 +235,7 @@ pub(crate) enum PlatformRouteConfig {
     Serpapi(KeyedHttpRouteRuntimeConfig),
     XiaohongshuBrowser(ProcessRouteRuntimeConfig),
     Xai(XaiRuntimeConfig),
+    HnApi(HnRouteRuntimeConfig),
 }
 
 impl PlatformRouteConfig {
@@ -234,6 +247,7 @@ impl PlatformRouteConfig {
             Self::Serpapi(_) => ProviderId::Serpapi,
             Self::XiaohongshuBrowser(_) => ProviderId::XiaohongshuBrowser,
             Self::Xai(_) => ProviderId::Xai,
+            Self::HnApi(_) => ProviderId::HnApi,
         }
     }
 
@@ -242,7 +256,8 @@ impl PlatformRouteConfig {
             Self::ArxivApi(_)
             | Self::SsrnCrossref(_)
             | Self::SsrnBrowser(_)
-            | Self::XiaohongshuBrowser(_) => provider_configured(self.route(), &[]),
+            | Self::XiaohongshuBrowser(_)
+            | Self::HnApi(_) => provider_configured(self.route(), &[]),
             Self::Serpapi(config) => provider_configured(self.route(), &config.keys),
             Self::Xai(config) => provider_configured(self.route(), &config.keys),
         }
@@ -278,6 +293,7 @@ pub(crate) struct PlatformsRuntimeConfig {
     scholar: PlatformRuntimeConfig,
     xiaohongshu: PlatformRuntimeConfig,
     x: PlatformRuntimeConfig,
+    hn: PlatformRuntimeConfig,
 }
 
 impl PlatformsRuntimeConfig {
@@ -288,6 +304,7 @@ impl PlatformsRuntimeConfig {
             Platform::Scholar => &self.scholar,
             Platform::Xiaohongshu => &self.xiaohongshu,
             Platform::X => &self.x,
+            Platform::Hn => &self.hn,
         }
     }
 }
@@ -567,6 +584,10 @@ impl RuntimeConfig {
                 endpoint: &self.platform_routes.xiaohongshu_browser.command,
                 keys: &[],
             },
+            ProviderId::HnApi => ProviderRuntime {
+                endpoint: &self.platform_routes.hn_api.url,
+                keys: &[],
+            },
             ProviderId::GeminiBrowser => ProviderRuntime {
                 endpoint: &self.gemini_browser.command,
                 keys: &[],
@@ -658,6 +679,11 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
             timeout_seconds: config.providers.xiaohongshu_browser.timeout,
         },
         xai: xai.clone(),
+        hn_api: HnRouteRuntimeConfig {
+            url: config.providers.hn_api.url,
+            firebase_url: config.providers.hn_api.firebase_url,
+            timeout_seconds: config.providers.hn_api.timeout,
+        },
     };
     let classifier = ClassifierRuntimeConfig {
         url: config.classifier.url,
@@ -713,6 +739,7 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
             &platform_routes,
         )?,
         x: platform_entries(Platform::X, config.platforms.x.order, &platform_routes)?,
+        hn: platform_entries(Platform::Hn, config.platforms.hn.order, &platform_routes)?,
     };
     Ok(RuntimeConfig {
         main_search: MainSearchRuntimeConfig {
@@ -889,6 +916,7 @@ pub(crate) fn platform_route_config(
             routes.xiaohongshu_browser.clone(),
         )),
         ProviderId::Xai => Some(PlatformRouteConfig::Xai(routes.xai.clone())),
+        ProviderId::HnApi => Some(PlatformRouteConfig::HnApi(routes.hn_api.clone())),
         _ => None,
     }
 }

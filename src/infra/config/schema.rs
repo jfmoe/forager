@@ -76,6 +76,7 @@ pub(super) struct Providers {
     pub(super) ssrn_browser: ProcessRoute<SsrnBrowserProcess>,
     pub(super) serpapi: Endpoint<SerpapiEndpoint>,
     pub(super) xiaohongshu_browser: ProcessRoute<XiaohongshuBrowserProcess>,
+    pub(super) hn_api: HnApi,
     pub(super) gemini_browser: ProcessRoute<GeminiBrowserProcess>,
     pub(super) chatgpt_browser: ProcessRoute<ChatgptBrowserProcess>,
 }
@@ -252,6 +253,26 @@ endpoint_defaults!(ArxivApiEndpoint, "https://export.arxiv.org/api/query");
 endpoint_defaults!(SsrnCrossrefEndpoint, "https://api.crossref.org");
 endpoint_defaults!(SerpapiEndpoint, "https://serpapi.com/search.json");
 
+/// The `hn_api` route section: one URL per official Hacker News endpoint the route combines.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub(super) struct HnApi {
+    pub(super) url: String,
+    pub(super) firebase_url: String,
+    #[serde(deserialize_with = "deserialize_integer")]
+    pub(super) timeout: u64,
+}
+
+impl Default for HnApi {
+    fn default() -> Self {
+        Self {
+            url: "https://hn.algolia.com/api/v1".into(),
+            firebase_url: "https://hacker-news.firebaseio.com/v0".into(),
+            timeout: 30,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub(super) struct Jina {
@@ -315,6 +336,7 @@ pub(super) struct Platforms {
     pub(super) scholar: Order,
     pub(super) xiaohongshu: Order,
     pub(super) x: Order,
+    pub(super) hn: Order,
 }
 
 impl Default for Platforms {
@@ -325,6 +347,7 @@ impl Default for Platforms {
             scholar: platform_order(catalog::SCHOLAR),
             xiaohongshu: platform_order(catalog::XIAOHONGSHU),
             x: platform_order(catalog::X),
+            hn: platform_order(catalog::HN),
         }
     }
 }
@@ -591,6 +614,9 @@ pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("providers.serpapi.timeout", providers.serpapi.timeout: U64, Rule::Positive, View::Plain, "shared timeout in seconds; must be greater than zero"),
     leaf!("providers.xiaohongshu_browser.command", providers.xiaohongshu_browser.command: String, Rule::NonEmpty, View::Plain, "OpenCLI executable name or path; this route needs no credentials"),
     leaf!("providers.xiaohongshu_browser.timeout", providers.xiaohongshu_browser.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one OpenCLI command; must be greater than zero"),
+    leaf!("providers.hn_api.url", providers.hn_api.url: String, Rule::Any, View::Url, "Algolia Hacker News Search API endpoint URL; this route needs no credentials"),
+    leaf!("providers.hn_api.firebase_url", providers.hn_api.firebase_url: String, Rule::Any, View::Url, "official Hacker News Firebase API endpoint URL"),
+    leaf!("providers.hn_api.timeout", providers.hn_api.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one request to either endpoint; must be greater than zero"),
     leaf!("providers.gemini_browser.command", providers.gemini_browser.command: String, Rule::NonEmpty, View::Plain, "OpenCLI executable name or path; this provider needs no credentials"),
     leaf!("providers.gemini_browser.timeout", providers.gemini_browser.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one OpenCLI command; must be greater than zero"),
     leaf!("providers.chatgpt_browser.command", providers.chatgpt_browser.command: String, Rule::NonEmpty, View::Plain, "OpenCLI executable name or path; this provider needs no credentials"),
@@ -604,6 +630,7 @@ pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("platforms.scholar.order", platforms.scholar.order: Strings, Rule::PlatformOrder { platform: Platform::Scholar }, View::Plain, "authoritative route order for this platform; empty disables it"),
     leaf!("platforms.xiaohongshu.order", platforms.xiaohongshu.order: Strings, Rule::PlatformOrder { platform: Platform::Xiaohongshu }, View::Plain, "authoritative route order for this platform; empty disables it"),
     leaf!("platforms.x.order", platforms.x.order: Strings, Rule::PlatformOrder { platform: Platform::X }, View::Plain, "authoritative route order for this platform; empty disables it"),
+    leaf!("platforms.hn.order", platforms.hn.order: Strings, Rule::PlatformOrder { platform: Platform::Hn }, View::Plain, "authoritative route order for this platform; empty disables it"),
     leaf!("log.level", log.level: String, Rule::OneOf(LOG_LEVELS), View::Plain, "stderr log level"),
     leaf!("journal.enabled", journal.enabled: Bool, Rule::Any, View::Plain, "record search result journals"),
     leaf!("journal.dir", journal.dir: String, Rule::Any, View::Plain, "journal storage directory"),
