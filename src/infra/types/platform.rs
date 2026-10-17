@@ -11,6 +11,7 @@ use thiserror::Error;
 
 use super::ProviderAttempt;
 use super::platform_arxiv::{ArxivItemData, ArxivRef, ArxivSearchOptions};
+use super::platform_hn::{HnItemData, HnRef, HnSearchOptions};
 use super::platform_scholar::{ScholarItemData, ScholarRef, ScholarSearchOptions};
 use super::platform_ssrn::{SsrnItemData, SsrnRef};
 use super::platform_ssrn_search::SsrnSearchOptions;
@@ -33,16 +34,19 @@ pub enum Platform {
     Xiaohongshu,
     /// X (formerly Twitter), a social platform of short posts.
     X,
+    /// Hacker News, a technology news and discussion site.
+    Hn,
 }
 
 impl Platform {
     /// Every built-in platform.
-    pub const ALL: [Self; 5] = [
+    pub const ALL: [Self; 6] = [
         Self::Arxiv,
         Self::Ssrn,
         Self::Scholar,
         Self::Xiaohongshu,
         Self::X,
+        Self::Hn,
     ];
 
     /// Returns the stable platform identifier used by commands and configuration.
@@ -54,6 +58,7 @@ impl Platform {
             Self::Scholar => "scholar",
             Self::Xiaohongshu => "xiaohongshu",
             Self::X => "x",
+            Self::Hn => "hn",
         }
     }
 }
@@ -129,6 +134,8 @@ pub enum PlatformRef {
     Xiaohongshu(XiaohongshuRef),
     /// An X post.
     X(XRef),
+    /// A Hacker News item.
+    Hn(HnRef),
 }
 
 impl PlatformRef {
@@ -144,6 +151,7 @@ impl PlatformRef {
             Platform::Scholar => ScholarRef::parse(input).map(Self::Scholar),
             Platform::Xiaohongshu => XiaohongshuRef::parse(input).map(Self::Xiaohongshu),
             Platform::X => XRef::parse(input).map(Self::X),
+            Platform::Hn => HnRef::parse(input).map(Self::Hn),
         }
     }
 
@@ -156,6 +164,7 @@ impl PlatformRef {
             Self::Scholar(_) => Platform::Scholar,
             Self::Xiaohongshu(_) => Platform::Xiaohongshu,
             Self::X(_) => Platform::X,
+            Self::Hn(_) => Platform::Hn,
         }
     }
 
@@ -166,6 +175,7 @@ impl PlatformRef {
             Self::Arxiv(_) | Self::Ssrn(_) | Self::Scholar(_) => "paper",
             Self::Xiaohongshu(_) => "note",
             Self::X(_) => "post",
+            Self::Hn(_) => "item",
         }
     }
 
@@ -178,6 +188,7 @@ impl PlatformRef {
             Self::Scholar(reference) => reference.canonical_url(),
             Self::Xiaohongshu(reference) => reference.canonical_url(),
             Self::X(reference) => reference.canonical_url(),
+            Self::Hn(reference) => reference.canonical_url(),
         }
     }
 }
@@ -190,6 +201,7 @@ impl fmt::Display for PlatformRef {
             Self::Scholar(reference) => write!(formatter, "scholar:{reference}"),
             Self::Xiaohongshu(reference) => write!(formatter, "xiaohongshu:{reference}"),
             Self::X(reference) => write!(formatter, "x:{reference}"),
+            Self::Hn(reference) => write!(formatter, "hn:{reference}"),
         }
     }
 }
@@ -214,6 +226,8 @@ pub enum PlatformSearchOptions {
     Xiaohongshu(XiaohongshuSearchOptions),
     /// X options.
     X(XSearchOptions),
+    /// Hacker News options.
+    Hn(HnSearchOptions),
 }
 
 impl PlatformSearchOptions {
@@ -226,6 +240,7 @@ impl PlatformSearchOptions {
             Platform::Scholar => Self::Scholar(ScholarSearchOptions::default()),
             Platform::Xiaohongshu => Self::Xiaohongshu(XiaohongshuSearchOptions::default()),
             Platform::X => Self::X(XSearchOptions::default()),
+            Platform::Hn => Self::Hn(HnSearchOptions::default()),
         }
     }
 
@@ -238,6 +253,7 @@ impl PlatformSearchOptions {
             Self::Scholar(_) => Platform::Scholar,
             Self::Xiaohongshu(_) => Platform::Xiaohongshu,
             Self::X(_) => Platform::X,
+            Self::Hn(_) => Platform::Hn,
         }
     }
 }
@@ -265,6 +281,7 @@ impl PlatformSearchRequest {
                 XiaohongshuSearchOptions::validate(&self.query, self.limit)
             }
             PlatformSearchOptions::X(options) => options.validate(&self.query, self.limit),
+            PlatformSearchOptions::Hn(options) => options.validate(&self.query, self.limit),
         }
     }
 }
@@ -300,6 +317,8 @@ pub enum PlatformItemData {
     XiaohongshuNote(XiaohongshuNoteData),
     /// X fields of a post.
     X(XPostData),
+    /// Hacker News fields of an item.
+    Hn(HnItemData),
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -342,7 +361,8 @@ pub(crate) struct PlatformFetchRequest {
 pub(crate) struct PlatformFetchOutcome {
     /// The metadata item; its ref carries the version the platform returned.
     pub(crate) item: PlatformItem,
-    /// The full-text source; `Urls` is empty unless the request asks for the full text.
+    /// The full-text source; `Urls` is empty unless the request asks for the full text. At
+    /// thread depth, a `Native` body is the discussion document, delivered like a full text.
     pub(crate) content_source: FullTextSource,
     pub(crate) attempts: Vec<ProviderAttempt>,
     pub(crate) diagnostic: Option<String>,

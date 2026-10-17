@@ -91,6 +91,11 @@ timeout = 90                 # 一次 OpenCLI 命令的 attempt 超时
 command = "opencli"          # 不能为空
 timeout = 120                # 一次 OpenCLI 命令的 attempt 超时
 
+[providers.hn_api]           # 不需要凭据，没有 keys；一条 route 访问两个端点，共用访问策略（ADR 0027）
+url = "https://hn.algolia.com/api/v1"                 # Algolia HN Search API
+firebase_url = "https://hacker-news.firebaseio.com/v0" # HN 官方 Firebase API
+timeout = 30                 # 对任一端点的单个请求的 attempt 超时
+
 [providers.gemini_browser]   # process 供应方，不属于任何平台，只由 `forager gemini` 命令运行（ADR 0023）
 command = "opencli"          # 不能为空
 timeout = 240                # 一次 OpenCLI 命令的 attempt 超时
@@ -123,6 +128,8 @@ order = ["serpapi"]          # 默认含 serpapi，但没有 key 时不算已配
 order = []                   # 默认为空；加入 "xiaohongshu_browser" 才启用（第 7 章「小红书」）
 [platforms.x]
 order = ["xai"]              # 复用主搜索的 xAI key；没有 key 时不算已配置，置空＝禁用
+[platforms.hn]
+order = ["hn_api"]           # 不需要凭据；置空＝禁用
 
 [log]
 level = "info"               # error|warn|info|debug|trace；见下方运行时语义

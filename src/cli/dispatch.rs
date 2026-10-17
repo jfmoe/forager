@@ -22,9 +22,9 @@ use crate::types::{
     AnysearchOutcome, CapabilitySet, ChatgptResearchFailure, ChatgptResearchResult,
     ChatgptResearchStarted, ClaimRisk, Context7Outcome, Deadline, EvidenceStrength, FallbackPolicy,
     FetchOutcome, GeminiResearchFailure, GeminiResearchResult, GeminiResearchStarted,
-    JournalOutcome, MapOutcome, PlanCapability, PlatformFetchResult, PlatformSearchPage,
-    ProviderAttempt, RecencyRequirement, ResearchIntentSignals, ResearchPlan, ResearchSubquestion,
-    SearchOutcome, XAskResult, XiaohongshuCommentsPage,
+    HnStoriesResult, JournalOutcome, MapOutcome, PlanCapability, PlatformFetchResult,
+    PlatformSearchPage, ProviderAttempt, RecencyRequirement, ResearchIntentSignals, ResearchPlan,
+    ResearchSubquestion, SearchOutcome, XAskResult, XiaohongshuCommentsPage,
 };
 
 #[doc(hidden)]
@@ -172,6 +172,17 @@ pub enum CommandOutput {
     XAsk {
         /// Ask result.
         result: Result<XAskResult, ProviderError>,
+        /// Requested output format.
+        format: OutputFormat,
+        /// Optional output file destination.
+        output: Option<OutputTarget>,
+        /// Optional terminal projection selected by `log.level`.
+        attempt_log: Option<String>,
+    },
+    /// Typed Hacker News stories terminal state for binary-side formatting and tee output.
+    HnStories {
+        /// Stories result.
+        result: Result<HnStoriesResult, ProviderError>,
         /// Requested output format.
         format: OutputFormat,
         /// Optional output file destination.

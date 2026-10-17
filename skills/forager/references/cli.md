@@ -308,7 +308,8 @@ forager anysearch domains DOMAIN [--timeout SECONDS] [--format json|markdown]
 Their `--timeout` defaults to `120` and includes waits for the platform's request window, shared
 across all local processes (arXiv: one request every 3 seconds; SSRN through Crossref: one request
 per second; SSRN through the browser: one OpenCLI command every 5 seconds; Xiaohongshu: one OpenCLI
-command every 10 seconds; Google Scholar through SerpApi and X through xAI have no local window).
+command every 10 seconds; Hacker News: one request to either of its two endpoints every half
+second; Google Scholar through SerpApi and X through xAI have no local window).
 
 ### `platform arxiv search`
 
@@ -772,6 +773,102 @@ without sources as unverified. Ask writes no result journal.
 Exit codes: `2` before any request for a blank question or invalid filters as under search; `3`
 as under search; `4` for the xAI failures under search.
 
+### `platform hn search`
+
+```console
+forager platform hn search [QUERY] [--sort relevance|date] [--type TYPE]... [--author USER]
+                           [--story ID] [--from YYYY-MM-DD] [--to YYYY-MM-DD]
+                           [--min-points N] [--min-comments N] [--limit N] [--cursor CURSOR]
+                           [--timeout SECONDS] [--format json|markdown]
+                           [--output FILE [--receipt]] [--verbose]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `QUERY` | Words to match; `"double quotes"` match a phrase and `-word` excludes a word. Required without `--cursor`. | Omitted |
+| `--sort ORDER` | `relevance`, or `date` for newest first. | `relevance` |
+| `--type TYPE` | `story`, `comment`, `ask_hn`, `show_hn`, `launch_hn`, `job`, or `poll`; repeat to match any of several. | Any |
+| `--author USER` | Only items by this user (2 to 15 letters, digits, `_`, or `-`). | None |
+| `--story ID` | Only items in the discussion of this story ID, such as `8863`. | None |
+| `--from` / `--to` | Inclusive range of UTC publication days; either end may be omitted. | None |
+| `--min-points N` / `--min-comments N` | Minimum points or comment count. Comments have no points. | None |
+| `--limit N` | Results on this page, `1..=100`. | `20` |
+| `--cursor CURSOR` | `next_cursor` of a previous page; it restores the whole request, so pass no query, option, or `--limit` with it. | Omitted |
+
+Hacker News runs through the `hn_api` route, which needs no key: Algolia's HN Search API
+(`providers.hn_api.url`) searches and the official Firebase API (`providers.hn_api.firebase_url`)
+supplies ranks and live counts. JSON output is `{platform, provider, items, next_cursor}`. Each
+item has `ref` (`hn:<id>`), `url` (`https://news.ycombinator.com/item?id=<id>`), `depth`
+(`snippet` for an item with its own text, otherwise `metadata`), `title` (`null` for a comment),
+`authors`, `published` (UTC second), `item_type` (`story`, `comment`, `poll`, `pollopt`, `job`),
+`link_url`, `points`, `comments`, `text` (the item's own body as Markdown, never its comments or
+linked page), and, for a comment, `story_ref`, `story_title`, and `parent_ref`. Search counts may
+lag the site by a few minutes. A search reaches at most its first 1000 results: no cursor is
+issued past them. A valid empty search returns `items: []` with exit 0.
+
+Exit codes: `2` before any request for a blank query, an invalid user name, story ID, or date,
+`--from` after `--to`, `--min-points` with `--type comment` alone, `--limit` out of range, or a
+cursor past the first 1000 results; `3` for an empty `platforms.hn.order`; `4` for `parameter`
+(the search service rejected the request), `rate_limited` (Algolia allows 10,000 requests per IP
+per hour), `network`, `timeout`, and `runtime` for an unexpected response.
+
+### `platform hn fetch`
+
+```console
+forager platform hn fetch REF_OR_URL [--depth thread|metadata|full_text] [--content-dir DIR]
+                                     [--timeout SECONDS] [--format json|markdown|content]
+                                     [--output FILE [--receipt]] [--verbose]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `REF_OR_URL` | `hn:<id>`, or a news.ycombinator.com item URL; other query parameters such as `p=2` are ignored. | Required |
+| `--depth DEPTH` | `thread` writes the item and its whole discussion to a Markdown file; `metadata` returns the item alone with live counts; `full_text` reads the page a story or job links to, or the item's own title and text when it links nowhere. | `thread` |
+| `--content-dir DIR` | Directory for the discussion or full-text Markdown file, named `hn-<id>.md`. | New directory under the system temp directory |
+| `--format FORMAT` | `json`, `markdown`, or `content`; `content` prints the discussion or the full text and writes no file. | `json` |
+
+At `thread` depth JSON output is the item fields (as under search, with live `points` and
+`comments`) plus `content_url`, `content_provider` (`hn_api`), `content_path`, `content_len`,
+`comments_delivered` (comments in the file), and `order`: `ranked_top_level` when top-level
+comments follow the rank HN shows, or `chronological` when the rank was unavailable. Replies are
+always in time order. The file starts with the item's title, link, author, points, comments,
+time, ref, and text, then every comment indented by depth with its author, time, and `hn:<id>`.
+Fetching a comment delivers the discussion below it, with its story. Deleted and dead comments
+are not in the discussion, and comments posted in the last few minutes may be missing. A failed
+Firebase request keeps the discussion in time order with one stderr diagnostic.
+
+`full_text` JSON output carries the metadata and `content_url`, `content_provider`,
+`content_path`, and `content_len`; it needs a configured Web Fetch provider, which reads the
+linked page, while a text-only post's body comes from `hn_api` itself.
+
+Exit codes: `2` before any request for a user, site, or other page URL, or a depth other than the
+three; `3` for an empty `platforms.hn.order`, or `full_text` with no configured Web Fetch
+provider; `4` for `parameter` (`HN item not found: hn:<id>`, `HN item hn:<id> is deleted or
+dead`, or `full_text` of a comment, which names `--depth thread`), the transport failures under
+search, and a `quality` failure (exit `5`) for a post without title or text.
+
+### `platform hn stories`
+
+```console
+forager platform hn stories [top|new|best|ask|show|job] [--limit N] [--timeout SECONDS]
+                            [--format json|markdown] [--output FILE [--receipt]] [--verbose]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `LIST` | `top` (the front page), `new`, `best`, `ask`, `show`, or `job`. | `top` |
+| `--limit N` | Maximum items, `1..=100`. | `30` |
+
+JSON output is `{platform, provider, list, items}`: the list's current items in rank order, each
+with the item fields of search plus `rank`, its 1-based position in the list. No cursor exists:
+the list changes constantly. Points and comment counts come from the search index and may lag by
+a few minutes. Deleted, dead, and missing items are skipped with one stderr diagnostic, so ranks
+may have gaps. An empty list returns `items: []` with exit 0.
+
+Exit codes: `2` before any request for an unknown list or `--limit` out of range; `3` for an empty
+`platforms.hn.order`; `4` when the list itself cannot be read, and for the transport failures
+under search.
+
 ## Gemini Deep Research
 
 Run these commands only when the user explicitly asks for Gemini Deep Research. They drive
@@ -982,7 +1079,7 @@ forager doctor [--provider PROVIDER] [--timeout SECONDS] [--format json|markdown
 
 | Option | Meaning | Default |
 | --- | --- | --- |
-| `--provider PROVIDER` | Deep-probe one of `xai`, `openai_compatible`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, `anysearch`, `arxiv_api`, `ssrn_crossref`, `ssrn_browser`, `serpapi`, `xiaohongshu_browser`, or `gemini_browser`. Without it, run the shallow all-provider report. | Omitted |
+| `--provider PROVIDER` | Deep-probe one of `xai`, `openai_compatible`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, `anysearch`, `arxiv_api`, `ssrn_crossref`, `ssrn_browser`, `serpapi`, `xiaohongshu_browser`, `hn_api`, or `gemini_browser`. Without it, run the shallow all-provider report. | Omitted |
 | `--timeout SECONDS` | Set the diagnostic deadline. | `30` |
 | `--format FORMAT` | Use `json` or `markdown`. | `json` |
 
@@ -996,7 +1093,8 @@ order and runs one real search in Chrome. The shallow report never checks `gemin
 `--provider gemini_browser` opens the Gemini app in a background Chrome window and reports whether
 the adapter is installed and current and the browser is signed in, without reading or starting
 any research. `--provider xai` adds an `x_search` check, one X search, while
-`platforms.x.order` lists `xai`. `--provider serpapi` runs no search and costs nothing: it asks
+`platforms.x.order` lists `xai`. `--provider hn_api` runs one search and adds a `firebase` check,
+one request to the Firebase API. `--provider serpapi` runs no search and costs nothing: it asks
 SerpApi's account endpoint about every configured key and adds a `keys` array, one entry per key
 with `key_index`, `ok`, `searches_left`, `plan_searches_left`, `this_month_usage`,
 `this_hour_searches`, and `hourly_limit`, plus `error_kind` for a failing key (`auth`,

@@ -10,6 +10,7 @@ mod gemini_research;
 mod outcome;
 mod platform;
 mod platform_arxiv;
+mod platform_hn;
 mod platform_scholar;
 mod platform_ssrn;
 mod platform_ssrn_search;
@@ -49,6 +50,11 @@ pub(crate) use platform::{
     PlatformSearchOutcome, PlatformSearchRequest,
 };
 pub use platform_arxiv::{ArxivItemData, ArxivRef, ArxivSearchOptions, ArxivSort};
+pub use platform_hn::{
+    HnItemData, HnItemType, HnRankedItem, HnRef, HnSearchOptions, HnSearchType, HnSort,
+    HnStoriesList, HnStoriesResult, HnThreadOrder,
+};
+pub(crate) use platform_hn::{HnStoriesOutcome, HnStoriesRequest, STORIES};
 pub(crate) use platform_scholar::{
     CITED_BY, SCHOLAR_MAX_LIMIT, ScholarCitedByRequest, ScholarCitedBySort,
 };

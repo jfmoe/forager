@@ -10,8 +10,9 @@ headings with `grep -n '^#' FILE`, and read only the relevant line ranges.
 `fetch` extracts readable page text. For a JSON API endpoint such as `api.github.com`, use `gh api`
 or `curl` directly.
 
-For an x.com or twitter.com post, use `forager platform x fetch 'URL'`; see
-[`platforms.md`](platforms.md). When another URL requires authentication and cannot be fetched
+For an x.com or twitter.com post, use `forager platform x fetch 'URL'`; for a
+news.ycombinator.com item, use `forager platform hn fetch 'URL'`, which delivers the whole
+discussion; see [`platforms.md`](platforms.md). When another URL requires authentication and cannot be fetched
 directly, use an available authenticated client to retrieve it.
 
 Commands under `exa`, `context7`, and `anysearch` bypass capability routing. Use them when the user

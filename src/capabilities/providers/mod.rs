@@ -7,6 +7,7 @@ mod exa;
 pub(crate) mod execution;
 mod factory;
 mod gemini_browser;
+mod hn_api;
 mod markup;
 mod openai_compatible;
 mod opencli;
@@ -32,13 +33,15 @@ pub(crate) use constructors::{
 pub(crate) use context7::{Context7, Context7DocsRequest, Context7LibraryRequest};
 pub(crate) use exa::{Exa, ExaSearchRequest, ExaSimilarRequest, SearchType};
 pub(crate) use factory::{
-    SCHOLAR_CITED_BY_ROUTES, X_ASK_ROUTES, XIAOHONGSHU_COMMENTS_ROUTES, adapter_status,
-    build_docs_search, build_main_search, build_platform_fetch, build_platform_search,
-    build_vertical_search, build_web_fetch, build_web_search, platform_fetch_support,
+    HN_STORIES_ROUTES, SCHOLAR_CITED_BY_ROUTES, X_ASK_ROUTES, XIAOHONGSHU_COMMENTS_ROUTES,
+    adapter_status, build_docs_search, build_main_search, build_platform_fetch,
+    build_platform_search, build_vertical_search, build_web_fetch, build_web_search, hn_stories,
+    hn_stories_support, platform_fetch_support, platform_route_extra_checks,
     platform_search_support, route_accounts, scholar_cited_by, scholar_cited_by_support, x_ask,
     x_ask_support, xiaohongshu_comments, xiaohongshu_comments_support,
 };
 pub(crate) use gemini_browser::GeminiBrowser;
+pub(crate) use hn_api::HnApi;
 pub(crate) use openai_compatible::{ModelBreakers, OpenAiCompatible};
 pub(crate) use opencli::check_contract as check_opencli_contract;
 pub(crate) use serpapi::{KeyAccount, Serpapi};

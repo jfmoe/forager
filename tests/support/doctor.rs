@@ -55,7 +55,7 @@ pub(crate) fn reachable_responses(count: usize) -> Vec<Response> {
         .collect()
 }
 
-/// Points the ten HTTP providers other than SerpApi at `url`, with a key wherever one is needed.
+/// Points the eleven HTTP providers other than SerpApi at `url`, with a key wherever one is needed.
 pub(crate) fn shallow_config(url: &str) -> String {
     format!(
         r#"
@@ -95,6 +95,9 @@ keys = ["anysearch-secret"]
 url = {url:?}
 
 [providers.ssrn_crossref]
+url = {url:?}
+
+[providers.hn_api]
 url = {url:?}
 "#
     )

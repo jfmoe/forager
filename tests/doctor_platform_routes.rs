@@ -26,9 +26,10 @@ fn arxiv_api_deep_doctor_executes_the_registry_search_probe_without_credentials(
 
 #[test]
 fn shallow_doctor_reaches_serpapi_with_a_keyless_get() {
-    let fixture = Fixture::start_sequence(reachable_responses(3));
+    let fixture = Fixture::start_sequence(reachable_responses(4));
     let environment = RunEnvironment::new(&format!(
         "[providers.arxiv_api]\nurl = {url:?}\n[providers.ssrn_crossref]\nurl = {url:?}\n\
+         [providers.hn_api]\nurl = {url:?}\n\
          [providers.serpapi]\nurl = \"{url}/search.json\"\nkeys = [\"test-serpapi-key\"]\n",
         url = fixture.url
     ));
@@ -109,7 +110,7 @@ fn arxiv_api_deep_doctor_probe_waits_for_the_request_window() {
 
 #[test]
 fn shallow_doctor_reachability_probe_waits_for_the_request_window() {
-    let fixture = Fixture::start_sequence(reachable_responses(9));
+    let fixture = Fixture::start_sequence(reachable_responses(10));
     let environment = RunEnvironment::new(&shallow_config(&fixture.url));
     reserve_arxiv_window(&environment);
 
@@ -129,7 +130,7 @@ fn shallow_doctor_reachability_probe_waits_for_the_request_window() {
             &arxiv_api["reachable"],
             fixture.finish_all().len()
         ),
-        (Some(4), &Value::Bool(true), &Value::Bool(false), 9)
+        (Some(4), &Value::Bool(true), &Value::Bool(false), 10)
     );
 }
 
@@ -149,7 +150,7 @@ fn ssrn_browser_status(payload: &Value) -> &Value {
 /// Runs a shallow doctor where every HTTP provider is reachable and `fake` answers for
 /// `ssrn_browser`, which the SSRN order lists when `enabled`.
 fn shallow_with_browser(fake: &FakeOpenCli, enabled: bool) -> std::process::Output {
-    let fixture = Fixture::start_sequence(reachable_responses(10));
+    let fixture = Fixture::start_sequence(reachable_responses(11));
     let order = if enabled {
         "[\"ssrn_crossref\", \"ssrn_browser\"]"
     } else {
@@ -161,7 +162,7 @@ fn shallow_with_browser(fake: &FakeOpenCli, enabled: bool) -> std::process::Outp
         fake.config(order)
     ));
     let output = environment.run(&["doctor"]);
-    assert_eq!(fixture.finish_all().len(), 10);
+    assert_eq!(fixture.finish_all().len(), 11);
     output
 }
 
@@ -330,7 +331,7 @@ fn xiaohongshu_browser_deep_doctor_runs_one_first_page_search() {
 
 #[test]
 fn shallow_doctor_checks_the_enabled_xiaohongshu_adapter_contract() {
-    let fixture = Fixture::start_sequence(reachable_responses(10));
+    let fixture = Fixture::start_sequence(reachable_responses(11));
     let fake = FakeOpenCli::contract_envelope(
         support::opencli::XHS_CONTRACT,
         "ok",
@@ -369,12 +370,12 @@ fn shallow_doctor_checks_the_enabled_xiaohongshu_adapter_contract() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert_eq!(fixture.finish_all().len(), 10);
+    assert_eq!(fixture.finish_all().len(), 11);
 }
 
 #[test]
 fn shallow_doctor_skips_the_xiaohongshu_route_while_its_order_is_empty() {
-    let fixture = Fixture::start_sequence(reachable_responses(10));
+    let fixture = Fixture::start_sequence(reachable_responses(11));
     let fake = FakeOpenCli::answering("", "", 1);
     let environment = RunEnvironment::new(&format!(
         "{}\n{}",
@@ -396,7 +397,7 @@ fn shallow_doctor_skips_the_xiaohongshu_route_while_its_order_is_empty() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert_eq!(fixture.finish_all().len(), 10);
+    assert_eq!(fixture.finish_all().len(), 11);
 }
 
 #[test]

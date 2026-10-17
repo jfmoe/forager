@@ -194,6 +194,26 @@
       "seam": "platform:x:ask",
       "test": "tests/x_ask.rs::the_answer_keeps_its_citations_and_cited_posts_become_refs",
       "note": "ask is a single-route platform operation outside the platform catalog; the platform checklist matches this entry against the provider factory's ask routes."
+    },
+    {
+      "id": "F26",
+      "provider": "hn_api",
+      "seam": "platform:hn:search",
+      "test": "tests/hn_search.rs::hits_carry_item_fields_and_comments_carry_their_story",
+      "note": "Two fixture servers stand in for the Algolia HN Search API and the official Firebase API with records shaped like their 2026-10-17 responses; the live endpoints are confirmed only by the live smoke C33-C35."
+    },
+    {
+      "id": "F27",
+      "provider": "hn_api",
+      "seam": "platform:hn:fetch",
+      "test": "tests/hn_fetch.rs::a_thread_is_written_to_a_file_with_top_level_comments_in_rank_order"
+    },
+    {
+      "id": "F28",
+      "provider": "hn_api",
+      "seam": "platform:hn:stories",
+      "test": "tests/hn_stories.rs::the_front_page_lists_items_in_rank_order_and_reads_unindexed_ones_from_firebase",
+      "note": "stories is a single-route platform operation outside the platform catalog; the platform checklist matches this entry against the provider factory's stories routes."
     }
   ],
   "offline_e2e": [
