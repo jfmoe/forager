@@ -13,7 +13,8 @@ or `curl` directly.
 For an x.com or twitter.com post, use `forager platform x fetch 'URL'`; for a
 news.ycombinator.com item, use `forager platform hn fetch 'URL'`, which delivers the whole
 discussion; for a YouTube video, use `forager platform youtube fetch 'URL' --depth abstract`
-when a YouTube Data API key is configured; see [`platforms.md`](platforms.md). When another URL requires authentication and cannot be fetched
+when a YouTube Data API key is configured, or without `--depth` for its captions when the user
+has enabled the `youtube_web` route; see [`platforms.md`](platforms.md). When another URL requires authentication and cannot be fetched
 directly, use an available authenticated client to retrieve it.
 
 Commands under `exa`, `context7`, and `anysearch` bypass capability routing. Use them when the user

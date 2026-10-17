@@ -225,6 +225,7 @@ fn listed_item(result: SearchResult) -> Result<PlatformItem, Refusal> {
             caption_tracks: None,
             description: None,
             chapters: None,
+            transcript: None,
         }),
     })
 }

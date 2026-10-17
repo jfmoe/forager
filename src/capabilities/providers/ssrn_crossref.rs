@@ -555,14 +555,7 @@ mod tests {
             ContentDepth::Abstract,
             ContentDepth::FullText,
         ]
-        .map(|depth| {
-            fetch_support(&PlatformFetchRequest {
-                reference: reference.clone(),
-                depth,
-                access: None,
-            })
-            .is_ok()
-        });
+        .map(|depth| fetch_support(&PlatformFetchRequest::new(reference.clone(), depth)).is_ok());
 
         assert_eq!(results, [true, true, false]);
     }

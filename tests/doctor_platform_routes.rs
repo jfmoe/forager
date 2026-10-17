@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use support::doctor::{assert_deep_success, reachable_responses, shallow_config};
 use support::opencli::FakeOpenCli;
-use support::{Fixture, RunEnvironment};
+use support::{Fixture, RunEnvironment, youtube_web};
 
 const EMPTY_ARXIV_FEED: &str = r#"<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns="http://www.w3.org/2005/Atom"><opensearch:totalResults>0</opensearch:totalResults></feed>"#;
 
@@ -457,5 +457,108 @@ fn xiaohongshu_browser_deep_doctor_refuses_the_route_while_its_order_is_empty() 
         "stdout: {}\nstderr: {}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+/// Runs a shallow doctor where every HTTP provider is reachable, `youtube_web` among them when
+/// the YouTube order lists it.
+fn shallow_with_youtube_web(enabled: bool) -> (Value, usize) {
+    let requests = if enabled { 12 } else { 11 };
+    let fixture = Fixture::start_sequence(reachable_responses(requests));
+    let order = if enabled {
+        "[\"youtube_api\", \"youtube_web\"]"
+    } else {
+        "[\"youtube_api\"]"
+    };
+    let environment = RunEnvironment::new(&format!(
+        "{}\n[providers.youtube_web]\nurl = {:?}\n\n[platforms.youtube]\norder = {order}\n",
+        shallow_config(&fixture.url),
+        fixture.url
+    ));
+    let output = environment.run(&["doctor"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
+    (
+        route_status(&payload, "youtube_web").clone(),
+        fixture.finish_all().len(),
+    )
+}
+
+#[test]
+fn shallow_doctor_reaches_youtube_web_only_while_an_order_enables_it() {
+    let (disabled, disabled_requests) = shallow_with_youtube_web(false);
+    let (enabled, enabled_requests) = shallow_with_youtube_web(true);
+
+    assert_eq!(
+        (
+            &disabled["configured"],
+            &disabled["reachable"],
+            disabled_requests,
+            &enabled["configured"],
+            &enabled["reachable"],
+            enabled_requests,
+        ),
+        (
+            &Value::Bool(false),
+            &Value::Bool(false),
+            11,
+            &Value::Bool(true),
+            &Value::Bool(true),
+            12,
+        )
+    );
+}
+
+#[test]
+fn youtube_web_deep_doctor_refuses_the_route_while_no_order_enables_it() {
+    let fixture = Fixture::start_canary();
+    let environment = RunEnvironment::new(&format!(
+        "[providers.youtube_web]\nurl = {:?}\n",
+        fixture.url
+    ));
+
+    let output = environment.run(&["doctor", "--provider", "youtube_web"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["error_kind"],
+            &payload["message"],
+            fixture.finish_all().len()
+        ),
+        (
+            Some(3),
+            &Value::String("config".into()),
+            &Value::String(
+                "no platform order lists `youtube_web`; add it to the order to enable it".into()
+            ),
+            0
+        )
+    );
+}
+
+#[test]
+fn youtube_web_deep_doctor_fetches_the_canary_video_metadata() {
+    let fixture = Fixture::start_sequence_for(|origin| {
+        vec![
+            youtube_web::watch_page(&youtube_web::zoo_embedded(youtube_web::ZOO_DESCRIPTION)),
+            youtube_web::json(&youtube_web::zoo_player(
+                &[youtube_web::track(origin, "en", false)],
+                0,
+            )),
+        ]
+    });
+    let environment = RunEnvironment::new(&youtube_web::config(&fixture.url));
+
+    let output = environment.run(&["doctor", "--provider", "youtube_web"]);
+    assert_deep_success(&output, "youtube_web", &[("fetch", "http")]);
+    let requests = fixture.finish_all();
+
+    assert_eq!(
+        requests
+            .iter()
+            .map(|request| support::youtube::path(request))
+            .collect::<Vec<_>>(),
+        ["/watch", "/youtubei/v1/player"]
     );
 }

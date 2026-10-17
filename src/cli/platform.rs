@@ -399,11 +399,7 @@ fn arxiv_fetch(arguments: ArxivFetchArgs) -> Result<CommandOutput, AppError> {
     } = arguments;
     let reference = PlatformRef::parse(Platform::Arxiv, &reference)
         .map_err(|error| AppError::Argument(error.to_string()))?;
-    let request = PlatformFetchRequest {
-        reference,
-        depth: depth.into(),
-        access: None,
-    };
+    let request = PlatformFetchRequest::new(reference, depth.into());
     fetch(
         Platform::Arxiv,
         request,
@@ -425,11 +421,7 @@ fn ssrn_fetch(arguments: SsrnFetchArgs) -> Result<CommandOutput, AppError> {
     } = arguments;
     let reference = PlatformRef::parse(Platform::Ssrn, &reference)
         .map_err(|error| AppError::Argument(error.to_string()))?;
-    let request = PlatformFetchRequest {
-        reference,
-        depth: depth.into(),
-        access: None,
-    };
+    let request = PlatformFetchRequest::new(reference, depth.into());
     fetch(
         Platform::Ssrn,
         request,

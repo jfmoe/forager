@@ -8,8 +8,9 @@ use super::constructors::{
 use super::{
     ArxivApi, DocsSearch, HnApi, KeyAccount, MainSearch, ModelBreakers, PlatformFetch,
     PlatformSearch, ProviderId, Serpapi, SsrnBrowser, SsrnCrossref, SupplementalSearch,
-    VerticalSearch, WebFetch, WebSearch, XiaohongshuBrowser, YoutubeApi, arxiv, hn_api, opencli,
-    serpapi, ssrn_browser, ssrn_crossref, web_fetch, xai, xiaohongshu_browser, youtube_api,
+    VerticalSearch, WebFetch, WebSearch, XiaohongshuBrowser, YoutubeApi, YoutubeWeb, arxiv, hn_api,
+    opencli, serpapi, ssrn_browser, ssrn_crossref, web_fetch, xai, xiaohongshu_browser,
+    youtube_api, youtube_web,
 };
 use crate::catalog::{ProviderTransport, VERTICAL_SEARCH, WEB_FETCH, WEB_SEARCH, registration};
 use crate::config::{
@@ -163,6 +164,9 @@ pub(crate) fn build_platform_search(
         PlatformRouteConfig::YoutubeApi(config) => {
             Box::new(build_youtube_api(config, client, retry_policy, deadline))
         }
+        PlatformRouteConfig::YoutubeWeb(_) => {
+            unreachable!("youtube_web serves fetch only, so planning never selects it for search")
+        }
     }
 }
 
@@ -194,6 +198,9 @@ pub(crate) fn build_platform_fetch(
         }
         PlatformRouteConfig::YoutubeApi(config) => {
             Box::new(build_youtube_api(config, client, retry_policy, deadline))
+        }
+        PlatformRouteConfig::YoutubeWeb(config) => {
+            Box::new(build_youtube_web(config, client, deadline))
         }
     }
 }
@@ -365,6 +372,21 @@ fn build_youtube_api(
     )
 }
 
+// The route never retries, so the shared retry policy does not reach it.
+fn build_youtube_web(
+    config: HttpRouteRuntimeConfig,
+    client: Client,
+    deadline: Deadline,
+) -> YoutubeWeb {
+    YoutubeWeb::new(
+        config,
+        client,
+        route_limiter(ProviderId::YoutubeWeb)
+            .expect("youtube_web registration declares an access policy"),
+        deadline,
+    )
+}
+
 fn build_ssrn_crossref(
     config: HttpRouteRuntimeConfig,
     client: Client,
@@ -447,6 +469,7 @@ pub(crate) fn platform_fetch_support(
         ProviderId::Xai => xai::fetch_support(request),
         ProviderId::HnApi => hn_api::fetch_support(request),
         ProviderId::YoutubeApi => youtube_api::fetch_support(request),
+        ProviderId::YoutubeWeb => youtube_web::fetch_support(request),
         _ => return None,
     };
     Some(transport_support(id).and(route))

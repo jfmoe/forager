@@ -19,7 +19,9 @@ use super::platform_x::{XPostData, XRef, XSearchOptions};
 use super::platform_xiaohongshu::{
     AccessToken, XiaohongshuItemData, XiaohongshuNoteData, XiaohongshuRef, XiaohongshuSearchOptions,
 };
-use super::platform_youtube::{YoutubeItemData, YoutubeRef, YoutubeSearchOptions};
+use super::platform_youtube::{
+    YoutubeFetchOptions, YoutubeItemData, YoutubeRef, YoutubeSearchOptions,
+};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -386,6 +388,60 @@ pub(crate) struct PlatformFetchRequest {
     /// The access token that opens the entity, for a platform that needs one; it never reaches
     /// the ref, the canonical URL, or the journal.
     pub(crate) access: Option<AccessToken>,
+    pub(crate) options: PlatformFetchOptions,
+}
+
+impl PlatformFetchRequest {
+    /// Builds a request with the platform's default fetch options.
+    pub(crate) fn new(reference: PlatformRef, depth: ContentDepth) -> Self {
+        Self {
+            options: PlatformFetchOptions::defaults(reference.platform()),
+            reference,
+            depth,
+            access: None,
+        }
+    }
+
+    /// Checks the cross-field rules that argument parsing cannot express.
+    pub(crate) fn validate(&self) -> Result<(), String> {
+        match &self.options {
+            PlatformFetchOptions::Youtube(options) => options.validate(self.depth),
+            PlatformFetchOptions::Arxiv
+            | PlatformFetchOptions::Ssrn
+            | PlatformFetchOptions::Scholar
+            | PlatformFetchOptions::Xiaohongshu
+            | PlatformFetchOptions::X
+            | PlatformFetchOptions::Hn => Ok(()),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+/// The typed fetch options of one platform; a platform without fetch options has an empty
+/// variant.
+pub(crate) enum PlatformFetchOptions {
+    Arxiv,
+    Ssrn,
+    Scholar,
+    Xiaohongshu,
+    X,
+    Hn,
+    Youtube(YoutubeFetchOptions),
+}
+
+impl PlatformFetchOptions {
+    /// Returns the default fetch options of `platform`.
+    pub(crate) fn defaults(platform: Platform) -> Self {
+        match platform {
+            Platform::Arxiv => Self::Arxiv,
+            Platform::Ssrn => Self::Ssrn,
+            Platform::Scholar => Self::Scholar,
+            Platform::Xiaohongshu => Self::Xiaohongshu,
+            Platform::X => Self::X,
+            Platform::Hn => Self::Hn,
+            Platform::Youtube => Self::Youtube(YoutubeFetchOptions::default()),
+        }
+    }
 }
 
 /// One route's fetch result before the full-text stage.
@@ -440,6 +496,29 @@ impl LocalMediaType {
             Self::Pdf => "pdf",
         }
     }
+}
+
+#[derive(Clone, Debug, Serialize)]
+/// What a transcript document holds: one timed text of a video, by language and origin.
+pub struct TranscriptInfo {
+    pub language: String,
+    pub source: TranscriptSource,
+    /// The timed cues the document renders.
+    pub cues: usize,
+    /// The paragraphs the cues were merged into.
+    pub paragraphs: usize,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+/// Who made the timed text of a transcript.
+pub enum TranscriptSource {
+    /// Captions the publisher uploaded.
+    Manual,
+    /// The platform's automatic speech recognition.
+    Asr,
+    /// A model that watched and listened to the video; not verbatim.
+    Model,
 }
 
 #[derive(Clone, Debug, Serialize)]

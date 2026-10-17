@@ -35,10 +35,10 @@ const X_ASK_CANARY_QUERY: &str = "What has SpaceX posted about Starship recently
 const HN_CANARY_QUERY: &str = "rust";
 // Many channels lecture on attention and transformers, so the search is never empty.
 const YOUTUBE_CANARY_QUERY: &str = "attention transformer";
-const SPECIFICATION_CASE_IDS: [&str; 39] = [
+const SPECIFICATION_CASE_IDS: [&str; 40] = [
     "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12",
     "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24", "C25",
-    "C26", "C27", "C28", "C29", "C30", "C31", "C32", "C33", "C34", "C35", "C36", "C37",
+    "C26", "C27", "C28", "C29", "C30", "C31", "C32", "C33", "C34", "C35", "C36", "C37", "C38",
 ];
 // One comment page holds 10 top-level comments, so 15 needs the second page.
 const XIAOHONGSHU_COMMENTS_LIMIT: &str = "15";
@@ -245,6 +245,21 @@ fn platform_fetch_canary(platform: Platform) -> Option<(&'static str, &'static s
         Platform::Hn => Some(("hn:8863", "thread")),
         // The first YouTube upload (2005), whose metadata no longer changes.
         Platform::Youtube => Some(("youtube:jNQXAC9IVRw", "metadata")),
+    }
+}
+
+/// The canary of a fetch case that writes its document to a file: the Hacker News discussion,
+/// and the transcript of the YouTube canary, which only `youtube_web` reads.
+fn document_fetch_canary(definition: LiveCaseDefinition) -> Option<(&'static str, &'static str)> {
+    if definition.operation != "fetch" {
+        return None;
+    }
+    match (definition.platform?, definition.provider?) {
+        (Platform::Hn, _) => platform_fetch_canary(Platform::Hn),
+        (Platform::Youtube, route) if route == ProviderId::YoutubeWeb.name() => {
+            platform_fetch_canary(Platform::Youtube).map(|(reference, _)| (reference, "full_text"))
+        }
+        _ => None,
     }
 }
 
@@ -732,12 +747,14 @@ fn run_case_once(
     let case_id = definition.id;
     let timeout_seconds = remaining_seconds(deadline).ok_or("live smoke hard deadline elapsed")?;
     let executable = std::env::current_exe().map_err(|_| "cannot resolve forager executable")?;
-    // P2 writes its evidence, the Xiaohongshu fetch its full text, and the Hacker News fetch its
-    // discussion here.
-    let scratch = (case_id == "P2" || is_xiaohongshu_fetch(definition) || is_hn_fetch(definition))
-        .then(tempfile::tempdir)
-        .transpose()
-        .map_err(|_| "cannot create a temporary directory for the live case")?;
+    // P2 writes its evidence, the Xiaohongshu fetch its full text, and the Hacker News and
+    // YouTube document fetches their documents here.
+    let scratch = (case_id == "P2"
+        || is_xiaohongshu_fetch(definition)
+        || document_fetch_canary(definition).is_some())
+    .then(tempfile::tempdir)
+    .transpose()
+    .map_err(|_| "cannot create a temporary directory for the live case")?;
     let commands = command_specs(
         case_id,
         timeout_seconds,
@@ -828,10 +845,6 @@ fn comments_coverage(payload: &Value) -> Result<(), CaseFailure> {
 
 fn is_xiaohongshu_fetch(definition: LiveCaseDefinition) -> bool {
     definition.platform == Some(Platform::Xiaohongshu) && definition.operation == "fetch"
-}
-
-fn is_hn_fetch(definition: LiveCaseDefinition) -> bool {
-    definition.platform == Some(Platform::Hn) && definition.operation == "fetch"
 }
 
 /// Whether a failed command ended on Auth or an attempt-level Parameter failure.
@@ -984,8 +997,7 @@ fn command_specs(
                 ],
                 ResultShape::PlatformSearch,
             )
-        } else if is_hn_fetch(definition) {
-            let (reference, depth) = platform_fetch_canary(platform)?;
+        } else if let Some((reference, depth)) = document_fetch_canary(definition) {
             let content_dir = scratch_dir?.display().to_string();
             one(
                 &[

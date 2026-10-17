@@ -42,7 +42,7 @@ fn shallow_doctor_reports_all_registry_providers_and_reuses_the_config_list_view
             Some(0),
             &Value::String("shallow".into()),
             &Value::Bool(true),
-            Some(17),
+            Some(18),
             &config,
             &Value::String("xai".into()),
             &Value::Bool(true),
@@ -443,7 +443,7 @@ fn doctor_markdown_preserves_the_json_status_and_effective_configuration() {
     assert!(markdown.contains("## Effective configuration"));
     assert!(markdown.contains(r#""source": "file""#));
     assert!(!markdown.contains("exa-secret"));
-    assert_eq!(payload["providers"].as_array().map(Vec::len), Some(17));
+    assert_eq!(payload["providers"].as_array().map(Vec::len), Some(18));
     assert_eq!(fixture.finish_all().len(), 22);
 }
 

@@ -386,10 +386,11 @@ pub(crate) fn plan_routes<C: Clone>(
             .filter(|candidate| !candidate.configured && operation_routes.contains(&candidate.id))
             .map(|candidate| config::provider_keys_key(candidate.id.name()))
             .collect::<Vec<_>>();
+        let opt_in = opt_in_hint(order_key, operation_routes, candidates);
         let hint = if missing_keys.is_empty() {
-            opt_in_hint(order_key, operation_routes, candidates)
+            opt_in
         } else {
-            format!("; set {}", missing_keys.join(" or "))
+            format!("; set {}{opt_in}", missing_keys.join(" or "))
         };
         return Err(PlatformPreflightError::Config(format!(
             "{order_key} has no configured route for {platform} {operation}{hint}"
@@ -427,8 +428,9 @@ pub(crate) fn plan_routes<C: Clone>(
     Ok(plan)
 }
 
-/// Says how to enable the operation's process routes that the order leaves out. They drive the
-/// user's own browser, so only the user can enable them (ADR 0020).
+/// Says how to enable the operation's routes that the order leaves out and only users may
+/// enable: process routes drive their own browser (ADR 0020), and an HTTP route may read a
+/// site's undocumented endpoints (ADR 0028).
 fn opt_in_hint<C>(
     order_key: &str,
     operation_routes: &[ProviderId],
@@ -443,7 +445,7 @@ fn opt_in_hint<C>(
                 route = route.name(),
                 site = adapter.site,
             )),
-            ProviderTransport::Http => None,
+            ProviderTransport::Http => catalog::http_opt_in(*route).map(|text| format!("; {text}")),
         })
         .collect()
 }

@@ -309,7 +309,7 @@ Their `--timeout` defaults to `120` and includes waits for the platform's reques
 across all local processes (arXiv: one request every 3 seconds; SSRN through Crossref: one request
 per second; SSRN through the browser: one OpenCLI command every 5 seconds; Xiaohongshu: one OpenCLI
 command every 10 seconds; Hacker News: one request to either of its two endpoints every half
-second; YouTube: one request per second; Google Scholar through SerpApi and X through xAI have no local window).
+second; YouTube through the Data API: one request per second; YouTube through `youtube_web`: one request every 4 seconds; Google Scholar through SerpApi and X through xAI have no local window).
 
 ### `platform arxiv search`
 
@@ -913,7 +913,7 @@ rejected the request), `network`, `timeout`, and `runtime` for an unexpected res
 ### `platform youtube fetch`
 
 ```console
-forager platform youtube fetch REF_OR_URL [--depth metadata|abstract|full_text]
+forager platform youtube fetch REF_OR_URL [--depth metadata|abstract|full_text] [--lang LANG]...
                                           [--content-dir DIR] [--timeout SECONDS]
                                           [--format json|markdown|content]
                                           [--output FILE [--receipt]] [--verbose]
@@ -922,19 +922,37 @@ forager platform youtube fetch REF_OR_URL [--depth metadata|abstract|full_text]
 | Argument or option | Meaning | Default |
 | --- | --- | --- |
 | `REF_OR_URL` | `youtube:<video_id>`, or a watch, `youtu.be`, `shorts`, `live`, or `embed` video URL; `t`, `list`, `si`, and other viewing parameters are ignored. | Required |
-| `--depth DEPTH` | `metadata` returns the video's fields; `abstract` adds the full description and its chapters; `full_text` (captions) has no route yet and exits 2. | `full_text` |
-| `--content-dir DIR` | Directory for a full-text Markdown file. | New directory under the system temp directory |
-| `--format FORMAT` | `json`, `markdown`, or `content`; `content` prints the description. | `json` |
+| `--depth DEPTH` | `metadata` returns the video's fields; `abstract` adds the full description and its chapters; `full_text` renders one caption track as a transcript file and needs the `youtube_web` route in `platforms.youtube.order`. | `full_text` |
+| `--lang LANG` | `full_text` only: a caption language such as `en` or `pt-BR`, repeatable in priority order. Every publisher track in these languages comes before any automatic (ASR) one; a bare tag matches any variant, a tag with a subtag matches exactly; machine translations never count. | The video's original language |
+| `--content-dir DIR` | Directory for the transcript file. | New directory under the system temp directory |
+| `--format FORMAT` | `json`, `markdown`, or `content`; `content` prints the description (`abstract`) or the transcript (`full_text`) and writes no file. | `json` |
 
-JSON output is the item fields of search with `snippet: null` and `language` (the audio or
-description language); `abstract` adds `description` and `chapters`
+`metadata` and `abstract` come from `youtube_api` (from `youtube_web` when the order has no
+configured `youtube_api`). JSON output is the item fields of search with `snippet: null` and
+`language` (through `youtube_api`, the audio or description language; through `youtube_web`, the
+original language its caption tracks imply); `youtube_web` adds `caption_tracks`
+(`[{language, source}]`, `source` `manual` or `asr`, never machine translations) and reports
+`likes` and `comments` as `null`. `abstract` adds `description` and `chapters`
 (`[{start_seconds, title}]`, empty when the description does not mark at least three chapters
-starting at `0:00`). A fetch costs one unit of the 10,000-unit budget, not a search.
+starting at `0:00`). `full_text` writes `youtube-<id>.md`: a header (title, ref, channel, date,
+duration, caption language and source, and a note that the text is captions only), the
+description, then the transcript under chapter headings in paragraphs that each open with a
+`[mm:ss](<url>&t=<seconds>s)` link. Its JSON adds `content_url`, `content_provider`
+(`youtube_web`), `content_path`, `content_len`, and `transcript`
+(`{language, source, cues, paragraphs}`), and leaves out `description` and `chapters`. A fetch
+through `youtube_api` costs one unit of the 10,000-unit budget, not a search; one through
+`youtube_web` costs nothing but sends two requests (three at `full_text`), 4 seconds apart.
 
 Exit codes: `2` before any request for an unrecognized input, a playlist or channel ref or URL,
-an `@handle`, `/c/`, or `/user/` page, or `full_text` depth; `3` as under search; `4` for
-`parameter` (`YouTube video not found or not public: youtube:<id>`) and the failures under
-search; `5` (`quality`) for `abstract` of a video without a description.
+an `@handle`, `/c/`, or `/user/` page, `--lang` without `full_text` or with an invalid tag, or
+`full_text` while the order has no `youtube_web` (the message gives the command that enables it
+and its risk); `3` as under search; `4` for `parameter` (`YouTube video not found or not public`
+through `youtube_api`, `not found or not playable` through `youtube_web`), `auth` (YouTube asks
+to sign in or to confirm the caller is not a bot: the egress IP is temporarily restricted),
+`rate_limited`, `runtime` (an empty caption track, which may mean a soft IP block; a player answer
+for another video; a caption track outside the configured origin), and the failures under search;
+`5` (`quality`) for `abstract` of a video without a description, a `full_text` with no qualifying
+caption track (the message lists the available languages), or a live stream.
 
 ## Gemini Deep Research
 
