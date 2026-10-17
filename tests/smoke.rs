@@ -1,70 +1,15 @@
 mod support;
 
 use std::fs;
-use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::path::Path;
+use std::process::Command;
 use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 use support::hn::{search_page, story_hit, story_item, story_tree};
 use support::scholar::{fixture, ok};
-use support::youtube as yt;
+use support::smoke::{DISABLED_PLATFORMS, SmokeEnvironment, case};
 use support::{Fixture, Response, run_command};
-
-struct SmokeEnvironment {
-    _root: tempfile::TempDir,
-    config_dir: PathBuf,
-    state_dir: PathBuf,
-    home_dir: PathBuf,
-    journal_dir: PathBuf,
-}
-
-impl SmokeEnvironment {
-    fn new(config: impl FnOnce(&Path) -> String) -> Self {
-        let root = tempfile::tempdir().expect("create isolated root");
-        let config_home = root.path().join("xdg-config");
-        let config_dir = config_home.join("forager");
-        let state_dir = root.path().join("xdg-state");
-        let home_dir = root.path().join("home");
-        let journal_dir = root.path().join("journal");
-        fs::create_dir_all(&config_dir).expect("create config directory");
-        fs::create_dir_all(&home_dir).expect("create home directory");
-        forager::config::ensure_private_directory(&config_dir)
-            .expect("restrict config directory permissions");
-        let mut config_file = forager::config::create_private_file(&config_dir.join("config.toml"))
-            .expect("create private config file");
-        config_file
-            .write_all(config(&journal_dir).as_bytes())
-            .expect("write config");
-        Self {
-            _root: root,
-            config_dir,
-            state_dir,
-            home_dir,
-            journal_dir,
-        }
-    }
-
-    fn run(&self, arguments: &[&str]) -> Output {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_forager"));
-        command
-            .args(arguments)
-            .env_clear()
-            .env(
-                "XDG_CONFIG_HOME",
-                self.config_dir.parent().expect("XDG config home"),
-            )
-            .env("XDG_STATE_HOME", &self.state_dir)
-            .env("HOME", &self.home_dir)
-            .env("NO_PROXY", "127.0.0.1,localhost");
-        #[cfg(windows)]
-        if let Some(system_root) = std::env::var_os("SystemRoot") {
-            command.env("SystemRoot", system_root);
-        }
-        run_command(&mut command, None)
-    }
-}
 
 #[test]
 fn offline_smoke_reports_local_readiness_without_contacting_provider_endpoints() {
@@ -626,197 +571,6 @@ fn live_smoke_runs_the_scholar_cases_only_with_a_serpapi_key() {
 }
 
 #[test]
-fn live_smoke_runs_the_youtube_cases_only_with_a_youtube_api_key() {
-    let api = Fixture::start_sequence(vec![
-        yt::search_page(
-            &[yt::search_result("eMlx5fFNoYc", "Attention", "excerpt")],
-            None,
-        ),
-        yt::videos_page(&[yt::video_stats("eMlx5fFNoYc", "PT26M10S", "1", None)]),
-        yt::videos_page(&[yt::zoo_video("The first video.")]),
-        yt::comment_threads_page(
-            &[yt::comment_thread(
-                &yt::comment("Ugz1", "fan", "Hi.", 1),
-                0,
-                &[],
-            )],
-            None,
-        ),
-        yt::playlist_items_page(
-            &[yt::playlist_item(
-                yt::LINEAR_ALGEBRA,
-                0,
-                "fNk_zzaMoSs",
-                "Vectors",
-                "",
-            )],
-            None,
-        ),
-    ]);
-    let run = |keys: &str| {
-        let environment = SmokeEnvironment::new(|journal_dir| {
-            format!(
-                "[providers.youtube_api]\nurl = \"{}\"\nkeys = {keys}\n[journal]\ndir = {journal_dir:?}\n{DISABLED_PLATFORMS}",
-                api.url
-            )
-        });
-        let output = environment.run(&["smoke", "--live", "--timeout", "20"]);
-        let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live smoke JSON");
-        ["C36", "C37", "C39", "C40"].map(|id| case(&payload, id)["status"].clone())
-    };
-
-    let without_key = run("[]");
-    let with_key = run("[\"test-youtube-key\"]");
-    let requests = api.finish_all();
-
-    assert_eq!(
-        (
-            without_key,
-            with_key,
-            requests[0].starts_with("GET /search?"),
-            requests[0].contains("q=attention+transformer") && requests[0].contains("maxResults=5"),
-            requests[2].starts_with("GET /videos?") && requests[2].contains("id=jNQXAC9IVRw"),
-            requests[3].starts_with("GET /commentThreads?")
-                && requests[3].contains("videoId=jNQXAC9IVRw")
-                && requests[3].contains("maxResults=5"),
-            requests[4].starts_with("GET /playlistItems?")
-                && requests[4].contains("playlistId=PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab")
-                && requests[4].contains("maxResults=5"),
-        ),
-        (
-            [(); 4].map(|()| Value::String("unconfigured".into())),
-            [(); 4].map(|()| Value::String("passed".into())),
-            true,
-            true,
-            true,
-            true,
-            true,
-        )
-    );
-}
-
-#[test]
-fn live_smoke_runs_the_youtube_model_cases_after_a_metadata_check_through_the_configured_order() {
-    let zoo = || yt::videos_page(&[yt::zoo_video("The first video.")]);
-    let api = Fixture::start_sequence(vec![
-        yt::search_page(
-            &[yt::search_result("eMlx5fFNoYc", "Attention", "excerpt")],
-            None,
-        ),
-        yt::videos_page(&[yt::video_stats("eMlx5fFNoYc", "PT26M10S", "1", None)]),
-        zoo(),
-        yt::comment_threads_page(
-            &[yt::comment_thread(
-                &yt::comment("Ugz1", "fan", "Hi.", 1),
-                0,
-                &[],
-            )],
-            None,
-        ),
-        yt::playlist_items_page(
-            &[yt::playlist_item(
-                yt::LINEAR_ALGEBRA,
-                0,
-                "fNk_zzaMoSs",
-                "Vectors",
-                "",
-            )],
-            None,
-        ),
-        zoo(),
-        zoo(),
-    ]);
-    let gemini = Fixture::start_sequence(vec![
-        support::gemini_api::answer("Two elephants; a dark jacket."),
-        support::gemini_api::answer(
-            &json!({"language": "en", "segments": [{"start": 1.0, "end": 3.0, "text": "Here we are."}]})
-                .to_string(),
-        ),
-    ]);
-    let environment = SmokeEnvironment::new(|journal_dir| {
-        format!(
-            "[providers.youtube_api]\nurl = \"{}\"\nkeys = [\"test-youtube-key\"]\n[providers.gemini_api]\nurl = \"{}\"\nkeys = [\"test-gemini-key\"]\n[journal]\ndir = {journal_dir:?}\n{DISABLED_PLATFORMS}",
-            api.url, gemini.url
-        )
-    });
-
-    let output = environment.run(&["smoke", "--live", "--timeout", "30"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live smoke JSON");
-    let statuses = ["C41", "C42"].map(|id| case(&payload, id)["status"].clone());
-    let api_requests = api.finish_all();
-    let model_requests = gemini.finish_all();
-
-    assert_eq!(
-        (
-            statuses,
-            api_requests[5..]
-                .iter()
-                .all(|request| request.starts_with("GET /videos?")
-                    && request.contains("id=jNQXAC9IVRw")),
-            model_requests
-                .iter()
-                .map(|request| {
-                    support::request_json(request)["contents"][0]["parts"][0]["fileData"]["fileUri"]
-                        .clone()
-                })
-                .collect::<Vec<_>>(),
-        ),
-        (
-            [(); 2].map(|()| Value::String("passed".into())),
-            true,
-            vec![json!("https://www.youtube.com/watch?v=jNQXAC9IVRw"); 2],
-        ),
-        "stdout: {}",
-        String::from_utf8_lossy(&output.stdout)
-    );
-}
-
-#[test]
-fn live_smoke_reads_the_youtube_transcript_only_while_the_order_enables_youtube_web() {
-    let youtube = Fixture::start_sequence_for(|origin| {
-        vec![
-            support::youtube_web::watch_page(&support::youtube_web::zoo_embedded("Zoo.")),
-            support::youtube_web::json(&support::youtube_web::zoo_player(
-                &[support::youtube_web::track(origin, "en", false)],
-                0,
-            )),
-            support::youtube_web::srv1(support::youtube_web::ZOO_SRV1_EN),
-        ]
-    });
-    let run = |order: &str| {
-        let environment = SmokeEnvironment::new(|journal_dir| {
-            format!(
-                "[providers.youtube_web]\nurl = \"{}\"\n[journal]\ndir = {journal_dir:?}\n{DISABLED_PLATFORMS}[platforms.youtube]\norder = {order}\n",
-                youtube.url
-            )
-        });
-        let output = environment.run(&["smoke", "--live", "--timeout", "25"]);
-        let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live smoke JSON");
-        ["C37", "C38"].map(|id| case(&payload, id)["status"].clone())
-    };
-
-    let disabled = run("[\"youtube_api\"]");
-    let enabled = run("[\"youtube_web\"]");
-    let requests = youtube.finish_all();
-
-    assert_eq!(
-        (
-            disabled,
-            enabled,
-            requests[0].starts_with("GET /watch?v=jNQXAC9IVRw "),
-        ),
-        (
-            [(); 2].map(|()| Value::String("unconfigured".into())),
-            [
-                Value::String("unconfigured".into()),
-                Value::String("passed".into())
-            ],
-            true,
-        )
-    );
-}
-
-#[test]
 fn live_smoke_runs_the_x_cases_through_the_xai_route_only_when_the_order_lists_it() {
     let response = |name: &str| support::x::completed(&support::x::fixture(name));
     let xai = Fixture::start_sequence(vec![
@@ -1277,15 +1031,6 @@ fn offline_smoke_returns_config_error_for_invalid_configuration() {
     assert!(!combined.contains(secret), "smoke leaked {secret}");
 }
 
-fn case<'a>(payload: &'a Value, id: &str) -> &'a Value {
-    payload["cases"]
-        .as_array()
-        .expect("live cases")
-        .iter()
-        .find(|case| case["id"] == id)
-        .expect("registered live case")
-}
-
 #[test]
 fn offline_smoke_returns_config_error_when_no_main_search_credential_is_present() {
     let environment = SmokeEnvironment::new(|journal_dir| {
@@ -1462,10 +1207,6 @@ fn minimal_config(endpoint: &str, journal_dir: &Path) -> String {
         "[providers.xai]\nurl = {endpoint:?}\nkeys = [\"xai-secret\"]\n{DISABLED_PLATFORMS}[journal]\ndir = {journal_dir:?}\n"
     )
 }
-
-// Platform routes need no credentials, and the X route shares the main search key, so live
-// smoke would run their cases unless the platform orders disable them.
-const DISABLED_PLATFORMS: &str = "[platforms.arxiv]\norder = []\n[platforms.ssrn]\norder = []\n[platforms.x]\norder = []\n[platforms.hn]\norder = []\n";
 
 // Debug path formatting supplies the quoted and escaped TOML string literal required by fixtures.
 #[expect(clippy::unnecessary_debug_formatting)]

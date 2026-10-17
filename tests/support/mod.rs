@@ -24,6 +24,7 @@ pub(crate) mod gemini_api;
 pub(crate) mod hn;
 pub(crate) mod opencli;
 pub(crate) mod scholar;
+pub(crate) mod smoke;
 pub(crate) mod x;
 pub(crate) mod youtube;
 pub(crate) mod youtube_web;
