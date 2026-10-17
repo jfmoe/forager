@@ -3,10 +3,10 @@
 
 use serde::Deserialize;
 
-use super::{Refusal, YoutubeApi, channel_ref, decode, utc_timestamp};
+use super::{Refusal, YoutubeApi, channel_ref, decode};
 use crate::net::{AttemptFailure, combine_diagnostics};
 use crate::providers::execution::ExecutionOutcome;
-use crate::providers::shared::parameter_error;
+use crate::providers::shared::{parameter_error, utc_timestamp};
 use crate::types::{
     AttemptErrorKind, ContentDepth, PlatformItem, PlatformItemData, PlatformRef, ProviderAttempt,
     ProviderError, VIDEOS, YoutubeCollection, YoutubeItemData, YoutubeKind, YoutubeRef,

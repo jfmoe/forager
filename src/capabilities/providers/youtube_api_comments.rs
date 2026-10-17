@@ -3,8 +3,9 @@
 
 use serde::Deserialize;
 
-use super::{Refusal, YoutubeApi, channel_ref, decode, utc_timestamp};
+use super::{Refusal, YoutubeApi, channel_ref, decode};
 use crate::net::AttemptFailure;
+use crate::providers::shared::utc_timestamp;
 use crate::types::{
     AttemptErrorKind, COMMENTS, ProviderError, YoutubeComment, YoutubeCommentSort,
     YoutubeCommentsOutcome, YoutubeCommentsRequest, YoutubeRef, YoutubeReply,
