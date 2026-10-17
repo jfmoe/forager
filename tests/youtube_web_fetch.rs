@@ -82,7 +82,7 @@ fn zoo_full_text_result(content_dir: &Path) -> Value {
         "views": 444_721_399,
         "likes": null,
         "comments": null,
-        "language": "en",
+        "language": null,
         "has_captions": true,
         "caption_tracks": [
             {"language": "en", "source": "manual"},

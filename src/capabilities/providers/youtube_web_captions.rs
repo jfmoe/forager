@@ -72,16 +72,25 @@ impl TrackList {
             .collect()
     }
 
-    /// Returns the video's original language: the language of its only ASR track, which
-    /// recognized the speech; without exactly one, the language of the track the player shows
-    /// by default.
-    pub(super) fn original_language(&self) -> Option<&str> {
+    /// Returns the language of the video's only ASR track, which recognized the speech: the one
+    /// original language the item reports.
+    pub(super) fn spoken_language(&self) -> Option<&str> {
         let mut asr = self
             .caption_tracks
             .iter()
             .filter(|track| track.source() == YoutubeCaptionSource::Asr);
-        if let (Some(only), None) = (asr.next(), asr.next()) {
-            return Some(only.language());
+        match (asr.next(), asr.next()) {
+            (Some(only), None) => Some(only.language()),
+            _ => None,
+        }
+    }
+
+    /// Returns the original language a track is selected by: the spoken language, else the
+    /// language of the track the player shows by default. The default track only guides the
+    /// selection; it may follow the request's `Accept-Language` rather than the speech.
+    fn original_language(&self) -> Option<&str> {
+        if let Some(spoken) = self.spoken_language() {
+            return Some(spoken);
         }
         let audio = self
             .audio_tracks
@@ -337,6 +346,18 @@ mod tests {
                 None
             ]
         );
+    }
+
+    #[test]
+    fn only_the_language_of_the_only_asr_track_is_known_to_be_spoken() {
+        let languages = [
+            tracks(&[("de", false), ("en", false), ("en", true)], Some(0)),
+            tracks(&[("en", false), ("de", false)], Some(1)),
+            tracks(&[("en", true), ("fr", true)], Some(1)),
+        ]
+        .map(|list| list.spoken_language().map(str::to_owned));
+
+        assert_eq!(languages, [Some("en".into()), None, None]);
     }
 
     #[test]
