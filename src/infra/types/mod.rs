@@ -17,6 +17,7 @@ mod platform_ssrn_search;
 mod platform_x;
 mod platform_xiaohongshu;
 mod platform_xiaohongshu_comments;
+mod platform_youtube;
 mod research;
 mod search;
 
@@ -82,6 +83,11 @@ pub(crate) use platform_xiaohongshu_comments::{
 };
 pub use platform_xiaohongshu_comments::{
     XiaohongshuComment, XiaohongshuCommentsPage, XiaohongshuReply,
+};
+pub(crate) use platform_youtube::chapters_from_description;
+pub use platform_youtube::{
+    YoutubeCaptionSource, YoutubeCaptionTrack, YoutubeChapter, YoutubeDuration, YoutubeItemData,
+    YoutubeKind, YoutubeLiveStatus, YoutubeRef, YoutubeSearchOptions, YoutubeSort,
 };
 pub(crate) use research::DocumentationEvidence;
 pub use research::{

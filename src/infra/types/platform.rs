@@ -19,6 +19,7 @@ use super::platform_x::{XPostData, XRef, XSearchOptions};
 use super::platform_xiaohongshu::{
     AccessToken, XiaohongshuItemData, XiaohongshuNoteData, XiaohongshuRef, XiaohongshuSearchOptions,
 };
+use super::platform_youtube::{YoutubeItemData, YoutubeRef, YoutubeSearchOptions};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -36,17 +37,20 @@ pub enum Platform {
     X,
     /// Hacker News, a technology news and discussion site.
     Hn,
+    /// YouTube, a video platform.
+    Youtube,
 }
 
 impl Platform {
     /// Every built-in platform.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::Arxiv,
         Self::Ssrn,
         Self::Scholar,
         Self::Xiaohongshu,
         Self::X,
         Self::Hn,
+        Self::Youtube,
     ];
 
     /// Returns the stable platform identifier used by commands and configuration.
@@ -59,6 +63,19 @@ impl Platform {
             Self::Xiaohongshu => "xiaohongshu",
             Self::X => "x",
             Self::Hn => "hn",
+            Self::Youtube => "youtube",
+        }
+    }
+
+    #[cfg(test)]
+    /// Returns every entity kind the platform's refs name.
+    pub(crate) const fn kinds(self) -> &'static [&'static str] {
+        match self {
+            Self::Arxiv | Self::Ssrn | Self::Scholar => &["paper"],
+            Self::Xiaohongshu => &["note"],
+            Self::X => &["post"],
+            Self::Hn => &["item"],
+            Self::Youtube => &["video", "playlist", "channel"],
         }
     }
 }
@@ -136,6 +153,8 @@ pub enum PlatformRef {
     X(XRef),
     /// A Hacker News item.
     Hn(HnRef),
+    /// A YouTube video, playlist, or channel.
+    Youtube(YoutubeRef),
 }
 
 impl PlatformRef {
@@ -152,6 +171,7 @@ impl PlatformRef {
             Platform::Xiaohongshu => XiaohongshuRef::parse(input).map(Self::Xiaohongshu),
             Platform::X => XRef::parse(input).map(Self::X),
             Platform::Hn => HnRef::parse(input).map(Self::Hn),
+            Platform::Youtube => YoutubeRef::parse(input).map(Self::Youtube),
         }
     }
 
@@ -165,10 +185,11 @@ impl PlatformRef {
             Self::Xiaohongshu(_) => Platform::Xiaohongshu,
             Self::X(_) => Platform::X,
             Self::Hn(_) => Platform::Hn,
+            Self::Youtube(_) => Platform::Youtube,
         }
     }
 
-    /// Returns the platform-owned entity kind.
+    /// Returns the platform-owned entity kind of this ref; a platform may have several.
     #[must_use]
     pub const fn kind(&self) -> &'static str {
         match self {
@@ -176,6 +197,7 @@ impl PlatformRef {
             Self::Xiaohongshu(_) => "note",
             Self::X(_) => "post",
             Self::Hn(_) => "item",
+            Self::Youtube(reference) => reference.kind().as_str(),
         }
     }
 
@@ -189,6 +211,7 @@ impl PlatformRef {
             Self::Xiaohongshu(reference) => reference.canonical_url(),
             Self::X(reference) => reference.canonical_url(),
             Self::Hn(reference) => reference.canonical_url(),
+            Self::Youtube(reference) => reference.canonical_url(),
         }
     }
 }
@@ -202,6 +225,7 @@ impl fmt::Display for PlatformRef {
             Self::Xiaohongshu(reference) => write!(formatter, "xiaohongshu:{reference}"),
             Self::X(reference) => write!(formatter, "x:{reference}"),
             Self::Hn(reference) => write!(formatter, "hn:{reference}"),
+            Self::Youtube(reference) => write!(formatter, "youtube:{reference}"),
         }
     }
 }
@@ -228,6 +252,8 @@ pub enum PlatformSearchOptions {
     X(XSearchOptions),
     /// Hacker News options.
     Hn(HnSearchOptions),
+    /// YouTube options.
+    Youtube(YoutubeSearchOptions),
 }
 
 impl PlatformSearchOptions {
@@ -241,6 +267,7 @@ impl PlatformSearchOptions {
             Platform::Xiaohongshu => Self::Xiaohongshu(XiaohongshuSearchOptions::default()),
             Platform::X => Self::X(XSearchOptions::default()),
             Platform::Hn => Self::Hn(HnSearchOptions::default()),
+            Platform::Youtube => Self::Youtube(YoutubeSearchOptions::default()),
         }
     }
 
@@ -254,6 +281,7 @@ impl PlatformSearchOptions {
             Self::Xiaohongshu(_) => Platform::Xiaohongshu,
             Self::X(_) => Platform::X,
             Self::Hn(_) => Platform::Hn,
+            Self::Youtube(_) => Platform::Youtube,
         }
     }
 }
@@ -282,6 +310,7 @@ impl PlatformSearchRequest {
             }
             PlatformSearchOptions::X(options) => options.validate(&self.query, self.limit),
             PlatformSearchOptions::Hn(options) => options.validate(&self.query, self.limit),
+            PlatformSearchOptions::Youtube(options) => options.validate(&self.query, self.limit),
         }
     }
 }
@@ -319,6 +348,8 @@ pub enum PlatformItemData {
     X(XPostData),
     /// Hacker News fields of an item.
     Hn(HnItemData),
+    /// YouTube fields of a video.
+    Youtube(YoutubeItemData),
 }
 
 #[derive(Clone, Debug, Serialize)]

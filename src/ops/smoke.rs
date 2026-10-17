@@ -33,10 +33,12 @@ const XIAOHONGSHU_CANARY_QUERY: &str = "咖啡";
 const X_ASK_CANARY_QUERY: &str = "What has SpaceX posted about Starship recently?";
 // Hacker News discusses Rust every day, so the search is never empty.
 const HN_CANARY_QUERY: &str = "rust";
-const SPECIFICATION_CASE_IDS: [&str; 37] = [
+// Many channels lecture on attention and transformers, so the search is never empty.
+const YOUTUBE_CANARY_QUERY: &str = "attention transformer";
+const SPECIFICATION_CASE_IDS: [&str; 39] = [
     "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12",
     "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24", "C25",
-    "C26", "C27", "C28", "C29", "C30", "C31", "C32", "C33", "C34", "C35",
+    "C26", "C27", "C28", "C29", "C30", "C31", "C32", "C33", "C34", "C35", "C36", "C37",
 ];
 // One comment page holds 10 top-level comments, so 15 needs the second page.
 const XIAOHONGSHU_COMMENTS_LIMIT: &str = "15";
@@ -241,6 +243,17 @@ fn platform_fetch_canary(platform: Platform) -> Option<(&'static str, &'static s
         Platform::X => Some(("x:2110126570233094527", "metadata")),
         // The 2007 Dropbox launch discussion: about 70 comments that no longer change.
         Platform::Hn => Some(("hn:8863", "thread")),
+        // The first YouTube upload (2005), whose metadata no longer changes.
+        Platform::Youtube => Some(("youtube:jNQXAC9IVRw", "metadata")),
+    }
+}
+
+/// The query and limit of a platform search case.
+fn platform_search_canary(platform: Platform) -> (&'static str, &'static str) {
+    match platform {
+        Platform::Hn => (HN_CANARY_QUERY, "5"),
+        Platform::Youtube => (YOUTUBE_CANARY_QUERY, "5"),
+        _ => (PLATFORM_CANARY_QUERY, "3"),
     }
 }
 
@@ -1003,20 +1016,6 @@ fn command_specs(
                 ],
                 ResultShape::PlatformSearch,
             )
-        } else if platform == Platform::Hn {
-            one(
-                &[
-                    "platform",
-                    platform.as_str(),
-                    definition.operation,
-                    HN_CANARY_QUERY,
-                    "--limit",
-                    "5",
-                    "--timeout",
-                    &timeout,
-                ],
-                ResultShape::PlatformSearch,
-            )
         } else if definition.operation == "fetch" {
             let (reference, depth) = platform_fetch_canary(platform)?;
             one(
@@ -1059,14 +1058,15 @@ fn command_specs(
                 ResultShape::PlatformSearch,
             )
         } else {
+            let (query, limit) = platform_search_canary(platform);
             one(
                 &[
                     "platform",
                     platform.as_str(),
                     definition.operation,
-                    PLATFORM_CANARY_QUERY,
+                    query,
                     "--limit",
-                    "3",
+                    limit,
                     "--timeout",
                     &timeout,
                 ],

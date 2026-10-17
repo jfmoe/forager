@@ -1,6 +1,6 @@
 # 7. 平台接入
 
-本章是接入任何内置平台的权威契约。新增或修改平台时先读本章，并保持新平台 checklist 测试（`src/core/platform_checklist.rs`）通过。决策依据见 ADR 0019；arXiv 是参考实现，各节以它举例；SSRN 是第二个平台，Google Scholar 是第三个平台，小红书是第四个平台，X 是第五个平台，Hacker News 是第六个平台，见文末。
+本章是接入任何内置平台的权威契约。新增或修改平台时先读本章，并保持新平台 checklist 测试（`src/core/platform_checklist.rs`）通过。决策依据见 ADR 0019；arXiv 是参考实现，各节以它举例；SSRN 是第二个平台，Google Scholar 是第三个平台，小红书是第四个平台，X 是第五个平台，Hacker News 是第六个平台，YouTube 是第七个平台，见文末。
 
 ## 概念与规则
 
@@ -12,6 +12,7 @@
   - ref 解析与 canonical URL 推导是 types 门面中的零 IO 纯函数。每个 kind 都满足往返性质：解析 ref 的 canonical URL，得到同一个 ref。
   - 版本号可选，由平台决定是否有版本。不带版本的 ref 推导出不带版本的 URL；纯函数不猜测版本，实际版本只在平台返回后确定。
   - 需要联网解析的短链在飞行前退 2。
+  - 一个平台可以有多个 kind（YouTube 的 video、playlist 与 channel）：kind 写在 id 中（`youtube:playlist/<id>`），`PlatformRef::kind()` 按 ref 返回。每个操作只接受它定义过的 kind，其他 kind 在飞行前退 2。
 - **Content Depth**：`metadata`、`snippet`、`abstract`、`full_text` 或 `thread`。`metadata` 只有书目信息，没有摘要。每个平台为它支持的每种深度定义含义，每个结果条目都带 `depth`；深度之间没有全局排序。摘要深度绝不当作全文，片段绝不当作摘要。
 
 ## 参数分层
@@ -92,7 +93,7 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
 | R5 | route 的 doctor probe 为 `DoctorProbe::PlatformSearch`（或它所服务的 capability 的 probe）；需要凭据的 route 也可用 `DoctorProbe::ServiceAccount`，向供应商的账户接口逐 key 查询 | checklist 测试 |
 | R6 | search 与 fetch 各至少有一条 route 登记 smoke 用例，`SPECIFICATION_CASE_IDS` 与第 5 章矩阵同步 | checklist 测试；`tests/smoke.rs` 列表断言 |
 | R7 | `tests/acceptance-manifest.json` 为每个操作的每条 route 登记 `(route, platform:<id>:<op>)` fixture 与测试引用；只有一条 route 的 L2 操作同样登记，如 `(serpapi, platform:scholar:cited_by)`、`(xiaohongshu_browser, platform:xiaohongshu:comments)`、`(xai, platform:x:ask)` 与 `(hn_api, platform:hn:stories)` | checklist 测试（含 `single_route_operations_have_transport_fixtures`）；`catalog` 单测 `provider_fixture_projection_matches_transport_manifest` |
-| R8 | ref 解析与 canonical URL 推导覆盖该平台每个 kind，并在 checklist 的样例表中登记样例 ref | checklist 测试；types 单测 |
+| R8 | ref 解析与 canonical URL 推导覆盖该平台每个 kind，并在 checklist 的样例表中为每个 kind 登记样例 ref（第一条样例是 fetch 接受的 kind） | checklist 测试；types 单测 |
 
 同一改动中还须更新：`GLOSSARY.md`（新术语）、第 2 章（命令与参数表）、第 3 章（配置键）、第 4 章（模块与依赖）、第 5 章（fixture 与 smoke 用例）、本章的平台示例，以及 skill 的平台词表、平台 reference 与 CLI reference。
 
@@ -247,3 +248,32 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
 - **stories（L2 平台操作）**：`platform hn stories [top|new|best|ask|show|job] [--limit 1–100，默认 30]` 列出官方榜单的当前条目。它不需要查询词，属于改变必需输入的新操作；只由 `hn_api` 实现，写成 inherent 方法，provider factory 声明 route 集合 `HN_STORIES_ROUTES` 与支持检查，core 的 `platform_stories` 按 order ∩ 该集合规划，经共享链执行器与 `AttemptTarget::Platform`（operation 为 `stories`）记录 attempt。请求顺序：Firebase `<list>stories.json`（`null` 或不是数组为 Runtime），取前 limit 个 id；一次 Algolia objectID 检索批量取回，按榜单顺序排列；Algolia 漏掉的条目逐条用 Firebase item 补取，`null`、deleted 或 dead 的跳过并汇总一条诊断；补取请求失败的条目同样跳过并汇总一条诊断，只有列表请求失败才判命令失败。输出 `{platform, provider, list, items}`，条目为共享条目字段加 `rank`（榜单中的 1-based 名次，跳过的条目留下空位）。不签发 cursor；列表为空时 `items: []`、退 0。计数来自 Algolia，可能滞后几分钟。
 - **doctor**：注册探针为 `DoctorProbe::PlatformSearch`；deep `doctor --provider hn_api` 在检索检查通过后另向 Firebase 请求 `maxitem.json`，报告为 `firebase` 检查，任一项失败即 doctor 失败。shallow 检查沿用匿名 HTTP route 对 `url` 的可达性检查。
 - **smoke**：C33（`search rust --limit 5`）、C34（fetch canary `hn:8863`，2007 年 Dropbox 发布帖，约 70 条早已稳定的评论，`--depth thread`，写入临时目录）与 C35（`stories top --limit 10`）。route 匿名且在默认 order 中，所以默认运行。
+
+## YouTube
+
+第七个平台。目前只有官方 route `youtube_api`，经 YouTube Data API v3 与用户自己的 key 提供 search 与 fetch 的 `metadata`、`abstract`。平台决策见 ADR 0028，实测见 [YouTube 接入调研](../../research/2026-10-17-youtube-integration.md)（2026-10-17）。
+
+- **身份**：kind 有三种，前缀 `youtube:` 与 kind 段不区分大小写，id 区分大小写，没有版本（描述与字幕以后可能被修改，同一个 ref 不保证读到相同的正文）。
+  - `video`：ref 为 `youtube:<video_id>`，`video_id` 为 11 个 `[A-Za-z0-9_-]` 字符；普通视频、Shorts、直播与回放共用这个 id 空间。canonical URL 为 `https://www.youtube.com/watch?v=<video_id>`。
+  - `playlist`：ref 为 `youtube:playlist/<id>`，`id` 为 2–64 个 `[A-Za-z0-9_-]` 字符，canonical URL 为 `https://www.youtube.com/playlist?list=<id>`。
+  - `channel`：ref 为 `youtube:channel/<UC…>`，`UC` 加 22 个 `[A-Za-z0-9_-]` 字符，canonical URL 为 `https://www.youtube.com/channel/<UC…>`。
+  - 三种 kind 都满足往返性质。可识别的 URL（http 或 https，主机不区分大小写）：`youtube.com`、`www.youtube.com`、`m.youtube.com` 的 `/watch?v=<id>`、`/shorts/<id>`、`/live/<id>`、`/embed/<id>`、`/playlist?list=<id>` 与 `/channel/<UC…>`；`youtube-nocookie.com` 的 `/embed/<id>`；`youtu.be/<id>`（id 就在路径中，不需要联网展开）。忽略 `t`、`list`、`index`、`si`、`pp` 等其他查询参数、fragment 与末尾 `/`；`v` 或 `list` 重复、id 非法时飞行前退 2。`/@<handle>` 不是 ref，`/c/<name>` 与 `/user/<name>` 需要联网解析，都飞行前退 2 并说明应改传的 `/channel/<UC…>` URL。解析在 types 叶子 `platform_youtube` 中。
+- **route 与配置**：`providers.youtube_api.url`（默认 `https://www.googleapis.com/youtube/v3`）、`.keys` 与 `.timeout`（默认 30 秒）。`keys` 最多一个：Developer Policies 要求一个客户端只用一个项目、不得规避配额，而凭据池在额度耗尽时换 key 等于用多个项目绕开配额，所以配置 schema 拒绝多于一个 key（退 3）。keys 为空时 route 视为未配置，平台命令飞行前退 3，消息点名该键。key 只放在 `X-Goog-Api-Key` 请求头中，不出现在请求 URL、消息、attempt、cursor 与日志中。访问策略为每秒 1 个请求、并发 1：Data API 按配额而不是频率限制，失败的请求同样扣配额，这个节奏防止失控的循环在几秒内耗尽每天的 search 配额。`platforms.youtube.order` 默认 `[youtube_api]`。
+- **配额**：`search.list` 有独立配额桶，默认每天 100 次、每次 1；其他端点合计每天 10,000 单位，`videos.list` 每次 1 单位。一次 search 消耗 1 次 search 配额加 1 单位增强，一次 fetch 消耗 1 单位。
+- **search**：查询词必填，按 Data API `q` 的语义原样发送（`-` 与 `|` 运算符交给上游）。`--limit` 为 1–50，默认 20。请求固定 `part=snippet`、`type=video`、`maxResults=<limit>`。选项映射：
+
+  | CLI | 映射 | 规则 |
+  |---|---|---|
+  | `--sort relevance\|date\|views\|rating` | `order`（`date`、`viewCount`、`rating`） | 默认 relevance，不发送 |
+  | `--from` / `--to YYYY-MM-DD` | `publishedAfter` 起始日 `T00:00:00Z`、`publishedBefore` 结束日 `T23:59:59Z` | 按 UTC 计，含两端，可只给一端；非法日期或起始日晚于结束日在本地退 2，不发请求（失败的请求同样扣配额） |
+  | `--duration short\|medium\|long` | `videoDuration` | 小于 4 分钟、4–20 分钟、大于 20 分钟 |
+  | `--channel CHANNEL` | `channelId` | 接受 `youtube:channel/<UC…>` ref 或 `/channel/<UC…>` URL |
+  | `--has-captions` | `videoCaption=closedCaption` | 只表示视频有字幕，不保证语言 |
+
+  没有给出的选项不发送对应字段，不提供原样透传。页位置是 `pageToken`，cursor 为 `v1.youtube_api.<payload>`，完整恢复查询词、选项、limit 与 `pageToken`；响应有 `nextPageToken` 时签发。
+- **search 解码与增强**：标题、频道名与描述片段经共享 markup 模块还原 HTML 实体（search 返回的标题经过 HTML 转义）。条目：`authors` 为 `[channelTitle]`，`published` 为精确到秒的 UTC，平台字段 `channel_ref`、`snippet`（描述片段，空时为 `null`）、`live_status`（由 `liveBroadcastContent` 映射为 `none`、`upcoming` 或 `live`）。描述片段非空时 `depth` 为 `snippet`，否则为 `metadata`。一页结果取回后，用一次 `videos.list?part=contentDetails,statistics&id=<逗号分隔>` 批量补 `duration_seconds`、`views`、`likes`、`comments` 与 `has_captions`；增强失败时保留检索结果，相应字段为 `null`，stderr 汇总一条诊断，不判失败（与 ADR 0027 的增强规则相同）。不输出 `totalResults`（估算值）。合法零结果返回 `items: []`，退 0。视频 id 非法或结果缺 snippet 为 Runtime。
+- **fetch**：只接受 video；playlist 与 channel 在飞行前退 2。支持 `metadata` 与 `abstract`；默认深度 `full_text` 目前没有 route 支持，支持检查使命令飞行前退 2、不发请求。请求为 `videos.list?part=snippet,contentDetails,statistics,status,liveStreamingDetails&id=<id>`（1 单位）。空 `items` 为 attempt 级 Parameter（`YouTube video not found or not public: youtube:<id>`）；返回的 id 与请求不一致为 Runtime。条目字段：`title`、`authors`（发布频道）、`published`（UTC ISO 8601），平台字段 `channel_ref`、`duration_seconds`（ISO 8601 时长；直播与预告报告的零时长为 `null`）、`live_status`（`liveStreamingDetails` 存在时由 `actualEndTime` 与 `actualStartTime` 推出 `completed`、`live` 或 `upcoming`，否则由 `liveBroadcastContent` 映射）、`views`、`likes`、`comments`（取不到为 `null`）、`language`（`defaultAudioLanguage`，没有时取 `defaultLanguage`）、`has_captions`（`contentDetails.caption` 是字符串 `"true"`/`"false"`）与 `caption_tracks`（这条 route 恒为 `null`）。`abstract` 另有内联的完整 `description` 与 `chapters`（`[{start_seconds, title}]`）；描述为空时为 Quality（退 5）。`--format content` 输出描述。
+- **章节**：由 types 叶子 `platform_youtube` 中的零 IO 纯函数从描述解析，规则与 YouTube 自身相同：以时间戳（`M:SS`、`MM:SS` 或 `H:MM:SS`）开头的行，第一条为 `0:00`，至少 3 条，时间严格递增；标题是时间戳之后的文字，去掉开头的 `-`、`–`、`—`、`|`、`:` 与空白。不满足时 `chapters` 为空数组。
+- **错误映射**：按上游 reason 归因：`details[]` 中 `ErrorInfo.reason` 为 `API_KEY_INVALID`（实测为 HTTP 400 `badRequest`）为 Auth；`errors[].reason` 为 `quotaExceeded` 或 `dailyLimitExceeded`（HTTP 403）为 QuotaExhausted，单 key 不轮换；其他状态沿用 net 的共享映射（例如 400 `invalid` 为 Parameter，其他 403 为 Auth）。reason 识别函数属于 route，经 net 读取边界的 reason 钩子生效，status 映射仍只在 net。消息形如 `YouTube Data API returned HTTP <status> (<reason>): <message>`；响应不是预期结构为 Runtime。
+- **doctor**：注册探针为 `DoctorProbe::PlatformSearch`；deep `doctor --provider youtube_api` 运行一次 limit 1 的检索，消耗 1 次 search 配额与 1 单位增强；没有 key 时以 config 失败退 3。shallow 检查沿用 keyed HTTP route 对 `url` 的可达性检查。
+- **smoke**：C36（`search "attention transformer" --limit 5`）与 C37（fetch canary `youtube:jNQXAC9IVRw`，`--depth metadata`），只在 `providers.youtube_api.keys` 非空且 `platforms.youtube.order` 含 `youtube_api` 时运行。

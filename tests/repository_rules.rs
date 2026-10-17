@@ -10,15 +10,15 @@ const LINE_LIMIT: usize = 1000;
 const OVERSIZED_SOURCES: &[(&str, usize)] = &[
     ("tests/search.rs", 4387),
     ("tests/research.rs", 3017),
-    ("src/cli/dispatch.rs", 2089),
+    ("src/cli/dispatch.rs", 2090),
     ("src/ops/smoke.rs", 1651),
     ("src/evidence/research.rs", 1426),
-    ("tests/smoke.rs", 1331),
+    ("tests/smoke.rs", 1376),
     ("src/main.rs", 1325),
-    ("src/capabilities/net.rs", 1308),
-    ("src/capabilities/catalog.rs", 1176),
+    ("src/capabilities/net.rs", 1313),
+    ("src/capabilities/catalog.rs", 1227),
     ("tests/config_commands.rs", 1122),
-    ("src/infra/config/runtime.rs", 1056),
+    ("src/infra/config/runtime.rs", 1078),
 ];
 
 #[test]

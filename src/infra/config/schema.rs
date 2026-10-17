@@ -77,6 +77,7 @@ pub(super) struct Providers {
     pub(super) serpapi: Endpoint<SerpapiEndpoint>,
     pub(super) xiaohongshu_browser: ProcessRoute<XiaohongshuBrowserProcess>,
     pub(super) hn_api: HnApi,
+    pub(super) youtube_api: Endpoint<YoutubeApiEndpoint>,
     pub(super) gemini_browser: ProcessRoute<GeminiBrowserProcess>,
     pub(super) chatgpt_browser: ProcessRoute<ChatgptBrowserProcess>,
 }
@@ -252,6 +253,7 @@ endpoint_defaults!(AnysearchEndpoint, "https://api.anysearch.com/mcp");
 endpoint_defaults!(ArxivApiEndpoint, "https://export.arxiv.org/api/query");
 endpoint_defaults!(SsrnCrossrefEndpoint, "https://api.crossref.org");
 endpoint_defaults!(SerpapiEndpoint, "https://serpapi.com/search.json");
+endpoint_defaults!(YoutubeApiEndpoint, "https://www.googleapis.com/youtube/v3");
 
 /// The `hn_api` route section: one URL per official Hacker News endpoint the route combines.
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -337,6 +339,7 @@ pub(super) struct Platforms {
     pub(super) xiaohongshu: Order,
     pub(super) x: Order,
     pub(super) hn: Order,
+    pub(super) youtube: Order,
 }
 
 impl Default for Platforms {
@@ -348,6 +351,7 @@ impl Default for Platforms {
             xiaohongshu: platform_order(catalog::XIAOHONGSHU),
             x: platform_order(catalog::X),
             hn: platform_order(catalog::HN),
+            youtube: platform_order(catalog::YOUTUBE),
         }
     }
 }
@@ -492,6 +496,8 @@ pub(super) enum Rule {
     PlatformOrder {
         platform: Platform,
     },
+    /// No more than one value; for a key list it forbids a credential pool.
+    AtMostOne,
 }
 
 #[derive(Clone, Copy)]
@@ -617,6 +623,9 @@ pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("providers.hn_api.url", providers.hn_api.url: String, Rule::Any, View::Url, "Algolia Hacker News Search API endpoint URL; this route needs no credentials"),
     leaf!("providers.hn_api.firebase_url", providers.hn_api.firebase_url: String, Rule::Any, View::Url, "official Hacker News Firebase API endpoint URL"),
     leaf!("providers.hn_api.timeout", providers.hn_api.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one request to either endpoint; must be greater than zero"),
+    leaf!("providers.youtube_api.url", providers.youtube_api.url: String, Rule::Any, View::Url, "YouTube Data API v3 endpoint URL"),
+    leaf!("providers.youtube_api.keys", providers.youtube_api.keys: Secrets, Rule::AtMostOne, View::Keys, "the API key of your own Google Cloud project; at most one, because the Developer Policies allow one project per client and forbid working around its quota"),
+    leaf!("providers.youtube_api.timeout", providers.youtube_api.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one request; must be greater than zero"),
     leaf!("providers.gemini_browser.command", providers.gemini_browser.command: String, Rule::NonEmpty, View::Plain, "OpenCLI executable name or path; this provider needs no credentials"),
     leaf!("providers.gemini_browser.timeout", providers.gemini_browser.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one OpenCLI command; must be greater than zero"),
     leaf!("providers.chatgpt_browser.command", providers.chatgpt_browser.command: String, Rule::NonEmpty, View::Plain, "OpenCLI executable name or path; this provider needs no credentials"),
@@ -631,6 +640,7 @@ pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("platforms.xiaohongshu.order", platforms.xiaohongshu.order: Strings, Rule::PlatformOrder { platform: Platform::Xiaohongshu }, View::Plain, "authoritative route order for this platform; empty disables it"),
     leaf!("platforms.x.order", platforms.x.order: Strings, Rule::PlatformOrder { platform: Platform::X }, View::Plain, "authoritative route order for this platform; empty disables it"),
     leaf!("platforms.hn.order", platforms.hn.order: Strings, Rule::PlatformOrder { platform: Platform::Hn }, View::Plain, "authoritative route order for this platform; empty disables it"),
+    leaf!("platforms.youtube.order", platforms.youtube.order: Strings, Rule::PlatformOrder { platform: Platform::Youtube }, View::Plain, "authoritative route order for this platform; empty disables it"),
     leaf!("log.level", log.level: String, Rule::OneOf(LOG_LEVELS), View::Plain, "stderr log level"),
     leaf!("journal.enabled", journal.enabled: Bool, Rule::Any, View::Plain, "record search result journals"),
     leaf!("journal.dir", journal.dir: String, Rule::Any, View::Plain, "journal storage directory"),
@@ -874,6 +884,7 @@ mod tests {
             "providers.firecrawl.keys" => Some(&config.providers.firecrawl.keys),
             "providers.anysearch.keys" => Some(&config.providers.anysearch.keys),
             "providers.serpapi.keys" => Some(&config.providers.serpapi.keys),
+            "providers.youtube_api.keys" => Some(&config.providers.youtube_api.keys),
             _ => None,
         }
     }

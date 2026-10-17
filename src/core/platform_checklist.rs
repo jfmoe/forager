@@ -35,6 +35,11 @@ fn sample_refs(platform: Platform) -> &'static [&'static str] {
         Platform::Xiaohongshu => &["xiaohongshu:64a1b2c3d4e5f60718293a4b"],
         Platform::X => &["x:2110126570233094527"],
         Platform::Hn => &["hn:8863"],
+        Platform::Youtube => &[
+            "youtube:jNQXAC9IVRw",
+            "youtube:playlist/PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab",
+            "youtube:channel/UCYO_jab_esuFRV4b17AJtAw",
+        ],
     }
 }
 
@@ -218,8 +223,17 @@ fn check_route(
 }
 
 fn check_refs(platform: Platform, samples: &[&str], found: &mut Vec<String>) {
-    if samples.is_empty() {
-        found.push(violation(platform, "R8", "no sample refs cover its kinds"));
+    for kind in platform.kinds() {
+        let covered = samples.iter().any(|sample| {
+            PlatformRef::parse(platform, sample).is_ok_and(|reference| reference.kind() == *kind)
+        });
+        if !covered {
+            found.push(violation(
+                platform,
+                "R8",
+                &format!("no sample ref covers its `{kind}` kind"),
+            ));
+        }
     }
     for sample in samples {
         let round_trips = PlatformRef::parse(platform, sample).is_ok_and(|reference| {
@@ -310,6 +324,11 @@ fn has_adapter(platform: Platform, operation: PlatformOperation, route: Provider
         hn_api: HnRouteRuntimeConfig {
             url: String::new(),
             firebase_url: String::new(),
+            timeout_seconds: 1,
+        },
+        youtube_api: KeyedHttpRouteRuntimeConfig {
+            url: String::new(),
+            keys: Vec::new(),
             timeout_seconds: 1,
         },
     };
@@ -563,6 +582,17 @@ fn a_route_without_a_transport_fixture_violates_r7() {
     let registry = baseline(&fixtures);
 
     assert_reports(&violations(Platform::Arxiv, &registry), "R7");
+}
+
+#[test]
+fn samples_that_miss_a_kind_of_the_platform_violate_r8() {
+    let fixtures = manifest_fixtures();
+    let registry = Registry {
+        sample_refs: &|_| &["youtube:jNQXAC9IVRw"],
+        ..baseline(&fixtures)
+    };
+
+    assert_reports(&violations(Platform::Youtube, &registry), "R8");
 }
 
 #[test]
