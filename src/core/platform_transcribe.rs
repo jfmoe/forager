@@ -13,17 +13,18 @@ use crate::chain::{
     TerminalPolicy,
 };
 use crate::config::{PlatformRouteConfig, PlatformRuntimeConfig};
-use crate::net::{RetryPolicy, combine_diagnostics};
+use crate::net::RetryPolicy;
 use crate::platform_chain::{
     PlatformPreflightError, operation_target, plan_routes, route_candidates, route_identity,
 };
-use crate::platform_fetch::FetchedItem;
-use crate::platform_precheck::{PrecheckDepth, PrecheckPlan, plan_precheck, run_precheck};
+use crate::platform_precheck::{
+    PrecheckDepth, PrecheckPlan, Prechecked, plan_precheck, run_precheck,
+};
 use crate::providers;
 use crate::types::{
     ContentDepth, Deadline, ModelTranscriptOutcome, Platform, PlatformContent, PlatformFetchResult,
-    PlatformItem, PlatformItemData, PlatformRef, PlatformTranscribeResult, ProviderAttempt,
-    ProviderError, TRANSCRIBE, YoutubeTranscribeRequest,
+    PlatformItem, PlatformItemData, PlatformTranscribeResult, ProviderAttempt, ProviderError,
+    TRANSCRIBE, YoutubeTranscribeRequest,
 };
 
 /// The precheck and the routes a transcription runs, in order, with the routes skipped before
@@ -48,11 +49,7 @@ pub(crate) fn plan_transcribe(
         None,
         providers::youtube_transcribe_support,
     )?;
-    let precheck = plan_precheck(
-        config,
-        PlatformRef::Youtube(request.video),
-        PrecheckDepth::Description,
-    )?;
+    let precheck = plan_precheck(config, request.video, PrecheckDepth::Description)?;
     Ok(TranscribePlan {
         precheck,
         routes: plan.routes.into_iter().map(|(_, config)| config).collect(),
@@ -74,11 +71,7 @@ pub(crate) async fn run_transcribe(
         routes,
         skipped,
     } = plan;
-    let FetchedItem {
-        item,
-        mut attempts,
-        diagnostic,
-    } = run_precheck(
+    let Prechecked { video: item, trace } = run_precheck(
         precheck,
         skipped,
         client.clone(),
@@ -137,28 +130,19 @@ pub(crate) async fn run_transcribe(
         },
     )
     .await;
-    match result {
-        Ok(chain_outcome) => {
-            let (route, outcome) = chain_outcome.value;
-            attempts.extend(chain_outcome.attempts);
-            let diagnostic =
-                combine_diagnostics([diagnostic, chain_outcome.diagnostic].into_iter().flatten());
-            Ok(transcribed(
-                item,
-                route,
-                outcome,
-                if verbose { attempts } else { Vec::new() },
-                diagnostic,
-            ))
-        }
-        Err(mut error) => {
-            attempts.append(&mut error.attempts);
-            error.attempts = attempts;
-            error.diagnostic =
-                combine_diagnostics([diagnostic, error.diagnostic].into_iter().flatten());
-            Err(error)
-        }
-    }
+    let chain_outcome = trace.lead(result)?;
+    let (route, outcome) = chain_outcome.value;
+    Ok(transcribed(
+        item,
+        route,
+        outcome,
+        if verbose {
+            chain_outcome.attempts
+        } else {
+            Vec::new()
+        },
+        chain_outcome.diagnostic,
+    ))
 }
 
 /// The result of a transcription: the prechecked item at full-text depth, carrying the
