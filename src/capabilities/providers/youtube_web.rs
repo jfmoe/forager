@@ -21,10 +21,10 @@ use super::youtube_transcript::YoutubeVideo;
 use crate::catalog::ProviderId;
 use crate::config::HttpRouteRuntimeConfig;
 use crate::credentials::CredentialPool;
-use crate::net::{AttemptFailure, RetryPolicy, read_complete_protocol, send_provider_request};
+use crate::net::{RetryPolicy, read_complete_protocol, send_provider_request};
 use crate::providers::execution::{ExecutionOutcome, ExecutionSettings, execute_anonymous};
 use crate::providers::shared::{
-    acquire_window, count, other_platform_message, parameter_error, utc_timestamp,
+    Refusal, acquire_window, count, other_platform_message, parameter_error, utc_timestamp,
 };
 use crate::rate_limit::RateLimiter;
 use crate::types::{
@@ -229,11 +229,7 @@ impl YoutubeWeb {
             let request = build().header(ACCEPT_LANGUAGE, LANGUAGE);
             let response = send_provider_request(request, &self.credentials).await?;
             let body = read_complete_protocol(response, &self.credentials, failure_message).await?;
-            let value = decode(&body.text).map_err(|refusal| AttemptFailure {
-                kind: refusal.kind,
-                status: Some(body.status),
-                message: refusal.message,
-            })?;
+            let value = decode(&body.text).map_err(|refusal| refusal.at(body.status))?;
             Ok((Some(body.status), value))
         })
         .await
@@ -272,21 +268,6 @@ fn carry<T>(
             all.append(&mut error.attempts);
             error.attempts = all;
             Err(error)
-        }
-    }
-}
-
-/// Why a successful response cannot become the step's value.
-struct Refusal {
-    kind: AttemptErrorKind,
-    message: String,
-}
-
-impl Refusal {
-    fn new(kind: AttemptErrorKind, message: impl Into<String>) -> Self {
-        Self {
-            kind,
-            message: message.into(),
         }
     }
 }

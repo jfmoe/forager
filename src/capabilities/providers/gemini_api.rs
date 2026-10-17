@@ -22,7 +22,7 @@ use crate::net::{
 use crate::providers::execution::{
     ExecutionOutcome, ExecutionSettings, execute_pinned, execute_v2,
 };
-use crate::providers::shared::acquire_window;
+use crate::providers::shared::{Refusal, acquire_window};
 use crate::rate_limit::RateLimiter;
 use crate::redact::Secret;
 use crate::types::{
@@ -82,9 +82,9 @@ impl GeminiApi {
             .generate(ASK, &body, |response| {
                 let text = response.text()?;
                 if text.trim().is_empty() {
-                    return Err(refusal(
+                    return Err(Refusal::new(
                         AttemptErrorKind::Runtime,
-                        "Gemini returned an empty answer".into(),
+                        "Gemini returned an empty answer",
                     ));
                 }
                 Ok(text)
@@ -113,11 +113,8 @@ impl GeminiApi {
         );
         let outcome = self
             .generate(TRANSCRIBE, &body, |response| {
-                transcript::render(&response.text()?, video).map_err(|message| AttemptFailure {
-                    kind: AttemptErrorKind::Quality,
-                    status: Some(200),
-                    message,
-                })
+                transcript::render(&response.text()?, video)
+                    .map_err(|message| Refusal::new(AttemptErrorKind::Quality, message))
             })
             .await?;
         let (rendered, model, usage) = outcome.value;
@@ -149,7 +146,9 @@ impl GeminiApi {
                 |credential, deadline| async move {
                     let request = self.client.get(url);
                     let (status, text) = self.send(request, &credential, deadline).await?;
-                    model_list(&text).map(|()| (Some(status), ()))
+                    model_list(&text)
+                        .map(|()| (Some(status), ()))
+                        .map_err(|refusal| refusal.at(status))
                 },
             )
             .await;
@@ -165,7 +164,7 @@ impl GeminiApi {
         &self,
         operation: &'static str,
         body: &Value,
-        decode: impl Fn(&GenerateResponse) -> Result<T, AttemptFailure>,
+        decode: impl Fn(&GenerateResponse) -> Result<T, Refusal>,
     ) -> Result<ExecutionOutcome<(T, Option<String>, Option<ModelUsage>)>, ProviderError> {
         let url = &format!(
             "{}/models/{}:generateContent",
@@ -181,15 +180,9 @@ impl GeminiApi {
                 let (status, text) = self.send(request, &credential, deadline).await?;
                 let response =
                     serde_json::from_str::<GenerateResponse>(&text).map_err(|error| {
-                        refusal(
-                            AttemptErrorKind::Runtime,
-                            format!("invalid Gemini response: {error}"),
-                        )
+                        Refusal::runtime(format!("invalid Gemini response: {error}")).at(status)
                     })?;
-                let value = decode(&response).map_err(|failure| AttemptFailure {
-                    status: Some(status),
-                    ..failure
-                })?;
+                let value = decode(&response).map_err(|refusal| refusal.at(status))?;
                 Ok((
                     Some(status),
                     (
@@ -255,14 +248,6 @@ fn video_request(video_url: &str, instruction: &str, generation_config: Option<V
         body["generationConfig"] = config;
     }
     body
-}
-
-fn refusal(kind: AttemptErrorKind, message: String) -> AttemptFailure {
-    AttemptFailure {
-        kind,
-        status: Some(200),
-        message,
-    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -332,42 +317,42 @@ impl GenerateResponse {
     /// Returns the text of the first candidate, without reasoning summaries. A blocked prompt, a
     /// withheld answer, and an answer cut off at the token limit fail as Quality: the model
     /// delivered no complete answer.
-    fn text(&self) -> Result<String, AttemptFailure> {
+    fn text(&self) -> Result<String, Refusal> {
         if let Some(reason) = self
             .prompt_feedback
             .as_ref()
             .and_then(|feedback| feedback.block_reason.as_deref())
         {
-            return Err(refusal(
+            return Err(Refusal::new(
                 AttemptErrorKind::Quality,
                 format!("Gemini blocked the request ({reason})"),
             ));
         }
         let Some(candidate) = self.candidates.first() else {
-            return Err(refusal(
+            return Err(Refusal::new(
                 AttemptErrorKind::Runtime,
-                "Gemini returned no candidate".into(),
+                "Gemini returned no candidate",
             ));
         };
         match candidate.finish_reason.as_deref() {
             None | Some("STOP" | "FINISH_REASON_UNSPECIFIED") => {}
             Some("MAX_TOKENS") => {
-                return Err(refusal(
+                return Err(Refusal::new(
                     AttemptErrorKind::Quality,
-                    "Gemini stopped at its output token limit, so the answer is incomplete".into(),
+                    "Gemini stopped at its output token limit, so the answer is incomplete",
                 ));
             }
             Some(
                 reason @ ("SAFETY" | "RECITATION" | "BLOCKLIST" | "PROHIBITED_CONTENT" | "SPII"
                 | "IMAGE_SAFETY"),
             ) => {
-                return Err(refusal(
+                return Err(Refusal::new(
                     AttemptErrorKind::Quality,
                     format!("Gemini withheld the answer ({reason})"),
                 ));
             }
             Some(reason) => {
-                return Err(refusal(
+                return Err(Refusal::new(
                     AttemptErrorKind::Runtime,
                     format!("Gemini stopped without finishing the answer ({reason})"),
                 ));
@@ -384,15 +369,15 @@ impl GenerateResponse {
 }
 
 /// Accepts a model list: the answer of an endpoint that knows the key.
-fn model_list(body: &str) -> Result<(), AttemptFailure> {
+fn model_list(body: &str) -> Result<(), Refusal> {
     serde_json::from_str::<Value>(body)
         .ok()
         .filter(|list| list["models"].is_array())
         .map(drop)
         .ok_or_else(|| {
-            refusal(
+            Refusal::new(
                 AttemptErrorKind::Runtime,
-                "the Gemini model list is not a JSON object with a `models` array".into(),
+                "the Gemini model list is not a JSON object with a `models` array",
             )
         })
 }

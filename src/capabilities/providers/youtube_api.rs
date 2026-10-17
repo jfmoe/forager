@@ -18,7 +18,7 @@ use crate::net::{
 };
 use crate::providers::execution::{ExecutionOutcome, ExecutionSettings, execute_v2};
 use crate::providers::shared::{
-    acquire_window, count, other_platform_message, parameter_error, utc_timestamp,
+    Refusal, acquire_window, count, other_platform_message, parameter_error, utc_timestamp,
 };
 use crate::rate_limit::RateLimiter;
 use crate::types::{
@@ -181,11 +181,7 @@ impl YoutubeApi {
                 )
                 .await
                 .map_err(refine)?;
-                let value = decode(&body.text).map_err(|refusal| AttemptFailure {
-                    kind: refusal.kind,
-                    status: Some(body.status),
-                    message: refusal.message,
-                })?;
+                let value = decode(&body.text).map_err(|refusal| refusal.at(body.status))?;
                 Ok((Some(body.status), value))
             },
         )
@@ -205,21 +201,6 @@ impl YoutubeApi {
             transport: Some("http"),
             endpoint_host: None,
             breaker_event: None,
-        }
-    }
-}
-
-/// Why a successful response cannot become the operation's value.
-struct Refusal {
-    kind: AttemptErrorKind,
-    message: String,
-}
-
-impl Refusal {
-    fn runtime(message: String) -> Self {
-        Self {
-            kind: AttemptErrorKind::Runtime,
-            message,
         }
     }
 }
@@ -291,10 +272,10 @@ fn fetched_item(
 ) -> Result<PlatformItem, Refusal> {
     let mut items = items.into_iter();
     let Some(video) = items.next() else {
-        return Err(Refusal {
-            kind: AttemptErrorKind::Parameter,
-            message: format!("YouTube video not found or not public: youtube:{reference}"),
-        });
+        return Err(Refusal::new(
+            AttemptErrorKind::Parameter,
+            format!("YouTube video not found or not public: youtube:{reference}"),
+        ));
     };
     if video.id != reference.id() || items.next().is_some() {
         return Err(Refusal::runtime(format!(
@@ -314,10 +295,10 @@ fn fetched_item(
     let description = snippet.description.unwrap_or_default();
     let (description, chapters) = if depth == ContentDepth::Abstract {
         if require_description && description.trim().is_empty() {
-            return Err(Refusal {
-                kind: AttemptErrorKind::Quality,
-                message: format!("youtube:{reference} has no description"),
-            });
+            return Err(Refusal::new(
+                AttemptErrorKind::Quality,
+                format!("youtube:{reference} has no description"),
+            ));
         }
         let chapters = chapters_from_description(&description);
         (Some(description), Some(chapters))
