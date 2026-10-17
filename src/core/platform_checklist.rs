@@ -17,7 +17,7 @@ use crate::config::{
 use crate::providers;
 use crate::types::{
     ASK, CITED_BY, COMMENTS, ContentDepth, Platform, PlatformFetchRequest, PlatformRef,
-    PlatformSearchOptions, PlatformSearchRequest, STORIES,
+    PlatformSearchOptions, PlatformSearchRequest, STORIES, VIDEOS,
 };
 
 const CHECKLIST: &str = "docs/spec/forager/07-platforms.md";
@@ -395,6 +395,12 @@ fn single_route_operations_have_transport_fixtures() {
         ),
         (Platform::X, ASK, providers::X_ASK_ROUTES),
         (Platform::Hn, STORIES, providers::HN_STORIES_ROUTES),
+        (
+            Platform::Youtube,
+            COMMENTS,
+            providers::YOUTUBE_COMMENTS_ROUTES,
+        ),
+        (Platform::Youtube, VIDEOS, providers::YOUTUBE_VIDEOS_ROUTES),
     ];
     let routes = single_route_operations
         .into_iter()

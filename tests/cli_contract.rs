@@ -89,7 +89,7 @@ fn platform_commands_nest_operations_under_each_platform() {
             ("xiaohongshu", vec!["search", "fetch", "comments"]),
             ("x", vec!["search", "fetch", "ask"]),
             ("hn", vec!["search", "fetch", "stories"]),
-            ("youtube", vec!["search", "fetch"])
+            ("youtube", vec!["search", "fetch", "comments", "videos"])
         ]
     );
 }

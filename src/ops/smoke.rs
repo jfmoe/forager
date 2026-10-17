@@ -17,7 +17,7 @@ use crate::catalog::{self, ProviderId, ProviderRegistration};
 use crate::config::{self, RuntimeConfig};
 use crate::redact::{CREDENTIAL_MASK, Secret, redact_credentials, redact_url};
 use crate::state_file;
-use crate::types::{ASK, CITED_BY, COMMENTS, Deadline, Platform, STORIES};
+use crate::types::{ASK, CITED_BY, COMMENTS, Deadline, Platform, STORIES, VIDEOS};
 
 static PROBE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 pub(crate) const MAIN_CANARY_QUERY: &str = "What is the latest stable Rust release?";
@@ -35,10 +35,13 @@ const X_ASK_CANARY_QUERY: &str = "What has SpaceX posted about Starship recently
 const HN_CANARY_QUERY: &str = "rust";
 // Many channels lecture on attention and transformers, so the search is never empty.
 const YOUTUBE_CANARY_QUERY: &str = "attention transformer";
-const SPECIFICATION_CASE_IDS: [&str; 40] = [
+// "Essence of linear algebra": a finished public course of 16 videos.
+const YOUTUBE_VIDEOS_CANARY: &str = "youtube:playlist/PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab";
+const SPECIFICATION_CASE_IDS: [&str; 42] = [
     "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12",
     "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24", "C25",
     "C26", "C27", "C28", "C29", "C30", "C31", "C32", "C33", "C34", "C35", "C36", "C37", "C38",
+    "C39", "C40",
 ];
 // One comment page holds 10 top-level comments, so 15 needs the second page.
 const XIAOHONGSHU_COMMENTS_LIMIT: &str = "15";
@@ -191,6 +194,7 @@ enum ResultShape {
     PlatformFetch,
     PlatformFullText,
     XiaohongshuComments,
+    Comments,
 }
 
 /// What one live run carries between its Xiaohongshu cases, in memory only: a note opens only
@@ -1014,6 +1018,35 @@ fn command_specs(
                 ],
                 ResultShape::PlatformFullText,
             )
+        } else if definition.operation == COMMENTS {
+            let (video, _) = platform_fetch_canary(platform)?;
+            one(
+                &[
+                    "platform",
+                    platform.as_str(),
+                    COMMENTS,
+                    video,
+                    "--limit",
+                    "5",
+                    "--timeout",
+                    &timeout,
+                ],
+                ResultShape::Comments,
+            )
+        } else if definition.operation == VIDEOS {
+            one(
+                &[
+                    "platform",
+                    platform.as_str(),
+                    VIDEOS,
+                    YOUTUBE_VIDEOS_CANARY,
+                    "--limit",
+                    "5",
+                    "--timeout",
+                    &timeout,
+                ],
+                ResultShape::PlatformSearch,
+            )
         } else if definition.operation == STORIES {
             one(
                 &[
@@ -1303,6 +1336,8 @@ fn result_shape_is_nonempty(shape: ResultShape, payload: &Value) -> bool {
         ResultShape::Fetch | ResultShape::Context7Docs => nonempty_string(payload, "content"),
         // A note without comments is a legitimate result, but it proves nothing here.
         ResultShape::XiaohongshuComments => nonempty_string(payload, "note"),
+        // The canary video has millions of comments, so an empty page means a broken read.
+        ResultShape::Comments => nonempty_array(payload, "comments"),
     }
 }
 

@@ -6,9 +6,6 @@ use super::attempt::ProviderAttempt;
 use super::platform::{Platform, PlatformRef};
 use super::platform_xiaohongshu::{AccessToken, XiaohongshuRef};
 
-/// The attempt-target name of the Xiaohongshu comments operation.
-pub(crate) const COMMENTS: &str = "comments";
-
 /// A request for the top-level comments of one note, and the replies of the first few.
 #[derive(Clone, Debug)]
 pub(crate) struct XiaohongshuCommentsRequest {

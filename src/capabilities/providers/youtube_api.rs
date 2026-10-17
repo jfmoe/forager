@@ -27,8 +27,12 @@ use crate::types::{
     chapters_from_description,
 };
 
+#[path = "youtube_api_comments.rs"]
+mod comments;
 #[path = "youtube_api_search.rs"]
 mod search;
+#[path = "youtube_api_videos.rs"]
+mod videos;
 
 pub(crate) use search::search_support;
 
@@ -137,8 +141,21 @@ impl YoutubeApi {
         operation: &'static str,
         decode: impl Fn(&str) -> Result<T, Refusal>,
     ) -> Result<ExecutionOutcome<T>, ProviderError> {
+        self.get_with(resource, query, operation, decode, |failure| failure)
+            .await
+    }
+
+    /// Like [`Self::get`]; `refine` rewords a failed response the operation can describe better.
+    async fn get_with<T>(
+        &self,
+        resource: &str,
+        query: &[(&str, String)],
+        operation: &'static str,
+        decode: impl Fn(&str) -> Result<T, Refusal>,
+        refine: impl Fn(AttemptFailure) -> AttemptFailure,
+    ) -> Result<ExecutionOutcome<T>, ProviderError> {
         let url = &format!("{}/{resource}", self.config.url.trim_end_matches('/'));
-        let decode = &decode;
+        let (decode, refine) = (&decode, &refine);
         execute_v2(
             &self.credentials,
             self.settings(operation),
@@ -156,7 +173,8 @@ impl YoutubeApi {
                     failure_message,
                     reason_kind,
                 )
-                .await?;
+                .await
+                .map_err(refine)?;
                 let value = decode(&body.text).map_err(|refusal| AttemptFailure {
                     kind: refusal.kind,
                     status: Some(body.status),
@@ -325,6 +343,7 @@ fn fetched_item(
             description,
             chapters,
             transcript: None,
+            position: None,
         }),
     })
 }
@@ -427,7 +446,8 @@ fn error_body(body: &str) -> Option<ErrorBody> {
 }
 
 /// Names the error kind of a reason the status alone cannot tell: an invalid key comes as a
-/// 400 whose reason sits only in `ErrorInfo`, and an exhausted quota as a 403.
+/// 400 whose reason sits only in `ErrorInfo`, an exhausted quota as a 403, and so do disabled
+/// comments, which say something about the video, not about the key.
 fn reason_kind(body: &str) -> Option<AttemptErrorKind> {
     let body = error_body(body)?;
     let reasons = body
@@ -443,6 +463,8 @@ fn reason_kind(body: &str) -> Option<AttemptErrorKind> {
         .any(|reason| matches!(*reason, "quotaExceeded" | "dailyLimitExceeded"))
     {
         Some(AttemptErrorKind::QuotaExhausted)
+    } else if reasons.contains(&"commentsDisabled") {
+        Some(AttemptErrorKind::Parameter)
     } else {
         None
     }
@@ -537,6 +559,7 @@ mod tests {
             reason_kind(&body("badRequest", Some("API_KEY_INVALID"))),
             reason_kind(&body("quotaExceeded", None)),
             reason_kind(&body("dailyLimitExceeded", None)),
+            reason_kind(&body("commentsDisabled", None)),
             reason_kind(&body("invalid", None)),
             reason_kind("not json"),
         ];
@@ -547,6 +570,7 @@ mod tests {
                 Some(AttemptErrorKind::Auth),
                 Some(AttemptErrorKind::QuotaExhausted),
                 Some(AttemptErrorKind::QuotaExhausted),
+                Some(AttemptErrorKind::Parameter),
                 None,
                 None,
             ]

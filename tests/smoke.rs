@@ -128,7 +128,7 @@ fn live_smoke_lists_exactly_the_specification_case_registry_without_l0_doctor_ga
         "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11",
         "C12", "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24",
         "C25", "C26", "C27", "C28", "C29", "C30", "C31", "C32", "C33", "C34", "C35", "C36", "C37",
-        "C38"
+        "C38", "C39", "C40"
     ]);
 
     assert_eq!(
@@ -180,7 +180,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
             Some(4),
             &Value::String("live".into()),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 39, "skipped": 0}),
+            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 41, "skipped": 0}),
             &Value::String("failed".into()),
             &Value::Number(3.into()),
             &Value::String("unconfigured".into()),
@@ -217,7 +217,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
         (
             Some(4),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 39, "skipped": 0}),
+            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 41, "skipped": 0}),
             &Value::String("deferred".into()),
             &Value::Number(3.into()),
             &Value::String("http://127.0.0.1:9?token=********".into()),
@@ -327,7 +327,7 @@ fn live_smoke_passes_a_configured_case_only_after_a_zero_parseable_nonempty_term
         ),
         (
             Some(4),
-            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 39, "skipped": 0}),
+            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 41, "skipped": 0}),
             &Value::String("passed".into()),
             &Value::Number(1.into()),
         ),
@@ -563,7 +563,7 @@ fn live_smoke_runs_the_platform_cases_through_their_configured_route() {
             algolia_requests[1].starts_with("GET /items/8863 "),
         ),
         (
-            &json!({"passed": 7, "failed": 0, "deferred": 0, "unconfigured": 33, "skipped": 0}),
+            &json!({"passed": 7, "failed": 0, "deferred": 0, "unconfigured": 35, "skipped": 0}),
             [(); 7].map(|()| Value::String("passed".into())),
             [
                 &Value::String("arxiv".into()),
@@ -634,6 +634,24 @@ fn live_smoke_runs_the_youtube_cases_only_with_a_youtube_api_key() {
         ),
         yt::videos_page(&[yt::video_stats("eMlx5fFNoYc", "PT26M10S", "1", None)]),
         yt::videos_page(&[yt::zoo_video("The first video.")]),
+        yt::comment_threads_page(
+            &[yt::comment_thread(
+                &yt::comment("Ugz1", "fan", "Hi.", 1),
+                0,
+                &[],
+            )],
+            None,
+        ),
+        yt::playlist_items_page(
+            &[yt::playlist_item(
+                yt::LINEAR_ALGEBRA,
+                0,
+                "fNk_zzaMoSs",
+                "Vectors",
+                "",
+            )],
+            None,
+        ),
     ]);
     let run = |keys: &str| {
         let environment = SmokeEnvironment::new(|journal_dir| {
@@ -644,7 +662,7 @@ fn live_smoke_runs_the_youtube_cases_only_with_a_youtube_api_key() {
         });
         let output = environment.run(&["smoke", "--live", "--timeout", "20"]);
         let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live smoke JSON");
-        ["C36", "C37"].map(|id| case(&payload, id)["status"].clone())
+        ["C36", "C37", "C39", "C40"].map(|id| case(&payload, id)["status"].clone())
     };
 
     let without_key = run("[]");
@@ -658,10 +676,18 @@ fn live_smoke_runs_the_youtube_cases_only_with_a_youtube_api_key() {
             requests[0].starts_with("GET /search?"),
             requests[0].contains("q=attention+transformer") && requests[0].contains("maxResults=5"),
             requests[2].starts_with("GET /videos?") && requests[2].contains("id=jNQXAC9IVRw"),
+            requests[3].starts_with("GET /commentThreads?")
+                && requests[3].contains("videoId=jNQXAC9IVRw")
+                && requests[3].contains("maxResults=5"),
+            requests[4].starts_with("GET /playlistItems?")
+                && requests[4].contains("playlistId=PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab")
+                && requests[4].contains("maxResults=5"),
         ),
         (
-            [(); 2].map(|()| Value::String("unconfigured".into())),
-            [(); 2].map(|()| Value::String("passed".into())),
+            [(); 4].map(|()| Value::String("unconfigured".into())),
+            [(); 4].map(|()| Value::String("passed".into())),
+            true,
+            true,
             true,
             true,
             true,

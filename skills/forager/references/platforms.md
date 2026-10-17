@@ -31,9 +31,11 @@ platform absent from it has no platform command; follow
   `forager platform hn stories`. See "Hacker News".
 - **YouTube**: for videos on a topic, run `forager platform youtube search QUERY`; for one video's
   description, chapters, and counts (a video link the user gave, or a ref forager returned), run
-  `forager platform youtube fetch 'REF_OR_URL' --depth abstract`. Both need the user's YouTube Data
-  API key. What a video says (its captions) needs the `youtube_web` route, which the user must
-  enable: `forager platform youtube fetch 'REF_OR_URL'`. See "YouTube".
+  `forager platform youtube fetch 'REF_OR_URL' --depth abstract`; for what viewers say about it,
+  run `forager platform youtube comments 'REF_OR_URL'`; for the videos of a course, playlist, or
+  channel, run `forager platform youtube videos 'PLAYLIST_OR_CHANNEL'`. These need the user's
+  YouTube Data API key. What a video says (its captions) needs the `youtube_web` route, which the
+  user must enable: `forager platform youtube fetch 'REF_OR_URL'`. See "YouTube".
 
 `forager platform <id> <op> --help` is the syntax authority; see the platform section of
 [`cli.md`](cli.md) for output fields and exit codes.
@@ -212,22 +214,34 @@ forager platform hn stories top --limit 10
 YouTube runs through the `youtube_api` route: the official Data API v3 with the user's own key.
 Search is the scarce resource: the default quota is 100 searches a day, and a failed search also
 counts, so search once with the filters the request implies instead of probing with several
-queries. Fetches draw on a separate, larger budget (10,000 units a day, one per fetch).
+queries. Fetches, comments, and videos pages draw on a separate, larger budget (10,000 units a
+day: one per fetch or comments read, one or two per videos page).
 
 - Queries follow YouTube: `-word` excludes a word and `a|b` matches either. Set `--sort`,
   `--from`/`--to` (UTC days, both included), `--duration` (`short` under 4 minutes, `medium` 4 to
   20, `long` over 20), `--channel`, and `--has-captions` only when the request implies them. For a
   talk or lecture, `--duration long` filters out clips.
 - `--channel` takes a `youtube:channel/<UC…>` ref (an item's `channel_ref`) or a
-  `/channel/<UC…>` URL. An `@handle` URL is not accepted; take the `channel_ref` of a video from
-  that channel instead.
-- Fetch reads one video. A playlist or channel ref, or an `@handle` URL, exits 2.
+  `/channel/<UC…>` URL. An `@handle` URL is not accepted there; take the `channel_ref` of a video
+  from that channel, or list the channel with `videos`.
+- Fetch and comments read one video. A playlist or channel ref, or an `@handle` URL, exits 2.
+- `comments` reads one page of a video's top-level comments (`--limit` up to 100,
+  `--sort relevance|time`) with the few replies each carries; `replies_complete: false` means more
+  replies exist that forager cannot read. Disabled comments exit 4 (`parameter`), not an empty
+  list. Comments are viewers' opinions: report them as such, never as facts about the video.
+- `videos` lists a playlist in its order, or a channel's uploads newest first. It takes a
+  playlist or channel ref, a playlist URL, a watch URL with `list=`, a `/channel/<UC…>` URL, or an
+  `@handle` URL. Items are search items plus `position`; continue with `--cursor`. Private and
+  deleted videos are skipped, and stderr says where. Duration and counts are `null`; fetch the
+  videos the request needs for them.
 - Duration, counts, and `has_captions` come from a second request; when it fails the items stay,
   those fields are `null`, and stderr says so.
 
 ```console
 forager platform youtube search 'retrieval augmented generation' --duration long --from 2026-09-01
 forager platform youtube fetch 'https://www.youtube.com/watch?v=jNQXAC9IVRw' --depth abstract
+forager platform youtube comments youtube:jNQXAC9IVRw --limit 10 --sort time
+forager platform youtube videos 'https://www.youtube.com/@3blue1brown' --limit 10
 ```
 
 ### Captions: the `youtube_web` route
@@ -394,8 +408,9 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
   said or shown in it: never report them as the video's content. A transcript is what was said,
   as the caption track renders it: quote it with the paragraph's timestamp link, say whether it is
   the publisher's captions or automatic speech recognition (`transcript.source`), and never report
-  it as what the video shows. Counts are YouTube's at the time of the request. Use only the refs
-  forager returns; construct no video ID yourself.
+  it as what the video shows. Comments are what individual viewers wrote: attribute them, and
+  never present them as what the video says. Counts are YouTube's at the time of the request. Use
+  only the refs forager returns; construct no video ID yourself.
 
 ## Recover
 

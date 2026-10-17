@@ -133,12 +133,14 @@
     },
     {
       "id": "youtube",
-      "purpose": "Search YouTube videos through the official Data API with the user's own key: video identity, channel, publication time, duration, view, like, and comment counts, whether captions exist, and the publisher's full description and chapters; once the user enables the youtube_web route, also one caption track as a timestamped transcript of what is said. Neither describes what the video shows.",
-      "select_when": "The request names YouTube, supplies a youtube.com or youtu.be video URL or a youtube: ref, or needs talks, lectures, tutorials, or interviews on YouTube with filters such as date, length, channel, or captions, or what a video says; search needs a YouTube Data API key and captions need the user-enabled youtube_web route. General questions keep using forager search.",
+      "purpose": "Search YouTube videos through the official Data API with the user's own key: video identity, channel, publication time, duration, view, like, and comment counts, whether captions exist, and the publisher's full description and chapters; a video's top-level comments; the videos of a playlist or channel; once the user enables the youtube_web route, also one caption track as a timestamped transcript of what is said. Neither describes what the video shows.",
+      "select_when": "The request names YouTube, supplies a youtube.com or youtu.be video URL or a youtube: ref, or needs talks, lectures, tutorials, or interviews on YouTube with filters such as date, length, channel, or captions, what viewers say about a video, the videos of a course, playlist, or channel, or what a video says; search needs a YouTube Data API key and captions need the user-enabled youtube_web route. General questions keep using forager search.",
       "examples": [
         "find recent YouTube talks on retrieval augmented generation longer than 20 minutes",
         "what is the description and chapter list of https://www.youtube.com/watch?v=jNQXAC9IVRw",
         "list videos about transformers from the 3Blue1Brown channel that have captions",
+        "what do viewers say in the comments of https://youtu.be/jNQXAC9IVRw",
+        "list every video in the playlist https://www.youtube.com/playlist?list=PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab",
         "在 YouTube 上找最近一个月讲 Rust 异步的视频"
       ],
       "ref_syntax": {

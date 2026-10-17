@@ -22,9 +22,9 @@ use crate::types::{
     AnysearchOutcome, CapabilitySet, ChatgptResearchFailure, ChatgptResearchResult,
     ChatgptResearchStarted, ClaimRisk, Context7Outcome, Deadline, EvidenceStrength, FallbackPolicy,
     FetchOutcome, GeminiResearchFailure, GeminiResearchResult, GeminiResearchStarted,
-    HnStoriesResult, JournalOutcome, MapOutcome, PlanCapability, PlatformFetchResult,
-    PlatformSearchPage, ProviderAttempt, RecencyRequirement, ResearchIntentSignals, ResearchPlan,
-    ResearchSubquestion, SearchOutcome, XAskResult, XiaohongshuCommentsPage,
+    HnStoriesResult, JournalOutcome, MapOutcome, PlanCapability, PlatformCommentsPage,
+    PlatformFetchResult, PlatformSearchPage, ProviderAttempt, RecencyRequirement,
+    ResearchIntentSignals, ResearchPlan, ResearchSubquestion, SearchOutcome, XAskResult,
 };
 
 #[doc(hidden)]
@@ -157,10 +157,10 @@ pub enum CommandOutput {
         /// Optional terminal projection selected by `log.level`.
         attempt_log: Option<String>,
     },
-    /// Typed Xiaohongshu comments terminal state for binary-side formatting and tee output.
-    XiaohongshuComments {
-        /// Comments result.
-        result: Result<XiaohongshuCommentsPage, ProviderError>,
+    /// Typed platform comments terminal state for binary-side formatting and tee output.
+    PlatformComments {
+        /// Comments result, in the platform's own shape.
+        result: Result<PlatformCommentsPage, ProviderError>,
         /// Requested output format.
         format: OutputFormat,
         /// Optional output file destination.

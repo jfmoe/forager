@@ -5,13 +5,15 @@ use std::path::PathBuf;
 use chrono::NaiveDate;
 use clap::{Args, Subcommand, ValueEnum};
 
-use super::{PageInput, PlatformCommonArgs, fetch, parse_date, search};
+use super::{PageInput, PlatformCommonArgs, comments, fetch, parse_date, run_page, search};
 use crate::app::args::{DocsOutputFormat, OutputFormat};
 use crate::app::dispatch::{AppError, CommandOutput};
+use crate::platform_chain;
 use crate::types::{
-    ContentDepth, Platform, PlatformFetchOptions, PlatformFetchRequest, PlatformRef,
-    PlatformSearchOptions, PlatformSearchRequest, YoutubeDuration, YoutubeFetchOptions,
-    YoutubeKind, YoutubeRef, YoutubeSearchOptions, YoutubeSort,
+    ContentDepth, Platform, PlatformCommentsRequest, PlatformFetchOptions, PlatformFetchRequest,
+    PlatformRef, PlatformSearchOptions, PlatformSearchRequest, YoutubeCollection,
+    YoutubeCommentSort, YoutubeCommentsRequest, YoutubeDuration, YoutubeFetchOptions, YoutubeKind,
+    YoutubeRef, YoutubeSearchOptions, YoutubeSort, YoutubeVideosRequest,
 };
 
 #[derive(Debug, Subcommand)]
@@ -22,6 +24,13 @@ pub(in crate::app) enum YoutubeCommand {
     /// Fetch one YouTube video: its metadata, its full description and chapters, or the
     /// transcript of one of its caption tracks.
     Fetch(YoutubeFetchArgs),
+    /// List the top-level comments of one YouTube video through the official Data API, with
+    /// the replies each thread carries.
+    Comments(YoutubeCommentsArgs),
+    /// List the videos of a YouTube playlist in its order, or of a channel newest first,
+    /// through the official Data API; each item carries the fields of a search result and its
+    /// position.
+    Videos(YoutubeVideosArgs),
 }
 
 #[derive(Debug, Args)]
@@ -83,6 +92,55 @@ pub(in crate::app) struct YoutubeFetchArgs {
     format: DocsOutputFormat,
     #[command(flatten)]
     common: PlatformCommonArgs,
+}
+
+#[derive(Debug, Args)]
+pub(in crate::app) struct YoutubeCommentsArgs {
+    /// A `youtube:<video_id>` ref or a YouTube video URL.
+    reference: String,
+    /// Maximum top-level comments; one command reads one page and cannot continue later.
+    #[arg(long, default_value_t = 20, value_parser = clap::value_parser!(u16).range(1..=100))]
+    limit: u16,
+    /// Comment order; `time` is newest first, though a pinned comment may still lead.
+    #[arg(long, value_enum, default_value_t = YoutubeCommentSortArg::Relevance)]
+    sort: YoutubeCommentSortArg,
+    #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
+    format: OutputFormat,
+    #[command(flatten)]
+    common: PlatformCommonArgs,
+}
+
+#[derive(Debug, Args)]
+pub(in crate::app) struct YoutubeVideosArgs {
+    /// A `youtube:playlist/<id>` or `youtube:channel/<UC…>` ref, or a playlist URL, a watch URL
+    /// with `list=`, a /channel/<UC…> URL, or an /@<handle> URL.
+    #[arg(required_unless_present = "cursor", conflicts_with = "cursor")]
+    collection: Option<String>,
+    /// Maximum videos on this page.
+    #[arg(long, default_value_t = 20, value_parser = clap::value_parser!(u16).range(1..=50), conflicts_with = "cursor")]
+    limit: u16,
+    /// Opaque `next_cursor` from a previous page; it restores the collection and the limit.
+    #[arg(long)]
+    cursor: Option<String>,
+    #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
+    format: OutputFormat,
+    #[command(flatten)]
+    common: PlatformCommonArgs,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+enum YoutubeCommentSortArg {
+    Relevance,
+    Time,
+}
+
+impl From<YoutubeCommentSortArg> for YoutubeCommentSort {
+    fn from(value: YoutubeCommentSortArg) -> Self {
+        match value {
+            YoutubeCommentSortArg::Relevance => Self::Relevance,
+            YoutubeCommentSortArg::Time => Self::Time,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
@@ -156,6 +214,8 @@ pub(in crate::app) fn run(command: YoutubeCommand) -> Result<CommandOutput, AppE
     match command {
         YoutubeCommand::Search(arguments) => youtube_search(arguments),
         YoutubeCommand::Fetch(arguments) => youtube_fetch(arguments),
+        YoutubeCommand::Comments(arguments) => youtube_comments(arguments),
+        YoutubeCommand::Videos(arguments) => youtube_videos(arguments),
     }
 }
 
@@ -204,19 +264,10 @@ fn youtube_fetch(arguments: YoutubeFetchArgs) -> Result<CommandOutput, AppError>
         format,
         common,
     } = arguments;
-    let reference = PlatformRef::parse(Platform::Youtube, &reference)
-        .map_err(|error| AppError::Argument(error.to_string()))?;
-    if let PlatformRef::Youtube(youtube) = &reference
-        && youtube.kind() != YoutubeKind::Video
-    {
-        return Err(AppError::Argument(format!(
-            "`{reference}` is a {}; youtube fetch reads one video",
-            youtube.kind().as_str()
-        )));
-    }
+    let video = parse_video(&reference, "fetch")?;
     let request = PlatformFetchRequest {
         options: PlatformFetchOptions::Youtube(YoutubeFetchOptions { languages }),
-        ..PlatformFetchRequest::new(reference, depth.into())
+        ..PlatformFetchRequest::new(PlatformRef::Youtube(video), depth.into())
     };
     request.validate().map_err(AppError::Argument)?;
     fetch(
@@ -227,4 +278,63 @@ fn youtube_fetch(arguments: YoutubeFetchArgs) -> Result<CommandOutput, AppError>
         false,
         &common,
     )
+}
+
+fn youtube_comments(arguments: YoutubeCommentsArgs) -> Result<CommandOutput, AppError> {
+    let YoutubeCommentsArgs {
+        reference,
+        limit,
+        sort,
+        format,
+        common,
+    } = arguments;
+    let request = YoutubeCommentsRequest {
+        video: parse_video(&reference, "comments")?,
+        limit,
+        sort: sort.into(),
+    };
+    comments(PlatformCommentsRequest::Youtube(request), format, &common)
+}
+
+fn youtube_videos(arguments: YoutubeVideosArgs) -> Result<CommandOutput, AppError> {
+    let YoutubeVideosArgs {
+        collection,
+        limit,
+        cursor,
+        format,
+        common,
+    } = arguments;
+    let input = if let Some(cursor) = cursor {
+        PageInput::Cursor(cursor)
+    } else {
+        let collection = YoutubeCollection::parse(&collection.unwrap_or_default())
+            .map_err(|error| AppError::Argument(error.to_string()))?;
+        PageInput::Request(YoutubeVideosRequest {
+            collection,
+            limit,
+            page: None,
+        })
+    };
+    run_page(
+        Platform::Youtube,
+        |config| match input {
+            PageInput::Request(request) => platform_chain::plan_videos(config, request),
+            PageInput::Cursor(cursor) => platform_chain::plan_cursor_videos(config, &cursor),
+        },
+        format,
+        &common,
+    )
+}
+
+/// Reads the one video an operation reads; a playlist or channel input is an argument error.
+fn parse_video(input: &str, operation: &str) -> Result<YoutubeRef, AppError> {
+    let reference =
+        YoutubeRef::parse(input).map_err(|error| AppError::Argument(error.to_string()))?;
+    if reference.kind() != YoutubeKind::Video {
+        return Err(AppError::Argument(format!(
+            "`youtube:{reference}` is a {}; youtube {operation} reads one video; list its videos with `forager platform youtube videos`",
+            reference.kind().as_str()
+        )));
+    }
+    Ok(reference)
 }

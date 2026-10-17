@@ -19,9 +19,11 @@ use super::platform_x::{XPostData, XRef, XSearchOptions};
 use super::platform_xiaohongshu::{
     AccessToken, XiaohongshuItemData, XiaohongshuNoteData, XiaohongshuRef, XiaohongshuSearchOptions,
 };
+use super::platform_xiaohongshu_comments::{XiaohongshuCommentsPage, XiaohongshuCommentsRequest};
 use super::platform_youtube::{
     YoutubeFetchOptions, YoutubeItemData, YoutubeRef, YoutubeSearchOptions,
 };
+use super::platform_youtube_comments::{YoutubeCommentsPage, YoutubeCommentsRequest};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -355,11 +357,14 @@ pub enum PlatformItemData {
 }
 
 #[derive(Clone, Debug, Serialize)]
-/// One page of platform search results.
+/// One page of platform search results, or of the items a collection lists.
 pub struct PlatformSearchPage {
     pub platform: Platform,
     /// The route that produced the page.
     pub provider: &'static str,
+    /// The collection the page lists, for an operation that lists one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub collection: Option<PlatformCollection>,
     pub items: Vec<PlatformItem>,
     /// An opaque cursor for the next page, or `null` when the route issues no cursor that
     /// another command can continue from. `null` alone does not prove the results are
@@ -369,6 +374,80 @@ pub struct PlatformSearchPage {
     pub attempts: Vec<ProviderAttempt>,
     #[serde(skip)]
     pub diagnostic: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+/// A collection of platform entities, such as a playlist or a channel's uploads.
+pub struct PlatformCollection {
+    #[serde(rename = "ref")]
+    pub reference: PlatformRef,
+    pub url: String,
+}
+
+impl PlatformCollection {
+    pub(crate) fn new(reference: PlatformRef) -> Self {
+        Self {
+            url: reference.canonical_url(),
+            reference,
+        }
+    }
+}
+
+/// The attempt-target name of the comments operation.
+pub(crate) const COMMENTS: &str = "comments";
+
+#[derive(Clone, Debug)]
+/// A request of the comments operation, one variant per platform that lists comments.
+pub(crate) enum PlatformCommentsRequest {
+    Xiaohongshu(XiaohongshuCommentsRequest),
+    Youtube(YoutubeCommentsRequest),
+}
+
+impl PlatformCommentsRequest {
+    pub(crate) fn platform(&self) -> Platform {
+        match self {
+            Self::Xiaohongshu(_) => Platform::Xiaohongshu,
+            Self::Youtube(_) => Platform::Youtube,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(untagged)]
+/// The comments of one platform entity, in the platform's own shape.
+pub enum PlatformCommentsPage {
+    Xiaohongshu(XiaohongshuCommentsPage),
+    Youtube(YoutubeCommentsPage),
+}
+
+impl PlatformCommentsPage {
+    /// Returns the provider attempts the page reports.
+    #[must_use]
+    pub fn attempts(&self) -> &[ProviderAttempt] {
+        match self {
+            Self::Xiaohongshu(page) => &page.attempts,
+            Self::Youtube(page) => &page.attempts,
+        }
+    }
+
+    /// Returns the diagnostic the page carries for stderr.
+    #[must_use]
+    pub fn into_diagnostic(self) -> Option<String> {
+        match self {
+            Self::Xiaohongshu(page) => page.diagnostic,
+            Self::Youtube(page) => page.diagnostic,
+        }
+    }
+
+    /// Sets the attempts and the diagnostic the route chain collected.
+    pub(crate) fn attach(&mut self, attempts: Vec<ProviderAttempt>, diagnostic: Option<String>) {
+        let (page_attempts, page_diagnostic) = match self {
+            Self::Xiaohongshu(page) => (&mut page.attempts, &mut page.diagnostic),
+            Self::Youtube(page) => (&mut page.attempts, &mut page.diagnostic),
+        };
+        *page_attempts = attempts;
+        *page_diagnostic = diagnostic;
+    }
 }
 
 /// One route's search result before cursor encoding.
