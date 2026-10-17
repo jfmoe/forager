@@ -177,7 +177,7 @@ _Avoid_: scholar paper id、result id、version
 _Avoid_: scholar scraper、scholar_serpapi
 
 **Platform Operation**:
-Platform 的一项操作。每个 Platform 都提供 search 与 fetch；改变结果种类或必需输入的操作是新的 Platform Operation，不是参数，例如 Google Scholar 的 Cited-by 与小红书的 Comments。
+Platform 的一项操作。每个 Platform 都提供 search 与 fetch；改变结果种类或必需输入的操作是新的 Platform Operation，不是参数，例如 Google Scholar 的 Cited-by、小红书的 Comments 与 X 的 Ask。
 _Avoid_: platform option、sub-command flag
 
 **Cited-by**:
@@ -188,6 +188,10 @@ _Avoid_: citations、references、backlinks
 列出一篇小红书笔记的一级评论、并可展开前几条评论第一页回复的 Platform Operation；不签发 cursor，笔记没有评论时给出空列表。
 _Avoid_: replies（指楼中楼回复本身）、thread
 
+**Ask**:
+只在 X 上检索、由模型写出带引用回答的 Platform Operation；结果是一段回答及其引用的来源，不是条目列表，回答整体是 Relayed Content。
+_Avoid_: X answer search、summary、main search
+
 **Platform Fetch**:
 按 Platform Ref 取回单个平台条目的操作；它不同于 Web Fetch Capability，尽管其正文段可以复用 Web Fetch。先由平台 route 取元数据并确定实际版本，全文深度再按 route 声明的正文来源取正文：一组 URL 或一个在同一 attempt 内校验过的本地文件走同一条 Web Fetch 链；route 在同一 attempt 内自己读到并核对过的平台原生正文（Native，例如小红书笔记）不经 Web Fetch（ADR 0022）。全文写入本地文件，结果只按路径引用它。
 _Avoid_: web fetch、platform download
@@ -195,6 +199,10 @@ _Avoid_: web fetch、platform download
 **Content Depth**:
 平台条目结果所含内容的程度：`metadata`（只有书目信息，没有摘要）、`snippet`、`abstract`、`full_text` 或 `thread`；每个 Platform 定义它所支持深度的含义，深度之间没有全局排序。摘要深度绝不等于全文，片段绝不等于摘要。对 SSRN，请求的深度是最低要求，条目的 `depth` 记录 route 实际拿到的内容。
 _Avoid_: detail level、verbosity
+
+**Relayed Content（转述内容）**:
+Platform Route 经模型转述得到的条目内容：模型的工具读到了原文，forager 只拿到模型写出的文本。条目身份可以由 route 用可核对的事实确认，正文与作者不保证逐字，例如 X 平台经 xAI 读到的帖子正文。
+_Avoid_: platform-native content、verbatim text、quoted post
 
 **Page Cursor**:
 平台检索结果的不透明翻页标识；它完整恢复原请求与下一页位置，只能在产出它的 route 与 Platform Operation 上继续。没有 cursor 只表示无法跨命令续页，不证明结果已读完：小红书每次访问的排序都不同，它的检索从不签发 cursor。
