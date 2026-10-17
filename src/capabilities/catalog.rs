@@ -134,7 +134,17 @@ pub(crate) const HN: PlatformCatalog = PlatformCatalog {
     default_order: &[ProviderId::HnApi],
 };
 
-pub(crate) const PLATFORMS: &[PlatformCatalog] = &[ARXIV, SSRN, SCHOLAR, XIAOHONGSHU, X, HN];
+// The official Data API needs the user's own key; one key per client, never a pool, because a
+// pool would sidestep the project quota the Developer Policies bind to one project.
+pub(crate) const YOUTUBE: PlatformCatalog = PlatformCatalog {
+    platform: Platform::Youtube,
+    search: &[ProviderId::YoutubeApi],
+    fetch: &[ProviderId::YoutubeApi],
+    default_order: &[ProviderId::YoutubeApi],
+};
+
+pub(crate) const PLATFORMS: &[PlatformCatalog] =
+    &[ARXIV, SSRN, SCHOLAR, XIAOHONGSHU, X, HN, YOUTUBE];
 
 impl PlatformCatalog {
     pub(crate) fn routes(self, operation: PlatformOperation) -> &'static [ProviderId] {
@@ -191,12 +201,13 @@ pub(crate) enum ProviderId {
     Serpapi,
     XiaohongshuBrowser,
     HnApi,
+    YoutubeApi,
     GeminiBrowser,
     ChatgptBrowser,
 }
 
 impl ProviderId {
-    pub(crate) const ALL: [Self; 16] = [
+    pub(crate) const ALL: [Self; 17] = [
         Self::Xai,
         Self::OpenAiCompatible,
         Self::Exa,
@@ -211,6 +222,7 @@ impl ProviderId {
         Self::Serpapi,
         Self::XiaohongshuBrowser,
         Self::HnApi,
+        Self::YoutubeApi,
         Self::GeminiBrowser,
         Self::ChatgptBrowser,
     ];
@@ -231,6 +243,7 @@ impl ProviderId {
             "serpapi" => Some(Self::Serpapi),
             "xiaohongshu_browser" => Some(Self::XiaohongshuBrowser),
             "hn_api" => Some(Self::HnApi),
+            "youtube_api" => Some(Self::YoutubeApi),
             "gemini_browser" => Some(Self::GeminiBrowser),
             "chatgpt_browser" => Some(Self::ChatgptBrowser),
             _ => None,
@@ -253,6 +266,7 @@ impl ProviderId {
             Self::Serpapi => "serpapi",
             Self::XiaohongshuBrowser => "xiaohongshu_browser",
             Self::HnApi => "hn_api",
+            Self::YoutubeApi => "youtube_api",
             Self::GeminiBrowser => "gemini_browser",
             Self::ChatgptBrowser => "chatgpt_browser",
         }
@@ -611,6 +625,21 @@ const HN_API_SMOKE: &[ProviderSmokeCase] = &[
     },
 ];
 
+const YOUTUBE_API_SMOKE: &[ProviderSmokeCase] = &[
+    ProviderSmokeCase {
+        id: "C36",
+        platform: Some(Platform::Youtube),
+        operation: "search",
+        transport: "http",
+    },
+    ProviderSmokeCase {
+        id: "C37",
+        platform: Some(Platform::Youtube),
+        operation: "fetch",
+        transport: "http",
+    },
+];
+
 // arXiv terms of use allow one request every three seconds over one connection.
 const ARXIV_API_ACCESS: AccessPolicy = AccessPolicy {
     min_interval: Duration::from_secs(3),
@@ -641,6 +670,13 @@ const XIAOHONGSHU_BROWSER_ACCESS: AccessPolicy = AccessPolicy {
 // limit. Both endpoints share this pace, at most 7,200 requests per hour.
 const HN_API_ACCESS: AccessPolicy = AccessPolicy {
     min_interval: Duration::from_millis(500),
+    max_concurrency: 1,
+};
+
+// The Data API meters quota, not pace, and failed requests still cost quota; one request per
+// second keeps a runaway loop from draining the daily search budget in moments.
+const YOUTUBE_API_ACCESS: AccessPolicy = AccessPolicy {
+    min_interval: Duration::from_secs(1),
     max_concurrency: 1,
 };
 
@@ -846,6 +882,21 @@ const REGISTRY: &[ProviderRegistration] = &[
             transport: "http",
         },
         smoke_cases: HN_API_SMOKE,
+        native_full_text: false,
+    },
+    // A deep doctor spends one search of the separate daily search quota.
+    ProviderRegistration {
+        id: ProviderId::YoutubeApi,
+        operations: &[],
+        credentials_required: true,
+        transport: ProviderTransport::Http,
+        access_policy: Some(YOUTUBE_API_ACCESS),
+        probe: DoctorProbe::PlatformSearch {
+            platform: Platform::Youtube,
+            name: "search",
+            transport: "http",
+        },
+        smoke_cases: YOUTUBE_API_SMOKE,
         native_full_text: false,
     },
     // Only `forager gemini` commands run it, never a chain. No live smoke case exists: starting

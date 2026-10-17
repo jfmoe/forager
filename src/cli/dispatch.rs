@@ -1666,7 +1666,8 @@ fn run_interactive_setup(language: Option<Language>) -> Result<CommandOutput, Ap
     )?;
 
     prompt_stage(language, 5, false);
-    configure_optional_keys(&mut input, language, &mut document, &["serpapi"])?;
+    let keyed_routes = ["serpapi", "youtube_api"];
+    configure_optional_keys(&mut input, language, &mut document, &keyed_routes)?;
 
     document.save()?;
     let stdout = match language {
@@ -1703,8 +1704,8 @@ fn prompt_stage(language: Language, stage: u8, classifier_configured: bool) {
             "Step 3: classifier (skipping disables automatic routing and research plans)"
         }
         (Language::En, 4, _) => "Step 4: supplemental providers",
-        (Language::Zh, 5, _) => "第 5 步：平台 route（Google Scholar 需要 SerpApi key）",
-        (Language::En, 5, _) => "Step 5: platform routes (Google Scholar needs a SerpApi key)",
+        (Language::Zh, 5, _) => "第 5 步：平台 route（Scholar 与 YouTube 需要自备 key）",
+        (Language::En, 5, _) => "Step 5: platform routes (Scholar and YouTube need your own key)",
         _ => return,
     };
     eprintln!("{label}");

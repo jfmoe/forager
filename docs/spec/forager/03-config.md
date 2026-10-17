@@ -109,6 +109,11 @@ url = "https://serpapi.com/search.json"
 keys = []                    # 为空＝未配置，scholar 平台命令飞行前退 3
 timeout = 30
 
+[providers.youtube_api]      # 需要凭据的平台 route；YouTube Data API v3 key 由用户自备（ADR 0028）
+url = "https://www.googleapis.com/youtube/v3"
+keys = []                    # 为空＝未配置；最多一个 key，多于一个退 3（第 7 章「YouTube」）
+timeout = 30
+
 [capabilities.web_search]
 order = ["tavily", "firecrawl"]
 [capabilities.web_fetch]
@@ -130,6 +135,8 @@ order = []                   # 默认为空；加入 "xiaohongshu_browser" 才�
 order = ["xai"]              # 复用主搜索的 xAI key；没有 key 时不算已配置，置空＝禁用
 [platforms.hn]
 order = ["hn_api"]           # 不需要凭据；置空＝禁用
+[platforms.youtube]
+order = ["youtube_api"]      # 没有 key 时不算已配置；置空＝禁用
 
 [log]
 level = "info"               # error|warn|info|debug|trace；见下方运行时语义
@@ -152,7 +159,7 @@ ssl_verify = true
 
 ### 凭据形状
 
-唯一形状：每个需要凭据的 provider 节一个 `keys` **真数组**（单凭据＝单元素数组）；注册信息声明不需要凭据的 provider（`arxiv_api`、`ssrn_crossref`、`ssrn_browser`、`xiaohongshu_browser`、`gemini_browser`、`chatgpt_browser`）的节没有 `keys`：HTTP route 只有 `url` 与 `timeout`，process 供应方（`ssrn_browser`、`xiaohongshu_browser`、`gemini_browser`、`chatgpt_browser`）只有 `command` 与 `timeout`，写入 `keys` 为未知键（文件层退 3，`config set` 退 2），该 provider 恒为已配置。`*_API_KEY`/`*_API_KEYS` 双形态与「KEYS 覆盖 KEY」优先级消灭。`classifier.keys` 沿用凭据池全套语义（去空去重、轮询、配额/限流失败同请求内换用）。
+唯一形状：每个需要凭据的 provider 节一个 `keys` **真数组**（单凭据＝单元素数组）；注册信息声明不需要凭据的 provider（`arxiv_api`、`ssrn_crossref`、`ssrn_browser`、`xiaohongshu_browser`、`gemini_browser`、`chatgpt_browser`）的节没有 `keys`：HTTP route 只有 `url` 与 `timeout`，process 供应方（`ssrn_browser`、`xiaohongshu_browser`、`gemini_browser`、`chatgpt_browser`）只有 `command` 与 `timeout`，写入 `keys` 为未知键（文件层退 3，`config set` 退 2），该 provider 恒为已配置。`*_API_KEY`/`*_API_KEYS` 双形态与「KEYS 覆盖 KEY」优先级消灭。`classifier.keys` 沿用凭据池全套语义（去空去重、轮询、配额/限流失败同请求内换用）。例外：`providers.youtube_api.keys` 最多一个元素（Developer Policies 要求一个客户端只用一个项目、不得规避配额，见第 7 章「YouTube」），多于一个时文件层退 3、`config set` 退 2。
 
 ### 链序权威
 
@@ -190,7 +197,7 @@ ssl_verify = true
 
 ## `setup` 向导
 
-交互五步：①语言 → ②主模型（选 backend，回车取默认）→ ③分类器（可跳过，明示后果）→ ④补强 provider ×6 逐个贴 keys 或跳过 → ⑤需要凭据的平台 route（目前只有 `serpapi`）贴 keys 或跳过。写盘后提示跑 `forager doctor`（setup 不做连通性探测）。只问凭据与模型级键；行为键出口是 `config set` 与手编。二跑＝增量更新。`--non-interactive`＝生成全键注释模板（table 形式，凭据留空），目标已存在拒绝覆盖。
+交互五步：①语言 → ②主模型（选 backend，回车取默认）→ ③分类器（可跳过，明示后果）→ ④补强 provider ×6 逐个贴 keys 或跳过 → ⑤需要凭据的平台 route（`serpapi`、`youtube_api`）贴 keys 或跳过。写盘后提示跑 `forager doctor`（setup 不做连通性探测）。只问凭据与模型级键；行为键出口是 `config set` 与手编。二跑＝增量更新。`--non-interactive`＝生成全键注释模板（table 形式，凭据留空），目标已存在拒绝覆盖。
 
 ## 旧键→新键映射表（迁移的唯一交付物）
 

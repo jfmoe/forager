@@ -1,6 +1,6 @@
 ---
 name: forager
-description: "Search current web and X/Twitter sources with the local forager CLI. Use for known-URL retrieval, platform items such as arXiv, SSRN, or Google Scholar papers, Xiaohongshu (小红书) notes, X posts, and Hacker News discussions, site mapping, official/API documentation lookup, vertical discovery, source-backed fact checking, deep research, Gemini or ChatGPT Deep Research the user explicitly asks for, or forager configuration and diagnostics."
+description: "Search current web and X/Twitter sources with the local forager CLI. Use for known-URL retrieval, platform items such as arXiv, SSRN, or Google Scholar papers, Xiaohongshu (小红书) notes, X posts, Hacker News discussions, and YouTube videos, site mapping, official/API documentation lookup, vertical discovery, source-backed fact checking, deep research, Gemini or ChatGPT Deep Research the user explicitly asks for, or forager configuration and diagnostics."
 ---
 
 # forager

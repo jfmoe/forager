@@ -88,7 +88,8 @@ fn platform_commands_nest_operations_under_each_platform() {
             ("scholar", vec!["search", "fetch", "cited-by"]),
             ("xiaohongshu", vec!["search", "fetch", "comments"]),
             ("x", vec!["search", "fetch", "ask"]),
-            ("hn", vec!["search", "fetch", "stories"])
+            ("hn", vec!["search", "fetch", "stories"]),
+            ("youtube", vec!["search", "fetch"])
         ]
     );
 }

@@ -6,7 +6,7 @@ use chrono::{Datelike, Local, Weekday};
 use super::{
     Anysearch, AnysearchSearchRequest, ArxivApi, Context7, Context7DocsRequest,
     Context7LibraryRequest, Exa, ExaSearchRequest, HnApi, OpenAiCompatible, SearchType, Serpapi,
-    SsrnBrowser, SsrnCrossref, SupplementalSearch, Xai, XiaohongshuBrowser,
+    SsrnBrowser, SsrnCrossref, SupplementalSearch, Xai, XiaohongshuBrowser, YoutubeApi,
 };
 use crate::redact::redact_url;
 use crate::types::{
@@ -208,6 +208,16 @@ impl PlatformSearch for HnApi {
     }
 }
 
+impl PlatformSearch for YoutubeApi {
+    fn search<'a>(
+        &'a self,
+        request: &'a PlatformSearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(YoutubeApi::search(self, request))
+    }
+}
+
 /// The fetch seam of a platform; each route of the platform implements it.
 pub(crate) trait PlatformFetch: Send + Sync {
     fn fetch<'a>(
@@ -283,6 +293,16 @@ impl PlatformFetch for HnApi {
     ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
     {
         Box::pin(HnApi::fetch(self, request))
+    }
+}
+
+impl PlatformFetch for YoutubeApi {
+    fn fetch<'a>(
+        &'a self,
+        request: &'a PlatformFetchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(YoutubeApi::fetch(self, request))
     }
 }
 

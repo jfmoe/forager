@@ -214,6 +214,19 @@
       "seam": "platform:hn:stories",
       "test": "tests/hn_stories.rs::the_front_page_lists_items_in_rank_order_and_reads_unindexed_ones_from_firebase",
       "note": "stories is a single-route platform operation outside the platform catalog; the platform checklist matches this entry against the provider factory's stories routes."
+    },
+    {
+      "id": "F29",
+      "provider": "youtube_api",
+      "seam": "platform:youtube:search",
+      "test": "tests/youtube_search.rs::results_carry_decoded_titles_and_the_batched_video_details",
+      "note": "A fixture server stands in for the YouTube Data API v3 with resources shaped like its 2026-10-17 responses; the live endpoint is confirmed only by the live smoke C36-C37."
+    },
+    {
+      "id": "F30",
+      "provider": "youtube_api",
+      "seam": "platform:youtube:fetch",
+      "test": "tests/youtube_fetch.rs::metadata_reads_one_video_with_every_part_and_leaves_out_the_description"
     }
   ],
   "offline_e2e": [

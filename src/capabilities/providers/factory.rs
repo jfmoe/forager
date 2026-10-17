@@ -8,8 +8,8 @@ use super::constructors::{
 use super::{
     ArxivApi, DocsSearch, HnApi, KeyAccount, MainSearch, ModelBreakers, PlatformFetch,
     PlatformSearch, ProviderId, Serpapi, SsrnBrowser, SsrnCrossref, SupplementalSearch,
-    VerticalSearch, WebFetch, WebSearch, XiaohongshuBrowser, arxiv, hn_api, opencli, serpapi,
-    ssrn_browser, ssrn_crossref, web_fetch, xai, xiaohongshu_browser,
+    VerticalSearch, WebFetch, WebSearch, XiaohongshuBrowser, YoutubeApi, arxiv, hn_api, opencli,
+    serpapi, ssrn_browser, ssrn_crossref, web_fetch, xai, xiaohongshu_browser, youtube_api,
 };
 use crate::catalog::{ProviderTransport, VERTICAL_SEARCH, WEB_FETCH, WEB_SEARCH, registration};
 use crate::config::{
@@ -160,6 +160,9 @@ pub(crate) fn build_platform_search(
         PlatformRouteConfig::HnApi(config) => {
             Box::new(build_hn_api(config, client, retry_policy, deadline))
         }
+        PlatformRouteConfig::YoutubeApi(config) => {
+            Box::new(build_youtube_api(config, client, retry_policy, deadline))
+        }
     }
 }
 
@@ -188,6 +191,9 @@ pub(crate) fn build_platform_fetch(
         }
         PlatformRouteConfig::HnApi(config) => {
             Box::new(build_hn_api(config, client, retry_policy, deadline))
+        }
+        PlatformRouteConfig::YoutubeApi(config) => {
+            Box::new(build_youtube_api(config, client, retry_policy, deadline))
         }
     }
 }
@@ -341,6 +347,24 @@ fn build_hn_api(
     )
 }
 
+fn build_youtube_api(
+    mut config: KeyedHttpRouteRuntimeConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> YoutubeApi {
+    let credentials = credentials(ProviderId::YoutubeApi, &mut config.keys);
+    YoutubeApi::new(
+        config,
+        client,
+        credentials,
+        route_limiter(ProviderId::YoutubeApi)
+            .expect("youtube_api registration declares an access policy"),
+        retry_policy,
+        deadline,
+    )
+}
+
 fn build_ssrn_crossref(
     config: HttpRouteRuntimeConfig,
     client: Client,
@@ -402,6 +426,7 @@ pub(crate) fn platform_search_support(
         ProviderId::XiaohongshuBrowser => xiaohongshu_browser::search_support(request),
         ProviderId::Xai => xai::search_support(request),
         ProviderId::HnApi => hn_api::search_support(request),
+        ProviderId::YoutubeApi => youtube_api::search_support(request),
         _ => return None,
     };
     Some(transport_support(id).and(route))
@@ -421,6 +446,7 @@ pub(crate) fn platform_fetch_support(
         ProviderId::XiaohongshuBrowser => xiaohongshu_browser::fetch_support(request),
         ProviderId::Xai => xai::fetch_support(request),
         ProviderId::HnApi => hn_api::fetch_support(request),
+        ProviderId::YoutubeApi => youtube_api::fetch_support(request),
         _ => return None,
     };
     Some(transport_support(id).and(route))

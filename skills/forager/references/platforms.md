@@ -29,6 +29,10 @@ platform absent from it has no platform command; follow
   discussion (an HN link the user gave, or a ref forager returned), run
   `forager platform hn fetch 'REF_OR_URL'`; for what is on the front page, run
   `forager platform hn stories`. See "Hacker News".
+- **YouTube**: for videos on a topic, run `forager platform youtube search QUERY`; for one video's
+  description, chapters, and counts (a video link the user gave, or a ref forager returned), run
+  `forager platform youtube fetch 'REF_OR_URL' --depth abstract`. Both need the user's YouTube Data
+  API key. See "YouTube".
 
 `forager platform <id> <op> --help` is the syntax authority; see the platform section of
 [`cli.md`](cli.md) for output fields and exit codes.
@@ -63,6 +67,10 @@ Every item carries `depth`, the content it actually holds: `metadata` (bibliogra
   writes the item and its whole discussion to `hn-<id>.md`; `--depth metadata` returns the item
   alone; `--depth full_text` reads the page a story links to through Web Fetch, or a text post's
   own body.
+- **YouTube** search items are `snippet` (the description excerpt; `metadata` when it is empty).
+  `fetch --depth metadata` returns the video's fields without its description; `--depth abstract`
+  adds the full description and the chapters YouTube shows. Captions are not available yet, so
+  pass `--depth metadata` or `--depth abstract`: the default `full_text` exits 2.
 
 ## arXiv search queries
 
@@ -195,6 +203,29 @@ forager platform hn fetch 'https://news.ycombinator.com/item?id=8863'
 forager platform hn stories top --limit 10
 ```
 
+## YouTube
+
+YouTube runs through the `youtube_api` route: the official Data API v3 with the user's own key.
+Search is the scarce resource: the default quota is 100 searches a day, and a failed search also
+counts, so search once with the filters the request implies instead of probing with several
+queries. Fetches draw on a separate, larger budget (10,000 units a day, one per fetch).
+
+- Queries follow YouTube: `-word` excludes a word and `a|b` matches either. Set `--sort`,
+  `--from`/`--to` (UTC days, both included), `--duration` (`short` under 4 minutes, `medium` 4 to
+  20, `long` over 20), `--channel`, and `--has-captions` only when the request implies them. For a
+  talk or lecture, `--duration long` filters out clips.
+- `--channel` takes a `youtube:channel/<UC…>` ref (an item's `channel_ref`) or a
+  `/channel/<UC…>` URL. An `@handle` URL is not accepted; take the `channel_ref` of a video from
+  that channel instead.
+- Fetch reads one video. A playlist or channel ref, or an `@handle` URL, exits 2.
+- Duration, counts, and `has_captions` come from a second request; when it fails the items stay,
+  those fields are `null`, and stderr says so.
+
+```console
+forager platform youtube search 'retrieval augmented generation' --duration long --from 2026-09-01
+forager platform youtube fetch 'https://www.youtube.com/watch?v=jNQXAC9IVRw' --depth abstract
+```
+
 ## SSRN browser route
 
 `ssrn_browser` searches and reads SSRN in the user's own Chrome through OpenCLI: search sends
@@ -322,6 +353,11 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
   may lag the site by a few minutes; `metadata` and `thread` counts are live. Use only the refs
   forager returns; construct no item ID yourself.
 
+- **YouTube evidence**: cite the ref (`youtube:<video_id>`) with the channel, and give the user the
+  `url`. The description and chapters are what the publisher wrote about the video, not what is
+  said or shown in it: never report them as the video's content. Counts are YouTube's at the time
+  of the request. Use only the refs forager returns; construct no video ID yourself.
+
 ## Recover
 
 - Exit 2 naming an unsupported option: retry once without that option and tell the user which
@@ -338,6 +374,15 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
 - Scholar exit 3 naming `providers.serpapi.keys`: no SerpApi key is configured. Ask the user to
   run `forager config set providers.serpapi.keys -` and type `["THEIR_KEY"]` on stdin (or rerun
   `forager setup`), so the key stays out of shell history and out of this conversation.
+- YouTube `quota_exhausted` (exit 4): the Data API key has used up today's quota (it resets at
+  midnight Pacific time). Tell the user and continue with `forager search`; do not retry YouTube.
+- YouTube `auth` (exit 4): the API rejected the key; ask the user to check
+  `providers.youtube_api.keys`.
+- YouTube exit 3 naming `providers.youtube_api.keys`: no key is configured, or more than one is
+  (YouTube allows one). Ask the user to run `forager config set providers.youtube_api.keys -` and
+  type `["THEIR_KEY"]` on stdin (or rerun `forager setup`).
+- Exit 5 on a YouTube `--depth abstract` fetch: the video has no description. Fetch with
+  `--depth metadata` and say the description is empty.
 - Exit 5 on full-text fetch (both HTML and PDF too thin): report it; use `--depth abstract` only
   when the abstract still answers the request, and say so.
 - Exit 5 on an SSRN `--depth abstract` fetch: no route had the abstract. Fetch at the default

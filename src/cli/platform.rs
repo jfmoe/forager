@@ -41,6 +41,10 @@ use x::XCommand;
 mod hn;
 use hn::HnCommand;
 
+#[path = "youtube.rs"]
+mod youtube;
+use youtube::YoutubeCommand;
+
 const DEFAULT_TIMEOUT_SECONDS: u64 = 120;
 
 #[derive(Debug, Subcommand)]
@@ -76,6 +80,12 @@ pub(super) enum PlatformCommand {
     Hn {
         #[command(subcommand)]
         command: HnCommand,
+    },
+    /// Search YouTube videos and read their metadata and descriptions; needs your own YouTube
+    /// Data API key.
+    Youtube {
+        #[command(subcommand)]
+        command: YoutubeCommand,
     },
 }
 
@@ -266,6 +276,7 @@ pub(super) fn run(command: PlatformCommand) -> Result<CommandOutput, AppError> {
         PlatformCommand::Xiaohongshu { command } => xiaohongshu::run(command),
         PlatformCommand::X { command } => x::run(command),
         PlatformCommand::Hn { command } => hn::run(command),
+        PlatformCommand::Youtube { command } => youtube::run(command),
     }
 }
 

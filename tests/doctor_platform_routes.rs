@@ -259,6 +259,35 @@ fn ssrn_browser_deep_doctor_runs_one_platform_search() {
 }
 
 #[test]
+fn youtube_api_deep_doctor_runs_one_search_with_the_key_in_a_header() {
+    let fixture = Fixture::start_sequence(vec![support::youtube::search_page(&[], None)]);
+    let environment = RunEnvironment::new(&support::youtube::config(&fixture.url));
+
+    let output = environment.run(&["doctor", "--provider", "youtube_api"]);
+    assert_deep_success(&output, "youtube_api", &[("search", "http")]);
+    let request = fixture.finish();
+
+    assert_eq!(
+        (
+            support::youtube::path(&request),
+            support::youtube::header(&request, "x-goog-api-key").as_deref(),
+            request
+                .lines()
+                .next()
+                .unwrap_or_default()
+                .contains(support::youtube::KEY),
+            String::from_utf8_lossy(&output.stdout).contains(support::youtube::KEY),
+        ),
+        (
+            "/youtube/v3/search".to_owned(),
+            Some(support::youtube::KEY),
+            false,
+            false
+        )
+    );
+}
+
+#[test]
 fn ssrn_browser_deep_doctor_refuses_a_route_that_no_order_enables() {
     let fake = FakeOpenCli::envelope("ok", &serde_json::json!({}));
     let environment = RunEnvironment::new(&fake.config("[\"ssrn_crossref\"]"));

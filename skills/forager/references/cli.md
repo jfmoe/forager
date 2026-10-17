@@ -309,7 +309,7 @@ Their `--timeout` defaults to `120` and includes waits for the platform's reques
 across all local processes (arXiv: one request every 3 seconds; SSRN through Crossref: one request
 per second; SSRN through the browser: one OpenCLI command every 5 seconds; Xiaohongshu: one OpenCLI
 command every 10 seconds; Hacker News: one request to either of its two endpoints every half
-second; Google Scholar through SerpApi and X through xAI have no local window).
+second; YouTube: one request per second; Google Scholar through SerpApi and X through xAI have no local window).
 
 ### `platform arxiv search`
 
@@ -868,6 +868,73 @@ may have gaps. An empty list returns `items: []` with exit 0.
 Exit codes: `2` before any request for an unknown list or `--limit` out of range; `3` for an empty
 `platforms.hn.order`; `4` when the list itself cannot be read, and for the transport failures
 under search.
+
+### `platform youtube search`
+
+```console
+forager platform youtube search [QUERY] [--sort relevance|date|views|rating]
+                                [--from YYYY-MM-DD] [--to YYYY-MM-DD]
+                                [--duration short|medium|long] [--channel CHANNEL]
+                                [--has-captions] [--limit N] [--cursor CURSOR]
+                                [--timeout SECONDS] [--format json|markdown]
+                                [--output FILE [--receipt]] [--verbose]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `QUERY` | Words to match as YouTube reads them: `-word` excludes a word and `a\|b` matches either. Required without `--cursor`. | Omitted |
+| `--sort ORDER` | `relevance`, `date` (newest first), `views`, or `rating`. | `relevance` |
+| `--from` / `--to` | Inclusive range of UTC publication days; either end may be omitted. | None |
+| `--duration CLASS` | `short` (under 4 minutes), `medium` (4 to 20), or `long` (over 20). | Any |
+| `--channel CHANNEL` | Only videos of this channel: a `youtube:channel/<UC…>` ref or a `/channel/<UC…>` URL. | None |
+| `--has-captions` | Only videos with captions, in any language. | Off |
+| `--limit N` | Results on this page, `1..=50`. | `20` |
+| `--cursor CURSOR` | `next_cursor` of a previous page; it restores the whole request, so pass no query, option, or `--limit` with it. | Omitted |
+
+YouTube runs through the `youtube_api` route: the official Data API v3
+(`providers.youtube_api.url`) with exactly one key in `providers.youtube_api.keys`. A search costs
+one of the key's default 100 searches a day, plus one unit of its separate 10,000-unit budget.
+JSON output is `{platform, provider, items, next_cursor}`. Each item has `ref`
+(`youtube:<video_id>`), `url` (`https://www.youtube.com/watch?v=<video_id>`), `depth` (`snippet`
+when the description excerpt is not empty, otherwise `metadata`), `title`, `authors` (the
+channel name), `published` (UTC second), `channel_ref` (`youtube:channel/<UC…>`), `snippet` (the
+description excerpt), `duration_seconds`, `live_status` (`none`, `upcoming`, `live`, or
+`completed`), `views`, `likes`, `comments`, `has_captions`, and `language` and `caption_tracks`
+(always `null` in search). Duration, counts, and `has_captions` come from a second request; when
+it fails they are `null` with one stderr diagnostic and the exit code is unchanged. A count the
+channel hides is `null`. A valid empty search returns `items: []` with exit 0.
+
+Exit codes: `2` before any request for a blank query, an invalid date, `--from` after `--to`, a
+`--channel` that is not a channel, or `--limit` out of range; `3` for an empty
+`platforms.youtube.order`, or no key or more than one key in `providers.youtube_api.keys`; `4` for
+`auth` (the key is invalid), `quota_exhausted` (the day's quota is used up), `parameter` (the API
+rejected the request), `network`, `timeout`, and `runtime` for an unexpected response.
+
+### `platform youtube fetch`
+
+```console
+forager platform youtube fetch REF_OR_URL [--depth metadata|abstract|full_text]
+                                          [--content-dir DIR] [--timeout SECONDS]
+                                          [--format json|markdown|content]
+                                          [--output FILE [--receipt]] [--verbose]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `REF_OR_URL` | `youtube:<video_id>`, or a watch, `youtu.be`, `shorts`, `live`, or `embed` video URL; `t`, `list`, `si`, and other viewing parameters are ignored. | Required |
+| `--depth DEPTH` | `metadata` returns the video's fields; `abstract` adds the full description and its chapters; `full_text` (captions) has no route yet and exits 2. | `full_text` |
+| `--content-dir DIR` | Directory for a full-text Markdown file. | New directory under the system temp directory |
+| `--format FORMAT` | `json`, `markdown`, or `content`; `content` prints the description. | `json` |
+
+JSON output is the item fields of search with `snippet: null` and `language` (the audio or
+description language); `abstract` adds `description` and `chapters`
+(`[{start_seconds, title}]`, empty when the description does not mark at least three chapters
+starting at `0:00`). A fetch costs one unit of the 10,000-unit budget, not a search.
+
+Exit codes: `2` before any request for an unrecognized input, a playlist or channel ref or URL,
+an `@handle`, `/c/`, or `/user/` page, or `full_text` depth; `3` as under search; `4` for
+`parameter` (`YouTube video not found or not public: youtube:<id>`) and the failures under
+search; `5` (`quality`) for `abstract` of a video without a description.
 
 ## Gemini Deep Research
 

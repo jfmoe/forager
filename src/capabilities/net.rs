@@ -53,13 +53,19 @@ pub(crate) async fn read_complete_protocol(
     credentials: &CredentialPool,
     error_message: fn(&str, u16) -> String,
 ) -> Result<ProviderResponseBody, AttemptFailure> {
-    read_provider_response(
-        response,
-        ResponseBodyPolicy::CompleteProtocol,
-        credentials,
-        error_message,
-    )
-    .await
+    read_complete_protocol_with_reasons(response, credentials, error_message, |_| None).await
+}
+
+/// Reads a complete protocol body; for an error status, a reason `reason_kind` recognizes in the
+/// provider's error body decides the error kind in place of the shared status mapping.
+pub(crate) async fn read_complete_protocol_with_reasons(
+    response: Response,
+    credentials: &CredentialPool,
+    error_message: fn(&str, u16) -> String,
+    reason_kind: fn(&str) -> Option<AttemptErrorKind>,
+) -> Result<ProviderResponseBody, AttemptFailure> {
+    let response = ensure_success(response, credentials, error_message, reason_kind).await?;
+    read_success_body(response, ResponseBodyPolicy::CompleteProtocol, credentials).await
 }
 
 pub(crate) async fn read_truncatable_content(
@@ -67,11 +73,11 @@ pub(crate) async fn read_truncatable_content(
     credentials: &CredentialPool,
     error_message: fn(&str, u16) -> String,
 ) -> Result<ProviderResponseBody, AttemptFailure> {
-    read_provider_response(
+    let response = ensure_success(response, credentials, error_message, |_| None).await?;
+    read_success_body(
         response,
         ResponseBodyPolicy::TruncatableContent,
         credentials,
-        error_message,
     )
     .await
 }
@@ -82,7 +88,7 @@ pub(crate) async fn read_capped_sse(
     error_message: fn(&str, u16) -> String,
     stream_error_prefix: &'static str,
 ) -> Result<(u16, ProviderEventStream), AttemptFailure> {
-    let response = ensure_success(response, credentials, error_message).await?;
+    let response = ensure_success(response, credentials, error_message, |_| None).await?;
     let status = response.status().as_u16();
     let credentials = credentials.clone();
     let events = capped_stream(response.bytes_stream(), MAX_RESPONSE_BYTES)
@@ -107,13 +113,11 @@ pub(crate) async fn read_capped_sse(
     Ok((status, Box::pin(events)))
 }
 
-async fn read_provider_response(
+async fn read_success_body(
     response: Response,
     success_policy: ResponseBodyPolicy,
     credentials: &CredentialPool,
-    error_message: fn(&str, u16) -> String,
 ) -> Result<ProviderResponseBody, AttemptFailure> {
-    let response = ensure_success(response, credentials, error_message).await?;
     let status = response.status().as_u16();
     let body = read_response_body(response, success_policy)
         .await
@@ -129,6 +133,7 @@ async fn ensure_success(
     response: Response,
     credentials: &CredentialPool,
     error_message: fn(&str, u16) -> String,
+    reason_kind: fn(&str) -> Option<AttemptErrorKind>,
 ) -> Result<Response, AttemptFailure> {
     let status = response.status();
     if status.is_success() {
@@ -138,7 +143,7 @@ async fn ensure_success(
         .await
         .map_err(|error| response_body_failure(&error, status.as_u16(), credentials))?;
     Err(AttemptFailure {
-        kind: error_kind_for_status(status, &body.text),
+        kind: reason_kind(&body.text).unwrap_or_else(|| error_kind_for_status(status, &body.text)),
         status: Some(status.as_u16()),
         message: redact_provider_message(&error_message(&body.text, status.as_u16()), credentials),
     })

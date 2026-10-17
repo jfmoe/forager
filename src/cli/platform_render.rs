@@ -149,6 +149,7 @@ fn item_abstract(item: &PlatformItem) -> Option<&str> {
         | PlatformItemData::XiaohongshuNote(_)
         | PlatformItemData::X(_)
         | PlatformItemData::Hn(_) => None,
+        PlatformItemData::Youtube(data) => data.description.as_deref(),
     }
 }
 
@@ -162,6 +163,7 @@ fn item_snippet(item: &PlatformItem) -> Option<&str> {
         PlatformItemData::Scholar(ScholarItemData::Result(data)) => data.snippet.as_deref(),
         PlatformItemData::X(data) => Some(&data.text),
         PlatformItemData::Hn(data) => data.text.as_deref(),
+        PlatformItemData::Youtube(data) => data.snippet.as_deref(),
     }
 }
 

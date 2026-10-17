@@ -72,6 +72,13 @@ forager platform hn fetch REF_OR_URL [--depth thread|metadata|full_text（默认
                           [--content-dir DIR] [--timeout 120] [--format json|markdown|content] [...]
 forager platform hn stories [top|new|best|ask|show|job（默认 top）] [--limit 1..=100（默认 30）]
                             [--timeout 120] [--format json|markdown] [...]
+forager platform youtube search QUERY [--sort relevance|date|views|rating] [--from YYYY-MM-DD]
+                                [--to YYYY-MM-DD] [--duration short|medium|long] [--channel CHANNEL]
+                                [--has-captions] [--limit 1..=50（默认 20）]
+                                [--timeout 120] [--format json|markdown] [...]
+forager platform youtube search --cursor CURSOR [--timeout 120] [--format json|markdown] [...]
+forager platform youtube fetch REF_OR_URL [--depth metadata|abstract|full_text（默认 full_text）]
+                               [--content-dir DIR] [--timeout 120] [--format json|markdown|content] [...]
 forager gemini research start QUERY [--timeout 240] [--format json|markdown]
 forager gemini research result CONVERSATION [--report-dir DIR]
                                [--timeout 120] [--format json|markdown|content] [...]
@@ -441,6 +448,41 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 - 通用 flag 同 search。没有 `--cursor`：榜单随时在变，翻页无法复现。
 - **输出**：JSON 为 `{platform, provider, list, items}`；`--verbose` 附 `provider_attempts`。条目为 search 的条目字段加 `rank`（榜单中的 1-based 名次），按名次排列；已删除、dead 或不存在的条目被跳过，stderr 汇总一条诊断。计数可能滞后几分钟。不写 Search Result Journal。
 - **退出码**：未知榜单、`--limit` 越界＝飞行前退 2；`platforms.hn.order` 为空＝飞行前退 3；榜单列表读取失败或不是数组、传输失败，退 4；列表为空为 `items: []` 且退 0。
+
+### `platform youtube search`
+
+只在 YouTube 上检索视频，经 `youtube_api` route（第 7 章「YouTube」），需要用户自己的 YouTube Data API key。
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| 查询词（位置参数） | 非空字符串 | 无 `--cursor` 时必填 | 按 Data API `q` 的语义原样发送；`-词` 为排除，`a\|b` 为任一 |
+| `--sort` | `relevance` / `date` / `views` / `rating` | `relevance` | 相关度、发布时间倒序、播放数或评分 |
+| `--from` / `--to` | `YYYY-MM-DD` | 无 | UTC 发布日期区间，两端都含当天，可只给一端 |
+| `--duration` | `short` / `medium` / `long` | 无 | 小于 4 分钟、4–20 分钟、大于 20 分钟 |
+| `--channel` | `youtube:channel/<UC…>` 或 `/channel/<UC…>` URL | 无 | 只在该频道里检索 |
+| `--has-captions` | 开关 | 关 | 只要有字幕的视频，不保证语言 |
+| `--limit` | 1–50 | 20 | 本页条目数 |
+| `--cursor` | 上一页的 `next_cursor` | 无 | 与查询词、选项和 `--limit` 互斥 |
+| `--format` | `json` / `markdown` | `json` | 输出格式 |
+
+- 通用 flag 同 arXiv search。一次 search 消耗 1 次 search 配额（默认每天 100 次）与 1 单位增强配额。
+- **输出**：外层形状与 arXiv search 相同，不输出估算总数。每个 item 含 `ref`（`youtube:<video_id>`）、canonical `url`、`depth`（有描述片段为 `snippet`，否则为 `metadata`）、`title`（已还原 HTML 实体）、`authors`（频道名）、`published`（UTC，精确到秒），以及 YouTube 字段 `channel_ref`、`snippet`、`duration_seconds`、`live_status`、`views`、`likes`、`comments`、`language`（search 恒为 `null`）、`has_captions` 与 `caption_tracks`（恒为 `null`）。时长、计数与字幕标志来自一次批量增强请求；它失败时这些字段为 `null`，stderr 汇总一条诊断，退出码不变。不写 Search Result Journal。
+- **退出码**：查询词为空、日期非法或 `--from` 晚于 `--to`、`--channel` 不是 channel、`--limit` 越界＝飞行前退 2，不发请求；`platforms.youtube.order` 为空、`providers.youtube_api.keys` 为空或多于一个＝飞行前退 3；key 无效为 Auth，配额耗尽为 QuotaExhausted，上游参数错误为 attempt 级 Parameter，响应不是预期结构为 Runtime，都退 4；合法零结果为 `items: []` 且退 0。
+
+### `platform youtube fetch`
+
+读取一个 YouTube 视频的元数据，或完整描述与章节。
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| ref 或 URL（位置参数） | `youtube:<video_id>`，或 watch、`youtu.be`、`shorts`、`live`、`embed` 视频链接 | 必填 | 前缀不区分大小写；忽略 `t`、`list`、`si` 等观看参数与 fragment |
+| `--depth` | `metadata` / `abstract` / `full_text` | `full_text` | `metadata` 只返回书目字段；`abstract` 另有完整描述与章节；`full_text` 目前没有 route 支持 |
+| `--content-dir` | 目录 | 系统临时目录下的新目录 | 全文文件的写入位置 |
+| `--format` | `json` / `markdown` / `content` | `json` | `content` 把描述输出到 stdout |
+
+- 通用 flag 同 search。一次 fetch 消耗 1 单位配额。
+- **输出**：JSON 顶层为 `platform`、`provider`，条目的公共字段与 YouTube 字段（`snippet` 为 `null`，`language` 为音频语言或描述语言）；`abstract` 深度另有 `description` 与 `chapters`（`[{start_seconds, title}]`）。
+- **退出码**：无法识别的输入、playlist 或 channel 的 ref 与 URL、`@handle` 与 `/c/`、`/user/` 频道页、`full_text` 深度＝飞行前退 2；配置错误同 search，退 3；视频不存在或不公开（`YouTube video not found or not public: youtube:<id>`）为 attempt 级 Parameter，退 4；`abstract` 而视频没有描述为 Quality，退 5；传输失败同 search。
 
 ## Gemini 命令
 
