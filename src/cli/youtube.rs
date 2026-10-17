@@ -25,7 +25,7 @@ use crate::types::{
 };
 
 // A model reads a long video for minutes, so the deadline leaves room for `gemini_api`'s own
-// five-minute request timeout after the metadata check.
+// five-minute request timeout after the precheck.
 const MODEL_TIMEOUT_SECONDS: u64 = 600;
 
 #[derive(Debug, Subcommand)]
@@ -177,13 +177,13 @@ pub(in crate::app) struct YoutubeTranscribeArgs {
 /// commands'.
 #[derive(Debug, Args)]
 struct ModelCommonArgs {
-    /// Whole-command deadline in seconds, including the metadata check and waits for the
-    /// platform request window.
+    /// Whole-command deadline in seconds, including the precheck that reads the video
+    /// first and waits for the platform request window.
     #[arg(long, default_value_t = MODEL_TIMEOUT_SECONDS, value_parser = clap::value_parser!(u64).range(1..))]
     timeout: u64,
     #[command(flatten)]
     output: OutputArgs,
-    /// Include every provider attempt, including skipped routes and the metadata check.
+    /// Include every provider attempt, including skipped routes and the precheck.
     #[arg(long)]
     verbose: bool,
 }

@@ -4,8 +4,8 @@
 use reqwest::Url;
 use serde::Deserialize;
 
-use super::super::markup::markup_text;
-use super::super::transcript::Cue;
+use crate::providers::markup::markup_text;
+use crate::providers::transcript::Cue;
 use crate::types::{YoutubeCaptionSource, YoutubeCaptionTrack};
 
 /// Names the operation that reads a video without a qualifying caption track.

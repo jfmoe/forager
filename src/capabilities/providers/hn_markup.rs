@@ -6,7 +6,7 @@
 
 use std::fmt::Write as _;
 
-use super::super::markup::decode_entities;
+use crate::providers::markup::decode_entities;
 
 /// Converts a Hacker News body to Markdown; `None` when nothing remains.
 pub(super) fn hn_markdown(html: &str) -> Option<String> {

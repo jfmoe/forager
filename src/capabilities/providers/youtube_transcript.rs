@@ -4,7 +4,9 @@
 //! A producer passes the video item it read and the description its document carries; this
 //! module binds them to the platform-neutral `providers/transcript` renderer.
 
-use super::transcript::{RenderedTranscript, Transcript, TranscriptChapter, TranscriptSubject};
+use crate::providers::transcript::{
+    RenderedTranscript, Transcript, TranscriptChapter, TranscriptSubject,
+};
 use crate::types::{
     PlatformItem, PlatformItemData, PlatformRef, YoutubeChapter, YoutubeItemData, YoutubeRef,
 };

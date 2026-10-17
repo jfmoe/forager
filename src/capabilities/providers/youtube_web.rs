@@ -16,8 +16,6 @@ use reqwest::{Client, RequestBuilder};
 use serde::Deserialize;
 use serde_json::json;
 
-use super::transcript::Transcript;
-use super::youtube_transcript::YoutubeVideo;
 use crate::catalog::ProviderId;
 use crate::config::HttpRouteRuntimeConfig;
 use crate::credentials::CredentialPool;
@@ -26,6 +24,8 @@ use crate::providers::execution::{ExecutionOutcome, ExecutionSettings, execute_a
 use crate::providers::shared::{
     Refusal, acquire_window, count, other_platform_message, parameter_error, utc_timestamp,
 };
+use crate::providers::transcript::Transcript;
+use crate::providers::youtube_transcript::YoutubeVideo;
 use crate::rate_limit::RateLimiter;
 use crate::types::{
     AttemptErrorKind, AttemptTarget, ContentDepth, Deadline, FullTextSource, Platform,

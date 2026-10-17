@@ -204,6 +204,10 @@ _Avoid_: 逐字稿、subtitles dump、captions file
 由模型听看一个视频后生成 Transcript 的 Platform Operation；结果整体是 Relayed Content，只在调用者显式请求时运行，不作为平台字幕缺失时的自动替代。
 _Avoid_: ASR fallback、generated full text
 
+**Precheck（前置检查）**:
+模型操作（YouTube 的 Ask 与 Transcribe）请求模型之前经该平台的 Platform Fetch 链读取同一视频的步骤；读取失败或视频正在直播即命令失败，不请求模型。读到的条目交给模型 route，模型 route 从不自己读取平台；前置检查的 attempts 排在模型 route 的 attempts 之前。
+_Avoid_: preflight（指不发请求的飞行前校验）、metadata check、validation
+
 **Stories**:
 列出 Hacker News 某个官方榜单当前条目的 Platform Operation；条目按榜单排名排列，不签发 cursor。
 _Avoid_: front page search、HN feed
