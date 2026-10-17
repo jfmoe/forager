@@ -930,7 +930,7 @@ forager platform youtube fetch REF_OR_URL [--depth metadata|abstract|full_text] 
 `metadata` and `abstract` come from `youtube_api` (from `youtube_web` when the order has no
 configured `youtube_api`). JSON output is the item fields of search with `snippet: null` and
 `language` (through `youtube_api`, the audio or description language; through `youtube_web`, the
-original language its caption tracks imply); `youtube_web` adds `caption_tracks`
+language of its only automatic caption track, else `null`); `youtube_web` adds `caption_tracks`
 (`[{language, source}]`, `source` `manual` or `asr`, never machine translations) and reports
 `likes` and `comments` as `null`. `abstract` adds `description` and `chapters`
 (`[{start_seconds, title}]`, empty when the description does not mark at least three chapters

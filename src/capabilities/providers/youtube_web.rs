@@ -539,7 +539,7 @@ fn read_player(
             views: count(details.view_count.as_deref()),
             likes: None,
             comments: None,
-            language: tracks.original_language().map(str::to_owned),
+            language: tracks.spoken_language().map(str::to_owned),
             has_captions: Some(!tracks.tracks().is_empty()),
             caption_tracks: Some(tracks.listing()),
             description: abstract_fields.0,
