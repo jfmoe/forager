@@ -95,118 +95,135 @@ pub(crate) async fn run_ask(
     let AskPlan {
         ask,
         routes,
-        mut skipped,
+        skipped,
     } = plan;
+    let run = AskRun {
+        client,
+        retry_policy,
+        deadline,
+        verbose,
+    };
     match ask {
-        PlannedAsk::X(request) => {
-            let request = &request;
-            let result = run_routes(
-                Platform::X,
-                routes,
-                deadline,
-                verbose,
-                |config, deadline| {
-                    let client = client.clone();
-                    async move {
-                        let outcome =
-                            providers::x_ask(config, client, retry_policy, deadline, request)
-                                .await?;
-                        Ok(StepSuccess {
-                            value: (outcome.answer, outcome.sources),
-                            attempts: outcome.attempts,
-                            diagnostic: outcome.diagnostic,
-                        })
-                    }
-                },
-            )
-            .await;
-            let outcome = match result {
-                Ok(mut outcome) => {
-                    skipped.append(&mut outcome.attempts);
-                    outcome.attempts = skipped;
-                    outcome
-                }
-                Err(mut error) => {
-                    skipped.append(&mut error.attempts);
-                    error.attempts = skipped;
-                    return Err(error);
-                }
-            };
-            let (route, (answer, sources)) = outcome.value;
-            Ok(PlatformAskResult::X(XAskResult {
-                platform: Platform::X,
-                provider: route.name(),
-                query: request.query.clone(),
-                answer,
-                sources,
-                attempts: if verbose {
-                    outcome.attempts
-                } else {
-                    Vec::new()
-                },
-                diagnostic: outcome.diagnostic,
-            }))
-        }
+        PlannedAsk::X(request) => ask_x(&request, routes, skipped, &run).await,
         PlannedAsk::Youtube { request, precheck } => {
-            let Prechecked { video, trace } = run_precheck(
-                precheck,
-                skipped,
-                client.clone(),
-                retry_policy,
-                deadline,
-                verbose,
-            )
-            .await?;
-            let (question, checked) = (&request.question, &video);
-            let result = run_routes(
-                Platform::Youtube,
-                routes,
-                deadline,
-                verbose,
-                |config, deadline| {
-                    let client = client.clone();
-                    async move {
-                        let outcome = providers::youtube_ask(
-                            config,
-                            client,
-                            retry_policy,
-                            deadline,
-                            checked,
-                            question,
-                        )
-                        .await?;
-                        Ok(StepSuccess {
-                            value: (outcome.answer, outcome.model, outcome.usage),
-                            attempts: outcome.attempts,
-                            diagnostic: outcome.diagnostic,
-                        })
-                    }
-                },
-            )
-            .await;
-            let outcome = trace.lead(result)?;
-            let (route, (answer, model, usage)) = outcome.value;
-            Ok(PlatformAskResult::Youtube(YoutubeAskResult {
-                platform: Platform::Youtube,
-                provider: route.name(),
-                video: AskedVideo {
-                    reference: video.reference,
-                    url: video.url,
-                    title: video.title,
-                },
-                question: request.question,
-                answer,
-                model,
-                usage,
-                attempts: if verbose {
-                    outcome.attempts
-                } else {
-                    Vec::new()
-                },
-                diagnostic: outcome.diagnostic,
-            }))
+            ask_youtube(request, precheck, routes, skipped, &run).await
         }
     }
+}
+
+/// What every step of an ask runs with.
+struct AskRun {
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+    verbose: bool,
+}
+
+async fn ask_x(
+    request: &XAskRequest,
+    routes: Vec<PlatformRouteConfig>,
+    mut skipped: Vec<ProviderAttempt>,
+    run: &AskRun,
+) -> Result<PlatformAskResult, ProviderError> {
+    let result = run_routes(Platform::X, routes, run, |config, deadline| {
+        let client = run.client.clone();
+        async move {
+            let outcome =
+                providers::x_ask(config, client, run.retry_policy, deadline, request).await?;
+            Ok(StepSuccess {
+                value: (outcome.answer, outcome.sources),
+                attempts: outcome.attempts,
+                diagnostic: outcome.diagnostic,
+            })
+        }
+    })
+    .await;
+    let outcome = match result {
+        Ok(mut outcome) => {
+            skipped.append(&mut outcome.attempts);
+            outcome.attempts = skipped;
+            outcome
+        }
+        Err(mut error) => {
+            skipped.append(&mut error.attempts);
+            error.attempts = skipped;
+            return Err(error);
+        }
+    };
+    let (route, (answer, sources)) = outcome.value;
+    Ok(PlatformAskResult::X(XAskResult {
+        platform: Platform::X,
+        provider: route.name(),
+        query: request.query.clone(),
+        answer,
+        sources,
+        attempts: if run.verbose {
+            outcome.attempts
+        } else {
+            Vec::new()
+        },
+        diagnostic: outcome.diagnostic,
+    }))
+}
+
+async fn ask_youtube(
+    request: YoutubeAskRequest,
+    precheck: PrecheckPlan,
+    routes: Vec<PlatformRouteConfig>,
+    skipped: Vec<ProviderAttempt>,
+    run: &AskRun,
+) -> Result<PlatformAskResult, ProviderError> {
+    let Prechecked { video, trace } = run_precheck(
+        precheck,
+        skipped,
+        run.client.clone(),
+        run.retry_policy,
+        run.deadline,
+        run.verbose,
+    )
+    .await?;
+    let (question, checked) = (&request.question, &video);
+    let result = run_routes(Platform::Youtube, routes, run, |config, deadline| {
+        let client = run.client.clone();
+        async move {
+            let outcome = providers::youtube_ask(
+                config,
+                client,
+                run.retry_policy,
+                deadline,
+                checked,
+                question,
+            )
+            .await?;
+            Ok(StepSuccess {
+                value: (outcome.answer, outcome.model, outcome.usage),
+                attempts: outcome.attempts,
+                diagnostic: outcome.diagnostic,
+            })
+        }
+    })
+    .await;
+    let outcome = trace.lead(result)?;
+    let (route, (answer, model, usage)) = outcome.value;
+    Ok(PlatformAskResult::Youtube(YoutubeAskResult {
+        platform: Platform::Youtube,
+        provider: route.name(),
+        video: AskedVideo {
+            reference: video.reference,
+            url: video.url,
+            title: video.title,
+        },
+        question: request.question,
+        answer,
+        model,
+        usage,
+        attempts: if run.verbose {
+            outcome.attempts
+        } else {
+            Vec::new()
+        },
+        diagnostic: outcome.diagnostic,
+    }))
 }
 
 /// Runs the ask's route chain; `answer` answers on one route, without the route's identity,
@@ -214,8 +231,7 @@ pub(crate) async fn run_ask(
 async fn run_routes<T, Answer, Fut>(
     platform: Platform,
     routes: Vec<PlatformRouteConfig>,
-    deadline: Deadline,
-    verbose: bool,
+    run: &AskRun,
     answer: Answer,
 ) -> Result<ChainOutcome<(ProviderId, T)>, ProviderError>
 where
@@ -240,13 +256,13 @@ where
             fallback_off: false,
             diagnostic_merge: DiagnosticMerge::Join,
             terminal: TerminalPolicy::ChainWide {
-                verbose,
+                verbose: run.verbose,
                 exhausted_message: "platform ask deadline elapsed",
             },
             identity: &route_identity,
             continue_on_failure: &chain::always_continue,
         },
-        deadline,
+        run.deadline,
         |config: PlatformRouteConfig, step_deadline| {
             let route = config.route();
             let answered = answer(config, step_deadline);
