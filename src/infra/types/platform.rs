@@ -14,6 +14,7 @@ use super::platform_arxiv::{ArxivItemData, ArxivRef, ArxivSearchOptions};
 use super::platform_scholar::{ScholarItemData, ScholarRef, ScholarSearchOptions};
 use super::platform_ssrn::{SsrnItemData, SsrnRef};
 use super::platform_ssrn_search::SsrnSearchOptions;
+use super::platform_x::{XPostData, XRef, XSearchOptions};
 use super::platform_xiaohongshu::{
     AccessToken, XiaohongshuItemData, XiaohongshuNoteData, XiaohongshuRef, XiaohongshuSearchOptions,
 };
@@ -30,11 +31,19 @@ pub enum Platform {
     Scholar,
     /// Xiaohongshu (小红书), a social platform of user notes.
     Xiaohongshu,
+    /// X (formerly Twitter), a social platform of short posts.
+    X,
 }
 
 impl Platform {
     /// Every built-in platform.
-    pub const ALL: [Self; 4] = [Self::Arxiv, Self::Ssrn, Self::Scholar, Self::Xiaohongshu];
+    pub const ALL: [Self; 5] = [
+        Self::Arxiv,
+        Self::Ssrn,
+        Self::Scholar,
+        Self::Xiaohongshu,
+        Self::X,
+    ];
 
     /// Returns the stable platform identifier used by commands and configuration.
     #[must_use]
@@ -44,6 +53,7 @@ impl Platform {
             Self::Ssrn => "ssrn",
             Self::Scholar => "scholar",
             Self::Xiaohongshu => "xiaohongshu",
+            Self::X => "x",
         }
     }
 }
@@ -117,6 +127,8 @@ pub enum PlatformRef {
     Scholar(ScholarRef),
     /// A Xiaohongshu note.
     Xiaohongshu(XiaohongshuRef),
+    /// An X post.
+    X(XRef),
 }
 
 impl PlatformRef {
@@ -131,6 +143,7 @@ impl PlatformRef {
             Platform::Ssrn => SsrnRef::parse(input).map(Self::Ssrn),
             Platform::Scholar => ScholarRef::parse(input).map(Self::Scholar),
             Platform::Xiaohongshu => XiaohongshuRef::parse(input).map(Self::Xiaohongshu),
+            Platform::X => XRef::parse(input).map(Self::X),
         }
     }
 
@@ -142,6 +155,7 @@ impl PlatformRef {
             Self::Ssrn(_) => Platform::Ssrn,
             Self::Scholar(_) => Platform::Scholar,
             Self::Xiaohongshu(_) => Platform::Xiaohongshu,
+            Self::X(_) => Platform::X,
         }
     }
 
@@ -151,6 +165,7 @@ impl PlatformRef {
         match self {
             Self::Arxiv(_) | Self::Ssrn(_) | Self::Scholar(_) => "paper",
             Self::Xiaohongshu(_) => "note",
+            Self::X(_) => "post",
         }
     }
 
@@ -162,6 +177,7 @@ impl PlatformRef {
             Self::Ssrn(reference) => reference.canonical_url(),
             Self::Scholar(reference) => reference.canonical_url(),
             Self::Xiaohongshu(reference) => reference.canonical_url(),
+            Self::X(reference) => reference.canonical_url(),
         }
     }
 }
@@ -173,6 +189,7 @@ impl fmt::Display for PlatformRef {
             Self::Ssrn(reference) => write!(formatter, "ssrn:{reference}"),
             Self::Scholar(reference) => write!(formatter, "scholar:{reference}"),
             Self::Xiaohongshu(reference) => write!(formatter, "xiaohongshu:{reference}"),
+            Self::X(reference) => write!(formatter, "x:{reference}"),
         }
     }
 }
@@ -195,6 +212,8 @@ pub enum PlatformSearchOptions {
     Scholar(ScholarSearchOptions),
     /// Xiaohongshu options.
     Xiaohongshu(XiaohongshuSearchOptions),
+    /// X options.
+    X(XSearchOptions),
 }
 
 impl PlatformSearchOptions {
@@ -206,6 +225,7 @@ impl PlatformSearchOptions {
             Platform::Ssrn => Self::Ssrn(SsrnSearchOptions::default()),
             Platform::Scholar => Self::Scholar(ScholarSearchOptions::default()),
             Platform::Xiaohongshu => Self::Xiaohongshu(XiaohongshuSearchOptions::default()),
+            Platform::X => Self::X(XSearchOptions::default()),
         }
     }
 
@@ -217,6 +237,7 @@ impl PlatformSearchOptions {
             Self::Ssrn(_) => Platform::Ssrn,
             Self::Scholar(_) => Platform::Scholar,
             Self::Xiaohongshu(_) => Platform::Xiaohongshu,
+            Self::X(_) => Platform::X,
         }
     }
 }
@@ -243,6 +264,7 @@ impl PlatformSearchRequest {
             PlatformSearchOptions::Xiaohongshu(_) => {
                 XiaohongshuSearchOptions::validate(&self.query, self.limit)
             }
+            PlatformSearchOptions::X(options) => options.validate(&self.query, self.limit),
         }
     }
 }
@@ -254,7 +276,8 @@ pub struct PlatformItem {
     pub reference: PlatformRef,
     pub url: String,
     pub depth: ContentDepth,
-    pub title: String,
+    /// The item title; `null` for a platform whose entities have none, such as X posts.
+    pub title: Option<String>,
     pub authors: Vec<String>,
     pub published: Option<String>,
     #[serde(flatten)]
@@ -275,6 +298,8 @@ pub enum PlatformItemData {
     Xiaohongshu(XiaohongshuItemData),
     /// Xiaohongshu fields of a fetched note.
     XiaohongshuNote(XiaohongshuNoteData),
+    /// X fields of a post.
+    X(XPostData),
 }
 
 #[derive(Clone, Debug, Serialize)]

@@ -42,7 +42,7 @@ impl MainSearchRequestKind {
 
     pub(super) fn input(self, query: &str) -> String {
         match self {
-            Self::Search => main_search_input(query),
+            Self::Search => with_time_context(query),
             Self::ModelProbe => query.to_owned(),
         }
     }
@@ -52,7 +52,8 @@ impl MainSearchRequestKind {
     }
 }
 
-fn main_search_input(query: &str) -> String {
+/// Prefixes `query` with the local date and time, so a model can resolve words like "recent".
+pub(super) fn with_time_context(query: &str) -> String {
     let now = Local::now();
     let weekday = match now.weekday() {
         Weekday::Mon => "星期一",
@@ -187,6 +188,16 @@ impl PlatformSearch for XiaohongshuBrowser {
     }
 }
 
+impl PlatformSearch for Xai {
+    fn search<'a>(
+        &'a self,
+        request: &'a PlatformSearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(Xai::search_posts(self, request))
+    }
+}
+
 /// The fetch seam of a platform; each route of the platform implements it.
 pub(crate) trait PlatformFetch: Send + Sync {
     fn fetch<'a>(
@@ -242,6 +253,16 @@ impl PlatformFetch for XiaohongshuBrowser {
     ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
     {
         Box::pin(XiaohongshuBrowser::fetch(self, request))
+    }
+}
+
+impl PlatformFetch for Xai {
+    fn fetch<'a>(
+        &'a self,
+        request: &'a PlatformFetchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(Xai::fetch_post(self, request))
     }
 }
 

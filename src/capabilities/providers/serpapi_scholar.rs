@@ -309,7 +309,7 @@ fn decode_cluster(
         reference: PlatformRef::Scholar(requested),
         url: requested.canonical_url(),
         depth: ContentDepth::Metadata,
-        title,
+        title: Some(title),
         authors,
         published,
         data: PlatformItemData::Scholar(ScholarItemData::Cluster(ScholarCluster {
@@ -416,7 +416,7 @@ impl OrganicResult {
                 resources: resources(self.resources),
                 result_type: self.result_type,
             })),
-            title: self.title.unwrap_or_default(),
+            title: Some(self.title.unwrap_or_default()),
         })
     }
 

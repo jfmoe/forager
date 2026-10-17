@@ -26,6 +26,8 @@ mod engine;
 mod journal;
 #[path = "capabilities/net.rs"]
 mod net;
+#[path = "core/platform_ask.rs"]
+mod platform_ask;
 #[path = "core/platform_chain.rs"]
 mod platform_chain;
 #[cfg(test)]

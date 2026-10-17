@@ -31,11 +31,11 @@ model = ""
 fallback_models = []         # 同端点模型链（同 url/keys 换模型）
 timeout = 30                 # 整个分类阶段的共享预算
 
-[providers.xai]
+[providers.xai]                # 主搜索 backend，也是 X 平台的 route（ADR 0026）
 url = "https://api.x.ai/v1"
 keys = []
-model = "grok-4-fast"
-tools = ["web_search", "x_search"]
+model = "grok-4-fast"         # 主搜索与 X 平台共用
+tools = ["web_search", "x_search"]   # 只作用于主搜索；X 平台请求固定只发 x_search
 
 [providers.openai_compatible]
 url = ""
@@ -121,6 +121,8 @@ order = ["ssrn_crossref"]    # 加入 "ssrn_browser" 才启用浏览器 route（
 order = ["serpapi"]          # 默认含 serpapi，但没有 key 时不算已配置
 [platforms.xiaohongshu]
 order = []                   # 默认为空；加入 "xiaohongshu_browser" 才启用（第 7 章「小红书」）
+[platforms.x]
+order = ["xai"]              # 复用主搜索的 xAI key；没有 key 时不算已配置，置空＝禁用
 
 [log]
 level = "info"               # error|warn|info|debug|trace；见下方运行时语义

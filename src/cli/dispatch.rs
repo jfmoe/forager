@@ -24,7 +24,7 @@ use crate::types::{
     FetchOutcome, GeminiResearchFailure, GeminiResearchResult, GeminiResearchStarted,
     JournalOutcome, MapOutcome, PlanCapability, PlatformFetchResult, PlatformSearchPage,
     ProviderAttempt, RecencyRequirement, ResearchIntentSignals, ResearchPlan, ResearchSubquestion,
-    SearchOutcome, XiaohongshuCommentsPage,
+    SearchOutcome, XAskResult, XiaohongshuCommentsPage,
 };
 
 #[doc(hidden)]
@@ -161,6 +161,17 @@ pub enum CommandOutput {
     XiaohongshuComments {
         /// Comments result.
         result: Result<XiaohongshuCommentsPage, ProviderError>,
+        /// Requested output format.
+        format: OutputFormat,
+        /// Optional output file destination.
+        output: Option<OutputTarget>,
+        /// Optional terminal projection selected by `log.level`.
+        attempt_log: Option<String>,
+    },
+    /// Typed X ask terminal state for binary-side formatting and tee output.
+    XAsk {
+        /// Ask result.
+        result: Result<XAskResult, ProviderError>,
         /// Requested output format.
         format: OutputFormat,
         /// Optional output file destination.

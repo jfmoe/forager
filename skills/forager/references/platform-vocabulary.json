@@ -90,6 +90,28 @@
           "https://www.xiaohongshu.com/explore/64a1b2c3d4e5f60718293a4b?xsec_token=ABcd_123=&xsec_source=pc_search"
         ]
       }
+    },
+    {
+      "id": "x",
+      "purpose": "Search and read X (formerly Twitter) posts through xAI's x_search tool: post identity, author handle, publication time from the post ID, the post text as the model relayed it, a post's thread, and answers written from X posts alone with cited posts.",
+      "select_when": "The request names X or Twitter, supplies an x.com or twitter.com post URL or x: ref, asks what people on X say, or needs posts by given accounts or within given days; it uses the xAI key of main search. General questions keep using forager search.",
+      "examples": [
+        "what are people on X saying about the Rust 2027 edition",
+        "list SpaceX's posts about Starship from early October",
+        "read this thread: https://x.com/SpaceX/status/2110126570233094527",
+        "X 上大家怎么评价这次发布会",
+        "看看这条推文下面的讨论"
+      ],
+      "ref_syntax": {
+        "ref": "x:<post_id>",
+        "id_forms": ["2110126570233094527"],
+        "urls": [
+          "https://x.com/<handle>/status/<post_id>",
+          "https://x.com/i/status/<post_id>",
+          "https://twitter.com/<handle>/status/<post_id>"
+        ],
+        "examples": ["x:2110126570233094527", "https://x.com/SpaceX/status/2110126570233094527"]
+      }
     }
   ]
 }

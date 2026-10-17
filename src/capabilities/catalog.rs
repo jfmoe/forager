@@ -3,8 +3,8 @@ use std::time::Duration;
 
 use crate::rate_limit::AccessPolicy;
 use crate::types::{
-    CHATGPT_RESEARCH_RESULT, CHATGPT_RESEARCH_START, CITED_BY, COMMENTS, GEMINI_RESEARCH_RESULT,
-    GEMINI_RESEARCH_START, Platform,
+    ASK, CHATGPT_RESEARCH_RESULT, CHATGPT_RESEARCH_START, CITED_BY, COMMENTS,
+    GEMINI_RESEARCH_RESULT, GEMINI_RESEARCH_START, Platform,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -117,7 +117,16 @@ pub(crate) const XIAOHONGSHU: PlatformCatalog = PlatformCatalog {
     default_order: &[],
 };
 
-pub(crate) const PLATFORMS: &[PlatformCatalog] = &[ARXIV, SSRN, SCHOLAR, XIAOHONGSHU];
+// xAI's `x_search` tool reads X for the model, which relays what it read; the route shares the
+// main search provider's configuration and credentials (ADR 0026).
+pub(crate) const X: PlatformCatalog = PlatformCatalog {
+    platform: Platform::X,
+    search: &[ProviderId::Xai],
+    fetch: &[ProviderId::Xai],
+    default_order: &[ProviderId::Xai],
+};
+
+pub(crate) const PLATFORMS: &[PlatformCatalog] = &[ARXIV, SSRN, SCHOLAR, XIAOHONGSHU, X];
 
 impl PlatformCatalog {
     pub(crate) fn routes(self, operation: PlatformOperation) -> &'static [ProviderId] {
@@ -353,12 +362,32 @@ const OPENAI_PROBES: &[ProbeShape] = &[
     },
 ];
 
-const XAI_SMOKE: &[ProviderSmokeCase] = &[ProviderSmokeCase {
-    id: "C01",
-    platform: None,
-    operation: "main_search",
-    transport: "sse",
-}];
+const XAI_SMOKE: &[ProviderSmokeCase] = &[
+    ProviderSmokeCase {
+        id: "C01",
+        platform: None,
+        operation: "main_search",
+        transport: "sse",
+    },
+    ProviderSmokeCase {
+        id: "C30",
+        platform: Some(Platform::X),
+        operation: "search",
+        transport: "sse",
+    },
+    ProviderSmokeCase {
+        id: "C31",
+        platform: Some(Platform::X),
+        operation: "fetch",
+        transport: "sse",
+    },
+    ProviderSmokeCase {
+        id: "C32",
+        platform: Some(Platform::X),
+        operation: ASK,
+        transport: "sse",
+    },
+];
 const OPENAI_SMOKE: &[ProviderSmokeCase] = &[
     ProviderSmokeCase {
         id: "C02",

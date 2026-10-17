@@ -13,6 +13,7 @@ mod platform_arxiv;
 mod platform_scholar;
 mod platform_ssrn;
 mod platform_ssrn_search;
+mod platform_x;
 mod platform_xiaohongshu;
 mod platform_xiaohongshu_comments;
 mod research;
@@ -59,6 +60,10 @@ pub use platform_ssrn::{SsrnItemData, SsrnRef};
 pub use platform_ssrn_search::{
     SsrnDatePreset, SsrnDateRange, SsrnSearchMode, SsrnSearchOptions, SsrnSearchScope, SsrnSort,
     SsrnSortOrder, SsrnWorkType,
+};
+pub(crate) use platform_x::{ASK, XAskOutcome, XAskRequest};
+pub use platform_x::{
+    XAskResult, XPostData, XPostRole, XRef, XSearchOptions, XSource, XThreadPost,
 };
 pub(crate) use platform_xiaohongshu::AccessToken;
 pub use platform_xiaohongshu::{

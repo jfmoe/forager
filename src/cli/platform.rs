@@ -33,6 +33,10 @@ use scholar::ScholarCommand;
 mod xiaohongshu;
 use xiaohongshu::XiaohongshuCommand;
 
+#[path = "x.rs"]
+mod x;
+use x::XCommand;
+
 const DEFAULT_TIMEOUT_SECONDS: u64 = 120;
 
 #[derive(Debug, Subcommand)]
@@ -57,6 +61,12 @@ pub(super) enum PlatformCommand {
     Xiaohongshu {
         #[command(subcommand)]
         command: XiaohongshuCommand,
+    },
+    /// Search X (formerly Twitter) posts through xAI's `x_search` tool; uses the xAI key of main
+    /// search. Post text is relayed by the model and may differ from the original.
+    X {
+        #[command(subcommand)]
+        command: XCommand,
     },
 }
 
@@ -245,6 +255,7 @@ pub(super) fn run(command: PlatformCommand) -> Result<CommandOutput, AppError> {
         } => ssrn_fetch(arguments),
         PlatformCommand::Scholar { command } => scholar::run(command),
         PlatformCommand::Xiaohongshu { command } => xiaohongshu::run(command),
+        PlatformCommand::X { command } => x::run(command),
     }
 }
 

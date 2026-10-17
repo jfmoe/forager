@@ -22,6 +22,7 @@ pub(crate) mod doctor;
 pub(crate) mod gemini;
 pub(crate) mod opencli;
 pub(crate) mod scholar;
+pub(crate) mod x;
 
 const ACCEPT_DEADLINE: Duration = Duration::from_secs(10);
 const ACCEPT_POLL_INTERVAL: Duration = Duration::from_millis(10);

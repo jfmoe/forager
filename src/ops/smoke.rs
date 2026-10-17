@@ -17,7 +17,7 @@ use crate::catalog::{self, ProviderId, ProviderRegistration};
 use crate::config::{self, RuntimeConfig};
 use crate::redact::{CREDENTIAL_MASK, Secret, redact_credentials, redact_url};
 use crate::state_file;
-use crate::types::{CITED_BY, COMMENTS, Deadline, Platform};
+use crate::types::{ASK, CITED_BY, COMMENTS, Deadline, Platform};
 
 static PROBE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 pub(crate) const MAIN_CANARY_QUERY: &str = "What is the latest stable Rust release?";
@@ -29,10 +29,12 @@ const ANYSEARCH_CANARY_QUERY: &str = "retrieval augmented generation";
 const PLATFORM_CANARY_QUERY: &str = "retrieval augmented generation";
 // Xiaohongshu has new coffee notes every week, so the filtered search reaches its second page.
 const XIAOHONGSHU_CANARY_QUERY: &str = "咖啡";
-const SPECIFICATION_CASE_IDS: [&str; 31] = [
+// SpaceX posts about Starship every week, so the answer always has posts to cite.
+const X_ASK_CANARY_QUERY: &str = "What has SpaceX posted about Starship recently?";
+const SPECIFICATION_CASE_IDS: [&str; 34] = [
     "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12",
     "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24", "C25",
-    "C26", "C27", "C28", "C29",
+    "C26", "C27", "C28", "C29", "C30", "C31", "C32",
 ];
 // One comment page holds 10 top-level comments, so 15 needs the second page.
 const XIAOHONGSHU_COMMENTS_LIMIT: &str = "15";
@@ -169,6 +171,8 @@ struct LiveCaseResult {
 #[derive(Clone, Copy)]
 enum ResultShape {
     MainSearch,
+    /// A platform answer, such as an X ask.
+    Answer,
     PipelineSearch,
     Research,
     Classifier,
@@ -232,6 +236,7 @@ fn platform_fetch_canary(platform: Platform) -> Option<(&'static str, &'static s
         Platform::Ssrn => Some(("ssrn:2042750", "metadata")),
         Platform::Scholar => Some(("scholar:18208131694456651388", "metadata")),
         Platform::Xiaohongshu => None,
+        Platform::X => Some(("x:2110126570233094527", "metadata")),
     }
 }
 
@@ -972,6 +977,18 @@ fn command_specs(
                 ],
                 ResultShape::PlatformFetch,
             )
+        } else if definition.operation == ASK {
+            one(
+                &[
+                    "platform",
+                    platform.as_str(),
+                    ASK,
+                    X_ASK_CANARY_QUERY,
+                    "--timeout",
+                    &timeout,
+                ],
+                ResultShape::Answer,
+            )
         } else if definition.operation == CITED_BY {
             one(
                 &[
@@ -1183,7 +1200,7 @@ fn command_specs(
 
 fn result_shape_is_nonempty(shape: ResultShape, payload: &Value) -> bool {
     match shape {
-        ResultShape::MainSearch => nonempty_string(payload, "answer"),
+        ResultShape::MainSearch | ResultShape::Answer => nonempty_string(payload, "answer"),
         ResultShape::PipelineSearch => {
             nonempty_string(payload, "answer") && nonempty_array(payload, "extra_sources")
         }
@@ -1206,8 +1223,10 @@ fn result_shape_is_nonempty(shape: ResultShape, payload: &Value) -> bool {
         | ResultShape::Anysearch
         | ResultShape::Map => nonempty_array(payload, "results"),
         ResultShape::PlatformSearch => nonempty_array(payload, "items"),
+        // X posts have no title; their text proves the read.
         ResultShape::PlatformFetch => {
-            nonempty_string(payload, "ref") && nonempty_string(payload, "title")
+            nonempty_string(payload, "ref")
+                && (nonempty_string(payload, "title") || nonempty_string(payload, "text"))
         }
         // Many Xiaohongshu notes have no title, so only the body proves the read.
         ResultShape::PlatformFullText => {

@@ -308,7 +308,7 @@ forager anysearch domains DOMAIN [--timeout SECONDS] [--format json|markdown]
 Their `--timeout` defaults to `120` and includes waits for the platform's request window, shared
 across all local processes (arXiv: one request every 3 seconds; SSRN through Crossref: one request
 per second; SSRN through the browser: one OpenCLI command every 5 seconds; Xiaohongshu: one OpenCLI
-command every 10 seconds; Google Scholar through SerpApi has no local window).
+command every 10 seconds; Google Scholar through SerpApi and X through xAI have no local window).
 
 ### `platform arxiv search`
 
@@ -690,6 +690,88 @@ Exit codes: `2` before any request for a missing or malformed token, a short lin
 comment that was not expanded; the adapter could not click "展开 N 条回复", with the reason; or the
 page was unexpected).
 
+### `platform x search`
+
+```console
+forager platform x search QUERY [--handle HANDLE]... [--exclude-handle HANDLE]...
+                                [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--limit N]
+                                [--timeout SECONDS] [--format json|markdown]
+                                [--output FILE [--receipt]] [--verbose]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `QUERY` | What to find on X, in natural language or X search syntax; the model chooses how to search. | Required |
+| `--handle HANDLE` | Only posts by this account, with or without `@`; repeat for up to 20. | None |
+| `--exclude-handle HANDLE` | No posts by this account; repeat for up to 20. Cannot be combined with `--handle`. | None |
+| `--from` / `--to` | Inclusive range of UTC publication days. | None |
+| `--limit N` | Maximum posts, `1..=20`. | `10` |
+
+X runs through the `xai` route: the xAI Responses API with only the `x_search` tool, using
+`providers.xai.url`, `.keys`, and `.model` of main search; `providers.xai.tools` does not apply.
+xAI enforces the handle and date filters on its server; the model chooses the search order. A
+search takes about 10 to 30 seconds and reads as many posts as the model decides.
+
+JSON output is `{platform, provider, items, next_cursor}`; `next_cursor` is always `null`, because
+X search cannot continue a page: rewrite the query or raise `--limit` for more. Each item has
+`ref` (`x:<post_id>`), `url` (`https://x.com/i/status/<post_id>`), `depth: snippet`, `title:
+null`, `authors` (the handle), `published` (UTC second from the post ID, `null` for posts from
+before November 2010), `author_handle`, and `text`. The text and handle are relayed by the model
+that read the post and may differ from the original. Posts the response does not cite as read,
+and posts dated outside `--from`/`--to`, are dropped with one stderr diagnostic. An empty list
+(exit 0) means the model found no matching post.
+
+Exit codes: `2` before any request for a blank query, `--handle` with `--exclude-handle`, more than
+20 handles, a malformed handle, an invalid date, `--from` after `--to`, or `--limit` out of range;
+`3` for no `providers.xai.keys` or an empty `platforms.x.order`; `4` for xAI failures as in main
+search (`auth`, `rate_limited` and `quota_exhausted` after every key, `parameter`, `network`,
+`timeout`) and `runtime` when the posts are not the requested JSON or none could be verified.
+
+### `platform x fetch`
+
+```console
+forager platform x fetch REF_OR_URL [--depth thread|metadata] [--timeout SECONDS]
+                                    [--format json|markdown|content]
+                                    [--output FILE [--receipt]] [--verbose]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `REF_OR_URL` | `x:<post_id>`, or an x.com or twitter.com post URL (`/<handle>/status/<id>`, `/i/status/<id>`, `/i/web/status/<id>`, with or without `/photo/N`, a query, or a fragment). | Required |
+| `--depth thread\|metadata` | `thread` adds the conversation; `metadata` returns the post alone. | `thread` |
+
+JSON output is the post's item fields (as under search, with `depth` set to the requested depth)
+plus, at `thread` depth, `thread`: every post in the model's conversation order, each `{ref, url,
+author_handle, published, text, role}` with `role` one of `parent`, `root`, `reply`, `quoted`. The
+root must be the requested post and cited as read; replies cannot be checked against the
+response. `--format content` prints the post text, or the thread as Markdown. Nothing is written
+to a file.
+
+Exit codes: `2` before any request for a `t.co` short link (open it in a browser and pass the
+x.com URL), another URL, or a depth other than `thread` and `metadata`; `3` as under search; `4`
+for a post the model cannot see (`parameter`, `X post x:<id> was not found or is not visible`), a
+root that is not the requested post or not cited (`runtime`), and the xAI failures under search.
+
+### `platform x ask`
+
+```console
+forager platform x ask QUERY [--handle HANDLE]... [--exclude-handle HANDLE]...
+                             [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--timeout SECONDS]
+                             [--format json|markdown] [--output FILE [--receipt]] [--verbose]
+```
+
+`QUERY` is the question; the filters are the same as under search. The model searches X only
+and writes an answer with inline citations such as `[[1]](https://x.com/SpaceX/status/<id>)`; the
+whole answer is relayed content.
+
+JSON output is `{platform, provider, query, answer, sources}`. Each source is `{ref, url, title}`:
+a cited post has its `x:<post_id>` ref and canonical URL, which `platform x fetch` accepts; a
+profile or other page has `ref: null` and its own URL. `sources` may be empty; treat an answer
+without sources as unverified. Ask writes no result journal.
+
+Exit codes: `2` before any request for a blank question or invalid filters as under search; `3`
+as under search; `4` for the xAI failures under search.
+
 ## Gemini Deep Research
 
 Run these commands only when the user explicitly asks for Gemini Deep Research. They drive
@@ -913,7 +995,8 @@ steps; `--provider ssrn_browser` or `--provider xiaohongshu_browser` also needs 
 order and runs one real search in Chrome. The shallow report never checks `gemini_browser`;
 `--provider gemini_browser` opens the Gemini app in a background Chrome window and reports whether
 the adapter is installed and current and the browser is signed in, without reading or starting
-any research. `--provider serpapi` runs no search and costs nothing: it asks
+any research. `--provider xai` adds an `x_search` check, one X search, while
+`platforms.x.order` lists `xai`. `--provider serpapi` runs no search and costs nothing: it asks
 SerpApi's account endpoint about every configured key and adds a `keys` array, one entry per key
 with `key_index`, `ok`, `searches_left`, `plan_searches_left`, `this_month_usage`,
 `this_hour_searches`, and `hourly_limit`, plus `error_kind` for a failing key (`auth`,
