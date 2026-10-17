@@ -7,7 +7,6 @@
 
 use std::time::Duration;
 
-use chrono::DateTime;
 use reqwest::Client;
 use serde::Deserialize;
 
@@ -18,7 +17,9 @@ use crate::net::{
     AttemptFailure, RetryPolicy, read_complete_protocol_with_reasons, send_provider_request,
 };
 use crate::providers::execution::{ExecutionOutcome, ExecutionSettings, execute_v2};
-use crate::providers::shared::{acquire_window, other_platform_message, parameter_error};
+use crate::providers::shared::{
+    acquire_window, count, other_platform_message, parameter_error, utc_timestamp,
+};
 use crate::rate_limit::RateLimiter;
 use crate::types::{
     AttemptErrorKind, AttemptTarget, ContentDepth, Deadline, FullTextSource, Platform,
@@ -375,23 +376,12 @@ fn channel_ref(channel_id: Option<&str>) -> Option<PlatformRef> {
         .map(PlatformRef::Youtube)
 }
 
-fn count(value: Option<&str>) -> Option<u64> {
-    value.and_then(|value| value.parse().ok())
-}
-
 fn caption_flag(value: Option<&str>) -> Option<bool> {
     match value? {
         "true" => Some(true),
         "false" => Some(false),
         _ => None,
     }
-}
-
-/// Normalizes an RFC 3339 time to a UTC ISO 8601 timestamp to the second.
-fn utc_timestamp(value: &str) -> Option<String> {
-    DateTime::parse_from_rfc3339(value)
-        .ok()
-        .map(|time| time.to_utc().format("%Y-%m-%dT%H:%M:%SZ").to_string())
 }
 
 /// Reads an ISO 8601 duration such as `PT21M3S` or `P1DT2H` as seconds. A zero duration, which

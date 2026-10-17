@@ -1,3 +1,5 @@
+use chrono::{DateTime, Utc};
+
 use crate::catalog::ProviderId;
 use crate::credentials::CredentialPool;
 use crate::net::{AttemptFailure, truncate_message};
@@ -18,6 +20,23 @@ pub(super) async fn acquire_window(
             status: None,
             message: error.to_string(),
         })
+}
+
+/// Formats a time as a platform item timestamp: UTC ISO 8601 to the second.
+pub(super) fn utc_second(time: DateTime<Utc>) -> String {
+    time.format("%Y-%m-%dT%H:%M:%SZ").to_string()
+}
+
+/// Normalizes an RFC 3339 time to a platform item timestamp.
+pub(super) fn utc_timestamp(value: &str) -> Option<String> {
+    DateTime::parse_from_rfc3339(value)
+        .ok()
+        .map(|time| utc_second(time.to_utc()))
+}
+
+/// Reads a count that a platform sends as a decimal string.
+pub(super) fn count(value: Option<&str>) -> Option<u64> {
+    value.and_then(|value| value.parse().ok())
 }
 
 /// Returns a platform route's refusal of a request that belongs to another platform.

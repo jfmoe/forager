@@ -21,7 +21,9 @@ use crate::net::{
     AttemptFailure, RetryPolicy, combine_diagnostics, read_complete_protocol, send_provider_request,
 };
 use crate::providers::execution::{ExecutionOutcome, ExecutionSettings, execute_anonymous};
-use crate::providers::shared::{acquire_window, other_platform_message, parameter_error};
+use crate::providers::shared::{
+    acquire_window, other_platform_message, parameter_error, utc_second,
+};
 use crate::rate_limit::RateLimiter;
 use crate::types::{
     AttemptDisposition, AttemptErrorKind, AttemptTarget, ContentDepth, Deadline, FullTextSource,
@@ -619,11 +621,11 @@ fn comment_ref(item_type: HnItemType, id: Option<u64>) -> Option<PlatformRef> {
         .map(PlatformRef::Hn)
 }
 
-/// Formats a Unix time as a UTC ISO 8601 timestamp to the second.
+/// Formats a Unix time as a platform item timestamp.
 fn published(seconds: Option<i64>) -> Option<String> {
     seconds
         .and_then(|seconds| DateTime::from_timestamp(seconds, 0))
-        .map(|time| time.format("%Y-%m-%dT%H:%M:%SZ").to_string())
+        .map(utc_second)
 }
 
 fn non_empty(value: Option<String>) -> Option<String> {

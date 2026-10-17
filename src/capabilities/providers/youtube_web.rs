@@ -11,7 +11,6 @@
 
 use std::time::Duration;
 
-use chrono::DateTime;
 use reqwest::header::ACCEPT_LANGUAGE;
 use reqwest::{Client, RequestBuilder};
 use serde::Deserialize;
@@ -23,7 +22,9 @@ use crate::config::HttpRouteRuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{AttemptFailure, RetryPolicy, read_complete_protocol, send_provider_request};
 use crate::providers::execution::{ExecutionOutcome, ExecutionSettings, execute_anonymous};
-use crate::providers::shared::{acquire_window, other_platform_message, parameter_error};
+use crate::providers::shared::{
+    acquire_window, count, other_platform_message, parameter_error, utc_timestamp,
+};
 use crate::rate_limit::RateLimiter;
 use crate::types::{
     AttemptErrorKind, AttemptTarget, ContentDepth, Deadline, FullTextSource, Platform,
@@ -646,17 +647,6 @@ fn render_transcript(
         &|seconds| format!("{}&t={seconds}s", item.url),
     );
     Ok((rendered.markdown, rendered.info))
-}
-
-fn count(value: Option<&str>) -> Option<u64> {
-    value.and_then(|value| value.parse().ok())
-}
-
-/// Normalizes an RFC 3339 time to a UTC ISO 8601 timestamp to the second.
-fn utc_timestamp(value: &str) -> Option<String> {
-    DateTime::parse_from_rfc3339(value)
-        .ok()
-        .map(|time| time.to_utc().format("%Y-%m-%dT%H:%M:%SZ").to_string())
 }
 
 #[cfg(test)]
