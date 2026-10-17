@@ -6,7 +6,9 @@ use std::fmt;
 use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 
-use super::platform::{Platform, PlatformRef, PlatformRefError};
+use super::platform::{
+    ContentDepth, Platform, PlatformRef, PlatformRefError, TranscriptInfo, TranscriptSource,
+};
 
 const YOUTUBE_MAX_LIMIT: u16 = 50;
 const REF_PREFIX: &str = "youtube:";
@@ -248,6 +250,46 @@ impl YoutubeSearchOptions {
     }
 }
 
+/// Optional YouTube fetch settings.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub(crate) struct YoutubeFetchOptions {
+    /// Caption languages in priority order; empty picks the video's original language.
+    pub(crate) languages: Vec<String>,
+}
+
+impl YoutubeFetchOptions {
+    pub(super) fn validate(&self, depth: ContentDepth) -> Result<(), String> {
+        if self.languages.is_empty() {
+            return Ok(());
+        }
+        if depth != ContentDepth::FullText {
+            return Err(format!(
+                "--lang picks a caption track, so it applies only to --depth full_text, not `{}`",
+                depth.as_str()
+            ));
+        }
+        match self.languages.iter().find(|tag| !is_language_tag(tag)) {
+            Some(tag) => Err(format!(
+                "invalid caption language `{tag}`; pass a language tag such as `en`, `de`, or `pt-BR`"
+            )),
+            None => Ok(()),
+        }
+    }
+}
+
+/// Accepts a BCP 47 style tag: a primary subtag of 2 or 3 letters, then subtags of 1 to 8 letters
+/// or digits, joined by `-`.
+fn is_language_tag(tag: &str) -> bool {
+    let mut subtags = tag.split('-');
+    let primary = subtags.next().unwrap_or_default();
+    (2..=3).contains(&primary.len())
+        && primary.bytes().all(|byte| byte.is_ascii_alphabetic())
+        && subtags.all(|subtag| {
+            (1..=8).contains(&subtag.len())
+                && subtag.bytes().all(|byte| byte.is_ascii_alphanumeric())
+        })
+}
+
 #[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
 /// The order of YouTube search results.
@@ -300,6 +342,9 @@ pub struct YoutubeItemData {
     /// The chapters the description's timestamps define, at `abstract` depth.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub chapters: Option<Vec<YoutubeChapter>>,
+    /// The caption track the full-text document renders, at `full_text` depth.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub transcript: Option<TranscriptInfo>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -331,6 +376,15 @@ pub enum YoutubeCaptionSource {
     Manual,
     /// YouTube's automatic speech recognition produced it.
     Asr,
+}
+
+impl From<YoutubeCaptionSource> for TranscriptSource {
+    fn from(source: YoutubeCaptionSource) -> Self {
+        match source {
+            YoutubeCaptionSource::Manual => Self::Manual,
+            YoutubeCaptionSource::Asr => Self::Asr,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize)]
@@ -403,14 +457,36 @@ fn timestamp_seconds(timestamp: &str) -> Option<u64> {
 
 #[cfg(test)]
 mod tests {
-    use super::{YoutubeChapter, chapters_from_description};
-    use crate::types::{Platform, PlatformRef};
+    use super::{YoutubeChapter, YoutubeFetchOptions, chapters_from_description};
+    use crate::types::{ContentDepth, Platform, PlatformRef};
 
     fn chapter(start_seconds: u64, title: &str) -> YoutubeChapter {
         YoutubeChapter {
             start_seconds,
             title: title.to_owned(),
         }
+    }
+
+    fn lang_check(languages: &[&str], depth: ContentDepth) -> Result<(), String> {
+        YoutubeFetchOptions {
+            languages: languages.iter().map(|tag| (*tag).to_owned()).collect(),
+        }
+        .validate(depth)
+    }
+
+    #[test]
+    fn caption_languages_are_language_tags_for_full_text_only() {
+        let checked = [
+            lang_check(&["en", "pt-BR", "zh-Hans", "fil"], ContentDepth::FullText).is_ok(),
+            lang_check(&[], ContentDepth::Metadata).is_ok(),
+            lang_check(&["en"], ContentDepth::Abstract).is_err(),
+            lang_check(&["english"], ContentDepth::FullText).is_err(),
+            lang_check(&["e"], ContentDepth::FullText).is_err(),
+            lang_check(&["en-"], ContentDepth::FullText).is_err(),
+            lang_check(&["en_US"], ContentDepth::FullText).is_err(),
+        ];
+
+        assert_eq!(checked, [true; 7]);
     }
 
     #[test]

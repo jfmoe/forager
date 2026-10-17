@@ -17,11 +17,13 @@ mod ssrn_browser;
 mod ssrn_crossref;
 mod supplemental;
 mod tavily_map;
+mod transcript;
 mod types;
 mod web_fetch;
 mod xai;
 mod xiaohongshu_browser;
 mod youtube_api;
+mod youtube_web;
 
 pub(crate) use crate::catalog::ProviderId;
 pub(crate) use anysearch::{Anysearch, AnysearchDomainsRequest, AnysearchSearchRequest};
@@ -58,3 +60,4 @@ pub(crate) use web_fetch::{FetchRequest, FetchSource, WebFetch, is_pdf_url, sour
 pub(crate) use xai::Xai;
 pub(crate) use xiaohongshu_browser::XiaohongshuBrowser;
 pub(crate) use youtube_api::YoutubeApi;
+pub(crate) use youtube_web::YoutubeWeb;

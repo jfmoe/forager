@@ -32,7 +32,8 @@ platform absent from it has no platform command; follow
 - **YouTube**: for videos on a topic, run `forager platform youtube search QUERY`; for one video's
   description, chapters, and counts (a video link the user gave, or a ref forager returned), run
   `forager platform youtube fetch 'REF_OR_URL' --depth abstract`. Both need the user's YouTube Data
-  API key. See "YouTube".
+  API key. What a video says (its captions) needs the `youtube_web` route, which the user must
+  enable: `forager platform youtube fetch 'REF_OR_URL'`. See "YouTube".
 
 `forager platform <id> <op> --help` is the syntax authority; see the platform section of
 [`cli.md`](cli.md) for output fields and exit codes.
@@ -69,8 +70,11 @@ Every item carries `depth`, the content it actually holds: `metadata` (bibliogra
   own body.
 - **YouTube** search items are `snippet` (the description excerpt; `metadata` when it is empty).
   `fetch --depth metadata` returns the video's fields without its description; `--depth abstract`
-  adds the full description and the chapters YouTube shows. Captions are not available yet, so
-  pass `--depth metadata` or `--depth abstract`: the default `full_text` exits 2.
+  adds the full description and the chapters YouTube shows. `fetch` defaults to
+  `--depth full_text`: through the `youtube_web` route it renders one caption track as a
+  transcript in `youtube-<id>.md`, split by chapter into paragraphs that each open with a
+  timestamp link. Without `youtube_web` in the order, `full_text` exits 2 with the command that
+  enables it; pass `--depth metadata` or `--depth abstract` instead.
 
 ## arXiv search queries
 
@@ -226,6 +230,38 @@ forager platform youtube search 'retrieval augmented generation' --duration long
 forager platform youtube fetch 'https://www.youtube.com/watch?v=jNQXAC9IVRw' --depth abstract
 ```
 
+### Captions: the `youtube_web` route
+
+forager delivers text evidence about a video in layers that never stand in for each other: the
+publisher's words (title, description, chapters) at `metadata` and `abstract`, and one platform
+caption track at `full_text`. A transcript holds only the caption text: it is not evidence of what
+the video shows (slides, code, charts) or of sounds other than speech.
+
+- **What it is**: `youtube_web` reads YouTube's own watch page, player, and caption endpoints
+  anonymously, without a key or an account. These endpoints are undocumented and YouTube's terms
+  do not allow automated access, so the route is off by default and only the user may enable it.
+  The risk falls on the user's network address, not an account: YouTube may block the egress IP
+  for hours to weeks (datacenter IPs often at once), and waiting or switching networks recovers.
+  With an official key also enabled, Google may suspend the user's Cloud project.
+- **Enable**: only when the user asks for captions and accepts that risk, run
+  `forager config set platforms.youtube.order '["youtube_api", "youtube_web"]'` (or
+  `'["youtube_web"]'` without a key; then metadata and abstract also come from it, with `likes` and
+  `comments` always `null`). It sends one request every 4 seconds and never retries; a full-text
+  fetch takes three requests, so allow about 10 seconds a video and fetch only the videos the
+  request needs.
+- **Track**: by default, the publisher's captions in the video's original language, else its
+  automatic (ASR) captions. `--lang en --lang de` sets the languages in priority order; every
+  publisher track in them comes before any ASR track. Machine translations are never used. The
+  item's `caption_tracks` lists the tracks, and `transcript.source` says which kind was read:
+  `manual` (the publisher's) or `asr` (YouTube's speech recognition, unpunctuated and error-prone).
+- `--format content` prints the transcript instead of writing the file; a live stream has no
+  transcript until it ends.
+
+```console
+forager platform youtube fetch 'https://www.youtube.com/watch?v=jNQXAC9IVRw'
+forager platform youtube fetch youtube:jNQXAC9IVRw --lang de --format content
+```
+
 ## SSRN browser route
 
 `ssrn_browser` searches and reads SSRN in the user's own Chrome through OpenCLI: search sends
@@ -355,8 +391,11 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
 
 - **YouTube evidence**: cite the ref (`youtube:<video_id>`) with the channel, and give the user the
   `url`. The description and chapters are what the publisher wrote about the video, not what is
-  said or shown in it: never report them as the video's content. Counts are YouTube's at the time
-  of the request. Use only the refs forager returns; construct no video ID yourself.
+  said or shown in it: never report them as the video's content. A transcript is what was said,
+  as the caption track renders it: quote it with the paragraph's timestamp link, say whether it is
+  the publisher's captions or automatic speech recognition (`transcript.source`), and never report
+  it as what the video shows. Counts are YouTube's at the time of the request. Use only the refs
+  forager returns; construct no video ID yourself.
 
 ## Recover
 
@@ -383,6 +422,15 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
   type `["THEIR_KEY"]` on stdin (or rerun `forager setup`).
 - Exit 5 on a YouTube `--depth abstract` fetch: the video has no description. Fetch with
   `--depth metadata` and say the description is empty.
+- Exit 2 on a YouTube full-text fetch naming `youtube_web`: captions need that route. Fall back to
+  `--depth abstract`, and tell the user what enabling it means (see "Captions") rather than
+  enabling it yourself.
+- Exit 5 on a YouTube full-text fetch with no qualifying caption track: the message lists the
+  languages that exist. Retry once with `--lang` for a listed language the user can use, or say
+  the video has no captions in that language.
+- YouTube `auth` or `rate_limited` (exit 4) from `youtube_web`, or `runtime` saying the caption
+  track was empty: YouTube is restricting the egress IP. Stop fetching YouTube captions, tell the
+  user to wait or switch networks, and do not retry.
 - Exit 5 on full-text fetch (both HTML and PDF too thin): report it; use `--depth abstract` only
   when the abstract still answers the request, and say so.
 - Exit 5 on an SSRN `--depth abstract` fetch: no route had the abstract. Fetch at the default

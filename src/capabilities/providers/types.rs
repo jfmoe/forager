@@ -6,7 +6,7 @@ use chrono::{Datelike, Local, Weekday};
 use super::{
     Anysearch, AnysearchSearchRequest, ArxivApi, Context7, Context7DocsRequest,
     Context7LibraryRequest, Exa, ExaSearchRequest, HnApi, OpenAiCompatible, SearchType, Serpapi,
-    SsrnBrowser, SsrnCrossref, SupplementalSearch, Xai, XiaohongshuBrowser, YoutubeApi,
+    SsrnBrowser, SsrnCrossref, SupplementalSearch, Xai, XiaohongshuBrowser, YoutubeApi, YoutubeWeb,
 };
 use crate::redact::redact_url;
 use crate::types::{
@@ -303,6 +303,16 @@ impl PlatformFetch for YoutubeApi {
     ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
     {
         Box::pin(YoutubeApi::fetch(self, request))
+    }
+}
+
+impl PlatformFetch for YoutubeWeb {
+    fn fetch<'a>(
+        &'a self,
+        request: &'a PlatformFetchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(YoutubeWeb::fetch(self, request))
     }
 }
 

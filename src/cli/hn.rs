@@ -260,11 +260,7 @@ fn hn_fetch(arguments: HnFetchArgs) -> Result<CommandOutput, AppError> {
     } = arguments;
     let reference = PlatformRef::parse(Platform::Hn, &reference)
         .map_err(|error| AppError::Argument(error.to_string()))?;
-    let request = PlatformFetchRequest {
-        reference,
-        depth: depth.into(),
-        access: None,
-    };
+    let request = PlatformFetchRequest::new(reference, depth.into());
     fetch(Platform::Hn, request, format, content_dir, false, &common)
 }
 

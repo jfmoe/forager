@@ -9,9 +9,9 @@ use super::{PageInput, PlatformCommonArgs, fetch, parse_date, search};
 use crate::app::args::{DocsOutputFormat, OutputFormat};
 use crate::app::dispatch::{AppError, CommandOutput};
 use crate::types::{
-    ContentDepth, Platform, PlatformFetchRequest, PlatformRef, PlatformSearchOptions,
-    PlatformSearchRequest, YoutubeDuration, YoutubeKind, YoutubeRef, YoutubeSearchOptions,
-    YoutubeSort,
+    ContentDepth, Platform, PlatformFetchOptions, PlatformFetchRequest, PlatformRef,
+    PlatformSearchOptions, PlatformSearchRequest, YoutubeDuration, YoutubeFetchOptions,
+    YoutubeKind, YoutubeRef, YoutubeSearchOptions, YoutubeSort,
 };
 
 #[derive(Debug, Subcommand)]
@@ -19,7 +19,8 @@ pub(in crate::app) enum YoutubeCommand {
     /// Search YouTube videos through the official Data API; each result carries its ref,
     /// channel, description excerpt, duration, view count, and whether it has captions.
     Search(YoutubeSearchArgs),
-    /// Fetch one YouTube video: its metadata, or its full description and chapters.
+    /// Fetch one YouTube video: its metadata, its full description and chapters, or the
+    /// transcript of one of its caption tracks.
     Fetch(YoutubeFetchArgs),
 }
 
@@ -65,9 +66,14 @@ pub(in crate::app) struct YoutubeFetchArgs {
     /// embed).
     reference: String,
     /// `metadata` returns the video's bibliographic fields; `abstract` adds the full
-    /// description and its chapters; `full_text` reads the captions.
+    /// description and its chapters; `full_text` renders one caption track as a transcript.
     #[arg(long, value_enum, default_value_t = YoutubeDepthArg::FullText)]
     depth: YoutubeDepthArg,
+    /// Caption language to read at `full_text`, such as `en` or `pt-BR`; repeat it in priority
+    /// order. Every publisher track in these languages comes before any automatic one; machine
+    /// translations never count. Without it, the video's original language is read.
+    #[arg(long = "lang", value_name = "LANG")]
+    languages: Vec<String>,
     /// Directory for the full-text Markdown file; defaults to a new directory under the system
     /// temporary directory.
     #[arg(long, value_name = "DIR")]
@@ -193,6 +199,7 @@ fn youtube_fetch(arguments: YoutubeFetchArgs) -> Result<CommandOutput, AppError>
     let YoutubeFetchArgs {
         reference,
         depth,
+        languages,
         content_dir,
         format,
         common,
@@ -208,10 +215,10 @@ fn youtube_fetch(arguments: YoutubeFetchArgs) -> Result<CommandOutput, AppError>
         )));
     }
     let request = PlatformFetchRequest {
-        reference,
-        depth: depth.into(),
-        access: None,
+        options: PlatformFetchOptions::Youtube(YoutubeFetchOptions { languages }),
+        ..PlatformFetchRequest::new(reference, depth.into())
     };
+    request.validate().map_err(AppError::Argument)?;
     fetch(
         Platform::Youtube,
         request,

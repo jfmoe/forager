@@ -154,11 +154,7 @@ fn x_fetch(arguments: XFetchArgs) -> Result<CommandOutput, AppError> {
     } = arguments;
     let reference = PlatformRef::parse(Platform::X, &reference)
         .map_err(|error| AppError::Argument(error.to_string()))?;
-    let request = PlatformFetchRequest {
-        reference,
-        depth: depth.into(),
-        access: None,
-    };
+    let request = PlatformFetchRequest::new(reference, depth.into());
     fetch(Platform::X, request, format, None, false, &common)
 }
 

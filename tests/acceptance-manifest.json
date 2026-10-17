@@ -227,6 +227,13 @@
       "provider": "youtube_api",
       "seam": "platform:youtube:fetch",
       "test": "tests/youtube_fetch.rs::metadata_reads_one_video_with_every_part_and_leaves_out_the_description"
+    },
+    {
+      "id": "F31",
+      "provider": "youtube_web",
+      "seam": "platform:youtube:fetch",
+      "test": "tests/youtube_web_fetch.rs::full_text_reads_the_page_the_player_and_one_track_and_writes_the_transcript",
+      "note": "A fixture server stands in for the YouTube watch page, the ANDROID player endpoint, and the srv1 caption track with responses trimmed from the anonymous 2026-10-17 samples; the live endpoints are confirmed only by the live smoke C38."
     }
   ],
   "offline_e2e": [

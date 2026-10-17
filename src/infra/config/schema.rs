@@ -78,6 +78,7 @@ pub(super) struct Providers {
     pub(super) xiaohongshu_browser: ProcessRoute<XiaohongshuBrowserProcess>,
     pub(super) hn_api: HnApi,
     pub(super) youtube_api: Endpoint<YoutubeApiEndpoint>,
+    pub(super) youtube_web: AnonymousEndpoint<YoutubeWebEndpoint>,
     pub(super) gemini_browser: ProcessRoute<GeminiBrowserProcess>,
     pub(super) chatgpt_browser: ProcessRoute<ChatgptBrowserProcess>,
 }
@@ -254,6 +255,7 @@ endpoint_defaults!(ArxivApiEndpoint, "https://export.arxiv.org/api/query");
 endpoint_defaults!(SsrnCrossrefEndpoint, "https://api.crossref.org");
 endpoint_defaults!(SerpapiEndpoint, "https://serpapi.com/search.json");
 endpoint_defaults!(YoutubeApiEndpoint, "https://www.googleapis.com/youtube/v3");
+endpoint_defaults!(YoutubeWebEndpoint, "https://www.youtube.com");
 
 /// The `hn_api` route section: one URL per official Hacker News endpoint the route combines.
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -626,6 +628,8 @@ pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("providers.youtube_api.url", providers.youtube_api.url: String, Rule::Any, View::Url, "YouTube Data API v3 endpoint URL"),
     leaf!("providers.youtube_api.keys", providers.youtube_api.keys: Secrets, Rule::AtMostOne, View::Keys, "the API key of your own Google Cloud project; at most one, because the Developer Policies allow one project per client and forbid working around its quota"),
     leaf!("providers.youtube_api.timeout", providers.youtube_api.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one request; must be greater than zero"),
+    leaf!("providers.youtube_web.url", providers.youtube_web.url: String, Rule::Any, View::Url, "YouTube web origin whose watch page, player, and caption endpoints the route reads anonymously; it reads caption tracks only from this origin"),
+    leaf!("providers.youtube_web.timeout", providers.youtube_web.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one request; must be greater than zero"),
     leaf!("providers.gemini_browser.command", providers.gemini_browser.command: String, Rule::NonEmpty, View::Plain, "OpenCLI executable name or path; this provider needs no credentials"),
     leaf!("providers.gemini_browser.timeout", providers.gemini_browser.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one OpenCLI command; must be greater than zero"),
     leaf!("providers.chatgpt_browser.command", providers.chatgpt_browser.command: String, Rule::NonEmpty, View::Plain, "OpenCLI executable name or path; this provider needs no credentials"),

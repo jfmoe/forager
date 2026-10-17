@@ -202,11 +202,17 @@ fn check_route(
             ),
         ));
     }
-    // A keyed route may instead ask its service about every key, which costs no quota.
+    // A keyed route may instead ask its service about every key, which costs no quota; a route
+    // that serves fetch only fetches a canary item.
     let probes_platform = match registration.probe {
         DoctorProbe::PlatformSearch {
             platform: probed, ..
         } => probed == platform,
+        DoctorProbe::PlatformFetch {
+            platform: probed,
+            canary,
+            ..
+        } => probed == platform && PlatformRef::parse(platform, canary).is_ok(),
         DoctorProbe::ServiceAccount { .. } => registration.credentials_required,
         _ => false,
     };
@@ -287,11 +293,7 @@ fn has_adapter(platform: Platform, operation: PlatformOperation, route: Provider
             .first()
             .and_then(|sample| PlatformRef::parse(platform, sample).ok())
             .is_some_and(|reference| {
-                let request = PlatformFetchRequest {
-                    reference,
-                    depth: ContentDepth::Abstract,
-                    access: None,
-                };
+                let request = PlatformFetchRequest::new(reference, ContentDepth::Abstract);
                 providers::platform_fetch_support(route, &request).is_some()
             }),
     };
@@ -329,6 +331,10 @@ fn has_adapter(platform: Platform, operation: PlatformOperation, route: Provider
         youtube_api: KeyedHttpRouteRuntimeConfig {
             url: String::new(),
             keys: Vec::new(),
+            timeout_seconds: 1,
+        },
+        youtube_web: HttpRouteRuntimeConfig {
+            url: String::new(),
             timeout_seconds: 1,
         },
     };

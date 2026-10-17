@@ -11,7 +11,7 @@ use chrono::DateTime;
 use reqwest::Client;
 use serde::Deserialize;
 
-use crate::catalog::{PlatformOperation, ProviderId};
+use crate::catalog::{PlatformOperation, ProviderId, YOUTUBE_WEB_OPT_IN};
 use crate::config::KeyedHttpRouteRuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{
@@ -38,7 +38,8 @@ const KEY_HEADER: &str = "x-goog-api-key";
 const FETCH_PARTS: &str = "snippet,contentDetails,statistics,status,liveStreamingDetails";
 
 /// Returns whether the route can fetch the request; it never sends a request. The Data API
-/// carries no captions this route may read, so it serves metadata and abstract only.
+/// carries no captions this route may read, so it serves metadata and abstract only; refusing
+/// the full text, it says how to enable the route that reads captions.
 pub(crate) fn fetch_support(request: &PlatformFetchRequest) -> Result<(), String> {
     let PlatformRef::Youtube(reference) = &request.reference else {
         return Err(other_platform_message(ROUTE, request.reference.platform()));
@@ -52,6 +53,10 @@ pub(crate) fn fetch_support(request: &PlatformFetchRequest) -> Result<(), String
     }
     match request.depth {
         ContentDepth::Metadata | ContentDepth::Abstract => Ok(()),
+        ContentDepth::FullText => Err(format!(
+            "{} cannot fetch at depth `full_text`: the Data API does not serve captions. {YOUTUBE_WEB_OPT_IN}",
+            ROUTE.name()
+        )),
         depth => Err(format!(
             "{} cannot fetch at depth `{}`; it reads metadata and the description",
             ROUTE.name(),
@@ -319,6 +324,7 @@ fn fetched_item(
             caption_tracks: None,
             description,
             chapters,
+            transcript: None,
         }),
     })
 }

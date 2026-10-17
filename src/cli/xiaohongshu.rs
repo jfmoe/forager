@@ -226,9 +226,8 @@ fn xiaohongshu_fetch(arguments: XiaohongshuFetchArgs) -> Result<CommandOutput, A
         XiaohongshuRef::parse_accessible(&reference, PlatformOperation::Fetch.as_str())
             .map_err(AppError::Argument)?;
     let request = PlatformFetchRequest {
-        reference: PlatformRef::Xiaohongshu(reference),
-        depth: depth.into(),
         access: Some(token),
+        ..PlatformFetchRequest::new(PlatformRef::Xiaohongshu(reference), depth.into())
     };
     fetch(
         Platform::Xiaohongshu,

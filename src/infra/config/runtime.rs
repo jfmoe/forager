@@ -225,6 +225,7 @@ pub(crate) struct PlatformRoutesRuntimeConfig {
     pub(crate) xai: XaiRuntimeConfig,
     pub(crate) hn_api: HnRouteRuntimeConfig,
     pub(crate) youtube_api: KeyedHttpRouteRuntimeConfig,
+    pub(crate) youtube_web: HttpRouteRuntimeConfig,
 }
 
 /// The configuration of one platform route.
@@ -238,6 +239,7 @@ pub(crate) enum PlatformRouteConfig {
     Xai(XaiRuntimeConfig),
     HnApi(HnRouteRuntimeConfig),
     YoutubeApi(KeyedHttpRouteRuntimeConfig),
+    YoutubeWeb(HttpRouteRuntimeConfig),
 }
 
 impl PlatformRouteConfig {
@@ -251,6 +253,7 @@ impl PlatformRouteConfig {
             Self::Xai(_) => ProviderId::Xai,
             Self::HnApi(_) => ProviderId::HnApi,
             Self::YoutubeApi(_) => ProviderId::YoutubeApi,
+            Self::YoutubeWeb(_) => ProviderId::YoutubeWeb,
         }
     }
 
@@ -260,7 +263,8 @@ impl PlatformRouteConfig {
             | Self::SsrnCrossref(_)
             | Self::SsrnBrowser(_)
             | Self::XiaohongshuBrowser(_)
-            | Self::HnApi(_) => provider_configured(self.route(), &[]),
+            | Self::HnApi(_)
+            | Self::YoutubeWeb(_) => provider_configured(self.route(), &[]),
             Self::Serpapi(config) | Self::YoutubeApi(config) => {
                 provider_configured(self.route(), &config.keys)
             }
@@ -599,6 +603,10 @@ impl RuntimeConfig {
                 endpoint: &self.platform_routes.youtube_api.url,
                 keys: &self.platform_routes.youtube_api.keys,
             },
+            ProviderId::YoutubeWeb => ProviderRuntime {
+                endpoint: &self.platform_routes.youtube_web.url,
+                keys: &[],
+            },
             ProviderId::GeminiBrowser => ProviderRuntime {
                 endpoint: &self.gemini_browser.command,
                 keys: &[],
@@ -699,6 +707,10 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
             url: config.providers.youtube_api.url,
             keys: config.providers.youtube_api.keys,
             timeout_seconds: config.providers.youtube_api.timeout,
+        },
+        youtube_web: HttpRouteRuntimeConfig {
+            url: config.providers.youtube_web.url,
+            timeout_seconds: config.providers.youtube_web.timeout,
         },
     };
     let classifier = ClassifierRuntimeConfig {
@@ -939,6 +951,7 @@ pub(crate) fn platform_route_config(
         ProviderId::Xai => Some(PlatformRouteConfig::Xai(routes.xai.clone())),
         ProviderId::HnApi => Some(PlatformRouteConfig::HnApi(routes.hn_api.clone())),
         ProviderId::YoutubeApi => Some(PlatformRouteConfig::YoutubeApi(routes.youtube_api.clone())),
+        ProviderId::YoutubeWeb => Some(PlatformRouteConfig::YoutubeWeb(routes.youtube_web.clone())),
         _ => None,
     }
 }
