@@ -419,12 +419,12 @@ struct Caption {
 /// Picks the caption track a full-text fetch reads; a live stream has none yet.
 fn full_text_caption(
     reference: &YoutubeRef,
-    live_status: YoutubeLiveStatus,
+    live_status: Option<YoutubeLiveStatus>,
     tracks: &TrackList,
     languages: &[String],
     configured_url: &str,
 ) -> Result<Caption, Refusal> {
-    if live_status == YoutubeLiveStatus::Live {
+    if live_status == Some(YoutubeLiveStatus::Live) {
         return Err(Refusal::new(
             AttemptErrorKind::Quality,
             format!(
@@ -535,7 +535,7 @@ fn read_player(
             snippet: None,
             duration_seconds: count(details.length_seconds.as_deref())
                 .filter(|seconds| *seconds > 0),
-            live_status: Some(live_status),
+            live_status,
             views: count(details.view_count.as_deref()),
             likes: None,
             comments: None,
@@ -589,19 +589,20 @@ fn check_playability(
 }
 
 /// Derives the live status: the broadcast details of the microformat decide it when present.
+/// Without them, live content is unknown: `isLiveContent` also marks a finished stream's
+/// recording, which can be read.
 fn live_status(
     details: &VideoDetails,
     microformat: Option<&MicroformatRenderer>,
-) -> YoutubeLiveStatus {
+) -> Option<YoutubeLiveStatus> {
     let broadcast = microformat.and_then(|microformat| microformat.live_broadcast_details.as_ref());
     match broadcast {
-        _ if details.is_upcoming == Some(true) => YoutubeLiveStatus::Upcoming,
-        Some(broadcast) if broadcast.is_live_now == Some(true) => YoutubeLiveStatus::Live,
-        Some(broadcast) if broadcast.end_timestamp.is_some() => YoutubeLiveStatus::Completed,
-        Some(_) => YoutubeLiveStatus::Upcoming,
-        // A stream without broadcast details may still be running, so it counts as live.
-        None if details.is_live_content == Some(true) => YoutubeLiveStatus::Live,
-        None => YoutubeLiveStatus::None,
+        _ if details.is_upcoming == Some(true) => Some(YoutubeLiveStatus::Upcoming),
+        Some(broadcast) if broadcast.is_live_now == Some(true) => Some(YoutubeLiveStatus::Live),
+        Some(broadcast) if broadcast.end_timestamp.is_some() => Some(YoutubeLiveStatus::Completed),
+        Some(_) => Some(YoutubeLiveStatus::Upcoming),
+        None if details.is_live_content == Some(true) => None,
+        None => Some(YoutubeLiveStatus::None),
     }
 }
 
@@ -760,19 +761,22 @@ mod tests {
             live_status(&details(true, None), Some(&broadcast(true, false))),
             live_status(&details(true, None), Some(&broadcast(false, true))),
             live_status(&details(true, None), Some(&broadcast(false, false))),
-            live_status(&details(true, None), None),
         ];
 
         assert_eq!(
             statuses,
             [
-                YoutubeLiveStatus::None,
-                YoutubeLiveStatus::Upcoming,
-                YoutubeLiveStatus::Live,
-                YoutubeLiveStatus::Completed,
-                YoutubeLiveStatus::Upcoming,
-                YoutubeLiveStatus::Live,
+                Some(YoutubeLiveStatus::None),
+                Some(YoutubeLiveStatus::Upcoming),
+                Some(YoutubeLiveStatus::Live),
+                Some(YoutubeLiveStatus::Completed),
+                Some(YoutubeLiveStatus::Upcoming),
             ]
         );
+    }
+
+    #[test]
+    fn live_content_without_broadcast_details_has_an_unknown_live_status() {
+        assert_eq!(live_status(&details(true, None), None), None);
     }
 }
