@@ -25,7 +25,6 @@ const ROUTE: ProviderId = ProviderId::Serpapi;
 mod account;
 #[path = "serpapi_scholar.rs"]
 mod scholar;
-pub(crate) use account::KeyAccount;
 pub(crate) use scholar::{cited_by_support, fetch_support, search_support};
 
 pub(crate) struct Serpapi {
