@@ -115,7 +115,7 @@ fn main() -> ExitCode {
             platform_render::render_fetch(*result, format, output),
             attempt_log,
         ),
-        Ok(CommandOutput::XiaohongshuComments {
+        Ok(CommandOutput::PlatformComments {
             result,
             format,
             output,

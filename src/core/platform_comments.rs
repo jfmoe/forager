@@ -1,44 +1,60 @@
-//! Xiaohongshu comments: the route chain of the single-route `comments` operation.
+//! Comments: the route chain of the single-route `comments` operation, dispatched by platform.
 //!
 //! Planning follows every platform operation: order ∩ the operation's route set ∩ configured
-//! routes, minus the routes that cannot run here. The route set lives in the provider factory
-//! because one route implements the operation. The route judges an empty comment list itself,
-//! so every route success is accepted as is.
+//! routes, minus the routes that cannot run here. Each platform's route set lives in the
+//! provider factory because one route implements the operation. The route judges an empty
+//! comment list itself, so every route success is accepted as is.
 
+use reqwest::Client;
+
+use crate::catalog::ProviderId;
 use crate::chain::{
     self, BudgetPolicy, ChainSettings, ChainStep, DiagnosticMerge, StepSuccess, StepVerdict,
     TerminalPolicy,
 };
 use crate::config::{PlatformRouteConfig, PlatformRuntimeConfig};
+use crate::net::RetryPolicy;
 use crate::platform_chain::{
     PlatformPreflightError, operation_target, plan_routes, route_candidates, route_identity,
 };
 use crate::providers;
 use crate::types::{
-    COMMENTS, Deadline, Platform, PlatformRef, ProviderAttempt, ProviderError,
-    XiaohongshuCommentsPage, XiaohongshuCommentsRequest,
+    COMMENTS, Deadline, Platform, PlatformCommentsPage, PlatformCommentsRequest, PlatformRef,
+    ProviderAttempt, ProviderError, XiaohongshuCommentsPage, YoutubeCommentsPage,
 };
 
 /// The routes a comments read runs, in order, and the routes skipped before it runs.
 pub(crate) struct CommentsPlan {
-    request: XiaohongshuCommentsRequest,
+    request: PlatformCommentsRequest,
     routes: Vec<PlatformRouteConfig>,
     skipped: Vec<ProviderAttempt>,
 }
 
-/// Plans a comments read; `config` is Xiaohongshu's.
+type SupportCheck = fn(ProviderId) -> Option<Result<(), String>>;
+
+/// Plans a comments read; `config` is the request platform's.
 pub(crate) fn plan_comments(
     config: &PlatformRuntimeConfig,
-    request: XiaohongshuCommentsRequest,
+    request: PlatformCommentsRequest,
 ) -> Result<CommentsPlan, PlatformPreflightError> {
+    let (routes, support): (&[ProviderId], SupportCheck) = match &request {
+        PlatformCommentsRequest::Xiaohongshu(_) => (
+            providers::XIAOHONGSHU_COMMENTS_ROUTES,
+            providers::xiaohongshu_comments_support,
+        ),
+        PlatformCommentsRequest::Youtube(_) => (
+            providers::YOUTUBE_COMMENTS_ROUTES,
+            providers::youtube_comments_support,
+        ),
+    };
     let plan = plan_routes(
         COMMENTS,
         config.platform(),
         &config.order_key(),
-        providers::XIAOHONGSHU_COMMENTS_ROUTES,
+        routes,
         &route_candidates(config),
         None,
-        providers::xiaohongshu_comments_support,
+        support,
     )?;
     Ok(CommentsPlan {
         request,
@@ -50,9 +66,11 @@ pub(crate) fn plan_comments(
 /// Runs a planned comments read.
 pub(crate) async fn run_comments(
     plan: CommentsPlan,
+    client: Client,
+    retry_policy: RetryPolicy,
     deadline: Deadline,
     verbose: bool,
-) -> Result<XiaohongshuCommentsPage, ProviderError> {
+) -> Result<PlatformCommentsPage, ProviderError> {
     let CommentsPlan {
         request,
         routes,
@@ -70,7 +88,7 @@ pub(crate) async fn run_comments(
     let result = chain::run_chain(
         steps,
         ChainSettings {
-            target: operation_target(Platform::Xiaohongshu, COMMENTS),
+            target: operation_target(request.platform(), COMMENTS),
             budget_policy: BudgetPolicy::SlicedEven {
                 skipped_message: "skipped to preserve fallback deadline budget",
             },
@@ -84,37 +102,85 @@ pub(crate) async fn run_comments(
             continue_on_failure: &chain::always_continue,
         },
         deadline,
-        |config: PlatformRouteConfig, step_deadline| async move {
-            let route = config.route();
-            match providers::xiaohongshu_comments(config, step_deadline, request).await {
-                Ok(outcome) => StepVerdict::Accepted(StepSuccess {
-                    value: (route, outcome.comments, outcome.has_more),
-                    attempts: outcome.attempts,
-                    diagnostic: outcome.diagnostic,
-                }),
-                Err(error) => StepVerdict::Failed(error),
+        |config: PlatformRouteConfig, step_deadline| {
+            let client = client.clone();
+            async move {
+                match read_comments(config, client, retry_policy, step_deadline, request).await {
+                    Ok((page, attempts, diagnostic)) => StepVerdict::Accepted(StepSuccess {
+                        value: page,
+                        attempts,
+                        diagnostic,
+                    }),
+                    Err(error) => StepVerdict::Failed(error),
+                }
             }
         },
     )
     .await;
     match result {
         Ok(outcome) => {
-            let (route, comments, has_more) = outcome.value;
+            let mut page = outcome.value;
             skipped.extend(outcome.attempts);
-            Ok(XiaohongshuCommentsPage {
-                platform: Platform::Xiaohongshu,
-                provider: route.name(),
-                note: PlatformRef::Xiaohongshu(request.note.clone()),
-                comments,
-                has_more,
-                attempts: if verbose { skipped } else { Vec::new() },
-                diagnostic: outcome.diagnostic,
-            })
+            page.attach(
+                if verbose { skipped } else { Vec::new() },
+                outcome.diagnostic,
+            );
+            Ok(page)
         }
         Err(mut error) => {
             skipped.append(&mut error.attempts);
             error.attempts = skipped;
             Err(error)
+        }
+    }
+}
+
+/// Reads the comments on one route: the page without its trace, then the route's attempts and
+/// diagnostic.
+async fn read_comments(
+    config: PlatformRouteConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+    request: &PlatformCommentsRequest,
+) -> Result<(PlatformCommentsPage, Vec<ProviderAttempt>, Option<String>), ProviderError> {
+    let provider = config.route().name();
+    match request {
+        PlatformCommentsRequest::Xiaohongshu(request) => {
+            let outcome = providers::xiaohongshu_comments(config, deadline, request).await?;
+            let page = XiaohongshuCommentsPage {
+                platform: Platform::Xiaohongshu,
+                provider,
+                note: PlatformRef::Xiaohongshu(request.note.clone()),
+                comments: outcome.comments,
+                has_more: outcome.has_more,
+                attempts: Vec::new(),
+                diagnostic: None,
+            };
+            Ok((
+                PlatformCommentsPage::Xiaohongshu(page),
+                outcome.attempts,
+                outcome.diagnostic,
+            ))
+        }
+        PlatformCommentsRequest::Youtube(request) => {
+            let outcome =
+                providers::youtube_comments(config, client, retry_policy, deadline, request)
+                    .await?;
+            let page = YoutubeCommentsPage {
+                platform: Platform::Youtube,
+                provider,
+                video: PlatformRef::Youtube(request.video.clone()),
+                comments: outcome.comments,
+                has_more: outcome.has_more,
+                attempts: Vec::new(),
+                diagnostic: None,
+            };
+            Ok((
+                PlatformCommentsPage::Youtube(page),
+                outcome.attempts,
+                outcome.diagnostic,
+            ))
         }
     }
 }

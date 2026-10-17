@@ -22,7 +22,12 @@ const MIN_CHAPTERS: usize = 3;
 const TITLE_SEPARATORS: [char; 5] = ['-', '–', '—', '|', ':'];
 
 const REF_HINT: &str = "pass a `youtube:<video_id>`, `youtube:playlist/<id>`, or `youtube:channel/<UC…>` ref, or a YouTube URL such as https://www.youtube.com/watch?v=<id>, https://youtu.be/<id>, https://www.youtube.com/playlist?list=<id>, or https://www.youtube.com/channel/<UC…>";
-const HANDLE_HINT: &str = "an `@handle` channel page is not a ref; pass the channel's https://www.youtube.com/channel/<UC…> URL or a `youtube:channel/<UC…>` ref";
+const HANDLE_HINT: &str = "an `@handle` channel page is not a ref; list its videos with `forager platform youtube videos <URL>`, or pass the channel's https://www.youtube.com/channel/<UC…> URL or a `youtube:channel/<UC…>` ref";
+const COLLECTION_HINT: &str = "pass a `youtube:playlist/<id>` or `youtube:channel/<UC…>` ref, or a YouTube URL such as https://www.youtube.com/playlist?list=<id>, a watch URL with `list=<id>`, https://www.youtube.com/channel/<UC…>, or https://www.youtube.com/@<handle>";
+const VIDEO_NOT_COLLECTION_HINT: &str = "a video is not a collection; pass a playlist or channel ref or URL, or a watch URL with `list=<id>`";
+const HANDLE_FORMAT_HINT: &str =
+    "a YouTube handle is `@` and 3 to 30 letters, digits, `_`, `-`, or `.`";
+const HANDLE_LENGTH: std::ops::RangeInclusive<usize> = 3..=30;
 const LEGACY_CHANNEL_HINT: &str = "legacy /c/ and /user/ channel URLs need a network lookup to resolve; open the channel and pass its https://www.youtube.com/channel/<UC…> URL";
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -159,30 +164,51 @@ fn parse_ref_body(body: &str) -> Option<YoutubeRef> {
     }
 }
 
-/// Parses a YouTube page URL over http or https, ignoring viewing parameters, the fragment,
-/// and a trailing `/`.
+/// A YouTube page URL over http or https, without the fragment and a trailing `/`.
+struct PageUrl<'a> {
+    host: &'a str,
+    segments: Vec<&'a str>,
+    query: &'a str,
+}
+
+impl<'a> PageUrl<'a> {
+    fn parse(input: &'a str) -> Option<Self> {
+        let rest = strip_scheme(input)?;
+        let rest = rest.split('#').next().unwrap_or_default();
+        let (location, query) = rest.split_once('?').unwrap_or((rest, ""));
+        let (host, path) = location.split_once('/').unwrap_or((location, ""));
+        Some(Self {
+            host,
+            segments: path.trim_end_matches('/').split('/').collect(),
+            query,
+        })
+    }
+
+    fn on(&self, hosts: &[&str]) -> bool {
+        hosts
+            .iter()
+            .any(|known| self.host.eq_ignore_ascii_case(known))
+    }
+}
+
+/// Parses a YouTube page URL, ignoring viewing parameters.
 fn parse_url(input: &str) -> Result<YoutubeRef, &'static str> {
-    let rest = strip_scheme(input).ok_or(REF_HINT)?;
-    let rest = rest.split('#').next().unwrap_or_default();
-    let (location, query) = rest.split_once('?').unwrap_or((rest, ""));
-    let (host, path) = location.split_once('/').unwrap_or((location, ""));
-    let segments = path.trim_end_matches('/').split('/').collect::<Vec<_>>();
-    let on = |hosts: &[&str]| hosts.iter().any(|known| host.eq_ignore_ascii_case(known));
-    let parsed = if host.eq_ignore_ascii_case(SHORT_HOST) {
-        match segments.as_slice() {
+    let url = PageUrl::parse(input).ok_or(REF_HINT)?;
+    let parsed = if url.host.eq_ignore_ascii_case(SHORT_HOST) {
+        match url.segments.as_slice() {
             [id] => YoutubeRef::video(id),
             _ => None,
         }
-    } else if on(&NOCOOKIE_HOSTS) {
-        match segments.as_slice() {
+    } else if url.on(&NOCOOKIE_HOSTS) {
+        match url.segments.as_slice() {
             ["embed", id] => YoutubeRef::video(id),
             _ => None,
         }
-    } else if on(&SITE_HOSTS) {
-        match segments.as_slice() {
-            ["watch"] => single_parameter(query, "v").and_then(YoutubeRef::video),
+    } else if url.on(&SITE_HOSTS) {
+        match url.segments.as_slice() {
+            ["watch"] => single_parameter(url.query, "v").and_then(YoutubeRef::video),
             ["shorts" | "live" | "embed", id] => YoutubeRef::video(id),
-            ["playlist"] => single_parameter(query, "list").and_then(YoutubeRef::playlist),
+            ["playlist"] => single_parameter(url.query, "list").and_then(YoutubeRef::playlist),
             ["channel", id] => YoutubeRef::channel(id),
             [handle, ..] if handle.starts_with('@') => return Err(HANDLE_HINT),
             ["c" | "user", ..] => return Err(LEGACY_CHANNEL_HINT),
@@ -192,6 +218,111 @@ fn parse_url(input: &str) -> Result<YoutubeRef, &'static str> {
         None
     };
     parsed.ok_or(REF_HINT)
+}
+
+/// What a videos listing reads: a playlist, a channel, or a channel's `@handle`, which only
+/// the Data API resolves to a channel.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum YoutubeCollection {
+    /// A playlist or channel ref.
+    Ref(YoutubeRef),
+    /// A handle with its leading `@`.
+    Handle(String),
+}
+
+impl YoutubeCollection {
+    /// Parses a playlist or channel ref, a playlist URL, a watch URL with `list=`, a channel
+    /// URL, or an `@handle` channel URL.
+    pub(crate) fn parse(input: &str) -> Result<Self, PlatformRefError> {
+        let trimmed = input.trim();
+        let error = |hint| PlatformRefError {
+            platform: Platform::Youtube,
+            input: Some(input.to_owned()),
+            hint,
+        };
+        if let Some(url) = PageUrl::parse(trimmed).filter(|url| url.on(&SITE_HOSTS)) {
+            match url.segments.as_slice() {
+                [handle, ..] if handle.starts_with('@') => {
+                    return handle_name(handle)
+                        .map(Self::Handle)
+                        .ok_or_else(|| error(HANDLE_FORMAT_HINT));
+                }
+                // A channel tab such as /videos still names the channel.
+                ["channel", id, _] => {
+                    return YoutubeRef::channel(id)
+                        .map(Self::Ref)
+                        .ok_or_else(|| error(COLLECTION_HINT));
+                }
+                ["watch"] if single_parameter(url.query, "list").is_some() => {
+                    return single_parameter(url.query, "list")
+                        .and_then(YoutubeRef::playlist)
+                        .map(Self::Ref)
+                        .ok_or_else(|| error(COLLECTION_HINT));
+                }
+                _ => {}
+            }
+        }
+        match YoutubeRef::parse(trimmed) {
+            Ok(reference) if reference.kind() == YoutubeKind::Video => {
+                Err(error(VIDEO_NOT_COLLECTION_HINT))
+            }
+            Ok(reference) => Ok(Self::Ref(reference)),
+            Err(parsed) if parsed.hint == LEGACY_CHANNEL_HINT => Err(parsed),
+            Err(_) => Err(error(COLLECTION_HINT)),
+        }
+    }
+}
+
+impl fmt::Display for YoutubeCollection {
+    /// Writes a form [`YoutubeCollection::parse`] reads back.
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Ref(reference) => write!(formatter, "{REF_PREFIX}{reference}"),
+            Self::Handle(handle) => write!(formatter, "https://www.youtube.com/{handle}"),
+        }
+    }
+}
+
+impl Serialize for YoutubeCollection {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(self)
+    }
+}
+
+impl<'de> Deserialize<'de> for YoutubeCollection {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let text = String::deserialize(deserializer)?;
+        Self::parse(&text).map_err(serde::de::Error::custom)
+    }
+}
+
+/// Reads the `@handle` path segment, percent-decoded: `@` and 3 to 30 letters, digits, `_`,
+/// `-`, or `.`, where letters may be any script's.
+fn handle_name(segment: &str) -> Option<String> {
+    let decoded = percent_decode(segment)?;
+    let name = decoded.strip_prefix('@')?;
+    let well_formed = HANDLE_LENGTH.contains(&name.chars().count())
+        && name
+            .chars()
+            .all(|character| character.is_alphanumeric() || matches!(character, '_' | '-' | '.'));
+    well_formed.then_some(decoded)
+}
+
+/// Decodes `%XX` escapes as UTF-8; a malformed escape or invalid UTF-8 is `None`.
+fn percent_decode(text: &str) -> Option<String> {
+    let mut bytes = Vec::with_capacity(text.len());
+    let mut rest = text.as_bytes();
+    while let Some((&byte, tail)) = rest.split_first() {
+        if byte == b'%' {
+            let hex = std::str::from_utf8(tail.get(..2)?).ok()?;
+            bytes.push(u8::from_str_radix(hex, 16).ok()?);
+            rest = &tail[2..];
+        } else {
+            bytes.push(byte);
+            rest = tail;
+        }
+    }
+    String::from_utf8(bytes).ok()
 }
 
 fn strip_scheme(input: &str) -> Option<&str> {
@@ -345,6 +476,9 @@ pub struct YoutubeItemData {
     /// The caption track the full-text document renders, at `full_text` depth.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub transcript: Option<TranscriptInfo>,
+    /// The 0-based position in the playlist a videos listing reads.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub position: Option<u64>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -457,7 +591,9 @@ fn timestamp_seconds(timestamp: &str) -> Option<u64> {
 
 #[cfg(test)]
 mod tests {
-    use super::{YoutubeChapter, YoutubeFetchOptions, chapters_from_description};
+    use super::{
+        YoutubeChapter, YoutubeCollection, YoutubeFetchOptions, chapters_from_description,
+    };
     use crate::types::{ContentDepth, Platform, PlatformRef};
 
     fn chapter(start_seconds: u64, title: &str) -> YoutubeChapter {
@@ -662,6 +798,103 @@ mod tests {
                     "channel",
                     true
                 ),
+            ]
+        );
+    }
+
+    fn collection(input: &str) -> Result<String, String> {
+        YoutubeCollection::parse(input)
+            .map(|collection| collection.to_string())
+            .map_err(|error| error.to_string())
+    }
+
+    #[test]
+    fn playlists_channels_watch_urls_with_a_list_and_handles_are_collections() {
+        let parsed = [
+            "youtube:playlist/PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab",
+            "https://www.youtube.com/playlist?list=PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab",
+            "https://www.youtube.com/watch?v=fNk_zzaMoSs&list=PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab&index=1",
+            "youtube:channel/UCYO_jab_esuFRV4b17AJtAw",
+            "https://www.youtube.com/channel/UCYO_jab_esuFRV4b17AJtAw/videos",
+            "https://m.youtube.com/channel/UCYO_jab_esuFRV4b17AJtAw",
+            "https://www.youtube.com/@3blue1brown",
+            "https://www.youtube.com/@3blue1brown/videos?view=0",
+            "https://www.youtube.com/@%E5%B0%8F%E7%BA%A2.book",
+        ]
+        .map(collection);
+
+        assert_eq!(
+            parsed,
+            [
+                "youtube:playlist/PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab",
+                "youtube:playlist/PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab",
+                "youtube:playlist/PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab",
+                "youtube:channel/UCYO_jab_esuFRV4b17AJtAw",
+                "youtube:channel/UCYO_jab_esuFRV4b17AJtAw",
+                "youtube:channel/UCYO_jab_esuFRV4b17AJtAw",
+                "https://www.youtube.com/@3blue1brown",
+                "https://www.youtube.com/@3blue1brown",
+                "https://www.youtube.com/@小红.book",
+            ]
+            .map(|text| Ok(text.to_owned()))
+        );
+    }
+
+    #[test]
+    fn every_collection_reads_back_from_its_text() {
+        let checked = [
+            "youtube:playlist/PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab",
+            "youtube:channel/UCYO_jab_esuFRV4b17AJtAw",
+            "https://www.youtube.com/@3blue1brown",
+        ]
+        .map(|input| {
+            let parsed = YoutubeCollection::parse(input).expect("collection");
+            YoutubeCollection::parse(&parsed.to_string()).ok() == Some(parsed)
+        });
+
+        assert_eq!(checked, [true; 3]);
+    }
+
+    #[test]
+    fn videos_and_malformed_inputs_are_not_collections_and_say_what_to_pass() {
+        let refused = [
+            "youtube:jNQXAC9IVRw",
+            "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+            "https://youtu.be/jNQXAC9IVRw?list=PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab",
+            "https://www.youtube.com/watch?v=jNQXAC9IVRw&list=P",
+            "https://www.youtube.com/@ab",
+            "https://www.youtube.com/@has%20space",
+            "https://www.youtube.com/@bad%E5",
+            "https://www.youtube.com/c/3blue1brown",
+            "https://www.youtube.com/results?search_query=zoo",
+        ]
+        .map(|input| collection(input).unwrap_err());
+
+        let hints = refused.iter().map(|message| {
+            if message.contains("a video is not a collection") {
+                "video"
+            } else if message.contains("3 to 30") {
+                "handle"
+            } else if message.contains("legacy") {
+                "legacy"
+            } else if message.contains("@<handle>") {
+                "collection"
+            } else {
+                "other"
+            }
+        });
+        assert_eq!(
+            hints.collect::<Vec<_>>(),
+            [
+                "video",
+                "video",
+                "video",
+                "collection",
+                "handle",
+                "handle",
+                "handle",
+                "legacy",
+                "collection"
             ]
         );
     }

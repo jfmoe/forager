@@ -4,7 +4,7 @@ use std::time::Duration;
 use crate::rate_limit::AccessPolicy;
 use crate::types::{
     ASK, CHATGPT_RESEARCH_RESULT, CHATGPT_RESEARCH_START, CITED_BY, COMMENTS,
-    GEMINI_RESEARCH_RESULT, GEMINI_RESEARCH_START, Platform, STORIES,
+    GEMINI_RESEARCH_RESULT, GEMINI_RESEARCH_START, Platform, STORIES, VIDEOS,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -659,6 +659,18 @@ const YOUTUBE_API_SMOKE: &[ProviderSmokeCase] = &[
         id: "C37",
         platform: Some(Platform::Youtube),
         operation: "fetch",
+        transport: "http",
+    },
+    ProviderSmokeCase {
+        id: "C39",
+        platform: Some(Platform::Youtube),
+        operation: COMMENTS,
+        transport: "http",
+    },
+    ProviderSmokeCase {
+        id: "C40",
+        platform: Some(Platform::Youtube),
+        operation: VIDEOS,
         transport: "http",
     },
 ];

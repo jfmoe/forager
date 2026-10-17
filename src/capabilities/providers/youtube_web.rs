@@ -541,6 +541,7 @@ fn read_player(
             description: abstract_fields.0,
             chapters: abstract_fields.1,
             transcript: None,
+            position: None,
         }),
     };
     Ok(Video {

@@ -234,6 +234,20 @@
       "seam": "platform:youtube:fetch",
       "test": "tests/youtube_web_fetch.rs::full_text_reads_the_page_the_player_and_one_track_and_writes_the_transcript",
       "note": "A fixture server stands in for the YouTube watch page, the ANDROID player endpoint, and the srv1 caption track with responses trimmed from the anonymous 2026-10-17 samples; the live endpoints are confirmed only by the live smoke C38."
+    },
+    {
+      "id": "F32",
+      "provider": "youtube_api",
+      "seam": "platform:youtube:comments",
+      "test": "tests/youtube_comments.rs::comments_carry_their_authors_counts_and_replies_and_say_whether_the_replies_are_complete",
+      "note": "comments is a single-route platform operation outside the platform catalog; the platform checklist matches this entry against the provider factory's YouTube comments routes. The live endpoint is confirmed only by the live smoke C39."
+    },
+    {
+      "id": "F33",
+      "provider": "youtube_api",
+      "seam": "platform:youtube:videos",
+      "test": "tests/youtube_videos.rs::a_handle_resolves_to_its_channel_whose_uploads_the_cursor_continues",
+      "note": "videos is a single-route paged platform operation outside the platform catalog; the platform checklist matches this entry against the provider factory's YouTube videos routes. The live endpoint is confirmed only by the live smoke C40."
     }
   ],
   "offline_e2e": [

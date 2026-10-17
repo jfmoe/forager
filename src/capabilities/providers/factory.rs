@@ -22,7 +22,8 @@ use crate::net::RetryPolicy;
 use crate::types::{
     Deadline, HnStoriesOutcome, HnStoriesRequest, PlatformFetchRequest, PlatformSearchOutcome,
     PlatformSearchRequest, ProviderError, ScholarCitedByRequest, XAskOutcome, XAskRequest,
-    XiaohongshuCommentsOutcome, XiaohongshuCommentsRequest,
+    XiaohongshuCommentsOutcome, XiaohongshuCommentsRequest, YoutubeCommentsOutcome,
+    YoutubeCommentsRequest, YoutubeVideosOutcome, YoutubeVideosRequest,
 };
 
 /// The routes that list the works citing a Google Scholar paper. Cited-by has one route, so it
@@ -33,6 +34,14 @@ pub(crate) const SCHOLAR_CITED_BY_ROUTES: &[ProviderId] = &[ProviderId::Serpapi]
 /// The routes that list the comments of a Xiaohongshu note; like cited-by, a single-route
 /// operation whose route set lives here.
 pub(crate) const XIAOHONGSHU_COMMENTS_ROUTES: &[ProviderId] = &[ProviderId::XiaohongshuBrowser];
+
+/// The routes that list the comments of a YouTube video; like cited-by, a single-route
+/// operation whose route set lives here.
+pub(crate) const YOUTUBE_COMMENTS_ROUTES: &[ProviderId] = &[ProviderId::YoutubeApi];
+
+/// The routes that list the videos of a YouTube playlist or channel; like cited-by, a
+/// single-route operation whose route set lives here.
+pub(crate) const YOUTUBE_VIDEOS_ROUTES: &[ProviderId] = &[ProviderId::YoutubeApi];
 
 /// The routes that answer a question from X posts; like cited-by, a single-route operation
 /// whose route set lives here.
@@ -248,6 +257,38 @@ pub(crate) async fn xiaohongshu_comments(
     };
     build_xiaohongshu_browser(config, deadline)
         .comments(request)
+        .await
+}
+
+/// Lists the top-level comments of a YouTube video through a comments route.
+pub(crate) async fn youtube_comments(
+    config: PlatformRouteConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+    request: &YoutubeCommentsRequest,
+) -> Result<YoutubeCommentsOutcome, ProviderError> {
+    let PlatformRouteConfig::YoutubeApi(config) = config else {
+        unreachable!("planning selects only comments routes")
+    };
+    build_youtube_api(config, client, retry_policy, deadline)
+        .comments(request)
+        .await
+}
+
+/// Lists one page of the videos of a YouTube playlist or channel through a videos route.
+pub(crate) async fn youtube_videos(
+    config: PlatformRouteConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+    request: &YoutubeVideosRequest,
+) -> Result<YoutubeVideosOutcome, ProviderError> {
+    let PlatformRouteConfig::YoutubeApi(config) = config else {
+        unreachable!("planning selects only videos routes")
+    };
+    build_youtube_api(config, client, retry_policy, deadline)
+        .videos(request)
         .await
 }
 
@@ -493,6 +534,24 @@ pub(crate) fn scholar_cited_by_support(
 pub(crate) fn xiaohongshu_comments_support(id: ProviderId) -> Option<Result<(), String>> {
     match id {
         ProviderId::XiaohongshuBrowser => Some(transport_support(id)),
+        _ => None,
+    }
+}
+
+/// Returns whether a comments route can run, or `None` for a provider that does not list
+/// YouTube comments. The request needs no check beyond what parsing guarantees.
+pub(crate) fn youtube_comments_support(id: ProviderId) -> Option<Result<(), String>> {
+    match id {
+        ProviderId::YoutubeApi => Some(transport_support(id)),
+        _ => None,
+    }
+}
+
+/// Returns whether a videos route can run, or `None` for a provider that does not list the
+/// videos of a YouTube collection. The request needs no check beyond what parsing guarantees.
+pub(crate) fn youtube_videos_support(id: ProviderId) -> Option<Result<(), String>> {
+    match id {
+        ProviderId::YoutubeApi => Some(transport_support(id)),
         _ => None,
     }
 }

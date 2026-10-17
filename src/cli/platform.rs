@@ -14,11 +14,12 @@ use super::dispatch::{
 use crate::config::{ConfigError, PlatformRuntimeConfig};
 use crate::net::combine_diagnostics;
 use crate::platform_chain::{self, PlatformPagePlan, PlatformPreflightError};
+use crate::platform_comments;
 use crate::platform_fetch;
 use crate::types::{
     ArxivSearchOptions, ArxivSort, AttemptErrorKind, ContentDepth, Deadline, LocalFile, Platform,
-    PlatformFetchRequest, PlatformFetchResult, PlatformRef, PlatformSearchOptions,
-    PlatformSearchRequest, ProviderError, ScholarCitedByRequest,
+    PlatformCommentsRequest, PlatformFetchRequest, PlatformFetchResult, PlatformRef,
+    PlatformSearchOptions, PlatformSearchRequest, ProviderError, ScholarCitedByRequest,
 };
 
 #[path = "ssrn_search.rs"]
@@ -375,6 +376,38 @@ fn run_page(
         &page.attempts
     });
     Ok(CommandOutput::PlatformSearch {
+        result,
+        format,
+        output: common.output.target(),
+        attempt_log,
+    })
+}
+
+/// Plans the comments read over the request platform's configuration and runs it.
+fn comments(
+    request: PlatformCommentsRequest,
+    format: OutputFormat,
+    common: &PlatformCommonArgs,
+) -> Result<CommandOutput, AppError> {
+    let dependencies = NetworkDependencies::load()?;
+    let plan = platform_comments::plan_comments(
+        dependencies.config.platforms.get(request.platform()),
+        request,
+    )
+    .map_err(preflight_error)?;
+    let result = dependencies
+        .runtime
+        .block_on(platform_comments::run_comments(
+            plan,
+            dependencies.client,
+            dependencies.retry_policy,
+            Deadline::new(Duration::from_secs(common.timeout)),
+            common.verbose,
+        ));
+    let attempt_log = provider_attempt_log(dependencies.config.log_level, &result, |page| {
+        page.attempts()
+    });
+    Ok(CommandOutput::PlatformComments {
         result,
         format,
         output: common.output.target(),

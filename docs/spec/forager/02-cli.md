@@ -80,6 +80,11 @@ forager platform youtube search --cursor CURSOR [--timeout 120] [--format json|m
 forager platform youtube fetch REF_OR_URL [--depth metadata|abstract|full_text（默认 full_text）]
                                [--lang LANG ...] [--content-dir DIR] [--timeout 120]
                                [--format json|markdown|content] [...]
+forager platform youtube comments VIDEO [--limit 1..=100（默认 20）] [--sort relevance|time]
+                                  [--timeout 120] [--format json|markdown] [...]
+forager platform youtube videos COLLECTION [--limit 1..=50（默认 20）]
+                                [--timeout 120] [--format json|markdown] [...]
+forager platform youtube videos --cursor CURSOR [--timeout 120] [--format json|markdown] [...]
 forager gemini research start QUERY [--timeout 240] [--format json|markdown]
 forager gemini research result CONVERSATION [--report-dir DIR]
                                [--timeout 120] [--format json|markdown|content] [...]
@@ -183,7 +188,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 ## 平台命令
 
-`forager platform <id> <op>` 直连检索内置平台（ADR 0019；接入契约见第 7 章）。每个平台一棵静态 clap 子树；`forager platform <id> --help` 及各操作的 help 是参数语法的唯一权威。arXiv、SSRN 与 Google Scholar 都提供 `search` 与 `fetch`；Google Scholar 另有 L2 平台操作 `cited-by`。小红书提供 `search` 与 `fetch`，另有 L2 平台操作 `comments`（见第 7 章「小红书」）。X 提供 `search` 与 `fetch`，另有 L2 平台操作 `ask`（见第 7 章「X」）。
+`forager platform <id> <op>` 直连检索内置平台（ADR 0019；接入契约见第 7 章）。每个平台一棵静态 clap 子树；`forager platform <id> --help` 及各操作的 help 是参数语法的唯一权威。arXiv、SSRN 与 Google Scholar 都提供 `search` 与 `fetch`；Google Scholar 另有 L2 平台操作 `cited-by`。小红书提供 `search` 与 `fetch`，另有 L2 平台操作 `comments`（见第 7 章「小红书」）。X 提供 `search` 与 `fetch`，另有 L2 平台操作 `ask`（见第 7 章「X」）。YouTube 提供 `search` 与 `fetch`，另有 L2 平台操作 `comments` 与 `videos`（见第 7 章「YouTube」）。
 
 ### `platform arxiv search`
 
@@ -485,7 +490,37 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 - 通用 flag 同 search。经 `youtube_api` 的一次 fetch 消耗 1 单位配额；经 `youtube_web` 的一次 fetch 不计费，`metadata` 与 `abstract` 发 2 个请求，`full_text` 发 3 个，每个请求等待该 route 每 4 秒 1 个的访问窗口。
 - **输出**：JSON 顶层为 `platform`、`provider`，条目的公共字段与 YouTube 字段（`snippet` 为 `null`；`youtube_api` 的 `language` 为音频语言或描述语言，`youtube_web` 的 `language` 为由字幕轨推断的原始语言，取不到为 `null`；`youtube_web` 的 `likes` 与 `comments` 恒为 `null`，`caption_tracks` 为 `[{language, source}]`，不含机器翻译）；`abstract` 深度另有 `description` 与 `chapters`（`[{start_seconds, title}]`）。`full_text` 深度不内联描述与章节（它们在 Transcript 文件中），另有 `content_url`（canonical URL）、`content_provider`（`youtube_web`）、`content_path`（`youtube-<id>.md`）、`content_len` 与 `transcript: {language, source, cues, paragraphs}`（`source` 为 `manual` 或 `asr`）。
 - **Transcript 文件**：开头是标题、`Ref`、频道、发布时间、时长、字幕的语言与来源，以及「本文只含字幕文字、没有描述画面与非语音的声音」的说明；然后是「Description」一节与「Transcript」一节。字幕按章节分节（章节标题为小节标题），章节内按约 45 秒或 2 秒以上的静音断段，发布者上传的字幕优先在句末断段；每段以 `[mm:ss](<canonical URL>&t=<秒>s)` 开头，超过一小时为 `h:mm:ss`。
-- **退出码**：无法识别的输入、playlist 或 channel 的 ref 与 URL、`@handle` 与 `/c/`、`/user/` 频道页、`--lang` 与非 `full_text` 深度同时出现或语言标签非法、order 中没有支持所请求深度的 route（默认 order 下的 `full_text`：消息给出启用 `youtube_web` 的命令与风险说明）＝飞行前退 2；配置错误同 search，退 3（`full_text` 缺 `youtube_web` 时消息同样给出启用说明）。`youtube_api`：视频不存在或不公开（`YouTube video not found or not public: youtube:<id>`）为 attempt 级 Parameter，退 4。`youtube_web`：播放器报告视频不存在或不可播放为 attempt 级 Parameter，要求登录或机器人验证为 Auth（消息说明出口 IP 被临时限制、需要等待或换网络），429 为 RateLimited，字幕轨正文为空为 Runtime（提示可能遭遇 IP 软封），播放器返回的视频 ID 不一致、字幕轨不在配置的 `url` 同源下或需要 PO Token 为 Runtime，都退 4；没有符合选轨规则的字幕（消息列出可用的字幕语言并提示 `--lang`）与直播中的 `full_text` 为 Quality，退 5。`abstract` 而视频没有描述为 Quality，退 5；传输失败同 search。
+- **退出码**：无法识别的输入、playlist 或 channel 的 ref 与 URL（消息提示改用 `videos`）、`@handle` 与 `/c/`、`/user/` 频道页、`--lang` 与非 `full_text` 深度同时出现或语言标签非法、order 中没有支持所请求深度的 route（默认 order 下的 `full_text`：消息给出启用 `youtube_web` 的命令与风险说明）＝飞行前退 2；配置错误同 search，退 3（`full_text` 缺 `youtube_web` 时消息同样给出启用说明）。`youtube_api`：视频不存在或不公开（`YouTube video not found or not public: youtube:<id>`）为 attempt 级 Parameter，退 4。`youtube_web`：播放器报告视频不存在或不可播放为 attempt 级 Parameter，要求登录或机器人验证为 Auth（消息说明出口 IP 被临时限制、需要等待或换网络），429 为 RateLimited，字幕轨正文为空为 Runtime（提示可能遭遇 IP 软封），播放器返回的视频 ID 不一致、字幕轨不在配置的 `url` 同源下或需要 PO Token 为 Runtime，都退 4；没有符合选轨规则的字幕（消息列出可用的字幕语言并提示 `--lang`）与直播中的 `full_text` 为 Quality，退 5。`abstract` 而视频没有描述为 Quality，退 5；传输失败同 search。
+
+### `platform youtube comments`
+
+列出一个 YouTube 视频的一级评论及随评论返回的回复，经 `youtube_api` route（第 7 章「YouTube」）。这是只有一条 route 的 L2 平台操作。
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| 视频（位置参数） | 同 fetch 的 video ref 或 URL | 必填 | playlist、channel 与 `@handle` 飞行前退 2 |
+| `--limit` | 1–100 | 20 | 最多返回的一级评论条数，一次请求读取 |
+| `--sort` | `relevance` / `time` | `relevance` | 相关度或时间倒序；`time` 不承诺整页严格递减（置顶评论可能在最前） |
+| `--format` | `json` / `markdown` | `json` | 输出格式 |
+
+- 通用 flag 同 search。一次命令消耗 1 单位配额。没有 `--cursor`：评论续页与回复展开不在范围内。
+- **输出**：JSON 为 `{platform, provider, video, comments, has_more}`。`video` 为视频 ref；`has_more` 表示还有本页未交付的一级评论。每条评论为 `{id, author, author_channel_ref, text, likes, published, reply_count, replies, replies_complete}`，回复为 `{id, author, author_channel_ref, text, likes, published}`：`author` 为显示名（如 `@handle`），`author_channel_ref` 为作者频道的 ref，`text` 为纯文本，`published` 为 UTC（精确到秒），`reply_count` 为回复总数；`replies` 是随评论返回的回复（最多约 5 条），`replies_complete` 表示它们是否就是全部回复。不写 Search Result Journal。
+- **退出码**：输入无法识别或不是视频、`--limit` 越界＝飞行前退 2，不发请求；配置错误同 search，退 3；视频关闭了评论为 attempt 级 Parameter（`comments are disabled for youtube:<id>`，不是空列表），视频不存在为 attempt 级 Parameter，key 与配额错误同 search，响应不是预期结构或评论属于另一个视频为 Runtime，都退 4；视频没有评论为 `comments: []` 且退 0。
+
+### `platform youtube videos`
+
+列出一个 YouTube 播放列表（按列表顺序）或频道（按上传时间倒序）的视频，经 `youtube_api` route（第 7 章「YouTube」）。这是只有一条 route 的分页 L2 平台操作。
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| 集合（位置参数） | `youtube:playlist/<id>`、`youtube:channel/<UC…>`，或 `/playlist?list=<id>`、带 `list=<id>` 的 `/watch`、`/channel/<UC…>`、`/@<handle>` 链接 | 无 `--cursor` 时必填 | 频道与 handle 链接可带 `/videos` 等标签页；handle 由 Data API 在执行时解析成频道 |
+| `--limit` | 1–50 | 20 | 本页条目数 |
+| `--cursor` | 上一页的 `next_cursor` | 无 | 与集合和 `--limit` 互斥；恢复集合（handle 已解析成频道）、limit 与页位置 |
+| `--format` | `json` / `markdown` | `json` | 输出格式 |
+
+- 通用 flag 同 search。播放列表每页消耗 1 单位配额，频道与 handle 每页另加 1 单位（解析频道的上传列表）。
+- **输出**：JSON 为 `{platform, provider, collection: {ref, url}, items, next_cursor}`。`collection` 为读到的播放列表或频道（handle 输出它的频道 ref）。条目字段与 search 条目相同，另有 `position`（在列表中的 0-based 位置）：`authors` 与 `channel_ref` 为视频的发布频道，`published` 为视频的发布时间（不是加入列表的时间），`snippet` 为描述的前 160 个字符；不补时长与计数，`duration_seconds`、`live_status`、计数、`language` 与 `has_captions` 为 `null`。私有与已删除的视频被跳过，stderr 汇总一条诊断列出它们的位置。不写 Search Result Journal。
+- **退出码**：输入无法识别、是视频、是 `/c/` 或 `/user/` 频道页、handle 格式非法、`--limit` 越界、cursor 无法解码或属于其他操作＝飞行前退 2，不发请求；配置错误同 search，退 3；频道或 handle 不存在、播放列表不存在或不公开为 attempt 级 Parameter，key 与配额错误同 search，响应不是预期结构为 Runtime，都退 4；空列表为 `items: []` 且退 0。
 
 ## Gemini 命令
 

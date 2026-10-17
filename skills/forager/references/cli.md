@@ -943,8 +943,8 @@ description, then the transcript under chapter headings in paragraphs that each 
 through `youtube_api` costs one unit of the 10,000-unit budget, not a search; one through
 `youtube_web` costs nothing but sends two requests (three at `full_text`), 4 seconds apart.
 
-Exit codes: `2` before any request for an unrecognized input, a playlist or channel ref or URL,
-an `@handle`, `/c/`, or `/user/` page, `--lang` without `full_text` or with an invalid tag, or
+Exit codes: `2` before any request for an unrecognized input, a playlist or channel ref or URL
+(list its videos with `videos` instead), an `@handle`, `/c/`, or `/user/` page, `--lang` without `full_text` or with an invalid tag, or
 `full_text` while the order has no `youtube_web` (the message gives the command that enables it
 and its risk); `3` as under search; `4` for `parameter` (`YouTube video not found or not public`
 through `youtube_api`, `not found or not playable` through `youtube_web`), `auth` (YouTube asks
@@ -953,6 +953,66 @@ to sign in or to confirm the caller is not a bot: the egress IP is temporarily r
 for another video; a caption track outside the configured origin), and the failures under search;
 `5` (`quality`) for `abstract` of a video without a description, a `full_text` with no qualifying
 caption track (the message lists the available languages), or a live stream.
+
+### `platform youtube comments`
+
+```console
+forager platform youtube comments VIDEO [--limit N] [--sort relevance|time]
+                                        [--timeout SECONDS] [--format json|markdown]
+                                        [--output FILE [--receipt]] [--verbose]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `VIDEO` | A video ref or URL, as for fetch. A playlist, channel, or `@handle` exits `2`. | Required |
+| `--limit N` | Top-level comments, `1..=100`, read in one request. | `20` |
+| `--sort ORDER` | `relevance`, or `time` (newest first, though a pinned comment may still lead). | `relevance` |
+
+Comments run through `youtube_api` and cost one unit of the 10,000-unit budget. There is no
+cursor: one command reads the first page, and replies beyond those a comment carries are out of
+reach. JSON output is `{platform, provider, video, comments, has_more}`; `has_more` is `true`
+when the video has top-level comments this page did not return. Each comment has `id`,
+`author` (a display name such as `@handle`), `author_channel_ref` (`youtube:channel/<UC…>`),
+`text` (plain text), `likes`, `published` (UTC second), `reply_count` (all its replies),
+`replies` (the few that come with it, each with the same fields up to `published`), and
+`replies_complete` (whether `replies` holds all of them).
+
+Exit codes: `2` before any request for an input that is not a video or `--limit` out of range;
+`3` as under search; `4` for `parameter` (`comments are disabled for youtube:<id>`: disabled
+comments are a failure, never an empty list; or the video does not exist), the key and quota
+failures under search, and `runtime` for an unexpected response. A video without comments
+returns `comments: []` with exit 0.
+
+### `platform youtube videos`
+
+```console
+forager platform youtube videos COLLECTION [--limit N] [--cursor CURSOR]
+                                           [--timeout SECONDS] [--format json|markdown]
+                                           [--output FILE [--receipt]] [--verbose]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `COLLECTION` | A `youtube:playlist/<id>` or `youtube:channel/<UC…>` ref, or a playlist URL, a watch URL with `list=<id>`, a `/channel/<UC…>` URL, or an `/@<handle>` URL (a channel tab such as `/videos` is fine). Required without `--cursor`. | Required |
+| `--limit N` | Videos on this page, `1..=50`. | `20` |
+| `--cursor CURSOR` | `next_cursor` of a previous page; it restores the collection and the limit, so pass neither with it. | Omitted |
+
+Videos run through `youtube_api`: a playlist page costs one unit, and a channel or handle page one
+more to look up the channel's uploads. A playlist lists in its own order; a channel lists its
+uploads newest first. JSON output is `{platform, provider, collection, items, next_cursor}`:
+`collection` is `{ref, url}` of the playlist or channel read (a handle comes back as its channel
+ref). Each item has the fields of a search item plus `position`, its 0-based place in the list;
+`authors` and `channel_ref` name the channel that published the video, `published` is when the
+video was published (not when it joined the list), `snippet` is the first 160 characters of the
+description, and `duration_seconds`, `live_status`, the counts, `language`, and `has_captions`
+are `null` (fetch a video for them). Private and deleted videos are skipped with one stderr
+diagnostic naming their positions. An empty list returns `items: []` with exit 0.
+
+Exit codes: `2` before any request for a video, a `/c/` or `/user/` page, a malformed handle, an
+unrecognized input, `--limit` out of range, or a cursor that cannot be decoded or belongs to
+another command; `3` as under search; `4` for `parameter` (the channel, handle, or playlist does
+not exist or is not public), the key and quota failures under search, and `runtime` for an
+unexpected response.
 
 ## Gemini Deep Research
 

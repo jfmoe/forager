@@ -1,12 +1,13 @@
 //! Binary-side rendering of platform command results: search pages, fetched items,
-//! Xiaohongshu comments, X answers, and Hacker News story lists.
+//! comments, X answers, and Hacker News story lists.
 
 use std::fmt::Write as _;
 
 use forager::app::{DocsOutputFormat, OutputFormat, OutputTarget, ProviderError};
 use forager::types::{
-    ContentDepth, HnStoriesResult, PlatformFetchResult, PlatformItem, PlatformItemData,
-    PlatformSearchPage, ScholarItemData, XAskResult, XPostData, XiaohongshuCommentsPage,
+    ContentDepth, HnStoriesResult, PlatformCommentsPage, PlatformFetchResult, PlatformItem,
+    PlatformItemData, PlatformSearchPage, ScholarItemData, XAskResult, XPostData,
+    XiaohongshuCommentsPage, YoutubeCommentsPage,
 };
 
 use crate::{RenderedOutput, apply_tee, format_failure_json, postflight_exit_code};
@@ -187,12 +188,15 @@ fn x_thread_markdown(data: &XPostData) -> Option<String> {
 }
 
 pub(crate) fn render_comments(
-    result: Result<XiaohongshuCommentsPage, ProviderError>,
+    result: Result<PlatformCommentsPage, ProviderError>,
     format: OutputFormat,
     output: Option<OutputTarget>,
 ) -> Result<RenderedOutput, String> {
     let (stdout, exit_code, diagnostic) = match result {
-        Ok(page) => (format_comments(&page, format)?, 0, page.diagnostic),
+        Ok(page) => {
+            let stdout = format_comments(&page, format)?;
+            (stdout, 0, page.into_diagnostic())
+        }
         Err(error) => {
             let stdout = match format {
                 OutputFormat::Json => format_failure_json(&error)?,
@@ -214,15 +218,25 @@ pub(crate) fn render_comments(
     )
 }
 
-fn format_comments(page: &XiaohongshuCommentsPage, format: OutputFormat) -> Result<String, String> {
+fn format_comments(page: &PlatformCommentsPage, format: OutputFormat) -> Result<String, String> {
     if format == OutputFormat::Json {
         return serde_json::to_string(page).map_err(|error| error.to_string());
     }
+    Ok(match page {
+        PlatformCommentsPage::Xiaohongshu(page) => xiaohongshu_comments_markdown(page),
+        PlatformCommentsPage::Youtube(page) => youtube_comments_markdown(page),
+    })
+}
+
+fn one_line(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn xiaohongshu_comments_markdown(page: &XiaohongshuCommentsPage) -> String {
     let mut markdown = format!(
         "# {} comments on `{}` ({})\n",
         page.platform, page.note, page.provider
     );
-    let one_line = |text: &str| text.split_whitespace().collect::<Vec<_>>().join(" ");
     for comment in &page.comments {
         let _ = write!(
             markdown,
@@ -250,7 +264,48 @@ fn format_comments(page: &XiaohongshuCommentsPage, format: OutputFormat) -> Resu
     if page.has_more {
         markdown.push_str("\n\nMore comments remain.");
     }
-    Ok(markdown)
+    markdown
+}
+
+fn youtube_comments_markdown(page: &YoutubeCommentsPage) -> String {
+    let mut markdown = format!(
+        "# {} comments on `{}` ({})\n",
+        page.platform, page.video, page.provider
+    );
+    for comment in &page.comments {
+        let _ = write!(
+            markdown,
+            "\n- **{}** ({}, {} likes): {}",
+            comment.author.as_deref().unwrap_or("unknown"),
+            comment.published.as_deref().unwrap_or("undated"),
+            comment.likes.unwrap_or_default(),
+            one_line(&comment.text)
+        );
+        for reply in &comment.replies {
+            let _ = write!(
+                markdown,
+                "\n  - **{}** ({}): {}",
+                reply.author.as_deref().unwrap_or("unknown"),
+                reply.published.as_deref().unwrap_or("undated"),
+                one_line(&reply.text)
+            );
+        }
+        if !comment.replies_complete {
+            let _ = write!(
+                markdown,
+                "\n  - {} of {} replies shown",
+                comment.replies.len(),
+                comment.reply_count
+            );
+        }
+    }
+    if page.comments.is_empty() {
+        markdown.push_str("\n\nNo comments.");
+    }
+    if page.has_more {
+        markdown.push_str("\n\nMore comments remain.");
+    }
+    markdown
 }
 
 pub(crate) fn render_fetch(
