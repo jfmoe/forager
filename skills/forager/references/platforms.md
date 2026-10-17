@@ -29,6 +29,16 @@ platform absent from it has no platform command; follow
   discussion (an HN link the user gave, or a ref forager returned), run
   `forager platform hn fetch 'REF_OR_URL'`; for what is on the front page, run
   `forager platform hn stories`. See "Hacker News".
+- **YouTube**: for videos on a topic, run `forager platform youtube search QUERY`; for one video's
+  description, chapters, and counts (a video link the user gave, or a ref forager returned), run
+  `forager platform youtube fetch 'REF_OR_URL' --depth abstract`; for what viewers say about it,
+  run `forager platform youtube comments 'REF_OR_URL'`; for the videos of a course, playlist, or
+  channel, run `forager platform youtube videos 'PLAYLIST_OR_CHANNEL'`. These need the user's
+  YouTube Data API key. What a video says (its captions) needs the `youtube_web` route, which the
+  user must enable: `forager platform youtube fetch 'REF_OR_URL'`. For what a video shows (slides,
+  code, charts), run `forager platform youtube ask 'REF_OR_URL' 'QUESTION'`; for a transcript of a
+  video without captions, run `forager platform youtube transcribe 'REF_OR_URL'`. These two need
+  the user's Gemini key. See "YouTube".
 
 `forager platform <id> <op> --help` is the syntax authority; see the platform section of
 [`cli.md`](cli.md) for output fields and exit codes.
@@ -63,6 +73,14 @@ Every item carries `depth`, the content it actually holds: `metadata` (bibliogra
   writes the item and its whole discussion to `hn-<id>.md`; `--depth metadata` returns the item
   alone; `--depth full_text` reads the page a story links to through Web Fetch, or a text post's
   own body.
+- **YouTube** search items are `snippet` (the description excerpt; `metadata` when it is empty).
+  `fetch --depth metadata` returns the video's fields without its description; `--depth abstract`
+  adds the full description and the chapters YouTube shows. `fetch` defaults to
+  `--depth full_text`: through the `youtube_web` route it renders one caption track as a
+  transcript in `youtube-<id>.md`, split by chapter into paragraphs that each open with a
+  timestamp link. Without `youtube_web` in the order, `full_text` exits 2 with the command that
+  enables it; pass `--depth metadata` or `--depth abstract` instead. `full_text` never falls back
+  to a model's transcript; that comes only from `transcribe`.
 
 ## arXiv search queries
 
@@ -195,6 +213,97 @@ forager platform hn fetch 'https://news.ycombinator.com/item?id=8863'
 forager platform hn stories top --limit 10
 ```
 
+## YouTube
+
+YouTube runs through the `youtube_api` route: the official Data API v3 with the user's own key.
+Search is the scarce resource: the default quota is 100 searches a day, and a failed search also
+counts, so search once with the filters the request implies instead of probing with several
+queries. Fetches, comments, and videos pages draw on a separate, larger budget (10,000 units a
+day: one per fetch or comments read, one or two per videos page).
+
+- Queries follow YouTube: `-word` excludes a word and `a|b` matches either. Set `--sort`,
+  `--from`/`--to` (UTC days, both included), `--duration` (`short` under 4 minutes, `medium` 4 to
+  20, `long` over 20), `--channel`, and `--has-captions` only when the request implies them. For a
+  talk or lecture, `--duration long` filters out clips.
+- `--channel` takes a `youtube:channel/<UC…>` ref (an item's `channel_ref`) or a
+  `/channel/<UC…>` URL. An `@handle` URL is not accepted there; take the `channel_ref` of a video
+  from that channel, or list the channel with `videos`.
+- Fetch and comments read one video. A playlist or channel ref, or an `@handle` URL, exits 2.
+- `comments` reads one page of a video's top-level comments (`--limit` up to 100,
+  `--sort relevance|time`) with the few replies each carries; `replies_complete: false` means more
+  replies exist that forager cannot read. Disabled comments exit 4 (`parameter`), not an empty
+  list. Comments are viewers' opinions: report them as such, never as facts about the video.
+- `videos` lists a playlist in its order, or a channel's uploads newest first. It takes a
+  playlist or channel ref, a playlist URL, a watch URL with `list=`, a `/channel/<UC…>` URL, or an
+  `@handle` URL. Items are search items plus `position`; continue with `--cursor`. Private and
+  deleted videos are skipped, and stderr says where. Duration and counts are `null`; fetch the
+  videos the request needs for them.
+- Duration, counts, and `has_captions` come from a second request; when it fails the items stay,
+  those fields are `null`, and stderr says so.
+
+```console
+forager platform youtube search 'retrieval augmented generation' --duration long --from 2026-09-01
+forager platform youtube fetch 'https://www.youtube.com/watch?v=jNQXAC9IVRw' --depth abstract
+forager platform youtube comments youtube:jNQXAC9IVRw --limit 10 --sort time
+forager platform youtube videos 'https://www.youtube.com/@3blue1brown' --limit 10
+```
+
+### Captions: the `youtube_web` route
+
+forager delivers text evidence about a video in layers that never stand in for each other: the
+publisher's words (title, description, chapters) at `metadata` and `abstract`, and one platform
+caption track at `full_text`. A transcript holds only the caption text: it is not evidence of what
+the video shows (slides, code, charts) or of sounds other than speech.
+
+- **What it is**: `youtube_web` reads YouTube's own watch page, player, and caption endpoints
+  anonymously, without a key or an account. These endpoints are undocumented and YouTube's terms
+  do not allow automated access, so the route is off by default and only the user may enable it.
+  The risk falls on the user's network address, not an account: YouTube may block the egress IP
+  for hours to weeks (datacenter IPs often at once), and waiting or switching networks recovers.
+  With an official key also enabled, Google may suspend the user's Cloud project.
+- **Enable**: only when the user asks for captions and accepts that risk, run
+  `forager config set platforms.youtube.order '["youtube_api", "youtube_web"]'` (or
+  `'["youtube_web"]'` without a key; then metadata and abstract also come from it, with `likes` and
+  `comments` always `null`). It sends one request every 4 seconds and never retries; a full-text
+  fetch takes three requests, so allow about 10 seconds a video and fetch only the videos the
+  request needs.
+- **Track**: by default, the publisher's captions in the video's original language, else its
+  automatic (ASR) captions. `--lang en --lang de` sets the languages in priority order; every
+  publisher track in them comes before any ASR track. Machine translations are never used. The
+  item's `caption_tracks` lists the tracks, and `transcript.source` says which kind was read:
+  `manual` (the publisher's) or `asr` (YouTube's speech recognition, unpunctuated and error-prone).
+- `--format content` prints the transcript instead of writing the file; a live stream has no
+  transcript until it ends.
+
+```console
+forager platform youtube fetch 'https://www.youtube.com/watch?v=jNQXAC9IVRw'
+forager platform youtube fetch youtube:jNQXAC9IVRw --lang de --format content
+```
+
+### Model perception: `ask` and `transcribe`
+
+`ask` and `transcribe` hand the video to a Gemini model, which watches its pictures and listens to
+its sound. They run through the `gemini_api` route with the user's own Gemini key
+(`providers.gemini_api.keys`; `providers.gemini_api.url` may point at the user's own Gemini
+gateway). Both first read the video's metadata through the Data API (one unit), and a video that
+does not exist, is private, or is streaming live fails before the model is called. Each call
+spends model tokens, about 91 per second of video (some 115,000 for a 21-minute video), and takes
+from a few seconds to several minutes; `usage` reports what was spent.
+
+- **`ask`** answers one question about one video, for what captions cannot say: what is on a
+  slide, in the code, or on a chart, or who appears. The answer marks the moments it relies on as
+  `mm:ss`. Ask once with everything the request needs rather than many narrow questions.
+- **`transcribe`** writes a transcript in the same layout as a `full_text` fetch, to
+  `youtube-<id>-transcribed.md`, with `transcript.source` `model`. Run it only when the user wants
+  what is said and the video has no usable caption track (a `full_text` fetch exited 5, or the
+  user cannot enable `youtube_web`), never in place of captions that exist. A model transcript is
+  not verbatim, and its timestamps can be off by about a second.
+
+```console
+forager platform youtube ask youtube:jNQXAC9IVRw 'How many elephants stand behind the speaker, and what is he wearing?'
+forager platform youtube transcribe 'https://www.youtube.com/watch?v=jNQXAC9IVRw' --format content
+```
+
 ## SSRN browser route
 
 `ssrn_browser` searches and reads SSRN in the user's own Chrome through OpenCLI: search sends
@@ -322,6 +431,19 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
   may lag the site by a few minutes; `metadata` and `thread` counts are live. Use only the refs
   forager returns; construct no item ID yourself.
 
+- **YouTube evidence**: cite the ref (`youtube:<video_id>`) with the channel, and give the user the
+  `url`. The description and chapters are what the publisher wrote about the video, not what is
+  said or shown in it: never report them as the video's content. A transcript is what was said,
+  as the caption track renders it: quote it with the paragraph's timestamp link, say whether it is
+  the publisher's captions or automatic speech recognition (`transcript.source`), and never report
+  it as what the video shows. Comments are what individual viewers wrote: attribute them, and
+  never present them as what the video says. Counts are YouTube's at the time of the request.
+  An `ask` answer and a `transcribe` transcript are a model's account of the video, relayed
+  content: attribute them to the model (`model`), check a moment against the video before quoting
+  it, never quote a model transcript as the speaker's exact words, and say when the answer rests
+  on what the model saw rather than what was said. Use only the refs forager returns; construct no
+  video ID yourself.
+
 ## Recover
 
 - Exit 2 naming an unsupported option: retry once without that option and tell the user which
@@ -338,6 +460,35 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
 - Scholar exit 3 naming `providers.serpapi.keys`: no SerpApi key is configured. Ask the user to
   run `forager config set providers.serpapi.keys -` and type `["THEIR_KEY"]` on stdin (or rerun
   `forager setup`), so the key stays out of shell history and out of this conversation.
+- YouTube `quota_exhausted` (exit 4): the Data API key has used up today's quota (it resets at
+  midnight Pacific time). Tell the user and continue with `forager search`; do not retry YouTube.
+- YouTube `auth` (exit 4): the API rejected the key; ask the user to check
+  `providers.youtube_api.keys`.
+- YouTube exit 3 naming `providers.youtube_api.keys`: no key is configured, or more than one is
+  (YouTube allows one). Ask the user to run `forager config set providers.youtube_api.keys -` and
+  type `["THEIR_KEY"]` on stdin (or rerun `forager setup`).
+- Exit 5 on a YouTube `--depth abstract` fetch: the video has no description. Fetch with
+  `--depth metadata` and say the description is empty.
+- Exit 2 on a YouTube full-text fetch naming `youtube_web`: captions need that route. Fall back to
+  `--depth abstract`, and tell the user what enabling it means (see "Captions") rather than
+  enabling it yourself.
+- Exit 5 on a YouTube full-text fetch with no qualifying caption track: the message lists the
+  languages that exist. Retry once with `--lang` for a listed language the user can use; when no
+  listed language fits and the user needs what is said, run `transcribe` and say the transcript is
+  a model's, not captions.
+- YouTube `ask` or `transcribe` exit 3 naming `providers.gemini_api.keys`: no Gemini key is
+  configured. Ask the user to run `forager config set providers.gemini_api.keys -` and type
+  `["THEIR_KEY"]` on stdin.
+- YouTube `ask` or `transcribe` `auth` (exit 4): Gemini rejected the key; ask the user to check
+  `providers.gemini_api.keys`. `rate_limited` or `quota_exhausted`: every key is out of model
+  quota; tell the user and do not retry in a loop.
+- Exit 5 on `ask` or `transcribe`: the video is streaming live (retry after it ends), the output
+  was cut off (for `transcribe`, the video is too long to transcribe in one answer), the model
+  returned no valid transcript, or a safety filter blocked it. Report it; do not retry the same
+  request.
+- YouTube `auth` or `rate_limited` (exit 4) from `youtube_web`, or `runtime` saying the caption
+  track was empty: YouTube is restricting the egress IP. Stop fetching YouTube captions, tell the
+  user to wait or switch networks, and do not retry.
 - Exit 5 on full-text fetch (both HTML and PDF too thin): report it; use `--depth abstract` only
   when the abstract still answers the request, and say so.
 - Exit 5 on an SSRN `--depth abstract` fetch: no route had the abstract. Fetch at the default

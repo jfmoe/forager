@@ -209,11 +209,7 @@ fn scholar_fetch(arguments: ScholarFetchArgs) -> Result<CommandOutput, AppError>
     } = arguments;
     let reference = PlatformRef::parse(Platform::Scholar, &reference)
         .map_err(|error| AppError::Argument(error.to_string()))?;
-    let request = PlatformFetchRequest {
-        reference,
-        depth: depth.into(),
-        access: None,
-    };
+    let request = PlatformFetchRequest::new(reference, depth.into());
     let format = match format {
         OutputFormat::Json => DocsOutputFormat::Json,
         OutputFormat::Markdown => DocsOutputFormat::Markdown,

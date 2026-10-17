@@ -48,6 +48,7 @@ fn edit_value_satisfies(rule: Rule, value: &Value) -> bool {
         Rule::PlatformOrder { platform } => value.as_array().is_some_and(|values| {
             platform_order_satisfies(values.iter().map(Value::as_str), platform)
         }),
+        Rule::AtMostOne => value.as_array().is_some_and(|values| values.len() <= 1),
     }
 }
 
@@ -98,6 +99,7 @@ fn field_satisfies(rule: Rule, field: FieldRef<'_>) -> bool {
         (Rule::PlatformOrder { platform }, FieldRef::Strings(values)) => {
             platform_order_satisfies(values.iter().map(|route| Some(route.as_str())), platform)
         }
+        (Rule::AtMostOne, FieldRef::Secrets(values)) => values.len() <= 1,
         _ => false,
     }
 }
@@ -242,6 +244,21 @@ mod tests {
 
         assert!(!validates(&config));
         assert!(validate_edit_value("retry.multiplier", &Value::from(f64::NAN)).is_err());
+    }
+
+    #[test]
+    fn at_most_one_rule_rejects_a_second_key_in_both_validators() {
+        let mut config = Config::default();
+        config.providers.youtube_api.keys = vec!["first".into(), "second".into()];
+        let mut values = Array::new();
+        values.push("first");
+        values.push("second");
+        let mut one = Array::new();
+        one.push("first");
+
+        assert!(!validates(&config));
+        assert!(validate_edit_value("providers.youtube_api.keys", &Value::Array(values)).is_err());
+        assert!(validate_edit_value("providers.youtube_api.keys", &Value::Array(one)).is_ok());
     }
 
     #[test]

@@ -15,10 +15,16 @@ use super::platform_hn::{HnItemData, HnRef, HnSearchOptions};
 use super::platform_scholar::{ScholarItemData, ScholarRef, ScholarSearchOptions};
 use super::platform_ssrn::{SsrnItemData, SsrnRef};
 use super::platform_ssrn_search::SsrnSearchOptions;
-use super::platform_x::{XPostData, XRef, XSearchOptions};
+use super::platform_x::{XAskRequest, XAskResult, XPostData, XRef, XSearchOptions};
 use super::platform_xiaohongshu::{
     AccessToken, XiaohongshuItemData, XiaohongshuNoteData, XiaohongshuRef, XiaohongshuSearchOptions,
 };
+use super::platform_xiaohongshu_comments::{XiaohongshuCommentsPage, XiaohongshuCommentsRequest};
+use super::platform_youtube::{
+    YoutubeFetchOptions, YoutubeItemData, YoutubeRef, YoutubeSearchOptions,
+};
+use super::platform_youtube_comments::{YoutubeCommentsPage, YoutubeCommentsRequest};
+use super::platform_youtube_model::{YoutubeAskRequest, YoutubeAskResult};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -36,17 +42,20 @@ pub enum Platform {
     X,
     /// Hacker News, a technology news and discussion site.
     Hn,
+    /// YouTube, a video platform.
+    Youtube,
 }
 
 impl Platform {
     /// Every built-in platform.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::Arxiv,
         Self::Ssrn,
         Self::Scholar,
         Self::Xiaohongshu,
         Self::X,
         Self::Hn,
+        Self::Youtube,
     ];
 
     /// Returns the stable platform identifier used by commands and configuration.
@@ -59,6 +68,19 @@ impl Platform {
             Self::Xiaohongshu => "xiaohongshu",
             Self::X => "x",
             Self::Hn => "hn",
+            Self::Youtube => "youtube",
+        }
+    }
+
+    #[cfg(test)]
+    /// Returns every entity kind the platform's refs name.
+    pub(crate) const fn kinds(self) -> &'static [&'static str] {
+        match self {
+            Self::Arxiv | Self::Ssrn | Self::Scholar => &["paper"],
+            Self::Xiaohongshu => &["note"],
+            Self::X => &["post"],
+            Self::Hn => &["item"],
+            Self::Youtube => &["video", "playlist", "channel"],
         }
     }
 }
@@ -136,6 +158,8 @@ pub enum PlatformRef {
     X(XRef),
     /// A Hacker News item.
     Hn(HnRef),
+    /// A YouTube video, playlist, or channel.
+    Youtube(YoutubeRef),
 }
 
 impl PlatformRef {
@@ -152,6 +176,7 @@ impl PlatformRef {
             Platform::Xiaohongshu => XiaohongshuRef::parse(input).map(Self::Xiaohongshu),
             Platform::X => XRef::parse(input).map(Self::X),
             Platform::Hn => HnRef::parse(input).map(Self::Hn),
+            Platform::Youtube => YoutubeRef::parse(input).map(Self::Youtube),
         }
     }
 
@@ -165,10 +190,11 @@ impl PlatformRef {
             Self::Xiaohongshu(_) => Platform::Xiaohongshu,
             Self::X(_) => Platform::X,
             Self::Hn(_) => Platform::Hn,
+            Self::Youtube(_) => Platform::Youtube,
         }
     }
 
-    /// Returns the platform-owned entity kind.
+    /// Returns the platform-owned entity kind of this ref; a platform may have several.
     #[must_use]
     pub const fn kind(&self) -> &'static str {
         match self {
@@ -176,6 +202,7 @@ impl PlatformRef {
             Self::Xiaohongshu(_) => "note",
             Self::X(_) => "post",
             Self::Hn(_) => "item",
+            Self::Youtube(reference) => reference.kind().as_str(),
         }
     }
 
@@ -189,6 +216,7 @@ impl PlatformRef {
             Self::Xiaohongshu(reference) => reference.canonical_url(),
             Self::X(reference) => reference.canonical_url(),
             Self::Hn(reference) => reference.canonical_url(),
+            Self::Youtube(reference) => reference.canonical_url(),
         }
     }
 }
@@ -202,6 +230,7 @@ impl fmt::Display for PlatformRef {
             Self::Xiaohongshu(reference) => write!(formatter, "xiaohongshu:{reference}"),
             Self::X(reference) => write!(formatter, "x:{reference}"),
             Self::Hn(reference) => write!(formatter, "hn:{reference}"),
+            Self::Youtube(reference) => write!(formatter, "youtube:{reference}"),
         }
     }
 }
@@ -228,6 +257,8 @@ pub enum PlatformSearchOptions {
     X(XSearchOptions),
     /// Hacker News options.
     Hn(HnSearchOptions),
+    /// YouTube options.
+    Youtube(YoutubeSearchOptions),
 }
 
 impl PlatformSearchOptions {
@@ -241,6 +272,7 @@ impl PlatformSearchOptions {
             Platform::Xiaohongshu => Self::Xiaohongshu(XiaohongshuSearchOptions::default()),
             Platform::X => Self::X(XSearchOptions::default()),
             Platform::Hn => Self::Hn(HnSearchOptions::default()),
+            Platform::Youtube => Self::Youtube(YoutubeSearchOptions::default()),
         }
     }
 
@@ -254,6 +286,7 @@ impl PlatformSearchOptions {
             Self::Xiaohongshu(_) => Platform::Xiaohongshu,
             Self::X(_) => Platform::X,
             Self::Hn(_) => Platform::Hn,
+            Self::Youtube(_) => Platform::Youtube,
         }
     }
 }
@@ -282,6 +315,7 @@ impl PlatformSearchRequest {
             }
             PlatformSearchOptions::X(options) => options.validate(&self.query, self.limit),
             PlatformSearchOptions::Hn(options) => options.validate(&self.query, self.limit),
+            PlatformSearchOptions::Youtube(options) => options.validate(&self.query, self.limit),
         }
     }
 }
@@ -319,14 +353,19 @@ pub enum PlatformItemData {
     X(XPostData),
     /// Hacker News fields of an item.
     Hn(HnItemData),
+    /// YouTube fields of a video.
+    Youtube(YoutubeItemData),
 }
 
 #[derive(Clone, Debug, Serialize)]
-/// One page of platform search results.
+/// One page of platform search results, or of the items a collection lists.
 pub struct PlatformSearchPage {
     pub platform: Platform,
     /// The route that produced the page.
     pub provider: &'static str,
+    /// The collection the page lists, for an operation that lists one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub collection: Option<PlatformCollection>,
     pub items: Vec<PlatformItem>,
     /// An opaque cursor for the next page, or `null` when the route issues no cursor that
     /// another command can continue from. `null` alone does not prove the results are
@@ -336,6 +375,129 @@ pub struct PlatformSearchPage {
     pub attempts: Vec<ProviderAttempt>,
     #[serde(skip)]
     pub diagnostic: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize)]
+/// A collection of platform entities, such as a playlist or a channel's uploads.
+pub struct PlatformCollection {
+    #[serde(rename = "ref")]
+    pub reference: PlatformRef,
+    pub url: String,
+}
+
+impl PlatformCollection {
+    pub(crate) fn new(reference: PlatformRef) -> Self {
+        Self {
+            url: reference.canonical_url(),
+            reference,
+        }
+    }
+}
+
+/// The attempt-target name of the comments operation.
+pub(crate) const COMMENTS: &str = "comments";
+
+#[derive(Clone, Debug)]
+/// A request of the comments operation, one variant per platform that lists comments.
+pub(crate) enum PlatformCommentsRequest {
+    Xiaohongshu(XiaohongshuCommentsRequest),
+    Youtube(YoutubeCommentsRequest),
+}
+
+impl PlatformCommentsRequest {
+    pub(crate) fn platform(&self) -> Platform {
+        match self {
+            Self::Xiaohongshu(_) => Platform::Xiaohongshu,
+            Self::Youtube(_) => Platform::Youtube,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(untagged)]
+/// The comments of one platform entity, in the platform's own shape.
+pub enum PlatformCommentsPage {
+    Xiaohongshu(XiaohongshuCommentsPage),
+    Youtube(YoutubeCommentsPage),
+}
+
+impl PlatformCommentsPage {
+    /// Returns the provider attempts the page reports.
+    #[must_use]
+    pub fn attempts(&self) -> &[ProviderAttempt] {
+        match self {
+            Self::Xiaohongshu(page) => &page.attempts,
+            Self::Youtube(page) => &page.attempts,
+        }
+    }
+
+    /// Returns the diagnostic the page carries for stderr.
+    #[must_use]
+    pub fn into_diagnostic(self) -> Option<String> {
+        match self {
+            Self::Xiaohongshu(page) => page.diagnostic,
+            Self::Youtube(page) => page.diagnostic,
+        }
+    }
+
+    /// Sets the attempts and the diagnostic the route chain collected.
+    pub(crate) fn attach(&mut self, attempts: Vec<ProviderAttempt>, diagnostic: Option<String>) {
+        let (page_attempts, page_diagnostic) = match self {
+            Self::Xiaohongshu(page) => (&mut page.attempts, &mut page.diagnostic),
+            Self::Youtube(page) => (&mut page.attempts, &mut page.diagnostic),
+        };
+        *page_attempts = attempts;
+        *page_diagnostic = diagnostic;
+    }
+}
+
+/// The attempt-target name of the ask operation.
+pub(crate) const ASK: &str = "ask";
+
+#[derive(Clone, Debug)]
+/// A request of the ask operation, one variant per platform that answers questions; each
+/// platform defines what the answer may draw on.
+pub(crate) enum PlatformAskRequest {
+    X(XAskRequest),
+    Youtube(YoutubeAskRequest),
+}
+
+impl PlatformAskRequest {
+    pub(crate) fn platform(&self) -> Platform {
+        match self {
+            Self::X(_) => Platform::X,
+            Self::Youtube(_) => Platform::Youtube,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(untagged)]
+/// An answer of the ask operation, in the platform's own shape; the whole answer is relayed
+/// content.
+pub enum PlatformAskResult {
+    X(XAskResult),
+    Youtube(YoutubeAskResult),
+}
+
+impl PlatformAskResult {
+    /// Returns the provider attempts the answer reports.
+    #[must_use]
+    pub fn attempts(&self) -> &[ProviderAttempt] {
+        match self {
+            Self::X(answer) => &answer.attempts,
+            Self::Youtube(answer) => &answer.attempts,
+        }
+    }
+
+    /// Returns the diagnostic the answer carries for stderr.
+    #[must_use]
+    pub fn into_diagnostic(self) -> Option<String> {
+        match self {
+            Self::X(answer) => answer.diagnostic,
+            Self::Youtube(answer) => answer.diagnostic,
+        }
+    }
 }
 
 /// One route's search result before cursor encoding.
@@ -355,6 +517,60 @@ pub(crate) struct PlatformFetchRequest {
     /// The access token that opens the entity, for a platform that needs one; it never reaches
     /// the ref, the canonical URL, or the journal.
     pub(crate) access: Option<AccessToken>,
+    pub(crate) options: PlatformFetchOptions,
+}
+
+impl PlatformFetchRequest {
+    /// Builds a request with the platform's default fetch options.
+    pub(crate) fn new(reference: PlatformRef, depth: ContentDepth) -> Self {
+        Self {
+            options: PlatformFetchOptions::defaults(reference.platform()),
+            reference,
+            depth,
+            access: None,
+        }
+    }
+
+    /// Checks the cross-field rules that argument parsing cannot express.
+    pub(crate) fn validate(&self) -> Result<(), String> {
+        match &self.options {
+            PlatformFetchOptions::Youtube(options) => options.validate(self.depth),
+            PlatformFetchOptions::Arxiv
+            | PlatformFetchOptions::Ssrn
+            | PlatformFetchOptions::Scholar
+            | PlatformFetchOptions::Xiaohongshu
+            | PlatformFetchOptions::X
+            | PlatformFetchOptions::Hn => Ok(()),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+/// The typed fetch options of one platform; a platform without fetch options has an empty
+/// variant.
+pub(crate) enum PlatformFetchOptions {
+    Arxiv,
+    Ssrn,
+    Scholar,
+    Xiaohongshu,
+    X,
+    Hn,
+    Youtube(YoutubeFetchOptions),
+}
+
+impl PlatformFetchOptions {
+    /// Returns the default fetch options of `platform`.
+    pub(crate) fn defaults(platform: Platform) -> Self {
+        match platform {
+            Platform::Arxiv => Self::Arxiv,
+            Platform::Ssrn => Self::Ssrn,
+            Platform::Scholar => Self::Scholar,
+            Platform::Xiaohongshu => Self::Xiaohongshu,
+            Platform::X => Self::X,
+            Platform::Hn => Self::Hn,
+            Platform::Youtube => Self::Youtube(YoutubeFetchOptions::default()),
+        }
+    }
 }
 
 /// One route's fetch result before the full-text stage.
@@ -409,6 +625,29 @@ impl LocalMediaType {
             Self::Pdf => "pdf",
         }
     }
+}
+
+#[derive(Clone, Debug, Serialize)]
+/// What a transcript document holds: one timed text of a video, by language and origin.
+pub struct TranscriptInfo {
+    pub language: String,
+    pub source: TranscriptSource,
+    /// The timed cues the document renders.
+    pub cues: usize,
+    /// The paragraphs the cues were merged into.
+    pub paragraphs: usize,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+/// Who made the timed text of a transcript.
+pub enum TranscriptSource {
+    /// Captions the publisher uploaded.
+    Manual,
+    /// The platform's automatic speech recognition.
+    Asr,
+    /// A model that watched and listened to the video; not verbatim.
+    Model,
 }
 
 #[derive(Clone, Debug, Serialize)]

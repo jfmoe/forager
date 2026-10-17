@@ -20,10 +20,13 @@ use std::time::{Duration, Instant};
 pub(crate) mod chatgpt;
 pub(crate) mod doctor;
 pub(crate) mod gemini;
+pub(crate) mod gemini_api;
 pub(crate) mod hn;
 pub(crate) mod opencli;
 pub(crate) mod scholar;
 pub(crate) mod x;
+pub(crate) mod youtube;
+pub(crate) mod youtube_web;
 
 const ACCEPT_DEADLINE: Duration = Duration::from_secs(10);
 const ACCEPT_POLL_INTERVAL: Duration = Duration::from_millis(10);
@@ -171,7 +174,23 @@ impl Fixture {
         responses: Vec<Response>,
         accept_deadline: Duration,
     ) -> Self {
+        Self::serve_sequence(fixture_listener("fixture"), responses, accept_deadline)
+    }
+
+    /// Starts a sequence whose responses name the fixture's own URL, such as a link the client
+    /// follows next.
+    pub(crate) fn start_sequence_for(responses: impl FnOnce(&str) -> Vec<Response>) -> Self {
         let listener = fixture_listener("fixture");
+        let address = listener.local_addr().expect("fixture address");
+        let responses = responses(&format!("http://{address}"));
+        Self::serve_sequence(listener, responses, ACCEPT_DEADLINE)
+    }
+
+    fn serve_sequence(
+        listener: TcpListener,
+        responses: Vec<Response>,
+        accept_deadline: Duration,
+    ) -> Self {
         let address = listener.local_addr().expect("fixture address");
         let expected_requests = responses.len();
         let (stop, stopped) = mpsc::channel();

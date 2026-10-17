@@ -205,6 +205,15 @@ pub(crate) struct KeyedHttpRouteRuntimeConfig {
     pub(crate) timeout_seconds: u64,
 }
 
+/// The configuration of a platform route that sends model requests with pooled credentials.
+#[derive(Clone, Debug)]
+pub(crate) struct ModelRouteRuntimeConfig {
+    pub(crate) url: String,
+    pub(crate) keys: Vec<Secret>,
+    pub(crate) model: String,
+    pub(crate) timeout_seconds: u64,
+}
+
 /// The configuration of a platform route that runs local OpenCLI commands.
 #[derive(Clone, Debug)]
 pub(crate) struct ProcessRouteRuntimeConfig {
@@ -224,6 +233,9 @@ pub(crate) struct PlatformRoutesRuntimeConfig {
     /// The main search provider, which also reads X.
     pub(crate) xai: XaiRuntimeConfig,
     pub(crate) hn_api: HnRouteRuntimeConfig,
+    pub(crate) youtube_api: KeyedHttpRouteRuntimeConfig,
+    pub(crate) youtube_web: HttpRouteRuntimeConfig,
+    pub(crate) gemini_api: ModelRouteRuntimeConfig,
 }
 
 /// The configuration of one platform route.
@@ -236,6 +248,9 @@ pub(crate) enum PlatformRouteConfig {
     XiaohongshuBrowser(ProcessRouteRuntimeConfig),
     Xai(XaiRuntimeConfig),
     HnApi(HnRouteRuntimeConfig),
+    YoutubeApi(KeyedHttpRouteRuntimeConfig),
+    YoutubeWeb(HttpRouteRuntimeConfig),
+    GeminiApi(ModelRouteRuntimeConfig),
 }
 
 impl PlatformRouteConfig {
@@ -248,6 +263,9 @@ impl PlatformRouteConfig {
             Self::XiaohongshuBrowser(_) => ProviderId::XiaohongshuBrowser,
             Self::Xai(_) => ProviderId::Xai,
             Self::HnApi(_) => ProviderId::HnApi,
+            Self::YoutubeApi(_) => ProviderId::YoutubeApi,
+            Self::YoutubeWeb(_) => ProviderId::YoutubeWeb,
+            Self::GeminiApi(_) => ProviderId::GeminiApi,
         }
     }
 
@@ -257,9 +275,13 @@ impl PlatformRouteConfig {
             | Self::SsrnCrossref(_)
             | Self::SsrnBrowser(_)
             | Self::XiaohongshuBrowser(_)
-            | Self::HnApi(_) => provider_configured(self.route(), &[]),
-            Self::Serpapi(config) => provider_configured(self.route(), &config.keys),
+            | Self::HnApi(_)
+            | Self::YoutubeWeb(_) => provider_configured(self.route(), &[]),
+            Self::Serpapi(config) | Self::YoutubeApi(config) => {
+                provider_configured(self.route(), &config.keys)
+            }
             Self::Xai(config) => provider_configured(self.route(), &config.keys),
+            Self::GeminiApi(config) => provider_configured(self.route(), &config.keys),
         }
     }
 }
@@ -294,6 +316,7 @@ pub(crate) struct PlatformsRuntimeConfig {
     xiaohongshu: PlatformRuntimeConfig,
     x: PlatformRuntimeConfig,
     hn: PlatformRuntimeConfig,
+    youtube: PlatformRuntimeConfig,
 }
 
 impl PlatformsRuntimeConfig {
@@ -305,6 +328,7 @@ impl PlatformsRuntimeConfig {
             Platform::Xiaohongshu => &self.xiaohongshu,
             Platform::X => &self.x,
             Platform::Hn => &self.hn,
+            Platform::Youtube => &self.youtube,
         }
     }
 }
@@ -588,6 +612,18 @@ impl RuntimeConfig {
                 endpoint: &self.platform_routes.hn_api.url,
                 keys: &[],
             },
+            ProviderId::YoutubeApi => ProviderRuntime {
+                endpoint: &self.platform_routes.youtube_api.url,
+                keys: &self.platform_routes.youtube_api.keys,
+            },
+            ProviderId::YoutubeWeb => ProviderRuntime {
+                endpoint: &self.platform_routes.youtube_web.url,
+                keys: &[],
+            },
+            ProviderId::GeminiApi => ProviderRuntime {
+                endpoint: &self.platform_routes.gemini_api.url,
+                keys: &self.platform_routes.gemini_api.keys,
+            },
             ProviderId::GeminiBrowser => ProviderRuntime {
                 endpoint: &self.gemini_browser.command,
                 keys: &[],
@@ -684,6 +720,21 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
             firebase_url: config.providers.hn_api.firebase_url,
             timeout_seconds: config.providers.hn_api.timeout,
         },
+        youtube_api: KeyedHttpRouteRuntimeConfig {
+            url: config.providers.youtube_api.url,
+            keys: config.providers.youtube_api.keys,
+            timeout_seconds: config.providers.youtube_api.timeout,
+        },
+        youtube_web: HttpRouteRuntimeConfig {
+            url: config.providers.youtube_web.url,
+            timeout_seconds: config.providers.youtube_web.timeout,
+        },
+        gemini_api: ModelRouteRuntimeConfig {
+            url: config.providers.gemini_api.url,
+            keys: config.providers.gemini_api.keys,
+            model: config.providers.gemini_api.model,
+            timeout_seconds: config.providers.gemini_api.timeout,
+        },
     };
     let classifier = ClassifierRuntimeConfig {
         url: config.classifier.url,
@@ -740,6 +791,11 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         )?,
         x: platform_entries(Platform::X, config.platforms.x.order, &platform_routes)?,
         hn: platform_entries(Platform::Hn, config.platforms.hn.order, &platform_routes)?,
+        youtube: platform_entries(
+            Platform::Youtube,
+            config.platforms.youtube.order,
+            &platform_routes,
+        )?,
     };
     Ok(RuntimeConfig {
         main_search: MainSearchRuntimeConfig {
@@ -917,6 +973,9 @@ pub(crate) fn platform_route_config(
         )),
         ProviderId::Xai => Some(PlatformRouteConfig::Xai(routes.xai.clone())),
         ProviderId::HnApi => Some(PlatformRouteConfig::HnApi(routes.hn_api.clone())),
+        ProviderId::YoutubeApi => Some(PlatformRouteConfig::YoutubeApi(routes.youtube_api.clone())),
+        ProviderId::YoutubeWeb => Some(PlatformRouteConfig::YoutubeWeb(routes.youtube_web.clone())),
+        ProviderId::GeminiApi => Some(PlatformRouteConfig::GeminiApi(routes.gemini_api.clone())),
         _ => None,
     }
 }

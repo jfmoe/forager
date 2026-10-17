@@ -12,12 +12,13 @@ use crate::catalog::{
 };
 use crate::config::{
     self, HnRouteRuntimeConfig, HttpRouteRuntimeConfig, KeyedHttpRouteRuntimeConfig,
-    PlatformRoutesRuntimeConfig, ProcessRouteRuntimeConfig, XaiRuntimeConfig,
+    ModelRouteRuntimeConfig, PlatformRoutesRuntimeConfig, ProcessRouteRuntimeConfig,
+    XaiRuntimeConfig,
 };
 use crate::providers;
 use crate::types::{
     ASK, CITED_BY, COMMENTS, ContentDepth, Platform, PlatformFetchRequest, PlatformRef,
-    PlatformSearchOptions, PlatformSearchRequest, STORIES,
+    PlatformSearchOptions, PlatformSearchRequest, STORIES, TRANSCRIBE, VIDEOS,
 };
 
 const CHECKLIST: &str = "docs/spec/forager/07-platforms.md";
@@ -35,12 +36,47 @@ fn sample_refs(platform: Platform) -> &'static [&'static str] {
         Platform::Xiaohongshu => &["xiaohongshu:64a1b2c3d4e5f60718293a4b"],
         Platform::X => &["x:2110126570233094527"],
         Platform::Hn => &["hn:8863"],
+        Platform::Youtube => &[
+            "youtube:jNQXAC9IVRw",
+            "youtube:playlist/PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab",
+            "youtube:channel/UCYO_jab_esuFRV4b17AJtAw",
+        ],
     }
 }
+
+/// The operations that one route implements outside the platform catalog, with their route
+/// sets in the provider factory.
+const SINGLE_ROUTE_OPERATIONS: &[(Platform, &str, &[ProviderId])] = &[
+    (
+        Platform::Scholar,
+        CITED_BY,
+        providers::SCHOLAR_CITED_BY_ROUTES,
+    ),
+    (
+        Platform::Xiaohongshu,
+        COMMENTS,
+        providers::XIAOHONGSHU_COMMENTS_ROUTES,
+    ),
+    (Platform::X, ASK, providers::X_ASK_ROUTES),
+    (Platform::Hn, STORIES, providers::HN_STORIES_ROUTES),
+    (
+        Platform::Youtube,
+        COMMENTS,
+        providers::YOUTUBE_COMMENTS_ROUTES,
+    ),
+    (Platform::Youtube, VIDEOS, providers::YOUTUBE_VIDEOS_ROUTES),
+    (Platform::Youtube, ASK, providers::YOUTUBE_ASK_ROUTES),
+    (
+        Platform::Youtube,
+        TRANSCRIBE,
+        providers::YOUTUBE_TRANSCRIBE_ROUTES,
+    ),
+];
 
 /// The registration points the checklist inspects; tests replace one at a time.
 struct Registry<'a> {
     platforms: &'a [PlatformCatalog],
+    single_route_operations: &'a [(Platform, &'a str, &'a [ProviderId])],
     registrations: &'a [ProviderRegistration],
     has_adapter: &'a dyn Fn(Platform, PlatformOperation, ProviderId) -> bool,
     is_config_leaf: &'a dyn Fn(&str) -> bool,
@@ -80,6 +116,22 @@ fn violations(platform: Platform, registry: &Registry<'_>) -> Vec<String> {
     }
     for route in catalog.all_routes() {
         check_route(platform, route, registry, &mut found);
+    }
+    for route in catalog.operation_only {
+        let serves_an_operation = registry
+            .single_route_operations
+            .iter()
+            .any(|(served, _, routes)| *served == platform && routes.contains(route));
+        if !serves_an_operation {
+            found.push(violation(
+                platform,
+                "R3",
+                &format!(
+                    "route `{}` serves neither search nor fetch, and no operation of the platform lists it",
+                    route.name()
+                ),
+            ));
+        }
     }
     for operation in PlatformOperation::ALL {
         check_operation(
@@ -197,11 +249,17 @@ fn check_route(
             ),
         ));
     }
-    // A keyed route may instead ask its service about every key, which costs no quota.
+    // A keyed route may instead ask its service about every key, which costs no quota; a route
+    // that serves fetch only fetches a canary item.
     let probes_platform = match registration.probe {
         DoctorProbe::PlatformSearch {
             platform: probed, ..
         } => probed == platform,
+        DoctorProbe::PlatformFetch {
+            platform: probed,
+            canary,
+            ..
+        } => probed == platform && PlatformRef::parse(platform, canary).is_ok(),
         DoctorProbe::ServiceAccount { .. } => registration.credentials_required,
         _ => false,
     };
@@ -218,8 +276,17 @@ fn check_route(
 }
 
 fn check_refs(platform: Platform, samples: &[&str], found: &mut Vec<String>) {
-    if samples.is_empty() {
-        found.push(violation(platform, "R8", "no sample refs cover its kinds"));
+    for kind in platform.kinds() {
+        let covered = samples.iter().any(|sample| {
+            PlatformRef::parse(platform, sample).is_ok_and(|reference| reference.kind() == *kind)
+        });
+        if !covered {
+            found.push(violation(
+                platform,
+                "R8",
+                &format!("no sample ref covers its `{kind}` kind"),
+            ));
+        }
     }
     for sample in samples {
         let round_trips = PlatformRef::parse(platform, sample).is_ok_and(|reference| {
@@ -273,11 +340,7 @@ fn has_adapter(platform: Platform, operation: PlatformOperation, route: Provider
             .first()
             .and_then(|sample| PlatformRef::parse(platform, sample).ok())
             .is_some_and(|reference| {
-                let request = PlatformFetchRequest {
-                    reference,
-                    depth: ContentDepth::Abstract,
-                    access: None,
-                };
+                let request = PlatformFetchRequest::new(reference, ContentDepth::Abstract);
                 providers::platform_fetch_support(route, &request).is_some()
             }),
     };
@@ -312,6 +375,21 @@ fn has_adapter(platform: Platform, operation: PlatformOperation, route: Provider
             firebase_url: String::new(),
             timeout_seconds: 1,
         },
+        youtube_api: KeyedHttpRouteRuntimeConfig {
+            url: String::new(),
+            keys: Vec::new(),
+            timeout_seconds: 1,
+        },
+        youtube_web: HttpRouteRuntimeConfig {
+            url: String::new(),
+            timeout_seconds: 1,
+        },
+        gemini_api: ModelRouteRuntimeConfig {
+            url: String::new(),
+            keys: Vec::new(),
+            model: String::new(),
+            timeout_seconds: 1,
+        },
     };
     has_support
         && config::platform_route_config(route, &routes)
@@ -321,6 +399,7 @@ fn has_adapter(platform: Platform, operation: PlatformOperation, route: Provider
 fn baseline(fixtures: &BTreeSet<(String, String)>) -> Registry<'_> {
     Registry {
         platforms: PLATFORMS,
+        single_route_operations: SINGLE_ROUTE_OPERATIONS,
         registrations: catalog::registrations(),
         has_adapter: &has_adapter,
         is_config_leaf: &config::is_leaf,
@@ -357,22 +436,8 @@ fn single_route_operations_have_transport_fixtures() {
                 .is_some_and(|(_, operation)| !catalog_operations.contains(&operation))
         })
         .collect::<BTreeSet<_>>();
-    let single_route_operations = [
-        (
-            Platform::Scholar,
-            CITED_BY,
-            providers::SCHOLAR_CITED_BY_ROUTES,
-        ),
-        (
-            Platform::Xiaohongshu,
-            COMMENTS,
-            providers::XIAOHONGSHU_COMMENTS_ROUTES,
-        ),
-        (Platform::X, ASK, providers::X_ASK_ROUTES),
-        (Platform::Hn, STORIES, providers::HN_STORIES_ROUTES),
-    ];
-    let routes = single_route_operations
-        .into_iter()
+    let routes = SINGLE_ROUTE_OPERATIONS
+        .iter()
         .flat_map(|(platform, operation, routes)| {
             routes.iter().map(move |route| {
                 (
@@ -403,6 +468,30 @@ fn a_platform_without_a_catalog_violates_r1() {
     };
 
     assert_reports(&violations(Platform::Arxiv, &registry), "R1");
+}
+
+#[test]
+fn an_operation_only_route_that_no_operation_lists_violates_r3() {
+    let fixtures = manifest_fixtures();
+    let without_youtube_model_operations = SINGLE_ROUTE_OPERATIONS
+        .iter()
+        .copied()
+        .filter(|(platform, operation, _)| {
+            !(*platform == Platform::Youtube && [ASK, TRANSCRIBE].contains(operation))
+        })
+        .collect::<Vec<_>>();
+    let registry = Registry {
+        single_route_operations: &without_youtube_model_operations,
+        ..baseline(&fixtures)
+    };
+
+    let found = violations(Platform::Youtube, &registry);
+
+    assert_reports(&found, "R3");
+    assert!(
+        found.iter().any(|message| message.contains("`gemini_api`")),
+        "{found:?}"
+    );
 }
 
 #[test]
@@ -563,6 +652,17 @@ fn a_route_without_a_transport_fixture_violates_r7() {
     let registry = baseline(&fixtures);
 
     assert_reports(&violations(Platform::Arxiv, &registry), "R7");
+}
+
+#[test]
+fn samples_that_miss_a_kind_of_the_platform_violate_r8() {
+    let fixtures = manifest_fixtures();
+    let registry = Registry {
+        sample_refs: &|_| &["youtube:jNQXAC9IVRw"],
+        ..baseline(&fixtures)
+    };
+
+    assert_reports(&violations(Platform::Youtube, &registry), "R8");
 }
 
 #[test]

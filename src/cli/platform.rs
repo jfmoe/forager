@@ -13,12 +13,15 @@ use super::dispatch::{
 };
 use crate::config::{ConfigError, PlatformRuntimeConfig};
 use crate::net::combine_diagnostics;
+use crate::platform_ask;
 use crate::platform_chain::{self, PlatformPagePlan, PlatformPreflightError};
+use crate::platform_comments;
 use crate::platform_fetch;
 use crate::types::{
     ArxivSearchOptions, ArxivSort, AttemptErrorKind, ContentDepth, Deadline, LocalFile, Platform,
-    PlatformFetchRequest, PlatformFetchResult, PlatformRef, PlatformSearchOptions,
-    PlatformSearchRequest, ProviderError, ScholarCitedByRequest,
+    PlatformAskRequest, PlatformCommentsRequest, PlatformFetchRequest, PlatformFetchResult,
+    PlatformRef, PlatformSearchOptions, PlatformSearchRequest, ProviderError,
+    ScholarCitedByRequest,
 };
 
 #[path = "ssrn_search.rs"]
@@ -40,6 +43,10 @@ use x::XCommand;
 #[path = "hn.rs"]
 mod hn;
 use hn::HnCommand;
+
+#[path = "youtube.rs"]
+mod youtube;
+use youtube::YoutubeCommand;
 
 const DEFAULT_TIMEOUT_SECONDS: u64 = 120;
 
@@ -76,6 +83,12 @@ pub(super) enum PlatformCommand {
     Hn {
         #[command(subcommand)]
         command: HnCommand,
+    },
+    /// Search YouTube videos and read their metadata, captions, comments, and playlists; needs
+    /// your own YouTube Data API key. Ask and transcribe need your own Gemini key.
+    Youtube {
+        #[command(subcommand)]
+        command: YoutubeCommand,
     },
 }
 
@@ -266,6 +279,7 @@ pub(super) fn run(command: PlatformCommand) -> Result<CommandOutput, AppError> {
         PlatformCommand::Xiaohongshu { command } => xiaohongshu::run(command),
         PlatformCommand::X { command } => x::run(command),
         PlatformCommand::Hn { command } => hn::run(command),
+        PlatformCommand::Youtube { command } => youtube::run(command),
     }
 }
 
@@ -371,6 +385,67 @@ fn run_page(
     })
 }
 
+/// Plans the comments read over the request platform's configuration and runs it.
+fn comments(
+    request: PlatformCommentsRequest,
+    format: OutputFormat,
+    common: &PlatformCommonArgs,
+) -> Result<CommandOutput, AppError> {
+    let dependencies = NetworkDependencies::load()?;
+    let plan = platform_comments::plan_comments(
+        dependencies.config.platforms.get(request.platform()),
+        request,
+    )
+    .map_err(preflight_error)?;
+    let result = dependencies
+        .runtime
+        .block_on(platform_comments::run_comments(
+            plan,
+            dependencies.client,
+            dependencies.retry_policy,
+            Deadline::new(Duration::from_secs(common.timeout)),
+            common.verbose,
+        ));
+    let attempt_log = provider_attempt_log(dependencies.config.log_level, &result, |page| {
+        page.attempts()
+    });
+    Ok(CommandOutput::PlatformComments {
+        result,
+        format,
+        output: common.output.target(),
+        attempt_log,
+    })
+}
+
+/// Plans the ask over the request platform's configuration and runs it.
+fn ask(
+    request: PlatformAskRequest,
+    format: OutputFormat,
+    common: &PlatformCommonArgs,
+) -> Result<CommandOutput, AppError> {
+    let platform = request.platform();
+    let dependencies = NetworkDependencies::load()?;
+    let plan = platform_ask::plan_ask(dependencies.config.platforms.get(platform), request)
+        .map_err(preflight_error)?;
+    let result = dependencies.runtime.block_on(platform_ask::run_ask(
+        plan,
+        dependencies.client,
+        dependencies.retry_policy,
+        Deadline::new(Duration::from_secs(common.timeout)),
+        common.verbose,
+    ));
+    let attempt_log = provider_attempt_log(dependencies.config.log_level, &result, |answer| {
+        answer.attempts()
+    });
+    Ok(CommandOutput::PlatformAsk {
+        platform,
+        result,
+        format,
+        output: common.output.target(),
+        attempt_log,
+    })
+}
+
 fn preflight_error(error: PlatformPreflightError) -> AppError {
     match error {
         PlatformPreflightError::Argument(message) => AppError::Argument(message),
@@ -388,11 +463,7 @@ fn arxiv_fetch(arguments: ArxivFetchArgs) -> Result<CommandOutput, AppError> {
     } = arguments;
     let reference = PlatformRef::parse(Platform::Arxiv, &reference)
         .map_err(|error| AppError::Argument(error.to_string()))?;
-    let request = PlatformFetchRequest {
-        reference,
-        depth: depth.into(),
-        access: None,
-    };
+    let request = PlatformFetchRequest::new(reference, depth.into());
     fetch(
         Platform::Arxiv,
         request,
@@ -414,11 +485,7 @@ fn ssrn_fetch(arguments: SsrnFetchArgs) -> Result<CommandOutput, AppError> {
     } = arguments;
     let reference = PlatformRef::parse(Platform::Ssrn, &reference)
         .map_err(|error| AppError::Argument(error.to_string()))?;
-    let request = PlatformFetchRequest {
-        reference,
-        depth: depth.into(),
-        access: None,
-    };
+    let request = PlatformFetchRequest::new(reference, depth.into());
     fetch(
         Platform::Ssrn,
         request,
@@ -467,9 +534,11 @@ fn fetch(
             } else {
                 let directory =
                     content_dir.unwrap_or_else(|| invocation_temp_dir("forager-platform"));
+                let file_name = content_file_name(&fetched.item.reference);
                 deliver(
                     fetched,
                     &directory,
+                    &file_name,
                     keep_pdf,
                     format != DocsOutputFormat::Content,
                     common.verbose,
@@ -503,12 +572,13 @@ fn fetch(
     })
 }
 
-/// Delivers a fetched full text: writes the Markdown file unless the format is `content`, then
-/// keeps the local source file when asked and removes it otherwise. A write failure is Runtime
-/// and never falls back to inline output.
+/// Delivers a fetched full text: writes the Markdown file `file_name` in `directory` unless the
+/// format is `content`, then keeps the local source file when asked and removes it otherwise. A
+/// write failure is Runtime and never falls back to inline output.
 fn deliver(
     mut fetched: PlatformFetchResult,
     directory: &Path,
+    file_name: &str,
     keep_pdf: bool,
     write_markdown: bool,
     verbose: bool,
@@ -517,7 +587,7 @@ fn deliver(
         return Ok(fetched);
     }
     if write_markdown {
-        let path = directory.join(content_file_name(&fetched.item.reference));
+        let path = directory.join(file_name);
         let text = &fetched.content.as_ref().expect("content checked").text;
         if let Err(error) = fs::create_dir_all(directory).and_then(|()| fs::write(&path, text)) {
             let mut message = format!("cannot write the full text to {}: {error}", path.display());

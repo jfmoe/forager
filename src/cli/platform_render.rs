@@ -1,12 +1,14 @@
 //! Binary-side rendering of platform command results: search pages, fetched items,
-//! Xiaohongshu comments, X answers, and Hacker News story lists.
+//! comments, answers, model transcripts, and Hacker News story lists.
 
 use std::fmt::Write as _;
 
 use forager::app::{DocsOutputFormat, OutputFormat, OutputTarget, ProviderError};
 use forager::types::{
-    ContentDepth, HnStoriesResult, PlatformFetchResult, PlatformItem, PlatformItemData,
-    PlatformSearchPage, ScholarItemData, XAskResult, XPostData, XiaohongshuCommentsPage,
+    ContentDepth, HnStoriesResult, ModelUsage, Platform, PlatformAskResult, PlatformCommentsPage,
+    PlatformFetchResult, PlatformItem, PlatformItemData, PlatformSearchPage,
+    PlatformTranscribeResult, ScholarItemData, XAskResult, XPostData, XiaohongshuCommentsPage,
+    YoutubeAskResult, YoutubeCommentsPage,
 };
 
 use crate::{RenderedOutput, apply_tee, format_failure_json, postflight_exit_code};
@@ -149,6 +151,7 @@ fn item_abstract(item: &PlatformItem) -> Option<&str> {
         | PlatformItemData::XiaohongshuNote(_)
         | PlatformItemData::X(_)
         | PlatformItemData::Hn(_) => None,
+        PlatformItemData::Youtube(data) => data.description.as_deref(),
     }
 }
 
@@ -162,6 +165,7 @@ fn item_snippet(item: &PlatformItem) -> Option<&str> {
         PlatformItemData::Scholar(ScholarItemData::Result(data)) => data.snippet.as_deref(),
         PlatformItemData::X(data) => Some(&data.text),
         PlatformItemData::Hn(data) => data.text.as_deref(),
+        PlatformItemData::Youtube(data) => data.snippet.as_deref(),
     }
 }
 
@@ -185,12 +189,15 @@ fn x_thread_markdown(data: &XPostData) -> Option<String> {
 }
 
 pub(crate) fn render_comments(
-    result: Result<XiaohongshuCommentsPage, ProviderError>,
+    result: Result<PlatformCommentsPage, ProviderError>,
     format: OutputFormat,
     output: Option<OutputTarget>,
 ) -> Result<RenderedOutput, String> {
     let (stdout, exit_code, diagnostic) = match result {
-        Ok(page) => (format_comments(&page, format)?, 0, page.diagnostic),
+        Ok(page) => {
+            let stdout = format_comments(&page, format)?;
+            (stdout, 0, page.into_diagnostic())
+        }
         Err(error) => {
             let stdout = match format {
                 OutputFormat::Json => format_failure_json(&error)?,
@@ -212,15 +219,25 @@ pub(crate) fn render_comments(
     )
 }
 
-fn format_comments(page: &XiaohongshuCommentsPage, format: OutputFormat) -> Result<String, String> {
+fn format_comments(page: &PlatformCommentsPage, format: OutputFormat) -> Result<String, String> {
     if format == OutputFormat::Json {
         return serde_json::to_string(page).map_err(|error| error.to_string());
     }
+    Ok(match page {
+        PlatformCommentsPage::Xiaohongshu(page) => xiaohongshu_comments_markdown(page),
+        PlatformCommentsPage::Youtube(page) => youtube_comments_markdown(page),
+    })
+}
+
+fn one_line(text: &str) -> String {
+    text.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+fn xiaohongshu_comments_markdown(page: &XiaohongshuCommentsPage) -> String {
     let mut markdown = format!(
         "# {} comments on `{}` ({})\n",
         page.platform, page.note, page.provider
     );
-    let one_line = |text: &str| text.split_whitespace().collect::<Vec<_>>().join(" ");
     for comment in &page.comments {
         let _ = write!(
             markdown,
@@ -248,7 +265,48 @@ fn format_comments(page: &XiaohongshuCommentsPage, format: OutputFormat) -> Resu
     if page.has_more {
         markdown.push_str("\n\nMore comments remain.");
     }
-    Ok(markdown)
+    markdown
+}
+
+fn youtube_comments_markdown(page: &YoutubeCommentsPage) -> String {
+    let mut markdown = format!(
+        "# {} comments on `{}` ({})\n",
+        page.platform, page.video, page.provider
+    );
+    for comment in &page.comments {
+        let _ = write!(
+            markdown,
+            "\n- **{}** ({}, {} likes): {}",
+            comment.author.as_deref().unwrap_or("unknown"),
+            comment.published.as_deref().unwrap_or("undated"),
+            comment.likes.unwrap_or_default(),
+            one_line(&comment.text)
+        );
+        for reply in &comment.replies {
+            let _ = write!(
+                markdown,
+                "\n  - **{}** ({}): {}",
+                reply.author.as_deref().unwrap_or("unknown"),
+                reply.published.as_deref().unwrap_or("undated"),
+                one_line(&reply.text)
+            );
+        }
+        if !comment.replies_complete {
+            let _ = write!(
+                markdown,
+                "\n  - {} of {} replies shown",
+                comment.replies.len(),
+                comment.reply_count
+            );
+        }
+    }
+    if page.comments.is_empty() {
+        markdown.push_str("\n\nNo comments.");
+    }
+    if page.has_more {
+        markdown.push_str("\n\nMore comments remain.");
+    }
+    markdown
 }
 
 pub(crate) fn render_fetch(
@@ -262,17 +320,7 @@ pub(crate) fn render_fetch(
             0,
             fetched.diagnostic,
         ),
-        Err(error) => {
-            let stdout = match format {
-                DocsOutputFormat::Json => format_failure_json(&error)?,
-                DocsOutputFormat::Markdown | DocsOutputFormat::Content => format!(
-                    "# Platform fetch failed\n\n**{}**: {}",
-                    error.kind.as_str(),
-                    error.message
-                ),
-            };
-            (stdout, postflight_exit_code(error.kind), error.diagnostic)
-        }
+        Err(error) => docs_failure(&error, format, "Platform fetch failed")?,
     };
     apply_tee(
         stdout,
@@ -281,6 +329,76 @@ pub(crate) fn render_fetch(
         output,
         diagnostic,
     )
+}
+
+/// Renders a model transcript like a fetched full text; JSON adds the model and its usage, and
+/// Markdown names them under the reference to the written file.
+pub(crate) fn render_transcribe(
+    result: Result<PlatformTranscribeResult, ProviderError>,
+    format: DocsOutputFormat,
+    output: Option<OutputTarget>,
+) -> Result<RenderedOutput, String> {
+    let (stdout, exit_code, diagnostic) = match result {
+        Ok(transcribed) => {
+            let stdout = match format {
+                DocsOutputFormat::Json => {
+                    serde_json::to_string(&transcribed).map_err(|error| error.to_string())?
+                }
+                DocsOutputFormat::Content => format_platform_fetch(&transcribed.fetched, format)?,
+                DocsOutputFormat::Markdown => {
+                    let mut markdown = format_platform_fetch(&transcribed.fetched, format)?;
+                    let _ = write!(
+                        markdown,
+                        "\n\nGenerated by {}{}",
+                        transcribed
+                            .model
+                            .as_deref()
+                            .unwrap_or("an unreported model"),
+                        usage_note(transcribed.usage.as_ref())
+                    );
+                    markdown
+                }
+            };
+            (stdout, 0, transcribed.fetched.diagnostic)
+        }
+        Err(error) => docs_failure(&error, format, "YouTube transcribe failed")?,
+    };
+    apply_tee(
+        stdout,
+        exit_code,
+        format == DocsOutputFormat::Json,
+        output,
+        diagnostic,
+    )
+}
+
+/// Renders a failure of a command whose output is a document, with `title` heading Markdown.
+fn docs_failure(
+    error: &ProviderError,
+    format: DocsOutputFormat,
+    title: &str,
+) -> Result<(String, u8, Option<String>), String> {
+    let stdout = match format {
+        DocsOutputFormat::Json => format_failure_json(error)?,
+        DocsOutputFormat::Markdown | DocsOutputFormat::Content => format!(
+            "# {title}\n\n**{}**: {}",
+            error.kind.as_str(),
+            error.message
+        ),
+    };
+    Ok((
+        stdout,
+        postflight_exit_code(error.kind),
+        error.diagnostic.clone(),
+    ))
+}
+
+/// Says how many tokens a model request used, when the service reported it.
+fn usage_note(usage: Option<&ModelUsage>) -> String {
+    usage
+        .and_then(|usage| usage.total_tokens)
+        .map(|total| format!(" ({total} tokens)"))
+        .unwrap_or_default()
 }
 
 /// Renders a fetched item. A full text is printed only by `content`; the other formats reference
@@ -354,17 +472,19 @@ fn format_platform_fetch(
 }
 
 pub(crate) fn render_ask(
-    result: Result<XAskResult, ProviderError>,
+    platform: Platform,
+    result: Result<PlatformAskResult, ProviderError>,
     format: OutputFormat,
     output: Option<OutputTarget>,
 ) -> Result<RenderedOutput, String> {
     let (stdout, exit_code, diagnostic) = match result {
-        Ok(answer) => (format_ask(&answer, format)?, 0, answer.diagnostic),
+        Ok(answer) => (format_ask(&answer, format)?, 0, answer.into_diagnostic()),
         Err(error) => {
             let stdout = match format {
                 OutputFormat::Json => format_failure_json(&error)?,
                 OutputFormat::Markdown => format!(
-                    "# X ask failed\n\n**{}**: {}",
+                    "# {} ask failed\n\n**{}**: {}",
+                    platform_title(platform),
                     error.kind.as_str(),
                     error.message
                 ),
@@ -381,10 +501,41 @@ pub(crate) fn render_ask(
     )
 }
 
-fn format_ask(answer: &XAskResult, format: OutputFormat) -> Result<String, String> {
+/// Returns the name a Markdown heading gives the platform.
+fn platform_title(platform: Platform) -> &'static str {
+    match platform {
+        Platform::X => "X",
+        Platform::Youtube => "YouTube",
+        other => other.as_str(),
+    }
+}
+
+fn format_ask(answer: &PlatformAskResult, format: OutputFormat) -> Result<String, String> {
     if format == OutputFormat::Json {
         return serde_json::to_string(answer).map_err(|error| error.to_string());
     }
+    Ok(match answer {
+        PlatformAskResult::X(answer) => x_answer_markdown(answer),
+        PlatformAskResult::Youtube(answer) => youtube_answer_markdown(answer),
+    })
+}
+
+fn youtube_answer_markdown(answer: &YoutubeAskResult) -> String {
+    let video = &answer.video;
+    let reference = video.reference.to_string();
+    format!(
+        "# YouTube answer ({})\n\n[{}]({}) `{reference}`\n\n**Question:** {}\n\n{}\n\nRelayed by {}{}; check each moment in the video before quoting it.",
+        answer.provider,
+        video.title.as_deref().unwrap_or(&reference),
+        video.url,
+        answer.question,
+        answer.answer,
+        answer.model.as_deref().unwrap_or("an unreported model"),
+        usage_note(answer.usage.as_ref())
+    )
+}
+
+fn x_answer_markdown(answer: &XAskResult) -> String {
     let mut markdown = format!("# X answer ({})\n\n{}", answer.provider, answer.answer);
     if !answer.sources.is_empty() {
         markdown.push_str("\n\n## Sources\n");
@@ -400,5 +551,5 @@ fn format_ask(answer: &XAskResult, format: OutputFormat) -> Result<String, Strin
             }
         }
     }
-    Ok(markdown)
+    markdown
 }

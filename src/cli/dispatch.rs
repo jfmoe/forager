@@ -22,9 +22,10 @@ use crate::types::{
     AnysearchOutcome, CapabilitySet, ChatgptResearchFailure, ChatgptResearchResult,
     ChatgptResearchStarted, ClaimRisk, Context7Outcome, Deadline, EvidenceStrength, FallbackPolicy,
     FetchOutcome, GeminiResearchFailure, GeminiResearchResult, GeminiResearchStarted,
-    HnStoriesResult, JournalOutcome, MapOutcome, PlanCapability, PlatformFetchResult,
-    PlatformSearchPage, ProviderAttempt, RecencyRequirement, ResearchIntentSignals, ResearchPlan,
-    ResearchSubquestion, SearchOutcome, XAskResult, XiaohongshuCommentsPage,
+    HnStoriesResult, JournalOutcome, MapOutcome, PlanCapability, Platform, PlatformAskResult,
+    PlatformCommentsPage, PlatformFetchResult, PlatformSearchPage, PlatformTranscribeResult,
+    ProviderAttempt, RecencyRequirement, ResearchIntentSignals, ResearchPlan, ResearchSubquestion,
+    SearchOutcome,
 };
 
 #[doc(hidden)]
@@ -157,10 +158,10 @@ pub enum CommandOutput {
         /// Optional terminal projection selected by `log.level`.
         attempt_log: Option<String>,
     },
-    /// Typed Xiaohongshu comments terminal state for binary-side formatting and tee output.
-    XiaohongshuComments {
-        /// Comments result.
-        result: Result<XiaohongshuCommentsPage, ProviderError>,
+    /// Typed platform comments terminal state for binary-side formatting and tee output.
+    PlatformComments {
+        /// Comments result, in the platform's own shape.
+        result: Result<PlatformCommentsPage, ProviderError>,
         /// Requested output format.
         format: OutputFormat,
         /// Optional output file destination.
@@ -168,12 +169,26 @@ pub enum CommandOutput {
         /// Optional terminal projection selected by `log.level`.
         attempt_log: Option<String>,
     },
-    /// Typed X ask terminal state for binary-side formatting and tee output.
-    XAsk {
-        /// Ask result.
-        result: Result<XAskResult, ProviderError>,
+    /// Typed platform ask terminal state for binary-side formatting and tee output.
+    PlatformAsk {
+        /// The platform asked.
+        platform: Platform,
+        /// Ask result, in the platform's own shape.
+        result: Result<PlatformAskResult, ProviderError>,
         /// Requested output format.
         format: OutputFormat,
+        /// Optional output file destination.
+        output: Option<OutputTarget>,
+        /// Optional terminal projection selected by `log.level`.
+        attempt_log: Option<String>,
+    },
+    /// Typed transcribe terminal state for binary-side formatting and tee output.
+    PlatformTranscribe {
+        /// Transcribe result; the transcript is already written unless the format is
+        /// `content`.
+        result: Box<Result<PlatformTranscribeResult, ProviderError>>,
+        /// Requested output format.
+        format: DocsOutputFormat,
         /// Optional output file destination.
         output: Option<OutputTarget>,
         /// Optional terminal projection selected by `log.level`.
@@ -1666,7 +1681,8 @@ fn run_interactive_setup(language: Option<Language>) -> Result<CommandOutput, Ap
     )?;
 
     prompt_stage(language, 5, false);
-    configure_optional_keys(&mut input, language, &mut document, &["serpapi"])?;
+    let keyed_routes = ["serpapi", "youtube_api"];
+    configure_optional_keys(&mut input, language, &mut document, &keyed_routes)?;
 
     document.save()?;
     let stdout = match language {
@@ -1703,8 +1719,8 @@ fn prompt_stage(language: Language, stage: u8, classifier_configured: bool) {
             "Step 3: classifier (skipping disables automatic routing and research plans)"
         }
         (Language::En, 4, _) => "Step 4: supplemental providers",
-        (Language::Zh, 5, _) => "第 5 步：平台 route（Google Scholar 需要 SerpApi key）",
-        (Language::En, 5, _) => "Step 5: platform routes (Google Scholar needs a SerpApi key)",
+        (Language::Zh, 5, _) => "第 5 步：平台 route（Scholar 与 YouTube 需要自备 key）",
+        (Language::En, 5, _) => "Step 5: platform routes (Scholar and YouTube need your own key)",
         _ => return,
     };
     eprintln!("{label}");

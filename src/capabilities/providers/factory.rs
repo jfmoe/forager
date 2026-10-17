@@ -6,22 +6,25 @@ use super::constructors::{
     build_chatgpt_browser, build_gemini_browser, credentials, route_limiter,
 };
 use super::{
-    ArxivApi, DocsSearch, HnApi, KeyAccount, MainSearch, ModelBreakers, PlatformFetch,
+    ArxivApi, DocsSearch, GeminiApi, HnApi, KeyAccount, MainSearch, ModelBreakers, PlatformFetch,
     PlatformSearch, ProviderId, Serpapi, SsrnBrowser, SsrnCrossref, SupplementalSearch,
-    VerticalSearch, WebFetch, WebSearch, XiaohongshuBrowser, arxiv, hn_api, opencli, serpapi,
-    ssrn_browser, ssrn_crossref, web_fetch, xai, xiaohongshu_browser,
+    VerticalSearch, WebFetch, WebSearch, XiaohongshuBrowser, YoutubeApi, YoutubeWeb, arxiv, hn_api,
+    opencli, serpapi, ssrn_browser, ssrn_crossref, web_fetch, xai, xiaohongshu_browser,
+    youtube_api, youtube_web,
 };
 use crate::catalog::{ProviderTransport, VERTICAL_SEARCH, WEB_FETCH, WEB_SEARCH, registration};
 use crate::config::{
     AnysearchRuntimeConfig, DocsSearchProviderConfig, HnRouteRuntimeConfig, HttpRouteRuntimeConfig,
-    KeyedHttpRouteRuntimeConfig, MainSearchProviderConfig, PlatformRouteConfig,
-    ProcessRouteRuntimeConfig, RuntimeConfig, WebFetchProviderConfig,
+    KeyedHttpRouteRuntimeConfig, MainSearchProviderConfig, ModelRouteRuntimeConfig,
+    PlatformRouteConfig, ProcessRouteRuntimeConfig, RuntimeConfig, WebFetchProviderConfig,
 };
 use crate::net::RetryPolicy;
 use crate::types::{
-    Deadline, HnStoriesOutcome, HnStoriesRequest, PlatformFetchRequest, PlatformSearchOutcome,
-    PlatformSearchRequest, ProviderError, ScholarCitedByRequest, XAskOutcome, XAskRequest,
-    XiaohongshuCommentsOutcome, XiaohongshuCommentsRequest,
+    Deadline, HnStoriesOutcome, HnStoriesRequest, ModelAnswerOutcome, ModelTranscriptOutcome,
+    PlatformFetchRequest, PlatformItem, PlatformSearchOutcome, PlatformSearchRequest,
+    ProviderError, ScholarCitedByRequest, XAskOutcome, XAskRequest, XiaohongshuCommentsOutcome,
+    XiaohongshuCommentsRequest, YoutubeCommentsOutcome, YoutubeCommentsRequest,
+    YoutubeVideosOutcome, YoutubeVideosRequest,
 };
 
 /// The routes that list the works citing a Google Scholar paper. Cited-by has one route, so it
@@ -33,9 +36,25 @@ pub(crate) const SCHOLAR_CITED_BY_ROUTES: &[ProviderId] = &[ProviderId::Serpapi]
 /// operation whose route set lives here.
 pub(crate) const XIAOHONGSHU_COMMENTS_ROUTES: &[ProviderId] = &[ProviderId::XiaohongshuBrowser];
 
+/// The routes that list the comments of a YouTube video; like cited-by, a single-route
+/// operation whose route set lives here.
+pub(crate) const YOUTUBE_COMMENTS_ROUTES: &[ProviderId] = &[ProviderId::YoutubeApi];
+
+/// The routes that list the videos of a YouTube playlist or channel; like cited-by, a
+/// single-route operation whose route set lives here.
+pub(crate) const YOUTUBE_VIDEOS_ROUTES: &[ProviderId] = &[ProviderId::YoutubeApi];
+
 /// The routes that answer a question from X posts; like cited-by, a single-route operation
 /// whose route set lives here.
 pub(crate) const X_ASK_ROUTES: &[ProviderId] = &[ProviderId::Xai];
+
+/// The routes that answer a question about a YouTube video; like cited-by, a single-route
+/// operation whose route set lives here.
+pub(crate) const YOUTUBE_ASK_ROUTES: &[ProviderId] = &[ProviderId::GeminiApi];
+
+/// The routes that transcribe a YouTube video with a model; like cited-by, a single-route
+/// operation whose route set lives here.
+pub(crate) const YOUTUBE_TRANSCRIBE_ROUTES: &[ProviderId] = &[ProviderId::GeminiApi];
 
 /// The routes that list a Hacker News story list; like cited-by, a single-route operation whose
 /// route set lives here.
@@ -160,6 +179,17 @@ pub(crate) fn build_platform_search(
         PlatformRouteConfig::HnApi(config) => {
             Box::new(build_hn_api(config, client, retry_policy, deadline))
         }
+        PlatformRouteConfig::YoutubeApi(config) => {
+            Box::new(build_youtube_api(config, client, retry_policy, deadline))
+        }
+        PlatformRouteConfig::YoutubeWeb(_) => {
+            unreachable!("youtube_web serves fetch only, so planning never selects it for search")
+        }
+        PlatformRouteConfig::GeminiApi(_) => {
+            unreachable!(
+                "gemini_api serves model operations only, so planning never selects it for search"
+            )
+        }
     }
 }
 
@@ -188,6 +218,17 @@ pub(crate) fn build_platform_fetch(
         }
         PlatformRouteConfig::HnApi(config) => {
             Box::new(build_hn_api(config, client, retry_policy, deadline))
+        }
+        PlatformRouteConfig::YoutubeApi(config) => {
+            Box::new(build_youtube_api(config, client, retry_policy, deadline))
+        }
+        PlatformRouteConfig::YoutubeWeb(config) => {
+            Box::new(build_youtube_web(config, client, deadline))
+        }
+        PlatformRouteConfig::GeminiApi(_) => {
+            unreachable!(
+                "gemini_api serves model operations only, so planning never selects it for fetch"
+            )
         }
     }
 }
@@ -238,6 +279,72 @@ pub(crate) async fn xiaohongshu_comments(
         .await
 }
 
+/// Lists the top-level comments of a YouTube video through a comments route.
+pub(crate) async fn youtube_comments(
+    config: PlatformRouteConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+    request: &YoutubeCommentsRequest,
+) -> Result<YoutubeCommentsOutcome, ProviderError> {
+    let PlatformRouteConfig::YoutubeApi(config) = config else {
+        unreachable!("planning selects only comments routes")
+    };
+    build_youtube_api(config, client, retry_policy, deadline)
+        .comments(request)
+        .await
+}
+
+/// Lists one page of the videos of a YouTube playlist or channel through a videos route.
+pub(crate) async fn youtube_videos(
+    config: PlatformRouteConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+    request: &YoutubeVideosRequest,
+) -> Result<YoutubeVideosOutcome, ProviderError> {
+    let PlatformRouteConfig::YoutubeApi(config) = config else {
+        unreachable!("planning selects only videos routes")
+    };
+    build_youtube_api(config, client, retry_policy, deadline)
+        .videos(request)
+        .await
+}
+
+/// Answers a question about a YouTube video, which the metadata check read, through an ask
+/// route.
+pub(crate) async fn youtube_ask(
+    config: PlatformRouteConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+    video: &PlatformItem,
+    question: &str,
+) -> Result<ModelAnswerOutcome, ProviderError> {
+    let PlatformRouteConfig::GeminiApi(config) = config else {
+        unreachable!("planning selects only ask routes")
+    };
+    build_gemini_api(config, client, retry_policy, deadline)
+        .ask(video, question)
+        .await
+}
+
+/// Transcribes a YouTube video, which the metadata check read, through a transcribe route.
+pub(crate) async fn youtube_transcribe(
+    config: PlatformRouteConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+    video: &PlatformItem,
+) -> Result<ModelTranscriptOutcome, ProviderError> {
+    let PlatformRouteConfig::GeminiApi(config) = config else {
+        unreachable!("planning selects only transcribe routes")
+    };
+    build_gemini_api(config, client, retry_policy, deadline)
+        .transcribe(video)
+        .await
+}
+
 /// Lists the current items of a Hacker News story list through a stories route.
 pub(crate) async fn hn_stories(
     config: PlatformRouteConfig,
@@ -280,12 +387,26 @@ pub(crate) async fn route_accounts(
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> Vec<KeyAccount> {
-    let PlatformRouteConfig::Serpapi(config) = config else {
-        unreachable!("only serpapi registers an account probe")
-    };
-    build_serpapi(config, client, retry_policy, deadline)
-        .accounts()
-        .await
+    match config {
+        PlatformRouteConfig::Serpapi(config) => {
+            build_serpapi(config, client, retry_policy, deadline)
+                .accounts()
+                .await
+        }
+        PlatformRouteConfig::GeminiApi(config) => {
+            build_gemini_api(config, client, retry_policy, deadline)
+                .accounts()
+                .await
+                .into_iter()
+                .map(|result| KeyAccount {
+                    reports_quota: false,
+                    quota: None,
+                    failure: result.err(),
+                })
+                .collect()
+        }
+        other => unreachable!("{} registers no account probe", other.route().name()),
+    }
 }
 
 /// Runs the read-only `status` command of a provider that registers an adapter status probe.
@@ -337,6 +458,57 @@ fn build_hn_api(
         client,
         route_limiter(ProviderId::HnApi).expect("hn_api registration declares an access policy"),
         retry_policy,
+        deadline,
+    )
+}
+
+fn build_youtube_api(
+    mut config: KeyedHttpRouteRuntimeConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> YoutubeApi {
+    let credentials = credentials(ProviderId::YoutubeApi, &mut config.keys);
+    YoutubeApi::new(
+        config,
+        client,
+        credentials,
+        route_limiter(ProviderId::YoutubeApi)
+            .expect("youtube_api registration declares an access policy"),
+        retry_policy,
+        deadline,
+    )
+}
+
+fn build_gemini_api(
+    mut config: ModelRouteRuntimeConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> GeminiApi {
+    let credentials = credentials(ProviderId::GeminiApi, &mut config.keys);
+    GeminiApi::new(
+        config,
+        client,
+        credentials,
+        route_limiter(ProviderId::GeminiApi)
+            .expect("gemini_api registration declares an access policy"),
+        retry_policy,
+        deadline,
+    )
+}
+
+// The route never retries, so the shared retry policy does not reach it.
+fn build_youtube_web(
+    config: HttpRouteRuntimeConfig,
+    client: Client,
+    deadline: Deadline,
+) -> YoutubeWeb {
+    YoutubeWeb::new(
+        config,
+        client,
+        route_limiter(ProviderId::YoutubeWeb)
+            .expect("youtube_web registration declares an access policy"),
         deadline,
     )
 }
@@ -402,6 +574,7 @@ pub(crate) fn platform_search_support(
         ProviderId::XiaohongshuBrowser => xiaohongshu_browser::search_support(request),
         ProviderId::Xai => xai::search_support(request),
         ProviderId::HnApi => hn_api::search_support(request),
+        ProviderId::YoutubeApi => youtube_api::search_support(request),
         _ => return None,
     };
     Some(transport_support(id).and(route))
@@ -421,6 +594,8 @@ pub(crate) fn platform_fetch_support(
         ProviderId::XiaohongshuBrowser => xiaohongshu_browser::fetch_support(request),
         ProviderId::Xai => xai::fetch_support(request),
         ProviderId::HnApi => hn_api::fetch_support(request),
+        ProviderId::YoutubeApi => youtube_api::fetch_support(request),
+        ProviderId::YoutubeWeb => youtube_web::fetch_support(request),
         _ => return None,
     };
     Some(transport_support(id).and(route))
@@ -448,11 +623,47 @@ pub(crate) fn xiaohongshu_comments_support(id: ProviderId) -> Option<Result<(), 
     }
 }
 
+/// Returns whether a comments route can run, or `None` for a provider that does not list
+/// YouTube comments. The request needs no check beyond what parsing guarantees.
+pub(crate) fn youtube_comments_support(id: ProviderId) -> Option<Result<(), String>> {
+    match id {
+        ProviderId::YoutubeApi => Some(transport_support(id)),
+        _ => None,
+    }
+}
+
+/// Returns whether a videos route can run, or `None` for a provider that does not list the
+/// videos of a YouTube collection. The request needs no check beyond what parsing guarantees.
+pub(crate) fn youtube_videos_support(id: ProviderId) -> Option<Result<(), String>> {
+    match id {
+        ProviderId::YoutubeApi => Some(transport_support(id)),
+        _ => None,
+    }
+}
+
 /// Returns whether an ask route can run, or `None` for a provider that does not answer from X
 /// posts. The request needs no check beyond what parsing guarantees.
 pub(crate) fn x_ask_support(id: ProviderId) -> Option<Result<(), String>> {
     match id {
         ProviderId::Xai => Some(transport_support(id)),
+        _ => None,
+    }
+}
+
+/// Returns whether an ask route can run, or `None` for a provider that does not answer about
+/// YouTube videos. The request needs no check beyond what parsing guarantees.
+pub(crate) fn youtube_ask_support(id: ProviderId) -> Option<Result<(), String>> {
+    match id {
+        ProviderId::GeminiApi => Some(transport_support(id)),
+        _ => None,
+    }
+}
+
+/// Returns whether a transcribe route can run, or `None` for a provider that does not
+/// transcribe YouTube videos. The request needs no check beyond what parsing guarantees.
+pub(crate) fn youtube_transcribe_support(id: ProviderId) -> Option<Result<(), String>> {
+    match id {
+        ProviderId::GeminiApi => Some(transport_support(id)),
         _ => None,
     }
 }

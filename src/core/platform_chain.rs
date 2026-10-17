@@ -3,8 +3,8 @@
 //! The routes of one platform form a fallback chain in configured order through the shared
 //! chain runner; a result never falls back to another platform. Planning is pure: it decides
 //! before any request which routes run, which are skipped, and which preflight error ends the
-//! command. Search and Google Scholar cited-by are the paged operations: both return a search
-//! page and issue cursors bound to their own operation.
+//! command. Search, Google Scholar cited-by, and YouTube videos are the paged operations: each
+//! returns a search page and issues cursors bound to its own operation.
 
 use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -20,8 +20,9 @@ use crate::config::{self, PlatformRouteConfig, PlatformRuntimeConfig};
 use crate::net::RetryPolicy;
 use crate::providers;
 use crate::types::{
-    AttemptTarget, CITED_BY, Deadline, Platform, PlatformSearchOutcome, PlatformSearchPage,
-    PlatformSearchRequest, ProviderAttempt, ProviderError, ScholarCitedByRequest,
+    AttemptTarget, CITED_BY, Deadline, Platform, PlatformCollection, PlatformRef,
+    PlatformSearchOutcome, PlatformSearchPage, PlatformSearchRequest, ProviderAttempt,
+    ProviderError, ScholarCitedByRequest, VIDEOS, YoutubeCollection, YoutubeVideosRequest,
 };
 
 const CURSOR_VERSION: &str = "v1";
@@ -43,6 +44,7 @@ pub(crate) enum PlatformPreflightError {
 enum PageRequest {
     Search(PlatformSearchRequest),
     ScholarCitedBy(ScholarCitedByRequest),
+    YoutubeVideos(YoutubeVideosRequest),
 }
 
 impl PageRequest {
@@ -50,6 +52,7 @@ impl PageRequest {
         match self {
             Self::Search(request) => request.options.platform(),
             Self::ScholarCitedBy(_) => Platform::Scholar,
+            Self::YoutubeVideos(_) => Platform::Youtube,
         }
     }
 
@@ -57,6 +60,7 @@ impl PageRequest {
         match self {
             Self::Search(_) => PlatformOperation::Search.as_str(),
             Self::ScholarCitedBy(_) => CITED_BY,
+            Self::YoutubeVideos(_) => VIDEOS,
         }
     }
 
@@ -64,6 +68,7 @@ impl PageRequest {
         match self {
             Self::Search(request) => request.validate(),
             Self::ScholarCitedBy(request) => request.validate(),
+            Self::YoutubeVideos(request) => request.validate(),
         }
     }
 
@@ -74,6 +79,7 @@ impl PageRequest {
                 catalog::platform(request.options.platform()).routes(PlatformOperation::Search)
             }
             Self::ScholarCitedBy(_) => providers::SCHOLAR_CITED_BY_ROUTES,
+            Self::YoutubeVideos(_) => providers::YOUTUBE_VIDEOS_ROUTES,
         }
     }
 
@@ -81,6 +87,7 @@ impl PageRequest {
         match self {
             Self::Search(request) => providers::platform_search_support(id, request),
             Self::ScholarCitedBy(request) => providers::scholar_cited_by_support(id, request),
+            Self::YoutubeVideos(_) => providers::youtube_videos_support(id),
         }
     }
 
@@ -88,25 +95,62 @@ impl PageRequest {
         match self {
             Self::Search(_) => "platform search deadline elapsed",
             Self::ScholarCitedBy(_) => "platform cited-by deadline elapsed",
+            Self::YoutubeVideos(_) => "platform videos deadline elapsed",
         }
     }
 
-    /// Runs the page on one route that planning selected for the operation.
+    /// Returns the collection the page lists, for an operation that lists one.
+    fn collection(&self) -> Option<PlatformCollection> {
+        match self {
+            Self::Search(_) | Self::ScholarCitedBy(_) => None,
+            Self::YoutubeVideos(request) => match &request.collection {
+                YoutubeCollection::Ref(reference) => Some(PlatformCollection::new(
+                    PlatformRef::Youtube(reference.clone()),
+                )),
+                YoutubeCollection::Handle(_) => None,
+            },
+        }
+    }
+
+    /// Runs the page on one route that planning selected for the operation. The returned
+    /// request is the one the route resolved, such as a handle resolved to its channel, so the
+    /// page and its cursor name what the route read.
     async fn run(
         &self,
         config: PlatformRouteConfig,
         client: Client,
         retry_policy: RetryPolicy,
         deadline: Deadline,
-    ) -> Result<PlatformSearchOutcome, ProviderError> {
+    ) -> Result<(PlatformSearchOutcome, Self), ProviderError> {
         match self {
             Self::Search(request) => {
-                providers::build_platform_search(config, client, retry_policy, deadline)
-                    .search(request)
-                    .await
+                let outcome =
+                    providers::build_platform_search(config, client, retry_policy, deadline)
+                        .search(request)
+                        .await?;
+                Ok((outcome, self.clone()))
             }
             Self::ScholarCitedBy(request) => {
-                providers::scholar_cited_by(config, client, retry_policy, deadline, request).await
+                let outcome =
+                    providers::scholar_cited_by(config, client, retry_policy, deadline, request)
+                        .await?;
+                Ok((outcome, self.clone()))
+            }
+            Self::YoutubeVideos(request) => {
+                let outcome =
+                    providers::youtube_videos(config, client, retry_policy, deadline, request)
+                        .await?;
+                let resolved = Self::YoutubeVideos(YoutubeVideosRequest {
+                    collection: YoutubeCollection::Ref(outcome.collection),
+                    ..request.clone()
+                });
+                let listing = PlatformSearchOutcome {
+                    items: outcome.items,
+                    next_page: outcome.next_page,
+                    attempts: outcome.attempts,
+                    diagnostic: outcome.diagnostic,
+                };
+                Ok((listing, resolved))
             }
         }
     }
@@ -118,6 +162,10 @@ impl PageRequest {
                 ..request.clone()
             }),
             Self::ScholarCitedBy(request) => Self::ScholarCitedBy(ScholarCitedByRequest {
+                page: Some(page),
+                ..request.clone()
+            }),
+            Self::YoutubeVideos(request) => Self::YoutubeVideos(YoutubeVideosRequest {
                 page: Some(page),
                 ..request.clone()
             }),
@@ -164,6 +212,22 @@ pub(crate) fn plan_cursor_cited_by(
     cursor: &str,
 ) -> Result<PlatformPagePlan, PlatformPreflightError> {
     plan_cursor(config, CITED_BY, cursor)
+}
+
+/// Plans the first page of the videos of a YouTube playlist or channel; `config` is YouTube's.
+pub(crate) fn plan_videos(
+    config: &PlatformRuntimeConfig,
+    request: YoutubeVideosRequest,
+) -> Result<PlatformPagePlan, PlatformPreflightError> {
+    plan(config, PageRequest::YoutubeVideos(request), None)
+}
+
+/// Plans the videos page a cursor names; only the route that produced the cursor may run it.
+pub(crate) fn plan_cursor_videos(
+    config: &PlatformRuntimeConfig,
+    cursor: &str,
+) -> Result<PlatformPagePlan, PlatformPreflightError> {
+    plan_cursor(config, VIDEOS, cursor)
 }
 
 fn plan_cursor(
@@ -256,10 +320,10 @@ pub(crate) async fn run_page(
                     .run(config, client, retry_policy, step_deadline)
                     .await
                 {
-                    Ok(outcome) => {
+                    Ok((outcome, resolved)) => {
                         let empty = outcome.items.is_empty();
                         let success = StepSuccess {
-                            value: (route, outcome.items, outcome.next_page),
+                            value: (route, outcome.items, outcome.next_page, resolved),
                             attempts: outcome.attempts,
                             diagnostic: outcome.diagnostic,
                         };
@@ -277,13 +341,14 @@ pub(crate) async fn run_page(
     .await;
     match result {
         Ok(outcome) => {
-            let (route, items, next_page) = outcome.value;
+            let (route, items, next_page, resolved) = outcome.value;
             skipped.extend(outcome.attempts);
             Ok(PlatformSearchPage {
                 platform,
                 provider: route.name(),
+                collection: resolved.collection(),
                 items,
-                next_cursor: next_page.map(|page| encode_cursor(route, &request.at_page(page))),
+                next_cursor: next_page.map(|page| encode_cursor(route, &resolved.at_page(page))),
                 attempts: if verbose { skipped } else { Vec::new() },
                 diagnostic: outcome.diagnostic,
             })
@@ -386,10 +451,11 @@ pub(crate) fn plan_routes<C: Clone>(
             .filter(|candidate| !candidate.configured && operation_routes.contains(&candidate.id))
             .map(|candidate| config::provider_keys_key(candidate.id.name()))
             .collect::<Vec<_>>();
+        let opt_in = opt_in_hint(order_key, operation_routes, candidates);
         let hint = if missing_keys.is_empty() {
-            opt_in_hint(order_key, operation_routes, candidates)
+            opt_in
         } else {
-            format!("; set {}", missing_keys.join(" or "))
+            format!("; set {}{opt_in}", missing_keys.join(" or "))
         };
         return Err(PlatformPreflightError::Config(format!(
             "{order_key} has no configured route for {platform} {operation}{hint}"
@@ -427,8 +493,9 @@ pub(crate) fn plan_routes<C: Clone>(
     Ok(plan)
 }
 
-/// Says how to enable the operation's process routes that the order leaves out. They drive the
-/// user's own browser, so only the user can enable them (ADR 0020).
+/// Says how to enable the operation's routes that the order leaves out and only users may
+/// enable: process routes drive their own browser (ADR 0020), and an HTTP route may read a
+/// site's undocumented endpoints (ADR 0028).
 fn opt_in_hint<C>(
     order_key: &str,
     operation_routes: &[ProviderId],
@@ -443,7 +510,7 @@ fn opt_in_hint<C>(
                 route = route.name(),
                 site = adapter.site,
             )),
-            ProviderTransport::Http => None,
+            ProviderTransport::Http => catalog::http_opt_in(*route).map(|text| format!("; {text}")),
         })
         .collect()
 }

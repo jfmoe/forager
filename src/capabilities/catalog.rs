@@ -4,7 +4,7 @@ use std::time::Duration;
 use crate::rate_limit::AccessPolicy;
 use crate::types::{
     ASK, CHATGPT_RESEARCH_RESULT, CHATGPT_RESEARCH_START, CITED_BY, COMMENTS,
-    GEMINI_RESEARCH_RESULT, GEMINI_RESEARCH_START, Platform, STORIES,
+    GEMINI_RESEARCH_RESULT, GEMINI_RESEARCH_START, Platform, STORIES, TRANSCRIBE, VIDEOS,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -80,6 +80,9 @@ pub(crate) struct PlatformCatalog {
     pub(crate) platform: Platform,
     pub(crate) search: &'static [ProviderId],
     pub(crate) fetch: &'static [ProviderId],
+    /// Routes that serve neither search nor fetch, only operations of the platform's own, such
+    /// as a model that answers about a video. They are valid order entries like any route.
+    pub(crate) operation_only: &'static [ProviderId],
     /// The default `platforms.<id>.order`. A route that users must enable themselves is a
     /// valid order entry but never appears here.
     pub(crate) default_order: &'static [ProviderId],
@@ -89,6 +92,7 @@ pub(crate) const ARXIV: PlatformCatalog = PlatformCatalog {
     platform: Platform::Arxiv,
     search: &[ProviderId::ArxivApi],
     fetch: &[ProviderId::ArxivApi],
+    operation_only: &[],
     default_order: &[ProviderId::ArxivApi],
 };
 
@@ -97,6 +101,7 @@ pub(crate) const SSRN: PlatformCatalog = PlatformCatalog {
     platform: Platform::Ssrn,
     search: &[ProviderId::SsrnCrossref, ProviderId::SsrnBrowser],
     fetch: &[ProviderId::SsrnCrossref, ProviderId::SsrnBrowser],
+    operation_only: &[],
     default_order: &[ProviderId::SsrnCrossref],
 };
 
@@ -105,6 +110,7 @@ pub(crate) const SCHOLAR: PlatformCatalog = PlatformCatalog {
     platform: Platform::Scholar,
     search: &[ProviderId::Serpapi],
     fetch: &[ProviderId::Serpapi],
+    operation_only: &[],
     default_order: &[ProviderId::Serpapi],
 };
 
@@ -114,6 +120,7 @@ pub(crate) const XIAOHONGSHU: PlatformCatalog = PlatformCatalog {
     platform: Platform::Xiaohongshu,
     search: &[ProviderId::XiaohongshuBrowser],
     fetch: &[ProviderId::XiaohongshuBrowser],
+    operation_only: &[],
     default_order: &[],
 };
 
@@ -123,6 +130,7 @@ pub(crate) const X: PlatformCatalog = PlatformCatalog {
     platform: Platform::X,
     search: &[ProviderId::Xai],
     fetch: &[ProviderId::Xai],
+    operation_only: &[],
     default_order: &[ProviderId::Xai],
 };
 
@@ -131,10 +139,27 @@ pub(crate) const HN: PlatformCatalog = PlatformCatalog {
     platform: Platform::Hn,
     search: &[ProviderId::HnApi],
     fetch: &[ProviderId::HnApi],
+    operation_only: &[],
     default_order: &[ProviderId::HnApi],
 };
 
-pub(crate) const PLATFORMS: &[PlatformCatalog] = &[ARXIV, SSRN, SCHOLAR, XIAOHONGSHU, X, HN];
+// The official Data API needs the user's own key; one key per client, never a pool, because a
+// pool would sidestep the project quota the Developer Policies bind to one project.
+// `youtube_web` reads YouTube's undocumented web endpoints, so users must enable it themselves
+// (ADR 0028). `gemini_api` serves only Ask and Transcribe: a model watches the video.
+pub(crate) const YOUTUBE: PlatformCatalog = PlatformCatalog {
+    platform: Platform::Youtube,
+    search: &[ProviderId::YoutubeApi],
+    fetch: &[ProviderId::YoutubeApi, ProviderId::YoutubeWeb],
+    operation_only: &[ProviderId::GeminiApi],
+    default_order: &[ProviderId::YoutubeApi, ProviderId::GeminiApi],
+};
+
+/// How users enable `youtube_web` and what it risks; a command that only it can serve says so.
+pub(crate) const YOUTUBE_WEB_OPT_IN: &str = "youtube_web reads YouTube's undocumented web endpoints anonymously, which YouTube's terms do not allow, so it is off by default; its risk is a temporary block of your egress IP, never your account. To enable it, run `forager config set platforms.youtube.order '[\"youtube_api\", \"youtube_web\"]'`";
+
+pub(crate) const PLATFORMS: &[PlatformCatalog] =
+    &[ARXIV, SSRN, SCHOLAR, XIAOHONGSHU, X, HN, YOUTUBE];
 
 impl PlatformCatalog {
     pub(crate) fn routes(self, operation: PlatformOperation) -> &'static [ProviderId] {
@@ -147,7 +172,12 @@ impl PlatformCatalog {
     /// Returns every route of the platform once, in declaration order.
     pub(crate) fn all_routes(self) -> Vec<ProviderId> {
         let mut routes = Vec::new();
-        for route in self.search.iter().chain(self.fetch) {
+        for route in self
+            .search
+            .iter()
+            .chain(self.fetch)
+            .chain(self.operation_only)
+        {
             if !routes.contains(route) {
                 routes.push(*route);
             }
@@ -158,6 +188,12 @@ impl PlatformCatalog {
     pub(crate) fn contains(self, id: ProviderId) -> bool {
         self.all_routes().contains(&id)
     }
+}
+
+/// Says how to enable an HTTP platform route that users must enable themselves, or `None` for
+/// any other provider.
+pub(crate) fn http_opt_in(route: ProviderId) -> Option<&'static str> {
+    (route == ProviderId::YoutubeWeb).then_some(YOUTUBE_WEB_OPT_IN)
 }
 
 pub(crate) fn platform(platform: Platform) -> PlatformCatalog {
@@ -191,12 +227,15 @@ pub(crate) enum ProviderId {
     Serpapi,
     XiaohongshuBrowser,
     HnApi,
+    YoutubeApi,
+    YoutubeWeb,
+    GeminiApi,
     GeminiBrowser,
     ChatgptBrowser,
 }
 
 impl ProviderId {
-    pub(crate) const ALL: [Self; 16] = [
+    pub(crate) const ALL: [Self; 19] = [
         Self::Xai,
         Self::OpenAiCompatible,
         Self::Exa,
@@ -211,6 +250,9 @@ impl ProviderId {
         Self::Serpapi,
         Self::XiaohongshuBrowser,
         Self::HnApi,
+        Self::YoutubeApi,
+        Self::YoutubeWeb,
+        Self::GeminiApi,
         Self::GeminiBrowser,
         Self::ChatgptBrowser,
     ];
@@ -231,6 +273,9 @@ impl ProviderId {
             "serpapi" => Some(Self::Serpapi),
             "xiaohongshu_browser" => Some(Self::XiaohongshuBrowser),
             "hn_api" => Some(Self::HnApi),
+            "youtube_api" => Some(Self::YoutubeApi),
+            "youtube_web" => Some(Self::YoutubeWeb),
+            "gemini_api" => Some(Self::GeminiApi),
             "gemini_browser" => Some(Self::GeminiBrowser),
             "chatgpt_browser" => Some(Self::ChatgptBrowser),
             _ => None,
@@ -253,6 +298,9 @@ impl ProviderId {
             Self::Serpapi => "serpapi",
             Self::XiaohongshuBrowser => "xiaohongshu_browser",
             Self::HnApi => "hn_api",
+            Self::YoutubeApi => "youtube_api",
+            Self::YoutubeWeb => "youtube_web",
+            Self::GeminiApi => "gemini_api",
             Self::GeminiBrowser => "gemini_browser",
             Self::ChatgptBrowser => "chatgpt_browser",
         }
@@ -305,6 +353,14 @@ pub(crate) enum DoctorProbe {
     },
     PlatformSearch {
         platform: Platform,
+        name: &'static str,
+        transport: &'static str,
+    },
+    /// Fetches a fixed canary item of the platform at `metadata` depth, for a route that
+    /// serves fetch only.
+    PlatformFetch {
+        platform: Platform,
+        canary: &'static str,
         name: &'static str,
         transport: &'static str,
     },
@@ -611,6 +667,55 @@ const HN_API_SMOKE: &[ProviderSmokeCase] = &[
     },
 ];
 
+const YOUTUBE_API_SMOKE: &[ProviderSmokeCase] = &[
+    ProviderSmokeCase {
+        id: "C36",
+        platform: Some(Platform::Youtube),
+        operation: "search",
+        transport: "http",
+    },
+    ProviderSmokeCase {
+        id: "C37",
+        platform: Some(Platform::Youtube),
+        operation: "fetch",
+        transport: "http",
+    },
+    ProviderSmokeCase {
+        id: "C39",
+        platform: Some(Platform::Youtube),
+        operation: COMMENTS,
+        transport: "http",
+    },
+    ProviderSmokeCase {
+        id: "C40",
+        platform: Some(Platform::Youtube),
+        operation: VIDEOS,
+        transport: "http",
+    },
+];
+
+const YOUTUBE_WEB_SMOKE: &[ProviderSmokeCase] = &[ProviderSmokeCase {
+    id: "C38",
+    platform: Some(Platform::Youtube),
+    operation: "fetch",
+    transport: "http",
+}];
+
+const GEMINI_API_SMOKE: &[ProviderSmokeCase] = &[
+    ProviderSmokeCase {
+        id: "C41",
+        platform: Some(Platform::Youtube),
+        operation: ASK,
+        transport: "http",
+    },
+    ProviderSmokeCase {
+        id: "C42",
+        platform: Some(Platform::Youtube),
+        operation: TRANSCRIBE,
+        transport: "http",
+    },
+];
+
 // arXiv terms of use allow one request every three seconds over one connection.
 const ARXIV_API_ACCESS: AccessPolicy = AccessPolicy {
     min_interval: Duration::from_secs(3),
@@ -641,6 +746,28 @@ const XIAOHONGSHU_BROWSER_ACCESS: AccessPolicy = AccessPolicy {
 // limit. Both endpoints share this pace, at most 7,200 requests per hour.
 const HN_API_ACCESS: AccessPolicy = AccessPolicy {
     min_interval: Duration::from_millis(500),
+    max_concurrency: 1,
+};
+
+// The Data API meters quota, not pace, and failed requests still cost quota; one request per
+// second keeps a runaway loop from draining the daily search budget in moments.
+const YOUTUBE_API_ACCESS: AccessPolicy = AccessPolicy {
+    min_interval: Duration::from_secs(1),
+    max_concurrency: 1,
+};
+
+// The yt-dlp wiki's anonymous pace is about 300 videos an hour, 5 to 10 seconds apart; one
+// request every four seconds keeps a fetch's three requests near it. Going faster risks the
+// user's egress IP (ADR 0028).
+const YOUTUBE_WEB_ACCESS: AccessPolicy = AccessPolicy {
+    min_interval: Duration::from_secs(4),
+    max_concurrency: 1,
+};
+
+// A model request may run for minutes and bills by the token, so one runs at a time across
+// processes; the service meters keys, not pace.
+const GEMINI_API_ACCESS: AccessPolicy = AccessPolicy {
+    min_interval: Duration::ZERO,
     max_concurrency: 1,
 };
 
@@ -846,6 +973,54 @@ const REGISTRY: &[ProviderRegistration] = &[
             transport: "http",
         },
         smoke_cases: HN_API_SMOKE,
+        native_full_text: false,
+    },
+    // A deep doctor spends one search of the separate daily search quota.
+    ProviderRegistration {
+        id: ProviderId::YoutubeApi,
+        operations: &[],
+        credentials_required: true,
+        transport: ProviderTransport::Http,
+        access_policy: Some(YOUTUBE_API_ACCESS),
+        probe: DoctorProbe::PlatformSearch {
+            platform: Platform::Youtube,
+            name: "search",
+            transport: "http",
+        },
+        smoke_cases: YOUTUBE_API_SMOKE,
+        native_full_text: false,
+    },
+    // It serves fetch only, so doctor probes it with a fetch of the canary video. Its full
+    // text is the transcript it renders itself.
+    ProviderRegistration {
+        id: ProviderId::YoutubeWeb,
+        operations: &[],
+        credentials_required: false,
+        transport: ProviderTransport::Http,
+        access_policy: Some(YOUTUBE_WEB_ACCESS),
+        // The first YouTube upload (2005), whose metadata no longer changes.
+        probe: DoctorProbe::PlatformFetch {
+            platform: Platform::Youtube,
+            canary: "youtube:jNQXAC9IVRw",
+            name: "fetch",
+            transport: "http",
+        },
+        smoke_cases: YOUTUBE_WEB_SMOKE,
+        native_full_text: true,
+    },
+    // It serves Ask and Transcribe only, so doctor asks the model list about every key, which
+    // spends no model quota.
+    ProviderRegistration {
+        id: ProviderId::GeminiApi,
+        operations: &[],
+        credentials_required: true,
+        transport: ProviderTransport::Http,
+        access_policy: Some(GEMINI_API_ACCESS),
+        probe: DoctorProbe::ServiceAccount {
+            name: "models",
+            transport: "http",
+        },
+        smoke_cases: GEMINI_API_SMOKE,
         native_full_text: false,
     },
     // Only `forager gemini` commands run it, never a chain. No live smoke case exists: starting
@@ -1066,6 +1241,9 @@ mod tests {
                 DoctorProbe::PlatformSearch {
                     platform: probed, ..
                 } => platform(probed).search.contains(&registration.id),
+                DoctorProbe::PlatformFetch {
+                    platform: probed, ..
+                } => platform(probed).fetch.contains(&registration.id),
                 DoctorProbe::ServiceAccount { .. } => registration.credentials_required,
                 DoctorProbe::AdapterStatus { .. } => {
                     matches!(registration.transport, ProviderTransport::OpenCli(_))

@@ -50,7 +50,8 @@ pub(crate) fn search_support(request: &PlatformSearchRequest) -> Result<(), Stri
         | PlatformSearchOptions::Scholar(_)
         | PlatformSearchOptions::Xiaohongshu(_)
         | PlatformSearchOptions::X(_)
-        | PlatformSearchOptions::Hn(_) => {
+        | PlatformSearchOptions::Hn(_)
+        | PlatformSearchOptions::Youtube(_) => {
             Err(other_platform_message(ROUTE, request.options.platform()))
         }
     }

@@ -1,17 +1,14 @@
 //! X arguments and request construction.
 
-use std::time::Duration;
-
 use chrono::NaiveDate;
 use clap::{Args, Subcommand, ValueEnum};
 
-use super::{PageInput, PlatformCommonArgs, fetch, parse_date, preflight_error, search};
+use super::{PageInput, PlatformCommonArgs, ask, fetch, parse_date, search};
 use crate::app::args::{DocsOutputFormat, OutputFormat};
-use crate::app::dispatch::{AppError, CommandOutput, NetworkDependencies, provider_attempt_log};
-use crate::platform_ask;
+use crate::app::dispatch::{AppError, CommandOutput};
 use crate::types::{
-    ContentDepth, Deadline, Platform, PlatformFetchRequest, PlatformRef, PlatformSearchOptions,
-    PlatformSearchRequest, XAskRequest, XSearchOptions,
+    ContentDepth, Platform, PlatformAskRequest, PlatformFetchRequest, PlatformRef,
+    PlatformSearchOptions, PlatformSearchRequest, XAskRequest, XSearchOptions,
 };
 
 #[derive(Debug, Subcommand)]
@@ -154,11 +151,7 @@ fn x_fetch(arguments: XFetchArgs) -> Result<CommandOutput, AppError> {
     } = arguments;
     let reference = PlatformRef::parse(Platform::X, &reference)
         .map_err(|error| AppError::Argument(error.to_string()))?;
-    let request = PlatformFetchRequest {
-        reference,
-        depth: depth.into(),
-        access: None,
-    };
+    let request = PlatformFetchRequest::new(reference, depth.into());
     fetch(Platform::X, request, format, None, false, &common)
 }
 
@@ -174,23 +167,5 @@ fn x_ask(arguments: XAskArgs) -> Result<CommandOutput, AppError> {
         options: filters.into(),
     };
     request.validate().map_err(AppError::Argument)?;
-    let dependencies = NetworkDependencies::load()?;
-    let plan = platform_ask::plan_ask(dependencies.config.platforms.get(Platform::X), request)
-        .map_err(preflight_error)?;
-    let result = dependencies.runtime.block_on(platform_ask::run_ask(
-        plan,
-        dependencies.client,
-        dependencies.retry_policy,
-        Deadline::new(Duration::from_secs(common.timeout)),
-        common.verbose,
-    ));
-    let attempt_log = provider_attempt_log(dependencies.config.log_level, &result, |answer| {
-        &answer.attempts
-    });
-    Ok(CommandOutput::XAsk {
-        result,
-        format,
-        output: common.output.target(),
-        attempt_log,
-    })
+    ask(PlatformAskRequest::X(request), format, &common)
 }

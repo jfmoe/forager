@@ -17,7 +17,7 @@ use crate::catalog::{self, ProviderId, ProviderRegistration};
 use crate::config::{self, RuntimeConfig};
 use crate::redact::{CREDENTIAL_MASK, Secret, redact_credentials, redact_url};
 use crate::state_file;
-use crate::types::{ASK, CITED_BY, COMMENTS, Deadline, Platform, STORIES};
+use crate::types::{ASK, CITED_BY, COMMENTS, Deadline, Platform, STORIES, TRANSCRIBE, VIDEOS};
 
 static PROBE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 pub(crate) const MAIN_CANARY_QUERY: &str = "What is the latest stable Rust release?";
@@ -33,10 +33,19 @@ const XIAOHONGSHU_CANARY_QUERY: &str = "咖啡";
 const X_ASK_CANARY_QUERY: &str = "What has SpaceX posted about Starship recently?";
 // Hacker News discusses Rust every day, so the search is never empty.
 const HN_CANARY_QUERY: &str = "rust";
-const SPECIFICATION_CASE_IDS: [&str; 37] = [
+// Many channels lecture on attention and transformers, so the search is never empty.
+const YOUTUBE_CANARY_QUERY: &str = "attention transformer";
+// "Essence of linear algebra": a finished public course of 16 videos.
+const YOUTUBE_VIDEOS_CANARY: &str = "youtube:playlist/PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab";
+// Only the picture answers it: the zoo video's speech never names the animals' number or the
+// speaker's clothes.
+const YOUTUBE_ASK_CANARY_QUESTION: &str =
+    "How many elephants are visible behind the speaker, and what is he wearing?";
+const SPECIFICATION_CASE_IDS: [&str; 44] = [
     "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12",
     "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24", "C25",
-    "C26", "C27", "C28", "C29", "C30", "C31", "C32", "C33", "C34", "C35",
+    "C26", "C27", "C28", "C29", "C30", "C31", "C32", "C33", "C34", "C35", "C36", "C37", "C38",
+    "C39", "C40", "C41", "C42",
 ];
 // One comment page holds 10 top-level comments, so 15 needs the second page.
 const XIAOHONGSHU_COMMENTS_LIMIT: &str = "15";
@@ -189,6 +198,7 @@ enum ResultShape {
     PlatformFetch,
     PlatformFullText,
     XiaohongshuComments,
+    Comments,
 }
 
 /// What one live run carries between its Xiaohongshu cases, in memory only: a note opens only
@@ -241,6 +251,38 @@ fn platform_fetch_canary(platform: Platform) -> Option<(&'static str, &'static s
         Platform::X => Some(("x:2110126570233094527", "metadata")),
         // The 2007 Dropbox launch discussion: about 70 comments that no longer change.
         Platform::Hn => Some(("hn:8863", "thread")),
+        // The first YouTube upload (2005), whose metadata no longer changes.
+        Platform::Youtube => Some(("youtube:jNQXAC9IVRw", "metadata")),
+    }
+}
+
+/// The canary of a fetch case that writes its document to a file: the Hacker News discussion,
+/// and the transcript of the YouTube canary, which only `youtube_web` reads.
+fn document_fetch_canary(definition: LiveCaseDefinition) -> Option<(&'static str, &'static str)> {
+    if definition.operation != "fetch" {
+        return None;
+    }
+    match (definition.platform?, definition.provider?) {
+        (Platform::Hn, _) => platform_fetch_canary(Platform::Hn),
+        (Platform::Youtube, route) if route == ProviderId::YoutubeWeb.name() => {
+            platform_fetch_canary(Platform::Youtube).map(|(reference, _)| (reference, "full_text"))
+        }
+        _ => None,
+    }
+}
+
+/// Returns whether the operation reads its item through the platform's fetch routes before a
+/// model reads it: YouTube's ask and transcribe.
+fn reads_before_model(platform: Platform, operation: &str) -> bool {
+    platform == Platform::Youtube && [ASK, TRANSCRIBE].contains(&operation)
+}
+
+/// The query and limit of a platform search case.
+fn platform_search_canary(platform: Platform) -> (&'static str, &'static str) {
+    match platform {
+        Platform::Hn => (HN_CANARY_QUERY, "5"),
+        Platform::Youtube => (YOUTUBE_CANARY_QUERY, "5"),
+        _ => (PLATFORM_CANARY_QUERY, "3"),
     }
 }
 
@@ -719,9 +761,12 @@ fn run_case_once(
     let case_id = definition.id;
     let timeout_seconds = remaining_seconds(deadline).ok_or("live smoke hard deadline elapsed")?;
     let executable = std::env::current_exe().map_err(|_| "cannot resolve forager executable")?;
-    // P2 writes its evidence, the Xiaohongshu fetch its full text, and the Hacker News fetch its
-    // discussion here.
-    let scratch = (case_id == "P2" || is_xiaohongshu_fetch(definition) || is_hn_fetch(definition))
+    // P2 writes its evidence, the Xiaohongshu fetch its full text, the Hacker News and YouTube
+    // document fetches their documents, and transcribe its transcript here.
+    let scratch = (case_id == "P2"
+        || is_xiaohongshu_fetch(definition)
+        || document_fetch_canary(definition).is_some()
+        || definition.operation == TRANSCRIBE)
         .then(tempfile::tempdir)
         .transpose()
         .map_err(|_| "cannot create a temporary directory for the live case")?;
@@ -815,10 +860,6 @@ fn comments_coverage(payload: &Value) -> Result<(), CaseFailure> {
 
 fn is_xiaohongshu_fetch(definition: LiveCaseDefinition) -> bool {
     definition.platform == Some(Platform::Xiaohongshu) && definition.operation == "fetch"
-}
-
-fn is_hn_fetch(definition: LiveCaseDefinition) -> bool {
-    definition.platform == Some(Platform::Hn) && definition.operation == "fetch"
 }
 
 /// Whether a failed command ended on Auth or an attempt-level Parameter failure.
@@ -971,8 +1012,7 @@ fn command_specs(
                 ],
                 ResultShape::PlatformSearch,
             )
-        } else if is_hn_fetch(definition) {
-            let (reference, depth) = platform_fetch_canary(platform)?;
+        } else if let Some((reference, depth)) = document_fetch_canary(definition) {
             let content_dir = scratch_dir?.display().to_string();
             one(
                 &[
@@ -989,6 +1029,35 @@ fn command_specs(
                 ],
                 ResultShape::PlatformFullText,
             )
+        } else if definition.operation == COMMENTS {
+            let (video, _) = platform_fetch_canary(platform)?;
+            one(
+                &[
+                    "platform",
+                    platform.as_str(),
+                    COMMENTS,
+                    video,
+                    "--limit",
+                    "5",
+                    "--timeout",
+                    &timeout,
+                ],
+                ResultShape::Comments,
+            )
+        } else if definition.operation == VIDEOS {
+            one(
+                &[
+                    "platform",
+                    platform.as_str(),
+                    VIDEOS,
+                    YOUTUBE_VIDEOS_CANARY,
+                    "--limit",
+                    "5",
+                    "--timeout",
+                    &timeout,
+                ],
+                ResultShape::PlatformSearch,
+            )
         } else if definition.operation == STORIES {
             one(
                 &[
@@ -998,20 +1067,6 @@ fn command_specs(
                     "top",
                     "--limit",
                     "10",
-                    "--timeout",
-                    &timeout,
-                ],
-                ResultShape::PlatformSearch,
-            )
-        } else if platform == Platform::Hn {
-            one(
-                &[
-                    "platform",
-                    platform.as_str(),
-                    definition.operation,
-                    HN_CANARY_QUERY,
-                    "--limit",
-                    "5",
                     "--timeout",
                     &timeout,
                 ],
@@ -1031,6 +1086,36 @@ fn command_specs(
                     &timeout,
                 ],
                 ResultShape::PlatformFetch,
+            )
+        } else if platform == Platform::Youtube && definition.operation == ASK {
+            let (video, _) = platform_fetch_canary(platform)?;
+            one(
+                &[
+                    "platform",
+                    platform.as_str(),
+                    ASK,
+                    video,
+                    YOUTUBE_ASK_CANARY_QUESTION,
+                    "--timeout",
+                    &timeout,
+                ],
+                ResultShape::Answer,
+            )
+        } else if definition.operation == TRANSCRIBE {
+            let (video, _) = platform_fetch_canary(platform)?;
+            let content_dir = scratch_dir?.display().to_string();
+            one(
+                &[
+                    "platform",
+                    platform.as_str(),
+                    TRANSCRIBE,
+                    video,
+                    "--content-dir",
+                    &content_dir,
+                    "--timeout",
+                    &timeout,
+                ],
+                ResultShape::PlatformFullText,
             )
         } else if definition.operation == ASK {
             one(
@@ -1059,27 +1144,32 @@ fn command_specs(
                 ResultShape::PlatformSearch,
             )
         } else {
+            let (query, limit) = platform_search_canary(platform);
             one(
                 &[
                     "platform",
                     platform.as_str(),
                     definition.operation,
-                    PLATFORM_CANARY_QUERY,
+                    query,
                     "--limit",
-                    "3",
+                    limit,
                     "--timeout",
                     &timeout,
                 ],
                 ResultShape::PlatformSearch,
             )
         };
-        commands[0].environment.push((
-            format!(
-                "FORAGER_PLATFORMS__{}__ORDER",
-                platform.as_str().to_ascii_uppercase()
-            ),
-            format!("[\"{provider}\"]"),
-        ));
+        // A model operation reads the video through the configured fetch routes first, so its
+        // case keeps the configured order.
+        if !reads_before_model(platform, definition.operation) {
+            commands[0].environment.push((
+                format!(
+                    "FORAGER_PLATFORMS__{}__ORDER",
+                    platform.as_str().to_ascii_uppercase()
+                ),
+                format!("[\"{provider}\"]"),
+            ));
+        }
         return Some(commands);
     }
     if definition.operation == "web_search" {
@@ -1291,6 +1381,8 @@ fn result_shape_is_nonempty(shape: ResultShape, payload: &Value) -> bool {
         ResultShape::Fetch | ResultShape::Context7Docs => nonempty_string(payload, "content"),
         // A note without comments is a legitimate result, but it proves nothing here.
         ResultShape::XiaohongshuComments => nonempty_string(payload, "note"),
+        // The canary video has millions of comments, so an empty page means a broken read.
+        ResultShape::Comments => nonempty_array(payload, "comments"),
     }
 }
 

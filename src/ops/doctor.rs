@@ -18,8 +18,9 @@ use crate::providers::{
 };
 use crate::rate_limit::RateLimiter;
 use crate::types::{
-    AttemptDisposition, AttemptErrorKind, Deadline, Platform, PlatformSearchOptions,
-    PlatformSearchOutcome, PlatformSearchRequest, ProviderError, SearchOutcome,
+    AttemptDisposition, AttemptErrorKind, ContentDepth, Deadline, Platform, PlatformFetchRequest,
+    PlatformRef, PlatformSearchOptions, PlatformSearchOutcome, PlatformSearchRequest,
+    ProviderError, SearchOutcome,
 };
 
 #[derive(Debug, Serialize)]
@@ -69,19 +70,25 @@ struct ProbeCheck {
     ok: bool,
 }
 
-/// The account report of one key, named by its position in the pool; a quota the service did
-/// not report is `null`.
+/// The account report of one key, named by its position in the pool. A service that reports
+/// search quotas adds them; a quota it did not report is `null`.
 #[derive(Debug, Serialize)]
 struct KeyStatus {
     key_index: usize,
     ok: bool,
+    #[serde(flatten)]
+    quota: Option<QuotaStatus>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error_kind: Option<&'static str>,
+}
+
+#[derive(Debug, Serialize)]
+struct QuotaStatus {
     searches_left: Option<i64>,
     plan_searches_left: Option<i64>,
     this_month_usage: Option<i64>,
     this_hour_searches: Option<i64>,
     hourly_limit: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    error_kind: Option<&'static str>,
 }
 
 /// What a deep probe found; `failure` is the first failure, which fails the probe.
@@ -228,6 +235,21 @@ pub(crate) fn deep(
     ))
 }
 
+async fn probe_platform_fetch(
+    route_config: PlatformRouteConfig,
+    reference: PlatformRef,
+    client: reqwest::Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> Result<(), ProviderError> {
+    let request = PlatformFetchRequest::new(reference, ContentDepth::Metadata);
+    providers::build_platform_fetch(route_config, client, retry_policy, deadline)
+        .fetch(&request)
+        .await
+        .map(drop)
+}
+
+#[expect(clippy::too_many_lines)]
 async fn run_probe(
     provider: ProviderId,
     config: RuntimeConfig,
@@ -292,6 +314,22 @@ async fn run_probe(
                 deadline,
             )
             .await
+        }
+        DoctorProbe::PlatformFetch {
+            platform,
+            canary,
+            name,
+            transport,
+        } => {
+            let route_config = config::platform_route_config(provider, &config.platform_routes)
+                .expect("probe registration belongs to a platform catalog");
+            let reference =
+                PlatformRef::parse(platform, canary).expect("a registered canary ref parses");
+            one_check(
+                probe_platform_fetch(route_config, reference, client, retry_policy, deadline).await,
+                name,
+                transport,
+            )
         }
         DoctorProbe::ServiceAccount { name, transport } => {
             let route_config = config::platform_route_config(provider, &config.platform_routes)
@@ -562,6 +600,7 @@ fn account_outcome(
             |(
                 key_index,
                 KeyAccount {
+                    reports_quota,
                     quota,
                     failure: key_failure,
                 },
@@ -576,11 +615,13 @@ fn account_outcome(
                 KeyStatus {
                     key_index,
                     ok: error_kind.is_none(),
-                    searches_left: quota.map(|quota| quota.searches_left),
-                    plan_searches_left: quota.map(|quota| quota.plan_searches_left),
-                    this_month_usage: quota.map(|quota| quota.this_month_usage),
-                    this_hour_searches: quota.map(|quota| quota.this_hour_searches),
-                    hourly_limit: quota.map(|quota| quota.hourly_limit),
+                    quota: reports_quota.then(|| QuotaStatus {
+                        searches_left: quota.map(|quota| quota.searches_left),
+                        plan_searches_left: quota.map(|quota| quota.plan_searches_left),
+                        this_month_usage: quota.map(|quota| quota.this_month_usage),
+                        this_hour_searches: quota.map(|quota| quota.this_hour_searches),
+                        hourly_limit: quota.map(|quota| quota.hourly_limit),
+                    }),
                     error_kind,
                 }
             },
@@ -639,9 +680,9 @@ struct ShallowCheck {
     message: Option<String>,
 }
 
-/// Checks an HTTP provider by a GET to its endpoint. A process route takes part only when its
-/// platform order enables it; its check runs the adapter's `contract` command. A process
-/// provider that only its own commands run never takes part.
+/// Checks an HTTP provider by a GET to its endpoint, and a process route by the adapter's
+/// `contract` command. A platform route that users must enable takes part only when an order
+/// enables it. A process provider that only its own commands run never takes part.
 async fn shallow_check(
     registration: &ProviderRegistration,
     runtime: &RuntimeConfig,
@@ -649,6 +690,13 @@ async fn shallow_check(
     deadline: Deadline,
 ) -> ShallowCheck {
     let id = registration.id;
+    if is_opt_in_route(id) && !route_enabled(id, runtime) {
+        return ShallowCheck {
+            configured: false,
+            reachable: false,
+            message: None,
+        };
+    }
     let endpoint = provider_endpoint(id, runtime);
     let limiter = providers::route_limiter(id);
     let ProviderTransport::OpenCli(adapter) = registration.transport else {
@@ -669,13 +717,6 @@ async fn shallow_check(
             )),
         };
     }
-    if !route_enabled(id, runtime) {
-        return ShallowCheck {
-            configured: false,
-            reachable: false,
-            message: None,
-        };
-    }
     let limiter = limiter.expect("a process route declares an access policy");
     let result = providers::check_opencli_contract(endpoint, adapter, &limiter, deadline).await;
     ShallowCheck {
@@ -685,15 +726,19 @@ async fn shallow_check(
     }
 }
 
-/// Returns why the deep probe cannot run the provider, or `None` when it can. A process route
-/// drives the user's browser, so doctor runs it only when a platform order enables it; a
-/// process provider outside every platform runs because the user named it.
+/// Returns why the deep probe cannot run the provider, or `None` when it can. A platform route
+/// that users must enable (one driving their browser, or one reading undocumented endpoints)
+/// runs only when a platform order enables it; a process provider outside every platform runs
+/// because the user named it.
 fn deep_unconfigured_reason(provider: ProviderId, runtime: &RuntimeConfig) -> Option<String> {
     let name = provider.name();
+    if is_opt_in_route(provider) && !route_enabled(provider, runtime) {
+        return Some(format!(
+            "no platform order lists `{name}`; add it to the order to enable it"
+        ));
+    }
     match catalog::registration(provider).transport {
-        ProviderTransport::OpenCli(_) => (is_platform_route(provider)
-            && !route_enabled(provider, runtime))
-        .then(|| format!("no platform order lists `{name}`; add it to the order to enable it")),
+        ProviderTransport::OpenCli(_) => None,
         ProviderTransport::Http => (!runtime.provider_configured(provider)).then(|| {
             format!(
                 "{} has no configured credentials",
@@ -707,6 +752,15 @@ fn is_platform_route(id: ProviderId) -> bool {
     catalog::PLATFORMS
         .iter()
         .any(|platform| platform.contains(id))
+}
+
+/// Returns whether the route serves a platform but no default order lists it, so only the
+/// user's order enables it.
+fn is_opt_in_route(id: ProviderId) -> bool {
+    is_platform_route(id)
+        && !catalog::PLATFORMS
+            .iter()
+            .any(|platform| platform.default_order.contains(&id))
 }
 
 /// Returns whether any platform order lists the route.

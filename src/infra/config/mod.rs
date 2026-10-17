@@ -17,11 +17,12 @@ pub(crate) use runtime::{
     AnysearchRuntimeConfig, ClassifierRuntimeConfig, Context7RuntimeConfig,
     DocsSearchProviderConfig, DocsSearchRuntimeConfig, ExaRuntimeConfig, HnRouteRuntimeConfig,
     HttpRouteRuntimeConfig, JournalRuntimeConfig, KeyedHttpRouteRuntimeConfig, LogLevel,
-    MainSearchProviderConfig, MainSearchRuntimeConfig, OpenAiCompatibleRuntimeConfig,
-    PlatformRouteConfig, PlatformRuntimeConfig, ProcessRouteRuntimeConfig, RuntimeConfig,
-    SeamEntry, VerticalSearchRuntimeConfig, WebFetchProviderConfig, WebFetchRuntimeConfig,
-    WebSearchRuntimeConfig, XaiRuntimeConfig, docs_provider_config, main_provider_config,
-    platform_route_config, provider_keys_key, runtime_config, web_provider_config,
+    MainSearchProviderConfig, MainSearchRuntimeConfig, ModelRouteRuntimeConfig,
+    OpenAiCompatibleRuntimeConfig, PlatformRouteConfig, PlatformRuntimeConfig,
+    ProcessRouteRuntimeConfig, RuntimeConfig, SeamEntry, VerticalSearchRuntimeConfig,
+    WebFetchProviderConfig, WebFetchRuntimeConfig, WebSearchRuntimeConfig, XaiRuntimeConfig,
+    docs_provider_config, main_provider_config, platform_route_config, provider_keys_key,
+    runtime_config, web_provider_config,
 };
 #[cfg(test)]
 pub(crate) use runtime::{PlatformRoutesRuntimeConfig, platform_order_key};
