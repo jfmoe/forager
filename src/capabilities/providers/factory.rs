@@ -632,13 +632,17 @@ pub(crate) fn youtube_comments_support(id: ProviderId) -> Option<Result<(), Stri
     }
 }
 
-/// Returns whether a videos route can run, or `None` for a provider that does not list the
-/// videos of a YouTube collection. The request needs no check beyond what parsing guarantees.
-pub(crate) fn youtube_videos_support(id: ProviderId) -> Option<Result<(), String>> {
-    match id {
-        ProviderId::YoutubeApi => Some(transport_support(id)),
-        _ => None,
-    }
+/// Returns whether a videos route can list the requested page, or `None` for a provider that
+/// does not list the videos of a YouTube collection.
+pub(crate) fn youtube_videos_support(
+    id: ProviderId,
+    request: &YoutubeVideosRequest,
+) -> Option<Result<(), String>> {
+    let route = match id {
+        ProviderId::YoutubeApi => youtube_api::videos_support(request),
+        _ => return None,
+    };
+    Some(transport_support(id).and(route))
 }
 
 /// Returns whether an ask route can run, or `None` for a provider that does not answer from X

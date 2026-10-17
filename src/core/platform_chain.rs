@@ -87,7 +87,7 @@ impl PageRequest {
         match self {
             Self::Search(request) => providers::platform_search_support(id, request),
             Self::ScholarCitedBy(request) => providers::scholar_cited_by_support(id, request),
-            Self::YoutubeVideos(_) => providers::youtube_videos_support(id),
+            Self::YoutubeVideos(request) => providers::youtube_videos_support(id, request),
         }
     }
 

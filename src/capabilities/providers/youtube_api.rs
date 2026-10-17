@@ -35,6 +35,7 @@ mod search;
 mod videos;
 
 pub(crate) use search::search_support;
+pub(crate) use videos::videos_support;
 
 const ROUTE: ProviderId = ProviderId::YoutubeApi;
 const PLATFORM: Platform = Platform::Youtube;

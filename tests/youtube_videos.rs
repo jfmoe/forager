@@ -121,7 +121,7 @@ fn a_playlist_lists_its_videos_with_their_position_and_video_publication_time() 
 }
 
 #[test]
-fn a_handle_resolves_to_its_channel_whose_uploads_the_cursor_continues() {
+fn a_handle_resolves_to_its_channel_whose_uploads_the_cursor_continues_without_another_lookup() {
     let uploads = THREE_BLUE_ONE_BROWN_UPLOADS;
     let api = Fixture::start_sequence(vec![
         channels_page(&[(THREE_BLUE_ONE_BROWN, uploads)]),
@@ -129,7 +129,6 @@ fn a_handle_resolves_to_its_channel_whose_uploads_the_cursor_continues() {
             &[playlist_item(uploads, 0, "LKrwhjOI8Nc", "Newest", "")],
             Some("EAAaBlBUOkNBRQ"),
         ),
-        channels_page(&[(THREE_BLUE_ONE_BROWN, uploads)]),
         playlist_items_page(
             &[playlist_item(uploads, 1, "ausLKMojXaY", "Older", "")],
             None,
@@ -188,10 +187,6 @@ fn a_handle_resolves_to_its_channel_whose_uploads_the_cursor_continues() {
                         ("playlistId", uploads),
                         ("maxResults", "1"),
                     ]),
-                ),
-                (
-                    "/youtube/v3/channels".to_owned(),
-                    pairs(&[("part", "contentDetails"), ("id", THREE_BLUE_ONE_BROWN)]),
                 ),
                 (
                     "/youtube/v3/playlistItems".to_owned(),
