@@ -1,0 +1,302 @@
+[Skip to main content](https://developers.google.com/youtube/terms/branding-guidelines#main-content)
+
+[![YouTube](https://developers.google.com/static/site-assets/logo-youtube.svg)](https://developers.google.com/youtube)
+
+- [YouTube](https://developers.google.com/youtube)
+
+`/`
+
+Language
+
+- [English](https://developers.google.com/youtube/terms/branding-guidelines)
+- [Deutsch](https://developers.google.com/youtube/terms/branding-guidelines?hl=de)
+- [Español](https://developers.google.com/youtube/terms/branding-guidelines?hl=es)
+- [Español – América Latina](https://developers.google.com/youtube/terms/branding-guidelines?hl=es-419)
+- [Français](https://developers.google.com/youtube/terms/branding-guidelines?hl=fr)
+- [Indonesia](https://developers.google.com/youtube/terms/branding-guidelines?hl=id)
+- [Italiano](https://developers.google.com/youtube/terms/branding-guidelines?hl=it)
+- [Polski](https://developers.google.com/youtube/terms/branding-guidelines?hl=pl)
+- [Português – Brasil](https://developers.google.com/youtube/terms/branding-guidelines?hl=pt-br)
+- [Tiếng Việt](https://developers.google.com/youtube/terms/branding-guidelines?hl=vi)
+- [Türkçe](https://developers.google.com/youtube/terms/branding-guidelines?hl=tr)
+- [Русский](https://developers.google.com/youtube/terms/branding-guidelines?hl=ru)
+- [עברית](https://developers.google.com/youtube/terms/branding-guidelines?hl=he)
+- [العربيّة](https://developers.google.com/youtube/terms/branding-guidelines?hl=ar)
+- [فارسی](https://developers.google.com/youtube/terms/branding-guidelines?hl=fa)
+- [हिंदी](https://developers.google.com/youtube/terms/branding-guidelines?hl=hi)
+- [বাংলা](https://developers.google.com/youtube/terms/branding-guidelines?hl=bn)
+- [ภาษาไทย](https://developers.google.com/youtube/terms/branding-guidelines?hl=th)
+- [中文 – 简体](https://developers.google.com/youtube/terms/branding-guidelines?hl=zh-cn)
+- [中文 – 繁體](https://developers.google.com/youtube/terms/branding-guidelines?hl=zh-tw)
+- [日本語](https://developers.google.com/youtube/terms/branding-guidelines?hl=ja)
+- [한국어](https://developers.google.com/youtube/terms/branding-guidelines?hl=ko)
+
+[Sign in](https://developers.google.com/_d/signin?continue=https%3A%2F%2Fdevelopers.google.com%2Fyoutube%2Fterms%2Fbranding-guidelines&prompt=select_account)
+
+- On this page
+- [What logos or branding can I use?](https://developers.google.com/youtube/terms/branding-guidelines#what_logos_or_branding_can_i_use)
+  - [Developed with YouTube logo](https://developers.google.com/youtube/terms/branding-guidelines#developed_with_youtube_logo)
+  - [YouTube logo](https://developers.google.com/youtube/terms/branding-guidelines#youtube_logo)
+  - [YouTube icon](https://developers.google.com/youtube/terms/branding-guidelines#youtube_icon)
+- [Downloads](https://developers.google.com/youtube/terms/branding-guidelines#downloads)
+  - [Download links for "developed with YouTube" logos](https://developers.google.com/youtube/terms/branding-guidelines#download_links_for_developed_with_youtube_logos)
+- [Logo Sizing and Placement](https://developers.google.com/youtube/terms/branding-guidelines#logo_sizing_and_placement)
+- [Requirements](https://developers.google.com/youtube/terms/branding-guidelines#requirements)
+
+- [Home](https://developers.google.com/)
+- [Products](https://developers.google.com/products)
+- [YouTube](https://developers.google.com/youtube)
+- [Terms](https://developers.google.com/youtube/terms/api-services-terms-of-service)
+
+Was this helpful?
+
+# YouTube API Services - Branding Guidelines    Stay organized with collections      Save and categorize content based on your preferences.
+
+- On this page
+- [What logos or branding can I use?](https://developers.google.com/youtube/terms/branding-guidelines#what_logos_or_branding_can_i_use)
+  - [Developed with YouTube logo](https://developers.google.com/youtube/terms/branding-guidelines#developed_with_youtube_logo)
+  - [YouTube logo](https://developers.google.com/youtube/terms/branding-guidelines#youtube_logo)
+  - [YouTube icon](https://developers.google.com/youtube/terms/branding-guidelines#youtube_icon)
+- [Downloads](https://developers.google.com/youtube/terms/branding-guidelines#downloads)
+  - [Download links for "developed with YouTube" logos](https://developers.google.com/youtube/terms/branding-guidelines#download_links_for_developed_with_youtube_logos)
+- [Logo Sizing and Placement](https://developers.google.com/youtube/terms/branding-guidelines#logo_sizing_and_placement)
+- [Requirements](https://developers.google.com/youtube/terms/branding-guidelines#requirements)
+
+![Spark icon](https://developers.google.com/_static/images/icons/spark.svg)
+
+## Page Summary
+
+outlined\_flag
+
+- YouTube APIs allow you to integrate YouTube features into your applications, and the provided logos and icons are for branding or attribution purposes.
+
+- While no special approval is needed to use YouTube APIs, any YouTube logo used in an application must link back to YouTube content or a YouTube component within the application.
+
+- There are three logo options available: "developed with YouTube" for applications heavily dependent on YouTube, the standard YouTube logo for features that use YouTube, and the YouTube Icon for content attribution in mixed-source environments.
+
+- You must never use "YouTube", "YT", "You-Tube", or any derivative in your app's name, nor can you use YouTube branding images in conjunction with the name of your app.
+
+- When using YouTube logos, they must be used according to guidelines, including proper sizing, placement, and they cannot be altered, obscured, or used on content that violates YouTube's Terms of Service.
+
+
+YouTube APIs let you incorporate YouTube functionality into your application
+or device. This page shows the icons and logos that you are allowed to use for
+adding YouTube-logoed branding or attribution to your application, device, or
+marketing materials. It also explains rules and requirements for using YouTube
+logos.
+
+You do not need special approval to use YouTube APIs or to promote API
+functionality in your application. However, any YouTube logo used within an
+application must link back to YouTube content or to a YouTube component of
+that application. As examples, a logo could link to an area of the app that
+shows YouTube content (subscriptions, uploads, etc.), an area of the app that
+lets users upload videos to YouTube, or a page on the YouTube website, such as
+the YouTube home page or a channel page.
+
+These Branding Guidelines are an integral part of the
+[YouTube APIs Terms of Service](https://developers.google.com/youtube/terms) and the
+[YouTube APIs documentation and specifications](https://developers.google.com/youtube), all of which must be
+followed in the development and implementation of any YouTube API Clients.
+If you use YouTube trademarks or logos in violation of these guidelines,
+we may request that you modify your app or usage or that you cease to use
+the logos.
+
+## What logos or branding can I use?
+
+YouTube provides three different types of logos:
+
+### Developed with YouTube logo
+
+![Developed with YouTube logos](https://developers.google.com/static/youtube/images/developed-with-youtube-logos-2x.png)
+
+The **developed with YouTube** logos
+indicate that your application is entirely dependent on curating
+YouTube content or on its integration with YouTube. You should use a
+**developed with YouTube** logo if
+removing YouTube functionality from your application would render the
+application nonfunctional or not useful.
+
+For example, an app that shows video locations on a map and provides
+driving directions to those locations might use the Google Maps and
+YouTube APIs. However, that app should still use the
+**developed with YouTube** logo since
+without YouTube content, the app would no longer be useful.
+
+### YouTube logo
+
+![YouTube logos](https://developers.google.com/static/youtube/images/youtube-logos-2x.png)
+
+The YouTube logo identifies a specific application feature or component
+that uses YouTube content, uploads content to YouTube, or integrates with
+YouTube in some other way. You should use a YouTube logo if your
+application would still be useful if you removed its YouTube
+functionality. Here are two examples of apps that should use YouTube
+logos:
+
+- A game lets users capture part of their gameplay and then upload that
+as a YouTube video. Even if the ability to upload gameplay videos were
+removed, the game, which is the core application, would still remain.
+- A travel-planning application presents airfares and hotel prices for
+different destinations and then lets users see restaurant reviews,
+tourist destinations, photos, and YouTube videos for a selected
+destination. Even if the YouTube videos were removed from the app, the
+app would still be useful based on its other features.
+
+The black-and-white versions of the YouTube logo should be used when the
+logo displays as a watermark image.
+
+### YouTube icon
+
+![YouTube icons](https://developers.google.com/static/youtube/images/youtube-icons-2x.png)
+
+The YouTube Icon provides attribution for YouTube content. You should
+use a YouTube Icon in a panel of social media icons or if the following
+conditions are all true:
+
+- Your application integrates content from multiple sources, including
+YouTube.
+- Content from different sources is intermingled such that you need to
+display attribution next to multiple individual content elements to
+clearly identify their sources.
+- Space constraints make it infeasible to use either a YouTube logo
+or a **developed with YouTube**
+logo.
+
+## Downloads
+
+You can download the YouTube logos and YouTube Icons from the
+[YouTube brand site](https://www.youtube.com/yt/brand/downloads.html). That page also provides downloads for
+versions of the YouTube Icon that could be used in a panel of links to social
+media sites. Links to download the **developed with**
+**YouTube** logos are provided below.
+
+Before downloading and using any of these images, also read the
+[Using the YouTube logo](https://www.youtube.com/yt/brand/using-logo.html) guidelines and
+[Color specifications](https://www.youtube.com/yt/brand/color.html) on the YouTube brand site.
+
+### Download links for "developed with YouTube" logos
+
+#### Light logo
+
+- [file\_download .png](https://developers.google.com/static/youtube/images/developed-with-youtube-sentence-case-light.png) (Sentence case)
+
+- [file\_download .png](https://developers.google.com/static/youtube/images/developed-with-youtube-lowercase-light.png) (lowercase)
+
+- [file\_download .ai](https://developers.google.com/static/youtube/images/developed-with-youtube-light.ai.zip)
+- [file\_download .eps](https://developers.google.com/static/youtube/images/developed-with-youtube-light.eps.zip)
+
+#### Dark logo
+
+- [file\_download .png](https://developers.google.com/static/youtube/images/developed-with-youtube-sentence-case-dark.png) (Sentence case)
+
+- [file\_download .png](https://developers.google.com/static/youtube/images/developed-with-youtube-lowercase-dark.png) (lowercase)
+
+- [file\_download .ai](https://developers.google.com/static/youtube/images/developed-with-youtube-dark.ai.zip)
+- [file\_download .eps](https://developers.google.com/static/youtube/images/developed-with-youtube-dark.eps.zip)
+
+## Logo Sizing and Placement
+
+You should feature the appropriate branding logo on any page where the YouTube
+API has a presence. The logo should appear next to the location where the API
+implementation appears on the page. Any logo used within an application must
+be clickable and needs to link back to YouTube content or to a YouTube
+component of that application.
+
+- You may resize branding logos to an appropriate size for your application.
+- Any YouTube logo or YouTube Icon that you display must meet the minimum size
+requirements provided on the [YouTube brand site](https://www.youtube.com/yt/brand/using-logo.html).
+
+## Requirements
+
+You must never use the YouTube name or any abbreviation, acronym, or variant
+of the word **YouTube**, such as **YT** or **You-Tube** in conjunction with
+the overall name of your application. For example, you cannot call your
+application "YouTube for Kids" or "YouTube Education." However, you may
+reference the fact that your app is for YouTube or works with YouTube by
+stating that it is a "great app for YouTube" or using other similar language.
+
+Similarly, you must never use YouTube branding images in conjunction with the
+overall name or description of your application, product, or service. You also
+cannot change YouTube branding images or remove, obstruct, distort, or
+alter any element of a YouTube trademark.
+
+Additional rules regarding use of these logos are listed below:
+
+- You may only use the logos shown above. Use of these logos is governed
+by the [YouTube API Terms of Service](https://developers.google.com/youtube/terms).
+- Never display a YouTube trademark on a site or app that violates the
+[YouTube Terms of Service](https://www.youtube.com/t/terms).
+- You cannot modify the colors of the YouTube logos or YouTube Icons and
+should present those images on a single, solid background color that
+complements the overall creative or surrounding.
+- You can change the color of the **developed with**
+**YouTube** logo as long as the logo content is in one single color.
+You can also choose the background on which the logo appears.
+- Ensure that there is sufficient contrast between the logo color(s) and the
+background color for the logo to be clearly visible.
+- Make sure the logo is fully and clearly visible. It must not be altered or
+partially covered.
+- Do not display the logo as the most prominent element on your web page.
+- Do not use a logo in ways that (1) imply an association with or endorsement
+of any other product, service, event, sponsorship, or organization; (2) can
+be reasonably interpreted to suggest that editorial content was authored by
+YouTube; or (3) suggest that you are representing the views or opinions of
+YouTube or YouTube personnel. All of the aforementioned usages must be
+approved via written permission.
+- Do not adopt marks, logos, slogans, or designs that are confusingly similar
+to the YouTube trademarks or that imitate YouTube's trade dress, including
+the look and feel of YouTube web design properties, YouTube brand packaging,
+distinctive color combinations, typography, graphic designs, product icons,
+or imagery associated with YouTube.
+- Do not register the YouTube trademarks as second-level domain names or
+incorporate YouTube trademarks into your own names for products, services,
+features, or companies. Similarly, do not incorporate YouTube trademarks
+into your own trademarks or logos.
+- Never display a YouTube trademark in a manner that is misleading, unfair,
+defamatory, infringing, libelous, disparaging, obscene, or otherwise
+objectionable to YouTube.
+- Never display a YouTube trademark on any web site or user interface that
+contains or displays adult content, promotes gambling, promotes violence,
+contains hate speech, involves the sale of tobacco or alcohol to persons
+under twenty-one years of age, violates other applicable laws or regulations,
+or is otherwise objectionable.
+- Any YouTube logo used within an application must link back to YouTube
+content or to a YouTube component of that application.
+
+Was this helpful?
+
+Except as otherwise noted, the content of this page is licensed under the [Creative Commons Attribution 4.0 License](https://creativecommons.org/licenses/by/4.0/), and code samples are licensed under the [Apache 2.0 License](https://www.apache.org/licenses/LICENSE-2.0). For details, see the [Google Developers Site Policies](https://developers.google.com/site-policies). Java is a registered trademark of Oracle and/or its affiliates.
+
+Last updated 2025-08-20 UTC.
+
+
+
+
+\[\[\["Easy to understand","easyToUnderstand","thumb-up"\],\["Solved my problem","solvedMyProblem","thumb-up"\],\["Other","otherUp","thumb-up"\]\],\[\["Missing the information I need","missingTheInformationINeed","thumb-down"\],\["Too complicated / too many steps","tooComplicatedTooManySteps","thumb-down"\],\["Out of date","outOfDate","thumb-down"\],\["Samples / code issue","samplesCodeIssue","thumb-down"\],\["Other","otherDown","thumb-down"\]\],\["Last updated 2025-08-20 UTC."\],\[\],\["YouTube allows developers to use its logos and icons under specific guidelines. Three types of branding are available: \\"Developed with YouTube\\" for apps heavily reliant on YouTube, the standard YouTube logo for apps with some YouTube integration, and the YouTube icon for content attribution among multiple sources. Logos must link back to YouTube content or components and cannot be used in an application name or description. Altering logos is prohibited, and usage is subject to YouTube's API Terms of Service.\\n"\]\]
+
+
+
+Info
+
+
+Chat
+
+
+API
+
+
+## Page info
+
+bug\_reportfullscreenclose\_fullscreenclose
+
+### On this page
+
+- On this page
+- [What logos or branding can I use?](https://developers.google.com/youtube/terms/branding-guidelines#what_logos_or_branding_can_i_use)
+  - [Developed with YouTube logo](https://developers.google.com/youtube/terms/branding-guidelines#developed_with_youtube_logo)
+  - [YouTube logo](https://developers.google.com/youtube/terms/branding-guidelines#youtube_logo)
+  - [YouTube icon](https://developers.google.com/youtube/terms/branding-guidelines#youtube_icon)
+- [Downloads](https://developers.google.com/youtube/terms/branding-guidelines#downloads)
+  - [Download links for "developed with YouTube" logos](https://developers.google.com/youtube/terms/branding-guidelines#download_links_for_developed_with_youtube_logos)
+- [Logo Sizing and Placement](https://developers.google.com/youtube/terms/branding-guidelines#logo_sizing_and_placement)
+- [Requirements](https://developers.google.com/youtube/terms/branding-guidelines#requirements)

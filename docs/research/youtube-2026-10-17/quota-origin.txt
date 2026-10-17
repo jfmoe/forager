@@ -1,0 +1,346 @@
+Quota Calculator  |  YouTube Data API  |  Google for Developers
+Skip to main content
+YouTube
+Data API
+/
+English
+Deutsch
+Español
+Español – América Latina
+Français
+Indonesia
+Italiano
+Polski
+Português – Brasil
+Tiếng Việt
+Türkçe
+Русский
+עברית
+العربيّة
+فارسی
+हिंदी
+বাংলা
+ภาษาไทย
+中文 – 简体
+中文 – 繁體
+日本語
+한국어
+Sign in
+Home
+Guides
+Reference
+Samples
+YouTube
+Data API
+Home
+Guides
+Reference
+Samples
+Overview
+Client Libraries
+Authorize Requests
+Overview
+Get Auth Credentials
+Server-side Web Apps
+Client-side Web Apps
+Installed Apps
+Devices
+Quickstarts
+Android
+Apps Script
+Go
+iOS
+Java
+JavaScript
+Node.js
+PHP
+Python
+Ruby
+Guides and Tutorials
+Quota costs for API requests
+Quota and Compliance Audits
+Upload a Video
+Send Resumable Uploads
+Find MadeForKids video status
+Subscribe to Push Notifications
+Work with Channel IDs
+Move from ClientLogin to OAuth
+Sample Requests
+Implementation Guide
+Overview
+Activities
+Captions
+Channels
+Comments
+Pagination
+Partial responses
+Playlists
+Ratings
+Search requests
+Subscriptions
+Videos
+Tools
+APIs Explorer
+Home
+Products
+YouTube
+Data API
+Guides
+Quota Calculator
+Stay organized with collections
+Save and categorize content based on your preferences.
+The following table shows the quota cost for calling each API method. All API requests, including invalid requests, incur a quota cost of at least one point.
+Projects that enable the YouTube Data API have a default quota allocation of 100
+search.list
+calls, 100
+videos.insert
+calls, and 10,000 units per day combined for all other endpoints. You can see your quota usage on
+Quotas
+page in the Google Cloud console. Daily quotas reset at midnight Pacific Time (PT).
+The following points are worth calling out as they both affect your quota usage:
+The
+search.list
+and
+videos.insert
+methods have their own quota buckets. Each of these methods has a default daily limit of 100 per day. The quota cost is 1 per call.
+If your application calls a method, such as
+search.list
+, that returns multiple
+    pages of results, each request to retrieve an additional page of results incurs the estimated
+    quota cost.
+YouTube Live Streaming API
+methods are, technically, part of the YouTube Data API, and calls to
+    those methods also incur quota costs. As such, API methods for live streaming are also listed in
+    the table.
+Quota costs
+resource
+method
+cost
+activities
+list
+1
+captions
+list
+50
+insert
+400
+update
+450
+delete
+50
+channelBanners
+insert
+50
+channels
+list
+1
+update
+50
+channelSections
+list
+1
+insert
+50
+update
+50
+delete
+50
+comments
+list
+1
+insert
+50
+update
+50
+setModerationStatus
+50
+delete
+50
+commentThreads
+list
+1
+insert
+50
+update
+50
+guideCategories
+list
+1
+i18nLanguages
+list
+1
+i18nRegions
+list
+1
+liveBroadcasts
+bind
+1
+delete
+1
+insert
+1
+insertCuepoint
+1
+list
+1
+transition
+1
+update
+1
+liveChatBans
+delete
+200
+insert
+200
+liveChatMessages
+delete
+20
+insert
+20
+list
+5
+streamList
+5
+transition
+20
+liveChatModerators
+delete
+200
+insert
+200
+list
+50
+liveStreams
+delete
+1
+insert
+1
+list
+1
+update
+1
+members
+list
+1
+membershipsLevels
+list
+1
+playlistItems
+list
+1
+insert
+50
+update
+50
+delete
+50
+playlists
+list
+1
+insert
+50
+update
+50
+delete
+50
+search
+list
+100 quota per day. Each call costs 1 quota.
+subscriptions
+list
+1
+insert
+50
+delete
+50
+superChatEvents
+list
+1
+thumbnails
+set
+50
+videoAbuseReportReasons
+list
+1
+videoCategories
+list
+1
+videos
+list
+1
+insert
+100 quota per day. Each call costs 1 quota.
+update
+50
+rate
+50
+getRating
+1
+reportAbuse
+50
+delete
+50
+watermarks
+set
+50
+unset
+50
+Except as otherwise noted, the content of this page is licensed under the
+Creative Commons Attribution 4.0 License
+, and code samples are licensed under the
+Apache 2.0 License
+. For details, see the
+Google Developers Site Policies
+. Java is a registered trademark of Oracle and/or its affiliates.
+Last updated 2026-10-15 UTC.
+[[["Easy to understand","easyToUnderstand","thumb-up"],["Solved my problem","solvedMyProblem","thumb-up"],["Other","otherUp","thumb-up"]],[["Missing the information I need","missingTheInformationINeed","thumb-down"],["Too complicated / too many steps","tooComplicatedTooManySteps","thumb-down"],["Out of date","outOfDate","thumb-down"],["Samples / code issue","samplesCodeIssue","thumb-down"],["Other","otherDown","thumb-down"]],["Last updated 2026-10-15 UTC."],[],[]]
+Blog
+The latest news on the YouTube blog
+Issue Tracker
+Something wrong? Send us a bug report!
+YouTube Researcher Program
+For researchers interested in using data from YouTube's global API
+Tools
+Google APIs Explorer
+YouTube Player Demo
+Configure a Subscribe Button
+Issue Tracker
+File a bug
+Request a feature
+See open issues
+Product Info
+Terms of Service
+Developer Policies
+Required Minimum Functionality
+Branding Guidelines
+Android
+Chrome
+Firebase
+Google Cloud Platform
+Google AI
+All products
+Terms
+Privacy
+Manage cookies
+English
+Deutsch
+Español
+Español – América Latina
+Français
+Indonesia
+Italiano
+Polski
+Português – Brasil
+Tiếng Việt
+Türkçe
+Русский
+עברית
+العربيّة
+فارسی
+हिंदी
+বাংলা
+ภาษาไทย
+中文 – 简体
+中文 – 繁體
+日本語
+한국어

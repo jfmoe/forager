@@ -1,0 +1,44 @@
+# 视频搜索管理接入方案
+
+# [功能介绍 permalink](https://open.douyin.com/platform/resource/docs/ability/search-management/video/\#%E5%8A%9F%E8%83%BD%E4%BB%8B%E7%BB%8D) 功能介绍
+
+开发者申请“与我相关”的关键词后，可通过开放接口，搜索视频标题中含有这些关键词的公开视频，查看这些视频下的评论，并进行回复
+
+请注意：时效性考虑，搜索结果只返回最近 1 天发布的公开视频
+
+# [支持范围 permalink](https://open.douyin.com/platform/resource/docs/ability/search-management/video/\#%E6%94%AF%E6%8C%81%E8%8C%83%E5%9B%B4) 支持范围
+
+- 应用场景： 帮助开发者快速获取抖音用户关于自身品牌或产品的评价和咨询，较为便捷地进行回复和答疑 场景示例：品牌方在抖音平台进行宣传和推广时，会产生一定量的用户咨询和使用反馈。品牌客服团队，可通过搭建客服系统平台，并对接抖音开放平台的 API 接口，快速获取抖音上用户关于自身品牌的咨询。品牌客服团队，可在客服系统平台，分配回复任务、并统计回复工作量
+- 使用限制： 申请的关键词，必须与自身业务紧密相关，不可申请通用品类词，不可申请竞品品牌词
+- 适用平台： 移动应用、网站应用
+- 权限范围： 在管理中心申请权限后可用
+
+# [产品优势 permalink](https://open.douyin.com/platform/resource/docs/ability/search-management/video/\#%E4%BA%A7%E5%93%81%E4%BC%98%E5%8A%BF) 产品优势
+
+- 搜索与我相关的视频 支持通过关键词获取抖音视频，查看视频下的评论，并进行回复
+- 了解与我相关的用户 针对发布与我相关视频的用户，可查看其粉丝等级
+- 及时回复相关视频与评论 支持在第三方平台针对关键词视频进行回复和答疑，便于第三方分配回复任务并统计回复效率
+
+# [对接流程 permalink](https://open.douyin.com/platform/resource/docs/ability/search-management/video/\#%E5%AF%B9%E6%8E%A5%E6%B5%81%E7%A8%8B) 对接流程
+
+![](https://sf1-cdn-tos.douyinstatic.com/obj/microapp/frontend/docs/images/img1654860897848)
+
+# [使用说明 permalink](https://open.douyin.com/platform/resource/docs/ability/search-management/video/\#%E4%BD%BF%E7%94%A8%E8%AF%B4%E6%98%8E) 使用说明
+
+权限申请
+
+申请后开通：开放平台官网-管理中心-应用详情-特殊权限-关键词视频管理
+
+接口推荐
+
+| 所属Scope | 接口名称 | 用途 |
+| video.search | [关键词视频搜索](https://open.douyin.com/platform/resource/docs/openapi/search-management/keywords-video-list/keywords-video) | 通过关键词搜索标题中含有对应词组的视频列表 |
+| video.search.comment | [关键词视频评论列表](https://open.douyin.com/platform/resource/docs/openapi/search-management/keywords-video-comment-management/comment-list) | 获取含有关键词的视频下的评论 |
+| video.search.comment | [关键词视频评论回复列表](https://open.douyin.com/platform/resource/docs/openapi/search-management/keywords-video-comment-management/comment-reply-list) | 获取含有关键词的视频的评论下的回复 |
+| video.search.comment | [回复关键词视频下的评论](https://open.douyin.com/platform/resource/docs/openapi/search-management/keywords-video-comment-management/comment-reply) | 回复关键词视频下的评论或回复 |
+
+诚邀您对本文档易读易用性进行评价
+
+好用
+
+不好用

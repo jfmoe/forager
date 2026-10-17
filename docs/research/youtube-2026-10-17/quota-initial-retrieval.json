@@ -1,0 +1,11 @@
+{
+  "source_url": "https://developers.google.com/youtube/v3/determine_quota_cost",
+  "checked_at": "2026-10-17T12:35:06.402108+00:00",
+  "exit_code": 0,
+  "provider": "firecrawl",
+  "files": [
+    "quota-fetch.raw.json",
+    "quota-fetch.raw.txt"
+  ],
+  "note": "Initial forager fetch --output --receipt; terminal exit observed. Raw CLI payload retained in the named file."
+}

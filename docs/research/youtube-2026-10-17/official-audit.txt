@@ -1,0 +1,121 @@
+[Skip to main content](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits#main-content)
+
+[![YouTube](https://developers.google.com/static/site-assets/logo-youtube.svg)](https://developers.google.com/youtube)
+
+- [YouTube](https://developers.google.com/youtube)
+- [Data API](https://developers.google.com/youtube/data)
+
+`/`
+
+Language
+
+- [English](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits)
+- [Deutsch](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits?hl=de)
+- [Español](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits?hl=es)
+- [Español – América Latina](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits?hl=es-419)
+- [Français](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits?hl=fr)
+- [Indonesia](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits?hl=id)
+- [Italiano](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits?hl=it)
+- [Polski](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits?hl=pl)
+- [Português – Brasil](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits?hl=pt-br)
+- [Tiếng Việt](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits?hl=vi)
+- [Türkçe](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits?hl=tr)
+- [Русский](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits?hl=ru)
+- [עברית](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits?hl=he)
+- [العربيّة](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits?hl=ar)
+- [فارسی](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits?hl=fa)
+- [हिंदी](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits?hl=hi)
+- [বাংলা](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits?hl=bn)
+- [ภาษาไทย](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits?hl=th)
+- [中文 – 简体](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits?hl=zh-cn)
+- [中文 – 繁體](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits?hl=zh-tw)
+- [日本語](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits?hl=ja)
+- [한국어](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits?hl=ko)
+
+[Sign in](https://developers.google.com/_d/signin?continue=https%3A%2F%2Fdevelopers.google.com%2Fyoutube%2Fdata%2Fguides%2Fquota_and_compliance_audits&prompt=select_account)
+
+- On this page
+- [Begin an audit](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits#begin-an-audit)
+- [Request an additional quota extension](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits#request-an-additional-quota-extension)
+- [Appeal a failed audit](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits#appeal-a-failed-audit)
+- [Periodic audit](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits#periodic-audit)
+- [Change of control](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits#change-of-control)
+
+- [Home](https://developers.google.com/)
+- [Products](https://developers.google.com/products)
+- [YouTube](https://developers.google.com/youtube)
+- [Data API](https://developers.google.com/youtube/data)
+- [Guides](https://developers.google.com/youtube/data/getting-started)
+
+Was this helpful?
+
+# Quota and Compliance Audits    Stay organized with collections      Save and categorize content based on your preferences.
+
+- On this page
+- [Begin an audit](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits#begin-an-audit)
+- [Request an additional quota extension](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits#request-an-additional-quota-extension)
+- [Appeal a failed audit](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits#appeal-a-failed-audit)
+- [Periodic audit](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits#periodic-audit)
+- [Change of control](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits#change-of-control)
+
+The YouTube Data API uses a [quota system](https://developers.google.com/youtube/data/determine_quota_cost) to ensure that developers use the service as intended and that they don't create API clients which unfairly reduce service quality or limit access for others.
+
+Projects that enable the YouTube Data API have a default quota allocation of 100 `search.list` calls, 100 `videos.insert` calls, and 10,000 units per day combined for all other endpoints. You can see your quota usage on [Quotas](https://console.cloud.google.com/iam-admin/quotas) page in the Google Cloud console.
+
+If you would like to request additional quota beyond the default allocation, you must first complete an audit to show that your project is in compliance with the [YouTube API Services Terms of Service](https://developers.google.com/youtube/terms/developer-policies). This gives YouTube visibility into the intended use cases of large projects and ensures that YouTube's API services are being used in a manner that is free from abuse. Visit [this link](https://developers.google.com/youtube/terms/developer-policies-guide) for additional details on complying with YouTube's Developer Policies.
+
+### Begin an audit
+
+To begin an audit of your project, fill out and submit the [YouTube API Services - Audit and Quota Extension Form](https://support.google.com/youtube/contact/yt_api_form). A member of YouTube's API Services team will contact you as soon as possible.
+
+### Request an additional quota extension
+
+If you have completed an API Compliance Audit within the last 12 months but require an additional quota extension, fill out and submit the [Audit and Quota Extension Form](https://support.google.com/youtube/contact/yt_api_form).
+
+### Appeal a failed audit
+
+If you have recently failed an API Compliance Audit and would like to appeal that decision, fill out and submit the [Appeals Form](https://support.google.com/youtube/contact/yt_api_appeals).
+
+### Periodic audit
+
+We conduct periodic audits to ensure quality, improve our products and services, and verify your compliance with the YouTube API Services Terms of Service. If you have been contacted by us to complete your periodic audit, fill out the [Periodic Audit Form](https://support.google.com/youtube/contact/yt_api_form).
+
+### Change of control
+
+Developers, or any party operating an API client on a developer's behalf, who experience a change of control (for example, through a stock purchase or sale, merger or other form of corporate transaction) associated with an API project accessing YouTube's API Services must fill out and submit the [Change of Control Form](https://support.google.com/youtube/contact/yt_api_change_of_control_form).
+
+
+Was this helpful?
+
+Except as otherwise noted, the content of this page is licensed under the [Creative Commons Attribution 4.0 License](https://creativecommons.org/licenses/by/4.0/), and code samples are licensed under the [Apache 2.0 License](https://www.apache.org/licenses/LICENSE-2.0). For details, see the [Google Developers Site Policies](https://developers.google.com/site-policies). Java is a registered trademark of Oracle and/or its affiliates.
+
+Last updated 2026-10-15 UTC.
+
+
+
+
+\[\[\["Easy to understand","easyToUnderstand","thumb-up"\],\["Solved my problem","solvedMyProblem","thumb-up"\],\["Other","otherUp","thumb-up"\]\],\[\["Missing the information I need","missingTheInformationINeed","thumb-down"\],\["Too complicated / too many steps","tooComplicatedTooManySteps","thumb-down"\],\["Out of date","outOfDate","thumb-down"\],\["Samples / code issue","samplesCodeIssue","thumb-down"\],\["Other","otherDown","thumb-down"\]\],\["Last updated 2026-10-15 UTC."\],\[\],\[\]\]
+
+
+
+Info
+
+
+Chat
+
+
+API
+
+
+## Page info
+
+bug\_reportfullscreenclose\_fullscreenclose
+
+### On this page
+
+- On this page
+- [Begin an audit](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits#begin-an-audit)
+- [Request an additional quota extension](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits#request-an-additional-quota-extension)
+- [Appeal a failed audit](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits#appeal-a-failed-audit)
+- [Periodic audit](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits#periodic-audit)
+- [Change of control](https://developers.google.com/youtube/data/guides/quota_and_compliance_audits#change-of-control)

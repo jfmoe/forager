@@ -1,0 +1,15 @@
+{
+  "source_url": "https://openhome.bilibili.com/",
+  "checked_at": "2026-10-17T12:36:03.558329+00:00",
+  "completed_at": "2026-10-17T12:36:08.479222+00:00",
+  "command": [
+    "forager",
+    "fetch",
+    "https://openhome.bilibili.com/",
+    "--format",
+    "json"
+  ],
+  "exit_code": 0,
+  "stdout": "{\"provider\":\"firecrawl\",\"url\":\"https://openhome.bilibili.com/\",\"content\":\"![logo](<Base64-Image-Removed>)[![](<Base64-Image-Removed>)主站](https://www.bilibili.com/)\\n\\n开放平台  开平文档中心 开平管理中心![](<Base64-Image-Removed>)账号管理 应用管理 授权管理  直播创作者服务中心  互动玩法\\n\\n![](<Base64-Image-Removed>)登录\\n\\n\\\\|\\n\\n注册\\n\\n立即加入![enter](<Base64-Image-Removed>)技术文档![enter](<Base64-Image-Removed>)\\n\\n![](https://s1.hdslb.com/bfs/static/studio/arcopen-fe/img/logo_announcement.a49b69a1.png)\\n\\n查看更多![](<Base64-Image-Removed>)\\n\\n产品服务\\n\\n业务开放\\n\\n提供内容分发、数据回流、用户管理等功能，形成内容闭环\\n\\n解决方案\\n\\n为up主和服务商，提供丰富的行业定制化解决方案\\n\\n服务支持\\n\\n提供测试环境，丰富并完善用户对接流程\\n\\n了解更多\\n\\n入驻流程\\n\\n哔哩哔哩开放平台提供丰富的内容生产、监控等能力，满足更多场景下的需求，快来加入我们吧！\\n\\n1\\n\\n注册账号\\n\\n2\\n\\n资质认证\\n\\n3\\n\\n接入应用\\n\\n4\\n\\n集成开发\\n\\n申请入驻\\n\\n### 身份认证\\n\\n请完成身份信息填写，审核通过后即可创建应用，拥有稿件分发等开发者能力。\\n\\n如果您是被授权用户，请前往【管理中心】-【授权管理】接受授权邀请\\n\\n去填写去接受邀请\\n\\n![](<Base64-Image-Removed>)\\n\\n帮助中心\\n\\n[![](<Base64-Image-Removed>)联系我们](https://open.bilibili.com/doc/4/e9a4bc66-473c-3a32-2658-db94ae6513fe)\\n\\n[![](<Base64-Image-Removed>)发起工单](https://open.bilibili.com/ticket)\"}\n",
+  "stderr": ""
+}

@@ -1,0 +1,480 @@
+##### Pricing
+
+Choose the plan that suits you best.
+
+- [Standard](https://serpapi.com/pricing)
+- [Enterprise](https://serpapi.com/pricing)
+
+##### APIs
+
+Explore all search engines we support or check out our [complete API list.](https://serpapi.com/pricing)
+
+- [Google Search API](https://serpapi.com/pricing)
+- [Google Light Search API](https://serpapi.com/pricing)
+- [Google AI Mode API](https://serpapi.com/pricing)
+- [Google AI Overview API](https://serpapi.com/pricing)
+- ![](https://serpapi.com/pricing)[Google Ads API](https://serpapi.com/pricing)
+- [Google Ads Transparency API](https://serpapi.com/pricing)
+- [Google Autocomplete API](https://serpapi.com/pricing)
+- [Google Events API](https://serpapi.com/pricing)
+- [Google Finance API](https://serpapi.com/pricing)
+- [Google Finance Markets API](https://serpapi.com/pricing)
+- [Google Flights API](https://serpapi.com/pricing)
+- [Google Flights Autocomplete API](https://serpapi.com/pricing)
+- [Google Flights Deals API](https://serpapi.com/pricing)
+- [Google Forums API](https://serpapi.com/pricing)
+- [Google Hotels API](https://serpapi.com/pricing)
+- [Google Hotels Autocomplete API](https://serpapi.com/pricing)
+- [Google Hotels Photos API](https://serpapi.com/pricing)
+- [Google Hotels Reviews API](https://serpapi.com/pricing)
+- [Google Images API](https://serpapi.com/pricing)
+- [Google Images Light API](https://serpapi.com/pricing)
+- [Google Images Related Content API](https://serpapi.com/pricing)
+- [Google Immersive Product API](https://serpapi.com/pricing)
+- [Google Jobs API](https://serpapi.com/pricing)
+- [Google Lens API](https://serpapi.com/pricing)
+- [Google Local API](https://serpapi.com/pricing)
+- ![](https://serpapi.com/pricing)[Google Local Services API](https://serpapi.com/pricing)
+- [Google Maps API](https://serpapi.com/pricing)
+- [Google Maps Autocomplete API](https://serpapi.com/pricing)
+- [Google Maps Contributor Reviews API](https://serpapi.com/pricing)
+- [Google Maps Directions API](https://serpapi.com/pricing)
+- [Google Maps Photos API](https://serpapi.com/pricing)
+- [Google Maps Posts API](https://serpapi.com/pricing)
+- [Google Maps Reviews API](https://serpapi.com/pricing)
+- [Google News API](https://serpapi.com/pricing)
+- [Google News Light API](https://serpapi.com/pricing)
+- [Google Patents API](https://serpapi.com/pricing)
+- [Google Patents Details API](https://serpapi.com/pricing)
+- [Google Play Books API](https://serpapi.com/pricing)
+- [Google Play Games API](https://serpapi.com/pricing)
+- [Google Play Movies API](https://serpapi.com/pricing)
+- [Google Play Product API](https://serpapi.com/pricing)
+- [Google Play Store API](https://serpapi.com/pricing)
+- [Google Product API](https://serpapi.com/pricing)
+- [Google Related Questions API](https://serpapi.com/pricing)
+- [Google Reverse Image API](https://serpapi.com/pricing)
+- [Google Scholar API](https://serpapi.com/pricing)
+- [Google Scholar Author API](https://serpapi.com/pricing)
+- [Google Scholar Case Law API](https://serpapi.com/pricing)
+- [Google Shopping API](https://serpapi.com/pricing)
+- [Google Shopping Light API](https://serpapi.com/pricing)
+- [Google Short Videos API](https://serpapi.com/pricing)
+- [Google Sports API](https://serpapi.com/pricing)
+- ![](https://serpapi.com/pricing)[Google Travel Explore API](https://serpapi.com/pricing)
+- [Google Trends API](https://serpapi.com/pricing)
+- [Google Trends Autocomplete API](https://serpapi.com/pricing)
+- [Google Trends Trending Now API](https://serpapi.com/pricing)
+- [Google Videos API](https://serpapi.com/pricing)
+- [Google Videos Light API](https://serpapi.com/pricing)
+- ![](https://serpapi.com/pricing)[Airbnb Search API](https://serpapi.com/pricing)
+- [Amazon Search API](https://serpapi.com/pricing)
+- [Amazon Autocomplete API](https://serpapi.com/pricing)
+- [Amazon Product API](https://serpapi.com/pricing)
+- [Apple App Store API](https://serpapi.com/pricing)
+- [Apple Maps API](https://serpapi.com/pricing)
+- [Apple Maps Places API](https://serpapi.com/pricing)
+- [Apple App Store Product API](https://serpapi.com/pricing)
+- [Apple App Store Reviews API](https://serpapi.com/pricing)
+- ![](https://serpapi.com/pricing)[Baidu Search API](https://serpapi.com/pricing)
+- [Baidu News API](https://serpapi.com/pricing)
+- ![](https://serpapi.com/pricing)[Bing Search API](https://serpapi.com/pricing)
+- [Bing Copilot API](https://serpapi.com/pricing)
+- [Bing Images API](https://serpapi.com/pricing)
+- [Bing Maps API](https://serpapi.com/pricing)
+- [Bing News API](https://serpapi.com/pricing)
+- [Bing Product API](https://serpapi.com/pricing)
+- [Bing Reverse Image API](https://serpapi.com/pricing)
+- [Bing Shopping API](https://serpapi.com/pricing)
+- [Bing Videos API](https://serpapi.com/pricing)
+- [Brave AI Mode API](https://serpapi.com/pricing)
+- [Duck AI API](https://serpapi.com/pricing)
+- ![](https://serpapi.com/pricing)[DuckDuckGo Search API](https://serpapi.com/pricing)
+- ![](https://serpapi.com/pricing)[DuckDuckGo Light API](https://serpapi.com/pricing)
+- [DuckDuckGo Maps API](https://serpapi.com/pricing)
+- [DuckDuckGo News API](https://serpapi.com/pricing)
+- ![](https://serpapi.com/pricing)[eBay Search API](https://serpapi.com/pricing)
+- [eBay Product API](https://serpapi.com/pricing)
+- [eBay Seller API](https://serpapi.com/pricing)
+- [Extract API](https://serpapi.com/pricing)
+- [Facebook Profile API](https://serpapi.com/pricing)
+- ![](https://serpapi.com/pricing)[The Home Depot Search API](https://serpapi.com/pricing)
+- [The Home Depot Product API](https://serpapi.com/pricing)
+- [The Home Depot Reviews API](https://serpapi.com/pricing)
+- [Instagram Profile API](https://serpapi.com/pricing)
+- ![](https://serpapi.com/pricing)[Naver Search API](https://serpapi.com/pricing)
+- [Naver AI Mode API](https://serpapi.com/pricing)
+- [Naver AI Overview API](https://serpapi.com/pricing)
+- ![](https://serpapi.com/pricing)[OpenTable Reviews API](https://serpapi.com/pricing)
+- [Search Index](https://serpapi.com/pricing)
+- ![](https://serpapi.com/pricing)[Target Search API](https://serpapi.com/pricing)
+- ![](https://serpapi.com/pricing)[Tripadvisor Search API](https://serpapi.com/pricing)
+- [Tripadvisor Place API](https://serpapi.com/pricing)
+- [Tripadvisor Reviews API](https://serpapi.com/pricing)
+- ![](https://serpapi.com/pricing)[Walmart Search API](https://serpapi.com/pricing)
+- [Walmart Product API](https://serpapi.com/pricing)
+- [Walmart Reviews API](https://serpapi.com/pricing)
+- [Yahoo! Search API](https://serpapi.com/pricing)
+- [Yahoo! Images API](https://serpapi.com/pricing)
+- [Yahoo! Trends API](https://serpapi.com/pricing)
+- [Yahoo! Videos API](https://serpapi.com/pricing)
+- [Yandex Search API](https://serpapi.com/pricing)
+- [Yandex Images API](https://serpapi.com/pricing)
+- [Yandex Videos API](https://serpapi.com/pricing)
+- [Yelp Search API](https://serpapi.com/pricing)
+- [Yelp Place API](https://serpapi.com/pricing)
+- [Yelp Reviews API](https://serpapi.com/pricing)
+- [YouTube Search API](https://serpapi.com/pricing)
+- [YouTube Channel API](https://serpapi.com/pricing)
+- [YouTube Video API](https://serpapi.com/pricing)
+- [YouTube Video Transcript API](https://serpapi.com/pricing)
+- ![](https://serpapi.com/pricing)[Zillow Search API](https://serpapi.com/pricing)
+- [Extra APIs](https://serpapi.com/pricing)
+- [Status and Error Codes](https://serpapi.com/pricing)
+
+##### By Industry
+
+Find the right data solutions tailored to your market.
+
+- [Web Search & Discovery](https://serpapi.com/pricing)
+- [Ecommerce & Retail](https://serpapi.com/pricing)
+- [AI & LLM Insights](https://serpapi.com/pricing)
+- [![](https://serpapi.com/pricing)Advertising](https://serpapi.com/pricing)
+- [Events & Entertainment](https://serpapi.com/pricing)
+- [Finance & Markets](https://serpapi.com/pricing)
+- [Travel & Hospitality](https://serpapi.com/pricing)
+- [Images & Visual Search](https://serpapi.com/pricing)
+- [Jobs & Careers](https://serpapi.com/pricing)
+- [Local & Maps](https://serpapi.com/pricing)
+- [News & Media](https://serpapi.com/pricing)
+- [Academic & Legal Research](https://serpapi.com/pricing)
+- [App Stores & Digital Content](https://serpapi.com/pricing)
+- [Trends & Analytics](https://serpapi.com/pricing)
+- [Video & Multimedia](https://serpapi.com/pricing)
+- [Social Media](https://serpapi.com/pricing)
+
+##### By Use Case
+
+Automate your projects with structured SERP data.
+
+- [SEO](https://serpapi.com/pricing)
+- [Local SEO](https://serpapi.com/pricing)
+- [Web Search API](https://serpapi.com/pricing)
+- [AI Search Engine API](https://serpapi.com/pricing)
+- [AI SEO (GEO)](https://serpapi.com/pricing)
+- [Product Research](https://serpapi.com/pricing)
+- [Background Check Automation](https://serpapi.com/pricing)
+- [AI Models](https://serpapi.com/pricing)
+- [News Monitoring](https://serpapi.com/pricing)
+- [Voice Assistant](https://serpapi.com/pricing)
+- [Price Monitoring](https://serpapi.com/pricing)
+- [Travel Information](https://serpapi.com/pricing)
+- [Copyright Checker Tool](https://serpapi.com/pricing)
+- [Cyber Threat Intelligence](https://serpapi.com/pricing)
+
+##### Easy Integrations
+
+Start integration with your preferred language.
+
+- [![ruby's icon](https://serpapi.com/pricing)Ruby](https://serpapi.com/pricing)
+- [Python](https://serpapi.com/pricing)
+- [JavaScript](https://serpapi.com/pricing)
+- [![go's icon](https://serpapi.com/pricing)Golang](https://serpapi.com/pricing)
+- [PHP](https://serpapi.com/pricing)
+- [Java](https://serpapi.com/pricing)
+- [Rust](https://serpapi.com/pricing)
+- [![dotnet's icon](https://serpapi.com/pricing).NET](https://serpapi.com/pricing)
+- [![mcp's icon](https://serpapi.com/pricing)MCP](https://serpapi.com/pricing)
+- [Swift](https://serpapi.com/pricing)
+- [![cpp's icon](https://serpapi.com/pricing)C++](https://serpapi.com/pricing)
+- [CLI](https://serpapi.com/pricing)
+
+##### Features
+
+Dive deeper into our advanced features.
+
+- [X-Ray](https://serpapi.com/pricing)
+- [ZeroTrace Mode](https://serpapi.com/pricing)
+- [U.S. Legal Shield](https://serpapi.com/pricing)
+- [JSON Restrictor](https://serpapi.com/pricing)
+- [Team Management](https://serpapi.com/pricing)
+- [Ludicrous Speed](https://serpapi.com/pricing)
+- [Ludicrous Speed Max](https://serpapi.com/pricing)
+- [Pixel Position](https://serpapi.com/pricing)
+- [Markdown Output](https://serpapi.com/pricing)
+
+##### Company
+
+Explore company information and helpful guides.
+
+- [Team](https://serpapi.com/pricing)
+- [Security](https://serpapi.com/pricing)
+- [FAQ](https://serpapi.com/pricing)
+- [Blog](https://serpapi.com/blog)
+- [YouTube](https://www.youtube.com/@serpapi)
+- [Release notes](https://serpapi.com/pricing)
+- [Media kit](https://serpapi.com/pricing)
+
+# Simple Pricing
+
+## Month-to-month. Cancel anytime.
+
+Starter
+
+$25
+
+/ month
+
+[Get Started](https://serpapi.com/users/sign_up?plan=starter_v4)
+
+1,000 searches per month
+
+200 throughput per hour
+
+U.S. Legal Shield
+
+Developer
+
+$75
+
+/ month
+
+[Get Started](https://serpapi.com/users/sign_up?plan=developer_v4)
+
+5,000 searches per month
+
+1,000 throughput per hour
+
+U.S. Legal Shield
+
+Most popular
+
+Production
+
+$150
+
+/ month
+
+[Get Started](https://serpapi.com/users/sign_up?plan=production_v4)
+
+15,000 searches per month
+
+3,000 throughput per hour
+
+U.S. Legal Shield
+
+Big Data
+
+$275
+
+/ month
+
+[Get Started](https://serpapi.com/users/sign_up?plan=bigdata_v4)
+
+30,000 searches per month
+
+6,000 throughput per hour
+
+U.S. Legal Shield
+
+##### Flexible options for every stage
+
+Start for free, upgrade as you grow, or contact our team about an enterprise plan tailored to your volume, performance, and compliance needs.
+
+[View all plans](https://serpapi.com/pricing#all-plans)
+
+Free
+
+$0
+
+/ month
+
+[Get Started](https://serpapi.com/users/sign_up?plan=free)
+
+250 searches per month
+
+50 throughput per hour
+
+U.S. Legal Shield
+
+ZeroTrace Mode
+
+Priority support
+
+Enterprise
+
+Contact sales for pricingcontact@serpapi.com
+
+[Contact us](https://serpapi.com/#contact)
+
+Custom searches per month
+
+Custom throughput per hour
+
+U.S. Legal Shield
+
+ZeroTrace Mode
+
+Priority support
+
+### All plans
+
+Speed mode
+
+Best EffortLudicrous SpeedLudicrous Speed Max
+
+| Plan | Searches / month | Throughput / hour | U.S. Legal Shield | ZeroTrace Mode | Priority support | Price / month |  |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Starter$25 / month [Get Started](https://serpapi.com/users/sign_up?plan=starter_v4) | 1,000 | 200 |  |  |  | $25 | [Get Started](https://serpapi.com/users/sign_up?plan=starter_v4) |
+| Developer$75 / month [Get Started](https://serpapi.com/users/sign_up?plan=developer_v4) | 5,000 | 1,000 |  |  |  | $75 | [Get Started](https://serpapi.com/users/sign_up?plan=developer_v4) |
+| Production$150 / month [Get Started](https://serpapi.com/users/sign_up?plan=production_v4) | 15,000 | 3,000 |  |  |  | $150 | [Get Started](https://serpapi.com/users/sign_up?plan=production_v4) |
+| Big Data$275 / month [Get Started](https://serpapi.com/users/sign_up?plan=bigdata_v4) | 30,000 | 6,000 |  |  |  | $275 | [Get Started](https://serpapi.com/users/sign_up?plan=bigdata_v4) |
+| Searcher$725 / month [Get Started](https://serpapi.com/users/sign_up?plan=premier_v4) | 100,000 | 20,000 |  |  |  | $725 | [Get Started](https://serpapi.com/users/sign_up?plan=premier_v4) |
+| Volume$1,475 / month [Get Started](https://serpapi.com/users/sign_up?plan=volume_v4) | 250,000 | 50,000 |  |  |  | $1,475 | [Get Started](https://serpapi.com/users/sign_up?plan=volume_v4) |
+| Infrastructure$2,750 / month [Get Started](https://serpapi.com/users/sign_up?plan=infrastructure_v4) | 500,000 | 100,000 |  |  |  | $2,750 | [Get Started](https://serpapi.com/users/sign_up?plan=infrastructure_v4) |
+| Cloud 1M$3,750 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_1m_v4) | 1,000,000 | 110,000 |  |  |  | $3,750 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_1m_v4) |
+| Cloud 2M$5,675 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_2m_v4) | 2,000,000 | 120,000 |  |  |  | $5,675 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_2m_v4) |
+| Cloud 3M$7,600 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_3m_v4) | 3,000,000 | 130,000 |  |  |  | $7,600 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_3m_v4) |
+| Cloud 4M$9,550 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_4m_v4) | 4,000,000 | 140,000 |  |  |  | $9,550 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_4m_v4) |
+| Cloud 5M$11,475 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_5m_v4) | 5,000,000 | 150,000 |  |  |  | $11,475 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_5m_v4) |
+| Cloud 6M$13,400 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_6m_v4) | 6,000,000 | 160,000 |  |  |  | $13,400 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_6m_v4) |
+| Cloud 7M$15,325 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_7m_v4) | 7,000,000 | 170,000 |  |  |  | $15,325 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_7m_v4) |
+| Cloud 8M$17,250 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_8m_v4) | 8,000,000 | 180,000 |  |  |  | $17,250 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_8m_v4) |
+| Cloud 9M$19,200 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_9m_v4) | 9,000,000 | 190,000 |  |  |  | $19,200 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_9m_v4) |
+| Cloud 10M$21,125 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_10m_v4) | 10,000,000 | 200,000 |  |  |  | $21,125 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_10m_v4) |
+| Cloud 11M$23,050 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_11m_v4) | 11,000,000 | 210,000 |  |  |  | $23,050 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_11m_v4) |
+| Cloud 12M$24,975 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_12m_v4) | 12,000,000 | 220,000 |  |  |  | $24,975 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_12m_v4) |
+| Cloud 13M$26,900 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_13m_v4) | 13,000,000 | 230,000 |  |  |  | $26,900 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_13m_v4) |
+| Cloud 14M$28,850 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_14m_v4) | 14,000,000 | 240,000 |  |  |  | $28,850 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_14m_v4) |
+| Cloud 15M$30,775 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_15m_v4) | 15,000,000 | 250,000 |  |  |  | $30,775 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_15m_v4) |
+| Cloud 16M$32,700 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_16m_v4) | 16,000,000 | 260,000 |  |  |  | $32,700 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_16m_v4) |
+| Cloud 17M$34,625 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_17m_v4) | 17,000,000 | 270,000 |  |  |  | $34,625 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_17m_v4) |
+| Cloud 18M$36,550 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_18m_v4) | 18,000,000 | 280,000 |  |  |  | $36,550 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_18m_v4) |
+| Cloud 19M$38,500 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_19m_v4) | 19,000,000 | 290,000 |  |  |  | $38,500 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_19m_v4) |
+| Cloud 20M$40,425 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_20m_v4) | 20,000,000 | 300,000 |  |  |  | $40,425 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_20m_v4) |
+| Cloud 21M$42,350 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_21m_v4) | 21,000,000 | 310,000 |  |  |  | $42,350 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_21m_v4) |
+| Cloud 22M$44,275 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_22m_v4) | 22,000,000 | 320,000 |  |  |  | $44,275 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_22m_v4) |
+| Cloud 23M$46,200 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_23m_v4) | 23,000,000 | 330,000 |  |  |  | $46,200 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_23m_v4) |
+| Cloud 24M$48,150 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_24m_v4) | 24,000,000 | 340,000 |  |  |  | $48,150 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_24m_v4) |
+| Cloud 25M$50,075 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_25m_v4) | 25,000,000 | 350,000 |  |  |  | $50,075 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_25m_v4) |
+| Cloud 26M$52,000 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_26m_v4) | 26,000,000 | 360,000 |  |  |  | $52,000 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_26m_v4) |
+| Cloud 27M$53,925 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_27m_v4) | 27,000,000 | 370,000 |  |  |  | $53,925 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_27m_v4) |
+| Cloud 28M$55,850 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_28m_v4) | 28,000,000 | 380,000 |  |  |  | $55,850 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_28m_v4) |
+| Cloud 29M$57,800 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_29m_v4) | 29,000,000 | 390,000 |  |  |  | $57,800 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_29m_v4) |
+| Cloud 30M$59,725 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_30m_v4) | 30,000,000 | 400,000 |  |  |  | $59,725 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_30m_v4) |
+| Cloud 31M$61,650 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_31m_v4) | 31,000,000 | 410,000 |  |  |  | $61,650 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_31m_v4) |
+| Cloud 32M$63,575 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_32m_v4) | 32,000,000 | 420,000 |  |  |  | $63,575 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_32m_v4) |
+| Cloud 33M$65,500 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_33m_v4) | 33,000,000 | 430,000 |  |  |  | $65,500 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_33m_v4) |
+| Cloud 34M$67,450 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_34m_v4) | 34,000,000 | 440,000 |  |  |  | $67,450 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_34m_v4) |
+| Cloud 35M$69,375 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_35m_v4) | 35,000,000 | 450,000 |  |  |  | $69,375 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_35m_v4) |
+| Cloud 36M$71,300 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_36m_v4) | 36,000,000 | 460,000 |  |  |  | $71,300 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_36m_v4) |
+| Cloud 37M$73,225 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_37m_v4) | 37,000,000 | 470,000 |  |  |  | $73,225 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_37m_v4) |
+| Cloud 38M$75,150 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_38m_v4) | 38,000,000 | 480,000 |  |  |  | $75,150 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_38m_v4) |
+| Cloud 39M$77,100 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_39m_v4) | 39,000,000 | 490,000 |  |  |  | $77,100 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_39m_v4) |
+| Cloud 40M$79,025 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_40m_v4) | 40,000,000 | 500,000 |  |  |  | $79,025 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_40m_v4) |
+| Cloud 41M$80,950 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_41m_v4) | 41,000,000 | 510,000 |  |  |  | $80,950 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_41m_v4) |
+| Cloud 42M$82,875 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_42m_v4) | 42,000,000 | 520,000 |  |  |  | $82,875 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_42m_v4) |
+| Cloud 43M$84,800 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_43m_v4) | 43,000,000 | 530,000 |  |  |  | $84,800 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_43m_v4) |
+| Cloud 44M$86,750 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_44m_v4) | 44,000,000 | 540,000 |  |  |  | $86,750 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_44m_v4) |
+| Cloud 45M$88,675 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_45m_v4) | 45,000,000 | 550,000 |  |  |  | $88,675 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_45m_v4) |
+| Cloud 46M$90,600 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_46m_v4) | 46,000,000 | 560,000 |  |  |  | $90,600 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_46m_v4) |
+| Cloud 47M$92,525 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_47m_v4) | 47,000,000 | 570,000 |  |  |  | $92,525 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_47m_v4) |
+| Cloud 48M$94,450 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_48m_v4) | 48,000,000 | 580,000 |  |  |  | $94,450 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_48m_v4) |
+| Cloud 49M$96,400 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_49m_v4) | 49,000,000 | 590,000 |  |  |  | $96,400 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_49m_v4) |
+| Cloud 50M$98,325 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_50m_v4) | 50,000,000 | 600,000 |  |  |  | $98,325 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_50m_v4) |
+| Cloud 51M$100,250 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_51m_v4) | 51,000,000 | 610,000 |  |  |  | $100,250 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_51m_v4) |
+| Cloud 52M$102,175 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_52m_v4) | 52,000,000 | 620,000 |  |  |  | $102,175 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_52m_v4) |
+| Cloud 53M$104,100 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_53m_v4) | 53,000,000 | 630,000 |  |  |  | $104,100 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_53m_v4) |
+| Cloud 54M$106,050 / month [Get Started](https://serpapi.com/users/sign_up?plan=cloud_54m_v4) | 54,000,000 | 640,000 |  |  |  | $106,050 | [Get Started](https://serpapi.com/users/sign_up?plan=cloud_54m_v4) |
+
+### Need more volume?
+
+Contact us at **contact@serpapi.com**. We'll be glad to help.
+
+[Contact us](https://serpapi.com/#contact)
+
+### Enterprise-grade security & support
+
+Engineered for total data privacy, industry-leading compliance, and guaranteed global reliability.
+
+![SerpApi SOC 2 Type II](https://serpapi.com/assets/security_page/soc2-1f04c6195e8a42bfc90ca38c737bfe84afee7d3cc68c611967e83343900d8270.png)![SerpApi ISO 27001](https://serpapi.com/assets/security_page/ISO27001-ece658830a54860c97088a8857e4054e6072e6568a89a72ec90dfe7c011169b1.png)![SerpApi ISO 27701](https://serpapi.com/assets/security_page/ISO27701-f46af525163bff1b3eb30e55215c9c03f0096982973de0d39d66e4a5fde9843d.png)
+
+- #### ZeroTrace Mode
+
+
+With ZeroTrace Mode enabled, we don't store your search parameters, files, or data. Once a search completes, it's as if it never happened.
+
+- #### Security & Compliance
+
+
+We're SOC 2 Type II, SOC 3, and ISO 27001 certified - Independently audited controls for security, availability, and confidentiality.
+
+- #### Premium support
+
+
+Get help from a global team of experts, ready to guide you through any issue. Backed by uptime SLAs of up to 99.97%.
+
+
+## They trust us
+
+You are in good company. Join them.
+
+![Nvidia](https://serpapi.com/assets/they_trust_us/nvidia-f6aef93c646a6c2a270355bdc6f4ef2c3bd2387ba13fe96e1df0f252671047c5.svg)
+
+![Shopify](https://serpapi.com/assets/they_trust_us/shopify-3c81ac3bcad10eec68700a6d803fb53bf82b4b86718efd46ada57c251e6881e1.svg)
+
+![Perplexity](https://serpapi.com/assets/they_trust_us/perplexity-91ee04700ccfae8810e002b6b9f2fa7fd1b754dc246d58e6c29de45013b48825.svg)
+
+![Adobe](https://serpapi.com/assets/they_trust_us/adobe-54213e56d564e8174ec2de6aa5f91907aebadc38215f4c3597d1e9b83cce127a.svg)
+
+![Samsung](https://serpapi.com/assets/they_trust_us/samsung-586d5e2accb43c4a87afc4e8a5bcb22ac51c9a610deffc8cc1e678dc7ec41473.svg)
+
+![KPMG](https://serpapi.com/assets/they_trust_us/kpmg-6148c3dd449898c254f9734003ae845410af3c5ff89affcc8498cf8335a64d24.svg)
+
+![Ahrefs](https://serpapi.com/assets/they_trust_us/ahrefs-d7e94eea8486aa9827442c32cd2bb84c2ccf16f34e465cd8fde9918ac2b08d0b.svg)
+
+![Grubhub](https://serpapi.com/assets/they_trust_us/grubhub-412503dc714c1cea29fc6312ce8e6241a840644d39c7d3676e979cbcaedfaaa5.svg)
+
+![AI21 Labs](https://serpapi.com/assets/they_trust_us/ai21_labs-99130e54735f2d15b7a8a987851c9c14cfa3f9d5fa1f0dc94d70ac35db517e15.svg)
+
+![Salesforce](https://serpapi.com/assets/they_trust_us/salesforce-7d9b201ad6e004461fd650d312d0ee85f9a54bd343e8a1d6784b06b506024c15.svg)
+
+![Thomson Reuters](https://serpapi.com/assets/they_trust_us/thomson_reuters-737571a18eea2623d86ddd80cf83a9dd8fb56a603c8c03bc294f204ca12fcdd5.svg)
+
+![Morgan Stanley](https://serpapi.com/assets/they_trust_us/morgan_stanley-385a9779ff55c01a07d9f6b35b683d4f91b74839e67c399597599cfe40b5b406.svg)
+
+![United Nations](https://serpapi.com/assets/they_trust_us/un-db425e5e8b13851ed1a242c3667ae82af4ce459865fb471e801a5954a444ab75.svg)
+
+![Experian](https://serpapi.com/assets/they_trust_us/experian-8773285de164ba7496a8912fd50c1aa7b14cbb018b686eb1d6d6609ab508e966.svg)
+
+![BrightLocal](https://serpapi.com/assets/they_trust_us/bright_local-7f79a54553c8a2c4b4c15c5dbd31a0d1625bcd093737145c303623cbe79e8625.svg)
+
+#### FAQs
+
+How are searches counted?
+
+Only successful searches are counted toward your monthly searches. Cached, errored, and failed searches are not. The number of results returned per response will not affect the number of credits used—responses with 100 results or empty result sets will both count as 1 search.
+
+Can we upgrade, downgrade, or cancel at any time?
+
+Yes, you can upgrade, downgrade, or cancel your plan at any time without any restrictions.
+
+What happens if I cancel before my plan expires?
+
+If you cancel before your plan expires, you can continue to use your remaining searches until the renewal date. After that, your plan will not be renewed.
+
+What happens when I upgrade my plan?
+
+When you upgrade your plan, you'll only pay the difference between your current plan and the new one. Your renewal date will remain the same.
+
+What happens when I downgrade my plan?
+
+When you downgrade your plan, you'll keep your current renewal date, and your subscription will renew at the lower plan rate. Any remaining searches from your previous plan will be added to your 'Extra Credits' balance.
+
+What happens if I run out of searches in a month?
+
+You can set your plan to Automatic Early Renewal. It will trigger an early renewal once you've used all your searches. You can toggle the Automatic Early Renewal anytime by visiting [this page](https://serpapi.com/plan). You can also renew your plan manually. In both cases, your searches will be fully replenished, your renewal date will be updated, and your searches will reset at the start of the new billing cycle.
+
+What's your refund policy?
+
+We offer a full refund within 7 days of the date you subscribed to a plan unless you've used more than 20% of your searches.

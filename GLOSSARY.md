@@ -177,7 +177,7 @@ _Avoid_: scholar paper id、result id、version
 _Avoid_: scholar scraper、scholar_serpapi
 
 **Platform Operation**:
-Platform 的一项操作。每个 Platform 都提供 search 与 fetch；改变结果种类或必需输入的操作是新的 Platform Operation，不是参数，例如 Google Scholar 的 Cited-by、小红书的 Comments、X 的 Ask 与 Hacker News 的 Stories。
+Platform 的一项操作。每个 Platform 都提供 search 与 fetch；改变结果种类或必需输入的操作是新的 Platform Operation，不是参数，例如 Google Scholar 的 Cited-by、小红书与 YouTube 的 Comments、X 与 YouTube 的 Ask、Hacker News 的 Stories，以及 YouTube 的 Videos 与 Transcribe。
 _Avoid_: platform option、sub-command flag
 
 **Cited-by**:
@@ -185,12 +185,24 @@ _Avoid_: platform option、sub-command flag
 _Avoid_: citations、references、backlinks
 
 **Comments**:
-列出一篇小红书笔记的一级评论、并可展开前几条评论第一页回复的 Platform Operation；不签发 cursor，笔记没有评论时给出空列表。
+列出一个平台条目一级评论的 Platform Operation；回复与续页的范围由平台定义：小红书可展开前几条评论的第一页回复、不签发 cursor，YouTube 只附带随评论一起返回的回复。条目没有评论时给出空列表；评论被关闭不是空列表。
 _Avoid_: replies（指楼中楼回复本身）、thread
 
 **Ask**:
-只在 X 上检索、由模型写出带引用回答的 Platform Operation；结果是一段回答及其引用的来源，不是条目列表，回答整体是 Relayed Content。
-_Avoid_: X answer search、summary、main search
+由模型只依据平台内容写出回答的 Platform Operation；结果是一段回答及其来源，不是条目列表，回答整体是 Relayed Content。回答依据的范围由平台定义：X 为模型在 X 上检索到的帖子，YouTube 为单个视频的画面与声音。
+_Avoid_: X answer search、summary、main search、video analysis
+
+**Videos**:
+列出 YouTube 一个播放列表或频道所含视频的 Platform Operation；条目带有在集合中的位置，频道的视频按发布时间倒序。
+_Avoid_: playlist fetch、channel search、uploads
+
+**Transcript（字幕文档）**:
+一个视频的一条字幕渲染成的带时间戳文档，标明字幕的语言与来源：发布者上传的字幕、平台自动识别的字幕或模型生成的字幕。平台上已有字幕的 Transcript 是视频的 `full_text`；模型生成的 Transcript 只经 Transcribe 交付。
+_Avoid_: 逐字稿、subtitles dump、captions file
+
+**Transcribe**:
+由模型听看一个视频后生成 Transcript 的 Platform Operation；结果整体是 Relayed Content，只在调用者显式请求时运行，不作为平台字幕缺失时的自动替代。
+_Avoid_: ASR fallback、generated full text
 
 **Stories**:
 列出 Hacker News 某个官方榜单当前条目的 Platform Operation；条目按榜单排名排列，不签发 cursor。
@@ -205,7 +217,7 @@ _Avoid_: web fetch、platform download
 _Avoid_: detail level、verbosity
 
 **Relayed Content（转述内容）**:
-Platform Route 经模型转述得到的条目内容：模型的工具读到了原文，forager 只拿到模型写出的文本。条目身份可以由 route 用可核对的事实确认，正文与作者不保证逐字，例如 X 平台经 xAI 读到的帖子正文。
+Platform Route 经模型转述得到的条目内容：模型的工具读到了原文，forager 只拿到模型写出的文本。条目身份可以由 route 用可核对的事实确认，正文与作者不保证逐字，例如 X 平台经 xAI 读到的帖子正文，以及模型看过 YouTube 视频后写出的回答与字幕。
 _Avoid_: platform-native content、verbatim text、quoted post
 
 **Page Cursor**:

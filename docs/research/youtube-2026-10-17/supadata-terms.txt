@@ -1,0 +1,137 @@
+[Skip to Content](https://supadata.ai/legal/terms#nextra-skip-nav)
+
+# Terms of Service
+
+* * *
+
+### 1\. Scope & Parties [Permalink for this section](https://supadata.ai/legal/terms\#1-scope--parties)
+
+* * *
+
+These Terms of Service (“ **Terms**”) govern access to and use of the application-programming-interface and related services (collectively, the “ **API**”) provided by **Dumpling Software UG (haftungsbeschränkt)** (“ **Company**,” “ **we**,” “ **us**”). Each API user (“ **User**,” “ **you**”) enters a binding agreement with the Company by generating an API key, making an API call, or otherwise using the Service.
+
+### 2\. Acceptance & Capacity [Permalink for this section](https://supadata.ai/legal/terms\#2-acceptance--capacity)
+
+* * *
+
+By accessing the API you represent that (a) you are legally competent and (b) you have authority to bind any entity on whose behalf you use the API.
+
+### 3\. License & Access [Permalink for this section](https://supadata.ai/legal/terms\#3-license--access)
+
+* * *
+
+We grant you a limited, non-exclusive, non-transferable, revocable licence to call the API in accordance with these Terms. Resale, sub-licensing or white-labelling requires prior written consent.
+
+### 4\. Data Origin & Ownership [Permalink for this section](https://supadata.ai/legal/terms\#4-data-origin--ownership)
+
+* * *
+
+Unless you supply your own files through a direct file URL, all data delivered via the API originates from publicly accessible sources supplied by independent third-party data providers. The original data creators retain all intellectual-property rights. No ownership or other IP rights are transferred to you.
+
+### 5\. Compliance With Laws & Third-Party Terms [Permalink for this section](https://supadata.ai/legal/terms\#5-compliance-with-laws--third-party-terms)
+
+* * *
+
+You are solely responsible for ensuring that your use of the API and any data obtained complies with (i) all applicable laws and regulations, including data-protection rules, export controls and sanctions; and (ii) the terms of service of any platform to which the data relates.
+
+### 6\. Prohibited Uses [Permalink for this section](https://supadata.ai/legal/terms\#6-prohibited-uses)
+
+* * *
+
+You must not use the API to:
+
+1. Violate laws, regulations or third-party rights;
+2. Process personal data without a valid legal basis;
+3. Interfere with platform integrity (e.g. denial-of-service, excessive traffic);
+4. Engage in fraudulent, deceptive, harmful or unethical conduct;
+5. Attempt to reverse-engineer or gain unauthorised access to the API or underlying systems.
+
+### 7\. Security & Rate Limits [Permalink for this section](https://supadata.ai/legal/terms\#7-security--rate-limits)
+
+* * *
+
+Keep your API credentials confidential. You are liable for all requests made with your key. We may throttle or suspend keys that exceed reasonable request volumes or threaten system stability.
+
+### 8\. Service Availability [Permalink for this section](https://supadata.ai/legal/terms\#8-service-availability)
+
+* * *
+
+The API is offered on a best-effort basis. Functionality may change, be suspended, or discontinued at any time without notice.
+
+### 9\. Force Majeure [Permalink for this section](https://supadata.ai/legal/terms\#9-force-majeure)
+
+* * *
+
+We are not liable for delays or failures caused by events beyond our reasonable control—​including platform countermeasures, network outages, legal injunctions, war, or acts of nature.
+
+### 10\. Intellectual Property [Permalink for this section](https://supadata.ai/legal/terms\#10-intellectual-property)
+
+* * *
+
+All software, documentation and derivative works created by the Company remain our sole property. Except for the limited licence in § 3, no rights are granted.
+
+### 11\. Indemnity [Permalink for this section](https://supadata.ai/legal/terms\#11-indemnity)
+
+* * *
+
+You will indemnify, defend and hold harmless the Company, its affiliates, and their directors and employees from any claim, damage, loss or expense (including reasonable attorneys’ fees) arising out of (i) your use of the API or data, (ii) alleged infringement of third-party rights, or (iii) any breach of these Terms.
+
+### 12\. Warranty Disclaimer [Permalink for this section](https://supadata.ai/legal/terms\#12-warranty-disclaimer)
+
+* * *
+
+The API and data are provided **“as is” and “as available.”** We make no warranties—express, implied or statutory—including but not limited to merchantability, fitness for a particular purpose, accuracy, non-infringement or uninterrupted availability.
+
+### 13\. Limitation of Liability [Permalink for this section](https://supadata.ai/legal/terms\#13-limitation-of-liability)
+
+_13.1_ We are liable without limitation for intent, gross negligence, and injury to life, body or health.
+
+_13.2_ For simple negligence, our liability is limited to foreseeable, typical damages arising from the breach of a cardinal duty (Kardinalpflicht).
+
+_13.3_ We are not liable for indirect, incidental, special, punitive or consequential damages, lost profits or loss of data.
+
+_13.4_ Mandatory liability under the German Product Liability Act remains unaffected.
+
+### 14\. Refunds & Cancellations [Permalink for this section](https://supadata.ai/legal/terms\#14-refunds--cancellations)
+
+* * *
+
+_14.1_ **Monthly Plans.** Users on a monthly billing cycle may request a refund of the fees charged for the most recent billing period, provided that no API requests were made using the User’s credentials during that billing period. Once any API request has been recorded, the corresponding billing period is deemed fully consumed and non-refundable.
+_14.2_ **Annual Plans.** Fees for annual subscription plans are non-refundable, except where the User exercises a cooling-off right within fourteen (14) calendar days of the subscription start date. In such case, the Company shall issue a pro-rated refund reflecting the unused portion of the annual term. After the expiry of the fourteen-day cooling-off period, no refunds shall be granted for annual plans.
+_14.3_ The Company reserves the right to deny any refund request where it reasonably determines that the User has breached these Terms or has engaged in conduct that would constitute a prohibited use under § 6.
+
+### 15\. Governing Law & Venue [Permalink for this section](https://supadata.ai/legal/terms\#15-governing-law--venue)
+
+* * *
+
+These Terms are governed by German law, excluding conflict-of-law principles. Exclusive venue for all disputes is the competent court in Berlin-Mitte.
+
+### 16\. Amendments [Permalink for this section](https://supadata.ai/legal/terms\#16-amendments)
+
+* * *
+
+We may modify these Terms by posting an updated version. Continued use of the API after the effective date of an amendment constitutes acceptance of the change.
+
+### 17\. Entire Agreement & Severability [Permalink for this section](https://supadata.ai/legal/terms\#17-entire-agreement--severability)
+
+* * *
+
+These Terms supersede all prior agreements regarding the API. If any provision is held invalid, the remaining provisions remain in full force. No waiver of any term is deemed a further waiver of that term or any other.
+
+### 18\. Data Protection [Permalink for this section](https://supadata.ai/legal/terms\#18-data-protection)
+
+* * *
+
+Where you use the API to process personal data, you are the controller and the Company is your processor under the [Data Processing Agreement](https://supadata.ai/legal/dpa), which is part of these Terms. You warrant that you have a legal basis for any personal data in content you submit or obtain through the API. The Company processes your account and billing data as described in the [Privacy Policy](https://supadata.ai/legal/privacy).
+
+* * *
+
+_Version 1.0 · Last updated: 5 August 2026_
+
+* * *
+
+This site uses cookies to measure and improve your experience.
+
+Reject [Details](https://supadata.ai/legal/privacy)
+
+Accept

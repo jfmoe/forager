@@ -1,0 +1,94 @@
+{
+  "checked_at": "2026-10-17T12:36:26.992893+00:00",
+  "baseline": "b3e0d456bfa8f7310e3e88cf22b1a49069f6e0e8",
+  "tools": [
+    {
+      "command": [
+        "forager",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stdout": "forager 0.13.0\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "opencli",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stdout": "1.8.6\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "yt-dlp",
+        "--ignore-config",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stdout": "2026.08.19\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "gh",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stdout": "gh version 2.102.0 (2026-09-30)\nhttps://github.com/cli/cli/releases/tag/v2.102.0\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "opencli",
+        "doctor"
+      ],
+      "exit_code": 0,
+      "stdout": "opencli v1.8.6 doctor (node v24.16.0)\n\n[OK] Daemon: running on port 19825 (v1.8.6)\n[OK] Extension: connected (v1.0.24)\n\nProfiles:\n  • r9qugrt2: connected v1.0.24\n[OK] Connectivity: connected in 0.1s\n\nEverything looks good!\n",
+      "stderr": "\n  Update available: v1.8.6 → v1.8.8\n  Run: npm install -g @jackwener/opencli\n\n"
+    },
+    {
+      "command": [
+        "opencli",
+        "youtube",
+        "--help"
+      ],
+      "exit_code": 0,
+      "stdout": "Usage: opencli youtube <command> [args] [options]\n\nchannel, comments, feed, history, like, login, playlist, search, subscribe, subscriptions,\ntranscript, unlike, unsubscribe, video, watch-later, whoami\n\nCommands:\n  channel <id> [options]      [read] Get YouTube channel info and recent videos\n  comments <url> [options]    [read] Get YouTube video comments\n  feed [options]              [read] Get YouTube homepage recommended videos\n  history [options]           [read] Get YouTube watch history\n  like <url>                  [write] Like a YouTube video\n  login [options]             [write] Open youtube login and wait until the browser session is authenticated\n  playlist <id> [options]     [read] Get YouTube playlist info and video list\n  search <query> [options]    [read] Search YouTube videos\n  subscribe <channel>         [write] Subscribe to a YouTube channel\n  subscriptions [options]     [read] List subscribed YouTube channels\n  transcript <url> [options]  [read] Get YouTube video transcript/subtitles\n  unlike <url>                [write] Remove like from a YouTube video\n  unsubscribe <channel>       [write] Unsubscribe from a YouTube channel\n  video <url>                 [read] Get YouTube video metadata (title, views, description, etc.)\n  watch-later [options]       [read] Get your YouTube Watch Later queue\n  whoami                      [read] Show the current logged-in youtube account\n\nCommon options:\n  -f, --format <fmt>  Output format: table, plain, json, yaml, md, csv  default: table  choices: table, plain, json, yaml, md, csv\n  --trace <mode>      Trace capture: off, on, retain-on-failure  default: off  choices: off, on, retain-on-failure\n  -v, --verbose       Debug output  default: false\n  -h, --help          display help for command\n\nBrowser common options:\n  --window <mode>        Browser window mode: foreground or background  choices: foreground, background\n  --site-session <mode>  Adapter site session lifecycle: ephemeral or persistent  choices: ephemeral, persistent\n  --keep-tab <bool>      Keep the browser tab lease after the command finishes  choices: true, false\n\nAgent tip: use 'opencli youtube --help -f yaml' to get all command args/options in one structured response.\n",
+      "stderr": "\n  Update available: v1.8.6 → v1.8.8\n  Run: npm install -g @jackwener/opencli\n\n"
+    }
+  ],
+  "network": {
+    "http_code": 200,
+    "local_ip": "127.0.0.1",
+    "proxy_used": 1,
+    "remote_ip": "127.0.0.1",
+    "ssl_verify_result": 0,
+    "time_total": 0.5799,
+    "url_effective": "https://www.youtube.com/robots.txt"
+  },
+  "proxy_environment_presence": {
+    "HTTP_PROXY": false,
+    "HTTPS_PROXY": false,
+    "ALL_PROXY": false,
+    "http_proxy": true,
+    "https_proxy": true,
+    "all_proxy": true
+  },
+  "network_note": "Existing network configuration unchanged; socket IP may be a loopback proxy, not the public egress IP. No account/cookie/key values collected.",
+  "egress_observation": {
+    "checked_at": "2026-10-17T12:38:00.225775+00:00",
+    "source_url": "https://www.cloudflare.com/cdn-cgi/trace",
+    "fields": {
+      "ip": "179.255.123.153",
+      "colo": "LAX",
+      "http": "http/2",
+      "loc": "US",
+      "tls": "TLSv1.3",
+      "warp": "off",
+      "gateway": "off"
+    },
+    "note": "curl/CLI observation only. Browser and forager retrieval provider exits were not independently measured."
+  }
+}

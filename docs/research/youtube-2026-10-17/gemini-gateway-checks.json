@@ -1,0 +1,118 @@
+{
+ "checked_at": "2026-10-17T21:10/21:20+08:00",
+ "setup": "User-run CLIProxyAPI gateway (host omitted) backed by an Antigravity account; Gemini native endpoint POST /v1beta/models/<model>:generateContent with a fileData part {mimeType: video/*, fileUri: https://www.youtube.com/watch?v=<id>}; key sent in x-goog-api-key, never logged",
+ "cliproxyapi_source": {
+  "repo": "router-for-me/CLIProxyAPI",
+  "commit": "911f49cbd49f4fe2516979754a7488a3fd14fe64",
+  "gemini_route": "internal/api/server_routes.go:129-134 (/v1beta/models/*action)",
+  "gemini_to_antigravity": "internal/translator/antigravity/gemini/antigravity_gemini_request.go: normalizes roles, rewrites function names, sanitizes thought signatures; parts such as fileData pass through",
+  "openai_video_url": "internal/translator/antigravity/openai/chat-completions/antigravity_openai_request.go:185 + internal/translator/common/file_data.go: video_url becomes inlineData; a YouTube URL is not sent as fileUri",
+  "upstream": "internal/auth/antigravity/constants.go:29-31 cloudcode-pa.googleapis.com v1internal",
+  "cooldown": "sdk/cliproxy/auth/conductor_cooldown.go:1055 and :2692: upstream 401/402/403 cools the credential for 30 minutes unless cooldown.disable-cooling is true"
+ },
+ "reference_captions": "ytdlp-Ks-_Mh1QhMc-sample.en.vtt: 'for two minutes' 00:24.010-00:28.173; 'can you fake it till you make it' 07:06.638-07:10.169; 'two key hormones' 08:53.919-08:57.960",
+ "observations": [
+  "Text baseline 8 prompt tokens; 19 s video 1747 prompt tokens; 21 min video 115036 prompt tokens (about 91 tokens/s)",
+  "generationConfig.mediaResolution=MEDIA_RESOLUTION_LOW did not change promptTokenCount; the repeat call reported 113259 cached tokens",
+  "Nonexistent video id returned upstream 403 PERMISSION_DENIED; with default cooling every Gemini model on the gateway then returned 503 auth_unavailable; after the operator set disable-cooling: true, a 403 no longer affected the next request",
+  "gemini-flash-latest and gemini-3.8-flash-high both reported modelVersion gemini-3.8-flash-n"
+ ],
+ "runs": [
+  {
+   "label": "baseline-text",
+   "model": "gemini-flash-latest",
+   "status": 200,
+   "seconds": 2.7,
+   "usage": {
+    "promptTokenCount": 8,
+    "candidatesTokenCount": 1,
+    "totalTokenCount": 71,
+    "thoughtsTokenCount": 62
+   },
+   "modelVersion": "gemini-3.8-flash-n",
+   "text": "OK",
+   "error": null
+  },
+  {
+   "label": "youtube-me-at-the-zoo",
+   "model": "gemini-flash-latest",
+   "status": 200,
+   "seconds": 10.0,
+   "usage": {
+    "promptTokenCount": 1747,
+    "candidatesTokenCount": 494,
+    "totalTokenCount": 2736,
+    "thoughtsTokenCount": 495
+   },
+   "modelVersion": "gemini-3.8-flash-n",
+   "text": "Based on the video, here are the details:\n\n### 1) Setting and Background\n* **Setting:** An elephant enclosure at an outdoor zoo.\n* **Behind the person:**\n  * **Enclosure & Structure:** There is a metal post-and-cable barrier fence separating the visitor area from the animals. A rocky faux-cliff wall stands to the left, and a metal feeding cage/shelter holding dry straw/hay is in the center-left. Trees and foliage are visible in the distant background.\n  * **Animals:** Two elephants are standing in the enclosure. One elephant in the center is reaching up into a hay feeder, while the other stands behind to the right facing rightwards. \n  * **Colors:** Predominantly muted and earthy tones—slate-gray elephants, brown/tan straw on the ground, beige and gray rock formations, silver/gray metal fence posts, and green trees.\n\n---\n\n### 2) Attire\n* A **dark navy-blue crew-neck t-shirt**.\n* An open **color-blocked jacket/windbreaker** featuring bright red panels on the front/sleeves, gray/dark-gray trim along the chest and shoulders, and a raised gray collar.\n\n---\n\n### 3) Transcript / Quote\n> *\"Alright, so here we are in front of the, uh, elephants. And the cool thing about these guys is that, is that they have really, really, really long, um, trunks, and that's, that's cool. And that's pretty much all there is to say.\"*\n\n---\n\n### 4) Key Timestamps\n* **00:00 – 00:02:** The speaker begins addressing the camera and introduces the location (*\"Alright, so here we are...\"*).\n* **00:06 – 00:12",
+   "error": null
+  },
+  {
+   "label": "youtube-nonexistent-id",
+   "model": "gemini-flash-latest",
+   "status": 403,
+   "seconds": 2.1,
+   "usage": null,
+   "modelVersion": null,
+   "text": "",
+   "error": "{\"error\":{\"code\":403,\"message\":\"The caller does not have permission\",\"status\":\"PERMISSION_DENIED\"}}"
+  },
+  {
+   "label": "ted-21min-default",
+   "model": "gemini-flash-latest",
+   "status": 200,
+   "seconds": 20.5,
+   "usage": {
+    "promptTokenCount": 115036,
+    "candidatesTokenCount": 406,
+    "totalTokenCount": 116421,
+    "thoughtsTokenCount": 979
+   },
+   "modelVersion": "gemini-3.8-flash-n",
+   "text": "Here are the answers based on the video:\n\n### (a), (b), (c) Timestamps\n* **(a) 'for two minutes' (first occurrence):** `00:26` – `00:28`\n* **(b) 'can you fake it till you make it':** `07:09` – `07:11`\n* **(c) 'two key hormones':** `08:54` – `08:56`\n\n---\n\n### (d) Verbatim Transcription (00:15 – 00:40)\n> *\"So I want to start by offering you a free, no-tech life hack, and all it requires of you is this: that you change your posture for two minutes. But before I give it away, I want to ask you to right now do a little audit of your body and what you're doing with your body. So how many of you are sort of making yourselves smaller, maybe you're hunching, crossing your legs...\"*\n\n---\n\n### (e) Visual Elements Not Spoken Aloud\n1. **Event Location & Date (`00:21`):** An on-screen graphic at the bottom displays `\"JUNE 2012 | EDINBURGH, SCOTLAND\"`, followed at `00:41` by `\"RECORDED AT TEDGLOBAL\"`.\n2. **Measurement Units on Data Slides (`11:49` – `12:15`):** The graphs tracking testosterone and cortisol changes display the specific unit of measurement `(pg/ml)` on their slide titles/axes, which the speaker never mentions verbally. *(Alternatively, at `15:10`, the slide diagram displays words like \"Passionate\", \"Enthusiastic\", and \"Captivating\" around \"Presence\" that are not read aloud).*",
+   "error": null
+  },
+  {
+   "label": "ted-21min-low-res",
+   "model": "gemini-flash-latest",
+   "status": 200,
+   "seconds": 16.3,
+   "usage": {
+    "promptTokenCount": 115036,
+    "candidatesTokenCount": 386,
+    "totalTokenCount": 116159,
+    "cachedContentTokenCount": 113259,
+    "thoughtsTokenCount": 737
+   },
+   "modelVersion": "gemini-3.8-flash-n",
+   "text": "Here are the requested details from the video:\n\n### **(a), (b), (c) Timestamps**\n* **(a) 'for two minutes' (first occurrence):** **00:26** – **00:28**\n* **(b) 'can you fake it till you make it':** **07:08** – **07:11**\n* **(c) 'two key hormones':** **08:54** – **08:56**\n\n---\n\n### **(d) Verbatim Transcription (00:15 – 00:40)**\n> \"So, I want to start by, um, offering you a free, no-tech life hack, um, and all it requires of you is this: that you change your posture for two minutes. But before I give it away, I want to ask you to, right now, do a little audit of your body and what you're doing with your body. So, how many of you are sort of making yourselves smaller? Maybe you're hunching, um, crossing your legs...\"\n\n---\n\n### **(e) On-Screen / Slide Elements Not Spoken Aloud**\n1. **00:20 – 00:24:** The on-screen text overlay displays the date and venue: **\"JUNE 2012\"** and **\"EDINBURGH SCOTLAND\"** (as well as **\"RECORDED AT TEDGlobal\"** at **00:40**).\n2. **11:49 – 11:51:** The slide title for hormone change displays the scientific measurement unit **\"(pg/ml)\"** next to **\"Testosterone Change\"** (which is not read aloud).",
+   "error": null
+  },
+  {
+   "label": "nonexistent-after-disable-cooling",
+   "model": "gemini-flash-latest",
+   "status": 403,
+   "seconds": 2.7,
+   "usage": null,
+   "modelVersion": null,
+   "text": "",
+   "error": "{\"error\":{\"code\":403,\"message\":\"The caller does not have permission\",\"status\":\"PERMISSION_DENIED\"}}"
+  },
+  {
+   "label": "baseline-after-403",
+   "model": "gemini-flash-latest",
+   "status": 200,
+   "seconds": 1.8,
+   "usage": {
+    "promptTokenCount": 8,
+    "candidatesTokenCount": 1,
+    "totalTokenCount": 82,
+    "thoughtsTokenCount": 73
+   },
+   "modelVersion": "gemini-3.8-flash-n",
+   "text": "OK",
+   "error": null
+  }
+ ]
+}

@@ -1,0 +1,15 @@
+{
+  "source_url": "https://serpapi.com/youtube-video-transcript/release-notes",
+  "checked_at": "2026-10-17T12:41:57.514511+00:00",
+  "completed_at": "2026-10-17T12:41:59.590516+00:00",
+  "command": [
+    "forager",
+    "fetch",
+    "https://serpapi.com/youtube-video-transcript/release-notes",
+    "--format",
+    "json"
+  ],
+  "exit_code": 0,
+  "stdout": "{\"provider\":\"firecrawl\",\"url\":\"https://serpapi.com/youtube-video-transcript/release-notes\",\"content\":\"# Last Release Notes: YouTube Video Transcript API - SerpApi\\n\\n[YouTube Video Transcript API](https://serpapi.com/youtube-video-transcript) \\\\> Last Release Notes\\n\\n|  | Release Thread | GitHub | Release Date |\\n| --- | --- | --- | --- |\\n| Fixed | \\\\[YouTube Video Transcript API\\\\] Empty results | [Details](https://github.com/serpapi/public-roadmap/issues/3702) | Apr 10, 2026 |\\n| Fixed | \\\\[YouTube Video Transcript API\\\\] Missing response on a valid video | [Details](https://github.com/serpapi/public-roadmap/issues/3464) | Mar 17, 2026 |\\n| Fixed | \\\\[Youtube Video Transcript API\\\\] All Responses Empty | [Details](https://github.com/serpapi/public-roadmap/issues/3353) | Jan 20, 2026 |\\n| Fixed | \\\\[Youtube Video Transcript API\\\\] 404s are timing out | [Details](https://github.com/serpapi/public-roadmap/issues/3138) | Oct 22, 2025 |\\n| New | \\\\[New API\\\\] Scrape YouTube Video Transcript | [Details](https://github.com/serpapi/public-roadmap/issues/1935) | Oct 07, 2025 |\\n\\n### **SerpApi** results for \\\"\\\"\\n\\n|     |     |     |\\n| --- | --- | --- |\\n| |     |     |\\n| --- | --- |\\n|  | × | | search |  |\\n\\nCustom Search\\n\\n|     |     |\\n| --- | --- |\\n|  | Sort by<br>Relevance<br>Date |\\n\\n|     |     |\\n| --- | --- |\\n|  |  |\"}\n",
+  "stderr": ""
+}

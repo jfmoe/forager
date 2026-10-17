@@ -1,0 +1,65 @@
+{
+  "source_url": "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+  "endpoint": "https://www.youtube.com/youtubei/v1/player (public client key omitted)",
+  "source_protocol_commit": "8f150ba8836da30a36bcd40e8fca226ed179ba72",
+  "checked_at": "2026-10-17T12:39:09.507146+00:00",
+  "http_status": "200",
+  "exit_code": 0,
+  "request": {
+    "context": {
+      "client": {
+        "clientName": "ANDROID",
+        "clientVersion": "20.10.38"
+      }
+    },
+    "videoId": "jNQXAC9IVRw"
+  },
+  "response_projection": {
+    "playabilityStatus": {
+      "status": "OK",
+      "playableInEmbed": true,
+      "offlineability": {
+        "buttonRenderer": {
+          "serviceEndpoint": {
+            "clickTrackingParams": "CAUQ6ewBIhMIvOzLiYnBlwMVz8ItAB2QpDF0ygEEkvT6Gg==",
+            "ypcGetOfflineUpsellEndpoint": {
+              "params": "ChPqqN25AQ0KC2pOUVhBQzlJVlJ3IgtqTlFYQUM5SVZSdyoVCAkYAVIPCgtqTlFYQUM5SVZSdyAB"
+            }
+          },
+          "trackingParams": "CAUQ6ewBIhMIvOzLiYnBlwMVz8ItAB2QpDF0"
+        }
+      },
+      "pictureInPicture": {
+        "pictureInPictureRenderer": {
+          "pictureInPictureStyleConfig": {
+            "enableScrubbing": true,
+            "enableNavigationControls": true
+          },
+          "pictureInPicturePlayability": "PICTURE_IN_PICTURE_PLAYABILITY_SHOPPING"
+        }
+      },
+      "miniplayer": {
+        "miniplayerRenderer": {
+          "playbackMode": "PLAYBACK_MODE_ALLOW"
+        }
+      },
+      "contextParams": "Q0FFU0FnZ0M="
+    },
+    "video_id": "jNQXAC9IVRw",
+    "tracks": [
+      {
+        "languageCode": "en",
+        "kind": null,
+        "vssId": ".en"
+      },
+      {
+        "languageCode": "de",
+        "kind": null,
+        "vssId": ".de"
+      }
+    ],
+    "error": null
+  },
+  "raw_response_bytes": 171273,
+  "note": "Protocol reconstruction only, not an execution of youtube-transcript-api; no downloaded source executed."
+}

@@ -1,0 +1,2033 @@
+{
+  "checked_on": "2026-10-17",
+  "generated_at": "2026-10-17T12:53:19.200612+00:00",
+  "repository_baseline": "b3e0d456bfa8f7310e3e88cf22b1a49069f6e0e8",
+  "hash_algorithm": "sha256",
+  "self_exclusion": "This manifest excludes its own bytes to avoid a circular hash; every other file in this directory is indexed.",
+  "normalization": "Paired .txt files are readable projections. Direct quota/search origin HTML masks public embedded client keys; each JSON records the pre-redaction body hash. User credential values were never copied.",
+  "source_policy": "Primary documentation, terms, source code and first-party read-only API observations. Search output and issue user reports are discovery/report evidence, not independent platform facts.",
+  "test_scope": {
+    "youtube_content_samples": [
+      "jNQXAC9IVRw",
+      "Ks-_Mh1QhMc"
+    ],
+    "paid_api_tests": 0,
+    "official_keyed_youtube_api_calls": 0,
+    "media_downloads": 0,
+    "downloaded_source_execution": false,
+    "credential_values_recorded": false,
+    "notes": "Document retrieval used existing forager configuration; no purchase, paid provider acceptance request, account/project creation or login performed. Initial yt-dlp dump probes were simulation only; later no-simulate/skip-download probes retrieved subtitle files."
+  },
+  "report": {
+    "file": "../2026-10-17-youtube-integration.md",
+    "bytes": 72318,
+    "sha256": "9eb37c0b34f404aadff75f265e0502a6d6bf708161c3f0631bb2ebf0fe562411",
+    "source_urls": [
+      "https://github.com/jfmoe/forager/tree/b3e0d456bfa8f7310e3e88cf22b1a49069f6e0e8"
+    ],
+    "role": "task_authored_synthesis_and_proposal; citations point to indexed primary evidence"
+  },
+  "files": [
+    {
+      "file": "anonymous-oembed.json",
+      "source_url": "https://www.youtube.com/oembed?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DjNQXAC9IVRw&format=json",
+      "source_urls": [
+        "https://www.youtube.com/oembed?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DjNQXAC9IVRw&format=json"
+      ],
+      "retrieved_at": "2026-10-17T12:37:53.227783+00:00",
+      "bytes": 1448,
+      "sha256": "94a630528eb060304dfd244cc90d9409813275593502a053c9db8a7b1116874e",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "anonymous-signed-timedtext.json",
+      "source_url": "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+      "source_urls": [
+        "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+      ],
+      "retrieved_at": "2026-10-17T12:39:05.769565+00:00",
+      "bytes": 365,
+      "sha256": "4a0f9fbda1cfe9a7aeb7455b7d8486f1d72b3251a64d9881c2e5822dd53961d6",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "anonymous-timedtext.json",
+      "source_url": "https://www.youtube.com/api/timedtext?v=jNQXAC9IVRw&lang=en&fmt=json3",
+      "source_urls": [
+        "https://www.youtube.com/api/timedtext?v=jNQXAC9IVRw&lang=en&fmt=json3"
+      ],
+      "retrieved_at": "2026-10-17T12:37:56.869294+00:00",
+      "bytes": 581,
+      "sha256": "98758786230f47f5fbbb97d9b893ae17d80555538c2e14010829247a53e7754a",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "anonymous-watch.json",
+      "source_url": "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+      "source_urls": [
+        "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+      ],
+      "retrieved_at": "2026-10-17T12:39:00.974276+00:00",
+      "bytes": 944,
+      "sha256": "2850555a8c699ea8c4fffcbd5751af366e0201874d4a35af99112c79d2342e60",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "bilibili-caption-sample-player.json",
+      "source_url": "https://api.bilibili.com/x/player/wbi/v2?bvid=BV12N4y1M7rh&cid=768121453",
+      "source_urls": [
+        "https://api.bilibili.com/x/player/wbi/v2?bvid=BV12N4y1M7rh&cid=768121453"
+      ],
+      "retrieved_at": "2026-10-17T12:42:44.476686+00:00",
+      "bytes": 2907,
+      "sha256": "ca0b4ea8e4db3af27833bde325e7fe7d134e659b250b4a7b40e4f6b7f5b86ce4",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "bilibili-caption-sample-view.json",
+      "source_url": "https://api.bilibili.com/x/web-interface/view?bvid=BV12N4y1M7rh",
+      "source_urls": [
+        "https://api.bilibili.com/x/web-interface/view?bvid=BV12N4y1M7rh"
+      ],
+      "retrieved_at": "2026-10-17T12:42:41.359083+00:00",
+      "bytes": 4042,
+      "sha256": "4ef8591102f4c091c13317322c4d2143574e0b53b56aeac1f090dd276e03b240",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "bilibili-doc.json",
+      "source_url": "https://open.bilibili.com/doc",
+      "source_urls": [
+        "https://open.bilibili.com/doc"
+      ],
+      "retrieved_at": "2026-10-17T12:40:13.856346+00:00",
+      "bytes": 2414,
+      "sha256": "ad63b3075e9607ac591654a82827669bdef260931ec8326c44bce16ed0073286",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "bilibili-doc.txt",
+      "source_url": "https://open.bilibili.com/doc",
+      "source_urls": [
+        "https://open.bilibili.com/doc"
+      ],
+      "retrieved_at": "2026-10-17T12:40:13.856346+00:00",
+      "bytes": 1806,
+      "sha256": "7bb625b705d1ff35f6e188141cbb1c59a302fb779569584046025af8550c4f95",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "bilibili-public-player.json",
+      "source_url": "https://api.bilibili.com/x/player/wbi/v2?bvid=BV1xx411c7mD&cid=62131",
+      "source_urls": [
+        "https://api.bilibili.com/x/player/wbi/v2?bvid=BV1xx411c7mD&cid=62131"
+      ],
+      "retrieved_at": "2026-10-17T12:41:05.790311+00:00",
+      "bytes": 3101,
+      "sha256": "458ce1538b9c0cc8e5ed695252699452e7804b37b56f9e2e23d4d7425d4d2cf4",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "bilibili-public-view.json",
+      "source_url": "https://api.bilibili.com/x/web-interface/view?bvid=BV1xx411c7mD",
+      "source_urls": [
+        "https://api.bilibili.com/x/web-interface/view?bvid=BV1xx411c7mD"
+      ],
+      "retrieved_at": "2026-10-17T12:40:45.207956+00:00",
+      "bytes": 2189,
+      "sha256": "0cf254fcd9150fc196ae1249fa1fa2f04a04a343205d5c8921bd396c57958e1b",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "build-manifest.py",
+      "source_url": "file:///Users/jfmoe/Coder/forager/docs/research/youtube-2026-10-17/build-manifest.py",
+      "source_urls": [
+        "file:///Users/jfmoe/Coder/forager/docs/research/youtube-2026-10-17/build-manifest.py"
+      ],
+      "retrieved_at": "2026-10-17T12:51:13.004338+00:00",
+      "bytes": 5353,
+      "sha256": "47ca1314af61b8e4ba8023c437b048bb548c406926ef30bc1e775483a2a2f9c9",
+      "role": "task_authored_collection_or_validation_code; not downloaded source"
+    },
+    {
+      "file": "collect.py",
+      "source_url": "file:///Users/jfmoe/Coder/forager/docs/research/youtube-2026-10-17/collect.py",
+      "source_urls": [
+        "file:///Users/jfmoe/Coder/forager/docs/research/youtube-2026-10-17/collect.py"
+      ],
+      "retrieved_at": "2026-10-17T12:35:36.455576+00:00",
+      "bytes": 1487,
+      "sha256": "eed8dc11254725025d867cfa0889b548e9bf8f4f95c47fc237cdf6ba10d2ff7a",
+      "role": "task_authored_collection_or_validation_code; not downloaded source"
+    },
+    {
+      "file": "credential-availability.json",
+      "source_url": "file:///Users/jfmoe/.config/forager/config.toml",
+      "source_urls": [
+        "file:///Users/jfmoe/.config/forager/config.toml",
+        "process://environment"
+      ],
+      "retrieved_at": "2026-10-17T12:34:58.185903+00:00",
+      "bytes": 835,
+      "sha256": "6c25bebf5a832ff059981e0ac86652e39661c660e4f6519c34ef6156d49fef0f",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "document-sources-extra.json",
+      "source_url": "https://docs.scrapecreators.com/v1/youtube/search",
+      "source_urls": [
+        "https://docs.scrapecreators.com/v1/youtube/search",
+        "https://docs.scrapecreators.com/v1/youtube/video",
+        "https://docs.scrapecreators.com/v1/youtube/video/transcript",
+        "https://docs.scrapecreators.com/v1/youtube/video/comments",
+        "https://scrapecreators.com/pricing",
+        "https://docs.supadata.ai/rate-limits",
+        "https://ai.google.dev/gemini-api/terms",
+        "https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide",
+        "https://developers.google.com/youtube/terms/branding-guidelines",
+        "https://developers.google.com/youtube/v3/guides/authentication",
+        "https://developer.vimeo.com/api/reference/videos#get_video_text_tracks"
+      ],
+      "retrieved_at": "2026-10-17T12:37:51.375731+00:00",
+      "bytes": 974,
+      "sha256": "c82ce6a510d3e09f9f9208654e439daf8826493bd06539fd77f68c141b73869b",
+      "role": "task_authored_document_retrieval_inputs"
+    },
+    {
+      "file": "document-sources-final.json",
+      "source_url": "https://docs.supadata.ai/youtube/search.md",
+      "source_urls": [
+        "https://docs.supadata.ai/youtube/search.md",
+        "https://docs.supadata.ai/get-metadata.md",
+        "https://docs.supadata.ai/api-reference/introduction.md",
+        "https://supadata.ai/pricing",
+        "https://serpapi.com/terms",
+        "https://open.bilibili.com/doc",
+        "https://open.douyin.com/platform/resource/docs/ability/search-management/video/",
+        "https://open.douyin.com/platform/resource/docs/openapi/video-management/douyin/search-video/account-video-list",
+        "https://open.douyin.com/platform/resource/docs/accession-guide/type-and-permission",
+        "https://developers.tiktok.com/doc/research-api-faq"
+      ],
+      "retrieved_at": "2026-10-17T12:40:12.273416+00:00",
+      "bytes": 934,
+      "sha256": "ec67be6e0115b2c32ed9371373fd98d3663376caba42f31cd3a3e44298a9291a",
+      "role": "task_authored_document_retrieval_inputs"
+    },
+    {
+      "file": "document-sources.json",
+      "source_url": "https://developers.google.com/youtube/v3/docs/search/list",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/docs/search/list",
+        "https://developers.google.com/youtube/v3/docs/videos/list",
+        "https://developers.google.com/youtube/v3/docs/commentThreads/list",
+        "https://developers.google.com/youtube/v3/docs/comments/list",
+        "https://developers.google.com/youtube/v3/docs/channels/list",
+        "https://developers.google.com/youtube/v3/docs/playlistItems/list",
+        "https://developers.google.com/youtube/v3/docs/captions/list",
+        "https://developers.google.com/youtube/v3/docs/captions/download",
+        "https://developers.google.com/youtube/v3/getting-started",
+        "https://developers.google.com/youtube/v3/determine_quota_cost",
+        "https://www.youtube.com/static?template=terms",
+        "https://developers.google.com/youtube/terms/api-services-terms-of-service",
+        "https://developers.google.com/youtube/terms/developer-policies",
+        "https://developers.google.com/youtube/v3/guides/quota_and_compliance_audits",
+        "https://ai.google.dev/gemini-api/docs/video-understanding",
+        "https://ai.google.dev/gemini-api/docs/pricing",
+        "https://docs.scrapecreators.com/llms.txt",
+        "https://scrapecreators.com/terms",
+        "https://serpapi.com/youtube-search-api",
+        "https://serpapi.com/youtube-video-api",
+        "https://serpapi.com/pricing",
+        "https://docs.supadata.ai/get-transcript",
+        "https://docs.supadata.ai/llms.txt",
+        "https://supadata.ai/terms",
+        "https://raw.githubusercontent.com/yt-dlp/yt-dlp/master/README.md",
+        "https://raw.githubusercontent.com/jdepoix/youtube-transcript-api/master/README.md",
+        "https://developers.tiktok.com/doc/research-api-get-started",
+        "https://developers.tiktok.com/doc/research-api-specs-query-videos",
+        "https://developers.tiktok.com/doc/display-api-overview",
+        "https://openhome.bilibili.com/"
+      ],
+      "retrieved_at": "2026-10-17T12:35:36.557850+00:00",
+      "bytes": 2800,
+      "sha256": "98cd0ba3b1c70163a4fc9a95c97428dd50eb42449b73a611618fa2cdcf6886fe",
+      "role": "task_authored_document_retrieval_inputs"
+    },
+    {
+      "file": "douyin-permissions.json",
+      "source_url": "https://open.douyin.com/platform/resource/docs/accession-guide/type-and-permission",
+      "source_urls": [
+        "https://open.douyin.com/platform/resource/docs/accession-guide/type-and-permission"
+      ],
+      "retrieved_at": "2026-10-17T12:40:17.129283+00:00",
+      "bytes": 8944,
+      "sha256": "6c4a4a247c3daa39ec78a8770ecfb6f15adb851d9c0171f51b852921add469c5",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "douyin-permissions.txt",
+      "source_url": "https://open.douyin.com/platform/resource/docs/accession-guide/type-and-permission",
+      "source_urls": [
+        "https://open.douyin.com/platform/resource/docs/accession-guide/type-and-permission"
+      ],
+      "retrieved_at": "2026-10-17T12:40:17.129283+00:00",
+      "bytes": 8111,
+      "sha256": "5df6aa05a84d683b555a22219170403aaeee42ca087919954fac191bce1e2f18",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "douyin-search.json",
+      "source_url": "https://open.douyin.com/platform/resource/docs/ability/search-management/video/",
+      "source_urls": [
+        "https://open.douyin.com/platform/resource/docs/ability/search-management/video/"
+      ],
+      "retrieved_at": "2026-10-17T12:40:14.810102+00:00",
+      "bytes": 4128,
+      "sha256": "f2538c56d48c44061a9915e7fc599f95b356eb41e57dfd4e90f5831cd04c7295",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "douyin-search.txt",
+      "source_url": "https://open.douyin.com/platform/resource/docs/ability/search-management/video/",
+      "source_urls": [
+        "https://open.douyin.com/platform/resource/docs/ability/search-management/video/"
+      ],
+      "retrieved_at": "2026-10-17T12:40:14.810102+00:00",
+      "bytes": 3468,
+      "sha256": "c74b588908a3ed9b4a48b22d07fc26499e4cd69070a2836ea386daec6812ec79",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "douyin-video-list.json",
+      "source_url": "https://open.douyin.com/platform/resource/docs/openapi/video-management/douyin/search-video/account-video-list",
+      "source_urls": [
+        "https://open.douyin.com/platform/resource/docs/openapi/video-management/douyin/search-video/account-video-list"
+      ],
+      "retrieved_at": "2026-10-17T12:40:15.563397+00:00",
+      "bytes": 3699,
+      "sha256": "b05c27dc2b89fca832d4ad2ef47b51ad008e97b921d51db084eda9eb35a3ae31",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "douyin-video-list.txt",
+      "source_url": "https://open.douyin.com/platform/resource/docs/openapi/video-management/douyin/search-video/account-video-list",
+      "source_urls": [
+        "https://open.douyin.com/platform/resource/docs/openapi/video-management/douyin/search-video/account-video-list"
+      ],
+      "retrieved_at": "2026-10-17T12:40:15.563397+00:00",
+      "bytes": 2905,
+      "sha256": "16101f88ce0baba3e121ac44ccb95958e5a4ad2a1b21c2a7d37719512aa45209",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "egress-trace.json",
+      "source_url": "https://www.cloudflare.com/cdn-cgi/trace",
+      "source_urls": [
+        "https://www.cloudflare.com/cdn-cgi/trace"
+      ],
+      "retrieved_at": "2026-10-17T12:38:00.225775+00:00",
+      "bytes": 596,
+      "sha256": "63a0011b5e9b83dc6bb18ff0cced13ea15c89c19043a027931ea1ae16cd270eb",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "environment.json",
+      "source_url": "https://www.cloudflare.com/cdn-cgi/trace",
+      "source_urls": [
+        "https://www.cloudflare.com/cdn-cgi/trace",
+        "https://github.com/jfmoe/forager",
+        "https://github.com/jackwener/opencli",
+        "https://github.com/yt-dlp/yt-dlp",
+        "https://github.com/cli/cli"
+      ],
+      "retrieved_at": "2026-10-17T12:36:26.992893+00:00",
+      "bytes": 4827,
+      "sha256": "55a6428c33c86a8eed4ad8c8611b893eb43d6384d1e03e181b45233a8d54ac2c",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "gemini-pricing.json",
+      "source_url": "https://ai.google.dev/gemini-api/docs/pricing",
+      "source_urls": [
+        "https://ai.google.dev/gemini-api/docs/pricing"
+      ],
+      "retrieved_at": "2026-10-17T12:35:54.040079+00:00",
+      "bytes": 100178,
+      "sha256": "567c067d3833cbaa4fb2b9aac65c08d07e8cd130ef47cf0237caeef385871ebe",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "gemini-pricing.txt",
+      "source_url": "https://ai.google.dev/gemini-api/docs/pricing",
+      "source_urls": [
+        "https://ai.google.dev/gemini-api/docs/pricing"
+      ],
+      "retrieved_at": "2026-10-17T12:35:54.040079+00:00",
+      "bytes": 95982,
+      "sha256": "a3c9f4f76f46b68bd777a613512cb73f8882504781bc0644e76432cf6131a1b9",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "gemini-terms.json",
+      "source_url": "https://ai.google.dev/gemini-api/terms",
+      "source_urls": [
+        "https://ai.google.dev/gemini-api/terms"
+      ],
+      "retrieved_at": "2026-10-17T12:37:55.287759+00:00",
+      "bytes": 30181,
+      "sha256": "d1f1ca650e9d9ab9e1f950902effb60915f99914c31bed73842f480e19756a37",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "gemini-terms.txt",
+      "source_url": "https://ai.google.dev/gemini-api/terms",
+      "source_urls": [
+        "https://ai.google.dev/gemini-api/terms"
+      ],
+      "retrieved_at": "2026-10-17T12:37:55.287759+00:00",
+      "bytes": 28291,
+      "sha256": "63daad4be111c32a8ccf142ec5579f428e392ff72a338a5bc72dd6de381b7ff7",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "gemini-video.json",
+      "source_url": "https://ai.google.dev/gemini-api/docs/video-understanding",
+      "source_urls": [
+        "https://ai.google.dev/gemini-api/docs/video-understanding"
+      ],
+      "retrieved_at": "2026-10-17T12:35:52.346455+00:00",
+      "bytes": 53195,
+      "sha256": "88cfd783015791b7a9ead87eaa67e3cd774362c578bb5ba5d8b7d4940d652a25",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "gemini-video.txt",
+      "source_url": "https://ai.google.dev/gemini-api/docs/video-understanding",
+      "source_urls": [
+        "https://ai.google.dev/gemini-api/docs/video-understanding"
+      ],
+      "retrieved_at": "2026-10-17T12:35:52.346455+00:00",
+      "bytes": 46142,
+      "sha256": "b09681d39d6aff41440f08912b3d1701082d391a69ce2b13d91c2dcddf879d38",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-api-terms.json",
+      "source_url": "https://developers.google.com/youtube/terms/api-services-terms-of-service",
+      "source_urls": [
+        "https://developers.google.com/youtube/terms/api-services-terms-of-service"
+      ],
+      "retrieved_at": "2026-10-17T12:35:48.942633+00:00",
+      "bytes": 57049,
+      "sha256": "dc2fcac724f9323c4c667a26c9b10c5f9265f86e34e8e2747154f4ed9c5029d1",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-api-terms.txt",
+      "source_url": "https://developers.google.com/youtube/terms/api-services-terms-of-service",
+      "source_urls": [
+        "https://developers.google.com/youtube/terms/api-services-terms-of-service"
+      ],
+      "retrieved_at": "2026-10-17T12:35:48.942633+00:00",
+      "bytes": 54851,
+      "sha256": "d16f9645df0f361d55ce3cdd70e3ee482cb4a87c98ec93f566f02f4ed31b85d0",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-audit.json",
+      "source_url": "https://developers.google.com/youtube/v3/guides/quota_and_compliance_audits",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/guides/quota_and_compliance_audits"
+      ],
+      "retrieved_at": "2026-10-17T12:35:51.197288+00:00",
+      "bytes": 9972,
+      "sha256": "e1ec52b64994d3e3f44dafd30064e86c5c44ab53319a950b2e990d4e3a90b4ab",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-audit.txt",
+      "source_url": "https://developers.google.com/youtube/v3/guides/quota_and_compliance_audits",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/guides/quota_and_compliance_audits"
+      ],
+      "retrieved_at": "2026-10-17T12:35:51.197288+00:00",
+      "bytes": 8945,
+      "sha256": "c256f8fbbb397318ddd4ab06f974864112c35ece2ab39e82e549fe01db19c143",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-auth.json",
+      "source_url": "https://developers.google.com/youtube/v3/getting-started",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/getting-started"
+      ],
+      "retrieved_at": "2026-10-17T12:35:45.074412+00:00",
+      "bytes": 32099,
+      "sha256": "a17d49c25cec9b12e2a9253698a0a3429d253b1e5891c8c753c4fdfcac8a5bfc",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-auth.txt",
+      "source_url": "https://developers.google.com/youtube/v3/getting-started",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/getting-started"
+      ],
+      "retrieved_at": "2026-10-17T12:35:45.074412+00:00",
+      "bytes": 29042,
+      "sha256": "0a41fde3b91f3175399e1b7cecb12b32cc5e819effe36f1045dc8a610ab52c7e",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-bili-open.json",
+      "source_url": "https://openhome.bilibili.com/",
+      "source_urls": [
+        "https://openhome.bilibili.com/"
+      ],
+      "retrieved_at": "2026-10-17T12:36:03.558329+00:00",
+      "bytes": 2054,
+      "sha256": "bb4122f992c41e48febae5d3b39dfda79a95da60468bc267b2a56f9897d3ad22",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-bili-open.txt",
+      "source_url": "https://openhome.bilibili.com/",
+      "source_urls": [
+        "https://openhome.bilibili.com/"
+      ],
+      "retrieved_at": "2026-10-17T12:36:03.558329+00:00",
+      "bytes": 1503,
+      "sha256": "7b21403145fea202d345a798018f9acd311620c11c0601e17440785cc2879ee7",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-captions-download.json",
+      "source_url": "https://developers.google.com/youtube/v3/docs/captions/download",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/docs/captions/download"
+      ],
+      "retrieved_at": "2026-10-17T12:35:44.773235+00:00",
+      "bytes": 14286,
+      "sha256": "e8a231a5fd44b39964d8e5ed5787c5813df4434a26ad31ad5b1c7bd5d06dbbec",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-captions-download.txt",
+      "source_url": "https://developers.google.com/youtube/v3/docs/captions/download",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/docs/captions/download"
+      ],
+      "retrieved_at": "2026-10-17T12:35:44.773235+00:00",
+      "bytes": 13165,
+      "sha256": "25e10f40f43061687c97ee80797bd1d0bfcd8826bc82948fc04630348ef7dbc9",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-captions-list.json",
+      "source_url": "https://developers.google.com/youtube/v3/docs/captions/list",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/docs/captions/list"
+      ],
+      "retrieved_at": "2026-10-17T12:35:43.830617+00:00",
+      "bytes": 14500,
+      "sha256": "f79a08ad9a776bba461f466d61654a4972983be3f3c35d224a8a8cc549842f55",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-captions-list.txt",
+      "source_url": "https://developers.google.com/youtube/v3/docs/captions/list",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/docs/captions/list"
+      ],
+      "retrieved_at": "2026-10-17T12:35:43.830617+00:00",
+      "bytes": 13313,
+      "sha256": "06bade47b1eeba61fb6208d50c6290b1e356b7c19e802c06eed02f524c5a3023",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-channel-resource.json",
+      "source_url": "https://developers.google.com/youtube/v3/docs/channels",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/docs/channels"
+      ],
+      "retrieved_at": "2026-10-17T12:52:28.164697+00:00",
+      "bytes": 164669,
+      "sha256": "5cd4ca91b5e9bd5b9698db0b70b68f5bcaed7fbb2f7cb98ea5084225badfcfd5",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-channel-resource.txt",
+      "source_url": "https://developers.google.com/youtube/v3/docs/channels",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/docs/channels"
+      ],
+      "retrieved_at": "2026-10-17T12:52:28.164697+00:00",
+      "bytes": 26296,
+      "sha256": "11943775665ab9c20f537e8d049b4f597754f7fcc2035a46b4035ea396869667",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-channels.json",
+      "source_url": "https://developers.google.com/youtube/v3/docs/channels/list",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/docs/channels/list"
+      ],
+      "retrieved_at": "2026-10-17T12:35:40.366650+00:00",
+      "bytes": 22016,
+      "sha256": "2868c89249809b17fc066d62903c8dba00ddad6342e4d865a8ceee2aba1f4671",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-channels.txt",
+      "source_url": "https://developers.google.com/youtube/v3/docs/channels/list",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/docs/channels/list"
+      ],
+      "retrieved_at": "2026-10-17T12:35:40.366650+00:00",
+      "bytes": 20747,
+      "sha256": "fc0d32e935d09b912f8e63c5718242255ab155436950d485d52709efdd4ea406",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-comments.json",
+      "source_url": "https://developers.google.com/youtube/v3/docs/comments/list",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/docs/comments/list"
+      ],
+      "retrieved_at": "2026-10-17T12:35:39.651120+00:00",
+      "bytes": 14390,
+      "sha256": "64e6945df6b17d0a6619d3a2c264e852fa4b0b93f5b8935091d24a509cbebfc2",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-comments.txt",
+      "source_url": "https://developers.google.com/youtube/v3/docs/comments/list",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/docs/comments/list"
+      ],
+      "retrieved_at": "2026-10-17T12:35:39.651120+00:00",
+      "bytes": 13185,
+      "sha256": "7a109f6de8260e5d73d1535f2c578afa9df93dd93ab4b8293bef11202ef2182b",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-commentthread-resource.json",
+      "source_url": "https://developers.google.com/youtube/v3/docs/commentThreads",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/docs/commentThreads"
+      ],
+      "retrieved_at": "2026-10-17T12:41:59.593536+00:00",
+      "bytes": 9549,
+      "sha256": "5ab91aaa3e86d3ccad4fe3956e02f13883e3c53799032e722d6f39ed3bc7a24e",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-commentthread-resource.txt",
+      "source_url": "https://developers.google.com/youtube/v3/docs/commentThreads",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/docs/commentThreads"
+      ],
+      "retrieved_at": "2026-10-17T12:41:59.593536+00:00",
+      "bytes": 8475,
+      "sha256": "e36b15bb6205e351940e7591207d5cbd7cea3c925dae042c83a07a90cea44276",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-commentthreads.json",
+      "source_url": "https://developers.google.com/youtube/v3/docs/commentThreads/list",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/docs/commentThreads/list"
+      ],
+      "retrieved_at": "2026-10-17T12:35:36.596453+00:00",
+      "bytes": 18276,
+      "sha256": "340e3793813ec72ed124e9c1ed647941c6524e49060322b02333c0121c9478f9",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-commentthreads.txt",
+      "source_url": "https://developers.google.com/youtube/v3/docs/commentThreads/list",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/docs/commentThreads/list"
+      ],
+      "retrieved_at": "2026-10-17T12:35:36.596453+00:00",
+      "bytes": 17035,
+      "sha256": "55ca4577724dde5a833238e376a28c83fdfc8f344461bf4ad929192ce02323b2",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-errors.json",
+      "source_url": "https://developers.google.com/youtube/v3/docs/errors",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/docs/errors"
+      ],
+      "retrieved_at": "2026-10-17T12:52:25.998334+00:00",
+      "bytes": 287884,
+      "sha256": "2da60945245da8de1e9ce99dca0b21c3cb003da8fbd0c7dfb75e053d729e6765",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-errors.txt",
+      "source_url": "https://developers.google.com/youtube/v3/docs/errors",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/docs/errors"
+      ],
+      "retrieved_at": "2026-10-17T12:52:25.998334+00:00",
+      "bytes": 61048,
+      "sha256": "f414a66fb76c4dae58e4cbb952ef24334bae2f80a1871f45207ffe859d21bb1c",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-playlistitems.json",
+      "source_url": "https://developers.google.com/youtube/v3/docs/playlistItems/list",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/docs/playlistItems/list"
+      ],
+      "retrieved_at": "2026-10-17T12:35:40.512580+00:00",
+      "bytes": 27669,
+      "sha256": "fdad3ebb6992eca018a585ce064a904faccfe65edb2d6cdf6f02d249d6026983",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-playlistitems.txt",
+      "source_url": "https://developers.google.com/youtube/v3/docs/playlistItems/list",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/docs/playlistItems/list"
+      ],
+      "retrieved_at": "2026-10-17T12:35:40.512580+00:00",
+      "bytes": 25453,
+      "sha256": "97324522ab96a856250939e0ff2896f7354f5ae9c327c897d6eba3ffcf459696",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-policies.json",
+      "source_url": "https://developers.google.com/youtube/terms/developer-policies",
+      "source_urls": [
+        "https://developers.google.com/youtube/terms/developer-policies"
+      ],
+      "retrieved_at": "2026-10-17T12:35:51.181954+00:00",
+      "bytes": 108009,
+      "sha256": "4815551633fa9c26a0aa021d39955afd08e3d460c47670228f343f2c37cc71fc",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-policies.txt",
+      "source_url": "https://developers.google.com/youtube/terms/developer-policies",
+      "source_urls": [
+        "https://developers.google.com/youtube/terms/developer-policies"
+      ],
+      "retrieved_at": "2026-10-17T12:35:51.181954+00:00",
+      "bytes": 105719,
+      "sha256": "6e95673d6d1c2e98f296843d0e297d4a718fa160bb028a1eacbe453a8e198685",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-quota.json",
+      "source_url": "https://developers.google.com/youtube/v3/determine_quota_cost",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/determine_quota_cost"
+      ],
+      "retrieved_at": "2026-10-17T12:35:47.743804+00:00",
+      "bytes": 16093,
+      "sha256": "da6b9059cf15450553e0fb783ba2ee9792f68a74b910b5b6254a5076b09746af",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-quota.txt",
+      "source_url": "https://developers.google.com/youtube/v3/determine_quota_cost",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/determine_quota_cost"
+      ],
+      "retrieved_at": "2026-10-17T12:35:47.743804+00:00",
+      "bytes": 14850,
+      "sha256": "0405a28b007d70e437c71067fcdf2b107155989d259ce2c6bf3d48f58f60f709",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-search.json",
+      "source_url": "https://developers.google.com/youtube/v3/docs/search/list",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/docs/search/list"
+      ],
+      "retrieved_at": "2026-10-17T12:35:36.593868+00:00",
+      "bytes": 45710,
+      "sha256": "106bac98bd20cbf3e59c68e46ca97d78348b42b4d63feb2daeed3ab614cdbc4e",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-search.txt",
+      "source_url": "https://developers.google.com/youtube/v3/docs/search/list",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/docs/search/list"
+      ],
+      "retrieved_at": "2026-10-17T12:35:36.593868+00:00",
+      "bytes": 43136,
+      "sha256": "dfad598d3ef80a44bfb622fd82d578991c8b8be44be01a631068f08cc9358f53",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-tiktok-display.json",
+      "source_url": "https://developers.tiktok.com/doc/display-api-overview",
+      "source_urls": [
+        "https://developers.tiktok.com/doc/display-api-overview"
+      ],
+      "retrieved_at": "2026-10-17T12:36:02.855258+00:00",
+      "bytes": 3943,
+      "sha256": "bf48d806a081aaf1128059c027d3945240440f16c0bd8412e193b5bf5a911cea",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-tiktok-display.txt",
+      "source_url": "https://developers.tiktok.com/doc/display-api-overview",
+      "source_urls": [
+        "https://developers.tiktok.com/doc/display-api-overview"
+      ],
+      "retrieved_at": "2026-10-17T12:36:02.855258+00:00",
+      "bytes": 3316,
+      "sha256": "e63676baa29db4f13f22ed69af4e96a22d3f07990220fdfc5e6cf49adca60530",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-tiktok-faq.json",
+      "source_url": "https://developers.tiktok.com/doc/research-api-faq",
+      "source_urls": [
+        "https://developers.tiktok.com/doc/research-api-faq"
+      ],
+      "retrieved_at": "2026-10-17T12:40:27.870879+00:00",
+      "bytes": 6473,
+      "sha256": "5227a7bc5fd0d0a9debb933599d7fb8b89fb3f1d2e02ea4e01a06debee8addd3",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-tiktok-faq.txt",
+      "source_url": "https://developers.tiktok.com/doc/research-api-faq",
+      "source_urls": [
+        "https://developers.tiktok.com/doc/research-api-faq"
+      ],
+      "retrieved_at": "2026-10-17T12:40:27.870879+00:00",
+      "bytes": 5822,
+      "sha256": "be46f1a0be1286b337c051f388758730c914d1070c264702c06a2334b2e04027",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-tiktok-research.json",
+      "source_url": "https://developers.tiktok.com/doc/research-api-get-started",
+      "source_urls": [
+        "https://developers.tiktok.com/doc/research-api-get-started"
+      ],
+      "retrieved_at": "2026-10-17T12:36:02.495746+00:00",
+      "bytes": 9640,
+      "sha256": "4a2e2d558d71553c11f599b168f4ecb31fcffd090292b6cd9405b0c3f3160616",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-tiktok-research.txt",
+      "source_url": "https://developers.tiktok.com/doc/research-api-get-started",
+      "source_urls": [
+        "https://developers.tiktok.com/doc/research-api-get-started"
+      ],
+      "retrieved_at": "2026-10-17T12:36:02.495746+00:00",
+      "bytes": 8119,
+      "sha256": "5e4707d1ff3ea03d0d27a5a5bf5a039532539d30b64a0f72a3545cf32389ce8b",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-tiktok-videoquery.json",
+      "source_url": "https://developers.tiktok.com/doc/research-api-specs-query-videos",
+      "source_urls": [
+        "https://developers.tiktok.com/doc/research-api-specs-query-videos"
+      ],
+      "retrieved_at": "2026-10-17T12:36:02.742351+00:00",
+      "bytes": 14871,
+      "sha256": "a93e06d00b5e9bdaa04e8cd376a6b459b68051831f23c0946adcb8f41bfa6697",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-tiktok-videoquery.txt",
+      "source_url": "https://developers.tiktok.com/doc/research-api-specs-query-videos",
+      "source_urls": [
+        "https://developers.tiktok.com/doc/research-api-specs-query-videos"
+      ],
+      "retrieved_at": "2026-10-17T12:36:02.742351+00:00",
+      "bytes": 11361,
+      "sha256": "2313e84d9da5139b1877e0d02edd3b1770190881ec0520198a76f4944442ab4f",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-videos.json",
+      "source_url": "https://developers.google.com/youtube/v3/docs/videos/list",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/docs/videos/list"
+      ],
+      "retrieved_at": "2026-10-17T12:35:36.594052+00:00",
+      "bytes": 21796,
+      "sha256": "8db51f60d83f4450d04eddfc063510bef794709948e6497f1b47b599d4d588c8",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-videos.txt",
+      "source_url": "https://developers.google.com/youtube/v3/docs/videos/list",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/docs/videos/list"
+      ],
+      "retrieved_at": "2026-10-17T12:35:36.594052+00:00",
+      "bytes": 20573,
+      "sha256": "772338d7d211c639d3656c36d29d5879e921efd61e89e5b592c84775723f2a60",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-youtube-terms.json",
+      "source_url": "https://www.youtube.com/static?template=terms",
+      "source_urls": [
+        "https://www.youtube.com/static?template=terms"
+      ],
+      "retrieved_at": "2026-10-17T12:35:48.503688+00:00",
+      "bytes": 29549,
+      "sha256": "a2ff5795420e07131b706f66046e0d0933ec328d832cb8689da41f09c3179677",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "official-youtube-terms.txt",
+      "source_url": "https://www.youtube.com/static?template=terms",
+      "source_urls": [
+        "https://www.youtube.com/static?template=terms"
+      ],
+      "retrieved_at": "2026-10-17T12:35:48.503688+00:00",
+      "bytes": 28547,
+      "sha256": "917d747746e146c0c65364be5fbfedf546065aadf080acfeaefa45ce898e833f",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "opencli-search.json",
+      "source_url": "https://www.youtube.com/results?search_query=Me+at+the+zoo+jawed",
+      "source_urls": [
+        "https://www.youtube.com/results?search_query=Me+at+the+zoo+jawed"
+      ],
+      "retrieved_at": "2026-10-17T12:36:53.018644+00:00",
+      "bytes": 1339,
+      "sha256": "e084c6c3e758e3ecb63a4423d0c3cf16b9da0d4ad3f87b0d9b238c7630b5e092",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "opencli-source.json",
+      "source_url": "file:///Applications/OpenCLIApp.app/Contents/Resources/node_modules/%40jackwener/opencli",
+      "source_urls": [
+        "file:///Applications/OpenCLIApp.app/Contents/Resources/node_modules/%40jackwener/opencli",
+        "file:///Applications/OpenCLIApp.app/Contents/Resources/node_modules/%40jackwener/opencli/package.json",
+        "file:///Applications/OpenCLIApp.app/Contents/Resources/node_modules/%40jackwener/opencli/clis/youtube/search.js",
+        "file:///Applications/OpenCLIApp.app/Contents/Resources/node_modules/%40jackwener/opencli/clis/youtube/video.js",
+        "file:///Applications/OpenCLIApp.app/Contents/Resources/node_modules/%40jackwener/opencli/clis/youtube/transcript.js",
+        "file:///Applications/OpenCLIApp.app/Contents/Resources/node_modules/%40jackwener/opencli/clis/youtube/transcript-group.js",
+        "file:///Applications/OpenCLIApp.app/Contents/Resources/node_modules/%40jackwener/opencli/clis/youtube/comments.js",
+        "file:///Applications/OpenCLIApp.app/Contents/Resources/node_modules/%40jackwener/opencli/clis/youtube/channel.js",
+        "file:///Applications/OpenCLIApp.app/Contents/Resources/node_modules/%40jackwener/opencli/clis/youtube/playlist.js",
+        "file:///Applications/OpenCLIApp.app/Contents/Resources/node_modules/%40jackwener/opencli/clis/youtube/utils.js"
+      ],
+      "retrieved_at": "2026-10-17T12:36:26.993442+00:00",
+      "bytes": 82101,
+      "sha256": "c05df082f60466c4014c8bc3caf79d58fdd7cbcd05d3b2d488aba31a18111313",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "opencli-source.txt",
+      "source_url": "file:///Applications/OpenCLIApp.app/Contents/Resources/node_modules/%40jackwener/opencli",
+      "source_urls": [
+        "file:///Applications/OpenCLIApp.app/Contents/Resources/node_modules/%40jackwener/opencli",
+        "file:///Applications/OpenCLIApp.app/Contents/Resources/node_modules/%40jackwener/opencli/package.json",
+        "file:///Applications/OpenCLIApp.app/Contents/Resources/node_modules/%40jackwener/opencli/clis/youtube/search.js",
+        "file:///Applications/OpenCLIApp.app/Contents/Resources/node_modules/%40jackwener/opencli/clis/youtube/video.js",
+        "file:///Applications/OpenCLIApp.app/Contents/Resources/node_modules/%40jackwener/opencli/clis/youtube/transcript.js",
+        "file:///Applications/OpenCLIApp.app/Contents/Resources/node_modules/%40jackwener/opencli/clis/youtube/transcript-group.js",
+        "file:///Applications/OpenCLIApp.app/Contents/Resources/node_modules/%40jackwener/opencli/clis/youtube/comments.js",
+        "file:///Applications/OpenCLIApp.app/Contents/Resources/node_modules/%40jackwener/opencli/clis/youtube/channel.js",
+        "file:///Applications/OpenCLIApp.app/Contents/Resources/node_modules/%40jackwener/opencli/clis/youtube/playlist.js",
+        "file:///Applications/OpenCLIApp.app/Contents/Resources/node_modules/%40jackwener/opencli/clis/youtube/utils.js"
+      ],
+      "retrieved_at": "2026-10-17T12:36:26.993442+00:00",
+      "bytes": 78852,
+      "sha256": "583b05914f1a9fbd4e9b67f35cff18529fc792ecbc006379c65a8a97a4352ed6",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "opencli-video.json",
+      "source_url": "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+      "source_urls": [
+        "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+      ],
+      "retrieved_at": "2026-10-17T12:37:02.760834+00:00",
+      "bytes": 578,
+      "sha256": "1d9fe78e39b3eb2441b509d08e48cf77765f4ccdea2672a612d2737e62e84542",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "quota-fetch.raw.json",
+      "source_url": "https://developers.google.com/youtube/v3/determine_quota_cost",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/determine_quota_cost"
+      ],
+      "retrieved_at": "2026-10-17T12:35:06.402108+00:00",
+      "bytes": 15287,
+      "sha256": "e77c8189bdc7e34b05832cee376301064d6cc35f4dced2e6a570a82a511fe78d",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "quota-fetch.raw.txt",
+      "source_url": "https://developers.google.com/youtube/v3/determine_quota_cost",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/determine_quota_cost"
+      ],
+      "retrieved_at": "2026-10-17T12:35:06.402108+00:00",
+      "bytes": 14850,
+      "sha256": "0405a28b007d70e437c71067fcdf2b107155989d259ce2c6bf3d48f58f60f709",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "quota-initial-retrieval.json",
+      "source_url": "https://developers.google.com/youtube/v3/determine_quota_cost",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/determine_quota_cost"
+      ],
+      "retrieved_at": "2026-10-17T12:35:06.402108+00:00",
+      "bytes": 376,
+      "sha256": "bad490d8e5fa08026cacaf64fd0981d38f8c87a37e5d56006a738d2fa68abe1e",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "quota-origin.json",
+      "source_url": "https://developers.google.com/youtube/data/determine_quota_cost",
+      "source_urls": [
+        "https://developers.google.com/youtube/data/determine_quota_cost"
+      ],
+      "retrieved_at": "2026-10-17T12:40:38.248328+00:00",
+      "bytes": 97378,
+      "sha256": "b23f012508fd2d24bd177cb967d5be21473def89724dc9db21946796c82fd115",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "quota-origin.txt",
+      "source_url": "https://developers.google.com/youtube/data/determine_quota_cost",
+      "source_urls": [
+        "https://developers.google.com/youtube/data/determine_quota_cost"
+      ],
+      "retrieved_at": "2026-10-17T12:40:38.248328+00:00",
+      "bytes": 5152,
+      "sha256": "45fdcfc506504fb2307d810ceb63669d7c44c4ae6d5963c71c308331a91464b1",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "repository-contracts.json",
+      "source_url": "https://github.com/jfmoe/forager/tree/b3e0d456bfa8f7310e3e88cf22b1a49069f6e0e8",
+      "source_urls": [
+        "https://github.com/jfmoe/forager/tree/b3e0d456bfa8f7310e3e88cf22b1a49069f6e0e8",
+        "https://github.com/jfmoe/forager/blob/b3e0d456bfa8f7310e3e88cf22b1a49069f6e0e8/AGENTS.md",
+        "https://github.com/jfmoe/forager/blob/b3e0d456bfa8f7310e3e88cf22b1a49069f6e0e8/GLOSSARY.md",
+        "https://github.com/jfmoe/forager/blob/b3e0d456bfa8f7310e3e88cf22b1a49069f6e0e8/docs/spec/forager/07-platforms.md",
+        "https://github.com/jfmoe/forager/blob/b3e0d456bfa8f7310e3e88cf22b1a49069f6e0e8/docs/spec/forager/04-architecture.md",
+        "https://github.com/jfmoe/forager/blob/b3e0d456bfa8f7310e3e88cf22b1a49069f6e0e8/docs/agents/opencli.md",
+        "https://github.com/jfmoe/forager/blob/b3e0d456bfa8f7310e3e88cf22b1a49069f6e0e8/docs/adr/0019-platforms-as-a-dimension-separate-from-capability-seams.md",
+        "https://github.com/jfmoe/forager/blob/b3e0d456bfa8f7310e3e88cf22b1a49069f6e0e8/docs/adr/0020-opt-in-browser-routes-paced-per-operation.md",
+        "https://github.com/jfmoe/forager/blob/b3e0d456bfa8f7310e3e88cf22b1a49069f6e0e8/docs/adr/0022-platform-native-full-text.md",
+        "https://github.com/jfmoe/forager/blob/b3e0d456bfa8f7310e3e88cf22b1a49069f6e0e8/docs/adr/0026-x-platform-through-xai-x-search-with-relayed-content.md",
+        "https://github.com/jfmoe/forager/blob/b3e0d456bfa8f7310e3e88cf22b1a49069f6e0e8/docs/adr/0027-hn-platform-combines-algolia-search-with-the-official-firebase-api.md",
+        "https://github.com/jfmoe/forager/blob/b3e0d456bfa8f7310e3e88cf22b1a49069f6e0e8/src/infra/types/platform.rs",
+        "https://github.com/jfmoe/forager/blob/b3e0d456bfa8f7310e3e88cf22b1a49069f6e0e8/src/core/platform_fetch.rs",
+        "https://github.com/jfmoe/forager/blob/b3e0d456bfa8f7310e3e88cf22b1a49069f6e0e8/src/core/platform_ask.rs",
+        "https://github.com/jfmoe/forager/blob/b3e0d456bfa8f7310e3e88cf22b1a49069f6e0e8/src/capabilities/providers/serpapi.rs",
+        "https://github.com/jfmoe/forager/blob/b3e0d456bfa8f7310e3e88cf22b1a49069f6e0e8/src/capabilities/providers/hn_api.rs",
+        "https://github.com/jfmoe/forager/blob/b3e0d456bfa8f7310e3e88cf22b1a49069f6e0e8/src/capabilities/catalog.rs"
+      ],
+      "retrieved_at": "2026-10-17T12:40:13.427491+00:00",
+      "bytes": 294983,
+      "sha256": "ccbe8447fa0ce4836e05bbc641593c0835738f44cb6df7b84869f6b8b43c3404",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "sc-comments.json",
+      "source_url": "https://docs.scrapecreators.com/v1/youtube/video/comments",
+      "source_urls": [
+        "https://docs.scrapecreators.com/v1/youtube/video/comments"
+      ],
+      "retrieved_at": "2026-10-17T12:37:53.228128+00:00",
+      "bytes": 46523,
+      "sha256": "de2dc9fc0f277242083e2355fa1c34d8a342866aeeef5a66a39be23fc1b0674c",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "sc-comments.txt",
+      "source_url": "https://docs.scrapecreators.com/v1/youtube/video/comments",
+      "source_urls": [
+        "https://docs.scrapecreators.com/v1/youtube/video/comments"
+      ],
+      "retrieved_at": "2026-10-17T12:37:53.228128+00:00",
+      "bytes": 40450,
+      "sha256": "8609698ea527fc7e97a9a53aa99a6291c38619124d1085724f02a3f2df27ce1b",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "sc-home.json",
+      "source_url": "https://scrapecreators.com/",
+      "source_urls": [
+        "https://scrapecreators.com/"
+      ],
+      "retrieved_at": "2026-10-17T12:41:31.494302+00:00",
+      "bytes": 23279,
+      "sha256": "bde089c5cbc4789414e2e08e5cd72fbc55d656b8fc63dfd46e3fed0556f0b5d8",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "sc-home.txt",
+      "source_url": "https://scrapecreators.com/",
+      "source_urls": [
+        "https://scrapecreators.com/"
+      ],
+      "retrieved_at": "2026-10-17T12:41:31.494302+00:00",
+      "bytes": 20967,
+      "sha256": "03afdc67aab4fe6b474d4cab39b0722633d5911cf6f499412dca8dfcf2a3fc85",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "sc-index.json",
+      "source_url": "https://docs.scrapecreators.com/llms.txt",
+      "source_urls": [
+        "https://docs.scrapecreators.com/llms.txt"
+      ],
+      "retrieved_at": "2026-10-17T12:35:54.211405+00:00",
+      "bytes": 16425,
+      "sha256": "f7f12ae5f03884a547f722f23378bbccd37b9c6733e11feb6b2ae8d412e7b904",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "sc-index.txt",
+      "source_url": "https://docs.scrapecreators.com/llms.txt",
+      "source_urls": [
+        "https://docs.scrapecreators.com/llms.txt"
+      ],
+      "retrieved_at": "2026-10-17T12:35:54.211405+00:00",
+      "bytes": 15579,
+      "sha256": "cebd749c6451438d491b8889b735f6db96961fd262445082798e758cc0c46c65",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "sc-pricing.json",
+      "source_url": "https://scrapecreators.com/pricing",
+      "source_urls": [
+        "https://scrapecreators.com/pricing"
+      ],
+      "retrieved_at": "2026-10-17T12:37:53.707759+00:00",
+      "bytes": 879,
+      "sha256": "f0e50c7acd8aec0c948711e9f6af1ee8bf18ae596b4c717905c96a0887ffedc0",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "sc-pricing.txt",
+      "source_url": "https://scrapecreators.com/pricing",
+      "source_urls": [
+        "https://scrapecreators.com/pricing"
+      ],
+      "retrieved_at": "2026-10-17T12:37:53.707759+00:00",
+      "bytes": 433,
+      "sha256": "d8a64284136ba603a113eb02ea56fe70c56572860eb815b60f0b5b1a04ebd20a",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "sc-search.json",
+      "source_url": "https://docs.scrapecreators.com/v1/youtube/search",
+      "source_urls": [
+        "https://docs.scrapecreators.com/v1/youtube/search"
+      ],
+      "retrieved_at": "2026-10-17T12:37:51.407554+00:00",
+      "bytes": 76388,
+      "sha256": "2c67f71375e1bc4d91a0822b68a21807aa0441c603d21af3bfc2680e72d464fe",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "sc-search.txt",
+      "source_url": "https://docs.scrapecreators.com/v1/youtube/search",
+      "source_urls": [
+        "https://docs.scrapecreators.com/v1/youtube/search"
+      ],
+      "retrieved_at": "2026-10-17T12:37:51.407554+00:00",
+      "bytes": 63213,
+      "sha256": "832e501819ace2a131069bbb1f435f5b5730b35e2c01d2463a844f6a3fbca106",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "sc-terms.json",
+      "source_url": "https://scrapecreators.com/terms",
+      "source_urls": [
+        "https://scrapecreators.com/terms"
+      ],
+      "retrieved_at": "2026-10-17T12:35:55.034829+00:00",
+      "bytes": 5119,
+      "sha256": "8fbd0c87c1407422462e65c39fb34fdf9525d02868f4145095ac142f6d1cec69",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "sc-terms.txt",
+      "source_url": "https://scrapecreators.com/terms",
+      "source_urls": [
+        "https://scrapecreators.com/terms"
+      ],
+      "retrieved_at": "2026-10-17T12:35:55.034829+00:00",
+      "bytes": 4379,
+      "sha256": "e30eaa1efb2afc7b94be643bbb64c8658a904f4c58c04b44986f7298fb697402",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "sc-transcript.json",
+      "source_url": "https://docs.scrapecreators.com/v1/youtube/video/transcript",
+      "source_urls": [
+        "https://docs.scrapecreators.com/v1/youtube/video/transcript"
+      ],
+      "retrieved_at": "2026-10-17T12:37:51.407799+00:00",
+      "bytes": 47111,
+      "sha256": "697057e2387b975a93f01f8244778035d6ac5893ba841830046f1e26eb47efe6",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "sc-transcript.txt",
+      "source_url": "https://docs.scrapecreators.com/v1/youtube/video/transcript",
+      "source_urls": [
+        "https://docs.scrapecreators.com/v1/youtube/video/transcript"
+      ],
+      "retrieved_at": "2026-10-17T12:37:51.407799+00:00",
+      "bytes": 41047,
+      "sha256": "f6a1d20e9530976831c7e60d6818aa816dafdb21fb7e44e6b1d8f04185e53144",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "sc-video.json",
+      "source_url": "https://docs.scrapecreators.com/v1/youtube/video",
+      "source_urls": [
+        "https://docs.scrapecreators.com/v1/youtube/video"
+      ],
+      "retrieved_at": "2026-10-17T12:37:51.407727+00:00",
+      "bytes": 55355,
+      "sha256": "588ec70623ff1916f21f515e105437731e389d3023f942231b2d0a0fe8cbfabf",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "sc-video.txt",
+      "source_url": "https://docs.scrapecreators.com/v1/youtube/video",
+      "source_urls": [
+        "https://docs.scrapecreators.com/v1/youtube/video"
+      ],
+      "retrieved_at": "2026-10-17T12:37:51.407727+00:00",
+      "bytes": 47590,
+      "sha256": "f4345771f1812eb9b94e96c11b90cb002e92531a86d3df2128759c0f3e9f67f4",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "search-origin.json",
+      "source_url": "https://developers.google.com/youtube/data/reference/rest/v3/search/list",
+      "source_urls": [
+        "https://developers.google.com/youtube/data/reference/rest/v3/search/list"
+      ],
+      "retrieved_at": "2026-10-17T12:40:42.059236+00:00",
+      "bytes": 223372,
+      "sha256": "192fca8ebe001f75938abf1817ee5b8f0d915cd370f303cbbc3386a55c85377e",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "search-origin.txt",
+      "source_url": "https://developers.google.com/youtube/data/reference/rest/v3/search/list",
+      "source_urls": [
+        "https://developers.google.com/youtube/data/reference/rest/v3/search/list"
+      ],
+      "retrieved_at": "2026-10-17T12:40:42.059236+00:00",
+      "bytes": 31981,
+      "sha256": "cf3e988289df499da89ad88e8a9e59b98bf2c6f38c2f80d252ae01c856b2ab90",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "serpapi-legal.json",
+      "source_url": "https://serpapi.com/legal",
+      "source_urls": [
+        "https://serpapi.com/legal"
+      ],
+      "retrieved_at": "2026-10-17T12:41:29.813543+00:00",
+      "bytes": 27837,
+      "sha256": "bae25673aa66187738ce7e415f69c2a197f9128575ebf1ea4738e71693030faa",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "serpapi-legal.txt",
+      "source_url": "https://serpapi.com/legal",
+      "source_urls": [
+        "https://serpapi.com/legal"
+      ],
+      "retrieved_at": "2026-10-17T12:41:29.813543+00:00",
+      "bytes": 26821,
+      "sha256": "918a673c8a2076a64c3309dc254d6a0cad1efe4b3883a74f7be67182d18d3832",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "serpapi-pricing.json",
+      "source_url": "https://serpapi.com/pricing",
+      "source_urls": [
+        "https://serpapi.com/pricing"
+      ],
+      "retrieved_at": "2026-10-17T12:35:57.610632+00:00",
+      "bytes": 31104,
+      "sha256": "22705a996b7f74c124657ea00d380ee80f4a5a1dbf157933541b4a982cfb009c",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "serpapi-pricing.txt",
+      "source_url": "https://serpapi.com/pricing",
+      "source_urls": [
+        "https://serpapi.com/pricing"
+      ],
+      "retrieved_at": "2026-10-17T12:35:57.610632+00:00",
+      "bytes": 29743,
+      "sha256": "63659dd34b542690983e3a32ac2a5d5c068b186bed257f7dc01f366c4c20491a",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "serpapi-terms.json",
+      "source_url": "https://serpapi.com/terms",
+      "source_urls": [
+        "https://serpapi.com/terms"
+      ],
+      "retrieved_at": "2026-10-17T12:40:13.675386+00:00",
+      "bytes": 1094,
+      "sha256": "a073c2ebdb21eef6e9251c5b52cc459f60ad7bd897721cf0b4bcbfb546261003",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "serpapi-terms.txt",
+      "source_url": "https://serpapi.com/terms",
+      "source_urls": [
+        "https://serpapi.com/terms"
+      ],
+      "retrieved_at": "2026-10-17T12:40:13.675386+00:00",
+      "bytes": 658,
+      "sha256": "9ded3c690756ab34e5402516ecfe3523fb72230247d0cf36a453baaf1ba824e9",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "serpapi-transcript-releases.json",
+      "source_url": "https://serpapi.com/youtube-video-transcript/release-notes",
+      "source_urls": [
+        "https://serpapi.com/youtube-video-transcript/release-notes"
+      ],
+      "retrieved_at": "2026-10-17T12:41:57.514511+00:00",
+      "bytes": 1800,
+      "sha256": "d0d29b14e36ee65743cfc325cca60232e98081debd18d2ab3707d9731421fcb2",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "serpapi-transcript-releases.txt",
+      "source_url": "https://serpapi.com/youtube-video-transcript/release-notes",
+      "source_urls": [
+        "https://serpapi.com/youtube-video-transcript/release-notes"
+      ],
+      "retrieved_at": "2026-10-17T12:41:57.514511+00:00",
+      "bytes": 1209,
+      "sha256": "2af521c3110374411d7fc2ede1c354df65c0c0f1776d416ebe06ef4a96102a8d",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "serpapi-transcript.json",
+      "source_url": "https://serpapi.com/youtube-video-transcript",
+      "source_urls": [
+        "https://serpapi.com/youtube-video-transcript"
+      ],
+      "retrieved_at": "2026-10-17T12:41:55.796759+00:00",
+      "bytes": 11629,
+      "sha256": "ebe66ab322b38bd8d9df51ff3e33195250a7e2b756ec0a065b8a7a80171c8cf5",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "serpapi-transcript.txt",
+      "source_url": "https://serpapi.com/youtube-video-transcript",
+      "source_urls": [
+        "https://serpapi.com/youtube-video-transcript"
+      ],
+      "retrieved_at": "2026-10-17T12:41:55.796759+00:00",
+      "bytes": 9532,
+      "sha256": "57b79e2d08132eca8b728ed3f29488ac4922f700708b7b5655cff2f8e5d87a4c",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "serpapi-video.json",
+      "source_url": "https://serpapi.com/youtube-video-api",
+      "source_urls": [
+        "https://serpapi.com/youtube-video-api"
+      ],
+      "retrieved_at": "2026-10-17T12:35:56.931581+00:00",
+      "bytes": 169400,
+      "sha256": "9c32bcfcbc6e44b752daed64630297a6eb79336a78784192b7219beaff28bc99",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "serpapi-video.txt",
+      "source_url": "https://serpapi.com/youtube-video-api",
+      "source_urls": [
+        "https://serpapi.com/youtube-video-api"
+      ],
+      "retrieved_at": "2026-10-17T12:35:56.931581+00:00",
+      "bytes": 136812,
+      "sha256": "7fdfa6628259bd598f7b47c6af6d7a665c0fa4c473f409ce72864228b60bcf58",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "serpapi-youtube.json",
+      "source_url": "https://serpapi.com/youtube-search-api",
+      "source_urls": [
+        "https://serpapi.com/youtube-search-api"
+      ],
+      "retrieved_at": "2026-10-17T12:35:55.065548+00:00",
+      "bytes": 242404,
+      "sha256": "ae24276453d8463a0724c61a12fd95e061cc4787b122177c68967e855754de19",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "serpapi-youtube.txt",
+      "source_url": "https://serpapi.com/youtube-search-api",
+      "source_urls": [
+        "https://serpapi.com/youtube-search-api"
+      ],
+      "retrieved_at": "2026-10-17T12:35:55.065548+00:00",
+      "bytes": 192796,
+      "sha256": "1ea1faf07dc0f2e2a2b5201b0d6192f74fbd3e79233676fc5648e3f60f432b45",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "subtitle-validation.json",
+      "source_url": "https://www.youtube.com/",
+      "source_urls": [
+        "https://www.youtube.com/"
+      ],
+      "retrieved_at": "2026-10-17T12:39:51.335022+00:00",
+      "bytes": 889,
+      "sha256": "10745a84d0a311f960e85cb1162c9a4aac9d402c0f515e459cd0922ba7e00f4b",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "supadata-index.json",
+      "source_url": "https://docs.supadata.ai/llms.txt",
+      "source_urls": [
+        "https://docs.supadata.ai/llms.txt"
+      ],
+      "retrieved_at": "2026-10-17T12:35:59.794750+00:00",
+      "bytes": 11089,
+      "sha256": "dee2d22ef540a1bf3aac27fd277d4a22a803300c31ce0ad8b018dbb6f35b41a6",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "supadata-index.txt",
+      "source_url": "https://docs.supadata.ai/llms.txt",
+      "source_urls": [
+        "https://docs.supadata.ai/llms.txt"
+      ],
+      "retrieved_at": "2026-10-17T12:35:59.794750+00:00",
+      "bytes": 10528,
+      "sha256": "26b96ade2bfe97b073403af763e936e30d2178f244a8d8e396e1d0b69b6e97ad",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "supadata-intro.json",
+      "source_url": "https://docs.supadata.ai/api-reference/introduction.md",
+      "source_urls": [
+        "https://docs.supadata.ai/api-reference/introduction.md"
+      ],
+      "retrieved_at": "2026-10-17T12:40:12.307437+00:00",
+      "bytes": 3476,
+      "sha256": "51705f9b587277aaaad0986ed06a5915574cc47dbd22f5761b2488e9ad4cc455",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "supadata-intro.txt",
+      "source_url": "https://docs.supadata.ai/api-reference/introduction.md",
+      "source_urls": [
+        "https://docs.supadata.ai/api-reference/introduction.md"
+      ],
+      "retrieved_at": "2026-10-17T12:40:12.307437+00:00",
+      "bytes": 2754,
+      "sha256": "4cc2f77d179880d1550023be77ee0f3ad6d8c2da42a901c2082b67c8352601fd",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "supadata-limits.json",
+      "source_url": "https://docs.supadata.ai/rate-limits",
+      "source_urls": [
+        "https://docs.supadata.ai/rate-limits"
+      ],
+      "retrieved_at": "2026-10-17T12:37:55.192234+00:00",
+      "bytes": 742,
+      "sha256": "1b847827efc3450c3b6dff891cc297fe532bff8fb906cd3d2c8fc8a4f7091ef8",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "supadata-limits.txt",
+      "source_url": "https://docs.supadata.ai/rate-limits",
+      "source_urls": [
+        "https://docs.supadata.ai/rate-limits"
+      ],
+      "retrieved_at": "2026-10-17T12:37:55.192234+00:00",
+      "bytes": 292,
+      "sha256": "31c124d7345060461ed177ef89caf7e6b9ec8dc205b9956eda8f2fce4fccc003",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "supadata-metadata.json",
+      "source_url": "https://docs.supadata.ai/get-metadata.md",
+      "source_urls": [
+        "https://docs.supadata.ai/get-metadata.md"
+      ],
+      "retrieved_at": "2026-10-17T12:40:12.307300+00:00",
+      "bytes": 7487,
+      "sha256": "4a6e9f0bee2393c574bee1c8cef3e5a66ffdf7f97501ec94d9527589e02736d4",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "supadata-metadata.txt",
+      "source_url": "https://docs.supadata.ai/get-metadata.md",
+      "source_urls": [
+        "https://docs.supadata.ai/get-metadata.md"
+      ],
+      "retrieved_at": "2026-10-17T12:40:12.307300+00:00",
+      "bytes": 6190,
+      "sha256": "9d1f4e4412ee206094facd856932ecef00d80f8a9ddb83f350cd7c8b2b855f24",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "supadata-pricing.json",
+      "source_url": "https://supadata.ai/pricing",
+      "source_urls": [
+        "https://supadata.ai/pricing"
+      ],
+      "retrieved_at": "2026-10-17T12:40:13.331950+00:00",
+      "bytes": 5766,
+      "sha256": "d49ff0979a56a5a99f627117a6feeae7ca753d34157a18130a3dd2aa03a4a996",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "supadata-pricing.txt",
+      "source_url": "https://supadata.ai/pricing",
+      "source_urls": [
+        "https://supadata.ai/pricing"
+      ],
+      "retrieved_at": "2026-10-17T12:40:13.331950+00:00",
+      "bytes": 5063,
+      "sha256": "47d197b13b8a629101c606b1af0a2e3165f4400b64d6479668884fa39395c5a1",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "supadata-search.json",
+      "source_url": "https://docs.supadata.ai/youtube/search.md",
+      "source_urls": [
+        "https://docs.supadata.ai/youtube/search.md"
+      ],
+      "retrieved_at": "2026-10-17T12:40:12.305994+00:00",
+      "bytes": 8789,
+      "sha256": "9617fba5efc8334b2a17cea5d571bea5564b5d9c35913743eeb7c4fa7a762ef0",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "supadata-search.txt",
+      "source_url": "https://docs.supadata.ai/youtube/search.md",
+      "source_urls": [
+        "https://docs.supadata.ai/youtube/search.md"
+      ],
+      "retrieved_at": "2026-10-17T12:40:12.305994+00:00",
+      "bytes": 7468,
+      "sha256": "b54a6bde2ea1dfbd18240d4652751631cac86d91de8addc65bf6752a8bd519c0",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "supadata-terms.json",
+      "source_url": "https://supadata.ai/terms",
+      "source_urls": [
+        "https://supadata.ai/terms"
+      ],
+      "retrieved_at": "2026-10-17T12:36:00.245472+00:00",
+      "bytes": 8711,
+      "sha256": "1545056dec8934c79fe46ccd43ab8827e9a2b5181c46152bbb010e9711942f9e",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "supadata-terms.txt",
+      "source_url": "https://supadata.ai/terms",
+      "source_urls": [
+        "https://supadata.ai/terms"
+      ],
+      "retrieved_at": "2026-10-17T12:36:00.245472+00:00",
+      "bytes": 7934,
+      "sha256": "07232a9704e7b06593c494994d9f4366070c9de6f2f734670cb6a78500283498",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "supadata-youtube.json",
+      "source_url": "https://docs.supadata.ai/get-transcript",
+      "source_urls": [
+        "https://docs.supadata.ai/get-transcript"
+      ],
+      "retrieved_at": "2026-10-17T12:35:58.225575+00:00",
+      "bytes": 15182,
+      "sha256": "1c2755c4cc64ee24db0faa14280653feb193bd99fe370d957668852a96e585c4",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "supadata-youtube.txt",
+      "source_url": "https://docs.supadata.ai/get-transcript",
+      "source_urls": [
+        "https://docs.supadata.ai/get-transcript"
+      ],
+      "retrieved_at": "2026-10-17T12:35:58.225575+00:00",
+      "bytes": 13685,
+      "sha256": "da9b34c7648919e50ba7f73a1dea9f831c4e5bfdc389101c1ec2a50fd69f7340",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "verification.json",
+      "source_url": "file:///Users/jfmoe/Coder/forager/docs/research/2026-10-17-youtube-integration.md",
+      "source_urls": [
+        "file:///Users/jfmoe/Coder/forager/docs/research/2026-10-17-youtube-integration.md"
+      ],
+      "retrieved_at": "2026-10-17T12:53:19.139548+00:00",
+      "bytes": 685,
+      "sha256": "9ecf768f60be3c2b20f65d9f98cf5e0a0b06e9334073e10f166f8bfbe9d7a781",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "video-platform-source.json",
+      "source_url": "https://github.com/yt-dlp/yt-dlp",
+      "source_urls": [
+        "https://github.com/yt-dlp/yt-dlp",
+        "https://github.com/yt-dlp/yt-dlp/blob/897341241f2bfb2439fe0367f4c7c9ccd29a3828/yt_dlp/extractor/bilibili.py",
+        "https://github.com/yt-dlp/yt-dlp/blob/897341241f2bfb2439fe0367f4c7c9ccd29a3828/yt_dlp/extractor/tiktok.py"
+      ],
+      "retrieved_at": "2026-10-17T12:38:10.151592+00:00",
+      "bytes": 197141,
+      "sha256": "caf8138b24b8fd7c6dd255b48bc6b5595af7a782a59016bb18d5ce56ecf728dc",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "video-platform-source.txt",
+      "source_url": "https://github.com/yt-dlp/yt-dlp",
+      "source_urls": [
+        "https://github.com/yt-dlp/yt-dlp",
+        "https://github.com/yt-dlp/yt-dlp/blob/897341241f2bfb2439fe0367f4c7c9ccd29a3828/yt_dlp/extractor/bilibili.py",
+        "https://github.com/yt-dlp/yt-dlp/blob/897341241f2bfb2439fe0367f4c7c9ccd29a3828/yt_dlp/extractor/tiktok.py"
+      ],
+      "retrieved_at": "2026-10-17T12:38:10.151592+00:00",
+      "bytes": 192006,
+      "sha256": "93ac3effcf3471fa83067de3de79a6f1204dc15484e344962c0ed402651272c6",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "vimeo-texttracks.json",
+      "source_url": "https://developer.vimeo.com/api/reference/videos#get_video_text_tracks",
+      "source_urls": [
+        "https://developer.vimeo.com/api/reference/videos#get_video_text_tracks"
+      ],
+      "retrieved_at": "2026-10-17T12:37:58.915196+00:00",
+      "bytes": 30028,
+      "sha256": "e0eaad6c77ff854fd87bd7296c0eff51249922530fc640370401b45ce3333ba7",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "vimeo-texttracks.txt",
+      "source_url": "https://developer.vimeo.com/api/reference/videos#get_video_text_tracks",
+      "source_urls": [
+        "https://developer.vimeo.com/api/reference/videos#get_video_text_tracks"
+      ],
+      "retrieved_at": "2026-10-17T12:37:58.915196+00:00",
+      "bytes": 28323,
+      "sha256": "8d6a78f570917bc8a1a208207e1ea11caa0dc46ac34d1bdd3212762301eb0f38",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "web-discovery.json",
+      "source_url": "process://forager/search",
+      "source_urls": [
+        "process://forager/search"
+      ],
+      "retrieved_at": "2026-10-17T12:39:39.339150+00:00",
+      "bytes": 2638,
+      "sha256": "454813344042f542e5c795467651342f88b50ea5cc9890a98ba13848985a3052",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "youtube-auth-guide.json",
+      "source_url": "https://developers.google.com/youtube/v3/guides/authentication",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/guides/authentication"
+      ],
+      "retrieved_at": "2026-10-17T12:37:58.714129+00:00",
+      "bytes": 7868,
+      "sha256": "487c57113b5b52df4f961b793847f25a1e56dd580a8280c3a2988faf4e54e124",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "youtube-auth-guide.txt",
+      "source_url": "https://developers.google.com/youtube/v3/guides/authentication",
+      "source_urls": [
+        "https://developers.google.com/youtube/v3/guides/authentication"
+      ],
+      "retrieved_at": "2026-10-17T12:37:58.714129+00:00",
+      "bytes": 6898,
+      "sha256": "331d73eb39c275a125342e5b46af95123cd244710c898b415c9b1896bbde8d6a",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "youtube-branding.json",
+      "source_url": "https://developers.google.com/youtube/terms/branding-guidelines",
+      "source_urls": [
+        "https://developers.google.com/youtube/terms/branding-guidelines"
+      ],
+      "retrieved_at": "2026-10-17T12:37:58.041410+00:00",
+      "bytes": 19411,
+      "sha256": "38fae03a7b628cca5d3ffacc78c0d0db026271bffef27467bd0ed7f4c636aafc",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "youtube-branding.txt",
+      "source_url": "https://developers.google.com/youtube/terms/branding-guidelines",
+      "source_urls": [
+        "https://developers.google.com/youtube/terms/branding-guidelines"
+      ],
+      "retrieved_at": "2026-10-17T12:37:58.041410+00:00",
+      "bytes": 17935,
+      "sha256": "c776692a66f0b43e344a23e3950c41c604e3d76ff2c928ee6bda565e3109b2f1",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "yt-dlp-readme.json",
+      "source_url": "https://raw.githubusercontent.com/yt-dlp/yt-dlp/master/README.md",
+      "source_urls": [
+        "https://raw.githubusercontent.com/yt-dlp/yt-dlp/master/README.md"
+      ],
+      "retrieved_at": "2026-10-17T12:36:01.025519+00:00",
+      "bytes": 186693,
+      "sha256": "0ead2291bd7555ca085d063bc174c6bc610004914b4e2391c429c6cd8310ff6a",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "yt-dlp-readme.txt",
+      "source_url": "https://raw.githubusercontent.com/yt-dlp/yt-dlp/master/README.md",
+      "source_urls": [
+        "https://raw.githubusercontent.com/yt-dlp/yt-dlp/master/README.md"
+      ],
+      "retrieved_at": "2026-10-17T12:36:01.025519+00:00",
+      "bytes": 179212,
+      "sha256": "357f718a94c879bfcc7d647a8ea2d192d5abeee6a784c74d5bff2f4e518e00ee",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "yt-pot-guide.json",
+      "source_url": "https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide",
+      "source_urls": [
+        "https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide"
+      ],
+      "retrieved_at": "2026-10-17T12:37:55.586997+00:00",
+      "bytes": 9330,
+      "sha256": "6c4b043c7735d77c65e5f712b19457246e1f43db1637d47fc52520bd5a7c50a0",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "yt-pot-guide.txt",
+      "source_url": "https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide",
+      "source_urls": [
+        "https://github.com/yt-dlp/yt-dlp/wiki/PO-Token-Guide"
+      ],
+      "retrieved_at": "2026-10-17T12:37:55.586997+00:00",
+      "bytes": 8568,
+      "sha256": "f16c7c5e0093008b0a549601c845a1de418d84ec0d1fd635004d901c674de460",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "yta-592-comments.json",
+      "source_url": "https://github.com/jdepoix/youtube-transcript-api/issues/592",
+      "source_urls": [
+        "https://github.com/jdepoix/youtube-transcript-api/issues/592"
+      ],
+      "retrieved_at": "2026-10-17T12:38:12.244340+00:00",
+      "bytes": 9201,
+      "sha256": "8e10abe4f534cc57d3cdc6ca01e7ac126ef4aeed41efb3166e8152cb57f2f6a7",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "yta-592.json",
+      "source_url": "https://github.com/jdepoix/youtube-transcript-api/issues/592",
+      "source_urls": [
+        "https://github.com/jdepoix/youtube-transcript-api/issues/592"
+      ],
+      "retrieved_at": "2026-10-17T12:38:11.402799+00:00",
+      "bytes": 5620,
+      "sha256": "337c212857652703a896bd858fe0d4ad3702d68ec970c5358ea53387f25fdb7f",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "yta-593-comments.json",
+      "source_url": "https://github.com/jdepoix/youtube-transcript-api/issues/593",
+      "source_urls": [
+        "https://github.com/jdepoix/youtube-transcript-api/issues/593"
+      ],
+      "retrieved_at": "2026-10-17T12:38:10.798356+00:00",
+      "bytes": 5326,
+      "sha256": "70f89f78598d1bf939dec1e15c77585b6d238c7d4c1a2268bbe3259b004b3415",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "yta-593.json",
+      "source_url": "https://github.com/jdepoix/youtube-transcript-api/issues/593",
+      "source_urls": [
+        "https://github.com/jdepoix/youtube-transcript-api/issues/593"
+      ],
+      "retrieved_at": "2026-10-17T12:38:10.153703+00:00",
+      "bytes": 5828,
+      "sha256": "95faa9af24ae92fc03f16e4f0d5e5d5443b344f61273358558812e5bb6921fea",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "yta-612-comments.json",
+      "source_url": "https://github.com/jdepoix/youtube-transcript-api/issues/612",
+      "source_urls": [
+        "https://github.com/jdepoix/youtube-transcript-api/issues/612"
+      ],
+      "retrieved_at": "2026-10-17T12:38:13.909906+00:00",
+      "bytes": 3452,
+      "sha256": "13e4180c90bfe58410a16312662957ae4a3ba7a8384316874d7e44f4314cb97e",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "yta-612.json",
+      "source_url": "https://github.com/jdepoix/youtube-transcript-api/issues/612",
+      "source_urls": [
+        "https://github.com/jdepoix/youtube-transcript-api/issues/612"
+      ],
+      "retrieved_at": "2026-10-17T12:38:13.066510+00:00",
+      "bytes": 4540,
+      "sha256": "51c85c4f0ef08ac5841e023b9a3833638735efa6070b0b25d65c39a96c28b578",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "yta-clone.json",
+      "source_url": "https://github.com/jdepoix/youtube-transcript-api",
+      "source_urls": [
+        "https://github.com/jdepoix/youtube-transcript-api"
+      ],
+      "retrieved_at": "2026-10-17T12:36:24.316334+00:00",
+      "bytes": 546,
+      "sha256": "53fa175014a5939cf849f4116a10ba55e157d0d746caf45fdb2cdae1f8ba55f6",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "yta-issues.json",
+      "source_url": "https://github.com/jdepoix/youtube-transcript-api/issues",
+      "source_urls": [
+        "https://github.com/jdepoix/youtube-transcript-api/issues"
+      ],
+      "retrieved_at": "2026-10-17T12:36:26.919112+00:00",
+      "bytes": 124947,
+      "sha256": "0b2698d97b3b4452c2250e6b280695e906abb160a66ef512e595163bfbb9f831",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "yta-protocol-probe.json",
+      "source_url": "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+      "source_urls": [
+        "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+      ],
+      "retrieved_at": "2026-10-17T12:39:09.507146+00:00",
+      "bytes": 1910,
+      "sha256": "f67c12634b62f31b2a82e323ef5e9b58fcaffc4a8b6b13510da4d5c4a1a64655",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "yta-readme.json",
+      "source_url": "https://raw.githubusercontent.com/jdepoix/youtube-transcript-api/master/README.md",
+      "source_urls": [
+        "https://raw.githubusercontent.com/jdepoix/youtube-transcript-api/master/README.md"
+      ],
+      "retrieved_at": "2026-10-17T12:36:01.158310+00:00",
+      "bytes": 27892,
+      "sha256": "e95c5093adae1e612bbaafaf2cfa0b60147042ecb0cfea96183c2ece31cc755d",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "yta-readme.txt",
+      "source_url": "https://raw.githubusercontent.com/jdepoix/youtube-transcript-api/master/README.md",
+      "source_urls": [
+        "https://raw.githubusercontent.com/jdepoix/youtube-transcript-api/master/README.md"
+      ],
+      "retrieved_at": "2026-10-17T12:36:01.158310+00:00",
+      "bytes": 24281,
+      "sha256": "409f40f1e44a0a53f71d63f670a5b6dbbf501b5913cbce67b77c6c44c0d9f524",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "yta-source.json",
+      "source_url": "https://github.com/jdepoix/youtube-transcript-api",
+      "source_urls": [
+        "https://github.com/jdepoix/youtube-transcript-api",
+        "https://github.com/jdepoix/youtube-transcript-api/blob/8f150ba8836da30a36bcd40e8fca226ed179ba72/youtube_transcript_api/_transcripts.py",
+        "https://github.com/jdepoix/youtube-transcript-api/blob/8f150ba8836da30a36bcd40e8fca226ed179ba72/youtube_transcript_api/_errors.py",
+        "https://github.com/jdepoix/youtube-transcript-api/blob/8f150ba8836da30a36bcd40e8fca226ed179ba72/youtube_transcript_api/_api.py",
+        "https://github.com/jdepoix/youtube-transcript-api/blob/8f150ba8836da30a36bcd40e8fca226ed179ba72/README.md",
+        "https://github.com/jdepoix/youtube-transcript-api/blob/8f150ba8836da30a36bcd40e8fca226ed179ba72/pyproject.toml",
+        "https://github.com/jdepoix/youtube-transcript-api/blob/8f150ba8836da30a36bcd40e8fca226ed179ba72/youtube_transcript_api/_settings.py"
+      ],
+      "retrieved_at": "2026-10-17T12:36:26.918086+00:00",
+      "bytes": 65592,
+      "sha256": "500c444f86b51876c311dc5c7dcff7a2dc083a8fbb5840a6b6606f02e9b006ff",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "yta-source.txt",
+      "source_url": "https://github.com/jdepoix/youtube-transcript-api",
+      "source_urls": [
+        "https://github.com/jdepoix/youtube-transcript-api",
+        "https://github.com/jdepoix/youtube-transcript-api/blob/8f150ba8836da30a36bcd40e8fca226ed179ba72/youtube_transcript_api/_transcripts.py",
+        "https://github.com/jdepoix/youtube-transcript-api/blob/8f150ba8836da30a36bcd40e8fca226ed179ba72/youtube_transcript_api/_errors.py",
+        "https://github.com/jdepoix/youtube-transcript-api/blob/8f150ba8836da30a36bcd40e8fca226ed179ba72/youtube_transcript_api/_api.py",
+        "https://github.com/jdepoix/youtube-transcript-api/blob/8f150ba8836da30a36bcd40e8fca226ed179ba72/README.md",
+        "https://github.com/jdepoix/youtube-transcript-api/blob/8f150ba8836da30a36bcd40e8fca226ed179ba72/pyproject.toml",
+        "https://github.com/jdepoix/youtube-transcript-api/blob/8f150ba8836da30a36bcd40e8fca226ed179ba72/youtube_transcript_api/_settings.py"
+      ],
+      "retrieved_at": "2026-10-17T12:36:26.918086+00:00",
+      "bytes": 62501,
+      "sha256": "1faf5c48eed19277ff09f5a9b72bc1fa20215c0ae2e6f801ee8229c07942e085",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "ytdlp-13770-comments.json",
+      "source_url": "https://github.com/yt-dlp/yt-dlp/issues/13770",
+      "source_urls": [
+        "https://github.com/yt-dlp/yt-dlp/issues/13770"
+      ],
+      "retrieved_at": "2026-10-17T12:38:15.623755+00:00",
+      "bytes": 19989,
+      "sha256": "b9b2db2ad40be149466dddd9e5f7c8de67021a9c6d15a901805016d7324411dc",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "ytdlp-13770.json",
+      "source_url": "https://github.com/yt-dlp/yt-dlp/issues/13770",
+      "source_urls": [
+        "https://github.com/yt-dlp/yt-dlp/issues/13770"
+      ],
+      "retrieved_at": "2026-10-17T12:38:14.719176+00:00",
+      "bytes": 17375,
+      "sha256": "858616aaf3f23e32e82f88539e42f101752555ce967c00a41a15466f18b519ab",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "ytdlp-Ks-_Mh1QhMc-sample.en.vtt",
+      "source_url": "https://www.youtube.com/watch?v=Ks-_Mh1QhMc",
+      "source_urls": [
+        "https://www.youtube.com/watch?v=Ks-_Mh1QhMc"
+      ],
+      "retrieved_at": "2026-10-17T12:38:27.844210+00:00",
+      "bytes": 33409,
+      "sha256": "5255c685d77c120b4f03f96f1e05518a4a6f84f67a3a0775a13efd60f5c8231e",
+      "role": "first_party_caption_track; downloaded without media"
+    },
+    {
+      "file": "ytdlp-Ks-_Mh1QhMc.json",
+      "source_url": "https://www.youtube.com/watch?v=Ks-_Mh1QhMc",
+      "source_urls": [
+        "https://www.youtube.com/watch?v=Ks-_Mh1QhMc"
+      ],
+      "retrieved_at": "2026-10-17T12:37:14.880153+00:00",
+      "bytes": 112802,
+      "sha256": "bb66c391e555135a4b66b89b5fad2a4e7176b2e0945abd35fcc127d2d58b0832",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "ytdlp-clone.json",
+      "source_url": "https://github.com/yt-dlp/yt-dlp",
+      "source_urls": [
+        "https://github.com/yt-dlp/yt-dlp"
+      ],
+      "retrieved_at": "2026-10-17T12:36:29.265691+00:00",
+      "bytes": 516,
+      "sha256": "65125066cfc484e195b0d2b7c135eb31dcbfa014090bb0ff0b93d0b573e6ad06",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "ytdlp-issues.json",
+      "source_url": "https://github.com/yt-dlp/yt-dlp/issues",
+      "source_urls": [
+        "https://github.com/yt-dlp/yt-dlp/issues"
+      ],
+      "retrieved_at": "2026-10-17T12:36:32.020861+00:00",
+      "bytes": 782481,
+      "sha256": "a680ee5783d8f30f7613649ac52dbca90940e8b0a1196ed05915c3274b5b238c",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "ytdlp-jNQXAC9IVRw-sample.en.vtt",
+      "source_url": "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+      "source_urls": [
+        "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+      ],
+      "retrieved_at": "2026-10-17T12:38:08.992960+00:00",
+      "bytes": 440,
+      "sha256": "5c7fcf32df4558291ee896d133264e6efea2b39ffbadd36f764ce9e8c392ec71",
+      "role": "first_party_caption_track; downloaded without media"
+    },
+    {
+      "file": "ytdlp-jNQXAC9IVRw.json",
+      "source_url": "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+      "source_urls": [
+        "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+      ],
+      "retrieved_at": "2026-10-17T12:36:51.865732+00:00",
+      "bytes": 5363,
+      "sha256": "9ccfad7a3fa4cebae44f5a8fa5584798cd2b56c2c4a6a844cf1c46334d3cb228",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "ytdlp-source.json",
+      "source_url": "https://github.com/yt-dlp/yt-dlp",
+      "source_urls": [
+        "https://github.com/yt-dlp/yt-dlp",
+        "https://github.com/yt-dlp/yt-dlp/blob/897341241f2bfb2439fe0367f4c7c9ccd29a3828/yt_dlp/extractor/youtube/_video.py",
+        "https://github.com/yt-dlp/yt-dlp/blob/897341241f2bfb2439fe0367f4c7c9ccd29a3828/yt_dlp/extractor/youtube/_base.py",
+        "https://github.com/yt-dlp/yt-dlp/blob/897341241f2bfb2439fe0367f4c7c9ccd29a3828/yt_dlp/version.py"
+      ],
+      "retrieved_at": "2026-10-17T12:36:32.018870+00:00",
+      "bytes": 283155,
+      "sha256": "46716593a99b7b969a07f417330fd80555020e4e1574bfd16ed4f3d6c1a17e2e",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "ytdlp-source.txt",
+      "source_url": "https://github.com/yt-dlp/yt-dlp",
+      "source_urls": [
+        "https://github.com/yt-dlp/yt-dlp",
+        "https://github.com/yt-dlp/yt-dlp/blob/897341241f2bfb2439fe0367f4c7c9ccd29a3828/yt_dlp/extractor/youtube/_video.py",
+        "https://github.com/yt-dlp/yt-dlp/blob/897341241f2bfb2439fe0367f4c7c9ccd29a3828/yt_dlp/extractor/youtube/_base.py",
+        "https://github.com/yt-dlp/yt-dlp/blob/897341241f2bfb2439fe0367f4c7c9ccd29a3828/yt_dlp/version.py"
+      ],
+      "retrieved_at": "2026-10-17T12:36:32.018870+00:00",
+      "bytes": 275874,
+      "sha256": "71e2adefeaf1fcec329e28d499bc2f55d207806fc976cb080826b61f05456047",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "ytdlp-subtitles-Ks-_Mh1QhMc.json",
+      "source_url": "https://www.youtube.com/watch?v=Ks-_Mh1QhMc",
+      "source_urls": [
+        "https://www.youtube.com/watch?v=Ks-_Mh1QhMc"
+      ],
+      "retrieved_at": "2026-10-17T12:38:27.844210+00:00",
+      "bytes": 1581,
+      "sha256": "fdaf637f948ee05e2e27909ed3a41ddc2d3cfe83d9ce1f3e3fb96c1c8936fb75",
+      "role": "source_snapshot_or_read_only_observation"
+    },
+    {
+      "file": "ytdlp-subtitles-jNQXAC9IVRw.json",
+      "source_url": "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+      "source_urls": [
+        "https://www.youtube.com/watch?v=jNQXAC9IVRw"
+      ],
+      "retrieved_at": "2026-10-17T12:38:08.992960+00:00",
+      "bytes": 1578,
+      "sha256": "4c5e7e50bb638df44738ff6349452816895594dd554654fe9c3660541632f398",
+      "role": "source_snapshot_or_read_only_observation"
+    }
+  ]
+}

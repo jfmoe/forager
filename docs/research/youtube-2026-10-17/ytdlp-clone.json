@@ -1,0 +1,18 @@
+{
+  "source_url": "https://github.com/yt-dlp/yt-dlp",
+  "checked_at": "2026-10-17T12:36:29.265691+00:00",
+  "completed_at": "2026-10-17T12:36:32.013025+00:00",
+  "command": [
+    "gh",
+    "repo",
+    "clone",
+    "yt-dlp/yt-dlp",
+    "/var/folders/v6/6lxgncdn0w5czm8l7w7lhglm0000gn/T/forager-youtube-ytdlp-cr45mk01/repo",
+    "--",
+    "--depth",
+    "1"
+  ],
+  "exit_code": 0,
+  "stdout": "",
+  "stderr": "Cloning into '/var/folders/v6/6lxgncdn0w5czm8l7w7lhglm0000gn/T/forager-youtube-ytdlp-cr45mk01/repo'...\n"
+}

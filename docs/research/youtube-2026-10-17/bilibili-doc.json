@@ -1,0 +1,15 @@
+{
+  "source_url": "https://open.bilibili.com/doc",
+  "checked_at": "2026-10-17T12:40:13.856346+00:00",
+  "completed_at": "2026-10-17T12:40:17.126414+00:00",
+  "command": [
+    "forager",
+    "fetch",
+    "https://open.bilibili.com/doc",
+    "--format",
+    "json"
+  ],
+  "exit_code": 0,
+  "stdout": "{\"provider\":\"firecrawl\",\"url\":\"https://open.bilibili.com/doc\",\"content\":\"![logo](<Base64-Image-Removed>)[![](<Base64-Image-Removed>)主站](https://www.bilibili.com/)\\n\\n开放平台  开平文档中心 开平管理中心![](<Base64-Image-Removed>)账号管理 应用管理 授权管理  直播创作者服务中心  互动玩法\\n\\n![](<Base64-Image-Removed>)登录\\n\\n\\\\|\\n\\n注册\\n\\n### OPEN API\\n\\n账号授权\\n\\n包括B站账号授权、账号绑定的能力\\n\\n用户管理\\n\\n包括获取用户公开信息的能力\\n\\n视频管理\\n\\n包括视频稿件的发布、删除和查询的能力\\n\\n数据开放\\n\\n包括用户授权后的用户数据、稿件数据等能力\\n\\n专栏管理\\n\\n包括专栏稿件的发布、删除和查询的能力\\n\\n直播能力\\n\\n包括开播和直播间消息长连的能力\\n\\n### 客户端 SDK\\n\\nIOS SDK\\n\\n包括B站账号授权功能\\n\\nAndroid SDK\\n\\n包括B站账号授权功能\\n\\n服务端 SDK\\n\\n包括服务端多语言的SDK\\n\\n### 运营指南\\n\\n运营规范\\n\\n包括哔哩哔哩开放平台的运营规范及相关介绍\\n\\n处罚规则\\n\\n关于违反开放平台运营规范的处罚说明\\n\\n处罚公告\\n\\n针对违反规则开发者的处罚公告\\n\\n### 更多支持\\n\\n状态码\\n\\n接口的状态码查询\\n\\n沙盒环境\\n\\n帮助开发者快速体验开放平台功能\\n\\nWebhooks\\n\\n用户事件触发反向通知的机制\\n\\n常见问题\\n\\n关于开放平台的常见问题答疑\\n\\n### 身份认证\\n\\n请完成身份信息填写，审核通过后即可创建应用，拥有稿件分发等开发者能力。\\n\\n如果您是被授权用户，请前往【管理中心】-【授权管理】接受授权邀请\\n\\n去填写去接受邀请\\n\\n![](<Base64-Image-Removed>)\\n\\n帮助中心\\n\\n[![](<Base64-Image-Removed>)联系我们](https://open.bilibili.com/doc/4/e9a4bc66-473c-3a32-2658-db94ae6513fe)\\n\\n[![](<Base64-Image-Removed>)发起工单](https://open.bilibili.com/ticket)\\n\\nCross Origin Local Storage\"}\n",
+  "stderr": ""
+}

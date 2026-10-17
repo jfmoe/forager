@@ -1,0 +1,202 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.supadata.ai/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Search
+
+> Use this API endpoint to search YouTube for videos, channels, and playlists with advanced filtering options.
+
+YouTube search is one of the endpoints in [Supadata's YouTube Data API alternative](https://supadata.ai/youtube-api), with no quota headaches.
+
+## Quick Start
+
+### Request
+
+<CodeGroup>
+  ```js Node theme={null}
+  import { Supadata } from "@supadata/js";
+
+  // Initialize the client
+  const supadata = new Supadata({
+    apiKey: "YOUR_API_KEY",
+  });
+
+  const searchResults = await supadata.youtube.search({
+    query: "never gonna give you up",
+    type: "video", // Optional: 'video', 'channel', 'playlist', 'movie', 'all' (default 'all')
+    limit: 20, // Optional: get more than the first page of results
+    sortBy: "views", // Optional: 'relevance', 'rating', 'date', 'views'
+    uploadDate: "year", // Optional: 'hour', 'today', 'week', 'month', 'year'
+    duration: "medium", // Optional: 'short', 'medium', 'long',
+    features: ["hd", "subtitles"], // Optional
+  });
+
+  console.log(`Found ${searchResults.results.length} results`);
+  ```
+
+  ```python Python theme={null}
+  from supadata import Supadata
+
+  # Initialize the client
+  supadata = Supadata(api_key="YOUR_API_KEY")
+
+  search_results = supadata.youtube.search(
+      query="never gonna give you up",
+      type="video",  # Optional: 'video', 'channel', 'playlist', 'movie', 'all' (default 'all')
+      limit=20,  # Optional: get more than the first page of results
+      sort_by="views",  # Optional: 'relevance', 'rating', 'date', 'views'
+      upload_date="year",  # Optional: 'hour', 'today', 'week', 'month', 'year'
+      duration="medium",  # Optional: 'short', 'medium', 'long',
+      features=["hd", "subtitles"],  # Optional
+  )
+
+  print(f"Found {len(search_results.results)} results")
+  for result in search_results.results:
+      print(f"{result.type}: {result.title}")
+  ```
+
+  ```bash cURL theme={null}
+  curl -X GET 'https://api.supadata.ai/v1/youtube/search?query=never%20gonna%20give%20you%20up&type=video&limit=20&sortBy=views&uploadDate=month' \
+    -H 'x-api-key: YOUR_API_KEY'
+  ```
+</CodeGroup>
+
+### Response
+
+```json theme={null}
+{
+  "query": "Rick Astley Never Gonna Give You Up",
+  "results": [
+    {
+      "type": "video",
+      "id": "dQw4w9WgXcQ",
+      "title": "Rick Astley - Never Gonna Give You Up (Official Video)",
+      "description": "The official music video for Rick Astley...",
+      "thumbnail": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+      "duration": 213,
+      "viewCount": 1234567890,
+      "uploadDate": "2009-10-25T00:00:00.000Z",
+      "channel": {
+        "id": "UCuAXFkgsw1L7xaCfnd5JJOw",
+        "name": "Rick Astley",
+        "thumbnail": "https://yt3.ggpht.com/..."
+      }
+    },
+    {
+      "type": "channel",
+      "id": "UCuAXFkgsw1L7xaCfnd5JJOw",
+      "title": "Rick Astley",
+      "description": "Official Rick Astley YouTube Channel...",
+      "thumbnail": "https://yt3.ggpht.com/...",
+      "handle": "@RickAstleyYT",
+      "videoCount": 100
+    },
+    {
+      "type": "playlist",
+      "id": "PLrAVp4ISIlVYYbGzAY_YX30NMdvOL_PGJ",
+      "title": "Best of Rick Astley",
+      "description": "A collection of Rick Astley's greatest hits",
+      "thumbnail": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+      "videoCount": 25,
+      "channel": {
+        "id": "UCuAXFkgsw1L7xaCfnd5JJOw",
+        "name": "Rick Astley"
+      }
+    }
+  ],
+  "nextPageToken": "eyJxdWVyeSI6IlJpY2sgQXN0bGV5IiwiZmlsdGVycyI6e319"
+}
+```
+
+## Specification
+
+### Endpoint
+
+`GET https://api.supadata.ai/v1/youtube/search`
+
+Each request requires an `x-api-key` header with your API key available after signing up. Get your API key [here](https://dash.supadata.ai/organizations/api-key).
+
+### Query Parameters
+
+| Parameter | Type | Required | Description |
+| - | - | - | - |
+| query | string | Yes | Search query string |
+| type | string | No | Filter by content type. Options: `all` (default), `video`, `channel`, `playlist`, `movie` |
+| uploadDate | string | No | Filter by upload date. Options: `all` (default), `hour`, `today`, `week`, `month`, `year` |
+| duration | string | No | Filter by video duration. Options: `all` (default), `short` (\<4min), `medium` (4-20min), `long` (>20min) |
+| sortBy | string | No | Sort order of results. Options: `relevance` (default), `rating`, `date`, `views` |
+| features | array | No | Array of special features to filter by. Options: `hd`, `subtitles`, `creative-commons`, `3d`, `live`, `4k`, `360`, `location`, `hdr`, `vr180`. Pass as repeated query keys, e.g. `features=hd&features=subtitles` |
+| limit | number | No | Maximum number of results to return (1-5000). When provided, API automatically paginates to fetch up to this many results |
+| nextPageToken | string | No | Token for fetching the next page of results. When provided, filters other than `query` are ignored |
+
+## Pagination
+
+The search endpoint supports two different pagination modes depending on whether you use the `limit` parameter.
+
+<Info>
+  Supadata SDKs automatically handle pagination for you. Please use the API if
+  you need to control pagination.
+</Info>
+
+### Automatic Pagination (with `limit`)
+
+When you provide a `limit` parameter, the API automatically handles pagination for you:
+
+```bash theme={null}
+# Get up to 100 results automatically
+curl -X GET 'https://api.supadata.ai/v1/youtube/search?query=programming&limit=100' \
+  -H 'x-api-key: YOUR_API_KEY'
+```
+
+**How it works:**
+
+* The API fetches multiple pages behind the scenes until it reaches your desired `limit` or runs out of results
+* You receive all results in a single response
+* The request costs `ceil(limit / 20)` credits (so requesting 100 results consumes 5 credits)
+* No `nextPageToken` is returned since all requested results are included
+
+**Use this when:**
+
+* You need a specific number of results
+* You want convenience over credit control
+* You're building bulk data collection tools
+
+### Manual Pagination (without `limit`)
+
+When you don't provide a `limit` parameter, you get manual control over pagination:
+
+```bash theme={null}
+# Get first page
+curl -X GET 'https://api.supadata.ai/v1/youtube/search?query=programming' \
+  -H 'x-api-key: YOUR_API_KEY'
+
+# Get next page using the token from previous response
+curl -X GET 'https://api.supadata.ai/v1/youtube/search?query=programming&nextPageToken=TOKEN_HERE' \
+  -H 'x-api-key: YOUR_API_KEY'
+```
+
+**How it works:**
+
+* You receive one page of results (\~20 items) per request
+* Each request consumes exactly 1 credit
+* A `nextPageToken` is included in the response for fetching additional pages
+* When using `nextPageToken`, filters other than `query` are ignored (`query` is still required)
+
+**Use this when:**
+
+* You want precise credit control
+* You're implementing infinite scroll or "Load More" functionality
+* You only need the first page of results
+* You're building interactive applications where users control pagination
+
+### Error Codes
+
+The API returns HTTP status codes and error codes. See this [page](/errors) for more details.
+
+## Pricing
+
+* 1 search request without `limit` = 1 credit (one page of \~20 results)
+* With `limit` set: `ceil(limit / 20)` credits per request
+
+
+This documentation is built and hosted on [Mintlify](https://mintlify.com), a developer documentation platform.

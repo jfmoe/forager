@@ -1,0 +1,284 @@
+# YouTube Video Transcript API
+
+[Release Notes](https://serpapi.com/youtube-video-transcript/release-notes) [API uptime\\
+\\
+100.000%](https://serpapi.com/youtube-video-transcript/api-metrics)
+
+Youtube Video Transcript API allows you to scrape video transcript from [Youtube](https://www.youtube.com/). Video transcript provides details such as snippets, start time, end time, chapters and language details.
+
+The API endpoint is `https://serpapi.com/search?engine=youtube_video_transcript`
+
+Head to the [playground](https://serpapi.com/playground?engine=youtube_video_transcript) for a live and interactive demo.
+
+
+## API Parameters
+
+### Search Query
+
+v
+
+Required
+
+Parameter defines the Video ID, it can be found in the URL of the video as `youtu.be/video_id` or `youtube.com/watch?v=video_id`
+
+### Localization
+
+language\_code
+
+Optional
+
+Parameter defines the language to use for the YouTube video transcript. It accepts a language code, which may be a two-letter or extended code (e.g., `en` for English, `es-ES` for Spanish (Spain), or `zh-Hans` for Simplified Chinese). If no language is provided, the default language will be English (`en`). If the requested language code is not available for the video, the first available language for the transcript will be used instead. Head to the [YouTube Video Transcript Languages](https://serpapi.com/youtube-video-transcript-languages) page for a full list of supported YouTube Video Transcript languages.
+
+### Advanced Parameters
+
+title
+
+Optional
+
+Parameter is used to get the specific transcript using the transcript title, e.g. `Twitch Chat - Simple`.
+
+type
+
+Optional
+
+Parameter is used to get the transcript type. E.g: `asr` for automatic speech recognition (auto-generated) transcript.
+
+### ![](https://serpapi.com/assets/square-logo-v3-small.png)  Serpapi Parameters
+
+engine
+
+Required
+
+Set parameter to `youtube_video_transcript` to use the YouTube Video Transcript API engine.
+
+no\_cache
+
+Optional
+
+Parameter will force SerpApi to fetch the YouTube Video Transcript results even if a cached version is already present. A cache is served only if the query and all parameters are exactly the same. Cache expires after 1h. Cached searches are free, and are not counted towards your searches per month. It can be set to `false` (default) to allow results from the cache, or `true` to disallow results from the cache. no\_cache and async parameters should not be used together.
+
+async
+
+Optional
+
+Parameter defines the way you want to submit your search to SerpApi. It can be set to `false` (default) to open an HTTP connection and keep it open until you got your search results, or `true` to just submit your search to SerpApi and retrieve them later. In this case, you'll need to use our [Searches Archive API](https://serpapi.com/search-archive-api) to retrieve your results. async and no\_cache parameters should not be used together. async should not be used on accounts with [Ludicrous Speed](https://serpapi.com/plan) enabled.
+
+zero\_trace
+
+Optional
+
+Enterprise only. Parameter enables [ZeroTrace mode](https://serpapi.com/zero-trace-mode). It can be set to `false` (default) or `true`. Enable this mode to skip storing search parameters, search files, and search metadata on our servers. This may make debugging more difficult.
+
+api\_key
+
+Required
+
+Parameter defines the SerpApi private key to use.
+
+output
+
+Optional
+
+Parameter defines the format of the result. It can be set to `json` (default) to get a structured JSON of the results, `html` to get the raw HTML retrieved, or `md` to get a markdown-formatted version optimized for LLMs and AI agents.
+
+json\_restrictor
+
+Optional
+
+Parameter defines the fields you want to include in the output, reducing payload size for faster response. See the [JSON Restrictor documentation](https://serpapi.com/json-restrictor) for more details.
+
+## API Results
+
+### JSON Results
+
+JSON output includes structured data for video results.
+
+A search status is accessible through `search_metadata.status`.
+It flows this way: `Processing` -\> `Success` \|\| `Error`.
+If a search has failed, `error` will contain an error message.
+`search_metadata.id` is the search ID inside SerpApi.
+
+### HTML Results
+
+This API does not have a full HTML response, only text.
+`search_metadata.prettify_html_file` contains a link to the prettified version of the result.
+It is displayed in the playground.
+
+### Markdown Results
+
+Markdown output is optimized for LLMs and AI agents. It provides most of the same informational content as JSON
+in a token-efficient format using tables, markdown links, and YAML frontmatter.
+
+
+To access, use the `output=md` parameter, the `/search.md` endpoint, or request header `Accept: text/markdown`.
+
+
+## API Examples
+
+### Result with chapters and available transcripts
+
+![Result with chapters and available transcripts](https://serpapi.com/assets/youtube_video_transcript/transcript-befe955c10940f443242000d76a225bf4a2569a3347020f6d0ea87dfdbcebd89.webp)
+
+GET
+
+- ```url
+
+```
+
+
+Code to integrate
+
+cURLCLIRubyPythonJavaScriptGoPHPJavaRustC++.NETSwiftGoogle Sheets
+
+cURLCLIRubyPythonJavaScriptGoPHPJavaRustC++.NETSwiftGoogle Sheets
+
+```ruby
+
+```
+
+JSON Example
+
+```json
+{
+"search_metadata": {
+    "id": "68852264fc8a2b75df3ecdea",
+    "status": "Success",
+    "json_endpoint": "https://serpapi.com/searches/4f7321b9d68fb777/68852264fc8a2b75df3ecdea.json",
+    "created_at": "2025-07-26 18:45:56 UTC",
+    "processed_at": "2025-07-26 18:45:56 UTC",
+    "youtube_video_transcript_url": "https://www.youtube.com/watch?v=Gk8gB5VACZw",
+    "raw_html_file": "https://serpapi.com/searches/4f7321b9d68fb777/68852264fc8a2b75df3ecdea.html",
+    "prettify_html_file": "https://serpapi.com/searches/4f7321b9d68fb777/68852264fc8a2b75df3ecdea.prettify",
+    "total_time_taken": 1.04
+},
+"search_parameters": {
+    "engine": "youtube_video_transcript",
+    "v": "Gk8gB5VACZw",
+    "language_code": "en",
+    "type": "asr"
+},
+"transcript": [\
+    {\
+      "start_ms": 240,\
+      "end_ms": 7040,\
+      "snippet": "hello everyone and welcome to yet another recreational programming session with a Mr zozen so we've been developing",\
+      "start_time_text": "0:00"\
+    },\
+    {\
+      "start_ms": 7040,\
+      "end_ms": 13840,\
+      "snippet": "uh our B compiler for I don't know several months already i think maybe a month or something like that and there",\
+      "start_time_text": "0:07"\
+    },\
+    {\
+      "start_ms": 13840,\
+      "end_ms": 22480,\
+      "snippet": "was the issue that was created pretty much at the beginning of the development to basically try to compile existing B",\
+      "start_time_text": "0:13"\
+    },\
+    {\
+      "start_ms": 22480,\
+      "end_ms": 28800,\
+      "snippet": "compilers with our B compiler so this is not necessarily self-hosting and as already said multiple times I do not",\
+      "start_time_text": "0:22"\
+    },\
+    {\
+      "start_ms": 28800,\
+      "end_ms": 36079,\
+      "snippet": "really plan to self-host my compiler right for me personally I I guess you can basically rat hole about definitions",\
+      "start_time_text": "0:28"\
+    },\
+    ...\
+],
+"chapters": [\
+    {\
+      "chapter": "Intro",\
+      "start_ms": 0,\
+      "end_ms": 214000\
+    },\
+    {\
+      "chapter": "Compiling b.b with b",\
+      "start_ms": 214000,\
+      "end_ms": 289000\
+    },\
+    {\
+      "chapter": "Function Forward Declaration",\
+      "start_ms": 289000,\
+      "end_ms": 664000\
+    },\
+    ...\
+],
+"available_transcripts": [\
+    {\
+      "language_name": "English",\
+      "language_code": "en",\
+      "type": "asr",\
+      "selected": true,\
+      "serpapi_link": "https://serpapi.com/search.json?type=asr&engine=youtube_video_transcript&language_code=en&v=Gk8gB5VACZw"\
+    },\
+    {\
+      "title": "Twitch Chat - Fancy",\
+      "language_name": "English",\
+      "language_code": "en",\
+      "serpapi_link": "https://serpapi.com/search.json?engine=youtube_video_transcript&language_code=en&title=Twitch+Chat+-+Fancy&v=Gk8gB5VACZw"\
+    },\
+    {\
+      "title": "Twitch Chat - Simple",\
+      "language_name": "English",\
+      "language_code": "en",\
+      "serpapi_link": "https://serpapi.com/search.json?engine=youtube_video_transcript&language_code=en&title=Twitch+Chat+-+Simple&v=Gk8gB5VACZw"\
+    }\
+]
+}
+```
+
+### JSON Structure Overview
+
+```json
+{
+...
+"transcript": [\
+    {\
+      "start_ms": "Integer - Start time of the snippet in milliseconds",\
+      "end_ms": "Integer - End time of the snippet in milliseconds",\
+      "snippet": "String - Snippet of the transcript",\
+      "start_time_text": "String - Start time of the snippet in text"\
+    }\
+],
+"chapters": [\
+    {\
+      "chapter": "String - Title of the chapter",\
+      "start_ms": "Integer - Start time of the chapter in milliseconds",\
+      "end_ms": "Integer - End time of the chapter in milliseconds"\
+    }\
+],
+"available_transcripts": [\
+    {\
+      "title": "String - Title of the transcript, if available",\
+      "language_name": "String - Language name (e.g. English)",\
+      "language_code": "String - Language code (e.g. en)",\
+      "type": "String - Type of the transcript (e.g. asr)",\
+      "selected": "Boolean - True if the transcript is selected",\
+      "serpapi_link": "String - SerpApi link to the available language"\
+    }\
+]
+}
+```
+
+### **SerpApi** results for ""
+
+|     |     |     |
+| --- | --- | --- |
+| |     |     |
+| --- | --- |
+|  | × | | search |  |
+
+Custom Search
+
+|     |     |
+| --- | --- |
+|  | Sort by<br>Relevance<br>Date |
+
+|     |     |
+| --- | --- |
+|  |  |

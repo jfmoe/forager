@@ -1,0 +1,186 @@
+[Skip to main content](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#main-content)
+
+[![YouTube](https://developers.google.com/static/site-assets/logo-youtube.svg)](https://developers.google.com/youtube)
+
+- [YouTube](https://developers.google.com/youtube)
+- [Data API](https://developers.google.com/youtube/data)
+
+`/`
+
+Language
+
+- [English](https://developers.google.com/youtube/data/reference/rest/v3/captions/download)
+- [Deutsch](https://developers.google.com/youtube/data/reference/rest/v3/captions/download?hl=de)
+- [Español](https://developers.google.com/youtube/data/reference/rest/v3/captions/download?hl=es)
+- [Español – América Latina](https://developers.google.com/youtube/data/reference/rest/v3/captions/download?hl=es-419)
+- [Français](https://developers.google.com/youtube/data/reference/rest/v3/captions/download?hl=fr)
+- [Indonesia](https://developers.google.com/youtube/data/reference/rest/v3/captions/download?hl=id)
+- [Italiano](https://developers.google.com/youtube/data/reference/rest/v3/captions/download?hl=it)
+- [Polski](https://developers.google.com/youtube/data/reference/rest/v3/captions/download?hl=pl)
+- [Português – Brasil](https://developers.google.com/youtube/data/reference/rest/v3/captions/download?hl=pt-br)
+- [Tiếng Việt](https://developers.google.com/youtube/data/reference/rest/v3/captions/download?hl=vi)
+- [Türkçe](https://developers.google.com/youtube/data/reference/rest/v3/captions/download?hl=tr)
+- [Русский](https://developers.google.com/youtube/data/reference/rest/v3/captions/download?hl=ru)
+- [עברית](https://developers.google.com/youtube/data/reference/rest/v3/captions/download?hl=he)
+- [العربيّة](https://developers.google.com/youtube/data/reference/rest/v3/captions/download?hl=ar)
+- [فارسی](https://developers.google.com/youtube/data/reference/rest/v3/captions/download?hl=fa)
+- [हिंदी](https://developers.google.com/youtube/data/reference/rest/v3/captions/download?hl=hi)
+- [বাংলা](https://developers.google.com/youtube/data/reference/rest/v3/captions/download?hl=bn)
+- [ภาษาไทย](https://developers.google.com/youtube/data/reference/rest/v3/captions/download?hl=th)
+- [中文 – 简体](https://developers.google.com/youtube/data/reference/rest/v3/captions/download?hl=zh-cn)
+- [中文 – 繁體](https://developers.google.com/youtube/data/reference/rest/v3/captions/download?hl=zh-tw)
+- [日本語](https://developers.google.com/youtube/data/reference/rest/v3/captions/download?hl=ja)
+- [한국어](https://developers.google.com/youtube/data/reference/rest/v3/captions/download?hl=ko)
+
+[Sign in](https://developers.google.com/_d/signin?continue=https%3A%2F%2Fdevelopers.google.com%2Fyoutube%2Fdata%2Freference%2Frest%2Fv3%2Fcaptions%2Fdownload&prompt=select_account)
+
+- On this page
+- [Common use cases](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#common-use-cases)
+- [Request](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#request)
+  - [HTTP request](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#http-request)
+  - [Authorization](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#auth)
+  - [Parameters](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#parameters)
+  - [Request body](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#request-body)
+- [Response](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#response)
+- [Errors](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#errors)
+- [Try it!](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#try-it)
+Try it!
+
+- [Home](https://developers.google.com/)
+- [Products](https://developers.google.com/products)
+- [YouTube](https://developers.google.com/youtube)
+- [Data API](https://developers.google.com/youtube/data)
+- [Reference](https://developers.google.com/youtube/data/reference/rest)
+
+Was this helpful?
+
+# Captions: download    Stay organized with collections      Save and categorize content based on your preferences.
+
+- On this page
+- [Common use cases](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#common-use-cases)
+- [Request](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#request)
+  - [HTTP request](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#http-request)
+  - [Authorization](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#auth)
+  - [Parameters](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#parameters)
+  - [Request body](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#request-body)
+- [Response](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#response)
+- [Errors](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#errors)
+- [Try it!](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#try-it)
+- [Try it](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#try-it)
+
+Downloads a caption track. The caption track is returned in its original format unless the request specifies a value for the `tfmt` parameter and in its original language unless the request specifies a value for the `tlang` parameter.
+
+**Quota impact:** A call to this method has a [quota cost](https://developers.google.com/youtube/data/getting-started#quota) of 200 units.
+
+This method requires the user to have permission to edit the video.
+
+## Common use cases
+
+Google for Developers
+
+The list below shows common use cases for this method. Hover over a use case to see its description, or click on a use case to load sample parameter values in the APIs Explorer. You can open the [fullscreen APIs Explorer](https://developers-dot-devsite-v2-prod.appspot.com/youtube/data/reference/rest/v3/captions/download_de6c6564445dcc838f46fa37727edc0f83f72fb95adf8bbac2faeea232480ce3.frame#) to see code samples that dynamically update to reflect the parameter values entered in the Explorer.
+
+The table below shows common use cases for this method. You can click on a use case name to load sample parameter values in the APIs Explorer. Or you can see code samples for a use case in the fullscreen APIs Explorer by clicking on the code icon below a use case name. In the fullscreen UI, you can update parameter and property values and the code samples will dynamically update to reflect the values you enter.
+
+This method has one common use case, which is described below. The buttons below the description populate the APIs Explorer with sample values or open the fullscreen APIs Explorer to show code samples that use those values. The code samples also dynamically update if you change the values.
+
+This example downloads the specified caption track. You must use the `id` parameter to specify a caption track ID for the code sample to work. The `tfmt` and `tlang` parameters are both optional and allow you to download a particular format or machine translation of the track, respectively.
+
+Populate APIs ExplorerSee code samples
+
+|
+|
+
+## Request
+
+### HTTP request
+
+```
+GET https://www.googleapis.com/youtube/v3/captions/id
+```
+
+### Authorization
+
+This request requires authorization with at least one of the following scopes ( [read more about authentication and authorization](https://developers.google.com/youtube/data/guides/authentication)).
+
+| Scope |
+| --- |
+| `https://www.googleapis.com/auth/youtube.force-ssl` |
+| `https://www.googleapis.com/auth/youtubepartner` |
+
+### Parameters
+
+The table below lists the parameters that this query supports. All of the parameters listed are query parameters.
+
+| Parameters |
+| --- |
+| **Required parameters** |
+| `id` | `string`<br> The `id` parameter identifies the caption track that is being retrieved. The value is a caption track ID as identified by the `id` property in a `caption` resource. |
+| **Optional parameters** |
+| `onBehalfOfContentOwner` | `string`<br> This parameter can only be used in a properly [authorized request](https://developers.google.com/youtube/data/guides/authentication). **Note:** This parameter is intended exclusively for YouTube content partners.<br>The `onBehalfOfContentOwner` parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The actual CMS account that the user authenticates with must be linked to the specified YouTube content owner. |
+| `tfmt` | `string`<br> The `tfmt` parameter specifies that the caption track should be returned in a specific format. If the parameter is not included in the request, the track is returned in its original format.<br>Supported values are:<br>- `sbv` – SubViewer subtitle<br>- `scc` – Scenarist Closed Caption format<br>- `srt` – SubRip subtitle<br>- `ttml` – Timed Text Markup Language caption<br>- `vtt` – Web Video Text Tracks caption |
+| `tlang` | `string`<br> The `tlang` parameter specifies that the API response should return a translation of the specified caption track. The parameter value is an [ISO 639-1 two-letter language code](http://www.loc.gov/standards/iso639-2/php/code_list.php) that identifies the desired caption language. The translation is generated by using machine translation, such as Google Translate. |
+
+### Request body
+
+Do not provide a request body when calling this method.
+
+## Response
+
+If successful, this method returns a binary file. The `Content-Type` header for the response is `application/octet-stream`.
+
+## Errors
+
+The table below identifies error messages that the API could return in response to a call to this method. Please see the [error message](https://developers.google.com/youtube/data/reference/rest/v3/errors) documentation for more detail.
+
+| Error type | Error detail | Description |
+| --- | --- | --- |
+| `forbidden (403)` | `forbidden` | The permissions associated with the request are not sufficient to download the caption track. The request might not be properly authorized. |
+| `invalidValue (400)` | `couldNotConvert` | The caption track data could not be converted to the requested language and/or format. Ensure that the requested `tfmt` and `tlang` values are valid, and that the `snippet.status` of the requested caption track is not `failed`. |
+| `notFound (404)` | `captionNotFound` | The caption track could not be found. Check the value of the request's `id` parameter to ensure that it is correct. |
+
+## Try it!
+
+Use the APIs Explorer to call this API and see the API request and response.
+
+Was this helpful?
+
+Except as otherwise noted, the content of this page is licensed under the [Creative Commons Attribution 4.0 License](https://creativecommons.org/licenses/by/4.0/), and code samples are licensed under the [Apache 2.0 License](https://www.apache.org/licenses/LICENSE-2.0). For details, see the [Google Developers Site Policies](https://developers.google.com/site-policies). Java is a registered trademark of Oracle and/or its affiliates.
+
+Last updated 2026-10-15 UTC.
+
+
+
+
+\[\[\["Easy to understand","easyToUnderstand","thumb-up"\],\["Solved my problem","solvedMyProblem","thumb-up"\],\["Other","otherUp","thumb-up"\]\],\[\["Missing the information I need","missingTheInformationINeed","thumb-down"\],\["Too complicated / too many steps","tooComplicatedTooManySteps","thumb-down"\],\["Out of date","outOfDate","thumb-down"\],\["Samples / code issue","samplesCodeIssue","thumb-down"\],\["Other","otherDown","thumb-down"\]\],\["Last updated 2026-10-15 UTC."\],\[\],\[\]\]
+
+
+
+Info
+
+
+Chat
+
+
+API
+
+
+Try It!
+
+## Page info
+
+bug\_reportfullscreenclose\_fullscreenclose
+
+### On this page
+
+- On this page
+- [Common use cases](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#common-use-cases)
+- [Request](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#request)
+  - [HTTP request](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#http-request)
+  - [Authorization](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#auth)
+  - [Parameters](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#parameters)
+  - [Request body](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#request-body)
+- [Response](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#response)
+- [Errors](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#errors)
+- [Try it!](https://developers.google.com/youtube/data/reference/rest/v3/captions/download#try-it)
+Try it!

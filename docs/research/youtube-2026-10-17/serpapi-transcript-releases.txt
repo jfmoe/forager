@@ -1,0 +1,29 @@
+# Last Release Notes: YouTube Video Transcript API - SerpApi
+
+[YouTube Video Transcript API](https://serpapi.com/youtube-video-transcript) \> Last Release Notes
+
+|  | Release Thread | GitHub | Release Date |
+| --- | --- | --- | --- |
+| Fixed | \[YouTube Video Transcript API\] Empty results | [Details](https://github.com/serpapi/public-roadmap/issues/3702) | Apr 10, 2026 |
+| Fixed | \[YouTube Video Transcript API\] Missing response on a valid video | [Details](https://github.com/serpapi/public-roadmap/issues/3464) | Mar 17, 2026 |
+| Fixed | \[Youtube Video Transcript API\] All Responses Empty | [Details](https://github.com/serpapi/public-roadmap/issues/3353) | Jan 20, 2026 |
+| Fixed | \[Youtube Video Transcript API\] 404s are timing out | [Details](https://github.com/serpapi/public-roadmap/issues/3138) | Oct 22, 2025 |
+| New | \[New API\] Scrape YouTube Video Transcript | [Details](https://github.com/serpapi/public-roadmap/issues/1935) | Oct 07, 2025 |
+
+### **SerpApi** results for ""
+
+|     |     |     |
+| --- | --- | --- |
+| |     |     |
+| --- | --- |
+|  | × | | search |  |
+
+Custom Search
+
+|     |     |
+| --- | --- |
+|  | Sort by<br>Relevance<br>Date |
+
+|     |     |
+| --- | --- |
+|  |  |

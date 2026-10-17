@@ -1,0 +1,57 @@
+# 查询授权账号视频列表
+
+Scope：'video.list' [需要用户授权](https://open.douyin.com/platform/resource/docs/develop/permission/overall-permission)需要申请权限 该接口用于分页获取用户所有视频的数据，返回的数据是实时的。该接口适用于 **抖音**。
+
+**注意：**
+
+- 抖音的 OAuth API 以 [https://open.douyin.com/开头。](https://open.douyin.com/%E5%BC%80%E5%A4%B4%E3%80%82)
+- 目前暂不支持时间过滤，但相关功能正在评估开发中
+
+# [状态码排查 permalink](https://open.douyin.com/platform/resource/docs/openapi/video-management/douyin/search-video/account-video-list\#%E7%8A%B6%E6%80%81%E7%A0%81%E6%8E%92%E6%9F%A5) 状态码排查
+
+进入 [【状态码排查工具】](https://open.douyin.com/platform/tool?from=%2Fvideo%2Flist%2F)
+
+## [请求地址 permalink](https://open.douyin.com/platform/resource/docs/openapi/video-management/douyin/search-video/account-video-list\#%E8%AF%B7%E6%B1%82%E5%9C%B0%E5%9D%80) 请求地址
+
+GET /video/list/
+
+## [请求头 permalink](https://open.douyin.com/platform/resource/docs/openapi/video-management/douyin/search-video/account-video-list\#%E8%AF%B7%E6%B1%82%E5%A4%B4) 请求头
+
+- Content-Type: application/json
+- access-token: 调用/oauth/access\_token/生成的 token，此 token 需要用户授权。示例: act.1d1021d2aee3d41fee2d2add43456badMFZnrhFhfWotu3Ecuiuka27L56lr
+
+## [请求参数 permalink](https://open.douyin.com/platform/resource/docs/openapi/video-management/douyin/search-video/account-video-list\#%E8%AF%B7%E6%B1%82%E5%8F%82%E6%95%B0) 请求参数
+
+### [url 请求 permalink](https://open.douyin.com/platform/resource/docs/openapi/video-management/douyin/search-video/account-video-list\#url-%E8%AF%B7%E6%B1%82) URL 请求
+
+| 参数名称 | 参数类型 | 参数描述 | 参数示例 | 是否必填 |
+| --- | --- | --- | --- | --- |
+
+暂无数据
+
+## [请求样例 permalink](https://open.douyin.com/platform/resource/docs/openapi/video-management/douyin/search-video/account-video-list\#%E8%AF%B7%E6%B1%82%E6%A0%B7%E4%BE%8B) 请求样例
+
+## [响应参数 permalink](https://open.douyin.com/platform/resource/docs/openapi/video-management/douyin/search-video/account-video-list\#%E5%93%8D%E5%BA%94%E5%8F%82%E6%95%B0) 响应参数
+
+| 参数名称 | 参数类型 | 参数描述 | 参数示例 | 是否必填 |
+| --- | --- | --- | --- | --- |
+
+暂无数据
+
+## [响应样例 permalink](https://open.douyin.com/platform/resource/docs/openapi/video-management/douyin/search-video/account-video-list\#%E5%93%8D%E5%BA%94%E6%A0%B7%E4%BE%8B) 响应样例
+
+```json
+
+```
+
+## [响应错误样例 permalink](https://open.douyin.com/platform/resource/docs/openapi/video-management/douyin/search-video/account-video-list\#%E5%93%8D%E5%BA%94%E9%94%99%E8%AF%AF%E6%A0%B7%E4%BE%8B) 响应错误样例
+
+```json
+
+```
+
+诚邀您对本文档易读易用性进行评价
+
+好用
+
+不好用
