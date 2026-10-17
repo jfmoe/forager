@@ -205,6 +205,15 @@ pub(crate) struct KeyedHttpRouteRuntimeConfig {
     pub(crate) timeout_seconds: u64,
 }
 
+/// The configuration of a platform route that sends model requests with pooled credentials.
+#[derive(Clone, Debug)]
+pub(crate) struct ModelRouteRuntimeConfig {
+    pub(crate) url: String,
+    pub(crate) keys: Vec<Secret>,
+    pub(crate) model: String,
+    pub(crate) timeout_seconds: u64,
+}
+
 /// The configuration of a platform route that runs local OpenCLI commands.
 #[derive(Clone, Debug)]
 pub(crate) struct ProcessRouteRuntimeConfig {
@@ -226,6 +235,7 @@ pub(crate) struct PlatformRoutesRuntimeConfig {
     pub(crate) hn_api: HnRouteRuntimeConfig,
     pub(crate) youtube_api: KeyedHttpRouteRuntimeConfig,
     pub(crate) youtube_web: HttpRouteRuntimeConfig,
+    pub(crate) gemini_api: ModelRouteRuntimeConfig,
 }
 
 /// The configuration of one platform route.
@@ -240,6 +250,7 @@ pub(crate) enum PlatformRouteConfig {
     HnApi(HnRouteRuntimeConfig),
     YoutubeApi(KeyedHttpRouteRuntimeConfig),
     YoutubeWeb(HttpRouteRuntimeConfig),
+    GeminiApi(ModelRouteRuntimeConfig),
 }
 
 impl PlatformRouteConfig {
@@ -254,6 +265,7 @@ impl PlatformRouteConfig {
             Self::HnApi(_) => ProviderId::HnApi,
             Self::YoutubeApi(_) => ProviderId::YoutubeApi,
             Self::YoutubeWeb(_) => ProviderId::YoutubeWeb,
+            Self::GeminiApi(_) => ProviderId::GeminiApi,
         }
     }
 
@@ -269,6 +281,7 @@ impl PlatformRouteConfig {
                 provider_configured(self.route(), &config.keys)
             }
             Self::Xai(config) => provider_configured(self.route(), &config.keys),
+            Self::GeminiApi(config) => provider_configured(self.route(), &config.keys),
         }
     }
 }
@@ -607,6 +620,10 @@ impl RuntimeConfig {
                 endpoint: &self.platform_routes.youtube_web.url,
                 keys: &[],
             },
+            ProviderId::GeminiApi => ProviderRuntime {
+                endpoint: &self.platform_routes.gemini_api.url,
+                keys: &self.platform_routes.gemini_api.keys,
+            },
             ProviderId::GeminiBrowser => ProviderRuntime {
                 endpoint: &self.gemini_browser.command,
                 keys: &[],
@@ -711,6 +728,12 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         youtube_web: HttpRouteRuntimeConfig {
             url: config.providers.youtube_web.url,
             timeout_seconds: config.providers.youtube_web.timeout,
+        },
+        gemini_api: ModelRouteRuntimeConfig {
+            url: config.providers.gemini_api.url,
+            keys: config.providers.gemini_api.keys,
+            model: config.providers.gemini_api.model,
+            timeout_seconds: config.providers.gemini_api.timeout,
         },
     };
     let classifier = ClassifierRuntimeConfig {
@@ -952,6 +975,7 @@ pub(crate) fn platform_route_config(
         ProviderId::HnApi => Some(PlatformRouteConfig::HnApi(routes.hn_api.clone())),
         ProviderId::YoutubeApi => Some(PlatformRouteConfig::YoutubeApi(routes.youtube_api.clone())),
         ProviderId::YoutubeWeb => Some(PlatformRouteConfig::YoutubeWeb(routes.youtube_web.clone())),
+        ProviderId::GeminiApi => Some(PlatformRouteConfig::GeminiApi(routes.gemini_api.clone())),
         _ => None,
     }
 }

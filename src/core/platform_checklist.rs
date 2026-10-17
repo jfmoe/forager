@@ -12,12 +12,13 @@ use crate::catalog::{
 };
 use crate::config::{
     self, HnRouteRuntimeConfig, HttpRouteRuntimeConfig, KeyedHttpRouteRuntimeConfig,
-    PlatformRoutesRuntimeConfig, ProcessRouteRuntimeConfig, XaiRuntimeConfig,
+    ModelRouteRuntimeConfig, PlatformRoutesRuntimeConfig, ProcessRouteRuntimeConfig,
+    XaiRuntimeConfig,
 };
 use crate::providers;
 use crate::types::{
     ASK, CITED_BY, COMMENTS, ContentDepth, Platform, PlatformFetchRequest, PlatformRef,
-    PlatformSearchOptions, PlatformSearchRequest, STORIES, VIDEOS,
+    PlatformSearchOptions, PlatformSearchRequest, STORIES, TRANSCRIBE, VIDEOS,
 };
 
 const CHECKLIST: &str = "docs/spec/forager/07-platforms.md";
@@ -43,9 +44,39 @@ fn sample_refs(platform: Platform) -> &'static [&'static str] {
     }
 }
 
+/// The operations that one route implements outside the platform catalog, with their route
+/// sets in the provider factory.
+const SINGLE_ROUTE_OPERATIONS: &[(Platform, &str, &[ProviderId])] = &[
+    (
+        Platform::Scholar,
+        CITED_BY,
+        providers::SCHOLAR_CITED_BY_ROUTES,
+    ),
+    (
+        Platform::Xiaohongshu,
+        COMMENTS,
+        providers::XIAOHONGSHU_COMMENTS_ROUTES,
+    ),
+    (Platform::X, ASK, providers::X_ASK_ROUTES),
+    (Platform::Hn, STORIES, providers::HN_STORIES_ROUTES),
+    (
+        Platform::Youtube,
+        COMMENTS,
+        providers::YOUTUBE_COMMENTS_ROUTES,
+    ),
+    (Platform::Youtube, VIDEOS, providers::YOUTUBE_VIDEOS_ROUTES),
+    (Platform::Youtube, ASK, providers::YOUTUBE_ASK_ROUTES),
+    (
+        Platform::Youtube,
+        TRANSCRIBE,
+        providers::YOUTUBE_TRANSCRIBE_ROUTES,
+    ),
+];
+
 /// The registration points the checklist inspects; tests replace one at a time.
 struct Registry<'a> {
     platforms: &'a [PlatformCatalog],
+    single_route_operations: &'a [(Platform, &'a str, &'a [ProviderId])],
     registrations: &'a [ProviderRegistration],
     has_adapter: &'a dyn Fn(Platform, PlatformOperation, ProviderId) -> bool,
     is_config_leaf: &'a dyn Fn(&str) -> bool,
@@ -85,6 +116,22 @@ fn violations(platform: Platform, registry: &Registry<'_>) -> Vec<String> {
     }
     for route in catalog.all_routes() {
         check_route(platform, route, registry, &mut found);
+    }
+    for route in catalog.operation_only {
+        let serves_an_operation = registry
+            .single_route_operations
+            .iter()
+            .any(|(served, _, routes)| *served == platform && routes.contains(route));
+        if !serves_an_operation {
+            found.push(violation(
+                platform,
+                "R3",
+                &format!(
+                    "route `{}` serves neither search nor fetch, and no operation of the platform lists it",
+                    route.name()
+                ),
+            ));
+        }
     }
     for operation in PlatformOperation::ALL {
         check_operation(
@@ -337,6 +384,12 @@ fn has_adapter(platform: Platform, operation: PlatformOperation, route: Provider
             url: String::new(),
             timeout_seconds: 1,
         },
+        gemini_api: ModelRouteRuntimeConfig {
+            url: String::new(),
+            keys: Vec::new(),
+            model: String::new(),
+            timeout_seconds: 1,
+        },
     };
     has_support
         && config::platform_route_config(route, &routes)
@@ -346,6 +399,7 @@ fn has_adapter(platform: Platform, operation: PlatformOperation, route: Provider
 fn baseline(fixtures: &BTreeSet<(String, String)>) -> Registry<'_> {
     Registry {
         platforms: PLATFORMS,
+        single_route_operations: SINGLE_ROUTE_OPERATIONS,
         registrations: catalog::registrations(),
         has_adapter: &has_adapter,
         is_config_leaf: &config::is_leaf,
@@ -382,28 +436,8 @@ fn single_route_operations_have_transport_fixtures() {
                 .is_some_and(|(_, operation)| !catalog_operations.contains(&operation))
         })
         .collect::<BTreeSet<_>>();
-    let single_route_operations = [
-        (
-            Platform::Scholar,
-            CITED_BY,
-            providers::SCHOLAR_CITED_BY_ROUTES,
-        ),
-        (
-            Platform::Xiaohongshu,
-            COMMENTS,
-            providers::XIAOHONGSHU_COMMENTS_ROUTES,
-        ),
-        (Platform::X, ASK, providers::X_ASK_ROUTES),
-        (Platform::Hn, STORIES, providers::HN_STORIES_ROUTES),
-        (
-            Platform::Youtube,
-            COMMENTS,
-            providers::YOUTUBE_COMMENTS_ROUTES,
-        ),
-        (Platform::Youtube, VIDEOS, providers::YOUTUBE_VIDEOS_ROUTES),
-    ];
-    let routes = single_route_operations
-        .into_iter()
+    let routes = SINGLE_ROUTE_OPERATIONS
+        .iter()
         .flat_map(|(platform, operation, routes)| {
             routes.iter().map(move |route| {
                 (
@@ -434,6 +468,30 @@ fn a_platform_without_a_catalog_violates_r1() {
     };
 
     assert_reports(&violations(Platform::Arxiv, &registry), "R1");
+}
+
+#[test]
+fn an_operation_only_route_that_no_operation_lists_violates_r3() {
+    let fixtures = manifest_fixtures();
+    let without_youtube_model_operations = SINGLE_ROUTE_OPERATIONS
+        .iter()
+        .copied()
+        .filter(|(platform, operation, _)| {
+            !(*platform == Platform::Youtube && [ASK, TRANSCRIBE].contains(operation))
+        })
+        .collect::<Vec<_>>();
+    let registry = Registry {
+        single_route_operations: &without_youtube_model_operations,
+        ..baseline(&fixtures)
+    };
+
+    let found = violations(Platform::Youtube, &registry);
+
+    assert_reports(&found, "R3");
+    assert!(
+        found.iter().any(|message| message.contains("`gemini_api`")),
+        "{found:?}"
+    );
 }
 
 #[test]

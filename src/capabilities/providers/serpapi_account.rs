@@ -22,9 +22,10 @@ pub(crate) struct AccountQuota {
     pub(crate) hourly_limit: i64,
 }
 
-/// The account check of one key: its quota when the Account API reported one, and why the key
-/// cannot search now.
+/// The account check of one key: whether the service reports a quota at all, the quota when it
+/// reported one, and why the key cannot serve requests now.
 pub(crate) struct KeyAccount {
+    pub(crate) reports_quota: bool,
     pub(crate) quota: Option<AccountQuota>,
     pub(crate) failure: Option<ProviderError>,
 }
@@ -57,6 +58,7 @@ impl Serpapi {
         .await;
         match result {
             Ok(outcome) => KeyAccount {
+                reports_quota: true,
                 quota: Some(outcome.value),
                 failure: verdict(outcome.value)
                     .err()
@@ -70,6 +72,7 @@ impl Serpapi {
                     }),
             },
             Err(error) => KeyAccount {
+                reports_quota: true,
                 quota: None,
                 failure: Some(error),
             },

@@ -22,9 +22,9 @@ use crate::providers::shared::{acquire_window, other_platform_message, parameter
 use crate::rate_limit::RateLimiter;
 use crate::types::{
     AttemptErrorKind, AttemptTarget, ContentDepth, Deadline, FullTextSource, Platform,
-    PlatformFetchOutcome, PlatformFetchRequest, PlatformItem, PlatformItemData, PlatformRef,
-    ProviderError, YoutubeItemData, YoutubeKind, YoutubeLiveStatus, YoutubeRef,
-    chapters_from_description,
+    PlatformFetchOptions, PlatformFetchOutcome, PlatformFetchRequest, PlatformItem,
+    PlatformItemData, PlatformRef, ProviderError, YoutubeItemData, YoutubeKind, YoutubeLiveStatus,
+    YoutubeRef, chapters_from_description,
 };
 
 #[path = "youtube_api_comments.rs"]
@@ -108,6 +108,10 @@ impl YoutubeApi {
             unreachable!("the support check accepts only YouTube refs")
         };
         let depth = request.depth;
+        let require_description = !matches!(
+            &request.options,
+            PlatformFetchOptions::Youtube(options) if options.allow_empty_description
+        );
         let query = [
             ("part", FETCH_PARTS.to_owned()),
             ("id", reference.id().to_owned()),
@@ -119,7 +123,7 @@ impl YoutubeApi {
                 PlatformOperation::Fetch.as_str(),
                 |body| {
                     let response = decode::<VideoListResponse>(body)?;
-                    fetched_item(reference, depth, response.items)
+                    fetched_item(reference, depth, require_description, response.items)
                 },
             )
             .await?;
@@ -280,6 +284,7 @@ struct LiveStreamingDetails {
 fn fetched_item(
     reference: &YoutubeRef,
     depth: ContentDepth,
+    require_description: bool,
     items: Vec<Video>,
 ) -> Result<PlatformItem, Refusal> {
     let mut items = items.into_iter();
@@ -306,7 +311,7 @@ fn fetched_item(
     );
     let description = snippet.description.unwrap_or_default();
     let (description, chapters) = if depth == ContentDepth::Abstract {
-        if description.trim().is_empty() {
+        if require_description && description.trim().is_empty() {
             return Err(Refusal {
                 kind: AttemptErrorKind::Quality,
                 message: format!("youtube:{reference} has no description"),

@@ -7,11 +7,9 @@ use chrono::{DateTime, NaiveDate, Utc};
 use serde::{Deserialize, Serialize};
 
 use super::attempt::ProviderAttempt;
-use super::platform::{Platform, PlatformRef, PlatformRefError};
+use super::platform::{ASK, Platform, PlatformRef, PlatformRefError};
 
 const X_MAX_LIMIT: u16 = 20;
-/// The attempt-target name of the X ask operation.
-pub(crate) const ASK: &str = "ask";
 const MAX_HANDLES: usize = 20;
 const MAX_HANDLE_LENGTH: usize = 15;
 const REF_PREFIX: &str = "x:";

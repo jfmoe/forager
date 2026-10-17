@@ -118,6 +118,12 @@ timeout = 30
 url = "https://www.youtube.com"   # 只请求与它同源的字幕轨地址
 timeout = 30                 # 一次请求的 attempt 超时
 
+[providers.gemini_api]       # 需要凭据的平台 route，只服务 YouTube 的 ask 与 transcribe；Gemini key 由用户自备（ADR 0028）
+url = "https://generativelanguage.googleapis.com/v1beta"   # 也可指向用户自建的 Gemini 兼容网关
+keys = []                    # 为空＝未配置，ask 与 transcribe 飞行前退 3
+model = "gemini-flash-latest"   # 非空
+timeout = 300                # 一次模型请求的 attempt 超时；命令默认 --timeout 600
+
 [capabilities.web_search]
 order = ["tavily", "firecrawl"]
 [capabilities.web_fetch]
@@ -140,7 +146,7 @@ order = ["xai"]              # 复用主搜索的 xAI key；没有 key 时不算
 [platforms.hn]
 order = ["hn_api"]           # 不需要凭据；置空＝禁用
 [platforms.youtube]
-order = ["youtube_api"]      # 没有 key 时不算已配置；加入 "youtube_web" 才能读字幕（full_text），置空＝禁用
+order = ["youtube_api", "gemini_api"]   # 没有 key 的 route 不算已配置；加入 "youtube_web" 才能读字幕（full_text），置空＝禁用
 
 [log]
 level = "info"               # error|warn|info|debug|trace；见下方运行时语义

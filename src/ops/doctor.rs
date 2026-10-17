@@ -70,19 +70,25 @@ struct ProbeCheck {
     ok: bool,
 }
 
-/// The account report of one key, named by its position in the pool; a quota the service did
-/// not report is `null`.
+/// The account report of one key, named by its position in the pool. A service that reports
+/// search quotas adds them; a quota it did not report is `null`.
 #[derive(Debug, Serialize)]
 struct KeyStatus {
     key_index: usize,
     ok: bool,
+    #[serde(flatten)]
+    quota: Option<QuotaStatus>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error_kind: Option<&'static str>,
+}
+
+#[derive(Debug, Serialize)]
+struct QuotaStatus {
     searches_left: Option<i64>,
     plan_searches_left: Option<i64>,
     this_month_usage: Option<i64>,
     this_hour_searches: Option<i64>,
     hourly_limit: Option<i64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    error_kind: Option<&'static str>,
 }
 
 /// What a deep probe found; `failure` is the first failure, which fails the probe.
@@ -594,6 +600,7 @@ fn account_outcome(
             |(
                 key_index,
                 KeyAccount {
+                    reports_quota,
                     quota,
                     failure: key_failure,
                 },
@@ -608,11 +615,13 @@ fn account_outcome(
                 KeyStatus {
                     key_index,
                     ok: error_kind.is_none(),
-                    searches_left: quota.map(|quota| quota.searches_left),
-                    plan_searches_left: quota.map(|quota| quota.plan_searches_left),
-                    this_month_usage: quota.map(|quota| quota.this_month_usage),
-                    this_hour_searches: quota.map(|quota| quota.this_hour_searches),
-                    hourly_limit: quota.map(|quota| quota.hourly_limit),
+                    quota: reports_quota.then(|| QuotaStatus {
+                        searches_left: quota.map(|quota| quota.searches_left),
+                        plan_searches_left: quota.map(|quota| quota.plan_searches_left),
+                        this_month_usage: quota.map(|quota| quota.this_month_usage),
+                        this_hour_searches: quota.map(|quota| quota.this_hour_searches),
+                        hourly_limit: quota.map(|quota| quota.hourly_limit),
+                    }),
                     error_kind,
                 }
             },

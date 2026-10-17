@@ -20,6 +20,7 @@ use std::time::{Duration, Instant};
 pub(crate) mod chatgpt;
 pub(crate) mod doctor;
 pub(crate) mod gemini;
+pub(crate) mod gemini_api;
 pub(crate) mod hn;
 pub(crate) mod opencli;
 pub(crate) mod scholar;

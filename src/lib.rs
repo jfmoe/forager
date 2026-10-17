@@ -37,8 +37,12 @@ mod platform_checklist;
 mod platform_comments;
 #[path = "core/platform_fetch.rs"]
 mod platform_fetch;
+#[path = "core/platform_precheck.rs"]
+mod platform_precheck;
 #[path = "core/platform_stories.rs"]
 mod platform_stories;
+#[path = "core/platform_transcribe.rs"]
+mod platform_transcribe;
 #[path = "capabilities/providers/mod.rs"]
 mod providers;
 #[path = "capabilities/rate_limit.rs"]

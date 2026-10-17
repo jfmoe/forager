@@ -17,7 +17,7 @@ use crate::catalog::{self, ProviderId, ProviderRegistration};
 use crate::config::{self, RuntimeConfig};
 use crate::redact::{CREDENTIAL_MASK, Secret, redact_credentials, redact_url};
 use crate::state_file;
-use crate::types::{ASK, CITED_BY, COMMENTS, Deadline, Platform, STORIES, VIDEOS};
+use crate::types::{ASK, CITED_BY, COMMENTS, Deadline, Platform, STORIES, TRANSCRIBE, VIDEOS};
 
 static PROBE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 pub(crate) const MAIN_CANARY_QUERY: &str = "What is the latest stable Rust release?";
@@ -37,11 +37,15 @@ const HN_CANARY_QUERY: &str = "rust";
 const YOUTUBE_CANARY_QUERY: &str = "attention transformer";
 // "Essence of linear algebra": a finished public course of 16 videos.
 const YOUTUBE_VIDEOS_CANARY: &str = "youtube:playlist/PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab";
-const SPECIFICATION_CASE_IDS: [&str; 42] = [
+// Only the picture answers it: the zoo video's speech never names the animals' number or the
+// speaker's clothes.
+const YOUTUBE_ASK_CANARY_QUESTION: &str =
+    "How many elephants are visible behind the speaker, and what is he wearing?";
+const SPECIFICATION_CASE_IDS: [&str; 44] = [
     "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12",
     "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24", "C25",
     "C26", "C27", "C28", "C29", "C30", "C31", "C32", "C33", "C34", "C35", "C36", "C37", "C38",
-    "C39", "C40",
+    "C39", "C40", "C41", "C42",
 ];
 // One comment page holds 10 top-level comments, so 15 needs the second page.
 const XIAOHONGSHU_COMMENTS_LIMIT: &str = "15";
@@ -265,6 +269,12 @@ fn document_fetch_canary(definition: LiveCaseDefinition) -> Option<(&'static str
         }
         _ => None,
     }
+}
+
+/// Returns whether the operation reads its item through the platform's fetch routes before a
+/// model reads it: YouTube's ask and transcribe.
+fn reads_before_model(platform: Platform, operation: &str) -> bool {
+    platform == Platform::Youtube && [ASK, TRANSCRIBE].contains(&operation)
 }
 
 /// The query and limit of a platform search case.
@@ -751,14 +761,15 @@ fn run_case_once(
     let case_id = definition.id;
     let timeout_seconds = remaining_seconds(deadline).ok_or("live smoke hard deadline elapsed")?;
     let executable = std::env::current_exe().map_err(|_| "cannot resolve forager executable")?;
-    // P2 writes its evidence, the Xiaohongshu fetch its full text, and the Hacker News and
-    // YouTube document fetches their documents here.
+    // P2 writes its evidence, the Xiaohongshu fetch its full text, the Hacker News and YouTube
+    // document fetches their documents, and transcribe its transcript here.
     let scratch = (case_id == "P2"
         || is_xiaohongshu_fetch(definition)
-        || document_fetch_canary(definition).is_some())
-    .then(tempfile::tempdir)
-    .transpose()
-    .map_err(|_| "cannot create a temporary directory for the live case")?;
+        || document_fetch_canary(definition).is_some()
+        || definition.operation == TRANSCRIBE)
+        .then(tempfile::tempdir)
+        .transpose()
+        .map_err(|_| "cannot create a temporary directory for the live case")?;
     let commands = command_specs(
         case_id,
         timeout_seconds,
@@ -1076,6 +1087,36 @@ fn command_specs(
                 ],
                 ResultShape::PlatformFetch,
             )
+        } else if platform == Platform::Youtube && definition.operation == ASK {
+            let (video, _) = platform_fetch_canary(platform)?;
+            one(
+                &[
+                    "platform",
+                    platform.as_str(),
+                    ASK,
+                    video,
+                    YOUTUBE_ASK_CANARY_QUESTION,
+                    "--timeout",
+                    &timeout,
+                ],
+                ResultShape::Answer,
+            )
+        } else if definition.operation == TRANSCRIBE {
+            let (video, _) = platform_fetch_canary(platform)?;
+            let content_dir = scratch_dir?.display().to_string();
+            one(
+                &[
+                    "platform",
+                    platform.as_str(),
+                    TRANSCRIBE,
+                    video,
+                    "--content-dir",
+                    &content_dir,
+                    "--timeout",
+                    &timeout,
+                ],
+                ResultShape::PlatformFullText,
+            )
         } else if definition.operation == ASK {
             one(
                 &[
@@ -1118,13 +1159,17 @@ fn command_specs(
                 ResultShape::PlatformSearch,
             )
         };
-        commands[0].environment.push((
-            format!(
-                "FORAGER_PLATFORMS__{}__ORDER",
-                platform.as_str().to_ascii_uppercase()
-            ),
-            format!("[\"{provider}\"]"),
-        ));
+        // A model operation reads the video through the configured fetch routes first, so its
+        // case keeps the configured order.
+        if !reads_before_model(platform, definition.operation) {
+            commands[0].environment.push((
+                format!(
+                    "FORAGER_PLATFORMS__{}__ORDER",
+                    platform.as_str().to_ascii_uppercase()
+                ),
+                format!("[\"{provider}\"]"),
+            ));
+        }
         return Some(commands);
     }
     if definition.operation == "web_search" {

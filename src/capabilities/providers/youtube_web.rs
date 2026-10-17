@@ -136,9 +136,12 @@ impl YoutubeWeb {
         let PlatformRef::Youtube(reference) = &request.reference else {
             unreachable!("the support check accepts only YouTube refs")
         };
-        let languages = match &request.options {
-            PlatformFetchOptions::Youtube(options) => options.languages.as_slice(),
-            _ => &[],
+        let (languages, require_description) = match &request.options {
+            PlatformFetchOptions::Youtube(options) => (
+                options.languages.as_slice(),
+                !options.allow_empty_description,
+            ),
+            _ => (&[][..], true),
         };
         let base = self.config.url.trim_end_matches('/');
         let mut attempts = Vec::new();
@@ -169,7 +172,7 @@ impl YoutubeWeb {
                         text,
                         reference,
                         &page,
-                        request.depth,
+                        (request.depth, require_description),
                         languages,
                         &self.config.url,
                     )
@@ -445,12 +448,13 @@ fn full_text_caption(
 }
 
 /// Decides the player's answer: playability and identity first, then the item at the requested
-/// depth and, at `full_text`, the caption track to read.
+/// depth (and whether `abstract` requires a description) and, at `full_text`, the caption track
+/// to read.
 fn read_player(
     body: &str,
     reference: &YoutubeRef,
     page: &WatchPage,
-    depth: ContentDepth,
+    (depth, require_description): (ContentDepth, bool),
     languages: &[String],
     configured_url: &str,
 ) -> Result<Video, Refusal> {
@@ -497,7 +501,7 @@ fn read_player(
     let description = details.short_description.clone().unwrap_or_default();
     let (abstract_fields, caption) = match depth {
         ContentDepth::Abstract => {
-            if description.trim().is_empty() {
+            if require_description && description.trim().is_empty() {
                 return Err(Refusal::new(
                     AttemptErrorKind::Quality,
                     format!("youtube:{reference} has no description"),
