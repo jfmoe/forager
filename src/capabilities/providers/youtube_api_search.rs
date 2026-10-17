@@ -5,13 +5,15 @@ use std::collections::HashMap;
 use serde::Deserialize;
 
 use super::{
-    ROUTE, Refusal, Video, VideoListResponse, YoutubeApi, caption_flag, channel_ref, decode,
+    ROUTE, Video, VideoListResponse, YoutubeApi, caption_flag, channel_ref, decode,
     duration_seconds,
 };
 use crate::catalog::PlatformOperation;
 use crate::net::combine_diagnostics;
 use crate::providers::markup::decode_entities;
-use crate::providers::shared::{count, other_platform_message, parameter_error, utc_timestamp};
+use crate::providers::shared::{
+    Refusal, count, other_platform_message, parameter_error, utc_timestamp,
+};
 use crate::types::{
     ContentDepth, PlatformItem, PlatformItemData, PlatformRef, PlatformSearchOptions,
     PlatformSearchOutcome, PlatformSearchRequest, ProviderError, YoutubeDuration, YoutubeItemData,

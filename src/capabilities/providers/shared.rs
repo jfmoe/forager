@@ -22,6 +22,35 @@ pub(super) async fn acquire_window(
         })
 }
 
+/// Why a successful response cannot become an attempt's value. A route decodes the response
+/// inside the attempt, so the refusal fails that attempt at the response's status.
+pub(super) struct Refusal {
+    pub(super) kind: AttemptErrorKind,
+    pub(super) message: String,
+}
+
+impl Refusal {
+    pub(super) fn new(kind: AttemptErrorKind, message: impl Into<String>) -> Self {
+        Self {
+            kind,
+            message: message.into(),
+        }
+    }
+
+    pub(super) fn runtime(message: impl Into<String>) -> Self {
+        Self::new(AttemptErrorKind::Runtime, message)
+    }
+
+    /// Fails the attempt whose response answered with `status`.
+    pub(super) fn at(self, status: u16) -> AttemptFailure {
+        AttemptFailure {
+            kind: self.kind,
+            status: Some(status),
+            message: self.message,
+        }
+    }
+}
+
 /// Formats a time as a platform item timestamp: UTC ISO 8601 to the second.
 pub(super) fn utc_second(time: DateTime<Utc>) -> String {
     time.format("%Y-%m-%dT%H:%M:%SZ").to_string()

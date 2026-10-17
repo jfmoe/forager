@@ -3,10 +3,10 @@
 
 use serde::Deserialize;
 
-use super::{Refusal, YoutubeApi, channel_ref, decode};
+use super::{YoutubeApi, channel_ref, decode};
 use crate::net::{AttemptFailure, combine_diagnostics};
 use crate::providers::execution::ExecutionOutcome;
-use crate::providers::shared::{parameter_error, utc_timestamp};
+use crate::providers::shared::{Refusal, parameter_error, utc_timestamp};
 use crate::types::{
     AttemptErrorKind, ContentDepth, PlatformItem, PlatformItemData, PlatformRef, ProviderAttempt,
     ProviderError, VIDEOS, YoutubeCollection, YoutubeItemData, YoutubeKind, YoutubeRef,
@@ -255,10 +255,10 @@ fn resolved_channel(
 ) -> Result<(YoutubeRef, String), Refusal> {
     let mut channels = channels.into_iter();
     let Some(channel) = channels.next() else {
-        return Err(Refusal {
-            kind: AttemptErrorKind::Parameter,
-            message: format!("YouTube channel not found: {}", lookup.describe()),
-        });
+        return Err(Refusal::new(
+            AttemptErrorKind::Parameter,
+            format!("YouTube channel not found: {}", lookup.describe()),
+        ));
     };
     let answered_other = match lookup {
         ChannelLookup::Id(requested) => channel.id != requested.id(),
@@ -323,10 +323,10 @@ enum Listed {
 /// not when it joined the playlist, is its time. Titles in playlists come unescaped.
 fn listed_video(entry: PlaylistItem) -> Result<Listed, Refusal> {
     let snippet = entry.snippet.ok_or_else(|| {
-        Refusal::runtime("YouTube Data API returned a playlist entry without a snippet".into())
+        Refusal::runtime("YouTube Data API returned a playlist entry without a snippet")
     })?;
     let position = snippet.position.ok_or_else(|| {
-        Refusal::runtime("YouTube Data API returned a playlist entry without a position".into())
+        Refusal::runtime("YouTube Data API returned a playlist entry without a position")
     })?;
     if snippet
         .title
