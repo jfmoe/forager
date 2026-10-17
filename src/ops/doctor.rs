@@ -13,8 +13,8 @@ use crate::config::{
 };
 use crate::net::{self, RetryPolicy};
 use crate::providers::{
-    self, AnysearchDomainsRequest, FetchRequest, FetchSource, KeyAccount, MainSearchRequest,
-    ModelBreakers,
+    self, AnysearchDomainsRequest, FetchRequest, FetchSource, KeyAccount, KeyQuota,
+    MainSearchRequest, ModelBreakers,
 };
 use crate::rate_limit::RateLimiter;
 use crate::types::{
@@ -600,7 +600,6 @@ fn account_outcome(
             |(
                 key_index,
                 KeyAccount {
-                    reports_quota,
                     quota,
                     failure: key_failure,
                 },
@@ -615,13 +614,7 @@ fn account_outcome(
                 KeyStatus {
                     key_index,
                     ok: error_kind.is_none(),
-                    quota: reports_quota.then(|| QuotaStatus {
-                        searches_left: quota.map(|quota| quota.searches_left),
-                        plan_searches_left: quota.map(|quota| quota.plan_searches_left),
-                        this_month_usage: quota.map(|quota| quota.this_month_usage),
-                        this_hour_searches: quota.map(|quota| quota.this_hour_searches),
-                        hourly_limit: quota.map(|quota| quota.hourly_limit),
-                    }),
+                    quota: quota_status(quota),
                     error_kind,
                 }
             },
@@ -636,6 +629,23 @@ fn account_outcome(
         keys: Some(keys),
         failure,
     }
+}
+
+/// Reports a key's quota: nothing for a service that reports none, and every field `null` when
+/// the check could not read it.
+fn quota_status(quota: KeyQuota) -> Option<QuotaStatus> {
+    let read = match quota {
+        KeyQuota::Unreported => return None,
+        KeyQuota::Unread => None,
+        KeyQuota::Read(quota) => Some(quota),
+    };
+    Some(QuotaStatus {
+        searches_left: read.map(|quota| quota.searches_left),
+        plan_searches_left: read.map(|quota| quota.plan_searches_left),
+        this_month_usage: read.map(|quota| quota.this_month_usage),
+        this_hour_searches: read.map(|quota| quota.this_hour_searches),
+        hourly_limit: read.map(|quota| quota.hourly_limit),
+    })
 }
 
 fn probe_search_request() -> MainSearchRequest {

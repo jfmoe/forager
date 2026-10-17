@@ -8,26 +8,29 @@ use serde::Deserialize;
 use super::{Serpapi, refusal};
 use crate::net::AttemptFailure;
 use crate::providers::execution::execute_pinned;
+use crate::providers::key_account::{AccountQuota, KeyAccount, KeyQuota};
 use crate::types::{AttemptErrorKind, AttemptTarget, ProviderError};
 
-/// The quota of one key, as the Account API reports it.
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
-pub(crate) struct AccountQuota {
-    #[serde(rename = "total_searches_left")]
-    pub(crate) searches_left: i64,
-    pub(crate) plan_searches_left: i64,
-    pub(crate) this_month_usage: i64,
-    pub(crate) this_hour_searches: i64,
-    #[serde(rename = "account_rate_limit_per_hour")]
-    pub(crate) hourly_limit: i64,
+/// The quota fields of an Account API report.
+#[derive(Deserialize)]
+struct AccountReport {
+    total_searches_left: i64,
+    plan_searches_left: i64,
+    this_month_usage: i64,
+    this_hour_searches: i64,
+    account_rate_limit_per_hour: i64,
 }
 
-/// The account check of one key: whether the service reports a quota at all, the quota when it
-/// reported one, and why the key cannot serve requests now.
-pub(crate) struct KeyAccount {
-    pub(crate) reports_quota: bool,
-    pub(crate) quota: Option<AccountQuota>,
-    pub(crate) failure: Option<ProviderError>,
+impl From<AccountReport> for AccountQuota {
+    fn from(report: AccountReport) -> Self {
+        Self {
+            searches_left: report.total_searches_left,
+            plan_searches_left: report.plan_searches_left,
+            this_month_usage: report.this_month_usage,
+            this_hour_searches: report.this_hour_searches,
+            hourly_limit: report.account_rate_limit_per_hour,
+        }
+    }
 }
 
 impl Serpapi {
@@ -58,8 +61,7 @@ impl Serpapi {
         .await;
         match result {
             Ok(outcome) => KeyAccount {
-                reports_quota: true,
-                quota: Some(outcome.value),
+                quota: KeyQuota::Read(outcome.value),
                 failure: verdict(outcome.value)
                     .err()
                     .map(|(kind, message)| ProviderError {
@@ -72,8 +74,7 @@ impl Serpapi {
                     }),
             },
             Err(error) => KeyAccount {
-                reports_quota: true,
-                quota: None,
+                quota: KeyQuota::Unread,
                 failure: Some(error),
             },
         }
@@ -93,12 +94,14 @@ fn account_url(search_url: &str) -> String {
 }
 
 fn decode(body: &str) -> Result<AccountQuota, AttemptFailure> {
-    serde_json::from_str(body).map_err(|error| {
-        refusal(
-            AttemptErrorKind::Runtime,
-            format!("invalid SerpApi account response: {error}"),
-        )
-    })
+    serde_json::from_str::<AccountReport>(body)
+        .map(AccountQuota::from)
+        .map_err(|error| {
+            refusal(
+                AttemptErrorKind::Runtime,
+                format!("invalid SerpApi account response: {error}"),
+            )
+        })
 }
 
 /// Decides whether a key with this quota can search now.
@@ -125,7 +128,8 @@ fn verdict(quota: AccountQuota) -> Result<(), (AttemptErrorKind, String)> {
 mod tests {
     use serde_json::json;
 
-    use super::{AccountQuota, account_url, decode, verdict};
+    use super::{account_url, decode, verdict};
+    use crate::providers::key_account::AccountQuota;
     use crate::types::AttemptErrorKind;
 
     const HEALTHY: AccountQuota = AccountQuota {

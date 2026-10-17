@@ -6,11 +6,11 @@ use super::constructors::{
     build_chatgpt_browser, build_gemini_browser, credentials, route_limiter,
 };
 use super::{
-    ArxivApi, DocsSearch, GeminiApi, HnApi, KeyAccount, MainSearch, ModelBreakers, PlatformFetch,
-    PlatformSearch, ProviderId, Serpapi, SsrnBrowser, SsrnCrossref, SupplementalSearch,
-    VerticalSearch, WebFetch, WebSearch, XiaohongshuBrowser, YoutubeApi, YoutubeWeb, arxiv, hn_api,
-    opencli, serpapi, ssrn_browser, ssrn_crossref, web_fetch, xai, xiaohongshu_browser,
-    youtube_api, youtube_web,
+    ArxivApi, DocsSearch, GeminiApi, HnApi, KeyAccount, KeyQuota, MainSearch, ModelBreakers,
+    PlatformFetch, PlatformSearch, ProviderId, Serpapi, SsrnBrowser, SsrnCrossref,
+    SupplementalSearch, VerticalSearch, WebFetch, WebSearch, XiaohongshuBrowser, YoutubeApi,
+    YoutubeWeb, arxiv, hn_api, opencli, serpapi, ssrn_browser, ssrn_crossref, web_fetch, xai,
+    xiaohongshu_browser, youtube_api, youtube_web,
 };
 use crate::catalog::{ProviderTransport, VERTICAL_SEARCH, WEB_FETCH, WEB_SEARCH, registration};
 use crate::config::{
@@ -399,8 +399,7 @@ pub(crate) async fn route_accounts(
                 .await
                 .into_iter()
                 .map(|result| KeyAccount {
-                    reports_quota: false,
-                    quota: None,
+                    quota: KeyQuota::Unreported,
                     failure: result.err(),
                 })
                 .collect()
