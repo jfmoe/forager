@@ -6,6 +6,7 @@ use serde::Deserialize;
 use super::{Refusal, YoutubeApi, channel_ref, decode, utc_timestamp};
 use crate::net::{AttemptFailure, combine_diagnostics};
 use crate::providers::execution::ExecutionOutcome;
+use crate::providers::shared::parameter_error;
 use crate::types::{
     AttemptErrorKind, ContentDepth, PlatformItem, PlatformItemData, PlatformRef, ProviderAttempt,
     ProviderError, VIDEOS, YoutubeCollection, YoutubeItemData, YoutubeKind, YoutubeRef,
@@ -81,6 +82,61 @@ struct ListedPage {
     next_page: Option<String>,
 }
 
+/// Where a page of videos is read from: a known playlist, or a channel whose uploads playlist
+/// `channels.list` names first.
+enum PageStart<'a> {
+    Playlist {
+        /// The collection the page reports: the playlist itself, or the channel it uploads.
+        collection: &'a YoutubeRef,
+        playlist: &'a str,
+        token: Option<&'a str>,
+    },
+    Lookup(ChannelLookup<'a>),
+}
+
+/// Reads where a request's page starts. The page position of a channel's later page names its
+/// uploads playlist as `<playlist>:<token>`, so only the first page looks the channel up; a
+/// playlist's page position is the page token alone.
+fn page_start(request: &YoutubeVideosRequest) -> Result<PageStart<'_>, String> {
+    let page = request.page.as_deref();
+    match (&request.collection, page) {
+        (YoutubeCollection::Ref(playlist), token) if playlist.kind() == YoutubeKind::Playlist => {
+            Ok(PageStart::Playlist {
+                collection: playlist,
+                playlist: playlist.id(),
+                token,
+            })
+        }
+        (YoutubeCollection::Ref(channel), None) => {
+            Ok(PageStart::Lookup(ChannelLookup::Id(channel)))
+        }
+        (YoutubeCollection::Handle(handle), None) => {
+            Ok(PageStart::Lookup(ChannelLookup::Handle(handle)))
+        }
+        (YoutubeCollection::Ref(channel), Some(position)) => position
+            .split_once(':')
+            .filter(|(playlist, token)| {
+                YoutubeRef::playlist(playlist).is_some() && !token.is_empty()
+            })
+            .map(|(playlist, token)| PageStart::Playlist {
+                collection: channel,
+                playlist,
+                token: Some(token),
+            })
+            .ok_or_else(|| {
+                format!("the page position of youtube:{channel} does not name its uploads playlist")
+            }),
+        (YoutubeCollection::Handle(handle), Some(_)) => Err(format!(
+            "a later page of {handle}'s videos must name the channel the handle resolved to"
+        )),
+    }
+}
+
+/// Returns whether the route can list the requested page; it never sends a request.
+pub(crate) fn videos_support(request: &YoutubeVideosRequest) -> Result<(), String> {
+    page_start(request).map(|_| ())
+}
+
 impl YoutubeApi {
     /// Lists one page of a collection's videos in the collection's order. A channel lists its
     /// uploads, newest first; a handle resolves to its channel first. Entries of private or
@@ -91,26 +147,25 @@ impl YoutubeApi {
     ) -> Result<YoutubeVideosOutcome, ProviderError> {
         let mut attempts = Vec::new();
         let mut notes = Vec::new();
-        let (collection, playlist) = match &request.collection {
-            YoutubeCollection::Ref(playlist) if playlist.kind() == YoutubeKind::Playlist => {
-                (playlist.clone(), playlist.id().to_owned())
-            }
-            YoutubeCollection::Ref(channel) => {
-                let lookup = self.channel_uploads(ChannelLookup::Id(channel)).await;
-                carry(&mut attempts, &mut notes, lookup)?
-            }
-            YoutubeCollection::Handle(handle) => {
-                let lookup = self.channel_uploads(ChannelLookup::Handle(handle)).await;
-                carry(&mut attempts, &mut notes, lookup)?
+        let (collection, playlist, token) = match page_start(request).map_err(parameter_error)? {
+            PageStart::Playlist {
+                collection,
+                playlist,
+                token,
+            } => (collection.clone(), playlist.to_owned(), token),
+            PageStart::Lookup(lookup) => {
+                let lookup = self.channel_uploads(lookup).await;
+                let (channel, uploads) = carry(&mut attempts, &mut notes, lookup)?;
+                (channel, uploads, None)
             }
         };
         let mut query = vec![
             ("part", "snippet,contentDetails".to_owned()),
-            ("playlistId", playlist),
+            ("playlistId", playlist.clone()),
             ("maxResults", request.limit.to_string()),
         ];
-        if let Some(page) = &request.page {
-            query.push(("pageToken", page.clone()));
+        if let Some(token) = token {
+            query.push(("pageToken", token.to_owned()));
         }
         let page = self
             .get_with("playlistItems", &query, VIDEOS, listed_page, |failure| {
@@ -121,10 +176,15 @@ impl YoutubeApi {
         if !page.unreadable.is_empty() {
             notes.push(unreadable_note(&page.unreadable));
         }
+        let next_page = if collection.kind() == YoutubeKind::Playlist {
+            page.next_page
+        } else {
+            page.next_page.map(|token| format!("{playlist}:{token}"))
+        };
         Ok(YoutubeVideosOutcome {
             collection,
             items: page.items,
-            next_page: page.next_page,
+            next_page,
             attempts,
             diagnostic: combine_diagnostics(notes),
         })
@@ -347,7 +407,32 @@ fn unreadable_note(positions: &[u64]) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{EXCERPT_CHARS, excerpt};
+    use super::{EXCERPT_CHARS, excerpt, videos_support};
+    use crate::types::{YoutubeCollection, YoutubeRef, YoutubeVideosRequest};
+
+    const CHANNEL: &str = "UCYO_jab_esuFRV4b17AJtAw";
+
+    fn later_page(collection: YoutubeCollection, page: &str) -> Result<(), String> {
+        videos_support(&YoutubeVideosRequest {
+            collection,
+            limit: 20,
+            page: Some(page.to_owned()),
+        })
+    }
+
+    #[test]
+    fn a_later_channel_page_must_name_its_uploads_playlist() {
+        let channel = || YoutubeCollection::Ref(YoutubeRef::channel(CHANNEL).expect("channel"));
+
+        let checks = [
+            later_page(channel(), "UUYO_jab_esuFRV4b17AJtAw:EAAaBlBUOkNBRQ").is_ok(),
+            later_page(channel(), "EAAaBlBUOkNBRQ").is_ok(),
+            later_page(channel(), "UUYO_jab_esuFRV4b17AJtAw:").is_ok(),
+            later_page(YoutubeCollection::Handle("@3blue1brown".into()), "UU:x").is_ok(),
+        ];
+
+        assert_eq!(checks, [true, false, false, false]);
+    }
 
     #[test]
     fn excerpts_keep_short_descriptions_and_cut_long_ones_at_a_word() {

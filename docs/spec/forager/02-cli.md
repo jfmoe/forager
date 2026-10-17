@@ -518,10 +518,10 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 |---|---|---|---|
 | 集合（位置参数） | `youtube:playlist/<id>`、`youtube:channel/<UC…>`，或 `/playlist?list=<id>`、带 `list=<id>` 的 `/watch`、`/channel/<UC…>`、`/@<handle>` 链接 | 无 `--cursor` 时必填 | 频道与 handle 链接可带 `/videos` 等标签页；handle 由 Data API 在执行时解析成频道 |
 | `--limit` | 1–50 | 20 | 本页条目数 |
-| `--cursor` | 上一页的 `next_cursor` | 无 | 与集合和 `--limit` 互斥；恢复集合（handle 已解析成频道）、limit 与页位置 |
+| `--cursor` | 上一页的 `next_cursor` | 无 | 与集合和 `--limit` 互斥；恢复集合（handle 已解析成频道）、limit 与页位置（频道的页位置含它的上传列表） |
 | `--format` | `json` / `markdown` | `json` | 输出格式 |
 
-- 通用 flag 同 search。播放列表每页消耗 1 单位配额，频道与 handle 每页另加 1 单位（解析频道的上传列表）。
+- 通用 flag 同 search。每页消耗 1 单位配额；频道与 handle 的第一页另加 1 单位（解析频道的上传列表），cursor 带着解析出的上传列表，后续页不再解析。
 - **输出**：JSON 为 `{platform, provider, collection: {ref, url}, items, next_cursor}`。`collection` 为读到的播放列表或频道（handle 输出它的频道 ref）。条目字段与 search 条目相同，另有 `position`（在列表中的 0-based 位置）：`authors` 与 `channel_ref` 为视频的发布频道，`published` 为视频的发布时间（不是加入列表的时间），`snippet` 为描述的前 160 个字符；不补时长与计数，`duration_seconds`、`live_status`、计数、`language` 与 `has_captions` 为 `null`。私有与已删除的视频被跳过，stderr 汇总一条诊断列出它们的位置。不写 Search Result Journal。
 - **退出码**：输入无法识别、是视频、是 `/c/` 或 `/user/` 频道页、handle 格式非法、`--limit` 越界、cursor 无法解码或属于其他操作＝飞行前退 2，不发请求；配置错误同 search，退 3；频道或 handle 不存在、播放列表不存在或不公开为 attempt 级 Parameter，key 与配额错误同 search，响应不是预期结构为 Runtime，都退 4；空列表为 `items: []` 且退 0。
 

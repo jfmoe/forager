@@ -998,8 +998,8 @@ forager platform youtube videos COLLECTION [--limit N] [--cursor CURSOR]
 | `--limit N` | Videos on this page, `1..=50`. | `20` |
 | `--cursor CURSOR` | `next_cursor` of a previous page; it restores the collection and the limit, so pass neither with it. | Omitted |
 
-Videos run through `youtube_api`: a playlist page costs one unit, and a channel or handle page one
-more to look up the channel's uploads. A playlist lists in its own order; a channel lists its
+Videos run through `youtube_api`: a page costs one unit, and the first page of a channel or handle
+one more to look up the channel's uploads; its cursor remembers them. A playlist lists in its own order; a channel lists its
 uploads newest first. JSON output is `{platform, provider, collection, items, next_cursor}`:
 `collection` is `{ref, url}` of the playlist or channel read (a handle comes back as its channel
 ref). Each item has the fields of a search item plus `position`, its 0-based place in the list;
