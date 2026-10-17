@@ -9,8 +9,9 @@
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use super::super::transcript::{Cue, Transcript, TranscriptChapter, TranscriptSubject};
-use crate::types::{PlatformItem, PlatformItemData, TranscriptInfo, TranscriptSource};
+use crate::providers::transcript::{Cue, Transcript};
+use crate::providers::youtube_transcript::YoutubeVideo;
+use crate::types::{PlatformItem, TranscriptInfo, TranscriptSource};
 
 pub(super) const INSTRUCTION: &str = "Transcribe all speech in this video in the language spoken, without translating it. Split it into segments of one or two sentences, in order, and give each segment's start and end in seconds from the start of the video. Set `language` to the BCP 47 tag of the main spoken language. If nobody speaks, return no segments.";
 
@@ -76,9 +77,8 @@ pub(super) fn render(output: &str, video: &PlatformItem) -> Result<Rendered, Str
     if language.is_empty() {
         return Err("the model's transcript names no language".into());
     }
-    let PlatformItemData::Youtube(data) = &video.data else {
-        unreachable!("only YouTube videos are transcribed")
-    };
+    let video = YoutubeVideo::of(video);
+    let data = video.data;
     let limit = data.duration_seconds.map(|seconds| {
         f64::from(u32::try_from(seconds).unwrap_or(u32::MAX)) + DURATION_TOLERANCE_SECONDS
     });
@@ -96,29 +96,10 @@ pub(super) fn render(output: &str, video: &PlatformItem) -> Result<Rendered, Str
     if cues.is_empty() {
         return Err("the model's transcript has no segment within the video".into());
     }
-    let description = data.description.as_deref().unwrap_or_default();
-    let chapters = data
-        .chapters
-        .iter()
-        .flatten()
-        .map(|chapter| TranscriptChapter {
-            start_seconds: chapter.start_seconds,
-            title: chapter.title.clone(),
-        })
-        .collect::<Vec<_>>();
-    let reference = video.reference.to_string();
-    let subject = TranscriptSubject {
-        title: video.title.as_deref(),
-        reference: &reference,
-        channel: video.authors.first().map(String::as_str),
-        published: video.published.as_deref(),
-        duration_seconds: data.duration_seconds,
-        description,
-    };
-    let rendered = Transcript::new(language, TranscriptSource::Model, cues).render(
-        &subject,
-        &chapters,
-        &|seconds| format!("{}&t={seconds}s", video.url),
+    let rendered = video.render(
+        &Transcript::new(language, TranscriptSource::Model, cues),
+        data.description.as_deref().unwrap_or_default(),
+        data.chapters.as_deref().unwrap_or_default(),
     );
     Ok(Rendered {
         markdown: rendered.markdown,

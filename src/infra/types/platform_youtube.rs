@@ -137,6 +137,11 @@ impl YoutubeRef {
             YoutubeKind::Channel => format!("https://www.youtube.com/channel/{}", self.id),
         }
     }
+
+    /// Returns the watch page of a video opened `seconds` into it.
+    pub(crate) fn moment_url(&self, seconds: u64) -> String {
+        format!("{}&t={seconds}s", self.canonical_url())
+    }
 }
 
 impl fmt::Display for YoutubeRef {
@@ -596,9 +601,20 @@ fn timestamp_seconds(timestamp: &str) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::{
-        YoutubeChapter, YoutubeCollection, YoutubeFetchOptions, chapters_from_description,
+        YoutubeChapter, YoutubeCollection, YoutubeFetchOptions, YoutubeRef,
+        chapters_from_description,
     };
     use crate::types::{ContentDepth, Platform, PlatformRef};
+
+    #[test]
+    fn a_moment_of_a_video_opens_its_watch_page_at_that_second() {
+        let video = YoutubeRef::video("jNQXAC9IVRw").expect("video ref");
+
+        assert_eq!(
+            video.moment_url(83),
+            "https://www.youtube.com/watch?v=jNQXAC9IVRw&t=83s"
+        );
+    }
 
     fn chapter(start_seconds: u64, title: &str) -> YoutubeChapter {
         YoutubeChapter {

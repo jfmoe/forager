@@ -24,6 +24,7 @@ mod web_fetch;
 mod xai;
 mod xiaohongshu_browser;
 mod youtube_api;
+mod youtube_transcript;
 mod youtube_web;
 
 pub(crate) use crate::catalog::ProviderId;
