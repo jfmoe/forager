@@ -1,0 +1,44 @@
+{
+  "id": "c34a7a8d-a70d-9942-bbbc-a8ad2470a392",
+  "model": "grok-4.5",
+  "status": "completed",
+  "tools": [
+    {
+      "type": "x_search"
+    }
+  ],
+  "output": [
+    {
+      "type": "custom_tool_call",
+      "name": "x_thread_fetch",
+      "input": "{\"post_id\":\"2110126570233094527\"}",
+      "status": "completed"
+    },
+    {
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "output_text",
+          "text": "{\n  \"posts\": [\n    {\n      \"url\": \"https://x.com/SpaceX/status/2110126570233094527\",\n      \"author_handle\": \"SpaceX\",\n      \"created_at\": \"Tue, 13 Oct 2026 21:52:33 GMT\",\n      \"text\": \"The first Starship to return to its launch site, Ship 40's journey took it across air, space, and sea. Now that it is vertical alongside three other Starships in a Megabay at Starbase, it will provide first-of-its-kind data on a flown Starship heatshield, Raptor engines, avionics, and more.\",\n      \"role\": \"root\"\n    },\n    {\n      \"url\": \"https://x.com/olivia_p_walker/status/2110127170869665960\",\n      \"author_handle\": \"olivia_p_walker\",\n      \"created_at\": \"Tue, 13 Oct 2026 21:54:56 GMT\",\n      \"text\": \"Exquisite photography.\",\n      \"role\": \"reply\"\n    },\n    {\n      \"url\": \"https://x.com/billyboneyard/status/2110131948009979925\",\n      \"author_handle\": \"billyboneyard\",\n      \"created_at\": \"Tue, 13 Oct 2026 22:13:55 GMT\",\n      \"text\": \"To the Heavens\",\n      \"role\": \"reply\"\n    },\n    {\n      \"url\": \"https://x.com/BassonBrain/status/2110138949234487662\",\n      \"author_handle\": \"BassonBrain\",\n      \"created_at\": \"Tue, 13 Oct 2026 22:41:44 GMT\",\n      \"text\": \"Wow!\",\n      \"role\": \"reply\"\n    }\n  ]\n}",
+          "annotations": [
+            {
+              "type": "url_citation",
+              "url": "https://x.com/i/status/2110126570233094527",
+              "start_index": 0,
+              "end_index": 0,
+              "title": "https://x.com/i/status/2110126570233094527"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "usage": {
+    "server_side_tool_usage_details": {
+      "x_search_calls": 1,
+      "x_posts_fetched": 4,
+      "x_users_fetched": 0
+    }
+  }
+}

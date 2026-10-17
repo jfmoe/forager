@@ -55,6 +55,14 @@ forager platform xiaohongshu fetch ACCESS_URL [--depth metadata|full_text（默�
                                    [--content-dir DIR] [--timeout 120] [--format json|markdown|content] [...]
 forager platform xiaohongshu comments ACCESS_URL [--limit 1..=50（默认 20）] [--replies 0..=10（默认 0）]
                                       [--timeout 120] [--format json|markdown] [...]
+forager platform x search QUERY [--handle HANDLE]... [--exclude-handle HANDLE]...
+                          [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--limit 1..=20（默认 10）]
+                          [--timeout 120] [--format json|markdown] [...]
+forager platform x fetch REF_OR_URL [--depth thread|metadata（默认 thread）]
+                         [--timeout 120] [--format json|markdown|content] [...]
+forager platform x ask QUERY [--handle HANDLE]... [--exclude-handle HANDLE]...
+                       [--from YYYY-MM-DD] [--to YYYY-MM-DD]
+                       [--timeout 120] [--format json|markdown] [...]
 forager gemini research start QUERY [--timeout 240] [--format json|markdown]
 forager gemini research result CONVERSATION [--report-dir DIR]
                                [--timeout 120] [--format json|markdown|content] [...]
@@ -150,7 +158,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 ## 契约③：`doctor --provider`
 
-两档：`doctor` 浅检全体（掩码配置 + 凭据存在 + 可达性（对 endpoint 发 GET 并只等待响应头，任何 HTTP 响应都算可达；部分 endpoint 对 HEAD 不响应）+ 过宽权限报告 + config list 同构生效值块）；顶层 `ok` 等于所有 `configured=true` provider 均 `reachable=true`，零配置为 true，任一不可达则 JSON/Markdown 均为 false 并退出 4，permission warning 不改变 `ok`。`config_warnings` 报告主搜索链中与首个已配置 backend 使用相同 endpoint（忽略末尾 `/`）和相同主模型的后续 backend——这类 fallback 与主 backend 处于同一故障域；该警告同样不改变 `ok`。`--provider NAME` 深探单体，值域＝provider 注册表的编译期 enum。需要凭据的 8 个 provider 执行凭据有效性 + 最小活体调用；平台 route（`arxiv_api`、`ssrn_crossref`、`ssrn_browser`、`xiaohongshu_browser`）不需要凭据，恒为已配置，深探执行一次最小平台检索；需要凭据的平台 route `serpapi` 有 key 时才算已配置，浅检对端点发一次不带 key 的 GET（不计额度）；深探不做检索，而是按池中顺序对每个 key 各调用一次同源的 SerpApi Account API（`/account.json`，不计额度），不经凭据轮换、不推进凭据游标，输出增加 `keys` 数组，每个 key 一项 `{key_index, ok, searches_left, plan_searches_left, this_month_usage, this_hour_searches, hourly_limit}`，失败项带 `error_kind`，取不到的数字为 `null`；HTTP 失败沿用共享归因（401/403 为 auth），剩余额度为 0 为 `quota_exhausted`，本小时检索数达到上限为 `rate_limited`，缺数字字段为 `runtime`；任一 key 失败则深探失败退 4，顶层 `error_kind` 与 `message` 取第一个失败的 key，`message` 以 `providers.serpapi.keys[N]` 指明它；响应中的 key、账户邮箱与账户 ID 不被解码，也不进入任何输出；这个深探只证明端点、key 与额度状态，不证明 Scholar 检索的请求与解码（由 live smoke C24–C26 证明）；没有 key 时以 config 失败退 3 且不发请求；其他 provider 的深探输出没有 `keys`；openai-compatible 额外保留 stream/no-stream 双形状判定。声明访问策略的 provider（三条平台 route）的浅检检查与深探请求都先经过跨进程限速，等不到窗口时浅检记为不可达、深探以 timeout 失败，且都不发送请求。
+两档：`doctor` 浅检全体（掩码配置 + 凭据存在 + 可达性（对 endpoint 发 GET 并只等待响应头，任何 HTTP 响应都算可达；部分 endpoint 对 HEAD 不响应）+ 过宽权限报告 + config list 同构生效值块）；顶层 `ok` 等于所有 `configured=true` provider 均 `reachable=true`，零配置为 true，任一不可达则 JSON/Markdown 均为 false 并退出 4，permission warning 不改变 `ok`。`config_warnings` 报告主搜索链中与首个已配置 backend 使用相同 endpoint（忽略末尾 `/`）和相同主模型的后续 backend——这类 fallback 与主 backend 处于同一故障域；该警告同样不改变 `ok`。`--provider NAME` 深探单体，值域＝provider 注册表的编译期 enum。需要凭据的 8 个 provider 执行凭据有效性 + 最小活体调用；平台 route（`arxiv_api`、`ssrn_crossref`、`ssrn_browser`、`xiaohongshu_browser`）不需要凭据，恒为已配置，深探执行一次最小平台检索；主搜索 backend `xai` 同时是 X 平台的 route，`platforms.x.order` 含 `xai` 时，深探在主搜索检查之后再执行一次最小 X 检索，记为 `x_search` 检查；需要凭据的平台 route `serpapi` 有 key 时才算已配置，浅检对端点发一次不带 key 的 GET（不计额度）；深探不做检索，而是按池中顺序对每个 key 各调用一次同源的 SerpApi Account API（`/account.json`，不计额度），不经凭据轮换、不推进凭据游标，输出增加 `keys` 数组，每个 key 一项 `{key_index, ok, searches_left, plan_searches_left, this_month_usage, this_hour_searches, hourly_limit}`，失败项带 `error_kind`，取不到的数字为 `null`；HTTP 失败沿用共享归因（401/403 为 auth），剩余额度为 0 为 `quota_exhausted`，本小时检索数达到上限为 `rate_limited`，缺数字字段为 `runtime`；任一 key 失败则深探失败退 4，顶层 `error_kind` 与 `message` 取第一个失败的 key，`message` 以 `providers.serpapi.keys[N]` 指明它；响应中的 key、账户邮箱与账户 ID 不被解码，也不进入任何输出；这个深探只证明端点、key 与额度状态，不证明 Scholar 检索的请求与解码（由 live smoke C24–C26 证明）；没有 key 时以 config 失败退 3 且不发请求；其他 provider 的深探输出没有 `keys`；openai-compatible 额外保留 stream/no-stream 双形状判定。声明访问策略的 provider（三条平台 route）的浅检检查与深探请求都先经过跨进程限速，等不到窗口时浅检记为不可达、深探以 timeout 失败，且都不发送请求。
 
 传输类型为 process 的 route（`ssrn_browser`、`xiaohongshu_browser`）不发 GET：浅检只在它出现在所属平台的 order 中时参与，运行 adapter 的 `contract` 命令并核对契约版本；未启用时报告 `configured: false`，不影响 `ok`。检查失败时该 provider 状态带 `message`（含安装提示），Markdown 在同一行括号中显示。深探（`doctor --provider ssrn_browser` 或 `xiaohongshu_browser`）同样只在 order 启用该 route 时运行一次真实的平台检索；未启用时以 config 失败退 3，不启动进程。
 
@@ -158,7 +166,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 ## 平台命令
 
-`forager platform <id> <op>` 直连检索内置平台（ADR 0019；接入契约见第 7 章）。每个平台一棵静态 clap 子树；`forager platform <id> --help` 及各操作的 help 是参数语法的唯一权威。arXiv、SSRN 与 Google Scholar 都提供 `search` 与 `fetch`；Google Scholar 另有 L2 平台操作 `cited-by`。小红书提供 `search` 与 `fetch`（见第 7 章「小红书」）。
+`forager platform <id> <op>` 直连检索内置平台（ADR 0019；接入契约见第 7 章）。每个平台一棵静态 clap 子树；`forager platform <id> --help` 及各操作的 help 是参数语法的唯一权威。arXiv、SSRN 与 Google Scholar 都提供 `search` 与 `fetch`；Google Scholar 另有 L2 平台操作 `cited-by`。小红书提供 `search` 与 `fetch`，另有 L2 平台操作 `comments`（见第 7 章「小红书」）。X 提供 `search` 与 `fetch`，另有 L2 平台操作 `ask`（见第 7 章「X」）。
 
 ### `platform arxiv search`
 
@@ -329,6 +337,51 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 - 通用 flag 同 search。没有 `--cursor`：页面只能从第一页起按顺序加载评论，命令之间无法续读。
 - **输出**：JSON 为 `{platform, provider, note, comments, has_more}`。`note` 为笔记 ref；`has_more` 表示还有未交付的一级评论（上游最后一页仍有更多，或读到的评论截到 `--limit` 时有余项）。每条评论为 `{id, author, author_id, text, likes, published, ip_location, reply_count, replies, replies_has_more}`，回复为 `{id, author, author_id, text, likes, published, ip_location, reply_to}`：`text` 为原文，`likes` 与 `reply_count` 为计数原文，`published` 为北京时间 ISO 8601 时间戳，`reply_to` 为该回复所回复的评论或回复的 ID。`replies` 先放评论自带的一条回复，展开时再追加第一页回复，按 ID 去重；`replies_has_more` 表示该评论还有未交付的回复。输出不含 token。不写 Search Result Journal。
 - **退出码**：输入无法识别或缺少 token、`--limit` 或 `--replies` 越界＝飞行前退 2，不启动进程；`platforms.xiaohongshu.order` 为空（默认）＝飞行前退 3；会话未登录或 461 为 Auth，300031/300017 或安全限制为 attempt 级 Parameter，截止点前仍停在该笔记页为 Timeout，都退 4；评论页的笔记或 cursor 链不符、楼中楼不属于选中的评论或起始 cursor 不符、读取模块无法点击展开（消息附原因）、响应体缺失、停在非预期页面、第一页没有评论却声称还有更多为 Runtime，退 4；笔记没有评论为 `comments: []` 且退 0。token 卫生同 fetch。
+
+### `platform x search`
+
+只在 X 上检索帖子，经 `xai` route（第 7 章「X」）。条目是 Relayed Content：正文与作者 handle 由读到帖子的模型转述。
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| 查询词（位置参数） | 非空字符串 | 必填 | 原样作为用户消息发送，模型自行决定检索方式 |
+| `--handle` | 可重复，最多 20 个 | 无 | 只要这些账号的帖子；可带 `@`，按出现顺序去重（不区分大小写），每个须为 1–15 个 `[A-Za-z0-9_]` |
+| `--exclude-handle` | 同上 | 无 | 排除这些账号；与 `--handle` 互斥 |
+| `--from` / `--to` | `YYYY-MM-DD` | 无 | UTC 发布日期区间，两端都含当天 |
+| `--limit` | 1–20 | 10 | 最多返回的帖子数 |
+| `--format` | `json` / `markdown` | `json` | 输出格式 |
+
+- 通用 flag 同 arXiv search。没有 `--cursor`：X 检索不可续页，`next_cursor` 恒为 `null`。
+- **输出**：外层形状与 arXiv search 相同。每个 item 含 `ref`（`x:<post_id>`）、canonical `url`（`https://x.com/i/status/<post_id>`）、`depth`（恒为 `snippet`）、`title`（恒为 `null`）、`authors`（`[author_handle]`）、`published`（由帖子 id 推算的 UTC 时间，精确到秒，2010-11 以前的帖子为 `null`），以及 X 字段 `author_handle` 与 `text`。annotations 中没有的帖子、无法识别的 URL 与发布日期落在区间外的帖子被丢弃，stderr 汇总一条诊断。不写 Search Result Journal。
+- **退出码**：查询词为空、handle 非法、超过 20 个或两种 handle 同时给出、日期非法或 `--from` 晚于 `--to`、`--limit` 越界＝飞行前退 2；`providers.xai.keys` 为空或 `platforms.x.order` 为空＝飞行前退 3；xAI 终态失败按主搜索的规则映射（鉴权、限流、额度、参数、内容过滤），退 4 或 5；输出不是请求的 JSON、或模型返回了帖子而全部未通过核对为 Runtime，退 4；模型没有找到帖子为 `items: []` 且退 0。
+
+### `platform x fetch`
+
+读取一条 X 帖子，默认连同它的 thread。
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| ref 或 URL（位置参数） | `x:<post_id>`，或 `x.com`/`twitter.com`（含 `www.`、`mobile.`）的帖子 URL | 必填 | 路径为 `/<handle>/status/<id>`（可带 `/photo/N`）、`/i/status/<id>` 或 `/i/web/status/<id>`，忽略 query、fragment 与末尾 `/` |
+| `--depth` | `thread` / `metadata` | `thread` | `metadata` 只返回该帖子 |
+| `--format` | `json` / `markdown` / `content` | `json` | `content` 输出帖子正文；`thread` 深度时为 thread 的 Markdown |
+
+- 通用 flag 同 search。不写文件。
+- **输出**：JSON 顶层为 `platform`、`provider`，帖子的公共字段与 X 字段（同 search，`depth` 为请求的深度）；`thread` 深度另有 `thread: [{ref, url, author_handle, published, text, role}]`，按模型给出的顺序，`role` 为 `parent`、`root`、`reply` 或 `quoted`。
+- **退出码**：`t.co` 短链（消息提示在浏览器中打开后传 x.com URL）、其他无法识别的输入、`thread` 与 `metadata` 以外的深度＝飞行前退 2；配置错误同 search，退 3；模型表示帖子不存在或不可见为 attempt 级 Parameter（`X post x:<id> was not found or is not visible`），退 4；根帖不是请求的帖子、不止一条或没有根帖、根帖不在 annotations 中为 Runtime，退 4；xAI 终态失败同 search。
+
+### `platform x ask`
+
+只依据 X 上的帖子回答问题，这是只有一条 route 的 L2 平台操作（第 7 章「X」）。
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| 问题（位置参数） | 非空字符串 | 必填 | 前面加上本机当前时间，作为用户消息发送 |
+| `--handle` / `--exclude-handle` / `--from` / `--to` | 同 search | 无 | 同 search |
+| `--format` | `json` / `markdown` | `json` | 输出格式 |
+
+- 通用 flag 同 search。
+- **输出**：JSON 为 `{platform, provider, query, answer, sources}`；`--verbose` 附 `provider_attempts`。`answer` 经主搜索的 normalizer，保留 `[[N]](url)` 逐句引用；`sources` 为 `{ref, url, title}`：帖子 URL 映射为 `x:<post_id>` 与 canonical URL，用户主页与其他页面 `ref` 为 `null` 并保留原 URL，按 URL 去重。`sources` 可以为空。不写 Search Result Journal。
+- **退出码**：问题为空、过滤参数非法同 search，飞行前退 2；配置错误同 search，退 3；规范化后回答为空为 Runtime，退 4；xAI 终态失败同 search。
 
 ## Gemini 命令
 

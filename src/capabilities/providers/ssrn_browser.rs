@@ -289,7 +289,7 @@ fn read_paper(
         } else {
             ContentDepth::Metadata
         },
-        title,
+        title: Some(title),
         authors: names(&page.authors),
         published: posted.as_deref().and_then(iso_date),
         data: PlatformItemData::Ssrn(SsrnItemData {

@@ -210,6 +210,8 @@ pub(crate) struct PlatformRoutesRuntimeConfig {
     pub(crate) ssrn_browser: ProcessRouteRuntimeConfig,
     pub(crate) serpapi: KeyedHttpRouteRuntimeConfig,
     pub(crate) xiaohongshu_browser: ProcessRouteRuntimeConfig,
+    /// The main search provider, which also reads X.
+    pub(crate) xai: XaiRuntimeConfig,
 }
 
 /// The configuration of one platform route.
@@ -220,6 +222,7 @@ pub(crate) enum PlatformRouteConfig {
     SsrnBrowser(ProcessRouteRuntimeConfig),
     Serpapi(KeyedHttpRouteRuntimeConfig),
     XiaohongshuBrowser(ProcessRouteRuntimeConfig),
+    Xai(XaiRuntimeConfig),
 }
 
 impl PlatformRouteConfig {
@@ -230,6 +233,7 @@ impl PlatformRouteConfig {
             Self::SsrnBrowser(_) => ProviderId::SsrnBrowser,
             Self::Serpapi(_) => ProviderId::Serpapi,
             Self::XiaohongshuBrowser(_) => ProviderId::XiaohongshuBrowser,
+            Self::Xai(_) => ProviderId::Xai,
         }
     }
 
@@ -240,6 +244,7 @@ impl PlatformRouteConfig {
             | Self::SsrnBrowser(_)
             | Self::XiaohongshuBrowser(_) => provider_configured(self.route(), &[]),
             Self::Serpapi(config) => provider_configured(self.route(), &config.keys),
+            Self::Xai(config) => provider_configured(self.route(), &config.keys),
         }
     }
 }
@@ -272,6 +277,7 @@ pub(crate) struct PlatformsRuntimeConfig {
     ssrn: PlatformRuntimeConfig,
     scholar: PlatformRuntimeConfig,
     xiaohongshu: PlatformRuntimeConfig,
+    x: PlatformRuntimeConfig,
 }
 
 impl PlatformsRuntimeConfig {
@@ -281,6 +287,7 @@ impl PlatformsRuntimeConfig {
             Platform::Ssrn => &self.ssrn,
             Platform::Scholar => &self.scholar,
             Platform::Xiaohongshu => &self.xiaohongshu,
+            Platform::X => &self.x,
         }
     }
 }
@@ -622,6 +629,12 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         keys: config.providers.anysearch.keys,
         timeout_seconds: config.providers.anysearch.timeout,
     };
+    let xai = XaiRuntimeConfig {
+        url: config.providers.xai.url,
+        keys: config.providers.xai.keys,
+        model: config.providers.xai.model,
+        tools: config.providers.xai.tools,
+    };
     let platform_routes = PlatformRoutesRuntimeConfig {
         arxiv_api: HttpRouteRuntimeConfig {
             url: config.providers.arxiv_api.url,
@@ -644,6 +657,7 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
             command: config.providers.xiaohongshu_browser.command,
             timeout_seconds: config.providers.xiaohongshu_browser.timeout,
         },
+        xai: xai.clone(),
     };
     let classifier = ClassifierRuntimeConfig {
         url: config.classifier.url,
@@ -651,12 +665,6 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         model: config.classifier.model,
         fallback_models: config.classifier.fallback_models,
         timeout_seconds: config.classifier.timeout,
-    };
-    let xai = XaiRuntimeConfig {
-        url: config.providers.xai.url,
-        keys: config.providers.xai.keys,
-        model: config.providers.xai.model,
-        tools: config.providers.xai.tools,
     };
     let openai_compatible = OpenAiCompatibleRuntimeConfig {
         url: config.providers.openai_compatible.url,
@@ -704,6 +712,7 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
             config.platforms.xiaohongshu.order,
             &platform_routes,
         )?,
+        x: platform_entries(Platform::X, config.platforms.x.order, &platform_routes)?,
     };
     Ok(RuntimeConfig {
         main_search: MainSearchRuntimeConfig {
@@ -879,6 +888,7 @@ pub(crate) fn platform_route_config(
         ProviderId::XiaohongshuBrowser => Some(PlatformRouteConfig::XiaohongshuBrowser(
             routes.xiaohongshu_browser.clone(),
         )),
+        ProviderId::Xai => Some(PlatformRouteConfig::Xai(routes.xai.clone())),
         _ => None,
     }
 }

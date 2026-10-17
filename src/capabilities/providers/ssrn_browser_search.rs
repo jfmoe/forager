@@ -81,7 +81,8 @@ pub(crate) fn search_support(request: &PlatformSearchRequest) -> Result<(), Stri
         }
         PlatformSearchOptions::Arxiv(_)
         | PlatformSearchOptions::Scholar(_)
-        | PlatformSearchOptions::Xiaohongshu(_) => {
+        | PlatformSearchOptions::Xiaohongshu(_)
+        | PlatformSearchOptions::X(_) => {
             Err(other_platform_message(ROUTE, request.options.platform()))
         }
     }
@@ -294,7 +295,7 @@ impl SearchResult {
             } else {
                 ContentDepth::Metadata
             },
-            title: self.title.clone(),
+            title: Some(self.title.clone()),
             authors: self.authors.clone(),
             published: self.posted.map(|date| date.format("%Y-%m-%d").to_string()),
             data: PlatformItemData::Ssrn(SsrnItemData {

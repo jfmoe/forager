@@ -237,7 +237,8 @@ async fn run_probe(
 ) -> ProbeOutcome {
     match catalog::registration(provider).probe {
         DoctorProbe::MainSearch(shapes) => {
-            probe_main_search(provider, shapes, config, client, retry_policy, deadline).await
+            probe_main_search_backend(provider, shapes, config, client, retry_policy, deadline)
+                .await
         }
         DoctorProbe::WebSearch { name, transport } => {
             let provider_config = config::web_provider_config(
@@ -313,6 +314,53 @@ async fn run_probe(
             )
         }
     }
+}
+
+/// Probes a main-search backend, then the platform searches it serves while their orders list
+/// it.
+async fn probe_main_search_backend(
+    provider: ProviderId,
+    shapes: &'static [ProbeShape],
+    config: RuntimeConfig,
+    client: reqwest::Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> ProbeOutcome {
+    // A main-search backend that a platform order lists also serves that platform, so
+    // doctor proves the platform request too (ADR 0026).
+    let platform_routes = enabled_platforms(provider, &config)
+        .into_iter()
+        .filter_map(|platform| {
+            config::platform_route_config(provider, &config.platform_routes)
+                .map(|route_config| (platform, route_config))
+        })
+        .collect::<Vec<_>>();
+    let mut outcome = probe_main_search(
+        provider,
+        shapes,
+        config,
+        client.clone(),
+        retry_policy,
+        deadline,
+    )
+    .await;
+    for (platform, route_config) in platform_routes {
+        if outcome.failure.is_some() {
+            break;
+        }
+        let result = probe_platform_search(
+            platform,
+            route_config,
+            client.clone(),
+            retry_policy,
+            deadline,
+        )
+        .await;
+        let platform_outcome = one_check(result, platform_probe_name(platform), "sse");
+        outcome.checks.extend(platform_outcome.checks);
+        outcome.failure = platform_outcome.failure;
+    }
+    outcome
 }
 
 async fn probe_web_fetch(
@@ -623,10 +671,23 @@ fn is_platform_route(id: ProviderId) -> bool {
 
 /// Returns whether any platform order lists the route.
 fn route_enabled(id: ProviderId, runtime: &RuntimeConfig) -> bool {
+    !enabled_platforms(id, runtime).is_empty()
+}
+
+/// Names the platform check of a main-search backend after the tool that reads the platform.
+fn platform_probe_name(platform: Platform) -> &'static str {
+    match platform {
+        Platform::X => "x_search",
+        _ => "platform_search",
+    }
+}
+
+/// Returns the platforms whose order lists the route.
+fn enabled_platforms(id: ProviderId, runtime: &RuntimeConfig) -> Vec<Platform> {
     catalog::PLATFORMS
         .iter()
         .filter(|platform| platform.contains(id))
-        .any(|platform| {
+        .filter(|platform| {
             runtime
                 .platforms
                 .get(platform.platform)
@@ -634,6 +695,8 @@ fn route_enabled(id: ProviderId, runtime: &RuntimeConfig) -> bool {
                 .iter()
                 .any(|entry| entry.id() == id)
         })
+        .map(|platform| platform.platform)
+        .collect()
 }
 
 fn provider_endpoint(id: ProviderId, runtime: &RuntimeConfig) -> &str {

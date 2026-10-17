@@ -9,7 +9,7 @@ use super::{
     ArxivApi, DocsSearch, KeyAccount, MainSearch, ModelBreakers, PlatformFetch, PlatformSearch,
     ProviderId, Serpapi, SsrnBrowser, SsrnCrossref, SupplementalSearch, VerticalSearch, WebFetch,
     WebSearch, XiaohongshuBrowser, arxiv, opencli, serpapi, ssrn_browser, ssrn_crossref, web_fetch,
-    xiaohongshu_browser,
+    xai, xiaohongshu_browser,
 };
 use crate::catalog::{ProviderTransport, VERTICAL_SEARCH, WEB_FETCH, WEB_SEARCH, registration};
 use crate::config::{
@@ -20,7 +20,8 @@ use crate::config::{
 use crate::net::RetryPolicy;
 use crate::types::{
     Deadline, PlatformFetchRequest, PlatformSearchOutcome, PlatformSearchRequest, ProviderError,
-    ScholarCitedByRequest, XiaohongshuCommentsOutcome, XiaohongshuCommentsRequest,
+    ScholarCitedByRequest, XAskOutcome, XAskRequest, XiaohongshuCommentsOutcome,
+    XiaohongshuCommentsRequest,
 };
 
 /// The routes that list the works citing a Google Scholar paper. Cited-by has one route, so it
@@ -31,6 +32,10 @@ pub(crate) const SCHOLAR_CITED_BY_ROUTES: &[ProviderId] = &[ProviderId::Serpapi]
 /// The routes that list the comments of a Xiaohongshu note; like cited-by, a single-route
 /// operation whose route set lives here.
 pub(crate) const XIAOHONGSHU_COMMENTS_ROUTES: &[ProviderId] = &[ProviderId::XiaohongshuBrowser];
+
+/// The routes that answer a question from X posts; like cited-by, a single-route operation
+/// whose route set lives here.
+pub(crate) const X_ASK_ROUTES: &[ProviderId] = &[ProviderId::Xai];
 
 pub(crate) fn build_main_search(
     id: ProviderId,
@@ -145,6 +150,9 @@ pub(crate) fn build_platform_search(
         PlatformRouteConfig::XiaohongshuBrowser(config) => {
             Box::new(build_xiaohongshu_browser(config, deadline))
         }
+        PlatformRouteConfig::Xai(config) => {
+            Box::new(super::build_xai(config, client, retry_policy, deadline))
+        }
     }
 }
 
@@ -168,6 +176,9 @@ pub(crate) fn build_platform_fetch(
         PlatformRouteConfig::XiaohongshuBrowser(config) => {
             Box::new(build_xiaohongshu_browser(config, deadline))
         }
+        PlatformRouteConfig::Xai(config) => {
+            Box::new(super::build_xai(config, client, retry_policy, deadline))
+        }
     }
 }
 
@@ -184,6 +195,22 @@ pub(crate) async fn scholar_cited_by(
     };
     build_serpapi(config, client, retry_policy, deadline)
         .cited_by(request)
+        .await
+}
+
+/// Answers a question from X posts through an ask route.
+pub(crate) async fn x_ask(
+    config: PlatformRouteConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+    request: &XAskRequest,
+) -> Result<XAskOutcome, ProviderError> {
+    let PlatformRouteConfig::Xai(config) = config else {
+        unreachable!("planning selects only ask routes")
+    };
+    super::build_xai(config, client, retry_policy, deadline)
+        .ask(request)
         .await
 }
 
@@ -313,6 +340,7 @@ pub(crate) fn platform_search_support(
         ProviderId::SsrnBrowser => ssrn_browser::search_support(request),
         ProviderId::Serpapi => serpapi::search_support(request),
         ProviderId::XiaohongshuBrowser => xiaohongshu_browser::search_support(request),
+        ProviderId::Xai => xai::search_support(request),
         _ => return None,
     };
     Some(transport_support(id).and(route))
@@ -330,6 +358,7 @@ pub(crate) fn platform_fetch_support(
         ProviderId::SsrnBrowser => ssrn_browser::fetch_support(request),
         ProviderId::Serpapi => serpapi::fetch_support(request),
         ProviderId::XiaohongshuBrowser => xiaohongshu_browser::fetch_support(request),
+        ProviderId::Xai => xai::fetch_support(request),
         _ => return None,
     };
     Some(transport_support(id).and(route))
@@ -353,6 +382,15 @@ pub(crate) fn scholar_cited_by_support(
 pub(crate) fn xiaohongshu_comments_support(id: ProviderId) -> Option<Result<(), String>> {
     match id {
         ProviderId::XiaohongshuBrowser => Some(transport_support(id)),
+        _ => None,
+    }
+}
+
+/// Returns whether an ask route can run, or `None` for a provider that does not answer from X
+/// posts. The request needs no check beyond what parsing guarantees.
+pub(crate) fn x_ask_support(id: ProviderId) -> Option<Result<(), String>> {
+    match id {
+        ProviderId::Xai => Some(transport_support(id)),
         _ => None,
     }
 }

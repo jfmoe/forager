@@ -12,11 +12,11 @@ use crate::catalog::{
 };
 use crate::config::{
     self, HttpRouteRuntimeConfig, KeyedHttpRouteRuntimeConfig, PlatformRoutesRuntimeConfig,
-    ProcessRouteRuntimeConfig,
+    ProcessRouteRuntimeConfig, XaiRuntimeConfig,
 };
 use crate::providers;
 use crate::types::{
-    CITED_BY, COMMENTS, ContentDepth, Platform, PlatformFetchRequest, PlatformRef,
+    ASK, CITED_BY, COMMENTS, ContentDepth, Platform, PlatformFetchRequest, PlatformRef,
     PlatformSearchOptions, PlatformSearchRequest,
 };
 
@@ -33,6 +33,7 @@ fn sample_refs(platform: Platform) -> &'static [&'static str] {
         Platform::Ssrn => &["ssrn:2042750"],
         Platform::Scholar => &["scholar:18208131694456651388"],
         Platform::Xiaohongshu => &["xiaohongshu:64a1b2c3d4e5f60718293a4b"],
+        Platform::X => &["x:2110126570233094527"],
     }
 }
 
@@ -167,9 +168,12 @@ fn check_route(
         ));
         return;
     };
-    let leaves = match registration.transport {
-        ProviderTransport::Http => ["url", "timeout"],
-        ProviderTransport::OpenCli(_) => ["command", "timeout"],
+    let leaves: &[&str] = match registration.transport {
+        // A main-search backend has no timeout of its own; its platform requests use the
+        // command's remaining time like main search (ADR 0026).
+        ProviderTransport::Http if catalog::MAIN_SEARCH.contains(route) => &["url"],
+        ProviderTransport::Http => &["url", "timeout"],
+        ProviderTransport::OpenCli(_) => &["command", "timeout"],
     };
     for leaf in leaves {
         let path = format!("providers.{name}.{leaf}");
@@ -296,6 +300,12 @@ fn has_adapter(platform: Platform, operation: PlatformOperation, route: Provider
             command: String::new(),
             timeout_seconds: 1,
         },
+        xai: XaiRuntimeConfig {
+            url: String::new(),
+            keys: Vec::new(),
+            model: String::new(),
+            tools: Vec::new(),
+        },
     };
     has_support
         && config::platform_route_config(route, &routes)
@@ -352,6 +362,7 @@ fn single_route_operations_have_transport_fixtures() {
             COMMENTS,
             providers::XIAOHONGSHU_COMMENTS_ROUTES,
         ),
+        (Platform::X, ASK, providers::X_ASK_ROUTES),
     ];
     let routes = single_route_operations
         .into_iter()
@@ -439,6 +450,21 @@ fn a_process_route_without_a_command_leaf_violates_r4() {
         found
             .iter()
             .any(|message| message.contains("`providers.ssrn_browser.command`")),
+        "{found:?}"
+    );
+}
+
+#[test]
+fn a_main_search_backend_is_not_required_to_have_a_timeout_leaf() {
+    let fixtures = manifest_fixtures();
+    let registry = baseline(&fixtures);
+
+    let found = violations(Platform::X, &registry);
+
+    assert!(
+        !found
+            .iter()
+            .any(|message| message.contains("providers.xai.timeout")),
         "{found:?}"
     );
 }

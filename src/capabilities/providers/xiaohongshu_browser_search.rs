@@ -44,7 +44,8 @@ pub(crate) fn search_support(request: &PlatformSearchRequest) -> Result<(), Stri
         }
         PlatformSearchOptions::Arxiv(_)
         | PlatformSearchOptions::Ssrn(_)
-        | PlatformSearchOptions::Scholar(_) => {
+        | PlatformSearchOptions::Scholar(_)
+        | PlatformSearchOptions::X(_) => {
             Err(other_platform_message(ROUTE, request.options.platform()))
         }
     }
@@ -470,11 +471,13 @@ fn decode_note(note: &serde_json::Value, now: NaiveDateTime) -> Option<PlatformI
     Some(PlatformItem {
         url: reference.canonical_url(),
         depth: ContentDepth::Metadata,
-        title: card["display_title"]
-            .as_str()
-            .map(str::trim)
-            .unwrap_or_default()
-            .to_owned(),
+        title: Some(
+            card["display_title"]
+                .as_str()
+                .map(str::trim)
+                .unwrap_or_default()
+                .to_owned(),
+        ),
         authors: card["user"]["nickname"]
             .as_str()
             .map(str::trim)

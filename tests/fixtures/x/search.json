@@ -1,0 +1,79 @@
+{
+  "id": "18dc04ad-5a1c-9bc0-9f36-438f73b34700",
+  "model": "grok-4.5",
+  "status": "completed",
+  "tools": [
+    {
+      "type": "x_search",
+      "from_date": "2026-09-01"
+    }
+  ],
+  "output": [
+    {
+      "type": "custom_tool_call",
+      "name": "x_semantic_search",
+      "input": "{\"query\":\"Rust 2027 edition plans\",\"limit\":\"10\"}",
+      "status": "completed"
+    },
+    {
+      "type": "custom_tool_call",
+      "name": "x_keyword_search",
+      "input": "{\"query\":\"Rust 2027 edition OR \\\"edition 2027\\\" OR \\\"2027 edition\\\"\",\"limit\":\"10\",\"mode\":\"Latest\"}",
+      "status": "completed"
+    },
+    {
+      "type": "message",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "output_text",
+          "text": "{\n  \"posts\": [\n    {\n      \"url\": \"https://x.com/loncothad/status/2106088717547077910\",\n      \"author_handle\": \"loncothad\",\n      \"created_at\": \"Fri, 02 Oct 2026 18:27:34 GMT\",\n      \"text\": \"Rust developers (of The Rust, not working With) are on the generation run to make the Edition 2027 the dream language. Wow. But I can't see the reason why - AI is banned there and it's not like any new cash grants were given to them... Just a random lock in, it seems...\"\n    },\n    {\n      \"url\": \"https://x.com/blackenedgold/status/2110286468623351937\",\n      \"author_handle\": \"blackenedgold\",\n      \"created_at\": \"Wed, 14 Oct 2026 08:27:56 GMT\",\n      \"text\": \"そしてその併設ワークショップでRustのプログラミング言語理論を扱ったやつも開催するみたい\\n\\nPLRust 2027 - First Workshop on Programming Language Exploration into Rust - ‹Programming› 2027\\nhttps://2027.programming-conference.org/home/plrust-2027#About\"\n    }\n  ]\n}",
+          "annotations": [
+            {
+              "type": "url_citation",
+              "url": "https://x.com/i/status/2108236514526392619",
+              "start_index": 0,
+              "end_index": 0,
+              "title": "https://x.com/i/status/2108236514526392619"
+            },
+            {
+              "type": "url_citation",
+              "url": "https://x.com/i/status/2105699436990980293",
+              "start_index": 0,
+              "end_index": 0,
+              "title": "https://x.com/i/status/2105699436990980293"
+            },
+            {
+              "type": "url_citation",
+              "url": "https://x.com/i/user/1112661938608078848",
+              "start_index": 0,
+              "end_index": 0,
+              "title": "https://x.com/i/user/1112661938608078848"
+            },
+            {
+              "type": "url_citation",
+              "url": "https://x.com/i/status/2110286468623351937",
+              "start_index": 0,
+              "end_index": 0,
+              "title": "https://x.com/i/status/2110286468623351937"
+            },
+            {
+              "type": "url_citation",
+              "url": "https://x.com/i/status/2106088717547077910",
+              "start_index": 0,
+              "end_index": 0,
+              "title": "https://x.com/i/status/2106088717547077910"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "usage": {
+    "server_side_tool_usage_details": {
+      "x_search_calls": 16,
+      "x_posts_fetched": 52,
+      "x_users_fetched": 5
+    }
+  }
+}

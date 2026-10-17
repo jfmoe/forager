@@ -12,8 +12,7 @@ use forager::app::{
 };
 use forager::types::{
     AnysearchOutcome, AttemptErrorKind, Context7Outcome, ErrorFamily, ErrorKind, FetchOutcome,
-    JournalOutcome, MapOutcome, PlatformFetchResult, PlatformItem, PlatformItemData,
-    PlatformSearchPage, ScholarItemData, SearchCandidate, SearchOutcome, XiaohongshuCommentsPage,
+    JournalOutcome, MapOutcome, SearchCandidate, SearchOutcome,
 };
 use serde_json::{Value, json};
 
@@ -23,6 +22,8 @@ mod chatgpt_render;
 mod delegated_render;
 #[path = "cli/gemini_render.rs"]
 mod gemini_render;
+#[path = "cli/platform_render.rs"]
+mod platform_render;
 
 const FAILURE_PAYLOAD_TARGET_BYTES: usize = 4096;
 
@@ -101,19 +102,37 @@ fn main() -> ExitCode {
             format,
             output,
             attempt_log,
-        }) => emit_logged(render_platform_search(result, format, output), attempt_log),
+        }) => emit_logged(
+            platform_render::render_search(result, format, output),
+            attempt_log,
+        ),
         Ok(CommandOutput::PlatformFetch {
             result,
             format,
             output,
             attempt_log,
-        }) => emit_logged(render_platform_fetch(*result, format, output), attempt_log),
+        }) => emit_logged(
+            platform_render::render_fetch(*result, format, output),
+            attempt_log,
+        ),
         Ok(CommandOutput::XiaohongshuComments {
             result,
             format,
             output,
             attempt_log,
-        }) => emit_logged(render_comments(result, format, output), attempt_log),
+        }) => emit_logged(
+            platform_render::render_comments(result, format, output),
+            attempt_log,
+        ),
+        Ok(CommandOutput::XAsk {
+            result,
+            format,
+            output,
+            attempt_log,
+        }) => emit_logged(
+            platform_render::render_ask(result, format, output),
+            attempt_log,
+        ),
         Ok(CommandOutput::GeminiResearch {
             result,
             format,
@@ -662,241 +681,6 @@ fn render_fetch(
         output,
         diagnostic,
     )
-}
-
-fn render_platform_search(
-    result: Result<PlatformSearchPage, ProviderError>,
-    format: OutputFormat,
-    output: Option<OutputTarget>,
-) -> Result<RenderedOutput, String> {
-    let (stdout, exit_code, diagnostic) = match result {
-        Ok(page) => (format_platform_page(&page, format)?, 0, page.diagnostic),
-        Err(error) => {
-            let stdout = match format {
-                OutputFormat::Json => format_failure_json(&error)?,
-                OutputFormat::Markdown => format!(
-                    "# Platform search failed\n\n**{}**: {}",
-                    error.kind.as_str(),
-                    error.message
-                ),
-            };
-            (stdout, postflight_exit_code(error.kind), error.diagnostic)
-        }
-    };
-    apply_tee(
-        stdout,
-        exit_code,
-        format == OutputFormat::Json,
-        output,
-        diagnostic,
-    )
-}
-
-fn format_platform_page(page: &PlatformSearchPage, format: OutputFormat) -> Result<String, String> {
-    if format == OutputFormat::Json {
-        return serde_json::to_string(page).map_err(|error| error.to_string());
-    }
-    let mut markdown = format!("# {} search ({})\n", page.platform, page.provider);
-    for item in &page.items {
-        let _ = write!(
-            markdown,
-            "\n- [{}]({}) `{}`",
-            item.title, item.url, item.reference
-        );
-        append_byline(&mut markdown, item);
-        let summary = item_abstract(item).or_else(|| item_snippet(item));
-        if let Some(summary) = summary.filter(|summary| !summary.is_empty()) {
-            let _ = write!(
-                markdown,
-                "\n\n  {}",
-                summary.split_whitespace().collect::<Vec<_>>().join(" ")
-            );
-        }
-    }
-    if page.items.is_empty() {
-        markdown.push_str("\n\nNo results.");
-    }
-    if let Some(cursor) = &page.next_cursor {
-        let _ = write!(markdown, "\n\nNext cursor: `{cursor}`");
-    }
-    Ok(markdown)
-}
-
-fn append_byline(markdown: &mut String, item: &PlatformItem) {
-    if !item.authors.is_empty() {
-        let _ = write!(markdown, " — {}", item.authors.join(", "));
-    }
-    if let Some(published) = &item.published {
-        let _ = write!(markdown, " — {published}");
-    }
-}
-
-fn item_abstract(item: &PlatformItem) -> Option<&str> {
-    match &item.data {
-        PlatformItemData::Arxiv(data) => Some(&data.abstract_text),
-        PlatformItemData::Ssrn(data) => data.abstract_text.as_deref(),
-        PlatformItemData::Scholar(_)
-        | PlatformItemData::Xiaohongshu(_)
-        | PlatformItemData::XiaohongshuNote(_) => None,
-    }
-}
-
-fn item_snippet(item: &PlatformItem) -> Option<&str> {
-    match &item.data {
-        PlatformItemData::Arxiv(_)
-        | PlatformItemData::Scholar(ScholarItemData::Cluster(_))
-        | PlatformItemData::Xiaohongshu(_)
-        | PlatformItemData::XiaohongshuNote(_) => None,
-        PlatformItemData::Ssrn(data) => data.snippet.as_deref(),
-        PlatformItemData::Scholar(ScholarItemData::Result(data)) => data.snippet.as_deref(),
-    }
-}
-
-fn render_comments(
-    result: Result<XiaohongshuCommentsPage, ProviderError>,
-    format: OutputFormat,
-    output: Option<OutputTarget>,
-) -> Result<RenderedOutput, String> {
-    let (stdout, exit_code, diagnostic) = match result {
-        Ok(page) => (format_comments(&page, format)?, 0, page.diagnostic),
-        Err(error) => {
-            let stdout = match format {
-                OutputFormat::Json => format_failure_json(&error)?,
-                OutputFormat::Markdown => format!(
-                    "# Comments failed\n\n**{}**: {}",
-                    error.kind.as_str(),
-                    error.message
-                ),
-            };
-            (stdout, postflight_exit_code(error.kind), error.diagnostic)
-        }
-    };
-    apply_tee(
-        stdout,
-        exit_code,
-        format == OutputFormat::Json,
-        output,
-        diagnostic,
-    )
-}
-
-fn format_comments(page: &XiaohongshuCommentsPage, format: OutputFormat) -> Result<String, String> {
-    if format == OutputFormat::Json {
-        return serde_json::to_string(page).map_err(|error| error.to_string());
-    }
-    let mut markdown = format!(
-        "# {} comments on `{}` ({})\n",
-        page.platform, page.note, page.provider
-    );
-    let one_line = |text: &str| text.split_whitespace().collect::<Vec<_>>().join(" ");
-    for comment in &page.comments {
-        let _ = write!(
-            markdown,
-            "\n- **{}** ({}): {}",
-            comment.author.as_deref().unwrap_or("unknown"),
-            comment.published.as_deref().unwrap_or("undated"),
-            one_line(&comment.text)
-        );
-        for reply in &comment.replies {
-            let _ = write!(
-                markdown,
-                "\n  - **{}** ({}): {}",
-                reply.author.as_deref().unwrap_or("unknown"),
-                reply.published.as_deref().unwrap_or("undated"),
-                one_line(&reply.text)
-            );
-        }
-        if comment.replies_has_more {
-            markdown.push_str("\n  - more replies not read");
-        }
-    }
-    if page.comments.is_empty() {
-        markdown.push_str("\n\nNo comments.");
-    }
-    if page.has_more {
-        markdown.push_str("\n\nMore comments remain.");
-    }
-    Ok(markdown)
-}
-
-fn render_platform_fetch(
-    result: Result<PlatformFetchResult, ProviderError>,
-    format: DocsOutputFormat,
-    output: Option<OutputTarget>,
-) -> Result<RenderedOutput, String> {
-    let (stdout, exit_code, diagnostic) = match result {
-        Ok(fetched) => (
-            format_platform_fetch(&fetched, format)?,
-            0,
-            fetched.diagnostic,
-        ),
-        Err(error) => {
-            let stdout = match format {
-                DocsOutputFormat::Json => format_failure_json(&error)?,
-                DocsOutputFormat::Markdown | DocsOutputFormat::Content => format!(
-                    "# Platform fetch failed\n\n**{}**: {}",
-                    error.kind.as_str(),
-                    error.message
-                ),
-            };
-            (stdout, postflight_exit_code(error.kind), error.diagnostic)
-        }
-    };
-    apply_tee(
-        stdout,
-        exit_code,
-        format == DocsOutputFormat::Json,
-        output,
-        diagnostic,
-    )
-}
-
-/// Renders a fetched item. Only `content` prints the body; the other formats reference the
-/// written file instead.
-fn format_platform_fetch(
-    fetched: &PlatformFetchResult,
-    format: DocsOutputFormat,
-) -> Result<String, String> {
-    let item = &fetched.item;
-    match format {
-        DocsOutputFormat::Json => serde_json::to_string(fetched).map_err(|error| error.to_string()),
-        DocsOutputFormat::Content => Ok(fetched.content.as_ref().map_or_else(
-            || item_abstract(item).unwrap_or_default().to_owned(),
-            |content| content.text.clone(),
-        )),
-        DocsOutputFormat::Markdown => {
-            let mut markdown = format!(
-                "# {}\n\n`{}` — <{}> ({}, {})",
-                item.title,
-                item.reference,
-                item.url,
-                fetched.provider,
-                item.depth.as_str()
-            );
-            append_byline(&mut markdown, item);
-            if let Some(summary) = item_abstract(item) {
-                let _ = write!(markdown, "\n\n## Abstract\n\n{summary}");
-            }
-            if let Some(content) = &fetched.content {
-                let _ = write!(
-                    markdown,
-                    "\n\n## Full text\n\n{} characters from <{}> via {}: `{}`",
-                    content.len,
-                    content.url,
-                    content.provider,
-                    content.path.as_deref().unwrap_or_default()
-                );
-                if let Some(pdf_path) = &content.pdf_path {
-                    let _ = write!(
-                        markdown,
-                        "\n\nOriginal PDF ({} bytes): `{pdf_path}`",
-                        content.pdf_bytes.unwrap_or_default()
-                    );
-                }
-            }
-            Ok(markdown)
-        }
-    }
 }
 
 fn render_anysearch(

@@ -3,8 +3,7 @@
 A platform command retrieves platform-native items: a typed ref, the platform's metadata, and a
 stated content depth. Check [`platform-vocabulary.json`](platform-vocabulary.json) first. A
 platform absent from it has no platform command; follow
-[`direct-retrieval.md`](direct-retrieval.md) or the cost ladder in `SKILL.md` for it instead (for
-example, `x.com` links keep the authenticated-client guidance).
+[`direct-retrieval.md`](direct-retrieval.md) or the cost ladder in `SKILL.md` for it instead.
 
 ## Choose the branch
 
@@ -21,6 +20,11 @@ example, `x.com` links keep the authenticated-client guidance).
   `forager platform xiaohongshu comments 'ACCESS_URL'` with the same URL.
 - **Papers citing a known paper** (follow-up work, replications, or rebuttals): run
   `forager platform scholar cited-by 'REF_OR_URL'`; see "Google Scholar cited-by".
+- **X (Twitter)**: to hear what X says, or to answer from given accounts or days, run
+  `forager platform x ask QUESTION`; for post items to list or cite, run
+  `forager platform x search QUERY`; for a post URL or its replies, run
+  `forager platform x fetch 'REF_OR_URL'`. A general question that X may inform keeps using
+  `forager search`, which already reads X. See "X posts".
 
 `forager platform <id> <op> --help` is the syntax authority; see the platform section of
 [`cli.md`](cli.md) for output fields and exit codes.
@@ -28,7 +32,8 @@ example, `x.com` links keep the authenticated-client guidance).
 ## Content depth
 
 Every item carries `depth`, the content it actually holds: `metadata` (bibliographic fields only,
-`abstract: null`), `snippet` (a search excerpt, never the abstract), `abstract`, or `full_text`.
+`abstract: null`), `snippet` (a search excerpt, never the abstract), `abstract`, `full_text`, or
+`thread` (a post with its conversation).
 
 - **arXiv** `fetch` defaults to `--depth full_text`; `--depth abstract` skips the body.
 - **SSRN** `fetch` defaults to `--depth metadata` and includes the abstract when a route has one.
@@ -46,6 +51,9 @@ Every item carries `depth`, the content it actually holds: `metadata` (bibliogra
 - **Scholar** search items are `snippet` (`metadata` for a result without an excerpt); `fetch` is
   `metadata` only and lists the paper's versions. Google Scholar holds no body; read it from the
   source, see "Read a Scholar paper".
+- **X** search items are `snippet`: the post text as the model relayed it. `fetch` defaults to
+  `--depth thread` and adds the posts it replies to, its replies, and the posts it quotes;
+  `--depth metadata` returns the post alone.
 
 ## arXiv search queries
 
@@ -130,6 +138,30 @@ or cluster URL exactly as forager or the user gave it.
 forager platform scholar cited-by scholar:18208131694456651388 --query crash
 forager platform scholar cited-by scholar:18208131694456651388 --year-from 2024
 forager platform scholar cited-by scholar:18208131694456651388 --sort date
+```
+
+## X posts
+
+X runs through the `xai` route with the xAI key of main search; no extra setup is needed. xAI's
+`x_search` tool reads X for a model, and xAI returns only what the model writes, never the posts
+themselves. So every X text is relayed content: `text` and `author_handle` may be reworded,
+translated, or shortened. forager checks what it can: a search keeps only posts the response
+cites as read, a fetch requires the root to be the requested post, and `published` comes from
+the post ID, not the model.
+
+- Pass `--handle` (repeatable) for posts by given accounts, `--exclude-handle` to drop accounts,
+  and `--from`/`--to` (inclusive UTC days) only when the request states or clearly implies them;
+  xAI enforces them. There is no sort option: the model chooses Top or Latest itself.
+- Search returns at most 20 posts and no cursor. For more, rewrite the query or narrow the
+  filters.
+- Each request lets the model read as many posts as it decides; through the official xAI API that
+  is billed per post read. Prefer one `ask` over many searches when an answer is what the user
+  wants.
+
+```console
+forager platform x ask 'What are people saying about the Rust 2027 edition?'
+forager platform x search 'Starship' --handle SpaceX --from 2026-10-01 --to 2026-10-14
+forager platform x fetch 'https://x.com/SpaceX/status/2110126570233094527'
 ```
 
 ## SSRN browser route
@@ -244,6 +276,14 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
   as opinions with their counts, not as facts about the note's subject, and say how many of the
   note's comments you read (`has_more`, `replies_has_more`).
 
+- **X evidence**: cite the ref (`x:<post_id>`) with the author handle, and give the user the
+  `url` to open. Post text, handles, and ask answers are relayed by a model: when the exact wording
+  matters (a quote, a number, a claim attributed to a person), tell the user to open the post, and
+  never present relayed text as a verbatim quote. A post is one account's statement: attribute it.
+  Thread replies are not checked against the response, so treat them with more caution than the
+  root. An `ask` answer without `sources` is unverified. Results reflect what the model chose to
+  read, not a complete or ranked view of X.
+
 ## Recover
 
 - Exit 2 naming an unsupported option: retry once without that option and tell the user which
@@ -294,6 +334,15 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
   check the network in that Chrome.
 - A `xiaohongshu_browser` error that names the forager OpenCLI adapter, or a doctor `message`
   with install steps: repeat the install step in "Xiaohongshu browser route".
+
+- X exit 3 naming `providers.xai.keys`: no xAI key is configured; go to Diagnose or configure in
+  `SKILL.md`. Exit 3 naming `platforms.x.order`: the user disabled X; do not re-enable it yourself.
+- X `runtime` saying none of the posts could be verified, or that the posts are not the requested
+  JSON: retry once; when it fails again, use `platform x ask` or `forager search` instead and say
+  so.
+- X `parameter` saying a post was not found or is not visible: the post may be deleted, private,
+  or out of the model's reach; report it rather than retrying.
+- A `t.co` link (exit 2): ask the user for the x.com URL it opens.
 
 Platform retrieval is complete when the requested items or content are read at the depth the answer
 needs, or a terminal failure is reported with its recovery.

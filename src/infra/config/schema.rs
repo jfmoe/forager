@@ -314,6 +314,7 @@ pub(super) struct Platforms {
     pub(super) ssrn: Order,
     pub(super) scholar: Order,
     pub(super) xiaohongshu: Order,
+    pub(super) x: Order,
 }
 
 impl Default for Platforms {
@@ -323,6 +324,7 @@ impl Default for Platforms {
             ssrn: platform_order(catalog::SSRN),
             scholar: platform_order(catalog::SCHOLAR),
             xiaohongshu: platform_order(catalog::XIAOHONGSHU),
+            x: platform_order(catalog::X),
         }
     }
 }
@@ -601,6 +603,7 @@ pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("platforms.ssrn.order", platforms.ssrn.order: Strings, Rule::PlatformOrder { platform: Platform::Ssrn }, View::Plain, "authoritative route order for this platform; empty disables it"),
     leaf!("platforms.scholar.order", platforms.scholar.order: Strings, Rule::PlatformOrder { platform: Platform::Scholar }, View::Plain, "authoritative route order for this platform; empty disables it"),
     leaf!("platforms.xiaohongshu.order", platforms.xiaohongshu.order: Strings, Rule::PlatformOrder { platform: Platform::Xiaohongshu }, View::Plain, "authoritative route order for this platform; empty disables it"),
+    leaf!("platforms.x.order", platforms.x.order: Strings, Rule::PlatformOrder { platform: Platform::X }, View::Plain, "authoritative route order for this platform; empty disables it"),
     leaf!("log.level", log.level: String, Rule::OneOf(LOG_LEVELS), View::Plain, "stderr log level"),
     leaf!("journal.enabled", journal.enabled: Bool, Rule::Any, View::Plain, "record search result journals"),
     leaf!("journal.dir", journal.dir: String, Rule::Any, View::Plain, "journal storage directory"),
@@ -704,6 +707,7 @@ mod tests {
             default_order(catalog::SCHOLAR)
         );
         assert_eq!(config.platforms.xiaohongshu.order, Vec::<String>::new());
+        assert_eq!(config.platforms.x.order, ["xai"]);
     }
 
     fn toml_leaf_paths(value: &toml::Value, prefix: &str, paths: &mut BTreeSet<String>) {

@@ -86,7 +86,8 @@ fn platform_commands_nest_operations_under_each_platform() {
             ("arxiv", vec!["search", "fetch"]),
             ("ssrn", vec!["search", "fetch"]),
             ("scholar", vec!["search", "fetch", "cited-by"]),
-            ("xiaohongshu", vec!["search", "fetch", "comments"])
+            ("xiaohongshu", vec!["search", "fetch", "comments"]),
+            ("x", vec!["search", "fetch", "ask"])
         ]
     );
 }

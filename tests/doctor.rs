@@ -90,6 +90,30 @@ fn doctor_provider_rejects_values_outside_the_compiled_registry() {
 }
 
 #[test]
+fn xai_deep_doctor_also_searches_x_while_the_x_order_lists_it() {
+    let fixture = Fixture::start_sequence(vec![
+        Response::sse(
+            200,
+            "data: {\"type\":\"response.completed\",\"response\":{\"output\":[{\"content\":[{\"type\":\"output_text\",\"text\":\"ok\",\"annotations\":[]}]}]}}\n\n",
+        ),
+        support::x::completed(&support::x::fixture("search.json")),
+    ]);
+    let environment = RunEnvironment::new(&format!(
+        "[providers.xai]\nurl = {:?}\nkeys = [\"xai-key\"]\n",
+        fixture.url
+    ));
+
+    let output = environment.run(&["doctor", "--provider", "xai"]);
+
+    assert_deep_success(&output, "xai", &[("responses", "sse"), ("x_search", "sse")]);
+    let requests = fixture.finish_all();
+    assert_eq!(
+        request_json(&requests[1])["tools"],
+        serde_json::json!([{"type": "x_search"}])
+    );
+}
+
+#[test]
 fn xai_deep_doctor_executes_one_responses_sse_probe() {
     let fixture = Fixture::start(
         200,
@@ -97,7 +121,7 @@ fn xai_deep_doctor_executes_one_responses_sse_probe() {
         "data: {\"type\":\"response.completed\",\"response\":{\"output\":[{\"content\":[{\"type\":\"output_text\",\"text\":\"<think>ok</think>\",\"annotations\":[]}]}]}}\n\n",
     );
     let environment = RunEnvironment::new(&format!(
-        "[providers.xai]\nurl = {:?}\nkeys = [\"xai-key\"]\n",
+        "[providers.xai]\nurl = {:?}\nkeys = [\"xai-key\"]\n[platforms.x]\norder = []\n",
         fixture.url
     ));
 

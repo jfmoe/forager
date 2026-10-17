@@ -39,7 +39,8 @@ pub(crate) fn search_support(request: &PlatformSearchRequest) -> Result<(), Stri
         PlatformSearchOptions::Arxiv(_) => page_start(request.page.as_deref()).map(|_| ()),
         PlatformSearchOptions::Ssrn(_)
         | PlatformSearchOptions::Scholar(_)
-        | PlatformSearchOptions::Xiaohongshu(_) => {
+        | PlatformSearchOptions::Xiaohongshu(_)
+        | PlatformSearchOptions::X(_) => {
             Err(other_platform_message(ROUTE, request.options.platform()))
         }
     }
@@ -492,11 +493,12 @@ impl Entry {
             url: reference.canonical_url(),
             reference,
             depth: ContentDepth::Abstract,
-            title: self
-                .title
-                .as_deref()
-                .map(fold_whitespace)
-                .unwrap_or_default(),
+            title: Some(
+                self.title
+                    .as_deref()
+                    .map(fold_whitespace)
+                    .unwrap_or_default(),
+            ),
             authors: self
                 .authors
                 .iter()

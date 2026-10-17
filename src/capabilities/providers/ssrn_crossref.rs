@@ -280,12 +280,13 @@ impl Work {
             } else {
                 ContentDepth::Metadata
             },
-            title: self
-                .title
-                .iter()
-                .map(|title| markup_text(title))
-                .find(|title| !title.is_empty())
-                .unwrap_or_default(),
+            title: Some(
+                self.title
+                    .iter()
+                    .map(|title| markup_text(title))
+                    .find(|title| !title.is_empty())
+                    .unwrap_or_default(),
+            ),
             authors: self
                 .author
                 .iter()
