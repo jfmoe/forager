@@ -124,13 +124,23 @@ fn main() -> ExitCode {
             platform_render::render_comments(result, format, output),
             attempt_log,
         ),
-        Ok(CommandOutput::XAsk {
+        Ok(CommandOutput::PlatformAsk {
+            platform,
             result,
             format,
             output,
             attempt_log,
         }) => emit_logged(
-            platform_render::render_ask(result, format, output),
+            platform_render::render_ask(platform, result, format, output),
+            attempt_log,
+        ),
+        Ok(CommandOutput::PlatformTranscribe {
+            result,
+            format,
+            output,
+            attempt_log,
+        }) => emit_logged(
+            platform_render::render_transcribe(*result, format, output),
             attempt_log,
         ),
         Ok(CommandOutput::HnStories {

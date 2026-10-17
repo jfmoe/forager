@@ -305,11 +305,11 @@ forager anysearch domains DOMAIN [--timeout SECONDS] [--format json|markdown]
 `forager platform <id> <op>` retrieves items of a built-in platform through the routes in
 `platforms.<id>.order`; results never fall back to another platform. The platforms are listed in
 [`platform-vocabulary.json`](platform-vocabulary.json). Platform commands write no result journal.
-Their `--timeout` defaults to `120` and includes waits for the platform's request window, shared
+Their `--timeout` defaults to `120` (`600` for YouTube ask and transcribe) and includes waits for the platform's request window, shared
 across all local processes (arXiv: one request every 3 seconds; SSRN through Crossref: one request
 per second; SSRN through the browser: one OpenCLI command every 5 seconds; Xiaohongshu: one OpenCLI
 command every 10 seconds; Hacker News: one request to either of its two endpoints every half
-second; YouTube through the Data API: one request per second; YouTube through `youtube_web`: one request every 4 seconds; Google Scholar through SerpApi and X through xAI have no local window).
+second; YouTube through the Data API: one request per second; YouTube through `youtube_web`: one request every 4 seconds; Google Scholar through SerpApi, X through xAI, and YouTube ask and transcribe through Gemini have no local window).
 
 ### `platform arxiv search`
 
@@ -952,7 +952,8 @@ to sign in or to confirm the caller is not a bot: the egress IP is temporarily r
 `rate_limited`, `runtime` (an empty caption track, which may mean a soft IP block; a player answer
 for another video; a caption track outside the configured origin), and the failures under search;
 `5` (`quality`) for `abstract` of a video without a description, a `full_text` with no qualifying
-caption track (the message lists the available languages), or a live stream.
+caption track (the message lists the available languages and points to `transcribe`; fetch never
+falls back to it), or a live stream.
 
 ### `platform youtube comments`
 
@@ -1013,6 +1014,68 @@ unrecognized input, `--limit` out of range, or a cursor that cannot be decoded o
 another command; `3` as under search; `4` for `parameter` (the channel, handle, or playlist does
 not exist or is not public), the key and quota failures under search, and `runtime` for an
 unexpected response.
+
+### `platform youtube ask`
+
+```console
+forager platform youtube ask VIDEO QUESTION [--timeout SECONDS] [--format json|markdown]
+                                            [--output FILE [--receipt]] [--verbose]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `VIDEO` | A video ref or URL, as for fetch. A playlist, channel, or `@handle` exits `2`. | Required |
+| `QUESTION` | The question about the video. | Required |
+| `--timeout SECONDS` | Deadline for the whole command; a model takes minutes to watch a long video. | `600` |
+
+A model watches the video's pictures and listens to its sound, then answers; it is told to answer
+from the video alone and to mark every moment it relies on as `mm:ss`. Ask runs through the
+`gemini_api` route with the user's own Gemini key (`providers.gemini_api.keys`), and first reads
+the video's metadata through the fetch routes (one Data API unit through `youtube_api`); a video
+that cannot be read, or one streaming live, fails before any model request. JSON output is
+`{platform, provider, video, question, answer, model, usage}`: `video` is `{ref, url, title}`,
+`model` the model version that answered, and `usage` the tokens spent
+(`{prompt_tokens, output_tokens, thoughts_tokens, cached_tokens, total_tokens}`, `null` where the
+service reports none). The whole answer is relayed content: the model's words, not the video's.
+Ask writes no result journal.
+
+Exit codes: `2` before any request for an input that is not a video or a blank question; `3`
+before any request when `platforms.youtube.order` has no configured `gemini_api` (no key in
+`providers.gemini_api.keys`) or no configured route that reads the video; `4` for the fetch
+failures of the metadata read (`parameter` for a video that does not exist or is not public), and
+from Gemini `parameter` (HTTP 400), `auth` (401 or 403), `rate_limited` or `quota_exhausted` (429,
+after every key of the pool), and `runtime` (an empty answer or an unexpected response); `5`
+(`quality`) for a live stream, an answer cut off at the output limit, or one a safety filter
+blocked.
+
+### `platform youtube transcribe`
+
+```console
+forager platform youtube transcribe VIDEO [--content-dir DIR] [--timeout SECONDS]
+                                          [--format json|markdown|content]
+                                          [--output FILE [--receipt]] [--verbose]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `VIDEO` | A video ref or URL, as for fetch. A playlist, channel, or `@handle` exits `2`. | Required |
+| `--content-dir DIR` | Directory for the transcript file. | New directory under the system temp directory |
+| `--timeout SECONDS` | As under ask. | `600` |
+| `--format FORMAT` | `json`, `markdown`, or `content`; `content` prints the transcript and writes no file. | `json` |
+
+A model watches the video and writes a timestamped transcript of its speech, through
+`gemini_api` like ask; run it only when the video has no caption track to fetch. It first reads
+the video with its description (one Data API unit through `youtube_api`), so the transcript file
+`youtube-<id>-transcribed.md` has the same layout as a `full_text` fetch: the description, then
+paragraphs split by its chapters, each opening with a `[mm:ss](<url>&t=<seconds>s)` link. Its
+header says a model generated it and that it is not guaranteed to be verbatim. Segments that end
+more than 5 seconds past the video's length are dropped with one stderr diagnostic. JSON output is
+that of a `full_text` fetch, with `provider` and `content_provider` `gemini_api`,
+`transcript.source` `model`, and `model` and `usage` as under ask.
+
+Exit codes: as under ask; `5` (`quality`) also for a transcript cut off at the output limit or
+one that is not the requested JSON (no file is written); `4` (`runtime`) when the file cannot be
+written.
 
 ## Gemini Deep Research
 

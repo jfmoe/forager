@@ -431,7 +431,8 @@ fn no_track_in_the_original_language_is_a_quality_failure_naming_the_tracks() {
 
     assert_eq!((code, kind), (Some(5), json!("quality")), "{message}");
     assert!(
-        message.contains("its captions are in de; pass --lang"),
+        message.contains("its captions are in de; pass --lang")
+            && message.contains("`forager platform youtube transcribe`"),
         "{message}"
     );
 }

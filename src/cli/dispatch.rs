@@ -22,9 +22,10 @@ use crate::types::{
     AnysearchOutcome, CapabilitySet, ChatgptResearchFailure, ChatgptResearchResult,
     ChatgptResearchStarted, ClaimRisk, Context7Outcome, Deadline, EvidenceStrength, FallbackPolicy,
     FetchOutcome, GeminiResearchFailure, GeminiResearchResult, GeminiResearchStarted,
-    HnStoriesResult, JournalOutcome, MapOutcome, PlanCapability, PlatformCommentsPage,
-    PlatformFetchResult, PlatformSearchPage, ProviderAttempt, RecencyRequirement,
-    ResearchIntentSignals, ResearchPlan, ResearchSubquestion, SearchOutcome, XAskResult,
+    HnStoriesResult, JournalOutcome, MapOutcome, PlanCapability, Platform, PlatformAskResult,
+    PlatformCommentsPage, PlatformFetchResult, PlatformSearchPage, PlatformTranscribeResult,
+    ProviderAttempt, RecencyRequirement, ResearchIntentSignals, ResearchPlan, ResearchSubquestion,
+    SearchOutcome,
 };
 
 #[doc(hidden)]
@@ -168,12 +169,26 @@ pub enum CommandOutput {
         /// Optional terminal projection selected by `log.level`.
         attempt_log: Option<String>,
     },
-    /// Typed X ask terminal state for binary-side formatting and tee output.
-    XAsk {
-        /// Ask result.
-        result: Result<XAskResult, ProviderError>,
+    /// Typed platform ask terminal state for binary-side formatting and tee output.
+    PlatformAsk {
+        /// The platform asked.
+        platform: Platform,
+        /// Ask result, in the platform's own shape.
+        result: Result<PlatformAskResult, ProviderError>,
         /// Requested output format.
         format: OutputFormat,
+        /// Optional output file destination.
+        output: Option<OutputTarget>,
+        /// Optional terminal projection selected by `log.level`.
+        attempt_log: Option<String>,
+    },
+    /// Typed transcribe terminal state for binary-side formatting and tee output.
+    PlatformTranscribe {
+        /// Transcribe result; the transcript is already written unless the format is
+        /// `content`.
+        result: Box<Result<PlatformTranscribeResult, ProviderError>>,
+        /// Requested output format.
+        format: DocsOutputFormat,
         /// Optional output file destination.
         output: Option<OutputTarget>,
         /// Optional terminal projection selected by `log.level`.

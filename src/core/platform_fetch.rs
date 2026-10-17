@@ -179,6 +179,56 @@ pub(crate) async fn fetch(
     })
 }
 
+/// An item the fetch chain read without its full text, with every attempt of the read: the
+/// routes planning skipped, then the chain's.
+pub(crate) struct FetchedItem {
+    pub(crate) item: PlatformItem,
+    pub(crate) attempts: Vec<ProviderAttempt>,
+    pub(crate) diagnostic: Option<String>,
+}
+
+/// Runs a planned fetch for its item alone; a full-text source the route declares is left
+/// unread. A failure carries every attempt of the read.
+pub(crate) async fn fetch_item(
+    plan: PlatformFetchPlan,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+    verbose: bool,
+) -> Result<FetchedItem, ProviderError> {
+    let PlatformFetchPlan {
+        platform,
+        request,
+        routes,
+        mut skipped,
+    } = plan;
+    match fetch_metadata(
+        platform,
+        &request,
+        routes,
+        client,
+        retry_policy,
+        deadline,
+        verbose,
+    )
+    .await
+    {
+        Ok(metadata) => {
+            skipped.extend(metadata.attempts);
+            Ok(FetchedItem {
+                item: metadata.item,
+                attempts: skipped,
+                diagnostic: metadata.diagnostic,
+            })
+        }
+        Err(mut error) => {
+            skipped.append(&mut error.attempts);
+            error.attempts = skipped;
+            Err(error)
+        }
+    }
+}
+
 struct Metadata {
     route: ProviderId,
     item: PlatformItem,

@@ -35,7 +35,10 @@ platform absent from it has no platform command; follow
   run `forager platform youtube comments 'REF_OR_URL'`; for the videos of a course, playlist, or
   channel, run `forager platform youtube videos 'PLAYLIST_OR_CHANNEL'`. These need the user's
   YouTube Data API key. What a video says (its captions) needs the `youtube_web` route, which the
-  user must enable: `forager platform youtube fetch 'REF_OR_URL'`. See "YouTube".
+  user must enable: `forager platform youtube fetch 'REF_OR_URL'`. For what a video shows (slides,
+  code, charts), run `forager platform youtube ask 'REF_OR_URL' 'QUESTION'`; for a transcript of a
+  video without captions, run `forager platform youtube transcribe 'REF_OR_URL'`. These two need
+  the user's Gemini key. See "YouTube".
 
 `forager platform <id> <op> --help` is the syntax authority; see the platform section of
 [`cli.md`](cli.md) for output fields and exit codes.
@@ -76,7 +79,8 @@ Every item carries `depth`, the content it actually holds: `metadata` (bibliogra
   `--depth full_text`: through the `youtube_web` route it renders one caption track as a
   transcript in `youtube-<id>.md`, split by chapter into paragraphs that each open with a
   timestamp link. Without `youtube_web` in the order, `full_text` exits 2 with the command that
-  enables it; pass `--depth metadata` or `--depth abstract` instead.
+  enables it; pass `--depth metadata` or `--depth abstract` instead. `full_text` never falls back
+  to a model's transcript; that comes only from `transcribe`.
 
 ## arXiv search queries
 
@@ -276,6 +280,30 @@ forager platform youtube fetch 'https://www.youtube.com/watch?v=jNQXAC9IVRw'
 forager platform youtube fetch youtube:jNQXAC9IVRw --lang de --format content
 ```
 
+### Model perception: `ask` and `transcribe`
+
+`ask` and `transcribe` hand the video to a Gemini model, which watches its pictures and listens to
+its sound. They run through the `gemini_api` route with the user's own Gemini key
+(`providers.gemini_api.keys`; `providers.gemini_api.url` may point at the user's own Gemini
+gateway). Both first read the video's metadata through the Data API (one unit), and a video that
+does not exist, is private, or is streaming live fails before the model is called. Each call
+spends model tokens, about 91 per second of video (some 115,000 for a 21-minute video), and takes
+from a few seconds to several minutes; `usage` reports what was spent.
+
+- **`ask`** answers one question about one video, for what captions cannot say: what is on a
+  slide, in the code, or on a chart, or who appears. The answer marks the moments it relies on as
+  `mm:ss`. Ask once with everything the request needs rather than many narrow questions.
+- **`transcribe`** writes a transcript in the same layout as a `full_text` fetch, to
+  `youtube-<id>-transcribed.md`, with `transcript.source` `model`. Run it only when the user wants
+  what is said and the video has no usable caption track (a `full_text` fetch exited 5, or the
+  user cannot enable `youtube_web`), never in place of captions that exist. A model transcript is
+  not verbatim, and its timestamps can be off by about a second.
+
+```console
+forager platform youtube ask youtube:jNQXAC9IVRw 'How many elephants stand behind the speaker, and what is he wearing?'
+forager platform youtube transcribe 'https://www.youtube.com/watch?v=jNQXAC9IVRw' --format content
+```
+
 ## SSRN browser route
 
 `ssrn_browser` searches and reads SSRN in the user's own Chrome through OpenCLI: search sends
@@ -409,8 +437,12 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
   as the caption track renders it: quote it with the paragraph's timestamp link, say whether it is
   the publisher's captions or automatic speech recognition (`transcript.source`), and never report
   it as what the video shows. Comments are what individual viewers wrote: attribute them, and
-  never present them as what the video says. Counts are YouTube's at the time of the request. Use
-  only the refs forager returns; construct no video ID yourself.
+  never present them as what the video says. Counts are YouTube's at the time of the request.
+  An `ask` answer and a `transcribe` transcript are a model's account of the video, relayed
+  content: attribute them to the model (`model`), check a moment against the video before quoting
+  it, never quote a model transcript as the speaker's exact words, and say when the answer rests
+  on what the model saw rather than what was said. Use only the refs forager returns; construct no
+  video ID yourself.
 
 ## Recover
 
@@ -441,8 +473,19 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
   `--depth abstract`, and tell the user what enabling it means (see "Captions") rather than
   enabling it yourself.
 - Exit 5 on a YouTube full-text fetch with no qualifying caption track: the message lists the
-  languages that exist. Retry once with `--lang` for a listed language the user can use, or say
-  the video has no captions in that language.
+  languages that exist. Retry once with `--lang` for a listed language the user can use; when no
+  listed language fits and the user needs what is said, run `transcribe` and say the transcript is
+  a model's, not captions.
+- YouTube `ask` or `transcribe` exit 3 naming `providers.gemini_api.keys`: no Gemini key is
+  configured. Ask the user to run `forager config set providers.gemini_api.keys -` and type
+  `["THEIR_KEY"]` on stdin.
+- YouTube `ask` or `transcribe` `auth` (exit 4): Gemini rejected the key; ask the user to check
+  `providers.gemini_api.keys`. `rate_limited` or `quota_exhausted`: every key is out of model
+  quota; tell the user and do not retry in a loop.
+- Exit 5 on `ask` or `transcribe`: the video is streaming live (retry after it ends), the output
+  was cut off (for `transcribe`, the video is too long to transcribe in one answer), the model
+  returned no valid transcript, or a safety filter blocked it. Report it; do not retry the same
+  request.
 - YouTube `auth` or `rate_limited` (exit 4) from `youtube_web`, or `runtime` saying the caption
   track was empty: YouTube is restricting the egress IP. Stop fetching YouTube captions, tell the
   user to wait or switch networks, and do not retry.

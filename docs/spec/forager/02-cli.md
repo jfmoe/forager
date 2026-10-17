@@ -85,6 +85,9 @@ forager platform youtube comments VIDEO [--limit 1..=100（默认 20）] [--sort
 forager platform youtube videos COLLECTION [--limit 1..=50（默认 20）]
                                 [--timeout 120] [--format json|markdown] [...]
 forager platform youtube videos --cursor CURSOR [--timeout 120] [--format json|markdown] [...]
+forager platform youtube ask VIDEO QUESTION [--timeout 600] [--format json|markdown] [...]
+forager platform youtube transcribe VIDEO [--content-dir DIR] [--timeout 600]
+                                    [--format json|markdown|content] [...]
 forager gemini research start QUERY [--timeout 240] [--format json|markdown]
 forager gemini research result CONVERSATION [--report-dir DIR]
                                [--timeout 120] [--format json|markdown|content] [...]
@@ -180,7 +183,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 ## 契约③：`doctor --provider`
 
-两档：`doctor` 浅检全体（掩码配置 + 凭据存在 + 可达性（对 endpoint 发 GET 并只等待响应头，任何 HTTP 响应都算可达；部分 endpoint 对 HEAD 不响应）+ 过宽权限报告 + config list 同构生效值块）；顶层 `ok` 等于所有 `configured=true` provider 均 `reachable=true`，零配置为 true，任一不可达则 JSON/Markdown 均为 false 并退出 4，permission warning 不改变 `ok`。`config_warnings` 报告主搜索链中与首个已配置 backend 使用相同 endpoint（忽略末尾 `/`）和相同主模型的后续 backend——这类 fallback 与主 backend 处于同一故障域；该警告同样不改变 `ok`。`--provider NAME` 深探单体，值域＝provider 注册表的编译期 enum。需要凭据的 8 个 provider 执行凭据有效性 + 最小活体调用；平台 route（`arxiv_api`、`ssrn_crossref`、`ssrn_browser`、`xiaohongshu_browser`、`hn_api`）不需要凭据，恒为已配置，深探执行一次最小平台检索；`hn_api` 访问两个端点，深探在检索之后再向 Firebase 发一个请求，记为 `firebase` 检查；主搜索 backend `xai` 同时是 X 平台的 route，`platforms.x.order` 含 `xai` 时，深探在主搜索检查之后再执行一次最小 X 检索，记为 `x_search` 检查；需要凭据的平台 route `serpapi` 有 key 时才算已配置，浅检对端点发一次不带 key 的 GET（不计额度）；深探不做检索，而是按池中顺序对每个 key 各调用一次同源的 SerpApi Account API（`/account.json`，不计额度），不经凭据轮换、不推进凭据游标，输出增加 `keys` 数组，每个 key 一项 `{key_index, ok, searches_left, plan_searches_left, this_month_usage, this_hour_searches, hourly_limit}`，失败项带 `error_kind`，取不到的数字为 `null`；HTTP 失败沿用共享归因（401/403 为 auth），剩余额度为 0 为 `quota_exhausted`，本小时检索数达到上限为 `rate_limited`，缺数字字段为 `runtime`；任一 key 失败则深探失败退 4，顶层 `error_kind` 与 `message` 取第一个失败的 key，`message` 以 `providers.serpapi.keys[N]` 指明它；响应中的 key、账户邮箱与账户 ID 不被解码，也不进入任何输出；这个深探只证明端点、key 与额度状态，不证明 Scholar 检索的请求与解码（由 live smoke C24–C26 证明）；没有 key 时以 config 失败退 3 且不发请求；其他 provider 的深探输出没有 `keys`；openai-compatible 额外保留 stream/no-stream 双形状判定。声明访问策略的 provider（平台 route）的浅检检查与深探请求都先经过跨进程限速，等不到窗口时浅检记为不可达、深探以 timeout 失败，且都不发送请求。
+两档：`doctor` 浅检全体（掩码配置 + 凭据存在 + 可达性（对 endpoint 发 GET 并只等待响应头，任何 HTTP 响应都算可达；部分 endpoint 对 HEAD 不响应）+ 过宽权限报告 + config list 同构生效值块）；顶层 `ok` 等于所有 `configured=true` provider 均 `reachable=true`，零配置为 true，任一不可达则 JSON/Markdown 均为 false 并退出 4，permission warning 不改变 `ok`。`config_warnings` 报告主搜索链中与首个已配置 backend 使用相同 endpoint（忽略末尾 `/`）和相同主模型的后续 backend——这类 fallback 与主 backend 处于同一故障域；该警告同样不改变 `ok`。`--provider NAME` 深探单体，值域＝provider 注册表的编译期 enum。需要凭据的 8 个 provider 执行凭据有效性 + 最小活体调用；平台 route（`arxiv_api`、`ssrn_crossref`、`ssrn_browser`、`xiaohongshu_browser`、`hn_api`）不需要凭据，恒为已配置，深探执行一次最小平台检索；`hn_api` 访问两个端点，深探在检索之后再向 Firebase 发一个请求，记为 `firebase` 检查；主搜索 backend `xai` 同时是 X 平台的 route，`platforms.x.order` 含 `xai` 时，深探在主搜索检查之后再执行一次最小 X 检索，记为 `x_search` 检查；需要凭据的平台 route `serpapi` 有 key 时才算已配置，浅检对端点发一次不带 key 的 GET（不计额度）；深探不做检索，而是按池中顺序对每个 key 各调用一次同源的 SerpApi Account API（`/account.json`，不计额度），不经凭据轮换、不推进凭据游标，输出增加 `keys` 数组，每个 key 一项 `{key_index, ok, searches_left, plan_searches_left, this_month_usage, this_hour_searches, hourly_limit}`，失败项带 `error_kind`，取不到的数字为 `null`；HTTP 失败沿用共享归因（401/403 为 auth），剩余额度为 0 为 `quota_exhausted`，本小时检索数达到上限为 `rate_limited`，缺数字字段为 `runtime`；任一 key 失败则深探失败退 4，顶层 `error_kind` 与 `message` 取第一个失败的 key，`message` 以 `providers.serpapi.keys[N]` 指明它；响应中的 key、账户邮箱与账户 ID 不被解码，也不进入任何输出；这个深探只证明端点、key 与额度状态，不证明 Scholar 检索的请求与解码（由 live smoke C24–C26 证明）；没有 key 时以 config 失败退 3 且不发请求；需要凭据的平台 route `gemini_api` 同样有 key 时才算已配置，浅检对端点发一次不带 key 的 GET；深探不调用模型，而是按池中顺序用每个 key 各请求一次 `GET <url>/models`（不计模型额度），检查记为 `[{name: "models", transport: "http"}]`，`keys` 每项只有 `{key_index, ok}`，失败项带 `error_kind`，失败与报告规则同 `serpapi`（`message` 以 `providers.gemini_api.keys[N]` 指明失败的 key）；其他 provider 的深探输出没有 `keys`；openai-compatible 额外保留 stream/no-stream 双形状判定。声明访问策略的 provider（平台 route）的浅检检查与深探请求都先经过跨进程限速，等不到窗口时浅检记为不可达、深探以 timeout 失败，且都不发送请求。
 
 传输类型为 process 的 route（`ssrn_browser`、`xiaohongshu_browser`）不发 GET：浅检只在它出现在所属平台的 order 中时参与，运行 adapter 的 `contract` 命令并核对契约版本；未启用时报告 `configured: false`，不影响 `ok`。检查失败时该 provider 状态带 `message`（含安装提示），Markdown 在同一行括号中显示。深探（`doctor --provider ssrn_browser` 或 `xiaohongshu_browser`）同样只在 order 启用该 route 时运行一次真实的平台检索；未启用时以 config 失败退 3，不启动进程。
 
@@ -188,7 +191,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 ## 平台命令
 
-`forager platform <id> <op>` 直连检索内置平台（ADR 0019；接入契约见第 7 章）。每个平台一棵静态 clap 子树；`forager platform <id> --help` 及各操作的 help 是参数语法的唯一权威。arXiv、SSRN 与 Google Scholar 都提供 `search` 与 `fetch`；Google Scholar 另有 L2 平台操作 `cited-by`。小红书提供 `search` 与 `fetch`，另有 L2 平台操作 `comments`（见第 7 章「小红书」）。X 提供 `search` 与 `fetch`，另有 L2 平台操作 `ask`（见第 7 章「X」）。YouTube 提供 `search` 与 `fetch`，另有 L2 平台操作 `comments` 与 `videos`（见第 7 章「YouTube」）。
+`forager platform <id> <op>` 直连检索内置平台（ADR 0019；接入契约见第 7 章）。每个平台一棵静态 clap 子树；`forager platform <id> --help` 及各操作的 help 是参数语法的唯一权威。arXiv、SSRN 与 Google Scholar 都提供 `search` 与 `fetch`；Google Scholar 另有 L2 平台操作 `cited-by`。小红书提供 `search` 与 `fetch`，另有 L2 平台操作 `comments`（见第 7 章「小红书」）。X 提供 `search` 与 `fetch`，另有 L2 平台操作 `ask`（见第 7 章「X」）。YouTube 提供 `search` 与 `fetch`，另有 L2 平台操作 `comments`、`videos`、`ask` 与 `transcribe`（见第 7 章「YouTube」）。
 
 ### `platform arxiv search`
 
@@ -490,7 +493,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 - 通用 flag 同 search。经 `youtube_api` 的一次 fetch 消耗 1 单位配额；经 `youtube_web` 的一次 fetch 不计费，`metadata` 与 `abstract` 发 2 个请求，`full_text` 发 3 个，每个请求等待该 route 每 4 秒 1 个的访问窗口。
 - **输出**：JSON 顶层为 `platform`、`provider`，条目的公共字段与 YouTube 字段（`snippet` 为 `null`；`youtube_api` 的 `language` 为音频语言或描述语言，`youtube_web` 的 `language` 为由字幕轨推断的原始语言，取不到为 `null`；`youtube_web` 的 `likes` 与 `comments` 恒为 `null`，`caption_tracks` 为 `[{language, source}]`，不含机器翻译）；`abstract` 深度另有 `description` 与 `chapters`（`[{start_seconds, title}]`）。`full_text` 深度不内联描述与章节（它们在 Transcript 文件中），另有 `content_url`（canonical URL）、`content_provider`（`youtube_web`）、`content_path`（`youtube-<id>.md`）、`content_len` 与 `transcript: {language, source, cues, paragraphs}`（`source` 为 `manual` 或 `asr`）。
 - **Transcript 文件**：开头是标题、`Ref`、频道、发布时间、时长、字幕的语言与来源，以及「本文只含字幕文字、没有描述画面与非语音的声音」的说明；然后是「Description」一节与「Transcript」一节。字幕按章节分节（章节标题为小节标题），章节内按约 45 秒或 2 秒以上的静音断段，发布者上传的字幕优先在句末断段；每段以 `[mm:ss](<canonical URL>&t=<秒>s)` 开头，超过一小时为 `h:mm:ss`。
-- **退出码**：无法识别的输入、playlist 或 channel 的 ref 与 URL（消息提示改用 `videos`）、`@handle` 与 `/c/`、`/user/` 频道页、`--lang` 与非 `full_text` 深度同时出现或语言标签非法、order 中没有支持所请求深度的 route（默认 order 下的 `full_text`：消息给出启用 `youtube_web` 的命令与风险说明）＝飞行前退 2；配置错误同 search，退 3（`full_text` 缺 `youtube_web` 时消息同样给出启用说明）。`youtube_api`：视频不存在或不公开（`YouTube video not found or not public: youtube:<id>`）为 attempt 级 Parameter，退 4。`youtube_web`：播放器报告视频不存在或不可播放为 attempt 级 Parameter，要求登录或机器人验证为 Auth（消息说明出口 IP 被临时限制、需要等待或换网络），429 为 RateLimited，字幕轨正文为空为 Runtime（提示可能遭遇 IP 软封），播放器返回的视频 ID 不一致、字幕轨不在配置的 `url` 同源下或需要 PO Token 为 Runtime，都退 4；没有符合选轨规则的字幕（消息列出可用的字幕语言并提示 `--lang`）与直播中的 `full_text` 为 Quality，退 5。`abstract` 而视频没有描述为 Quality，退 5；传输失败同 search。
+- **退出码**：无法识别的输入、playlist 或 channel 的 ref 与 URL（消息提示改用 `videos`）、`@handle` 与 `/c/`、`/user/` 频道页、`--lang` 与非 `full_text` 深度同时出现或语言标签非法、order 中没有支持所请求深度的 route（默认 order 下的 `full_text`：消息给出启用 `youtube_web` 的命令与风险说明）＝飞行前退 2；配置错误同 search，退 3（`full_text` 缺 `youtube_web` 时消息同样给出启用说明）。`youtube_api`：视频不存在或不公开（`YouTube video not found or not public: youtube:<id>`）为 attempt 级 Parameter，退 4。`youtube_web`：播放器报告视频不存在或不可播放为 attempt 级 Parameter，要求登录或机器人验证为 Auth（消息说明出口 IP 被临时限制、需要等待或换网络），429 为 RateLimited，字幕轨正文为空为 Runtime（提示可能遭遇 IP 软封），播放器返回的视频 ID 不一致、字幕轨不在配置的 `url` 同源下或需要 PO Token 为 Runtime，都退 4；没有符合选轨规则的字幕（消息列出可用的字幕语言，提示 `--lang`，并提示改用 `transcribe` 让模型生成非逐字的 Transcript；`full_text` 从不自动回退到它）与直播中的 `full_text` 为 Quality，退 5。`abstract` 而视频没有描述为 Quality，退 5；传输失败同 search。
 
 ### `platform youtube comments`
 
@@ -521,6 +524,39 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 - 通用 flag 同 search。播放列表每页消耗 1 单位配额，频道与 handle 每页另加 1 单位（解析频道的上传列表）。
 - **输出**：JSON 为 `{platform, provider, collection: {ref, url}, items, next_cursor}`。`collection` 为读到的播放列表或频道（handle 输出它的频道 ref）。条目字段与 search 条目相同，另有 `position`（在列表中的 0-based 位置）：`authors` 与 `channel_ref` 为视频的发布频道，`published` 为视频的发布时间（不是加入列表的时间），`snippet` 为描述的前 160 个字符；不补时长与计数，`duration_seconds`、`live_status`、计数、`language` 与 `has_captions` 为 `null`。私有与已删除的视频被跳过，stderr 汇总一条诊断列出它们的位置。不写 Search Result Journal。
 - **退出码**：输入无法识别、是视频、是 `/c/` 或 `/user/` 频道页、handle 格式非法、`--limit` 越界、cursor 无法解码或属于其他操作＝飞行前退 2，不发请求；配置错误同 search，退 3；频道或 handle 不存在、播放列表不存在或不公开为 attempt 级 Parameter，key 与配额错误同 search，响应不是预期结构为 Runtime，都退 4；空列表为 `items: []` 且退 0。
+
+### `platform youtube ask`
+
+由模型看完一个 YouTube 视频的画面、听完它的声音后回答问题，经 `gemini_api` route（第 7 章「YouTube」），需要用户自己的 Gemini key。这是只有一条 route 的 L2 平台操作。
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| 视频（位置参数） | 同 fetch 的 video ref 或 URL | 必填 | playlist、channel 与 `@handle` 飞行前退 2 |
+| 问题（位置参数） | 字符串，去空白后不能为空 | 必填 | 接在固定指令之后发送：只依据视频作答，引用时以 `mm:ss`（一小时起为 `h:mm:ss`）标出时间点，看不到视频时明说 |
+| `--timeout` | 秒 | 600 | 整条命令的截止时间；模型读完一个长视频需要数分钟 |
+| `--format` | `json` / `markdown` | `json` | 输出格式 |
+
+- 其余通用 flag 同 search。
+- **前置检查**：先经 YouTube 的 fetch 链以 `metadata` 深度读这个视频（经 `youtube_api` 消耗 1 单位配额），成功后才请求模型；`--verbose` 的 `provider_attempts` 含这一步。
+- **输出**：JSON 为 `{platform, provider, video: {ref, url, title}, question, answer, model, usage}`；`--verbose` 附 `provider_attempts`。`answer` 是模型的话（Relayed Content），不是视频原文；`model` 为响应报告的模型版本；`usage` 为 `{prompt_tokens, output_tokens, thoughts_tokens, cached_tokens, total_tokens}`，取不到的数字为 `null`。不写 Search Result Journal。
+- **退出码**：输入无法识别或不是视频、问题为空＝飞行前退 2，不发请求；`platforms.youtube.order` 中没有已配置的 `gemini_api`（缺 `providers.gemini_api.keys`）或没有可读元数据的 fetch route＝飞行前退 3，不发请求；前置检查的失败同 fetch（视频不存在或不公开为 attempt 级 Parameter，退 4），不请求模型；直播中的视频为 Quality，退 5，不请求模型。Gemini 400 为 attempt 级 Parameter，401/403 为 Auth，429 为 RateLimited 或 QuotaExhausted 并按凭据池换 key，回答为空或响应不是预期结构为 Runtime，都退 4；输出被截断或被安全策略拦截为 Quality，退 5。
+
+### `platform youtube transcribe`
+
+视频没有平台字幕时，由模型看完视频后生成一份带时间戳的 Transcript，经 `gemini_api` route（第 7 章「YouTube」）。这是只有一条 route 的 L2 平台操作；只在调用者显式请求时运行，fetch 的 `full_text` 从不回退到它。
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| 视频（位置参数） | 同 fetch 的 video ref 或 URL | 必填 | playlist、channel 与 `@handle` 飞行前退 2 |
+| `--content-dir` | 目录 | 系统临时目录下的新目录 | Transcript 文件 `youtube-<id>-transcribed.md` 的写入位置 |
+| `--timeout` | 秒 | 600 | 同 ask |
+| `--format` | `json` / `markdown` / `content` | `json` | `content` 把 Transcript 输出到 stdout，不写文件 |
+
+- 其余通用 flag 同 search。
+- **前置检查**：同 ask，但读 `abstract` 深度（同样 1 单位配额），以便把描述与章节写进 Transcript 文件；视频没有描述不算失败。
+- **输出**：JSON 与 `full_text` fetch 相同（`provider` 与 `content_provider` 为 `gemini_api`，`content_path` 为 `youtube-<id>-transcribed.md`，`transcript.source` 为 `model`），另有 `model` 与 `usage`（同 ask）。
+- **Transcript 文件**：结构同 fetch 的 Transcript 文件；头部注明字幕由模型看画面、听声音后生成，不保证逐字；章节取前置检查读到的描述中的章节。结束时间超出视频时长 5 秒以上的分段被丢弃，stderr 汇总一条诊断。
+- **退出码**：同 ask；另外，输出被截断（`MAX_TOKENS`）、不是合法 JSON、语言为空、分段时间非法或没有分段为 Quality，退 5，不写文件；文件写入失败为 Runtime，退 4。
 
 ## Gemini 命令
 

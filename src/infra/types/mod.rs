@@ -19,6 +19,7 @@ mod platform_xiaohongshu;
 mod platform_xiaohongshu_comments;
 mod platform_youtube;
 mod platform_youtube_comments;
+mod platform_youtube_model;
 mod platform_youtube_videos;
 mod research;
 mod search;
@@ -45,14 +46,14 @@ pub use outcome::{
 };
 pub(crate) use outcome::{DENSITY_MAX_CHARS, DENSITY_MAX_UNIQUE_LINES, MIN_FETCH_CONTENT_CHARS};
 pub(crate) use platform::{
-    COMMENTS, FullTextSource, LocalFile, LocalMediaType, PlatformCommentsRequest,
-    PlatformFetchOptions, PlatformFetchOutcome, PlatformFetchRequest, PlatformSearchOutcome,
-    PlatformSearchRequest,
+    ASK, COMMENTS, FullTextSource, LocalFile, LocalMediaType, PlatformAskRequest,
+    PlatformCommentsRequest, PlatformFetchOptions, PlatformFetchOutcome, PlatformFetchRequest,
+    PlatformSearchOutcome, PlatformSearchRequest,
 };
 pub use platform::{
-    ContentDepth, Platform, PlatformCollection, PlatformCommentsPage, PlatformContent,
-    PlatformFetchResult, PlatformItem, PlatformItemData, PlatformRef, PlatformRefError,
-    PlatformSearchOptions, PlatformSearchPage, TranscriptInfo, TranscriptSource,
+    ContentDepth, Platform, PlatformAskResult, PlatformCollection, PlatformCommentsPage,
+    PlatformContent, PlatformFetchResult, PlatformItem, PlatformItemData, PlatformRef,
+    PlatformRefError, PlatformSearchOptions, PlatformSearchPage, TranscriptInfo, TranscriptSource,
 };
 pub use platform_arxiv::{ArxivItemData, ArxivRef, ArxivSearchOptions, ArxivSort};
 pub use platform_hn::{
@@ -72,7 +73,7 @@ pub use platform_ssrn_search::{
     SsrnDatePreset, SsrnDateRange, SsrnSearchMode, SsrnSearchOptions, SsrnSearchScope, SsrnSort,
     SsrnSortOrder, SsrnWorkType,
 };
-pub(crate) use platform_x::{ASK, XAskOutcome, XAskRequest};
+pub(crate) use platform_x::{XAskOutcome, XAskRequest};
 pub use platform_x::{
     XAskResult, XPostData, XPostRole, XRef, XSearchOptions, XSource, XThreadPost,
 };
@@ -98,6 +99,13 @@ pub(crate) use platform_youtube::{
 pub use platform_youtube_comments::{YoutubeComment, YoutubeCommentsPage, YoutubeReply};
 pub(crate) use platform_youtube_comments::{
     YoutubeCommentSort, YoutubeCommentsOutcome, YoutubeCommentsRequest,
+};
+pub use platform_youtube_model::{
+    AskedVideo, ModelUsage, PlatformTranscribeResult, YoutubeAskResult,
+};
+pub(crate) use platform_youtube_model::{
+    ModelAnswerOutcome, ModelTranscriptOutcome, TRANSCRIBE, YoutubeAskRequest,
+    YoutubeTranscribeRequest,
 };
 pub(crate) use platform_youtube_videos::{VIDEOS, YoutubeVideosOutcome, YoutubeVideosRequest};
 pub(crate) use research::DocumentationEvidence;

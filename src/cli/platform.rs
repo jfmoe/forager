@@ -13,13 +13,15 @@ use super::dispatch::{
 };
 use crate::config::{ConfigError, PlatformRuntimeConfig};
 use crate::net::combine_diagnostics;
+use crate::platform_ask;
 use crate::platform_chain::{self, PlatformPagePlan, PlatformPreflightError};
 use crate::platform_comments;
 use crate::platform_fetch;
 use crate::types::{
     ArxivSearchOptions, ArxivSort, AttemptErrorKind, ContentDepth, Deadline, LocalFile, Platform,
-    PlatformCommentsRequest, PlatformFetchRequest, PlatformFetchResult, PlatformRef,
-    PlatformSearchOptions, PlatformSearchRequest, ProviderError, ScholarCitedByRequest,
+    PlatformAskRequest, PlatformCommentsRequest, PlatformFetchRequest, PlatformFetchResult,
+    PlatformRef, PlatformSearchOptions, PlatformSearchRequest, ProviderError,
+    ScholarCitedByRequest,
 };
 
 #[path = "ssrn_search.rs"]
@@ -82,8 +84,8 @@ pub(super) enum PlatformCommand {
         #[command(subcommand)]
         command: HnCommand,
     },
-    /// Search YouTube videos and read their metadata and descriptions; needs your own YouTube
-    /// Data API key.
+    /// Search YouTube videos and read their metadata, captions, comments, and playlists; needs
+    /// your own YouTube Data API key. Ask and transcribe need your own Gemini key.
     Youtube {
         #[command(subcommand)]
         command: YoutubeCommand,
@@ -415,6 +417,35 @@ fn comments(
     })
 }
 
+/// Plans the ask over the request platform's configuration and runs it.
+fn ask(
+    request: PlatformAskRequest,
+    format: OutputFormat,
+    common: &PlatformCommonArgs,
+) -> Result<CommandOutput, AppError> {
+    let platform = request.platform();
+    let dependencies = NetworkDependencies::load()?;
+    let plan = platform_ask::plan_ask(dependencies.config.platforms.get(platform), request)
+        .map_err(preflight_error)?;
+    let result = dependencies.runtime.block_on(platform_ask::run_ask(
+        plan,
+        dependencies.client,
+        dependencies.retry_policy,
+        Deadline::new(Duration::from_secs(common.timeout)),
+        common.verbose,
+    ));
+    let attempt_log = provider_attempt_log(dependencies.config.log_level, &result, |answer| {
+        answer.attempts()
+    });
+    Ok(CommandOutput::PlatformAsk {
+        platform,
+        result,
+        format,
+        output: common.output.target(),
+        attempt_log,
+    })
+}
+
 fn preflight_error(error: PlatformPreflightError) -> AppError {
     match error {
         PlatformPreflightError::Argument(message) => AppError::Argument(message),
@@ -503,9 +534,11 @@ fn fetch(
             } else {
                 let directory =
                     content_dir.unwrap_or_else(|| invocation_temp_dir("forager-platform"));
+                let file_name = content_file_name(&fetched.item.reference);
                 deliver(
                     fetched,
                     &directory,
+                    &file_name,
                     keep_pdf,
                     format != DocsOutputFormat::Content,
                     common.verbose,
@@ -539,12 +572,13 @@ fn fetch(
     })
 }
 
-/// Delivers a fetched full text: writes the Markdown file unless the format is `content`, then
-/// keeps the local source file when asked and removes it otherwise. A write failure is Runtime
-/// and never falls back to inline output.
+/// Delivers a fetched full text: writes the Markdown file `file_name` in `directory` unless the
+/// format is `content`, then keeps the local source file when asked and removes it otherwise. A
+/// write failure is Runtime and never falls back to inline output.
 fn deliver(
     mut fetched: PlatformFetchResult,
     directory: &Path,
+    file_name: &str,
     keep_pdf: bool,
     write_markdown: bool,
     verbose: bool,
@@ -553,7 +587,7 @@ fn deliver(
         return Ok(fetched);
     }
     if write_markdown {
-        let path = directory.join(content_file_name(&fetched.item.reference));
+        let path = directory.join(file_name);
         let text = &fetched.content.as_ref().expect("content checked").text;
         if let Err(error) = fs::create_dir_all(directory).and_then(|()| fs::write(&path, text)) {
             let mut message = format!("cannot write the full text to {}: {error}", path.display());

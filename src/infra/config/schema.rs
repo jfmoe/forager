@@ -79,6 +79,7 @@ pub(super) struct Providers {
     pub(super) hn_api: HnApi,
     pub(super) youtube_api: Endpoint<YoutubeApiEndpoint>,
     pub(super) youtube_web: AnonymousEndpoint<YoutubeWebEndpoint>,
+    pub(super) gemini_api: GeminiApi,
     pub(super) gemini_browser: ProcessRoute<GeminiBrowserProcess>,
     pub(super) chatgpt_browser: ProcessRoute<ChatgptBrowserProcess>,
 }
@@ -273,6 +274,30 @@ impl Default for HnApi {
             url: "https://hn.algolia.com/api/v1".into(),
             firebase_url: "https://hacker-news.firebaseio.com/v0".into(),
             timeout: 30,
+        }
+    }
+}
+
+/// The `gemini_api` route section: a Gemini `generateContent` endpoint, the official API or a
+/// gateway that speaks its protocol.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub(super) struct GeminiApi {
+    pub(super) url: String,
+    pub(super) keys: Vec<Secret>,
+    pub(super) model: String,
+    #[serde(deserialize_with = "deserialize_integer")]
+    pub(super) timeout: u64,
+}
+
+// A model reads a long video for minutes before it answers.
+impl Default for GeminiApi {
+    fn default() -> Self {
+        Self {
+            url: "https://generativelanguage.googleapis.com/v1beta".into(),
+            keys: Vec::new(),
+            model: "gemini-flash-latest".into(),
+            timeout: 300,
         }
     }
 }
@@ -630,6 +655,10 @@ pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("providers.youtube_api.timeout", providers.youtube_api.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one request; must be greater than zero"),
     leaf!("providers.youtube_web.url", providers.youtube_web.url: String, Rule::Any, View::Url, "YouTube web origin whose watch page, player, and caption endpoints the route reads anonymously; it reads caption tracks only from this origin"),
     leaf!("providers.youtube_web.timeout", providers.youtube_web.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one request; must be greater than zero"),
+    leaf!("providers.gemini_api.url", providers.gemini_api.url: String, Rule::Any, View::Url, "Gemini API base URL whose `models/<model>:generateContent` endpoint answers about videos: the official API or a gateway that speaks the same protocol"),
+    leaf!("providers.gemini_api.keys", providers.gemini_api.keys: Secrets, Rule::Any, View::Keys, "credential pool; keep empty until credentials are available"),
+    leaf!("providers.gemini_api.model", providers.gemini_api.model: String, Rule::NonEmpty, View::Plain, "model identifier"),
+    leaf!("providers.gemini_api.timeout", providers.gemini_api.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one model request; must be greater than zero"),
     leaf!("providers.gemini_browser.command", providers.gemini_browser.command: String, Rule::NonEmpty, View::Plain, "OpenCLI executable name or path; this provider needs no credentials"),
     leaf!("providers.gemini_browser.timeout", providers.gemini_browser.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one OpenCLI command; must be greater than zero"),
     leaf!("providers.chatgpt_browser.command", providers.chatgpt_browser.command: String, Rule::NonEmpty, View::Plain, "OpenCLI executable name or path; this provider needs no credentials"),
@@ -889,6 +918,7 @@ mod tests {
             "providers.anysearch.keys" => Some(&config.providers.anysearch.keys),
             "providers.serpapi.keys" => Some(&config.providers.serpapi.keys),
             "providers.youtube_api.keys" => Some(&config.providers.youtube_api.keys),
+            "providers.gemini_api.keys" => Some(&config.providers.gemini_api.keys),
             _ => None,
         }
     }

@@ -1,20 +1,32 @@
 //! YouTube arguments and request construction.
 
 use std::path::PathBuf;
+use std::time::Duration;
 
 use chrono::NaiveDate;
 use clap::{Args, Subcommand, ValueEnum};
 
-use super::{PageInput, PlatformCommonArgs, comments, fetch, parse_date, run_page, search};
-use crate::app::args::{DocsOutputFormat, OutputFormat};
-use crate::app::dispatch::{AppError, CommandOutput};
-use crate::platform_chain;
-use crate::types::{
-    ContentDepth, Platform, PlatformCommentsRequest, PlatformFetchOptions, PlatformFetchRequest,
-    PlatformRef, PlatformSearchOptions, PlatformSearchRequest, YoutubeCollection,
-    YoutubeCommentSort, YoutubeCommentsRequest, YoutubeDuration, YoutubeFetchOptions, YoutubeKind,
-    YoutubeRef, YoutubeSearchOptions, YoutubeSort, YoutubeVideosRequest,
+use super::{
+    PageInput, PlatformCommonArgs, ask, comments, content_file_stem, deliver, fetch, parse_date,
+    preflight_error, run_page, search,
 };
+use crate::app::args::{DocsOutputFormat, OutputArgs, OutputFormat};
+use crate::app::dispatch::{
+    AppError, CommandOutput, NetworkDependencies, invocation_temp_dir, provider_attempt_log,
+};
+use crate::platform_chain;
+use crate::platform_transcribe;
+use crate::types::{
+    ContentDepth, Deadline, Platform, PlatformAskRequest, PlatformCommentsRequest,
+    PlatformFetchOptions, PlatformFetchRequest, PlatformRef, PlatformSearchOptions,
+    PlatformSearchRequest, PlatformTranscribeResult, YoutubeAskRequest, YoutubeCollection,
+    YoutubeCommentSort, YoutubeCommentsRequest, YoutubeDuration, YoutubeFetchOptions, YoutubeKind,
+    YoutubeRef, YoutubeSearchOptions, YoutubeSort, YoutubeTranscribeRequest, YoutubeVideosRequest,
+};
+
+// A model reads a long video for minutes, so the deadline leaves room for `gemini_api`'s own
+// five-minute request timeout after the metadata check.
+const MODEL_TIMEOUT_SECONDS: u64 = 600;
 
 #[derive(Debug, Subcommand)]
 pub(in crate::app) enum YoutubeCommand {
@@ -31,6 +43,12 @@ pub(in crate::app) enum YoutubeCommand {
     /// through the official Data API; each item carries the fields of a search result and its
     /// position.
     Videos(YoutubeVideosArgs),
+    /// Answer a question about one YouTube video from its picture and sound, through a Gemini
+    /// model; the answer marks moments as mm:ss, and the whole answer is relayed by the model.
+    Ask(YoutubeAskArgs),
+    /// Transcribe one YouTube video's speech with a Gemini model, for a video without captions;
+    /// the transcript is not verbatim and is written to a local Markdown file.
+    Transcribe(YoutubeTranscribeArgs),
 }
 
 #[derive(Debug, Args)]
@@ -128,6 +146,58 @@ pub(in crate::app) struct YoutubeVideosArgs {
     common: PlatformCommonArgs,
 }
 
+#[derive(Debug, Args)]
+pub(in crate::app) struct YoutubeAskArgs {
+    /// A `youtube:<video_id>` ref or a YouTube video URL.
+    reference: String,
+    /// The question to answer from the video.
+    question: String,
+    #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
+    format: OutputFormat,
+    #[command(flatten)]
+    common: ModelCommonArgs,
+}
+
+#[derive(Debug, Args)]
+pub(in crate::app) struct YoutubeTranscribeArgs {
+    /// A `youtube:<video_id>` ref or a YouTube video URL.
+    reference: String,
+    /// Directory for the transcript Markdown file; defaults to a new directory under the system
+    /// temporary directory.
+    #[arg(long, value_name = "DIR")]
+    content_dir: Option<PathBuf>,
+    /// `content` prints the transcript to stdout and writes no file.
+    #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
+    format: DocsOutputFormat,
+    #[command(flatten)]
+    common: ModelCommonArgs,
+}
+
+/// The common flags of a model operation, whose deadline is longer than other platform
+/// commands'.
+#[derive(Debug, Args)]
+struct ModelCommonArgs {
+    /// Whole-command deadline in seconds, including the metadata check and waits for the
+    /// platform request window.
+    #[arg(long, default_value_t = MODEL_TIMEOUT_SECONDS, value_parser = clap::value_parser!(u64).range(1..))]
+    timeout: u64,
+    #[command(flatten)]
+    output: OutputArgs,
+    /// Include every provider attempt, including skipped routes and the metadata check.
+    #[arg(long)]
+    verbose: bool,
+}
+
+impl From<ModelCommonArgs> for PlatformCommonArgs {
+    fn from(common: ModelCommonArgs) -> Self {
+        Self {
+            timeout: common.timeout,
+            output: common.output,
+            verbose: common.verbose,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, ValueEnum)]
 enum YoutubeCommentSortArg {
     Relevance,
@@ -216,6 +286,8 @@ pub(in crate::app) fn run(command: YoutubeCommand) -> Result<CommandOutput, AppE
         YoutubeCommand::Fetch(arguments) => youtube_fetch(arguments),
         YoutubeCommand::Comments(arguments) => youtube_comments(arguments),
         YoutubeCommand::Videos(arguments) => youtube_videos(arguments),
+        YoutubeCommand::Ask(arguments) => youtube_ask(arguments),
+        YoutubeCommand::Transcribe(arguments) => youtube_transcribe(arguments),
     }
 }
 
@@ -266,7 +338,10 @@ fn youtube_fetch(arguments: YoutubeFetchArgs) -> Result<CommandOutput, AppError>
     } = arguments;
     let video = parse_video(&reference, "fetch")?;
     let request = PlatformFetchRequest {
-        options: PlatformFetchOptions::Youtube(YoutubeFetchOptions { languages }),
+        options: PlatformFetchOptions::Youtube(YoutubeFetchOptions {
+            languages,
+            ..YoutubeFetchOptions::default()
+        }),
         ..PlatformFetchRequest::new(PlatformRef::Youtube(video), depth.into())
     };
     request.validate().map_err(AppError::Argument)?;
@@ -324,6 +399,80 @@ fn youtube_videos(arguments: YoutubeVideosArgs) -> Result<CommandOutput, AppErro
         format,
         &common,
     )
+}
+
+fn youtube_ask(arguments: YoutubeAskArgs) -> Result<CommandOutput, AppError> {
+    let YoutubeAskArgs {
+        reference,
+        question,
+        format,
+        common,
+    } = arguments;
+    let request = YoutubeAskRequest {
+        video: parse_video(&reference, "ask")?,
+        question,
+    };
+    request.validate().map_err(AppError::Argument)?;
+    ask(PlatformAskRequest::Youtube(request), format, &common.into())
+}
+
+/// Plans the transcription over YouTube's configuration, runs it, and delivers its transcript
+/// like a full text, under a name that marks it as transcribed.
+fn youtube_transcribe(arguments: YoutubeTranscribeArgs) -> Result<CommandOutput, AppError> {
+    let YoutubeTranscribeArgs {
+        reference,
+        content_dir,
+        format,
+        common,
+    } = arguments;
+    let common = PlatformCommonArgs::from(common);
+    let video = parse_video(&reference, "transcribe")?;
+    let file_name = format!(
+        "{}-transcribed.md",
+        content_file_stem(&PlatformRef::Youtube(video.clone()))
+    );
+    let dependencies = NetworkDependencies::load()?;
+    let plan = platform_transcribe::plan_transcribe(
+        dependencies.config.platforms.get(Platform::Youtube),
+        YoutubeTranscribeRequest { video },
+    )
+    .map_err(preflight_error)?;
+    let result = dependencies
+        .runtime
+        .block_on(platform_transcribe::run_transcribe(
+            plan,
+            dependencies.client,
+            dependencies.retry_policy,
+            Deadline::new(Duration::from_secs(common.timeout)),
+            common.verbose,
+        ))
+        .and_then(|transcribed| {
+            if format == DocsOutputFormat::Content {
+                return Ok(transcribed);
+            }
+            let PlatformTranscribeResult {
+                fetched,
+                model,
+                usage,
+            } = transcribed;
+            let directory = content_dir.unwrap_or_else(|| invocation_temp_dir("forager-platform"));
+            deliver(fetched, &directory, &file_name, false, true, common.verbose).map(|fetched| {
+                PlatformTranscribeResult {
+                    fetched,
+                    model,
+                    usage,
+                }
+            })
+        });
+    let attempt_log = provider_attempt_log(dependencies.config.log_level, &result, |transcribed| {
+        &transcribed.fetched.attempts
+    });
+    Ok(CommandOutput::PlatformTranscribe {
+        result: Box::new(result),
+        format,
+        output: common.output.target(),
+        attempt_log,
+    })
 }
 
 /// Reads the one video an operation reads; a playlist or channel input is an argument error.

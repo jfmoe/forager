@@ -248,6 +248,20 @@
       "seam": "platform:youtube:videos",
       "test": "tests/youtube_videos.rs::a_handle_resolves_to_its_channel_whose_uploads_the_cursor_continues",
       "note": "videos is a single-route paged platform operation outside the platform catalog; the platform checklist matches this entry against the provider factory's YouTube videos routes. The live endpoint is confirmed only by the live smoke C40."
+    },
+    {
+      "id": "F34",
+      "provider": "gemini_api",
+      "seam": "platform:youtube:ask",
+      "test": "tests/youtube_ask.rs::a_question_reaches_gemini_with_the_video_after_the_metadata_check_and_the_answer_is_relayed",
+      "note": "ask is a single-route platform operation outside the platform catalog; the platform checklist matches this entry against the provider factory's YouTube ask routes. Fixture servers stand in for the YouTube Data API and for a Gemini generateContent endpoint shaped like the gateway's 2026-10-17 responses; the live endpoint is confirmed only by the live smoke C41."
+    },
+    {
+      "id": "F35",
+      "provider": "gemini_api",
+      "seam": "platform:youtube:transcribe",
+      "test": "tests/youtube_transcribe.rs::a_model_transcript_is_written_beside_the_metadata_with_its_model_and_usage",
+      "note": "transcribe is a single-route platform operation outside the platform catalog; the platform checklist matches this entry against the provider factory's YouTube transcribe routes. The live endpoint is confirmed only by the live smoke C42."
     }
   ],
   "offline_e2e": [

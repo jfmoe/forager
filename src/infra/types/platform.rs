@@ -15,7 +15,7 @@ use super::platform_hn::{HnItemData, HnRef, HnSearchOptions};
 use super::platform_scholar::{ScholarItemData, ScholarRef, ScholarSearchOptions};
 use super::platform_ssrn::{SsrnItemData, SsrnRef};
 use super::platform_ssrn_search::SsrnSearchOptions;
-use super::platform_x::{XPostData, XRef, XSearchOptions};
+use super::platform_x::{XAskRequest, XAskResult, XPostData, XRef, XSearchOptions};
 use super::platform_xiaohongshu::{
     AccessToken, XiaohongshuItemData, XiaohongshuNoteData, XiaohongshuRef, XiaohongshuSearchOptions,
 };
@@ -24,6 +24,7 @@ use super::platform_youtube::{
     YoutubeFetchOptions, YoutubeItemData, YoutubeRef, YoutubeSearchOptions,
 };
 use super::platform_youtube_comments::{YoutubeCommentsPage, YoutubeCommentsRequest};
+use super::platform_youtube_model::{YoutubeAskRequest, YoutubeAskResult};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -447,6 +448,55 @@ impl PlatformCommentsPage {
         };
         *page_attempts = attempts;
         *page_diagnostic = diagnostic;
+    }
+}
+
+/// The attempt-target name of the ask operation.
+pub(crate) const ASK: &str = "ask";
+
+#[derive(Clone, Debug)]
+/// A request of the ask operation, one variant per platform that answers questions; each
+/// platform defines what the answer may draw on.
+pub(crate) enum PlatformAskRequest {
+    X(XAskRequest),
+    Youtube(YoutubeAskRequest),
+}
+
+impl PlatformAskRequest {
+    pub(crate) fn platform(&self) -> Platform {
+        match self {
+            Self::X(_) => Platform::X,
+            Self::Youtube(_) => Platform::Youtube,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize)]
+#[serde(untagged)]
+/// An answer of the ask operation, in the platform's own shape; the whole answer is relayed
+/// content.
+pub enum PlatformAskResult {
+    X(XAskResult),
+    Youtube(YoutubeAskResult),
+}
+
+impl PlatformAskResult {
+    /// Returns the provider attempts the answer reports.
+    #[must_use]
+    pub fn attempts(&self) -> &[ProviderAttempt] {
+        match self {
+            Self::X(answer) => &answer.attempts,
+            Self::Youtube(answer) => &answer.attempts,
+        }
+    }
+
+    /// Returns the diagnostic the answer carries for stderr.
+    #[must_use]
+    pub fn into_diagnostic(self) -> Option<String> {
+        match self {
+            Self::X(answer) => answer.diagnostic,
+            Self::Youtube(answer) => answer.diagnostic,
+        }
     }
 }
 

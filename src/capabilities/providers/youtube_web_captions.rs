@@ -8,6 +8,9 @@ use super::super::markup::markup_text;
 use super::super::transcript::Cue;
 use crate::types::{YoutubeCaptionSource, YoutubeCaptionTrack};
 
+/// Names the operation that reads a video without a qualifying caption track.
+const TRANSCRIBE_HINT: &str = "To have a model transcribe the video instead, not verbatim, run `forager platform youtube transcribe`";
+
 /// The caption section of a player response; machine translations live elsewhere in it and are
 /// never read.
 #[derive(Debug, Default, Deserialize)]
@@ -161,7 +164,7 @@ impl TrackList {
             ),
         };
         format!(
-            "no caption track in {wanted} qualifies ({available}); machine translations are never used"
+            "no caption track in {wanted} qualifies ({available}); machine translations are never used. {TRANSCRIBE_HINT}"
         )
     }
 }
@@ -276,7 +279,7 @@ pub(super) fn srv1_cues(xml: &str) -> Result<Vec<Cue>, Srv1Error> {
 mod tests {
     use serde_json::json;
 
-    use super::{Srv1Error, TrackList, srv1_cues, srv1_url};
+    use super::{Srv1Error, TRANSCRIBE_HINT, TrackList, srv1_cues, srv1_url};
     use crate::providers::transcript::Cue;
 
     fn tracks(tracks: &[(&str, bool)], default_track: Option<usize>) -> TrackList {
@@ -383,20 +386,26 @@ mod tests {
     }
 
     #[test]
-    fn no_qualifying_track_names_the_available_languages() {
+    fn no_qualifying_track_names_the_available_languages_and_suggests_transcribe() {
         let list = tracks(&[("de", false), ("fr", false)], None);
 
         assert_eq!(
             pick(&list, &[]),
-            Err("no caption track in a known original language qualifies (its captions are in de, fr; pass --lang to pick one); machine translations are never used".into())
+            Err(format!(
+                "no caption track in a known original language qualifies (its captions are in de, fr; pass --lang to pick one); machine translations are never used. {TRANSCRIBE_HINT}"
+            ))
         );
         assert_eq!(
             pick(&tracks(&[("de", false), ("en", true)], Some(0)), &["ja"]),
-            Err("no caption track in `ja` qualifies (its captions are in de, its automatic captions in en; pass --lang to pick one); machine translations are never used".into())
+            Err(format!(
+                "no caption track in `ja` qualifies (its captions are in de, its automatic captions in en; pass --lang to pick one); machine translations are never used. {TRANSCRIBE_HINT}"
+            ))
         );
         assert_eq!(
             pick(&tracks(&[], None), &[]),
-            Err("no caption track in a known original language qualifies (it has no captions); machine translations are never used".into())
+            Err(format!(
+                "no caption track in a known original language qualifies (it has no captions); machine translations are never used. {TRANSCRIBE_HINT}"
+            ))
         );
     }
 

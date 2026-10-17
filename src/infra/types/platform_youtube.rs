@@ -386,6 +386,10 @@ impl YoutubeSearchOptions {
 pub(crate) struct YoutubeFetchOptions {
     /// Caption languages in priority order; empty picks the video's original language.
     pub(crate) languages: Vec<String>,
+    /// Whether `abstract` depth accepts a video without a description. No command option sets
+    /// it: a model operation reads the description for its document, and a video without one
+    /// may still be transcribed.
+    pub(crate) allow_empty_description: bool,
 }
 
 impl YoutubeFetchOptions {
@@ -606,6 +610,7 @@ mod tests {
     fn lang_check(languages: &[&str], depth: ContentDepth) -> Result<(), String> {
         YoutubeFetchOptions {
             languages: languages.iter().map(|tag| (*tag).to_owned()).collect(),
+            ..YoutubeFetchOptions::default()
         }
         .validate(depth)
     }
