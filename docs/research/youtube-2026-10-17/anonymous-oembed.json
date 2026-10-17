@@ -1,0 +1,19 @@
+{
+  "source_url": "https://www.youtube.com/oembed?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DjNQXAC9IVRw&format=json",
+  "checked_at": "2026-10-17T12:37:53.227783+00:00",
+  "completed_at": "2026-10-17T12:37:53.863882+00:00",
+  "method": "GET",
+  "exit_code": 0,
+  "response": {
+    "content_type": "application/json",
+    "http_code": 200,
+    "local_ip": "127.0.0.1",
+    "proxy_used": 1,
+    "remote_ip": "127.0.0.1",
+    "size_download": 745,
+    "time_total": 0.616145,
+    "url_effective": "https://www.youtube.com/oembed?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DjNQXAC9IVRw&format=json"
+  },
+  "body": "{\"title\":\"Me at the zoo\",\"author_name\":\"jawed\",\"author_url\":\"https://www.youtube.com/@jawed\",\"type\":\"video\",\"height\":150,\"width\":200,\"version\":\"1.0\",\"provider_name\":\"YouTube\",\"provider_url\":\"https://www.youtube.com/\",\"thumbnail_height\":360,\"thumbnail_width\":480,\"thumbnail_url\":\"https://i.ytimg.com/vi/jNQXAC9IVRw/hqdefault.jpg\",\"html\":\"\\u003ciframe width=\\u0022200\\u0022 height=\\u0022150\\u0022 src=\\u0022https://www.youtube.com/embed/jNQXAC9IVRw?feature=oembed\\u0022 frameborder=\\u00220\\u0022 allow=\\u0022accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share\\u0022 referrerpolicy=\\u0022strict-origin-when-cross-origin\\u0022 allowfullscreen title=\\u0022Me at the zoo\\u0022\\u003e\\u003c/iframe\\u003e\"}",
+  "stderr": ""
+}

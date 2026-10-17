@@ -1,0 +1,128 @@
+[Skip to main content](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads#main-content)
+
+[![YouTube](https://developers.google.com/static/site-assets/logo-youtube.svg)](https://developers.google.com/youtube)
+
+- [YouTube](https://developers.google.com/youtube)
+- [Data API](https://developers.google.com/youtube/data)
+
+`/`
+
+Language
+
+- [English](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads)
+- [Deutsch](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads?hl=de)
+- [Español](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads?hl=es)
+- [Español – América Latina](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads?hl=es-419)
+- [Français](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads?hl=fr)
+- [Indonesia](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads?hl=id)
+- [Italiano](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads?hl=it)
+- [Polski](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads?hl=pl)
+- [Português – Brasil](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads?hl=pt-br)
+- [Tiếng Việt](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads?hl=vi)
+- [Türkçe](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads?hl=tr)
+- [Русский](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads?hl=ru)
+- [עברית](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads?hl=he)
+- [العربيّة](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads?hl=ar)
+- [فارسی](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads?hl=fa)
+- [हिंदी](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads?hl=hi)
+- [বাংলা](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads?hl=bn)
+- [ภาษาไทย](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads?hl=th)
+- [中文 – 简体](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads?hl=zh-cn)
+- [中文 – 繁體](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads?hl=zh-tw)
+- [日本語](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads?hl=ja)
+- [한국어](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads?hl=ko)
+
+Sign in
+
+- On this page
+- [Methods](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads#methods)
+- [Resource representation](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads#resource-representation)
+  - [Properties](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads#properties)
+
+- [Home](https://developers.google.com/)
+- [Products](https://developers.google.com/products)
+- [YouTube](https://developers.google.com/youtube)
+- [Data API](https://developers.google.com/youtube/data)
+- [Reference](https://developers.google.com/youtube/data/reference/rest)
+
+# CommentThreads    Stay organized with collections      Save and categorize content based on your preferences.
+
+- On this page
+- [Methods](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads#methods)
+- [Resource representation](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads#resource-representation)
+  - [Properties](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads#properties)
+
+A `commentThread` resource contains information about a YouTube comment thread, which comprises a top-level comment and replies, if any exist, to that comment. A `commentThread` resource represents comments on a video.
+
+Both the top-level comment and the replies are actually `comment` resources nested inside the `commentThread` resource. The `commentThread` resource does not necessarily contain all replies to a comment, and you need to use the `comments.list` method if you want to retrieve all replies for a particular comment. Some comments don't have replies.
+
+## Methods
+
+The API supports the following methods for `commentThreads` resources:
+
+[list](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads/list)Returns a list of comment threads that match the API request parameters.
+[Try it now](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads/list#usage).[insert](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads/insert)Creates a new top-level comment. To add a reply to an existing comment, use the `comments.insert` method instead.
+[Try it now](https://developers.google.com/youtube/data/reference/rest/v3/commentThreads/insert#usage).
+
+## Resource representation
+
+The JSON structure shows the format of a `commentThreads` resource:
+
+```
+{
+  "kind": "youtube#commentThread",
+  "etag": etag,
+  "id": string,
+  "snippet": {
+    "channelId": string,
+    "videoId": string,
+    "topLevelComment": comments Resource,
+    "canReply": boolean,
+    "totalReplyCount": unsigned integer,
+    "isPublic": boolean
+  },
+  "replies": {
+    "comments": [\
+      comments Resource\
+    ]
+  }
+}
+```
+
+### Properties
+
+The following table defines the properties that appear in this resource:
+
+| Properties |
+| --- |
+| `kind` | `string`<br> Identifies the API resource's type. The value will be `youtube#commentThread`. |
+| `etag` | `etag`<br> The Etag of this resource. |
+| `id` | `string`<br> The ID that YouTube uses to uniquely identify the comment thread. |
+| `snippet` | `object`<br> The `snippet` object contains basic details about the comment thread. It also contains the thread's top-level comment, which is a `comment` resource. |
+| `snippet.channelId` | `string`<br> The YouTube channel that is associated with the comments in the thread. The `snippet.videoId` property identifies the video. |
+| `snippet.videoId` | `string`<br> The ID of the video to which the comments refer. |
+| `snippet.topLevelComment` | `object`<br> The thread's top-level comment. The property's value is a `comment` resource. |
+| `snippet.canReply` | `boolean`<br> This setting indicates whether the current viewer can reply to the thread. |
+| `snippet.totalReplyCount` | `unsigned integer`<br> The total number of replies that have been submitted in response to the top-level comment. |
+| `snippet.isPublic` | `boolean`<br> This setting indicates whether the thread, including all of its comments and comment replies, is visible to all YouTube users. |
+| `replies` | `object`<br> The `replies` object is a container that contains a list of replies to the comment, if any exist. The `replies.comments` property represents the list of comments itself. |
+| `replies.comments[]` | `list`<br> A list of one or more replies to the top-level comment. Each item in the list is a `comment` resource.<br>The list contains a limited number of replies, and unless the number of items in the list equals the value of the `snippet.totalReplyCount` property, the list of replies is only a subset of the total number of replies available for the top-level comment. To retrieve all of the replies for the top-level comment, you need to call the `comments.list` method and use the `parentId` request parameter to identify the comment for which you want to retrieve replies. |
+
+Except as otherwise noted, the content of this page is licensed under the [Creative Commons Attribution 4.0 License](https://creativecommons.org/licenses/by/4.0/), and code samples are licensed under the [Apache 2.0 License](https://www.apache.org/licenses/LICENSE-2.0). For details, see the [Google Developers Site Policies](https://developers.google.com/site-policies). Java is a registered trademark of Oracle and/or its affiliates.
+
+Last updated 2026-10-15 UTC.
+
+
+
+
+\[\[\["Easy to understand","easyToUnderstand","thumb-up"\],\["Solved my problem","solvedMyProblem","thumb-up"\],\["Other","otherUp","thumb-up"\]\],\[\["Missing the information I need","missingTheInformationINeed","thumb-down"\],\["Too complicated / too many steps","tooComplicatedTooManySteps","thumb-down"\],\["Out of date","outOfDate","thumb-down"\],\["Samples / code issue","samplesCodeIssue","thumb-down"\],\["Other","otherDown","thumb-down"\]\],\["Last updated 2026-10-15 UTC."\],\[\],\[\]\]
+
+
+
+Info
+
+
+Chat
+
+
+API

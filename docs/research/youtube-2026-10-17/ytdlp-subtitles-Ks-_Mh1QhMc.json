@@ -1,0 +1,38 @@
+{
+  "source_url": "https://www.youtube.com/watch?v=Ks-_Mh1QhMc",
+  "checked_at": "2026-10-17T12:38:27.844210+00:00",
+  "completed_at": "2026-10-17T12:38:38.761320+00:00",
+  "command": [
+    "yt-dlp",
+    "--ignore-config",
+    "--skip-download",
+    "--no-simulate",
+    "--no-playlist",
+    "--write-subs",
+    "--write-auto-subs",
+    "--sub-langs",
+    "en",
+    "--sub-format",
+    "vtt",
+    "--retries",
+    "0",
+    "--fragment-retries",
+    "0",
+    "--extractor-retries",
+    "0",
+    "--sleep-requests",
+    "3",
+    "--no-cache-dir",
+    "--no-progress",
+    "--output",
+    "/var/folders/v6/6lxgncdn0w5czm8l7w7lhglm0000gn/T/forager-youtube-subtitles-1mz_kizu/sample.%(ext)s",
+    "https://www.youtube.com/watch?v=Ks-_Mh1QhMc"
+  ],
+  "exit_code": 0,
+  "stdout": "[youtube] Extracting URL: https://www.youtube.com/watch?v=Ks-_Mh1QhMc\n[youtube] Ks-_Mh1QhMc: Downloading webpage\n[youtube] Sleeping 3.0 seconds ...\n[youtube] Ks-_Mh1QhMc: Downloading visionos player API JSON\n[youtube] Sleeping 3.0 seconds ...\n[youtube] Ks-_Mh1QhMc: Downloading m3u8 information\n[info] Ks-_Mh1QhMc: Downloading subtitles: en\n[info] Ks-_Mh1QhMc: Downloading 1 format(s): 399-sr+251\n[info] Writing video subtitles to: /var/folders/v6/6lxgncdn0w5czm8l7w7lhglm0000gn/T/forager-youtube-subtitles-1mz_kizu/sample.en.vtt\n[download] Destination: /var/folders/v6/6lxgncdn0w5czm8l7w7lhglm0000gn/T/forager-youtube-subtitles-1mz_kizu/sample.en.vtt\n[download] Download completed\n",
+  "stderr": "",
+  "media_downloaded": false,
+  "subtitle_files": [
+    "ytdlp-Ks-_Mh1QhMc-sample.en.vtt"
+  ]
+}

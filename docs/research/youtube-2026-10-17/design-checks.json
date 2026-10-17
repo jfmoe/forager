@@ -1,0 +1,162 @@
+{
+  "checked_at": "2026-10-17T12:55:39+00:00",
+  "tool": "yt-dlp 2026.08.19 (deno available on PATH)",
+  "purpose": "Design checks for the YouTube platform spec (jfmoe/forager#219); no media downloaded; signed URLs not retained",
+  "search": {
+    "command": "yt-dlp --ignore-config --no-cache-dir --flat-playlist --dump-single-json 'ytsearch5:transformer attention explained'",
+    "exit_code": 0,
+    "entries": 5,
+    "entry_keys": [
+      "__x_forwarded_for_ip",
+      "_type",
+      "availability",
+      "channel",
+      "channel_id",
+      "channel_is_verified",
+      "channel_url",
+      "description",
+      "duration",
+      "id",
+      "ie_key",
+      "live_status",
+      "release_timestamp",
+      "thumbnails",
+      "timestamp",
+      "title",
+      "uploader",
+      "uploader_id",
+      "uploader_url",
+      "url",
+      "view_count"
+    ],
+    "published_fields_null": true,
+    "first": {
+      "id": "eMlx5fFNoYc",
+      "title": "Attention in transformers, step-by-step | Deep Learning Chapter 6",
+      "channel_id": "UCYO_jab_esuFRV4b17AJtAw",
+      "duration": 1570,
+      "view_count": 4773604
+    }
+  },
+  "auto_captions": {
+    "command": "yt-dlp --ignore-config --no-cache-dir --skip-download --no-playlist --write-auto-subs --sub-langs en-orig --sub-format vtt --retries 0 --extractor-retries 0 --print-json https://www.youtube.com/watch?v=eMlx5fFNoYc",
+    "exit_code": 0,
+    "manual_subtitle_languages": [
+      "ar",
+      "de",
+      "en",
+      "es",
+      "fa",
+      "fr",
+      "hu",
+      "id",
+      "it",
+      "iw",
+      "ja",
+      "ko",
+      "pt",
+      "pt-BR",
+      "ru",
+      "th",
+      "tr",
+      "uk",
+      "vi",
+      "zh"
+    ],
+    "automatic_caption_track_count": 3279,
+    "orig_tracks": [
+      "en-orig"
+    ],
+    "chapters": 12,
+    "language": "en-US",
+    "duration": 1569,
+    "vtt_lines": 5824,
+    "vtt_bytes": 252269,
+    "vtt_sha256": "7a3606d6441bb1fde7ca099950dc21b79e451203b7cb26a34ca2e41cc7e2d542",
+    "vtt_head": "WEBVTT\nKind: captions\nLanguage: en\n\n00:00:00.040 --> 00:00:01.630 align:start position:0%\n \nin<00:00:00.160><c> the</c><00:00:00.280><c> last</c><00:00:00.480><c> chapter</c><00:00:00.840><c> you</c><00:00:01.000><c> and</c><00:00:01.120><c> I</c><00:00:01.240><c> started</c><00:00:01.520><c> to</c>\n\n00:00:01.630 --> 00:00:01.640 align:start position:0%\nin the last chapter you and I started to\n \n\n00:00:01.640 --> 00:00:03.470 align:start position:0%\nin the last chapter you and I started to\nstep<00:00:01.880><c> through</c><00:00:02.080><c> the</c><00:00:02.200><c> internal</c><00:00:02.600><c> workings</c><00:00:03.040><c> of</c><00:00:03.240><c> a</c>\n\n00:00:03.470 --> 00:00:03.480 align:start position:0%\nstep through the internal workings of a\n \n\n00:00:03.480 --> 00:00:05.230 align:start position:0%\nstep through the internal workings of a\ntransformer<00:00:04.480><c> this</c><00:00:04."
+  },
+  "innertube_http": {
+    "checked_at": "2026-10-17 (after the yt-dlp checks)",
+    "method": "Same flow as youtube-transcript-api 8f150ba: GET watch page, read the page's public INNERTUBE_API_KEY, POST /youtubei/v1/player with client ANDROID 20.10.38, GET captionTracks[].baseUrl without fmt (srv1 XML). No cookies, no PO token, plain urllib.",
+    "results": [
+      {
+        "video": "jNQXAC9IVRw",
+        "player": "200 OK, videoId matches",
+        "tracks": [
+          "en manual",
+          "de manual"
+        ],
+        "exp_xpe_marker": false,
+        "timedtext": "200, 522 bytes, 6 cues"
+      },
+      {
+        "video": "eMlx5fFNoYc",
+        "player": "200 OK, videoId matches",
+        "tracks": "21 tracks: 20 manual + 1 kind=asr (en); 18 translationLanguages listed separately",
+        "timedtext_manual_en": "200, 45208 bytes, 423 cues",
+        "timedtext_asr_en": "200, 56296 bytes, 728 cues, 0 adjacent duplicate cues (yt-dlp VTT of the same ASR track: 252269 bytes with rolling duplicates)"
+      }
+    ],
+    "note": "Undocumented endpoints; Developer Policies III.D.7 forbids undocumented APIs for API clients. Two samples from one egress; not a stability measurement."
+  },
+  "serpapi_transcript": {
+    "checked_at": "2026-10-17",
+    "plan": "Free Plan, 250 searches/month; usage 8 -> 10 after two calls",
+    "calls": [
+      {
+        "params": {
+          "engine": "youtube_video_transcript",
+          "v": "eMlx5fFNoYc",
+          "language_code": "en"
+        },
+        "seconds": 7.1,
+        "segments": 423,
+        "first_snippet": "In the last chapter, you and I started to step",
+        "chapters": 12
+      },
+      {
+        "params": {
+          "engine": "youtube_video_transcript",
+          "v": "eMlx5fFNoYc",
+          "language_code": "en",
+          "type": "asr"
+        },
+        "seconds": 8.0,
+        "segments": 423,
+        "first_snippet": "In the last chapter, you and I started to step",
+        "chapters": 12,
+        "search_parameters_echo": "type=asr"
+      }
+    ],
+    "response_top_keys": [
+      "available_transcripts",
+      "chapters",
+      "search_metadata",
+      "search_parameters",
+      "transcript"
+    ],
+    "available_transcripts_sample": [
+      [
+        "ar",
+        null
+      ],
+      [
+        "zh",
+        null
+      ],
+      [
+        "en",
+        null
+      ],
+      [
+        "en",
+        "asr"
+      ]
+    ],
+    "observations": [
+      "type=asr returned the same 423 punctuated segments as the manual track while echoing type=asr; the InnerTube ASR track of the same video has 728 lowercase unpunctuated cues, so the request type was not honored and the response does not identify the returned track",
+      "The transcript engine returns no title, channel, or publish date; a fetch that also needs metadata needs a youtube_video call, two searches per video",
+      "Each call counted one search even when the result was identical"
+    ]
+  }
+}

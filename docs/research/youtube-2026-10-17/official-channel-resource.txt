@@ -1,0 +1,1319 @@
+Channels  |  YouTube Data API  |  Google for Developers
+Skip to main content
+YouTube
+Data API
+/
+English
+Deutsch
+Español
+Español – América Latina
+Français
+Indonesia
+Italiano
+Polski
+Português – Brasil
+Tiếng Việt
+Türkçe
+Русский
+עברית
+العربيّة
+فارسی
+हिंदी
+বাংলা
+ภาษาไทย
+中文 – 简体
+中文 – 繁體
+日本語
+한국어
+Sign in
+Home
+Guides
+Reference
+Samples
+YouTube
+Data API
+Home
+Guides
+Reference
+Samples
+Overview
+Activities
+Overview
+list
+Captions
+Overview
+list
+insert
+update
+download
+delete
+ChannelBanners
+Overview
+insert
+Channels
+Overview
+list
+update
+ChannelSections
+Overview
+list
+insert
+update
+delete
+Comments
+Overview
+list
+insert
+update
+setModerationStatus
+delete
+CommentThreads
+Overview
+list
+insert
+i18nLanguages
+Overview
+list
+i18nRegions
+Overview
+list
+Members
+Overview
+list
+MembershipsLevels
+Overview
+list
+PlaylistImages
+Overview
+list
+insert
+update
+delete
+PlaylistItems
+Overview
+list
+insert
+update
+delete
+Playlists
+Overview
+list
+insert
+update
+delete
+Search
+Overview
+list
+Subscriptions
+Overview
+list
+insert
+delete
+Thumbnails
+Overview
+set
+VideoAbuseReportReasons
+Overview
+list
+VideoCategories
+Overview
+list
+Videos
+Overview
+list
+insert
+update
+rate
+getRating
+reportAbuse
+delete
+batchGetStats
+Watermarks
+Overview
+set
+unset
+Standard Query Parameters
+YouTube Data API Errors
+Overview
+Global Domain Errors
+Revision History
+Home
+Products
+YouTube
+Data API
+Reference
+Channels
+Stay organized with collections
+Save and categorize content based on your preferences.
+The API now supports the ability to mark your channel or
+videos
+as "made for kids." In addition,
+channel
+and
+video
+resources also now contain a property that identifies the "made for kids"
+  status of that channel or video. The YouTube API Services Terms of Service and Developer Policies
+  were also updated on 10 January 2020. For more information, see the revision histories for
+  the
+YouTube Data API Service
+and the
+YouTube API Services Terms of Service
+.
+A
+channel
+resource contains information about a YouTube channel.
+Methods
+The API supports the following methods for
+channels
+resources:
+list
+Returns a collection of zero or more
+channel
+resources that match the request criteria.
+Try it now
+.
+update
+Updates a channel's metadata. Note that this method currently only supports updates to the
+channel
+resource's
+brandingSettings
+and
+invideoPromotion
+objects and their child properties.
+Try it now
+.
+Resource representation
+The following JSON structure shows the format of a
+channels
+resource:
+{
+"
+kind
+"
+:
+"youtube#channel"
+,
+"
+etag
+"
+:
+etag
+,
+"
+id
+"
+:
+string
+,
+"
+snippet
+"
+:
+{
+"
+title
+"
+:
+string
+,
+"
+description
+"
+:
+string
+,
+"
+customUrl
+"
+:
+string
+,
+"
+publishedAt
+"
+:
+datetime
+,
+"
+thumbnails
+"
+:
+{
+(
+key
+)
+:
+{
+"
+url
+"
+:
+string
+,
+"
+width
+"
+:
+unsigned
+integer
+,
+"
+height
+"
+:
+unsigned
+integer
+}
+}
+,
+"
+defaultLanguage
+"
+:
+string
+,
+"
+localized
+"
+:
+{
+"
+title
+"
+:
+string
+,
+"
+description
+"
+:
+string
+}
+,
+"
+country
+"
+:
+string
+}
+,
+"
+contentDetails
+"
+:
+{
+"
+relatedPlaylists
+"
+:
+{
+"
+likes
+"
+:
+string
+,
+"
+favorites
+"
+:
+string
+,
+"
+uploads
+"
+:
+string
+}
+}
+,
+"
+statistics
+"
+:
+{
+"
+viewCount
+"
+:
+unsigned
+long
+,
+"
+subscriberCount
+"
+:
+unsigned
+long
+,
+//
+this
+value
+is
+rounded
+to
+three
+significant
+figures
+"
+hiddenSubscriberCount
+"
+:
+boolean
+,
+"
+videoCount
+"
+:
+unsigned
+long
+}
+,
+"
+topicDetails
+"
+:
+{
+"
+topicIds
+"
+:
+[
+string
+],
+"
+topicCategories
+"
+:
+[
+string
+]
+}
+,
+"
+status
+"
+:
+{
+"
+privacyStatus
+"
+:
+string
+,
+"
+isLinked
+"
+:
+boolean
+,
+"
+longUploadsStatus
+"
+:
+string
+,
+"
+madeForKids
+"
+:
+boolean
+,
+"
+selfDeclaredMadeForKids
+"
+:
+boolean
+}
+,
+"
+brandingSettings
+"
+:
+{
+"
+channel
+"
+:
+{
+"
+title
+"
+:
+string
+,
+"
+description
+"
+:
+string
+,
+"
+keywords
+"
+:
+string
+,
+"
+trackingAnalyticsAccountId
+"
+:
+string
+,
+"
+unsubscribedTrailer
+"
+:
+string
+,
+"
+defaultLanguage
+"
+:
+string
+,
+"
+country
+"
+:
+string
+}
+,
+"
+watch
+"
+:
+{
+"
+textColor
+"
+:
+string
+,
+"
+backgroundColor
+"
+:
+string
+,
+"
+featuredPlaylistId
+"
+:
+string
+}
+}
+,
+"
+auditDetails
+"
+:
+{
+"
+overallGoodStanding
+"
+:
+boolean
+,
+"
+communityGuidelinesGoodStanding
+"
+:
+boolean
+,
+"
+copyrightStrikesGoodStanding
+"
+:
+boolean
+,
+"
+contentIdClaimsGoodStanding
+"
+:
+boolean
+}
+,
+"
+contentOwnerDetails
+"
+:
+{
+"
+contentOwner
+"
+:
+string
+,
+"
+timeLinked
+"
+:
+datetime
+}
+,
+"
+localizations
+"
+:
+{
+(
+key
+)
+:
+{
+"
+title
+"
+:
+string
+,
+"
+description
+"
+:
+string
+}
+}
+}
+Properties
+The following table defines the properties that appear in this resource:
+Properties
+kind
+string
+Identifies the API resource's type. The value will be
+youtube#channel
+.
+etag
+etag
+The Etag of this resource.
+id
+string
+The ID that YouTube uses to uniquely identify the channel.
+snippet
+object
+The
+snippet
+object contains basic details about the channel, such as its title, description, and thumbnail images.
+snippet.
+title
+string
+The channel's title.
+snippet.
+description
+string
+The channel's description. The property's value has a maximum length of 1000 characters.
+snippet.
+customUrl
+string
+The channel's custom URL. The
+YouTube Help Center
+explains eligibility requirements for getting a custom URL as well as how to set up the URL.
+snippet.
+publishedAt
+datetime
+The date and time that the channel was created. The value is specified in
+ISO 8601
+format.
+snippet.
+thumbnails
+object
+A map of thumbnail images associated with the channel. For each object in the map, the key is the name of the thumbnail image, and the value is an object that contains other information about the thumbnail.
+When displaying thumbnails in your application, make sure that your code uses the image URLs exactly as they are returned in API responses. For example, your application should not use the
+http
+domain instead of the
+https
+domain in a URL returned in an API response.
+Channel thumbnail URLs are available only in the
+https
+domain, which is how the URLs appear in API responses. You might see broken images in your application if it tries to load YouTube images from the
+http
+domain. Thumbnail images might be empty for newly created channels and might take up to one day to populate.
+snippet.thumbnails.
+(key)
+object
+Valid key values are:
+default
+– The default thumbnail image. The default thumbnail for a video – or a resource that refers to a video, such as a playlist item or search result – is 120px wide and 90px tall. The default thumbnail for a channel is 88px wide and 88px tall.
+medium
+– A higher resolution version of the thumbnail image. For a video (or a resource that refers to a video), this image is 320px wide and 180px tall. For a channel, this image is 240px wide and 240px tall.
+high
+– A high resolution version of the thumbnail image. For a video (or a resource that refers to a video), this image is 480px wide and 360px tall. For a channel, this image is 800px wide and 800px tall.
+snippet.thumbnails.(key).
+url
+string
+The image's URL. For additional guidelines on using thumbnail URLs in your application, see the
+snippet.thumbnails
+property definition.
+snippet.thumbnails.(key).
+width
+unsigned integer
+The image's width.
+snippet.thumbnails.(key).
+height
+unsigned integer
+The image's height.
+snippet.
+defaultLanguage
+string
+The language of the text in the
+channel
+resource's
+snippet.title
+and
+snippet.description
+properties.
+snippet.
+localized
+object
+The
+snippet.localized
+object contains a localized title and description for the channel or it contains the channel's title and description in the
+default language
+for the channel's metadata.
+Localized text is returned in the resource snippet if the
+channels.list
+request used the
+hl
+parameter to specify a language for which localized text should be returned, the
+hl
+parameter value identifies a
+YouTube application language
+, and localized text is available in that language.
+Metadata for the default language is returned if an
+hl
+parameter value is not specified
+or
+a value is specified but localized metadata is not available for the specified language.
+The property contains a read-only value. Use the
+localizations
+object to add, update, or delete localized metadata.
+snippet.localized.
+title
+string
+The localized channel title.
+snippet.localized.
+description
+string
+The localized channel description.
+snippet.
+country
+string
+The country with which the channel is associated. To set this property's value, update the value of the
+brandingSettings.channel.country
+property.
+contentDetails
+object
+The
+contentDetails
+object encapsulates information about the channel's content.
+contentDetails.
+relatedPlaylists
+object
+The
+relatedPlaylists
+object is a map that identifies playlists associated with the channel, such as the channel's uploaded videos or liked videos. You can retrieve any of these playlists using the
+playlists.list
+method.
+contentDetails.relatedPlaylists.
+likes
+string
+The ID of the playlist that contains the channel's liked videos. Use the
+playlistItems.insert
+and
+playlistItems.delete
+methods to add or remove items from that list.
+contentDetails.relatedPlaylists.
+favorites
+string
+This property has been deprecated.
+The ID of the playlist that contains the channel's favorite videos. Use the
+playlistItems.insert
+and
+playlistItems.delete
+methods to add or remove items from that list.
+Note that YouTube has deprecated favorite video functionality. For example, the
+video
+resource's
+statistics.favoriteCount
+property was deprecated on August 28, 2015. As a result, for historical reasons, this property value might contain a playlist ID that refers to an empty playlist and, therefore, cannot be fetched.
+contentDetails.relatedPlaylists.
+uploads
+string
+The ID of the playlist that contains the channel's uploaded videos. Use the
+videos.insert
+method to upload new videos and the
+videos.delete
+method to delete previously uploaded videos.
+statistics
+object
+The
+statistics
+object encapsulates statistics for the channel.
+statistics.
+viewCount
+unsigned long
+The sum of the number of times all the videos in all formats have been viewed for a channel.
+Starting August 24, 2026, for all video formats (long-form, Live, and Shorts) on a channel,
+viewCount
+will be updated to count views the moment a video begins to play (includes autoplay, hold the pointer over, and click/tap to play).
+statistics.
+commentCount
+unsigned long
+This property has been deprecated.
+The number of comments for the channel.
+statistics.
+subscriberCount
+unsigned long
+The number of subscribers that the channel has. This value is rounded down to three
+        significant figures. For more details about how subscriber counts are rounded, see
+Revision History
+or
+YouTube Help Center
+.
+statistics.
+hiddenSubscriberCount
+boolean
+Indicates whether the channel's subscriber count is publicly visible.
+statistics.
+videoCount
+unsigned long
+The number of public videos uploaded to the channel. Note that the value reflects the count of
+        the channel's public videos only, even to owners. This behavior is consistent with counts
+        shown on the YouTube website.
+topicDetails
+object
+The
+topicDetails
+object encapsulates information about topics associated with the channel.
+Important:
+For more details about changes related to topic IDs, see the
+topicDetails.topicIds[]
+property definition and the
+revision history
+.
+topicDetails.
+topicIds[]
+list
+A list of topic IDs associated with the channel.
+This property has been deprecated as of November 10, 2016. It will be supported until November 10, 2017.
+Important:
+Due to the deprecation of Freebase and the Freebase API, topic IDs started working differently as of February 27, 2017. At that time, YouTube started returning a small set of curated topic IDs.
+See topic IDs supported as of February 15, 2017
+Topics
+Music topics
+/m/04rlf
+Music (parent topic)
+/m/02mscn
+Christian music
+/m/0ggq0m
+Classical music
+/m/01lyv
+Country
+/m/02lkt
+Electronic music
+/m/0glt670
+Hip hop music
+/m/05rwpb
+Independent music
+/m/03_d0
+Jazz
+/m/028sqc
+Music of Asia
+/m/0g293
+Music of Latin America
+/m/064t9
+Pop music
+/m/06cqb
+Reggae
+/m/06j6l
+Rhythm and blues
+/m/06by7
+Rock music
+/m/0gywn
+Soul music
+Gaming topics
+/m/0bzvm2
+Gaming (parent topic)
+/m/025zzc
+Action game
+/m/02ntfj
+Action-adventure game
+/m/0b1vjn
+Casual game
+/m/02hygl
+Music video game
+/m/04q1x3q
+Puzzle video game
+/m/01sjng
+Racing video game
+/m/0403l3g
+Role-playing video game
+/m/021bp2
+Simulation video game
+/m/022dc6
+Sports game
+/m/03hf_rm
+Strategy video game
+Sports topics
+/m/06ntj
+Sports (parent topic)
+/m/0jm_
+American football
+/m/018jz
+Baseball
+/m/018w8
+Basketball
+/m/01cgz
+Boxing
+/m/09xp_
+Cricket
+/m/02vx4
+Football
+/m/037hz
+Golf
+/m/03tmr
+Ice hockey
+/m/01h7lh
+Mixed martial arts
+/m/0410tth
+Motorsport
+/m/07bs0
+Tennis
+/m/07_53
+Volleyball
+Entertainment topics
+/m/02jjt
+Entertainment (parent topic)
+/m/09kqc
+Humor
+/m/02vxn
+Movies
+/m/05qjc
+Performing arts
+/m/066wd
+Professional wrestling
+/m/0f2f9
+TV shows
+Lifestyle topics
+/m/019_rr
+Lifestyle (parent topic)
+/m/032tl
+Fashion
+/m/027x7n
+Fitness
+/m/02wbm
+Food
+/m/03glg
+Hobby
+/m/068hy
+Pets
+/m/041xxh
+Physical attractiveness [Beauty]
+/m/07c1v
+Technology
+/m/07bxq
+Tourism
+/m/07yv9
+Vehicles
+Society topics
+/m/098wr
+Society (parent topic)
+/m/09s1f
+Business
+/m/0kt51
+Health
+/m/01h6rj
+Military
+/m/05qt0
+Politics
+/m/06bvp
+Religion
+Other topics
+/m/01k8wb
+Knowledge
+topicDetails.
+topicCategories[]
+list
+A list of Wikipedia URLs that describe the channel's content.
+status
+object
+The
+status
+object encapsulates information about the privacy status of the channel.
+status.
+privacyStatus
+string
+Privacy status of the channel.
+Valid values for this property are:
+private
+public
+unlisted
+status.
+isLinked
+boolean
+Indicates whether the channel data identifies a user that is already linked to either a YouTube username or a Google+ account. A user that has one of these links already has a public YouTube identity, which is a prerequisite for several actions, such as uploading videos.
+status.
+longUploadsStatus
+string
+Indicates whether the channel is eligible to upload videos that are more than 15 minutes long. This property is only returned if the channel owner authorized the API request. For more information about this feature, see
+YouTube Help Center
+.
+Valid values for this property are:
+allowed
+– This channel can upload videos that are more than 15 minutes long.
+disallowed
+– This channel is not able or eligible to upload videos that are more than 15 minutes long. A channel is only eligible to upload long videos if it is in good standing based on
+YouTube Community Guidelines
+and it does not have any worldwide Content ID blocks on its content.
+After the channel owner resolves the issues that are preventing the channel from uploading longer videos, the channel will revert to either the
+allowed
+or
+eligible
+state.
+eligible
+– This channel is eligible to upload videos that are more than 15 minutes long. However, the channel owner must first enable the ability to upload longer videos through
+Phone verification
+. For more details about this feature, see
+YouTube Help Center
+.
+status.
+madeForKids
+boolean
+This value indicates whether the channel is designated as child-directed, and it contains
+        the current "made for kids" status of the channel. For example, the status might be
+        determined based on the value of the
+selfDeclaredMadeForKids
+property. For more
+        information about setting the audience for your channel, videos, or broadcasts, see
+YouTube Help Center
+.
+status.
+selfDeclaredMadeForKids
+boolean
+In a
+channels.update
+request,
+        this property allows the channel owner to designate the channel as child-directed. The
+        property value is only returned if the channel owner authorized the API request.
+brandingSettings
+object
+The
+brandingSettings
+object encapsulates information about the branding of the channel.
+brandingSettings.
+channel
+object
+The
+channel
+object encapsulates branding properties of the channel page.
+brandingSettings.channel.
+title
+string
+The channel's title. The title has a maximum length of 30 characters.
+brandingSettings.channel.
+description
+string
+The channel description, which appears in the channel information box on your channel page. The property's value has a maximum length of 1000 characters.
+brandingSettings.channel.
+keywords
+string
+Keywords associated with your channel. The value is a space-separated list of strings. Channel
+        keywords might be truncated if they exceed the maximum allowed length of 500 characters or
+        if they contained unescaped quotation marks (
+"
+). Note that the 500 character
+        limit is not a per-keyword limit but rather a limit on the total length of all keywords.
+brandingSettings.channel.
+trackingAnalyticsAccountId
+string
+The ID for a
+Google Analytics account
+that you want to use to track and measure traffic to your channel.
+brandingSettings.channel.
+unsubscribedTrailer
+string
+The video that should play in the featured video module in the channel page's browse view for unsubscribed viewers. Subscribed viewers may see a different video that highlights more recent channel activity.
+If specified, the property's value must be the YouTube video ID of a public or unlisted video that is owned by the channel owner.
+brandingSettings.channel.
+defaultLanguage
+string
+The language of the text in the
+channel
+resource's
+snippet.title
+and
+snippet.description
+properties.
+brandingSettings.channel.
+country
+string
+The country with which the channel is associated. Update this property to set the value of the
+snippet.country
+property.
+brandingSettings.
+watch
+object
+Note:
+This object and all of its child properties have been deprecated.
+The
+watch
+object encapsulates branding properties of the watch pages for the channel's videos.
+brandingSettings.watch.
+textColor
+string
+Note:
+This property has been deprecated.
+The text color for the video watch page's branded area.
+brandingSettings.watch.
+backgroundColor
+string
+Note:
+This property has been deprecated.
+The background color for the video watch page's branded area.
+brandingSettings.watch.
+featuredPlaylistId
+string
+Note:
+This property has been deprecated. The API returns an error if you attempt to set its value.
+brandingSettings.
+image
+object
+This property and all of its child properties have been deprecated.
+The
+image
+object encapsulates information about images that display on the channel's channel page or video watch pages.
+brandingSettings.image.
+bannerImageUrl
+string
+This property has been deprecated.
+The URL for the banner image shown on the channel page on the YouTube website. The image is 1060px by 175px.
+brandingSettings.image.
+bannerMobileImageUrl
+string
+This property has been deprecated.
+The URL for the banner image shown on the channel page in mobile applications. The image is 640px by 175px.
+brandingSettings.image.
+watchIconImageUrl
+string
+This property has been deprecated.
+The URL for the image that appears above the video player. This is a 25-pixel-high image with a flexible width that cannot exceed 170 pixels. If you do not provide this image, your channel name will appear instead of an image.
+brandingSettings.image.
+trackingImageUrl
+string
+This property has been deprecated.
+The URL for a 1px by 1px tracking pixel that can be used to collect statistics for views of the channel or video pages.
+brandingSettings.image.
+bannerTabletLowImageUrl
+string
+This property has been deprecated.
+The URL for a low-resolution banner image that displays on the channel page in tablet applications. The image's maximum size is 1138px by 188px.
+brandingSettings.image.
+bannerTabletImageUrl
+string
+This property has been deprecated.
+The URL for a banner image that displays on the channel page in tablet applications. The image is 1707px by 283px.
+brandingSettings.image.
+bannerTabletHdImageUrl
+string
+This property has been deprecated.
+The URL for a high-resolution banner image that displays on the channel page in tablet applications. The image's maximum size is 2276px by 377px.
+brandingSettings.image.
+bannerTabletExtraHdImageUrl
+string
+This property has been deprecated.
+The URL for an extra-high-resolution banner image that displays on the channel page in tablet applications. The image's maximum size is 2560px by 424px.
+brandingSettings.image.
+bannerMobileLowImageUrl
+string
+This property has been deprecated.
+The URL for a low-resolution banner image that displays on the channel page in mobile applications. The image's maximum size is 320px by 88px.
+brandingSettings.image.
+bannerMobileMediumHdImageUrl
+string
+This property has been deprecated.
+The URL for a medium-resolution banner image that displays on the channel page in mobile applications. The image's maximum size is 960px by 263px.
+brandingSettings.image.
+bannerMobileHdImageUrl
+string
+This property has been deprecated.
+The URL for a high-resolution banner image that displays on the channel page in mobile applications. The image's maximum size is 1280px by 360px.
+brandingSettings.image.
+bannerMobileExtraHdImageUrl
+string
+This property has been deprecated.
+The URL for a very high-resolution banner image that displays on the channel page in mobile applications. The image's maximum size is 1440px by 395px.
+brandingSettings.image.
+bannerTvImageUrl
+string
+This property has been deprecated.
+The URL for an extra-high-resolution banner image that displays on the channel page in television applications. The image's maximum size is 2120px by 1192px.
+brandingSettings.image.
+bannerTvLowImageUrl
+string
+This property has been deprecated.
+The URL for a low-resolution banner image that displays on the channel page in television applications. The image's maximum size is 854px by 480px.
+brandingSettings.image.
+bannerTvMediumImageUrl
+string
+This property has been deprecated.
+The URL for a medium-resolution banner image that displays on the channel page in television applications. The image's maximum size is 1280px by 720px.
+brandingSettings.image.
+bannerTvHighImageUrl
+string
+This property has been deprecated.
+The URL for a high-resolution banner image that displays on the channel page in television applications. The image's maximum size is 1920px by 1080px.
+brandingSettings.image.
+bannerExternalUrl
+string
+This property specifies the location of the banner image that YouTube uses to generate
+        the various banner image sizes for a channel.
+brandingSettings.
+hints[]
+list
+This property and all of its child properties have been deprecated.
+The
+hints
+object encapsulates additional branding properties.
+brandingSettings.hints[].
+property
+string
+This property has been deprecated.
+A property.
+brandingSettings.hints[].
+value
+string
+This property has been deprecated.
+The property's value.
+auditDetails
+object
+The
+auditDetails
+object encapsulates channel data that a multichannel network (MCN) would evaluate while determining whether to accept or reject a particular channel. Note that any API request that retrieves this resource part must provide an authorization token that contains the
+https://www.googleapis.com/auth/youtubepartner-channel-audit
+scope. In addition, any token that uses that scope must be revoked when the MCN decides to accept or reject the channel or within two weeks of the date that the token was issued.
+auditDetails.
+overallGoodStanding
+boolean
+This field indicates whether there are any issues with the channel. Currently, this field represents the result of the logical
+AND
+operation over the
+communityGuidelinesGoodStanding
+,
+copyrightStrikesGoodStanding
+, and
+contentIdClaimsGoodStanding
+properties, meaning that this property has a value of
+true
+if all of those other properties also have a value of
+true
+. However, this property will have a value of
+false
+if any of those properties has a value of
+false
+. Note, however, that the methodology used to set this property's value is subject to change.
+auditDetails.
+communityGuidelinesGoodStanding
+boolean
+Indicates whether the channel respects YouTube's community guidelines.
+auditDetails.
+copyrightStrikesGoodStanding
+boolean
+Indicates whether the channel has any copyright strikes.
+auditDetails.
+contentIdClaimsGoodStanding
+boolean
+Indicates whether the channel has any unresolved claims.
+contentOwnerDetails
+object
+The
+contentOwnerDetails
+object encapsulates channel data that is visible only to the YouTube Partner that has linked the channel to their Content Manager.
+contentOwnerDetails.
+contentOwner
+string
+The ID of the content owner linked to the channel.
+contentOwnerDetails.
+timeLinked
+datetime
+The date and time of when the channel was linked to the content owner. The value is specified in
+ISO 8601
+format.
+localizations
+object
+The
+localizations
+object encapsulates translations of the channel's metadata.
+localizations.
+(key)
+object
+The language of the localized metadata associated with the key value. The value is a string that contains a
+BCP-47
+language code.
+localizations.(key).
+title
+string
+The localized channel title.
+localizations.(key).
+description
+string
+The localized channel description.
+Except as otherwise noted, the content of this page is licensed under the
+Creative Commons Attribution 4.0 License
+, and code samples are licensed under the
+Apache 2.0 License
+. For details, see the
+Google Developers Site Policies
+. Java is a registered trademark of Oracle and/or its affiliates.
+Last updated 2026-10-15 UTC.
+[[["Easy to understand","easyToUnderstand","thumb-up"],["Solved my problem","solvedMyProblem","thumb-up"],["Other","otherUp","thumb-up"]],[["Missing the information I need","missingTheInformationINeed","thumb-down"],["Too complicated / too many steps","tooComplicatedTooManySteps","thumb-down"],["Out of date","outOfDate","thumb-down"],["Samples / code issue","samplesCodeIssue","thumb-down"],["Other","otherDown","thumb-down"]],["Last updated 2026-10-15 UTC."],[],[]]
+Blog
+The latest news on the YouTube blog
+Issue Tracker
+Something wrong? Send us a bug report!
+YouTube Researcher Program
+For researchers interested in using data from YouTube's global API
+Tools
+Google APIs Explorer
+YouTube Player Demo
+Configure a Subscribe Button
+Issue Tracker
+File a bug
+Request a feature
+See open issues
+Product Info
+Terms of Service
+Developer Policies
+Required Minimum Functionality
+Branding Guidelines
+Android
+Chrome
+Firebase
+Google Cloud Platform
+Google AI
+All products
+Terms
+Privacy
+Manage cookies
+English
+Deutsch
+Español
+Español – América Latina
+Français
+Indonesia
+Italiano
+Polski
+Português – Brasil
+Tiếng Việt
+Türkçe
+Русский
+עברית
+العربيّة
+فارسی
+हिंदी
+বাংলা
+ภาษาไทย
+中文 – 简体
+中文 – 繁體
+日本語
+한국어

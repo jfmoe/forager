@@ -1,0 +1,525 @@
+[Skip to main content](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#main-content)
+
+[![YouTube](https://developers.google.com/static/site-assets/logo-youtube.svg)](https://developers.google.com/youtube)
+
+- [YouTube](https://developers.google.com/youtube)
+- [Data API](https://developers.google.com/youtube/data)
+
+`/`
+
+Language
+
+- [English](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list)
+- [Deutsch](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list?hl=de)
+- [Español](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list?hl=es)
+- [Español – América Latina](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list?hl=es-419)
+- [Français](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list?hl=fr)
+- [Indonesia](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list?hl=id)
+- [Italiano](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list?hl=it)
+- [Polski](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list?hl=pl)
+- [Português – Brasil](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list?hl=pt-br)
+- [Tiếng Việt](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list?hl=vi)
+- [Türkçe](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list?hl=tr)
+- [Русский](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list?hl=ru)
+- [עברית](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list?hl=he)
+- [العربيّة](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list?hl=ar)
+- [فارسی](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list?hl=fa)
+- [हिंदी](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list?hl=hi)
+- [বাংলা](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list?hl=bn)
+- [ภาษาไทย](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list?hl=th)
+- [中文 – 简体](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list?hl=zh-cn)
+- [中文 – 繁體](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list?hl=zh-tw)
+- [日本語](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list?hl=ja)
+- [한국어](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list?hl=ko)
+
+[Sign in](https://developers.google.com/_d/signin?continue=https%3A%2F%2Fdevelopers.google.com%2Fyoutube%2Fdata%2Freference%2Frest%2Fv3%2FplaylistItems%2Flist&prompt=select_account)
+
+- On this page
+- [Common use cases](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#common-use-cases)
+- [Request](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#request)
+  - [HTTP request](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#http-request)
+  - [Parameters](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#parameters)
+  - [Request body](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#request-body)
+- [Response](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#response)
+  - [Properties](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#properties)
+- [Examples](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#examples)
+- [Errors](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#errors)
+- [Try it!](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#try-it)
+Try it!
+
+- [Home](https://developers.google.com/)
+- [Products](https://developers.google.com/products)
+- [YouTube](https://developers.google.com/youtube)
+- [Data API](https://developers.google.com/youtube/data)
+- [Reference](https://developers.google.com/youtube/data/reference/rest)
+
+Was this helpful?
+
+# PlaylistItems: list    Stay organized with collections      Save and categorize content based on your preferences.
+
+- On this page
+- [Common use cases](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#common-use-cases)
+- [Request](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#request)
+  - [HTTP request](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#http-request)
+  - [Parameters](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#parameters)
+  - [Request body](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#request-body)
+- [Response](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#response)
+  - [Properties](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#properties)
+- [Examples](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#examples)
+- [Errors](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#errors)
+- [Try it!](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#try-it)
+- [Try it](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#try-it)
+
+Returns a collection of playlist items that match the API request parameters. You can retrieve all of the playlist items in a specified playlist or retrieve one or more playlist items by their unique IDs.
+
+**Quota impact:** A call to this method has a [quota cost](https://developers.google.com/youtube/data/getting-started#quota) of 1 unit.
+
+## Common use cases
+
+Google for Developers
+
+The list below shows common use cases for this method. Hover over a use case to see its description, or click on a use case to load sample parameter values in the APIs Explorer. You can open the [fullscreen APIs Explorer](https://developers-dot-devsite-v2-prod.appspot.com/youtube/data/reference/rest/v3/playlistItems/list_78ca6a4515b8b094592b3ebec59565077f0ed0bbb6be96d157ad7995288b9bdc.frame#) to see code samples that dynamically update to reflect the parameter values entered in the Explorer.
+
+The table below shows common use cases for this method. You can click on a use case name to load sample parameter values in the APIs Explorer. Or you can see code samples for a use case in the fullscreen APIs Explorer by clicking on the code icon below a use case name. In the fullscreen UI, you can update parameter and property values and the code samples will dynamically update to reflect the values you enter.
+
+This method has one common use case, which is described below. The buttons below the description populate the APIs Explorer with sample values or open the fullscreen APIs Explorer to show code samples that use those values. The code samples also dynamically update if you change the values.
+
+This example retrieves the list of videos in a specified playlist. The request's `playlistId` parameter identifies the playlist.
+
+Note that the API response does not include metadata about the playlist itself, such as the playlist's title and description. Additional metadata about the videos in the playlist can also be retrieved using the `videos.list` method.
+
+Populate APIs ExplorerSee code samples
+
+|
+|
+
+## Request
+
+### HTTP request
+
+```
+GET https://www.googleapis.com/youtube/v3/playlistItems
+```
+
+### Parameters
+
+The following table lists the parameters that this query supports. All of the parameters listed are query parameters.
+
+| Parameters |
+| --- |
+| **Required parameters** |
+| `part` | `string`<br> The `part` parameter specifies a comma-separated list of one or more `playlistItem` resource properties that the API response will include.<br>If the parameter identifies a property that contains child properties, the child properties will be included in the response. For example, in a `playlistItem` resource, the `snippet` property contains numerous fields, including the `title`, `description`, `position`, and `resourceId` properties. As such, if you set `part=snippet`, the API response will contain all of those properties.<br>The following list contains the `part` names that you can include in the parameter value:<br>- `contentDetails`<br>- `id`<br>- `snippet`<br>- `status` |
+| **Filters (specify exactly one of the following parameters)** |
+| `id` | `string`<br> The `id` parameter specifies a comma-separated list of one or more unique playlist item IDs. |
+| `playlistId` | `string`<br> The `playlistId` parameter specifies the unique ID of the playlist for which you want to retrieve playlist items. Note that even though this is an optional parameter, every request to retrieve playlist items must specify a value for either the `id` parameter or the `playlistId` parameter. |
+| **Optional parameters** |
+| `maxResults` | `unsigned integer`<br> The `maxResults` parameter specifies the maximum number of items that should be returned in the result set. Acceptable values are `0` to `50`, inclusive. The default value is `5`. |
+| `onBehalfOfContentOwner` | `string`<br> This parameter can only be used in a properly [authorized request](https://developers.google.com/youtube/data/guides/authentication). **Note:** This parameter is intended exclusively for YouTube content partners.<br>The `onBehalfOfContentOwner` parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner. |
+| `pageToken` | `string`<br> The `pageToken` parameter identifies a specific page in the result set that should be returned. In an API response, the `nextPageToken` and `prevPageToken` properties identify other pages that could be retrieved. |
+| `videoId` | `string`<br> The `videoId` parameter specifies that the request should return only the playlist items that contain the specified video. |
+
+### Request body
+
+Do not provide a request body when calling this method.
+
+## Response
+
+If successful, this method returns a response body with the following structure:
+
+```
+{
+  "kind": "youtube#playlistItemListResponse",
+  "etag": etag,
+  "nextPageToken": string,
+  "prevPageToken": string,
+  "pageInfo": {
+    "totalResults": integer,
+    "resultsPerPage": integer
+  },
+  "items": [\
+    playlistItem Resource\
+  ]
+}
+```
+
+### Properties
+
+The following table defines the properties that appear in this resource:
+
+| Properties |
+| --- |
+| `kind` | `string`<br> Identifies the API resource's type. The value will be `youtube#playlistItemListResponse`. |
+| `etag` | `etag`<br> The Etag of this resource. |
+| `nextPageToken` | `string`<br> The token that can be used as the value of the `pageToken` parameter to retrieve the next page in the result set. |
+| `prevPageToken` | `string`<br> The token that can be used as the value of the `pageToken` parameter to retrieve the previous page in the result set. |
+| `pageInfo` | `object`<br> The `pageInfo` object encapsulates paging information for the result set. |
+| `pageInfo.totalResults` | `integer`<br> The total number of results in the result set. |
+| `pageInfo.resultsPerPage` | `integer`<br> The number of results included in the API response. |
+| `items[]` | `list`<br> A list of playlist items that match the request criteria. |
+
+## Examples
+
+**Note:** The following code samples may not represent all supported programming languages. See the [client libraries](https://developers.google.com/youtube/data/libraries) documentation for a list of supported languages.
+
+[Go](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#go)[.NET](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#.net)[Ruby](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#ruby)More
+
+
+This code sample calls the API's `playlistItems.list` method to retrieve a list of
+videos uploaded to the channel associated with the request. The code also calls the `channels.list`
+method with the `mine` parameter set to `true` to retrieve the playlist ID that identifies
+the channel's uploaded videos.
+
+
+This example uses the [Go client library](https://github.com/google/google-api-go-client).
+
+```
+package main
+
+import (
+	"fmt"
+	"log"
+
+	"google.golang.org/api/youtube/v3"
+)
+
+// Retrieve playlistItems in the specified playlist
+func playlistItemsList(service *youtube.Service, part string, playlistId string, pageToken string) *youtube.PlaylistItemListResponse {
+	call := service.PlaylistItems.List(part)
+	call = call.PlaylistId(playlistId)
+	if pageToken != "" {
+		call = call.PageToken(pageToken)
+	}
+	response, err := call.Do()
+	handleError(err, "")
+	return response
+}
+
+// Retrieve resource for the authenticated user's channel
+func channelsListMine(service *youtube.Service, part string) *youtube.ChannelListResponse {
+	call := service.Channels.List(part)
+	call = call.Mine(true)
+	response, err := call.Do()
+	handleError(err, "")
+	return response
+}
+
+func main() {
+	client := getClient(youtube.YoutubeReadonlyScope)
+	service, err := youtube.New(client)
+
+	if err != nil {
+		log.Fatalf("Error creating YouTube client: %v", err)
+	}
+
+	response := channelsListMine(service, "contentDetails")
+
+	for _, channel := range response.Items {
+		playlistId := channel.ContentDetails.RelatedPlaylists.Uploads
+
+		// Print the playlist ID for the list of uploaded videos.
+		fmt.Printf("Videos in list %s\r\n", playlistId)
+
+		nextPageToken := ""
+		for {
+			// Retrieve next set of items in the playlist.
+			playlistResponse := playlistItemsList(service, "snippet", playlistId, nextPageToken)
+
+			for _, playlistItem := range playlistResponse.Items {
+				title := playlistItem.Snippet.Title
+				videoId := playlistItem.Snippet.ResourceId.VideoId
+				fmt.Printf("%v, (%v)\r\n", title, videoId)
+			}
+
+			// Set the token to retrieve the next page of results
+			// or exit the loop if all results have been retrieved.
+			nextPageToken = playlistResponse.NextPageToken
+			if nextPageToken == "" {
+				break
+			}
+			fmt.Println()
+		}
+	}
+}
+my_uploads.go
+```
+
+
+The following code sample calls the API's `playlistItems.list` method to retrieve a list of videos
+uploaded to the channel associated with the request. The code also calls the `channels.list` method with the
+`mine` parameter set to `true` to retrieve the playlist ID that identifies the channel's uploaded
+videos.
+
+
+This example uses the [.NET client library](https://developers.google.com/api-client-library/dotnet).
+
+```
+using System;
+using System.IO;
+using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
+
+using Google.Apis.Auth.OAuth2;
+using Google.Apis.Services;
+using Google.Apis.Upload;
+using Google.Apis.Util.Store;
+using Google.Apis.YouTube.v3;
+using Google.Apis.YouTube.v3.Data;
+
+namespace Google.Apis.YouTube.Samples
+{
+  /// <summary>
+  /// YouTube Data API v3 sample: retrieve my uploads.
+  /// Relies on the Google APIs Client Library for .NET, v1.7.0 or higher.
+  /// See https://developers.google.com/api-client-library/dotnet/get_started
+  /// </summary>
+  internal class MyUploads
+  {
+    [STAThread]
+    static void Main(string[] args)
+    {
+      Console.WriteLine("YouTube Data API: My Uploads");
+      Console.WriteLine("============================");
+
+      try
+      {
+        new MyUploads().Run().Wait();
+      }
+      catch (AggregateException ex)
+      {
+        foreach (var e in ex.InnerExceptions)
+        {
+          Console.WriteLine("Error: " + e.Message);
+        }
+      }
+
+      Console.WriteLine("Press any key to continue...");
+      Console.ReadKey();
+    }
+
+    private async Task Run()
+    {
+      UserCredential credential;
+      using (var stream = new FileStream("client_secrets.json", FileMode.Open, FileAccess.Read))
+      {
+        credential = await GoogleWebAuthorizationBroker.AuthorizeAsync(
+            GoogleClientSecrets.Load(stream).Secrets,
+            // This OAuth 2.0 access scope allows for read-only access to the authenticated
+            // user's account, but not other types of account access.
+            new[] { YouTubeService.Scope.YoutubeReadonly },
+            "user",
+            CancellationToken.None,
+            new FileDataStore(this.GetType().ToString())
+        );
+      }
+
+      var youtubeService = new YouTubeService(new BaseClientService.Initializer()
+      {
+        HttpClientInitializer = credential,
+        ApplicationName = this.GetType().ToString()
+      });
+
+      var channelsListRequest = youtubeService.Channels.List("contentDetails");
+      channelsListRequest.Mine = true;
+
+      // Retrieve the contentDetails part of the channel resource for the authenticated user's channel.
+      var channelsListResponse = await channelsListRequest.ExecuteAsync();
+
+      foreach (var channel in channelsListResponse.Items)
+      {
+        // From the API response, extract the playlist ID that identifies the list
+        // of videos uploaded to the authenticated user's channel.
+        var uploadsListId = channel.ContentDetails.RelatedPlaylists.Uploads;
+
+        Console.WriteLine("Videos in list {0}", uploadsListId);
+
+        var nextPageToken = "";
+        while (nextPageToken != null)
+        {
+          var playlistItemsListRequest = youtubeService.PlaylistItems.List("snippet");
+          playlistItemsListRequest.PlaylistId = uploadsListId;
+          playlistItemsListRequest.MaxResults = 50;
+          playlistItemsListRequest.PageToken = nextPageToken;
+
+          // Retrieve the list of videos uploaded to the authenticated user's channel.
+          var playlistItemsListResponse = await playlistItemsListRequest.ExecuteAsync();
+
+          foreach (var playlistItem in playlistItemsListResponse.Items)
+          {
+            // Print information about each video.
+            Console.WriteLine("{0} ({1})", playlistItem.Snippet.Title, playlistItem.Snippet.ResourceId.VideoId);
+          }
+
+          nextPageToken = playlistItemsListResponse.NextPageToken;
+        }
+      }
+    }
+  }
+}
+MyUploads.cs
+```
+
+
+This sample calls the API's `playlistItems.list` method to retrieve a list of videos uploaded
+to the channel associated with the request. The code also calls the `channels.list` method with the
+`mine` parameter set to `true` to retrieve the playlist ID that identifies the channel's
+uploaded videos.
+
+
+This example uses the [Ruby client library](https://developers.google.com/api-client-library/ruby).
+
+```
+#!/usr/bin/ruby
+
+require 'rubygems'
+gem 'google-api-client', '>0.7'
+require 'google/api_client'
+require 'google/api_client/client_secrets'
+require 'google/api_client/auth/file_storage'
+require 'google/api_client/auth/installed_app'
+
+# This OAuth 2.0 access scope allows for read-only access to the authenticated
+# user's account, but not other types of account access.
+YOUTUBE_READONLY_SCOPE = 'https://www.googleapis.com/auth/youtube.readonly'
+YOUTUBE_API_SERVICE_NAME = 'youtube'
+YOUTUBE_API_VERSION = 'v3'
+
+def get_authenticated_service
+  client = Google::APIClient.new(
+    :application_name => $PROGRAM_NAME,
+    :application_version => '1.0.0'
+  )
+  youtube = client.discovered_api(YOUTUBE_API_SERVICE_NAME, YOUTUBE_API_VERSION)
+
+  file_storage = Google::APIClient::FileStorage.new("#{$PROGRAM_NAME}-oauth2.json")
+  if file_storage.authorization.nil?
+    client_secrets = Google::APIClient::ClientSecrets.load
+    flow = Google::APIClient::InstalledAppFlow.new(
+      :client_id => client_secrets.client_id,
+      :client_secret => client_secrets.client_secret,
+      :scope => [YOUTUBE_READONLY_SCOPE]
+    )
+    client.authorization = flow.authorize(file_storage)
+  else
+    client.authorization = file_storage.authorization
+  end
+
+  return client, youtube
+end
+
+def main
+  client, youtube = get_authenticated_service
+
+  begin
+    # Retrieve the "contentDetails" part of the channel resource for the
+    # authenticated user's channel.
+    channels_response = client.execute!(
+      :api_method => youtube.channels.list,
+      :parameters => {
+        :mine => true,
+        :part => 'contentDetails'
+      }
+    )
+
+    channels_response.data.items.each do |channel|
+      # From the API response, extract the playlist ID that identifies the list
+      # of videos uploaded to the authenticated user's channel.
+      uploads_list_id = channel['contentDetails']['relatedPlaylists']['uploads']
+
+      # Retrieve the list of videos uploaded to the authenticated user's channel.
+      next_page_token = ''
+      until next_page_token.nil?
+        playlistitems_response = client.execute!(
+          :api_method => youtube.playlist_items.list,
+          :parameters => {
+            :playlistId => uploads_list_id,
+            :part => 'snippet',
+            :maxResults => 50,
+            :pageToken => next_page_token
+          }
+        )
+
+        puts "Videos in list #{uploads_list_id}"
+
+        # Print information about each video.
+        playlistitems_response.data.items.each do |playlist_item|
+          title = playlist_item['snippet']['title']
+          video_id = playlist_item['snippet']['resourceId']['videoId']
+
+          puts "#{title} (#{video_id})"
+        end
+
+        next_page_token = playlistitems_response.next_page_token
+      end
+
+      puts
+    end
+  rescue Google::APIClient::TransmissionError => e
+    puts e.result.body
+  end
+end
+
+main
+my_uploads.rb
+```
+
+## Errors
+
+The following table identifies error messages that the API could return in response to a call to this method. Please see the [error message](https://developers.google.com/youtube/data/reference/rest/v3/errors) documentation for more detail.
+
+| Error type | Error detail | Description |
+| --- | --- | --- |
+| `forbidden (403)` | `playlistItemsNotAccessible` | The request is not properly authorized to retrieve the specified playlist. |
+| `forbidden (403)` | `watchHistoryNotAccessible` | Watch history data cannot be retrieved through the API. |
+| `forbidden (403)` | `watchLaterNotAccessible` | Items in "watch later" playlists cannot be retrieved through the API. |
+| `notFound (404)` | `playlistNotFound` | The playlist identified with the request's `playlistId` parameter cannot be found. |
+| `notFound (404)` | `videoNotFound` | The video identified with the request's `videoId` parameter cannot be found. |
+| `required (400)` | `playlistIdRequired` | The subscribe request does not specify a value for the required `playlistId` property. |
+| `invalidValue (400)` | `playlistOperationUnsupported` | The API does not support the ability to list videos in the specified playlist. For example, you can't list a video in your watch later playlist. |
+
+## Try it!
+
+Use the APIs Explorer to call this API and see the API request and response.
+
+Was this helpful?
+
+Except as otherwise noted, the content of this page is licensed under the [Creative Commons Attribution 4.0 License](https://creativecommons.org/licenses/by/4.0/), and code samples are licensed under the [Apache 2.0 License](https://www.apache.org/licenses/LICENSE-2.0). For details, see the [Google Developers Site Policies](https://developers.google.com/site-policies). Java is a registered trademark of Oracle and/or its affiliates.
+
+Last updated 2026-10-15 UTC.
+
+
+
+
+\[\[\["Easy to understand","easyToUnderstand","thumb-up"\],\["Solved my problem","solvedMyProblem","thumb-up"\],\["Other","otherUp","thumb-up"\]\],\[\["Missing the information I need","missingTheInformationINeed","thumb-down"\],\["Too complicated / too many steps","tooComplicatedTooManySteps","thumb-down"\],\["Out of date","outOfDate","thumb-down"\],\["Samples / code issue","samplesCodeIssue","thumb-down"\],\["Other","otherDown","thumb-down"\]\],\["Last updated 2026-10-15 UTC."\],\[\],\[\]\]
+
+
+
+Info
+
+
+Chat
+
+
+API
+
+
+Try It!
+
+## Page info
+
+bug\_reportfullscreenclose\_fullscreenclose
+
+### On this page
+
+- On this page
+- [Common use cases](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#common-use-cases)
+- [Request](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#request)
+  - [HTTP request](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#http-request)
+  - [Parameters](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#parameters)
+  - [Request body](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#request-body)
+- [Response](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#response)
+  - [Properties](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#properties)
+- [Examples](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#examples)
+- [Errors](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#errors)
+- [Try it!](https://developers.google.com/youtube/data/reference/rest/v3/playlistItems/list#try-it)
+Try it!

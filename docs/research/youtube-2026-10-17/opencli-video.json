@@ -1,0 +1,16 @@
+{
+  "source_url": "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+  "checked_at": "2026-10-17T12:37:02.760834+00:00",
+  "completed_at": "2026-10-17T12:37:03.483318+00:00",
+  "command": [
+    "opencli",
+    "youtube",
+    "video",
+    "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+    "-f",
+    "json"
+  ],
+  "exit_code": 1,
+  "stdout": "",
+  "stderr": "ok: false\nerror:\n  code: COMMAND_EXEC\n  message: 'Pre-navigation to https://www.youtube.com failed: Navigation rejected.'\n  help: Check that the site is reachable and the browser extension is running.\n  exitCode: 1\n"
+}

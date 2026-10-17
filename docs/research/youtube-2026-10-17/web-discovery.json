@@ -1,0 +1,20 @@
+{
+  "source_url": "process://forager/search",
+  "checked_at": "2026-10-17T12:39:39.339150+00:00",
+  "completed_at": "2026-10-17T12:39:44.019196+00:00",
+  "command": [
+    "forager",
+    "search",
+    "site:youtube.com/watch \"Me at the zoo\" jawed",
+    "--capabilities",
+    "none",
+    "--format",
+    "json"
+  ],
+  "exit_code": 0,
+  "stdout": "{\"answer\":\"I'll search for that YouTube video.**Me at the zoo** (original first YouTube video)  \\n**URL:** https://www.youtube.com/watch?v=jNQXAC9IVRw\",\"capability_gaps\":[],\"journal_ref\":\"/Users/jfmoe/.local/state/forager/journal/search_result_1792240783999847000_7044_0.json\",\"journal_status\":\"written\",\"sources\":[{\"title\":\"https://www.tubefilter.com/2025/04/23/20-years-youtube-me-at-the-zoo-2005-jawed-karim/\",\"url\":\"https://www.tubefilter.com/2025/04/23/20-years-youtube-me-at-the-zoo-2005-jawed-karim/\"},{\"title\":\"https://www.youtube.com/watch?v=bkgFmSXrMeE\",\"url\":\"https://www.youtube.com/watch?v=bkgFmSXrMeE\"},{\"title\":\"https://www.youtube.com/watch?v=jNQXAC9IVRw&pp=ygUEandlZA%3D%3D\",\"url\":\"https://www.youtube.com/watch?v=jNQXAC9IVRw&pp=ygUEandlZA%3D%3D\"},{\"title\":\"https://www.youtube.com/watch?v=S8_SeS8yZ0I\",\"url\":\"https://www.youtube.com/watch?v=S8_SeS8yZ0I\"},{\"title\":\"https://www.youtube.com/watch?v=jNQXAC9IVRw'\",\"url\":\"https://www.youtube.com/watch?v=jNQXAC9IVRw'\"},{\"title\":\"https://youtube.fandom.com/wiki/Me_at_the_zoo\",\"url\":\"https://youtube.fandom.com/wiki/Me_at_the_zoo\"},{\"title\":\"https://www.youtube.com/watch?v=jNQXAC9IVRw&vl=en\",\"url\":\"https://www.youtube.com/watch?v=jNQXAC9IVRw&vl=en\"},{\"title\":\"https://www.youtube.com/watch?v=nwNJHgXjXQk\",\"url\":\"https://www.youtube.com/watch?v=nwNJHgXjXQk\"},{\"title\":\"https://www.youtube.com/watch?v=dcZY3yi8Xbw\",\"url\":\"https://www.youtube.com/watch?v=dcZY3yi8Xbw\"},{\"title\":\"https://www.youtube.com/watch?v=i1NTSXbfZOw\",\"url\":\"https://www.youtube.com/watch?v=i1NTSXbfZOw\"},{\"title\":\"https://www.youtube.com/watch?v=jNQXAC9IVRw\",\"url\":\"https://www.youtube.com/watch?v=jNQXAC9IVRw\"},{\"title\":\"https://www.youtube.com/watch?v=YBOwtZMeAm4\",\"url\":\"https://www.youtube.com/watch?v=YBOwtZMeAm4\"},{\"title\":\"https://www.youtube.com/watch?v=11DiLdbfq-8\",\"url\":\"https://www.youtube.com/watch?v=11DiLdbfq-8\"}]}\n",
+  "stderr": "",
+  "side_effect_cleanup": "Removed only the journal file created by this invocation; no pre-existing file touched.",
+  "discovery_target_url": "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+  "evidence_role": "Observed local CLI discovery result, not a snapshot of the YouTube page."
+}

@@ -1,0 +1,1165 @@
+Scrape Creators Documentation
+
+[![Scrape Creators logo](https://scrapecreators.com/logo.png)](https://scrapecreators.com/)[Documentation](https://docs.scrapecreators.com/)
+
+Search or ask...
+
+⌘K
+
+Search...
+
+[API Reference](https://docs.scrapecreators.com/introduction) [Integrations](https://docs.scrapecreators.com/integrations/overview)
+
+[![Scrape Creators logo](https://scrapecreators.com/logo.png)](https://docs.scrapecreators.com/) Close menu
+
+[Introduction](https://docs.scrapecreators.com/introduction) [Missing TikTok posts](https://docs.scrapecreators.com/tiktok-post-availability)
+
+##### Integrations
+
+[Overview](https://docs.scrapecreators.com/integrations/overview) [MCP](https://docs.scrapecreators.com/integrations/mcp) [Agent Skill](https://docs.scrapecreators.com/integrations/agent-skill) [CLI](https://docs.scrapecreators.com/integrations/cli) [n8n](https://docs.scrapecreators.com/integrations/n8n) [Apify](https://docs.scrapecreators.com/integrations/apify)
+
+##### Featured
+
+- [Find Social ProfilesNew](https://docs.scrapecreators.com/v1/find-social-profiles "Creator Tools: Find Social Profiles")
+- [Find Creator EmailsNew](https://docs.scrapecreators.com/v1/find-creator-emails "Creator Tools: Find Creator Emails")
+- [Posts](https://docs.scrapecreators.com/v2/instagram/user/posts "Instagram: Posts")
+- [Post/Reel Info](https://docs.scrapecreators.com/v1/instagram/post "Instagram: Post/Reel Info")
+- [Profile](https://docs.scrapecreators.com/v1/instagram/profile "Instagram: Profile")
+- [Profile Videos](https://docs.scrapecreators.com/v3/tiktok/profile/videos "TikTok: Profile Videos")
+- [Video Info](https://docs.scrapecreators.com/v2/tiktok/video "TikTok: Video Info")
+- [Video/Short Details](https://docs.scrapecreators.com/v1/youtube/video "YouTube: Video/Short Details")
+- [Transcript](https://docs.scrapecreators.com/v1/youtube/video/transcript "YouTube: Transcript")
+- [Company Ads](https://docs.scrapecreators.com/v1/facebook/adLibrary/company/ads "Facebook Ad Library: Company Ads")
+
+##### TikTok
+
+[GETProfile](https://docs.scrapecreators.com/v1/tiktok/profile) [GETProfile Region](https://docs.scrapecreators.com/v1/tiktok/profile/region) [GETUser's Audience Demographics](https://docs.scrapecreators.com/v1/tiktok/user/audience) [GETCollection Videos](https://docs.scrapecreators.com/v1/tiktok/collection/videos) [GETProfile VideosFeatured endpoint](https://docs.scrapecreators.com/v3/tiktok/profile/videos) [GETVideo InfoFeatured endpoint](https://docs.scrapecreators.com/v2/tiktok/video) [GETTranscriptFeatured endpoint](https://docs.scrapecreators.com/v1/tiktok/video/transcript) [GETLive](https://docs.scrapecreators.com/v1/tiktok/user/live) [GETLive Info](https://docs.scrapecreators.com/v1/tiktok/live) [GETComments](https://docs.scrapecreators.com/v1/tiktok/video/comments) [GETComment Replies](https://docs.scrapecreators.com/v1/tiktok/video/comment/replies) [GETFollowing](https://docs.scrapecreators.com/v1/tiktok/user/following) [GETFollowers](https://docs.scrapecreators.com/v1/tiktok/user/followers) [GETSearch Users](https://docs.scrapecreators.com/v1/tiktok/search/users) [GETSearch Suggestions](https://docs.scrapecreators.com/v1/tiktok/search/suggestions) [GETSearch by Hashtag](https://docs.scrapecreators.com/v1/tiktok/search/hashtag) [GETSearch by KeywordFeatured endpoint](https://docs.scrapecreators.com/v1/tiktok/search/keyword) [GETTop Search](https://docs.scrapecreators.com/v1/tiktok/search/top) [GETGet popular creators](https://docs.scrapecreators.com/v1/tiktok/creators/popular) [GETGet Song Details](https://docs.scrapecreators.com/v1/tiktok/song) [GETTikToks using Song](https://docs.scrapecreators.com/v1/tiktok/song/videos) [GETTrending Feed](https://docs.scrapecreators.com/v1/tiktok/get-trending-feed)
+
+##### TikTok Shop
+
+[GETShop Search](https://docs.scrapecreators.com/v1/tiktok/shop/search) [GETShop Products](https://docs.scrapecreators.com/v1/tiktok/shop/products) [GETProduct Details](https://docs.scrapecreators.com/v1/tiktok/product) [GETProduct Reviews](https://docs.scrapecreators.com/v1/tiktok/shop/product/reviews) [GETUser Showcase](https://docs.scrapecreators.com/v1/tiktok/user/showcase)
+
+##### Instagram
+
+[GETProfileFeatured endpoint](https://docs.scrapecreators.com/v1/instagram/profile) [GETBasic Profile](https://docs.scrapecreators.com/v1/instagram/basic-profile) [GETPostsFeatured endpoint](https://docs.scrapecreators.com/v2/instagram/user/posts) [GETUser Tagged Posts](https://docs.scrapecreators.com/v1/instagram/user/tagged-posts) [GETReelsFeatured endpoint](https://docs.scrapecreators.com/v1/instagram/user/reels) [GETPost/Reel InfoFeatured endpoint](https://docs.scrapecreators.com/v1/instagram/post) [GETTranscriptFeatured endpoint](https://docs.scrapecreators.com/v2/instagram/media/transcript) [GETSearch Instagram](https://docs.scrapecreators.com/v1/instagram/search) [GETPopular Search](https://docs.scrapecreators.com/v1/instagram/search/popular) [GETSearch Hashtag Posts](https://docs.scrapecreators.com/v1/instagram/search/hashtag) [GETSearch Instagram Profiles](https://docs.scrapecreators.com/v1/instagram/search/profiles) [GETSearch ReelsFeatured endpoint](https://docs.scrapecreators.com/v2/instagram/reels/search) [GETGet Reels By Audio Id](https://docs.scrapecreators.com/v1/instagram/audio/reels) [GETTrending Reels](https://docs.scrapecreators.com/v1/instagram/reels/trending) [GETComments](https://docs.scrapecreators.com/v2/instagram/post/comments) [GETComment Replies](https://docs.scrapecreators.com/v1/instagram/post/comment/replies) [GETStory Highlights](https://docs.scrapecreators.com/v1/instagram/user/highlights) [GETHighlights Details](https://docs.scrapecreators.com/v1/instagram/user/highlight/detail) [GETProfile Post Count](https://docs.scrapecreators.com/v1/instagram/profile/post-count) [GETEmbed HTML](https://docs.scrapecreators.com/v1/instagram/user/embed)
+
+##### YouTube
+
+[GETChannel Details](https://docs.scrapecreators.com/v1/youtube/channel) [GETChannel Videos](https://docs.scrapecreators.com/v1/youtube/channel-videos) [GETChannel Playlists](https://docs.scrapecreators.com/v1/youtube/channel/playlists) [GETChannel Lives](https://docs.scrapecreators.com/v1/youtube/channel/lives) [GETChannel Community Posts](https://docs.scrapecreators.com/v1/youtube/channel/community-posts) [GETChannel Shorts](https://docs.scrapecreators.com/v1/youtube/channel/shorts) [GETVideo/Short DetailsFeatured endpoint](https://docs.scrapecreators.com/v1/youtube/video) [GETTranscriptFeatured endpoint](https://docs.scrapecreators.com/v1/youtube/video/transcript) [GETVideo Sponsors](https://docs.scrapecreators.com/v1/youtube/video/sponsors) [GETSearch](https://docs.scrapecreators.com/v1/youtube/search) [GETSearch Typeahead](https://docs.scrapecreators.com/v1/youtube/search/typeahead) [GETSearch by Hashtag](https://docs.scrapecreators.com/v1/youtube/search/hashtag) [GETComments](https://docs.scrapecreators.com/v1/youtube/video/comments) [GETComment Replies](https://docs.scrapecreators.com/v1/youtube/video/comment/replies) [GETTrending Shorts](https://docs.scrapecreators.com/v1/youtube/shorts/trending) [GETPlaylist](https://docs.scrapecreators.com/v1/youtube/playlist) [GETCommunity Post Details](https://docs.scrapecreators.com/v1/youtube/community-post)
+
+##### Rumble
+
+[GETSearch](https://docs.scrapecreators.com/v1/rumble/search) [GETChannel Videos](https://docs.scrapecreators.com/v1/rumble/channel/videos) [GETVideo](https://docs.scrapecreators.com/v1/rumble/video) [GETTranscript](https://docs.scrapecreators.com/v1/rumble/video/transcript) [GETComments](https://docs.scrapecreators.com/v1/rumble/video/comments)
+
+##### LinkedIn
+
+[GETPerson's Profile](https://docs.scrapecreators.com/v1/linkedin/profile) [GETCompany Page](https://docs.scrapecreators.com/v1/linkedin/company) [GETCompany Posts](https://docs.scrapecreators.com/v1/linkedin/company/posts) [GETSearch Posts](https://docs.scrapecreators.com/v1/linkedin/search/posts) [GETPost](https://docs.scrapecreators.com/v1/linkedin/post) [GETPost Transcript](https://docs.scrapecreators.com/v1/linkedin/post/transcript)
+
+##### Facebook
+
+[GETProfile](https://docs.scrapecreators.com/v1/facebook/profile) [GETProfile Reels](https://docs.scrapecreators.com/v1/facebook/profile/reels) [GETSearch Videos](https://docs.scrapecreators.com/v1/facebook/search/videos) [GETProfile Photos](https://docs.scrapecreators.com/v1/facebook/profile/photos) [GETProfile Posts](https://docs.scrapecreators.com/v1/facebook/profile/posts) [GETProfile Events](https://docs.scrapecreators.com/v1/facebook/profile/events) [GETPost](https://docs.scrapecreators.com/v1/facebook/post) [GETTranscript](https://docs.scrapecreators.com/v1/facebook/post/transcript) [GETComments](https://docs.scrapecreators.com/v1/facebook/post/comments) [GETComment Replies](https://docs.scrapecreators.com/v1/facebook/post/comment/replies) [GETFacebook Group Info](https://docs.scrapecreators.com/v1/facebook/group) [GETFacebook Group Posts](https://docs.scrapecreators.com/v1/facebook/group/posts)
+
+##### GitHub
+
+[GETUser](https://docs.scrapecreators.com/v1/github/user) [GETRepositories](https://docs.scrapecreators.com/v1/github/user/repositories) [GETPull Requests](https://docs.scrapecreators.com/v1/github/user/pull-requests) [GETActivity](https://docs.scrapecreators.com/v1/github/user/activity) [GETFollowers](https://docs.scrapecreators.com/v1/github/user/followers) [GETFollowing](https://docs.scrapecreators.com/v1/github/user/following) [GETContributions](https://docs.scrapecreators.com/v1/github/user/contributions) [GETRepository](https://docs.scrapecreators.com/v1/github/repository) [GETTrending Repositories](https://docs.scrapecreators.com/v1/github/trending/repositories) [GETTrending Developers](https://docs.scrapecreators.com/v1/github/trending/developers)
+
+##### Facebook Marketplace
+
+[GETMarketplace Location Search](https://docs.scrapecreators.com/v1/facebook/marketplace/location/search) [GETMarketplace Search](https://docs.scrapecreators.com/v1/facebook/marketplace/search) [GETMarketplace Item](https://docs.scrapecreators.com/v1/facebook/marketplace/item)
+
+##### Facebook Events
+
+[GETSearch Events](https://docs.scrapecreators.com/v1/facebook/events/search) [GETEvents](https://docs.scrapecreators.com/v1/facebook/events) [GETEvent Details](https://docs.scrapecreators.com/v1/facebook/event/details)
+
+##### Facebook Ad Library
+
+[GETAd Details](https://docs.scrapecreators.com/v1/facebook/adLibrary/ad) [GETAd Transcript](https://docs.scrapecreators.com/v1/facebook/adLibrary/ad/transcript) [GETSearchFeatured endpoint](https://docs.scrapecreators.com/v1/facebook/adLibrary/search/ads) [POSTSearchFeatured endpoint](https://docs.scrapecreators.com/v1/facebook/adLibrary/search/ads/post) [GETCompany AdsFeatured endpoint](https://docs.scrapecreators.com/v1/facebook/adLibrary/company/ads) [POSTCompany AdsFeatured endpoint](https://docs.scrapecreators.com/v1/facebook/adLibrary/company/ads/post) [GETSearch for Companies](https://docs.scrapecreators.com/v1/facebook/adLibrary/search/companies)
+
+##### TikTok Ad Library
+
+[GETAd Library Search](https://docs.scrapecreators.com/v1/tiktok/ad-library/search) [GETAd Library Ad](https://docs.scrapecreators.com/v1/tiktok/ad-library/ad)
+
+##### Google Ad Library
+
+[GETCompany Ads](https://docs.scrapecreators.com/v1/google/company/ads) [GETAd Details](https://docs.scrapecreators.com/v1/google/ad) [GETAdvertiser Search](https://docs.scrapecreators.com/v1/google/adLibrary/advertisers/search)
+
+##### LinkedIn Ad Library
+
+[GETSearch Ads](https://docs.scrapecreators.com/v1/linkedin/ads/search) [GETAd Details](https://docs.scrapecreators.com/v1/linkedin/ad)
+
+##### Twitter
+
+[GETSearch Posts](https://docs.scrapecreators.com/v1/twitter/search/posts) [GETProfile](https://docs.scrapecreators.com/v1/twitter/profile) [GETUser Tweets](https://docs.scrapecreators.com/v1/twitter/user-tweets) [GETTweet Details](https://docs.scrapecreators.com/v1/twitter/tweet) [GETTranscript](https://docs.scrapecreators.com/v1/twitter/tweet/transcript) [GETCommunity](https://docs.scrapecreators.com/v1/twitter/community) [GETCommunity Tweets](https://docs.scrapecreators.com/v1/twitter/community/tweets)
+
+##### Reddit
+
+[GETSubreddit Details](https://docs.scrapecreators.com/v1/reddit/subreddit/details) [GETSubreddit Posts](https://docs.scrapecreators.com/v1/reddit/subreddit) [GETSubreddit Search](https://docs.scrapecreators.com/v1/reddit/subreddit/search) [GETPost](https://docs.scrapecreators.com/v1/reddit/post) [GETPost Comments](https://docs.scrapecreators.com/v1/reddit/post/comments) [POSTPost Comments](https://docs.scrapecreators.com/v1/reddit/post/comments/post) [GETPost Transcript](https://docs.scrapecreators.com/v1/reddit/post/transcript) [GETSearch](https://docs.scrapecreators.com/v1/reddit/search)
+
+##### Truth Social
+
+[GETProfile](https://docs.scrapecreators.com/v1/truthsocial/profile) [GETUser Posts](https://docs.scrapecreators.com/v1/truthsocial/user/posts) [GETPost](https://docs.scrapecreators.com/v1/truthsocial/post)
+
+##### Threads
+
+[GETProfile](https://docs.scrapecreators.com/v1/threads/profile) [GETPosts](https://docs.scrapecreators.com/v1/threads/user/posts) [GETPost](https://docs.scrapecreators.com/v1/threads/post) [GETSearch by Keyword](https://docs.scrapecreators.com/v1/threads/search) [GETSearch Users](https://docs.scrapecreators.com/v1/threads/search/users)
+
+##### Bluesky
+
+[GETProfile](https://docs.scrapecreators.com/v1/bluesky/profile) [GETPosts](https://docs.scrapecreators.com/v1/bluesky/user/posts) [GETPost](https://docs.scrapecreators.com/v1/bluesky/post)
+
+##### Pinterest
+
+[GETSearch](https://docs.scrapecreators.com/v1/pinterest/search) [GETPin](https://docs.scrapecreators.com/v1/pinterest/pin) [GETUser Boards](https://docs.scrapecreators.com/v1/pinterest/user/boards) [GETBoard](https://docs.scrapecreators.com/v1/pinterest/board)
+
+##### Google
+
+[GETSearch](https://docs.scrapecreators.com/v1/google/search)
+
+##### Twitch
+
+[GETProfile](https://docs.scrapecreators.com/v1/twitch/profile) [GETUser Videos](https://docs.scrapecreators.com/v1/twitch/user/videos) [GETUser Schedule](https://docs.scrapecreators.com/v1/twitch/user/schedule) [GETClip Transcript](https://docs.scrapecreators.com/v1/twitch/clip/transcript) [GETClip](https://docs.scrapecreators.com/v1/twitch/clip)
+
+##### Apple Music
+
+[GETArtist](https://docs.scrapecreators.com/v1/apple-music/artist) [GETAlbum](https://docs.scrapecreators.com/v1/apple-music/album) [GETTrack](https://docs.scrapecreators.com/v1/apple-music/track) [GETSearch](https://docs.scrapecreators.com/v1/apple-music/search)
+
+##### Spotify
+
+[GETArtist](https://docs.scrapecreators.com/v1/spotify/artist) [GETTrack](https://docs.scrapecreators.com/v1/spotify/track) [GETAlbum](https://docs.scrapecreators.com/v1/spotify/album) [GETPlaylist](https://docs.scrapecreators.com/v1/spotify/playlist) [GETSearch](https://docs.scrapecreators.com/v1/spotify/search) [GETPodcast](https://docs.scrapecreators.com/v1/spotify/podcast) [GETPodcast Episodes](https://docs.scrapecreators.com/v1/spotify/podcast/episodes)
+
+##### SoundCloud
+
+[GETArtist](https://docs.scrapecreators.com/v1/soundcloud/artist) [GETArtist Tracks](https://docs.scrapecreators.com/v1/soundcloud/artist/tracks) [GETTrack](https://docs.scrapecreators.com/v1/soundcloud/track)
+
+##### Kwai
+
+[GETProfile](https://docs.scrapecreators.com/v1/kwai/profile) [GETUser Posts](https://docs.scrapecreators.com/v1/kwai/user/posts) [GETPost](https://docs.scrapecreators.com/v1/kwai/post)
+
+##### Kick
+
+[GETClip Transcript](https://docs.scrapecreators.com/v1/kick/clip/transcript) [GETClip](https://docs.scrapecreators.com/v1/kick/clip)
+
+##### Snapchat
+
+[GETUser Profile](https://docs.scrapecreators.com/v1/snapchat/profile) [GETSpotlight by Link](https://docs.scrapecreators.com/v1/snapchat/spotlight) [GETSpotlight Comments by Link](https://docs.scrapecreators.com/v1/snapchat/spotlight/comments)
+
+##### Telegram
+
+[GETChannel Details](https://docs.scrapecreators.com/v1/telegram/channel) [GETChannel Posts](https://docs.scrapecreators.com/v1/telegram/channel/posts) [GETPost Details](https://docs.scrapecreators.com/v1/telegram/post)
+
+![Cosmos](https://www.cosmos.so/apple-icon.png)
+
+##### Cosmos
+
+[GETProfile](https://docs.scrapecreators.com/v1/cosmos/profile) [GETUser Posts](https://docs.scrapecreators.com/v1/cosmos/user/posts) [GETUser Collections](https://docs.scrapecreators.com/v1/cosmos/user/clusters) [GETPost](https://docs.scrapecreators.com/v1/cosmos/post) [GETCollection](https://docs.scrapecreators.com/v1/cosmos/cluster) [GETCollection Posts](https://docs.scrapecreators.com/v1/cosmos/cluster/posts) [GETSearch](https://docs.scrapecreators.com/v1/cosmos/search)
+
+##### Creator Tools
+
+[GETFind Social ProfilesFeatured endpointNew](https://docs.scrapecreators.com/v1/find-social-profiles) [GETFind Creator EmailsFeatured endpointNew](https://docs.scrapecreators.com/v1/find-creator-emails) [GETGet Age and Gender](https://docs.scrapecreators.com/v1/detect-age-gender)
+
+##### Linktree
+
+[GETLinktree page](https://docs.scrapecreators.com/v1/linktree)
+
+![Komi Icon](https://cdn.prod.website-files.com/63bee2a6c490b309ba2e4939/6489b9c055c477050957272b_icon-32.png)
+
+##### Komi
+
+[GETKomi page](https://docs.scrapecreators.com/v1/komi)
+
+![Pillar Icon](https://cdn.prod.website-files.com/67059a0f01d454958209de93/67059a0f01d454958209de9a_Pillar%2032.svg)
+
+##### Pillar
+
+[GETPillar page](https://docs.scrapecreators.com/v1/pillar)
+
+![LinkBio Icon](https://cdn2.lnk.bi/img/favicon/202006sqr/favicon.svg)
+
+##### Linkbio
+
+[GETLinkbio page](https://docs.scrapecreators.com/v1/linkbio)
+
+##### Amazon Shop
+
+[GETAmazon Shop page](https://docs.scrapecreators.com/v1/amazon/shop)
+
+![Scrape Creators logo](https://scrapecreators.com/logo.png)
+
+##### Scrape Creators
+
+[GETGet credit balance](https://docs.scrapecreators.com/v1/account/credit-balance) [GETGet request history](https://docs.scrapecreators.com/v1/account/get-api-usage) [GETGet daily usage](https://docs.scrapecreators.com/v1/account/get-daily-usage-count) [GETGet most used routes](https://docs.scrapecreators.com/v1/account/get-most-used-routes)
+
+![Linkme Icon](<Base64-Image-Removed>)
+
+##### Linkme
+
+[GETProfile](https://docs.scrapecreators.com/v1/linkme)
+
+##### API Documentation
+
+- [Introduction](https://docs.scrapecreators.com/introduction)
+- [Caching](https://docs.scrapecreators.com/caching)
+- [Missing TikTok posts](https://docs.scrapecreators.com/tiktok-post-availability)
+
+##### Featured
+
+- [Find Social ProfilesNew](https://docs.scrapecreators.com/v1/find-social-profiles "Creator Tools: Find Social Profiles")
+- [Find Creator EmailsNew](https://docs.scrapecreators.com/v1/find-creator-emails "Creator Tools: Find Creator Emails")
+- [Posts](https://docs.scrapecreators.com/v2/instagram/user/posts "Instagram: Posts")
+- [Post/Reel Info](https://docs.scrapecreators.com/v1/instagram/post "Instagram: Post/Reel Info")
+- [Profile](https://docs.scrapecreators.com/v1/instagram/profile "Instagram: Profile")
+- [Profile Videos](https://docs.scrapecreators.com/v3/tiktok/profile/videos "TikTok: Profile Videos")
+- [Video Info](https://docs.scrapecreators.com/v2/tiktok/video "TikTok: Video Info")
+- [Video/Short Details](https://docs.scrapecreators.com/v1/youtube/video "YouTube: Video/Short Details")
+- [Transcript](https://docs.scrapecreators.com/v1/youtube/video/transcript "YouTube: Transcript")
+- [Company Ads](https://docs.scrapecreators.com/v1/facebook/adLibrary/company/ads "Facebook Ad Library: Company Ads")
+
+##### TikTok
+
+- [GET\\
+\\
+Profile](https://docs.scrapecreators.com/v1/tiktok/profile)
+- [GET\\
+\\
+Profile Region](https://docs.scrapecreators.com/v1/tiktok/profile/region)
+- [GET\\
+\\
+User's Audience Demographics](https://docs.scrapecreators.com/v1/tiktok/user/audience)
+- [GET\\
+\\
+Collection Videos](https://docs.scrapecreators.com/v1/tiktok/collection/videos)
+- [GET\\
+\\
+Profile Videos\\
+\\
+Featured endpoint](https://docs.scrapecreators.com/v3/tiktok/profile/videos)
+- [GET\\
+\\
+Video Info\\
+\\
+Featured endpoint](https://docs.scrapecreators.com/v2/tiktok/video)
+- [GET\\
+\\
+Transcript\\
+\\
+Featured endpoint](https://docs.scrapecreators.com/v1/tiktok/video/transcript)
+- [GET\\
+\\
+Live](https://docs.scrapecreators.com/v1/tiktok/user/live)
+- [GET\\
+\\
+Live Info](https://docs.scrapecreators.com/v1/tiktok/live)
+- [GET\\
+\\
+Comments](https://docs.scrapecreators.com/v1/tiktok/video/comments)
+- [GET\\
+\\
+Comment Replies](https://docs.scrapecreators.com/v1/tiktok/video/comment/replies)
+- [GET\\
+\\
+Following](https://docs.scrapecreators.com/v1/tiktok/user/following)
+- [GET\\
+\\
+Followers](https://docs.scrapecreators.com/v1/tiktok/user/followers)
+- [GET\\
+\\
+Search Users](https://docs.scrapecreators.com/v1/tiktok/search/users)
+- [GET\\
+\\
+Search Suggestions](https://docs.scrapecreators.com/v1/tiktok/search/suggestions)
+- [GET\\
+\\
+Search by Hashtag](https://docs.scrapecreators.com/v1/tiktok/search/hashtag)
+- [GET\\
+\\
+Search by Keyword\\
+\\
+Featured endpoint](https://docs.scrapecreators.com/v1/tiktok/search/keyword)
+- [GET\\
+\\
+Top Search](https://docs.scrapecreators.com/v1/tiktok/search/top)
+- [GET\\
+\\
+Get popular creators](https://docs.scrapecreators.com/v1/tiktok/creators/popular)
+- [GET\\
+\\
+Get Song Details](https://docs.scrapecreators.com/v1/tiktok/song)
+- [GET\\
+\\
+TikToks using Song](https://docs.scrapecreators.com/v1/tiktok/song/videos)
+- [GET\\
+\\
+Trending Feed](https://docs.scrapecreators.com/v1/tiktok/get-trending-feed)
+
+##### TikTok Shop
+
+- [GET\\
+\\
+Shop Search](https://docs.scrapecreators.com/v1/tiktok/shop/search)
+- [GET\\
+\\
+Shop Products](https://docs.scrapecreators.com/v1/tiktok/shop/products)
+- [GET\\
+\\
+Product Details](https://docs.scrapecreators.com/v1/tiktok/product)
+- [GET\\
+\\
+Product Reviews](https://docs.scrapecreators.com/v1/tiktok/shop/product/reviews)
+- [GET\\
+\\
+User Showcase](https://docs.scrapecreators.com/v1/tiktok/user/showcase)
+
+##### Instagram
+
+- [GET\\
+\\
+Profile\\
+\\
+Featured endpoint](https://docs.scrapecreators.com/v1/instagram/profile)
+- [GET\\
+\\
+Basic Profile](https://docs.scrapecreators.com/v1/instagram/basic-profile)
+- [GET\\
+\\
+Posts\\
+\\
+Featured endpoint](https://docs.scrapecreators.com/v2/instagram/user/posts)
+- [GET\\
+\\
+User Tagged Posts](https://docs.scrapecreators.com/v1/instagram/user/tagged-posts)
+- [GET\\
+\\
+Reels\\
+\\
+Featured endpoint](https://docs.scrapecreators.com/v1/instagram/user/reels)
+- [GET\\
+\\
+Post/Reel Info\\
+\\
+Featured endpoint](https://docs.scrapecreators.com/v1/instagram/post)
+- [GET\\
+\\
+Transcript\\
+\\
+Featured endpoint](https://docs.scrapecreators.com/v2/instagram/media/transcript)
+- [GET\\
+\\
+Search Instagram](https://docs.scrapecreators.com/v1/instagram/search)
+- [GET\\
+\\
+Popular Search](https://docs.scrapecreators.com/v1/instagram/search/popular)
+- [GET\\
+\\
+Search Hashtag Posts](https://docs.scrapecreators.com/v1/instagram/search/hashtag)
+- [GET\\
+\\
+Search Instagram Profiles](https://docs.scrapecreators.com/v1/instagram/search/profiles)
+- [GET\\
+\\
+Search Reels\\
+\\
+Featured endpoint](https://docs.scrapecreators.com/v2/instagram/reels/search)
+- [GET\\
+\\
+Get Reels By Audio Id](https://docs.scrapecreators.com/v1/instagram/audio/reels)
+- [GET\\
+\\
+Trending Reels](https://docs.scrapecreators.com/v1/instagram/reels/trending)
+- [GET\\
+\\
+Comments](https://docs.scrapecreators.com/v2/instagram/post/comments)
+- [GET\\
+\\
+Comment Replies](https://docs.scrapecreators.com/v1/instagram/post/comment/replies)
+- [GET\\
+\\
+Story Highlights](https://docs.scrapecreators.com/v1/instagram/user/highlights)
+- [GET\\
+\\
+Highlights Details](https://docs.scrapecreators.com/v1/instagram/user/highlight/detail)
+- [GET\\
+\\
+Profile Post Count](https://docs.scrapecreators.com/v1/instagram/profile/post-count)
+- [GET\\
+\\
+Embed HTML](https://docs.scrapecreators.com/v1/instagram/user/embed)
+
+##### YouTube
+
+- [GET\\
+\\
+Channel Details](https://docs.scrapecreators.com/v1/youtube/channel)
+- [GET\\
+\\
+Channel Videos](https://docs.scrapecreators.com/v1/youtube/channel-videos)
+- [GET\\
+\\
+Channel Playlists](https://docs.scrapecreators.com/v1/youtube/channel/playlists)
+- [GET\\
+\\
+Channel Lives](https://docs.scrapecreators.com/v1/youtube/channel/lives)
+- [GET\\
+\\
+Channel Community Posts](https://docs.scrapecreators.com/v1/youtube/channel/community-posts)
+- [GET\\
+\\
+Channel Shorts](https://docs.scrapecreators.com/v1/youtube/channel/shorts)
+- [GET\\
+\\
+Video/Short Details\\
+\\
+Featured endpoint](https://docs.scrapecreators.com/v1/youtube/video)
+- [GET\\
+\\
+Transcript\\
+\\
+Featured endpoint](https://docs.scrapecreators.com/v1/youtube/video/transcript)
+- [GET\\
+\\
+Video Sponsors](https://docs.scrapecreators.com/v1/youtube/video/sponsors)
+- [GET\\
+\\
+Search](https://docs.scrapecreators.com/v1/youtube/search)
+- [GET\\
+\\
+Search Typeahead](https://docs.scrapecreators.com/v1/youtube/search/typeahead)
+- [GET\\
+\\
+Search by Hashtag](https://docs.scrapecreators.com/v1/youtube/search/hashtag)
+- [GET\\
+\\
+Comments](https://docs.scrapecreators.com/v1/youtube/video/comments)
+- [GET\\
+\\
+Comment Replies](https://docs.scrapecreators.com/v1/youtube/video/comment/replies)
+- [GET\\
+\\
+Trending Shorts](https://docs.scrapecreators.com/v1/youtube/shorts/trending)
+- [GET\\
+\\
+Playlist](https://docs.scrapecreators.com/v1/youtube/playlist)
+- [GET\\
+\\
+Community Post Details](https://docs.scrapecreators.com/v1/youtube/community-post)
+
+##### Rumble
+
+- [GET\\
+\\
+Search](https://docs.scrapecreators.com/v1/rumble/search)
+- [GET\\
+\\
+Channel Videos](https://docs.scrapecreators.com/v1/rumble/channel/videos)
+- [GET\\
+\\
+Video](https://docs.scrapecreators.com/v1/rumble/video)
+- [GET\\
+\\
+Transcript](https://docs.scrapecreators.com/v1/rumble/video/transcript)
+- [GET\\
+\\
+Comments](https://docs.scrapecreators.com/v1/rumble/video/comments)
+
+##### LinkedIn
+
+- [GET\\
+\\
+Person's Profile](https://docs.scrapecreators.com/v1/linkedin/profile)
+- [GET\\
+\\
+Company Page](https://docs.scrapecreators.com/v1/linkedin/company)
+- [GET\\
+\\
+Company Posts](https://docs.scrapecreators.com/v1/linkedin/company/posts)
+- [GET\\
+\\
+Search Posts](https://docs.scrapecreators.com/v1/linkedin/search/posts)
+- [GET\\
+\\
+Post](https://docs.scrapecreators.com/v1/linkedin/post)
+- [GET\\
+\\
+Post Transcript](https://docs.scrapecreators.com/v1/linkedin/post/transcript)
+
+##### Facebook
+
+- [GET\\
+\\
+Profile](https://docs.scrapecreators.com/v1/facebook/profile)
+- [GET\\
+\\
+Profile Reels](https://docs.scrapecreators.com/v1/facebook/profile/reels)
+- [GET\\
+\\
+Search Videos](https://docs.scrapecreators.com/v1/facebook/search/videos)
+- [GET\\
+\\
+Profile Photos](https://docs.scrapecreators.com/v1/facebook/profile/photos)
+- [GET\\
+\\
+Profile Posts](https://docs.scrapecreators.com/v1/facebook/profile/posts)
+- [GET\\
+\\
+Profile Events](https://docs.scrapecreators.com/v1/facebook/profile/events)
+- [GET\\
+\\
+Post](https://docs.scrapecreators.com/v1/facebook/post)
+- [GET\\
+\\
+Transcript](https://docs.scrapecreators.com/v1/facebook/post/transcript)
+- [GET\\
+\\
+Comments](https://docs.scrapecreators.com/v1/facebook/post/comments)
+- [GET\\
+\\
+Comment Replies](https://docs.scrapecreators.com/v1/facebook/post/comment/replies)
+- [GET\\
+\\
+Facebook Group Info](https://docs.scrapecreators.com/v1/facebook/group)
+- [GET\\
+\\
+Facebook Group Posts](https://docs.scrapecreators.com/v1/facebook/group/posts)
+
+##### GitHub
+
+- [GET\\
+\\
+User](https://docs.scrapecreators.com/v1/github/user)
+- [GET\\
+\\
+Repositories](https://docs.scrapecreators.com/v1/github/user/repositories)
+- [GET\\
+\\
+Pull Requests](https://docs.scrapecreators.com/v1/github/user/pull-requests)
+- [GET\\
+\\
+Activity](https://docs.scrapecreators.com/v1/github/user/activity)
+- [GET\\
+\\
+Followers](https://docs.scrapecreators.com/v1/github/user/followers)
+- [GET\\
+\\
+Following](https://docs.scrapecreators.com/v1/github/user/following)
+- [GET\\
+\\
+Contributions](https://docs.scrapecreators.com/v1/github/user/contributions)
+- [GET\\
+\\
+Repository](https://docs.scrapecreators.com/v1/github/repository)
+- [GET\\
+\\
+Trending Repositories](https://docs.scrapecreators.com/v1/github/trending/repositories)
+- [GET\\
+\\
+Trending Developers](https://docs.scrapecreators.com/v1/github/trending/developers)
+
+##### Facebook Marketplace
+
+- [GET\\
+\\
+Marketplace Location Search](https://docs.scrapecreators.com/v1/facebook/marketplace/location/search)
+- [GET\\
+\\
+Marketplace Search](https://docs.scrapecreators.com/v1/facebook/marketplace/search)
+- [GET\\
+\\
+Marketplace Item](https://docs.scrapecreators.com/v1/facebook/marketplace/item)
+
+##### Facebook Events
+
+- [GET\\
+\\
+Search Events](https://docs.scrapecreators.com/v1/facebook/events/search)
+- [GET\\
+\\
+Events](https://docs.scrapecreators.com/v1/facebook/events)
+- [GET\\
+\\
+Event Details](https://docs.scrapecreators.com/v1/facebook/event/details)
+
+##### Facebook Ad Library
+
+- [GET\\
+\\
+Ad Details](https://docs.scrapecreators.com/v1/facebook/adLibrary/ad)
+- [GET\\
+\\
+Ad Transcript](https://docs.scrapecreators.com/v1/facebook/adLibrary/ad/transcript)
+- [GET\\
+\\
+Search\\
+\\
+Featured endpoint](https://docs.scrapecreators.com/v1/facebook/adLibrary/search/ads)
+- [POST\\
+\\
+Search\\
+\\
+Featured endpoint](https://docs.scrapecreators.com/v1/facebook/adLibrary/search/ads/post)
+- [GET\\
+\\
+Company Ads\\
+\\
+Featured endpoint](https://docs.scrapecreators.com/v1/facebook/adLibrary/company/ads)
+- [POST\\
+\\
+Company Ads\\
+\\
+Featured endpoint](https://docs.scrapecreators.com/v1/facebook/adLibrary/company/ads/post)
+- [GET\\
+\\
+Search for Companies](https://docs.scrapecreators.com/v1/facebook/adLibrary/search/companies)
+
+##### TikTok Ad Library
+
+- [GET\\
+\\
+Ad Library Search](https://docs.scrapecreators.com/v1/tiktok/ad-library/search)
+- [GET\\
+\\
+Ad Library Ad](https://docs.scrapecreators.com/v1/tiktok/ad-library/ad)
+
+##### Google Ad Library
+
+- [GET\\
+\\
+Company Ads](https://docs.scrapecreators.com/v1/google/company/ads)
+- [GET\\
+\\
+Ad Details](https://docs.scrapecreators.com/v1/google/ad)
+- [GET\\
+\\
+Advertiser Search](https://docs.scrapecreators.com/v1/google/adLibrary/advertisers/search)
+
+##### LinkedIn Ad Library
+
+- [GET\\
+\\
+Search Ads](https://docs.scrapecreators.com/v1/linkedin/ads/search)
+- [GET\\
+\\
+Ad Details](https://docs.scrapecreators.com/v1/linkedin/ad)
+
+##### Twitter
+
+- [GET\\
+\\
+Search Posts](https://docs.scrapecreators.com/v1/twitter/search/posts)
+- [GET\\
+\\
+Profile](https://docs.scrapecreators.com/v1/twitter/profile)
+- [GET\\
+\\
+User Tweets](https://docs.scrapecreators.com/v1/twitter/user-tweets)
+- [GET\\
+\\
+Tweet Details](https://docs.scrapecreators.com/v1/twitter/tweet)
+- [GET\\
+\\
+Transcript](https://docs.scrapecreators.com/v1/twitter/tweet/transcript)
+- [GET\\
+\\
+Community](https://docs.scrapecreators.com/v1/twitter/community)
+- [GET\\
+\\
+Community Tweets](https://docs.scrapecreators.com/v1/twitter/community/tweets)
+
+##### Reddit
+
+- [GET\\
+\\
+Subreddit Details](https://docs.scrapecreators.com/v1/reddit/subreddit/details)
+- [GET\\
+\\
+Subreddit Posts](https://docs.scrapecreators.com/v1/reddit/subreddit)
+- [GET\\
+\\
+Subreddit Search](https://docs.scrapecreators.com/v1/reddit/subreddit/search)
+- [GET\\
+\\
+Post](https://docs.scrapecreators.com/v1/reddit/post)
+- [GET\\
+\\
+Post Comments](https://docs.scrapecreators.com/v1/reddit/post/comments)
+- [POST\\
+\\
+Post Comments](https://docs.scrapecreators.com/v1/reddit/post/comments/post)
+- [GET\\
+\\
+Post Transcript](https://docs.scrapecreators.com/v1/reddit/post/transcript)
+- [GET\\
+\\
+Search](https://docs.scrapecreators.com/v1/reddit/search)
+
+##### Truth Social
+
+- [GET\\
+\\
+Profile](https://docs.scrapecreators.com/v1/truthsocial/profile)
+- [GET\\
+\\
+User Posts](https://docs.scrapecreators.com/v1/truthsocial/user/posts)
+- [GET\\
+\\
+Post](https://docs.scrapecreators.com/v1/truthsocial/post)
+
+##### Threads
+
+- [GET\\
+\\
+Profile](https://docs.scrapecreators.com/v1/threads/profile)
+- [GET\\
+\\
+Posts](https://docs.scrapecreators.com/v1/threads/user/posts)
+- [GET\\
+\\
+Post](https://docs.scrapecreators.com/v1/threads/post)
+- [GET\\
+\\
+Search by Keyword](https://docs.scrapecreators.com/v1/threads/search)
+- [GET\\
+\\
+Search Users](https://docs.scrapecreators.com/v1/threads/search/users)
+
+##### Bluesky
+
+- [GET\\
+\\
+Profile](https://docs.scrapecreators.com/v1/bluesky/profile)
+- [GET\\
+\\
+Posts](https://docs.scrapecreators.com/v1/bluesky/user/posts)
+- [GET\\
+\\
+Post](https://docs.scrapecreators.com/v1/bluesky/post)
+
+##### Pinterest
+
+- [GET\\
+\\
+Search](https://docs.scrapecreators.com/v1/pinterest/search)
+- [GET\\
+\\
+Pin](https://docs.scrapecreators.com/v1/pinterest/pin)
+- [GET\\
+\\
+User Boards](https://docs.scrapecreators.com/v1/pinterest/user/boards)
+- [GET\\
+\\
+Board](https://docs.scrapecreators.com/v1/pinterest/board)
+
+##### Google
+
+- [GET\\
+\\
+Search](https://docs.scrapecreators.com/v1/google/search)
+
+##### Twitch
+
+- [GET\\
+\\
+Profile](https://docs.scrapecreators.com/v1/twitch/profile)
+- [GET\\
+\\
+User Videos](https://docs.scrapecreators.com/v1/twitch/user/videos)
+- [GET\\
+\\
+User Schedule](https://docs.scrapecreators.com/v1/twitch/user/schedule)
+- [GET\\
+\\
+Clip Transcript](https://docs.scrapecreators.com/v1/twitch/clip/transcript)
+- [GET\\
+\\
+Clip](https://docs.scrapecreators.com/v1/twitch/clip)
+
+##### Apple Music
+
+- [GET\\
+\\
+Artist](https://docs.scrapecreators.com/v1/apple-music/artist)
+- [GET\\
+\\
+Album](https://docs.scrapecreators.com/v1/apple-music/album)
+- [GET\\
+\\
+Track](https://docs.scrapecreators.com/v1/apple-music/track)
+- [GET\\
+\\
+Search](https://docs.scrapecreators.com/v1/apple-music/search)
+
+##### Spotify
+
+- [GET\\
+\\
+Artist](https://docs.scrapecreators.com/v1/spotify/artist)
+- [GET\\
+\\
+Track](https://docs.scrapecreators.com/v1/spotify/track)
+- [GET\\
+\\
+Album](https://docs.scrapecreators.com/v1/spotify/album)
+- [GET\\
+\\
+Playlist](https://docs.scrapecreators.com/v1/spotify/playlist)
+- [GET\\
+\\
+Search](https://docs.scrapecreators.com/v1/spotify/search)
+- [GET\\
+\\
+Podcast](https://docs.scrapecreators.com/v1/spotify/podcast)
+- [GET\\
+\\
+Podcast Episodes](https://docs.scrapecreators.com/v1/spotify/podcast/episodes)
+
+##### SoundCloud
+
+- [GET\\
+\\
+Artist](https://docs.scrapecreators.com/v1/soundcloud/artist)
+- [GET\\
+\\
+Artist Tracks](https://docs.scrapecreators.com/v1/soundcloud/artist/tracks)
+- [GET\\
+\\
+Track](https://docs.scrapecreators.com/v1/soundcloud/track)
+
+##### Kwai
+
+- [GET\\
+\\
+Profile](https://docs.scrapecreators.com/v1/kwai/profile)
+- [GET\\
+\\
+User Posts](https://docs.scrapecreators.com/v1/kwai/user/posts)
+- [GET\\
+\\
+Post](https://docs.scrapecreators.com/v1/kwai/post)
+
+##### Kick
+
+- [GET\\
+\\
+Clip Transcript](https://docs.scrapecreators.com/v1/kick/clip/transcript)
+- [GET\\
+\\
+Clip](https://docs.scrapecreators.com/v1/kick/clip)
+
+##### Snapchat
+
+- [GET\\
+\\
+User Profile](https://docs.scrapecreators.com/v1/snapchat/profile)
+- [GET\\
+\\
+Spotlight by Link](https://docs.scrapecreators.com/v1/snapchat/spotlight)
+- [GET\\
+\\
+Spotlight Comments by Link](https://docs.scrapecreators.com/v1/snapchat/spotlight/comments)
+
+##### Telegram
+
+- [GET\\
+\\
+Channel Details](https://docs.scrapecreators.com/v1/telegram/channel)
+- [GET\\
+\\
+Channel Posts](https://docs.scrapecreators.com/v1/telegram/channel/posts)
+- [GET\\
+\\
+Post Details](https://docs.scrapecreators.com/v1/telegram/post)
+
+![Cosmos](https://www.cosmos.so/apple-icon.png)
+
+##### Cosmos
+
+- [GET\\
+\\
+Profile](https://docs.scrapecreators.com/v1/cosmos/profile)
+- [GET\\
+\\
+User Posts](https://docs.scrapecreators.com/v1/cosmos/user/posts)
+- [GET\\
+\\
+User Collections](https://docs.scrapecreators.com/v1/cosmos/user/clusters)
+- [GET\\
+\\
+Post](https://docs.scrapecreators.com/v1/cosmos/post)
+- [GET\\
+\\
+Collection](https://docs.scrapecreators.com/v1/cosmos/cluster)
+- [GET\\
+\\
+Collection Posts](https://docs.scrapecreators.com/v1/cosmos/cluster/posts)
+- [GET\\
+\\
+Search](https://docs.scrapecreators.com/v1/cosmos/search)
+
+##### Creator Tools
+
+- [GET\\
+\\
+Find Social Profiles\\
+\\
+Featured endpointNew](https://docs.scrapecreators.com/v1/find-social-profiles)
+- [GET\\
+\\
+Find Creator Emails\\
+\\
+Featured endpointNew](https://docs.scrapecreators.com/v1/find-creator-emails)
+- [GET\\
+\\
+Get Age and Gender](https://docs.scrapecreators.com/v1/detect-age-gender)
+
+##### Linktree
+
+- [GET\\
+\\
+Linktree page](https://docs.scrapecreators.com/v1/linktree)
+
+![Komi Icon](https://cdn.prod.website-files.com/63bee2a6c490b309ba2e4939/6489b9c055c477050957272b_icon-32.png)
+
+##### Komi
+
+- [GET\\
+\\
+Komi page](https://docs.scrapecreators.com/v1/komi)
+
+![Pillar Icon](https://cdn.prod.website-files.com/67059a0f01d454958209de93/67059a0f01d454958209de9a_Pillar%2032.svg)
+
+##### Pillar
+
+- [GET\\
+\\
+Pillar page](https://docs.scrapecreators.com/v1/pillar)
+
+![LinkBio Icon](https://cdn2.lnk.bi/img/favicon/202006sqr/favicon.svg)
+
+##### Linkbio
+
+- [GET\\
+\\
+Linkbio page](https://docs.scrapecreators.com/v1/linkbio)
+
+##### Amazon Shop
+
+- [GET\\
+\\
+Amazon Shop page](https://docs.scrapecreators.com/v1/amazon/shop)
+
+![Scrape Creators logo](https://scrapecreators.com/logo.png)
+
+##### Scrape Creators
+
+- [GET\\
+\\
+Get credit balance](https://docs.scrapecreators.com/v1/account/credit-balance)
+- [GET\\
+\\
+Get request history](https://docs.scrapecreators.com/v1/account/get-api-usage)
+- [GET\\
+\\
+Get daily usage](https://docs.scrapecreators.com/v1/account/get-daily-usage-count)
+- [GET\\
+\\
+Get most used routes](https://docs.scrapecreators.com/v1/account/get-most-used-routes)
+
+![Linkme Icon](<Base64-Image-Removed>)
+
+##### Linkme
+
+- [GET\\
+\\
+Profile](https://docs.scrapecreators.com/v1/linkme)
+
+# YouTube Comments API
+
+View Pricing
+
+Get comments from a video. Can only get 1k top comments and about 7k new comments.
+
+1 creditper request
+
+GET
+
+/v1/youtube/video/comments
+
+Try it
+
+Copy for AI
+
+cURL
+
+Node.js
+
+Python
+
+PHP
+
+Go
+
+Java
+
+Copy
+
+Copy for AI Assistant
+
+```
+curl "https://api.scrapecreators.com/v1/youtube/video/comments" \
+  -H "x-api-key: "
+```
+
+200
+
+400
+
+403
+
+404
+
+500
+
+Copy
+
+```
+{
+  "success": true,
+  "credits_remaining": 1000000,
+  "credits_charged": 1,
+  "comments": [\
+    {\
+      "id": "UgwVfRopfS2F-WB3aF14AaABAg",\
+      "content": "I love how in the middle he said "I've been able to work with 2 great coaches... Pete and Coach Tomlin"... Side shade to Coach Sean Payton, love it :)",\
+      "publishedTimeText": "9 days ago",\
+      "publishedTime": "2025-01-23T23:14:02.948Z",\
+      "replyLevel": 0,\
+      "author": {\
+        "name": "@SimonT80",\
+        "channelId": "UC8JC3uSUmmXTCTKl-bgr1DA",\
+        "isVerified": false,\
+        "isCreator": false,\
+        "avatarUrl": "https://yt3.ggpht.com/ytc/AIdro_lQ_2v9lDqwRrmdvEBfDNyFOvgQICl68X6WFkwZ5KI=s88-c-k-c0x00ffffff-no-rj",\
+        "channelUrl": "https://youtube.com/@SimonT80"\
+      },\
+      "engagement": {\
+        "likes": 110,\
+        "replies": 5\
+      },\
+      "repliesContinuationToken": "Eg0SC2RRdzR3OVdnWGNRGAYy1AEK..."\
+    }\
+  ],
+  "continuationToken": "Eg0SCzVFV2F4bVd...."
+}
+```
+
+#### Headers
+
+x-api-key
+
+string
+
+required
+
+Your Scrape Creators API key
+
+#### Query Parameters
+
+url
+
+string
+
+required
+
+YouTube video URL
+
+Example:
+
+`https://www.youtube.com/watch?v=dQw4w9WgXcQ`
+
+continuationToken
+
+string
+
+Continuation token to get more comments. Get 'continuationToken' from previous response.
+
+Example:
+
+`4qmFsgKrCBIYVUNkRkpXVWE0M3NtUm00SXBIQnB`
+
+order
+
+string
+
+Order of comments
+
+Example:
+
+`top`
+
+Available options:
+
+`top`,
+
+`newest`
+
+cURL
+
+Node.js
+
+Python
+
+PHP
+
+Go
+
+Java
+
+Copy
+
+Copy for AI Assistant
+
+```
+curl "https://api.scrapecreators.com/v1/youtube/video/comments" \
+  -H "x-api-key: "
+```
+
+200
+
+400
+
+403
+
+404
+
+500
+
+Copy
+
+```
+{
+  "success": true,
+  "credits_remaining": 1000000,
+  "credits_charged": 1,
+  "comments": [\
+    {\
+      "id": "UgwVfRopfS2F-WB3aF14AaABAg",\
+      "content": "I love how in the middle he said "I've been able to work with 2 great coaches... Pete and Coach Tomlin"... Side shade to Coach Sean Payton, love it :)",\
+      "publishedTimeText": "9 days ago",\
+      "publishedTime": "2025-01-23T23:14:02.948Z",\
+      "replyLevel": 0,\
+      "author": {\
+        "name": "@SimonT80",\
+        "channelId": "UC8JC3uSUmmXTCTKl-bgr1DA",\
+        "isVerified": false,\
+        "isCreator": false,\
+        "avatarUrl": "https://yt3.ggpht.com/ytc/AIdro_lQ_2v9lDqwRrmdvEBfDNyFOvgQICl68X6WFkwZ5KI=s88-c-k-c0x00ffffff-no-rj",\
+        "channelUrl": "https://youtube.com/@SimonT80"\
+      },\
+      "engagement": {\
+        "likes": 110,\
+        "replies": 5\
+      },\
+      "repliesContinuationToken": "Eg0SC2RRdzR3OVdnWGNRGAYy1AEK..."\
+    }\
+  ],
+  "continuationToken": "Eg0SCzVFV2F4bVd...."
+}
+```

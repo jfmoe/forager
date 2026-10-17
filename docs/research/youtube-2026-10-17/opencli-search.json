@@ -1,0 +1,20 @@
+{
+  "source_url": "https://www.youtube.com/results?search_query=Me+at+the+zoo+jawed",
+  "checked_at": "2026-10-17T12:36:53.018644+00:00",
+  "completed_at": "2026-10-17T12:37:02.759529+00:00",
+  "command": [
+    "opencli",
+    "youtube",
+    "search",
+    "Me at the zoo jawed",
+    "--limit",
+    "3",
+    "--type",
+    "video",
+    "-f",
+    "json"
+  ],
+  "exit_code": 0,
+  "stdout": "[\n  {\n    \"channel\": \"jawed\",\n    \"duration\": \"0:19\",\n    \"published\": \"21年前\",\n    \"rank\": 1,\n    \"title\": \"Me at the zoo\",\n    \"url\": \"https://www.youtube.com/watch?v=jNQXAC9IVRw\",\n    \"views\": \"444,683,096次观看\"\n  },\n  {\n    \"channel\": \"Info-Beast\",\n    \"duration\": \"3:33\",\n    \"published\": \"9个月前\",\n    \"rank\": 2,\n    \"title\": \"[ Me at the zoo ] where is Jawed Karim in 2026?\",\n    \"url\": \"https://www.youtube.com/watch?v=RD_Jwka9NaY\",\n    \"views\": \"93,154次观看\"\n  },\n  {\n    \"channel\": \"Firse Shivaam\",\n    \"duration\": \"0:21\",\n    \"published\": \"1个月前\",\n    \"rank\": 3,\n    \"title\": \"Original Video Of Me At The Zoo.\",\n    \"url\": \"https://www.youtube.com/watch?v=9b8T90oPEwk\",\n    \"views\": \"1,876,990次观看\"\n  }\n]\n",
+  "stderr": "\n  Update available: v1.8.6 → v1.8.8\n  Run: npm install -g @jackwener/opencli\n\n"
+}

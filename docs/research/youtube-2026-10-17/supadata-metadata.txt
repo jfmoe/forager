@@ -1,0 +1,205 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.supadata.ai/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Metadata
+
+> Use this API endpoint to fetch metadata from videos and posts hosted on YouTube, TikTok, Instagram, X (Twitter) or Facebook. Supadata returns a unified schema with platform-specific fields.
+
+For YouTube videos, channels, and playlists, this is part of Supadata's [YouTube API](https://supadata.ai/youtube-api) — no OAuth or quota setup required.
+
+## Quick Start
+
+### Request
+
+<CodeGroup>
+  ```javascript Node.js theme={null}
+  import { Supadata } from '@supadata/js';
+
+  const supadata = new Supadata({
+    apiKey: 'YOUR_API_KEY',
+  });
+
+  const metadata = await supadata.metadata({
+    url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+  });
+
+  console.log(metadata)
+  ```
+
+  ```python Python theme={null}
+  from supadata import Supadata
+
+  supadata = Supadata(api_key="YOUR_API_KEY")
+
+  metadata = supadata.metadata(
+      url="https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+  )
+
+  print(metadata)
+  ```
+
+  ```bash cURL theme={null}
+  curl -X GET "https://api.supadata.ai/v1/metadata?url=https%3A%2F%2Fwww.youtube.com%2Fwatch%3Fv%3DdQw4w9WgXcQ" \
+    -H "x-api-key: YOUR_API_KEY" \
+    -H "Content-Type: application/json"
+  ```
+</CodeGroup>
+
+### Response
+
+```json theme={null}
+{
+  "platform": "youtube",
+  "type": "video",
+  "id": "dQw4w9WgXcQ",
+  "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  "title": "Rick Astley - Never Gonna Give You Up",
+  "description": "The official video for \"Never Gonna Give You Up\"...",
+  "author": {
+    "displayName": "Rick Astley",
+    "avatarUrl": "https://yt3.ggpht.com/..."
+  },
+  "stats": {
+    "views": 1234567890,
+    "likes": 12345678,
+    "comments": 200000,
+    "shares": null
+  },
+  "media": {
+    "type": "video",
+    "duration": 213,
+    "thumbnailUrl": "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg"
+  },
+  "tags": ["Rick Astley", "Never Gonna Give You Up", "Official Video"],
+  "createdAt": "2009-10-25T00:00:00Z",
+  "additionalData": {
+    "channelId": "UCuAXFkgsw1L7xaCfnd5JJOw"
+  }
+}
+```
+
+## Specification
+
+### Endpoint
+
+`GET https://api.supadata.ai/v1/metadata`
+
+Each request requires an `x-api-key` header with your API key available after signing up. Get your API key [here](https://dash.supadata.ai/organizations/api-key).
+
+### Query Parameters
+
+| Parameter | Type | Required | Description |
+| - | - | - | - |
+| url | string | Yes | URL of the media to get metadata from. Must be YouTube, TikTok, Instagram, X (Twitter) or Facebook. It is recommended to encode the URL before sending it as a query parameter. |
+
+### Response Format
+
+The API returns a unified metadata schema with platform-specific fields.
+
+```typescript theme={null}
+{
+  "platform": "youtube" | "tiktok" | "instagram" | "twitter" | "facebook",
+  "type": "video" | "image" | "carousel" | "post",
+  "id": string,
+  "url": string,
+  "title": string | null,
+  "description": string | null,
+  "author": {
+    "username": string,
+    "displayName": string,
+    "avatarUrl": string,
+    "verified": boolean
+  },
+  "stats": {
+    "views": number | null,
+    "likes": number | null,
+    "comments": number | null,
+    "shares": number | null
+  },
+  "media": VideoMedia | ImageMedia | CarouselMedia | PostMedia,
+  "tags": string[],
+  "createdAt": string,
+  "additionalData": object  // Platform-specific fields
+}
+```
+
+### Error Codes
+
+The API returns HTTP status codes and error codes. See this [page](/errors) for more details.
+
+### Supported URL Formats
+
+The metadata endpoint supports various media URLs, eg:
+
+**YouTube:**
+
+* `https://www.youtube.com/watch?v=dQw4w9WgXcQ`
+* `https://youtu.be/dQw4w9WgXcQ`
+* `https://www.youtube.com/embed/dQw4w9WgXcQ`
+* `https://www.youtube.com/shorts/dQw4w9WgXcQ`
+* `https://www.youtube.com/live/dQw4w9WgXcQ`
+
+**TikTok:**
+
+* `https://www.tiktok.com/@username/video/7234567890123456789`
+* `https://vm.tiktok.com/AAAAZZZZZ`
+* `https://m.tiktok.com/v/7234567890123456789.html`
+
+**Instagram:**
+
+* `https://www.instagram.com/reel/C1234567890`
+* `https://www.instagram.com/p/C1234567890`
+* `https://www.instagram.com/tv/C1234567890`
+
+**Twitter/X:**
+
+* `https://twitter.com/username/status/1234567890123456789`
+* `https://x.com/username/status/1234567890123456789`
+
+**Facebook**
+
+* `https://www.facebook.com/reel/682865820350105/`
+* `https://www.facebook.com/groups/123456789012345/permalink/987654321098765/`
+* `https://m.facebook.com/examplepage/posts/123123123123123/`
+* `https://www.facebook.com/share/v/123123123123123/` or `https://www.facebook.com/share/r/123123123123123/`
+* Marketplace & Event URLs are not supported yet.
+
+## Base Schema
+
+All metadata responses share a common base schema regardless of platform. Here are the important details:
+
+* **type**: Acts as a discriminator that determines the structure of the `media` field (see [Media Types](#media-types) below)
+* **title** and **description**: May be `null` for some platforms or content types
+* **stats**: `null` values indicate the metric is unavailable or not applicable for the platform. Responses may be served from a cache for up to \~10 minutes, so engagement stats can lag slightly behind the platform.
+* **createdAt**: ISO 8601 formatted timestamp
+* **additionalData**: Contains platform-specific fields not included in the base schema
+
+## Media Types
+
+The `media` field structure varies based on the `type` discriminator:
+
+* Video: `duration`, `thumbnailUrl`
+* Image: `url`
+* Carousel: `items` (array of video/image objects)
+* Post: no additional fields
+
+## Platform-Specific Fields
+
+Different platforms and media types may include additional fields in the `additionalData` object, for example:
+
+* Channel information for YouTube
+* Music/sound information for TikTok
+* Retweet/quote information for X (Twitter)
+
+<Info>
+  Platform-specific fields in `additionalData` may vary and are subject to
+  change based on platform API availability.
+</Info>
+
+## Pricing
+
+All metadata requests cost **1 credit**, regardless of platform or media type.
+
+
+This documentation is built and hosted on [Mintlify](https://mintlify.com), a developer documentation platform.

@@ -1,0 +1,40 @@
+{
+  "source_url": "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+  "checked_at": "2026-10-17T12:39:00.974276+00:00",
+  "http_status": "200",
+  "exit_code": 0,
+  "html_bytes": 1304179,
+  "bootstrap_present": true,
+  "video_id": "jNQXAC9IVRw",
+  "playability": {
+    "status": "OK",
+    "playableInEmbed": true,
+    "miniplayer": {
+      "miniplayerRenderer": {
+        "playbackMode": "PLAYBACK_MODE_ALLOW"
+      }
+    },
+    "contextParams": "Q0FFU0FnZ0M="
+  },
+  "tracks": [
+    {
+      "languageCode": "en",
+      "kind": null,
+      "name": {
+        "simpleText": "English"
+      },
+      "vssId": ".en",
+      "isTranslatable": true
+    },
+    {
+      "languageCode": "de",
+      "kind": null,
+      "name": {
+        "simpleText": "German"
+      },
+      "vssId": ".de",
+      "isTranslatable": true
+    }
+  ],
+  "note": "Raw HTML and signed URLs remain in fresh temporary directory/in memory; no credentials/cookies used or recorded."
+}

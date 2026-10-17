@@ -1,0 +1,72 @@
+> ## Documentation Index
+> Fetch the complete documentation index at: https://docs.supadata.ai/llms.txt
+> Use this file to discover all available pages before exploring further.
+
+# Supadata API Reference | Web Scraping & YouTube Transcripts
+
+> Complete API reference for Supadata. Extract web content, YouTube transcripts, video metadata, and more. Includes authentication, rate limits, and endpoint documentation.
+
+## Features
+
+<CardGroup cols={4}>
+  <Card title="Transcript" icon="book" href="/api-reference/endpoint/transcript/transcript" color="FF713C">
+    Get social media or file transcript.
+  </Card>
+
+  <Card title="Metadata" icon="file" href="/api-reference/endpoint/metadata/metadata" color="FF713C">
+    Get social media post metadata.
+  </Card>
+
+  <Card title="Extract" icon="wand-magic-sparkles" href="/api-reference/endpoint/extract/extract" color="FF713C">
+    Extract structured data from videos using AI.
+  </Card>
+
+  <Card title="Web" icon="markdown" href="/api-reference/endpoint/web/scrape" color="FF713C">
+    Extract content from any website in markdown format.
+  </Card>
+</CardGroup>
+
+## Base URL
+
+All requests contain the following base URL:
+
+```sh theme={null}
+https://api.supadata.ai/v1
+```
+
+## Authentication
+
+For authentication, it's required to include a `x-api-key` header.
+
+```sh theme={null}
+x-api-key: {YOUR_API_KEY}
+```
+
+## Response codes
+
+Supadata employs conventional HTTP status codes to signify the outcome of your requests.
+
+Typically, 2xx HTTP status codes denote success, 4xx codes represent failures related to the user, and 5xx codes signal infrastructure problems.
+
+| Status | Description |
+| - | - |
+| 200 | Request was successful. |
+| 206 | Transcript unavailable for this media (`transcript-unavailable`). |
+| 400 | Verify the correctness of the parameters. |
+| 401 | The API key was missing or invalid. |
+| 402 | Payment required. The endpoint is not available on your current plan. |
+| 403 | Forbidden. The content is private, restricted or otherwise not accessible. |
+| 404 | The requested resource could not be located. |
+| 429 | A plan limit (rate limit or usage quota) has been surpassed. |
+| 5xx | Signifies a server error with Supadata. |
+
+Refer to the [Error Codes](/errors) section for a detailed explanation of all potential API errors.
+
+## Rate limit
+
+The Supadata API has a rate limit to ensure the stability and reliability of the service. The rate limit is applied to all endpoints except `/v1/me` and is based on the number of requests made within a specific time frame and your current subscription plan.
+
+When you exceed the rate limit, you will receive a 429 response code.
+
+
+This documentation is built and hosted on [Mintlify](https://mintlify.com), a developer documentation platform.

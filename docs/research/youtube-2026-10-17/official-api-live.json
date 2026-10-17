@@ -1,0 +1,1701 @@
+{
+  "started_at": "2026-10-17T13:32:47.844991+00:00",
+  "completed_at": "2026-10-17T13:33:00.885217+00:00",
+  "policy": "Read-only calls with a user-owned standard API key restricted to YouTube Data API v3; key sent as X-Goog-Api-Key header and never recorded; project numbers redacted; third-party comment text and authors omitted (lengths and counts only).",
+  "transport": "python urllib via local HTTP proxy",
+  "documented_cost_sum": {
+    "search_queries": 8,
+    "other_units": 12
+  },
+  "requests": [
+    {
+      "label": "channels.forHandle",
+      "endpoint": "channels",
+      "params": {
+        "part": "id,snippet,contentDetails,statistics",
+        "forHandle": "@3blue1brown"
+      },
+      "checked_at": "2026-10-17T13:32:47.845391+00:00",
+      "http_status": 200,
+      "quota_bucket": "other_units",
+      "documented_cost": 1,
+      "page_info": {
+        "totalResults": 1,
+        "resultsPerPage": 5
+      },
+      "next_page_token_present": false,
+      "prev_page_token_present": false,
+      "top_level_keys": [
+        "etag",
+        "items",
+        "kind",
+        "pageInfo"
+      ],
+      "observed": [
+        {
+          "id": "UCYO_jab_esuFRV4b17AJtAw",
+          "title": "3Blue1Brown",
+          "customUrl": "@3blue1brown",
+          "uploads": "UUYO_jab_esuFRV4b17AJtAw",
+          "statistics": {
+            "viewCount": "783837291",
+            "subscriberCount": "8700000",
+            "hiddenSubscriberCount": false,
+            "videoCount": "246"
+          }
+        }
+      ]
+    },
+    {
+      "label": "playlistItems.uploads.page1",
+      "endpoint": "playlistItems",
+      "params": {
+        "part": "snippet,contentDetails",
+        "playlistId": "UUYO_jab_esuFRV4b17AJtAw",
+        "maxResults": 5
+      },
+      "checked_at": "2026-10-17T13:32:48.263348+00:00",
+      "http_status": 200,
+      "quota_bucket": "other_units",
+      "documented_cost": 1,
+      "page_info": {
+        "totalResults": 246,
+        "resultsPerPage": 5
+      },
+      "next_page_token_present": true,
+      "prev_page_token_present": false,
+      "top_level_keys": [
+        "etag",
+        "items",
+        "kind",
+        "nextPageToken",
+        "pageInfo"
+      ],
+      "observed": [
+        {
+          "position": 0,
+          "videoId": "LKrwhjOI8Nc",
+          "videoPublishedAt": "2026-10-16T16:15:20Z",
+          "snippet_publishedAt": "2026-10-16T16:15:20Z",
+          "title": "There's never been a better time to go into math"
+        },
+        {
+          "position": 1,
+          "videoId": "ausLKMojXaY",
+          "videoPublishedAt": "2026-09-25T13:35:02Z",
+          "snippet_publishedAt": "2026-09-25T13:35:02Z",
+          "title": "The Phone Number puzzle"
+        },
+        {
+          "position": 2,
+          "videoId": "bRQEWPA832A",
+          "videoPublishedAt": "2026-09-18T17:14:08Z",
+          "snippet_publishedAt": "2026-09-18T17:14:08Z",
+          "title": "The last IMO problem AI could not solve"
+        },
+        {
+          "position": 3,
+          "videoId": "Nbwv5wHQoj0",
+          "videoPublishedAt": "2026-09-18T17:12:53Z",
+          "snippet_publishedAt": "2026-09-18T17:12:53Z",
+          "title": "The last IMO problem AI could not solve"
+        },
+        {
+          "position": 4,
+          "videoId": "rYyJm1tD3d0",
+          "videoPublishedAt": "2026-08-18T14:54:17Z",
+          "snippet_publishedAt": "2026-08-18T14:54:17Z",
+          "title": "The jumping pegs puzzle"
+        }
+      ]
+    },
+    {
+      "label": "playlistItems.public_playlist.page1",
+      "endpoint": "playlistItems",
+      "params": {
+        "part": "snippet,contentDetails",
+        "playlistId": "PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab",
+        "maxResults": 5
+      },
+      "checked_at": "2026-10-17T13:32:48.712637+00:00",
+      "http_status": 200,
+      "quota_bucket": "other_units",
+      "documented_cost": 1,
+      "page_info": {
+        "totalResults": 16,
+        "resultsPerPage": 5
+      },
+      "next_page_token_present": true,
+      "prev_page_token_present": false,
+      "top_level_keys": [
+        "etag",
+        "items",
+        "kind",
+        "nextPageToken",
+        "pageInfo"
+      ],
+      "observed": [
+        {
+          "position": 0,
+          "videoId": "fNk_zzaMoSs",
+          "videoPublishedAt": "2016-08-06T00:05:49Z",
+          "snippet_publishedAt": "2016-08-06T00:06:04Z",
+          "title": "Vectors | Chapter 1, Essence of linear algebra"
+        },
+        {
+          "position": 1,
+          "videoId": "k7RM-ot2NWY",
+          "videoPublishedAt": "2016-08-06T23:49:28Z",
+          "snippet_publishedAt": "2016-08-06T23:49:28Z",
+          "title": "Linear combinations, span, and basis vectors | Chapter 2, Essence of linear algebra"
+        },
+        {
+          "position": 2,
+          "videoId": "kYB8IZa5AuE",
+          "videoPublishedAt": "2016-08-07T21:39:19Z",
+          "snippet_publishedAt": "2016-08-07T21:40:12Z",
+          "title": "Linear transformations and matrices | Chapter 3, Essence of linear algebra"
+        },
+        {
+          "position": 3,
+          "videoId": "XkY2DOUCWMU",
+          "videoPublishedAt": "2016-08-08T22:20:43Z",
+          "snippet_publishedAt": "2016-08-08T22:21:23Z",
+          "title": "Matrix multiplication as composition | Chapter 4, Essence of linear algebra"
+        },
+        {
+          "position": 4,
+          "videoId": "rHLEWRxRGiM",
+          "videoPublishedAt": "2016-08-09T22:01:39Z",
+          "snippet_publishedAt": "2016-08-09T22:02:16Z",
+          "title": "Three-dimensional linear transformations | Chapter 5, Essence of linear algebra"
+        }
+      ]
+    },
+    {
+      "label": "videos.batch_samples",
+      "endpoint": "videos",
+      "params": {
+        "part": "snippet,contentDetails,statistics,status,liveStreamingDetails",
+        "id": "jNQXAC9IVRw,Ks-_Mh1QhMc,eMlx5fFNoYc"
+      },
+      "checked_at": "2026-10-17T13:32:49.645440+00:00",
+      "http_status": 200,
+      "quota_bucket": "other_units",
+      "documented_cost": 1,
+      "page_info": {
+        "totalResults": 3,
+        "resultsPerPage": 3
+      },
+      "next_page_token_present": false,
+      "prev_page_token_present": false,
+      "top_level_keys": [
+        "etag",
+        "items",
+        "kind",
+        "pageInfo"
+      ],
+      "observed": [
+        {
+          "id": "jNQXAC9IVRw",
+          "parts_present": [
+            "contentDetails",
+            "snippet",
+            "statistics",
+            "status"
+          ],
+          "publishedAt": "2005-04-24T03:31:52Z",
+          "channelId": "UC4QobU6STFB0P71PMvOGN5A",
+          "title": "Me at the zoo",
+          "description_length": 264,
+          "defaultLanguage": "en",
+          "defaultAudioLanguage": "en",
+          "liveBroadcastContent": "none",
+          "duration": "PT19S",
+          "caption": "true",
+          "definition": "hd",
+          "licensedContent": true,
+          "statistics": {
+            "viewCount": "444694156",
+            "likeCount": "20083234",
+            "favoriteCount": "0",
+            "commentCount": "10641589"
+          },
+          "status": {
+            "uploadStatus": "processed",
+            "privacyStatus": "public",
+            "license": "youtube",
+            "embeddable": true,
+            "publicStatsViewable": false,
+            "madeForKids": false
+          },
+          "liveStreamingDetails": null
+        },
+        {
+          "id": "Ks-_Mh1QhMc",
+          "parts_present": [
+            "contentDetails",
+            "snippet",
+            "statistics",
+            "status"
+          ],
+          "publishedAt": "2012-10-01T15:27:35Z",
+          "channelId": "UCAuUUnT6oDeKwE6v1NGQxug",
+          "title": "Your Body Language May Shape Who You Are | Amy Cuddy | TED",
+          "description_length": 1980,
+          "defaultLanguage": "en",
+          "defaultAudioLanguage": "en",
+          "liveBroadcastContent": "none",
+          "duration": "PT21M3S",
+          "caption": "true",
+          "definition": "hd",
+          "licensedContent": true,
+          "statistics": {
+            "viewCount": "29311923",
+            "likeCount": "556436",
+            "favoriteCount": "0",
+            "commentCount": "11195"
+          },
+          "status": {
+            "uploadStatus": "processed",
+            "privacyStatus": "public",
+            "license": "youtube",
+            "embeddable": true,
+            "publicStatsViewable": true,
+            "madeForKids": false
+          },
+          "liveStreamingDetails": null
+        },
+        {
+          "id": "eMlx5fFNoYc",
+          "parts_present": [
+            "contentDetails",
+            "snippet",
+            "statistics",
+            "status"
+          ],
+          "publishedAt": "2024-04-07T12:53:54Z",
+          "channelId": "UCYO_jab_esuFRV4b17AJtAw",
+          "title": "Attention in transformers, step-by-step | Deep Learning Chapter 6",
+          "description_length": 3353,
+          "defaultLanguage": "en",
+          "defaultAudioLanguage": "en-US",
+          "liveBroadcastContent": "none",
+          "duration": "PT26M10S",
+          "caption": "true",
+          "definition": "hd",
+          "licensedContent": true,
+          "statistics": {
+            "viewCount": "4773774",
+            "likeCount": "91777",
+            "favoriteCount": "0",
+            "commentCount": "2478"
+          },
+          "status": {
+            "uploadStatus": "processed",
+            "privacyStatus": "public",
+            "license": "youtube",
+            "embeddable": true,
+            "publicStatsViewable": true,
+            "madeForKids": false
+          },
+          "liveStreamingDetails": null
+        }
+      ]
+    },
+    {
+      "label": "videos.missing_id",
+      "endpoint": "videos",
+      "params": {
+        "part": "snippet",
+        "id": "zzQq9ZxZ9Zq"
+      },
+      "checked_at": "2026-10-17T13:32:50.144521+00:00",
+      "http_status": 200,
+      "quota_bucket": "other_units",
+      "documented_cost": 1,
+      "page_info": {
+        "totalResults": 0,
+        "resultsPerPage": 0
+      },
+      "next_page_token_present": false,
+      "prev_page_token_present": false,
+      "top_level_keys": [
+        "etag",
+        "items",
+        "kind",
+        "pageInfo"
+      ],
+      "observed": []
+    },
+    {
+      "label": "videos.mixed_existing_and_missing",
+      "endpoint": "videos",
+      "params": {
+        "part": "id",
+        "id": "jNQXAC9IVRw,zzQq9ZxZ9Zq"
+      },
+      "checked_at": "2026-10-17T13:32:50.500629+00:00",
+      "http_status": 200,
+      "quota_bucket": "other_units",
+      "documented_cost": 1,
+      "page_info": {
+        "totalResults": 1,
+        "resultsPerPage": 1
+      },
+      "next_page_token_present": false,
+      "prev_page_token_present": false,
+      "top_level_keys": [
+        "etag",
+        "items",
+        "kind",
+        "pageInfo"
+      ],
+      "observed": [
+        "jNQXAC9IVRw"
+      ]
+    },
+    {
+      "label": "commentThreads.relevance",
+      "endpoint": "commentThreads",
+      "params": {
+        "part": "snippet,replies",
+        "videoId": "jNQXAC9IVRw",
+        "maxResults": 20,
+        "order": "relevance",
+        "textFormat": "plainText"
+      },
+      "checked_at": "2026-10-17T13:32:50.853493+00:00",
+      "http_status": 200,
+      "quota_bucket": "other_units",
+      "documented_cost": 1,
+      "page_info": {
+        "totalResults": 20,
+        "resultsPerPage": 20
+      },
+      "next_page_token_present": true,
+      "prev_page_token_present": false,
+      "top_level_keys": [
+        "etag",
+        "items",
+        "kind",
+        "nextPageToken",
+        "pageInfo"
+      ],
+      "observed": [
+        {
+          "id": "UgzuC3zzpRZkjc5Qzsd4AaABAg",
+          "totalReplyCount": 1000,
+          "canReply": false,
+          "replies_returned": 5,
+          "top_publishedAt": "2020-02-17T18:58:15Z",
+          "top_likeCount": 4866586,
+          "top_text_length": 67
+        },
+        {
+          "id": "Ugxnp9ws0dexjE9L5UB4AaABAg",
+          "totalReplyCount": 1000,
+          "canReply": false,
+          "replies_returned": 5,
+          "top_publishedAt": "2026-04-24T06:41:51Z",
+          "top_likeCount": 304501,
+          "top_text_length": 5
+        },
+        {
+          "id": "UgxBZKMFULrdIVk1nWt4AaABAg",
+          "totalReplyCount": 884,
+          "canReply": true,
+          "replies_returned": 5,
+          "top_publishedAt": "2019-09-15T05:08:19Z",
+          "top_likeCount": 248398,
+          "top_text_length": 32
+        },
+        {
+          "id": "Ugwlp5LU0jOc9VDgTAp4AaABAg",
+          "totalReplyCount": 12,
+          "canReply": true,
+          "replies_returned": 5,
+          "top_publishedAt": "2026-10-17T02:55:29Z",
+          "top_likeCount": 94,
+          "top_text_length": 44
+        },
+        {
+          "id": "UgzAzzE2HNzckW1FrBd4AaABAg",
+          "totalReplyCount": 9,
+          "canReply": true,
+          "replies_returned": 5,
+          "top_publishedAt": "2026-10-12T18:50:40Z",
+          "top_likeCount": 476,
+          "top_text_length": 51
+        },
+        {
+          "id": "UgwVNlctFgmvFU1PTuN4AaABAg",
+          "totalReplyCount": 1000,
+          "canReply": false,
+          "replies_returned": 5,
+          "top_publishedAt": "2025-04-23T18:13:27Z",
+          "top_likeCount": 211924,
+          "top_text_length": 76
+        },
+        {
+          "id": "UgyZLIQQTzntaPAbfy54AaABAg",
+          "totalReplyCount": 7,
+          "canReply": true,
+          "replies_returned": 5,
+          "top_publishedAt": "2026-10-15T17:17:48Z",
+          "top_likeCount": 218,
+          "top_text_length": 33
+        },
+        {
+          "id": "Ugw1IoPw17tbzQs51Fl4AaABAg",
+          "totalReplyCount": 2,
+          "canReply": true,
+          "replies_returned": 2,
+          "top_publishedAt": "2026-10-17T01:27:54Z",
+          "top_likeCount": 21,
+          "top_text_length": 88
+        },
+        {
+          "id": "UgwJopRYfCoqhRa13OF4AaABAg",
+          "totalReplyCount": 1000,
+          "canReply": false,
+          "replies_returned": 5,
+          "top_publishedAt": "2020-11-11T13:30:13Z",
+          "top_likeCount": 418489,
+          "top_text_length": 74
+        },
+        {
+          "id": "UgjHIgj8NXiRaHgCoAEC",
+          "totalReplyCount": 1001,
+          "canReply": false,
+          "replies_returned": 5,
+          "top_publishedAt": "2015-01-21T20:47:13Z",
+          "top_likeCount": 115254,
+          "top_text_length": 37
+        },
+        {
+          "id": "UgwEyzeU4nSaTRMxt1h4AaABAg",
+          "totalReplyCount": 999,
+          "canReply": true,
+          "replies_returned": 5,
+          "top_publishedAt": "2019-11-21T23:35:28Z",
+          "top_likeCount": 249153,
+          "top_text_length": 50
+        },
+        {
+          "id": "Ugw1JIhoPGkBBkEGJxh4AaABAg",
+          "totalReplyCount": 2,
+          "canReply": true,
+          "replies_returned": 2,
+          "top_publishedAt": "2026-10-16T21:27:26Z",
+          "top_likeCount": 28,
+          "top_text_length": 43
+        },
+        {
+          "id": "UgwZgDrjQnFz4ypwoU54AaABAg",
+          "totalReplyCount": 547,
+          "canReply": true,
+          "replies_returned": 5,
+          "top_publishedAt": "2019-11-22T00:45:34Z",
+          "top_likeCount": 49755,
+          "top_text_length": 49
+        },
+        {
+          "id": "UgzmQTsPaMGplxaNkDJ4AaABAg",
+          "totalReplyCount": 32,
+          "canReply": true,
+          "replies_returned": 5,
+          "top_publishedAt": "2025-04-24T04:50:41Z",
+          "top_likeCount": 3663,
+          "top_text_length": 56
+        },
+        {
+          "id": "UgwESyRDrrejm4bKwfB4AaABAg",
+          "totalReplyCount": 6,
+          "canReply": true,
+          "replies_returned": 5,
+          "top_publishedAt": "2026-10-01T20:22:33Z",
+          "top_likeCount": 210,
+          "top_text_length": 33
+        },
+        {
+          "id": "UgxRiS3A1h28NTxrQ694AaABAg",
+          "totalReplyCount": 0,
+          "canReply": true,
+          "replies_returned": 0,
+          "top_publishedAt": "2026-10-17T10:22:04Z",
+          "top_likeCount": 8,
+          "top_text_length": 45
+        },
+        {
+          "id": "Ugxo5SbS5o1nnT8SjrB4AaABAg",
+          "totalReplyCount": 19,
+          "canReply": true,
+          "replies_returned": 5,
+          "top_publishedAt": "2026-10-11T19:29:51Z",
+          "top_likeCount": 429,
+          "top_text_length": 22
+        },
+        {
+          "id": "UgxuGdObFFYR_W2qIBF4AaABAg",
+          "totalReplyCount": 999,
+          "canReply": true,
+          "replies_returned": 5,
+          "top_publishedAt": "2026-08-30T20:05:23Z",
+          "top_likeCount": 35160,
+          "top_text_length": 42
+        },
+        {
+          "id": "Ugw_htxvjWYVjGMiunR4AaABAg",
+          "totalReplyCount": 1001,
+          "canReply": false,
+          "replies_returned": 5,
+          "top_publishedAt": "2026-08-25T22:49:08Z",
+          "top_likeCount": 28405,
+          "top_text_length": 63
+        },
+        {
+          "id": "Ugz95SRJrVaFfENu3Jp4AaABAg",
+          "totalReplyCount": 2,
+          "canReply": true,
+          "replies_returned": 2,
+          "top_publishedAt": "2026-10-17T04:28:28Z",
+          "top_likeCount": 16,
+          "top_text_length": 42
+        }
+      ]
+    },
+    {
+      "label": "commentThreads.time",
+      "endpoint": "commentThreads",
+      "params": {
+        "part": "snippet,replies",
+        "videoId": "jNQXAC9IVRw",
+        "maxResults": 20,
+        "order": "time",
+        "textFormat": "plainText"
+      },
+      "checked_at": "2026-10-17T13:32:52.117918+00:00",
+      "http_status": 200,
+      "quota_bucket": "other_units",
+      "documented_cost": 1,
+      "page_info": {
+        "totalResults": 20,
+        "resultsPerPage": 20
+      },
+      "next_page_token_present": true,
+      "prev_page_token_present": false,
+      "top_level_keys": [
+        "etag",
+        "items",
+        "kind",
+        "nextPageToken",
+        "pageInfo"
+      ],
+      "observed": [
+        {
+          "id": "UgzuC3zzpRZkjc5Qzsd4AaABAg",
+          "totalReplyCount": 1000,
+          "canReply": false,
+          "replies_returned": 5,
+          "top_publishedAt": "2020-02-17T18:58:15Z",
+          "top_likeCount": 4866586,
+          "top_text_length": 67
+        },
+        {
+          "id": "UgxnBsSOwUxs0Zs_MrB4AaABAg",
+          "totalReplyCount": 0,
+          "canReply": true,
+          "replies_returned": 0,
+          "top_publishedAt": "2026-10-17T13:29:09Z",
+          "top_likeCount": 1,
+          "top_text_length": 7
+        },
+        {
+          "id": "UgxlUpxLQzeCMHbPCW94AaABAg",
+          "totalReplyCount": 0,
+          "canReply": true,
+          "replies_returned": 0,
+          "top_publishedAt": "2026-10-17T13:28:03Z",
+          "top_likeCount": 2,
+          "top_text_length": 106
+        },
+        {
+          "id": "Ugy-MuTo7MLfcrZuqel4AaABAg",
+          "totalReplyCount": 0,
+          "canReply": true,
+          "replies_returned": 0,
+          "top_publishedAt": "2026-10-17T13:27:01Z",
+          "top_likeCount": 0,
+          "top_text_length": 2
+        },
+        {
+          "id": "UgxLR-FtM4TwVhuWgpt4AaABAg",
+          "totalReplyCount": 0,
+          "canReply": true,
+          "replies_returned": 0,
+          "top_publishedAt": "2026-10-17T13:21:56Z",
+          "top_likeCount": 0,
+          "top_text_length": 10
+        },
+        {
+          "id": "Ugy6FBT_qT-aeY1R4Ch4AaABAg",
+          "totalReplyCount": 0,
+          "canReply": true,
+          "replies_returned": 0,
+          "top_publishedAt": "2026-10-17T13:19:46Z",
+          "top_likeCount": 2,
+          "top_text_length": 65
+        },
+        {
+          "id": "Ugxzw-H5GueliC9sWFd4AaABAg",
+          "totalReplyCount": 0,
+          "canReply": true,
+          "replies_returned": 0,
+          "top_publishedAt": "2026-10-17T13:17:29Z",
+          "top_likeCount": 0,
+          "top_text_length": 27
+        },
+        {
+          "id": "UgwUL6Ha8cLI8cYSG3h4AaABAg",
+          "totalReplyCount": 0,
+          "canReply": true,
+          "replies_returned": 0,
+          "top_publishedAt": "2026-10-17T13:17:07Z",
+          "top_likeCount": 0,
+          "top_text_length": 109
+        },
+        {
+          "id": "UgyRV6lryRwDaNrB4ah4AaABAg",
+          "totalReplyCount": 0,
+          "canReply": true,
+          "replies_returned": 0,
+          "top_publishedAt": "2026-10-17T13:16:43Z",
+          "top_likeCount": 0,
+          "top_text_length": 12
+        },
+        {
+          "id": "UgxT3TiZFSZxwq7xVaN4AaABAg",
+          "totalReplyCount": 1,
+          "canReply": true,
+          "replies_returned": 1,
+          "top_publishedAt": "2026-10-17T13:08:01Z",
+          "top_likeCount": 0,
+          "top_text_length": 26
+        },
+        {
+          "id": "UgzDGLMoOKU3iP0YP5h4AaABAg",
+          "totalReplyCount": 0,
+          "canReply": true,
+          "replies_returned": 0,
+          "top_publishedAt": "2026-10-17T12:59:41Z",
+          "top_likeCount": 0,
+          "top_text_length": 26
+        },
+        {
+          "id": "UgykXpozKxj8b9p7A954AaABAg",
+          "totalReplyCount": 0,
+          "canReply": true,
+          "replies_returned": 0,
+          "top_publishedAt": "2026-10-17T12:59:08Z",
+          "top_likeCount": 0,
+          "top_text_length": 2
+        },
+        {
+          "id": "Ugwyd64IzOaESmkikHd4AaABAg",
+          "totalReplyCount": 0,
+          "canReply": true,
+          "replies_returned": 0,
+          "top_publishedAt": "2026-10-17T12:56:33Z",
+          "top_likeCount": 0,
+          "top_text_length": 35
+        },
+        {
+          "id": "UgwNzHqtODFWcuI06AR4AaABAg",
+          "totalReplyCount": 0,
+          "canReply": true,
+          "replies_returned": 0,
+          "top_publishedAt": "2026-10-17T12:56:20Z",
+          "top_likeCount": 1,
+          "top_text_length": 10
+        },
+        {
+          "id": "Ugx60n3W7OCcrBJjlyt4AaABAg",
+          "totalReplyCount": 1,
+          "canReply": true,
+          "replies_returned": 1,
+          "top_publishedAt": "2026-10-17T12:55:11Z",
+          "top_likeCount": 0,
+          "top_text_length": 20
+        },
+        {
+          "id": "Ugw5LMijDcKBJo8hBvN4AaABAg",
+          "totalReplyCount": 0,
+          "canReply": true,
+          "replies_returned": 0,
+          "top_publishedAt": "2026-10-17T12:53:55Z",
+          "top_likeCount": 0,
+          "top_text_length": 60
+        },
+        {
+          "id": "Ugx6Eoe1or7o2u4jY754AaABAg",
+          "totalReplyCount": 0,
+          "canReply": true,
+          "replies_returned": 0,
+          "top_publishedAt": "2026-10-17T12:52:32Z",
+          "top_likeCount": 0,
+          "top_text_length": 8
+        },
+        {
+          "id": "UgwFxfdo2M3pC07ogjt4AaABAg",
+          "totalReplyCount": 0,
+          "canReply": true,
+          "replies_returned": 0,
+          "top_publishedAt": "2026-10-17T12:51:18Z",
+          "top_likeCount": 0,
+          "top_text_length": 0
+        },
+        {
+          "id": "UgwHAJ6-ZwhxHcEmVtt4AaABAg",
+          "totalReplyCount": 0,
+          "canReply": true,
+          "replies_returned": 0,
+          "top_publishedAt": "2026-10-17T12:50:59Z",
+          "top_likeCount": 0,
+          "top_text_length": 19
+        },
+        {
+          "id": "Ugw64iS-8YPQ6NIn58x4AaABAg",
+          "totalReplyCount": 0,
+          "canReply": true,
+          "replies_returned": 0,
+          "top_publishedAt": "2026-10-17T12:50:54Z",
+          "top_likeCount": 0,
+          "top_text_length": 10
+        }
+      ]
+    },
+    {
+      "label": "comments.replies_of_partial_thread",
+      "endpoint": "comments",
+      "params": {
+        "part": "snippet",
+        "parentId": "UgzuC3zzpRZkjc5Qzsd4AaABAg",
+        "maxResults": 100,
+        "textFormat": "plainText"
+      },
+      "checked_at": "2026-10-17T13:32:52.841243+00:00",
+      "http_status": 200,
+      "quota_bucket": "other_units",
+      "documented_cost": 1,
+      "page_info": {
+        "resultsPerPage": 100
+      },
+      "next_page_token_present": true,
+      "prev_page_token_present": false,
+      "top_level_keys": [
+        "etag",
+        "items",
+        "kind",
+        "nextPageToken",
+        "pageInfo"
+      ],
+      "observed": {
+        "parent_id": "UgzuC3zzpRZkjc5Qzsd4AaABAg",
+        "totalReplyCount": 1000,
+        "embedded_replies": 5,
+        "returned": 100
+      }
+    },
+    {
+      "label": "videos.comments_off_candidate.XqZsoesa55w",
+      "endpoint": "videos",
+      "params": {
+        "part": "snippet,status,statistics",
+        "id": "XqZsoesa55w"
+      },
+      "checked_at": "2026-10-17T13:32:53.777503+00:00",
+      "http_status": 200,
+      "quota_bucket": "other_units",
+      "documented_cost": 1,
+      "page_info": {
+        "totalResults": 1,
+        "resultsPerPage": 1
+      },
+      "next_page_token_present": false,
+      "prev_page_token_present": false,
+      "top_level_keys": [
+        "etag",
+        "items",
+        "kind",
+        "pageInfo"
+      ],
+      "observed": [
+        {
+          "id": "XqZsoesa55w",
+          "parts_present": [
+            "snippet",
+            "statistics",
+            "status"
+          ],
+          "publishedAt": "2016-06-17T23:00:30Z",
+          "channelId": "UCcdwLMPsaU2ezNSJU1nFoBQ",
+          "title": "Baby Shark Dance | #babyshark Most Viewed Video | Animal Songs | PINKFONG Songs for Children",
+          "description_length": 3527,
+          "defaultLanguage": "en",
+          "defaultAudioLanguage": "en-US",
+          "liveBroadcastContent": "none",
+          "duration": null,
+          "caption": null,
+          "definition": null,
+          "licensedContent": null,
+          "statistics": {
+            "viewCount": "17458887304",
+            "likeCount": "47064460",
+            "favoriteCount": "0"
+          },
+          "status": {
+            "uploadStatus": "processed",
+            "privacyStatus": "public",
+            "license": "youtube",
+            "embeddable": true,
+            "publicStatsViewable": false,
+            "madeForKids": true
+          },
+          "liveStreamingDetails": null
+        }
+      ]
+    },
+    {
+      "label": "commentThreads.comments_off_candidate.XqZsoesa55w",
+      "endpoint": "commentThreads",
+      "params": {
+        "part": "snippet",
+        "videoId": "XqZsoesa55w",
+        "maxResults": 1
+      },
+      "checked_at": "2026-10-17T13:32:54.146170+00:00",
+      "http_status": 403,
+      "quota_bucket": "other_units",
+      "documented_cost": 1,
+      "error_body": {
+        "error": {
+          "code": 403,
+          "message": "The video identified by the <code><a href=\"/youtube/v3/docs/commentThreads/list#videoId\">videoId</a></code> parameter has disabled comments.",
+          "errors": [
+            {
+              "message": "The video identified by the <code><a href=\"/youtube/v3/docs/commentThreads/list#videoId\">videoId</a></code> parameter has disabled comments.",
+              "domain": "youtube.commentThread",
+              "reason": "commentsDisabled",
+              "location": "videoId",
+              "locationType": "parameter"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "label": "search.page1",
+      "endpoint": "search",
+      "params": {
+        "part": "snippet",
+        "type": "video",
+        "q": "python tutorial",
+        "maxResults": 5
+      },
+      "checked_at": "2026-10-17T13:32:54.504733+00:00",
+      "http_status": 200,
+      "quota_bucket": "search_queries",
+      "documented_cost": 1,
+      "page_info": {
+        "totalResults": 1000000,
+        "resultsPerPage": 5
+      },
+      "next_page_token_present": true,
+      "prev_page_token_present": false,
+      "top_level_keys": [
+        "etag",
+        "items",
+        "kind",
+        "nextPageToken",
+        "pageInfo",
+        "regionCode"
+      ],
+      "observed": [
+        {
+          "videoId": "Js05B8Z1ivE",
+          "kind": "youtube#video",
+          "channelId": "UC4JX40jDee_tINbkjycV4Sg",
+          "publishedAt": "2026-07-26T13:00:10Z",
+          "title": "Python Tutorial for Beginners - Learn the basics in 20 Min",
+          "liveBroadcastContent": "none"
+        },
+        {
+          "videoId": "_uQrJ0TkZlc",
+          "kind": "youtube#video",
+          "channelId": "UCWv7vMbMWH4-V0ZXdmDpPBA",
+          "publishedAt": "2019-02-18T15:00:08Z",
+          "title": "Python Full Course for Beginners",
+          "liveBroadcastContent": "none"
+        },
+        {
+          "videoId": "b093aqAZiPU",
+          "kind": "youtube#video",
+          "channelId": "UCfJT_eYDTmDE-ovKaxVE1ig",
+          "publishedAt": "2021-03-25T10:00:08Z",
+          "title": "👩‍💻 Python for Beginners Tutorial",
+          "liveBroadcastContent": "none"
+        },
+        {
+          "videoId": "kqtD5dpn9C8",
+          "kind": "youtube#video",
+          "channelId": "UCWv7vMbMWH4-V0ZXdmDpPBA",
+          "publishedAt": "2020-09-16T13:00:20Z",
+          "title": "Python for Beginners - Learn Coding with Python in 1 Hour",
+          "liveBroadcastContent": "none"
+        },
+        {
+          "videoId": "fWjsdhR3z3c",
+          "kind": "youtube#video",
+          "channelId": "UCuudpdbKmQWq2PPzYgVCWlA",
+          "publishedAt": "2021-05-26T12:32:40Z",
+          "title": "Learn Python in Less than 10 Minutes for Beginners (Fast &amp; Easy)",
+          "liveBroadcastContent": "none"
+        }
+      ]
+    },
+    {
+      "label": "search.page2",
+      "endpoint": "search",
+      "params": {
+        "part": "snippet",
+        "type": "video",
+        "q": "python tutorial",
+        "maxResults": 5,
+        "pageToken": "CAUQAA"
+      },
+      "checked_at": "2026-10-17T13:32:55.097104+00:00",
+      "http_status": 200,
+      "quota_bucket": "search_queries",
+      "documented_cost": 1,
+      "page_info": {
+        "totalResults": 1000000,
+        "resultsPerPage": 5
+      },
+      "next_page_token_present": true,
+      "prev_page_token_present": true,
+      "top_level_keys": [
+        "etag",
+        "items",
+        "kind",
+        "nextPageToken",
+        "pageInfo",
+        "prevPageToken",
+        "regionCode"
+      ],
+      "observed": [
+        {
+          "videoId": "6GuyMZ-cSzE",
+          "kind": "youtube#video",
+          "channelId": "UCh9nVJoWXmFb7sLApWGcLPQ",
+          "publishedAt": "2026-07-01T13:47:41Z",
+          "title": "Python Tutorial for AI: Everything You Need in 2 Hours",
+          "liveBroadcastContent": "none"
+        },
+        {
+          "videoId": "t8pPdKYpowI",
+          "kind": "youtube#video",
+          "channelId": "UCdngmbVKX1Tgre699-XLlUA",
+          "publishedAt": "2021-03-05T14:10:17Z",
+          "title": "Python Tutorial for Beginners - Learn Python in 5 Hours [FULL COURSE]",
+          "liveBroadcastContent": "none"
+        },
+        {
+          "videoId": "rfscVS0vtbw",
+          "kind": "youtube#video",
+          "channelId": "UC8butISFwT-Wl7EV0hUK0BQ",
+          "publishedAt": "2018-07-11T18:00:42Z",
+          "title": "Learn Python - Full Course for Beginners [Tutorial]",
+          "liveBroadcastContent": "none"
+        },
+        {
+          "videoId": "q2-pnQffZik",
+          "kind": "youtube#video",
+          "channelId": "UC7zZ2-Q_oxbUaoMVL0z51wg",
+          "publishedAt": "2024-12-31T02:30:33Z",
+          "title": "Learn Python for FREE in 2025",
+          "liveBroadcastContent": "none"
+        },
+        {
+          "videoId": "Ro_MScTDfU4",
+          "kind": "youtube#video",
+          "channelId": "UCuudpdbKmQWq2PPzYgVCWlA",
+          "publishedAt": "2024-11-18T14:00:24Z",
+          "title": "Learn Python in Only 30 Minutes (Beginner Tutorial)",
+          "liveBroadcastContent": "none"
+        }
+      ]
+    },
+    {
+      "label": "search.channel_order_date",
+      "endpoint": "search",
+      "params": {
+        "part": "snippet",
+        "type": "video",
+        "channelId": "UCYO_jab_esuFRV4b17AJtAw",
+        "order": "date",
+        "maxResults": 5
+      },
+      "checked_at": "2026-10-17T13:32:55.754199+00:00",
+      "http_status": 200,
+      "quota_bucket": "search_queries",
+      "documented_cost": 1,
+      "page_info": {
+        "totalResults": 334,
+        "resultsPerPage": 5
+      },
+      "next_page_token_present": true,
+      "prev_page_token_present": false,
+      "top_level_keys": [
+        "etag",
+        "items",
+        "kind",
+        "nextPageToken",
+        "pageInfo",
+        "regionCode"
+      ],
+      "observed": [
+        {
+          "videoId": "LKrwhjOI8Nc",
+          "kind": "youtube#video",
+          "channelId": "UCYO_jab_esuFRV4b17AJtAw",
+          "publishedAt": "2026-10-16T16:15:20Z",
+          "title": "There&#39;s never been a better time to go into math",
+          "liveBroadcastContent": "none"
+        },
+        {
+          "videoId": "ausLKMojXaY",
+          "kind": "youtube#video",
+          "channelId": "UCYO_jab_esuFRV4b17AJtAw",
+          "publishedAt": "2026-09-25T13:35:02Z",
+          "title": "The Phone Number puzzle",
+          "liveBroadcastContent": "none"
+        },
+        {
+          "videoId": "bRQEWPA832A",
+          "kind": "youtube#video",
+          "channelId": "UCYO_jab_esuFRV4b17AJtAw",
+          "publishedAt": "2026-09-18T17:14:08Z",
+          "title": "The last IMO problem AI could not solve",
+          "liveBroadcastContent": "none"
+        },
+        {
+          "videoId": "Nbwv5wHQoj0",
+          "kind": "youtube#video",
+          "channelId": "UCYO_jab_esuFRV4b17AJtAw",
+          "publishedAt": "2026-09-18T17:12:53Z",
+          "title": "The last IMO problem AI could not solve",
+          "liveBroadcastContent": "none"
+        },
+        {
+          "videoId": "rYyJm1tD3d0",
+          "kind": "youtube#video",
+          "channelId": "UCYO_jab_esuFRV4b17AJtAw",
+          "publishedAt": "2026-08-18T14:54:17Z",
+          "title": "The jumping pegs puzzle",
+          "liveBroadcastContent": "none"
+        }
+      ]
+    },
+    {
+      "label": "search.duration_short_closedcaption",
+      "endpoint": "search",
+      "params": {
+        "part": "snippet",
+        "type": "video",
+        "q": "khan academy",
+        "maxResults": 5,
+        "videoDuration": "short",
+        "videoCaption": "closedCaption"
+      },
+      "checked_at": "2026-10-17T13:32:56.284007+00:00",
+      "http_status": 200,
+      "quota_bucket": "search_queries",
+      "documented_cost": 1,
+      "page_info": {
+        "totalResults": 1000000,
+        "resultsPerPage": 5
+      },
+      "next_page_token_present": true,
+      "prev_page_token_present": false,
+      "top_level_keys": [
+        "etag",
+        "items",
+        "kind",
+        "nextPageToken",
+        "pageInfo",
+        "regionCode"
+      ],
+      "observed": [
+        {
+          "videoId": "FaDtge_vkbg",
+          "kind": "youtube#video",
+          "channelId": "UC4a-Gbdw7vOaccHmFo40b9g",
+          "publishedAt": "2015-08-10T23:45:58Z",
+          "title": "Finding a percentage | Decimals | Pre-Algebra | Khan Academy",
+          "liveBroadcastContent": "none"
+        },
+        {
+          "videoId": "0z_7PslT1K8",
+          "kind": "youtube#video",
+          "channelId": "UC4a-Gbdw7vOaccHmFo40b9g",
+          "publishedAt": "2025-08-28T20:24:21Z",
+          "title": "Khan Academy for Parents Overview",
+          "liveBroadcastContent": "none"
+        },
+        {
+          "videoId": "IvXZCocyU_M",
+          "kind": "youtube#video",
+          "channelId": "UC4a-Gbdw7vOaccHmFo40b9g",
+          "publishedAt": "2024-05-13T20:21:48Z",
+          "title": "GPT-4o (Omni) math tutoring demo on Khan Academy",
+          "liveBroadcastContent": "none"
+        },
+        {
+          "videoId": "Lys4EVugJmk",
+          "kind": "youtube#video",
+          "channelId": "UC4a-Gbdw7vOaccHmFo40b9g",
+          "publishedAt": "2024-08-12T18:33:07Z",
+          "title": "Welcome to Financial Literacy | Welcome to Financial Literacy | Financial Literacy | Khan Academy",
+          "liveBroadcastContent": "none"
+        },
+        {
+          "videoId": "9T3AAn-Cw3g",
+          "kind": "youtube#video",
+          "channelId": "UC4a-Gbdw7vOaccHmFo40b9g",
+          "publishedAt": "2013-10-04T22:48:47Z",
+          "title": "Subtracting: three digit numbers and basic regrouping | Arithmetic | Khan Academy",
+          "liveBroadcastContent": "none"
+        }
+      ]
+    },
+    {
+      "label": "videos.verify_search_filters",
+      "endpoint": "videos",
+      "params": {
+        "part": "contentDetails",
+        "id": "FaDtge_vkbg,0z_7PslT1K8,IvXZCocyU_M,Lys4EVugJmk,9T3AAn-Cw3g"
+      },
+      "checked_at": "2026-10-17T13:32:56.977463+00:00",
+      "http_status": 200,
+      "quota_bucket": "other_units",
+      "documented_cost": 1,
+      "page_info": {
+        "totalResults": 5,
+        "resultsPerPage": 5
+      },
+      "next_page_token_present": false,
+      "prev_page_token_present": false,
+      "top_level_keys": [
+        "etag",
+        "items",
+        "kind",
+        "pageInfo"
+      ],
+      "observed": [
+        {
+          "id": "FaDtge_vkbg",
+          "parts_present": [
+            "contentDetails"
+          ],
+          "publishedAt": null,
+          "channelId": null,
+          "title": null,
+          "description_length": 0,
+          "defaultLanguage": null,
+          "defaultAudioLanguage": null,
+          "liveBroadcastContent": null,
+          "duration": "PT3M33S",
+          "caption": "true",
+          "definition": "hd",
+          "licensedContent": true,
+          "statistics": null,
+          "status": {},
+          "liveStreamingDetails": null
+        },
+        {
+          "id": "0z_7PslT1K8",
+          "parts_present": [
+            "contentDetails"
+          ],
+          "publishedAt": null,
+          "channelId": null,
+          "title": null,
+          "description_length": 0,
+          "defaultLanguage": null,
+          "defaultAudioLanguage": null,
+          "liveBroadcastContent": null,
+          "duration": "PT2M57S",
+          "caption": "true",
+          "definition": "hd",
+          "licensedContent": false,
+          "statistics": null,
+          "status": {},
+          "liveStreamingDetails": null
+        },
+        {
+          "id": "IvXZCocyU_M",
+          "parts_present": [
+            "contentDetails"
+          ],
+          "publishedAt": null,
+          "channelId": null,
+          "title": null,
+          "description_length": 0,
+          "defaultLanguage": null,
+          "defaultAudioLanguage": null,
+          "liveBroadcastContent": null,
+          "duration": "PT3M21S",
+          "caption": "true",
+          "definition": "hd",
+          "licensedContent": false,
+          "statistics": null,
+          "status": {},
+          "liveStreamingDetails": null
+        },
+        {
+          "id": "Lys4EVugJmk",
+          "parts_present": [
+            "contentDetails"
+          ],
+          "publishedAt": null,
+          "channelId": null,
+          "title": null,
+          "description_length": 0,
+          "defaultLanguage": null,
+          "defaultAudioLanguage": null,
+          "liveBroadcastContent": null,
+          "duration": "PT2M8S",
+          "caption": "true",
+          "definition": "hd",
+          "licensedContent": false,
+          "statistics": null,
+          "status": {},
+          "liveStreamingDetails": null
+        },
+        {
+          "id": "9T3AAn-Cw3g",
+          "parts_present": [
+            "contentDetails"
+          ],
+          "publishedAt": null,
+          "channelId": null,
+          "title": null,
+          "description_length": 0,
+          "defaultLanguage": null,
+          "defaultAudioLanguage": null,
+          "liveBroadcastContent": null,
+          "duration": "PT2M47S",
+          "caption": "true",
+          "definition": "hd",
+          "licensedContent": true,
+          "statistics": null,
+          "status": {},
+          "liveStreamingDetails": null
+        }
+      ]
+    },
+    {
+      "label": "search.publishedAfter_equals_T",
+      "endpoint": "search",
+      "params": {
+        "part": "snippet",
+        "type": "video",
+        "channelId": "UCYO_jab_esuFRV4b17AJtAw",
+        "maxResults": 10,
+        "publishedAfter": "2026-09-25T13:35:02Z",
+        "publishedBefore": "2027-01-23T13:35:02Z"
+      },
+      "checked_at": "2026-10-17T13:32:57.363161+00:00",
+      "http_status": 200,
+      "quota_bucket": "search_queries",
+      "documented_cost": 1,
+      "page_info": {
+        "totalResults": 2,
+        "resultsPerPage": 2
+      },
+      "next_page_token_present": false,
+      "prev_page_token_present": false,
+      "top_level_keys": [
+        "etag",
+        "items",
+        "kind",
+        "pageInfo",
+        "regionCode"
+      ],
+      "observed": {
+        "target_videoId": "ausLKMojXaY",
+        "T": "2026-09-25T13:35:02Z",
+        "target_included": true,
+        "items": [
+          {
+            "videoId": "LKrwhjOI8Nc",
+            "kind": "youtube#video",
+            "channelId": "UCYO_jab_esuFRV4b17AJtAw",
+            "publishedAt": "2026-10-16T16:15:20Z",
+            "title": "There&#39;s never been a better time to go into math",
+            "liveBroadcastContent": "none"
+          },
+          {
+            "videoId": "ausLKMojXaY",
+            "kind": "youtube#video",
+            "channelId": "UCYO_jab_esuFRV4b17AJtAw",
+            "publishedAt": "2026-09-25T13:35:02Z",
+            "title": "The Phone Number puzzle",
+            "liveBroadcastContent": "none"
+          }
+        ]
+      }
+    },
+    {
+      "label": "search.publishedBefore_equals_T",
+      "endpoint": "search",
+      "params": {
+        "part": "snippet",
+        "type": "video",
+        "channelId": "UCYO_jab_esuFRV4b17AJtAw",
+        "maxResults": 10,
+        "publishedAfter": "2026-05-28T13:35:02Z",
+        "publishedBefore": "2026-09-25T13:35:02Z"
+      },
+      "checked_at": "2026-10-17T13:32:58.077674+00:00",
+      "http_status": 200,
+      "quota_bucket": "search_queries",
+      "documented_cost": 1,
+      "page_info": {
+        "totalResults": 17,
+        "resultsPerPage": 10
+      },
+      "next_page_token_present": true,
+      "prev_page_token_present": false,
+      "top_level_keys": [
+        "etag",
+        "items",
+        "kind",
+        "nextPageToken",
+        "pageInfo",
+        "regionCode"
+      ],
+      "observed": {
+        "target_videoId": "ausLKMojXaY",
+        "T": "2026-09-25T13:35:02Z",
+        "target_included": true,
+        "items": [
+          {
+            "videoId": "6XPlmCDNLNc",
+            "kind": "youtube#video",
+            "channelId": "UCYO_jab_esuFRV4b17AJtAw",
+            "publishedAt": "2026-07-24T15:05:39Z",
+            "title": "The 64 sugar cubes puzzle",
+            "liveBroadcastContent": "none"
+          },
+          {
+            "videoId": "7L_eTem1SQ4",
+            "kind": "youtube#video",
+            "channelId": "UCYO_jab_esuFRV4b17AJtAw",
+            "publishedAt": "2026-06-10T13:26:34Z",
+            "title": "What&#39;s the perfect encoding? How do you know?",
+            "liveBroadcastContent": "none"
+          },
+          {
+            "videoId": "ausLKMojXaY",
+            "kind": "youtube#video",
+            "channelId": "UCYO_jab_esuFRV4b17AJtAw",
+            "publishedAt": "2026-09-25T13:35:02Z",
+            "title": "The Phone Number puzzle",
+            "liveBroadcastContent": "none"
+          },
+          {
+            "videoId": "rYyJm1tD3d0",
+            "kind": "youtube#video",
+            "channelId": "UCYO_jab_esuFRV4b17AJtAw",
+            "publishedAt": "2026-08-18T14:54:17Z",
+            "title": "The jumping pegs puzzle",
+            "liveBroadcastContent": "none"
+          },
+          {
+            "videoId": "-7etvZSBxlk",
+            "kind": "youtube#video",
+            "channelId": "UCYO_jab_esuFRV4b17AJtAw",
+            "publishedAt": "2026-06-12T13:22:02Z",
+            "title": "Measuring the entropy of English",
+            "liveBroadcastContent": "none"
+          },
+          {
+            "videoId": "Nbwv5wHQoj0",
+            "kind": "youtube#video",
+            "channelId": "UCYO_jab_esuFRV4b17AJtAw",
+            "publishedAt": "2026-09-18T17:12:53Z",
+            "title": "The last IMO problem AI could not solve",
+            "liveBroadcastContent": "none"
+          },
+          {
+            "videoId": "bRQEWPA832A",
+            "kind": "youtube#video",
+            "channelId": "UCYO_jab_esuFRV4b17AJtAw",
+            "publishedAt": "2026-09-18T17:14:08Z",
+            "title": "The last IMO problem AI could not solve",
+            "liveBroadcastContent": "none"
+          },
+          {
+            "videoId": "l6DKRf-fAAM",
+            "kind": "youtube#video",
+            "channelId": "UCYO_jab_esuFRV4b17AJtAw",
+            "publishedAt": "2026-06-07T11:49:51Z",
+            "title": "Reinventing Entropy | Compression is Intelligence Part 1",
+            "liveBroadcastContent": "none"
+          },
+          {
+            "videoId": "wGffBCfrAsE",
+            "kind": "youtube#video",
+            "channelId": "UCYO_jab_esuFRV4b17AJtAw",
+            "publishedAt": "2026-06-16T18:04:05Z",
+            "title": "100 random chords, how many intersections?",
+            "liveBroadcastContent": "none"
+          },
+          {
+            "videoId": "GlYgs6v2YfU",
+            "kind": "youtube#video",
+            "channelId": "UCYO_jab_esuFRV4b17AJtAw",
+            "publishedAt": "2026-07-16T11:56:04Z",
+            "title": "But what is cross-entropy? | Compression is Intelligence Part 2",
+            "liveBroadcastContent": "none"
+          }
+        ]
+      }
+    },
+    {
+      "label": "search.publishedAfter_date_only",
+      "endpoint": "search",
+      "params": {
+        "part": "snippet",
+        "type": "video",
+        "q": "python tutorial",
+        "maxResults": 1,
+        "publishedAfter": "2026-10-01"
+      },
+      "checked_at": "2026-10-17T13:32:59.330438+00:00",
+      "http_status": 400,
+      "quota_bucket": "search_queries",
+      "documented_cost": 1,
+      "error_body": {
+        "error": {
+          "code": 400,
+          "message": "Invalid value at 'published_after' (type.googleapis.com/google.protobuf.Timestamp), Field 'published_after', Illegal timestamp format; timestamps must end with 'Z' or have a valid timezone offset.",
+          "errors": [
+            {
+              "message": "Invalid value at 'published_after' (type.googleapis.com/google.protobuf.Timestamp), Field 'published_after', Illegal timestamp format; timestamps must end with 'Z' or have a valid timezone offset.",
+              "reason": "invalid"
+            }
+          ],
+          "status": "INVALID_ARGUMENT",
+          "details": [
+            {
+              "@type": "type.googleapis.com/google.rpc.BadRequest",
+              "fieldViolations": [
+                {
+                  "field": "published_after",
+                  "description": "Invalid value at 'published_after' (type.googleapis.com/google.protobuf.Timestamp), Field 'published_after', Illegal timestamp format; timestamps must end with 'Z' or have a valid timezone offset."
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "label": "search.empty_result",
+      "endpoint": "search",
+      "params": {
+        "part": "snippet",
+        "type": "video",
+        "maxResults": 5,
+        "q": "\"zqxjvkwplmrtbgh qqzzxxjjvvkkww\""
+      },
+      "checked_at": "2026-10-17T13:32:59.824750+00:00",
+      "http_status": 200,
+      "quota_bucket": "search_queries",
+      "documented_cost": 1,
+      "page_info": {
+        "totalResults": 0,
+        "resultsPerPage": 0
+      },
+      "next_page_token_present": false,
+      "prev_page_token_present": false,
+      "top_level_keys": [
+        "etag",
+        "items",
+        "kind",
+        "pageInfo",
+        "regionCode"
+      ],
+      "observed": []
+    },
+    {
+      "label": "auth.invalid_key",
+      "endpoint": "videos",
+      "params": {
+        "part": "id",
+        "id": "jNQXAC9IVRw"
+      },
+      "checked_at": "2026-10-17T13:33:00.386129+00:00",
+      "http_status": 400,
+      "quota_bucket": "not-own-project",
+      "documented_cost": 1,
+      "error_body": {
+        "error": {
+          "code": 400,
+          "message": "API key not valid. Please pass a valid API key.",
+          "errors": [
+            {
+              "message": "API key not valid. Please pass a valid API key.",
+              "domain": "global",
+              "reason": "badRequest"
+            }
+          ],
+          "status": "INVALID_ARGUMENT",
+          "details": [
+            {
+              "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+              "reason": "API_KEY_INVALID",
+              "domain": "googleapis.com",
+              "metadata": {
+                "service": "youtube.googleapis.com"
+              }
+            },
+            {
+              "@type": "type.googleapis.com/google.rpc.LocalizedMessage",
+              "locale": "en-US",
+              "message": "API key not valid. Please pass a valid API key."
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "derived": {
+    "search_page_overlap": [],
+    "search_page2_token_length": 6,
+    "order_date_descending": true,
+    "order_date_matches_uploads_page1": true,
+    "short_closedcaption_filter": {
+      "all_under_240s": true,
+      "all_caption_true": true
+    },
+    "publishedAfter_inclusive": true,
+    "publishedBefore_inclusive": true,
+    "relevance_max_embedded_replies": 5,
+    "relevance_threads_with_partial_replies": 16,
+    "time_order_first_item_same_as_relevance_first": true,
+    "search_title_html_escaped": true,
+    "playlistitems_title_html_escaped": false,
+    "channel_search_totalResults_vs_uploads": {
+      "search": 334,
+      "uploads": 246
+    }
+  },
+  "out_of_script_calls": [
+    {
+      "when": "2026-10-17, key setup wizard verification, before this script",
+      "endpoint": "videos",
+      "params": {
+        "part": "id",
+        "id": "jNQXAC9IVRw"
+      },
+      "http_status": 200,
+      "documented_cost": 1,
+      "quota_bucket": "other_units"
+    }
+  ],
+  "key_setup": {
+    "credential": "standard API key (not bound to a service account)",
+    "api_restriction": "YouTube Data API v3 only",
+    "application_restriction": "None",
+    "billing_prompt_observed": false,
+    "storage": "macOS keychain generic password, service=forager-youtube-data-api"
+  },
+  "console_observations": {
+    "source": "Google Cloud console, YouTube Data API v3 service page of the test project, read via computer use; project identifiers omitted",
+    "quotas_page": {
+      "read_at_utc": "2026-10-17T13:35Z (about 3 minutes after the run)",
+      "limits": {
+        "Queries per day": 10000,
+        "Queries per minute": 1800000,
+        "Search Queries per day": 100,
+        "Search Queries per minute": 100,
+        "Video Batch Get Stats Queries per day": 10000,
+        "Video Batch Get Stats Queries per minute": 600,
+        "Video Uploads per day": 100,
+        "Video Uploads per minute": 100,
+        "Queries per minute per user": 180000
+      },
+      "current_usage_all_rows": 0,
+      "note": "All usage counters still showed 0; usage reporting lagged the calls."
+    },
+    "metrics_page": {
+      "read_at_utc": "2026-10-17T13:41Z",
+      "range": "1 hour",
+      "requests_by_method": {
+        "V3DataSearchService.List": {
+          "requests": 8,
+          "error_rate": "12.5%"
+        },
+        "V3DataVideoService.List": {
+          "requests": 6,
+          "error_rate": "0%"
+        },
+        "V3DataCommentThreadService.List": {
+          "requests": 3,
+          "error_rate": "33.33%"
+        },
+        "V3DataPlaylistItemService.List": {
+          "requests": 2,
+          "error_rate": "0%"
+        },
+        "V3DataChannelService.List": {
+          "requests": 1,
+          "error_rate": "0%"
+        },
+        "V3DataCommentService.List": {
+          "requests": 1,
+          "error_rate": "0%"
+        }
+      },
+      "response_codes_seen": [
+        "200",
+        "400",
+        "403"
+      ],
+      "note": "21 requests attributed to the project = 20 script calls with the real key + 1 wizard verification; the fake-key request is not attributed to the project."
+    },
+    "quotas_page_refreshed": {
+      "read_at_utc": "2026-10-17 (after the user brought the console back; roughly 20+ minutes after the run)",
+      "current_usage": {
+        "Search Queries per day": 8,
+        "Search Queries per minute": 4,
+        "Queries per day": 13,
+        "Queries per minute": 13,
+        "Video Batch Get Stats Queries per day": 0,
+        "Video Batch Get Stats Queries per minute": 0,
+        "Video Uploads per day": 0,
+        "Video Uploads per minute": 0,
+        "Queries per minute per user": "not shown"
+      },
+      "expected_from_docs": {
+        "search_queries": 8,
+        "other_units": 13
+      },
+      "note": "Search bucket 8 includes the 400 date-format search; Queries per day 13 = 12 script units (including the 403 commentsDisabled call) + 1 wizard verification. videos.list with part=statistics did not draw on Video Batch Get Stats."
+    }
+  }
+}

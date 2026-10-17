@@ -1,0 +1,1630 @@
+FILE: youtube_transcript_api/_transcripts.py
+SOURCE: https://github.com/jdepoix/youtube-transcript-api/blob/8f150ba8836da30a36bcd40e8fca226ed179ba72/youtube_transcript_api/_transcripts.py
+
+from dataclasses import dataclass, asdict
+from enum import Enum
+from itertools import chain
+
+from html import unescape
+from typing import List, Dict, Iterator, Iterable, Pattern, Optional
+
+from defusedxml import ElementTree
+
+import re
+
+from requests import HTTPError, Session, Response
+
+from .proxies import ProxyConfig
+from ._settings import WATCH_URL, INNERTUBE_CONTEXT, INNERTUBE_API_URL
+from ._errors import (
+    VideoUnavailable,
+    YouTubeRequestFailed,
+    NoTranscriptFound,
+    TranscriptsDisabled,
+    NotTranslatable,
+    TranslationLanguageNotAvailable,
+    FailedToCreateConsentCookie,
+    InvalidVideoId,
+    IpBlocked,
+    RequestBlocked,
+    AgeRestricted,
+    VideoUnplayable,
+    YouTubeDataUnparsable,
+    PoTokenRequired,
+)
+
+
+@dataclass
+class FetchedTranscriptSnippet:
+    text: str
+    start: float
+    """
+    The timestamp at which this transcript snippet appears on screen in seconds.
+    """
+    duration: float
+    """
+    The duration of how long the snippet in seconds. Be aware that this is not the 
+    duration of the transcribed speech, but how long the snippet stays on screen.
+    Therefore, there can be overlaps between snippets!
+    """
+
+
+@dataclass
+class FetchedTranscript:
+    """
+    Represents a fetched transcript. This object is iterable, which allows you to
+    iterate over the transcript snippets.
+    """
+
+    snippets: List[FetchedTranscriptSnippet]
+    video_id: str
+    language: str
+    language_code: str
+    is_generated: bool
+
+    def __iter__(self) -> Iterator[FetchedTranscriptSnippet]:
+        return iter(self.snippets)
+
+    def __getitem__(self, index) -> FetchedTranscriptSnippet:
+        return self.snippets[index]
+
+    def __len__(self) -> int:
+        return len(self.snippets)
+
+    def to_raw_data(self) -> List[Dict]:
+        return [asdict(snippet) for snippet in self]
+
+
+@dataclass
+class _TranslationLanguage:
+    language: str
+    language_code: str
+
+
+class _PlayabilityStatus(str, Enum):
+    OK = "OK"
+    ERROR = "ERROR"
+    LOGIN_REQUIRED = "LOGIN_REQUIRED"
+
+
+class _PlayabilityFailedReason(str, Enum):
+    BOT_DETECTED = "Sign in to confirm you’re not a bot"
+    AGE_RESTRICTED = "This video may be inappropriate for some users."
+    VIDEO_UNAVAILABLE = "This video is unavailable"
+
+
+def _raise_http_errors(response: Response, video_id: str) -> Response:
+    try:
+        if response.status_code == 429:
+            raise IpBlocked(video_id)
+        response.raise_for_status()
+        return response
+    except HTTPError as error:
+        raise YouTubeRequestFailed(video_id, error)
+
+
+class Transcript:
+    def __init__(
+        self,
+        http_client: Session,
+        video_id: str,
+        url: str,
+        language: str,
+        language_code: str,
+        is_generated: bool,
+        translation_languages: List[_TranslationLanguage],
+    ):
+        """
+        You probably don't want to initialize this directly. Usually you'll access Transcript objects using a
+        TranscriptList.
+        """
+        self._http_client = http_client
+        self.video_id = video_id
+        self._url = url
+        self.language = language
+        self.language_code = language_code
+        self.is_generated = is_generated
+        self.translation_languages = translation_languages
+        self._translation_languages_dict = {
+            translation_language.language_code: translation_language.language
+            for translation_language in translation_languages
+        }
+
+    def fetch(self, preserve_formatting: bool = False) -> FetchedTranscript:
+        """
+        Loads the actual transcript data.
+        :param preserve_formatting: whether to keep select HTML text formatting
+        """
+        if "&exp=xpe" in self._url:
+            raise PoTokenRequired(self.video_id)
+        response = self._http_client.get(self._url)
+        snippets = _TranscriptParser(preserve_formatting=preserve_formatting).parse(
+            _raise_http_errors(response, self.video_id).text,
+        )
+        return FetchedTranscript(
+            snippets=snippets,
+            video_id=self.video_id,
+            language=self.language,
+            language_code=self.language_code,
+            is_generated=self.is_generated,
+        )
+
+    def __str__(self) -> str:
+        return '{language_code} ("{language}"){translation_description}'.format(
+            language=self.language,
+            language_code=self.language_code,
+            translation_description="[TRANSLATABLE]" if self.is_translatable else "",
+        )
+
+    @property
+    def is_translatable(self) -> bool:
+        return len(self.translation_languages) > 0
+
+    def translate(self, language_code: str) -> "Transcript":
+        if not self.is_translatable:
+            raise NotTranslatable(self.video_id)
+
+        if language_code not in self._translation_languages_dict:
+            raise TranslationLanguageNotAvailable(self.video_id)
+
+        return Transcript(
+            self._http_client,
+            self.video_id,
+            "{url}&tlang={language_code}".format(
+                url=self._url, language_code=language_code
+            ),
+            self._translation_languages_dict[language_code],
+            language_code,
+            True,
+            [],
+        )
+
+
+class TranscriptList:
+    """
+    This object represents a list of transcripts. It can be iterated over to list all transcripts which are available
+    for a given YouTube video. Also, it provides functionality to search for a transcript in a given language.
+    """
+
+    def __init__(
+        self,
+        video_id: str,
+        manually_created_transcripts: Dict[str, Transcript],
+        generated_transcripts: Dict[str, Transcript],
+        translation_languages: List[_TranslationLanguage],
+    ):
+        """
+        The constructor is only for internal use. Use the static build method instead.
+
+        :param video_id: the id of the video this TranscriptList is for
+        :param manually_created_transcripts: dict mapping language codes to the manually created transcripts
+        :param generated_transcripts: dict mapping language codes to the generated transcripts
+        :param translation_languages: list of languages which can be used for translatable languages
+        """
+        self.video_id = video_id
+        self._manually_created_transcripts = manually_created_transcripts
+        self._generated_transcripts = generated_transcripts
+        self._translation_languages = translation_languages
+
+    @staticmethod
+    def build(
+        http_client: Session, video_id: str, captions_json: Dict
+    ) -> "TranscriptList":
+        """
+        Factory method for TranscriptList.
+
+        :param http_client: http client which is used to make the transcript retrieving http calls
+        :param video_id: the id of the video this TranscriptList is for
+        :param captions_json: the JSON parsed from the YouTube pages static HTML
+        :return: the created TranscriptList
+        """
+        translation_languages = [
+            _TranslationLanguage(
+                language=translation_language["languageName"]["runs"][0]["text"],
+                language_code=translation_language["languageCode"],
+            )
+            for translation_language in captions_json.get("translationLanguages", [])
+        ]
+
+        manually_created_transcripts = {}
+        generated_transcripts = {}
+
+        for caption in captions_json["captionTracks"]:
+            if caption.get("kind", "") == "asr":
+                transcript_dict = generated_transcripts
+            else:
+                transcript_dict = manually_created_transcripts
+
+            transcript_dict[caption["languageCode"]] = Transcript(
+                http_client,
+                video_id,
+                caption["baseUrl"].replace("&fmt=srv3", ""),
+                caption["name"]["runs"][0]["text"],
+                caption["languageCode"],
+                caption.get("kind", "") == "asr",
+                translation_languages if caption.get("isTranslatable", False) else [],
+            )
+
+        return TranscriptList(
+            video_id,
+            manually_created_transcripts,
+            generated_transcripts,
+            translation_languages,
+        )
+
+    def __iter__(self) -> Iterator[Transcript]:
+        return chain(
+            self._manually_created_transcripts.values(),
+            self._generated_transcripts.values(),
+        )
+
+    def find_transcript(self, language_codes: Iterable[str]) -> Transcript:
+        """
+        Finds a transcript for a given language code. Manually created transcripts are returned first and only if none
+        are found, generated transcripts are used. If you only want generated transcripts use
+        `find_manually_created_transcript` instead.
+
+        :param language_codes: A list of language codes in a descending priority. For example, if this is set to
+        ['de', 'en'] it will first try to fetch the german transcript (de) and then fetch the english transcript (en) if
+        it fails to do so.
+        :return: the found Transcript
+        """
+        return self._find_transcript(
+            language_codes,
+            [self._manually_created_transcripts, self._generated_transcripts],
+        )
+
+    def find_generated_transcript(self, language_codes: Iterable[str]) -> Transcript:
+        """
+        Finds an automatically generated transcript for a given language code.
+
+        :param language_codes: A list of language codes in a descending priority. For example, if this is set to
+        ['de', 'en'] it will first try to fetch the german transcript (de) and then fetch the english transcript (en) if
+        it fails to do so.
+        :return: the found Transcript
+        """
+        return self._find_transcript(language_codes, [self._generated_transcripts])
+
+    def find_manually_created_transcript(
+        self, language_codes: Iterable[str]
+    ) -> Transcript:
+        """
+        Finds a manually created transcript for a given language code.
+
+        :param language_codes: A list of language codes in a descending priority. For example, if this is set to
+        ['de', 'en'] it will first try to fetch the german transcript (de) and then fetch the english transcript (en) if
+        it fails to do so.
+        :return: the found Transcript
+        """
+        return self._find_transcript(
+            language_codes, [self._manually_created_transcripts]
+        )
+
+    def _find_transcript(
+        self,
+        language_codes: Iterable[str],
+        transcript_dicts: List[Dict[str, Transcript]],
+    ) -> Transcript:
+        for language_code in language_codes:
+            for transcript_dict in transcript_dicts:
+                if language_code in transcript_dict:
+                    return transcript_dict[language_code]
+
+        raise NoTranscriptFound(self.video_id, language_codes, self)
+
+    def __str__(self) -> str:
+        return (
+            "For this video ({video_id}) transcripts are available in the following languages:\n\n"
+            "(MANUALLY CREATED)\n"
+            "{available_manually_created_transcript_languages}\n\n"
+            "(GENERATED)\n"
+            "{available_generated_transcripts}\n\n"
+            "(TRANSLATION LANGUAGES)\n"
+            "{available_translation_languages}"
+        ).format(
+            video_id=self.video_id,
+            available_manually_created_transcript_languages=self._get_language_description(
+                str(transcript)
+                for transcript in self._manually_created_transcripts.values()
+            ),
+            available_generated_transcripts=self._get_language_description(
+                str(transcript) for transcript in self._generated_transcripts.values()
+            ),
+            available_translation_languages=self._get_language_description(
+                '{language_code} ("{language}")'.format(
+                    language=translation_language.language,
+                    language_code=translation_language.language_code,
+                )
+                for translation_language in self._translation_languages
+            ),
+        )
+
+    def _get_language_description(self, transcript_strings: Iterable[str]) -> str:
+        description = "\n".join(
+            " - {transcript}".format(transcript=transcript)
+            for transcript in transcript_strings
+        )
+        return description if description else "None"
+
+
+class TranscriptListFetcher:
+    def __init__(self, http_client: Session, proxy_config: Optional[ProxyConfig]):
+        self._http_client = http_client
+        self._proxy_config = proxy_config
+
+    def fetch(self, video_id: str) -> TranscriptList:
+        return TranscriptList.build(
+            self._http_client,
+            video_id,
+            self._fetch_captions_json(video_id),
+        )
+
+    def _fetch_captions_json(self, video_id: str, try_number: int = 0) -> Dict:
+        try:
+            html = self._fetch_video_html(video_id)
+            api_key = self._extract_innertube_api_key(html, video_id)
+            innertube_data = self._fetch_innertube_data(video_id, api_key)
+            return self._extract_captions_json(innertube_data, video_id)
+        except RequestBlocked as exception:
+            retries = (
+                0
+                if self._proxy_config is None
+                else self._proxy_config.retries_when_blocked
+            )
+            if try_number + 1 < retries:
+                return self._fetch_captions_json(video_id, try_number=try_number + 1)
+            raise exception.with_proxy_config(self._proxy_config)
+
+    def _extract_innertube_api_key(self, html: str, video_id: str) -> str:
+        pattern = r'"INNERTUBE_API_KEY":\s*"([a-zA-Z0-9_-]+)"'
+        match = re.search(pattern, html)
+        if match and len(match.groups()) == 1:
+            return match.group(1)
+        if 'class="g-recaptcha"' in html:
+            raise IpBlocked(video_id)
+        raise YouTubeDataUnparsable(video_id)  # pragma: no cover
+
+    def _extract_captions_json(self, innertube_data: Dict, video_id: str) -> Dict:
+        self._assert_playability(innertube_data.get("playabilityStatus"), video_id)
+
+        captions_json = innertube_data.get("captions", {}).get(
+            "playerCaptionsTracklistRenderer"
+        )
+        if captions_json is None or "captionTracks" not in captions_json:
+            raise TranscriptsDisabled(video_id)
+
+        return captions_json
+
+    def _assert_playability(self, playability_status_data: Dict, video_id: str) -> None:
+        playability_status = playability_status_data.get("status")
+        if (
+            playability_status != _PlayabilityStatus.OK.value
+            and playability_status is not None
+        ):
+            reason = playability_status_data.get("reason")
+            if playability_status == _PlayabilityStatus.LOGIN_REQUIRED.value:
+                if reason == _PlayabilityFailedReason.BOT_DETECTED.value:
+                    raise RequestBlocked(video_id)
+                if reason == _PlayabilityFailedReason.AGE_RESTRICTED.value:
+                    raise AgeRestricted(video_id)
+            if (
+                playability_status == _PlayabilityStatus.ERROR.value
+                and reason == _PlayabilityFailedReason.VIDEO_UNAVAILABLE.value
+            ):
+                if video_id.startswith("http://") or video_id.startswith("https://"):
+                    raise InvalidVideoId(video_id)
+                raise VideoUnavailable(video_id)
+            subreasons = (
+                playability_status_data.get("errorScreen", {})
+                .get("playerErrorMessageRenderer", {})
+                .get("subreason", {})
+                .get("runs", [])
+            )
+            raise VideoUnplayable(
+                video_id, reason, [run.get("text", "") for run in subreasons]
+            )
+
+    def _create_consent_cookie(self, html: str, video_id: str) -> None:
+        match = re.search('name="v" value="(.*?)"', html)
+        if match is None:
+            raise FailedToCreateConsentCookie(video_id)
+        self._http_client.cookies.set(
+            "CONSENT", "YES+" + match.group(1), domain=".youtube.com"
+        )
+
+    def _fetch_video_html(self, video_id: str) -> str:
+        html = self._fetch_html(video_id)
+        if 'action="https://consent.youtube.com/s"' in html:
+            self._create_consent_cookie(html, video_id)
+            html = self._fetch_html(video_id)
+            if 'action="https://consent.youtube.com/s"' in html:
+                raise FailedToCreateConsentCookie(video_id)
+        return html
+
+    def _fetch_html(self, video_id: str) -> str:
+        response = self._http_client.get(WATCH_URL.format(video_id=video_id))
+        return unescape(_raise_http_errors(response, video_id).text)
+
+    def _fetch_innertube_data(self, video_id: str, api_key: str) -> Dict:
+        response = self._http_client.post(
+            INNERTUBE_API_URL.format(api_key=api_key),
+            json={
+                "context": INNERTUBE_CONTEXT,
+                "videoId": video_id,
+            },
+        )
+        data = _raise_http_errors(response, video_id).json()
+        return data
+
+
+class _TranscriptParser:
+    _FORMATTING_TAGS = [
+        "strong",  # important
+        "em",  # emphasized
+        "b",  # bold
+        "i",  # italic
+        "mark",  # marked
+        "small",  # smaller
+        "del",  # deleted
+        "ins",  # inserted
+        "sub",  # subscript
+        "sup",  # superscript
+    ]
+
+    def __init__(self, preserve_formatting: bool = False):
+        self._html_regex = self._get_html_regex(preserve_formatting)
+
+    def _get_html_regex(self, preserve_formatting: bool) -> Pattern[str]:
+        if preserve_formatting:
+            formats_regex = "|".join(self._FORMATTING_TAGS)
+            formats_regex = r"<\/?(?!\/?(" + formats_regex + r")\b).*?\b>"
+            html_regex = re.compile(formats_regex, re.IGNORECASE)
+        else:
+            html_regex = re.compile(r"<[^>]*>", re.IGNORECASE)
+        return html_regex
+
+    def parse(self, raw_data: str) -> List[FetchedTranscriptSnippet]:
+        return [
+            FetchedTranscriptSnippet(
+                text=re.sub(self._html_regex, "", unescape(xml_element.text)),
+                start=float(xml_element.attrib["start"]),
+                duration=float(xml_element.attrib.get("dur", "0.0")),
+            )
+            for xml_element in ElementTree.fromstring(raw_data)
+            if xml_element.text is not None
+        ]
+
+
+FILE: youtube_transcript_api/_errors.py
+SOURCE: https://github.com/jdepoix/youtube-transcript-api/blob/8f150ba8836da30a36bcd40e8fca226ed179ba72/youtube_transcript_api/_errors.py
+
+from pathlib import Path
+from typing import Iterable, Optional, List
+
+from requests import HTTPError
+
+from ._settings import WATCH_URL
+from .proxies import ProxyConfig, GenericProxyConfig, WebshareProxyConfig
+
+
+class YouTubeTranscriptApiException(Exception):
+    pass
+
+
+class CookieError(YouTubeTranscriptApiException):
+    pass
+
+
+class CookiePathInvalid(CookieError):
+    def __init__(
+        self, cookie_path: Path
+    ):  # pragma: no cover until cookie authentication is re-implemented
+        super().__init__(f"Can't load the provided cookie file: {cookie_path}")
+
+
+class CookieInvalid(CookieError):
+    def __init__(
+        self, cookie_path: Path
+    ):  # pragma: no cover until cookie authentication is re-implemented
+        super().__init__(
+            f"The cookies provided are not valid (may have expired): {cookie_path}"
+        )
+
+
+class CouldNotRetrieveTranscript(YouTubeTranscriptApiException):
+    """
+    Raised if a transcript could not be retrieved.
+    """
+
+    ERROR_MESSAGE = "\nCould not retrieve a transcript for the video {video_url}!"
+    CAUSE_MESSAGE_INTRO = " This is most likely caused by:\n\n{cause}"
+    CAUSE_MESSAGE = ""
+    GITHUB_REFERRAL = (
+        "\n\nIf you are sure that the described cause is not responsible for this error "
+        "and that a transcript should be retrievable, please create an issue at "
+        "https://github.com/jdepoix/youtube-transcript-api/issues. "
+        "Please add which version of youtube_transcript_api you are using "
+        "and provide the information needed to replicate the error. "
+        "Also make sure that there are no open issues which already describe your problem!"
+    )
+
+    def __init__(self, video_id: str):
+        self.video_id = video_id
+        super().__init__()
+
+    def _build_error_message(self) -> str:
+        error_message = self.ERROR_MESSAGE.format(
+            video_url=WATCH_URL.format(video_id=self.video_id)
+        )
+
+        cause = self.cause
+        if cause:
+            error_message += (
+                self.CAUSE_MESSAGE_INTRO.format(cause=cause) + self.GITHUB_REFERRAL
+            )
+
+        return error_message
+
+    @property
+    def cause(self) -> str:
+        return self.CAUSE_MESSAGE
+
+    def __str__(self) -> str:
+        return self._build_error_message()
+
+
+class YouTubeDataUnparsable(CouldNotRetrieveTranscript):
+    CAUSE_MESSAGE = (
+        "The data required to fetch the transcript is not parsable. This should "
+        "not happen, please open an issue (make sure to include the video ID)!"
+    )
+
+
+class YouTubeRequestFailed(CouldNotRetrieveTranscript):
+    CAUSE_MESSAGE = "Request to YouTube failed: {reason}"
+
+    def __init__(self, video_id: str, http_error: HTTPError):
+        self.reason = str(http_error)
+        super().__init__(video_id)
+
+    @property
+    def cause(self) -> str:
+        return self.CAUSE_MESSAGE.format(
+            reason=self.reason,
+        )
+
+
+class VideoUnplayable(CouldNotRetrieveTranscript):
+    CAUSE_MESSAGE = "The video is unplayable for the following reason: {reason}"
+    SUBREASON_MESSAGE = "\n\nAdditional Details:\n{sub_reasons}"
+
+    def __init__(self, video_id: str, reason: Optional[str], sub_reasons: List[str]):
+        self.reason = reason
+        self.sub_reasons = sub_reasons
+        super().__init__(video_id)
+
+    @property
+    def cause(self):
+        reason = "No reason specified!" if self.reason is None else self.reason
+        if self.sub_reasons:
+            sub_reasons = "\n".join(
+                f" - {sub_reason}" for sub_reason in self.sub_reasons
+            )
+            reason = f"{reason}{self.SUBREASON_MESSAGE.format(sub_reasons=sub_reasons)}"
+        return self.CAUSE_MESSAGE.format(
+            reason=reason,
+        )
+
+
+class VideoUnavailable(CouldNotRetrieveTranscript):
+    CAUSE_MESSAGE = "The video is no longer available"
+
+
+class InvalidVideoId(CouldNotRetrieveTranscript):
+    CAUSE_MESSAGE = (
+        "You provided an invalid video id. Make sure you are using the video id and NOT the url!\n\n"
+        'Do NOT run: `YouTubeTranscriptApi().fetch("https://www.youtube.com/watch?v=1234")`\n'
+        'Instead run: `YouTubeTranscriptApi().fetch("1234")`'
+    )
+
+
+class RequestBlocked(CouldNotRetrieveTranscript):
+    BASE_CAUSE_MESSAGE = (
+        "YouTube is blocking requests from your IP. This usually is due to one of the "
+        "following reasons:\n"
+        "- You have done too many requests and your IP has been blocked by YouTube\n"
+        "- You are doing requests from an IP belonging to a cloud provider (like AWS, "
+        "Google Cloud Platform, Azure, etc.). Unfortunately, most IPs from cloud "
+        "providers are blocked by YouTube.\n\n"
+    )
+    CAUSE_MESSAGE = (
+        f"{BASE_CAUSE_MESSAGE}"
+        "There are two things you can do to work around this:\n"
+        '1. Use proxies to hide your IP address, as explained in the "Working around '
+        'IP bans" section of the README '
+        "(https://github.com/jdepoix/youtube-transcript-api"
+        "?tab=readme-ov-file"
+        "#working-around-ip-bans-requestblocked-or-ipblocked-exception).\n"
+        "2. (NOT RECOMMENDED) If you authenticate your requests using cookies, you "
+        "will be able to continue doing requests for a while. However, YouTube will "
+        "eventually permanently ban the account that you have used to authenticate "
+        "with! So only do this if you don't mind your account being banned!"
+    )
+    WITH_GENERIC_PROXY_CAUSE_MESSAGE = (
+        "YouTube is blocking your requests, despite you using proxies. Keep in mind "
+        "that a proxy is just a way to hide your real IP behind the IP of that proxy, "
+        "but there is no guarantee that the IP of that proxy won't be blocked as "
+        "well.\n\n"
+        "The only truly reliable way to prevent IP blocks is rotating through a large "
+        "pool of residential IPs, by using a provider like Webshare "
+        "(https://www.webshare.io/?referral_code=w0xno53eb50g), which provides you "
+        "with a pool of >30M residential IPs (make sure to purchase "
+        '"Residential" proxies, NOT "Proxy Server" or "Static Residential"!).\n\n'
+        "You will find more information on how to easily integrate Webshare here: "
+        "https://github.com/jdepoix/youtube-transcript-api"
+        "?tab=readme-ov-file#using-webshare"
+    )
+    WITH_WEBSHARE_PROXY_CAUSE_MESSAGE = (
+        "YouTube is blocking your requests, despite you using Webshare proxies. "
+        'Please make sure that you have purchased "Residential" proxies and '
+        'NOT "Proxy Server" or "Static Residential", as those won\'t work as '
+        'reliably! The free tier also uses "Proxy Server" and will NOT work!\n\n'
+        'The only reliable option is using "Residential" proxies (not "Static '
+        'Residential"), as this allows you to rotate through a pool of over 30M IPs, '
+        "which means you will always find an IP that hasn't been blocked by YouTube "
+        "yet!\n\n"
+        "You can support the development of this open source project by making your "
+        "Webshare purchases through this affiliate link: "
+        "https://www.webshare.io/?referral_code=w0xno53eb50g \n\n"
+        "Thank you for your support! <3"
+    )
+
+    def __init__(self, video_id: str):
+        self._proxy_config = None
+        super().__init__(video_id)
+
+    def with_proxy_config(
+        self, proxy_config: Optional[ProxyConfig]
+    ) -> "RequestBlocked":
+        self._proxy_config = proxy_config
+        return self
+
+    @property
+    def cause(self) -> str:
+        if isinstance(self._proxy_config, WebshareProxyConfig):
+            return self.WITH_WEBSHARE_PROXY_CAUSE_MESSAGE
+        if isinstance(self._proxy_config, GenericProxyConfig):
+            return self.WITH_GENERIC_PROXY_CAUSE_MESSAGE
+        return super().cause
+
+
+class IpBlocked(RequestBlocked):
+    CAUSE_MESSAGE = (
+        f"{RequestBlocked.BASE_CAUSE_MESSAGE}"
+        'Ways to work around this are explained in the "Working around IP '
+        'bans" section of the README (https://github.com/jdepoix/youtube-transcript-api'
+        "?tab=readme-ov-file"
+        "#working-around-ip-bans-requestblocked-or-ipblocked-exception).\n"
+    )
+
+
+class TranscriptsDisabled(CouldNotRetrieveTranscript):
+    CAUSE_MESSAGE = "Subtitles are disabled for this video"
+
+
+class AgeRestricted(CouldNotRetrieveTranscript):
+    # CAUSE_MESSAGE = (
+    #     "This video is age-restricted. Therefore, you will have to authenticate to be "
+    #     "able to retrieve transcripts for it. You will have to provide a cookie to "
+    #     'authenticate yourself, as explained in the "Cookie Authentication" section of '
+    #     "the README (https://github.com/jdepoix/youtube-transcript-api"
+    #     "?tab=readme-ov-file#cookie-authentication)"
+    # )
+    CAUSE_MESSAGE = (
+        "This video is age-restricted. Therefore, you are unable to retrieve "
+        "transcripts for it without authenticating yourself.\n\n"
+        "Unfortunately, Cookie Authentication is temporarily unsupported in "
+        "youtube-transcript-api, as recent changes in YouTube's API broke the previous "
+        "implementation. I will do my best to re-implement it as soon as possible."
+    )
+
+
+class NotTranslatable(CouldNotRetrieveTranscript):
+    CAUSE_MESSAGE = "The requested language is not translatable"
+
+
+class TranslationLanguageNotAvailable(CouldNotRetrieveTranscript):
+    CAUSE_MESSAGE = "The requested translation language is not available"
+
+
+class FailedToCreateConsentCookie(CouldNotRetrieveTranscript):
+    CAUSE_MESSAGE = "Failed to automatically give consent to saving cookies"
+
+
+class NoTranscriptFound(CouldNotRetrieveTranscript):
+    CAUSE_MESSAGE = (
+        "No transcripts were found for any of the requested language codes: {requested_language_codes}\n\n"
+        "{transcript_data}"
+    )
+
+    def __init__(
+        self,
+        video_id: str,
+        requested_language_codes: Iterable[str],
+        transcript_data: "TranscriptList",  # noqa: F821
+    ):
+        self._requested_language_codes = requested_language_codes
+        self._transcript_data = transcript_data
+        super().__init__(video_id)
+
+    @property
+    def cause(self) -> str:
+        return self.CAUSE_MESSAGE.format(
+            requested_language_codes=self._requested_language_codes,
+            transcript_data=str(self._transcript_data),
+        )
+
+
+class PoTokenRequired(CouldNotRetrieveTranscript):
+    CAUSE_MESSAGE = (
+        "The requested video cannot be retrieved without a PO Token. If this happens, "
+        "please open a GitHub issue!"
+    )
+
+
+FILE: youtube_transcript_api/_api.py
+SOURCE: https://github.com/jdepoix/youtube-transcript-api/blob/8f150ba8836da30a36bcd40e8fca226ed179ba72/youtube_transcript_api/_api.py
+
+from typing import Optional, Iterable
+
+from requests import Session
+from requests.adapters import HTTPAdapter
+from urllib3 import Retry
+
+from .proxies import ProxyConfig
+
+from ._transcripts import TranscriptListFetcher, FetchedTranscript, TranscriptList
+
+
+class YouTubeTranscriptApi:
+    def __init__(
+        self,
+        proxy_config: Optional[ProxyConfig] = None,
+        http_client: Optional[Session] = None,
+    ):
+        """
+        Note on thread-safety: As this class will initialize a `requests.Session`
+        object, it is not thread-safe. Make sure to initialize an instance of
+        `YouTubeTranscriptApi` per thread, if used in a multi-threading scenario!
+
+        :param proxy_config: an optional ProxyConfig object, defining proxies used for
+            all network requests. This can be used to work around your IP being blocked
+            by YouTube, as described in the "Working around IP bans" section of the
+            README
+            (https://github.com/jdepoix/youtube-transcript-api?tab=readme-ov-file#working-around-ip-bans-requestblocked-or-ipblocked-exception)
+        :param http_client: You can optionally pass in a requests.Session object, if you
+            manually want to share cookies between different instances of
+            `YouTubeTranscriptApi`, overwrite defaults, specify SSL certificates, etc.
+        """
+        http_client = Session() if http_client is None else http_client
+        http_client.headers.update({"Accept-Language": "en-US"})
+        # Cookie auth has been temporarily disabled, as it is not working properly with
+        # YouTube's most recent changes.
+        # if cookie_path is not None:
+        #     http_client.cookies = _load_cookie_jar(cookie_path)
+        if proxy_config is not None:
+            http_client.proxies = proxy_config.to_requests_dict()
+            if proxy_config.prevent_keeping_connections_alive:
+                http_client.headers.update({"Connection": "close"})
+            if proxy_config.retries_when_blocked > 0:
+                retry_config = Retry(
+                    total=proxy_config.retries_when_blocked,
+                    status_forcelist=[429],
+                )
+                http_client.mount("http://", HTTPAdapter(max_retries=retry_config))
+                http_client.mount("https://", HTTPAdapter(max_retries=retry_config))
+        self._fetcher = TranscriptListFetcher(http_client, proxy_config=proxy_config)
+
+    def fetch(
+        self,
+        video_id: str,
+        languages: Iterable[str] = ("en",),
+        preserve_formatting: bool = False,
+    ) -> FetchedTranscript:
+        """
+        Retrieves the transcript for a single video. This is just a shortcut for
+        calling:
+        `YouTubeTranscriptApi().list(video_id).find_transcript(languages).fetch(preserve_formatting=preserve_formatting)`
+
+        :param video_id: the ID of the video you want to retrieve the transcript for.
+            Make sure that this is the actual ID, NOT the full URL to the video!
+        :param languages: A list of language codes in a descending priority. For
+            example, if this is set to ["de", "en"] it will first try to fetch the
+            german transcript (de) and then fetch the english transcript (en) if
+            it fails to do so. This defaults to ["en"].
+        :param preserve_formatting: whether to keep select HTML text formatting
+        """
+        return (
+            self.list(video_id)
+            .find_transcript(languages)
+            .fetch(preserve_formatting=preserve_formatting)
+        )
+
+    def list(
+        self,
+        video_id: str,
+    ) -> TranscriptList:
+        """
+        Retrieves the list of transcripts which are available for a given video. It
+        returns a `TranscriptList` object which is iterable and provides methods to
+        filter the list of transcripts for specific languages. While iterating over
+        the `TranscriptList` the individual transcripts are represented by
+        `Transcript` objects, which provide metadata and can either be fetched by
+        calling `transcript.fetch()` or translated by calling `transcript.translate(
+        'en')`. Example:
+
+        ```
+        ytt_api = YouTubeTranscriptApi()
+
+        # retrieve the available transcripts
+        transcript_list = ytt_api.list('video_id')
+
+        # iterate over all available transcripts
+        for transcript in transcript_list:
+            # the Transcript object provides metadata properties
+            print(
+                transcript.video_id,
+                transcript.language,
+                transcript.language_code,
+                # whether it has been manually created or generated by YouTube
+                transcript.is_generated,
+                # a list of languages the transcript can be translated to
+                transcript.translation_languages,
+            )
+
+            # fetch the actual transcript data
+            print(transcript.fetch())
+
+            # translating the transcript will return another transcript object
+            print(transcript.translate('en').fetch())
+
+        # you can also directly filter for the language you are looking for, using the transcript list
+        transcript = transcript_list.find_transcript(['de', 'en'])
+
+        # or just filter for manually created transcripts
+        transcript = transcript_list.find_manually_created_transcript(['de', 'en'])
+
+        # or automatically generated ones
+        transcript = transcript_list.find_generated_transcript(['de', 'en'])
+        ```
+
+        :param video_id: the ID of the video you want to retrieve the transcript for.
+            Make sure that this is the actual ID, NOT the full URL to the video!
+        """
+        return self._fetcher.fetch(video_id)
+
+
+FILE: README.md
+SOURCE: https://github.com/jdepoix/youtube-transcript-api/blob/8f150ba8836da30a36bcd40e8fca226ed179ba72/README.md
+
+<h1 align="center">
+  ✨ YouTube Transcript API ✨
+</h1>
+
+<p align="center">
+  <a href="https://github.com/sponsors/jdepoix">
+    <img src="https://img.shields.io/static/v1?label=Sponsor&message=%E2%9D%A4&logo=GitHub&color=%23fe8e86" alt="Sponsor">
+  </a>
+  <a href="https://www.paypal.com/donate/?hosted_button_id=9W5ZHV22FD63G">
+    <img src="https://img.shields.io/badge/Donate-PayPal-green.svg" alt="Donate">
+  </a>
+  <a href="https://github.com/jdepoix/youtube-transcript-api/actions">
+    <img src="https://github.com/jdepoix/youtube-transcript-api/actions/workflows/ci.yml/badge.svg?branch=master" alt="Build Status">
+  </a>
+  <a href="https://coveralls.io/github/jdepoix/youtube-transcript-api?branch=master">
+    <img src="https://coveralls.io/repos/github/jdepoix/youtube-transcript-api/badge.svg?branch=master" alt="Coverage Status">
+  </a>
+  <a href="http://opensource.org/licenses/MIT">
+    <img src="http://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat" alt="MIT license">
+  </a>
+  <a href="https://pypi.org/project/youtube-transcript-api/">
+    <img src="https://img.shields.io/pypi/v/youtube-transcript-api.svg" alt="Current Version">
+  </a>
+  <a href="https://pypi.org/project/youtube-transcript-api/">
+    <img src="https://img.shields.io/pypi/pyversions/youtube-transcript-api.svg" alt="Supported Python Versions">
+  </a>
+</p>
+
+<p align="center">
+  This is a python API which allows you to retrieve the transcript/subtitles for a given YouTube video. It also works for automatically generated subtitles, supports translating subtitles and it does not require a headless browser, like other selenium based solutions do!
+</p>
+
+<br />
+
+<p align="center">
+ <b>If you feel more comfortable using a hosted solution, you can use the services of any of our amazing sponsors:</b>
+</p>
+
+<p align="center">
+  <a href="https://serpapi.com/youtube-video-transcript">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/87d28ff2-c478-4fbf-b27e-9bced1271603">
+      <source media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/43f6fa61-9ee4-442b-9e11-6d2b6d3116ee">
+      <img alt="SerpApi" src="https://github.com/user-attachments/assets/43f6fa61-9ee4-442b-9e11-6d2b6d3116ee" height="100px" style="vertical-align: middle;">
+    </picture>
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://transcriptapi.com/">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://github.com/user-attachments/assets/2e39f6f9-71dc-407b-a465-4c37f1f22e28">
+      <source media="(prefers-color-scheme: light)" srcset="https://github.com/user-attachments/assets/110f0219-5403-425b-b4b6-8c8abd4768ee">
+      <img alt="TranscriptAPI.com" src="https://github.com/user-attachments/assets/110f0219-5403-425b-b4b6-8c8abd4768ee" height="40px" style="vertical-align: middle;">
+    </picture>
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://supadata.ai/youtube-transcript-api?ref=ytt-api">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://supadata.ai/logo-dark.svg">
+      <source media="(prefers-color-scheme: light)" srcset="https://supadata.ai/logo-light.svg">
+      <img alt="supadata" src="https://supadata.ai/logo-light.svg" height="25px">
+    </picture>
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://www.dumplingai.com/endpoints/get-youtube-transcript?via=ytt-api">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://www.dumplingai.com/logos/logo-dark.svg">
+      <source media="(prefers-color-scheme: light)" srcset="https://www.dumplingai.com/logos/logo-light.svg">
+      <img alt="Dumpling AI" src="https://www.dumplingai.com/logos/logo-light.svg" height="25px" style="vertical-align: middle;">
+    </picture>
+  </a>
+</p>
+
+<br />
+
+<p align="center">
+  Maintenance of this project is made possible by all the <a href="https://github.com/jdepoix/youtube-transcript-api/graphs/contributors">contributors</a> and <a href="https://github.com/sponsors/jdepoix">sponsors</a>. If you'd like to sponsor this project <a href="https://github.com/sponsors/jdepoix">click here</a>. 💖
+</p>
+
+## Install
+
+It is recommended to [install this module by using pip](https://pypi.org/project/youtube-transcript-api/):
+
+```
+pip install youtube-transcript-api
+```
+
+You can either integrate this module [into an existing application](#api) or just use it via a [CLI](#cli).
+
+## API
+
+The easiest way to get a transcript for a given video is to execute:
+
+```python
+from youtube_transcript_api import YouTubeTranscriptApi
+
+ytt_api = YouTubeTranscriptApi()
+ytt_api.fetch(video_id)
+```
+
+> **Note:** By default, this will try to access the English transcript of the video. If your video has a different 
+> language, or you are interested in fetching a transcript in a different language, please read the section below.
+
+> **Note:** Pass in the video ID, NOT the video URL. For a video with the URL `https://www.youtube.com/watch?v=12345` 
+> the ID is `12345`.
+
+This will return a `FetchedTranscript` object looking somewhat like this:
+
+```python
+FetchedTranscript(
+    snippets=[
+        FetchedTranscriptSnippet(
+            text="Hey there",
+            start=0.0,
+            duration=1.54,
+        ),
+        FetchedTranscriptSnippet(
+            text="how are you",
+            start=1.54,
+            duration=4.16,
+        ),
+        # ...
+    ],
+    video_id="12345",
+    language="English",
+    language_code="en",
+    is_generated=False,
+)
+```
+
+This object implements most interfaces of a `List`:
+
+```python
+ytt_api = YouTubeTranscriptApi()
+fetched_transcript = ytt_api.fetch(video_id)
+
+# is iterable
+for snippet in fetched_transcript:
+    print(snippet.text)
+
+# indexable
+last_snippet = fetched_transcript[-1]
+
+# provides a length
+snippet_count = len(fetched_transcript)
+```
+
+If you prefer to handle the raw transcript data you can call `fetched_transcript.to_raw_data()`, which will return 
+a list of dictionaries:
+
+```python
+[
+    {
+        'text': 'Hey there',
+        'start': 0.0,
+        'duration': 1.54
+    },
+    {
+        'text': 'how are you',
+        'start': 1.54
+        'duration': 4.16
+    },
+    # ...
+]
+```
+### Retrieve different languages
+
+You can add the `languages` param if you want to make sure the transcripts are retrieved in your desired language 
+(it defaults to english).
+
+```python
+YouTubeTranscriptApi().fetch(video_id, languages=['de', 'en'])
+```
+
+It's a list of language codes in a descending priority. In this example it will first try to fetch the german 
+transcript (`'de'`) and then fetch the english transcript (`'en'`) if it fails to do so. If you want to find out 
+which languages are available first, [have a look at `list()`](#list-available-transcripts).
+
+If you only want one language, you still need to format the `languages` argument as a list
+
+```python
+YouTubeTranscriptApi().fetch(video_id, languages=['de'])
+```
+
+### Preserve formatting
+
+You can also add `preserve_formatting=True` if you'd like to keep HTML formatting elements such as `<i>` (italics) 
+and `<b>` (bold).
+
+```python
+YouTubeTranscriptApi().fetch(video_ids, languages=['de', 'en'], preserve_formatting=True)
+```
+
+### List available transcripts
+
+If you want to list all transcripts which are available for a given video you can call:
+
+```python
+ytt_api = YouTubeTranscriptApi()
+transcript_list = ytt_api.list(video_id)
+```
+
+This will return a `TranscriptList` object which is iterable and provides methods to filter the list of transcripts for 
+specific languages and types, like:
+
+```python
+transcript = transcript_list.find_transcript(['de', 'en'])
+```
+
+By default this module always chooses manually created transcripts over automatically created ones, if a transcript in 
+the requested language is available both manually created and generated. The `TranscriptList` allows you to bypass this 
+default behaviour by searching for specific transcript types:
+
+```python
+# filter for manually created transcripts
+transcript = transcript_list.find_manually_created_transcript(['de', 'en'])
+
+# or automatically generated ones
+transcript = transcript_list.find_generated_transcript(['de', 'en'])
+```
+
+The methods `find_generated_transcript`, `find_manually_created_transcript`, `find_transcript` return `Transcript` 
+objects. They contain metadata regarding the transcript:
+
+```python
+print(
+    transcript.video_id,
+    transcript.language,
+    transcript.language_code,
+    # whether it has been manually created or generated by YouTube
+    transcript.is_generated,
+    # whether this transcript can be translated or not
+    transcript.is_translatable,
+    # a list of languages the transcript can be translated to
+    transcript.translation_languages,
+)
+```
+
+and provide the method, which allows you to fetch the actual transcript data:
+
+```python
+transcript.fetch()
+```
+
+This returns a `FetchedTranscript` object, just like `YouTubeTranscriptApi().fetch()` does.
+
+### Translate transcript
+
+YouTube has a feature which allows you to automatically translate subtitles. This module also makes it possible to 
+access this feature. To do so `Transcript` objects provide a `translate()` method, which returns a new translated 
+`Transcript` object:
+
+```python
+transcript = transcript_list.find_transcript(['en'])
+translated_transcript = transcript.translate('de')
+print(translated_transcript.fetch())
+```
+
+### By example
+```python
+from youtube_transcript_api import YouTubeTranscriptApi
+
+ytt_api = YouTubeTranscriptApi()
+
+# retrieve the available transcripts
+transcript_list = ytt_api.list('video_id')
+
+# iterate over all available transcripts
+for transcript in transcript_list:
+
+    # the Transcript object provides metadata properties
+    print(
+        transcript.video_id,
+        transcript.language,
+        transcript.language_code,
+        # whether it has been manually created or generated by YouTube
+        transcript.is_generated,
+        # whether this transcript can be translated or not
+        transcript.is_translatable,
+        # a list of languages the transcript can be translated to
+        transcript.translation_languages,
+    )
+
+    # fetch the actual transcript data
+    print(transcript.fetch())
+
+    # translating the transcript will return another transcript object
+    print(transcript.translate('en').fetch())
+
+# you can also directly filter for the language you are looking for, using the transcript list
+transcript = transcript_list.find_transcript(['de', 'en'])  
+
+# or just filter for manually created transcripts  
+transcript = transcript_list.find_manually_created_transcript(['de', 'en'])  
+
+# or automatically generated ones  
+transcript = transcript_list.find_generated_transcript(['de', 'en'])
+```
+
+## Working around IP bans (`RequestBlocked` or `IpBlocked` exception)
+
+Unfortunately, YouTube has started blocking most IPs that are known to belong to cloud providers (like AWS, Google Cloud 
+Platform, Azure, etc.), which means you will most likely run into `RequestBlocked` or `IpBlocked` exceptions when 
+deploying your code to any cloud solutions. Same can happen to the IP of your self-hosted solution, if you are doing 
+too many requests. You can work around these IP bans using proxies. However, since YouTube will ban static proxies 
+after extended use, going for rotating residential proxies provide is the most reliable option.
+
+There are different providers that offer rotating residential proxies, but after testing different 
+offerings I have found [Webshare](https://www.webshare.io/?referral_code=w0xno53eb50g) to be the most reliable and have 
+therefore integrated it into this module, to make setting it up as easy as possible.
+
+### Using [Webshare](https://www.webshare.io/?referral_code=w0xno53eb50g)
+
+Once you have created a [Webshare account](https://www.webshare.io/?referral_code=w0xno53eb50g) and purchased a 
+"Residential" proxy package that suits your workload (make sure NOT to purchase "Proxy Server" or 
+"Static Residential"!), open the 
+[Webshare Proxy Settings](https://dashboard.webshare.io/proxy/settings?referral_code=w0xno53eb50g) to retrieve 
+your "Proxy Username" and "Proxy Password". Using this information you can initialize the `YouTubeTranscriptApi` as 
+follows:
+
+```python
+from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api.proxies import WebshareProxyConfig
+
+ytt_api = YouTubeTranscriptApi(
+    proxy_config=WebshareProxyConfig(
+        proxy_username="<proxy-username>",
+        proxy_password="<proxy-password>",
+    )
+)
+
+# all requests done by ytt_api will now be proxied through Webshare
+ytt_api.fetch(video_id)
+```
+
+Using the `WebshareProxyConfig` will default to using rotating residential proxies and requires no further 
+configuration.
+
+You can also limit the pool of IPs that you will be rotating through to those located in specific countries. By 
+choosing locations that are close to the machine that is running your code, you can reduce latency. Also, this 
+can be used to work around location-based restrictions. 
+
+```python
+ytt_api = YouTubeTranscriptApi(
+    proxy_config=WebshareProxyConfig(
+        proxy_username="<proxy-username>",
+        proxy_password="<proxy-password>",
+        filter_ip_locations=["de", "us"],
+    )
+)
+
+# Webshare will now only rotate through IPs located in Germany or the United States!
+ytt_api.fetch(video_id)
+```
+
+You can find the 
+full list of available locations (and how many IPs are available in each location) 
+[here](https://www.webshare.io/features/proxy-locations?referral_code=w0xno53eb50g).
+
+Note that [referral links are used here](https://www.webshare.io/?referral_code=w0xno53eb50g) and any purchases 
+made through these links will support this Open Source project (at no additional cost of course!), which is very much 
+appreciated! 💖😊🙏💖
+
+However, you are of course free to integrate your own proxy solution using the `GenericProxyConfig` class, if you 
+prefer using another provider or want to implement your own solution, as covered by the following section.
+
+### Using other Proxy solutions
+
+Alternatively to using [Webshare](#using-webshare), you can set up any generic HTTP/HTTPS/SOCKS proxy using the 
+`GenericProxyConfig` class:
+
+```python
+from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api.proxies import GenericProxyConfig
+
+ytt_api = YouTubeTranscriptApi(
+    proxy_config=GenericProxyConfig(
+        http_url="http://user:pass@my-custom-proxy.org:port",
+        https_url="https://user:pass@my-custom-proxy.org:port",
+    )
+)
+
+# all requests done by ytt_api will now be proxied using the defined proxy URLs
+ytt_api.fetch(video_id)
+```
+
+Be aware that using a proxy doesn't guarantee that you won't be blocked, as YouTube can always block the IP of your 
+proxy! Therefore, you should always choose a solution that rotates through a pool of proxy addresses, if you want to
+maximize reliability.
+
+## Overwriting request defaults
+
+When initializing a `YouTubeTranscriptApi` object, it will create a `requests.Session` which will be used for all
+HTTP(S) request. This allows for caching cookies when retrieving multiple requests. However, you can optionally pass a
+`requests.Session` object into its constructor, if you manually want to share cookies between different instances of
+`YouTubeTranscriptApi`, overwrite defaults, set custom headers, specify SSL certificates, etc.
+
+```python
+from requests import Session
+
+http_client = Session()
+
+# set custom header
+http_client.headers.update({"Accept-Encoding": "gzip, deflate"})
+
+# set path to CA_BUNDLE file
+http_client.verify = "/path/to/certfile"
+
+ytt_api = YouTubeTranscriptApi(http_client=http_client)
+ytt_api.fetch(video_id)
+
+# share same Session between two instances of YouTubeTranscriptApi
+ytt_api_2 = YouTubeTranscriptApi(http_client=http_client)
+# now shares cookies with ytt_api
+ytt_api_2.fetch(video_id)
+```
+
+## Cookie Authentication
+
+Some videos are age restricted, so this module won't be able to access those videos without some sort of
+authentication. Unfortunately, some recent changes to the YouTube API have broken the current implementation of cookie 
+based authentication, so this feature is currently not available.
+
+## Using Formatters
+Formatters are meant to be an additional layer of processing of the transcript you pass it. The goal is to convert a
+`FetchedTranscript` object into a consistent string of a given "format". Such as a basic text (`.txt`) or even formats 
+that have a defined specification such as JSON (`.json`), WebVTT (`.vtt`), SRT (`.srt`), Comma-separated format 
+(`.csv`), etc...
+
+The `formatters` submodule provides a few basic formatters, which can be used as is, or extended to your needs:
+
+- JSONFormatter
+- PrettyPrintFormatter
+- TextFormatter
+- WebVTTFormatter
+- SRTFormatter
+
+Here is how to import from the `formatters` module.
+
+```python
+# the base class to inherit from when creating your own formatter.
+from youtube_transcript_api.formatters import Formatter
+
+# some provided subclasses, each outputs a different string format.
+from youtube_transcript_api.formatters import JSONFormatter
+from youtube_transcript_api.formatters import TextFormatter
+from youtube_transcript_api.formatters import WebVTTFormatter
+from youtube_transcript_api.formatters import SRTFormatter
+```
+
+### Formatter Example
+Let's say we wanted to retrieve a transcript and store it to a JSON file. That would look something like this:
+
+```python
+# your_custom_script.py
+
+from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api.formatters import JSONFormatter
+
+ytt_api = YouTubeTranscriptApi()
+transcript = ytt_api.fetch(video_id)
+
+formatter = JSONFormatter()
+
+# .format_transcript(transcript) turns the transcript into a JSON string.
+json_formatted = formatter.format_transcript(transcript)
+
+# Now we can write it out to a file.
+with open('your_filename.json', 'w', encoding='utf-8') as json_file:
+    json_file.write(json_formatted)
+
+# Now should have a new JSON file that you can easily read back into Python.
+```
+
+**Passing extra keyword arguments**
+
+Since JSONFormatter leverages `json.dumps()` you can also forward keyword arguments into 
+`.format_transcript(transcript)` such as making your file output prettier by forwarding the `indent=2` keyword argument.
+
+```python
+json_formatted = JSONFormatter().format_transcript(transcript, indent=2)
+```
+
+### Custom Formatter Example
+You can implement your own formatter class. Just inherit from the `Formatter` base class and ensure you implement the 
+`format_transcript(self, transcript: FetchedTranscript, **kwargs) -> str` and 
+`format_transcripts(self, transcripts: List[FetchedTranscript], **kwargs) -> str` methods which should ultimately 
+return a string when called on your formatter instance.
+
+```python
+class MyCustomFormatter(Formatter):
+    def format_transcript(self, transcript: FetchedTranscript, **kwargs) -> str:
+        # Do your custom work in here, but return a string.
+        return 'your processed output data as a string.'
+
+    def format_transcripts(self, transcripts: List[FetchedTranscript], **kwargs) -> str:
+        # Do your custom work in here to format a list of transcripts, but return a string.
+        return 'your processed output data as a string.'
+```
+
+## CLI
+
+Execute the CLI script using the video ids as parameters and the results will be printed out to the command line:  
+
+```  
+youtube_transcript_api <first_video_id> <second_video_id> ...  
+```  
+
+The CLI also gives you the option to provide a list of preferred languages:  
+
+```  
+youtube_transcript_api <first_video_id> <second_video_id> ... --languages de en  
+```
+
+You can also specify if you want to exclude automatically generated or manually created subtitles:
+
+```  
+youtube_transcript_api <first_video_id> <second_video_id> ... --languages de en --exclude-generated
+youtube_transcript_api <first_video_id> <second_video_id> ... --languages de en --exclude-manually-created
+```
+
+If you would prefer to write it into a file or pipe it into another application, you can also output the results as 
+json using the following line:  
+
+```  
+youtube_transcript_api <first_video_id> <second_video_id> ... --languages de en --format json > transcripts.json
+```  
+
+Translating transcripts using the CLI is also possible:
+
+```  
+youtube_transcript_api <first_video_id> <second_video_id> ... --languages en --translate de
+```  
+
+If you are not sure which languages are available for a given video you can call, to list all available transcripts:
+
+```  
+youtube_transcript_api --list-transcripts <first_video_id>
+```
+
+If a video's ID starts with a hyphen you'll have to mask the hyphen using `\` to prevent the CLI from mistaking it for 
+a argument name. For example to get the transcript for the video with the ID `-abc123` run:
+
+```
+youtube_transcript_api "\-abc123"
+```
+
+### Working around IP bans using the CLI
+
+If you are running into `RequestBlocked` or `IpBlocked` errors, because YouTube blocks your IP, you can work around this 
+using residential proxies as explained in 
+[Working around IP bans](#working-around-ip-bans-requestblocked-or-ipblocked-exception). To use
+[Webshare "Residential" proxies](https://www.webshare.io/?referral_code=w0xno53eb50g) through the CLI, you will have to 
+create a [Webshare account](https://www.webshare.io/?referral_code=w0xno53eb50g) and purchase a "Residential" proxy 
+package that suits your workload (make sure NOT to purchase "Proxy Server" or "Static Residential"!). Then you can use 
+the "Proxy Username" and "Proxy Password" which you can find in your 
+[Webshare Proxy Settings](https://dashboard.webshare.io/proxy/settings?referral_code=w0xno53eb50g), to run the following command:
+
+```
+youtube_transcript_api <first_video_id> <second_video_id> --webshare-proxy-username "username" --webshare-proxy-password "password"
+```
+
+If you prefer to use another proxy solution, you can set up a generic HTTP/HTTPS proxy using the following command:
+
+```
+youtube_transcript_api <first_video_id> <second_video_id> --http-proxy http://user:pass@domain:port --https-proxy https://user:pass@domain:port
+```
+
+### Cookie Authentication using the CLI
+
+To authenticate using cookies through the CLI as explained in [Cookie Authentication](#cookie-authentication) run:
+
+```
+youtube_transcript_api <first_video_id> <second_video_id> --cookies /path/to/your/cookies.txt
+```
+
+## Warning  
+
+This code uses an undocumented part of the YouTube API, which is called by the YouTube web-client. So there is no 
+guarantee that it won't stop working tomorrow, if they change how things work. I will however do my best to make things 
+working again as soon as possible if that happens. So if it stops working, let me know!  
+
+## Contributing
+
+To setup the project locally run the following (requires [poetry](https://python-poetry.org/docs/) to be installed):
+```shell
+poetry install --with test,dev
+```
+
+There's [poe](https://github.com/nat-n/poethepoet?tab=readme-ov-file#quick-start) tasks to run tests, coverage, the 
+linter and formatter (you'll need to pass all of those for the build to pass):
+```shell
+poe test
+poe coverage
+poe format
+poe lint
+```
+
+If you just want to make sure that your code passes all the necessary checks to get a green build, you can simply run:
+```shell
+poe precommit
+```
+
+## Donations
+
+If this project makes you happy by reducing your development time, you can make me happy by treating me to a cup of 
+coffee, or become a [Sponsor of this project](https://github.com/sponsors/jdepoix) :)  
+
+[![Donate](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=BAENLEW8VUJ6G&source=url)
+
+
+
+FILE: pyproject.toml
+SOURCE: https://github.com/jdepoix/youtube-transcript-api/blob/8f150ba8836da30a36bcd40e8fca226ed179ba72/pyproject.toml
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+name = "youtube-transcript-api"
+version = "1.2.4"
+description = "This is a python API which allows you to get the transcripts/subtitles for a given YouTube video. It also works for automatically generated subtitles, supports translating subtitles and it does not require a headless browser, like other selenium based solutions do!"
+readme = "README.md"
+license = "MIT"
+authors = [
+    "Jonas Depoix <jonas.depoix@web.de>",
+]
+homepage = "https://github.com/jdepoix/youtube-transcript-api"
+repository = "https://github.com/jdepoix/youtube-transcript-api"
+keywords = [
+    "cli",
+    "subtitle",
+    "subtitles",
+    "transcript",
+    "transcripts",
+    "youtube",
+    "youtube-api",
+    "youtube-subtitles",
+    "youtube-transcripts",
+]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
+
+[tool.poetry.scripts]
+youtube_transcript_api = "youtube_transcript_api.__main__:main"
+
+[tool.poe.tasks]
+test = "pytest youtube_transcript_api"
+ci-test.shell = "coverage run -m pytest youtube_transcript_api && coverage xml"
+coverage.shell = "coverage run -m pytest youtube_transcript_api && coverage report -m --fail-under=100"
+format = "ruff format youtube_transcript_api"
+ci-format = "ruff format youtube_transcript_api --check"
+lint = "ruff check youtube_transcript_api"
+precommit.shell = "poe format && poe lint && poe coverage"
+
+[tool.poetry.dependencies]
+python = ">=3.8,<3.15"
+requests = "*"
+defusedxml = "^0.7.1"
+
+[tool.poetry.group.test]
+optional = true
+
+[tool.poetry.group.test.dependencies]
+pytest = "^8.3.3"
+coverage = "^7.6.1"
+responses = "^0.26.0"
+
+[tool.poetry.group.dev]
+optional = true
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.6.8"
+
+[tool.coverage.run]
+source = ["youtube_transcript_api"]
+
+[tool.coverage.report]
+omit = ["*/__main__.py", "youtube_transcript_api/test/*"]
+exclude_lines = [
+    "pragma: no cover",
+
+    # Don't complain about missing debug-only code:
+    "def __unicode__",
+    "def __repr__",
+    "if self\\.debug",
+
+    # Don't complain if tests don't hit defensive assertion code:
+    "raise AssertionError",
+    "raise NotImplementedError",
+
+    # Don't complain if non-runnable code isn't run:
+    "if 0:",
+    "if __name__ == .__main__.:",
+
+    # Don't complain about empty stubs of abstract methods
+    "@abstractmethod",
+    "@abstractclassmethod",
+    "@abstractstaticmethod"
+]
+show_missing = true
+
+FILE: youtube_transcript_api/_settings.py
+SOURCE: https://github.com/jdepoix/youtube-transcript-api/blob/8f150ba8836da30a36bcd40e8fca226ed179ba72/youtube_transcript_api/_settings.py
+
+WATCH_URL = "https://www.youtube.com/watch?v={video_id}"
+INNERTUBE_API_URL = "https://www.youtube.com/youtubei/v1/player?key={api_key}"
+INNERTUBE_CONTEXT = {"client": {"clientName": "ANDROID", "clientVersion": "20.10.38"}}

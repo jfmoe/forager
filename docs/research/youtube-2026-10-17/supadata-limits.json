@@ -1,0 +1,15 @@
+{
+  "source_url": "https://docs.supadata.ai/rate-limits",
+  "checked_at": "2026-10-17T12:37:55.192234+00:00",
+  "completed_at": "2026-10-17T12:37:58.912978+00:00",
+  "command": [
+    "forager",
+    "fetch",
+    "https://docs.supadata.ai/rate-limits",
+    "--format",
+    "json"
+  ],
+  "exit_code": 0,
+  "stdout": "{\"provider\":\"firecrawl\",\"url\":\"https://docs.supadata.ai/rate-limits\",\"content\":\"> ## Documentation Index\\n>\\n> Fetch the complete documentation index at: [/llms.txt](https://docs.supadata.ai/llms.txt)\\n>\\n> Use this file to discover all available pages before exploring further.\\n\\n[Skip to main content](https://docs.supadata.ai/rate-limits#content-area)\\n\\n404\\n\\n# Page Not Found\"}\n",
+  "stderr": ""
+}

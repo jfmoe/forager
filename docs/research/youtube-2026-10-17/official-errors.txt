@@ -1,0 +1,2165 @@
+YouTube Data API - Errors  |  Google for Developers
+Skip to main content
+YouTube
+Data API
+/
+English
+Deutsch
+Español
+Español – América Latina
+Français
+Indonesia
+Italiano
+Polski
+Português – Brasil
+Tiếng Việt
+Türkçe
+Русский
+עברית
+العربيّة
+فارسی
+हिंदी
+বাংলা
+ภาษาไทย
+中文 – 简体
+中文 – 繁體
+日本語
+한국어
+Sign in
+Home
+Guides
+Reference
+Samples
+YouTube
+Data API
+Home
+Guides
+Reference
+Samples
+Overview
+Activities
+Overview
+list
+Captions
+Overview
+list
+insert
+update
+download
+delete
+ChannelBanners
+Overview
+insert
+Channels
+Overview
+list
+update
+ChannelSections
+Overview
+list
+insert
+update
+delete
+Comments
+Overview
+list
+insert
+update
+setModerationStatus
+delete
+CommentThreads
+Overview
+list
+insert
+i18nLanguages
+Overview
+list
+i18nRegions
+Overview
+list
+Members
+Overview
+list
+MembershipsLevels
+Overview
+list
+PlaylistImages
+Overview
+list
+insert
+update
+delete
+PlaylistItems
+Overview
+list
+insert
+update
+delete
+Playlists
+Overview
+list
+insert
+update
+delete
+Search
+Overview
+list
+Subscriptions
+Overview
+list
+insert
+delete
+Thumbnails
+Overview
+set
+VideoAbuseReportReasons
+Overview
+list
+VideoCategories
+Overview
+list
+Videos
+Overview
+list
+insert
+update
+rate
+getRating
+reportAbuse
+delete
+batchGetStats
+Watermarks
+Overview
+set
+unset
+Standard Query Parameters
+YouTube Data API Errors
+Overview
+Global Domain Errors
+Revision History
+Home
+Products
+YouTube
+Data API
+Reference
+YouTube Data API - Errors
+Stay organized with collections
+Save and categorize content based on your preferences.
+This document identifies the different types of errors that
+YouTube Data API
+operations can return. You can also find a list of errors for any individual method in the reference documentation for that method.
+General errors
+The following tables identify API error messages that are not specific to a particular API method.
+Core API errors
+Error type
+Error detail
+Description
+forbidden (403)
+forbidden
+Access forbidden. The request may not be properly authorized.
+quotaExceeded (403)
+quotaExceeded
+The request cannot be completed because you have exceeded your
+quota
+.
+Common request errors
+Error type
+Error detail
+Description
+badRequest (400)
+incompatibleParameters
+The request specifies two or more parameters that cannot be used in the same request.
+badRequest (400)
+invalidFilters
+The request specifies an invalid filter parameter.
+badRequest (400)
+invalidPageToken
+The request specifies an invalid page token.
+badRequest (400)
+missingRequiredParameter
+The request is missing a required parameter.
+badRequest (400)
+unexpectedParameter
+The request specifies an unexpected parameter.
+forbidden (403)
+accountDelegationForbidden
+The authenticated user cannot act on behalf of the specified Google Account.
+forbidden (403)
+authenticatedUserAccountClosed
+The YouTube account of the authenticated user is closed. In case the authenticated user is acting on behalf of another Google Account, then this error refers to the latter.
+forbidden (403)
+authenticatedUserAccountSuspended
+The YouTube account of the authenticated user is suspended. In case the authenticated user is acting on behalf of another Google Account, then this error refers to the latter.
+forbidden (403)
+authenticatedUserNotChannel
+For this request the authenticated user must resolve to a channel, but does not. If your request is authenticated and uses the
+onBehalfOfContentOwner
+delegation parameter, then you should also set the
+onBehalfOfContentOwnerChannel
+parameter.
+forbidden (403)
+channelClosed
+The channel identified in the request has been closed.
+forbidden (403)
+channelNotFound
+The channel identified in the request cannot be found.
+forbidden (403)
+channelSuspended
+The channel identified in the request has been suspended.
+forbidden (403)
+cmsUserAccountNotFound
+The CMS user is not allowed to act on behalf of the specified content owner.
+forbidden (403)
+insufficientCapabilities
+The CMS user has insufficient capabilities.
+forbidden (403)
+insufficientPermissions
+The OAuth 2.0 token provided for the request specifies scopes that are insufficient for accessing the requested data.
+notFound (404)
+contentOwnerAccountNotFound
+The specified content owner account was not found.
+Request context errors
+Error type
+Error detail
+Description
+badRequest (400)
+invalidLanguage
+The
+hl
+parameter value does not specify a valid language code.
+badRequest (400)
+invalidMine
+The request's use of the
+mine
+parameter is not supported.
+badRequest (400)
+invalidMine
+The
+mine
+parameter cannot be used in requests where the authenticated user is a YouTube partner. You should either remove the
+mine
+parameter, authenticate as a YouTube user by removing the
+onBehalfOfContentOwner
+parameter, or act as one of the partner's channels by providing the
+onBehalfOfContentOwnerChannel
+parameter if available for the called method.
+badRequest (400)
+invalidPart
+The request's
+part
+parameter specifies some parts that cannot be written at the same time.
+badRequest (400)
+invalidRegionCode
+The
+regionCode
+parameter specifies an invalid region code.
+badRequest (400)
+unexpectedPart
+The request's
+part
+parameter specifies an unexpected value.
+badRequest (400)
+unknownPart
+The request's
+part
+parameter specifies an unknown value.
+badRequest (400)
+unsupportedLanguageCode
+The
+hl
+parameter value does not specify a supported language code.
+badRequest (400)
+unsupportedRegionCode
+The
+regionCode
+parameter specifies an unsupported region code.
+unauthorized (401)
+authorizationRequired
+The request uses the
+mine
+parameter but is not properly authorized.
+unauthorized (401)
+youtubeSignupRequired
+This error indicates that the user has an unlinked Google Account, which means that the user has a
+Google Account
+but does not have a YouTube channel. Such users can access many features that are dependent on user authorization, such as rating videos or adding videos to a
+watch_later
+playlist. However, as an example, the user would need a YouTube channel to be able to upload a video. A user who has a Gmail account or an Android device is certain to have a Google Account but may not have already linked that Google Account to a YouTube channel.
+This error is commonly seen if you try to use the OAuth 2.0 Service Account flow. YouTube does not support Service Accounts, and if you attempt to authenticate using a Service Account, you will get this error.
+The
+YouTube API blog post
+introducing Google Account support also discusses the
+youtubeSignupRequired
+error in more detail. Although the blog post explains the error for API version 2.1, the meaning of the error is still applicable.
+activities
+The following tables identify error messages that the API returns in response to calls related to
+activities
+resources. These methods could also return errors listed in the
+Common request errors
+section.
+activities.list
+Error type
+Error detail
+Description
+forbidden (403)
+homeParameterDeprecated
+The user's home page activity data is not available through this API. This error might occur if you set the
+home
+parameter to
+true
+in an unauthorized request.
+forbidden (403)
+forbidden
+The request is not properly authorized.
+notFound (404)
+channelNotFound
+The channel ID identified by the request's
+channelId
+parameter cannot be found.
+notFound (404)
+homeChannelNotFound
+A YouTube home page feed cannot be found for the currently-authenticated user.
+unauthorized (401)
+authorizationRequired
+The request uses the
+home
+parameter but is not properly authorized.
+captions
+The following tables identify error messages that the API returns in response to calls related to
+captions
+resources. These methods could also return errors listed in the
+Common request errors
+section.
+captions.delete
+Error type
+Error detail
+Description
+forbidden (403)
+forbidden
+The permissions associated with the request are not sufficient to delete the caption track. The request might not be properly authorized.
+notFound (404)
+captionNotFound
+The caption track couldn't be found. Check the value of the request's
+id
+parameter to ensure that it is correct.
+captions.download
+Error type
+Error detail
+Description
+forbidden (403)
+forbidden
+The permissions associated with the request are not sufficient to download the caption track. The request might not be properly authorized.
+invalidValue (400)
+couldNotConvert
+The caption track data couldn't be converted to the requested language and/or format. Ensure that the requested
+tfmt
+and
+tlang
+values are valid, and that the
+snippet.status
+of the requested caption track is not
+failed
+.
+notFound (404)
+captionNotFound
+The caption track couldn't be found. Check the value of the request's
+id
+parameter to ensure that it is correct.
+captions.insert
+Error type
+Error detail
+Description
+badRequest (400)
+contentRequired
+The request does not contain the caption track contents.
+conflict (409)
+captionExists
+The specified video already has a caption track with the given
+snippet.language
+and
+snippet.name
+. A video can have multiple tracks for the same language, but each track must have a different name.
+There are multiple ways to address the error. You could delete the existing track and then insert a new one or change the name of the new track before inserting it.
+forbidden (403)
+forbidden
+The permissions associated with the request are not sufficient to upload the caption track. The request might not be properly authorized.
+invalidValue (400)
+invalidMetadata
+The request contains invalid metadata values, which prevent the track from being created. Confirm that the request specifies valid values for the
+snippet.language
+,
+snippet.name
+, and
+snippet.videoId
+properties. The
+snippet.isDraft
+property can also be included, but it is not required.
+notFound (404)
+videoNotFound
+The video identified by the
+videoId
+parameter couldn't be found.
+invalidValue (400)
+nameTooLong
+The
+snippet.name
+specified in the request is too long. The maximum length supported is 150 characters.
+captions.list
+Error type
+Error detail
+Description
+forbidden (403)
+forbidden
+One or more caption tracks couldn't be retrieved because the permissions associated with the request are not sufficient to retrieve the requested resources. The request might not be properly authorized.
+notFound (404)
+captionNotFound
+One or more of the specified caption tracks couldn't be found. This error occurs if the
+videoId
+parameter identifies an actual video, but the
+id
+parameter either identifies caption track IDs that don't exist or track IDs that are associated with other videos. Check the values of the request's
+id
+and
+videoId
+parameters to ensure that they are correct.
+notFound (404)
+videoNotFound
+The video identified by the
+videoId
+parameter couldn't be found.
+captions.update
+Error type
+Error detail
+Description
+badRequest (400)
+contentRequired
+The request did not upload an updated caption file. The actual track contents are required if the
+sync
+parameter is set to
+true
+.
+forbidden (403)
+forbidden
+The permissions associated with the request are not sufficient to update the caption track. The request might not be properly authorized.
+notFound (404)
+captionNotFound
+The specified caption track couldn't be found. Check the value of the request's
+id
+parameter to ensure that it is correct.
+channelBanners
+The following tables identify error messages that the API returns in response to calls related to
+channelBanners
+resources. These methods could also return errors listed in the
+Common request errors
+section.
+channelBanners.insert
+Error type
+Error detail
+Description
+badRequest (400)
+bannerAlbumFull
+Your YouTube Channel Art album has too many images. Please go to
+http://photos.google.com
+, navigate to the albums page, and remove some images from that album.
+badRequest (400)
+mediaBodyRequired
+The request does not include the image content.
+channelSections
+The following tables identify error messages that the API returns in response to calls related to
+channelSections
+resources. These methods could also return errors listed in the
+Common request errors
+section.
+channelSections.delete
+Error type
+Error detail
+Description
+badRequest (400)
+notEditable
+This channel section cannot be deleted.
+forbidden (403)
+channelSectionForbidden
+The request is not properly authenticated or not supported for this channel.
+invalidValue (400)
+idInvalid
+The
+id
+property specifies an invalid channel section ID.
+invalidValue (400)
+idRequired
+The
+id
+property must specify a value that identifies the channel section being deleted.
+notFound (404)
+channelNotFound
+The channel is not found.
+notFound (404)
+channelSectionNotFound
+The channel section you are trying to update cannot be found.
+channelSections.insert
+Error type
+Error detail
+Description
+badRequest (400)
+defaultLanguageNotSetError
+The
+channelSection
+resource's
+snippet.defaultLanguage
+property must be set to successfully insert or update the
+localizations
+object for that resource.
+badRequest (400)
+invalidLanguage
+One of the language keys of the
+localizations
+object failed validation. Use the
+channelSections.list
+method to retrieve valid values and update them following the guidelines in the
+channelSections
+resource documentation.
+badRequest (400)
+notEditable
+This channel section cannot be created.
+badRequest (400)
+styleRequired
+The
+channelSection
+resource must specify a value for the
+snippet.style
+field.
+badRequest (400)
+targetInvalidCountry
+One of the values in the
+targeting.countries
+list failed validation. Use the
+channelSections.list
+method to retrieve valid values and update them following the guidelines in the
+channelSections
+resource documentation.
+badRequest (400)
+targetInvalidLanguage
+One of the values in the
+targeting.languages
+list failed validation. Use the
+channelSections.list
+method to retrieve valid values and update them following the guidelines in the
+channelSections
+resource documentation.
+badRequest (400)
+targetInvalidRegion
+One of the values in the
+targeting.regions
+list failed validation. Use the
+channelSections.list
+method to retrieve valid values and update them following the guidelines in the
+channelSections
+resource documentation.
+badRequest (400)
+typeRequired
+The
+channelSection
+resource must specify a value for the
+snippet.type
+field.
+forbidden (403)
+channelSectionForbidden
+The request is not properly authenticated or is not supported for this channel.
+invalidValue (400)
+channelNotActive
+At least one of the specified channels is not active.
+invalidValue (400)
+channelsDuplicated
+The request failed because it specified duplicate channels.
+invalidValue (400)
+channelsNeeded
+If the
+snippet.type
+property has a value of
+multipleChannels
+, then the
+contentDetails.channels[]
+property must be specified and must specify at least one channel.
+invalidValue (400)
+channelsNotExpected
+The resource provided with the request specified a value for the
+contentDetails.channels[]
+property, but channels are not expected for this type of channel section.
+invalidValue (400)
+contentDetailsNeeded
+The resource you are inserting must contain a
+contentDetails
+object for this type of channel section.
+invalidValue (400)
+inValidPosition
+The
+snippet.position
+property contains an invalid value.
+invalidValue (400)
+maxChannelSectionExceeded
+The request cannot be completed because the channel already has the maximum number of channel sections.
+invalidValue (400)
+maxChannelsExceeded
+The request failed because it attempted to include too many channels in the channel section.
+invalidValue (400)
+maxPlaylistExceeded
+The request failed because it attempted to include too many playlists in the channel section.
+invalidValue (400)
+onePlaylistNeeded
+If the
+snippet.type
+property has a value of
+singlePlaylist
+, then the
+contentDetails.playlists[]
+property must specify exactly one playlist.
+invalidValue (400)
+ownChannelInChannels
+You cannot include your own channel in a channel section that appears on that channel.
+invalidValue (400)
+playlistIsPrivate
+One or more of the specified playlists are private and, therefore, cannot be included in the channel section.
+invalidValue (400)
+playlistsDuplicated
+The request failed because it specified duplicate playlists.
+invalidValue (400)
+playlistsNeeded
+If the
+snippet.type
+property has a value of
+singlePlaylist
+or
+multiplePlaylists
+, then the
+contentDetails.playlists[]
+property must be specified.
+invalidValue (400)
+playlistsNotExpected
+The resource provided with the request specified a value for the
+contentDetails.playlists[]
+property, but playlists are not expected for this type of channel section.
+invalidValue (400)
+snippetNeeded
+You must specify a
+snippet
+to create the channel section.
+invalidValue (400)
+titleLengthExceeded
+The value of the
+snippet.title
+property is too long.
+invalidValue (400)
+titleRequired
+If the
+snippet.type
+property has a value of
+multiplePlaylists
+or
+multipleChannels
+, then you must set the section's title by specifying a value for the
+snippet.title
+property.
+notFound (404)
+channelNotFound
+One or more of the specified channels cannot be found.
+notFound (404)
+playlistNotFound
+One or more of the specified playlists cannot be found.
+channelSections.list
+Error type
+Error detail
+Description
+forbidden (403)
+channelSectionForbidden
+The requester is not allowed to access the requested channel sections.
+invalidValue (400)
+idInvalid
+The request specifies an invalid channel section ID.
+invalidValue (400)
+invalidCriteria
+The request couldn't be completed because the filter criteria are invalid.
+notFound (404)
+channelNotFound
+The channel associated with the request cannot be found.
+notFound (404)
+channelSectionNotFound
+The channel section associated with the request cannot be found.
+channelSections.update
+Error type
+Error detail
+Description
+badRequest (400)
+defaultLanguageNotSetError
+The
+channelSection
+resource's
+snippet.defaultLanguage
+property must be set to successfully insert or update the
+localizations
+object for that resource.
+badRequest (400)
+invalidLanguage
+One of the language keys of the
+localizations
+object failed validation. Use the
+channelSections.list
+method to retrieve valid values and update them following the guidelines in the
+channelSections
+resource documentation.
+badRequest (400)
+notEditable
+This channel section cannot be edited.
+badRequest (400)
+styleRequired
+The
+channelSection
+resource must specify a value for the
+snippet.style
+field.
+badRequest (400)
+targetInvalidCountry
+One of the values in the
+targeting.countries
+list failed validation. Use the
+channelSections.list
+method to retrieve valid values and update them following the guidelines in the
+channelSections
+resource documentation.
+badRequest (400)
+targetInvalidLanguage
+One of the values in the
+targeting.languages
+list failed validation. Use the
+channelSections.list
+method to retrieve valid values and update them following the guidelines in the
+channelSections
+resource documentation.
+badRequest (400)
+targetInvalidRegion
+One of the values in the
+targeting.regions
+list failed validation. Use the
+channelSections.list
+method to retrieve valid values and update them following the guidelines in the
+channelSections
+resource documentation.
+badRequest (400)
+typeRequired
+The
+channelSection
+resource must specify a value for the
+snippet.type
+field.
+forbidden (403)
+channelSectionForbidden
+The request is not properly authenticated or is not supported for this channel.
+invalidValue (400)
+channelNotActive
+At least one of the specified channels is not active.
+invalidValue (400)
+channelsDuplicated
+The request failed because it specified duplicate channels.
+invalidValue (400)
+channelsNeeded
+If the
+snippet.type
+property has a value of
+multipleChannels
+, then the
+contentDetails.channels[]
+property must be specified and must specify at least one channel.
+invalidValue (400)
+channelsNotExpected
+The resource provided with the request specified a value for the
+contentDetails.channels[]
+property, but channels are not expected for this type of channel section.
+invalidValue (400)
+contentDetailsNeeded
+The resource you are updating must contain a
+contentDetails
+object for this type of channel section.
+invalidValue (400)
+idInvalid
+The
+id
+property specifies an invalid channel section ID.
+invalidValue (400)
+idRequired
+The
+id
+property must specify a value that identifies the channel section being updated.
+invalidValue (400)
+inValidPosition
+The
+snippet.position
+property contains an invalid value.
+invalidValue (400)
+maxChannelsExceeded
+The request failed because it attempted to include too many channels in the channel section.
+invalidValue (400)
+maxPlaylistExceeded
+The request failed because it attempted to include too many playlists in the channel section.
+invalidValue (400)
+onePlaylistNeeded
+If the
+snippet.type
+property has a value of
+singlePlaylist
+, then the
+contentDetails.playlists[]
+property must specify exactly one playlist.
+invalidValue (400)
+ownChannelInChannels
+You cannot include your own channel in a channel section that appears on that channel.
+invalidValue (400)
+playlistIsPrivate
+One or more of the specified playlists are private and, therefore, cannot be included in the channel section.
+invalidValue (400)
+playlistsDuplicated
+The request failed because it specified duplicate playlists.
+invalidValue (400)
+playlistsNeeded
+If the
+snippet.type
+property has a value of
+singlePlaylist
+or
+multiplePlaylists
+, then the
+contentDetails.playlists[]
+property must be specified.
+invalidValue (400)
+playlistsNotExpected
+The resource provided with the request specified a value for the
+contentDetails.playlists[]
+property, but playlists are not expected for this type of channel section.
+invalidValue (400)
+snippetNeeded
+You must specify a
+snippet
+to update the channel section.
+invalidValue (400)
+titleLengthExceeded
+The value of the
+snippet.title
+property is too long.
+invalidValue (400)
+titleRequired
+If the
+snippet.type
+property has a value of
+multiplePlaylists
+or
+multipleChannels
+, then you must set the section's title by specifying a value for the
+snippet.title
+property.
+notFound (404)
+channelNotFound
+One or more of the specified channels cannot be found.
+notFound (404)
+channelSectionNotFound
+The channel section you are trying to update cannot be found.
+notFound (404)
+playlistNotFound
+One or more of the specified playlists cannot be found.
+channels
+The following tables identify error messages that the API returns in response to calls related to
+channels
+resources. These methods could also return errors listed in the
+Common request errors
+section.
+channels.list
+Error type
+Error detail
+Description
+badRequest (400)
+invalidCriteria
+A maximum of one of the following filters may be specified:
+id
+,
+mySubscribers
+,
+categoryId
+,
+mine
+,
+managedByMe
+,
+forUsername
+. In case of content owner authentication using the
+onBehalfOfContentOwner
+parameter, only the
+id
+or
+managedByMe
+may be specified.
+forbidden (403)
+channelForbidden
+The channel specified by the
+id
+parameter does not support the request or the request is not properly authorized.
+notFound (404)
+categoryNotFound
+The category identified by the
+categoryId
+parameter cannot be found.
+notFound (404)
+channelNotFound
+The channel specified in the
+id
+parameter cannot be found.
+channels.update
+Error type
+Error detail
+Description
+badRequest (400)
+brandingValidationError
+One of the values in the
+brandingSettings
+object failed validation. Use the
+channels.list
+method to retrieve the existing settings for the channel, and update the property values following the guidelines in the
+channels
+resource documentation.
+badRequest (400)
+channelTitleUpdateForbidden
+When updating a channel's
+brandingSettings part
+, you must set the
+brandingSettings.channel.title
+property's value to the channel's current title or omit the property. The API returns an error if you change the property's value.
+badRequest (400)
+defaultLanguageNotSetError
+The
+defaultLanguage
+must be set to update
+localizations
+.
+badRequest (400)
+invalidBrandingOption
+One of the branding settings that you specified does not exist. Use the
+channels.list
+method to retrieve valid values and make sure to update them following the guidelines in the
+channels
+resource documentation.
+badRequest (400)
+invalidCustomMessage
+The request metadata specifies an invalid custom message. Check the value of the
+invideoPromotion.items[].customMessage
+property in the resource that the request sent.
+badRequest (400)
+invalidDuration
+The request metadata specifies an invalid duration in the invideoPromotion part.
+badRequest (400)
+invalidDuration
+The request metadata specifies an invalid position type for determining how the promoted item is positioned in the video player. Check the value of the
+invideoPromotion.position.type
+property in the resource that the request sent.
+badRequest (400)
+invalidRecentlyUploadedBy
+The request metadata specifies an invalid channel ID. Check the value of the
+invideoPromotion.items[].id.recentlyUploadedBy
+property in the resource that the request sent.
+badRequest (400)
+invalidTimingOffset
+The request metadata specifies an invalid timing offset in the invideoPromotion part.
+badRequest (400)
+invalidTimingOffset
+The request metadata specifies an invalid timing offset for determining when the promoted item should be displayed in the video player. Check the value of the
+invideoPromotion.timing.offsetMs
+property in the resource that the request sent.
+badRequest (400)
+invalidTimingType
+The request metadata specifies an invalid timing method for determining when the promoted item should be displayed in the video player. Check the value of the
+invideoPromotion.timing.type
+property in the resource that the request sent.
+badRequest (400)
+localizationValidationError
+One of the values in the localizations object failed validation. Use the
+channels.list
+method to retrieve valid values and make sure to update them following the guidelines in
+the channels resource documentation.
+badRequest (400)
+tooManyPromotedItems
+Number of allowed promoted items exceeded in the invideoPromotion part.
+forbidden (403)
+channelForbidden
+The channel specified in the
+id
+parameter does not support the request or the request is not properly authorized.
+forbidden (403)
+promotedVideoNotAllowed
+The channel that the API request is attempting to update cannot be found. Check the value of the
+id
+property in the
+channel
+resource that the request sent to ensure that the channel ID is correct.
+forbidden (403)
+websiteLinkNotAllowed
+The specified website URL is not allowed.
+notFound (404)
+channelNotFound
+The channel specified by the
+id
+parameter cannot be found or does not have branding options.
+notFound (404)
+channelNotFound
+The channel specified in the
+id
+parameter cannot be found.
+notFound (404)
+unknownChannelId
+The specified channel ID was not found.
+notFound (404)
+unknownChannelId
+The specified recentlyUploadedBy channel ID was not found.
+notFound (404)
+unknownVideoId
+The
+video ID
+specified as a promoted item cannot be found.
+required (400)
+requiredItemIdType
+The request metadata must specify an item type in the invideoPromotion part.
+required (400)
+requiredItemId
+The request metadata must specify an item in the invideoPromotion part.
+required (400)
+requiredTimingOffset
+The request metadata must specify a default timing offset so that YouTube can determine when to display the promoted item. Set the value of the
+invideoPromotion.defaultTiming.offsetMs
+property in the resource that the request sends.
+required (400)
+requiredTimingOffset
+The request metadata must specify a timing offset so that YouTube can determine when to display the promoted item. Set the value of the
+invideoPromotion.timing.offsetMs
+property in the resource that the request sends.
+required (400)
+requiredTimingType
+The request metadata must specify a timing method so that YouTube can determine when to display the promoted item. Set the value of the
+invideoPromotion.defaultTiming.type
+property in the resource that the request sends.
+required (400)
+requiredTimingType
+The request metadata must specify a timing method so that YouTube can determine when to display the promoted item. Set the value of the
+invideoPromotion.timing.type
+property in the resource that the request sends.
+required (400)
+requiredTiming
+The request metadata must specify a timing for each item in the
+invideoPromotion
+part.
+required (400)
+requiredVideoId
+The request metadata must specify a
+video ID
+to identify the promoted item.
+required (400)
+requiredWebsiteUrl
+The request metadata must specify a website URL in the invideoPromotion part. Set the value of the
+invideoPromotion.items[].id.websiteUrl
+property in the resource that the request sends.
+commentThreads
+The following tables identify error messages that the API returns in response to calls related to
+commentThreads
+resources. These methods could also return errors listed in the
+Common request errors
+section.
+commentThreads.list
+Error type
+Error detail
+Description
+badRequest (400)
+operationNotSupported
+The API request is invalid or improperly formed. Consequently, the API server couldn't understand the request.
+badRequest (400)
+processingFailure
+The API server failed to successfully process the request. While this can be a transient error, it usually indicates that the request's input is invalid. Check the structure of the
+commentThread
+resource in the request body to ensure that it is valid.
+forbidden (403)
+commentsDisabled
+The video identified by the
+videoId
+parameter has disabled comments.
+forbidden (403)
+forbidden
+One or more of the requested comment threads cannot be retrieved due to insufficient permissions. The request might not be properly authorized.
+notFound (404)
+channelNotFound
+The channel identified by the
+allThreadsRelatedToChannelId
+parameter couldn't be found.
+notFound (404)
+commentThreadNotFound
+One or more of the specified comment threads cannot be found. Check the values of the request's
+id
+parameter to ensure that it is correct.
+notFound (404)
+videoNotFound
+The video identified by the
+videoId
+parameter couldn't be found.
+commentThreads.insert
+Error type
+Error detail
+Description
+badRequest (400)
+channelOrVideoIdMissing
+Each comment thread must be linked to a channel or video. Make sure the resource specifies values for both the
+snippet.channelId
+and
+snippet.videoId
+properties. A comment on a video appears on the video watch page.
+badRequest (400)
+commentTextRequired
+The
+comment
+resource that is being inserted must specify a value for the
+snippet.topLevelComment.snippet.textOriginal
+property. Comments cannot be empty.
+badRequest (400)
+commentTextTooLong
+The
+comment
+resource that is being inserted contains too many characters in the
+snippet.topLevelComment.snippet.textOriginal
+property.
+badRequest (400)
+invalidCommentThreadMetadata
+The request metadata is invalid.
+badRequest (400)
+processingFailure
+The API server failed to successfully process the request. While this can be a transient error, it usually indicates that the request's input is invalid. Check the structure of the
+commentThread
+resource in the request body to ensure that it is valid.
+forbidden (403)
+forbidden
+The comment thread could be created due to insufficient permissions. The request might not be properly authorized.
+forbidden (403)
+ineligibleAccount
+The YouTube account used to authorize the API request must be merged with the user's Google Account to insert a comment or comment thread.
+notFound (404)
+channelNotFound
+The specified channel couldn't be found. Check the value of the
+snippet.channelId
+property to ensure it is correct.
+notFound (404)
+videoNotFound
+The specified video couldn't be found. Check the value of the
+snippet.videoId
+property to ensure it is correct.
+comments
+The following tables identify error messages that the API returns in response to calls related to
+comments
+resources. These methods could also return errors listed in the
+Common request errors
+section.
+comments.list
+Error type
+Error detail
+Description
+badRequest (400)
+operationNotSupported
+The API request is invalid or improperly formed. Consequently, the API server couldn't understand the request.
+forbidden (403)
+forbidden
+One or more of the requested comments cannot be retrieved due to insufficient permissions. The request might not be properly authorized.
+notFound (404)
+commentNotFound
+One or more of the specified comments cannot be found. Check the values of the request's
+id
+and
+parentId
+parameters to ensure that they are correct.
+comments.setModerationStatus
+Error type
+Error detail
+Description
+badRequest (400)
+banWithoutReject
+The
+banAuthor
+parameter can only be used if the
+moderationStatus
+parameter value is
+rejected
+.
+badRequest (400)
+operationNotSupported
+The API request is invalid or improperly formed. Consequently, the API server couldn't understand the request.
+badRequest (400)
+processingFailure
+The API server failed to successfully process the request. While this can be a transient error, it usually indicates that the request's input is invalid.
+forbidden (403)
+forbidden
+The moderation status of one or more comments cannot be set due to insufficient permissions. The request might not be properly authorized.
+notFound (404)
+commentNotFound
+One or more of the comments that the request is trying to update cannot be found. Check the values of the request's
+id
+parameter to ensure that they are correct.
+comments.insert
+Error type
+Error detail
+Description
+badRequest (400)
+commentTextRequired
+The
+comment
+resource that is being inserted must specify a value for the
+snippet.textOriginal
+property. Comments cannot be empty.
+badRequest (400)
+commentTextTooLong
+The
+comment
+resource that is being inserted contains too many characters in the
+snippet.textOriginal
+property.
+badRequest (400)
+invalidCommentMetadata
+The request metadata is invalid.
+badRequest (400)
+operationNotSupported
+The API user is not able to insert a comment in reply to the top-level comment identified by the
+snippet.parentId
+property. In a
+commentThread
+resource, the
+snippet.canReply
+property indicates whether the current viewer can reply to the thread.
+badRequest (400)
+parentCommentIsPrivate
+The specified parent comment is private. The API does not support replies to private comments.
+badRequest (400)
+parentIdMissing
+The comment that is being inserted must be linked to a parent comment. However, the
+comment
+resource in the body of the API request did not specify a value for the
+snippet.parentId
+property.
+badRequest (400)
+processingFailure
+The API server failed to successfully process the request. While this can be a transient error, it usually indicates that the request's input is invalid. Check the structure of the
+comment
+resource in the request body to ensure that it is valid.
+forbidden (403)
+forbidden
+The comment cannot be created due to insufficient permissions. The request might not be properly authorized.
+forbidden (403)
+ineligibleAccount
+The YouTube account used to authorize the API request must be merged with the user's Google Account to insert a comment or comment thread.
+notFound (404)
+parentCommentNotFound
+The specified parent comment couldn't be found. Check the value of the
+snippet.parentId
+property in the request body to ensure that it is correct.
+comments.delete
+Error type
+Error detail
+Description
+badRequest (400)
+processingFailure
+The API server failed to successfully process the request. While this can be a transient error, it usually indicates that the request's input is invalid.
+forbidden (403)
+forbidden
+The comment couldn't be deleted because of insufficient permissions. The request might not be properly authorized.
+notFound (404)
+commentNotFound
+The specified comment couldn't be found. Check the value of the request's
+id
+parameter to ensure that it is correct.
+comments.update
+Error type
+Error detail
+Description
+badRequest (400)
+commentTextTooLong
+The
+comment
+resource that is being updated contains too many characters in the
+snippet.textOriginal
+property.
+badRequest (400)
+invalidCommentMetadata
+The request metadata is invalid.
+badRequest (400)
+operationNotSupported
+The API request is invalid or improperly formed. Consequently, the API server couldn't understand the request.
+badRequest (400)
+processingFailure
+The API server failed to successfully process the request. While this can be a transient error, it usually indicates that the request's input is invalid. Check the structure of the
+comment
+resource in the request body to ensure that it is valid.
+forbidden (403)
+forbidden
+The comment couldn't be updated due to insufficient permissions. The request might not be properly authorized.
+forbidden (403)
+ineligibleAccount
+The YouTube account used to authorize the API request must be merged with the user's Google Account to update a comment or comment thread.
+notFound (404)
+commentNotFound
+The specified comment couldn't be found. Check the value of the
+id
+property in the request body to ensure that it is correct.
+members
+The following tables identify error messages that the API returns in response to calls related to
+members
+resources. These methods could also return errors listed in the
+Common request errors
+section.
+members.list
+Error type
+Error detail
+Description
+badRequest (400)
+channelMembershipsNotEnabled
+The creator channel authorizing the request does not have channel
+        memberships enabled.
+badRequest (400)
+invalidMode
+The
+mode
+parameter value is invalid.
+        This error might occur if the
+pageToken
+parameter
+        specifies a token that was retrieved using a different mode than the one specified.
+badRequest (400)
+invalidPageToken
+The
+pageToken
+parameter value is
+        invalid. This error occurs if the page token used in the request has expired.
+badRequest (400)
+invalidHasAccessToLevel
+The
+hasAccessToLevel
+parameter value is invalid. There is no level with the specified
+id
+.
+badRequest (400)
+invalidFilterByMemberChannelId
+The
+filterByMemberChannelId
+parameter value is invalid. This error occurs if the
+filterByMemberChannelId
+parameter value
+        specifies more than 100 channels.
+membershipsLevels
+The following tables identify error messages that the API returns in response to calls related to
+members
+resources. These methods could also return errors listed in the
+Common request errors
+section.
+membershipsLevels.list
+Error type
+Error detail
+Description
+badRequest (400)
+channelMembershipsNotEnabled
+The creator channel authorizing the request does not have channel
+        memberships enabled.
+playlistItems
+The following tables identify error messages that the API returns in response to calls related to
+playlistItems
+resources. These methods could also return errors listed in the
+Common request errors
+section.
+playlistItems.delete
+Error type
+Error detail
+Description
+forbidden (403)
+playlistItemsNotAccessible
+The request is not properly authorized to delete the specified playlist item.
+notFound (404)
+playlistItemNotFound
+The playlist item identified with the request's
+id
+parameter cannot be found.
+invalidValue (400)
+playlistOperationUnsupported
+The API does not support the ability to delete videos from the specified playlist. For example, you can't delete a video from your uploaded videos playlist.
+playlistItems.insert
+Error type
+Error detail
+Description
+duplicate
+videoAlreadyInPlaylist
+The video that you are trying to add to the playlist is already in the playlist.
+forbidden (403)
+playlistContainsMaximumNumberOfVideos
+The playlist already contains the maximum allowed number of items.
+forbidden (403)
+playlistItemsNotAccessible
+The request is not properly authorized to insert the specified playlist item.
+invalidValue (400)
+invalidContentDetails
+The
+contentDetails
+property in the request is not valid. A possible reason is that
+contentDetails.note
+field is longer than 280 characters.
+invalidValue (400)
+invalidPlaylistItemPosition
+The request attempts to set the playlist item's position to an invalid or unsupported value. Check the value of the
+position
+property in the resource's
+snippet
+.
+invalidValue (400)
+invalidResourceType
+The
+type
+specified for the resource ID is not supported for this operation. The resource ID identifies the item being added to the playlist – such as
+youtube#video
+.
+invalidValue (400)
+manualSortRequired
+The request attempts to set the playlist item's position, but the playlist does not use manual sorting. (For example, playlist items might be sorted by date or popularity.) You can address the error by removing the
+snippet.position
+element from the resource that the request is inserting. If you want the playlist item to have a particular position in the list, you need to first update the playlist's
+Ordering
+option to
+Manual
+in the playlist's settings. This settings can be adjusted in the
+YouTube Video Manager
+.
+invalidValue (400)
+videoAlreadyInAnotherSeriesPlaylist
+The video that you are trying to add to the playlist is already in another series playlist.
+invalidValue (400)
+playlistOperationUnsupported
+The API does not support the ability to insert videos into the specified playlist. For example, you can't insert a video into your uploaded videos playlist.
+notFound (404)
+playlistNotFound
+The playlist identified with the request's
+playlistId
+parameter cannot be found.
+notFound (404)
+videoNotFound
+The video that you are trying to add to the playlist cannot be found. Check the value of the
+videoId
+property to ensure that it is correct.
+required (400)
+channelIdRequired
+The request does not specify a value for the required
+channelId
+property.
+required (400)
+playlistIdRequired
+The request does not specify a value for the required
+playlistId
+property.
+required (400)
+resourceIdRequired
+The request must contain a resource in which the
+snippet
+object specifies a
+resourceId
+.
+playlistItems.list
+Error type
+Error detail
+Description
+forbidden (403)
+playlistItemsNotAccessible
+The request is not properly authorized to retrieve the specified playlist.
+notFound (404)
+playlistNotFound
+The playlist identified with the request's
+playlistId
+parameter cannot be found.
+notFound (404)
+videoNotFound
+The video identified with the request's
+videoId
+parameter cannot be found.
+required (400)
+playlistIdRequired
+The subscribe request does not specify a value for the required
+playlistId
+property.
+invalidValue (400)
+playlistOperationUnsupported
+The API does not support the ability to list videos in the specified playlist. For example, you can't list a video in your watch later playlist.
+playlistItems.update
+Error type
+Error detail
+Description
+forbidden (403)
+playlistItemsNotAccessible
+The request is not properly authorized to update the specified playlist item.
+invalidValue (400)
+invalidPlaylistItemPosition
+The request attempts to set the playlist item's position to an invalid or unsupported value. Check the value of the
+position
+property in the resource's
+snippet
+.
+invalidValue (400)
+invalidResourceType
+The
+type
+specified for the resource ID is not supported for this operation. The resource ID identifies the item being added to the playlist – such as
+youtube#video
+.
+invalidValue (400)
+invalidSnippet
+The request does not specify a valid
+snippet
+property.
+invalidValue (400)
+manualSortRequired
+The request attempts to set the playlist item's position, but the playlist does not use manual sorting. (For example, playlist items might be sorted by date or popularity.) You can address the error by removing the
+snippet.position
+element from the resource that the request is inserting. If you want the playlist item to have a particular position in the list, you need to first update the playlist's
+Ordering
+option to
+Manual
+in the playlist's settings. This settings can be adjusted in the
+YouTube Video Manager
+.
+invalidValue (400)
+playlistOperationUnsupported
+The API does not support the ability to update videos in the specified playlist. For example, you can't update a video in your uploaded videos playlist.
+notFound (404)
+playlistItemNotFound
+The playlist item identified with the request's
+id
+property cannot be found.
+notFound (404)
+playlistNotFound
+The playlist identified with the request's
+playlistId
+parameter cannot be found.
+required (400)
+channelIdRequired
+The request does not specify a value for the required
+channelId
+property.
+required (400)
+playlistIdRequired
+The request does not specify a value for the required
+playlistId
+property.
+required (400)
+playlistItemIdRequired
+The playlist item resource specified in the request must use the
+id
+property to identify the playlist item that is being updated.
+playlists
+The following tables identify error messages that the API returns in response to calls related to
+playlists
+resources. These methods could also return errors listed in the
+Common request errors
+section.
+playlists.delete
+Error type
+Error detail
+Description
+forbidden (403)
+playlistForbidden
+This operation is forbidden or the request is not properly authorized.
+notFound (404)
+playlistNotFound
+The playlist identified with the request's
+id
+parameter cannot be found.
+invalidValue (400)
+playlistOperationUnsupported
+The API does not support the ability to delete the specified playlist. For example, you can't delete your uploaded videos playlist.
+playlists.list
+Error type
+Error detail
+Description
+forbidden (403)
+channelClosed
+The channel specified in the
+channelId
+parameter has been closed.
+forbidden (403)
+channelSuspended
+The channel specified in the
+channelId
+parameter has been suspended.
+forbidden (403)
+playlistForbidden
+The playlist identified with the request's
+id
+parameter does not support the request or the request is not properly authorized.
+notFound (404)
+channelNotFound
+The channel specified in the
+channelId
+parameter cannot be found.
+notFound (404)
+playlistNotFound
+The playlist identified with the request's
+id
+parameter cannot be found.
+invalidValue (400)
+playlistOperationUnsupported
+The API does not support the ability to list the specified playlist. For example, you can't list your watch later playlist.
+playlists.insert
+Error type
+Error detail
+Description
+badRequest (400)
+defaultLanguageNotSetError
+The
+defaultLanguage
+must be set to update
+localizations
+.
+badRequest (400)
+localizationValidationError
+One of the values in the localizations object failed validation. Use the
+playlists.list
+method to retrieve valid values and make sure to update them following the guidelines in
+the playlists resource documentation.
+badRequest (400)
+maxPlaylistExceeded
+The playlist cannot be created because the channel already has the maximum number of playlists allowed.
+forbidden (403)
+playlistForbidden
+This operation is forbidden or the request is not properly authorized.
+invalidValue (400)
+invalidPlaylistSnippet
+The request provides an invalid playlist snippet.
+required (400)
+playlistTitleRequired
+The request must specify a playlist title.
+playlists.update
+Error type
+Error detail
+Description
+badRequest (400)
+defaultLanguageNotSetError
+The
+defaultLanguage
+must be set to update
+localizations
+.
+badRequest (400)
+localizationValidationError
+One of the values in the localizations object failed validation. Use the
+playlists.list
+method to retrieve valid values and make sure to update them following the guidelines in
+the playlists resource documentation.
+forbidden (403)
+playlistForbidden
+This operation is forbidden or the request is not properly authorized.
+invalidValue (400)
+invalidPlaylistSnippet
+The request provides an invalid playlist snippet.
+invalidValue (400)
+playlistOperationUnsupported
+The API does not support the ability to update the specified playlist. For example, you can't update the properties of your uploaded videos playlist.
+notFound (404)
+playlistNotFound
+The playlist identified with the request's
+id
+parameter cannot be found.
+required (400)
+playlistTitleRequired
+The request must specify a playlist title.
+search
+The following tables identify error messages that the API returns in response to calls related to
+search
+resources. These methods could also return errors listed in the
+Common request errors
+section.
+search.list
+Error type
+Error detail
+Description
+badRequest (400)
+invalidChannelId
+The
+channelId
+parameter specified an invalid channel ID.
+badRequest (400)
+invalidLocation
+The
+location
+and/or
+locationRadius
+parameter value was formatted incorrectly.
+badRequest (400)
+invalidRelevanceLanguage
+The
+relevanceLanguage
+parameter value was formatted incorrectly.
+badRequest (400)
+invalidSearchFilter
+The request contains an invalid combination of search filters and/or restrictions. You must set the
+type
+parameter to
+video
+if you set a value for the
+eventType
+,
+videoCaption
+,
+videoCategoryId
+,
+videoDefinition
+,
+videoDimension
+,
+videoDuration
+,
+videoEmbeddable
+,
+videoLicense
+,
+videoSyndicated
+, or
+videoType
+parameters.
+subscriptions
+The following tables identify error messages that the API returns in response to calls related to
+subscriptions
+resources. These methods could also return errors listed in the
+Common request errors
+section.
+subscriptions.delete
+Error type
+Error detail
+Description
+forbidden (403)
+subscriptionForbidden
+The request is not properly authenticated or not supported for this channel.
+notFound (404)
+subscriptionNotFound
+The subscription that you are trying to delete cannot be found. Check the value of the request's
+id
+parameter to ensure that it is correct.
+subscriptions.insert
+Error type
+Error detail
+Description
+badRequest (400)
+subscriptionDuplicate
+The subscription that you are trying to create already exists.
+badRequest (400)
+subscriptionForbidden
+You have reached your maximum number of subscriptions.
+badRequest (400)
+subscriptionForbidden
+Too many recent subscriptions. Please try again in a few hours.
+badRequest (400)
+subscriptionForbidden
+Subscribing to your own channel is not supported.
+forbidden (403)
+subscriptionForbidden
+The request is not properly authenticated or not supported for this channel.
+notFound (404)
+publisherNotFound
+The resource specified by the request's
+snippet.resourceId
+property cannot be found.
+notFound (404)
+subscriberNotFound
+The subscriber identified with the request cannot be found.
+required (400)
+publisherRequired
+The subscription resource specified in the request must use the
+snippet.resourceId
+property to identify the channel that is being subscribed to.
+subscriptions.list
+Error type
+Error detail
+Description
+forbidden (403)
+accountClosed
+Subscriptions couldn't be retrieved because the subscriber's account is closed.
+forbidden (403)
+accountSuspended
+Subscriptions couldn't be retrieved because the subscriber's account is suspended.
+forbidden (403)
+subscriptionForbidden
+The requester isn't allowed to access the requested subscriptions.
+notFound (404)
+subscriberNotFound
+The subscriber identified with the request cannot be found.
+thumbnails
+The following tables identify error messages that the API returns in response to calls related to
+thumbnails
+resources. These methods could also return errors listed in the
+Common request errors
+section.
+thumbnails.set
+Error type
+Error detail
+Description
+badRequest (400)
+invalidImage
+The provided image content is invalid.
+badRequest (400)
+mediaBodyRequired
+The request does not include the image content.
+forbidden (403)
+forbidden
+The thumbnail can't be set for the specified video. The request might not be properly authorized.
+forbidden (403)
+forbidden
+The authenticated user doesn't have permissions to upload and set custom video thumbnails.
+notFound (404)
+videoNotFound
+The video that you are trying to insert a thumbnail image for cannot be found. Check the value of the request's
+videoId
+parameter to ensure that it is correct.
+tooManyRequests (429)
+uploadRateLimitExceeded
+The channel has uploaded too many thumbnails recently. Please try the request again later.
+videoAbuseReportReasons
+The following tables identify error messages that the API returns in response to calls related to
+videoAbuseReportReasons
+resources. These methods could also return errors listed in the
+Common request errors
+section.
+videoAbuseReportReasons.list
+Error type
+Error detail
+Description
+forbidden (403)
+forbidden
+Access forbidden. The request may not be properly authorized.
+videoCategories
+The following tables identify error messages that the API returns in response to calls related to
+videoCategories
+resources. These methods could also return errors listed in the
+Common request errors
+section.
+videoCategories.list
+Error type
+Error detail
+Description
+notFound (404)
+videoCategoryNotFound
+The video category identified by the
+id
+parameter cannot be found. Use the
+videoCategories.list
+method to retrieve a list of valid values.
+videos
+The following tables identify error messages that the API returns in response to calls related to
+videos
+resources. These methods could also return errors listed in the
+Common request errors
+section.
+videos.insert
+Error type
+Error detail
+Description
+badRequest (400)
+defaultLanguageNotSet
+The request is trying to add localized video details without specifying the default language of the video details.
+badRequest (400)
+invalidCategoryId
+The
+snippet.categoryId
+property specifies an invalid category ID. Use the
+videoCategories.list
+method to retrieve supported categories.
+badRequest (400)
+invalidDescription
+The request metadata specifies an invalid video description.
+badRequest (400)
+invalidFilename
+The video filename specified in the
+Slug
+header is invalid.
+badRequest (400)
+invalidPublishAt
+The request metadata specifies an invalid scheduled publishing time.
+badRequest (400)
+invalidRecordingDetails
+The
+recordingDetails
+object in the request metadata specifies invalid recording details.
+badRequest (400)
+invalidTags
+The request metadata specifies invalid video keywords.
+badRequest (400)
+invalidTitle
+The request metadata specifies an invalid or empty video title.
+badRequest (400)
+invalidVideoGameRating
+The request metadata specifies an invalid video game rating.
+badRequest (400)
+invalidVideoMetadata
+The request metadata is invalid. This error occurs if the request updates the
+snippet
+part of a
+video
+resource but does not set a value for both the
+snippet.title
+and
+snippet.categoryId
+properties.
+badRequest (400)
+mediaBodyRequired
+The request does not include the video content.
+badRequest (400)
+uploadLimitExceeded
+The channel's
+daily video upload limit
+has been reached. This is a YouTube platform restriction and is entirely separate from your Google Cloud project's API quota.
+forbidden (403)
+forbidden
+forbidden (403)
+forbiddenLicenseSetting
+The request attempts to set an invalid license for the video.
+forbidden (403)
+forbiddenPrivacySetting
+The request attempts to set an invalid privacy setting for the video.
+videos.list
+Error type
+Error detail
+Description
+badRequest (400)
+videoChartNotFound
+The requested video chart is not supported or is not available.
+forbidden (403)
+forbidden
+The request is not properly authorized to access video file or processing information. The
+fileDetails
+,
+processingDetails
+, and
+suggestions
+parts are only available to that video's owner.
+forbidden (403)
+forbidden
+The request cannot access user rating information. This error may occur because the request is not properly authorized to use the
+myRating
+parameter.
+notFound (404)
+videoNotFound
+The video that you are trying to retrieve cannot be found. Check the value of the request's
+id
+parameter to ensure that it is correct.
+videos.delete
+Error type
+Error detail
+Description
+forbidden (403)
+forbidden
+The video that you are trying to delete cannot be deleted. The request might not be properly authorized.
+notFound (404)
+videoNotFound
+The video that you are trying to delete cannot be found. Check the value of the request's
+id
+parameter to ensure that it is correct.
+videos.update
+Error type
+Error detail
+Description
+badRequest (400)
+defaultLanguageNotSet
+The API request is trying to add localized video details without specifying the default language of the video details.
+badRequest (400)
+invalidCategoryId
+The
+snippet.categoryId
+property specifies an invalid category ID. Use the
+videoCategories.list
+method to retrieve supported categories.
+badRequest (400)
+invalidDefaultBroadcastPrivacySetting
+The request attempts to set an invalid privacy setting for the default broadcast.
+badRequest (400)
+invalidDescription
+The request metadata specifies an invalid video description.
+badRequest (400)
+invalidPublishAt
+The request metadata specifies an invalid scheduled publishing time.
+badRequest (400)
+invalidRecordingDetails
+The
+recordingDetails
+object in the request metadata specifies invalid recording details.
+badRequest (400)
+invalidTags
+The request metadata specifies invalid video keywords.
+badRequest (400)
+invalidTitle
+The request metadata specifies an invalid or empty video title.
+badRequest (400)
+invalidVideoMetadata
+The request metadata is invalid. This error occurs if the request updates the
+snippet
+part of a
+video
+resource but does not set a value for both the
+snippet.title
+and
+snippet.categoryId
+properties.
+forbidden (403)
+forbidden
+Access forbidden. The request may not be properly authorized.
+forbidden (403)
+forbiddenEmbedSetting
+The request attempts to set an invalid embed setting for the video. Some channels might not have permission to offer embedded players for live streams. See the
+YouTube Help Center
+for more information.
+forbidden (403)
+forbiddenLicenseSetting
+The request attempts to set an invalid license for the video.
+forbidden (403)
+forbiddenPrivacySetting
+The request attempts to set an invalid privacy setting for the video.
+notFound (404)
+videoNotFound
+The video that you are trying to update cannot be found. Check the value of the
+id
+field in the request body to ensure that it is correct.
+videos.rate
+Error type
+Error detail
+Description
+badRequest (400)
+emailNotVerified
+The user must verify their email address prior to rating.
+badRequest (400)
+invalidRating
+The request contained an unexpected value for the
+rating
+parameter.
+badRequest (400)
+videoPurchaseRequired
+Rental videos can only be rated by users who rented them.
+forbidden (403)
+forbidden
+The video that you are trying to rate cannot be rated. The request might not be properly authorized.
+forbidden (403)
+videoRatingDisabled
+The owner of the video that you are trying to rate has disabled ratings for that video.
+notFound (404)
+videoNotFound
+The video that you are trying to rate cannot be found. Check the value of the request's
+id
+parameter to ensure that it is correct.
+videos.reportAbuse
+Error type
+Error detail
+Description
+badRequest (400)
+invalidAbuseReason
+The request contained an unexpected value for the
+reason_id
+field, or a combination of the
+reason_id
+and
+secondary_reason_id
+fields.
+badRequest (400)
+rateLimitExceeded
+The user has sent too many requests in a given timeframe.
+forbidden (403)
+forbidden
+notFound (404)
+videoNotFound
+The video that you are trying to report abuse for cannot be found.
+watermarks
+The following tables identify error messages that the API returns in response to calls related to
+watermarks
+resources. These methods could also return errors listed in the
+Common request errors
+section.
+watermarks.set
+Error type
+Error detail
+Description
+badRequest (400)
+imageFormatUnsupported
+The image you provided is in an unsupported format.
+badRequest (400)
+imageTooTall
+The image you provided is too tall.
+badRequest (400)
+imageTooWide
+The image you provided is too wide.
+badRequest (400)
+mediaBodyRequired
+The request does not include the image content.
+forbidden (403)
+forbidden
+The watermark can't be set for the specified channel. The request may not be properly authorized, or the
+channelId
+parameter is set to an invalid value.
+watermarks.unset
+Error type
+Error detail
+Description
+forbidden (403)
+forbidden
+The watermark can't be unset for the specified channel. The request may not be properly authorized, or the
+channelId
+parameter is set to an invalid value.
+Except as otherwise noted, the content of this page is licensed under the
+Creative Commons Attribution 4.0 License
+, and code samples are licensed under the
+Apache 2.0 License
+. For details, see the
+Google Developers Site Policies
+. Java is a registered trademark of Oracle and/or its affiliates.
+Last updated 2026-10-15 UTC.
+[[["Easy to understand","easyToUnderstand","thumb-up"],["Solved my problem","solvedMyProblem","thumb-up"],["Other","otherUp","thumb-up"]],[["Missing the information I need","missingTheInformationINeed","thumb-down"],["Too complicated / too many steps","tooComplicatedTooManySteps","thumb-down"],["Out of date","outOfDate","thumb-down"],["Samples / code issue","samplesCodeIssue","thumb-down"],["Other","otherDown","thumb-down"]],["Last updated 2026-10-15 UTC."],[],[]]
+Blog
+The latest news on the YouTube blog
+Issue Tracker
+Something wrong? Send us a bug report!
+YouTube Researcher Program
+For researchers interested in using data from YouTube's global API
+Tools
+Google APIs Explorer
+YouTube Player Demo
+Configure a Subscribe Button
+Issue Tracker
+File a bug
+Request a feature
+See open issues
+Product Info
+Terms of Service
+Developer Policies
+Required Minimum Functionality
+Branding Guidelines
+Android
+Chrome
+Firebase
+Google Cloud Platform
+Google AI
+All products
+Terms
+Privacy
+Manage cookies
+English
+Deutsch
+Español
+Español – América Latina
+Français
+Indonesia
+Italiano
+Polski
+Português – Brasil
+Tiếng Việt
+Türkçe
+Русский
+עברית
+العربيّة
+فارسی
+हिंदी
+বাংলা
+ภาษาไทย
+中文 – 简体
+中文 – 繁體
+日本語
+한국어

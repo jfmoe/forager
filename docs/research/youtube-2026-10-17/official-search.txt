@@ -1,0 +1,613 @@
+[Skip to main content](https://developers.google.com/youtube/data/reference/rest/v3/search/list#main-content)
+
+[![YouTube](https://developers.google.com/static/site-assets/logo-youtube.svg)](https://developers.google.com/youtube)
+
+- [YouTube](https://developers.google.com/youtube)
+- [Data API](https://developers.google.com/youtube/data)
+
+`/`
+
+Language
+
+- [English](https://developers.google.com/youtube/data/reference/rest/v3/search/list)
+- [Deutsch](https://developers.google.com/youtube/data/reference/rest/v3/search/list?hl=de)
+- [Español](https://developers.google.com/youtube/data/reference/rest/v3/search/list?hl=es)
+- [Español – América Latina](https://developers.google.com/youtube/data/reference/rest/v3/search/list?hl=es-419)
+- [Français](https://developers.google.com/youtube/data/reference/rest/v3/search/list?hl=fr)
+- [Indonesia](https://developers.google.com/youtube/data/reference/rest/v3/search/list?hl=id)
+- [Italiano](https://developers.google.com/youtube/data/reference/rest/v3/search/list?hl=it)
+- [Polski](https://developers.google.com/youtube/data/reference/rest/v3/search/list?hl=pl)
+- [Português – Brasil](https://developers.google.com/youtube/data/reference/rest/v3/search/list?hl=pt-br)
+- [Tiếng Việt](https://developers.google.com/youtube/data/reference/rest/v3/search/list?hl=vi)
+- [Türkçe](https://developers.google.com/youtube/data/reference/rest/v3/search/list?hl=tr)
+- [Русский](https://developers.google.com/youtube/data/reference/rest/v3/search/list?hl=ru)
+- [עברית](https://developers.google.com/youtube/data/reference/rest/v3/search/list?hl=he)
+- [العربيّة](https://developers.google.com/youtube/data/reference/rest/v3/search/list?hl=ar)
+- [فارسی](https://developers.google.com/youtube/data/reference/rest/v3/search/list?hl=fa)
+- [हिंदी](https://developers.google.com/youtube/data/reference/rest/v3/search/list?hl=hi)
+- [বাংলা](https://developers.google.com/youtube/data/reference/rest/v3/search/list?hl=bn)
+- [ภาษาไทย](https://developers.google.com/youtube/data/reference/rest/v3/search/list?hl=th)
+- [中文 – 简体](https://developers.google.com/youtube/data/reference/rest/v3/search/list?hl=zh-cn)
+- [中文 – 繁體](https://developers.google.com/youtube/data/reference/rest/v3/search/list?hl=zh-tw)
+- [日本語](https://developers.google.com/youtube/data/reference/rest/v3/search/list?hl=ja)
+- [한국어](https://developers.google.com/youtube/data/reference/rest/v3/search/list?hl=ko)
+
+[Sign in](https://developers.google.com/_d/signin?continue=https%3A%2F%2Fdevelopers.google.com%2Fyoutube%2Fdata%2Freference%2Frest%2Fv3%2Fsearch%2Flist&prompt=select_account)
+
+- On this page
+- [Common use cases](https://developers.google.com/youtube/data/reference/rest/v3/search/list#common-use-cases)
+- [Request](https://developers.google.com/youtube/data/reference/rest/v3/search/list#request)
+  - [HTTP request](https://developers.google.com/youtube/data/reference/rest/v3/search/list#http-request)
+  - [Parameters](https://developers.google.com/youtube/data/reference/rest/v3/search/list#parameters)
+  - [Request body](https://developers.google.com/youtube/data/reference/rest/v3/search/list#request-body)
+- [Response](https://developers.google.com/youtube/data/reference/rest/v3/search/list#response)
+  - [Properties](https://developers.google.com/youtube/data/reference/rest/v3/search/list#properties)
+- [Examples](https://developers.google.com/youtube/data/reference/rest/v3/search/list#examples)
+- [Errors](https://developers.google.com/youtube/data/reference/rest/v3/search/list#errors)
+- [Try it!](https://developers.google.com/youtube/data/reference/rest/v3/search/list#try-it)
+Try it!
+
+- [Home](https://developers.google.com/)
+- [Products](https://developers.google.com/products)
+- [YouTube](https://developers.google.com/youtube)
+- [Data API](https://developers.google.com/youtube/data)
+- [Reference](https://developers.google.com/youtube/data/reference/rest)
+
+Was this helpful?
+
+# Search: list    Stay organized with collections      Save and categorize content based on your preferences.
+
+- On this page
+- [Common use cases](https://developers.google.com/youtube/data/reference/rest/v3/search/list#common-use-cases)
+- [Request](https://developers.google.com/youtube/data/reference/rest/v3/search/list#request)
+  - [HTTP request](https://developers.google.com/youtube/data/reference/rest/v3/search/list#http-request)
+  - [Parameters](https://developers.google.com/youtube/data/reference/rest/v3/search/list#parameters)
+  - [Request body](https://developers.google.com/youtube/data/reference/rest/v3/search/list#request-body)
+- [Response](https://developers.google.com/youtube/data/reference/rest/v3/search/list#response)
+  - [Properties](https://developers.google.com/youtube/data/reference/rest/v3/search/list#properties)
+- [Examples](https://developers.google.com/youtube/data/reference/rest/v3/search/list#examples)
+- [Errors](https://developers.google.com/youtube/data/reference/rest/v3/search/list#errors)
+- [Try it!](https://developers.google.com/youtube/data/reference/rest/v3/search/list#try-it)
+- [Try it](https://developers.google.com/youtube/data/reference/rest/v3/search/list#try-it)
+
+Returns a collection of search results that match the query parameters specified in the API request. By default, a search result set identifies matching `video`, `channel`, and `playlist` resources, but you can also configure queries to only retrieve a specific type of resource.
+
+**Quota impact:** 100 calls per day. A call to this method has a [quota cost](https://developers.google.com/youtube/data/getting-started#quota) of 1 unit in the Search Queries quota bucket.
+
+## Common use cases
+
+Google for Developers
+
+The list below shows common use cases for this method. Hover over a use case to see its description, or click on a use case to load sample parameter values in the APIs Explorer. You can open the [fullscreen APIs Explorer](https://developers-dot-devsite-v2-prod.appspot.com/youtube/data/reference/rest/v3/search/list_593fe130bb73aaa02e03d2942916bc30069221f436b574fda3ea5369bb0e02ea.frame#) to see code samples that dynamically update to reflect the parameter values entered in the Explorer.
+
+The table below shows common use cases for this method. You can click on a use case name to load sample parameter values in the APIs Explorer. Or you can see code samples for a use case in the fullscreen APIs Explorer by clicking on the code icon below a use case name. In the fullscreen UI, you can update parameter and property values and the code samples will dynamically update to reflect the values you enter.
+
+This method has one common use case, which is described below. The buttons below the description populate the APIs Explorer with sample values or open the fullscreen APIs Explorer to show code samples that use those values. The code samples also dynamically update if you change the values.
+
+| Use cases |
+| --- |
+| [list (by keyword)](https://developers-dot-devsite-v2-prod.appspot.com/youtube/data/reference/rest/v3/search/list_593fe130bb73aaa02e03d2942916bc30069221f436b574fda3ea5369bb0e02ea.frame#)<br>![Code symbol that, when clicked, opens the fullscreen APIs Explorer widget and populates it with values for the 'list (by keyword)' example for the search.list method.](https://developers.google.com/site-assets/platform-html-color.svg) | This example retrieves the first 25 search results associated with the keyword **surfing**. By default, the `type` parameter does not specify a value, which means the response could include videos, playlists, and channels. |
+| [list (by location)](https://developers-dot-devsite-v2-prod.appspot.com/youtube/data/reference/rest/v3/search/list_593fe130bb73aaa02e03d2942916bc30069221f436b574fda3ea5369bb0e02ea.frame#)<br>![Code symbol that, when clicked, opens the fullscreen APIs Explorer widget and populates it with values for the 'list (by location)' example for the search.list method.](https://developers.google.com/site-assets/platform-html-color.svg) | This example retrieves search results associated with the keyword **surfing** that also specify in their metadata a geographic location within 10 miles of the point identified by the `location` parameter value. (The sample request specifies a point on the North Shore of Oahu, Hawaii . The request retrieves the top five results, which is the default number returned when the `maxResults` parameter is not specified. |
+| [list (live events)](https://developers-dot-devsite-v2-prod.appspot.com/youtube/data/reference/rest/v3/search/list_593fe130bb73aaa02e03d2942916bc30069221f436b574fda3ea5369bb0e02ea.frame#)<br>![Code symbol that, when clicked, opens the fullscreen APIs Explorer widget and populates it with values for the 'list (live events)' example for the search.list method.](https://developers.google.com/site-assets/platform-html-color.svg) | This example retrieves a list of active live broadcasts (see the `eventType` parameter value) that are associated with the keyword **news**. Since the `eventType` parameter is set, the request must also set the `type` parameter value to `video`. |
+| [list (my videos)](https://developers-dot-devsite-v2-prod.appspot.com/youtube/data/reference/rest/v3/search/list_593fe130bb73aaa02e03d2942916bc30069221f436b574fda3ea5369bb0e02ea.frame#)<br>![Code symbol that, when clicked, opens the fullscreen APIs Explorer widget and populates it with values for the 'list (my videos)' example for the search.list method.](https://developers.google.com/site-assets/platform-html-color.svg) | This example searches within the authorized user's videos for videos that match the keyword **fun**. The `forMine` parameter indicates that the response should only search within the authorized user's videos. Also, since this request uses the `forMine` parameter, it must also set the `type` parameter value to `video`.<br>If you have not uploaded any videos associated with that term, you will not see any items in the API response list. |
+
+## Request
+
+### HTTP request
+
+```
+GET https://www.googleapis.com/youtube/v3/search
+```
+
+### Parameters
+
+The following table lists the parameters that this query supports. All of the parameters listed are query parameters.
+
+| Parameters |
+| --- |
+| **Required parameters** |
+| `part` | `string`<br> The `part` parameter specifies a comma-separated list of one or more `search` resource properties that the API response will include. Set the parameter value to `snippet`. |
+| **Filters (specify 0 or 1 of the following parameters)** |
+| `forContentOwner` | `boolean`<br> This parameter can only be used in a properly [authorized request](https://developers.google.com/youtube/data/guides/authentication), and it is intended exclusively for YouTube content partners.<br>The `forContentOwner` parameter restricts the search to only retrieve videos owned by the content owner identified by the `onBehalfOfContentOwner` parameter. If `forContentOwner` is set to true, the request must also meet these requirements:<br>- The `onBehalfOfContentOwner` parameter is required.<br>- The user authorizing the request must be using an account linked to the specified content owner.<br>- The `type` parameter value must be set to `video`.<br>- None of the following other parameters can be set: `videoDefinition`, `videoDimension`, `videoDuration`, `videoEmbeddable`, `videoLicense`, `videoPaidProductPlacement`, `videoSyndicated`, `videoType`. |
+| `forDeveloper` | `boolean`<br> This parameter can only be used in a properly [authorized request](https://developers.google.com/youtube/data/guides/authentication). The `forDeveloper` parameter restricts the search to only retrieve videos uploaded via the developer's application or website. The API server uses the request's authorization credentials to identify the developer. The `forDeveloper` parameter can be used in conjunction with optional search parameters like the `q` parameter.<br>For this feature, each uploaded video is automatically tagged with the project number that is associated with the developer's application in the [Google Developers Console](https://console.developers.google.com/).<br>When a search request subsequently sets the `forDeveloper` parameter to `true`, the API server uses the request's authorization credentials to identify the developer. Therefore, a developer can restrict results to videos uploaded through the developer's own app or website but not to videos uploaded through other apps or sites. |
+| `forMine` | `boolean`<br> This parameter can only be used in a properly [authorized request](https://developers.google.com/youtube/data/guides/authentication). The `forMine` parameter restricts the search to only retrieve videos owned by the authenticated user. If you set this parameter to `true`, then the `type` parameter's value must also be set to `video`. In addition, none of the following other parameters can be set in the same request: `videoDefinition`, `videoDimension`, `videoDuration`, `videoEmbeddable`, `videoLicense`, `videoPaidProductPlacement`, `videoSyndicated`, `videoType`. |
+| **Optional parameters** |
+| `channelId` | `string`<br> The `channelId` parameter indicates that the API response should only contain resources created by the channel. <br>**Note:** Search results are constrained to a maximum of 500 videos if your request specifies a value for the `channelId` parameter and sets the `type` parameter value to `video`, but it does not also set one of the `forContentOwner`, `forDeveloper`, or `forMine` filters. |
+| `channelType` | `string`<br> The `channelType` parameter lets you restrict a search to a particular type of channel.<br>Acceptable values are:<br>- `any` – Return all channels.<br>- `show` – Only retrieve shows. |
+| `eventType` | `string`<br> The `eventType` parameter restricts a search to broadcast events. If you specify a value for this parameter, you must also set the `type` parameter's value to `video`.<br>Acceptable values are:<br>- `completed` – Only include completed broadcasts.<br>- `live` – Only include active broadcasts.<br>- `upcoming` – Only include upcoming broadcasts. |
+| `location` | `string`<br> The `location` parameter, in conjunction with the `locationRadius` parameter, defines a circular geographic area and also restricts a search to videos that specify, in their metadata, a geographic location that falls within that area. The parameter value is a string that specifies latitude/longitude coordinates e.g. (`37.42307,-122.08427`).<br>- The `location` parameter value identifies the point at the center of the area.<br>- The `locationRadius` parameter specifies the maximum distance that the location associated with a video can be from that point for the video to still be included in the search results.<br>The API returns an error if your request specifies a value for the `location` parameter but does not also specify a value for the `locationRadius` parameter.<br>**Note:** If you specify a value for this parameter, you must also set the `type` parameter's value to `video`. |
+| `locationRadius` | `string`<br> The `locationRadius` parameter, in conjunction with the `location` parameter, defines a circular geographic area.<br>The parameter value must be a floating point number followed by a measurement unit. Valid measurement units are `m`, `km`, `ft`, and `mi`. For example, valid parameter values include `1500m`, `5km`, `10000ft`, and `0.75mi`. The API does not support `locationRadius` parameter values larger than 1000 kilometers.<br>**Note:** See the definition of the `location` parameter for more information. |
+| `maxResults` | `unsigned integer`<br> The `maxResults` parameter specifies the maximum number of items that should be returned in the result set. Acceptable values are `0` to `50`, inclusive. The default value is `5`. |
+| `onBehalfOfContentOwner` | `string`<br> This parameter can only be used in a properly [authorized request](https://developers.google.com/youtube/data/guides/authentication). **Note:** This parameter is intended exclusively for YouTube content partners.<br>The `onBehalfOfContentOwner` parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner. |
+| `order` | `string`<br> The `order` parameter specifies the method that will be used to order resources in the API response. The default value is `relevance`.<br>Acceptable values are:<br>- `date` – Resources are sorted in reverse chronological order based on the date they were created. **Note:** Because this relies on the search index, you may experience indexing delays for new content or receive incomplete result sets. To reliably retrieve a channel's most recently uploaded videos, do not use `search.list`. Instead, use the `playlistItems.list` method to fetch the channel's uploads playlist.<br>- `rating` – Resources are sorted from highest to lowest rating. **Note:** This rating is calculated using an internal algorithmic score and is not strictly equivalent to a descending like count.<br>- `relevance` – Resources are sorted based on their relevance to the search query. This is the default value for this parameter.<br>- `title` – Resources are sorted alphabetically by title.<br>- `videoCount` – Channels are sorted in descending order of their number of uploaded videos.<br>- `viewCount` – Resources are sorted from highest to lowest number of views. For live broadcasts, videos are sorted by number of concurrent viewers while the broadcasts are ongoing. |
+| `pageToken` | `string`<br> The `pageToken` parameter identifies a specific page in the result set that should be returned. In an API response, the `nextPageToken` and `prevPageToken` properties identify other pages that could be retrieved. |
+| `publishedAfter` | `datetime`<br> The `publishedAfter` parameter indicates that the API response should only contain resources created at or after the specified time. The value is an RFC 3339 formatted date-time value (1970-01-01T00:00:00Z). |
+| `publishedBefore` | `datetime`<br> The `publishedBefore` parameter indicates that the API response should only contain resources created before or at the specified time. The value is an RFC 3339 formatted date-time value (1970-01-01T00:00:00Z). |
+| `q` | `string`<br> The `q` parameter specifies the query term to search for.<br>Your request can also use the Boolean NOT (`-`) and OR (`|`) operators to exclude videos or to find videos that are associated with one of several search terms. For example, to search for videos matching either "boating" or "sailing", set the `q` parameter value to `boating|sailing`. Similarly, to search for videos matching either "boating" or "sailing" but not "fishing", set the `q` parameter value to `boating|sailing -fishing`. Note that the pipe character must be URL-escaped when it is sent in your API request. The URL-escaped value for the pipe character is `%7C`. |
+| `regionCode` | `string`<br> The `regionCode` parameter instructs the API to return search results for videos that can be viewed in the specified country. The parameter value is an [ISO 3166-1 alpha-2](http://www.iso.org/iso/country_codes/iso_3166_code_lists/country_names_and_code_elements.htm) country code. |
+| `relevanceLanguage` | `string`<br> The `relevanceLanguage` parameter instructs the API to return search results that are most relevant to the specified language. The parameter value is typically an [ISO 639-1 two-letter language code](http://www.loc.gov/standards/iso639-2/php/code_list.php). However, you should use the values `zh-Hans` for simplified Chinese and `zh-Hant` for traditional Chinese. Please note that results in other languages will still be returned if they are highly relevant to the search query term. |
+| `safeSearch` | `string`<br> The `safeSearch` parameter indicates whether the search results should include restricted content as well as standard content.<br>Acceptable values are:<br>- `moderate` – YouTube will filter some content from search results and, at the least, will filter content that is restricted in your locale. Based on their content, search results could be removed from search results or demoted in search results. This is the default parameter value.<br>- `none` – YouTube will not filter the search result set.<br>- `strict` – YouTube will try to exclude all restricted content from the search result set. Based on their content, search results could be removed from search results or demoted in search results. |
+| `topicId` | `string`
+
+The `topicId` parameter indicates that the API response should only contain resources associated with the specified topic. The value identifies a Freebase topic ID.
+
+**Important:** Due to the deprecation of Freebase and the Freebase API, the `topicId` parameter started working differently as of February 27, 2017. At that time, YouTube started supporting a small set of curated topic IDs, and you can only use that smaller set of IDs as values for this parameter.
+
+[See topic IDs supported as of February 15, 2017](https://developers.google.com/youtube/data/reference/rest/v3/search/list#)
+
+| Topics |
+| --- |
+| **Music topics** |
+| /m/04rlf | Music (parent topic) |
+| /m/02mscn | Christian music |
+| /m/0ggq0m | Classical music |
+| /m/01lyv | Country |
+| /m/02lkt | Electronic music |
+| /m/0glt670 | Hip hop music |
+| /m/05rwpb | Independent music |
+| /m/03\_d0 | Jazz |
+| /m/028sqc | Music of Asia |
+| /m/0g293 | Music of Latin America |
+| /m/064t9 | Pop music |
+| /m/06cqb | Reggae |
+| /m/06j6l | Rhythm and blues |
+| /m/06by7 | Rock music |
+| /m/0gywn | Soul music |
+| **Gaming topics** |
+| /m/0bzvm2 | Gaming (parent topic) |
+| /m/025zzc | Action game |
+| /m/02ntfj | Action-adventure game |
+| /m/0b1vjn | Casual game |
+| /m/02hygl | Music video game |
+| /m/04q1x3q | Puzzle video game |
+| /m/01sjng | Racing video game |
+| /m/0403l3g | Role-playing video game |
+| /m/021bp2 | Simulation video game |
+| /m/022dc6 | Sports game |
+| /m/03hf\_rm | Strategy video game |
+| **Sports topics** |
+| /m/06ntj | Sports (parent topic) |
+| /m/0jm\_ | American football |
+| /m/018jz | Baseball |
+| /m/018w8 | Basketball |
+| /m/01cgz | Boxing |
+| /m/09xp\_ | Cricket |
+| /m/02vx4 | Football |
+| /m/037hz | Golf |
+| /m/03tmr | Ice hockey |
+| /m/01h7lh | Mixed martial arts |
+| /m/0410tth | Motorsport |
+| /m/07bs0 | Tennis |
+| /m/07\_53 | Volleyball |
+| **Entertainment topics** |
+| /m/02jjt | Entertainment (parent topic) |
+| /m/09kqc | Humor |
+| /m/02vxn | Movies |
+| /m/05qjc | Performing arts |
+| /m/066wd | Professional wrestling |
+| /m/0f2f9 | TV shows |
+| **Lifestyle topics** |
+| /m/019\_rr | Lifestyle (parent topic) |
+| /m/032tl | Fashion |
+| /m/027x7n | Fitness |
+| /m/02wbm | Food |
+| /m/03glg | Hobby |
+| /m/068hy | Pets |
+| /m/041xxh | Physical attractiveness \[Beauty\] |
+| /m/07c1v | Technology |
+| /m/07bxq | Tourism |
+| /m/07yv9 | Vehicles |
+| **Society topics** |
+| /m/098wr | Society (parent topic) |
+| /m/09s1f | Business |
+| /m/0kt51 | Health |
+| /m/01h6rj | Military |
+| /m/05qt0 | Politics |
+| /m/06bvp | Religion |
+| **Other topics** |
+| /m/01k8wb | Knowledge | |
+| `type` | `string`<br> The `type` parameter restricts a search query to only retrieve a particular type of resource. The value is a comma-separated list of resource types. The default value is `video,channel,playlist`.<br>Acceptable values are:<br>- `channel`<br>- `playlist`<br>- `video` |
+| `videoCaption` | `string`<br> The `videoCaption` parameter indicates whether the API should filter video search results based on whether they have captions. If you specify a value for this parameter, you must also set the `type` parameter's value to `video`.<br>Acceptable values are:<br>- `any` – Do not filter results based on caption availability.<br>- `closedCaption` – Only include videos that have captions.<br>- `none` – Only include videos that do not have captions. |
+| `videoCategoryId` | `string`<br> The `videoCategoryId` parameter filters video search results based on their [category](https://developers.google.com/youtube/data/reference/rest/v3/videoCategories). If you specify a value for this parameter, you must also set the `type` parameter's value to `video`. |
+| `videoDefinition` | `string`<br> The `videoDefinition` parameter lets you restrict a search to only include either high definition (HD) or standard definition (SD) videos. HD videos are available for playback in at least 720p, though higher resolutions, like 1080p, might also be available. If you specify a value for this parameter, you must also set the `type` parameter's value to `video`.<br>Acceptable values are:<br>- `any` – Return all videos, regardless of their resolution.<br>- `high` – Only retrieve HD videos.<br>- `standard` – Only retrieve videos in standard definition. |
+| `videoDimension` | `string`<br> The `videoDimension` parameter lets you restrict a search to only retrieve 2D or 3D videos. If you specify a value for this parameter, you must also set the `type` parameter's value to `video`.<br>Acceptable values are:<br>- `2d` – Restrict search results to exclude 3D videos.<br>- `3d` – Restrict search results to only include 3D videos.<br>- `any` – Include both 3D and non-3D videos in returned results. This is the default value. |
+| `videoDuration` | `string`<br> The `videoDuration` parameter filters video search results based on their duration. If you specify a value for this parameter, you must also set the `type` parameter's value to `video`.<br>Acceptable values are:<br>- `any` – Do not filter video search results based on their duration. This is the default value.<br>- `long` – Only include videos longer than 20 minutes.<br>- `medium` – Only include videos that are between four and 20 minutes long (inclusive).<br>- `short` – Only include videos that are less than four minutes long. |
+| `videoEmbeddable` | `string`<br> The `videoEmbeddable` parameter lets you to restrict a search to only videos that can be embedded into a webpage. If you specify a value for this parameter, you must also set the `type` parameter's value to `video`.<br>Acceptable values are:<br>- `any` – Return all videos, embeddable or not.<br>- `true` – Only retrieve embeddable videos. |
+| `videoLicense` | `string`<br> The `videoLicense` parameter filters search results to only include videos with a particular license. YouTube lets video uploaders choose to attach either the Creative Commons license or the standard YouTube license to each of their videos. If you specify a value for this parameter, you must also set the `type` parameter's value to `video`.<br>Acceptable values are:<br>- `any` – Return all videos, regardless of which license they have, that match the query parameters.<br>- `creativeCommon` – Only return videos that have a Creative Commons license. Users can reuse videos with this license in other videos that they create. [Learn more](http://www.google.com/support/youtube/bin/answer.py?answer=1284989).<br>- `youtube` – Only return videos that have the standard YouTube license. |
+| `videoPaidProductPlacement` | `string`<br> The `videoPaidProductPlacement` parameter filters search results<br> to only include videos that the creator has denoted as having a paid promotion. If you specify<br> a value for this parameter, you must also set the `type`<br> parameter's value to `video`.<br>Acceptable values are:<br>- `any` – Return all videos, regardless of whether they contain paid promotions.<br>- `true` – Only retrieve videos with paid promotions. |
+| `videoSyndicated` | `string`<br> The `videoSyndicated` parameter lets you to restrict a search to only videos that can be played outside youtube.com. If you specify a value for this parameter, you must also set the `type` parameter's value to `video`.<br>Acceptable values are:<br>- `any` – Return all videos, syndicated or not.<br>- `true` – Only retrieve syndicated videos. |
+| `videoType` | `string`<br> The `videoType` parameter lets you restrict a search to a particular type of videos. If you specify a value for this parameter, you must also set the `type` parameter's value to `video`.<br>Acceptable values are:<br>- `any` – Return all videos.<br>- `episode` – Only retrieve episodes of shows.<br>- `movie` – Only retrieve movies. |
+
+### Request body
+
+Do not provide a request body when calling this method.
+
+## Response
+
+If successful, this method returns a response body with the following structure:
+
+```
+{
+  "kind": "youtube#searchListResponse",
+  "etag": etag,
+  "nextPageToken": string,
+  "prevPageToken": string,
+  "regionCode": string,
+  "pageInfo": {
+    "totalResults": integer,
+    "resultsPerPage": integer
+  },
+  "items": [\
+    search Resource\
+  ]
+}
+```
+
+### Properties
+
+The following table defines the properties that appear in a search result:
+
+| Properties |
+| --- |
+| `kind` | `string`<br> Identifies the API resource's type. The value will be `youtube#searchListResponse`. |
+| `etag` | `etag`<br> The Etag of this resource. |
+| `nextPageToken` | `string`<br> The token that can be used as the value of the `pageToken` parameter to retrieve the next page in the result set. |
+| `prevPageToken` | `string`<br> The token that can be used as the value of the `pageToken` parameter to retrieve the previous page in the result set. |
+| `regionCode` | `string`<br> The region code that was used for the search query. The property value is a two-letter ISO country code that identifies the region. The `i18nRegions.list` method returns a list of supported regions. The default value is `US`. If a non-supported region is specified, YouTube might still select another region, rather than the default value, to handle the query. |
+| `pageInfo` | `object`<br> The `pageInfo` object encapsulates paging information for the result set. |
+| `pageInfo.totalResults` | `integer`<br> The total number of results in the result set.Please note that the value is an approximation and may not represent an exact value. In addition, the maximum value is 1,000,000.<br>You should not use this value to create pagination links. Instead, use the `nextPageToken` and `prevPageToken` property values to determine whether to show pagination links. |
+| `pageInfo.resultsPerPage` | `integer`<br> The number of results included in the API response. |
+| `items[]` | `list`<br> A list of results that match the search criteria. |
+
+## Examples
+
+**Note:** The following code samples may not represent all supported programming languages. See the [client libraries](https://developers.google.com/youtube/data/libraries) documentation for a list of supported languages.
+
+[Apps Script](https://developers.google.com/youtube/data/reference/rest/v3/search/list#apps-script)[Go](https://developers.google.com/youtube/data/reference/rest/v3/search/list#go)[.NET](https://developers.google.com/youtube/data/reference/rest/v3/search/list#.net)[Ruby](https://developers.google.com/youtube/data/reference/rest/v3/search/list#ruby)More
+
+
+This function searches for videos related to the keyword 'dogs'. The video IDs and titles of the search results are logged to Apps Script's log.
+
+Note that this sample limits the results to 25. To return more results, pass additional parameters as documented here: https://developers.google.com/youtube/data/reference/rest/v3/search/list
+
+
+
+```
+function searchByKeyword() {
+  var results = YouTube.Search.list('id,snippet', {q: 'dogs', maxResults: 25});
+
+  for(var i in results.items) {
+    var item = results.items[i];
+    Logger.log('[%s] Title: %s', item.id.videoId, item.snippet.title);
+  }
+}youtube.gs
+```
+
+
+This code sample calls the API's `search.list` method to retrieve search results associated
+with a particular keyword.
+
+
+This example uses the [Go client library](https://github.com/google/google-api-go-client).
+
+```
+package main
+
+import (
+	"flag"
+	"fmt"
+	"log"
+	"net/http"
+
+	"google.golang.org/api/googleapi/transport"
+	"google.golang.org/api/youtube/v3"
+)
+
+var (
+	query      = flag.String("query", "Google", "Search term")
+	maxResults = flag.Int64("max-results", 25, "Max YouTube results")
+)
+
+const developerKey = "YOUR DEVELOPER KEY"
+
+func main() {
+	flag.Parse()
+
+	client := &http.Client{
+		Transport: &transport.APIKey{Key: developerKey},
+	}
+
+	service, err := youtube.New(client)
+	if err != nil {
+		log.Fatalf("Error creating new YouTube client: %v", err)
+	}
+
+	// Make the API call to YouTube.
+	call := service.Search.List("id,snippet").
+		Q(*query).
+		MaxResults(*maxResults)
+	response, err := call.Do()
+	handleError(err, "")
+
+	// Group video, channel, and playlist results in separate lists.
+	videos := make(map[string]string)
+	channels := make(map[string]string)
+	playlists := make(map[string]string)
+
+	// Iterate through each item and add it to the correct list.
+	for _, item := range response.Items {
+		switch item.Id.Kind {
+		case "youtube#video":
+			videos[item.Id.VideoId] = item.Snippet.Title
+		case "youtube#channel":
+			channels[item.Id.ChannelId] = item.Snippet.Title
+		case "youtube#playlist":
+			playlists[item.Id.PlaylistId] = item.Snippet.Title
+		}
+	}
+
+	printIDs("Videos", videos)
+	printIDs("Channels", channels)
+	printIDs("Playlists", playlists)
+}
+
+// Print the ID and title of each result in a list as well as a name that
+// identifies the list. For example, print the word section name "Videos"
+// above a list of video search results, followed by the video ID and title
+// of each matching video.
+func printIDs(sectionName string, matches map[string]string) {
+	fmt.Printf("%v:\n", sectionName)
+	for id, title := range matches {
+		fmt.Printf("[%v] %v\n", id, title)
+	}
+	fmt.Printf("\n\n")
+}
+search_by_keyword.go
+```
+
+
+The following code sample calls the API's `search.list` method to retrieve search results
+associated with a particular keyword.
+
+
+This example uses the [.NET client library](https://developers.google.com/api-client-library/dotnet).
+
+```
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Reflection;
+using System.Threading;
+using System.Threading.Tasks;
+
+using Google.Apis.Auth.OAuth2;
+using Google.Apis.Services;
+using Google.Apis.Upload;
+using Google.Apis.Util.Store;
+using Google.Apis.YouTube.v3;
+using Google.Apis.YouTube.v3.Data;
+
+namespace Google.Apis.YouTube.Samples
+{
+  /// <summary>
+  /// YouTube Data API v3 sample: search by keyword.
+  /// Relies on the Google APIs Client Library for .NET, v1.7.0 or higher.
+  /// See https://developers.google.com/api-client-library/dotnet/get_started
+  ///
+  /// Set ApiKey to the API key value from the APIs & auth > Registered apps tab of
+  ///   https://cloud.google.com/console
+  /// Please ensure that you have enabled the YouTube Data API for your project.
+  /// </summary>
+  internal class Search
+  {
+    [STAThread]
+    static void Main(string[] args)
+    {
+      Console.WriteLine("YouTube Data API: Search");
+      Console.WriteLine("========================");
+
+      try
+      {
+        new Search().Run().Wait();
+      }
+      catch (AggregateException ex)
+      {
+        foreach (var e in ex.InnerExceptions)
+        {
+          Console.WriteLine("Error: " + e.Message);
+        }
+      }
+
+      Console.WriteLine("Press any key to continue...");
+      Console.ReadKey();
+    }
+
+    private async Task Run()
+    {
+      var youtubeService = new YouTubeService(new BaseClientService.Initializer()
+      {
+        ApiKey = "REPLACE_ME",
+        ApplicationName = this.GetType().ToString()
+      });
+
+      var searchListRequest = youtubeService.Search.List("snippet");
+      searchListRequest.Q = "Google"; // Replace with your search term.
+      searchListRequest.MaxResults = 50;
+
+      // Call the search.list method to retrieve results matching the specified query term.
+      var searchListResponse = await searchListRequest.ExecuteAsync();
+
+      List<string> videos = new List<string>();
+      List<string> channels = new List<string>();
+      List<string> playlists = new List<string>();
+
+      // Add each result to the appropriate list, and then display the lists of
+      // matching videos, channels, and playlists.
+      foreach (var searchResult in searchListResponse.Items)
+      {
+        switch (searchResult.Id.Kind)
+        {
+          case "youtube#video":
+            videos.Add(String.Format("{0} ({1})", searchResult.Snippet.Title, searchResult.Id.VideoId));
+            break;
+
+          case "youtube#channel":
+            channels.Add(String.Format("{0} ({1})", searchResult.Snippet.Title, searchResult.Id.ChannelId));
+            break;
+
+          case "youtube#playlist":
+            playlists.Add(String.Format("{0} ({1})", searchResult.Snippet.Title, searchResult.Id.PlaylistId));
+            break;
+        }
+      }
+
+      Console.WriteLine(String.Format("Videos:\n{0}\n", string.Join("\n", videos)));
+      Console.WriteLine(String.Format("Channels:\n{0}\n", string.Join("\n", channels)));
+      Console.WriteLine(String.Format("Playlists:\n{0}\n", string.Join("\n", playlists)));
+    }
+  }
+}
+Search.cs
+```
+
+
+This sample calls the API's `search.list` method to retrieve search results
+associated with a particular keyword.
+
+
+This example uses the [Ruby client library](https://developers.google.com/api-client-library/ruby).
+
+```
+#!/usr/bin/ruby
+
+require 'rubygems'
+gem 'google-api-client', '>0.7'
+require 'google/api_client'
+require 'trollop'
+
+# Set DEVELOPER_KEY to the API key value from the APIs & auth > Credentials
+# tab of
+# {{ Google Cloud Console }} <{{ https://cloud.google.com/console }}>
+# Please ensure that you have enabled the YouTube Data API for your project.
+DEVELOPER_KEY = 'REPLACE_ME'
+YOUTUBE_API_SERVICE_NAME = 'youtube'
+YOUTUBE_API_VERSION = 'v3'
+
+def get_service
+  client = Google::APIClient.new(
+    :key => DEVELOPER_KEY,
+    :authorization => nil,
+    :application_name => $PROGRAM_NAME,
+    :application_version => '1.0.0'
+  )
+  youtube = client.discovered_api(YOUTUBE_API_SERVICE_NAME, YOUTUBE_API_VERSION)
+
+  return client, youtube
+end
+
+def main
+  opts = Trollop::options do
+    opt :q, 'Search term', :type => String, :default => 'Google'
+    opt :max_results, 'Max results', :type => :int, :default => 25
+  end
+
+  client, youtube = get_service
+
+  begin
+    # Call the search.list method to retrieve results matching the specified
+    # query term.
+    search_response = client.execute!(
+      :api_method => youtube.search.list,
+      :parameters => {
+        :part => 'snippet',
+        :q => opts[:q],
+        :maxResults => opts[:max_results]
+      }
+    )
+
+    videos = []
+    channels = []
+    playlists = []
+
+    # Add each result to the appropriate list, and then display the lists of
+    # matching videos, channels, and playlists.
+    search_response.data.items.each do |search_result|
+      case search_result.id.kind
+        when 'youtube#video'
+          videos << "#{search_result.snippet.title} (#{search_result.id.videoId})"
+        when 'youtube#channel'
+          channels << "#{search_result.snippet.title} (#{search_result.id.channelId})"
+        when 'youtube#playlist'
+          playlists << "#{search_result.snippet.title} (#{search_result.id.playlistId})"
+      end
+    end
+
+    puts "Videos:\n", videos, "\n"
+    puts "Channels:\n", channels, "\n"
+    puts "Playlists:\n", playlists, "\n"
+  rescue Google::APIClient::TransmissionError => e
+    puts e.result.body
+  end
+end
+
+main
+search.rb
+```
+
+## Errors
+
+The following table identifies error messages that the API could return in response to a call to this method. Please see the [error message](https://developers.google.com/youtube/data/reference/rest/v3/errors) documentation for more detail.
+
+| Error type | Error detail | Description |
+| --- | --- | --- |
+| `badRequest (400)` | `invalidChannelId` | The `channelId` parameter specified an invalid channel ID. |
+| `badRequest (400)` | `invalidLocation` | The `location` and/or `locationRadius` parameter value was formatted incorrectly. |
+| `badRequest (400)` | `invalidRelevanceLanguage` | The `relevanceLanguage` parameter value was formatted incorrectly. |
+| `badRequest (400)` | `invalidSearchFilter` | The request contains an invalid combination of search filters and/or restrictions. Note that you must set the `type` parameter to `video` if you set either the `forContentOwner` or `forMine` parameters to `true`. You must also set the `type` parameter to `video` if you set a value for the `eventType`, `videoCaption`, `videoCategoryId`, `videoDefinition`, `videoDimension`, `videoDuration`, `videoEmbeddable`, `videoLicense`, `videoSyndicated`, or `videoType` parameters. |
+
+## Try it!
+
+Use the APIs Explorer to call this API and see the API request and response.
+
+Was this helpful?
+
+Except as otherwise noted, the content of this page is licensed under the [Creative Commons Attribution 4.0 License](https://creativecommons.org/licenses/by/4.0/), and code samples are licensed under the [Apache 2.0 License](https://www.apache.org/licenses/LICENSE-2.0). For details, see the [Google Developers Site Policies](https://developers.google.com/site-policies). Java is a registered trademark of Oracle and/or its affiliates.
+
+Last updated 2026-10-15 UTC.
+
+
+
+
+\[\[\["Easy to understand","easyToUnderstand","thumb-up"\],\["Solved my problem","solvedMyProblem","thumb-up"\],\["Other","otherUp","thumb-up"\]\],\[\["Missing the information I need","missingTheInformationINeed","thumb-down"\],\["Too complicated / too many steps","tooComplicatedTooManySteps","thumb-down"\],\["Out of date","outOfDate","thumb-down"\],\["Samples / code issue","samplesCodeIssue","thumb-down"\],\["Other","otherDown","thumb-down"\]\],\["Last updated 2026-10-15 UTC."\],\[\],\[\]\]
+
+
+
+Info
+
+
+Chat
+
+
+API
+
+
+Try It!
+
+## Page info
+
+bug\_reportfullscreenclose\_fullscreenclose
+
+### On this page
+
+- On this page
+- [Common use cases](https://developers.google.com/youtube/data/reference/rest/v3/search/list#common-use-cases)
+- [Request](https://developers.google.com/youtube/data/reference/rest/v3/search/list#request)
+  - [HTTP request](https://developers.google.com/youtube/data/reference/rest/v3/search/list#http-request)
+  - [Parameters](https://developers.google.com/youtube/data/reference/rest/v3/search/list#parameters)
+  - [Request body](https://developers.google.com/youtube/data/reference/rest/v3/search/list#request-body)
+- [Response](https://developers.google.com/youtube/data/reference/rest/v3/search/list#response)
+  - [Properties](https://developers.google.com/youtube/data/reference/rest/v3/search/list#properties)
+- [Examples](https://developers.google.com/youtube/data/reference/rest/v3/search/list#examples)
+- [Errors](https://developers.google.com/youtube/data/reference/rest/v3/search/list#errors)
+- [Try it!](https://developers.google.com/youtube/data/reference/rest/v3/search/list#try-it)
+Try it!

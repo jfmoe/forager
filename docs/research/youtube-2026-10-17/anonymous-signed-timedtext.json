@@ -1,0 +1,12 @@
+{
+  "source_url": "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+  "endpoint": "https://www.youtube.com/api/timedtext (signed query intentionally omitted)",
+  "checked_at": "2026-10-17T12:39:05.769565+00:00",
+  "http_status": "200",
+  "exit_code": 0,
+  "track_language": "en",
+  "track_kind": "manual",
+  "body": "",
+  "stderr": "",
+  "request_url_stored": false
+}

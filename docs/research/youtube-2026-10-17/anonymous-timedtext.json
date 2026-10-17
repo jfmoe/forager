@@ -1,0 +1,19 @@
+{
+  "source_url": "https://www.youtube.com/api/timedtext?v=jNQXAC9IVRw&lang=en&fmt=json3",
+  "checked_at": "2026-10-17T12:37:56.869294+00:00",
+  "completed_at": "2026-10-17T12:37:57.220880+00:00",
+  "method": "GET",
+  "exit_code": 0,
+  "response": {
+    "content_type": "text/html; charset=UTF-8",
+    "http_code": 200,
+    "local_ip": "127.0.0.1",
+    "proxy_used": 1,
+    "remote_ip": "127.0.0.1",
+    "size_download": 0,
+    "time_total": 0.325991,
+    "url_effective": "https://www.youtube.com/api/timedtext?v=jNQXAC9IVRw&lang=en&fmt=json3"
+  },
+  "body": "",
+  "stderr": ""
+}

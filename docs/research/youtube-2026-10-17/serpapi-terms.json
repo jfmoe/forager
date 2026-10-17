@@ -1,0 +1,15 @@
+{
+  "source_url": "https://serpapi.com/terms",
+  "checked_at": "2026-10-17T12:40:13.675386+00:00",
+  "completed_at": "2026-10-17T12:40:14.807662+00:00",
+  "command": [
+    "forager",
+    "fetch",
+    "https://serpapi.com/terms",
+    "--format",
+    "json"
+  ],
+  "exit_code": 0,
+  "stdout": "{\"provider\":\"firecrawl\",\"url\":\"https://serpapi.com/terms\",\"content\":\"[![](https://serpapi.com/assets/SerpApi-gentle-white-dc708ed0b09596cd08db74108b88af298123eeb384e872716b61d2a0ba1a1e03.png)](https://serpapi.com/ \\\"Home\\\")\\n\\n# 404 \\\\- Page Not Found\\n\\nThe page you are looking for doesn't exist.\\n\\nSome hopefully helpful links instead:\\n\\n- [Homepage](https://serpapi.com/)\\n- [Google Search API](https://serpapi.com/search-api)\\n- ![](https://serpapi.com/demo-redesign/icons/static/bing.svg)[Bing Search API](https://serpapi.com/bing-search-api)\\n- [Playground](https://serpapi.com/playground)\\n- You can also contact support:\\n- [contact@serpapi.com](mailto:contact@serpapi.com)\\n\\n![](https://serpapi.com/demo-redesign/images/cat-404.png)\"}\n",
+  "stderr": ""
+}

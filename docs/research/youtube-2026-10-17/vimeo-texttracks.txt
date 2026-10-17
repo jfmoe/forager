@@ -1,0 +1,435 @@
+[![vimeo logo](https://i.vimeocdn.com/custom_asset/3364)developer( );](https://developer.vimeo.com/)
+
+Create an app
+
+[![mini vimeo log](https://i.vimeocdn.com/custom_asset/3365)dev( );](https://developer.vimeo.com/)
+
+[Home](https://developer.vimeo.com/) [API](https://developer.vimeo.com/apps) [API Reference](https://developer.vimeo.com/api/reference) Videos
+
+# Videos
+
+Use the API to complete the following tasks:
+
+- [Essentials](https://developer.vimeo.com/api/reference/videos#essentials)
+  - [Check if the user owns a video](https://developer.vimeo.com/api/reference/videos#check_if_user_owns_video)
+  - [Copy a video](https://developer.vimeo.com/api/reference/videos#copy_video)
+  - [Delete a user's videos](https://developer.vimeo.com/api/reference/videos#delete_videos)
+  - [Delete a video](https://developer.vimeo.com/api/reference/videos#delete_video)
+  - [Edit a video](https://developer.vimeo.com/api/reference/videos#edit_video)
+  - [Get a specific video](https://developer.vimeo.com/api/reference/videos#get_video)
+  - [Get all the videos in which the user appears](https://developer.vimeo.com/api/reference/videos#get_appearances)
+  - [Get all the videos that the user has uploaded](https://developer.vimeo.com/api/reference/videos#get_videos)
+  - [Search for videos](https://developer.vimeo.com/api/reference/videos#search_videos)
+  - [Set custom metadata values for a video](https://developer.vimeo.com/api/reference/videos#update_video_custom_metadata)
+- [AI](https://developer.vimeo.com/api/reference/videos#ai)
+  - [Ask a question about a video](https://developer.vimeo.com/api/reference/videos#ask_ai_question)
+  - [Edit text track segments](https://developer.vimeo.com/api/reference/videos#edit_ai_texttrack)
+  - [Get AI dubbing status for a video](https://developer.vimeo.com/api/reference/videos#get_ai_translate_dubbing_status)
+  - [Get AI subtitle translation status for a video](https://developer.vimeo.com/api/reference/videos#get_ai_translate_subtitles_status)
+  - [Get AI transcription status for a video](https://developer.vimeo.com/api/reference/videos#get_ai_transcribe_status)
+  - [Get AI-generated video metadata](https://developer.vimeo.com/api/reference/videos#get_ai_metadata)
+  - [Get suggested questions for a video](https://developer.vimeo.com/api/reference/videos#get_ai_questions)
+  - [Get supported languages for AI features](https://developer.vimeo.com/api/reference/videos#get_ai_languages)
+  - [Start AI audio dubbing for a video](https://developer.vimeo.com/api/reference/videos#start_ai_translate_dubbing)
+  - [Start AI subtitle translation for a video](https://developer.vimeo.com/api/reference/videos#start_ai_translate_subtitles)
+  - [Start AI transcription for a video](https://developer.vimeo.com/api/reference/videos#start_ai_transcribe)
+- [Animated thumbnails](https://developer.vimeo.com/api/reference/videos#animated-thumbnails)
+  - [Create a set of animated thumbnails for a video](https://developer.vimeo.com/api/reference/videos#create_animated_thumbset)
+  - [Delete a set of animated thumbnails for a video](https://developer.vimeo.com/api/reference/videos#delete_animated_thumbset)
+  - [Get a specific set of animated thumbnails](https://developer.vimeo.com/api/reference/videos#get_animated_thumbset)
+  - [Get all the animated thumbnails of a video](https://developer.vimeo.com/api/reference/videos#get_all_animated_thumbset)
+  - [Get the status of a set of animated thumbnails](https://developer.vimeo.com/api/reference/videos#get_animated_thumbset_status)
+- [Chapters](https://developer.vimeo.com/api/reference/videos#chapters)
+  - [Add a chapter to a video](https://developer.vimeo.com/api/reference/videos#create_chapter)
+  - [Delete a chapter](https://developer.vimeo.com/api/reference/videos#delete_chapter)
+  - [Delete a chapter thumbnail](https://developer.vimeo.com/api/reference/videos#delete_chapter_thumbnail)
+  - [Edit a chapter](https://developer.vimeo.com/api/reference/videos#edit_chapter)
+  - [Generate an upload link or timecode-based thumbnail for a saved video chapter](https://developer.vimeo.com/api/reference/videos#create_chapter_thumbnail_or_upload_link)
+  - [Generate an upload link or timecode-based thumbnail for an unsaved video chapter](https://developer.vimeo.com/api/reference/videos#create_unsaved_chapter_thumbnail_or_upload_link)
+  - [Get a single chapter thumbnail associated with a saved video chapter](https://developer.vimeo.com/api/reference/videos#get_chapter_thumbnail)
+  - [Get a single chapter thumbnail associated with an unsaved video chapter](https://developer.vimeo.com/api/reference/videos#get_unsaved_chapter_thumbnail)
+  - [Get a specific chapter](https://developer.vimeo.com/api/reference/videos#get_chapter)
+  - [Get all the chapters of a video](https://developer.vimeo.com/api/reference/videos#get_chapters)
+  - [Get all the thumbnails associated with a saved video chapter](https://developer.vimeo.com/api/reference/videos#get_chapter_thumbnails)
+  - [Set a chapter thumbnail as active](https://developer.vimeo.com/api/reference/videos#set_chapter_thumbnail_active)
+- [Content ratings](https://developer.vimeo.com/api/reference/videos#content-ratings)
+  - [Get all content ratings](https://developer.vimeo.com/api/reference/videos#get_content_ratings)
+- [Creative Commons](https://developer.vimeo.com/api/reference/videos#creative-commons)
+  - [Get all Creative Commons licenses](https://developer.vimeo.com/api/reference/videos#get_cc_licenses)
+- [Credits](https://developer.vimeo.com/api/reference/videos#credits)
+  - [Credit a user in a video](https://developer.vimeo.com/api/reference/videos#add_video_credit)
+  - [Delete the credit for a user in a video](https://developer.vimeo.com/api/reference/videos#delete_video_credit)
+  - [Edit the credit for a user in a video](https://developer.vimeo.com/api/reference/videos#edit_video_credit)
+  - [Get a specific credited user in a video](https://developer.vimeo.com/api/reference/videos#get_video_credit)
+  - [Get all the credited users in a video](https://developer.vimeo.com/api/reference/videos#get_video_credits)
+  - [Get users who can be credited on a video](https://developer.vimeo.com/api/reference/videos#available_users)
+- [Embed privacy](https://developer.vimeo.com/api/reference/videos#embed-privacy)
+  - [Add a domain to a video's allowlist](https://developer.vimeo.com/api/reference/videos#add_video_privacy_domain)
+  - [Get all the domains on a video's allowlist](https://developer.vimeo.com/api/reference/videos#get_video_privacy_domains)
+  - [Remove a domain from a video's allowlist](https://developer.vimeo.com/api/reference/videos#delete_video_privacy_domain)
+- [Fragments](https://developer.vimeo.com/api/reference/videos#fragments)
+  - [Delete a video's fragments](https://developer.vimeo.com/api/reference/videos#delete_fragments)
+  - [Get all the fragments for a video](https://developer.vimeo.com/api/reference/videos#get_fragments)
+  - [Update a video's fragments](https://developer.vimeo.com/api/reference/videos#put_fragments)
+- [Languages](https://developer.vimeo.com/api/reference/videos#languages)
+  - [Get all languages](https://developer.vimeo.com/api/reference/videos#get_languages)
+- [Live M3U8 playback](https://developer.vimeo.com/api/reference/videos#live-m3u8-playback)
+  - [Get an M3U8 playback URL for a one-time event](https://developer.vimeo.com/api/reference/videos#get_one_time_event_m3u8_playback)
+- [Moderation](https://developer.vimeo.com/api/reference/videos#moderation)
+  - [Get the reasons that content can be reported](https://developer.vimeo.com/api/reference/videos#get_report_reasons)
+  - [Get the reasons that videos can be reported](https://developer.vimeo.com/api/reference/videos#get_video_reporting_reasons)
+- [Nondestructive trimming](https://developer.vimeo.com/api/reference/videos#nondestructive-trimming)
+  - [Start a trim operation for a video](https://developer.vimeo.com/api/reference/videos#clip_trim)
+- [Recommendations](https://developer.vimeo.com/api/reference/videos#recommendations)
+  - [Get all the related videos of a video](https://developer.vimeo.com/api/reference/videos#get_related_videos)
+- [Showcases](https://developer.vimeo.com/api/reference/videos#showcases)
+  - [Add or remove a video from a list of showcases](https://developer.vimeo.com/api/reference/videos#add_or_remove_multiple_albums)
+  - [Get all the showcases that contain a video](https://developer.vimeo.com/api/reference/videos#get_video_albums)
+- [Tags](https://developer.vimeo.com/api/reference/videos#tags)
+  - [Add a list of tags to a video](https://developer.vimeo.com/api/reference/videos#add_video_tags)
+  - [Add a specific tag to a video](https://developer.vimeo.com/api/reference/videos#add_video_tag)
+  - [Check if a tag has been added to a video](https://developer.vimeo.com/api/reference/videos#check_video_for_tag)
+  - [Get all the tags of a video](https://developer.vimeo.com/api/reference/videos#get_video_tags)
+  - [Get all the videos with a specific tag](https://developer.vimeo.com/api/reference/videos#get_videos_with_tag)
+  - [Remove a tag from a video](https://developer.vimeo.com/api/reference/videos#delete_video_tag)
+- [Text tracks](https://developer.vimeo.com/api/reference/videos#text-tracks)
+  - [Add a text track to a video](https://developer.vimeo.com/api/reference/videos#create_text_track)
+  - [Delete a text track](https://developer.vimeo.com/api/reference/videos#delete_text_track)
+  - [Edit a text track](https://developer.vimeo.com/api/reference/videos#edit_text_track)
+  - [Get a specific text track](https://developer.vimeo.com/api/reference/videos#get_text_track)
+  - [Get all the text tracks of a video](https://developer.vimeo.com/api/reference/videos#get_text_tracks)
+- [Thumbnails](https://developer.vimeo.com/api/reference/videos#thumbnails)
+  - [Add a video thumbnail](https://developer.vimeo.com/api/reference/videos#create_video_thumbnail)
+  - [Delete a video thumbnail](https://developer.vimeo.com/api/reference/videos#delete_video_thumbnail)
+  - [Edit a video thumbnail](https://developer.vimeo.com/api/reference/videos#edit_video_thumbnail)
+  - [Get a specific video thumbnail](https://developer.vimeo.com/api/reference/videos#get_video_thumbnail)
+  - [Get all the thumbnails of a video](https://developer.vimeo.com/api/reference/videos#get_video_thumbnails)
+- [Transcripts](https://developer.vimeo.com/api/reference/videos#transcripts)
+  - [Get the transcript metadata of a text track](https://developer.vimeo.com/api/reference/videos#get_transcript_metadata)
+  - [Get transcript segments](https://developer.vimeo.com/api/reference/videos#get_transcript)
+- [Unlisted videos](https://developer.vimeo.com/api/reference/videos#unlisted-videos)
+  - [Get the users who can access an unlisted video](https://developer.vimeo.com/api/reference/videos#get_video_privacy_users)
+  - [Permit a list of users to access an unlisted video](https://developer.vimeo.com/api/reference/videos#add_video_privacy_users)
+  - [Permit a single user to access an unlisted video](https://developer.vimeo.com/api/reference/videos#add_video_privacy_user)
+  - [Restrict a user from viewing an unlisted video](https://developer.vimeo.com/api/reference/videos#delete_video_privacy_user)
+- [Uploads](https://developer.vimeo.com/api/reference/videos#uploads)
+  - [Upload a video](https://developer.vimeo.com/api/reference/videos#upload_video)
+- [Versions](https://developer.vimeo.com/api/reference/videos#versions)
+  - [Add a version to a video](https://developer.vimeo.com/api/reference/videos#create_video_version)
+  - [Create an audio track for a video version](https://developer.vimeo.com/api/reference/videos#create_audio_track)
+  - [Delete a video version](https://developer.vimeo.com/api/reference/videos#delete_video_version)
+  - [Delete an audio track from a video version](https://developer.vimeo.com/api/reference/videos#delete_audio_track)
+  - [Edit a video version](https://developer.vimeo.com/api/reference/videos#edit_video_version)
+  - [Edit an audio track for a video version](https://developer.vimeo.com/api/reference/videos#edit_audio_track)
+  - [Get a list of downloadable file links for a video with an alternate audio track](https://developer.vimeo.com/api/reference/videos#get_audiotrack_downloads)
+  - [Get a specific video version](https://developer.vimeo.com/api/reference/videos#get_video_version)
+  - [Get all audio tracks for a video version](https://developer.vimeo.com/api/reference/videos#get_audio_tracks)
+  - [Get all the versions of a video](https://developer.vimeo.com/api/reference/videos#get_video_versions)
+  - [Get an audio track for a video version](https://developer.vimeo.com/api/reference/videos#get_audio_track)
+  - [Get the thumbnail for a video version](https://developer.vimeo.com/api/reference/videos#get_version_thumbnail)
+- [Video comments](https://developer.vimeo.com/api/reference/videos#video-comments)
+  - [Add a reply to a video comment](https://developer.vimeo.com/api/reference/videos#create_comment_reply)
+  - [Add a video comment to a video](https://developer.vimeo.com/api/reference/videos#create_comment)
+  - [Delete a video comment](https://developer.vimeo.com/api/reference/videos#delete_comment)
+  - [Edit a video comment](https://developer.vimeo.com/api/reference/videos#edit_comment)
+  - [Get a specific video comment](https://developer.vimeo.com/api/reference/videos#get_comment)
+  - [Get all the replies to a video comment](https://developer.vimeo.com/api/reference/videos#get_comment_replies)
+  - [Get all the video comments on a video](https://developer.vimeo.com/api/reference/videos#get_comments)
+
+## Essentials
+
+These are the most common methods for working with videos.
+
+### Check if the user owns a video[Try it out](https://developer.vimeo.com/api/reference/videos\#check_if_user_owns_video)
+
+### Copy a video[Try it out](https://developer.vimeo.com/api/reference/videos\#copy_video)
+
+### Delete a user's videos[Try it out](https://developer.vimeo.com/api/reference/videos\#delete_videos)
+
+### Delete a video[Try it out](https://developer.vimeo.com/api/reference/videos\#delete_video)
+
+### Edit a video[Try it out](https://developer.vimeo.com/api/reference/videos\#edit_video)
+
+### Get a specific video[Try it out](https://developer.vimeo.com/api/reference/videos\#get_video)
+
+### Get all the videos in which the user appears[Try it out](https://developer.vimeo.com/api/reference/videos\#get_appearances)
+
+### Get all the videos that the user has uploaded[Try it out](https://developer.vimeo.com/api/reference/videos\#get_videos)
+
+### Search for videos[Try it out](https://developer.vimeo.com/api/reference/videos\#search_videos)
+
+### Set custom metadata values for a video[Try it out](https://developer.vimeo.com/api/reference/videos\#update_video_custom_metadata)
+
+## AI
+
+Use these methods to access Vimeo's AI-powered video intelligence features, including automatic transcription, subtitle translation, audio dubbing, and video Q&A. All endpoints require the \`ai\` OAuth scope and are available exclusively to Enterprise accounts. POST requests are subject to per-endpoint rate limits — contact your account team or Vimeo Sales to increase your allotment. Vimeo AI feature use is subject to \[Vimeo's AI Addendum\](https://vimeo.com/legal/service-terms/ai).
+
+### Ask a question about a video[Try it out](https://developer.vimeo.com/api/reference/videos\#ask_ai_question)
+
+### Edit text track segments[Try it out](https://developer.vimeo.com/api/reference/videos\#edit_ai_texttrack)
+
+### Get AI dubbing status for a video[Try it out](https://developer.vimeo.com/api/reference/videos\#get_ai_translate_dubbing_status)
+
+### Get AI subtitle translation status for a video[Try it out](https://developer.vimeo.com/api/reference/videos\#get_ai_translate_subtitles_status)
+
+### Get AI transcription status for a video[Try it out](https://developer.vimeo.com/api/reference/videos\#get_ai_transcribe_status)
+
+### Get AI-generated video metadata[Try it out](https://developer.vimeo.com/api/reference/videos\#get_ai_metadata)
+
+### Get suggested questions for a video[Try it out](https://developer.vimeo.com/api/reference/videos\#get_ai_questions)
+
+### Get supported languages for AI features[Try it out](https://developer.vimeo.com/api/reference/videos\#get_ai_languages)
+
+### Start AI audio dubbing for a video[Try it out](https://developer.vimeo.com/api/reference/videos\#start_ai_translate_dubbing)
+
+### Start AI subtitle translation for a video[Try it out](https://developer.vimeo.com/api/reference/videos\#start_ai_translate_subtitles)
+
+### Start AI transcription for a video[Try it out](https://developer.vimeo.com/api/reference/videos\#start_ai_transcribe)
+
+## Animated thumbnails
+
+Use these methods to work with animated thumbnails for videos.
+
+### Create a set of animated thumbnails for a video[Try it out](https://developer.vimeo.com/api/reference/videos\#create_animated_thumbset)
+
+### Delete a set of animated thumbnails for a video[Try it out](https://developer.vimeo.com/api/reference/videos\#delete_animated_thumbset)
+
+### Get a specific set of animated thumbnails[Try it out](https://developer.vimeo.com/api/reference/videos\#get_animated_thumbset)
+
+### Get all the animated thumbnails of a video[Try it out](https://developer.vimeo.com/api/reference/videos\#get_all_animated_thumbset)
+
+### Get the status of a set of animated thumbnails[Try it out](https://developer.vimeo.com/api/reference/videos\#get_animated_thumbset_status)
+
+## Chapters
+
+Use these methods to work with video chapters.
+
+### Add a chapter to a video[Try it out](https://developer.vimeo.com/api/reference/videos\#create_chapter)
+
+### Delete a chapter[Try it out](https://developer.vimeo.com/api/reference/videos\#delete_chapter)
+
+### Delete a chapter thumbnail[Try it out](https://developer.vimeo.com/api/reference/videos\#delete_chapter_thumbnail)
+
+### Edit a chapter[Try it out](https://developer.vimeo.com/api/reference/videos\#edit_chapter)
+
+### Generate an upload link or timecode-based thumbnail for a saved video chapter[Try it out](https://developer.vimeo.com/api/reference/videos\#create_chapter_thumbnail_or_upload_link)
+
+### Generate an upload link or timecode-based thumbnail for an unsaved video chapter[Try it out](https://developer.vimeo.com/api/reference/videos\#create_unsaved_chapter_thumbnail_or_upload_link)
+
+### Get a single chapter thumbnail associated with a saved video chapter[Try it out](https://developer.vimeo.com/api/reference/videos\#get_chapter_thumbnail)
+
+### Get a single chapter thumbnail associated with an unsaved video chapter[Try it out](https://developer.vimeo.com/api/reference/videos\#get_unsaved_chapter_thumbnail)
+
+### Get a specific chapter[Try it out](https://developer.vimeo.com/api/reference/videos\#get_chapter)
+
+### Get all the chapters of a video[Try it out](https://developer.vimeo.com/api/reference/videos\#get_chapters)
+
+### Get all the thumbnails associated with a saved video chapter[Try it out](https://developer.vimeo.com/api/reference/videos\#get_chapter_thumbnails)
+
+### Set a chapter thumbnail as active[Try it out](https://developer.vimeo.com/api/reference/videos\#set_chapter_thumbnail_active)
+
+## Content ratings
+
+Use these methods to work with video content ratings.
+
+### Get all content ratings[Try it out](https://developer.vimeo.com/api/reference/videos\#get_content_ratings)
+
+## Creative Commons
+
+Use these methods to work with Creative Commons licenses.
+
+### Get all Creative Commons licenses[Try it out](https://developer.vimeo.com/api/reference/videos\#get_cc_licenses)
+
+## Credits
+
+Use these methods to work with credited users in videos.
+
+### Credit a user in a video[Try it out](https://developer.vimeo.com/api/reference/videos\#add_video_credit)
+
+### Delete the credit for a user in a video[Try it out](https://developer.vimeo.com/api/reference/videos\#delete_video_credit)
+
+### Edit the credit for a user in a video[Try it out](https://developer.vimeo.com/api/reference/videos\#edit_video_credit)
+
+### Get a specific credited user in a video[Try it out](https://developer.vimeo.com/api/reference/videos\#get_video_credit)
+
+### Get all the credited users in a video[Try it out](https://developer.vimeo.com/api/reference/videos\#get_video_credits)
+
+### Get users who can be credited on a video[Try it out](https://developer.vimeo.com/api/reference/videos\#available_users)
+
+## Embed privacy
+
+Use these methods to manage the allowlist of embeddable videos.
+
+### Add a domain to a video's allowlist[Try it out](https://developer.vimeo.com/api/reference/videos\#add_video_privacy_domain)
+
+### Get all the domains on a video's allowlist[Try it out](https://developer.vimeo.com/api/reference/videos\#get_video_privacy_domains)
+
+### Remove a domain from a video's allowlist[Try it out](https://developer.vimeo.com/api/reference/videos\#delete_video_privacy_domain)
+
+## Fragments
+
+Use these methods to work with the video fragments for branched or segmented scrubbers.
+
+### Delete a video's fragments[Try it out](https://developer.vimeo.com/api/reference/videos\#delete_fragments)
+
+### Get all the fragments for a video[Try it out](https://developer.vimeo.com/api/reference/videos\#get_fragments)
+
+### Update a video's fragments[Try it out](https://developer.vimeo.com/api/reference/videos\#put_fragments)
+
+## Languages
+
+Use these methods to work with video languages.
+
+### Get all languages[Try it out](https://developer.vimeo.com/api/reference/videos\#get_languages)
+
+## Live M3U8 playback
+
+Use these methods to work with M3U8 playback URLs for event streams.
+
+### Get an M3U8 playback URL for a one-time event[Try it out](https://developer.vimeo.com/api/reference/videos\#get_one_time_event_m3u8_playback)
+
+## Moderation
+
+Use these methods to moderate videos.
+
+### Get the reasons that content can be reported[Try it out](https://developer.vimeo.com/api/reference/videos\#get_report_reasons)
+
+### Get the reasons that videos can be reported[Try it out](https://developer.vimeo.com/api/reference/videos\#get_video_reporting_reasons)
+
+## Nondestructive trimming
+
+Use these methods to work with nondestructive trimming.
+
+### Start a trim operation for a video[Try it out](https://developer.vimeo.com/api/reference/videos\#clip_trim)
+
+## Recommendations
+
+Use these methods to work with recommended videos.
+
+### Get all the related videos of a video[Try it out](https://developer.vimeo.com/api/reference/videos\#get_related_videos)
+
+## Showcases
+
+Use these methods to work with showcase videos.
+
+### Add or remove a video from a list of showcases[Try it out](https://developer.vimeo.com/api/reference/videos\#add_or_remove_multiple_albums)
+
+### Get all the showcases that contain a video[Try it out](https://developer.vimeo.com/api/reference/videos\#get_video_albums)
+
+## Tags
+
+Use these methods to work with associated tags.
+
+### Add a list of tags to a video[Try it out](https://developer.vimeo.com/api/reference/videos\#add_video_tags)
+
+### Add a specific tag to a video[Try it out](https://developer.vimeo.com/api/reference/videos\#add_video_tag)
+
+### Check if a tag has been added to a video[Try it out](https://developer.vimeo.com/api/reference/videos\#check_video_for_tag)
+
+### Get all the tags of a video[Try it out](https://developer.vimeo.com/api/reference/videos\#get_video_tags)
+
+### Get all the videos with a specific tag[Try it out](https://developer.vimeo.com/api/reference/videos\#get_videos_with_tag)
+
+### Remove a tag from a video[Try it out](https://developer.vimeo.com/api/reference/videos\#delete_video_tag)
+
+## Text tracks
+
+Use these methods to work with video text tracks.
+
+### Add a text track to a video[Try it out](https://developer.vimeo.com/api/reference/videos\#create_text_track)
+
+### Delete a text track[Try it out](https://developer.vimeo.com/api/reference/videos\#delete_text_track)
+
+### Edit a text track[Try it out](https://developer.vimeo.com/api/reference/videos\#edit_text_track)
+
+### Get a specific text track[Try it out](https://developer.vimeo.com/api/reference/videos\#get_text_track)
+
+### Get all the text tracks of a video[Try it out](https://developer.vimeo.com/api/reference/videos\#get_text_tracks)
+
+## Thumbnails
+
+Use these methods to work with video thumbnails.
+
+### Add a video thumbnail[Try it out](https://developer.vimeo.com/api/reference/videos\#create_video_thumbnail)
+
+### Delete a video thumbnail[Try it out](https://developer.vimeo.com/api/reference/videos\#delete_video_thumbnail)
+
+### Edit a video thumbnail[Try it out](https://developer.vimeo.com/api/reference/videos\#edit_video_thumbnail)
+
+### Get a specific video thumbnail[Try it out](https://developer.vimeo.com/api/reference/videos\#get_video_thumbnail)
+
+### Get all the thumbnails of a video[Try it out](https://developer.vimeo.com/api/reference/videos\#get_video_thumbnails)
+
+## Transcripts
+
+Use these methods to work with video transcripts.
+
+### Get the transcript metadata of a text track[Try it out](https://developer.vimeo.com/api/reference/videos\#get_transcript_metadata)
+
+### Get transcript segments[Try it out](https://developer.vimeo.com/api/reference/videos\#get_transcript)
+
+## Unlisted videos
+
+Use these methods to work with unlisted videos.
+
+### Get the users who can access an unlisted video[Try it out](https://developer.vimeo.com/api/reference/videos\#get_video_privacy_users)
+
+### Permit a list of users to access an unlisted video[Try it out](https://developer.vimeo.com/api/reference/videos\#add_video_privacy_users)
+
+### Permit a single user to access an unlisted video[Try it out](https://developer.vimeo.com/api/reference/videos\#add_video_privacy_user)
+
+### Restrict a user from viewing an unlisted video[Try it out](https://developer.vimeo.com/api/reference/videos\#delete_video_privacy_user)
+
+## Uploads
+
+Use these methods to work with video uploads.
+
+### Upload a video[Try it out](https://developer.vimeo.com/api/reference/videos\#upload_video)
+
+## Versions
+
+Use these methods to work with video versioning.
+
+### Add a version to a video[Try it out](https://developer.vimeo.com/api/reference/videos\#create_video_version)
+
+### Create an audio track for a video version[Try it out](https://developer.vimeo.com/api/reference/videos\#create_audio_track)
+
+### Delete a video version[Try it out](https://developer.vimeo.com/api/reference/videos\#delete_video_version)
+
+### Delete an audio track from a video version[Try it out](https://developer.vimeo.com/api/reference/videos\#delete_audio_track)
+
+### Edit a video version[Try it out](https://developer.vimeo.com/api/reference/videos\#edit_video_version)
+
+### Edit an audio track for a video version[Try it out](https://developer.vimeo.com/api/reference/videos\#edit_audio_track)
+
+### Get a list of downloadable file links for a video with an alternate audio track[Try it out](https://developer.vimeo.com/api/reference/videos\#get_audiotrack_downloads)
+
+### Get a specific video version[Try it out](https://developer.vimeo.com/api/reference/videos\#get_video_version)
+
+### Get all audio tracks for a video version[Try it out](https://developer.vimeo.com/api/reference/videos\#get_audio_tracks)
+
+### Get all the versions of a video[Try it out](https://developer.vimeo.com/api/reference/videos\#get_video_versions)
+
+### Get an audio track for a video version[Try it out](https://developer.vimeo.com/api/reference/videos\#get_audio_track)
+
+### Get the thumbnail for a video version[Try it out](https://developer.vimeo.com/api/reference/videos\#get_version_thumbnail)
+
+## Video comments
+
+Use these methods to work with video comments.
+
+### Add a reply to a video comment[Try it out](https://developer.vimeo.com/api/reference/videos\#create_comment_reply)
+
+### Add a video comment to a video[Try it out](https://developer.vimeo.com/api/reference/videos\#create_comment)
+
+### Delete a video comment[Try it out](https://developer.vimeo.com/api/reference/videos\#delete_comment)
+
+### Edit a video comment[Try it out](https://developer.vimeo.com/api/reference/videos\#edit_comment)
+
+### Get a specific video comment[Try it out](https://developer.vimeo.com/api/reference/videos\#get_comment)
+
+### Get all the replies to a video comment[Try it out](https://developer.vimeo.com/api/reference/videos\#get_comment_replies)
+
+### Get all the video comments on a video[Try it out](https://developer.vimeo.com/api/reference/videos\#get_comments)
+
+/api/reference/videos#get\_video\_text\_tracks

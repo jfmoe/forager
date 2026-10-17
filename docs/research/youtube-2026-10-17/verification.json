@@ -1,0 +1,16 @@
+{
+  "source_url": "file:///Users/jfmoe/Coder/forager/docs/research/2026-10-17-youtube-integration.md",
+  "checked_at": "2026-10-17T12:53:19.139548+00:00",
+  "validation": {
+    "all_reference_paths_exist": true,
+    "all_evidence_json_parses": true,
+    "all_manifest_hashes_verified": true,
+    "report_hash_verified": true,
+    "user_credential_value_matches": 0,
+    "tracked_files_modified": false,
+    "untracked_paths_confined_to_requested_outputs_and_preexisting_reddit_work": true,
+    "downloaded_source_executed": false,
+    "audio_video_downloaded": false
+  },
+  "scope": "Document/evidence validation only; no Rust implementation changed, no test suite required or run."
+}

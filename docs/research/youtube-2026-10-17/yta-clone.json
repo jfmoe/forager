@@ -1,0 +1,18 @@
+{
+  "source_url": "https://github.com/jdepoix/youtube-transcript-api",
+  "checked_at": "2026-10-17T12:36:24.316334+00:00",
+  "completed_at": "2026-10-17T12:36:26.909061+00:00",
+  "command": [
+    "gh",
+    "repo",
+    "clone",
+    "jdepoix/youtube-transcript-api",
+    "/var/folders/v6/6lxgncdn0w5czm8l7w7lhglm0000gn/T/forager-youtube-yta-oku3w17c/repo",
+    "--",
+    "--depth",
+    "1"
+  ],
+  "exit_code": 0,
+  "stdout": "",
+  "stderr": "Cloning into '/var/folders/v6/6lxgncdn0w5czm8l7w7lhglm0000gn/T/forager-youtube-yta-oku3w17c/repo'...\n"
+}

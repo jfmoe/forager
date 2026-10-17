@@ -1,0 +1,230 @@
+[Skip to main content](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#main-content)
+
+[![YouTube](https://developers.google.com/static/site-assets/logo-youtube.svg)](https://developers.google.com/youtube)
+
+- [YouTube](https://developers.google.com/youtube)
+- [Data API](https://developers.google.com/youtube/data)
+
+`/`
+
+Language
+
+- [English](https://developers.google.com/youtube/data/reference/rest/v3/channels/list)
+- [Deutsch](https://developers.google.com/youtube/data/reference/rest/v3/channels/list?hl=de)
+- [Español](https://developers.google.com/youtube/data/reference/rest/v3/channels/list?hl=es)
+- [Español – América Latina](https://developers.google.com/youtube/data/reference/rest/v3/channels/list?hl=es-419)
+- [Français](https://developers.google.com/youtube/data/reference/rest/v3/channels/list?hl=fr)
+- [Indonesia](https://developers.google.com/youtube/data/reference/rest/v3/channels/list?hl=id)
+- [Italiano](https://developers.google.com/youtube/data/reference/rest/v3/channels/list?hl=it)
+- [Polski](https://developers.google.com/youtube/data/reference/rest/v3/channels/list?hl=pl)
+- [Português – Brasil](https://developers.google.com/youtube/data/reference/rest/v3/channels/list?hl=pt-br)
+- [Tiếng Việt](https://developers.google.com/youtube/data/reference/rest/v3/channels/list?hl=vi)
+- [Türkçe](https://developers.google.com/youtube/data/reference/rest/v3/channels/list?hl=tr)
+- [Русский](https://developers.google.com/youtube/data/reference/rest/v3/channels/list?hl=ru)
+- [עברית](https://developers.google.com/youtube/data/reference/rest/v3/channels/list?hl=he)
+- [العربيّة](https://developers.google.com/youtube/data/reference/rest/v3/channels/list?hl=ar)
+- [فارسی](https://developers.google.com/youtube/data/reference/rest/v3/channels/list?hl=fa)
+- [हिंदी](https://developers.google.com/youtube/data/reference/rest/v3/channels/list?hl=hi)
+- [বাংলা](https://developers.google.com/youtube/data/reference/rest/v3/channels/list?hl=bn)
+- [ภาษาไทย](https://developers.google.com/youtube/data/reference/rest/v3/channels/list?hl=th)
+- [中文 – 简体](https://developers.google.com/youtube/data/reference/rest/v3/channels/list?hl=zh-cn)
+- [中文 – 繁體](https://developers.google.com/youtube/data/reference/rest/v3/channels/list?hl=zh-tw)
+- [日本語](https://developers.google.com/youtube/data/reference/rest/v3/channels/list?hl=ja)
+- [한국어](https://developers.google.com/youtube/data/reference/rest/v3/channels/list?hl=ko)
+
+[Sign in](https://developers.google.com/_d/signin?continue=https%3A%2F%2Fdevelopers.google.com%2Fyoutube%2Fdata%2Freference%2Frest%2Fv3%2Fchannels%2Flist&prompt=select_account)
+
+- On this page
+- [Common use cases](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#common-use-cases)
+- [Request](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#request)
+  - [HTTP request](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#http-request)
+  - [Authorization](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#auth)
+  - [Parameters](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#parameters)
+  - [Request body](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#request-body)
+- [Response](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#response)
+  - [Properties](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#properties)
+- [Errors](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#errors)
+- [Try it!](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#try-it)
+Try it!
+
+- [Home](https://developers.google.com/)
+- [Products](https://developers.google.com/products)
+- [YouTube](https://developers.google.com/youtube)
+- [Data API](https://developers.google.com/youtube/data)
+- [Reference](https://developers.google.com/youtube/data/reference/rest)
+
+Was this helpful?
+
+# Channels: list    Stay organized with collections      Save and categorize content based on your preferences.
+
+- On this page
+- [Common use cases](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#common-use-cases)
+- [Request](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#request)
+  - [HTTP request](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#http-request)
+  - [Authorization](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#auth)
+  - [Parameters](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#parameters)
+  - [Request body](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#request-body)
+- [Response](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#response)
+  - [Properties](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#properties)
+- [Errors](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#errors)
+- [Try it!](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#try-it)
+- [Try it](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#try-it)
+
+**Note:** The `channel` resource's
+`statistics.subscriberCount` property value
+has been updated to reflect a YouTube policy change that affects the way that subscriber counts
+are displayed. For more information, see
+[Revision History](https://developers.google.com/youtube/data/revision_history#release_notes_09_10_2019) or the
+[YouTube Help Center](https://support.google.com/youtube/answer/6051134).
+
+Returns a collection of zero or more `channel` resources that match the request criteria.
+
+**Quota impact:** A call to this method has a [quota cost](https://developers.google.com/youtube/data/getting-started#quota) of 1 unit.
+
+## Common use cases
+
+Google for Developers
+
+The list below shows common use cases for this method. Hover over a use case to see its description, or click on a use case to load sample parameter values in the APIs Explorer. You can open the [fullscreen APIs Explorer](https://developers-dot-devsite-v2-prod.appspot.com/youtube/data/reference/rest/v3/channels/list_a983e8a810141dbecaad8455a2db0442a4630982c4984d0789d4ba9a533326d0.frame#) to see code samples that dynamically update to reflect the parameter values entered in the Explorer.
+
+The table below shows common use cases for this method. You can click on a use case name to load sample parameter values in the APIs Explorer. Or you can see code samples for a use case in the fullscreen APIs Explorer by clicking on the code icon below a use case name. In the fullscreen UI, you can update parameter and property values and the code samples will dynamically update to reflect the values you enter.
+
+This method has one common use case, which is described below. The buttons below the description populate the APIs Explorer with sample values or open the fullscreen APIs Explorer to show code samples that use those values. The code samples also dynamically update if you change the values.
+
+| Use cases |
+| --- |
+| [list (by channel ID)](https://developers-dot-devsite-v2-prod.appspot.com/youtube/data/reference/rest/v3/channels/list_a983e8a810141dbecaad8455a2db0442a4630982c4984d0789d4ba9a533326d0.frame#)<br>![Code symbol that, when clicked, opens the fullscreen APIs Explorer widget and populates it with values for the 'list (by channel ID)' example for the channels.list method.](https://developers.google.com/site-assets/platform-html-color.svg) | This example retrieves channel data for the `GoogleDevelopers` YouTube channel. It uses the `id` request parameter to identify the channel by its YouTube channel ID. |
+| [list (by YouTube handle)](https://developers-dot-devsite-v2-prod.appspot.com/youtube/data/reference/rest/v3/channels/list_a983e8a810141dbecaad8455a2db0442a4630982c4984d0789d4ba9a533326d0.frame#)<br>![Code symbol that, when clicked, opens the fullscreen APIs Explorer widget and populates it with values for the 'list (by YouTube handle)' example for the channels.list method.](https://developers.google.com/site-assets/platform-html-color.svg) | This example retrieves channel data for the "Google for Developers" YouTube channel. It uses the `forHandle` request parameter to identify the channel by its YouTube handle. |
+| [list (by YouTube username)](https://developers-dot-devsite-v2-prod.appspot.com/youtube/data/reference/rest/v3/channels/list_a983e8a810141dbecaad8455a2db0442a4630982c4984d0789d4ba9a533326d0.frame#)<br>![Code symbol that, when clicked, opens the fullscreen APIs Explorer widget and populates it with values for the 'list (by YouTube username)' example for the channels.list method.](https://developers.google.com/site-assets/platform-html-color.svg) | This example retrieves channel data for the `GoogleDevelopers` YouTube channel. It uses the `forUsername` request parameter to identify the channel by its YouTube username. |
+| [list (my channel)](https://developers-dot-devsite-v2-prod.appspot.com/youtube/data/reference/rest/v3/channels/list_a983e8a810141dbecaad8455a2db0442a4630982c4984d0789d4ba9a533326d0.frame#)<br>![Code symbol that, when clicked, opens the fullscreen APIs Explorer widget and populates it with values for the 'list (my channel)' example for the channels.list method.](https://developers.google.com/site-assets/platform-html-color.svg) | This example retrieves the channel data for the authorized user's YouTube channel. It uses the `mine` request parameter to indicate that the API should only return channels owned by the user authorizing the request. |
+| [list (channels managed by a content owner)](https://developers-dot-devsite-v2-prod.appspot.com/youtube/data/reference/rest/v3/channels/list_a983e8a810141dbecaad8455a2db0442a4630982c4984d0789d4ba9a533326d0.frame#)<br>![Code symbol that, when clicked, opens the fullscreen APIs Explorer widget and populates it with values for the 'list (channels managed by a content owner)' example for the channels.list method.](https://developers.google.com/site-assets/platform-html-color.svg) | This example retrieves a list of channels managed by the specified YouTube content owner. |
+
+## Request
+
+### HTTP request
+
+```
+GET https://www.googleapis.com/youtube/v3/channels
+```
+
+### Authorization
+
+A request that retrieves the `auditDetails` part for a `channel` resource must provide an authorization token that contains the `https://www.googleapis.com/auth/youtubepartner-channel-audit` scope. In addition, any token that uses that scope must be revoked when the MCN decides to accept or reject the channel or within two weeks of the date that the token was issued.
+
+### Parameters
+
+The following table lists the parameters that this query supports. All of the parameters listed are query parameters.
+
+| Parameters |
+| --- |
+| **Required parameters** |
+| `part` | `string`<br> The `part` parameter specifies a comma-separated list of one or more `channel` resource properties that the API response will include.<br>If the parameter identifies a property that contains child properties, the child properties will be included in the response. For example, in a `channel` resource, the `contentDetails` property contains other properties, such as the `uploads` properties. As such, if you set `part=contentDetails`, the API response will also contain all of those nested properties.<br>The following list contains the `part` names that you can include in the parameter value:<br>- `auditDetails`<br>- `brandingSettings`<br>- `contentDetails`<br>- `contentOwnerDetails`<br>- `id`<br>- `localizations`<br>- `snippet`<br>- `statistics`<br>- `status`<br>- `topicDetails` |
+| **Filters (specify exactly one of the following parameters)** |
+| `categoryId` | `string`<br>This parameter has been deprecated. <br> The `categoryId` parameter specified a<br> [YouTube guide category](https://developers.google.com/youtube/data/reference/rest/v3/guideCategories) and could be used to<br> request YouTube channels associated with that category. |
+| `forHandle` | `string`<br> The `forHandle` parameter specifies a YouTube handle, thereby requesting<br> the channel associated with that handle. The parameter value can be prepended with an `@`<br> symbol. For example, to retrieve the resource for the "Google for Developers" channel, set the `forHandle`<br> parameter value to either `GoogleDevelopers` or `@GoogleDevelopers`. |
+| `forUsername` | `string`<br> The `forUsername` parameter specifies a YouTube username, thereby requesting the channel associated with that username. |
+| `id` | `string`<br> The `id` parameter specifies a comma-separated list of the YouTube channel ID(s) for the resource(s) that are being retrieved. In a `channel` resource, the `id` property specifies the channel's YouTube channel ID. |
+| `managedByMe` | `boolean`<br> This parameter can only be used in a properly [authorized request](https://developers.google.com/youtube/data/guides/authentication).<br>**Note:** This parameter is intended exclusively for YouTube content partners.<br>Set this parameter's value to `true` to instruct the API to only return channels managed by the content owner that the `onBehalfOfContentOwner` parameter specifies. The user must be authenticated as a CMS account linked to the specified content owner and `onBehalfOfContentOwner` must be provided. |
+| `mine` | `boolean`<br> This parameter can only be used in a properly [authorized request](https://developers.google.com/youtube/data/guides/authentication). Set this parameter's value to `true` to instruct the API to only return channels owned by the authenticated user. |
+| **Optional parameters** |
+| `hl` | `string`<br> The `hl` parameter instructs the API to retrieve localized resource metadata for a specific [application language that the YouTube website supports](https://developers.google.com/youtube/data/reference/rest/v3/i18nLanguages). The parameter value must be a language code included in the list returned by the `i18nLanguages.list` method.<br>If localized resource details are available in that language, the resource's `snippet.localized` object will contain the localized values. However, if localized details are not available, the `snippet.localized` object will contain resource details in the resource's [default language](https://developers.google.com/youtube/data/reference/rest/v3/channels#snippet.defaultLanguage). |
+| `maxResults` | `unsigned integer`<br> The `maxResults` parameter specifies the maximum number of items that should be returned in the result set. Acceptable values are `0` to `50`, inclusive. The default value is `5`. |
+| `onBehalfOfContentOwner` | `string`<br> This parameter can only be used in a properly [authorized request](https://developers.google.com/youtube/data/guides/authentication).<br>**Note:** This parameter is intended exclusively for YouTube content partners.<br>The `onBehalfOfContentOwner` parameter indicates that the request's authorization credentials identify a YouTube CMS user who is acting on behalf of the content owner specified in the parameter value. This parameter is intended for YouTube content partners that own and manage many different YouTube channels. It allows content owners to authenticate once and get access to all their video and channel data, without having to provide authentication credentials for each individual channel. The CMS account that the user authenticates with must be linked to the specified YouTube content owner. |
+| `pageToken` | `string`<br> The `pageToken` parameter identifies a specific page in the result set that should be returned. In an API response, the `nextPageToken` and `prevPageToken` properties identify other pages that could be retrieved. |
+
+### Request body
+
+Do not provide a request body when calling this method.
+
+## Response
+
+If successful, this method returns a response body with the following structure:
+
+```
+{
+  "kind": "youtube#channelListResponse",
+  "etag": etag,
+  "nextPageToken": string,
+  "prevPageToken": string,
+  "pageInfo": {
+    "totalResults": integer,
+    "resultsPerPage": integer
+  },
+  "items": [\
+    channel Resource\
+  ]
+}
+```
+
+### Properties
+
+The following table defines the properties that appear in this resource:
+
+| Properties |
+| --- |
+| `kind` | `string`<br> Identifies the API resource's type. The value will be `youtube#channelListResponse`. |
+| `etag` | `etag`<br> The Etag of this resource. |
+| `nextPageToken` | `string`<br> The token that can be used as the value of the `pageToken` parameter to retrieve the next page in the result set. |
+| `prevPageToken` | `string`<br> The token that can be used as the value of the `pageToken` parameter to retrieve<br> the previous page in the result set. Note that this property is not included in the API<br> response if the corresponding API request set the<br> `managedByMe` parameter to `true`. |
+| `pageInfo` | `object`<br> The `pageInfo` object encapsulates paging information for the result set. |
+| `pageInfo.totalResults` | `integer`<br> The total number of results in the result set. |
+| `pageInfo.resultsPerPage` | `integer`<br> The number of results included in the API response. |
+| `items[]` | `list`<br> A list of channels that match the request criteria. |
+
+## Errors
+
+The following table identifies error messages that the API could return in response to a call to this method. For more details, see [YouTube Data API - Errors](https://developers.google.com/youtube/data/reference/rest/v3/errors).
+
+| Error type | Error detail | Description |
+| --- | --- | --- |
+| `badRequest (400)` | `invalidCriteria` | A maximum of one of the following filters may be specified:`id`, `categoryId`, `mine`, `managedByMe`, `forHandle`, `forUsername`. In case of content owner authentication via the `onBehalfOfContentOwner` parameter, only the `id` or `managedByMe` may be specified. |
+| `forbidden (403)` | `channelForbidden` | The channel specified by the `id` parameter does not support the request or the request is not properly authorized. |
+| `notFound (404)` | `categoryNotFound` | The category identified by the `categoryId` parameter cannot be found. Use the [guideCategories.list](https://developers.google.com/youtube/data/reference/rest/v3/guideCategories/list) method to retrieve a list of valid values. |
+| `notFound (404)` | `channelNotFound` | The channel specified in the `id` parameter cannot be found. |
+
+## Try it!
+
+Use the APIs Explorer to call this API and see the API request and response.
+
+Was this helpful?
+
+Except as otherwise noted, the content of this page is licensed under the [Creative Commons Attribution 4.0 License](https://creativecommons.org/licenses/by/4.0/), and code samples are licensed under the [Apache 2.0 License](https://www.apache.org/licenses/LICENSE-2.0). For details, see the [Google Developers Site Policies](https://developers.google.com/site-policies). Java is a registered trademark of Oracle and/or its affiliates.
+
+Last updated 2026-10-15 UTC.
+
+
+
+
+\[\[\["Easy to understand","easyToUnderstand","thumb-up"\],\["Solved my problem","solvedMyProblem","thumb-up"\],\["Other","otherUp","thumb-up"\]\],\[\["Missing the information I need","missingTheInformationINeed","thumb-down"\],\["Too complicated / too many steps","tooComplicatedTooManySteps","thumb-down"\],\["Out of date","outOfDate","thumb-down"\],\["Samples / code issue","samplesCodeIssue","thumb-down"\],\["Other","otherDown","thumb-down"\]\],\["Last updated 2026-10-15 UTC."\],\[\],\[\]\]
+
+
+
+Info
+
+
+Chat
+
+
+API
+
+
+Try It!
+
+## Page info
+
+bug\_reportfullscreenclose\_fullscreenclose
+
+### On this page
+
+- On this page
+- [Common use cases](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#common-use-cases)
+- [Request](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#request)
+  - [HTTP request](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#http-request)
+  - [Authorization](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#auth)
+  - [Parameters](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#parameters)
+  - [Request body](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#request-body)
+- [Response](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#response)
+  - [Properties](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#properties)
+- [Errors](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#errors)
+- [Try it!](https://developers.google.com/youtube/data/reference/rest/v3/channels/list#try-it)
+Try it!

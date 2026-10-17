@@ -1,0 +1,35 @@
+{
+  "checked_at": "2026-10-17T12:39:51.335022+00:00",
+  "source_url": "https://www.youtube.com/",
+  "samples": [
+    {
+      "sample_url": "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+      "subtitle_file": "ytdlp-jNQXAC9IVRw-sample.en.vtt",
+      "bytes": 440,
+      "cue_count": 6,
+      "first_cue": [
+        "00:00:01.200",
+        "00:00:03.360"
+      ],
+      "last_cue": [
+        "00:00:16.881",
+        "00:00:18.881"
+      ]
+    },
+    {
+      "sample_url": "https://www.youtube.com/watch?v=Ks-_Mh1QhMc",
+      "subtitle_file": "ytdlp-Ks-_Mh1QhMc-sample.en.vtt",
+      "bytes": 33409,
+      "cue_count": 428,
+      "first_cue": [
+        "00:00:00.000",
+        "00:00:07.000"
+      ],
+      "last_cue": [
+        "00:20:46.908",
+        "00:20:49.939"
+      ]
+    }
+  ],
+  "note": "Offline structural validation, not an accuracy/coverage measurement; no media downloaded."
+}

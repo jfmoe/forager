@@ -1,0 +1,308 @@
+> ## Documentation Index
+>
+> Fetch the complete documentation index at: [/llms.txt](https://docs.supadata.ai/llms.txt)
+>
+> Use this file to discover all available pages before exploring further.
+
+[Skip to main content](https://docs.supadata.ai/get-transcript#content-area)
+
+This endpoint is the API behind Supadata’s [YouTube Transcript API](https://supadata.ai/youtube-transcript-api). The same endpoint also returns transcripts for [TikTok videos](https://supadata.ai/tiktok-transcript-api), [Instagram Reels](https://supadata.ai/instagram-transcript-api), [X (Twitter) posts](https://supadata.ai/twitter-transcript-api), Facebook videos, and [uploaded video files](https://supadata.ai/video-transcript-api).
+
+## [​](https://docs.supadata.ai/get-transcript\#quick-start)  Quick Start
+
+### [​](https://docs.supadata.ai/get-transcript\#request)  Request
+
+Node
+
+Python
+
+cURL
+
+```
+import { Supadata } from "@supadata/js";
+
+// Initialize the client
+const supadata = new Supadata({
+  apiKey: "YOUR_API_KEY",
+});
+
+// Get transcript from any supported platform (YouTube, TikTok, Instagram, X (Twitter), Facebook) or file
+const transcriptResult = await supadata.transcript({
+  url: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+  lang: "en", // optional
+  text: true, // optional: return plain text instead of timestamped chunks
+  mode: "auto", // optional: 'native', 'auto', or 'generate'
+});
+```
+
+```
+from supadata import Supadata, SupadataError
+
+# Initialize the client
+supadata = Supadata(api_key="YOUR_API_KEY")
+
+transcript = supadata.transcript(
+    url="https://x.com/SpaceX/status/1481651037291225113",
+    lang="en",  # Optional: preferred language
+    text=True,  # Optional: return plain text instead of timestamped chunks
+    mode="auto"  # Optional: "native", "auto", or "generate"
+)
+```
+
+```
+curl -X GET 'https://api.supadata.ai/v1/transcript?url=https://youtu.be/dQw4w9WgXcQ' \
+  -H 'x-api-key: YOUR_API_KEY'
+```
+
+### [​](https://docs.supadata.ai/get-transcript\#response)  Response
+
+```
+{
+  "content": "Never gonna give you up, never gonna let you down...",
+  "lang": "en",
+  "availableLangs": ["en", "es", "zh-TW"]
+}
+```
+
+## [​](https://docs.supadata.ai/get-transcript\#specification)  Specification
+
+### [​](https://docs.supadata.ai/get-transcript\#endpoint)  Endpoint
+
+`GET https://api.supadata.ai/v1/transcript`Each request requires an `x-api-key` header with your API key available after signing up. Get your API key [here](https://dash.supadata.ai/organizations/api-key).
+
+### [​](https://docs.supadata.ai/get-transcript\#query-parameters)  Query Parameters
+
+| Parameter | Type | Required | Description |
+| --- | --- | --- | --- |
+| url | string | Yes | URL of the video to get transcript from. Must be either YouTube, TikTok, Instagram, X (Twitter), Facebook or a public file URL. It is recommended to encode the URL before sending it as a query parameter. |
+| lang | string | No | Preferred language code of the transcript (ISO 639-1). See [Languages](https://docs.supadata.ai/get-transcript#languages). |
+| text | boolean | No | When true, returns plain text transcript. Default: false |
+| chunkSize | number | No | Maximum characters per transcript chunk (only when text=false) |
+| mode | string | No | Transcript mode: `native` (only fetch existing transcript), `generate` (always generate transcript using AI), or `auto` (try native, fallback to generate if unavailable). If `url` is a file URL, mode is always `generate`. Default: `auto`. |
+
+To fetch only existing transcripts and avoid costs tied to AI generation, use
+`mode=native`. See [Pricing](https://docs.supadata.ai/get-transcript#pricing) for details.
+
+### [​](https://docs.supadata.ai/get-transcript\#response-format)  Response Format
+
+The API can return either a transcript result directly (HTTP 200) or a job ID for asynchronous processing (HTTP 202).
+
+For large videos that require processing time, the API returns HTTP 202 with a
+job ID. Use the `/transcript/{jobId}` endpoint to poll for results.
+
+**Immediate transcript response (HTTP 200):**When `text=true`:
+
+```
+{
+  "content": string,
+  "lang": string             // ISO 639-1 language code
+  "availableLangs": string[] // List of available languages
+}
+```
+
+When `text=false`:
+
+```
+{
+  "content": [\
+    {\
+      "text": string,        // Transcript segment\
+      "offset": number,      // Start time in milliseconds\
+      "duration": number,    // Duration in milliseconds\
+      "lang": string         // ISO 639-1 language code of chunk\
+    }\
+  ],
+  "lang": string             // ISO 639-1 language code of transcript
+  "availableLangs": string[] // List of available languages
+}
+```
+
+**Asynchronous job response (HTTP 202):**
+
+```
+{
+  "jobId": string // Job ID for checking results
+}
+```
+
+An HTTP 200 response with an empty `content` array (`[]`) means the
+transcription was successful but no speech was detected in the audio/video.
+Such requests are still charged according to the media duration.
+
+### [​](https://docs.supadata.ai/get-transcript\#getting-job-results)  Getting Job Results
+
+When the API returns a job ID, you can poll for results using the job ID endpoint:
+
+Node
+
+Python
+
+cURL
+
+```
+import { Supadata } from "@supadata/js";
+
+// Check if we got a transcript directly or a job ID for async processing
+if ("jobId" in transcriptResult) {
+  // For large files, we get a job ID and need to poll for results
+  const jobResult = await supadata.transcript.getJobStatus(
+    transcriptResult.jobId
+  );
+  if (jobResult.status === "completed") {
+    console.log(jobResult.result); // requires @supadata/js >= 1.5.0
+  } else if (jobResult.status === "failed") {
+    console.error(jobResult.error);
+  } else {
+    console.log("Job status:", jobResult.status);
+  }
+} else {
+  // For smaller files or native transcripts, we get the result directly
+  console.log("Transcript:", transcriptResult);
+}
+```
+
+```
+# For immediate results
+if hasattr(transcript, 'content'):
+    print(f"Transcript: {transcript.content}")
+    print(f"Language: {transcript.lang}")
+else:
+    # For async processing (large files)
+    print(f"Processing started with job ID: {transcript.job_id}")
+    # Poll for results (requires supadata >= 1.7.0)
+    job = supadata.transcript.get_job_status(transcript.job_id)
+    if job.status == "completed":
+        print(f"Transcript: {job.result.content}")
+    elif job.status == "failed":
+        print(f"Transcript failed: {job.error}")
+    else:
+        print(f"Job status: {job.status}")  # 'queued' or 'active'
+```
+
+```
+curl -X GET 'https://api.supadata.ai/v1/transcript/123e4567-e89b-12d3-a456-426614174000' \
+  -H 'x-api-key: YOUR_API_KEY'
+```
+
+#### [​](https://docs.supadata.ai/get-transcript\#response-2)  Response
+
+```
+{
+  "status": "completed",
+  "content": "Never gonna give you up, never gonna let you down...",
+  "lang": "en",
+  "availableLangs": ["en", "es", "zh-TW"]
+}
+```
+
+#### [​](https://docs.supadata.ai/get-transcript\#job-status-values)  Job Status Values
+
+| Status | Description |
+| --- | --- |
+| queued | The job is in the queue waiting to be processed |
+| active | The job is currently being processed |
+| completed | The job has finished and results are available |
+| failed | The job failed due to an error |
+
+Poll the job status endpoint until the status is either “completed” or
+“failed”. The `content`, `lang` and `availableLangs` fields will contain the
+transcript data when status is “completed”, or the `error` field will contain
+error details when status is “failed”.
+
+#### [​](https://docs.supadata.ai/get-transcript\#polling-guidelines)  Polling Guidelines
+
+- **Polling interval**: We recommend polling every 1 second
+- **Job expiry**: Job results are available for **1 hour** after completion. After that, the endpoint will return a `404 Not Found` error. Make sure to retrieve and store results promptly after the job completes.
+
+### [​](https://docs.supadata.ai/get-transcript\#error-codes)  Error Codes
+
+The API returns HTTP status codes and error codes. See this [page](https://docs.supadata.ai/errors) for more details.
+
+### [​](https://docs.supadata.ai/get-transcript\#supported-url-formats)  Supported URL Formats
+
+`url` parameter supports the following:
+
+- YouTube video URL, e.g. `https://www.youtube.com/watch?v=1234567890`
+- TikTok video URL, e.g. `https://www.tiktok.com/@username/video/1234567890`
+- X (Twitter) video URL, e.g. `https://x.com/username/status/1234567890`
+- Instagram video URL, e.g. `https://instagram.com/reel/1234567890/`
+- Facebook video URL, e.g.`https://www.facebook.com/reel/682865820350105/`
+- Publicly accessible file URL, e.g. `https://bucket.s3.eu-north-1.amazonaws.com/file.mp4`
+
+### [​](https://docs.supadata.ai/get-transcript\#video-accessibility)  Video Accessibility
+
+Only publicly accessible videos can be transcribed. Videos that require authentication or have restricted access will return errors:
+
+- **Login-required videos** \- Videos that require signing in
+- **Membership/subscriber-only videos** \- Content behind paywalls
+- **Private videos** \- Videos not publicly listed
+- **Age-restricted videos** \- Content with age verification requirements
+- **Heavily geoblocked videos** \- Videos available only in specific countries
+
+To verify if a video is accessible, try opening it in a browser incognito/private window without signing in. If you can watch the video, it can be transcribed.
+
+If the video is not accessible, the API will return:
+
+- `404 Not Found` \- Video does not exist or is private
+- `403 Forbidden` \- Video requires authentication or is restricted
+
+### [​](https://docs.supadata.ai/get-transcript\#live-streams)  Live Streams
+
+Only complete media can be transcribed. Live streams, broadcasts, and similar ongoing content are not supported, and this limitation applies to all platforms that offer them.
+
+### [​](https://docs.supadata.ai/get-transcript\#file-transcripts)  File Transcripts
+
+When `url` is a file URL, the endpoint supports the following file formats:
+
+- MP4
+- WEBM
+- MP3
+- FLAC
+- MPEG
+- MPGA
+- M4A
+- OGG
+- WAV
+
+The maximum file size is 750 MB and the maximum duration is 12 hours. Requests for sources over these limits return an `invalid-request` error.
+
+## [​](https://docs.supadata.ai/get-transcript\#languages)  Languages
+
+The endpoint supports multiple languages. The `lang` parameter is used to specify the preferred language of the transcript. If the video does not have a transcript in the preferred language, the endpoint will return a transcript in the first available language and a list of other available languages. It is then possible to make another request to get the transcript in your chosen fallback language.When `mode = generate`, the `lang` parameter is ignored and the transcript is generated in the language of the video.
+
+## [​](https://docs.supadata.ai/get-transcript\#latency)  Latency
+
+Requests for existing transcripts (eg. in `mode=native`) are resolved at normal latency. Requests that involve AI generation (eg. in `mode=generate`) can take up to ~100 seconds if they do not return an asynchronous job ID earlier.
+
+### [​](https://docs.supadata.ai/get-transcript\#ai-transcription-time)  AI Transcription Time
+
+AI transcription time is correlated with video duration - the longer the video, the longer the transcription takes. Videos longer than 20 minutes will automatically trigger an asynchronous job, returning a job ID (HTTP 202) instead of the transcript directly. A request for a platform URL (YouTube, TikTok, Instagram, X, Facebook) may also start synchronously and switch to an asynchronous job while in flight — clients should always be prepared to handle a 202 + job ID response for `mode=generate`, regardless of video length. This in-flight handoff does not apply to file URLs.
+
+Consider this latency when implementing time-outs and UX in your project. For example, if your app times out before receiving a response, the request will still count towards your credit usage.
+
+## [​](https://docs.supadata.ai/get-transcript\#pricing)  Pricing
+
+- 1 native transcript = 1 credit
+- 1 generated transcript minute = 2 credits
+
+No credits are charged for checking transcription job status. 1 credit is charged when request to get a transcript returns status 206 (Transcript Unavailable).For asynchronous jobs (HTTP 202), the `x-billable-requests` header on the 202 response is a precharge estimate. The final amount is reconciled once the job completes and is visible in the dashboard; the job status endpoint always reports `0`.
+
+### [​](https://docs.supadata.ai/get-transcript\#examples)  Examples
+
+| Case | Mode | What happens | Credits consumed |
+| --- | --- | --- | --- |
+| YouTube video without any transcript | `auto` | Supadata generates transcript with AI | 2 per min of video |
+| Instagram video | `native` | No transcript available response (206) | 1 |
+| Instagram video with existing transcript | `auto` | Supadata returns existing transcript | 1 |
+| TikTok video | `generate` | Supadata generates transcript with AI | 2 per min of video (usually 2) |
+
+### [​](https://docs.supadata.ai/get-transcript\#tracking-credit-usage)  Tracking Credit Usage
+
+There are two ways to check how many credits were consumed in a request:
+
+1. **Dashboard**: The [dashboard](https://dash.supadata.ai/) has a history section showing all API requests and the number of credits used for each.
+2. **Response header**: Each API response includes an `x-billable-requests` header containing the number of credits consumed by that request. For asynchronous jobs (HTTP 202) this header is a precharge estimate that is reconciled after the job completes; polling responses report `0`.
+
+Was this page helpful?
+
+YesNo
