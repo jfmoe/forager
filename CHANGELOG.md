@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.12.0](https://github.com/jfmoe/forager/compare/v0.11.2...v0.12.0) - 2026-10-17
+
+### Added
+
+- *(x)* search, fetch, and ask X through xAI x_search
+
+### Other
+
+- *(adr)* record the X platform through xAI x_search
+
 ## [0.11.2](https://github.com/jfmoe/forager/compare/v0.11.1...v0.11.2) - 2026-10-11
 
 ### Fixed
