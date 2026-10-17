@@ -52,7 +52,7 @@ pub struct ModelUsage {
 }
 
 #[derive(Clone, Debug, Serialize)]
-/// The video a model answered about, as the metadata check read it.
+/// The video a model answered about, as the precheck read it.
 pub struct AskedVideo {
     #[serde(rename = "ref")]
     pub reference: PlatformRef,

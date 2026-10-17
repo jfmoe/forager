@@ -311,7 +311,7 @@ pub(crate) async fn youtube_videos(
         .await
 }
 
-/// Answers a question about a YouTube video, which the metadata check read, through an ask
+/// Answers a question about a YouTube video, which the precheck read, through an ask
 /// route.
 pub(crate) async fn youtube_ask(
     config: PlatformRouteConfig,
@@ -329,7 +329,7 @@ pub(crate) async fn youtube_ask(
         .await
 }
 
-/// Transcribes a YouTube video, which the metadata check read, through a transcribe route.
+/// Transcribes a YouTube video, which the precheck read, through a transcribe route.
 pub(crate) async fn youtube_transcribe(
     config: PlatformRouteConfig,
     client: Client,

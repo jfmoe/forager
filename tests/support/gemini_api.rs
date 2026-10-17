@@ -12,7 +12,7 @@ pub(crate) const MODEL: &str = "gemini-flash-latest";
 pub(crate) const MODEL_VERSION: &str = "gemini-3.8-flash-n";
 
 /// Points `youtube_api` at `api_url` and `gemini_api` at `gemini_url`, one attempt per request;
-/// the default order runs the metadata check on `youtube_api` and the model on `gemini_api`.
+/// the default order runs the precheck on `youtube_api` and the model on `gemini_api`.
 pub(crate) fn config(api_url: &str, gemini_url: &str) -> String {
     format!(
         "{}\n[providers.gemini_api]\nurl = \"{gemini_url}/v1beta\"\nkeys = [\"{KEY}\"]\nmodel = \"{MODEL}\"\n",
