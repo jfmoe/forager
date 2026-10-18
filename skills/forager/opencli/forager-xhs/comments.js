@@ -24,24 +24,23 @@ function firstPageScript(id) {
 // Clicks "展开 N 条回复" under one top-level comment, the way a user does. Returns `clicked` or
 // why it could not.
 function expandScript(id) {
-  return `(async () => {
-    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  return pageScript(`
     const item = document.getElementById(${JSON.stringify(`comment-${id}`)});
     if (!item) return 'no_comment_element';
     const parent = item.closest('.parent-comment');
     if (!parent) return 'no_parent_comment';
     item.scrollIntoView({ block: 'center' });
     const find = () => [...parent.querySelectorAll('.reply-container .show-more')]
-      .find((element) => /展开\\s*\\d+\\s*条回复/.test(element.textContent || ''));
-    let button = find();
-    for (let round = 0; round < 20 && !button; round += 1) {
+      .filter((element) => /展开\\s*\\d+\\s*条回复/.test(element.textContent || '') && clickable(element));
+    let buttons = find();
+    for (let round = 0; round < 20 && buttons.length === 0; round += 1) {
       await sleep(100);
-      button = find();
+      buttons = find();
     }
-    if (!button) return 'no_expand_button';
-    button.click();
+    if (buttons.length !== 1) return buttons.length === 0 ? 'no_expand_button' : 'ambiguous_expand_button';
+    buttons[0].click();
     return 'clicked';
-  })()`;
+  `);
 }
 
 // Keeps the comment fields forager decodes; the users' own access tokens never leave the page.
