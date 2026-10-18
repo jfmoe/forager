@@ -161,7 +161,9 @@ impl Transcript {
                 && cue.start_ms.saturating_sub(last_end_ms) < PAUSE_MS;
             match paragraphs.last_mut() {
                 Some(paragraph) if continues => {
-                    paragraph.text.push(' ');
+                    if needs_space(&paragraph.text, &cue.text) {
+                        paragraph.text.push(' ');
+                    }
                     paragraph.text.push_str(&cue.text);
                 }
                 _ => paragraphs.push(Paragraph {
@@ -196,6 +198,26 @@ fn chapter_at(chapters: &[TranscriptChapter], moment_ms: u64) -> Option<usize> {
     chapters
         .iter()
         .rposition(|chapter| chapter.start_seconds.saturating_mul(1000) <= moment_ms)
+}
+
+/// Says whether two joined cues need a space between them: Chinese and Japanese text, with its
+/// full-width punctuation, runs on without spaces; every other script, Korean included, keeps one.
+fn needs_space(before: &str, after: &str) -> bool {
+    let unspaced = |character: Option<char>| character.is_some_and(writes_without_spaces);
+    !(unspaced(before.chars().next_back()) && unspaced(after.chars().next()))
+}
+
+fn writes_without_spaces(character: char) -> bool {
+    matches!(
+        character,
+        '\u{3000}'..='\u{30FF}' // CJK punctuation, hiragana, katakana
+            | '\u{3100}'..='\u{312F}' // bopomofo
+            | '\u{3400}'..='\u{4DBF}' // CJK extension A
+            | '\u{4E00}'..='\u{9FFF}' // CJK unified ideographs
+            | '\u{F900}'..='\u{FAFF}' // CJK compatibility ideographs
+            | '\u{FF00}'..='\u{FFEF}' // full-width forms
+            | '\u{20000}'..='\u{3134F}' // CJK extensions B to G
+    )
 }
 
 fn ends_sentence(text: &str) -> bool {
@@ -457,6 +479,27 @@ mod tests {
             [
                 "[00:00](https://v.test/watch?v=x&t=0s) one two",
                 "[00:05](https://v.test/watch?v=x&t=5s) three",
+            ]
+        );
+    }
+
+    #[test]
+    fn cues_join_without_a_space_only_between_scripts_that_write_without_spaces() {
+        let cues = vec![
+            cue(0.0, 1.0, "各位同学大家好。"),
+            cue(1.0, 2.0, "这个十一你出门了吗？"),
+            cue(2.0, 3.0, "東京へ"),
+            cue(3.0, 4.0, "行きます"),
+            cue(4.0, 5.0, "GPT"),
+            cue(5.0, 6.0, "模型"),
+            cue(6.0, 7.0, "안녕하세요"),
+            cue(7.0, 8.0, "여러분"),
+        ];
+
+        assert_eq!(
+            body(TranscriptSource::Model, cues, &[]),
+            [
+                "[00:00](https://v.test/watch?v=x&t=0s) 各位同学大家好。这个十一你出门了吗？東京へ行きます GPT 模型 안녕하세요 여러분"
             ]
         );
     }
