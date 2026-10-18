@@ -1214,10 +1214,6 @@ url = {classifier_url:?}
 keys = ["classifier-secret"]
 model = "classifier-model"
 
-[providers.xai]
-url = "http://127.0.0.1:9"
-keys = ["xai-secret"]
-
 [providers.exa]
 url = "http://127.0.0.1:9"
 keys = ["exa-secret"]
