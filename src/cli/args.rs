@@ -315,7 +315,7 @@ pub(super) enum ConfigCommand {
     Set {
         key: String,
         #[arg(
-            help = "TOML value, or - for standard input; argument values may be saved in shell history"
+            help = "string, number, or boolean as plain text; an array as a TOML literal such as '[\"a\"]'; or - for standard input. Argument values may be saved in shell history"
         )]
         value: String,
     },
