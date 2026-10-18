@@ -173,8 +173,8 @@ X runs through the `xai` route with the xAI key of main search; no extra setup i
 `x_search` tool reads X for a model, and xAI returns only what the model writes, never the posts
 themselves. So every X text is relayed content: `text` and `author_handle` may be reworded,
 translated, or shortened. forager checks what it can: a search keeps only posts the response
-cites as read, a fetch requires the root to be the requested post, and `published` comes from
-the post ID, not the model.
+cites as read, a fetch requires the root to be the requested post and a record that the tool
+read it, and `published` comes from the post ID, not the model.
 
 - Pass `--handle` (repeatable) for posts by given accounts, `--exclude-handle` to drop accounts,
   and `--from`/`--to` (inclusive UTC days) only when the request states or clearly implies them;

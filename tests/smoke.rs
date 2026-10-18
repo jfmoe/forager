@@ -576,7 +576,7 @@ fn live_smoke_runs_the_x_cases_through_the_xai_route_only_when_the_order_lists_i
     let xai = Fixture::start_sequence(vec![
         response("ask.json"),
         response("search.json"),
-        response("thread.json"),
+        response("reply_thread.json"),
         response("ask.json"),
         response("ask.json"),
     ]);
@@ -608,7 +608,7 @@ fn live_smoke_runs_the_x_cases_through_the_xai_route_only_when_the_order_lists_i
             requests[1]["text"]["format"]["name"].clone(),
             requests[2]["input"][0]["content"]
                 .as_str()
-                .is_some_and(|input| input.contains("2110126570233094527")),
+                .is_some_and(|input| input.contains("2098634733248720992")),
             requests[3]["tools"].clone(),
         ),
         (

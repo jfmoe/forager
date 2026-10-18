@@ -248,7 +248,7 @@ fn platform_fetch_canary(platform: Platform) -> Option<(&'static str, &'static s
         Platform::Ssrn => Some(("ssrn:2042750", "metadata")),
         Platform::Scholar => Some(("scholar:18208131694456651388", "metadata")),
         Platform::Xiaohongshu => None,
-        Platform::X => Some(("x:2110126570233094527", "metadata")),
+        Platform::X => Some(("x:2098634733248720992", "metadata")),
         // The 2007 Dropbox launch discussion: about 70 comments that no longer change.
         Platform::Hn => Some(("hn:8863", "thread")),
         // The first YouTube upload (2005), whose metadata no longer changes.
