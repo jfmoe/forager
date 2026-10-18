@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.15.0](https://github.com/jfmoe/forager/compare/v0.14.0...v0.15.0) - 2026-10-18
+
+### Added
+
+- *(web-fetch)* prefer Jina over Tavily and let Jina run anonymously
+
+### Fixed
+
+- *(x)* verify fetch by its thread fetch and require the tool
+- *(config)* reject quoted strings in config set and fix its help
+
+### Other
+
+- *(agents)* shorten the compatibility fixes rule
+- *(agents)* fix compatibility issues in the owning mechanism
+- *(research)* compare ways to read X articles and Jina vs Tavily
+- *(research)* record why X fetch rejects replies
+- *(research)* record Reddit integration research and evidence
+- skip pull request CI for documentation-only changes
+- *(skill)* state that failures render on stdout
+
 ## [0.14.0](https://github.com/jfmoe/forager/compare/v0.13.0...v0.14.0) - 2026-10-18
 
 ### Added
