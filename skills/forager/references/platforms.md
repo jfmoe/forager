@@ -23,8 +23,9 @@ platform absent from it has no platform command; follow
 - **X (Twitter)**: to hear what X says, or to answer from given accounts or days, run
   `forager platform x ask QUESTION`; for post items to list or cite, run
   `forager platform x search QUERY`; for a post URL or its replies, run
-  `forager platform x fetch 'REF_OR_URL'`. A general question that X may inform keeps using
-  `forager search`, which already reads X. See "X posts".
+  `forager platform x fetch 'REF_OR_URL'`; for an X article (`/article/` in the URL), run
+  `forager fetch 'URL'`. A general question that X may inform keeps using `forager search`,
+  which already reads X. See "X posts".
 - **Hacker News**: for what HN says about a topic, run `forager platform hn search QUERY`; for a
   discussion (an HN link the user gave, or a ref forager returned), run
   `forager platform hn fetch 'REF_OR_URL'`; for what is on the front page, run
@@ -184,6 +185,12 @@ read it, and `published` comes from the post ID, not the model.
 - Each request lets the model read as many posts as it decides; through the official xAI API that
   is billed per post read. Prefer one `ask` over many searches when an answer is what the user
   wants.
+- An X article (`/<handle>/article/<id>`, `/i/article/<id>`, `/status/<id>/article`) is not a
+  post: `platform x fetch` rejects it with exit 2. Read it with `forager fetch 'URL'`, which
+  returns the article's own text.
+- To check a post's exact wording, run `forager fetch` on its status URL: Jina returns the post
+  text verbatim, with its parent and some replies. Jina may temporarily refuse anonymous access
+  to x.com (a `parameter` attempt naming the unblock time); a working Jina key is more reliable.
 
 ```console
 forager platform x ask 'What are people saying about the Rust 2027 edition?'
@@ -420,8 +427,9 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
 
 - **X evidence**: cite the ref (`x:<post_id>`) with the author handle, and give the user the
   `url` to open. Post text, handles, and ask answers are relayed by a model: when the exact wording
-  matters (a quote, a number, a claim attributed to a person), tell the user to open the post, and
-  never present relayed text as a verbatim quote. A post is one account's statement: attribute it.
+  matters (a quote, a number, a claim attributed to a person), check it with `forager fetch` on the
+  post URL or tell the user to open the post, and never present relayed text as a verbatim
+  quote. A post is one account's statement: attribute it.
   Thread replies are not checked against the response, so treat them with more caution than the
   root. An `ask` answer without `sources` is unverified. Results reflect what the model chose to
   read, not a complete or ranked view of X.

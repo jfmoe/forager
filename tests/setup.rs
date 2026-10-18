@@ -36,7 +36,7 @@ fn non_interactive_setup_creates_a_complete_template() {
             Some(0),
             Some(0),
             &toml::Value::Array(
-                ["firecrawl", "tavily", "jina"]
+                ["firecrawl", "jina", "tavily"]
                     .into_iter()
                     .map(|provider| toml::Value::String(provider.into()))
                     .collect()

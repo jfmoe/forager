@@ -129,8 +129,12 @@ _Avoid_: research evidence、research result、deep research evidence
 _Avoid_: claim verification、source list
 
 **Provider Credential Pool**:
-某一需要凭据的供应方上由 TOML `keys` 真数组配置的认证凭据集合；每个需要凭据的供应方都使用这一形状，单凭据是单元素数组；不需要凭据的供应方没有 `keys`。运行时按轮询选用，并在额度或限流类失败时于同一次请求内换用其他凭据。注册信息声明不需要凭据的供应方不选用、不轮换凭据，且恒视为已配置。
+某一使用凭据的供应方上由 TOML `keys` 真数组配置的认证凭据集合；每个使用凭据的供应方都使用这一形状，单凭据是单元素数组；不需要凭据的供应方没有 `keys`。运行时按轮询选用，并在额度或限流类失败时于同一次请求内换用其他凭据。注册信息声明不需要凭据的供应方不选用、不轮换凭据，且恒视为已配置；声明凭据可选的供应方（目前只有 Jina）也有 `keys`，为空时以匿名方式运行，同样恒视为已配置。
 _Avoid_: key pool、key rotation、API key list、high-availability credential pool
+
+**Anonymous Fallback**:
+凭据可选的供应方不带凭据再请求一次的规则：Provider Credential Pool 为空时直接匿名请求；凭据池按自身规则执行（额度与限流时换用其他凭据，认证失败即结束）后以认证、额度或限流类失败告终时，在同一供应方槽位内用剩余时间匿名再请求一次。与凭据无关的失败不触发，每次执行最多一次；匿名请求的 attempt 标为 `anonymous`（ADR 0029）。
+_Avoid_: keyless mode、free tier fallback、anonymous retry
 
 **Access Policy**:
 供应方为自己的 endpoint 声明的请求节奏：最小间隔与最大并发。每次发送先取得一个连接槽位并持有到发送结束，再在共享状态锁内预约时间窗口；同一状态目录下的所有 forager 进程共享这一节奏与最大并发。锁或状态不可用时不发送，预算内等不到槽位或窗口时以超时结束。

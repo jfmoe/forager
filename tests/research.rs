@@ -1163,6 +1163,9 @@ timeout = 30
 [capabilities.web_search]
 order = ["tavily"]
 
+[capabilities.web_fetch]
+order = ["tavily"]
+
 [retry]
 max_attempts = 1
 multiplier = 1

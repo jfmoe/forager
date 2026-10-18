@@ -7,6 +7,7 @@ use reqwest::{Client, RequestBuilder};
 use serde::Deserialize;
 use serde_json::json;
 
+use crate::catalog::{self, Credentials};
 use crate::config::WebFetchProviderConfig;
 use crate::credentials::CredentialPool;
 use crate::net::{
@@ -14,7 +15,7 @@ use crate::net::{
     json_string_prefix, read_truncatable_content, send_provider_request, truncate_message,
 };
 use crate::providers::ProviderId;
-use crate::providers::execution::{ExecutionSettings, execute_v2};
+use crate::providers::execution::{ExecutionSettings, execute_optional, execute_v2};
 use crate::providers::shared::redacted_urls_message;
 use crate::redact::{Secret, redact_url};
 use crate::types::ProviderError;
@@ -144,29 +145,39 @@ struct FetchBody {
 
 impl HttpFetchProvider {
     async fn execute(&self, request: &FetchRequest) -> Result<ProviderFetchOutcome, ProviderError> {
-        let execution = execute_v2(
-            &self.credentials,
-            ExecutionSettings {
-                provider: self.id.name(),
-                target: AttemptTarget::seam("web_fetch"),
-                retry_policy: self.retry_policy,
-                deadline: self.deadline,
-                attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
-                verbose: request.verbose,
-                timeout_message: match self.id {
-                    ProviderId::Jina => "jina request timed out",
-                    ProviderId::Tavily => "tavily request timed out",
-                    ProviderId::Firecrawl => "firecrawl request timed out",
-                    _ => unreachable!("only web fetch providers make fetch requests"),
-                },
-                model: None,
-                transport: Some("http"),
-                endpoint_host: None,
-                breaker_event: None,
+        let settings = ExecutionSettings {
+            provider: self.id.name(),
+            target: AttemptTarget::seam("web_fetch"),
+            retry_policy: self.retry_policy,
+            deadline: self.deadline,
+            attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
+            verbose: request.verbose,
+            timeout_message: match self.id {
+                ProviderId::Jina => "jina request timed out",
+                ProviderId::Tavily => "tavily request timed out",
+                ProviderId::Firecrawl => "firecrawl request timed out",
+                _ => unreachable!("only web fetch providers make fetch requests"),
             },
-            |credential, _| async move { self.send_once(request, &credential).await },
-        )
-        .await?;
+            model: None,
+            transport: Some("http"),
+            endpoint_host: None,
+            breaker_event: None,
+        };
+        let execution = match catalog::registration(self.id).credentials {
+            Credentials::Optional => {
+                execute_optional(&self.credentials, settings, |credential, _| async move {
+                    self.send_once(request, credential.as_ref()).await
+                })
+                .await
+            }
+            Credentials::Required => {
+                execute_v2(&self.credentials, settings, |credential, _| async move {
+                    self.send_once(request, Some(&credential)).await
+                })
+                .await
+            }
+            Credentials::Unused => unreachable!("every web fetch provider reads keys"),
+        }?;
         Ok(ProviderFetchOutcome {
             provider: self.id.name(),
             content: execution.value.content,
@@ -185,10 +196,11 @@ impl HttpFetchProvider {
         })
     }
 
+    /// Sends one request; `credential` is `None` for an anonymous request.
     async fn send_once(
         &self,
         request: &FetchRequest,
-        credential: &Secret,
+        credential: Option<&Secret>,
     ) -> Result<(Option<u16>, FetchBody), AttemptFailure> {
         let request_builder = match &request.source {
             FetchSource::Url(_) => self.request(request, credential),
@@ -227,7 +239,7 @@ impl HttpFetchProvider {
     async fn parse_request(
         &self,
         file: &LocalFile,
-        credential: &Secret,
+        credential: Option<&Secret>,
     ) -> Result<RequestBuilder, AttemptFailure> {
         let failure = |message: String| AttemptFailure {
             kind: AttemptErrorKind::Runtime,
@@ -259,26 +271,24 @@ impl HttpFetchProvider {
                     .map_err(|error| failure(format!("cannot build the parse request: {error}")))?,
             );
         match self.id {
-            ProviderId::Firecrawl => Ok(self
-                .client
-                .post(format!("{}/parse", self.config.url.trim_end_matches('/')))
-                .bearer_auth(credential.expose())
-                .multipart(form)),
+            ProviderId::Firecrawl => Ok(authorized(
+                self.client
+                    .post(format!("{}/parse", self.config.url.trim_end_matches('/'))),
+                credential,
+            )
+            .multipart(form)),
             _ => unreachable!("source support filters providers that cannot read a local file"),
         }
     }
 
-    fn request(&self, request: &FetchRequest, credential: &Secret) -> RequestBuilder {
+    fn request(&self, request: &FetchRequest, credential: Option<&Secret>) -> RequestBuilder {
         let FetchSource::Url(url) = &request.source else {
             unreachable!("local files go to the parse request");
         };
         match self.id {
             ProviderId::Jina => {
                 let endpoint = format!("{}/{}", self.config.url.trim_end_matches('/'), url);
-                let mut request = self
-                    .client
-                    .get(endpoint)
-                    .bearer_auth(credential.expose())
+                let mut request = authorized(self.client.get(endpoint), credential)
                     .header("x-return-format", "markdown")
                     .header("accept", "application/json");
                 if !self.config.respond_with.is_empty() {
@@ -286,26 +296,28 @@ impl HttpFetchProvider {
                 }
                 request
             }
-            ProviderId::Tavily => self
-                .client
-                .post(format!("{}/extract", self.config.url.trim_end_matches('/')))
-                .bearer_auth(credential.expose())
-                .json(&json!({
-                    "urls": [url],
-                    "format": "markdown",
-                    "extract_depth": "basic"
-                })),
-            ProviderId::Firecrawl => self
-                .client
-                .post(format!("{}/scrape", self.config.url.trim_end_matches('/')))
-                .bearer_auth(credential.expose())
-                .json(&json!({
-                    "url": url,
-                    "formats": ["markdown"],
-                    "onlyMainContent": true,
-                    "timeout": 60000,
-                    "parsers": pdf_parsers(),
-                })),
+            ProviderId::Tavily => authorized(
+                self.client
+                    .post(format!("{}/extract", self.config.url.trim_end_matches('/'))),
+                credential,
+            )
+            .json(&json!({
+                "urls": [url],
+                "format": "markdown",
+                "extract_depth": "basic"
+            })),
+            ProviderId::Firecrawl => authorized(
+                self.client
+                    .post(format!("{}/scrape", self.config.url.trim_end_matches('/'))),
+                credential,
+            )
+            .json(&json!({
+                "url": url,
+                "formats": ["markdown"],
+                "onlyMainContent": true,
+                "timeout": 60000,
+                "parsers": pdf_parsers(),
+            })),
             _ => unreachable!("only web fetch providers make fetch requests"),
         }
     }
@@ -349,6 +361,14 @@ impl HttpFetchProvider {
 
     fn redacted_error(&self, value: &str) -> String {
         redacted_urls_message(value, &self.credentials)
+    }
+}
+
+/// Adds the credential as a bearer token; an anonymous request sends no `Authorization`.
+fn authorized(request: RequestBuilder, credential: Option<&Secret>) -> RequestBuilder {
+    match credential {
+        Some(credential) => request.bearer_auth(credential.expose()),
+        None => request,
     }
 }
 

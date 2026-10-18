@@ -74,8 +74,8 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
 - route 在注册信息中以 `access_policy` 声明最小间隔与最大并发。对该 route endpoint 的**每次发送**都先经过 `RateLimiter::acquire`，包括重试、doctor 的 shallow 可达性探测与 deep 探测。
 - process route 的访问策略以一次 OpenCLI 命令为单位：浏览器在一次命令内发出的请求不逐个限速。permit 持有到子进程被回收为止（ADR 0020）。
 - 等待窗口的时间计入 attempt 与命令的 Deadline；算法、跨进程协调范围与已知边界见第 4 章「跨进程限速」。
-- 不需要凭据的 route 在注册信息中声明 `credentials_required: false`：配置节没有 `keys`（HTTP route 只有 `url` 与 `timeout`，访问多个端点的 route 另有每个端点的 URL 键；process route 只有 `command` 与 `timeout`），经 `execute_anonymous` 执行，attempt 的 `credential_index` 与 `rotation_count` 恒为 0。
-- 需要凭据的 HTTP route 声明 `credentials_required: true`：配置节为 `url`、`keys` 与 `timeout`（runtime 投影 `KeyedHttpRouteRuntimeConfig`），经 `execute_v2` 使用 Provider Credential Pool（ADR 0005），额度耗尽与限流时换 key。keys 为空的 route 视为未配置，不进入平台链。
+- 不需要凭据的 route 在注册信息中声明 `credentials: Credentials::Unused`：配置节没有 `keys`（HTTP route 只有 `url` 与 `timeout`，访问多个端点的 route 另有每个端点的 URL 键；process route 只有 `command` 与 `timeout`），经 `execute_anonymous` 执行，attempt 的 `credential_index` 与 `rotation_count` 恒为 0。
+- 需要凭据的 HTTP route 声明 `credentials: Credentials::Required`：配置节为 `url`、`keys` 与 `timeout`（runtime 投影 `KeyedHttpRouteRuntimeConfig`），经 `execute_v2` 使用 Provider Credential Pool（ADR 0005），额度耗尽与限流时换 key。keys 为空的 route 视为未配置，不进入平台链。
 
 ## skill 与平台词表
 
@@ -222,7 +222,7 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
 第五个平台，只有一条 route `xai`，经 xAI Responses API 的 `x_search` 工具读取 X；提供 search、fetch 与 L2 操作 ask。设计依据与 2026-10-17 的实测见 ADR 0026。
 
 - **Relayed Content**：xAI 不返回服务端工具读到的帖子，只返回模型写出的文本与 `url_citation` 注释。X 条目的正文与作者 handle 由模型转述，不保证逐字；帖子身份与发布时间不依赖模型：身份用注释核对，时间由帖子 id 推算。实测只覆盖 SuperGrok 订阅网关；xAI 官方端点的注释行为由 live smoke 确认。
-- **身份**：kind 只有 `post`。ref 为 `x:<post_id>`，`post_id` 是不带前导零、不溢出 u64 的十进制数，前缀不区分大小写，没有版本。canonical URL 为 `https://x.com/i/status/<post_id>`，满足往返性质。可识别的 URL：主机为 `x.com`、`twitter.com` 及其 `www.`、`mobile.` 子域（不区分大小写，http 或 https），路径为 `/<handle>/status/<id>`（可再带 `/photo/<n>`）、`/i/status/<id>` 或 `/i/web/status/<id>`，忽略 query、fragment 与末尾 `/`。`t.co` 短链需要联网展开，飞行前退 2 并说明替代做法；其他主机、相似域名与其他路径（用户主页、`/i/user/<id>` 等）飞行前退 2。
+- **身份**：kind 只有 `post`。ref 为 `x:<post_id>`，`post_id` 是不带前导零、不溢出 u64 的十进制数，前缀不区分大小写，没有版本。canonical URL 为 `https://x.com/i/status/<post_id>`，满足往返性质。可识别的 URL：主机为 `x.com`、`twitter.com` 及其 `www.`、`mobile.` 子域（不区分大小写，http 或 https），路径为 `/<handle>/status/<id>`（可再带 `/photo/<n>`）、`/i/status/<id>` 或 `/i/web/status/<id>`，忽略 query、fragment 与末尾 `/`。`t.co` 短链需要联网展开，飞行前退 2 并说明替代做法；X 文章（Articles）链接 `/<handle>/article/<id>`、`/i/article/<id>` 与 `/<handle>/status/<id>/article` 不是帖子，飞行前退 2，消息给出读取它的 `forager fetch '<原 URL>'`（Web Fetch 链读取文章原文，ADR 0029）；其他主机、相似域名与其他路径（用户主页、`/i/user/<id>` 等）飞行前退 2。
 - **发布时间**：由 snowflake 推算，`(id >> 22) + 1288834974657` 毫秒，输出精确到秒的 UTC ISO 8601（`2026-10-13T21:52:33Z`）。2010-11 以前的顺序 id 都小于 3·10¹⁰，这样的 id 不推算，`published` 为 `null`。推算为 types 叶子 `platform_x` 中的零 IO 纯函数。
 - **route 与配置**：`xai` 按供应商命名，同时是主搜索 backend；平台请求复用 `providers.xai` 的 `url`、`keys`、`model` 与同一凭据池、凭据游标，额度耗尽与限流时换 key。工具项固定只有一个 `x_search`，不读 `providers.xai.tools`。没有 `providers.xai.timeout`：接入清单 R4 对主搜索 backend 豁免 timeout 叶子，平台 attempt 使用命令剩余时限。`platforms.x.order` 默认 `[xai]`；`providers.xai.keys` 为空时视为未配置，平台命令飞行前退 3，消息点名该键。不设访问策略。doctor 的注册探针仍是主搜索探针（`DoctorProbe::MainSearch`，满足 R5 的「它所服务的 capability 的 probe」）；deep `doctor --provider xai` 在主搜索检查通过、且 `platforms.x.order` 含 `xai` 时，再以 `PlatformSearch` 的同一请求（查询 `forager doctor`、limit 1）运行一次 X search，报告为 `x_search` 检查，失败即 doctor 失败；order 不含 `xai` 时只有主搜索检查。shallow 检查不变。
 - **过滤映射**：`--handle`（可重复）→ `allowed_x_handles`，`--exclude-handle` → `excluded_x_handles`，两者互斥；handle 去掉开头 `@`，须为 1–15 个 `[A-Za-z0-9_]`，各最多 20 个，按出现顺序不区分大小写去重。`--from` → `from_date`；`--to` → `to_date` 加一天（xAI 的 `to_date` 不含当天，forager 含当天）。未给的选项不发送对应字段。实测 xAI 原样执行这些字段。不提供排序（Top/Latest 由模型自选，服务端不强制）、图片或视频理解与 `max_turns`（实测不能限制工具调用次数），不提供原样透传。

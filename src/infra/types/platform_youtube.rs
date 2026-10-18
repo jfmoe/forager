@@ -78,7 +78,7 @@ impl YoutubeRef {
         parsed.map_err(|hint| PlatformRefError {
             platform: Platform::Youtube,
             input: Some(input.to_owned()),
-            hint,
+            hint: hint.into(),
         })
     }
 
@@ -240,10 +240,10 @@ impl YoutubeCollection {
     /// URL, or an `@handle` channel URL.
     pub(crate) fn parse(input: &str) -> Result<Self, PlatformRefError> {
         let trimmed = input.trim();
-        let error = |hint| PlatformRefError {
+        let error = |hint: &'static str| PlatformRefError {
             platform: Platform::Youtube,
             input: Some(input.to_owned()),
-            hint,
+            hint: hint.into(),
         };
         if let Some(url) = PageUrl::parse(trimmed).filter(|url| url.on(&SITE_HOSTS)) {
             match url.segments.as_slice() {

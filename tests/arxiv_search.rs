@@ -361,7 +361,7 @@ fn an_atom_error_entry_fails_with_the_arxiv_message() {
 }
 
 #[test]
-fn search_runs_without_credentials_and_records_credential_index_zero() {
+fn search_runs_without_credentials_and_records_an_anonymous_attempt() {
     let fixture = Fixture::start_sequence(vec![atom(200, &feed(1, &["2401.01234v2"]))]);
     let environment = RunEnvironment::new(&config(&fixture.url));
 
@@ -377,6 +377,7 @@ fn search_runs_without_credentials_and_records_credential_index_zero() {
             &attempt["credential_index"],
             &attempt["rotation_count"],
             &attempt["disposition"],
+            &attempt["anonymous"],
         ),
         (
             Some(0),
@@ -385,6 +386,7 @@ fn search_runs_without_credentials_and_records_credential_index_zero() {
             &json!(0),
             &json!(0),
             &Value::String("succeeded".into()),
+            &json!(true),
         )
     );
 }

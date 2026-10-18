@@ -195,6 +195,7 @@ mod tests {
             credential_index: 0,
             retry_count: 0,
             rotation_count: 0,
+            anonymous: false,
             message: "failure".into(),
             model: Some("model".into()),
             transport: Some("sse"),

@@ -57,7 +57,7 @@ impl XiaohongshuRef {
         parsed.map_err(|hint| PlatformRefError {
             platform: Platform::Xiaohongshu,
             input: None,
-            hint,
+            hint: hint.into(),
         })
     }
 

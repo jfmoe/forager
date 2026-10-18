@@ -17,6 +17,7 @@ pub(crate) struct ExecutionOutcome<T> {
     pub(crate) diagnostic: Option<String>,
 }
 
+#[derive(Clone)]
 pub(crate) struct ExecutionSettings {
     pub(crate) provider: &'static str,
     pub(crate) target: AttemptTarget,
@@ -58,6 +59,7 @@ where
         start: selection.index,
         candidates: credentials.len(),
         pool_size: credentials.len(),
+        anonymous: false,
     };
     execute_attempts(
         rotation,
@@ -68,9 +70,10 @@ where
     .await
 }
 
-/// Runs an operation for a provider whose registration requires no credentials.
+/// Runs an operation without a credential, for a provider whose registration requires none.
 ///
-/// It never claims or rotates a credential, so every attempt records credential index 0.
+/// It never claims or rotates a credential, so every attempt is anonymous and records
+/// credential index 0.
 pub(crate) async fn execute_anonymous<T, F, Fut>(
     settings: ExecutionSettings,
     mut send_once: F,
@@ -83,8 +86,54 @@ where
         start: 0,
         candidates: 1,
         pool_size: 1,
+        anonymous: true,
     };
     execute_attempts(rotation, None, settings, |_, deadline| send_once(deadline)).await
+}
+
+/// Runs an operation for a provider whose credentials are optional (Anonymous Fallback).
+///
+/// An empty pool runs anonymously. Otherwise the pool runs as in [`execute_v2`]; when it ends
+/// on a failure of its keys (auth, quota, or rate limit), one anonymous run follows within
+/// the same deadline, and its attempts come after the keyed ones. `send_once` receives `None`
+/// for an anonymous request.
+pub(crate) async fn execute_optional<T, F, Fut>(
+    credentials: &CredentialPool,
+    settings: ExecutionSettings,
+    mut send_once: F,
+) -> Result<ExecutionOutcome<T>, ProviderError>
+where
+    F: FnMut(Option<Secret>, Deadline) -> Fut,
+    Fut: Future<Output = Result<(Option<u16>, T), AttemptFailure>>,
+{
+    if credentials.len() == 0 {
+        return execute_anonymous(settings, |deadline| send_once(None, deadline)).await;
+    }
+    let keyed = execute_v2(credentials, settings.clone(), |credential, deadline| {
+        send_once(Some(credential), deadline)
+    })
+    .await;
+    let keyed_error = match keyed {
+        Err(error) if fails_on_keys(error.kind) => error,
+        keyed => return keyed,
+    };
+    let anonymous = execute_anonymous(settings, |deadline| send_once(None, deadline)).await;
+    let keyed_attempts = keyed_error.attempts;
+    let follow_keyed = |attempts: &mut Vec<ProviderAttempt>| {
+        attempts.splice(0..0, keyed_attempts);
+    };
+    match anonymous {
+        Ok(mut outcome) => {
+            follow_keyed(&mut outcome.attempts);
+            outcome.diagnostic = keyed_error.diagnostic;
+            Ok(outcome)
+        }
+        Err(mut error) => {
+            follow_keyed(&mut error.attempts);
+            error.diagnostic = keyed_error.diagnostic;
+            Err(error)
+        }
+    }
 }
 
 /// Runs an operation with the pool's credential at `index` only: it neither claims nor rotates,
@@ -103,11 +152,21 @@ where
         start: index,
         candidates: 1,
         pool_size: credentials.len(),
+        anonymous: false,
     };
     execute_attempts(rotation, None, settings, |credential_index, deadline| {
         send_once(credentials.key(credential_index).clone(), deadline)
     })
     .await
+}
+
+/// Returns whether a terminal pool failure blames its keys rather than the request or the
+/// network, so a request without a key may still succeed.
+fn fails_on_keys(kind: AttemptErrorKind) -> bool {
+    matches!(
+        kind,
+        AttemptErrorKind::Auth | AttemptErrorKind::QuotaExhausted | AttemptErrorKind::RateLimited
+    )
 }
 
 #[derive(Clone, Copy)]
@@ -116,6 +175,8 @@ struct CredentialRotation {
     /// How many distinct credentials, from `start` on, the operation may try.
     candidates: usize,
     pool_size: usize,
+    /// Whether the requests send no credential, so the indexes carry no credential meaning.
+    anonymous: bool,
 }
 
 impl CredentialRotation {
@@ -173,6 +234,7 @@ where
                     credential_index,
                     retry_count,
                     rotation_count,
+                    anonymous: rotation.anonymous,
                     message: String::new(),
                     model: settings.model.clone(),
                     transport: settings.transport,
@@ -203,6 +265,7 @@ where
             credential_index,
             retry_count,
             rotation_count,
+            anonymous: rotation.anonymous,
             message: failure.message,
             model: settings.model.clone(),
             transport: settings.transport,

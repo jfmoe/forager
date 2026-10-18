@@ -73,12 +73,16 @@ pub struct ProviderAttempt {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub http_status: Option<u16>,
     pub duration_ms: u64,
-    /// Credential used by this attempt; always 0 for a provider that requires no credentials.
+    /// Credential used by this attempt; always 0, with no credential meaning, for an
+    /// anonymous attempt.
     pub credential_index: usize,
     pub retry_count: usize,
-    /// Credential rotations before this attempt; always 0 for a provider that requires no
-    /// credentials.
+    /// Credential rotations before this attempt; always 0, with no credential meaning, for an
+    /// anonymous attempt.
     pub rotation_count: usize,
+    /// Whether the attempt sent its request without a credential; `false` for an attempt that
+    /// sent no request.
+    pub anonymous: bool,
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,

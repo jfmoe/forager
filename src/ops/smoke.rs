@@ -1378,7 +1378,14 @@ fn result_shape_is_nonempty(shape: ResultShape, payload: &Value) -> bool {
             nonempty_string(payload, "ref")
                 && payload["content_len"].as_u64().is_some_and(|len| len > 0)
         }
-        ResultShape::Fetch | ResultShape::Context7Docs => nonempty_string(payload, "content"),
+        // A read after the keys failed proves the Anonymous Fallback, not the keys.
+        ResultShape::Fetch => {
+            nonempty_string(payload, "content")
+                && payload["provider_attempts"]
+                    .as_array()
+                    .is_some_and(|attempts| attempts.iter().all(|a| a["anonymous"] == false))
+        }
+        ResultShape::Context7Docs => nonempty_string(payload, "content"),
         // A note without comments is a legitimate result, but it proves nothing here.
         ResultShape::XiaohongshuComments => nonempty_string(payload, "note"),
         // The canary video has millions of comments, so an empty page means a broken read.
@@ -1453,7 +1460,12 @@ fn case_is_configured(case_id: &str, runtime: &RuntimeConfig) -> bool {
                     .entries()
                     .iter()
                     .any(|entry| entry.id() == provider && entry.configured()),
-                None => provider_is_configured(runtime, provider),
+                // Live smoke checks keys; the anonymous run is tested offline.
+                None => {
+                    provider_is_configured(runtime, provider)
+                        && !catalog::registration(provider)
+                            .lacks_optional_keys(runtime.provider_runtime(provider).keys.len())
+                }
             }
         }),
     }
@@ -1736,7 +1748,7 @@ mod tests {
     #[test]
     fn registry_status_accepts_registrations_without_credentials() {
         let mut registry = catalog::registrations().to_vec();
-        registry[0].credentials_required = false;
+        registry[0].credentials = catalog::Credentials::Unused;
 
         assert!(registry_status(&registry).ok);
     }

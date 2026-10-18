@@ -7,7 +7,7 @@
 use std::collections::BTreeSet;
 
 use crate::catalog::{
-    self, DoctorProbe, PLATFORMS, PlatformCatalog, PlatformOperation, ProviderId,
+    self, Credentials, DoctorProbe, PLATFORMS, PlatformCatalog, PlatformOperation, ProviderId,
     ProviderRegistration, ProviderTransport,
 };
 use crate::config::{
@@ -239,14 +239,12 @@ fn check_route(
         }
     }
     let keys = config::provider_keys_key(name);
-    if (registry.is_config_leaf)(&keys) != registration.credentials_required {
+    let reads_keys = registration.credentials != Credentials::Unused;
+    if (registry.is_config_leaf)(&keys) != reads_keys {
         found.push(violation(
             platform,
             "R4",
-            &format!(
-                "`{keys}` must exist exactly when the route requires credentials ({})",
-                registration.credentials_required
-            ),
+            &format!("`{keys}` must exist exactly when the route reads credentials ({reads_keys})"),
         ));
     }
     // A keyed route may instead ask its service about every key, which costs no quota; a route
@@ -260,7 +258,7 @@ fn check_route(
             canary,
             ..
         } => probed == platform && PlatformRef::parse(platform, canary).is_ok(),
-        DoctorProbe::ServiceAccount { .. } => registration.credentials_required,
+        DoctorProbe::ServiceAccount { .. } => registration.credentials == Credentials::Required,
         _ => false,
     };
     let serves_capability = catalog::CATALOGS
