@@ -58,7 +58,7 @@ Before you add or change a platform or a platform route, read `docs/spec/forager
 
 ### Compatibility fixes
 
-Fix an incompatibility with a site, provider, or platform in the general mechanism that owns the behavior: the capability order, a provider's support check, the shared status mapping, a platform's URL parsing, or configuration. A rule may key on a provider response or a URL form when it encodes that party's contract and its evidence lives in an ADR or a `docs/research/` record. When the only fix you find is a special case for one site, URL, or observed sample, bring it to the maintainer as a design question before writing it; for example, a global Web Fetch order change was chosen over a per-domain order.
+Prefer solving a compatibility problem through the general mechanism that owns the behavior over a special case for one site, URL, or sample. When a special case seems the only option, discuss it first.
 
 ### Spec-code lockstep
 
