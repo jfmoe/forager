@@ -1,6 +1,7 @@
 //! X shapes: post refs and their snowflake time, search options, post fields, and the `ask`
 //! operation's request and answer.
 
+use std::borrow::Cow;
 use std::fmt;
 
 use chrono::{DateTime, NaiveDate, Utc};
@@ -42,12 +43,13 @@ impl XRef {
     /// # Errors
     ///
     /// Returns [`PlatformRefError`] for any other input, including t.co short links, profile
-    /// pages, and post IDs that overflow a `u64`.
+    /// pages, X article links (the hint names the `forager fetch` command that reads them), and
+    /// post IDs that overflow a `u64`.
     pub fn parse(input: &str) -> Result<Self, PlatformRefError> {
         let trimmed = input.trim();
         let parsed = match trimmed.get(..REF_PREFIX.len()) {
             Some(prefix) if prefix.eq_ignore_ascii_case(REF_PREFIX) => {
-                Self::from_post_id(&trimmed[REF_PREFIX.len()..]).ok_or(REF_HINT)
+                Self::from_post_id(&trimmed[REF_PREFIX.len()..]).ok_or(Cow::Borrowed(REF_HINT))
             }
             _ => parse_url(trimmed),
         };
@@ -116,34 +118,51 @@ impl fmt::Display for XRef {
 /// Parses an x.com or twitter.com post URL: `/<handle>/status/<id>` (optionally followed by
 /// `/photo/<n>`), `/i/status/<id>`, or `/i/web/status/<id>`, ignoring the query, the fragment,
 /// and a trailing `/`.
-fn parse_url(input: &str) -> Result<XRef, &'static str> {
+fn parse_url(input: &str) -> Result<XRef, Cow<'static, str>> {
     let rest = input
         .strip_prefix("https://")
         .or_else(|| input.strip_prefix("http://"))
         .ok_or(REF_HINT)?;
     let (host, path) = rest.split_once('/').unwrap_or((rest, ""));
     if host.eq_ignore_ascii_case("t.co") {
-        return Err(SHORT_LINK_HINT);
+        return Err(SHORT_LINK_HINT.into());
     }
     if !POST_HOSTS
         .iter()
         .any(|known| host.eq_ignore_ascii_case(known))
     {
-        return Err(REF_HINT);
+        return Err(REF_HINT.into());
     }
     let path = path.split(['?', '#']).next().unwrap_or_default();
     let segments = path.trim_end_matches('/').split('/').collect::<Vec<_>>();
+    if is_article(&segments) {
+        return Err(format!(
+            "this is an X article, not a post; read it with `forager fetch '{input}'`"
+        )
+        .into());
+    }
     let id = match segments.as_slice() {
         ["i", "status", id] | ["i", "web", "status", id] => id,
         [handle, "status", id] | [handle, "status", id, "photo", _] if is_handle(handle) => id,
-        _ => return Err(REF_HINT),
+        _ => return Err(REF_HINT.into()),
     };
     if let ["photo", index] = segments.get(3..).unwrap_or_default()
         && XRef::from_post_id(index).is_none()
     {
-        return Err(REF_HINT);
+        return Err(REF_HINT.into());
     }
-    XRef::from_post_id(id).ok_or(REF_HINT)
+    XRef::from_post_id(id).ok_or(REF_HINT.into())
+}
+
+/// Returns whether the path names an X article: `/<handle>/article/<id>`, `/i/article/<id>`,
+/// or `/<handle>/status/<id>/article`.
+fn is_article(segments: &[&str]) -> bool {
+    let id = match segments {
+        ["i", "article", id] => id,
+        [handle, "article", id] | [handle, "status", id, "article"] if is_handle(handle) => id,
+        _ => return false,
+    };
+    XRef::from_post_id(id).is_some()
 }
 
 fn is_handle(value: &str) -> bool {

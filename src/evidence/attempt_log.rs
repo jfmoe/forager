@@ -63,6 +63,7 @@ struct SafeAttempt {
     credential_index: usize,
     retry_count: usize,
     rotation_count: usize,
+    anonymous: bool,
     transport: Option<&'static str>,
     breaker_event: Option<&'static str>,
 }
@@ -81,6 +82,7 @@ impl From<&ProviderAttempt> for SafeAttempt {
             credential_index: attempt.credential_index,
             retry_count: attempt.retry_count,
             rotation_count: attempt.rotation_count,
+            anonymous: attempt.anonymous,
             transport: attempt.transport,
             breaker_event: attempt.breaker_event,
         }
@@ -214,6 +216,7 @@ mod tests {
                 .map(String::as_str)
                 .collect::<std::collections::BTreeSet<_>>(),
             [
+                "anonymous",
                 "breaker_event",
                 "credential_index",
                 "disposition",
@@ -250,6 +253,7 @@ mod tests {
             credential_index: 0,
             retry_count: 0,
             rotation_count: 0,
+            anonymous: false,
             message: "failure".into(),
             model: Some("model".into()),
             transport: Some("sse"),

@@ -3,6 +3,7 @@
 //! Each platform's own shapes live in its own module and join the shared enums here as one
 //! variant; see `docs/spec/forager/07-platforms.md`.
 
+use std::borrow::Cow;
 use std::fmt;
 use std::path::PathBuf;
 
@@ -127,7 +128,7 @@ pub struct PlatformRefError {
     pub(super) platform: Platform,
     /// The input to echo, or `None` for a platform whose URLs may carry an access token.
     pub(super) input: Option<String>,
-    pub(super) hint: &'static str,
+    pub(super) hint: Cow<'static, str>,
 }
 
 impl fmt::Display for PlatformRefError {

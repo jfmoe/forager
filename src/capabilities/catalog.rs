@@ -23,7 +23,7 @@ pub(crate) const WEB_SEARCH: CapabilityCatalog = CapabilityCatalog {
 };
 pub(crate) const WEB_FETCH: CapabilityCatalog = CapabilityCatalog {
     seam: "web_fetch",
-    providers: &[ProviderId::Firecrawl, ProviderId::Tavily, ProviderId::Jina],
+    providers: &[ProviderId::Firecrawl, ProviderId::Jina, ProviderId::Tavily],
 };
 pub(crate) const DOCS_SEARCH: CapabilityCatalog = CapabilityCatalog {
     seam: "docs_search",
@@ -246,11 +246,23 @@ pub(crate) struct ProviderSmokeCase {
     pub(crate) transport: &'static str,
 }
 
+/// Whether a provider's requests carry a credential from its Provider Credential Pool.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum Credentials {
+    /// Every request sends a key; without one the provider is not configured.
+    Required,
+    /// Requests send a key when the pool has one and run anonymously otherwise, or after the
+    /// pool fails on its keys (Anonymous Fallback).
+    Optional,
+    /// Requests never send a key.
+    Unused,
+}
+
 #[derive(Clone, Copy)]
 pub(crate) struct ProviderRegistration {
     pub(crate) id: ProviderId,
     pub(crate) operations: &'static [&'static str],
-    pub(crate) credentials_required: bool,
+    pub(crate) credentials: Credentials,
     pub(crate) transport: ProviderTransport,
     /// The pacing every send to the provider must follow; a process route paces each OpenCLI
     /// command, not each HTTP request the browser sends.
@@ -265,9 +277,15 @@ pub(crate) struct ProviderRegistration {
 impl ProviderRegistration {
     /// Returns whether the provider can run with `key_count` configured credentials.
     ///
-    /// A provider that requires no credentials is always configured.
+    /// Only a provider that requires credentials needs a key to be configured.
     pub(crate) fn is_configured(&self, key_count: usize) -> bool {
-        !self.credentials_required || key_count > 0
+        self.credentials != Credentials::Required || key_count > 0
+    }
+
+    /// Returns whether the provider's credentials are optional and none is configured, so every
+    /// request runs anonymously.
+    pub(crate) fn lacks_optional_keys(&self, key_count: usize) -> bool {
+        self.credentials == Credentials::Optional && key_count == 0
     }
 }
 
@@ -648,7 +666,7 @@ const REGISTRY: &[ProviderRegistration] = &[
     ProviderRegistration {
         id: ProviderId::Xai,
         operations: &[],
-        credentials_required: true,
+        credentials: Credentials::Required,
         transport: ProviderTransport::Http,
         access_policy: None,
         probe: DoctorProbe::MainSearch(XAI_PROBES),
@@ -658,7 +676,7 @@ const REGISTRY: &[ProviderRegistration] = &[
     ProviderRegistration {
         id: ProviderId::OpenAiCompatible,
         operations: &[],
-        credentials_required: true,
+        credentials: Credentials::Required,
         transport: ProviderTransport::Http,
         access_policy: None,
         probe: DoctorProbe::MainSearch(OPENAI_PROBES),
@@ -668,7 +686,7 @@ const REGISTRY: &[ProviderRegistration] = &[
     ProviderRegistration {
         id: ProviderId::Tavily,
         operations: &["site_map"],
-        credentials_required: true,
+        credentials: Credentials::Required,
         transport: ProviderTransport::Http,
         access_policy: None,
         probe: DoctorProbe::WebSearch {
@@ -681,7 +699,7 @@ const REGISTRY: &[ProviderRegistration] = &[
     ProviderRegistration {
         id: ProviderId::Firecrawl,
         operations: &[],
-        credentials_required: true,
+        credentials: Credentials::Required,
         transport: ProviderTransport::Http,
         access_policy: None,
         probe: DoctorProbe::WebSearch {
@@ -694,7 +712,7 @@ const REGISTRY: &[ProviderRegistration] = &[
     ProviderRegistration {
         id: ProviderId::Jina,
         operations: &[],
-        credentials_required: true,
+        credentials: Credentials::Optional,
         transport: ProviderTransport::Http,
         access_policy: None,
         probe: DoctorProbe::WebFetch {
@@ -707,7 +725,7 @@ const REGISTRY: &[ProviderRegistration] = &[
     ProviderRegistration {
         id: ProviderId::Context7,
         operations: &[],
-        credentials_required: true,
+        credentials: Credentials::Required,
         transport: ProviderTransport::Http,
         access_policy: None,
         probe: DoctorProbe::DocsSearch {
@@ -720,7 +738,7 @@ const REGISTRY: &[ProviderRegistration] = &[
     ProviderRegistration {
         id: ProviderId::Exa,
         operations: &["similar"],
-        credentials_required: true,
+        credentials: Credentials::Required,
         transport: ProviderTransport::Http,
         access_policy: None,
         probe: DoctorProbe::DocsSearch {
@@ -733,7 +751,7 @@ const REGISTRY: &[ProviderRegistration] = &[
     ProviderRegistration {
         id: ProviderId::Anysearch,
         operations: &["search", "domains"],
-        credentials_required: true,
+        credentials: Credentials::Required,
         transport: ProviderTransport::Http,
         access_policy: None,
         probe: DoctorProbe::AnysearchDomains {
@@ -746,7 +764,7 @@ const REGISTRY: &[ProviderRegistration] = &[
     ProviderRegistration {
         id: ProviderId::ArxivApi,
         operations: &[],
-        credentials_required: false,
+        credentials: Credentials::Unused,
         transport: ProviderTransport::Http,
         access_policy: Some(ARXIV_API_ACCESS),
         probe: DoctorProbe::PlatformSearch {
@@ -760,7 +778,7 @@ const REGISTRY: &[ProviderRegistration] = &[
     ProviderRegistration {
         id: ProviderId::SsrnCrossref,
         operations: &[],
-        credentials_required: false,
+        credentials: Credentials::Unused,
         transport: ProviderTransport::Http,
         access_policy: Some(SSRN_CROSSREF_ACCESS),
         probe: DoctorProbe::PlatformSearch {
@@ -774,7 +792,7 @@ const REGISTRY: &[ProviderRegistration] = &[
     ProviderRegistration {
         id: ProviderId::SsrnBrowser,
         operations: &[],
-        credentials_required: false,
+        credentials: Credentials::Unused,
         transport: ProviderTransport::OpenCli(OpenCliAdapter {
             site: "ssrn",
             contract: "forager-ssrn/4",
@@ -792,7 +810,7 @@ const REGISTRY: &[ProviderRegistration] = &[
     ProviderRegistration {
         id: ProviderId::Serpapi,
         operations: &[],
-        credentials_required: true,
+        credentials: Credentials::Required,
         transport: ProviderTransport::Http,
         access_policy: None,
         probe: DoctorProbe::ServiceAccount {
@@ -805,7 +823,7 @@ const REGISTRY: &[ProviderRegistration] = &[
     ProviderRegistration {
         id: ProviderId::XiaohongshuBrowser,
         operations: &[],
-        credentials_required: false,
+        credentials: Credentials::Unused,
         transport: ProviderTransport::OpenCli(OpenCliAdapter {
             site: "forager-xhs",
             contract: "forager-xhs/1",
@@ -823,7 +841,7 @@ const REGISTRY: &[ProviderRegistration] = &[
     ProviderRegistration {
         id: ProviderId::HnApi,
         operations: &[],
-        credentials_required: false,
+        credentials: Credentials::Unused,
         transport: ProviderTransport::Http,
         access_policy: Some(HN_API_ACCESS),
         probe: DoctorProbe::PlatformSearch {
@@ -838,7 +856,7 @@ const REGISTRY: &[ProviderRegistration] = &[
     ProviderRegistration {
         id: ProviderId::YoutubeApi,
         operations: &[],
-        credentials_required: true,
+        credentials: Credentials::Required,
         transport: ProviderTransport::Http,
         access_policy: Some(YOUTUBE_API_ACCESS),
         probe: DoctorProbe::PlatformSearch {
@@ -854,7 +872,7 @@ const REGISTRY: &[ProviderRegistration] = &[
     ProviderRegistration {
         id: ProviderId::YoutubeWeb,
         operations: &[],
-        credentials_required: false,
+        credentials: Credentials::Unused,
         transport: ProviderTransport::Http,
         access_policy: Some(YOUTUBE_WEB_ACCESS),
         // The first YouTube upload (2005), whose metadata no longer changes.
@@ -872,7 +890,7 @@ const REGISTRY: &[ProviderRegistration] = &[
     ProviderRegistration {
         id: ProviderId::GeminiApi,
         operations: &[],
-        credentials_required: true,
+        credentials: Credentials::Required,
         transport: ProviderTransport::Http,
         access_policy: Some(GEMINI_API_ACCESS),
         probe: DoctorProbe::ServiceAccount {
@@ -887,7 +905,7 @@ const REGISTRY: &[ProviderRegistration] = &[
     ProviderRegistration {
         id: ProviderId::GeminiBrowser,
         operations: &[GEMINI_RESEARCH_START, GEMINI_RESEARCH_RESULT],
-        credentials_required: false,
+        credentials: Credentials::Unused,
         transport: ProviderTransport::OpenCli(OpenCliAdapter {
             site: "forager-gemini",
             contract: "forager-gemini/1",
@@ -905,7 +923,7 @@ const REGISTRY: &[ProviderRegistration] = &[
     ProviderRegistration {
         id: ProviderId::ChatgptBrowser,
         operations: &[CHATGPT_RESEARCH_START, CHATGPT_RESEARCH_RESULT],
-        credentials_required: false,
+        credentials: Credentials::Unused,
         transport: ProviderTransport::OpenCli(OpenCliAdapter {
             site: "forager-chatgpt",
             contract: "forager-chatgpt/1",
@@ -990,9 +1008,9 @@ mod tests {
     use serde::Deserialize;
 
     use super::{
-        CATALOGS, DOCS_SEARCH, DoctorProbe, MAIN_SEARCH, PLATFORMS, PlatformOperation, ProviderId,
-        ProviderRegistration, ProviderTransport, REGISTRY, WEB_FETCH, WEB_SEARCH, has_owner,
-        platform, registration, registrations, validate_registrations,
+        CATALOGS, Credentials, DOCS_SEARCH, DoctorProbe, MAIN_SEARCH, PLATFORMS, PlatformOperation,
+        ProviderId, ProviderRegistration, ProviderTransport, REGISTRY, WEB_FETCH, WEB_SEARCH,
+        has_owner, platform, registration, registrations, validate_registrations,
     };
 
     /// Providers without a live smoke case. `gemini_browser` and `chatgpt_browser` get only the
@@ -1103,7 +1121,9 @@ mod tests {
                 DoctorProbe::PlatformFetch {
                     platform: probed, ..
                 } => platform(probed).fetch.contains(&registration.id),
-                DoctorProbe::ServiceAccount { .. } => registration.credentials_required,
+                DoctorProbe::ServiceAccount { .. } => {
+                    registration.credentials == Credentials::Required
+                }
                 DoctorProbe::AdapterStatus { .. } => {
                     matches!(registration.transport, ProviderTransport::OpenCli(_))
                 }
@@ -1150,23 +1170,21 @@ mod tests {
     }
 
     #[test]
-    fn registration_without_credentials_is_configured_without_keys() {
-        let anonymous = ProviderRegistration {
-            credentials_required: false,
-            ..*registration(ProviderId::Jina)
-        };
+    fn only_a_registration_that_requires_credentials_needs_a_key() {
+        let configured = [
+            Credentials::Required,
+            Credentials::Optional,
+            Credentials::Unused,
+        ]
+        .map(|credentials| {
+            let registration = ProviderRegistration {
+                credentials,
+                ..*registration(ProviderId::Jina)
+            };
+            (registration.is_configured(0), registration.is_configured(1))
+        });
 
-        assert!(anonymous.is_configured(0));
-    }
-
-    #[test]
-    fn registration_with_credentials_requires_at_least_one_key() {
-        let keyed = registration(ProviderId::Jina);
-
-        assert_eq!(
-            (keyed.is_configured(0), keyed.is_configured(1)),
-            (false, true)
-        );
+        assert_eq!(configured, [(false, true), (true, true), (true, true)]);
     }
 
     #[test]
@@ -1188,7 +1206,7 @@ mod tests {
     #[test]
     fn registry_validation_accepts_registrations_without_credentials() {
         let mut registry = REGISTRY.to_vec();
-        registry[0].credentials_required = false;
+        registry[0].credentials = Credentials::Unused;
 
         assert!(validate_registrations(&registry).is_ok());
     }

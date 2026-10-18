@@ -310,3 +310,29 @@ fn unsupported_depths_short_links_and_other_urls_are_rejected_before_any_request
         );
     }
 }
+
+#[test]
+fn article_links_point_to_web_fetch_before_any_request() {
+    for url in [
+        "https://x.com/SpaceX/article/2110126570233094527",
+        "https://x.com/i/article/2110126570233094527/",
+        "https://x.com/SpaceX/status/2110126570233094527/article?s=20",
+        "https://mobile.twitter.com/SpaceX/article/2110126570233094527#top",
+    ] {
+        let fixture = Fixture::start_canary();
+        let environment = RunEnvironment::new(&config(&fixture.url, &[KEY]));
+
+        let output = environment.run(&["platform", "x", "fetch", url]);
+
+        assert_eq!(
+            (
+                output.status.code(),
+                stderr(&output).contains(&format!("forager fetch '{url}'")),
+                fixture.finish_all().len()
+            ),
+            (Some(2), true, 0),
+            "url: {url}\nstderr: {}",
+            stderr(&output)
+        );
+    }
+}

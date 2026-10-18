@@ -456,15 +456,38 @@ async fn probe_web_fetch(
         &config.jina,
     )
     .expect("probe registration belongs to the web-fetch catalog");
+    let keyed = !provider_config.keys.is_empty();
     let adapter =
         providers::build_web_fetch(provider, provider_config, client, retry_policy, deadline);
-    adapter
+    let result = adapter
         .fetch(&FetchRequest {
             source: FetchSource::Url("https://example.com/".into()),
             verbose: false,
         })
-        .await
-        .map(|_| ())
+        .await;
+    let attempts = match &result {
+        Ok(outcome) => &outcome.attempts,
+        Err(error) => &error.attempts,
+    };
+    // The Anonymous Fallback runs only after the keys fail, and doctor checks the keys.
+    let key_failure = attempts
+        .iter()
+        .any(|attempt| attempt.anonymous)
+        .then(|| attempts.iter().rfind(|attempt| !attempt.anonymous))
+        .flatten()
+        .filter(|_| keyed)
+        .map(|attempt| ProviderError {
+            kind: attempt.error_kind.unwrap_or(AttemptErrorKind::Auth),
+            message: attempt.message.clone(),
+            attempts: Vec::new(),
+            verbose: false,
+            diagnostic: None,
+            redirected_library_id: None,
+        });
+    match key_failure {
+        Some(error) => Err(error),
+        None => result.map(|_| ()),
+    }
 }
 
 async fn probe_platform_search(
@@ -710,11 +733,12 @@ async fn shallow_check(
     let endpoint = provider_endpoint(id, runtime);
     let limiter = providers::route_limiter(id);
     let ProviderTransport::OpenCli(adapter) = registration.transport else {
+        let anonymous = registration.lacks_optional_keys(runtime.provider_runtime(id).keys.len());
         return ShallowCheck {
             configured: runtime.provider_configured(id),
             reachable: probe_reachability(client.clone(), endpoint.to_owned(), limiter, deadline)
                 .await,
-            message: None,
+            message: anonymous.then(|| "runs anonymously without keys".to_owned()),
         };
     };
     if !is_platform_route(id) {

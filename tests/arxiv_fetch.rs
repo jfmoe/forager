@@ -66,6 +66,8 @@ fn jina(content: &str) -> Response {
 const THIN: &str = "No HTML.";
 
 /// Configures the arXiv route and, for each named Web Fetch provider, a fixture URL and a key.
+/// Named providers become the Web Fetch order, so Jina never runs anonymously against the real
+/// service; a test that names none never reaches Web Fetch.
 fn config(arxiv: &str, web_fetch: &[(&str, &str)]) -> String {
     let mut config = format!("[providers.arxiv_api]\nurl = \"{arxiv}/api/query\"\n");
     for (provider, url) in web_fetch {
@@ -73,6 +75,13 @@ fn config(arxiv: &str, web_fetch: &[(&str, &str)]) -> String {
             config,
             "\n[providers.{provider}]\nurl = \"{url}\"\nkeys = [\"{provider}-key\"]\ntimeout = 5\n"
         );
+    }
+    let order = web_fetch
+        .iter()
+        .map(|(provider, _)| *provider)
+        .collect::<Vec<_>>();
+    if !order.is_empty() {
+        let _ = write!(config, "\n[capabilities.web_fetch]\norder = {order:?}\n");
     }
     config
 }
@@ -453,14 +462,13 @@ fn full_text_follows_the_global_web_fetch_order() {
     let arxiv = Fixture::start_sequence(vec![atom(200, &entry_feed("2401.01234v2")), head(200)]);
     let jina_fixture = Fixture::start_sequence(vec![jina(&body("Jina body"))]);
     let firecrawl_fixture = Fixture::start_sequence(Vec::new());
-    let mut config = config(
+    let config = config(
         &arxiv.url,
         &[
             ("jina", &jina_fixture.url),
             ("firecrawl", &firecrawl_fixture.url),
         ],
     );
-    config.push_str("\n[capabilities.web_fetch]\norder = [\"jina\", \"firecrawl\"]\n");
     let environment = RunEnvironment::new(&config);
 
     let output = fetch(&environment, &["arxiv:2401.01234", "--format", "content"]);
@@ -594,7 +602,7 @@ fn unrecognized_references_and_short_links_fail_before_any_request() {
 #[test]
 fn full_text_without_a_configured_web_fetch_provider_is_a_config_error() {
     assert_preflight_exit(
-        "[providers.arxiv_api]\nurl = \"{url}/api/query\"\n",
+        "[providers.arxiv_api]\nurl = \"{url}/api/query\"\n\n[capabilities.web_fetch]\norder = [\"firecrawl\", \"tavily\"]\n",
         &["arxiv:2401.01234"],
         3,
         "capabilities.web_fetch.order has no configured provider",

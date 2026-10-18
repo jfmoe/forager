@@ -25,6 +25,9 @@ timeout = 2
 [providers.firecrawl]
 keys = []
 
+[capabilities.web_fetch]
+order = ["tavily"]
+
 [journal]
 enabled = false
 "#,

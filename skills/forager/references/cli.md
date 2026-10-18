@@ -149,6 +149,10 @@ forager fetch URL [--timeout SECONDS] [--format json|markdown|content]
 | `--receipt` | Print only a receipt on success; requires `--output`. | Off |
 | `--verbose` | Include full provider attempts inline. | Off |
 
+The default `web_fetch` order is Firecrawl, Jina, then Tavily. Jina needs no key: without one, or
+after its keys fail on auth, quota, or rate limit, it sends one request without a key, and that
+attempt has `anonymous: true`.
+
 ### `map`
 
 ```console
@@ -1301,7 +1305,9 @@ steps; `--provider ssrn_browser` or `--provider xiaohongshu_browser` also needs 
 order and runs one real search in Chrome. The shallow report never checks `gemini_browser`;
 `--provider gemini_browser` opens the Gemini app in a background Chrome window and reports whether
 the adapter is installed and current and the browser is signed in, without reading or starting
-any research. `--provider xai` adds an `x_search` check, one X search, while
+any research. Without a key, `jina` is configured and the shallow report notes that it runs
+anonymously; `--provider jina` then probes without a key, and with keys it reports a failing key
+even when the anonymous request succeeds. `--provider xai` adds an `x_search` check, one X search, while
 `platforms.x.order` lists `xai`. `--provider hn_api` runs one search and adds a `firebase` check,
 one request to the Firebase API. `--provider serpapi` runs no search and costs nothing: it asks
 SerpApi's account endpoint about every configured key and adds a `keys` array, one entry per key

@@ -716,6 +716,12 @@ mod tests {
                 AttemptErrorKind::Parameter,
             ),
             (
+                "anonymous_access_blocked",
+                403,
+                r#"{"code":403,"name":"AbuseAlleviationError","status":40305}"#,
+                AttemptErrorKind::Parameter,
+            ),
+            (
                 "payment_required",
                 402,
                 "",
@@ -877,6 +883,8 @@ pub(crate) fn error_kind_for_status(status: StatusCode, body: &str) -> AttemptEr
         400 | 404 | 405 | 409 | 422 => AttemptErrorKind::Parameter,
         // Firecrawl refuses unsupported target sites with 403; its invalid keys get 401.
         403 if mentions(body, "support this site") => AttemptErrorKind::Parameter,
+        // Jina refuses anonymous access to a domain it is shielding from abuse; a key may lift it.
+        403 if mentions(body, "AbuseAlleviationError") => AttemptErrorKind::Parameter,
         401 | 403 => AttemptErrorKind::Auth,
         402 => AttemptErrorKind::QuotaExhausted,
         // SerpApi reports a used-up monthly plan as "run out of searches".

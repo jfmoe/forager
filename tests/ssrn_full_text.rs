@@ -343,6 +343,11 @@ fn a_web_fetch_chain_without_local_file_support_fails_and_keeps_the_pdf() {
             vec![
                 (json!("ssrn_browser"), json!("succeeded"), json!(""),),
                 (
+                    json!("jina"),
+                    json!("skipped"),
+                    json!("skipped: jina cannot read a local file (application/pdf)"),
+                ),
+                (
                     json!("tavily"),
                     json!("skipped"),
                     json!("skipped: tavily cannot read a local file (application/pdf)"),
@@ -503,7 +508,12 @@ fn format_content_with_keep_pdf_writes_only_the_pdf() {
 #[test]
 fn full_text_without_a_configured_web_fetch_provider_fails_before_opening_the_browser() {
     let fake = FakeOpenCli::downloading(&paper_page("2042750"), "paper.pdf", PDF);
-    let environment = RunEnvironment::new(&fake.config("[\"ssrn_browser\"]"));
+    // Jina runs anonymously without keys, so only an order without it has no configured
+    // provider.
+    let environment = RunEnvironment::new(&format!(
+        "[capabilities.web_fetch]\norder = [\"firecrawl\", \"tavily\"]\n\n{}",
+        fake.config("[\"ssrn_browser\"]")
+    ));
 
     let output = fetch(&environment, &[]);
     let stderr = String::from_utf8_lossy(&output.stderr);

@@ -88,6 +88,9 @@ url = {url:?}
 keys = ["firecrawl-key"]
 timeout = 2
 
+[capabilities.web_fetch]
+order = ["firecrawl"]
+
 [journal]
 enabled = false
 "#,

@@ -1,6 +1,6 @@
 # Prefer Firecrawl for Web Fetch
 
-The default Web Fetch order changes from Tavily → Firecrawl → Jina to Firecrawl → Tavily → Jina. This replaces only the order in ADR 0009. The request profiles, the thin-content gate, truncation, and the rule that there is no content-type-specific order are unchanged. Direct fetch, research evidence fetching, search-side Web Fetch, and PDFs still share one chain.
+The default Web Fetch order changes from Tavily → Firecrawl → Jina to Firecrawl → Tavily → Jina. This replaces only the order in ADR 0009. ADR 0029 later moves Jina ahead of Tavily; Firecrawl stays first. The request profiles, the thin-content gate, truncation, and the rule that there is no content-type-specific order are unchanged. Direct fetch, research evidence fetching, search-side Web Fetch, and PDFs still share one chain.
 
 The evidence is two measured comparisons from 2026-09-26: `docs/research/2026-09-26-firecrawl-tavily-fetch-quality.md` (15 URLs across page types) and `docs/research/2026-09-26-arxiv-full-text-fetch-benchmark.md` (9 arXiv papers):
 

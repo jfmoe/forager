@@ -383,6 +383,7 @@ impl OpenAiCompatible {
             credential_index: 0,
             retry_count: 0,
             rotation_count: 0,
+            anonymous: false,
             message: message.into(),
             model: Some(model.into()),
             transport: None,

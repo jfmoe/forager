@@ -431,6 +431,7 @@ fn synthetic_attempt(
         credential_index: 0,
         retry_count: 0,
         rotation_count: 0,
+        anonymous: false,
         message,
         model: identity.model.clone(),
         transport: None,

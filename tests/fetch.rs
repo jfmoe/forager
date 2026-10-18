@@ -11,24 +11,15 @@ const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 
 #[test]
 fn fetch_uses_the_default_provider_order_and_falls_back_after_thin_html() {
-    let tavily = Fixture::start(
-        200,
-        "application/json",
-        r#"{"results":[{"raw_content":"thin"}]}"#,
-    );
     let firecrawl = Fixture::start(
         200,
         "application/json",
-        r#"{"success":true,"data":{"markdown":"also thin"}}"#,
+        r#"{"success":true,"data":{"markdown":"thin"}}"#,
     );
-    let rich_content = "Jina fallback content. ".repeat(30);
-    let jina_body = serde_json::json!({
-        "code": 200,
-        "status": 20000,
-        "data": {"content": rich_content}
-    })
-    .to_string();
-    let jina = Fixture::start(200, "application/json", &jina_body);
+    let jina = Fixture::start(200, "application/json", &jina_response("also thin"));
+    let rich_content = "Tavily fallback content. ".repeat(30);
+    let tavily_body = serde_json::json!({"results": [{"raw_content": rich_content}]}).to_string();
+    let tavily = Fixture::start(200, "application/json", &tavily_body);
     let config = fetch_config_with_default_order(
         &jina.url,
         &["jina-key"],
@@ -46,28 +37,75 @@ fn fetch_uses_the_default_provider_order_and_falls_back_after_thin_html() {
         (
             output.status.code(),
             &payload["provider"],
-            &payload["provider_attempts"][0]["provider"],
-            &payload["provider_attempts"][0]["error_kind"],
-            &payload["provider_attempts"][1]["provider"],
-            &payload["provider_attempts"][1]["error_kind"],
-            &payload["provider_attempts"][2]["provider"],
-            &payload["provider_attempts"][2]["error_kind"],
+            attempt_summary(&payload),
         ),
         (
             Some(0),
-            &Value::String("jina".into()),
-            &Value::String("firecrawl".into()),
-            &Value::String("quality".into()),
             &Value::String("tavily".into()),
-            &Value::String("quality".into()),
-            &Value::String("jina".into()),
-            &Value::Null,
+            vec![
+                ("firecrawl".to_owned(), Value::String("quality".into())),
+                ("jina".to_owned(), Value::String("quality".into())),
+                ("tavily".to_owned(), Value::Null),
+            ],
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     jina.finish();
     tavily.finish();
+    firecrawl.finish();
+}
+
+#[test]
+fn fetch_reads_a_site_firecrawl_refuses_through_jina_before_tavily() {
+    let firecrawl = Fixture::start(
+        403,
+        "application/json",
+        r#"{"success":false,"error":"This website is no longer supported. We do not support this site."}"#,
+    );
+    let jina = Fixture::start(
+        200,
+        "application/json",
+        &jina_response(&"Jina article content. ".repeat(30)),
+    );
+    let tavily = Fixture::start_canary();
+    let config = fetch_config_with_default_order(
+        &jina.url,
+        &["jina-key"],
+        &tavily.url,
+        &["tavily-key"],
+        &firecrawl.url,
+        &["firecrawl-key"],
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&[
+        "fetch",
+        "https://x.com/i/article/2110126570233094527",
+        "--verbose",
+    ]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["provider"],
+            attempt_summary(&payload),
+            tavily.finish_all().len(),
+        ),
+        (
+            Some(0),
+            &Value::String("jina".into()),
+            vec![
+                ("firecrawl".to_owned(), Value::String("parameter".into())),
+                ("jina".to_owned(), Value::Null),
+            ],
+            0,
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    jina.finish();
     firecrawl.finish();
 }
 
@@ -482,11 +520,15 @@ fn fetch_attributes_only_tavilys_final_attempt_after_rotation() {
 #[test]
 fn fetch_redacts_canaries_from_stdout_stderr_and_tee() {
     let canary = "fetch-canary-do-not-print";
-    let jina = Fixture::start(
-        401,
-        "application/json",
-        &format!(r#"{{"message":"bad credential {canary}"}}"#),
-    );
+    let refusal = || {
+        Response::new(
+            401,
+            "application/json",
+            &format!(r#"{{"message":"bad credential {canary}"}}"#),
+        )
+    };
+    // Jina's anonymous fallback follows its rejected key.
+    let jina = Fixture::start_sequence(vec![refusal(), refusal()]);
     let config = fetch_config(
         &jina.url,
         &[canary],
@@ -527,7 +569,7 @@ fn fetch_redacts_canaries_from_stdout_stderr_and_tee() {
             );
         }
     }
-    jina.finish();
+    jina.finish_all();
 }
 
 #[test]
@@ -573,6 +615,8 @@ fn fetch_reports_timeout_when_the_command_deadline_expires() {
 
 #[test]
 fn fetch_rejects_a_chain_without_configured_credentials_before_network() {
+    // Jina runs anonymously without keys, so only an order without it has no configured
+    // provider.
     let config = fetch_config(
         "http://127.0.0.1:9",
         &[],
@@ -580,7 +624,7 @@ fn fetch_rejects_a_chain_without_configured_credentials_before_network() {
         &[],
         "http://127.0.0.1:9",
         &[],
-        &["jina", "tavily", "firecrawl"],
+        &["tavily", "firecrawl"],
     );
     let environment = RunEnvironment::new(&config);
 
@@ -607,6 +651,42 @@ fn fetch_rejects_a_chain_without_configured_credentials_before_network() {
             true,
         )
     );
+}
+
+#[test]
+fn config_list_reports_the_default_fetch_order() {
+    let environment = RunEnvironment::new("");
+
+    let output = environment.run(&["config", "list"]);
+    let view: Value = serde_json::from_slice(&output.stdout).expect("parse config view");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &view["capabilities"]["web_fetch"]["order"]
+        ),
+        (
+            Some(0),
+            &serde_json::json!({"value": ["firecrawl", "jina", "tavily"], "source": "default"})
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+/// Each provider attempt as its provider and error kind, in chain order.
+fn attempt_summary(payload: &Value) -> Vec<(String, Value)> {
+    payload["provider_attempts"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|attempt| {
+            (
+                attempt["provider"].as_str().unwrap_or_default().to_owned(),
+                attempt["error_kind"].clone(),
+            )
+        })
+        .collect()
 }
 
 fn fetch_config(
@@ -719,7 +799,8 @@ fn fetch_receipt_writes_the_result_file_and_prints_only_a_receipt() {
 
 #[test]
 fn fetch_receipt_keeps_the_failure_payload_on_stdout() {
-    let jina = Fixture::start(401, "application/json", r#"{"message":"bad credential"}"#);
+    let refusal = || Response::new(401, "application/json", r#"{"message":"bad credential"}"#);
+    let jina = Fixture::start_sequence(vec![refusal(), refusal()]);
     let config = fetch_config(
         &jina.url,
         &["jina-key"],
@@ -751,7 +832,7 @@ fn fetch_receipt_keeps_the_failure_payload_on_stdout() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    jina.finish();
+    jina.finish_all();
 }
 
 #[test]

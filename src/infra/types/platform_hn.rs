@@ -44,7 +44,7 @@ impl HnRef {
         parsed.ok_or_else(|| PlatformRefError {
             platform: Platform::Hn,
             input: Some(input.to_owned()),
-            hint: REF_HINT,
+            hint: REF_HINT.into(),
         })
     }
 

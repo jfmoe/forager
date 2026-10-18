@@ -573,7 +573,7 @@ fn shallow_doctor_ignores_an_unconfigured_unreachable_provider() {
 }
 
 #[test]
-fn shallow_doctor_treats_providers_without_keys_as_unconfigured_and_healthy() {
+fn shallow_doctor_treats_providers_that_need_missing_keys_as_unconfigured_and_healthy() {
     let fixture = Fixture::start_sequence(reachable_responses(11));
     let config = [
         "xai-secret",
@@ -609,7 +609,7 @@ fn shallow_doctor_treats_providers_without_keys_as_unconfigured_and_healthy() {
         (
             Some(0),
             &Value::Bool(true),
-            vec!["arxiv_api", "ssrn_crossref", "hn_api"]
+            vec!["jina", "arxiv_api", "ssrn_crossref", "hn_api"]
         )
     );
     assert_eq!(fixture.finish_all().len(), 11);
@@ -637,4 +637,87 @@ fn mcp_initialize(session: &str) -> Response {
         r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{},"serverInfo":{"name":"fixture","version":"1"}}}"#,
     )
     .with_header("mcp-session-id", session)
+}
+
+#[test]
+fn shallow_doctor_reports_jina_without_keys_as_configured_and_anonymous() {
+    let fixture = Fixture::start_sequence(reachable_responses(11));
+    let config = shallow_config(&fixture.url).replace("keys = [\"jina-secret\"]", "keys = []");
+    let environment = RunEnvironment::new(&config);
+
+    let doctor = environment.run(&["doctor"]);
+    let payload: Value = serde_json::from_slice(&doctor.stdout).expect("parse doctor JSON");
+    let jina = payload["providers"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|provider| provider["provider"] == "jina")
+        .cloned()
+        .unwrap_or_default();
+
+    assert_eq!(
+        (
+            doctor.status.code(),
+            &jina["configured"],
+            &jina["key_count"],
+            jina["message"]
+                .as_str()
+                .is_some_and(|message| message.contains("anonymously")),
+        ),
+        (Some(0), &Value::Bool(true), &Value::from(0), true),
+        "{jina}\nstderr: {}",
+        String::from_utf8_lossy(&doctor.stderr)
+    );
+    fixture.finish_all();
+}
+
+#[test]
+fn jina_deep_doctor_without_keys_probes_anonymously() {
+    let fixture = Fixture::start(200, "application/json", &jina_response(&"rich ".repeat(60)));
+    let environment = RunEnvironment::new(&format!(
+        "[providers.jina]\nurl = {:?}\nkeys = []\n",
+        fixture.url
+    ));
+
+    let output = environment.run(&["doctor", "--provider", "jina"]);
+
+    assert_deep_success(&output, "jina", &[("fetch", "http")]);
+    let request = fixture.finish();
+    assert!(
+        !request.to_ascii_lowercase().contains("authorization:"),
+        "{request}"
+    );
+}
+
+#[test]
+fn jina_deep_doctor_reports_a_failing_key_although_an_anonymous_request_succeeds() {
+    let fixture = Fixture::start_sequence(vec![
+        Response::json(401, r#"{"message":"Invalid API key"}"#),
+        Response::json(200, &jina_response(&"rich ".repeat(60))),
+    ]);
+    let environment = RunEnvironment::new(&format!(
+        "[providers.jina]\nurl = {:?}\nkeys = [\"jina-key\"]\n",
+        fixture.url
+    ));
+
+    let output = environment.run(&["doctor", "--provider", "jina"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["ok"],
+            &payload["error_kind"],
+            &payload["message"],
+        ),
+        (
+            Some(4),
+            &Value::Bool(false),
+            &Value::String("auth".into()),
+            &Value::String("Invalid API key".into()),
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    fixture.finish_all();
 }

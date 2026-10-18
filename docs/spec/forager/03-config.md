@@ -56,7 +56,7 @@ timeout = 30
 
 [providers.jina]
 url = "https://r.jina.ai"
-keys = []
+keys = []                    # 为空＝匿名请求；凭据可选（ADR 0029）
 respond_with = ""            # X-Respond-With（如 readerlm-v2）
 timeout = 30
 
@@ -127,7 +127,7 @@ timeout = 300                # 一次模型请求的 attempt 超时；命令默�
 [capabilities.web_search]
 order = ["tavily", "firecrawl"]
 [capabilities.web_fetch]
-order = ["firecrawl", "tavily", "jina"]   # Firecrawl 优先（ADR 0018）；置空＝config_error（引擎不变量）
+order = ["firecrawl", "jina", "tavily"]   # Firecrawl 优先（ADR 0018），Jina 先于 Tavily（ADR 0029）；置空＝config_error（引擎不变量）
 [capabilities.docs_search]
 order = ["exa", "context7"]       # Exa 优先；Context7 仅在 Exa 无可消费结果时自动调用（ADR 0017）
 [capabilities.vertical_search]
@@ -188,7 +188,7 @@ ssl_verify = true
 ### `log.level` 运行时语义
 
 - 保留默认 `info`，不恢复 file logging，也不新增实时事件模型。`error`/`warn`/`info` 不产生可选运行日志；契约要求的终态错误、capability gap、classifier degradation、journal 与 `--output` warning 始终写 stderr，不受该键过滤。
-- `debug` 在命令终结时至多输出一条由现有 `ProviderAttempt` 集合投影的脱敏摘要；`trace` 再输出逐 attempt 的安全字段：provider、seam、error kind、HTTP status、duration、credential index、retry/rotation、transport 与 breaker event。
+- `debug` 在命令终结时至多输出一条由现有 `ProviderAttempt` 集合投影的脱敏摘要；`trace` 再输出逐 attempt 的安全字段：provider、seam、error kind、HTTP status、duration、credential index、retry/rotation、是否匿名、transport 与 breaker event。
 - debug/trace 不输出 attempt message、model、endpoint、请求/响应、正文、header、credential、prompt 或 tool trace，不新增 `tracing` 依赖。`--verbose` 与 journal 的职责不变。
 
 ### Journal 文件所有权

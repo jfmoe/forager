@@ -42,7 +42,7 @@ impl ScholarRef {
             .ok_or_else(|| PlatformRefError {
                 platform: Platform::Scholar,
                 input: Some(input.to_owned()),
-                hint: "pass a `scholar:<cluster_id>` ref or a scholar.google.com/scholar?cluster=<id> URL",
+                hint: "pass a `scholar:<cluster_id>` ref or a scholar.google.com/scholar?cluster=<id> URL".into(),
             })
     }
 
