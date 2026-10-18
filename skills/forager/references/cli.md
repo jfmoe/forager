@@ -1251,7 +1251,7 @@ outdated, with install steps; or the report could not be written). A failure pay
 forager config path
 forager config list
 forager config set KEY VALUE
-printf '%s' "$TOML_VALUE" | forager config set KEY -
+printf '%s' "$VALUE" | forager config set KEY -
 forager config unset KEY
 ```
 
@@ -1259,7 +1259,7 @@ forager config unset KEY
 | --- | --- |
 | `config path` | Print the active configuration file path without loading or validating its schema. |
 | `config list` | Print the effective JSON view, including each value's source and masked credentials. When parsing fails, report the path, bad key, and location. |
-| `config set KEY VALUE` | Set one schema key from a TOML literal. Argument values may remain in shell history. Invalid paths, types, or enum values fail without writing. |
+| `config set KEY VALUE` | Set one schema key. Strings, numbers, and booleans are plain text, such as `https://api.exa.ai` or `45`; arrays are TOML literals, such as `'["KEY"]'`. A string wrapped in one pair of matching quotes fails with exit `2` instead of saving the quotes. Argument values may remain in shell history. Invalid paths, types, or enum values fail without writing. |
 | `config set KEY -` | Read the complete value from stdin; use this form for secrets. |
 | `config unset KEY` | Remove only the file-layer value. An environment override can remain effective. |
 
@@ -1349,6 +1349,7 @@ treating it as a provider failure.
 
 Exit code `1` is intentionally unused. Panic status `101` is outside the CLI contract. After a
 network command reaches a rendered terminal result, JSON output is emitted as clean JSON on stdout
-and diagnostics or logs use stderr. After successful Clap parsing selects JSON, configuration,
+and diagnostics or logs use stderr. A failed command renders its failure payload on stdout too, so
+an empty stderr does not mean success; judge the outcome by the exit code. After successful Clap parsing selects JSON, configuration,
 stdin, and plan preflight failures use the parseable stdout error object described above. Clap
 errors, panics, and non-JSON formats retain their existing channels.
