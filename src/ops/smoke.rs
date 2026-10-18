@@ -1390,15 +1390,9 @@ fn case_is_configured(case_id: &str, runtime: &RuntimeConfig) -> bool {
                 && runtime.web_search.configured_provider_count() > 0
         }
         "P2" => {
-            let discovery_seams = [
-                runtime.docs_search.configured_provider_count(),
-                runtime.web_search.configured_provider_count(),
-            ]
-            .into_iter()
-            .filter(|count| *count > 0)
-            .count();
             runtime.classifier.configured()
-                && discovery_seams >= 2
+                && runtime.docs_search.configured_provider_count() > 0
+                && runtime.web_search.configured_provider_count() > 0
                 && runtime.web_fetch.configured_provider_count() > 0
         }
         "C04" => runtime.classifier.configured(),
