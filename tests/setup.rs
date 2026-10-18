@@ -30,7 +30,7 @@ fn non_interactive_setup_creates_a_complete_template() {
         ),
         (
             Some(0),
-            77,
+            72,
             Some(0),
             Some(0),
             &toml::Value::Array(
@@ -141,7 +141,7 @@ fn interactive_setup_holds_the_config_lock_until_its_update_is_saved() {
     setup
         .take_stdin()
         .expect("open setup stdin")
-        .write_all(b"\n\n\nn\n\n\n\n\n\n\n\n\n\n")
+        .write_all(b"\n\nn\n\n\n\n\n\n\n\n\n\n")
         .expect("complete setup input");
     let output = wait_for_child(setup, "interactive setup");
     assert_eq!(output.status.code(), Some(0), "{output:?}");
@@ -152,7 +152,7 @@ fn interactive_setup_configures_the_five_stages_without_echoing_credentials() {
     let config_dir = tempfile::tempdir().expect("create config directory");
     let canary = "setup-canary-secret";
     let input = format!(
-        "xai\nhttps://main.example/v1\n{canary}\nmain-model\ny\nhttps://classifier.example/v1\nclassifier-secret\nclassifier-model\nexa-secret\ncontext7-secret\njina-secret\ntavily-secret\nfirecrawl-secret\nserpapi-secret\nyoutube-secret\n"
+        "https://main.example/v1\n{canary}\nmain-model\ny\nhttps://classifier.example/v1\nclassifier-secret\nclassifier-model\nexa-secret\ncontext7-secret\njina-secret\ntavily-secret\nfirecrawl-secret\nserpapi-secret\nyoutube-secret\n"
     );
 
     let output = run(config_dir.path(), &["setup", "--lang", "zh"], Some(&input));
@@ -218,7 +218,7 @@ fn interactive_setup_second_run_preserves_skipped_and_unrelated_values() {
          [unknown]\nvalue = true\n",
     )
     .expect("write existing config");
-    let input = "\n\n\nnew-model\nn\nnew-exa\n\n\n\n\n\n\n\n";
+    let input = "\n\nnew-model\nn\nnew-exa\n\n\n\n\n\n\n\n";
 
     let output = run(config_dir.path(), &["setup", "--lang", "en"], Some(input));
     let content = fs::read_to_string(path).expect("read updated config");
@@ -252,8 +252,8 @@ fn interactive_setup_enter_preserves_a_single_backend_array() {
     let path = config_dir.path().join("config.toml");
     fs::write(
         &path,
-        "[search]\nbackends = [\"openai_compatible\"]\n\
-         [providers.openai_compatible]\nurl = \"https://main.example/v1\"\n\
+        "[search]\nbackends = [\"xai\"]\n\
+         [providers.xai]\nurl = \"https://main.example/v1\"\n\
          keys = [\"old-main\"]\nmodel = \"old-model\"\n\
          [classifier]\nurl = \"https://classifier.example/v1\"\n\
          keys = [\"classifier-key\"]\nmodel = \"classifier-model\"\n",
@@ -263,7 +263,7 @@ fn interactive_setup_enter_preserves_a_single_backend_array() {
     let output = run(
         config_dir.path(),
         &["setup", "--lang", "en"],
-        Some("\n\n\n\nn\n\n\n\n\n\n\n\n\n"),
+        Some("\n\n\nn\n\n\n\n\n\n\n\n\n"),
     );
     let config: toml::Value =
         toml::from_str(&fs::read_to_string(path).expect("read config")).expect("parse config");
@@ -277,7 +277,7 @@ fn interactive_setup_enter_preserves_a_single_backend_array() {
             stderr.contains("Step 3: classifier (skip preserves current values)"),
             stderr.contains("skipping disables automatic routing and research plans"),
         ),
-        (Some(0), Some(1), Some("openai_compatible"), true, false,),
+        (Some(0), Some(1), Some("xai"), true, false,),
         "stderr: {stderr}"
     );
 }
@@ -351,7 +351,7 @@ fn both_setup_modes_enforce_private_permissions_and_remove_temporary_files() {
     let output = run(
         interactive_dir.path(),
         &["setup", "--lang", "en"],
-        Some("\n\n\nn\n\n\n\n\n\n\n\n\n\n"),
+        Some("\n\nn\n\n\n\n\n\n\n\n\n\n"),
     );
     assert_eq!(output.status.code(), Some(0), "{output:?}");
 

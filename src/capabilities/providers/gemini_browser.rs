@@ -197,7 +197,6 @@ impl GeminiBrowser {
             model: None,
             transport: Some("process"),
             endpoint_host: None,
-            breaker_event: None,
         }
     }
 

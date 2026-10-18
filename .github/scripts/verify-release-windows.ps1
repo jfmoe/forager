@@ -29,11 +29,8 @@ if ((forager --version) -ne "forager $version") {
 }
 $config = @'
 [providers.xai]
-keys = ["release-gate"]
-[providers.openai_compatible]
 url = "https://example.invalid/v1"
 keys = ["release-gate"]
-model = "release-gate"
 [providers.tavily]
 keys = ["release-gate"]
 [providers.firecrawl]
@@ -56,7 +53,7 @@ if ($doctorExitCode -ne 4 -or $doctor.ok -or $doctor.mode -ne "shallow") {
   throw "doctor did not report the expected unreachable configuration"
 }
 $configured = @($doctor.providers | Where-Object configured)
-if ($configured.Count -ne 10) {
+if ($configured.Count -ne 9) {
   throw "doctor did not load all migrated provider credentials"
 }
 exit 0

@@ -4,8 +4,7 @@ use std::time::Duration;
 
 use super::{
     BudgetPolicy, ChainOutcome, ChainSettings, ChainStep, DiagnosticMerge, StepIdentity,
-    StepRejection, StepSuccess, StepVerdict, TerminalPolicy, always_continue, chain_wide_error,
-    run_chain,
+    StepRejection, StepSuccess, StepVerdict, TerminalPolicy, chain_wide_error, run_chain,
 };
 use crate::types::ProviderError;
 use crate::types::{
@@ -23,7 +22,6 @@ fn step(name: &'static str) -> ChainStep<&'static str> {
     ChainStep {
         context: name,
         configured: true,
-        gate_attempt: None,
     }
 }
 
@@ -46,7 +44,6 @@ fn settings() -> ChainSettings<'static, &'static str> {
             exhausted_message: "chain exhausted",
         },
         identity: &identity,
-        continue_on_failure: &always_continue,
     }
 }
 
@@ -93,7 +90,6 @@ fn attempt(provider: &'static str) -> ProviderAttempt {
         model: None,
         transport: None,
         endpoint_host: None,
-        breaker_event: None,
     }
 }
 
@@ -163,7 +159,6 @@ fn fallback_off_records_an_unconfigured_head_as_an_auth_failure() {
         ChainStep {
             context: "a",
             configured: false,
-            gate_attempt: None,
         },
         step("b"),
     ];
@@ -204,7 +199,6 @@ fn unconfigured_steps_are_dropped_silently_when_fallback_is_allowed() {
         ChainStep {
             context: "b",
             configured: false,
-            gate_attempt: None,
         },
         step("c"),
     ];
@@ -523,126 +517,6 @@ fn tail_terminal_uses_its_defaults_when_no_attempt_failed() {
     assert_eq!(
         (error.kind, error.message.as_str()),
         (AttemptErrorKind::Runtime, "no executable models")
-    );
-}
-
-#[test]
-fn last_error_terminal_preserves_the_last_step_error_with_merged_records() {
-    let mut settings = settings();
-    settings.diagnostic_merge = DiagnosticMerge::LatestWins;
-    settings.terminal = TerminalPolicy::LastError {
-        verbose: true,
-        fallback_kind: AttemptErrorKind::Timeout,
-        fallback_message: "request failed",
-    };
-    let script = RefCell::new(Script {
-        verdicts: VecDeque::from([
-            failed(
-                "a",
-                AttemptErrorKind::Network,
-                "stream failed",
-                Some("stream diagnostic"),
-            ),
-            StepVerdict::Failed(ProviderError {
-                kind: AttemptErrorKind::Auth,
-                message: "http failed".into(),
-                attempts: vec![failed_attempt("b", AttemptErrorKind::Auth, "http failed")],
-                verbose: true,
-                diagnostic: None,
-                redirected_library_id: None,
-            }),
-        ]),
-        ..Script::default()
-    });
-
-    let error = drive(vec![step("a"), step("b")], settings, 60, &script)
-        .err()
-        .expect("chain error");
-
-    assert_eq!(
-        (
-            error.kind,
-            error.message.as_str(),
-            error.verbose,
-            error.diagnostic.as_deref(),
-            error
-                .attempts
-                .iter()
-                .map(|attempt| attempt.provider)
-                .collect::<Vec<_>>(),
-        ),
-        (
-            AttemptErrorKind::Auth,
-            "http failed",
-            true,
-            Some("stream diagnostic"),
-            vec!["a", "b"],
-        )
-    );
-}
-
-#[test]
-fn the_failure_gate_stops_the_chain_before_non_continuable_kinds() {
-    let mut settings = settings();
-    settings.terminal = TerminalPolicy::LastError {
-        verbose: false,
-        fallback_kind: AttemptErrorKind::Timeout,
-        fallback_message: "request failed",
-    };
-    settings.continue_on_failure = &|error: &ProviderError| error.kind == AttemptErrorKind::Network;
-    let script = RefCell::new(Script {
-        verdicts: VecDeque::from([failed("a", AttemptErrorKind::Auth, "denied", None)]),
-        ..Script::default()
-    });
-
-    let error = drive(vec![step("a"), step("b")], settings, 60, &script)
-        .err()
-        .expect("chain error");
-
-    assert_eq!(
-        (
-            error.kind,
-            error.attempts.len(),
-            script.borrow().ran.clone()
-        ),
-        (AttemptErrorKind::Auth, 1, vec!["a"])
-    );
-}
-
-#[test]
-fn gate_attempts_are_recorded_before_any_step_runs() {
-    let mut gated_a = step("a");
-    gated_a.gate_attempt = Some({
-        let mut attempt = attempt("a");
-        attempt.disposition = AttemptDisposition::Skipped;
-        attempt.message = "gate a".into();
-        attempt
-    });
-    let mut gated_c = step("c");
-    gated_c.gate_attempt = Some({
-        let mut attempt = attempt("c");
-        attempt.disposition = AttemptDisposition::Skipped;
-        attempt.message = "gate c".into();
-        attempt
-    });
-    let script = RefCell::new(Script {
-        verdicts: VecDeque::from([accepted("winner", "b", None)]),
-        ..Script::default()
-    });
-
-    let outcome =
-        drive(vec![gated_a, step("b"), gated_c], settings(), 60, &script).expect("chain outcome");
-
-    assert_eq!(
-        (
-            outcome
-                .attempts
-                .iter()
-                .map(|attempt| attempt.message.as_str())
-                .collect::<Vec<_>>(),
-            script.borrow().ran.clone(),
-        ),
-        (vec!["gate a", "gate c", ""], vec!["b"])
     );
 }
 

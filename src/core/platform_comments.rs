@@ -82,7 +82,6 @@ pub(crate) async fn run_comments(
         .map(|context| ChainStep {
             context,
             configured: true,
-            gate_attempt: None,
         })
         .collect();
     let result = chain::run_chain(
@@ -99,7 +98,6 @@ pub(crate) async fn run_comments(
                 exhausted_message: "platform comments deadline elapsed",
             },
             identity: &route_identity,
-            continue_on_failure: &chain::always_continue,
         },
         deadline,
         |config: PlatformRouteConfig, step_deadline| {

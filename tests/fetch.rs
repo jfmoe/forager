@@ -518,6 +518,46 @@ fn fetch_attributes_only_tavilys_final_attempt_after_rotation() {
 }
 
 #[test]
+fn fetch_attribution_uses_each_provider_final_attempt_and_error_priority() {
+    let firecrawl = Fixture::start(401, "application/json", r#"{"error":"bad firecrawl key"}"#);
+    let tavily = Fixture::start(503, "application/json", r#"{"error":"tavily down"}"#);
+    let config = fetch_config(
+        "http://127.0.0.1:9",
+        &[],
+        &tavily.url,
+        &["tavily-key"],
+        &firecrawl.url,
+        &["firecrawl-key"],
+        &["firecrawl", "tavily"],
+    );
+    let environment = RunEnvironment::new(&config);
+
+    let output = environment.run(&["fetch", "https://example.test/article"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["error_kind"],
+            payload["message"]
+                .as_str()
+                .is_some_and(|message| message.contains("bad firecrawl key")),
+            &payload["attempts"]["providers"],
+        ),
+        (
+            Some(4),
+            &Value::String("auth".into()),
+            true,
+            &serde_json::json!(["firecrawl", "tavily"]),
+        ),
+        "stdout: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    firecrawl.finish();
+    tavily.finish();
+}
+
+#[test]
 fn fetch_redacts_canaries_from_stdout_stderr_and_tee() {
     let canary = "fetch-canary-do-not-print";
     let refusal = || {

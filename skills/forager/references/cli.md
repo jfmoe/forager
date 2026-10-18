@@ -69,7 +69,7 @@ forager search QUERY [--capabilities CSV|none] [--model ID] [--extra-sources N]
 | `--capabilities CSV\|none` | Authoritative supplemental capability set. Use canonical comma-separated IDs, or `none` for main search only. Omit it to use classifier routing, with the configured default Web route when no classifier is available. | Omitted |
 | `--model ID` | Override the configured main-search model for this invocation. | Configured model |
 | `--extra-sources N` | Set a target in `0..=20`. At `0`, Web Search uses 3 while Documentation Search uses 1; an explicit `1..=20` is the exact target. | `0` |
-| `--fallback MODE` | Use `auto` or `off` for provider/model fallback. | `search.fallback`, normally `auto` |
+| `--fallback MODE` | Use `auto` or `off` for provider fallback. | `search.fallback`, normally `auto` |
 | `--timeout SECONDS` | Set the whole-pipeline deadline. | `180` |
 | `--format FORMAT` | Use `json`, `markdown`, or `content`. | `json` |
 | `--output FILE` | Tee the rendered result to a file. | Omitted |
@@ -1249,7 +1249,7 @@ forager doctor [--provider PROVIDER] [--timeout SECONDS] [--format json|markdown
 
 | Option | Meaning | Default |
 | --- | --- | --- |
-| `--provider PROVIDER` | Deep-probe one of `xai`, `openai_compatible`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, `arxiv_api`, `ssrn_crossref`, `ssrn_browser`, `serpapi`, `xiaohongshu_browser`, `hn_api`, or `gemini_browser`. Without it, run the shallow all-provider report. | Omitted |
+| `--provider PROVIDER` | Deep-probe one of `xai`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, `arxiv_api`, `ssrn_crossref`, `ssrn_browser`, `serpapi`, `xiaohongshu_browser`, `hn_api`, or `gemini_browser`. Without it, run the shallow all-provider report. | Omitted |
 | `--timeout SECONDS` | Set the diagnostic deadline. | `30` |
 | `--format FORMAT` | Use `json` or `markdown`. | `json` |
 

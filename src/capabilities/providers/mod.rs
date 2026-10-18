@@ -10,7 +10,6 @@ mod gemini_browser;
 mod hn_api;
 mod key_account;
 mod markup;
-mod openai_compatible;
 mod opencli;
 mod serpapi;
 pub(crate) mod shared;
@@ -31,8 +30,8 @@ pub(crate) use crate::catalog::ProviderId;
 pub(crate) use arxiv::ArxivApi;
 pub(crate) use chatgpt_browser::ChatgptBrowser;
 pub(crate) use constructors::{
-    build_chatgpt_browser, build_context7, build_exa, build_gemini_browser,
-    build_openai_compatible, build_tavily_map, build_xai, route_limiter,
+    build_chatgpt_browser, build_context7, build_exa, build_gemini_browser, build_tavily_map,
+    build_xai, route_limiter,
 };
 pub(crate) use context7::{Context7, Context7DocsRequest, Context7LibraryRequest};
 pub(crate) use exa::{Exa, ExaSearchRequest, ExaSimilarRequest, SearchType};
@@ -51,7 +50,6 @@ pub(crate) use gemini_api::GeminiApi;
 pub(crate) use gemini_browser::GeminiBrowser;
 pub(crate) use hn_api::HnApi;
 pub(crate) use key_account::{KeyAccount, KeyQuota};
-pub(crate) use openai_compatible::{ModelBreakers, OpenAiCompatible};
 pub(crate) use opencli::check_contract as check_opencli_contract;
 pub(crate) use serpapi::Serpapi;
 pub(crate) use ssrn_browser::SsrnBrowser;

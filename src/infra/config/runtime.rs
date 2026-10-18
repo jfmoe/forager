@@ -76,15 +76,6 @@ pub(crate) struct XaiRuntimeConfig {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct OpenAiCompatibleRuntimeConfig {
-    pub(crate) url: String,
-    pub(crate) keys: Vec<Secret>,
-    pub(crate) model: String,
-    pub(crate) fallback_models: Vec<String>,
-    pub(crate) stream: bool,
-}
-
-#[derive(Clone, Debug)]
 pub(crate) struct ClassifierRuntimeConfig {
     pub(crate) url: String,
     pub(crate) keys: Vec<Secret>,
@@ -108,7 +99,6 @@ pub(crate) struct MainSearchRuntimeConfig {
 #[derive(Clone, Debug)]
 pub(crate) enum MainSearchProviderConfig {
     Xai(XaiRuntimeConfig),
-    OpenAiCompatible(OpenAiCompatibleRuntimeConfig),
 }
 
 fn provider_configured(id: ProviderId, keys: &[Secret]) -> bool {
@@ -119,23 +109,12 @@ impl MainSearchProviderConfig {
     pub(crate) fn configured(&self) -> bool {
         match self {
             Self::Xai(config) => provider_configured(ProviderId::Xai, &config.keys),
-            Self::OpenAiCompatible(config) => {
-                provider_configured(ProviderId::OpenAiCompatible, &config.keys)
-            }
         }
     }
 
     pub(crate) fn url(&self) -> &str {
         match self {
             Self::Xai(config) => &config.url,
-            Self::OpenAiCompatible(config) => &config.url,
-        }
-    }
-
-    pub(crate) fn model(&self) -> &str {
-        match self {
-            Self::Xai(config) => &config.model,
-            Self::OpenAiCompatible(config) => &config.model,
         }
     }
 }
@@ -481,7 +460,6 @@ pub(crate) struct RuntimeConfig {
     pub(crate) main_search: MainSearchRuntimeConfig,
     pub(crate) classifier: ClassifierRuntimeConfig,
     pub(crate) xai: XaiRuntimeConfig,
-    pub(crate) openai_compatible: OpenAiCompatibleRuntimeConfig,
     pub(crate) exa: ExaRuntimeConfig,
     pub(crate) context7: Context7RuntimeConfig,
     pub(crate) platform_routes: PlatformRoutesRuntimeConfig,
@@ -520,10 +498,6 @@ impl RuntimeConfig {
             ProviderId::Xai => ProviderRuntime {
                 endpoint: &self.xai.url,
                 keys: &self.xai.keys,
-            },
-            ProviderId::OpenAiCompatible => ProviderRuntime {
-                endpoint: &self.openai_compatible.url,
-                keys: &self.openai_compatible.keys,
             },
             ProviderId::Exa => ProviderRuntime {
                 endpoint: &self.exa.url,
@@ -695,14 +669,7 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         fallback_models: config.classifier.fallback_models,
         timeout_seconds: config.classifier.timeout,
     };
-    let openai_compatible = OpenAiCompatibleRuntimeConfig {
-        url: config.providers.openai_compatible.url,
-        keys: config.providers.openai_compatible.keys,
-        model: config.providers.openai_compatible.model,
-        fallback_models: config.providers.openai_compatible.fallback_models,
-        stream: config.providers.openai_compatible.stream,
-    };
-    let main_entries = main_search_entries(config.search.backends, &xai, &openai_compatible)?;
+    let main_entries = main_search_entries(config.search.backends, &xai)?;
     let docs_entries = docs_search_entries(config.capabilities.docs_search.order, &exa, &context7)?;
     let web_search_entries = web_entries(
         config.capabilities.web_search.order,
@@ -754,7 +721,6 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         },
         classifier,
         xai,
-        openai_compatible,
         exa,
         context7,
         platform_routes,
@@ -799,14 +765,13 @@ fn unknown_provider(name: &str, seam: &str) -> ConfigError {
 fn main_search_entries(
     order: Vec<String>,
     xai: &XaiRuntimeConfig,
-    openai: &OpenAiCompatibleRuntimeConfig,
 ) -> Result<Vec<SeamEntry<MainSearchProviderConfig>>, ConfigError> {
     order
         .into_iter()
         .map(|name| {
             let id = ProviderId::parse(&name)
                 .ok_or_else(|| unknown_provider(&name, "search.backends"))?;
-            let config = main_provider_config(id, xai, openai)
+            let config = main_provider_config(id, xai)
                 .ok_or_else(|| unknown_provider(&name, "search.backends"))?;
             let configured = config.configured();
             Ok(SeamEntry::new(id, config, configured))
@@ -912,13 +877,9 @@ pub(crate) fn platform_route_config(
 pub(crate) fn main_provider_config(
     id: ProviderId,
     xai: &XaiRuntimeConfig,
-    openai: &OpenAiCompatibleRuntimeConfig,
 ) -> Option<MainSearchProviderConfig> {
     match id {
         ProviderId::Xai => Some(MainSearchProviderConfig::Xai(xai.clone())),
-        ProviderId::OpenAiCompatible => {
-            Some(MainSearchProviderConfig::OpenAiCompatible(openai.clone()))
-        }
         _ => None,
     }
 }
@@ -1008,7 +969,6 @@ mod tests {
         let mut config = Config::default();
         config.classifier.keys = vec![Secret::from("classifier-canary")];
         config.providers.xai.keys = vec![Secret::from("xai-canary")];
-        config.providers.openai_compatible.keys = vec![Secret::from("openai-canary")];
         config.providers.exa.keys = vec![Secret::from("exa-canary")];
         config.providers.context7.keys = vec![Secret::from("context7-canary")];
         config.providers.jina.keys = vec![Secret::from("jina-canary")];
@@ -1019,8 +979,8 @@ mod tests {
         let credentials = configured_credentials(&config);
         let debug = format!("{credentials:?}");
 
-        assert_eq!(credentials.len(), 9);
-        assert_eq!(debug.matches(CREDENTIAL_MASK).count(), 9);
+        assert_eq!(credentials.len(), 8);
+        assert_eq!(debug.matches(CREDENTIAL_MASK).count(), 8);
         assert!(!debug.contains("canary"));
     }
 

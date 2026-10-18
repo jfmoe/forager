@@ -44,8 +44,8 @@ fn offline_smoke_reports_local_readiness_without_contacting_provider_endpoints()
             Some(0),
             &Value::String("offline".into()),
             &Value::Bool(true),
-            &json!({"ok": true, "provider_count": 18}),
-            Some(18),
+            &json!({"ok": true, "provider_count": 17}),
+            Some(17),
             &json!(["********"]),
             &json!(["********"]),
             &Value::Bool(true),
@@ -70,10 +70,9 @@ fn live_smoke_lists_exactly_the_specification_case_registry_without_l0_doctor_ga
     let output = environment.run(&["smoke", "--live", "--list"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live registry JSON");
     let expected = json!([
-        "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11",
-        "C12", "C13", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24", "C25", "C26", "C27",
-        "C28", "C29", "C30", "C31", "C32", "C33", "C34", "C35", "C36", "C37", "C38", "C39", "C40",
-        "C41", "C42"
+        "P1", "P2", "C01", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "C13",
+        "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24", "C25", "C26", "C27", "C28", "C29",
+        "C30", "C31", "C32", "C33", "C34", "C35", "C36", "C37", "C38", "C39", "C40", "C41", "C42"
     ]);
 
     assert_eq!(
@@ -118,14 +117,14 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
             &failed_payload["summary"],
             &failed_c01["status"],
             &failed_c01["attempts"],
-            &case(&failed_payload, "C02")["status"],
+            &case(&failed_payload, "C04")["status"],
             &case(&failed_payload, "P1")["status"],
         ),
         (
             Some(4),
             &Value::String("live".into()),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 40, "skipped": 0}),
+            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 38, "skipped": 0}),
             &Value::String("failed".into()),
             &Value::Number(3.into()),
             &Value::String("unconfigured".into()),
@@ -162,7 +161,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
         (
             Some(4),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 40, "skipped": 0}),
+            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 38, "skipped": 0}),
             &Value::String("deferred".into()),
             &Value::Number(3.into()),
             &Value::String("http://127.0.0.1:9?token=********".into()),
@@ -272,7 +271,7 @@ fn live_smoke_passes_a_configured_case_only_after_a_zero_parseable_nonempty_term
         ),
         (
             Some(4),
-            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 40, "skipped": 0}),
+            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 38, "skipped": 0}),
             &Value::String("passed".into()),
             &Value::Number(1.into()),
         ),
@@ -508,7 +507,7 @@ fn live_smoke_runs_the_platform_cases_through_their_configured_route() {
             algolia_requests[1].starts_with("GET /items/8863 "),
         ),
         (
-            &json!({"passed": 7, "failed": 0, "deferred": 0, "unconfigured": 34, "skipped": 0}),
+            &json!({"passed": 7, "failed": 0, "deferred": 0, "unconfigured": 32, "skipped": 0}),
             [(); 7].map(|()| Value::String("passed".into())),
             [
                 &Value::String("arxiv".into()),
@@ -1166,10 +1165,6 @@ model = "classifier-model"
 url = {endpoint:?}
 keys = ["xai-secret"]
 
-[providers.openai_compatible]
-url = {endpoint:?}
-keys = ["openai-secret"]
-
 [providers.exa]
 url = {endpoint:?}
 keys = ["exa-secret"]
@@ -1242,11 +1237,10 @@ dir = {journal_dir:?}
     )
 }
 
-fn provider_secrets() -> [&'static str; 8] {
+fn provider_secrets() -> [&'static str; 7] {
     [
         "classifier-secret",
         "xai-secret",
-        "openai-secret",
         "exa-secret",
         "tavily-secret",
         "firecrawl-secret",

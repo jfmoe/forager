@@ -251,7 +251,6 @@ async fn fetch_metadata(
         .map(|context| ChainStep {
             context,
             configured: true,
-            gate_attempt: None,
         })
         .collect();
     let outcome = chain::run_chain(
@@ -268,7 +267,6 @@ async fn fetch_metadata(
                 exhausted_message: "platform fetch deadline elapsed",
             },
             identity: &route_identity,
-            continue_on_failure: &chain::always_continue,
         },
         deadline,
         |config, step_deadline| {

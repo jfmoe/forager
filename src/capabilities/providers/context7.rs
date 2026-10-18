@@ -88,7 +88,6 @@ impl Context7 {
                 model: None,
                 transport: Some("mcp"),
                 endpoint_host: None,
-                breaker_event: None,
             },
             |credential, attempt_deadline| {
                 let redirect_capture = Arc::clone(&redirect_capture);

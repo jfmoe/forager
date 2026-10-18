@@ -292,7 +292,6 @@ pub(crate) async fn run_page(
         .map(|context| ChainStep {
             context,
             configured: true,
-            gate_attempt: None,
         })
         .collect();
     let result = chain::run_chain(
@@ -309,7 +308,6 @@ pub(crate) async fn run_page(
                 exhausted_message: request.deadline_message(),
             },
             identity: &route_identity,
-            continue_on_failure: &chain::always_continue,
         },
         deadline,
         |config, step_deadline| {

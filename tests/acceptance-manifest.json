@@ -44,12 +44,6 @@
       "test": "tests/search.rs::search_uses_the_completed_xai_response_and_deduplicates_sources"
     },
     {
-      "id": "F02",
-      "provider": "openai_compatible",
-      "seam": "main_search",
-      "test": "tests/search.rs::search_falls_back_from_xai_to_openai_compatible_non_stream"
-    },
-    {
       "id": "F03",
       "provider": "tavily",
       "seam": "web_search",
@@ -267,7 +261,7 @@
     {
       "id": "E02",
       "requirements": ["T1-exit-codes"],
-      "test": "tests/search.rs::search_attribution_uses_each_provider_final_attempt_and_error_priority"
+      "test": "tests/fetch.rs::fetch_attribution_uses_each_provider_final_attempt_and_error_priority"
     },
     {
       "id": "E03",
@@ -277,7 +271,7 @@
     {
       "id": "E04",
       "requirements": ["T1-fallback"],
-      "test": "tests/search.rs::search_falls_back_from_xai_to_openai_compatible_non_stream"
+      "test": "tests/fetch.rs::fetch_uses_the_default_provider_order_and_falls_back_after_thin_html"
     },
     {
       "id": "E05",

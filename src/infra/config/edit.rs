@@ -109,15 +109,6 @@ impl SetupDocument {
         })
     }
 
-    /// Returns the first configured search backend, falling back to `xai`.
-    #[must_use]
-    pub fn primary_backend(&self) -> &str {
-        document_array(&self.document, "search.backends")
-            .and_then(|array| array.iter().find_map(Value::as_str))
-            .filter(|backend| matches!(*backend, "xai" | "openai_compatible"))
-            .unwrap_or("xai")
-    }
-
     /// Returns a string leaf from the file or built-in defaults.
     #[must_use]
     pub fn string(&self, path: &str) -> &str {

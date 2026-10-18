@@ -5,8 +5,8 @@ use chrono::{Datelike, Local, Weekday};
 
 use super::{
     ArxivApi, Context7, Context7DocsRequest, Context7LibraryRequest, Exa, ExaSearchRequest, HnApi,
-    OpenAiCompatible, SearchType, Serpapi, SsrnBrowser, SsrnCrossref, SupplementalSearch, Xai,
-    XiaohongshuBrowser, YoutubeApi, YoutubeWeb,
+    SearchType, Serpapi, SsrnBrowser, SsrnCrossref, SupplementalSearch, Xai, XiaohongshuBrowser,
+    YoutubeApi, YoutubeWeb,
 };
 use crate::types::{
     Context7Outcome, DocumentationEvidence, DocumentationSearchOutcome, EvidenceLocator,
@@ -18,7 +18,6 @@ use crate::types::{
 pub(crate) struct MainSearchRequest {
     pub(crate) query: String,
     pub(crate) model: Option<String>,
-    pub(crate) allow_model_fallback: bool,
     pub(crate) verbose: bool,
 }
 
@@ -408,24 +407,6 @@ impl DocsSearch for Context7 {
 }
 
 impl MainSearch for Xai {
-    fn search(
-        &self,
-        request: MainSearchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<crate::types::SearchOutcome, ProviderError>> + Send + '_>>
-    {
-        Box::pin(self.search(request))
-    }
-
-    fn probe(
-        &self,
-        request: MainSearchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<crate::types::SearchOutcome, ProviderError>> + Send + '_>>
-    {
-        Box::pin(self.probe(request))
-    }
-}
-
-impl MainSearch for OpenAiCompatible {
     fn search(
         &self,
         request: MainSearchRequest,

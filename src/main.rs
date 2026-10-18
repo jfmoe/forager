@@ -1200,7 +1200,7 @@ mod tests {
         "exa",
         "firecrawl",
         "jina",
-        "openai_compatible",
+        "serpapi",
         "tavily",
         "xai",
     ];
@@ -1235,7 +1235,6 @@ mod tests {
             model: None,
             transport: None,
             endpoint_host: None,
-            breaker_event: None,
         }
     }
 }

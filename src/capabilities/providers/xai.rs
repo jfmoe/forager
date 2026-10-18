@@ -118,7 +118,6 @@ impl Xai {
             endpoint_host: reqwest::Url::parse(&self.config.url)
                 .ok()
                 .and_then(|url| url.host_str().map(ToOwned::to_owned)),
-            breaker_event: None,
         }
     }
 

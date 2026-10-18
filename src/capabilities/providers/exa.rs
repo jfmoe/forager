@@ -96,7 +96,6 @@ impl Exa {
                 model: None,
                 transport: Some("http"),
                 endpoint_host: None,
-                breaker_event: None,
             },
             |credential, _| async move {
                 self.send_once(operation_ref, &credential)

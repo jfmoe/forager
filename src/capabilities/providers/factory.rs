@@ -1,16 +1,13 @@
-use std::sync::Arc;
-
 use reqwest::Client;
 
 use super::constructors::{
     build_chatgpt_browser, build_gemini_browser, credentials, route_limiter,
 };
 use super::{
-    ArxivApi, DocsSearch, GeminiApi, HnApi, KeyAccount, KeyQuota, MainSearch, ModelBreakers,
-    PlatformFetch, PlatformSearch, ProviderId, Serpapi, SsrnBrowser, SsrnCrossref,
-    SupplementalSearch, WebFetch, WebSearch, XiaohongshuBrowser, YoutubeApi, YoutubeWeb, arxiv,
-    hn_api, opencli, serpapi, ssrn_browser, ssrn_crossref, web_fetch, xai, xiaohongshu_browser,
-    youtube_api, youtube_web,
+    ArxivApi, DocsSearch, GeminiApi, HnApi, KeyAccount, KeyQuota, MainSearch, PlatformFetch,
+    PlatformSearch, ProviderId, Serpapi, SsrnBrowser, SsrnCrossref, SupplementalSearch, WebFetch,
+    WebSearch, XiaohongshuBrowser, YoutubeApi, YoutubeWeb, arxiv, hn_api, opencli, serpapi,
+    ssrn_browser, ssrn_crossref, web_fetch, xai, xiaohongshu_browser, youtube_api, youtube_web,
 };
 use crate::catalog::{ProviderTransport, WEB_FETCH, WEB_SEARCH, registration};
 use crate::config::{
@@ -66,20 +63,10 @@ pub(crate) fn build_main_search(
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
-    breakers: Arc<ModelBreakers>,
 ) -> Box<dyn MainSearch> {
     match (id, config) {
         (ProviderId::Xai, MainSearchProviderConfig::Xai(config)) => {
             Box::new(super::build_xai(config, client, retry_policy, deadline))
-        }
-        (ProviderId::OpenAiCompatible, MainSearchProviderConfig::OpenAiCompatible(config)) => {
-            Box::new(super::build_openai_compatible(
-                config,
-                client,
-                retry_policy,
-                deadline,
-                breakers,
-            ))
         }
         _ => unreachable!("validated main-search catalog entry has matching config"),
     }

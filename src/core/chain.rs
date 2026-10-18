@@ -1,12 +1,11 @@
 //! Typed chain runner shared by every ordered fallback loop.
 //!
-//! Three levels of the search path perform the same bookkeeping over an
-//! ordered step list: the provider chain inside each Capability Seam
-//! (`engine`), the model chains (`classifier` and OpenAI-compatible), and the
-//! OpenAI-compatible SSE→HTTP transport fallback. This module owns that
-//! bookkeeping once: fallback-off head pinning and configured filtering,
-//! budget slicing (ADR-0007: [`BudgetPolicy::PrimaryFirst`] for main search,
-//! `SlicedEven` for auxiliary seams and the classifier stage cap), synthetic
+//! Two levels of the search path perform the same bookkeeping over an ordered
+//! step list: the provider chain inside each Capability Seam (`engine`) and
+//! the classifier model chain. This module owns that bookkeeping once:
+//! fallback-off head pinning and configured filtering, budget slicing
+//! (ADR-0007: [`BudgetPolicy::PrimaryFirst`] for main search, `SlicedEven` for
+//! auxiliary seams and the classifier stage cap), synthetic
 //! skipped/unconfigured attempt records, attempt and diagnostic merging,
 //! quality-gate marking, unconsumed-success semantics, and terminal
 //! attribution through [`attempt_trace`]. Each call site keeps declaring its
@@ -39,7 +38,7 @@ pub(crate) enum BudgetPolicy {
 pub(crate) enum DiagnosticMerge {
     /// Provider chains: join every present diagnostic in step order.
     Join,
-    /// Model and transport chains: the latest present diagnostic wins.
+    /// Model chains: the latest present diagnostic wins.
     LatestWins,
 }
 
@@ -59,13 +58,6 @@ pub(crate) enum TerminalPolicy {
         default_kind: AttemptErrorKind,
         exhausted_message: &'static str,
     },
-    /// Transport chains: keep the last step's error with the merged attempts
-    /// and diagnostic; the fallback fields cover a chain that never ran.
-    LastError {
-        verbose: bool,
-        fallback_kind: AttemptErrorKind,
-        fallback_message: &'static str,
-    },
 }
 
 /// The identity a step would record, used for synthetic attempts.
@@ -75,17 +67,12 @@ pub(crate) struct StepIdentity {
     pub(crate) endpoint_host: Option<String>,
 }
 
-/// One ordered step: the run context plus its pre-evaluated gate record.
+/// One ordered step and whether it can run.
 pub(crate) struct ChainStep<S> {
     pub(crate) context: S,
     /// `false` entries are dropped unless `fallback_off` pins the chain head;
     /// a pinned unconfigured head records an auth failure and ends the chain.
     pub(crate) configured: bool,
-    /// Pre-run gate record (e.g. an open model breaker): a present value is
-    /// appended before any step runs and the step is excluded from the loop.
-    /// Never combine with [`BudgetPolicy::SlicedEven`]: the slice divisor
-    /// counts gate-excluded steps.
-    pub(crate) gate_attempt: Option<ProviderAttempt>,
 }
 
 /// Per-call-site chain parameters; the runner supplies the bookkeeping.
@@ -98,15 +85,6 @@ pub(crate) struct ChainSettings<'a, S> {
     pub(crate) terminal: TerminalPolicy,
     /// Identity used for synthetic skipped/unconfigured attempts.
     pub(crate) identity: &'a (dyn Fn(&S) -> StepIdentity + Send + Sync),
-    /// Whether the chain continues after a step failure. The transport
-    /// fallback restricts this to timeout/network/runtime kinds; every other
-    /// chain passes [`always_continue`].
-    pub(crate) continue_on_failure: &'a (dyn Fn(&ProviderError) -> bool + Send + Sync),
-}
-
-/// Every chain except the transport fallback continues after any failure.
-pub(crate) fn always_continue(_: &ProviderError) -> bool {
-    true
 }
 
 /// A step that produced a value, with its attempts and optional diagnostic.
@@ -145,12 +123,6 @@ pub(crate) struct ChainOutcome<T> {
     pub(crate) diagnostic: Option<String>,
 }
 
-struct PreparedChain<S> {
-    total: usize,
-    attempts: Vec<ProviderAttempt>,
-    runnable: Vec<(usize, ChainStep<S>)>,
-}
-
 /// Runs `steps` in order under `settings`, merging attempts and diagnostics
 /// and closing out through the configured terminal policy.
 pub(crate) async fn run_chain<S, T, Run, Fut>(
@@ -163,23 +135,12 @@ where
     Run: FnMut(S, Deadline) -> Fut,
     Fut: Future<Output = StepVerdict<T>>,
 {
-    // SlicedEven slices by `total - index`, which counts gate-excluded steps;
-    // every current call site pairs gates with PrimaryFirst, so reject the
-    // combination loudly instead of silently slicing conservatively.
-    debug_assert!(
-        matches!(settings.budget_policy, BudgetPolicy::PrimaryFirst)
-            || steps.iter().all(|step| step.gate_attempt.is_none()),
-        "gate_attempt steps distort SlicedEven budget slicing"
-    );
-    let PreparedChain {
-        total,
-        mut attempts,
-        runnable,
-    } = prepare_steps(steps, settings.fallback_off);
+    let steps = runnable_steps(steps, settings.fallback_off);
+    let total = steps.len();
+    let mut attempts = Vec::new();
     let mut diagnostics = Vec::new();
     let mut unconsumed_success = None;
-    let mut last_error = None;
-    for (index, step) in runnable {
+    for (index, step) in steps.into_iter().enumerate() {
         if !step.configured {
             attempts.push(unconfigured_attempt(
                 &(settings.identity)(&step.context),
@@ -232,12 +193,7 @@ where
             }
             StepVerdict::Failed(mut error) => {
                 attempts.append(&mut error.attempts);
-                diagnostics.push(error.diagnostic.take());
-                let continues = (settings.continue_on_failure)(&error);
-                last_error = Some(error);
-                if !continues {
-                    break;
-                }
+                diagnostics.push(error.diagnostic);
             }
         }
     }
@@ -249,38 +205,14 @@ where
             diagnostic,
         });
     }
-    Err(terminal_error(
-        settings.terminal,
-        attempts,
-        diagnostic,
-        last_error,
-    ))
+    Err(terminal_error(settings.terminal, attempts, diagnostic))
 }
 
-fn prepare_steps<S>(steps: Vec<ChainStep<S>>, fallback_off: bool) -> PreparedChain<S> {
-    let steps = if fallback_off {
-        steps.into_iter().take(1).collect::<Vec<_>>()
+fn runnable_steps<S>(steps: Vec<ChainStep<S>>, fallback_off: bool) -> Vec<ChainStep<S>> {
+    if fallback_off {
+        steps.into_iter().take(1).collect()
     } else {
-        steps
-            .into_iter()
-            .filter(|step| step.configured)
-            .collect::<Vec<_>>()
-    };
-    let total = steps.len();
-    // Gate attempts are recorded before the chain runs, preserving the model
-    // breaker pre-pass ordering even when an earlier runnable step succeeds.
-    let mut attempts = Vec::new();
-    let mut runnable = Vec::new();
-    for (index, step) in steps.into_iter().enumerate() {
-        match step.gate_attempt {
-            Some(attempt) => attempts.push(attempt),
-            None => runnable.push((index, step)),
-        }
-    }
-    PreparedChain {
-        total,
-        attempts,
-        runnable,
+        steps.into_iter().filter(|step| step.configured).collect()
     }
 }
 
@@ -357,7 +289,6 @@ fn terminal_error(
     policy: TerminalPolicy,
     attempts: Vec<ProviderAttempt>,
     diagnostic: Option<String>,
-    last_error: Option<ProviderError>,
 ) -> ProviderError {
     match policy {
         TerminalPolicy::ChainWide {
@@ -384,25 +315,6 @@ fn terminal_error(
                 redirected_library_id: None,
             }
         }
-        TerminalPolicy::LastError {
-            verbose,
-            fallback_kind,
-            fallback_message,
-        } => match last_error {
-            Some(mut error) => {
-                error.attempts = attempts;
-                error.diagnostic = diagnostic;
-                error
-            }
-            None => ProviderError {
-                kind: fallback_kind,
-                message: fallback_message.to_owned(),
-                attempts,
-                verbose,
-                diagnostic,
-                redirected_library_id: None,
-            },
-        },
     }
 }
 
@@ -436,7 +348,6 @@ fn synthetic_attempt(
         model: identity.model.clone(),
         transport: None,
         endpoint_host: identity.endpoint_host.clone(),
-        breaker_event: None,
     }
 }
 

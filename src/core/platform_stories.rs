@@ -67,7 +67,6 @@ pub(crate) async fn run_stories(
         .map(|context| ChainStep {
             context,
             configured: true,
-            gate_attempt: None,
         })
         .collect();
     let result = chain::run_chain(
@@ -84,7 +83,6 @@ pub(crate) async fn run_stories(
                 exhausted_message: "platform stories deadline elapsed",
             },
             identity: &route_identity,
-            continue_on_failure: &chain::always_continue,
         },
         deadline,
         |config: PlatformRouteConfig, step_deadline| {
