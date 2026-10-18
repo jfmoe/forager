@@ -316,7 +316,7 @@ fn full_text_without_youtube_web_and_lang_outside_full_text_fail_before_any_requ
         message.contains("the Data API does not serve captions")
             && message.contains("never your account")
             && message.contains(
-                r#"forager config set platforms.youtube.order '["youtube_api", "youtube_web"]'"#
+                r#"forager config set platforms.youtube.order '["youtube_api", "youtube_web", "gemini_api"]'"#
             ),
         "{message}"
     );
