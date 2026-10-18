@@ -1,0 +1,196 @@
+[
+  {
+    "provider": "firecrawl",
+    "variant": "full",
+    "url": "https://x.com/cjtong_X/article/2070043847749771285",
+    "http_status": 403,
+    "seconds": 0.6,
+    "content_chars": 0,
+    "label": "firecrawl-full-A",
+    "marker_counts": {
+      "成功解析【机场A】节点数量：0": 0,
+      "sing-box version": 0,
+      "| sing-box | 1.12.25": 0,
+      "access_mode=\"direct\"": 0,
+      "网络配置原封不动": 0,
+      "解码出来的内容让我愣住了": 0
+    },
+    "code_fences": 0,
+    "code_block_excerpt": null,
+    "error_body": {
+      "success": false,
+      "error": "We apologize for the inconvenience but we do not support this site. If you are part of an enterprise and want to have a further conversation about this, please contact our sales team here: https://www.firecrawl.dev/contact-sales"
+    }
+  },
+  {
+    "provider": "firecrawl",
+    "variant": "main",
+    "url": "https://x.com/cjtong_X/article/2070043847749771285",
+    "http_status": 403,
+    "seconds": 0.6,
+    "content_chars": 0,
+    "label": "firecrawl-main-A",
+    "marker_counts": {
+      "成功解析【机场A】节点数量：0": 0,
+      "sing-box version": 0,
+      "| sing-box | 1.12.25": 0,
+      "access_mode=\"direct\"": 0,
+      "网络配置原封不动": 0,
+      "解码出来的内容让我愣住了": 0
+    },
+    "code_fences": 0,
+    "code_block_excerpt": null,
+    "error_body": {
+      "success": false,
+      "error": "We apologize for the inconvenience but we do not support this site. If you are part of an enterprise and want to have a further conversation about this, please contact our sales team here: https://www.firecrawl.dev/contact-sales"
+    }
+  },
+  {
+    "provider": "jina",
+    "variant": "x-engine=browser",
+    "url": "https://x.com/cjtong_X/article/2070043847749771285",
+    "http_status": 200,
+    "seconds": 0.5,
+    "content_chars": 9129,
+    "label": "jina-browser-A",
+    "marker_counts": {
+      "成功解析【机场A】节点数量：0": 2,
+      "sing-box version": 1,
+      "| sing-box | 1.12.25": 1,
+      "access_mode=\"direct\"": 2,
+      "网络配置原封不动": 1,
+      "解码出来的内容让我愣住了": 1
+    },
+    "code_fences": 20,
+    "code_block_excerpt": "`\n# 系统版本\ncat /etc/os-release  # ImmortalWrt 23.05.2\n\n# 代理核心\nsing-box version      # 1.8.13  ← 2024 年 3 月的版本\nxray version          # 1.8.11\n\n# PassWall\nopkg list-installed | grep passwall  # luci-app-p"
+  },
+  {
+    "provider": "jina",
+    "variant": "x-engine=browser",
+    "url": "https://x.com/HelloMrYEE/article/2041336912842227756",
+    "http_status": 200,
+    "seconds": 0.6,
+    "content_chars": 3324,
+    "label": "jina-browser-B",
+    "marker_counts": {
+      "客户端会在这个范围内自动随机跳跃端口": 1
+    },
+    "code_fences": 0
+  },
+  {
+    "provider": "jina",
+    "variant": "default",
+    "url": "https://x.com/cjtong_X/article/2070043847749771285",
+    "http_status": 200,
+    "seconds": 3.6,
+    "content_chars": 9130,
+    "label": "jina-default-A",
+    "marker_counts": {
+      "成功解析【机场A】节点数量：0": 2,
+      "sing-box version": 1,
+      "| sing-box | 1.12.25": 1,
+      "access_mode=\"direct\"": 2,
+      "网络配置原封不动": 1,
+      "解码出来的内容让我愣住了": 1
+    },
+    "code_fences": 20,
+    "code_block_excerpt": "`\n# 系统版本\ncat /etc/os-release  # ImmortalWrt 23.05.2\n\n# 代理核心\nsing-box version      # 1.8.13  ← 2024 年 3 月的版本\nxray version          # 1.8.11\n\n# PassWall\nopkg list-installed | grep passwall  # luci-app-p"
+  },
+  {
+    "provider": "jina",
+    "variant": "default",
+    "url": "https://x.com/HelloMrYEE/article/2041336912842227756",
+    "http_status": 200,
+    "seconds": 4.2,
+    "content_chars": 3324,
+    "label": "jina-default-B",
+    "marker_counts": {
+      "客户端会在这个范围内自动随机跳跃端口": 1
+    },
+    "code_fences": 0
+  },
+  {
+    "provider": "jina",
+    "variant": "default",
+    "url": "https://x.com/TeamYouTube/status/2098634733248720992",
+    "http_status": 200,
+    "seconds": 5.3,
+    "content_chars": 4322,
+    "label": "jina-status-2098634733248720992",
+    "excerpt": "[](https://x.com/)\n\n## Post\n\n[Log in](https://x.com/i/jf/onboarding/web?mode=login&redirect_after_login=%2FTeamYouTube%2Fstatus%2F2098634733248720992)[Sign up](https://x.com/i/jf/onboarding/web?mode=signup&redirect_after_login=%2FTeamYouTube%2Fstatus%2F2098634733248720992)\n\n## Post\n\n[Log in](https://x.com/i/jf/onboarding/web?mode=login&redirect_after_login=%2FTeamYouTube%2Fstatus%2F2098634733248720992)[Sign up](https://x.com/i/jf/onboarding/web?mode=signup&redirect_after_login=%2FTeamYouTube%2Fstatus%2F2098634733248720992)\n\n# TeamYouTube on X: \"@RSJGamingOG This usually happens when you’re try"
+  },
+  {
+    "provider": "jina",
+    "variant": "default",
+    "url": "https://x.com/SpaceX/status/2110126570233094527",
+    "http_status": 200,
+    "seconds": 6.9,
+    "content_chars": 4960,
+    "label": "jina-status-2110126570233094527",
+    "excerpt": "[](https://x.com/)\n\n## Post\n\n[Log in](https://x.com/i/jf/onboarding/web?mode=login&redirect_after_login=%2FSpaceX%2Fstatus%2F2110126570233094527)[Sign up](https://x.com/i/jf/onboarding/web?mode=signup&redirect_after_login=%2FSpaceX%2Fstatus%2F2110126570233094527)\n\n## Post\n\n[Log in](https://x.com/i/jf/onboarding/web?mode=login&redirect_after_login=%2FSpaceX%2Fstatus%2F2110126570233094527)[Sign up](https://x.com/i/jf/onboarding/web?mode=signup&redirect_after_login=%2FSpaceX%2Fstatus%2F2110126570233094527)\n\n# SpaceX on X: \"The first Starship to return to its launch site, Ship 40's journey took it"
+  },
+  {
+    "provider": "tavily",
+    "variant": "advanced",
+    "url": "https://x.com/cjtong_X/article/2070043847749771285",
+    "http_status": 200,
+    "seconds": 0.6,
+    "content_chars": 11529,
+    "label": "tavily-advanced-A",
+    "marker_counts": {
+      "成功解析【机场A】节点数量：0": 2,
+      "sing-box version": 1,
+      "| sing-box | 1.12.25": 1,
+      "access_mode=\"direct\"": 2,
+      "网络配置原封不动": 0,
+      "解码出来的内容让我愣住了": 0
+    },
+    "code_fences": 24,
+    "code_block_excerpt": "05.2 cat /etc/os-release # ImmortalWrt 23.05.2 # 代理核心 # 代理核心sing-box version # 1.8.13 ← 2024 年 3 月的版本sing-box  version # 1.8.13 ← 2024 年 3 月的版本xray version # 1.8.11 xray  version # 1.8.11 # PassWall #"
+  },
+  {
+    "provider": "tavily",
+    "variant": "advanced",
+    "url": "https://x.com/HelloMrYEE/article/2041336912842227756",
+    "http_status": 200,
+    "seconds": 0.5,
+    "content_chars": 3184,
+    "label": "tavily-advanced-B",
+    "marker_counts": {
+      "客户端会在这个范围内自动随机跳跃端口": 0
+    },
+    "code_fences": 0
+  },
+  {
+    "provider": "tavily",
+    "variant": "basic",
+    "url": "https://x.com/cjtong_X/article/2070043847749771285",
+    "http_status": 200,
+    "seconds": 0.8,
+    "content_chars": 11529,
+    "label": "tavily-basic-A",
+    "marker_counts": {
+      "成功解析【机场A】节点数量：0": 2,
+      "sing-box version": 1,
+      "| sing-box | 1.12.25": 1,
+      "access_mode=\"direct\"": 2,
+      "网络配置原封不动": 0,
+      "解码出来的内容让我愣住了": 0
+    },
+    "code_fences": 24,
+    "code_block_excerpt": "05.2 cat /etc/os-release # ImmortalWrt 23.05.2 # 代理核心 # 代理核心sing-box version # 1.8.13 ← 2024 年 3 月的版本sing-box  version # 1.8.13 ← 2024 年 3 月的版本xray version # 1.8.11 xray  version # 1.8.11 # PassWall #"
+  },
+  {
+    "provider": "tavily",
+    "variant": "basic",
+    "url": "https://x.com/HelloMrYEE/article/2041336912842227756",
+    "http_status": 200,
+    "seconds": 0.6,
+    "content_chars": 3184,
+    "label": "tavily-basic-B",
+    "marker_counts": {
+      "客户端会在这个范围内自动随机跳跃端口": 0
+    },
+    "code_fences": 0
+  }
+]
