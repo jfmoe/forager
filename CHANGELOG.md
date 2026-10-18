@@ -7,6 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.14.0](https://github.com/jfmoe/forager/compare/v0.13.0...v0.14.0) - 2026-10-18
+
+### Added
+
+- *(youtube)* ask about and transcribe videos via gemini_api
+- *(youtube)* list a video's comments and a collection's videos
+- *(youtube)* read captions as a transcript via youtube_web
+- *(youtube)* search and fetch YouTube videos through the Data API
+
+### Fixed
+
+- *(transcript)* fold whitespace inside a cue by the joining rule
+- *(transcript)* join CJK cues without a space
+- *(youtube)* name a missing video in comments and strip API markup
+- *(youtube)* read a video's only caption track when its language is unknown
+- *(youtube)* build the youtube_web enable hint from the current order
+- *(youtube)* keep a channel's uploads playlist in its cursor
+- *(youtube)* report only an ASR-derived original language
+- *(youtube)* stop guessing live for unconfirmed live content
+
+### Other
+
+- *(core)* split the ask run by platform
+- name the precheck and unify shared module imports
+- split the platform catalog and YouTube smoke tests
+- *(providers)* give key account checks a shared owner
+- *(core)* pair the YouTube precheck with the YouTube ask
+- *(providers)* share one in-attempt refusal shape
+- *(youtube)* render YouTube transcripts through one binding
+- *(providers)* share count and UTC-second timestamp helpers
+- *(adr)* record the YouTube platform's three evidence routes
+- *(youtube)* record YouTube integration research and terms
+
 ## [0.13.0](https://github.com/jfmoe/forager/compare/v0.12.0...v0.13.0) - 2026-10-17
 
 ### Added
