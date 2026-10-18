@@ -198,7 +198,7 @@ ssl_verify = true
 
 ## `config` 命令
 
-1. 点路径寻址，**schema 即键清单**：`forager config set providers.exa.timeout 45`；非法路径＝退 2；set 时校验类型/enum；数组值＝TOML 字面量。
+1. 点路径寻址，**schema 即键清单**：`forager config set providers.exa.timeout 45`；非法路径＝退 2；set 时校验类型/enum；字符串、布尔、整数、浮点按原文解析，数组值＝TOML 字面量；字符串值首尾为同一种引号（`"…"` 或 `'…'`）时退 2 并提示去掉引号，不把引号写入（环境变量不做此检查）。
 2. `config set KEY -`＝stdin 读值（敏感值通道）：读完整 stdin、去恰一个末尾 LF/CRLF、空输入为合法空字符串、按目标类型解析。argv 通道保留，文档警示 shell history。
 3. 写入＝toml_edit 精确编辑 + 原子替换（保留未修改项注释/空白/相对顺序；不承诺 dotted-key 原始顺序）；`config set`/`config unset` 与 setup 的完整读-改-写或创建过程持有 `config_dir/.config.lock` 排他锁，最多等待 100ms，超时即报 config_error 且不写入。
 4. `config list`＝**生效视图**：每键 `{值（凭据掩码、数组逐元素掩码）, 来源 env/file/default}`；doctor 内嵌同一结构块（同一序列化器）。

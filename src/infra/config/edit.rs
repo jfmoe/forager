@@ -26,6 +26,7 @@ const LOCK_WAIT: Duration = Duration::from_millis(100);
 /// Returns an argument error for an invalid target or value, and a
 /// configuration error when the document cannot be parsed or written.
 pub fn set_file_value(path: &str, raw: &str) -> Result<(), EditError> {
+    reject_quoted_string(path, raw)?;
     let value = parse_edit_value(path, raw)?;
     let location = ConfigLocation::discover().map_err(EditError::Config)?;
     let file = location.config_file();
@@ -35,6 +36,21 @@ pub fn set_file_value(path: &str, raw: &str) -> Result<(), EditError> {
     set_document_path(&mut document, path, value)?;
     atomic_write(&location.config_dir, &file, document.to_string().as_bytes())
         .map_err(|error| EditError::Config(ConfigError::io(&file, error)))
+}
+
+/// String leaves take the raw text, so quotes written as a TOML string literal would be saved as
+/// part of the value.
+fn reject_quoted_string(path: &str, raw: &str) -> Result<(), EditError> {
+    let quoted = raw.len() >= 2
+        && ['"', '\'']
+            .into_iter()
+            .any(|quote| raw.starts_with(quote) && raw.ends_with(quote));
+    if quoted && matches!(path_kind(path), Some(ValueKind::String)) {
+        return Err(EditError::Argument(format!(
+            "`{path}` takes a string as plain text; remove the surrounding quotes"
+        )));
+    }
+    Ok(())
 }
 
 /// Removes one schema leaf from the file layer without strictly loading it.
@@ -477,4 +493,45 @@ fn open_private_lock(path: &Path) -> io::Result<File> {
         .open(path)?;
     restrict_private_file(path)?;
     Ok(file)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{EditError, reject_quoted_string};
+
+    #[test]
+    fn a_string_leaf_rejects_a_value_wrapped_in_double_quotes() {
+        let result = reject_quoted_string("providers.exa.url", r#""https://api.exa.ai""#);
+
+        assert!(
+            matches!(&result, Err(EditError::Argument(message)) if message.contains("quotes")),
+            "{result:?}"
+        );
+    }
+
+    #[test]
+    fn a_string_leaf_rejects_a_value_wrapped_in_single_quotes() {
+        let result = reject_quoted_string("providers.exa.url", "'https://api.exa.ai'");
+
+        assert!(matches!(result, Err(EditError::Argument(_))), "{result:?}");
+    }
+
+    #[test]
+    fn a_string_leaf_accepts_plain_text_and_inner_quotes() {
+        let plain = reject_quoted_string("providers.exa.url", "https://api.exa.ai");
+        let inner = reject_quoted_string("search.fallback", r#"say "hi" now"#);
+        let lone = reject_quoted_string("search.fallback", r#"""#);
+
+        assert!(
+            plain.is_ok() && inner.is_ok() && lone.is_ok(),
+            "{plain:?} {inner:?} {lone:?}"
+        );
+    }
+
+    #[test]
+    fn an_array_leaf_is_left_to_its_toml_literal_rule() {
+        let result = reject_quoted_string("search.backends", r#""xai""#);
+
+        assert!(result.is_ok(), "{result:?}");
+    }
 }
