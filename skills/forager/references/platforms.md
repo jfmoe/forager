@@ -269,7 +269,8 @@ the video shows (slides, code, charts) or of sounds other than speech.
   seconds and never retries; a full-text fetch takes three requests, so allow about 10 seconds a
   video and fetch only the videos the request needs.
 - **Track**: by default, the publisher's captions in the video's original language, else its
-  automatic (ASR) captions. `--lang en --lang de` sets the languages in priority order; every
+  automatic (ASR) captions; when the original language is unknown, the video's only caption track
+  if it has exactly one (then `language` stays `null`), otherwise none, and `--lang` must pick one. `--lang en --lang de` sets the languages in priority order; every
   publisher track in them comes before any ASR track. Machine translations are never used. The
   item's `caption_tracks` lists the tracks, and `transcript.source` says which kind was read:
   `manual` (the publisher's) or `asr` (YouTube's speech recognition, unpunctuated and error-prone).
