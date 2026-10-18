@@ -2,6 +2,17 @@ name: CI
 
 on:
   pull_request:
+    # A pull request that changes only documentation skips CI; pushes to main always run it.
+    # Keep every document that a test or build reads included, such as the spec chapters below
+    # and everything under skills/.
+    paths:
+      - "**"
+      - "!*.md"
+      - "!docs/**"
+      - "!.agents/**"
+      - "!.claude/**"
+      - "docs/spec/forager/04-architecture.md"
+      - "docs/spec/forager/07-platforms.md"
   push:
     branches:
       - main
