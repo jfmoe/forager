@@ -71,7 +71,7 @@
 | C28 | xiaohongshu_browser | platform xiaohongshu：fetch（在内存中接收 C27 第一条的 `access_url`，`--depth full_text`，正文写入本次用例的临时目录；通过时要求 `content_len` 大于 0，不要求 `title` 非空；门控与只执行一次同 C27） | process |
 | C29 | xiaohongshu_browser | platform xiaohongshu：comments（在内存中接收 C27 中评论数最多的一条（计数原文 `1.2万` 按 12000 计，相同取靠前者）的 `access_url`，`--limit 15 --replies 1`，覆盖评论第 2 页与一次楼中楼展开；通过时要求返回超过 10 条评论，且至少一条评论的 `replies` 多于自带的 1 条；不满足时记为 `skipped`（未验证），消息以 `not verified:` 开头写明哪一项未覆盖，不计 PASS；门控与只执行一次同 C27） | process |
 | C30 | xai | platform x：search（`platform x search 'retrieval augmented generation' --limit 3`；只在 `providers.xai.keys` 非空且 `platforms.x.order` 含 `xai` 时运行；每次运行读取的帖子数由模型决定，经 xAI 官方 API 时按读取的帖子数计费） | SSE |
-| C31 | xai | platform x：fetch（`platform x fetch x:2110126570233094527 --depth metadata`；门控同 C30；通过时要求 `ref` 与 `text` 非空） | SSE |
+| C31 | xai | platform x：fetch（`platform x fetch x:2098634733248720992 --depth metadata`；门控同 C30；通过时要求 `ref` 与 `text` 非空） | SSE |
 | C32 | xai | platform x：ask（`platform x ask 'What has SpaceX posted about Starship recently?'`；门控同 C30；通过时要求 `answer` 非空） | SSE |
 | C33 | hn_api | platform hn：search（`platform hn search rust --limit 5`；route 匿名且在默认 order 中，默认运行；`platforms.hn.order` 不含 `hn_api` 时为 unconfigured） | HTTP |
 | C34 | hn_api | platform hn：fetch（`platform hn fetch hn:8863 --depth thread`，2007 年 Dropbox 发布帖，约 70 条早已稳定的评论；讨论串写入临时目录；门控同 C33；通过时要求 `ref` 非空且 `content_len > 0`） | HTTP |

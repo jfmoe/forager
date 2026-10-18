@@ -1,10 +1,11 @@
 //! The X platform route through xAI's `x_search` tool (ADR 0026).
 //!
 //! xAI never returns what the tool read; the model relays the posts. Search and fetch ask for
-//! structured output and keep only posts whose IDs appear among the response's citations, which
-//! then list every post the tool read, and date each post by its snowflake ID. Ask keeps the
-//! model's inline citations instead. Every request sends `x_search` alone, whatever main search
-//! enables.
+//! structured output and date each post by its snowflake ID. Search keeps only posts whose IDs
+//! appear among the response's citations, which then list every post the search read; fetch
+//! keeps the requested post when the response records a thread fetch of it or cites it. Ask
+//! keeps the model's inline citations instead. Every request sends `x_search` alone, whatever
+//! main search enables.
 
 use std::collections::HashSet;
 
@@ -132,7 +133,10 @@ impl Xai {
             &input,
             vec![x_search_tool(&XSearchOptions::default())],
         )
-        .with_format(posts_format("x_thread", true));
+        .with_format(posts_format("x_thread", true))
+        // Without it the model sometimes skips the thread fetch and answers an empty list, which
+        // would read as a missing post.
+        .requiring_tool();
         let execution = self
             .run_x(PlatformOperation::Fetch.as_str(), &body, |response| {
                 decode_thread(response, requested, request.depth)
@@ -367,8 +371,9 @@ fn verify(url: &str, read: &HashSet<u64>, options: &XSearchOptions) -> Result<XR
 }
 
 /// Decodes the fetched post and, at `thread` depth, its conversation. The root must be the
-/// requested post and cited as read; the other posts cannot be checked, because the citations
-/// name only the root.
+/// requested post, and the response must show that the tool read it: a completed thread fetch of
+/// its ID, or a citation of it. The other posts cannot be checked: a thread fetch cites only the
+/// topmost post of the thread it read, which for a reply is its parent.
 fn decode_thread(
     response: &Value,
     requested: XRef,
@@ -398,9 +403,9 @@ fn decode_thread(
             root.url
         )));
     }
-    if !read.contains(&requested.post_id()) {
+    if !read.contains(&requested.post_id()) && !thread_fetched(response, requested) {
         return Err(runtime(format!(
-            "xAI did not cite x:{requested} among the posts it read"
+            "xAI neither fetched nor cited x:{requested} among the posts it read"
         )));
     }
     let mut skipped = Vec::new();
@@ -439,6 +444,28 @@ fn decode_thread(
         thread,
     );
     Ok((item, skipped))
+}
+
+/// Returns whether the response records a completed `x_thread_fetch` call of the post. xAI
+/// returns each server-side tool call with its arguments, though never what the call read.
+fn thread_fetched(response: &Value, post: XRef) -> bool {
+    #[derive(Deserialize)]
+    struct ThreadFetch {
+        post_id: String,
+    }
+    response
+        .get("output")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter(|item| {
+            item.get("type").and_then(Value::as_str) == Some("custom_tool_call")
+                && item.get("name").and_then(Value::as_str) == Some("x_thread_fetch")
+                && item.get("status").and_then(Value::as_str) == Some("completed")
+        })
+        .filter_map(|item| item.get("input").and_then(Value::as_str))
+        .filter_map(|input| serde_json::from_str::<ThreadFetch>(input).ok())
+        .any(|call| XRef::from_post_id(&call.post_id) == Some(post))
 }
 
 fn post_item(

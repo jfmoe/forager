@@ -27,6 +27,8 @@ pub(super) struct ResponsesRequest<'a> {
     /// The structured output format, for a caller that decodes JSON.
     #[serde(skip_serializing_if = "Option::is_none")]
     text: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool_choice: Option<&'static str>,
 }
 
 #[derive(Serialize)]
@@ -53,7 +55,14 @@ impl<'a> ResponsesRequest<'a> {
             stream: true,
             tools,
             text: None,
+            tool_choice: None,
         }
+    }
+
+    /// Requires the model to call a tool before it answers.
+    pub(super) fn requiring_tool(mut self) -> Self {
+        self.tool_choice = Some("required");
+        self
     }
 
     /// Asks for output in the `format` of the Responses API `text.format` field.

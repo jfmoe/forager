@@ -11,7 +11,7 @@ forager 的第五个平台 `x`（X，原 Twitter）只有一条 route `xai`。�
 - **接受 Relayed Content 作为平台条目，但身份与时间不依赖模型。**
   - search 用 json_schema 结构化输出取得帖子列表。结构化输出时，annotations 列出本次读到的全部来源；帖子 id 不在其中的条目被丢弃。2026-10-17 经 SuperGrok 订阅提供 Responses API 的网关实测：模型返回的帖子都在 annotations 中。
   - 发布时间由帖子 id（snowflake）推算，不取模型给出的时间。同日 3 条样本的推算值与模型给出值精确到秒一致。
-  - fetch 读取 thread，根帖须与请求一致并出现在 annotations 中。实测回复的 id 不出现在 annotations 中，无法核对，平台规范写明这一点。
+  - fetch 读取 thread，根帖须与请求一致，并且响应须记录了对请求 id 的 `x_thread_fetch` 调用，或在 annotations 中出现该 id。xAI 返回服务端工具调用的参数，所以这条调用记录不依赖模型的转述。2026-10-18 实测（`docs/research/x-fetch-2026-10-18/`）：thread 读取只为 thread 最上面的帖子生成注释，请求的帖子是回复时注释是它的父帖；只按注释核对时，回复都会被判为未读。fetch 请求设 `tool_choice: "required"`：不设时模型常跳过工具、直接返回空列表。thread 中其他帖子无法核对，平台规范写明这一点。
   - 正文与作者 handle 不保证逐字，search 条目深度为 `snippet`。
 - **只暴露服务端强制执行的参数**：账号白名单或黑名单、日期区间。排序由模型自选，服务端不强制，因此不提供。
 - **回答形态是独立的 Platform Operation Ask，不是 search 的字段或开关。** 结构化输出时回答失去逐句引用（实测 annotations 位置全为 0）。Ask 不用结构化输出，保留 `[[N]](url)` 引用，并沿用主搜索的来源规范化；引用的帖子映射为 Platform Ref，可以接着 fetch。

@@ -1,5 +1,5 @@
-//! `forager platform x fetch` against a local xAI Responses fixture built from the live thread
-//! read of 2026-10-17.
+//! `forager platform x fetch` against local xAI Responses fixtures built from the live thread
+//! reads of 2026-10-17 and 2026-10-18.
 
 mod support;
 
@@ -94,6 +94,19 @@ fn a_thread_fetch_returns_the_root_with_every_post_in_order() {
 }
 
 #[test]
+fn a_fetch_requires_the_model_to_call_its_tool() {
+    let (output, requests) = run(&[ROOT], vec![completed(&fixture("thread.json"))]);
+    let (_, body) = request(&requests[0]);
+
+    assert_eq!(
+        (output.status.code(), &body["tool_choice"]),
+        (Some(0), &json!("required")),
+        "stderr: {}",
+        stderr(&output)
+    );
+}
+
+#[test]
 fn metadata_depth_returns_the_post_without_its_thread() {
     let (output, _) = run(
         &[ROOT, "--depth", "metadata"],
@@ -155,8 +168,73 @@ fn a_root_other_than_the_requested_post_is_a_runtime_failure() {
 }
 
 #[test]
-fn a_root_the_response_does_not_cite_is_a_runtime_failure() {
+fn a_reply_is_fetched_although_its_thread_fetch_cites_only_the_parent() {
+    let (output, _) = run(
+        &["x:2098634733248720992"],
+        vec![completed(&fixture("reply_thread.json"))],
+    );
+    let item = payload(&output);
+    let roles = item["thread"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .map(|post| post["role"].clone())
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        (output.status.code(), &item["ref"], roles),
+        (
+            Some(0),
+            &json!("x:2098634733248720992"),
+            vec![json!("root"), json!("parent"), json!("reply")]
+        ),
+        "stderr: {}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn a_root_cited_without_a_thread_fetch_is_fetched() {
     let mut response = fixture("thread.json");
+    response["output"].as_array_mut().expect("output").remove(0);
+
+    let (output, _) = run(&[ROOT], vec![completed(&response)]);
+
+    assert_eq!(output.status.code(), Some(0), "stderr: {}", stderr(&output));
+}
+
+#[test]
+fn a_root_neither_thread_fetched_nor_cited_is_a_runtime_failure() {
+    let mut response = fixture("thread.json");
+    response["output"].as_array_mut().expect("output").remove(0);
+    response["output"][0]["content"][0]["annotations"] = json!([]);
+
+    let (output, _) = run(&[ROOT], vec![completed(&response)]);
+
+    assert_eq!(
+        (output.status.code(), &payload(&output)["error_kind"]),
+        (Some(4), &json!("runtime"))
+    );
+}
+
+#[test]
+fn a_thread_fetch_of_another_post_does_not_verify_the_root() {
+    let mut response = fixture("thread.json");
+    response["output"][0]["input"] = json!(r#"{"post_id":"2110126570233094000"}"#);
+    response["output"][1]["content"][0]["annotations"] = json!([]);
+
+    let (output, _) = run(&[ROOT], vec![completed(&response)]);
+
+    assert_eq!(
+        (output.status.code(), &payload(&output)["error_kind"]),
+        (Some(4), &json!("runtime"))
+    );
+}
+
+#[test]
+fn an_unfinished_thread_fetch_does_not_verify_the_root() {
+    let mut response = fixture("thread.json");
+    response["output"][0]["status"] = json!("failed");
     response["output"][1]["content"][0]["annotations"] = json!([]);
 
     let (output, _) = run(&[ROOT], vec![completed(&response)]);
