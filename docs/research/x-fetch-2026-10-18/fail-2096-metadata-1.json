@@ -1,0 +1,173 @@
+{
+  "label": "fail-2096-metadata-1",
+  "post_id": "2096318217585074319",
+  "depth": "metadata",
+  "model": "grok-4.5",
+  "endpoint_host": "SuperGrok subscription gateway",
+  "http_status": 200,
+  "seconds": 7.9,
+  "event_type_counts": {
+    "response.created": 1,
+    "response.in_progress": 1,
+    "response.output_item.added": 2,
+    "response.custom_tool_call_input.delta": 1,
+    "response.custom_tool_call_input.done": 1,
+    "response.output_item.done": 2,
+    "response.content_part.added": 1,
+    "response.output_text.delta": 131,
+    "response.output_text.annotation.added": 1,
+    "response.output_text.done": 1,
+    "response.content_part.done": 1,
+    "response.completed": 1
+  },
+  "response": {
+    "created_at": 1792291165,
+    "completed_at": 1792291172,
+    "id": "fa96a757-07a7-9a67-9f9a-d782ab2b9bfc",
+    "max_output_tokens": null,
+    "model": "grok-4.5",
+    "object": "response",
+    "output": [
+      {
+        "call_id": "xs_call-1a7927b3-e642-491c-8eaa-4431a43863e7-0",
+        "input": "{\"post_id\":\"2096318217585074319\"}",
+        "name": "x_thread_fetch",
+        "type": "custom_tool_call",
+        "id": "ctc_fa96a757-07a7-9a67-9f9a-d782ab2b9bfc_call-1a7927b3-e642-491c-8eaa-4431a43863e7-0",
+        "status": "completed"
+      },
+      {
+        "content": [
+          {
+            "type": "output_text",
+            "text": "{\"posts\":[{\"url\":\"https://x.com/AIAgentRealtors/status/2096318217585074319\",\"author_handle\":\"AIAgentRealtors\",\"text\":\"Tips? 😕\\n  \\n  I've hit a hard technical block! YouTube is blocking this machine's IP from accessing both API calls and browser views. \\n  \\n  What I tried:\\n  - youtube_transcript_api → ❌ RequestBlocked\\n  - yt-dlp → ❌ Require cookies/sign-in\\n  - Browser automation → ❌ Bot detection dialog\",\"role\":\"root\"}]}",
+            "logprobs": [],
+            "annotations": [
+              {
+                "type": "url_citation",
+                "url": "https://x.com/i/status/2096265603820540069",
+                "start_index": 0,
+                "end_index": 0,
+                "title": "https://x.com/i/status/2096265603820540069"
+              }
+            ]
+          }
+        ],
+        "id": "msg_fa96a757-07a7-9a67-9f9a-d782ab2b9bfc",
+        "role": "assistant",
+        "type": "message",
+        "status": "completed"
+      }
+    ],
+    "parallel_tool_calls": true,
+    "previous_response_id": null,
+    "reasoning": {
+      "effort": null,
+      "summary": null
+    },
+    "temperature": 0.699999988079071,
+    "text": {
+      "format": {
+        "type": "json_schema",
+        "schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "posts"
+          ],
+          "properties": {
+            "posts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "url",
+                  "author_handle",
+                  "text",
+                  "role"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "author_handle": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "parent",
+                      "root",
+                      "reply",
+                      "quoted"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "name": "x_thread",
+        "strict": true
+      }
+    },
+    "tool_choice": "auto",
+    "tools": [
+      {
+        "type": "x_search"
+      }
+    ],
+    "top_p": 0.949999988079071,
+    "usage": {
+      "input_tokens": 5095,
+      "input_tokens_details": {
+        "cached_tokens": 768
+      },
+      "output_tokens": 501,
+      "output_tokens_details": {
+        "reasoning_tokens": 349
+      },
+      "total_tokens": 5596,
+      "num_sources_used": 0,
+      "num_server_side_tools_used": 1,
+      "cost_in_usd_ticks": 140427360,
+      "server_side_tool_usage_details": {
+        "web_search_calls": 0,
+        "x_search_calls": 1,
+        "x_posts_fetched": 2,
+        "x_users_fetched": 0,
+        "code_interpreter_calls": 0,
+        "file_search_calls": 0,
+        "mcp_calls": 0,
+        "document_search_calls": 0,
+        "image_generation_calls": 0
+      },
+      "context_details": {
+        "input_tokens": 2873,
+        "output_tokens": 450
+      }
+    },
+    "user": null,
+    "incomplete_details": null,
+    "status": "completed",
+    "store": false,
+    "metadata": {
+      "system_fingerprint": "fp_a39489019fa99b6e"
+    },
+    "background": false,
+    "service_tier": "default",
+    "truncation": "disabled",
+    "top_logprobs": 0,
+    "presence_penalty": 0.0,
+    "frequency_penalty": 0.0,
+    "prompt_cache_key": "03d1c969-a29b-4dca-bd4c-f23ff0a3b297",
+    "max_tool_calls": null,
+    "safety_identifier": null,
+    "error": null,
+    "instructions": "You read X (formerly Twitter) with the x_search tool. Fetch the requested post with the tool's thread fetch, then list only that post, with role root. List only posts that your x_search tool calls returned in this response; never list a post from memory, and never invent or alter a URL. For each post give its URL in the form https://x.com/<handle>/status/<post_id>, the author's handle without @, and the full post text exactly as the tool returned it: do not translate, summarize, or shorten it. If the requested post does not exist or is not visible, return an empty posts array."
+  }
+}

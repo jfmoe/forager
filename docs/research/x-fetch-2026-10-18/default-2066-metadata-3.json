@@ -1,0 +1,159 @@
+{
+  "label": "default-2066-metadata-3",
+  "post_id": "2066593371951390888",
+  "depth": "metadata",
+  "tool_choice": null,
+  "model": "grok-4.5",
+  "endpoint_host": "SuperGrok subscription gateway",
+  "http_status": 200,
+  "seconds": 2.7,
+  "event_type_counts": {
+    "response.created": 1,
+    "response.in_progress": 1,
+    "response.output_item.added": 2,
+    "response.reasoning_summary_part.added": 1,
+    "response.reasoning_summary_text.delta": 2,
+    "response.reasoning_summary_text.done": 1,
+    "response.reasoning_summary_part.done": 1,
+    "response.output_item.done": 2,
+    "response.content_part.added": 1,
+    "response.output_text.delta": 4,
+    "response.output_text.done": 1,
+    "response.content_part.done": 1,
+    "response.completed": 1
+  },
+  "response": {
+    "created_at": 1792291912,
+    "completed_at": 1792291914,
+    "id": "ed8ea71a-a12e-9404-a0ba-44258feaada4",
+    "max_output_tokens": null,
+    "model": "grok-4.5",
+    "object": "response",
+    "output": [
+      {
+        "id": "rs_ed8ea71a-a12e-9404-a0ba-44258feaada4",
+        "summary": [
+          {
+            "text": "Fetching the X post with ID 2066593371951390888.",
+            "type": "summary_text"
+          }
+        ],
+        "type": "reasoning",
+        "status": "completed"
+      },
+      {
+        "content": [
+          {
+            "type": "output_text",
+            "text": "{\"posts\":[]}",
+            "logprobs": [],
+            "annotations": []
+          }
+        ],
+        "id": "msg_ed8ea71a-a12e-9404-a0ba-44258feaada4",
+        "role": "assistant",
+        "type": "message",
+        "status": "completed"
+      }
+    ],
+    "parallel_tool_calls": true,
+    "previous_response_id": null,
+    "reasoning": {
+      "effort": null,
+      "summary": null
+    },
+    "temperature": 0.699999988079071,
+    "text": {
+      "format": {
+        "type": "json_schema",
+        "schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "posts"
+          ],
+          "properties": {
+            "posts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "url",
+                  "author_handle",
+                  "text",
+                  "role"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "author_handle": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "parent",
+                      "root",
+                      "reply",
+                      "quoted"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "name": "x_thread",
+        "strict": true
+      }
+    },
+    "tool_choice": "auto",
+    "tools": [
+      {
+        "type": "x_search"
+      }
+    ],
+    "top_p": 0.949999988079071,
+    "usage": {
+      "input_tokens": 2222,
+      "input_tokens_details": {
+        "cached_tokens": 2176
+      },
+      "output_tokens": 116,
+      "output_tokens_details": {
+        "reasoning_tokens": 112
+      },
+      "total_tokens": 2338,
+      "num_sources_used": 0,
+      "num_server_side_tools_used": 0,
+      "cost_in_usd_ticks": 4898720,
+      "context_details": {
+        "input_tokens": 2222,
+        "output_tokens": 123
+      }
+    },
+    "user": null,
+    "incomplete_details": null,
+    "status": "completed",
+    "store": false,
+    "metadata": {
+      "system_fingerprint": "fp_a39489019fa99b6e"
+    },
+    "background": false,
+    "service_tier": "default",
+    "truncation": "disabled",
+    "top_logprobs": 0,
+    "presence_penalty": 0.0,
+    "frequency_penalty": 0.0,
+    "prompt_cache_key": "03d1c969-a29b-4dca-bd4c-f23ff0a3b297",
+    "max_tool_calls": null,
+    "safety_identifier": null,
+    "error": null,
+    "instructions": "You read X (formerly Twitter) with the x_search tool. Fetch the requested post with the tool's thread fetch, then list only that post, with role root. List only posts that your x_search tool calls returned in this response; never list a post from memory, and never invent or alter a URL. For each post give its URL in the form https://x.com/<handle>/status/<post_id>, the author's handle without @, and the full post text exactly as the tool returned it: do not translate, summarize, or shorten it. If the requested post does not exist or is not visible, return an empty posts array."
+  }
+}

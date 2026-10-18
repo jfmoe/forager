@@ -1,0 +1,173 @@
+{
+  "label": "fail-2096-thread-1",
+  "post_id": "2096318217585074319",
+  "depth": "thread",
+  "model": "grok-4.5",
+  "endpoint_host": "SuperGrok subscription gateway",
+  "http_status": 200,
+  "seconds": 10.9,
+  "event_type_counts": {
+    "response.created": 1,
+    "response.in_progress": 1,
+    "response.output_item.added": 2,
+    "response.custom_tool_call_input.delta": 1,
+    "response.custom_tool_call_input.done": 1,
+    "response.output_item.done": 2,
+    "response.content_part.added": 1,
+    "response.output_text.delta": 387,
+    "response.output_text.annotation.added": 1,
+    "response.output_text.done": 1,
+    "response.content_part.done": 1,
+    "response.completed": 1
+  },
+  "response": {
+    "created_at": 1792291196,
+    "completed_at": 1792291206,
+    "id": "3edeae46-dade-95de-beae-528658959afe",
+    "max_output_tokens": null,
+    "model": "grok-4.5",
+    "object": "response",
+    "output": [
+      {
+        "call_id": "xs_call-35204163-7683-4033-829d-6a77a67ae007-0",
+        "input": "{\"post_id\":\"2096318217585074319\"}",
+        "name": "x_thread_fetch",
+        "type": "custom_tool_call",
+        "id": "ctc_3edeae46-dade-95de-beae-528658959afe_call-35204163-7683-4033-829d-6a77a67ae007-0",
+        "status": "completed"
+      },
+      {
+        "content": [
+          {
+            "type": "output_text",
+            "text": "{\n  \"posts\": [\n    {\n      \"url\": \"https://x.com/leonabboud/status/2096265603820540069\",\n      \"author_handle\": \"leonabboud\",\n      \"text\": \"Please please please, before you have your grokbot, hermes, or Claude do anything, ask it to go watch 20 of the top videos on YouTube about the topic.\\n\\nUse this skill:\\n\\n\\\"I want you to learn the skill of [INSERT TASK], what I need you to do is go on YouTube, and watch the top 20 videos on that topic in the last 6 months. Export the transcripts, and consolidate all your learnings into one skill. If a certain point gets repeated often across multiple videos, give these points more weight in your skill.\\\"\\n\\nI've personally done this with virtually every agent skill I have, be it landing page design, LinkedIn formats, SEO articles...\\n\\nIt takes 20 minutes to most agents to go through everything and will 10x the quality of your agent's output.\",\n      \"role\": \"parent\"\n    },\n    {\n      \"url\": \"https://x.com/AIAgentRealtors/status/2096318217585074319\",\n      \"author_handle\": \"AIAgentRealtors\",\n      \"text\": \"Tips? 😕\\n  \\n  I've hit a hard technical block! YouTube is blocking this machine's IP from accessing both API calls and browser views. \\n  \\n  What I tried:\\n  - youtube_transcript_api → ❌ RequestBlocked\\n  - yt-dlp → ❌ Require cookies/sign-in\\n  - Browser automation → ❌ Bot detection dialog\",\n      \"role\": \"root\"\n    }\n  ]\n}",
+            "logprobs": [],
+            "annotations": [
+              {
+                "type": "url_citation",
+                "url": "https://x.com/i/status/2096265603820540069",
+                "start_index": 0,
+                "end_index": 0,
+                "title": "https://x.com/i/status/2096265603820540069"
+              }
+            ]
+          }
+        ],
+        "id": "msg_3edeae46-dade-95de-beae-528658959afe",
+        "role": "assistant",
+        "type": "message",
+        "status": "completed"
+      }
+    ],
+    "parallel_tool_calls": true,
+    "previous_response_id": null,
+    "reasoning": {
+      "effort": null,
+      "summary": null
+    },
+    "temperature": 0.699999988079071,
+    "text": {
+      "format": {
+        "type": "json_schema",
+        "schema": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "posts"
+          ],
+          "properties": {
+            "posts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "url",
+                  "author_handle",
+                  "text",
+                  "role"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string"
+                  },
+                  "author_handle": {
+                    "type": "string"
+                  },
+                  "text": {
+                    "type": "string"
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "parent",
+                      "root",
+                      "reply",
+                      "quoted"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "name": "x_thread",
+        "strict": true
+      }
+    },
+    "tool_choice": "auto",
+    "tools": [
+      {
+        "type": "x_search"
+      }
+    ],
+    "top_p": 0.949999988079071,
+    "usage": {
+      "input_tokens": 5190,
+      "input_tokens_details": {
+        "cached_tokens": 2560
+      },
+      "output_tokens": 775,
+      "output_tokens_details": {
+        "reasoning_tokens": 367
+      },
+      "total_tokens": 5965,
+      "num_sources_used": 0,
+      "num_server_side_tools_used": 1,
+      "cost_in_usd_ticks": 136305200,
+      "server_side_tool_usage_details": {
+        "web_search_calls": 0,
+        "x_search_calls": 1,
+        "x_posts_fetched": 2,
+        "x_users_fetched": 0,
+        "code_interpreter_calls": 0,
+        "file_search_calls": 0,
+        "mcp_calls": 0,
+        "document_search_calls": 0,
+        "image_generation_calls": 0
+      },
+      "context_details": {
+        "input_tokens": 2932,
+        "output_tokens": 701
+      }
+    },
+    "user": null,
+    "incomplete_details": null,
+    "status": "completed",
+    "store": false,
+    "metadata": {
+      "system_fingerprint": "fp_a39489019fa99b6e"
+    },
+    "background": false,
+    "service_tier": "default",
+    "truncation": "disabled",
+    "top_logprobs": 0,
+    "presence_penalty": 0.0,
+    "frequency_penalty": 0.0,
+    "prompt_cache_key": "1586bbf7-90da-4cf8-86e1-2bc689c5eb07",
+    "max_tool_calls": null,
+    "safety_identifier": null,
+    "error": null,
+    "instructions": "You read X (formerly Twitter) with the x_search tool. Fetch the thread of the requested post with the tool's thread fetch, then list the posts it returned in conversation order: the requested post with role root, the posts it replies to with role parent, the replies to it with role reply, and the posts it quotes with role quoted. List only posts that your x_search tool calls returned in this response; never list a post from memory, and never invent or alter a URL. For each post give its URL in the form https://x.com/<handle>/status/<post_id>, the author's handle without @, and the full post text exactly as the tool returned it: do not translate, summarize, or shorten it. If the requested post does not exist or is not visible, return an empty posts array."
+  }
+}
