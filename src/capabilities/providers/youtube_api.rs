@@ -17,6 +17,7 @@ use crate::net::{
     AttemptFailure, RetryPolicy, read_complete_protocol_with_reasons, send_provider_request,
 };
 use crate::providers::execution::{ExecutionOutcome, ExecutionSettings, execute_v2};
+use crate::providers::markup::markup_text;
 use crate::providers::shared::{
     Refusal, acquire_window, count, other_platform_message, parameter_error, utc_timestamp,
 };
@@ -42,6 +43,7 @@ const ROUTE: ProviderId = ProviderId::YoutubeApi;
 const PLATFORM: Platform = Platform::Youtube;
 const KEY_HEADER: &str = "x-goog-api-key";
 const FETCH_PARTS: &str = "snippet,contentDetails,statistics,status,liveStreamingDetails";
+const FAILURE_PREFIX: &str = "YouTube Data API returned HTTP";
 
 /// Returns whether the route can fetch the request; it never sends a request. The Data API
 /// carries no captions this route may read, so it serves metadata and abstract only.
@@ -273,7 +275,7 @@ fn fetched_item(
     let Some(video) = items.next() else {
         return Err(Refusal::new(
             AttemptErrorKind::Parameter,
-            format!("YouTube video not found or not public: youtube:{reference}"),
+            video_not_found(reference),
         ));
     };
     if video.id != reference.id() || items.next().is_some() {
@@ -446,6 +448,13 @@ fn reason_kind(body: &str) -> Option<AttemptErrorKind> {
     }
 }
 
+/// Says that a video the user named does not exist or is not public.
+fn video_not_found(video: &YoutubeRef) -> String {
+    format!("YouTube video not found or not public: youtube:{video}")
+}
+
+/// Words a failed response by its status, its first reason, and the API's message, which may
+/// carry HTML (links to the API reference) and is read as plain text.
 fn failure_message(body: &str, status: u16) -> String {
     match error_body(body) {
         Some(error) if !error.message.is_empty() => {
@@ -456,17 +465,28 @@ fn failure_message(body: &str, status: u16) -> String {
                 .map(|reason| format!(" ({reason})"))
                 .unwrap_or_default();
             format!(
-                "YouTube Data API returned HTTP {status}{reason}: {}",
-                error.message
+                "{FAILURE_PREFIX} {status}{reason}: {}",
+                markup_text(&error.message)
             )
         }
-        _ => format!("YouTube Data API returned HTTP {status}"),
+        _ => format!("{FAILURE_PREFIX} {status}"),
     }
+}
+
+/// Returns whether [`failure_message`] named `reason` as the reason of a failed response.
+fn failed_with_reason(failure: &AttemptFailure, reason: &str) -> bool {
+    failure.status.is_some_and(|status| {
+        failure
+            .message
+            .starts_with(&format!("{FAILURE_PREFIX} {status} ({reason}):"))
+    })
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{LiveStreamingDetails, duration_seconds, live_status, reason_kind};
+    use super::{
+        LiveStreamingDetails, duration_seconds, failure_message, live_status, reason_kind,
+    };
     use crate::types::{AttemptErrorKind, YoutubeLiveStatus};
 
     #[test]
@@ -550,6 +570,16 @@ mod tests {
                 None,
                 None,
             ]
+        );
+    }
+
+    #[test]
+    fn failure_messages_carry_the_api_message_as_plain_text() {
+        let body = r#"{"error": {"code": 400, "message": "The <code><a href=\"/youtube/v3/docs/search/list#q\">q</a></code> parameter &amp; <b>order</b> conflict.", "errors": [{"reason": "invalidSearchFilter"}]}}"#;
+
+        assert_eq!(
+            failure_message(body, 400),
+            "YouTube Data API returned HTTP 400 (invalidSearchFilter): The q parameter & order conflict."
         );
     }
 }

@@ -980,7 +980,8 @@ when the video has top-level comments this page did not return. Each comment has
 
 Exit codes: `2` before any request for an input that is not a video or `--limit` out of range;
 `3` as under search; `4` for `parameter` (`comments are disabled for youtube:<id>`: disabled
-comments are a failure, never an empty list; or the video does not exist), the key and quota
+comments are a failure, never an empty list; or `YouTube video not found or not public:
+youtube:<id>`), the key and quota
 failures under search, and `runtime` for an unexpected response. A video without comments
 returns `comments: []` with exit 0.
 

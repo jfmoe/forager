@@ -508,7 +508,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 - 通用 flag 同 search。一次命令消耗 1 单位配额。没有 `--cursor`：评论续页与回复展开不在范围内。
 - **输出**：JSON 为 `{platform, provider, video, comments, has_more}`。`video` 为视频 ref；`has_more` 表示还有本页未交付的一级评论。每条评论为 `{id, author, author_channel_ref, text, likes, published, reply_count, replies, replies_complete}`，回复为 `{id, author, author_channel_ref, text, likes, published}`：`author` 为显示名（如 `@handle`），`author_channel_ref` 为作者频道的 ref，`text` 为纯文本，`published` 为 UTC（精确到秒），`reply_count` 为回复总数；`replies` 是随评论返回的回复（最多约 5 条），`replies_complete` 表示它们是否就是全部回复。不写 Search Result Journal。
-- **退出码**：输入无法识别或不是视频、`--limit` 越界＝飞行前退 2，不发请求；配置错误同 search，退 3；视频关闭了评论为 attempt 级 Parameter（`comments are disabled for youtube:<id>`，不是空列表），视频不存在为 attempt 级 Parameter，key 与配额错误同 search，响应不是预期结构或评论属于另一个视频为 Runtime，都退 4；视频没有评论为 `comments: []` 且退 0。
+- **退出码**：输入无法识别或不是视频、`--limit` 越界＝飞行前退 2，不发请求；配置错误同 search，退 3；视频关闭了评论为 attempt 级 Parameter（`comments are disabled for youtube:<id>`，不是空列表），视频不存在或不公开为 attempt 级 Parameter（`YouTube video not found or not public: youtube:<id>`），key 与配额错误同 search，响应不是预期结构或评论属于另一个视频为 Runtime，都退 4；视频没有评论为 `comments: []` 且退 0。
 
 ### `platform youtube videos`
 

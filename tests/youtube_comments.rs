@@ -142,6 +142,36 @@ fn disabled_comments_are_an_attempt_level_parameter_failure_not_an_empty_list() 
 }
 
 #[test]
+fn a_missing_video_is_an_attempt_level_parameter_failure_naming_the_video() {
+    let api = Fixture::start_sequence(vec![api_error(
+        404,
+        "videoNotFound",
+        None,
+        r#"The video identified by the <code><a href="/youtube/v3/docs/commentThreads/list#videoId">videoId</a></code> parameter could not be found."#,
+    )]);
+    let environment = RunEnvironment::new(&config(&api.url));
+
+    let output = comments(&environment, &["youtube:zzQq9ZxZ9Zq"]);
+    api.finish();
+    let failure = payload(&output);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &failure["error_kind"],
+            &failure["message"]
+        ),
+        (
+            Some(4),
+            &json!("parameter"),
+            &json!("YouTube video not found or not public: youtube:zzQq9ZxZ9Zq")
+        ),
+        "stderr: {}",
+        stderr(&output)
+    );
+}
+
+#[test]
 fn a_video_without_comments_lists_none_and_succeeds() {
     let api = Fixture::start_sequence(vec![comment_threads_page(&[], None)]);
     let environment = RunEnvironment::new(&config(&api.url));
