@@ -29,7 +29,7 @@
 | `docs/adr/0003`（caller 声明能力） | 已标 **superseded by ADR-0004**（文件现状），存档随迁；#61 票文「0003 仍有效」为误记，以文件状态为准 |
 | `docs/adr/0004`（caller 声明权威） | 有效随迁；第 2 章 A1 为其 research 豁免区的首次权威定义，加交叉引用 |
 | `docs/adr/0005`（凭据池） | 按下述修订/替代 |
-| `docs/anysearch-verified-domain-manifest.md` | **按 forager 命令面修订后随迁**：删除 Batch Discovery、AnySearch Extraction 及旧 `ANYSEARCH_API_KEY`/`ANYSEARCH_LIVE_ACCEPTANCE`/`smart-search smoke` 表述，live 验收指向第 5 章 C14–C16；域晋升通道本体保留 |
+| `docs/anysearch-verified-domain-manifest.md` | **按 forager 命令面修订后随迁**：删除 Batch Discovery、AnySearch Extraction 及旧 `ANYSEARCH_API_KEY`/`ANYSEARCH_LIVE_ACCEPTANCE`/`smart-search smoke` 表述，live 验收指向第 5 章 C14–C16；域晋升通道本体保留。该文档已随 AnySearch 退役删除（ADR 0030） |
 | 本规格 `docs/spec/forager/` | 随迁（开发唯一输入） |
 | 两份 research 文档（选型、痛点清单） | 随迁入 `docs/research/` |
 | `rust-toolchain.toml`、`#![forbid(unsafe_code)]` | 脚手架照办件，见下 |

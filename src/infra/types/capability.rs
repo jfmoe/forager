@@ -57,16 +57,10 @@ pub enum Capability {
     DocsSearch,
     WebSearch,
     WebFetch,
-    VerticalSearch,
 }
 
 impl Capability {
-    const VOCABULARY: [Self; 4] = [
-        Self::DocsSearch,
-        Self::WebSearch,
-        Self::WebFetch,
-        Self::VerticalSearch,
-    ];
+    const VOCABULARY: [Self; 3] = [Self::DocsSearch, Self::WebSearch, Self::WebFetch];
 
     /// Returns the stable snake-case capability identifier used by CLI output.
     #[must_use]
@@ -75,7 +69,6 @@ impl Capability {
             Self::DocsSearch => "docs_search",
             Self::WebSearch => "web_search",
             Self::WebFetch => "web_fetch",
-            Self::VerticalSearch => "vertical_search",
         }
     }
 }
@@ -136,7 +129,7 @@ impl FromStr for CapabilitySet {
                 .any(|capability| capability.as_str() == value.as_str())
         }) {
             return Err(format!(
-                "unknown capability `{unknown}`; expected docs_search, web_search, web_fetch, vertical_search, or none"
+                "unknown capability `{unknown}`; expected docs_search, web_search, web_fetch, or none"
             ));
         }
         let selected = values.into_iter().collect::<HashSet<_>>();
@@ -156,8 +149,6 @@ pub enum PlanCapability {
     DocsSearch,
     /// Supplemental Web Search Capability.
     WebSearch,
-    /// Vertical Search Capability.
-    VerticalSearch,
 }
 
 impl PlanCapability {
@@ -165,7 +156,6 @@ impl PlanCapability {
         match self {
             Self::DocsSearch => Capability::DocsSearch,
             Self::WebSearch => Capability::WebSearch,
-            Self::VerticalSearch => Capability::VerticalSearch,
         }
     }
 }
@@ -179,12 +169,11 @@ impl<'de> Deserialize<'de> for PlanCapability {
         match value.as_str() {
             "docs_search" => Ok(Self::DocsSearch),
             "web_search" => Ok(Self::WebSearch),
-            "vertical_search" => Ok(Self::VerticalSearch),
             "web_fetch" => Err(serde::de::Error::custom(
                 "`web_fetch` is a research engine invariant and is executed automatically",
             )),
             _ => Err(serde::de::Error::custom(format!(
-                "unknown plan capability `{value}`; expected docs_search, web_search, or vertical_search"
+                "unknown plan capability `{value}`; expected docs_search or web_search"
             ))),
         }
     }

@@ -70,7 +70,6 @@ pub(super) struct Providers {
     pub(super) jina: Jina,
     pub(super) tavily: Endpoint<TavilyEndpoint>,
     pub(super) firecrawl: Endpoint<FirecrawlEndpoint>,
-    pub(super) anysearch: Endpoint<AnysearchEndpoint>,
     pub(super) arxiv_api: AnonymousEndpoint<ArxivApiEndpoint>,
     pub(super) ssrn_crossref: AnonymousEndpoint<SsrnCrossrefEndpoint>,
     pub(super) ssrn_browser: ProcessRoute<SsrnBrowserProcess>,
@@ -251,7 +250,6 @@ endpoint_defaults!(Context7Endpoint, "https://mcp.context7.com/mcp");
 endpoint_defaults!(TavilyEndpoint, "https://api.tavily.com");
 // Matches the 60 s server-side timeout that Web Fetch requests from Firecrawl (ADR 0018).
 endpoint_defaults!(FirecrawlEndpoint, "https://api.firecrawl.dev/v2", 60);
-endpoint_defaults!(AnysearchEndpoint, "https://api.anysearch.com/mcp");
 endpoint_defaults!(ArxivApiEndpoint, "https://export.arxiv.org/api/query");
 endpoint_defaults!(SsrnCrossrefEndpoint, "https://api.crossref.org");
 endpoint_defaults!(SerpapiEndpoint, "https://serpapi.com/search.json");
@@ -329,7 +327,6 @@ pub(super) struct Capabilities {
     pub(super) web_search: Order,
     pub(super) web_fetch: Order,
     pub(super) docs_search: Order,
-    pub(super) vertical_search: Order,
 }
 
 impl Default for Capabilities {
@@ -338,7 +335,6 @@ impl Default for Capabilities {
             web_search: Order::new(catalog::WEB_SEARCH),
             web_fetch: Order::new(catalog::WEB_FETCH),
             docs_search: Order::new(catalog::DOCS_SEARCH),
-            vertical_search: Order::new(catalog::VERTICAL_SEARCH),
         }
     }
 }
@@ -633,9 +629,6 @@ pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("providers.firecrawl.url", providers.firecrawl.url: String, Rule::Any, View::Url, "service endpoint URL"),
     leaf!("providers.firecrawl.keys", providers.firecrawl.keys: Secrets, Rule::Any, View::Keys, "credential pool; keep empty until credentials are available"),
     leaf!("providers.firecrawl.timeout", providers.firecrawl.timeout: U64, Rule::Positive, View::Plain, "shared timeout in seconds; must be greater than zero"),
-    leaf!("providers.anysearch.url", providers.anysearch.url: String, Rule::Any, View::Url, "service endpoint URL"),
-    leaf!("providers.anysearch.keys", providers.anysearch.keys: Secrets, Rule::Any, View::Keys, "credential pool; keep empty until credentials are available"),
-    leaf!("providers.anysearch.timeout", providers.anysearch.timeout: U64, Rule::Positive, View::Plain, "shared timeout in seconds; must be greater than zero"),
     leaf!("providers.arxiv_api.url", providers.arxiv_api.url: String, Rule::Any, View::Url, "service endpoint URL; this provider needs no credentials"),
     leaf!("providers.arxiv_api.timeout", providers.arxiv_api.timeout: U64, Rule::Positive, View::Plain, "shared timeout in seconds; must be greater than zero"),
     leaf!("providers.ssrn_crossref.url", providers.ssrn_crossref.url: String, Rule::Any, View::Url, "service endpoint URL; this provider needs no credentials"),
@@ -666,7 +659,6 @@ pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("capabilities.web_search.order", capabilities.web_search.order: Strings, Rule::CapabilityOrder { capability: "web_search", allow_empty: true }, View::Plain, "authoritative provider order for this capability"),
     leaf!("capabilities.web_fetch.order", capabilities.web_fetch.order: Strings, Rule::CapabilityOrder { capability: "web_fetch", allow_empty: false }, View::Plain, "authoritative provider order for this capability"),
     leaf!("capabilities.docs_search.order", capabilities.docs_search.order: Strings, Rule::CapabilityOrder { capability: "docs_search", allow_empty: true }, View::Plain, "authoritative provider order for this capability"),
-    leaf!("capabilities.vertical_search.order", capabilities.vertical_search.order: Strings, Rule::CapabilityOrder { capability: "vertical_search", allow_empty: true }, View::Plain, "authoritative provider order for this capability"),
     leaf!("platforms.arxiv.order", platforms.arxiv.order: Strings, Rule::PlatformOrder { platform: Platform::Arxiv }, View::Plain, "authoritative route order for this platform; empty disables it"),
     leaf!("platforms.ssrn.order", platforms.ssrn.order: Strings, Rule::PlatformOrder { platform: Platform::Ssrn }, View::Plain, "authoritative route order for this platform; empty disables it"),
     leaf!("platforms.scholar.order", platforms.scholar.order: Strings, Rule::PlatformOrder { platform: Platform::Scholar }, View::Plain, "authoritative route order for this platform; empty disables it"),
@@ -758,10 +750,6 @@ mod tests {
         assert_eq!(
             config.capabilities.docs_search.order,
             names(catalog::DOCS_SEARCH)
-        );
-        assert_eq!(
-            config.capabilities.vertical_search.order,
-            names(catalog::VERTICAL_SEARCH)
         );
         let default_order = |catalog: catalog::PlatformCatalog| {
             catalog
@@ -915,7 +903,6 @@ mod tests {
             "providers.jina.keys" => Some(&config.providers.jina.keys),
             "providers.tavily.keys" => Some(&config.providers.tavily.keys),
             "providers.firecrawl.keys" => Some(&config.providers.firecrawl.keys),
-            "providers.anysearch.keys" => Some(&config.providers.anysearch.keys),
             "providers.serpapi.keys" => Some(&config.providers.serpapi.keys),
             "providers.youtube_api.keys" => Some(&config.providers.youtube_api.keys),
             "providers.gemini_api.keys" => Some(&config.providers.gemini_api.keys),
@@ -997,7 +984,6 @@ mod tests {
              [providers.context7]\ntimeout = 42\n\
              [providers.tavily]\ntimeout = 43\n\
              [providers.firecrawl]\ntimeout = 44\n\
-             [providers.anysearch]\ntimeout = 45\n\
              [providers.arxiv_api]\ntimeout = 46\n\
              [providers.ssrn_crossref]\ntimeout = 47\n\
              [providers.serpapi]\ntimeout = 48\n",
@@ -1010,7 +996,6 @@ mod tests {
                 config.providers.context7.url.as_str(),
                 config.providers.tavily.url.as_str(),
                 config.providers.firecrawl.url.as_str(),
-                config.providers.anysearch.url.as_str(),
                 config.providers.arxiv_api.url.as_str(),
                 config.providers.ssrn_crossref.url.as_str(),
                 config.providers.serpapi.url.as_str(),
@@ -1020,7 +1005,6 @@ mod tests {
                 "https://mcp.context7.com/mcp",
                 "https://api.tavily.com",
                 "https://api.firecrawl.dev/v2",
-                "https://api.anysearch.com/mcp",
                 "https://export.arxiv.org/api/query",
                 "https://api.crossref.org",
                 "https://serpapi.com/search.json",

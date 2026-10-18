@@ -4,16 +4,14 @@ use std::pin::Pin;
 use chrono::{Datelike, Local, Weekday};
 
 use super::{
-    Anysearch, AnysearchSearchRequest, ArxivApi, Context7, Context7DocsRequest,
-    Context7LibraryRequest, Exa, ExaSearchRequest, HnApi, OpenAiCompatible, SearchType, Serpapi,
-    SsrnBrowser, SsrnCrossref, SupplementalSearch, Xai, XiaohongshuBrowser, YoutubeApi, YoutubeWeb,
+    ArxivApi, Context7, Context7DocsRequest, Context7LibraryRequest, Exa, ExaSearchRequest, HnApi,
+    OpenAiCompatible, SearchType, Serpapi, SsrnBrowser, SsrnCrossref, SupplementalSearch, Xai,
+    XiaohongshuBrowser, YoutubeApi, YoutubeWeb,
 };
-use crate::redact::redact_url;
 use crate::types::{
-    AnysearchOutcome, Context7Outcome, DocumentationEvidence, DocumentationSearchOutcome,
-    EvidenceLocator, ExaOutcome, PlatformFetchOutcome, PlatformFetchRequest, PlatformSearchOutcome,
-    PlatformSearchRequest, ProviderError, SearchCandidate, Source, SupplementalSearchOutcome,
-    VerticalSearchOutcome,
+    Context7Outcome, DocumentationEvidence, DocumentationSearchOutcome, EvidenceLocator,
+    ExaOutcome, PlatformFetchOutcome, PlatformFetchRequest, PlatformSearchOutcome,
+    PlatformSearchRequest, ProviderError, SearchCandidate, SupplementalSearchOutcome,
 };
 
 #[derive(Clone, Debug)]
@@ -120,14 +118,6 @@ pub(crate) trait DocsSearch: Send + Sync {
     ) -> Option<DocumentationReadFuture<'a>> {
         None
     }
-}
-
-pub(crate) trait VerticalSearch: Send + Sync {
-    fn search<'a>(
-        &'a self,
-        query: &'a str,
-        limit: u16,
-    ) -> Pin<Box<dyn Future<Output = Result<VerticalSearchOutcome, ProviderError>> + Send + 'a>>;
 }
 
 /// The search seam of a platform; each route of the platform implements it.
@@ -313,53 +303,6 @@ impl PlatformFetch for YoutubeWeb {
     ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
     {
         Box::pin(YoutubeWeb::fetch(self, request))
-    }
-}
-
-impl VerticalSearch for Anysearch {
-    fn search<'a>(
-        &'a self,
-        query: &'a str,
-        limit: u16,
-    ) -> Pin<Box<dyn Future<Output = Result<VerticalSearchOutcome, ProviderError>> + Send + 'a>>
-    {
-        Box::pin(async move {
-            let AnysearchOutcome::Search(outcome) = self
-                .search(AnysearchSearchRequest {
-                    query: query.to_owned(),
-                    domain: None,
-                    sub_domain: None,
-                    sub_domain_params: serde_json::Map::new(),
-                    max_results: limit,
-                    verbose: true,
-                })
-                .await?
-            else {
-                unreachable!("search request returns search outcome");
-            };
-            let sources = outcome
-                .results
-                .iter()
-                .filter(|result| !result.url.is_empty())
-                .map(|result| Source {
-                    title: result.title.clone(),
-                    url: redact_url(&result.url),
-                    published_date: None,
-                    author: None,
-                    text: (!result.description.is_empty()).then(|| result.description.clone()),
-                    highlights: Vec::new(),
-                    id: None,
-                    image: None,
-                    favicon: None,
-                })
-                .collect();
-            Ok(VerticalSearchOutcome {
-                results: outcome.results,
-                sources,
-                attempts: outcome.attempts,
-                diagnostic: outcome.diagnostic,
-            })
-        })
     }
 }
 

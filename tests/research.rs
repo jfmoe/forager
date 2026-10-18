@@ -123,7 +123,7 @@ fn bare_research_executes_the_classifier_plan_through_the_research_pipeline() {
             &json!("classifier_research_plan"),
             &json!(true),
             &json!(4),
-            &json!(["docs_search", "web_search", "vertical_search"]),
+            &json!(["docs_search", "web_search"]),
         )
     );
     tavily.finish();
@@ -496,7 +496,7 @@ fn research_reads_plan_from_stdin_and_normalizes_capabilities_in_declared_order(
         &jina_response(&rich_content("Known evidence")),
     );
     let environment = RunEnvironment::new(&fetch_only_config(&jina.url, true));
-    let plan = valid_plan(json!(["vertical_search", "docs_search", "vertical_search"]));
+    let plan = valid_plan(json!(["web_search", "docs_search", "web_search"]));
 
     let output = environment.run_with_stdin(
         &[
@@ -525,8 +525,8 @@ fn research_reads_plan_from_stdin_and_normalizes_capabilities_in_declared_order(
         ),
         (
             Some(0),
-            &json!(["vertical_search", "docs_search"]),
-            &json!(["docs_search", "web_fetch", "vertical_search"]),
+            &json!(["web_search", "docs_search"]),
+            &json!(["docs_search", "web_search", "web_fetch"]),
             &Value::String("https://example.test/known".into()),
         ),
         "stderr: {}",

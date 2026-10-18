@@ -32,19 +32,6 @@
         "读取这个网页的正文：https://example.com",
         "总结这份 PDF"
       ]
-    },
-    {
-      "id": "vertical_search",
-      "purpose": "Search specialized sources for security, finance, legal, academic, code, game-guide, and travel-itinerary requests.",
-      "select_when": "The request explicitly targets one of these domains and requires domain-specific or structured retrieval.",
-      "examples": [
-        "CVE-2026 OpenSSL vulnerability impact",
-        "search GitHub code for this API usage",
-        "find academic papers about retrieval evaluation",
-        "查询这项法规的司法解释",
-        "Elden Ring game walkthrough",
-        "Tokyo travel itinerary"
-      ]
     }
   ]
 }

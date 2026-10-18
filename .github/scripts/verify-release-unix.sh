@@ -36,8 +36,6 @@ printf '%s\n' \
   'keys = ["release-gate"]' \
   '[providers.exa]' \
   'keys = ["release-gate"]' \
-  '[providers.anysearch]' \
-  'keys = ["release-gate"]' \
   > "$config_dir/config.toml"
 chmod 600 "$config_dir/config.toml"
 doctor=$(FORAGER_CONFIG_DIR="$config_dir" XDG_STATE_HOME="$state_dir" \
@@ -45,7 +43,7 @@ doctor=$(FORAGER_CONFIG_DIR="$config_dir" XDG_STATE_HOME="$state_dir" \
 jq -e '
   .ok == false
   and .mode == "shallow"
-  and ([.providers[] | select(.configured)] | length) == 11
+  and ([.providers[] | select(.configured)] | length) == 10
   and .config.providers.exa.keys.source == "file"
   and (.permission_warnings | length) == 0
 ' <<< "$doctor"

@@ -87,10 +87,6 @@ keys = ["jina-secret"]
 url = {url:?}
 keys = ["context7-secret"]
 
-[providers.anysearch]
-url = {url:?}
-keys = ["anysearch-secret"]
-
 [providers.arxiv_api]
 url = {url:?}
 

@@ -1,8 +1,7 @@
-use std::sync::{Arc, LazyLock, Mutex};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use reqwest::Client;
-use reqwest::header::HeaderMap;
 use serde_json::{Map, Value, json};
 
 use crate::config::Context7RuntimeConfig;
@@ -15,8 +14,6 @@ use crate::types::{
     AttemptErrorKind, AttemptTarget, Context7DocsOutcome, Context7LibraryOutcome, Context7Outcome,
     Deadline, LibraryCandidate, ProviderAttempt,
 };
-
-static MCP_HEADERS: LazyLock<HeaderMap> = LazyLock::new(HeaderMap::new);
 
 #[derive(Clone, Debug)]
 pub(crate) struct Context7LibraryRequest {
@@ -96,33 +93,28 @@ impl Context7 {
             |credential, attempt_deadline| {
                 let redirect_capture = Arc::clone(&redirect_capture);
                 async move {
-                    McpClient::new(
-                        &self.client,
-                        &self.config.url,
-                        &MCP_HEADERS,
-                        attempt_deadline,
-                    )
-                    .call_tool(&credential, operation_ref.tool(), operation_ref.arguments())
-                    .await
-                    .map_err(Context7Failure::from)
-                    .and_then(|result| {
-                        operation_ref
-                            .decode(result)
-                            .map(|outcome| (Some(200), outcome))
-                    })
-                    .map_err(|failure| {
-                        if let Some(target) = failure.redirected_library_id {
-                            let target = redacted_urls_message(&target, &self.credentials);
-                            if let Ok(mut capture) = redirect_capture.lock() {
-                                *capture = Some(target);
+                    McpClient::new(&self.client, &self.config.url, attempt_deadline)
+                        .call_tool(&credential, operation_ref.tool(), operation_ref.arguments())
+                        .await
+                        .map_err(Context7Failure::from)
+                        .and_then(|result| {
+                            operation_ref
+                                .decode(result)
+                                .map(|outcome| (Some(200), outcome))
+                        })
+                        .map_err(|failure| {
+                            if let Some(target) = failure.redirected_library_id {
+                                let target = redacted_urls_message(&target, &self.credentials);
+                                if let Ok(mut capture) = redirect_capture.lock() {
+                                    *capture = Some(target);
+                                }
                             }
-                        }
-                        AttemptFailure {
-                            kind: failure.kind,
-                            status: failure.status,
-                            message: redacted_urls_message(&failure.message, &self.credentials),
-                        }
-                    })
+                            AttemptFailure {
+                                kind: failure.kind,
+                                status: failure.status,
+                                message: redacted_urls_message(&failure.message, &self.credentials),
+                            }
+                        })
                 }
             },
         )

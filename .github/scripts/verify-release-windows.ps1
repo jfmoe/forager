@@ -44,8 +44,6 @@ keys = ["release-gate"]
 keys = ["release-gate"]
 [providers.exa]
 keys = ["release-gate"]
-[providers.anysearch]
-keys = ["release-gate"]
 '@
 Set-Content -Encoding utf8 (Join-Path $configDir "config.toml") $config
 $env:FORAGER_CONFIG_DIR = $configDir
@@ -58,7 +56,7 @@ if ($doctorExitCode -ne 4 -or $doctor.ok -or $doctor.mode -ne "shallow") {
   throw "doctor did not report the expected unreachable configuration"
 }
 $configured = @($doctor.providers | Where-Object configured)
-if ($configured.Count -ne 11) {
+if ($configured.Count -ne 10) {
   throw "doctor did not load all migrated provider credentials"
 }
 exit 0

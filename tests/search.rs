@@ -20,7 +20,7 @@ fn caller_capability_declaration_is_normalized_in_vocabulary_order() {
         "search",
         "Declared",
         "--capabilities",
-        "VERTICAL_SEARCH,docs_search,vertical_search",
+        "WEB_SEARCH,docs_search,web_search",
     ]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
     let journal = read_only_journal(&environment);
@@ -34,7 +34,7 @@ fn caller_capability_declaration_is_normalized_in_vocabulary_order() {
         (
             Some(0),
             None,
-            &serde_json::json!(["docs_search", "vertical_search"])
+            &serde_json::json!(["docs_search", "web_search"])
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
@@ -1766,146 +1766,6 @@ fn concurrent_web_fetch_rate_limits_rotate_once_per_branch_with_a_bounded_burst(
 }
 
 #[test]
-fn declared_vertical_search_uses_the_unified_candidate_envelope() {
-    let main = Fixture::start(
-        200,
-        "text/event-stream",
-        &completed_body("answer", "Primary"),
-    );
-    let anysearch = Fixture::start_sequence(vec![
-        Response::new(
-            200,
-            "application/json",
-            r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{}}}"#,
-        )
-        .with_header("mcp-session-id", "vertical-session"),
-        Response::new(202, "application/json", ""),
-        Response::new(
-            200,
-            "application/json",
-            r####"{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"### 1. Academic result\n- **URL**: https://example.test/paper\nPaper summary"}]}}"####,
-        ),
-    ]);
-    let tavily = Fixture::start(
-        200,
-        "application/json",
-        r#"{"results":[{"title":"Supplemental duplicate","url":"https://example.test/paper","content":"Provider-native summary"}]}"#,
-    );
-    let config = format!(
-        "{}\n[providers.anysearch]\nurl = {:?}\nkeys = [\"anysearch-key\"]\ntimeout = 30\n\n[providers.tavily]\nurl = {:?}\nkeys = [\"tavily-key\"]\ntimeout = 30\n\n[capabilities.web_search]\norder = [\"tavily\"]\n",
-        search_config(&main.url, true),
-        anysearch.url,
-        tavily.url
-    );
-    let environment = RunEnvironment::new(&config);
-
-    let output = environment.run(&[
-        "search",
-        "Academic retrieval paper",
-        "--capabilities",
-        "web_search,vertical_search",
-        "--extra-sources",
-        "0",
-    ]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-    let journal = read_only_journal(&environment);
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["extra_sources"],
-            payload.get("vertical_results"),
-            payload["sources"].as_array().map(Vec::len),
-            &payload["capability_gaps"],
-            journal["result"].get("vertical_results"),
-            &journal["result"]["extra_sources"],
-        ),
-        (
-            Some(0),
-            &serde_json::json!([{
-                "provider": "anysearch",
-                "capability": "vertical_search",
-                "title": "Academic result",
-                "url": "https://example.test/paper",
-                "summary": "Paper summary",
-                "provider_data": {}
-            }]),
-            None,
-            Some(1),
-            &serde_json::json!([]),
-            None,
-            &serde_json::json!([{
-                "provider": "anysearch",
-                "capability": "vertical_search",
-                "title": "Academic result",
-                "url": "https://example.test/paper",
-                "summary": "Paper summary",
-                "provider_data": {}
-            }]),
-        ),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    main.finish();
-    let requests = anysearch.finish_all();
-    tavily.finish();
-    assert!(requests[2].contains(r#""name":"search""#));
-    assert!(requests[2].contains(r#""max_results":1"#));
-    assert!(!requests[2].contains(r#""domain""#));
-}
-
-#[test]
-fn search_markdown_renders_vertical_candidates_as_extra_sources() {
-    let main = Fixture::start(
-        200,
-        "text/event-stream",
-        &completed_body("answer", "Primary"),
-    );
-    let anysearch = Fixture::start_sequence(vec![
-        Response::new(
-            200,
-            "application/json",
-            r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{}}}"#,
-        )
-        .with_header("mcp-session-id", "vertical-session"),
-        Response::new(202, "application/json", ""),
-        Response::new(
-            200,
-            "application/json",
-            r####"{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"### 1. Academic result\n- **URL**: https://example.test/paper\nPaper summary"}]}}"####,
-        ),
-    ]);
-    let config = format!(
-        "{}\n[providers.anysearch]\nurl = {:?}\nkeys = [\"anysearch-key\"]\ntimeout = 30\n",
-        search_config(&main.url, false),
-        anysearch.url
-    );
-    let environment = RunEnvironment::new(&config);
-
-    let output = environment.run(&[
-        "search",
-        "Academic retrieval paper",
-        "--capabilities",
-        "vertical_search",
-        "--format",
-        "markdown",
-    ]);
-    let markdown = String::from_utf8(output.stdout).expect("UTF-8 markdown");
-
-    assert_eq!(output.status.code(), Some(0));
-    assert!(markdown.contains("## Extra Sources"), "{markdown}");
-    assert!(
-        markdown.contains(
-            "[Academic result](https://example.test/paper) — anysearch\n\n  Paper summary"
-        ),
-        "{markdown}"
-    );
-    assert!(!markdown.contains("## Vertical Results"), "{markdown}");
-    main.finish();
-    anysearch.finish_all();
-}
-
-#[test]
 fn combined_declaration_executes_only_declared_seams_in_vocabulary_order() {
     let main = Fixture::start(
         200,
@@ -1951,13 +1811,11 @@ fn combined_declaration_executes_only_declared_seams_in_vocabulary_order() {
             payload.get("capabilities"),
             seams,
             payload.get("validation_results"),
-            payload.get("vertical_results"),
         ),
         (
             Some(0),
             None,
             vec!["main_search", "docs_search", "web_search"],
-            None,
             None,
         )
     );

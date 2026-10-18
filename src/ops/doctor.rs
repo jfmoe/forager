@@ -13,8 +13,7 @@ use crate::config::{
 };
 use crate::net::{self, RetryPolicy};
 use crate::providers::{
-    self, AnysearchDomainsRequest, FetchRequest, FetchSource, KeyAccount, KeyQuota,
-    MainSearchRequest, ModelBreakers,
+    self, FetchRequest, FetchSource, KeyAccount, KeyQuota, MainSearchRequest, ModelBreakers,
 };
 use crate::rate_limit::RateLimiter;
 use crate::types::{
@@ -249,7 +248,6 @@ async fn probe_platform_fetch(
         .map(drop)
 }
 
-#[expect(clippy::too_many_lines)]
 async fn run_probe(
     provider: ProviderId,
     config: RuntimeConfig,
@@ -343,20 +341,6 @@ async fn run_probe(
             name,
             transport,
         ),
-        DoctorProbe::AnysearchDomains { name, transport } => {
-            let adapter =
-                providers::build_anysearch(config.anysearch, client, retry_policy, deadline);
-            one_check(
-                adapter
-                    .domains(AnysearchDomainsRequest {
-                        domain: "academic".into(),
-                        verbose: false,
-                    })
-                    .await,
-                name,
-                transport,
-            )
-        }
     }
 }
 

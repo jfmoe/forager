@@ -26,7 +26,6 @@ fn command_tree_aliases_and_exact_subcommands_match_the_contract() {
             ("research", vec!["rs"]),
             ("fetch", vec!["f"]),
             ("map", vec![]),
-            ("anysearch", vec!["as"]),
             ("context7", vec!["c7"]),
             ("exa", vec![]),
             ("platform", vec![]),

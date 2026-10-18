@@ -24,8 +24,6 @@ forager exa search QUERY [--num-results 5] [--search-type neural|keyword|auto]
 forager exa similar URL [--num-results 5] [...]
 forager context7 library NAME [QUERY] [...]
 forager context7 docs LIBRARY_ID QUERY [...]
-forager anysearch search QUERY [--domain D --sub-domain S] [--sub-domain-params JSON] [--max-results 5] [...]
-forager anysearch domains [DOMAIN] [...]
 forager platform arxiv search [QUERY] [--category CAT]... [--author NAME] [--title TEXT]
                               [--submitted-from YYYY-MM-DD] [--submitted-to YYYY-MM-DD]
                               [--sort relevance|submitted|updated] [--limit 1..=100（默认 10）]
@@ -100,8 +98,8 @@ forager config path|list|set|unset
 forager setup [--non-interactive] [--lang zh|en]
 ```
 
-- **分界规则**：点名 provider 的命令按 provider 分组嵌套（exa/context7/anysearch/gemini/chatgpt）；操作语义 + fallback 链的按操作命名保持顶层（fetch、map）；平台直连命令按 `platform <id> <op>` 嵌套。裸动词＝智能管线，provider 前缀＝旁路直连。
-- **别名六槽**（全部 visible_alias）：`s`=search、`f`=fetch、`rs`=research、`c7`=context7、`as`=anysearch、`ls`=config list。关闭 clap `infer_subcommands`。
+- **分界规则**：点名 provider 的命令按 provider 分组嵌套（exa/context7/gemini/chatgpt）；操作语义 + fallback 链的按操作命名保持顶层（fetch、map）；平台直连命令按 `platform <id> <op>` 嵌套。裸动词＝智能管线，provider 前缀＝旁路直连。
+- **别名五槽**（全部 visible_alias）：`s`=search、`f`=fetch、`rs`=research、`c7`=context7、`ls`=config list。关闭 clap `infer_subcommands`。
 
 ## 输出与退出码
 
@@ -117,7 +115,7 @@ forager setup [--non-interactive] [--lang zh|en]
 ## search 参数清理
 
 - **砍** `--providers`（链序权威归配置）、`--platform`（伪过滤器）、`--stream/--no-stream`（持久开关走配置键，临时覆盖走 env）。
-- 留 `--model`、`--extra-sources`、`--fallback`。`--extra-sources` 接受 `0..=20`：0 是分支内默认哨兵，Supplemental Web Search 映射为 3，Documentation/Vertical Search 映射为 1；1–20 原样传递，21+ 在读取配置和联网前由 clap 退出 2。数量不选择 capability，`--capabilities none` 仍不执行补强。
+- 留 `--model`、`--extra-sources`、`--fallback`。`--extra-sources` 接受 `0..=20`：0 是分支内默认哨兵，Supplemental Web Search 映射为 3，Documentation Search 映射为 1；1–20 原样传递，21+ 在读取配置和联网前由 clap 退出 2。数量不选择 capability，`--capabilities none` 仍不执行补强。
 - 删除 `--validation`，不保留 alias、静默忽略或替代门；旧参数按未知参数退出 2。
 - **`--timeout` 横切**所有网络命令：search 180 / research 600 / doctor 探测 30 / fetch、map 补齐。
 
@@ -127,14 +125,14 @@ forager setup [--non-interactive] [--lang zh|en]
 
 ## search 输出角色
 
-- `sources` 只表示 Primary Search Source；空 `sources` 即主回答没有可归属的引用（例如不带联网搜索的 fallback backend 作答），forager 不另设字段标记，由调用方把此类回答视为未核实。所有非主候选统一由 `extra_sources` 表示，领域类型为 Search Candidate，不再公开独立 `vertical_results`。
+- `sources` 只表示 Primary Search Source；空 `sources` 即主回答没有可归属的引用（例如不带联网搜索的 fallback backend 作答），forager 不另设字段标记，由调用方把此类回答视为未核实。所有非主候选统一由 `extra_sources` 表示，领域类型为 Search Candidate。
 - 每条 Search Candidate 固定包含必填 `provider`、`capability`、`provider_data`，以及可空 `title`、`url`、`summary`。`url` 只能是真实 HTTP(S) URL；`summary` 只复制 provider-native 描述、摘要或片段；`provider_data` 只投影 provider 定义的 snake_case 强类型白名单，不透传原始 HTTP/MCP 包装或正文。
 - Context7 Documentation Search 只 resolve library，候选 `url: null`、`summary` 复制 description；`provider_data` 白名单为 `library_id`、`total_snippets`、`trust_score`、`benchmark_score`、`stars`、`versions`。Research 才调用 query-docs 取证。Exa Documentation Search 使用真实 URL，白名单为 `id`、`highlights`、`published_date`、`author`、`image`、`favicon`，且不读取完整 text。直连 `context7 docs` 继续只公开可消费 `content`，structuredContent-only 响应也必须填充该字段。
 - Main Search 在完整响应组装后共享执行 normalizer：先删除完整闭合、大小写不敏感且可跨行的 `<think>...</think>`，再投影末尾显式来源标题块与 `[[N]](HTTP(S) URL)`；其他策略关键词、`sources(...)`、任意 `<details>` 或尾链猜测不解析。规范化后 answer 为空为 Runtime。provider 引用注释中仅由数字构成的标题是引用序号而非页面标题，按无标题处理。来源按脱敏后的公开 URL 稳定去重。
 
 ## 契约①：`--capabilities`
 
-CSV + 独占哨兵 `none`，未传＝自动路由。Rust 类型 `Option<CapabilitySet>` 三态：`None`＝未声明（分类器；未配置则降级默认 Web 链）、`Some(∅)`＝`none`（纯主搜）、`Some({…})`＝caller 权威。词表 4 值（docs_search/web_search/web_fetch/vertical_search）编译期 enum。
+CSV + 独占哨兵 `none`，未传＝自动路由。Rust 类型 `Option<CapabilitySet>` 三态：`None`＝未声明（分类器；未配置则降级默认 Web 链）、`Some(∅)`＝`none`（纯主搜）、`Some({…})`＝caller 权威。词表 3 值（docs_search/web_search/web_fetch）编译期 enum。
 
 ## 契约②：research 计划注入（Schema v1）
 
@@ -162,7 +160,7 @@ CSV + 独占哨兵 `none`，未传＝自动路由。Rust 类型 `Option<Capabili
 
 ### 权威规则（补充决议 A1，经 #57 R2 收窄）
 
-- `decomposition[].required_capabilities` 决定允许跨越哪些 seam；plan 语境词表**限三值**（docs_search/web_search/vertical_search），用独立三值枚举 `PlanCapability`。
+- `decomposition[].required_capabilities` 决定允许跨越哪些 seam；plan 语境词表**限两值**（docs_search/web_search），用独立两值枚举 `PlanCapability`。
 - `intent_signals` 只在已声明 seam 内影响**证据强度与交叉验证策略**，不得增删 capability；其对 provider 顺序的影响通道＝具名 request class 机制，**v1 未启用**（引擎永不静默偏离配置序）。
 - **`web_fetch` 为 research 引擎不变量**（fetch-before-claim）：由引擎按证据需要自动执行，plan 中声明它＝退 2，错误信息说明其由引擎自动执行。
 - `required_capabilities`＝seam 门（路由权威）；seam 内 provider 凭据缺口不阻断成功，经 capability_gaps 自报（#59 H7：required＝路由权威、可用性 advisory）。
@@ -183,7 +181,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 ## 契约③：`doctor --provider`
 
-两档：`doctor` 浅检全体（掩码配置 + 凭据存在 + 可达性（对 endpoint 发 GET 并只等待响应头，任何 HTTP 响应都算可达；部分 endpoint 对 HEAD 不响应）+ 过宽权限报告 + config list 同构生效值块）；顶层 `ok` 等于所有 `configured=true` provider 均 `reachable=true`，零配置为 true，任一不可达则 JSON/Markdown 均为 false 并退出 4，permission warning 不改变 `ok`。`config_warnings` 报告主搜索链中与首个已配置 backend 使用相同 endpoint（忽略末尾 `/`）和相同主模型的后续 backend——这类 fallback 与主 backend 处于同一故障域；该警告同样不改变 `ok`。`--provider NAME` 深探单体，值域＝provider 注册表的编译期 enum。需要凭据的 7 个 provider 执行凭据有效性 + 最小活体调用；凭据可选的 `jina` 恒为已配置，没有 key 时浅检的 `message` 注明以匿名方式运行，深探以不带凭据的请求执行同一 fetch 探测；有 key 时按现有方式探测，key 失败后的匿名请求即使成功，深探仍以 key 的失败结束；平台 route（`arxiv_api`、`ssrn_crossref`、`ssrn_browser`、`xiaohongshu_browser`、`hn_api`）不需要凭据，恒为已配置，深探执行一次最小平台检索；`hn_api` 访问两个端点，深探在检索之后再向 Firebase 发一个请求，记为 `firebase` 检查；主搜索 backend `xai` 同时是 X 平台的 route，`platforms.x.order` 含 `xai` 时，深探在主搜索检查之后再执行一次最小 X 检索，记为 `x_search` 检查；需要凭据的平台 route `serpapi` 有 key 时才算已配置，浅检对端点发一次不带 key 的 GET（不计额度）；深探不做检索，而是按池中顺序对每个 key 各调用一次同源的 SerpApi Account API（`/account.json`，不计额度），不经凭据轮换、不推进凭据游标，输出增加 `keys` 数组，每个 key 一项 `{key_index, ok, searches_left, plan_searches_left, this_month_usage, this_hour_searches, hourly_limit}`，失败项带 `error_kind`，取不到的数字为 `null`；HTTP 失败沿用共享归因（401/403 为 auth），剩余额度为 0 为 `quota_exhausted`，本小时检索数达到上限为 `rate_limited`，缺数字字段为 `runtime`；任一 key 失败则深探失败退 4，顶层 `error_kind` 与 `message` 取第一个失败的 key，`message` 以 `providers.serpapi.keys[N]` 指明它；响应中的 key、账户邮箱与账户 ID 不被解码，也不进入任何输出；这个深探只证明端点、key 与额度状态，不证明 Scholar 检索的请求与解码（由 live smoke C24–C26 证明）；没有 key 时以 config 失败退 3 且不发请求；需要凭据的平台 route `gemini_api` 同样有 key 时才算已配置，浅检对端点发一次不带 key 的 GET；深探不调用模型，而是按池中顺序用每个 key 各请求一次 `GET <url>/models`（不计模型额度），检查记为 `[{name: "models", transport: "http"}]`，`keys` 每项只有 `{key_index, ok}`，失败项带 `error_kind`，失败与报告规则同 `serpapi`（`message` 以 `providers.gemini_api.keys[N]` 指明失败的 key）；其他 provider 的深探输出没有 `keys`；openai-compatible 额外保留 stream/no-stream 双形状判定。声明访问策略的 provider（平台 route）的浅检检查与深探请求都先经过跨进程限速，等不到窗口时浅检记为不可达、深探以 timeout 失败，且都不发送请求。
+两档：`doctor` 浅检全体（掩码配置 + 凭据存在 + 可达性（对 endpoint 发 GET 并只等待响应头，任何 HTTP 响应都算可达；部分 endpoint 对 HEAD 不响应）+ 过宽权限报告 + config list 同构生效值块）；顶层 `ok` 等于所有 `configured=true` provider 均 `reachable=true`，零配置为 true，任一不可达则 JSON/Markdown 均为 false 并退出 4，permission warning 不改变 `ok`。`config_warnings` 报告主搜索链中与首个已配置 backend 使用相同 endpoint（忽略末尾 `/`）和相同主模型的后续 backend——这类 fallback 与主 backend 处于同一故障域；该警告同样不改变 `ok`。`--provider NAME` 深探单体，值域＝provider 注册表的编译期 enum。需要凭据的 6 个 provider 执行凭据有效性 + 最小活体调用；凭据可选的 `jina` 恒为已配置，没有 key 时浅检的 `message` 注明以匿名方式运行，深探以不带凭据的请求执行同一 fetch 探测；有 key 时按现有方式探测，key 失败后的匿名请求即使成功，深探仍以 key 的失败结束；平台 route（`arxiv_api`、`ssrn_crossref`、`ssrn_browser`、`xiaohongshu_browser`、`hn_api`）不需要凭据，恒为已配置，深探执行一次最小平台检索；`hn_api` 访问两个端点，深探在检索之后再向 Firebase 发一个请求，记为 `firebase` 检查；主搜索 backend `xai` 同时是 X 平台的 route，`platforms.x.order` 含 `xai` 时，深探在主搜索检查之后再执行一次最小 X 检索，记为 `x_search` 检查；需要凭据的平台 route `serpapi` 有 key 时才算已配置，浅检对端点发一次不带 key 的 GET（不计额度）；深探不做检索，而是按池中顺序对每个 key 各调用一次同源的 SerpApi Account API（`/account.json`，不计额度），不经凭据轮换、不推进凭据游标，输出增加 `keys` 数组，每个 key 一项 `{key_index, ok, searches_left, plan_searches_left, this_month_usage, this_hour_searches, hourly_limit}`，失败项带 `error_kind`，取不到的数字为 `null`；HTTP 失败沿用共享归因（401/403 为 auth），剩余额度为 0 为 `quota_exhausted`，本小时检索数达到上限为 `rate_limited`，缺数字字段为 `runtime`；任一 key 失败则深探失败退 4，顶层 `error_kind` 与 `message` 取第一个失败的 key，`message` 以 `providers.serpapi.keys[N]` 指明它；响应中的 key、账户邮箱与账户 ID 不被解码，也不进入任何输出；这个深探只证明端点、key 与额度状态，不证明 Scholar 检索的请求与解码（由 live smoke C24–C26 证明）；没有 key 时以 config 失败退 3 且不发请求；需要凭据的平台 route `gemini_api` 同样有 key 时才算已配置，浅检对端点发一次不带 key 的 GET；深探不调用模型，而是按池中顺序用每个 key 各请求一次 `GET <url>/models`（不计模型额度），检查记为 `[{name: "models", transport: "http"}]`，`keys` 每项只有 `{key_index, ok}`，失败项带 `error_kind`，失败与报告规则同 `serpapi`（`message` 以 `providers.gemini_api.keys[N]` 指明失败的 key）；其他 provider 的深探输出没有 `keys`；openai-compatible 额外保留 stream/no-stream 双形状判定。声明访问策略的 provider（平台 route）的浅检检查与深探请求都先经过跨进程限速，等不到窗口时浅检记为不可达、深探以 timeout 失败，且都不发送请求。
 
 传输类型为 process 的 route（`ssrn_browser`、`xiaohongshu_browser`）不发 GET：浅检只在它出现在所属平台的 order 中时参与，运行 adapter 的 `contract` 命令并核对契约版本；未启用时报告 `configured: false`，不影响 `ok`。检查失败时该 provider 状态带 `message`（含安装提示），Markdown 在同一行括号中显示。深探（`doctor --provider ssrn_browser` 或 `xiaohongshu_browser`）同样只在 order 启用该 route 时运行一次真实的平台检索；未启用时以 config 失败退 3，不启动进程。
 
@@ -667,5 +665,4 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 ## 收尾
 
 - `smoke [--live]`：默认离线档；内容定义见第 5 章。
-- `--sub-domain-params` 保留内联 JSON 单对象 + serde 严格校验。
 - `setup` 只留 `--non-interactive`/`--lang`；键面见第 3 章。

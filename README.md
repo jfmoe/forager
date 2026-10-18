@@ -108,9 +108,9 @@ Skill 要求 `forager >= 0.5.2`。外部 Agent 的上下文保护方式见
 ## 设计边界
 
 - `search` 接受调用方声明的完整能力集合；forager 不擅自扩张该集合。
-- `search` 的 `sources` 只表示主回答来源；`extra_sources` 统一承载 Supplemental Web Search、Documentation Search、Vertical Discovery 与 search-side Web Fetch 产生的非主 Search Candidate。候选保留 provider 原生摘要，只有 search-side Web Fetch 使用 300 字正文 preview。
+- `search` 的 `sources` 只表示主回答来源；`extra_sources` 统一承载 Supplemental Web Search、Documentation Search 与 search-side Web Fetch 产生的非主 Search Candidate。候选保留 provider 原生摘要，只有 search-side Web Fetch 使用 300 字正文 preview。
 - `research` 可以接受调用方通过 `--plan` 注入的 Schema v1 研究计划，并以文件化 Research Evidence Index 交付证据而非生成答案。
-- `fetch`、`map` 以及 `exa`、`context7`、`anysearch` 子命令提供显式直连入口。
+- `fetch`、`map` 以及 `exa`、`context7` 子命令提供显式直连入口。
 - 凭据保存在本地配置中；命令输出和持久化 journal 会对敏感 URL 参数脱敏。
 - 能力暂时不可用时，结果会明确报告 `capability_gaps`，不会把缺失能力伪装成成功覆盖。
 

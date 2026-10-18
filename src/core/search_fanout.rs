@@ -6,7 +6,7 @@ use crate::attempt_trace;
 use crate::config::RuntimeConfig;
 use crate::engine::{
     CapabilityExecution, FANOUT_CONCURRENCY, documentation_search, fetch, known_urls,
-    supplemental_web_search, vertical_search,
+    supplemental_web_search,
 };
 use crate::net::combine_diagnostics;
 use crate::providers::{FetchRequest, FetchSource};
@@ -31,7 +31,6 @@ struct CapabilityBranch {
 struct CapabilityTargets {
     web: u16,
     documentation: u16,
-    vertical: u16,
 }
 
 impl CapabilityTargets {
@@ -39,7 +38,6 @@ impl CapabilityTargets {
         Self {
             web: if requested == 0 { 3 } else { requested },
             documentation: requested.max(1),
-            vertical: requested.max(1),
         }
     }
 }
@@ -133,9 +131,6 @@ pub(crate) async fn execute_capabilities(
                         execute_web_search(query, targets.web, config, execution).await
                     }
                     Capability::WebFetch => execute_web_fetch(query, config, execution).await,
-                    Capability::VerticalSearch => {
-                        execute_vertical_search(query, targets.vertical, config, execution).await
-                    }
                 }
             }
         })
@@ -323,46 +318,6 @@ async fn execute_web_fetch(
     branch
 }
 
-async fn execute_vertical_search(
-    query: &str,
-    limit: u16,
-    config: &RuntimeConfig,
-    execution: CapabilityExecution,
-) -> CapabilityBranch {
-    let mut branch = CapabilityBranch::default();
-    if config.vertical_search.configured_provider_count() == 0 {
-        branch.record_gap(
-            Capability::VerticalSearch,
-            "no_configured_provider",
-            config.vertical_search.names(),
-            "vertical_search has no configured provider",
-        );
-        return branch;
-    }
-    match vertical_search(query, limit, config.vertical_search.clone(), execution).await {
-        Ok(mut vertical) => {
-            branch.attempts.append(&mut vertical.attempts);
-            branch.push_diagnostic(vertical.diagnostic);
-            branch.sources = vertical
-                .results
-                .into_iter()
-                .map(SearchCandidate::from_vertical_result)
-                .collect();
-        }
-        Err(mut error) => {
-            branch.attempts.append(&mut error.attempts);
-            branch.push_diagnostic(error.diagnostic);
-            branch.record_gap(
-                Capability::VerticalSearch,
-                "all_attempts_failed",
-                config.vertical_search.unconfigured_names(),
-                "all vertical_search attempts failed",
-            );
-        }
-    }
-    branch
-}
-
 fn merge_extra_sources(
     primary: &[Source],
     extra_sources: &mut Vec<SearchCandidate>,
@@ -373,22 +328,15 @@ fn merge_extra_sources(
         .map(|source| source.url.as_str())
         .collect::<HashSet<_>>();
     for source in sources {
-        if source.url().is_some_and(|url| primary_urls.contains(url)) {
-            continue;
-        }
-        if let Some(index) = source.url().and_then(|url| {
-            extra_sources
-                .iter()
-                .position(|existing| existing.url() == Some(url))
+        if source.url().is_some_and(|url| {
+            primary_urls.contains(url)
+                || extra_sources
+                    .iter()
+                    .any(|existing| existing.url() == Some(url))
         }) {
-            if source.capability() == Capability::VerticalSearch
-                && extra_sources[index].capability() != Capability::VerticalSearch
-            {
-                extra_sources[index] = source;
-            }
             continue;
         }
-        if !extra_sources.iter().any(|existing| existing == &source) {
+        if !extra_sources.contains(&source) {
             extra_sources.push(source);
         }
     }
@@ -407,13 +355,13 @@ mod tests {
 
     #[test]
     fn capability_targets_preserve_branch_local_defaults_and_positive_requests() {
-        let cases = [(0, (3, 1, 1)), (1, (1, 1, 1)), (20, (20, 20, 20))];
+        let cases = [(0, (3, 1)), (1, (1, 1)), (20, (20, 20))];
 
         for (requested, expected) in cases {
             let targets = CapabilityTargets::new(requested);
 
             assert_eq!(
-                (targets.web, targets.documentation, targets.vertical,),
+                (targets.web, targets.documentation),
                 expected,
                 "requested={requested}"
             );

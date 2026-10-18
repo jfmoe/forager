@@ -110,7 +110,7 @@ fn arxiv_api_deep_doctor_probe_waits_for_the_request_window() {
 
 #[test]
 fn shallow_doctor_reachability_probe_waits_for_the_request_window() {
-    let fixture = Fixture::start_sequence(reachable_responses(10));
+    let fixture = Fixture::start_sequence(reachable_responses(9));
     let environment = RunEnvironment::new(&shallow_config(&fixture.url));
     reserve_arxiv_window(&environment);
 
@@ -130,7 +130,7 @@ fn shallow_doctor_reachability_probe_waits_for_the_request_window() {
             &arxiv_api["reachable"],
             fixture.finish_all().len()
         ),
-        (Some(4), &Value::Bool(true), &Value::Bool(false), 10)
+        (Some(4), &Value::Bool(true), &Value::Bool(false), 9)
     );
 }
 
@@ -150,7 +150,7 @@ fn ssrn_browser_status(payload: &Value) -> &Value {
 /// Runs a shallow doctor where every HTTP provider is reachable and `fake` answers for
 /// `ssrn_browser`, which the SSRN order lists when `enabled`.
 fn shallow_with_browser(fake: &FakeOpenCli, enabled: bool) -> std::process::Output {
-    let fixture = Fixture::start_sequence(reachable_responses(11));
+    let fixture = Fixture::start_sequence(reachable_responses(10));
     let order = if enabled {
         "[\"ssrn_crossref\", \"ssrn_browser\"]"
     } else {
@@ -162,7 +162,7 @@ fn shallow_with_browser(fake: &FakeOpenCli, enabled: bool) -> std::process::Outp
         fake.config(order)
     ));
     let output = environment.run(&["doctor"]);
-    assert_eq!(fixture.finish_all().len(), 11);
+    assert_eq!(fixture.finish_all().len(), 10);
     output
 }
 
@@ -360,7 +360,7 @@ fn xiaohongshu_browser_deep_doctor_runs_one_first_page_search() {
 
 #[test]
 fn shallow_doctor_checks_the_enabled_xiaohongshu_adapter_contract() {
-    let fixture = Fixture::start_sequence(reachable_responses(11));
+    let fixture = Fixture::start_sequence(reachable_responses(10));
     let fake = FakeOpenCli::contract_envelope(
         support::opencli::XHS_CONTRACT,
         "ok",
@@ -399,12 +399,12 @@ fn shallow_doctor_checks_the_enabled_xiaohongshu_adapter_contract() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert_eq!(fixture.finish_all().len(), 11);
+    assert_eq!(fixture.finish_all().len(), 10);
 }
 
 #[test]
 fn shallow_doctor_skips_the_xiaohongshu_route_while_its_order_is_empty() {
-    let fixture = Fixture::start_sequence(reachable_responses(11));
+    let fixture = Fixture::start_sequence(reachable_responses(10));
     let fake = FakeOpenCli::answering("", "", 1);
     let environment = RunEnvironment::new(&format!(
         "{}\n{}",
@@ -426,7 +426,7 @@ fn shallow_doctor_skips_the_xiaohongshu_route_while_its_order_is_empty() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert_eq!(fixture.finish_all().len(), 11);
+    assert_eq!(fixture.finish_all().len(), 10);
 }
 
 #[test]
@@ -463,7 +463,7 @@ fn xiaohongshu_browser_deep_doctor_refuses_the_route_while_its_order_is_empty() 
 /// Runs a shallow doctor where every HTTP provider is reachable, `youtube_web` among them when
 /// the YouTube order lists it.
 fn shallow_with_youtube_web(enabled: bool) -> (Value, usize) {
-    let requests = if enabled { 12 } else { 11 };
+    let requests = if enabled { 11 } else { 10 };
     let fixture = Fixture::start_sequence(reachable_responses(requests));
     let order = if enabled {
         "[\"youtube_api\", \"youtube_web\"]"
@@ -500,10 +500,10 @@ fn shallow_doctor_reaches_youtube_web_only_while_an_order_enables_it() {
         (
             &Value::Bool(false),
             &Value::Bool(false),
+            10,
+            &Value::Bool(true),
+            &Value::Bool(true),
             11,
-            &Value::Bool(true),
-            &Value::Bool(true),
-            12,
         )
     );
 }

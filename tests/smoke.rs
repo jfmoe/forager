@@ -44,8 +44,8 @@ fn offline_smoke_reports_local_readiness_without_contacting_provider_endpoints()
             Some(0),
             &Value::String("offline".into()),
             &Value::Bool(true),
-            &json!({"ok": true, "provider_count": 19}),
-            Some(19),
+            &json!({"ok": true, "provider_count": 18}),
+            Some(18),
             &json!(["********"]),
             &json!(["********"]),
             &Value::Bool(true),
@@ -71,9 +71,9 @@ fn live_smoke_lists_exactly_the_specification_case_registry_without_l0_doctor_ga
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live registry JSON");
     let expected = json!([
         "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11",
-        "C12", "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24",
-        "C25", "C26", "C27", "C28", "C29", "C30", "C31", "C32", "C33", "C34", "C35", "C36", "C37",
-        "C38", "C39", "C40", "C41", "C42"
+        "C12", "C13", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24", "C25", "C26", "C27",
+        "C28", "C29", "C30", "C31", "C32", "C33", "C34", "C35", "C36", "C37", "C38", "C39", "C40",
+        "C41", "C42"
     ]);
 
     assert_eq!(
@@ -125,7 +125,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
             Some(4),
             &Value::String("live".into()),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 43, "skipped": 0}),
+            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 40, "skipped": 0}),
             &Value::String("failed".into()),
             &Value::Number(3.into()),
             &Value::String("unconfigured".into()),
@@ -162,7 +162,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
         (
             Some(4),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 43, "skipped": 0}),
+            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 40, "skipped": 0}),
             &Value::String("deferred".into()),
             &Value::Number(3.into()),
             &Value::String("http://127.0.0.1:9?token=********".into()),
@@ -272,7 +272,7 @@ fn live_smoke_passes_a_configured_case_only_after_a_zero_parseable_nonempty_term
         ),
         (
             Some(4),
-            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 43, "skipped": 0}),
+            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 40, "skipped": 0}),
             &Value::String("passed".into()),
             &Value::Number(1.into()),
         ),
@@ -508,7 +508,7 @@ fn live_smoke_runs_the_platform_cases_through_their_configured_route() {
             algolia_requests[1].starts_with("GET /items/8863 "),
         ),
         (
-            &json!({"passed": 7, "failed": 0, "deferred": 0, "unconfigured": 37, "skipped": 0}),
+            &json!({"passed": 7, "failed": 0, "deferred": 0, "unconfigured": 34, "skipped": 0}),
             [(); 7].map(|()| Value::String("passed".into())),
             [
                 &Value::String("arxiv".into()),
@@ -1190,10 +1190,6 @@ keys = ["jina-secret"]
 url = {endpoint:?}
 keys = ["context7-secret"]
 
-[providers.anysearch]
-url = {endpoint:?}
-keys = ["anysearch-secret"]
-
 [journal]
 dir = {journal_dir:?}
 "#
@@ -1226,9 +1222,9 @@ keys = ["xai-secret"]
 url = "http://127.0.0.1:9"
 keys = ["exa-secret"]
 
-[providers.anysearch]
+[providers.tavily]
 url = "http://127.0.0.1:9"
-keys = ["anysearch-secret"]
+keys = ["tavily-secret"]
 
 [providers.jina]
 url = "http://127.0.0.1:9"
@@ -1237,8 +1233,8 @@ keys = ["jina-secret"]
 [capabilities.docs_search]
 order = ["exa"]
 
-[capabilities.vertical_search]
-order = ["anysearch"]
+[capabilities.web_search]
+order = ["tavily"]
 
 [capabilities.web_fetch]
 order = ["jina"]
@@ -1250,7 +1246,7 @@ dir = {journal_dir:?}
     )
 }
 
-fn provider_secrets() -> [&'static str; 9] {
+fn provider_secrets() -> [&'static str; 8] {
     [
         "classifier-secret",
         "xai-secret",
@@ -1260,6 +1256,5 @@ fn provider_secrets() -> [&'static str; 9] {
         "firecrawl-secret",
         "jina-secret",
         "context7-secret",
-        "anysearch-secret",
     ]
 }

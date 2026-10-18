@@ -13,8 +13,8 @@ forager search "QUERY" --capabilities CAPABILITIES --format json
 ```
 
 Set `--extra-sources` only to control supplemental breadth. Its public range is `0..=20`: `0` uses
-the selected branch's local default, where Web Search uses 3 and Documentation Search and Vertical
-Search use 1. An explicit value from `1..=20` is the exact target.
+the selected branch's local default, where Web Search uses 3 and Documentation Search uses 1. An
+explicit value from `1..=20` is the exact target.
 
 ## Consume the result
 
@@ -22,10 +22,10 @@ Search use 1. An explicit value from `1..=20` is the exact target.
 - `sources` contains only Primary Search Sources attributed to the main answer. An empty `sources`
   marks an uncited answer, such as one from a fallback backend without web search: treat each of
   its claims as unverified until fetched content supports it.
-- `extra_sources` contains every non-primary Search Candidate, including Vertical Discovery
-  results. Each candidate has stable `provider`, `capability`, `title`, `url`, `summary`, and
-  `provider_data` fields; `title`, `url`, and `summary` can be null, while `provider_data` carries
-  provider-specific selection data. A provider-native summary is not verified evidence.
+- `extra_sources` contains every non-primary Search Candidate. Each candidate has stable
+  `provider`, `capability`, `title`, `url`, `summary`, and `provider_data` fields; `title`, `url`,
+  and `summary` can be null, while `provider_data` carries provider-specific selection data. A
+  provider-native summary is not verified evidence.
 - Fetch a candidate with an HTTP(S) `url` before using it as evidence. A Context7 Documentation
   Candidate instead carries a typed library locator in `provider_data`; consume it through
   Documentation Search or the Research Evidence Pipeline, never by fabricating a URL or passing it

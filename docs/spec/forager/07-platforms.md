@@ -4,7 +4,7 @@
 
 ## 概念与规则
 
-- **Platform**：内置的外部内容源，拥有自己的身份空间。它与 Capability Seam 并列，不是 provider，也不是 Vertical Search 的垂直域。只支持随版本发布的内置平台；配置不能定义平台或通用 MCP/CLI route。
+- **Platform**：内置的外部内容源，拥有自己的身份空间。它与 Capability Seam 并列，不是 provider。只支持随版本发布的内置平台；配置不能定义平台或通用 MCP/CLI route。
 - **Platform Route**：接入某个平台的一条路线。route 就是 provider，沿用 provider 身份、凭据池（需要凭据时）、provider 配置段、doctor 探针与 smoke 登记。route id 绝不使用裸平台名（用 `arxiv_api`，不用 `arxiv`）。一个 provider 可以服务多个平台和 seam。一条 route 也可以访问同一平台的多个官方端点：每个端点各有一个 URL 配置键（例如 `providers.hn_api.url` 与 `.firebase_url`），所有端点共用这条 route 的访问策略与 timeout；只用来增强结果的端点失败时，route 保留主端点的结果并汇总一条诊断，不判失败（ADR 0027）。
 - **Route 传输类型**：注册信息的 `transport` 声明 route 到达内容源的方式：`Http`（发 HTTP 请求），或 `OpenCli`（运行本机 OpenCLI 中 forager 自有 adapter 的命令，附 site 与契约版本；这类 route 称为 process route）。配置检查、doctor 与 checklist 测试按传输类型判断，不按 route id 判断。process route 只能由用户手动加入平台 order，永不进入 `default_order`（ADR 0020）。HTTP route 同样可以不进 `default_order`，由用户手动启用（`youtube_web` 读取未公开接口，ADR 0028）。order 未列出这类 route 时，飞行前的配置错误（退 3）附上它们的启用说明；参数错误（退 2）只为支持该请求的 route 附上。HTTP route 的启用说明给出一条 `config set` 命令，建议的 order 保留当前 order 的全部 route，把该 route 放在当前 order 最后一条 fetch route 之后（没有时放在最前），使只服务其他操作的 route 继续生效。不在任何平台 `default_order` 中的平台 route 只在某个 order 启用它时参加 doctor：shallow 检查在未启用时报告 `configured: false`、不发请求，deep 探测在未启用时以 config 失败退 3。OpenCLI 传输也服务不属于任何平台的 process 供应方 `gemini_browser` 与 `chatgpt_browser`：它们不进入任何 order，只由 `forager gemini` 或 `forager chatgpt` 命令运行，doctor 默认跳过它们（ADR 0023，第 2 章「Gemini 命令」「ChatGPT 命令」）；本章的 OpenCLI 进程传输、退出码映射与 process 访问策略规则同样适用于它们。
 - **链语义**：同平台的 route 按 `platforms.<id>.order` 组成 fallback 链，由共享链执行器运行，沿用 LegitimateEmpty 语义：至少一条 route 返回合法空结果、之后没有 route 被接受时，结果为空成功。结果永不跨平台 fallback。

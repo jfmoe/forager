@@ -11,8 +11,8 @@ use forager::app::{
     ProviderError, ResearchFailure, ResearchTerminal, SearchFailure, bounded_attempt_summary,
 };
 use forager::types::{
-    AnysearchOutcome, AttemptErrorKind, Context7Outcome, ErrorFamily, ErrorKind, FetchOutcome,
-    JournalOutcome, MapOutcome, SearchCandidate, SearchOutcome,
+    AttemptErrorKind, Context7Outcome, ErrorFamily, ErrorKind, FetchOutcome, JournalOutcome,
+    MapOutcome, SearchCandidate, SearchOutcome,
 };
 use serde_json::{Value, json};
 
@@ -79,12 +79,6 @@ fn main() -> ExitCode {
             output,
             attempt_log,
         }) => emit_logged(render_context7(result, format, output), attempt_log),
-        Ok(CommandOutput::Anysearch {
-            result,
-            format,
-            output,
-            attempt_log,
-        }) => emit_logged(render_anysearch(result, format, output), attempt_log),
         Ok(CommandOutput::Fetch {
             result,
             format,
@@ -702,95 +696,6 @@ fn render_fetch(
     )
 }
 
-fn render_anysearch(
-    result: Result<AnysearchOutcome, ProviderError>,
-    format: OutputFormat,
-    output: Option<OutputTarget>,
-) -> Result<RenderedOutput, String> {
-    let (stdout, exit_code, diagnostic) = match result {
-        Ok(outcome) => {
-            let diagnostic = match &outcome {
-                AnysearchOutcome::Domains(outcome) => outcome.diagnostic.clone(),
-                AnysearchOutcome::Search(outcome) => outcome.diagnostic.clone(),
-            };
-            (format_anysearch_success(&outcome, format)?, 0, diagnostic)
-        }
-        Err(error) => (
-            format_anysearch_failure(&error, format)?,
-            postflight_exit_code(error.kind),
-            error.diagnostic,
-        ),
-    };
-    apply_tee(
-        stdout,
-        exit_code,
-        format == OutputFormat::Json,
-        output,
-        diagnostic,
-    )
-}
-
-fn format_anysearch_failure(error: &ProviderError, format: OutputFormat) -> Result<String, String> {
-    match format {
-        OutputFormat::Json => format_failure_json(error),
-        OutputFormat::Markdown => Ok(format!(
-            "# AnySearch request failed\n\n**{}**: {}",
-            error.kind.as_str(),
-            error.message
-        )),
-    }
-}
-
-fn format_anysearch_success(
-    outcome: &AnysearchOutcome,
-    format: OutputFormat,
-) -> Result<String, String> {
-    match (outcome, format) {
-        (AnysearchOutcome::Domains(outcome), OutputFormat::Json) => {
-            serde_json::to_string(outcome).map_err(|error| error.to_string())
-        }
-        (AnysearchOutcome::Domains(outcome), OutputFormat::Markdown) => {
-            let mut markdown = format!("# AnySearch domains: {}\n", outcome.domain);
-            for domain in &outcome.results {
-                let _ = write!(
-                    markdown,
-                    "\n- **{}.{}** — {}",
-                    outcome.domain, domain.sub_domain, domain.description
-                );
-            }
-            if outcome.results.is_empty() {
-                markdown.push_str("\n\nNo results.");
-            }
-            Ok(markdown)
-        }
-        (AnysearchOutcome::Search(outcome), OutputFormat::Json) => {
-            serde_json::to_string(outcome).map_err(|error| error.to_string())
-        }
-        (AnysearchOutcome::Search(outcome), OutputFormat::Markdown) => {
-            let mut markdown = format!("# AnySearch {}: {}\n", outcome.operation, outcome.query);
-            for result in &outcome.results {
-                if result.url.is_empty() {
-                    let _ = write!(
-                        markdown,
-                        "\n- **{}** — {}",
-                        result.title, result.description
-                    );
-                } else {
-                    let _ = write!(
-                        markdown,
-                        "\n- [{}]({}) — {}",
-                        result.title, result.url, result.description
-                    );
-                }
-            }
-            if outcome.results.is_empty() {
-                markdown.push_str("\n\nNo results.");
-            }
-            Ok(markdown)
-        }
-    }
-}
-
 // Rendering transfers the completed stdout buffer to the terminal as a final output value.
 #[expect(clippy::needless_pass_by_value)]
 fn emit(stdout: String, stderr: Option<String>, exit_code: u8) -> ExitCode {
@@ -1289,7 +1194,7 @@ mod tests {
     }
 
     const PROVIDERS: [&str; 9] = [
-        "anysearch",
+        "arxiv_api",
         "classifier",
         "context7",
         "exa",

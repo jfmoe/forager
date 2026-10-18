@@ -172,13 +172,6 @@ pub(crate) struct Context7RuntimeConfig {
     pub(crate) timeout_seconds: u64,
 }
 
-#[derive(Clone, Debug)]
-pub(crate) struct AnysearchRuntimeConfig {
-    pub(crate) url: String,
-    pub(crate) keys: Vec<Secret>,
-    pub(crate) timeout_seconds: u64,
-}
-
 /// The configuration of a platform route that sends HTTP requests without credentials.
 #[derive(Clone, Debug)]
 pub(crate) struct HttpRouteRuntimeConfig {
@@ -379,36 +372,6 @@ impl DocsSearchRuntimeConfig {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct VerticalSearchRuntimeConfig {
-    entries: Vec<SeamEntry<AnysearchRuntimeConfig>>,
-}
-
-impl VerticalSearchRuntimeConfig {
-    pub(crate) fn configured_provider_count(&self) -> usize {
-        self.entries
-            .iter()
-            .filter(|entry| entry.configured())
-            .count()
-    }
-
-    pub(crate) fn entries(&self) -> &[SeamEntry<AnysearchRuntimeConfig>] {
-        &self.entries
-    }
-
-    pub(crate) fn into_entries(self) -> Vec<SeamEntry<AnysearchRuntimeConfig>> {
-        self.entries
-    }
-
-    pub(crate) fn names(&self) -> Vec<String> {
-        entry_names(&self.entries)
-    }
-
-    pub(crate) fn unconfigured_names(&self) -> Vec<String> {
-        unconfigured_entry_names(&self.entries)
-    }
-}
-
-#[derive(Clone, Debug)]
 pub(crate) struct WebFetchProviderConfig {
     pub(crate) url: String,
     pub(crate) keys: Vec<Secret>,
@@ -521,7 +484,6 @@ pub(crate) struct RuntimeConfig {
     pub(crate) openai_compatible: OpenAiCompatibleRuntimeConfig,
     pub(crate) exa: ExaRuntimeConfig,
     pub(crate) context7: Context7RuntimeConfig,
-    pub(crate) anysearch: AnysearchRuntimeConfig,
     pub(crate) platform_routes: PlatformRoutesRuntimeConfig,
     /// The provider that only `forager gemini` commands run.
     pub(crate) gemini_browser: ProcessRouteRuntimeConfig,
@@ -531,7 +493,6 @@ pub(crate) struct RuntimeConfig {
     pub(crate) firecrawl: WebFetchProviderConfig,
     pub(crate) jina: WebFetchProviderConfig,
     pub(crate) docs_search: DocsSearchRuntimeConfig,
-    pub(crate) vertical_search: VerticalSearchRuntimeConfig,
     pub(crate) web_search: WebSearchRuntimeConfig,
     pub(crate) web_fetch: WebFetchRuntimeConfig,
     pub(crate) platforms: PlatformsRuntimeConfig,
@@ -583,10 +544,6 @@ impl RuntimeConfig {
             ProviderId::Context7 => ProviderRuntime {
                 endpoint: &self.context7.url,
                 keys: &self.context7.keys,
-            },
-            ProviderId::Anysearch => ProviderRuntime {
-                endpoint: &self.anysearch.url,
-                keys: &self.anysearch.keys,
             },
             ProviderId::ArxivApi => ProviderRuntime {
                 endpoint: &self.platform_routes.arxiv_api.url,
@@ -681,11 +638,6 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         keys: config.providers.context7.keys,
         timeout_seconds: config.providers.context7.timeout,
     };
-    let anysearch = AnysearchRuntimeConfig {
-        url: config.providers.anysearch.url,
-        keys: config.providers.anysearch.keys,
-        timeout_seconds: config.providers.anysearch.timeout,
-    };
     let xai = XaiRuntimeConfig {
         url: config.providers.xai.url,
         keys: config.providers.xai.keys,
@@ -752,8 +704,6 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
     };
     let main_entries = main_search_entries(config.search.backends, &xai, &openai_compatible)?;
     let docs_entries = docs_search_entries(config.capabilities.docs_search.order, &exa, &context7)?;
-    let vertical_entries =
-        vertical_search_entries(config.capabilities.vertical_search.order, &anysearch)?;
     let web_search_entries = web_entries(
         config.capabilities.web_search.order,
         "web_search",
@@ -807,7 +757,6 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         openai_compatible,
         exa,
         context7,
-        anysearch,
         platform_routes,
         gemini_browser: ProcessRouteRuntimeConfig {
             command: config.providers.gemini_browser.command,
@@ -822,9 +771,6 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         jina,
         docs_search: DocsSearchRuntimeConfig {
             entries: docs_entries,
-        },
-        vertical_search: VerticalSearchRuntimeConfig {
-            entries: vertical_entries,
         },
         web_search: WebSearchRuntimeConfig {
             entries: web_search_entries,
@@ -881,23 +827,6 @@ fn docs_search_entries(
             let config = docs_provider_config(id, exa, context7)
                 .ok_or_else(|| unknown_provider(&name, seam))?;
             let configured = config.configured();
-            Ok(SeamEntry::new(id, config, configured))
-        })
-        .collect()
-}
-
-fn vertical_search_entries(
-    order: Vec<String>,
-    anysearch: &AnysearchRuntimeConfig,
-) -> Result<Vec<SeamEntry<AnysearchRuntimeConfig>>, ConfigError> {
-    order
-        .into_iter()
-        .map(|name| {
-            let seam = "capabilities.vertical_search.order";
-            let id = ProviderId::parse(&name).ok_or_else(|| unknown_provider(&name, seam))?;
-            let config = vertical_provider_config(id, anysearch)
-                .ok_or_else(|| unknown_provider(&name, seam))?;
-            let configured = provider_configured(id, &config.keys);
             Ok(SeamEntry::new(id, config, configured))
         })
         .collect()
@@ -1024,15 +953,6 @@ pub(crate) fn web_provider_config(
     }
 }
 
-pub(crate) fn vertical_provider_config(
-    id: ProviderId,
-    anysearch: &AnysearchRuntimeConfig,
-) -> Option<AnysearchRuntimeConfig> {
-    catalog::VERTICAL_SEARCH
-        .contains(id)
-        .then(|| anysearch.clone())
-}
-
 fn resolve_journal_dir(value: &str, config_dir: &Path) -> Result<PathBuf, ConfigError> {
     if value == "~/.local/state/forager/journal"
         && let Some(state_home) = env::var_os("XDG_STATE_HOME")
@@ -1094,14 +1014,13 @@ mod tests {
         config.providers.jina.keys = vec![Secret::from("jina-canary")];
         config.providers.tavily.keys = vec![Secret::from("tavily-canary")];
         config.providers.firecrawl.keys = vec![Secret::from("firecrawl-canary")];
-        config.providers.anysearch.keys = vec![Secret::from("anysearch-canary")];
         config.providers.serpapi.keys = vec![Secret::from("serpapi-canary")];
 
         let credentials = configured_credentials(&config);
         let debug = format!("{credentials:?}");
 
-        assert_eq!(credentials.len(), 10);
-        assert_eq!(debug.matches(CREDENTIAL_MASK).count(), 10);
+        assert_eq!(credentials.len(), 9);
+        assert_eq!(debug.matches(CREDENTIAL_MASK).count(), 9);
         assert!(!debug.contains("canary"));
     }
 

@@ -344,19 +344,14 @@ mod tests {
     #[test]
     fn strict_parser_accepts_schema_v1_and_normalizes_duplicate_capabilities() {
         let plan = ResearchPlan::parse_json(
-            &valid_plan(&json!([
-                "vertical_search",
-                "docs_search",
-                "vertical_search"
-            ]))
-            .to_string(),
+            &valid_plan(&json!(["web_search", "docs_search", "web_search"])).to_string(),
         )
         .expect("valid plan");
 
         assert_eq!(
             serde_json::to_value(&plan.decomposition[0].required_capabilities)
                 .expect("serialize capabilities"),
-            json!(["vertical_search", "docs_search"])
+            json!(["web_search", "docs_search"])
         );
     }
 

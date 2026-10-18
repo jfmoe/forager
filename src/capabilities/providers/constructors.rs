@@ -1,12 +1,11 @@
 use reqwest::Client;
 
 use super::{
-    Anysearch, ChatgptBrowser, Context7, Exa, GeminiBrowser, ModelBreakers, OpenAiCompatible,
-    TavilyMap, Xai,
+    ChatgptBrowser, Context7, Exa, GeminiBrowser, ModelBreakers, OpenAiCompatible, TavilyMap, Xai,
 };
 use crate::catalog::{ProviderId, registration};
 use crate::config::{
-    AnysearchRuntimeConfig, Context7RuntimeConfig, ExaRuntimeConfig, OpenAiCompatibleRuntimeConfig,
+    Context7RuntimeConfig, ExaRuntimeConfig, OpenAiCompatibleRuntimeConfig,
     ProcessRouteRuntimeConfig, WebFetchProviderConfig, XaiRuntimeConfig,
 };
 use crate::credentials::CredentialPool;
@@ -72,16 +71,6 @@ pub(crate) fn build_context7(
 ) -> Context7 {
     let credentials = credentials(ProviderId::Context7, &mut config.keys);
     Context7::new(config, client, credentials, retry_policy, deadline)
-}
-
-pub(crate) fn build_anysearch(
-    mut config: AnysearchRuntimeConfig,
-    client: Client,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
-) -> Anysearch {
-    let credentials = credentials(ProviderId::Anysearch, &mut config.keys);
-    Anysearch::new(config, client, credentials, retry_policy, deadline)
 }
 
 pub(crate) fn build_gemini_browser(

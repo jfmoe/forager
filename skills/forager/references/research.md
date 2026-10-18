@@ -19,7 +19,7 @@ Their maximum subquestion counts are 2, 4, and 6 respectively.
 
 Create a complete Schema v1 plan adapted to the request. Each subquestion has a unique, non-empty
 `id`, `question`, and `reason`, plus the complete `required_capabilities` set drawn from
-`docs_search`, `web_search`, and `vertical_search`. The engine supplies `web_fetch`.
+`docs_search` and `web_search`. The engine supplies `web_fetch`.
 
 Use only the schema's exact intent-signal values: `recency_requirement` is `none`, `recent`, or
 `current`; `docs_api_intent` is boolean; `source_authority_need` and `cross_validation_need` are

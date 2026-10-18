@@ -276,7 +276,7 @@ mod tests {
 
     #[test]
     fn successful_provider_ignores_successes_in_other_seams() {
-        let success = succeeded("exa", "vertical_search");
+        let success = succeeded("exa", "docs_search");
 
         assert_eq!(successful_provider(&[success], "main_search"), None);
     }

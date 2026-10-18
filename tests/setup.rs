@@ -23,16 +23,14 @@ fn non_interactive_setup_creates_a_complete_template() {
             output.status.code(),
             count_leaves(&value),
             value["classifier"]["keys"].as_array().map(Vec::len),
-            value["providers"]["anysearch"]["keys"]
-                .as_array()
-                .map(Vec::len),
+            value["providers"]["exa"]["keys"].as_array().map(Vec::len),
             &value["capabilities"]["web_fetch"]["order"],
             value["providers"]["firecrawl"]["timeout"].as_integer(),
             value["search"].get("validation"),
         ),
         (
             Some(0),
-            81,
+            77,
             Some(0),
             Some(0),
             &toml::Value::Array(
@@ -154,7 +152,7 @@ fn interactive_setup_configures_the_five_stages_without_echoing_credentials() {
     let config_dir = tempfile::tempdir().expect("create config directory");
     let canary = "setup-canary-secret";
     let input = format!(
-        "xai\nhttps://main.example/v1\n{canary}\nmain-model\ny\nhttps://classifier.example/v1\nclassifier-secret\nclassifier-model\nexa-secret\ncontext7-secret\njina-secret\ntavily-secret\nfirecrawl-secret\nanysearch-secret\nserpapi-secret\nyoutube-secret\n"
+        "xai\nhttps://main.example/v1\n{canary}\nmain-model\ny\nhttps://classifier.example/v1\nclassifier-secret\nclassifier-model\nexa-secret\ncontext7-secret\njina-secret\ntavily-secret\nfirecrawl-secret\nserpapi-secret\nyoutube-secret\n"
     );
 
     let output = run(config_dir.path(), &["setup", "--lang", "zh"], Some(&input));
@@ -198,7 +196,6 @@ fn interactive_setup_configures_the_five_stages_without_echoing_credentials() {
         ("jina", "jina-secret"),
         ("tavily", "tavily-secret"),
         ("firecrawl", "firecrawl-secret"),
-        ("anysearch", "anysearch-secret"),
         ("serpapi", "serpapi-secret"),
         ("youtube_api", "youtube-secret"),
     ] {
