@@ -3,7 +3,6 @@ use std::time::Duration;
 
 use eventsource_stream::{EventStreamError, Eventsource};
 use futures_util::{Stream, StreamExt, future};
-use reqwest::header::HeaderMap;
 use reqwest::{Client, RequestBuilder, Response, StatusCode, redirect};
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -930,7 +929,6 @@ const MCP_PROTOCOL_VERSION: &str = "2024-11-05";
 pub(crate) struct McpClient<'a> {
     client: &'a Client,
     url: &'a str,
-    headers: &'a HeaderMap,
     deadline: Deadline,
 }
 
@@ -948,16 +946,10 @@ pub(crate) struct McpError {
 }
 
 impl<'a> McpClient<'a> {
-    pub(crate) fn new(
-        client: &'a Client,
-        url: &'a str,
-        headers: &'a HeaderMap,
-        deadline: Deadline,
-    ) -> Self {
+    pub(crate) fn new(client: &'a Client, url: &'a str, deadline: Deadline) -> Self {
         Self {
             client,
             url,
-            headers,
             deadline,
         }
     }
@@ -1083,7 +1075,6 @@ impl<'a> McpClient<'a> {
             .header("accept", "application/json, text/event-stream")
             .header("content-type", "application/json")
             .bearer_auth(credential.expose())
-            .headers(self.headers.clone())
             .json(payload);
         if let Some(session) = session {
             request = request.header("mcp-session-id", session);

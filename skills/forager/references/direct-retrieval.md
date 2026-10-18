@@ -17,7 +17,7 @@ when a YouTube Data API key is configured, or without `--depth` for its captions
 has enabled the `youtube_web` route; see [`platforms.md`](platforms.md). When another URL requires authentication and cannot be fetched
 directly, use an available authenticated client to retrieve it.
 
-Commands under `exa`, `context7`, and `anysearch` bypass capability routing. Use them when the user
+Commands under `exa` and `context7` bypass capability routing. Use them when the user
 requests that provider or the operation exists only as a direct command. Restrict
 `exa search` to known domains with `--include-domains CSV` rather than `site:` in the query. With
 `exa search --include-text`, each result's text is capped by `--text-max-characters` (default

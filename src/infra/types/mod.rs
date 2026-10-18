@@ -40,9 +40,8 @@ pub use gemini_research::{
     GeminiResearchResult, GeminiResearchStarted, GeminiResearchState,
 };
 pub use outcome::{
-    AnysearchDomain, AnysearchDomainsOutcome, AnysearchOutcome, AnysearchResult,
-    AnysearchSearchOutcome, Context7DocsOutcome, Context7LibraryOutcome, Context7Outcome, ExaInput,
-    ExaOutcome, FetchOutcome, JournalOutcome, LibraryCandidate, MapOutcome, SchemaValidation,
+    Context7DocsOutcome, Context7LibraryOutcome, Context7Outcome, ExaInput, ExaOutcome,
+    FetchOutcome, JournalOutcome, LibraryCandidate, MapOutcome,
 };
 pub(crate) use outcome::{DENSITY_MAX_CHARS, DENSITY_MAX_UNIQUE_LINES, MIN_FETCH_CONTENT_CHARS};
 pub(crate) use platform::{
@@ -115,6 +114,4 @@ pub use research::{
     UnconsumedCandidates,
 };
 pub use search::{CapabilityGap, SearchCandidate, SearchOutcome, Source};
-pub(crate) use search::{
-    DocumentationSearchOutcome, SupplementalSearchOutcome, VerticalSearchOutcome,
-};
+pub(crate) use search::{DocumentationSearchOutcome, SupplementalSearchOutcome};

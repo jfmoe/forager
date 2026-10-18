@@ -25,7 +25,6 @@ pub(crate) const PIPELINE_CANARY_QUERY: &str =
     "Find current Rust release news and official documentation.";
 pub(crate) const RESEARCH_CANARY_QUERY: &str = "What is the current status of async drop in Rust?";
 const FETCH_CANARY_URL: &str = "https://www.rust-lang.org/";
-const ANYSEARCH_CANARY_QUERY: &str = "retrieval augmented generation";
 const PLATFORM_CANARY_QUERY: &str = "retrieval augmented generation";
 // Xiaohongshu has new coffee notes every week, so the filtered search reaches its second page.
 const XIAOHONGSHU_CANARY_QUERY: &str = "咖啡";
@@ -41,11 +40,11 @@ const YOUTUBE_VIDEOS_CANARY: &str = "youtube:playlist/PLZHQObOWTQDPD3MizzM2xVFit
 // speaker's clothes.
 const YOUTUBE_ASK_CANARY_QUESTION: &str =
     "How many elephants are visible behind the speaker, and what is he wearing?";
-const SPECIFICATION_CASE_IDS: [&str; 44] = [
+const SPECIFICATION_CASE_IDS: [&str; 41] = [
     "P1", "P2", "C01", "C02", "C03", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12",
-    "C13", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24", "C25",
-    "C26", "C27", "C28", "C29", "C30", "C31", "C32", "C33", "C34", "C35", "C36", "C37", "C38",
-    "C39", "C40", "C41", "C42",
+    "C13", "C17", "C18", "C19", "C20", "C21", "C22", "C23", "C24", "C25", "C26", "C27", "C28",
+    "C29", "C30", "C31", "C32", "C33", "C34", "C35", "C36", "C37", "C38", "C39", "C40", "C41",
+    "C42",
 ];
 // One comment page holds 10 top-level comments, so 15 needs the second page.
 const XIAOHONGSHU_COMMENTS_LIMIT: &str = "15";
@@ -192,7 +191,6 @@ enum ResultShape {
     Context7Library,
     Context7Docs,
     Exa,
-    Anysearch,
     Map,
     PlatformSearch,
     PlatformFetch,
@@ -477,11 +475,6 @@ fn research_status_matches(runtime: &RuntimeConfig, status_host: &str) -> bool {
         .iter()
         .any(|entry| configured_endpoint_matches(entry.id()))
         || runtime
-            .vertical_search
-            .entries()
-            .iter()
-            .any(|entry| configured_endpoint_matches(entry.id()))
-        || runtime
             .web_fetch
             .entries()
             .iter()
@@ -514,9 +507,6 @@ fn status_host_matches_endpoint(status_host: &str, endpoint: &str) -> bool {
                 || endpoint_host.ends_with(".upstash.com")
         }
         "status.exa.ai" => endpoint_host == "exa.ai" || endpoint_host.ends_with(".exa.ai"),
-        "status.anysearch.com" => {
-            endpoint_host == "anysearch.com" || endpoint_host.ends_with(".anysearch.com")
-        }
         _ => false,
     }
 }
@@ -536,7 +526,6 @@ fn official_status_host(url: &str) -> Option<&'static str> {
         "status.jina.ai" => Some("status.jina.ai"),
         "status.upstash.com" => Some("status.upstash.com"),
         "status.exa.ai" => Some("status.exa.ai"),
-        "status.anysearch.com" => Some("status.anysearch.com"),
         _ => None,
     }
 }
@@ -1296,38 +1285,6 @@ fn command_specs(
             ],
             ResultShape::Exa,
         ),
-        "C14" => one(
-            &[
-                "anysearch",
-                "search",
-                ANYSEARCH_CANARY_QUERY,
-                "--domain",
-                "academic",
-                "--sub-domain",
-                "search",
-                "--max-results",
-                "3",
-                "--timeout",
-                &timeout,
-            ],
-            ResultShape::Anysearch,
-        ),
-        "C15" => one(
-            &[
-                "anysearch",
-                "search",
-                ANYSEARCH_CANARY_QUERY,
-                "--max-results",
-                "3",
-                "--timeout",
-                &timeout,
-            ],
-            ResultShape::Anysearch,
-        ),
-        "C16" => one(
-            &["anysearch", "domains", "academic", "--timeout", &timeout],
-            ResultShape::Anysearch,
-        ),
         "C17" => one(
             &[
                 "map",
@@ -1365,7 +1322,6 @@ fn result_shape_is_nonempty(shape: ResultShape, payload: &Value) -> bool {
         ResultShape::SupplementalSearch
         | ResultShape::Context7Library
         | ResultShape::Exa
-        | ResultShape::Anysearch
         | ResultShape::Map => nonempty_array(payload, "results"),
         ResultShape::PlatformSearch => nonempty_array(payload, "items"),
         // X posts have no title; their text proves the read.
@@ -1437,7 +1393,6 @@ fn case_is_configured(case_id: &str, runtime: &RuntimeConfig) -> bool {
             let discovery_seams = [
                 runtime.docs_search.configured_provider_count(),
                 runtime.web_search.configured_provider_count(),
-                runtime.vertical_search.configured_provider_count(),
             ]
             .into_iter()
             .filter(|count| *count > 0)

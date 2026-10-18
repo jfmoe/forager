@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use super::{AnysearchResult, Capability, EvidenceLocator, LibraryCandidate, ProviderAttempt};
+use super::{Capability, EvidenceLocator, LibraryCandidate, ProviderAttempt};
 
 #[derive(Clone, Debug, Serialize)]
 /// A normalized source returned by a search provider.
@@ -72,17 +72,10 @@ struct ExaCandidateData {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
-struct AnysearchCandidateData {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    evidence_type: Option<&'static str>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(untagged)]
 enum SearchCandidateProviderData {
     Context7(Context7CandidateData),
     Exa(ExaCandidateData),
-    Anysearch(AnysearchCandidateData),
     Empty(EmptyCandidateData),
 }
 
@@ -175,20 +168,6 @@ impl SearchCandidate {
         })
     }
 
-    pub(crate) fn from_vertical_result(result: AnysearchResult) -> Self {
-        let url = CandidateUrl::parse(result.url);
-        Self {
-            provider: "anysearch",
-            capability: Capability::VerticalSearch,
-            title: (!result.title.trim().is_empty()).then_some(result.title),
-            url,
-            summary: (!result.description.trim().is_empty()).then_some(result.description),
-            provider_data: SearchCandidateProviderData::Anysearch(AnysearchCandidateData {
-                evidence_type: result.evidence_type,
-            }),
-        }
-    }
-
     pub(crate) fn from_web_fetch(
         provider: &'static str,
         url: String,
@@ -226,10 +205,6 @@ impl SearchCandidate {
     #[must_use]
     pub fn summary(&self) -> Option<&str> {
         self.summary.as_deref()
-    }
-
-    pub(crate) fn capability(&self) -> Capability {
-        self.capability
     }
 
     pub(crate) fn into_evidence_source(self) -> Option<(EvidenceLocator, Source)> {
@@ -295,14 +270,6 @@ pub(crate) struct SupplementalSearchOutcome {
 #[derive(Clone, Debug)]
 pub(crate) struct DocumentationSearchOutcome {
     pub(crate) candidate_sources: Vec<SearchCandidate>,
-    pub(crate) attempts: Vec<ProviderAttempt>,
-    pub(crate) diagnostic: Option<String>,
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct VerticalSearchOutcome {
-    pub(crate) results: Vec<AnysearchResult>,
-    pub(crate) sources: Vec<Source>,
     pub(crate) attempts: Vec<ProviderAttempt>,
     pub(crate) diagnostic: Option<String>,
 }

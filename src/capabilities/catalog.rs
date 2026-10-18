@@ -29,18 +29,9 @@ pub(crate) const DOCS_SEARCH: CapabilityCatalog = CapabilityCatalog {
     seam: "docs_search",
     providers: &[ProviderId::Exa, ProviderId::Context7],
 };
-pub(crate) const VERTICAL_SEARCH: CapabilityCatalog = CapabilityCatalog {
-    seam: "vertical_search",
-    providers: &[ProviderId::Anysearch],
-};
 
-pub(crate) const CATALOGS: &[CapabilityCatalog] = &[
-    MAIN_SEARCH,
-    WEB_SEARCH,
-    WEB_FETCH,
-    DOCS_SEARCH,
-    VERTICAL_SEARCH,
-];
+pub(crate) const CATALOGS: &[CapabilityCatalog] =
+    &[MAIN_SEARCH, WEB_SEARCH, WEB_FETCH, DOCS_SEARCH];
 
 impl CapabilityCatalog {
     pub(crate) fn contains(self, id: ProviderId) -> bool {
@@ -79,7 +70,6 @@ pub(crate) enum ProviderId {
     Firecrawl,
     Jina,
     Context7,
-    Anysearch,
     ArxivApi,
     SsrnCrossref,
     SsrnBrowser,
@@ -94,7 +84,7 @@ pub(crate) enum ProviderId {
 }
 
 impl ProviderId {
-    pub(crate) const ALL: [Self; 19] = [
+    pub(crate) const ALL: [Self; 18] = [
         Self::Xai,
         Self::OpenAiCompatible,
         Self::Exa,
@@ -102,7 +92,6 @@ impl ProviderId {
         Self::Firecrawl,
         Self::Jina,
         Self::Context7,
-        Self::Anysearch,
         Self::ArxivApi,
         Self::SsrnCrossref,
         Self::SsrnBrowser,
@@ -125,7 +114,6 @@ impl ProviderId {
             "firecrawl" => Some(Self::Firecrawl),
             "jina" => Some(Self::Jina),
             "context7" => Some(Self::Context7),
-            "anysearch" => Some(Self::Anysearch),
             "arxiv_api" => Some(Self::ArxivApi),
             "ssrn_crossref" => Some(Self::SsrnCrossref),
             "ssrn_browser" => Some(Self::SsrnBrowser),
@@ -150,7 +138,6 @@ impl ProviderId {
             Self::Firecrawl => "firecrawl",
             Self::Jina => "jina",
             Self::Context7 => "context7",
-            Self::Anysearch => "anysearch",
             Self::ArxivApi => "arxiv_api",
             Self::SsrnCrossref => "ssrn_crossref",
             Self::SsrnBrowser => "ssrn_browser",
@@ -203,10 +190,6 @@ pub(crate) enum DoctorProbe {
         transport: &'static str,
     },
     DocsSearch {
-        name: &'static str,
-        transport: &'static str,
-    },
-    AnysearchDomains {
         name: &'static str,
         transport: &'static str,
     },
@@ -413,26 +396,6 @@ const EXA_SMOKE: &[ProviderSmokeCase] = &[
         platform: None,
         operation: "similar",
         transport: "http",
-    },
-];
-const ANYSEARCH_SMOKE: &[ProviderSmokeCase] = &[
-    ProviderSmokeCase {
-        id: "C14",
-        platform: None,
-        operation: "academic.search",
-        transport: "mcp",
-    },
-    ProviderSmokeCase {
-        id: "C15",
-        platform: None,
-        operation: "vertical_discovery",
-        transport: "mcp",
-    },
-    ProviderSmokeCase {
-        id: "C16",
-        platform: None,
-        operation: "domains",
-        transport: "mcp",
     },
 ];
 
@@ -746,19 +709,6 @@ const REGISTRY: &[ProviderRegistration] = &[
             transport: "http",
         },
         smoke_cases: EXA_SMOKE,
-        native_full_text: false,
-    },
-    ProviderRegistration {
-        id: ProviderId::Anysearch,
-        operations: &["search", "domains"],
-        credentials: Credentials::Required,
-        transport: ProviderTransport::Http,
-        access_policy: None,
-        probe: DoctorProbe::AnysearchDomains {
-            name: "domains",
-            transport: "mcp",
-        },
-        smoke_cases: ANYSEARCH_SMOKE,
         native_full_text: false,
     },
     ProviderRegistration {
@@ -1114,7 +1064,6 @@ mod tests {
                 DoctorProbe::WebSearch { .. } => WEB_SEARCH.contains(registration.id),
                 DoctorProbe::WebFetch { .. } => WEB_FETCH.contains(registration.id),
                 DoctorProbe::DocsSearch { .. } => DOCS_SEARCH.contains(registration.id),
-                DoctorProbe::AnysearchDomains { .. } => registration.id == ProviderId::Anysearch,
                 DoctorProbe::PlatformSearch {
                     platform: probed, ..
                 } => platform(probed).search.contains(&registration.id),

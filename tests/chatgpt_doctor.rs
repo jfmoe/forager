@@ -14,7 +14,7 @@ use support::{Fixture, RunEnvironment};
 
 #[test]
 fn the_default_doctor_leaves_the_chatgpt_route_alone() {
-    let fixture = Fixture::start_sequence(reachable_responses(11));
+    let fixture = Fixture::start_sequence(reachable_responses(10));
     let fake = FakeOpenCli::answering("", "", 1);
     let environment = RunEnvironment::new(&format!(
         "{}\n{}",
@@ -50,7 +50,7 @@ fn the_default_doctor_leaves_the_chatgpt_route_alone() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    assert_eq!(fixture.finish_all().len(), 11);
+    assert_eq!(fixture.finish_all().len(), 10);
 }
 
 #[test]

@@ -8,13 +8,13 @@ use super::constructors::{
 use super::{
     ArxivApi, DocsSearch, GeminiApi, HnApi, KeyAccount, KeyQuota, MainSearch, ModelBreakers,
     PlatformFetch, PlatformSearch, ProviderId, Serpapi, SsrnBrowser, SsrnCrossref,
-    SupplementalSearch, VerticalSearch, WebFetch, WebSearch, XiaohongshuBrowser, YoutubeApi,
-    YoutubeWeb, arxiv, hn_api, opencli, serpapi, ssrn_browser, ssrn_crossref, web_fetch, xai,
-    xiaohongshu_browser, youtube_api, youtube_web,
+    SupplementalSearch, WebFetch, WebSearch, XiaohongshuBrowser, YoutubeApi, YoutubeWeb, arxiv,
+    hn_api, opencli, serpapi, ssrn_browser, ssrn_crossref, web_fetch, xai, xiaohongshu_browser,
+    youtube_api, youtube_web,
 };
-use crate::catalog::{ProviderTransport, VERTICAL_SEARCH, WEB_FETCH, WEB_SEARCH, registration};
+use crate::catalog::{ProviderTransport, WEB_FETCH, WEB_SEARCH, registration};
 use crate::config::{
-    AnysearchRuntimeConfig, DocsSearchProviderConfig, HnRouteRuntimeConfig, HttpRouteRuntimeConfig,
+    DocsSearchProviderConfig, HnRouteRuntimeConfig, HttpRouteRuntimeConfig,
     KeyedHttpRouteRuntimeConfig, MainSearchProviderConfig, ModelRouteRuntimeConfig,
     PlatformRouteConfig, ProcessRouteRuntimeConfig, RuntimeConfig, WebFetchProviderConfig,
 };
@@ -132,25 +132,6 @@ pub(crate) fn build_docs_search(
         ),
         _ => unreachable!("validated docs-search catalog entry has matching config"),
     }
-}
-
-pub(crate) fn build_vertical_search(
-    id: ProviderId,
-    config: AnysearchRuntimeConfig,
-    client: Client,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
-) -> Box<dyn VerticalSearch> {
-    assert!(
-        VERTICAL_SEARCH.contains(id),
-        "validated vertical-search provider"
-    );
-    Box::new(super::build_anysearch(
-        config,
-        client,
-        retry_policy,
-        deadline,
-    ))
 }
 
 pub(crate) fn build_platform_search(

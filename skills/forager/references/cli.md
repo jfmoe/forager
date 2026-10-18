@@ -19,7 +19,7 @@ Routine `search` and `research` stay on their branch references. Treat
 ## Shared behavior
 
 The public top-level commands are `search`, `research`, `fetch`, `map`, `exa`, `context7`,
-`anysearch`, `platform`, `gemini`, `config`, `setup`, `doctor`, and `smoke`. Use `-h` or
+`platform`, `gemini`, `config`, `setup`, `doctor`, and `smoke`. Use `-h` or
 `--help` on any command for parser-generated help. Available aliases are:
 
 | Command | Alias |
@@ -28,7 +28,6 @@ The public top-level commands are `search`, `research`, `fetch`, `map`, `exa`, `
 | `research` | `rs` |
 | `fetch` | `f` |
 | `context7` | `c7` |
-| `anysearch` | `as` |
 | `config list` | `config ls` |
 
 Network commands that expose these options share the following behavior:
@@ -69,7 +68,7 @@ forager search QUERY [--capabilities CSV|none] [--model ID] [--extra-sources N]
 | `QUERY` | Search request passed to the main-search pipeline. | Required |
 | `--capabilities CSV\|none` | Authoritative supplemental capability set. Use canonical comma-separated IDs, or `none` for main search only. Omit it to use classifier routing, with the configured default Web route when no classifier is available. | Omitted |
 | `--model ID` | Override the configured main-search model for this invocation. | Configured model |
-| `--extra-sources N` | Set a target in `0..=20`. At `0`, Web Search uses 3 while Documentation Search and Vertical Search use 1; an explicit `1..=20` is the exact target. | `0` |
+| `--extra-sources N` | Set a target in `0..=20`. At `0`, Web Search uses 3 while Documentation Search uses 1; an explicit `1..=20` is the exact target. | `0` |
 | `--fallback MODE` | Use `auto` or `off` for provider/model fallback. | `search.fallback`, normally `auto` |
 | `--timeout SECONDS` | Set the whole-pipeline deadline. | `180` |
 | `--format FORMAT` | Use `json`, `markdown`, or `content`. | `json` |
@@ -258,48 +257,6 @@ forager context7 docs LIBRARY_ID QUERY [--timeout SECONDS]
 | `QUERY` | Documentation question or topic. | Required |
 | `--timeout SECONDS` | Override `providers.context7.timeout`. | Configured value |
 | `--format FORMAT` | Use `json`, `markdown`, or `content`. | `json` |
-| `--output FILE` | Tee the rendered result to a file. | Omitted |
-| `--receipt` | Print only a receipt on success; requires `--output`. | Off |
-| `--verbose` | Include full provider attempts inline. | Off |
-
-### `anysearch search`
-
-```console
-forager anysearch search QUERY [--domain DOMAIN --sub-domain SUBDOMAIN]
-                               [--sub-domain-params JSON] [--max-results N]
-                               [--timeout SECONDS] [--format json|markdown]
-                               [--output FILE [--receipt]] [--verbose]
-```
-
-| Argument or option | Meaning | Default |
-| --- | --- | --- |
-| `QUERY` | AnySearch discovery query. | Required |
-| `--domain DOMAIN` | Select a parent vertical domain. Must be paired with `--sub-domain`. | Omitted |
-| `--sub-domain SUBDOMAIN` | Select a subdomain without dotted shorthand. Must be paired with `--domain`. | Omitted |
-| `--sub-domain-params JSON` | Pass a JSON object for the selected subdomain. It requires both domain options and cannot override `query`, `domain`, `sub_domain`, or `max_results`. | Empty object |
-| `--max-results N` | Request between 1 and 100 results. | `5` |
-| `--timeout SECONDS` | Override `providers.anysearch.timeout`. | Configured value |
-| `--format FORMAT` | Use `json` or `markdown`. | `json` |
-| `--output FILE` | Tee the rendered result to a file. | Omitted |
-| `--receipt` | Print only a receipt on success; requires `--output`. | Off |
-| `--verbose` | Include full provider attempts inline. | Off |
-
-Use no domain options for general vertical discovery. Use separate undotted parent and subdomain
-values for scoped discovery. The retired `security.cve` alias is invalid; use
-`--domain security --sub-domain vuln`.
-
-### `anysearch domains`
-
-```console
-forager anysearch domains DOMAIN [--timeout SECONDS] [--format json|markdown]
-                                 [--output FILE [--receipt]] [--verbose]
-```
-
-| Argument or option | Meaning | Default |
-| --- | --- | --- |
-| `DOMAIN` | Undotted parent domain whose supported subdomains should be listed. | Required by the parser |
-| `--timeout SECONDS` | Override `providers.anysearch.timeout`. | Configured value |
-| `--format FORMAT` | Use `json` or `markdown`. | `json` |
 | `--output FILE` | Tee the rendered result to a file. | Omitted |
 | `--receipt` | Print only a receipt on success; requires `--output`. | Off |
 | `--verbose` | Include full provider attempts inline. | Off |
@@ -1292,7 +1249,7 @@ forager doctor [--provider PROVIDER] [--timeout SECONDS] [--format json|markdown
 
 | Option | Meaning | Default |
 | --- | --- | --- |
-| `--provider PROVIDER` | Deep-probe one of `xai`, `openai_compatible`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, `anysearch`, `arxiv_api`, `ssrn_crossref`, `ssrn_browser`, `serpapi`, `xiaohongshu_browser`, `hn_api`, or `gemini_browser`. Without it, run the shallow all-provider report. | Omitted |
+| `--provider PROVIDER` | Deep-probe one of `xai`, `openai_compatible`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, `arxiv_api`, `ssrn_crossref`, `ssrn_browser`, `serpapi`, `xiaohongshu_browser`, `hn_api`, or `gemini_browser`. Without it, run the shallow all-provider report. | Omitted |
 | `--timeout SECONDS` | Set the diagnostic deadline. | `30` |
 | `--format FORMAT` | Use `json` or `markdown`. | `json` |
 

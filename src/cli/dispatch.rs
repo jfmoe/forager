@@ -8,24 +8,22 @@ use serde_json::Value;
 use thiserror::Error;
 
 use super::args::{
-    AnysearchCommand, Cli, Command, ConfigCommand, Context7Command, DocsOutputFormat, ExaCommand,
-    Language, OutputFormat, OutputTarget,
+    Cli, Command, ConfigCommand, Context7Command, DocsOutputFormat, ExaCommand, Language,
+    OutputFormat, OutputTarget,
 };
 use crate::config::{self, ConfigError, ConfigLocation, EditError};
 use crate::net::{self, RetryPolicy};
 use crate::providers::{
-    self, AnysearchDomainsRequest, AnysearchSearchRequest, Context7DocsRequest,
-    Context7LibraryRequest, ExaSearchRequest, ExaSimilarRequest, FetchRequest, FetchSource,
-    MapRequest, ProviderId,
+    self, Context7DocsRequest, Context7LibraryRequest, ExaSearchRequest, ExaSimilarRequest,
+    FetchRequest, FetchSource, MapRequest, ProviderId,
 };
 use crate::types::{
-    AnysearchOutcome, CapabilitySet, ChatgptResearchFailure, ChatgptResearchResult,
-    ChatgptResearchStarted, ClaimRisk, Context7Outcome, Deadline, EvidenceStrength, FallbackPolicy,
-    FetchOutcome, GeminiResearchFailure, GeminiResearchResult, GeminiResearchStarted,
-    HnStoriesResult, JournalOutcome, MapOutcome, PlanCapability, Platform, PlatformAskResult,
-    PlatformCommentsPage, PlatformFetchResult, PlatformSearchPage, PlatformTranscribeResult,
-    ProviderAttempt, RecencyRequirement, ResearchIntentSignals, ResearchPlan, ResearchSubquestion,
-    SearchOutcome,
+    CapabilitySet, ChatgptResearchFailure, ChatgptResearchResult, ChatgptResearchStarted,
+    ClaimRisk, Context7Outcome, Deadline, EvidenceStrength, FallbackPolicy, FetchOutcome,
+    GeminiResearchFailure, GeminiResearchResult, GeminiResearchStarted, HnStoriesResult,
+    JournalOutcome, MapOutcome, PlanCapability, Platform, PlatformAskResult, PlatformCommentsPage,
+    PlatformFetchResult, PlatformSearchPage, PlatformTranscribeResult, ProviderAttempt,
+    RecencyRequirement, ResearchIntentSignals, ResearchPlan, ResearchSubquestion, SearchOutcome,
 };
 
 #[doc(hidden)]
@@ -108,17 +106,6 @@ pub enum CommandOutput {
         result: Result<Context7Outcome, ProviderError>,
         /// Requested output format.
         format: DocsOutputFormat,
-        /// Optional output file destination.
-        output: Option<OutputTarget>,
-        /// Optional terminal projection selected by `log.level`.
-        attempt_log: Option<String>,
-    },
-    /// Typed `AnySearch` terminal state for binary-side formatting and tee output.
-    Anysearch {
-        /// Provider result.
-        result: Result<AnysearchOutcome, ProviderError>,
-        /// Requested output format.
-        format: OutputFormat,
         /// Optional output file destination.
         output: Option<OutputTarget>,
         /// Optional terminal projection selected by `log.level`.
@@ -742,55 +729,6 @@ impl AppContext<providers::Context7> {
     }
 }
 
-impl AppContext<providers::Anysearch> {
-    fn for_anysearch(timeout: Option<u64>) -> Result<Self, AppError> {
-        let dependencies = NetworkDependencies::load()?;
-        let config = dependencies.config;
-        let log_level = config.log_level;
-        if !config.provider_configured(ProviderId::Anysearch) {
-            return Err(AppError::Config(ConfigError::Message(
-                "providers.anysearch.keys has no configured credentials".into(),
-            )));
-        }
-        let command_timeout = timeout.unwrap_or(config.anysearch.timeout_seconds);
-        let provider = providers::build_anysearch(
-            config.anysearch,
-            dependencies.client,
-            dependencies.retry_policy,
-            Deadline::new(Duration::from_secs(command_timeout)),
-        );
-        Ok(Self {
-            provider,
-            runtime: dependencies.runtime,
-            log_level,
-        })
-    }
-
-    fn domains(
-        self,
-        request: AnysearchDomainsRequest,
-    ) -> (Result<AnysearchOutcome, ProviderError>, Option<String>) {
-        let result = self.runtime.block_on(self.provider.domains(request));
-        let attempt_log = provider_attempt_log(self.log_level, &result, |outcome| match outcome {
-            AnysearchOutcome::Domains(outcome) => &outcome.attempts,
-            AnysearchOutcome::Search(outcome) => &outcome.attempts,
-        });
-        (result, attempt_log)
-    }
-
-    fn search(
-        self,
-        request: AnysearchSearchRequest,
-    ) -> (Result<AnysearchOutcome, ProviderError>, Option<String>) {
-        let result = self.runtime.block_on(self.provider.search(request));
-        let attempt_log = provider_attempt_log(self.log_level, &result, |outcome| match outcome {
-            AnysearchOutcome::Domains(outcome) => &outcome.attempts,
-            AnysearchOutcome::Search(outcome) => &outcome.attempts,
-        });
-        (result, attempt_log)
-    }
-}
-
 /// Executes a parsed command.
 ///
 /// # Errors
@@ -946,89 +884,6 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                     verbose,
                 });
             Ok(CommandOutput::Map {
-                result,
-                format,
-                output: output.target(),
-                attempt_log,
-            })
-        }
-        Command::Anysearch {
-            command:
-                AnysearchCommand::Domains {
-                    domain,
-                    timeout,
-                    format,
-                    output,
-                    verbose,
-                },
-        } => {
-            if domain.contains('.') {
-                return Err(AppError::Argument(
-                    "DOMAIN must be a parent domain without a dotted sub-domain".into(),
-                ));
-            }
-            let (result, attempt_log) = AppContext::<providers::Anysearch>::for_anysearch(timeout)?
-                .domains(AnysearchDomainsRequest { domain, verbose });
-            Ok(CommandOutput::Anysearch {
-                result,
-                format,
-                output: output.target(),
-                attempt_log,
-            })
-        }
-        Command::Anysearch {
-            command:
-                AnysearchCommand::Search {
-                    query,
-                    domain,
-                    sub_domain,
-                    sub_domain_params,
-                    max_results,
-                    timeout,
-                    format,
-                    output,
-                    verbose,
-                },
-        } => {
-            let sub_domain_params = sub_domain_params.unwrap_or_default();
-            if domain.as_deref().is_some_and(|value| value.contains('.'))
-                || sub_domain
-                    .as_deref()
-                    .is_some_and(|value| value.contains('.'))
-            {
-                return Err(AppError::Argument(
-                    "dotted domain shorthand is unsupported; pass separate --domain and --sub-domain values"
-                        .into(),
-                ));
-            }
-            if domain.as_deref() == Some("security") && sub_domain.as_deref() == Some("cve") {
-                return Err(AppError::Argument(
-                    "legacy sub-domain aliases are unsupported; migrate to --domain security --sub-domain vuln"
-                        .into(),
-                ));
-            }
-            if sub_domain_params.keys().any(|name| {
-                ["query", "domain", "sub_domain", "max_results"].contains(&name.as_str())
-            }) {
-                return Err(AppError::Argument(
-                    "--sub-domain-params cannot override reserved fields".into(),
-                ));
-            }
-            if !sub_domain_params.is_empty() && domain.is_none() {
-                return Err(AppError::Argument(
-                    "--sub-domain-params requires both --domain and --sub-domain".into(),
-                ));
-            }
-            let (result, attempt_log) = AppContext::<providers::Anysearch>::for_anysearch(timeout)?
-                .search(AnysearchSearchRequest {
-                    query,
-                    domain,
-                    sub_domain,
-                    sub_domain_params,
-                    max_results,
-                    verbose,
-                });
-            Ok(CommandOutput::Anysearch {
                 result,
                 format,
                 output: output.target(),
@@ -1670,14 +1525,7 @@ fn run_interactive_setup(language: Option<Language>) -> Result<CommandOutput, Ap
         &mut input,
         language,
         &mut document,
-        &[
-            "exa",
-            "context7",
-            "jina",
-            "tavily",
-            "firecrawl",
-            "anysearch",
-        ],
+        &["exa", "context7", "jina", "tavily", "firecrawl"],
     )?;
 
     prompt_stage(language, 5, false);

@@ -9,7 +9,7 @@ use support::{Fixture, Response, RunEnvironment, jina_response, request_json};
 
 #[test]
 fn shallow_doctor_reports_all_registry_providers_and_reuses_the_config_list_view() {
-    let fixture = Fixture::start_sequence(reachable_responses(11));
+    let fixture = Fixture::start_sequence(reachable_responses(10));
     let environment = RunEnvironment::new(&shallow_config(&format!(
         "{}?token=url-secret",
         fixture.url
@@ -42,7 +42,7 @@ fn shallow_doctor_reports_all_registry_providers_and_reuses_the_config_list_view
             Some(0),
             &Value::String("shallow".into()),
             &Value::Bool(true),
-            Some(19),
+            Some(18),
             &config,
             &Value::String("xai".into()),
             &Value::Bool(true),
@@ -61,7 +61,6 @@ fn shallow_doctor_reports_all_registry_providers_and_reuses_the_config_list_view
         "firecrawl-secret",
         "jina-secret",
         "context7-secret",
-        "anysearch-secret",
         "url-secret",
     ] {
         assert!(!combined.contains(secret), "doctor leaked {secret}");
@@ -71,7 +70,7 @@ fn shallow_doctor_reports_all_registry_providers_and_reuses_the_config_list_view
             .as_array()
             .is_some_and(|warnings| !warnings.is_empty())
     );
-    assert_eq!(fixture.finish_all().len(), 11);
+    assert_eq!(fixture.finish_all().len(), 10);
 }
 
 #[test]
@@ -313,28 +312,6 @@ fn context7_deep_doctor_executes_the_registry_library_probe() {
 }
 
 #[test]
-fn anysearch_deep_doctor_executes_the_registry_domains_probe() {
-    let fixture = Fixture::start_sequence(vec![
-        mcp_initialize("anysearch-session"),
-        Response::new(202, "application/json", ""),
-        Response::new(
-            200,
-            "application/json",
-            r#"{"jsonrpc":"2.0","id":2,"result":{"structuredContent":{"sub_domains":[]},"content":[]}}"#,
-        ),
-    ]);
-    let environment = RunEnvironment::new(&format!(
-        "[providers.anysearch]\nurl = {:?}\nkeys = [\"anysearch-key\"]\n",
-        fixture.url
-    ));
-
-    let output = environment.run(&["doctor", "--provider", "anysearch"]);
-    assert_deep_success(&output, "anysearch", &[("domains", "mcp")]);
-    let requests = fixture.finish_all();
-    assert!(requests[2].contains(r#""name":"get_sub_domains""#));
-}
-
-#[test]
 fn deep_doctor_reports_missing_credentials_as_a_json_config_failure() {
     let environment = RunEnvironment::new("");
 
@@ -425,7 +402,7 @@ fn deep_doctor_reports_authentication_failure_without_leaking_provider_values() 
 
 #[test]
 fn doctor_markdown_preserves_the_json_status_and_effective_configuration() {
-    let fixture = Fixture::start_sequence(reachable_responses(22));
+    let fixture = Fixture::start_sequence(reachable_responses(20));
     let environment = RunEnvironment::new(&shallow_config(&fixture.url));
     let markdown_environment = RunEnvironment::new(&shallow_config(&fixture.url));
 
@@ -443,13 +420,13 @@ fn doctor_markdown_preserves_the_json_status_and_effective_configuration() {
     assert!(markdown.contains("## Effective configuration"));
     assert!(markdown.contains(r#""source": "file""#));
     assert!(!markdown.contains("exa-secret"));
-    assert_eq!(payload["providers"].as_array().map(Vec::len), Some(19));
-    assert_eq!(fixture.finish_all().len(), 22);
+    assert_eq!(payload["providers"].as_array().map(Vec::len), Some(18));
+    assert_eq!(fixture.finish_all().len(), 20);
 }
 
 #[test]
 fn shallow_doctor_probes_reachability_with_get_requests() {
-    let fixture = Fixture::start_sequence(reachable_responses(11));
+    let fixture = Fixture::start_sequence(reachable_responses(10));
     let environment = RunEnvironment::new(&shallow_config(&fixture.url));
 
     let doctor = environment.run(&["doctor"]);
@@ -467,7 +444,7 @@ fn shallow_doctor_probes_reachability_with_get_requests() {
 
     assert_eq!(
         (doctor.status.code(), methods),
-        (Some(0), vec!["GET".to_owned(); 11]),
+        (Some(0), vec!["GET".to_owned(); 10]),
         "stderr: {}",
         String::from_utf8_lossy(&doctor.stderr)
     );
@@ -483,7 +460,7 @@ fn shallow_doctor_warns_when_main_search_fallback_shares_endpoint_and_model() {
         ),
     ];
     for (openai_compatible_header, expected_warnings) in cases {
-        let fixture = Fixture::start_sequence(reachable_responses(11));
+        let fixture = Fixture::start_sequence(reachable_responses(10));
         let config = shallow_config(&fixture.url)
             .replace("[providers.openai_compatible]\n", openai_compatible_header);
         let environment = RunEnvironment::new(&config);
@@ -506,7 +483,7 @@ fn shallow_doctor_warns_when_main_search_fallback_shares_endpoint_and_model() {
 
 #[test]
 fn shallow_doctor_reports_a_well_formed_but_dead_endpoint_as_unreachable() {
-    let fixture = Fixture::start_sequence(reachable_responses(20));
+    let fixture = Fixture::start_sequence(reachable_responses(18));
     let config = shallow_config(&fixture.url).replace(
         &format!("[providers.xai]\nurl = {:?}", fixture.url),
         "[providers.xai]\nurl = \"http://127.0.0.1:9\"",
@@ -537,12 +514,12 @@ fn shallow_doctor_reports_a_well_formed_but_dead_endpoint_as_unreachable() {
         )
     );
     assert!(markdown.contains("ok: false"), "{markdown}");
-    assert_eq!(fixture.finish_all().len(), 20);
+    assert_eq!(fixture.finish_all().len(), 18);
 }
 
 #[test]
 fn shallow_doctor_ignores_an_unconfigured_unreachable_provider() {
-    let fixture = Fixture::start_sequence(reachable_responses(10));
+    let fixture = Fixture::start_sequence(reachable_responses(9));
     let config = shallow_config(&fixture.url).replace(
         &format!(
             "[providers.xai]\nurl = {:?}\nkeys = [\"xai-secret\"]",
@@ -569,12 +546,12 @@ fn shallow_doctor_ignores_an_unconfigured_unreachable_provider() {
             &Value::Bool(false),
         )
     );
-    assert_eq!(fixture.finish_all().len(), 10);
+    assert_eq!(fixture.finish_all().len(), 9);
 }
 
 #[test]
 fn shallow_doctor_treats_providers_that_need_missing_keys_as_unconfigured_and_healthy() {
-    let fixture = Fixture::start_sequence(reachable_responses(11));
+    let fixture = Fixture::start_sequence(reachable_responses(10));
     let config = [
         "xai-secret",
         "openai-secret",
@@ -583,7 +560,6 @@ fn shallow_doctor_treats_providers_that_need_missing_keys_as_unconfigured_and_he
         "firecrawl-secret",
         "jina-secret",
         "context7-secret",
-        "anysearch-secret",
     ]
     .into_iter()
     .fold(shallow_config(&fixture.url), |config, secret| {
@@ -612,7 +588,7 @@ fn shallow_doctor_treats_providers_that_need_missing_keys_as_unconfigured_and_he
             vec!["jina", "arxiv_api", "ssrn_crossref", "hn_api"]
         )
     );
-    assert_eq!(fixture.finish_all().len(), 11);
+    assert_eq!(fixture.finish_all().len(), 10);
 }
 
 #[test]
@@ -641,7 +617,7 @@ fn mcp_initialize(session: &str) -> Response {
 
 #[test]
 fn shallow_doctor_reports_jina_without_keys_as_configured_and_anonymous() {
-    let fixture = Fixture::start_sequence(reachable_responses(11));
+    let fixture = Fixture::start_sequence(reachable_responses(10));
     let config = shallow_config(&fixture.url).replace("keys = [\"jina-secret\"]", "keys = []");
     let environment = RunEnvironment::new(&config);
 

@@ -8,8 +8,8 @@ use crate::chain::{
     StepVerdict,
 };
 use crate::config::{
-    DocsSearchRuntimeConfig, MainSearchRuntimeConfig, SeamEntry, VerticalSearchRuntimeConfig,
-    WebFetchRuntimeConfig, WebSearchRuntimeConfig,
+    DocsSearchRuntimeConfig, MainSearchRuntimeConfig, SeamEntry, WebFetchRuntimeConfig,
+    WebSearchRuntimeConfig,
 };
 use crate::net::RetryPolicy;
 use crate::providers::{self, FetchRequest, MainSearchRequest};
@@ -18,7 +18,6 @@ use crate::types::{
     AttemptErrorKind, AttemptTarget, DENSITY_MAX_CHARS, DENSITY_MAX_UNIQUE_LINES, Deadline,
     DocumentationEvidence, DocumentationSearchOutcome, EvidenceLocator, FallbackPolicy,
     FetchOutcome, MIN_FETCH_CONTENT_CHARS, SearchOutcome, SupplementalSearchOutcome,
-    VerticalSearchOutcome,
 };
 
 pub(crate) const FANOUT_CONCURRENCY: usize = 4;
@@ -497,56 +496,6 @@ pub(crate) async fn documentation_read(
         ));
     }
     Ok(evidence)
-}
-
-pub(crate) async fn vertical_search(
-    query: &str,
-    limit: u16,
-    config: VerticalSearchRuntimeConfig,
-    execution: CapabilityExecution,
-) -> Result<VerticalSearchOutcome, ProviderError> {
-    let step = chain::run_chain(
-        provider_steps(config.into_entries()),
-        provider_chain_settings(
-            "vertical_search",
-            BudgetPolicy::SlicedEven {
-                skipped_message: "skipped to preserve fallback deadline budget",
-            },
-            !execution.fallback.allows_fallback(),
-            false,
-            "vertical search has no executable provider",
-        ),
-        execution.deadline,
-        |(id, provider_config), deadline| {
-            let client = execution.client.clone();
-            async move {
-                match providers::build_vertical_search(
-                    id,
-                    provider_config,
-                    client,
-                    execution.retry_policy,
-                    deadline,
-                )
-                .search(query, limit)
-                .await
-                {
-                    Ok(outcome) => StepVerdict::Accepted(StepSuccess {
-                        value: (outcome.results, outcome.sources),
-                        attempts: outcome.attempts,
-                        diagnostic: outcome.diagnostic,
-                    }),
-                    Err(error) => StepVerdict::Failed(error),
-                }
-            }
-        },
-    )
-    .await?;
-    Ok(VerticalSearchOutcome {
-        results: step.value.0,
-        sources: step.value.1,
-        attempts: step.attempts,
-        diagnostic: step.diagnostic,
-    })
 }
 
 pub(crate) fn is_thin(content: &str, url: &str) -> bool {

@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
 use clap::{Args, Parser, Subcommand, ValueEnum};
-use serde_json::{Map, Value};
 
 use crate::catalog::{self, ProviderId};
 use crate::providers::SearchType;
@@ -131,11 +130,6 @@ pub(super) enum Command {
         #[arg(long)]
         verbose: bool,
     },
-    #[command(visible_alias = "as")]
-    Anysearch {
-        #[command(subcommand)]
-        command: AnysearchCommand,
-    },
     #[command(visible_alias = "c7")]
     Context7 {
         #[command(subcommand)]
@@ -195,40 +189,6 @@ pub(super) enum Command {
         probe_timeout: u64,
         #[arg(long, hide = true, requires = "probe")]
         probe_url: Option<String>,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-pub(super) enum AnysearchCommand {
-    Domains {
-        domain: String,
-        #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
-        timeout: Option<u64>,
-        #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
-        format: OutputFormat,
-        #[command(flatten)]
-        output: OutputArgs,
-        #[arg(long)]
-        verbose: bool,
-    },
-    Search {
-        query: String,
-        #[arg(long, requires = "sub_domain")]
-        domain: Option<String>,
-        #[arg(long, requires = "domain")]
-        sub_domain: Option<String>,
-        #[arg(long, value_parser = parse_json_object)]
-        sub_domain_params: Option<Map<String, Value>>,
-        #[arg(long, default_value_t = 5, value_parser = clap::value_parser!(u16).range(1..=100))]
-        max_results: u16,
-        #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
-        timeout: Option<u64>,
-        #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
-        format: OutputFormat,
-        #[command(flatten)]
-        output: OutputArgs,
-        #[arg(long)]
-        verbose: bool,
     },
 }
 
@@ -426,12 +386,4 @@ fn parse_provider(value: &str) -> Result<ProviderId, String> {
                 .join(", ")
         )
     })
-}
-
-fn parse_json_object(value: &str) -> Result<Map<String, Value>, String> {
-    serde_json::from_str::<Value>(value)
-        .map_err(|_| "--sub-domain-params must be a valid JSON object".to_owned())?
-        .as_object()
-        .cloned()
-        .ok_or_else(|| "--sub-domain-params must be a single JSON object".to_owned())
 }

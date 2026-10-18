@@ -646,9 +646,6 @@ async fn discover_capability(
     match capability {
         PlanCapability::DocsSearch => discover_docs(subquestion, limit, config, execution).await,
         PlanCapability::WebSearch => discover_web(subquestion, limit, config, execution).await,
-        PlanCapability::VerticalSearch => {
-            discover_vertical(subquestion, limit, config, execution).await
-        }
     }
 }
 
@@ -758,58 +755,6 @@ async fn discover_web(
                 capability: Capability::WebSearch,
                 reason: "all_attempts_failed",
                 providers_skipped: unconfigured_web_providers(config),
-            });
-        }
-    }
-    block
-}
-
-async fn discover_vertical(
-    subquestion: &ResearchSubquestion,
-    limit: u16,
-    config: &RuntimeConfig,
-    execution: CapabilityExecution,
-) -> DiscoveryBlock {
-    let mut block = DiscoveryBlock::default();
-    if config.vertical_search.configured_provider_count() == 0 {
-        block.capability_gaps.push(CapabilityGap {
-            capability: Capability::VerticalSearch,
-            reason: "no_configured_provider",
-            providers_skipped: config.vertical_search.names(),
-        });
-        return block;
-    }
-    match engine::vertical_search(
-        &subquestion.question,
-        limit,
-        config.vertical_search.clone(),
-        execution,
-    )
-    .await
-    {
-        Ok(mut outcome) => {
-            let provider = attempt_trace::successful_provider(&outcome.attempts, "vertical_search");
-            block.attempts.append(&mut outcome.attempts);
-            push_diagnostic(&mut block.diagnostics, outcome.diagnostic);
-            block
-                .candidates
-                .extend(outcome.sources.into_iter().map(|source| Candidate {
-                    locator: EvidenceLocator::Url(source.url.clone()),
-                    source,
-                    query: subquestion.question.clone(),
-                    subquestion_ids: vec![subquestion.id.clone()],
-                    provider,
-                    source_type: "vertical_candidate",
-                    known_url: false,
-                }));
-        }
-        Err(mut error) => {
-            block.attempts.append(&mut error.attempts);
-            push_diagnostic(&mut block.diagnostics, error.diagnostic);
-            block.capability_gaps.push(CapabilityGap {
-                capability: Capability::VerticalSearch,
-                reason: "all_attempts_failed",
-                providers_skipped: unconfigured_vertical_providers(config),
             });
         }
     }
@@ -1190,10 +1135,6 @@ fn unconfigured_docs_providers(config: &RuntimeConfig) -> Vec<String> {
 
 fn unconfigured_web_providers(config: &RuntimeConfig) -> Vec<String> {
     config.web_search.unconfigured_names()
-}
-
-fn unconfigured_vertical_providers(config: &RuntimeConfig) -> Vec<String> {
-    config.vertical_search.unconfigured_names()
 }
 
 #[cfg(test)]

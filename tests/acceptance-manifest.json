@@ -92,12 +92,6 @@
       "test": "tests/exa_search.rs::exa_search_returns_normalized_results_through_the_real_http_stack"
     },
     {
-      "id": "F10",
-      "provider": "anysearch",
-      "seam": "vertical_search",
-      "test": "tests/anysearch.rs::anysearch_search_without_a_domain_performs_vertical_discovery"
-    },
-    {
       "id": "F11",
       "provider": "arxiv_api",
       "seam": "platform:arxiv:search",
@@ -324,11 +318,6 @@
       "id": "E12",
       "requirements": ["I0-5"],
       "test": "tests/search.rs::declared_web_fetch_adds_a_content_preview_candidate_without_changing_the_main_answer"
-    },
-    {
-      "id": "E13",
-      "requirements": ["I0-5"],
-      "test": "tests/search.rs::declared_vertical_search_uses_the_unified_candidate_envelope"
     },
     {
       "id": "E14",

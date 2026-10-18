@@ -70,11 +70,6 @@ url = "https://api.firecrawl.dev/v2"
 keys = []
 timeout = 60                 # 与 Web Fetch 请求体的 timeout: 60000 一致（ADR 0018）
 
-[providers.anysearch]
-url = "https://api.anysearch.com/mcp"
-keys = []
-timeout = 30
-
 [providers.arxiv_api]        # 不需要凭据，没有 keys
 url = "https://export.arxiv.org/api/query"
 timeout = 30
@@ -130,8 +125,6 @@ order = ["tavily", "firecrawl"]
 order = ["firecrawl", "jina", "tavily"]   # Firecrawl 优先（ADR 0018），Jina 先于 Tavily（ADR 0029）；置空＝config_error（引擎不变量）
 [capabilities.docs_search]
 order = ["exa", "context7"]       # Exa 优先；Context7 仅在 Exa 无可消费结果时自动调用（ADR 0017）
-[capabilities.vertical_search]
-order = ["anysearch"]
 
 [platforms.arxiv]
 order = ["arxiv_api"]        # 置空＝禁用该平台
@@ -265,9 +258,9 @@ ssl_verify = true
 | `TAVILY_TIMEOUT_SECONDS` | `providers.tavily.timeout` |
 | `FIRECRAWL_API_KEY` / `FIRECRAWL_API_KEYS` | `providers.firecrawl.keys` |
 | `FIRECRAWL_API_URL` | `providers.firecrawl.url` |
-| `ANYSEARCH_API_KEY` / `ANYSEARCH_API_KEYS` | `providers.anysearch.keys` |
-| `ANYSEARCH_API_URL` | `providers.anysearch.url` |
-| `ANYSEARCH_TIMEOUT_SECONDS` | `providers.anysearch.timeout` |
+| `ANYSEARCH_API_KEY` / `ANYSEARCH_API_KEYS` | **已删除**（AnySearch 已退役，ADR 0030） |
+| `ANYSEARCH_API_URL` | **已删除**（同上） |
+| `ANYSEARCH_TIMEOUT_SECONDS` | **已删除**（同上） |
 | `SMART_SEARCH_DEBUG` | **已删除**（`log.level = "debug"` 继任） |
 | `SMART_SEARCH_LOG_LEVEL` | `log.level` |
 | `SMART_SEARCH_LOG_DIR` | **已删除**（file logging 砍，持久观测归 journal） |

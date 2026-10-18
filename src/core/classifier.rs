@@ -365,12 +365,7 @@ fn capability_schema() -> Value {
                 "type": "array",
                 "items": {
                     "type": "string",
-                    "enum": [
-                        "docs_search",
-                        "web_search",
-                        "web_fetch",
-                        "vertical_search"
-                    ]
+                    "enum": ["docs_search", "web_search", "web_fetch"]
                 }
             }
         }
@@ -433,7 +428,7 @@ fn research_plan_schema(max_subquestions: usize) -> Value {
                             "type": "array",
                             "items": {
                                 "type": "string",
-                                "enum": ["docs_search", "web_search", "vertical_search"]
+                                "enum": ["docs_search", "web_search"]
                             }
                         }
                     }
@@ -480,7 +475,6 @@ mod tests {
                 Capability::DocsSearch.as_str(),
                 Capability::WebSearch.as_str(),
                 Capability::WebFetch.as_str(),
-                Capability::VerticalSearch.as_str(),
             ]
         );
     }
