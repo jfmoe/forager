@@ -3,7 +3,7 @@
 
 use serde::Deserialize;
 
-use super::{YoutubeApi, channel_ref, decode};
+use super::{YoutubeApi, channel_ref, decode, failed_with_reason, video_not_found};
 use crate::net::AttemptFailure;
 use crate::providers::shared::{Refusal, utc_timestamp};
 use crate::types::{
@@ -62,8 +62,8 @@ struct AuthorChannel {
 }
 
 impl YoutubeApi {
-    /// Reads one page of a video's top-level comments as plain text. A video whose comments are
-    /// disabled fails as Parameter, never as an empty list.
+    /// Reads one page of a video's top-level comments as plain text. A missing video, or one
+    /// whose comments are disabled, fails as Parameter, never as an empty list.
     pub(crate) async fn comments(
         &self,
         request: &YoutubeCommentsRequest,
@@ -94,7 +94,7 @@ impl YoutubeApi {
                         .collect::<Result<Vec<_>, _>>()?;
                     Ok((comments, response.next_page_token.is_some()))
                 },
-                |failure| comments_disabled(video, failure),
+                |failure| name_the_video(video, failure),
             )
             .await?;
         let (comments, has_more) = outcome.value;
@@ -107,16 +107,20 @@ impl YoutubeApi {
     }
 }
 
-/// Names the video in the one refusal whose reason marks a 403 as Parameter: `commentsDisabled`.
-fn comments_disabled(video: &YoutubeRef, failure: AttemptFailure) -> AttemptFailure {
-    if failure.kind == AttemptErrorKind::Parameter && failure.status == Some(403) {
-        AttemptFailure {
-            message: format!("comments are disabled for youtube:{video}"),
-            ..failure
-        }
-    } else {
-        failure
+/// Names the video in the refusals that are about it: a missing video (`videoNotFound`, a 404)
+/// and disabled comments (the one reason that marks a 403 as Parameter, `commentsDisabled`).
+fn name_the_video(video: &YoutubeRef, failure: AttemptFailure) -> AttemptFailure {
+    if failure.kind != AttemptErrorKind::Parameter {
+        return failure;
     }
+    let message = if failed_with_reason(&failure, "videoNotFound") {
+        video_not_found(video)
+    } else if failure.status == Some(403) {
+        format!("comments are disabled for youtube:{video}")
+    } else {
+        return failure;
+    };
+    AttemptFailure { message, ..failure }
 }
 
 fn top_level_comment(video: &YoutubeRef, thread: Thread) -> Result<YoutubeComment, Refusal> {
