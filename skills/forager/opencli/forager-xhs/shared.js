@@ -35,9 +35,19 @@ export function pick(object, keys) {
 }
 
 // The helpers every page script can use. The site keeps its state in Vue refs, which hold their
-// value in `value` or `_value`.
+// value in `value` or `_value`. The site also plants decoys to catch scripts: an invisible copy of
+// a button with the same class and text, stacked under the real one and placed before it, so a
+// click target counts only when a pointer at its center would hit it.
 const PAGE_HELPERS = `
   ${pick}
+  ${sleep}
+  const clickable = (element) => {
+    if (element.closest('[aria-hidden="true"]')) return false;
+    const rect = element.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return false;
+    const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+    return Boolean(hit) && element.contains(hit);
+  };
   const unwrap = (value) => (value && typeof value === 'object' ? ('value' in value ? value.value : value._value) : value);
   const pageState = () => window.__INITIAL_STATE__;
   const noteDetailMap = () => {
@@ -47,7 +57,7 @@ const PAGE_HELPERS = `
 
 /** Wraps a script body to evaluate in the page, with the shared page helpers in scope. */
 export function pageScript(body) {
-  return `(() => {${PAGE_HELPERS}\n${body}\n})()`;
+  return `(async () => {${PAGE_HELPERS}\n${body}\n})()`;
 }
 
 /** Opens a note page the way a search result link does, with the note's access token. */

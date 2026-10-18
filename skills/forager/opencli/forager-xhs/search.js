@@ -1,6 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
-import { ReadSession, SITE, SITE_DOMAIN, readDeadline } from './shared.js';
+import { ReadSession, SITE, SITE_DOMAIN, pageScript, readDeadline } from './shared.js';
 
 const SEARCH_PATH = '/api/sns/web/v2/search/notes';
 const MAX_PAGES = 5;
@@ -21,10 +21,9 @@ const FILTERS = [
 // Opens the filter panel the way a pointer does and clicks one option. Returns `clicked` or why
 // it could not.
 function clickOptionScript(group, option) {
-  return `(async () => {
+  return pageScript(`
     const group = ${JSON.stringify(group)};
     const option = ${JSON.stringify(option)};
-    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const text = (element) => (element ? element.textContent : '').replace(/\\s+/g, '');
     const visible = (element) => {
       const rect = element.getBoundingClientRect();
@@ -50,11 +49,12 @@ function clickOptionScript(group, option) {
       return text(label) === group;
     });
     if (groups.length !== 1) return 'no_filter_group';
-    const options = [...groups[0].querySelectorAll('.tags')].filter((element) => text(element) === option);
+    const options = [...groups[0].querySelectorAll('.tags')]
+      .filter((element) => text(element) === option && clickable(element));
     if (options.length !== 1) return 'no_filter_option';
     options[0].click();
     return 'clicked';
-  })()`;
+  `);
 }
 
 cli({

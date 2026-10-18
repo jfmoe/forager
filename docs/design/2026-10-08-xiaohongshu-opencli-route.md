@@ -292,7 +292,7 @@ OpenCLI 退出码到 attempt 错误类型的映射完全沿用 `providers/opencl
 - **请求体字段**：OpenCLI Browser Bridge 扩展 1.0.24 的抓包条目以 `requestBodyPreview` 携带请求体（扩展源码 `extension/src/cdp.ts`），与响应体的 `responsePreview` 对应。
 - **抓包完成条件**：扩展在 `readNetworkCapture()` 时取走条目并清空请求索引，此后同一请求的事件不再写回，读走时还没有响应体的条目永远拿不到响应体，所以读走后"继续等待同一请求"做不到。读取模块在 Resource Timing 出现完成记录（或第一页出现笔记卡片）之后，先再做一次页面往返，再读抓包；读到的条目中有该路径带响应体的条目即为完成，没有则记为 `body_missing`。同一次读取中其他没有响应体的同路径条目是仍在途或已中止的请求，不计入。依据与验证见「抓包完成条件的依据」。完成记录由 `PerformanceObserver`（`buffered: true`）计数；计数器属于文档，读取模块每次读取页面状态时都确认当前文档已装上计数器（见「第一页偶发未完成的原因」）。
 - **第一页的完成信号**：第二次真实运行中，第一页响应始终没有被计数，命令一直等到截止点（当时的分类把它报成"筛选点击数不符"）。后续实测确认了这一点：页面在 load 事件时清空 Resource Timing 缓冲，而导航要等到 load 事件（或扩展的 15 秒兜底）才返回。修正：第一页另以页面出现笔记卡片为完成信号（抓包在导航之前开启，响应已在其中）；筛选点击与翻页之后的响应仍以计数为准，因为那时计数已在运行。分类同时调整为先判断截止与页面，再判断点击数：截止时仍在结果页为 Timeout，消息说明完成了几次点击。
-- **筛选点击**：沿用 OpenCLI 内置小红书模块已验证的 DOM 结构（`.search-layout__top > .filter` 触发、`.filter-panel` 面板、`.filters` 分组的标签文本、`.tags` 选项），先对触发元素派发悬停事件，面板未出现时再点击它，然后在页面内点击选项。点击失败时读取模块在 `filter_failure` 中写明原因（例如 `no_filter_panel for 排序依据 最新`），route 把它附在 Runtime 消息后。
+- **筛选点击**：沿用 OpenCLI 内置小红书模块已验证的 DOM 结构（`.search-layout__top > .filter` 触发、`.filter-panel` 面板、`.filters` 分组的标签文本、`.tags` 选项），先对触发元素派发悬停事件，面板未出现时再点击它，然后在页面内点击选项；只点击指针可命中的选项（见「诱饵按钮」）。点击失败时读取模块在 `filter_failure` 中写明原因（例如 `no_filter_panel for 排序依据 最新`），route 把它附在 Runtime 消息后。
 - **token 脱敏**：search 的请求不带 token，没有需要按值清理的消息。fetch 的 route 在记录 attempt 之前清理消息，清理的是去掉末尾 `=` 填充后的 token：登录跳转的 `redirectPath` 会把原链接（含 token）再做一到两次百分号编码，`=` 变成 `%3D` 或 `%253D`，而 token 的其余字符（`A-Za-z0-9_-`）在 URL 编码下不变。读取模块回报的 `url` 只删去顶层的 `xsec_token`，嵌套在跳转参数里的 token 由这条规则兜住。
 - **Web Fetch 预检的声明**：注册信息的字段为 `native_full_text`（route 的 fetch 全文是否由它自己读取），所有注册项都声明，只有 `xiaohongshu_browser` 为 true。`plan_fetch` 返回的计划提供 `needs_web_fetch()`：`full_text` 且计划中有任一 route 不读原生正文时为真。
 - **读取模块 `note` 命令**：回报 `{page, note, timed_out}`，暂不回报设计中的 `comments_state`（第二期 comments 才需要）。`note` 只保留 route 解码的字段，视频流只保留各档的宽高，`masterUrl` 与笔记自带的 `xsecToken` 不离开页面。页面渲染出笔记时清空 `notice`：笔记正文或评论里出现"安全限制"等字样不应被当成站点提示。契约版本仍为 `forager-xhs/1`，因为 #187 的读取模块没有发布过。
@@ -410,7 +410,7 @@ OpenCLI 退出码到 attempt 错误类型的映射完全沿用 `providers/opencl
 - **读取模块的参数由 `pages` 改为 `limit`**：设计让读取模块"只对收到的前 `expand` 条可展开一级评论点击"，而 route 只展开最终交付的评论。`limit` 不是 10 的倍数时（例如 C29 的 15），收到的评论多于交付的评论，读取模块可能点开一条不会交付的评论，route 再把它的回复页判为"未选中的根评论"。最小改法是让读取模块接收 `limit`：它读取 ⌈limit / 10⌉ 页，并只在前 `limit` 条（按 ID 去重）中选择要展开的评论，与 route 的选择一致。契约版本仍为 `forager-xhs/1`，因为读取模块还没有发布过。
 - **第一页的完成信号**：与搜索第一页同理，第一个 `comment/page` 响应通常在导航返回、计数开始之前完成，所以第一页另以页面状态 `noteDetailMap[<id>].comments.firstRequestFinish` 为真作为完成信号（读取页面已有的状态，不调用页面方法）。共享的 `awaitCompletion` 把原来的"笔记卡片已渲染"开关改为通用的 `ready` 判断，search 传入笔记卡片，comments 传入这一状态。
 - **翻页**：评论在 `.note-scroller` 面板内滚动，不在窗口中；读取模块把面板与窗口都滚到底，再截图两次强制渲染。
-- **展开点击**：按 `#comment-<id>` 找到评论元素所在的 `.parent-comment`，在其中找文本为"展开 N 条回复"的 `.reply-container .show-more` 并点击，等到对应的 `comment/sub/page` 完成后再处理下一条。找不到时最多重找 2 秒（20 次），仍没有就停止，在 `expand_failure` 中写明原因（`no_comment_element`、`no_parent_comment` 或 `no_expand_button` 加评论 ID），route 报 Runtime 并附上原因。点击后不重试：再点一次会变成"展开更多回复"，读到第二页回复。
+- **展开点击**：按 `#comment-<id>` 找到评论元素所在的 `.parent-comment`，在其中找文本为"展开 N 条回复"的 `.reply-container .show-more` 并点击，等到对应的 `comment/sub/page` 完成后再处理下一条。找不到时最多重找 2 秒（20 次），仍没有就停止，在 `expand_failure` 中写明原因（`no_comment_element`、`no_parent_comment`、`no_expand_button` 或 `ambiguous_expand_button` 加评论 ID；只认指针可命中的按钮，见「诱饵按钮」），route 报 Runtime 并附上原因。点击后不重试：再点一次会变成"展开更多回复"，读到第二页回复。
 - **页面提示与笔记**：页面事实的 `notice` 与"未登录"原来只在页面没有笔记卡片时读取；笔记页本来就没有笔记卡片，评论里出现"安全限制"等字样会让 comments 在等待中途结束。现在只要 `__INITIAL_STATE__.note.noteDetailMap` 中有笔记，也不读取提示与登录状态。fetch 原有的"渲染出笔记时清空提示"仍保留。
 - **抓包条目的请求参数**：评论接口是 GET，条件在查询串里。共享的 `readExchanges` 为每个条目增加 `query`（去掉 `xsec_token`）；读取模块只把 `note_id`、`cursor`、`root_comment_id`、`num` 交给 route，评论只保留 route 解码的字段，评论者自己的 `xsec_token` 不离开页面。
 - **第一页没有评论却声称还有更多**：设计只规定"没有评论返回空列表"。与 search 的合法空集规则一致，第一个响应没有评论且 `has_more` 为 true 时为 Runtime，避免把读取异常当成空集。
@@ -445,6 +445,16 @@ OpenCLI 退出码到 attempt 错误类型的映射完全沿用 `providers/opencl
 | 7 | `comments <同运行 5> --limit 30 --replies 3` | 24 秒，退 0：三页 30 条，ID 无重复；前三条可展开的评论各展开一次：两条得到 5 条回复（共 6 条），一条（`reply_count` 2）得到 1 条（共 2 条，`replies_has_more: false`） |
 
 运行 5 与 7 的 4 次展开都通过了楼中楼起始 cursor 的核对，加上结构探测共 5 次一致。
+
+## 诱饵按钮
+
+2026-10-18 的 live smoke 中，C27 以 `no_filter_option for 排序依据 最新` 失败；不带筛选的搜索正常，登录与风控状态都没有问题。
+
+**观察**：筛选面板里每个选项前都多了一个副本，类名、文本与真按钮相同，带 `button-hp-installed`、`data-hp-kind="xhs-filter-tag-<文本>"` 与 `aria-hidden="true"`，样式为绝对定位、`opacity: 1e-05`、`z-index: -1`，叠在真按钮下面，在 DOM 中排在真按钮之前。真按钮带 `data-hp-bound`。读取模块要求文本匹配的 `.tags` 恰好一个，遇到两个时不点击，所以从未点到副本。同日笔记页的"展开 N 条回复"没有副本，但页头频道栏与搜索框有（`data-hp-kind` 为 `xhs-channel-*`、`xhs-search-input`）。副本的用途没有站点说明；按其形态推断是识别脚本点击的诱饵，点击它的后果未验证，也不去验证。
+
+**处理**：`shared.js` 的页面辅助函数提供 `clickable`：元素不在 `aria-hidden` 子树中，有尺寸，且 `document.elementFromPoint` 在元素中心命中它自身或其后代。这是指针真实会点到的元素，不依赖站点的属性名；诱饵若改为叠在真按钮之上，真实用户也会点到它，站点因此不会这样放。筛选选项与展开按钮都只在恰好有一个可点击匹配时点击；展开按钮原来取第一个匹配，诱饵排在前面时会点中诱饵，现改为同样的唯一性要求，多个匹配时回报 `ambiguous_expand_button`。命中测试要求元素在视口内：筛选面板在页面顶部，展开按钮在点击前随评论滚到视口中央。
+
+**验证**：同日以真实 Chrome 运行 C27–C29 的同款命令：search 两次筛选点击都成功（请求带 `time_descending` 与 `一周内`），返回 25 条；fetch 正文非空；comments 返回 15 条，一条评论展开后有 6 条回复。
 
 ## 仍未实测的部分
 
