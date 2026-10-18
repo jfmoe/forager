@@ -1,0 +1,614 @@
+[
+  {
+    "file": "svc-search-honest.json",
+    "method": "Independent structural audit of every search-telemetry-tracker context, applying the exact reddit_search.py:109-116 predicate; no reference code executed. Does not prove complete parse_page output.",
+    "view_post_count": 7,
+    "all_tracker_count": 40,
+    "matched_context_count": 7,
+    "matched_post_ids": [
+      "t3_1x417z8",
+      "t3_1x0h8t4",
+      "t3_1x4nld7",
+      "t3_1x6bd4v",
+      "t3_1x6hhfu",
+      "t3_1wwnhbt",
+      "t3_1x5uns9"
+    ],
+    "view_contexts": [
+      {
+        "post_id": "t3_1x417z8",
+        "action_info": {
+          "position": 0,
+          "relative_position": 0
+        },
+        "event": "view",
+        "passes_reference_predicate": false
+      },
+      {
+        "post_id": "t3_1x0h8t4",
+        "action_info": {
+          "position": 1,
+          "relative_position": 1
+        },
+        "event": "view",
+        "passes_reference_predicate": false
+      },
+      {
+        "post_id": "t3_1x4nld7",
+        "action_info": {
+          "position": 2,
+          "relative_position": 2
+        },
+        "event": "view",
+        "passes_reference_predicate": false
+      },
+      {
+        "post_id": "t3_1x6bd4v",
+        "action_info": {
+          "position": 3,
+          "relative_position": 3
+        },
+        "event": "view",
+        "passes_reference_predicate": false
+      },
+      {
+        "post_id": "t3_1x6hhfu",
+        "action_info": {
+          "position": 4,
+          "relative_position": 4
+        },
+        "event": "view",
+        "passes_reference_predicate": false
+      },
+      {
+        "post_id": "t3_1wwnhbt",
+        "action_info": {
+          "position": 5,
+          "relative_position": 5
+        },
+        "event": "view",
+        "passes_reference_predicate": false
+      },
+      {
+        "post_id": "t3_1x5uns9",
+        "action_info": {
+          "position": 6,
+          "relative_position": 6
+        },
+        "event": "view",
+        "passes_reference_predicate": false
+      }
+    ],
+    "matched_contexts": [
+      {
+        "post_id": "t3_1x417z8",
+        "action_info": {
+          "position": 0,
+          "relative_position": 0,
+          "type": "post"
+        },
+        "event": "other",
+        "passes_reference_predicate": true
+      },
+      {
+        "post_id": "t3_1x0h8t4",
+        "action_info": {
+          "position": 1,
+          "relative_position": 1,
+          "type": "post"
+        },
+        "event": "other",
+        "passes_reference_predicate": true
+      },
+      {
+        "post_id": "t3_1x4nld7",
+        "action_info": {
+          "position": 2,
+          "relative_position": 2,
+          "type": "post"
+        },
+        "event": "other",
+        "passes_reference_predicate": true
+      },
+      {
+        "post_id": "t3_1x6bd4v",
+        "action_info": {
+          "position": 3,
+          "relative_position": 3,
+          "type": "post"
+        },
+        "event": "other",
+        "passes_reference_predicate": true
+      },
+      {
+        "post_id": "t3_1x6hhfu",
+        "action_info": {
+          "position": 4,
+          "relative_position": 4,
+          "type": "post"
+        },
+        "event": "other",
+        "passes_reference_predicate": true
+      },
+      {
+        "post_id": "t3_1wwnhbt",
+        "action_info": {
+          "position": 5,
+          "relative_position": 5,
+          "type": "post"
+        },
+        "event": "other",
+        "passes_reference_predicate": true
+      },
+      {
+        "post_id": "t3_1x5uns9",
+        "action_info": {
+          "position": 6,
+          "relative_position": 6,
+          "type": "post"
+        },
+        "event": "other",
+        "passes_reference_predicate": true
+      }
+    ]
+  },
+  {
+    "file": "svc-search-browser.json",
+    "method": "Independent structural audit of every search-telemetry-tracker context, applying the exact reddit_search.py:109-116 predicate; no reference code executed. Does not prove complete parse_page output.",
+    "view_post_count": 7,
+    "all_tracker_count": 37,
+    "matched_context_count": 7,
+    "matched_post_ids": [
+      "t3_1x0h8t4",
+      "t3_1x4nld7",
+      "t3_1x417z8",
+      "t3_1x6bd4v",
+      "t3_1x6hhfu",
+      "t3_1x29a3y",
+      "t3_1wwnhbt"
+    ],
+    "view_contexts": [
+      {
+        "post_id": "t3_1x0h8t4",
+        "action_info": {
+          "position": 0,
+          "relative_position": 0
+        },
+        "event": "view",
+        "passes_reference_predicate": false
+      },
+      {
+        "post_id": "t3_1x4nld7",
+        "action_info": {
+          "position": 1,
+          "relative_position": 1
+        },
+        "event": "view",
+        "passes_reference_predicate": false
+      },
+      {
+        "post_id": "t3_1x417z8",
+        "action_info": {
+          "position": 2,
+          "relative_position": 2
+        },
+        "event": "view",
+        "passes_reference_predicate": false
+      },
+      {
+        "post_id": "t3_1x6bd4v",
+        "action_info": {
+          "position": 3,
+          "relative_position": 3
+        },
+        "event": "view",
+        "passes_reference_predicate": false
+      },
+      {
+        "post_id": "t3_1x6hhfu",
+        "action_info": {
+          "position": 4,
+          "relative_position": 4
+        },
+        "event": "view",
+        "passes_reference_predicate": false
+      },
+      {
+        "post_id": "t3_1x29a3y",
+        "action_info": {
+          "position": 5,
+          "relative_position": 5
+        },
+        "event": "view",
+        "passes_reference_predicate": false
+      },
+      {
+        "post_id": "t3_1wwnhbt",
+        "action_info": {
+          "position": 6,
+          "relative_position": 6
+        },
+        "event": "view",
+        "passes_reference_predicate": false
+      }
+    ],
+    "matched_contexts": [
+      {
+        "post_id": "t3_1x0h8t4",
+        "action_info": {
+          "position": 0,
+          "relative_position": 0,
+          "type": "post"
+        },
+        "event": "other",
+        "passes_reference_predicate": true
+      },
+      {
+        "post_id": "t3_1x4nld7",
+        "action_info": {
+          "position": 1,
+          "relative_position": 1,
+          "type": "post"
+        },
+        "event": "other",
+        "passes_reference_predicate": true
+      },
+      {
+        "post_id": "t3_1x417z8",
+        "action_info": {
+          "position": 2,
+          "relative_position": 2,
+          "type": "post"
+        },
+        "event": "other",
+        "passes_reference_predicate": true
+      },
+      {
+        "post_id": "t3_1x6bd4v",
+        "action_info": {
+          "position": 3,
+          "relative_position": 3,
+          "type": "post"
+        },
+        "event": "other",
+        "passes_reference_predicate": true
+      },
+      {
+        "post_id": "t3_1x6hhfu",
+        "action_info": {
+          "position": 4,
+          "relative_position": 4,
+          "type": "post"
+        },
+        "event": "other",
+        "passes_reference_predicate": true
+      },
+      {
+        "post_id": "t3_1x29a3y",
+        "action_info": {
+          "position": 5,
+          "relative_position": 5,
+          "type": "post"
+        },
+        "event": "other",
+        "passes_reference_predicate": true
+      },
+      {
+        "post_id": "t3_1wwnhbt",
+        "action_info": {
+          "position": 6,
+          "relative_position": 6,
+          "type": "post"
+        },
+        "event": "other",
+        "passes_reference_predicate": true
+      }
+    ]
+  },
+  {
+    "file": "svc-subreddit-search-honest.json",
+    "method": "Independent structural audit of every search-telemetry-tracker context, applying the exact reddit_search.py:109-116 predicate; no reference code executed. Does not prove complete parse_page output.",
+    "view_post_count": 7,
+    "all_tracker_count": 22,
+    "matched_context_count": 7,
+    "matched_post_ids": [
+      "t3_1wkxyuj",
+      "t3_1wj6q85",
+      "t3_1wsq2ov",
+      "t3_1x3jzen",
+      "t3_1win1ce",
+      "t3_1wu6ol5",
+      "t3_1x0qp3j"
+    ],
+    "view_contexts": [
+      {
+        "post_id": "t3_1wkxyuj",
+        "action_info": {
+          "position": 0,
+          "relative_position": 0
+        },
+        "event": "view",
+        "passes_reference_predicate": false
+      },
+      {
+        "post_id": "t3_1wj6q85",
+        "action_info": {
+          "position": 1,
+          "relative_position": 1
+        },
+        "event": "view",
+        "passes_reference_predicate": false
+      },
+      {
+        "post_id": "t3_1wsq2ov",
+        "action_info": {
+          "position": 2,
+          "relative_position": 2
+        },
+        "event": "view",
+        "passes_reference_predicate": false
+      },
+      {
+        "post_id": "t3_1x3jzen",
+        "action_info": {
+          "position": 3,
+          "relative_position": 3
+        },
+        "event": "view",
+        "passes_reference_predicate": false
+      },
+      {
+        "post_id": "t3_1win1ce",
+        "action_info": {
+          "position": 4,
+          "relative_position": 4
+        },
+        "event": "view",
+        "passes_reference_predicate": false
+      },
+      {
+        "post_id": "t3_1wu6ol5",
+        "action_info": {
+          "position": 5,
+          "relative_position": 5
+        },
+        "event": "view",
+        "passes_reference_predicate": false
+      },
+      {
+        "post_id": "t3_1x0qp3j",
+        "action_info": {
+          "position": 6,
+          "relative_position": 6
+        },
+        "event": "view",
+        "passes_reference_predicate": false
+      }
+    ],
+    "matched_contexts": [
+      {
+        "post_id": "t3_1wkxyuj",
+        "action_info": {
+          "position": 0,
+          "relative_position": 0,
+          "type": "post"
+        },
+        "event": "other",
+        "passes_reference_predicate": true
+      },
+      {
+        "post_id": "t3_1wj6q85",
+        "action_info": {
+          "position": 1,
+          "relative_position": 1,
+          "type": "post"
+        },
+        "event": "other",
+        "passes_reference_predicate": true
+      },
+      {
+        "post_id": "t3_1wsq2ov",
+        "action_info": {
+          "position": 2,
+          "relative_position": 2,
+          "type": "post"
+        },
+        "event": "other",
+        "passes_reference_predicate": true
+      },
+      {
+        "post_id": "t3_1x3jzen",
+        "action_info": {
+          "position": 3,
+          "relative_position": 3,
+          "type": "post"
+        },
+        "event": "other",
+        "passes_reference_predicate": true
+      },
+      {
+        "post_id": "t3_1win1ce",
+        "action_info": {
+          "position": 4,
+          "relative_position": 4,
+          "type": "post"
+        },
+        "event": "other",
+        "passes_reference_predicate": true
+      },
+      {
+        "post_id": "t3_1wu6ol5",
+        "action_info": {
+          "position": 5,
+          "relative_position": 5,
+          "type": "post"
+        },
+        "event": "other",
+        "passes_reference_predicate": true
+      },
+      {
+        "post_id": "t3_1x0qp3j",
+        "action_info": {
+          "position": 6,
+          "relative_position": 6,
+          "type": "post"
+        },
+        "event": "other",
+        "passes_reference_predicate": true
+      }
+    ]
+  },
+  {
+    "file": "svc-subreddit-search-browser.json",
+    "method": "Independent structural audit of every search-telemetry-tracker context, applying the exact reddit_search.py:109-116 predicate; no reference code executed. Does not prove complete parse_page output.",
+    "view_post_count": 7,
+    "all_tracker_count": 22,
+    "matched_context_count": 7,
+    "matched_post_ids": [
+      "t3_1wkxyuj",
+      "t3_1wj6q85",
+      "t3_1wsq2ov",
+      "t3_1win1ce",
+      "t3_1wu6ol5",
+      "t3_1x0qp3j",
+      "t3_1x4qszn"
+    ],
+    "view_contexts": [
+      {
+        "post_id": "t3_1wkxyuj",
+        "action_info": {
+          "position": 0,
+          "relative_position": 0
+        },
+        "event": "view",
+        "passes_reference_predicate": false
+      },
+      {
+        "post_id": "t3_1wj6q85",
+        "action_info": {
+          "position": 1,
+          "relative_position": 1
+        },
+        "event": "view",
+        "passes_reference_predicate": false
+      },
+      {
+        "post_id": "t3_1wsq2ov",
+        "action_info": {
+          "position": 2,
+          "relative_position": 2
+        },
+        "event": "view",
+        "passes_reference_predicate": false
+      },
+      {
+        "post_id": "t3_1win1ce",
+        "action_info": {
+          "position": 3,
+          "relative_position": 3
+        },
+        "event": "view",
+        "passes_reference_predicate": false
+      },
+      {
+        "post_id": "t3_1wu6ol5",
+        "action_info": {
+          "position": 4,
+          "relative_position": 4
+        },
+        "event": "view",
+        "passes_reference_predicate": false
+      },
+      {
+        "post_id": "t3_1x0qp3j",
+        "action_info": {
+          "position": 5,
+          "relative_position": 5
+        },
+        "event": "view",
+        "passes_reference_predicate": false
+      },
+      {
+        "post_id": "t3_1x4qszn",
+        "action_info": {
+          "position": 6,
+          "relative_position": 6
+        },
+        "event": "view",
+        "passes_reference_predicate": false
+      }
+    ],
+    "matched_contexts": [
+      {
+        "post_id": "t3_1wkxyuj",
+        "action_info": {
+          "position": 0,
+          "relative_position": 0,
+          "type": "post"
+        },
+        "event": "other",
+        "passes_reference_predicate": true
+      },
+      {
+        "post_id": "t3_1wj6q85",
+        "action_info": {
+          "position": 1,
+          "relative_position": 1,
+          "type": "post"
+        },
+        "event": "other",
+        "passes_reference_predicate": true
+      },
+      {
+        "post_id": "t3_1wsq2ov",
+        "action_info": {
+          "position": 2,
+          "relative_position": 2,
+          "type": "post"
+        },
+        "event": "other",
+        "passes_reference_predicate": true
+      },
+      {
+        "post_id": "t3_1win1ce",
+        "action_info": {
+          "position": 3,
+          "relative_position": 3,
+          "type": "post"
+        },
+        "event": "other",
+        "passes_reference_predicate": true
+      },
+      {
+        "post_id": "t3_1wu6ol5",
+        "action_info": {
+          "position": 4,
+          "relative_position": 4,
+          "type": "post"
+        },
+        "event": "other",
+        "passes_reference_predicate": true
+      },
+      {
+        "post_id": "t3_1x0qp3j",
+        "action_info": {
+          "position": 5,
+          "relative_position": 5,
+          "type": "post"
+        },
+        "event": "other",
+        "passes_reference_predicate": true
+      },
+      {
+        "post_id": "t3_1x4qszn",
+        "action_info": {
+          "position": 6,
+          "relative_position": 6,
+          "type": "post"
+        },
+        "event": "other",
+        "passes_reference_predicate": true
+      }
+    ]
+  }
+]

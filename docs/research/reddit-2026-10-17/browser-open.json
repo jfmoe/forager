@@ -1,0 +1,15 @@
+{
+  "checked_at": "2026-10-17T12:13:00.857046+00:00",
+  "command": [
+    "opencli",
+    "browser",
+    "forager-reddit-research",
+    "open",
+    "https://www.reddit.com/search/?q=rust&type=posts",
+    "--window",
+    "background"
+  ],
+  "exit_code": 0,
+  "stdout": "{\n  \"url\": \"https://www.reddit.com/search/?q=rust&type=posts\",\n  \"page\": \"B6077C06778B4EAAC42F75ABA62F9DE2\"\n}\n",
+  "stderr": "\n  Update available: v1.8.6 → v1.8.8\n  Run: npm install -g @jackwener/opencli\n\n"
+}

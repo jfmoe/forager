@@ -1,0 +1,639 @@
+[NewFree cached results are live](https://scrapecreators.com/free-cached-results)
+
+# Social Media Scraping API
+
+Scrape profiles, posts, videos, comments, ad libraries, and metrics from TikTok, Instagram, YouTube, Facebook, X, Reddit, and more through one API.
+
+[Start scraping free](https://app.scrapecreators.com/) [Read the docs→](https://docs.scrapecreators.com/)
+
+Start with 100 free credits. Claim up to 7,000 more.
+
+No credit card required · No rate limits · Cached results are free · Credits never expire
+
+cURLJavaScriptPython
+
+Copy
+
+```
+curl "https://api.scrapecreators.com/v1/tiktok/profile?handle=iamsydneythomas" \
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+Run demo
+
+Response
+
+application/json
+
+HitRun demoto see live output
+
+20+
+
+Social platforms
+
+10M+
+
+Requests every day
+
+98.2%
+
+Success rate
+
+3.12s
+
+Avg. response
+
+Customer love
+
+## What people  are saying.
+
+"ScrapeCreators is a banger. Fast, reliable, and great pricing. After weeks of being stuck, I finally solved the biggest problem with my new app."
+
+![Julian Arthur](https://udzuvxmziagmfowmeren.supabase.co/storage/v1/object/public/demo/julien.jpg)
+
+Julian Arthur
+
+[@julianisdoing](https://x.com/julianisdoing)
+
+"We used scrape creators because there was no other platform that would really let us find and filter the creators that we needed to, and then enrich the data we needed to"
+
+![Eric Nowoslawski](https://udzuvxmziagmfowmeren.supabase.co/storage/v1/object/public/demo/eric.jpeg?t=2025-01-20T20%3A43%3A11.952Z)
+
+Eric Nowoslawski
+
+Growth Engine X
+
+"As soon as I switched over to Scrape Creators, the failure rate went way down. I really couldn't have done it without Scrape Creators."
+
+![Gil](https://pbs.twimg.com/profile_images/1721561299987857409/mq7mS7fC_400x400.jpg)
+
+Gil
+
+subscribr.ai
+
+"I thought I would use your service instead because its 10x cheaper."
+
+![lennard](https://pbs.twimg.com/profile_images/1861747954026950656/ehBVSyD-_400x400.jpg)
+
+lennard
+
+beachcode.de
+
+"The documentation is super clear also for very non-technical people"
+
+![Giorgio Zanella](https://udzuvxmziagmfowmeren.supabase.co/storage/v1/object/public/demo//giorgio.jpeg)
+
+Giorgio Zanella
+
+[@giorgiozanella](https://www.linkedin.com/in/giorgio-zanella-25466519b/)
+
+"It wasn't really possible to build the data analytics side without scrape creators"
+
+![Cameron Blackwood](https://udzuvxmziagmfowmeren.supabase.co/storage/v1/object/public/demo/cameron.jpg?t=2025-01-20T21%3A25%3A26.104Z)
+
+Cameron Blackwood
+
+[@CamBlackwood95](https://x.com/CamBlackwood95)
+
+[View Riley Brown's tweet](https://x.com/rileybrown/status/2084304730663088419)
+
+Every marketer in the world should be using "Scrapecreators" skill it allows you to pull data from any social media platforms.
+
+This is useful for influencer outreach, ideation, niche research, ads, UGC, twitter research, and more.
+
+That's the biggest takeaway from this video.
+
+![Riley Brown](https://pbs.twimg.com/profile_images/1898571530956873728/JALEVTSb_200x200.jpg)
+
+Riley Brown
+
+[@rileybrown](https://x.com/rileybrown/status/2084304730663088419)
+
+After weeks of being stuck, I finally solved the biggest problem with my new app. Big shoutout to ScrapeCreators(.)com. I had a call with the founder @adrian\_horning\_ and their API is a banger. Fast, reliable, and great pricing!!
+
+![Julian Arthur](https://udzuvxmziagmfowmeren.supabase.co/storage/v1/object/public/demo/julien.jpg)
+
+Julian Arthur
+
+[@julianisdoing](https://x.com/julianisdoing/status/1969575820088778937)
+
+[View Florin Pop 👨🏻‍💻's tweet](https://x.com/FlorinPop17/status/2052367153182183900)
+
+Been using scrapecreators.com for our SaaS and this tool is just goated! If you ever want to scrape social media, highly recommend it!
+
+Shoutout to @adrian\_horning\_ for building such a great platform.
+
+![Florin Pop 👨🏻‍💻](https://pbs.twimg.com/profile_images/1834149228169342976/ABh8v7re_200x200.jpg)
+
+Florin Pop 👨🏻‍💻
+
+[@FlorinPop17](https://x.com/FlorinPop17/status/2052367153182183900)
+
+[View Elitza Vasileva's tweet](https://x.com/ElitzaVasileva/status/2052379117979652305)
+
+It is truly the best scraping tool out there! I can confirm!
+
+![Elitza Vasileva](https://pbs.twimg.com/profile_images/2025983666690629632/9CSquFmn_200x200.jpg)
+
+Elitza Vasileva
+
+[@ElitzaVasileva](https://x.com/ElitzaVasileva/status/2052379117979652305)
+
+[View Andrew Zacker's tweet](https://x.com/andrewzacker/status/2052367424570442028)
+
+Man, this API is insane.
+
+Using it for 6+ months. Literally the best on the market!
+
+![Andrew Zacker](https://pbs.twimg.com/profile_images/1646139228726902788/Ld1LWNxB_200x200.jpg)
+
+Andrew Zacker
+
+[@andrewzacker](https://x.com/andrewzacker/status/2052367424570442028)
+
+"Scrape Creators is amazing because scraping is a constantly shifting game. Now I can rely on Scrape Creators. It saves me at least an hour a week."
+
+![Anon CTO](https://api.dicebear.com/9.x/micah/svg?seed=Oliver&mouth=laughing,smile)
+
+Anon CTO
+
+YC-backed startup
+
+"Definitely has the best docs and API playground of anything I've used for social media scraping. Immediately saw how actually useful it was."
+
+![Luke S.](https://api.dicebear.com/9.x/micah/svg?seed=Luke&mouth=laughing,smile)
+
+Luke S.
+
+RCTV Studios
+
+yeah love the product. switched from rapid api. now I have everything in one place!
+
+![daniel](https://pbs.twimg.com/profile_images/1937909041096986624/aUy03ybm_400x400.jpg)
+
+daniel
+
+[@danielhangan\_](https://x.com/danielhangan_/status/1970142689523028044)
+
+Being a noob coder, your AI self-explanatory endpoints are amazing. Also you have everything — even TikTok song URL scrapers which are rare.
+
+![Organic Mike](https://pbs.twimg.com/profile_images/1927029763157192704/YWuBCNI0_400x400.jpg)
+
+Organic Mike
+
+[@CastanyMiquel](https://x.com/CastanyMiquel/status/1961488512156569751)
+
+@adrian\_horning\_'s ScrapeCreators is a chef's kiss, so simple to use
+
+![Mushtaq Mk](https://pbs.twimg.com/profile_images/1891040972168945664/4M0htTBQ_400x400.jpg)
+
+Mushtaq Mk
+
+[@mushtqmk](https://x.com/mushtqmk/status/1969685235970486680)
+
+"Thanks for the fast response, you're killing it. I have evaluated every solution in the space and ScrapeCreators is by far the best."
+
+![Cofounder / COO](https://api.dicebear.com/9.x/micah/svg?seed=Cofounder)
+
+Cofounder / COO
+
+Startup
+
+\[classified\]
+
+### \*And used by thecoolest tech companies you know.
+
+We'd show you their logos, but they prefer to fly under the radar ;)
+
+Redacted
+
+Redacted
+
+Redacted
+
+Redacted
+
+Redacted
+
+Redacted
+
+Redacted
+
+Redacted
+
+Why ScrapeCreators
+
+## Built for developers,  priced for builders.
+
+01 · Drop-in
+
+### One header. Every endpoint.
+
+Simple query parameters and a single`x-api-key`header. No OAuth dance, no SDK required.
+
+~/project
+
+```
+$ curl "https://api.scrapecreators.com/v1/instagram/profile?handle=zuck"
+  -H "x-api-key: YOUR_API_KEY"
+```
+
+02 · Cache
+
+### Cached result? Free.
+
+If a result is already in our cache, it costs 0 credits. If it isn't, we fetch it live.
+
+[See how cache pricing works →](https://scrapecreators.com/free-cached-results)
+
+CACHE HIT0 credits
+
+returned from cache
+
+03 · Scale
+
+### No rate limits
+
+No account-level rate or concurrency caps. For best reliability, we recommend staying below 500 concurrent requests.
+
+[See how it scales →](https://scrapecreators.com/no-rate-limits)
+
+04 · Fresh
+
+### Real-time data
+
+Cache misses fetch live, publicly available data straight from the source. Cache hits return instantly and cost 0 credits.
+
+3.12savg response
+
+Live from production last 30 days
+
+05 · Support
+
+### Fast, 1-on-1 support
+
+Get quick answers from a real person on our team. We monitor the APIs around the clock from around the world, so someone is always close to the issue.
+
+24/7 monitoring
+
+Global team coverage
+
+06 · Your credits, forever
+
+### No subscriptions.  No expiring credits.
+
+Buy credits when you need them. Use them 2 days from now, or 2 years from now. They'll be there.
+
+[See how credits work →](https://scrapecreators.com/credits-never-expire)
+
+Agent ready
+
+Live
+
+## Your agents already  know how to use this.
+
+MCP server, CLI, and a first-party Claude Code skill, all official and maintained. Drop Scrape Creators into whatever AI stack you're already running, no wrapper code required.
+
+For AI agents
+
+If an agent needs to call Scrape Creators, send it straight to these files and setup guides. They are plain links, easy to crawl, and kept in sync with the docs.
+
+[OpenAPI spec→](https://docs.scrapecreators.com/openapi.json) [llms.txt→](https://docs.scrapecreators.com/llms.txt) [full LLM docs→](https://docs.scrapecreators.com/llms-full.txt) [MCP setup→](https://docs.scrapecreators.com/integrations/mcp) [CLI docs→](https://docs.scrapecreators.com/integrations/cli) [Claude Code skill→](https://docs.scrapecreators.com/integrations/agent-skill)
+
+[MCP\\
+\\
+**Model Context Protocol** \\
+\\
+One config block. Claude, Cursor, or any MCP client gets every Scrape Creators endpoint as a first-class tool.\\
+\\
+claude\_desktop\_config.json\\
+\\
+```\\
+{\\
+  "mcpServers": {\\
+    "scrape-creators": {\\
+      "url": "https://api.scrapecreators.com/mcp"\\
+    }\\
+  }\\
+}\\
+```\\
+\\
+Read the docs→](https://docs.scrapecreators.com/integrations/mcp) [CLI\\
+\\
+**Command line** \\
+\\
+Pipe-friendly, cron-friendly, CI-friendly. Perfect for scripts, batch pulls, and one-off scraping runs from your terminal.\\
+\\
+~/terminal\\
+\\
+```\\
+$ scrape-creators tiktok profile @charlidamelio\\
+  → fetched 1 profile · 23ms · 1 credit used\\
+```\\
+\\
+Read the docs→](https://docs.scrapecreators.com/integrations/cli) [Skill\\
+\\
+**AI agent skill** \\
+\\
+A drop-in skill for Claude Code, Cursor, Codex, and other AI agents. It teaches them the API endpoints, params, and response shapes.\\
+\\
+claude chat\\
+\\
+```\\
+> get the last 30 days of reels from @mrbeast, \\
+  then summarize the top 5 by views\\
+\\
+• Using ScrapeCreators skill · calling instagram/reels\\
+```\\
+\\
+Read the docs→](https://docs.scrapecreators.com/integrations/agent-skill)
+
+No wrapper codeOfficial & maintainedFree to install
+
+[Browse all integrations→](https://docs.scrapecreators.com/integrations/cli)
+
+Use cases
+
+## What people actually build  on top of our API.
+
+01
+
+### Clipper payouts
+
+Clipping platforms use us to pull views, likes, and shares across every clipper's video — then automate payouts. One of our most popular patterns.
+
+viewscreatorspayouts
+
+02
+
+### Ad spy & intelligence
+
+Pull the Facebook Ad Library, TikTok Ads, and Google Ads Transparency at scale to see exactly what creative and offers your competitors are running.
+
+meta ad librarytiktok adscreative
+
+03
+
+### Analytics dashboards
+
+Power B2B reporting tools with live engagement, follower growth, and creator metrics — fresh data, not last week's CSV.
+
+dashboardsmetricsalerts
+
+04
+
+### Link-in-bio tools
+
+Auto-fill profile pics, bios, and recent posts during signup. Keep creator pages live without asking users to reconnect every week.
+
+onboardingprofilesstats
+
+05
+
+### Video intelligence
+
+Feed transcripts, comments, and metadata straight into your AI pipeline. Recipe apps, research agents, content summarizers — anything that needs to understand a video.
+
+transcriptscommentsai pipelines
+
+06
+
+### Personal & brand tracking
+
+Solo creators watching their own growth. Agencies tracking clients. Brands monitoring categories. Same API, any volume.
+
+analyticsreportingmulti-platform
+
+Founder's note
+
+## A word from me,  Adrian.
+
+A two-minute tour of what ScrapeCreators is, how it works, and why I built it.
+
+Compare
+
+## Honest about  the alternatives.
+
+| Feature | Scrape CreatorsThat's us | Build Your Own | General Scraping APIs | API Marketplaces |
+| --- | --- | --- | --- | --- |
+| Optimized for social media |  |  |  |  |
+| Easy to use |  |  |  |  |
+| Low maintenance |  |  |  |  |
+| Low cost |  |  |  |  |
+| Personalized support |  |  |  |  |
+| Pay as you go |  |  |  |  |
+| No rate limits |  |  |  |  |
+| Cached results are free |  | — |  |  |
+| Credits never expire |  | — |  |  |
+
+Pricing
+
+## Pay only when  you need more.
+
+Start with 100 free credits. Claim up to 7,000 more by telling us how you found us, starring our GitHub repo, and sharing honest feedback on G2. Top up anytime. Your credits never expire.
+
+### Free
+
+01
+
+Test the API before paying.
+
+$0
+
+- 100 credits1 credit === 1 request (for most endpoints). A few use more, and the exact cost is shown in the docs.
+- Up to 7,000 bonus credits to claim
+- All 38\+ APIs included
+- Credits never expire
+
+No credit card required
+
+[Get 100 free credits](https://app.scrapecreators.com/)
+
+Most popular
+
+### Freelance
+
+02
+
+For builders shipping small things fast.
+
+$47
+
+pay as you go
+
+- 25,000 credits1 credit === 1 request (for most endpoints). A few use more, and the exact cost is shown in the docs.
+- $1.88 / 1k requests
+- All 38\+ APIs included
+- Credits never expire
+
+No credit card required
+
+[Get 100 free credits](https://app.scrapecreators.com/)
+
+### Business
+
+03
+
+For teams running real production workloads.
+
+$497
+
+pay as you go
+
+- 500,000 credits1 credit === 1 request (for most endpoints). A few use more, and the exact cost is shown in the docs.
+- $0.99 / 1k requests
+- All 38\+ APIs included
+- Credits never expire
+
+No credit card required
+
+[Get 100 free credits](https://app.scrapecreators.com/)
+
+### Enterprise
+
+04
+
+Custom volume, custom pricing, white-glove onboarding.
+
+Custom
+
+- 1M+ credits1 credit === 1 request (for most endpoints). A few use more, and the exact cost is shown in the docs.
+- Custom pricing
+- All 38\+ APIs included
+- Credits never expire
+
+[Explore Enterprise](https://scrapecreators.com/enterprise)
+
+[Running a high-volume production workload?\\
+\\
+Get custom volume pricing, direct technical onboarding, and a plan built around your traffic.\\
+\\
+Explore Enterprise →](https://scrapecreators.com/enterprise)
+
+Every plan includes every API — Instagram, TikTok, YouTube, X, LinkedIn, Facebook, Reddit, Threads, Pinterest, Truth Social, and more.
+
+Less choosing, more shipping
+
+## You shouldn't need a PhD  to pick a scraper.
+
+Swap this
+
+search: spotify scraper
+
+![Search results showing more than 20 different Spotify scrapers](https://scrapecreators.com/marketplace-spotify-chaos.png)
+
+For this
+
+GET /v1/spotify/artist200
+
+```
+curl "https://api.scrapecreators.com/v1/spotify/artist?id=4Z8W4fKeB5YxbusRsdQVPb"
+  -H "x-api-key: YOUR_KEY"
+```
+
+One endpoint·One team behind it·One that just works
+
+Don't waste time trying to figure out which scraper to use. Like literally just use us.
+
+[Try it free](https://app.scrapecreators.com/)
+
+Coverage
+
+## Every platform.  One unified API.
+
+Access profiles, posts, videos, comments, ads and more across every major social network. Pick a platform to see its endpoints.
+
+Social platforms9
+
+TikTok22 endpointsInstagram20 endpointsYouTube17 endpointsFacebook12 endpointsTwitter7 endpointsLinkedIn6 endpointsReddit8 endpointsPinterest4 endpointsThreads5 endpoints
+
+Link-in-bio5
+
+More platforms24
+
+TikTokTikTok ShopInstagramYouTubeRumbleLinkedInFacebookGitHubFacebook MarketplaceFacebook EventsFacebook Ad LibraryTikTok Ad LibraryGoogle Ad LibraryLinkedIn Ad LibraryTwitterRedditTruth SocialThreadsBlueskyPinterestGoogleTwitchApple MusicSpotifySoundCloudKwaiKickSnapchatTelegram![Cosmos](https://www.cosmos.so/apple-icon.png)CosmosCreator ToolsLinktree![Komi Icon](https://cdn.prod.website-files.com/63bee2a6c490b309ba2e4939/6489b9c055c477050957272b_icon-32.png)Komi![Pillar Icon](https://cdn.prod.website-files.com/67059a0f01d454958209de93/67059a0f01d454958209de9a_Pillar%2032.svg)Pillar![LinkBio Icon](https://cdn2.lnk.bi/img/favicon/202006sqr/favicon.svg)LinkbioAmazon Shop![Scrape Creators logo](https://scrapecreators.com/logo.png)Scrape Creators![Linkme Icon](<Base64-Image-Removed>)Linkme
+
+### TikTok API
+
+Scrape TikTok profiles, videos, and more
+
+[Learn more →](https://scrapecreators.com/tiktok-api)
+
+[Profile\\
+\\
+`GET /v1/tiktok/profile`](https://docs.scrapecreators.com/v1/tiktok/profile) [Profile Region\\
+\\
+`GET /v1/tiktok/profile/region`](https://docs.scrapecreators.com/v1/tiktok/profile/region) [User's Audience Demographics\\
+\\
+`GET /v1/tiktok/user/audience`](https://docs.scrapecreators.com/v1/tiktok/user/audience) [Collection Videos\\
+\\
+`GET /v1/tiktok/collection/videos`](https://docs.scrapecreators.com/v1/tiktok/collection/videos) [Profile Videos\\
+\\
+`GET /v3/tiktok/profile/videos`](https://docs.scrapecreators.com/v3/tiktok/profile/videos) [Video Info\\
+\\
+`GET /v2/tiktok/video`](https://docs.scrapecreators.com/v2/tiktok/video) [Transcript\\
+\\
+`GET /v1/tiktok/video/transcript`](https://docs.scrapecreators.com/v1/tiktok/video/transcript) [Live\\
+\\
+`GET /v1/tiktok/user/live`](https://docs.scrapecreators.com/v1/tiktok/user/live) [Live Info\\
+\\
+`GET /v1/tiktok/live`](https://docs.scrapecreators.com/v1/tiktok/live) [Comments\\
+\\
+`GET /v1/tiktok/video/comments`](https://docs.scrapecreators.com/v1/tiktok/video/comments) [Comment Replies\\
+\\
+`GET /v1/tiktok/video/comment/replies`](https://docs.scrapecreators.com/v1/tiktok/video/comment/replies) [Following\\
+\\
+`GET /v1/tiktok/user/following`](https://docs.scrapecreators.com/v1/tiktok/user/following)
+
+\+ 10 more endpoints on the [TikTok API page](https://scrapecreators.com/tiktok-api).
+
+Full index
+
+### Every platform, linked.
+
+38 APIs — jump to any page
+
+[TikTok API](https://scrapecreators.com/tiktok-api) [TikTok Shop API](https://scrapecreators.com/tiktok-shop-api) [Instagram API](https://scrapecreators.com/instagram-api) [YouTube API](https://scrapecreators.com/youtube-api) [Rumble API](https://scrapecreators.com/rumble-api) [LinkedIn API](https://scrapecreators.com/linkedin-api) [Facebook API](https://scrapecreators.com/facebook-api) [GitHub API](https://scrapecreators.com/github-api) [Facebook Marketplace API](https://scrapecreators.com/facebookMarketplace-api) [Facebook Events API](https://scrapecreators.com/facebookEvents-api) [Facebook Ad Library API](https://scrapecreators.com/facebookAdLibrary-api) [TikTok Ad Library API](https://scrapecreators.com/tiktokAdLibrary-api) [Google Ad Library API](https://scrapecreators.com/googleAdLibrary-api) [LinkedIn Ad Library API](https://scrapecreators.com/linkedinAdLibrary-api) [Twitter API](https://scrapecreators.com/twitter-api) [Reddit API](https://scrapecreators.com/reddit-api) [Truth Social API](https://scrapecreators.com/truthsocial-api) [Threads API](https://scrapecreators.com/threads-api) [Bluesky API](https://scrapecreators.com/bluesky-api) [Pinterest API](https://scrapecreators.com/pinterest-api) [Google API](https://scrapecreators.com/google-api) [Twitch API](https://scrapecreators.com/twitch-api) [Apple Music API](https://scrapecreators.com/apple-music-api) [Spotify API](https://scrapecreators.com/spotify-api) [SoundCloud API](https://scrapecreators.com/soundcloud-api) [Kwai API](https://scrapecreators.com/kwai-api) [Kick API](https://scrapecreators.com/kick-api) [Snapchat API](https://scrapecreators.com/snapchat-api) [Telegram API](https://scrapecreators.com/telegram-api) [![Cosmos](https://www.cosmos.so/apple-icon.png)Cosmos API](https://scrapecreators.com/cosmos-api) [Creator Tools API](https://scrapecreators.com/creator-tools-api) [Linktree API](https://scrapecreators.com/linktree-api) [![Komi Icon](https://cdn.prod.website-files.com/63bee2a6c490b309ba2e4939/6489b9c055c477050957272b_icon-32.png)Komi API](https://scrapecreators.com/komi-api) [![Pillar Icon](https://cdn.prod.website-files.com/67059a0f01d454958209de93/67059a0f01d454958209de9a_Pillar%2032.svg)Pillar API](https://scrapecreators.com/pillar-api) [![LinkBio Icon](https://cdn2.lnk.bi/img/favicon/202006sqr/favicon.svg)Linkbio API](https://scrapecreators.com/linkbio-api) [Amazon Shop API](https://scrapecreators.com/amazon-shop-api) [![Scrape Creators logo](https://scrapecreators.com/logo.png)Scrape Creators API](https://scrapecreators.com/scrape-creators-api) [![Linkme Icon](<Base64-Image-Removed>)Linkme API](https://scrapecreators.com/linkme-api)
+
+FAQ
+
+## Frequently asked  questions
+
+Can't find what you're looking for? [Email us](mailto:support@scrapecreators.com).
+
+### What is a social media scraping API?
+
+### Is social media scraping legal?
+
+### Which social media platforms and data do you support?
+
+### Is the data real-time?
+
+### Do I need social media login credentials or official API access?
+
+### Are there rate limits?
+
+### How does pricing work? Do credits expire?
+
+### Is ScrapeCreators an alternative to Apify?
+
+### Are you a one-man company?
+
+### Can I request a custom endpoint or get help with my integration?
+
+Get started
+
+## Start scraping  in sixty seconds.
+
+Sign up, grab your API key, and make your first request. Start with 100 free credits, then claim up to 7,000 more. No credit card.
+
+bash
+
+Copy
+
+```
+curl "https://api.scrapecreators.com/v1/instagram/profile?handle=adrianhorning" \
+     -H "x-api-key: YOUR_KEY"
+```
+
+[Start free — 100 credits](https://app.scrapecreators.com/) [Read the docs →](https://docs.scrapecreators.com/)

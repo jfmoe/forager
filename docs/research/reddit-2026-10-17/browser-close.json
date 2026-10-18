@@ -1,0 +1,5 @@
+{
+  "exit_code": 0,
+  "stdout": "Browser session tab lease released\n",
+  "stderr": "\n  Update available: v1.8.6 → v1.8.8\n  Run: npm install -g @jackwener/opencli\n\n"
+}

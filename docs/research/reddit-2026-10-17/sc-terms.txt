@@ -1,0 +1,162 @@
+Contents · 16 sections
+
+01 · Acceptance
+
+## Acceptance of terms
+
+By creating an account, purchasing credits, or using the Scrape Creators API (“Service”), you agree to these Terms of Service.
+
+If you do not agree, do not use the Service.
+
+02 · Description
+
+## Description of service
+
+Scrape Creators provides API tools that retrieve publicly available information from third-party websites.
+
+- We are not affiliated with any third-party platforms
+- We do not control external websites
+- We do not guarantee availability or accuracy of data
+- We may store API response data to operate, support, secure, and improve the Service
+
+The Service is provided as a technical tool only.
+
+03 · Account
+
+## Account requirements
+
+To use the Service, you must:
+
+- Create an account
+- Provide a valid email address
+- Keep your API key secure
+- Be legally able to enter into a binding agreement
+
+You are responsible for all activity under your account.
+
+04 · Payments
+
+## Payments and credits
+
+- The Service uses a prepaid credit system
+- Purchases are one-time payments (no subscriptions)
+- Credits may expire or be discontinued at our discretion
+- Prices may change at any time
+
+If you enable auto-recharge, we may charge your saved payment method when credits fall below a specified threshold.
+
+05 · Refunds
+
+## Refunds
+
+Refunds are provided at our sole discretion on a case-by-case basis.
+
+06 · Acceptable use
+
+## Acceptable use
+
+You agree **not** to use the Service for:
+
+- Illegal activities
+- Harassment or stalking
+- Surveillance of individuals without lawful basis
+- Spamming or unsolicited outreach
+- Political manipulation or disinformation
+- Violating privacy or data protection laws
+- Infringing intellectual property rights
+- Any activity that harms others
+
+We may suspend or terminate accounts at any time for misuse.
+
+07 · Third-party
+
+## Compliance with third-party terms
+
+You are solely responsible for ensuring your use of the Service complies with the terms, policies, and laws applicable to the websites you access.
+
+We are not responsible for violations of third-party terms.
+
+08 · Availability
+
+## Service availability
+
+External websites frequently change or block automated access. Therefore:
+
+- Endpoints may stop working at any time
+- Features may be modified or removed without notice
+- We do not guarantee uptime or continuity
+- We are not responsible for lost business or data
+
+09 · Data and storage
+
+## Data and storage
+
+We may store API response data, request metadata, usage logs, and other operational data.
+
+We use this data to provide the Service, debug issues, prevent abuse, improve reliability, and support customers.
+
+10 · Termination
+
+## Termination
+
+We may suspend or terminate access at any time, for any reason, with or without notice.
+
+Upon termination, unused credits may be forfeited.
+
+11 · Warranties
+
+## No warranties
+
+The Service is provided “as is” and “as available,” without warranties of any kind.
+
+We do not guarantee:
+
+- Accuracy of data
+- Fitness for a particular purpose
+- Continuous availability
+- Compatibility with your systems
+
+12 · Liability
+
+## Limitation of liability
+
+To the maximum extent permitted by law:
+
+- Web Scraping Guy LLC shall not be liable for any indirect, incidental, special, consequential, or punitive damages, including loss of profits, revenue, or business.
+- Our total liability for any claim shall not exceed the amount you paid to us in the 12 months preceding the claim.
+
+13 · Indemnification
+
+## Indemnification
+
+You agree to defend, indemnify, and hold harmless Web Scraping Guy LLC from any claims, damages, liabilities, and expenses arising from:
+
+- Your use of the Service
+- Your violation of these Terms
+- Your violation of third-party rights or laws
+
+14 · Changes
+
+## Changes to the service or terms
+
+We may modify the Service or these Terms at any time. Continued use constitutes acceptance of updated Terms.
+
+15 · Governing law
+
+## Governing law
+
+These Terms are governed by the laws of the State of Texas, United States, without regard to conflict of law principles.
+
+16 · Contact
+
+## Contact
+
+Questions about these Terms:
+
+Email [support@scrapecreators.com](mailto:support@scrapecreators.com)
+
+CompanyWeb Scraping Guy LLC
+
+Looking for our privacy policy? [Privacy policy →](https://scrapecreators.com/privacy)
+
+[↑ Back to top](https://scrapecreators.com/terms#top)

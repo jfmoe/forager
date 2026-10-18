@@ -1,0 +1,7 @@
+{
+  "checked_at": "2026-10-17T12:13:15.390178+00:00",
+  "url": "https://old.reddit.com/robots.txt",
+  "exit_code": 0,
+  "stdout": "HTTP/1.0 200 Connection established\n\nHTTP/2 200 \nretry-after: 0\ncontent-type: text/plain\naccept-ranges: bytes\ndate: Sat, 17 Oct 2026 12:13:15 GMT\nvia: 1.1 varnish\nx-reddit-ct: v=1,dn=FT,p=HHR,cs=HIT\nset-cookie: edgebucket=<redacted>; Domain=reddit.com; Max-Age=63071999; Path=/;  secure\ncache-control: private, max-age=3600\nserver: snooserv\nstrict-transport-security: max-age=31536000; includeSubdomains\nx-content-type-options: nosniff\nx-frame-options: SAMEORIGIN\nx-xss-protection: 1; mode=block\nreport-to: {\"group\": \"w3-reporting-nel\", \"max_age\": 14400, \"include_subdomains\": true,  \"endpoints\": [{ \"url\": \"https://w3-reporting-nel.reddit.com/reports\" }]}, {\"group\": \"w3-reporting\", \"max_age\": 14400, \"include_subdomains\": true, \"endpoints\": [{ \"url\": \"https://w3-reporting.reddit.com/reports\" }]}, {\"group\": \"w3-reporting-csp\", \"max_age\": 14400, \"include_subdomains\": true, \"endpoints\": [{ \"url\": \"https://w3-reporting-csp.reddit.com/reports\" }]}\nnel: {\"report_to\": \"w3-reporting-nel\", \"max_age\": 14400, \"include_subdomains\": false, \"success_fraction\": 1.0, \"failure_fraction\": 1.0}\ncontent-length: 27\n\n\nUser-Agent: *\nDisallow: /\n",
+  "stderr": ""
+}

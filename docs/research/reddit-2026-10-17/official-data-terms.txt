@@ -1,0 +1,199 @@
+![Data API Terms](https://redditinc.com/hubfs/Reddit%20Inc/About/Redditinc_Logo_About%20Page@2x.png)
+
+## Data API Terms
+
+- [English](https://redditinc.com/policies/data-api-terms)
+- [Bahasa Indonesia](https://redditinc.com/id/policies/data-api-terms)
+- [Bahasa Melayu](https://redditinc.com/ms-my/policies/data-api-terms)
+- [Čeština](https://redditinc.com/cs-cz/policies/data-api-terms)
+- [Dansk](https://redditinc.com/da-dk/policies/data-api-terms)
+- [Deutsch](https://redditinc.com/de-de/policies/data-api-terms)
+- [Español (ES)](https://redditinc.com/es-es/policies/data-api-terms)
+- [Español (MX)](https://redditinc.com/es-mx/policies/data-api-terms)
+- [فارسی](https://redditinc.com/fa/policies/data-api-terms)
+- [Français](https://redditinc.com/fr-fr/policies/data-api-terms)
+- [hrvatski (Hrvatska)](https://redditinc.com/hr-hr/policies/data-api-terms)
+- [Italiano](https://redditinc.com/it-it/policies/data-api-terms)
+- [Magyar](https://redditinc.com/hu-hu/policies/data-api-terms)
+- [Nederlands](https://redditinc.com/nl-nl/policies/data-api-terms)
+- [Norsk Bokmål](https://redditinc.com/nb/policies/data-api-terms)
+- [Polski](https://redditinc.com/pl-pl/policies/data-api-terms)
+- [Português (BR)](https://redditinc.com/pt-br/policies/data-api-terms)
+- [Português (PT)](https://redditinc.com/pt-pt/policies/data-api-terms)
+- [Română](https://redditinc.com/ro-ro/policies/data-api-terms)
+- [Slovenčina (Slovensko)](https://redditinc.com/sk-sk/policies/data-api-terms)
+- [Suomi](https://redditinc.com/fi-fi/policies/data-api-terms)
+- [Svenska](https://redditinc.com/sv-se/policies/data-api-terms)
+- [Filipino](https://redditinc.com/tl/policies/data-api-terms)
+- [Tiếng Việt](https://redditinc.com/vi-vn/policies/data-api-terms)
+- [Türkçe](https://redditinc.com/tr-tr/policies/data-api-terms)
+- [Ελληνικά](https://redditinc.com/el-gr/policies/data-api-terms)
+- [Български (България)](https://redditinc.com/bg-bg/policies/data-api-terms)
+- [Русский](https://redditinc.com/ru-ru/policies/data-api-terms)
+- [Srpski](https://redditinc.com/sr-rs/policies/data-api-terms)
+- [Українська](https://redditinc.com/uk-ua/policies/data-api-terms)
+- [עברית](https://redditinc.com/he/policies/data-api-terms)
+- [اُردُو](https://redditinc.com/ur/policies/data-api-terms)
+- [عربي](https://redditinc.com/ar/policies/data-api-terms)
+- [हिन्दी](https://redditinc.com/hi-in/policies/data-api-terms)
+- [বাংলা](https://redditinc.com/bn/policies/data-api-terms)
+- [ไทย](https://redditinc.com/th/policies/data-api-terms)
+- [한국어](https://redditinc.com/ko-kr/policies/data-api-terms)
+- [繁體中文](https://redditinc.com/zh-tw/policies/data-api-terms)
+- [日本語](https://redditinc.com/ja-jp/policies/data-api-terms)
+- [简体中文](https://redditinc.com/zh-cn/policies/data-api-terms)
+
+English
+
+Effective June 19, 2023. Last Revised July 20, 2026
+
+Thanks for inquiring about our data APIs and the related data, code, and other materials provided by Reddit with our data APIs (the “ **Data APIs**”). Collectively, we refer to these Data API Terms, the [Developer Terms](https://redditinc.com/policies/developer-terms?hsLang=en), our [User Agreement](https://redditinc.com/policies/user-agreement-september-12-2021?hsLang=en), any additional terms, terms within the accompanying Developer Documentation for the Data APIs, and any applicable policies and guidelines as the “ **Data API Terms**,” and the Data API Terms include certain terms that are defined in the [Developer Terms](https://redditinc.com/policies/developer-terms?hsLang=en) and our [User Agreement](https://redditinc.com/policies/user-agreement-september-12-2021?hsLang=en).
+
+By using the Data APIs, you agree to the Data API Terms including the [Developer Terms](https://redditinc.com/policies/developer-terms?hsLang=en) with Reddit. You may use the Data APIs and any other Materials you access from our Services, whether using the Data APIs or not, only in accordance with the Data API Terms.
+
+#### 1\. Registration
+
+##### 1.1 Eligibility
+
+You may not use the Data APIs and may not accept the Data API Terms if: (a) you are not of legal age to form a binding contract with Reddit; or (b) you are a person barred from using or receiving the Data APIs under the applicable laws of the United States or other countries, including the country in which you are resident, or from which you use the Data APIs.
+
+##### 1.2 Corporate Use
+
+If you are accepting the Data API Terms on behalf of your employer or another entity, you represent and warrant that: (a) you have full legal authority to bind your employer, or the applicable entity, to the Data API Terms; (b) you have read and understand the Data API Terms; and (c) you agree, on behalf of the party that you represent, to the Data API Terms. If you do not have the legal authority to bind your employer or the applicable entity, please do not use the Data APIs.
+
+##### 1.3 Contact Information
+
+In order to access the Data APIs, you are required to provide identification information (e.g., contact details). This information must be up to date and accurate at all times.
+
+#### 2\. Your Use of Data APIs
+
+##### 2.1 License
+
+Reddit grants you, subject to your complete and ongoing compliance with the Data API Terms, a non-exclusive, non-transferable, non-sublicensable, and revocable license solely to access and use the Data APIs as expressly permitted under and in accordance with the Data API Terms. All rights not expressly granted to you are reserved by Reddit.
+
+##### 2.2 App Users
+
+You agree that you will ensure that your App Users (including end users) comply with all associated terms and conditions of the Data API Terms.
+
+##### 2.3 Compliance with Reddit Terms and Rules
+
+You agree to comply with the [Reddit User Agreement](https://redditinc.com/policies/user-agreement?hsLang=en) and [Privacy Policy](https://www.reddit.com/policies/privacy-policy), which may be amended from time to time. Further, you agree to comply with the Data API Developer Documentation.
+
+##### 2.4 User Content
+
+The Content created with or submitted to our Services by Users (“ **User Content**”) is owned by Users and not by Reddit. Subject to your complete and ongoing compliance with the Data API Terms, Reddit grants you a non-exclusive, non-transferable, non-sublicensable, and revocable license to copy and display the User Content using the Data API solely as necessary to develop, deploy, distribute, and run your App to your App Users. You may not modify the User Content except to format it for such display. You will comply with any requirements or restrictions imposed on usage of User Content by their respective owners, which may include "all rights reserved" notices, Creative Commons licenses, or other terms and conditions that may be agreed upon between you and the owners. Except as expressly permitted by this section, no other rights or licenses are granted or implied, including any right to use User Content for other purposes, such as for training a machine learning or AI model, without the express permission of rightsholders in the applicable User Content.
+
+##### 2.5 Removals
+
+You may receive notices or requests to remove User Content pursuant to the [Reddit Rules](https://redditinc.com/policies/reddit-rules?hsLang=en). You will escalate these requests to Reddit, as needed, by submitting the request [here](https://www.reddithelp.com/hc/en-us/requests/new).
+
+##### 2.6 Privacy Policy
+
+You will disclose in your App through a privacy policy how you collect, use, store, and disclose data collected from your App Users and other visitors, including, where applicable, that third parties (e.g., advertisers) may serve content or advertisements and collect information directly from your App Users and other visitors that may include the use of cookies. In addition, by using the Data APIs, Reddit may use submitted information in accordance with our Privacy Policy.
+
+##### 2.7 Compliance with Law
+
+You will comply with all applicable laws or regulations (including laws regarding the import or export of data, or software, privacy, and local laws).
+
+##### 2.8 Permitted Access
+
+You will only access (or attempt to access) Data APIs using Access Info described in the Developer Documentation for the Data APIs. You must use the Access Info we provided you (e.g., the OAuth token) when accessing the Data APIs, and you will not misrepresent or mask either the user agent or OAuth identity when using the Data APIs.
+
+##### 2.9 API Limitations
+
+Reddit may set and enforce limits on your use of the Data APIs (e.g., limiting the number of API requests that you may make or the number of App Users you may serve), in our sole discretion.
+
+##### 2.10 Libraries, Wrappers, and Extensions
+
+There are some great third-party libraries, wrappers, and extensions that help bring Reddit to our Users. If your App utilizes them, you need to comply with any limitations or restrictions imposed by the applicable third party and Reddit.
+
+#### 3\. Fees; Restrictions on Use
+
+##### 3.1 Fees
+
+Reddit reserves the right to charge fees for future use or access to the Data APIs, rates to be determined at Reddit's sole discretion. If you are interested in using the Data APIs for commercial purposes, research in excess of rate limits, or for any use that is not expressly permitted under the Data API Terms, then you will need to enter into a separate agreement with Reddit. For more information, please review our Developer Documentation [here](https://reddithelp.com/hc/en-us/articles/14945211791892).
+
+##### 3.2 Restrictions
+
+You must not, and must not allow those acting on your behalf to:
+
+- use the Data APIs to encourage or promote illegal activity or violation of third party rights (including using User Content to train a machine learning or AI model without the express permission of rightsholders in the applicable User Content);
+
+- reverse engineer, decompile, disassemble or translate the Data APIs or otherwise derive the source code from any Data APIs or any part thereof, except to the extent that this restriction is expressly prohibited by applicable law;
+
+- circumvent or exceed limitations on calls and use of the Data APIs as outlined in the Developer Documentation, or otherwise use the Data APIs in a manner that would constitute excessive or abusive usage or would disrupt or unreasonably interfere with the Data APIs or the servers or networks that provide the Data APIs (for clarity, if Reddit believes that you are in breach of this section, Reddit reserves the right to permanently block your access to the Data APIs);
+
+- interfere with, modify, disrupt, or disable features or functionality of the Data APIs, including any mechanism used to restrict or control functionality, or defeat, avoid, bypass, remove, deactivate or otherwise circumvent any software protection or monitoring mechanism of the Data APIs;
+
+- use the Data APIs with the intent of introducing any viruses, worms, defects, Trojan horses, malware, or any other items of a destructive nature;
+
+- sell, lease, or sublicense the Data APIs or access thereto or derive revenues from the use or provision of the Data APIs, whether for direct commercial or monetary gain unless there is express written approval from Reddit;
+
+- use or retain any User Content, Materials, or data accessed through the Data APIs beyond your approved use case, and you must immediately delete any data not required for it; or
+
+- use the Data APIs to spam, incentivize, or harass users.
+
+
+#### 4\. Trademarks; Attribution; Publicity
+
+##### 4.1 Use of Reddit Trademarks
+
+You are not permitted to use the Reddit Trademarks in, or as part of the name of your App, or any logos used to promote or identify your App, unless expressly authorized in writing by Reddit or in the Data API Terms. Further, you agree not to: (a) create any derivative works of the Reddit Trademarks that may create or reasonably imply Reddit’s endorsement, association or sponsorship with your application; (b) use the Reddit Trademarks in such a way that would mislead, deceive or confuse users, including using or registering any mark that is confusingly similar to any Reddit Trademarks; and (c) challenge Reddit’s ownership of the Reddit Trademarks and you will not take any action inconsistent with this ownership and you will cooperate, at Reddit’s request and expense, in any action (including the conduct of legal proceedings) which Reddit deems necessary or desirable to establish or preserve Reddit’s exclusive rights in, and to, the Reddit Trademarks. All use of the Reddit Trademarks and all goodwill arising out of such use, will inure to Reddit’s benefit.
+
+##### 4.2 Attribution
+
+You agree to display any attribution(s) required by Reddit as described in the Developer Documentation for the Data APIs. When you use the Data APIs, Reddit hereby grants to you a non-transferable, non-sublicensable, nonexclusive license while the Data API Terms are in effect to use or display “Reddit” wordmark, so long as you use “for” preceding such use (e.g., “\[insert name\] for Reddit”).
+
+##### 4.3 Publicity
+
+You will not make any statement regarding your use of the Data APIs which suggests partnership with, sponsorship by, or endorsement by Reddit, without Reddit's prior written approval.
+
+#### 5\. Support; Changes; Feedback
+
+##### 5.1 Support
+
+Reddit may elect to provide you with support or modifications for the Data APIs, in its sole discretion, and may terminate such support at any time without notice to you.
+
+##### 5.2 Changes to Data APIs
+
+Reddit may change, suspend, or discontinue any aspect of the Data APIs at any time, including the availability of all or any part of the Data APIs.
+
+##### 5.3 Feedback
+
+You agree and acknowledge that any feedback that you provide with respect to the Data APIs may be used, modified, and incorporated into any Reddit products and services without any restriction, obligation, or compensation to you.
+
+#### 6\. Termination
+
+You may stop using the Data APIs at any time, with or without notice to Reddit. Reddit reserves the right to revoke your access to the Data APIs for any reason and for any period of time, without notice to you. Upon any termination of the Data API Terms or discontinuation of your access to the Data APIs, you will immediately stop using the Data APIs, delete any cached or stored User Content and Materials that were permitted or transferred via the Data APIs and stop any further distribution or updates of any mobile applications (as may be applicable). This includes any data or models that were derived from User Content and Materials that were accessed from the Data APIs or our other Services.
+
+#### 7\. Disclaimer; Limitation of Liability; Indemnity
+
+##### 7.1 Disclaimer
+
+Reddit does not represent or warrant that any Data APIs are free of inaccuracies, errors, bugs, or interruptions, or are reliable, accurate, complete, or otherwise valid. The Data APIs are provided “as is” with no warranty, express or implied, of any kind and Reddit expressly disclaims any and all warranties and conditions, including any implied warranty of merchantability, fitness for a particular purpose, availability, security, title, and non-infringement. Your use of the Data APIs is at your own discretion and risk, and you will be solely responsible for any damage that results from the use of any Data APIs including any damage to your computer system or loss of data.
+
+##### 7.2 Limitation of Liability
+
+Reddit shall not be liable to you for any direct, indirect, incidental, consequential, special, or exemplary damages arising out of, or in connection with, use of the Data APIs, whether based on tort (including negligence or otherwise), breach of contract, breach of warranty, or any other pecuniary loss, whether or not Reddit has been advised of the possibility of such damages. Under no circumstances shall Reddit be liable to you for any amount in excess of $100.
+
+##### 7.3 Indemnity
+
+To the maximum extent permitted by applicable law, you agree to hold harmless and indemnify Reddit and its subsidiaries, affiliates, officers, agents, licensors, and employees from and against any third-party claim arising from or in any way related to your use of the Data APIs, including any liability or expense arising from all claims, losses, damages (actual and/or consequential), suits, judgments, litigation costs and attorneys' fees, of every kind and nature. Reddit shall use good faith efforts to provide you with written notice of such claim, suit, or action.
+
+#### 8\. Miscellaneous
+
+##### 8.1 Confidentiality
+
+Our communications to you and our Data APIs may contain Reddit confidential information. Reddit confidential information includes any Materials, communications, and information that are marked confidential or that would normally be considered confidential under the circumstances. You may use this Confidential Information only as necessary in exercising your rights granted under the Data API Terms and you will not disclose it to any third party without Reddit's prior written consent. You agree that you will protect this confidential information from unauthorized use, access, or disclosure in the same manner that you would use to protect your own confidential and proprietary information of a similar nature and in no event with less than a reasonable degree of care. Reddit confidential information does not include information that you independently developed, that was rightfully given to you by a third party without confidentiality obligation, or that becomes public through no fault of your own. You may disclose Reddit confidential information when compelled to do so by law if you provide us reasonable prior notice, unless a court orders that we not receive notice.
+
+##### 8.2 Modification to Data API Terms
+
+Reddit may modify the Data API Terms at any time. You should look at the Data API Terms regularly. If we modify the Data API Terms, we will post the revised Data API Terms. By continuing to access or use the Data APIs after modifications or revisions to the Data API Terms become effective, you agree to be bound by the revised or modified Data API Terms.
+
+##### 8.3 General
+
+The Data API Terms do not create any agency, partnership or joint venture between the parties. Nothing in the Data API Terms will limit either party's ability to seek injunctive relief. Reddit is not liable for failure or delay in performance to the extent caused by circumstances beyond our reasonable control. Any failure to enforce any provision of the Data API Terms will not constitute a waiver thereof or of any other provision. If any section (or portion of a section) of the Data API Terms is invalid, illegal, or unenforceable, the rest of the Data API Terms will remain in effect. The Data API Terms are governed by the laws of the State of California, excluding its conflict of laws principles. For any dispute relating to the Data API Terms, the parties consent to personal jurisdiction and exclusive venue in San Francisco County, California. The Data API Terms (and the [Developer Terms](https://redditinc.com/policies/developer-terms?hsLang=en) and our [User Agreement](https://redditinc.com/policies/user-agreement?hsLang=en), which are incorporated by this reference into, and made a part of, the Data API Terms) are the entire agreement between you and Reddit relating to its subject and supersede any prior or contemporaneous agreements on that subject.
+
+##### 8.4 Questions
+
+Questions or comments about the Data API Terms or the Data APIs may be directed [here](https://reddithelp.com/hc/en-us/requests/new?ticket_form_id=14868593862164).

@@ -1,0 +1,44 @@
+{
+  "checked_at": "2026-10-17T12:27:06.577166+00:00",
+  "commands": [
+    {
+      "command": [
+        "git",
+        "rev-parse",
+        "HEAD"
+      ],
+      "exit_code": 0,
+      "stdout": "b3e0d456bfa8f7310e3e88cf22b1a49069f6e0e8\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "git",
+        "status",
+        "--short"
+      ],
+      "exit_code": 0,
+      "stdout": "?? docs/research/2026-10-17-reddit-integration.md\n?? docs/research/reddit-2026-10-17/\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "forager",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stdout": "forager 0.13.0\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "opencli",
+        "--version"
+      ],
+      "exit_code": 0,
+      "stdout": "1.8.6\n",
+      "stderr": ""
+    }
+  ],
+  "network_observation": "curl recorded proxy_used=1 and loopback proxy; existing proxy settings unchanged; no proxy credentials/config captured"
+}

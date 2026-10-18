@@ -1,0 +1,1236 @@
+{
+  "checked_on": "2026-10-17",
+  "repository_baseline": "b3e0d456bfa8f7310e3e88cf22b1a49069f6e0e8",
+  "forager_version": "0.13.0",
+  "opencli_version": "1.8.6",
+  "browser_bridge_version": "1.0.24",
+  "reference_repository_commit": "0341304f8ecb307ca0a939e48ecd002761ef23b2",
+  "evidence_policy": {
+    "anonymous_probe": "22 primary matrix observations, 2 robots, 2 share shortlink observations, 2 target observations = 28 direct Reddit HTTP observations; >=2.2 seconds between sequential probe sends; no retries/cookies/OAuth/challenge execution. Separate document retrieval and browser page requests are not part of this count.",
+    "browser": "Two normal page navigations, DOM/Resource Timing/network-shape reads, one ordinary scroll and one bottom scroll. Existing Chrome session, login markers present; no login action, cookies/storage/tokens read, or handcrafted fetch/GraphQL calls. Lease released.",
+    "reference_code": "Read and snapshotted only, never imported/executed. Structural checks are task-owned code against saved HTML.",
+    "normalization": "Origin headers in the main matrix were separated offline from HTTP proxy CONNECT headers. Both blocks and body retained with original response hash. No repeated request for normalization.",
+    "gaps": "No paid API/OAuth/new-app test, no fresh anonymous browser comparison, no verified second page/full thread/long-term access guarantee. Archive-specific Reddit authorization not found.",
+    "orientation_exit": "Initial orientation output file completed; terminal process status was not retained by the first wrapper. It is used only for discovery. Subsequent fetch subprocesses record final return codes.",
+    "redaction": "Before publication, Set-Cookie values of 8 or more characters and the loid attribute in saved HTML were replaced with <redacted>. File bytes and sha256 describe the redacted files; response hashes recorded inside a file describe the original bytes."
+  },
+  "files": [
+    {
+      "file": "anonymous-content-validation.json",
+      "bytes": 16908,
+      "sha256": "b5329fb3bf6e994e53d991e48ff8423ed4694ce72fd8f94bb0b219b0bc9bb1be"
+    },
+    {
+      "file": "anonymous-summary.json",
+      "bytes": 6340,
+      "sha256": "eabf9c6bf5b8050b13ef979c0c461f613c057128305a6fa82c16da304f0b4217"
+    },
+    {
+      "file": "arctic-api.json",
+      "bytes": 28672,
+      "sha256": "4001675b8e34a000598f0b2a013d18107d406536929b6ffd2caa88d68808d999",
+      "url": "https://raw.githubusercontent.com/ArthurHeitmann/arctic_shift/master/api/README.md",
+      "checked_at": "2026-10-17T12:12:42.707861+00:00",
+      "command": [
+        "forager",
+        "fetch",
+        "https://raw.githubusercontent.com/ArthurHeitmann/arctic_shift/master/api/README.md",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "source_url": "https://raw.githubusercontent.com/ArthurHeitmann/arctic_shift/master/api/README.md",
+      "fetch_provider": "firecrawl",
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "arctic-api.txt",
+      "bytes": 27070,
+      "sha256": "358d64b8993830f11950708dc3852abe7532648fa87b948573007388f45c1491",
+      "role": "Readable projection of paired JSON"
+    },
+    {
+      "file": "arctic-data.json",
+      "bytes": 2552,
+      "sha256": "eb292ed84ec8c8ba2114a7637f6a098ee11331b049b0be5c0453367b940ab0b3",
+      "url": "https://raw.githubusercontent.com/ArthurHeitmann/arctic_shift/master/file_content_explanations.md",
+      "checked_at": "2026-10-17T12:13:54.783808+00:00",
+      "command": [
+        "forager",
+        "fetch",
+        "https://raw.githubusercontent.com/ArthurHeitmann/arctic_shift/master/file_content_explanations.md",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "source_url": "https://raw.githubusercontent.com/ArthurHeitmann/arctic_shift/master/file_content_explanations.md",
+      "fetch_provider": "firecrawl",
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "arctic-data.txt",
+      "bytes": 1917,
+      "sha256": "20201e3b4f38dd68e61df81ee6e03337c7286a62a11089ee80a0c9cad467f070",
+      "role": "Readable projection of paired JSON"
+    },
+    {
+      "file": "arctic-keyword-live.json",
+      "bytes": 11384,
+      "sha256": "6483bdf01b31c722d2d84289bb82ddc5981bfd2d8ecbacaa4487a930a4576078",
+      "url": "https://arctic-shift.photon-reddit.com/api/posts/search?subreddit=rust&query=async&limit=1&fields=id,title,created_utc,retrieved_on,score,num_comments",
+      "checked_at": "2026-10-17T12:16:06.136520+00:00",
+      "exit_code": 0,
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "arctic-live.json",
+      "bytes": 11592,
+      "sha256": "56d98eb2d883a573b80203e18cb53e01f843be2d8caa65ae1b025209f12aaef0",
+      "url": "https://arctic-shift.photon-reddit.com/api/posts/search?subreddit=rust&limit=1&sort=desc&fields=id,title,created_utc,retrieved_on,score,num_comments",
+      "checked_at": "2026-10-17T12:14:34.981588+00:00",
+      "exit_code": 0,
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "arctic-readme.json",
+      "bytes": 3446,
+      "sha256": "7c999d53b2e598b3cf34384deaeb4284d89d8a25c5265fe0664a94e70a92cd72",
+      "url": "https://raw.githubusercontent.com/ArthurHeitmann/arctic_shift/master/README.md",
+      "checked_at": "2026-10-17T12:12:42.818449+00:00",
+      "command": [
+        "forager",
+        "fetch",
+        "https://raw.githubusercontent.com/ArthurHeitmann/arctic_shift/master/README.md",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "source_url": "https://raw.githubusercontent.com/ArthurHeitmann/arctic_shift/master/README.md",
+      "fetch_provider": "firecrawl",
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "arctic-readme.txt",
+      "bytes": 2820,
+      "sha256": "db4786769a39dd00c569c34f4751e8e5ecbbc69c2834b491e65c331227e652b4",
+      "role": "Readable projection of paired JSON"
+    },
+    {
+      "file": "browser-close.json",
+      "bytes": 173,
+      "sha256": "3a69612d8e2014cfed36cb7857069d2b5a292ac5e53897f6272d5792a364a78a",
+      "exit_code": 0,
+      "role": "Read-only OpenCLI browser observation using existing Chrome session; no login or credentials exported."
+    },
+    {
+      "file": "browser-comment-canonical-open.json",
+      "bytes": 463,
+      "sha256": "496a78eaa5a83fbc5a5968d439d09b873a3d99d1df490e540d536c66522cad01",
+      "checked_at": "2026-10-17T12:15:38.791044+00:00",
+      "command": [
+        "opencli",
+        "browser",
+        "forager-reddit-research",
+        "open",
+        "https://www.reddit.com/comments/17snc7d/_/k8so54m/"
+      ],
+      "exit_code": 0,
+      "source_url": "https://www.reddit.com/comments/17snc7d/_/k8so54m/",
+      "role": "Read-only OpenCLI browser observation using existing Chrome session; no login or credentials exported."
+    },
+    {
+      "file": "browser-comment-network.json",
+      "bytes": 32359,
+      "sha256": "ae4c6c1b5ea25af4273e955fb1c81e35b04f9592807e18e2f076c047164de663",
+      "checked_at": "2026-10-17T12:20:06.163574+00:00",
+      "command": [
+        "opencli",
+        "browser",
+        "forager-reddit-research",
+        "network"
+      ],
+      "exit_code": 0,
+      "role": "Read-only OpenCLI browser observation using existing Chrome session; no login or credentials exported."
+    },
+    {
+      "file": "browser-comment-observation.json",
+      "bytes": 7579,
+      "sha256": "765ce5a1954ec16bc2ac93d36b6836a2a0c6cf0e7758a6403e8e4ae763253c42",
+      "checked_at": "2026-10-17T12:20:05.657553+00:00",
+      "command": [
+        "opencli",
+        "browser",
+        "forager-reddit-research",
+        "eval",
+        "(() => ({url:location.origin+location.pathname,title:document.title,post_count:document.querySelectorAll('shreddit-post').length,comment_count:document.querySelectorAll('shreddit-comment').length,target_present:!!document.querySelector('#t1_k8so54m,[thingid=\"t1_k8so54m\"]'),comments:Array.from(document.querySelectorAll('shreddit-comment')).slice(0,3).map(x=>({thingid:x.getAttribute('thingid'),parentid:x.getAttribute('parentid'),depth:x.getAttribute('depth')})),resources:performance.getEntriesByType('resource').map(x=>{let u=new URL(x.name);return {host:u.hostname,path:u.pathname,initiator:x.initiatorType}}).filter(x=>/svc|graphql|gql|api/.test(x.path)).slice(0,45),notices:document.body.innerText.slice(0,400)}))()"
+      ],
+      "exit_code": 0,
+      "source_url": "https://www.reddit.com/r/running/comments/17snc7d/comment/k8so54m/",
+      "role": "Read-only OpenCLI browser observation using existing Chrome session; no login or credentials exported."
+    },
+    {
+      "file": "browser-count-after-scroll.json",
+      "bytes": 492,
+      "sha256": "1ce67bb27aee43801ce76bd5f7eadbba3b08d26ab8cc61de1a4f9a34d7545ac4",
+      "checked_at": "2026-10-17T12:15:06.223300+00:00",
+      "command": [
+        "opencli",
+        "browser",
+        "forager-reddit-research",
+        "eval",
+        "({post_results:document.querySelectorAll('[view-events=\"search/view/post\"]').length, url:location.origin+location.pathname})"
+      ],
+      "exit_code": 0,
+      "source_url": "https://www.reddit.com/search/",
+      "role": "Read-only OpenCLI browser observation using existing Chrome session; no login or credentials exported."
+    },
+    {
+      "file": "browser-network-after-scroll.json",
+      "bytes": 528,
+      "sha256": "9873e03db82dd1bed6826d187955b8668cb7720c9e4620be9a0c55c7f5f27f0d",
+      "checked_at": "2026-10-17T12:15:05.853293+00:00",
+      "command": [
+        "opencli",
+        "browser",
+        "forager-reddit-research",
+        "network"
+      ],
+      "exit_code": 0,
+      "role": "Read-only OpenCLI browser observation using existing Chrome session; no login or credentials exported."
+    },
+    {
+      "file": "browser-network.json",
+      "bytes": 14704,
+      "sha256": "9d4f38e81339a598737acc26ec225c2a335790221de3fede8e5fcd7c6a1ddfd8",
+      "checked_at": "2026-10-17T12:13:15.722690+00:00",
+      "command": [
+        "opencli",
+        "browser",
+        "forager-reddit-research",
+        "network"
+      ],
+      "exit_code": 0,
+      "role": "Read-only OpenCLI browser observation using existing Chrome session; no login or credentials exported."
+    },
+    {
+      "file": "browser-observation.json",
+      "bytes": 8836,
+      "sha256": "73cc2c8566828033c057d37e207eb41dfc6f032da4a2ea344339881dea3fc11a",
+      "checked_at": "2026-10-17T12:13:15.401423+00:00",
+      "command": [
+        "opencli",
+        "browser",
+        "forager-reddit-research",
+        "eval",
+        "(() => ({url: location.origin + location.pathname, title: document.title, post_count: document.querySelectorAll('shreddit-post').length, comment_count: document.querySelectorAll('shreddit-comment').length, partials: Array.from(document.querySelectorAll('faceplate-partial[src]')).slice(0,15).map(x => {const u=new URL(x.getAttribute('src'),location.href);return {path:u.pathname, parameter_names:Array.from(u.searchParams.keys())}}), scripts: Array.from(document.scripts).filter(s=>!s.src).map(s=>({type:s.type,id:s.id,chars:s.textContent.length})).slice(0,20), resources: performance.getEntriesByType('resource').map(x=>{let u=new URL(x.name);return {host:u.hostname,path:u.pathname,initiator:x.initiatorType}}).filter(x=>/svc|graphql|gql|api|search/.test(x.path)).slice(0,60), notices: document.body.innerText.slice(0,1500)}))()"
+      ],
+      "exit_code": 0,
+      "source_url": "https://www.reddit.com/search/",
+      "role": "Read-only OpenCLI browser observation using existing Chrome session; no login or credentials exported."
+    },
+    {
+      "file": "browser-open.json",
+      "bytes": 493,
+      "sha256": "67062ce9ed1aed095bdadc92d74a268dd547471565b6726fdc59304a1627abe1",
+      "checked_at": "2026-10-17T12:13:00.857046+00:00",
+      "command": [
+        "opencli",
+        "browser",
+        "forager-reddit-research",
+        "open",
+        "https://www.reddit.com/search/?q=rust&type=posts",
+        "--window",
+        "background"
+      ],
+      "exit_code": 0,
+      "source_url": "https://www.reddit.com/search/?q=rust&type=posts",
+      "role": "Read-only OpenCLI browser observation using existing Chrome session; no login or credentials exported."
+    },
+    {
+      "file": "browser-scroll-bottom.json",
+      "bytes": 441,
+      "sha256": "32ded33ee23b7dac56ef57d8761f9fafee71767fe95e4c068b25ba40ac01744a",
+      "checked_at": "2026-10-17T12:14:42.035083+00:00",
+      "command": [
+        "opencli",
+        "browser",
+        "forager-reddit-research",
+        "eval",
+        "window.scrollTo(0, document.body.scrollHeight); ({at_bottom: window.scrollY + innerHeight >= document.body.scrollHeight-5})"
+      ],
+      "exit_code": 0,
+      "role": "Read-only OpenCLI browser observation using existing Chrome session; no login or credentials exported."
+    },
+    {
+      "file": "browser-scroll.json",
+      "bytes": 152,
+      "sha256": "08dd196bdd75c5216b1bbc362a4f4018fd2f3cca2ef6431eee92a8686e7358a1",
+      "exit_code": 0,
+      "role": "Read-only OpenCLI browser observation using existing Chrome session; no login or credentials exported."
+    },
+    {
+      "file": "browser-search-structure.json",
+      "bytes": 913,
+      "sha256": "4bd678ec9039f1abc64eb948fffed8df09d0a8e67293e8cbb6bd28bbcdbfabf0",
+      "exit_code": 0,
+      "role": "Read-only OpenCLI browser observation using existing Chrome session; no login or credentials exported."
+    },
+    {
+      "file": "devvit-api.json",
+      "bytes": 4802,
+      "sha256": "3dd90e22f2cb0b03bace89ba60d80c23223d88427560ed17ea5d63eb069fbd8d",
+      "url": "https://developers.reddit.com/docs/capabilities/server/reddit-api",
+      "checked_at": "2026-10-17T12:12:43.882147+00:00",
+      "command": [
+        "forager",
+        "fetch",
+        "https://developers.reddit.com/docs/capabilities/server/reddit-api",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "source_url": "https://developers.reddit.com/docs/capabilities/server/reddit-api",
+      "fetch_provider": "tavily"
+    },
+    {
+      "file": "devvit-api.txt",
+      "bytes": 3856,
+      "sha256": "c083ea24d919bb44b9eead6418ff45400ba83361db6817426804bd4b8271ccf1",
+      "role": "Readable projection of paired JSON"
+    },
+    {
+      "file": "environment.json",
+      "bytes": 962,
+      "sha256": "90c3903a42c56b2c8adb3743d83b81b8a87ffc28184bf0451c952b3ad7cd286f",
+      "checked_at": "2026-10-17T12:27:06.577166+00:00"
+    },
+    {
+      "file": "fetch-targets.json",
+      "bytes": 879,
+      "sha256": "b3212b1b733e834cc0bd05958f14e7e15a0457fa27e9eba51f96e042b39519f0"
+    },
+    {
+      "file": "last30days-history-audit.json",
+      "bytes": 13489,
+      "sha256": "f315c9242f9f3cb4450e275ff2b95e0cac6b082ecbdb229e34f234e9f0248c1d",
+      "checked_at": "2026-10-17",
+      "commit": "0341304f8ecb307ca0a939e48ecd002761ef23b2",
+      "scope": "Current shallow checkout, Python and Markdown files; no historic revisions fetched; no repository code executed"
+    },
+    {
+      "file": "last30days-source.json",
+      "bytes": 685234,
+      "sha256": "5426d759f8897afd38f0688f01b670099ca34c45df21327266ab340ec4bca486",
+      "commit": "0341304f8ecb307ca0a939e48ecd002761ef23b2",
+      "repository": "https://github.com/mvanhorn/last30days-skill",
+      "source_path": "/var/folders/v6/6lxgncdn0w5czm8l7w7lhglm0000gn/T/tmp.hWumYte681/repo"
+    },
+    {
+      "file": "official-access.json",
+      "bytes": 87031,
+      "sha256": "9cc8c8b1d7100cc7e070a50f2bb0e71af9fca133c73e65458e0a483af6cefcb6",
+      "url": "https://support.reddithelp.com/hc/en-us/articles/14945211791892-Developer-Platform-Accessing-Reddit-Data",
+      "checked_at": "2026-10-17T12:10:53.370824+00:00",
+      "command": [
+        "forager",
+        "fetch",
+        "https://support.reddithelp.com/hc/en-us/articles/14945211791892-Developer-Platform-Accessing-Reddit-Data",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "source_url": "https://support.reddithelp.com/hc/en-us/articles/14945211791892-Developer-Platform-Accessing-Reddit-Data",
+      "fetch_provider": "firecrawl",
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "official-access.txt",
+      "bytes": 85215,
+      "sha256": "42d04f2fc30f621835b4da73865b7c59a5adfc6e48e29515a5c6acdf146cb571",
+      "role": "Readable projection of paired JSON"
+    },
+    {
+      "file": "official-announcements-web.json",
+      "bytes": 33510,
+      "sha256": "52bbd5e86355889252e19988f27295a95b5f42679f1775128cf45d8e5b734dcb",
+      "checked_at": "2026-10-17",
+      "method": "web.open fallback after local forager fetch returned a network security block",
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "official-api-reference.json",
+      "bytes": 154376,
+      "sha256": "b24eb55a1e57bc256dc46318c18af51f9e78e652180700e539f4d68347995ed1",
+      "url": "https://www.reddit.com/dev/api/",
+      "checked_at": "2026-10-17T12:10:56.828647+00:00",
+      "command": [
+        "forager",
+        "fetch",
+        "https://www.reddit.com/dev/api/",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "source_url": "https://www.reddit.com/dev/api/",
+      "fetch_provider": "firecrawl",
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "official-api-reference.txt",
+      "bytes": 143748,
+      "sha256": "ab1eed5b826c5c2219177f72fc47255f8a2283c7a5ba64e9a27e113a15a5c48e",
+      "role": "Readable projection of paired JSON"
+    },
+    {
+      "file": "official-api-wiki.json",
+      "bytes": 81803,
+      "sha256": "f56700c4871738bc07663dfe4d908a9c3289d24ab0e93166e3818bf6b4ec209f",
+      "url": "https://support.reddithelp.com/hc/en-us/articles/16160319875092-Reddit-Data-API-Wiki",
+      "checked_at": "2026-10-17T12:10:54.207274+00:00",
+      "command": [
+        "forager",
+        "fetch",
+        "https://support.reddithelp.com/hc/en-us/articles/16160319875092-Reddit-Data-API-Wiki",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "source_url": "https://support.reddithelp.com/hc/en-us/articles/16160319875092-Reddit-Data-API-Wiki",
+      "fetch_provider": "firecrawl",
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "official-api-wiki.txt",
+      "bytes": 80125,
+      "sha256": "062d54e6d4bfb9f7b6885ab548159f51e6b86566087d875b21f5b8508f1eef0d",
+      "role": "Readable projection of paired JSON"
+    },
+    {
+      "file": "official-data-terms.json",
+      "bytes": 20564,
+      "sha256": "dbe33d39732bdf0547dfd8cf78849eec251cdbdb2179c2c6bcc7f11a56d7f7a6",
+      "url": "https://redditinc.com/policies/data-api-terms",
+      "checked_at": "2026-10-17T12:10:55.140386+00:00",
+      "command": [
+        "forager",
+        "fetch",
+        "https://redditinc.com/policies/data-api-terms",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "source_url": "https://redditinc.com/policies/data-api-terms",
+      "fetch_provider": "firecrawl",
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "official-data-terms.txt",
+      "bytes": 19737,
+      "sha256": "caa7f8666f3946ef0ab3fe7f8227af477730b0c8c877badf47ae115cd39e7fa1",
+      "role": "Readable projection of paired JSON"
+    },
+    {
+      "file": "official-developer-terms.json",
+      "bytes": 48579,
+      "sha256": "b66f95e3d8f6927cebecb2f2cac320999b12c7e775c27e2089935e5e59ae0788",
+      "url": "https://redditinc.com/policies/developer-terms",
+      "checked_at": "2026-10-17T12:10:56.153282+00:00",
+      "command": [
+        "forager",
+        "fetch",
+        "https://redditinc.com/policies/developer-terms",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "source_url": "https://redditinc.com/policies/developer-terms",
+      "fetch_provider": "firecrawl",
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "official-developer-terms.txt",
+      "bytes": 47403,
+      "sha256": "7945e2fe769fb201aeb5deb32015e4db5f574107ed4599c1fe41fe261638dea2",
+      "role": "Readable projection of paired JSON"
+    },
+    {
+      "file": "official-migration.json",
+      "bytes": 563,
+      "sha256": "e73c61b0aa978bd8229a978794da72f7910d7d30225d0ab50372070d78412431",
+      "url": "https://www.reddit.com/r/redditdev/comments/1wubcvf/moving_data_api_apps_to_the_developer_platform/",
+      "coverage_note": "Local forager extraction returned network security block, not announcement text; official-announcements-web.json supplies primary text via web.open.",
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "official-migration.txt",
+      "bytes": 414,
+      "sha256": "1480e49cfcc8a8861555885d18fabdee029a6443490b631f771c1c665ada673e",
+      "role": "Readable projection of paired JSON"
+    },
+    {
+      "file": "official-oauth-app-types.json",
+      "bytes": 3895,
+      "sha256": "eaa72d59451f104663cf26e66986136b07d289c12f6f9897f9c57612be846d34",
+      "url": "https://github.com/reddit-archive/reddit/wiki/OAuth2-App-Types",
+      "checked_at": "2026-10-17T12:10:57.856504+00:00",
+      "command": [
+        "forager",
+        "fetch",
+        "https://github.com/reddit-archive/reddit/wiki/OAuth2-App-Types",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "coverage_note": "Fetched page contains mostly navigation and insufficient app-types body; OAuth2 and Quick Start pages supply the cited protocol evidence instead.",
+      "source_url": "https://github.com/reddit-archive/reddit/wiki/OAuth2-App-Types",
+      "fetch_provider": "firecrawl",
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "official-oauth-app-types.txt",
+      "bytes": 3326,
+      "sha256": "faf88cd4b4667e804251a6e82be92582b691d4459cd77b79411c64375471bf90",
+      "role": "Readable projection of paired JSON"
+    },
+    {
+      "file": "official-oauth-script.json",
+      "bytes": 7082,
+      "sha256": "4aeb1f5d013690ce170022e17119017366f5b106bcac2f5dc5b7fc98bc9867e5",
+      "url": "https://github.com/reddit-archive/reddit/wiki/OAuth2-Quick-Start-Example",
+      "checked_at": "2026-10-17T12:13:57.060593+00:00",
+      "command": [
+        "forager",
+        "fetch",
+        "https://github.com/reddit-archive/reddit/wiki/OAuth2-Quick-Start-Example",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "source_url": "https://github.com/reddit-archive/reddit/wiki/OAuth2-Quick-Start-Example",
+      "fetch_provider": "firecrawl",
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "official-oauth-script.txt",
+      "bytes": 6088,
+      "sha256": "4fae5e2c13811bff614bcace63045313aaf056ac59766a9f132f57376a0e8cf2",
+      "role": "Readable projection of paired JSON"
+    },
+    {
+      "file": "official-oauth.json",
+      "bytes": 28174,
+      "sha256": "41963df4eafbaae395313f2590963f27eb516ef3cc91643564bf94e7699c2112",
+      "url": "https://github.com/reddit-archive/reddit/wiki/OAuth2",
+      "checked_at": "2026-10-17T12:10:56.966798+00:00",
+      "command": [
+        "forager",
+        "fetch",
+        "https://github.com/reddit-archive/reddit/wiki/OAuth2",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "source_url": "https://github.com/reddit-archive/reddit/wiki/OAuth2",
+      "fetch_provider": "firecrawl",
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "official-oauth.txt",
+      "bytes": 26662,
+      "sha256": "fe414fd13350978f9b529db3e03352b56dd497adf9d8c58b9a878d37c7ba82b1",
+      "role": "Readable projection of paired JSON"
+    },
+    {
+      "file": "official-public-policy.json",
+      "bytes": 85336,
+      "sha256": "a16ac6f2d1adc0aa486fcf6767c97a62dc3fa4de9110c8c53119c5a31832cba5",
+      "url": "https://support.reddithelp.com/hc/en-us/articles/26410290525844-Public-Content-Policy",
+      "checked_at": "2026-10-17T12:15:37.590268+00:00",
+      "command": [
+        "forager",
+        "fetch",
+        "https://support.reddithelp.com/hc/en-us/articles/26410290525844-Public-Content-Policy",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "source_url": "https://support.reddithelp.com/hc/en-us/articles/26410290525844-Public-Content-Policy",
+      "fetch_provider": "firecrawl",
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "official-public-policy.txt",
+      "bytes": 83722,
+      "sha256": "87a2a69caa372e3cac43655aec2e289b685ce63919885ad8280a97f4bdc1ad8a",
+      "role": "Readable projection of paired JSON"
+    },
+    {
+      "file": "official-responsible.json",
+      "bytes": 83853,
+      "sha256": "f4cc62d77bddb954b0193c132aaadc6622c16f18a5f8dd562bfdaa9c3a58cee7",
+      "url": "https://support.reddithelp.com/hc/en-us/articles/42728983564564-Responsible-Builder-Policy",
+      "checked_at": "2026-10-17T12:10:54.365532+00:00",
+      "command": [
+        "forager",
+        "fetch",
+        "https://support.reddithelp.com/hc/en-us/articles/42728983564564-Responsible-Builder-Policy",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "source_url": "https://support.reddithelp.com/hc/en-us/articles/42728983564564-Responsible-Builder-Policy",
+      "fetch_provider": "firecrawl",
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "official-responsible.txt",
+      "bytes": 82171,
+      "sha256": "052b2fff426ac4c0f42fe09eafc0d405a42deab79fdf9783536aa434d66cf4fc",
+      "role": "Readable projection of paired JSON"
+    },
+    {
+      "file": "official-rss-announcement-web.json",
+      "bytes": 15157,
+      "sha256": "05ae3cf23f16c07cf81aeda271227971cb89bce1e33e3f77e7e8b45fa34925f9",
+      "checked_at": "2026-10-17",
+      "method": "web.open official modnews",
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "official-user-agreement.json",
+      "bytes": 58198,
+      "sha256": "e10690356076da6cb1df9b59acbdc52acb6f986f621c7cd101d38d9ba261d3d3",
+      "url": "https://redditinc.com/policies/user-agreement",
+      "checked_at": "2026-10-17T12:15:33.960419+00:00",
+      "command": [
+        "forager",
+        "fetch",
+        "https://redditinc.com/policies/user-agreement",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "source_url": "https://redditinc.com/policies/user-agreement",
+      "fetch_provider": "firecrawl",
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "official-user-agreement.txt",
+      "bytes": 56834,
+      "sha256": "f62278377f6221527de7713d18c322008e83b775f90e1d26dfc1c9f48afab2b4",
+      "role": "Readable projection of paired JSON"
+    },
+    {
+      "file": "old.reddit.com-robots.json",
+      "bytes": 1359,
+      "sha256": "5216316d2568d13487ed5a4838798b1eb347c56ecbc922aefe6445dbed4ef5eb",
+      "url": "https://old.reddit.com/robots.txt",
+      "checked_at": "2026-10-17T12:13:15.390178+00:00",
+      "exit_code": 0
+    },
+    {
+      "file": "old.reddit.com-search-json-browser.json",
+      "bytes": 14844,
+      "sha256": "2394bbf83d89ee1d9c78b20d5c8497e134b1c8d3a23ac5e36c5788133de35f61",
+      "url": "https://old.reddit.com/search.json?q=rust&limit=1",
+      "checked_at": "2026-10-17T12:12:28.918008+00:00",
+      "exit_code": 0,
+      "http_status": 302,
+      "role": "Read-only OpenCLI browser observation using existing Chrome session; no login or credentials exported."
+    },
+    {
+      "file": "old.reddit.com-search-json-honest.json",
+      "bytes": 14825,
+      "sha256": "d1f843c9c1f8ec4a1223a196f0fc2bf97d019bd622e55702769fe8cdc1c4c98a",
+      "url": "https://old.reddit.com/search.json?q=rust&limit=1",
+      "checked_at": "2026-10-17T12:12:26.391571+00:00",
+      "exit_code": 0,
+      "http_status": 302
+    },
+    {
+      "file": "old.reddit.com-search-rss-browser.json",
+      "bytes": 14835,
+      "sha256": "b2a6df64a3c140a8468073dc7dfa20c05cbf5bbecf88466775a347c4bee111ce",
+      "url": "https://old.reddit.com/search.rss?q=rust&limit=1",
+      "checked_at": "2026-10-17T12:12:39.348474+00:00",
+      "exit_code": 0,
+      "http_status": 302,
+      "role": "Read-only OpenCLI browser observation using existing Chrome session; no login or credentials exported."
+    },
+    {
+      "file": "old.reddit.com-search-rss-honest.json",
+      "bytes": 14817,
+      "sha256": "3e42df43f750fe648868132514b4b894939b97175d7b9697e0d39a9fbe34e2ec",
+      "url": "https://old.reddit.com/search.rss?q=rust&limit=1",
+      "checked_at": "2026-10-17T12:12:36.811916+00:00",
+      "exit_code": 0,
+      "http_status": 302
+    },
+    {
+      "file": "old.reddit.com-thread-json-browser.json",
+      "bytes": 14938,
+      "sha256": "6ff5bb9e3005c451ff1d178ffb33e2d665a55476f46efa04b1fd7c80f51ce175",
+      "url": "https://old.reddit.com/comments/1wubcvf.json?limit=1&depth=1",
+      "checked_at": "2026-10-17T12:12:34.273489+00:00",
+      "exit_code": 0,
+      "http_status": 302,
+      "role": "Read-only OpenCLI browser observation using existing Chrome session; no login or credentials exported."
+    },
+    {
+      "file": "old.reddit.com-thread-json-honest.json",
+      "bytes": 14919,
+      "sha256": "e8f6a5c3d52babd97fcd7dfa4d5b87d9cdfd43edc98d20e4b3198e19f4acf021",
+      "url": "https://old.reddit.com/comments/1wubcvf.json?limit=1&depth=1",
+      "checked_at": "2026-10-17T12:12:31.456565+00:00",
+      "exit_code": 0,
+      "http_status": 302
+    },
+    {
+      "file": "opencli-doctor.json",
+      "bytes": 472,
+      "sha256": "35fef6057bd9284b8b6ecf769ef4aca5dc6d2e31f1112cc9e91df903fe1d365e",
+      "checked_at": "2026-10-17T12:09:58.722312+00:00",
+      "command": [
+        "opencli",
+        "doctor"
+      ],
+      "exit_code": 0
+    },
+    {
+      "file": "opencli-reddit-help.json",
+      "bytes": 28262,
+      "sha256": "3222d7621b5e2b7652387c20c7dfae61ed019debf198f9471eac1c1a5eeb3357",
+      "checked_at": "2026-10-17T12:09:59.081241+00:00",
+      "command": [
+        "opencli",
+        "reddit",
+        "--help",
+        "-f",
+        "yaml"
+      ],
+      "exit_code": 0
+    },
+    {
+      "file": "opencli-source.json",
+      "bytes": 51162,
+      "sha256": "f00baaaad90307f33da6deba54171eadb25880c51da2362e59e01446676bda77",
+      "package_root": "/Applications/OpenCLIApp.app/Contents/Resources/node_modules/@jackwener/opencli"
+    },
+    {
+      "file": "orientation.json",
+      "bytes": 9641,
+      "sha256": "9b1d24d28595ab2fc413341ad07b48ca84a9077b551a149463c6c9d9f248d6b4",
+      "role": "Discovery output only; answers and snippets are not verified facts."
+    },
+    {
+      "file": "probe-anonymous.py",
+      "bytes": 3951,
+      "sha256": "6617914d354e94c54504d22aea113bf8a2180ca9d6e0ef9ce85b35c330a42146",
+      "role": "Task-owned bounded probe source; not reference-project code"
+    },
+    {
+      "file": "pullpush-home.json",
+      "bytes": 11441,
+      "sha256": "c21100f9ee8a030a79eb00bc28e298edf40d5591c8fe8793467511d93b24de13",
+      "url": "https://pullpush.io/",
+      "checked_at": "2026-10-17T12:12:47.478251+00:00",
+      "command": [
+        "forager",
+        "fetch",
+        "https://pullpush.io/",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "source_url": "https://pullpush.io/",
+      "fetch_provider": "firecrawl",
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "pullpush-home.txt",
+      "bytes": 10579,
+      "sha256": "99217c664fba8fcf3bcb21a088ec119d86ecc99c343777aabac7cf019ecf3f35",
+      "role": "Readable projection of paired JSON"
+    },
+    {
+      "file": "pullpush-live.json",
+      "bytes": 11226,
+      "sha256": "105d8901cb25246907ac3d75cdf4a08782cbbbb58254d44f52b4b546891f9fc8",
+      "url": "https://api.pullpush.io/reddit/search/submission/?subreddit=rust&size=1&sort=desc&sort_type=created_utc",
+      "checked_at": "2026-10-17T12:14:40.364523+00:00",
+      "exit_code": 0,
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "pullpush-terms.json",
+      "bytes": 3168,
+      "sha256": "a58edd7fc3f07bc83d7e110438a5b4d9ab0d41ebe8e1e7485570f7ba994c9f03",
+      "url": "https://pullpush.io/tos.html",
+      "checked_at": "2026-10-17T12:15:35.486196+00:00",
+      "command": [
+        "forager",
+        "fetch",
+        "https://pullpush.io/tos.html",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "source_url": "https://pullpush.io/tos.html",
+      "fetch_provider": "firecrawl",
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "pullpush-terms.txt",
+      "bytes": 2756,
+      "sha256": "20b477405ff7d34d089fec89096b1893a013865555a2fb00c93d6c946be9fd96",
+      "role": "Readable projection of paired JSON"
+    },
+    {
+      "file": "pullpush-topic-live.json",
+      "bytes": 11075,
+      "sha256": "5d1ac5e0553040a43783cf53e6125884a0af9e17cd321b3360e378705625120d",
+      "url": "https://api.pullpush.io/topic?subreddit=rust&size=1&sort=desc&sort_type=created_utc",
+      "checked_at": "2026-10-17T12:16:02.607989+00:00",
+      "exit_code": 0,
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "redd-it-browser.json",
+      "bytes": 12732,
+      "sha256": "29de5fda48baaf58efc5d43cb4d509f159ad8bb8a67bf11ae1569942d5c3ce8c",
+      "url": "https://redd.it/1wubcvf",
+      "checked_at": "2026-10-17T12:13:10.038305+00:00",
+      "exit_code": 0,
+      "http_status": 301,
+      "role": "Read-only OpenCLI browser observation using existing Chrome session; no login or credentials exported."
+    },
+    {
+      "file": "redd-it-honest.json",
+      "bytes": 12714,
+      "sha256": "9c82ab0a4b1ca861ed91e251a3ee31d921fe7ca978cf89be5e66835779ecb6ef",
+      "url": "https://redd.it/1wubcvf",
+      "checked_at": "2026-10-17T12:13:07.503163+00:00",
+      "exit_code": 0,
+      "http_status": 301
+    },
+    {
+      "file": "redd-it-target.json",
+      "bytes": 21966,
+      "sha256": "7cfa6e5283fdb08ca398a4ad3415162d83554eff06dfbd32e23e390a4cef8938",
+      "url": "https://www.reddit.com/comments/1wubcvf",
+      "checked_at": "2026-10-17T12:15:54.552343+00:00",
+      "exit_code": 0
+    },
+    {
+      "file": "reddit-archive-position-discovery.json",
+      "bytes": 7108,
+      "sha256": "58927cf33b23c1793be4c8c47169396df6aa2b0b39506d537e16093a06980c9a",
+      "role": "Discovery output only; answers and snippets are not verified facts."
+    },
+    {
+      "file": "reference-parser-compatibility.json",
+      "bytes": 15004,
+      "sha256": "e5d0cb9bb354ba29906ced77ee64cfdc0e30e200a46a919d093ffedd4a05fa61"
+    },
+    {
+      "file": "rss-sunset-discovery.json",
+      "bytes": 2955,
+      "sha256": "3a88819acec80ae696a6127fdeb0b420a358b3168121e58261c4b790cd76f7cb",
+      "role": "Discovery output only; answers and snippets are not verified facts."
+    },
+    {
+      "file": "sc-account.json",
+      "bytes": 43640,
+      "sha256": "eb935543dde2fd9e919920e0805b4538f65dc1f6dcd87bcf6161e2d49a9a4517",
+      "url": "https://docs.scrapecreators.com/v1/account/credit-balance",
+      "checked_at": "2026-10-17T12:15:33.493145+00:00",
+      "command": [
+        "forager",
+        "fetch",
+        "https://docs.scrapecreators.com/v1/account/credit-balance",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "source_url": "https://docs.scrapecreators.com/v1/account/credit-balance",
+      "fetch_provider": "firecrawl",
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "sc-account.txt",
+      "bytes": 38259,
+      "sha256": "a0f3f90cbe5e7f62d97c1120360ab4c99e8a834a966b2f85d519959cd62277e8",
+      "role": "Readable projection of paired JSON"
+    },
+    {
+      "file": "sc-comments.json",
+      "bytes": 88346,
+      "sha256": "2fbf787b8606026c54e74260d8d3b35f63644a4c6327df95ad05feb3f593161d",
+      "url": "https://docs.scrapecreators.com/v1/reddit/post/comments",
+      "checked_at": "2026-10-17T12:13:53.807613+00:00",
+      "command": [
+        "forager",
+        "fetch",
+        "https://docs.scrapecreators.com/v1/reddit/post/comments",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "source_url": "https://docs.scrapecreators.com/v1/reddit/post/comments",
+      "fetch_provider": "firecrawl",
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "sc-comments.txt",
+      "bytes": 73277,
+      "sha256": "679114392497db18f307d9554fc6fd770568962a2aca7c51f71c666a73d08808",
+      "role": "Readable projection of paired JSON"
+    },
+    {
+      "file": "sc-home.json",
+      "bytes": 23217,
+      "sha256": "83f46ce24cbb4e209ab6fe9cbebb3d36a37152bc3eeeb167083cbb957ddc065c",
+      "url": "https://scrapecreators.com/",
+      "checked_at": "2026-10-17T12:12:41.668476+00:00",
+      "command": [
+        "forager",
+        "fetch",
+        "https://scrapecreators.com/",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "source_url": "https://scrapecreators.com/",
+      "fetch_provider": "firecrawl",
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "sc-home.txt",
+      "bytes": 20967,
+      "sha256": "03afdc67aab4fe6b474d4cab39b0722633d5911cf6f499412dca8dfcf2a3fc85",
+      "role": "Readable projection of paired JSON"
+    },
+    {
+      "file": "sc-index.json",
+      "bytes": 16363,
+      "sha256": "a08999efbf42fd2971e2e7a43281c3aea4de3122ce0bdbfc2a4f3fa1124cfa41",
+      "url": "https://docs.scrapecreators.com/llms.txt",
+      "checked_at": "2026-10-17T12:12:40.918490+00:00",
+      "command": [
+        "forager",
+        "fetch",
+        "https://docs.scrapecreators.com/llms.txt",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "source_url": "https://docs.scrapecreators.com/llms.txt",
+      "fetch_provider": "firecrawl",
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "sc-index.txt",
+      "bytes": 15579,
+      "sha256": "cebd749c6451438d491b8889b735f6db96961fd262445082798e758cc0c46c65",
+      "role": "Readable projection of paired JSON"
+    },
+    {
+      "file": "sc-listing.json",
+      "bytes": 47661,
+      "sha256": "14ace94f172ebd01579d29f292b1349f79d9a8f47c85e9b0d821be5f8b9d1b9e",
+      "url": "https://docs.scrapecreators.com/v1/reddit/subreddit",
+      "checked_at": "2026-10-17T12:13:55.758527+00:00",
+      "command": [
+        "forager",
+        "fetch",
+        "https://docs.scrapecreators.com/v1/reddit/subreddit",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "source_url": "https://docs.scrapecreators.com/v1/reddit/subreddit",
+      "fetch_provider": "firecrawl",
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "sc-listing.txt",
+      "bytes": 41265,
+      "sha256": "8315a1552cc96ba4013dd2c7483a2b142a5c5ce7d010281bab12170863f3c8d3",
+      "role": "Readable projection of paired JSON"
+    },
+    {
+      "file": "sc-rate.json",
+      "bytes": 2145,
+      "sha256": "b318a23e28d54f802cf0e53370e236befb7950e918513a53b6f7cfe196820b77",
+      "url": "https://scrapecreators.com/no-rate-limits",
+      "checked_at": "2026-10-17T12:12:42.470191+00:00",
+      "command": [
+        "forager",
+        "fetch",
+        "https://scrapecreators.com/no-rate-limits",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "source_url": "https://scrapecreators.com/no-rate-limits",
+      "fetch_provider": "firecrawl",
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "sc-rate.txt",
+      "bytes": 1606,
+      "sha256": "4fd90fc23980072948c4def2faef6e3688df831fb0fb5d5a8106e0fca05967d6",
+      "role": "Readable projection of paired JSON"
+    },
+    {
+      "file": "sc-search.json",
+      "bytes": 54305,
+      "sha256": "967d0f8f17181e77ea9d902469e6b3352bd1d3f59b98a2a084bd3db12a87ca2d",
+      "url": "https://docs.scrapecreators.com/v1/reddit/search",
+      "checked_at": "2026-10-17T12:13:53.293216+00:00",
+      "command": [
+        "forager",
+        "fetch",
+        "https://docs.scrapecreators.com/v1/reddit/search",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "source_url": "https://docs.scrapecreators.com/v1/reddit/search",
+      "fetch_provider": "firecrawl",
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "sc-search.txt",
+      "bytes": 46134,
+      "sha256": "faa13a9c63ffa46276f52c1c88c518dcf33067d4cb6239a162a5695f6c959602",
+      "role": "Readable projection of paired JSON"
+    },
+    {
+      "file": "sc-subreddit-search.json",
+      "bytes": 56498,
+      "sha256": "d8766419c23d4b4ab1b2ca7e0f28bb235fee844b6f5d72f3fc7a4acd89cbbc88",
+      "url": "https://docs.scrapecreators.com/v1/reddit/subreddit/search",
+      "checked_at": "2026-10-17T12:13:53.536132+00:00",
+      "command": [
+        "forager",
+        "fetch",
+        "https://docs.scrapecreators.com/v1/reddit/subreddit/search",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "source_url": "https://docs.scrapecreators.com/v1/reddit/subreddit/search",
+      "fetch_provider": "firecrawl",
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "sc-subreddit-search.txt",
+      "bytes": 48336,
+      "sha256": "928ae1ff5946229c0f1248a89f69dca7f9e8c4d3cad89a589a2ed137d563ffce",
+      "role": "Readable projection of paired JSON"
+    },
+    {
+      "file": "sc-terms.json",
+      "bytes": 5057,
+      "sha256": "2c978794331743f497e34670162c84c37befb27b5f59cec2ec313856e309b888",
+      "url": "https://scrapecreators.com/terms",
+      "checked_at": "2026-10-17T12:12:41.627879+00:00",
+      "command": [
+        "forager",
+        "fetch",
+        "https://scrapecreators.com/terms",
+        "--format",
+        "json"
+      ],
+      "exit_code": 0,
+      "source_url": "https://scrapecreators.com/terms",
+      "fetch_provider": "firecrawl",
+      "role": "First-party documentation retrieval or bounded direct service observation; inspect response content and status."
+    },
+    {
+      "file": "sc-terms.txt",
+      "bytes": 4379,
+      "sha256": "e30eaa1efb2afc7b94be643bbb64c8658a904f4c58c04b44986f7298fb697402",
+      "role": "Readable projection of paired JSON"
+    },
+    {
+      "file": "share-browser.json",
+      "bytes": 13881,
+      "sha256": "255b73d4926f5f6da7577c88cb98e0ce854bba5c9a6dd1d8d7d30056542fbd57",
+      "url": "https://www.reddit.com/r/running/s/3TzXiyxaMD",
+      "checked_at": "2026-10-17T12:14:31.343216+00:00",
+      "exit_code": 0,
+      "role": "Read-only OpenCLI browser observation using existing Chrome session; no login or credentials exported."
+    },
+    {
+      "file": "share-honest.json",
+      "bytes": 13864,
+      "sha256": "b4cb6e09f4ea3a0330ef366588db075a9a3c6ec8e60d6bd33825c88a3979898f",
+      "url": "https://www.reddit.com/r/running/s/3TzXiyxaMD",
+      "checked_at": "2026-10-17T12:14:28.543580+00:00",
+      "exit_code": 0
+    },
+    {
+      "file": "share-link-discovery.json",
+      "bytes": 2510,
+      "sha256": "3b4e27307437cdb7756659226602e3c569d92b1f1f336a688cc3fab3e7bc1b94",
+      "role": "Discovery output only; answers and snippets are not verified facts."
+    },
+    {
+      "file": "share-target.json",
+      "bytes": 13285,
+      "sha256": "47c646c06a4ba9ebc476ae24718c3733270d2b98fc6b1bae33d759a5aff65eab",
+      "url": "https://www.reddit.com/r/running/comments/17snc7d/achievements_for_saturday_november_11_2023/k8so54m",
+      "checked_at": "2026-10-17T12:15:57.093237+00:00",
+      "exit_code": 0
+    },
+    {
+      "file": "svc-comments-browser.json",
+      "bytes": 1031329,
+      "sha256": "bb32ef993bd9d7b154831df8e7f10398dd3d11311a37fd771c342397679a660a",
+      "url": "https://www.reddit.com/svc/shreddit/comments/r/redditdev/t3_1wubcvf",
+      "checked_at": "2026-10-17T12:13:03.997886+00:00",
+      "exit_code": 0,
+      "http_status": 200,
+      "role": "Read-only OpenCLI browser observation using existing Chrome session; no login or credentials exported."
+    },
+    {
+      "file": "svc-comments-honest.json",
+      "bytes": 901265,
+      "sha256": "4a4801832b04cdfce583079e814fe515e57d130a0cd181352bc5ca4a614df5e4",
+      "url": "https://www.reddit.com/svc/shreddit/comments/r/redditdev/t3_1wubcvf",
+      "checked_at": "2026-10-17T12:13:00.748167+00:00",
+      "exit_code": 0,
+      "http_status": 200
+    },
+    {
+      "file": "svc-listing-browser.json",
+      "bytes": 836399,
+      "sha256": "caba47b937ff13220a94284bb43a01f65d1e433f1e5f1930e0f6597a409494d1",
+      "url": "https://www.reddit.com/svc/shreddit/community-more-posts/new/?name=rust",
+      "checked_at": "2026-10-17T12:12:57.088838+00:00",
+      "exit_code": 0,
+      "http_status": 200,
+      "role": "Read-only OpenCLI browser observation using existing Chrome session; no login or credentials exported."
+    },
+    {
+      "file": "svc-listing-honest.json",
+      "bytes": 660752,
+      "sha256": "921f052e406f846ca51ba20918de2be4608387ff339c51bcade2391f36b6d51f",
+      "url": "https://www.reddit.com/svc/shreddit/community-more-posts/new/?name=rust",
+      "checked_at": "2026-10-17T12:12:53.785986+00:00",
+      "exit_code": 0,
+      "http_status": 200
+    },
+    {
+      "file": "svc-search-browser.json",
+      "bytes": 427798,
+      "sha256": "80dcffd92aecc510b9358e419769de4057ffc1e5a0edaae4fca18d68e3173c1b",
+      "url": "https://www.reddit.com/svc/shreddit/search/?q=rust&type=posts&t=month&sort=relevance",
+      "checked_at": "2026-10-17T12:12:44.992913+00:00",
+      "exit_code": 0,
+      "http_status": 200,
+      "role": "Read-only OpenCLI browser observation using existing Chrome session; no login or credentials exported."
+    },
+    {
+      "file": "svc-search-honest.json",
+      "bytes": 436918,
+      "sha256": "299073c5cfa18c90497eabe52b91b02e8b78f8e5a4d25cdf9b6fa50f6e839cfd",
+      "url": "https://www.reddit.com/svc/shreddit/search/?q=rust&type=posts&t=month&sort=relevance",
+      "checked_at": "2026-10-17T12:12:41.879014+00:00",
+      "exit_code": 0,
+      "http_status": 200
+    },
+    {
+      "file": "svc-subreddit-search-browser.json",
+      "bytes": 407588,
+      "sha256": "dea526eeab8fd3d93702a3adaaeb0d7f7d2bb67fd63f2c177cde8f3b90fa6fea",
+      "url": "https://www.reddit.com/svc/shreddit/r/rust/search/?q=async&type=posts&t=month&sort=relevance",
+      "checked_at": "2026-10-17T12:12:50.900487+00:00",
+      "exit_code": 0,
+      "http_status": 200,
+      "role": "Read-only OpenCLI browser observation using existing Chrome session; no login or credentials exported."
+    },
+    {
+      "file": "svc-subreddit-search-honest.json",
+      "bytes": 407847,
+      "sha256": "0255b0fa799faaa97de05f9f1ef5aa68af0f5c90a0b8046adf177b40c7b6c9aa",
+      "url": "https://www.reddit.com/svc/shreddit/r/rust/search/?q=async&type=posts&t=month&sort=relevance",
+      "checked_at": "2026-10-17T12:12:47.930197+00:00",
+      "exit_code": 0,
+      "http_status": 200
+    },
+    {
+      "file": "third-party-discovery.json",
+      "bytes": 19718,
+      "sha256": "b6cfd17bb8ae31fd9d2dce6f1fc2f0305c84c94cf1c979f4a8ef4e1ec857a00d",
+      "role": "Discovery output only; answers and snippets are not verified facts."
+    },
+    {
+      "file": "www.reddit.com-robots.json",
+      "bytes": 1931,
+      "sha256": "10e5b5e91810e14792a64dfe8cb1cb46b4243207258d6c4dbcec600f71ddd4f3",
+      "url": "https://www.reddit.com/robots.txt",
+      "checked_at": "2026-10-17T12:13:12.885240+00:00",
+      "exit_code": 0
+    },
+    {
+      "file": "www.reddit.com-search-json-browser.json",
+      "bytes": 205110,
+      "sha256": "e5b89805361e6ef9ac6fc0c8f74591fd3b4415f5f6837174d6f8e3caab0c187c",
+      "url": "https://www.reddit.com/search.json?q=rust&limit=1",
+      "checked_at": "2026-10-17T12:12:11.581055+00:00",
+      "exit_code": 0,
+      "http_status": 403,
+      "role": "Read-only OpenCLI browser observation using existing Chrome session; no login or credentials exported."
+    },
+    {
+      "file": "www.reddit.com-search-json-honest.json",
+      "bytes": 205094,
+      "sha256": "634625d237bd57b4b55014613e434ad6dd29d99d4e71ec0dfc481785ba68e56d",
+      "url": "https://www.reddit.com/search.json?q=rust&limit=1",
+      "checked_at": "2026-10-17T12:12:08.493231+00:00",
+      "exit_code": 0,
+      "http_status": 403
+    },
+    {
+      "file": "www.reddit.com-search-rss-browser.json",
+      "bytes": 14783,
+      "sha256": "9f17cb726a0b4d686cc082d5bcd63cc616b56ed4083709913e08a9b85da2c51c",
+      "url": "https://www.reddit.com/search.rss?q=rust&limit=1",
+      "checked_at": "2026-10-17T12:12:23.510950+00:00",
+      "exit_code": 0,
+      "http_status": 429,
+      "role": "Read-only OpenCLI browser observation using existing Chrome session; no login or credentials exported."
+    },
+    {
+      "file": "www.reddit.com-search-rss-honest.json",
+      "bytes": 17678,
+      "sha256": "9b960ac5cca298be8e2066d51ec450b7a4eea6c8b649306f2dfaa4b5d03126d1",
+      "url": "https://www.reddit.com/search.rss?q=rust&limit=1",
+      "checked_at": "2026-10-17T12:12:20.619380+00:00",
+      "exit_code": 0,
+      "http_status": 200
+    },
+    {
+      "file": "www.reddit.com-thread-json-browser.json",
+      "bytes": 205167,
+      "sha256": "69b9bcfffca232175fcf3d3bc5b0c274f34cff2ce700671033ab2625d0e9a103",
+      "url": "https://www.reddit.com/comments/1wubcvf.json?limit=1&depth=1",
+      "checked_at": "2026-10-17T12:12:17.912088+00:00",
+      "exit_code": 0,
+      "http_status": 403,
+      "role": "Read-only OpenCLI browser observation using existing Chrome session; no login or credentials exported."
+    },
+    {
+      "file": "www.reddit.com-thread-json-honest.json",
+      "bytes": 205149,
+      "sha256": "5d1b65b8d5ba73781b7b442ee4083013f4adba991601bfc90e43aebdd0865c83",
+      "url": "https://www.reddit.com/comments/1wubcvf.json?limit=1&depth=1",
+      "checked_at": "2026-10-17T12:12:14.912055+00:00",
+      "exit_code": 0,
+      "http_status": 403
+    }
+  ]
+}

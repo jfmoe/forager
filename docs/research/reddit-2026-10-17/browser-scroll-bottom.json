@@ -1,0 +1,13 @@
+{
+  "checked_at": "2026-10-17T12:14:42.035083+00:00",
+  "command": [
+    "opencli",
+    "browser",
+    "forager-reddit-research",
+    "eval",
+    "window.scrollTo(0, document.body.scrollHeight); ({at_bottom: window.scrollY + innerHeight >= document.body.scrollHeight-5})"
+  ],
+  "exit_code": 0,
+  "stdout": "{\n  \"at_bottom\": true\n}\n",
+  "stderr": "\n  Update available: v1.8.6 → v1.8.8\n  Run: npm install -g @jackwener/opencli\n\n"
+}

@@ -1,0 +1,14 @@
+{
+  "url": "https://raw.githubusercontent.com/ArthurHeitmann/arctic_shift/master/file_content_explanations.md",
+  "checked_at": "2026-10-17T12:13:54.783808+00:00",
+  "command": [
+    "forager",
+    "fetch",
+    "https://raw.githubusercontent.com/ArthurHeitmann/arctic_shift/master/file_content_explanations.md",
+    "--format",
+    "json"
+  ],
+  "exit_code": 0,
+  "stdout": "{\"provider\":\"firecrawl\",\"url\":\"https://raw.githubusercontent.com/ArthurHeitmann/arctic_shift/master/file_content_explanations.md\",\"content\":\"\\nAll data is retrieved through the official reddit API. Content from private or\\nquarantined subreddits is not included. One JSON object represents\\none post or comment. The objects are modified slightly, as described below. Some\\nmodifications are only introduced in later dumps. This does not apply to the\\nprevious pushshift dumps (2023-03 and earlier).\\n\\nAuto generated JSON schemas are available [here](./schemas).\\n\\n## 2023-04+\\n\\n- All objects are sorted by `created_utc`, `id` (secondary) in ascending order\\n- Text is encoded as UTF-8\\n- JSON keys are sorted\\n- The `body_html` field is removed\\n- `retrieved_on` is added, to indicate when the object was retrieved (UTC timestamp in seconds)\\n\\n## 2023-11+\\n\\nAll content has been retrieved a second time, with a 36 hour delay. The original and\\nthe new content are merged, in the following way:\\n\\n- The following fields are updated to the new value:  \\n  `archived`, `controversiality`, `downs`, `hide_score`, `locked`,  \\n  `num_comments`, `num_crossposts`, `over_18`, `score`, `score_hidden`,  \\n  `spoiler`, `stickied`, `ups`, `upvote_ratio`\\n- Any new meta data is stored in the optional `_meta` field\\n- The timestamp of the 2nd retrieval is stored in `_meta.retrieved_2nd_on`\\n- If a thing has been deleted in the updated version, `_meta.was_deleted_later` is set to `true`\\n- If a thing was initially deleted, but is now available, `_meta.was_initially_deleted` is set to \\n  `true` and the `body` or `selftext` field is restored\\n- In both of the above cases, `_meta.removal_type` contains more information about the removal reason\\n- If the text content of a thing has changed, `_meta.is_edited` is set to `true`\\n- If a thing was initially unavailable, but now is, `_meta.note` is set to `\\\"initially_unavailable\\\"`\\n\\n## 2024-04+\\n\\nArchives will now only be released as .zst files, now that I'm changing by database and API architecture,\\nand am no longer using .zst_blocks files.\\n\"}\n",
+  "stderr": ""
+}

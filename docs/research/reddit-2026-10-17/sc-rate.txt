@@ -1,0 +1,79 @@
+Account-level concurrency cap
+
+None
+
+Recommended: under 500 concurrent
+
+How it works
+
+## Keep your product moving.
+
+Your workload should set the pace, not a rate-limit window. Run a backfill, power a live feature, or handle a traffic spike without waiting for a quota to reset. For the best reliability, we recommend staying below 500 concurrent requests and retrying transient failures.
+
+1. 01
+
+
+### Your workload
+
+
+
+Send the requests your product needs.
+
+2. 02
+
+
+### Run concurrently
+
+
+
+Scale up without a per-minute ceiling.
+
+3. 03
+
+
+### Keep shipping
+
+
+
+No artificial throttling to work around.
+
+
+Why it matters
+
+## Better for the way  real products run.
+
+01
+
+### Handle real spikes
+
+Run a big import or respond to a busy day without pacing requests around a quota window.
+
+02
+
+### Build live features
+
+Your product can request data when users need it, not when a rate limit allows it.
+
+03
+
+### Skip the quota math
+
+Spend time building instead of budgeting requests across a per-minute cap.
+
+FAQ
+
+## Are there rate limits?
+
+No. ScrapeCreators does not impose an account-level per-minute cap or a plan-based concurrency limit.
+
+## Can I send concurrent requests?
+
+Yes. For the best performance and reliability, we recommend staying below 500 concurrent requests. Talk to us before a larger sustained rollout so we can review the endpoint mix and traffic pattern with you.
+
+Start with 100 free credits
+
+## Build with social data.
+
+Get your API key, make your first request, and see how it fits your product.
+
+[Start free](https://app.scrapecreators.com/) [Read the docs](https://docs.scrapecreators.com/)

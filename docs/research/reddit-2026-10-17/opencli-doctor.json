@@ -1,0 +1,10 @@
+{
+  "command": [
+    "opencli",
+    "doctor"
+  ],
+  "checked_at": "2026-10-17T12:09:58.722312+00:00",
+  "exit_code": 0,
+  "stdout": "opencli v1.8.6 doctor (node v24.16.0)\n\n[OK] Daemon: running on port 19825 (v1.8.6)\n[OK] Extension: connected (v1.0.24)\n\nProfiles:\n  • r9qugrt2: connected v1.0.24\n[OK] Connectivity: connected in 0.0s\n\nEverything looks good!\n",
+  "stderr": "\n  Update available: v1.8.6 → v1.8.8\n  Run: npm install -g @jackwener/opencli\n\n"
+}
