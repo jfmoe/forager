@@ -243,7 +243,6 @@ where
         .map(|context| ChainStep {
             context,
             configured: true,
-            gate_attempt: None,
         })
         .collect();
     chain::run_chain(
@@ -260,7 +259,6 @@ where
                 exhausted_message: "platform ask deadline elapsed",
             },
             identity: &route_identity,
-            continue_on_failure: &chain::always_continue,
         },
         run.deadline,
         |config: PlatformRouteConfig, step_deadline| {

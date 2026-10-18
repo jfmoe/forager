@@ -227,7 +227,6 @@ impl GeminiApi {
             model: Some(self.config.model.clone()),
             transport: Some("http"),
             endpoint_host: None,
-            breaker_event: None,
         }
     }
 }

@@ -273,7 +273,6 @@ struct SearchContext {
     config: config::RuntimeConfig,
     client: reqwest::Client,
     retry_policy: RetryPolicy,
-    model_breakers: std::sync::Arc<providers::ModelBreakers>,
     journal: config::JournalRuntimeConfig,
     timeout: Duration,
     runtime: tokio::runtime::Runtime,
@@ -356,7 +355,6 @@ impl SearchContext {
             config,
             client: dependencies.client,
             retry_policy: dependencies.retry_policy,
-            model_breakers: std::sync::Arc::new(providers::ModelBreakers::default()),
             journal,
             timeout,
             runtime: dependencies.runtime,
@@ -367,7 +365,7 @@ impl SearchContext {
     #[expect(clippy::too_many_lines)]
     fn search(
         self,
-        mut request: providers::MainSearchRequest,
+        request: providers::MainSearchRequest,
         capabilities: Option<CapabilitySet>,
         extra_sources: u16,
         fallback_override: Option<FallbackPolicy>,
@@ -377,7 +375,6 @@ impl SearchContext {
         Option<String>,
     ) {
         let fallback = fallback_override.unwrap_or(self.config.main_search.fallback);
-        request.allow_model_fallback = fallback.allows_fallback();
         let query = request.query.clone();
         let started = Instant::now();
         let deadline = Deadline::new(self.timeout);
@@ -437,7 +434,6 @@ impl SearchContext {
                     self.client.clone(),
                     self.retry_policy,
                     deadline,
-                    self.model_breakers,
                 ),
                 crate::search_fanout::execute_capabilities(
                     &query,
@@ -776,7 +772,6 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
                 providers::MainSearchRequest {
                     query,
                     model,
-                    allow_model_fallback: true,
                     verbose,
                 },
                 capabilities,
@@ -1329,14 +1324,6 @@ fn render_doctor_markdown(report: &crate::doctor::ShallowDoctorReport) -> Result
             let _ = writeln!(output, "- {}", warning.as_str().unwrap_or_default());
         }
     }
-    if let Some(warnings) = value["config_warnings"].as_array()
-        && !warnings.is_empty()
-    {
-        output.push_str("\n## Configuration warnings\n\n");
-        for warning in warnings {
-            let _ = writeln!(output, "- {}", warning.as_str().unwrap_or_default());
-        }
-    }
     output.push_str("\n## Effective configuration\n\n```json\n");
     output.push_str(
         &serde_json::to_string_pretty(&value["config"])
@@ -1512,9 +1499,7 @@ fn run_interactive_setup(language: Option<Language>) -> Result<CommandOutput, Ap
     let mut document = config::SetupDocument::load()?;
 
     prompt_stage(language, 2, false);
-    let current_backend = document.primary_backend().to_owned();
-    let backend = choose_backend(&mut input, language, &current_backend)?;
-    configure_model(&mut input, language, &mut document, &backend)?;
+    configure_model(&mut input, language, &mut document, "xai")?;
 
     let classifier_configured = document.classifier_is_configured();
     prompt_stage(language, 3, classifier_configured);
@@ -1592,33 +1577,6 @@ fn configure_optional_keys(
         }
     }
     Ok(())
-}
-
-fn choose_backend(
-    input: &mut impl BufRead,
-    language: Language,
-    current: &str,
-) -> Result<String, AppError> {
-    loop {
-        let prompt = match language {
-            Language::Zh => {
-                format!("主模型 backend [xai/openai_compatible]（默认 {current}）: ")
-            }
-            Language::En => {
-                format!("Main backend [xai/openai_compatible] (default {current}): ")
-            }
-        };
-        let value = prompt_line(input, &prompt)?;
-        match value.trim().to_ascii_lowercase().as_str() {
-            "" => return Ok(current.to_owned()),
-            "xai" | "1" => return Ok("xai".to_owned()),
-            "openai_compatible" | "2" => return Ok("openai_compatible".to_owned()),
-            _ => match language {
-                Language::Zh => eprintln!("请输入 xai 或 openai_compatible。"),
-                Language::En => eprintln!("Enter xai or openai_compatible."),
-            },
-        }
-    }
 }
 
 fn configure_model(

@@ -161,7 +161,6 @@ impl HttpFetchProvider {
             model: None,
             transport: Some("http"),
             endpoint_host: None,
-            breaker_event: None,
         };
         let execution = match catalog::registration(self.id).credentials {
             Credentials::Optional => {

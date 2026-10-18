@@ -29,7 +29,6 @@ pub(crate) struct ExecutionSettings {
     pub(crate) model: Option<String>,
     pub(crate) transport: Option<&'static str>,
     pub(crate) endpoint_host: Option<String>,
-    pub(crate) breaker_event: Option<&'static str>,
 }
 
 /// Runs a credentialed provider operation with credential claim, rotation, and retry.
@@ -239,7 +238,6 @@ where
                     model: settings.model.clone(),
                     transport: settings.transport,
                     endpoint_host: settings.endpoint_host.clone(),
-                    breaker_event: settings.breaker_event,
                 });
                 return Ok(ExecutionOutcome {
                     value,
@@ -270,7 +268,6 @@ where
             model: settings.model.clone(),
             transport: settings.transport,
             endpoint_host: settings.endpoint_host.clone(),
-            breaker_event: settings.breaker_event,
         });
 
         if kind.rotates_credential() && rotation.can_rotate(rotation_count) {
@@ -365,7 +362,6 @@ mod tests {
             model: None,
             transport: Some("test"),
             endpoint_host: None,
-            breaker_event: None,
         }
     }
 

@@ -11,7 +11,7 @@
 ## 分层与 env 映射
 
 - **env > file > default** 维持。
-- 映射：`FORAGER_` 前缀 + `__` 层级分隔，如 `providers.openai_compatible.stream` → `FORAGER_PROVIDERS__OPENAI_COMPATIBLE__STREAM`。
+- 映射：`FORAGER_` 前缀 + `__` 层级分隔，如 `providers.xai.model` → `FORAGER_PROVIDERS__XAI__MODEL`。
 - **裸 provider 原生 env 一律不认**（`EXA_API_KEY` 等不再读取）。
 - **未知 `FORAGER_*` env ＝ config_error 退 3**（与文件层严格 schema 对称）。
 - env 值按 schema 目标类型解析（字符串字段不猜 TOML 类型）；数组值用 TOML 数组字面量：`FORAGER_PROVIDERS__EXA__KEYS='["sk-a","sk-b"]'`。
@@ -21,7 +21,7 @@
 ```toml
 # 全部可省略——省略即内置默认
 [search]
-backends = ["xai", "openai_compatible"]
+backends = ["xai"]
 fallback = "auto"            # auto|off
 
 [classifier]
@@ -36,13 +36,6 @@ url = "https://api.x.ai/v1"
 keys = []
 model = "grok-4-fast"         # 主搜索与 X 平台共用
 tools = ["web_search", "x_search"]   # 只作用于主搜索；X 平台请求固定只发 x_search
-
-[providers.openai_compatible]
-url = ""
-keys = []
-model = "grok-4-fast"        # openrouter 自动 :online 后缀＝引擎规则
-fallback_models = []
-stream = false               # 幸存的唯一传输持久开关
 
 [providers.exa]
 url = "https://api.exa.ai"
@@ -176,12 +169,12 @@ ssl_verify = true
 
 ### 值域与交叉约束（进 schema 与验收）
 
-`search.backends` 非空、去重、限 `{xai, openai_compatible}`；全部 backend 无凭据＝退 3；`providers.xai.tools` 限 `{web_search, x_search}`；所有 `timeout > 0`；process 供应方的 `command` 去掉空白后不能为空；`retry.max_attempts >= 1`、`multiplier > 0`、`max_wait >= 0`；`journal.retention_days >= 0` 且 0＝无限期。`search.validation` 已从 schema 删除；旧文件键或 `FORAGER_SEARCH__VALIDATION` 都按未知输入退出 3。文件层严格 schema：未知键＝退 3、报错点名坏键。
+`search.backends` 非空、去重、限 `{xai}`；全部 backend 无凭据＝退 3；`providers.xai.tools` 限 `{web_search, x_search}`；所有 `timeout > 0`；process 供应方的 `command` 去掉空白后不能为空；`retry.max_attempts >= 1`、`multiplier > 0`、`max_wait >= 0`；`journal.retention_days >= 0` 且 0＝无限期。`search.validation` 已从 schema 删除；旧文件键或 `FORAGER_SEARCH__VALIDATION` 都按未知输入退出 3。文件层严格 schema：未知键＝退 3、报错点名坏键。
 
 ### `log.level` 运行时语义
 
 - 保留默认 `info`，不恢复 file logging，也不新增实时事件模型。`error`/`warn`/`info` 不产生可选运行日志；契约要求的终态错误、capability gap、classifier degradation、journal 与 `--output` warning 始终写 stderr，不受该键过滤。
-- `debug` 在命令终结时至多输出一条由现有 `ProviderAttempt` 集合投影的脱敏摘要；`trace` 再输出逐 attempt 的安全字段：provider、seam、error kind、HTTP status、duration、credential index、retry/rotation、是否匿名、transport 与 breaker event。
+- `debug` 在命令终结时至多输出一条由现有 `ProviderAttempt` 集合投影的脱敏摘要；`trace` 再输出逐 attempt 的安全字段：provider、seam、error kind、HTTP status、duration、credential index、retry/rotation、是否匿名与 transport。
 - debug/trace 不输出 attempt message、model、endpoint、请求/响应、正文、header、credential、prompt 或 tool trace，不新增 `tracing` 依赖。`--verbose` 与 journal 的职责不变。
 
 ### Journal 文件所有权
@@ -212,11 +205,11 @@ ssl_verify = true
 | `XAI_API_KEY` | `providers.xai.keys`（单元素数组） |
 | `XAI_MODEL` | `providers.xai.model` |
 | `XAI_TOOLS` | `providers.xai.tools` |
-| `OPENAI_COMPATIBLE_API_URL` | `providers.openai_compatible.url` |
-| `OPENAI_COMPATIBLE_API_KEY` | `providers.openai_compatible.keys`（单元素数组） |
-| `OPENAI_COMPATIBLE_MODEL` | `providers.openai_compatible.model` |
-| `OPENAI_COMPATIBLE_FALLBACK_MODELS` | `providers.openai_compatible.fallback_models` |
-| `OPENAI_COMPATIBLE_STREAM` | `providers.openai_compatible.stream` |
+| `OPENAI_COMPATIBLE_API_URL` | **已删除**（openai-compatible 已退役，ADR 0031） |
+| `OPENAI_COMPATIBLE_API_KEY` | **已删除**（同上） |
+| `OPENAI_COMPATIBLE_MODEL` | **已删除**（同上） |
+| `OPENAI_COMPATIBLE_FALLBACK_MODELS` | **已删除**（同上） |
+| `OPENAI_COMPATIBLE_STREAM` | **已删除**（同上） |
 | `SMART_SEARCH_VALIDATION_LEVEL` | **已删除**（Caller Capability Declaration、classifier 与 Citation Binding 分别拥有原混合职责；手动删除旧 `search.validation` 配置） |
 | `SMART_SEARCH_FALLBACK_MODE` | `search.fallback` |
 | `SMART_SEARCH_MINIMUM_PROFILE` | **已删除**（capability 缺口自报继任，见第 1 章修订留痕） |

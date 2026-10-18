@@ -8,7 +8,7 @@ const LINE_LIMIT: usize = 1000;
 /// Rust sources already over [`LINE_LIMIT`] and the most lines each may have. A change that
 /// raises a ceiling or adds a file states in its commit why the file stays whole.
 const OVERSIZED_SOURCES: &[(&str, usize)] = &[
-    ("tests/search.rs", 4387),
+    ("tests/search.rs", 3410),
     ("tests/research.rs", 3020),
     ("src/cli/dispatch.rs", 2105),
     ("src/ops/smoke.rs", 1755),
@@ -18,8 +18,6 @@ const OVERSIZED_SOURCES: &[(&str, usize)] = &[
     ("tests/smoke.rs", 1265),
     ("src/capabilities/catalog.rs", 1213),
     ("tests/config_commands.rs", 1122),
-    ("src/infra/config/runtime.rs", 1115),
-    ("src/infra/config/schema.rs", 1030),
 ];
 
 #[test]
@@ -84,7 +82,7 @@ fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
-/// Matches `attempt_log` with "attempt log" and `openai_compatible` with "openai-compatible".
+/// Matches `attempt_log` with "attempt log" and `web_fetch` with "web-fetch".
 fn normalize(text: &str) -> String {
     text.to_lowercase().replace(['-', ' '], "_")
 }

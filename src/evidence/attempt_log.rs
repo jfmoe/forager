@@ -26,14 +26,6 @@ pub(crate) fn render(level: LogLevel, attempts: &[ProviderAttempt]) -> Option<St
         "fallback".into(),
         Value::Bool(attempt_trace::identity_fallback_occurred(attempts)),
     );
-    summary.insert(
-        "breaker_event".into(),
-        Value::Bool(
-            attempts
-                .iter()
-                .any(|attempt| attempt.breaker_event.is_some()),
-        ),
-    );
 
     let mut lines = vec![format!(
         "forager attempts: {}",
@@ -65,7 +57,6 @@ struct SafeAttempt {
     rotation_count: usize,
     anonymous: bool,
     transport: Option<&'static str>,
-    breaker_event: Option<&'static str>,
 }
 
 impl From<&ProviderAttempt> for SafeAttempt {
@@ -84,7 +75,6 @@ impl From<&ProviderAttempt> for SafeAttempt {
             rotation_count: attempt.rotation_count,
             anonymous: attempt.anonymous,
             transport: attempt.transport,
-            breaker_event: attempt.breaker_event,
         }
     }
 }
@@ -166,7 +156,6 @@ mod tests {
         let mut second = attempt(AttemptErrorKind::Network);
         second.provider = "fallback";
         second.retry_count = 1;
-        second.breaker_event = Some("open");
 
         let output = render(LogLevel::Trace, &[first, second]).expect("trace projection");
         let mut lines = output.lines();
@@ -196,13 +185,11 @@ mod tests {
                 &summary["retry"],
                 &summary["credential_rotation"],
                 &summary["fallback"],
-                &summary["breaker_event"],
             ),
             (
                 &serde_json::json!(2),
                 &serde_json::json!({"auth": 1, "network": 1}),
                 &serde_json::json!(["fallback", "fixture"]),
-                &serde_json::json!(true),
                 &serde_json::json!(true),
                 &serde_json::json!(true),
                 &serde_json::json!(true),
@@ -217,7 +204,6 @@ mod tests {
                 .collect::<std::collections::BTreeSet<_>>(),
             [
                 "anonymous",
-                "breaker_event",
                 "credential_index",
                 "disposition",
                 "duration_ms",
@@ -258,7 +244,6 @@ mod tests {
             model: Some("model".into()),
             transport: Some("sse"),
             endpoint_host: Some("example.test".into()),
-            breaker_event: None,
         }
     }
 }

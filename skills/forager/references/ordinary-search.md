@@ -20,8 +20,8 @@ explicit value from `1..=20` is the exact target.
 
 - `answer` is the main-search answer.
 - `sources` contains only Primary Search Sources attributed to the main answer. An empty `sources`
-  marks an uncited answer, such as one from a fallback backend without web search: treat each of
-  its claims as unverified until fetched content supports it.
+  marks an uncited answer: treat each of its claims as unverified until fetched content supports
+  it.
 - `extra_sources` contains every non-primary Search Candidate. Each candidate has stable
   `provider`, `capability`, `title`, `url`, `summary`, and `provider_data` fields; `title`, `url`,
   and `summary` can be null, while `provider_data` carries provider-specific selection data. A

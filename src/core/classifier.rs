@@ -7,7 +7,7 @@ use serde_json::{Value, json};
 
 use crate::chain::{
     BudgetPolicy, ChainSettings, ChainStep, DiagnosticMerge, StepIdentity, StepSuccess,
-    StepVerdict, TerminalPolicy, always_continue, run_chain,
+    StepVerdict, TerminalPolicy, run_chain,
 };
 use crate::config::ClassifierRuntimeConfig;
 use crate::credentials::CredentialPool;
@@ -177,7 +177,6 @@ impl Classifier {
                 .map(|model| ChainStep {
                     context: model,
                     configured: true,
-                    gate_attempt: None,
                 })
                 .collect(),
             ChainSettings {
@@ -193,7 +192,6 @@ impl Classifier {
                     exhausted_message: "classifier model chain exhausted",
                 },
                 identity: &identity,
-                continue_on_failure: &always_continue,
             },
             stage_deadline,
             |model, model_deadline| {
@@ -248,7 +246,6 @@ impl Classifier {
                 model: Some(model.into()),
                 transport: Some("http"),
                 endpoint_host,
-                breaker_event: None,
             },
             |credential, _| async move { self.send_once(query, model, &credential, spec).await },
         )

@@ -148,7 +148,6 @@ impl Serpapi {
             model: None,
             transport: Some("http"),
             endpoint_host: None,
-            breaker_event: None,
         }
     }
 }

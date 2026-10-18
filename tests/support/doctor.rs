@@ -55,17 +55,13 @@ pub(crate) fn reachable_responses(count: usize) -> Vec<Response> {
         .collect()
 }
 
-/// Points the eleven HTTP providers other than SerpApi at `url`, with a key wherever one is needed.
+/// Points the ten HTTP providers other than SerpApi at `url`, with a key wherever one is needed.
 pub(crate) fn shallow_config(url: &str) -> String {
     format!(
         r#"
 [providers.xai]
 url = {url:?}
 keys = ["xai-secret"]
-
-[providers.openai_compatible]
-url = {url:?}
-keys = ["openai-secret"]
 
 [providers.exa]
 url = {url:?}

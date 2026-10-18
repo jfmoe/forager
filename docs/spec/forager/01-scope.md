@@ -18,22 +18,20 @@
 9. **分类器 LLM**：独立配置（自有 url/keys/model，任意模型），替代三层路由。
    - skill 调用（有 caller）：search 按 Caller Capability Declaration（权威）；research 由 caller 注入计划（`--plan`，见第 2 章）。
    - 裸调用：分类器为 search 判定能力集合；为 research 产出 intent_signals + 子问题分解（URL 提取保留为确定性解析）。
-   - openai-compatible 通道专职 main search fallback，不得复用于分类/计划。
    - 降级：分类器未配置时 search 优雅降级为默认 Web 链；research 裸调用退 3（config_error）。分类器**已配置但失败**的降级语义见第 4 章（含 research 侧固定最小降级 plan，第 5 章 H8）。
    - Intent Routing Catalog 的「能力身份 + 语义例句」保留，作为分类器 prompt 与 skill 契约共同来源。
-10. **Provider Credential Pool 升级为唯一凭据体系**：需要凭据的 provider 全入池（含 xai、openai_compatible），单凭据是池的退化情形；配置面统一为 `keys` 真数组（第 3 章）；轮换触发条件按 provider 声明。
+10. **Provider Credential Pool 升级为唯一凭据体系**：需要凭据的 provider 全入池（含 xai），单凭据是池的退化情形；配置面统一为 `keys` 真数组（第 3 章）；轮换触发条件按 provider 声明。
 11. **Search Result Journal 增强**：记录面从终态业务结果扩展到执行过程（provider 尝试链、耗时、分类器决策、错误分类），修订 ADR-0002（第 6 章）。
 
 ## 保留（概念平移）
 
 12. 其余全部保留：
-    - **7 个 provider**：exa、tavily、firecrawl、jina、context7、openai-compatible、xai-responses。
-    - **主搜索管线语义**：主链 `[xai-responses → openai-compatible]`、`--capabilities`、fallback 模式、`--extra-sources 0..=20`、来源规范化。`extra_sources=0` 是分支本地默认哨兵：Supplemental Web Search 目标为 3，Documentation Search 目标为 1。
+    - **6 个 provider**：exa、tavily、firecrawl、jina、context7、xai-responses（openai-compatible 已退役，见文末修订留痕）。
+    - **主搜索管线语义**：主链 `[xai-responses]`、`--capabilities`、fallback 模式、`--extra-sources 0..=20`、来源规范化。`extra_sources=0` 是分支本地默认哨兵：Supplemental Web Search 目标为 3，Documentation Search 目标为 1。
     - **`research` 一体化入口**（吸收计划能力；证据目录约定降格为 skill 文档约定）。
     - **直连命令六件套**：fetch、map、exa search、exa similar、context7 library、context7 docs。
     - **doctor**（吸收 diagnose 探测）、**smoke**（内容重定义见第 5 章）。
     - **config path/list/set/unset**、**setup**（配置面收缩见第 3 章）。
-    - **openai-compatible model 断路器**：连续 2 败熔断 600s；进程内（第 4 章）。
     - Capability Seam 词汇表（`--capabilities` 校验、分类器 prompt、skill 契约共源）。
 
 ## 修订留痕（后续票对 #53 的修订）
@@ -42,3 +40,4 @@
 - **空结果语义切分**（#59 补充决议② B1）：退 5（evidence_error）只属于证据管线；直连 search 类命令的合法空结果集 = Ok / 退 0。
 - **validation 删除与补强数量恢复**（[#139](https://github.com/jfmoe/forager/issues/139)）：删除无独立职责的 `--validation` / `search.validation`；Caller Capability Declaration、classifier 与 Citation Binding 各自保留既有职责。Supplemental Web Search 的零值目标恢复为 3，Documentation / Vertical Search 的零值目标保持 1，显式 `1..=20` 原样传递。
 - **Vertical Search Capability 与 AnySearch 退役**（[#240](https://github.com/jfmoe/forager/issues/240)，[ADR-0030](../../adr/0030-retire-vertical-search-capability.md)）：删除 `vertical_search` 能力、AnySearch provider、`anysearch` 子命令及其配置键，不保留兼容层。
+- **openai-compatible 主搜索 backend 退役**（[#242](https://github.com/jfmoe/forager/issues/242)，[ADR-0031](../../adr/0031-retire-openai-compatible-main-search-backend.md)）：删除 openai-compatible provider 及只为它存在的模型链、model 断路器、SSE→HTTP 传输回退与 `breaker_event`，不保留兼容层；Main Search 仍是 Capability Seam，`search.backends` 只剩 `xai`。

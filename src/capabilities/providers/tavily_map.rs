@@ -63,7 +63,6 @@ impl TavilyMap {
                 model: None,
                 transport: Some("http"),
                 endpoint_host: None,
-                breaker_event: None,
             },
             move |credential, _| async move { self.send_once(request_ref, &credential).await },
         )

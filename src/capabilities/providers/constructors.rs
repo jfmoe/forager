@@ -1,12 +1,10 @@
 use reqwest::Client;
 
-use super::{
-    ChatgptBrowser, Context7, Exa, GeminiBrowser, ModelBreakers, OpenAiCompatible, TavilyMap, Xai,
-};
+use super::{ChatgptBrowser, Context7, Exa, GeminiBrowser, TavilyMap, Xai};
 use crate::catalog::{ProviderId, registration};
 use crate::config::{
-    Context7RuntimeConfig, ExaRuntimeConfig, OpenAiCompatibleRuntimeConfig,
-    ProcessRouteRuntimeConfig, WebFetchProviderConfig, XaiRuntimeConfig,
+    Context7RuntimeConfig, ExaRuntimeConfig, ProcessRouteRuntimeConfig, WebFetchProviderConfig,
+    XaiRuntimeConfig,
 };
 use crate::credentials::CredentialPool;
 use crate::net::RetryPolicy;
@@ -21,24 +19,6 @@ pub(crate) fn build_xai(
 ) -> Xai {
     let credentials = credentials(ProviderId::Xai, &mut config.keys);
     Xai::new(config, client, credentials, retry_policy, deadline)
-}
-
-pub(crate) fn build_openai_compatible(
-    mut config: OpenAiCompatibleRuntimeConfig,
-    client: Client,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
-    breakers: std::sync::Arc<ModelBreakers>,
-) -> OpenAiCompatible {
-    let credentials = credentials(ProviderId::OpenAiCompatible, &mut config.keys);
-    OpenAiCompatible::new(
-        config,
-        client,
-        credentials,
-        retry_policy,
-        deadline,
-        breakers,
-    )
 }
 
 pub(crate) fn build_exa(

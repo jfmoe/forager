@@ -64,7 +64,6 @@ impl Default for Classifier {
 #[serde(default, deny_unknown_fields)]
 pub(super) struct Providers {
     pub(super) xai: Xai,
-    pub(super) openai_compatible: OpenAiCompatible,
     pub(super) exa: Endpoint<ExaEndpoint>,
     pub(super) context7: Endpoint<Context7Endpoint>,
     pub(super) jina: Jina,
@@ -99,28 +98,6 @@ impl Default for Xai {
             keys: Vec::new(),
             model: "grok-4-fast".into(),
             tools: vec!["web_search".into(), "x_search".into()],
-        }
-    }
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub(super) struct OpenAiCompatible {
-    pub(super) url: String,
-    pub(super) keys: Vec<Secret>,
-    pub(super) model: String,
-    pub(super) fallback_models: Vec<String>,
-    pub(super) stream: bool,
-}
-
-impl Default for OpenAiCompatible {
-    fn default() -> Self {
-        Self {
-            url: String::new(),
-            keys: Vec::new(),
-            model: "grok-4-fast".into(),
-            fallback_models: Vec::new(),
-            stream: false,
         }
     }
 }
@@ -608,11 +585,6 @@ pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("providers.xai.keys", providers.xai.keys: Secrets, Rule::Any, View::Keys, "credential pool; keep empty until credentials are available"),
     leaf!("providers.xai.model", providers.xai.model: String, Rule::Any, View::Plain, "model identifier"),
     leaf!("providers.xai.tools", providers.xai.tools: Strings, Rule::Subset { allowed: XAI_TOOLS, unique: false, allow_empty: true }, View::Plain, "xAI tools enabled for the main model"),
-    leaf!("providers.openai_compatible.url", providers.openai_compatible.url: String, Rule::Any, View::Url, "service endpoint URL"),
-    leaf!("providers.openai_compatible.keys", providers.openai_compatible.keys: Secrets, Rule::Any, View::Keys, "credential pool; keep empty until credentials are available"),
-    leaf!("providers.openai_compatible.model", providers.openai_compatible.model: String, Rule::Any, View::Plain, "model identifier"),
-    leaf!("providers.openai_compatible.fallback_models", providers.openai_compatible.fallback_models: Strings, Rule::Any, View::Plain, "ordered fallback model identifiers"),
-    leaf!("providers.openai_compatible.stream", providers.openai_compatible.stream: Bool, Rule::Any, View::Plain, "enable streaming transport"),
     leaf!("providers.exa.url", providers.exa.url: String, Rule::Any, View::Url, "service endpoint URL"),
     leaf!("providers.exa.keys", providers.exa.keys: Secrets, Rule::Any, View::Keys, "credential pool; keep empty until credentials are available"),
     leaf!("providers.exa.timeout", providers.exa.timeout: U64, Rule::Positive, View::Plain, "shared timeout in seconds; must be greater than zero"),
@@ -897,7 +869,6 @@ mod tests {
         match path {
             "classifier.keys" => Some(&config.classifier.keys),
             "providers.xai.keys" => Some(&config.providers.xai.keys),
-            "providers.openai_compatible.keys" => Some(&config.providers.openai_compatible.keys),
             "providers.exa.keys" => Some(&config.providers.exa.keys),
             "providers.context7.keys" => Some(&config.providers.context7.keys),
             "providers.jina.keys" => Some(&config.providers.jina.keys),

@@ -15,7 +15,7 @@ pub(crate) struct CapabilityCatalog {
 
 pub(crate) const MAIN_SEARCH: CapabilityCatalog = CapabilityCatalog {
     seam: "main_search",
-    providers: &[ProviderId::Xai, ProviderId::OpenAiCompatible],
+    providers: &[ProviderId::Xai],
 };
 pub(crate) const WEB_SEARCH: CapabilityCatalog = CapabilityCatalog {
     seam: "web_search",
@@ -64,7 +64,6 @@ pub(crate) fn supports(capability: &str, provider: &str) -> bool {
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub(crate) enum ProviderId {
     Xai,
-    OpenAiCompatible,
     Exa,
     Tavily,
     Firecrawl,
@@ -84,9 +83,8 @@ pub(crate) enum ProviderId {
 }
 
 impl ProviderId {
-    pub(crate) const ALL: [Self; 18] = [
+    pub(crate) const ALL: [Self; 17] = [
         Self::Xai,
-        Self::OpenAiCompatible,
         Self::Exa,
         Self::Tavily,
         Self::Firecrawl,
@@ -108,7 +106,6 @@ impl ProviderId {
     pub(crate) fn parse(value: &str) -> Option<Self> {
         match value {
             "xai" => Some(Self::Xai),
-            "openai_compatible" => Some(Self::OpenAiCompatible),
             "exa" => Some(Self::Exa),
             "tavily" => Some(Self::Tavily),
             "firecrawl" => Some(Self::Firecrawl),
@@ -132,7 +129,6 @@ impl ProviderId {
     pub(crate) fn name(self) -> &'static str {
         match self {
             Self::Xai => "xai",
-            Self::OpenAiCompatible => "openai_compatible",
             Self::Exa => "exa",
             Self::Tavily => "tavily",
             Self::Firecrawl => "firecrawl",
@@ -172,15 +168,11 @@ pub(crate) struct OpenCliAdapter {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct ProbeShape {
-    pub(crate) name: &'static str,
-    pub(crate) transport: &'static str,
-    pub(crate) stream: Option<bool>,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum DoctorProbe {
-    MainSearch(&'static [ProbeShape]),
+    MainSearch {
+        name: &'static str,
+        transport: &'static str,
+    },
     WebSearch {
         name: &'static str,
         transport: &'static str,
@@ -272,24 +264,6 @@ impl ProviderRegistration {
     }
 }
 
-const XAI_PROBES: &[ProbeShape] = &[ProbeShape {
-    name: "responses",
-    transport: "sse",
-    stream: None,
-}];
-const OPENAI_PROBES: &[ProbeShape] = &[
-    ProbeShape {
-        name: "non_stream",
-        transport: "http",
-        stream: Some(false),
-    },
-    ProbeShape {
-        name: "stream",
-        transport: "sse",
-        stream: Some(true),
-    },
-];
-
 const XAI_SMOKE: &[ProviderSmokeCase] = &[
     ProviderSmokeCase {
         id: "C01",
@@ -313,20 +287,6 @@ const XAI_SMOKE: &[ProviderSmokeCase] = &[
         id: "C32",
         platform: Some(Platform::X),
         operation: ASK,
-        transport: "sse",
-    },
-];
-const OPENAI_SMOKE: &[ProviderSmokeCase] = &[
-    ProviderSmokeCase {
-        id: "C02",
-        platform: None,
-        operation: "main_search_stream_false",
-        transport: "http",
-    },
-    ProviderSmokeCase {
-        id: "C03",
-        platform: None,
-        operation: "main_search_stream_true",
         transport: "sse",
     },
 ];
@@ -632,18 +592,11 @@ const REGISTRY: &[ProviderRegistration] = &[
         credentials: Credentials::Required,
         transport: ProviderTransport::Http,
         access_policy: None,
-        probe: DoctorProbe::MainSearch(XAI_PROBES),
+        probe: DoctorProbe::MainSearch {
+            name: "responses",
+            transport: "sse",
+        },
         smoke_cases: XAI_SMOKE,
-        native_full_text: false,
-    },
-    ProviderRegistration {
-        id: ProviderId::OpenAiCompatible,
-        operations: &[],
-        credentials: Credentials::Required,
-        transport: ProviderTransport::Http,
-        access_policy: None,
-        probe: DoctorProbe::MainSearch(OPENAI_PROBES),
-        smoke_cases: OPENAI_SMOKE,
         native_full_text: false,
     },
     ProviderRegistration {
@@ -1060,7 +1013,7 @@ mod tests {
         for registration in registrations() {
             assert!(has_owner(registration), "{} owner", registration.id.name());
             let probe_is_supported = match registration.probe {
-                DoctorProbe::MainSearch(_) => MAIN_SEARCH.contains(registration.id),
+                DoctorProbe::MainSearch { .. } => MAIN_SEARCH.contains(registration.id),
                 DoctorProbe::WebSearch { .. } => WEB_SEARCH.contains(registration.id),
                 DoctorProbe::WebFetch { .. } => WEB_FETCH.contains(registration.id),
                 DoctorProbe::DocsSearch { .. } => DOCS_SEARCH.contains(registration.id),

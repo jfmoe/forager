@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::sync::Arc;
 
 use reqwest::Client;
 
@@ -38,7 +37,6 @@ fn provider_steps<C>(entries: Vec<SeamEntry<C>>) -> Vec<ChainStep<(providers::Pr
             ChainStep {
                 context: (id, config),
                 configured,
-                gate_attempt: None,
             }
         })
         .collect()
@@ -69,7 +67,6 @@ fn provider_chain_settings<C>(
             exhausted_message,
         },
         identity: &provider_identity::<C>,
-        continue_on_failure: &chain::always_continue,
     }
 }
 
@@ -163,7 +160,6 @@ pub(crate) async fn search(
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
-    model_breakers: Arc<providers::ModelBreakers>,
 ) -> Result<SearchOutcome, ProviderError> {
     let step = chain::run_chain(
         provider_steps(config.into_entries()),
@@ -178,7 +174,6 @@ pub(crate) async fn search(
         |(id, provider_config), provider_deadline| {
             let client = client.clone();
             let request = request.clone();
-            let model_breakers = model_breakers.clone();
             async move {
                 match providers::build_main_search(
                     id,
@@ -186,7 +181,6 @@ pub(crate) async fn search(
                     client,
                     retry_policy,
                     provider_deadline,
-                    model_breakers,
                 )
                 .search(request)
                 .await
@@ -564,12 +558,10 @@ mod tests {
                     ChainStep {
                         context: (ProviderId::Jina, ()),
                         configured: true,
-                        gate_attempt: None,
                     },
                     ChainStep {
                         context: (ProviderId::Tavily, ()),
                         configured: true,
-                        gate_attempt: None,
                     },
                 ],
                 web_fetch_chain_settings(true),

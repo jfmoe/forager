@@ -1,25 +1,17 @@
-use std::sync::Arc;
 use std::time::Duration;
 
 use futures_util::future::join_all;
 use serde::Serialize;
 use serde_json::Value;
 
-use crate::catalog::{
-    self, DoctorProbe, ProbeShape, ProviderId, ProviderRegistration, ProviderTransport,
-};
-use crate::config::{
-    self, MainSearchProviderConfig, MainSearchRuntimeConfig, PlatformRouteConfig, RuntimeConfig,
-};
+use crate::catalog::{self, DoctorProbe, ProviderId, ProviderRegistration, ProviderTransport};
+use crate::config::{self, PlatformRouteConfig, RuntimeConfig};
 use crate::net::{self, RetryPolicy};
-use crate::providers::{
-    self, FetchRequest, FetchSource, KeyAccount, KeyQuota, MainSearchRequest, ModelBreakers,
-};
+use crate::providers::{self, FetchRequest, FetchSource, KeyAccount, KeyQuota, MainSearchRequest};
 use crate::rate_limit::RateLimiter;
 use crate::types::{
-    AttemptDisposition, AttemptErrorKind, ContentDepth, Deadline, Platform, PlatformFetchRequest,
-    PlatformRef, PlatformSearchOptions, PlatformSearchOutcome, PlatformSearchRequest,
-    ProviderError, SearchOutcome,
+    AttemptErrorKind, ContentDepth, Deadline, Platform, PlatformFetchRequest, PlatformRef,
+    PlatformSearchOptions, PlatformSearchOutcome, PlatformSearchRequest, ProviderError,
 };
 
 #[derive(Debug, Serialize)]
@@ -28,7 +20,6 @@ pub(crate) struct ShallowDoctorReport {
     ok: bool,
     providers: Vec<ProviderStatus>,
     permission_warnings: Vec<String>,
-    config_warnings: Vec<String>,
     config: Value,
 }
 
@@ -148,7 +139,6 @@ pub(crate) fn shallow(
             ok,
             providers,
             permission_warnings: permission_warnings()?,
-            config_warnings: main_search_fallback_warnings(&runtime_config.main_search),
             config: effective,
         },
         exit_code,
@@ -256,9 +246,16 @@ async fn run_probe(
     deadline: Deadline,
 ) -> ProbeOutcome {
     match catalog::registration(provider).probe {
-        DoctorProbe::MainSearch(shapes) => {
-            probe_main_search_backend(provider, shapes, config, client, retry_policy, deadline)
-                .await
+        DoctorProbe::MainSearch { name, transport } => {
+            probe_main_search_backend(
+                provider,
+                (name, transport),
+                config,
+                client,
+                retry_policy,
+                deadline,
+            )
+            .await
         }
         DoctorProbe::WebSearch { name, transport } => {
             let provider_config = config::web_provider_config(
@@ -348,7 +345,7 @@ async fn run_probe(
 /// it.
 async fn probe_main_search_backend(
     provider: ProviderId,
-    shapes: &'static [ProbeShape],
+    (name, transport): (&'static str, &'static str),
     config: RuntimeConfig,
     client: reqwest::Client,
     retry_policy: RetryPolicy,
@@ -363,15 +360,18 @@ async fn probe_main_search_backend(
                 .map(|route_config| (platform, route_config))
         })
         .collect::<Vec<_>>();
-    let mut outcome = probe_main_search(
+    let provider_config = config::main_provider_config(provider, &config.xai)
+        .expect("probe registration belongs to the main-search catalog");
+    let result = providers::build_main_search(
         provider,
-        shapes,
-        config,
+        provider_config,
         client.clone(),
         retry_policy,
         deadline,
     )
+    .probe(probe_search_request())
     .await;
+    let mut outcome = one_check(result, name, transport);
     for (platform, route_config) in platform_routes {
         if outcome.failure.is_some() {
             break;
@@ -492,87 +492,6 @@ async fn probe_platform_search(
         .await
 }
 
-async fn probe_main_search(
-    provider: ProviderId,
-    shapes: &'static [ProbeShape],
-    config: RuntimeConfig,
-    client: reqwest::Client,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
-) -> ProbeOutcome {
-    let breakers = Arc::new(ModelBreakers::default());
-    let mut checks = Vec::new();
-    for shape in shapes {
-        let mut shape_config =
-            config::main_provider_config(provider, &config.xai, &config.openai_compatible)
-                .expect("probe registration belongs to the main-search catalog");
-        if let MainSearchProviderConfig::OpenAiCompatible(config) = &mut shape_config {
-            if let Some(stream) = shape.stream {
-                config.stream = stream;
-            }
-            config.fallback_models.clear();
-        }
-        let adapter = providers::build_main_search(
-            provider,
-            shape_config,
-            client.clone(),
-            retry_policy,
-            deadline,
-            Arc::clone(&breakers),
-        );
-        match validate_transport(
-            adapter.probe(probe_search_request()).await,
-            shape.transport,
-            shape.name,
-        ) {
-            Ok(()) => checks.push(ProbeCheck {
-                name: shape.name,
-                transport: shape.transport,
-                ok: true,
-            }),
-            Err(error) => {
-                checks.push(ProbeCheck {
-                    name: shape.name,
-                    transport: shape.transport,
-                    ok: false,
-                });
-                return ProbeOutcome {
-                    checks,
-                    keys: None,
-                    failure: Some(error.into()),
-                };
-            }
-        }
-    }
-    ProbeOutcome {
-        checks,
-        keys: None,
-        failure: None,
-    }
-}
-
-fn validate_transport(
-    result: Result<SearchOutcome, ProviderError>,
-    expected_transport: &'static str,
-    shape: &'static str,
-) -> Result<(), ProviderError> {
-    let outcome = result?;
-    if outcome.attempts.last().is_some_and(|attempt| {
-        attempt.disposition == AttemptDisposition::Succeeded
-            && attempt.transport == Some(expected_transport)
-    }) {
-        return Ok(());
-    }
-    Err(ProviderError {
-        kind: AttemptErrorKind::Runtime,
-        message: format!("OpenAI-compatible {shape} probe completed through a different transport"),
-        attempts: outcome.attempts,
-        verbose: false,
-        diagnostic: outcome.diagnostic,
-        redirected_library_id: None,
-    })
-}
-
 fn one_check<T>(
     result: Result<T, ProviderError>,
     name: &'static str,
@@ -659,7 +578,6 @@ fn probe_search_request() -> MainSearchRequest {
     MainSearchRequest {
         query: "Reply with exactly: ok".into(),
         model: None,
-        allow_model_fallback: false,
         verbose: false,
     }
 }
@@ -838,36 +756,6 @@ fn status(
 fn endpoint_is_valid(value: &str) -> bool {
     reqwest::Url::parse(value)
         .is_ok_and(|url| matches!(url.scheme(), "http" | "https") && url.host_str().is_some())
-}
-
-fn main_search_fallback_warnings(main_search: &MainSearchRuntimeConfig) -> Vec<String> {
-    let configured = main_search
-        .entries()
-        .iter()
-        .filter(|entry| entry.configured())
-        .collect::<Vec<_>>();
-    let Some((primary, fallbacks)) = configured.split_first() else {
-        return Vec::new();
-    };
-    fallbacks
-        .iter()
-        .filter(|fallback| shares_failure_domain(primary.config(), fallback.config()))
-        .map(|fallback| {
-            format!(
-                "main search fallback `{}` uses the same endpoint and model as `{}`, so it cannot recover from failures of that endpoint or model",
-                fallback.name(),
-                primary.name()
-            )
-        })
-        .collect()
-}
-
-fn shares_failure_domain(
-    primary: &MainSearchProviderConfig,
-    fallback: &MainSearchProviderConfig,
-) -> bool {
-    primary.url().trim_end_matches('/') == fallback.url().trim_end_matches('/')
-        && primary.model() == fallback.model()
 }
 
 fn permission_warnings() -> Result<Vec<String>, config::ConfigError> {

@@ -59,7 +59,6 @@ impl SupplementalSearch {
                 model: None,
                 transport: Some("http"),
                 endpoint_host: None,
-                breaker_event: None,
             },
             |credential, _| self.send_once(query, limit, credential),
         )

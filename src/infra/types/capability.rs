@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
-/// Whether provider and model fallback chains may continue after the primary choice.
+/// Whether a provider chain may continue after its primary provider.
 pub enum FallbackPolicy {
     /// Continue through configured fallback choices.
     Auto,

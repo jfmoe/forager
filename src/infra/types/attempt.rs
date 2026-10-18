@@ -90,6 +90,4 @@ pub struct ProviderAttempt {
     pub transport: Option<&'static str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub endpoint_host: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub breaker_event: Option<&'static str>,
 }

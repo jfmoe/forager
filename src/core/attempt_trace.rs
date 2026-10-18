@@ -65,8 +65,8 @@ fn error_priority(kind: AttemptErrorKind) -> u8 {
     }
 }
 
-/// Returns the most recent failed attempt, used to close out a single
-/// provider's internal model chain (OpenAI-compatible and classifier).
+/// Returns the most recent failed attempt, used to close out the classifier
+/// model chain.
 pub(crate) fn last_failed(attempts: &[ProviderAttempt]) -> Option<&ProviderAttempt> {
     attempts
         .iter()
@@ -200,7 +200,6 @@ mod tests {
             model: Some("model".into()),
             transport: Some("sse"),
             endpoint_host: Some("example.test".into()),
-            breaker_event: None,
         }
     }
 
@@ -239,7 +238,7 @@ mod tests {
     fn terminal_attempt_uses_the_later_provider_when_kinds_match() {
         let mut first = attempt("xai", AttemptErrorKind::Auth);
         first.message = "first".into();
-        let mut second = attempt("openai_compatible", AttemptErrorKind::Auth);
+        let mut second = attempt("tavily", AttemptErrorKind::Auth);
         second.message = "second".into();
         let attempts = vec![first, second];
 
