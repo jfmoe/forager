@@ -3,6 +3,7 @@
 ## 合入 main
 
 - 分支经 PR 合入：CI 的 `quality`、`test`、`windows-permissions` 全绿后，运行 `gh pr merge <N> --rebase --delete-branch`。用 rebase 合并是为了保留每个 Conventional Commit，release-plz 按提交生成 changelog。
+- 只改文档的 PR 不触发 CI，不必等这三项检查，可以直接合并。不触发的范围见 `.github/workflows/ci.yml` 中 `pull_request.paths` 的排除项：根目录的 `*.md`、`docs/**`（`docs/spec/forager/04-architecture.md` 与 `07-platforms.md` 除外，测试会读取它们）、`.agents/**`、`.claude/**`。`release.yml` 的 `plan` job 仍会运行，但不是合入条件。推送到 `main` 后 CI 总是完整运行。新增读取文档的测试时，要把该文档加回 `paths`。
 - GitHub 的 rebase 合并会重写提交哈希。合并后先确认本地与远端的树一致，再运行 `git pull --rebase`，本地同内容的提交会被跳过。
 
 ## 发版
