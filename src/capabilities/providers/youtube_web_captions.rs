@@ -102,24 +102,31 @@ impl TrackList {
 
     /// Picks the track a full-text fetch reads. With `languages`, the first publisher track in
     /// their order, then the first ASR track in their order; without, the publisher track of
-    /// the original language, then its ASR track. A machine translation never qualifies.
+    /// the original language, then its ASR track, and when that language is unknown, the
+    /// video's only track. A machine translation never qualifies.
     ///
     /// # Errors
     ///
     /// Says which tracks exist when none qualifies.
     pub(super) fn select(&self, languages: &[String]) -> Result<&Track, String> {
         let picked = if languages.is_empty() {
-            self.original_language().and_then(|original| {
-                let primary = primary_subtag(original);
-                self.first(YoutubeCaptionSource::Manual, |track| {
-                    primary_subtag(track.language()).eq_ignore_ascii_case(primary)
-                })
-                .or_else(|| {
-                    self.first(YoutubeCaptionSource::Asr, |track| {
+            match self.original_language() {
+                Some(original) => {
+                    let primary = primary_subtag(original);
+                    self.first(YoutubeCaptionSource::Manual, |track| {
                         primary_subtag(track.language()).eq_ignore_ascii_case(primary)
                     })
-                })
-            })
+                    .or_else(|| {
+                        self.first(YoutubeCaptionSource::Asr, |track| {
+                            primary_subtag(track.language()).eq_ignore_ascii_case(primary)
+                        })
+                    })
+                }
+                None => match self.caption_tracks.as_slice() {
+                    [only] => Some(only),
+                    _ => None,
+                },
+            }
         } else {
             [YoutubeCaptionSource::Manual, YoutubeCaptionSource::Asr]
                 .into_iter()
@@ -378,6 +385,16 @@ mod tests {
                 Ok(("en".into(), true)),
                 Ok(("en".into(), false)),
             ]
+        );
+    }
+
+    #[test]
+    fn without_languages_or_a_known_original_language_the_only_track_is_read() {
+        let list = tracks(&[("zh-SG", false)], None);
+
+        assert_eq!(
+            (list.spoken_language(), pick(&list, &[])),
+            (None, Ok(("zh-SG".into(), false)))
         );
     }
 

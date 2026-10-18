@@ -423,15 +423,21 @@ fn a_live_stream_has_no_full_text_yet() {
 }
 
 #[test]
-fn no_track_in_the_original_language_is_a_quality_failure_naming_the_tracks() {
+fn tracks_without_a_known_original_language_are_a_quality_failure_naming_them() {
     let (code, kind, message) = player_failure(
-        &zoo_player(&[track("http://127.0.0.1:9", "de", false)], 9),
+        &zoo_player(
+            &[
+                track("http://127.0.0.1:9", "de", false),
+                track("http://127.0.0.1:9", "fr", false),
+            ],
+            9,
+        ),
         "full_text",
     );
 
     assert_eq!((code, kind), (Some(5), json!("quality")), "{message}");
     assert!(
-        message.contains("its captions are in de; pass --lang")
+        message.contains("its captions are in de, fr; pass --lang")
             && message.contains("`forager platform youtube transcribe`"),
         "{message}"
     );
