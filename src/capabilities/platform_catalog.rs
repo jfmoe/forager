@@ -105,8 +105,8 @@ pub(crate) const YOUTUBE: PlatformCatalog = PlatformCatalog {
     default_order: &[ProviderId::YoutubeApi, ProviderId::GeminiApi],
 };
 
-/// How users enable `youtube_web` and what it risks; a command that only it can serve says so.
-pub(crate) const YOUTUBE_WEB_OPT_IN: &str = "youtube_web reads YouTube's undocumented web endpoints anonymously, which YouTube's terms do not allow, so it is off by default; its risk is a temporary block of your egress IP, never your account. To enable it, run `forager config set platforms.youtube.order '[\"youtube_api\", \"youtube_web\"]'`";
+/// What `youtube_web` reads and what enabling it risks.
+const YOUTUBE_WEB_RISK: &str = "youtube_web reads YouTube's undocumented web endpoints anonymously, which YouTube's terms do not allow, so it is off by default; its risk is a temporary block of your egress IP, never your account";
 
 pub(crate) const PLATFORMS: &[PlatformCatalog] =
     &[ARXIV, SSRN, SCHOLAR, XIAOHONGSHU, X, HN, YOUTUBE];
@@ -140,10 +140,32 @@ impl PlatformCatalog {
     }
 }
 
-/// Says how to enable an HTTP platform route that users must enable themselves, or `None` for
-/// any other provider.
-pub(crate) fn http_opt_in(route: ProviderId) -> Option<&'static str> {
-    (route == ProviderId::YoutubeWeb).then_some(YOUTUBE_WEB_OPT_IN)
+/// Says what an HTTP platform route that users must enable themselves risks and how to enable
+/// it, or `None` for any other provider. `order` is the current value of `order_key`: the
+/// suggested order keeps it and places the route right after its last fetch route, so routes
+/// that only serve other operations keep working.
+pub(crate) fn http_opt_in(
+    route: ProviderId,
+    order_key: &str,
+    order: &[ProviderId],
+) -> Option<String> {
+    if route != ProviderId::YoutubeWeb {
+        return None;
+    }
+    let mut suggested = order.to_vec();
+    let position = order
+        .iter()
+        .rposition(|id| YOUTUBE.fetch.contains(id))
+        .map_or(0, |index| index + 1);
+    suggested.insert(position, route);
+    let names = suggested
+        .iter()
+        .map(|id| format!("\"{}\"", id.name()))
+        .collect::<Vec<_>>()
+        .join(", ");
+    Some(format!(
+        "{YOUTUBE_WEB_RISK}. To enable it, run `forager config set {order_key} '[{names}]'`"
+    ))
 }
 
 pub(crate) fn platform(platform: Platform) -> PlatformCatalog {
@@ -158,7 +180,16 @@ pub(crate) fn platform(platform: Platform) -> PlatformCatalog {
 mod tests {
     use std::collections::BTreeSet;
 
-    use super::PLATFORMS;
+    use super::{PLATFORMS, ProviderId, http_opt_in};
+
+    fn suggested_command(order: &[ProviderId]) -> String {
+        let hint = http_opt_in(ProviderId::YoutubeWeb, "platforms.youtube.order", order)
+            .expect("youtube_web is opt-in");
+        let (_, command) = hint
+            .rsplit_once("run ")
+            .unwrap_or_else(|| panic!("the hint names a command: {hint}"));
+        command.to_owned()
+    }
 
     #[test]
     fn every_default_platform_order_lists_unique_routes_of_its_platform() {
@@ -176,5 +207,21 @@ mod tests {
                 catalog.default_order
             );
         }
+    }
+
+    #[test]
+    fn the_youtube_web_hint_keeps_the_order_and_adds_the_route_after_the_fetch_routes() {
+        assert_eq!(
+            suggested_command(&[ProviderId::YoutubeApi, ProviderId::GeminiApi]),
+            r#"`forager config set platforms.youtube.order '["youtube_api", "youtube_web", "gemini_api"]'`"#
+        );
+    }
+
+    #[test]
+    fn the_youtube_web_hint_leads_an_order_without_fetch_routes() {
+        assert_eq!(
+            suggested_command(&[ProviderId::GeminiApi]),
+            r#"`forager config set platforms.youtube.order '["youtube_web", "gemini_api"]'`"#
+        );
     }
 }

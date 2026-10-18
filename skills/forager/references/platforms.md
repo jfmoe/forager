@@ -262,11 +262,12 @@ the video shows (slides, code, charts) or of sounds other than speech.
   for hours to weeks (datacenter IPs often at once), and waiting or switching networks recovers.
   With an official key also enabled, Google may suspend the user's Cloud project.
 - **Enable**: only when the user asks for captions and accepts that risk, run
-  `forager config set platforms.youtube.order '["youtube_api", "youtube_web"]'` (or
-  `'["youtube_web"]'` without a key; then metadata and abstract also come from it, with `likes` and
-  `comments` always `null`). It sends one request every 4 seconds and never retries; a full-text
-  fetch takes three requests, so allow about 10 seconds a video and fetch only the videos the
-  request needs.
+  `forager config set platforms.youtube.order '["youtube_api", "youtube_web", "gemini_api"]'`
+  (keep every route already in the order; without a key, drop `youtube_api`, and then metadata and
+  abstract also come from `youtube_web`, with `likes` and `comments` always `null`). The refusal
+  that names this command builds it from the current order. The route sends one request every 4
+  seconds and never retries; a full-text fetch takes three requests, so allow about 10 seconds a
+  video and fetch only the videos the request needs.
 - **Track**: by default, the publisher's captions in the video's original language, else its
   automatic (ASR) captions. `--lang en --lang de` sets the languages in priority order; every
   publisher track in them comes before any ASR track. Machine translations are never used. The

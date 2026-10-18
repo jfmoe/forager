@@ -451,7 +451,7 @@ pub(crate) fn plan_routes<C: Clone>(
             .filter(|candidate| !candidate.configured && operation_routes.contains(&candidate.id))
             .map(|candidate| config::provider_keys_key(candidate.id.name()))
             .collect::<Vec<_>>();
-        let opt_in = opt_in_hint(order_key, operation_routes, candidates);
+        let opt_in = opt_in_hint(order_key, operation_routes, candidates, |_| true);
         let hint = if missing_keys.is_empty() {
             opt_in
         } else {
@@ -485,32 +485,42 @@ pub(crate) fn plan_routes<C: Clone>(
             .map(|candidate| candidate.id.name())
             .collect::<Vec<_>>()
             .join(", ");
+        let opt_in = opt_in_hint(order_key, operation_routes, candidates, |id| {
+            check(id).is_ok()
+        });
         return Err(PlatformPreflightError::Argument(format!(
-            "no configured {platform} route supports the requested options (configured routes: {configured}): {}",
+            "no configured {platform} route supports the requested options (configured routes: {configured}): {}{opt_in}",
             reasons.join("; ")
         )));
     }
     Ok(plan)
 }
 
-/// Says how to enable the operation's routes that the order leaves out and only users may
-/// enable: process routes drive their own browser (ADR 0020), and an HTTP route may read a
-/// site's undocumented endpoints (ADR 0028).
+/// Says how to enable the operation's routes that the order leaves out, that only users may
+/// enable, and that `relevant` keeps: process routes drive their own browser (ADR 0020), and an
+/// HTTP route may read a site's undocumented endpoints (ADR 0028).
 fn opt_in_hint<C>(
     order_key: &str,
     operation_routes: &[ProviderId],
     candidates: &[RouteCandidate<'_, C>],
+    relevant: impl Fn(ProviderId) -> bool,
 ) -> String {
+    let order = candidates
+        .iter()
+        .map(|candidate| candidate.id)
+        .collect::<Vec<_>>();
     operation_routes
         .iter()
-        .filter(|route| !candidates.iter().any(|candidate| candidate.id == **route))
+        .filter(|route| !order.contains(route) && relevant(**route))
         .filter_map(|route| match catalog::registration(*route).transport {
             ProviderTransport::OpenCli(adapter) => Some(format!(
                 "; to use {route}, install the forager OpenCLI adapter `{site}` (copy the `opencli/{site}` directory of the forager skill to `~/.opencli/clis/{site}`), open the site in the Chrome that OpenCLI drives and log in if it asks, then add `{route}` to {order_key}",
                 route = route.name(),
                 site = adapter.site,
             )),
-            ProviderTransport::Http => catalog::http_opt_in(*route).map(|text| format!("; {text}")),
+            ProviderTransport::Http => {
+                catalog::http_opt_in(*route, order_key, &order).map(|text| format!("; {text}"))
+            }
         })
         .collect()
 }
@@ -552,7 +562,7 @@ mod tests {
         PageRequest, PlatformPreflightError, RouteCandidate, RoutePlan, decode_cursor,
         encode_cursor, plan_routes,
     };
-    use crate::catalog::{PlatformOperation, ProviderId};
+    use crate::catalog::{self, PlatformOperation, ProviderId};
     use crate::types::{
         ArxivSearchOptions, AttemptDisposition, Platform, PlatformSearchOptions,
         PlatformSearchRequest,
@@ -721,6 +731,65 @@ mod tests {
             Some(PlatformPreflightError::Config(
                 "platforms.arxiv.order has no configured route for arxiv search".into()
             ))
+        );
+    }
+
+    /// Plans a YouTube full-text fetch that only `youtube_web` can serve.
+    fn plan_youtube_full_text(
+        candidates: &[RouteCandidate<'_, ()>],
+    ) -> Result<RoutePlan<()>, PlatformPreflightError> {
+        plan_routes(
+            PlatformOperation::Fetch.as_str(),
+            Platform::Youtube,
+            "platforms.youtube.order",
+            catalog::YOUTUBE.routes(PlatformOperation::Fetch),
+            candidates,
+            None,
+            |id| {
+                Some(if id == ProviderId::YoutubeWeb {
+                    Ok(())
+                } else {
+                    Err(format!("{} does not serve captions", id.name()))
+                })
+            },
+        )
+    }
+
+    const YOUTUBE_WEB_ADDED: &str = r#"`forager config set platforms.youtube.order '["youtube_api", "youtube_web", "gemini_api"]'`"#;
+
+    #[test]
+    fn options_only_an_omitted_opt_in_route_supports_name_the_order_that_adds_it() {
+        let result = plan_youtube_full_text(&[
+            candidate(ProviderId::YoutubeApi, true),
+            candidate(ProviderId::GeminiApi, true),
+        ]);
+
+        let Some(PlatformPreflightError::Argument(message)) = result.err() else {
+            panic!("expected an argument error");
+        };
+        assert!(
+            message.starts_with(
+                "no configured youtube route supports the requested options (configured routes: youtube_api): youtube_api does not serve captions; youtube_web reads"
+            ) && message.ends_with(YOUTUBE_WEB_ADDED),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn an_order_without_configured_routes_names_the_order_that_adds_the_opt_in_route() {
+        let result = plan_youtube_full_text(&[
+            candidate(ProviderId::YoutubeApi, false),
+            candidate(ProviderId::GeminiApi, true),
+        ]);
+
+        let Some(PlatformPreflightError::Config(message)) = result.err() else {
+            panic!("expected a configuration error");
+        };
+        assert!(
+            message.starts_with(
+                "platforms.youtube.order has no configured route for youtube fetch; set providers.youtube_api.keys; youtube_web reads"
+            ) && message.ends_with(YOUTUBE_WEB_ADDED),
+            "{message}"
         );
     }
 
