@@ -27,9 +27,10 @@ pub(super) struct Cue {
 
 impl Cue {
     /// Builds a cue from times in seconds. Cues may overlap and leave silent gaps; each one
-    /// needs finite, non-negative times, an end no earlier than its start, and text.
+    /// needs finite, non-negative times, an end no earlier than its start, and text. Line
+    /// breaks and runs of spaces in the text fold by the rule that joins cues.
     pub(super) fn from_seconds(start: f64, end: f64, text: &str) -> Result<Self, String> {
-        let text = text.trim();
+        let text = fold_spaces(text);
         if text.is_empty() {
             return Err(format!("the cue at {start}s has no text"));
         }
@@ -46,7 +47,7 @@ impl Cue {
         Ok(Self {
             start_ms,
             end_ms,
-            text: text.to_owned(),
+            text,
         })
     }
 }
@@ -160,12 +161,7 @@ impl Transcript {
                     .is_some_and(|paragraph| paragraph.chapter == chapter)
                 && cue.start_ms.saturating_sub(last_end_ms) < PAUSE_MS;
             match paragraphs.last_mut() {
-                Some(paragraph) if continues => {
-                    if needs_space(&paragraph.text, &cue.text) {
-                        paragraph.text.push(' ');
-                    }
-                    paragraph.text.push_str(&cue.text);
-                }
+                Some(paragraph) if continues => push_joined(&mut paragraph.text, &cue.text),
                 _ => paragraphs.push(Paragraph {
                     chapter,
                     start_ms: cue.start_ms,
@@ -200,7 +196,24 @@ fn chapter_at(chapters: &[TranscriptChapter], moment_ms: u64) -> Option<usize> {
         .rposition(|chapter| chapter.start_seconds.saturating_mul(1000) <= moment_ms)
 }
 
-/// Says whether two joined cues need a space between them: Chinese and Japanese text, with its
+/// Folds the whitespace of a text: its words join by [`push_joined`].
+fn fold_spaces(text: &str) -> String {
+    let mut folded = String::with_capacity(text.len());
+    for word in text.split_whitespace() {
+        push_joined(&mut folded, word);
+    }
+    folded
+}
+
+/// Appends `next` to `text`, with a space between them unless [`needs_space`] says none.
+fn push_joined(text: &mut String, next: &str) {
+    if !text.is_empty() && needs_space(text, next) {
+        text.push(' ');
+    }
+    text.push_str(next);
+}
+
+/// Says whether two joined pieces of text need a space between them: Chinese and Japanese text, with its
 /// full-width punctuation, runs on without spaces; every other script, Korean included, keeps one.
 fn needs_space(before: &str, after: &str) -> bool {
     let unspaced = |character: Option<char>| character.is_some_and(writes_without_spaces);
@@ -501,6 +514,20 @@ mod tests {
             [
                 "[00:00](https://v.test/watch?v=x&t=0s) 各位同学大家好。这个十一你出门了吗？東京へ行きます GPT 模型 안녕하세요 여러분"
             ]
+        );
+    }
+
+    #[test]
+    fn line_breaks_and_spaces_inside_a_cue_follow_the_same_joining_rule() {
+        let cues = vec![cue(
+            0.0,
+            1.0,
+            "從一\n個問題，  需要\nGPT 模型。 Then\nwe go",
+        )];
+
+        assert_eq!(
+            body(TranscriptSource::Manual, cues, &[]),
+            ["[00:00](https://v.test/watch?v=x&t=0s) 從一個問題，需要 GPT 模型。 Then we go"]
         );
     }
 
