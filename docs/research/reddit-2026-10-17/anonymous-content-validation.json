@@ -1,0 +1,138 @@
+[
+  {
+    "file": "svc-listing-browser.json",
+    "status": 200,
+    "title": [
+      "Reddit - The heart of the internet"
+    ],
+    "shreddit_posts": 87,
+    "shreddit_comments": 0,
+    "search_post_results": 0,
+    "search_empty_results": 0,
+    "next_search_partials": [],
+    "sample_attributes": [
+      "<shreddit-post data-ks-item class=\"block relative cursor-pointer group bg-neutral-background focus-within:bg-neutral-background-hover hover:bg-neutral-background-hover xs:rounded-4 px-md py-2xs my-2xs nd:visible rgb-action-bar-placeholder [&amp;:not(:defined):not(:has(rpl-action-bar))]:pb-2xl\" permalink=\"/r/rust/comments/1x84c3h/built_a_native_vulkan_inference_engine_from/\" content-href=\"https://www.reddit.com/r/rust/comments/1x84c3h/built_a_native_vulkan_inference_engine_from/\" view-context=\"SubredditFeed\" comment-count=\"16\" view-type=\"cardView\" pdp-target=\"_self\" feedIndex=\"0\" award-count=\"0\" hide-awards-button moderation-verdict=\"\" is-embeddable is-desktop-viewport is-awardable created-timestamp=\"2026-10-17T07:46:28.759000+0000\" domain=\"self.rust\" id=\"t3_1x84c3h\" post-title=\"Built a native Vulkan inference engine from scratch using Rust (FFI + OnceLock) to run AI models locally without CUDA.\" post-language=\"en\" post-type=\"multi_media\" score=\"0\" upvote-ratio=\"0.21212121212121213\" subreddit-id=\"t5_2s7lj\" subreddit-prefixed-name=\"r/rust\" author-id=\"t2_1adefsw9jf\" author=\"New-Value8006\" icon=\"https://preview.redd.it/snoovatar/avatars/a79d6f09-7391-440b-8d7f-3528572b1573-headshot.png?width=64&amp;height=64&amp;crop=smart&amp;auto=webp&amp;s=b1ee9dbd9ac38cee76e281a8a43d2475c168bbde\" data-expected-lcp subreddit-name=\"rust\">",
+      "<shreddit-post-overflow-menu class=\"group/overflow-menu\" post-id=\"t3_1x84c3h\" author-id=\"t2_1adefsw9jf\" author-name=\"New-Value8006\" subreddit-id=\"t5_2s7lj\" subreddit-prefixed-name=\"r/rust\" post-type=\"multi_media\" score=\"0\" comment-count=\"16\" permalink=\"/r/rust/comments/1x84c3h/built_a_native_vulkan_inference_engine_from/\" post-view-context=\"SubredditFeed\" has-post-flair is-desktop-viewport ama-state=\"\" ama-starts-at=\"\" ama-ends-at=\"\" feed-index=\"0\" should-render-follow-menu-item is-post-awardable should-render-award-menu-item recommendation-context-json=\"{}\" translation-state=\"\" source-id=\"t3_1x84c3h\" data-faceplate-tracking-context=\"{&quot;post&quot;:{&quot;id&quot;:&quot;t3_1x84c3h&quot;,&quot;type&quot;:&quot;multi_media&quot;,&quot;score&quot;:0,&quot;number_comments&quot;:16},&quot;subreddit&quot;:{&quot;id&quot;:&quot;t5_2s7lj&quot;},&quot;action_info&quot;:{&quot;position&quot;:0}}\">"
+    ]
+  },
+  {
+    "file": "svc-subreddit-search-browser.json",
+    "status": 200,
+    "title": [
+      "Reddit - The heart of the internet"
+    ],
+    "shreddit_posts": 0,
+    "shreddit_comments": 0,
+    "search_post_results": 7,
+    "search_empty_results": 0,
+    "next_search_partials": [
+      "<faceplate-partial loading=\"lazy\" src=\"/svc/shreddit/r/rust/search/?q=async&amp;type=posts&amp;sort=relevance&amp;t=month&amp;cursor=eyJjYW5kaWRhdGVzX3JldHVybmVkIjoie1wic2VjdGlvbl8xX3BpcGVsaW5lXzBfZ2xvYmFsX21vZGlmaWVyc1wiOlwiMVwiLFwic2VjdGlvbl8xX3BpcGVsaW5lXzFfbG9jYWxfbW9kaWZpZXJzXCI6XCIyXCIsXCJzZWN0aW9uXzJfcGlwZWxpbmVfN19zY29wZV9zd2l0Y2hlclwiOlwiMFwiLFwic2VjdGlvbl8yX3BpcGVsaW5lXzhfZHluYW1pY18wX3Bvc3Rfc2VhcmNoXCI6XCI3XCIsXCJzZWN0aW9uXzNfcGlwZWxpbmVfMF9zaWRlYmFyX2NvbW11bml0eV9pbmZvXCI6XCIwXCJ9IiwiZXhwZXJpZW5jZV9zZWxlY3Rpb24iOiJwb3N0c192MiIsImV4cGVyaWVuY2VfdmVyc2lvbiI6ImNvbW11bml0eSIsInNlY3Rpb25fMl9waXBlbGluZV84X2R5bmFtaWNfMF9wb3N0X3NlYXJjaCI6IjcifQ%3D%3D\">"
+    ],
+    "sample_attributes": [
+      "<search-telemetry-tracker data-faceplate-tracking-context=\"{&quot;search&quot;:{&quot;origin_element&quot;:&quot;serp_scope_switcher&quot;,&quot;range&quot;:&quot;month&quot;,&quot;sort&quot;:&quot;RELEVANCE&quot;,&quot;safe_search&quot;:&quot;UNAVAILABLE&quot;,&quot;structure_type&quot;:&quot;search&quot;}}\" click-events=\"search/click/disable_scope\">",
+      "<search-telemetry-tracker data-faceplate-tracking-context=\"{&quot;action_info&quot;:{&quot;position&quot;:0,&quot;relative_position&quot;:0},&quot;post&quot;:{&quot;id&quot;:&quot;t3_1wkxyuj&quot;,&quot;nsfw&quot;:false,&quot;spoiler&quot;:false,&quot;title&quot;:&quot;Design patterns to spawn tasks&quot;},&quot;search&quot;:{&quot;range&quot;:&quot;month&quot;,&quot;sort&quot;:&quot;RELEVANCE&quot;,&quot;safe_search&quot;:&quot;UNAVAILABLE&quot;,&quot;structure_type&quot;:&quot;search&quot;},&quot;subreddit&quot;:{&quot;id&quot;:&quot;t5_2s7lj&quot;,&quot;name&quot;:&quot;rust&quot;,&quot;nsfw&quot;:false,&quot;quarantined&quot;:false}}\" view-events=\"search/view/post\" leave-events=\"post/leave/post\" consume-events=\"post/consume/post\" data-testid=\"search-sdui-post\" data-thingid=\"t3_1wkxyuj\">"
+    ]
+  },
+  {
+    "file": "svc-search-browser.json",
+    "status": 200,
+    "title": [
+      "Reddit - The heart of the internet"
+    ],
+    "shreddit_posts": 0,
+    "shreddit_comments": 0,
+    "search_post_results": 7,
+    "search_empty_results": 0,
+    "next_search_partials": [
+      "<faceplate-partial loading=\"lazy\" src=\"/svc/shreddit/search/?q=rust&amp;type=posts&amp;sort=relevance&amp;t=month&amp;cursor=eyJjYW5kaWRhdGVzX3JldHVybmVkIjoie1wic2VjdGlvbl8xX3BpcGVsaW5lXzBfZ2xvYmFsX21vZGlmaWVyc1wiOlwiMVwiLFwic2VjdGlvbl8xX3BpcGVsaW5lXzFfbG9jYWxfbW9kaWZpZXJzXCI6XCIyXCIsXCJzZWN0aW9uXzJfcGlwZWxpbmVfMTFfcXVlcnlfc3VnZ2VzdGlvbnNcIjpcIjZcIixcInNlY3Rpb25fMl9waXBlbGluZV84X2R5bmFtaWNfMF9wb3N0X3NlYXJjaFwiOlwiN1wiLFwic2VjdGlvbl8zX3BpcGVsaW5lXzBfZHluYW1pY18wX3N1YnJlZGRpdF9zZWFyY2hcIjpcIjVcIixcInNlY3Rpb25fM19waXBlbGluZV8wX2R5bmFtaWNfMV9hdXRob3Jfc2VhcmNoXCI6XCIxXCJ9IiwiZXhwZXJpZW5jZV9zZWxlY3Rpb24iOiJwb3N0c192MiIsImV4cGVyaWVuY2VfdmVyc2lvbiI6ImRlc2t0b3AiLCJzZWN0aW9uXzJfcGlwZWxpbmVfOF9keW5hbWljXzBfcG9zdF9zZWFyY2giOiI3In0%3D\">"
+    ],
+    "sample_attributes": [
+      "<search-telemetry-tracker data-faceplate-tracking-context=\"{&quot;action_info&quot;:{&quot;position&quot;:0,&quot;relative_position&quot;:0},&quot;post&quot;:{&quot;id&quot;:&quot;t3_1x0h8t4&quot;,&quot;nsfw&quot;:false,&quot;spoiler&quot;:false,&quot;title&quot;:&quot;Rust Has Become a Career Dead End for Me — What Should I Do?&quot;},&quot;profile&quot;:{&quot;id&quot;:&quot;t2_7wzd3c28&quot;,&quot;name&quot;:&quot;Anthonyngg_192&quot;},&quot;search&quot;:{&quot;range&quot;:&quot;month&quot;,&quot;sort&quot;:&quot;RELEVANCE&quot;,&quot;safe_search&quot;:&quot;UNAVAILABLE&quot;,&quot;structure_type&quot;:&quot;search&quot;},&quot;subreddit&quot;:{&quot;id&quot;:&quot;t5_2s7lj&quot;,&quot;name&quot;:&quot;rust&quot;,&quot;nsfw&quot;:false,&quot;quarantined&quot;:false}}\" view-events=\"search/view/post\" leave-events=\"post/leave/post\" consume-events=\"post/consume/post\" data-testid=\"search-sdui-post\" data-thingid=\"t3_1x0h8t4\">",
+      "<search-telemetry-tracker data-faceplate-tracking-context=\"{&quot;action_info&quot;:{&quot;position&quot;:0,&quot;relative_position&quot;:0,&quot;type&quot;:&quot;post&quot;},&quot;post&quot;:{&quot;id&quot;:&quot;t3_1x0h8t4&quot;,&quot;nsfw&quot;:false,&quot;spoiler&quot;:false,&quot;title&quot;:&quot;Rust Has Become a Career Dead End for Me — What Should I Do?&quot;},&quot;profile&quot;:{&quot;id&quot;:&quot;t2_7wzd3c28&quot;,&quot;name&quot;:&quot;Anthonyngg_192&quot;},&quot;search&quot;:{&quot;range&quot;:&quot;month&quot;,&quot;sort&quot;:&quot;RELEVANCE&quot;,&quot;safe_search&quot;:&quot;UNAVAILABLE&quot;,&quot;structure_type&quot;:&quot;search&quot;},&quot;subreddit&quot;:{&quot;id&quot;:&quot;t5_2s7lj&quot;,&quot;name&quot;:&quot;rust&quot;,&quot;nsfw&quot;:false,&quot;quarantined&quot;:false}}\" click-events=\"search/click/post\">"
+    ]
+  },
+  {
+    "file": "svc-listing-honest.json",
+    "status": 200,
+    "title": [
+      "Reddit - The heart of the internet"
+    ],
+    "shreddit_posts": 84,
+    "shreddit_comments": 0,
+    "search_post_results": 0,
+    "search_empty_results": 0,
+    "next_search_partials": [],
+    "sample_attributes": [
+      "<shreddit-post data-ks-item class=\"block relative cursor-pointer group bg-neutral-background focus-within:bg-neutral-background-hover hover:bg-neutral-background-hover xs:rounded-4 px-md py-2xs my-2xs nd:visible rgb-action-bar-placeholder [&amp;:not(:defined):not(:has(rpl-action-bar))]:pb-2xl\" permalink=\"/r/rust/comments/1x84c3h/built_a_native_vulkan_inference_engine_from/\" content-href=\"https://www.reddit.com/r/rust/comments/1x84c3h/built_a_native_vulkan_inference_engine_from/\" view-context=\"SubredditFeed\" comment-count=\"16\" view-type=\"cardView\" pdp-target=\"_self\" feedIndex=\"0\" award-count=\"0\" hide-awards-button moderation-verdict=\"\" is-embeddable is-desktop-viewport is-awardable created-timestamp=\"2026-10-17T07:46:28.759000+0000\" domain=\"self.rust\" id=\"t3_1x84c3h\" post-title=\"Built a native Vulkan inference engine from scratch using Rust (FFI + OnceLock) to run AI models locally without CUDA.\" post-language=\"en\" post-type=\"multi_media\" score=\"0\" upvote-ratio=\"0.21212121212121213\" subreddit-id=\"t5_2s7lj\" subreddit-prefixed-name=\"r/rust\" author-id=\"t2_1adefsw9jf\" author=\"New-Value8006\" icon=\"https://cf.preview.redd.it/snoovatar/avatars/a79d6f09-7391-440b-8d7f-3528572b1573-headshot.png?width=64&amp;height=64&amp;crop=smart&amp;auto=webp&amp;s=b1ee9dbd9ac38cee76e281a8a43d2475c168bbde\" data-expected-lcp subreddit-name=\"rust\">",
+      "<shreddit-post-overflow-menu class=\"group/overflow-menu\" post-id=\"t3_1x84c3h\" author-id=\"t2_1adefsw9jf\" author-name=\"New-Value8006\" subreddit-id=\"t5_2s7lj\" subreddit-prefixed-name=\"r/rust\" post-type=\"multi_media\" score=\"0\" comment-count=\"16\" permalink=\"/r/rust/comments/1x84c3h/built_a_native_vulkan_inference_engine_from/\" post-view-context=\"SubredditFeed\" has-post-flair is-desktop-viewport ama-state=\"\" ama-starts-at=\"\" ama-ends-at=\"\" feed-index=\"0\" should-render-follow-menu-item is-post-awardable should-render-award-menu-item recommendation-context-json=\"{}\" translation-state=\"\" source-id=\"t3_1x84c3h\" data-faceplate-tracking-context=\"{&quot;post&quot;:{&quot;id&quot;:&quot;t3_1x84c3h&quot;,&quot;type&quot;:&quot;multi_media&quot;,&quot;score&quot;:0,&quot;number_comments&quot;:16},&quot;subreddit&quot;:{&quot;id&quot;:&quot;t5_2s7lj&quot;},&quot;action_info&quot;:{&quot;position&quot;:0}}\">"
+    ]
+  },
+  {
+    "file": "svc-comments-browser.json",
+    "status": 200,
+    "title": [
+      "Reddit - The heart of the internet"
+    ],
+    "shreddit_posts": 3,
+    "shreddit_comments": 124,
+    "search_post_results": 0,
+    "search_empty_results": 0,
+    "next_search_partials": [],
+    "sample_attributes": [
+      "<shreddit-post-overflow-menu is-desktop-viewport is-ad ad-user-targeting-info=\"{&quot;adTransparencyEncodedData&quot;:&quot;GQgsGA1Vbml0ZWQgU3RhdGVzABkFAA==&quot;,&quot;gender&quot;:null,&quot;interests&quot;:null,&quot;locations&quot;:null,&quot;targetingCriteria&quot;:null}\" is-pdp-ad is-reportable-ad post-id=\"t3_1x3jfkf\" impression-id=\"5671011430397130011\" author-name=\"shopify\" author-id=\"t2_3xt2t0l3\" is-hide-ad-enabled placement=\"comments_page\" premium-ad-overflow-variant=\"enabled\">",
+      "<shreddit-comment-tree-ads>"
+    ]
+  },
+  {
+    "file": "svc-comments-honest.json",
+    "status": 200,
+    "title": [
+      "Reddit - The heart of the internet"
+    ],
+    "shreddit_posts": 0,
+    "shreddit_comments": 104,
+    "search_post_results": 0,
+    "search_empty_results": 0,
+    "next_search_partials": [],
+    "sample_attributes": [
+      "<shreddit-comment-tree-stats total-comments=\"130\" sort=\"CONFIDENCE\">",
+      "<shreddit-comment-tree id=\"comment-tree\" post-id=\"t3_1wubcvf\" totalComments=\"130\" permalink=\"/r/redditdev/comments/1wubcvf/moving_data_api_apps_to_the_developer_platform/\" ui=\"desktop\" class=\"block mt-sm\">"
+    ]
+  },
+  {
+    "file": "svc-subreddit-search-honest.json",
+    "status": 200,
+    "title": [
+      "Reddit - The heart of the internet"
+    ],
+    "shreddit_posts": 0,
+    "shreddit_comments": 0,
+    "search_post_results": 7,
+    "search_empty_results": 0,
+    "next_search_partials": [
+      "<faceplate-partial loading=\"lazy\" src=\"/svc/shreddit/r/rust/search/?q=async&amp;type=posts&amp;sort=relevance&amp;t=month&amp;cursor=eyJjYW5kaWRhdGVzX3JldHVybmVkIjoie1wic2VjdGlvbl8xX3BpcGVsaW5lXzBfZ2xvYmFsX21vZGlmaWVyc1wiOlwiMVwiLFwic2VjdGlvbl8xX3BpcGVsaW5lXzFfbG9jYWxfbW9kaWZpZXJzXCI6XCIyXCIsXCJzZWN0aW9uXzJfcGlwZWxpbmVfN19zY29wZV9zd2l0Y2hlclwiOlwiMFwiLFwic2VjdGlvbl8yX3BpcGVsaW5lXzhfZHluYW1pY18wX3Bvc3Rfc2VhcmNoXCI6XCI3XCIsXCJzZWN0aW9uXzNfcGlwZWxpbmVfMF9zaWRlYmFyX2NvbW11bml0eV9pbmZvXCI6XCIwXCJ9IiwiZXhwZXJpZW5jZV9zZWxlY3Rpb24iOiJwb3N0c192MiIsImV4cGVyaWVuY2VfdmVyc2lvbiI6ImNvbW11bml0eSIsInNlY3Rpb25fMl9waXBlbGluZV84X2R5bmFtaWNfMF9wb3N0X3NlYXJjaCI6IjcifQ%3D%3D\">"
+    ],
+    "sample_attributes": [
+      "<search-telemetry-tracker data-faceplate-tracking-context=\"{&quot;search&quot;:{&quot;origin_element&quot;:&quot;serp_scope_switcher&quot;,&quot;range&quot;:&quot;month&quot;,&quot;sort&quot;:&quot;RELEVANCE&quot;,&quot;safe_search&quot;:&quot;UNAVAILABLE&quot;,&quot;structure_type&quot;:&quot;search&quot;}}\" click-events=\"search/click/disable_scope\">",
+      "<search-telemetry-tracker data-faceplate-tracking-context=\"{&quot;action_info&quot;:{&quot;position&quot;:0,&quot;relative_position&quot;:0},&quot;post&quot;:{&quot;id&quot;:&quot;t3_1wkxyuj&quot;,&quot;nsfw&quot;:false,&quot;spoiler&quot;:false,&quot;title&quot;:&quot;Design patterns to spawn tasks&quot;},&quot;search&quot;:{&quot;range&quot;:&quot;month&quot;,&quot;sort&quot;:&quot;RELEVANCE&quot;,&quot;safe_search&quot;:&quot;UNAVAILABLE&quot;,&quot;structure_type&quot;:&quot;search&quot;},&quot;subreddit&quot;:{&quot;id&quot;:&quot;t5_2s7lj&quot;,&quot;name&quot;:&quot;rust&quot;,&quot;nsfw&quot;:false,&quot;quarantined&quot;:false}}\" view-events=\"search/view/post\" leave-events=\"post/leave/post\" consume-events=\"post/consume/post\" data-testid=\"search-sdui-post\" data-thingid=\"t3_1wkxyuj\">"
+    ]
+  },
+  {
+    "file": "svc-search-honest.json",
+    "status": 200,
+    "title": [
+      "Reddit - The heart of the internet"
+    ],
+    "shreddit_posts": 0,
+    "shreddit_comments": 0,
+    "search_post_results": 7,
+    "search_empty_results": 0,
+    "next_search_partials": [
+      "<faceplate-partial loading=\"lazy\" src=\"/svc/shreddit/search/?q=rust&amp;type=posts&amp;sort=relevance&amp;t=month&amp;cursor=eyJjYW5kaWRhdGVzX3JldHVybmVkIjoie1wic2VjdGlvbl8xX3BpcGVsaW5lXzBfZ2xvYmFsX21vZGlmaWVyc1wiOlwiMVwiLFwic2VjdGlvbl8xX3BpcGVsaW5lXzFfbG9jYWxfbW9kaWZpZXJzXCI6XCIyXCIsXCJzZWN0aW9uXzJfcGlwZWxpbmVfMTBfdXh0c191bml0XCI6XCIwXCIsXCJzZWN0aW9uXzJfcGlwZWxpbmVfMTFfcXVlcnlfc3VnZ2VzdGlvbnNcIjpcIjZcIixcInNlY3Rpb25fMl9waXBlbGluZV84X3Bvc3Rfc2VhcmNoXCI6XCI3XCIsXCJzZWN0aW9uXzNfcGlwZWxpbmVfMF9zdWJyZWRkaXRfc2VhcmNoXCI6XCI1XCIsXCJzZWN0aW9uXzNfcGlwZWxpbmVfMV9hdXRob3Jfc2VhcmNoXCI6XCI0XCJ9IiwiZXhwZXJpZW5jZV9zZWxlY3Rpb24iOiJwb3N0X3dpdGhfc2lkZWJhciIsImV4cGVyaWVuY2VfdmVyc2lvbiI6ImRlZmF1bHQiLCJzZWN0aW9uXzJfcGlwZWxpbmVfOF9wb3N0X3NlYXJjaCI6IjcifQ%3D%3D\">"
+    ],
+    "sample_attributes": [
+      "<search-telemetry-tracker data-faceplate-tracking-context=\"{&quot;action_info&quot;:{&quot;position&quot;:0,&quot;relative_position&quot;:0},&quot;post&quot;:{&quot;id&quot;:&quot;t3_1x417z8&quot;,&quot;nsfw&quot;:false,&quot;spoiler&quot;:false,&quot;title&quot;:&quot;Rust pvp 10 years ago&quot;},&quot;profile&quot;:{&quot;id&quot;:&quot;t2_e19ie4n2&quot;,&quot;name&quot;:&quot;TipTopMuffin&quot;},&quot;search&quot;:{&quot;range&quot;:&quot;month&quot;,&quot;sort&quot;:&quot;RELEVANCE&quot;,&quot;safe_search&quot;:&quot;UNAVAILABLE&quot;,&quot;structure_type&quot;:&quot;search&quot;},&quot;subreddit&quot;:{&quot;id&quot;:&quot;t5_2xks2&quot;,&quot;name&quot;:&quot;playrust&quot;,&quot;nsfw&quot;:false,&quot;quarantined&quot;:false}}\" view-events=\"search/view/post\" leave-events=\"post/leave/post\" consume-events=\"post/consume/post\" data-testid=\"search-sdui-post\" data-thingid=\"t3_1x417z8\">",
+      "<search-telemetry-tracker data-faceplate-tracking-context=\"{&quot;action_info&quot;:{&quot;position&quot;:0,&quot;relative_position&quot;:0,&quot;type&quot;:&quot;post&quot;},&quot;post&quot;:{&quot;id&quot;:&quot;t3_1x417z8&quot;,&quot;nsfw&quot;:false,&quot;spoiler&quot;:false,&quot;title&quot;:&quot;Rust pvp 10 years ago&quot;},&quot;profile&quot;:{&quot;id&quot;:&quot;t2_e19ie4n2&quot;,&quot;name&quot;:&quot;TipTopMuffin&quot;},&quot;search&quot;:{&quot;range&quot;:&quot;month&quot;,&quot;sort&quot;:&quot;RELEVANCE&quot;,&quot;safe_search&quot;:&quot;UNAVAILABLE&quot;,&quot;structure_type&quot;:&quot;search&quot;},&quot;subreddit&quot;:{&quot;id&quot;:&quot;t5_2xks2&quot;,&quot;name&quot;:&quot;playrust&quot;,&quot;nsfw&quot;:false,&quot;quarantined&quot;:false}}\" click-events=\"search/click/post\">"
+    ]
+  }
+]

@@ -1,0 +1,11 @@
+{
+  "official-api-wiki": "https://support.reddithelp.com/hc/en-us/articles/16160319875092-Reddit-Data-API-Wiki",
+  "official-access": "https://support.reddithelp.com/hc/en-us/articles/14945211791892-Developer-Platform-Accessing-Reddit-Data",
+  "official-responsible": "https://support.reddithelp.com/hc/en-us/articles/42728983564564-Responsible-Builder-Policy",
+  "official-data-terms": "https://redditinc.com/policies/data-api-terms",
+  "official-developer-terms": "https://redditinc.com/policies/developer-terms",
+  "official-api-reference": "https://www.reddit.com/dev/api/",
+  "official-oauth": "https://github.com/reddit-archive/reddit/wiki/OAuth2",
+  "official-oauth-app-types": "https://github.com/reddit-archive/reddit/wiki/OAuth2-App-Types",
+  "official-rss-sunset": "https://www.reddit.com/r/redditdev/comments/1wubcvf/moving_data_api_apps_to_the_developer_platform/"
+}

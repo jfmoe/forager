@@ -1,0 +1,13 @@
+{
+  "checked_at": "2026-10-17T12:15:06.223300+00:00",
+  "command": [
+    "opencli",
+    "browser",
+    "forager-reddit-research",
+    "eval",
+    "({post_results:document.querySelectorAll('[view-events=\"search/view/post\"]').length, url:location.origin+location.pathname})"
+  ],
+  "exit_code": 0,
+  "stdout": "{\n  \"post_results\": 7,\n  \"url\": \"https://www.reddit.com/search/\"\n}\n",
+  "stderr": "\n  Update available: v1.8.6 → v1.8.8\n  Run: npm install -g @jackwener/opencli\n\n"
+}

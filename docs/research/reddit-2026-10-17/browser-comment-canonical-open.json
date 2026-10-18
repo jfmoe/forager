@@ -1,0 +1,13 @@
+{
+  "checked_at": "2026-10-17T12:15:38.791044+00:00",
+  "command": [
+    "opencli",
+    "browser",
+    "forager-reddit-research",
+    "open",
+    "https://www.reddit.com/comments/17snc7d/_/k8so54m/"
+  ],
+  "exit_code": 0,
+  "stdout": "{\n  \"url\": \"https://www.reddit.com/comments/17snc7d/_/k8so54m/\",\n  \"page\": \"B6077C06778B4EAAC42F75ABA62F9DE2\"\n}\n",
+  "stderr": "\n  Update available: v1.8.6 → v1.8.8\n  Run: npm install -g @jackwener/opencli\n\n"
+}

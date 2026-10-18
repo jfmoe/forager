@@ -1,0 +1,12 @@
+{
+  "checked_at": "2026-10-17T12:15:05.853293+00:00",
+  "command": [
+    "opencli",
+    "browser",
+    "forager-reddit-research",
+    "network"
+  ],
+  "exit_code": 0,
+  "stdout": "{\n  \"session\": \"forager-reddit-research\",\n  \"captured_at\": \"2026-10-17T12:15:05.677Z\",\n  \"count\": 0,\n  \"filtered_out\": 0,\n  \"entries\": [],\n  \"detail_hint\": \"Run \\\"browser network --detail <key>\\\" for full body.\"\n}\n",
+  "stderr": "\n  Update available: v1.8.6 → v1.8.8\n  Run: npm install -g @jackwener/opencli\n\n"
+}

@@ -1,0 +1,5 @@
+{
+  "exit_code": 0,
+  "stdout": "{\n  \"json_state_tags\": 0,\n  \"result_links\": [\n    {\n      \"href\": \"/r/playrust/comments/1x417z8/rust_pvp_10_years_ago/\",\n      \"text\": \"\\n      Rust pvp 10 years ago\\n    \"\n    },\n    {\n      \"href\": \"/r/rust/comments/1x6bd4v/rust_jobs_are_not_for_freshers_career_advice/\",\n      \"text\": \"\\n      Rust jobs are not for freshers; Career advice needed\\n    \"\n    },\n    {\n      \"href\": \"/r/playrust/comments/1x4g0vf/state_of_rust/\",\n      \"text\": \"\\n      State of rust\\n    \"\n    }\n  ],\n  \"search_partials\": [\n    {\n      \"cursor_present\": true,\n      \"parameter_names\": [\n        \"q\",\n        \"type\",\n        \"cursor\"\n      ],\n      \"path\": \"/svc/shreddit/search/\"\n    }\n  ],\n  \"trackers\": 69\n}\n",
+  "stderr": "\n  Update available: v1.8.6 → v1.8.8\n  Run: npm install -g @jackwener/opencli\n\n"
+}

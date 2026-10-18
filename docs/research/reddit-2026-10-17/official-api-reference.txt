@@ -1,0 +1,2992 @@
+This is automatically-generated documentation for the reddit API.
+
+**Please take care to respect our [API access rules](https://support.reddithelp.com/hc/en-us/articles/16160319875092-Reddit-Data-API-Wiki).**
+
+## overview
+
+### listings
+
+Many endpoints on reddit use the same protocol for controlling pagination and
+filtering. These endpoints are called Listings and share five common
+parameters: `after` / `before`, `limit`, `count`, and `show`.
+
+Listings do not use page numbers because their content changes so frequently.
+Instead, they allow you to view slices of the underlying data. Listing JSON
+responses contain `after` and `before` fields which are equivalent to the
+"next" and "prev" buttons on the site and in combination with `count` can be
+used to page through the listing.
+
+The common parameters are as follows:
+
+- `after` / `before` \- only one should be specified. these indicate the
+[fullname](https://www.reddit.com/dev/api/#fullnames) of an item in the listing to use as the anchor point of
+the slice.
+- `limit` \- the maximum number of items to return in this slice of the listing.
+- `count` \- the number of items already seen in this listing. on the html site,
+the builder uses this to determine when to give values for `before` and `after`
+in the response.
+- `show` \- optional parameter; if `all` is passed, filters such as "hide links
+that I have voted on" will be disabled.
+
+To page through a listing, start by fetching the first page without specifying
+values for `after` and `count`. The response will contain an `after` value
+which you can pass in the next request. It is a good idea, but not required, to
+send an updated value for `count` which should be the number of items already
+fetched.
+
+### modhashes
+
+A modhash is a token that the reddit API requires to help prevent
+[CSRF](http://en.wikipedia.org/wiki/CSRF). Modhashes can be obtained via the
+[/api/me.json](https://www.reddit.com/dev/api/#GET_api_me.json) call or in response data of listing endpoints.
+
+The preferred way to send a modhash is to include an `X-Modhash` custom HTTP
+header with your requests.
+
+Modhashes are not required when authenticated with OAuth.
+
+### fullnames
+
+A fullname is a combination of a thing's type (e.g. `Link`) and its unique ID
+which forms a compact encoding of a globally unique ID on reddit.
+
+Fullnames start with the type prefix for the object's type, followed by the
+thing's unique ID in [base 36](http://en.wikipedia.org/wiki/Base36). For
+example, `t3_15bfi0`.
+
+| t1\_ | Comment |
+| t2\_ | Account |
+| t3\_ | Link |
+| t4\_ | Message |
+| t5\_ | Subreddit |
+| t6\_ | Award |
+
+type prefixes
+
+### response body encoding
+
+For legacy reasons, all JSON response bodies currently have `<`, `>`, and `&`
+replaced with `&lt;`, `&gt;`, and `&amp;`, respectively. If you wish to opt out
+of this behaviour, add a `raw_json=1` parameter to your request.
+
+## account
+
+[#](https://www.reddit.com/dev/api/#GET_api_v1_me)
+
+### GET /api/v1/me[identity](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Returns the identity of the user.
+
+[#](https://www.reddit.com/dev/api/#GET_api_v1_me_karma)
+
+### GET /api/v1/me/karma[mysubreddits](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Return a breakdown of subreddit karma.
+
+[#](https://www.reddit.com/dev/api/#GET_api_v1_me_prefs)
+
+### GET /api/v1/me/prefs[identity](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Return the preference settings of the logged in user
+
+| fields | A comma-separated list of items from this set:<br>`threaded_messages`<br>`activity_relevant_ads`<br>`email_messages`<br>`profile_opt_out`<br>`show_link_flair`<br>`show_trending`<br>`country_code`<br>`clickgadget`<br>`use_global_defaults`<br>`enable_reddit_pro_analytics_emails`<br>`live_orangereds`<br>`email_new_user_welcome`<br>`third_party_data_personalized_ads`<br>`email_chat_request`<br>`hide_from_robots`<br>`email_upvote_post`<br>`min_link_score`<br>`nightmode`<br>`enable_default_themes`<br>`third_party_site_data_personalized_ads`<br>`survey_last_seen_time`<br>`email_community_discovery`<br>`collapse_read_messages`<br>`mark_messages_read`<br>`hide_ads`<br>`sms_notifications_enabled`<br>`numsites`<br>`email_private_message`<br>`hide_downs`<br>`hide_ups`<br>`theme_selector`<br>`email_weekly_topic`<br>`ignore_suggested_sort`<br>`research`<br>`label_nsfw`<br>`no_profanity`<br>`email_unsubscribe_all`<br>`whatsapp_enabled`<br>`store_visits`<br>`threaded_modmail`<br>`email_username_mention`<br>`show_gold_expiration`<br>`show_location_based_recommendations`<br>`geopopular`<br>`send_welcome_messages`<br>`highlight_new_comments`<br>`accept_pms`<br>`show_stylesheets`<br>`monitor_mentions`<br>`feed_recommendations_enabled`<br>`domain_details`<br>`over_18`<br>`in_redesign_beta`<br>`media_preview`<br>`enable_followers`<br>`min_comment_score`<br>`public_votes`<br>`email_post_reply`<br>`whatsapp_comment_reply`<br>`search_include_over_18`<br>`newwindow`<br>`default_comment_sort`<br>`email_comment_reply`<br>`video_autoplay`<br>`private_feeds`<br>`email_upvote_comment`<br>`email_digests`<br>`weekly_recap_email`<br>`num_comments`<br>`highlight_controversial`<br>`legacy_search`<br>`bad_comment_autocollapse`<br>`live_bar_recommendations_enabled`<br>`allow_clicktracking`<br>`show_twitter`<br>`compress`<br>`beta`<br>`email_user_new_follower`<br>`third_party_site_data_personalized_content`<br>`lang`<br>`show_flair`<br>`send_crosspost_messages`<br>`third_party_personalized_ads`<br>`top_karma_subreddits`<br>`show_presence`<br>`media` |
+
+[#](https://www.reddit.com/dev/api/#PATCH_api_v1_me_prefs)
+
+### PATCH /api/v1/me/prefs[account](https://github.com/reddit/reddit/wiki/OAuth2)
+
+| This endpoint expects JSON data of this format | ```<br>{<br>  "accept_pms": one of (`everyone`, `whitelisted`),<br>  "activity_relevant_ads": boolean value,<br>  "allow_clicktracking": boolean value,<br>  "bad_comment_autocollapse": one of (`off`, `low`, `medium`, `high`),<br>  "beta": boolean value,<br>  "clickgadget": boolean value,<br>  "collapse_read_messages": boolean value,<br>  "compress": boolean value,<br>  "country_code": one of (`WF`, `JP`, `JM`, `JO`, `WS`, `JE`, `GW`, `GU`, `GT`, `GS`, `GR`, `GQ`, `GP`, `GY`, `GG`, `GF`, `GE`, `GD`, `GB`, `GA`, `GN`, `GM`, `GL`, `GI`, `GH`, `PR`, `PS`, `PW`, `PT`, `PY`, `PA`, `PF`, `PG`, `PE`, `PK`, `PH`, `PN`, `PL`, `PM`, `ZM`, `ZA`, `ZZ`, `ZW`, `ME`, `MD`, `MG`, `MF`, `MA`, `MC`, `MM`, `ML`, `MO`, `MN`, `MH`, `MK`, `MU`, `MT`, `MW`, `MV`, `MQ`, `MP`, `MS`, `MR`, `MY`, `MX`, `MZ`, `FR`, `FI`, `FJ`, `FK`, `FM`, `FO`, `CK`, `CI`, `CH`, `CO`, `CN`, `CM`, `CL`, `CC`, `CA`, `CG`, `CF`, `CD`, `CZ`, `CY`, `CX`, `CR`, `CW`, `CV`, `CU`, `SZ`, `SY`, `SX`, `SS`, `SR`, `SV`, `ST`, `SK`, `SJ`, `SI`, `SH`, `SO`, `SN`, `SM`, `SL`, `SC`, `SB`, `SA`, `SG`, `SE`, `SD`, `YE`, `YT`, `LB`, `LC`, `LA`, `LK`, `LI`, `LV`, `LT`, `LU`, `LR`, `LS`, `LY`, `VA`, `VC`, `VE`, `VG`, `IQ`, `VI`, `IS`, `IR`, `IT`, `VN`, `IM`, `IL`, `IO`, `IN`, `IE`, `ID`, `BD`, `BE`, `BF`, `BG`, `BA`, `BB`, `BL`, `BM`, `BN`, `BO`, `BH`, `BI`, `BJ`, `BT`, `BV`, `BW`, `BQ`, `BR`, `BS`, `BY`, `BZ`, `RU`, `RW`, `RS`, `RE`, `RO`, `OM`, `HR`, `HT`, `HU`, `HK`, `HN`, `HM`, `EH`, `EE`, `EG`, `EC`, `ET`, `ES`, `ER`, `UY`, `UZ`, `US`, `UM`, `UG`, `UA`, `VU`, `NI`, `NL`, `NO`, `NA`, `NC`, `NE`, `NF`, `NG`, `NZ`, `NP`, `NR`, `NU`, `XK`, `XZ`, `XX`, `KG`, `KE`, `KI`, `KH`, `KN`, `KM`, `KR`, `KP`, `KW`, `KZ`, `KY`, `DO`, `DM`, `DJ`, `DK`, `DE`, `DZ`, `TZ`, `TV`, `TW`, `TT`, `TR`, `TN`, `TO`, `TL`, `TM`, `TJ`, `TK`, `TH`, `TF`, `TG`, `TD`, `TC`, `AE`, `AD`, `AG`, `AF`, `AI`, `AM`, `AL`, `AO`, `AN`, `AQ`, `AS`, `AR`, `AU`, `AT`, `AW`, `AX`, `AZ`, `QA`),<br>  "default_comment_sort": one of (`confidence`, `top`, `new`, `controversial`, `old`, `random`, `qa`, `live`),<br>  "domain_details": boolean value,<br>  "email_chat_request": boolean value,<br>  "email_comment_reply": boolean value,<br>  "email_community_discovery": boolean value,<br>  "email_digests": boolean value,<br>  "email_messages": boolean value,<br>  "email_new_user_welcome": boolean value,<br>  "email_post_reply": boolean value,<br>  "email_private_message": boolean value,<br>  "email_unsubscribe_all": boolean value,<br>  "email_upvote_comment": boolean value,<br>  "email_upvote_post": boolean value,<br>  "email_user_new_follower": boolean value,<br>  "email_username_mention": boolean value,<br>  "email_weekly_topic": boolean value,<br>  "enable_default_themes": boolean value,<br>  "enable_followers": boolean value,<br>  "enable_reddit_pro_analytics_emails": boolean value,<br>  "feed_recommendations_enabled": boolean value,<br>  "g": one of (`GLOBAL`, `US`, `AR`, `AU`, `BG`, `CA`, `CL`, `CO`, `HR`, `CZ`, `FI`, `FR`, `DE`, `GR`, `HU`, `IS`, `IN`, `IE`, `IT`, `JP`, `MY`, `MX`, `NZ`, `PH`, `PL`, `PT`, `PR`, `RO`, `RS`, `SG`, `ES`, `SE`, `TW`, `TH`, `TR`, `GB`, `US_WA`, `US_DE`, `US_DC`, `US_WI`, `US_WV`, `US_HI`, `US_FL`, `US_WY`, `US_NH`, `US_NJ`, `US_NM`, `US_TX`, `US_LA`, `US_NC`, `US_ND`, `US_NE`, `US_TN`, `US_NY`, `US_PA`, `US_CA`, `US_NV`, `US_VA`, `US_CO`, `US_AK`, `US_AL`, `US_AR`, `US_VT`, `US_IL`, `US_GA`, `US_IN`, `US_IA`, `US_OK`, `US_AZ`, `US_ID`, `US_CT`, `US_ME`, `US_MD`, `US_MA`, `US_OH`, `US_UT`, `US_MO`, `US_MN`, `US_MI`, `US_RI`, `US_KS`, `US_MT`, `US_MS`, `US_SC`, `US_KY`, `US_OR`, `US_SD`),<br>  "hide_ads": boolean value,<br>  "hide_downs": boolean value,<br>  "hide_from_robots": boolean value,<br>  "hide_ups": boolean value,<br>  "highlight_controversial": boolean value,<br>  "highlight_new_comments": boolean value,<br>  "ignore_suggested_sort": boolean value,<br>  "in_redesign_beta": boolean value,<br>  "label_nsfw": boolean value,<br>  "lang": a valid IETF language tag (underscore separated),<br>  "legacy_search": boolean value,<br>  "live_bar_recommendations_enabled": boolean value,<br>  "live_orangereds": boolean value,<br>  "mark_messages_read": boolean value,<br>  "media": one of (`on`, `off`, `subreddit`),<br>  "media_preview": one of (`on`, `off`, `subreddit`),<br>  "min_comment_score": an integer between -100 and 100,<br>  "min_link_score": an integer between -100 and 100,<br>  "monitor_mentions": boolean value,<br>  "newwindow": boolean value,<br>  "nightmode": boolean value,<br>  "no_profanity": boolean value,<br>  "num_comments": an integer between 1 and 500,<br>  "numsites": an integer between 1 and 100,<br>  "over_18": boolean value,<br>  "private_feeds": boolean value,<br>  "profile_opt_out": boolean value,<br>  "public_votes": boolean value,<br>  "research": boolean value,<br>  "search_include_over_18": boolean value,<br>  "send_crosspost_messages": boolean value,<br>  "send_welcome_messages": boolean value,<br>  "show_flair": boolean value,<br>  "show_gold_expiration": boolean value,<br>  "show_link_flair": boolean value,<br>  "show_location_based_recommendations": boolean value,<br>  "show_presence": boolean value,<br>  "show_stylesheets": boolean value,<br>  "show_trending": boolean value,<br>  "show_twitter": boolean value,<br>  "sms_notifications_enabled": boolean value,<br>  "store_visits": boolean value,<br>  "survey_last_seen_time": an integer,<br>  "theme_selector": subreddit name,<br>  "third_party_data_personalized_ads": boolean value,<br>  "third_party_personalized_ads": boolean value,<br>  "third_party_site_data_personalized_ads": boolean value,<br>  "third_party_site_data_personalized_content": boolean value,<br>  "threaded_messages": boolean value,<br>  "threaded_modmail": boolean value,<br>  "top_karma_subreddits": boolean value,<br>  "use_global_defaults": boolean value,<br>  "video_autoplay": boolean value,<br>  "weekly_recap_email": boolean value,<br>  "whatsapp_comment_reply": boolean value,<br>  "whatsapp_enabled": boolean value,<br>}<br>``` |
+
+[#](https://www.reddit.com/dev/api/#GET_api_v1_me_trophies)
+
+### GET /api/v1/me/trophies[identity](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Return a list of trophies for the current user.
+
+[#](https://www.reddit.com/dev/api/#GET_prefs_{where})
+
+### GET /prefs/ _where_ [read](https://github.com/reddit/reddit/wiki/OAuth2) [rss support](https://www.reddit.com/wiki/rss)
+
+- → /prefs/friends
+- → /prefs/blocked
+- → /prefs/messaging
+- → /prefs/trusted
+- → /api/v1/me/friends
+- → /api/v1/me/blocked
+
+_This endpoint is [a listing](https://www.reddit.com/dev/api/#listings)._
+
+| after | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| before | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| count | a positive integer (default: 0) |
+| limit | the maximum number of items desired (default: 25, maximum: 100) |
+| show | (optional) the string `all` |
+| sr\_detail | (optional) expand subreddits |
+
+## announcements
+
+[#](https://www.reddit.com/dev/api/#GET_api_announcements_v1)
+
+### GET /api/announcements/v1[announcements](https://github.com/reddit/reddit/wiki/OAuth2)
+
+- → /api/announcements/v1/unread
+
+Fetch announcements from Reddit.
+
+| after | (beta) fullname of an announcement, prefixed `ann_` |
+| before | (beta) fullname of an announcement, prefixed `ann_` |
+| limit | an integer between 1 and 100 |
+
+[#](https://www.reddit.com/dev/api/#POST_api_announcements_v1_hide)
+
+### POST /api/announcements/v1/hide[announcements](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Accepts a list of announcement fullnames (`ann_`)
+and marks them hidden if they belong to the authenticated user
+
+| ids | (beta) comma separated list of announcement fullnames, prefixed `ann_` |
+
+[#](https://www.reddit.com/dev/api/#POST_api_announcements_v1_read)
+
+### POST /api/announcements/v1/read[announcements](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Accepts a list of announcement fullnames (`ann_`)
+and marks them read if they belong to the authenticated user
+
+| ids | (beta) comma separated list of announcement fullnames, prefixed `ann_` |
+
+[#](https://www.reddit.com/dev/api/#POST_api_announcements_v1_read_all)
+
+### POST /api/announcements/v1/read\_all[announcements](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Marks all unread announcements as read for the authenticated user
+
+## captcha
+
+[#](https://www.reddit.com/dev/api/#GET_api_needs_captcha)
+
+### GET /api/needs\_captcha[any](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Check whether ReCAPTCHAs are needed for API methods
+
+## emoji
+
+[#](https://www.reddit.com/dev/api/#POST_api_v1_{subreddit}_emoji.json)
+
+### POST /api/v1/ _subreddit_/emoji.json[structuredstyles](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Add an emoji to the DB by posting a message on emoji\_upload\_q.
+A job processor that listens on a queue, uses the s3\_key provided
+in the request to locate the image in S3 Temp Bucket and moves it
+to the PERM bucket. It also adds it to the DB using name as the column
+and sr\_fullname as the key and sends the status on the websocket URL
+that is provided as part of this response.
+
+This endpoint should also be used to update custom subreddit emojis
+with new images. If only the permissions on an emoji require updating
+the POST\_emoji\_permissions endpoint should be requested, instead.
+
+| mod\_flair\_only | boolean value |
+| name | Name of the emoji to be created. It can be alphanumeric without any special characters except '-' & '\_' and cannot exceed 24 characters. |
+| post\_flair\_allowed | boolean value |
+| s3\_key | S3 key of the uploaded image which can be obtained from the S3 url. This is of the form subreddit/hash\_value. |
+| user\_flair\_allowed | boolean value |
+
+[#](https://www.reddit.com/dev/api/#DELETE_api_v1_{subreddit}_emoji_{emoji_name})
+
+### DELETE /api/v1/ _subreddit_/emoji/ _emoji\_name_ [structuredstyles](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Delete a Subreddit emoji.
+Remove the emoji from Cassandra and purge the assets from S3
+and the image resizing provider.
+
+[#](https://www.reddit.com/dev/api/#POST_api_v1_{subreddit}_emoji_asset_upload_s3.json)
+
+### POST /api/v1/ _subreddit_/emoji\_asset\_upload\_s3.json[structuredstyles](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Acquire and return an upload lease to s3 temp bucket. The return value
+of this function is a json object containing credentials for uploading
+assets to S3 bucket, S3 url for upload request and the key to use for
+uploading. Using this lease the client will upload the emoji image to
+S3 temp bucket (included as part of the S3 URL).
+
+This lease is used by S3 to verify that the upload is authorized.
+
+| filepath | name and extension of the image file e.g. image1.png |
+| mimetype | mime type of the image e.g. image/png |
+
+[#](https://www.reddit.com/dev/api/#POST_api_v1_{subreddit}_emoji_custom_size)
+
+### POST /api/v1/ _subreddit_/emoji\_custom\_size[structuredstyles](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Set custom emoji size.
+
+Omitting width or height will disable custom emoji sizing.
+
+| height | an integer between 1 and 40 (default: 0) |
+| width | an integer between 1 and 40 (default: 0) |
+
+[#](https://www.reddit.com/dev/api/#GET_api_v1_{subreddit}_emojis_all)
+
+### GET /api/v1/ _subreddit_/emojis/all[read](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Get all emojis for a SR. The response includes snoomojis
+as well as emojis for the SR specified in the request.
+
+The response has 2 keys:
+\- snoomojis
+\- SR emojis
+
+## flair
+
+[#](https://www.reddit.com/dev/api/#POST_api_clearflairtemplates)
+
+### POST \[/r/ _subreddit_\]/api/clearflairtemplates[modflair](https://github.com/reddit/reddit/wiki/OAuth2)
+
+| api\_type | the string `json` |
+| flair\_type | one of (`USER_FLAIR`, `LINK_FLAIR`) |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_deleteflair)
+
+### POST \[/r/ _subreddit_\]/api/deleteflair[modflair](https://github.com/reddit/reddit/wiki/OAuth2)
+
+| api\_type | the string `json` |
+| name | a user by name |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_deleteflairtemplate)
+
+### POST \[/r/ _subreddit_\]/api/deleteflairtemplate[modflair](https://github.com/reddit/reddit/wiki/OAuth2)
+
+| api\_type | the string `json` |
+| flair\_template\_id |  |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_flair)
+
+### POST \[/r/ _subreddit_\]/api/flair[modflair](https://github.com/reddit/reddit/wiki/OAuth2)
+
+| api\_type | the string `json` |
+| css\_class | a valid subreddit image name |
+| link | a [fullname](https://www.reddit.com/dev/api/#fullname) of a link |
+| name | a user by name |
+| text | a string no longer than 64 characters |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#PATCH_api_flair_template_order)
+
+### PATCH \[/r/ _subreddit_\]/api/flair\_template\_order[modflair](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Update the order of flair templates in the specified subreddit.
+
+Order should contain every single flair id for that flair type; omitting
+any id will result in a loss of data.
+
+| flair\_type | one of (`USER_FLAIR`, `LINK_FLAIR`) |
+| subreddit | subreddit name |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_flairconfig)
+
+### POST \[/r/ _subreddit_\]/api/flairconfig[modflair](https://github.com/reddit/reddit/wiki/OAuth2)
+
+| api\_type | the string `json` |
+| flair\_enabled | boolean value |
+| flair\_position | one of (`left`, `right`) |
+| flair\_self\_assign\_enabled | boolean value |
+| link\_flair\_position | one of (\``,`left`,`right\`) |
+| link\_flair\_self\_assign\_enabled | boolean value |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_flaircsv)
+
+### POST \[/r/ _subreddit_\]/api/flaircsv[modflair](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Change the flair of multiple users in the same subreddit with a
+single API call.
+
+Requires a string 'flair\_csv' which has up to 100 lines of the form
+'`user`,`flairtext`,`cssclass`' (Lines beyond the 100th are ignored).
+
+If both `cssclass` and `flairtext` are the empty string for a given
+`user`, instead clears that user's flair.
+
+Returns an array of objects indicating if each flair setting was
+applied, or a reason for the failure.
+
+| flair\_csv | comma-seperated flair information |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#GET_api_flairlist)
+
+### GET \[/r/ _subreddit_\]/api/flairlist[modflair](https://github.com/reddit/reddit/wiki/OAuth2)
+
+_This endpoint is [a listing](https://www.reddit.com/dev/api/#listings)._
+
+| after | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| before | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| count | a positive integer (default: 0) |
+| limit | the maximum number of items desired (default: 25, maximum: 1000) |
+| name | a user by name |
+| show | (optional) the string `all` |
+| sr\_detail | (optional) expand subreddits |
+
+[#](https://www.reddit.com/dev/api/#POST_api_flairselector)
+
+### POST \[/r/ _subreddit_\]/api/flairselector[flair](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Return information about a users's flair options.
+
+If `link` is given, return link flair options for an existing link.
+If `is_newlink` is True, return link flairs options for a new link submission.
+Otherwise, return user flair options for this subreddit.
+
+The logged in user's flair is also returned.
+Subreddit moderators may give a user by `name` to instead
+retrieve that user's flair.
+
+| is\_newlink | boolean value |
+| link | a [fullname](https://www.reddit.com/dev/api/#fullname) of a link |
+| name | a user by name |
+
+[#](https://www.reddit.com/dev/api/#POST_api_flairtemplate)
+
+### POST \[/r/ _subreddit_\]/api/flairtemplate[modflair](https://github.com/reddit/reddit/wiki/OAuth2)
+
+| api\_type | the string `json` |
+| css\_class | a valid subreddit image name |
+| flair\_template\_id |  |
+| flair\_type | one of (`USER_FLAIR`, `LINK_FLAIR`) |
+| text | a string no longer than 64 characters |
+| text\_editable | boolean value |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_flairtemplate_v2)
+
+### POST \[/r/ _subreddit_\]/api/flairtemplate\_v2[modflair](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Create or update a flair template.
+
+This new endpoint is primarily used for the redesign.
+
+| allowable\_content | one of (`all`, `emoji`, `text`) |
+| api\_type | the string `json` |
+| background\_color | a 6-digit rgb hex color, e.g. `#AABBCC` |
+| css\_class | a valid subreddit image name |
+| flair\_template\_id |  |
+| flair\_type | one of (`USER_FLAIR`, `LINK_FLAIR`) |
+| max\_emojis | an integer between 1 and 10 (default: 10) |
+| mod\_only | boolean value |
+| override\_css |  |
+| text | a string no longer than 64 characters |
+| text\_color | one of (`light`, `dark`) |
+| text\_editable | boolean value |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#GET_api_link_flair)
+
+### GET \[/r/ _subreddit_\]/api/link\_flair[flair](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Return list of available link flair for the current subreddit.
+
+Will not return flair if the user cannot set their own link flair and
+they are not a moderator that can set flair.
+
+[#](https://www.reddit.com/dev/api/#GET_api_link_flair_v2)
+
+### GET \[/r/ _subreddit_\]/api/link\_flair\_v2[flair](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Return list of available link flair for the current subreddit.
+
+Will not return flair if the user cannot set their own link flair and
+they are not a moderator that can set flair.
+
+[#](https://www.reddit.com/dev/api/#POST_api_selectflair)
+
+### POST \[/r/ _subreddit_\]/api/selectflair[flair](https://github.com/reddit/reddit/wiki/OAuth2)
+
+| api\_type | the string `json` |
+| background\_color | a 6-digit rgb hex color, e.g. `#AABBCC` |
+| css\_class | a valid subreddit image name |
+| flair\_template\_id |  |
+| link | a [fullname](https://www.reddit.com/dev/api/#fullname) of a link |
+| name | a user by name |
+| return\_rtson | \[all\|only\|none\]: "all" saves attributes and returns rtjson "only" only returns rtjson"none" only saves attributes |
+| text | a string no longer than 64 characters |
+| text\_color | one of (`light`, `dark`) |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_setflairenabled)
+
+### POST \[/r/ _subreddit_\]/api/setflairenabled[flair](https://github.com/reddit/reddit/wiki/OAuth2)
+
+| api\_type | the string `json` |
+| flair\_enabled | boolean value |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#GET_api_user_flair)
+
+### GET \[/r/ _subreddit_\]/api/user\_flair[flair](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Return list of available user flair for the current subreddit.
+
+Will not return flair if flair is disabled on the subreddit,
+the user cannot set their own flair, or they are not a moderator
+that can set flair.
+
+[#](https://www.reddit.com/dev/api/#GET_api_user_flair_v2)
+
+### GET \[/r/ _subreddit_\]/api/user\_flair\_v2[flair](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Return list of available user flair for the current subreddit.
+
+If user is not a mod of the subreddit, this endpoint filters
+out mod\_only templates.
+
+## links & comments
+
+[#](https://www.reddit.com/dev/api/#POST_api_comment)
+
+### POST /api/comment[any](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Submit a new comment or reply to a message.
+
+`parent` is the fullname of the thing being replied to. Its value
+changes the kind of object created by this request:
+
+- the fullname of a Link: a top-level comment in that Link's thread. (requires `submit` scope)
+- the fullname of a Comment: a comment reply to that comment. (requires `submit` scope)
+- the fullname of a Message: a message reply to that message. (requires `privatemessages` scope)
+
+`text` should be the raw markdown body of the comment or message.
+
+To start a new message thread, use [/api/compose](https://www.reddit.com/dev/api/#POST_api_compose).
+
+| api\_type | the string `json` |
+| recaptcha\_token | a string |
+| return\_rtjson | boolean value |
+| richtext\_json | JSON data |
+| text | raw markdown text |
+| thing\_id | [fullname](https://www.reddit.com/dev/api/#fullnames) of parent thing |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+| video\_poster\_url | a string |
+
+[#](https://www.reddit.com/dev/api/#POST_api_del)
+
+### POST /api/del[edit](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Delete a Link or Comment.
+
+| id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing created by the user |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_editusertext)
+
+### POST /api/editusertext[edit](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Edit the body text of a comment or self-post.
+
+| api\_type | the string `json` |
+| return\_rtjson | boolean value |
+| richtext\_json | JSON data |
+| text | raw markdown text |
+| thing\_id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+| video\_poster\_url | a string |
+
+[#](https://www.reddit.com/dev/api/#POST_api_follow_post)
+
+### POST /api/follow\_post[subscribe](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Follow or unfollow a post.
+
+To follow, `follow` should be True. To unfollow, `follow` should
+be False. The user must have access to the subreddit to be able to
+follow a post within it.
+
+| follow | boolean: True to follow or False to unfollow |
+| fullname | [fullname](https://www.reddit.com/dev/api/#fullnames) of a link |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_hide)
+
+### POST /api/hide[report](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Hide a link.
+
+This removes it from the user's default view of subreddit listings.
+
+See also: [/api/unhide](https://www.reddit.com/dev/api/#POST_api_unhide).
+
+| id | A comma-separated list of link [fullnames](https://www.reddit.com/dev/api/#fullnames) |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#GET_api_info)
+
+### GET \[/r/ _subreddit_\]/api/info[read](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Return a listing of things specified by their fullnames.
+
+Only Links, Comments, and Subreddits are allowed.
+
+| id | A comma-separated list of thing [fullnames](https://www.reddit.com/dev/api/#fullnames) |
+| sr\_name | comma-delimited list of subreddit names |
+| url | a valid URL |
+
+[#](https://www.reddit.com/dev/api/#POST_api_lock)
+
+### POST /api/lock[modposts](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Lock a link or comment.
+
+Prevents a post or new child comments from receiving new comments.
+
+See also: [/api/unlock](https://www.reddit.com/dev/api/#POST_api_unlock).
+
+| id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_marknsfw)
+
+### POST /api/marknsfw[modposts](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Mark a link NSFW.
+
+See also: [/api/unmarknsfw](https://www.reddit.com/dev/api/#POST_api_unmarknsfw).
+
+| id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#GET_api_morechildren)
+
+### GET /api/morechildren[read](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Retrieve additional comments omitted from a base comment tree.
+
+When a comment tree is rendered, the most relevant comments are
+selected for display first. Remaining comments are stubbed out with
+"MoreComments" links. This API call is used to retrieve the additional
+comments represented by those stubs, up to 100 at a time.
+
+The two core parameters required are `link` and `children`. `link` is
+the fullname of the link whose comments are being fetched. `children`
+is a comma-delimited list of comment ID36s that need to be fetched.
+
+If `id` is passed, it should be the ID of the MoreComments object this
+call is replacing. This is needed only for the HTML UI's purposes and
+is optional otherwise.
+
+**NOTE:** you may only make one request at a time to this API endpoint.
+Higher concurrency will result in an error being returned.
+
+If `limit_children` is True, only return the children requested.
+
+`depth` is the maximum depth of subtrees in the thread.
+
+| api\_type | the string `json` |
+| children |  |
+| depth | (optional) an integer |
+| id | (optional) id of the associated MoreChildren object |
+| limit\_children | boolean value |
+| link\_id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a link |
+| sort | one of (`confidence`, `top`, `new`, `controversial`, `old`, `random`, `qa`, `live`) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_report)
+
+### POST /api/report[report](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Report a link, comment or message.
+Reporting a thing brings it to the attention of the subreddit's
+moderators. Reporting a message sends it to a system for admin review.
+For links and comments, the thing is implicitly hidden as well (see
+[/api/hide](https://www.reddit.com/dev/api/#POST_api_hide) for details).
+
+See [/r/{subreddit}/about/rules](https://www.reddit.com/dev/api/#GET_r_%7Bsubreddit%7D_about_rules) for
+for more about subreddit rules, and [/r/{subreddit}/about](https://www.reddit.com/dev/api/#GET_r_%7Bsubreddit%7D_about)
+for more about `free_form_reports`.
+
+| additional\_info | a string no longer than 2000 characters |
+| api\_type | the string `json` |
+| custom\_text | a string no longer than 2000 characters |
+| from\_help\_desk | boolean value |
+| from\_modmail | boolean value |
+| modmail\_conv\_id | base36 modmail conversation id |
+| other\_reason | a string no longer than 100 characters |
+| reason | a string no longer than 100 characters |
+| rule\_reason | a string no longer than 100 characters |
+| site\_reason | a string no longer than 100 characters |
+| sr\_name | a string no longer than 1000 characters |
+| thing\_id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+| usernames | A comma-separated list of items |
+
+[#](https://www.reddit.com/dev/api/#POST_api_save)
+
+### POST /api/save[save](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Save a link or comment.
+
+Saved things are kept in the user's saved listing for later perusal.
+
+See also: [/api/unsave](https://www.reddit.com/dev/api/#POST_api_unsave).
+
+| category | a category name |
+| id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#GET_api_saved_categories)
+
+### GET /api/saved\_categories[save](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Get a list of categories in which things are currently saved.
+
+See also: [/api/save](https://www.reddit.com/dev/api/#POST_api_save).
+
+[#](https://www.reddit.com/dev/api/#POST_api_sendreplies)
+
+### POST /api/sendreplies[edit](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Enable or disable inbox replies for a link or comment.
+
+`state` is a boolean that indicates whether you are enabling or
+disabling inbox replies - true to enable, false to disable.
+
+| id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing created by the user |
+| state | boolean value |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_set_contest_mode)
+
+### POST /api/set\_contest\_mode[modposts](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Set or unset "contest mode" for a link's comments.
+
+`state` is a boolean that indicates whether you are enabling or
+disabling contest mode - true to enable, false to disable.
+
+| api\_type | the string `json` |
+| id |  |
+| state | boolean value |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_set_subreddit_sticky)
+
+### POST /api/set\_subreddit\_sticky[modposts](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Set or unset a Link as the sticky in its subreddit.
+
+`state` is a boolean that indicates whether to sticky or unsticky
+this post - true to sticky, false to unsticky.
+
+The `num` argument is optional, and only used when stickying a post.
+It allows specifying a particular "slot" to sticky the post into, and
+if there is already a post stickied in that slot it will be replaced.
+If there is no post in the specified slot to replace, or `num` is None,
+the bottom-most slot will be used.
+
+| api\_type | the string `json` |
+| id |  |
+| num | an integer between 1 and 4 |
+| state | boolean value |
+| to\_profile | boolean value |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_set_suggested_sort)
+
+### POST /api/set\_suggested\_sort[modposts](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Set a suggested sort for a link.
+
+Suggested sorts are useful to display comments in a certain preferred way
+for posts. For example, casual conversation may be better sorted by new
+by default, or AMAs may be sorted by Q&A. A sort of an empty string
+clears the default sort.
+
+| api\_type | the string `json` |
+| id |  |
+| sort | one of (`confidence`, `top`, `new`, `controversial`, `old`, `random`, `qa`, `live`, `blank`) |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_spoiler)
+
+### POST /api/spoiler[modposts](https://github.com/reddit/reddit/wiki/OAuth2)
+
+| id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a link |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_store_visits)
+
+### POST /api/store\_visits[save](https://github.com/reddit/reddit/wiki/OAuth2)
+
+_Requires a subscription to [reddit premium](https://www.reddit.com/premium)_
+
+| links | A comma-separated list of link [fullnames](https://www.reddit.com/dev/api/#fullnames) |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_submit)
+
+### POST /api/submit[submit](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Submit a link to a subreddit.
+
+Submit will create a link or self-post in the subreddit `sr` with the
+title `title`. If `kind` is `"link"`, then `url` is expected to be a
+valid URL to link to. Otherwise, `text`, if present, will be the
+body of the self-post unless `richtext_json` is present, in which case
+it will be converted into the body of the self-post. An error is thrown
+if both `text` and `richtext_json` are present.
+
+`extension` is used for determining which view-type (e.g. `json`,
+`compact` etc.) to use for the redirect that is generated after submit.
+
+| ad | boolean value |
+| api\_type | the string `json` |
+| app |  |
+| collection\_id | (beta) the UUID of a collection |
+| extension | extension used for redirects |
+| flair\_id | a string no longer than 36 characters |
+| flair\_text | a string no longer than 64 characters |
+| g-recaptcha-response |  |
+| kind | one of (`link`, `self`, `image`, `video`, `videogif`) |
+| nsfw | boolean value |
+| post\_set\_default\_post\_id | a string |
+| post\_set\_id | a string |
+| recaptcha\_token | a string |
+| resubmit | boolean value |
+| richtext\_json | JSON data |
+| sendreplies | boolean value |
+| spoiler | boolean value |
+| sr | subreddit name |
+| text | raw markdown text |
+| title | title of the submission. up to 300 characters long |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+| url | a valid URL |
+| video\_poster\_url | a valid URL |
+
+[#](https://www.reddit.com/dev/api/#POST_api_unhide)
+
+### POST /api/unhide[report](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Unhide a link.
+
+See also: [/api/hide](https://www.reddit.com/dev/api/#POST_api_hide).
+
+| id | A comma-separated list of link [fullnames](https://www.reddit.com/dev/api/#fullnames) |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_unlock)
+
+### POST /api/unlock[modposts](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Unlock a link or comment.
+
+Allow a post or comment to receive new comments.
+
+See also: [/api/lock](https://www.reddit.com/dev/api/#POST_api_lock).
+
+| id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_unmarknsfw)
+
+### POST /api/unmarknsfw[modposts](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Remove the NSFW marking from a link.
+
+See also: [/api/marknsfw](https://www.reddit.com/dev/api/#POST_api_marknsfw).
+
+| id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_unsave)
+
+### POST /api/unsave[save](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Unsave a link or comment.
+
+This removes the thing from the user's saved listings as well.
+
+See also: [/api/save](https://www.reddit.com/dev/api/#POST_api_save).
+
+| id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_unspoiler)
+
+### POST /api/unspoiler[modposts](https://github.com/reddit/reddit/wiki/OAuth2)
+
+| id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a link |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_vote)
+
+### POST /api/vote[vote](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Cast a vote on a thing.
+
+`id` should be the fullname of the Link or Comment to vote on.
+
+`dir` indicates the direction of the vote. Voting `1` is an upvote,
+`-1` is a downvote, and `0` is equivalent to "un-voting" by clicking
+again on a highlighted arrow.
+
+**Note: votes must be cast by humans.** That is, API clients proxying a
+human's action one-for-one are OK, but bots deciding how to vote on
+content or amplifying a human's vote are not. See [the reddit\\
+rules](https://www.reddit.com/rules) for more details on what constitutes vote cheating.
+
+| dir | vote direction. one of (1, 0, -1) |
+| id |  |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+## listings
+
+[#](https://www.reddit.com/dev/api/#GET_best)
+
+### GET /best[read](https://github.com/reddit/reddit/wiki/OAuth2) [rss support](https://www.reddit.com/wiki/rss)
+
+_This endpoint is [a listing](https://www.reddit.com/dev/api/#listings)._
+
+| after | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| before | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| count | a positive integer (default: 0) |
+| limit | the maximum number of items desired (default: 25, maximum: 100) |
+| show | (optional) the string `all` |
+| sr\_detail | (optional) expand subreddits |
+
+[#](https://www.reddit.com/dev/api/#GET_by_id_{names})
+
+### GET /by\_id/ _names_ [read](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Get a listing of links by fullname.
+
+`names` is a list of fullnames for links separated by commas or spaces.
+
+| names | A comma-separated list of link [fullnames](https://www.reddit.com/dev/api/#fullnames) |
+
+[#](https://www.reddit.com/dev/api/#GET_comments_{article})
+
+### GET \[/r/ _subreddit_\]/comments/ _article_ [read](https://github.com/reddit/reddit/wiki/OAuth2) [rss support](https://www.reddit.com/wiki/rss)
+
+Get the comment tree for a given Link `article`.
+
+If supplied, `comment` is the ID36 of a comment in the comment tree for
+`article`. This comment will be the (highlighted) focal point of the
+returned view and `context` will be the number of parents shown.
+
+`depth` is the maximum depth of subtrees in the thread.
+
+`limit` is the maximum number of comments to return.
+
+See also: [/api/morechildren](https://www.reddit.com/dev/api/#GET_api_morechildren) and
+[/api/comment](https://www.reddit.com/dev/api/#POST_api_comment).
+
+| article | ID36 of a link |
+| comment | (optional) ID36 of a comment |
+| context | an integer between 0 and 8 |
+| depth | (optional) an integer |
+| limit | (optional) an integer |
+| showedits | boolean value |
+| showmedia | boolean value |
+| showmore | boolean value |
+| showtitle | boolean value |
+| sort | one of (`confidence`, `top`, `new`, `controversial`, `old`, `random`, `qa`, `live`) |
+| sr\_detail | (optional) expand subreddits |
+| theme | one of (`default`, `dark`) |
+| threaded | boolean value |
+| truncate | an integer between 0 and 50 |
+
+[#](https://www.reddit.com/dev/api/#GET_duplicates_{article})
+
+### GET /duplicates/ _article_ [read](https://github.com/reddit/reddit/wiki/OAuth2) [rss support](https://www.reddit.com/wiki/rss)
+
+Return a list of other submissions of the same URL
+
+_This endpoint is [a listing](https://www.reddit.com/dev/api/#listings)._
+
+| after | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| article | The base 36 ID of a Link |
+| before | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| count | a positive integer (default: 0) |
+| crossposts\_only | boolean value |
+| limit | the maximum number of items desired (default: 25, maximum: 100) |
+| show | (optional) the string `all` |
+| sort | one of (`num_comments`, `new`) |
+| sr | subreddit name |
+| sr\_detail | (optional) expand subreddits |
+
+[#](https://www.reddit.com/dev/api/#GET_hot)
+
+### GET \[/r/ _subreddit_\]/hot[read](https://github.com/reddit/reddit/wiki/OAuth2) [rss support](https://www.reddit.com/wiki/rss)
+
+_This endpoint is [a listing](https://www.reddit.com/dev/api/#listings)._
+
+| g | one of (`GLOBAL`, `US`, `AR`, `AU`, `BG`, `CA`, `CL`, `CO`, `HR`, `CZ`, `FI`, `FR`, `DE`, `GR`, `HU`, `IS`, `IN`, `IE`, `IT`, `JP`, `MY`, `MX`, `NZ`, `PH`, `PL`, `PT`, `PR`, `RO`, `RS`, `SG`, `ES`, `SE`, `TW`, `TH`, `TR`, `GB`, `US_WA`, `US_DE`, `US_DC`, `US_WI`, `US_WV`, `US_HI`, `US_FL`, `US_WY`, `US_NH`, `US_NJ`, `US_NM`, `US_TX`, `US_LA`, `US_NC`, `US_ND`, `US_NE`, `US_TN`, `US_NY`, `US_PA`, `US_CA`, `US_NV`, `US_VA`, `US_CO`, `US_AK`, `US_AL`, `US_AR`, `US_VT`, `US_IL`, `US_GA`, `US_IN`, `US_IA`, `US_OK`, `US_AZ`, `US_ID`, `US_CT`, `US_ME`, `US_MD`, `US_MA`, `US_OH`, `US_UT`, `US_MO`, `US_MN`, `US_MI`, `US_RI`, `US_KS`, `US_MT`, `US_MS`, `US_SC`, `US_KY`, `US_OR`, `US_SD`) |
+| after | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| before | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| count | a positive integer (default: 0) |
+| limit | the maximum number of items desired (default: 25, maximum: 100) |
+| show | (optional) the string `all` |
+| sr\_detail | (optional) expand subreddits |
+
+[#](https://www.reddit.com/dev/api/#GET_new)
+
+### GET \[/r/ _subreddit_\]/new[read](https://github.com/reddit/reddit/wiki/OAuth2) [rss support](https://www.reddit.com/wiki/rss)
+
+_This endpoint is [a listing](https://www.reddit.com/dev/api/#listings)._
+
+| after | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| before | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| count | a positive integer (default: 0) |
+| limit | the maximum number of items desired (default: 25, maximum: 100) |
+| show | (optional) the string `all` |
+| sr\_detail | (optional) expand subreddits |
+
+[#](https://www.reddit.com/dev/api/#GET_rising)
+
+### GET \[/r/ _subreddit_\]/rising[read](https://github.com/reddit/reddit/wiki/OAuth2) [rss support](https://www.reddit.com/wiki/rss)
+
+_This endpoint is [a listing](https://www.reddit.com/dev/api/#listings)._
+
+| after | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| before | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| count | a positive integer (default: 0) |
+| limit | the maximum number of items desired (default: 25, maximum: 100) |
+| show | (optional) the string `all` |
+| sr\_detail | (optional) expand subreddits |
+
+[#](https://www.reddit.com/dev/api/#GET_{sort})
+
+### GET \[/r/ _subreddit_\]/ _sort_ [read](https://github.com/reddit/reddit/wiki/OAuth2) [rss support](https://www.reddit.com/wiki/rss)
+
+- → \[/r/ _subreddit_\]/top
+- → \[/r/ _subreddit_\]/controversial
+
+_This endpoint is [a listing](https://www.reddit.com/dev/api/#listings)._
+
+| t | one of (`hour`, `day`, `week`, `month`, `year`, `all`) |
+| after | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| before | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| count | a positive integer (default: 0) |
+| limit | the maximum number of items desired (default: 25, maximum: 100) |
+| show | (optional) the string `all` |
+| sr\_detail | (optional) expand subreddits |
+
+## live threads
+
+Real-time updates on reddit.
+
+In addition to the standard reddit API, WebSockets play a huge role in reddit
+live. Receiving push notification of changes to the thread via websockets is
+much better than polling the thread repeatedly.
+
+To connect to the websocket server, fetch
+[/live/ _thread_/about.json](https://www.reddit.com/dev/api/#GET_live_%7Bthread%7D_about.json) and get the
+`websocket_url` field. The websocket URL expires after a period of time; if it
+does, fetch a new one from that endpoint.
+
+Once connected to the socket, a variety of messages can come in. All messages
+will be in text frames containing a JSON object with two keys: `type` and
+`payload`. Live threads can send messages with many `type`s:
+
+- `update` \- a new update has been posted in the thread. the `payload` contains
+the JSON representation of the update.
+- `activity` \- periodic update of the viewer counts for the thread.
+- `settings` \- the thread's settings have changed. the `payload` is an object
+with each key being a property of the thread (as in `about.json`) and its new
+value.
+- `delete` \- an update has been deleted (removed from the thread).
+the `payload` is the ID of the deleted update.
+- `strike` \- an update has been stricken (marked incorrect and crossed out).
+the `payload` is the ID of the stricken update.
+- `embeds_ready` \- a previously posted update has been parsed and embedded
+media is available for it now. the `payload` contains a `liveupdate_id` and
+list of `embeds` to add to it.
+- `complete` \- the thread has been marked complete. no further updates will
+be sent.
+
+See [/r/live](https://www.reddit.com/r/live) for more information.
+
+[#](https://www.reddit.com/dev/api/#GET_api_live_by_id_{names})
+
+### GET /api/live/by\_id/ _names_ [read](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Get a listing of live events by id.
+
+| names | a comma-delimited list of live thread fullnames or IDs |
+
+[#](https://www.reddit.com/dev/api/#POST_api_live_create)
+
+### POST /api/live/create[submit](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Create a new live thread.
+
+Once created, the initial settings can be modified with
+[/api/live/ _thread_/edit](https://www.reddit.com/dev/api/#POST_api_live_%7Bthread%7D_edit) and new updates
+can be posted with
+[/api/live/ _thread_/update](https://www.reddit.com/dev/api/#POST_api_live_%7Bthread%7D_update).
+
+| api\_type | the string `json` |
+| description | raw markdown text |
+| nsfw | boolean value |
+| resources | raw markdown text |
+| title | a string no longer than 120 characters |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#GET_api_live_happening_now)
+
+### GET /api/live/happening\_now[read](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Get some basic information about the currently featured live thread.
+
+Returns an empty 204 response for api requests if no thread is currently featured.
+
+See also: [/api/live/ _thread_/about](https://www.reddit.com/dev/api/#GET_api_live_%7Bthread%7D_about).
+
+| show\_announcements | boolean value |
+
+[#](https://www.reddit.com/dev/api/#POST_api_live_{thread}_accept_contributor_invite)
+
+### POST /api/live/ _thread_/accept\_contributor\_invite[livemanage](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Accept a pending invitation to contribute to the thread.
+
+See also: [/api/live/ _thread_/leave\_contributor](https://www.reddit.com/dev/api/#POST_api_live_%7Bthread%7D_leave_contributor).
+
+| api\_type | the string `json` |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_live_{thread}_close_thread)
+
+### POST /api/live/ _thread_/close\_thread[livemanage](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Permanently close the thread, disallowing future updates.
+
+Requires the `close` permission for this thread.
+
+| api\_type | the string `json` |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_live_{thread}_delete_update)
+
+### POST /api/live/ _thread_/delete\_update[edit](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Delete an update from the thread.
+
+Requires that specified update must have been authored by the user or
+that you have the `edit` permission for this thread.
+
+See also: [/api/live/ _thread_/update](https://www.reddit.com/dev/api/#POST_api_live_%7Bthread%7D_update).
+
+| api\_type | the string `json` |
+| id | the ID of a single update. e.g. `LiveUpdate_ff87068e-a126-11e3-9f93-12313b0b3603` |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_live_{thread}_edit)
+
+### POST /api/live/ _thread_/edit[livemanage](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Configure the thread.
+
+Requires the `settings` permission for this thread.
+
+See also: [/live/ _thread_/about.json](https://www.reddit.com/dev/api/#GET_live_%7Bthread%7D_about.json).
+
+| api\_type | the string `json` |
+| description | raw markdown text |
+| nsfw | boolean value |
+| resources | raw markdown text |
+| title | a string no longer than 120 characters |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_live_{thread}_hide_discussion)
+
+### POST /api/live/ _thread_/hide\_discussion[livemanage](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Hide a linked comment thread from the discussions sidebar and listing.
+
+Requires the `discussions` permission for this thread.
+
+See also: [/api/live/ _thread_/unhide\_discussion](https://www.reddit.com/dev/api/#POST_api_live_%7Bthread%7D_unhide_discussion).
+
+| api\_type | the string `json` |
+| link | The base 36 ID of a Link |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_live_{thread}_invite_contributor)
+
+### POST /api/live/ _thread_/invite\_contributor[livemanage](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Invite another user to contribute to the thread.
+
+Requires the `manage` permission for this thread. If the recipient
+accepts the invite, they will be granted the permissions specified.
+
+See also: [/api/live/ _thread_/accept\_contributor\_invite](https://www.reddit.com/dev/api/#POST_api_live_%7Bthread%7D_accept_contributor_invite), and
+[/api/live/ _thread_/rm\_contributor\_invite](https://www.reddit.com/dev/api/#POST_api_live_%7Bthread%7D_rm_contributor_invite).
+
+| api\_type | the string `json` |
+| name | the name of an existing user |
+| permissions | permission description e.g. `+update,+edit,-manage` |
+| type | one of (`liveupdate_contributor_invite`, `liveupdate_contributor`) |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_live_{thread}_leave_contributor)
+
+### POST /api/live/ _thread_/leave\_contributor[livemanage](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Abdicate contributorship of the thread.
+
+See also: [/api/live/ _thread_/accept\_contributor\_invite](https://www.reddit.com/dev/api/#POST_api_live_%7Bthread%7D_accept_contributor_invite), and
+[/api/live/ _thread_/invite\_contributor](https://www.reddit.com/dev/api/#POST_api_live_%7Bthread%7D_invite_contributor).
+
+| api\_type | the string `json` |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_live_{thread}_report)
+
+### POST /api/live/ _thread_/report[report](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Report the thread for violating the rules of reddit.
+
+| api\_type | the string `json` |
+| type | one of (`spam`, `vote-manipulation`, `personal-information`, `sexualizing-minors`, `site-breaking`) |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_live_{thread}_rm_contributor)
+
+### POST /api/live/ _thread_/rm\_contributor[livemanage](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Revoke another user's contributorship.
+
+Requires the `manage` permission for this thread.
+
+See also: [/api/live/ _thread_/invite\_contributor](https://www.reddit.com/dev/api/#POST_api_live_%7Bthread%7D_invite_contributor).
+
+| api\_type | the string `json` |
+| id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a account |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_live_{thread}_rm_contributor_invite)
+
+### POST /api/live/ _thread_/rm\_contributor\_invite[livemanage](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Revoke an outstanding contributor invite.
+
+Requires the `manage` permission for this thread.
+
+See also: [/api/live/ _thread_/invite\_contributor](https://www.reddit.com/dev/api/#POST_api_live_%7Bthread%7D_invite_contributor).
+
+| api\_type | the string `json` |
+| id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a account |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_live_{thread}_set_contributor_permissions)
+
+### POST /api/live/ _thread_/set\_contributor\_permissions[livemanage](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Change a contributor or contributor invite's permissions.
+
+Requires the `manage` permission for this thread.
+
+See also: [/api/live/ _thread_/invite\_contributor](https://www.reddit.com/dev/api/#POST_api_live_%7Bthread%7D_invite_contributor) and
+[/api/live/ _thread_/rm\_contributor](https://www.reddit.com/dev/api/#POST_api_live_%7Bthread%7D_rm_contributor).
+
+| api\_type | the string `json` |
+| name | the name of an existing user |
+| permissions | permission description e.g. `+update,+edit,-manage` |
+| type | one of (`liveupdate_contributor_invite`, `liveupdate_contributor`) |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_live_{thread}_strike_update)
+
+### POST /api/live/ _thread_/strike\_update[edit](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Strike (mark incorrect and cross out) the content of an update.
+
+Requires that specified update must have been authored by the user or
+that you have the `edit` permission for this thread.
+
+See also: [/api/live/ _thread_/update](https://www.reddit.com/dev/api/#POST_api_live_%7Bthread%7D_update).
+
+| api\_type | the string `json` |
+| id | the ID of a single update. e.g. `LiveUpdate_ff87068e-a126-11e3-9f93-12313b0b3603` |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_live_{thread}_unhide_discussion)
+
+### POST /api/live/ _thread_/unhide\_discussion[livemanage](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Unhide a linked comment thread from the discussions sidebar and listing..
+
+Requires the `discussions` permission for this thread.
+
+See also: [/api/live/ _thread_/hide\_discussion](https://www.reddit.com/dev/api/#POST_api_live_%7Bthread%7D_hide_discussion).
+
+| api\_type | the string `json` |
+| link | The base 36 ID of a Link |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_live_{thread}_update)
+
+### POST /api/live/ _thread_/update[submit](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Post an update to the thread.
+
+Requires the `update` permission for this thread.
+
+See also: [/api/live/ _thread_/strike\_update](https://www.reddit.com/dev/api/#POST_api_live_%7Bthread%7D_strike_update), and
+[/api/live/ _thread_/delete\_update](https://www.reddit.com/dev/api/#POST_api_live_%7Bthread%7D_delete_update).
+
+| api\_type | the string `json` |
+| body | raw markdown text |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#GET_live_{thread})
+
+### GET /live/ _thread_ [read](https://github.com/reddit/reddit/wiki/OAuth2) [rss support](https://www.reddit.com/wiki/rss)
+
+Get a list of updates posted in this thread.
+
+See also: [/api/live/ _thread_/update](https://www.reddit.com/dev/api/#POST_api_live_%7Bthread%7D_update).
+
+_This endpoint is [a listing](https://www.reddit.com/dev/api/#listings)._
+
+| after | the ID of a single update. e.g. `LiveUpdate_ff87068e-a126-11e3-9f93-12313b0b3603` |
+| before | the ID of a single update. e.g. `LiveUpdate_ff87068e-a126-11e3-9f93-12313b0b3603` |
+| count | a positive integer (default: 0) |
+| is\_embed | (internal use only) |
+| limit | the maximum number of items desired (default: 25, maximum: 100) |
+| stylesr | subreddit name |
+
+[#](https://www.reddit.com/dev/api/#GET_live_{thread}_about)
+
+### GET /live/ _thread_/about[read](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Get some basic information about the live thread.
+
+See also: [/api/live/ _thread_/edit](https://www.reddit.com/dev/api/#POST_api_live_%7Bthread%7D_edit).
+
+[#](https://www.reddit.com/dev/api/#GET_live_{thread}_contributors)
+
+### GET /live/ _thread_/contributors[read](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Get a list of users that contribute to this thread.
+
+See also: [/api/live/ _thread_/invite\_contributor](https://www.reddit.com/dev/api/#POST_api_live_%7Bthread%7D_invite_contributor), and
+[/api/live/ _thread_/rm\_contributor](https://www.reddit.com/dev/api/#POST_api_live_%7Bthread%7D_rm_contributor).
+
+[#](https://www.reddit.com/dev/api/#GET_live_{thread}_discussions)
+
+### GET /live/ _thread_/discussions[read](https://github.com/reddit/reddit/wiki/OAuth2) [rss support](https://www.reddit.com/wiki/rss)
+
+Get a list of reddit submissions linking to this thread.
+
+_This endpoint is [a listing](https://www.reddit.com/dev/api/#listings)._
+
+| after | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| before | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| count | a positive integer (default: 0) |
+| limit | the maximum number of items desired (default: 25, maximum: 100) |
+| show | (optional) the string `all` |
+| sr\_detail | (optional) expand subreddits |
+
+[#](https://www.reddit.com/dev/api/#GET_live_{thread}_updates_{update_id})
+
+### GET /live/ _thread_/updates/ _update\_id_ [read](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Get details about a specific update in a live thread.
+
+## private messages
+
+[#](https://www.reddit.com/dev/api/#POST_api_compose)
+
+### POST /api/compose[privatemessages](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Handles message composition under /message/compose.
+
+| api\_type | the string `json` |
+| from\_sr | subreddit name |
+| g-recaptcha-response |  |
+| subject | a string no longer than 100 characters |
+| text | raw markdown text |
+| to | the name of an existing user |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_del_msg)
+
+### POST /api/del\_msg[privatemessages](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Delete messages from the recipient's view of their inbox.
+
+| id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_read_all_messages)
+
+### POST /api/read\_all\_messages[privatemessages](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Queue up marking all messages for a user as read.
+
+This may take some time, and returns 202 to acknowledge acceptance of
+the request.
+
+| filter\_types | A comma-separated list of items |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_read_message)
+
+### POST /api/read\_message[privatemessages](https://github.com/reddit/reddit/wiki/OAuth2)
+
+| id | A comma-separated list of thing [fullnames](https://www.reddit.com/dev/api/#fullnames) |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#GET_message_{where})
+
+### GET /message/ _where_ [privatemessages](https://github.com/reddit/reddit/wiki/OAuth2) [rss support](https://www.reddit.com/wiki/rss)
+
+- → /message/inbox
+- → /message/unread
+- → /message/sent
+
+_This endpoint is [a listing](https://www.reddit.com/dev/api/#listings)._
+
+| mark | one of (`true`, `false`) |
+| max\_replies | the maximum number of items desired (default: 0, maximum: 300) |
+| mid |  |
+| after | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| before | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| count | a positive integer (default: 0) |
+| limit | the maximum number of items desired (default: 25, maximum: 100) |
+| show | (optional) the string `all` |
+| sr\_detail | (optional) expand subreddits |
+
+## misc
+
+[#](https://www.reddit.com/dev/api/#GET_api_v1_scopes)
+
+### GET /api/v1/scopes[any](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Retrieve descriptions of reddit's OAuth2 scopes.
+
+If no scopes are given, information on all scopes are returned.
+
+Invalid scope(s) will result in a 400 error with body that indicates
+the invalid scope(s).
+
+| scopes | (optional) An OAuth2 scope string |
+
+## moderation
+
+[#](https://www.reddit.com/dev/api/#GET_about_log)
+
+### GET \[/r/ _subreddit_\]/about/log[modlog](https://github.com/reddit/reddit/wiki/OAuth2) [rss support](https://www.reddit.com/wiki/rss)
+
+Get a list of recent moderation actions.
+
+Moderator actions taken within a subreddit are logged. This listing is
+a view of that log with various filters to aid in analyzing the
+information.
+
+The optional `mod` parameter can be a comma-delimited list of moderator
+names to restrict the results to, or the string `a` to restrict the
+results to admin actions taken within the subreddit.
+
+The `type` parameter is optional and if sent limits the log entries
+returned to only those of the type specified.
+
+_This endpoint is [a listing](https://www.reddit.com/dev/api/#listings)._
+
+| after | a ModAction ID |
+| before | a ModAction ID |
+| count | a positive integer (default: 0) |
+| limit | the maximum number of items desired (default: 25, maximum: 500) |
+| mod | (optional) a moderator filter |
+| show | (optional) the string `all` |
+| sr\_detail | (optional) expand subreddits |
+| type | one of (`banuser`, `unbanuser`, `spamlink`, `removelink`, `approvelink`, `spamcomment`, `removecomment`, `approvecomment`, `addmoderator`, `showcomment`, `invitemoderator`, `uninvitemoderator`, `acceptmoderatorinvite`, `removemoderator`, `addcontributor`, `removecontributor`, `editsettings`, `editflair`, `distinguish`, `marknsfw`, `wikibanned`, `wikicontributor`, `wikiunbanned`, `wikipagelisted`, `removewikicontributor`, `wikirevise`, `wikipermlevel`, `ignorereports`, `unignorereports`, `setpermissions`, `setsuggestedsort`, `sticky`, `unsticky`, `setcontestmode`, `unsetcontestmode`, `lock`, `unlock`, `muteuser`, `unmuteuser`, `createrule`, `editrule`, `reorderrules`, `deleterule`, `spoiler`, `unspoiler`, `modmail_enrollment`, `community_status`, `community_styling`, `community_welcome_page`, `community_widgets`, `markoriginalcontent`, `collections`, `events`, `hidden_award`, `add_community_topics`, `remove_community_topics`, `create_scheduled_post`, `edit_scheduled_post`, `delete_scheduled_post`, `submit_scheduled_post`, `edit_comment_requirements`, `edit_post_requirements`, `invitesubscriber`, `submit_content_rating_survey`, `adjust_post_crowd_control_level`, `enable_post_crowd_control_filter`, `disable_post_crowd_control_filter`, `deleteoverriddenclassification`, `overrideclassification`, `reordermoderators`, `request_assistance`, `snoozereports`, `unsnoozereports`, `addnote`, `deletenote`, `addremovalreason`, `createremovalreason`, `updateremovalreason`, `deleteremovalreason`, `reorderremovalreason`, `dev_platform_app_changed`, `dev_platform_app_disabled`, `dev_platform_app_enabled`, `dev_platform_app_installed`, `dev_platform_app_uninstalled`, `edit_saved_response`, `chat_approve_message`, `chat_remove_message`, `chat_ban_user`, `chat_unban_user`, `chat_invite_host`, `chat_remove_host`, `approve_award`) |
+
+[#](https://www.reddit.com/dev/api/#GET_about_{location})
+
+### GET \[/r/ _subreddit_\]/about/ _location_ [read](https://github.com/reddit/reddit/wiki/OAuth2)
+
+- → \[/r/ _subreddit_\]/about/reports
+- → \[/r/ _subreddit_\]/about/spam
+- → \[/r/ _subreddit_\]/about/modqueue
+- → \[/r/ _subreddit_\]/about/unmoderated
+- → \[/r/ _subreddit_\]/about/edited
+
+Return a listing of posts relevant to moderators.
+
+- reports: Things that have been reported.
+- spam: Things that have been marked as spam or otherwise removed.
+- modqueue: Things requiring moderator review, such as reported things
+and items caught by the spam filter.
+- unmoderated: Things that have yet to be approved/removed by a mod.
+- edited: Things that have been edited recently.
+
+Requires the "posts" moderator permission for the subreddit.
+
+_This endpoint is [a listing](https://www.reddit.com/dev/api/#listings)._
+
+| after | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| before | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| count | a positive integer (default: 0) |
+| limit | the maximum number of items desired (default: 25, maximum: 100) |
+| location |  |
+| only | one of (`links`, `comments`, `chat_comments`) |
+| show | (optional) the string `all` |
+| sr\_detail | (optional) expand subreddits |
+
+[#](https://www.reddit.com/dev/api/#POST_api_accept_moderator_invite)
+
+### POST \[/r/ _subreddit_\]/api/accept\_moderator\_invite[modself](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Accept an invite to moderate the specified subreddit.
+
+The authenticated user must have been invited to moderate the subreddit
+by one of its current moderators.
+
+See also: [/api/friend](https://www.reddit.com/dev/api/#POST_api_friend) and
+[/subreddits/mine](https://www.reddit.com/dev/api/#GET_subreddits_mine_%7Bwhere%7D).
+
+| api\_type | the string `json` |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_approve)
+
+### POST /api/approve[modposts](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Approve a link or comment.
+
+If the thing was removed, it will be re-inserted into appropriate
+listings. Any reports on the approved thing will be discarded.
+
+See also: [/api/remove](https://www.reddit.com/dev/api/#POST_api_remove).
+
+| id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_distinguish)
+
+### POST /api/distinguish[modposts](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Distinguish a thing's author with a sigil.
+
+This can be useful to draw attention to and confirm the identity of the
+user in the context of a link or comment of theirs. The options for
+distinguish are as follows:
+
+- `yes` \- add a moderator distinguish (`[M]`). only if the user is a
+moderator of the subreddit the thing is in.
+- `no` \- remove any distinguishes.
+- `admin` \- add an admin distinguish (`[A]`). admin accounts only.
+- `special` \- add a user-specific distinguish. depends on user.
+
+The first time a top-level comment is moderator distinguished, the
+author of the link the comment is in reply to will get a notification
+in their inbox.
+
+`sticky` is a boolean flag for comments, which will stick the
+distingushed comment to the top of all comments threads. If a comment
+is marked sticky, it will override any other stickied comment for that
+link (as only one comment may be stickied at a time.) Only top-level
+comments may be stickied.
+
+| api\_type | the string `json` |
+| how | one of (`yes`, `no`, `admin`, `special`) |
+| id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| sticky | boolean value |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_ignore_reports)
+
+### POST /api/ignore\_reports[modposts](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Prevent future reports on a thing from causing notifications.
+
+Any reports made about a thing after this flag is set on it will not
+cause notifications or make the thing show up in the various moderation
+listings.
+
+See also: [/api/unignore\_reports](https://www.reddit.com/dev/api/#POST_api_unignore_reports).
+
+| id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_leavecontributor)
+
+### POST /api/leavecontributor[modself](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Abdicate approved user status in a subreddit.
+
+See also: [/api/friend](https://www.reddit.com/dev/api/#POST_api_friend).
+
+| id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_leavemoderator)
+
+### POST /api/leavemoderator[modself](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Abdicate moderator status in a subreddit.
+
+See also: [/api/friend](https://www.reddit.com/dev/api/#POST_api_friend).
+
+| id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_remove)
+
+### POST /api/remove[modposts](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Remove a link, comment, or modmail message.
+
+If the thing is a link, it will be removed from all subreddit listings.
+If the thing is a comment, it will be redacted and removed from all
+subreddit comment listings.
+
+See also: [/api/approve](https://www.reddit.com/dev/api/#POST_api_approve).
+
+| id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| spam | boolean value |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_show_comment)
+
+### POST /api/show\_comment[modposts](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Mark a comment that it should not be collapsed because of crowd control.
+
+The comment could still be collapsed for other reasons.
+
+| id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_snooze_reports)
+
+### POST /api/snooze\_reports[modposts](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Prevent future reports on a thing from causing notifications.
+
+For users who reported this thing (post, comment, etc) with
+the given report reason, reports from those users in the
+next 7 days will not be escalated to moderators.
+See also: [/api/unsnooze\_reports](https://www.reddit.com/dev/api/#POST_api_unsnooze_reports).
+
+| id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| reason |  |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_unignore_reports)
+
+### POST /api/unignore\_reports[modposts](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Allow future reports on a thing to cause notifications.
+
+See also: [/api/ignore\_reports](https://www.reddit.com/dev/api/#POST_api_ignore_reports).
+
+| id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_unsnooze_reports)
+
+### POST /api/unsnooze\_reports[modposts](https://github.com/reddit/reddit/wiki/OAuth2)
+
+For users whose reports were snoozed
+(see [/api/snooze\_reports](https://www.reddit.com/dev/api/#POST_api_snooze_reports)),
+to go back to escalating future reports from those users.
+
+| id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| reason |  |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_update_crowd_control_level)
+
+### POST /api/update\_crowd\_control\_level[modposts](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Change the post's crowd control level.
+
+| id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| level | an integer between 0 and 3 |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#GET_stylesheet)
+
+### GET \[/r/ _subreddit_\]/stylesheet[modconfig](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Redirect to the subreddit's stylesheet if one exists.
+
+See also: [/api/subreddit\_stylesheet](https://www.reddit.com/dev/api/#POST_api_subreddit_stylesheet).
+
+## new modmail
+
+[#](https://www.reddit.com/dev/api/#POST_api_mod_bulk_read)
+
+### POST /api/mod/bulk\_read[modmail](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Marks all conversations read for a particular conversation state
+within the passed list of subreddits.
+
+| entity | comma-delimited list of subreddit names |
+| state | one of (`all`, `appeals`, `notifications`, `inbox`, `filtered`, `inprogress`, `mod`, `archived`, `default`, `highlighted`, `admin`, `join_requests`, `new`) |
+
+[#](https://www.reddit.com/dev/api/#GET_api_mod_conversations)
+
+### GET /api/mod/conversations[modmail](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Get conversations for a logged in user or subreddits
+
+| after | A Modmail Conversation ID, in the form ModmailConversation\_<id> |
+| entity | comma-delimited list of subreddit names |
+| limit | an integer between 1 and 100 (default: 25) |
+| sort | one of (`recent`, `mod`, `user`, `unread`) |
+| state | one of (`all`, `appeals`, `notifications`, `inbox`, `filtered`, `inprogress`, `mod`, `archived`, `default`, `highlighted`, `admin`, `join_requests`, `new`) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_mod_conversations)
+
+### POST /api/mod/conversations[modmail](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Creates a new conversation for a particular SR.
+
+This endpoint will create a ModmailConversation object as
+well as the first ModmailMessage within the ModmailConversation
+object.
+
+A note on `to`:
+
+The `to` field for this endpoint is somewhat confusing. It can be:
+
+- A User, passed like "username" or " [u/username](https://www.reddit.com/u/username)"
+- A Subreddit, passed like " [r/subreddit](https://www.reddit.com/r/subreddit)"
+- null, meaning an internal moderator discussion
+
+In this way `to` is a bit of a misnomer in modmail conversations. What
+it really means is the participant of the conversation who is not a mod
+of the subreddit.
+
+| body | raw markdown text |
+| isAuthorHidden | boolean value |
+| srName | subreddit name |
+| subject | a string no longer than 100 characters |
+| to | Modmail conversation recipient [fullname](https://www.reddit.com/dev/api/#fullname) |
+
+[#](https://www.reddit.com/dev/api/#GET_api_mod_conversations_:conversation_id)
+
+### GET /api/mod/conversations/:conversation\_id[modmail](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Returns all messages, mod actions and conversation metadata
+for a given conversation id
+
+| conversation\_id | A Modmail Conversation ID, in the form ModmailConversation\_<id> |
+| markRead | boolean value |
+
+[#](https://www.reddit.com/dev/api/#POST_api_mod_conversations_:conversation_id)
+
+### POST /api/mod/conversations/:conversation\_id[modmail](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Creates a new message for a particular conversation.
+
+| body | raw markdown text |
+| conversation\_id | A Modmail Conversation ID, in the form ModmailConversation\_<id> |
+| isAuthorHidden | boolean value |
+| isInternal | boolean value |
+
+[#](https://www.reddit.com/dev/api/#POST_api_mod_conversations_:conversation_id_approve)
+
+### POST /api/mod/conversations/:conversation\_id/approve[modmail](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Approve the non mod user associated with a particular conversation.
+
+| conversation\_id | base36 modmail conversation id |
+
+[#](https://www.reddit.com/dev/api/#POST_api_mod_conversations_:conversation_id_archive)
+
+### POST /api/mod/conversations/:conversation\_id/archive[modmail](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Marks a conversation as archived.
+
+| conversation\_id | A Modmail Conversation ID, in the form ModmailConversation\_<id> |
+
+[#](https://www.reddit.com/dev/api/#POST_api_mod_conversations_:conversation_id_disapprove)
+
+### POST /api/mod/conversations/:conversation\_id/disapprove[modmail](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Disapprove the non mod user associated with a particular conversation.
+
+| conversation\_id | base36 modmail conversation id |
+
+[#](https://www.reddit.com/dev/api/#DELETE_api_mod_conversations_:conversation_id_highlight)
+
+### DELETE /api/mod/conversations/:conversation\_id/highlight[modmail](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Removes a highlight from a conversation.
+
+| conversation\_id | A Modmail Conversation ID, in the form ModmailConversation\_<id> |
+
+[#](https://www.reddit.com/dev/api/#POST_api_mod_conversations_:conversation_id_highlight)
+
+### POST /api/mod/conversations/:conversation\_id/highlight[modmail](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Marks a conversation as highlighted.
+
+| conversation\_id | A Modmail Conversation ID, in the form ModmailConversation\_<id> |
+
+[#](https://www.reddit.com/dev/api/#POST_api_mod_conversations_:conversation_id_mute)
+
+### POST /api/mod/conversations/:conversation\_id/mute[modmail](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Mutes the non mod user associated with a particular conversation.
+
+| conversation\_id | base36 modmail conversation id |
+| num\_hours | one of (`72`, `168`, `672`) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_mod_conversations_:conversation_id_temp_ban)
+
+### POST /api/mod/conversations/:conversation\_id/temp\_ban[modmail](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Temporary ban (switch from permanent to temporary ban) the non mod
+user associated with a particular conversation.
+
+| conversation\_id | base36 modmail conversation id |
+| duration | an integer between 1 and 999 |
+
+[#](https://www.reddit.com/dev/api/#POST_api_mod_conversations_:conversation_id_unarchive)
+
+### POST /api/mod/conversations/:conversation\_id/unarchive[modmail](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Marks conversation as unarchived.
+
+| conversation\_id | A Modmail Conversation ID, in the form ModmailConversation\_<id> |
+
+[#](https://www.reddit.com/dev/api/#POST_api_mod_conversations_:conversation_id_unban)
+
+### POST /api/mod/conversations/:conversation\_id/unban[modmail](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Unban the non mod user associated with a particular conversation.
+
+| conversation\_id | base36 modmail conversation id |
+
+[#](https://www.reddit.com/dev/api/#POST_api_mod_conversations_:conversation_id_unmute)
+
+### POST /api/mod/conversations/:conversation\_id/unmute[modmail](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Unmutes the non mod user associated with
+a particular conversation.
+
+| conversation\_id | base36 modmail conversation id |
+
+[#](https://www.reddit.com/dev/api/#POST_api_mod_conversations_read)
+
+### POST /api/mod/conversations/read[modmail](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Marks a conversations as read for the user.
+
+| conversationIds | A comma-separated list of items |
+
+[#](https://www.reddit.com/dev/api/#GET_api_mod_conversations_subreddits)
+
+### GET /api/mod/conversations/subreddits[modmail](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Returns a list of srs that the user moderates with mail permission
+
+[#](https://www.reddit.com/dev/api/#POST_api_mod_conversations_unread)
+
+### POST /api/mod/conversations/unread[modmail](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Marks conversations as unread for the user.
+
+| conversationIds | A comma-separated list of items |
+
+[#](https://www.reddit.com/dev/api/#GET_api_mod_conversations_unread_count)
+
+### GET /api/mod/conversations/unread/count[modmail](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Endpoint to retrieve the unread conversation count by
+conversation state.
+
+## modnote
+
+[#](https://www.reddit.com/dev/api/#DELETE_api_mod_notes)
+
+### DELETE /api/mod/notes[modnote](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Delete a mod user note where type=NOTE.
+
+Parameters should be passed as query parameters.
+
+| note\_id | a unique ID for the note to be deleted (should have a ModNote\_ prefix) |
+| subreddit | subreddit name |
+| user | account username |
+
+[#](https://www.reddit.com/dev/api/#GET_api_mod_notes)
+
+### GET /api/mod/notes[modnote](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Get mod notes for a specific user in a given subreddit.
+
+| before | (optional) an encoded string used for pagination with mod notes |
+| filter | (optional) one of (NOTE, APPROVAL, REMOVAL, BAN, MUTE, INVITE, SPAM, CONTENT\_CHANGE, MOD\_ACTION, ALL), to be used for querying specific types of mod notes (default: all) |
+| limit | (optional) the number of mod notes to return in the response payload (default: 25, max: 100)'} |
+| subreddit | subreddit name |
+| user | account username |
+
+[#](https://www.reddit.com/dev/api/#POST_api_mod_notes)
+
+### POST /api/mod/notes[modnote](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Create a mod user note where type=NOTE.
+
+| label | (optional) one of (BOT\_BAN, PERMA\_BAN, BAN, ABUSE\_WARNING, SPAM\_WARNING, SPAM\_WATCH, SOLID\_CONTRIBUTOR, HELPFUL\_USER, USER\_SUMMARY) |
+| note | Content of the note, should be a string with a maximum character limit of 250 |
+| reddit\_id | (optional) a fullname of a comment or post (should have either a t1 or t3 prefix) |
+| subreddit | subreddit name |
+| user | account username |
+
+[#](https://www.reddit.com/dev/api/#GET_api_mod_notes_recent)
+
+### GET /api/mod/notes/recent[modnote](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Fetch the most recent notes written by a moderator
+
+Both parameters should be comma separated lists of equal lengths.
+The first subreddit will be paired with the first account to represent
+a query for a mod written note for that account in that subreddit and so
+forth for all subsequent pairs of subreddits and accounts.
+This request accepts up to 500 pairs of subreddit names and usernames.
+Parameters should be passed as query parameters.
+
+The response will be a list of mod notes in the order that subreddits and accounts
+were given. If no note exist for a given subreddit/account pair, then null
+will take its place in the list.
+
+| subreddits | a comma delimited list of subreddits by name |
+| users | a comma delimited list of usernames |
+
+## multis
+
+[#](https://www.reddit.com/dev/api/#POST_api_multi_copy)
+
+### POST /api/multi/copy[subscribe](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Copy a multi.
+
+Responds with 409 Conflict if the target already exists.
+
+A "copied from ..." line will automatically be appended to the
+description.
+
+| description\_md | raw markdown text |
+| display\_name | a string no longer than 50 characters |
+| expand\_srs | boolean value |
+| from | multireddit url path |
+| to | destination multireddit url path |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#GET_api_multi_mine)
+
+### GET /api/multi/mine[read](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Fetch a list of multis belonging to the current user.
+
+| expand\_srs | boolean value |
+
+[#](https://www.reddit.com/dev/api/#GET_api_multi_user_{username})
+
+### GET /api/multi/user/ _username_ [read](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Fetch a list of public multis belonging to `username`
+
+| expand\_srs | boolean value |
+| username | A valid, existing reddit username |
+
+[#](https://www.reddit.com/dev/api/#DELETE_api_multi_{multipath})
+
+### DELETE /api/multi/ _multipath_ [subscribe](https://github.com/reddit/reddit/wiki/OAuth2)
+
+- → /api/filter/ _filterpath_
+
+Delete a multi.
+
+| multipath | multireddit url path |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+| expand\_srs | boolean value |
+
+[#](https://www.reddit.com/dev/api/#GET_api_multi_{multipath})
+
+### GET /api/multi/ _multipath_ [read](https://github.com/reddit/reddit/wiki/OAuth2)
+
+- → /api/filter/ _filterpath_
+
+Fetch a multi's data and subreddit list by name.
+
+| expand\_srs | boolean value |
+| multipath | multireddit url path |
+
+[#](https://www.reddit.com/dev/api/#POST_api_multi_{multipath})
+
+### POST /api/multi/ _multipath_ [subscribe](https://github.com/reddit/reddit/wiki/OAuth2)
+
+- → /api/filter/ _filterpath_
+
+Create a multi. Responds with 409 Conflict if it already exists.
+
+| model | json data:<br>```<br>{<br>  "description_md": raw markdown text,<br>  "display_name": a string no longer than 50 characters,<br>  "icon_img": one of (`png`, `jpg`, `jpeg`),<br>  "key_color": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>  "subreddits": [<br>    {<br>      "name": subreddit name,<br>    },<br>    ...<br>  ],<br>  "visibility": one of (`private`, `public`, `hidden`),<br>}<br>``` |
+| multipath | multireddit url path |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+| expand\_srs | boolean value |
+
+[#](https://www.reddit.com/dev/api/#PUT_api_multi_{multipath})
+
+### PUT /api/multi/ _multipath_ [subscribe](https://github.com/reddit/reddit/wiki/OAuth2)
+
+- → /api/filter/ _filterpath_
+
+Create or update a multi.
+
+| expand\_srs | boolean value |
+| model | json data:<br>```<br>{<br>  "description_md": raw markdown text,<br>  "display_name": a string no longer than 50 characters,<br>  "icon_img": one of (`png`, `jpg`, `jpeg`),<br>  "key_color": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>  "subreddits": [<br>    {<br>      "name": subreddit name,<br>    },<br>    ...<br>  ],<br>  "visibility": one of (`private`, `public`, `hidden`),<br>}<br>``` |
+| multipath | multireddit url path |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#GET_api_multi_{multipath}_description)
+
+### GET /api/multi/ _multipath_/description[read](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Get a multi's description.
+
+| multipath | multireddit url path |
+
+[#](https://www.reddit.com/dev/api/#PUT_api_multi_{multipath}_description)
+
+### PUT /api/multi/ _multipath_/description[read](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Change a multi's markdown description.
+
+| model | json data:<br>```<br>{<br>  "body_md": raw markdown text,<br>}<br>``` |
+| multipath | multireddit url path |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#DELETE_api_multi_{multipath}_r_{srname})
+
+### DELETE /api/multi/ _multipath_/r/ _srname_ [subscribe](https://github.com/reddit/reddit/wiki/OAuth2)
+
+- → /api/filter/ _filterpath_/r/ _srname_
+
+Remove a subreddit from a multi.
+
+| multipath | multireddit url path |
+| srname | subreddit name |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#GET_api_multi_{multipath}_r_{srname})
+
+### GET /api/multi/ _multipath_/r/ _srname_ [read](https://github.com/reddit/reddit/wiki/OAuth2)
+
+- → /api/filter/ _filterpath_/r/ _srname_
+
+Get data about a subreddit in a multi.
+
+| multipath | multireddit url path |
+| srname | subreddit name |
+
+[#](https://www.reddit.com/dev/api/#PUT_api_multi_{multipath}_r_{srname})
+
+### PUT /api/multi/ _multipath_/r/ _srname_ [subscribe](https://github.com/reddit/reddit/wiki/OAuth2)
+
+- → /api/filter/ _filterpath_/r/ _srname_
+
+Add a subreddit to a multi.
+
+| model | json data:<br>```<br>{<br>  "name": subreddit name,<br>}<br>``` |
+| multipath | multireddit url path |
+| srname | subreddit name |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+## search
+
+[#](https://www.reddit.com/dev/api/#GET_search)
+
+### GET \[/r/ _subreddit_\]/search[read](https://github.com/reddit/reddit/wiki/OAuth2) [rss support](https://www.reddit.com/wiki/rss)
+
+Search links page.
+
+_This endpoint is [a listing](https://www.reddit.com/dev/api/#listings)._
+
+| after | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| before | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| category | a string no longer than 5 characters |
+| count | a positive integer (default: 0) |
+| include\_facets | boolean value |
+| limit | the maximum number of items desired (default: 25, maximum: 100) |
+| q | a string no longer than 512 characters |
+| restrict\_sr | boolean value |
+| show | (optional) the string `all` |
+| sort | one of (`relevance`, `hot`, `top`, `new`, `comments`) |
+| sr\_detail | (optional) expand subreddits |
+| t | one of (`hour`, `day`, `week`, `month`, `year`, `all`) |
+| type | (optional) comma-delimited list of result types (`sr`, `link`, `user`) |
+
+## subreddits
+
+[#](https://www.reddit.com/dev/api/#GET_about_{where})
+
+### GET \[/r/ _subreddit_\]/about/ _where_ [read](https://github.com/reddit/reddit/wiki/OAuth2) [rss support](https://www.reddit.com/wiki/rss)
+
+- → \[/r/ _subreddit_\]/about/banned
+- → \[/r/ _subreddit_\]/about/muted
+- → \[/r/ _subreddit_\]/about/wikibanned
+- → \[/r/ _subreddit_\]/about/contributors
+- → \[/r/ _subreddit_\]/about/wikicontributors
+- → \[/r/ _subreddit_\]/about/moderators
+
+_This endpoint is [a listing](https://www.reddit.com/dev/api/#listings)._
+
+| after | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| before | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| count | a positive integer (default: 0) |
+| limit | the maximum number of items desired (default: 25, maximum: 100) |
+| show | (optional) the string `all` |
+| sr\_detail | (optional) expand subreddits |
+| user | A valid, existing reddit username |
+
+[#](https://www.reddit.com/dev/api/#POST_api_delete_sr_banner)
+
+### POST \[/r/ _subreddit_\]/api/delete\_sr\_banner[modconfig](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Remove the subreddit's custom mobile banner.
+
+See also: [/api/upload\_sr\_img](https://www.reddit.com/dev/api/#POST_api_upload_sr_img).
+
+| api\_type | the string `json` |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_delete_sr_header)
+
+### POST \[/r/ _subreddit_\]/api/delete\_sr\_header[modconfig](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Remove the subreddit's custom header image.
+
+The sitewide-default header image will be shown again after this call.
+
+See also: [/api/upload\_sr\_img](https://www.reddit.com/dev/api/#POST_api_upload_sr_img).
+
+| api\_type | the string `json` |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_delete_sr_icon)
+
+### POST \[/r/ _subreddit_\]/api/delete\_sr\_icon[modconfig](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Remove the subreddit's custom mobile icon.
+
+See also: [/api/upload\_sr\_img](https://www.reddit.com/dev/api/#POST_api_upload_sr_img).
+
+| api\_type | the string `json` |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_delete_sr_img)
+
+### POST \[/r/ _subreddit_\]/api/delete\_sr\_img[modconfig](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Remove an image from the subreddit's custom image set.
+
+The image will no longer count against the subreddit's image limit.
+However, the actual image data may still be accessible for an
+unspecified amount of time. If the image is currently referenced by the
+subreddit's stylesheet, that stylesheet will no longer validate and
+won't be editable until the image reference is removed.
+
+See also: [/api/upload\_sr\_img](https://www.reddit.com/dev/api/#POST_api_upload_sr_img).
+
+| api\_type | the string `json` |
+| img\_name | a valid subreddit image name |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#GET_api_recommend_sr_{srnames})
+
+### GET /api/recommend/sr/ _srnames_ [read](https://github.com/reddit/reddit/wiki/OAuth2)
+
+DEPRECATED: Return subreddits recommended for the given subreddit(s).
+
+Gets a list of subreddits recommended for `srnames`, filtering out any
+that appear in the optional `omit` param.
+
+| omit | comma-delimited list of subreddit names |
+| over\_18 | boolean value |
+| srnames | comma-delimited list of subreddit names |
+
+[#](https://www.reddit.com/dev/api/#GET_api_search_reddit_names)
+
+### GET /api/search\_reddit\_names[read](https://github.com/reddit/reddit/wiki/OAuth2)
+
+List subreddit names that begin with a query string.
+
+Subreddits whose names begin with `query` will be returned. If
+`include_over_18` is false, subreddits with over-18 content
+restrictions will be filtered from the results.
+
+If `include_unadvertisable` is False, subreddits that have `hide_ads`
+set to True or are on the `anti_ads_subreddits` list will be filtered.
+
+If `exact` is true, only an exact match will be returned. Exact matches
+are inclusive of `over_18` subreddits, but not `hide_ad` subreddits
+when `include_unadvertisable` is `False`.
+
+| exact | boolean value |
+| include\_over\_18 | boolean value |
+| include\_unadvertisable | boolean value |
+| query | a string up to 50 characters long, consisting of printable characters. |
+| search\_query\_id | a uuid |
+| typeahead\_active | boolean value or None |
+
+[#](https://www.reddit.com/dev/api/#POST_api_search_reddit_names)
+
+### POST /api/search\_reddit\_names[read](https://github.com/reddit/reddit/wiki/OAuth2)
+
+List subreddit names that begin with a query string.
+
+Subreddits whose names begin with `query` will be returned. If
+`include_over_18` is false, subreddits with over-18 content
+restrictions will be filtered from the results.
+
+If `include_unadvertisable` is False, subreddits that have `hide_ads`
+set to True or are on the `anti_ads_subreddits` list will be filtered.
+
+If `exact` is true, only an exact match will be returned. Exact matches
+are inclusive of `over_18` subreddits, but not `hide_ad` subreddits
+when `include_unadvertisable` is `False`.
+
+| exact | boolean value |
+| include\_over\_18 | boolean value |
+| include\_unadvertisable | boolean value |
+| query | a string up to 50 characters long, consisting of printable characters. |
+| search\_query\_id | a uuid |
+| typeahead\_active | boolean value or None |
+
+[#](https://www.reddit.com/dev/api/#POST_api_search_subreddits)
+
+### POST /api/search\_subreddits[read](https://github.com/reddit/reddit/wiki/OAuth2)
+
+List subreddits that begin with a query string.
+
+Subreddits whose names begin with `query` will be returned. If
+`include_over_18` is false, subreddits with over-18 content
+restrictions will be filtered from the results.
+
+If `include_unadvertisable` is False, subreddits that have `hide_ads`
+set to True or are on the `anti_ads_subreddits` list will be filtered.
+
+If `exact` is true, only an exact match will be returned. Exact matches
+are inclusive of `over_18` subreddits, but not `hide_ad` subreddits
+when `include_unadvertisable` is `False`.
+
+| exact | boolean value |
+| include\_over\_18 | boolean value |
+| include\_unadvertisable | boolean value |
+| query | a string up to 50 characters long, consisting of printable characters. |
+| search\_query\_id | a uuid |
+| typeahead\_active | boolean value or None |
+
+[#](https://www.reddit.com/dev/api/#POST_api_site_admin)
+
+### POST /api/site\_admin[modconfig](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Create or configure a subreddit.
+
+If `sr` is specified, the request will attempt to modify the specified
+subreddit. If not, a subreddit with name `name` will be created.
+
+This endpoint expects _all_ values to be supplied on every request. If
+modifying a subset of options, it may be useful to get the current
+settings from [/about/edit.json](https://www.reddit.com/dev/api/#GET_r_%7Bsubreddit%7D_about_edit.json)
+first.
+
+For backwards compatibility, `description` is the sidebar text and
+`public_description` is the publicly visible subreddit description.
+
+Most of the parameters for this endpoint are identical to options
+visible in the user interface and their meanings are best explained
+there.
+
+See also: [/about/edit.json](https://www.reddit.com/dev/api/#GET_r_%7Bsubreddit%7D_about_edit.json).
+
+| accept\_followers | boolean value |
+| admin\_override\_spam\_comments | boolean value |
+| admin\_override\_spam\_links | boolean value |
+| admin\_override\_spam\_selfposts | boolean value |
+| all\_original\_content | boolean value |
+| allow\_chat\_post\_creation | boolean value |
+| allow\_discovery | boolean value |
+| allow\_galleries | boolean value |
+| allow\_images | boolean value |
+| allow\_polls | boolean value |
+| allow\_post\_crossposts | boolean value |
+| allow\_prediction\_contributors | boolean value |
+| allow\_predictions | boolean value |
+| allow\_predictions\_tournament | boolean value |
+| allow\_talks | boolean value |
+| allow\_top | boolean value |
+| allow\_videos | boolean value |
+| api\_type | the string `json` |
+| collapse\_deleted\_comments | boolean value |
+| comment\_contribution\_settings | json data:<br>```<br>{<br>  "allowed_media_types": [<br>    one of (`unknown`, `giphy`, `static`, `video`, `animated`, `expression`),<br>    ...<br>  ],<br>}<br>``` |
+| comment\_score\_hide\_mins | an integer between 0 and 1440 (default: 0) |
+| crowd\_control\_chat\_level | an integer between 0 and 3 |
+| crowd\_control\_filter | boolean value |
+| crowd\_control\_level | an integer between 0 and 3 |
+| crowd\_control\_mode | boolean value |
+| crowd\_control\_post\_level | an integer between 0 and 3 |
+| description | raw markdown text |
+| disable\_contributor\_requests | boolean value |
+| exclude\_banned\_modqueue | boolean value |
+| free\_form\_reports | boolean value |
+| g-recaptcha-response |  |
+| hateful\_content\_threshold\_abuse | an integer between 0 and 3 |
+| hateful\_content\_threshold\_identity | an integer between 0 and 3 |
+| header-title | a string no longer than 500 characters |
+| hide\_ads | boolean value |
+| key\_color | a 6-digit rgb hex color, e.g. `#AABBCC` |
+| link\_type | one of (`any`, `link`, `self`) |
+| modmail\_harassment\_filter\_enabled | boolean value |
+| name | subreddit name |
+| new\_pinned\_post\_pns\_enabled | boolean value |
+| original\_content\_tag\_enabled | boolean value |
+| over\_18 | boolean value |
+| prediction\_leaderboard\_entry\_type | an integer between 0 and 2 |
+| public\_description | raw markdown text |
+| restrict\_commenting | boolean value |
+| restrict\_posting | boolean value |
+| should\_archive\_posts | boolean value |
+| show\_media | boolean value |
+| show\_media\_preview | boolean value |
+| spam\_comments | one of (`low`, `high`, `all`) |
+| spam\_links | one of (`low`, `high`, `all`) |
+| spam\_selfposts | one of (`low`, `high`, `all`) |
+| spoilers\_enabled | boolean value |
+| sr | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| submit\_link\_label | a string no longer than 60 characters |
+| submit\_text | raw markdown text |
+| submit\_text\_label | a string no longer than 60 characters |
+| subreddit\_discovery\_settings | json data:<br>```<br>{<br>  "disabled_discovery_types": [<br>    one of (`unknown`, `onboarding`),<br>    ...<br>  ],<br>}<br>``` |
+| suggested\_comment\_sort | one of (`confidence`, `top`, `new`, `controversial`, `old`, `random`, `qa`, `live`) |
+| title | a string no longer than 100 characters |
+| toxicity\_threshold\_chat\_level | an integer between 0 and 1 |
+| type | one of (`gold_restricted`, `archived`, `restricted`, `private`, `employees_only`, `gold_only`, `public`, `user`) |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+| user\_flair\_pns\_enabled | boolean value |
+| welcome\_message\_enabled | boolean value |
+| welcome\_message\_text | raw markdown text |
+| wiki\_edit\_age | an integer between 0 and 36600 (default: 0) |
+| wiki\_edit\_karma | an integer between 0 and 1000000000 (default: 0) |
+| wikimode | one of (`disabled`, `modonly`, `anyone`) |
+
+[#](https://www.reddit.com/dev/api/#GET_api_submit_text)
+
+### GET \[/r/ _subreddit_\]/api/submit\_text[submit](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Get the submission text for the subreddit.
+
+This text is set by the subreddit moderators and intended to be
+displayed on the submission form.
+
+See also: [/api/site\_admin](https://www.reddit.com/dev/api/#POST_api_site_admin).
+
+[#](https://www.reddit.com/dev/api/#GET_api_subreddit_autocomplete)
+
+### GET /api/subreddit\_autocomplete[read](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Return a list of subreddits and data for subreddits whose names start
+with 'query'.
+
+Uses typeahead endpoint to recieve the list of subreddits names.
+Typeahead provides exact matches, typo correction, fuzzy matching and
+boosts subreddits to the top that the user is subscribed to.
+
+| include\_over\_18 | boolean value |
+| include\_profiles | boolean value |
+| query | a string up to 25 characters long, consisting of printable characters. |
+
+[#](https://www.reddit.com/dev/api/#GET_api_subreddit_autocomplete_v2)
+
+### GET /api/subreddit\_autocomplete\_v2[read](https://github.com/reddit/reddit/wiki/OAuth2)
+
+| include\_over\_18 | boolean value |
+| include\_profiles | boolean value |
+| limit | an integer between 1 and 10 (default: 5) |
+| query | a string up to 25 characters long, consisting of printable characters. |
+| search\_query\_id | a uuid |
+| typeahead\_active | boolean value or None |
+
+[#](https://www.reddit.com/dev/api/#POST_api_subreddit_stylesheet)
+
+### POST \[/r/ _subreddit_\]/api/subreddit\_stylesheet[modconfig](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Update a subreddit's stylesheet.
+
+`op` should be `save` to update the contents of the stylesheet.
+
+| api\_type | the string `json` |
+| op | one of (`save`, `preview`) |
+| reason | a string up to 256 characters long, consisting of printable characters. |
+| stylesheet\_contents | the new stylesheet content |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_subscribe)
+
+### POST /api/subscribe[subscribe](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Subscribe to or unsubscribe from a subreddit.
+
+To subscribe, `action` should be `sub`. To unsubscribe, `action` should
+be `unsub`. The user must have access to the subreddit to be able to
+subscribe to it.
+
+The `skip_initial_defaults` param can be set to True to prevent
+automatically subscribing the user to the current set of defaults
+when they take their first subscription action. Attempting to set it
+for an unsubscribe action will result in an error.
+
+See also: [/subreddits/mine/](https://www.reddit.com/dev/api/#GET_subreddits_mine_%7Bwhere%7D).
+
+| action | one of (`sub`, `unsub`) |
+| action\_source | one of (`onboarding`, `autosubscribe`) |
+| skip\_initial\_defaults | boolean value |
+| sr / sr\_name | A comma-separated list of subreddit [fullnames](https://www.reddit.com/dev/api/#fullname) (when using the "sr" parameter), or of subreddit names (when using the "sr\_name" parameter). |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_upload_sr_img)
+
+### POST \[/r/ _subreddit_\]/api/upload\_sr\_img[modconfig](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Add or replace a subreddit image, custom header logo, custom mobile
+icon, or custom mobile banner.
+
+- If the `upload_type` value is `img`, an image for use in the
+subreddit stylesheet is uploaded with the name specified in `name`.
+- If the `upload_type` value is `header` then the image uploaded will
+be the subreddit's new logo and `name` will be ignored.
+- If the `upload_type` value is `icon` then the image uploaded will be
+the subreddit's new mobile icon and `name` will be ignored.
+- If the `upload_type` value is `banner` then the image uploaded will
+be the subreddit's new mobile banner and `name` will be ignored.
+
+For backwards compatibility, if `upload_type` is not specified, the
+`header` field will be used instead:
+
+- If the `header` field has value `0`, then `upload_type` is `img`.
+- If the `header` field has value `1`, then `upload_type` is `header`.
+
+The `img_type` field specifies whether to store the uploaded image as a
+PNG or JPEG.
+
+Subreddits have a limited number of images that can be in use at any
+given time. If no image with the specified name already exists, one of
+the slots will be consumed.
+
+If an image with the specified name already exists, it will be
+replaced. This does not affect the stylesheet immediately, but will
+take effect the next time the stylesheet is saved.
+
+See also: [/api/delete\_sr\_img](https://www.reddit.com/dev/api/#POST_api_delete_sr_img),
+[/api/delete\_sr\_header](https://www.reddit.com/dev/api/#POST_api_delete_sr_header),
+[/api/delete\_sr\_icon](https://www.reddit.com/dev/api/#POST_api_delete_sr_icon), and
+[/api/delete\_sr\_banner](https://www.reddit.com/dev/api/#POST_api_delete_sr_banner).
+
+| file | file upload with maximum size of 500 KiB |
+| formid | (optional) can be ignored |
+| header | an integer between 0 and 1 |
+| img\_type | one of `png` or `jpg` (default: `png`) |
+| name | a valid subreddit image name |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+| upload\_type | one of (`img`, `header`, `icon`, `banner`) |
+
+[#](https://www.reddit.com/dev/api/#GET_api_v1_{subreddit}_post_requirements)
+
+### GET /api/v1/ _subreddit_/post\_requirements[submit](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Fetch moderator-designated requirements to post to the subreddit.
+
+Moderators may enable certain restrictions, such as minimum title
+length, when making a submission to their subreddit.
+
+Clients may use the values returned by this endpoint to pre-validate
+fields before making a request to POST /api/submit. This may allow
+the client to provide a better user experience to the user, for
+example by creating a text field in their app that does not allow
+the user to enter more characters than the max title length.
+
+A non-exhaustive list of possible requirements a moderator may
+enable:
+
+- `body_blacklisted_strings`: List of strings. Users may not submit
+posts that contain these words.
+- `body_restriction_policy`: String. One of "required", "notAllowed",
+or "none", meaning that a self-post body is required, not allowed, or
+optional, respectively.
+- `domain_blacklist`: List of strings. Users may not submit links to
+these domains
+- `domain_whitelist`: List of strings. Users submissions MUST be from
+one of these domains
+- `is_flair_required`: Boolean. If True, flair must be set at
+submission time.
+- `title_blacklisted_strings`: List of strings. Submission titles may
+NOT contain any of the listed strings.
+- `title_required_strings`: List of strings. Submission title MUST
+contain at least ONE of the listed strings.
+- `title_text_max_length`: Integer. Maximum length of the title field.
+- `title_text_min_length`: Integer. Minimum length of the title field.
+
+[#](https://www.reddit.com/dev/api/#GET_r_{subreddit}_about)
+
+### GET /r/ _subreddit_/about[read](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Return information about the subreddit.
+
+Data includes the subscriber count, description, and header image.
+
+[#](https://www.reddit.com/dev/api/#GET_r_{subreddit}_about_edit)
+
+### GET /r/ _subreddit_/about/edit[modconfig](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Get the current settings of a subreddit.
+
+In the API, this returns the current settings of the subreddit as used
+by [/api/site\_admin](https://www.reddit.com/dev/api/#POST_api_site_admin). On the HTML site, it will
+display a form for editing the subreddit.
+
+| created | one of (`true`, `false`) |
+| location |  |
+
+[#](https://www.reddit.com/dev/api/#GET_r_{subreddit}_about_rules)
+
+### GET /r/ _subreddit_/about/rules[read](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Get the rules for the current subreddit
+
+[#](https://www.reddit.com/dev/api/#GET_r_{subreddit}_about_traffic)
+
+### GET /r/ _subreddit_/about/traffic[modconfig](https://github.com/reddit/reddit/wiki/OAuth2)
+
+[#](https://www.reddit.com/dev/api/#GET_sidebar)
+
+### GET \[/r/ _subreddit_\]/sidebar[read](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Get the sidebar for the current subreddit
+
+[#](https://www.reddit.com/dev/api/#GET_sticky)
+
+### GET \[/r/ _subreddit_\]/sticky[read](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Redirect to one of the posts stickied in the current subreddit
+
+The "num" argument can be used to select a specific sticky, and will
+default to 1 (the top sticky) if not specified.
+Will 404 if there is not currently a sticky post in this subreddit.
+
+| num | an integer between 1 and 2 (default: 1) |
+
+[#](https://www.reddit.com/dev/api/#GET_subreddits_mine_{where})
+
+### GET /subreddits/mine/ _where_ [mysubreddits](https://github.com/reddit/reddit/wiki/OAuth2) [rss support](https://www.reddit.com/wiki/rss)
+
+- → /subreddits/mine/subscriber
+- → /subreddits/mine/contributor
+- → /subreddits/mine/moderator
+- → /subreddits/mine/streams
+
+Get subreddits the user has a relationship with.
+
+The `where` parameter chooses which subreddits are returned as follows:
+
+- `subscriber` \- subreddits the user is subscribed to
+- `contributor` \- subreddits the user is an approved user in
+- `moderator` \- subreddits the user is a moderator of
+- `streams` \- subscribed to subreddits that contain hosted video links
+
+See also: [/api/subscribe](https://www.reddit.com/dev/api/#POST_api_subscribe),
+[/api/friend](https://www.reddit.com/dev/api/#POST_api_friend), and
+[/api/accept\_moderator\_invite](https://www.reddit.com/dev/api/#POST_api_accept_moderator_invite).
+
+_This endpoint is [a listing](https://www.reddit.com/dev/api/#listings)._
+
+| after | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| before | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| count | a positive integer (default: 0) |
+| limit | the maximum number of items desired (default: 25, maximum: 100) |
+| show | (optional) the string `all` |
+| sr\_detail | (optional) expand subreddits |
+
+[#](https://www.reddit.com/dev/api/#GET_subreddits_search)
+
+### GET /subreddits/search[read](https://github.com/reddit/reddit/wiki/OAuth2) [rss support](https://www.reddit.com/wiki/rss)
+
+Search subreddits by title and description.
+
+_This endpoint is [a listing](https://www.reddit.com/dev/api/#listings)._
+
+| after | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| before | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| count | a positive integer (default: 0) |
+| limit | the maximum number of items desired (default: 25, maximum: 100) |
+| q | a search query |
+| search\_query\_id | a uuid |
+| show | (optional) the string `all` |
+| show\_users | boolean value |
+| sort | one of (`relevance`, `activity`) |
+| sr\_detail | (optional) expand subreddits |
+| typeahead\_active | boolean value or None |
+
+[#](https://www.reddit.com/dev/api/#GET_subreddits_{where})
+
+### GET /subreddits/ _where_ [read](https://github.com/reddit/reddit/wiki/OAuth2) [rss support](https://www.reddit.com/wiki/rss)
+
+- → /subreddits/popular
+- → /subreddits/new
+- → /subreddits/gold
+- → /subreddits/default
+
+Get all subreddits.
+
+The `where` parameter chooses the order in which the subreddits are
+displayed. `popular` sorts on the activity of the subreddit and the
+position of the subreddits can shift around. `new` sorts the subreddits
+based on their creation date, newest first.
+
+_This endpoint is [a listing](https://www.reddit.com/dev/api/#listings)._
+
+| after | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| before | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| count | a positive integer (default: 0) |
+| limit | the maximum number of items desired (default: 25, maximum: 100) |
+| show | (optional) the string `all` |
+| sr\_detail | (optional) expand subreddits |
+
+[#](https://www.reddit.com/dev/api/#GET_users_search)
+
+### GET /users/search[read](https://github.com/reddit/reddit/wiki/OAuth2) [rss support](https://www.reddit.com/wiki/rss)
+
+Search user profiles by title and description.
+
+_This endpoint is [a listing](https://www.reddit.com/dev/api/#listings)._
+
+| after | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| before | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| count | a positive integer (default: 0) |
+| limit | the maximum number of items desired (default: 25, maximum: 100) |
+| q | a search query |
+| search\_query\_id | a uuid |
+| show | (optional) the string `all` |
+| sort | one of (`relevance`, `activity`) |
+| sr\_detail | (optional) expand subreddits |
+| typeahead\_active | boolean value or None |
+
+[#](https://www.reddit.com/dev/api/#GET_users_{where})
+
+### GET /users/ _where_ [read](https://github.com/reddit/reddit/wiki/OAuth2) [rss support](https://www.reddit.com/wiki/rss)
+
+- → /users/popular
+- → /users/new
+
+Get all user subreddits.
+
+The `where` parameter chooses the order in which the subreddits are
+displayed. `popular` sorts on the activity of the subreddit and the
+position of the subreddits can shift around. `new` sorts the user
+subreddits based on their creation date, newest first.
+
+_This endpoint is [a listing](https://www.reddit.com/dev/api/#listings)._
+
+| after | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| before | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| count | a positive integer (default: 0) |
+| limit | the maximum number of items desired (default: 25, maximum: 100) |
+| show | (optional) the string `all` |
+| sr\_detail | (optional) expand subreddits |
+
+## users
+
+[#](https://www.reddit.com/dev/api/#POST_api_block_user)
+
+### POST /api/block\_user[account](https://github.com/reddit/reddit/wiki/OAuth2)
+
+For blocking a user. Only accessible to approved OAuth applications
+
+| account\_id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a account |
+| api\_type | the string `json` |
+| name | A valid, existing reddit username |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_friend)
+
+### POST \[/r/ _subreddit_\]/api/friend[any](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Create a relationship between a user and another user or subreddit
+
+OAuth2 use requires appropriate scope based
+on the 'type' of the relationship:
+
+- moderator: Use "moderator\_invite"
+- moderator\_invite: `modothers`
+- contributor: `modcontributors`
+- banned: `modcontributors`
+- muted: `modcontributors`
+- wikibanned: `modcontributors` and `modwiki`
+- wikicontributor: `modcontributors` and `modwiki`
+- friend: Use [/api/v1/me/friends/{username}](https://www.reddit.com/dev/api/#PUT_api_v1_me_friends_%7Busername%7D)
+- enemy: Use [/api/block](https://www.reddit.com/dev/api/#POST_api_block)
+
+Complement to [POST\_unfriend](https://www.reddit.com/dev/api/#POST_api_unfriend)
+
+| api\_type | the string `json` |
+| ban\_context | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| ban\_message | raw markdown text |
+| ban\_reason | a string no longer than 100 characters |
+| container |  |
+| duration | an integer between 1 and 999 |
+| name | the name of an existing user |
+| note | a string no longer than 300 characters |
+| permissions |  |
+| type | one of (`friend`, `moderator`, `moderator_invite`, `contributor`, `banned`, `muted`, `wikibanned`, `wikicontributor`) |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_report_user)
+
+### POST /api/report\_user[report](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Report a user.
+Reporting a user brings it to the attention of a Reddit admin.
+
+| details | JSON data |
+| reason | a string no longer than 100 characters |
+| ('user',) | A valid, existing reddit username |
+
+[#](https://www.reddit.com/dev/api/#POST_api_setpermissions)
+
+### POST \[/r/ _subreddit_\]/api/setpermissions[modothers](https://github.com/reddit/reddit/wiki/OAuth2)
+
+| api\_type | the string `json` |
+| name | the name of an existing user |
+| permissions |  |
+| type |  |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_unfriend)
+
+### POST \[/r/ _subreddit_\]/api/unfriend[any](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Remove a relationship between a user and another user or subreddit
+
+The user can either be passed in by name (nuser)
+or by [fullname](https://www.reddit.com/dev/api/#fullnames) (iuser). If type is friend or enemy,
+'container' MUST be the current user's fullname;
+for other types, the subreddit must be set
+via URL (e.g., [/r/funny/api/unfriend](https://www.reddit.com/r/funny/api/unfriend))
+
+OAuth2 use requires appropriate scope based
+on the 'type' of the relationship:
+
+- moderator: `modothers`
+- moderator\_invite: `modothers`
+- contributor: `modcontributors`
+- banned: `modcontributors`
+- muted: `modcontributors`
+- wikibanned: `modcontributors` and `modwiki`
+- wikicontributor: `modcontributors` and `modwiki`
+- friend: Use [/api/v1/me/friends/{username}](https://www.reddit.com/dev/api/#DELETE_api_v1_me_friends_%7Busername%7D)
+- enemy: `privatemessages`
+
+Complement to [POST\_friend](https://www.reddit.com/dev/api/#POST_api_friend)
+
+| api\_type | the string `json` |
+| container |  |
+| id | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| name | the name of an existing user |
+| type | one of (`friend`, `enemy`, `moderator`, `moderator_invite`, `contributor`, `banned`, `muted`, `wikibanned`, `wikicontributor`) |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#GET_api_user_data_by_account_ids)
+
+### GET /api/user\_data\_by\_account\_ids[privatemessages](https://github.com/reddit/reddit/wiki/OAuth2)
+
+| ids | A comma-separated list of account [fullnames](https://www.reddit.com/dev/api/#fullnames) |
+
+[#](https://www.reddit.com/dev/api/#GET_api_username_available)
+
+### GET /api/username\_available[any](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Check whether a username is available for registration.
+
+| user | a valid, unused, username |
+
+[#](https://www.reddit.com/dev/api/#DELETE_api_v1_me_friends_{username})
+
+### DELETE /api/v1/me/friends/ _username_ [subscribe](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Stop being friends with a user.
+
+| id | A valid, existing reddit username |
+
+[#](https://www.reddit.com/dev/api/#PUT_api_v1_me_friends_{username})
+
+### PUT /api/v1/me/friends/ _username_ [subscribe](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Create or update a "friend" relationship.
+
+This operation is idempotent. It can be used to add a new
+friend, or update an existing friend (e.g., add/change the
+note on that friend)
+
+| This endpoint expects JSON data of this format | ```<br>{<br>  "name": A valid, existing reddit username,<br>  "note": a string no longer than 300 characters,<br>}<br>``` |
+
+[#](https://www.reddit.com/dev/api/#GET_api_v1_user_{username}_trophies)
+
+### GET /api/v1/user/ _username_/trophies[read](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Return a list of trophies for the a given user.
+
+| id | A valid, existing reddit username |
+
+[#](https://www.reddit.com/dev/api/#GET_user_{username}_about)
+
+### GET /user/ _username_/about[read](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Return information about the user, including karma and gold status.
+
+| username | the name of an existing user |
+
+[#](https://www.reddit.com/dev/api/#GET_user_{username}_{where})
+
+### GET /user/ _username_/ _where_ [history](https://github.com/reddit/reddit/wiki/OAuth2) [rss support](https://www.reddit.com/wiki/rss)
+
+- → /user/ _username_/overview
+- → /user/ _username_/submitted
+- → /user/ _username_/comments
+- → /user/ _username_/upvoted
+- → /user/ _username_/downvoted
+- → /user/ _username_/hidden
+- → /user/ _username_/saved
+- → /user/ _username_/gilded
+
+_This endpoint is [a listing](https://www.reddit.com/dev/api/#listings)._
+
+| context | an integer between 2 and 10 |
+| show | one of (`given`) |
+| sort | one of (`hot`, `new`, `top`, `controversial`) |
+| t | one of (`hour`, `day`, `week`, `month`, `year`, `all`) |
+| type | one of (`links`, `comments`) |
+| username | the name of an existing user |
+| after | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| before | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| count | a positive integer (default: 0) |
+| limit | the maximum number of items desired (default: 25, maximum: 100) |
+| sr\_detail | (optional) expand subreddits |
+
+## widgets
+
+[#](https://www.reddit.com/dev/api/#POST_api_widget)
+
+### POST \[/r/ _subreddit_\]/api/widget[structuredstyles](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Add and return a widget to the specified subreddit
+
+Accepts a JSON payload representing the widget data to be saved.
+Valid payloads differ in shape based on the "kind" attribute passed on
+the root object, which must be a valid widget kind.
+
+| json | json data:<br>```<br>{<br>  "data": [<br>    {<br>      "height": an integer,<br>      "linkUrl": A valid URL (optional),<br>      "url": a valid URL of a reddit-hosted image,<br>      "width": an integer,<br>    },<br>    ...<br>  ],<br>  "kind": one of (`image`),<br>  "shortName": a string no longer than 30 characters,<br>  "styles": {<br>    "backgroundColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>    "headerColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>  },<br>}<br>OR<br>{<br>  "configuration": {<br>    "numEvents": an integer between 1 and 50 (default: 10),<br>    "showDate": boolean value,<br>    "showDescription": boolean value,<br>    "showLocation": boolean value,<br>    "showTime": boolean value,<br>    "showTitle": boolean value,<br>  },<br>  "googleCalendarId": a valid email address,<br>  "kind": one of (`calendar`),<br>  "requiresSync": boolean value,<br>  "shortName": a string no longer than 30 characters,<br>  "styles": {<br>    "backgroundColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>    "headerColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>  },<br>}<br>OR<br>{<br>  "kind": one of (`textarea`),<br>  "shortName": a string no longer than 30 characters,<br>  "styles": {<br>    "backgroundColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>    "headerColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>  },<br>  "text": raw markdown text,<br>}<br>OR<br>{<br>  "data": [<br>    {<br>      "text": a string no longer than 20 characters,<br>      "url": a valid URL,<br>    }<br>    OR<br>    {<br>      "children": [<br>        {<br>          "text": a string no longer than 20 characters,<br>          "url": a valid URL,<br>        },<br>        ...<br>      ],<br>      "text": a string no longer than 20 characters,<br>    },<br>    ...<br>  ],<br>  "kind": one of (`menu`),<br>  "showWiki": boolean value,<br>}<br>OR<br>{<br>  "buttons": [<br>    {<br>      "color": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>      "fillColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>      "hoverState": {<br>        "color": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>        "fillColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>        "kind": one of (`text`),<br>        "text": a string no longer than 30 characters,<br>        "textColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>      }<br>      OR<br>      {<br>        "height": an integer,<br>        "imageUrl": a valid URL of a reddit-hosted image,<br>        "kind": one of (`image`),<br>        "width": an integer,<br>      },<br>      "kind": one of (`text`),<br>      "text": a string no longer than 30 characters,<br>      "textColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>      "url": a valid URL,<br>    }<br>    OR<br>    {<br>      "height": an integer,<br>      "hoverState": {<br>        "color": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>        "fillColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>        "kind": one of (`text`),<br>        "text": a string no longer than 30 characters,<br>        "textColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>      }<br>      OR<br>      {<br>        "height": an integer,<br>        "imageUrl": a valid URL of a reddit-hosted image,<br>        "kind": one of (`image`),<br>        "width": an integer,<br>      },<br>      "imageUrl": a valid URL of a reddit-hosted image,<br>      "kind": one of (`image`),<br>      "linkUrl": a valid URL,<br>      "text": a string no longer than 30 characters,<br>      "width": an integer,<br>    },<br>    ...<br>  ],<br>  "description": raw markdown text,<br>  "kind": one of (`button`),<br>  "shortName": a string no longer than 30 characters,<br>  "styles": {<br>    "backgroundColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>    "headerColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>  },<br>}<br>OR<br>{<br>  "data": [<br>    subreddit name,<br>    ...<br>  ],<br>  "kind": one of (`community-list`),<br>  "shortName": a string no longer than 30 characters,<br>  "styles": {<br>    "backgroundColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>    "headerColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>  },<br>}<br>OR<br>{<br>  "css": a string no longer than 100000 characters,<br>  "height": an integer between 50 and 500,<br>  "imageData": [<br>    {<br>      "height": an integer,<br>      "name": a string no longer than 20 characters,<br>      "url": a valid URL of a reddit-hosted image,<br>      "width": an integer,<br>    },<br>    ...<br>  ],<br>  "kind": one of (`custom`),<br>  "shortName": a string no longer than 30 characters,<br>  "styles": {<br>    "backgroundColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>    "headerColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>  },<br>  "text": raw markdown text,<br>}<br>OR<br>{<br>  "display": one of (`cloud`, `list`),<br>  "kind": one of (`post-flair`),<br>  "order": [<br>    a flair template ID,<br>    ...<br>  ],<br>  "shortName": a string no longer than 30 characters,<br>  "styles": {<br>    "backgroundColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>    "headerColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>  },<br>}<br>``` |
+
+[#](https://www.reddit.com/dev/api/#DELETE_api_widget_{widget_id})
+
+### DELETE \[/r/ _subreddit_\]/api/widget/ _widget\_id_ [structuredstyles](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Delete a widget from the specified subreddit (if it exists)
+
+| widget\_id | id of an existing widget |
+
+[#](https://www.reddit.com/dev/api/#PUT_api_widget_{widget_id})
+
+### PUT \[/r/ _subreddit_\]/api/widget/ _widget\_id_ [structuredstyles](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Update and return the data of a widget.
+
+Accepts a JSON payload representing the widget data to be saved.
+Valid payloads differ in shape based on the "kind" attribute passed on
+the root object, which must be a valid widget kind.
+
+| json | json data:<br>```<br>{<br>  "data": [<br>    {<br>      "height": an integer,<br>      "linkUrl": A valid URL (optional),<br>      "url": a valid URL of a reddit-hosted image,<br>      "width": an integer,<br>    },<br>    ...<br>  ],<br>  "kind": one of (`image`),<br>  "shortName": a string no longer than 30 characters,<br>  "styles": {<br>    "backgroundColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>    "headerColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>  },<br>}<br>OR<br>{<br>  "configuration": {<br>    "numEvents": an integer between 1 and 50 (default: 10),<br>    "showDate": boolean value,<br>    "showDescription": boolean value,<br>    "showLocation": boolean value,<br>    "showTime": boolean value,<br>    "showTitle": boolean value,<br>  },<br>  "googleCalendarId": a valid email address,<br>  "kind": one of (`calendar`),<br>  "requiresSync": boolean value,<br>  "shortName": a string no longer than 30 characters,<br>  "styles": {<br>    "backgroundColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>    "headerColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>  },<br>}<br>OR<br>{<br>  "kind": one of (`textarea`),<br>  "shortName": a string no longer than 30 characters,<br>  "styles": {<br>    "backgroundColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>    "headerColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>  },<br>  "text": raw markdown text,<br>}<br>OR<br>{<br>  "display": one of (`full`, `compact`),<br>  "kind": one of (`subreddit-rules`),<br>  "shortName": a string no longer than 30 characters,<br>  "styles": {<br>    "backgroundColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>    "headerColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>  },<br>}<br>OR<br>{<br>  "data": [<br>    {<br>      "text": a string no longer than 20 characters,<br>      "url": a valid URL,<br>    }<br>    OR<br>    {<br>      "children": [<br>        {<br>          "text": a string no longer than 20 characters,<br>          "url": a valid URL,<br>        },<br>        ...<br>      ],<br>      "text": a string no longer than 20 characters,<br>    },<br>    ...<br>  ],<br>  "kind": one of (`menu`),<br>  "showWiki": boolean value,<br>}<br>OR<br>{<br>  "buttons": [<br>    {<br>      "color": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>      "fillColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>      "hoverState": {<br>        "color": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>        "fillColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>        "kind": one of (`text`),<br>        "text": a string no longer than 30 characters,<br>        "textColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>      }<br>      OR<br>      {<br>        "height": an integer,<br>        "imageUrl": a valid URL of a reddit-hosted image,<br>        "kind": one of (`image`),<br>        "width": an integer,<br>      },<br>      "kind": one of (`text`),<br>      "text": a string no longer than 30 characters,<br>      "textColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>      "url": a valid URL,<br>    }<br>    OR<br>    {<br>      "height": an integer,<br>      "hoverState": {<br>        "color": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>        "fillColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>        "kind": one of (`text`),<br>        "text": a string no longer than 30 characters,<br>        "textColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>      }<br>      OR<br>      {<br>        "height": an integer,<br>        "imageUrl": a valid URL of a reddit-hosted image,<br>        "kind": one of (`image`),<br>        "width": an integer,<br>      },<br>      "imageUrl": a valid URL of a reddit-hosted image,<br>      "kind": one of (`image`),<br>      "linkUrl": a valid URL,<br>      "text": a string no longer than 30 characters,<br>      "width": an integer,<br>    },<br>    ...<br>  ],<br>  "description": raw markdown text,<br>  "kind": one of (`button`),<br>  "shortName": a string no longer than 30 characters,<br>  "styles": {<br>    "backgroundColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>    "headerColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>  },<br>}<br>OR<br>{<br>  "currentlyViewingText": a string no longer than 30 characters,<br>  "kind": one of (`id-card`),<br>  "shortName": a string no longer than 30 characters,<br>  "styles": {<br>    "backgroundColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>    "headerColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>  },<br>  "subscribersText": a string no longer than 30 characters,<br>}<br>OR<br>{<br>  "data": [<br>    subreddit name,<br>    ...<br>  ],<br>  "kind": one of (`community-list`),<br>  "shortName": a string no longer than 30 characters,<br>  "styles": {<br>    "backgroundColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>    "headerColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>  },<br>}<br>OR<br>{<br>  "css": a string no longer than 100000 characters,<br>  "height": an integer between 50 and 500,<br>  "imageData": [<br>    {<br>      "height": an integer,<br>      "name": a string no longer than 20 characters,<br>      "url": a valid URL of a reddit-hosted image,<br>      "width": an integer,<br>    },<br>    ...<br>  ],<br>  "kind": one of (`custom`),<br>  "shortName": a string no longer than 30 characters,<br>  "styles": {<br>    "backgroundColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>    "headerColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>  },<br>  "text": raw markdown text,<br>}<br>OR<br>{<br>  "display": one of (`cloud`, `list`),<br>  "kind": one of (`post-flair`),<br>  "order": [<br>    a flair template ID,<br>    ...<br>  ],<br>  "shortName": a string no longer than 30 characters,<br>  "styles": {<br>    "backgroundColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>    "headerColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>  },<br>}<br>OR<br>{<br>  "kind": one of (`moderators`),<br>  "styles": {<br>    "backgroundColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>    "headerColor": a 6-digit rgb hex color, e.g. `#AABBCC`,<br>  },<br>}<br>``` |
+| widget\_id | a valid widget id |
+
+[#](https://www.reddit.com/dev/api/#POST_api_widget_image_upload_s3)
+
+### POST \[/r/ _subreddit_\]/api/widget\_image\_upload\_s3[structuredstyles](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Acquire and return an upload lease to s3 temp bucket.
+
+The return value of this function is a json object containing
+credentials for uploading assets to S3 bucket, S3 url for upload
+request and the key to use for uploading. Using this lease the client
+will upload the emoji image to S3 temp bucket (included as part of
+the S3 URL).
+
+This lease is used by S3 to verify that the upload is authorized.
+
+| filepath | name and extension of the image file e.g. image1.png |
+| mimetype | mime type of the image e.g. image/png |
+
+[#](https://www.reddit.com/dev/api/#PATCH_api_widget_order_{section})
+
+### PATCH \[/r/ _subreddit_\]/api/widget\_order/ _section_ [structuredstyles](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Update the order of widget\_ids in the specified subreddit
+
+| json | json data:<br>```<br>[<br>  a string,<br>  ...<br>]<br>``` |
+| section | one of (`sidebar`) |
+
+[#](https://www.reddit.com/dev/api/#GET_api_widgets)
+
+### GET \[/r/ _subreddit_\]/api/widgets[structuredstyles](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Return all widgets for the given subreddit
+
+| progressive\_images | boolean value |
+
+## wiki
+
+[#](https://www.reddit.com/dev/api/#POST_api_wiki_alloweditor_{act})
+
+### POST \[/r/ _subreddit_\]/api/wiki/alloweditor/ _act_ [modwiki](https://github.com/reddit/reddit/wiki/OAuth2)
+
+- → \[/r/ _subreddit_\]/api/wiki/alloweditor/del
+- → \[/r/ _subreddit_\]/api/wiki/alloweditor/add
+
+Allow/deny `username` to edit this wiki `page`
+
+| act | one of (`del`, `add`) |
+| page | the name of an existing wiki page |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+| username | the name of an existing user |
+
+[#](https://www.reddit.com/dev/api/#POST_api_wiki_edit)
+
+### POST \[/r/ _subreddit_\]/api/wiki/edit[wikiedit](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Edit a wiki `page`
+
+| content |  |
+| page | the name of an existing page or a new page to create |
+| previous | the starting point revision for this edit |
+| reason | a string up to 256 characters long, consisting of printable characters. |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_wiki_hide)
+
+### POST \[/r/ _subreddit_\]/api/wiki/hide[modwiki](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Toggle the public visibility of a wiki page revision
+
+| page | the name of an existing wiki page |
+| revision | a wiki revision ID |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#POST_api_wiki_revert)
+
+### POST \[/r/ _subreddit_\]/api/wiki/revert[modwiki](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Revert a wiki `page` to `revision`
+
+| page | the name of an existing wiki page |
+| revision | a wiki revision ID |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#GET_wiki_discussions_{page})
+
+### GET \[/r/ _subreddit_\]/wiki/discussions/ _page_ [wikiread](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Retrieve a list of discussions about this wiki `page`
+
+_This endpoint is [a listing](https://www.reddit.com/dev/api/#listings)._
+
+| after | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| before | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| count | a positive integer (default: 0) |
+| limit | the maximum number of items desired (default: 25, maximum: 100) |
+| page | the name of an existing wiki page |
+| show | (optional) the string `all` |
+| sr\_detail | (optional) expand subreddits |
+
+[#](https://www.reddit.com/dev/api/#GET_wiki_pages)
+
+### GET \[/r/ _subreddit_\]/wiki/pages[wikiread](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Retrieve a list of wiki pages in this subreddit
+
+[#](https://www.reddit.com/dev/api/#GET_wiki_revisions)
+
+### GET \[/r/ _subreddit_\]/wiki/revisions[wikiread](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Retrieve a list of recently changed wiki pages in this subreddit
+
+| after | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| before | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| count | a positive integer (default: 0) |
+| limit | the maximum number of items desired (default: 25, maximum: 100) |
+| show | (optional) the string `all` |
+| sr\_detail | (optional) expand subreddits |
+
+[#](https://www.reddit.com/dev/api/#GET_wiki_revisions_{page})
+
+### GET \[/r/ _subreddit_\]/wiki/revisions/ _page_ [wikiread](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Retrieve a list of revisions of this wiki `page`
+
+_This endpoint is [a listing](https://www.reddit.com/dev/api/#listings)._
+
+| after | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| before | [fullname](https://www.reddit.com/dev/api/#fullnames) of a thing |
+| count | a positive integer (default: 0) |
+| limit | the maximum number of items desired (default: 25, maximum: 100) |
+| page | the name of an existing wiki page |
+| show | (optional) the string `all` |
+| sr\_detail | (optional) expand subreddits |
+
+[#](https://www.reddit.com/dev/api/#GET_wiki_settings_{page})
+
+### GET \[/r/ _subreddit_\]/wiki/settings/ _page_ [modwiki](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Retrieve the current permission settings for `page`
+
+| page | the name of an existing wiki page |
+
+[#](https://www.reddit.com/dev/api/#POST_wiki_settings_{page})
+
+### POST \[/r/ _subreddit_\]/wiki/settings/ _page_ [modwiki](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Update the permissions and visibility of wiki `page`
+
+| listed | boolean value |
+| page | the name of an existing wiki page |
+| permlevel | an integer |
+| uh / X-Modhash header | a [modhash](https://www.reddit.com/dev/api/#modhashes) |
+
+[#](https://www.reddit.com/dev/api/#GET_wiki_{page})
+
+### GET \[/r/ _subreddit_\]/wiki/ _page_ [wikiread](https://github.com/reddit/reddit/wiki/OAuth2)
+
+Return the content of a wiki page
+
+If `v` is given, show the wiki page as it was at that version
+If both `v` and `v2` are given, show a diff of the two
+
+| page | the name of an existing wiki page |
+| v | a wiki revision ID |
+| v2 | a wiki revision ID |
+
+Use of this site constitutes acceptance of our [User Agreement](https://www.reddit.com/help/useragreement) and [Privacy Policy](https://www.reddit.com/help/privacypolicy). © 2026 reddit inc. All rights reserved.
+
+REDDIT and the ALIEN Logo are registered trademarks of reddit inc.
+
+![](https://reddit.com/static/pixel.png)
+
+πRendered by PID 1668305 on reddit-service-r2-loggedout-765b98cff5-wbzxn at 2026-10-17 12:10:55.276701+00:00 running 45c91b4 country code: US.

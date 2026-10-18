@@ -1,0 +1,167 @@
+# PullPush Reddit API Documentation
+
+By accessing PullPush API, website, forum or ticket system you agree to the [PullPush Terms Of Service.](https://pullpush.io/tos.html)
+
+| Quick links |
+| --- |
+| [Reddit Search](https://search.pullpush.io/) |
+| [Reddit Undelete](https://undelete.pullpush.io/) |
+| [Forum](https://forum.pullpush.io/) |
+| [Discord](https://discord.gg/8hw88WMHFw) |
+| [Removals](https://removals.pullpush.io/) |
+| [Documentation](https://pullpush.io/#docs) |
+
+# Special Thanks
+
+I would like to extend special thanks to Reddit user [**Watchful1**](https://www.reddit.com/user/Watchful1) for compiling [BitTorrent data](https://academictorrents.com/browse.php?search=%22Reddit+comments%2Fsubmissions%22) for Reddit. Without him this service would not be possible.
+
+# Removal requests
+
+Unfortunately the Pushshift team has **not removed** any posts for which there are legitimate removal requests from the BitTorrent files. PullPush has no power to remove them from there.
+
+If you have submitted a removal request to Pushshift and you would like to remove the data from PullPush too, you will need to file a separate removal request.
+
+If you would like your data to be removed from PullPush please submit a request by submitting a ticket in our ticket system [removals.pullpush.io](https://removals.pullpush.io/).
+
+# Using the legacy [https://api.pullpush.io](https://api.pullpush.io/) endpoints
+
+There are three main endpoints used to search all publicly available comments and submissions (topics) on Reddit:
+
+- /comment
+- /topic
+- /link\_id
+
+In the next section, we will explore how to perform more effective searches using the comment search endpoint.
+
+# Searching Comments
+
+To search for comments, use the [https://api.pullpush.io/comment](https://api.pullpush.io/comment) endpoint. Let's start with a few examples and then go over the various parameters available when using this endpoint. One of the simplest searches is using just the q parameter. The q parameter is used to search for a specific word or phrase. Here is an example:
+
+**Search for the most recent comments mentioning the word "science"**
+
+[https://api.pullpush.io/comment?q=science](https://api.pullpush.io/comment?q=science)
+
+This will search the most recent comments with the term "science" in the body of the comment. This search is not case-sensitive, so it will find any occurrence of the term "science" regardless of capitalization. The API defaults to sorting by recently made comments first. After performing this search, 10 results are returned. This is the default size for searches and can be adjusted using the size parameter. This will be discussed in further detail in the parameters section. Data is returned in JSON format and actual search results are included in the "data" key. There is also a "metadata" key that gives additional information about the search including total number of results found, how long the search took to process, etc.
+
+# Search parameters for comments
+
+There are numerous additional parameters that can be used when performing a comment search. Let's go over them and provide examples for each.
+
+| Parameter | Description | Default | Accepted Values |
+| --- | --- | --- | --- |
+| ids | Get specific comments via their ids | N/A | Comma-delimited base36 ids |
+| exclude\_ids | Exclude specific ids (used for pagination) | N/A | Comma-delimited base36 ids |
+| q | Search term. | N/A | String / Quoted String for phrases |
+| size | Number of results to return | 10 | Integer <= 100 |
+| sort | Sort results in a specific order | "desc" | "asc", "desc" |
+| sort\_type | Sort by a specific attribute | "created\_utc" | "score", "created\_utc" |
+| author | Restrict to a specific author | N/A | String |
+| subreddit | Restrict to a specific subreddit | N/A | String |
+| after | Return results after this date | N/A | Epoch value |
+| before | Return results before this date | N/A | Epoch value |
+| link\_id | Return results from a particular topic | N/A | base36 id |
+
+## Getting comments based on ids
+
+You can retrieve comments directly by using the ids parameter. To get a batch of comments by their ids, use the following example:
+
+**Retrieve three comments using their base 36 id values**
+
+[https://api.pullpush.io/comment?ids=dlrezc8,dlrawgw,dlrhbkq](https://api.pullpush.io/comment?ids=dlrezc8,dlrawgw,dlrhbkq)
+
+## Using the subreddit parameter
+
+There are quite a few parameters to review, so let's start by providing some more complex examples and showing how to use the parameters above. Let's continue with the previous example above and expand on our "science" keyword search. What if we wanted to search for the term "science" but restrict it to a specific subreddit? By using the subreddit parameter, we can do that:
+
+**Search for the most recent comments mentioning the word "science" within the subreddit /r/askscience**
+
+[https://api.pullpush.io/comment?q=science&subreddit=askscience](https://api.pullpush.io/comment?q=science&subreddit=askscience)
+
+## Using the sort and size parameters
+
+This will return 100 comments containing the term "science" but only from the /r/askscience subreddit. Since we didn't ask for a specific sort method, the most recent comments are returned (the sort parameter defaults to "desc"). What if we wanted the first comment ever to /r/askscience that mentioned the word "science"? We could use the sort and size parameters to handle that.
+
+**Search for the first comment ever mentioning the word "science" within the subreddit /r/askscience**
+
+[https://api.pullpush.io/comment?q=science&subreddit=askscience&sort=asc&size=1](https://api.pullpush.io/comment?q=science&subreddit=askscience&sort=asc&size=1)
+
+## Using the author parameter
+
+Using one of the examples above that searched for the first occurrence of the word "science" in the subreddit /r/askscience, we saw that the author of the comment was "MockDeath." What if we wanted to get the first 100 comments that "MockDeath" made to Reddit? We can use the author parameter, along with the sort and size parameters.
+
+**Search all subreddits and get the first 100 comments ever made by the user /u/MockDeath**
+
+[https://api.pullpush.io/comment?author=MockDeath&sort=asc&size=100](https://api.pullpush.io/comment?author=MockDeath&sort=asc&size=100)
+
+* * *
+
+# Searching Submissions (Topics)
+
+To search for topics, use the [https://api.pullpush.io/topic](https://api.pullpush.io/topic) endpoint. Let's start with a few examples and then go over the various parameters available when using this endpoint. To do a simple search, the q parameter is used to search for a specific word or phrase. Here is an example:
+
+**Search for the most recent topics mentioning the word "science"**
+
+[https://api.pullpush.io/topic?q=science](https://api.pullpush.io/topic?q=science)
+
+This will search for the most recent topics with the word science in the title or selftext. The search is not case-sensitive, so it will find any occurrence of science regardless of capitalization. The API defaults to sorting by the most recently made topic first. After running this search, 10 results are returned. This is the default size for searches and can be changed by using the size parameter. This will be discussed in further detail in the parameters section. Data is returned in JSON format and results are included in the "data" key.
+
+# Search parameters for topics
+
+There are numerous additional parameters that can be used when performing a topic search. Let's go over each of them now and provide examples for each one.
+
+| Parameter | Description | Default | Accepted Values |
+| --- | --- | --- | --- |
+| ids | Get specific topics via their ids | N/A | Comma-delimited base36 ids |
+| exclude\_ids | Exclude specific ids (used for pagination) | N/A | Comma-delimited base36 ids |
+| q | Search term. Will search ALL possible fields | N/A | String / Quoted String for phrases |
+| title | Searches the title field only | N/A | String / Quoted String for phrases |
+| selftext | Searches the selftext field only | N/A | String / Quoted String for phrases |
+| size | Number of results to return | 10 | Integer <= 100 |
+| sort | Sort results in a specific order | "desc" | "asc", "desc" |
+| sort\_type | Sort by a specific attribute | "created\_utc" | "score", "created\_utc" |
+| author | Restrict to a specific author | N/A | String |
+| subreddit | Restrict to a specific subreddit | N/A | String |
+| after | Return results after this date | N/A | Epoch value |
+| before | Return results before this date | N/A | Epoch value |
+| score | Restrict results based on score | N/A | Integer or > x or < x (i.e. score=>100 or score=<25) |
+
+## Get all comment ids for a particular topic
+
+This call is very helpful when used along with Reddit's API. When there are large topics with thousands of comments, it is often difficult to get all the comment ids for a topic. This call will return an array of comment ids when a topic id is passed to it.
+
+**Retrieve all comment ids for a topic**
+
+[https://api.pullpush.io/link\_id?link\_id=6uey5x](https://api.pullpush.io/link_id?link_id=6uey5x)
+
+# Paginating the PullPush API
+
+There is no offset parameter. You page by filtering: ask for items past the last one you hold.
+
+Every filter is inclusive: `before=1747660000` includes that second, `score=<50` includes 50. So the item that set the boundary returns on the next page.
+
+Stepping one past it — `before=1747659999`, `score=<49` — works only if the sort key is unique to one item. It rarely is: a single second holds dozens of comments, and thousands of posts share a score of 5.
+
+## The algorithm
+
+Keep the boundary, and name what you already hold.
+
+1. Read your last item's sort key: `created_utc` for date, `score` for score.
+2. Set the boundary to that value, unchanged:
+   - date descending: `before=<value>`
+   - date ascending: `after=<value>`
+   - score descending: `score=<<value>`
+   - score ascending: `score=><value>`
+3. Send `exclude_ids`, comma separated, listing the ids you hold **whose sort key equals the boundary**.
+4. Request the page.
+5. Discard anything in the response you already hold.
+6. Append the rest. If nothing remains, stop.
+
+## Why the exclude list stays short
+
+Only items sitting exactly on the boundary can return; anything past it the boundary already excludes. So the list is as long as the current run of ties, not the result set, and it resets when the boundary moves:
+
+```
+page 5 | 10 new | 40 excluded | before=1747660000
+page 6 | 10 new | 50 excluded | before=1747660000
+page 7 | 10 new |  9 excluded | before=1747659999   <- boundary moved
+```

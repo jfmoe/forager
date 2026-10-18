@@ -1,0 +1,250 @@
+[
+  {
+    "label": "www.reddit.com-search-json",
+    "ua": "honest",
+    "file": "www.reddit.com-search-json-honest.json",
+    "status": 403,
+    "content_type": "text/html",
+    "redirect_url": null,
+    "markers": [
+      "blocked by network security",
+      "you've been blocked"
+    ],
+    "bytes": 189908
+  },
+  {
+    "label": "www.reddit.com-search-json",
+    "ua": "browser",
+    "file": "www.reddit.com-search-json-browser.json",
+    "status": 403,
+    "content_type": "text/html",
+    "redirect_url": null,
+    "markers": [
+      "blocked by network security",
+      "you've been blocked"
+    ],
+    "bytes": 189908
+  },
+  {
+    "label": "www.reddit.com-thread-json",
+    "ua": "honest",
+    "file": "www.reddit.com-thread-json-honest.json",
+    "status": 403,
+    "content_type": "text/html",
+    "redirect_url": null,
+    "markers": [
+      "blocked by network security",
+      "you've been blocked"
+    ],
+    "bytes": 189908
+  },
+  {
+    "label": "www.reddit.com-thread-json",
+    "ua": "browser",
+    "file": "www.reddit.com-thread-json-browser.json",
+    "status": 403,
+    "content_type": "text/html",
+    "redirect_url": null,
+    "markers": [
+      "blocked by network security",
+      "you've been blocked"
+    ],
+    "bytes": 189908
+  },
+  {
+    "label": "www.reddit.com-search-rss",
+    "ua": "honest",
+    "file": "www.reddit.com-search-rss-honest.json",
+    "status": 200,
+    "content_type": "application/atom+xml; charset=UTF-8",
+    "redirect_url": null,
+    "markers": [],
+    "bytes": 2339
+  },
+  {
+    "label": "www.reddit.com-search-rss",
+    "ua": "browser",
+    "file": "www.reddit.com-search-rss-browser.json",
+    "status": 429,
+    "content_type": null,
+    "redirect_url": null,
+    "markers": [],
+    "bytes": 0
+  },
+  {
+    "label": "old.reddit.com-search-json",
+    "ua": "honest",
+    "file": "old.reddit.com-search-json-honest.json",
+    "status": 302,
+    "content_type": null,
+    "redirect_url": "https://old.reddit.com/login/?reason=lor2&dest=https%3A%2F%2Fold.reddit.com%2Fsearch.json%3Fq%3Drust%26limit%3D1",
+    "markers": [],
+    "bytes": 0
+  },
+  {
+    "label": "old.reddit.com-search-json",
+    "ua": "browser",
+    "file": "old.reddit.com-search-json-browser.json",
+    "status": 302,
+    "content_type": null,
+    "redirect_url": "https://old.reddit.com/login/?reason=lor2&dest=https%3A%2F%2Fold.reddit.com%2Fsearch.json%3Fq%3Drust%26limit%3D1",
+    "markers": [],
+    "bytes": 0
+  },
+  {
+    "label": "old.reddit.com-thread-json",
+    "ua": "honest",
+    "file": "old.reddit.com-thread-json-honest.json",
+    "status": 302,
+    "content_type": null,
+    "redirect_url": "https://old.reddit.com/login/?reason=lor2&dest=https%3A%2F%2Fold.reddit.com%2Fcomments%2F1wubcvf.json%3Flimit%3D1%26depth%3D1",
+    "markers": [],
+    "bytes": 0
+  },
+  {
+    "label": "old.reddit.com-thread-json",
+    "ua": "browser",
+    "file": "old.reddit.com-thread-json-browser.json",
+    "status": 302,
+    "content_type": null,
+    "redirect_url": "https://old.reddit.com/login/?reason=lor2&dest=https%3A%2F%2Fold.reddit.com%2Fcomments%2F1wubcvf.json%3Flimit%3D1%26depth%3D1",
+    "markers": [],
+    "bytes": 0
+  },
+  {
+    "label": "old.reddit.com-search-rss",
+    "ua": "honest",
+    "file": "old.reddit.com-search-rss-honest.json",
+    "status": 302,
+    "content_type": null,
+    "redirect_url": "https://old.reddit.com/login/?reason=lor2&dest=https%3A%2F%2Fold.reddit.com%2Fsearch.rss%3Fq%3Drust%26limit%3D1",
+    "markers": [],
+    "bytes": 0
+  },
+  {
+    "label": "old.reddit.com-search-rss",
+    "ua": "browser",
+    "file": "old.reddit.com-search-rss-browser.json",
+    "status": 302,
+    "content_type": null,
+    "redirect_url": "https://old.reddit.com/login/?reason=lor2&dest=https%3A%2F%2Fold.reddit.com%2Fsearch.rss%3Fq%3Drust%26limit%3D1",
+    "markers": [],
+    "bytes": 0
+  },
+  {
+    "label": "svc-search",
+    "ua": "honest",
+    "file": "svc-search-honest.json",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "redirect_url": null,
+    "markers": [
+      "recaptcha"
+    ],
+    "bytes": 405193
+  },
+  {
+    "label": "svc-search",
+    "ua": "browser",
+    "file": "svc-search-browser.json",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "redirect_url": null,
+    "markers": [
+      "recaptcha"
+    ],
+    "bytes": 396404
+  },
+  {
+    "label": "svc-subreddit-search",
+    "ua": "honest",
+    "file": "svc-subreddit-search-honest.json",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "redirect_url": null,
+    "markers": [
+      "recaptcha"
+    ],
+    "bytes": 376840
+  },
+  {
+    "label": "svc-subreddit-search",
+    "ua": "browser",
+    "file": "svc-subreddit-search-browser.json",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "redirect_url": null,
+    "markers": [
+      "recaptcha"
+    ],
+    "bytes": 376554
+  },
+  {
+    "label": "svc-listing",
+    "ua": "honest",
+    "file": "svc-listing-honest.json",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "redirect_url": null,
+    "markers": [
+      "recaptcha"
+    ],
+    "bytes": 618992
+  },
+  {
+    "label": "svc-listing",
+    "ua": "browser",
+    "file": "svc-listing-browser.json",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "redirect_url": null,
+    "markers": [
+      "recaptcha"
+    ],
+    "bytes": 790345
+  },
+  {
+    "label": "svc-comments",
+    "ua": "honest",
+    "file": "svc-comments-honest.json",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "redirect_url": null,
+    "markers": [
+      "recaptcha"
+    ],
+    "bytes": 846432
+  },
+  {
+    "label": "svc-comments",
+    "ua": "browser",
+    "file": "svc-comments-browser.json",
+    "status": 200,
+    "content_type": "text/html; charset=utf-8",
+    "redirect_url": null,
+    "markers": [
+      "recaptcha"
+    ],
+    "bytes": 974803
+  },
+  {
+    "label": "redd-it",
+    "ua": "honest",
+    "file": "redd-it-honest.json",
+    "status": 301,
+    "content_type": null,
+    "redirect_url": "https://www.reddit.com/comments/1wubcvf",
+    "markers": [],
+    "bytes": 0
+  },
+  {
+    "label": "redd-it",
+    "ua": "browser",
+    "file": "redd-it-browser.json",
+    "status": 301,
+    "content_type": null,
+    "redirect_url": "https://www.reddit.com/comments/1wubcvf",
+    "markers": [],
+    "bytes": 0
+  }
+]

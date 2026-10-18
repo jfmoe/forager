@@ -1,0 +1,52 @@
+[Skip to content](https://github.com/reddit-archive/reddit/wiki/OAuth2-App-Types#start-of-content)
+
+You signed in with another tab or window. [Reload](https://github.com/reddit-archive/reddit/wiki/OAuth2-App-Types) to refresh your session.You signed out in another tab or window. [Reload](https://github.com/reddit-archive/reddit/wiki/OAuth2-App-Types) to refresh your session.You switched accounts on another tab or window. [Reload](https://github.com/reddit-archive/reddit/wiki/OAuth2-App-Types) to refresh your session.Dismiss alert
+
+{{ message }}
+
+This repository was archived by the owner on Nov 9, 2017. It is now read-only.
+
+
+# OAuth2 App Types
+
+[Jump to bottom](https://github.com/reddit-archive/reddit/wiki/OAuth2-App-Types#wiki-pages-box)
+
+Curtis Brandt edited this page on May 3, 2015May 3, 2015
+·
+[4 revisions](https://github.com/reddit-archive/reddit/wiki/OAuth2-App-Types/_history)
+
+When creating an [OAuth 2](https://github.com/reddit-archive/reddit/wiki/oauth2) app, the most important decision to make is "what kind of application am I?" Different application types have different API access patterns, and there are differences in how the reddit servers treat your app.
+
+## Web app
+
+[Permalink: Web app](https://github.com/reddit-archive/reddit/wiki/OAuth2-App-Types#web-app)
+
+The app runs as the backend of a web server, on a server that only YOU have access to. Select this if:
+
+- You're going to run a webservice that requires or takes advantage of access to user accounts. For example, [http://ifttt.com](http://ifttt.com/) allows any redditor to access their webservice and set-up tasks such as automatically putting all the user's posts in their Evernote account.
+- You can keep your client secret secure and safe.
+- Your service is available over `http` or `https`. (It is preferred that your service be accessible over `https` to properly protect the authorization code)
+
+## Installed app
+
+[Permalink: Installed app](https://github.com/reddit-archive/reddit/wiki/OAuth2-App-Types#installed-app)
+
+An app installed on a computer that you don't own or control. Select this if:
+
+- Your app won't be able to keep a client secret safe and secure. For example, Android, Windows or iOS apps that access the reddit API should choose this app type, as anyone who installs the app would be able to figure out your client secret.\*
+- You want reddit to redirect the user to an arbitrary URI after they grant your app permissions, such as `my-cool-app:/my/redirect/uri`
+
+\\* Note: For relevant requests, you should _still_ send and use the client secret like normal. The reddit servers will simply not make the assumption that an installed app sending a secret has "proven" to be a request on behalf of that app.
+
+## Script
+
+[Permalink: Script](https://github.com/reddit-archive/reddit/wiki/OAuth2-App-Types#script)
+
+The simplest type of app. Select this if:
+
+- YOU are the only person who will use your app. For example, you're writing a simple bot to check your own private messages once in a while or make a weekly post to a subreddit that you moderate.
+- You want to jump right in and want [an easier way](https://github.com/reddit-archive/reddit/wiki/OAuth2-Quick-Start-Example) to get and use tokens without going to a web browser.
+
+### Clone this wiki locally
+
+You can’t perform that action at this time.
