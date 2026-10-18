@@ -56,6 +56,10 @@ Dependencies flow one way, top to bottom: entry → cli → orchestration (`core
 
 Before you add or change a platform or a platform route, read `docs/spec/forager/07-platforms.md`. Complete its integration checklist and keep the new-platform checklist test (`src/core/platform_checklist.rs`) passing. Before installing, changing, or live-testing an OpenCLI adapter, read `docs/agents/opencli.md`.
 
+### Compatibility fixes
+
+Fix an incompatibility with a site, provider, or platform in the general mechanism that owns the behavior: the capability order, a provider's support check, the shared status mapping, a platform's URL parsing, or configuration. A rule may key on a provider response or a URL form when it encodes that party's contract and its evidence lives in an ADR or a `docs/research/` record. When the only fix you find is a special case for one site, URL, or observed sample, bring it to the maintainer as a design question before writing it; for example, a global Web Fetch order change was chosen over a per-domain order.
+
 ### Spec-code lockstep
 
 A change that adds, moves, or removes a module, or alters a module's ownership or dependency direction, updates `docs/spec/forager/04-architecture.md` in the same commit. `tests/repository_rules.rs` fails while a module or OpenCLI adapter file goes unnamed in that chapter; ownership and dependency claims remain the reviewer's to check. A spec claim the code no longer satisfies is corrected or deleted immediately — never left to drift.
