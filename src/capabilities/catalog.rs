@@ -715,7 +715,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         credentials: Credentials::Unused,
         transport: ProviderTransport::OpenCli(OpenCliAdapter {
             site: "forager-xhs",
-            contract: "forager-xhs/1",
+            contract: "forager-xhs/2",
         }),
         access_policy: Some(XIAOHONGSHU_BROWSER_ACCESS),
         probe: DoctorProbe::PlatformSearch {

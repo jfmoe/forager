@@ -108,7 +108,7 @@ SSRN Crossref 高级检索的搜索专用实测记录见 [2026-09-28 验收](../
 
 SSRN browser 检索的 fixture 以假 OpenCLI 交回接口事实，覆盖完整条件 argv 与 cursor、同一原生页内与跨原生页的 cursor、10,000 条上限处不签发 cursor 与越限 cursor 零调用退 2、条目映射（去标记、UTC 日期、`last_revised`、null 字段、depth）、无结果、请求地址条件不符、无法识别的 200 响应、400 与 500、网络错误与条数和 `total` 不符；进程内覆盖跨 route 支持拒绝、每个请求条件的核对、UTC 日期跨日边界与上限翻页计算；doctor 核对 `forager-ssrn/4`。原站检索范围、模式、日期、排序、作者、分页、无结果与上限末页的真实验收见 [SSRN browser 检索改用原站接口的实测](../../research/2026-10-11-ssrn-search-api.md)。
 
-小红书 search 的 transport fixture 为 `(xiaohongshu_browser, platform:xiaohongshu:search)`：假 OpenCLI 输出按实测结构录制的外壳，进程级测试覆盖页面事实分类、条件与页序核对、去重截断、合法空集与"未列全"诊断，期望值为字面量；doctor 核对 `forager-xhs/1`。读取模块的筛选点击、翻页与抓包完成条件不由 fixture 证明，由 C27 与每期一次的真实页面验收证明（记录见 [小红书 OpenCLI route 设计](../../design/2026-10-08-xiaohongshu-opencli-route.md)「第一期验收」）。
+小红书 search 的 transport fixture 为 `(xiaohongshu_browser, platform:xiaohongshu:search)`：假 OpenCLI 输出按实测结构录制的外壳，进程级测试覆盖页面事实分类、条件与页序核对、去重截断、合法空集与"未列全"诊断，期望值为字面量；doctor 核对 `forager-xhs/2`。读取模块的筛选点击、翻页与抓包完成条件不由 fixture 证明，由 C27 与每期一次的真实页面验收证明（记录见 [小红书 OpenCLI route 设计](../../design/2026-10-08-xiaohongshu-opencli-route.md)「第一期验收」）。
 
 小红书 fetch 的 transport fixture 为 `(xiaohongshu_browser, platform:xiaohongshu:fetch)`：进程级测试覆盖不带 token 的输入退 2 且不启动假 OpenCLI、`noteId` 不符、300031 消息、超时与非预期页面、没有 Web Fetch provider 时 Native 全文照常写成文件、`--format content` 不落盘、写文件失败退 4、空笔记为 Quality、视频不输出 `masterUrl`，以及 token 卫生：一个可识别的假 token 不出现在 ref、`url`、attempt 消息、`--verbose` attempts 与失败时的 stderr 中（来源为 OpenCLI stderr 回显 `--xsec-token`、外壳解码错误与非法输入链接），成功输出的 `access_url` 含它。没有 Web Fetch provider 时 arXiv 与 SSRN 的 `full_text` 仍零调用退 3。smoke 的停止规则由 `tests/smoke.rs` 以假 OpenCLI 覆盖：C28 收到 C27 第一条的 `access_url`，登录墙或封锁后 C28 零调用、记为 `skipped`、不计 PASS。读取模块的 `note` 命令由 C28 与真实验收证明。
 

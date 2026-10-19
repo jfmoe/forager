@@ -1,7 +1,7 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
 import {
-  ReadSession, SITE, SITE_DOMAIN, openNote, pageScript, pick, readDeadline,
+  ReadSession, SITE, SITE_DOMAIN, clickTarget, confirmWithin, inputFailureOf, openNote, pageScript, pick, readDeadline,
 } from './shared.js';
 
 const PAGE_PATH = '/api/sns/web/v2/comment/page';
@@ -21,26 +21,45 @@ function firstPageScript(id) {
   `);
 }
 
-// Clicks "展开 N 条回复" under one top-level comment, the way a user does. Returns `clicked` or
-// why it could not.
-function expandScript(id) {
+// How long an expand click has to show its effect: its button gone or a reply page loaded.
+const CLICK_CHECK_MS = 5000;
+
+// Why the top-level comment `id` cannot be found on the page, or null.
+function commentScript(id) {
   return pageScript(`
     const item = document.getElementById(${JSON.stringify(`comment-${id}`)});
     if (!item) return 'no_comment_element';
-    const parent = item.closest('.parent-comment');
-    if (!parent) return 'no_parent_comment';
-    item.scrollIntoView({ block: 'center' });
-    const find = () => [...parent.querySelectorAll('.reply-container .show-more')]
-      .filter((element) => /展开\\s*\\d+\\s*条回复/.test(element.textContent || '') && clickable(element));
-    let buttons = find();
-    for (let round = 0; round < 20 && buttons.length === 0; round += 1) {
-      await sleep(100);
-      buttons = find();
-    }
-    if (buttons.length !== 1) return buttons.length === 0 ? 'no_expand_button' : 'ambiguous_expand_button';
-    buttons[0].click();
-    return 'clicked';
+    return item.closest('.parent-comment') ? null : 'no_parent_comment';
   `);
+}
+
+// A page expression for the "展开 N 条回复" buttons under the top-level comment `id`.
+function expandButtons(id) {
+  return `(() => {
+    const item = document.getElementById(${JSON.stringify(`comment-${id}`)});
+    const parent = item && item.closest('.parent-comment');
+    if (!parent) return [];
+    return [...parent.querySelectorAll('.reply-container .show-more')]
+      .filter((element) => /展开\\s*\\d+\\s*条回复/.test(element.textContent || ''));
+  })()`;
+}
+
+// Clicks "展开 N 条回复" under one top-level comment with the pointer, then confirms the click
+// took effect. Returns null or why it could not.
+async function expandReplies(page, session, id, seen) {
+  const { deadline } = session;
+  const missing = await page.evaluate(commentScript(id));
+  if (missing) return missing;
+  const clicked = await inputFailureOf(
+    () => clickTarget(page, expandButtons(id), { deadline }),
+    { no_target: 'no_expand_button', ambiguous_target: 'ambiguous_expand_button' },
+  );
+  if (clicked) return clicked;
+  const gone = pageScript(`return ${expandButtons(id)}.every((element) => element.closest('[aria-hidden="true"]'));`);
+  const landed = await confirmWithin(async () => session.facts.ended()
+    || await session.completions(SUB_PATH) > seen
+    || await page.evaluate(gone), CLICK_CHECK_MS, deadline);
+  return landed ? null : 'click_missed';
 }
 
 // Keeps the comment fields forager decodes; the users' own access tokens never leave the page.
@@ -128,9 +147,9 @@ cli({
     const targets = delivered.filter((item) => item.sub_comment_has_more === true).slice(0, expand);
     for (const target of targets) {
       const seen = await session.completions(SUB_PATH);
-      const clicked = await page.evaluate(expandScript(target.id));
-      if (clicked !== 'clicked') {
-        expandFailure = `${clicked} for comment ${target.id}`;
+      const failure = await expandReplies(page, session, target.id, seen);
+      if (failure) {
+        expandFailure = `${failure} for comment ${target.id}`;
         return session.finish();
       }
       if (!await session.next(SUB_PATH, seen)) return session.finish();

@@ -670,3 +670,22 @@ fn the_default_empty_order_refuses_the_search_with_the_steps_to_enable_it() {
         stderr(&output)
     );
 }
+
+#[test]
+fn an_adapter_of_the_previous_contract_fails_with_the_reinstall_steps() {
+    let fake = FakeOpenCli::contract_envelope(
+        "forager-xhs/1",
+        "ok",
+        &search_data(0, &[default_page(false, &[note(1)])]),
+    );
+
+    let (code, kind, message) = failure(&search(&fake, &[]));
+
+    assert_eq!((code, kind), (Some(4), json!("runtime")), "{message}");
+    assert!(
+        message.contains(
+            "answers contract `forager-xhs/1`, but forager expects `forager-xhs/2`; install or update the forager OpenCLI adapter: copy the `opencli/forager-xhs` directory of the forager skill to `~/.opencli/clis/forager-xhs`"
+        ),
+        "{message}"
+    );
+}

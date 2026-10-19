@@ -342,7 +342,10 @@ the number of commands small.
 - **Install**: OpenCLI 2.x (`npm install -g @jackwener/opencli@2`) with its Chrome Browser Bridge
   extension 1.0.25 or later connected (`opencli doctor`), then copy the `opencli/forager-xhs`
   directory next to this skill's `SKILL.md` to `~/.opencli/clis/forager-xhs` (replace the whole
-  directory to update), and run `forager doctor`. The required contract is `forager-xhs/1`.
+  directory to update), and run `forager doctor`. The required contract is `forager-xhs/2`. When
+  a command or `forager doctor` reports contract `forager-xhs/1`, the installed adapter is the
+  older one: replace the whole `~/.opencli/clis/forager-xhs` directory with the one from this
+  skill and run `forager doctor` again.
 - **Log in**: the user opens xiaohongshu.com in the Chrome that OpenCLI drives and logs in there.
   Never log in, solve a verification, or switch accounts for them.
 - **Enable**: `forager config set platforms.xiaohongshu.order '["xiaohongshu_browser"]'`. Set

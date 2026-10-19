@@ -1,6 +1,8 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
-import { ReadSession, SITE, SITE_DOMAIN, pageScript, readDeadline } from './shared.js';
+import {
+  ReadSession, SITE, SITE_DOMAIN, clickTarget, confirmWithin, hoverTarget, inputFailureOf, pageScript, readDeadline,
+} from './shared.js';
 
 const SEARCH_PATH = '/api/sns/web/v2/search/notes';
 const MAX_PAGES = 5;
@@ -18,43 +20,79 @@ const FILTERS = [
   },
 ];
 
-// Opens the filter panel the way a pointer does and clicks one option. Returns `clicked` or why
-// it could not.
-function clickOptionScript(group, option) {
-  return pageScript(`
-    const group = ${JSON.stringify(group)};
-    const option = ${JSON.stringify(option)};
+// The panel opens on hover; a click on its trigger also opens it when the hover does not.
+const PANEL_AFTER_HOVER_MS = 1000;
+const PANEL_AFTER_CLICK_MS = 1500;
+// How long a filter click has to show its effect: the option selected or a new results page.
+const CLICK_CHECK_MS = 5000;
+
+const TRIGGER = `document.querySelectorAll('.search-layout__top > .filter')`;
+
+const PANEL_OPEN = pageScript(`
+  return [...document.querySelectorAll('.search-layout__top > .filter > .filter-panel')].some((element) => {
+    const rect = element.getBoundingClientRect();
+    const style = getComputedStyle(element);
+    return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
+  });
+`);
+
+// A page expression for the filter groups labelled `group`, in an open panel when `shown`.
+function groupsExpression(group, shown) {
+  return `(() => {
     const text = (element) => (element ? element.textContent : '').replace(/\\s+/g, '');
-    const visible = (element) => {
-      const rect = element.getBoundingClientRect();
-      const style = getComputedStyle(element);
-      return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden';
-    };
-    const trigger = document.querySelector('.search-layout__top > .filter');
-    if (!trigger) return 'no_filter_button';
-    const panel = () => [...document.querySelectorAll('.search-layout__top > .filter > .filter-panel')].find(visible);
-    for (let round = 0; round < 20 && !panel(); round += 1) {
-      if (round === 0) {
-        for (const type of ['pointerover', 'mouseover', 'mouseenter', 'mousemove']) {
-          trigger.dispatchEvent(new MouseEvent(type, { bubbles: type !== 'mouseenter', view: window }));
-        }
-      }
-      if (round === 5) trigger.click();
-      await sleep(100);
-    }
-    const opened = panel();
-    if (!opened) return 'no_filter_panel';
-    const groups = [...opened.querySelectorAll('.filters')].filter((element) => {
-      const label = [...element.children].find((child) => child.tagName === 'SPAN');
-      return text(label) === group;
-    });
-    if (groups.length !== 1) return 'no_filter_group';
-    const options = [...groups[0].querySelectorAll('.tags')]
-      .filter((element) => text(element) === option && clickable(element));
-    if (options.length !== 1) return 'no_filter_option';
-    options[0].click();
-    return 'clicked';
+    return [...document.querySelectorAll('.search-layout__top > .filter > .filter-panel')]
+      .filter((panel) => !${shown} || panel.getBoundingClientRect().height > 0)
+      .flatMap((panel) => [...panel.querySelectorAll('.filters')])
+      .filter((element) => text([...element.children].find((child) => child.tagName === 'SPAN')) === ${JSON.stringify(group)});
+  })()`;
+}
+
+// A page expression for the options with the text `option` in the one shown group `group`.
+function optionsExpression(group, option, shown) {
+  return `(() => {
+    const groups = ${groupsExpression(group, shown)};
+    if (groups.length !== 1) return [];
+    return [...groups[0].querySelectorAll('.tags')]
+      .filter((element) => (element.textContent || '').replace(/\\s+/g, '') === ${JSON.stringify(option)});
+  })()`;
+}
+
+function selectedScript(group, option) {
+  return pageScript(`
+    return [...${optionsExpression(group, option, false)}].some((element) => !element.closest('[aria-hidden="true"]')
+      && (/\\b(active|selected|checked)\\b/.test(element.className)
+        || ['aria-selected', 'aria-checked', 'aria-pressed'].some((name) => element.getAttribute(name) === 'true')));
   `);
+}
+
+// Opens the filter panel with the pointer and clicks one option, then confirms the click took
+// effect. Returns null or why it could not.
+async function chooseOption(page, session, group, option, seen) {
+  const { deadline } = session;
+  if (!await page.evaluate(PANEL_OPEN)) {
+    const opening = { no_target: 'no_filter_button', ambiguous_target: 'ambiguous_filter_button' };
+    const hovered = await inputFailureOf(() => hoverTarget(page, TRIGGER, { deadline }), opening);
+    if (hovered) return hovered;
+    if (!await confirmWithin(() => page.evaluate(PANEL_OPEN), PANEL_AFTER_HOVER_MS, deadline)) {
+      const clicked = await inputFailureOf(() => clickTarget(page, TRIGGER, { deadline }), opening);
+      if (clicked) return clicked;
+      if (!await confirmWithin(() => page.evaluate(PANEL_OPEN), PANEL_AFTER_CLICK_MS, deadline)) {
+        return 'no_filter_panel';
+      }
+    }
+  }
+  if (!await page.evaluate(pageScript(`return ${groupsExpression(group, true)}.length === 1;`))) {
+    return 'no_filter_group';
+  }
+  const clicked = await inputFailureOf(
+    () => clickTarget(page, optionsExpression(group, option, true), { deadline }),
+    { no_target: 'no_filter_option', ambiguous_target: 'ambiguous_filter_option' },
+  );
+  if (clicked) return clicked;
+  const landed = await confirmWithin(async () => session.facts.ended()
+    || await session.completions(SEARCH_PATH) > seen
+    || await page.evaluate(selectedScript(group, option)), CLICK_CHECK_MS, deadline);
+  return landed ? null : 'click_missed';
 }
 
 cli({
@@ -122,9 +160,9 @@ cli({
         return session.finish();
       }
       const seen = await session.completions(SEARCH_PATH);
-      const clicked = await page.evaluate(clickOptionScript(filter.group, option));
-      if (clicked !== 'clicked') {
-        filterFailure = `${clicked} for ${filter.group} ${option}`;
+      const failure = await chooseOption(page, session, filter.group, option, seen);
+      if (failure) {
+        filterFailure = `${failure} for ${filter.group} ${option}`;
         return session.finish();
       }
       filterClicks += 1;

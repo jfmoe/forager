@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use serde_json::{Value, json};
 
 const CONTRACT: &str = "forager-ssrn/4";
-pub(crate) const XHS_CONTRACT: &str = "forager-xhs/1";
+pub(crate) const XHS_CONTRACT: &str = "forager-xhs/2";
 
 const CALL_END: &str = "<<end of call>>";
 
