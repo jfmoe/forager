@@ -5,16 +5,15 @@
 //! the facts. This route checks the request conditions or the page identity, then normalizes
 //! the facts into items.
 
-use std::time::Duration;
-
 use serde::Deserialize;
 
-use crate::catalog::{PlatformOperation, ProviderId, ProviderTransport, registration};
+use crate::catalog::{PlatformOperation, ProviderId};
 use crate::config::ProcessRouteRuntimeConfig;
-use crate::net::{AttemptFailure, RetryPolicy};
+use crate::net::AttemptFailure;
 use crate::providers::execution::{ExecutionSettings, execute_anonymous};
 use crate::providers::markup::fold_whitespace;
-use crate::providers::opencli::{self, EnvelopeStatus, OpenCliCommand, Window};
+use crate::providers::opencli::{EnvelopeStatus, Window};
+use crate::providers::opencli_route::{OpenCliRoute, single_attempt};
 use crate::providers::shared::{other_platform_message, parameter_error};
 use crate::rate_limit::RateLimiter;
 use crate::types::{
@@ -42,9 +41,7 @@ pub(crate) fn fetch_support(request: &PlatformFetchRequest) -> Result<(), String
 }
 
 pub(crate) struct SsrnBrowser {
-    config: ProcessRouteRuntimeConfig,
-    limiter: RateLimiter,
-    deadline: Deadline,
+    opencli: OpenCliRoute,
 }
 
 impl SsrnBrowser {
@@ -54,9 +51,7 @@ impl SsrnBrowser {
         deadline: Deadline,
     ) -> Self {
         Self {
-            config,
-            limiter,
-            deadline,
+            opencli: OpenCliRoute::new(ROUTE, config, limiter, deadline),
         }
     }
 
@@ -79,12 +74,12 @@ impl SsrnBrowser {
         if full_text {
             options.push(("download", "true".to_owned()));
         }
-        let command = self.command("paper", options);
+        let command = self.opencli.command("paper", options, Window::Background);
         let command = &command;
         let execution = execute_anonymous(
             self.settings(PlatformOperation::Fetch),
             move |deadline| async move {
-                let envelope = opencli::run::<PaperPage>(command, &self.limiter, deadline).await?;
+                let envelope = self.opencli.run::<PaperPage>(command, deadline).await?;
                 if full_text {
                     let file = read_download(envelope.data.download.as_ref()).await?;
                     let item = read_paper(
@@ -121,37 +116,12 @@ impl SsrnBrowser {
         })
     }
 
-    fn command(
-        &self,
-        command: &'static str,
-        options: Vec<(&'static str, String)>,
-    ) -> OpenCliCommand<'_> {
-        let ProviderTransport::OpenCli(adapter) = registration(ROUTE).transport else {
-            unreachable!("ssrn_browser registers an OpenCLI transport");
-        };
-        OpenCliCommand {
-            executable: &self.config.command,
-            adapter,
-            command,
-            options,
-            window: Window::Background,
-        }
-    }
-
     // The route never retries: a failed browser operation falls through to the next route.
     fn settings(&self, operation: PlatformOperation) -> ExecutionSettings {
-        ExecutionSettings {
-            provider: ROUTE.name(),
-            target: AttemptTarget::platform(Platform::Ssrn.as_str(), operation.as_str()),
-            retry_policy: RetryPolicy::new(1, 1.0, Duration::ZERO),
-            deadline: self.deadline,
-            attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
-            verbose: false,
-            timeout_message: "OpenCLI command timed out",
-            model: None,
-            transport: Some("process"),
-            endpoint_host: None,
-        }
+        self.opencli.settings(
+            AttemptTarget::platform(Platform::Ssrn.as_str(), operation.as_str()),
+            single_attempt(),
+        )
     }
 }
 

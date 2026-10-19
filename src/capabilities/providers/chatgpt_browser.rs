@@ -2,25 +2,25 @@
 //! logged-in Chrome through the forager OpenCLI adapter `forager-chatgpt`.
 //!
 //! The JavaScript adapter only operates pages as a user would and reports what the page itself
-//! received. This provider classifies the page facts, checks that the page and the response
-//! show the requested conversation, and decodes the response. Only `forager chatgpt` commands
-//! run it; no chain does. ADR 0024 lists the conditions every change here must keep.
+//! received. The shared delegated research flow runs the commands; this provider classifies the
+//! page facts, checks that the page and the response show the requested conversation, and
+//! decodes the response. Only `forager chatgpt` commands run it; no chain does. ADR 0024 lists
+//! the conditions every change here must keep.
 
 use std::cell::OnceCell;
-use std::time::Duration;
 
 use serde::Deserialize;
-use serde::de::DeserializeOwned;
 
-use crate::catalog::{ProviderId, ProviderTransport, registration};
+use crate::catalog::ProviderId;
 use crate::config::ProcessRouteRuntimeConfig;
 use crate::net::{AttemptFailure, RetryPolicy, truncate_message};
-use crate::providers::execution::{ExecutionSettings, execute_anonymous};
-use crate::providers::opencli::{self, CommandFailure, EnvelopeStatus, OpenCliCommand, Window};
+use crate::providers::delegated_research::{
+    DelegatedResearch, ResearchConversation, ResearchSite, StartFailure,
+};
 use crate::rate_limit::RateLimiter;
 use crate::types::{
-    AttemptErrorKind, AttemptTarget, CHATGPT_RESEARCH_RESULT, CHATGPT_RESEARCH_START,
-    ChatgptConversationId, ChatgptResearchFailure, ChatgptResearchResult, ChatgptResearchStarted,
+    AttemptErrorKind, CHATGPT_RESEARCH_RESULT, CHATGPT_RESEARCH_START, ChatgptConversationId,
+    ChatgptPlan, ChatgptResearchFailure, ChatgptResearchResult, ChatgptResearchStarted,
     ChatgptResearchState, Deadline, ProviderError,
 };
 
@@ -34,13 +34,9 @@ mod shape;
 mod start;
 
 const ROUTE: ProviderId = ProviderId::ChatgptBrowser;
-const STATUS_OPERATION: &str = "status";
 
 pub(crate) struct ChatgptBrowser {
-    config: ProcessRouteRuntimeConfig,
-    limiter: RateLimiter,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
+    research: DelegatedResearch<Chatgpt>,
 }
 
 impl ChatgptBrowser {
@@ -51,34 +47,17 @@ impl ChatgptBrowser {
         deadline: Deadline,
     ) -> Self {
         Self {
-            config,
-            limiter,
-            retry_policy,
-            deadline,
+            research: DelegatedResearch::new(config, limiter, retry_policy, deadline),
         }
     }
 
-    /// Opens the conversation in a background window and reads where its newest research
-    /// stands from the conversation response the page itself receives. Reading changes
-    /// nothing, so failed attempts follow the shared retry policy.
+    /// Reads where the conversation's newest research stands from the conversation response
+    /// the page itself receives.
     pub(crate) async fn result(
         &self,
         conversation: &ChatgptConversationId,
     ) -> Result<ChatgptResearchResult, ProviderError> {
-        let command = self.command(
-            "report",
-            vec![("conversation", conversation.as_str().to_owned())],
-            Window::Background,
-        );
-        let command = &command;
-        let execution = execute_anonymous(
-            self.settings(CHATGPT_RESEARCH_RESULT, self.retry_policy),
-            move |deadline| async move {
-                let report: ReportData = self.read(command, deadline).await?;
-                read_research(&report, conversation).map(|state| (None, state))
-            },
-        )
-        .await?;
+        let execution = self.research.result(conversation).await?;
         Ok(ChatgptResearchResult {
             route: ROUTE.name(),
             conversation: conversation.clone(),
@@ -89,37 +68,15 @@ impl ChatgptBrowser {
         })
     }
 
-    /// Starts a Deep Research in a foreground window: switches the composer to chat mode,
-    /// selects Deep Research, sends `query` once, keeps the page open through the plan's
-    /// countdown, after which ChatGPT starts the research by itself, and reopens the
-    /// conversation to check that the research runs.
-    ///
-    /// Starting creates a conversation and spends the account's Deep Research quota, so it runs
-    /// exactly one attempt whatever the retry configuration (ADR 0023). A failure carries the
-    /// conversation once forager knows it.
+    /// Starts a Deep Research: switches the composer to chat mode, selects Deep Research, sends
+    /// `query` once, keeps the page open through the plan's countdown, after which ChatGPT
+    /// starts the research by itself, and reopens the conversation to check that the research
+    /// runs.
     pub(crate) async fn start(
         &self,
         query: &str,
     ) -> Result<ChatgptResearchStarted, ChatgptResearchFailure> {
-        let command = self.command(
-            "start",
-            vec![("query", query.to_owned())],
-            Window::Foreground,
-        );
-        let command = &command;
-        let created = OnceCell::new();
-        let created_ref = &created;
-        let mut settings = self.settings(CHATGPT_RESEARCH_START, single_attempt());
-        settings.timeout_message = start::TIMEOUT_MESSAGE;
-        let execution = execute_anonymous(settings, move |deadline| async move {
-            let facts = self
-                .read(command, deadline)
-                .await
-                .map_err(start::command_failed)?;
-            start::read_start(&facts, created_ref).map(|started| (None, started))
-        })
-        .await;
-        match execution {
+        match self.research.start(query).await {
             Ok(execution) => {
                 let (conversation, plan) = execution.value;
                 Ok(ChatgptResearchStarted {
@@ -130,97 +87,66 @@ impl ChatgptBrowser {
                     diagnostic: execution.diagnostic,
                 })
             }
-            Err(mut error) => {
-                let conversation = created.into_inner();
-                if let Some(url) = conversation.as_ref().map(ChatgptConversationId::url)
-                    && !error.message.contains(url.as_str())
-                {
-                    error.message = format!("{}; see {url}", error.message);
-                }
-                Err(ChatgptResearchFailure {
-                    error,
-                    conversation,
-                })
-            }
+            Err(StartFailure {
+                error,
+                conversation,
+            }) => Err(ChatgptResearchFailure {
+                error,
+                conversation,
+            }),
         }
     }
 
-    /// Opens the ChatGPT home page in a background window and checks that the browser is
-    /// signed in, without switching modes or opening menus. The adapter contract and OpenCLI
-    /// itself are checked on the way.
+    /// Opens the ChatGPT home page and checks that the browser is signed in, without switching
+    /// modes or opening menus.
     pub(crate) async fn status(&self) -> Result<(), ProviderError> {
-        let command = self.command(STATUS_OPERATION, Vec::new(), Window::Background);
-        let command = &command;
-        execute_anonymous(
-            self.settings(STATUS_OPERATION, single_attempt()),
-            move |deadline| async move {
-                let status: StatusData = self.read(command, deadline).await?;
-                if status.page.signed_out {
-                    return Err(signed_out());
-                }
-                if status.timed_out {
-                    return Err(AttemptFailure {
-                        kind: AttemptErrorKind::Timeout,
-                        status: None,
-                        message:
-                            "the ChatGPT home page did not finish loading before the read deadline"
-                                .into(),
-                    });
-                }
-                Ok((None, ()))
-            },
-        )
-        .await
-        .map(|_| ())
+        self.research.status().await
+    }
+}
+
+struct Chatgpt;
+
+impl ResearchSite for Chatgpt {
+    const ROUTE: ProviderId = ROUTE;
+    const START_OPERATION: &'static str = CHATGPT_RESEARCH_START;
+    const RESULT_OPERATION: &'static str = CHATGPT_RESEARCH_RESULT;
+    const STATUS_TIMEOUT_MESSAGE: &'static str =
+        "the ChatGPT home page did not finish loading before the read deadline";
+    const UNKNOWN_OUTCOME: &'static str = start::UNKNOWN_OUTCOME;
+    const START_TIMEOUT_MESSAGE: &'static str = start::TIMEOUT_MESSAGE;
+
+    type Conversation = ChatgptConversationId;
+    type Report = ReportData;
+    type State = ChatgptResearchState;
+    type StartFacts = start::StartData;
+    type Plan = ChatgptPlan;
+
+    fn signed_out() -> AttemptFailure {
+        signed_out()
     }
 
-    fn command(
-        &self,
-        command: &'static str,
-        options: Vec<(&'static str, String)>,
-        window: Window,
-    ) -> OpenCliCommand<'_> {
-        let ProviderTransport::OpenCli(adapter) = registration(ROUTE).transport else {
-            unreachable!("chatgpt_browser registers an OpenCLI transport");
-        };
-        OpenCliCommand {
-            executable: &self.config.command,
-            adapter,
-            command,
-            options,
-            window,
-        }
+    fn read_research(
+        report: &ReportData,
+        conversation: &ChatgptConversationId,
+    ) -> Result<ChatgptResearchState, AttemptFailure> {
+        read_research(report, conversation)
     }
 
-    fn settings(&self, operation: &'static str, retry_policy: RetryPolicy) -> ExecutionSettings {
-        ExecutionSettings {
-            provider: ROUTE.name(),
-            target: AttemptTarget::operation(operation),
-            retry_policy,
-            deadline: self.deadline,
-            attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
-            verbose: false,
-            timeout_message: "OpenCLI command timed out",
-            model: None,
-            transport: Some("process"),
-            endpoint_host: None,
-        }
+    fn read_start(
+        facts: &start::StartData,
+        created: &OnceCell<ChatgptConversationId>,
+    ) -> Result<(ChatgptConversationId, ChatgptPlan), AttemptFailure> {
+        start::read_start(facts, created)
+    }
+}
+
+impl ResearchConversation for ChatgptConversationId {
+    fn id(&self) -> &str {
+        self.as_str()
     }
 
-    /// Runs one adapter command and returns the page facts it reported.
-    async fn read<T: DeserializeOwned>(
-        &self,
-        command: &OpenCliCommand<'_>,
-        deadline: Deadline,
-    ) -> Result<T, CommandFailure> {
-        let envelope = opencli::run::<T>(command, &self.limiter, deadline).await?;
-        if envelope.status != EnvelopeStatus::Ok {
-            return Err(runtime(
-                "the forager-chatgpt adapter reported no results instead of page facts".into(),
-            )
-            .into());
-        }
-        Ok(envelope.data)
+    fn url(&self) -> String {
+        Self::url(self)
     }
 }
 
@@ -237,13 +163,6 @@ struct PageFacts {
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
-struct StatusData {
-    page: PageFacts,
-    timed_out: bool,
-}
-
-#[derive(Debug, Default, Deserialize)]
-#[serde(default)]
 struct ReportData {
     page: PageFacts,
     /// The body of the conversation response the page received after it opened the
@@ -252,10 +171,6 @@ struct ReportData {
     /// Whether the conversation response completed but its body was gone when read.
     body_missing: bool,
     timed_out: bool,
-}
-
-fn single_attempt() -> RetryPolicy {
-    RetryPolicy::new(1, 1.0, Duration::ZERO)
 }
 
 fn runtime(message: String) -> AttemptFailure {

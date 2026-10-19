@@ -121,3 +121,28 @@ fn the_gemini_deep_doctor_reports_a_missing_adapter_with_install_steps() {
         String::from_utf8_lossy(&output.stdout)
     );
 }
+
+#[test]
+fn the_gemini_deep_doctor_reports_a_no_results_answer_as_runtime() {
+    let fake =
+        FakeOpenCli::contract_envelope(gemini::CONTRACT, "no_results", &gemini::status(false));
+    let environment = RunEnvironment::new(&gemini::config(&fake));
+
+    let output = environment.run(&["doctor", "--provider", "gemini_browser"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["error_kind"],
+            &payload["message"]
+        ),
+        (
+            Some(4),
+            &json!("runtime"),
+            &json!("the forager-gemini adapter reported no results instead of page facts")
+        ),
+        "stdout: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+}

@@ -12,7 +12,6 @@ use serde::Deserialize;
 use super::decode::{self, PlanReply, StreamReply};
 use super::{PageFacts, changed_structure, runtime, signed_out, signed_out_then};
 use crate::net::{AttemptFailure, truncate_message};
-use crate::providers::opencli::CommandFailure;
 use crate::types::{AttemptErrorKind, GeminiConversationId, GeminiPlan};
 
 /// The `StreamGenerate` error code of an exhausted usage limit.
@@ -27,7 +26,7 @@ macro_rules! unknown_outcome {
 }
 
 /// Appended to a failure that leaves unknown whether Gemini received the question.
-const UNKNOWN_OUTCOME: &str = unknown_outcome!();
+pub(super) const UNKNOWN_OUTCOME: &str = unknown_outcome!();
 /// The failure of an attempt that outlived its deadline without returning page facts.
 pub(super) const TIMEOUT_MESSAGE: &str = concat!("OpenCLI command timed out; ", unknown_outcome!());
 
@@ -344,7 +343,7 @@ fn missing_body(answered: &str, at: Option<&GeminiConversationId>) -> AttemptFai
 }
 
 /// A failure after the question may have reached Gemini. While forager does not know the
-/// conversation, it points to the Gemini history; `GeminiBrowser::start` points every failure
+/// conversation, it points to the Gemini history; the shared `start` points every failure
 /// to a known conversation.
 fn failure(
     kind: AttemptErrorKind,
@@ -360,27 +359,5 @@ fn failure(
         kind,
         status: None,
         message,
-    }
-}
-
-/// Words a failure of the `start` command itself, which leaves no page facts. A command OpenCLI
-/// never ran sent nothing, and neither did a browser that asks to sign in; any other failure
-/// may have stopped after Gemini received the question.
-pub(super) fn command_failed(failure: CommandFailure) -> AttemptFailure {
-    let CommandFailure {
-        attempt,
-        may_have_run,
-    } = failure;
-    if may_have_run && attempt.kind == AttemptErrorKind::Auth {
-        return attempt;
-    }
-    let hint = if may_have_run {
-        UNKNOWN_OUTCOME
-    } else {
-        "nothing was sent"
-    };
-    AttemptFailure {
-        message: format!("{}; {hint}", attempt.message),
-        ..attempt
     }
 }

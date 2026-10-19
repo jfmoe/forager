@@ -13,7 +13,6 @@ use serde::Deserialize;
 use super::decode::Conversation;
 use super::{PageFacts, runtime, signed_out, signed_out_then, standing_failure};
 use crate::net::{AttemptFailure, truncate_message};
-use crate::providers::opencli::CommandFailure;
 use crate::types::{AttemptErrorKind, ChatgptConversationId, ChatgptPlan, ChatgptResearchState};
 
 /// How much of a reply that is no plan a failure quotes.
@@ -26,7 +25,7 @@ macro_rules! unknown_outcome {
 }
 
 /// Appended to a failure that leaves unknown whether ChatGPT received the question.
-const UNKNOWN_OUTCOME: &str = unknown_outcome!();
+pub(super) const UNKNOWN_OUTCOME: &str = unknown_outcome!();
 /// The failure of an attempt that outlived its deadline without returning page facts.
 pub(super) const TIMEOUT_MESSAGE: &str = concat!("OpenCLI command timed out; ", unknown_outcome!());
 
@@ -353,7 +352,7 @@ fn reply_head(reply: &str) -> String {
 }
 
 /// A failure after the question may have reached ChatGPT. While forager does not know the
-/// conversation, it points to the ChatGPT history; `ChatgptBrowser::start` points every failure
+/// conversation, it points to the ChatGPT history; the shared `start` points every failure
 /// to a known conversation.
 fn failure(
     kind: AttemptErrorKind,
@@ -369,27 +368,5 @@ fn failure(
         kind,
         status: None,
         message,
-    }
-}
-
-/// Words a failure of the `start` command itself, which leaves no page facts. A command OpenCLI
-/// never ran sent nothing, and neither did a browser that asks to sign in; any other failure
-/// may have stopped after ChatGPT received the question.
-pub(super) fn command_failed(failure: CommandFailure) -> AttemptFailure {
-    let CommandFailure {
-        attempt,
-        may_have_run,
-    } = failure;
-    if may_have_run && attempt.kind == AttemptErrorKind::Auth {
-        return attempt;
-    }
-    let hint = if may_have_run {
-        UNKNOWN_OUTCOME
-    } else {
-        "nothing was sent"
-    };
-    AttemptFailure {
-        message: format!("{}; {hint}", attempt.message),
-        ..attempt
     }
 }
