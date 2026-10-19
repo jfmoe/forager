@@ -5,17 +5,14 @@
 //! itself requested, received, and rendered. This route classifies the page facts, checks that
 //! the responses answer the request, and decodes them into items.
 
-use std::time::Duration;
-
 use chrono::{DateTime, FixedOffset, SecondsFormat};
 use serde::Deserialize;
-use serde::de::DeserializeOwned;
 
-use crate::catalog::{ProviderId, ProviderTransport, registration};
+use crate::catalog::ProviderId;
 use crate::config::ProcessRouteRuntimeConfig;
-use crate::net::{AttemptFailure, RetryPolicy};
+use crate::net::AttemptFailure;
 use crate::providers::execution::ExecutionSettings;
-use crate::providers::opencli::{self, EnvelopeStatus, OpenCliCommand, Window};
+use crate::providers::opencli_route::{OpenCliRoute, single_attempt};
 use crate::rate_limit::RateLimiter;
 use crate::redact::CREDENTIAL_MASK;
 use crate::types::{
@@ -43,9 +40,7 @@ pub(crate) use note::fetch_support;
 pub(crate) use search::search_support;
 
 pub(crate) struct XiaohongshuBrowser {
-    config: ProcessRouteRuntimeConfig,
-    limiter: RateLimiter,
-    deadline: Deadline,
+    opencli: OpenCliRoute,
 }
 
 impl XiaohongshuBrowser {
@@ -55,60 +50,17 @@ impl XiaohongshuBrowser {
         deadline: Deadline,
     ) -> Self {
         Self {
-            config,
-            limiter,
-            deadline,
-        }
-    }
-
-    fn command(
-        &self,
-        command: &'static str,
-        options: Vec<(&'static str, String)>,
-    ) -> OpenCliCommand<'_> {
-        let ProviderTransport::OpenCli(adapter) = registration(ROUTE).transport else {
-            unreachable!("xiaohongshu_browser registers an OpenCLI transport");
-        };
-        OpenCliCommand {
-            executable: &self.config.command,
-            adapter,
-            command,
-            options,
-            window: Window::Background,
+            opencli: OpenCliRoute::new(ROUTE, config, limiter, deadline),
         }
     }
 
     // The route never retries: repeating a blocked page pushes the account further into risk
     // control.
     fn settings(&self, operation: &'static str) -> ExecutionSettings {
-        ExecutionSettings {
-            provider: ROUTE.name(),
-            target: AttemptTarget::platform(Platform::Xiaohongshu.as_str(), operation),
-            retry_policy: RetryPolicy::new(1, 1.0, Duration::ZERO),
-            deadline: self.deadline,
-            attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
-            verbose: false,
-            timeout_message: "OpenCLI command timed out",
-            model: None,
-            transport: Some("process"),
-            endpoint_host: None,
-        }
-    }
-
-    /// Runs one adapter command and returns the page facts it reported. The adapter never
-    /// reports `no_results`: forager judges an empty page from the facts.
-    async fn read_page<T: DeserializeOwned>(
-        &self,
-        command: &OpenCliCommand<'_>,
-        deadline: Deadline,
-    ) -> Result<T, AttemptFailure> {
-        let envelope = opencli::run::<T>(command, &self.limiter, deadline).await?;
-        if envelope.status != EnvelopeStatus::Ok {
-            return Err(runtime(
-                "the forager-xhs adapter reported no results instead of page facts".into(),
-            ));
-        }
-        Ok(envelope.data)
+        self.opencli.settings(
+            AttemptTarget::platform(Platform::Xiaohongshu.as_str(), operation),
+            single_attempt(),
+        )
     }
 }
 

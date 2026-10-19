@@ -12,6 +12,7 @@ use super::{
 use crate::catalog::PlatformOperation;
 use crate::net::{AttemptFailure, combine_diagnostics};
 use crate::providers::execution::execute_anonymous;
+use crate::providers::opencli::Window;
 use crate::providers::shared::{other_platform_message, parameter_error};
 use crate::types::{
     AccessToken, ContentDepth, PlatformItem, PlatformItemData, PlatformRef, PlatformSearchOptions,
@@ -67,7 +68,7 @@ impl XiaohongshuBrowser {
         };
         let query = request.query.trim();
         let expected = Conditions::of(options);
-        let command = self.command(
+        let command = self.opencli.command(
             "search",
             vec![
                 ("query", query.to_owned()),
@@ -79,6 +80,7 @@ impl XiaohongshuBrowser {
                 ),
                 ("pages", request.limit.div_ceil(PAGE_SIZE).to_string()),
             ],
+            Window::Background,
         );
         let command = &command;
         let expected = &expected;
@@ -86,7 +88,7 @@ impl XiaohongshuBrowser {
         let execution = execute_anonymous(
             self.settings(PlatformOperation::Search.as_str()),
             move |deadline| async move {
-                let data: SearchData = self.read_page(command, deadline).await?;
+                let data: SearchData = self.opencli.read(command, deadline).await?;
                 let verified = read_search(&data, query, expected, pages)?;
                 let decoded = decode(&verified, request.limit, local_now()).map_err(runtime)?;
                 Ok((None, decoded))

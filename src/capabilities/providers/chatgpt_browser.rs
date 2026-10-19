@@ -7,16 +7,15 @@
 //! run it; no chain does. ADR 0024 lists the conditions every change here must keep.
 
 use std::cell::OnceCell;
-use std::time::Duration;
 
 use serde::Deserialize;
-use serde::de::DeserializeOwned;
 
-use crate::catalog::{ProviderId, ProviderTransport, registration};
+use crate::catalog::ProviderId;
 use crate::config::ProcessRouteRuntimeConfig;
 use crate::net::{AttemptFailure, RetryPolicy, truncate_message};
-use crate::providers::execution::{ExecutionSettings, execute_anonymous};
-use crate::providers::opencli::{self, CommandFailure, EnvelopeStatus, OpenCliCommand, Window};
+use crate::providers::execution::execute_anonymous;
+use crate::providers::opencli::Window;
+use crate::providers::opencli_route::{OpenCliRoute, single_attempt};
 use crate::rate_limit::RateLimiter;
 use crate::types::{
     AttemptErrorKind, AttemptTarget, CHATGPT_RESEARCH_RESULT, CHATGPT_RESEARCH_START,
@@ -37,10 +36,8 @@ const ROUTE: ProviderId = ProviderId::ChatgptBrowser;
 const STATUS_OPERATION: &str = "status";
 
 pub(crate) struct ChatgptBrowser {
-    config: ProcessRouteRuntimeConfig,
-    limiter: RateLimiter,
+    opencli: OpenCliRoute,
     retry_policy: RetryPolicy,
-    deadline: Deadline,
 }
 
 impl ChatgptBrowser {
@@ -51,10 +48,8 @@ impl ChatgptBrowser {
         deadline: Deadline,
     ) -> Self {
         Self {
-            config,
-            limiter,
+            opencli: OpenCliRoute::new(ROUTE, config, limiter, deadline),
             retry_policy,
-            deadline,
         }
     }
 
@@ -65,16 +60,19 @@ impl ChatgptBrowser {
         &self,
         conversation: &ChatgptConversationId,
     ) -> Result<ChatgptResearchResult, ProviderError> {
-        let command = self.command(
+        let command = self.opencli.command(
             "report",
             vec![("conversation", conversation.as_str().to_owned())],
             Window::Background,
         );
         let command = &command;
         let execution = execute_anonymous(
-            self.settings(CHATGPT_RESEARCH_RESULT, self.retry_policy),
+            self.opencli.settings(
+                AttemptTarget::operation(CHATGPT_RESEARCH_RESULT),
+                self.retry_policy,
+            ),
             move |deadline| async move {
-                let report: ReportData = self.read(command, deadline).await?;
+                let report: ReportData = self.opencli.read(command, deadline).await?;
                 read_research(&report, conversation).map(|state| (None, state))
             },
         )
@@ -101,7 +99,7 @@ impl ChatgptBrowser {
         &self,
         query: &str,
     ) -> Result<ChatgptResearchStarted, ChatgptResearchFailure> {
-        let command = self.command(
+        let command = self.opencli.command(
             "start",
             vec![("query", query.to_owned())],
             Window::Foreground,
@@ -109,10 +107,14 @@ impl ChatgptBrowser {
         let command = &command;
         let created = OnceCell::new();
         let created_ref = &created;
-        let mut settings = self.settings(CHATGPT_RESEARCH_START, single_attempt());
+        let mut settings = self.opencli.settings(
+            AttemptTarget::operation(CHATGPT_RESEARCH_START),
+            single_attempt(),
+        );
         settings.timeout_message = start::TIMEOUT_MESSAGE;
         let execution = execute_anonymous(settings, move |deadline| async move {
             let facts = self
+                .opencli
                 .read(command, deadline)
                 .await
                 .map_err(start::command_failed)?;
@@ -149,12 +151,15 @@ impl ChatgptBrowser {
     /// signed in, without switching modes or opening menus. The adapter contract and OpenCLI
     /// itself are checked on the way.
     pub(crate) async fn status(&self) -> Result<(), ProviderError> {
-        let command = self.command(STATUS_OPERATION, Vec::new(), Window::Background);
+        let command = self
+            .opencli
+            .command(STATUS_OPERATION, Vec::new(), Window::Background);
         let command = &command;
         execute_anonymous(
-            self.settings(STATUS_OPERATION, single_attempt()),
+            self.opencli
+                .settings(AttemptTarget::operation(STATUS_OPERATION), single_attempt()),
             move |deadline| async move {
-                let status: StatusData = self.read(command, deadline).await?;
+                let status: StatusData = self.opencli.read(command, deadline).await?;
                 if status.page.signed_out {
                     return Err(signed_out());
                 }
@@ -172,55 +177,6 @@ impl ChatgptBrowser {
         )
         .await
         .map(|_| ())
-    }
-
-    fn command(
-        &self,
-        command: &'static str,
-        options: Vec<(&'static str, String)>,
-        window: Window,
-    ) -> OpenCliCommand<'_> {
-        let ProviderTransport::OpenCli(adapter) = registration(ROUTE).transport else {
-            unreachable!("chatgpt_browser registers an OpenCLI transport");
-        };
-        OpenCliCommand {
-            executable: &self.config.command,
-            adapter,
-            command,
-            options,
-            window,
-        }
-    }
-
-    fn settings(&self, operation: &'static str, retry_policy: RetryPolicy) -> ExecutionSettings {
-        ExecutionSettings {
-            provider: ROUTE.name(),
-            target: AttemptTarget::operation(operation),
-            retry_policy,
-            deadline: self.deadline,
-            attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
-            verbose: false,
-            timeout_message: "OpenCLI command timed out",
-            model: None,
-            transport: Some("process"),
-            endpoint_host: None,
-        }
-    }
-
-    /// Runs one adapter command and returns the page facts it reported.
-    async fn read<T: DeserializeOwned>(
-        &self,
-        command: &OpenCliCommand<'_>,
-        deadline: Deadline,
-    ) -> Result<T, CommandFailure> {
-        let envelope = opencli::run::<T>(command, &self.limiter, deadline).await?;
-        if envelope.status != EnvelopeStatus::Ok {
-            return Err(runtime(
-                "the forager-chatgpt adapter reported no results instead of page facts".into(),
-            )
-            .into());
-        }
-        Ok(envelope.data)
     }
 }
 
@@ -252,10 +208,6 @@ struct ReportData {
     /// Whether the conversation response completed but its body was gone when read.
     body_missing: bool,
     timed_out: bool,
-}
-
-fn single_attempt() -> RetryPolicy {
-    RetryPolicy::new(1, 1.0, Duration::ZERO)
 }
 
 fn runtime(message: String) -> AttemptFailure {

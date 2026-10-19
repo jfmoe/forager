@@ -10,7 +10,7 @@ use crate::catalog::PlatformOperation;
 use crate::net::AttemptFailure;
 use crate::providers::execution::execute_anonymous;
 use crate::providers::markup::markup_text;
-use crate::providers::opencli::{self, EnvelopeStatus};
+use crate::providers::opencli::{EnvelopeStatus, Window};
 use crate::providers::shared::{other_platform_message, parameter_error};
 use crate::types::{
     AttemptErrorKind, ContentDepth, PlatformItem, PlatformItemData, PlatformRef,
@@ -105,7 +105,7 @@ impl SsrnBrowser {
             unreachable!("support checked")
         };
         let criteria = NativeCriteria::new(options);
-        let command = self.command(
+        let command = self.opencli.command(
             "search",
             vec![
                 ("query", request.query.clone()),
@@ -116,13 +116,13 @@ impl SsrnBrowser {
                 ("date", criteria.date.into()),
                 ("sort", criteria.sort.clone()),
             ],
+            Window::Background,
         );
         let command = &command;
         let execution = execute_anonymous(
             self.settings(PlatformOperation::Search),
             move |deadline| async move {
-                let envelope =
-                    opencli::run::<SearchAnswer>(command, &self.limiter, deadline).await?;
+                let envelope = self.opencli.run::<SearchAnswer>(command, deadline).await?;
                 read_results(
                     envelope.status,
                     &envelope.data,

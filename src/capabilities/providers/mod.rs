@@ -11,6 +11,7 @@ mod hn_api;
 mod key_account;
 mod markup;
 mod opencli;
+mod opencli_route;
 mod serpapi;
 pub(crate) mod shared;
 mod ssrn_browser;
