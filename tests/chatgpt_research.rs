@@ -670,9 +670,9 @@ fn an_unrecognized_conversation_exits_2_without_running_opencli() {
 }
 
 #[test]
-fn an_outdated_adapter_carries_the_install_hint() {
+fn an_adapter_of_the_previous_contract_fails_with_the_reinstall_steps() {
     let fake = FakeOpenCli::contract_by_command(
-        "forager-chatgpt/0",
+        "forager-chatgpt/1",
         &[("report", chatgpt::report(&chatgpt::conversation_body(&[])))],
     );
     let environment = RunEnvironment::new(&chatgpt::config(&fake));
@@ -685,7 +685,9 @@ fn an_outdated_adapter_carries_the_install_hint() {
         (Some(4), json!("runtime"), json!(CONVERSATION_URL))
     );
     assert!(
-        message.contains("copy the `opencli/forager-chatgpt` directory"),
+        message.contains(
+            "answers contract `forager-chatgpt/1`, but forager expects `forager-chatgpt/2`; install or update the forager OpenCLI adapter: copy the `opencli/forager-chatgpt` directory of the forager skill to `~/.opencli/clis/forager-chatgpt`"
+        ),
         "{message}"
     );
 }

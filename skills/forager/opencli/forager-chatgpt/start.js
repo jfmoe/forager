@@ -1,8 +1,8 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
 import {
-  HOME_URL, PageFacts, SITE, SITE_DOMAIN, envelope, navigate, openConversation, readDeadline,
-  waitFor,
+  HOME_URL, PageFacts, SITE, SITE_DOMAIN, clickTarget, confirmWithin, envelope, inputFailureOf,
+  navigate, openConversation, pressNativeKey, readDeadline, typeText, waitFor,
 } from './shared.js';
 
 // Labels in both interface languages. The zh-CN interface of 2026-10-10 showed a 撰写器模式
@@ -33,10 +33,11 @@ const NOT_A_NOTICE = [
 // The add-files menu renders its items in plain divs grouped by `data-mention-section-id`,
 // with no menu role (live 2026-10-11).
 const MENU = '[role="menu"], [role="listbox"], [data-radix-popper-content-wrapper], [data-mention-section-id]';
-const TARGET_ATTRIBUTE = 'data-forager-target';
 const MENU_WAIT_MS = 10000;
 const SWITCH_WAIT_MS = 5000;
 const MENTION_WAIT_MS = 5000;
+// How long a click into the composer, or a key that edits it, has to show its effect.
+const COMPOSER_CHECK_MS = 5000;
 const CONVERSATION_WAIT_MS = 30000;
 // The plan card showed within 15 s live. A reply only counts once it stayed without a plan
 // card this long, so a card still loading never reads as a reply.
@@ -78,12 +79,16 @@ const HELPERS = `
     .some((name) => el.getAttribute(name) === 'true')
     || ['on', 'active', 'checked'].includes(el.getAttribute('data-state') || '');
   const composer = () => Array.from(document.querySelectorAll('${COMPOSER}')).find(isVisible);
-  // Marks one element so that OpenCLI's click primitive can find it by selector.
-  const mark = (el, name) => {
-    for (const old of document.querySelectorAll('[${TARGET_ATTRIBUTE}="' + name + '"]')) old.removeAttribute('${TARGET_ATTRIBUTE}');
-    if (!el) return false;
-    el.setAttribute('${TARGET_ATTRIBUTE}', name);
-    return true;
+  const menuItems = () => Array.from(document.querySelectorAll('${MENU}'))
+    .filter(isVisible)
+    .flatMap((menu) => clickables(menu));
+  // The mode switch labelled with one of \`switchLabels\`, and its option labelled with one of
+  // \`chatLabels\` (null when it has none); undefined when the page shows no mode switch.
+  const chatOption = (switchLabels, chatLabels) => {
+    const group = Array.from(document.querySelectorAll('[aria-label]'))
+      .filter(isVisible)
+      .find((el) => switchLabels.some((label) => (el.getAttribute('aria-label') || '').toLowerCase().includes(label)));
+    return group ? byLabels(clickables(group), chatLabels) : undefined;
   };
 `;
 
@@ -91,25 +96,16 @@ function script(body, ...values) {
   return `((${values.map((_, index) => `arg${index}`).join(', ')}) => {${HELPERS}${body}})(${values.map((value) => JSON.stringify(value)).join(', ')})`;
 }
 
-function target(name) {
-  return `[${TARGET_ATTRIBUTE}="${name}"]`;
-}
-
 /**
- * The composer mode: `chat`; `switch` after marking the chat option to click; `missing` when the
+ * The composer mode: `chat`; `switch` when the chat option is there to click; `missing` when the
  * mode switch has no chat option; `none` when the page shows no mode switch, as for an account
  * without the work mode.
  */
 const composerMode = script(`
-  const group = Array.from(document.querySelectorAll('[aria-label]'))
-    .filter(isVisible)
-    .find((el) => arg0.some((label) => (el.getAttribute('aria-label') || '').toLowerCase().includes(label)));
-  if (!group) return 'none';
-  const chat = byLabels(clickables(group), arg1);
+  const chat = chatOption(arg0, arg1);
+  if (chat === undefined) return 'none';
   if (!chat) return 'missing';
-  if (isSelected(chat)) return 'chat';
-  mark(chat, 'chat-mode');
-  return 'switch';
+  return isSelected(chat) ? 'chat' : 'switch';
 `, MODE_SWITCH, CHAT_MODE);
 
 const composerState = script(`
@@ -118,34 +114,42 @@ const composerState = script(`
   return { text: target.innerText || target.textContent || '', html: target.innerHTML };
 `);
 
-const markComposer = script(`
-  return mark(composer(), 'composer');
+const composerFocused = script(`
+  const target = composer();
+  return Boolean(target) && target.contains(document.activeElement);
 `);
 
-const markTools = script(`
+const menuItemCount = script(`
+  return menuItems().length;
+`);
+
+// Page expressions for the click targets, each yielding the one element to click or none.
+const CHAT_MODE_TARGET = script(`
+  const chat = chatOption(arg0, arg1);
+  return chat ? [chat] : [];
+`, MODE_SWITCH, CHAT_MODE);
+
+const COMPOSER_TARGET = script(`
+  const found = composer();
+  return found ? [found] : [];
+`);
+
+const TOOLS_TARGET = script(`
   const found = document.querySelector('[data-testid="composer-plus-btn"]')
     || byLabels(clickables(document), arg0);
-  return mark(found, 'tools');
+  return found ? [found] : [];
 `, TOOLS_BUTTON);
 
-const menuItems = script(`
-  return Array.from(document.querySelectorAll('${MENU}'))
-    .filter(isVisible)
-    .flatMap((menu) => clickables(menu)).length;
-`);
-
-const markDeepResearch = script(`
-  const items = Array.from(document.querySelectorAll('${MENU}'))
-    .filter(isVisible)
-    .flatMap((menu) => clickables(menu));
-  return mark(byLabels(items, arg0), 'deep-research');
+const DEEP_RESEARCH_TARGET = script(`
+  const found = byLabels(menuItems(), arg0);
+  return found ? [found] : [];
 `, DEEP_RESEARCH);
 
-const markSend = script(`
+const SEND_TARGET = script(`
   const found = Array.from(document.querySelectorAll('[data-testid="send-button"], #composer-submit-button'))
     .find((el) => isVisible(el) && isEnabled(el))
     || byLabels(clickables(document), arg0);
-  return mark(found, 'send');
+  return found ? [found] : [];
 `, SEND);
 
 /** The newest assistant reply, once ChatGPT stopped streaming it, or null. */
@@ -205,17 +209,32 @@ function conversationOf(href) {
   }
 }
 
-/**
- * Empties the composer with OpenCLI's key and typing primitives, after closing a menu left open;
- * returns whether it is empty.
- */
-async function clearDraft(page) {
-  await page.pressKey('Escape');
-  if (!(await page.evaluate(markComposer))) return false;
-  await page.typeText(target('composer'), ' ');
-  await page.pressKey('Backspace');
+/** Whether the composer shows neither text nor the Deep Research mention. */
+async function composerEmpty(page) {
   const state = await page.evaluate(composerState);
   return Boolean(state) && normalize(state.text) === '' && !state.html.includes(DEEP_RESEARCH_APP);
+}
+
+/** Clicks into the composer and confirms it took the focus; returns null or why it could not. */
+async function focusComposer(page, deadline) {
+  const failure = await inputFailureOf(() => clickTarget(page, COMPOSER_TARGET, { deadline }));
+  if (failure) return `could not click the composer (${failure})`;
+  const focused = await confirmWithin(() => page.evaluate(composerFocused), COMPOSER_CHECK_MS, deadline);
+  return focused ? null : 'the composer did not take the focus (click_missed)';
+}
+
+/** Selects everything in the focused composer and deletes it; returns whether it is empty. */
+async function emptyComposer(page, deadline) {
+  await pressNativeKey(page, 'selectAll', { deadline });
+  await pressNativeKey(page, 'backspace', { deadline });
+  return confirmWithin(() => composerEmpty(page), COMPOSER_CHECK_MS, deadline);
+}
+
+/** Empties the composer, after closing a menu left open; returns whether it is empty. */
+async function clearDraft(page, deadline) {
+  await pressNativeKey(page, 'escape', { deadline });
+  if (await focusComposer(page, deadline)) return false;
+  return emptyComposer(page, deadline);
 }
 
 /**
@@ -230,6 +249,7 @@ async function startResearch(page, query, deadline, facts, run) {
   };
   const passed = () => Date.now() >= deadline;
   const within = (ms) => Math.min(deadline, Date.now() + ms);
+  const click = (targets) => inputFailureOf(() => clickTarget(page, targets, { deadline }));
 
   await waitFor(deadline, async () => (await facts.observe(page)) || facts.ready);
   if (facts.facts.signed_out || !facts.ready) {
@@ -240,19 +260,25 @@ async function startResearch(page, query, deadline, facts, run) {
   const mode = await page.evaluate(composerMode);
   if (mode === 'missing') return stop('the composer mode switch offers no chat mode');
   if (mode === 'switch') {
-    await page.click(target('chat-mode'));
+    const failure = await click(CHAT_MODE_TARGET);
+    if (failure) return stop(`could not click the chat mode (${failure})`);
     const switched = await waitFor(
       within(SWITCH_WAIT_MS),
       async () => (await page.evaluate(composerMode)) === 'chat',
     );
-    if (!switched) return stop('the composer did not switch to chat mode');
+    if (!switched) return stop('the composer did not switch to chat mode (click_missed)');
   }
   run.steps.push('chat_mode');
 
-  // Typing replaces the whole composer, mention included, so the question goes in first.
-  if (!(await page.evaluate(markComposer))) return stop('the home page shows no composer');
+  // The question goes in before the mention. Typing only inserts at the caret, so an earlier
+  // draft left in the composer is deleted first.
+  const unfocused = await focusComposer(page, deadline);
+  if (unfocused) return stop(unfocused);
   run.typed = true;
-  await page.typeText(target('composer'), query);
+  if (!await composerEmpty(page) && !await emptyComposer(page, deadline)) {
+    return stop('could not empty the earlier draft in the composer');
+  }
+  await typeText(page, query, { deadline });
   const typed = await waitFor(within(3000), async () => {
     const state = await page.evaluate(composerState);
     return state && normalize(state.text) === normalize(query);
@@ -260,16 +286,17 @@ async function startResearch(page, query, deadline, facts, run) {
   if (!typed) return stop('the composer did not take the question');
   run.steps.push('query');
 
-  if (!await page.evaluate(markTools)) return stop('found no "Add files and more" button');
-  await page.click(target('tools'));
-  if (!await waitFor(within(MENU_WAIT_MS), () => page.evaluate(menuItems))) {
-    return stop('the "Add files and more" menu rendered no items; the Chrome window must be in front');
+  const opened = await click(TOOLS_TARGET);
+  if (opened) return stop(`could not click the "Add files and more" button (${opened})`);
+  if (!await waitFor(within(MENU_WAIT_MS), () => page.evaluate(menuItemCount))) {
+    return stop('the "Add files and more" menu rendered no items (click_missed); the Chrome window must be in front');
   }
-  if (!await page.evaluate(markDeepResearch)) {
+  if (!await page.evaluate(`${DEEP_RESEARCH_TARGET}.length > 0`)) {
     run.deep_research_missing = true;
     return;
   }
-  await page.click(target('deep-research'));
+  const chosen = await click(DEEP_RESEARCH_TARGET);
+  if (chosen) return stop(`could not click the Deep Research entry (${chosen})`);
   run.steps.push('deep_research');
 
   const mentioned = await waitFor(within(MENTION_WAIT_MS), async () => {
@@ -277,14 +304,18 @@ async function startResearch(page, query, deadline, facts, run) {
     return state && state.html.includes(DEEP_RESEARCH_APP)
       && normalize(state.text).includes(normalize(query));
   });
-  if (!mentioned) return stop('the composer does not show the question with the Deep Research mention');
+  if (!mentioned) return stop('the composer does not show the question with the Deep Research mention (click_missed)');
   run.steps.push('mention');
 
   const shown = new Set(await page.evaluate(quotaLines));
-  if (!await page.evaluate(markSend)) return stop('found no send button');
-  // Recorded before the click: a click that fails halfway may still have sent the question.
+  // Recorded before the click: a click that fails halfway may still have sent the question. An
+  // input failure comes before the pointer presses, so nothing was sent then.
   run.steps.push('sent');
-  await page.click(target('send'));
+  const sent = await click(SEND_TARGET);
+  if (sent) {
+    run.steps.pop();
+    return stop(`could not click the send button (${sent})`);
+  }
 
   await waitFor(within(CONVERSATION_WAIT_MS), async () => {
     await facts.observe(page);
@@ -382,7 +413,7 @@ cli({
     // The composer keeps its content as a draft across pages, so an unsent question is removed.
     if (run.typed && !run.steps.includes('sent')) {
       try {
-        run.draft_cleared = await clearDraft(page);
+        run.draft_cleared = await clearDraft(page, deadline);
       } catch {
         run.draft_cleared = false;
       }

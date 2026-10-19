@@ -815,7 +815,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         credentials: Credentials::Unused,
         transport: ProviderTransport::OpenCli(OpenCliAdapter {
             site: "forager-chatgpt",
-            contract: "forager-chatgpt/1",
+            contract: "forager-chatgpt/2",
         }),
         access_policy: Some(CHATGPT_BROWSER_ACCESS),
         probe: DoctorProbe::AdapterStatus {

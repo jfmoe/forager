@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 
 use super::opencli::FakeOpenCli;
 
-pub(crate) const CONTRACT: &str = "forager-chatgpt/1";
+pub(crate) const CONTRACT: &str = "forager-chatgpt/2";
 pub(crate) const CONVERSATION: &str = "6a0f1c2e-3b4d-4e5f-8a9b-0c1d2e3f4a5b";
 pub(crate) const CONVERSATION_URL: &str =
     "https://chatgpt.com/c/6a0f1c2e-3b4d-4e5f-8a9b-0c1d2e3f4a5b";
