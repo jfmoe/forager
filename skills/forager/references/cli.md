@@ -1043,11 +1043,12 @@ written.
 
 Run these commands only when the user explicitly asks for Gemini Deep Research. They drive
 Gemini in the user's own logged-in Chrome through OpenCLI and the `forager-gemini` adapter: install
-OpenCLI and its Browser Bridge extension (`opencli doctor`), then copy the `opencli/forager-gemini`
-directory next to this skill's `SKILL.md` to `~/.opencli/clis/forager-gemini` (replace the whole
-directory to update), and check with `forager doctor --provider gemini_browser`. No platform
-order or other setting enables them; `providers.gemini_browser.command` and `.timeout` (default
-`opencli` and 240 seconds per OpenCLI command) configure them.
+OpenCLI 2.x (`npm install -g @jackwener/opencli@2`) and its Browser Bridge extension 1.0.25 or
+later (`opencli doctor`), then copy the `opencli/forager-gemini` directory next to this skill's
+`SKILL.md` to `~/.opencli/clis/forager-gemini` (replace the whole directory to update), and
+check with `forager doctor --provider gemini_browser`. No platform order or other setting enables
+them; `providers.gemini_browser.command` and `.timeout` (default `opencli` and 240 seconds per
+OpenCLI command) configure them.
 
 A Gemini report is a Delegated Research Report, not research evidence: relay it as Gemini's
 conclusions with attribution, and fetch a cited source with `forager fetch` before stating one of
@@ -1120,12 +1121,12 @@ could not be written). A failure payload adds `conversation_url`.
 
 Run these commands only when the user explicitly asks for ChatGPT Deep Research. They drive
 ChatGPT in the user's own logged-in Chrome through OpenCLI and the `forager-chatgpt` adapter:
-install OpenCLI and its Browser Bridge extension (`opencli doctor`), then copy the
-`opencli/forager-chatgpt` directory next to this skill's `SKILL.md` to
-`~/.opencli/clis/forager-chatgpt` (replace the whole directory to update), and check with
-`forager doctor --provider chatgpt_browser`. No platform order or other setting enables them;
-`providers.chatgpt_browser.command` and `.timeout` (default `opencli` and 240 seconds per OpenCLI
-command) configure them.
+install OpenCLI 2.x (`npm install -g @jackwener/opencli@2`) and its Browser Bridge extension
+1.0.25 or later (`opencli doctor`), then copy the `opencli/forager-chatgpt` directory next to
+this skill's `SKILL.md` to `~/.opencli/clis/forager-chatgpt` (replace the whole directory to
+update), and check with `forager doctor --provider chatgpt_browser`. No platform order or other
+setting enables them; `providers.chatgpt_browser.command` and `.timeout` (default `opencli` and
+240 seconds per OpenCLI command) configure them.
 
 A ChatGPT report is a Delegated Research Report, not research evidence: relay it as ChatGPT's
 conclusions with attribution, and fetch a cited source with `forager fetch` before stating one of
