@@ -10,7 +10,7 @@
 - **adapter 原生输入**：forager 自有 OpenCLI adapter 中所有改变页面状态的操作（指针移动与悬停、点击、滚轮滚动、按键、文本输入）都经 OpenCLI 的原生输入，以 CDP `Input.*` 事件完成：`nativeClick`、`nativeType`、`insertText`，以及 `page.cdp('Input.dispatchMouseEvent', …)` 与 `page.cdp('Input.dispatchKeyEvent', …)`。禁止 `element.click()`、`dispatchEvent`、给 `scrollTop` 赋值、`window.scrollTo`、`scrollIntoView` 与 `execCommand`，也不使用失败时会悄悄退回脚本的 OpenCLI 高层操作（`page.click`、`page.hover`、`page.typeText`、`page.pressKey`）。读取 DOM 与页面状态、网络抓包、截图强制渲染与直接打开站点 URL 不属于操作，保持不变。
   - 点击：在页面中选出唯一一个指针可命中的目标（不在 `aria-hidden` 子树中、有尺寸、指针在其中心命中它自身或其后代），必要时用滚轮把它滚进视口，在中心附近取一个仍命中目标的随机点，先悬停，悬停后仍命中再 `nativeClick`。没有目标、多于一个可命中目标、目标被遮挡、滚不进视口、悬停后不再命中，或所需的原生接口不存在时，立即以明确的原因失败，不退回脚本操作。
   - 核对：点击结果能在页面上观察到时（选项选中、面板展开、展开按钮消失、菜单项出现），点击后在几秒内核对，核对不通过以 `click_missed` 失败，不等到读取截止。
-  - 节奏：每次操作前随机停顿 0.3–1.5 秒，计入命令自己的读取截止时间；点击前先悬停；不超过 200 个字符的文本逐字原生输入，字符间隔 30–90 毫秒随机；更长的文本用一次 `insertText`。编辑键（全选、退格、删除）经 `Input.dispatchKeyEvent` 发送并带上键码，macOS 上另带对应的编辑命令。不模拟鼠标轨迹。
+  - 节奏：每次操作前随机停顿 0.3–1.5 秒，计入命令自己的读取截止时间；截止时间一过，不再发出任何输入（包括逐字输入的下一个字符），当前操作以 `deadline_passed` 失败；点击前先悬停；不超过 200 个字符的文本逐字原生输入，字符间隔 30–90 毫秒随机；更长的文本用一次 `insertText`。编辑键（全选、退格、删除）经 `Input.dispatchKeyEvent` 发送并带上键码，macOS 上另带对应的编辑命令。不模拟鼠标轨迹。
   - 共享方式：OpenCLI 按站点目录分别加载 adapter，跨目录无法共享代码，所以做页面操作的 adapter 各在自己的 `shared.js` 中带一份逐字相同的原生输入块，改动时同步修改。SSRN adapter 不在此规则内，它的 JS 保持不变。
   - 原生输入提高的是交互的真实度与稳健性，不是反检测：不做 stealth 改造、不伪造指纹、不解验证码；遇到验证、风控或登录墙仍按 ADR 0020、0023、0024 立即停止。
 - **链语义**：同平台的 route 按 `platforms.<id>.order` 组成 fallback 链，由共享链执行器运行，沿用 LegitimateEmpty 语义：至少一条 route 返回合法空结果、之后没有 route 被接受时，结果为空成功。结果永不跨平台 fallback。

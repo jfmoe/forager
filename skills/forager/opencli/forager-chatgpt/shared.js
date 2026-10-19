@@ -181,10 +181,10 @@ export async function openConversation(page, id, deadline) {
 // Every action that changes the page (pointer moves, clicks, wheel scrolls, keys, and text) goes
 // through Chrome's input pipeline as CDP `Input.*` events, so the page sees trusted events with
 // coordinates and a full pointer sequence. Reading the DOM, network capture, and screenshots are
-// not actions. An action that cannot be done natively throws `InputFailure` with its reason and
-// never falls back to a scripted one; OpenCLI's `page.click`, `page.hover`, `page.typeText`, and
-// `page.pressKey` are avoided because they silently fall back to `element.click()`,
-// `dispatchEvent`, DOM setters, or script key events. The pacing is a person's: a pause before
+// not actions. An action that cannot be done natively, or not before the command's deadline,
+// throws `InputFailure` with its reason and never falls back to a scripted one; OpenCLI's
+// `page.click`, `page.hover`, `page.typeText`, and `page.pressKey` are avoided because they
+// silently fall back to `element.click()`, `dispatchEvent`, DOM setters, or script key events. The pacing is a person's: a pause before
 // each action, a hover before each click, and short text typed one character at a time.
 
 const INPUT_PAUSE_MS = [300, 1500];
@@ -224,6 +224,11 @@ export class InputFailure extends Error {
 
 function randomBetween([low, high]) {
   return low + Math.random() * (high - low);
+}
+
+/** Throws `InputFailure` once `deadline` has passed, so that no input goes out after it. */
+function requireTime(deadline) {
+  if (Date.now() >= deadline) throw new InputFailure('deadline_passed');
 }
 
 /** Waits `ms`, but never past `deadline`. */
@@ -353,10 +358,12 @@ function movePointer(page, point) {
  */
 export async function wheelAt(page, point, deltaY, { deadline = Infinity } = {}) {
   requireNativeInput(page, ['cdp']);
+  requireTime(deadline);
   await movePointer(page, point);
   let remaining = deltaY;
   for (let step = 0; step < MAX_WHEEL_STEPS && Math.abs(remaining) >= 1; step += 1) {
     if (step > 0) await restFor(randomBetween(WHEEL_GAP_MS), deadline);
+    requireTime(deadline);
     const delta = Math.sign(remaining) * Math.min(Math.abs(remaining), randomBetween(WHEEL_STEP_PX));
     await page.cdp('Input.dispatchMouseEvent', {
       type: 'mouseWheel', x: point.x, y: point.y, deltaX: 0, deltaY: delta,
@@ -391,8 +398,10 @@ async function locateTarget(page, targets, deadline) {
  */
 export async function hoverTarget(page, targets, { deadline = Infinity } = {}) {
   requireNativeInput(page, ['cdp', 'screenshot']);
+  requireTime(deadline);
   await humanPause(deadline);
   const point = await locateTarget(page, targets, deadline);
+  requireTime(deadline);
   await movePointer(page, point);
   return point;
 }
@@ -404,12 +413,15 @@ export async function hoverTarget(page, targets, { deadline = Infinity } = {}) {
  */
 export async function clickTarget(page, targets, { deadline = Infinity } = {}) {
   requireNativeInput(page, ['cdp', 'screenshot', 'nativeClick']);
+  requireTime(deadline);
   await humanPause(deadline);
   const point = await locateTarget(page, targets, deadline);
+  requireTime(deadline);
   await movePointer(page, point);
   await restFor(randomBetween(HOVER_DWELL_MS), deadline);
   const still = await page.evaluate(locateScript(targets, point));
   if (!still.hit) throw new InputFailure(still.reason || 'target_moved');
+  requireTime(deadline);
   await page.nativeClick(point.x, point.y);
 }
 
@@ -421,13 +433,16 @@ export async function typeText(page, text, { deadline = Infinity } = {}) {
   const characters = [...String(text)];
   const long = characters.length > MAX_TYPED_CHARACTERS;
   requireNativeInput(page, [long ? 'insertText' : 'nativeType']);
+  requireTime(deadline);
   await humanPause(deadline);
   if (long) {
+    requireTime(deadline);
     await page.insertText(String(text));
     return;
   }
   for (const [index, character] of characters.entries()) {
     if (index > 0) await restFor(randomBetween(KEY_GAP_MS), deadline);
+    requireTime(deadline);
     await page.nativeType(character);
   }
 }
@@ -448,7 +463,9 @@ export async function pressNativeKey(page, name, { deadline = Infinity } = {}) {
   const key = NATIVE_KEYS[name];
   if (!key) throw new Error(`unknown native key ${name}`);
   requireNativeInput(page, ['cdp']);
+  requireTime(deadline);
   await humanPause(deadline);
+  requireTime(deadline);
   const modifiers = key.shortcut ? SHORTCUT_MODIFIER.bit : 0;
   const commands = IS_MAC && key.command ? [key.command] : [];
   if (key.shortcut) await dispatchKey(page, 'rawKeyDown', SHORTCUT_MODIFIER, modifiers);
