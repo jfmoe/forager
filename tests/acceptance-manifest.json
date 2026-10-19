@@ -114,14 +114,14 @@
       "provider": "ssrn_browser",
       "seam": "platform:ssrn:search",
       "test": "tests/ssrn_browser.rs::advanced_search_and_cursor_send_complete_native_conditions",
-      "note": "A fake opencli executable proves the transport and the route adapter; the JavaScript adapter is covered only by the live smoke C22."
+      "note": "A fake opencli executable proves the transport and the route adapter; the JavaScript adapter has no live smoke case."
     },
     {
       "id": "F16",
       "provider": "ssrn_browser",
       "seam": "platform:ssrn:fetch",
       "test": "tests/ssrn_full_text.rs::full_text_delivers_markdown_and_removes_the_pdf_by_default",
-      "note": "A fake opencli executable proves the transport, the route adapter, and the full-text delivery; the JavaScript adapter is covered only by the live smoke C23."
+      "note": "A fake opencli executable proves the transport, the route adapter, and the full-text delivery; the JavaScript adapter has no live smoke case."
     },
     {
       "id": "F17",

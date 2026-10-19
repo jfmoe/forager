@@ -161,7 +161,7 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
 - **route 配合**：order 为 `[ssrn_crossref, ssrn_browser]` 时，`--depth abstract` 而 Crossref 缺摘要的请求在 Crossref attempt 内报 Quality，落到浏览器 route 补齐。
 - **站点验证**：SSRN 由 Cloudflare 保护。fetch 读取详情页：Chrome 已通过站点验证时，临时站点会话可以直接打开页面（2026-09-26 实测）；站点显示瞬时验证时 adapter 继续等待它自行通过；站点升级为需要人工勾选的验证时（同日在较多次访问后出现），adapter 等到自己的读取截止点后以 77 结束，attempt 为 Auth。search 不加载页面，不受页面级验证影响（2026-10-11 实测：详情页要求人工验证期间，接口检索照常返回）；接口请求本身被 Cloudflare 拦截时 adapter 立即以 77 结束。route 永不点击或绕过验证，用户需在 Chrome 中打开 SSRN 手动通过（ADR 0020）。
 - **doctor**：shallow 只在 `ssrn_browser` 出现在 `platforms.ssrn.order` 中时检查它，运行 `contract` 命令（不需要浏览器）并核对契约版本；未启用时报告为 `configured: false`，不影响 `ok`。检查失败时状态带 `message`，含安装提示。deep（`doctor --provider ssrn_browser`）同样只在 order 启用该 route 时运行一次真实的平台检索；未启用时以 config 失败退 3，不启动进程。
-- **smoke**：C22（search）与 C23（fetch）按 order 门控，只在 `platforms.ssrn.order` 含 `ssrn_browser` 时运行，需要真实的 OpenCLI、Chrome 与已安装的 adapter。
+- **smoke**：没有 live smoke 用例。SSRN 的 Cloudflare 验证常使无人值守的运行失败，即使 order 启用了该 route，`smoke --live` 也不运行它；C22、C23 空号不复用。传输层与 route 由第 5 章所述的假 `opencli` 测试覆盖，JS adapter 没有自动化验证。
 - **adapter 分发**：forager 自有的 SSRN adapter 在 skill 目录 `skills/forager/opencli/ssrn/`（`search.js`、`paper.js`、`contract.js` 与共享的 `shared.js`）。JS 发出原站检索请求或读取详情页，只交回事实；Rust 校验协议和实际条件，再解码与归一化结果。安装方式是把该目录复制为 `~/.opencli/clis/ssrn/`；步骤与支持的 OpenCLI 版本见 skill 的平台 reference。
 
 ## Google Scholar

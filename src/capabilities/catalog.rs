@@ -389,21 +389,6 @@ const SSRN_CROSSREF_SMOKE: &[ProviderSmokeCase] = &[
     },
 ];
 
-const SSRN_BROWSER_SMOKE: &[ProviderSmokeCase] = &[
-    ProviderSmokeCase {
-        id: "C22",
-        platform: Some(Platform::Ssrn),
-        operation: "search",
-        transport: "process",
-    },
-    ProviderSmokeCase {
-        id: "C23",
-        platform: Some(Platform::Ssrn),
-        operation: "fetch",
-        transport: "process",
-    },
-];
-
 const SERPAPI_SMOKE: &[ProviderSmokeCase] = &[
     ProviderSmokeCase {
         id: "C24",
@@ -692,6 +677,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         smoke_cases: SSRN_CROSSREF_SMOKE,
         native_full_text: false,
     },
+    // No live smoke case: SSRN's Cloudflare check fails too often for an unattended run.
     ProviderRegistration {
         id: ProviderId::SsrnBrowser,
         operations: &[],
@@ -706,7 +692,7 @@ const REGISTRY: &[ProviderRegistration] = &[
             name: "search",
             transport: "process",
         },
-        smoke_cases: SSRN_BROWSER_SMOKE,
+        smoke_cases: &[],
         native_full_text: false,
     },
     // SerpApi limits throughput per account; a 429 rotates to the next key instead of pacing.
@@ -919,8 +905,11 @@ mod tests {
     /// Providers without a live smoke case. `gemini_browser` and `chatgpt_browser` get only the
     /// offline registration check: a live case would spend the user's Deep Research quota or read
     /// their conversations.
-    const WITHOUT_LIVE_SMOKE: &[ProviderId] =
-        &[ProviderId::GeminiBrowser, ProviderId::ChatgptBrowser];
+    const WITHOUT_LIVE_SMOKE: &[ProviderId] = &[
+        ProviderId::SsrnBrowser,
+        ProviderId::GeminiBrowser,
+        ProviderId::ChatgptBrowser,
+    ];
 
     #[derive(Deserialize)]
     struct AcceptanceManifest {
