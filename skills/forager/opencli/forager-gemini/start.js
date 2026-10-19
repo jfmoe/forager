@@ -66,15 +66,18 @@ const HELPERS = `
   };
   const buttons = (root) => Array.from(root.querySelectorAll('button, [role="button"]'))
     .filter((el) => isVisible(el) && isEnabled(el));
-  const visibleMenuItems = () => Array.from(document.querySelectorAll(
+  // The menu containers nest (an overlay pane holds the menu panel), so an item can be found
+  // through more than one of them.
+  const visibleMenuItems = () => [...new Set(Array.from(document.querySelectorAll(
     '[role="menu"], [role="listbox"], .mat-mdc-menu-panel, .cdk-overlay-pane',
   )).filter(isVisible).flatMap((menu) => Array.from(menu.querySelectorAll(
     'button, [role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [role="option"]',
-  ))).filter(isVisible);
+  ))))].filter(isVisible);
   const menuItems = () => visibleMenuItems().filter(isEnabled);
-  const composer = () => Array.from(document.querySelectorAll(
+  const composers = () => Array.from(document.querySelectorAll(
     'rich-textarea [contenteditable="true"], div.ql-editor[contenteditable="true"], [contenteditable="true"][role="textbox"]',
-  )).find(isVisible);
+  )).filter(isVisible);
+  const composer = () => composers()[0];
 `;
 
 /** A page expression that runs `body` with the helpers in scope and `values` as `arg0`, …. */
@@ -105,7 +108,7 @@ const deepResearchSelected = script(`
   return buttons(document).some((el) => matches(el, arg0) && matches(el, arg1));
 `, DESELECT, DEEP_RESEARCH);
 
-const COMPOSER_TARGET = script('const target = composer(); return target ? [target] : [];');
+const COMPOSER_TARGET = script('return composers();');
 
 const composerFocused = script(`
   const target = composer();

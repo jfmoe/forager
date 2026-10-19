@@ -36,7 +36,8 @@ const MENU = '[role="menu"], [role="listbox"], [data-radix-popper-content-wrappe
 const MENU_WAIT_MS = 10000;
 const SWITCH_WAIT_MS = 5000;
 const MENTION_WAIT_MS = 5000;
-// How long a click into the composer, or a key that edits it, has to show its effect.
+// How long a click into the composer, a key that edits it, or the send click has to show its
+// effect.
 const COMPOSER_CHECK_MS = 5000;
 const CONVERSATION_WAIT_MS = 30000;
 // The plan card showed within 15 s live. A reply only counts once it stayed without a plan
@@ -64,13 +65,18 @@ const HELPERS = `
   const isEnabled = (el) => !el.disabled && el.getAttribute('aria-disabled') !== 'true';
   const labelOf = (el) => ((el.getAttribute('aria-label') || '') + ' ' + (el.textContent || ''))
     .replace(/\\s+/g, ' ').trim().toLowerCase();
-  // Earlier labels win over later ones, so a short fallback label never beats an exact one.
-  const byLabels = (elements, labels) => {
+  // A button or menu item can nest another that carries the same label; the pointer hits both,
+  // so only the outermost one counts.
+  const outermost = (elements) => elements
+    .filter((el) => !elements.some((other) => other !== el && other.contains(el)));
+  // The elements with the earliest label that any of them carries, so a short fallback label
+  // never competes with an exact one.
+  const labelled = (elements, labels) => {
     for (const label of labels) {
-      const found = elements.find((el) => labelOf(el).includes(label));
-      if (found) return found;
+      const found = elements.filter((el) => labelOf(el).includes(label));
+      if (found.length > 0) return outermost(found);
     }
-    return null;
+    return [];
   };
   const clickables = (root) => Array.from(root.querySelectorAll(
     'button, [role="button"], [role="radio"], [role="tab"], [role="menuitem"], [role="menuitemradio"], [role="menuitemcheckbox"], [role="option"]',
@@ -78,17 +84,20 @@ const HELPERS = `
   const isSelected = (el) => ['aria-checked', 'aria-selected', 'aria-pressed']
     .some((name) => el.getAttribute(name) === 'true')
     || ['on', 'active', 'checked'].includes(el.getAttribute('data-state') || '');
-  const composer = () => Array.from(document.querySelectorAll('${COMPOSER}')).find(isVisible);
-  const menuItems = () => Array.from(document.querySelectorAll('${MENU}'))
+  const composers = () => Array.from(document.querySelectorAll('${COMPOSER}')).filter(isVisible);
+  const composer = () => composers()[0];
+  // The menu containers nest (a popper wrapper holds the menu), so an item can be found through
+  // more than one of them.
+  const menuItems = () => [...new Set(Array.from(document.querySelectorAll('${MENU}'))
     .filter(isVisible)
-    .flatMap((menu) => clickables(menu));
-  // The mode switch labelled with one of \`switchLabels\`, and its option labelled with one of
-  // \`chatLabels\` (null when it has none); undefined when the page shows no mode switch.
-  const chatOption = (switchLabels, chatLabels) => {
+    .flatMap((menu) => clickables(menu)))];
+  // The mode switch labelled with one of \`switchLabels\`, and its options labelled with one of
+  // \`chatLabels\` (empty when it has none); undefined when the page shows no mode switch.
+  const chatOptions = (switchLabels, chatLabels) => {
     const group = Array.from(document.querySelectorAll('[aria-label]'))
       .filter(isVisible)
       .find((el) => switchLabels.some((label) => (el.getAttribute('aria-label') || '').toLowerCase().includes(label)));
-    return group ? byLabels(clickables(group), chatLabels) : undefined;
+    return group ? labelled(clickables(group), chatLabels) : undefined;
   };
 `;
 
@@ -102,10 +111,10 @@ function script(body, ...values) {
  * without the work mode.
  */
 const composerMode = script(`
-  const chat = chatOption(arg0, arg1);
+  const chat = chatOptions(arg0, arg1);
   if (chat === undefined) return 'none';
-  if (!chat) return 'missing';
-  return isSelected(chat) ? 'chat' : 'switch';
+  if (chat.length === 0) return 'missing';
+  return chat.some(isSelected) ? 'chat' : 'switch';
 `, MODE_SWITCH, CHAT_MODE);
 
 const composerState = script(`
@@ -123,33 +132,23 @@ const menuItemCount = script(`
   return menuItems().length;
 `);
 
-// Page expressions for the click targets, each yielding the one element to click or none.
-const CHAT_MODE_TARGET = script(`
-  const chat = chatOption(arg0, arg1);
-  return chat ? [chat] : [];
-`, MODE_SWITCH, CHAT_MODE);
+// Page expressions for the click targets, each yielding the candidate elements; the click picks
+// the one a pointer hits, or fails when none or several are.
+const CHAT_MODE_TARGET = script('return chatOptions(arg0, arg1) || [];', MODE_SWITCH, CHAT_MODE);
 
-const COMPOSER_TARGET = script(`
-  const found = composer();
-  return found ? [found] : [];
-`);
+const COMPOSER_TARGET = script('return composers();');
 
 const TOOLS_TARGET = script(`
-  const found = document.querySelector('[data-testid="composer-plus-btn"]')
-    || byLabels(clickables(document), arg0);
-  return found ? [found] : [];
+  const plus = Array.from(document.querySelectorAll('[data-testid="composer-plus-btn"]'));
+  return plus.length > 0 ? plus : labelled(clickables(document), arg0);
 `, TOOLS_BUTTON);
 
-const DEEP_RESEARCH_TARGET = script(`
-  const found = byLabels(menuItems(), arg0);
-  return found ? [found] : [];
-`, DEEP_RESEARCH);
+const DEEP_RESEARCH_TARGET = script('return labelled(menuItems(), arg0);', DEEP_RESEARCH);
 
 const SEND_TARGET = script(`
-  const found = Array.from(document.querySelectorAll('[data-testid="send-button"], #composer-submit-button'))
-    .find((el) => isVisible(el) && isEnabled(el))
-    || byLabels(clickables(document), arg0);
-  return found ? [found] : [];
+  const send = Array.from(document.querySelectorAll('[data-testid="send-button"], #composer-submit-button'))
+    .filter((el) => isVisible(el) && isEnabled(el));
+  return send.length > 0 ? outermost(send) : labelled(clickables(document), arg0);
 `, SEND);
 
 /** The newest assistant reply, once ChatGPT stopped streaming it, or null. */
@@ -286,8 +285,8 @@ async function startResearch(page, query, deadline, facts, run) {
   if (!typed) return stop('the composer did not take the question');
   run.steps.push('query');
 
-  const opened = await click(TOOLS_TARGET);
-  if (opened) return stop(`could not click the "Add files and more" button (${opened})`);
+  const toolsFailure = await click(TOOLS_TARGET);
+  if (toolsFailure) return stop(`could not click the "Add files and more" button (${toolsFailure})`);
   if (!await waitFor(within(MENU_WAIT_MS), () => page.evaluate(menuItemCount))) {
     return stop('the "Add files and more" menu rendered no items (click_missed); the Chrome window must be in front');
   }
@@ -295,8 +294,8 @@ async function startResearch(page, query, deadline, facts, run) {
     run.deep_research_missing = true;
     return;
   }
-  const chosen = await click(DEEP_RESEARCH_TARGET);
-  if (chosen) return stop(`could not click the Deep Research entry (${chosen})`);
+  const deepResearchFailure = await click(DEEP_RESEARCH_TARGET);
+  if (deepResearchFailure) return stop(`could not click the Deep Research entry (${deepResearchFailure})`);
   run.steps.push('deep_research');
 
   const mentioned = await waitFor(within(MENTION_WAIT_MS), async () => {
@@ -311,10 +310,23 @@ async function startResearch(page, query, deadline, facts, run) {
   // Recorded before the click: a click that fails halfway may still have sent the question. An
   // input failure comes before the pointer presses, so nothing was sent then.
   run.steps.push('sent');
-  const sent = await click(SEND_TARGET);
-  if (sent) {
+  const sendFailure = await click(SEND_TARGET);
+  if (sendFailure) {
     run.steps.pop();
-    return stop(`could not click the send button (${sent})`);
+    return stop(`could not click the send button (${sendFailure})`);
+  }
+  // ChatGPT empties the composer, or moves to the new conversation, once it takes the question;
+  // a usage notice instead is the answer to the send as well.
+  const taken = await confirmWithin(async () => {
+    await facts.observe(page);
+    if (conversationOf(facts.facts.url)) return true;
+    if (newQuotaNotice(await page.evaluate(quotaLines), shown, query)) return true;
+    const state = await page.evaluate(composerState);
+    return !state || !normalize(state.text).includes(normalize(query));
+  }, COMPOSER_CHECK_MS, deadline);
+  if (!taken) {
+    if (!passed()) stop('the composer still held the question after the send click (click_missed)');
+    return;
   }
 
   await waitFor(within(CONVERSATION_WAIT_MS), async () => {
