@@ -1048,7 +1048,10 @@ later (`opencli doctor`), then copy the `opencli/forager-gemini` directory next 
 `SKILL.md` to `~/.opencli/clis/forager-gemini` (replace the whole directory to update), and
 check with `forager doctor --provider gemini_browser`. No platform order or other setting enables
 them; `providers.gemini_browser.command` and `.timeout` (default `opencli` and 240 seconds per
-OpenCLI command) configure them.
+OpenCLI command) configure them. The required contract is `forager-gemini/2`. When a command
+reports contract `forager-gemini/1`, the installed adapter is the older one: replace the whole
+`~/.opencli/clis/forager-gemini` directory with the one from this skill and check again with
+`forager doctor --provider gemini_browser`.
 
 A Gemini report is a Delegated Research Report, not research evidence: relay it as Gemini's
 conclusions with attribution, and fetch a cited source with `forager fetch` before stating one of

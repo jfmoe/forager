@@ -1,8 +1,8 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
 import {
-  APP_URL, PageFacts, SITE, SITE_DOMAIN, STREAM_GENERATE, envelope, navigate, readDeadline,
-  readTrackedCalls, waitFor,
+  APP_URL, PageFacts, SITE, SITE_DOMAIN, STREAM_GENERATE, clickTarget, confirmWithin, envelope,
+  inputFailureOf, navigate, pressNativeKey, readDeadline, readTrackedCalls, typeText, waitFor,
 } from './shared.js';
 
 // Labels in both interface languages. In the zh-CN interface of 2026-10-09 the tools button
@@ -29,11 +29,15 @@ const NOT_A_NOTICE = [
 
 const MENU_WAIT_MS = 10000;
 const SELECT_WAIT_MS = 8000;
+// How long the composer has to take focus, empty, or show the typed question.
+const COMPOSER_WAIT_MS = 3000;
+// How long a send or confirm click has to show its effect on the page.
+const CLICK_CHECK_MS = 5000;
 // The plan card renders after the answer completes, live sometimes later than 10 s; a text
 // answer never shows one.
 const CARD_WAIT_MS = 45000;
 
-/** Page-side helpers shared by the scripts: visibility, labels, and clicks. */
+/** Page-side helpers shared by the scripts: visibility, labels, and the elements to act on. */
 const HELPERS = `
   const isVisible = (el) => {
     if (!(el instanceof HTMLElement)) return false;
@@ -47,13 +51,18 @@ const HELPERS = `
   const labelOf = (el) => ((el.getAttribute('aria-label') || '') + ' ' + (el.textContent || ''))
     .replace(/\\s+/g, ' ').trim().toLowerCase();
   const matches = (el, labels) => labels.some((label) => labelOf(el).includes(label));
-  // Earlier labels win over later ones, so a short fallback label never beats an exact one.
-  const byLabels = (elements, labels, excluded = []) => {
+  // A menu item or button can nest another that carries the same label; the pointer hits both,
+  // so only the outermost one counts.
+  const outermost = (elements) => elements
+    .filter((el) => !elements.some((other) => other !== el && other.contains(el)));
+  // The elements with the earliest label that any of them carries, so a short fallback label
+  // never competes with an exact one.
+  const labelled = (elements, labels, excluded = []) => {
     for (const label of labels) {
-      const found = elements.find((el) => labelOf(el).includes(label) && !matches(el, excluded));
-      if (found) return found;
+      const found = elements.filter((el) => labelOf(el).includes(label) && !matches(el, excluded));
+      if (found.length > 0) return outermost(found);
     }
-    return null;
+    return [];
   };
   const buttons = (root) => Array.from(root.querySelectorAll('button, [role="button"]'))
     .filter((el) => isVisible(el) && isEnabled(el));
@@ -68,44 +77,39 @@ const HELPERS = `
   )).find(isVisible);
 `;
 
+/** A page expression that runs `body` with the helpers in scope and `values` as `arg0`, …. */
 function script(body, ...values) {
   return `((${values.map((_, index) => `arg${index}`).join(', ')}) => {${HELPERS}${body}})(${values.map((value) => JSON.stringify(value)).join(', ')})`;
 }
 
-const openToolsMenu = script(`
-  const target = byLabels(buttons(document), arg0, arg1);
-  if (!target) return false;
-  if (target.getAttribute('aria-expanded') !== 'true') target.click();
-  return true;
+/** The tools button: `missing`, `open`, or `closed`. */
+const toolsButton = script(`
+  const [target] = labelled(buttons(document), arg0, arg1);
+  if (!target) return 'missing';
+  return target.getAttribute('aria-expanded') === 'true' ? 'open' : 'closed';
 `, TOOLS_BUTTON, [...DESELECT, ...DEEP_RESEARCH]);
+const TOOLS_TARGET = script('return labelled(buttons(document), arg0, arg1);', TOOLS_BUTTON, [...DESELECT, ...DEEP_RESEARCH]);
 
 const menuItemCount = script('return visibleMenuItems().length;');
+const menuLabels = script('return visibleMenuItems().map(labelOf).join("\\n");');
 
-/** Clicks the first menu item with one of the labels; returns whether it clicked. */
-const clickMenuItem = (labels) => script(`
-  const item = byLabels(menuItems(), arg0);
-  if (!item) return false;
-  item.click();
-  return true;
-`, labels);
+/** The enabled menu items with the earliest of the labels, for a click. */
+const menuItemTarget = (labels) => script('return labelled(menuItems(), arg0);', labels);
 
-/** Whether a visible menu item has one of the labels but is disabled. */
-const disabledMenuItem = (labels) => script(`
-  return visibleMenuItems().some((el) => !isEnabled(el) && matches(el, arg0));
-`, labels);
+/** Whether a menu item with one of the labels shows, enabled or, with `disabled`, not. */
+const menuItemShown = (labels, disabled) => script(`
+  return visibleMenuItems().some((el) => matches(el, arg0) && (arg1 ? !isEnabled(el) : isEnabled(el)));
+`, labels, disabled);
 
 const deepResearchSelected = script(`
   return buttons(document).some((el) => matches(el, arg0) && matches(el, arg1));
 `, DESELECT, DEEP_RESEARCH);
 
-/** Finds the composer, focuses it, and empties it. */
-const focusComposer = script(`
+const COMPOSER_TARGET = script('const target = composer(); return target ? [target] : [];');
+
+const composerFocused = script(`
   const target = composer();
-  if (!target) return false;
-  target.focus();
-  target.textContent = '';
-  target.dispatchEvent(new InputEvent('input', { bubbles: true, inputType: 'deleteContentBackward' }));
-  return true;
+  return Boolean(target) && target.contains(document.activeElement);
 `);
 
 const composerText = script(`
@@ -113,28 +117,13 @@ const composerText = script(`
   return target ? (target.innerText || target.textContent || '') : null;
 `);
 
-const insertTextFallback = (text) => script(`
-  document.execCommand('insertText', false, arg0);
-  return true;
-`, text);
-
-/** Clicks the send button once; returns whether it found one. */
-const clickSend = script(`
-  const target = buttons(document).find((el) => el.matches('.send-button'))
-    || byLabels(buttons(document), arg0, arg1);
-  if (!target) return false;
-  target.click();
-  return true;
+const SEND_TARGET = script(`
+  const send = buttons(document).filter((el) => el.matches('.send-button'));
+  return send.length > 0 ? outermost(send) : labelled(buttons(document), arg0, arg1);
 `, SEND, [...TOOLS_BUTTON, ...DESELECT]);
 
-/** Finds the plan's confirm button and, when `click`, clicks it once; returns whether found. */
-const confirmButton = (click) => script(`
-  const target = buttons(document).find((el) => matches(el, arg0));
-  if (target && arg1) target.click();
-  return Boolean(target);
-`, CONFIRM, click);
-const findConfirm = confirmButton(false);
-const clickConfirm = confirmButton(true);
+const CONFIRM_TARGET = script('return outermost(buttons(document).filter((el) => matches(el, arg0)));', CONFIRM);
+const findConfirm = script('return buttons(document).some((el) => matches(el, arg0));', CONFIRM);
 
 /** Why no confirm button counts as clickable: the label matches and what rules each out. */
 const describeConfirm = script(`
@@ -171,16 +160,35 @@ function normalize(text) {
 }
 
 /**
+ * Clicks the one target of a step that changes the account, and records `step` as soon as the
+ * click may have reached the page, so a later failure never claims that nothing happened.
+ * Returns null or why it could not click.
+ */
+async function clickOnce(page, targets, deadline, run, step, names = {}) {
+  let failure;
+  try {
+    failure = await inputFailureOf(() => clickTarget(page, targets, { deadline }), names);
+  } catch (error) {
+    run.steps.push(step);
+    throw error;
+  }
+  if (!failure) run.steps.push(step);
+  return failure;
+}
+
+/**
  * Operates the page step by step and records each step it completed in `run.steps`. Every step
  * that changes the account (send, confirm) runs at most once; a failed step stops the command
  * instead of trying again. Returns normally when it stopped, with `run.problem` saying why.
  */
 async function startResearch(page, query, deadline, facts, run) {
-  const stop = (problem) => {
-    run.problem = problem;
-  };
   const passed = () => Date.now() >= deadline;
+  // A step cut short by the deadline reports the deadline, not its own reason.
+  const stop = (problem) => {
+    if (!passed()) run.problem = problem;
+  };
   const within = (ms) => Math.min(deadline, Date.now() + ms);
+  const click = (targets) => inputFailureOf(() => clickTarget(page, targets, { deadline }));
 
   await waitFor(deadline, async () => (await facts.observe(page)) || facts.ready);
   if (facts.facts.signed_out || facts.facts.notice || !facts.ready) {
@@ -188,36 +196,73 @@ async function startResearch(page, query, deadline, facts, run) {
     return;
   }
 
-  if (!await page.evaluate(openToolsMenu)) return stop('found no tools button');
+  const tools = await page.evaluate(toolsButton);
+  if (tools === 'missing') return stop('found no tools button');
+  if (tools === 'closed') {
+    const failure = await click(TOOLS_TARGET);
+    if (failure) return stop(`could not click the tools button: ${failure}`);
+  }
   if (!await waitFor(within(MENU_WAIT_MS), () => page.evaluate(menuItemCount))) {
-    return stop('the tools menu rendered no items; the Chrome window must be in front');
+    return stop('click_missed: the tools menu rendered no items; the Chrome window must be in front');
   }
   run.steps.push('tools_menu');
 
-  let selected = await page.evaluate(clickMenuItem(DEEP_RESEARCH));
-  if (!selected && await page.evaluate(clickMenuItem(MORE_TOOLS))) {
-    selected = await waitFor(within(SELECT_WAIT_MS), () => page.evaluate(clickMenuItem(DEEP_RESEARCH)));
+  if (!await page.evaluate(menuItemShown(DEEP_RESEARCH, false))
+    && await page.evaluate(menuItemShown(MORE_TOOLS, false))) {
+    const before = await page.evaluate(menuLabels);
+    const failure = await click(menuItemTarget(MORE_TOOLS));
+    if (failure) return stop(`could not click "More tools": ${failure}`);
+    const revealed = async () => await page.evaluate(menuItemShown(DEEP_RESEARCH, false))
+      || page.evaluate(menuItemShown(DEEP_RESEARCH, true));
+    if (!await confirmWithin(revealed, SELECT_WAIT_MS, deadline)
+      && await page.evaluate(menuLabels) === before) {
+      return stop('click_missed: "More tools" showed no further items');
+    }
   }
-  if (!selected) {
-    if (await page.evaluate(disabledMenuItem(DEEP_RESEARCH))) run.deep_research_disabled = true;
+  if (!await page.evaluate(menuItemShown(DEEP_RESEARCH, false))) {
+    if (await page.evaluate(menuItemShown(DEEP_RESEARCH, true))) run.deep_research_disabled = true;
     else run.deep_research_missing = !passed();
     return;
   }
-  if (!await waitFor(within(SELECT_WAIT_MS), () => page.evaluate(deepResearchSelected))) {
-    return stop('Deep Research did not show as selected');
+  const chosen = await click(menuItemTarget(DEEP_RESEARCH));
+  if (chosen) return stop(`could not click Deep Research: ${chosen}`);
+  if (!await confirmWithin(() => page.evaluate(deepResearchSelected), SELECT_WAIT_MS, deadline)) {
+    return stop('click_missed: Deep Research did not show as selected');
   }
   run.steps.push('deep_research');
 
-  if (!await page.evaluate(focusComposer)) return stop('found no composer');
-  if (page.insertText) await page.insertText(query);
-  else await page.evaluate(insertTextFallback(query));
-  const typed = await waitFor(within(3000), async () => normalize(await page.evaluate(composerText)) === normalize(query));
-  if (!typed) return stop('the composer did not take the question');
+  const focused = await inputFailureOf(() => clickTarget(page, COMPOSER_TARGET, { deadline }), {
+    no_target: 'found no composer',
+  });
+  if (focused) return stop(`could not click the composer: ${focused}`);
+  if (!await confirmWithin(() => page.evaluate(composerFocused), COMPOSER_WAIT_MS, deadline)) {
+    return stop('click_missed: the composer did not take focus');
+  }
+  // A draft left in the composer would go out with the question.
+  if (normalize(await page.evaluate(composerText)) !== '') {
+    const cleared = await inputFailureOf(async () => {
+      await pressNativeKey(page, 'selectAll', { deadline });
+      await pressNativeKey(page, 'backspace', { deadline });
+    });
+    if (cleared) return stop(`could not clear the composer: ${cleared}`);
+    const empty = async () => normalize(await page.evaluate(composerText)) === '';
+    if (!await confirmWithin(empty, COMPOSER_WAIT_MS, deadline)) return stop('the composer did not clear');
+  }
+  const typing = await inputFailureOf(() => typeText(page, query, { deadline }));
+  if (typing) return stop(`could not type the question: ${typing}`);
+  const typed = async () => normalize(await page.evaluate(composerText)) === normalize(query);
+  if (!await confirmWithin(typed, COMPOSER_WAIT_MS, deadline)) return stop('the composer did not take the question');
   run.steps.push('query');
 
   const shown = new Set(await page.evaluate(quotaLines));
-  if (!await page.evaluate(clickSend)) return stop('found no send button');
-  run.steps.push('sent');
+  const sending = await clickOnce(page, SEND_TARGET, deadline, run, 'sent', { no_target: 'found no send button' });
+  if (sending) return stop(`could not click the send button: ${sending}`);
+  // Gemini empties the composer once it takes the question.
+  const left = await confirmWithin(async () => {
+    await facts.observe(page);
+    return facts.completions >= 1 || normalize(await page.evaluate(composerText)) !== normalize(query);
+  }, CLICK_CHECK_MS, deadline);
+  if (!left) return stop('click_missed: the composer still held the question after the send click');
 
   await waitFor(deadline, async () => {
     await facts.observe(page);
@@ -233,8 +278,15 @@ async function startResearch(page, query, deadline, facts, run) {
     if (!passed()) stop(`Gemini showed no "Start research" button: ${await page.evaluate(describeConfirm)}`);
     return;
   }
-  if (!await page.evaluate(clickConfirm)) return stop('the "Start research" button went away');
-  run.steps.push('confirmed');
+  const confirming = await clickOnce(page, CONFIRM_TARGET, deadline, run, 'confirmed', {
+    no_target: 'the "Start research" button went away',
+  });
+  if (confirming) return stop(confirming);
+  const accepted = await confirmWithin(async () => {
+    await facts.observe(page);
+    return facts.completions >= 2 || !await page.evaluate(findConfirm);
+  }, CLICK_CHECK_MS, deadline);
+  if (!accepted) return stop('click_missed: the "Start research" button stayed after the click');
 
   const started = await waitFor(deadline, async () => {
     await facts.observe(page);
