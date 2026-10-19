@@ -2,6 +2,7 @@ mod arxiv;
 mod chatgpt_browser;
 mod constructors;
 mod context7;
+mod delegated_research;
 mod exa;
 pub(crate) mod execution;
 mod factory;
