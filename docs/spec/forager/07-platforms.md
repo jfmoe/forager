@@ -132,22 +132,25 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
   - 截止时间：attempt 截止时间之前预留 5 秒得到工作截止点，剩余整秒数作为 adapter 命令的 `--timeout` 参数传入。OpenCLI 据此设置 daemon 每次操作的截止时间；adapter 在 `--timeout` 之前 3 秒停止读取页面或等待请求并返回，让 OpenCLI 在工作截止点之前关闭标签页。5 秒预留用于强杀、回收子进程与报告 attempt。子进程放入独立进程组；到达工作截止点或 future 被丢弃时，强杀整个进程组，不做分步终止。access permit 持有到子进程被回收为止。剩余时间不足时 attempt 以 Timeout 结束，不启动进程。
   - 输出上限：stdout 最多 4 MiB（协议上限），超出为 Runtime 并强杀进程组；stderr 只保留前 64 KiB 并做 URL 脱敏。
   - 非 Unix 系统：传输在启动进程之前以 Runtime 拒绝；factory 的支持检查同样拒绝，因此该 route 记为 Skipped。
-  - 外壳：stdout 是一个 JSON 对象 `{contract, status, data}`。`contract` 与注册信息的契约版本（`forager-ssrn/4`）不一致为 Runtime，消息附安装提示（把 skill 的 `opencli/<site>` 目录复制为 `~/.opencli/clis/<site>`）；`status` 为 `ok` 或 `no_results`，只有 adapter 核实了站点自己的无结果答复时才是 `no_results`。
-  - 退出码映射：
+  - 环境：forager 不设置任何 `OPENCLI_*` 环境变量（如 `OPENCLI_CLOSE_OWNED_TAB`、`OPENCLI_WINDOW`），子进程继承用户的环境；窗口与标签页的回收沿用 OpenCLI 默认行为。
+  - 输出外壳：只支持 OpenCLI 2.x。成功时退出码为 0，stdout 是 `{"ok": true, "data": <adapter 返回值>}`；失败时退出码非 0，stdout 是 `{"ok": false, "error": {code, message, …}}`。失败消息取 `error.message`；stdout 不是这种外壳时（例如进程被信号终止）取 stderr 的第一个非空行。消息做 URL 脱敏并截断。
+  - adapter 外壳：成功外壳的 `data` 是 forager 自有 adapter 的外壳 `{contract, status, data}`。`contract` 与注册信息的契约版本（`forager-ssrn/4`）不一致为 Runtime，消息附安装提示（把 skill 的 `opencli/<site>` 目录复制为 `~/.opencli/clis/<site>`）；`status` 为 `ok` 或 `no_results`，只有 adapter 核实了站点自己的无结果答复时才是 `no_results`。
+  - OpenCLI 1.x：成功退出但 stdout 的 JSON 没有 `ok`（1.x 直接输出 adapter 外壳），或失败退出时 stdout 为空而 stderr 是 1.x 的 YAML 错误外壳（含 `ok: false` 行），都报 Runtime，提示升级到 OpenCLI 2.x 与 Browser Bridge 1.0.25 或更高版本；不提供 1.x 兼容。
+  - 退出码映射（`code` 指失败外壳的 `error.code`）：
 
     | OpenCLI 结果 | 映射 |
     |---|---|
-    | 0，且外壳有效 | 传输成功；业务结果由 route 判定（例如小红书 route 的页面事实分类） |
-    | 66（EMPTY_RESULT） | Runtime（永远不算合法空结果） |
-    | 69，且 stderr 的 `code` 为 `ADAPTER_LOAD` | Runtime，附安装提示 |
-    | 其他 69 | Network |
-    | 75 | Timeout |
-    | 77（含 LOGIN_WALL；adapter 报出的站点验证未通过与访问被拦截也用 77） | Auth |
-    | stderr 报告未知命令（未安装 adapter 时 OpenCLI 1.8.6 以 2 退出） | Runtime，附安装提示 |
+    | 0，且两层外壳都有效 | 传输成功；业务结果由 route 判定（例如小红书 route 的页面事实分类） |
+    | 66（`EMPTY_RESULT`） | Runtime（永远不算合法空结果） |
+    | 69，且 `code` 为 `ADAPTER_LOAD` | Runtime，附安装提示 |
+    | 其他 69（如 `BROWSER_CONNECT`） | Network |
+    | 75（`TIMEOUT`） | Timeout |
+    | 77（`AUTH_REQUIRED`、`LOGIN_WALL`；adapter 报出的站点验证未通过与访问被拦截也用 77） | Auth |
+    | `code` 为 `unknown_command`（站点目录未安装）或任意 `commander.*`（如已安装的旧版 adapter 缺少该命令或参数），退出码 2 | Runtime，附安装提示 |
     | 找不到可执行文件 | Runtime，提示安装 OpenCLI 或设置 `command` |
-    | 其他退出码、输出无法解码 | Runtime |
+    | 其他退出码（含 2 的其他命令行错误）、输出无法解码 | Runtime |
 
-    失败同时说明 adapter 命令是否可能已经运行：只有进程没有启动（含剩余时间不足、等不到访问窗口、找不到可执行文件）、OpenCLI 以 2 拒绝命令行或加载不到 adapter 命令时，forager 才确定它没有运行；其余失败（含浏览器连接失败，它也可能发生在命令中途）都按可能已经运行处理。读取 route 不区分两者；会改变账号状态的 Gemini `start` 据此决定提示“什么都没发送”还是“结果未知”（第 2 章）。
+    失败同时说明 adapter 命令是否可能已经运行。forager 只在以下情况确定它没有运行：进程没有启动（含剩余时间不足、等不到访问窗口、找不到可执行文件）；`code` 为 `ADAPTER_LOAD`、`unknown_command`、`usage_error`、`ARGUMENT` 或任意 `commander.*`；退出码为 2。其余失败一律按可能已经运行处理，包括浏览器连接失败（它也可能发生在命令中途）和带 `outcome: "unknown"` 的失败。读取 route 不区分两者；会改变账号状态的 Gemini 与 ChatGPT `start` 据此决定提示“什么都没发送”还是“结果未知”（第 2 章）。
 
 - **search**：adapter 的 `search` 命令声明后台窗口、不预导航，命令内不跳转任何页面；它在当前空白标签页中以 `credentials: 'omit'` 发出原站结果页自己使用的请求 `GET https://api.ssrn.com/papers/v1/papers/search/advanced`，参数为 `text`、`text_fields`、`search_mode`、`authors`、`date`、`sort_by` 和 `page`（ADR 0025）。scope all/title/full-text 对应 `title-abstract-keywords` / `title` / `title-abstract-keywords-fulltext`；mode 省略为 fuzzy；author 省略为空串；date 省略为 all_time，其他预设使用 CLI 名的下划线形式；relevance 的 sort_by 为空串，posted/downloads/title 对应 `approval_date` / `downloads` / `title` 加 `-asc` 或 `-desc`。Boolean 只承诺原站 Help 所列 AND、OR、NOT、括号，不承诺额外 DSL。作者文本直接提交 Author(s)，不是作者身份选择；真实样例中姓氏与全名的召回可能不同。
 - **adapter 回报**：`forager-ssrn/4` 的 search data 为 `{request_url, http_status, content_type, body, network_error}`：实际请求地址、HTTP 状态、响应 content type、响应体（JSON 时为解析后的对象，否则为文本），以及浏览器请求失败时的错误。adapter 只在一种情况下自行判定：状态为 403 或 503 且响应体不是 JSON（Cloudflare 的验证或拦截页），此时以 77 结束。`total` 为 0 且 `papers` 为空时 `status` 为 `no_results`，其余为 `ok`。
@@ -209,7 +212,7 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
 - **fetch**：输入必须带 Access Token（search 条目的 `access_url`，或从浏览器复制的带 `xsec_token` 的笔记链接）；只给 ref 或不带 token 的链接时飞行前退 2，消息提示改用 `access_url`，不启动进程。支持 `metadata` 与 `full_text`（默认），其他深度由支持检查拒绝、飞行前退 2。读取模块的 `note` 命令（`--id`、`--xsec-token`）打开 `/explore/<id>?xsec_token=<token>&xsec_source=pc_search`，回报 `{page, note, timed_out}`：`note` 取自 `__INITIAL_STATE__.note.noteDetailMap[<id>].note`，只保留 route 解码的字段（视频只保留时长与各档尺寸，带签名的 `masterUrl` 与页面自带的 token 不离开页面）；页面渲染出笔记时清空 `notice`，正文或评论里的字样不算站点提示。route 先按「分类」处理页面事实，300031/300017 的消息为 `Xiaohongshu note unavailable: xiaohongshu:<id> (<code>: <notice>); the access token may be stale, the note restricted or removed, or the account rate-limited`；没有笔记时，`timed_out` 且 `load_error` 非空为 Network，`timed_out` 且仍停在该笔记页为 Timeout，否则为 Runtime（消息带页面标题与去掉 token 的 URL）；`noteId` 与请求不符为 Runtime。命令内不重试。
 - **fetch 输出**：`ref` 与 `url` 来自请求；`title`（可为空串）；`authors` 为 `[user.nickname]`；`published` 由 `time`（毫秒）转成北京时间 ISO 8601 时间戳。平台字段：`updated`（`lastUpdateTime`，同一格式）、`note_type`（`normal` 输出为 `image`）、`author_id`、`likes` / `collects` / `comments` / `shares`（`interactInfo` 计数原文）、`tags`（`tagList[].name`）、`images`（`[{url, width, height}]`，`urlDefault` 只保留 HTTP(S)）、`video`（`{duration_seconds, width, height}`，取 `video.capa.duration` 与第一个非空视频流档位的尺寸；图文笔记为 `null`；永不输出视频地址）、`ip_location`（可空）与 `access_url`。
 - **Native 正文**：`full_text` 时 route 在同一 attempt 内构造 Markdown：`# <title>`（标题为空时省略），空行，`desc` 原文（话题写法 `#话题名[话题]#` 原样保留），空行，`标签：` 加逗号分隔的标签名，然后每张图一行 `![](<图片 URL>)`；视频笔记再加一行 `（视频笔记，时长 <秒> 秒，视频文件未下载）`。标题、正文与图片全为空时为 Quality（退 5）。正文作为 Native 来源交付（见「fetch」），`content_provider` 为 `xiaohongshu_browser`，不需要配置任何 Web Fetch provider；文件名为 `xiaohongshu-<id>.md`。没有 `--keep-pdf`。
-- **token 脱敏**：route 在记录 attempt 之前，按本次请求的 token 值把来自 OpenCLI stderr（例如回显 `--xsec-token` 参数）、外壳解码错误与页面事实的消息中的 token 换成 `********`。token 只出现在 OpenCLI 的进程参数与成功输出的 `access_url` 中（ADR 0022）。
+- **token 脱敏**：route 在记录 attempt 之前，按本次请求的 token 值把来自 OpenCLI 失败消息（例如回显 `--xsec-token` 参数）、外壳解码错误与页面事实的消息中的 token 换成 `********`。token 只出现在 OpenCLI 的进程参数与成功输出的 `access_url` 中（ADR 0022）。
 - **doctor**：shallow 只在 order 启用该 route 时运行 `contract` 并核对契约版本，否则报告 `configured: false`；deep（`doctor --provider xiaohongshu_browser`）沿用 `PlatformSearch` 探针执行一次真实检索（同时证明登录态），未启用时以 config 失败退 3。
 - **comments（L2 平台操作）**：`platform xiaohongshu comments ACCESS_URL [--limit N] [--replies M]` 列出一篇笔记的一级评论，并可展开前几条评论的楼中楼。它的结果种类不同于 fetch，所以是新操作；只由 `xiaohongshu_browser` 实现，写成 inherent 方法 `XiaohongshuBrowser::comments`，provider factory 声明 route 集合 `XIAOHONGSHU_COMMENTS_ROUTES` 与支持检查（只检查宿主能否运行 process route），core 的 `platform_comments` 按 order ∩ 该集合规划，经共享链执行器与 `AttemptTarget::Platform`（operation 为 `comments`）记录 attempt。它有自己的非序列化请求（携带 Access Token）、结果类型与执行入口，不复用 search 的 `PageRequest` 与 `PlatformSearchOutcome`，不签发 cursor。输入规则同 fetch（必须带 token，否则飞行前退 2、不启动进程）；`--limit` 为 1–50（默认 20），`--replies` 为 0–10（默认 0），越界由参数解析拒绝、退 2。
 - **comments 读取**：读取模块的 `comments` 命令（`--id`、`--xsec-token`、`--limit`、`--expand`）打开 `/explore/<id>?xsec_token=<token>&xsec_source=pc_search`，读取页面自己发出的 `GET …/api/sns/web/v2/comment/page`（每页 10 条一级评论）。第一页以页面状态 `noteDetailMap[<id>].comments.firstRequestFinish` 为真（或计数）为完成信号；之后在 `.note-scroller` 中滚到底并截图强制渲染，读取 ⌈limit / 10⌉ 页，`has_more` 为 false 时提前结束。随后在读到的前 `limit` 条（按 ID 去重）一级评论中，对前 `expand` 条 `sub_comment_has_more` 为 true 的评论，按 DOM `#comment-<id>` 找到所在 `.parent-comment`，点击其中文本为"展开 N 条回复"的 `.reply-container .show-more`，等待对应的 `GET …/comment/sub/page` 完成后再处理下一条；每条只点击一次，只读第一页回复。找不到评论元素或展开按钮时停止，并在 `expand_failure` 中写明原因（如 `no_expand_button for comment <id>`）。回报 `{page, timed_out, body_missing, expand_failure, responses: [{kind, params, body}]}`：`kind` 为 `page` 或 `sub`，`params` 只保留请求的 `note_id`、`cursor`、`root_comment_id`、`num`（不含 token），`body.data` 只保留 `cursor`、`has_more` 与评论中 route 解码的字段（用户自带的 token 不离开页面）。

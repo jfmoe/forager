@@ -399,11 +399,9 @@ fn a_note_without_an_access_token_fails_before_starting_opencli() {
 #[test]
 fn the_access_token_never_appears_in_a_result_or_a_failure() {
     let (_, success) = comments(&data(&two_pages()), &["--limit", "15", "--verbose"]);
-    let echoed = FakeOpenCli::answering(
-        "",
-        &format!(
-            "ok: false\nerror:\n  code: COMMAND_EXEC\n  message: forager-xhs/comments failed for --xsec-token {TOKEN} on note {NOTE_ID}\n  exitCode: 1\n"
-        ),
+    let echoed = FakeOpenCli::failing(
+        "COMMAND_EXEC",
+        &format!("forager-xhs/comments failed for --xsec-token {TOKEN} on note {NOTE_ID}"),
         1,
     );
     let mut misshapen = data(&[]);

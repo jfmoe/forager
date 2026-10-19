@@ -103,7 +103,7 @@ fn the_chatgpt_deep_doctor_reports_a_signed_out_browser_as_auth() {
 
 #[test]
 fn the_chatgpt_deep_doctor_reports_a_missing_adapter_with_install_steps() {
-    let fake = FakeOpenCli::answering("", "error: unknown command 'forager-chatgpt'\n", 2);
+    let fake = FakeOpenCli::failing("unknown_command", "Unknown command: forager-chatgpt", 2);
     let environment = RunEnvironment::new(&chatgpt::config(&fake));
 
     let output = environment.run(&["doctor", "--provider", "chatgpt_browser"]);

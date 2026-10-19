@@ -103,7 +103,7 @@ fn the_gemini_deep_doctor_reports_a_signed_out_browser_as_auth() {
 
 #[test]
 fn the_gemini_deep_doctor_reports_a_missing_adapter_with_install_steps() {
-    let fake = FakeOpenCli::answering("", "error: unknown command 'forager-gemini'\n", 2);
+    let fake = FakeOpenCli::failing("unknown_command", "Unknown command: forager-gemini", 2);
     let environment = RunEnvironment::new(&gemini::config(&fake));
 
     let output = environment.run(&["doctor", "--provider", "gemini_browser"]);

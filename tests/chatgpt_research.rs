@@ -691,8 +691,12 @@ fn an_outdated_adapter_carries_the_install_hint() {
 }
 
 #[test]
-fn a_missing_adapter_carries_the_install_hint() {
-    let fake = FakeOpenCli::answering("", "error: unknown command 'forager-chatgpt'\n", 2);
+fn an_outdated_adapter_without_the_command_carries_the_install_hint() {
+    let fake = FakeOpenCli::failing(
+        "commander.unknownCommand",
+        "error: unknown command 'report'",
+        2,
+    );
     let environment = RunEnvironment::new(&chatgpt::config(&fake));
 
     let output = result(&environment, CONVERSATION, &[]);

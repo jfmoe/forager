@@ -627,7 +627,7 @@ fn live_smoke_runs_the_xiaohongshu_search_once_and_only_when_the_order_lists_the
     use support::opencli::FakeOpenCli;
 
     // A failing command would be retried for any other case.
-    let fake = FakeOpenCli::answering("", "ok: false\nerror:\n  code: COMMAND_EXEC\n", 1);
+    let fake = FakeOpenCli::failing("COMMAND_EXEC", "boom", 1);
     let run = |order: &str| {
         let environment = SmokeEnvironment::new(|journal_dir| {
             format!(
