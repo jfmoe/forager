@@ -75,7 +75,7 @@ forager gemini research result CONVERSATION [--report-dir DIR]
 |---|---|---|---|
 | `status` | 后台 | 打开 `/app` | 登录状态；只读，供 doctor 使用 |
 | `start --query Q` | **前台** | 打开新会话，开始网络捕获；点击“上传和工具”，进入“更多工具”子菜单，选择 Deep Research，并以“取消选择 Deep Research”按钮出现作为选中确认；填入问题并点击发送；等待第一轮 `StreamGenerate` 结束且计划卡片出现；点击计划卡片上的确认按钮；等待第二轮 `StreamGenerate` 结束 | 两轮 `StreamGenerate` 的响应体、最终 URL、页面上的额度或拒绝提示、每一步是否完成 |
-| `report --conversation ID` | 后台 | 先开始网络捕获，再打开 `/app/<id>`，等待页面发出的第一个 `hNvQHb` 响应 | 该 `hNvQHb` 响应体、最终 URL、登录或“会话不存在”提示 |
+| `report --conversation ID` | 后台 | 先开始网络捕获，再打开 `/app/<id>`，等待页面发出的第一个 `hNvQHb` 响应；响应已完成而捕获中没有响应体时，经 `/app` 重新打开会话，至多共三次 | 该 `hNvQHb` 响应体、最终 URL、登录或“会话不存在”提示 |
 
 - **窗口**：实测中，`document.hidden` 为 true 的后台窗口打不开工具菜单的内容，前台窗口正常；读取在隐藏的后台窗口中也正常。因此 `start` 使用前台窗口，会在用户屏幕上出现约 1 分钟的 Chrome 窗口；这是用户主动发起时可以接受的代价。`providers/opencli` 目前对所有命令固定传 `--window background`，需要改为由命令声明窗口模式。
 - **标签**：工具与按钮按中英文标签匹配，并以 OpenCLI 内置 adapter 的标签列表为起点。实测中文界面下确认按钮为英文 "Start research"。
