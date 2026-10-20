@@ -495,7 +495,7 @@ fn an_unrecognized_conversation_exits_2_without_running_opencli() {
 #[test]
 fn an_adapter_of_the_previous_contract_fails_with_the_reinstall_steps() {
     let fake = FakeOpenCli::contract_by_command(
-        "forager-gemini/1",
+        "forager-gemini/2",
         &[("report", gemini::report(&gemini::hnvqhb_body(&[])))],
     );
     let environment = RunEnvironment::new(&gemini::config(&fake));
@@ -509,7 +509,7 @@ fn an_adapter_of_the_previous_contract_fails_with_the_reinstall_steps() {
     );
     assert!(
         message.contains(
-            "answers contract `forager-gemini/1`, but forager expects `forager-gemini/2`; install or update the forager OpenCLI adapter: copy the `opencli/forager-gemini` directory of the forager skill to `~/.opencli/clis/forager-gemini`"
+            "answers contract `forager-gemini/2`, but forager expects `forager-gemini/3`; install or update the forager OpenCLI adapter: copy the `opencli/forager-gemini` directory of the forager skill to `~/.opencli/clis/forager-gemini`"
         ),
         "{message}"
     );

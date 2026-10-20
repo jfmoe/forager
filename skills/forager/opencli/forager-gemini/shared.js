@@ -1,8 +1,8 @@
-// Shared deadlines, navigation, page facts, network capture reads, native input, and output
-// envelopes for the forager Gemini commands. The commands only operate the page as a user would
-// and report what the page itself received; forager decodes and judges the responses.
+// Shared deadlines, navigation, page facts, network capture reads, conversation reads, native
+// input, and output envelopes for the forager Gemini commands. The commands only operate the page
+// as a user would and report what the page itself received; forager decodes and judges them.
 
-export const CONTRACT = 'forager-gemini/2';
+export const CONTRACT = 'forager-gemini/3';
 export const SITE = 'forager-gemini';
 export const SITE_DOMAIN = 'gemini.google.com';
 export const APP_URL = `https://${SITE_DOMAIN}/app`;
@@ -48,17 +48,13 @@ export async function navigate(page, url) {
   await page.goto(url, { waitUntil: 'load', settleMs: 1000 });
 }
 
-/** The tracked request that answers a prompt, instead of a batchexecute RPC id. */
-export const STREAM_GENERATE = 'StreamGenerate';
-
 /**
- * Whether a request URL is the tracked call: the streamed answer to a prompt, or a batchexecute
- * request that calls the RPC `track` (one request can batch several RPCs).
+ * Whether a request URL is a batchexecute request that calls the RPC `track` (one request can
+ * batch several RPCs).
  */
 function isTracked(href, track) {
   try {
     const url = new URL(href);
-    if (track === 'StreamGenerate') return url.pathname.endsWith('/StreamGenerate');
     return url.pathname.endsWith('/batchexecute')
       && (url.searchParams.get('rpcids') || '').split(',').includes(track);
   } catch {
@@ -107,7 +103,7 @@ function pageStateScript(track) {
 
 /** Collects the facts about where the page is and what Gemini showed there. */
 export class PageFacts {
-  /** `track`, when given, is the RPC id or `STREAM_GENERATE` whose completed calls the page counts. */
+  /** `track`, when given, is the RPC id whose completed calls the page counts. */
   constructor(track = null) {
     this.script = pageStateScript(track);
     this.facts = { url: '', signed_out: false, notice: null };
@@ -142,10 +138,10 @@ function decodeText(preview) {
 }
 
 /**
- * Drains the network capture into the tracked calls (an RPC id or `STREAM_GENERATE`), in
- * request order, as `{status, body}`. A body OpenCLI truncated counts as no body.
+ * Drains the network capture into the calls of the RPC `track`, in request order, as
+ * `{status, body}`. A body OpenCLI truncated counts as no body.
  */
-export async function readTrackedCalls(page, track) {
+async function readTrackedCalls(page, track) {
   const entries = await page.readNetworkCapture();
   return entries
     .filter((entry) => entry.method === 'POST' && isTracked(entry.url, track))
@@ -153,6 +149,69 @@ export async function readTrackedCalls(page, track) {
       status: entry.responseStatus || null,
       body: entry.responseBodyTruncated ? null : decodeText(entry.responsePreview),
     }));
+}
+
+// The RPC that lists a conversation's turns; the page calls it when it opens a conversation.
+const CONVERSATION_RPC = 'hNvQHb';
+
+// Browser Bridge fetches a response body once, when the request finishes, and a failed fetch
+// leaves the entry complete but without a body. Live under Browser Bridge 1.0.26 and Chrome 155,
+// about half of the opens of a 436 KB conversation lost the `hNvQHb` body this way, and other
+// batchexecute calls lost theirs at random; the page's next load fetches it anew. Opens are few
+// because Google answers a burst of page loads with its unusual-traffic page.
+const MAX_OPENS = 3;
+
+/** The id in a conversation URL `/app/<id>`, or null. */
+export function conversationOf(href) {
+  try {
+    const url = new URL(href);
+    const match = url.hostname === SITE_DOMAIN && url.pathname.match(/^\/app\/([0-9a-f]+)\/?$/i);
+    return match ? match[1].toLowerCase() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Opens `url` and reads the first conversation response the page receives. */
+async function readConversation(page, url, deadline) {
+  const facts = new PageFacts(CONVERSATION_RPC);
+  // The capture starts before the navigation: the page calls the RPC while the navigation is
+  // still settling.
+  await navigate(page, url);
+  const ended = await waitFor(deadline, async () => {
+    if (await facts.observe(page)) return 'page';
+    return facts.completions > 0 ? 'completed' : null;
+  });
+  const completed = ended === 'completed';
+  if (completed) await facts.settle(page);
+  const calls = await readTrackedCalls(page, CONVERSATION_RPC);
+  const answered = calls.find((call) => call.body !== null);
+  // The page shows the conversation once the response arrived; its text is no notice.
+  if (answered) facts.facts.notice = null;
+  return {
+    page: facts.facts,
+    response: answered ? answered.body : null,
+    body_missing: completed && !answered,
+    timed_out: !completed && !answered && !facts.facts.signed_out && !facts.facts.notice,
+  };
+}
+
+/**
+ * Opens a conversation and reads the conversation response the page receives, as
+ * `{page, response, body_missing, timed_out}`. While the response completed without a captured
+ * body, it opens the conversation again, at most `MAX_OPENS` times in all. With `reload`, the
+ * tab already shows the conversation, which the first open then reloads too.
+ */
+export async function openConversation(page, conversation, deadline, { reload = false } = {}) {
+  const url = `${APP_URL}/${encodeURIComponent(String(conversation))}`;
+  let read = null;
+  for (let opens = 0; opens < MAX_OPENS && (!read || (read.body_missing && Date.now() < deadline)); opens += 1) {
+    // OpenCLI does not navigate a tab that already shows the URL, so the page reloads the
+    // conversation by way of the app home.
+    if (reload || opens > 0) await navigate(page, APP_URL);
+    read = await readConversation(page, url, deadline);
+  }
+  return read;
 }
 
 // ---- Native input -------------------------------------------------------------------------------

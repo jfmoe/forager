@@ -179,104 +179,32 @@ pub(super) fn batchexecute_payload(body: &str, rpc: &str) -> Result<Value, Shape
     inner_payload(&fields, rpc)
 }
 
-const STREAM: &str = "StreamGenerate";
-
-/// What one `StreamGenerate` response says about the turn it answered.
-#[derive(Debug, Default)]
-pub(super) struct StreamReply {
-    /// The id of the conversation, without its `c_` prefix.
-    pub(super) conversation: Option<String>,
-    /// The error code Gemini answered instead of a reply, such as 1037 for an exhausted quota.
-    pub(super) error_code: Option<u64>,
-    /// The newest snapshot of the reply's first candidate: each envelope repeats the reply so
-    /// far, so the last one is the most complete.
-    pub(super) candidate: Option<Value>,
-}
-
-/// Reads a `StreamGenerate` response body. Each envelope carries a snapshot of the reply as a
-/// JSON string at `[2]`, whose `[1][0]` is the conversation and whose `[4]` lists the
-/// candidates; an envelope that carries an error has its code at `[5][2][0][1][0]`.
+/// Returns the plan of the newest turn in a `hNvQHb` payload that holds one: the plan Gemini
+/// proposed for the newest research.
 ///
 /// # Errors
 ///
-/// Fails when the body is no stream of envelopes or a snapshot is not JSON.
-pub(super) fn stream_reply(body: &str) -> Result<StreamReply, ShapeError> {
-    let mut reply = StreamReply::default();
-    for fields in envelopes(body, STREAM)? {
-        let error_code = fields
-            .get(5)
-            .and_then(|error| error.pointer("/2/0/1/0"))
-            .and_then(Value::as_u64);
-        reply.error_code = reply.error_code.or(error_code);
-        if fields.get(2).is_none_or(Value::is_null) {
-            continue;
-        }
-        let snapshot = inner_payload(&fields, STREAM)?;
-        if let Some(conversation) = snapshot
-            .pointer("/1/0")
-            .and_then(Value::as_str)
-            .and_then(|id| id.strip_prefix("c_"))
-        {
-            reply.conversation = Some(conversation.to_owned());
-        }
-        if let Some(candidate) = snapshot.pointer("/4/0") {
-            reply.candidate = Some(candidate.clone());
+/// Fails with the location where that plan stops matching the recorded shape.
+pub(super) fn newest_plan(payload: &Value) -> Result<Option<GeminiPlan>, ShapeError> {
+    let turns = Node::root(payload, "hNvQHb").at(0)?;
+    for turn in turns.items()? {
+        let plan = turn
+            .get(3)
+            .and_then(|candidates| candidates.get(0)?.get(0)?.get(12))
+            .and_then(|rich| rich.field(PLAN_FIELD));
+        if let Some(plan) = plan {
+            return decode_plan(&plan).map(Some);
         }
     }
-    Ok(reply)
+    Ok(None)
 }
 
-/// How Gemini answered the question of a new Deep Research.
-pub(super) enum PlanReply {
-    /// A research plan that waits for confirmation.
-    Plan(GeminiPlan),
-    /// Plain reply text instead of a plan, such as a refusal.
-    Text(String),
-}
-
-/// Judges the reply candidate of the first `StreamGenerate`: a plan with status 2, or text.
-///
-/// # Errors
-///
-/// Fails with the location where a plan stops matching the recorded shape.
-pub(super) fn plan_reply(candidate: &Value) -> Result<PlanReply, ShapeError> {
-    let candidate = Node::root(candidate, "StreamGenerate[4][0]");
-    let rich = candidate.get(12);
-    let Some((rich, plan)) = rich.and_then(|rich| rich.field(PLAN_FIELD).map(|plan| (rich, plan)))
-    else {
-        let text = candidate
-            .get(1)
-            .and_then(|reply| reply.get(0))
-            .and_then(|text| text.value.as_str())
-            .unwrap_or_default();
-        return Ok(PlanReply::Text(text.to_owned()));
-    };
-    let (status, value) = rich.status()?;
-    match value {
-        AWAITING_CONFIRMATION => decode_plan(&plan).map(PlanReply::Plan),
-        other => Err(status.error(&format!("a plan with status {other}"))),
-    }
-}
-
-/// Checks that the reply candidate of the confirming `StreamGenerate` started the research:
-/// status 3 next to a research document.
-///
-/// # Errors
-///
-/// Fails with the location where the candidate stops matching a started research.
-pub(super) fn research_started(candidate: &Value) -> Result<(), ShapeError> {
-    let candidate = Node::root(candidate, "StreamGenerate[4][0]");
-    let (status, value) = candidate.at(12)?.status()?;
-    match value {
-        RUNNING => {
-            let task = candidate.at(30)?.at(0)?.at(3)?;
-            if task.text()?.is_empty() {
-                return Err(task.error("an empty research task id"));
-            }
-            Ok(())
-        }
-        other => Err(status.error(&format!("status {other} after confirming the plan"))),
-    }
+/// Returns the reply text of the newest turn in a `hNvQHb` payload, when it has one.
+pub(super) fn newest_reply(payload: &Value) -> Option<&str> {
+    payload
+        .pointer("/0/0/3/0/0/1/0")
+        .and_then(Value::as_str)
+        .filter(|reply| !reply.trim().is_empty())
 }
 
 /// A turn that holds a research plan or a research document.

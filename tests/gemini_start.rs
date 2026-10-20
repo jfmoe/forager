@@ -1,7 +1,8 @@
 //! `forager gemini research start` against a fake `opencli` executable that answers `start`
 //! envelopes shaped like the live Gemini page facts of 2026-10-09. These tests prove the
-//! transport, the single attempt, the page-fact classification, and the decoding of the two
-//! `StreamGenerate` responses; only the live acceptance run exercises the JavaScript adapter.
+//! transport, the single attempt, the page-fact classification, and the decoding of the
+//! conversation response read after starting; only the live acceptance run exercises the
+//! JavaScript adapter.
 #![cfg(unix)]
 
 mod support;
@@ -86,14 +87,51 @@ fn a_started_research_returns_the_conversation_and_the_plan() {
 }
 
 #[test]
-fn an_unconfirmed_plan_is_runtime_and_points_to_the_conversation() {
-    let facts = gemini::start_facts(
-        &gemini::START_STEPS[..5],
-        Some(gemini::stream_body(&gemini::plan_candidate())),
-        None,
-    );
+fn a_research_gemini_started_before_the_confirm_click_counts_as_started() {
+    let mut facts = gemini::started_facts();
+    facts["steps"] = json!([
+        "tools_menu",
+        "deep_research",
+        "query",
+        "sent",
+        "conversation",
+        "answered",
+        "reopened"
+    ]);
+    facts["problem"] = json!("the \"Start research\" button went away");
 
-    let (fake, output) = run(facts);
+    let (_, output) = run(facts);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            payload(&output)["plan"]["title"].clone()
+        ),
+        (Some(0), json!("Rust HTML to Markdown Crates")),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+/// The facts of a `start` that saw the plan card, did not click it, and read the plan waiting.
+fn unconfirmed_facts() -> Value {
+    gemini::start_facts(
+        &[
+            "tools_menu",
+            "deep_research",
+            "query",
+            "sent",
+            "conversation",
+            "answered",
+            "reopened",
+        ],
+        Some(&gemini::hnvqhb_body(&[gemini::plan_turn(1)])),
+    )
+}
+
+#[test]
+fn an_unconfirmed_plan_is_runtime_and_points_to_the_conversation() {
+    let (fake, output) = run(unconfirmed_facts());
 
     let (code, kind, message, url) = failure(&output);
     assert_eq!(
@@ -110,36 +148,27 @@ fn an_unconfirmed_plan_is_runtime_and_points_to_the_conversation() {
 
 #[test]
 fn an_unconfirmed_plan_carries_why_the_adapter_stopped() {
-    let mut facts = gemini::start_facts(
-        &gemini::START_STEPS[..5],
-        Some(gemini::stream_body(&gemini::plan_candidate())),
-        None,
-    );
-    facts["problem"] =
-        json!("Gemini showed no \"Start research\" button (1 matching button hidden)");
+    let mut facts = unconfirmed_facts();
+    facts["problem"] = json!("click_missed: the \"Start research\" button stayed after the click");
 
-    let (_fake, output) = run(facts);
+    let (_, output) = run(facts);
 
     let (code, kind, message, _url) = failure(&output);
     assert_eq!((code, kind), (Some(4), json!("runtime")));
     assert_eq!(
         message,
         format!(
-            "Gemini proposed a research plan, but forager could not click its confirm button (Gemini showed no \"Start research\" button (1 matching button hidden)): open {CONVERSATION_URL} and click \"Start research\" there; forager does not click again or resend the question"
+            "Gemini proposed a research plan, but forager could not click its confirm button (click_missed: the \"Start research\" button stayed after the click): open {CONVERSATION_URL} and click \"Start research\" there; forager does not click again or resend the question"
         )
     );
 }
 
 #[test]
 fn an_unconfirmed_plan_after_the_deadline_is_a_timeout() {
-    let mut facts = gemini::start_facts(
-        &gemini::START_STEPS[..5],
-        Some(gemini::stream_body(&gemini::plan_candidate())),
-        None,
-    );
+    let mut facts = gemini::start_facts(&gemini::START_STEPS[..6], None);
     facts["timed_out"] = json!(true);
 
-    let (_fake, output) = run(facts);
+    let (_, output) = run(facts);
 
     let (code, kind, message, url) = failure(&output);
     assert_eq!(
@@ -158,9 +187,15 @@ fn an_unconfirmed_plan_after_the_deadline_is_a_timeout() {
 fn a_text_reply_instead_of_a_plan_is_runtime_with_the_start_of_the_reply() {
     let reply = "I can't help with that request.\n\nTry asking something else.";
     let facts = gemini::start_facts(
-        &gemini::START_STEPS[..5],
-        Some(gemini::stream_body(&gemini::text_candidate(reply))),
-        None,
+        &[
+            "tools_menu",
+            "deep_research",
+            "query",
+            "sent",
+            "conversation",
+            "reopened",
+        ],
+        Some(&gemini::hnvqhb_body(&[gemini::reply_turn(1, reply)])),
     );
 
     let (_, output) = run(facts);
@@ -171,7 +206,7 @@ fn a_text_reply_instead_of_a_plan_is_runtime_with_the_start_of_the_reply() {
             Some(4),
             json!("runtime"),
             format!(
-                "Gemini replied with text instead of a research plan, so no research started: `I can't help with that request. Try asking something else.`; see {CONVERSATION_URL}"
+                "Gemini replied with text instead of a research plan, so no research started: `I can't help with that request. Try asking something else.`; answer it at {CONVERSATION_URL}, then read it with `forager gemini research result {CONVERSATION_URL}`"
             ),
             json!(CONVERSATION_URL)
         )
@@ -179,37 +214,22 @@ fn a_text_reply_instead_of_a_plan_is_runtime_with_the_start_of_the_reply() {
 }
 
 #[test]
-fn an_exhausted_quota_is_quota_exhausted() {
-    let error_code = gemini::start_facts(
-        &gemini::START_STEPS[..5],
-        Some(gemini::stream_error_body(1037)),
-        None,
-    );
-    let mut notice = gemini::start_facts(&gemini::START_STEPS[..4], None, None);
-    notice["page"]["url"] = json!("https://gemini.google.com/app");
-    notice["quota_notice"] = json!("You've reached your Deep Research limit");
+fn a_quota_notice_before_gemini_answered_is_quota_exhausted() {
+    let mut facts = gemini::start_facts(&gemini::START_STEPS[..4], None);
+    facts["page"]["url"] = json!("https://gemini.google.com/app");
+    facts["quota_notice"] = json!("You've reached your Deep Research limit");
 
-    let kinds = [error_code, notice].map(|facts| {
-        let (code, kind, _, url) = failure(&run(facts).1);
-        (code, kind, url)
-    });
+    let (code, kind, _, url) = failure(&run(facts).1);
 
     assert_eq!(
-        kinds,
-        [
-            (Some(4), json!("quota_exhausted"), json!(CONVERSATION_URL)),
-            (Some(4), json!("quota_exhausted"), Value::Null)
-        ]
+        (code, kind, url),
+        (Some(4), json!("quota_exhausted"), Value::Null)
     );
 }
 
 #[test]
 fn page_text_about_limits_does_not_count_as_a_quota_notice_once_gemini_proposed_a_plan() {
-    let mut facts = gemini::start_facts(
-        &gemini::START_STEPS[..5],
-        Some(gemini::stream_body(&gemini::plan_candidate())),
-        None,
-    );
+    let mut facts = unconfirmed_facts();
     facts["quota_notice"] = json!("What usage limits apply to the Gemini API?");
 
     let (_, output) = run(facts);
@@ -242,11 +262,7 @@ fn a_signed_out_browser_is_an_auth_failure() {
 
 #[test]
 fn a_sign_in_prompt_after_sending_is_auth_and_points_to_the_conversation() {
-    let mut facts = gemini::start_facts(
-        &gemini::START_STEPS[..5],
-        Some(gemini::stream_body(&gemini::plan_candidate())),
-        None,
-    );
+    let mut facts = gemini::start_facts(&gemini::START_STEPS[..5], None);
     facts["page"]["signed_out"] = json!(true);
 
     let (_, output) = run(facts);
@@ -338,11 +354,7 @@ fn a_hanging_start_is_killed_once_and_leaves_the_outcome_unknown() {
 
 #[test]
 fn partial_facts_at_the_read_deadline_point_to_the_conversation() {
-    let mut facts = gemini::start_facts(
-        &gemini::START_STEPS[..6],
-        Some(gemini::stream_body(&gemini::plan_candidate())),
-        None,
-    );
+    let mut facts = gemini::start_facts(&gemini::START_STEPS[..7], None);
     facts["timed_out"] = json!(true);
 
     let (fake, output) = run(facts);
@@ -354,7 +366,7 @@ fn partial_facts_at_the_read_deadline_point_to_the_conversation() {
                 Some(4),
                 json!("timeout"),
                 format!(
-                    "forager clicked \"Start research\", but the read deadline passed before Gemini answered the confirmation; the research may be running: read it with `forager gemini research result {CONVERSATION_URL}`"
+                    "forager clicked \"Start research\", but the read deadline passed before forager read the conversation again; the research may be running: read it with `forager gemini research result {CONVERSATION_URL}`"
                 ),
                 json!(CONVERSATION_URL)
             ),
@@ -364,11 +376,30 @@ fn partial_facts_at_the_read_deadline_point_to_the_conversation() {
 }
 
 #[test]
-fn a_confirmation_that_did_not_start_the_research_reports_where_the_structure_changed() {
+fn a_lost_conversation_body_after_confirming_says_the_research_may_be_running() {
+    let mut facts = gemini::start_facts(&gemini::START_STEPS[..7], None);
+    facts["body_missing"] = json!(true);
+
+    let (_, output) = run(facts);
+
+    assert_eq!(
+        failure(&output),
+        (
+            Some(4),
+            json!("runtime"),
+            format!(
+                "forager clicked \"Start research\", but the conversation response completed, but its body was missing or truncated when the forager-gemini adapter read it; the research may be running: read it with `forager gemini research result {CONVERSATION_URL}`"
+            ),
+            json!(CONVERSATION_URL)
+        )
+    );
+}
+
+#[test]
+fn a_confirmed_plan_that_had_not_started_says_to_read_it_before_starting_again() {
     let facts = gemini::start_facts(
         &gemini::START_STEPS,
-        Some(gemini::stream_body(&gemini::plan_candidate())),
-        Some(gemini::stream_body(&gemini::plan_candidate())),
+        Some(&gemini::hnvqhb_body(&[gemini::plan_turn(1)])),
     );
 
     let (_, output) = run(facts);
@@ -379,9 +410,55 @@ fn a_confirmation_that_did_not_start_the_research_reports_where_the_structure_ch
             Some(4),
             json!("runtime"),
             format!(
-                "the Gemini response structure has changed at StreamGenerate[4][0][12] field 69: status 2 after confirming the plan; see {CONVERSATION_URL}"
+                "forager clicked \"Start research\", but the research had not started when forager read the conversation again; read it with `forager gemini research result {CONVERSATION_URL}` before starting again; forager does not click again or resend the question"
             ),
             json!(CONVERSATION_URL)
+        )
+    );
+}
+
+#[test]
+fn a_research_turn_out_of_shape_reports_where_the_structure_changed() {
+    let facts = gemini::start_facts(
+        &gemini::START_STEPS,
+        Some(&gemini::hnvqhb_body(&[
+            gemini::research_turn(2, Some(4), ""),
+            gemini::plan_turn(1),
+        ])),
+    );
+
+    let (_, output) = run(facts);
+
+    assert_eq!(
+        failure(&output),
+        (
+            Some(4),
+            json!("runtime"),
+            format!(
+                "the Gemini response structure has changed at hNvQHb[0][0][3][0][0][12] field 69: unknown status 4; see {CONVERSATION_URL}"
+            ),
+            json!(CONVERSATION_URL)
+        )
+    );
+}
+
+#[test]
+fn a_page_that_never_opened_the_conversation_leaves_the_outcome_unknown() {
+    let mut facts = gemini::start_facts(&gemini::START_STEPS[..4], None);
+    facts["page"]["url"] = json!("https://gemini.google.com/app");
+    facts["problem"] = json!("the page did not move to the new conversation");
+
+    let (_, output) = run(facts);
+
+    assert_eq!(
+        failure(&output),
+        (
+            Some(4),
+            json!("runtime"),
+            format!(
+                "the forager-gemini adapter stopped before Gemini opened the new conversation: the page did not move to the new conversation; {UNKNOWN_OUTCOME}"
+            ),
+            Value::Null
         )
     );
 }
@@ -439,7 +516,7 @@ fn an_empty_question_exits_2_without_running_opencli() {
 
 #[test]
 fn an_adapter_that_stops_before_sending_says_why_and_that_nothing_was_sent() {
-    let mut facts = gemini::start_facts(&gemini::START_STEPS[..1], None, None);
+    let mut facts = gemini::start_facts(&gemini::START_STEPS[..1], None);
     facts["page"]["url"] = json!("https://gemini.google.com/app");
     facts["problem"] = json!("Deep Research did not show as selected");
 
@@ -458,7 +535,7 @@ fn an_adapter_that_stops_before_sending_says_why_and_that_nothing_was_sent() {
 
 #[test]
 fn a_missing_deep_research_tool_is_runtime_and_sends_nothing() {
-    let mut facts = gemini::start_facts(&gemini::START_STEPS[..1], None, None);
+    let mut facts = gemini::start_facts(&gemini::START_STEPS[..1], None);
     facts["page"]["url"] = json!("https://gemini.google.com/app");
     facts["deep_research_missing"] = json!(true);
 
@@ -477,7 +554,7 @@ fn a_missing_deep_research_tool_is_runtime_and_sends_nothing() {
 
 #[test]
 fn a_disabled_deep_research_tool_names_a_used_up_quota_and_sends_nothing() {
-    let mut facts = gemini::start_facts(&gemini::START_STEPS[..1], None, None);
+    let mut facts = gemini::start_facts(&gemini::START_STEPS[..1], None);
     facts["page"]["url"] = json!("https://gemini.google.com/app");
     facts["deep_research_disabled"] = json!(true);
 

@@ -1,8 +1,8 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
 import {
-  APP_URL, PageFacts, SITE, SITE_DOMAIN, STREAM_GENERATE, clickTarget, confirmWithin, envelope,
-  inputFailureOf, navigate, pressNativeKey, readDeadline, readTrackedCalls, typeText, waitFor,
+  APP_URL, PageFacts, SITE, SITE_DOMAIN, clickTarget, confirmWithin, conversationOf, envelope,
+  inputFailureOf, navigate, openConversation, pressNativeKey, readDeadline, typeText, waitFor,
 } from './shared.js';
 
 // Labels in both interface languages. In the zh-CN interface of 2026-10-09 the tools button
@@ -36,6 +36,11 @@ const CLICK_CHECK_MS = 5000;
 // The plan card renders after the answer completes, live sometimes later than 10 s; a text
 // answer never shows one.
 const CARD_WAIT_MS = 45000;
+// How long the research has after the confirm click to show in the conversation's turns.
+const START_SETTLE_MS = 5000;
+// Reading the conversation again takes two page loads; it starts no later than this before
+// the deadline.
+const REOPEN_RESERVE_MS = 20000;
 
 /** Page-side helpers shared by the scripts: visibility, labels, and the elements to act on. */
 const HELPERS = `
@@ -260,51 +265,61 @@ async function startResearch(page, query, deadline, facts, run) {
   const shown = new Set(await page.evaluate(quotaLines));
   const sending = await clickOnce(page, SEND_TARGET, deadline, run, 'sent', { no_target: 'found no send button' });
   if (sending) return stop(`could not click the send button: ${sending}`);
-  // Gemini empties the composer once it takes the question.
+  // Gemini empties the composer, or moves to the new conversation, once it takes the question.
   const left = await confirmWithin(async () => {
     await facts.observe(page);
-    return facts.completions >= 1 || normalize(await page.evaluate(composerText)) !== normalize(query);
+    return Boolean(conversationOf(facts.facts.url))
+      || normalize(await page.evaluate(composerText)) !== normalize(query);
   }, CLICK_CHECK_MS, deadline);
   if (!left) return stop('click_missed: the composer still held the question after the send click');
 
-  await waitFor(deadline, async () => {
+  // Gemini answers a Deep Research question with a plan card whose "Start research" button
+  // confirms it; a text answer shows none. The page itself shows the card, so its button is the
+  // signal: live under OpenCLI 2.0.1 the page never recorded the answer's `StreamGenerate` as
+  // completed within 240 s, although the plan had arrived.
+  const card = await waitFor(within(CARD_WAIT_MS), async () => {
     await facts.observe(page);
-    if (facts.completions >= 1) return true;
+    run.conversation = run.conversation || conversationOf(facts.facts.url);
+    if (facts.facts.signed_out) return 'signed_out';
+    if (run.conversation && await page.evaluate(findConfirm)) return 'plan';
     run.quota_notice = newQuotaNotice(await page.evaluate(quotaLines), shown, query);
-    return Boolean(run.quota_notice);
+    return run.quota_notice ? 'quota' : null;
   });
-  if (facts.completions < 1) return;
-  await facts.settle(page);
-  run.steps.push('answered');
-
-  if (!await waitFor(within(CARD_WAIT_MS), () => page.evaluate(findConfirm))) {
-    if (!passed()) stop(`Gemini showed no "Start research" button: ${await page.evaluate(describeConfirm)}`);
+  if (!run.conversation) {
+    if (!card && !passed()) stop('the page did not move to the new conversation');
     return;
   }
-  const confirming = await clickOnce(page, CONFIRM_TARGET, deadline, run, 'confirmed', {
-    no_target: 'the "Start research" button went away',
-  });
-  if (confirming) return stop(confirming);
-  const accepted = await confirmWithin(async () => {
-    await facts.observe(page);
-    return facts.completions >= 2 || !await page.evaluate(findConfirm);
-  }, CLICK_CHECK_MS, deadline);
-  if (!accepted) return stop('click_missed: the "Start research" button stayed after the click');
+  run.steps.push('conversation');
+  if (card === 'signed_out' || card === 'quota') return;
 
-  const started = await waitFor(deadline, async () => {
-    await facts.observe(page);
-    return facts.completions >= 2;
-  });
-  if (!started) return;
-  await facts.settle(page);
-  run.steps.push('started');
+  if (card === 'plan') {
+    run.steps.push('answered');
+    const confirming = await clickOnce(page, CONFIRM_TARGET, deadline, run, 'confirmed');
+    // A button that went away before the click may mean Gemini started the research by itself;
+    // the conversation read below tells.
+    if (confirming) stop(confirming === 'no_target' ? 'the "Start research" button went away' : confirming);
+    else {
+      const accepted = await confirmWithin(async () => !await page.evaluate(findConfirm), CLICK_CHECK_MS, deadline);
+      if (!accepted) stop('click_missed: the "Start research" button stayed after the click');
+      else await new Promise((resolve) => setTimeout(resolve, Math.max(0, Math.min(START_SETTLE_MS, deadline - Date.now()))));
+    }
+  } else if (!passed()) {
+    stop(`Gemini showed no "Start research" button: ${await page.evaluate(describeConfirm)}`);
+  }
+
+  if (deadline - Date.now() < REOPEN_RESERVE_MS) return stop('no time was left to read the conversation again');
+  const read = await openConversation(page, run.conversation, deadline, { reload: true });
+  run.page = read.page;
+  run.response = read.response;
+  run.body_missing = read.body_missing;
+  if (read.response !== null) run.steps.push('reopened');
 }
 
 cli({
   site: SITE,
   name: 'start',
   access: 'write',
-  description: 'Start one Gemini Deep Research and confirm its plan, for forager; never sends twice',
+  description: 'Start one Gemini Deep Research, confirm its plan, and read the conversation again, for forager; never sends twice',
   domain: SITE_DOMAIN,
   strategy: Strategy.COOKIE,
   browser: true,
@@ -316,16 +331,19 @@ cli({
   func: async (page, kwargs) => {
     const deadline = readDeadline(kwargs.timeout);
     const query = String(kwargs.query);
-    const facts = new PageFacts(STREAM_GENERATE);
+    const facts = new PageFacts();
     const run = {
       steps: [],
+      conversation: null,
       deep_research_missing: false,
       deep_research_disabled: false,
       quota_notice: null,
       problem: null,
+      page: null,
+      response: null,
+      body_missing: false,
     };
 
-    // The capture starts before the navigation: the answer streams in while the page is busy.
     await navigate(page, APP_URL);
     try {
       await startResearch(page, query, deadline, facts, run);
@@ -333,24 +351,26 @@ cli({
       // Keep the facts gathered so far: after sending, they name the new conversation.
       run.problem = error instanceof Error ? error.message : String(error);
     }
-    try {
-      await facts.observe(page);
-    } catch { /* keep the last facts */ }
-    // Reading drains the capture; every awaited answer has completed by now.
-    const calls = await readTrackedCalls(page, STREAM_GENERATE);
-    const finished = run.steps.includes('started');
+    if (!run.page) {
+      try {
+        await facts.observe(page);
+      } catch { /* keep the last facts */ }
+    }
+    const pageFacts = run.page || facts.facts;
+    const finished = run.steps.includes('reopened');
     return envelope({
-      page: facts.facts,
+      page: pageFacts,
       steps: run.steps,
+      conversation: run.conversation,
       deep_research_missing: run.deep_research_missing,
       deep_research_disabled: run.deep_research_disabled,
       quota_notice: run.quota_notice,
       problem: run.problem ? String(run.problem).slice(0, 300) : null,
-      plan_response: calls[0] ? calls[0].body : null,
-      confirm_response: calls[1] ? calls[1].body : null,
+      response: run.response,
+      body_missing: run.body_missing,
       timed_out: !finished && !run.problem && !run.deep_research_missing
-        && !run.deep_research_disabled && !run.quota_notice
-        && !facts.facts.signed_out && Date.now() >= deadline,
+        && !run.deep_research_disabled && !run.quota_notice && !run.body_missing
+        && !pageFacts.signed_out && Date.now() >= deadline,
     });
   },
 });

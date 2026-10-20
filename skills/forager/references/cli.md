@@ -1048,10 +1048,10 @@ later (`opencli doctor`), then copy the `opencli/forager-gemini` directory next 
 `SKILL.md` to `~/.opencli/clis/forager-gemini` (replace the whole directory to update), and
 check with `forager doctor --provider gemini_browser`. No platform order or other setting enables
 them; `providers.gemini_browser.command` and `.timeout` (default `opencli` and 240 seconds per
-OpenCLI command) configure them. The required contract is `forager-gemini/2`. When a command
-reports contract `forager-gemini/1`, the installed adapter is the older one: replace the whole
-`~/.opencli/clis/forager-gemini` directory with the one from this skill and check again with
-`forager doctor --provider gemini_browser`.
+OpenCLI command) configure them. The required contract is `forager-gemini/3`. When a command
+reports an older contract such as `forager-gemini/2`, the installed adapter is the older one:
+replace the whole `~/.opencli/clis/forager-gemini` directory with the one from this skill and
+check again with `forager doctor --provider gemini_browser`.
 
 A Gemini report is a Delegated Research Report, not research evidence: relay it as Gemini's
 conclusions with attribution, and fetch a cited source with `forager fetch` before stating one of
@@ -1069,7 +1069,8 @@ forager gemini research start QUERY [--timeout SECONDS] [--format json|markdown]
 | `--timeout SECONDS` | Whole-command deadline. | `240` |
 
 The command brings a Chrome window to the front, opens a new Gemini chat, selects Deep Research,
-sends the question once, and clicks "Start research" on the plan Gemini proposes. It creates a
+sends the question once, clicks "Start research" on the plan Gemini proposes, and opens the
+conversation again to check that the research is running. It creates a
 conversation and spends the account's Deep Research quota, so it runs exactly one attempt whatever
 the `retry` configuration; never run it again after a failure without the user's go-ahead. JSON
 output has `route` (`gemini_browser`), `conversation_id`, `conversation_url`, and `plan`
@@ -1078,9 +1079,11 @@ conversation with `gemini research result`.
 
 Exit codes: `2` for an empty question; `4` for `auth` (Gemini asks the browser to sign in),
 `quota_exhausted` (the Deep Research quota is used up), `timeout`, and `runtime` (the account's
-tools menu offers no Deep Research, or shows it disabled, which may mean the quota is used up; Gemini replied with text instead of a plan, quoted; the plan
-could not be confirmed, so the user must click "Start research" on the conversation page; the
-Gemini response structure changed; or the adapter is missing or outdated). A failure payload adds
+tools menu offers no Deep Research, or shows it disabled, which may mean the quota is used up;
+Gemini replied with text instead of a plan, quoted; the plan could not be confirmed, so the user
+must click "Start research" on the conversation page; the research had not started after the
+click, so read it with `gemini research result` before anything else; the Gemini response
+structure changed; or the adapter is missing or outdated). A failure payload adds
 `conversation_url` once forager knows the conversation. A failure without one whose message says
 forager does not know whether Gemini received the question means the user should look in the
 Gemini history before anything is started again.

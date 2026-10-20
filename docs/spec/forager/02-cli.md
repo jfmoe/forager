@@ -562,7 +562,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 ### `gemini research start`
 
-在前台 Chrome 窗口中发起一次 Deep Research：打开新会话，选择 Deep Research，提交问题一次，并确认 Gemini 提出的研究计划。
+在前台 Chrome 窗口中发起一次 Deep Research：打开新会话，选择 Deep Research，提交问题一次，确认 Gemini 提出的研究计划，再重新打开会话确认研究已在进行。
 
 | 参数 | 类型与取值 | 默认值 | 语义 |
 |---|---|---|---|
@@ -570,15 +570,16 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 | `--timeout` | 秒，≥1 | 240 | 整条命令的截止时间 |
 | `--format` | `json` / `markdown` | `json` | 没有 `content`，也没有 `--output` |
 
-- **单次 attempt**：`start` 新建会话并消耗 Deep Research 额度，是会改变用户账号状态的写操作（ADR 0023），只执行一次 attempt，不受 `retry` 配置影响，Timeout 与 Network 也不重试。计划已生成但确认按钮没有点到时不再点击，也不重发问题。
-- **成功判定**：回答问题的第一轮 `StreamGenerate` 带计划（rich content 字段 55）且状态为 2；回答确认的第二轮带研究文档容器（候选结果 `[30][0]` 的任务 id 非空）且状态为 3；页面最终 URL 为该会话的 `/app/<id>`。
-- **输出**：JSON 为 `{route, conversation_id, conversation_url, plan}`，`plan` 形状同 `result` 的 `awaiting_confirmation`，与 Research Plan Schema v1 无关。Markdown 渲染会话 URL、计划与轮询提示。
-- **失败载荷**：普通瘦载荷另加可空的 `conversation_url`。forager 从第一轮响应或页面 URL 得到并校验过会话 id 后填入，消息也指向它；还没有会话 id 时为 `null`。adapter 进程本身失败、没有交回页面事实时（非零退出、被强杀），消息说明 forager 不知道 Gemini 是否收到了问题，提示先在 Gemini 历史中检查，不建议重新发起。两种情况除外：adapter 进程以 Auth 失败，此时浏览器还没走到发送；OpenCLI 确定没有运行 adapter 命令（OpenCLI 无法启动、拒绝命令行、找不到或加载不到 adapter 命令，判定见第 7 章），此时消息说明什么都没发送。浏览器连接失败（OpenCLI 以 69 退出）、OpenCLI 报告结果未知（`outcome: "unknown"`）与契约版本不符仍提示结果未知：前两者可能发生在命令中途，后者说明运行的是另一版本的 adapter。
+- **页面操作**：发送后等页面 URL 变为 `/app/<id>`，再等计划卡片的 “Start research” 按钮，至多 45 秒；按钮出现即点击一次，按钮消失为点击生效，之后留 5 秒让研究写入会话；按钮在点击前已消失时不点击（研究可能已自行开始），由下一步读到的会话判定。然后经 `/app` 重新打开该会话，按 `result` 的读取规则读取页面自己收到的 `hNvQHb` 响应。是否答完以页面上的按钮为准，不以 `StreamGenerate` 请求结束为准：2026-10-20 在 OpenCLI 2.0.1 下实测，计划已到达，页面的 Resource Timing 在 240 秒内始终没有记录该请求结束。
+- **单次 attempt**：`start` 新建会话并消耗 Deep Research 额度，是会改变用户账号状态的写操作（ADR 0023），只执行一次 attempt，不受 `retry` 配置影响，Timeout 与 Network 也不重试。adapter 至多点击一次“发送”与一次 “Start research”，没有点到确认时不再点击，也不重发问题。
+- **成功判定**：最终 URL 为该会话的 `/app/<id>`，且按 `result` 的规则选出的最新研究轮次状态为 3（研究中）或 5（已完成）；研究是 forager 点击确认后开始的，还是 Gemini 自行开始的，判定相同。
+- **输出**：JSON 为 `{route, conversation_id, conversation_url, plan}`，`plan` 为会话中最新一个带计划（rich content 字段 55）的轮次的计划，形状同 `result` 的 `awaiting_confirmation`，与 Research Plan Schema v1 无关。Markdown 渲染会话 URL、计划与轮询提示。
+- **失败载荷**：普通瘦载荷另加可空的 `conversation_url`。adapter 发送后从页面 URL 得到并校验过会话 id 时填入，消息也指向它；还没有会话 id 时为 `null`；已发送却没有得到会话时，消息说明 forager 不知道 Gemini 是否收到了问题。adapter 进程本身失败、没有交回页面事实时（非零退出、被强杀），消息说明 forager 不知道 Gemini 是否收到了问题，提示先在 Gemini 历史中检查，不建议重新发起。两种情况除外：adapter 进程以 Auth 失败，此时浏览器还没走到发送；OpenCLI 确定没有运行 adapter 命令（OpenCLI 无法启动、拒绝命令行、找不到或加载不到 adapter 命令，判定见第 7 章），此时消息说明什么都没发送。浏览器连接失败（OpenCLI 以 69 退出）、OpenCLI 报告结果未知（`outcome: "unknown"`）与契约版本不符仍提示结果未知：前两者可能发生在命令中途，后者说明运行的是另一版本的 adapter。
 - **退出码**：问题为空＝飞行前退 2。以下都退 4：
   - 浏览器未登录（adapter 退 77 或页面要求登录）为 Auth，先于其他判定；还没有会话 id 时提示登录后重试，已校验会话 id 后（例如发送后页面要求登录）载荷与消息指向该会话，提示登录后先用 `result` 查看，不提示重试；
-  - 任一轮响应的用量超限错误码（1037）为 QuotaExhausted，其他错误码为 Runtime；Gemini 回答问题之前页面上新出现的额度提示为 QuotaExhausted，会话轮次、导航栏中的文字与发送前已显示的文字不算额度提示，Gemini 一旦回答，页面文字不再影响判定；
-  - 工具菜单中没有 Deep Research（消息提示检查账号能力，说明什么都没发送）、Deep Research 菜单项存在但不可选（消息说明额度可能已用尽或功能暂不可用，什么都没发送）、adapter 在发送前停下（附原因与最后到达的步骤）、Gemini 回复普通文本而非计划（附有界的回复开头）、计划已生成但没有点到确认（附 adapter 的停止原因、会话 URL 与“在网页上点击 Start research”的提示；截止时间先到则为 Timeout）、确认后停在另一个页面、响应结构不符（附位置）、adapter 缺失或过期为 Runtime；
-  - 读取截止点前没有走完（adapter 带 `timed_out: true` 交回已取得的页面事实）或命令被强杀为 Timeout；已点击确认但第二轮响应未到时，消息提示用 `result` 读取该会话。
+  - 发送后、计划卡片出现之前页面上新出现的额度提示为 QuotaExhausted，会话轮次、导航栏中的文字与发送前已显示的文字不算额度提示，计划卡片一旦出现，页面文字不再影响判定；
+  - 工具菜单中没有 Deep Research（消息提示检查账号能力，说明什么都没发送）、Deep Research 菜单项存在但不可选（消息说明额度可能已用尽或功能暂不可用，什么都没发送）、adapter 在发送前停下（附原因与最后到达的步骤）、Gemini 回复普通文本而非计划（附有界的回复开头、会话 URL 与在网页上回答后用 `result` 查看的提示）、计划仍在等待确认而 forager 没有点到确认（附 adapter 的停止原因、会话 URL 与“在网页上点击 Start research”的提示；截止时间先到则为 Timeout）、已点击确认而重新打开时研究仍在等待确认（提示先用 `result` 查看，不要重新发起）、重新打开后停在另一个页面、响应结构不符（附位置）、会话响应已完成却没有抓到响应体、adapter 缺失或过期为 Runtime；
+  - 读取截止点前没有走完（adapter 带 `timed_out: true` 交回已取得的页面事实）或命令被强杀为 Timeout；已点击确认但没有读到会话时，消息提示研究可能已在进行，用 `result` 读取该会话。
 
 ### `gemini research result`
 
