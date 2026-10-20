@@ -797,7 +797,7 @@ const REGISTRY: &[ProviderRegistration] = &[
         credentials: Credentials::Unused,
         transport: ProviderTransport::OpenCli(OpenCliAdapter {
             site: "forager-gemini",
-            contract: "forager-gemini/3",
+            contract: "forager-gemini/2",
         }),
         access_policy: Some(GEMINI_BROWSER_ACCESS),
         probe: DoctorProbe::AdapterStatus {

@@ -2,7 +2,7 @@
 // input, and output envelopes for the forager Gemini commands. The commands only operate the page
 // as a user would and report what the page itself received; forager decodes and judges them.
 
-export const CONTRACT = 'forager-gemini/3';
+export const CONTRACT = 'forager-gemini/2';
 export const SITE = 'forager-gemini';
 export const SITE_DOMAIN = 'gemini.google.com';
 export const APP_URL = `https://${SITE_DOMAIN}/app`;

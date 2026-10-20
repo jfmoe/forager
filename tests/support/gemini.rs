@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 
 use super::opencli::FakeOpenCli;
 
-pub(crate) const CONTRACT: &str = "forager-gemini/3";
+pub(crate) const CONTRACT: &str = "forager-gemini/2";
 pub(crate) const CONVERSATION: &str = "a1b2c3d4e5f60718";
 pub(crate) const CONVERSATION_URL: &str = "https://gemini.google.com/app/a1b2c3d4e5f60718";
 const TASK_PLACEHOLDER: &str = "agency-placeholder-task-id";
