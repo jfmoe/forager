@@ -42,9 +42,11 @@ pub(crate) trait ResearchSite {
     /// The page facts of the adapter's `start` command.
     type StartFacts: DeserializeOwned;
     type Plan;
+    /// The page facts of the adapter's `status` command.
+    type StatusPage: DeserializeOwned + Default;
 
-    /// The failure of a page that asks the user to sign in.
-    fn signed_out() -> AttemptFailure;
+    /// Fails a `status` page that keeps the site from showing itself, such as a sign-in prompt.
+    fn read_status_page(page: &Self::StatusPage) -> Result<(), AttemptFailure>;
 
     /// Classifies the page facts of a `report` command and decodes where the research stands.
     fn read_research(
@@ -175,10 +177,9 @@ impl<S: ResearchSite> DelegatedResearch<S> {
             self.opencli
                 .settings(AttemptTarget::operation(STATUS_OPERATION), single_attempt()),
             move |deadline| async move {
-                let status: StatusData = self.opencli.read(command, deadline).await?;
-                if status.page.signed_out {
-                    return Err(S::signed_out());
-                }
+                let status: StatusData<S::StatusPage> =
+                    self.opencli.read(command, deadline).await?;
+                S::read_status_page(&status.page)?;
                 if status.timed_out {
                     return Err(AttemptFailure {
                         kind: AttemptErrorKind::Timeout,
@@ -196,16 +197,9 @@ impl<S: ResearchSite> DelegatedResearch<S> {
 
 #[derive(Debug, Default, Deserialize)]
 #[serde(default)]
-struct StatusData {
-    page: StatusPage,
+struct StatusData<P> {
+    page: P,
     timed_out: bool,
-}
-
-#[derive(Debug, Default, Deserialize)]
-#[serde(default)]
-struct StatusPage {
-    /// Whether the page asks the user to sign in.
-    signed_out: bool,
 }
 
 /// Words a failure of the `start` command itself, which leaves no page facts. A command OpenCLI

@@ -310,6 +310,14 @@ pub(crate) fn reply_turn(index: usize, reply: &str) -> Value {
     )
 }
 
+/// Moves the page facts `data` to Google's unusual-traffic page, where Google redirects a burst
+/// of Gemini page loads.
+pub(crate) fn on_unusual_traffic_page(data: &mut Value) {
+    data["page"]["url"] =
+        json!("https://www.google.com/sorry/index?continue=https://gemini.google.com/app");
+    data["page"]["unusual_traffic"] = json!(true);
+}
+
 /// Every step of a `start` command, in the order the adapter reaches them.
 pub(crate) const START_STEPS: [&str; 8] = [
     "tools_menu",

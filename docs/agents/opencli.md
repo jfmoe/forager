@@ -12,15 +12,18 @@
 
 ## 实测前
 
-- 先运行 `opencli doctor`，确认 Browser Bridge 扩展已连接、版本不低于 1.0.25。Chrome 重启后扩展可能断开，之后每条命令都要等满约 45 秒才超时，根本到不了站点。看到连续超时就停下来检查连接，不要继续循环。
+- 先运行 `opencli doctor`，确认 Browser Bridge 扩展已连接、版本不低于 1.0.25。Chrome 重启后扩展可能断开，之后每条命令都要等满约 45 秒才超时，根本到不了站点。看到连续超时就停下来检查连接。
 - 用 `forager doctor --provider <route>` 检查单个 route。真实检索会消耗站点的访问额度，可能触发风控或人工验证，按第 7 章和 ADR 0020、0023、0024 的限制运行。
+- **页面打开预算**：每条 live 的 forager 命令、adapter 命令和探测脚本的每一轮都会打开真实页面，Gemini 的 `report` 一条命令最多打开 3 次。同一站点一次排查最多打开约 10 次，超出前先问用户；Google 在约 25 分钟内约 50 次打开时开始拦截。测随机故障的出现率这类需要多次采样的问题，也受这个预算约束。
+- **每次打开都存档**：把 live 命令的完整 stdout 写入文件，之后从文件分析，不为看另一个字段再打开一次页面。
+- **遇到拦截就收手**：输出出现 `unusual_traffic`（Gemini）、HTTP 461（小红书）、Cloudflare 验证，或连续超时、连续拿不到响应体时，立即停止该站点的全部 live 命令和循环。先把离线能做的部分做完，再上报，由用户在 Chrome 里处理验证。拦截不会因为等待很快解除，sleep 等冷却后重试只会再次触发拦截。
 
 ## 已知问题
 
 - **`Navigation rejected.`**：标签页没开网络抓包时，OpenCLI 扩展会在导航前断开调试器，Chrome 随即拒绝这次导航。所以 adapter 每次顶层导航前都要先开抓包，Gemini 和 ChatGPT 的 `shared.js`、SSRN 的 `paper.js` 已经这样做。新 adapter 或新命令遇到这个报错，按同样方式处理。重启 Chrome 也能暂时消除。还观察到运行过带 `--trace` 的命令后，不带 trace 的命令会连续被拒，但没有确认原因。
 - **诱饵按钮**：小红书会在按钮下面叠放同类名、同文本的不可见副本（`aria-hidden`），按类名和文本找元素会找到两个，或先找到诱饵。adapter 的点击都经 `shared.js` 原生输入块的 `clickTarget`：只认不在 `aria-hidden` 子树中、指针在中心能命中的元素，并要求恰好一个，详见小红书 route 设计的「诱饵按钮」。
 - **抓包条目完成了却没有响应体**：扩展只在请求结束时向 Chrome 取一次响应体，取失败时不报错，条目照样标记完成（`captureComplete`），只是没有 `responsePreview`。2026-10-20 在 Browser Bridge 1.0.26、Chrome 155 上实测，Gemini 的 batchexecute 响应随机丢失响应体，`hNvQHb` 约一半的打开会丢；这与 adapter 在页面上的读取无关，页面加载期间不发任何命令也一样丢。Chrome 那边取失败的原因没有查明。页面重新加载后会重新取，所以 Gemini 的 `report` 遇到这种情况会重新打开会话再读。
-- **Google 的异常流量页**：短时间内反复打开 Gemini 页面（实测约 25 分钟内约 50 次），会被重定向到 `www.google.com/sorry/...`，之后的读取都停在那一页。停止访问 17 分钟后仍未解除，约 44 分钟后解除；解除后 17 分钟内又打开约 8 次，就再次被重定向。adapter 不会也不应替用户通过那里的验证。Gemini 的 `report` 重新打开会话时每次多两次页面加载，同样计入。实测时控制打开次数，不要循环探测。
+- **Google 的异常流量页**：短时间内反复打开 Gemini 页面（实测约 25 分钟内约 50 次），会被重定向到 `www.google.com/sorry/...`，之后的读取都停在那一页。停止访问 17 分钟后仍未解除，约 44 分钟后解除；解除后 17 分钟内又打开约 8 次，就再次被重定向。adapter 不会也不应替用户通过那里的验证：它把这一页报为 `unusual_traffic`，不再重新打开会话，forager 归为 Auth 且不重试。Gemini 的 `report` 重新打开会话时每次多两次页面加载，同样计入。
 - **只有实测能证明 JS 的行为**：Rust 侧的测试用的是假 `opencli`，只证明外壳解码、退出码映射和核对规则。adapter 的页面读取、抓包完成条件和点击路径，只能靠实测证明：小红书有 live smoke 用例（C27–C29），Gemini 和 ChatGPT 没有 live 用例，只能在用户授权下做真实验收（第 5 章）；SSRN 的浏览器 route 经常被 Cloudflare 拦截，没有 live 用例，也不做实测，所以 SSRN adapter 没有经过 live 验证。
 
 ## 原生输入的已知限制

@@ -421,6 +421,27 @@ fn a_signed_out_browser_is_an_auth_failure_before_any_notice() {
 }
 
 #[test]
+fn googles_unusual_traffic_page_is_auth_and_never_retried() {
+    let mut blocked = gemini::unread("https://gemini.google.com/app");
+    gemini::on_unusual_traffic_page(&mut blocked);
+    blocked["timed_out"] = json!(true);
+    let fake = gemini::answering(blocked);
+    let environment = RunEnvironment::new(&format!(
+        "{}timeout = 7\n\n[retry]\nmax_attempts = 3\nmax_wait = 0\n",
+        gemini::config(&fake)
+    ));
+
+    let output = result(&environment, CONVERSATION, &[]);
+
+    let (code, kind, message, url) = failure(&output);
+    assert_eq!(
+        (code, kind, url, fake.calls().len()),
+        (Some(4), json!("auth"), json!(CONVERSATION_URL), 1)
+    );
+    assert!(message.contains("unusual-traffic page"), "{message}");
+}
+
+#[test]
 fn a_status_that_contradicts_the_body_reports_where_the_structure_changed() {
     let running_with_body = read_turns(&[gemini::research_turn(2, Some(3), "# Report\n")]);
     let completed_without_body = read_turns(&[gemini::research_turn(2, Some(5), "")]);

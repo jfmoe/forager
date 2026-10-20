@@ -199,7 +199,7 @@ async function startResearch(page, query, deadline, facts, run) {
   const click = (targets) => inputFailureOf(() => clickTarget(page, targets, { deadline }));
 
   await waitFor(deadline, async () => (await facts.observe(page)) || facts.ready);
-  if (facts.facts.signed_out || facts.facts.notice || !facts.ready) {
+  if (facts.blocked() || facts.facts.notice || !facts.ready) {
     if (!passed()) stop('the Gemini app did not show its composer');
     return;
   }
@@ -280,7 +280,7 @@ async function startResearch(page, query, deadline, facts, run) {
   const card = await waitFor(within(CARD_WAIT_MS), async () => {
     await facts.observe(page);
     run.conversation = run.conversation || conversationOf(facts.facts.url);
-    if (facts.facts.signed_out) return 'signed_out';
+    if (facts.blocked()) return 'blocked';
     if (run.conversation && await page.evaluate(findConfirm)) return 'plan';
     run.quota_notice = newQuotaNotice(await page.evaluate(quotaLines), shown, query);
     return run.quota_notice ? 'quota' : null;
@@ -290,7 +290,7 @@ async function startResearch(page, query, deadline, facts, run) {
     return;
   }
   run.steps.push('conversation');
-  if (card === 'signed_out' || card === 'quota') return;
+  if (card === 'blocked' || card === 'quota') return;
 
   if (card === 'plan') {
     run.steps.push('answered');
@@ -370,7 +370,7 @@ cli({
       body_missing: run.body_missing,
       timed_out: !finished && !run.problem && !run.deep_research_missing
         && !run.deep_research_disabled && !run.quota_notice && !run.body_missing
-        && !pageFacts.signed_out && Date.now() >= deadline,
+        && !pageFacts.signed_out && !pageFacts.unusual_traffic && Date.now() >= deadline,
     });
   },
 });

@@ -64,7 +64,8 @@ function isTracked(href, track) {
 
 // The page state that ends a read, and the completed tracked calls. Resource Timing records a
 // request only once its response has ended, and `buffered` also counts the calls that completed
-// before the first read. The sign-in check follows OpenCLI's own Gemini adapter. The notice
+// before the first read. The sign-in check follows OpenCLI's own Gemini adapter. Google
+// redirects a burst of page loads to its unusual-traffic page, which ends every read. The notice
 // wording of a missing or foreign conversation is an unverified guess in both interface
 // languages; it is read only while no conversation response has arrived, so text inside a
 // conversation never counts.
@@ -88,14 +89,16 @@ function pageStateScript(track) {
         || href.includes('accounts.google.com/ServiceLogin');
     });
     const signedOut = Boolean(signInNode) || location.hostname === 'accounts.google.com';
+    const unusualTraffic = location.hostname === 'www.google.com' && location.pathname.startsWith('/sorry');
     const text = document.body ? document.body.innerText : '';
     const notice = (text.match(/[^\\n]*(conversation not found|couldn.t (load|find) (this )?(chat|conversation)|无法(加载|找到)(此|该)?对话|找不到(此|该)?对话)[^\\n]*/i) || [null])[0];
     const composer = document.querySelector('rich-textarea, [contenteditable="true"][role="textbox"], div.ql-editor');
     return {
       url: location.href,
       signed_out: signedOut,
+      unusual_traffic: unusualTraffic,
       notice: notice ? notice.trim().slice(0, 120) : null,
-      ready: signedOut || Boolean(composer),
+      ready: signedOut || unusualTraffic || Boolean(composer),
       completions: window.__foragerGemini ? window.__foragerGemini.completions : 0,
     };
   })()`;
@@ -106,7 +109,7 @@ export class PageFacts {
   /** `track`, when given, is the RPC id whose completed calls the page counts. */
   constructor(track = null) {
     this.script = pageStateScript(track);
-    this.facts = { url: '', signed_out: false, notice: null };
+    this.facts = { url: '', signed_out: false, unusual_traffic: false, notice: null };
     this.ready = false;
     this.completions = 0;
   }
@@ -114,10 +117,17 @@ export class PageFacts {
   /** Reads the page state; returns whether it ends the command. */
   async observe(page) {
     const state = await page.evaluate(this.script);
-    this.facts = { url: state.url, signed_out: state.signed_out, notice: state.notice };
+    this.facts = {
+      url: state.url, signed_out: state.signed_out, unusual_traffic: state.unusual_traffic, notice: state.notice,
+    };
     this.ready = state.ready;
     this.completions = state.completions;
-    return this.facts.signed_out || Boolean(this.facts.notice);
+    return this.blocked() || Boolean(this.facts.notice);
+  }
+
+  /** Whether the page shows a sign-in prompt or Google's unusual-traffic page in place of Gemini. */
+  blocked() {
+    return this.facts.signed_out || this.facts.unusual_traffic;
   }
 
   /**
@@ -192,14 +202,15 @@ async function readConversation(page, url, deadline) {
     page: facts.facts,
     response: answered ? answered.body : null,
     body_missing: completed && !answered,
-    timed_out: !completed && !answered && !facts.facts.signed_out && !facts.facts.notice,
+    timed_out: !completed && !answered && !facts.blocked() && !facts.facts.notice,
   };
 }
 
 /**
  * Opens a conversation and reads the conversation response the page receives, as
  * `{page, response, body_missing, timed_out}`. While the response completed without a captured
- * body, it opens the conversation again, at most `MAX_OPENS` times in all. With `reload`, the
+ * body, it opens the conversation again, at most `MAX_OPENS` times in all; a blocked page ends
+ * the reads, since another load only prolongs Google's unusual-traffic block. With `reload`, the
  * tab already shows the conversation, which the first open then reloads too.
  */
 export async function openConversation(page, conversation, deadline, { reload = false } = {}) {

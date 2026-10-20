@@ -120,9 +120,13 @@ impl ResearchSite for Chatgpt {
     type State = ChatgptResearchState;
     type StartFacts = start::StartData;
     type Plan = ChatgptPlan;
+    type StatusPage = PageFacts;
 
-    fn signed_out() -> AttemptFailure {
-        signed_out()
+    fn read_status_page(page: &PageFacts) -> Result<(), AttemptFailure> {
+        if page.signed_out {
+            return Err(signed_out());
+        }
+        Ok(())
     }
 
     fn read_research(

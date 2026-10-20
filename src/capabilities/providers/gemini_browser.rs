@@ -113,9 +113,10 @@ impl ResearchSite for Gemini {
     type State = GeminiResearchState;
     type StartFacts = start::StartData;
     type Plan = GeminiPlan;
+    type StatusPage = PageFacts;
 
-    fn signed_out() -> AttemptFailure {
-        signed_out()
+    fn read_status_page(page: &PageFacts) -> Result<(), AttemptFailure> {
+        page_shows_gemini(page, "retry")
     }
 
     fn read_research(
@@ -150,6 +151,9 @@ struct PageFacts {
     url: String,
     /// Whether the page asks the user to sign in.
     signed_out: bool,
+    /// Whether Google redirected the page to its unusual-traffic page (`www.google.com/sorry`),
+    /// which it shows after a burst of page loads.
+    unusual_traffic: bool,
     /// A notice that the conversation cannot be opened, as the page words it.
     notice: Option<String>,
 }
@@ -173,19 +177,23 @@ fn runtime(message: String) -> AttemptFailure {
     }
 }
 
-fn signed_out() -> AttemptFailure {
-    signed_out_then("retry")
-}
-
-/// A signed-out failure whose message ends with what to do after signing in.
-fn signed_out_then(next: &str) -> AttemptFailure {
-    AttemptFailure {
+/// Fails a page that shows something in place of Gemini: a sign-in prompt, or Google's
+/// unusual-traffic page, whose check only the user passes. Both are Auth, which is never
+/// retried, since another page load only prolongs the block. A failure message ends with
+/// `next`, what to do once the page is cleared.
+fn page_shows_gemini(page: &PageFacts, next: &str) -> Result<(), AttemptFailure> {
+    let problem = if page.signed_out {
+        "Gemini asks the browser to sign in; sign in to gemini.google.com in the Chrome that OpenCLI drives"
+    } else if page.unusual_traffic {
+        "Google shows its unusual-traffic page in place of Gemini, as it does after many page loads in a short time; pass its check in the Chrome that OpenCLI drives, or wait until it lifts"
+    } else {
+        return Ok(());
+    };
+    Err(AttemptFailure {
         kind: AttemptErrorKind::Auth,
         status: None,
-        message: format!(
-            "Gemini asks the browser to sign in; sign in to gemini.google.com in the Chrome that OpenCLI drives, then {next}"
-        ),
-    }
+        message: format!("{problem}, then {next}"),
+    })
 }
 
 fn unavailable(conversation: &GeminiConversationId, reason: &str) -> AttemptFailure {
@@ -212,15 +220,13 @@ impl From<decode::ShapeError> for AttemptFailure {
 }
 
 /// Classifies the page facts of a `report` command, then decodes the conversation response.
-/// A signed-out page comes first: it hides whether the conversation exists.
+/// A page in place of Gemini comes first: it hides whether the conversation exists.
 fn read_research(
     report: &ReportData,
     conversation: &GeminiConversationId,
 ) -> Result<GeminiResearchState, AttemptFailure> {
     let page = &report.page;
-    if page.signed_out {
-        return Err(signed_out());
-    }
+    page_shows_gemini(page, "retry")?;
     if let Some(notice) = page.notice.as_deref().map(str::trim)
         && !notice.is_empty()
     {

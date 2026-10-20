@@ -280,6 +280,43 @@ fn a_sign_in_prompt_after_sending_is_auth_and_points_to_the_conversation() {
     );
 }
 
+#[test]
+fn googles_unusual_traffic_page_before_sending_is_auth_and_sends_nothing() {
+    let mut facts = gemini::start_facts(&[], None);
+    gemini::on_unusual_traffic_page(&mut facts);
+
+    let (_, output) = run(facts);
+
+    let (code, kind, message, url) = failure(&output);
+    assert_eq!((code, kind, url), (Some(4), json!("auth"), Value::Null));
+    assert!(
+        message.contains("unusual-traffic page") && message.ends_with("then retry"),
+        "{message}"
+    );
+}
+
+#[test]
+fn googles_unusual_traffic_page_on_reopening_is_auth_and_points_to_the_conversation() {
+    let mut facts = gemini::start_facts(&gemini::START_STEPS[..7], None);
+    gemini::on_unusual_traffic_page(&mut facts);
+    facts["timed_out"] = json!(true);
+
+    let (_, output) = run(facts);
+
+    let (code, kind, message, url) = failure(&output);
+    assert_eq!(
+        (code, kind, url),
+        (Some(4), json!("auth"), json!(CONVERSATION_URL))
+    );
+    assert!(
+        message.contains("unusual-traffic page")
+            && message.ends_with(&format!(
+                "then read the research with `forager gemini research result {CONVERSATION_URL}` before starting again"
+            )),
+        "{message}"
+    );
+}
+
 /// Points `gemini_browser` at `fake` with a 7-second attempt and allows three attempts, so a
 /// retry would fit in the 30-second command deadline the tests pass.
 fn retrying_config(fake: &FakeOpenCli) -> String {

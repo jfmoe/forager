@@ -10,7 +10,7 @@ use std::cell::OnceCell;
 
 use serde::Deserialize;
 
-use super::{CONVERSATION_RPC, PageFacts, decode, runtime, signed_out, signed_out_then};
+use super::{CONVERSATION_RPC, PageFacts, decode, page_shows_gemini, runtime};
 use crate::net::{AttemptFailure, truncate_message};
 use crate::types::{AttemptErrorKind, GeminiConversationId, GeminiPlan, GeminiResearchState};
 
@@ -157,15 +157,14 @@ pub(super) fn read_start(
     if let Some(conversation) = &conversation {
         let _ = created.set(conversation.clone());
     }
-    if facts.page.signed_out {
-        return Err(match &conversation {
-            Some(conversation) => signed_out_then(&format!(
-                "read the research with `forager gemini research result {}` before starting again",
-                conversation.url()
-            )),
-            None => signed_out(),
-        });
-    }
+    let next = match &conversation {
+        Some(conversation) => format!(
+            "read the research with `forager gemini research result {}` before starting again",
+            conversation.url()
+        ),
+        None => "retry".to_owned(),
+    };
+    page_shows_gemini(&facts.page, &next)?;
     // Once Gemini answered, page text that reads like a quota notice (a question or a reply
     // about limits) never overrides what the conversation says.
     if let Some(notice) = facts.quota_notice.as_deref().map(str::trim)
