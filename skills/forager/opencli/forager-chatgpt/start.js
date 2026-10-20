@@ -145,6 +145,8 @@ const TOOLS_TARGET = script(`
 
 const DEEP_RESEARCH_TARGET = script('return labelled(menuItems(), arg0);', DEEP_RESEARCH);
 
+const deepResearchOffered = script('return labelled(menuItems(), arg0).length > 0;', DEEP_RESEARCH);
+
 const SEND_TARGET = script(`
   const send = Array.from(document.querySelectorAll('[data-testid="send-button"], #composer-submit-button'))
     .filter((el) => isVisible(el) && isEnabled(el));
@@ -290,7 +292,7 @@ async function startResearch(page, query, deadline, facts, run) {
   if (!await waitFor(within(MENU_WAIT_MS), () => page.evaluate(menuItemCount))) {
     return stop('the "Add files and more" menu rendered no items (click_missed); the Chrome window must be in front');
   }
-  if (!await page.evaluate(`${DEEP_RESEARCH_TARGET}.length > 0`)) {
+  if (!await page.evaluate(deepResearchOffered)) {
     run.deep_research_missing = true;
     return;
   }
