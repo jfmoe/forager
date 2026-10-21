@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.16.0](https://github.com/jfmoe/forager/compare/v0.15.0...v0.16.0) - 2026-10-21
+
+### Added
+
+- *(chatgpt)* [**breaking**] operate the ChatGPT page with native input
+- *(gemini)* [**breaking**] operate the Gemini page with native input
+- *(xiaohongshu)* [**breaking**] operate the Xiaohongshu page with native input
+- *(opencli)* [**breaking**] decode the OpenCLI 2.x output envelope
+
+### Fixed
+
+- *(gemini)* wait for the plan card until only the confirm time is left
+- *(gemini)* keep the adapter contract at forager-gemini/2
+- *(gemini)* stop on Google's unusual-traffic page
+- *(gemini)* [**breaking**] judge a started research from the reopened conversation
+- *(gemini)* reopen a conversation whose body was not captured
+- *(chatgpt)* evaluate the Deep Research check as one script
+- *(opencli)* hand every target candidate to the hit check
+- *(opencli)* stop native input once the deadline passes
+- *(xiaohongshu)* click only the button a pointer would hit
+
+### Other
+
+- *(spec)* credit envelope status check to opencli_route
+- Merge branch 'opencli-2x' into worktree-agent-a22839134bd9b3af6
+- Merge branch 'opencli-2x' into worktree-agent-a70cfdf48d83166e1
+- *(research)* share the delegated research flow
+- *(opencli)* share one route-bound OpenCLI invocation
+- *(opencli)* document OpenCLI 2.x setup and native input limits
+- *(smoke)* drop the SSRN browser live cases C22 and C23
+- [**breaking**] retire the openai_compatible main-search backend
+- *(smoke)* keep P1 unconfigured in the P2 journal test
+- *(spec)* drop retired vertical search counts
+- *(smoke)* state the P2 discovery requirement directly
+- [**breaking**] retire vertical search and AnySearch
+
 ## [0.15.0](https://github.com/jfmoe/forager/compare/v0.14.0...v0.15.0) - 2026-10-18
 
 ### Added
