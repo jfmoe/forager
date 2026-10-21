@@ -1,12 +1,6 @@
 import { cli, Strategy } from '@jackwener/opencli/registry';
 
-import {
-  APP_URL, PageFacts, SITE, SITE_DOMAIN, envelope, navigate, readDeadline, readTrackedCalls,
-  waitFor,
-} from './shared.js';
-
-// The RPC that lists a conversation's turns; the page calls it when it opens a conversation.
-const CONVERSATION_RPC = 'hNvQHb';
+import { SITE, SITE_DOMAIN, envelope, openConversation, readDeadline } from './shared.js';
 
 cli({
   site: SITE,
@@ -23,26 +17,6 @@ cli({
   ],
   func: async (page, kwargs) => {
     const deadline = readDeadline(kwargs.timeout);
-    const facts = new PageFacts(CONVERSATION_RPC);
-
-    // The capture starts before the navigation: the page calls the RPC while the navigation is
-    // still settling.
-    await navigate(page, `${APP_URL}/${encodeURIComponent(String(kwargs.conversation))}`);
-    const ended = await waitFor(deadline, async () => {
-      if (await facts.observe(page)) return 'page';
-      return facts.completions > 0 ? 'completed' : null;
-    });
-    const completed = ended === 'completed';
-    if (completed) await facts.settle(page);
-    const calls = await readTrackedCalls(page, CONVERSATION_RPC);
-    const answered = calls.find((call) => call.body !== null);
-    // The page shows the conversation once the response arrived; its text is no notice.
-    if (answered) facts.facts.notice = null;
-    return envelope({
-      page: facts.facts,
-      response: answered ? answered.body : null,
-      body_missing: completed && !answered,
-      timed_out: !completed && !answered && !facts.facts.signed_out && !facts.facts.notice,
-    });
+    return envelope(await openConversation(page, kwargs.conversation, deadline));
   },
 });

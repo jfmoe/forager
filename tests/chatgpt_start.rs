@@ -13,7 +13,7 @@ use serde_json::{Value, json};
 
 use support::RunEnvironment;
 use support::chatgpt::{self, CONVERSATION_URL, START_STEPS, failure, payload};
-use support::opencli::FakeOpenCli;
+use support::opencli::{self, FakeOpenCli};
 
 const QUERY: &str = "用不超過 500 字總結 async-std 的維護狀態。";
 
@@ -221,11 +221,7 @@ fn a_usage_notice_after_sending_is_quota_exhausted() {
 
 #[test]
 fn a_signed_out_browser_is_an_auth_failure() {
-    let fake = FakeOpenCli::answering(
-        "",
-        "ok: false\nerror:\n  code: AUTH_REQUIRED\n  message: sign in to ChatGPT\n",
-        77,
-    );
+    let fake = FakeOpenCli::failing("AUTH_REQUIRED", "sign in to ChatGPT", 77);
     let environment = RunEnvironment::new(&chatgpt::config(&fake));
 
     let output = start(&environment, &[]);
@@ -269,17 +265,23 @@ fn retrying_config(fake: &FakeOpenCli) -> String {
 const UNKNOWN_OUTCOME: &str = "forager does not know whether ChatGPT received the question; look for it in the ChatGPT history at https://chatgpt.com/ before starting again";
 
 #[test]
-fn a_timeout_or_network_failure_runs_one_attempt_and_leaves_the_outcome_unknown() {
+fn a_failure_after_opencli_ran_runs_one_attempt_and_leaves_the_outcome_unknown() {
+    let unknown_outcome = json!({"ok": false, "error": {
+        "code": "command_result_unknown",
+        "message": "Browser command timed out client-side; the page may still have applied it.",
+        "exitCode": 1,
+        "outcome": "unknown"
+    }});
     let failures = [
-        (75, "TIMEOUT", "timed out"),
-        (69, "BROWSER_CONNECT", "daemon unavailable"),
+        (75, opencli::failure("TIMEOUT", "timed out", 75)),
+        (
+            69,
+            opencli::failure("BROWSER_CONNECT", "daemon unavailable", 69),
+        ),
+        (1, unknown_outcome.to_string()),
     ]
-    .map(|(code, name, message)| {
-        let fake = FakeOpenCli::answering(
-            "",
-            &format!("ok: false\nerror:\n  code: {name}\n  message: {message}\n"),
-            code,
-        );
+    .map(|(code, stdout)| {
+        let fake = FakeOpenCli::answering(&stdout, "", code);
         let environment = RunEnvironment::new(&retrying_config(&fake));
         let output = start(&environment, &["--timeout", "30"]);
         let (code, kind, message, url) = failure(&output);
@@ -296,7 +298,8 @@ fn a_timeout_or_network_failure_runs_one_attempt_and_leaves_the_outcome_unknown(
         failures,
         [
             (Some(4), json!("timeout"), true, Value::Null, 1),
-            (Some(4), json!("network"), true, Value::Null, 1)
+            (Some(4), json!("network"), true, Value::Null, 1),
+            (Some(4), json!("runtime"), true, Value::Null, 1)
         ]
     );
 }
@@ -506,26 +509,25 @@ fn a_menu_without_deep_research_is_runtime_and_sends_nothing() {
 
 #[test]
 fn a_start_that_opencli_never_ran_says_nothing_was_sent() {
-    let missing_adapter = FakeOpenCli::answering(
-        "",
-        "ok: false\nerror:\n  code: ADAPTER_LOAD\n  message: cannot load forager-chatgpt/start\n",
-        69,
-    );
-    let configs = [
-        chatgpt::config(&missing_adapter),
-        "[providers.chatgpt_browser]\ncommand = \"/nonexistent/forager-test/opencli\"\n".to_owned(),
+    let rejections = [
+        FakeOpenCli::failing("ADAPTER_LOAD", "cannot load forager-chatgpt/start", 69),
+        FakeOpenCli::failing("usage_error", "bad usage", 2),
+        FakeOpenCli::failing(
+            "commander.unknownCommand",
+            "error: unknown command 'start'",
+            2,
+        ),
     ];
+    let configs = rejections.iter().map(chatgpt::config).chain([
+        "[providers.chatgpt_browser]\ncommand = \"/nonexistent/forager-test/opencli\"\n".to_owned(),
+    ]);
 
-    let failures = configs.map(|config| {
-        let (_, kind, message, url) = failure(&start(&RunEnvironment::new(&config), &[]));
-        (kind, message.ends_with("; nothing was sent"), url)
-    });
+    let failures: Vec<_> = configs
+        .map(|config| {
+            let (_, kind, message, url) = failure(&start(&RunEnvironment::new(&config), &[]));
+            (kind, message.ends_with("; nothing was sent"), url)
+        })
+        .collect();
 
-    assert_eq!(
-        failures,
-        [
-            (json!("runtime"), true, Value::Null),
-            (json!("runtime"), true, Value::Null)
-        ]
-    );
+    assert_eq!(failures, vec![(json!("runtime"), true, Value::Null); 4]);
 }

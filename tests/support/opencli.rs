@@ -7,9 +7,23 @@ use std::path::{Path, PathBuf};
 use serde_json::{Value, json};
 
 const CONTRACT: &str = "forager-ssrn/4";
-pub(crate) const XHS_CONTRACT: &str = "forager-xhs/1";
+pub(crate) const XHS_CONTRACT: &str = "forager-xhs/2";
 
 const CALL_END: &str = "<<end of call>>";
+
+/// The stdout of OpenCLI 2.x for an adapter command that returned `envelope`.
+pub(crate) fn success(envelope: &Value) -> String {
+    json!({"ok": true, "data": envelope}).to_string()
+}
+
+/// The stdout of OpenCLI 2.x for a failed command.
+pub(crate) fn failure(code: &str, message: &str, exit: i32) -> String {
+    json!({"ok": false, "error": {"code": code, "message": message, "exitCode": exit}}).to_string()
+}
+
+fn adapter_envelope(contract: &str, status: &str, data: &Value) -> String {
+    success(&json!({"contract": contract, "status": status, "data": data}))
+}
 
 /// A fake `opencli` in a temporary directory.
 pub(crate) struct FakeOpenCli {
@@ -27,17 +41,18 @@ impl FakeOpenCli {
         fake
     }
 
+    /// Fails the way OpenCLI 2.x does: the error envelope on stdout, then exit `exit`.
+    pub(crate) fn failing(code: &str, message: &str, exit: i32) -> Self {
+        Self::answering(&failure(code, message, exit), "", exit)
+    }
+
     pub(crate) fn envelope(status: &str, data: &Value) -> Self {
         Self::contract_envelope(CONTRACT, status, data)
     }
 
     /// Answers an envelope of another adapter contract.
     pub(crate) fn contract_envelope(contract: &str, status: &str, data: &Value) -> Self {
-        Self::answering(
-            &json!({"contract": contract, "status": status, "data": data}).to_string(),
-            "",
-            0,
-        )
+        Self::answering(&adapter_envelope(contract, status, data), "", 0)
     }
 
     /// Answers each command, selected by its second argument, with an `ok` envelope.
@@ -55,7 +70,7 @@ impl FakeOpenCli {
         for (command, data) in pages {
             fs::write(
                 fake.path(&format!("{command}.json")),
-                json!({"contract": contract, "status": "ok", "data": data}).to_string(),
+                adapter_envelope(contract, "ok", data),
             )
             .expect("write fake page");
         }
@@ -70,7 +85,7 @@ impl FakeOpenCli {
         for (index, (status, data)) in envelopes.iter().enumerate() {
             fs::write(
                 fake.path(&format!("{}.json", index + 1)),
-                json!({"contract": CONTRACT, "status": status, "data": data}).to_string(),
+                adapter_envelope(CONTRACT, status, data),
             )
             .expect("write fake envelope");
         }
@@ -87,11 +102,8 @@ impl FakeOpenCli {
             "state": "complete",
             "file": fake.path(file_name).display().to_string(),
         });
-        fs::write(
-            fake.path("stdout"),
-            json!({"contract": CONTRACT, "status": "ok", "data": data}).to_string(),
-        )
-        .expect("write fake stdout");
+        fs::write(fake.path("stdout"), adapter_envelope(CONTRACT, "ok", &data))
+            .expect("write fake stdout");
         fake
     }
 
@@ -106,7 +118,7 @@ impl FakeOpenCli {
         let directory = tempfile::tempdir().expect("create fake opencli directory");
         let fake = Self { directory };
         let script = format!(
-            "#!/bin/sh\ndir='{}'\nfor argument in \"$@\"; do printf '%s\\n' \"$argument\" >> \"$dir/argv\"; done\nprintf '%s\\n' '{CALL_END}' >> \"$dir/argv\"\n{body}",
+            "#!/bin/sh\ndir='{}'\nfor argument in \"$@\"; do printf '%s\\n' \"$argument\" >> \"$dir/argv\"; done\nprintf '%s\\n' '{CALL_END}' >> \"$dir/argv\"\n/usr/bin/env >> \"$dir/env\"\nprintf '%s\\n' '{CALL_END}' >> \"$dir/env\"\n{body}",
             fake.directory.path().display()
         );
         let executable = fake.executable();
@@ -125,7 +137,16 @@ impl FakeOpenCli {
 
     /// Returns the argv of every call, in order.
     pub(crate) fn calls(&self) -> Vec<Vec<String>> {
-        let Ok(recorded) = fs::read_to_string(self.path("argv")) else {
+        self.recorded("argv")
+    }
+
+    /// Returns the environment of every call, in order, as `NAME=value` lines.
+    pub(crate) fn environments(&self) -> Vec<Vec<String>> {
+        self.recorded("env")
+    }
+
+    fn recorded(&self, name: &str) -> Vec<Vec<String>> {
+        let Ok(recorded) = fs::read_to_string(self.path(name)) else {
             return Vec::new();
         };
         recorded

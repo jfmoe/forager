@@ -1043,11 +1043,15 @@ written.
 
 Run these commands only when the user explicitly asks for Gemini Deep Research. They drive
 Gemini in the user's own logged-in Chrome through OpenCLI and the `forager-gemini` adapter: install
-OpenCLI and its Browser Bridge extension (`opencli doctor`), then copy the `opencli/forager-gemini`
-directory next to this skill's `SKILL.md` to `~/.opencli/clis/forager-gemini` (replace the whole
-directory to update), and check with `forager doctor --provider gemini_browser`. No platform
-order or other setting enables them; `providers.gemini_browser.command` and `.timeout` (default
-`opencli` and 240 seconds per OpenCLI command) configure them.
+OpenCLI 2.x (`npm install -g @jackwener/opencli@2`) and its Browser Bridge extension 1.0.25 or
+later (`opencli doctor`), then copy the `opencli/forager-gemini` directory next to this skill's
+`SKILL.md` to `~/.opencli/clis/forager-gemini` (replace the whole directory to update), and
+check with `forager doctor --provider gemini_browser`. No platform order or other setting enables
+them; `providers.gemini_browser.command` and `.timeout` (default `opencli` and 240 seconds per
+OpenCLI command) configure them. The required contract is `forager-gemini/2`. When a command
+reports an older contract such as `forager-gemini/1`, the installed adapter is the older one:
+replace the whole `~/.opencli/clis/forager-gemini` directory with the one from this skill and
+check again with `forager doctor --provider gemini_browser`.
 
 A Gemini report is a Delegated Research Report, not research evidence: relay it as Gemini's
 conclusions with attribution, and fetch a cited source with `forager fetch` before stating one of
@@ -1065,7 +1069,8 @@ forager gemini research start QUERY [--timeout SECONDS] [--format json|markdown]
 | `--timeout SECONDS` | Whole-command deadline. | `240` |
 
 The command brings a Chrome window to the front, opens a new Gemini chat, selects Deep Research,
-sends the question once, and clicks "Start research" on the plan Gemini proposes. It creates a
+sends the question once, clicks "Start research" on the plan Gemini proposes, and opens the
+conversation again to check that the research is running. It creates a
 conversation and spends the account's Deep Research quota, so it runs exactly one attempt whatever
 the `retry` configuration; never run it again after a failure without the user's go-ahead. JSON
 output has `route` (`gemini_browser`), `conversation_id`, `conversation_url`, and `plan`
@@ -1074,9 +1079,11 @@ conversation with `gemini research result`.
 
 Exit codes: `2` for an empty question; `4` for `auth` (Gemini asks the browser to sign in),
 `quota_exhausted` (the Deep Research quota is used up), `timeout`, and `runtime` (the account's
-tools menu offers no Deep Research, or shows it disabled, which may mean the quota is used up; Gemini replied with text instead of a plan, quoted; the plan
-could not be confirmed, so the user must click "Start research" on the conversation page; the
-Gemini response structure changed; or the adapter is missing or outdated). A failure payload adds
+tools menu offers no Deep Research, or shows it disabled, which may mean the quota is used up;
+Gemini replied with text instead of a plan, quoted; the plan could not be confirmed, so the user
+must click "Start research" on the conversation page; the research had not started after the
+click, so read it with `gemini research result` before anything else; the Gemini response
+structure changed; or the adapter is missing or outdated). A failure payload adds
 `conversation_url` once forager knows the conversation. A failure without one whose message says
 forager does not know whether Gemini received the question means the user should look in the
 Gemini history before anything is started again.
@@ -1120,12 +1127,15 @@ could not be written). A failure payload adds `conversation_url`.
 
 Run these commands only when the user explicitly asks for ChatGPT Deep Research. They drive
 ChatGPT in the user's own logged-in Chrome through OpenCLI and the `forager-chatgpt` adapter:
-install OpenCLI and its Browser Bridge extension (`opencli doctor`), then copy the
-`opencli/forager-chatgpt` directory next to this skill's `SKILL.md` to
-`~/.opencli/clis/forager-chatgpt` (replace the whole directory to update), and check with
-`forager doctor --provider chatgpt_browser`. No platform order or other setting enables them;
-`providers.chatgpt_browser.command` and `.timeout` (default `opencli` and 240 seconds per OpenCLI
-command) configure them.
+install OpenCLI 2.x (`npm install -g @jackwener/opencli@2`) and its Browser Bridge extension
+1.0.25 or later (`opencli doctor`), then copy the `opencli/forager-chatgpt` directory next to
+this skill's `SKILL.md` to `~/.opencli/clis/forager-chatgpt` (replace the whole directory to
+update), and check with `forager doctor --provider chatgpt_browser`. The required contract is
+`forager-chatgpt/2`. When a command or the doctor check reports contract `forager-chatgpt/1`, the
+installed adapter is the older one: replace the whole `~/.opencli/clis/forager-chatgpt` directory
+with the one from this skill and run `forager doctor --provider chatgpt_browser` again. No
+platform order or other setting enables them; `providers.chatgpt_browser.command` and
+`.timeout` (default `opencli` and 240 seconds per OpenCLI command) configure them.
 
 A ChatGPT report is a Delegated Research Report, not research evidence: relay it as ChatGPT's
 conclusions with attribution, and fetch a cited source with `forager fetch` before stating one of
@@ -1155,8 +1165,9 @@ Poll the conversation with `chatgpt research result`.
 Exit codes: `2` for an empty question; `4` for `auth` (ChatGPT asks the browser to sign in),
 `quota_exhausted` (the usage receipt or a new usage notice says the Deep Research limit is
 reached), `timeout`, and `runtime` (the chat-mode menu offers no Deep Research; the adapter
-stopped before sending, with its reason, last step, and whether the composer draft was cleared;
-ChatGPT replied with text instead of a plan, quoted, so the user answers on the page; the plan has
+stopped before sending, with its reason (such as `obscured_target` for a button it could not
+click, or `click_missed` for a click the page did not take), last step, and whether the composer
+draft was cleared; ChatGPT replied with text instead of a plan, quoted, so the user answers on the page; the plan has
 not started, and its countdown may still start it, so read the result before anything else; the
 ChatGPT response structure changed; or the adapter is missing or outdated). A message that says
 nothing was sent means no conversation exists. A failure payload adds `conversation_url` once

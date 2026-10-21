@@ -11,7 +11,7 @@ use super::{
 use crate::catalog::PlatformOperation;
 use crate::net::AttemptFailure;
 use crate::providers::execution::execute_anonymous;
-use crate::providers::opencli;
+use crate::providers::opencli::{OpenCliCommand, Window};
 use crate::providers::shared::{other_platform_message, parameter_error};
 use crate::types::{
     AccessToken, AttemptErrorKind, ContentDepth, Deadline, FullTextSource, PlatformFetchOutcome,
@@ -53,12 +53,13 @@ impl XiaohongshuBrowser {
             unreachable!("support checked")
         };
         let full_text = request.depth == ContentDepth::FullText;
-        let command = self.command(
+        let command = self.opencli.command(
             "note",
             vec![
                 ("id", requested.note_id().to_owned()),
                 ("xsec-token", token.as_str().to_owned()),
             ],
+            Window::Background,
         );
         let command = &command;
         let execution = execute_anonymous(
@@ -82,14 +83,14 @@ impl XiaohongshuBrowser {
 }
 
 async fn read_note(
-    command: &opencli::OpenCliCommand<'_>,
+    command: &OpenCliCommand<'_>,
     route: &XiaohongshuBrowser,
     requested: &XiaohongshuRef,
     token: &AccessToken,
     full_text: bool,
     deadline: Deadline,
 ) -> Result<(PlatformItem, FullTextSource), AttemptFailure> {
-    let data: NoteData = route.read_page(command, deadline).await?;
+    let data: NoteData = route.opencli.read(command, deadline).await?;
     classify_blocks(&data.page, |code, notice| {
         note_unavailable(requested, code, notice)
     })?;

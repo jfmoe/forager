@@ -2,26 +2,25 @@
 //! user's own logged-in Chrome through the forager OpenCLI adapter `forager-gemini`.
 //!
 //! The JavaScript adapter only operates pages as a user would and reports what the page itself
-//! received. This provider classifies the page facts, checks that the page shows the expected
-//! conversation, and decodes the responses. Only `forager gemini` commands run it; no chain
-//! does.
+//! received. The shared delegated research flow runs the commands; this provider classifies the
+//! page facts, checks that the page shows the expected conversation, and decodes the responses.
+//! Only `forager gemini` commands run it; no chain does.
 
 use std::cell::OnceCell;
-use std::time::Duration;
 
 use serde::Deserialize;
-use serde::de::DeserializeOwned;
 
-use crate::catalog::{ProviderId, ProviderTransport, registration};
+use crate::catalog::ProviderId;
 use crate::config::ProcessRouteRuntimeConfig;
 use crate::net::{AttemptFailure, RetryPolicy, truncate_message};
-use crate::providers::execution::{ExecutionSettings, execute_anonymous};
-use crate::providers::opencli::{self, CommandFailure, EnvelopeStatus, OpenCliCommand, Window};
+use crate::providers::delegated_research::{
+    DelegatedResearch, ResearchConversation, ResearchSite, StartFailure,
+};
 use crate::rate_limit::RateLimiter;
 use crate::types::{
-    AttemptErrorKind, AttemptTarget, Deadline, GEMINI_RESEARCH_RESULT, GEMINI_RESEARCH_START,
-    GeminiConversationId, GeminiResearchFailure, GeminiResearchResult, GeminiResearchStarted,
-    GeminiResearchState, ProviderError,
+    AttemptErrorKind, Deadline, GEMINI_RESEARCH_RESULT, GEMINI_RESEARCH_START,
+    GeminiConversationId, GeminiPlan, GeminiResearchFailure, GeminiResearchResult,
+    GeminiResearchStarted, GeminiResearchState, ProviderError,
 };
 
 #[path = "gemini_browser_decode.rs"]
@@ -31,13 +30,9 @@ mod start;
 
 const ROUTE: ProviderId = ProviderId::GeminiBrowser;
 const CONVERSATION_RPC: &str = "hNvQHb";
-const STATUS_OPERATION: &str = "status";
 
 pub(crate) struct GeminiBrowser {
-    config: ProcessRouteRuntimeConfig,
-    limiter: RateLimiter,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
+    research: DelegatedResearch<Gemini>,
 }
 
 impl GeminiBrowser {
@@ -48,34 +43,17 @@ impl GeminiBrowser {
         deadline: Deadline,
     ) -> Self {
         Self {
-            config,
-            limiter,
-            retry_policy,
-            deadline,
+            research: DelegatedResearch::new(config, limiter, retry_policy, deadline),
         }
     }
 
-    /// Opens the conversation in a background window and reads where its newest research
-    /// stands from the first conversation response the page receives. Reading changes
-    /// nothing, so failed attempts follow the shared retry policy.
+    /// Reads where the conversation's newest research stands from the first conversation
+    /// response the page receives.
     pub(crate) async fn result(
         &self,
         conversation: &GeminiConversationId,
     ) -> Result<GeminiResearchResult, ProviderError> {
-        let command = self.command(
-            "report",
-            vec![("conversation", conversation.as_str().to_owned())],
-            Window::Background,
-        );
-        let command = &command;
-        let execution = execute_anonymous(
-            self.settings(GEMINI_RESEARCH_RESULT, self.retry_policy),
-            move |deadline| async move {
-                let report: ReportData = self.read(command, deadline).await?;
-                read_research(&report, conversation).map(|state| (None, state))
-            },
-        )
-        .await?;
+        let execution = self.research.result(conversation).await?;
         Ok(GeminiResearchResult {
             route: ROUTE.name(),
             conversation: conversation.clone(),
@@ -86,35 +64,13 @@ impl GeminiBrowser {
         })
     }
 
-    /// Starts a Deep Research in a foreground window, where the tools menu renders: selects
-    /// Deep Research, sends `query` once, and confirms the plan Gemini proposes.
-    ///
-    /// Starting creates a conversation and spends the account's Deep Research quota, so it runs
-    /// exactly one attempt whatever the retry configuration (ADR 0023). A failure carries the
-    /// conversation once forager knows it.
+    /// Starts a Deep Research: selects Deep Research, sends `query` once, and confirms the plan
+    /// Gemini proposes.
     pub(crate) async fn start(
         &self,
         query: &str,
     ) -> Result<GeminiResearchStarted, GeminiResearchFailure> {
-        let command = self.command(
-            "start",
-            vec![("query", query.to_owned())],
-            Window::Foreground,
-        );
-        let command = &command;
-        let created = OnceCell::new();
-        let created_ref = &created;
-        let mut settings = self.settings(GEMINI_RESEARCH_START, single_attempt());
-        settings.timeout_message = start::TIMEOUT_MESSAGE;
-        let execution = execute_anonymous(settings, move |deadline| async move {
-            let facts = self
-                .read(command, deadline)
-                .await
-                .map_err(start::command_failed)?;
-            start::read_start(&facts, created_ref).map(|started| (None, started))
-        })
-        .await;
-        match execution {
+        match self.research.start(query).await {
             Ok(execution) => {
                 let (conversation, plan) = execution.value;
                 Ok(GeminiResearchStarted {
@@ -125,95 +81,66 @@ impl GeminiBrowser {
                     diagnostic: execution.diagnostic,
                 })
             }
-            Err(mut error) => {
-                let conversation = created.into_inner();
-                if let Some(url) = conversation.as_ref().map(GeminiConversationId::url)
-                    && !error.message.contains(url.as_str())
-                {
-                    error.message = format!("{}; see {url}", error.message);
-                }
-                Err(GeminiResearchFailure {
-                    error,
-                    conversation,
-                })
-            }
+            Err(StartFailure {
+                error,
+                conversation,
+            }) => Err(GeminiResearchFailure {
+                error,
+                conversation,
+            }),
         }
     }
 
-    /// Opens the Gemini app in a background window and checks that the browser is signed in.
-    /// The adapter contract and OpenCLI itself are checked on the way.
+    /// Opens the Gemini app and checks that the browser is signed in.
     pub(crate) async fn status(&self) -> Result<(), ProviderError> {
-        let command = self.command(STATUS_OPERATION, Vec::new(), Window::Background);
-        let command = &command;
-        execute_anonymous(
-            self.settings(STATUS_OPERATION, single_attempt()),
-            move |deadline| async move {
-                let status: StatusData = self.read(command, deadline).await?;
-                if status.page.signed_out {
-                    return Err(signed_out());
-                }
-                if status.timed_out {
-                    return Err(AttemptFailure {
-                        kind: AttemptErrorKind::Timeout,
-                        status: None,
-                        message: "the Gemini app did not finish loading before the read deadline"
-                            .into(),
-                    });
-                }
-                Ok((None, ()))
-            },
-        )
-        .await
-        .map(|_| ())
+        self.research.status().await
+    }
+}
+
+struct Gemini;
+
+impl ResearchSite for Gemini {
+    const ROUTE: ProviderId = ROUTE;
+    const START_OPERATION: &'static str = GEMINI_RESEARCH_START;
+    const RESULT_OPERATION: &'static str = GEMINI_RESEARCH_RESULT;
+    const STATUS_TIMEOUT_MESSAGE: &'static str =
+        "the Gemini app did not finish loading before the read deadline";
+    const UNKNOWN_OUTCOME: &'static str = start::UNKNOWN_OUTCOME;
+    const START_TIMEOUT_MESSAGE: &'static str = start::TIMEOUT_MESSAGE;
+
+    type Conversation = GeminiConversationId;
+    type Report = ReportData;
+    type State = GeminiResearchState;
+    type StartFacts = start::StartData;
+    type Plan = GeminiPlan;
+    type StatusPage = PageFacts;
+
+    fn read_status_page(page: &PageFacts) -> Result<(), AttemptFailure> {
+        page_shows_gemini(page, "retry")
     }
 
-    fn command(
-        &self,
-        command: &'static str,
-        options: Vec<(&'static str, String)>,
-        window: Window,
-    ) -> OpenCliCommand<'_> {
-        let ProviderTransport::OpenCli(adapter) = registration(ROUTE).transport else {
-            unreachable!("gemini_browser registers an OpenCLI transport");
-        };
-        OpenCliCommand {
-            executable: &self.config.command,
-            adapter,
-            command,
-            options,
-            window,
-        }
+    fn read_research(
+        report: &ReportData,
+        conversation: &GeminiConversationId,
+    ) -> Result<GeminiResearchState, AttemptFailure> {
+        read_research(report, conversation)
     }
 
-    fn settings(&self, operation: &'static str, retry_policy: RetryPolicy) -> ExecutionSettings {
-        ExecutionSettings {
-            provider: ROUTE.name(),
-            target: AttemptTarget::operation(operation),
-            retry_policy,
-            deadline: self.deadline,
-            attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
-            verbose: false,
-            timeout_message: "OpenCLI command timed out",
-            model: None,
-            transport: Some("process"),
-            endpoint_host: None,
-        }
+    fn read_start(
+        facts: &start::StartData,
+        created: &OnceCell<GeminiConversationId>,
+    ) -> Result<(GeminiConversationId, GeminiPlan), AttemptFailure> {
+        start::read_start(facts, created)
+    }
+}
+
+impl ResearchConversation for GeminiConversationId {
+    fn id(&self) -> &str {
+        self.as_str()
     }
 
-    /// Runs one adapter command and returns the page facts it reported.
-    async fn read<T: DeserializeOwned>(
-        &self,
-        command: &OpenCliCommand<'_>,
-        deadline: Deadline,
-    ) -> Result<T, CommandFailure> {
-        let envelope = opencli::run::<T>(command, &self.limiter, deadline).await?;
-        if envelope.status != EnvelopeStatus::Ok {
-            return Err(runtime(
-                "the forager-gemini adapter reported no results instead of page facts".into(),
-            )
-            .into());
-        }
-        Ok(envelope.data)
+    fn url(&self) -> String {
+        Self::url(self)
     }
 }
 
@@ -224,15 +151,11 @@ struct PageFacts {
     url: String,
     /// Whether the page asks the user to sign in.
     signed_out: bool,
+    /// Whether Google redirected the page to its unusual-traffic page (`www.google.com/sorry`),
+    /// which it shows after a burst of page loads.
+    unusual_traffic: bool,
     /// A notice that the conversation cannot be opened, as the page words it.
     notice: Option<String>,
-}
-
-#[derive(Debug, Default, Deserialize)]
-#[serde(default)]
-struct StatusData {
-    page: PageFacts,
-    timed_out: bool,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -246,10 +169,6 @@ struct ReportData {
     timed_out: bool,
 }
 
-fn single_attempt() -> RetryPolicy {
-    RetryPolicy::new(1, 1.0, Duration::ZERO)
-}
-
 fn runtime(message: String) -> AttemptFailure {
     AttemptFailure {
         kind: AttemptErrorKind::Runtime,
@@ -258,19 +177,23 @@ fn runtime(message: String) -> AttemptFailure {
     }
 }
 
-fn signed_out() -> AttemptFailure {
-    signed_out_then("retry")
-}
-
-/// A signed-out failure whose message ends with what to do after signing in.
-fn signed_out_then(next: &str) -> AttemptFailure {
-    AttemptFailure {
+/// Fails a page that shows something in place of Gemini: a sign-in prompt, or Google's
+/// unusual-traffic page, whose check only the user passes. Both are Auth, which is never
+/// retried, since another page load only prolongs the block. A failure message ends with
+/// `next`, what to do once the page is cleared.
+fn page_shows_gemini(page: &PageFacts, next: &str) -> Result<(), AttemptFailure> {
+    let problem = if page.signed_out {
+        "Gemini asks the browser to sign in; sign in to gemini.google.com in the Chrome that OpenCLI drives"
+    } else if page.unusual_traffic {
+        "Google shows its unusual-traffic page in place of Gemini, as it does after many page loads in a short time; pass its check in the Chrome that OpenCLI drives, or wait until it lifts"
+    } else {
+        return Ok(());
+    };
+    Err(AttemptFailure {
         kind: AttemptErrorKind::Auth,
         status: None,
-        message: format!(
-            "Gemini asks the browser to sign in; sign in to gemini.google.com in the Chrome that OpenCLI drives, then {next}"
-        ),
-    }
+        message: format!("{problem}, then {next}"),
+    })
 }
 
 fn unavailable(conversation: &GeminiConversationId, reason: &str) -> AttemptFailure {
@@ -297,15 +220,13 @@ impl From<decode::ShapeError> for AttemptFailure {
 }
 
 /// Classifies the page facts of a `report` command, then decodes the conversation response.
-/// A signed-out page comes first: it hides whether the conversation exists.
+/// A page in place of Gemini comes first: it hides whether the conversation exists.
 fn read_research(
     report: &ReportData,
     conversation: &GeminiConversationId,
 ) -> Result<GeminiResearchState, AttemptFailure> {
     let page = &report.page;
-    if page.signed_out {
-        return Err(signed_out());
-    }
+    page_shows_gemini(page, "retry")?;
     if let Some(notice) = page.notice.as_deref().map(str::trim)
         && !notice.is_empty()
     {

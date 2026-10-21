@@ -504,11 +504,9 @@ fn the_access_token_appears_only_in_the_access_url_of_a_success() {
 
 #[test]
 fn failures_never_print_the_access_token() {
-    let echoed = FakeOpenCli::answering(
-        "",
-        &format!(
-            "ok: false\nerror:\n  code: COMMAND_EXEC\n  message: forager-xhs/note failed for --xsec-token {TOKEN} on note {NOTE_ID}\n  exitCode: 1\n"
-        ),
+    let echoed = FakeOpenCli::failing(
+        "COMMAND_EXEC",
+        &format!("forager-xhs/note failed for --xsec-token {TOKEN} on note {NOTE_ID}"),
         1,
     );
     let mut misshapen = note_data(&image_note());

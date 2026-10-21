@@ -1,6 +1,6 @@
 //! OpenCLI process transport: runs one command of a forager-owned OpenCLI adapter and decodes
-//! its output envelope. It holds no site knowledge; route adapters choose the command and its
-//! arguments, and read the envelope `data`.
+//! the OpenCLI 2.x output around its envelope. It holds no site knowledge; route adapters choose
+//! the command and its arguments, and read the envelope `data`.
 
 use std::process::{ExitStatus, Stdio};
 use std::time::Duration;
@@ -158,9 +158,14 @@ pub(crate) async fn run<T: DeserializeOwned>(
     let output = output?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(exit_failure(output.status.code(), &stderr, command.adapter));
+        return Err(exit_failure(
+            output.status.code(),
+            &output.stdout,
+            &stderr,
+            command.adapter,
+        ));
     }
-    decode_envelope(&output.stdout, command.adapter, command.command).map_err(CommandFailure::from)
+    decode_success(&output.stdout, command.adapter, command.command).map_err(CommandFailure::from)
 }
 
 /// Runs the adapter's `contract` command, which needs no browser, and checks that the installed
@@ -366,11 +371,33 @@ pub(crate) struct Envelope<T> {
     pub(crate) data: T,
 }
 
+/// The output envelope of a forager-owned adapter command.
 #[derive(Deserialize)]
 struct RawEnvelope {
     contract: Option<String>,
     status: Option<String>,
     data: Option<serde_json::Value>,
+}
+
+/// The stdout of an OpenCLI 2.x command that exited with 0. OpenCLI 1.x printed the adapter
+/// return value bare, so its output has no `ok`.
+#[derive(Deserialize)]
+struct SuccessOutput {
+    ok: Option<bool>,
+    data: Option<serde_json::Value>,
+}
+
+/// The stdout of an OpenCLI 2.x command that failed.
+#[derive(Deserialize)]
+struct FailureOutput {
+    ok: bool,
+    error: ReportedError,
+}
+
+#[derive(Deserialize)]
+struct ReportedError {
+    code: String,
+    message: String,
 }
 
 fn runtime(message: String) -> AttemptFailure {
@@ -388,16 +415,37 @@ fn install_hint(adapter: OpenCliAdapter) -> String {
     )
 }
 
+const UPGRADE_HINT: &str = "forager needs OpenCLI 2.x and Browser Bridge 1.0.25 or later; upgrade OpenCLI and its Chrome extension (see the forager skill references)";
+
 /// Decodes the stdout of a command that exited with 0.
-fn decode_envelope<T: DeserializeOwned>(
+fn decode_success<T: DeserializeOwned>(
     stdout: &[u8],
     adapter: OpenCliAdapter,
     command: &str,
 ) -> Result<Envelope<T>, AttemptFailure> {
     let label = format!("{} {command}", adapter.site);
-    let raw = serde_json::from_slice::<RawEnvelope>(stdout).map_err(|error| {
+    let output = serde_json::from_slice::<SuccessOutput>(stdout)
+        .map_err(|error| runtime(format!("OpenCLI `{label}` printed no JSON result: {error}")))?;
+    match output.ok {
+        Some(true) => decode_envelope(output.data.unwrap_or_default(), adapter, &label),
+        Some(false) => Err(runtime(format!(
+            "OpenCLI `{label}` exited with 0 but reported a failure"
+        ))),
+        None => Err(runtime(format!(
+            "OpenCLI `{label}` printed OpenCLI 1.x output; {UPGRADE_HINT}"
+        ))),
+    }
+}
+
+/// Decodes the adapter envelope that OpenCLI returned as the command result.
+fn decode_envelope<T: DeserializeOwned>(
+    data: serde_json::Value,
+    adapter: OpenCliAdapter,
+    label: &str,
+) -> Result<Envelope<T>, AttemptFailure> {
+    let raw = serde_json::from_value::<RawEnvelope>(data).map_err(|error| {
         runtime(format!(
-            "OpenCLI `{label}` printed no JSON envelope: {error}"
+            "OpenCLI `{label}` returned no adapter envelope: {error}"
         ))
     })?;
     let contract = raw.contract.as_deref().unwrap_or("none");
@@ -423,52 +471,62 @@ fn decode_envelope<T: DeserializeOwned>(
     Ok(Envelope { status, data })
 }
 
-/// The `code` and `message` of the YAML error envelope OpenCLI writes to stderr, or the first
-/// line of other stderr output.
-struct ErrorReport {
-    code: Option<String>,
-    message: String,
+/// Whether an OpenCLI error code says that OpenCLI has no such adapter command: the adapter
+/// failed to load, its site is unknown, or an outdated copy lacks the command or an option.
+fn names_missing_adapter(code: &str) -> bool {
+    matches!(code, "ADAPTER_LOAD" | "unknown_command") || code.starts_with("commander.")
 }
 
-fn error_report(stderr: &str) -> ErrorReport {
-    let field = |name: &str| {
-        stderr.lines().find_map(|line| {
-            line.trim_start()
-                .strip_prefix(name)
-                .map(|value| value.trim().trim_matches(['\'', '"']).to_owned())
-        })
+/// Whether an OpenCLI error code says that OpenCLI rejected the command before running it.
+fn names_rejected_command(code: &str) -> bool {
+    names_missing_adapter(code) || matches!(code, "usage_error" | "ARGUMENT")
+}
+
+/// Whether failed output is the YAML error envelope that OpenCLI 1.x wrote to stderr.
+fn is_legacy_failure(stdout: &[u8], stderr: &str) -> bool {
+    stdout.trim_ascii().is_empty() && stderr.lines().any(|line| line.trim() == "ok: false")
+}
+
+/// Maps a nonzero OpenCLI exit to a command failure, read from the error envelope on stdout or
+/// else the first line of stderr. Exit 66 (`EMPTY_RESULT`) is never a legitimate empty result:
+/// only the adapter envelope's `no_results` status is.
+fn exit_failure(
+    code: Option<i32>,
+    stdout: &[u8],
+    stderr: &str,
+    adapter: OpenCliAdapter,
+) -> CommandFailure {
+    let exit = code.map_or_else(|| "a signal".to_owned(), |code| code.to_string());
+    let rejected = code == Some(USAGE_ERROR);
+    let (error_code, message) = match serde_json::from_slice::<FailureOutput>(stdout) {
+        Ok(FailureOutput { ok: false, error }) => (Some(error.code), error.message),
+        _ if is_legacy_failure(stdout, stderr) => {
+            return CommandFailure {
+                attempt: runtime(format!(
+                    "OpenCLI exited with {exit} and printed an OpenCLI 1.x error; {UPGRADE_HINT}"
+                )),
+                may_have_run: !rejected,
+            };
+        }
+        _ => {
+            let line = stderr.lines().map(str::trim).find(|line| !line.is_empty());
+            (None, line.unwrap_or("no error output").to_owned())
+        }
     };
-    let message = field("message:").unwrap_or_else(|| {
-        stderr
-            .lines()
-            .map(str::trim)
-            .find(|line| !line.is_empty())
-            .unwrap_or("no error output")
-            .to_owned()
-    });
-    ErrorReport {
-        code: field("code:"),
-        message: truncate_message(&redact_urls(&message)),
-    }
-}
-
-/// Maps a nonzero OpenCLI exit to a command failure. Exit 66 (`EMPTY_RESULT`) is never a
-/// legitimate empty result: only the envelope's `no_results` status is.
-fn exit_failure(code: Option<i32>, stderr: &str, adapter: OpenCliAdapter) -> CommandFailure {
-    let report = error_report(stderr);
-    let loads_no_adapter = report.code.as_deref() == Some("ADAPTER_LOAD")
-        || report.message.contains("unknown command");
+    let missing_adapter = error_code.as_deref().is_some_and(names_missing_adapter);
     let kind = match code {
-        Some(69) if loads_no_adapter => AttemptErrorKind::Runtime,
+        Some(69) if missing_adapter => AttemptErrorKind::Runtime,
         Some(69) => AttemptErrorKind::Network,
         Some(75) => AttemptErrorKind::Timeout,
         Some(77) => AttemptErrorKind::Auth,
         _ => AttemptErrorKind::Runtime,
     };
-    let may_have_run = !loads_no_adapter && code != Some(USAGE_ERROR);
-    let code = code.map_or_else(|| "a signal".to_owned(), |code| code.to_string());
-    let mut message = format!("OpenCLI exited with {code}: {}", report.message);
-    if loads_no_adapter {
+    let may_have_run = !rejected && !error_code.as_deref().is_some_and(names_rejected_command);
+    let mut message = format!(
+        "OpenCLI exited with {exit}: {}",
+        truncate_message(&redact_urls(&message))
+    );
+    if missing_adapter {
         message = format!("{message}; {}", install_hint(adapter));
     }
     CommandFailure {
@@ -485,7 +543,7 @@ fn exit_failure(code: Option<i32>, stderr: &str, adapter: OpenCliAdapter) -> Com
 mod tests {
     use serde_json::{Value, json};
 
-    use super::{EnvelopeStatus, decode_envelope, exit_failure};
+    use super::{EnvelopeStatus, decode_success, exit_failure};
     use crate::catalog::OpenCliAdapter;
     use crate::types::AttemptErrorKind;
 
@@ -494,25 +552,29 @@ mod tests {
         contract: "forager-ssrn/3",
     };
 
-    fn decode(value: &Value) -> Result<(EnvelopeStatus, Value), (AttemptErrorKind, String)> {
-        decode_envelope::<Value>(value.to_string().as_bytes(), ADAPTER, "search")
-            .map(|envelope| (envelope.status, envelope.data))
-            .map_err(|failure| (failure.kind, failure.message))
-    }
-
-    mod decode_envelope {
+    mod decode_success {
         use super::*;
+
+        fn decode(stdout: &Value) -> Result<(EnvelopeStatus, Value), (AttemptErrorKind, String)> {
+            decode_success::<Value>(stdout.to_string().as_bytes(), ADAPTER, "search")
+                .map(|envelope| (envelope.status, envelope.data))
+                .map_err(|failure| (failure.kind, failure.message))
+        }
+
+        fn result(envelope: &Value) -> Value {
+            json!({"ok": true, "data": envelope})
+        }
 
         #[test]
         fn returns_the_status_and_data_of_a_matching_contract() {
-            let result = decode(&json!({
+            let decoded = decode(&result(&json!({
                 "contract": "forager-ssrn/3",
                 "status": "no_results",
                 "data": {"url": "https://example.test"}
-            }));
+            })));
 
             assert_eq!(
-                result,
+                decoded,
                 Ok((
                     EnvelopeStatus::NoResults,
                     json!({"url": "https://example.test"})
@@ -522,11 +584,11 @@ mod tests {
 
         #[test]
         fn rejects_another_contract_version_with_a_reinstall_hint() {
-            let (kind, message) = decode(&json!({
+            let (kind, message) = decode(&result(&json!({
                 "contract": "forager-ssrn/2",
                 "status": "ok",
                 "data": {}
-            }))
+            })))
             .unwrap_err();
 
             assert_eq!(
@@ -540,8 +602,9 @@ mod tests {
         }
 
         #[test]
-        fn rejects_output_without_a_contract() {
-            let (kind, message) = decode(&json!({"name": "opencli", "commands": []})).unwrap_err();
+        fn rejects_a_result_without_a_contract() {
+            let (kind, message) =
+                decode(&result(&json!({"name": "opencli", "commands": []}))).unwrap_err();
 
             assert_eq!(
                 (kind, message.contains("contract `none`")),
@@ -550,40 +613,68 @@ mod tests {
         }
 
         #[test]
+        fn rejects_a_null_result() {
+            let decoded = decode(&json!({"ok": true, "data": null}));
+
+            assert_eq!(
+                decoded.map_err(|(kind, _)| kind),
+                Err(AttemptErrorKind::Runtime)
+            );
+        }
+
+        #[test]
         fn rejects_an_unknown_status() {
-            let result = decode(&json!({
+            let decoded = decode(&result(&json!({
                 "contract": "forager-ssrn/3",
                 "status": "partial",
                 "data": {}
-            }));
+            })));
 
             assert_eq!(
-                result.map_err(|(kind, _)| kind),
+                decoded.map_err(|(kind, _)| kind),
                 Err(AttemptErrorKind::Runtime)
             );
         }
 
         #[test]
         fn rejects_stdout_that_is_not_json() {
-            let result = decode_envelope::<Value>(b"items: []", ADAPTER, "search");
+            let decoded = decode_success::<Value>(b"items: []", ADAPTER, "search");
 
             assert_eq!(
-                result.map(|_| ()).map_err(|failure| failure.kind),
+                decoded.map(|_| ()).map_err(|failure| failure.kind),
                 Err(AttemptErrorKind::Runtime)
             );
         }
 
         #[test]
         fn rejects_data_of_another_shape() {
-            let result = decode_envelope::<Vec<String>>(
-                br#"{"contract":"forager-ssrn/3","status":"ok","data":{"items":[]}}"#,
+            let decoded = decode_success::<Vec<String>>(
+                br#"{"ok":true,"data":{"contract":"forager-ssrn/3","status":"ok","data":{"items":[]}}}"#,
                 ADAPTER,
                 "search",
             );
 
             assert_eq!(
-                result.map(|_| ()).map_err(|failure| failure.kind),
+                decoded.map(|_| ()).map_err(|failure| failure.kind),
                 Err(AttemptErrorKind::Runtime)
+            );
+        }
+
+        #[test]
+        fn a_bare_adapter_envelope_asks_to_upgrade_from_opencli_1() {
+            let (kind, message) = decode(&json!({
+                "contract": "forager-ssrn/3",
+                "status": "ok",
+                "data": {}
+            }))
+            .unwrap_err();
+
+            assert_eq!(
+                (kind, message.as_str()),
+                (
+                    AttemptErrorKind::Runtime,
+                    "OpenCLI `ssrn search` printed OpenCLI 1.x output; forager needs OpenCLI 2.x and Browser Bridge 1.0.25 or later; upgrade OpenCLI and its Chrome extension (see the forager skill references)"
+                )
             );
         }
     }
@@ -592,7 +683,12 @@ mod tests {
         use super::*;
 
         fn envelope(code: &str, message: &str) -> String {
-            format!("ok: false\nerror:\n  code: {code}\n  message: {message}\n  exitCode: 1\n")
+            json!({"ok": false, "error": {"code": code, "message": message, "exitCode": 1}})
+                .to_string()
+        }
+
+        fn fail(code: Option<i32>, stdout: &str) -> super::super::CommandFailure {
+            exit_failure(code, stdout.as_bytes(), "", ADAPTER)
         }
 
         #[test]
@@ -614,10 +710,10 @@ mod tests {
                 ),
                 (Some(77), envelope("LOGIN_WALL", "login wall")),
                 (Some(1), envelope("COMMAND_EXEC", "boom")),
-                (Some(2), "error: unknown option '--window'\n".to_owned()),
+                (Some(2), envelope("ARGUMENT", "--window must be one of")),
                 (None, String::new()),
             ]
-            .map(|(code, stderr)| exit_failure(code, &stderr, ADAPTER).attempt.kind);
+            .map(|(code, stdout)| fail(code, &stdout).attempt.kind);
 
             assert_eq!(
                 kinds,
@@ -637,10 +733,9 @@ mod tests {
 
         #[test]
         fn an_adapter_load_failure_carries_the_install_hint() {
-            let failure = exit_failure(
+            let failure = fail(
                 Some(69),
                 &envelope("ADAPTER_LOAD", "cannot load ssrn/search"),
-                ADAPTER,
             );
 
             assert_eq!(
@@ -650,25 +745,32 @@ mod tests {
         }
 
         #[test]
-        fn a_missing_site_carries_the_install_hint() {
-            let failure = exit_failure(Some(2), "error: unknown command 'ssrn'\n", ADAPTER);
+        fn an_unknown_site_or_command_carries_the_install_hint() {
+            let hinted = [
+                envelope("unknown_command", "Unknown command: ssrn"),
+                envelope(
+                    "commander.unknownCommand",
+                    "error: unknown command 'search'",
+                ),
+            ]
+            .map(|stdout| {
+                fail(Some(2), &stdout)
+                    .attempt
+                    .message
+                    .contains("install or update")
+            });
 
-            assert!(
-                failure.attempt.message.contains("install or update"),
-                "{}",
-                failure.attempt.message
-            );
+            assert_eq!(hinted, [true, true]);
         }
 
         #[test]
         fn urls_in_the_error_message_are_redacted() {
-            let failure = exit_failure(
+            let failure = fail(
                 Some(1),
                 &envelope(
                     "COMMAND_EXEC",
                     "failed at https://example.test/file.pdf?token=secret",
                 ),
-                ADAPTER,
             );
 
             assert!(
@@ -679,22 +781,73 @@ mod tests {
         }
 
         #[test]
+        fn output_without_an_error_envelope_reports_the_first_stderr_line() {
+            let failure = exit_failure(None, b"", "\n  Killed by signal 9\nmore detail\n", ADAPTER);
+
+            assert_eq!(
+                failure.attempt.message,
+                "OpenCLI exited with a signal: Killed by signal 9"
+            );
+        }
+
+        #[test]
+        fn a_yaml_error_on_stderr_asks_to_upgrade_from_opencli_1() {
+            let failure = exit_failure(
+                Some(77),
+                b"",
+                "ok: false\nerror:\n  code: AUTH_REQUIRED\n  message: sign in\n  exitCode: 77\n",
+                ADAPTER,
+            );
+
+            assert_eq!(
+                (failure.attempt.kind, failure.attempt.message.as_str()),
+                (
+                    AttemptErrorKind::Runtime,
+                    "OpenCLI exited with 77 and printed an OpenCLI 1.x error; forager needs OpenCLI 2.x and Browser Bridge 1.0.25 or later; upgrade OpenCLI and its Chrome extension (see the forager skill references)"
+                )
+            );
+        }
+
+        #[test]
         fn only_a_rejected_command_line_or_a_missing_adapter_never_ran_the_command() {
+            let outcome_unknown = json!({"ok": false, "error": {
+                "code": "command_result_unknown",
+                "message": "lost",
+                "exitCode": 1,
+                "outcome": "unknown"
+            }})
+            .to_string();
             let ran = [
                 (
                     Some(69),
                     envelope("ADAPTER_LOAD", "cannot load ssrn/search"),
                 ),
-                (Some(2), "error: unknown command 'ssrn'\n".to_owned()),
-                (Some(2), "error: unknown option '--window'\n".to_owned()),
+                (
+                    Some(2),
+                    envelope("unknown_command", "Unknown command: ssrn"),
+                ),
+                (
+                    Some(2),
+                    envelope("commander.unknownOption", "unknown option"),
+                ),
+                (Some(2), envelope("usage_error", "bad usage")),
+                (Some(1), envelope("usage_error", "bad usage")),
+                (Some(1), envelope("ARGUMENT", "bad --timeout")),
+                (Some(2), String::new()),
                 (Some(69), envelope("BROWSER_CONNECT", "daemon unavailable")),
                 (Some(75), envelope("TIMEOUT", "timed out")),
                 (Some(1), envelope("COMMAND_EXEC", "boom")),
+                (Some(1), outcome_unknown),
                 (None, String::new()),
             ]
-            .map(|(code, stderr)| exit_failure(code, &stderr, ADAPTER).may_have_run);
+            .map(|(code, stdout)| fail(code, &stdout).may_have_run);
 
-            assert_eq!(ran, [false, false, false, true, true, true, true]);
+            assert_eq!(
+                ran,
+                [
+                    false, false, false, false, false, false, false, true, true, true, true, true
+                ]
+            );
         }
     }
 }

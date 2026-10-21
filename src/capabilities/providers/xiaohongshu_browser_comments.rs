@@ -11,6 +11,7 @@ use super::{
 };
 use crate::net::AttemptFailure;
 use crate::providers::execution::execute_anonymous;
+use crate::providers::opencli::Window;
 use crate::types::{
     COMMENTS, ProviderError, XiaohongshuComment, XiaohongshuCommentsOutcome,
     XiaohongshuCommentsRequest, XiaohongshuRef, XiaohongshuReply,
@@ -27,7 +28,7 @@ impl XiaohongshuBrowser {
         request: &XiaohongshuCommentsRequest,
     ) -> Result<XiaohongshuCommentsOutcome, ProviderError> {
         let token = &request.access;
-        let command = self.command(
+        let command = self.opencli.command(
             "comments",
             vec![
                 ("id", request.note.note_id().to_owned()),
@@ -35,11 +36,12 @@ impl XiaohongshuBrowser {
                 ("limit", request.limit.to_string()),
                 ("expand", request.replies.to_string()),
             ],
+            Window::Background,
         );
         let command = &command;
         let execution = execute_anonymous(self.settings(COMMENTS), move |deadline| async move {
             let read = async {
-                let data: CommentsData = self.read_page(command, deadline).await?;
+                let data: CommentsData = self.opencli.read(command, deadline).await?;
                 read_comments(&data, request)
             };
             read.await

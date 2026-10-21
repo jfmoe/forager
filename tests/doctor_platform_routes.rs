@@ -198,11 +198,7 @@ fn shallow_doctor_checks_an_enabled_process_route_by_its_contract_command() {
 
 #[test]
 fn shallow_doctor_reports_an_outdated_adapter_with_install_steps() {
-    let fake = FakeOpenCli::answering(
-        r#"{"contract":"forager-ssrn/0","status":"ok","data":{}}"#,
-        "",
-        0,
-    );
+    let fake = FakeOpenCli::contract_envelope("forager-ssrn/0", "ok", &Value::Null);
 
     let output = shallow_with_browser(&fake, true);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");

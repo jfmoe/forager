@@ -2,14 +2,13 @@
 //! conversation and turn ids are replaced, and progress, report bodies, and citations are cut to
 //! what each case needs. No recorded response body is kept in the repository.
 
-use std::fmt::Write as _;
 use std::process::Output;
 
 use serde_json::{Value, json};
 
 use super::opencli::FakeOpenCli;
 
-pub(crate) const CONTRACT: &str = "forager-gemini/1";
+pub(crate) const CONTRACT: &str = "forager-gemini/2";
 pub(crate) const CONVERSATION: &str = "a1b2c3d4e5f60718";
 pub(crate) const CONVERSATION_URL: &str = "https://gemini.google.com/app/a1b2c3d4e5f60718";
 const TASK_PLACEHOLDER: &str = "agency-placeholder-task-id";
@@ -300,109 +299,59 @@ pub(crate) fn status(signed_out: bool) -> Value {
     })
 }
 
-/// The candidate of the first `StreamGenerate`: field 55 holds the plan, field 69 is 2.
-pub(crate) fn plan_candidate() -> Value {
-    candidate(
-        1,
-        "Here's a research plan for that topic.",
-        rich_content(&[(55, plan()), (69, json!(2))]),
+/// A reply turn with text only: no plan and no research document.
+pub(crate) fn reply_turn(index: usize, reply: &str) -> Value {
+    turn(
+        index,
+        "Compare Rust crates that convert HTML to Markdown.",
+        reply,
+        rich_content(&[]),
         None,
     )
 }
 
-/// The candidate of the confirming `StreamGenerate`: field 69 is 3 and the research document
-/// has a title but no body yet.
-pub(crate) fn started_candidate() -> Value {
-    candidate(
-        2,
-        "I'm on it.",
-        rich_content(&[(69, json!(3))]),
-        Some(document("Rust HTML to Markdown Crates", "", None)),
-    )
-}
-
-/// A reply candidate with text only: no plan and no research document.
-pub(crate) fn text_candidate(reply: &str) -> Value {
-    candidate(1, reply, rich_content(&[]), None)
-}
-
-/// A `StreamGenerate` response body: the `)]}'` guard, then length-prefixed frames whose
-/// `wrb.fr` parts carry growing snapshots of the reply. The first snapshot holds only the start
-/// of the reply text; the last one holds `candidate`.
-pub(crate) fn stream_body(candidate: &Value) -> String {
-    let ids = json!([format!("c_{CONVERSATION}"), "r_0001"]);
-    let partial = json!([null, ids, null, null, [[candidate[0], ["Here"]]]]);
-    let complete = json!([null, ids, null, null, [candidate]]);
-    frames(&[
-        json!([["wrb.fr", null, partial.to_string()]]),
-        json!([["wrb.fr", null, complete.to_string()]]),
-        json!([["di", 4120], ["af.httprm", 4119, "-1", 21]]),
-    ])
-}
-
-/// A `StreamGenerate` response body whose only part carries Gemini's error `code` at
-/// `[5][2][0][1][0]`.
-pub(crate) fn stream_error_body(code: u64) -> String {
-    frames(&[json!([[
-        "wrb.fr",
-        null,
-        null,
-        null,
-        null,
-        [
-            3,
-            null,
-            [[
-                "type.googleapis.com/assistant.boq.bard.application.BardErrorInfo",
-                [code]
-            ]]
-        ]
-    ]])])
-}
-
-fn frames(frames: &[Value]) -> String {
-    let mut body = ")]}'\n".to_owned();
-    for frame in frames {
-        let text = frame.to_string();
-        let _ = write!(body, "\n{}\n{text}", text.len());
-    }
-    body.push('\n');
-    body
+/// Moves the page facts `data` to Google's unusual-traffic page, where Google redirects a burst
+/// of Gemini page loads.
+pub(crate) fn on_unusual_traffic_page(data: &mut Value) {
+    data["page"]["url"] =
+        json!("https://www.google.com/sorry/index?continue=https://gemini.google.com/app");
+    data["page"]["unusual_traffic"] = json!(true);
 }
 
 /// Every step of a `start` command, in the order the adapter reaches them.
-pub(crate) const START_STEPS: [&str; 7] = [
+pub(crate) const START_STEPS: [&str; 8] = [
     "tools_menu",
     "deep_research",
     "query",
     "sent",
+    "conversation",
     "answered",
     "confirmed",
-    "started",
+    "reopened",
 ];
 
 /// The page facts of a `start` command at the conversation page after `steps`, with the
-/// `StreamGenerate` bodies it read.
-pub(crate) fn start_facts(steps: &[&str], plan: Option<String>, confirm: Option<String>) -> Value {
-    let [plan, confirm] = [plan, confirm].map(|body| body.map_or(Value::Null, Value::String));
+/// conversation response it read after opening the conversation again.
+pub(crate) fn start_facts(steps: &[&str], response: Option<&str>) -> Value {
+    let conversation = steps.contains(&"conversation").then_some(CONVERSATION);
     json!({
         "page": {"url": CONVERSATION_URL, "signed_out": false, "notice": null},
         "steps": steps,
+        "conversation": conversation,
         "deep_research_missing": false,
         "deep_research_disabled": false,
         "quota_notice": null,
-        "plan_response": plan,
-        "confirm_response": confirm,
+        "response": response,
+        "body_missing": false,
         "timed_out": false
     })
 }
 
-/// The page facts of a `start` command that reached every step.
+/// The page facts of a `start` command that reached every step and read the research running.
 pub(crate) fn started_facts() -> Value {
     start_facts(
         &START_STEPS,
-        Some(stream_body(&plan_candidate())),
-        Some(stream_body(&started_candidate())),
+        Some(&hnvqhb_body(&[running_turn(2, &[]), plan_turn(1)])),
     )
 }
 

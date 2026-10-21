@@ -102,8 +102,26 @@ fn the_gemini_deep_doctor_reports_a_signed_out_browser_as_auth() {
 }
 
 #[test]
+fn the_gemini_deep_doctor_reports_googles_unusual_traffic_page_as_auth() {
+    let mut status = gemini::status(false);
+    gemini::on_unusual_traffic_page(&mut status);
+    let fake = gemini::status_answering(status);
+    let environment = RunEnvironment::new(&gemini::config(&fake));
+
+    let output = environment.run(&["doctor", "--provider", "gemini_browser"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
+
+    assert_eq!(
+        (output.status.code(), &payload["error_kind"]),
+        (Some(4), &json!("auth")),
+        "stdout: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+}
+
+#[test]
 fn the_gemini_deep_doctor_reports_a_missing_adapter_with_install_steps() {
-    let fake = FakeOpenCli::answering("", "error: unknown command 'forager-gemini'\n", 2);
+    let fake = FakeOpenCli::failing("unknown_command", "Unknown command: forager-gemini", 2);
     let environment = RunEnvironment::new(&gemini::config(&fake));
 
     let output = environment.run(&["doctor", "--provider", "gemini_browser"]);
@@ -117,6 +135,31 @@ fn the_gemini_deep_doctor_reports_a_missing_adapter_with_install_steps() {
             message.contains("copy the `opencli/forager-gemini` directory")
         ),
         (Some(4), &json!("runtime"), true),
+        "stdout: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+}
+
+#[test]
+fn the_gemini_deep_doctor_reports_a_no_results_answer_as_runtime() {
+    let fake =
+        FakeOpenCli::contract_envelope(gemini::CONTRACT, "no_results", &gemini::status(false));
+    let environment = RunEnvironment::new(&gemini::config(&fake));
+
+    let output = environment.run(&["doctor", "--provider", "gemini_browser"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["error_kind"],
+            &payload["message"]
+        ),
+        (
+            Some(4),
+            &json!("runtime"),
+            &json!("the forager-gemini adapter reported no results instead of page facts")
+        ),
         "stdout: {}",
         String::from_utf8_lossy(&output.stdout)
     );
