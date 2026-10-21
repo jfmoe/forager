@@ -39,7 +39,8 @@ platform absent from it has no platform command; follow
   user must enable: `forager platform youtube fetch 'REF_OR_URL'`. For what a video shows (slides,
   code, charts), run `forager platform youtube ask 'REF_OR_URL' 'QUESTION'`; for a transcript of a
   video without captions, run `forager platform youtube transcribe 'REF_OR_URL'`. These two need
-  the user's Gemini key. See "YouTube".
+  the user's Gemini key. For the video or audio file itself, see "Video and audio files". See
+  "YouTube".
 
 `forager platform <id> <op> --help` is the syntax authority; see the platform section of
 [`cli.md`](cli.md) for output fields and exit codes.
@@ -312,6 +313,21 @@ from a few seconds to several minutes; `usage` reports what was spent.
 forager platform youtube ask youtube:jNQXAC9IVRw 'How many elephants stand behind the speaker, and what is he wearing?'
 forager platform youtube transcribe 'https://www.youtube.com/watch?v=jNQXAC9IVRw' --format content
 ```
+
+### Video and audio files
+
+forager returns text evidence only and never downloads media. When the user explicitly wants the
+file itself (to keep, watch offline, or pass to another tool), run `yt-dlp` directly; for what a
+video says or shows, the commands above answer without a file. Downloading is against YouTube's
+terms and can get the egress IP blocked, so download only the videos the user named, and never
+pass cookies. yt-dlp needs deno and ffmpeg.
+
+```console
+yt-dlp --ignore-config --no-playlist -o 'DIR/%(id)s.%(ext)s' -- 'VIDEO_URL'
+yt-dlp --ignore-config --no-playlist -x -o 'DIR/%(id)s.%(ext)s' -- 'VIDEO_URL'
+```
+
+The second command keeps only the audio. Report the path yt-dlp printed.
 
 ## SSRN browser route
 
