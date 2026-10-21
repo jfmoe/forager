@@ -570,7 +570,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 | `--timeout` | 秒，≥1 | 240 | 整条命令的截止时间 |
 | `--format` | `json` / `markdown` | `json` | 没有 `content`，也没有 `--output` |
 
-- **页面操作**：发送后等页面 URL 变为 `/app/<id>`，再等计划卡片的 “Start research” 按钮，至多 45 秒；按钮出现即点击一次，按钮消失为点击生效，之后留 5 秒让研究写入会话；按钮在点击前已消失时不点击（研究可能已自行开始），由下一步读到的会话判定。然后经 `/app` 重新打开该会话，按 `result` 的读取规则读取页面自己收到的 `hNvQHb` 响应。是否答完以页面上的按钮为准，不以 `StreamGenerate` 请求结束为准：2026-10-20 在 OpenCLI 2.0.1 下实测，计划已到达，页面的 Resource Timing 在 240 秒内始终没有记录该请求结束。
+- **页面操作**：发送后等页面 URL 变为 `/app/<id>`，再等计划卡片的 “Start research” 按钮，一直等到命令时限只剩确认点击、核对与重新读取会话所需的约 35 秒（2026-10-21 实测卡片晚于 45 秒出现）；按钮出现即点击一次，按钮消失为点击生效，之后留 5 秒让研究写入会话；按钮在点击前已消失时不点击（研究可能已自行开始），由下一步读到的会话判定。然后经 `/app` 重新打开该会话，按 `result` 的读取规则读取页面自己收到的 `hNvQHb` 响应。是否答完以页面上的按钮为准，不以 `StreamGenerate` 请求结束为准：2026-10-20 在 OpenCLI 2.0.1 下实测，计划已到达，页面的 Resource Timing 在 240 秒内始终没有记录该请求结束。
 - **单次 attempt**：`start` 新建会话并消耗 Deep Research 额度，是会改变用户账号状态的写操作（ADR 0023），只执行一次 attempt，不受 `retry` 配置影响，Timeout 与 Network 也不重试。adapter 至多点击一次“发送”与一次 “Start research”，没有点到确认时不再点击，也不重发问题。
 - **成功判定**：最终 URL 为该会话的 `/app/<id>`，且按 `result` 的规则选出的最新研究轮次状态为 3（研究中）或 5（已完成）；研究是 forager 点击确认后开始的，还是 Gemini 自行开始的，判定相同。
 - **输出**：JSON 为 `{route, conversation_id, conversation_url, plan}`，`plan` 为会话中最新一个带计划（rich content 字段 55）的轮次的计划，形状同 `result` 的 `awaiting_confirmation`，与 Research Plan Schema v1 无关。Markdown 渲染会话 URL、计划与轮询提示。

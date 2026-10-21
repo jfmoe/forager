@@ -33,14 +33,15 @@ const SELECT_WAIT_MS = 8000;
 const COMPOSER_WAIT_MS = 3000;
 // How long a send or confirm click has to show its effect on the page.
 const CLICK_CHECK_MS = 5000;
-// The plan card renders after the answer completes, live sometimes later than 10 s; a text
-// answer never shows one.
-const CARD_WAIT_MS = 45000;
 // How long the research has after the confirm click to show in the conversation's turns.
 const START_SETTLE_MS = 5000;
 // Reading the conversation again takes two page loads; it starts no later than this before
 // the deadline.
 const REOPEN_RESERVE_MS = 20000;
+// The plan card renders after the answer completes: live within 15 s on 2026-10-09, later than
+// 45 s on 2026-10-21. A text answer never shows one. The wait leaves only the time the confirm
+// click, its check, the settle, and reading the conversation again need.
+const CARD_RESERVE_MS = 5000 + CLICK_CHECK_MS + START_SETTLE_MS + REOPEN_RESERVE_MS;
 
 /** Page-side helpers shared by the scripts: visibility, labels, and the elements to act on. */
 const HELPERS = `
@@ -277,7 +278,7 @@ async function startResearch(page, query, deadline, facts, run) {
   // confirms it; a text answer shows none. The page itself shows the card, so its button is the
   // signal: live under OpenCLI 2.0.1 the page never recorded the answer's `StreamGenerate` as
   // completed within 240 s, although the plan had arrived.
-  const card = await waitFor(within(CARD_WAIT_MS), async () => {
+  const card = await waitFor(deadline - CARD_RESERVE_MS, async () => {
     await facts.observe(page);
     run.conversation = run.conversation || conversationOf(facts.facts.url);
     if (facts.blocked()) return 'blocked';
