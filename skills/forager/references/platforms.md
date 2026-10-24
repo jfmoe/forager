@@ -348,7 +348,8 @@ has outcomes, usually Yes and No.
     minutes;
   - `no_two_sided_book`: one side has no orders, so there is no probability; never read it as 0
     or 50%;
-  - `not_trading`: the market is closed or suspended;
+  - `not_trading`: the market is closed or suspended; a `neg_risk` event's placeholder markets,
+    which list a candidate nobody trades yet, are suspended;
   - `resolution`: the market resolved, and `price` is the payout (1 for the winner), not a
     probability.
 - Search prices come from Gamma's cache (`price_source: gamma`). For a current figure, fetch the

@@ -7,24 +7,33 @@ use forager::app::{DocsOutputFormat, OutputFormat, OutputTarget, ProviderError};
 use forager::types::{
     ContentDepth, HnStoriesResult, ModelUsage, Platform, PlatformAskResult, PlatformCommentsPage,
     PlatformFetchResult, PlatformItem, PlatformItemData, PlatformSearchPage,
-    PlatformTranscribeResult, PolymarketHistoryResult, PolymarketItemData, ScholarItemData,
-    XAskResult, XPostData, XiaohongshuCommentsPage, YoutubeAskResult, YoutubeCommentsPage,
+    PlatformTranscribeResult, PolymarketHistoryResult, PolymarketItemData, PolymarketWindow,
+    ScholarItemData, XAskResult, XPostData, XiaohongshuCommentsPage, YoutubeAskResult,
+    YoutubeCommentsPage,
 };
 
 use crate::{RenderedOutput, apply_tee, format_failure_json, postflight_exit_code};
 
-pub(crate) fn render_search(
-    result: Result<PlatformSearchPage, ProviderError>,
+/// Renders a platform command's result and tees it to `output`: `render` turns a success into
+/// stdout and its diagnostic; a failure becomes the failure payload, or in Markdown the
+/// `failed` heading with the error.
+fn render_result<T>(
+    result: Result<T, ProviderError>,
     format: OutputFormat,
     output: Option<OutputTarget>,
+    failed: &str,
+    render: impl FnOnce(T) -> Result<(String, Option<String>), String>,
 ) -> Result<RenderedOutput, String> {
     let (stdout, exit_code, diagnostic) = match result {
-        Ok(page) => (format_platform_page(&page, format)?, 0, page.diagnostic),
+        Ok(value) => {
+            let (stdout, diagnostic) = render(value)?;
+            (stdout, 0, diagnostic)
+        }
         Err(error) => {
             let stdout = match format {
                 OutputFormat::Json => format_failure_json(&error)?,
                 OutputFormat::Markdown => format!(
-                    "# Platform search failed\n\n**{}**: {}",
+                    "# {failed}\n\n**{}**: {}",
                     error.kind.as_str(),
                     error.message
                 ),
@@ -39,6 +48,16 @@ pub(crate) fn render_search(
         output,
         diagnostic,
     )
+}
+
+pub(crate) fn render_search(
+    result: Result<PlatformSearchPage, ProviderError>,
+    format: OutputFormat,
+    output: Option<OutputTarget>,
+) -> Result<RenderedOutput, String> {
+    render_result(result, format, output, "Platform search failed", |page| {
+        Ok((format_platform_page(&page, format)?, page.diagnostic))
+    })
 }
 
 fn format_platform_page(page: &PlatformSearchPage, format: OutputFormat) -> Result<String, String> {
@@ -78,27 +97,9 @@ pub(crate) fn render_stories(
     format: OutputFormat,
     output: Option<OutputTarget>,
 ) -> Result<RenderedOutput, String> {
-    let (stdout, exit_code, diagnostic) = match result {
-        Ok(listing) => (format_stories(&listing, format)?, 0, listing.diagnostic),
-        Err(error) => {
-            let stdout = match format {
-                OutputFormat::Json => format_failure_json(&error)?,
-                OutputFormat::Markdown => format!(
-                    "# HN stories failed\n\n**{}**: {}",
-                    error.kind.as_str(),
-                    error.message
-                ),
-            };
-            (stdout, postflight_exit_code(error.kind), error.diagnostic)
-        }
-    };
-    apply_tee(
-        stdout,
-        exit_code,
-        format == OutputFormat::Json,
-        output,
-        diagnostic,
-    )
+    render_result(result, format, output, "HN stories failed", |listing| {
+        Ok((format_stories(&listing, format)?, listing.diagnostic))
+    })
 }
 
 fn format_stories(listing: &HnStoriesResult, format: OutputFormat) -> Result<String, String> {
@@ -141,26 +142,12 @@ pub(crate) fn render_history(
     format: OutputFormat,
     output: Option<OutputTarget>,
 ) -> Result<RenderedOutput, String> {
-    let (stdout, exit_code, diagnostic) = match result {
-        Ok(history) => (format_history(&history, format)?, 0, history.diagnostic),
-        Err(error) => {
-            let stdout = match format {
-                OutputFormat::Json => format_failure_json(&error)?,
-                OutputFormat::Markdown => format!(
-                    "# Polymarket history failed\n\n**{}**: {}",
-                    error.kind.as_str(),
-                    error.message
-                ),
-            };
-            (stdout, postflight_exit_code(error.kind), error.diagnostic)
-        }
-    };
-    apply_tee(
-        stdout,
-        exit_code,
-        format == OutputFormat::Json,
+    render_result(
+        result,
+        format,
         output,
-        diagnostic,
+        "Polymarket history failed",
+        |history| Ok((format_history(&history, format)?, history.diagnostic)),
     )
 }
 
@@ -172,10 +159,9 @@ fn format_history(
         return serde_json::to_string(history).map_err(|error| error.to_string());
     }
     let market = &history.market;
-    let window = match (history.interval, history.from, history.to) {
-        (Some(interval), _, _) => format!("interval {}", interval.as_str()),
-        (None, Some(from), Some(to)) => format!("{from} to {to}"),
-        _ => String::new(),
+    let window = match history.window {
+        PolymarketWindow::Interval(interval) => format!("interval {}", interval.as_str()),
+        PolymarketWindow::Range { from, to } => format!("{from} to {to}"),
     };
     let mut markdown = format!(
         "# Polymarket history ({})\n\n[{}]({}) `{}` — {}\n\n{} outcome, {window}, {}-second buckets\n",
@@ -355,30 +341,9 @@ pub(crate) fn render_comments(
     format: OutputFormat,
     output: Option<OutputTarget>,
 ) -> Result<RenderedOutput, String> {
-    let (stdout, exit_code, diagnostic) = match result {
-        Ok(page) => {
-            let stdout = format_comments(&page, format)?;
-            (stdout, 0, page.into_diagnostic())
-        }
-        Err(error) => {
-            let stdout = match format {
-                OutputFormat::Json => format_failure_json(&error)?,
-                OutputFormat::Markdown => format!(
-                    "# Comments failed\n\n**{}**: {}",
-                    error.kind.as_str(),
-                    error.message
-                ),
-            };
-            (stdout, postflight_exit_code(error.kind), error.diagnostic)
-        }
-    };
-    apply_tee(
-        stdout,
-        exit_code,
-        format == OutputFormat::Json,
-        output,
-        diagnostic,
-    )
+    render_result(result, format, output, "Comments failed", |page| {
+        Ok((format_comments(&page, format)?, page.into_diagnostic()))
+    })
 }
 
 fn format_comments(page: &PlatformCommentsPage, format: OutputFormat) -> Result<String, String> {
@@ -643,28 +608,10 @@ pub(crate) fn render_ask(
     format: OutputFormat,
     output: Option<OutputTarget>,
 ) -> Result<RenderedOutput, String> {
-    let (stdout, exit_code, diagnostic) = match result {
-        Ok(answer) => (format_ask(&answer, format)?, 0, answer.into_diagnostic()),
-        Err(error) => {
-            let stdout = match format {
-                OutputFormat::Json => format_failure_json(&error)?,
-                OutputFormat::Markdown => format!(
-                    "# {} ask failed\n\n**{}**: {}",
-                    platform_title(platform),
-                    error.kind.as_str(),
-                    error.message
-                ),
-            };
-            (stdout, postflight_exit_code(error.kind), error.diagnostic)
-        }
-    };
-    apply_tee(
-        stdout,
-        exit_code,
-        format == OutputFormat::Json,
-        output,
-        diagnostic,
-    )
+    let failed = format!("{} ask failed", platform_title(platform));
+    render_result(result, format, output, &failed, |answer| {
+        Ok((format_ask(&answer, format)?, answer.into_diagnostic()))
+    })
 }
 
 /// Returns the name a Markdown heading gives the platform.

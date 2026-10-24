@@ -16,6 +16,7 @@ forager 的第八个平台 `polymarket` 只有一条匿名 route `polymarket_api
 - **Gamma 的价格可能滞后。** `outcomePrices` 等于 Gamma 自己 bid/ask 的中点，响应经 CDN 缓存最长 300 秒。
 - **空订单簿会给出假数。** 订单簿为空时，CLOB `/midpoint` 与 Gamma 都给出 0.5。这是占位值，不是交易者的判断。
 - **官方显示规则不可靠。** 文档说价差超过 $0.10 时网页改显示最近成交价，但唯一的页面样本在价差 0.627 时仍显示中点。
+- **neg-risk 组里有不交易的占位 market。** 它们未关闭、`active` 为 false，却仍 `acceptingOrders: true`；没有缓存价格，CLOB 也没有订单簿。`presidential-election-winner-2028` 的 128 个 market 中有 74 个是这样。
 - **CLOB 的两种最近成交价不一致。** neg-risk market 上，`/books` 的 `last_trade_price` 是互补价，与 `/last-trade-price` 不一致。
 - **只有 slug 有网页 URL。** polymarket.com 的 URL 只含 slug，数字 id 没有对应页面。没有文档说明 slug 是否会变；已有实现提醒 slug 可能被重新创建的 event 复用。
 - **条款限制针对抓取与机构用途。** ToS §4.2 禁止用 robots 或 crawlers 抓取站点；Capital Market Client 与市场数据分发商未经书面同意，不得经 API 使用数据。
@@ -24,6 +25,7 @@ forager 的第八个平台 `polymarket` 只有一条匿名 route `polymarket_api
 
 - **概率只取买卖两边都有挂单的中点。** Market-Implied Probability 是一个结果在订单簿两边都有挂单时最优买价与卖价的中点。
   - 任一边没有挂单、市场停止交易时，概率为 `null`，并写明原因；
+  - 未关闭而 `active` 为 false 的 neg-risk 占位 market 算作停止交易（`suspended`），不请求 CLOB。`active` 只对未关闭的 market 读取，因为已结算 market 的 `active` 仍为 true；
   - 已结算的市场给出兑付值，标为结算，不称为概率；
   - forager 同时交付 bid、ask、价差与最近成交，由调用方判断宽价差市场的可信度，不替它在中点与成交价之间选择。
 - **一条 route 访问三个端点。** 链语义只取第一条被接受的 route 的结果、不合并，而 fetch 要把 Gamma 的结构与 CLOB 的实时报价组合在一起，所以沿用 ADR 0027 的多端点 route 规则，每个端点一个 URL 配置键。

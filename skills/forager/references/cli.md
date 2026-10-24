@@ -1097,6 +1097,7 @@ market fields with `event_id`, `neg_risk`, `event: {ref, url, title}`, `price_so
 book), `midpoint_cached` (Gamma's cache), `resolution` (the payout of a resolved market),
 `no_two_sided_book` or `not_trading` (no price). `price_source` is `clob` for live quotes, or
 `gamma` when the CLOB API was unavailable (with one stderr diagnostic) or no market trades;
+`last_trade_price` comes only from the CLOB API, so it is `null` without live quotes.
 `prices_as_of` is when the prices were read. `abstract` adds `rules` to the event, and to each
 market whose rules differ.
 

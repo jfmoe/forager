@@ -235,17 +235,25 @@ fn a_page_with_no_match_is_an_empty_result() {
 }
 
 #[test]
-fn unreadable_results_are_skipped_with_one_diagnostic() {
+fn results_without_a_valid_slug_or_markets_are_skipped_with_one_diagnostic() {
     let mut without_markets = event("an-event-without-markets", &[]);
     without_markets
         .as_object_mut()
         .expect("event object")
         .remove("markets");
+    let with_legacy_market_slug = event(
+        "biden-approval-rating",
+        &[market(
+            "will-joe-bidens-approval-rating-be-49.0-or-higher-on-september-1",
+            "49.0 or higher",
+        )],
+    );
     let gamma = Fixture::start_sequence(vec![page(
         &[
             with(fed_event(), &json!({"slug": "not a slug"})),
             fed_event(),
             without_markets,
+            with_legacy_market_slug,
         ],
         false,
     )]);
@@ -268,7 +276,7 @@ fn unreadable_results_are_skipped_with_one_diagnostic() {
         (
             Some(0),
             vec![json!("polymarket:how-many-fed-rate-cuts-in-2026")],
-            "skipped 2 Polymarket search results that could not be read".to_owned(),
+            "skipped 3 Polymarket search results that could not be read".to_owned(),
         )
     );
 }
@@ -295,6 +303,38 @@ fn a_page_whose_every_result_is_unreadable_fails_as_runtime() {
             Some(4),
             json!("runtime"),
             json!("Polymarket Gamma API returned 1 search results and none could be read")
+        )
+    );
+}
+
+#[test]
+fn a_result_with_an_undecodable_field_fails_the_page_as_runtime() {
+    let broken = event(
+        "broken-outcomes",
+        &[with(
+            market("will-1-fed-rate-cut-happen-in-2026", "1 (25 bps)"),
+            &json!({"outcomes": "[\"Yes\", "}),
+        )],
+    );
+    let gamma = Fixture::start_sequence(vec![page(&[fed_event(), broken], false)]);
+    let environment = RunEnvironment::new(&config(&gamma.url, "http://127.0.0.1:9"));
+
+    let output = run(&environment, &["search", "fed rate"]);
+    gamma.finish();
+    let failure = payload(&output);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            failure["error_kind"].clone(),
+            failure["message"].clone()
+        ),
+        (
+            Some(4),
+            json!("runtime"),
+            json!(
+                "Polymarket Gamma API returned polymarket:market/will-1-fed-rate-cut-happen-in-2026 with an undecodable `outcomes`: EOF while parsing a value at line 1 column 8"
+            )
         )
     );
 }
@@ -337,6 +377,26 @@ fn a_gamma_validation_error_is_a_forager_defect_not_a_user_error() {
             json!(
                 "Polymarket Gamma API returned HTTP 422: query argument \"page\": must be less than or equal to 100"
             )
+        )
+    );
+}
+
+#[test]
+fn an_empty_order_is_a_configuration_error_before_any_request() {
+    let gamma = Fixture::start_sequence(Vec::new());
+    let environment = RunEnvironment::new(&format!(
+        "{}\n[platforms.polymarket]\norder = []\n",
+        config(&gamma.url, "http://127.0.0.1:9")
+    ));
+
+    let output = run(&environment, &["search", "fed rate"]);
+    gamma.finish_all();
+
+    assert_eq!(
+        (output.status.code(), stderr(&output).trim().to_owned()),
+        (
+            Some(3),
+            "config_error: platforms.polymarket.order has no configured route for polymarket search".to_owned()
         )
     );
 }

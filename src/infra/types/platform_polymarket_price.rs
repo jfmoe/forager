@@ -88,17 +88,20 @@ pub(crate) struct MarketPricing {
     pub(crate) spread: Option<f64>,
 }
 
-/// Derives a market's status. `active` is never read: a resolved market stays active.
+/// Derives a market's status from Gamma's `closed`, `umaResolutionStatus`, `active`, and
+/// `acceptingOrders`. `active` counts only before a market closes: a resolved market stays
+/// active, while an inactive unclosed one is a neg-risk placeholder without an order book.
 pub(crate) fn market_status(
     closed: bool,
-    resolved: bool,
+    resolution: Option<&str>,
+    active: bool,
     accepting_orders: bool,
 ) -> PolymarketStatus {
-    match (closed, resolved, accepting_orders) {
-        (true, true, _) => PolymarketStatus::Resolved,
-        (true, false, _) => PolymarketStatus::Closed,
-        (false, _, true) => PolymarketStatus::Open,
-        (false, _, false) => PolymarketStatus::Suspended,
+    match (closed, resolution == Some("resolved")) {
+        (true, true) => PolymarketStatus::Resolved,
+        (true, false) => PolymarketStatus::Closed,
+        (false, _) if active && accepting_orders => PolymarketStatus::Open,
+        (false, _) => PolymarketStatus::Suspended,
     }
 }
 

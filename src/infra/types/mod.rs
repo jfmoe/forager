@@ -73,11 +73,11 @@ pub use platform_polymarket::{
     PolymarketTopMarket,
 };
 pub(crate) use platform_polymarket_history::{
-    HISTORY, PolymarketHistoryOutcome, PolymarketHistoryRequest, PolymarketWindow,
+    HISTORY, PolymarketHistoryOutcome, PolymarketHistoryRequest,
 };
 pub use platform_polymarket_history::{
     PolymarketBucket, PolymarketHistoryMarket, PolymarketHistoryResult, PolymarketInterval,
-    PolymarketPricePoint,
+    PolymarketPricePoint, PolymarketWindow,
 };
 pub(crate) use platform_scholar::{
     CITED_BY, SCHOLAR_MAX_LIMIT, ScholarCitedByRequest, ScholarCitedBySort,

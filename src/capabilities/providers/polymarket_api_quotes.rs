@@ -1,6 +1,7 @@
-//! Live CLOB quotes for Polymarket fetch: the best bid and ask of every outcome token from
-//! `POST /prices`, and each token's last trade from `POST /last-trades-prices`. The CLOB only
-//! enriches Gamma's result, so a failed price read leaves the caller to price from Gamma's cache.
+//! Live CLOB quotes for Polymarket fetch, and the fallback to Gamma's cache: the best bid and
+//! ask of every outcome token from `POST /prices`, and each token's last trade from
+//! `POST /last-trades-prices`. The CLOB only enriches Gamma's result, so a failed price read
+//! prices every market from Gamma's cache with one diagnostic.
 
 use std::collections::HashMap;
 
@@ -8,24 +9,25 @@ use chrono::Utc;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
-use super::gamma::Number;
+use super::gamma::{Market, MarketQuotes, Number, Quotes};
 use super::{Call, Endpoint, PolymarketApi};
 use crate::catalog::PlatformOperation;
 use crate::providers::shared::{Refusal, Trail, utc_second};
-use crate::types::{BookTop, ProviderError};
+use crate::types::{BookTop, PolymarketStatus, ProviderError};
 
 /// The most entries one CLOB batch request takes; a larger batch is refused with HTTP 400
 /// (measured 2026-10-24). A price entry asks for one side of one token.
 const MAX_BATCH_ITEMS: usize = 500;
+const STALE_QUOTES: &str = "prices are Gamma's cached quotes, which may lag up to 5 minutes";
 
 /// What the CLOB said about a set of outcome tokens.
-pub(super) struct LiveQuotes {
+struct LiveQuotes {
     /// The top of book of every token the CLOB answered for.
-    pub(super) tops: HashMap<String, BookTop>,
+    tops: HashMap<String, BookTop>,
     /// The last trade of every token that has traded; `None` when that read failed.
-    pub(super) last_trades: Option<HashMap<String, f64>>,
+    last_trades: Option<HashMap<String, f64>>,
     /// When the price read completed, in UTC.
-    pub(super) as_of: String,
+    as_of: String,
 }
 
 /// One side of a token's best price, as `POST /prices` answers: BUY is the best bid and SELL
@@ -45,9 +47,70 @@ struct LastTrade {
 }
 
 impl PolymarketApi {
+    /// Reads the live quotes of the open ones of `markets`. With no open market, or when the
+    /// CLOB fails, every market prices from Gamma's cache.
+    pub(super) async fn quote(&self, markets: &[Market], trail: &mut Trail) -> Quotes {
+        let open = markets
+            .iter()
+            .filter(|market| market.status == PolymarketStatus::Open)
+            .collect::<Vec<_>>();
+        if open.is_empty() {
+            return Quotes::Cached;
+        }
+        let tokens = open
+            .iter()
+            .flat_map(|market| market.tokens.iter().cloned())
+            .collect::<Vec<_>>();
+        let live = match self.live_quotes(&tokens, trail).await {
+            Ok(live) => live,
+            Err(error) => {
+                trail.note(format!(
+                    "Polymarket CLOB API unavailable ({}); {STALE_QUOTES}",
+                    error.message
+                ));
+                return Quotes::Cached;
+            }
+        };
+        let missing = tokens
+            .iter()
+            .filter(|token| !live.tops.contains_key(*token))
+            .count();
+        if missing > 0 {
+            trail.note(format!(
+                "Polymarket CLOB API returned no quote for {missing} {}; {} no price",
+                if missing == 1 { "outcome" } else { "outcomes" },
+                if missing == 1 { "it has" } else { "they have" }
+            ));
+        }
+        let markets = open
+            .iter()
+            .map(|market| {
+                let quotes = MarketQuotes::Live {
+                    tops: market
+                        .tokens
+                        .iter()
+                        .map(|token| live.tops.get(token).copied())
+                        .collect(),
+                    last_trade: live
+                        .last_trades
+                        .as_ref()
+                        .and_then(|trades| {
+                            market.tokens.first().and_then(|token| trades.get(token))
+                        })
+                        .copied(),
+                };
+                (market.reference.slug().to_owned(), quotes)
+            })
+            .collect();
+        Quotes::Live {
+            markets,
+            as_of: live.as_of,
+        }
+    }
+
     /// Reads the live quotes of `tokens`. A failed price read is the error of the whole read;
     /// a failed last-trade read only leaves the last trades out, with a note on `trail`.
-    pub(super) async fn live_quotes(
+    async fn live_quotes(
         &self,
         tokens: &[String],
         trail: &mut Trail,
