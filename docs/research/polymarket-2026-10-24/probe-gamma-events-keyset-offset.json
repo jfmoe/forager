@@ -1,0 +1,28 @@
+{
+  "url": "https://gamma-api.polymarket.com/events/keyset?closed=false&limit=2&offset=2",
+  "fetched_at": "2026-10-24T04:47:20.025+00:00",
+  "http_code": "422",
+  "curl_time_total_s": "0.465743",
+  "client": "curl, anonymous, no cookies",
+  "status_lines": [
+    "HTTP/1.0 200 Connection established",
+    "HTTP/2 422"
+  ],
+  "headers_subset": {
+    "content-type": "application/json",
+    "content-length": "80",
+    "date": "Sat, 24 Oct 2026 04:47:20 GMT",
+    "x-envoy-upstream-service-time": "1",
+    "server": "istio-envoy",
+    "vary": "Accept-Encoding,Origin",
+    "x-cache": "Error from cloudfront",
+    "via": "1.1 d585c5a4fc7aafde7a406ed62c00241c.cloudfront.net (CloudFront)",
+    "x-amz-cf-pop": "LAX54-P12"
+  },
+  "body_bytes": 80,
+  "body_trimmed": {
+    "type": "validation error",
+    "error": "offset is not allowed on keyset endpoints"
+  },
+  "body_format": "json"
+}

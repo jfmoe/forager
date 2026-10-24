@@ -1,0 +1,1783 @@
+{
+  "checked_on": "2026-10-24",
+  "generated_at": "2026-10-24T05:00:18+00:00",
+  "repository_baseline": "df35af4afa1290f2f31f78df5718683e2b6bcb4d",
+  "hash_algorithm": "sha256",
+  "self_exclusion": "This manifest excludes its own bytes.",
+  "normalization": "probe-*.json are trimmed projections of live responses: lists cut to the first few items with a count note, long strings truncated, response headers filtered to caching/CDN/rate-limit related ones; the client IP in probe-geoblock.json is redacted. web-*.json and legal-tos-page.json keep only facts extracted from HTML. doc-*.md and us-doc-*.md are the Markdown variants served by the Mintlify docs (<page>.md).",
+  "source_policy": "Primary sources only: docs.polymarket.com, docs.polymarket.us, official OpenAPI/AsyncAPI specs, Polymarket Terms of Use, official Polymarket GitHub repositories, and anonymous first-party API responses. No credentials, wallet, login or trading.",
+  "test_scope": {
+    "anonymous_requests": 67,
+    "window_utc": "2026-10-24T04:46Z–04:54Z",
+    "downloaded_source_execution": false,
+    "credential_values_recorded": false
+  },
+  "report": {
+    "file": "../2026-10-24-polymarket-integration.md",
+    "bytes": 47886,
+    "sha256": "01312f4fe8ad0215d9622d434c1bcfc9977982d91dade924727c528fa67da3c0"
+  },
+  "files": [
+    {
+      "file": "api-reference-predictions.txt",
+      "kind": "official_doc",
+      "bytes": 28109,
+      "sha256": "064c4672cb7bb817d6604b2b7ae37eada4f7403d4cab9e304ce57798234eb77e",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/_llms/en/api-reference/predictions.txt",
+          "fetched_at": "2026-10-24T04:39:18Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "api-reference.txt",
+      "kind": "official_doc",
+      "bytes": 1110,
+      "sha256": "67989453e76926214d0416c49555544768978b6b9ee44293a1bc195e69591477",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/_llms/en/api-reference.txt",
+          "fetched_at": "2026-10-24T04:39:18Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_comments_list-comments.md",
+      "kind": "official_doc",
+      "bytes": 6218,
+      "sha256": "617f40f91397f039c12a966658e03da65b9789488b0cd2d2a05d04f039c6a241",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/comments/list-comments.md",
+          "fetched_at": "2026-10-24T04:40:27Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_data-api_overview.md",
+      "kind": "official_doc",
+      "bytes": 10350,
+      "sha256": "d42253efa55c9e50fe8f300a9632e118729043eb371b20ae618ab98d59de9eb1",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/data-api/overview.md",
+          "fetched_at": "2026-10-24T04:40:25Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_data_get-midpoint-price.md",
+      "kind": "official_doc",
+      "bytes": 3202,
+      "sha256": "6da2641c7cc5dd5f0eecaa262d324cc46cd20eb23501b2bb77cd064163c72ed6",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/data/get-midpoint-price.md",
+          "fetched_at": "2026-10-24T04:40:15Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_events_get-event-by-id.md",
+      "kind": "official_doc",
+      "bytes": 28084,
+      "sha256": "896e3f4b6533aebfa0fcdc779a3ad9532f08f32ccda838e015c8cd54ddfc468d",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/events/get-event-by-id.md",
+          "fetched_at": "2026-10-24T04:39:51Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_events_get-event-by-slug.md",
+      "kind": "official_doc",
+      "bytes": 28113,
+      "sha256": "8d366fd4078d609310ea3664c17f99947457a814920d5e8bfefaeeec524dfc87",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/events/get-event-by-slug.md",
+          "fetched_at": "2026-10-24T04:39:52Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_events_list-events-keyset-pagination.md",
+      "kind": "official_doc",
+      "bytes": 36245,
+      "sha256": "29f3d04690b8966079ad57606cc3760d7704f4b233205de2380ee2eaeac8d0e1",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/events/list-events-keyset-pagination.md",
+          "fetched_at": "2026-10-24T04:39:49Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_events_list-events.md",
+      "kind": "official_doc",
+      "bytes": 31037,
+      "sha256": "ae4d57cf733a9b2cde990fade7227ee4432522ff96f5b8c2304da9a90b2a1e87",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/events/list-events.md",
+          "fetched_at": "2026-10-24T04:39:47Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_feeds_list-trades.md",
+      "kind": "official_doc",
+      "bytes": 17024,
+      "sha256": "507b47690c31d7d47657b667d304868e2d86aa959d368a42644691fa78ec2b5d",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/feeds/list-trades.md",
+          "fetched_at": "2026-10-24T04:40:24Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_geoblock.md",
+      "kind": "official_doc",
+      "bytes": 5915,
+      "sha256": "c767eaff91bfba51f4653f13f749ae93f0b61a6dd7ba5f6c6a34ced94064d36a",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/geoblock.md",
+          "fetched_at": "2026-10-24T04:39:22Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_market-data_get-last-trade-price.md",
+      "kind": "official_doc",
+      "bytes": 3485,
+      "sha256": "c2020f46e48ba583e5a6ebdec09b1ef6180caf7cf2bdd57ec4df075f46704b6c",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/market-data/get-last-trade-price.md",
+          "fetched_at": "2026-10-24T04:40:19Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_market-data_get-market-price.md",
+      "kind": "official_doc",
+      "bytes": 4048,
+      "sha256": "ea2880f2da6600434c365dbed9aada80c4d49797ac764ffabae253a06abb262d",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/market-data/get-market-price.md",
+          "fetched_at": "2026-10-24T04:40:12Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_market-data_get-market-prices-query-parameters.md",
+      "kind": "official_doc",
+      "bytes": 4067,
+      "sha256": "eb114493f8b7355c88c861bb539a716c061e614a8f69fb745e5b0addf11432eb",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/market-data/get-market-prices-query-parameters.md",
+          "fetched_at": "2026-10-24T04:40:14Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_market-data_get-order-book.md",
+      "kind": "official_doc",
+      "bytes": 5803,
+      "sha256": "85a606166da518d9c85523406bfeeeae76f4f069171320ea3b8c6c906974fcc4",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/market-data/get-order-book.md",
+          "fetched_at": "2026-10-24T04:40:11Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_market-data_get-spread.md",
+      "kind": "official_doc",
+      "bytes": 3124,
+      "sha256": "49003dc6bcfc31fcafe607a919a2758b293aeb54a1a60866e749ae8dfe6b644e",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/market-data/get-spread.md",
+          "fetched_at": "2026-10-24T04:40:17Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_markets_get-a-tokens-price-history.md",
+      "kind": "official_doc",
+      "bytes": 22870,
+      "sha256": "dbd5e33956200540998dd8f99a361ff12cafc28de019ccc562170ac7b2582faa",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/markets/get-a-tokens-price-history.md",
+          "fetched_at": "2026-10-24T04:40:04Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_markets_get-batch-prices-history.md",
+      "kind": "official_doc",
+      "bytes": 4121,
+      "sha256": "8e861601f816fa1af3d413dbabe8bc7096df5358130e725842c11a5d846de406",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/markets/get-batch-prices-history.md",
+          "fetched_at": "2026-10-24T04:40:06Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_markets_get-market-by-id.md",
+      "kind": "official_doc",
+      "bytes": 27994,
+      "sha256": "1a52ff01572c8a39e176432c0720ed0bc27aca31a9ec1122885a7c4c8b778b52",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/markets/get-market-by-id.md",
+          "fetched_at": "2026-10-24T04:39:57Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_markets_get-market-by-slug.md",
+      "kind": "official_doc",
+      "bytes": 28023,
+      "sha256": "fc68de9024cc859fb469b07c898e8c3cedc4f979afaca8126e86cb2cd06a2aa6",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/markets/get-market-by-slug.md",
+          "fetched_at": "2026-10-24T04:39:59Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_markets_get-market-by-token.md",
+      "kind": "official_doc",
+      "bytes": 4002,
+      "sha256": "42fe0b8d68286a337fc5bea9335711b7ce6cce18f82dc85a28c97075dab3eafa",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/markets/get-market-by-token.md",
+          "fetched_at": "2026-10-24T04:40:01Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_markets_get-open-interest.md",
+      "kind": "official_doc",
+      "bytes": 11736,
+      "sha256": "3e9f42c55ce7844fc7c20c6d8ed7cb789be24e64437d1d1f30b2621c43eb1ce1",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/markets/get-open-interest.md",
+          "fetched_at": "2026-10-24T04:40:20Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_markets_get-prices-history.md",
+      "kind": "official_doc",
+      "bytes": 3898,
+      "sha256": "e8e811fc15da9cedc750732e85db65ac4049a7d373ed264a2a7bace9d559d98d",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/markets/get-prices-history.md",
+          "fetched_at": "2026-10-24T04:40:02Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_markets_get-resolution-state.md",
+      "kind": "official_doc",
+      "bytes": 16892,
+      "sha256": "a703d0ebc6ff2c1bd32fd711cae2a72220aa88559058be4ea7c63ff5ca0f5441",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/markets/get-resolution-state.md",
+          "fetched_at": "2026-10-24T04:40:08Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_markets_list-a-markets-top-holders.md",
+      "kind": "official_doc",
+      "bytes": 20025,
+      "sha256": "778d7351af670f6da39a2a334f39e62779d06c594049c4f697a43887b75744e5",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/markets/list-a-markets-top-holders.md",
+          "fetched_at": "2026-10-24T04:40:22Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_markets_list-markets-keyset-pagination.md",
+      "kind": "official_doc",
+      "bytes": 35003,
+      "sha256": "6376a94df35a59797bb08b43fde8c6be2f85a6362eccb297ebe4bcd5e2b373a1",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/markets/list-markets-keyset-pagination.md",
+          "fetched_at": "2026-10-24T04:39:56Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_markets_list-markets.md",
+      "kind": "official_doc",
+      "bytes": 31634,
+      "sha256": "783670f60fbdacf179fb869af5b0265d4954402069383b6582147bd092032fa6",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/markets/list-markets.md",
+          "fetched_at": "2026-10-24T04:39:54Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_markets_look-up-tokens.md",
+      "kind": "official_doc",
+      "bytes": 20565,
+      "sha256": "8e05c5c93e12e8887ebc6ec3b913ae43ff9b7af10e6ca83ac1f0559430365a95",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/markets/look-up-tokens.md",
+          "fetched_at": "2026-10-24T04:40:09Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_predictions_overview.md",
+      "kind": "official_doc",
+      "bytes": 1698,
+      "sha256": "df1c6d2eb31e9e95c4a29e5f4df472cbe1ee962d47788bba703e0165ebaf3b14",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/predictions/overview.md",
+          "fetched_at": "2026-10-24T04:39:19Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_rate-limits.md",
+      "kind": "official_doc",
+      "bytes": 3519,
+      "sha256": "7953b3bccf6200f3dc377ded742a57249fc36c822202616d9275574825bcf1fc",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/rate-limits.md",
+          "fetched_at": "2026-10-24T04:39:21Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_search_search-markets-events-and-profiles.md",
+      "kind": "official_doc",
+      "bytes": 31661,
+      "sha256": "c1dfb9c2db9ed0c36dd8d1a271455f5aa689bedf8e8ddc0b3a76fb8bcf69d25b",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/search/search-markets-events-and-profiles.md",
+          "fetched_at": "2026-10-24T04:39:45Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_series_list-series.md",
+      "kind": "official_doc",
+      "bytes": 29151,
+      "sha256": "54d5131df88bf567bc34df25359e402320de50e83d569511eca925bf654f5443",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/series/list-series.md",
+          "fetched_at": "2026-10-24T04:40:30Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_service_get-data-freshness.md",
+      "kind": "official_doc",
+      "bytes": 18150,
+      "sha256": "371f32ca156ad0537d17049761cb806e8749695233067be668f84d18eb6d9a40",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/service/get-data-freshness.md",
+          "fetched_at": "2026-10-24T04:39:24Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_sports_get-sports-metadata-information.md",
+      "kind": "official_doc",
+      "bytes": 2840,
+      "sha256": "9a9ec8366a3596d3af4de61af3ea3458cad60819b6cea51eabf1d3ee8524bc99",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/sports/get-sports-metadata-information.md",
+          "fetched_at": "2026-10-24T04:40:32Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_tags_list-tags.md",
+      "kind": "official_doc",
+      "bytes": 3361,
+      "sha256": "365df2b556a6231202ff043b39c6118c60a759887273ad9136b00623e0a3eb30",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/tags/list-tags.md",
+          "fetched_at": "2026-10-24T04:40:29Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-api-reference_wss_market.md",
+      "kind": "official_doc",
+      "bytes": 44907,
+      "sha256": "0828ba0ecbff80d9e611f6ceb3922ef48a9cd794feab97ede1ab879d7cbd5a79",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-reference/wss/market.md",
+          "fetched_at": "2026-10-24T04:40:33Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-changelog_predictions.md",
+      "kind": "official_doc",
+      "bytes": 34163,
+      "sha256": "18e492aa10f664b26141995ed8e97f584a5266fbd371a081cb75b131688cc6f6",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/changelog/predictions.md",
+          "fetched_at": "2026-10-24T04:40:37Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-concepts_markets-events.md",
+      "kind": "official_doc",
+      "bytes": 4134,
+      "sha256": "fc5ddc6a7386d3f262f12ed207ae51f9d0a0bb9355e56591c68b58dc69e901a3",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/concepts/markets-events.md",
+          "fetched_at": "2026-10-24T04:39:28Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-concepts_negative-risk.md",
+      "kind": "official_doc",
+      "bytes": 3333,
+      "sha256": "a4c53dafea954a0dcc2cef06527c465292d12b1b607988ee0e880b425898b438",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/concepts/negative-risk.md",
+          "fetched_at": "2026-10-24T04:39:32Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-concepts_prices-orderbook.md",
+      "kind": "official_doc",
+      "bytes": 4363,
+      "sha256": "228e30f8e94d8c972307af59b7d779386f671770cd27f179cf06fbc5eb21b7e4",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/concepts/prices-orderbook.md",
+          "fetched_at": "2026-10-24T04:39:29Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-concepts_resolution.md",
+      "kind": "official_doc",
+      "bytes": 6437,
+      "sha256": "50758c1fe10096682dc0b44aa5bdf6f45326785649e1b82247aa03903121023c",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/concepts/resolution.md",
+          "fetched_at": "2026-10-24T04:39:31Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-getting-started_api.md",
+      "kind": "official_doc",
+      "bytes": 7836,
+      "sha256": "b97b2d2331752f9ec31f3dff3ddec62cd7fe91388e69234dcd22f4dda83f8340",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/getting-started/api.md",
+          "fetched_at": "2026-10-24T04:39:26Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-getting-started_sdks-apis.md",
+      "kind": "official_doc",
+      "bytes": 1949,
+      "sha256": "b3fdab966f7247790516aee35d70de69b3678db33c2bf6d255c5ed0e29aad641",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/getting-started/sdks-apis.md",
+          "fetched_at": "2026-10-24T04:40:39Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-market-data_discover-markets.md",
+      "kind": "official_doc",
+      "bytes": 55485,
+      "sha256": "cb1abdf415d95c3092d8d17d10fd1d5b31a46232de5d3f6a175a35f0cd8db95e",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/market-data/discover-markets.md",
+          "fetched_at": "2026-10-24T04:39:36Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-market-data_market-details.md",
+      "kind": "official_doc",
+      "bytes": 26051,
+      "sha256": "de60552c947f8cf3ed4913032a3a1a302c2126086cbf029e2682b0f0eb8b9769",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/market-data/market-details.md",
+          "fetched_at": "2026-10-24T04:39:38Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-market-data_overview.md",
+      "kind": "official_doc",
+      "bytes": 2609,
+      "sha256": "45e79bf85689c19856212be0b92ebca0b05cf597d65426bc2d39de1a057ac120",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/market-data/overview.md",
+          "fetched_at": "2026-10-24T04:39:34Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-market-data_prices-order-books.md",
+      "kind": "official_doc",
+      "bytes": 33346,
+      "sha256": "28def09c4add9682ee9b3d92cdf4470589675de1f3aa8aa0cf3865546f75f692",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/market-data/prices-order-books.md",
+          "fetched_at": "2026-10-24T04:39:41Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-market-data_realtime-data.md",
+      "kind": "official_doc",
+      "bytes": 56860,
+      "sha256": "6c39186a6f40477643bfacd762314553eafa5edac73ab1940dc0cdc333854ab7",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/market-data/realtime-data.md",
+          "fetched_at": "2026-10-24T04:39:43Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "doc-migrate_data-api-v1-to-v2.md",
+      "kind": "official_doc",
+      "bytes": 5211,
+      "sha256": "ef0367bbe4ebb81cc9dca2d9012381744444d9e6c6fd4a19e0695dd073c08b4b",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/migrate/data-api-v1-to-v2.md",
+          "fetched_at": "2026-10-24T04:40:35Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "environment.json",
+      "kind": "environment",
+      "bytes": 950,
+      "sha256": "05a06aa56863437d9ada80d37ea8c7bf64cd5b6dbcea7151ffaa8d10cca3277c",
+      "sources": [
+        {
+          "url": null,
+          "fetched_at": "2026-10-24",
+          "http_status": null
+        }
+      ]
+    },
+    {
+      "file": "github-py-sdk-gamma_paths.py.txt",
+      "kind": "source_code_or_repo_metadata",
+      "bytes": 3203,
+      "sha256": "3fb9cf533a7739288aac79a647f69aa1cfe0d4bd3d3a807a10168e7dd1765439",
+      "sources": [
+        {
+          "url": "https://github.com/Polymarket/py-sdk/blob/7032ed06175b0bbea77b2d9e898bd9f252af2041/src/polymarket/_internal/gamma_paths.py",
+          "fetched_at": "2026-10-24T04:54:40+00:00",
+          "http_status": "git clone"
+        }
+      ]
+    },
+    {
+      "file": "github-py-sdk-test_gamma_paths.py.txt",
+      "kind": "source_code_or_repo_metadata",
+      "bytes": 7932,
+      "sha256": "c2072a67bb948558969ff594676444367f36558e593b0c951fd3b195dd788c53",
+      "sources": [
+        {
+          "url": "https://github.com/Polymarket/py-sdk/blob/7032ed06175b0bbea77b2d9e898bd9f252af2041/tests/unit/test_gamma_paths.py",
+          "fetched_at": "2026-10-24T04:54:40+00:00",
+          "http_status": "git clone"
+        }
+      ]
+    },
+    {
+      "file": "github-repos.json",
+      "kind": "source_code_or_repo_metadata",
+      "bytes": 1793,
+      "sha256": "59149744c6d59ac7c38d8a61ba61d2c76ac74b90937833222efa5ef79cdff210",
+      "sources": [
+        {
+          "url": "https://github.com/Polymarket/py-sdk",
+          "fetched_at": "2026-10-24T04:54:40+00:00",
+          "http_status": "git clone"
+        },
+        {
+          "url": "https://github.com/Polymarket/agent-skills",
+          "fetched_at": "2026-10-24T04:54:40+00:00",
+          "http_status": "git clone"
+        },
+        {
+          "url": "https://github.com/Polymarket/polymarket-cli",
+          "fetched_at": "2026-10-24T04:54:40+00:00",
+          "http_status": "git clone"
+        },
+        {
+          "url": "https://github.com/Polymarket/agents",
+          "fetched_at": "2026-10-24T04:54:40+00:00",
+          "http_status": "git clone"
+        }
+      ]
+    },
+    {
+      "file": "legal-tos-page.json",
+      "kind": "terms",
+      "bytes": 710,
+      "sha256": "96e1c8bf5cc8e0c3adc3c0155896160d2e525ca16fb54b98f9be7fe8ef90b815",
+      "sources": [
+        {
+          "url": "https://polymarket.com/tos",
+          "fetched_at": "2026-10-24T04:43:09+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "legal-tos-polymarket-com.txt",
+      "kind": "terms",
+      "bytes": 59617,
+      "sha256": "0506de1ebf824b1827dfef90828f0e78f45d9defa63241ac91f1ed2c0ee2847d",
+      "sources": [
+        {
+          "url": "https://docs.google.com/document/d/1N4aYlRcqaWCeKMID7vUSWJ1UPMvw_v6SP4cOFN8ZxR4/export?format=txt",
+          "fetched_at": "2026-10-24T04:43:22Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "llms.txt",
+      "kind": "official_doc",
+      "bytes": 15232,
+      "sha256": "94e5a6d2babe8349b9f4e074b591808642db508ec1734625ac58a61f5808ef37",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/llms.txt",
+          "fetched_at": "2026-10-24T04:39:18Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-clob-book.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 1673,
+      "sha256": "3e82cfe4500df3fd786a11c86189c7a49a076914f3115b4f84f189895f11ea2a",
+      "sources": [
+        {
+          "url": "https://clob.polymarket.com/book?token_id=12403602920039269077597917340921667997547115084613238528792639013246536343316",
+          "fetched_at": "2026-10-24T04:48:00.827+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-clob-last-trade-price.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 823,
+      "sha256": "6709b7519be13a8b84a46b2b9198fa948a10f80127c7b007516538714e4b1382",
+      "sources": [
+        {
+          "url": "https://clob.polymarket.com/last-trade-price?token_id=12403602920039269077597917340921667997547115084613238528792639013246536343316",
+          "fetched_at": "2026-10-24T04:48:04.815+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-clob-last-trade-wide-spread.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 822,
+      "sha256": "9147e9cda1551c435c36093d2d5cfc8774bf2790c4deae356baf60370ff4fccf",
+      "sources": [
+        {
+          "url": "https://clob.polymarket.com/last-trade-price?token_id=111659222132898315235288352316223069413764650128700063237214356618950566817069",
+          "fetched_at": "2026-10-24T04:48:55.257+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-clob-markets-by-token.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 1076,
+      "sha256": "3684b80d1b54c8e752864b850bacc3fce8825fa7316eec37ee4dced0bd919e89",
+      "sources": [
+        {
+          "url": "https://clob.polymarket.com/markets-by-token/12403602920039269077597917340921667997547115084613238528792639013246536343316",
+          "fetched_at": "2026-10-24T04:51:02.604+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-clob-midpoint-resolved.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 836,
+      "sha256": "bac5e6338007c6c43e9aed00e80ac267acb4a4d23b3179055e4150bdd82a577a",
+      "sources": [
+        {
+          "url": "https://clob.polymarket.com/midpoint?token_id=21742633143463906290569050155826241533067272736897614950488156847949938836455",
+          "fetched_at": "2026-10-24T04:50:24.842+00:00",
+          "http_status": "404"
+        }
+      ]
+    },
+    {
+      "file": "probe-clob-midpoint-wide-spread.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 795,
+      "sha256": "4d49753558dfb9c7faba642247c8bc721981287eba4b88db53b10b65fd9cf365",
+      "sources": [
+        {
+          "url": "https://clob.polymarket.com/midpoint?token_id=111659222132898315235288352316223069413764650128700063237214356618950566817069",
+          "fetched_at": "2026-10-24T04:48:53.497+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-clob-midpoint.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 793,
+      "sha256": "372670a3b96678e2725cf2fef54546ea079a549f00853af4cf0f4c09bd61385e",
+      "sources": [
+        {
+          "url": "https://clob.polymarket.com/midpoint?token_id=12403602920039269077597917340921667997547115084613238528792639013246536343316",
+          "fetched_at": "2026-10-24T04:47:54.471+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-clob-midpoints-batch-post.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 981,
+      "sha256": "146ec47f44e133f2fd5cf575438f04eeca244e4b2746724a3dfdcdf5c6f9a7ab",
+      "sources": [
+        {
+          "url": "https://clob.polymarket.com/midpoints",
+          "fetched_at": "2026-10-24T04:53:37.179+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-clob-price-buy.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 801,
+      "sha256": "d91d9e5749fe032c28699d002da7abb447056b15bca86b7187c6a1d92261f12b",
+      "sources": [
+        {
+          "url": "https://clob.polymarket.com/price?token_id=12403602920039269077597917340921667997547115084613238528792639013246536343316&side=BUY",
+          "fetched_at": "2026-10-24T04:47:56.507+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-clob-price-sell.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 802,
+      "sha256": "7836007be6f15ae10c49f255573620cf36cdd2f61fe63938c7de383c787bf07f",
+      "sources": [
+        {
+          "url": "https://clob.polymarket.com/price?token_id=12403602920039269077597917340921667997547115084613238528792639013246536343316&side=SELL",
+          "fetched_at": "2026-10-24T04:47:58.340+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-clob-prices-batch-get.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 895,
+      "sha256": "1f3406ed1dc6bf44dfa21ec2988a2d625131f0b01fc8b6ef7d5dad46d6d8e287",
+      "sources": [
+        {
+          "url": "https://clob.polymarket.com/prices?token_ids=4853409889700636410786182490323041397062211499506370729921578208987128118940,12403602920039269077597917340921667997547115084613238528792639013246536343316&sides=BUY,BUY",
+          "fetched_at": "2026-10-24T04:53:10.655+00:00",
+          "http_status": "400"
+        }
+      ]
+    },
+    {
+      "file": "probe-clob-prices-batch-post.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 1054,
+      "sha256": "1e089117a9b66be72724201cb80c440a41489cc83b571db9423561917f19886b",
+      "sources": [
+        {
+          "url": "https://clob.polymarket.com/prices",
+          "fetched_at": "2026-10-24T04:53:35.235+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-clob-prices-history-1d.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 1248,
+      "sha256": "e3677599d132c822e5a367f0efbc25aa082ec89a7422369749f977fc1a31e7ae",
+      "sources": [
+        {
+          "url": "https://clob.polymarket.com/prices-history?market=12403602920039269077597917340921667997547115084613238528792639013246536343316&interval=1d&fidelity=60",
+          "fetched_at": "2026-10-24T04:49:51.551+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-clob-prices-history-40d-range.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 915,
+      "sha256": "0a457b01f120fca7f45429ab150dfd6aba7dff6842d36af0b109831a6d0190a0",
+      "sources": [
+        {
+          "url": "https://clob.polymarket.com/prices-history?market=12403602920039269077597917340921667997547115084613238528792639013246536343316&startTs=1789361393&endTs=1792817393&fidelity=60",
+          "fetched_at": "2026-10-24T04:49:53.514+00:00",
+          "http_status": "400"
+        }
+      ]
+    },
+    {
+      "file": "probe-clob-prices-history-resolved-max.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 1123,
+      "sha256": "34837bffd550a9bf8ed6dcfdfe22285a7d105c4dba4d473dc663df30680595a3",
+      "sources": [
+        {
+          "url": "https://clob.polymarket.com/prices-history?market=21742633143463906290569050155826241533067272736897614950488156847949938836455&interval=max&fidelity=1440",
+          "fetched_at": "2026-10-24T04:50:22.973+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-clob-spread.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 794,
+      "sha256": "9dd0764133edb373577df15f97eccf5dc30bdf4e88dc542a893131d3cc041488",
+      "sources": [
+        {
+          "url": "https://clob.polymarket.com/spread?token_id=12403602920039269077597917340921667997547115084613238528792639013246536343316",
+          "fetched_at": "2026-10-24T04:48:02.923+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-data-v1-oi.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 983,
+      "sha256": "e6667abb1a3a9816debf1b4953e33cb6d473e6454096277b343d0dd3be2b1a62",
+      "sources": [
+        {
+          "url": "https://data-api.polymarket.com/oi?market=0xd4e77ba6f29fc093509d24f508631abd445ecf506bbdc9c4c80e60256a318527",
+          "fetched_at": "2026-10-24T04:50:43.657+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-data-v1-trades.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 2700,
+      "sha256": "b66c84d6fa2ab0b7bb30dd4b0238801fa45a395193a988ba4aed12e4679c4424",
+      "sources": [
+        {
+          "url": "https://data-api.polymarket.com/trades?market=0xd4e77ba6f29fc093509d24f508631abd445ecf506bbdc9c4c80e60256a318527&limit=2",
+          "fetched_at": "2026-10-24T04:50:41.711+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-data-v2-holders.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 4779,
+      "sha256": "0deff92aeb3aaee988740148718f7f4ac31ed4b0477bac82b1780a1e49bda451",
+      "sources": [
+        {
+          "url": "https://data-api.polymarket.com/v2/holders?condition=0xd4e77ba6f29fc093509d24f508631abd445ecf506bbdc9c4c80e60256a318527&limit=3",
+          "fetched_at": "2026-10-24T04:50:37.873+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-data-v2-oi.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 1264,
+      "sha256": "02885b02404e900bdf05d746bd5f9f1130fc473a2359bd23caf72bc148d923e0",
+      "sources": [
+        {
+          "url": "https://data-api.polymarket.com/v2/oi?condition=0xd4e77ba6f29fc093509d24f508631abd445ecf506bbdc9c4c80e60256a318527",
+          "fetched_at": "2026-10-24T04:50:39.972+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-data-v2-prices-history-1d.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 1814,
+      "sha256": "9fab5d8084c5a73bca294a9d3a552143c4798df29fdaab38938cc0cafe3f435a",
+      "sources": [
+        {
+          "url": "https://data-api.polymarket.com/v2/prices-history?token_id=12403602920039269077597917340921667997547115084613238528792639013246536343316&interval=1d&bucket_seconds=3600",
+          "fetched_at": "2026-10-24T04:49:55.425+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-data-v2-prices-history-40d-range.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 1257,
+      "sha256": "1e56962ab1aa5ee176309aae4d4166e25e61ab3e437dd7feb59a25bc7d7d27fd",
+      "sources": [
+        {
+          "url": "https://data-api.polymarket.com/v2/prices-history?token_id=12403602920039269077597917340921667997547115084613238528792639013246536343316&start=1789361393&end=1792817393",
+          "fetched_at": "2026-10-24T04:49:57.345+00:00",
+          "http_status": "400"
+        }
+      ]
+    },
+    {
+      "file": "probe-data-v2-prices-history-resolved-max.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 1690,
+      "sha256": "9338d7e7e8ebd84ad08e6ca900731f9c9064fab8d8b39707d18d1a5e35ab190f",
+      "sources": [
+        {
+          "url": "https://data-api.polymarket.com/v2/prices-history?token_id=21742633143463906290569050155826241533067272736897614950488156847949938836455&interval=max",
+          "fetched_at": "2026-10-24T04:50:20.276+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-data-v2-resolutions-resolved.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 1733,
+      "sha256": "0cf28c8b55ff63b40735658c231b9650368e1165ae045868bc992da124f1e041",
+      "sources": [
+        {
+          "url": "https://data-api.polymarket.com/v2/resolutions?condition=0xdd22472e552920b8438158ea7238bfadfa4f736aa4cee91a6b86c39ead110917",
+          "fetched_at": "2026-10-24T04:50:26.645+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-data-v2-status.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 2628,
+      "sha256": "162d6bd82bec4de89a3cf4eca8f36629ed5c50f18e47926fd5d92a6e5cb629ac",
+      "sources": [
+        {
+          "url": "https://data-api.polymarket.com/v2/status",
+          "fetched_at": "2026-10-24T04:50:45.513+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-data-v2-tokens.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 2046,
+      "sha256": "0c88284c98c40421664c6203503d89466d394f4cab812b1b848c90dbf1d6fd90",
+      "sources": [
+        {
+          "url": "https://data-api.polymarket.com/v2/tokens?token_id=12403602920039269077597917340921667997547115084613238528792639013246536343316",
+          "fetched_at": "2026-10-24T04:51:04.698+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-data-v2-trades.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 4395,
+      "sha256": "f4a6c09aacdb5eff10a81e153e38f788101d665d66d4e00f08a725ec726a77b6",
+      "sources": [
+        {
+          "url": "https://data-api.polymarket.com/v2/trades?condition=0xd4e77ba6f29fc093509d24f508631abd445ecf506bbdc9c4c80e60256a318527&limit=3",
+          "fetched_at": "2026-10-24T04:50:35.764+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-gamma-comments-event.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 2326,
+      "sha256": "daf6ad72e7a2a9da553f2b108caa67960773c09ffde02d5950e4132dc1ae58eb",
+      "sources": [
+        {
+          "url": "https://gamma-api.polymarket.com/comments?parent_entity_type=Event&parent_entity_id=51456&limit=2&order=createdAt&ascending=false",
+          "fetched_at": "2026-10-24T04:51:13.713+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-gamma-event-by-id.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 17211,
+      "sha256": "979c3a2abe0b807ed00372473d18309f1d00e95d4bbf835a2da42a40c5bd1e03",
+      "sources": [
+        {
+          "url": "https://gamma-api.polymarket.com/events/51456",
+          "fetched_at": "2026-10-24T04:47:35.692+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-gamma-event-by-slug-doc-example.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 12132,
+      "sha256": "9b1b14bd41c3c959c812f83f166385d5f62089a9277717bb6b25d6b886acdf7f",
+      "sources": [
+        {
+          "url": "https://gamma-api.polymarket.com/events/slug/fed-decision-in-october",
+          "fetched_at": "2026-10-24T04:47:37.686+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-gamma-event-by-slug-missing.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 854,
+      "sha256": "d8506cbfb96002a4301c466ac7fca8bf599401ddd12253501fc3c52a473df5b7",
+      "sources": [
+        {
+          "url": "https://gamma-api.polymarket.com/events/slug/this-slug-does-not-exist-zzqx",
+          "fetched_at": "2026-10-24T04:47:39.933+00:00",
+          "http_status": "404"
+        }
+      ]
+    },
+    {
+      "file": "probe-gamma-event-by-slug.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 17241,
+      "sha256": "3607eb493843d34c24244ea6b9054bfe3ef59a4e8ea71b78534bb2fcaa63aaad",
+      "sources": [
+        {
+          "url": "https://gamma-api.polymarket.com/events/slug/how-many-fed-rate-cuts-in-2026",
+          "fetched_at": "2026-10-24T04:47:33.193+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-gamma-event-resolved-by-slug.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 17634,
+      "sha256": "e7c78da79706534681325860345292565851230a56bb926ad68c04c80a62abfe",
+      "sources": [
+        {
+          "url": "https://gamma-api.polymarket.com/events/slug/presidential-election-winner-2024",
+          "fetched_at": "2026-10-24T04:50:07.478+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-gamma-events-keyset-limit-101.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 23018,
+      "sha256": "2bdf76fd96584ba6b64dc5ffed4cf84e87af7cfb374510d312538fc4365d307c",
+      "sources": [
+        {
+          "url": "https://gamma-api.polymarket.com/events/keyset?closed=false&limit=101",
+          "fetched_at": "2026-10-24T04:47:16.599+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-gamma-events-keyset-offset.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 884,
+      "sha256": "d0fb360a86eae94627612caa058282bd961d09fc05cc4fb0ddc2dc420d56aecf",
+      "sources": [
+        {
+          "url": "https://gamma-api.polymarket.com/events/keyset?closed=false&limit=2&offset=2",
+          "fetched_at": "2026-10-24T04:47:20.025+00:00",
+          "http_status": "422"
+        }
+      ]
+    },
+    {
+      "file": "probe-gamma-events-keyset-title-search.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 56824,
+      "sha256": "0393cdd95abdfcc500c345c451a40409ea1e57809970d59e65c3a5961e3961c1",
+      "sources": [
+        {
+          "url": "https://gamma-api.polymarket.com/events/keyset?title_search=fed&closed=false&limit=3&order=volume24hr&ascending=false",
+          "fetched_at": "2026-10-24T04:47:14.715+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-gamma-market-by-id.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 5195,
+      "sha256": "88814c5b5eb29fae1d40d7d1e6c0304b1441761a43e8cb43048d94403297b534",
+      "sources": [
+        {
+          "url": "https://gamma-api.polymarket.com/markets/616902",
+          "fetched_at": "2026-10-24T04:48:06.708+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-gamma-market-by-slug.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 7495,
+      "sha256": "c4232f85c6b3fd661be702f64688ee97f2d51f60ca97c8a1641f36932095e696",
+      "sources": [
+        {
+          "url": "https://gamma-api.polymarket.com/markets/slug/will-no-fed-rate-cuts-happen-in-2026",
+          "fetched_at": "2026-10-24T04:47:52.586+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-gamma-market-wide-spread-by-slug.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 6448,
+      "sha256": "df2f712a421847c06fc5b2172186f007dbaeaf1e512e366c59edff62a43ad073",
+      "sources": [
+        {
+          "url": "https://gamma-api.polymarket.com/markets/slug/will-hood-reach-105-in-october-2026",
+          "fetched_at": "2026-10-24T04:48:43.918+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-gamma-markets-keyset-by-condition.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 8056,
+      "sha256": "5688051037c19fcda9702bf2a5da116006a5096084454f69b42737bed7021f0d",
+      "sources": [
+        {
+          "url": "https://gamma-api.polymarket.com/markets/keyset?condition_ids=0xd4e77ba6f29fc093509d24f508631abd445ecf506bbdc9c4c80e60256a318527&closed=any&limit=5",
+          "fetched_at": "2026-10-24T04:50:58.941+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-gamma-markets-keyset-closed-any-no-id.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 973,
+      "sha256": "b34fa1f7005f3ee2b857a2f8d981fe188826747829a12979f1cb43f70d07b2fd",
+      "sources": [
+        {
+          "url": "https://gamma-api.polymarket.com/markets/keyset?closed=any&limit=2",
+          "fetched_at": "2026-10-24T04:51:00.789+00:00",
+          "http_status": "422"
+        }
+      ]
+    },
+    {
+      "file": "probe-gamma-markets-keyset-wide-spread-liquid.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 22044,
+      "sha256": "d9c30545b03f1beb99af026ecbfb3528572f477ce70cac423b6ee564458046d3",
+      "sources": [
+        {
+          "url": "https://gamma-api.polymarket.com/markets/keyset?closed=false&limit=100&order=spread&ascending=false&liquidity_num_min=500&volume_num_min=5000",
+          "fetched_at": "2026-10-24T04:48:28.548+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-gamma-markets-keyset-wide-spread.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 20818,
+      "sha256": "4039a468305b88ebb929e96a834bad0cb2cea8b0329564b12ffc7a6ae3adf9f6",
+      "sources": [
+        {
+          "url": "https://gamma-api.polymarket.com/markets/keyset?closed=false&limit=20&order=spread&ascending=false&volume_num_min=1000",
+          "fetched_at": "2026-10-24T04:48:16.552+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-gamma-search-election-active-page1.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 54131,
+      "sha256": "1271ba5cf5910a248696cf58378f2d56df65673931e95f8ea3aa1851b4d3999c",
+      "sources": [
+        {
+          "url": "https://gamma-api.polymarket.com/public-search?q=election&limit_per_type=3&events_status=active&page=1",
+          "fetched_at": "2026-10-24T04:47:03.759+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-gamma-search-election-active-page2.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 51855,
+      "sha256": "12f3f5da5e1ffe5c8336f311c7dea3da60349659d39260af4950d4743f1d58ec",
+      "sources": [
+        {
+          "url": "https://gamma-api.polymarket.com/public-search?q=election&limit_per_type=3&events_status=active&page=2",
+          "fetched_at": "2026-10-24T04:46:41.192+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-gamma-search-election-active-sort.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 54155,
+      "sha256": "9bc7bb6060a6ec65bf901528f4e419a9c0f63d5c6d96c53cd560fc865b5ed537",
+      "sources": [
+        {
+          "url": "https://gamma-api.polymarket.com/public-search?q=election&limit_per_type=3&events_status=active&sort=volume24hr&ascending=false",
+          "fetched_at": "2026-10-24T04:47:01.451+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-gamma-search-election-closed.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 42635,
+      "sha256": "53a47fe83ada432cc91dc061fd46baa54a86090d38706401bae40808964dfec7",
+      "sources": [
+        {
+          "url": "https://gamma-api.polymarket.com/public-search?q=election&limit_per_type=3&events_status=closed&keep_closed_markets=1",
+          "fetched_at": "2026-10-24T04:46:43.876+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-gamma-search-election.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 42592,
+      "sha256": "b99296cf27b784cf4fcffebe10fa0e5c2a3b869f8c7f895e239e45834b1d8239",
+      "sources": [
+        {
+          "url": "https://gamma-api.polymarket.com/public-search?q=election&limit_per_type=3",
+          "fetched_at": "2026-10-24T04:46:17.205+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-gamma-search-fed-rate.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 44419,
+      "sha256": "37000231b00d5365f20f6ecc89f2c3aa7cbee9e79d4f3bb4c6a72736f76bf6e7",
+      "sources": [
+        {
+          "url": "https://gamma-api.polymarket.com/public-search?q=fed%20rate",
+          "fetched_at": "2026-10-24T04:46:14.354+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-gamma-search-limit-big.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 4754,
+      "sha256": "e4e393f30c948076466c4a03db512805c01a1660cfc726df4c80595eb81be412",
+      "sources": [
+        {
+          "url": "https://gamma-api.polymarket.com/public-search?q=bitcoin&limit_per_type=100&search_tags=true&search_profiles=false&optimized=true",
+          "fetched_at": "2026-10-24T04:46:48.496+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-gamma-search-noresult.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 908,
+      "sha256": "3877c5853a2cf085571b66e4a874527da9028e7e3d2e9ae1ccfdd8ef8a7da61f",
+      "sources": [
+        {
+          "url": "https://gamma-api.polymarket.com/public-search?q=zzqxjvwkplmnonexistent",
+          "fetched_at": "2026-10-24T04:46:46.563+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-gamma-series-list.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 13657,
+      "sha256": "c1c9a5077fbbb60936d6d8ed49ad256f4dd12f41394e8a5e4d1df72d242374ee",
+      "sources": [
+        {
+          "url": "https://gamma-api.polymarket.com/series?limit=2&closed=false",
+          "fetched_at": "2026-10-24T04:51:17.408+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-gamma-tags-slug.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 1044,
+      "sha256": "42af4908f37aadfdebff4a6c53812e51fdd59e0a1c3a021ddd7d192147247ba3",
+      "sources": [
+        {
+          "url": "https://gamma-api.polymarket.com/tags/slug/fed-rates",
+          "fetched_at": "2026-10-24T04:51:15.666+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-geoblock.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 913,
+      "sha256": "251fc149f406349d43a209867429ba642d537c7833eddd1ad03f26b1215feb89",
+      "sources": [
+        {
+          "url": "https://polymarket.com/api/geoblock",
+          "fetched_at": "2026-10-24T04:51:19.701+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-stale-r1-clob-book.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 1667,
+      "sha256": "89137b0ac10f94619360dffc486e6ef8e2851cb62300cf401bdf142e97b96328",
+      "sources": [
+        {
+          "url": "https://clob.polymarket.com/book?token_id=4853409889700636410786182490323041397062211499506370729921578208987128118940",
+          "fetched_at": "2026-10-24T04:52:43.937+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-stale-r1-gamma.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 6444,
+      "sha256": "0403d61d7f764c671dc20ecef8cf273d7f04dcb36c2fc2f6461607b8f796b123",
+      "sources": [
+        {
+          "url": "https://gamma-api.polymarket.com/markets/slug/bitcoin-above-80k-on-october-24-2026",
+          "fetched_at": "2026-10-24T04:52:40.569+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-stale-r2-clob-book.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 1667,
+      "sha256": "b172cf2425c0eb44e4b4e876db6031ce0a8daf30a29ff4862cf57e9131f04a98",
+      "sources": [
+        {
+          "url": "https://clob.polymarket.com/book?token_id=4853409889700636410786182490323041397062211499506370729921578208987128118940",
+          "fetched_at": "2026-10-24T04:53:08.360+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-stale-r2-gamma.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 6460,
+      "sha256": "e54993f564201305991ed065cd556d8a4f56c64f26cb584532bebff2e687e30f",
+      "sources": [
+        {
+          "url": "https://gamma-api.polymarket.com/markets/slug/bitcoin-above-80k-on-october-24-2026",
+          "fetched_at": "2026-10-24T04:53:06.552+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "probe-us-gateway-search.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 17183,
+      "sha256": "8ce007b63c8a5d780343bcb7b723913b0e98ab8749977ec8b0c566ff69e5dc4a",
+      "sources": [
+        {
+          "url": "https://gateway.polymarket.us/v1/search?query=fed&limit=2",
+          "fetched_at": "2026-10-24T04:52:18.878+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "spec-asyncapi.json",
+      "kind": "official_spec",
+      "bytes": 30024,
+      "sha256": "c5b556cf140725ef72803e1e5e2d8afc5cc1cd4326abf004cf3809394de8aee1",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/asyncapi.json",
+          "fetched_at": "2026-10-24T04:41:48Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "spec-clob-openapi.yaml",
+      "kind": "official_spec",
+      "bytes": 222496,
+      "sha256": "19268516978fc513ac3b02be4dde220df1236c56860e950395abfa9d51b58255",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-spec/clob-openapi.yaml",
+          "fetched_at": "2026-10-24T04:41:42Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "spec-data-api-v2-openapi.json",
+      "kind": "official_spec",
+      "bytes": 157195,
+      "sha256": "b2bd5eff575e4dc74607ddfa13310595f02bb0d6dfe05524648b597c85f128a2",
+      "sources": [
+        {
+          "url": "https://data-api.polymarket.com/v2/openapi.json",
+          "fetched_at": "2026-10-24T04:41:44Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "spec-data-openapi.yaml",
+      "kind": "official_spec",
+      "bytes": 61162,
+      "sha256": "4a56acffa689f8fadd4645dcb0cc75147de71d23469e0bf85c6989f813d57c68",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-spec/data-openapi.yaml",
+          "fetched_at": "2026-10-24T04:41:46Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "spec-gamma-openapi.yaml",
+      "kind": "official_spec",
+      "bytes": 85267,
+      "sha256": "8b68e4ddd8bc4e11e5332127e6d8768a62006915999259c951568b2dc59c29a8",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.com/api-spec/gamma-openapi.yaml",
+          "fetched_at": "2026-10-24T04:41:40Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "us-doc-api-reference_authentication.md",
+      "kind": "official_doc",
+      "bytes": 3847,
+      "sha256": "010361851c2641e5b7fc45d70273bf126764ca6c816ea70f5be5787d6204ee72",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.us/api-reference/authentication.md",
+          "fetched_at": "2026-10-24T04:44:23Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "us-doc-api-reference_introduction.md",
+      "kind": "official_doc",
+      "bytes": 2022,
+      "sha256": "06c4cf2f0b34587683b3d99fa4e8f3a2ec0ec5785bdb0edef0d84d9df2353c7f",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.us/api-reference/introduction.md",
+          "fetched_at": "2026-10-24T04:44:21Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "us-doc-api-reference_markets_get-markets.md",
+      "kind": "official_doc",
+      "bytes": 31104,
+      "sha256": "b3484b1053fb162ea408666b827d67dbd19dbeccd62c454137be798cf374c98a",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.us/api-reference/markets/get-markets.md",
+          "fetched_at": "2026-10-24T04:44:26Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "us-doc-api-reference_price-history_get-price-history.md",
+      "kind": "official_doc",
+      "bytes": 7096,
+      "sha256": "987df2f8dc0f269a458dc8609ada838a738cf8afc57559b700fa05c5db5ca0d9",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.us/api-reference/price-history/get-price-history.md",
+          "fetched_at": "2026-10-24T04:44:49Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "us-doc-api-reference_rate-limits.md",
+      "kind": "official_doc",
+      "bytes": 4302,
+      "sha256": "9c5041d1c976b376a8980b2250b2b6377dc9af832d733919b12434c97a8b20b7",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.us/api-reference/rate-limits.md",
+          "fetched_at": "2026-10-24T04:44:24Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "us-doc-api-reference_search_search.md",
+      "kind": "official_doc",
+      "bytes": 35974,
+      "sha256": "9f14ada99f2a094f9b1492681337601d011996a7ac9e5639646017a4b0abba9b",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.us/api-reference/search/search.md",
+          "fetched_at": "2026-10-24T04:44:47Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "us-doc-data-guide_onboarding.md",
+      "kind": "official_doc",
+      "bytes": 2059,
+      "sha256": "64fb8cbf7d65bc9df7a6d991e753929800b5a7ba6f9d6d892f43f5e6af38ea34",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.us/data-guide/onboarding.md",
+          "fetched_at": "2026-10-24T04:44:32Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "us-doc-data-guide_overview.md",
+      "kind": "official_doc",
+      "bytes": 1784,
+      "sha256": "e665f15b1d81bf547b93de9a5035eacb85d40d5835bc54a071db191ecc633594",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.us/data-guide/overview.md",
+          "fetched_at": "2026-10-24T04:44:29Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "us-doc-getting-started_what-is-polymarket-us.md",
+      "kind": "official_doc",
+      "bytes": 3492,
+      "sha256": "709ca833658e78304aff63f0ae252623f9b23a9f054039dc06f7fe74a9483699",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.us/getting-started/what-is-polymarket-us.md",
+          "fetched_at": "2026-10-24T04:44:19Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "us-llms.txt",
+      "kind": "official_doc",
+      "bytes": 52152,
+      "sha256": "7df3c7e8017520f8c61ee01e09b910ed54d9b3050015f40f2ef3e29724b6a9ed",
+      "sources": [
+        {
+          "url": "https://docs.polymarket.us/llms.txt",
+          "fetched_at": "2026-10-24T04:44:09Z",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "web-event-hood-ssr.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 936,
+      "sha256": "84e746c5703f8fd58f113c1f3a2db5e6f8aee2976987b31598fd7e498147b3ff",
+      "sources": [
+        {
+          "url": "https://polymarket.com/event/what-price-will-hood-hit-in-october-2026",
+          "fetched_at": "2026-10-24T04:48:57.115+00:00",
+          "http_status": "200"
+        }
+      ]
+    },
+    {
+      "file": "web-url-forms.json",
+      "kind": "live_probe_trimmed",
+      "bytes": 3918,
+      "sha256": "73fba6e48231347655317524d751394f66b70d1fd539700dec0ecf68528866d9",
+      "sources": [
+        {
+          "url": "https://polymarket.com/market/will-no-fed-rate-cuts-happen-in-2026",
+          "fetched_at": "2026-10-24T04:51:34.840+00:00",
+          "http_status": "307"
+        },
+        {
+          "url": "https://polymarket.com/event/how-many-fed-rate-cuts-in-2026/will-no-fed-rate-cuts-happen-in-2026",
+          "fetched_at": "2026-10-24T04:51:37.249+00:00",
+          "http_status": "200"
+        },
+        {
+          "url": "https://polymarket.com/zh/event/how-many-fed-rate-cuts-in-2026",
+          "fetched_at": "2026-10-24T04:51:40.208+00:00",
+          "http_status": "200"
+        },
+        {
+          "url": "https://polymarket.com/event/how-many-fed-rate-cuts-in-2026?tid=1792817000000",
+          "fetched_at": "2026-10-24T04:51:46.043+00:00",
+          "http_status": "200"
+        },
+        {
+          "url": "https://polymarket.com/event/616902",
+          "fetched_at": "2026-10-24T04:51:48.829+00:00",
+          "http_status": "200"
+        },
+        {
+          "url": "https://polymarket.com/event/does-not-exist-zzqx",
+          "fetched_at": "2026-10-24T04:51:51.288+00:00",
+          "http_status": "200"
+        },
+        {
+          "url": "https://polymarket.com/event/nfl-chi-sea-2026-11-03",
+          "fetched_at": "2026-10-24T04:52:04.718+00:00",
+          "http_status": "200"
+        }
+      ]
+    }
+  ]
+}

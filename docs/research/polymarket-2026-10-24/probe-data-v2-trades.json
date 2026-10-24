@@ -1,0 +1,102 @@
+{
+  "url": "https://data-api.polymarket.com/v2/trades?condition=0xd4e77ba6f29fc093509d24f508631abd445ecf506bbdc9c4c80e60256a318527&limit=3",
+  "fetched_at": "2026-10-24T04:50:35.764+00:00",
+  "http_code": "200",
+  "curl_time_total_s": "0.779598",
+  "client": "curl, anonymous, no cookies",
+  "status_lines": [
+    "HTTP/1.0 200 Connection established",
+    "HTTP/2 200"
+  ],
+  "headers_subset": {
+    "date": "Sat, 24 Oct 2026 04:50:36 GMT",
+    "content-type": "application/json",
+    "x-trace-id": "b3b8b9ed08fa43e79c568ad2185667ee",
+    "access-control-allow-origin": "*",
+    "x-envoy-upstream-service-time": "34",
+    "server": "cloudflare",
+    "vary": "accept-encoding,origin",
+    "via": "1.1 141e31cfb21ac1ed301356401a4761e8.cloudfront.net (CloudFront)",
+    "cache-control": "public, max-age=300",
+    "x-cache": "Miss from cloudfront",
+    "x-amz-cf-pop": "LAX50-P1",
+    "cf-cache-status": "DYNAMIC",
+    "strict-transport-security": "max-age=7776000; includeSubDomains",
+    "cf-ray": "a4f65c90ccec2b6c-LAX"
+  },
+  "body_bytes": 2633,
+  "body_trimmed": {
+    "data": [
+      {
+        "proxy_wallet": "0x66d5fd17472ef73fbe2472d9631a6bf17b5713fb",
+        "side": "SELL",
+        "token_id": "12403602920039269077597917340921667997547115084613238528792639013246536343316",
+        "condition_id": "0xd4e77ba6f29fc093509d24f508631abd445ecf506bbdc9c4c80e60256a318527",
+        "size": 5.47,
+        "price": 0.961,
+        "timestamp": 1792816481,
+        "title": "Will no Fed rate cuts happen in 2026?",
+        "slug": "will-no-fed-rate-cuts-happen-in-2026",
+        "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/how-many-fed-rate-cuts-in-2025-9qstZkSL1dn0.jpg",
+        "event_slug": "how-many-fed-rate-cuts-in-2026",
+        "outcome": "Yes",
+        "outcome_index": 0,
+        "name": "ywk6wzed",
+        "pseudonym": "Bustling-Mini",
+        "bio": "",
+        "profile_image": "",
+        "profile_image_optimized": "",
+        "transaction_hash": "0x094e1482f84d4eb95e95ad01873ad6560841d3d0cf20a215d57c3cb4d049ae18"
+      },
+      {
+        "proxy_wallet": "0x2e1dcdf43d87895a474955bfc0ca2ab03ebaa0a5",
+        "side": "SELL",
+        "token_id": "12403602920039269077597917340921667997547115084613238528792639013246536343316",
+        "condition_id": "0xd4e77ba6f29fc093509d24f508631abd445ecf506bbdc9c4c80e60256a318527",
+        "size": 5.64,
+        "price": 0.961,
+        "timestamp": 1792814757,
+        "title": "Will no Fed rate cuts happen in 2026?",
+        "slug": "will-no-fed-rate-cuts-happen-in-2026",
+        "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/how-many-fed-rate-cuts-in-2025-9qstZkSL1dn0.jpg",
+        "event_slug": "how-many-fed-rate-cuts-in-2026",
+        "outcome": "Yes",
+        "outcome_index": 0,
+        "name": "nlcwair0",
+        "pseudonym": "Venerated-Construction",
+        "bio": "",
+        "profile_image": "",
+        "profile_image_optimized": "",
+        "transaction_hash": "0xaf1f4830cba50f75d1d37ee1d1e7c04670ddbbcb2cd7d8cb11755b05c7af8308"
+      },
+      {
+        "proxy_wallet": "0x1beca37af9ee8b84ba5f534ea4007a2a544ee3f8",
+        "side": "SELL",
+        "token_id": "12403602920039269077597917340921667997547115084613238528792639013246536343316",
+        "condition_id": "0xd4e77ba6f29fc093509d24f508631abd445ecf506bbdc9c4c80e60256a318527",
+        "size": 7.54,
+        "price": 0.962,
+        "timestamp": 1792813949,
+        "title": "Will no Fed rate cuts happen in 2026?",
+        "slug": "will-no-fed-rate-cuts-happen-in-2026",
+        "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/how-many-fed-rate-cuts-in-2025-9qstZkSL1dn0.jpg",
+        "event_slug": "how-many-fed-rate-cuts-in-2026",
+        "outcome": "Yes",
+        "outcome_index": 0,
+        "name": "0x1BECa37Af9Ee8B84ba5F534EA4007a2a544ee3f8-1724047846977",
+        "pseudonym": "Plush-Gel",
+        "bio": "",
+        "profile_image": "",
+        "profile_image_optimized": "",
+        "transaction_hash": "0x7d2476dd18b005151c15297796bd2d7f544071324390a6d9fcb13e7ad74aa378"
+      }
+    ],
+    "pagination": {
+      "limit": 3,
+      "offset": 0,
+      "has_more": true,
+      "next_cursor": "eyJkYXRhIjp7InR5cGUiOiJ0cmFkZXMiLCJwYXJhbXMiOnsibCI6MywidHMiOjE3OTI4MTM5NDksInNxIjoiOTYwNzIzODUwMDAyNzAyMzYwIiwiZCI6M319LCJzaWciOiI1ZDU2YWRlZGRjYTNlMmM5ZTRiMjJjY2ZmOTZkMWViMyJ9"
+    }
+  },
+  "body_format": "json"
+}

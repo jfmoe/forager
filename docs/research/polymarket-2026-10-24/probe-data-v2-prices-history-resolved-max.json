@@ -1,0 +1,56 @@
+{
+  "url": "https://data-api.polymarket.com/v2/prices-history?token_id=21742633143463906290569050155826241533067272736897614950488156847949938836455&interval=max",
+  "fetched_at": "2026-10-24T04:50:20.276+00:00",
+  "http_code": "200",
+  "curl_time_total_s": "1.347638",
+  "client": "curl, anonymous, no cookies",
+  "status_lines": [
+    "HTTP/1.0 200 Connection established",
+    "HTTP/2 200"
+  ],
+  "headers_subset": {
+    "date": "Sat, 24 Oct 2026 04:50:21 GMT",
+    "content-type": "application/json",
+    "cache-control": "public, max-age=300",
+    "x-trace-id": "dcf3b4a620f9468ea1754933cc5483b6",
+    "access-control-allow-origin": "*",
+    "x-envoy-upstream-service-time": "17",
+    "server": "cloudflare",
+    "vary": "accept-encoding,origin",
+    "via": "1.1 097b5de2aef2f90d989b3bd165cf771a.cloudfront.net (CloudFront)",
+    "x-cache": "Miss from cloudfront",
+    "x-amz-cf-pop": "LAX50-P1",
+    "last-modified": "Sat, 24 Oct 2026 04:50:21 GMT",
+    "cf-cache-status": "EXPIRED",
+    "strict-transport-security": "max-age=7776000; includeSubDomains",
+    "cf-ray": "a4f65c33491b29ab-LAX"
+  },
+  "body_bytes": 40799,
+  "body_trimmed": {
+    "data": [
+      {
+        "timestamp": 1704412800,
+        "price": 0.5,
+        "resolution_seconds": 43200
+      },
+      {
+        "timestamp": 1704456000,
+        "price": 0.405,
+        "resolution_seconds": 43200
+      },
+      {
+        "timestamp": 1704499200,
+        "price": 0.405,
+        "resolution_seconds": 43200
+      },
+      "... trimmed 612 more items (total 615)"
+    ],
+    "pagination": {
+      "limit": 10000,
+      "offset": 0,
+      "has_more": false,
+      "next_cursor": null
+    }
+  },
+  "body_format": "json"
+}

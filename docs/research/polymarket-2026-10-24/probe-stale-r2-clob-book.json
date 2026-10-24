@@ -1,0 +1,62 @@
+{
+  "url": "https://clob.polymarket.com/book?token_id=4853409889700636410786182490323041397062211499506370729921578208987128118940",
+  "fetched_at": "2026-10-24T04:53:08.360+00:00",
+  "http_code": "200",
+  "curl_time_total_s": "0.939955",
+  "client": "curl, anonymous, no cookies",
+  "status_lines": [
+    "HTTP/1.0 200 Connection established",
+    "HTTP/2 200"
+  ],
+  "headers_subset": {
+    "date": "Sat, 24 Oct 2026 04:53:09 GMT",
+    "content-type": "application/json",
+    "vary": "Origin",
+    "cf-cache-status": "DYNAMIC",
+    "strict-transport-security": "max-age=7776000; includeSubDomains",
+    "server": "cloudflare",
+    "cf-ray": "a4f6604b59971da7-LAX"
+  },
+  "body_bytes": 3901,
+  "body_trimmed": {
+    "market": "0x7f847b0d377de7d00c433b36b779f8ba938b29525cddb3289d9ee7e4b068490c",
+    "asset_id": "4853409889700636410786182490323041397062211499506370729921578208987128118940",
+    "timestamp": "1792817588994",
+    "hash": "fad9a516b06dadc9c26b2e287c649f047ff9d54d",
+    "bids": [
+      {
+        "price": "0.001",
+        "size": "8045.4"
+      },
+      {
+        "price": "0.002",
+        "size": "3798.71"
+      },
+      {
+        "price": "0.003",
+        "size": "3127.03"
+      },
+      "... trimmed 75 more items (total 78)"
+    ],
+    "asks": [
+      {
+        "price": "0.999",
+        "size": "30423.32"
+      },
+      {
+        "price": "0.998",
+        "size": "7154.52"
+      },
+      {
+        "price": "0.997",
+        "size": "3812.41"
+      },
+      "... trimmed 32 more items (total 35)"
+    ],
+    "min_order_size": "5",
+    "tick_size": "0.001",
+    "neg_risk": false,
+    "last_trade_price": "0.945"
+  },
+  "body_format": "json"
+}

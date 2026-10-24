@@ -1,0 +1,197 @@
+# Polymarket Documentation
+
+- [API Reference (240 pages)](https://docs.polymarket.com/_llms/en/api-reference.txt): Documentation for API Reference.
+
+## Predictions
+
+### Getting Started
+
+- [Overview](https://docs.polymarket.com/index.md): Build on the world's largest prediction market. Trade, integrate, and access real-time market data with the Polymarket API.
+- [Polymarket 101](https://docs.polymarket.com/polymarket-101.md): An intro to Polymarket - the world's largest prediction market
+
+#### SDKs & APIs
+
+- [SDKs & APIs](https://docs.polymarket.com/getting-started/sdks-apis.md): Choose how to integrate with Polymarket.
+- [TypeScript SDK](https://docs.polymarket.com/getting-started/typescript.md): Get started with the unified Polymarket TypeScript SDK.
+- [Python SDK](https://docs.polymarket.com/getting-started/python.md): Get started with the unified Polymarket Python SDK.
+- [API](https://docs.polymarket.com/getting-started/api.md): Build directly with Polymarket REST APIs and WebSocket streams.
+
+### Core Concepts
+
+- [Markets & Events](https://docs.polymarket.com/concepts/markets-events.md): Understanding the fundamental building blocks of Polymarket
+- [Positions & Tokens](https://docs.polymarket.com/concepts/positions-tokens.md): Understanding outcome tokens and how positions work on Polymarket
+- [Negative Risk Markets](https://docs.polymarket.com/concepts/negative-risk.md): Capital-efficient trading for multi-outcome events
+- [Prices & Orderbook](https://docs.polymarket.com/concepts/prices-orderbook.md): How prices work and how the order book enables peer-to-peer trading
+- [Polymarket USD](https://docs.polymarket.com/concepts/pusd.md): pUSD — the collateral token used for all trading on Polymarket
+- [Order Lifecycle](https://docs.polymarket.com/concepts/order-lifecycle.md): Understanding how orders flow from creation to settlement
+- [Resolution](https://docs.polymarket.com/concepts/resolution.md): How markets are resolved and winning positions redeemed
+
+### Market Data
+
+- [Overview](https://docs.polymarket.com/market-data/overview.md): Learn how Polymarket organizes market data and where to begin.
+- [Discover Markets](https://docs.polymarket.com/market-data/discover-markets.md): Learn how to find and filter events and markets and explore related metadata.
+- [Market Details](https://docs.polymarket.com/market-data/market-details.md): Understand the structure and state of a Polymarket market.
+- [Prices and Order Books](https://docs.polymarket.com/market-data/prices-order-books.md): Learn how prices and order books represent trading activity on Polymarket.
+- [Analytics](https://docs.polymarket.com/market-data/public-analytics.md): Understand activity and performance across Polymarket.
+- [Real-Time Data](https://docs.polymarket.com/market-data/realtime-data.md): Keep market data current with Polymarket's real-time feeds.
+
+### Trading
+
+- [Overview](https://docs.polymarket.com/trading/overview.md): Understand how orders, settlement, and positions fit together on Polymarket.
+- [Place Your First Order](https://docs.polymarket.com/trading/quickstart.md): Learn how to authenticate with the CLOB and submit your first market order.
+- [Wallets and Authentication](https://docs.polymarket.com/trading/wallets-auth.md): Connect or create a Polymarket account for trading.
+- [Session Keys](https://docs.polymarket.com/trading/session-keys.md): Authorize a separate signer for scoped, time-limited Deposit Wallet trading.
+- [Place Orders](https://docs.polymarket.com/trading/place-orders.md): Learn how to place orders and control how they execute
+- [Manage Orders](https://docs.polymarket.com/trading/manage-orders.md): Learn how to track and manage orders after submitting them.
+- [Real-Time Order Updates](https://docs.polymarket.com/trading/realtime-order-updates.md): React to authenticated order and trade activity as it happens.
+- [Wallet Activity](https://docs.polymarket.com/trading/wallet-activity.md): Track the positions and activity associated with a Polymarket wallet.
+- [Fees](https://docs.polymarket.com/trading/fees.md): Understanding trading fees on Polymarket
+- [Market Making](https://docs.polymarket.com/trading/market-making.md): Guidance for operating a market-making system on Polymarket.
+- [Matching Engine Restarts](https://docs.polymarket.com/trading/matching-engine.md): Maintenance windows, restart handling, and post-restart post-only mode
+
+#### Positions
+
+- [How Positions Work](https://docs.polymarket.com/trading/positions/how-positions-work.md): Understand Polymarket outcome positions, ledgers, and identifiers.
+- [Manage Positions](https://docs.polymarket.com/trading/positions/manage.md): Learn how to manage outcome-token inventory from creation through redemption.
+- [Combinatorial Positions](https://docs.polymarket.com/trading/positions/combinatorial.md): Multi-leg positions built from existing Polymarket outcomes
+
+#### Combos
+
+- [How Combos Work](https://docs.polymarket.com/trading/combos/overview.md): Understand Combo positions and the RFQ flow for multi-leg markets
+- [Requesters](https://docs.polymarket.com/trading/combos/requesters.md): Request Combo quotes and execute accepted trades
+- [Market Makers](https://docs.polymarket.com/trading/combos/market-makers.md): Build a market maker integration for pricing and executing Combos
+- [Combos for Builders](https://docs.polymarket.com/trading/combos/builders.md): Request and execute Combo quotes for users through the Builder Gateway
+- [Collateral Return](https://docs.polymarket.com/trading/combos/collateral-return.md): Release pUSD from compatible Combo positions before resolution
+
+#### Bridge
+
+- [Deposit](https://docs.polymarket.com/trading/bridge/deposit.md): Bridge assets from any supported chain to fund your Polymarket account
+- [Supported Assets](https://docs.polymarket.com/trading/bridge/supported-assets.md): Chains and tokens supported for deposits to Polymarket
+- [Quote](https://docs.polymarket.com/trading/bridge/quote.md): Preview fees and estimated output for deposits and withdrawals
+- [Withdraw](https://docs.polymarket.com/trading/bridge/withdraw.md): Bridge pUSD from Polymarket to any supported chain
+- [Transaction Status](https://docs.polymarket.com/trading/bridge/status.md): Track bridge deposits and withdrawals through completion
+
+### Programs
+
+- [Taker Rebate Program](https://docs.polymarket.com/programs/taker-rebates.md): Climb the tiers and earn daily pUSD rebates as you trade
+- [Maker Rebates Program](https://docs.polymarket.com/programs/maker-rebates.md): Earn daily pUSD rebates by providing liquidity on Polymarket
+- [Liquidity Rewards](https://docs.polymarket.com/programs/liquidity-rewards.md): Earn rewards for providing liquidity on Polymarket
+- [Referral Program](https://docs.polymarket.com/programs/referral-program.md): Refer traders to Polymarket and earn daily pUSD rewards
+
+#### Builder Program
+
+- [Overview](https://docs.polymarket.com/programs/builders/overview.md): Build applications that route orders through Polymarket
+- [Builder Fees](https://docs.polymarket.com/programs/builders/fees.md): How builders earn fees on orders routed through their applications, and how to integrate.
+- [Tiers](https://docs.polymarket.com/programs/builders/tiers.md): Rate limits, rewards, and how to upgrade
+
+### Migration Guides
+
+- [Migrate from Data API v1 to v2](https://docs.polymarket.com/migrate/data-api-v1-to-v2.md): Move an integration from the original Data API routes to their v2 counterparts: the route mapping, the contract changes, and what stays on v1.
+- [Migrate from Legacy SDKs to Unified SDKs](https://docs.polymarket.com/migrate/clob-sdk-to-unified-sdk.md): Move an existing Polymarket integration to the unified SDKs.
+- [Migrate from RTDS to PolyBolt](https://docs.polymarket.com/migrate/rtds-to-polybolt.md): Migrate price subscriptions from RTDS to PolyBolt
+
+#### Protocol V2 Migration
+
+- [Migrate to Polymarket Protocol V2](https://docs.polymarket.com/migrate/polymarket-v2/overview.md): Add V2 markets to an existing SDK, API, or smart-contract integration.
+- [Polymarket Protocol V2 API Migration](https://docs.polymarket.com/migrate/polymarket-v2/api-integrations.md): Add Polymarket Protocol V2 trading to an existing direct API integration while retaining CTF market support.
+- [Polymarket Protocol V2 SDK Migration](https://docs.polymarket.com/migrate/polymarket-v2/sdk-integrations.md): Add Polymarket Protocol V2 markets to an existing pUSD trading integration using the Polymarket SDKs.
+- [Polymarket Protocol V2 Contract Migration](https://docs.polymarket.com/migrate/polymarket-v2/contract-integrations.md): Add Polymarket Protocol V2 position operations to an existing pUSD contract integration.
+
+### Resources
+
+- [Contracts](https://docs.polymarket.com/resources/contracts.md): All Polymarket smart contract addresses, audits, and security resources
+- [Onchain Position Data](https://docs.polymarket.com/resources/onchain-position-data.md): Index balances, trades, and resolution across both position systems
+- [Data Resources](https://docs.polymarket.com/resources/blockchain-data.md): Access Polymarket on-chain activity for data & analytics
+- [Error Codes](https://docs.polymarket.com/resources/error-codes.md): Complete reference for CLOB API error responses
+
+## Perps
+
+### Getting Started
+
+- [Overview](https://docs.polymarket.com/perps/overview.md): Start here for Polymarket perpetual markets
+- [Concepts](https://docs.polymarket.com/perps/concepts.md): Core concepts for Polymarket perpetual markets
+
+### Build With Perps
+
+- [Place Your First Trade](https://docs.polymarket.com/perps/place-your-first-trade.md): Learn how to prepare a Perps account and submit a first buy order
+- [Market Data](https://docs.polymarket.com/perps/market-data.md): Discover Perps markets and monitor public market activity
+- [Fund Your Account](https://docs.polymarket.com/perps/fund-your-account.md): Deposit, withdraw, and transfer pUSD collateral for Perps trading
+- [Authenticated Sessions](https://docs.polymarket.com/perps/authenticated-sessions.md): Set up authenticated access for Perps trading and account data
+- [Trading](https://docs.polymarket.com/perps/trading.md): Place, manage, and reconcile Perps orders
+- [Account Management](https://docs.polymarket.com/perps/account-management.md): Monitor balances, positions, and account history
+- [Builder Codes](https://docs.polymarket.com/perps/builder-codes.md): Earn builder fees for routing orders and building new Polymarket Perps experiences
+- [Realtime Updates](https://docs.polymarket.com/perps/realtime-updates.md): Stream public Perps market data
+- [Notifications](https://docs.polymarket.com/perps/notifications.md): Show Perps account activity as an in-app notification feed
+
+### Learn About Trading
+
+- [Overview](https://docs.polymarket.com/perps/learn-about-trading/overview.md): The market mechanics behind Perps trading
+- [Architecture](https://docs.polymarket.com/perps/learn-about-trading/architecture.md): High-level architecture of the Polymarket Perps exchange
+- [Markets](https://docs.polymarket.com/perps/learn-about-trading/markets.md): Listed perpetual markets and trading parameters
+- [Fees](https://docs.polymarket.com/perps/learn-about-trading/fees.md): Tiered maker and taker trading fees for Polymarket Perps
+- [Margin](https://docs.polymarket.com/perps/learn-about-trading/margin.md): Initial margin, maintenance margin, equity, margin modes, and withdrawal requirements
+- [Self-Trade Prevention](https://docs.polymarket.com/perps/learn-about-trading/self-trade-prevention.md): How the matching engine stops an account, or a group of accounts run by one entity, from trading with itself
+- [Liquidation Mechanics](https://docs.polymarket.com/perps/learn-about-trading/liquidation-mechanics.md): Detection, execution, insurance-fund backstop, and auto-deleveraging
+- [Funding](https://docs.polymarket.com/perps/learn-about-trading/funding.md): Funding rate calculation and settlement
+- [Mark Price](https://docs.polymarket.com/perps/learn-about-trading/mark-price.md): How the Mark Price is computed for Perps
+- [Index Price](https://docs.polymarket.com/perps/learn-about-trading/index-price.md): How the Index Price is computed for Perps
+- [Market Sessions](https://docs.polymarket.com/perps/learn-about-trading/market-sessions.md): How session state affects pricing feed selection
+
+### Programs
+
+- [Liquidity Rewards](https://docs.polymarket.com/perps/liquidity-rewards.md): Earn daily pUSD rewards by providing deep, two-sided liquidity on Perps
+- [Referral Program](https://docs.polymarket.com/perps/referral-program.md): Earn a share of Perps trading fees from traders you refer
+
+### Resources
+
+- [Errors](https://docs.polymarket.com/perps/errors.md): Error messages returned by the API and the conditions that trigger them
+- [FAQ](https://docs.polymarket.com/perps/faq.md): Common questions about Polymarket Perps trading, pricing, margin, liquidation, fees, and integration
+
+## Changelogs
+
+### Predictions
+
+- [Predictions Changelog](https://docs.polymarket.com/changelog/predictions.md): Important changes to Polymarket prediction markets, including the CLOB, APIs, web application, and mobile applications.
+
+### Perps
+
+- [Perps Changelog](https://docs.polymarket.com/changelog/perps.md): Recent changes to the Polymarket Perps API and platform
+
+### SDKs
+
+- [SDK Changelog](https://docs.polymarket.com/changelog/sdks.md): Recent changes to the official SDKs.
+
+## OpenAPI Specs
+
+- [clob-openapi](/api-spec/clob-openapi.yaml)
+- [openapi](https://data-api.polymarket.com/v2/openapi.json)
+- [gamma-openapi](/api-spec/gamma-openapi.yaml)
+- [relayer-openapi](/api-spec/relayer-openapi.yaml)
+- [combos-rfq-openapi](/api-spec/combos-rfq-openapi.yaml)
+- [bridge-openapi](/api-spec/bridge-openapi.yaml)
+- [data-openapi](/api-spec/data-openapi.yaml)
+- [perps-openapi](/api-spec/perps-openapi.json)
+- [openapi](https:/data-api.polymarket.com/v2/openapi.json)
+
+## AsyncAPI Specs
+
+- [asyncapi-rfq](/asyncapi-rfq.json)
+- [asyncapi](/asyncapi.json)
+- [asyncapi](https://ws-live-v2.polymarket.com/asyncapi.json)
+- [asyncapi-user](/asyncapi-user.json)
+- [asyncapi-sports](/asyncapi-sports.json)
+- [asyncapi-perps](/asyncapi-perps.json)
+- [connect-wss](/developers/open-api/connect-wss.json)
+
+> The links below point to documentation indexes. Follow each `/_llms/` index recursively until you reach documentation pages.
+
+## Indexes
+
+- [English / API Reference (240 pages)](https://docs.polymarket.com/_llms/en/api-reference.txt): Documentation for English / API Reference.
+- [English / API Reference / Predictions (138 pages)](https://docs.polymarket.com/_llms/en/api-reference/predictions.txt): Documentation for English / API Reference / Predictions.
+- [English / API Reference / Perps (102 pages)](https://docs.polymarket.com/_llms/en/api-reference/perps.txt): Documentation for English / API Reference / Perps.
+- [Chinese (236 pages)](https://docs.polymarket.com/_llms/cn.txt): Documentation for Chinese.
+- [Chinese / API 参考 (183 pages)](https://docs.polymarket.com/_llms/cn/api.txt): Documentation for Chinese / API 参考.
+
+
+This documentation is built and hosted on [Mintlify](https://mintlify.com), a developer documentation platform.

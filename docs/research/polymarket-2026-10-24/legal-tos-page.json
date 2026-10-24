@@ -1,0 +1,29 @@
+{
+  "url": "https://polymarket.com/tos",
+  "fetched_at": "2026-10-24T04:43:09+00:00",
+  "client": "curl, User-Agent 'Mozilla/5.0', anonymous",
+  "http_code": "200",
+  "html_bytes": 344801,
+  "terms_iframe_src": "https://docs.google.com/document/d/1N4aYlRcqaWCeKMID7vUSWJ1UPMvw_v6SP4cOFN8ZxR4/preview",
+  "terms_text_file": "legal-tos-polymarket-com.txt (Google Docs export?format=txt of the iframe document)",
+  "locale_prefixes_linked": [
+    "bn",
+    "de",
+    "es",
+    "fr",
+    "hi",
+    "id",
+    "it",
+    "ja",
+    "pl",
+    "ru",
+    "th",
+    "tl",
+    "uk",
+    "vi",
+    "zh",
+    "zh-hant"
+  ],
+  "view_only_notice_present": true,
+  "note": "Only the facts above were extracted; HTML not kept."
+}

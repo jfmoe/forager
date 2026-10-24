@@ -1,0 +1,38 @@
+{
+  "url": "https://data-api.polymarket.com/v2/oi?condition=0xd4e77ba6f29fc093509d24f508631abd445ecf506bbdc9c4c80e60256a318527",
+  "fetched_at": "2026-10-24T04:50:39.972+00:00",
+  "http_code": "200",
+  "curl_time_total_s": "0.425390",
+  "client": "curl, anonymous, no cookies",
+  "status_lines": [
+    "HTTP/1.0 200 Connection established",
+    "HTTP/2 200"
+  ],
+  "headers_subset": {
+    "date": "Sat, 24 Oct 2026 04:50:40 GMT",
+    "content-type": "application/json",
+    "x-trace-id": "2f4dd8b20b5d4ad0a0c878212e5b3dfc",
+    "access-control-allow-origin": "*",
+    "x-envoy-upstream-service-time": "17",
+    "server": "cloudflare",
+    "vary": "accept-encoding,origin",
+    "via": "1.1 9d8d6bf05a0a6195c678f29d47a75e52.cloudfront.net (CloudFront)",
+    "age": "294",
+    "cache-control": "public, max-age=300",
+    "x-cache": "Hit from cloudfront",
+    "x-amz-cf-pop": "LAX50-P1",
+    "cf-cache-status": "DYNAMIC",
+    "strict-transport-security": "max-age=7776000; includeSubDomains",
+    "cf-ray": "a4f65ca9ed98c8d2-LAX"
+  },
+  "body_bytes": 119,
+  "body_trimmed": {
+    "data": [
+      {
+        "condition_id": "0xd4e77ba6f29fc093509d24f508631abd445ecf506bbdc9c4c80e60256a318527",
+        "value": 1752674.321795
+      }
+    ]
+  },
+  "body_format": "json"
+}

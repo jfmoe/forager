@@ -1,0 +1,26 @@
+{
+  "url": "https://clob.polymarket.com/prices?token_ids=4853409889700636410786182490323041397062211499506370729921578208987128118940,12403602920039269077597917340921667997547115084613238528792639013246536343316&sides=BUY,BUY",
+  "fetched_at": "2026-10-24T04:53:10.655+00:00",
+  "http_code": "400",
+  "curl_time_total_s": "0.554113",
+  "client": "curl, anonymous, no cookies",
+  "status_lines": [
+    "HTTP/1.0 200 Connection established",
+    "HTTP/2 400"
+  ],
+  "headers_subset": {
+    "date": "Sat, 24 Oct 2026 04:53:11 GMT",
+    "content-type": "application/json",
+    "content-length": "28",
+    "vary": "Origin",
+    "cf-cache-status": "DYNAMIC",
+    "strict-transport-security": "max-age=7776000; includeSubDomains",
+    "server": "cloudflare",
+    "cf-ray": "a4f660578f855d5c-LAX"
+  },
+  "body_bytes": 28,
+  "body_trimmed": {
+    "error": "Invalid payload"
+  },
+  "body_format": "json"
+}

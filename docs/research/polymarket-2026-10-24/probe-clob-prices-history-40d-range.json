@@ -1,0 +1,26 @@
+{
+  "url": "https://clob.polymarket.com/prices-history?market=12403602920039269077597917340921667997547115084613238528792639013246536343316&startTs=1789361393&endTs=1792817393&fidelity=60",
+  "fetched_at": "2026-10-24T04:49:53.514+00:00",
+  "http_code": "400",
+  "curl_time_total_s": "0.552397",
+  "client": "curl, anonymous, no cookies",
+  "status_lines": [
+    "HTTP/1.0 200 Connection established",
+    "HTTP/2 400"
+  ],
+  "headers_subset": {
+    "date": "Sat, 24 Oct 2026 04:49:53 GMT",
+    "content-type": "application/json",
+    "content-length": "72",
+    "vary": "Origin, accept-encoding",
+    "cf-cache-status": "MISS",
+    "strict-transport-security": "max-age=7776000; includeSubDomains",
+    "server": "cloudflare",
+    "cf-ray": "a4f65b871974b7fd-LAX"
+  },
+  "body_bytes": 72,
+  "body_trimmed": {
+    "error": "invalid filters: 'startTs' and 'endTs' interval is too long"
+  },
+  "body_format": "json"
+}

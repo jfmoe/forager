@@ -1,0 +1,52 @@
+{
+  "url": "https://data-api.polymarket.com/v2/tokens?token_id=12403602920039269077597917340921667997547115084613238528792639013246536343316",
+  "fetched_at": "2026-10-24T04:51:04.698+00:00",
+  "http_code": "200",
+  "curl_time_total_s": "0.466571",
+  "client": "curl, anonymous, no cookies",
+  "status_lines": [
+    "HTTP/1.0 200 Connection established",
+    "HTTP/2 200"
+  ],
+  "headers_subset": {
+    "date": "Sat, 24 Oct 2026 04:51:05 GMT",
+    "content-type": "application/json",
+    "x-trace-id": "b464cc5036bc4dc0bdca2f81adb305a7",
+    "vary": "accept-encoding,origin, access-control-request-method, access-control-request-headers",
+    "access-control-allow-origin": "*",
+    "x-envoy-upstream-service-time": "19",
+    "server": "cloudflare",
+    "x-cache": "Miss from cloudfront",
+    "via": "1.1 0194289889dc315295aa558d7838ec6e.cloudfront.net (CloudFront)",
+    "x-amz-cf-pop": "LAX50-P1",
+    "cf-cache-status": "DYNAMIC",
+    "strict-transport-security": "max-age=7776000; includeSubDomains",
+    "cf-ray": "a4f65d43db6f53e6-LAX"
+  },
+  "body_bytes": 725,
+  "body_trimmed": {
+    "data": [
+      {
+        "token_id": "12403602920039269077597917340921667997547115084613238528792639013246536343316",
+        "condition_id": "0xd4e77ba6f29fc093509d24f508631abd445ecf506bbdc9c4c80e60256a318527",
+        "structural_condition_id": null,
+        "module": "v1_ctf",
+        "outcome_index": 0,
+        "clob_index": 0,
+        "outcome": "Yes",
+        "opposite_token_id": "21294592205022969346730955103773391901993330222644504059576935265667917187903",
+        "resolved": false,
+        "final_price": null,
+        "title": "Will no Fed rate cuts happen in 2026?",
+        "market_slug": "will-no-fed-rate-cuts-happen-in-2026",
+        "closed": false,
+        "neg_risk": true,
+        "neg_risk_market_id": "0xdcd7daabcacdc4ecf4f9a48d0a2708b52f356dd086c8070992136da62eb72b00",
+        "question_index": 0,
+        "event_id": 51456,
+        "event_slug": "how-many-fed-rate-cuts-in-2026"
+      }
+    ]
+  },
+  "body_format": "json"
+}

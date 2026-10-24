@@ -1,0 +1,26 @@
+{
+  "url": "https://clob.polymarket.com/spread?token_id=12403602920039269077597917340921667997547115084613238528792639013246536343316",
+  "fetched_at": "2026-10-24T04:48:02.923+00:00",
+  "http_code": "200",
+  "curl_time_total_s": "0.517676",
+  "client": "curl, anonymous, no cookies",
+  "status_lines": [
+    "HTTP/1.0 200 Connection established",
+    "HTTP/2 200"
+  ],
+  "headers_subset": {
+    "date": "Sat, 24 Oct 2026 04:48:03 GMT",
+    "content-type": "application/json",
+    "content-length": "19",
+    "vary": "Origin",
+    "cf-cache-status": "DYNAMIC",
+    "strict-transport-security": "max-age=7776000; includeSubDomains",
+    "server": "cloudflare",
+    "cf-ray": "a4f658d40c76b706-LAX"
+  },
+  "body_bytes": 19,
+  "body_trimmed": {
+    "spread": "0.002"
+  },
+  "body_format": "json"
+}

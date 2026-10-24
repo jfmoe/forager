@@ -1,0 +1,79 @@
+{
+  "fetched_window_utc": "2026-10-24T04:58:00Z/2026-10-24T05:10:00Z",
+  "client": "curl, anonymous, no cookies, same egress as environment.json",
+  "probes": [
+    {
+      "request": "GET https://gamma-api.polymarket.com/markets/keyset?version=v2&limit=3&closed=false",
+      "http_code": 200,
+      "observed": "three v2 markets (ids 5931597-5931599, slugs polyv2bkbsl-*); each has version \"v2\", a JSON-encoded clobTokenIds string, and a positionIds array with the same two ids; outcomePrices [\"0.5\",\"0.5\"], bestBid null, bestAsk 1"
+    },
+    {
+      "request": "GET https://clob.polymarket.com/midpoint?token_id=859200000273234893217704100561460298679196827126852708541873133663178194944",
+      "http_code": 200,
+      "body": {"mid": "0.5"}
+    },
+    {
+      "request": "GET https://clob.polymarket.com/book?token_id=859200000273234893217704100561460298679196827126852708541873133663178194944",
+      "http_code": 200,
+      "body_trimmed": {"market": "0x01e64a3b41c057c976f9b5de07e357c99e000000000000000000000000000000", "timestamp": "1792809684226", "bids": [], "asks": [], "tick_size": "0.01", "neg_risk": false, "last_trade_price": "0.500", "version": "v2"}
+    },
+    {
+      "request": "POST https://clob.polymarket.com/books with the Yes tokens of will-no-fed-rate-cuts-happen-in-2026 and will-1-fed-rate-cut-happen-in-2026 (neg-risk event 51456)",
+      "http_code": 200,
+      "observed": [
+        {"asset_id_prefix": "1240360292", "timestamp": "1792818194874", "bids": 111, "asks": 36, "best_bid": 0.961, "best_ask": 0.963, "last_trade_price": "0.037"},
+        {"asset_id_prefix": "1133798397", "timestamp": "1792818185390", "bids": 8, "asks": 105, "best_bid": 0.013, "best_ask": 0.014, "last_trade_price": "0.987"}
+      ]
+    },
+    {
+      "request": "GET https://clob.polymarket.com/last-trade-price?token_id=12403602920039269077597917340921667997547115084613238528792639013246536343316",
+      "http_code": 200,
+      "body": {"price": "0.963", "side": "BUY"}
+    },
+    {
+      "request": "POST https://clob.polymarket.com/last-trades-prices with the same token",
+      "http_code": 200,
+      "body": [{"price": "0.963", "side": "BUY", "token_id": "12403602920039269077597917340921667997547115084613238528792639013246536343316"}]
+    },
+    {
+      "request": "GET https://gamma-api.polymarket.com/public-search?q=bitcoin&events_status=active&limit_per_type=3&page=1..3, then limit_per_type=9 without page",
+      "http_code": 200,
+      "observed": "pages 1-3 returned event ids [1205812,1215665,1112205], [89502,1235796,1212409], [1205808,1218457,1244068]; limit_per_type=9 returned the same nine ids in the same order; totalResults 888, hasMore true on every page"
+    },
+    {
+      "request": "GET https://gamma-api.polymarket.com/markets/slug/no-such-market-xyz and /events/slug/no-such-event-xyz",
+      "http_code": 404,
+      "body": {"type": "not found error", "error": "slug not found"}
+    },
+    {
+      "request": "GET https://gamma-api.polymarket.com/events/slug/how-many-fed-rate-cuts-in-2026",
+      "http_code": 200,
+      "observed": "startDate 2025-09-29T22:24:45.988997Z, creationDate 2025-09-29T22:29:04.308472Z, published_at null; all 13 market descriptions are identical to each other and begin with the same text as the event description"
+    },
+    {
+      "request": "GET https://gamma-api.polymarket.com/events/slug/presidential-election-winner-2024",
+      "http_code": 200,
+      "observed": "id 903193, closed true; market will-donald-trump-win-the-2024-us-presidential-election has outcomePrices [\"1\",\"0\"] and umaResolutionStatus resolved"
+    },
+    {
+      "request": "POST https://clob.polymarket.com/prices with BUY and SELL entries for the empty-book v2 token 8592…4944 and the Yes token 1240…3316",
+      "http_code": 200,
+      "body": {"12403602920039269077597917340921667997547115084613238528792639013246536343316": {"BUY": "0.961", "SELL": "0.963"}, "859200000273234893217704100561460298679196827126852708541873133663178194944": {"BUY": "0", "SELL": "1"}}
+    },
+    {
+      "request": "GET https://clob.polymarket.com/price?token_id=<empty-book v2 token>&side=BUY and GET /spread?token_id=<same>",
+      "http_code": 200,
+      "body": [{"price": "0"}, {"spread": "1"}]
+    },
+    {
+      "request": "POST https://clob.polymarket.com/books with one Yes token of event 51456",
+      "http_code": 200,
+      "observed": "5153 bytes for a single book with 111 bid and 36 ask levels"
+    },
+    {
+      "request": "GET https://data-api.polymarket.com/v2/prices-history?token_id=<Yes token of will-no-fed-rate-cuts-happen-in-2026>&interval=1d",
+      "http_code": 200,
+      "observed": "1436 points without bucket_seconds; last point price 0.962, resolution_seconds 0; pagination has_more false"
+    }
+  ]
+}

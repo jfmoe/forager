@@ -1,0 +1,26 @@
+# Polymarket Documentation: English API Reference
+
+## API Reference
+
+- [English / API Reference / Predictions (138 pages)](https://docs.polymarket.com/_llms/en/api-reference/predictions.txt): Documentation for English / API Reference / Predictions.
+- [English / API Reference / Perps (102 pages)](https://docs.polymarket.com/_llms/en/api-reference/perps.txt): Documentation for English / API Reference / Perps.
+
+## OpenAPI Specs
+
+- [clob-openapi](/api-spec/clob-openapi.yaml)
+- [openapi](https://data-api.polymarket.com/v2/openapi.json)
+- [gamma-openapi](/api-spec/gamma-openapi.yaml)
+- [relayer-openapi](/api-spec/relayer-openapi.yaml)
+- [combos-rfq-openapi](/api-spec/combos-rfq-openapi.yaml)
+- [bridge-openapi](/api-spec/bridge-openapi.yaml)
+- [data-openapi](/api-spec/data-openapi.yaml)
+- [perps-openapi](/api-spec/perps-openapi.json)
+
+## AsyncAPI Specs
+
+- [asyncapi-rfq](/asyncapi-rfq.json)
+- [asyncapi](/asyncapi.json)
+- [asyncapi](https://ws-live-v2.polymarket.com/asyncapi.json)
+- [asyncapi-user](/asyncapi-user.json)
+- [asyncapi-sports](/asyncapi-sports.json)
+- [asyncapi-perps](/asyncapi-perps.json)

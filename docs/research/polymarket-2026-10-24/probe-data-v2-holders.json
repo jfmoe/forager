@@ -1,0 +1,127 @@
+{
+  "url": "https://data-api.polymarket.com/v2/holders?condition=0xd4e77ba6f29fc093509d24f508631abd445ecf506bbdc9c4c80e60256a318527&limit=3",
+  "fetched_at": "2026-10-24T04:50:37.873+00:00",
+  "http_code": "200",
+  "curl_time_total_s": "0.765749",
+  "client": "curl, anonymous, no cookies",
+  "status_lines": [
+    "HTTP/1.0 200 Connection established",
+    "HTTP/2 200"
+  ],
+  "headers_subset": {
+    "date": "Sat, 24 Oct 2026 04:50:38 GMT",
+    "content-type": "application/json",
+    "x-trace-id": "65779bab475243d5bcf371cb41348a72",
+    "access-control-allow-origin": "*",
+    "x-envoy-upstream-service-time": "14",
+    "server": "cloudflare",
+    "vary": "accept-encoding,origin",
+    "via": "1.1 06fa0f3b57bb062326f863cfef461d62.cloudfront.net (CloudFront)",
+    "cache-control": "public, max-age=120",
+    "x-cache": "Miss from cloudfront",
+    "x-amz-cf-pop": "LAX50-P1",
+    "cf-cache-status": "DYNAMIC",
+    "strict-transport-security": "max-age=7776000; includeSubDomains",
+    "cf-ray": "a4f65c9dfef4c4c6-LAX"
+  },
+  "body_bytes": 2486,
+  "body_trimmed": {
+    "data": [
+      {
+        "token_id": "12403602920039269077597917340921667997547115084613238528792639013246536343316",
+        "holders": [
+          {
+            "proxy_wallet": "0x3a8aa345d5db7ec5138298c8c4f4540259be7699",
+            "bio": "",
+            "token_id": "12403602920039269077597917340921667997547115084613238528792639013246536343316",
+            "pseudonym": "Fabulous-Online",
+            "amount": 593512.120598,
+            "display_username_public": true,
+            "outcome_index": 0,
+            "name": "TheReturnOfDarthMaul",
+            "profile_image": "",
+            "profile_image_optimized": "",
+            "verified": false
+          },
+          {
+            "proxy_wallet": "0xaf458bee32b8f1d9ba39ee876f20c7e3ce62ec7d",
+            "bio": "",
+            "token_id": "12403602920039269077597917340921667997547115084613238528792639013246536343316",
+            "pseudonym": "Animated-Riddle",
+            "amount": 262621.263565,
+            "display_username_public": true,
+            "outcome_index": 0,
+            "name": "fed26",
+            "profile_image": "",
+            "profile_image_optimized": "",
+            "verified": false
+          },
+          {
+            "proxy_wallet": "0xc6d0ff59ef83e7d6210c47d20408eb27b7844bad",
+            "bio": "",
+            "token_id": "12403602920039269077597917340921667997547115084613238528792639013246536343316",
+            "pseudonym": "Runny-Whack",
+            "amount": 67418.42018,
+            "display_username_public": true,
+            "outcome_index": 0,
+            "name": "strategy1.2",
+            "profile_image": "",
+            "profile_image_optimized": "",
+            "verified": false
+          }
+        ]
+      },
+      {
+        "token_id": "21294592205022969346730955103773391901993330222644504059576935265667917187903",
+        "holders": [
+          {
+            "proxy_wallet": "0xa5ef39c3d3e10d0b270233af41cac69796b12966",
+            "bio": "",
+            "token_id": "21294592205022969346730955103773391901993330222644504059576935265667917187903",
+            "pseudonym": "",
+            "amount": 1007995.052212,
+            "display_username_public": false,
+            "outcome_index": 1,
+            "name": "",
+            "profile_image": "",
+            "profile_image_optimized": "",
+            "verified": false
+          },
+          {
+            "proxy_wallet": "0xb0041b0d389a3da26b28faf17c6ab7f901d9c0c7",
+            "bio": "",
+            "token_id": "21294592205022969346730955103773391901993330222644504059576935265667917187903",
+            "pseudonym": "Skeletal-Flood-Prize",
+            "amount": 85230.929252,
+            "display_username_public": true,
+            "outcome_index": 1,
+            "name": "ftipip",
+            "profile_image": "",
+            "profile_image_optimized": "",
+            "verified": false
+          },
+          {
+            "proxy_wallet": "0x269ced0ede348b4b3f8fd8470b19f65508f79017",
+            "bio": "",
+            "token_id": "21294592205022969346730955103773391901993330222644504059576935265667917187903",
+            "pseudonym": "Burdensome-Disarmament",
+            "amount": 59999.984325,
+            "display_username_public": true,
+            "outcome_index": 1,
+            "name": "allen111",
+            "profile_image": "",
+            "profile_image_optimized": "",
+            "verified": false
+          }
+        ]
+      }
+    ],
+    "pagination": {
+      "limit": 3,
+      "offset": 0,
+      "has_more": true,
+      "next_cursor": "eyJkYXRhIjp7InR5cGUiOiJob2xkZXJzIiwicGFyYW1zIjp7ImwiOjMsIm8iOjN9fSwic2lnIjoiZWQ4YmI1Nzc0Njc2OWU3MWFmMTY0YWI1ZWNmYWQyYTcifQ"
+    }
+  },
+  "body_format": "json"
+}

@@ -164,6 +164,22 @@ _Avoid_: preflight（指不发请求的飞行前校验）、metadata check、val
 列出 Hacker News 某个官方榜单当前条目的 Platform Operation；条目按榜单排名排列，不签发 cursor。
 _Avoid_: front page search、HN feed
 
+**Polymarket Event**:
+Polymarket 上展示给人的一个问题或主题，含一个或多个 Polymarket Market，是 Polymarket 平台条目的默认 kind。互斥的多个 market 组成的 event 恰有一个结算为 Yes，但各 market 的 Market-Implied Probability 之和不必为 1。
+_Avoid_: question、market group
+
+**Polymarket Market**:
+Polymarket Event 中一个可单独结算的问题，有两个或多个结果（多为 Yes 与 No），每个结果在订单簿上单独交易。
+_Avoid_: contract、outcome、event
+
+**Market-Implied Probability（市场隐含概率）**:
+Polymarket Market 的一个结果在订单簿买卖两边都有挂单时，最优买价与最优卖价的中点。任一边没有挂单或市场停止交易时，它不存在；已结算的市场给出兑付值，不是概率。它表达交易者此刻的定价，不是校准过的预测，也不等于网页显示的价格。
+_Avoid_: odds、chance、displayed price、outcome price
+
+**Price History**:
+列出一个 Polymarket Market 中某个结果在一段时间内价格序列的 Platform Operation。序列只含市场价格；市场已结算时，兑付值单独给出，不混入序列。价格序列不等于 Market-Implied Probability 的历史：平台没有说明历史点取的是成交价还是中点。
+_Avoid_: probability history、chart、price feed
+
 **Platform Fetch**:
 按 Platform Ref 取回单个平台条目的操作；它不同于 Web Fetch Capability，尽管其正文段可以复用 Web Fetch。先由平台 route 取元数据并确定实际版本，全文深度再按 route 声明的正文来源取正文：一组 URL 或一个在同一 attempt 内校验过的本地文件走同一条 Web Fetch 链；route 在同一 attempt 内自己读到并核对过的平台原生正文（Native，例如小红书笔记）不经 Web Fetch（ADR 0022）。全文写入本地文件，结果只按路径引用它。
 _Avoid_: web fetch、platform download

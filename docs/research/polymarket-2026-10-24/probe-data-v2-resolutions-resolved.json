@@ -1,0 +1,47 @@
+{
+  "url": "https://data-api.polymarket.com/v2/resolutions?condition=0xdd22472e552920b8438158ea7238bfadfa4f736aa4cee91a6b86c39ead110917",
+  "fetched_at": "2026-10-24T04:50:26.645+00:00",
+  "http_code": "200",
+  "curl_time_total_s": "0.456176",
+  "client": "curl, anonymous, no cookies",
+  "status_lines": [
+    "HTTP/1.0 200 Connection established",
+    "HTTP/2 200"
+  ],
+  "headers_subset": {
+    "date": "Sat, 24 Oct 2026 04:50:27 GMT",
+    "content-type": "application/json",
+    "x-trace-id": "e3b0830b7a6041d0bb50613b25999993",
+    "access-control-allow-origin": "*",
+    "x-envoy-upstream-service-time": "3",
+    "server": "cloudflare",
+    "vary": "accept-encoding,origin",
+    "via": "1.1 0b05227e6c901c5cadd6f36979dbb0ba.cloudfront.net (CloudFront)",
+    "cache-control": "public, max-age=5",
+    "x-cache": "Miss from cloudfront",
+    "x-amz-cf-pop": "LAX50-P1",
+    "cf-cache-status": "DYNAMIC",
+    "strict-transport-security": "max-age=7776000; includeSubDomains",
+    "cf-ray": "a4f65c561eb5e6d4-LAX"
+  },
+  "body_bytes": 499,
+  "body_trimmed": {
+    "data": [
+      {
+        "question_id": "0xc2d6714f691eacd6ec494c7d6e5eaaf7dfba8907dcaf55b2dd93e7b479da1605",
+        "condition_id": "0xdd22472e552920b8438158ea7238bfadfa4f736aa4cee91a6b86c39ead110917",
+        "status": "resolved",
+        "extended_review": false,
+        "was_disputed": false,
+        "new_version_q": true,
+        "proposed_price": "1000000000000000000",
+        "reproposed_price": "69",
+        "price": "1000000000000000000",
+        "transaction_hash": "0xe687e360f4f6fc94a79e2dc9cf27e4db9bee101a07d4bd612a3c292200fbb8e4",
+        "log_index": "4",
+        "last_update_timestamp": "1730902492"
+      }
+    ]
+  },
+  "body_format": "json"
+}
