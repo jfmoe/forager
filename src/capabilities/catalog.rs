@@ -4,7 +4,7 @@ use std::time::Duration;
 use crate::rate_limit::AccessPolicy;
 use crate::types::{
     ASK, CHATGPT_RESEARCH_RESULT, CHATGPT_RESEARCH_START, CITED_BY, COMMENTS,
-    GEMINI_RESEARCH_RESULT, GEMINI_RESEARCH_START, Platform, STORIES, TRANSCRIBE, VIDEOS,
+    GEMINI_RESEARCH_RESULT, GEMINI_RESEARCH_START, HISTORY, Platform, STORIES, TRANSCRIBE, VIDEOS,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -473,6 +473,12 @@ const POLYMARKET_API_SMOKE: &[ProviderSmokeCase] = &[
         id: "C45",
         platform: Some(Platform::Polymarket),
         operation: "fetch",
+        transport: "http",
+    },
+    ProviderSmokeCase {
+        id: "C46",
+        platform: Some(Platform::Polymarket),
+        operation: HISTORY,
         transport: "http",
     },
 ];

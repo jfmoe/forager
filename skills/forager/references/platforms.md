@@ -43,7 +43,8 @@ platform absent from it has no platform command; follow
   "YouTube".
 - **Polymarket**: for the markets on a topic, run `forager platform polymarket search QUERY`; for
   the live probability of each outcome of an event or market (a polymarket.com link the user
-  gave, or a ref forager returned), run `forager platform polymarket fetch 'REF_OR_URL'`. See
+  gave, or a ref forager returned), run `forager platform polymarket fetch 'REF_OR_URL'`; for how
+  one outcome's price moved, run `forager platform polymarket history 'MARKET'`. See
   "Polymarket".
 
 `forager platform <id> <op> --help` is the syntax authority; see the platform section of
@@ -336,7 +337,8 @@ The second command keeps only the audio. Report the path yt-dlp printed.
 ## Polymarket
 
 Polymarket runs through the `polymarket_api` route and needs no key or setup: the Gamma API
-searches and describes events and markets, and the CLOB API supplies the live order book. An
+searches and describes events and markets, the CLOB API supplies the live order book, and the
+Data API supplies price histories. An
 event (`polymarket:<event_slug>`) groups markets; a market (`polymarket:market/<market_slug>`)
 has outcomes, usually Yes and No.
 
@@ -356,6 +358,12 @@ has outcomes, usually Yes and No.
   not normalize them.
 - `--depth abstract` adds the resolution rules, which decide what each outcome means; read them
   before saying what a market predicts.
+- `history` lists one outcome's prices over a window, to describe a trend or a turning point. Pass
+  a market ref; an event ref works only when the event holds one market, and otherwise stderr
+  lists the markets to pick from. Polymarket does not say whether a history point is a midpoint
+  or a trade, so call it the price history, not a probability history. A resolved market's payout
+  is `settlement`, never part of `points`. An empty `points` means no data at that bucket for that
+  window: fine buckets expire (1-minute data after about a week), so pass a coarser `--bucket`.
 - Slugs can change or be reused by a new event. To store or compare a market over time, key it by
   `condition_id` and the event by `event_id`; use the slug only for display and links. A slug that
   is no longer found means search again.
@@ -370,6 +378,7 @@ has outcomes, usually Yes and No.
 forager platform polymarket search 'fed rate cuts'
 forager platform polymarket fetch 'https://polymarket.com/event/presidential-election-winner-2024'
 forager platform polymarket fetch polymarket:presidential-election-winner-2024 --depth abstract --format content
+forager platform polymarket history polymarket:market/will-no-fed-rate-cuts-happen-in-2026 --interval 1w
 ```
 
 ## SSRN browser route

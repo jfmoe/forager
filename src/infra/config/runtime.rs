@@ -636,6 +636,7 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         polymarket_api: PolymarketRouteRuntimeConfig {
             url: config.providers.polymarket_api.url,
             clob_url: config.providers.polymarket_api.clob_url,
+            data_url: config.providers.polymarket_api.data_url,
             timeout_seconds: config.providers.polymarket_api.timeout,
         },
     };

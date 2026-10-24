@@ -29,6 +29,8 @@ pub(crate) struct PolymarketRouteRuntimeConfig {
     pub(crate) url: String,
     /// The CLOB API: live order books and last trades.
     pub(crate) clob_url: String,
+    /// The Data API: price history.
+    pub(crate) data_url: String,
     pub(crate) timeout_seconds: u64,
 }
 

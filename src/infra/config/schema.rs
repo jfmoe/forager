@@ -261,6 +261,7 @@ impl Default for HnApi {
 pub(super) struct PolymarketApi {
     pub(super) url: String,
     pub(super) clob_url: String,
+    pub(super) data_url: String,
     #[serde(deserialize_with = "deserialize_integer")]
     pub(super) timeout: u64,
 }
@@ -270,6 +271,7 @@ impl Default for PolymarketApi {
         Self {
             url: "https://gamma-api.polymarket.com".into(),
             clob_url: "https://clob.polymarket.com".into(),
+            data_url: "https://data-api.polymarket.com".into(),
             timeout: 30,
         }
     }
@@ -654,7 +656,8 @@ pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("providers.chatgpt_browser.timeout", providers.chatgpt_browser.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one OpenCLI command; must be greater than zero"),
     leaf!("providers.polymarket_api.url", providers.polymarket_api.url: String, Rule::Any, View::Url, "Polymarket Gamma API endpoint URL for discovery and metadata; this route needs no credentials"),
     leaf!("providers.polymarket_api.clob_url", providers.polymarket_api.clob_url: String, Rule::Any, View::Url, "Polymarket CLOB API endpoint URL for live order-book quotes"),
-    leaf!("providers.polymarket_api.timeout", providers.polymarket_api.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one request to either endpoint; must be greater than zero"),
+    leaf!("providers.polymarket_api.data_url", providers.polymarket_api.data_url: String, Rule::Any, View::Url, "Polymarket Data API endpoint URL for price history; request paths carry /v2"),
+    leaf!("providers.polymarket_api.timeout", providers.polymarket_api.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one request to any of its endpoints; must be greater than zero"),
     leaf!("capabilities.web_search.order", capabilities.web_search.order: Strings, Rule::CapabilityOrder { capability: "web_search", allow_empty: true }, View::Plain, "authoritative provider order for this capability"),
     leaf!("capabilities.web_fetch.order", capabilities.web_fetch.order: Strings, Rule::CapabilityOrder { capability: "web_fetch", allow_empty: false }, View::Plain, "authoritative provider order for this capability"),
     leaf!("capabilities.docs_search.order", capabilities.docs_search.order: Strings, Rule::CapabilityOrder { capability: "docs_search", allow_empty: true }, View::Plain, "authoritative provider order for this capability"),

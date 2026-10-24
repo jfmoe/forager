@@ -2,7 +2,8 @@
 
 use serde_json::Value;
 
-const POLYMARKET_CANARY_WINNER: &str =
+/// The winning market of the resolved canary event, whose history ends in a payout of 1.
+pub(super) const POLYMARKET_CANARY_WINNER: &str =
     "polymarket:market/will-donald-trump-win-the-2024-us-presidential-election";
 
 #[derive(Clone, Copy)]
@@ -26,6 +27,7 @@ pub(super) enum ResultShape {
     Comments,
     PolymarketResolved,
     PolymarketLive,
+    PolymarketSettlement,
 }
 
 /// Whether the payload of a live case command has the fields its shape needs.
@@ -100,6 +102,11 @@ pub(super) fn result_shape_is_nonempty(shape: ResultShape, payload: &Value) -> b
                             nonempty_string(outcome, "name") && outcome["basis"].is_string()
                         })
                 })
+        }
+        // The canary resolved Yes, so its whole history ends in a payout of 1 kept out of the
+        // series.
+        ResultShape::PolymarketSettlement => {
+            nonempty_array(payload, "points") && payload["settlement"]["price"] == 1.0
         }
     }
 }

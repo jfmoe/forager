@@ -39,15 +39,16 @@ pub(crate) use constructors::{
 pub(crate) use context7::{Context7, Context7DocsRequest, Context7LibraryRequest};
 pub(crate) use exa::{Exa, ExaSearchRequest, ExaSimilarRequest, SearchType};
 pub(crate) use factory::{
-    HN_STORIES_ROUTES, SCHOLAR_CITED_BY_ROUTES, X_ASK_ROUTES, XIAOHONGSHU_COMMENTS_ROUTES,
-    YOUTUBE_ASK_ROUTES, YOUTUBE_COMMENTS_ROUTES, YOUTUBE_TRANSCRIBE_ROUTES, YOUTUBE_VIDEOS_ROUTES,
-    adapter_status, build_docs_search, build_main_search, build_platform_fetch,
-    build_platform_search, build_web_fetch, build_web_search, hn_stories, hn_stories_support,
-    platform_fetch_support, platform_route_extra_checks, platform_search_support, route_accounts,
-    scholar_cited_by, scholar_cited_by_support, x_ask, x_ask_support, xiaohongshu_comments,
-    xiaohongshu_comments_support, youtube_ask, youtube_ask_support, youtube_comments,
-    youtube_comments_support, youtube_transcribe, youtube_transcribe_support, youtube_videos,
-    youtube_videos_support,
+    HN_STORIES_ROUTES, POLYMARKET_HISTORY_ROUTES, SCHOLAR_CITED_BY_ROUTES, X_ASK_ROUTES,
+    XIAOHONGSHU_COMMENTS_ROUTES, YOUTUBE_ASK_ROUTES, YOUTUBE_COMMENTS_ROUTES,
+    YOUTUBE_TRANSCRIBE_ROUTES, YOUTUBE_VIDEOS_ROUTES, adapter_status, build_docs_search,
+    build_main_search, build_platform_fetch, build_platform_search, build_web_fetch,
+    build_web_search, hn_stories, hn_stories_support, platform_fetch_support,
+    platform_route_extra_checks, platform_search_support, polymarket_history,
+    polymarket_history_support, route_accounts, scholar_cited_by, scholar_cited_by_support, x_ask,
+    x_ask_support, xiaohongshu_comments, xiaohongshu_comments_support, youtube_ask,
+    youtube_ask_support, youtube_comments, youtube_comments_support, youtube_transcribe,
+    youtube_transcribe_support, youtube_videos, youtube_videos_support,
 };
 pub(crate) use gemini_api::GeminiApi;
 pub(crate) use gemini_browser::GeminiBrowser;

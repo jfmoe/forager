@@ -91,6 +91,10 @@ forager platform polymarket search QUERY [--include-closed] [--limit 1..=20（�
 forager platform polymarket search --cursor CURSOR [--timeout 120] [--format json|markdown] [...]
 forager platform polymarket fetch REF_OR_URL [--depth metadata|abstract（默认 metadata）]
                                   [--timeout 120] [--format json|markdown|content] [...]
+forager platform polymarket history MARKET [--outcome NAME]
+                                    [--interval 1d|1w|1m|max（默认 1m）| --from DATE --to DATE]
+                                    [--bucket 1m|5m|30m|1h|3h|12h|1d]
+                                    [--timeout 120] [--format json|markdown] [...]
 forager gemini research start QUERY [--timeout 240] [--format json|markdown]
 forager gemini research result CONVERSATION [--report-dir DIR]
                                [--timeout 120] [--format json|markdown|content] [...]
@@ -590,6 +594,23 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 - 通用 flag 同 search。
 - **输出**：JSON 顶层为 `platform`、`provider`，条目的公共字段与 Polymarket 字段。event 有 search 的平台字段（不含 `top_markets`）、`prices_as_of` 与 `markets`（每个 market 一项：`ref`、`url`、`market_id`、`condition_id`、`question`、`label`、`status`、`end_date`、`probability`、`outcomes` 为 `[{name, price, basis, best_bid, best_ask}]`、`spread`、`last_trade_price`、`one_day_change`、`one_week_change`、`one_month_change`、`volume`、`liquidity`）；market 有 `event_id`、上述 market 字段、`neg_risk`、`event: {ref, url, title}`、`price_source` 与 `prices_as_of`。`price_source` 为 `clob` 时价格来自实时订单簿；为 `gamma` 时来自 Gamma 的缓存（CLOB 不可用时 stderr 有一条诊断）。`abstract` 另有 `rules`。
 - **退出码**：数字 id、`polymarket.us`、其他路径或主机，`metadata` 与 `abstract` 以外的深度＝飞行前退 2；`platforms.polymarket.order` 为空＝飞行前退 3；event 或 market 不存在（`Polymarket event not found: polymarket:<slug>; slugs can change, search again`）为 attempt 级 Parameter，返回的 slug 与请求不符、编码字段无法解码、结果与 token 数不一致为 Runtime，都退 4；`abstract` 而结算规则为空为 Quality，退 5；传输失败同 search。
+
+### `platform polymarket history`
+
+列出一个 market 中某个结果的 Price History：按时间升序的价格序列，经 `polymarket_api` route 的 Data API（第 7 章「Polymarket」）。这是只有一条 route 的 L2 平台操作。
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| market（位置参数） | `polymarket:market/<market_slug>`、`polymarket:<event_slug>`，或 fetch 接受的 URL | 必填 | event 只在恰有一个 market 时可用 |
+| `--outcome` | 结果名 | 第一个结果（Yes） | 不区分大小写 |
+| `--interval` | `1d` / `1w` / `1m` / `max` | `1m` | 到现在为止的时间窗；`1m` 是一个月，`max` 是 market 的全部历史；与 `--from/--to` 互斥 |
+| `--from`、`--to` | UTC 日期 `YYYY-MM-DD` | 无 | 显式时间窗，含两端，必须同时给出，至多 15 天 |
+| `--bucket` | `1m` / `5m` / `30m` / `1h` / `3h` / `12h` / `1d` | 按时间窗 | 每个点的宽度；`1m` 是一分钟 |
+| `--format` | `json` / `markdown` | `json` | 输出格式 |
+
+- 通用 flag 同 search。默认 bucket：`1d` 为 `5m`，`1w` 为 `1h`，`1m` 与 `max` 为 `1d`；显式区间不超过 2 天为 `5m`，其余为 `1h`。
+- **输出**：JSON 为 `{platform, provider, market: {ref, url, question, status}, outcome, interval, bucket_seconds, points: [{t, price}], settlement}`；显式区间时 `interval` 为 `null`，另有 `from` 与 `to`；`--verbose` 附 `provider_attempts`。`t` 为精确到秒的 UTC。已结算 market 的兑付值是 `settlement: {t, price}`，不在 `points` 中；未结算，或时间窗没有到达结算点时，`settlement` 为 `null`。序列超过 5 页时只列出前 5 页，stderr 给出一条诊断，建议加大 bucket。不写 Search Result Journal。
+- **退出码**：输入无法识别、`--interval` 与 `--from/--to` 同时给出、只给出 `--from` 或 `--to`、`--from` 晚于 `--to`、区间超过 15 天、`--bucket` 细于时间窗的下限（`1m` 与 `max` 至少 `30m`，`1w` 至少 `5m`）＝飞行前退 2，不发请求；`platforms.polymarket.order` 为空＝飞行前退 3；event 有多个 market（stderr 的诊断列出前 10 个 market 的 ref 与 label）、结果名不存在（消息列出可用的结果名）、event 或 market 不存在，以及 Data API 400（消息取上游 `error`）为 attempt 级 Parameter，退 4；传输失败同 search；超出保留期的粒度是合法空序列 `points: []`，退 0。
 
 ## Gemini 命令
 

@@ -1,6 +1,6 @@
 # Polymarket 平台与 `polymarket_api` route 设计
 
-状态：search 与 fetch 已实现并写入 spec（第 2、3、4、5、7 章），history 尚未实现；决策记录见 [ADR 0032](../adr/0032-polymarket-platform-prices-from-two-sided-order-books.md)。日期：2026-10-24。外部事实与证据见 [Polymarket 平台接入调研](../research/2026-10-24-polymarket-integration.md)（下称「调研」），本文引用其中已核实的事实，不重复证据。
+状态：search、fetch 与 history 已实现并写入 spec（第 2、3、4、5、7 章）；决策记录见 [ADR 0032](../adr/0032-polymarket-platform-prices-from-two-sided-order-books.md)。日期：2026-10-24。外部事实与证据见 [Polymarket 平台接入调研](../research/2026-10-24-polymarket-integration.md)（下称「调研」），本文引用其中已核实的事实，不重复证据。
 
 ## 目标与边界
 
@@ -123,7 +123,7 @@ market `status`：
 - **请求数**：每个操作是常数。
   - search 1 次；
   - fetch 3 次：Gamma、CLOB `/prices`、CLOB `/last-trades-prices`；
-  - history 2 次：Gamma 取 token、Data API 取历史。
+  - history 2 次：Gamma 取 token、Data API 取历史；序列超过一页时另有至多 4 次续页。
 
   例外是 outcome 多于 250 个的 fetch：CLOB 批量请求按每批 500 项切分（`/prices` 一批是 250 个 token 的买卖两侧，`/last-trades-prices` 一批是 500 个 token），详见「fetch」。
 
@@ -188,7 +188,7 @@ market `status`：
 
 - **为什么是新操作**：它的结果是时间序列，不是条目，改变了结果种类。只由 `polymarket_api` 实现，写成 inherent 方法 `PolymarketApi::history`；provider factory 声明 route 集合 `POLYMARKET_HISTORY_ROUTES` 与支持检查；core 新增 `platform_history`，编排方式与 `platform_stories` 相同，attempt 的 operation 为 `history`。
 - **输入**：MARKET 接受 market ref 或 URL。
-  - event ref 在飞行前无法知道它有几个 market，所以也接受：取回后恰有一个 market 时用它；多于一个时为 attempt 级 Parameter，消息列出前 10 个 market 的 ref 与 label。
+  - event ref 在飞行前无法知道它有几个 market，所以也接受：取回后恰有一个 market 时用它；多于一个时为 attempt 级 Parameter，前 10 个 market 的 ref 与 label 列在 stderr 的诊断中。失败载荷的 message 截断到 500 字符，十个长 ref 放不下，所以列表不放进 message。
   - `--outcome` 默认第一个 outcome（Yes），按名称不区分大小写匹配；没有这个 outcome 为 attempt 级 Parameter，消息列出可用名称。
 - **时间窗**：`--interval` 与 `--from/--to` 互斥，默认 `--interval 1m`。
   - `--from/--to` 为 UTC 日期，含两端，区间不超过 15 天（Data API 显式窗口的上限），超过时飞行前退 2；
@@ -206,11 +206,11 @@ market `status`：
 - **请求**：
   1. Gamma 取 market 与 token（同 fetch）；
   2. `GET <data_url>/v2/prices-history?token_id=<id>&interval=<i>&bucket_seconds=<s>`，或 `start`/`end` 加 `bucket_seconds`；
-  3. `pagination.has_more` 为 true 时，在同一 attempt 内按 `next_cursor` 续页，最多 5 页。仍未读完时 stderr 给出“未列全”诊断，提示加大 bucket。
+  3. `pagination.has_more` 为 true 时，在同一次 route 运行内续页，最多 5 页：`next_cursor` 只记位置，续页带同一组参数加 `cursor`。仍未读完时 stderr 给出“未列全”诊断，提示加大 bucket。
 - **输出**：
   - 形状：`{platform, provider, market: {ref, url, question, status}, outcome, interval, bucket_seconds, points: [{t, price}], settlement}`；
   - `t` 为精确到秒的 UTC；
-  - 已结算 market 末尾 `resolution_seconds` 为 0 的结算点不放进 `points`，而是作为 `settlement: {t, price}`，未结算时为 `null`。这样序列里只有市场价格，不混入兑付值。
+  - 已结算 market 末尾 `resolution_seconds` 为 0 的结算点不放进 `points`，而是作为 `settlement: {t, price}`，未结算时为 `null`。这样序列里只有市场价格，不混入兑付值。未结算 market 的序列末尾同样有一个 `resolution_seconds` 为 0 的点，那是最新一次成交的观测，留在 `points` 中，所以拆分以 market 的 `status` 为 `resolved` 为前提。显式区间时输出的 `interval` 为 `null`，另有 `from` 与 `to`。
   - 合法空序列（超出保留期）返回 `points: []`，退 0。
 
   文档没有说明历史点的 `price` 是成交价还是 midpoint，skill reference 照此说明，不把它称作“概率历史”。
@@ -308,8 +308,16 @@ market `status`：
   - Cloudflare 按 User-Agent 拦截部分客户端：Python urllib 的默认 UA 得到 403（error 1010），forager 与 curl 的 UA 正常。
   - CLOB `/time` 返回一个裸数字。
   - Gamma 常缺 `oneMonthPriceChange`，已结算 market 缺 `liquidity`。
+- **Data API `/v2/prices-history`**：样本为已结算的 Trump canary（`will-donald-trump-win-the-2024-us-presidential-election` 的 Yes token）、未结算的 `will-no-fed-rate-cuts-happen-in-2026` 与一个月前结算的 `will-no-fed-rate-hikes-happen-in-2026-20260623190852889`。
+  - **显式区间加 bucket**：`start`/`end` 加 `bucket_seconds` 严格按网格返回。`end` 不含端点：2026-10-10 0 点到 10-24 0 点（14 天）以 3600 秒返回 337 个点，10-10 到 10-25（15 天）返回 344 个点，10-09 到 10-25（16 天）返回 400 `'start' to 'end' must span at most 15 days`。窗口末端在未来也被接受。`start=0` 返回 400 `invalid timestamp`。
+  - **interval 加 bucket**：`max` 加 86400 对 canary 返回 308 个点（不受 30 天限制），`max` 加 43200 与不带 bucket 都返回 615 个点；`max` 加 3600 返回空页，因为 `max` 在 10800 秒以下只覆盖最近 30 天。`max` 加 300 返回 400 `bucket_seconds must be at least 600 for this interval`，`1w` 加 60 返回 400 `... at least 300 ...`。`1d` 加 300 返回 287 个点，`1w` 加 3600 返回 168 个，`1m` 加 86400 返回 31 个。
+  - **默认 bucket 的点数**：`1w`、`1m` 与 `max` 的默认值落在几十到三百个点之间；`1d` 的 `5m` 为 287 个，2 天显式区间的 `5m` 为 577 个，15 天显式区间的 `1h` 为 360 个，都多于「约 30–200 个」的目标。实现保留 #249 的映射，没有据此修改。
+  - **续页 cursor**：`limit=20` 时 `pagination` 为 `{limit: 20, offset: 0, has_more: true, next_cursor: <base64>}`，解码后只含页大小、位置时间戳、bucket 与已读点数。只带 `cursor` 返回 400 `required query param 'token_id' not provided`，带 `token_id` 而缺时间窗返回 400 `provide a time component ...`；带同一组参数加 `cursor` 返回下一页（`offset: 20`）。换一个 `bucket_seconds` 再带同一 cursor 不报错，而是按新网格从同一位置继续，所以续页必须原样重发参数。
+  - **超出保留期的空页**：未结算样本以 60 秒取 2026-09-20 到 09-22 返回 200、`data: []`、`has_more: false`。一个月前结算的样本取 `1m` 加 86400 也返回空页，连结算点都没有（结算点放在最后一行之后一个 bucket 处，落在窗口外），所以已结算 market 的 `settlement` 也可能为 `null`。未知 token 同样返回 200 空页。
+  - **末尾的 `resolution_seconds: 0`**：未结算样本每个时间窗的最后一点都是 `resolution_seconds` 为 0 的单次观测（如 `1792827258`，不在网格上），是最新成交，不是结算点。已结算样本的最后一点是兑付值（canary 为 `2024-11-07T00:00:00Z` 的 1.0，一个月前结算的样本为 0.0），前面没有另一个单次观测。
+  - **`/v2/status`**：返回 `{"data": {"computed_at", "age_seconds", "serving", "ingestion", ...}}`，deep doctor 只核对 `data` 是对象。
 
 ## 仍未实测的部分
 
 - **slug 的变化**：slug 是否会变、旧 slug 是否仍可查询（`pastSlugs`）仍未知。
-- **Data API**：显式区间加 bucket 的组合、续页 cursor，以及超出保留期的空页。
+- **Data API 的多页序列**：默认 bucket 下没有超过一页（10,000 个点）的序列；5 页上限与「未列全」诊断只由 fixture 测试覆盖。

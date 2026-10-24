@@ -264,6 +264,13 @@
       "seam": "platform:polymarket:fetch",
       "test": "tests/polymarket_fetch.rs::each_outcome_is_priced_by_its_market_status_and_live_book",
       "note": "Fixture servers stand in for Gamma and the CLOB in the shapes they returned on 2026-10-24; the live endpoints are confirmed only by the live smoke C44 and C45."
+    },
+    {
+      "id": "F38",
+      "provider": "polymarket_api",
+      "seam": "platform:polymarket:history",
+      "test": "tests/polymarket_history.rs::a_resolved_market_lists_its_daily_prices_and_gives_its_payout_as_the_settlement",
+      "note": "history is a single-route platform operation outside the platform catalog; the platform checklist matches this entry against the provider factory's history routes. Fixture servers stand in for Gamma and the Data API v2 in the shapes they returned on 2026-10-24; the live endpoints are confirmed only by the live smoke C46."
     }
   ],
   "offline_e2e": [

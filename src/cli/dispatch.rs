@@ -22,8 +22,9 @@ use crate::types::{
     ClaimRisk, Context7Outcome, Deadline, EvidenceStrength, FallbackPolicy, FetchOutcome,
     GeminiResearchFailure, GeminiResearchResult, GeminiResearchStarted, HnStoriesResult,
     JournalOutcome, MapOutcome, PlanCapability, Platform, PlatformAskResult, PlatformCommentsPage,
-    PlatformFetchResult, PlatformSearchPage, PlatformTranscribeResult, ProviderAttempt,
-    RecencyRequirement, ResearchIntentSignals, ResearchPlan, ResearchSubquestion, SearchOutcome,
+    PlatformFetchResult, PlatformSearchPage, PlatformTranscribeResult, PolymarketHistoryResult,
+    ProviderAttempt, RecencyRequirement, ResearchIntentSignals, ResearchPlan, ResearchSubquestion,
+    SearchOutcome,
 };
 
 #[doc(hidden)]
@@ -185,6 +186,17 @@ pub enum CommandOutput {
     HnStories {
         /// Stories result.
         result: Result<HnStoriesResult, ProviderError>,
+        /// Requested output format.
+        format: OutputFormat,
+        /// Optional output file destination.
+        output: Option<OutputTarget>,
+        /// Optional terminal projection selected by `log.level`.
+        attempt_log: Option<String>,
+    },
+    /// Typed Polymarket price history terminal state for binary-side formatting and tee output.
+    PolymarketHistory {
+        /// History result.
+        result: Result<PolymarketHistoryResult, ProviderError>,
         /// Requested output format.
         format: OutputFormat,
         /// Optional output file destination.

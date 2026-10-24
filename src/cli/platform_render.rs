@@ -1,5 +1,5 @@
 //! Binary-side rendering of platform command results: search pages, fetched items,
-//! comments, answers, model transcripts, and Hacker News story lists.
+//! comments, answers, model transcripts, Hacker News story lists, and Polymarket price histories.
 
 use std::fmt::Write as _;
 
@@ -7,8 +7,8 @@ use forager::app::{DocsOutputFormat, OutputFormat, OutputTarget, ProviderError};
 use forager::types::{
     ContentDepth, HnStoriesResult, ModelUsage, Platform, PlatformAskResult, PlatformCommentsPage,
     PlatformFetchResult, PlatformItem, PlatformItemData, PlatformSearchPage,
-    PlatformTranscribeResult, PolymarketItemData, ScholarItemData, XAskResult, XPostData,
-    XiaohongshuCommentsPage, YoutubeAskResult, YoutubeCommentsPage,
+    PlatformTranscribeResult, PolymarketHistoryResult, PolymarketItemData, ScholarItemData,
+    XAskResult, XPostData, XiaohongshuCommentsPage, YoutubeAskResult, YoutubeCommentsPage,
 };
 
 use crate::{RenderedOutput, apply_tee, format_failure_json, postflight_exit_code};
@@ -132,6 +132,75 @@ fn format_stories(listing: &HnStoriesResult, format: OutputFormat) -> Result<Str
     }
     if listing.items.is_empty() {
         markdown.push_str("\n\nNo stories.");
+    }
+    Ok(markdown)
+}
+
+pub(crate) fn render_history(
+    result: Result<PolymarketHistoryResult, ProviderError>,
+    format: OutputFormat,
+    output: Option<OutputTarget>,
+) -> Result<RenderedOutput, String> {
+    let (stdout, exit_code, diagnostic) = match result {
+        Ok(history) => (format_history(&history, format)?, 0, history.diagnostic),
+        Err(error) => {
+            let stdout = match format {
+                OutputFormat::Json => format_failure_json(&error)?,
+                OutputFormat::Markdown => format!(
+                    "# Polymarket history failed\n\n**{}**: {}",
+                    error.kind.as_str(),
+                    error.message
+                ),
+            };
+            (stdout, postflight_exit_code(error.kind), error.diagnostic)
+        }
+    };
+    apply_tee(
+        stdout,
+        exit_code,
+        format == OutputFormat::Json,
+        output,
+        diagnostic,
+    )
+}
+
+fn format_history(
+    history: &PolymarketHistoryResult,
+    format: OutputFormat,
+) -> Result<String, String> {
+    if format == OutputFormat::Json {
+        return serde_json::to_string(history).map_err(|error| error.to_string());
+    }
+    let market = &history.market;
+    let window = match (history.interval, history.from, history.to) {
+        (Some(interval), _, _) => format!("interval {}", interval.as_str()),
+        (None, Some(from), Some(to)) => format!("{from} to {to}"),
+        _ => String::new(),
+    };
+    let mut markdown = format!(
+        "# Polymarket history ({})\n\n[{}]({}) `{}` — {}\n\n{} outcome, {window}, {}-second buckets\n",
+        history.provider,
+        market.question,
+        market.url,
+        market.reference,
+        market.status.as_str(),
+        history.outcome,
+        history.bucket_seconds
+    );
+    if history.points.is_empty() {
+        markdown.push_str("\nNo points.");
+    } else {
+        markdown.push_str("\n| t | price |\n|---|---|");
+        for point in &history.points {
+            let _ = write!(markdown, "\n| {} | {} |", point.t, point.price);
+        }
+    }
+    if let Some(settlement) = &history.settlement {
+        let _ = write!(
+            markdown,
+            "\n\nSettlement: {} at {}",
+            settlement.price, settlement.t
+        );
     }
     Ok(markdown)
 }

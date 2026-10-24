@@ -17,7 +17,7 @@ use crate::config::{
 };
 use crate::providers;
 use crate::types::{
-    ASK, CITED_BY, COMMENTS, ContentDepth, Platform, PlatformFetchRequest, PlatformRef,
+    ASK, CITED_BY, COMMENTS, ContentDepth, HISTORY, Platform, PlatformFetchRequest, PlatformRef,
     PlatformSearchOptions, PlatformSearchRequest, STORIES, TRANSCRIBE, VIDEOS,
 };
 
@@ -63,6 +63,11 @@ const SINGLE_ROUTE_OPERATIONS: &[(Platform, &str, &[ProviderId])] = &[
     ),
     (Platform::X, ASK, providers::X_ASK_ROUTES),
     (Platform::Hn, STORIES, providers::HN_STORIES_ROUTES),
+    (
+        Platform::Polymarket,
+        HISTORY,
+        providers::POLYMARKET_HISTORY_ROUTES,
+    ),
     (
         Platform::Youtube,
         COMMENTS,
@@ -395,6 +400,7 @@ fn has_adapter(platform: Platform, operation: PlatformOperation, route: Provider
         polymarket_api: PolymarketRouteRuntimeConfig {
             url: String::new(),
             clob_url: String::new(),
+            data_url: String::new(),
             timeout_seconds: 1,
         },
     };

@@ -12,6 +12,7 @@ mod platform;
 mod platform_arxiv;
 mod platform_hn;
 mod platform_polymarket;
+mod platform_polymarket_history;
 mod platform_polymarket_price;
 mod platform_scholar;
 mod platform_ssrn;
@@ -70,6 +71,13 @@ pub use platform_polymarket::{
     PolymarketKind, PolymarketMarket, PolymarketMarketFields, PolymarketOutcome,
     PolymarketPriceSource, PolymarketRef, PolymarketSearchOptions, PolymarketStatus,
     PolymarketTopMarket,
+};
+pub(crate) use platform_polymarket_history::{
+    HISTORY, PolymarketHistoryOutcome, PolymarketHistoryRequest, PolymarketWindow,
+};
+pub use platform_polymarket_history::{
+    PolymarketBucket, PolymarketHistoryMarket, PolymarketHistoryResult, PolymarketInterval,
+    PolymarketPricePoint,
 };
 pub(crate) use platform_scholar::{
     CITED_BY, SCHOLAR_MAX_LIMIT, ScholarCitedByRequest, ScholarCitedBySort,
