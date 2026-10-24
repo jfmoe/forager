@@ -1,0 +1,158 @@
+{
+  "url": "https://gamma-api.polymarket.com/public-search?q=bitcoin&limit_per_type=100&search_tags=true&search_profiles=false&optimized=true",
+  "fetched_at": "2026-10-24T04:46:48.496+00:00",
+  "http_code": "200",
+  "curl_time_total_s": "3.122702",
+  "client": "curl, anonymous, no cookies",
+  "status_lines": [
+    "HTTP/1.0 200 Connection established",
+    "HTTP/2 200"
+  ],
+  "headers_subset": {
+    "content-type": "application/json",
+    "date": "Sat, 24 Oct 2026 04:46:50 GMT",
+    "x-envoy-upstream-service-time": "2118",
+    "server": "istio-envoy",
+    "vary": "Accept-Encoding,Origin",
+    "via": "1.1 f53b47d63767203dd6c2367067037cfc.cloudfront.net (CloudFront)",
+    "cache-control": "public, max-age=60",
+    "x-cache": "Miss from cloudfront",
+    "x-amz-cf-pop": "LAX54-P12"
+  },
+  "body_bytes": 195415,
+  "body_trimmed": {
+    "events": [
+      {
+        "active": true,
+        "archived": false,
+        "closed": false,
+        "endDate": "2026-10-24T16:00:00Z",
+        "ended": false,
+        "id": "1205812",
+        "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/BTC+fullsize.png",
+        "markets": [
+          {
+            "active": true,
+            "archived": false,
+            "bestAsk": 1,
+            "bestBid": 0.999,
+            "closed": false,
+            "groupItemTitle": "72,000",
+            "lastTradePrice": 0.999,
+            "outcomePrices": [
+              "0.9995",
+              "0.0005"
+            ],
+            "outcomes": [
+              "Yes",
+              "No"
+            ],
+            "question": "Will the price of Bitcoin be above $72,000 on October 24?",
+            "slug": "bitcoin-above-72k-on-october-24-2026",
+            "spread": 0.001
+          },
+          {
+            "active": true,
+            "archived": false,
+            "bestAsk": 1,
+            "bestBid": 0.998,
+            "closed": false,
+            "groupItemTitle": "74,000",
+            "lastTradePrice": 0.999,
+            "outcomePrices": [
+              "0.999",
+              "0.001"
+            ],
+            "outcomes": [
+              "Yes",
+              "No"
+            ],
+            "question": "Will the price of Bitcoin be above $74,000 on October 24?",
+            "slug": "bitcoin-above-74k-on-october-24-2026",
+            "spread": 0.002
+          },
+          "... trimmed 9 more items (total 11)"
+        ],
+        "negRisk": false,
+        "slug": "bitcoin-above-on-october-24-2026",
+        "startDate": "2026-10-17T16:00:12Z",
+        "title": "Bitcoin above ___ on October 24?"
+      },
+      {
+        "active": true,
+        "archived": false,
+        "closed": false,
+        "endDate": "2026-10-26T04:00:00Z",
+        "ended": false,
+        "id": "1215665",
+        "image": "https://polymarket-upload.s3.us-east-2.amazonaws.com/BTC+fullsize.png",
+        "markets": [
+          {
+            "active": true,
+            "archived": false,
+            "bestAsk": 0.002,
+            "bestBid": 0.001,
+            "closed": false,
+            "groupItemTitle": "↑ 96,000",
+            "lastTradePrice": 0.001,
+            "outcomePrices": [
+              "0.0015",
+              "0.9985"
+            ],
+            "outcomes": [
+              "Yes",
+              "No"
+            ],
+            "question": "Will Bitcoin reach $96,000 October 19-25?",
+            "slug": "will-bitcoin-reach-96k-october-19-25-2026",
+            "spread": 0.001
+          },
+          {
+            "active": true,
+            "archived": false,
+            "bestAsk": 0.002,
+            "bestBid": 0.001,
+            "closed": false,
+            "groupItemTitle": "↑ 94,000",
+            "lastTradePrice": 0.002,
+            "outcomePrices": [
+              "0.0015",
+              "0.9985"
+            ],
+            "outcomes": [
+              "Yes",
+              "No"
+            ],
+            "question": "Will Bitcoin reach $94,000 October 19-25?",
+            "slug": "will-bitcoin-reach-94k-october-19-25-2026",
+            "spread": 0.001
+          },
+          "... trimmed 18 more items (total 20)"
+        ],
+        "negRisk": false,
+        "slug": "what-price-will-bitcoin-hit-october-19-25-2026",
+        "startDate": "2026-10-19T04:00:10Z",
+        "title": "What price will Bitcoin hit October 19-25?"
+      },
+      "... trimmed 96 more items (total 98)"
+    ],
+    "hasMore": true,
+    "profiles": null,
+    "tags": [
+      {
+        "id": "235",
+        "label": "Bitcoin",
+        "slug": "bitcoin",
+        "event_count": 86
+      },
+      {
+        "id": "102328",
+        "label": "Bitcoin Volatility",
+        "slug": "bitcoin-volatility",
+        "event_count": 1
+      },
+      "... trimmed 1 more items (total 3)"
+    ]
+  },
+  "body_format": "json"
+}

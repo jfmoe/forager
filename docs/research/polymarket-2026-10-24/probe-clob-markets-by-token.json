@@ -1,0 +1,28 @@
+{
+  "url": "https://clob.polymarket.com/markets-by-token/12403602920039269077597917340921667997547115084613238528792639013246536343316",
+  "fetched_at": "2026-10-24T04:51:02.604+00:00",
+  "http_code": "200",
+  "curl_time_total_s": "0.747763",
+  "client": "curl, anonymous, no cookies",
+  "status_lines": [
+    "HTTP/1.0 200 Connection established",
+    "HTTP/2 200"
+  ],
+  "headers_subset": {
+    "date": "Sat, 24 Oct 2026 04:51:03 GMT",
+    "content-type": "application/json",
+    "content-length": "286",
+    "vary": "Origin",
+    "cf-cache-status": "DYNAMIC",
+    "strict-transport-security": "max-age=7776000; includeSubDomains",
+    "server": "cloudflare",
+    "cf-ray": "a4f65d389ec217c8-LAX"
+  },
+  "body_bytes": 286,
+  "body_trimmed": {
+    "condition_id": "0xd4e77ba6f29fc093509d24f508631abd445ecf506bbdc9c4c80e60256a318527",
+    "primary_token_id": "12403602920039269077597917340921667997547115084613238528792639013246536343316",
+    "secondary_token_id": "21294592205022969346730955103773391901993330222644504059576935265667917187903"
+  },
+  "body_format": "json"
+}

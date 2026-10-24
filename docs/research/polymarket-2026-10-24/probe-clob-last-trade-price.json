@@ -1,0 +1,27 @@
+{
+  "url": "https://clob.polymarket.com/last-trade-price?token_id=12403602920039269077597917340921667997547115084613238528792639013246536343316",
+  "fetched_at": "2026-10-24T04:48:04.815+00:00",
+  "http_code": "200",
+  "curl_time_total_s": "0.509331",
+  "client": "curl, anonymous, no cookies",
+  "status_lines": [
+    "HTTP/1.0 200 Connection established",
+    "HTTP/2 200"
+  ],
+  "headers_subset": {
+    "date": "Sat, 24 Oct 2026 04:48:05 GMT",
+    "content-type": "application/json",
+    "content-length": "32",
+    "vary": "Origin",
+    "cf-cache-status": "DYNAMIC",
+    "strict-transport-security": "max-age=7776000; includeSubDomains",
+    "server": "cloudflare",
+    "cf-ray": "a4f658dffd2677f7-LAX"
+  },
+  "body_bytes": 32,
+  "body_trimmed": {
+    "price": "0.961",
+    "side": "SELL"
+  },
+  "body_format": "json"
+}

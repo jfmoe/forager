@@ -1,0 +1,31 @@
+{
+  "url": "https://data-api.polymarket.com/oi?market=0xd4e77ba6f29fc093509d24f508631abd445ecf506bbdc9c4c80e60256a318527",
+  "fetched_at": "2026-10-24T04:50:43.657+00:00",
+  "http_code": "200",
+  "curl_time_total_s": "0.524284",
+  "client": "curl, anonymous, no cookies",
+  "status_lines": [
+    "HTTP/1.0 200 Connection established",
+    "HTTP/2 200"
+  ],
+  "headers_subset": {
+    "date": "Sat, 24 Oct 2026 04:50:44 GMT",
+    "content-type": "application/json",
+    "content-length": "104",
+    "vary": "Origin",
+    "last-modified": "Sat, 24 Oct 2026 04:50:44 GMT",
+    "cache-control": "public, max-age=300",
+    "cf-cache-status": "HIT",
+    "strict-transport-security": "max-age=7776000; includeSubDomains",
+    "server": "cloudflare",
+    "cf-ray": "a4f65cc0dc70da41-LAX"
+  },
+  "body_bytes": 104,
+  "body_trimmed": [
+    {
+      "market": "0xd4e77ba6f29fc093509d24f508631abd445ecf506bbdc9c4c80e60256a318527",
+      "value": 1752674.321795
+    }
+  ],
+  "body_format": "json"
+}

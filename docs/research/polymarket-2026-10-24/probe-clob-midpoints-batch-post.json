@@ -1,0 +1,29 @@
+{
+  "url": "https://clob.polymarket.com/midpoints",
+  "fetched_at": "2026-10-24T04:53:37.179+00:00",
+  "http_code": "200",
+  "curl_time_total_s": "0.542174",
+  "client": "curl, anonymous, no cookies",
+  "status_lines": [
+    "HTTP/1.0 200 Connection established",
+    "HTTP/2 200"
+  ],
+  "headers_subset": {
+    "date": "Sat, 24 Oct 2026 04:53:37 GMT",
+    "content-type": "application/json",
+    "content-length": "178",
+    "vary": "Origin",
+    "cf-cache-status": "DYNAMIC",
+    "strict-transport-security": "max-age=7776000; includeSubDomains",
+    "server": "cloudflare",
+    "cf-ray": "a4f660fd79d6265a-LAX"
+  },
+  "body_bytes": 178,
+  "body_trimmed": {
+    "12403602920039269077597917340921667997547115084613238528792639013246536343316": "0.962",
+    "21294592205022969346730955103773391901993330222644504059576935265667917187903": "0.038"
+  },
+  "body_format": "json",
+  "method": "POST",
+  "request_body_shape": "[{\"token_id\":\"<T1 yes>\"},{\"token_id\":\"<T2 no>\"}]"
+}

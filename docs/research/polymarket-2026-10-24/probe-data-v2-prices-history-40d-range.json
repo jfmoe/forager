@@ -1,0 +1,34 @@
+{
+  "url": "https://data-api.polymarket.com/v2/prices-history?token_id=12403602920039269077597917340921667997547115084613238528792639013246536343316&start=1789361393&end=1792817393",
+  "fetched_at": "2026-10-24T04:49:57.345+00:00",
+  "http_code": "400",
+  "curl_time_total_s": "0.477274",
+  "client": "curl, anonymous, no cookies",
+  "status_lines": [
+    "HTTP/1.0 200 Connection established",
+    "HTTP/2 400"
+  ],
+  "headers_subset": {
+    "date": "Sat, 24 Oct 2026 04:49:57 GMT",
+    "content-type": "application/json",
+    "x-trace-id": "43dc941b373849989f2d3fe5270e2580",
+    "access-control-allow-origin": "*",
+    "x-envoy-upstream-service-time": "0",
+    "server": "cloudflare",
+    "vary": "accept-encoding,origin",
+    "x-cache": "Error from cloudfront",
+    "via": "1.1 d34c1f3bde73ba74acaa2d8cb0ec40b2.cloudfront.net (CloudFront)",
+    "x-amz-cf-pop": "LAX50-P1",
+    "cf-cache-status": "MISS",
+    "strict-transport-security": "max-age=7776000; includeSubDomains",
+    "cf-ray": "a4f65b9eeb028189-LAX"
+  },
+  "body_bytes": 143,
+  "body_trimmed": {
+    "error": "'start' to 'end' must span at most 15 days",
+    "code": "invalid_request",
+    "retryable": false,
+    "trace_id": "43dc941b373849989f2d3fe5270e2580"
+  },
+  "body_format": "json"
+}

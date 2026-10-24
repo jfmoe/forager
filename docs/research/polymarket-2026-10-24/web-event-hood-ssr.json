@@ -1,0 +1,19 @@
+{
+  "url": "https://polymarket.com/event/what-price-will-hood-hit-in-october-2026",
+  "fetched_at": "2026-10-24T04:48:57.115+00:00",
+  "client": "curl, desktop Chrome User-Agent, anonymous",
+  "status_lines": [
+    "HTTP/1.0 200 Connection established",
+    "HTTP/2 103 ",
+    "HTTP/2 200 "
+  ],
+  "note": "Server-rendered HTML of polymarket.com event page; extracted the visible row text for market 5691706 and the embedded market JSON fields from the same HTML. Full HTML not kept (≈ 1291612 bytes).",
+  "visible_row_text": "data-scroll-anchor=\"event-detail-accordion-item-5691706-will-hood-reach-105-in-october-2026\" class=\"[&amp;+&amp;]:border-t [&amp;+&amp;]:border-pk-border\"> ↑ $105 $6,462 Vol. 63% Buy Yes 94.8¢ Buy No 67.9¢ <div class=\"overflow-hidden t",
+  "embedded_market_fields": {
+    "outcomePrices": null,
+    "lastTradePrice": null,
+    "bestBid": "0.321",
+    "bestAsk": "0.948",
+    "spread": "0.627"
+  }
+}

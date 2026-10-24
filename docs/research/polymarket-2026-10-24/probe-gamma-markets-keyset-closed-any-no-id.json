@@ -1,0 +1,28 @@
+{
+  "url": "https://gamma-api.polymarket.com/markets/keyset?closed=any&limit=2",
+  "fetched_at": "2026-10-24T04:51:00.789+00:00",
+  "http_code": "422",
+  "curl_time_total_s": "0.473014",
+  "client": "curl, anonymous, no cookies",
+  "status_lines": [
+    "HTTP/1.0 200 Connection established",
+    "HTTP/2 422"
+  ],
+  "headers_subset": {
+    "content-type": "application/json",
+    "content-length": "177",
+    "date": "Sat, 24 Oct 2026 04:51:01 GMT",
+    "x-envoy-upstream-service-time": "0",
+    "server": "istio-envoy",
+    "vary": "Accept-Encoding,Origin",
+    "x-cache": "Error from cloudfront",
+    "via": "1.1 2f6c934d1fb288c449c938700e848b20.cloudfront.net (CloudFront)",
+    "x-amz-cf-pop": "LAX54-P12"
+  },
+  "body_bytes": 177,
+  "body_trimmed": {
+    "type": "validation error",
+    "error": "closed=any requires at least one of id, slug, clob_token_ids, position_ids, condition_ids, request_ids, onchain_event_ids, or question_ids"
+  },
+  "body_format": "json"
+}

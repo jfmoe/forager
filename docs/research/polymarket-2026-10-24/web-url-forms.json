@@ -1,0 +1,68 @@
+{
+  "note": "polymarket.com page requests with curl (desktop Chrome User-Agent, anonymous, no redirect following). canonical/title/hreflang extracted from returned HTML; bodies not kept.",
+  "requests": [
+    {
+      "url": "https://polymarket.com/market/will-no-fed-rate-cuts-happen-in-2026",
+      "fetched_at": "2026-10-24T04:51:34.840+00:00",
+      "http_code": "307",
+      "redirect_location": "https://polymarket.com/event/how-many-fed-rate-cuts-in-2026/will-no-fed-rate-cuts-happen-in-2026",
+      "canonical": null,
+      "title": null,
+      "hreflang_alternates_first3": null
+    },
+    {
+      "url": "https://polymarket.com/event/how-many-fed-rate-cuts-in-2026/will-no-fed-rate-cuts-happen-in-2026",
+      "fetched_at": "2026-10-24T04:51:37.249+00:00",
+      "http_code": "200",
+      "redirect_location": null,
+      "canonical": "https://polymarket.com/event/how-many-fed-rate-cuts-in-2026",
+      "title": "How many Fed rate cuts in 2026? Predictions &amp; Odds | Polymarket",
+      "hreflang_alternates_first3": "<link rel=\"alternate\" hrefLang=\"en\" href=\"https://polymarket.com/event/how-many-fed-rate-cuts-in-2026\" <link rel=\"alternate\" hrefLang=\"bn\" href=\"https://polymarket.com/bn/event/how-many-fed-rate-cuts-in-2026\" <link rel=\"alternate\" hrefLang=\"de\" href=\"https://polymarket.com/de/event/how-many-fed-rate-cuts-in-2026\""
+    },
+    {
+      "url": "https://polymarket.com/zh/event/how-many-fed-rate-cuts-in-2026",
+      "fetched_at": "2026-10-24T04:51:40.208+00:00",
+      "http_code": "200",
+      "redirect_location": null,
+      "canonical": "https://polymarket.com/zh/event/how-many-fed-rate-cuts-in-2026",
+      "title": "2026年美联储降息多少次？ 预测与赔率 | Polymarket",
+      "hreflang_alternates_first3": "<link rel=\"alternate\" hrefLang=\"en\" href=\"https://polymarket.com/event/how-many-fed-rate-cuts-in-2026\" <link rel=\"alternate\" hrefLang=\"bn\" href=\"https://polymarket.com/bn/event/how-many-fed-rate-cuts-in-2026\" <link rel=\"alternate\" hrefLang=\"de\" href=\"https://polymarket.com/de/event/how-many-fed-rate-cuts-in-2026\""
+    },
+    {
+      "url": "https://polymarket.com/event/how-many-fed-rate-cuts-in-2026?tid=1792817000000",
+      "fetched_at": "2026-10-24T04:51:46.043+00:00",
+      "http_code": "200",
+      "redirect_location": null,
+      "canonical": "https://polymarket.com/event/how-many-fed-rate-cuts-in-2026",
+      "title": "How many Fed rate cuts in 2026? Predictions &amp; Odds | Polymarket",
+      "hreflang_alternates_first3": "<link rel=\"alternate\" hrefLang=\"en\" href=\"https://polymarket.com/event/how-many-fed-rate-cuts-in-2026\" <link rel=\"alternate\" hrefLang=\"bn\" href=\"https://polymarket.com/bn/event/how-many-fed-rate-cuts-in-2026\" <link rel=\"alternate\" hrefLang=\"de\" href=\"https://polymarket.com/de/event/how-many-fed-rate-cuts-in-2026\""
+    },
+    {
+      "url": "https://polymarket.com/event/616902",
+      "fetched_at": "2026-10-24T04:51:48.829+00:00",
+      "http_code": "200",
+      "redirect_location": null,
+      "canonical": null,
+      "title": "Polymarket | The World&#x27;s Largest Prediction Market",
+      "hreflang_alternates_first3": null
+    },
+    {
+      "url": "https://polymarket.com/event/does-not-exist-zzqx",
+      "fetched_at": "2026-10-24T04:51:51.288+00:00",
+      "http_code": "200",
+      "redirect_location": null,
+      "canonical": null,
+      "title": "Polymarket | The World&#x27;s Largest Prediction Market",
+      "hreflang_alternates_first3": null
+    },
+    {
+      "url": "https://polymarket.com/event/nfl-chi-sea-2026-11-03",
+      "fetched_at": "2026-10-24T04:52:04.718+00:00",
+      "http_code": "200",
+      "redirect_location": null,
+      "canonical": "https://polymarket.com/event/nfl-chi-sea-2026-11-03",
+      "title": "Bears vs. Seahawks Odds &amp; Predictions (Nov. 2, 2026) | Polymarket",
+      "hreflang_alternates_first3": null
+    }
+  ]
+}

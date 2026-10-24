@@ -1,0 +1,68 @@
+{
+  "url": "https://data-api.polymarket.com/trades?market=0xd4e77ba6f29fc093509d24f508631abd445ecf506bbdc9c4c80e60256a318527&limit=2",
+  "fetched_at": "2026-10-24T04:50:41.711+00:00",
+  "http_code": "200",
+  "curl_time_total_s": "0.600530",
+  "client": "curl, anonymous, no cookies",
+  "status_lines": [
+    "HTTP/1.0 200 Connection established",
+    "HTTP/2 200"
+  ],
+  "headers_subset": {
+    "date": "Sat, 24 Oct 2026 04:50:42 GMT",
+    "content-type": "application/json",
+    "vary": "Origin",
+    "last-modified": "Sat, 24 Oct 2026 04:50:42 GMT",
+    "cache-control": "public, max-age=300",
+    "cf-cache-status": "MISS",
+    "strict-transport-security": "max-age=7776000; includeSubDomains",
+    "server": "cloudflare",
+    "cf-ray": "a4f65cb488aec277-LAX"
+  },
+  "body_bytes": 1538,
+  "body_trimmed": [
+    {
+      "proxyWallet": "0x66d5fd17472ef73fbe2472d9631a6bf17b5713fb",
+      "side": "SELL",
+      "asset": "12403602920039269077597917340921667997547115084613238528792639013246536343316",
+      "conditionId": "0xd4e77ba6f29fc093509d24f508631abd445ecf506bbdc9c4c80e60256a318527",
+      "size": 5.47,
+      "price": 0.961,
+      "timestamp": 1792816481,
+      "title": "Will no Fed rate cuts happen in 2026?",
+      "slug": "will-no-fed-rate-cuts-happen-in-2026",
+      "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/how-many-fed-rate-cuts-in-2025-9qstZkSL1dn0.jpg",
+      "eventSlug": "how-many-fed-rate-cuts-in-2026",
+      "outcome": "Yes",
+      "outcomeIndex": 0,
+      "name": "ywk6wzed",
+      "pseudonym": "Bustling-Mini",
+      "bio": "",
+      "profileImage": "",
+      "profileImageOptimized": "",
+      "transactionHash": "0x094e1482f84d4eb95e95ad01873ad6560841d3d0cf20a215d57c3cb4d049ae18"
+    },
+    {
+      "proxyWallet": "0x2e1dcdf43d87895a474955bfc0ca2ab03ebaa0a5",
+      "side": "SELL",
+      "asset": "12403602920039269077597917340921667997547115084613238528792639013246536343316",
+      "conditionId": "0xd4e77ba6f29fc093509d24f508631abd445ecf506bbdc9c4c80e60256a318527",
+      "size": 5.64,
+      "price": 0.961,
+      "timestamp": 1792814757,
+      "title": "Will no Fed rate cuts happen in 2026?",
+      "slug": "will-no-fed-rate-cuts-happen-in-2026",
+      "icon": "https://polymarket-upload.s3.us-east-2.amazonaws.com/how-many-fed-rate-cuts-in-2025-9qstZkSL1dn0.jpg",
+      "eventSlug": "how-many-fed-rate-cuts-in-2026",
+      "outcome": "Yes",
+      "outcomeIndex": 0,
+      "name": "nlcwair0",
+      "pseudonym": "Venerated-Construction",
+      "bio": "",
+      "profileImage": "",
+      "profileImageOptimized": "",
+      "transactionHash": "0xaf1f4830cba50f75d1d37ee1d1e7c04670ddbbcb2cd7d8cb11755b05c7af8308"
+    }
+  ],
+  "body_format": "json"
+}

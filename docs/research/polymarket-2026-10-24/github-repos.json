@@ -1,0 +1,52 @@
+{
+  "cloned_at": "2026-10-24T04:54:40+00:00",
+  "method": "gh repo clone OWNER/REPO <tmp> -- --depth 1; read only, no code executed",
+  "repos": [
+    {
+      "repo": "https://github.com/Polymarket/py-sdk",
+      "commit": "7032ed06175b0bbea77b2d9e898bd9f252af2041",
+      "commit_date": "2026-10-21T18:35:09+02:00",
+      "files_read": [
+        "src/polymarket/_internal/gamma_paths.py",
+        "tests/unit/test_gamma_paths.py"
+      ]
+    },
+    {
+      "repo": "https://github.com/Polymarket/agent-skills",
+      "commit": "91ee44ae113e958affd20cd505c6e9d9d6100e0b",
+      "commit_date": "2026-02-19T21:29:35+05:30",
+      "files_read": [
+        "SKILL.md",
+        "market-data.md"
+      ]
+    },
+    {
+      "repo": "https://github.com/Polymarket/polymarket-cli",
+      "commit": "9b18b5faf5493b945c48ca22efaf9645f0c69ab8",
+      "commit_date": "2026-05-26T21:07:55+05:30",
+      "files_read": [
+        "README.md",
+        "Cargo.toml",
+        "src/commands/markets.rs"
+      ]
+    },
+    {
+      "repo": "https://github.com/Polymarket/agents",
+      "commit": "081f2b5594c37edeb9d3780a778c084d5b6f2743",
+      "commit_date": "2024-11-05T10:40:29-05:00",
+      "files_read": [
+        "README.md"
+      ]
+    }
+  ],
+  "agents_repo_metadata": {
+    "archived": true,
+    "pushed_at": "2024-11-05T15:40:29Z",
+    "updated_at": "2026-10-24T02:43:55Z"
+  },
+  "notes": [
+    "py-sdk is the unified Python SDK; gamma_paths.py and its unit tests are copied verbatim as github-py-sdk-*.txt (MIT).",
+    "agent-skills SKILL.md still lists pre-V2 USDC.e/v1 Neg Risk Adapter contracts and legacy clob-client packages; treated as low-trust for current behavior.",
+    "polymarket-cli depends on crate polymarket_client_sdk_v2 0.5.1 (features gamma, data, bridge, clob, ctf); license MIT."
+  ]
+}

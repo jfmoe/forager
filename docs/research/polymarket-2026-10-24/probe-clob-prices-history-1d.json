@@ -1,0 +1,47 @@
+{
+  "url": "https://clob.polymarket.com/prices-history?market=12403602920039269077597917340921667997547115084613238528792639013246536343316&interval=1d&fidelity=60",
+  "fetched_at": "2026-10-24T04:49:51.551+00:00",
+  "http_code": "200",
+  "curl_time_total_s": "0.612889",
+  "client": "curl, anonymous, no cookies",
+  "status_lines": [
+    "HTTP/1.0 200 Connection established",
+    "HTTP/2 200"
+  ],
+  "headers_subset": {
+    "date": "Sat, 24 Oct 2026 04:49:52 GMT",
+    "content-type": "application/json",
+    "content-length": "542",
+    "vary": "Origin, accept-encoding",
+    "age": "142",
+    "last-modified": "Sat, 24 Oct 2026 04:49:52 GMT",
+    "cache-control": "public, max-age=90",
+    "cf-cache-status": "HIT",
+    "strict-transport-security": "max-age=7776000; includeSubDomains",
+    "server": "cloudflare",
+    "cf-ray": "a4f65b7c7b9fae39-LAX"
+  },
+  "body_bytes": 542,
+  "body_trimmed": {
+    "history": [
+      {
+        "t": 1792731627,
+        "p": 0.9645
+      },
+      {
+        "t": 1792735243,
+        "p": 0.9645
+      },
+      {
+        "t": 1792738826,
+        "p": 0.9645
+      },
+      {
+        "t": 1792742427,
+        "p": 0.9645
+      },
+      "... trimmed 15 more items (total 19)"
+    ]
+  },
+  "body_format": "json"
+}

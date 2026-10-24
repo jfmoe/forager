@@ -1,0 +1,93 @@
+{
+  "url": "https://data-api.polymarket.com/v2/status",
+  "fetched_at": "2026-10-24T04:50:45.513+00:00",
+  "http_code": "200",
+  "curl_time_total_s": "0.492206",
+  "client": "curl, anonymous, no cookies",
+  "status_lines": [
+    "HTTP/1.0 200 Connection established",
+    "HTTP/2 200"
+  ],
+  "headers_subset": {
+    "date": "Sat, 24 Oct 2026 04:50:45 GMT",
+    "content-type": "application/json",
+    "x-trace-id": "66991f44691e431bb03e59d6ce671edb",
+    "vary": "accept-encoding,origin, access-control-request-method, access-control-request-headers",
+    "access-control-allow-origin": "*",
+    "x-envoy-upstream-service-time": "0",
+    "server": "cloudflare",
+    "x-cache": "Miss from cloudfront",
+    "via": "1.1 9424c67408f17ae3184c4ecd760b2350.cloudfront.net (CloudFront)",
+    "x-amz-cf-pop": "LAX50-P1",
+    "cf-cache-status": "DYNAMIC",
+    "strict-transport-security": "max-age=7776000; includeSubDomains",
+    "cf-ray": "a4f65ccc1ca5c89e-LAX"
+  },
+  "body_bytes": 882,
+  "body_trimmed": {
+    "data": {
+      "computed_at": "2026-10-24T04:50:34Z",
+      "age_seconds": 11,
+      "serving": {
+        "lag_seconds": 1,
+        "worst": "custody_balances",
+        "mechanisms": [
+          {
+            "name": "activity_feed",
+            "age_seconds": 0
+          },
+          {
+            "name": "custody_balances",
+            "age_seconds": 1,
+            "blocks_behind": 1
+          },
+          {
+            "name": "pnl",
+            "age_seconds": 0,
+            "blocks_behind": 1
+          }
+        ]
+      },
+      "ingestion": {
+        "cursors": 178,
+        "network": "polygon",
+        "chain_id": 137,
+        "max_synced_block": 96074708,
+        "min_synced_block": 96074707,
+        "most_lagged": {
+          "source": "auto_redeem_neg_risk_redemption",
+          "block": 96074707,
+          "behind_max": 1
+        },
+        "lagging": [
+          {
+            "source": "auto_redeem_neg_risk_redemption",
+            "block": 96074707,
+            "behind_max": 1
+          },
+          {
+            "source": "auto_redeem_v3_neg_risk_redemption",
+            "block": 96074707,
+            "behind_max": 1
+          },
+          {
+            "source": "auto_redeem_v3_redemption",
+            "block": 96074707,
+            "behind_max": 1
+          },
+          {
+            "source": "binary_module_condition_resolved",
+            "block": 96074707,
+            "behind_max": 1
+          },
+          {
+            "source": "binary_module_upgraded",
+            "block": 96074707,
+            "behind_max": 1
+          }
+        ]
+      }
+    }
+  },
+  "body_format": "json"
+}

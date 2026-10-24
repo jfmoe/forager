@@ -1,0 +1,65 @@
+{
+  "url": "https://gamma-api.polymarket.com/comments?parent_entity_type=Event&parent_entity_id=51456&limit=2&order=createdAt&ascending=false",
+  "fetched_at": "2026-10-24T04:51:13.713+00:00",
+  "http_code": "200",
+  "curl_time_total_s": "0.585750",
+  "client": "curl, anonymous, no cookies",
+  "status_lines": [
+    "HTTP/1.0 200 Connection established",
+    "HTTP/2 200"
+  ],
+  "headers_subset": {
+    "content-type": "application/json",
+    "content-length": "1120",
+    "date": "Sat, 24 Oct 2026 04:51:14 GMT",
+    "x-envoy-upstream-service-time": "16",
+    "server": "istio-envoy",
+    "vary": "Accept-Encoding,Origin",
+    "via": "1.1 f459f2446217fc6ea012685885377316.cloudfront.net (CloudFront)",
+    "cache-control": "public, max-age=60",
+    "x-cache": "Miss from cloudfront",
+    "x-amz-cf-pop": "LAX54-P12"
+  },
+  "body_bytes": 1120,
+  "body_trimmed": [
+    {
+      "id": "3297623",
+      "body": "I'd leave room for a long pause",
+      "parentEntityType": "Event",
+      "parentEntityID": 51456,
+      "userAddress": "0x86aaf104e9d4a82895720495176d7f3887d4ac0d",
+      "createdAt": "2026-10-18T14:51:37.798709Z",
+      "updatedAt": "2026-10-18T14:51:47.591212Z",
+      "profile": {
+        "name": "ToToTo-597",
+        "pseudonym": "Thick-Army",
+        "displayUsernamePublic": true,
+        "proxyWallet": "0x96e5b923fb5e59280b82f986c85b25ff1f4dce38",
+        "baseAddress": "0x86aaf104e9d4a82895720495176d7f3887d4ac0d"
+      },
+      "reportCount": 0,
+      "reactionCount": 0
+    },
+    {
+      "id": "3296182",
+      "body": "Yes 💯",
+      "parentEntityType": "Event",
+      "parentEntityID": 51456,
+      "userAddress": "0x5491ebd1cf9f9b68ce11e16fcad387d622d4c61a",
+      "createdAt": "2026-10-17T00:46:25.300312Z",
+      "updatedAt": "2026-10-17T00:46:34.22987Z",
+      "profile": {
+        "name": "TheAirdropMars",
+        "pseudonym": "Fond-Randomisation",
+        "displayUsernamePublic": true,
+        "bio": "Hello 👋",
+        "proxyWallet": "0xd3d9d23d54fae5ae5dfb672723733d491741a07b",
+        "baseAddress": "0x5491ebd1cf9f9b68ce11e16fcad387d622d4c61a",
+        "profileImage": "https://polymarket-upload.s3.us-east-2.amazonaws.com/profile-image-3771441-7c7d6735-9ae5-4333-883b-6a5f0409efa3.png"
+      },
+      "reportCount": 0,
+      "reactionCount": 0
+    }
+  ],
+  "body_format": "json"
+}

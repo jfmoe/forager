@@ -1,0 +1,12 @@
+{
+  "checked_on": "2026-10-24",
+  "repository_baseline": "df35af4afa1290f2f31f78df5718683e2b6bcb4d",
+  "tools": {
+    "forager": "forager 0.16.0",
+    "curl": "curl 8.7.1 (x86_64-apple-darwin26.0) libcurl/8.7.1 (SecureTransport) LibreSSL/3.3.6 zlib/1.2.12 nghttp2/1.69.0",
+    "gh": "gh version 2.103.1 (2026-10-23)"
+  },
+  "network": "curl via the existing local HTTP proxy (responses show 'HTTP/1.0 200 Connection established'); polymarket.com/api/geoblock reported country US, region CA, blocked=true for this egress; IP not recorded. CloudFront POP LAX, Cloudflare colo LAX observed.",
+  "client_identity": "API probes used User-Agent 'forager-research/0.16 (+https://github.com/jfmoe/forager)'; polymarket.com page probes used a desktop Chrome User-Agent. No cookies, no login, no API keys, no wallet.",
+  "politeness": "Sequential requests with >=1.2 s gaps; about 70 anonymous API/page requests in total plus about 60 documentation fetches."
+}
