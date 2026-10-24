@@ -18,7 +18,7 @@ use crate::platform_chain::{
 use crate::providers;
 use crate::types::{
     Deadline, HISTORY, Platform, PolymarketHistoryRequest, PolymarketHistoryResult,
-    PolymarketWindow, ProviderAttempt, ProviderError,
+    ProviderAttempt, ProviderError,
 };
 
 /// The routes a price history runs, in order, and the routes skipped before it runs.
@@ -114,18 +114,12 @@ pub(crate) async fn run_history(
         Ok(outcome) => {
             let (route, history) = outcome.value;
             skipped.extend(outcome.attempts);
-            let (interval, from, to) = match request.window {
-                PolymarketWindow::Interval(interval) => (Some(interval), None, None),
-                PolymarketWindow::Range { from, to } => (None, Some(from), Some(to)),
-            };
             Ok(PolymarketHistoryResult {
                 platform: Platform::Polymarket,
                 provider: route.name(),
                 market: history.market,
                 outcome: history.outcome,
-                interval,
-                from,
-                to,
+                window: request.window,
                 bucket_seconds: request.bucket.seconds(),
                 points: history.points,
                 settlement: history.settlement,

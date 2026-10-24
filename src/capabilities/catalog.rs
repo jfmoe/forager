@@ -560,15 +560,15 @@ const XIAOHONGSHU_BROWSER_ACCESS: AccessPolicy = AccessPolicy {
 
 // Algolia allows 10,000 HN Search requests per IP per hour; the official Firebase API states no
 // limit. Both endpoints share this pace, at most 7,200 requests per hour.
+const HN_API_ACCESS: AccessPolicy = AccessPolicy {
+    min_interval: Duration::from_millis(500),
+    max_concurrency: 1,
+};
+
 // One pace for all three endpoints: a ninth of the strictest official limit that applies,
 // Gamma search at 350 requests per 10 seconds.
 const POLYMARKET_API_ACCESS: AccessPolicy = AccessPolicy {
     min_interval: Duration::from_millis(250),
-    max_concurrency: 1,
-};
-
-const HN_API_ACCESS: AccessPolicy = AccessPolicy {
-    min_interval: Duration::from_millis(500),
     max_concurrency: 1,
 };
 

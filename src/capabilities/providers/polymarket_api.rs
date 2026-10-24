@@ -9,7 +9,6 @@
 //! API, the only source of it. Every request to any endpoint follows the route's one access
 //! policy.
 
-use std::collections::HashMap;
 use std::time::Duration;
 
 use reqwest::Client;
@@ -30,8 +29,7 @@ use crate::rate_limit::RateLimiter;
 use crate::types::{
     AttemptErrorKind, AttemptTarget, ContentDepth, Deadline, FullTextSource, Platform,
     PlatformFetchOutcome, PlatformFetchRequest, PlatformItem, PlatformRef, PlatformSearchOptions,
-    PlatformSearchOutcome, PlatformSearchRequest, PolymarketKind, PolymarketPriceSource,
-    PolymarketRef, PolymarketStatus, ProviderError,
+    PlatformSearchOutcome, PlatformSearchRequest, PolymarketKind, PolymarketRef, ProviderError,
 };
 
 #[path = "polymarket_api_gamma.rs"]
@@ -41,13 +39,12 @@ mod history;
 #[path = "polymarket_api_quotes.rs"]
 mod quotes;
 
-use gamma::{Event, GammaEvent, GammaMarket, Market, MarketQuotes};
+use gamma::{Entry, Event, GammaEvent, Market, Unreadable};
 
 const ROUTE: ProviderId = ProviderId::PolymarketApi;
 const PLATFORM: Platform = Platform::Polymarket;
 /// Gamma search refuses a page past 100 with HTTP 422 (measured 2026-10-24).
 const MAX_SEARCH_PAGE: u64 = 100;
-const STALE_QUOTES: &str = "prices are Gamma's cached quotes, which may lag up to 5 minutes";
 
 /// Returns whether the route can run the search; it never sends a request. Gamma refuses a
 /// page past the last one it serves, so such a cursor fails here.
@@ -99,6 +96,16 @@ enum Endpoint {
 }
 
 impl Endpoint {
+    /// The endpoint's base URL, without a trailing `/`.
+    fn base_url(self, config: &PolymarketRouteRuntimeConfig) -> &str {
+        match self {
+            Self::Gamma => &config.url,
+            Self::Clob => &config.clob_url,
+            Self::Data => &config.data_url,
+        }
+        .trim_end_matches('/')
+    }
+
     const fn timeout_message(self) -> &'static str {
         match self {
             Self::Gamma => "Polymarket Gamma API request timed out",
@@ -109,9 +116,9 @@ impl Endpoint {
 
     fn failure_message(self) -> fn(&str, u16) -> String {
         match self {
-            Self::Gamma => gamma_failure_message,
-            Self::Clob => clob_failure_message,
-            Self::Data => history::data_failure_message,
+            Self::Gamma => |body, status| failure_message("Gamma", body, status),
+            Self::Clob => |body, status| failure_message("CLOB", body, status),
+            Self::Data => |body, status| failure_message("Data", body, status),
         }
     }
 
@@ -169,13 +176,10 @@ impl PolymarketApi {
         &self,
         request: &PlatformSearchRequest,
     ) -> Result<PlatformSearchOutcome, ProviderError> {
-        let PlatformSearchOptions::Polymarket(options) = &request.options else {
-            return Err(parameter_error(other_platform_message(
-                ROUTE,
-                request.options.platform(),
-            )));
-        };
         search_support(request).map_err(parameter_error)?;
+        let PlatformSearchOptions::Polymarket(options) = &request.options else {
+            unreachable!("the support check accepts only Polymarket options")
+        };
         let page = page_number(request.page.as_deref()).map_err(parameter_error)?;
         let mut query = vec![
             ("q", request.query.clone()),
@@ -226,29 +230,20 @@ impl PolymarketApi {
         };
         let depth = request.depth;
         let mut trail = Trail::default();
-        let item = match reference.kind() {
-            PolymarketKind::Event => {
-                let event = trail.required(self.read_event(reference, depth).await)?;
-                let open = event
-                    .markets
-                    .iter()
-                    .filter(|market| market.status == PolymarketStatus::Open)
-                    .collect::<Vec<_>>();
-                let (quotes, source, as_of) = self.quote(&open, &mut trail).await;
-                event.into_item(depth, &quotes, source, as_of)
+        let entry = self.read_entry(reference, PlatformOperation::Fetch.as_str(), |entry| {
+            if depth == ContentDepth::Abstract && entry.rules().is_empty() {
+                return Err(no_rules(reference));
             }
-            PolymarketKind::Market => {
-                let market = trail.required(self.read_market(reference, depth).await)?;
-                let open = if market.status == PolymarketStatus::Open {
-                    vec![&market]
-                } else {
-                    Vec::new()
-                };
-                let (mut quotes, source, as_of) = self.quote(&open, &mut trail).await;
-                let quotes = quotes
-                    .remove(market.reference.slug())
-                    .unwrap_or(MarketQuotes::Cached);
-                market.into_item(depth, &quotes, source, as_of)
+            Ok(entry)
+        });
+        let item = match trail.required(entry.await)? {
+            Entry::Event(event) => {
+                let quotes = self.quote(&event.markets, &mut trail).await;
+                event.into_item(depth, &quotes)
+            }
+            Entry::Market(market) => {
+                let quotes = self.quote(std::slice::from_ref(&market), &mut trail).await;
+                market.into_item(depth, &quotes)
             }
         };
         Ok(PlatformFetchOutcome {
@@ -259,116 +254,33 @@ impl PolymarketApi {
         })
     }
 
-    /// Reads the live quotes of the open markets. Returns each market's quotes by slug, the
-    /// price source, and when the live prices were read; with no open market, or when the CLOB
-    /// fails, every market prices from Gamma.
-    async fn quote(
+    /// Reads the event or market a ref names from Gamma's slug lookup; `then` turns the entry
+    /// into the operation's value inside the same attempt, so its refusal is that attempt's
+    /// failure. A 404 says the slug may have changed.
+    async fn read_entry<T>(
         &self,
-        open: &[&Market],
-        trail: &mut Trail,
-    ) -> (
-        HashMap<String, MarketQuotes>,
-        PolymarketPriceSource,
-        Option<String>,
-    ) {
-        if open.is_empty() {
-            return (HashMap::new(), PolymarketPriceSource::Gamma, None);
-        }
-        let tokens = open
-            .iter()
-            .flat_map(|market| market.tokens.iter().cloned())
-            .collect::<Vec<_>>();
-        let live = match self.live_quotes(&tokens, trail).await {
-            Ok(live) => live,
-            Err(error) => {
-                trail.note(format!(
-                    "Polymarket CLOB API unavailable ({}); {STALE_QUOTES}",
-                    error.message
-                ));
-                return (HashMap::new(), PolymarketPriceSource::Gamma, None);
-            }
+        reference: &PolymarketRef,
+        operation: &'static str,
+        then: impl Fn(Entry) -> Result<T, Refusal>,
+    ) -> Result<ExecutionOutcome<T>, ProviderError> {
+        let path = match reference.kind() {
+            PolymarketKind::Event => format!("events/slug/{}", reference.slug()),
+            PolymarketKind::Market => format!("markets/slug/{}", reference.slug()),
         };
-        let missing = tokens
-            .iter()
-            .filter(|token| !live.tops.contains_key(*token))
-            .count();
-        if missing > 0 {
-            trail.note(format!(
-                "Polymarket CLOB API returned no quote for {missing} {}; {} no price",
-                if missing == 1 { "outcome" } else { "outcomes" },
-                if missing == 1 { "it has" } else { "they have" }
-            ));
-        }
-        let quotes = open
-            .iter()
-            .map(|market| {
-                let quotes = MarketQuotes::Live {
-                    tops: market
-                        .tokens
-                        .iter()
-                        .map(|token| live.tops.get(token).copied())
-                        .collect(),
-                    last_trade: live
-                        .last_trades
-                        .as_ref()
-                        .and_then(|trades| {
-                            market.tokens.first().and_then(|token| trades.get(token))
-                        })
-                        .copied(),
+        self.send_with(
+            Endpoint::Gamma,
+            Call::Get {
+                path: &path,
+                query: &[],
+            },
+            operation,
+            |body| {
+                let entry = match reference.kind() {
+                    PolymarketKind::Event => Entry::Event(Event::decode(decode(body)?)?),
+                    PolymarketKind::Market => Entry::Market(Market::decode(decode(body)?)?),
                 };
-                (market.reference.slug().to_owned(), quotes)
-            })
-            .collect();
-        (quotes, PolymarketPriceSource::Clob, Some(live.as_of))
-    }
-
-    async fn read_event(
-        &self,
-        reference: &PolymarketRef,
-        depth: ContentDepth,
-    ) -> Result<ExecutionOutcome<Event>, ProviderError> {
-        let path = format!("events/slug/{}", reference.slug());
-        self.send_with(
-            Endpoint::Gamma,
-            Call::Get {
-                path: &path,
-                query: &[],
-            },
-            PlatformOperation::Fetch.as_str(),
-            |body| {
-                let event = Event::decode(decode::<GammaEvent>(body)?).map_err(Refusal::runtime)?;
-                check_slug(reference, event.reference.slug())?;
-                if depth == ContentDepth::Abstract && event.rules().is_empty() {
-                    return Err(no_rules(reference));
-                }
-                Ok(event)
-            },
-            |failure| not_found(failure, reference),
-        )
-        .await
-    }
-
-    async fn read_market(
-        &self,
-        reference: &PolymarketRef,
-        depth: ContentDepth,
-    ) -> Result<ExecutionOutcome<Market>, ProviderError> {
-        let path = format!("markets/slug/{}", reference.slug());
-        self.send_with(
-            Endpoint::Gamma,
-            Call::Get {
-                path: &path,
-                query: &[],
-            },
-            PlatformOperation::Fetch.as_str(),
-            |body| {
-                let market =
-                    Market::decode(decode::<GammaMarket>(body)?).map_err(Refusal::runtime)?;
-                check_slug(reference, market.reference.slug())?;
-                if depth == ContentDepth::Abstract && market.rules().is_empty() {
-                    return Err(no_rules(reference));
-                }
-                Ok(market)
+                check_slug(reference, entry.slug())?;
+                then(entry)
             },
             |failure| not_found(failure, reference),
         )
@@ -398,12 +310,7 @@ impl PolymarketApi {
         decode: impl Fn(&str) -> Result<T, Refusal>,
         refine: impl Fn(AttemptFailure) -> AttemptFailure,
     ) -> Result<ExecutionOutcome<T>, ProviderError> {
-        let base = match endpoint {
-            Endpoint::Gamma => &self.config.url,
-            Endpoint::Clob => &self.config.clob_url,
-            Endpoint::Data => &self.config.data_url,
-        };
-        let base = base.trim_end_matches('/');
+        let base = endpoint.base_url(&self.config);
         let (failure_message, reason_kind) = (endpoint.failure_message(), endpoint.reason_kind());
         let (call, decode, refine) = (&call, &decode, &refine);
         execute_anonymous(
@@ -453,7 +360,7 @@ impl PolymarketApi {
 #[derive(Deserialize)]
 struct SearchResponse {
     /// Gamma leaves the key out when nothing matches.
-    events: Option<Vec<Value>>,
+    events: Option<Vec<GammaEvent>>,
     pagination: Option<Pagination>,
 }
 
@@ -464,7 +371,9 @@ struct Pagination {
 }
 
 /// Decodes a search page into items, the count of results skipped, and whether more pages
-/// follow. A page whose every result was skipped is not a legitimate empty result.
+/// follow. Only a result that names nothing forager can address, with an invalid slug or no
+/// market list, is skipped; any other malformed result fails the page. A page whose every
+/// result was skipped is not a legitimate empty result.
 fn decode_search(body: &str) -> Result<(Vec<PlatformItem>, usize, bool), Refusal> {
     let response = decode::<SearchResponse>(body)?;
     let pagination = response.pagination.ok_or_else(|| {
@@ -472,13 +381,14 @@ fn decode_search(body: &str) -> Result<(Vec<PlatformItem>, usize, bool), Refusal
     })?;
     let events = response.events.unwrap_or_default();
     let total = events.len();
-    let items = events
-        .into_iter()
-        .filter_map(|event| {
-            let event = serde_json::from_value::<GammaEvent>(event).ok()?;
-            Event::decode(event).ok().map(Event::into_search_item)
-        })
-        .collect::<Vec<_>>();
+    let mut items = Vec::with_capacity(total);
+    for event in events {
+        match Event::decode(event) {
+            Ok(event) => items.push(event.into_search_item()),
+            Err(Unreadable::Unaddressable(_)) => {}
+            Err(malformed @ Unreadable::Malformed(_)) => return Err(malformed.into()),
+        }
+    }
     if total > 0 && items.is_empty() {
         return Err(Refusal::runtime(format!(
             "Polymarket Gamma API returned {total} search results and none could be read"
@@ -521,47 +431,32 @@ fn not_found(mut failure: AttemptFailure, reference: &PolymarketRef) -> AttemptF
     failure
 }
 
-/// Gamma's error body: `{"type": "validation error" | "not found error", "error": ...}`.
+/// An error body of any of the three APIs: `{"error": ...}`, which Gamma extends with
+/// `"type": "validation error" | "not found error"`.
 #[derive(Deserialize)]
-struct GammaError {
+struct ApiError {
     #[serde(rename = "type")]
     kind: Option<String>,
     error: Option<String>,
 }
 
-fn gamma_failure_message(body: &str, status: u16) -> String {
-    match serde_json::from_str::<GammaError>(body)
+/// Words a failed response of the `api` API, with its `error` when the body has one.
+fn failure_message(api: &str, body: &str, status: u16) -> String {
+    match serde_json::from_str::<ApiError>(body)
         .ok()
         .and_then(|error| error.error)
     {
-        Some(error) => format!("Polymarket Gamma API returned HTTP {status}: {error}"),
-        None => format!("Polymarket Gamma API returned HTTP {status}"),
+        Some(error) => format!("Polymarket {api} API returned HTTP {status}: {error}"),
+        None => format!("Polymarket {api} API returned HTTP {status}"),
     }
 }
 
 /// forager builds every Gamma request, so a validation error is a forager defect, not a user
 /// error.
 fn gamma_reason_kind(body: &str) -> Option<AttemptErrorKind> {
-    serde_json::from_str::<GammaError>(body)
+    serde_json::from_str::<ApiError>(body)
         .ok()
         .and_then(|error| error.kind)
         .filter(|kind| kind == "validation error")
         .map(|_| AttemptErrorKind::Runtime)
-}
-
-#[derive(Deserialize)]
-struct ClobError {
-    error: String,
-}
-
-fn clob_failure_message(body: &str, status: u16) -> String {
-    serde_json::from_str::<ClobError>(body).map_or_else(
-        |_| format!("Polymarket CLOB API returned HTTP {status}"),
-        |error| {
-            format!(
-                "Polymarket CLOB API returned HTTP {status}: {}",
-                error.error
-            )
-        },
-    )
 }

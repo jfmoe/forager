@@ -6,12 +6,12 @@ use std::collections::HashMap;
 
 use serde::Deserialize;
 
-use crate::providers::shared::utc_timestamp;
+use crate::providers::shared::{Refusal, utc_timestamp};
 use crate::types::{
-    BookTop, ContentDepth, PlatformItem, PlatformItemData, PlatformRef, PolymarketEventFields,
-    PolymarketEventLink, PolymarketItemData, PolymarketMarket, PolymarketMarketFields,
-    PolymarketPriceSource, PolymarketRef, PolymarketStatus, PolymarketTopMarket, Price,
-    QuoteSource, event_status, market_status, price_market,
+    BookTop, ContentDepth, PlatformItem, PlatformItemData, PlatformRef, PolymarketBasis,
+    PolymarketEventFields, PolymarketEventLink, PolymarketItemData, PolymarketMarket,
+    PolymarketMarketFields, PolymarketPriceSource, PolymarketRef, PolymarketStatus,
+    PolymarketTopMarket, Price, QuoteSource, event_status, market_status, price_market,
 };
 
 /// How many markets a search result summarizes.
@@ -94,7 +94,6 @@ pub(super) struct GammaMarket {
     version: Option<String>,
     best_bid: Option<Number>,
     best_ask: Option<Number>,
-    last_trade_price: Option<Number>,
     one_day_price_change: Option<Number>,
     one_week_price_change: Option<Number>,
     one_month_price_change: Option<Number>,
@@ -106,6 +105,8 @@ pub(super) struct GammaMarket {
     end_date: Option<String>,
     #[serde(default)]
     closed: bool,
+    /// Read only while the market is unclosed; a market without it counts as active.
+    active: Option<bool>,
     #[serde(default)]
     accepting_orders: bool,
     uma_resolution_status: Option<String>,
@@ -133,7 +134,6 @@ pub(super) struct Market {
     /// The CLOB token of each outcome, in outcome order.
     pub(super) tokens: Vec<String>,
     gamma_top: BookTop,
-    gamma_last_trade: Option<f64>,
     id: String,
     condition_id: Option<String>,
     pub(super) question: String,
@@ -160,41 +160,104 @@ pub(super) enum MarketQuotes {
     Cached,
 }
 
+static CACHED: MarketQuotes = MarketQuotes::Cached;
+
+/// The quotes a fetch prices its markets from: the CLOB's for its open markets, or Gamma's
+/// cache for all of them when no market is open or the CLOB failed.
+pub(super) enum Quotes {
+    Cached,
+    Live {
+        /// The quotes of each open market, by slug.
+        markets: HashMap<String, MarketQuotes>,
+        /// When the CLOB price read completed, in UTC.
+        as_of: String,
+    },
+}
+
+impl Quotes {
+    fn source(&self) -> PolymarketPriceSource {
+        match self {
+            Self::Cached => PolymarketPriceSource::Gamma,
+            Self::Live { .. } => PolymarketPriceSource::Clob,
+        }
+    }
+
+    /// When the prices were read: the CLOB read, or else Gamma's last update.
+    fn as_of(&self, updated_at: Option<&str>) -> Option<String> {
+        match self {
+            Self::Cached => updated_at.map(str::to_owned),
+            Self::Live { as_of, .. } => Some(as_of.clone()),
+        }
+    }
+
+    fn market(&self, slug: &str) -> &MarketQuotes {
+        match self {
+            Self::Live { markets, .. } => markets.get(slug).unwrap_or(&CACHED),
+            Self::Cached => &CACHED,
+        }
+    }
+}
+
+/// Why a Gamma record cannot become an event or market.
+pub(super) enum Unreadable {
+    /// It has no valid slug or no market list, so it names nothing forager can address.
+    Unaddressable(String),
+    /// A field breaks the shape Gamma documents.
+    Malformed(String),
+}
+
+impl From<Unreadable> for Refusal {
+    fn from(unreadable: Unreadable) -> Self {
+        match unreadable {
+            Unreadable::Unaddressable(message) | Unreadable::Malformed(message) => {
+                Self::runtime(message)
+            }
+        }
+    }
+}
+
 impl Market {
-    /// Decodes a Gamma market. Its JSON-encoded fields must decode, and an open market, whose
-    /// books the CLOB serves, must have one token per outcome.
-    pub(super) fn decode(market: GammaMarket) -> Result<Self, String> {
+    /// Decodes a Gamma market. Its JSON-encoded fields must decode, and its tokens, when it has
+    /// any, must be one per outcome. Only an open market, whose books the CLOB serves, must have
+    /// tokens: Gamma lists some long-closed markets without them.
+    pub(super) fn decode(market: GammaMarket) -> Result<Self, Unreadable> {
         let slug = market.slug.unwrap_or_default();
         let reference = PolymarketRef::market(&slug).ok_or_else(|| {
-            format!("Polymarket Gamma API returned an invalid market slug `{slug}`")
+            Unreadable::Unaddressable(format!(
+                "Polymarket Gamma API returned an invalid market slug `{slug}`"
+            ))
         })?;
-        let names = decode_list::<String>(market.outcomes.as_deref(), "outcomes", &reference)?;
-        let settled = decode_list::<String>(
-            market.outcome_prices.as_deref(),
-            "outcomePrices",
-            &reference,
-        )?
-        .iter()
-        .map(|price| Price::parse(price))
-        .collect::<Option<Vec<_>>>()
-        .ok_or_else(|| {
-            format!(
-                "Polymarket Gamma API returned polymarket:{reference} with an invalid outcome price"
-            )
-        })?;
+        let malformed = |detail: String| {
+            Unreadable::Malformed(format!(
+                "Polymarket Gamma API returned polymarket:{reference} with {detail}"
+            ))
+        };
+        let names =
+            decode_list::<String>(market.outcomes.as_deref(), "outcomes").map_err(&malformed)?;
+        let settled = decode_list::<Number>(market.outcome_prices.as_deref(), "outcomePrices")
+            .map_err(&malformed)?
+            .iter()
+            .map(Number::price)
+            .collect::<Option<Vec<_>>>()
+            .ok_or_else(|| malformed("an invalid outcome price".to_owned()))?;
         let tokens = if market.version.as_deref() == Some("v2") {
             market.position_ids.unwrap_or_default()
         } else {
-            decode_list::<String>(market.clob_token_ids.as_deref(), "clobTokenIds", &reference)?
+            decode_list::<String>(market.clob_token_ids.as_deref(), "clobTokenIds")
+                .map_err(&malformed)?
         };
-        let resolved = market.uma_resolution_status.as_deref() == Some("resolved");
-        let status = market_status(market.closed, resolved, market.accepting_orders);
-        if status == PolymarketStatus::Open && tokens.len() != names.len() {
-            return Err(format!(
-                "Polymarket Gamma API returned polymarket:{reference} with {} outcomes but {} tokens",
+        let status = market_status(
+            market.closed,
+            market.uma_resolution_status.as_deref(),
+            market.active.unwrap_or(true),
+            market.accepting_orders,
+        );
+        if (status == PolymarketStatus::Open || !tokens.is_empty()) && tokens.len() != names.len() {
+            return Err(malformed(format!(
+                "{} outcomes but {} tokens",
                 names.len(),
                 tokens.len()
-            ));
+            )));
         }
         let question = market.question.unwrap_or_default();
         Ok(Self {
@@ -205,7 +268,6 @@ impl Market {
                 market.best_bid.as_ref().and_then(Number::price),
                 market.best_ask.as_ref().and_then(Number::price),
             ),
-            gamma_last_trade: market.last_trade_price.as_ref().and_then(Number::value),
             id: market.id.text(),
             condition_id: market.condition_id,
             label: market
@@ -250,11 +312,7 @@ impl Market {
             MarketQuotes::Live { tops, last_trade } => {
                 (QuoteSource::Clob(tops.clone()), *last_trade)
             }
-            MarketQuotes::Cached => (
-                QuoteSource::Gamma(self.gamma_top),
-                self.gamma_last_trade
-                    .filter(|_| self.status == PolymarketStatus::Open),
-            ),
+            MarketQuotes::Cached => (QuoteSource::Gamma(self.gamma_top), None),
         };
         let pricing = price_market(self.status, &self.names, &self.settled, &source);
         PolymarketMarketFields {
@@ -285,9 +343,7 @@ impl Market {
             basis: fields
                 .outcomes
                 .first()
-                .map_or(crate::types::PolymarketBasis::NoTwoSidedBook, |outcome| {
-                    outcome.basis
-                }),
+                .map_or(PolymarketBasis::NoTwoSidedBook, |outcome| outcome.basis),
             status: self.status,
         }
     }
@@ -298,14 +354,8 @@ impl Market {
     }
 
     /// Builds the item of a fetched market.
-    pub(super) fn into_item(
-        self,
-        depth: ContentDepth,
-        quotes: &MarketQuotes,
-        price_source: PolymarketPriceSource,
-        prices_as_of: Option<String>,
-    ) -> PlatformItem {
-        let fields = self.fields(quotes);
+    pub(super) fn into_item(self, depth: ContentDepth, quotes: &Quotes) -> PlatformItem {
+        let fields = self.fields(quotes.market(self.reference.slug()));
         let parent = self.events.first();
         let event = parent.and_then(|parent| {
             let reference = PolymarketRef::event(parent.slug.as_deref()?)?;
@@ -328,8 +378,8 @@ impl Market {
                 market: Box::new(fields),
                 neg_risk: self.neg_risk,
                 event,
-                price_source,
-                prices_as_of: prices_as_of.or(self.updated_at),
+                price_source: quotes.source(),
+                prices_as_of: quotes.as_of(self.updated_at.as_deref()),
                 rules,
             }),
         }
@@ -349,21 +399,25 @@ pub(super) struct Event {
     volume_24h: Option<f64>,
     liquidity: Option<f64>,
     neg_risk: bool,
-    pub(super) updated_at: Option<String>,
+    updated_at: Option<String>,
 }
 
 impl Event {
     /// Decodes a Gamma event and every market in it; an event without a `markets` list or with
     /// a market that does not decode fails.
-    pub(super) fn decode(event: GammaEvent) -> Result<Self, String> {
+    pub(super) fn decode(event: GammaEvent) -> Result<Self, Unreadable> {
         let slug = event.slug.unwrap_or_default();
         let reference = PolymarketRef::event(&slug).ok_or_else(|| {
-            format!("Polymarket Gamma API returned an invalid event slug `{slug}`")
+            Unreadable::Unaddressable(format!(
+                "Polymarket Gamma API returned an invalid event slug `{slug}`"
+            ))
         })?;
         let markets = event
             .markets
             .ok_or_else(|| {
-                format!("Polymarket Gamma API returned polymarket:{reference} without markets")
+                Unreadable::Unaddressable(format!(
+                    "Polymarket Gamma API returned polymarket:{reference} without markets"
+                ))
             })?
             .into_iter()
             .map(Market::decode)
@@ -435,34 +489,25 @@ impl Event {
 
     /// Builds the item of a fetched event. At `abstract` depth it carries the event's rules,
     /// and each market's own only where they differ from the event's.
-    pub(super) fn into_item(
-        mut self,
-        depth: ContentDepth,
-        quotes: &HashMap<String, MarketQuotes>,
-        price_source: PolymarketPriceSource,
-        prices_as_of: Option<String>,
-    ) -> PlatformItem {
+    pub(super) fn into_item(mut self, depth: ContentDepth, quotes: &Quotes) -> PlatformItem {
         let event_rules = self.rules().to_owned();
-        let event = self.fields(price_source);
+        let event = self.fields(quotes.source());
         let markets = std::mem::take(&mut self.markets)
             .into_iter()
             .map(|market| {
-                let quotes = quotes
-                    .get(market.reference.slug())
-                    .unwrap_or(&MarketQuotes::Cached);
                 let rules = (depth == ContentDepth::Abstract
                     && !market.rules().is_empty()
                     && market.rules() != event_rules)
                     .then(|| market.rules().to_owned());
                 PolymarketMarket {
                     url: market.reference.canonical_url(),
-                    fields: market.fields(quotes),
+                    fields: market.fields(quotes.market(market.reference.slug())),
                     reference: PlatformRef::Polymarket(market.reference),
                     rules,
                 }
             })
             .collect::<Vec<_>>();
-        let prices_as_of = prices_as_of.or_else(|| self.updated_at.clone());
+        let prices_as_of = quotes.as_of(self.updated_at.as_deref());
         let rules = (depth == ContentDepth::Abstract).then_some(event_rules);
         self.item(
             depth,
@@ -476,15 +521,34 @@ impl Event {
     }
 }
 
+/// A fetched entry: an event with its markets, or one market.
+pub(super) enum Entry {
+    Event(Event),
+    Market(Market),
+}
+
+impl Entry {
+    pub(super) fn slug(&self) -> &str {
+        match self {
+            Self::Event(event) => event.reference.slug(),
+            Self::Market(market) => market.reference.slug(),
+        }
+    }
+
+    pub(super) fn rules(&self) -> &str {
+        match self {
+            Self::Event(event) => event.rules(),
+            Self::Market(market) => market.rules(),
+        }
+    }
+}
+
 /// Decodes a JSON array encoded as a string; an absent field is an empty list.
 fn decode_list<T: serde::de::DeserializeOwned>(
     value: Option<&str>,
     field: &str,
-    reference: &PolymarketRef,
 ) -> Result<Vec<T>, String> {
     value.map_or(Ok(Vec::new()), |text| {
-        serde_json::from_str(text).map_err(|error| {
-            format!("Polymarket Gamma API returned polymarket:{reference} with an undecodable `{field}`: {error}")
-        })
+        serde_json::from_str(text).map_err(|error| format!("an undecodable `{field}`: {error}"))
     })
 }

@@ -120,6 +120,20 @@ pub(crate) fn resolved(slug: &str, label: &str, won: bool) -> Value {
     )
 }
 
+/// A neg-risk placeholder market as Gamma lists it: open in name and accepting orders, but
+/// inactive, with no cached prices and no order book on the CLOB.
+pub(crate) fn placeholder(slug: &str, label: &str) -> Value {
+    let mut record = with(
+        market(slug, label),
+        &json!({"active": false, "bestBid": 0, "bestAsk": 1, "manualActivation": true}),
+    );
+    record
+        .as_object_mut()
+        .expect("market object")
+        .remove("outcomePrices");
+    record
+}
+
 /// A neg-risk event holding `markets`.
 pub(crate) fn event(slug: &str, markets: &[Value]) -> Value {
     json!({

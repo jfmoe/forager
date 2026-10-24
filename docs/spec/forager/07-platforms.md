@@ -1,6 +1,6 @@
 # 7. 平台接入
 
-本章是接入任何内置平台的权威契约。新增或修改平台时先读本章，并保持新平台 checklist 测试（`src/core/platform_checklist.rs`）通过。决策依据见 ADR 0019；arXiv 是参考实现，各节以它举例；SSRN 是第二个平台，Google Scholar 是第三个平台，小红书是第四个平台，X 是第五个平台，Hacker News 是第六个平台，YouTube 是第七个平台，见文末。
+本章是接入任何内置平台的权威契约。新增或修改平台时先读本章，并保持新平台 checklist 测试（`src/core/platform_checklist.rs`）通过。决策依据见 ADR 0019；arXiv 是参考实现，各节以它举例；SSRN 是第二个平台，Google Scholar 是第三个平台，小红书是第四个平台，X 是第五个平台，Hacker News 是第六个平台，YouTube 是第七个平台，Polymarket 是第八个平台，见文末。
 
 ## 概念与规则
 
@@ -339,8 +339,8 @@ forager 只交付文字证据，按来源分层，层与层之间不互相冒充
   - 可识别的 URL：主机 `polymarket.com` 或 `www.polymarket.com`（http 或 https，不区分大小写），路径前可有一个站点语言前缀（`bn de es fr hi id it ja pl ru th tl uk vi zh zh-hant`），路径为 `/event/<e>`、`/event/<e>/<m>`（得到 market ref，丢弃 event 段）或 `/market/<m>`；忽略 query、fragment 与末尾 `/`。
   - 飞行前退 2：全为数字的 slug（数字 id 没有对应的站点 URL，消息说明改用 slug）、其他路径与主机、相似域名，以及 `polymarket.us`、`www.polymarket.us` 与 `gateway.polymarket.us`（消息说明这是身份空间不同的另一个产品）。解析在 types 叶子 `platform_polymarket` 中。
 - **route 与配置**：`providers.polymarket_api.url`（Gamma，默认 `https://gamma-api.polymarket.com`）、`.clob_url`（CLOB，默认 `https://clob.polymarket.com`）、`.data_url`（Data API，默认 `https://data-api.polymarket.com`，请求路径带 `/v2`）与 `.timeout`（默认 30 秒，每个请求），没有 `keys`。`platforms.polymarket.order` 默认 `[polymarket_api]`。访问策略为每 0.25 秒 1 个请求、并发 1，三个端点共用、跨进程生效。history 发 Gamma 1 个与 Data API 1 个，另有至多 4 个续页。search 发 1 个请求；fetch 发 Gamma 1 个，event 有 `open` 的 market 时再发 CLOB `POST /prices` 与 `POST /last-trades-prices` 各一批：CLOB 每批最多 500 项（实测 501 项返回 400），`/prices` 一批是 250 个 token 的买卖两侧，`/last-trades-prices` 一批是 500 个 token，超过时按批切分。
-- **组合规则**（ADR 0027）：CLOB 只增强 Gamma 的结果。`/prices` 失败时保留 Gamma 结果，`price_source` 为 `gamma`，按缓存规则定价，stderr 汇总一条诊断（`Polymarket CLOB API unavailable (<消息>); prices are Gamma's cached quotes, which may lag up to 5 minutes`）；`/last-trades-prices` 失败时只让 `last_trade_price` 为 `null` 并给出诊断。Data API 是 history 唯一的数据来源，它失败即命令失败。
-- **market `status`**：`closed` 且 `umaResolutionStatus` 为 `resolved` 为 `resolved`；`closed` 而未结算为 `closed`；未 `closed` 且 `acceptingOrders` 为 true 为 `open`，否则为 `suspended`。不读 `active`（已结算 market 的 `active` 仍为 true）。event 的 `status`：任一 market 为 `open` 时为 `open`，全部为 `resolved` 时为 `resolved`，其余为 `closed`。
+- **组合规则**（ADR 0027）：CLOB 只增强 Gamma 的结果。`/prices` 失败时保留 Gamma 结果，`price_source` 为 `gamma`，按缓存规则定价，stderr 汇总一条诊断（`Polymarket CLOB API unavailable (<消息>); prices are Gamma's cached quotes, which may lag up to 5 minutes`）；`/last-trades-prices` 失败时只让 `last_trade_price` 为 `null` 并给出诊断；`/prices` 失败时 `last_trade_price` 同样为 `null`，不改用 Gamma 的 `lastTradePrice`。Data API 是 history 唯一的数据来源，它失败即命令失败。
+- **market `status`**：`closed` 且 `umaResolutionStatus` 为 `resolved` 为 `resolved`；`closed` 而未结算为 `closed`；未 `closed`、`active` 不为 false 且 `acceptingOrders` 为 true 为 `open`，否则为 `suspended`。`active` 只对未 `closed` 的 market 有意义：已结算 market 的 `active` 仍为 true；未 `closed` 而 `active` 为 false 的是 neg-risk 组的占位 market（实测 `presidential-election-winner-2028` 的 128 个 market 中有 74 个：`acceptingOrders` 为 true，但没有 `outcomePrices`，CLOB 也没有订单簿），所以为 `suspended`，不请求 CLOB。event 的 `status`：任一 market 为 `open` 时为 `open`，全部为 `resolved` 时为 `resolved`，其余为 `closed`。
 - **每个结果的 `price` 与 `basis`**：价格以百万分之一为单位做定点运算，midpoint 与互补价没有浮点误差。
 
   | 情形 | `price` | `basis` |
@@ -351,18 +351,18 @@ forager 只交付文字证据，按来源分层，层与层之间不互相冒充
   | `open`，任一边没有挂单，或 CLOB 没有返回该 token | `null` | `no_two_sided_book` |
   | `closed` 或 `suspended` | `null` | `not_trading` |
 
-  - CLOB `/prices` 的 BUY 是最优买价、SELL 是最优卖价；没有买单时 BUY 为 `"0"`，没有卖单时 SELL 为 `"1"`（V2 市场实测确认），有效价格落在 `[tick, 1 − tick]`，所以 0 与 1 只表示没有挂单。价格字段同时接受字符串与数字。
+  - CLOB `/prices` 的 BUY 是最优买价、SELL 是最优卖价；没有买单时 BUY 为 `"0"`，没有卖单时 SELL 为 `"1"`（V2 市场实测确认），有效价格落在 `[tick, 1 − tick]`，所以 0 与 1 只表示没有挂单。价格字段（Gamma 的 `outcomePrices` 元素、`bestBid` 与 `bestAsk`，CLOB 的报价与最近成交，Data API 的历史点）同时接受字符串与数字。
   - Gamma 只给第一个结果的 bid/ask，第二个结果的 bid/ask 取第一个结果 ask/bid 的互补价。
   - `best_bid`、`best_ask` 与 `spread` 只来自当前报价；已结算 market 的 Gamma `bestBid`、`bestAsk` 与 `lastTradePrice` 是残留值，从不输出。
   - market 级 `probability` 只在 `outcomes` 恰为 `["Yes","No"]` 时等于 Yes 的 `price`，否则为 `null`。neg-risk 组的概率保持上游原样，不归一化。
-  - CLOB 报价里缺了某个 token 时，该结果按 `no_two_sided_book` 处理，stderr 汇总一条诊断（`Polymarket CLOB API returned no quote for N outcome(s)`）。实测 neg-risk 的占位 market（`active: false`、没有 `outcomePrices`、CLOB 没有订单簿）就是这样。
+  - CLOB 报价里缺了某个 token 时，该结果按 `no_two_sided_book` 处理，stderr 汇总一条诊断（`Polymarket CLOB API returned no quote for N outcome(s)`）。neg-risk 的占位 market 为 `suspended`，不请求 CLOB，不计入这条诊断。
 - **search**：Gamma `/public-search`，参数 `q`（原样发送）、`limit_per_type=<limit>`、`page`、`search_tags=false`、`search_profiles=false`，默认另加 `events_status=active`，`--include-closed` 时不发送；不发送 `optimized=true`（它会去掉 `conditionId` 与 token），不提供排序（上游 `sort` 实测无效）。查询词去空白后为空时飞行前退 2。`--limit` 为 1–20，默认 10。
   - 分页：页位置是从 1 开始的 `page`，页大小等于 `limit_per_type`。cursor 为 `v1.polymarket_api.<payload>`，恢复查询词、`include_closed`、limit 与下一页；`pagination.hasMore` 为 true 且下一页不超过第 100 页时签发（Gamma 以 422 拒绝 `page` 大于 100），支持检查在飞行前拒绝更深的 cursor。
   - 条目：每个 event 一条，`depth` 恒为 `metadata`，`authors` 为空数组，`published` 为 `startDate`（精确到秒的 UTC）。平台字段 `event_id`、`status`、`end_date`、`volume`、`volume_24h`、`liquidity`、`neg_risk`、`market_count`、`price_source: "gamma"`，以及 `top_markets`：按 `probability` 降序的前 5 个 market，`null` 排在后面，每项为 `{ref, label, probability, basis, status}`；`label` 取 `groupItemTitle`，为空时取 `question`。search 不请求 CLOB，价格可能滞后最多 5 分钟。
-  - 解码：只有 `pagination`、没有 `events` 键为合法空集（`items: []`，退 0）；缺少 `pagination` 为 Runtime。读不出的 event（slug 不合法、缺少 `markets`、字段无法解码）被跳过，stderr 汇总一条诊断（`skipped N Polymarket search results that could not be read`）；上游有 event 而全部被跳过为 Runtime。
+  - 解码：只有 `pagination`、没有 `events` 键为合法空集（`items: []`，退 0）；缺少 `pagination` 为 Runtime。无法定位的 event（它或它的某个 market 的 slug 不合法，或缺少 `markets`）被跳过，stderr 汇总一条诊断（`skipped N Polymarket search results that could not be read`）；上游有 event 而全部被跳过为 Runtime。其他解码失败（JSON 编码字段无法解码、`outcomes` 与 token 数量不一致、条目不是预期结构）与 fetch 相同，为 Runtime，整页失败。market slug 不合法也跳过，是因为实测少数旧 slug 含 `.`，Gamma 自己的 slug 查询也拒绝它们，这样的 market 无法定位，但不说明响应有缺陷。
 - **fetch**：event 请求 Gamma `/events/slug/<slug>`，market 请求 `/markets/slug/<slug>`。深度支持 `metadata`（默认）与 `abstract`，其他深度由支持检查拒绝、飞行前退 2。
-  - token：`version` 为 `v2` 时取 `positionIds`，否则取 `clobTokenIds`；只为 `open` 的 market 请求 CLOB，`outcomes` 与 token 数量只对 `open` 的 market 核对。不输出 token id。
-  - 最近成交价取 CLOB `/last-trades-prices`（不取 `/books` 的同名字段，实测它在 neg-risk 市场上给出互补价）；CLOB 不可用时取 Gamma 的 `lastTradePrice`，只对 `open` 的 market。
+  - token：`version` 为 `v2` 时取 `positionIds`，否则取 `clobTokenIds`；只为 `open` 的 market 请求 CLOB。market 有 token 时，`outcomes` 与 token 数量必须一致，不论状态；只有 `open` 的 market 必须有 token：实测 Gamma 列出的部分早年已关闭或已结算的 market 没有 `clobTokenIds`。不输出 token id。
+  - 最近成交价只取 CLOB `/last-trades-prices`（不取 `/books` 的同名字段，实测它在 neg-risk 市场上给出互补价）；CLOB 不可用、market 不是 `open` 或 token 从未成交时为 `null`。
   - market 项字段：`ref`、`url`、`market_id`、`condition_id`、`question`、`label`、`status`、`end_date`、`probability`、`outcomes`（`[{name, price, basis, best_bid, best_ask}]`）、`spread`、`last_trade_price`、`one_day_change`、`one_week_change`、`one_month_change`、`volume`、`liquidity`。
   - event 结果：公共字段、search 的平台字段（不含 `top_markets`）、`prices_as_of` 与 `markets` 数组（不截断，实测 128 个 market 的 event 约 100 KB）。market 结果：公共字段（`title` 为 `question`）、`event_id`、market 项字段、`neg_risk`、`event: {ref, url, title}`（所属 event）、`price_source` 与 `prices_as_of`。
   - `price_source` 为 `clob`（实时报价）或 `gamma`（回退，或没有 `open` 的 market 而不需要报价）；`prices_as_of` 是 CLOB 报价请求完成时的 UTC 时间，`gamma` 时取 Gamma 的 `updatedAt`。

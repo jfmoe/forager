@@ -137,22 +137,30 @@ fn is_slug(value: &str) -> bool {
         && value
             .bytes()
             .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
-        && !value.bytes().all(|byte| byte.is_ascii_digit())
+        && !is_numeric_id(value)
+}
+
+fn is_numeric_id(value: &str) -> bool {
+    !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit())
+}
+
+/// The ref of `slug`, or the hint of why it is none; a numeric ID gets its own explanation.
+fn reference(kind: PolymarketKind, slug: &str) -> Result<PolymarketRef, &'static str> {
+    if is_numeric_id(slug) {
+        return Err(NUMERIC_HINT);
+    }
+    PolymarketRef::new(kind, slug).ok_or(REF_HINT)
 }
 
 /// Parses what follows `polymarket:`: an event slug or `market/<slug>`, the kind segment in any
 /// letter case.
 fn parse_ref_body(body: &str) -> Result<PolymarketRef, &'static str> {
-    if body.bytes().all(|byte| byte.is_ascii_digit()) && !body.is_empty() {
-        return Err(NUMERIC_HINT);
-    }
-    let parsed = match body.get(..MARKET_SEGMENT.len()) {
+    match body.get(..MARKET_SEGMENT.len()) {
         Some(segment) if segment.eq_ignore_ascii_case(MARKET_SEGMENT) => {
-            PolymarketRef::market(&body[MARKET_SEGMENT.len()..])
+            reference(PolymarketKind::Market, &body[MARKET_SEGMENT.len()..])
         }
-        _ => PolymarketRef::event(body),
-    };
-    parsed.ok_or(REF_HINT)
+        _ => reference(PolymarketKind::Event, body),
+    }
 }
 
 /// Parses a polymarket.com page URL over http or https, ignoring a language prefix, the query,
@@ -179,19 +187,11 @@ fn parse_url(input: &str) -> Result<PolymarketRef, &'static str> {
     {
         segments.remove(0);
     }
-    let (kind, slug) = match segments.as_slice() {
-        ["event", slug] => (PolymarketKind::Event, *slug),
-        ["event", _, slug] | ["market", slug] => (PolymarketKind::Market, *slug),
-        _ => return Err(REF_HINT),
-    };
-    if !slug.is_empty() && slug.bytes().all(|byte| byte.is_ascii_digit()) {
-        return Err(NUMERIC_HINT);
+    match segments.as_slice() {
+        ["event", slug] => reference(PolymarketKind::Event, slug),
+        ["event", _, slug] | ["market", slug] => reference(PolymarketKind::Market, slug),
+        _ => Err(REF_HINT),
     }
-    match kind {
-        PolymarketKind::Event => PolymarketRef::event(slug),
-        PolymarketKind::Market => PolymarketRef::market(slug),
-    }
-    .ok_or(REF_HINT)
 }
 
 /// Optional Polymarket search settings. A cursor encodes them completely.
@@ -550,12 +550,14 @@ mod tests {
                 message("https://polymarket.us/event/fedfnds-ondt-2027-12-31"),
                 message("https://gateway.polymarket.us/v1/events/1"),
                 message("polymarket:51456"),
+                message("polymarket:market/616902"),
                 message("https://polymarket.com/sports/nfl"),
             ],
             [
                 "unrecognized polymarket reference `https://polymarket.us/event/fedfnds-ondt-2027-12-31`; Polymarket US (polymarket.us) is a separate product with its own events and markets; forager reads only polymarket.com".to_owned(),
                 "unrecognized polymarket reference `https://gateway.polymarket.us/v1/events/1`; Polymarket US (polymarket.us) is a separate product with its own events and markets; forager reads only polymarket.com".to_owned(),
                 "unrecognized polymarket reference `polymarket:51456`; a numeric ID has no polymarket.com page, so it is not a ref; pass the slug from a polymarket.com URL or from a forager search result".to_owned(),
+                "unrecognized polymarket reference `polymarket:market/616902`; a numeric ID has no polymarket.com page, so it is not a ref; pass the slug from a polymarket.com URL or from a forager search result".to_owned(),
                 "unrecognized polymarket reference `https://polymarket.com/sports/nfl`; pass a `polymarket:<event_slug>` or `polymarket:market/<market_slug>` ref, or a polymarket.com URL such as https://polymarket.com/event/<slug>, https://polymarket.com/event/<event>/<market>, or https://polymarket.com/market/<slug>".to_owned(),
             ]
         );

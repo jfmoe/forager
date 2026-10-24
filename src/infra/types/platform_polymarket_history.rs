@@ -2,7 +2,8 @@
 //! its result. The rules follow what the Data API v2 serves (measured 2026-10-24).
 
 use chrono::NaiveDate;
-use serde::Serialize;
+use serde::ser::SerializeMap;
+use serde::{Serialize, Serializer};
 
 use super::attempt::ProviderAttempt;
 use super::platform::{Platform, PlatformRef};
@@ -94,14 +95,30 @@ impl PolymarketBucket {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-/// The span a price history covers.
-pub(crate) enum PolymarketWindow {
+/// The span a price history covers. It serializes as the `interval` that ends now, or as a
+/// `null` interval with the `from` and `to` days of an explicit range.
+pub enum PolymarketWindow {
     Interval(PolymarketInterval),
     /// Whole UTC days, both ends included.
     Range {
         from: NaiveDate,
         to: NaiveDate,
     },
+}
+
+impl Serialize for PolymarketWindow {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut map = serializer.serialize_map(None)?;
+        match self {
+            Self::Interval(interval) => map.serialize_entry("interval", interval)?,
+            Self::Range { from, to } => {
+                map.serialize_entry("interval", &None::<PolymarketInterval>)?;
+                map.serialize_entry("from", from)?;
+                map.serialize_entry("to", to)?;
+            }
+        }
+        map.end()
+    }
 }
 
 impl PolymarketWindow {
@@ -210,14 +227,8 @@ pub struct PolymarketHistoryResult {
     pub market: PolymarketHistoryMarket,
     /// The outcome's name as the market writes it.
     pub outcome: String,
-    /// The window that ends now; `null` for an explicit range.
-    pub interval: Option<PolymarketInterval>,
-    /// The first day of an explicit range.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub from: Option<NaiveDate>,
-    /// The last day of an explicit range, included.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub to: Option<NaiveDate>,
+    #[serde(flatten)]
+    pub window: PolymarketWindow,
     pub bucket_seconds: u32,
     pub points: Vec<PolymarketPricePoint>,
     /// The payout of a resolved market, when the window reaches its settlement.

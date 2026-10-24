@@ -619,6 +619,112 @@ fn windows_the_data_api_would_refuse_fail_before_any_request() {
 }
 
 #[test]
+fn the_day_and_week_windows_default_to_five_minute_and_hourly_buckets() {
+    let gamma = Fixture::start_sequence(vec![
+        body(&market(OPEN, "No cuts")),
+        body(&market(OPEN, "No cuts")),
+    ]);
+    let data = Fixture::start_sequence(vec![price_page(&[], None), price_page(&[], None)]);
+    let environment = RunEnvironment::new(&history_config(&gamma.url, &data.url));
+
+    let buckets = ["1d", "1w"].map(|interval| {
+        let output = run(
+            &environment,
+            &[
+                "history",
+                &format!("polymarket:market/{OPEN}"),
+                "--interval",
+                interval,
+            ],
+        );
+        (
+            output.status.code(),
+            payload(&output)["bucket_seconds"].clone(),
+        )
+    });
+    gamma.finish_all();
+    let requests = data.finish_all();
+    let [yes, _] = tokens(OPEN);
+
+    assert_eq!(
+        (
+            buckets,
+            requests
+                .iter()
+                .map(|request| query(request))
+                .collect::<Vec<_>>(),
+        ),
+        (
+            [(Some(0), json!(300)), (Some(0), json!(3_600))],
+            vec![
+                params([
+                    ("token_id", yes.as_str()),
+                    ("interval", "1d"),
+                    ("bucket_seconds", "300"),
+                ]),
+                params([
+                    ("token_id", yes.as_str()),
+                    ("interval", "1w"),
+                    ("bucket_seconds", "3600"),
+                ]),
+            ],
+        )
+    );
+}
+
+#[test]
+fn prices_written_as_decimal_strings_are_read_as_numbers() {
+    let gamma = Fixture::start_sequence(vec![body(&market(OPEN, "No cuts"))]);
+    let data = Fixture::start_sequence(vec![body(&json!({
+        "data": [{"timestamp": 1_792_627_200, "price": "0.9695", "resolution_seconds": 86_400}],
+        "pagination": {"limit": 10_000, "offset": 0, "has_more": false, "next_cursor": null}
+    }))]);
+    let environment = RunEnvironment::new(&history_config(&gamma.url, &data.url));
+
+    let output = run(
+        &environment,
+        &["history", &format!("polymarket:market/{OPEN}")],
+    );
+    gamma.finish();
+    data.finish();
+
+    assert_eq!(
+        (output.status.code(), points(&payload(&output))),
+        (
+            Some(0),
+            vec![(json!("2026-10-22T00:00:00Z"), json!(0.9695))]
+        ),
+        "stderr: {}",
+        stderr(&output)
+    );
+}
+
+#[test]
+fn an_empty_order_is_a_configuration_error_before_any_request() {
+    let gamma = Fixture::start_sequence(Vec::new());
+    let data = Fixture::start_sequence(Vec::new());
+    let environment = RunEnvironment::new(&format!(
+        "{}\n[platforms.polymarket]\norder = []\n",
+        history_config(&gamma.url, &data.url)
+    ));
+
+    let output = run(
+        &environment,
+        &["history", &format!("polymarket:market/{OPEN}")],
+    );
+    gamma.finish_all();
+    data.finish_all();
+
+    assert_eq!(
+        (output.status.code(), stderr(&output).trim().to_owned()),
+        (
+            Some(3),
+            "config_error: platforms.polymarket.order has no configured route for polymarket history".to_owned()
+        )
+    );
+}
+
+#[test]
 fn a_polymarket_us_link_is_refused_before_any_request() {
     let (code, message) = refused(&["https://polymarket.us/event/fedfnds-ondt-2027-12-31"]);
 

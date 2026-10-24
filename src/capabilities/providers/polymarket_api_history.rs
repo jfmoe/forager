@@ -7,15 +7,15 @@ use chrono::{DateTime, Days, NaiveDate, NaiveTime, Utc};
 use serde::Deserialize;
 use serde_json::Value;
 
-use super::gamma::{Event, GammaEvent, GammaMarket, Market};
-use super::{Call, Endpoint, PolymarketApi, check_slug, decode, not_found};
+use super::gamma::{Entry, Market, Number};
+use super::{Call, Endpoint, PolymarketApi};
 use crate::catalog::PlatformOperation;
 use crate::providers::execution::ExecutionOutcome;
 use crate::providers::shared::{Refusal, Trail, utc_second};
 use crate::types::{
     AttemptErrorKind, HISTORY, PlatformRef, PolymarketHistoryMarket, PolymarketHistoryOutcome,
-    PolymarketHistoryRequest, PolymarketKind, PolymarketPricePoint, PolymarketStatus,
-    PolymarketWindow, ProviderError,
+    PolymarketHistoryRequest, PolymarketPricePoint, PolymarketStatus, PolymarketWindow,
+    ProviderError,
 };
 
 /// The most pages one history reads; a longer series is cut with a diagnostic.
@@ -41,7 +41,7 @@ struct PricePage {
 struct PricePoint {
     /// The observation's time in epoch seconds: a bucket's start, or the tick's own time.
     timestamp: i64,
-    price: f64,
+    price: Number,
     /// The width of the window the price was observed in; 0 for an exact tick or a payout.
     resolution_seconds: i64,
 }
@@ -192,48 +192,25 @@ impl PolymarketApi {
         request: &PolymarketHistoryRequest,
     ) -> Result<ExecutionOutcome<Selection>, ProviderError> {
         let reference = &request.market;
-        let path = match reference.kind() {
-            PolymarketKind::Event => format!("events/slug/{}", reference.slug()),
-            PolymarketKind::Market => format!("markets/slug/{}", reference.slug()),
-        };
-        self.send_with(
-            Endpoint::Gamma,
-            Call::Get {
-                path: &path,
-                query: &[],
-            },
-            HISTORY,
-            |body| {
-                let market = match reference.kind() {
-                    PolymarketKind::Event => {
-                        let event =
-                            Event::decode(decode::<GammaEvent>(body)?).map_err(Refusal::runtime)?;
-                        check_slug(reference, event.reference.slug())?;
-                        match <[Market; 1]>::try_from(event.markets) {
-                            Ok([market]) => market,
-                            Err(markets) if markets.is_empty() => {
-                                return Err(Refusal::runtime(format!(
-                                    "Polymarket Gamma API returned polymarket:{reference} without markets"
-                                )));
-                            }
-                            Err(markets) => return Ok(Selection::Several(markets)),
-                        }
+        self.read_entry(reference, HISTORY, |entry| {
+            let market = match entry {
+                Entry::Market(market) => market,
+                Entry::Event(event) => match <[Market; 1]>::try_from(event.markets) {
+                    Ok([market]) => market,
+                    Err(markets) if markets.is_empty() => {
+                        return Err(Refusal::runtime(format!(
+                            "Polymarket Gamma API returned polymarket:{reference} without markets"
+                        )));
                     }
-                    PolymarketKind::Market => {
-                        let market = Market::decode(decode::<GammaMarket>(body)?)
-                            .map_err(Refusal::runtime)?;
-                        check_slug(reference, market.reference.slug())?;
-                        market
-                    }
-                };
-                let outcome = pick_outcome(&market, request.outcome.as_deref())?;
-                Ok(Selection::One {
-                    market: Box::new(market),
-                    outcome,
-                })
-            },
-            |failure| not_found(failure, reference),
-        )
+                    Err(markets) => return Ok(Selection::Several(markets)),
+                },
+            };
+            let outcome = pick_outcome(&market, request.outcome.as_deref())?;
+            Ok(Selection::One {
+                market: Box::new(market),
+                outcome,
+            })
+        })
         .await
     }
 }
@@ -317,9 +294,13 @@ fn decode_page(body: &str) -> Result<Page, Refusal> {
         .map(|point| {
             let time = DateTime::from_timestamp(point.timestamp, 0)
                 .ok_or_else(|| invalid(format!("timestamp {}", point.timestamp)))?;
+            let price = point
+                .price
+                .value()
+                .ok_or_else(|| invalid(format!("price at {}", point.timestamp)))?;
             Ok(Point {
                 time,
-                price: point.price,
+                price,
                 exact: point.resolution_seconds == 0,
             })
         })
@@ -328,22 +309,4 @@ fn decode_page(body: &str) -> Result<Page, Refusal> {
         points,
         next_cursor,
     })
-}
-
-/// The Data API's error body: `{"error": ..., "code": ..., "retryable": ..., "trace_id": ...}`.
-#[derive(Deserialize)]
-struct DataError {
-    error: String,
-}
-
-pub(super) fn data_failure_message(body: &str, status: u16) -> String {
-    serde_json::from_str::<DataError>(body).map_or_else(
-        |_| format!("Polymarket Data API returned HTTP {status}"),
-        |error| {
-            format!(
-                "Polymarket Data API returned HTTP {status}: {}",
-                error.error
-            )
-        },
-    )
 }

@@ -24,7 +24,7 @@ use crate::types::{
 #[path = "smoke_shape.rs"]
 mod shape;
 
-use shape::{POLYMARKET_CANARY_WINNER, ResultShape, result_shape_is_nonempty};
+use shape::{ResultShape, result_shape_is_nonempty};
 
 static PROBE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 pub(crate) const MAIN_CANARY_QUERY: &str = "What is the latest stable Rust release?";
@@ -41,7 +41,11 @@ const X_ASK_CANARY_QUERY: &str = "What has SpaceX posted about Starship recently
 const HN_CANARY_QUERY: &str = "rust";
 // Markets on the Fed's rate decisions are always open, so the search is never empty.
 const POLYMARKET_CANARY_QUERY: &str = "fed rate";
+// The 2024 presidential election, resolved and no longer changing.
 const POLYMARKET_CANARY: &str = "polymarket:presidential-election-winner-2024";
+/// The winning market of the canary event, whose history ends in a payout of 1.
+const POLYMARKET_CANARY_WINNER: &str =
+    "polymarket:market/will-donald-trump-win-the-2024-us-presidential-election";
 // The open event the search case found, whose fetch proves the live CLOB quotes.
 const POLYMARKET_LIVE_CASE: &str = "C45";
 const POLYMARKET_NO_EVENT: &str =
@@ -252,8 +256,16 @@ fn platform_fetch_canary(platform: Platform) -> Option<(&'static str, &'static s
         Platform::Hn => Some(("hn:8863", "thread")),
         // The first YouTube upload (2005), whose metadata no longer changes.
         Platform::Youtube => Some(("youtube:jNQXAC9IVRw", "metadata")),
-        // The 2024 presidential election, resolved and no longer changing.
         Platform::Polymarket => Some((POLYMARKET_CANARY, "metadata")),
+    }
+}
+
+/// What the fetch of a platform's canary must show; the resolved Polymarket canary must show
+/// its payouts, read without the CLOB.
+fn platform_fetch_shape(platform: Platform) -> ResultShape {
+    match platform {
+        Platform::Polymarket => ResultShape::PolymarketResolved,
+        _ => ResultShape::PlatformFetch,
     }
 }
 
@@ -1110,11 +1122,7 @@ fn command_specs(
                     "--timeout",
                     &timeout,
                 ],
-                if platform == Platform::Polymarket {
-                    ResultShape::PolymarketResolved
-                } else {
-                    ResultShape::PlatformFetch
-                },
+                platform_fetch_shape(platform),
             )
         } else if platform == Platform::Youtube && definition.operation == ASK {
             let (video, _) = platform_fetch_canary(platform)?;

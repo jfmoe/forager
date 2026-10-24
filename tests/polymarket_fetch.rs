@@ -4,7 +4,8 @@ use serde_json::{Value, json};
 
 use support::hn::{path, payload, stderr};
 use support::polymarket::{
-    config, event, json as body, last_trades, market, prices, resolved, run, tokens, with,
+    config, event, json as body, last_trades, market, placeholder, prices, resolved, run, tokens,
+    with,
 };
 use support::{Fixture, Response, RunEnvironment, request_json};
 
@@ -311,7 +312,7 @@ fn an_event_carries_its_identity_scale_and_when_its_prices_were_read() {
 }
 
 #[test]
-fn when_the_clob_fails_open_markets_fall_back_to_gamma_cached_quotes() {
+fn when_the_clob_fails_open_markets_fall_back_to_gamma_cached_quotes_without_a_last_trade() {
     let gamma = Fixture::start_sequence(vec![body(&derivation_event())]);
     let clob = Fixture::start_sequence(vec![Response::json(500, r#"{"error":"internal"}"#)]);
     let environment = RunEnvironment::new(&config(&gamma.url, &clob.url));
@@ -343,7 +344,7 @@ fn when_the_clob_fails_open_markets_fall_back_to_gamma_cached_quotes() {
                         outcome("No", json!(0.038), "midpoint_cached", json!(0.037), json!(0.039)),
                     ],
                     json!(0.002),
-                    json!(0.961),
+                    none(),
                 ),
                 priced(
                     "Empty book",
@@ -354,7 +355,7 @@ fn when_the_clob_fails_open_markets_fall_back_to_gamma_cached_quotes() {
                         outcome("No", none(), "no_two_sided_book", none(), none()),
                     ],
                     none(),
-                    json!(0.961),
+                    none(),
                 ),
                 priced(
                     "One-sided",
@@ -365,10 +366,62 @@ fn when_the_clob_fails_open_markets_fall_back_to_gamma_cached_quotes() {
                         outcome("No", json!(0.038), "midpoint_cached", json!(0.037), json!(0.039)),
                     ],
                     json!(0.002),
-                    json!(0.961),
+                    none(),
                 ),
             ],
             "Polymarket CLOB API unavailable (Polymarket CLOB API returned HTTP 500: internal); prices are Gamma's cached quotes, which may lag up to 5 minutes".to_owned(),
+        )
+    );
+}
+
+#[test]
+fn inactive_placeholder_markets_are_suspended_and_never_reach_the_clob() {
+    let gamma = Fixture::start_sequence(vec![body(&event(
+        EVENT,
+        &[
+            market("two-sided", "Two-sided"),
+            placeholder("will-person-a-win", "Person A"),
+        ],
+    ))]);
+    let [yes, no] = tokens("two-sided");
+    let clob = Fixture::start_sequence(vec![
+        prices(&[(&yes, "0.961", "0.963"), (&no, "0.037", "0.039")]),
+        last_trades(&[]),
+    ]);
+    let environment = RunEnvironment::new(&config(&gamma.url, &clob.url));
+
+    let output = run(&environment, &["fetch", &format!("polymarket:{EVENT}")]);
+    gamma.finish();
+    let clob_requests = clob.finish_all();
+    let fetched = payload(&output);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            request_json(&clob_requests[0]),
+            pricing(&fetched)[1].clone(),
+            stderr(&output).trim().to_owned(),
+        ),
+        (
+            Some(0),
+            json!([
+                {"token_id": yes, "side": "BUY"},
+                {"token_id": yes, "side": "SELL"},
+                {"token_id": no, "side": "BUY"},
+                {"token_id": no, "side": "SELL"},
+            ]),
+            priced(
+                "Person A",
+                "suspended",
+                none(),
+                [
+                    outcome("Yes", none(), "not_trading", none(), none()),
+                    outcome("No", none(), "not_trading", none(), none()),
+                ],
+                none(),
+                none(),
+            ),
+            String::new(),
         )
     );
 }
@@ -585,15 +638,20 @@ fn another_slug_or_a_broken_encoded_field_fails_as_runtime() {
         market("two-sided", "Two-sided"),
         &json!({"clobTokenIds": "[\"one\"]"}),
     );
+    let resolved_short_of_tokens = with(
+        resolved("two-sided", "Two-sided", true),
+        &json!({"clobTokenIds": "[\"one\"]"}),
+    );
     let gamma = Fixture::start_sequence(vec![
         body(&event("another-event", &[market("two-sided", "Two-sided")])),
         body(&event(EVENT, &[broken])),
         body(&event(EVENT, &[short_of_tokens])),
+        body(&event(EVENT, &[resolved_short_of_tokens])),
     ]);
     let clob = Fixture::start_sequence(Vec::new());
     let environment = RunEnvironment::new(&config(&gamma.url, &clob.url));
 
-    let outputs = [(); 3].map(|()| run(&environment, &["fetch", &format!("polymarket:{EVENT}")]));
+    let outputs = [(); 4].map(|()| run(&environment, &["fetch", &format!("polymarket:{EVENT}")]));
     gamma.finish_all();
     clob.finish_all();
 
@@ -628,7 +686,60 @@ fn another_slug_or_a_broken_encoded_field_fails_as_runtime() {
                     "Polymarket Gamma API returned polymarket:market/two-sided with 2 outcomes but 1 tokens"
                 )
             ),
+            (
+                Some(4),
+                json!("runtime"),
+                json!(
+                    "Polymarket Gamma API returned polymarket:market/two-sided with 2 outcomes but 1 tokens"
+                )
+            ),
         ]
+    );
+}
+
+/// Gamma lists some long-settled markets without tokens, and the price fields may be numbers
+/// as well as decimal strings.
+#[test]
+fn a_settled_market_without_tokens_reads_its_payouts_written_as_numbers() {
+    let mut settled = with(
+        resolved("will-the-chiefs-win-super-bowl-55", "Chiefs", false),
+        &json!({"outcomePrices": "[0, 1]"}),
+    );
+    settled
+        .as_object_mut()
+        .expect("market object")
+        .remove("clobTokenIds");
+    let gamma = Fixture::start_sequence(vec![body(&settled)]);
+    let clob = Fixture::start_sequence(Vec::new());
+    let environment = RunEnvironment::new(&config(&gamma.url, &clob.url));
+
+    let output = run(
+        &environment,
+        &[
+            "fetch",
+            "polymarket:market/will-the-chiefs-win-super-bowl-55",
+        ],
+    );
+    gamma.finish();
+    clob.finish_all();
+    let fetched = payload(&output);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            fetched["status"].clone(),
+            fetched["outcomes"].clone()
+        ),
+        (
+            Some(0),
+            json!("resolved"),
+            json!([
+                outcome("Yes", json!(0.0), "resolution", none(), none()),
+                outcome("No", json!(1.0), "resolution", none(), none()),
+            ])
+        ),
+        "stderr: {}",
+        stderr(&output)
     );
 }
 
@@ -743,6 +854,29 @@ fn abstract_without_rules_fails_as_quality() {
             Some(5),
             json!("quality"),
             json!("polymarket:market/two-sided has no resolution rules")
+        )
+    );
+}
+
+#[test]
+fn an_empty_order_is_a_configuration_error_before_any_request() {
+    let gamma = Fixture::start_sequence(Vec::new());
+    let clob = Fixture::start_sequence(Vec::new());
+    let environment = RunEnvironment::new(&format!(
+        "{}\n[platforms.polymarket]\norder = []\n",
+        config(&gamma.url, &clob.url)
+    ));
+
+    let output = run(&environment, &["fetch", &format!("polymarket:{EVENT}")]);
+    gamma.finish_all();
+    clob.finish_all();
+
+    assert_eq!(
+        (output.status.code(), stderr(&output).trim().to_owned()),
+        (
+            Some(3),
+            "config_error: platforms.polymarket.order has no configured route for polymarket fetch"
+                .to_owned()
         )
     );
 }

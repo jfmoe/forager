@@ -2,9 +2,7 @@
 
 use serde_json::Value;
 
-/// The winning market of the resolved canary event, whose history ends in a payout of 1.
-pub(super) const POLYMARKET_CANARY_WINNER: &str =
-    "polymarket:market/will-donald-trump-win-the-2024-us-presidential-election";
+use super::POLYMARKET_CANARY_WINNER;
 
 #[derive(Clone, Copy)]
 pub(super) enum ResultShape {
