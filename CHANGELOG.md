@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.17.0](https://github.com/jfmoe/forager/compare/v0.16.0...v0.17.0) - 2026-10-24
+
+### Added
+
+- *(polymarket)* read Polymarket price histories
+- *(polymarket)* search and fetch Polymarket markets
+
+### Fixed
+
+- *(polymarket)* suspend placeholder markets and tighten decoding
+
+### Other
+
+- *(polymarket)* design the Polymarket platform
+- *(skill)* point YouTube file downloads at yt-dlp
+
 ## [0.16.0](https://github.com/jfmoe/forager/compare/v0.15.0...v0.16.0) - 2026-10-21
 
 ### Added
