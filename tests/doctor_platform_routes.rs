@@ -558,3 +558,28 @@ fn youtube_web_deep_doctor_fetches_the_canary_video_metadata() {
         ["/watch", "/youtubei/v1/player"]
     );
 }
+
+#[test]
+fn polymarket_api_deep_doctor_checks_the_clob_and_the_data_api_after_its_search() {
+    let gamma = Fixture::start_json(200, r#"{"pagination":{"hasMore":false,"totalResults":0}}"#);
+    let clob = Fixture::start_json(200, "1792800000");
+    let data = Fixture::start_json(
+        200,
+        r#"{"data":{"computed_at":"2026-10-24T07:35:04Z","age_seconds":4}}"#,
+    );
+    let environment = RunEnvironment::new(&format!(
+        "[providers.polymarket_api]\nurl = {:?}\nclob_url = {:?}\ndata_url = {:?}\n",
+        gamma.url, clob.url, data.url
+    ));
+
+    let output = environment.run(&["doctor", "--provider", "polymarket_api"]);
+    assert_deep_success(
+        &output,
+        "polymarket_api",
+        &[("search", "http"), ("clob", "http"), ("data", "http")],
+    );
+    let paths =
+        [gamma.finish(), clob.finish(), data.finish()].map(|request| support::hn::path(&request));
+
+    assert_eq!(paths, ["/public-search", "/time", "/v2/status"]);
+}

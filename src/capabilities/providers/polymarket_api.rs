@@ -2,10 +2,12 @@
 //! (ADR 0032).
 //!
 //! Gamma finds events and holds their metadata and cached quotes; the CLOB holds the live order
-//! books. Search prices from Gamma alone in one request. Fetch reads the event or market from
-//! Gamma and the live books of its open markets from the CLOB; the CLOB only enriches the
-//! result, so when it fails the fetch prices from Gamma's cache and one diagnostic says so.
-//! Every request to either endpoint follows the route's one access policy.
+//! books; the Data API holds price histories. Search prices from Gamma alone in one request.
+//! Fetch reads the event or market from Gamma and the live books of its open markets from the
+//! CLOB; the CLOB only enriches the result, so when it fails the fetch prices from Gamma's cache
+//! and one diagnostic says so. History reads the market from Gamma and its series from the Data
+//! API, the only source of it. Every request to any endpoint follows the route's one access
+//! policy.
 
 use std::collections::HashMap;
 use std::time::Duration;
@@ -34,6 +36,8 @@ use crate::types::{
 
 #[path = "polymarket_api_gamma.rs"]
 mod gamma;
+#[path = "polymarket_api_history.rs"]
+mod history;
 #[path = "polymarket_api_quotes.rs"]
 mod quotes;
 
@@ -86,11 +90,12 @@ fn page_number(page: Option<&str>) -> Result<u64, String> {
     })
 }
 
-/// The two endpoints of the route.
+/// The endpoints of the route.
 #[derive(Clone, Copy)]
 enum Endpoint {
     Gamma,
     Clob,
+    Data,
 }
 
 impl Endpoint {
@@ -98,6 +103,7 @@ impl Endpoint {
         match self {
             Self::Gamma => "Polymarket Gamma API request timed out",
             Self::Clob => "Polymarket CLOB API request timed out",
+            Self::Data => "Polymarket Data API request timed out",
         }
     }
 
@@ -105,13 +111,14 @@ impl Endpoint {
         match self {
             Self::Gamma => gamma_failure_message,
             Self::Clob => clob_failure_message,
+            Self::Data => history::data_failure_message,
         }
     }
 
     fn reason_kind(self) -> fn(&str) -> Option<AttemptErrorKind> {
         match self {
             Self::Gamma => gamma_reason_kind,
-            Self::Clob => |_| None,
+            Self::Clob | Self::Data => |_| None,
         }
     }
 }
@@ -394,6 +401,7 @@ impl PolymarketApi {
         let base = match endpoint {
             Endpoint::Gamma => &self.config.url,
             Endpoint::Clob => &self.config.clob_url,
+            Endpoint::Data => &self.config.data_url,
         };
         let base = base.trim_end_matches('/');
         let (failure_message, reason_kind) = (endpoint.failure_message(), endpoint.reason_kind());

@@ -21,9 +21,9 @@ use crate::net::RetryPolicy;
 use crate::types::{
     Deadline, HnStoriesOutcome, HnStoriesRequest, ModelAnswerOutcome, ModelTranscriptOutcome,
     PlatformFetchRequest, PlatformItem, PlatformSearchOutcome, PlatformSearchRequest,
-    ProviderError, ScholarCitedByRequest, XAskOutcome, XAskRequest, XiaohongshuCommentsOutcome,
-    XiaohongshuCommentsRequest, YoutubeCommentsOutcome, YoutubeCommentsRequest,
-    YoutubeVideosOutcome, YoutubeVideosRequest,
+    PolymarketHistoryOutcome, PolymarketHistoryRequest, ProviderError, ScholarCitedByRequest,
+    XAskOutcome, XAskRequest, XiaohongshuCommentsOutcome, XiaohongshuCommentsRequest,
+    YoutubeCommentsOutcome, YoutubeCommentsRequest, YoutubeVideosOutcome, YoutubeVideosRequest,
 };
 
 /// The routes that list the works citing a Google Scholar paper. Cited-by has one route, so it
@@ -58,6 +58,10 @@ pub(crate) const YOUTUBE_TRANSCRIBE_ROUTES: &[ProviderId] = &[ProviderId::Gemini
 /// The routes that list a Hacker News story list; like cited-by, a single-route operation whose
 /// route set lives here.
 pub(crate) const HN_STORIES_ROUTES: &[ProviderId] = &[ProviderId::HnApi];
+
+/// The routes that read the Price History of a Polymarket market; like cited-by, a single-route
+/// operation whose route set lives here.
+pub(crate) const POLYMARKET_HISTORY_ROUTES: &[ProviderId] = &[ProviderId::PolymarketApi];
 
 pub(crate) fn build_main_search(
     id: ProviderId,
@@ -337,6 +341,22 @@ pub(crate) async fn hn_stories(
         .await
 }
 
+/// Reads the Price History of one outcome of a Polymarket market through a history route.
+pub(crate) async fn polymarket_history(
+    config: PlatformRouteConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+    request: &PolymarketHistoryRequest,
+) -> Result<PolymarketHistoryOutcome, ProviderError> {
+    let PlatformRouteConfig::PolymarketApi(config) = config else {
+        unreachable!("planning selects only history routes")
+    };
+    build_polymarket_api(config, client, retry_policy, deadline)
+        .history(request)
+        .await
+}
+
 /// Runs the checks a platform route needs beyond its platform search probe: one per extra
 /// endpoint it combines. Each check is named; most routes have none.
 pub(crate) async fn platform_route_extra_checks(
@@ -352,12 +372,13 @@ pub(crate) async fn platform_route_extra_checks(
                 .probe_firebase()
                 .await,
         )],
-        PlatformRouteConfig::PolymarketApi(config) => vec![(
-            "clob",
-            build_polymarket_api(config, client, retry_policy, deadline)
-                .probe_clob()
-                .await,
-        )],
+        PlatformRouteConfig::PolymarketApi(config) => {
+            let route = build_polymarket_api(config, client, retry_policy, deadline);
+            vec![
+                ("clob", route.probe_clob().await),
+                ("data", route.probe_data().await),
+            ]
+        }
         _ => Vec::new(),
     }
 }
@@ -676,6 +697,15 @@ pub(crate) fn youtube_transcribe_support(id: ProviderId) -> Option<Result<(), St
 pub(crate) fn hn_stories_support(id: ProviderId) -> Option<Result<(), String>> {
     match id {
         ProviderId::HnApi => Some(transport_support(id)),
+        _ => None,
+    }
+}
+
+/// Returns whether a history route can run, or `None` for a provider that does not read
+/// Polymarket price histories. The request needs no check beyond what parsing guarantees.
+pub(crate) fn polymarket_history_support(id: ProviderId) -> Option<Result<(), String>> {
+    match id {
+        ProviderId::PolymarketApi => Some(transport_support(id)),
         _ => None,
     }
 }

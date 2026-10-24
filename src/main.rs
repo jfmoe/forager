@@ -146,6 +146,15 @@ fn main() -> ExitCode {
             platform_render::render_stories(result, format, output),
             attempt_log,
         ),
+        Ok(CommandOutput::PolymarketHistory {
+            result,
+            format,
+            output,
+            attempt_log,
+        }) => emit_logged(
+            platform_render::render_history(result, format, output),
+            attempt_log,
+        ),
         Ok(CommandOutput::GeminiResearch {
             result,
             format,

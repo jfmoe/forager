@@ -112,9 +112,10 @@ keys = []                    # 为空＝未配置，ask 与 transcribe 飞行前
 model = "gemini-flash-latest"   # 非空
 timeout = 300                # 一次模型请求的 attempt 超时；命令默认 --timeout 600
 
-[providers.polymarket_api]   # 不需要凭据，没有 keys；一条 route 访问两个端点，共用访问策略（ADR 0032）
+[providers.polymarket_api]   # 不需要凭据，没有 keys；一条 route 访问三个端点，共用访问策略（ADR 0032）
 url = "https://gamma-api.polymarket.com"   # Gamma：检索、event 与 market 的元数据
 clob_url = "https://clob.polymarket.com"   # CLOB：实时订单簿报价
+data_url = "https://data-api.polymarket.com"   # Data API：价格历史，请求路径带 /v2
 timeout = 30                 # 对任一端点的单个请求的 attempt 超时
 
 [capabilities.web_search]

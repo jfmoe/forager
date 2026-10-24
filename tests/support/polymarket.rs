@@ -1,5 +1,5 @@
-//! Polymarket fixtures: configuration for the two endpoints of `polymarket_api`, and Gamma and
-//! CLOB records in the shapes the APIs returned on 2026-10-24, shared by the `platform
+//! Polymarket fixtures: configuration for the endpoints of `polymarket_api`, and Gamma, CLOB,
+//! and Data API records in the shapes the APIs returned on 2026-10-24, shared by the `platform
 //! polymarket` tests.
 
 use std::process::Output;
@@ -14,6 +14,33 @@ pub(crate) fn config(gamma: &str, clob: &str) -> String {
     format!(
         "[providers.polymarket_api]\nurl = \"{gamma}\"\nclob_url = \"{clob}\"\n\n[retry]\nmax_attempts = 1\n"
     )
+}
+
+/// Points `polymarket_api` at a Gamma and a Data API fixture with one attempt per request; the
+/// CLOB keeps its default, which history never reaches.
+pub(crate) fn history_config(gamma: &str, data: &str) -> String {
+    format!(
+        "[providers.polymarket_api]\nurl = \"{gamma}\"\ndata_url = \"{data}\"\n\n[retry]\nmax_attempts = 1\n"
+    )
+}
+
+/// A Data API `GET /v2/prices-history` page of `(timestamp, price, resolution_seconds)` points;
+/// `next_cursor` marks that another page follows.
+pub(crate) fn price_page(points: &[(i64, f64, i64)], next_cursor: Option<&str>) -> Response {
+    json(&json!({
+        "data": points
+            .iter()
+            .map(|(timestamp, price, resolution)| {
+                json!({"timestamp": timestamp, "price": price, "resolution_seconds": resolution})
+            })
+            .collect::<Vec<_>>(),
+        "pagination": {
+            "limit": 10_000,
+            "offset": 0,
+            "has_more": next_cursor.is_some(),
+            "next_cursor": next_cursor
+        }
+    }))
 }
 
 pub(crate) fn json(body: &Value) -> Response {

@@ -37,6 +37,8 @@ mod platform_checklist;
 mod platform_comments;
 #[path = "core/platform_fetch.rs"]
 mod platform_fetch;
+#[path = "core/platform_history.rs"]
+mod platform_history;
 #[path = "core/platform_precheck.rs"]
 mod platform_precheck;
 #[path = "core/platform_stories.rs"]

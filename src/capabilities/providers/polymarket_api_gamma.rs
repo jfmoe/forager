@@ -127,7 +127,8 @@ pub(super) struct GammaEventLink {
 pub(super) struct Market {
     pub(super) reference: PolymarketRef,
     pub(super) status: PolymarketStatus,
-    names: Vec<String>,
+    /// The outcome names, in outcome order.
+    pub(super) names: Vec<String>,
     settled: Vec<Price>,
     /// The CLOB token of each outcome, in outcome order.
     pub(super) tokens: Vec<String>,
@@ -135,8 +136,8 @@ pub(super) struct Market {
     gamma_last_trade: Option<f64>,
     id: String,
     condition_id: Option<String>,
-    question: String,
-    label: String,
+    pub(super) question: String,
+    pub(super) label: String,
     end_date: Option<String>,
     one_day_change: Option<f64>,
     one_week_change: Option<f64>,

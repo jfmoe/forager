@@ -1055,8 +1055,9 @@ forager platform polymarket search [QUERY] [--include-closed] [--limit N] [--cur
 | `--cursor CURSOR` | `next_cursor` of a previous page; it restores the whole request, so pass no query, option, or `--limit` with it. | Omitted |
 
 Polymarket runs through the `polymarket_api` route, which needs no key: the Gamma API
-(`providers.polymarket_api.url`) searches and describes events and markets, and the CLOB API
-(`providers.polymarket_api.clob_url`) supplies live order books. JSON output is `{platform,
+(`providers.polymarket_api.url`) searches and describes events and markets, the CLOB API
+(`providers.polymarket_api.clob_url`) supplies live order books, and the Data API
+(`providers.polymarket_api.data_url`) supplies price histories. JSON output is `{platform,
 provider, items, next_cursor}`. Each item is an event: `ref` (`polymarket:<event_slug>`), `url`
 (`https://polymarket.com/event/<slug>`), `depth` (`metadata`), `title`, `authors` (empty),
 `published` (the start, UTC second), `event_id`, `status` (`open`, `closed`, or `resolved`),
@@ -1105,6 +1106,38 @@ or a depth other than the two; `3` for an empty `platforms.polymarket.order`; `4
 the same for a market), the transport failures under search, and `runtime` for a response about
 another slug or in an unexpected shape; `5` (`quality`) for `abstract` of an event or market
 without rules.
+
+### `platform polymarket history`
+
+```console
+forager platform polymarket history MARKET [--outcome NAME]
+                                    [--interval 1d|1w|1m|max | --from YYYY-MM-DD --to YYYY-MM-DD]
+                                    [--bucket 1m|5m|30m|1h|3h|12h|1d] [--timeout SECONDS]
+                                    [--format json|markdown] [--output FILE [--receipt]] [--verbose]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `MARKET` | A market ref or URL, as fetch takes them. An event ref or URL works only when the event holds one market. | Required |
+| `--outcome NAME` | The outcome, by name in any letter case. | The first outcome (Yes) |
+| `--interval WINDOW` | A window ending now: `1d`, `1w`, `1m` (a month), or `max` (the market's whole life). Not with `--from`/`--to`. | `1m` |
+| `--from DATE`, `--to DATE` | An explicit window of UTC days, both included, at most 15 days; pass both. | Omitted |
+| `--bucket WIDTH` | The width of one point: `1m` (a minute), `5m`, `30m`, `1h`, `3h`, `12h`, or `1d`. `1m` and `max` take `30m` or wider, `1w` takes `5m` or wider. | `5m` for `1d`, `1h` for `1w`, `1d` for `1m` and `max`; `5m` for a range of up to 2 days, else `1h` |
+
+JSON output is `{platform, provider, market: {ref, url, question, status}, outcome, interval,
+bucket_seconds, points, settlement}`; an explicit range has `interval: null` with `from` and
+`to`. `points` is `[{t, price}]`, oldest first, `t` a UTC second. A resolved market's payout is
+`settlement: {t, price}` and never a point; `settlement` is `null` before resolution, or when the
+window ends before the payout. A bucket finer than the Data API keeps for that window returns
+`points: []` with exit 0. A series longer than five pages is cut, with a stderr diagnostic to
+pass a larger `--bucket`.
+
+Exit codes: `2` before any request for an unrecognized input, a window and a range together, only
+one end of a range, a range over 15 days or ending before it starts, or a bucket finer than the
+interval allows; `3` for an empty `platforms.polymarket.order`; `4` for `parameter` (an event with
+several markets, with up to 10 of their refs and labels listed on stderr to pick from; an unknown
+outcome, whose message lists the outcomes; a market not found; or a Data API refusal) and the
+transport failures under search.
 
 ## Gemini Deep Research
 

@@ -167,7 +167,7 @@
     },
     {
       "id": "polymarket",
-      "purpose": "Search and read Polymarket prediction markets through its public APIs: events and their markets, resolution status and rules, and each outcome's market-implied probability, the midpoint of the live order book when both sides have orders, or the payout once the market resolved.",
+      "purpose": "Search and read Polymarket prediction markets through its public APIs: events and their markets, resolution status and rules, and each outcome's market-implied probability, the midpoint of the live order book when both sides have orders, or the payout once the market resolved; and the price history of one outcome of a market.",
       "select_when": "The request names Polymarket, supplies a polymarket.com event or market URL or polymarket: ref, or asks what prediction markets or betting odds say about a future event; it needs no key. Polymarket US (polymarket.us) is a separate product forager does not read.",
       "examples": [
         "what does Polymarket give for the number of Fed rate cuts in 2026",
