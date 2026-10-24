@@ -327,3 +327,47 @@ forager 只交付文字证据，按来源分层，层与层之间不互相冒充
 - **错误映射**：400 `INVALID_ARGUMENT` 为 attempt 级 Parameter；401/403 为 Auth；429 `RESOURCE_EXHAUSTED` 为 RateLimited 或 QuotaExhausted，按凭据池规则换 key；其他状态沿用 net 的共享映射。消息形如 `Gemini API returned HTTP <status> (<STATUS>): <message>`；响应不是预期结构为 Runtime。
 - **doctor**：注册探针为 `DoctorProbe::ServiceAccount`（检查名 `models`）：deep `doctor --provider gemini_api` 按池中顺序用每个 key 各请求一次 `GET <url>/models`（不消耗模型额度，不经凭据轮换），`keys` 每项为 `{key_index, ok}`，失败项带 `error_kind`；没有 key 时以 config 失败退 3。shallow 检查沿用 keyed HTTP route 对 `url` 的可达性检查。
 - **smoke**：C41（ask canary `youtube:jNQXAC9IVRw`，问一个只有看画面才能回答的问题：说话人身后有几头大象、他穿着什么）与 C42（transcribe 同一 canary，Transcript 写入临时目录），只在 `providers.gemini_api.keys` 非空且 `platforms.youtube.order` 含 `gemini_api` 时运行。两者不把 order 收窄到 `gemini_api`，前置检查经已配置的 order 读取视频。
+
+## Polymarket
+
+第八个平台，只有一条匿名 HTTP route `polymarket_api`，结合 Polymarket 的两个公开只读端点：Gamma（检索、event 与 market 的元数据和缓存报价）与 CLOB（实时订单簿报价）；提供 search 与 fetch。条目的核心是 Market-Implied Probability：只在订单簿两边都有挂单时取 midpoint，否则不给概率。设计依据见 ADR 0032 与设计文档 `docs/design/2026-10-24-polymarket-platform.md`，2026-10-24 的实测记在设计文档的「实测结果」中。
+
+- **身份**：kind 有两种，都没有版本，都满足往返性质。
+  - `event`（fetch 接受的第一个 kind）：ref 为 `polymarket:<event_slug>`，canonical URL 为 `https://polymarket.com/event/<slug>`。
+  - `market`：ref 为 `polymarket:market/<market_slug>`，canonical URL 为 `https://polymarket.com/market/<slug>`（站点会 307 到所属 event 下的 market 页）。
+  - slug 是 Gamma 返回的原文：ASCII 字母、数字、`-` 与 `_`，区分大小写，长度 1–255。实测极少数 slug 含 `.`，Gamma 的按 slug 查询以 422 拒绝它们，所以不接受。
+  - 可识别的 URL：主机 `polymarket.com` 或 `www.polymarket.com`（http 或 https，不区分大小写），路径前可有一个站点语言前缀（`bn de es fr hi id it ja pl ru th tl uk vi zh zh-hant`），路径为 `/event/<e>`、`/event/<e>/<m>`（得到 market ref，丢弃 event 段）或 `/market/<m>`；忽略 query、fragment 与末尾 `/`。
+  - 飞行前退 2：全为数字的 slug（数字 id 没有对应的站点 URL，消息说明改用 slug）、其他路径与主机、相似域名，以及 `polymarket.us`、`www.polymarket.us` 与 `gateway.polymarket.us`（消息说明这是身份空间不同的另一个产品）。解析在 types 叶子 `platform_polymarket` 中。
+- **route 与配置**：`providers.polymarket_api.url`（Gamma，默认 `https://gamma-api.polymarket.com`）、`.clob_url`（CLOB，默认 `https://clob.polymarket.com`）与 `.timeout`（默认 30 秒，每个请求），没有 `keys`。`platforms.polymarket.order` 默认 `[polymarket_api]`。访问策略为每 0.25 秒 1 个请求、并发 1，两个端点共用、跨进程生效。search 发 1 个请求；fetch 发 Gamma 1 个，event 有 `open` 的 market 时再发 CLOB `POST /prices` 与 `POST /last-trades-prices` 各一批：CLOB 每批最多 500 项（实测 501 项返回 400），`/prices` 一批是 250 个 token 的买卖两侧，`/last-trades-prices` 一批是 500 个 token，超过时按批切分。
+- **组合规则**（ADR 0027）：CLOB 只增强 Gamma 的结果。`/prices` 失败时保留 Gamma 结果，`price_source` 为 `gamma`，按缓存规则定价，stderr 汇总一条诊断（`Polymarket CLOB API unavailable (<消息>); prices are Gamma's cached quotes, which may lag up to 5 minutes`）；`/last-trades-prices` 失败时只让 `last_trade_price` 为 `null` 并给出诊断。
+- **market `status`**：`closed` 且 `umaResolutionStatus` 为 `resolved` 为 `resolved`；`closed` 而未结算为 `closed`；未 `closed` 且 `acceptingOrders` 为 true 为 `open`，否则为 `suspended`。不读 `active`（已结算 market 的 `active` 仍为 true）。event 的 `status`：任一 market 为 `open` 时为 `open`，全部为 `resolved` 时为 `resolved`，其余为 `closed`。
+- **每个结果的 `price` 与 `basis`**：价格以百万分之一为单位做定点运算，midpoint 与互补价没有浮点误差。
+
+  | 情形 | `price` | `basis` |
+  |---|---|---|
+  | `resolved` | `outcomePrices` 的兑付值 | `resolution` |
+  | `open`，CLOB 报价两边都有挂单 | `(best_bid + best_ask) / 2` | `midpoint` |
+  | `open`，CLOB 不可用（以及 search），Gamma `bestBid` 与 `bestAsk` 都存在 | Gamma `outcomePrices` | `midpoint_cached` |
+  | `open`，任一边没有挂单，或 CLOB 没有返回该 token | `null` | `no_two_sided_book` |
+  | `closed` 或 `suspended` | `null` | `not_trading` |
+
+  - CLOB `/prices` 的 BUY 是最优买价、SELL 是最优卖价；没有买单时 BUY 为 `"0"`，没有卖单时 SELL 为 `"1"`（V2 市场实测确认），有效价格落在 `[tick, 1 − tick]`，所以 0 与 1 只表示没有挂单。价格字段同时接受字符串与数字。
+  - Gamma 只给第一个结果的 bid/ask，第二个结果的 bid/ask 取第一个结果 ask/bid 的互补价。
+  - `best_bid`、`best_ask` 与 `spread` 只来自当前报价；已结算 market 的 Gamma `bestBid`、`bestAsk` 与 `lastTradePrice` 是残留值，从不输出。
+  - market 级 `probability` 只在 `outcomes` 恰为 `["Yes","No"]` 时等于 Yes 的 `price`，否则为 `null`。neg-risk 组的概率保持上游原样，不归一化。
+  - CLOB 报价里缺了某个 token 时，该结果按 `no_two_sided_book` 处理，stderr 汇总一条诊断（`Polymarket CLOB API returned no quote for N outcome(s)`）。实测 neg-risk 的占位 market（`active: false`、没有 `outcomePrices`、CLOB 没有订单簿）就是这样。
+- **search**：Gamma `/public-search`，参数 `q`（原样发送）、`limit_per_type=<limit>`、`page`、`search_tags=false`、`search_profiles=false`，默认另加 `events_status=active`，`--include-closed` 时不发送；不发送 `optimized=true`（它会去掉 `conditionId` 与 token），不提供排序（上游 `sort` 实测无效）。查询词去空白后为空时飞行前退 2。`--limit` 为 1–20，默认 10。
+  - 分页：页位置是从 1 开始的 `page`，页大小等于 `limit_per_type`。cursor 为 `v1.polymarket_api.<payload>`，恢复查询词、`include_closed`、limit 与下一页；`pagination.hasMore` 为 true 且下一页不超过第 100 页时签发（Gamma 以 422 拒绝 `page` 大于 100），支持检查在飞行前拒绝更深的 cursor。
+  - 条目：每个 event 一条，`depth` 恒为 `metadata`，`authors` 为空数组，`published` 为 `startDate`（精确到秒的 UTC）。平台字段 `event_id`、`status`、`end_date`、`volume`、`volume_24h`、`liquidity`、`neg_risk`、`market_count`、`price_source: "gamma"`，以及 `top_markets`：按 `probability` 降序的前 5 个 market，`null` 排在后面，每项为 `{ref, label, probability, basis, status}`；`label` 取 `groupItemTitle`，为空时取 `question`。search 不请求 CLOB，价格可能滞后最多 5 分钟。
+  - 解码：只有 `pagination`、没有 `events` 键为合法空集（`items: []`，退 0）；缺少 `pagination` 为 Runtime。读不出的 event（slug 不合法、缺少 `markets`、字段无法解码）被跳过，stderr 汇总一条诊断（`skipped N Polymarket search results that could not be read`）；上游有 event 而全部被跳过为 Runtime。
+- **fetch**：event 请求 Gamma `/events/slug/<slug>`，market 请求 `/markets/slug/<slug>`。深度支持 `metadata`（默认）与 `abstract`，其他深度由支持检查拒绝、飞行前退 2。
+  - token：`version` 为 `v2` 时取 `positionIds`，否则取 `clobTokenIds`；只为 `open` 的 market 请求 CLOB，`outcomes` 与 token 数量只对 `open` 的 market 核对。不输出 token id。
+  - 最近成交价取 CLOB `/last-trades-prices`（不取 `/books` 的同名字段，实测它在 neg-risk 市场上给出互补价）；CLOB 不可用时取 Gamma 的 `lastTradePrice`，只对 `open` 的 market。
+  - market 项字段：`ref`、`url`、`market_id`、`condition_id`、`question`、`label`、`status`、`end_date`、`probability`、`outcomes`（`[{name, price, basis, best_bid, best_ask}]`）、`spread`、`last_trade_price`、`one_day_change`、`one_week_change`、`one_month_change`、`volume`、`liquidity`。
+  - event 结果：公共字段、search 的平台字段（不含 `top_markets`）、`prices_as_of` 与 `markets` 数组（不截断，实测 128 个 market 的 event 约 100 KB）。market 结果：公共字段（`title` 为 `question`）、`event_id`、market 项字段、`neg_risk`、`event: {ref, url, title}`（所属 event）、`price_source` 与 `prices_as_of`。
+  - `price_source` 为 `clob`（实时报价）或 `gamma`（回退，或没有 `open` 的 market 而不需要报价）；`prices_as_of` 是 CLOB 报价请求完成时的 UTC 时间，`gamma` 时取 Gamma 的 `updatedAt`。
+  - `abstract` 内联 `rules`：event 的 `description`；market 的规则与 event 不同且非空时，该 market 项另有 `rules`。规则为空为 Quality（退 5，`polymarket:<ref> has no resolution rules`）。`--format content` 输出规则文档：event 规则在前，其后每个规则不同的 market 以 `## <label>` 为小节。
+  - 存储键：slug 可能变化或被重新创建的 event 复用，程序化消费方以 `condition_id` 为 market 的存储键、`event_id` 为 event 的存储键，slug 只用于展示与 URL。
+- **错误映射**：Gamma 404 为 attempt 级 Parameter，消息为 `Polymarket event not found: polymarket:<slug>; slugs can change, search again`（market 为 `Polymarket market not found: polymarket:market/<slug>; …`）；Gamma 422 `validation error` 为 Runtime（请求由 forager 构造，出现即缺陷，经 net 的 reason 钩子生效）；429 为 RateLimited（匿名，直接为终态）；返回的 slug 与请求不符、JSON 编码字段（`outcomes`、`outcomePrices`、`clobTokenIds`）无法解码、`outcomes` 与 token 数量不一致，以及响应不是预期结构，为 Runtime；其他状态沿用 net 的共享映射。失败消息取上游 `error` 字段（`Polymarket Gamma API returned HTTP <status>: <error>`，CLOB 同形）。
+- **doctor**：注册探针为 `DoctorProbe::PlatformSearch`，沿用各平台共享的探针查询；deep `doctor --provider polymarket_api` 在检索检查通过后另向 CLOB 请求 `GET /time`，报告为 `clob` 检查，任一项失败即 doctor 失败。shallow 检查沿用匿名 HTTP route 对 `url` 的可达性检查。
+- **smoke**：C43（`search "fed rate" --limit 3`）、C44（fetch canary `polymarket:presidential-election-winner-2024`，已结算不再变化：要求 Trump market 为 `resolved`、Yes 的 `price` 为 1、`basis` 为 `resolution`，且整个 fetch 只有一个 attempt，即没有请求 CLOB）与 C45（fetch C43 的第一条 event，覆盖实时报价路径：有 `open` 的 market 时要求 `price_source` 为 `clob`，每个结果都有 `name` 与 `basis`，不要求概率非空；C43 没有给出 event 时 C45 记为 skipped）。route 匿名且在默认 order 中，所以默认运行。

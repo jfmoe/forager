@@ -50,8 +50,8 @@ pub(crate) fn by_seam(seam: &str) -> Option<CapabilityCatalog> {
 mod platform_catalog;
 
 pub(crate) use platform_catalog::{
-    ARXIV, HN, PLATFORMS, PlatformCatalog, PlatformOperation, SCHOLAR, SSRN, X, XIAOHONGSHU,
-    YOUTUBE, http_opt_in, platform,
+    ARXIV, HN, PLATFORMS, POLYMARKET, PlatformCatalog, PlatformOperation, SCHOLAR, SSRN, X,
+    XIAOHONGSHU, YOUTUBE, http_opt_in, platform,
 };
 
 pub(crate) fn supports(capability: &str, provider: &str) -> bool {
@@ -80,10 +80,11 @@ pub(crate) enum ProviderId {
     GeminiApi,
     GeminiBrowser,
     ChatgptBrowser,
+    PolymarketApi,
 }
 
 impl ProviderId {
-    pub(crate) const ALL: [Self; 17] = [
+    pub(crate) const ALL: [Self; 18] = [
         Self::Xai,
         Self::Exa,
         Self::Tavily,
@@ -101,6 +102,7 @@ impl ProviderId {
         Self::GeminiApi,
         Self::GeminiBrowser,
         Self::ChatgptBrowser,
+        Self::PolymarketApi,
     ];
 
     pub(crate) fn parse(value: &str) -> Option<Self> {
@@ -122,6 +124,7 @@ impl ProviderId {
             "gemini_api" => Some(Self::GeminiApi),
             "gemini_browser" => Some(Self::GeminiBrowser),
             "chatgpt_browser" => Some(Self::ChatgptBrowser),
+            "polymarket_api" => Some(Self::PolymarketApi),
             _ => None,
         }
     }
@@ -145,6 +148,7 @@ impl ProviderId {
             Self::GeminiApi => "gemini_api",
             Self::GeminiBrowser => "gemini_browser",
             Self::ChatgptBrowser => "chatgpt_browser",
+            Self::PolymarketApi => "polymarket_api",
         }
     }
 }
@@ -452,6 +456,27 @@ const HN_API_SMOKE: &[ProviderSmokeCase] = &[
     },
 ];
 
+const POLYMARKET_API_SMOKE: &[ProviderSmokeCase] = &[
+    ProviderSmokeCase {
+        id: "C43",
+        platform: Some(Platform::Polymarket),
+        operation: "search",
+        transport: "http",
+    },
+    ProviderSmokeCase {
+        id: "C44",
+        platform: Some(Platform::Polymarket),
+        operation: "fetch",
+        transport: "http",
+    },
+    ProviderSmokeCase {
+        id: "C45",
+        platform: Some(Platform::Polymarket),
+        operation: "fetch",
+        transport: "http",
+    },
+];
+
 const YOUTUBE_API_SMOKE: &[ProviderSmokeCase] = &[
     ProviderSmokeCase {
         id: "C36",
@@ -529,6 +554,13 @@ const XIAOHONGSHU_BROWSER_ACCESS: AccessPolicy = AccessPolicy {
 
 // Algolia allows 10,000 HN Search requests per IP per hour; the official Firebase API states no
 // limit. Both endpoints share this pace, at most 7,200 requests per hour.
+// One pace for all three endpoints: a ninth of the strictest official limit that applies,
+// Gamma search at 350 requests per 10 seconds.
+const POLYMARKET_API_ACCESS: AccessPolicy = AccessPolicy {
+    min_interval: Duration::from_millis(250),
+    max_concurrency: 1,
+};
+
 const HN_API_ACCESS: AccessPolicy = AccessPolicy {
     min_interval: Duration::from_millis(500),
     max_concurrency: 1,
@@ -739,6 +771,21 @@ const REGISTRY: &[ProviderRegistration] = &[
             transport: "http",
         },
         smoke_cases: HN_API_SMOKE,
+        native_full_text: false,
+    },
+    // Search and fetch read only official keyless endpoints; a fetch never needs Web Fetch.
+    ProviderRegistration {
+        id: ProviderId::PolymarketApi,
+        operations: &[],
+        credentials: Credentials::Unused,
+        transport: ProviderTransport::Http,
+        access_policy: Some(POLYMARKET_API_ACCESS),
+        probe: DoctorProbe::PlatformSearch {
+            platform: Platform::Polymarket,
+            name: "search",
+            transport: "http",
+        },
+        smoke_cases: POLYMARKET_API_SMOKE,
         native_full_text: false,
     },
     // A deep doctor spends one search of the separate daily search quota.

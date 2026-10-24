@@ -44,8 +44,8 @@ fn offline_smoke_reports_local_readiness_without_contacting_provider_endpoints()
             Some(0),
             &Value::String("offline".into()),
             &Value::Bool(true),
-            &json!({"ok": true, "provider_count": 17}),
-            Some(17),
+            &json!({"ok": true, "provider_count": 18}),
+            Some(18),
             &json!(["********"]),
             &json!(["********"]),
             &Value::Bool(true),
@@ -72,7 +72,8 @@ fn live_smoke_lists_exactly_the_specification_case_registry_without_l0_doctor_ga
     let expected = json!([
         "P1", "P2", "C01", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "C13",
         "C17", "C18", "C19", "C20", "C21", "C24", "C25", "C26", "C27", "C28", "C29", "C30", "C31",
-        "C32", "C33", "C34", "C35", "C36", "C37", "C38", "C39", "C40", "C41", "C42"
+        "C32", "C33", "C34", "C35", "C36", "C37", "C38", "C39", "C40", "C41", "C42", "C43", "C44",
+        "C45"
     ]);
 
     assert_eq!(
@@ -124,7 +125,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
             Some(4),
             &Value::String("live".into()),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 36, "skipped": 0}),
+            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 39, "skipped": 0}),
             &Value::String("failed".into()),
             &Value::Number(3.into()),
             &Value::String("unconfigured".into()),
@@ -161,7 +162,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
         (
             Some(4),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 36, "skipped": 0}),
+            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 39, "skipped": 0}),
             &Value::String("deferred".into()),
             &Value::Number(3.into()),
             &Value::String("http://127.0.0.1:9?token=********".into()),
@@ -271,7 +272,7 @@ fn live_smoke_passes_a_configured_case_only_after_a_zero_parseable_nonempty_term
         ),
         (
             Some(4),
-            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 36, "skipped": 0}),
+            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 39, "skipped": 0}),
             &Value::String("passed".into()),
             &Value::Number(1.into()),
         ),
@@ -478,7 +479,7 @@ fn live_smoke_runs_the_platform_cases_through_their_configured_route() {
     ]);
     let environment = SmokeEnvironment::new(|journal_dir| {
         format!(
-            "[providers.arxiv_api]\nurl = \"{}/api/query\"\n[providers.ssrn_crossref]\nurl = \"{}\"\n[providers.hn_api]\nurl = \"{}\"\nfirebase_url = \"{}\"\n[journal]\ndir = {journal_dir:?}\n",
+            "[providers.arxiv_api]\nurl = \"{}/api/query\"\n[providers.ssrn_crossref]\nurl = \"{}\"\n[providers.hn_api]\nurl = \"{}\"\nfirebase_url = \"{}\"\n[platforms.polymarket]\norder = []\n[journal]\ndir = {journal_dir:?}\n",
             arxiv.url, crossref.url, algolia.url, firebase.url
         )
     });
@@ -507,7 +508,7 @@ fn live_smoke_runs_the_platform_cases_through_their_configured_route() {
             algolia_requests[1].starts_with("GET /items/8863 "),
         ),
         (
-            &json!({"passed": 7, "failed": 0, "deferred": 0, "unconfigured": 30, "skipped": 0}),
+            &json!({"passed": 7, "failed": 0, "deferred": 0, "unconfigured": 33, "skipped": 0}),
             [(); 7].map(|()| Value::String("passed".into())),
             [
                 &Value::String("arxiv".into()),
@@ -536,7 +537,7 @@ fn live_smoke_runs_the_scholar_cases_only_with_a_serpapi_key() {
     let run = |keys: &str| {
         let environment = SmokeEnvironment::new(|journal_dir| {
             format!(
-                "[providers.serpapi]\nurl = \"{}/search.json\"\nkeys = {keys}\n[journal]\ndir = {journal_dir:?}\n[platforms.arxiv]\norder = []\n[platforms.hn]\norder = []\n[platforms.ssrn]\norder = []\n",
+                "[providers.serpapi]\nurl = \"{}/search.json\"\nkeys = {keys}\n[journal]\ndir = {journal_dir:?}\n[platforms.arxiv]\norder = []\n[platforms.hn]\norder = []\n[platforms.polymarket]\norder = []\n[platforms.ssrn]\norder = []\n",
                 serpapi.url
             )
         });
@@ -582,7 +583,7 @@ fn live_smoke_runs_the_x_cases_through_the_xai_route_only_when_the_order_lists_i
     let run = |order: &str| {
         let environment = SmokeEnvironment::new(|journal_dir| {
             format!(
-                "[providers.xai]\nurl = \"{}\"\nkeys = [\"xai-secret\"]\n[journal]\ndir = {journal_dir:?}\n[platforms.arxiv]\norder = []\n[platforms.hn]\norder = []\n[platforms.ssrn]\norder = []\n[platforms.x]\norder = {order}\n",
+                "[providers.xai]\nurl = \"{}\"\nkeys = [\"xai-secret\"]\n[journal]\ndir = {journal_dir:?}\n[platforms.arxiv]\norder = []\n[platforms.hn]\norder = []\n[platforms.polymarket]\norder = []\n[platforms.ssrn]\norder = []\n[platforms.x]\norder = {order}\n",
                 xai.url
             )
         });
@@ -631,7 +632,7 @@ fn live_smoke_runs_the_xiaohongshu_search_once_and_only_when_the_order_lists_the
     let run = |order: &str| {
         let environment = SmokeEnvironment::new(|journal_dir| {
             format!(
-                "{}[journal]\ndir = {journal_dir:?}\n[platforms.arxiv]\norder = []\n[platforms.hn]\norder = []\n[platforms.ssrn]\norder = []\n",
+                "{}[journal]\ndir = {journal_dir:?}\n[platforms.arxiv]\norder = []\n[platforms.hn]\norder = []\n[platforms.polymarket]\norder = []\n[platforms.ssrn]\norder = []\n",
                 fake.route_config("xiaohongshu_browser", "xiaohongshu", order)
             )
         });
@@ -780,7 +781,7 @@ fn xhs_comments(count: u32, expandable: bool) -> Value {
 fn xhs_smoke(fake: &support::opencli::FakeOpenCli) -> Value {
     let environment = SmokeEnvironment::new(|journal_dir| {
         format!(
-            "{}[journal]\ndir = {:?}\n[platforms.arxiv]\norder = []\n[platforms.hn]\norder = []\n[platforms.ssrn]\norder = []\n",
+            "{}[journal]\ndir = {:?}\n[platforms.arxiv]\norder = []\n[platforms.hn]\norder = []\n[platforms.polymarket]\norder = []\n[platforms.ssrn]\norder = []\n",
             fake.route_config(
                 "xiaohongshu_browser",
                 "xiaohongshu",

@@ -1039,6 +1039,73 @@ Exit codes: as under ask; `5` (`quality`) also for a transcript cut off at the o
 one that is not the requested JSON (no file is written); `4` (`runtime`) when the file cannot be
 written.
 
+### `platform polymarket search`
+
+```console
+forager platform polymarket search [QUERY] [--include-closed] [--limit N] [--cursor CURSOR]
+                                   [--timeout SECONDS] [--format json|markdown]
+                                   [--output FILE [--receipt]] [--verbose]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `QUERY` | Words to match, sent as written. Required without `--cursor`. | Omitted |
+| `--include-closed` | Match closed events too. | Open events only |
+| `--limit N` | Events on this page, `1..=20`. | `10` |
+| `--cursor CURSOR` | `next_cursor` of a previous page; it restores the whole request, so pass no query, option, or `--limit` with it. | Omitted |
+
+Polymarket runs through the `polymarket_api` route, which needs no key: the Gamma API
+(`providers.polymarket_api.url`) searches and describes events and markets, and the CLOB API
+(`providers.polymarket_api.clob_url`) supplies live order books. JSON output is `{platform,
+provider, items, next_cursor}`. Each item is an event: `ref` (`polymarket:<event_slug>`), `url`
+(`https://polymarket.com/event/<slug>`), `depth` (`metadata`), `title`, `authors` (empty),
+`published` (the start, UTC second), `event_id`, `status` (`open`, `closed`, or `resolved`),
+`end_date`, `volume`, `volume_24h`, `liquidity`, `neg_risk`, `market_count`, `price_source`
+(always `gamma`), and `top_markets`: its five most probable markets, each `{ref, label,
+probability, basis, status}`, with markets without a probability last. Search prices are Gamma's
+cache and may lag up to 5 minutes; fetch the event for live ones. Results Polymarket returns in an
+unreadable shape are skipped with one stderr diagnostic. No cursor is issued past page 100. A
+valid empty search returns `items: []` with exit 0.
+
+Exit codes: `2` before any request for a blank query, `--limit` out of range, or a cursor past
+page 100; `3` for an empty `platforms.polymarket.order`; `4` for `rate_limited`, `network`,
+`timeout`, and `runtime` for an unexpected response or a page whose every result is unreadable.
+
+### `platform polymarket fetch`
+
+```console
+forager platform polymarket fetch REF_OR_URL [--depth metadata|abstract] [--timeout SECONDS]
+                                             [--format json|markdown|content]
+                                             [--output FILE [--receipt]] [--verbose]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `REF_OR_URL` | `polymarket:<event_slug>`, `polymarket:market/<market_slug>`, or a polymarket.com `/event/<event>`, `/event/<event>/<market>` (the market), or `/market/<market>` URL, with or without a language prefix such as `/zh/`. | Required |
+| `--depth DEPTH` | `metadata` returns the status and prices; `abstract` adds the resolution rules. | `metadata` |
+| `--format FORMAT` | `json`, `markdown`, or `content`; `content` prints the resolution rules of an `abstract` fetch. | `json` |
+
+JSON output is the item fields of search without `top_markets`, plus `prices_as_of` and
+`markets` for an event, one entry per market: `ref`, `url`, `market_id`, `condition_id`,
+`question`, `label`, `status` (`open`, `suspended`, `closed`, or `resolved`), `end_date`,
+`probability` (the Yes price of a Yes/No market, otherwise `null`), `outcomes` (`[{name, price,
+basis, best_bid, best_ask}]`), `spread`, `last_trade_price`, `one_day_change`,
+`one_week_change`, `one_month_change`, `volume`, and `liquidity`. A market fetch returns those
+market fields with `event_id`, `neg_risk`, `event: {ref, url, title}`, `price_source`, and
+`prices_as_of`. An outcome's `basis` says where its `price` comes from: `midpoint` (the live
+book), `midpoint_cached` (Gamma's cache), `resolution` (the payout of a resolved market),
+`no_two_sided_book` or `not_trading` (no price). `price_source` is `clob` for live quotes, or
+`gamma` when the CLOB API was unavailable (with one stderr diagnostic) or no market trades;
+`prices_as_of` is when the prices were read. `abstract` adds `rules` to the event, and to each
+market whose rules differ.
+
+Exit codes: `2` before any request for a numeric ID, a polymarket.us link, another page or host,
+or a depth other than the two; `3` for an empty `platforms.polymarket.order`; `4` for
+`parameter` (`Polymarket event not found: polymarket:<slug>; slugs can change, search again`, or
+the same for a market), the transport failures under search, and `runtime` for a response about
+another slug or in an unexpected shape; `5` (`quality`) for `abstract` of an event or market
+without rules.
+
 ## Gemini Deep Research
 
 Run these commands only when the user explicitly asks for Gemini Deep Research. They drive

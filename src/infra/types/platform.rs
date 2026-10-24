@@ -13,6 +13,7 @@ use thiserror::Error;
 use super::ProviderAttempt;
 use super::platform_arxiv::{ArxivItemData, ArxivRef, ArxivSearchOptions};
 use super::platform_hn::{HnItemData, HnRef, HnSearchOptions};
+use super::platform_polymarket::{PolymarketItemData, PolymarketRef, PolymarketSearchOptions};
 use super::platform_scholar::{ScholarItemData, ScholarRef, ScholarSearchOptions};
 use super::platform_ssrn::{SsrnItemData, SsrnRef};
 use super::platform_ssrn_search::SsrnSearchOptions;
@@ -45,11 +46,13 @@ pub enum Platform {
     Hn,
     /// YouTube, a video platform.
     Youtube,
+    /// Polymarket, a prediction market.
+    Polymarket,
 }
 
 impl Platform {
     /// Every built-in platform.
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::Arxiv,
         Self::Ssrn,
         Self::Scholar,
@@ -57,6 +60,7 @@ impl Platform {
         Self::X,
         Self::Hn,
         Self::Youtube,
+        Self::Polymarket,
     ];
 
     /// Returns the stable platform identifier used by commands and configuration.
@@ -70,6 +74,7 @@ impl Platform {
             Self::X => "x",
             Self::Hn => "hn",
             Self::Youtube => "youtube",
+            Self::Polymarket => "polymarket",
         }
     }
 
@@ -82,6 +87,7 @@ impl Platform {
             Self::X => &["post"],
             Self::Hn => &["item"],
             Self::Youtube => &["video", "playlist", "channel"],
+            Self::Polymarket => &["event", "market"],
         }
     }
 }
@@ -161,6 +167,8 @@ pub enum PlatformRef {
     Hn(HnRef),
     /// A YouTube video, playlist, or channel.
     Youtube(YoutubeRef),
+    /// A Polymarket event or market.
+    Polymarket(PolymarketRef),
 }
 
 impl PlatformRef {
@@ -178,6 +186,7 @@ impl PlatformRef {
             Platform::X => XRef::parse(input).map(Self::X),
             Platform::Hn => HnRef::parse(input).map(Self::Hn),
             Platform::Youtube => YoutubeRef::parse(input).map(Self::Youtube),
+            Platform::Polymarket => PolymarketRef::parse(input).map(Self::Polymarket),
         }
     }
 
@@ -192,6 +201,7 @@ impl PlatformRef {
             Self::X(_) => Platform::X,
             Self::Hn(_) => Platform::Hn,
             Self::Youtube(_) => Platform::Youtube,
+            Self::Polymarket(_) => Platform::Polymarket,
         }
     }
 
@@ -204,6 +214,7 @@ impl PlatformRef {
             Self::X(_) => "post",
             Self::Hn(_) => "item",
             Self::Youtube(reference) => reference.kind().as_str(),
+            Self::Polymarket(reference) => reference.kind().as_str(),
         }
     }
 
@@ -218,6 +229,7 @@ impl PlatformRef {
             Self::X(reference) => reference.canonical_url(),
             Self::Hn(reference) => reference.canonical_url(),
             Self::Youtube(reference) => reference.canonical_url(),
+            Self::Polymarket(reference) => reference.canonical_url(),
         }
     }
 }
@@ -232,6 +244,7 @@ impl fmt::Display for PlatformRef {
             Self::X(reference) => write!(formatter, "x:{reference}"),
             Self::Hn(reference) => write!(formatter, "hn:{reference}"),
             Self::Youtube(reference) => write!(formatter, "youtube:{reference}"),
+            Self::Polymarket(reference) => write!(formatter, "polymarket:{reference}"),
         }
     }
 }
@@ -260,6 +273,8 @@ pub enum PlatformSearchOptions {
     Hn(HnSearchOptions),
     /// YouTube options.
     Youtube(YoutubeSearchOptions),
+    /// Polymarket options.
+    Polymarket(PolymarketSearchOptions),
 }
 
 impl PlatformSearchOptions {
@@ -274,6 +289,7 @@ impl PlatformSearchOptions {
             Platform::X => Self::X(XSearchOptions::default()),
             Platform::Hn => Self::Hn(HnSearchOptions::default()),
             Platform::Youtube => Self::Youtube(YoutubeSearchOptions::default()),
+            Platform::Polymarket => Self::Polymarket(PolymarketSearchOptions::default()),
         }
     }
 
@@ -288,6 +304,7 @@ impl PlatformSearchOptions {
             Self::X(_) => Platform::X,
             Self::Hn(_) => Platform::Hn,
             Self::Youtube(_) => Platform::Youtube,
+            Self::Polymarket(_) => Platform::Polymarket,
         }
     }
 }
@@ -317,6 +334,9 @@ impl PlatformSearchRequest {
             PlatformSearchOptions::X(options) => options.validate(&self.query, self.limit),
             PlatformSearchOptions::Hn(options) => options.validate(&self.query, self.limit),
             PlatformSearchOptions::Youtube(options) => options.validate(&self.query, self.limit),
+            PlatformSearchOptions::Polymarket(_) => {
+                PolymarketSearchOptions::validate(&self.query, self.limit)
+            }
         }
     }
 }
@@ -356,6 +376,8 @@ pub enum PlatformItemData {
     Hn(HnItemData),
     /// YouTube fields of a video.
     Youtube(YoutubeItemData),
+    /// Polymarket fields of an event or market.
+    Polymarket(PolymarketItemData),
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -541,7 +563,8 @@ impl PlatformFetchRequest {
             | PlatformFetchOptions::Scholar
             | PlatformFetchOptions::Xiaohongshu
             | PlatformFetchOptions::X
-            | PlatformFetchOptions::Hn => Ok(()),
+            | PlatformFetchOptions::Hn
+            | PlatformFetchOptions::Polymarket => Ok(()),
         }
     }
 }
@@ -557,6 +580,7 @@ pub(crate) enum PlatformFetchOptions {
     X,
     Hn,
     Youtube(YoutubeFetchOptions),
+    Polymarket,
 }
 
 impl PlatformFetchOptions {
@@ -570,6 +594,7 @@ impl PlatformFetchOptions {
             Platform::X => Self::X,
             Platform::Hn => Self::Hn,
             Platform::Youtube => Self::Youtube(YoutubeFetchOptions::default()),
+            Platform::Polymarket => Self::Polymarket,
         }
     }
 }

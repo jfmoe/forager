@@ -5,8 +5,8 @@ use chrono::{Datelike, Local, Weekday};
 
 use super::{
     ArxivApi, Context7, Context7DocsRequest, Context7LibraryRequest, Exa, ExaSearchRequest, HnApi,
-    SearchType, Serpapi, SsrnBrowser, SsrnCrossref, SupplementalSearch, Xai, XiaohongshuBrowser,
-    YoutubeApi, YoutubeWeb,
+    PolymarketApi, SearchType, Serpapi, SsrnBrowser, SsrnCrossref, SupplementalSearch, Xai,
+    XiaohongshuBrowser, YoutubeApi, YoutubeWeb,
 };
 use crate::types::{
     Context7Outcome, DocumentationEvidence, DocumentationSearchOutcome, EvidenceLocator,
@@ -197,6 +197,16 @@ impl PlatformSearch for HnApi {
     }
 }
 
+impl PlatformSearch for PolymarketApi {
+    fn search<'a>(
+        &'a self,
+        request: &'a PlatformSearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(PolymarketApi::search(self, request))
+    }
+}
+
 impl PlatformSearch for YoutubeApi {
     fn search<'a>(
         &'a self,
@@ -282,6 +292,16 @@ impl PlatformFetch for HnApi {
     ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
     {
         Box::pin(HnApi::fetch(self, request))
+    }
+}
+
+impl PlatformFetch for PolymarketApi {
+    fn fetch<'a>(
+        &'a self,
+        request: &'a PlatformFetchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(PolymarketApi::fetch(self, request))
     }
 }
 

@@ -41,6 +41,10 @@ platform absent from it has no platform command; follow
   video without captions, run `forager platform youtube transcribe 'REF_OR_URL'`. These two need
   the user's Gemini key. For the video or audio file itself, see "Video and audio files". See
   "YouTube".
+- **Polymarket**: for the markets on a topic, run `forager platform polymarket search QUERY`; for
+  the live probability of each outcome of an event or market (a polymarket.com link the user
+  gave, or a ref forager returned), run `forager platform polymarket fetch 'REF_OR_URL'`. See
+  "Polymarket".
 
 `forager platform <id> <op> --help` is the syntax authority; see the platform section of
 [`cli.md`](cli.md) for output fields and exit codes.
@@ -328,6 +332,45 @@ yt-dlp --ignore-config --no-playlist -x -o 'DIR/%(id)s.%(ext)s' -- 'VIDEO_URL'
 ```
 
 The second command keeps only the audio. Report the path yt-dlp printed.
+
+## Polymarket
+
+Polymarket runs through the `polymarket_api` route and needs no key or setup: the Gamma API
+searches and describes events and markets, and the CLOB API supplies the live order book. An
+event (`polymarket:<event_slug>`) groups markets; a market (`polymarket:market/<market_slug>`)
+has outcomes, usually Yes and No.
+
+- An outcome's `price` is its market-implied probability: the midpoint of the best bid and best
+  ask, so it is what traders pay now, not a calibrated forecast. Report it with its `basis`:
+  - `midpoint`: from the live book; `midpoint_cached`: from Gamma's cache, which may lag up to 5
+    minutes;
+  - `no_two_sided_book`: one side has no orders, so there is no probability; never read it as 0
+    or 50%;
+  - `not_trading`: the market is closed or suspended;
+  - `resolution`: the market resolved, and `price` is the payout (1 for the winner), not a
+    probability.
+- Search prices come from Gamma's cache (`price_source: gamma`). For a current figure, fetch the
+  event and check `price_source: clob` and `prices_as_of`.
+- A wide `spread` or a low `liquidity` makes the midpoint weak; quote `best_bid` and `best_ask`
+  with it. The probabilities of a `neg_risk` event's markets need not sum to 1, and forager does
+  not normalize them.
+- `--depth abstract` adds the resolution rules, which decide what each outcome means; read them
+  before saying what a market predicts.
+- Slugs can change or be reused by a new event. To store or compare a market over time, key it by
+  `condition_id` and the event by `event_id`; use the slug only for display and links. A slug that
+  is no longer found means search again.
+- Polymarket US (polymarket.us) is a separate product with its own markets; forager reads only
+  polymarket.com.
+- Polymarket's Terms of Use §4.2 forbid scraping the site with robots or crawlers, and forbid a
+  Capital Market Client or market data distributor from using the data, including through the
+  API, without written consent. forager calls only the public APIs; whether the second limit
+  applies depends on who the user is.
+
+```console
+forager platform polymarket search 'fed rate cuts'
+forager platform polymarket fetch 'https://polymarket.com/event/presidential-election-winner-2024'
+forager platform polymarket fetch polymarket:presidential-election-winner-2024 --depth abstract --format content
+```
 
 ## SSRN browser route
 

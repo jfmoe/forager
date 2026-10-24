@@ -112,6 +112,11 @@ keys = []                    # 为空＝未配置，ask 与 transcribe 飞行前
 model = "gemini-flash-latest"   # 非空
 timeout = 300                # 一次模型请求的 attempt 超时；命令默认 --timeout 600
 
+[providers.polymarket_api]   # 不需要凭据，没有 keys；一条 route 访问两个端点，共用访问策略（ADR 0032）
+url = "https://gamma-api.polymarket.com"   # Gamma：检索、event 与 market 的元数据
+clob_url = "https://clob.polymarket.com"   # CLOB：实时订单簿报价
+timeout = 30                 # 对任一端点的单个请求的 attempt 超时
+
 [capabilities.web_search]
 order = ["tavily", "firecrawl"]
 [capabilities.web_fetch]
@@ -133,6 +138,8 @@ order = ["xai"]              # 复用主搜索的 xAI key；没有 key 时不算
 order = ["hn_api"]           # 不需要凭据；置空＝禁用
 [platforms.youtube]
 order = ["youtube_api", "gemini_api"]   # 没有 key 的 route 不算已配置；加入 "youtube_web" 才能读字幕（full_text），置空＝禁用
+[platforms.polymarket]
+order = ["polymarket_api"]   # 不需要凭据；置空＝禁用
 
 [log]
 level = "info"               # error|warn|info|debug|trace；见下方运行时语义

@@ -17,18 +17,16 @@ use serde::de::DeserializeOwned;
 use crate::catalog::{PlatformOperation, ProviderId};
 use crate::config::HnRouteRuntimeConfig;
 use crate::credentials::CredentialPool;
-use crate::net::{
-    AttemptFailure, RetryPolicy, combine_diagnostics, read_complete_protocol, send_provider_request,
-};
+use crate::net::{AttemptFailure, RetryPolicy, read_complete_protocol, send_provider_request};
 use crate::providers::execution::{ExecutionOutcome, ExecutionSettings, execute_anonymous};
 use crate::providers::shared::{
-    acquire_window, other_platform_message, parameter_error, utc_second,
+    Trail, acquire_window, other_platform_message, parameter_error, utc_second,
 };
 use crate::rate_limit::RateLimiter;
 use crate::types::{
-    AttemptDisposition, AttemptErrorKind, AttemptTarget, ContentDepth, Deadline, FullTextSource,
-    HnItemData, HnItemType, HnRef, Platform, PlatformFetchOutcome, PlatformFetchRequest,
-    PlatformItem, PlatformItemData, PlatformRef, ProviderAttempt, ProviderError,
+    AttemptErrorKind, AttemptTarget, ContentDepth, Deadline, FullTextSource, HnItemData,
+    HnItemType, HnRef, Platform, PlatformFetchOutcome, PlatformFetchRequest, PlatformItem,
+    PlatformItemData, PlatformRef, ProviderError,
 };
 
 #[path = "hn_markup.rs"]
@@ -463,82 +461,6 @@ fn full_text_source(
         ));
     }
     Ok(FullTextSource::Native(body))
-}
-
-/// The attempts and diagnostics of the requests one operation sends in sequence.
-#[derive(Default)]
-struct Trail {
-    attempts: Vec<ProviderAttempt>,
-    notes: Vec<String>,
-}
-
-impl Trail {
-    fn record<T>(&mut self, outcome: ExecutionOutcome<T>) -> T {
-        self.attempts.extend(outcome.attempts);
-        self.notes.extend(outcome.diagnostic);
-        outcome.value
-    }
-
-    /// Takes the result of a request the operation cannot do without; a failure carries every
-    /// attempt so far.
-    fn required<T>(
-        &mut self,
-        result: Result<ExecutionOutcome<T>, ProviderError>,
-    ) -> Result<T, ProviderError> {
-        match result {
-            Ok(outcome) => Ok(self.record(outcome)),
-            Err(error) => Err(self.fail(error)),
-        }
-    }
-
-    /// Takes the result of an enrichment request; a failure keeps its attempts here and returns
-    /// the error for the caller to note or escalate.
-    fn optional<T>(
-        &mut self,
-        result: Result<ExecutionOutcome<T>, ProviderError>,
-    ) -> Result<T, ProviderError> {
-        result
-            .map(|outcome| self.record(outcome))
-            .map_err(|mut error| {
-                self.attempts.append(&mut error.attempts);
-                self.notes.extend(error.diagnostic.take());
-                error
-            })
-    }
-
-    fn note(&mut self, note: String) {
-        self.notes.push(note);
-    }
-
-    fn fail(&mut self, mut error: ProviderError) -> ProviderError {
-        let mut attempts = std::mem::take(&mut self.attempts);
-        attempts.append(&mut error.attempts);
-        error.attempts = attempts;
-        error.diagnostic = combine_diagnostics(self.notes.drain(..).chain(error.diagnostic));
-        error
-    }
-
-    /// Fails the operation on what its requests returned: the last attempt records the failure,
-    /// so the chain attributes it to this route.
-    fn error(&mut self, kind: AttemptErrorKind, message: String) -> ProviderError {
-        if let Some(attempt) = self.attempts.last_mut() {
-            attempt.disposition = AttemptDisposition::Failed;
-            attempt.error_kind = Some(kind);
-            attempt.message.clone_from(&message);
-        }
-        self.fail(ProviderError {
-            kind,
-            message,
-            attempts: Vec::new(),
-            verbose: false,
-            diagnostic: None,
-            redirected_library_id: None,
-        })
-    }
-
-    fn diagnostic(&self) -> Option<String> {
-        combine_diagnostics(self.notes.iter().cloned())
-    }
 }
 
 /// One Firebase item. Firebase omits every absent field, so each one is optional.

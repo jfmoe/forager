@@ -19,6 +19,11 @@ use crate::redact::{CREDENTIAL_MASK, Secret, redact_credentials, redact_url};
 use crate::state_file;
 use crate::types::{ASK, CITED_BY, COMMENTS, Deadline, Platform, STORIES, TRANSCRIBE, VIDEOS};
 
+#[path = "smoke_shape.rs"]
+mod shape;
+
+use shape::{ResultShape, result_shape_is_nonempty};
+
 static PROBE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 pub(crate) const MAIN_CANARY_QUERY: &str = "What is the latest stable Rust release?";
 pub(crate) const PIPELINE_CANARY_QUERY: &str =
@@ -32,6 +37,13 @@ const XIAOHONGSHU_CANARY_QUERY: &str = "咖啡";
 const X_ASK_CANARY_QUERY: &str = "What has SpaceX posted about Starship recently?";
 // Hacker News discusses Rust every day, so the search is never empty.
 const HN_CANARY_QUERY: &str = "rust";
+// Markets on the Fed's rate decisions are always open, so the search is never empty.
+const POLYMARKET_CANARY_QUERY: &str = "fed rate";
+const POLYMARKET_CANARY: &str = "polymarket:presidential-election-winner-2024";
+// The open event the search case found, whose fetch proves the live CLOB quotes.
+const POLYMARKET_LIVE_CASE: &str = "C45";
+const POLYMARKET_NO_EVENT: &str =
+    "not started: the Polymarket search case returned no event to fetch";
 // Many channels lecture on attention and transformers, so the search is never empty.
 const YOUTUBE_CANARY_QUERY: &str = "attention transformer";
 // "Essence of linear algebra": a finished public course of 16 videos.
@@ -40,10 +52,10 @@ const YOUTUBE_VIDEOS_CANARY: &str = "youtube:playlist/PLZHQObOWTQDPD3MizzM2xVFit
 // speaker's clothes.
 const YOUTUBE_ASK_CANARY_QUESTION: &str =
     "How many elephants are visible behind the speaker, and what is he wearing?";
-const SPECIFICATION_CASE_IDS: [&str; 37] = [
+const SPECIFICATION_CASE_IDS: [&str; 40] = [
     "P1", "P2", "C01", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "C13", "C17",
     "C18", "C19", "C20", "C21", "C24", "C25", "C26", "C27", "C28", "C29", "C30", "C31", "C32",
-    "C33", "C34", "C35", "C36", "C37", "C38", "C39", "C40", "C41", "C42",
+    "C33", "C34", "C35", "C36", "C37", "C38", "C39", "C40", "C41", "C42", "C43", "C44", "C45",
 ];
 // One comment page holds 10 top-level comments, so 15 needs the second page.
 const XIAOHONGSHU_COMMENTS_LIMIT: &str = "15";
@@ -177,25 +189,12 @@ struct LiveCaseResult {
     message: Option<&'static str>,
 }
 
-#[derive(Clone, Copy)]
-enum ResultShape {
-    MainSearch,
-    /// A platform answer, such as an X ask.
-    Answer,
-    PipelineSearch,
-    Research,
-    Classifier,
-    SupplementalSearch,
-    Fetch,
-    Context7Library,
-    Context7Docs,
-    Exa,
-    Map,
-    PlatformSearch,
-    PlatformFetch,
-    PlatformFullText,
-    XiaohongshuComments,
-    Comments,
+/// What one live run carries from one case to a later one, in memory only.
+#[derive(Default)]
+struct LiveRun {
+    xiaohongshu: XiaohongshuRun,
+    /// The first event of the Polymarket search case, which the live-quote fetch case reads.
+    polymarket_event: Option<String>,
 }
 
 /// What one live run carries between its Xiaohongshu cases, in memory only: a note opens only
@@ -250,6 +249,8 @@ fn platform_fetch_canary(platform: Platform) -> Option<(&'static str, &'static s
         Platform::Hn => Some(("hn:8863", "thread")),
         // The first YouTube upload (2005), whose metadata no longer changes.
         Platform::Youtube => Some(("youtube:jNQXAC9IVRw", "metadata")),
+        // The 2024 presidential election, resolved and no longer changing.
+        Platform::Polymarket => Some((POLYMARKET_CANARY, "metadata")),
     }
 }
 
@@ -279,6 +280,7 @@ fn platform_search_canary(platform: Platform) -> (&'static str, &'static str) {
     match platform {
         Platform::Hn => (HN_CANARY_QUERY, "5"),
         Platform::Youtube => (YOUTUBE_CANARY_QUERY, "5"),
+        Platform::Polymarket => (POLYMARKET_CANARY_QUERY, "3"),
         _ => (PLATFORM_CANARY_QUERY, "3"),
     }
 }
@@ -580,19 +582,15 @@ pub(crate) fn run_live(
     let deadline = Deadline::new(Duration::from_secs(timeout_seconds));
     let mut results = Vec::with_capacity(LIVE_CASES.len());
     let mut summary = LiveSummary::default();
-    let mut xiaohongshu = XiaohongshuRun::default();
+    let mut run = LiveRun::default();
 
     for definition in LIVE_CASES.iter().copied() {
         let result = if case_is_configured(definition.id, &runtime) {
-            match xiaohongshu_blocker(definition, &xiaohongshu) {
+            match blocker(definition, &run) {
                 Some(message) => skipped(definition, 0, message),
-                None => run_configured_case(
-                    definition,
-                    &runtime,
-                    deadline,
-                    outage_evidence,
-                    &mut xiaohongshu,
-                ),
+                None => {
+                    run_configured_case(definition, &runtime, deadline, outage_evidence, &mut run)
+                }
             }
         } else {
             LiveCaseResult {
@@ -632,6 +630,14 @@ pub(crate) fn run_live(
     ))
 }
 
+/// Returns why a case must not start because an earlier case did not leave what it needs.
+fn blocker(definition: LiveCaseDefinition, run: &LiveRun) -> Option<&'static str> {
+    if definition.id == POLYMARKET_LIVE_CASE && run.polymarket_event.is_none() {
+        return Some(POLYMARKET_NO_EVENT);
+    }
+    xiaohongshu_blocker(definition, &run.xiaohongshu)
+}
+
 /// Returns why a Xiaohongshu case must not start: an earlier case met a login wall or a block,
 /// or the fetch case has no access URL from the search case.
 fn xiaohongshu_blocker(
@@ -668,7 +674,7 @@ fn run_configured_case(
     runtime: &RuntimeConfig,
     deadline: Deadline,
     outage_evidence: &BTreeMap<String, String>,
-    xiaohongshu: &mut XiaohongshuRun,
+    run: &mut LiveRun,
 ) -> LiveCaseResult {
     let mut failure = "live case failed";
     let mut attempts = 0;
@@ -680,15 +686,17 @@ fn run_configured_case(
             break;
         }
         attempts = attempt;
-        match run_case_once(definition, deadline, xiaohongshu) {
+        match run_case_once(definition, deadline, run) {
             Ok(payload) => {
-                if definition.platform == Some(Platform::Xiaohongshu)
-                    && definition.operation == "search"
-                {
-                    xiaohongshu.access_url = payload["items"][0]["access_url"]
-                        .as_str()
-                        .map(str::to_owned);
-                    xiaohongshu.most_commented_access_url = most_commented_access_url(&payload);
+                let first = |field: &str| payload["items"][0][field].as_str().map(str::to_owned);
+                match (definition.platform, definition.operation) {
+                    (Some(Platform::Xiaohongshu), "search") => {
+                        run.xiaohongshu.access_url = first("access_url");
+                        run.xiaohongshu.most_commented_access_url =
+                            most_commented_access_url(&payload);
+                    }
+                    (Some(Platform::Polymarket), "search") => run.polymarket_event = first("ref"),
+                    _ => {}
                 }
                 return LiveCaseResult {
                     definition,
@@ -706,7 +714,7 @@ fn run_configured_case(
                 failure = case_failure.message;
                 if case_failure.kind == FailureKind::Refused {
                     if definition.platform == Some(Platform::Xiaohongshu) {
-                        xiaohongshu.stopped = true;
+                        run.xiaohongshu.stopped = true;
                     }
                     break;
                 }
@@ -744,7 +752,7 @@ fn max_attempts(definition: LiveCaseDefinition) -> usize {
 fn run_case_once(
     definition: LiveCaseDefinition,
     deadline: Deadline,
-    xiaohongshu: &XiaohongshuRun,
+    run: &LiveRun,
 ) -> Result<Value, CaseFailure> {
     let case_id = definition.id;
     let timeout_seconds = remaining_seconds(deadline).ok_or("live smoke hard deadline elapsed")?;
@@ -762,7 +770,7 @@ fn run_case_once(
         case_id,
         timeout_seconds,
         scratch.as_ref().map(tempfile::TempDir::path),
-        xiaohongshu,
+        run,
     )
     .ok_or("registered live case has no execution mapping")?;
     let mut payload = Value::Null;
@@ -935,7 +943,7 @@ fn command_specs(
     case_id: &str,
     timeout_seconds: u64,
     scratch_dir: Option<&Path>,
-    xiaohongshu: &XiaohongshuRun,
+    run: &LiveRun,
 ) -> Option<Vec<CommandSpec>> {
     let timeout = timeout_seconds.to_string();
     let map_timeout = timeout_seconds.clamp(10, 150).to_string();
@@ -956,7 +964,7 @@ fn command_specs(
                     "platform",
                     platform.as_str(),
                     definition.operation,
-                    xiaohongshu.access_url.as_deref()?,
+                    run.xiaohongshu.access_url.as_deref()?,
                     "--depth",
                     "full_text",
                     "--content-dir",
@@ -972,7 +980,7 @@ fn command_specs(
                     "platform",
                     platform.as_str(),
                     definition.operation,
-                    xiaohongshu.most_commented_access_url.as_deref()?,
+                    run.xiaohongshu.most_commented_access_url.as_deref()?,
                     "--limit",
                     XIAOHONGSHU_COMMENTS_LIMIT,
                     "--replies",
@@ -1060,6 +1068,18 @@ fn command_specs(
                 ],
                 ResultShape::PlatformSearch,
             )
+        } else if case_id == POLYMARKET_LIVE_CASE {
+            one(
+                &[
+                    "platform",
+                    platform.as_str(),
+                    definition.operation,
+                    run.polymarket_event.as_deref()?,
+                    "--timeout",
+                    &timeout,
+                ],
+                ResultShape::PolymarketLive,
+            )
         } else if definition.operation == "fetch" {
             let (reference, depth) = platform_fetch_canary(platform)?;
             one(
@@ -1073,7 +1093,11 @@ fn command_specs(
                     "--timeout",
                     &timeout,
                 ],
-                ResultShape::PlatformFetch,
+                if platform == Platform::Polymarket {
+                    ResultShape::PolymarketResolved
+                } else {
+                    ResultShape::PlatformFetch
+                },
             )
         } else if platform == Platform::Youtube && definition.operation == ASK {
             let (video, _) = platform_fetch_canary(platform)?;
@@ -1291,67 +1315,6 @@ fn command_specs(
         ),
         _ => return None,
     })
-}
-
-fn result_shape_is_nonempty(shape: ResultShape, payload: &Value) -> bool {
-    match shape {
-        ResultShape::MainSearch | ResultShape::Answer => nonempty_string(payload, "answer"),
-        ResultShape::PipelineSearch => {
-            nonempty_string(payload, "answer") && nonempty_array(payload, "extra_sources")
-        }
-        ResultShape::Research => {
-            nonempty_array(payload, "evidence_items")
-                && nonempty_string(payload, "evidence_dir")
-                && nonempty_string(payload, "plan_path")
-                && nonempty_string(&payload["unconsumed_candidates"], "path")
-                && payload["synthesis_policy"] == "fetch_before_claim"
-        }
-        ResultShape::Classifier => {
-            nonempty_array(payload, "capabilities")
-                && payload["research_plan"]["decomposition"]
-                    .as_array()
-                    .is_some_and(|values| !values.is_empty())
-        }
-        ResultShape::SupplementalSearch
-        | ResultShape::Context7Library
-        | ResultShape::Exa
-        | ResultShape::Map => nonempty_array(payload, "results"),
-        ResultShape::PlatformSearch => nonempty_array(payload, "items"),
-        // X posts have no title; their text proves the read.
-        ResultShape::PlatformFetch => {
-            nonempty_string(payload, "ref")
-                && (nonempty_string(payload, "title") || nonempty_string(payload, "text"))
-        }
-        // Many Xiaohongshu notes have no title, so only the body proves the read.
-        ResultShape::PlatformFullText => {
-            nonempty_string(payload, "ref")
-                && payload["content_len"].as_u64().is_some_and(|len| len > 0)
-        }
-        // A read after the keys failed proves the Anonymous Fallback, not the keys.
-        ResultShape::Fetch => {
-            nonempty_string(payload, "content")
-                && payload["provider_attempts"]
-                    .as_array()
-                    .is_some_and(|attempts| attempts.iter().all(|a| a["anonymous"] == false))
-        }
-        ResultShape::Context7Docs => nonempty_string(payload, "content"),
-        // A note without comments is a legitimate result, but it proves nothing here.
-        ResultShape::XiaohongshuComments => nonempty_string(payload, "note"),
-        // The canary video has millions of comments, so an empty page means a broken read.
-        ResultShape::Comments => nonempty_array(payload, "comments"),
-    }
-}
-
-fn nonempty_string(payload: &Value, field: &str) -> bool {
-    payload[field]
-        .as_str()
-        .is_some_and(|value| !value.trim().is_empty())
-}
-
-fn nonempty_array(payload: &Value, field: &str) -> bool {
-    payload[field]
-        .as_array()
-        .is_some_and(|values| !values.is_empty())
 }
 
 fn unix_timestamp() -> u64 {
@@ -1583,16 +1546,15 @@ mod tests {
     use std::time::{Duration, Instant};
 
     use super::{
-        XiaohongshuRun, command_specs, execute_with_deadline, live_case_process,
-        official_status_host, registry_status, status_host_matches_endpoint,
-        status_page_reports_outage,
+        LiveRun, command_specs, execute_with_deadline, live_case_process, official_status_host,
+        registry_status, status_host_matches_endpoint, status_page_reports_outage,
     };
     use crate::catalog;
     use crate::types::Deadline;
 
     #[test]
     fn live_case_processes_disable_the_search_result_journal() {
-        let specs = command_specs("P1", 60, None, &XiaohongshuRun::default())
+        let specs = command_specs("P1", 60, None, &LiveRun::default())
             .expect("P1 is a registered live case");
 
         let journal_settings = specs
@@ -1647,8 +1609,8 @@ mod tests {
     #[test]
     fn map_live_case_uses_a_legal_command_timeout() {
         let timeouts = [1, 10, 150, 600].map(|budget| {
-            let commands = command_specs("C17", budget, None, &XiaohongshuRun::default())
-                .expect("C17 command");
+            let commands =
+                command_specs("C17", budget, None, &LiveRun::default()).expect("C17 command");
             commands[0].arguments[5].clone()
         });
 

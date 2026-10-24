@@ -2,10 +2,14 @@ use chrono::{DateTime, Utc};
 
 use crate::catalog::ProviderId;
 use crate::credentials::CredentialPool;
-use crate::net::{AttemptFailure, truncate_message};
+use crate::net::{AttemptFailure, combine_diagnostics, truncate_message};
+use crate::providers::execution::ExecutionOutcome;
 use crate::rate_limit::{RateLimiter, RatePermit};
 use crate::redact::{redact_url, redact_urls as redact_urls_in_text};
-use crate::types::{AttemptErrorKind, Deadline, Platform, ProviderError, Source};
+use crate::types::{
+    AttemptDisposition, AttemptErrorKind, Deadline, Platform, ProviderAttempt, ProviderError,
+    Source,
+};
 
 /// Waits for the route's request window; a pacing failure ends the attempt before any send.
 pub(super) async fn acquire_window(
@@ -48,6 +52,82 @@ impl Refusal {
             status: Some(status),
             message: self.message,
         }
+    }
+}
+
+/// The attempts and diagnostics of the requests one operation sends in sequence.
+#[derive(Default)]
+pub(super) struct Trail {
+    pub(super) attempts: Vec<ProviderAttempt>,
+    notes: Vec<String>,
+}
+
+impl Trail {
+    fn record<T>(&mut self, outcome: ExecutionOutcome<T>) -> T {
+        self.attempts.extend(outcome.attempts);
+        self.notes.extend(outcome.diagnostic);
+        outcome.value
+    }
+
+    /// Takes the result of a request the operation cannot do without; a failure carries every
+    /// attempt so far.
+    pub(super) fn required<T>(
+        &mut self,
+        result: Result<ExecutionOutcome<T>, ProviderError>,
+    ) -> Result<T, ProviderError> {
+        match result {
+            Ok(outcome) => Ok(self.record(outcome)),
+            Err(error) => Err(self.fail(error)),
+        }
+    }
+
+    /// Takes the result of an enrichment request; a failure keeps its attempts here and returns
+    /// the error for the caller to note or escalate.
+    pub(super) fn optional<T>(
+        &mut self,
+        result: Result<ExecutionOutcome<T>, ProviderError>,
+    ) -> Result<T, ProviderError> {
+        result
+            .map(|outcome| self.record(outcome))
+            .map_err(|mut error| {
+                self.attempts.append(&mut error.attempts);
+                self.notes.extend(error.diagnostic.take());
+                error
+            })
+    }
+
+    pub(super) fn note(&mut self, note: String) {
+        self.notes.push(note);
+    }
+
+    fn fail(&mut self, mut error: ProviderError) -> ProviderError {
+        let mut attempts = std::mem::take(&mut self.attempts);
+        attempts.append(&mut error.attempts);
+        error.attempts = attempts;
+        error.diagnostic = combine_diagnostics(self.notes.drain(..).chain(error.diagnostic));
+        error
+    }
+
+    /// Fails the operation on what its requests returned: the last attempt records the failure,
+    /// so the chain attributes it to this route.
+    pub(super) fn error(&mut self, kind: AttemptErrorKind, message: String) -> ProviderError {
+        if let Some(attempt) = self.attempts.last_mut() {
+            attempt.disposition = AttemptDisposition::Failed;
+            attempt.error_kind = Some(kind);
+            attempt.message.clone_from(&message);
+        }
+        self.fail(ProviderError {
+            kind,
+            message,
+            attempts: Vec::new(),
+            verbose: false,
+            diagnostic: None,
+            redirected_library_id: None,
+        })
+    }
+
+    pub(super) fn diagnostic(&self) -> Option<String> {
+        combine_diagnostics(self.notes.iter().cloned())
     }
 }
 

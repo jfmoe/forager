@@ -86,6 +86,11 @@ forager platform youtube videos --cursor CURSOR [--timeout 120] [--format json|m
 forager platform youtube ask VIDEO QUESTION [--timeout 600] [--format json|markdown] [...]
 forager platform youtube transcribe VIDEO [--content-dir DIR] [--timeout 600]
                                     [--format json|markdown|content] [...]
+forager platform polymarket search QUERY [--include-closed] [--limit 1..=20（默认 10）]
+                                   [--timeout 120] [--format json|markdown] [...]
+forager platform polymarket search --cursor CURSOR [--timeout 120] [--format json|markdown] [...]
+forager platform polymarket fetch REF_OR_URL [--depth metadata|abstract（默认 metadata）]
+                                  [--timeout 120] [--format json|markdown|content] [...]
 forager gemini research start QUERY [--timeout 240] [--format json|markdown]
 forager gemini research result CONVERSATION [--report-dir DIR]
                                [--timeout 120] [--format json|markdown|content] [...]
@@ -555,6 +560,36 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 - **输出**：JSON 与 `full_text` fetch 相同（`provider` 与 `content_provider` 为 `gemini_api`，`content_path` 为 `youtube-<id>-transcribed.md`，`transcript.source` 为 `model`），另有 `model` 与 `usage`（同 ask）。
 - **Transcript 文件**：结构同 fetch 的 Transcript 文件；头部注明字幕由模型看画面、听声音后生成，不保证逐字；章节取前置检查读到的描述中的章节。结束时间超出视频时长 5 秒以上的分段被丢弃，stderr 汇总一条诊断。
 - **退出码**：同 ask；另外，输出被截断（`MAX_TOKENS`）、不是合法 JSON、语言为空、分段时间非法或没有分段为 Quality，退 5，不写文件；文件写入失败为 Runtime，退 4。
+
+### `platform polymarket search`
+
+按主题检索 Polymarket 的 event，经 `polymarket_api` route（第 7 章「Polymarket」）。每个结果带最可能的几个 market，价格来自 Gamma 的缓存。
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| 查询词（位置参数） | 非空字符串 | 无 `--cursor` 时必填 | 原样发送 |
+| `--include-closed` | flag | 关 | 也匹配已关闭的 event；默认只匹配仍开放的 event |
+| `--limit` | 1–20 | 10 | 本页 event 数 |
+| `--cursor` | 上一页的 `next_cursor` | 无 | 与查询词、`--include-closed` 和 `--limit` 互斥 |
+| `--format` | `json` / `markdown` | `json` | 输出格式 |
+
+- 通用 flag 同 arXiv search。只在下一页不超过第 100 页时签发 cursor。
+- **输出**：外层形状与 arXiv search 相同。每个 item 是一个 event：`ref`（`polymarket:<event_slug>`）、canonical `url`、`depth`（恒为 `metadata`）、`title`、`authors`（空数组）、`published`（`startDate`，UTC，精确到秒），以及 Polymarket 字段 `event_id`、`status`（`open`、`closed` 或 `resolved`）、`end_date`、`volume`、`volume_24h`、`liquidity`、`neg_risk`、`market_count`、`price_source`（恒为 `gamma`）与 `top_markets`（按概率降序的前 5 个 market，每项为 `{ref, label, probability, basis, status}`）。价格可能滞后最多 5 分钟；要实时概率就 fetch 这个 event。读不出的 event 被跳过，stderr 汇总一条诊断。不写 Search Result Journal。
+- **退出码**：查询词为空、`--limit` 越界、cursor 越过第 100 页＝飞行前退 2；`platforms.polymarket.order` 为空＝飞行前退 3；429 为 RateLimited，Gamma 422 与响应不是预期结构为 Runtime，上游有 event 而全部读不出为 Runtime，都退 4；合法零结果为 `items: []` 且退 0。
+
+### `platform polymarket fetch`
+
+读取一个 event 或 market 的结算状态，以及每个结果当前的 Market-Implied Probability。
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| ref 或 URL（位置参数） | `polymarket:<event_slug>`、`polymarket:market/<market_slug>`，或 `polymarket.com` 的 `/event/<e>`、`/event/<e>/<m>`、`/market/<m>` | 必填 | 路径前可有站点语言前缀；忽略 query、fragment 与末尾 `/` |
+| `--depth` | `metadata` / `abstract` | `metadata` | `abstract` 另外内联结算规则 |
+| `--format` | `json` / `markdown` / `content` | `json` | `content` 把 `abstract` 的结算规则输出到 stdout |
+
+- 通用 flag 同 search。
+- **输出**：JSON 顶层为 `platform`、`provider`，条目的公共字段与 Polymarket 字段。event 有 search 的平台字段（不含 `top_markets`）、`prices_as_of` 与 `markets`（每个 market 一项：`ref`、`url`、`market_id`、`condition_id`、`question`、`label`、`status`、`end_date`、`probability`、`outcomes` 为 `[{name, price, basis, best_bid, best_ask}]`、`spread`、`last_trade_price`、`one_day_change`、`one_week_change`、`one_month_change`、`volume`、`liquidity`）；market 有 `event_id`、上述 market 字段、`neg_risk`、`event: {ref, url, title}`、`price_source` 与 `prices_as_of`。`price_source` 为 `clob` 时价格来自实时订单簿；为 `gamma` 时来自 Gamma 的缓存（CLOB 不可用时 stderr 有一条诊断）。`abstract` 另有 `rules`。
+- **退出码**：数字 id、`polymarket.us`、其他路径或主机，`metadata` 与 `abstract` 以外的深度＝飞行前退 2；`platforms.polymarket.order` 为空＝飞行前退 3；event 或 market 不存在（`Polymarket event not found: polymarket:<slug>; slugs can change, search again`）为 attempt 级 Parameter，返回的 slug 与请求不符、编码字段无法解码、结果与 token 数不一致为 Runtime，都退 4；`abstract` 而结算规则为空为 Quality，退 5；传输失败同 search。
 
 ## Gemini 命令
 
