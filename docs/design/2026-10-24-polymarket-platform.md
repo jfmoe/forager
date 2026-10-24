@@ -1,6 +1,6 @@
 # Polymarket 平台与 `polymarket_api` route 设计
 
-状态：设计已定，未实现，尚未写入 spec；决策记录见 [ADR 0032](../adr/0032-polymarket-platform-prices-from-two-sided-order-books.md)。日期：2026-10-24。外部事实与证据见 [Polymarket 平台接入调研](../research/2026-10-24-polymarket-integration.md)（下称「调研」），本文引用其中已核实的事实，不重复证据。
+状态：search 与 fetch 已实现并写入 spec（第 2、3、4、5、7 章），history 尚未实现；决策记录见 [ADR 0032](../adr/0032-polymarket-platform-prices-from-two-sided-order-books.md)。日期：2026-10-24。外部事实与证据见 [Polymarket 平台接入调研](../research/2026-10-24-polymarket-integration.md)（下称「调研」），本文引用其中已核实的事实，不重复证据。
 
 ## 目标与边界
 
@@ -48,7 +48,7 @@ polymarket.com 的 URL 只含 slug，数字 id 没有对应页面。用 slug 作
 
 ### 身份
 
-kind 有两种，都没有版本。slug 是 Gamma 返回的原文，由 ASCII 字母、数字与 `-` 组成，区分大小写，长度 1–200。实现前要抽样核实 slug 的字符集，见「仍未实测的部分」。
+kind 有两种，都没有版本。slug 是 Gamma 返回的原文，由 ASCII 字母、数字、`-` 与 `_` 组成，区分大小写，长度 1–255，全为数字的输入是数字 id，不是 slug。规则来自 2026-10-24 的抽样，见「实测结果」；少数 slug 含 `.`，但 Gamma 自己的按 slug 查询拒绝它们，所以不接受。
 
 | kind | ref | canonical URL |
 |---|---|---|
@@ -125,7 +125,7 @@ market `status`：
   - fetch 3 次：Gamma、CLOB `/prices`、CLOB `/last-trades-prices`；
   - history 2 次：Gamma 取 token、Data API 取历史。
 
-  例外是 outcome 多于 250 个的 fetch：CLOB 批量请求按每批 500 项（250 个 token 的买卖两侧）切分，详见「fetch」。
+  例外是 outcome 多于 250 个的 fetch：CLOB 批量请求按每批 500 项切分（`/prices` 一批是 250 个 token 的买卖两侧，`/last-trades-prices` 一批是 500 个 token），详见「fetch」。
 
 ## search
 
@@ -138,7 +138,7 @@ market `status`：
 - **查询词**：必填，去空白后为空时飞行前退 2；原样发送，不承诺任何运算符。
 - **limit 与分页**：`--limit` 为 1–20，默认 10。实测 `page` 从 1 开始，页大小就是 `limit_per_type`。
   - 页位置是 `page`，cursor 为 `v1.polymarket_api.<payload>`，恢复查询词、`include_closed`、limit 与下一页的 `page`；
-  - `pagination.hasMore` 为 true 时签发 cursor；
+  - `pagination.hasMore` 为 true 且下一页不超过第 100 页时签发 cursor：Gamma 以 422 拒绝 `page` 大于 100，支持检查在飞行前拒绝更深的 cursor；
   - 排序没有承诺跨时间稳定，批量使用方按 ref 去重。
 - **合法空集**：只有 `pagination` 而没有 `events` 键时为 `items: []`，退 0。响应缺少 `pagination` 为 Runtime。
 - **条目**：每个 event 一条。
@@ -159,7 +159,7 @@ market `status`：
   - JSON 编码字符串字段（`outcomes`、`outcomePrices`、`clobTokenIds`）解码失败，或 `outcomes` 与 token 数不一致，为 Runtime。
 - **token 选择**：`version` 为 `v2` 时取 `positionIds`，否则取 `clobTokenIds` 解码后的数组。实测 V2 样本两者相同，这条规则遵照官方文档，不依赖两者相同。
 - **实时报价**：只为 `status` 为 `open` 的 market 请求。
-  - `POST <clob_url>/prices`：每个 token 的 BUY 与 SELL 两项，每批最多 500 项；
+  - `POST <clob_url>/prices`：每个 token 的 BUY 与 SELL 两项，每批最多 500 项（实测 501 项返回 400 `Payload exceeds the limit`）；
   - `POST <clob_url>/last-trades-prices`：同一批 token；
   - 价格字段同时接受字符串与数字（文档示例是数字，实测是字符串）；
   - 某个 token 缺失于响应时，该 outcome 按 `no_two_sided_book` 处理，并汇总一条诊断；
@@ -180,7 +180,7 @@ market `status`：
   event 级另有 `price_source`（`clob` 或 `gamma`）与 `prices_as_of`，每次 fetch 都带，落库的消费方据此区分实时值与缓存值。不输出 token id：调用方从不需要它，history 接受 market ref。
 - **存储键**：slug 可能变化，也可能被重新创建的 event 复用，所以程序化消费方应以 `condition_id`（链上身份）为 market 的存储键，`event_id` 为 event 的存储键，slug 只用于展示与 URL。skill reference 写明这一点，并提醒跨时间引用同一市场时对比 `event_id`。
 - **`abstract`**：另有内联 `rules`（event `description`），market 项在规则与 event 不同时另有 `rules`。`--format content` 输出规则文本。规则为空时为 Quality（退 5），与 YouTube 描述为空的规则相同。
-- **大型 event**：markets 数组不截断。一个几百个 market 的 event 投影后约几十 KB，仍远低于 4 MiB 的协议上限。是否需要 `--limit` 等实测后再定，见「仍未实测的部分」。
+- **大型 event**：markets 数组不截断。实测 128 个 market 的 `presidential-election-winner-2028` 输出约 100 KB，远低于 4 MiB 的协议上限，暂不需要 `--limit`。
 
 ## history（L2 平台操作）
 
@@ -289,13 +289,27 @@ market `status`：
 
 第一期交付 search、fetch（`metadata` 与 `abstract`）与 history，spec 第 2、3、4、5、7 章一次写全。曾考虑的更小方案（不请求 CLOB，概率全部取 Gamma 的缓存值）不采用：它会把空订单簿的 0.5 占位值当作概率交付，违背 Market-Implied Probability 的定义。
 
+## 实测结果（2026-10-24）
+
+- **slug**：抽样 Gamma 约 88,000 个 event 与 market 的 slug，字符都在 `[a-z0-9-]` 内，另有 6 个含 `.`、4 个含 `_`，没有大写字母，最长 244 个字符。Gamma `/events/slug/<slug>` 对含 `.` 的 slug 返回 422 `slug is invalid`，含 `_` 的可以查到。解析规则因此接受字母、数字、`-` 与 `_`，长度 1–255。
+- **CLOB 批量上限**：`POST /prices` 与 `POST /last-trades-prices` 每次最多 500 项，501 项返回 400 `{"error":"Payload exceeds the limit"}`。
+- **没有挂单的表示**：两个 V2 样本确认了「挂单判定」。
+  - 有挂单：`polyv2zec-updown-5m-1792836000` 的订单簿为 0.01/0.99，`/prices` 给出 BUY 0.01（最优买价）与 SELL 0.99（最优卖价）。
+  - 空订单簿：`polyv2bkbsl-kar-fen-2026-10-25` 给出 BUY `"0"` 与 SELL `"1"`。
+  - 同一批里，`/last-trades-prices` 给空订单簿的 token 返回 0.5，从未成交的 token 则不出现在结果里；未知 token 的 `/prices` 返回 `{}`。
+- **neg-risk 占位 market**：`presidential-election-winner-2028` 的 128 个 market 中有 74 个是占位 market（如 `will-person-ai-win-…`）。
+  - Gamma 字段：`active: false`、`acceptingOrders: true`、没有 `outcomePrices`、`bestBid` 为 0、`bestAsk` 为 1、`manualActivation: true`。
+  - CLOB：`/book` 返回 404 `No orderbook exists`，`/prices` 不返回它们。
+  - 按派生表，它们的 `status` 为 `open`、`basis` 为 `no_two_sided_book`，并计入「没有报价」的诊断。
+- **`/public-search`**：
+  - `page` 上限为 100（第 200 页返回 422 `must be less than or equal to 100`）；`limit_per_type=20` 时，第 95 页的 `hasMore` 已为 false。
+  - 无论 `search_tags` 与 `search_profiles` 取何值，响应都不含 tags 与 profiles 键。
+- **其他**：
+  - Cloudflare 按 User-Agent 拦截部分客户端：Python urllib 的默认 UA 得到 403（error 1010），forager 与 curl 的 UA 正常。
+  - CLOB `/time` 返回一个裸数字。
+  - Gamma 常缺 `oneMonthPriceChange`，已结算 market 缺 `liquidity`。
+
 ## 仍未实测的部分
 
-- **slug**：字符集与长度没有文档；slug 是否会变、旧 slug 是否仍可查询也未知（`pastSlugs`）。实现前抽样一批 event 与 market 的 slug，确认解析规则不会拒绝真实 slug。
-- **CLOB `POST /prices`**：
-  - 批量上限：文档只给出 `/midpoints` 的 500；
-  - 买方 `"0"`、卖方 `"1"` 表示没有挂单，只由一个空订单簿样本观察到；
-  - 有挂单的 V2 market 的报价没有实测。
-- **大型 event**：几百个 market 的 event 投影后的实际大小。
-- **`/public-search`**：`search_tags=false` 与 `search_profiles=false` 的实际效果，以及 `page` 能翻多深。
+- **slug 的变化**：slug 是否会变、旧 slug 是否仍可查询（`pastSlugs`）仍未知。
 - **Data API**：显式区间加 bucket 的组合、续页 cursor，以及超出保留期的空页。

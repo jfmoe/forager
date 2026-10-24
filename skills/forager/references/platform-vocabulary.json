@@ -164,6 +164,35 @@
           "https://www.youtube.com/watch?v=jNQXAC9IVRw"
         ]
       }
+    },
+    {
+      "id": "polymarket",
+      "purpose": "Search and read Polymarket prediction markets through its public APIs: events and their markets, resolution status and rules, and each outcome's market-implied probability, the midpoint of the live order book when both sides have orders, or the payout once the market resolved.",
+      "select_when": "The request names Polymarket, supplies a polymarket.com event or market URL or polymarket: ref, or asks what prediction markets or betting odds say about a future event; it needs no key. Polymarket US (polymarket.us) is a separate product forager does not read.",
+      "examples": [
+        "what does Polymarket give for the number of Fed rate cuts in 2026",
+        "read https://polymarket.com/event/presidential-election-winner-2024",
+        "which Polymarket markets are about the next Fed chair",
+        "Polymarket 上美联储今年降息的概率是多少"
+      ],
+      "ref_syntax": {
+        "ref": "polymarket:<event_slug> | polymarket:market/<market_slug>",
+        "id_forms": [
+          "presidential-election-winner-2024",
+          "market/will-donald-trump-win-the-2024-us-presidential-election"
+        ],
+        "urls": [
+          "https://polymarket.com/event/<event_slug>",
+          "https://polymarket.com/event/<event_slug>/<market_slug>",
+          "https://polymarket.com/market/<market_slug>"
+        ],
+        "examples": [
+          "polymarket:presidential-election-winner-2024",
+          "polymarket:market/will-donald-trump-win-the-2024-us-presidential-election",
+          "https://polymarket.com/event/presidential-election-winner-2024",
+          "https://polymarket.com/zh/event/presidential-election-winner-2024/will-donald-trump-win-the-2024-us-presidential-election"
+        ]
+      }
     }
   ]
 }

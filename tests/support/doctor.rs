@@ -91,6 +91,9 @@ url = {url:?}
 
 [providers.hn_api]
 url = {url:?}
+
+[providers.polymarket_api]
+url = {url:?}
 "#
     )
 }

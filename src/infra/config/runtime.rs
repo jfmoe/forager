@@ -3,6 +3,10 @@ use std::path::{Path, PathBuf};
 
 use super::load::load_effective_config;
 use super::location::{ConfigError, ConfigLocation};
+use super::route_config::{
+    HnRouteRuntimeConfig, HttpRouteRuntimeConfig, KeyedHttpRouteRuntimeConfig,
+    ModelRouteRuntimeConfig, PolymarketRouteRuntimeConfig, ProcessRouteRuntimeConfig,
+};
 use super::schema::{Config, FieldRef, SCHEMA};
 use crate::catalog::{self, ProviderId};
 use crate::redact::Secret;
@@ -151,48 +155,6 @@ pub(crate) struct Context7RuntimeConfig {
     pub(crate) timeout_seconds: u64,
 }
 
-/// The configuration of a platform route that sends HTTP requests without credentials.
-#[derive(Clone, Debug)]
-pub(crate) struct HttpRouteRuntimeConfig {
-    pub(crate) url: String,
-    pub(crate) timeout_seconds: u64,
-}
-
-/// The configuration of the Hacker News route, which combines two official endpoints under one
-/// access policy.
-#[derive(Clone, Debug)]
-pub(crate) struct HnRouteRuntimeConfig {
-    /// The Algolia Hacker News Search API.
-    pub(crate) url: String,
-    /// The official Hacker News Firebase API.
-    pub(crate) firebase_url: String,
-    pub(crate) timeout_seconds: u64,
-}
-
-/// The configuration of a platform route that sends HTTP requests with pooled credentials.
-#[derive(Clone, Debug)]
-pub(crate) struct KeyedHttpRouteRuntimeConfig {
-    pub(crate) url: String,
-    pub(crate) keys: Vec<Secret>,
-    pub(crate) timeout_seconds: u64,
-}
-
-/// The configuration of a platform route that sends model requests with pooled credentials.
-#[derive(Clone, Debug)]
-pub(crate) struct ModelRouteRuntimeConfig {
-    pub(crate) url: String,
-    pub(crate) keys: Vec<Secret>,
-    pub(crate) model: String,
-    pub(crate) timeout_seconds: u64,
-}
-
-/// The configuration of a platform route that runs local OpenCLI commands.
-#[derive(Clone, Debug)]
-pub(crate) struct ProcessRouteRuntimeConfig {
-    pub(crate) command: String,
-    pub(crate) timeout_seconds: u64,
-}
-
 /// The configuration of every platform route. Route lookups take it whole, so a new route adds
 /// a field here and changes no signature.
 #[derive(Clone, Debug)]
@@ -208,6 +170,7 @@ pub(crate) struct PlatformRoutesRuntimeConfig {
     pub(crate) youtube_api: KeyedHttpRouteRuntimeConfig,
     pub(crate) youtube_web: HttpRouteRuntimeConfig,
     pub(crate) gemini_api: ModelRouteRuntimeConfig,
+    pub(crate) polymarket_api: PolymarketRouteRuntimeConfig,
 }
 
 /// The configuration of one platform route.
@@ -223,6 +186,7 @@ pub(crate) enum PlatformRouteConfig {
     YoutubeApi(KeyedHttpRouteRuntimeConfig),
     YoutubeWeb(HttpRouteRuntimeConfig),
     GeminiApi(ModelRouteRuntimeConfig),
+    PolymarketApi(PolymarketRouteRuntimeConfig),
 }
 
 impl PlatformRouteConfig {
@@ -238,6 +202,7 @@ impl PlatformRouteConfig {
             Self::YoutubeApi(_) => ProviderId::YoutubeApi,
             Self::YoutubeWeb(_) => ProviderId::YoutubeWeb,
             Self::GeminiApi(_) => ProviderId::GeminiApi,
+            Self::PolymarketApi(_) => ProviderId::PolymarketApi,
         }
     }
 
@@ -248,7 +213,8 @@ impl PlatformRouteConfig {
             | Self::SsrnBrowser(_)
             | Self::XiaohongshuBrowser(_)
             | Self::HnApi(_)
-            | Self::YoutubeWeb(_) => provider_configured(self.route(), &[]),
+            | Self::YoutubeWeb(_)
+            | Self::PolymarketApi(_) => provider_configured(self.route(), &[]),
             Self::Serpapi(config) | Self::YoutubeApi(config) => {
                 provider_configured(self.route(), &config.keys)
             }
@@ -289,6 +255,7 @@ pub(crate) struct PlatformsRuntimeConfig {
     x: PlatformRuntimeConfig,
     hn: PlatformRuntimeConfig,
     youtube: PlatformRuntimeConfig,
+    polymarket: PlatformRuntimeConfig,
 }
 
 impl PlatformsRuntimeConfig {
@@ -301,6 +268,7 @@ impl PlatformsRuntimeConfig {
             Platform::X => &self.x,
             Platform::Hn => &self.hn,
             Platform::Youtube => &self.youtube,
+            Platform::Polymarket => &self.polymarket,
         }
     }
 }
@@ -555,6 +523,10 @@ impl RuntimeConfig {
                 endpoint: &self.platform_routes.gemini_api.url,
                 keys: &self.platform_routes.gemini_api.keys,
             },
+            ProviderId::PolymarketApi => ProviderRuntime {
+                endpoint: &self.platform_routes.polymarket_api.url,
+                keys: &[],
+            },
             ProviderId::GeminiBrowser => ProviderRuntime {
                 endpoint: &self.gemini_browser.command,
                 keys: &[],
@@ -661,6 +633,11 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
             model: config.providers.gemini_api.model,
             timeout_seconds: config.providers.gemini_api.timeout,
         },
+        polymarket_api: PolymarketRouteRuntimeConfig {
+            url: config.providers.polymarket_api.url,
+            clob_url: config.providers.polymarket_api.clob_url,
+            timeout_seconds: config.providers.polymarket_api.timeout,
+        },
     };
     let classifier = ClassifierRuntimeConfig {
         url: config.classifier.url,
@@ -711,6 +688,11 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         youtube: platform_entries(
             Platform::Youtube,
             config.platforms.youtube.order,
+            &platform_routes,
+        )?,
+        polymarket: platform_entries(
+            Platform::Polymarket,
+            config.platforms.polymarket.order,
             &platform_routes,
         )?,
     };
@@ -870,6 +852,9 @@ pub(crate) fn platform_route_config(
         ProviderId::YoutubeApi => Some(PlatformRouteConfig::YoutubeApi(routes.youtube_api.clone())),
         ProviderId::YoutubeWeb => Some(PlatformRouteConfig::YoutubeWeb(routes.youtube_web.clone())),
         ProviderId::GeminiApi => Some(PlatformRouteConfig::GeminiApi(routes.gemini_api.clone())),
+        ProviderId::PolymarketApi => Some(PlatformRouteConfig::PolymarketApi(
+            routes.polymarket_api.clone(),
+        )),
         _ => None,
     }
 }

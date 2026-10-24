@@ -11,6 +11,8 @@ mod outcome;
 mod platform;
 mod platform_arxiv;
 mod platform_hn;
+mod platform_polymarket;
+mod platform_polymarket_price;
 mod platform_scholar;
 mod platform_ssrn;
 mod platform_ssrn_search;
@@ -60,6 +62,15 @@ pub use platform_hn::{
     HnStoriesList, HnStoriesResult, HnThreadOrder,
 };
 pub(crate) use platform_hn::{HnStoriesOutcome, HnStoriesRequest, STORIES};
+pub(crate) use platform_polymarket::{
+    BookTop, Price, QuoteSource, event_status, market_status, price_market,
+};
+pub use platform_polymarket::{
+    PolymarketBasis, PolymarketEventFields, PolymarketEventLink, PolymarketItemData,
+    PolymarketKind, PolymarketMarket, PolymarketMarketFields, PolymarketOutcome,
+    PolymarketPriceSource, PolymarketRef, PolymarketSearchOptions, PolymarketStatus,
+    PolymarketTopMarket,
+};
 pub(crate) use platform_scholar::{
     CITED_BY, SCHOLAR_MAX_LIMIT, ScholarCitedByRequest, ScholarCitedBySort,
 };

@@ -11,7 +11,7 @@ use super::run_command;
 
 // Platform routes need no credentials, and the X route shares the main search key, so live
 // smoke would run their cases unless the platform orders disable them.
-pub(crate) const DISABLED_PLATFORMS: &str = "[platforms.arxiv]\norder = []\n[platforms.ssrn]\norder = []\n[platforms.x]\norder = []\n[platforms.hn]\norder = []\n";
+pub(crate) const DISABLED_PLATFORMS: &str = "[platforms.arxiv]\norder = []\n[platforms.ssrn]\norder = []\n[platforms.x]\norder = []\n[platforms.hn]\norder = []\n[platforms.polymarket]\norder = []\n";
 
 pub(crate) struct SmokeEnvironment {
     _root: tempfile::TempDir,

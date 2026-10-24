@@ -5,9 +5,9 @@ use std::collections::HashMap;
 use serde::Deserialize;
 
 use super::hn_markup::hn_markdown;
-use super::{Endpoint, FirebaseItem, HnApi, ROUTE, Trail, comment_ref, non_empty, published};
+use super::{Endpoint, FirebaseItem, HnApi, ROUTE, comment_ref, non_empty, published};
 use crate::catalog::PlatformOperation;
-use crate::providers::shared::{other_platform_message, parameter_error};
+use crate::providers::shared::{Trail, other_platform_message, parameter_error};
 use crate::types::{
     AttemptErrorKind, ContentDepth, HnItemData, HnItemType, HnRankedItem, HnRef, HnSearchOptions,
     HnSort, HnStoriesOutcome, HnStoriesRequest, PlatformItem, PlatformItemData, PlatformRef,

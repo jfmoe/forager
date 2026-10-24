@@ -80,6 +80,7 @@ pub(super) struct Providers {
     pub(super) gemini_api: GeminiApi,
     pub(super) gemini_browser: ProcessRoute<GeminiBrowserProcess>,
     pub(super) chatgpt_browser: ProcessRoute<ChatgptBrowserProcess>,
+    pub(super) polymarket_api: PolymarketApi,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -253,6 +254,27 @@ impl Default for HnApi {
     }
 }
 
+/// The `polymarket_api` route section: one URL per official Polymarket endpoint the route
+/// combines.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub(super) struct PolymarketApi {
+    pub(super) url: String,
+    pub(super) clob_url: String,
+    #[serde(deserialize_with = "deserialize_integer")]
+    pub(super) timeout: u64,
+}
+
+impl Default for PolymarketApi {
+    fn default() -> Self {
+        Self {
+            url: "https://gamma-api.polymarket.com".into(),
+            clob_url: "https://clob.polymarket.com".into(),
+            timeout: 30,
+        }
+    }
+}
+
 /// The `gemini_api` route section: a Gemini `generateContent` endpoint, the official API or a
 /// gateway that speaks its protocol.
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -340,6 +362,7 @@ pub(super) struct Platforms {
     pub(super) x: Order,
     pub(super) hn: Order,
     pub(super) youtube: Order,
+    pub(super) polymarket: Order,
 }
 
 impl Default for Platforms {
@@ -352,6 +375,7 @@ impl Default for Platforms {
             x: platform_order(catalog::X),
             hn: platform_order(catalog::HN),
             youtube: platform_order(catalog::YOUTUBE),
+            polymarket: platform_order(catalog::POLYMARKET),
         }
     }
 }
@@ -628,6 +652,9 @@ pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("providers.gemini_browser.timeout", providers.gemini_browser.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one OpenCLI command; must be greater than zero"),
     leaf!("providers.chatgpt_browser.command", providers.chatgpt_browser.command: String, Rule::NonEmpty, View::Plain, "OpenCLI executable name or path; this provider needs no credentials"),
     leaf!("providers.chatgpt_browser.timeout", providers.chatgpt_browser.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one OpenCLI command; must be greater than zero"),
+    leaf!("providers.polymarket_api.url", providers.polymarket_api.url: String, Rule::Any, View::Url, "Polymarket Gamma API endpoint URL for discovery and metadata; this route needs no credentials"),
+    leaf!("providers.polymarket_api.clob_url", providers.polymarket_api.clob_url: String, Rule::Any, View::Url, "Polymarket CLOB API endpoint URL for live order-book quotes"),
+    leaf!("providers.polymarket_api.timeout", providers.polymarket_api.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one request to either endpoint; must be greater than zero"),
     leaf!("capabilities.web_search.order", capabilities.web_search.order: Strings, Rule::CapabilityOrder { capability: "web_search", allow_empty: true }, View::Plain, "authoritative provider order for this capability"),
     leaf!("capabilities.web_fetch.order", capabilities.web_fetch.order: Strings, Rule::CapabilityOrder { capability: "web_fetch", allow_empty: false }, View::Plain, "authoritative provider order for this capability"),
     leaf!("capabilities.docs_search.order", capabilities.docs_search.order: Strings, Rule::CapabilityOrder { capability: "docs_search", allow_empty: true }, View::Plain, "authoritative provider order for this capability"),
@@ -638,6 +665,7 @@ pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("platforms.x.order", platforms.x.order: Strings, Rule::PlatformOrder { platform: Platform::X }, View::Plain, "authoritative route order for this platform; empty disables it"),
     leaf!("platforms.hn.order", platforms.hn.order: Strings, Rule::PlatformOrder { platform: Platform::Hn }, View::Plain, "authoritative route order for this platform; empty disables it"),
     leaf!("platforms.youtube.order", platforms.youtube.order: Strings, Rule::PlatformOrder { platform: Platform::Youtube }, View::Plain, "authoritative route order for this platform; empty disables it"),
+    leaf!("platforms.polymarket.order", platforms.polymarket.order: Strings, Rule::PlatformOrder { platform: Platform::Polymarket }, View::Plain, "authoritative route order for this platform; empty disables it"),
     leaf!("log.level", log.level: String, Rule::OneOf(LOG_LEVELS), View::Plain, "stderr log level"),
     leaf!("journal.enabled", journal.enabled: Bool, Rule::Any, View::Plain, "record search result journals"),
     leaf!("journal.dir", journal.dir: String, Rule::Any, View::Plain, "journal storage directory"),

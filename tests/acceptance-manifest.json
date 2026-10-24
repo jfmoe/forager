@@ -250,6 +250,20 @@
       "seam": "platform:youtube:transcribe",
       "test": "tests/youtube_transcribe.rs::a_model_transcript_is_written_beside_the_metadata_with_its_model_and_usage",
       "note": "transcribe is a single-route platform operation outside the platform catalog; the platform checklist matches this entry against the provider factory's YouTube transcribe routes. The live endpoint is confirmed only by the live smoke C42."
+    },
+    {
+      "id": "F36",
+      "provider": "polymarket_api",
+      "seam": "platform:polymarket:search",
+      "test": "tests/polymarket_search.rs::results_are_events_with_their_most_probable_markets_priced_from_gamma",
+      "note": "Fixture servers stand in for Gamma in the shapes it returned on 2026-10-24; the live endpoint is confirmed only by the live smoke C43."
+    },
+    {
+      "id": "F37",
+      "provider": "polymarket_api",
+      "seam": "platform:polymarket:fetch",
+      "test": "tests/polymarket_fetch.rs::each_outcome_is_priced_by_its_market_status_and_live_book",
+      "note": "Fixture servers stand in for Gamma and the CLOB in the shapes they returned on 2026-10-24; the live endpoints are confirmed only by the live smoke C44 and C45."
     }
   ],
   "offline_e2e": [

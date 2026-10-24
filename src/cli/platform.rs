@@ -44,6 +44,10 @@ use x::XCommand;
 mod hn;
 use hn::HnCommand;
 
+#[path = "polymarket.rs"]
+mod polymarket;
+use polymarket::PolymarketCommand;
+
 #[path = "youtube.rs"]
 mod youtube;
 use youtube::YoutubeCommand;
@@ -89,6 +93,12 @@ pub(super) enum PlatformCommand {
     Youtube {
         #[command(subcommand)]
         command: YoutubeCommand,
+    },
+    /// Search Polymarket prediction markets and read each outcome's market-implied probability
+    /// from the live order book; needs no key.
+    Polymarket {
+        #[command(subcommand)]
+        command: PolymarketCommand,
     },
 }
 
@@ -280,6 +290,7 @@ pub(super) fn run(command: PlatformCommand) -> Result<CommandOutput, AppError> {
         PlatformCommand::X { command } => x::run(command),
         PlatformCommand::Hn { command } => hn::run(command),
         PlatformCommand::Youtube { command } => youtube::run(command),
+        PlatformCommand::Polymarket { command } => polymarket::run(command),
     }
 }
 

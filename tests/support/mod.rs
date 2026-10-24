@@ -23,6 +23,7 @@ pub(crate) mod gemini;
 pub(crate) mod gemini_api;
 pub(crate) mod hn;
 pub(crate) mod opencli;
+pub(crate) mod polymarket;
 pub(crate) mod scholar;
 pub(crate) mod smoke;
 pub(crate) mod x;

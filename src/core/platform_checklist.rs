@@ -12,8 +12,8 @@ use crate::catalog::{
 };
 use crate::config::{
     self, HnRouteRuntimeConfig, HttpRouteRuntimeConfig, KeyedHttpRouteRuntimeConfig,
-    ModelRouteRuntimeConfig, PlatformRoutesRuntimeConfig, ProcessRouteRuntimeConfig,
-    XaiRuntimeConfig,
+    ModelRouteRuntimeConfig, PlatformRoutesRuntimeConfig, PolymarketRouteRuntimeConfig,
+    ProcessRouteRuntimeConfig, XaiRuntimeConfig,
 };
 use crate::providers;
 use crate::types::{
@@ -40,6 +40,10 @@ fn sample_refs(platform: Platform) -> &'static [&'static str] {
             "youtube:jNQXAC9IVRw",
             "youtube:playlist/PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab",
             "youtube:channel/UCYO_jab_esuFRV4b17AJtAw",
+        ],
+        Platform::Polymarket => &[
+            "polymarket:presidential-election-winner-2024",
+            "polymarket:market/will-donald-trump-win-the-2024-us-presidential-election",
         ],
     }
 }
@@ -386,6 +390,11 @@ fn has_adapter(platform: Platform, operation: PlatformOperation, route: Provider
             url: String::new(),
             keys: Vec::new(),
             model: String::new(),
+            timeout_seconds: 1,
+        },
+        polymarket_api: PolymarketRouteRuntimeConfig {
+            url: String::new(),
+            clob_url: String::new(),
             timeout_seconds: 1,
         },
     };

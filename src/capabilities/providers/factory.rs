@@ -5,15 +5,17 @@ use super::constructors::{
 };
 use super::{
     ArxivApi, DocsSearch, GeminiApi, HnApi, KeyAccount, KeyQuota, MainSearch, PlatformFetch,
-    PlatformSearch, ProviderId, Serpapi, SsrnBrowser, SsrnCrossref, SupplementalSearch, WebFetch,
-    WebSearch, XiaohongshuBrowser, YoutubeApi, YoutubeWeb, arxiv, hn_api, opencli, serpapi,
-    ssrn_browser, ssrn_crossref, web_fetch, xai, xiaohongshu_browser, youtube_api, youtube_web,
+    PlatformSearch, PolymarketApi, ProviderId, Serpapi, SsrnBrowser, SsrnCrossref,
+    SupplementalSearch, WebFetch, WebSearch, XiaohongshuBrowser, YoutubeApi, YoutubeWeb, arxiv,
+    hn_api, opencli, polymarket_api, serpapi, ssrn_browser, ssrn_crossref, web_fetch, xai,
+    xiaohongshu_browser, youtube_api, youtube_web,
 };
 use crate::catalog::{ProviderTransport, WEB_FETCH, WEB_SEARCH, registration};
 use crate::config::{
     DocsSearchProviderConfig, HnRouteRuntimeConfig, HttpRouteRuntimeConfig,
     KeyedHttpRouteRuntimeConfig, MainSearchProviderConfig, ModelRouteRuntimeConfig,
-    PlatformRouteConfig, ProcessRouteRuntimeConfig, RuntimeConfig, WebFetchProviderConfig,
+    PlatformRouteConfig, PolymarketRouteRuntimeConfig, ProcessRouteRuntimeConfig, RuntimeConfig,
+    WebFetchProviderConfig,
 };
 use crate::net::RetryPolicy;
 use crate::types::{
@@ -150,6 +152,9 @@ pub(crate) fn build_platform_search(
         PlatformRouteConfig::YoutubeApi(config) => {
             Box::new(build_youtube_api(config, client, retry_policy, deadline))
         }
+        PlatformRouteConfig::PolymarketApi(config) => {
+            Box::new(build_polymarket_api(config, client, retry_policy, deadline))
+        }
         PlatformRouteConfig::YoutubeWeb(_) => {
             unreachable!("youtube_web serves fetch only, so planning never selects it for search")
         }
@@ -192,6 +197,9 @@ pub(crate) fn build_platform_fetch(
         }
         PlatformRouteConfig::YoutubeWeb(config) => {
             Box::new(build_youtube_web(config, client, deadline))
+        }
+        PlatformRouteConfig::PolymarketApi(config) => {
+            Box::new(build_polymarket_api(config, client, retry_policy, deadline))
         }
         PlatformRouteConfig::GeminiApi(_) => {
             unreachable!(
@@ -344,6 +352,12 @@ pub(crate) async fn platform_route_extra_checks(
                 .probe_firebase()
                 .await,
         )],
+        PlatformRouteConfig::PolymarketApi(config) => vec![(
+            "clob",
+            build_polymarket_api(config, client, retry_policy, deadline)
+                .probe_clob()
+                .await,
+        )],
         _ => Vec::new(),
     }
 }
@@ -424,6 +438,22 @@ fn build_hn_api(
         config,
         client,
         route_limiter(ProviderId::HnApi).expect("hn_api registration declares an access policy"),
+        retry_policy,
+        deadline,
+    )
+}
+
+fn build_polymarket_api(
+    config: PolymarketRouteRuntimeConfig,
+    client: Client,
+    retry_policy: RetryPolicy,
+    deadline: Deadline,
+) -> PolymarketApi {
+    PolymarketApi::new(
+        config,
+        client,
+        route_limiter(ProviderId::PolymarketApi)
+            .expect("polymarket_api registration declares an access policy"),
         retry_policy,
         deadline,
     )
@@ -542,6 +572,7 @@ pub(crate) fn platform_search_support(
         ProviderId::Xai => xai::search_support(request),
         ProviderId::HnApi => hn_api::search_support(request),
         ProviderId::YoutubeApi => youtube_api::search_support(request),
+        ProviderId::PolymarketApi => polymarket_api::search_support(request),
         _ => return None,
     };
     Some(transport_support(id).and(route))
@@ -563,6 +594,7 @@ pub(crate) fn platform_fetch_support(
         ProviderId::HnApi => hn_api::fetch_support(request),
         ProviderId::YoutubeApi => youtube_api::fetch_support(request),
         ProviderId::YoutubeWeb => youtube_web::fetch_support(request),
+        ProviderId::PolymarketApi => polymarket_api::fetch_support(request),
         _ => return None,
     };
     Some(transport_support(id).and(route))

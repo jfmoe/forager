@@ -3,6 +3,7 @@
 mod edit;
 mod load;
 mod location;
+mod route_config;
 mod runtime;
 mod schema;
 mod validate;
@@ -13,15 +14,17 @@ pub use crate::secure_fs::{create_private_file, ensure_private_directory};
 
 pub use edit::{SetupDocument, create_setup_template, set_file_value, unset_file_value};
 pub use location::{ConfigError, ConfigLocation, EditError};
+pub(crate) use route_config::{
+    HnRouteRuntimeConfig, HttpRouteRuntimeConfig, KeyedHttpRouteRuntimeConfig,
+    ModelRouteRuntimeConfig, PolymarketRouteRuntimeConfig, ProcessRouteRuntimeConfig,
+};
 pub(crate) use runtime::{
     ClassifierRuntimeConfig, Context7RuntimeConfig, DocsSearchProviderConfig,
-    DocsSearchRuntimeConfig, ExaRuntimeConfig, HnRouteRuntimeConfig, HttpRouteRuntimeConfig,
-    JournalRuntimeConfig, KeyedHttpRouteRuntimeConfig, LogLevel, MainSearchProviderConfig,
-    MainSearchRuntimeConfig, ModelRouteRuntimeConfig, PlatformRouteConfig, PlatformRuntimeConfig,
-    ProcessRouteRuntimeConfig, RuntimeConfig, SeamEntry, WebFetchProviderConfig,
-    WebFetchRuntimeConfig, WebSearchRuntimeConfig, XaiRuntimeConfig, docs_provider_config,
-    main_provider_config, platform_route_config, provider_keys_key, runtime_config,
-    web_provider_config,
+    DocsSearchRuntimeConfig, ExaRuntimeConfig, JournalRuntimeConfig, LogLevel,
+    MainSearchProviderConfig, MainSearchRuntimeConfig, PlatformRouteConfig, PlatformRuntimeConfig,
+    RuntimeConfig, SeamEntry, WebFetchProviderConfig, WebFetchRuntimeConfig,
+    WebSearchRuntimeConfig, XaiRuntimeConfig, docs_provider_config, main_provider_config,
+    platform_route_config, provider_keys_key, runtime_config, web_provider_config,
 };
 #[cfg(test)]
 pub(crate) use runtime::{PlatformRoutesRuntimeConfig, platform_order_key};

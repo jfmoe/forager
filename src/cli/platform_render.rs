@@ -7,8 +7,8 @@ use forager::app::{DocsOutputFormat, OutputFormat, OutputTarget, ProviderError};
 use forager::types::{
     ContentDepth, HnStoriesResult, ModelUsage, Platform, PlatformAskResult, PlatformCommentsPage,
     PlatformFetchResult, PlatformItem, PlatformItemData, PlatformSearchPage,
-    PlatformTranscribeResult, ScholarItemData, XAskResult, XPostData, XiaohongshuCommentsPage,
-    YoutubeAskResult, YoutubeCommentsPage,
+    PlatformTranscribeResult, PolymarketItemData, ScholarItemData, XAskResult, XPostData,
+    XiaohongshuCommentsPage, YoutubeAskResult, YoutubeCommentsPage,
 };
 
 use crate::{RenderedOutput, apply_tee, format_failure_json, postflight_exit_code};
@@ -52,6 +52,9 @@ fn format_platform_page(page: &PlatformSearchPage, format: OutputFormat) -> Resu
             None => write!(markdown, "\n- <{}> `{}`", item.url, item.reference),
         };
         append_byline(&mut markdown, item);
+        if let PlatformItemData::Polymarket(data) = &item.data {
+            markdown.push_str(&polymarket_markdown(data).replace('\n', "\n  "));
+        }
         let summary = item_abstract(item).or_else(|| item_snippet(item));
         if let Some(summary) = summary.filter(|summary| !summary.is_empty()) {
             let _ = write!(
@@ -150,7 +153,8 @@ fn item_abstract(item: &PlatformItem) -> Option<&str> {
         | PlatformItemData::Xiaohongshu(_)
         | PlatformItemData::XiaohongshuNote(_)
         | PlatformItemData::X(_)
-        | PlatformItemData::Hn(_) => None,
+        | PlatformItemData::Hn(_)
+        | PlatformItemData::Polymarket(_) => None,
         PlatformItemData::Youtube(data) => data.description.as_deref(),
     }
 }
@@ -160,13 +164,102 @@ fn item_snippet(item: &PlatformItem) -> Option<&str> {
         PlatformItemData::Arxiv(_)
         | PlatformItemData::Scholar(ScholarItemData::Cluster(_))
         | PlatformItemData::Xiaohongshu(_)
-        | PlatformItemData::XiaohongshuNote(_) => None,
+        | PlatformItemData::XiaohongshuNote(_)
+        | PlatformItemData::Polymarket(_) => None,
         PlatformItemData::Ssrn(data) => data.snippet.as_deref(),
         PlatformItemData::Scholar(ScholarItemData::Result(data)) => data.snippet.as_deref(),
         PlatformItemData::X(data) => Some(&data.text),
         PlatformItemData::Hn(data) => data.text.as_deref(),
         PlatformItemData::Youtube(data) => data.snippet.as_deref(),
     }
+}
+
+/// Renders the prices of a Polymarket event or market as a list, one line per market or outcome,
+/// then the rules a fetch at `abstract` depth inlined.
+fn polymarket_markdown(data: &PolymarketItemData) -> String {
+    let price = |value: Option<f64>| {
+        value.map_or_else(|| "no price".to_owned(), |value| format!("{value}"))
+    };
+    let mut markdown = String::new();
+    match data {
+        PolymarketItemData::SearchEvent { event, top_markets } => {
+            let _ = write!(
+                markdown,
+                "\n\n{} market(s), {}",
+                event.market_count,
+                event.status.as_str()
+            );
+            for market in top_markets {
+                let _ = write!(
+                    markdown,
+                    "\n- {} — {} ({}, {}) `{}`",
+                    market.label,
+                    price(market.probability),
+                    market.basis.as_str(),
+                    market.status.as_str(),
+                    market.reference
+                );
+            }
+        }
+        PolymarketItemData::Event {
+            event,
+            prices_as_of,
+            markets,
+            ..
+        } => {
+            let _ = write!(
+                markdown,
+                "\n\nPrices from {} as of {}",
+                event.price_source.as_str(),
+                prices_as_of.as_deref().unwrap_or("an unknown time")
+            );
+            for market in markets {
+                let _ = write!(
+                    markdown,
+                    "\n- {} ({}) `{}`",
+                    market.fields.label,
+                    market.fields.status.as_str(),
+                    market.reference
+                );
+                for outcome in &market.fields.outcomes {
+                    let _ = write!(
+                        markdown,
+                        "\n  - {}: {} ({})",
+                        outcome.name,
+                        price(outcome.price),
+                        outcome.basis.as_str()
+                    );
+                }
+            }
+        }
+        PolymarketItemData::Market {
+            market,
+            price_source,
+            prices_as_of,
+            ..
+        } => {
+            let _ = write!(
+                markdown,
+                "\n\n{}; prices from {} as of {}",
+                market.status.as_str(),
+                price_source.as_str(),
+                prices_as_of.as_deref().unwrap_or("an unknown time")
+            );
+            for outcome in &market.outcomes {
+                let _ = write!(
+                    markdown,
+                    "\n- {}: {} ({})",
+                    outcome.name,
+                    price(outcome.price),
+                    outcome.basis.as_str()
+                );
+            }
+        }
+    }
+    if let Some(rules) = data.rules_document() {
+        let _ = write!(markdown, "\n\n## Rules\n\n{rules}");
+    }
+    markdown
 }
 
 /// Renders an X post's thread as Markdown, one post per entry in the model's order.
@@ -416,6 +509,7 @@ fn format_platform_fetch(
                 x_thread_markdown(data).unwrap_or_else(|| data.text.clone())
             }
             (None, PlatformItemData::Hn(data)) => data.text.clone().unwrap_or_default(),
+            (None, PlatformItemData::Polymarket(data)) => data.rules_document().unwrap_or_default(),
             (None, _) => item_abstract(item).unwrap_or_default().to_owned(),
         }),
         DocsOutputFormat::Markdown => {
@@ -443,6 +537,9 @@ fn format_platform_fetch(
                 && let Some(text) = &data.text
             {
                 let _ = write!(markdown, "\n\n{text}");
+            }
+            if let PlatformItemData::Polymarket(data) = &item.data {
+                markdown.push_str(&polymarket_markdown(data));
             }
             if let Some(content) = &fetched.content {
                 let section = if item.depth == ContentDepth::Thread {

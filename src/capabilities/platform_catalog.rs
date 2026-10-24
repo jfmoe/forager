@@ -105,11 +105,29 @@ pub(crate) const YOUTUBE: PlatformCatalog = PlatformCatalog {
     default_order: &[ProviderId::YoutubeApi, ProviderId::GeminiApi],
 };
 
+// One anonymous route combines Gamma metadata with live CLOB quotes; it reads only official
+// public APIs, never the site, so it is on by default (ADR 0032).
+pub(crate) const POLYMARKET: PlatformCatalog = PlatformCatalog {
+    platform: Platform::Polymarket,
+    search: &[ProviderId::PolymarketApi],
+    fetch: &[ProviderId::PolymarketApi],
+    operation_only: &[],
+    default_order: &[ProviderId::PolymarketApi],
+};
+
 /// What `youtube_web` reads and what enabling it risks.
 const YOUTUBE_WEB_RISK: &str = "youtube_web reads YouTube's undocumented web endpoints anonymously, which YouTube's terms do not allow, so it is off by default; its risk is a temporary block of your egress IP, never your account";
 
-pub(crate) const PLATFORMS: &[PlatformCatalog] =
-    &[ARXIV, SSRN, SCHOLAR, XIAOHONGSHU, X, HN, YOUTUBE];
+pub(crate) const PLATFORMS: &[PlatformCatalog] = &[
+    ARXIV,
+    SSRN,
+    SCHOLAR,
+    XIAOHONGSHU,
+    X,
+    HN,
+    YOUTUBE,
+    POLYMARKET,
+];
 
 impl PlatformCatalog {
     pub(crate) fn routes(self, operation: PlatformOperation) -> &'static [ProviderId] {
