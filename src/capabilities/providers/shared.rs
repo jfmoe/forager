@@ -399,6 +399,32 @@ pub(super) fn is_http_url(value: &str) -> bool {
         .is_ok_and(|url| matches!(url.scheme(), "http" | "https") && url.host_str().is_some())
 }
 
+/// Returns `url` without the exact query `parameter` (`name=value`) that a provider appends to
+/// the URLs it cites; the rest of the URL is kept as it is.
+pub(super) fn without_query_parameter(url: &str, parameter: &str) -> String {
+    let (address, fragment) = match url.split_once('#') {
+        Some((address, fragment)) => (address, Some(fragment)),
+        None => (url, None),
+    };
+    let Some((base, query)) = address.split_once('?') else {
+        return url.to_owned();
+    };
+    let kept = query
+        .split('&')
+        .filter(|pair| !pair.is_empty() && *pair != parameter)
+        .collect::<Vec<_>>();
+    let mut cleaned = base.to_owned();
+    if !kept.is_empty() {
+        cleaned.push('?');
+        cleaned.push_str(&kept.join("&"));
+    }
+    if let Some(fragment) = fragment {
+        cleaned.push('#');
+        cleaned.push_str(fragment);
+    }
+    cleaned
+}
+
 fn source(title: &str, url: &str) -> Source {
     Source {
         title: title.trim().to_owned(),
@@ -425,7 +451,7 @@ pub(super) fn redact_urls(message: &str, credentials: &CredentialPool) -> String
 mod tests {
     use crate::credentials::CredentialPool;
 
-    use super::{normalize_main_search, redacted_urls_message, source};
+    use super::{normalize_main_search, redacted_urls_message, source, without_query_parameter};
 
     #[test]
     fn main_search_normalizer_removes_complete_think_blocks() {
@@ -784,5 +810,41 @@ mod tests {
             ),
             "request to https://example.test/search?api_key=******** failed with ********"
         );
+    }
+
+    #[test]
+    fn without_query_parameter_removes_only_the_exact_parameter() {
+        let cases = [
+            ("https://a.test/p?utm_source=openai", "https://a.test/p"),
+            (
+                "https://a.test/p?id=7&utm_source=openai",
+                "https://a.test/p?id=7",
+            ),
+            (
+                "https://a.test/p?utm_source=openai&id=7#top",
+                "https://a.test/p?id=7#top",
+            ),
+            (
+                "https://a.test/p?utm_source=openai.com",
+                "https://a.test/p?utm_source=openai.com",
+            ),
+            (
+                "https://a.test/p?utm_source=other",
+                "https://a.test/p?utm_source=other",
+            ),
+            (
+                "https://a.test/p#utm_source=openai",
+                "https://a.test/p#utm_source=openai",
+            ),
+            ("https://a.test/p", "https://a.test/p"),
+        ];
+
+        for (url, expected) in cases {
+            assert_eq!(
+                without_query_parameter(url, "utm_source=openai"),
+                expected,
+                "{url}"
+            );
+        }
     }
 }

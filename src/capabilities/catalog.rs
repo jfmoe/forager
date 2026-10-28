@@ -15,7 +15,7 @@ pub(crate) struct CapabilityCatalog {
 
 pub(crate) const MAIN_SEARCH: CapabilityCatalog = CapabilityCatalog {
     seam: "main_search",
-    providers: &[ProviderId::Xai],
+    providers: &[ProviderId::Xai, ProviderId::Openai],
 };
 pub(crate) const WEB_SEARCH: CapabilityCatalog = CapabilityCatalog {
     seam: "web_search",
@@ -64,6 +64,7 @@ pub(crate) fn supports(capability: &str, provider: &str) -> bool {
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub(crate) enum ProviderId {
     Xai,
+    Openai,
     Exa,
     Tavily,
     Firecrawl,
@@ -85,8 +86,9 @@ pub(crate) enum ProviderId {
 }
 
 impl ProviderId {
-    pub(crate) const ALL: [Self; 19] = [
+    pub(crate) const ALL: [Self; 20] = [
         Self::Xai,
+        Self::Openai,
         Self::Exa,
         Self::Tavily,
         Self::Firecrawl,
@@ -110,6 +112,7 @@ impl ProviderId {
     pub(crate) fn parse(value: &str) -> Option<Self> {
         match value {
             "xai" => Some(Self::Xai),
+            "openai" => Some(Self::Openai),
             "exa" => Some(Self::Exa),
             "tavily" => Some(Self::Tavily),
             "firecrawl" => Some(Self::Firecrawl),
@@ -135,6 +138,7 @@ impl ProviderId {
     pub(crate) fn name(self) -> &'static str {
         match self {
             Self::Xai => "xai",
+            Self::Openai => "openai",
             Self::Exa => "exa",
             Self::Tavily => "tavily",
             Self::Firecrawl => "firecrawl",
@@ -298,6 +302,13 @@ const XAI_SMOKE: &[ProviderSmokeCase] = &[
         transport: "sse",
     },
 ];
+const OPENAI_SMOKE: &[ProviderSmokeCase] = &[ProviderSmokeCase {
+    id: "C49",
+    platform: None,
+    operation: "main_search",
+    transport: "sse",
+}];
+
 const TAVILY_SMOKE: &[ProviderSmokeCase] = &[
     ProviderSmokeCase {
         id: "C05",
@@ -647,6 +658,19 @@ const REGISTRY: &[ProviderRegistration] = &[
             transport: "sse",
         },
         smoke_cases: XAI_SMOKE,
+        native_full_text: false,
+    },
+    ProviderRegistration {
+        id: ProviderId::Openai,
+        operations: &[],
+        credentials: Credentials::Required,
+        transport: ProviderTransport::Http,
+        access_policy: None,
+        probe: DoctorProbe::MainSearch {
+            name: "responses",
+            transport: "sse",
+        },
+        smoke_cases: OPENAI_SMOKE,
         native_full_text: false,
     },
     ProviderRegistration {

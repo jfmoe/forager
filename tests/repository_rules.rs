@@ -16,10 +16,8 @@ const OVERSIZED_SOURCES: &[(&str, usize)] = &[
     ("src/main.rs", 1336),
     ("src/capabilities/net.rs", 1321),
     ("tests/smoke.rs", 1265),
-    ("src/capabilities/catalog.rs", 1213),
+    ("src/capabilities/catalog.rs", 1223),
     ("tests/config_commands.rs", 1122),
-    ("src/infra/config/schema.rs", 1044),
-    ("src/infra/config/runtime.rs", 1002),
 ];
 
 #[test]

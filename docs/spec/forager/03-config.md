@@ -21,7 +21,7 @@
 ```toml
 # 全部可省略——省略即内置默认
 [search]
-backends = ["xai"]
+backends = ["xai", "openai"]   # 主搜索链序；没有 key 的 backend 不算已配置，链上跳过
 fallback = "auto"            # auto|off
 
 [classifier]
@@ -36,6 +36,11 @@ url = "https://api.x.ai/v1"
 keys = []
 model = "grok-4-fast"         # 主搜索与 X 平台共用
 tools = ["web_search", "x_search"]   # 只作用于主搜索；X 平台请求固定只发 x_search
+
+[providers.openai]             # 主搜索 backend：OpenAI Responses API 与固定的 web_search 工具（ADR 0034）
+url = "https://api.openai.com/v1"   # 也可指向 CLIProxyAPI 等说同一协议的网关；请求发往 <url>/responses
+keys = []                    # 为空＝未配置，主搜索链跳过它
+model = "gpt-6.1-terra"      # 非空；这是 CLIProxyAPI 下 Codex 账号的模型名，直连官方 API 时改为官方模型名
 
 [providers.exa]
 url = "https://api.exa.ai"
@@ -184,7 +189,7 @@ ssl_verify = true
 
 ### 值域与交叉约束（进 schema 与验收）
 
-`search.backends` 非空、去重、限 `{xai}`；全部 backend 无凭据＝退 3；`providers.xai.tools` 限 `{web_search, x_search}`；所有 `timeout > 0`；process 供应方的 `command` 去掉空白后不能为空；`retry.max_attempts >= 1`、`multiplier > 0`、`max_wait >= 0`；`journal.retention_days >= 0` 且 0＝无限期。`search.validation` 已从 schema 删除；旧文件键或 `FORAGER_SEARCH__VALIDATION` 都按未知输入退出 3。文件层严格 schema：未知键＝退 3、报错点名坏键。
+`search.backends` 非空、去重、限 `{xai, openai}`；全部 backend 无凭据＝退 3；`providers.xai.tools` 限 `{web_search, x_search}`；`providers.openai.model` 非空，openai 没有 `tools` 与 `timeout` 键，attempt 与 xai 一样只受命令 deadline 与共享的读超时约束（ADR 0007）；所有 `timeout > 0`；process 供应方的 `command` 去掉空白后不能为空；`retry.max_attempts >= 1`、`multiplier > 0`、`max_wait >= 0`；`journal.retention_days >= 0` 且 0＝无限期。`search.validation` 已从 schema 删除；旧文件键或 `FORAGER_SEARCH__VALIDATION` 都按未知输入退出 3。文件层严格 schema：未知键＝退 3、报错点名坏键。
 
 ### `log.level` 运行时语义
 

@@ -10,11 +10,14 @@ mod gemini_api;
 mod gemini_browser;
 mod hn_api;
 mod key_account;
+mod main_search_responses;
 mod markup;
+mod openai;
 mod opencli;
 mod opencli_route;
 mod polymarket_api;
 mod reddit_web;
+mod responses_api;
 mod serpapi;
 pub(crate) mod shared;
 mod ssrn_browser;
@@ -34,8 +37,8 @@ pub(crate) use crate::catalog::ProviderId;
 pub(crate) use arxiv::ArxivApi;
 pub(crate) use chatgpt_browser::ChatgptBrowser;
 pub(crate) use constructors::{
-    build_chatgpt_browser, build_context7, build_exa, build_gemini_browser, build_tavily_map,
-    build_xai, route_limiter,
+    build_chatgpt_browser, build_context7, build_exa, build_gemini_browser, build_openai,
+    build_tavily_map, build_xai, route_limiter,
 };
 pub(crate) use context7::{Context7, Context7DocsRequest, Context7LibraryRequest};
 pub(crate) use exa::{Exa, ExaSearchRequest, ExaSimilarRequest, SearchType};
@@ -55,6 +58,7 @@ pub(crate) use gemini_api::GeminiApi;
 pub(crate) use gemini_browser::GeminiBrowser;
 pub(crate) use hn_api::HnApi;
 pub(crate) use key_account::{KeyAccount, KeyQuota};
+pub(crate) use openai::Openai;
 pub(crate) use opencli::check_contract as check_opencli_contract;
 pub(crate) use polymarket_api::PolymarketApi;
 pub(crate) use reddit_web::RedditWeb;

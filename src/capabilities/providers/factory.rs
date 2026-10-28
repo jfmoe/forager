@@ -74,6 +74,9 @@ pub(crate) fn build_main_search(
         (ProviderId::Xai, MainSearchProviderConfig::Xai(config)) => {
             Box::new(super::build_xai(config, client, retry_policy, deadline))
         }
+        (ProviderId::Openai, MainSearchProviderConfig::Openai(config)) => {
+            Box::new(super::build_openai(config, client, retry_policy, deadline))
+        }
         _ => unreachable!("validated main-search catalog entry has matching config"),
     }
 }

@@ -44,6 +44,12 @@
       "test": "tests/search.rs::search_uses_the_completed_xai_response_and_deduplicates_sources"
     },
     {
+      "id": "F41",
+      "provider": "openai",
+      "seam": "main_search",
+      "test": "tests/search_openai.rs::openai_backend_answers_main_search_through_responses_web_search"
+    },
+    {
       "id": "F03",
       "provider": "tavily",
       "seam": "web_search",

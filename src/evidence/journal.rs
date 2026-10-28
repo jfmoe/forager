@@ -216,6 +216,7 @@ fn build_record(record: SearchRecord<'_>) -> Value {
             json!({
                 "status": "ok",
                 "query": record.query,
+                "provider": outcome.provider,
                 "answer": outcome.answer,
                 "sources": outcome.sources,
                 "extra_sources": outcome.extra_sources,

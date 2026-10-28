@@ -9,76 +9,16 @@ use super::route_config::{
     RedditRouteRuntimeConfig,
 };
 use super::schema::{Config, FieldRef, SCHEMA};
+use super::seam_config::{
+    Context7RuntimeConfig, DocsSearchRuntimeConfig, ExaRuntimeConfig, MainSearchProviders,
+    MainSearchRuntimeConfig, OpenaiRuntimeConfig, SeamEntry, WebFetchProviderConfig,
+    WebFetchRuntimeConfig, WebProviders, WebSearchRuntimeConfig, XaiRuntimeConfig,
+    docs_search_runtime, main_search_runtime, provider_configured, unknown_provider,
+    web_fetch_runtime, web_search_runtime,
+};
 use crate::catalog::{self, ProviderId};
 use crate::redact::Secret;
-use crate::types::{FallbackPolicy, Platform};
-
-#[derive(Clone, Debug)]
-pub(crate) struct SeamEntry<C> {
-    id: ProviderId,
-    config: C,
-    configured: bool,
-}
-
-impl<C> SeamEntry<C> {
-    fn new(id: ProviderId, config: C, configured: bool) -> Self {
-        Self {
-            id,
-            config,
-            configured,
-        }
-    }
-
-    pub(crate) fn id(&self) -> ProviderId {
-        self.id
-    }
-
-    pub(crate) fn name(&self) -> &'static str {
-        self.id.name()
-    }
-
-    pub(crate) fn configured(&self) -> bool {
-        self.configured
-    }
-
-    pub(crate) fn config(&self) -> &C {
-        &self.config
-    }
-
-    pub(crate) fn into_parts(self) -> (ProviderId, C, bool) {
-        (self.id, self.config, self.configured)
-    }
-}
-
-fn entry_names<C>(entries: &[SeamEntry<C>]) -> Vec<String> {
-    entries
-        .iter()
-        .map(|entry| entry.name().to_owned())
-        .collect()
-}
-
-fn unconfigured_entry_names<C>(entries: &[SeamEntry<C>]) -> Vec<String> {
-    entries
-        .iter()
-        .filter(|entry| !entry.configured())
-        .map(|entry| entry.name().to_owned())
-        .collect()
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct ExaRuntimeConfig {
-    pub(crate) url: String,
-    pub(crate) keys: Vec<Secret>,
-    pub(crate) timeout_seconds: u64,
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct XaiRuntimeConfig {
-    pub(crate) url: String,
-    pub(crate) keys: Vec<Secret>,
-    pub(crate) model: String,
-    pub(crate) tools: Vec<String>,
-}
+use crate::types::Platform;
 
 #[derive(Clone, Debug)]
 pub(crate) struct ClassifierRuntimeConfig {
@@ -96,64 +36,11 @@ impl ClassifierRuntimeConfig {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct MainSearchRuntimeConfig {
-    entries: Vec<SeamEntry<MainSearchProviderConfig>>,
-    pub(crate) fallback: FallbackPolicy,
-}
-
-#[derive(Clone, Debug)]
-pub(crate) enum MainSearchProviderConfig {
-    Xai(XaiRuntimeConfig),
-}
-
-fn provider_configured(id: ProviderId, keys: &[Secret]) -> bool {
-    catalog::registration(id).is_configured(keys.len())
-}
-
-impl MainSearchProviderConfig {
-    pub(crate) fn configured(&self) -> bool {
-        match self {
-            Self::Xai(config) => provider_configured(ProviderId::Xai, &config.keys),
-        }
-    }
-
-    pub(crate) fn url(&self) -> &str {
-        match self {
-            Self::Xai(config) => &config.url,
-        }
-    }
-}
-
-impl MainSearchRuntimeConfig {
-    pub(crate) fn entries(&self) -> &[SeamEntry<MainSearchProviderConfig>] {
-        &self.entries
-    }
-
-    pub(crate) fn into_entries(self) -> Vec<SeamEntry<MainSearchProviderConfig>> {
-        self.entries
-    }
-
-    pub(crate) fn configured_provider_count(&self) -> usize {
-        self.entries
-            .iter()
-            .filter(|entry| entry.configured())
-            .count()
-    }
-}
-
-#[derive(Clone, Debug)]
 pub(crate) struct JournalRuntimeConfig {
     pub(crate) enabled: bool,
     pub(crate) dir: PathBuf,
     pub(crate) retention_days: u64,
     pub(crate) credentials: Vec<Secret>,
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct Context7RuntimeConfig {
-    pub(crate) url: String,
-    pub(crate) keys: Vec<Secret>,
-    pub(crate) timeout_seconds: u64,
 }
 
 /// The configuration of every platform route. Route lookups take it whole, so a new route adds
@@ -280,127 +167,6 @@ impl PlatformsRuntimeConfig {
     }
 }
 
-#[derive(Clone, Debug)]
-pub(crate) enum DocsSearchProviderConfig {
-    Exa(ExaRuntimeConfig),
-    Context7(Context7RuntimeConfig),
-}
-
-impl DocsSearchProviderConfig {
-    pub(crate) fn configured(&self) -> bool {
-        match self {
-            Self::Exa(config) => provider_configured(ProviderId::Exa, &config.keys),
-            Self::Context7(config) => provider_configured(ProviderId::Context7, &config.keys),
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct DocsSearchRuntimeConfig {
-    entries: Vec<SeamEntry<DocsSearchProviderConfig>>,
-}
-
-impl DocsSearchRuntimeConfig {
-    pub(crate) fn configured_provider_count(&self) -> usize {
-        self.entries
-            .iter()
-            .filter(|entry| entry.configured())
-            .count()
-    }
-
-    pub(crate) fn entries(&self) -> &[SeamEntry<DocsSearchProviderConfig>] {
-        &self.entries
-    }
-
-    pub(crate) fn into_entries(self) -> Vec<SeamEntry<DocsSearchProviderConfig>> {
-        self.entries
-    }
-
-    pub(crate) fn names(&self) -> Vec<String> {
-        entry_names(&self.entries)
-    }
-
-    pub(crate) fn unconfigured_names(&self) -> Vec<String> {
-        unconfigured_entry_names(&self.entries)
-    }
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct WebFetchProviderConfig {
-    pub(crate) url: String,
-    pub(crate) keys: Vec<Secret>,
-    pub(crate) timeout_seconds: u64,
-    pub(crate) respond_with: String,
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct WebFetchRuntimeConfig {
-    entries: Vec<SeamEntry<WebFetchProviderConfig>>,
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct WebSearchRuntimeConfig {
-    entries: Vec<SeamEntry<WebFetchProviderConfig>>,
-}
-
-impl WebSearchRuntimeConfig {
-    pub(crate) fn configured_provider_count(&self) -> usize {
-        self.entries
-            .iter()
-            .filter(|entry| entry.configured())
-            .count()
-    }
-
-    pub(crate) fn entries(&self) -> &[SeamEntry<WebFetchProviderConfig>] {
-        &self.entries
-    }
-
-    pub(crate) fn into_entries(self) -> Vec<SeamEntry<WebFetchProviderConfig>> {
-        self.entries
-    }
-
-    pub(crate) fn names(&self) -> Vec<String> {
-        entry_names(&self.entries)
-    }
-
-    pub(crate) fn unconfigured_names(&self) -> Vec<String> {
-        unconfigured_entry_names(&self.entries)
-    }
-
-    pub(crate) fn retain(&mut self, id: ProviderId) {
-        self.entries.retain(|entry| entry.id() == id);
-    }
-}
-
-impl WebFetchRuntimeConfig {
-    pub(crate) fn configured_provider_count(&self) -> usize {
-        self.entries
-            .iter()
-            .filter(|entry| entry.configured())
-            .count()
-    }
-
-    pub(crate) fn entries(&self) -> &[SeamEntry<WebFetchProviderConfig>] {
-        &self.entries
-    }
-
-    pub(crate) fn into_entries(self) -> Vec<SeamEntry<WebFetchProviderConfig>> {
-        self.entries
-    }
-
-    pub(crate) fn names(&self) -> Vec<String> {
-        entry_names(&self.entries)
-    }
-
-    pub(crate) fn unconfigured_names(&self) -> Vec<String> {
-        unconfigured_entry_names(&self.entries)
-    }
-
-    pub(crate) fn retain_first(&mut self) {
-        self.entries.truncate(1);
-    }
-}
-
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct RetryRuntimeConfig {
     pub(crate) max_attempts: usize,
@@ -435,6 +201,7 @@ pub(crate) struct RuntimeConfig {
     pub(crate) main_search: MainSearchRuntimeConfig,
     pub(crate) classifier: ClassifierRuntimeConfig,
     pub(crate) xai: XaiRuntimeConfig,
+    pub(crate) openai: OpenaiRuntimeConfig,
     pub(crate) exa: ExaRuntimeConfig,
     pub(crate) context7: Context7RuntimeConfig,
     pub(crate) platform_routes: PlatformRoutesRuntimeConfig,
@@ -468,11 +235,23 @@ impl RuntimeConfig {
         provider_configured(id, self.provider_runtime(id).keys)
     }
 
+    /// Returns the configuration of every main-search backend, for building one of them.
+    pub(crate) fn main_search_providers(&self) -> MainSearchProviders<'_> {
+        MainSearchProviders {
+            xai: &self.xai,
+            openai: &self.openai,
+        }
+    }
+
     pub(crate) fn provider_runtime(&self, id: ProviderId) -> ProviderRuntime<'_> {
         match id {
             ProviderId::Xai => ProviderRuntime {
                 endpoint: &self.xai.url,
                 keys: &self.xai.keys,
+            },
+            ProviderId::Openai => ProviderRuntime {
+                endpoint: &self.openai.url,
+                keys: &self.openai.keys,
             },
             ProviderId::Exa => ProviderRuntime {
                 endpoint: &self.exa.url,
@@ -663,22 +442,27 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         fallback_models: config.classifier.fallback_models,
         timeout_seconds: config.classifier.timeout,
     };
-    let main_entries = main_search_entries(config.search.backends, &xai)?;
-    let docs_entries = docs_search_entries(config.capabilities.docs_search.order, &exa, &context7)?;
-    let web_search_entries = web_entries(
-        config.capabilities.web_search.order,
-        "web_search",
-        &tavily,
-        &firecrawl,
-        &jina,
+    let openai = OpenaiRuntimeConfig {
+        url: config.providers.openai.url,
+        keys: config.providers.openai.keys,
+        model: config.providers.openai.model,
+    };
+    let main_search = main_search_runtime(
+        config.search.backends,
+        fallback,
+        &MainSearchProviders {
+            xai: &xai,
+            openai: &openai,
+        },
     )?;
-    let web_fetch_entries = web_entries(
-        config.capabilities.web_fetch.order,
-        "web_fetch",
-        &tavily,
-        &firecrawl,
-        &jina,
-    )?;
+    let docs_search = docs_search_runtime(config.capabilities.docs_search.order, &exa, &context7)?;
+    let web_providers = WebProviders {
+        tavily: &tavily,
+        firecrawl: &firecrawl,
+        jina: &jina,
+    };
+    let web_search = web_search_runtime(config.capabilities.web_search.order, &web_providers)?;
+    let web_fetch = web_fetch_runtime(config.capabilities.web_fetch.order, &web_providers)?;
     let platforms = PlatformsRuntimeConfig {
         arxiv: platform_entries(
             Platform::Arxiv,
@@ -719,12 +503,10 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         )?,
     };
     Ok(RuntimeConfig {
-        main_search: MainSearchRuntimeConfig {
-            entries: main_entries,
-            fallback,
-        },
+        main_search,
         classifier,
         xai,
+        openai,
         exa,
         context7,
         platform_routes,
@@ -739,15 +521,9 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         tavily,
         firecrawl,
         jina,
-        docs_search: DocsSearchRuntimeConfig {
-            entries: docs_entries,
-        },
-        web_search: WebSearchRuntimeConfig {
-            entries: web_search_entries,
-        },
-        web_fetch: WebFetchRuntimeConfig {
-            entries: web_fetch_entries,
-        },
+        docs_search,
+        web_search,
+        web_fetch,
         platforms,
         journal,
         retry: RetryRuntimeConfig {
@@ -760,65 +536,6 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         log_level: LogLevel::from_validated(&config.log.level),
         ssl_verify: config.http.ssl_verify,
     })
-}
-
-fn unknown_provider(name: &str, seam: &str) -> ConfigError {
-    ConfigError::Message(format!("{seam} contains unknown provider `{name}`"))
-}
-
-fn main_search_entries(
-    order: Vec<String>,
-    xai: &XaiRuntimeConfig,
-) -> Result<Vec<SeamEntry<MainSearchProviderConfig>>, ConfigError> {
-    order
-        .into_iter()
-        .map(|name| {
-            let id = ProviderId::parse(&name)
-                .ok_or_else(|| unknown_provider(&name, "search.backends"))?;
-            let config = main_provider_config(id, xai)
-                .ok_or_else(|| unknown_provider(&name, "search.backends"))?;
-            let configured = config.configured();
-            Ok(SeamEntry::new(id, config, configured))
-        })
-        .collect()
-}
-
-fn docs_search_entries(
-    order: Vec<String>,
-    exa: &ExaRuntimeConfig,
-    context7: &Context7RuntimeConfig,
-) -> Result<Vec<SeamEntry<DocsSearchProviderConfig>>, ConfigError> {
-    order
-        .into_iter()
-        .map(|name| {
-            let seam = "capabilities.docs_search.order";
-            let id = ProviderId::parse(&name).ok_or_else(|| unknown_provider(&name, seam))?;
-            let config = docs_provider_config(id, exa, context7)
-                .ok_or_else(|| unknown_provider(&name, seam))?;
-            let configured = config.configured();
-            Ok(SeamEntry::new(id, config, configured))
-        })
-        .collect()
-}
-
-fn web_entries(
-    order: Vec<String>,
-    seam: &str,
-    tavily: &WebFetchProviderConfig,
-    firecrawl: &WebFetchProviderConfig,
-    jina: &WebFetchProviderConfig,
-) -> Result<Vec<SeamEntry<WebFetchProviderConfig>>, ConfigError> {
-    let catalog = catalog::by_seam(seam).ok_or_else(|| unknown_provider("", seam))?;
-    order
-        .into_iter()
-        .map(|name| {
-            let id = ProviderId::parse(&name).ok_or_else(|| unknown_provider(&name, seam))?;
-            let config = web_provider_config(catalog, id, tavily, firecrawl, jina)
-                .ok_or_else(|| unknown_provider(&name, seam))?;
-            let configured = provider_configured(id, &config.keys);
-            Ok(SeamEntry::new(id, config, configured))
-        })
-        .collect()
 }
 
 fn platform_entries(
@@ -878,46 +595,6 @@ pub(crate) fn platform_route_config(
             routes.polymarket_api.clone(),
         )),
         ProviderId::RedditWeb => Some(PlatformRouteConfig::RedditWeb(routes.reddit_web.clone())),
-        _ => None,
-    }
-}
-
-pub(crate) fn main_provider_config(
-    id: ProviderId,
-    xai: &XaiRuntimeConfig,
-) -> Option<MainSearchProviderConfig> {
-    match id {
-        ProviderId::Xai => Some(MainSearchProviderConfig::Xai(xai.clone())),
-        _ => None,
-    }
-}
-
-pub(crate) fn docs_provider_config(
-    id: ProviderId,
-    exa: &ExaRuntimeConfig,
-    context7: &Context7RuntimeConfig,
-) -> Option<DocsSearchProviderConfig> {
-    match id {
-        ProviderId::Exa => Some(DocsSearchProviderConfig::Exa(exa.clone())),
-        ProviderId::Context7 => Some(DocsSearchProviderConfig::Context7(context7.clone())),
-        _ => None,
-    }
-}
-
-pub(crate) fn web_provider_config(
-    catalog: catalog::CapabilityCatalog,
-    id: ProviderId,
-    tavily: &WebFetchProviderConfig,
-    firecrawl: &WebFetchProviderConfig,
-    jina: &WebFetchProviderConfig,
-) -> Option<WebFetchProviderConfig> {
-    if !catalog.contains(id) {
-        return None;
-    }
-    match id {
-        ProviderId::Tavily => Some(tavily.clone()),
-        ProviderId::Firecrawl => Some(firecrawl.clone()),
-        ProviderId::Jina => Some(jina.clone()),
         _ => None,
     }
 }

@@ -1,4 +1,3 @@
-use std::marker::PhantomData;
 use std::sync::LazyLock;
 
 use serde::{Deserialize, Deserializer, Serialize, de};
@@ -6,6 +5,10 @@ use serde::{Deserialize, Deserializer, Serialize, de};
 use crate::catalog;
 use crate::redact::Secret;
 use crate::types::Platform;
+
+#[path = "schema_providers.rs"]
+mod providers;
+pub(super) use providers::Providers;
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
@@ -55,290 +58,6 @@ impl Default for Classifier {
             keys: Vec::new(),
             model: String::new(),
             fallback_models: Vec::new(),
-            timeout: 30,
-        }
-    }
-}
-
-#[derive(Clone, Debug, Default, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub(super) struct Providers {
-    pub(super) xai: Xai,
-    pub(super) exa: Endpoint<ExaEndpoint>,
-    pub(super) context7: Endpoint<Context7Endpoint>,
-    pub(super) jina: Jina,
-    pub(super) tavily: Endpoint<TavilyEndpoint>,
-    pub(super) firecrawl: Endpoint<FirecrawlEndpoint>,
-    pub(super) arxiv_api: AnonymousEndpoint<ArxivApiEndpoint>,
-    pub(super) ssrn_crossref: AnonymousEndpoint<SsrnCrossrefEndpoint>,
-    pub(super) ssrn_browser: ProcessRoute<SsrnBrowserProcess>,
-    pub(super) serpapi: Endpoint<SerpapiEndpoint>,
-    pub(super) xiaohongshu_browser: ProcessRoute<XiaohongshuBrowserProcess>,
-    pub(super) hn_api: HnApi,
-    pub(super) youtube_api: Endpoint<YoutubeApiEndpoint>,
-    pub(super) youtube_web: AnonymousEndpoint<YoutubeWebEndpoint>,
-    pub(super) gemini_api: GeminiApi,
-    pub(super) gemini_browser: ProcessRoute<GeminiBrowserProcess>,
-    pub(super) chatgpt_browser: ProcessRoute<ChatgptBrowserProcess>,
-    pub(super) polymarket_api: PolymarketApi,
-    pub(super) reddit_web: RedditWeb,
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub(super) struct Xai {
-    pub(super) url: String,
-    pub(super) keys: Vec<Secret>,
-    pub(super) model: String,
-    pub(super) tools: Vec<String>,
-}
-
-impl Default for Xai {
-    fn default() -> Self {
-        Self {
-            url: "https://api.x.ai/v1".into(),
-            keys: Vec::new(),
-            model: "grok-4-fast".into(),
-            tools: vec!["web_search".into(), "x_search".into()],
-        }
-    }
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub(super) struct Endpoint<D: EndpointDefaults> {
-    pub(super) url: String,
-    pub(super) keys: Vec<Secret>,
-    #[serde(deserialize_with = "deserialize_integer")]
-    pub(super) timeout: u64,
-    #[serde(skip)]
-    pub(super) defaults: PhantomData<D>,
-}
-
-impl<D: EndpointDefaults> Default for Endpoint<D> {
-    fn default() -> Self {
-        Self {
-            url: D::URL.into(),
-            keys: Vec::new(),
-            timeout: D::TIMEOUT_SECONDS,
-            defaults: PhantomData,
-        }
-    }
-}
-
-/// The endpoint section of a provider whose registration requires no credentials.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub(super) struct AnonymousEndpoint<D: EndpointDefaults> {
-    pub(super) url: String,
-    #[serde(deserialize_with = "deserialize_integer")]
-    pub(super) timeout: u64,
-    #[serde(skip)]
-    pub(super) defaults: PhantomData<D>,
-}
-
-impl<D: EndpointDefaults> Default for AnonymousEndpoint<D> {
-    fn default() -> Self {
-        Self {
-            url: D::URL.into(),
-            timeout: D::TIMEOUT_SECONDS,
-            defaults: PhantomData,
-        }
-    }
-}
-
-/// The section of a route that runs a local OpenCLI command instead of sending HTTP requests.
-/// The configuration selects only the executable; the route owns every argument (ADR 0019).
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub(super) struct ProcessRoute<D: ProcessDefaults> {
-    pub(super) command: String,
-    #[serde(deserialize_with = "deserialize_integer")]
-    pub(super) timeout: u64,
-    #[serde(skip)]
-    pub(super) defaults: PhantomData<D>,
-}
-
-impl<D: ProcessDefaults> Default for ProcessRoute<D> {
-    fn default() -> Self {
-        Self {
-            command: "opencli".into(),
-            timeout: D::TIMEOUT_SECONDS,
-            defaults: PhantomData,
-        }
-    }
-}
-
-pub(super) trait ProcessDefaults {
-    const TIMEOUT_SECONDS: u64;
-}
-
-#[derive(Clone, Debug)]
-pub(super) struct SsrnBrowserProcess;
-
-impl ProcessDefaults for SsrnBrowserProcess {
-    const TIMEOUT_SECONDS: u64 = 90;
-}
-
-#[derive(Clone, Debug)]
-pub(super) struct XiaohongshuBrowserProcess;
-
-// One command opens the results page in about 20 seconds and then reads up to four more pages.
-impl ProcessDefaults for XiaohongshuBrowserProcess {
-    const TIMEOUT_SECONDS: u64 = 120;
-}
-
-#[derive(Clone, Debug)]
-pub(super) struct GeminiBrowserProcess;
-
-// Starting a research waits for the plan and then for the confirmed turn, about a minute live.
-impl ProcessDefaults for GeminiBrowserProcess {
-    const TIMEOUT_SECONDS: u64 = 240;
-}
-
-#[derive(Clone, Debug)]
-pub(super) struct ChatgptBrowserProcess;
-
-// The same budget as Gemini: starting a research sends once and then waits for the plan card.
-impl ProcessDefaults for ChatgptBrowserProcess {
-    const TIMEOUT_SECONDS: u64 = 240;
-}
-
-pub(super) trait EndpointDefaults {
-    const URL: &'static str;
-    const TIMEOUT_SECONDS: u64;
-}
-
-macro_rules! endpoint_defaults {
-    ($name:ident, $url:literal) => {
-        endpoint_defaults!($name, $url, 30);
-    };
-    ($name:ident, $url:literal, $timeout:literal) => {
-        #[derive(Clone, Debug)]
-        pub(super) struct $name;
-
-        impl EndpointDefaults for $name {
-            const URL: &'static str = $url;
-            const TIMEOUT_SECONDS: u64 = $timeout;
-        }
-    };
-}
-
-endpoint_defaults!(ExaEndpoint, "https://api.exa.ai");
-endpoint_defaults!(Context7Endpoint, "https://mcp.context7.com/mcp");
-endpoint_defaults!(TavilyEndpoint, "https://api.tavily.com");
-// Matches the 60 s server-side timeout that Web Fetch requests from Firecrawl (ADR 0018).
-endpoint_defaults!(FirecrawlEndpoint, "https://api.firecrawl.dev/v2", 60);
-endpoint_defaults!(ArxivApiEndpoint, "https://export.arxiv.org/api/query");
-endpoint_defaults!(SsrnCrossrefEndpoint, "https://api.crossref.org");
-endpoint_defaults!(SerpapiEndpoint, "https://serpapi.com/search.json");
-endpoint_defaults!(YoutubeApiEndpoint, "https://www.googleapis.com/youtube/v3");
-endpoint_defaults!(YoutubeWebEndpoint, "https://www.youtube.com");
-
-/// The `hn_api` route section: one URL per official Hacker News endpoint the route combines.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub(super) struct HnApi {
-    pub(super) url: String,
-    pub(super) firebase_url: String,
-    #[serde(deserialize_with = "deserialize_integer")]
-    pub(super) timeout: u64,
-}
-
-impl Default for HnApi {
-    fn default() -> Self {
-        Self {
-            url: "https://hn.algolia.com/api/v1".into(),
-            firebase_url: "https://hacker-news.firebaseio.com/v0".into(),
-            timeout: 30,
-        }
-    }
-}
-
-/// The `polymarket_api` route section: one URL per official Polymarket endpoint the route
-/// combines.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub(super) struct PolymarketApi {
-    pub(super) url: String,
-    pub(super) clob_url: String,
-    pub(super) data_url: String,
-    #[serde(deserialize_with = "deserialize_integer")]
-    pub(super) timeout: u64,
-}
-
-impl Default for PolymarketApi {
-    fn default() -> Self {
-        Self {
-            url: "https://gamma-api.polymarket.com".into(),
-            clob_url: "https://clob.polymarket.com".into(),
-            data_url: "https://data-api.polymarket.com".into(),
-            timeout: 30,
-        }
-    }
-}
-
-/// The `reddit_web` route section: the site origin that serves search and comment pages, and the
-/// origin of its embed pages.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub(super) struct RedditWeb {
-    pub(super) url: String,
-    pub(super) embed_url: String,
-    #[serde(deserialize_with = "deserialize_integer")]
-    pub(super) timeout: u64,
-}
-
-impl Default for RedditWeb {
-    fn default() -> Self {
-        Self {
-            url: "https://www.reddit.com".into(),
-            embed_url: "https://embed.reddit.com".into(),
-            timeout: 30,
-        }
-    }
-}
-
-/// The `gemini_api` route section: a Gemini `generateContent` endpoint, the official API or a
-/// gateway that speaks its protocol.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub(super) struct GeminiApi {
-    pub(super) url: String,
-    pub(super) keys: Vec<Secret>,
-    pub(super) model: String,
-    #[serde(deserialize_with = "deserialize_integer")]
-    pub(super) timeout: u64,
-}
-
-// A model reads a long video for minutes before it answers.
-impl Default for GeminiApi {
-    fn default() -> Self {
-        Self {
-            url: "https://generativelanguage.googleapis.com/v1beta".into(),
-            keys: Vec::new(),
-            model: "gemini-flash-latest".into(),
-            timeout: 300,
-        }
-    }
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub(super) struct Jina {
-    pub(super) url: String,
-    pub(super) keys: Vec<Secret>,
-    pub(super) respond_with: String,
-    #[serde(deserialize_with = "deserialize_integer")]
-    pub(super) timeout: u64,
-}
-
-impl Default for Jina {
-    fn default() -> Self {
-        Self {
-            url: "https://r.jina.ai".into(),
-            keys: Vec::new(),
-            respond_with: String::new(),
             timeout: 30,
         }
     }
@@ -635,6 +354,9 @@ pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("providers.xai.keys", providers.xai.keys: Secrets, Rule::Any, View::Keys, "credential pool; keep empty until credentials are available"),
     leaf!("providers.xai.model", providers.xai.model: String, Rule::Any, View::Plain, "model identifier"),
     leaf!("providers.xai.tools", providers.xai.tools: Strings, Rule::Subset { allowed: XAI_TOOLS, unique: false, allow_empty: true }, View::Plain, "xAI tools enabled for the main model"),
+    leaf!("providers.openai.url", providers.openai.url: String, Rule::Any, View::Url, "OpenAI Responses API base URL whose `/responses` endpoint runs main search with its web_search tool: the official API or a gateway that speaks the same protocol"),
+    leaf!("providers.openai.keys", providers.openai.keys: Secrets, Rule::Any, View::Keys, "credential pool; keep empty until credentials are available"),
+    leaf!("providers.openai.model", providers.openai.model: String, Rule::NonEmpty, View::Plain, "model identifier"),
     leaf!("providers.exa.url", providers.exa.url: String, Rule::Any, View::Url, "service endpoint URL"),
     leaf!("providers.exa.keys", providers.exa.keys: Secrets, Rule::Any, View::Keys, "credential pool; keep empty until credentials are available"),
     leaf!("providers.exa.timeout", providers.exa.timeout: U64, Rule::Positive, View::Plain, "shared timeout in seconds; must be greater than zero"),
@@ -928,6 +650,7 @@ mod tests {
         match path {
             "classifier.keys" => Some(&config.classifier.keys),
             "providers.xai.keys" => Some(&config.providers.xai.keys),
+            "providers.openai.keys" => Some(&config.providers.openai.keys),
             "providers.exa.keys" => Some(&config.providers.exa.keys),
             "providers.context7.keys" => Some(&config.providers.context7.keys),
             "providers.jina.keys" => Some(&config.providers.jina.keys),

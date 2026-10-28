@@ -26,8 +26,8 @@
 ## 保留（概念平移）
 
 12. 其余全部保留：
-    - **6 个 provider**：exa、tavily、firecrawl、jina、context7、xai-responses（openai-compatible 已退役，见文末修订留痕）。
-    - **主搜索管线语义**：主链 `[xai-responses]`、`--capabilities`、fallback 模式、`--extra-sources 0..=20`、来源规范化。`extra_sources=0` 是分支本地默认哨兵：Supplemental Web Search 目标为 3，Documentation Search 目标为 1。
+    - **6 个 provider**：exa、tavily、firecrawl、jina、context7、xai-responses（openai-compatible 已退役；主搜索 provider openai 由 #254 新增，均见文末修订留痕）。
+    - **主搜索管线语义**：主链 `[xai, openai]`（openai 的加入见文末修订留痕）、`--capabilities`、fallback 模式、`--extra-sources 0..=20`、来源规范化。`extra_sources=0` 是分支本地默认哨兵：Supplemental Web Search 目标为 3，Documentation Search 目标为 1。
     - **`research` 一体化入口**（吸收计划能力；证据目录约定降格为 skill 文档约定）。
     - **直连命令六件套**：fetch、map、exa search、exa similar、context7 library、context7 docs。
     - **doctor**（吸收 diagnose 探测）、**smoke**（内容重定义见第 5 章）。
@@ -41,3 +41,4 @@
 - **validation 删除与补强数量恢复**（[#139](https://github.com/jfmoe/forager/issues/139)）：删除无独立职责的 `--validation` / `search.validation`；Caller Capability Declaration、classifier 与 Citation Binding 各自保留既有职责。Supplemental Web Search 的零值目标恢复为 3，Documentation / Vertical Search 的零值目标保持 1，显式 `1..=20` 原样传递。
 - **Vertical Search Capability 与 AnySearch 退役**（[#240](https://github.com/jfmoe/forager/issues/240)，[ADR-0030](../../adr/0030-retire-vertical-search-capability.md)）：删除 `vertical_search` 能力、AnySearch provider、`anysearch` 子命令及其配置键，不保留兼容层。
 - **openai-compatible 主搜索 backend 退役**（[#242](https://github.com/jfmoe/forager/issues/242)，[ADR-0031](../../adr/0031-retire-openai-compatible-main-search-backend.md)）：删除 openai-compatible provider 及只为它存在的模型链、model 断路器、SSE→HTTP 传输回退与 `breaker_event`，不保留兼容层；Main Search 仍是 Capability Seam，`search.backends` 只剩 `xai`。
+- **openai 主搜索 backend 接入**（[#254](https://github.com/jfmoe/forager/issues/254)，[ADR-0034](../../adr/0034-openai-main-search-backend-through-responses-web-search.md)）：新增与 xai 故障域独立的 backend `openai`，经 OpenAI Responses API 与固定的 `web_search` 工具执行主搜索；`search.backends` 值域扩为 `{xai, openai}`、默认 `["xai", "openai"]`，没有 key 的 openai 在链上跳过；`--model` 只作用于实际运行的链首。ADR-0031 退役的模型链、断路器与传输回退不恢复。

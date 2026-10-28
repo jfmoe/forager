@@ -14,11 +14,11 @@ use serde::Deserialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 
-use super::Xai;
-use super::responses::{ResponsesRequest, output_text};
+use super::{SERVICE, Xai};
 use crate::catalog::{PlatformOperation, ProviderId};
 use crate::net::{AttemptFailure, combine_diagnostics};
 use crate::providers::execution::{ExecutionOutcome, execute_v2};
+use crate::providers::responses_api::{ResponsesRequest, output_text};
 use crate::providers::shared::{normalize_main_search, other_platform_message, parameter_error};
 use crate::providers::types::with_time_context;
 use crate::types::{
@@ -162,7 +162,7 @@ impl Xai {
         );
         let execution = self
             .run_x(ASK, &body, |response| {
-                let (answer, sources) = output_text(response)?;
+                let (answer, sources) = output_text(SERVICE, response)?;
                 let (answer, sources) = normalize_main_search(&answer, sources, &self.credentials)?;
                 Ok((answer, x_sources(sources)))
             })
@@ -193,7 +193,7 @@ impl Xai {
                 self.config.model.clone(),
             ),
             |credential, _| async move {
-                let (status, response) = self.complete(body, &credential).await?;
+                let (status, response) = self.responses().complete(body, &credential).await?;
                 decode(&response).map(|value| (Some(status), value))
             },
         )
@@ -291,7 +291,7 @@ fn runtime(message: String) -> AttemptFailure {
 
 /// Decodes the structured output and the IDs of every post the response cites as read.
 fn structured<T: DeserializeOwned>(response: &Value) -> Result<(T, HashSet<u64>), AttemptFailure> {
-    let (text, sources) = output_text(response)?;
+    let (text, sources) = output_text(SERVICE, response)?;
     let decoded = serde_json::from_str(&text).map_err(|error| {
         runtime(format!(
             "xAI returned X posts that are not the requested JSON: {error}"

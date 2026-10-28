@@ -1,19 +1,22 @@
-//! The xAI Responses API transport that main search and the X platform share: the request
+//! The Responses API transport that every provider speaking the protocol shares: the request
 //! body, the SSE stream, terminal failure events, and the text and citations of a completed
-//! response. Each caller builds its own request and decodes the completed response itself.
+//! response. Each caller builds its own request and decodes the completed response itself;
+//! failure messages name the caller's service.
 
 use eventsource_stream::Event;
 use futures_util::{Stream, StreamExt};
-use reqwest::StatusCode;
+use reqwest::{Client, StatusCode};
 use serde::Serialize;
 use serde_json::Value;
 
-use super::Xai;
 use crate::credentials::CredentialPool;
-use crate::net::{AttemptFailure, error_kind_for_status, read_capped_sse, send_provider_request};
+use crate::net::{
+    AttemptFailure, RetryPolicy, error_kind_for_status, read_capped_sse, send_provider_request,
+};
+use crate::providers::execution::ExecutionSettings;
 use crate::providers::shared::redacted_urls_message;
 use crate::redact::Secret;
-use crate::types::{AttemptErrorKind, Source};
+use crate::types::{AttemptErrorKind, AttemptTarget, Deadline, Source};
 
 /// One streamed Responses API request.
 #[derive(Serialize)]
@@ -75,29 +78,67 @@ impl<'a> ResponsesRequest<'a> {
     }
 }
 
-impl Xai {
+/// The Responses endpoint of one provider.
+pub(super) struct ResponsesEndpoint<'a> {
+    /// The provider its attempts record.
+    pub(super) provider: &'static str,
+    /// The service failure messages name, such as `xAI Responses`.
+    pub(super) service: &'static str,
+    pub(super) timeout_message: &'static str,
+    /// The API base URL; requests go to its `/responses` path.
+    pub(super) url: &'a str,
+    pub(super) client: &'a Client,
+    pub(super) credentials: &'a CredentialPool,
+}
+
+impl ResponsesEndpoint<'_> {
+    /// Returns the settings of one request: streamed, bounded only by the command deadline.
+    pub(super) fn settings(
+        &self,
+        target: AttemptTarget,
+        model: String,
+        retry_policy: RetryPolicy,
+        deadline: Deadline,
+    ) -> ExecutionSettings {
+        ExecutionSettings {
+            provider: self.provider,
+            target,
+            retry_policy,
+            deadline,
+            attempt_timeout: deadline.remaining().unwrap_or_default(),
+            verbose: false,
+            timeout_message: self.timeout_message,
+            model: Some(model),
+            transport: Some("sse"),
+            endpoint_host: reqwest::Url::parse(self.url)
+                .ok()
+                .and_then(|url| url.host_str().map(ToOwned::to_owned)),
+        }
+    }
+
     /// Sends one request and returns the HTTP status and the completed response.
     pub(super) async fn complete(
         &self,
         body: &ResponsesRequest<'_>,
         credential: &Secret,
     ) -> Result<(u16, Value), AttemptFailure> {
-        let endpoint = format!("{}/responses", self.config.url.trim_end_matches('/'));
+        let endpoint = format!("{}/responses", self.url.trim_end_matches('/'));
         let request = self
             .client
             .post(endpoint)
             .bearer_auth(credential.expose())
             .header("accept", "text/event-stream")
             .json(body);
-        let response = send_provider_request(request, &self.credentials).await?;
+        let response = send_provider_request(request, self.credentials).await?;
+        let service = self.service;
         let (status, events) = read_capped_sse(
             response,
-            &self.credentials,
-            xai_error,
-            "xAI Responses returned invalid SSE",
+            self.credentials,
+            |body, _| request_failure_message(service, body),
+            format!("{service} returned invalid SSE"),
         )
         .await?;
-        let completed = completed_from_events(events, &self.credentials).await?;
+        let completed = completed_from_events(service, events, self.credentials).await?;
         Ok((status, completed))
     }
 }
@@ -105,6 +146,7 @@ impl Xai {
 /// Reads the stream to its `response.completed` payload; a failed or incomplete response fails
 /// the attempt.
 async fn completed_from_events<S>(
+    service: &str,
     mut events: S,
     credentials: &CredentialPool,
 ) -> Result<Value, AttemptFailure>
@@ -118,7 +160,7 @@ where
             kind: AttemptErrorKind::Runtime,
             status: Some(200),
             message: redacted_urls_message(
-                &format!("xAI Responses returned invalid event JSON: {error}"),
+                &format!("{service} returned invalid event JSON: {error}"),
                 credentials,
             ),
         })?
@@ -133,7 +175,7 @@ where
                     .ok_or_else(|| AttemptFailure {
                         kind: AttemptErrorKind::Runtime,
                         status: Some(200),
-                        message: "xAI response.completed omitted response data".into(),
+                        message: format!("{service} response.completed omitted response data"),
                     })?;
                 completed = Some(response);
             }
@@ -141,7 +183,10 @@ where
                 return Err(AttemptFailure {
                     kind: terminal_error_kind(&payload),
                     status: Some(200),
-                    message: redacted_urls_message(&terminal_message(&payload), credentials),
+                    message: redacted_urls_message(
+                        &terminal_message(service, &payload),
+                        credentials,
+                    ),
                 });
             }
             _ => {}
@@ -150,13 +195,16 @@ where
     completed.ok_or_else(|| AttemptFailure {
         kind: AttemptErrorKind::Runtime,
         status: Some(200),
-        message: "xAI Responses stream ended before response.completed".into(),
+        message: format!("{service} stream ended before response.completed"),
     })
 }
 
 /// Returns the output text of a completed response and the sources its `url_citation`
 /// annotations name.
-pub(super) fn output_text(response: &Value) -> Result<(String, Vec<Source>), AttemptFailure> {
+pub(super) fn output_text(
+    service: &str,
+    response: &Value,
+) -> Result<(String, Vec<Source>), AttemptFailure> {
     let mut text_parts = Vec::new();
     let mut sources = Vec::new();
     for content in response
@@ -217,17 +265,17 @@ pub(super) fn output_text(response: &Value) -> Result<(String, Vec<Source>), Att
         return Err(AttemptFailure {
             kind: AttemptErrorKind::Runtime,
             status: Some(200),
-            message: "xAI response.completed contained no output_text".into(),
+            message: format!("{service} response.completed contained no output_text"),
         });
     }
     Ok((answer, sources))
 }
 
-fn terminal_message(event: &Value) -> String {
+fn terminal_message(service: &str, event: &Value) -> String {
     let event_type = event
         .get("type")
         .and_then(Value::as_str)
-        .unwrap_or("xAI terminal failure");
+        .unwrap_or("a terminal failure");
     event
         .get("error")
         .or_else(|| {
@@ -242,14 +290,14 @@ fn terminal_message(event: &Value) -> String {
                 .or_else(|| error.as_str())
         })
         .map_or_else(
-            || format!("xAI Responses ended with {event_type}"),
-            |message| format!("xAI Responses ended with {event_type}: {message}"),
+            || format!("{service} ended with {event_type}"),
+            |message| format!("{service} ended with {event_type}: {message}"),
         )
 }
 
-fn xai_error(body: &str, _status: u16) -> String {
+fn request_failure_message(service: &str, body: &str) -> String {
     if body.trim().is_empty() {
-        "xAI Responses request failed".into()
+        format!("{service} request failed")
     } else {
         body.to_owned()
     }
@@ -400,11 +448,13 @@ mod tests {
         });
 
         assert_eq!(
-            output_text(&completed).ok().map(|(answer, _)| answer),
+            output_text("Test Responses", &completed)
+                .ok()
+                .map(|(answer, _)| answer),
             Some("answer".into())
         );
         assert_eq!(
-            output_text(&missing_output_text)
+            output_text("Test Responses", &missing_output_text)
                 .err()
                 .map(|error| error.kind),
             Some(AttemptErrorKind::Runtime)
@@ -440,7 +490,7 @@ mod tests {
                 message: "connection reset".into(),
             })]);
             assert_eq!(
-                completed_from_events(transport, &credentials)
+                completed_from_events("Test Responses", transport, &credentials)
                     .await
                     .err()
                     .map(|error| error.kind),
@@ -452,7 +502,7 @@ mod tests {
                 ..Event::default()
             })]);
             assert_eq!(
-                completed_from_events(missing_completion, &credentials)
+                completed_from_events("Test Responses", missing_completion, &credentials)
                     .await
                     .err()
                     .map(|error| error.kind),
