@@ -360,7 +360,7 @@ async fn probe_main_search_backend(
                 .map(|route_config| (platform, route_config))
         })
         .collect::<Vec<_>>();
-    let provider_config = config::main_provider_config(provider, &config.xai)
+    let provider_config = config::main_provider_config(provider, &config.main_search_providers())
         .expect("probe registration belongs to the main-search catalog");
     let result = providers::build_main_search(
         provider,

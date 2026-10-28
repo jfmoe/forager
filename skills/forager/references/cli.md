@@ -67,7 +67,7 @@ forager search QUERY [--capabilities CSV|none] [--model ID] [--extra-sources N]
 | --- | --- | --- |
 | `QUERY` | Search request passed to the main-search pipeline. | Required |
 | `--capabilities CSV\|none` | Authoritative supplemental capability set. Use canonical comma-separated IDs, or `none` for main search only. Omit it to use classifier routing, with the configured default Web route when no classifier is available. | Omitted |
-| `--model ID` | Override the configured main-search model for this invocation. | Configured model |
+| `--model ID` | Override the model of the first main-search backend that runs; a fallback backend keeps its configured model. | Configured model |
 | `--extra-sources N` | Set a target in `0..=20`. At `0`, Web Search uses 3 while Documentation Search uses 1; an explicit `1..=20` is the exact target. | `0` |
 | `--fallback MODE` | Use `auto` or `off` for provider fallback. | `search.fallback`, normally `auto` |
 | `--timeout SECONDS` | Set the whole-pipeline deadline. | `180` |
@@ -86,6 +86,14 @@ URL. Search-side Web Fetch successes use the actual fetch provider and a 300-cha
 Fetch Content preview as their candidate summary. `--verbose` adds provider attempts inline.
 Content format emits only the main answer. Markdown labels the two source roles as `Primary
 Sources` and `Extra Sources`.
+
+Main search runs the backends of `search.backends` in order: `xai` (the xAI Responses API) and
+`openai` (an OpenAI Responses endpoint with its `web_search` tool, such as a CLIProxyAPI gateway in
+front of a Codex account). The default order is `["xai", "openai"]`; a backend without
+`providers.<backend>.keys` is skipped. With `--fallback auto`, `openai` answers when `xai` fails;
+`["openai", "xai"]` makes it the first choice. `provider_attempts` show which backend failed and
+which one answered. To use `openai`, set `providers.openai.url` and `providers.openai.keys`;
+`providers.openai.model` defaults to `gpt-6.1-terra`, the Codex model name under CLIProxyAPI.
 
 ### `research`
 
@@ -1428,7 +1436,7 @@ forager doctor [--provider PROVIDER] [--timeout SECONDS] [--format json|markdown
 
 | Option | Meaning | Default |
 | --- | --- | --- |
-| `--provider PROVIDER` | Deep-probe one of `xai`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, `arxiv_api`, `ssrn_crossref`, `ssrn_browser`, `serpapi`, `xiaohongshu_browser`, `hn_api`, or `gemini_browser`. Without it, run the shallow all-provider report. | Omitted |
+| `--provider PROVIDER` | Deep-probe one of `xai`, `openai`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, `arxiv_api`, `ssrn_crossref`, `ssrn_browser`, `serpapi`, `xiaohongshu_browser`, `hn_api`, or `gemini_browser`. Without it, run the shallow all-provider report. | Omitted |
 | `--timeout SECONDS` | Set the diagnostic deadline. | `30` |
 | `--format FORMAT` | Use `json` or `markdown`. | `json` |
 
@@ -1443,8 +1451,9 @@ order and runs one real search in Chrome. The shallow report never checks `gemin
 the adapter is installed and current and the browser is signed in, without reading or starting
 any research. Without a key, `jina` is configured and the shallow report notes that it runs
 anonymously; `--provider jina` then probes without a key, and with keys it reports a failing key
-even when the anonymous request succeeds. `--provider xai` adds an `x_search` check, one X search, while
-`platforms.x.order` lists `xai`. `--provider hn_api` runs one search and adds a `firebase` check,
+even when the anonymous request succeeds. `--provider xai` and `--provider openai` each send one
+Responses model probe without tools, recorded as the `responses` check; `--provider xai` adds an
+`x_search` check, one X search, while `platforms.x.order` lists `xai`. `--provider hn_api` runs one search and adds a `firebase` check,
 one request to the Firebase API. `--provider serpapi` runs no search and costs nothing: it asks
 SerpApi's account endpoint about every configured key and adds a `keys` array, one entry per key
 with `key_index`, `ok`, `searches_left`, `plan_searches_left`, `this_month_usage`,

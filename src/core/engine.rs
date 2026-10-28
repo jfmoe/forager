@@ -153,14 +153,17 @@ fn url_boundary(character: char) -> bool {
         )
 }
 
+/// Runs the main-search chain. A model override goes to the first backend the chain runs, after
+/// skipped unconfigured entries; every later backend uses its configured model.
 pub(crate) async fn search(
-    request: MainSearchRequest,
+    mut request: MainSearchRequest,
     config: MainSearchRuntimeConfig,
     fallback: FallbackPolicy,
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> Result<SearchOutcome, ProviderError> {
+    let mut head_model = request.model.take();
     let step = chain::run_chain(
         provider_steps(config.into_entries()),
         provider_chain_settings(
@@ -173,7 +176,10 @@ pub(crate) async fn search(
         deadline,
         |(id, provider_config), provider_deadline| {
             let client = client.clone();
-            let request = request.clone();
+            let request = MainSearchRequest {
+                model: head_model.take(),
+                ..request.clone()
+            };
             async move {
                 match providers::build_main_search(
                     id,

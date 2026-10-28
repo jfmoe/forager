@@ -84,8 +84,8 @@ pub(crate) async fn read_truncatable_content(
 pub(crate) async fn read_capped_sse(
     response: Response,
     credentials: &CredentialPool,
-    error_message: fn(&str, u16) -> String,
-    stream_error_prefix: &'static str,
+    error_message: impl Fn(&str, u16) -> String,
+    stream_error_prefix: String,
 ) -> Result<(u16, ProviderEventStream), AttemptFailure> {
     let response = ensure_success(response, credentials, error_message, |_| None).await?;
     let status = response.status().as_u16();
@@ -131,7 +131,7 @@ async fn read_success_body(
 async fn ensure_success(
     response: Response,
     credentials: &CredentialPool,
-    error_message: fn(&str, u16) -> String,
+    error_message: impl Fn(&str, u16) -> String,
     reason_kind: fn(&str) -> Option<AttemptErrorKind>,
 ) -> Result<Response, AttemptFailure> {
     let status = response.status();

@@ -526,6 +526,17 @@ pub(crate) fn request_json(request: &str) -> serde_json::Value {
     serde_json::from_str(body).expect("parse request JSON")
 }
 
+/// Reads the single Search Result Journal record an environment wrote.
+pub(crate) fn read_only_journal(environment: &RunEnvironment) -> serde_json::Value {
+    let entry = fs::read_dir(environment.state_dir.join("forager/journal"))
+        .expect("read journal")
+        .next()
+        .expect("journal entry")
+        .expect("valid journal entry");
+    serde_json::from_slice(&fs::read(entry.path()).expect("read journal record"))
+        .expect("parse journal record")
+}
+
 pub(crate) struct RunEnvironment {
     root: tempfile::TempDir,
     pub(crate) config_dir: PathBuf,

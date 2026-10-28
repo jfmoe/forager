@@ -6,6 +6,7 @@ mod location;
 mod route_config;
 mod runtime;
 mod schema;
+mod seam_config;
 mod validate;
 mod view;
 
@@ -20,15 +21,17 @@ pub(crate) use route_config::{
     RedditRouteRuntimeConfig,
 };
 pub(crate) use runtime::{
-    ClassifierRuntimeConfig, Context7RuntimeConfig, DocsSearchProviderConfig,
-    DocsSearchRuntimeConfig, ExaRuntimeConfig, JournalRuntimeConfig, LogLevel,
-    MainSearchProviderConfig, MainSearchRuntimeConfig, PlatformRouteConfig, PlatformRuntimeConfig,
-    RuntimeConfig, SeamEntry, WebFetchProviderConfig, WebFetchRuntimeConfig,
-    WebSearchRuntimeConfig, XaiRuntimeConfig, docs_provider_config, main_provider_config,
-    platform_route_config, provider_keys_key, runtime_config, web_provider_config,
+    ClassifierRuntimeConfig, JournalRuntimeConfig, LogLevel, PlatformRouteConfig,
+    PlatformRuntimeConfig, RuntimeConfig, platform_route_config, provider_keys_key, runtime_config,
 };
 #[cfg(test)]
 pub(crate) use runtime::{PlatformRoutesRuntimeConfig, platform_order_key};
 #[cfg(test)]
 pub(crate) use schema::is_leaf;
+pub(crate) use seam_config::{
+    Context7RuntimeConfig, DocsSearchProviderConfig, DocsSearchRuntimeConfig, ExaRuntimeConfig,
+    MainSearchProviderConfig, MainSearchRuntimeConfig, OpenaiRuntimeConfig, SeamEntry,
+    WebFetchProviderConfig, WebFetchRuntimeConfig, WebSearchRuntimeConfig, XaiRuntimeConfig,
+    docs_provider_config, main_provider_config, web_provider_config,
+};
 pub use view::{EffectiveConfigView, effective_view, effective_view_json};

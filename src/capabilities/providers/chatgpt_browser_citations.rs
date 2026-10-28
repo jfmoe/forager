@@ -9,12 +9,14 @@ use std::collections::HashMap;
 use std::fmt::Write as _;
 
 use super::shape::{Node, ShapeError};
+use crate::providers::shared::without_query_parameter;
 use crate::types::ReportSource;
 
 const MARKER_START: char = '\u{e200}';
 const MARKER_END: char = '\u{e201}';
 const MARKER_SEPARATOR: char = '\u{e202}';
 const GROUPED_WEBPAGES: &str = "grouped_webpages";
+// ChatGPT appends it to every URL it cites.
 const TRACKING_PARAMETER: &str = "utm_source=chatgpt.com";
 
 /// One marker to replace: its character span and the URLs it cites, with the titles its own
@@ -111,7 +113,7 @@ fn grouped_webpages<'a>(references: &Node<'a>) -> Result<Vec<Citation<'a>>, Shap
         let end = reference.field("end_idx")?.index()?;
         let mut urls = Vec::new();
         for url in reference.field("safe_urls")?.items()? {
-            let url = without_tracking(url.text()?);
+            let url = without_query_parameter(url.text()?, TRACKING_PARAMETER);
             if !urls.contains(&url) {
                 urls.push(url);
             }
@@ -160,33 +162,10 @@ fn titled_urls<'a>(items: &Node<'a>) -> HashMap<String, &'a str> {
             .map(str::trim)
             .filter(|title| !title.is_empty());
         if let (Some(url), Some(title)) = (url, title) {
-            titles.entry(without_tracking(url)).or_insert(title);
+            titles
+                .entry(without_query_parameter(url, TRACKING_PARAMETER))
+                .or_insert(title);
         }
     }
     titles
-}
-
-/// The URL without the `utm_source=chatgpt.com` query parameter that ChatGPT appends.
-fn without_tracking(url: &str) -> String {
-    let (address, fragment) = match url.split_once('#') {
-        Some((address, fragment)) => (address, Some(fragment)),
-        None => (url, None),
-    };
-    let Some((base, query)) = address.split_once('?') else {
-        return url.to_owned();
-    };
-    let kept = query
-        .split('&')
-        .filter(|parameter| !parameter.is_empty() && *parameter != TRACKING_PARAMETER)
-        .collect::<Vec<_>>();
-    let mut cleaned = base.to_owned();
-    if !kept.is_empty() {
-        cleaned.push('?');
-        cleaned.push_str(&kept.join("&"));
-    }
-    if let Some(fragment) = fragment {
-        cleaned.push('#');
-        cleaned.push_str(fragment);
-    }
-    cleaned
 }

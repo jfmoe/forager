@@ -42,7 +42,7 @@ fn shallow_doctor_reports_all_registry_providers_and_reuses_the_config_list_view
             Some(0),
             &Value::String("shallow".into()),
             &Value::Bool(true),
-            Some(19),
+            Some(20),
             &config,
             &Value::String("xai".into()),
             &Value::Bool(true),
@@ -134,6 +134,59 @@ fn xai_deep_doctor_executes_one_responses_sse_probe() {
     );
     assert_eq!(request["tools"], serde_json::json!([]));
     assert!(request.get("instructions").is_none());
+}
+
+#[test]
+fn openai_deep_doctor_executes_one_responses_sse_probe() {
+    let fixture = Fixture::start(
+        200,
+        "text/event-stream",
+        "data: {\"type\":\"response.completed\",\"response\":{\"output\":[{\"content\":[{\"type\":\"output_text\",\"text\":\"ok\",\"annotations\":[]}]}]}}\n\n",
+    );
+    let environment = RunEnvironment::new(&format!(
+        "[providers.openai]\nurl = {:?}\nkeys = [\"openai-key\"]\n",
+        fixture.url
+    ));
+
+    let output = environment.run(&["doctor", "--provider", "openai"]);
+    assert_deep_success(&output, "openai", &[("responses", "sse")]);
+    let request = fixture.finish();
+    assert!(request.starts_with("POST /responses "), "{request}");
+    let request = request_json(&request);
+    assert_eq!(
+        (&request["model"], &request["tools"]),
+        (
+            &Value::String("gpt-6.1-terra".into()),
+            &serde_json::json!([])
+        )
+    );
+}
+
+#[test]
+fn openai_deep_doctor_reports_a_rejected_key_without_leaking_it() {
+    let fixture = Fixture::start_json(401, r#"{"error":{"message":"bad openai-key"}}"#);
+    let environment = RunEnvironment::new(&format!(
+        "[providers.openai]\nurl = {:?}\nkeys = [\"openai-key\"]\n",
+        fixture.url
+    ));
+
+    let output = environment.run(&["doctor", "--provider", "openai"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
+
+    assert_eq!(
+        (output.status.code(), &payload["error_kind"]),
+        (Some(4), &Value::String("auth".into()))
+    );
+    assert!(
+        !format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        )
+        .contains("openai-key"),
+        "doctor leaked the key"
+    );
+    fixture.finish();
 }
 
 #[test]
@@ -334,7 +387,7 @@ fn doctor_markdown_preserves_the_json_status_and_effective_configuration() {
     assert!(markdown.contains("## Effective configuration"));
     assert!(markdown.contains(r#""source": "file""#));
     assert!(!markdown.contains("exa-secret"));
-    assert_eq!(payload["providers"].as_array().map(Vec::len), Some(19));
+    assert_eq!(payload["providers"].as_array().map(Vec::len), Some(20));
     assert_eq!(fixture.finish_all().len(), 20);
 }
 
