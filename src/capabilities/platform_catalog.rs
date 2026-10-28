@@ -115,8 +115,37 @@ pub(crate) const POLYMARKET: PlatformCatalog = PlatformCatalog {
     default_order: &[ProviderId::PolymarketApi],
 };
 
-/// What `youtube_web` reads and what enabling it risks.
-const YOUTUBE_WEB_RISK: &str = "youtube_web reads YouTube's undocumented web endpoints anonymously, which YouTube's terms do not allow, so it is off by default; its risk is a temporary block of your egress IP, never your account";
+// Reddit's only keyless access is its own site: the public Data API takes no new apps and is
+// being retired, so `reddit_web` reads the pages the site renders, and users must enable it
+// themselves (ADR 0033).
+pub(crate) const REDDIT: PlatformCatalog = PlatformCatalog {
+    platform: Platform::Reddit,
+    search: &[ProviderId::RedditWeb],
+    fetch: &[ProviderId::RedditWeb],
+    operation_only: &[],
+    default_order: &[],
+};
+
+/// An HTTP route that users must enable themselves: the platform it serves and what enabling it
+/// risks.
+struct HttpOptIn {
+    route: ProviderId,
+    catalog: PlatformCatalog,
+    risk: &'static str,
+}
+
+const HTTP_OPT_INS: &[HttpOptIn] = &[
+    HttpOptIn {
+        route: ProviderId::YoutubeWeb,
+        catalog: YOUTUBE,
+        risk: "youtube_web reads YouTube's undocumented web endpoints anonymously, which YouTube's terms do not allow, so it is off by default; its risk is a temporary block of your egress IP, never your account",
+    },
+    HttpOptIn {
+        route: ProviderId::RedditWeb,
+        catalog: REDDIT,
+        risk: "reddit_web reads Reddit's own search, comment, and embed pages anonymously, which Reddit's User Agreement and robots.txt do not allow for automated access, so it is off by default; its risk is a temporary block of your egress IP, never your account",
+    },
+];
 
 pub(crate) const PLATFORMS: &[PlatformCatalog] = &[
     ARXIV,
@@ -127,6 +156,7 @@ pub(crate) const PLATFORMS: &[PlatformCatalog] = &[
     HN,
     YOUTUBE,
     POLYMARKET,
+    REDDIT,
 ];
 
 impl PlatformCatalog {
@@ -167,13 +197,11 @@ pub(crate) fn http_opt_in(
     order_key: &str,
     order: &[ProviderId],
 ) -> Option<String> {
-    if route != ProviderId::YoutubeWeb {
-        return None;
-    }
+    let opt_in = HTTP_OPT_INS.iter().find(|opt_in| opt_in.route == route)?;
     let mut suggested = order.to_vec();
     let position = order
         .iter()
-        .rposition(|id| YOUTUBE.fetch.contains(id))
+        .rposition(|id| opt_in.catalog.fetch.contains(id))
         .map_or(0, |index| index + 1);
     suggested.insert(position, route);
     let names = suggested
@@ -182,7 +210,8 @@ pub(crate) fn http_opt_in(
         .collect::<Vec<_>>()
         .join(", ");
     Some(format!(
-        "{YOUTUBE_WEB_RISK}. To enable it, run `forager config set {order_key} '[{names}]'`"
+        "{}. To enable it, run `forager config set {order_key} '[{names}]'`",
+        opt_in.risk
     ))
 }
 
@@ -232,6 +261,33 @@ mod tests {
         assert_eq!(
             suggested_command(&[ProviderId::YoutubeApi, ProviderId::GeminiApi]),
             r#"`forager config set platforms.youtube.order '["youtube_api", "youtube_web", "gemini_api"]'`"#
+        );
+    }
+
+    #[test]
+    fn every_opt_in_route_is_a_route_of_its_platform_outside_its_default_order() {
+        for opt_in in super::HTTP_OPT_INS {
+            assert!(
+                opt_in.catalog.contains(opt_in.route)
+                    && !opt_in.catalog.default_order.contains(&opt_in.route),
+                "{} opt-in for {}",
+                opt_in.route.name(),
+                opt_in.catalog.platform
+            );
+        }
+    }
+
+    #[test]
+    fn the_reddit_web_hint_enables_it_in_an_empty_order() {
+        let hint = http_opt_in(ProviderId::RedditWeb, "platforms.reddit.order", &[])
+            .expect("reddit_web is opt-in");
+
+        assert!(
+            hint.starts_with("reddit_web reads Reddit's own search")
+                && hint.ends_with(
+                    r#"run `forager config set platforms.reddit.order '["reddit_web"]'`"#
+                ),
+            "{hint}"
         );
     }
 

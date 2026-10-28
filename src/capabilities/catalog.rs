@@ -50,7 +50,7 @@ pub(crate) fn by_seam(seam: &str) -> Option<CapabilityCatalog> {
 mod platform_catalog;
 
 pub(crate) use platform_catalog::{
-    ARXIV, HN, PLATFORMS, POLYMARKET, PlatformCatalog, PlatformOperation, SCHOLAR, SSRN, X,
+    ARXIV, HN, PLATFORMS, POLYMARKET, PlatformCatalog, PlatformOperation, REDDIT, SCHOLAR, SSRN, X,
     XIAOHONGSHU, YOUTUBE, http_opt_in, platform,
 };
 
@@ -81,10 +81,11 @@ pub(crate) enum ProviderId {
     GeminiBrowser,
     ChatgptBrowser,
     PolymarketApi,
+    RedditWeb,
 }
 
 impl ProviderId {
-    pub(crate) const ALL: [Self; 18] = [
+    pub(crate) const ALL: [Self; 19] = [
         Self::Xai,
         Self::Exa,
         Self::Tavily,
@@ -103,6 +104,7 @@ impl ProviderId {
         Self::GeminiBrowser,
         Self::ChatgptBrowser,
         Self::PolymarketApi,
+        Self::RedditWeb,
     ];
 
     pub(crate) fn parse(value: &str) -> Option<Self> {
@@ -125,6 +127,7 @@ impl ProviderId {
             "gemini_browser" => Some(Self::GeminiBrowser),
             "chatgpt_browser" => Some(Self::ChatgptBrowser),
             "polymarket_api" => Some(Self::PolymarketApi),
+            "reddit_web" => Some(Self::RedditWeb),
             _ => None,
         }
     }
@@ -149,6 +152,7 @@ impl ProviderId {
             Self::GeminiBrowser => "gemini_browser",
             Self::ChatgptBrowser => "chatgpt_browser",
             Self::PolymarketApi => "polymarket_api",
+            Self::RedditWeb => "reddit_web",
         }
     }
 }
@@ -483,6 +487,21 @@ const POLYMARKET_API_SMOKE: &[ProviderSmokeCase] = &[
     },
 ];
 
+const REDDIT_WEB_SMOKE: &[ProviderSmokeCase] = &[
+    ProviderSmokeCase {
+        id: "C47",
+        platform: Some(Platform::Reddit),
+        operation: "search",
+        transport: "http",
+    },
+    ProviderSmokeCase {
+        id: "C48",
+        platform: Some(Platform::Reddit),
+        operation: "fetch",
+        transport: "http",
+    },
+];
+
 const YOUTUBE_API_SMOKE: &[ProviderSmokeCase] = &[
     ProviderSmokeCase {
         id: "C36",
@@ -569,6 +588,14 @@ const HN_API_ACCESS: AccessPolicy = AccessPolicy {
 // Gamma search at 350 requests per 10 seconds.
 const POLYMARKET_API_ACCESS: AccessPolicy = AccessPolicy {
     min_interval: Duration::from_millis(250),
+    max_concurrency: 1,
+};
+
+// Reddit states no pace for its site pages; one request every two seconds is the pace of the
+// 2026-10-17 and 2026-10-27 probes, which met no 429. A search page lists about seven posts and
+// a fetch sends two requests. Going faster risks the user's egress IP (ADR 0033).
+const REDDIT_WEB_ACCESS: AccessPolicy = AccessPolicy {
+    min_interval: Duration::from_secs(2),
     max_concurrency: 1,
 };
 
@@ -792,6 +819,21 @@ const REGISTRY: &[ProviderRegistration] = &[
             transport: "http",
         },
         smoke_cases: POLYMARKET_API_SMOKE,
+        native_full_text: false,
+    },
+    // A full-text fetch of a link post reads the linked page through Web Fetch.
+    ProviderRegistration {
+        id: ProviderId::RedditWeb,
+        operations: &[],
+        credentials: Credentials::Unused,
+        transport: ProviderTransport::Http,
+        access_policy: Some(REDDIT_WEB_ACCESS),
+        probe: DoctorProbe::PlatformSearch {
+            platform: Platform::Reddit,
+            name: "search",
+            transport: "http",
+        },
+        smoke_cases: REDDIT_WEB_SMOKE,
         native_full_text: false,
     },
     // A deep doctor spends one search of the separate daily search quota.

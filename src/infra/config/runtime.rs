@@ -6,6 +6,7 @@ use super::location::{ConfigError, ConfigLocation};
 use super::route_config::{
     HnRouteRuntimeConfig, HttpRouteRuntimeConfig, KeyedHttpRouteRuntimeConfig,
     ModelRouteRuntimeConfig, PolymarketRouteRuntimeConfig, ProcessRouteRuntimeConfig,
+    RedditRouteRuntimeConfig,
 };
 use super::schema::{Config, FieldRef, SCHEMA};
 use crate::catalog::{self, ProviderId};
@@ -171,6 +172,7 @@ pub(crate) struct PlatformRoutesRuntimeConfig {
     pub(crate) youtube_web: HttpRouteRuntimeConfig,
     pub(crate) gemini_api: ModelRouteRuntimeConfig,
     pub(crate) polymarket_api: PolymarketRouteRuntimeConfig,
+    pub(crate) reddit_web: RedditRouteRuntimeConfig,
 }
 
 /// The configuration of one platform route.
@@ -187,6 +189,7 @@ pub(crate) enum PlatformRouteConfig {
     YoutubeWeb(HttpRouteRuntimeConfig),
     GeminiApi(ModelRouteRuntimeConfig),
     PolymarketApi(PolymarketRouteRuntimeConfig),
+    RedditWeb(RedditRouteRuntimeConfig),
 }
 
 impl PlatformRouteConfig {
@@ -203,6 +206,7 @@ impl PlatformRouteConfig {
             Self::YoutubeWeb(_) => ProviderId::YoutubeWeb,
             Self::GeminiApi(_) => ProviderId::GeminiApi,
             Self::PolymarketApi(_) => ProviderId::PolymarketApi,
+            Self::RedditWeb(_) => ProviderId::RedditWeb,
         }
     }
 
@@ -214,7 +218,8 @@ impl PlatformRouteConfig {
             | Self::XiaohongshuBrowser(_)
             | Self::HnApi(_)
             | Self::YoutubeWeb(_)
-            | Self::PolymarketApi(_) => provider_configured(self.route(), &[]),
+            | Self::PolymarketApi(_)
+            | Self::RedditWeb(_) => provider_configured(self.route(), &[]),
             Self::Serpapi(config) | Self::YoutubeApi(config) => {
                 provider_configured(self.route(), &config.keys)
             }
@@ -256,6 +261,7 @@ pub(crate) struct PlatformsRuntimeConfig {
     hn: PlatformRuntimeConfig,
     youtube: PlatformRuntimeConfig,
     polymarket: PlatformRuntimeConfig,
+    reddit: PlatformRuntimeConfig,
 }
 
 impl PlatformsRuntimeConfig {
@@ -269,6 +275,7 @@ impl PlatformsRuntimeConfig {
             Platform::Hn => &self.hn,
             Platform::Youtube => &self.youtube,
             Platform::Polymarket => &self.polymarket,
+            Platform::Reddit => &self.reddit,
         }
     }
 }
@@ -527,6 +534,10 @@ impl RuntimeConfig {
                 endpoint: &self.platform_routes.polymarket_api.url,
                 keys: &[],
             },
+            ProviderId::RedditWeb => ProviderRuntime {
+                endpoint: &self.platform_routes.reddit_web.url,
+                keys: &[],
+            },
             ProviderId::GeminiBrowser => ProviderRuntime {
                 endpoint: &self.gemini_browser.command,
                 keys: &[],
@@ -639,6 +650,11 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
             data_url: config.providers.polymarket_api.data_url,
             timeout_seconds: config.providers.polymarket_api.timeout,
         },
+        reddit_web: RedditRouteRuntimeConfig {
+            url: config.providers.reddit_web.url,
+            embed_url: config.providers.reddit_web.embed_url,
+            timeout_seconds: config.providers.reddit_web.timeout,
+        },
     };
     let classifier = ClassifierRuntimeConfig {
         url: config.classifier.url,
@@ -694,6 +710,11 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         polymarket: platform_entries(
             Platform::Polymarket,
             config.platforms.polymarket.order,
+            &platform_routes,
+        )?,
+        reddit: platform_entries(
+            Platform::Reddit,
+            config.platforms.reddit.order,
             &platform_routes,
         )?,
     };
@@ -856,6 +877,7 @@ pub(crate) fn platform_route_config(
         ProviderId::PolymarketApi => Some(PlatformRouteConfig::PolymarketApi(
             routes.polymarket_api.clone(),
         )),
+        ProviderId::RedditWeb => Some(PlatformRouteConfig::RedditWeb(routes.reddit_web.clone())),
         _ => None,
     }
 }

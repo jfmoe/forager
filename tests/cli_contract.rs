@@ -92,7 +92,8 @@ fn platform_commands_nest_operations_under_each_platform() {
                 "youtube",
                 vec!["search", "fetch", "comments", "videos", "ask", "transcribe"]
             ),
-            ("polymarket", vec!["search", "fetch", "history"])
+            ("polymarket", vec!["search", "fetch", "history"]),
+            ("reddit", vec!["search", "fetch"])
         ]
     );
 }

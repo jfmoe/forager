@@ -95,6 +95,12 @@ forager platform polymarket history MARKET [--outcome NAME]
                                     [--interval 1d|1w|1m|max（默认 1m）| --from DATE --to DATE]
                                     [--bucket 1m|5m|30m|1h|3h|12h|1d]
                                     [--timeout 120] [--format json|markdown] [...]
+forager platform reddit search QUERY [--subreddit NAME] [--sort relevance|hot|top|new|comments]
+                               [--time hour|day|week|month|year|all] [--limit 1..=25（默认 10）]
+                               [--timeout 120] [--format json|markdown] [...]
+forager platform reddit search --cursor CURSOR [--timeout 120] [--format json|markdown] [...]
+forager platform reddit fetch REF_OR_URL [--depth thread|metadata|full_text（默认 thread）]
+                              [--content-dir DIR] [--timeout 120] [--format json|markdown|content] [...]
 forager gemini research start QUERY [--timeout 240] [--format json|markdown]
 forager gemini research result CONVERSATION [--report-dir DIR]
                                [--timeout 120] [--format json|markdown|content] [...]
@@ -611,6 +617,39 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 - 通用 flag 同 search。默认 bucket：`1d` 为 `5m`，`1w` 为 `1h`，`1m` 与 `max` 为 `1d`；显式区间不超过 2 天为 `5m`，其余为 `1h`。
 - **输出**：JSON 为 `{platform, provider, market: {ref, url, question, status}, outcome, interval, bucket_seconds, points: [{t, price}], settlement}`；显式区间时 `interval` 为 `null`，另有 `from` 与 `to`；`--verbose` 附 `provider_attempts`。`t` 为精确到秒的 UTC。已结算 market 的兑付值是 `settlement: {t, price}`，不在 `points` 中；未结算，或时间窗没有到达结算点时，`settlement` 为 `null`。序列超过 5 页时只列出前 5 页，stderr 给出一条诊断，建议加大 bucket。不写 Search Result Journal。
 - **退出码**：输入无法识别、`--interval` 与 `--from/--to` 同时给出、只给出 `--from` 或 `--to`、`--from` 晚于 `--to`、区间超过 15 天、`--bucket` 细于时间窗的下限（`1m` 与 `max` 至少 `30m`，`1w` 至少 `5m`）＝飞行前退 2，不发请求；`platforms.polymarket.order` 为空＝飞行前退 3；event 有多个 market（stderr 的诊断列出前 10 个 market 的 ref 与 label）、结果名不存在（消息列出可用的结果名）、event 或 market 不存在，以及 Data API 400（消息取上游 `error`）为 attempt 级 Parameter，退 4；传输失败同 search；超出保留期的粒度是合法空序列 `points: []`，退 0。
+
+### `platform reddit search`
+
+只在 Reddit 上检索帖子，经 `reddit_web` route（第 7 章「Reddit」）读取站点自己的搜索结果片段。route 默认关闭，由用户启用（`forager config set platforms.reddit.order '["reddit_web"]'`）。
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| 查询词（位置参数） | 非空字符串 | 无 `--cursor` 时必填 | 按 Reddit 自己的搜索语法原样发送 |
+| `--subreddit` | 1–21 个 `[A-Za-z0-9_]`，可带 `r/` 前缀 | 全站 | 只要该版块的帖子 |
+| `--sort` | `relevance` / `hot` / `top` / `new` / `comments` | `relevance` | 结果顺序 |
+| `--time` | `hour` / `day` / `week` / `month` / `year` / `all` | 不限 | 时间窗，只用于 `relevance`、`top` 与 `comments` |
+| `--limit` | 1–25 | 10 | 本页条目数；站点每个片段页约 7 条，一次命令最多读 5 页 |
+| `--cursor` | 上一页的 `next_cursor` | 无 | 与查询词、选项和 `--limit` 互斥 |
+| `--format` | `json` / `markdown` | `json` | 输出格式 |
+
+- 通用 flag 同 arXiv search。
+- **输出**：外层形状与 arXiv search 相同。每个 item 含 `ref`（`reddit:<id>`）、canonical `url`（`https://www.reddit.com/comments/<id>/`）、`depth`（有搜索摘录为 `snippet`，否则为 `metadata`）、`title`、`authors`、`published`（UTC，精确到秒），以及 Reddit 字段 `subreddit`、`permalink`、`post_type`（search 为 `null`）、`link_url`、`score`、`comments`、`nsfw`、`spoiler`、`snippet` 与 `snippet_source`（`post` 或 `comment`）。不写 Search Result Journal。
+- **退出码**：查询词为空、版块名非法、`--time` 与 `hot` 或 `new` 同时出现、`--limit` 越界、cursor 无效＝飞行前退 2；`platforms.reddit.order` 为空（默认）＝飞行前退 3，消息给出启用命令与风险说明；验证页为 Auth，403 与 429 的消息说明出口 IP 被拒，页面不是预期格式为 Runtime，都退 4；合法零结果为 `items: []` 且退 0。
+
+### `platform reddit fetch`
+
+读取一个 Reddit 帖子，默认把帖子与它第一页 top 序的评论写成 Markdown 文件。
+
+| 参数 | 类型与取值 | 默认值 | 语义 |
+|---|---|---|---|
+| ref 或 URL（位置参数） | `reddit:<id>`、`reddit:t3_<id>`、reddit.com 的帖子 URL，或 `redd.it/<id>` | 必填 | 主机可为 `www`、`old`、`new`、`np`、`m`；忽略 query、fragment 与末尾 `/` |
+| `--depth` | `thread` / `metadata` / `full_text` | `thread` | `thread` 写讨论串文件；`metadata` 内联帖子正文；`full_text` 读 link 帖的外链文章或帖子自身正文 |
+| `--content-dir` | 目录 | 系统临时目录下的新目录 | 讨论串或全文文件 `reddit-<id>.md` 的写入位置 |
+| `--format` | `json` / `markdown` / `content` | `json` | `content` 把讨论串或全文输出到 stdout，不写文件 |
+
+- 通用 flag 同 search。
+- **输出**：JSON 顶层为 `platform`、`provider`，条目的公共字段与 Reddit 字段（`post_type` 为帖子类型，`spoiler`、`snippet` 与 `snippet_source` 为 `null`），另有 `text`（帖子正文的 Markdown）。`thread` 深度另有 `content_url`、`content_provider`（`reddit_web`）、`content_path`、`content_len`、`comments_delivered`、`has_more_comments` 与 `order`（`top`）；`full_text` 深度另有正文的四个 `content_*` 字段。
+- **退出码**：评论 permalink（消息给出所属帖子的 ref）、分享短链 `/s/<code>`、其他无法识别的输入，`thread`、`metadata`、`full_text` 以外的深度＝飞行前退 2；`platforms.reddit.order` 为空（默认）、`full_text` 而没有已配置的 Web Fetch provider＝飞行前退 3；帖子不存在（`Reddit post not found: reddit:<id>`）或 embed 页不显示它（已删除、私有或受限）为 attempt 级 Parameter，退 4；没有正文也不是 link 帖的帖子请求 `full_text` 为 Quality，退 5；文件写入失败为 Runtime，退 4；传输失败同 search。
 
 ## Gemini 命令
 

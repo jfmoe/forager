@@ -14,6 +14,7 @@ mod platform_hn;
 mod platform_polymarket;
 mod platform_polymarket_history;
 mod platform_polymarket_price;
+mod platform_reddit;
 mod platform_scholar;
 mod platform_ssrn;
 mod platform_ssrn_search;
@@ -78,6 +79,10 @@ pub(crate) use platform_polymarket_history::{
 pub use platform_polymarket_history::{
     PolymarketBucket, PolymarketHistoryMarket, PolymarketHistoryResult, PolymarketInterval,
     PolymarketPricePoint, PolymarketWindow,
+};
+pub use platform_reddit::{
+    RedditItemData, RedditRef, RedditSearchOptions, RedditSnippetSource, RedditSort,
+    RedditThreadOrder, RedditTime,
 };
 pub(crate) use platform_scholar::{
     CITED_BY, SCHOLAR_MAX_LIMIT, ScholarCitedByRequest, ScholarCitedBySort,

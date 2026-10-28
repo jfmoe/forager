@@ -209,7 +209,8 @@ fn item_abstract(item: &PlatformItem) -> Option<&str> {
         | PlatformItemData::XiaohongshuNote(_)
         | PlatformItemData::X(_)
         | PlatformItemData::Hn(_)
-        | PlatformItemData::Polymarket(_) => None,
+        | PlatformItemData::Polymarket(_)
+        | PlatformItemData::Reddit(_) => None,
         PlatformItemData::Youtube(data) => data.description.as_deref(),
     }
 }
@@ -225,6 +226,7 @@ fn item_snippet(item: &PlatformItem) -> Option<&str> {
         PlatformItemData::Scholar(ScholarItemData::Result(data)) => data.snippet.as_deref(),
         PlatformItemData::X(data) => Some(&data.text),
         PlatformItemData::Hn(data) => data.text.as_deref(),
+        PlatformItemData::Reddit(data) => data.snippet.as_deref().or(data.text.as_deref()),
         PlatformItemData::Youtube(data) => data.snippet.as_deref(),
     }
 }
@@ -543,6 +545,7 @@ fn format_platform_fetch(
                 x_thread_markdown(data).unwrap_or_else(|| data.text.clone())
             }
             (None, PlatformItemData::Hn(data)) => data.text.clone().unwrap_or_default(),
+            (None, PlatformItemData::Reddit(data)) => data.text.clone().unwrap_or_default(),
             (None, PlatformItemData::Polymarket(data)) => data.rules_document().unwrap_or_default(),
             (None, _) => item_abstract(item).unwrap_or_default().to_owned(),
         }),
@@ -566,9 +569,13 @@ fn format_platform_fetch(
                     let _ = write!(markdown, "\n\n## Thread\n\n{thread}");
                 }
             }
-            if let PlatformItemData::Hn(data) = &item.data
-                && fetched.content.is_none()
-                && let Some(text) = &data.text
+            let own_text = match &item.data {
+                PlatformItemData::Hn(data) => data.text.as_ref(),
+                PlatformItemData::Reddit(data) => data.text.as_ref(),
+                _ => None,
+            };
+            if fetched.content.is_none()
+                && let Some(text) = own_text
             {
                 let _ = write!(markdown, "\n\n{text}");
             }

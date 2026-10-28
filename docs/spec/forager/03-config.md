@@ -118,6 +118,11 @@ clob_url = "https://clob.polymarket.com"   # CLOB：实时订单簿报价
 data_url = "https://data-api.polymarket.com"   # Data API：价格历史，请求路径带 /v2
 timeout = 30                 # 对任一端点的单个请求的 attempt 超时
 
+[providers.reddit_web]       # 不需要凭据的平台 route，匿名读取 Reddit 站点的页面；只在 order 中才启用（ADR 0033）
+url = "https://www.reddit.com"   # 搜索结果片段与评论树片段
+embed_url = "https://embed.reddit.com"   # 帖子的 embed 页；与 url 共用访问策略
+timeout = 30                 # 一次请求的 attempt 超时
+
 [capabilities.web_search]
 order = ["tavily", "firecrawl"]
 [capabilities.web_fetch]
@@ -141,6 +146,8 @@ order = ["hn_api"]           # 不需要凭据；置空＝禁用
 order = ["youtube_api", "gemini_api"]   # 没有 key 的 route 不算已配置；加入 "youtube_web" 才能读字幕（full_text），置空＝禁用
 [platforms.polymarket]
 order = ["polymarket_api"]   # 不需要凭据；置空＝禁用
+[platforms.reddit]
+order = []                   # 默认为空；加入 "reddit_web" 才启用（第 7 章「Reddit」）
 
 [log]
 level = "info"               # error|warn|info|debug|trace；见下方运行时语义

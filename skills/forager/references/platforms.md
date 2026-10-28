@@ -46,6 +46,10 @@ platform absent from it has no platform command; follow
   gave, or a ref forager returned), run `forager platform polymarket fetch 'REF_OR_URL'`; for how
   one outcome's price moved, run `forager platform polymarket history 'MARKET'`. See
   "Polymarket".
+- **Reddit**: for what Reddit says about a topic, run `forager platform reddit search QUERY`; for
+  a post and its discussion (a reddit.com or redd.it link the user gave, or a ref forager
+  returned), run `forager platform reddit fetch 'REF_OR_URL'`. The `reddit_web` route is off until
+  the user enables it; see "Reddit".
 
 `forager platform <id> <op> --help` is the syntax authority; see the platform section of
 [`cli.md`](cli.md) for output fields and exit codes.
@@ -88,6 +92,11 @@ Every item carries `depth`, the content it actually holds: `metadata` (bibliogra
   timestamp link. Without `youtube_web` in the order, `full_text` exits 2 with the command that
   enables it; pass `--depth metadata` or `--depth abstract` instead. `full_text` never falls back
   to a model's transcript; that comes only from `transcribe`.
+- **Reddit** search items are `snippet` when Reddit's search showed an excerpt (`snippet_source`
+  says whether it came from the post or one of its comments) and `metadata` otherwise. `fetch`
+  defaults to `--depth thread`, which writes the post and its first page of top comments to
+  `reddit-<id>.md`; `--depth metadata` returns the post with its own text; `--depth full_text`
+  reads the page a link post points to through Web Fetch, or a text post's own body.
 
 ## arXiv search queries
 
@@ -382,6 +391,31 @@ forager platform polymarket fetch polymarket:presidential-election-winner-2024 -
 forager platform polymarket history polymarket:market/will-no-fed-rate-cuts-happen-in-2026 --interval 1w
 ```
 
+## Reddit
+
+Reddit runs through the `reddit_web` route, which reads Reddit's own search, comment, and embed
+pages anonymously. It needs no key, but it is off by default: Reddit's User Agreement and
+robots.txt do not allow automated access. Enable it only when the user asks for it, and tell
+them what it means first: the risk is a temporary block of their egress IP, never their account,
+because the route never logs in. The command is
+`forager config set platforms.reddit.order '["reddit_web"]'`. It runs at most one request every
+2 seconds; a search reads up to five result pages of about seven posts each.
+
+- Queries follow Reddit's own search. Set `--subreddit`, `--sort`, and `--time` only when the
+  request implies them; `--time` applies to `relevance`, `top`, and `comments`, not to `hot` or
+  `new`.
+- A Reddit ref names a post. For a comment link, fetch the post the error message names; for a
+  share link (`/s/…`), ask the user for the post URL it opens.
+- The discussion file holds only the first page of comments in Reddit's top order;
+  `has_more_comments: true` says Reddit has more that the file lacks, and `comments` is the
+  post's whole count. Say how many of them you read.
+
+```console
+forager platform reddit search 'rust async runtime' --subreddit rust --sort top --time year
+forager platform reddit fetch 'https://www.reddit.com/r/rust/comments/1w2pcmd/'
+forager platform reddit fetch reddit:1w2pcmd --depth metadata
+```
+
 ## SSRN browser route
 
 `ssrn_browser` searches and reads SSRN in the user's own Chrome through OpenCLI: search sends
@@ -513,6 +547,13 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
   may lag the site by a few minutes; `metadata` and `thread` counts are live. Use only the refs
   forager returns; construct no item ID yourself.
 
+- **Reddit evidence**: cite the ref (`reddit:<id>`) with the subreddit, and give the user the
+  `permalink`. A post or comment is one user's statement: attribute it to its author and report
+  it as an opinion, never as a fact about the subject. Scores and counts are Reddit's at the time
+  of the request. A search excerpt from a comment (`snippet_source: comment`) is not the post's
+  text. Search results are Reddit's ranking, not a complete or stable view of what Reddit says.
+  Use only the refs forager returns; construct no post ID yourself.
+
 - **YouTube evidence**: cite the ref (`youtube:<video_id>`) with the channel, and give the user the
   `url`. The description and chapters are what the publisher wrote about the video, not what is
   said or shown in it: never report them as the video's content. A transcript is what was said,
@@ -617,6 +658,19 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
 - X `parameter` saying a post was not found or is not visible: the post may be deleted, private,
   or out of the model's reach; report it rather than retrying.
 - A `t.co` link (exit 2): ask the user for the x.com URL it opens.
+
+- Reddit exit 3 naming `platforms.reddit.order`: the `reddit_web` route is off. Continue with
+  `forager search` for Reddit content, and tell the user what enabling it means (see "Reddit")
+  rather than enabling it yourself.
+- Reddit `auth` or `rate_limited` (exit 4), or a message naming the egress IP: Reddit is refusing
+  this network. Stop using Reddit for this task, tell the user to wait or switch networks, and do
+  not retry. Never try to pass a verification page.
+- Reddit `runtime` saying the page format may have changed: report it and continue with
+  `forager search`; do not retry.
+- Reddit `parameter` saying the post was not found or is not available: it may be removed,
+  private, or restricted; report it rather than retrying.
+- Exit 5 on a Reddit full-text fetch: the post is an image or video without text; fetch with
+  `--depth thread` to read its discussion.
 
 Platform retrieval is complete when the requested items or content are read at the depth the answer
 needs, or a terminal failure is reported with its recovery.
