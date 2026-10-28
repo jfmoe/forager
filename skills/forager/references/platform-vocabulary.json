@@ -193,6 +193,31 @@
           "https://polymarket.com/zh/event/presidential-election-winner-2024/will-donald-trump-win-the-2024-us-presidential-election"
         ]
       }
+    },
+    {
+      "id": "reddit",
+      "purpose": "Search and read Reddit posts from the site's own pages: post identity, subreddit, score and comment counts, the excerpt Reddit's search shows, a post's own text, and its first page of top comments written to a Markdown file.",
+      "select_when": "The request names Reddit or a subreddit, supplies a reddit.com or redd.it post URL or reddit: ref, or asks what Reddit users say about a topic; it needs no key, but the user must first enable the reddit_web route, which Reddit's terms do not allow. General questions keep using forager search.",
+      "examples": [
+        "what does r/rust think about async runtimes",
+        "read the discussion at https://www.reddit.com/r/rust/comments/1w2pcmd/",
+        "find Reddit posts comparing standing desks from this year",
+        "看看 Reddit 上大家怎么评价这款耳机"
+      ],
+      "ref_syntax": {
+        "ref": "reddit:<id>",
+        "id_forms": ["1w2pcmd", "t3_1w2pcmd"],
+        "urls": [
+          "https://www.reddit.com/r/<subreddit>/comments/<id>/<slug>/",
+          "https://www.reddit.com/comments/<id>/",
+          "https://redd.it/<id>"
+        ],
+        "examples": [
+          "reddit:1w2pcmd",
+          "https://www.reddit.com/r/rust/comments/1w2pcmd/learning_async_rust_feels_like_playing_dark_souls/",
+          "https://redd.it/1w2pcmd"
+        ]
+      }
     }
   ]
 }

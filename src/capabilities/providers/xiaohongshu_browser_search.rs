@@ -49,6 +49,7 @@ pub(crate) fn search_support(request: &PlatformSearchRequest) -> Result<(), Stri
         | PlatformSearchOptions::X(_)
         | PlatformSearchOptions::Hn(_)
         | PlatformSearchOptions::Polymarket(_)
+        | PlatformSearchOptions::Reddit(_)
         | PlatformSearchOptions::Youtube(_) => {
             Err(other_platform_message(ROUTE, request.options.platform()))
         }

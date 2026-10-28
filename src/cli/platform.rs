@@ -48,6 +48,10 @@ use hn::HnCommand;
 mod polymarket;
 use polymarket::PolymarketCommand;
 
+#[path = "reddit.rs"]
+mod reddit;
+use reddit::RedditCommand;
+
 #[path = "youtube.rs"]
 mod youtube;
 use youtube::YoutubeCommand;
@@ -99,6 +103,12 @@ pub(super) enum PlatformCommand {
     Polymarket {
         #[command(subcommand)]
         command: PolymarketCommand,
+    },
+    /// Search Reddit posts and read their discussions from the site's own pages; needs no key,
+    /// and is disabled until you enable its route.
+    Reddit {
+        #[command(subcommand)]
+        command: RedditCommand,
     },
 }
 
@@ -291,6 +301,7 @@ pub(super) fn run(command: PlatformCommand) -> Result<CommandOutput, AppError> {
         PlatformCommand::Hn { command } => hn::run(command),
         PlatformCommand::Youtube { command } => youtube::run(command),
         PlatformCommand::Polymarket { command } => polymarket::run(command),
+        PlatformCommand::Reddit { command } => reddit::run(command),
     }
 }
 

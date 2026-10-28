@@ -50,6 +50,8 @@ const POLYMARKET_CANARY_WINNER: &str =
 const POLYMARKET_LIVE_CASE: &str = "C45";
 const POLYMARKET_NO_EVENT: &str =
     "not started: the Polymarket search case returned no event to fetch";
+// Reddit discusses Rust every day, so the search is never empty.
+const REDDIT_CANARY_QUERY: &str = "rust";
 // Many channels lecture on attention and transformers, so the search is never empty.
 const YOUTUBE_CANARY_QUERY: &str = "attention transformer";
 // "Essence of linear algebra": a finished public course of 16 videos.
@@ -58,11 +60,11 @@ const YOUTUBE_VIDEOS_CANARY: &str = "youtube:playlist/PLZHQObOWTQDPD3MizzM2xVFit
 // speaker's clothes.
 const YOUTUBE_ASK_CANARY_QUESTION: &str =
     "How many elephants are visible behind the speaker, and what is he wearing?";
-const SPECIFICATION_CASE_IDS: [&str; 41] = [
+const SPECIFICATION_CASE_IDS: [&str; 43] = [
     "P1", "P2", "C01", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "C13", "C17",
     "C18", "C19", "C20", "C21", "C24", "C25", "C26", "C27", "C28", "C29", "C30", "C31", "C32",
     "C33", "C34", "C35", "C36", "C37", "C38", "C39", "C40", "C41", "C42", "C43", "C44", "C45",
-    "C46",
+    "C46", "C47", "C48",
 ];
 // One comment page holds 10 top-level comments, so 15 needs the second page.
 const XIAOHONGSHU_COMMENTS_LIMIT: &str = "15";
@@ -257,6 +259,9 @@ fn platform_fetch_canary(platform: Platform) -> Option<(&'static str, &'static s
         // The first YouTube upload (2005), whose metadata no longer changes.
         Platform::Youtube => Some(("youtube:jNQXAC9IVRw", "metadata")),
         Platform::Polymarket => Some((POLYMARKET_CANARY, "metadata")),
+        // An r/running daily thread of 2023-11-11: archived, so its roughly 100 comments no
+        // longer change.
+        Platform::Reddit => Some(("reddit:17snc7d", "thread")),
     }
 }
 
@@ -269,14 +274,14 @@ fn platform_fetch_shape(platform: Platform) -> ResultShape {
     }
 }
 
-/// The canary of a fetch case that writes its document to a file: the Hacker News discussion,
-/// and the transcript of the YouTube canary, which only `youtube_web` reads.
+/// The canary of a fetch case that writes its document to a file: the Hacker News and Reddit
+/// discussions, and the transcript of the YouTube canary, which only `youtube_web` reads.
 fn document_fetch_canary(definition: LiveCaseDefinition) -> Option<(&'static str, &'static str)> {
     if definition.operation != "fetch" {
         return None;
     }
     match (definition.platform?, definition.provider?) {
-        (Platform::Hn, _) => platform_fetch_canary(Platform::Hn),
+        (platform @ (Platform::Hn | Platform::Reddit), _) => platform_fetch_canary(platform),
         (Platform::Youtube, route) if route == ProviderId::YoutubeWeb.name() => {
             platform_fetch_canary(Platform::Youtube).map(|(reference, _)| (reference, "full_text"))
         }
@@ -296,6 +301,7 @@ fn platform_search_canary(platform: Platform) -> (&'static str, &'static str) {
         Platform::Hn => (HN_CANARY_QUERY, "5"),
         Platform::Youtube => (YOUTUBE_CANARY_QUERY, "5"),
         Platform::Polymarket => (POLYMARKET_CANARY_QUERY, "3"),
+        Platform::Reddit => (REDDIT_CANARY_QUERY, "3"),
         _ => (PLATFORM_CANARY_QUERY, "3"),
     }
 }

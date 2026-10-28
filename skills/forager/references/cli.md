@@ -1140,6 +1140,73 @@ several markets, with up to 10 of their refs and labels listed on stderr to pick
 outcome, whose message lists the outcomes; a market not found; or a Data API refusal) and the
 transport failures under search.
 
+### `platform reddit search`
+
+```console
+forager platform reddit search [QUERY] [--subreddit NAME] [--sort relevance|hot|top|new|comments]
+                               [--time hour|day|week|month|year|all] [--limit N] [--cursor CURSOR]
+                               [--timeout SECONDS] [--format json|markdown]
+                               [--output FILE [--receipt]] [--verbose]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `QUERY` | Words to search for, in Reddit's own search syntax. Required without `--cursor`. | Omitted |
+| `--subreddit NAME` | Only posts in this subreddit (1 to 21 letters, digits, or `_`), with or without `r/`. | All of Reddit |
+| `--sort ORDER` | `relevance`, `hot`, `top`, `new`, or `comments` (most comments first). | `relevance` |
+| `--time WINDOW` | `hour`, `day`, `week`, `month`, `year`, or `all`; only with `relevance`, `top`, or `comments`. | Omitted |
+| `--limit N` | Results on this page, `1..=25`; Reddit lists about seven posts per request. | `10` |
+| `--cursor CURSOR` | `next_cursor` of a previous page; it restores the whole request, so pass no query, option, or `--limit` with it. | Omitted |
+
+Reddit runs through the `reddit_web` route, which reads Reddit's own search, comment, and embed
+pages anonymously (`providers.reddit_web.url` and `.embed_url`). It needs no key but is off until
+the user runs `forager config set platforms.reddit.order '["reddit_web"]'`; it sends at most one
+request every 2 seconds. JSON output is `{platform, provider, items, next_cursor}`. Each item has
+`ref` (`reddit:<id>`), `url` (`https://www.reddit.com/comments/<id>/`), `depth` (`snippet` when
+Reddit showed an excerpt, otherwise `metadata`), `title`, `authors`, `published` (UTC second),
+`subreddit`, `permalink`, `post_type` (`null` in search), `link_url`, `score`, `comments`,
+`nsfw`, `spoiler`, `snippet`, and `snippet_source` (`post` or `comment`). A search reads up to
+five result pages; a valid empty search returns `items: []` with exit 0.
+
+Exit codes: `2` before any request for a blank query, an invalid subreddit name, `--time` with
+`hot` or `new`, `--limit` out of range, or an invalid cursor; `3` for an empty
+`platforms.reddit.order` (the default), with the command that enables the route; `4` for `auth`
+(a verification page only a browser can pass), HTTP 403 or `rate_limited`, both of which mean
+Reddit is refusing this egress IP, `network`, `timeout`, and `runtime` for a page whose format
+changed.
+
+### `platform reddit fetch`
+
+```console
+forager platform reddit fetch REF_OR_URL [--depth thread|metadata|full_text] [--content-dir DIR]
+                                         [--timeout SECONDS] [--format json|markdown|content]
+                                         [--output FILE [--receipt]] [--verbose]
+```
+
+| Argument or option | Meaning | Default |
+| --- | --- | --- |
+| `REF_OR_URL` | `reddit:<id>`, `reddit:t3_<id>`, a reddit.com post URL (`www`, `old`, `new`, `np`, or `m`), or a `redd.it/<id>` short link. | Required |
+| `--depth DEPTH` | `thread` writes the post and its first page of top comments to a Markdown file; `metadata` returns the post with its own text; `full_text` reads the page a link post points to, or the post's own title and text. | `thread` |
+| `--content-dir DIR` | Directory for the discussion or full-text Markdown file, named `reddit-<id>.md`. | New directory under the system temp directory |
+| `--format FORMAT` | `json`, `markdown`, or `content`; `content` prints the discussion or the full text and writes no file. | `json` |
+
+JSON output is the item fields as under search, with `post_type` (`text`, `link`, `image`,
+`video`, `multi_media`), `spoiler`, `snippet`, and `snippet_source` `null`, plus `text` (the
+post's own body as Markdown). At `thread` depth it adds `content_url`, `content_provider`
+(`reddit_web`), `content_path`, `content_len`, `comments_delivered` (comments in the file),
+`has_more_comments`, and `order` (`top`). The file starts with the post's title, ref, permalink,
+subreddit, author, link, score, comment count, time, and text, then the first page of comments in
+Reddit's top order, indented by depth, each with its author, score, time, and permalink. A
+deleted comment keeps its place as `*[deleted or removed]*`. `full_text` needs a configured Web
+Fetch provider for a link post; a text post's body comes from `reddit_web` itself.
+
+Exit codes: `2` before any request for a comment permalink (the message names the post's ref), a
+share link (`/s/…`), another URL, or a depth other than the three; `3` for an empty
+`platforms.reddit.order`, or `full_text` with no configured Web Fetch provider; `4` for
+`parameter` (`Reddit post not found: reddit:<id>`, or a post its embed page does not show because
+it is removed, private, or restricted) and the failures under search; `5` (`quality`) for
+`full_text` of a post with neither text nor a link, such as an image post.
+
 ## Gemini Deep Research
 
 Run these commands only when the user explicitly asks for Gemini Deep Research. They drive

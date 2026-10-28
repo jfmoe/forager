@@ -14,6 +14,7 @@ use super::ProviderAttempt;
 use super::platform_arxiv::{ArxivItemData, ArxivRef, ArxivSearchOptions};
 use super::platform_hn::{HnItemData, HnRef, HnSearchOptions};
 use super::platform_polymarket::{PolymarketItemData, PolymarketRef, PolymarketSearchOptions};
+use super::platform_reddit::{RedditItemData, RedditRef, RedditSearchOptions};
 use super::platform_scholar::{ScholarItemData, ScholarRef, ScholarSearchOptions};
 use super::platform_ssrn::{SsrnItemData, SsrnRef};
 use super::platform_ssrn_search::SsrnSearchOptions;
@@ -48,11 +49,13 @@ pub enum Platform {
     Youtube,
     /// Polymarket, a prediction market.
     Polymarket,
+    /// Reddit, a site of community discussions.
+    Reddit,
 }
 
 impl Platform {
     /// Every built-in platform.
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 9] = [
         Self::Arxiv,
         Self::Ssrn,
         Self::Scholar,
@@ -61,6 +64,7 @@ impl Platform {
         Self::Hn,
         Self::Youtube,
         Self::Polymarket,
+        Self::Reddit,
     ];
 
     /// Returns the stable platform identifier used by commands and configuration.
@@ -75,6 +79,7 @@ impl Platform {
             Self::Hn => "hn",
             Self::Youtube => "youtube",
             Self::Polymarket => "polymarket",
+            Self::Reddit => "reddit",
         }
     }
 
@@ -84,7 +89,7 @@ impl Platform {
         match self {
             Self::Arxiv | Self::Ssrn | Self::Scholar => &["paper"],
             Self::Xiaohongshu => &["note"],
-            Self::X => &["post"],
+            Self::X | Self::Reddit => &["post"],
             Self::Hn => &["item"],
             Self::Youtube => &["video", "playlist", "channel"],
             Self::Polymarket => &["event", "market"],
@@ -169,6 +174,8 @@ pub enum PlatformRef {
     Youtube(YoutubeRef),
     /// A Polymarket event or market.
     Polymarket(PolymarketRef),
+    /// A Reddit post.
+    Reddit(RedditRef),
 }
 
 impl PlatformRef {
@@ -187,6 +194,7 @@ impl PlatformRef {
             Platform::Hn => HnRef::parse(input).map(Self::Hn),
             Platform::Youtube => YoutubeRef::parse(input).map(Self::Youtube),
             Platform::Polymarket => PolymarketRef::parse(input).map(Self::Polymarket),
+            Platform::Reddit => RedditRef::parse(input).map(Self::Reddit),
         }
     }
 
@@ -202,6 +210,7 @@ impl PlatformRef {
             Self::Hn(_) => Platform::Hn,
             Self::Youtube(_) => Platform::Youtube,
             Self::Polymarket(_) => Platform::Polymarket,
+            Self::Reddit(_) => Platform::Reddit,
         }
     }
 
@@ -211,7 +220,7 @@ impl PlatformRef {
         match self {
             Self::Arxiv(_) | Self::Ssrn(_) | Self::Scholar(_) => "paper",
             Self::Xiaohongshu(_) => "note",
-            Self::X(_) => "post",
+            Self::X(_) | Self::Reddit(_) => "post",
             Self::Hn(_) => "item",
             Self::Youtube(reference) => reference.kind().as_str(),
             Self::Polymarket(reference) => reference.kind().as_str(),
@@ -230,6 +239,7 @@ impl PlatformRef {
             Self::Hn(reference) => reference.canonical_url(),
             Self::Youtube(reference) => reference.canonical_url(),
             Self::Polymarket(reference) => reference.canonical_url(),
+            Self::Reddit(reference) => reference.canonical_url(),
         }
     }
 }
@@ -245,6 +255,7 @@ impl fmt::Display for PlatformRef {
             Self::Hn(reference) => write!(formatter, "hn:{reference}"),
             Self::Youtube(reference) => write!(formatter, "youtube:{reference}"),
             Self::Polymarket(reference) => write!(formatter, "polymarket:{reference}"),
+            Self::Reddit(reference) => write!(formatter, "reddit:{reference}"),
         }
     }
 }
@@ -275,6 +286,8 @@ pub enum PlatformSearchOptions {
     Youtube(YoutubeSearchOptions),
     /// Polymarket options.
     Polymarket(PolymarketSearchOptions),
+    /// Reddit options.
+    Reddit(RedditSearchOptions),
 }
 
 impl PlatformSearchOptions {
@@ -290,6 +303,7 @@ impl PlatformSearchOptions {
             Platform::Hn => Self::Hn(HnSearchOptions::default()),
             Platform::Youtube => Self::Youtube(YoutubeSearchOptions::default()),
             Platform::Polymarket => Self::Polymarket(PolymarketSearchOptions::default()),
+            Platform::Reddit => Self::Reddit(RedditSearchOptions::default()),
         }
     }
 
@@ -305,6 +319,7 @@ impl PlatformSearchOptions {
             Self::Hn(_) => Platform::Hn,
             Self::Youtube(_) => Platform::Youtube,
             Self::Polymarket(_) => Platform::Polymarket,
+            Self::Reddit(_) => Platform::Reddit,
         }
     }
 }
@@ -337,6 +352,7 @@ impl PlatformSearchRequest {
             PlatformSearchOptions::Polymarket(_) => {
                 PolymarketSearchOptions::validate(&self.query, self.limit)
             }
+            PlatformSearchOptions::Reddit(options) => options.validate(&self.query, self.limit),
         }
     }
 }
@@ -378,6 +394,8 @@ pub enum PlatformItemData {
     Youtube(YoutubeItemData),
     /// Polymarket fields of an event or market.
     Polymarket(PolymarketItemData),
+    /// Reddit fields of a post.
+    Reddit(RedditItemData),
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -564,7 +582,8 @@ impl PlatformFetchRequest {
             | PlatformFetchOptions::Xiaohongshu
             | PlatformFetchOptions::X
             | PlatformFetchOptions::Hn
-            | PlatformFetchOptions::Polymarket => Ok(()),
+            | PlatformFetchOptions::Polymarket
+            | PlatformFetchOptions::Reddit => Ok(()),
         }
     }
 }
@@ -581,6 +600,7 @@ pub(crate) enum PlatformFetchOptions {
     Hn,
     Youtube(YoutubeFetchOptions),
     Polymarket,
+    Reddit,
 }
 
 impl PlatformFetchOptions {
@@ -595,6 +615,7 @@ impl PlatformFetchOptions {
             Platform::Hn => Self::Hn,
             Platform::Youtube => Self::Youtube(YoutubeFetchOptions::default()),
             Platform::Polymarket => Self::Polymarket,
+            Platform::Reddit => Self::Reddit,
         }
     }
 }

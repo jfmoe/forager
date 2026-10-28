@@ -5,8 +5,8 @@ use chrono::{Datelike, Local, Weekday};
 
 use super::{
     ArxivApi, Context7, Context7DocsRequest, Context7LibraryRequest, Exa, ExaSearchRequest, HnApi,
-    PolymarketApi, SearchType, Serpapi, SsrnBrowser, SsrnCrossref, SupplementalSearch, Xai,
-    XiaohongshuBrowser, YoutubeApi, YoutubeWeb,
+    PolymarketApi, RedditWeb, SearchType, Serpapi, SsrnBrowser, SsrnCrossref, SupplementalSearch,
+    Xai, XiaohongshuBrowser, YoutubeApi, YoutubeWeb,
 };
 use crate::types::{
     Context7Outcome, DocumentationEvidence, DocumentationSearchOutcome, EvidenceLocator,
@@ -292,6 +292,26 @@ impl PlatformFetch for HnApi {
     ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
     {
         Box::pin(HnApi::fetch(self, request))
+    }
+}
+
+impl PlatformSearch for RedditWeb {
+    fn search<'a>(
+        &'a self,
+        request: &'a PlatformSearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(RedditWeb::search(self, request))
+    }
+}
+
+impl PlatformFetch for RedditWeb {
+    fn fetch<'a>(
+        &'a self,
+        request: &'a PlatformFetchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(RedditWeb::fetch(self, request))
     }
 }
 

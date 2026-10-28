@@ -271,6 +271,20 @@
       "seam": "platform:polymarket:history",
       "test": "tests/polymarket_history.rs::a_resolved_market_lists_its_daily_prices_and_gives_its_payout_as_the_settlement",
       "note": "history is a single-route platform operation outside the platform catalog; the platform checklist matches this entry against the provider factory's history routes. Fixture servers stand in for Gamma and the Data API v2 in the shapes they returned on 2026-10-24; the live endpoints are confirmed only by the live smoke C46."
+    },
+    {
+      "id": "F39",
+      "provider": "reddit_web",
+      "seam": "platform:reddit:search",
+      "test": "tests/reddit_search.rs::results_carry_their_subreddit_score_comments_and_search_excerpt",
+      "note": "A fixture server stands in for the search results fragment, trimmed from the page Reddit served anonymously on 2026-10-28; the live page is confirmed only by the live smoke C47."
+    },
+    {
+      "id": "F40",
+      "provider": "reddit_web",
+      "seam": "platform:reddit:fetch",
+      "test": "tests/reddit_fetch.rs::thread_writes_the_post_and_its_first_page_of_top_comments",
+      "note": "A fixture server stands in for the comment-tree fragment and the embed page, trimmed from the pages Reddit served anonymously on 2026-10-28; the live pages are confirmed only by the live smoke C48."
     }
   ],
   "offline_e2e": [

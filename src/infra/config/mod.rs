@@ -17,6 +17,7 @@ pub use location::{ConfigError, ConfigLocation, EditError};
 pub(crate) use route_config::{
     HnRouteRuntimeConfig, HttpRouteRuntimeConfig, KeyedHttpRouteRuntimeConfig,
     ModelRouteRuntimeConfig, PolymarketRouteRuntimeConfig, ProcessRouteRuntimeConfig,
+    RedditRouteRuntimeConfig,
 };
 pub(crate) use runtime::{
     ClassifierRuntimeConfig, Context7RuntimeConfig, DocsSearchProviderConfig,

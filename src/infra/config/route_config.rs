@@ -34,6 +34,17 @@ pub(crate) struct PolymarketRouteRuntimeConfig {
     pub(crate) timeout_seconds: u64,
 }
 
+/// The configuration of the Reddit route, which reads two origins of the site under one access
+/// policy.
+#[derive(Clone, Debug)]
+pub(crate) struct RedditRouteRuntimeConfig {
+    /// The site: search and comment pages.
+    pub(crate) url: String,
+    /// The embed pages: post metadata and text.
+    pub(crate) embed_url: String,
+    pub(crate) timeout_seconds: u64,
+}
+
 /// The configuration of a platform route that sends HTTP requests with pooled credentials.
 #[derive(Clone, Debug)]
 pub(crate) struct KeyedHttpRouteRuntimeConfig {

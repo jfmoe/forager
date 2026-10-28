@@ -81,6 +81,7 @@ pub(super) struct Providers {
     pub(super) gemini_browser: ProcessRoute<GeminiBrowserProcess>,
     pub(super) chatgpt_browser: ProcessRoute<ChatgptBrowserProcess>,
     pub(super) polymarket_api: PolymarketApi,
+    pub(super) reddit_web: RedditWeb,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -277,6 +278,27 @@ impl Default for PolymarketApi {
     }
 }
 
+/// The `reddit_web` route section: the site origin that serves search and comment pages, and the
+/// origin of its embed pages.
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub(super) struct RedditWeb {
+    pub(super) url: String,
+    pub(super) embed_url: String,
+    #[serde(deserialize_with = "deserialize_integer")]
+    pub(super) timeout: u64,
+}
+
+impl Default for RedditWeb {
+    fn default() -> Self {
+        Self {
+            url: "https://www.reddit.com".into(),
+            embed_url: "https://embed.reddit.com".into(),
+            timeout: 30,
+        }
+    }
+}
+
 /// The `gemini_api` route section: a Gemini `generateContent` endpoint, the official API or a
 /// gateway that speaks its protocol.
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -365,6 +387,7 @@ pub(super) struct Platforms {
     pub(super) hn: Order,
     pub(super) youtube: Order,
     pub(super) polymarket: Order,
+    pub(super) reddit: Order,
 }
 
 impl Default for Platforms {
@@ -378,6 +401,7 @@ impl Default for Platforms {
             hn: platform_order(catalog::HN),
             youtube: platform_order(catalog::YOUTUBE),
             polymarket: platform_order(catalog::POLYMARKET),
+            reddit: platform_order(catalog::REDDIT),
         }
     }
 }
@@ -658,6 +682,9 @@ pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("providers.polymarket_api.clob_url", providers.polymarket_api.clob_url: String, Rule::Any, View::Url, "Polymarket CLOB API endpoint URL for live order-book quotes"),
     leaf!("providers.polymarket_api.data_url", providers.polymarket_api.data_url: String, Rule::Any, View::Url, "Polymarket Data API endpoint URL for price history; request paths carry /v2"),
     leaf!("providers.polymarket_api.timeout", providers.polymarket_api.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one request to any of its endpoints; must be greater than zero"),
+    leaf!("providers.reddit_web.url", providers.reddit_web.url: String, Rule::Any, View::Url, "Reddit site origin whose search and comment pages the route reads anonymously; this route needs no credentials"),
+    leaf!("providers.reddit_web.embed_url", providers.reddit_web.embed_url: String, Rule::Any, View::Url, "Reddit embed origin whose post embed pages carry each post's metadata and text"),
+    leaf!("providers.reddit_web.timeout", providers.reddit_web.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one request to either origin; must be greater than zero"),
     leaf!("capabilities.web_search.order", capabilities.web_search.order: Strings, Rule::CapabilityOrder { capability: "web_search", allow_empty: true }, View::Plain, "authoritative provider order for this capability"),
     leaf!("capabilities.web_fetch.order", capabilities.web_fetch.order: Strings, Rule::CapabilityOrder { capability: "web_fetch", allow_empty: false }, View::Plain, "authoritative provider order for this capability"),
     leaf!("capabilities.docs_search.order", capabilities.docs_search.order: Strings, Rule::CapabilityOrder { capability: "docs_search", allow_empty: true }, View::Plain, "authoritative provider order for this capability"),
@@ -669,6 +696,7 @@ pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("platforms.hn.order", platforms.hn.order: Strings, Rule::PlatformOrder { platform: Platform::Hn }, View::Plain, "authoritative route order for this platform; empty disables it"),
     leaf!("platforms.youtube.order", platforms.youtube.order: Strings, Rule::PlatformOrder { platform: Platform::Youtube }, View::Plain, "authoritative route order for this platform; empty disables it"),
     leaf!("platforms.polymarket.order", platforms.polymarket.order: Strings, Rule::PlatformOrder { platform: Platform::Polymarket }, View::Plain, "authoritative route order for this platform; empty disables it"),
+    leaf!("platforms.reddit.order", platforms.reddit.order: Strings, Rule::PlatformOrder { platform: Platform::Reddit }, View::Plain, "authoritative route order for this platform; empty disables it"),
     leaf!("log.level", log.level: String, Rule::OneOf(LOG_LEVELS), View::Plain, "stderr log level"),
     leaf!("journal.enabled", journal.enabled: Bool, Rule::Any, View::Plain, "record search result journals"),
     leaf!("journal.dir", journal.dir: String, Rule::Any, View::Plain, "journal storage directory"),

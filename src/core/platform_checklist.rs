@@ -13,7 +13,7 @@ use crate::catalog::{
 use crate::config::{
     self, HnRouteRuntimeConfig, HttpRouteRuntimeConfig, KeyedHttpRouteRuntimeConfig,
     ModelRouteRuntimeConfig, PlatformRoutesRuntimeConfig, PolymarketRouteRuntimeConfig,
-    ProcessRouteRuntimeConfig, XaiRuntimeConfig,
+    ProcessRouteRuntimeConfig, RedditRouteRuntimeConfig, XaiRuntimeConfig,
 };
 use crate::providers;
 use crate::types::{
@@ -45,6 +45,7 @@ fn sample_refs(platform: Platform) -> &'static [&'static str] {
             "polymarket:presidential-election-winner-2024",
             "polymarket:market/will-donald-trump-win-the-2024-us-presidential-election",
         ],
+        Platform::Reddit => &["reddit:17snc7d"],
     }
 }
 
@@ -401,6 +402,11 @@ fn has_adapter(platform: Platform, operation: PlatformOperation, route: Provider
             url: String::new(),
             clob_url: String::new(),
             data_url: String::new(),
+            timeout_seconds: 1,
+        },
+        reddit_web: RedditRouteRuntimeConfig {
+            url: String::new(),
+            embed_url: String::new(),
             timeout_seconds: 1,
         },
     };
