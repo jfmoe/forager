@@ -10,7 +10,7 @@ use crate::catalog::PlatformOperation;
 use crate::net::AttemptFailure;
 use crate::providers::execution::execute_anonymous;
 use crate::providers::markup::markup_text;
-use crate::providers::opencli::{EnvelopeStatus, Window};
+use crate::providers::opencli::EnvelopeStatus;
 use crate::providers::shared::{other_platform_message, parameter_error};
 use crate::types::{
     AttemptErrorKind, ContentDepth, PlatformItem, PlatformItemData, PlatformRef,
@@ -118,7 +118,6 @@ impl SsrnBrowser {
                 ("date", criteria.date.into()),
                 ("sort", criteria.sort.clone()),
             ],
-            Window::Background,
         );
         let command = &command;
         let execution = execute_anonymous(

@@ -12,7 +12,6 @@ use super::{
 use crate::catalog::PlatformOperation;
 use crate::net::{AttemptFailure, combine_diagnostics};
 use crate::providers::execution::execute_anonymous;
-use crate::providers::opencli::Window;
 use crate::providers::shared::{other_platform_message, parameter_error};
 use crate::types::{
     AccessToken, ContentDepth, PlatformItem, PlatformItemData, PlatformRef, PlatformSearchOptions,
@@ -82,7 +81,6 @@ impl XiaohongshuBrowser {
                 ),
                 ("pages", request.limit.div_ceil(PAGE_SIZE).to_string()),
             ],
-            Window::Background,
         );
         let command = &command;
         let expected = &expected;

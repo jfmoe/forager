@@ -12,14 +12,13 @@ Routine `search` and `research` stay on their branch references. Treat
 - [Direct operations](#direct-operations)
 - [Provider-direct commands](#provider-direct-commands)
 - [Platform commands](#platform-commands)
-- [Gemini Deep Research](#gemini-deep-research)
 - [Configuration and diagnostics](#configuration-and-diagnostics)
 - [Exit codes](#exit-codes)
 
 ## Shared behavior
 
 The public top-level commands are `search`, `research`, `fetch`, `map`, `exa`, `context7`,
-`platform`, `gemini`, `config`, `setup`, `doctor`, and `smoke`. Use `-h` or
+`platform`, `config`, `setup`, `doctor`, and `smoke`. Use `-h` or
 `--help` on any command for parser-generated help. Available aliases are:
 
 | Command | Alias |
@@ -1215,182 +1214,6 @@ share link (`/s/…`), another URL, or a depth other than the three; `3` for an 
 it is removed, private, or restricted) and the failures under search; `5` (`quality`) for
 `full_text` of a post with neither text nor a link, such as an image post.
 
-## Gemini Deep Research
-
-Run these commands only when the user explicitly asks for Gemini Deep Research. They drive
-Gemini in the user's own logged-in Chrome through OpenCLI and the `forager-gemini` adapter: install
-OpenCLI 2.x (`npm install -g @jackwener/opencli@2`) and its Browser Bridge extension 1.0.25 or
-later (`opencli doctor`), then copy the `opencli/forager-gemini` directory next to this skill's
-`SKILL.md` to `~/.opencli/clis/forager-gemini` (replace the whole directory to update), and
-check with `forager doctor --provider gemini_browser`. No platform order or other setting enables
-them; `providers.gemini_browser.command` and `.timeout` (default `opencli` and 240 seconds per
-OpenCLI command) configure them. The required contract is `forager-gemini/2`. When a command
-reports an older contract such as `forager-gemini/1`, the installed adapter is the older one:
-replace the whole `~/.opencli/clis/forager-gemini` directory with the one from this skill and
-check again with `forager doctor --provider gemini_browser`.
-
-A Gemini report is a Delegated Research Report, not research evidence: relay it as Gemini's
-conclusions with attribution, and fetch a cited source with `forager fetch` before stating one of
-its claims as fact.
-
-### `gemini research start`
-
-```console
-forager gemini research start QUERY [--timeout SECONDS] [--format json|markdown]
-```
-
-| Argument or option | Meaning | Default |
-| --- | --- | --- |
-| `QUERY` | The research question, sent to Gemini as written. An empty question exits `2` before Chrome opens. | Required |
-| `--timeout SECONDS` | Whole-command deadline. | `240` |
-
-The command brings a Chrome window to the front, opens a new Gemini chat, selects Deep Research,
-sends the question once, clicks "Start research" on the plan Gemini proposes, and opens the
-conversation again to check that the research is running. It creates a
-conversation and spends the account's Deep Research quota, so it runs exactly one attempt whatever
-the `retry` configuration; never run it again after a failure without the user's go-ahead. JSON
-output has `route` (`gemini_browser`), `conversation_id`, `conversation_url`, and `plan`
-(`{title, steps: [{index, label, description}], eta_text}`, Gemini's own research plan). Poll the
-conversation with `gemini research result`.
-
-Exit codes: `2` for an empty question; `4` for `auth` (Gemini asks the browser to sign in),
-`quota_exhausted` (the Deep Research quota is used up), `timeout`, and `runtime` (the account's
-tools menu offers no Deep Research, or shows it disabled, which may mean the quota is used up;
-Gemini replied with text instead of a plan, quoted; the plan could not be confirmed, so the user
-must click "Start research" on the conversation page; the research had not started after the
-click, so read it with `gemini research result` before anything else; the Gemini response
-structure changed; or the adapter is missing or outdated). A failure payload adds
-`conversation_url` once forager knows the conversation. A failure without one whose message says
-forager does not know whether Gemini received the question means the user should look in the
-Gemini history before anything is started again.
-
-### `gemini research result`
-
-```console
-forager gemini research result CONVERSATION [--report-dir DIR] [--timeout SECONDS]
-                               [--format json|markdown|content]
-                               [--output FILE [--receipt]]
-```
-
-| Argument or option | Meaning | Default |
-| --- | --- | --- |
-| `CONVERSATION` | A `https://gemini.google.com/app/<id>` URL or its hexadecimal `<id>`. Anything else exits `2` before Chrome opens. | Required |
-| `--report-dir DIR` | Directory for the report and sources files. | A new directory under the system temporary directory |
-| `--timeout SECONDS` | Whole-command deadline. | `120` |
-| `--format content` | Print a completed report and its sources to stdout and write no file; any other status prints the JSON below. | `json` |
-
-The command opens the conversation in a background Chrome window and reads where its newest
-research turn stands; it changes nothing in the conversation and takes about 15 to 30 seconds.
-JSON output has `route` (`gemini_browser`), `conversation_id`, `conversation_url`, and `status`:
-
-| `status` | Further fields |
-| --- | --- |
-| `awaiting_confirmation` | `plan`: `{title, steps: [{index, label, description}], eta_text}`. Gemini waits for the user to click "Start research" on the conversation page. |
-| `running` | `progress`: `{sources_visited, thoughts, latest_thought}`, as far as the page shows them. |
-| `completed` | `title`, `report_path`, `sources_path`, `content_len` (characters), and `source_count`. |
-
-A completed report is written as `gemini-<id>.md`, Gemini's Markdown body unchanged followed by a
-`## Sources` list that resolves every `[cite: N]`, and `gemini-<id>.sources.json`,
-`[{id, title, url}]` ordered by `id`.
-
-Exit codes: `2` for an unrecognized conversation; `4` for `auth` (Gemini asks the browser to sign
-in), `parameter` (the conversation is unavailable to this account or holds no Deep Research),
-`timeout`, and `runtime` (the page showed another conversation; the Gemini response structure
-changed, with its location; the adapter is missing or outdated, with install steps; or the report
-could not be written). A failure payload adds `conversation_url`.
-
-## ChatGPT Deep Research
-
-Run these commands only when the user explicitly asks for ChatGPT Deep Research. They drive
-ChatGPT in the user's own logged-in Chrome through OpenCLI and the `forager-chatgpt` adapter:
-install OpenCLI 2.x (`npm install -g @jackwener/opencli@2`) and its Browser Bridge extension
-1.0.25 or later (`opencli doctor`), then copy the `opencli/forager-chatgpt` directory next to
-this skill's `SKILL.md` to `~/.opencli/clis/forager-chatgpt` (replace the whole directory to
-update), and check with `forager doctor --provider chatgpt_browser`. The required contract is
-`forager-chatgpt/2`. When a command or the doctor check reports contract `forager-chatgpt/1`, the
-installed adapter is the older one: replace the whole `~/.opencli/clis/forager-chatgpt` directory
-with the one from this skill and run `forager doctor --provider chatgpt_browser` again. No
-platform order or other setting enables them; `providers.chatgpt_browser.command` and
-`.timeout` (default `opencli` and 240 seconds per OpenCLI command) configure them.
-
-A ChatGPT report is a Delegated Research Report, not research evidence: relay it as ChatGPT's
-conclusions with attribution, and fetch a cited source with `forager fetch` before stating one of
-its claims as fact.
-
-### `chatgpt research start`
-
-```console
-forager chatgpt research start QUERY [--timeout SECONDS] [--format json|markdown]
-```
-
-| Argument or option | Meaning | Default |
-| --- | --- | --- |
-| `QUERY` | The research question, sent to ChatGPT as written. An empty question exits `2` before Chrome opens. | Required |
-| `--timeout SECONDS` | Whole-command deadline. | `240` |
-
-The command brings a Chrome window to the front, switches the ChatGPT composer to chat mode (and
-leaves it there), types the question, selects Deep Research in the "Add files and more" menu,
-sends once, keeps the page open for about 90 seconds after the plan shows so that the plan's
-countdown starts the research (forager never clicks "Start"), and reopens the conversation to
-check that the research runs; a run usually takes two to three minutes. It creates a conversation and spends the account's Deep Research quota, so it runs
-exactly one attempt whatever the `retry` configuration; never run it again after a failure without
-the user's go-ahead. JSON output has `route` (`chatgpt_browser`), `conversation_id`,
-`conversation_url`, and `plan` (`{title, steps: [{index, text}]}`, ChatGPT's own research plan).
-Poll the conversation with `chatgpt research result`.
-
-Exit codes: `2` for an empty question; `4` for `auth` (ChatGPT asks the browser to sign in),
-`quota_exhausted` (the usage receipt or a new usage notice says the Deep Research limit is
-reached), `timeout`, and `runtime` (the chat-mode menu offers no Deep Research; the adapter
-stopped before sending, with its reason (such as `obscured_target` for a button it could not
-click, or `click_missed` for a click the page did not take), last step, and whether the composer
-draft was cleared; ChatGPT replied with text instead of a plan, quoted, so the user answers on the page; the plan has
-not started, and its countdown may still start it, so read the result before anything else; the
-ChatGPT response structure changed; or the adapter is missing or outdated). A message that says
-nothing was sent means no conversation exists. A failure payload adds `conversation_url` once
-forager knows the conversation. A failure without one whose message says forager does not know
-whether ChatGPT received the question means the user should look in the ChatGPT history before
-anything is started again.
-
-### `chatgpt research result`
-
-```console
-forager chatgpt research result CONVERSATION [--report-dir DIR] [--timeout SECONDS]
-                                [--format json|markdown|content]
-                                [--output FILE [--receipt]]
-```
-
-| Argument or option | Meaning | Default |
-| --- | --- | --- |
-| `CONVERSATION` | A `https://chatgpt.com/c/<uuid>` or `https://chatgpt.com/g/<project>/c/<uuid>` URL, or the `<uuid>`. Anything else exits `2` before Chrome opens. | Required |
-| `--report-dir DIR` | Directory for the report and sources files. | A new directory under the system temporary directory |
-| `--timeout SECONDS` | Whole-command deadline. | `120` |
-| `--format content` | Print a completed report and its sources to stdout and write no file; any other status prints the JSON below. | `json` |
-
-The command opens the conversation in a background Chrome window and reads where its newest Deep
-Research stands from the conversation response the page receives; it changes nothing in the
-conversation, and also reads a research the user started on the web page. JSON output has
-`route` (`chatgpt_browser`), `conversation_id`, `conversation_url`, and `status`:
-
-| `status` | Further fields |
-| --- | --- |
-| `awaiting_confirmation` | `plan`: `{title, steps: [{index, text}]}`. ChatGPT waits for the user to click "Start" on the conversation page, or for its countdown to run out. |
-| `running` | `plan_title`, and `progress`: `{steps_completed, steps_total}`. |
-| `completed` | `title`, `report_path`, `sources_path`, `content_len` (characters, without the sources list), and `source_count`. |
-
-A completed report is written as `chatgpt-<uuid>.md`, ChatGPT's Markdown body with every citation
-marker replaced by `[N]` or `[N, M]`, followed by a `## Sources` list, and
-`chatgpt-<uuid>.sources.json`, `[{id, title, url}]` ordered by `id`. Source URLs lose the
-`utm_source=chatgpt.com` parameter; a source without a title has `"title": null` and is listed
-as `- [N] <URL>`. The report may be written in another language variant than the prompt.
-
-Exit codes: `2` for an unrecognized conversation; `4` for `auth` (ChatGPT asks the browser to
-sign in), `parameter` (the conversation is unavailable to this account or holds no Deep Research),
-`quota_exhausted` (the usage receipt says the Deep Research limit is reached), `timeout`, and
-`runtime` (the page or the response showed another conversation, and nothing was written; the
-ChatGPT response structure changed, with its location or status; the adapter is missing or
-outdated, with install steps; or the report could not be written). A failure payload adds
-`conversation_url`.
-
 ## Configuration and diagnostics
 
 ### `config`
@@ -1436,7 +1259,7 @@ forager doctor [--provider PROVIDER] [--timeout SECONDS] [--format json|markdown
 
 | Option | Meaning | Default |
 | --- | --- | --- |
-| `--provider PROVIDER` | Deep-probe one of `xai`, `openai`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, `arxiv_api`, `ssrn_crossref`, `ssrn_browser`, `serpapi`, `xiaohongshu_browser`, `hn_api`, or `gemini_browser`. Without it, run the shallow all-provider report. | Omitted |
+| `--provider PROVIDER` | Deep-probe one of `xai`, `openai`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, `arxiv_api`, `ssrn_crossref`, `ssrn_browser`, `serpapi`, `xiaohongshu_browser`, or `hn_api`. Without it, run the shallow all-provider report. | Omitted |
 | `--timeout SECONDS` | Set the diagnostic deadline. | `30` |
 | `--format FORMAT` | Use `json` or `markdown`. | `json` |
 
@@ -1446,10 +1269,7 @@ unreachable, the top-level result is false and the command uses exit code 4. The
 `ssrn_browser` and `xiaohongshu_browser` are checked only when their platform's order lists them:
 doctor runs their OpenCLI `contract` command, and a failed check carries a `message` with install
 steps; `--provider ssrn_browser` or `--provider xiaohongshu_browser` also needs the route in the
-order and runs one real search in Chrome. The shallow report never checks `gemini_browser`;
-`--provider gemini_browser` opens the Gemini app in a background Chrome window and reports whether
-the adapter is installed and current and the browser is signed in, without reading or starting
-any research. Without a key, `jina` is configured and the shallow report notes that it runs
+order and runs one real search in Chrome. Without a key, `jina` is configured and the shallow report notes that it runs
 anonymously; `--provider jina` then probes without a key, and with keys it reports a failing key
 even when the anonymous request succeeds. `--provider xai` and `--provider openai` each send one
 Responses model probe without tools, recorded as the `responses` check; `--provider xai` adds an

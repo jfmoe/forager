@@ -11,7 +11,6 @@ use super::{
 };
 use crate::net::AttemptFailure;
 use crate::providers::execution::execute_anonymous;
-use crate::providers::opencli::Window;
 use crate::types::{
     COMMENTS, ProviderError, XiaohongshuComment, XiaohongshuCommentsOutcome,
     XiaohongshuCommentsRequest, XiaohongshuRef, XiaohongshuReply,
@@ -36,7 +35,6 @@ impl XiaohongshuBrowser {
                 ("limit", request.limit.to_string()),
                 ("expand", request.replies.to_string()),
             ],
-            Window::Background,
         );
         let command = &command;
         let execution = execute_anonymous(self.settings(COMMENTS), move |deadline| async move {

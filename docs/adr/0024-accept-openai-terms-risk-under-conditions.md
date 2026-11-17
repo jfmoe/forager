@@ -1,3 +1,7 @@
+---
+status: superseded by ADR-0035
+---
+
 # 在条件约束下接受 OpenAI 使用条款风险
 
 `chatgpt_browser` 经本机 OpenCLI 驱动用户已登录的 Chrome，打开 ChatGPT 网页版的 Deep Research 会话，读取页面自己收到的会话响应，把报告与来源交付为委托研究报告（ADR 0023）。调研与实测见 [ChatGPT Deep Research 接入可行性](../research/2026-10-10-chatgpt-deep-research.md)。这条 route 的核心动作本身就落在 OpenAI 使用条款的禁止范围内。本记录写明这一风险，以及维护者接受它的条件。

@@ -1,8 +1,6 @@
 use reqwest::Client;
 
-use super::constructors::{
-    build_chatgpt_browser, build_gemini_browser, credentials, route_limiter,
-};
+use super::constructors::{credentials, route_limiter};
 use super::{
     ArxivApi, DocsSearch, GeminiApi, HnApi, KeyAccount, KeyQuota, MainSearch, PlatformFetch,
     PlatformSearch, PolymarketApi, ProviderId, RedditWeb, Serpapi, SsrnBrowser, SsrnCrossref,
@@ -15,7 +13,7 @@ use crate::config::{
     DocsSearchProviderConfig, HnRouteRuntimeConfig, HttpRouteRuntimeConfig,
     KeyedHttpRouteRuntimeConfig, MainSearchProviderConfig, ModelRouteRuntimeConfig,
     PlatformRouteConfig, PolymarketRouteRuntimeConfig, ProcessRouteRuntimeConfig,
-    RedditRouteRuntimeConfig, RuntimeConfig, WebFetchProviderConfig,
+    RedditRouteRuntimeConfig, WebFetchProviderConfig,
 };
 use crate::net::RetryPolicy;
 use crate::types::{
@@ -417,28 +415,6 @@ pub(crate) async fn route_accounts(
                 .collect()
         }
         other => unreachable!("{} registers no account probe", other.route().name()),
-    }
-}
-
-/// Runs the read-only `status` command of a provider that registers an adapter status probe.
-pub(crate) async fn adapter_status(
-    id: ProviderId,
-    config: &RuntimeConfig,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
-) -> Result<(), ProviderError> {
-    match id {
-        ProviderId::GeminiBrowser => {
-            build_gemini_browser(config.gemini_browser.clone(), retry_policy, deadline)
-                .status()
-                .await
-        }
-        ProviderId::ChatgptBrowser => {
-            build_chatgpt_browser(config.chatgpt_browser.clone(), retry_policy, deadline)
-                .status()
-                .await
-        }
-        other => unreachable!("{} registers no adapter status probe", other.name()),
     }
 }
 

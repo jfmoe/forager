@@ -18,13 +18,11 @@ use crate::providers::{
     FetchRequest, FetchSource, MapRequest, ProviderId,
 };
 use crate::types::{
-    CapabilitySet, ChatgptResearchFailure, ChatgptResearchResult, ChatgptResearchStarted,
-    ClaimRisk, Context7Outcome, Deadline, EvidenceStrength, FallbackPolicy, FetchOutcome,
-    GeminiResearchFailure, GeminiResearchResult, GeminiResearchStarted, HnStoriesResult,
-    JournalOutcome, MapOutcome, PlanCapability, Platform, PlatformAskResult, PlatformCommentsPage,
-    PlatformFetchResult, PlatformSearchPage, PlatformTranscribeResult, PolymarketHistoryResult,
-    ProviderAttempt, RecencyRequirement, ResearchIntentSignals, ResearchPlan, ResearchSubquestion,
-    SearchOutcome,
+    CapabilitySet, ClaimRisk, Context7Outcome, Deadline, EvidenceStrength, FallbackPolicy,
+    FetchOutcome, HnStoriesResult, JournalOutcome, MapOutcome, PlanCapability, Platform,
+    PlatformAskResult, PlatformCommentsPage, PlatformFetchResult, PlatformSearchPage,
+    PlatformTranscribeResult, PolymarketHistoryResult, ProviderAttempt, RecencyRequirement,
+    ResearchIntentSignals, ResearchPlan, ResearchSubquestion, SearchOutcome,
 };
 
 #[doc(hidden)]
@@ -201,48 +199,6 @@ pub enum CommandOutput {
         format: OutputFormat,
         /// Optional output file destination.
         output: Option<OutputTarget>,
-        /// Optional terminal projection selected by `log.level`.
-        attempt_log: Option<String>,
-    },
-    /// Typed Gemini Deep Research terminal state for binary-side formatting and tee output.
-    GeminiResearch {
-        /// Research result; a completed report is already written unless the format is
-        /// `content`.
-        result: Box<Result<GeminiResearchResult, GeminiResearchFailure>>,
-        /// Requested output format.
-        format: DocsOutputFormat,
-        /// Optional output file destination.
-        output: Option<OutputTarget>,
-        /// Optional terminal projection selected by `log.level`.
-        attempt_log: Option<String>,
-    },
-    /// Typed Gemini Deep Research start terminal state for binary-side formatting.
-    GeminiResearchStart {
-        /// The started research, or the failure with the conversation when forager knows it.
-        result: Box<Result<GeminiResearchStarted, GeminiResearchFailure>>,
-        /// Requested output format.
-        format: OutputFormat,
-        /// Optional terminal projection selected by `log.level`.
-        attempt_log: Option<String>,
-    },
-    /// Typed ChatGPT Deep Research terminal state for binary-side formatting and tee output.
-    ChatgptResearch {
-        /// Research result; a completed report is already written unless the format is
-        /// `content`.
-        result: Box<Result<ChatgptResearchResult, ChatgptResearchFailure>>,
-        /// Requested output format.
-        format: DocsOutputFormat,
-        /// Optional output file destination.
-        output: Option<OutputTarget>,
-        /// Optional terminal projection selected by `log.level`.
-        attempt_log: Option<String>,
-    },
-    /// Typed ChatGPT Deep Research start terminal state for binary-side formatting.
-    ChatgptResearchStart {
-        /// The started research, or the failure with the conversation when forager knows it.
-        result: Box<Result<ChatgptResearchStarted, ChatgptResearchFailure>>,
-        /// Requested output format.
-        format: OutputFormat,
         /// Optional terminal projection selected by `log.level`.
         attempt_log: Option<String>,
     },
@@ -1004,8 +960,6 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             output.target(),
         ),
         Command::Platform { command } => super::platform::run(command),
-        Command::Gemini { command } => super::gemini::run(command),
-        Command::Chatgpt { command } => super::chatgpt::run(command),
         Command::Config {
             command: ConfigCommand::Path,
         } => Ok(CommandOutput::Text {

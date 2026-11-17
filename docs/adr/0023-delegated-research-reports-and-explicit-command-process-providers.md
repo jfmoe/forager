@@ -1,3 +1,7 @@
+---
+status: superseded by ADR-0035
+---
+
 # 委托研究报告不是证据；只由点名命令运行的 process 供应方
 
 `gemini_browser`（设计见 [Gemini Deep Research 浏览器 route 设计](../design/2026-10-09-gemini-deep-research-route.md)）经本机 OpenCLI 驱动用户已登录的 Chrome，按会话读取 Gemini Deep Research 的状态与报告。它与 `ssrn_browser`、`xiaohongshu_browser` 共用 OpenCLI 传输，但不是 Platform Route：它不属于任何 Platform 或 Capability Catalog，产物也不是平台条目。本记录确定四件事：报告在 forager 中的地位、会改变账号状态的写操作如何执行、OpenCLI 窗口模式的归属，以及 doctor 如何对待这类供应方。

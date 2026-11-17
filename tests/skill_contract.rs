@@ -119,8 +119,6 @@ fn every_relative_link_in_the_skill_resolves_to_a_file() {
         "references/direct-retrieval.md",
         "references/ordinary-search.md",
         "references/research.md",
-        "references/gemini-deep-research.md",
-        "references/chatgpt-deep-research.md",
         "references/cli.md",
     ];
     let broken = documents
@@ -144,48 +142,9 @@ fn every_relative_link_in_the_skill_resolves_to_a_file() {
     let skill = fs::read_to_string(skill_path("SKILL.md")).expect("read skill");
 
     assert_eq!(
-        (
-            broken,
-            skill.contains("](references/platforms.md)"),
-            skill.contains("](references/gemini-deep-research.md)"),
-            skill.contains("](references/chatgpt-deep-research.md)")
-        ),
-        (Vec::<String>::new(), true, true, true)
+        (broken, skill.contains("](references/platforms.md)")),
+        (Vec::<String>::new(), true)
     );
-}
-
-#[test]
-fn cli_reference_documents_every_gemini_research_command() {
-    let reference =
-        fs::read_to_string(skill_path("references/cli.md")).expect("read CLI reference");
-    let command = Cli::command();
-    let missing = command
-        .find_subcommand("gemini")
-        .and_then(|gemini| gemini.find_subcommand("research"))
-        .expect("gemini research command")
-        .get_subcommands()
-        .map(|operation| format!("### `gemini research {}`", operation.get_name()))
-        .filter(|heading| !reference.contains(heading.as_str()))
-        .collect::<Vec<_>>();
-
-    assert_eq!(missing, Vec::<String>::new());
-}
-
-#[test]
-fn cli_reference_documents_every_chatgpt_research_command() {
-    let reference =
-        fs::read_to_string(skill_path("references/cli.md")).expect("read CLI reference");
-    let command = Cli::command();
-    let missing = command
-        .find_subcommand("chatgpt")
-        .and_then(|chatgpt| chatgpt.find_subcommand("research"))
-        .expect("chatgpt research command")
-        .get_subcommands()
-        .map(|operation| format!("### `chatgpt research {}`", operation.get_name()))
-        .filter(|heading| !reference.contains(heading.as_str()))
-        .collect::<Vec<_>>();
-
-    assert_eq!(missing, Vec::<String>::new());
 }
 
 #[test]

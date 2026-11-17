@@ -16,12 +16,6 @@ use forager::types::{
 };
 use serde_json::{Value, json};
 
-#[path = "cli/chatgpt_render.rs"]
-mod chatgpt_render;
-#[path = "cli/delegated_render.rs"]
-mod delegated_render;
-#[path = "cli/gemini_render.rs"]
-mod gemini_render;
 #[path = "cli/platform_render.rs"]
 mod platform_render;
 
@@ -155,28 +149,6 @@ fn main() -> ExitCode {
             platform_render::render_history(result, format, output),
             attempt_log,
         ),
-        Ok(CommandOutput::GeminiResearch {
-            result,
-            format,
-            output,
-            attempt_log,
-        }) => emit_logged(gemini_render::render(*result, format, output), attempt_log),
-        Ok(CommandOutput::GeminiResearchStart {
-            result,
-            format,
-            attempt_log,
-        }) => emit_logged(gemini_render::render_start(*result, format), attempt_log),
-        Ok(CommandOutput::ChatgptResearch {
-            result,
-            format,
-            output,
-            attempt_log,
-        }) => emit_logged(chatgpt_render::render(*result, format, output), attempt_log),
-        Ok(CommandOutput::ChatgptResearchStart {
-            result,
-            format,
-            attempt_log,
-        }) => emit_logged(chatgpt_render::render_start(*result, format), attempt_log),
         Err(error) => emit_error(&error, json_preflight_errors, json_preflight_output),
     }
 }

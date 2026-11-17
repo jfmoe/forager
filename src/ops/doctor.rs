@@ -333,11 +333,6 @@ async fn run_probe(
                 providers::route_accounts(route_config, client, retry_policy, deadline).await;
             account_outcome(provider, accounts, name, transport)
         }
-        DoctorProbe::AdapterStatus { name, transport } => one_check(
-            providers::adapter_status(provider, &config, retry_policy, deadline).await,
-            name,
-            transport,
-        ),
     }
 }
 
@@ -617,7 +612,7 @@ struct ShallowCheck {
 
 /// Checks an HTTP provider by a GET to its endpoint, and a process route by the adapter's
 /// `contract` command. A platform route that users must enable takes part only when an order
-/// enables it. A process provider that only its own commands run never takes part.
+/// enables it.
 async fn shallow_check(
     registration: &ProviderRegistration,
     runtime: &RuntimeConfig,
@@ -643,16 +638,6 @@ async fn shallow_check(
             message: anonymous.then(|| "runs anonymously without keys".to_owned()),
         };
     };
-    if !is_platform_route(id) {
-        return ShallowCheck {
-            configured: false,
-            reachable: false,
-            message: Some(format!(
-                "checked only by `forager doctor --provider {}`",
-                id.name()
-            )),
-        };
-    }
     let limiter = limiter.expect("a process route declares an access policy");
     let result = providers::check_opencli_contract(endpoint, adapter, &limiter, deadline).await;
     ShallowCheck {
@@ -664,8 +649,7 @@ async fn shallow_check(
 
 /// Returns why the deep probe cannot run the provider, or `None` when it can. A platform route
 /// that users must enable (one driving their browser, or one reading undocumented endpoints)
-/// runs only when a platform order enables it; a process provider outside every platform runs
-/// because the user named it.
+/// runs only when a platform order enables it.
 fn deep_unconfigured_reason(provider: ProviderId, runtime: &RuntimeConfig) -> Option<String> {
     let name = provider.name();
     if is_opt_in_route(provider) && !route_enabled(provider, runtime) {

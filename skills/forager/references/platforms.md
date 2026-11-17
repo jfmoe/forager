@@ -623,7 +623,7 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
   record of it rather than that the paper does not exist.
 - An `ssrn_browser` `auth` error saying SSRN security verification did not clear: ask the user to
   open SSRN in Chrome and pass the check by hand, then retry. Never try to pass it for them.
-- An `ssrn_browser`, `xiaohongshu_browser`, or Deep Research error saying it found OpenCLI 1.x
+- An `ssrn_browser` or `xiaohongshu_browser` error saying it found OpenCLI 1.x
   output: forager needs OpenCLI 2.x and Browser Bridge 1.0.25 or later. Tell the user to upgrade
   both as in the install step, then retry; do not upgrade them yourself.
 - An `ssrn_browser` error that names the forager OpenCLI adapter, or a doctor `message` with

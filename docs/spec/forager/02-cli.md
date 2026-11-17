@@ -101,24 +101,18 @@ forager platform reddit search QUERY [--subreddit NAME] [--sort relevance|hot|to
 forager platform reddit search --cursor CURSOR [--timeout 120] [--format json|markdown] [...]
 forager platform reddit fetch REF_OR_URL [--depth thread|metadata|full_text（默认 thread）]
                               [--content-dir DIR] [--timeout 120] [--format json|markdown|content] [...]
-forager gemini research start QUERY [--timeout 240] [--format json|markdown]
-forager gemini research result CONVERSATION [--report-dir DIR]
-                               [--timeout 120] [--format json|markdown|content] [...]
-forager chatgpt research start QUERY [--timeout 240] [--format json|markdown]
-forager chatgpt research result CONVERSATION [--report-dir DIR]
-                                [--timeout 120] [--format json|markdown|content] [...]
 forager doctor [--provider PROVIDER] [--timeout 30] [--format json|markdown]
 forager smoke [--live] [...]
 forager config path|list|set|unset
 forager setup [--non-interactive] [--lang zh|en]
 ```
 
-- **分界规则**：点名 provider 的命令按 provider 分组嵌套（exa/context7/gemini/chatgpt）；操作语义 + fallback 链的按操作命名保持顶层（fetch、map）；平台直连命令按 `platform <id> <op>` 嵌套。裸动词＝智能管线，provider 前缀＝旁路直连。
+- **分界规则**：点名 provider 的命令按 provider 分组嵌套（exa/context7）；操作语义 + fallback 链的按操作命名保持顶层（fetch、map）；平台直连命令按 `platform <id> <op>` 嵌套。裸动词＝智能管线，provider 前缀＝旁路直连。
 - **别名五槽**（全部 visible_alias）：`s`=search、`f`=fetch、`rs`=research、`c7`=context7、`ls`=config list。关闭 clap `infer_subcommands`。
 
 ## 输出与退出码
 
-- `--format json(默认)/markdown/content` 三态；**content 收窄**到 search、fetch、context7 docs、research、平台 fetch、`gemini research result` 与 `chatgpt research result`，per-command ValueEnum 在解析层强制。research 的 Markdown/content 都渲染 Research Evidence Index 与 unresolved gaps，不渲染证据正文或机械答案。doctor 默认 json。
+- `--format json(默认)/markdown/content` 三态；**content 收窄**到 search、fetch、context7 docs、research 与平台 fetch，per-command ValueEnum 在解析层强制。research 的 Markdown/content 都渲染 Research Evidence Index 与 unresolved gaps，不渲染证据正文或机械答案。doctor 默认 json。
 - `--output FILE` 为 **tee 语义**（写文件 + stdout 照常）。写失败＝非零终态退 3，stdout JSON 照常输出并标注写失败（#59 H15）；与 journal 旁路（非致命）区分。
 - `--receipt`（须与 `--output` 同用，所有带 `--output` 的命令均支持）为**回执语义**：文件内容与 tee 完全相同；仅当命令成功（退 0）且文件写入成功时，stdout 改为单行 JSON 回执 `{"output_path", "bytes", "lines"}`，其中 `bytes`/`lines` 描述写入文件的内容。命令失败时 stdout 仍是该失败的完整瘦载荷；写失败时退回 tee 的写失败行为（完整 stdout + 标注，退 3）。它让调用方把长结果留在文件中、按需读取片段，而不是让全文进入调用方上下文。
 - 退出码：`0` 成功（含直连命令的合法空结果）；`2` 参数错（clap 天然 + 坏 plan + `config set` 非法路径）；`3` config_error（含未知文件键、未知 `FORAGER_*` env、web_fetch 空链、`--output` 写失败）；`4` transport 族终态；`5` content 族终态（quality/evidence；**evidence_error 由 4 改 5**）。`1` 空缺；panic 101 不拦，为非契约异常出口。
@@ -199,8 +193,6 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 两档：`doctor` 浅检全体（掩码配置 + 凭据存在 + 可达性（对 endpoint 发 GET 并只等待响应头，任何 HTTP 响应都算可达；部分 endpoint 对 HEAD 不响应）+ 过宽权限报告 + config list 同构生效值块）；顶层 `ok` 等于所有 `configured=true` provider 均 `reachable=true`，零配置为 true，任一不可达则 JSON/Markdown 均为 false 并退出 4，permission warning 不改变 `ok`。`--provider NAME` 深探单体，值域＝provider 注册表的编译期 enum。需要凭据的 6 个 provider（exa、tavily、firecrawl、context7 与主搜索 backend `xai`、`openai`）执行凭据有效性 + 最小活体调用；两个主搜索 backend 的活体调用都是一次不带工具与 instructions 的 Responses SSE 模型探测，检查记为 `[{name: "responses", transport: "sse"}]`；凭据可选的 `jina` 恒为已配置，没有 key 时浅检的 `message` 注明以匿名方式运行，深探以不带凭据的请求执行同一 fetch 探测；有 key 时按现有方式探测，key 失败后的匿名请求即使成功，深探仍以 key 的失败结束；平台 route（`arxiv_api`、`ssrn_crossref`、`ssrn_browser`、`xiaohongshu_browser`、`hn_api`）不需要凭据，恒为已配置，深探执行一次最小平台检索；`hn_api` 访问两个端点，深探在检索之后再向 Firebase 发一个请求，记为 `firebase` 检查；主搜索 backend `xai` 同时是 X 平台的 route，`platforms.x.order` 含 `xai` 时，深探在主搜索检查之后再执行一次最小 X 检索，记为 `x_search` 检查；需要凭据的平台 route `serpapi` 有 key 时才算已配置，浅检对端点发一次不带 key 的 GET（不计额度）；深探不做检索，而是按池中顺序对每个 key 各调用一次同源的 SerpApi Account API（`/account.json`，不计额度），不经凭据轮换、不推进凭据游标，输出增加 `keys` 数组，每个 key 一项 `{key_index, ok, searches_left, plan_searches_left, this_month_usage, this_hour_searches, hourly_limit}`，失败项带 `error_kind`，取不到的数字为 `null`；HTTP 失败沿用共享归因（401/403 为 auth），剩余额度为 0 为 `quota_exhausted`，本小时检索数达到上限为 `rate_limited`，缺数字字段为 `runtime`；任一 key 失败则深探失败退 4，顶层 `error_kind` 与 `message` 取第一个失败的 key，`message` 以 `providers.serpapi.keys[N]` 指明它；响应中的 key、账户邮箱与账户 ID 不被解码，也不进入任何输出；这个深探只证明端点、key 与额度状态，不证明 Scholar 检索的请求与解码（由 live smoke C24–C26 证明）；没有 key 时以 config 失败退 3 且不发请求；需要凭据的平台 route `gemini_api` 同样有 key 时才算已配置，浅检对端点发一次不带 key 的 GET；深探不调用模型，而是按池中顺序用每个 key 各请求一次 `GET <url>/models`（不计模型额度），检查记为 `[{name: "models", transport: "http"}]`，`keys` 每项只有 `{key_index, ok}`，失败项带 `error_kind`，失败与报告规则同 `serpapi`（`message` 以 `providers.gemini_api.keys[N]` 指明失败的 key）；其他 provider 的深探输出没有 `keys`。声明访问策略的 provider（平台 route）的浅检检查与深探请求都先经过跨进程限速，等不到窗口时浅检记为不可达、深探以 timeout 失败，且都不发送请求。
 
 传输类型为 process 的 route（`ssrn_browser`、`xiaohongshu_browser`）不发 GET：浅检只在它出现在所属平台的 order 中时参与，运行 adapter 的 `contract` 命令并核对契约版本；未启用时报告 `configured: false`，不影响 `ok`。检查失败时该 provider 状态带 `message`（含安装提示），Markdown 在同一行括号中显示。深探（`doctor --provider ssrn_browser` 或 `xiaohongshu_browser`）同样只在 order 启用该 route 时运行一次真实的平台检索；未启用时以 config 失败退 3，不启动进程。
-
-不属于任何平台、只由点名命令运行的 process 供应方（`gemini_browser`、`chatgpt_browser`，ADR 0023）不参与浅检：不启动进程，报告 `configured: false`、`reachable: false` 与提示改用 `--provider` 的 `message`，不影响 `ok`。深探 `doctor --provider gemini_browser` 或 `doctor --provider chatgpt_browser` 在后台窗口运行 adapter 的只读 `status` 命令，检查记为 `[{name: "status", transport: "process"}]`：OpenCLI 不可用、adapter 缺失或契约版本不符为 runtime（消息含安装提示），浏览器未登录 Gemini 或 ChatGPT、Gemini 被 Google 重定向到异常流量页为 auth，都退 4。它不读取会话，不发起研究；ChatGPT 的 `status` 只打开首页，不切换撰写器模式，也不打开菜单。
 
 ## 平台命令
 
@@ -650,113 +642,6 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 - 通用 flag 同 search。
 - **输出**：JSON 顶层为 `platform`、`provider`，条目的公共字段与 Reddit 字段（`post_type` 为帖子类型，`spoiler`、`snippet` 与 `snippet_source` 为 `null`），另有 `text`（帖子正文的 Markdown）。`thread` 深度另有 `content_url`、`content_provider`（`reddit_web`）、`content_path`、`content_len`、`comments_delivered`、`has_more_comments` 与 `order`（`top`）；`full_text` 深度另有正文的四个 `content_*` 字段。
 - **退出码**：评论 permalink（消息给出所属帖子的 ref）、分享短链 `/s/<code>`、其他无法识别的输入，`thread`、`metadata`、`full_text` 以外的深度＝飞行前退 2；`platforms.reddit.order` 为空（默认）、`full_text` 而没有已配置的 Web Fetch provider＝飞行前退 3；帖子不存在（`Reddit post not found: reddit:<id>`）或 embed 页不显示它（已删除、私有或受限）为 attempt 级 Parameter，退 4；没有正文也不是 link 帖的帖子请求 `full_text` 为 Quality，退 5；文件写入失败为 Runtime，退 4；传输失败同 search。
-
-## Gemini 命令
-
-`gemini` 命令组经 `gemini_browser`（第 4 章「Gemini Deep Research 职责」）在用户自己已登录的 Chrome 中操作 Gemini Deep Research 会话。产物是 Delegated Research Report（委托研究报告），不是 Research Evidence（ADR 0023）：不写 Search Result Journal，不进入 research 流水线。
-
-### `gemini research start`
-
-在前台 Chrome 窗口中发起一次 Deep Research：打开新会话，选择 Deep Research，提交问题一次，确认 Gemini 提出的研究计划，再重新打开会话确认研究已在进行。
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| 问题（位置参数） | 字符串，去空白后不能为空 | 必填 | 原样提交给 Gemini；为空时飞行前退 2，不启动进程 |
-| `--timeout` | 秒，≥1 | 240 | 整条命令的截止时间 |
-| `--format` | `json` / `markdown` | `json` | 没有 `content`，也没有 `--output` |
-
-- **页面操作**：发送后等页面 URL 变为 `/app/<id>`，再等计划卡片的 “Start research” 按钮，一直等到命令时限只剩确认点击、核对与重新读取会话所需的约 35 秒（2026-10-21 实测卡片晚于 45 秒出现）；按钮出现即点击一次，按钮消失为点击生效，之后留 5 秒让研究写入会话；按钮在点击前已消失时不点击（研究可能已自行开始），由下一步读到的会话判定。然后经 `/app` 重新打开该会话，按 `result` 的读取规则读取页面自己收到的 `hNvQHb` 响应。是否答完以页面上的按钮为准，不以 `StreamGenerate` 请求结束为准：2026-10-20 在 OpenCLI 2.0.1 下实测，计划已到达，页面的 Resource Timing 在 240 秒内始终没有记录该请求结束。
-- **单次 attempt**：`start` 新建会话并消耗 Deep Research 额度，是会改变用户账号状态的写操作（ADR 0023），只执行一次 attempt，不受 `retry` 配置影响，Timeout 与 Network 也不重试。adapter 至多点击一次“发送”与一次 “Start research”，没有点到确认时不再点击，也不重发问题。
-- **成功判定**：最终 URL 为该会话的 `/app/<id>`，且按 `result` 的规则选出的最新研究轮次状态为 3（研究中）或 5（已完成）；研究是 forager 点击确认后开始的，还是 Gemini 自行开始的，判定相同。
-- **输出**：JSON 为 `{route, conversation_id, conversation_url, plan}`，`plan` 为会话中最新一个带计划（rich content 字段 55）的轮次的计划，形状同 `result` 的 `awaiting_confirmation`，与 Research Plan Schema v1 无关。Markdown 渲染会话 URL、计划与轮询提示。
-- **失败载荷**：普通瘦载荷另加可空的 `conversation_url`。adapter 发送后从页面 URL 得到并校验过会话 id 时填入，消息也指向它；还没有会话 id 时为 `null`；已发送却没有得到会话时，消息说明 forager 不知道 Gemini 是否收到了问题。adapter 进程本身失败、没有交回页面事实时（非零退出、被强杀），消息说明 forager 不知道 Gemini 是否收到了问题，提示先在 Gemini 历史中检查，不建议重新发起。两种情况除外：adapter 进程以 Auth 失败，此时浏览器还没走到发送；OpenCLI 确定没有运行 adapter 命令（OpenCLI 无法启动、拒绝命令行、找不到或加载不到 adapter 命令，判定见第 7 章），此时消息说明什么都没发送。浏览器连接失败（OpenCLI 以 69 退出）、OpenCLI 报告结果未知（`outcome: "unknown"`）与契约版本不符仍提示结果未知：前两者可能发生在命令中途，后者说明运行的是另一版本的 adapter。
-- **退出码**：问题为空＝飞行前退 2。以下都退 4：
-  - 浏览器未登录（adapter 退 77 或页面要求登录）或页面被 Google 重定向到异常流量页（`www.google.com/sorry`，短时间内打开页面过多时出现，只有用户能通过它的验证）为 Auth，先于其他判定；还没有会话 id 时提示登录或通过验证后重试，已校验会话 id 后（例如发送后页面要求登录）载荷与消息指向该会话，提示先用 `result` 查看，不提示重试；
-  - 发送后、计划卡片出现之前页面上新出现的额度提示为 QuotaExhausted，会话轮次、导航栏中的文字与发送前已显示的文字不算额度提示，计划卡片一旦出现，页面文字不再影响判定；
-  - 工具菜单中没有 Deep Research（消息提示检查账号能力，说明什么都没发送）、Deep Research 菜单项存在但不可选（消息说明额度可能已用尽或功能暂不可用，什么都没发送）、adapter 在发送前停下（附原因与最后到达的步骤）、Gemini 回复普通文本而非计划（附有界的回复开头、会话 URL 与在网页上回答后用 `result` 查看的提示）、计划仍在等待确认而 forager 没有点到确认（附 adapter 的停止原因、会话 URL 与“在网页上点击 Start research”的提示；截止时间先到则为 Timeout）、已点击确认而重新打开时研究仍在等待确认（提示先用 `result` 查看，不要重新发起）、重新打开后停在另一个页面、响应结构不符（附位置）、会话响应已完成却没有抓到响应体、adapter 缺失或过期为 Runtime；
-  - 读取截止点前没有走完（adapter 带 `timed_out: true` 交回已取得的页面事实）或命令被强杀为 Timeout；已点击确认但没有读到会话时，消息提示研究可能已在进行，用 `result` 读取该会话。
-
-### `gemini research result`
-
-只读地报告一个 Deep Research 会话最新研究轮次的状态；完成时把报告与来源落盘。
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| 会话（位置参数） | `https://gemini.google.com/app/<id>` 或 `<id>`；`<id>` 为 8–64 位十六进制，大小写不敏感 | 必填 | 其他输入飞行前退 2，不启动进程 |
-| `--report-dir` | 目录路径 | 系统临时目录下按调用隔离的新目录 | 报告与来源文件的写入目录 |
-| `--timeout` | 秒，≥1 | 120 | 整条命令的截止时间 |
-| `--format` | `json` / `markdown` / `content` | `json` | `content` 只在 `completed` 时输出报告 Markdown 与来源列表且不写文件；其他状态与 json 相同 |
-
-- 通用 flag：`--output FILE [--receipt]` 语义同上。只读命令，沿用共享重试策略。
-- **输出**：JSON 恒含 `route`（`gemini_browser`）、`conversation_id`、`conversation_url` 与 `status`：
-  - `awaiting_confirmation`：另有 `plan: {title, steps: [{index, label, description}], eta_text}`。这是 Gemini 提出的研究计划，与 Research Plan Schema v1 无关。
-  - `running`：另有 `progress: {sources_visited, thoughts, latest_thought}`，取自页面自己显示的进度；进度只作参考，形状不认识的进度项（如没有标题的思考项）被跳过而不使读取失败。
-  - `completed`：另有 `title`、`report_path`、`sources_path`、`content_len`（正文字符数）与 `source_count`；`--format content` 时没有两个路径。
-- **文件**：`gemini-<id>.md` 为报告正文原样，末尾附 `## Sources` 编号列表（每行 `- [N] 标题 <URL>`），使 `[cite: N]` 离开 Gemini 后仍可解析；`gemini-<id>.sources.json` 为 `[{id, title, url}]`，同一编号以首次出现为准，按编号排序。写入失败为 Runtime 退 4，不回退为内联输出。
-- **失败载荷**：普通瘦载荷另加可空的 `conversation_url`；`result` 总是填写它。
-- **退出码**：会话无法识别＝飞行前退 2；浏览器未登录或页面被重定向到 Google 异常流量页为 Auth，adapter 不再重新打开会话，也不重试；会话不存在、无权访问或其中没有研究计划与研究文档为 attempt 级 Parameter；页面显示的是另一个会话、状态与正文矛盾、必需字段缺失或类型不符（消息写明 Gemini 响应结构已变化及其位置）、adapter 缺失或过期（附安装提示）、报告写入失败为 Runtime；截止点前没有读到会话响应为 Timeout；以上都退 4。`--output` 写失败退 3。
-
-## ChatGPT 命令
-
-`chatgpt` 命令组经 `chatgpt_browser`（第 4 章「ChatGPT Deep Research 职责」）在用户自己已登录的 Chrome 中发起与读取 ChatGPT Deep Research 会话。产物是 Delegated Research Report，不是 Research Evidence（ADR 0023）；访问受 ADR 0024 的条件约束：只像用户一样操作页面、只读取页面自己收到的响应，不导出 cookie 或令牌，不构造请求。`result` 也能读取用户在网页上手动发起的研究。
-
-### `chatgpt research start`
-
-在前台 Chrome 窗口中发起一次 Deep Research：切到聊天模式，选择“深度研究”，提交问题一次，保持页面打开直到计划倒计时让研究自行开始，再重新打开会话确认研究已在进行。forager 不点击计划卡片的“开始”：卡片在 OpenCLI 无法访问的跨源沙箱 iframe 中。
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| 问题（位置参数） | 字符串，去空白后不能为空 | 必填 | 原样提交给 ChatGPT；为空时飞行前退 2，不启动进程 |
-| `--timeout` | 秒，≥1 | 240 | 整条命令的截止时间 |
-| `--format` | `json` / `markdown` | `json` | 没有 `content`，也没有 `--output` |
-
-- **页面操作**：adapter 打开 `/`；输入框处于“工作”模式时点“撰写器模式”中的“聊天”，之后不恢复原来的模式；点进输入框，输入框里还有旧草稿时先全选再删除，然后输入问题，再点“添加文件等内容”并选“深度研究”（先输入问题，提及标记才不会被草稿清理删掉）；核对输入框同时含问题文本和指向 `app://connector_openai_deep_research` 的提及标记；点“发送”一次；等 URL 变为 `/c/<uuid>`，再等计划卡片（来自 `web-sandbox.oaiusercontent.com`、标题为“深度研究”的 iframe）或 assistant 的普通回复；出现计划卡片时，前台标签页保持在该会话上 90 秒，等计划倒计时结束、研究自行开始（实测在卡片出现约 60 秒后、`waiting_for_user_response_on_plan_until` 之后 1 秒开始；多出的 30 秒覆盖卡片被晚发现与研究状态写入会话的延迟），但至少给重新打开留出 20 秒，截止时间不够时提前结束等待；然后先开始网络捕获，再重新打开 `/c/<uuid>`，以页面自己发出的会话响应完整到达为准读取。所有点击、按键与输入都按第 7 章「adapter 原生输入」完成：每次点击只点唯一一个指针可命中的目标，点击后核对页面结果（切到聊天模式、输入框获得焦点、菜单出现条目、提及标记出现，发送后输入框不再含问题、URL 变为会话或出现新的用量提示），点不到时以原因停下（如 `no_target`、`obscured_target`），核对不通过时以 `click_missed` 停下；不超过 200 个字符的问题逐字输入，更长的问题一次插入。点“发送”在原生点击之前就失败（例如按钮被遮挡）时，问题没有发出，按发送前停下处理。发送之前停下时，adapter 清空输入框再退出并回报是否清空（按 Escape 关闭菜单，点进输入框，全选再删除），因为输入框内容会作为草稿跨页面保存。
-- **单次 attempt**：`start` 新建会话并消耗 Deep Research 额度，是会改变用户账号状态的写操作（ADR 0023），只执行一次 attempt，不受 `retry` 配置影响，Timeout 与 Network 也不重试；adapter 内部至多点击一次“发送”，不点击计划卡片。
-- **截止时间**：默认 240 秒覆盖发送、等卡片、倒计时与重新打开：实测发送到进入会话约 15 秒、卡片在 15 秒内出现，加上 90 秒倒计时等待与重新打开，通常约 2.5 分钟；各步有上限的等待全部用满约 205 秒，仍在 240 秒之内。截止时间不够时倒计时等待先缩短，读到的仍在等待开始按下述 Runtime 处理。
-- **成功判定**：最终 URL 为该会话的 `/c/<uuid>`，响应的 `conversation_id` 为该会话，且按 `result` 的规则选出的最近研究消息 `widget_state.status` 为 `researching` 或 `completed`。
-- **输出**：JSON 为 `{route, conversation_id, conversation_url, plan}`，`plan` 为该研究消息的 `widget_state.plan`，形状同 `result` 的 `awaiting_confirmation`，与 Research Plan Schema v1 无关。Markdown 渲染会话 URL、计划与轮询提示。
-- **失败载荷**：普通瘦载荷另加可空的 `conversation_url`。adapter 发送后从页面 URL 得到并校验过会话 id 时填入，消息也指向它；还没有会话 id 时为 `null`。adapter 进程本身失败、没有交回页面事实时（非零退出、被强杀），以及已发送却没有得到会话时，消息说明 forager 不知道 ChatGPT 是否收到了问题，提示先在 ChatGPT 历史中检查，不建议重新发起。两种情况除外：adapter 进程以 Auth 失败，此时浏览器还没走到发送；OpenCLI 确定没有运行 adapter 命令（判定见第 7 章），此时消息说明什么都没发送。
-- **退出码**：问题为空＝飞行前退 2。以下都退 4：
-  - 浏览器未登录（adapter 退 77 或页面要求登录）为 Auth，先于其他判定；还没有会话 id 时提示登录后重试，已校验会话 id 后（例如倒计时后重新打开时要求登录）载荷与消息指向该会话，提示登录后先用 `result` 查看，不提示重试；
-  - 研究消息的用量回执超限（规则同 `result`：当前状态为研究中或已完成时以状态为准），或发送后、ChatGPT 回答之前页面上新出现的用量提示，为 QuotaExhausted；会话轮次、导航栏中的文字与发送前已显示的文字不算用量提示；
-  - 聊天模式菜单中没有“深度研究”（消息提示检查账号能力，说明什么都没发送）、adapter 在发送前停下（附停止原因与最后到达的步骤，说明什么都没发送并报告草稿是否已清空）为 Runtime；
-  - 重新打开后研究仍为 `waiting_for_user_response_on_plan`，或计划已出现但没有读到会话，为 Runtime，附会话 URL，并提示倒计时仍可能让研究自行开始，应先用 `result` 查看，不要重新发起，forager 也不重发（没有读到会话且截止时间先到时为 Timeout）；
-  - 会话中没有研究消息、最近一条有文字的 assistant 消息是普通文本（澄清问题或拒绝）为 Runtime，附会话 URL、有界的回复开头，以及在网页上回答后用 `result` 查看的提示；
-  - 页面或响应指向另一个会话、响应结构不符（附位置）、adapter 缺失或过期为 Runtime；
-  - 读取截止点前没有走完（adapter 带 `timed_out: true` 交回已取得的页面事实）或命令被强杀为 Timeout。
-
-### `chatgpt research result`
-
-只读地报告一个 ChatGPT 会话中最近一次 Deep Research 的状态；完成时把引用标记改写为编号，报告与来源落盘。
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| 会话（位置参数） | `https://chatgpt.com/c/<uuid>`、`https://chatgpt.com/g/<project>/c/<uuid>` 或 `<uuid>`；`<uuid>` 为 8-4-4-4-12 位十六进制，大小写不敏感，统一归一为小写 | 必填 | 其他输入飞行前退 2，不启动进程 |
-| `--report-dir` | 目录路径 | 系统临时目录下按调用隔离的新目录 | 报告与来源文件的写入目录 |
-| `--timeout` | 秒，≥1 | 120 | 整条命令的截止时间 |
-| `--format` | `json` / `markdown` / `content` | `json` | `content` 只在 `completed` 时输出报告 Markdown 与来源列表且不写文件；其他状态与 json 相同 |
-
-- 通用 flag：`--output FILE [--receipt]` 语义同上。只读命令，沿用共享重试策略。adapter 在后台窗口先开始网络捕获，再打开 `/c/<uuid>`，只回报页面自己发出的 `GET /backend-api/conversations/<uuid>` 在响应完整到达后的响应体、最终 URL，以及登录或“会话不存在”提示。
-- **判定**：在响应的 `messages`（从旧到新）中取最近一个研究消息，即作者为 `tool`、`author.name` 为 `api_tool.call_tool` 且带 `metadata.chatgpt_sdk` 的消息；它异常时不回退到更早的研究。状态来源：
-  - 有 `widget_state` 时只取它（JSON 字符串，二次解析）的 `status`；`tool_response_metadata` 中的 `venus_widget_state` 与 `openai/asyncStatus` 是工具调用时的快照，不参与判定。`widget_state` 存在但为 null 时为 Runtime（响应结构已变化），不回退到快照。
-  - ChatGPT 在研究开始时才写入 `widget_state`。研究开始之前消息没有 `widget_state` 字段，计划与状态只在快照 `tool_response_metadata.venus_widget_state`（对象）中；此时只有快照 `status` 为 `waiting_for_user_response_on_plan` 才按快照判定（取其 `plan`），快照为其他状态或也缺失时为 Runtime（响应结构已变化）。
-  - 取得的状态中，`waiting_for_user_response_on_plan` 且没有 `report_message` 为 `awaiting_confirmation`；`researching` 且没有 `report_message` 为 `running`；`completed` 且 `report_message.content.parts[0]` 非空为 `completed`。
-- **输出**：JSON 恒含 `route`（`chatgpt_browser`）、`conversation_id`、`conversation_url` 与 `status`：
-  - `awaiting_confirmation`：另有 `plan: {title, steps: [{index, text}]}`。这是 ChatGPT 提出的研究计划，与 Research Plan Schema v1 无关，输出中不叫 `research_plan`。
-  - `running`：另有 `plan_title` 与 `progress: {steps_completed, steps_total}`：`step_statuses_by_plan` 中当前计划（`plan.plan_id`）的步骤状态里 `completed` 的个数，与计划步骤总数。进度只作参考，不参与判定。
-  - `completed`：另有 `title`（正文第一个一级标题，没有时取计划标题）、`report_path`、`sources_path`、`content_len`（改写后正文的字符数，不含来源列表）与 `source_count`；`--format content` 时没有两个路径。
-- **引用改写**：只处理 `report_message.metadata.content_references` 中 `type` 为 `grouped_webpages` 的条目。条目的 `start_idx`、`end_idx`（按字符计）须覆盖正文中一个由 U+E200 开头、U+E201 结尾的引用标记；该标记的来源取条目的 `safe_urls`，去掉 `utm_source=chatgpt.com` 查询参数后按原顺序去重，全报告按 URL 首次出现的顺序编号，标记替换为 `[N]` 或 `[N, M]`。来源标题先取同一条目 `items` 中 URL 相同的项，再取 `search_result_groups` 中 URL 相同的条目，都没有时为 null。`sources_footnote` 等其他类型的条目不改写正文。不依赖标记内 id（如 `turn0search1`）与 URL 的对应关系。
-- **文件**：`chatgpt-<uuid>.md` 为改写后的正文，末尾附 `## Sources` 编号列表（每行 `- [N] 标题 <URL>`，没有标题时为 `- [N] <URL>`）；`chatgpt-<uuid>.sources.json` 为 `[{id, title, url}]`，`title` 可为 null，按编号排序。写入失败为 Runtime 退 4，不回退为内联输出。
-- **失败载荷**：普通瘦载荷另加可空的 `conversation_url`；`result` 总是填写所请求会话的 URL。
-- **退出码**：会话无法识别＝飞行前退 2。以下都退 4：
-  - 浏览器未登录（先于其他判定）为 Auth；
-  - 会话不存在或无权访问（页面提示、被送回首页，或响应只有 `detail` 没有 `messages`）、返回的消息中没有研究消息为 attempt 级 Parameter，消息区分原因；
-  - 研究消息的用量回执 `tool_response_metadata.usage_refund_receipt` 中 `allowed` 为 false 或 `rate_limit.limit_reached` 为 true 为 QuotaExhausted，但只在当前状态不是 `researching` 或 `completed` 时（等待开始，或没有可判定的状态）：回执与快照 `venus_widget_state` 同在 `tool_response_metadata` 中，是工具调用时写下的，研究之后的进展以当前 `widget_state` 为准；`start` 用同一规则；
-  - 页面显示的是另一个会话，或响应的 `conversation_id` 不是所请求的会话，为 Runtime，且不写任何文件；
-  - 状态与正文矛盾、未知状态值（不当作 `running`）、必需字段缺失或类型不符、引用条目不覆盖标记或缺 `safe_urls`、改写后仍残留私有区标记，为 Runtime，消息写明 ChatGPT 响应结构已变化及其位置或状态值；
-  - adapter 缺失或过期（附安装提示）、报告写入失败为 Runtime；
-  - 截止点前没有读到会话响应为 Timeout。
-  - `--output` 写失败退 3。
 
 ## 收尾
 

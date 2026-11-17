@@ -2,11 +2,8 @@
 
 mod attempt;
 mod capability;
-mod chatgpt_research;
 mod deadline;
-mod delegated_report;
 mod error;
-mod gemini_research;
 mod outcome;
 mod platform;
 mod platform_arxiv;
@@ -30,19 +27,8 @@ mod search;
 
 pub use attempt::{AttemptDisposition, AttemptTarget, ProviderAttempt};
 pub use capability::{Capability, CapabilitySet, FallbackPolicy, PlanCapability};
-pub(crate) use chatgpt_research::{CHATGPT_RESEARCH_RESULT, CHATGPT_RESEARCH_START};
-pub use chatgpt_research::{
-    ChatgptConversationId, ChatgptPlan, ChatgptPlanStep, ChatgptProgress, ChatgptResearchFailure,
-    ChatgptResearchResult, ChatgptResearchStarted, ChatgptResearchState,
-};
 pub(crate) use deadline::{Deadline, MIN_USEFUL_SLICE_SECONDS};
-pub use delegated_report::{DelegatedReport, ReportFiles, ReportSource};
 pub use error::{AttemptErrorKind, ErrorFamily, ErrorKind, ProviderError};
-pub(crate) use gemini_research::{GEMINI_RESEARCH_RESULT, GEMINI_RESEARCH_START};
-pub use gemini_research::{
-    GeminiConversationId, GeminiPlan, GeminiPlanStep, GeminiProgress, GeminiResearchFailure,
-    GeminiResearchResult, GeminiResearchStarted, GeminiResearchState,
-};
 pub use outcome::{
     Context7DocsOutcome, Context7LibraryOutcome, Context7Outcome, ExaInput, ExaOutcome,
     FetchOutcome, JournalOutcome, LibraryCandidate, MapOutcome,

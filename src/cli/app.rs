@@ -1,10 +1,7 @@
 //! CLI parsing and application dispatch.
 
 mod args;
-mod chatgpt;
-mod delegated_report;
 mod dispatch;
-mod gemini;
 mod platform;
 
 pub use args::{Cli, DocsOutputFormat, OutputFormat, OutputTarget};

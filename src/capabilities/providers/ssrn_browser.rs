@@ -12,7 +12,7 @@ use crate::config::ProcessRouteRuntimeConfig;
 use crate::net::AttemptFailure;
 use crate::providers::execution::{ExecutionSettings, execute_anonymous};
 use crate::providers::markup::fold_whitespace;
-use crate::providers::opencli::{EnvelopeStatus, Window};
+use crate::providers::opencli::EnvelopeStatus;
 use crate::providers::opencli_route::{OpenCliRoute, single_attempt};
 use crate::providers::shared::{other_platform_message, parameter_error};
 use crate::rate_limit::RateLimiter;
@@ -74,7 +74,7 @@ impl SsrnBrowser {
         if full_text {
             options.push(("download", "true".to_owned()));
         }
-        let command = self.opencli.command("paper", options, Window::Background);
+        let command = self.opencli.command("paper", options);
         let command = &command;
         let execution = execute_anonymous(
             self.settings(PlatformOperation::Fetch),

@@ -30,7 +30,7 @@ fn non_interactive_setup_creates_a_complete_template() {
         ),
         (
             Some(0),
-            84,
+            80,
             Some(0),
             Some(0),
             &toml::Value::Array(
