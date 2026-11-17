@@ -275,7 +275,7 @@ forager context7 docs LIBRARY_ID QUERY [--timeout SECONDS]
 [`platform-vocabulary.json`](platform-vocabulary.json). Platform commands write no result journal.
 Their `--timeout` defaults to `120` (`600` for YouTube ask and transcribe) and includes waits for the platform's request window, shared
 across all local processes (arXiv: one request every 3 seconds; SSRN through Crossref: one request
-per second; SSRN through the browser: one OpenCLI command every 5 seconds; Xiaohongshu: one OpenCLI
+per second; Xiaohongshu: one OpenCLI
 command every 10 seconds; Hacker News: one request to either of its two endpoints every half
 second; YouTube through the Data API: one request per second; YouTube through `youtube_web`: one request every 4 seconds; Google Scholar through SerpApi, X through xAI, and YouTube ask and transcribe through Gemini have no local window).
 
@@ -336,12 +336,10 @@ forager platform ssrn search QUERY [--limit N] [--cursor CURSOR]
 
 | Argument or option | Meaning | Default |
 | --- | --- | --- |
-| `QUERY` | Query expression; matching follows the selected route and mode. Required unless `--cursor` is given. | Required |
-| `--scope all\|title\|bibliographic\|full-text` | Route default fields, title, Crossref bibliographic fields, or browser full-text fields. | `all` |
-| `--author TEXT` | Author text query; browser uses the native Author(s) field, not an identity selector. | Omitted |
-| `--affiliation TEXT` | Crossref affiliation query. | Omitted |
-| `--mode fuzzy\|boolean` | Browser only. Boolean supports AND, OR, NOT, and parentheses. | Native Fuzzy when omitted |
-| `--date PRESET` | Browser only: all-time, last-week, last-month, last-3-months, last-6-months, last-year, last-2-years, last-3-years. | Native all-time when omitted |
+| `QUERY` | Query expression; matching follows Crossref. Required unless `--cursor` is given. | Required |
+| `--scope all\|title\|bibliographic` | Crossref default fields, title, or bibliographic fields. | `all` |
+| `--author TEXT` | Author text query, not an identity selector. | Omitted |
+| `--affiliation TEXT` | Author affiliation query. | Omitted |
 | `--published-from DATE`, `--published-to DATE` | Inclusive publication date bounds, `YYYY-MM-DD`. Either bound can be omitted. | Omitted |
 | `--created-from DATE`, `--created-to DATE` | Inclusive Crossref first-registration date bounds. | Omitted |
 | `--updated-from DATE`, `--updated-to DATE` | Inclusive Crossref metadata deposit/update date bounds. | Omitted |
@@ -349,44 +347,27 @@ forager platform ssrn search QUERY [--limit N] [--cursor CURSOR]
 | `--type TYPE` | Exact registered Crossref work type; see help for accepted values. | Omitted |
 | `--orcid ID` | Exact contributor ORCID, as a bare ID with a valid check digit. | Omitted |
 | `--funder DOI` | Exact Open Funder Registry DOI, `10.13039/<digits>`. | Omitted |
-| `--sort METRIC` | Crossref: relevance, published, created, updated, citations. Browser: relevance, posted, downloads, title. | `relevance` |
-| `--order asc\|desc` | Ranking direction. Browser relevance only accepts desc; title asc/desc means A–Z/Z–A. | `desc` |
+| `--sort METRIC` | relevance, published, created, updated, or citations. | `relevance` |
+| `--order asc\|desc` | Ranking direction. | `desc` |
 | `--limit N` | Results on this page, `1..=100`. | `10` |
 | `--cursor CURSOR` | `next_cursor` of a previous page; it restores the whole request, so pass no query, search criteria, or `--limit` with it. | Omitted |
 
-The default `ssrn_crossref` route searches Crossref records under the SSRN DOI prefix; it needs no
+The `ssrn_crossref` route searches Crossref records under the SSRN DOI prefix; it needs no
 credentials. Each item has `ref`, `url` (the SSRN abstract page), `depth`, `title`, `authors`,
-`published`, and the SSRN fields `abstract`, `snippet`, `doi`, `crossref_type`,
-`crossref_created`, `posted`, `last_revised`, and `date_written`; a field the route did not read is
-`null`. `depth` is `abstract` when the item has an abstract and `metadata` otherwise. Paging stops
+`published`, and the SSRN fields `abstract`, `doi`, `crossref_type`, and `crossref_created`; a
+field the Crossref record lacks is `null`. `depth` is `abstract` when the item has an abstract and `metadata` otherwise. Paging stops
 at result 10000, where Crossref stops offset paging; `next_cursor` is then `null`. Records whose DOI
 is not an SSRN DOI are dropped and reported on stderr. A valid empty search returns `items: []`
 with exit 0.
 
-When `platforms.ssrn.order` includes the opt-in `ssrn_browser` route, that route sends SSRN's own
-search request in Chrome through OpenCLI (see [`platforms.md`](platforms.md) to install and enable
-it). Its items have `depth: snippet` (`metadata` for a result without an excerpt), `snippet`,
-`posted` as the UTC date in SSRN's page format (`07 Sep 2019`), `published` as the same date in ISO
-form, and `last_revised` when SSRN reports a revision. A page never spans two 50-result SSRN pages,
-so it can hold fewer items than `--limit`; SSRN lists at most 10,000 results, and the last cursor
-stops there. SSRN does not keep the order of results stable between requests, so deduplicate items
-by `ref` across pages. An SSRN security check that blocked the request is an `auth` failure: ask the
-user to open SSRN in Chrome and pass the check, then retry once; never try to pass it yourself. An
-unrecognized answer is a `runtime` failure, never an empty result.
-
-Both routes support title and author queries with their own matching rules. Browser-only options
-require an enabled browser route; explicit mode/date values retain native semantics even at their
-defaults. Crossref-only filters and date ranges are rejected by the browser. Routes that cannot
-apply every criterion are skipped; when none support the request, the command exits 2 before IO.
 Affiliation, ORCID, and funder searches depend on deposited metadata. Crossref publication,
-registration, and update dates are distinct from SSRN Posted dates. Cursors restore all criteria.
-Full-text search changes the matching scope only; it does not fetch papers or download PDFs.
+registration, and update dates are distinct from SSRN's own posting and revision dates. Cursors
+restore all criteria.
 
 ### `platform ssrn fetch`
 
 ```console
-forager platform ssrn fetch REF_OR_URL [--depth metadata|abstract|full_text]
-                            [--content-dir DIR] [--keep-pdf]
+forager platform ssrn fetch REF_OR_URL [--depth metadata|abstract]
                             [--timeout SECONDS] [--format json|markdown|content]
                             [--output FILE [--receipt]] [--verbose]
 ```
@@ -394,29 +375,13 @@ forager platform ssrn fetch REF_OR_URL [--depth metadata|abstract|full_text]
 | Argument or option | Meaning | Default |
 | --- | --- | --- |
 | `REF_OR_URL` | `ssrn:<id>`, a `papers.ssrn.com/sol3/papers.cfm?abstract_id=<id>` URL, an `ssrn.com/abstract=<id>` URL, or the `10.2139/ssrn.<id>` DOI or its doi.org URL. | Required |
-| `--depth DEPTH` | `metadata` returns the metadata and the abstract when available; `abstract` requires the abstract; `full_text` downloads the paper and delivers it as Markdown (needs the `ssrn_browser` route). | `metadata` |
-| `--content-dir DIR` | Directory for the full-text Markdown file. | New directory under the system temp directory |
-| `--keep-pdf` | Move the downloaded PDF next to the Markdown and report `pdf_path` and `pdf_bytes`. | Off |
-| `--format FORMAT` | `json`, `markdown`, or `content`; `content` prints the abstract or the full text and writes no file. | `json` |
+| `--depth DEPTH` | `metadata` returns the metadata and the abstract when available; `abstract` requires the abstract. forager does not read SSRN full text. | `metadata` |
+| `--format FORMAT` | `json`, `markdown`, or `content`; `content` prints the abstract. | `json` |
 
-SSRN download links, look-alike hosts, and short links exit `2` before any request, and so does
-`--depth full_text` when no enabled route can download. A DOI that Crossref does not know is a
-`parameter` failure (exit `4`) whose message says the paper was not found in Crossref; `--depth
-abstract` without an abstract is a `quality` failure (exit `5`). With the order
-`["ssrn_crossref", "ssrn_browser"]`, a `--depth abstract`
-fetch whose Crossref record has no abstract falls through to the browser, which reads the abstract page and also fills
-`posted`, `last_revised`, and `date_written`. The browser reports a paper that SSRN shows as under
-review or removed as a `parameter` failure.
-
-A `full_text` fetch makes the browser route download the PDF, verifies it, and converts it
-through the configured `web_fetch` chain. JSON output carries the metadata and `content_url` (the
-canonical abstract page, never the expiring signed download address), `content_provider`,
-`content_path` (`ssrn-<id>.md`), and `content_len`; the PDF is removed after a successful
-delivery. A failed download check (incomplete download, missing file, not a PDF, wrong page) is a
-`quality` failure (exit `5`); when the conversion itself fails, the PDF is kept and the error
-message names its path. `full_text` with no configured Web Fetch provider exits `3`. Give the
-download and the conversion room: pass a larger `--timeout` than the default 120 seconds when a
-full-text fetch times out.
+SSRN download links, look-alike hosts, short links, and `--depth full_text` exit `2` before any
+request. A DOI that Crossref does not know is a `parameter` failure (exit `4`) whose message says
+the paper was not found in Crossref; `--depth abstract` without an abstract is a `quality` failure
+(exit `5`).
 
 ### `platform scholar search`
 
@@ -1259,17 +1224,16 @@ forager doctor [--provider PROVIDER] [--timeout SECONDS] [--format json|markdown
 
 | Option | Meaning | Default |
 | --- | --- | --- |
-| `--provider PROVIDER` | Deep-probe one of `xai`, `openai`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, `arxiv_api`, `ssrn_crossref`, `ssrn_browser`, `serpapi`, `xiaohongshu_browser`, or `hn_api`. Without it, run the shallow all-provider report. | Omitted |
+| `--provider PROVIDER` | Deep-probe one of `xai`, `openai`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, `arxiv_api`, `ssrn_crossref`, `serpapi`, `xiaohongshu_browser`, or `hn_api`. Without it, run the shallow all-provider report. | Omitted |
 | `--timeout SECONDS` | Set the diagnostic deadline. | `30` |
 | `--format FORMAT` | Use `json` or `markdown`. | `json` |
 
 Use `doctor` for credentials, connectivity, provider responses, and effective configuration
 inspection. In shallow mode, `ok` covers every configured provider: if any configured provider is
-unreachable, the top-level result is false and the command uses exit code 4. The browser routes
-`ssrn_browser` and `xiaohongshu_browser` are checked only when their platform's order lists them:
-doctor runs their OpenCLI `contract` command, and a failed check carries a `message` with install
-steps; `--provider ssrn_browser` or `--provider xiaohongshu_browser` also needs the route in the
-order and runs one real search in Chrome. Without a key, `jina` is configured and the shallow report notes that it runs
+unreachable, the top-level result is false and the command uses exit code 4. The browser route
+`xiaohongshu_browser` is checked only when the Xiaohongshu order lists it: doctor runs its OpenCLI
+`contract` command, and a failed check carries a `message` with install steps; `--provider
+xiaohongshu_browser` also needs the route in the order and runs one real search in Chrome. Without a key, `jina` is configured and the shallow report notes that it runs
 anonymously; `--provider jina` then probes without a key, and with keys it reports a failing key
 even when the anonymous request succeeds. `--provider xai` and `--provider openai` each send one
 Responses model probe without tools, recorded as the `responses` check; `--provider xai` adds an

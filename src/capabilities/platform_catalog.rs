@@ -46,11 +46,10 @@ pub(crate) const ARXIV: PlatformCatalog = PlatformCatalog {
     default_order: &[ProviderId::ArxivApi],
 };
 
-// `ssrn_browser` drives the user's own browser, so users must enable it themselves (ADR 0020).
 pub(crate) const SSRN: PlatformCatalog = PlatformCatalog {
     platform: Platform::Ssrn,
-    search: &[ProviderId::SsrnCrossref, ProviderId::SsrnBrowser],
-    fetch: &[ProviderId::SsrnCrossref, ProviderId::SsrnBrowser],
+    search: &[ProviderId::SsrnCrossref],
+    fetch: &[ProviderId::SsrnCrossref],
     operation_only: &[],
     default_order: &[ProviderId::SsrnCrossref],
 };

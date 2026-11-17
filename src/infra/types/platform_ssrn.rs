@@ -118,26 +118,18 @@ fn url_identifier(input: &str) -> Option<&str> {
     None
 }
 
-#[derive(Clone, Debug, Default, Serialize)]
-/// SSRN metadata of a paper; a route fills only the fields it reads.
+#[derive(Clone, Debug, Serialize)]
+/// SSRN metadata of a paper as its Crossref record holds it.
 pub struct SsrnItemData {
     /// The complete author-written abstract.
     #[serde(rename = "abstract")]
     pub abstract_text: Option<String>,
-    /// A search-result excerpt; never the abstract.
-    pub snippet: Option<String>,
     /// The DOI as Crossref records it.
     pub doi: Option<String>,
     /// The Crossref work type, such as `posted-content` or `journal-article`.
     pub crossref_type: Option<String>,
     /// When Crossref registered the DOI; never an SSRN posting date.
     pub crossref_created: Option<String>,
-    /// The posting date as the SSRN page shows it.
-    pub posted: Option<String>,
-    /// The last revision date as the SSRN page shows it.
-    pub last_revised: Option<String>,
-    /// The date written as the SSRN page shows it.
-    pub date_written: Option<String>,
 }
 
 #[cfg(test)]

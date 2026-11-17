@@ -7,7 +7,6 @@ use std::path::{Path, PathBuf};
 use serde_json::{Value, json};
 
 pub(crate) const XHS_CONTRACT: &str = "forager-xhs/2";
-const SSRN_CONTRACT: &str = "forager-ssrn/4";
 
 const CALL_END: &str = "<<end of call>>";
 
@@ -46,25 +45,13 @@ impl FakeOpenCli {
         Self::answering(&failure(code, message, exit), "", exit)
     }
 
-    pub(crate) fn envelope(status: &str, data: &Value) -> Self {
-        Self::contract_envelope(XHS_CONTRACT, status, data)
-    }
-
-    pub(crate) fn ssrn_envelope(status: &str, data: &Value) -> Self {
-        Self::contract_envelope(SSRN_CONTRACT, status, data)
-    }
-
-    /// Answers an envelope of another adapter contract.
+    /// Answers an adapter envelope of `contract` with `status` and `data`.
     pub(crate) fn contract_envelope(contract: &str, status: &str, data: &Value) -> Self {
         Self::answering(&adapter_envelope(contract, status, data), "", 0)
     }
 
-    /// Answers each command, selected by its second argument, with an `ok` envelope.
-    pub(crate) fn by_command(pages: &[(&str, Value)]) -> Self {
-        Self::contract_by_command(XHS_CONTRACT, pages)
-    }
-
-    /// Answers each command of another adapter contract with an `ok` envelope.
+    /// Answers each command, selected by its second argument, with an `ok` envelope of
+    /// `contract`.
     pub(crate) fn contract_by_command(contract: &str, pages: &[(&str, Value)]) -> Self {
         let cases = pages.iter().fold(String::new(), |mut cases, (command, _)| {
             let _ = writeln!(cases, "  {command}) /bin/cat \"$dir/{command}.json\" ;;");
@@ -78,39 +65,6 @@ impl FakeOpenCli {
             )
             .expect("write fake page");
         }
-        fake
-    }
-
-    /// Answers the n-th call with the n-th envelope of `(status, data)`.
-    pub(crate) fn sequence(envelopes: &[(&str, Value)]) -> Self {
-        let fake = Self::with_body(&format!(
-            "call=$(/usr/bin/grep -cxF '{CALL_END}' \"$dir/argv\")\n/bin/cat \"$dir/$call.json\"\n"
-        ));
-        for (index, (status, data)) in envelopes.iter().enumerate() {
-            fs::write(
-                fake.path(&format!("{}.json", index + 1)),
-                adapter_envelope(SSRN_CONTRACT, status, data),
-            )
-            .expect("write fake envelope");
-        }
-        fake
-    }
-
-    /// Writes `contents` as `file_name` and answers an `ok` envelope whose `download` points at
-    /// it, like the adapter after a completed browser download.
-    pub(crate) fn downloading(data: &Value, file_name: &str, contents: &[u8]) -> Self {
-        let fake = Self::with_body("/bin/cat \"$dir/stdout\"\n");
-        fs::write(fake.path(file_name), contents).expect("write fake download");
-        let mut data = data.clone();
-        data["download"] = json!({
-            "state": "complete",
-            "file": fake.path(file_name).display().to_string(),
-        });
-        fs::write(
-            fake.path("stdout"),
-            adapter_envelope(SSRN_CONTRACT, "ok", &data),
-        )
-        .expect("write fake stdout");
         fake
     }
 
@@ -165,10 +119,6 @@ impl FakeOpenCli {
     /// Points `xiaohongshu_browser` at this fake and sets the Xiaohongshu order.
     pub(crate) fn config(&self, order: &str) -> String {
         self.route_config("xiaohongshu_browser", "xiaohongshu", order)
-    }
-
-    pub(crate) fn ssrn_config(&self, order: &str) -> String {
-        self.route_config("ssrn_browser", "ssrn", order)
     }
 
     /// Points `route` at this fake and sets the order of `platform`.

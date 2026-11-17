@@ -17,7 +17,6 @@ mod reddit_web;
 mod responses_api;
 mod serpapi;
 pub(crate) mod shared;
-mod ssrn_browser;
 mod ssrn_crossref;
 mod supplemental;
 mod tavily_map;
@@ -57,7 +56,6 @@ pub(crate) use opencli::check_contract as check_opencli_contract;
 pub(crate) use polymarket_api::PolymarketApi;
 pub(crate) use reddit_web::RedditWeb;
 pub(crate) use serpapi::Serpapi;
-pub(crate) use ssrn_browser::SsrnBrowser;
 pub(crate) use ssrn_crossref::SsrnCrossref;
 pub(crate) use supplemental::SupplementalSearch;
 pub(crate) use tavily_map::{MapRequest, TavilyMap};
@@ -65,7 +63,7 @@ pub(crate) use types::{
     DocsSearch, MainSearch, MainSearchRequest, MainSearchRequestKind, PlatformFetch,
     PlatformSearch, WebSearch,
 };
-pub(crate) use web_fetch::{FetchRequest, FetchSource, WebFetch, is_pdf_url, source_support};
+pub(crate) use web_fetch::{FetchRequest, WebFetch, is_pdf_url};
 pub(crate) use xai::Xai;
 pub(crate) use xiaohongshu_browser::XiaohongshuBrowser;
 pub(crate) use youtube_api::YoutubeApi;

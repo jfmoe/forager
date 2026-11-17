@@ -377,8 +377,6 @@ pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("providers.arxiv_api.timeout", providers.arxiv_api.timeout: U64, Rule::Positive, View::Plain, "shared timeout in seconds; must be greater than zero"),
     leaf!("providers.ssrn_crossref.url", providers.ssrn_crossref.url: String, Rule::Any, View::Url, "service endpoint URL; this provider needs no credentials"),
     leaf!("providers.ssrn_crossref.timeout", providers.ssrn_crossref.timeout: U64, Rule::Positive, View::Plain, "shared timeout in seconds; must be greater than zero"),
-    leaf!("providers.ssrn_browser.command", providers.ssrn_browser.command: String, Rule::NonEmpty, View::Plain, "OpenCLI executable name or path; this route needs no credentials"),
-    leaf!("providers.ssrn_browser.timeout", providers.ssrn_browser.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one OpenCLI command; must be greater than zero"),
     leaf!("providers.serpapi.url", providers.serpapi.url: String, Rule::Any, View::Url, "service endpoint URL"),
     leaf!("providers.serpapi.keys", providers.serpapi.keys: Secrets, Rule::Any, View::Keys, "credential pool; keep empty until credentials are available"),
     leaf!("providers.serpapi.timeout", providers.serpapi.timeout: U64, Rule::Positive, View::Plain, "shared timeout in seconds; must be greater than zero"),

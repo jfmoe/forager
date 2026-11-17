@@ -24,7 +24,7 @@ fn config_list_reports_the_complete_default_effective_view() {
         ),
         (
             Some(0),
-            80,
+            78,
             None,
             &serde_json::json!({
                 "value": [],
@@ -85,32 +85,6 @@ fn config_list_projects_the_default_ssrn_route_and_order() {
                 "timeout": {"value": 30, "source": "default"}
             }),
             &serde_json::json!({"value": ["ssrn_crossref"], "source": "default"}),
-        ),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
-#[test]
-fn config_list_projects_the_opt_in_browser_route_outside_the_default_order() {
-    let config_dir = tempfile::tempdir().expect("create config directory");
-
-    let output = run(config_dir.path(), &["config", "list"], &[], None);
-    let view: Value = serde_json::from_slice(&output.stdout).expect("parse config view");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &view["providers"]["ssrn_browser"],
-            &view["platforms"]["ssrn"]["order"]["value"],
-        ),
-        (
-            Some(0),
-            &serde_json::json!({
-                "command": {"value": "opencli", "source": "default"},
-                "timeout": {"value": 90, "source": "default"}
-            }),
-            &serde_json::json!(["ssrn_crossref"]),
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)

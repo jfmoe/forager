@@ -76,10 +76,6 @@ timeout = 30
 url = "https://api.crossref.org"
 timeout = 30
 
-[providers.ssrn_browser]     # process route：没有 url 与 keys；只选择 OpenCLI 可执行文件
-command = "opencli"          # 不能为空
-timeout = 90                 # 一次 OpenCLI 命令的 attempt 超时
-
 [providers.xiaohongshu_browser]  # process route：没有 url 与 keys；只选择 OpenCLI 可执行文件
 command = "opencli"          # 不能为空
 timeout = 120                # 一次 OpenCLI 命令的 attempt 超时
@@ -130,7 +126,7 @@ order = ["exa", "context7"]       # Exa 优先；Context7 仅在 Exa 无可消�
 [platforms.arxiv]
 order = ["arxiv_api"]        # 置空＝禁用该平台
 [platforms.ssrn]
-order = ["ssrn_crossref"]    # 加入 "ssrn_browser" 才启用浏览器 route（ADR 0020）
+order = ["ssrn_crossref"]
 [platforms.scholar]
 order = ["serpapi"]          # 默认含 serpapi，但没有 key 时不算已配置
 [platforms.xiaohongshu]
@@ -167,7 +163,7 @@ ssl_verify = true
 
 ### 凭据形状
 
-唯一形状：每个需要凭据的 provider 节一个 `keys` **真数组**（单凭据＝单元素数组）；注册信息声明不需要凭据的 provider（`arxiv_api`、`ssrn_crossref`、`ssrn_browser`、`xiaohongshu_browser`、`youtube_web`）的节没有 `keys`：HTTP route 只有 `url` 与 `timeout`，process route（`ssrn_browser`、`xiaohongshu_browser`）只有 `command` 与 `timeout`，写入 `keys` 为未知键（文件层退 3，`config set` 退 2），该 provider 恒为已配置。`*_API_KEY`/`*_API_KEYS` 双形态与「KEYS 覆盖 KEY」优先级消灭。`classifier.keys` 沿用凭据池全套语义（去空去重、轮询、配额/限流失败同请求内换用）。例外：`providers.youtube_api.keys` 最多一个元素（Developer Policies 要求一个客户端只用一个项目、不得规避配额，见第 7 章「YouTube」），多于一个时文件层退 3、`config set` 退 2。
+唯一形状：每个需要凭据的 provider 节一个 `keys` **真数组**（单凭据＝单元素数组）；注册信息声明不需要凭据的 provider（`arxiv_api`、`ssrn_crossref`、`xiaohongshu_browser`、`youtube_web`）的节没有 `keys`：HTTP route 只有 `url` 与 `timeout`，process route（`xiaohongshu_browser`）只有 `command` 与 `timeout`，写入 `keys` 为未知键（文件层退 3，`config set` 退 2），该 provider 恒为已配置。`*_API_KEY`/`*_API_KEYS` 双形态与「KEYS 覆盖 KEY」优先级消灭。`classifier.keys` 沿用凭据池全套语义（去空去重、轮询、配额/限流失败同请求内换用）。例外：`providers.youtube_api.keys` 最多一个元素（Developer Policies 要求一个客户端只用一个项目、不得规避配额，见第 7 章「YouTube」），多于一个时文件层退 3、`config set` 退 2。
 
 ### 链序权威
 

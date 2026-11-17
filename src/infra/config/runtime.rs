@@ -49,7 +49,6 @@ pub(crate) struct JournalRuntimeConfig {
 pub(crate) struct PlatformRoutesRuntimeConfig {
     pub(crate) arxiv_api: HttpRouteRuntimeConfig,
     pub(crate) ssrn_crossref: HttpRouteRuntimeConfig,
-    pub(crate) ssrn_browser: ProcessRouteRuntimeConfig,
     pub(crate) serpapi: KeyedHttpRouteRuntimeConfig,
     pub(crate) xiaohongshu_browser: ProcessRouteRuntimeConfig,
     /// The main search provider, which also reads X.
@@ -67,7 +66,6 @@ pub(crate) struct PlatformRoutesRuntimeConfig {
 pub(crate) enum PlatformRouteConfig {
     ArxivApi(HttpRouteRuntimeConfig),
     SsrnCrossref(HttpRouteRuntimeConfig),
-    SsrnBrowser(ProcessRouteRuntimeConfig),
     Serpapi(KeyedHttpRouteRuntimeConfig),
     XiaohongshuBrowser(ProcessRouteRuntimeConfig),
     Xai(XaiRuntimeConfig),
@@ -84,7 +82,6 @@ impl PlatformRouteConfig {
         match self {
             Self::ArxivApi(_) => ProviderId::ArxivApi,
             Self::SsrnCrossref(_) => ProviderId::SsrnCrossref,
-            Self::SsrnBrowser(_) => ProviderId::SsrnBrowser,
             Self::Serpapi(_) => ProviderId::Serpapi,
             Self::XiaohongshuBrowser(_) => ProviderId::XiaohongshuBrowser,
             Self::Xai(_) => ProviderId::Xai,
@@ -101,7 +98,6 @@ impl PlatformRouteConfig {
         match self {
             Self::ArxivApi(_)
             | Self::SsrnCrossref(_)
-            | Self::SsrnBrowser(_)
             | Self::XiaohongshuBrowser(_)
             | Self::HnApi(_)
             | Self::YoutubeWeb(_)
@@ -277,10 +273,6 @@ impl RuntimeConfig {
                 endpoint: &self.platform_routes.ssrn_crossref.url,
                 keys: &[],
             },
-            ProviderId::SsrnBrowser => ProviderRuntime {
-                endpoint: &self.platform_routes.ssrn_browser.command,
-                keys: &[],
-            },
             ProviderId::Serpapi => ProviderRuntime {
                 endpoint: &self.platform_routes.serpapi.url,
                 keys: &self.platform_routes.serpapi.keys,
@@ -376,10 +368,6 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         ssrn_crossref: HttpRouteRuntimeConfig {
             url: config.providers.ssrn_crossref.url,
             timeout_seconds: config.providers.ssrn_crossref.timeout,
-        },
-        ssrn_browser: ProcessRouteRuntimeConfig {
-            command: config.providers.ssrn_browser.command,
-            timeout_seconds: config.providers.ssrn_browser.timeout,
         },
         serpapi: KeyedHttpRouteRuntimeConfig {
             url: config.providers.serpapi.url,
@@ -558,9 +546,6 @@ pub(crate) fn platform_route_config(
         ProviderId::ArxivApi => Some(PlatformRouteConfig::ArxivApi(routes.arxiv_api.clone())),
         ProviderId::SsrnCrossref => Some(PlatformRouteConfig::SsrnCrossref(
             routes.ssrn_crossref.clone(),
-        )),
-        ProviderId::SsrnBrowser => Some(PlatformRouteConfig::SsrnBrowser(
-            routes.ssrn_browser.clone(),
         )),
         ProviderId::Serpapi => Some(PlatformRouteConfig::Serpapi(routes.serpapi.clone())),
         ProviderId::XiaohongshuBrowser => Some(PlatformRouteConfig::XiaohongshuBrowser(

@@ -98,13 +98,9 @@ fn fetch_returns_metadata_and_the_abstract_at_the_default_depth() {
                 "authors": ["Gary Antonacci"],
                 "published": "2012-04",
                 "abstract": "Momentum is the premier market anomaly.",
-                "snippet": null,
                 "doi": "10.2139/ssrn.2042750",
                 "crossref_type": "posted-content",
-                "crossref_created": "2012-04-25T11:01:44Z",
-                "posted": null,
-                "last_revised": null,
-                "date_written": null
+                "crossref_created": "2012-04-25T11:01:44Z"
             })
         ),
         "stderr: {}",
@@ -308,6 +304,6 @@ fn a_full_text_request_fails_before_any_request() {
         ROUTE_CONFIG,
         &["ssrn:2042750", "--depth", "full_text"],
         2,
-        "ssrn_crossref cannot fetch at depth `full_text`",
+        "invalid value 'full_text' for '--depth <DEPTH>'",
     );
 }

@@ -25,7 +25,7 @@ _Avoid_: supplemental source、verified evidence、all search sources
 _Avoid_: Supplemental Search Candidate、primary source、verified evidence、merged source
 
 **Web Fetch Capability**:
-读取、提取或核验已知来源正文的能力；输入是已知 URL，或者同一次 forager 命令中另一阶段产生并校验过的本地文件（带媒体类型）。它不负责发现链接。
+读取、提取或核验已知来源正文的能力；输入是已知 URL。它不负责发现链接。
 _Avoid_: web search、link discovery
 
 **Normalized Fetch Content**:
@@ -105,7 +105,7 @@ Platform Route 到达外部内容源的方式，在供应方注册信息中声�
 _Avoid_: route kind、backend type
 
 **OpenCLI Adapter**:
-forager 自有、安装到本机 OpenCLI 的站点命令集合，例如 SSRN 的 `search`、`paper` 与 `contract`。每个命令只读取页面或站点自身请求的事实，输出带契约版本的统一外壳（`contract`、`status`、`data`）；校验与归一化由 route adapter 完成。只有 adapter 核实了站点自己的无结果答复时，`status` 才是 `no_results`。
+forager 自有、安装到本机 OpenCLI 的站点命令集合，例如小红书的 `search`、`note`、`comments` 与 `contract`。每个命令只读取页面或站点自身请求的事实，输出带契约版本的统一外壳（`contract`、`status`、`data`）；校验与归一化由 route adapter 完成。只有 adapter 核实了站点自己的无结果答复时，`status` 才是 `no_results`。
 _Avoid_: OpenCLI plugin、browser script、built-in OpenCLI site adapter
 
 **Platform Ref**:
@@ -177,7 +177,7 @@ _Avoid_: odds、chance、displayed price、outcome price
 _Avoid_: probability history、chart、price feed
 
 **Platform Fetch**:
-按 Platform Ref 取回单个平台条目的操作；它不同于 Web Fetch Capability，尽管其正文段可以复用 Web Fetch。先由平台 route 取元数据并确定实际版本，全文深度再按 route 声明的正文来源取正文：一组 URL 或一个在同一 attempt 内校验过的本地文件走同一条 Web Fetch 链；route 在同一 attempt 内自己读到并核对过的平台原生正文（Native，例如小红书笔记）不经 Web Fetch（ADR 0022）。全文写入本地文件，结果只按路径引用它。
+按 Platform Ref 取回单个平台条目的操作；它不同于 Web Fetch Capability，尽管其正文段可以复用 Web Fetch。先由平台 route 取元数据并确定实际版本，全文深度再按 route 声明的正文来源取正文：一组 URL 依次走同一条 Web Fetch 链；route 在同一 attempt 内自己读到并核对过的平台原生正文（Native，例如小红书笔记）不经 Web Fetch（ADR 0022）。全文写入本地文件，结果只按路径引用它。
 _Avoid_: web fetch、platform download
 
 **Content Depth**:
@@ -195,7 +195,3 @@ _Avoid_: offset、page token
 **SSRN Search Criteria**:
 一次 SSRN 检索要求的搜索范围、作者与机构、日期、元数据条件和排序。每条 Platform Route 必须完整应用这些条件；名称相近但语义不同的条件不互相替代。
 _Avoid_: raw provider parameters、best-effort filters
-
-**SSRN Effective Search State**:
-adapter 实际发出的原站检索请求所含的查询词、范围、模式、作者、日期、排序和页码。它是实际执行的条件，与用户要求的 SSRN Search Criteria 分别核对，不能以 adapter 收到的参数推定请求如此发出。
-_Avoid_: requested search state、control values

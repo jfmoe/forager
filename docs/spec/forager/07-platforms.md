@@ -11,8 +11,30 @@
   - 点击：在页面中选出唯一一个指针可命中的目标（不在 `aria-hidden` 子树中、有尺寸、指针在其中心命中它自身或其后代），必要时用滚轮把它滚进视口，在中心附近取一个仍命中目标的随机点，先悬停，悬停后仍命中再 `nativeClick`。没有目标、多于一个可命中目标、目标被遮挡、滚不进视口、悬停后不再命中，或所需的原生接口不存在时，立即以明确的原因失败，不退回脚本操作。
   - 核对：点击结果能在页面上观察到时（选项选中、面板展开、展开按钮消失、菜单项出现），点击后在几秒内核对，核对不通过以 `click_missed` 失败，不等到读取截止。
   - 节奏：每次操作前随机停顿 0.3–1.5 秒，计入命令自己的读取截止时间；截止时间一过，不再发出任何输入（包括逐字输入的下一个字符），当前操作以 `deadline_passed` 失败；点击前先悬停；不超过 200 个字符的文本逐字原生输入，字符间隔 30–90 毫秒随机；更长的文本用一次 `insertText`。编辑键（全选、退格、删除）经 `Input.dispatchKeyEvent` 发送并带上键码，macOS 上另带对应的编辑命令。不模拟鼠标轨迹。
-  - 归属：目前只有小红书 adapter 做页面操作，原生输入块只有一份，在它的 `shared.js` 中。SSRN adapter 不在此规则内，它的 JS 保持不变。
+  - 归属：小红书 adapter 是唯一的 forager 自有 OpenCLI adapter，原生输入块只有一份，在它的 `shared.js` 中。
   - 原生输入提高的是交互的真实度与稳健性，不是反检测：不做 stealth 改造、不伪造指纹、不解验证码；遇到验证、风控或登录墙仍按 ADR 0020 立即停止。
+- **OpenCLI 进程传输**（`providers/opencli`，不含站点知识）：输入为可执行文件、adapter（site 与契约版本）、命令、具名参数与 attempt 截止时间。process route 的配置项为 `providers.<route>.command`（OpenCLI 可执行文件，默认 `opencli`，不能为空）与 `.timeout`（一次命令的 attempt 超时），没有 `url` 与 `keys`；它是匿名 route，始终视为已配置。命令只能选择可执行文件，参数全部由 route 决定（ADR 0019）。
+  - 调用形式：`<command> <site> <命令> --<参数> <值>… --timeout <秒> -f json --window background --site-session ephemeral --keep-tab false`。forager 自有 adapter 的每个命令都接受这些 flag，且都在后台窗口运行，不占用用户的屏幕。
+  - 截止时间：attempt 截止时间之前预留 5 秒得到工作截止点，剩余整秒数作为 adapter 命令的 `--timeout` 参数传入。OpenCLI 据此设置 daemon 每次操作的截止时间；adapter 在 `--timeout` 之前 3 秒停止读取页面或等待请求并返回，让 OpenCLI 在工作截止点之前关闭标签页。5 秒预留用于强杀、回收子进程与报告 attempt。子进程放入独立进程组；到达工作截止点或 future 被丢弃时，强杀整个进程组，不做分步终止。access permit 持有到子进程被回收为止。剩余时间不足时 attempt 以 Timeout 结束，不启动进程。
+  - 输出上限：stdout 最多 4 MiB（协议上限），超出为 Runtime 并强杀进程组；stderr 只保留前 64 KiB 并做 URL 脱敏。
+  - 非 Unix 系统：传输在启动进程之前以 Runtime 拒绝；factory 的支持检查同样拒绝，因此 process route 记为 Skipped。
+  - 环境：forager 不设置任何 `OPENCLI_*` 环境变量（如 `OPENCLI_CLOSE_OWNED_TAB`、`OPENCLI_WINDOW`），子进程继承用户的环境；窗口与标签页的回收沿用 OpenCLI 默认行为。
+  - 输出外壳：只支持 OpenCLI 2.x。成功时退出码为 0，stdout 是 `{"ok": true, "data": <adapter 返回值>}`；失败时退出码非 0，stdout 是 `{"ok": false, "error": {code, message, …}}`。失败消息取 `error.message`；stdout 不是这种外壳时（例如进程被信号终止）取 stderr 的第一个非空行。消息做 URL 脱敏并截断。
+  - adapter 外壳：成功外壳的 `data` 是 forager 自有 adapter 的外壳 `{contract, status, data}`。`contract` 与注册信息的契约版本不一致为 Runtime，消息附安装提示（把 skill 的 `opencli/<site>` 目录复制为 `~/.opencli/clis/<site>`）；`status` 为 `ok` 或 `no_results`，只有 adapter 核实了站点自己的无结果答复时才是 `no_results`。
+  - OpenCLI 1.x：成功退出但 stdout 的 JSON 没有 `ok`（1.x 直接输出 adapter 外壳），或失败退出时 stdout 为空而 stderr 是 1.x 的 YAML 错误外壳（含 `ok: false` 行），都报 Runtime，提示升级到 OpenCLI 2.x 与 Browser Bridge 1.0.25 或更高版本；不提供 1.x 兼容。
+  - 退出码映射（`code` 指失败外壳的 `error.code`）：
+
+    | OpenCLI 结果 | 映射 |
+    |---|---|
+    | 0，且两层外壳都有效 | 传输成功；业务结果由 route 判定（例如小红书 route 的页面事实分类） |
+    | 66（`EMPTY_RESULT`） | Runtime（永远不算合法空结果） |
+    | 69，且 `code` 为 `ADAPTER_LOAD` | Runtime，附安装提示 |
+    | 其他 69（如 `BROWSER_CONNECT`） | Network |
+    | 75（`TIMEOUT`） | Timeout |
+    | 77（`AUTH_REQUIRED`、`LOGIN_WALL`；adapter 报出的站点验证未通过与访问被拦截也用 77） | Auth |
+    | `code` 为 `unknown_command`（站点目录未安装）或任意 `commander.*`（如已安装的旧版 adapter 缺少该命令或参数），退出码 2 | Runtime，附安装提示 |
+    | 找不到可执行文件 | Runtime，提示安装 OpenCLI 或设置 `command` |
+    | 其他退出码（含 2 的其他命令行错误）、输出无法解码 | Runtime |
 - **链语义**：同平台的 route 按 `platforms.<id>.order` 组成 fallback 链，由共享链执行器运行，沿用 LegitimateEmpty 语义：至少一条 route 返回合法空结果、之后没有 route 被接受时，结果为空成功。结果永不跨平台 fallback。
 - **Platform Ref**：平台实体的类型化身份，由平台、平台自有的 kind 和 id 组成。kind 只按「身份空间不同」或「fetch 结果形状不同」划分，不按对话角色划分。字符串形式为 `<platform>:<id>`，例如 `arxiv:2401.01234v2`。
   - ref 解析与 canonical URL 推导是 types 门面中的零 IO 纯函数。每个 kind 都满足往返性质：解析 ref 的 canonical URL，得到同一个 ref。
@@ -46,14 +68,13 @@
 
 - **输入**：ref 字符串或可识别的原始平台 URL（L0），以及 `--depth`。平台只接受它定义过含义的深度，由 route 的支持检查判定。打开实体需要 Access Token 的平台（小红书）从输入 URL 中拆出 token，放进请求的 `access` 字段，不带 token 时飞行前退 2。
 - **元数据段**：fetch route 链（`platforms.<id>.order` ∩ fetch route 集合 ∩ 已配置 route）返回条目元数据；输出的 ref 带平台返回的实际版本。条目不存在是 attempt 级 Parameter；元数据段失败即命令失败，绝不跳过元数据直接取正文。
-- **正文段**（仅 `full_text`）：答复的 route 在 `PlatformFetchOutcome.content_source` 中声明同一版本的正文来源，三者之一：一组按序读取的 URL（arXiv）、一个在同一 attempt 内校验过的本地文件（SSRN 浏览器下载的 PDF），或 route 在同一 attempt 内自己读到并核对过的 Markdown 正文（Native，小红书、YouTube 的 Transcript；ADR 0022）。route 可以先做受访问策略约束的探测来决定 URL 顺序，但不 import Web Fetch provider。Native 来源跳过 Web Fetch 链与薄正文门，core 直接用条目的 canonical URL、route id 与正文构造 `PlatformContent`；没有正文时 route 在同一 attempt 内报 Quality，不另记 attempt。core 的 `platform_fetch` 对 URL 与本地文件两种来源用同样的方式运行全局 Web Fetch 链（`capabilities.web_fetch.order` 及其凭据、薄正文门、4 MiB 截断诊断），不含站点知识：URL 来源首个成功者即正文，有后续 URL 时本段最多用剩余预算的一半，全部失败时沿用最后一条 Web Fetch 链的终态；本地文件来源只运行一次链，失败即终态。第 4 章的归因总函数只在每条链内部归约，不跨正文 URL 合并。不新增平台级正文顺序。**Web Fetch 预检**：provider 注册信息为每条 route 声明 fetch 全文是否由 route 自己读取（`native_full_text`）；`plan_fetch` 的计划据此回答是否可能需要 Web Fetch（`full_text` 且计划中有任一 route 不读原生正文）。只有需要时，没有已配置的 Web Fetch provider 才为飞行前退 3；其他深度与只含原生正文 route 的计划不需要 Web Fetch 配置。
+- **正文段**（仅 `full_text`）：答复的 route 在 `PlatformFetchOutcome.content_source` 中声明同一版本的正文来源，二者之一：一组按序读取的 URL（arXiv），或 route 在同一 attempt 内自己读到并核对过的 Markdown 正文（Native，小红书、YouTube 的 Transcript、Hacker News、Reddit；ADR 0022）。route 可以先做受访问策略约束的探测来决定 URL 顺序，但不 import Web Fetch provider。Native 来源跳过 Web Fetch 链与薄正文门，core 直接用条目的 canonical URL、route id 与正文构造 `PlatformContent`；没有正文时 route 在同一 attempt 内报 Quality，不另记 attempt。core 的 `platform_fetch` 对每个 URL 运行全局 Web Fetch 链（`capabilities.web_fetch.order` 及其凭据、薄正文门、4 MiB 截断诊断），不含站点知识：首个成功者即正文，有后续 URL 时本段最多用剩余预算的一半，全部失败时沿用最后一条 Web Fetch 链的终态。第 4 章的归因总函数只在每条链内部归约，不跨正文 URL 合并。不新增平台级正文顺序。**Web Fetch 预检**：provider 注册信息为每条 route 声明 fetch 全文是否由 route 自己读取（`native_full_text`）；`plan_fetch` 的计划据此回答是否可能需要 Web Fetch（`full_text` 且计划中有任一 route 不读原生正文）。只有需要时，没有已配置的 Web Fetch provider 才为飞行前退 3；其他深度与只含原生正文 route 的计划不需要 Web Fetch 配置。
 
 ### fetch 输出与正文交付
 
 遵循 ADR 0015「默认结果只含下一步决策所需内容，已落盘材料按引用交付」：
 
-- **`full_text`**：正文写入本地 Markdown 文件；stdout 返回 `platform`、`provider`（元数据 route）、条目公共字段与平台字段（`depth` 为 `full_text`），以及 `content_url`、`content_provider`（实际产出 Markdown 的 provider：Web Fetch provider，Native 来源时为 route id）、`content_path`（可直接读取的文件）与 `content_len`（正文字符数）。正文不出现在 stdout。`content_url` 是正文实际来自的 URL；正文由本地文件转换而来或是 Native 来源时，它是条目的 canonical URL（正文来自平台，不是某个可抓取的地址，不承诺可以匿名打开），永不指向有时效的签名下载地址。
-- **原始文件**：正文来源是本地文件时，`--keep-pdf` 把它移入内容目录（文件名由 ref 与媒体类型派生，如 `ssrn-<id>.pdf`），输出增加 `pdf_path` 与 `pdf_bytes`；默认在交付成功后删除它；转换失败时一律保留，错误消息写明它的路径。跨文件系统的移动采用先复制再删除。
+- **`full_text`**：正文写入本地 Markdown 文件；stdout 返回 `platform`、`provider`（元数据 route）、条目公共字段与平台字段（`depth` 为 `full_text`），以及 `content_url`、`content_provider`（实际产出 Markdown 的 provider：Web Fetch provider，Native 来源时为 route id）、`content_path`（可直接读取的文件）与 `content_len`（正文字符数）。正文不出现在 stdout。`content_url` 是正文实际来自的 URL；正文是 Native 来源时，它是条目的 canonical URL（正文来自平台，不是某个可抓取的地址，不承诺可以匿名打开）。
 - **`thread`**：交付方式由平台声明。route 在 `content_source` 中返回 Native 正文时（Hacker News、Reddit），这份正文就是讨论串文档，与 `full_text` 一样写入文件、按引用交付：stdout 带 `content_url`（条目 canonical URL）、`content_provider`（route id）、`content_path` 与 `content_len`，条目 `depth` 仍为 `thread`。其他 route（X）把讨论串内联在条目中，不写文件。
 - **其他深度**：元数据与该深度的内容直接内联，不写文件。
 - **`--format content`**：显式把正文（非全文深度时为该深度的内容，写文件的 `thread` 为讨论串文档）输出到 stdout，不写文件。
@@ -67,7 +88,7 @@
 | ref 或 URL 无法识别、短链、cursor 冲突或无效、选项取值非法、所有已配置 route 都不支持所请求的选项 | 飞行前（参数） | 退 2，不发网络请求 |
 | 平台 order 为空、操作可用 route 集合为空、order 含其他平台的 route、order 中的 route 都缺凭据（消息点名 `providers.<route>.keys`）；`full_text` fetch 的计划需要 Web Fetch 而没有已配置的 Web Fetch provider | 飞行前（配置） | 退 3，不发网络请求 |
 | 平台返回参数错误（例如 arXiv Atom error entry）、fetch 的条目不存在 | 飞行后，attempt 级 Parameter | 退 4，带平台消息 |
-| fetch 元数据成功，但正文来源的 Web Fetch 链全部失败；全文的下载校验不满足（下载未完成、文件不存在、不是 PDF、详情页 id 不一致） | 飞行后 | URL 来源沿用最后一条 Web Fetch 链终态，例如全部过薄为 Quality，退 5；下载校验不满足为 Quality，退 5 |
+| fetch 元数据成功，但正文来源的 Web Fetch 链全部失败 | 飞行后 | 沿用最后一条 Web Fetch 链终态，例如全部过薄为 Quality，退 5 |
 | 正文文件写入失败 | 飞行后 | Runtime，退 4，不回退为内联输出 |
 | 等待限速窗口时剩余预算不足 | 飞行后 | Timeout，退 4，保留已完成的 attempts |
 | 限速状态文件或锁不可用 | 飞行后 | Runtime，退 4，不发送请求 |
@@ -118,58 +139,17 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
 
 数据源选择与实测证据见 [SSRN 检索接入方案](../../research/2026-09-26-ssrn-integration.md)（2026-09-26）。
 
-- **route**：search 与 fetch 的 route 集合都是 `[ssrn_crossref, ssrn_browser]`；platform catalog 的默认 order 只含 `ssrn_crossref`，`ssrn_browser` 由用户手动加入 `platforms.ssrn.order` 后才生效。两条 route 共用同一种 ref 与输出形状。
+- **route**：search 与 fetch 的 route 集合与默认 order 都只有 `ssrn_crossref`。SSRN 不提供正文、原站专属的检索条件与 Posted / Last revised / Date Written 日期（ADR 0035）。
 - **`ssrn_crossref`**：匿名 Crossref REST API（默认 `https://api.crossref.org`），只检索 SSRN 的 DOI 前缀 `10.2139`。不需要凭据；默认 timeout 30 秒；访问策略为每秒 1 个请求、并发 1（2026-09-26 公共池响应头为每秒 5 个请求、并发 1）。
 - **ref**：`ssrn:<id>`，id 是不带前导零的 ASCII 数字，kind 为 `paper`，不带版本。canonical URL 是 `https://papers.ssrn.com/sol3/papers.cfm?abstract_id=<id>`。不联网即可解析的输入：ref 本身（前缀不区分大小写）；`papers.ssrn.com/sol3/papers.cfm` 摘要页，取 `abstract_id`，忽略其他 query 参数与 fragment；`ssrn.com/abstract=<id>` 与 `www.ssrn.com/abstract=<id>`；DOI `10.2139/ssrn.<id>`（不区分大小写）及其 `doi.org`、`dx.doi.org` URL。主机名不区分大小写，http 与 https 都接受。SSRN 的 `Delivery.cfm` PDF 链接（文件名里的数字不是论文身份）、其他路径、相似域名与短链都在飞行前退 2。
 - **search wire 编码**：`GET <url>/prefixes/10.2139/works`。`scope=all/title/bibliographic` 分别映射 `query/query.title/query.bibliographic`；查询词必填且原样发送，不承诺精确短语或每个词都出现。作者与机构分别映射 `query.author` 和 `query.affiliation`。`rows` 为 limit（1–100），`offset` 为页位置，`select=DOI,title,author,abstract,published,type,created,resource` 保持不变。
 - **过滤条件**：统一在 `filter` 中以逗号连接（不同字段为 AND）。发表、首次登记与元数据更新区间分别映射 `from/until-pub-date`、`from/until-created-date`、`from/until-update-date`；日期含边界，可单端。摘要条件映射 `has-abstract:true`；文献类型、ORCID、资助机构分别映射 `type`、`orcid`、`funder`。类型是当前注册类型的封闭枚举，默认无过滤；ORCID 只接受带正确校验位的裸 ID，funder 只接受 OFR DOI `10.13039/<数字>`。机构与标识符覆盖不足时可能返回空结果，不追加详情读取。
 - **排序**：`relevance/published/created/updated/citations` 分别映射 `score/published/created/updated/is-referenced-by-count`，`order=asc/desc`，默认 `score/desc`。更新表示 Crossref 存入或重新存入元数据，不是 SSRN 修订日期；引用量是 Crossref 登记的被引次数。过滤和排序全部由上游执行。
-- **支持矩阵与兼容性**：两条 route 支持默认条件、标题范围与作者文本，但匹配规则各自遵循上游。Crossref 额外支持 bibliographic、机构、三类日期区间、摘要、类型、ORCID、funder 与 published/created/updated/citations 排序；browser 额外支持 full-text、显式 mode/date 与 posted/downloads/title 排序。显式 mode（包括 fuzzy）或 date（包括 all-time）限定原站语义，Crossref 不能执行。browser relevance 只支持 desc，其他原站排序支持 asc/desc。不能满足完整条件的 route 记为 Skipped；全链不支持时飞行前退 2，不自动启用 browser。cursor 保存完整条件，旧 cursor 缺少 mode/date 时保持 route 默认匹配与全部时间。
+- **cursor**：cursor 保存完整的 SSRN Search Criteria；payload 含不认识的字段时无法解码，飞行前退 2。
 - **分页**：页位置是绝对 offset，不使用 Crossref 的上游 cursor。只有同时满足以下条件时才签发下一页 cursor：原始页条数等于 `rows`；下一个 offset 小于 `total-results`；下一个 offset 加 `rows` 不超过 10000。Crossref 拒绝 offset 加 `rows` 超过 10000 的请求（HTTP 400，2026-09-26 实测：`rows=20` 时 offset 最大为 9980），因此 route 的支持检查在飞行前以参数错误拒绝越过该上限的 cursor。是否到末页按过滤前的原始条数判断。
-- **解码**：响应的 `message-type` 必须是 `work-list`（search）或 `work`（fetch），否则为 Runtime；无法解码的响应为 Runtime。DOI 不符合 `10.2139/ssrn.<数字>` 的记录被跳过，DOI 写入 stderr 诊断；类型为 `journal-article` 的记录保留，因为 SSRN 把部分 DOI 登记成这个类型。条目字段：`title` 取第一个非空标题；`authors` 为 `given family`，机构作者取 `name`；`published` 取 Crossref `published` 的 date-parts，按原始精度写成 `2012`、`2012-04` 或 `2012-04-19`，不补齐；平台字段 `doi` 为 Crossref 记录的 DOI，`crossref_type` 为记录类型，`crossref_created` 为 Crossref 登记 DOI 的时间，永不用来填补 `published`。`snippet`、`posted`、`last_revised`、`date_written` 由读取 SSRN 页面的 route 填写，本 route 恒为 `null`。
+- **解码**：响应的 `message-type` 必须是 `work-list`（search）或 `work`（fetch），否则为 Runtime；无法解码的响应为 Runtime。DOI 不符合 `10.2139/ssrn.<数字>` 的记录被跳过，DOI 写入 stderr 诊断；类型为 `journal-article` 的记录保留，因为 SSRN 把部分 DOI 登记成这个类型。条目字段：`title` 取第一个非空标题；`authors` 为 `given family`，机构作者取 `name`；`published` 取 Crossref `published` 的 date-parts，按原始精度写成 `2012`、`2012-04` 或 `2012-04-19`，不补齐；平台字段 `doi` 为 Crossref 记录的 DOI，`crossref_type` 为记录类型，`crossref_created` 为 Crossref 登记 DOI 的时间，永不用来填补 `published`。
 - **摘要清理**：去掉 JATS 与 HTML 标记（引号内的属性值不结束标签），保留 CDATA 中的文本，块元素（`p`、`title`、`sec`、`list`、`list-item`、`br`、`div`）之间保留段落换行（空行），解码 XML 实体、`&nbsp;` 与数字字符引用，段内折叠空白。Crossref 摘要是 XML，其他命名实体原样保留。清理后为空的摘要按缺失处理。有摘要的条目深度为 `abstract`，没有摘要的为 `metadata` 且 `abstract: null`。
-- **fetch**：请求 `GET <url>/works/10.2139/ssrn.<id>`。route 支持 `metadata` 与 `abstract`；请求的深度是最低要求，`metadata` 在有摘要时一并返回摘要，条目的 `depth` 记录实际拿到的内容。请求 `abstract` 但记录没有摘要时，在 attempt 内报 Quality，链落到下一条 route，全链如此则退 5。`full_text` 不支持，该 route 记为 Skipped；没有其他 route 支持时飞行前退 2。错误映射：HTTP 404 为 Parameter（`SSRN paper not found in Crossref: ssrn:<id>`，只说明 Crossref 没有该 DOI）；返回的 DOI 与请求的不一致为 Runtime；429 为 RateLimited，匿名 route 无凭据可轮换，直接成为 route 终态；其他状态码沿用共享 status 映射，HTTP 400 的消息取 Crossref validation-failure 的首条说明。
-
-### Route `ssrn_browser`
-
-- **传输与配置**：process route，经本机 OpenCLI 驱动用户自己的 Chrome：search 在浏览器中请求原站检索接口，fetch 读取原站详情页（ADR 0025）。配置项为 `providers.ssrn_browser.command`（OpenCLI 可执行文件，默认 `opencli`，不能为空）与 `.timeout`（一次命令的 attempt 超时，默认 90 秒），没有 `url` 与 `keys`；它是匿名 route，始终视为已配置。命令只能选择可执行文件，参数全部由 route 决定（ADR 0019）。访问策略为每 5 秒一次 OpenCLI 命令、并发 1。route 不重试，失败直接落到下一条 route。
-- **OpenCLI 进程传输**（`providers/opencli`，不含站点知识）：输入为可执行文件、adapter（site 与契约版本）、命令、具名参数与 attempt 截止时间。
-  - 调用形式：`<command> <site> <命令> --<参数> <值>… --timeout <秒> -f json --window background --site-session ephemeral --keep-tab false`。forager 自有 adapter 的每个命令都接受这些 flag，且都在后台窗口运行，不占用用户的屏幕。
-  - 截止时间：attempt 截止时间之前预留 5 秒得到工作截止点，剩余整秒数作为 adapter 命令的 `--timeout` 参数传入。OpenCLI 据此设置 daemon 每次操作的截止时间；adapter 在 `--timeout` 之前 3 秒停止读取页面或等待请求并返回，让 OpenCLI 在工作截止点之前关闭标签页。5 秒预留用于强杀、回收子进程与报告 attempt。子进程放入独立进程组；到达工作截止点或 future 被丢弃时，强杀整个进程组，不做分步终止。access permit 持有到子进程被回收为止。剩余时间不足时 attempt 以 Timeout 结束，不启动进程。
-  - 输出上限：stdout 最多 4 MiB（协议上限），超出为 Runtime 并强杀进程组；stderr 只保留前 64 KiB 并做 URL 脱敏。
-  - 非 Unix 系统：传输在启动进程之前以 Runtime 拒绝；factory 的支持检查同样拒绝，因此该 route 记为 Skipped。
-  - 环境：forager 不设置任何 `OPENCLI_*` 环境变量（如 `OPENCLI_CLOSE_OWNED_TAB`、`OPENCLI_WINDOW`），子进程继承用户的环境；窗口与标签页的回收沿用 OpenCLI 默认行为。
-  - 输出外壳：只支持 OpenCLI 2.x。成功时退出码为 0，stdout 是 `{"ok": true, "data": <adapter 返回值>}`；失败时退出码非 0，stdout 是 `{"ok": false, "error": {code, message, …}}`。失败消息取 `error.message`；stdout 不是这种外壳时（例如进程被信号终止）取 stderr 的第一个非空行。消息做 URL 脱敏并截断。
-  - adapter 外壳：成功外壳的 `data` 是 forager 自有 adapter 的外壳 `{contract, status, data}`。`contract` 与注册信息的契约版本（`forager-ssrn/4`）不一致为 Runtime，消息附安装提示（把 skill 的 `opencli/<site>` 目录复制为 `~/.opencli/clis/<site>`）；`status` 为 `ok` 或 `no_results`，只有 adapter 核实了站点自己的无结果答复时才是 `no_results`。
-  - OpenCLI 1.x：成功退出但 stdout 的 JSON 没有 `ok`（1.x 直接输出 adapter 外壳），或失败退出时 stdout 为空而 stderr 是 1.x 的 YAML 错误外壳（含 `ok: false` 行），都报 Runtime，提示升级到 OpenCLI 2.x 与 Browser Bridge 1.0.25 或更高版本；不提供 1.x 兼容。
-  - 退出码映射（`code` 指失败外壳的 `error.code`）：
-
-    | OpenCLI 结果 | 映射 |
-    |---|---|
-    | 0，且两层外壳都有效 | 传输成功；业务结果由 route 判定（例如小红书 route 的页面事实分类） |
-    | 66（`EMPTY_RESULT`） | Runtime（永远不算合法空结果） |
-    | 69，且 `code` 为 `ADAPTER_LOAD` | Runtime，附安装提示 |
-    | 其他 69（如 `BROWSER_CONNECT`） | Network |
-    | 75（`TIMEOUT`） | Timeout |
-    | 77（`AUTH_REQUIRED`、`LOGIN_WALL`；adapter 报出的站点验证未通过与访问被拦截也用 77） | Auth |
-    | `code` 为 `unknown_command`（站点目录未安装）或任意 `commander.*`（如已安装的旧版 adapter 缺少该命令或参数），退出码 2 | Runtime，附安装提示 |
-    | 找不到可执行文件 | Runtime，提示安装 OpenCLI 或设置 `command` |
-    | 其他退出码（含 2 的其他命令行错误）、输出无法解码 | Runtime |
-
-- **search**：adapter 的 `search` 命令声明后台窗口、不预导航，命令内不跳转任何页面；它在当前空白标签页中以 `credentials: 'omit'` 发出原站结果页自己使用的请求 `GET https://api.ssrn.com/papers/v1/papers/search/advanced`，参数为 `text`、`text_fields`、`search_mode`、`authors`、`date`、`sort_by` 和 `page`（ADR 0025）。scope all/title/full-text 对应 `title-abstract-keywords` / `title` / `title-abstract-keywords-fulltext`；mode 省略为 fuzzy；author 省略为空串；date 省略为 all_time，其他预设使用 CLI 名的下划线形式；relevance 的 sort_by 为空串，posted/downloads/title 对应 `approval_date` / `downloads` / `title` 加 `-asc` 或 `-desc`。Boolean 只承诺原站 Help 所列 AND、OR、NOT、括号，不承诺额外 DSL。作者文本直接提交 Author(s)，不是作者身份选择；真实样例中姓氏与全名的召回可能不同。
-- **adapter 回报**：`forager-ssrn/4` 的 search data 为 `{request_url, http_status, content_type, body, network_error}`：实际请求地址、HTTP 状态、响应 content type、响应体（JSON 时为解析后的对象，否则为文本），以及浏览器请求失败时的错误。adapter 只在一种情况下自行判定：状态为 403 或 503 且响应体不是 JSON（Cloudflare 的验证或拦截页），此时以 77 结束。`total` 为 0 且 `papers` 为空时 `status` 为 `no_results`，其余为 `ok`。
-- **实际状态与解码**：Rust 先核对 `request_url`：协议 https、主机 `api.ssrn.com`、路径，以及七个参数各出现一次、与本次 SSRN Search Criteria 和页码逐字相同，且没有其他参数；不一致为 Runtime。随后：`network_error` 为 Network；HTTP 200 且响应体含数字 `total` 与 `papers` 数组时解码，其他 200 响应为 Runtime；其他状态（实测非法参数为 400，超出上限的页为 500）为 Runtime，消息带状态码。`status` 与响应体是否为空不一致也是 Runtime，不能返回假空结果。
-- **分页与结果**：SSRN 每个原生页 50 条，最多列出 10,000 条（`total` 最大为 10000）；页位置为绝对 offset，页码 = offset / 50 + 1，页内位置 = offset mod 50。offset 达到 10,000 的 cursor 飞行前退 2。一页最多 limit 条且不跨原生页；cursor 恢复全部条件并固定 route，不 fallback。返回条数必须等于 `min(total, 10000)` 在该页应有的条数（最后一页按余数），否则为 Runtime；页内位置超过返回条数为 Runtime。本原生页仍有未消费结果，或 `页码 × 50 < min(total, 10000)` 时签发 cursor。接口不承诺排序稳定，同一请求连续两次的顺序可能不同，跨页不承诺无重复，批量使用方按 ref 去重。
-- **条目映射**：`ref` 与 canonical URL 由 `id` 得到，`id` 不是合法 SSRN ID 时为 Runtime；`title` 与每个片段去掉标签（接口用 `<em>` 标出命中词）、还原 XML 实体、`&nbsp;` 与数字字符引用（其他命名实体原样保留；2026-10-11 抽样只见到 `&amp;`、`&nbsp;`、`&#x3b;`）并折叠空白，标题为空为 Runtime；`authors` 取 `full_name`；`snippet` 为各片段以 ` … ` 连接；`posted` 为 `approved_date` 的 UTC 日历日期，格式同详情页（`07 Sep 2019`），`published` 为同一日期的 ISO 形式；`last_revised` 由 `revision_date` 按同一规则得到，为 null 时不填。接口对没有值的字段给 null（例如 title 范围检索没有片段）。结果深度为 snippet，无片段为 metadata；full-text 搜索只扩大原站匹配范围，不打开详情或下载 PDF。接口的其他字段（含下载数、页数、机构）不输出。
-- **原站能力限制**：2026-09-28 的页面控件、原站脚本与实际请求没有独立机构、文献类型、有摘要或任意起止日期条件，因此这些条件在 browser 支持检查中拒绝，不做本地过滤。证据与仅搜索验收见 [browser 高级搜索验收](../../research/2026-09-28-ssrn-browser-advanced-search.md)。
-- **fetch**：adapter 的 `paper` 命令打开规范摘要页。route 从页面的 canonical 链接（或 `citation_doi`）读出 abstract id，与请求的 id 不一致为 Runtime。支持 `metadata` 与 `abstract`：页面有摘要时条目深度为 `abstract`，否则为 `metadata`；请求 `abstract` 但页面没有摘要时在 attempt 内报 Quality。`posted`、`last_revised`、`date_written` 保留页面原文，`published` 为 Posted 日期的 ISO 形式。页面显示论文正在审核或已撤下时，adapter 返回 `no_results`，route 报 attempt 级 Parameter（`SSRN paper not available: ssrn:<id> (<站点提示>)`）。
-- **full_text**：route 以 `paper --download true` 在同一次 OpenCLI 命令内读取详情页并点击页面自己的下载链接下载 PDF，adapter 只回报下载状态与本地文件名（签名下载 URL 永不离开浏览器，因此不出现在 stdout、attempts 或日志中）。在同一个 attempt 内，route 依次要求：下载状态为完成且带文件名；文件存在；文件以 `%PDF-` 开头；详情页 id 一致（此处不一致报 Quality，而不是 Runtime）。任何一项不满足为 Quality。全部满足后，route 把这个文件（媒体类型 PDF）作为全文来源返回；不扫描下载目录，也不推导文件名，同一浏览器中同时有其他下载是已接受的限制。下载和转换共用命令的截止时间，PDF 只适用薄正文门的长度线。
-- **route 对比**：两条 route 的召回、重合度、字段覆盖、新鲜度与延迟见 [SSRN 两条 route 的检索对比](../../research/2026-09-26-ssrn-route-comparison.md)（2026-09-26）。
-- **route 配合**：order 为 `[ssrn_crossref, ssrn_browser]` 时，`--depth abstract` 而 Crossref 缺摘要的请求在 Crossref attempt 内报 Quality，落到浏览器 route 补齐。
-- **站点验证**：SSRN 由 Cloudflare 保护。fetch 读取详情页：Chrome 已通过站点验证时，临时站点会话可以直接打开页面（2026-09-26 实测）；站点显示瞬时验证时 adapter 继续等待它自行通过；站点升级为需要人工勾选的验证时（同日在较多次访问后出现），adapter 等到自己的读取截止点后以 77 结束，attempt 为 Auth。search 不加载页面，不受页面级验证影响（2026-10-11 实测：详情页要求人工验证期间，接口检索照常返回）；接口请求本身被 Cloudflare 拦截时 adapter 立即以 77 结束。route 永不点击或绕过验证，用户需在 Chrome 中打开 SSRN 手动通过（ADR 0020）。
-- **doctor**：shallow 只在 `ssrn_browser` 出现在 `platforms.ssrn.order` 中时检查它，运行 `contract` 命令（不需要浏览器）并核对契约版本；未启用时报告为 `configured: false`，不影响 `ok`。检查失败时状态带 `message`，含安装提示。deep（`doctor --provider ssrn_browser`）同样只在 order 启用该 route 时运行一次真实的平台检索；未启用时以 config 失败退 3，不启动进程。
-- **smoke**：没有 live smoke 用例。SSRN 的 Cloudflare 验证常使无人值守的运行失败，即使 order 启用了该 route，`smoke --live` 也不运行它；C22、C23 空号不复用。传输层与 route 由第 5 章所述的假 `opencli` 测试覆盖，JS adapter 没有自动化验证。
-- **adapter 分发**：forager 自有的 SSRN adapter 在 skill 目录 `skills/forager/opencli/ssrn/`（`search.js`、`paper.js`、`contract.js` 与共享的 `shared.js`）。JS 发出原站检索请求或读取详情页，只交回事实；Rust 校验协议和实际条件，再解码与归一化结果。安装方式是把该目录复制为 `~/.opencli/clis/ssrn/`；步骤与支持的 OpenCLI 版本见 skill 的平台 reference。
+- **fetch**：请求 `GET <url>/works/10.2139/ssrn.<id>`。route 支持 `metadata` 与 `abstract`；请求的深度是最低要求，`metadata` 在有摘要时一并返回摘要，条目的 `depth` 记录实际拿到的内容。请求 `abstract` 但记录没有摘要时，在 attempt 内报 Quality，退 5。SSRN 没有 `full_text` 深度：`--depth` 只接受 `metadata` 与 `abstract`，传入 `full_text` 由 CLI 以参数错误退 2，不发请求。错误映射：HTTP 404 为 Parameter（`SSRN paper not found in Crossref: ssrn:<id>`，只说明 Crossref 没有该 DOI）；返回的 DOI 与请求的不一致为 Runtime；429 为 RateLimited，匿名 route 无凭据可轮换，直接成为 route 终态；其他状态码沿用共享 status 映射，HTTP 400 的消息取 Crossref validation-failure 的首条说明。
 
 ## Google Scholar
 
@@ -215,7 +195,7 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
 - **合法空集与未列全**：第一个采用的响应没有笔记且 `has_more` 为 false 才是空成功；没有笔记而 `has_more` 为 true 为 Runtime。search 不签发 cursor，`next_cursor` 恒为 `null`，CLI 没有 `--cursor`，支持检查拒绝任何非首页的页位置：小红书每次访问的排序都不同，续页既不能复现也无法去重。最后一页 `has_more` 仍为 true，或去重后的条目截到 limit 时有余项，stderr 输出"未列全"诊断，提示加大 `--limit`（上限 100）。
 - **fetch**：输入必须带 Access Token（search 条目的 `access_url`，或从浏览器复制的带 `xsec_token` 的笔记链接）；只给 ref 或不带 token 的链接时飞行前退 2，消息提示改用 `access_url`，不启动进程。支持 `metadata` 与 `full_text`（默认），其他深度由支持检查拒绝、飞行前退 2。读取模块的 `note` 命令（`--id`、`--xsec-token`）打开 `/explore/<id>?xsec_token=<token>&xsec_source=pc_search`，回报 `{page, note, timed_out}`：`note` 取自 `__INITIAL_STATE__.note.noteDetailMap[<id>].note`，只保留 route 解码的字段（视频只保留时长与各档尺寸，带签名的 `masterUrl` 与页面自带的 token 不离开页面）；页面渲染出笔记时清空 `notice`，正文或评论里的字样不算站点提示。route 先按「分类」处理页面事实，300031/300017 的消息为 `Xiaohongshu note unavailable: xiaohongshu:<id> (<code>: <notice>); the access token may be stale, the note restricted or removed, or the account rate-limited`；没有笔记时，`timed_out` 且 `load_error` 非空为 Network，`timed_out` 且仍停在该笔记页为 Timeout，否则为 Runtime（消息带页面标题与去掉 token 的 URL）；`noteId` 与请求不符为 Runtime。命令内不重试。
 - **fetch 输出**：`ref` 与 `url` 来自请求；`title`（可为空串）；`authors` 为 `[user.nickname]`；`published` 由 `time`（毫秒）转成北京时间 ISO 8601 时间戳。平台字段：`updated`（`lastUpdateTime`，同一格式）、`note_type`（`normal` 输出为 `image`）、`author_id`、`likes` / `collects` / `comments` / `shares`（`interactInfo` 计数原文）、`tags`（`tagList[].name`）、`images`（`[{url, width, height}]`，`urlDefault` 只保留 HTTP(S)）、`video`（`{duration_seconds, width, height}`，取 `video.capa.duration` 与第一个非空视频流档位的尺寸；图文笔记为 `null`；永不输出视频地址）、`ip_location`（可空）与 `access_url`。
-- **Native 正文**：`full_text` 时 route 在同一 attempt 内构造 Markdown：`# <title>`（标题为空时省略），空行，`desc` 原文（话题写法 `#话题名[话题]#` 原样保留），空行，`标签：` 加逗号分隔的标签名，然后每张图一行 `![](<图片 URL>)`；视频笔记再加一行 `（视频笔记，时长 <秒> 秒，视频文件未下载）`。标题、正文与图片全为空时为 Quality（退 5）。正文作为 Native 来源交付（见「fetch」），`content_provider` 为 `xiaohongshu_browser`，不需要配置任何 Web Fetch provider；文件名为 `xiaohongshu-<id>.md`。没有 `--keep-pdf`。
+- **Native 正文**：`full_text` 时 route 在同一 attempt 内构造 Markdown：`# <title>`（标题为空时省略），空行，`desc` 原文（话题写法 `#话题名[话题]#` 原样保留），空行，`标签：` 加逗号分隔的标签名，然后每张图一行 `![](<图片 URL>)`；视频笔记再加一行 `（视频笔记，时长 <秒> 秒，视频文件未下载）`。标题、正文与图片全为空时为 Quality（退 5）。正文作为 Native 来源交付（见「fetch」），`content_provider` 为 `xiaohongshu_browser`，不需要配置任何 Web Fetch provider；文件名为 `xiaohongshu-<id>.md`。
 - **token 脱敏**：route 在记录 attempt 之前，按本次请求的 token 值把来自 OpenCLI 失败消息（例如回显 `--xsec-token` 参数）、外壳解码错误与页面事实的消息中的 token 换成 `********`。token 只出现在 OpenCLI 的进程参数与成功输出的 `access_url` 中（ADR 0022）。
 - **doctor**：shallow 只在 order 启用该 route 时运行 `contract` 并核对契约版本，否则报告 `configured: false`；deep（`doctor --provider xiaohongshu_browser`）沿用 `PlatformSearch` 探针执行一次真实检索（同时证明登录态），未启用时以 config 失败退 3。
 - **comments（L2 平台操作）**：`platform xiaohongshu comments ACCESS_URL [--limit N] [--replies M]` 列出一篇笔记的一级评论，并可展开前几条评论的楼中楼。它的结果种类不同于 fetch，所以是新操作；只由 `xiaohongshu_browser` 实现，写成 inherent 方法 `XiaohongshuBrowser::comments`，provider factory 声明 route 集合 `XIAOHONGSHU_COMMENTS_ROUTES` 与支持检查（只检查宿主能否运行 process route），core 的 `platform_comments` 按 order ∩ 该集合规划，经共享链执行器与 `AttemptTarget::Platform`（operation 为 `comments`）记录 attempt。它有自己的非序列化请求（携带 Access Token）、结果类型与执行入口，不复用 search 的 `PageRequest` 与 `PlatformSearchOutcome`，不签发 cursor。输入规则同 fetch（必须带 token，否则飞行前退 2、不启动进程）；`--limit` 为 1–50（默认 20），`--replies` 为 0–10（默认 0），越界由参数解析拒绝、退 2。

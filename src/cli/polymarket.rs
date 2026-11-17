@@ -209,7 +209,7 @@ fn polymarket_fetch(arguments: PolymarketFetchArgs) -> Result<CommandOutput, App
     let reference = PlatformRef::parse(Platform::Polymarket, &reference)
         .map_err(|error| AppError::Argument(error.to_string()))?;
     let request = PlatformFetchRequest::new(reference, depth.into());
-    fetch(Platform::Polymarket, request, format, None, false, &common)
+    fetch(Platform::Polymarket, request, format, None, &common)
 }
 
 fn polymarket_history(arguments: PolymarketHistoryArgs) -> Result<CommandOutput, AppError> {

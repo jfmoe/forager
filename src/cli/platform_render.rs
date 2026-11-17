@@ -221,8 +221,8 @@ fn item_snippet(item: &PlatformItem) -> Option<&str> {
         | PlatformItemData::Scholar(ScholarItemData::Cluster(_))
         | PlatformItemData::Xiaohongshu(_)
         | PlatformItemData::XiaohongshuNote(_)
+        | PlatformItemData::Ssrn(_)
         | PlatformItemData::Polymarket(_) => None,
-        PlatformItemData::Ssrn(data) => data.snippet.as_deref(),
         PlatformItemData::Scholar(ScholarItemData::Result(data)) => data.snippet.as_deref(),
         PlatformItemData::X(data) => Some(&data.text),
         PlatformItemData::Hn(data) => data.text.as_deref(),
@@ -596,13 +596,6 @@ fn format_platform_fetch(
                     content.provider,
                     content.path.as_deref().unwrap_or_default()
                 );
-                if let Some(pdf_path) = &content.pdf_path {
-                    let _ = write!(
-                        markdown,
-                        "\n\nOriginal PDF ({} bytes): `{pdf_path}`",
-                        content.pdf_bytes.unwrap_or_default()
-                    );
-                }
             }
             Ok(markdown)
         }

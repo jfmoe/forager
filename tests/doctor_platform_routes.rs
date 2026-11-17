@@ -172,25 +172,6 @@ fn shallow_doctor_reports_an_outdated_adapter_with_install_steps() {
 }
 
 #[test]
-fn ssrn_browser_deep_doctor_runs_one_platform_search() {
-    let fake = FakeOpenCli::ssrn_envelope(
-        "ok",
-        &serde_json::json!({
-            "request_url": "https://api.ssrn.com/papers/v1/papers/search/advanced?text=forager+doctor&text_fields=title-abstract-keywords&search_mode=fuzzy&authors=&date=all_time&sort_by=&page=1",
-            "http_status": 200,
-            "content_type": "application/json",
-            "body": {"total": 1, "papers": [{"id": 1, "title": "Paper"}]}
-        }),
-    );
-    let environment = RunEnvironment::new(&fake.ssrn_config("[\"ssrn_browser\"]"));
-
-    let output = environment.run(&["doctor", "--provider", "ssrn_browser"]);
-
-    assert_deep_success(&output, "ssrn_browser", &[("search", "process")]);
-    assert_eq!(fake.calls()[0][..2], ["ssrn", "search"]);
-}
-
-#[test]
 fn youtube_api_deep_doctor_runs_one_search_with_the_key_in_a_header() {
     let fixture = Fixture::start_sequence(vec![support::youtube::search_page(&[], None)]);
     let environment = RunEnvironment::new(&support::youtube::config(&fixture.url));

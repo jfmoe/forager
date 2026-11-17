@@ -345,14 +345,7 @@ fn youtube_fetch(arguments: YoutubeFetchArgs) -> Result<CommandOutput, AppError>
         ..PlatformFetchRequest::new(PlatformRef::Youtube(video), depth.into())
     };
     request.validate().map_err(AppError::Argument)?;
-    fetch(
-        Platform::Youtube,
-        request,
-        format,
-        content_dir,
-        false,
-        &common,
-    )
+    fetch(Platform::Youtube, request, format, content_dir, &common)
 }
 
 fn youtube_comments(arguments: YoutubeCommentsArgs) -> Result<CommandOutput, AppError> {
@@ -456,7 +449,7 @@ fn youtube_transcribe(arguments: YoutubeTranscribeArgs) -> Result<CommandOutput,
                 usage,
             } = transcribed;
             let directory = content_dir.unwrap_or_else(|| invocation_temp_dir("forager-platform"));
-            deliver(fetched, &directory, &file_name, false, true, common.verbose).map(|fetched| {
+            deliver(fetched, &directory, &file_name, common.verbose).map(|fetched| {
                 PlatformTranscribeResult {
                     fetched,
                     model,

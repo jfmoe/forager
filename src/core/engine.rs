@@ -12,6 +12,7 @@ use crate::config::{
 };
 use crate::net::RetryPolicy;
 use crate::providers::{self, FetchRequest, MainSearchRequest};
+use crate::redact::redact_url;
 use crate::types::ProviderError;
 use crate::types::{
     AttemptErrorKind, AttemptTarget, DENSITY_MAX_CHARS, DENSITY_MAX_UNIQUE_LINES, Deadline,
@@ -215,38 +216,9 @@ pub(crate) async fn fetch(
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> Result<FetchOutcome, ProviderError> {
-    let target = AttemptTarget::seam("web_fetch");
-    let mut skipped = Vec::new();
-    let mut steps = Vec::new();
-    for step in provider_steps(config.into_entries()) {
-        if step.configured
-            && let Err(reason) = providers::source_support(step.context.0, &request.source)
-        {
-            skipped.push(chain::skipped_attempt(
-                target,
-                step.context.0.name(),
-                &reason,
-            ));
-            continue;
-        }
-        steps.push(step);
-    }
-    if !skipped.is_empty() && !steps.iter().any(|step| step.configured) {
-        return Err(ProviderError {
-            kind: AttemptErrorKind::Runtime,
-            message: format!(
-                "no configured web fetch provider can read {}",
-                request.source.describe_kind()
-            ),
-            attempts: skipped,
-            verbose: request.verbose,
-            diagnostic: None,
-            redirected_library_id: None,
-        });
-    }
-    let pdf = request.source.is_pdf();
+    let pdf = is_pdf(&request.url);
     let step = chain::run_chain(
-        steps,
+        provider_steps(config.into_entries()),
         web_fetch_chain_settings(request.verbose),
         deadline,
         |(id, provider_config), provider_deadline| {
@@ -287,22 +259,13 @@ pub(crate) async fn fetch(
             }
         },
     )
-    .await;
-    let step = match step {
-        Ok(step) => step,
-        Err(mut error) => {
-            error.attempts.splice(0..0, skipped);
-            return Err(error);
-        }
-    };
-    let mut attempts = skipped;
-    attempts.extend(step.attempts);
+    .await?;
     Ok(FetchOutcome {
         provider: step.value.0,
-        url: request.source.label(),
+        url: redact_url(&request.url),
         content: step.value.1,
         attempts: if request.verbose {
-            attempts
+            step.attempts
         } else {
             Vec::new()
         },
