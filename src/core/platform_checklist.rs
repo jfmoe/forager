@@ -555,16 +555,18 @@ fn a_platform_without_an_order_leaf_violates_r4() {
 fn a_process_route_without_a_command_leaf_violates_r4() {
     let fixtures = manifest_fixtures();
     let registry = Registry {
-        is_config_leaf: &|path| path != "providers.ssrn_browser.command" && config::is_leaf(path),
+        is_config_leaf: &|path| {
+            path != "providers.xiaohongshu_browser.command" && config::is_leaf(path)
+        },
         ..baseline(&fixtures)
     };
 
-    let found = violations(Platform::Ssrn, &registry);
+    let found = violations(Platform::Xiaohongshu, &registry);
 
     assert!(
         found
             .iter()
-            .any(|message| message.contains("`providers.ssrn_browser.command`")),
+            .any(|message| message.contains("`providers.xiaohongshu_browser.command`")),
         "{found:?}"
     );
 }
@@ -589,12 +591,12 @@ fn a_process_route_is_not_required_to_have_a_url_leaf() {
     let fixtures = manifest_fixtures();
     let registry = baseline(&fixtures);
 
-    let found = violations(Platform::Ssrn, &registry);
+    let found = violations(Platform::Xiaohongshu, &registry);
 
     assert!(
         !found
             .iter()
-            .any(|message| message.contains("providers.ssrn_browser.url")),
+            .any(|message| message.contains("providers.xiaohongshu_browser.url")),
         "{found:?}"
     );
 }

@@ -124,12 +124,12 @@ fn paper_page(id: &str, abstract_paragraphs: &[&str]) -> Value {
 }
 
 fn browser_only(fake: &FakeOpenCli) -> RunEnvironment {
-    RunEnvironment::new(&fake.config("[\"ssrn_browser\"]"))
+    RunEnvironment::new(&fake.ssrn_config("[\"ssrn_browser\"]"))
 }
 
 #[test]
 fn search_runs_the_adapter_search_command_with_the_session_flags() {
-    let fake = FakeOpenCli::envelope("ok", &results(1, 1, 50, 10_000));
+    let fake = FakeOpenCli::ssrn_envelope("ok", &results(1, 1, 50, 10_000));
     let environment = browser_only(&fake);
 
     let output = environment.run(&[
@@ -184,7 +184,7 @@ fn search_maps_native_papers_to_items_with_utc_dates_and_plain_text() {
     revised["snippets"] = Value::Null;
     revised["approved_date"] = json!("2019-09-07T19:00:38.000Z");
     revised["revision_date"] = json!("2021-03-31T23:30:00.000Z");
-    let fake = FakeOpenCli::envelope("ok", &answer(1, 2, &[paper(1), revised]));
+    let fake = FakeOpenCli::ssrn_envelope("ok", &answer(1, 2, &[paper(1), revised]));
     let environment = browser_only(&fake);
 
     let output = environment.run(&["platform", "ssrn", "search", "dual momentum"]);
@@ -238,7 +238,7 @@ fn search_maps_native_papers_to_items_with_utc_dates_and_plain_text() {
 
 #[test]
 fn a_cursor_resumes_at_the_consumed_position_on_the_same_native_page() {
-    let fake = FakeOpenCli::envelope("ok", &results(1, 1, 50, 10_000));
+    let fake = FakeOpenCli::ssrn_envelope("ok", &results(1, 1, 50, 10_000));
     let environment = browser_only(&fake);
     let first = environment.run(&[
         "platform",
@@ -292,7 +292,7 @@ fn cursor(page: &str) -> String {
 
 #[test]
 fn the_last_page_within_the_site_result_limit_has_no_next_page() {
-    let fake = FakeOpenCli::envelope("ok", &results(200, 9_951, 10_000, 10_000));
+    let fake = FakeOpenCli::ssrn_envelope("ok", &results(200, 9_951, 10_000, 10_000));
     let environment = browser_only(&fake);
 
     let output = environment.run(&["platform", "ssrn", "search", "--cursor", &cursor("9950")]);
@@ -313,7 +313,7 @@ fn the_last_page_within_the_site_result_limit_has_no_next_page() {
 
 #[test]
 fn a_cursor_past_the_site_result_limit_is_rejected_before_any_command() {
-    let fake = FakeOpenCli::envelope("ok", &results(1, 1, 50, 10_000));
+    let fake = FakeOpenCli::ssrn_envelope("ok", &results(1, 1, 50, 10_000));
     let environment = browser_only(&fake);
 
     let output = environment.run(&["platform", "ssrn", "search", "--cursor", &cursor("10000")]);
@@ -365,7 +365,7 @@ fn a_cursor_after_a_whole_native_page_requests_the_next_native_page() {
 
 #[test]
 fn a_cursor_past_the_results_of_its_native_page_fails() {
-    let fake = FakeOpenCli::envelope("ok", &results(1, 1, 20, 20));
+    let fake = FakeOpenCli::ssrn_envelope("ok", &results(1, 1, 20, 20));
     let environment = browser_only(&fake);
 
     let output = environment.run(&["platform", "ssrn", "search", "--cursor", &cursor("25")]);
@@ -389,7 +389,7 @@ fn a_cursor_past_the_results_of_its_native_page_fails() {
 fn the_site_answer_of_no_results_is_a_legitimate_empty_page() {
     let mut facts = answer(1, 0, &[]);
     facts["request_url"] = json!(request_url("zzqx", 1, &[]));
-    let fake = FakeOpenCli::envelope("no_results", &facts);
+    let fake = FakeOpenCli::ssrn_envelope("no_results", &facts);
     let environment = browser_only(&fake);
 
     let output = environment.run(&["platform", "ssrn", "search", "zzqx"]);
@@ -411,7 +411,7 @@ fn the_site_answer_of_no_results_is_a_legitimate_empty_page() {
 fn an_unrecognized_answer_fails_instead_of_returning_no_items() {
     let mut facts = answer(1, 0, &[]);
     facts["body"] = json!({"items": []});
-    let fake = FakeOpenCli::envelope("ok", &facts);
+    let fake = FakeOpenCli::ssrn_envelope("ok", &facts);
     let environment = browser_only(&fake);
 
     let output = environment.run(&["platform", "ssrn", "search", "dual momentum"]);
@@ -425,7 +425,7 @@ fn an_unrecognized_answer_fails_instead_of_returning_no_items() {
 /// Runs a browser-only search for `dual momentum` against `facts`, and returns the exit code,
 /// error kind, and message.
 fn failed_answer(facts: &Value) -> (Option<i32>, Value, String) {
-    let fake = FakeOpenCli::envelope("ok", facts);
+    let fake = FakeOpenCli::ssrn_envelope("ok", facts);
     let output = browser_only(&fake).run(&["platform", "ssrn", "search", "dual momentum"]);
     let payload = payload(&output);
     (
@@ -519,7 +519,7 @@ fn process_exists(pid: &str) -> bool {
 #[test]
 fn a_command_past_its_working_deadline_is_killed_with_its_process_group() {
     let fake = FakeOpenCli::hanging();
-    let environment = RunEnvironment::new(&fake.config("[\"ssrn_browser\"]").replace(
+    let environment = RunEnvironment::new(&fake.ssrn_config("[\"ssrn_browser\"]").replace(
         "[providers.ssrn_browser]\n",
         "[providers.ssrn_browser]\ntimeout = 7\n",
     ));
@@ -550,7 +550,7 @@ fn a_command_past_its_working_deadline_is_killed_with_its_process_group() {
 
 #[test]
 fn fetch_reads_the_paper_page_with_its_abstract() {
-    let fake = FakeOpenCli::envelope(
+    let fake = FakeOpenCli::ssrn_envelope(
         "ok",
         &paper_page("2042750", &["First  part.", " ", "Second."]),
     );
@@ -598,7 +598,7 @@ fn fetch_reads_the_paper_page_with_its_abstract() {
 
 #[test]
 fn a_page_for_another_paper_is_a_runtime_failure() {
-    let fake = FakeOpenCli::envelope("ok", &paper_page("1", &["Abstract."]));
+    let fake = FakeOpenCli::ssrn_envelope("ok", &paper_page("1", &["Abstract."]));
     let environment = browser_only(&fake);
 
     let output = environment.run(&["platform", "ssrn", "fetch", "ssrn:2042750"]);
@@ -620,7 +620,7 @@ fn a_page_for_another_paper_is_a_runtime_failure() {
 
 #[test]
 fn an_unavailable_paper_is_a_parameter_failure_with_the_site_notice() {
-    let fake = FakeOpenCli::envelope(
+    let fake = FakeOpenCli::ssrn_envelope(
         "no_results",
         &json!({
             "url": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=999999999",
@@ -659,11 +659,11 @@ fn a_missing_crossref_abstract_falls_through_to_the_browser() {
         })
         .to_string(),
     )]);
-    let fake = FakeOpenCli::envelope("ok", &paper_page("2042750", &["From the page."]));
+    let fake = FakeOpenCli::ssrn_envelope("ok", &paper_page("2042750", &["From the page."]));
     let environment = RunEnvironment::new(&format!(
         "[providers.ssrn_crossref]\nurl = {:?}\n\n{}",
         crossref.url,
-        fake.config("[\"ssrn_crossref\", \"ssrn_browser\"]")
+        fake.ssrn_config("[\"ssrn_crossref\", \"ssrn_browser\"]")
     ));
 
     let output = environment.run(&[
@@ -699,12 +699,12 @@ fn a_missing_crossref_abstract_falls_through_to_the_browser() {
 
 #[test]
 fn full_text_runs_the_browser_route_with_the_download_switch() {
-    let fake = FakeOpenCli::envelope("ok", &paper_page("2042750", &["Abstract."]));
+    let fake = FakeOpenCli::ssrn_envelope("ok", &paper_page("2042750", &["Abstract."]));
     let provider = Fixture::start_sequence(Vec::new());
     let environment = RunEnvironment::new(&format!(
         "[providers.firecrawl]\nurl = {:?}\nkeys = [\"firecrawl-key\"]\n\n{}",
         provider.url,
-        fake.config("[\"ssrn_browser\"]")
+        fake.ssrn_config("[\"ssrn_browser\"]")
     ));
 
     let output = environment.run(&[
@@ -750,7 +750,7 @@ fn the_default_order_never_runs_the_browser_route() {
         })
         .to_string(),
     )]);
-    let fake = FakeOpenCli::envelope("ok", &results(1, 1, 50, 100));
+    let fake = FakeOpenCli::ssrn_envelope("ok", &results(1, 1, 50, 100));
     let environment = RunEnvironment::new(&format!(
         "[providers.ssrn_crossref]\nurl = {:?}\n\n[providers.ssrn_browser]\ncommand = {:?}\n",
         crossref.url,
@@ -784,7 +784,7 @@ fn advanced_search_and_cursor_send_complete_native_conditions() {
             ("sort_by", "downloads-asc"),
         ]
     ));
-    let fake = FakeOpenCli::envelope("ok", &page);
+    let fake = FakeOpenCli::ssrn_envelope("ok", &page);
     let environment = browser_only(&fake);
     let first = environment.run(&[
         "platform",

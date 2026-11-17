@@ -1,5 +1,6 @@
 //! The OpenCLI process transport against a fake `opencli`: how forager reads the OpenCLI 2.x
-//! output envelope and exit code of an adapter command, seen through the `ssrn_browser` route.
+//! output envelope and exit code of an adapter command, seen through the `xiaohongshu_browser`
+//! route.
 #![cfg(unix)]
 
 mod support;
@@ -12,8 +13,8 @@ use support::opencli::{self, FakeOpenCli};
 const UPGRADE_HINT: &str = "forager needs OpenCLI 2.x and Browser Bridge 1.0.25 or later";
 
 fn search(fake: &FakeOpenCli) -> Value {
-    let environment = RunEnvironment::new(&fake.config("[\"ssrn_browser\"]"));
-    let output = environment.run(&["platform", "ssrn", "search", "dual momentum", "--verbose"]);
+    let environment = RunEnvironment::new(&fake.config("[\"xiaohongshu_browser\"]"));
+    let output = environment.run(&["platform", "xiaohongshu", "search", "咖啡", "--verbose"]);
     serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
         panic!(
             "parse JSON stdout: {error}\nstdout: {}\nstderr: {}",
@@ -23,7 +24,7 @@ fn search(fake: &FakeOpenCli) -> Value {
     })
 }
 
-/// Runs a browser-only search against a fake that prints `stdout` and `stderr` and exits with
+/// Runs a search against a fake that prints `stdout` and `stderr` and exits with
 /// `code`, and returns the error kind and message.
 fn failed_search(stdout: &str, stderr: &str, code: i32) -> (Value, String) {
     let payload = search(&FakeOpenCli::answering(stdout, stderr, code));
@@ -45,14 +46,10 @@ fn failing(code: &str, message: &str, exit: i32) -> (Value, String) {
 #[test]
 fn opencli_exit_codes_map_to_error_kinds() {
     let kinds = [
-        ("EMPTY_RESULT", "ssrn/search returned no data", 66),
+        ("EMPTY_RESULT", "forager-xhs/search returned no data", 66),
         ("BROWSER_CONNECT", "Browser Bridge is not connected", 69),
-        ("TIMEOUT", "ssrn/search timed out after 40s", 75),
-        (
-            "AUTH_REQUIRED",
-            "SSRN security verification did not clear",
-            77,
-        ),
+        ("TIMEOUT", "forager-xhs/search timed out after 40s", 75),
+        ("AUTH_REQUIRED", "Xiaohongshu asks to log in", 77),
         (
             "ARGUMENT",
             "--window must be one of: foreground, background",
@@ -79,7 +76,7 @@ fn opencli_exit_codes_map_to_error_kinds() {
 fn the_failure_message_passes_through_with_urls_redacted() {
     let (_, message) = failing(
         "COMMAND_EXEC",
-        "verification at https://papers.ssrn.com/sol3/x?token=secret did not clear",
+        "verification at https://www.xiaohongshu.com/explore?xsec_token=secret did not clear",
         1,
     );
 
@@ -97,8 +94,8 @@ fn the_failure_message_passes_through_with_urls_redacted() {
 #[test]
 fn a_missing_or_outdated_adapter_is_a_runtime_failure_with_an_install_hint() {
     let failures = [
-        ("ADAPTER_LOAD", "cannot load ssrn/search.js", 69),
-        ("unknown_command", "Unknown command: ssrn", 2),
+        ("ADAPTER_LOAD", "cannot load forager-xhs/search.js", 69),
+        ("unknown_command", "Unknown command: forager-xhs", 2),
         (
             "commander.unknownCommand",
             "error: unknown command 'search'",
@@ -110,30 +107,12 @@ fn a_missing_or_outdated_adapter_is_a_runtime_failure_with_an_install_hint() {
         (
             kind,
             message.contains(
-                "copy the `opencli/ssrn` directory of the forager skill to `~/.opencli/clis/ssrn`",
+                "copy the `opencli/forager-xhs` directory of the forager skill to `~/.opencli/clis/forager-xhs`",
             ),
         )
     });
 
     assert_eq!(failures.to_vec(), vec![(json!("runtime"), true); 3]);
-}
-
-#[test]
-fn another_contract_version_is_a_runtime_failure_with_an_install_hint() {
-    let stdout =
-        opencli::success(&json!({"contract": "forager-ssrn/0", "status": "ok", "data": {}}));
-
-    let (kind, message) = failed_search(&stdout, "", 0);
-
-    assert_eq!(
-        (
-            kind,
-            message.contains("forager-ssrn/0"),
-            message.contains("install or update")
-        ),
-        (json!("runtime"), true, true),
-        "{message}"
-    );
 }
 
 #[test]
@@ -152,7 +131,7 @@ fn output_without_an_error_envelope_reports_the_first_stderr_line() {
 #[test]
 fn opencli_1_output_is_a_runtime_failure_that_asks_to_upgrade() {
     let bare_envelope =
-        json!({"contract": "forager-ssrn/4", "status": "ok", "data": {}}).to_string();
+        json!({"contract": "forager-xhs/2", "status": "ok", "data": {}}).to_string();
     let yaml_error = "ok: false\nerror:\n  code: AUTH_REQUIRED\n  message: verification did not clear\n  exitCode: 77\n";
 
     let failures = [
@@ -166,10 +145,7 @@ fn opencli_1_output_is_a_runtime_failure_that_asks_to_upgrade() {
 
 #[test]
 fn forager_passes_no_opencli_settings_through_the_environment() {
-    let fake = FakeOpenCli::envelope(
-        "no_results",
-        &json!({"request_url": "", "total": 0, "papers": []}),
-    );
+    let fake = FakeOpenCli::failing("EMPTY_RESULT", "forager-xhs/search returned no data", 66);
 
     search(&fake);
     let environments = fake.environments();

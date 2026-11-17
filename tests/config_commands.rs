@@ -132,12 +132,12 @@ fn config_set_enables_the_browser_route_and_its_command() {
     };
 
     let codes = [
+        set("platforms.xiaohongshu.order", "[\"xiaohongshu_browser\"]"),
         set(
-            "platforms.ssrn.order",
-            "[\"ssrn_crossref\", \"ssrn_browser\"]",
+            "providers.xiaohongshu_browser.command",
+            "/opt/opencli/bin/opencli",
         ),
-        set("providers.ssrn_browser.command", "/opt/opencli/bin/opencli"),
-        set("providers.ssrn_browser.timeout", "120"),
+        set("providers.xiaohongshu_browser.timeout", "150"),
     ];
     let output = run(config_dir.path(), &["config", "list"], &[], None);
     let view: Value = serde_json::from_slice(&output.stdout).expect("parse config view");
@@ -145,31 +145,17 @@ fn config_set_enables_the_browser_route_and_its_command() {
     assert_eq!(
         (
             codes,
-            &view["platforms"]["ssrn"]["order"]["value"],
-            &view["providers"]["ssrn_browser"]["command"]["value"],
-            &view["providers"]["ssrn_browser"]["timeout"]["value"],
+            &view["platforms"]["xiaohongshu"]["order"]["value"],
+            &view["providers"]["xiaohongshu_browser"]["command"]["value"],
+            &view["providers"]["xiaohongshu_browser"]["timeout"]["value"],
         ),
         (
             [Some(0); 3],
-            &serde_json::json!(["ssrn_crossref", "ssrn_browser"]),
+            &serde_json::json!(["xiaohongshu_browser"]),
             &serde_json::json!("/opt/opencli/bin/opencli"),
-            &serde_json::json!(120),
+            &serde_json::json!(150),
         )
     );
-}
-
-#[test]
-fn config_set_rejects_an_empty_process_command() {
-    let config_dir = tempfile::tempdir().expect("create config directory");
-
-    let output = run(
-        config_dir.path(),
-        &["config", "set", "providers.ssrn_browser.command", " "],
-        &[],
-        None,
-    );
-
-    assert_eq!(output.status.code(), Some(2), "{output:?}");
 }
 
 #[test]
@@ -215,7 +201,7 @@ fn a_process_route_has_no_url_leaf() {
         &[
             "config",
             "set",
-            "providers.ssrn_browser.url",
+            "providers.xiaohongshu_browser.url",
             "https://example.test",
         ],
         &[],

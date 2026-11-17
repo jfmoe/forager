@@ -44,7 +44,7 @@ fn environment(fake: &FakeOpenCli, provider: &Fixture) -> RunEnvironment {
     RunEnvironment::new(&format!(
         "[providers.firecrawl]\nurl = {:?}\nkeys = [\"firecrawl-key\"]\n\n{}",
         provider.url,
-        fake.config("[\"ssrn_browser\"]")
+        fake.ssrn_config("[\"ssrn_browser\"]")
     ))
 }
 
@@ -297,7 +297,7 @@ fn a_web_fetch_chain_without_local_file_support_fails_and_keeps_the_pdf() {
     let environment = RunEnvironment::new(&format!(
         "[providers.tavily]\nurl = {:?}\nkeys = [\"tavily-key\"]\n\n{}",
         tavily.url,
-        fake.config("[\"ssrn_browser\"]")
+        fake.ssrn_config("[\"ssrn_browser\"]")
     ));
     let content_dir = tempfile::tempdir().expect("content directory");
 
@@ -512,7 +512,7 @@ fn full_text_without_a_configured_web_fetch_provider_fails_before_opening_the_br
     // provider.
     let environment = RunEnvironment::new(&format!(
         "[capabilities.web_fetch]\norder = [\"firecrawl\", \"tavily\"]\n\n{}",
-        fake.config("[\"ssrn_browser\"]")
+        fake.ssrn_config("[\"ssrn_browser\"]")
     ));
 
     let output = fetch(&environment, &[]);

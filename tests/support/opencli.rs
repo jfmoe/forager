@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Value, json};
 
-const CONTRACT: &str = "forager-ssrn/4";
 pub(crate) const XHS_CONTRACT: &str = "forager-xhs/2";
+const SSRN_CONTRACT: &str = "forager-ssrn/4";
 
 const CALL_END: &str = "<<end of call>>";
 
@@ -47,7 +47,11 @@ impl FakeOpenCli {
     }
 
     pub(crate) fn envelope(status: &str, data: &Value) -> Self {
-        Self::contract_envelope(CONTRACT, status, data)
+        Self::contract_envelope(XHS_CONTRACT, status, data)
+    }
+
+    pub(crate) fn ssrn_envelope(status: &str, data: &Value) -> Self {
+        Self::contract_envelope(SSRN_CONTRACT, status, data)
     }
 
     /// Answers an envelope of another adapter contract.
@@ -57,7 +61,7 @@ impl FakeOpenCli {
 
     /// Answers each command, selected by its second argument, with an `ok` envelope.
     pub(crate) fn by_command(pages: &[(&str, Value)]) -> Self {
-        Self::contract_by_command(CONTRACT, pages)
+        Self::contract_by_command(XHS_CONTRACT, pages)
     }
 
     /// Answers each command of another adapter contract with an `ok` envelope.
@@ -85,7 +89,7 @@ impl FakeOpenCli {
         for (index, (status, data)) in envelopes.iter().enumerate() {
             fs::write(
                 fake.path(&format!("{}.json", index + 1)),
-                adapter_envelope(CONTRACT, status, data),
+                adapter_envelope(SSRN_CONTRACT, status, data),
             )
             .expect("write fake envelope");
         }
@@ -102,8 +106,11 @@ impl FakeOpenCli {
             "state": "complete",
             "file": fake.path(file_name).display().to_string(),
         });
-        fs::write(fake.path("stdout"), adapter_envelope(CONTRACT, "ok", &data))
-            .expect("write fake stdout");
+        fs::write(
+            fake.path("stdout"),
+            adapter_envelope(SSRN_CONTRACT, "ok", &data),
+        )
+        .expect("write fake stdout");
         fake
     }
 
@@ -155,7 +162,12 @@ impl FakeOpenCli {
             .collect()
     }
 
+    /// Points `xiaohongshu_browser` at this fake and sets the Xiaohongshu order.
     pub(crate) fn config(&self, order: &str) -> String {
+        self.route_config("xiaohongshu_browser", "xiaohongshu", order)
+    }
+
+    pub(crate) fn ssrn_config(&self, order: &str) -> String {
         self.route_config("ssrn_browser", "ssrn", order)
     }
 

@@ -470,8 +470,8 @@ mod tests {
     use crate::types::AttemptErrorKind;
 
     const ADAPTER: OpenCliAdapter = OpenCliAdapter {
-        site: "ssrn",
-        contract: "forager-ssrn/3",
+        site: "forager-xhs",
+        contract: "forager-xhs/2",
     };
 
     mod decode_success {
@@ -490,7 +490,7 @@ mod tests {
         #[test]
         fn returns_the_status_and_data_of_a_matching_contract() {
             let decoded = decode(&result(&json!({
-                "contract": "forager-ssrn/3",
+                "contract": "forager-xhs/2",
                 "status": "no_results",
                 "data": {"url": "https://example.test"}
             })));
@@ -507,7 +507,7 @@ mod tests {
         #[test]
         fn rejects_another_contract_version_with_a_reinstall_hint() {
             let (kind, message) = decode(&result(&json!({
-                "contract": "forager-ssrn/2",
+                "contract": "forager-xhs/1",
                 "status": "ok",
                 "data": {}
             })))
@@ -516,7 +516,7 @@ mod tests {
             assert_eq!(
                 (
                     kind,
-                    message.contains("forager-ssrn/3"),
+                    message.contains("forager-xhs/2"),
                     message.contains("install or update")
                 ),
                 (AttemptErrorKind::Runtime, true, true)
@@ -547,7 +547,7 @@ mod tests {
         #[test]
         fn rejects_an_unknown_status() {
             let decoded = decode(&result(&json!({
-                "contract": "forager-ssrn/3",
+                "contract": "forager-xhs/2",
                 "status": "partial",
                 "data": {}
             })));
@@ -571,7 +571,7 @@ mod tests {
         #[test]
         fn rejects_data_of_another_shape() {
             let decoded = decode_success::<Vec<String>>(
-                br#"{"ok":true,"data":{"contract":"forager-ssrn/3","status":"ok","data":{"items":[]}}}"#,
+                br#"{"ok":true,"data":{"contract":"forager-xhs/2","status":"ok","data":{"items":[]}}}"#,
                 ADAPTER,
                 "search",
             );
@@ -585,7 +585,7 @@ mod tests {
         #[test]
         fn a_bare_adapter_envelope_asks_to_upgrade_from_opencli_1() {
             let (kind, message) = decode(&json!({
-                "contract": "forager-ssrn/3",
+                "contract": "forager-xhs/2",
                 "status": "ok",
                 "data": {}
             }))
@@ -595,7 +595,7 @@ mod tests {
                 (kind, message.as_str()),
                 (
                     AttemptErrorKind::Runtime,
-                    "OpenCLI `ssrn search` printed OpenCLI 1.x output; forager needs OpenCLI 2.x and Browser Bridge 1.0.25 or later; upgrade OpenCLI and its Chrome extension (see the forager skill references)"
+                    "OpenCLI `forager-xhs search` printed OpenCLI 1.x output; forager needs OpenCLI 2.x and Browser Bridge 1.0.25 or later; upgrade OpenCLI and its Chrome extension (see the forager skill references)"
                 )
             );
         }
@@ -618,12 +618,12 @@ mod tests {
             let kinds = [
                 (
                     Some(66),
-                    envelope("EMPTY_RESULT", "ssrn/search returned no data"),
+                    envelope("EMPTY_RESULT", "forager-xhs/search returned no data"),
                 ),
                 (Some(69), envelope("BROWSER_CONNECT", "daemon unavailable")),
                 (
                     Some(69),
-                    envelope("ADAPTER_LOAD", "cannot load ssrn/search"),
+                    envelope("ADAPTER_LOAD", "cannot load forager-xhs/search"),
                 ),
                 (Some(75), envelope("TIMEOUT", "timed out")),
                 (
@@ -657,19 +657,19 @@ mod tests {
         fn an_adapter_load_failure_carries_the_install_hint() {
             let failure = fail(
                 Some(69),
-                &envelope("ADAPTER_LOAD", "cannot load ssrn/search"),
+                &envelope("ADAPTER_LOAD", "cannot load forager-xhs/search"),
             );
 
             assert_eq!(
                 failure.message,
-                "OpenCLI exited with 69: cannot load ssrn/search; install or update the forager OpenCLI adapter: copy the `opencli/ssrn` directory of the forager skill to `~/.opencli/clis/ssrn` (see the forager skill references)"
+                "OpenCLI exited with 69: cannot load forager-xhs/search; install or update the forager OpenCLI adapter: copy the `opencli/forager-xhs` directory of the forager skill to `~/.opencli/clis/forager-xhs` (see the forager skill references)"
             );
         }
 
         #[test]
         fn an_unknown_site_or_command_carries_the_install_hint() {
             let hinted = [
-                envelope("unknown_command", "Unknown command: ssrn"),
+                envelope("unknown_command", "Unknown command: forager-xhs"),
                 envelope(
                     "commander.unknownCommand",
                     "error: unknown command 'search'",
