@@ -29,6 +29,8 @@ github-release = "host"
 publish-jobs = ["./release-artifact-gate"]
 # Allow the gate to read and attach assets on the draft Release
 github-custom-job-permissions = { "release-artifact-gate" = { contents = "write" } }
+# GitHub no longer serves the macos-14 arm64 image that dist 0.31 picks by default
+github-custom-runners = { aarch64-apple-darwin = "macos-15" }
 # Whether to enable GitHub Attestations
 github-attestations = true
 # Path that installers should place binaries in
