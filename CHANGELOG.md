@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.19.0](https://github.com/jfmoe/forager/compare/v0.18.0...v0.19.0) - 2026-11-17
+
+### Other
+
+- drop retired-adapter residue from OpenCLI docs
+- collapse indirection left by the single OpenCLI route
+- [**breaking**] retire the SSRN browser route and local-file full text
+- prove OpenCLI deadline and process rules through xiaohongshu_browser
+- prove OpenCLI process-route rules through xiaohongshu_browser
+- [**breaking**] retire Gemini and ChatGPT delegated research
+
 ## [0.18.0](https://github.com/jfmoe/forager/compare/v0.17.0...v0.18.0) - 2026-10-28
 
 ### Added
