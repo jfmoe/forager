@@ -3,10 +3,10 @@ use reqwest::Client;
 use super::constructors::{credentials, route_limiter};
 use super::{
     ArxivApi, DocsSearch, GeminiApi, HnApi, KeyAccount, KeyQuota, MainSearch, PlatformFetch,
-    PlatformSearch, PolymarketApi, ProviderId, RedditWeb, Serpapi, SsrnBrowser, SsrnCrossref,
+    PlatformSearch, PolymarketApi, ProviderId, RedditWeb, Serpapi, SsrnCrossref,
     SupplementalSearch, WebFetch, WebSearch, XiaohongshuBrowser, YoutubeApi, YoutubeWeb, arxiv,
-    hn_api, opencli, polymarket_api, reddit_web, serpapi, ssrn_browser, ssrn_crossref, web_fetch,
-    xai, xiaohongshu_browser, youtube_api, youtube_web,
+    hn_api, opencli, polymarket_api, reddit_web, serpapi, ssrn_crossref, web_fetch, xai,
+    xiaohongshu_browser, youtube_api, youtube_web,
 };
 use crate::catalog::{ProviderTransport, WEB_FETCH, WEB_SEARCH, registration};
 use crate::config::{
@@ -141,7 +141,6 @@ pub(crate) fn build_platform_search(
         PlatformRouteConfig::SsrnCrossref(config) => {
             Box::new(build_ssrn_crossref(config, client, retry_policy, deadline))
         }
-        PlatformRouteConfig::SsrnBrowser(config) => Box::new(build_ssrn_browser(config, deadline)),
         PlatformRouteConfig::Serpapi(config) => {
             Box::new(build_serpapi(config, client, retry_policy, deadline))
         }
@@ -187,7 +186,6 @@ pub(crate) fn build_platform_fetch(
         PlatformRouteConfig::SsrnCrossref(config) => {
             Box::new(build_ssrn_crossref(config, client, retry_policy, deadline))
         }
-        PlatformRouteConfig::SsrnBrowser(config) => Box::new(build_ssrn_browser(config, deadline)),
         PlatformRouteConfig::Serpapi(config) => {
             Box::new(build_serpapi(config, client, retry_policy, deadline))
         }
@@ -547,15 +545,6 @@ fn build_ssrn_crossref(
     )
 }
 
-fn build_ssrn_browser(config: ProcessRouteRuntimeConfig, deadline: Deadline) -> SsrnBrowser {
-    SsrnBrowser::new(
-        config,
-        route_limiter(ProviderId::SsrnBrowser)
-            .expect("ssrn_browser registration declares an access policy"),
-        deadline,
-    )
-}
-
 fn build_xiaohongshu_browser(
     config: ProcessRouteRuntimeConfig,
     deadline: Deadline,
@@ -587,7 +576,6 @@ pub(crate) fn platform_search_support(
     let route = match id {
         ProviderId::ArxivApi => arxiv::search_support(request),
         ProviderId::SsrnCrossref => ssrn_crossref::search_support(request),
-        ProviderId::SsrnBrowser => ssrn_browser::search_support(request),
         ProviderId::Serpapi => serpapi::search_support(request),
         ProviderId::XiaohongshuBrowser => xiaohongshu_browser::search_support(request),
         ProviderId::Xai => xai::search_support(request),
@@ -609,7 +597,6 @@ pub(crate) fn platform_fetch_support(
     let route = match id {
         ProviderId::ArxivApi => arxiv::fetch_support(request),
         ProviderId::SsrnCrossref => ssrn_crossref::fetch_support(request),
-        ProviderId::SsrnBrowser => ssrn_browser::fetch_support(request),
         ProviderId::Serpapi => serpapi::fetch_support(request),
         ProviderId::XiaohongshuBrowser => xiaohongshu_browser::fetch_support(request),
         ProviderId::Xai => xai::fetch_support(request),

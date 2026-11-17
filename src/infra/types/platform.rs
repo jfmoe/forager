@@ -5,7 +5,6 @@
 
 use std::borrow::Cow;
 use std::fmt;
-use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize, Serializer};
 use thiserror::Error;
@@ -632,46 +631,13 @@ pub(crate) struct PlatformFetchOutcome {
 }
 
 #[derive(Clone, Debug)]
-/// Where the full text of an item lives: URLs to read in order, one local file the route
-/// produced and verified in the same command, or the Markdown body the route itself read and
-/// verified in the same attempt.
+/// Where the full text of an item lives: URLs to read in order, or the Markdown body the route
+/// itself read and verified in the same attempt.
 pub(crate) enum FullTextSource {
     /// URLs to read in order; empty unless the request asks for the full text.
     Urls(Vec<String>),
-    /// One verified local file.
-    LocalFile(LocalFile),
     /// The platform-native Markdown body; it needs no Web Fetch provider.
     Native(String),
-}
-
-#[derive(Clone, Debug)]
-/// A local file one stage of a command hands to a later stage, with its media type.
-pub(crate) struct LocalFile {
-    pub(crate) path: PathBuf,
-    pub(crate) media_type: LocalMediaType,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-/// The media type of a [`LocalFile`].
-pub(crate) enum LocalMediaType {
-    /// A PDF document.
-    Pdf,
-}
-
-impl LocalMediaType {
-    /// Returns the MIME type string.
-    pub(crate) const fn as_str(self) -> &'static str {
-        match self {
-            Self::Pdf => "application/pdf",
-        }
-    }
-
-    /// Returns the conventional file extension.
-    pub(crate) const fn extension(self) -> &'static str {
-        match self {
-            Self::Pdf => "pdf",
-        }
-    }
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -716,9 +682,8 @@ pub struct PlatformFetchResult {
 #[derive(Clone, Debug, Serialize)]
 /// The full text of a platform item; the body itself never serializes.
 pub struct PlatformContent {
-    /// The URL the body was read from; for a body converted from a local file or read natively
-    /// by the route, the item's canonical URL, which names the source but may not open
-    /// anonymously.
+    /// The URL the body was read from; for a body read natively by the route, the item's
+    /// canonical URL, which names the source but may not open anonymously.
     #[serde(rename = "content_url")]
     pub url: String,
     /// The provider that produced the Markdown: the Web Fetch provider, or the route itself for
@@ -731,17 +696,8 @@ pub struct PlatformContent {
     /// The body length in characters.
     #[serde(rename = "content_len")]
     pub len: usize,
-    /// The original PDF kept next to the Markdown, when the caller asked to keep it.
-    #[serde(rename = "pdf_path", skip_serializing_if = "Option::is_none")]
-    pub pdf_path: Option<String>,
-    /// The kept PDF size in bytes.
-    #[serde(rename = "pdf_bytes", skip_serializing_if = "Option::is_none")]
-    pub pdf_bytes: Option<u64>,
     #[serde(skip)]
     pub text: String,
-    /// The local file the body was converted from; delivery keeps or removes it.
-    #[serde(skip)]
-    pub(crate) source_file: Option<LocalFile>,
 }
 
 impl PlatformContent {
@@ -753,10 +709,7 @@ impl PlatformContent {
             provider,
             path: None,
             len: text.chars().count(),
-            pdf_path: None,
-            pdf_bytes: None,
             text,
-            source_file: None,
         }
     }
 }

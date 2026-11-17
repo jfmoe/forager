@@ -297,7 +297,6 @@ impl Work {
                 doi: Some(self.doi),
                 crossref_type: self.kind,
                 crossref_created: self.created.and_then(|created| created.date_time),
-                ..SsrnItemData::default()
             }),
         })
     }
@@ -380,13 +379,9 @@ mod tests {
                 "authors": ["Gary Antonacci", "Example Institute"],
                 "published": "2012-04-19",
                 "abstract": "Momentum is the premier market anomaly.\n\nSecond & last.",
-                "snippet": null,
                 "doi": "10.2139/ssrn.2042750",
                 "crossref_type": "posted-content",
-                "crossref_created": "2012-04-25T11:01:44Z",
-                "posted": null,
-                "last_revised": null,
-                "date_written": null
+                "crossref_created": "2012-04-25T11:01:44Z"
             })
         );
     }

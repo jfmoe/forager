@@ -190,12 +190,5 @@ fn reddit_fetch(arguments: RedditFetchArgs) -> Result<CommandOutput, AppError> {
     let reference = PlatformRef::parse(Platform::Reddit, &reference)
         .map_err(|error| AppError::Argument(error.to_string()))?;
     let request = PlatformFetchRequest::new(reference, depth.into());
-    fetch(
-        Platform::Reddit,
-        request,
-        format,
-        content_dir,
-        false,
-        &common,
-    )
+    fetch(Platform::Reddit, request, format, content_dir, &common)
 }

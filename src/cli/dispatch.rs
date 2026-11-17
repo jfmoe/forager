@@ -15,7 +15,7 @@ use crate::config::{self, ConfigError, ConfigLocation, EditError};
 use crate::net::{self, RetryPolicy};
 use crate::providers::{
     self, Context7DocsRequest, Context7LibraryRequest, ExaSearchRequest, ExaSimilarRequest,
-    FetchRequest, FetchSource, MapRequest, ProviderId,
+    FetchRequest, MapRequest, ProviderId,
 };
 use crate::types::{
     CapabilitySet, ClaimRisk, Context7Outcome, Deadline, EvidenceStrength, FallbackPolicy,
@@ -814,10 +814,8 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             output,
             verbose,
         } => {
-            let (result, attempt_log) = FetchContext::load(timeout)?.fetch(FetchRequest {
-                source: FetchSource::Url(url),
-                verbose,
-            });
+            let (result, attempt_log) =
+                FetchContext::load(timeout)?.fetch(FetchRequest { url, verbose });
             Ok(CommandOutput::Fetch {
                 result,
                 format,

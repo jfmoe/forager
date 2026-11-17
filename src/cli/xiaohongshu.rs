@@ -210,14 +210,7 @@ fn xiaohongshu_fetch(arguments: XiaohongshuFetchArgs) -> Result<CommandOutput, A
         access: Some(token),
         ..PlatformFetchRequest::new(PlatformRef::Xiaohongshu(reference), depth.into())
     };
-    fetch(
-        Platform::Xiaohongshu,
-        request,
-        format,
-        content_dir,
-        false,
-        &common,
-    )
+    fetch(Platform::Xiaohongshu, request, format, content_dir, &common)
 }
 
 fn xiaohongshu_search(arguments: XiaohongshuSearchArgs) -> Result<CommandOutput, AppError> {

@@ -1,6 +1,6 @@
 # OpenCLI adapter 开发与实测
 
-浏览器 route（`ssrn_browser`、`xiaohongshu_browser`）通过 OpenCLI 操控用户自己的 Chrome。OpenCLI 已冻结（ADR 0035）：只服务现有 route，不再新增 OpenCLI route 或 adapter。各 adapter 的职责见 `docs/spec/forager/04-architecture.md`，接入规则见第 7 章。本文只记录本机开发和实测时要注意的事。
+浏览器 route `xiaohongshu_browser` 通过 OpenCLI 操控用户自己的 Chrome。OpenCLI 已冻结（ADR 0035）：只服务这条 route，不再新增 OpenCLI route 或 adapter。各 adapter 的职责见 `docs/spec/forager/04-architecture.md`，接入规则见第 7 章。本文只记录本机开发和实测时要注意的事。
 
 ## 本机安装
 
@@ -8,7 +8,7 @@
 - `opencli` 通过 npm 全局安装。安装和更新都用 `npm install -g @jackwener/opencli@2`，随后运行 `opencli daemon restart` 和 `opencli doctor`。本机使用 nvm，当前 Node 的 `bin` 目录须排在 `/usr/local/bin` 前；用 `command -v opencli` 确认命中 npm 安装的命令，切换 Node 版本后须重新确认。OpenCLIApp、登录启动项、保活辅助服务及 `/usr/local/bin/opencli` shim 已卸载；App 账号数据仍保留在 `~/Library/Application Support/BrowserBridge`，供恢复安装时使用。
 - Browser Bridge 扩展须为 1.0.25 或更高。扩展不随 npm 包更新，只能手动更新：从 OpenCLI 的 GitHub release 取得扩展，在 Chrome 中替换安装，再用 `opencli doctor` 确认扩展版本和连接状态。
 - adapter 的源码在 `skills/forager/opencli/<name>/`，安装位置是 `~/.opencli/clis/<name>/`。改完 JS 后，把整个目录替换过去，再用 `diff -r skills/forager/opencli/<name> ~/.opencli/clis/<name>` 确认一致。只改 JS 不用重新编译 Rust。
-- OpenCLI 会加载 `~/.opencli/clis/` 下的每个目录。备份或副本（如 `forager-xhs.bak`）会注册同名 adapter，旧代码可能盖过新代码，所以那里只放正式安装的 adapter。探测脚本装成单独的名字（例如 `ssrnprobe`），用完就删。
+- OpenCLI 会加载 `~/.opencli/clis/` 下的每个目录。备份或副本（如 `forager-xhs.bak`）会注册同名 adapter，旧代码可能盖过新代码，所以那里只放正式安装的 adapter。探测脚本装成单独的名字（例如 `xhsprobe`），用完就删。
 
 ## 实测前
 
@@ -16,14 +16,14 @@
 - 用 `forager doctor --provider <route>` 检查单个 route。真实检索会消耗站点的访问额度，可能触发风控或人工验证，按第 7 章和 ADR 0020 的限制运行。
 - **页面打开预算**：每条 live 的 forager 命令、adapter 命令和探测脚本的每一轮都会打开真实页面。同一站点一次排查最多打开约 10 次，超出前先问用户。测随机故障的出现率这类需要多次采样的问题，也受这个预算约束。
 - **每次打开都存档**：把 live 命令的完整 stdout 写入文件，之后从文件分析，不为看另一个字段再打开一次页面。
-- **遇到拦截就收手**：输出出现 HTTP 461（小红书）、Cloudflare 验证，或连续超时、连续拿不到响应体时，立即停止该站点的全部 live 命令和循环。先把离线能做的部分做完，再上报，由用户在 Chrome 里处理验证。拦截不会因为等待很快解除，sleep 等冷却后重试只会再次触发拦截。
+- **遇到拦截就收手**：输出出现 HTTP 461（小红书）、站点验证，或连续超时、连续拿不到响应体时，立即停止该站点的全部 live 命令和循环。先把离线能做的部分做完，再上报，由用户在 Chrome 里处理验证。拦截不会因为等待很快解除，sleep 等冷却后重试只会再次触发拦截。
 
 ## 已知问题
 
-- **`Navigation rejected.`**：标签页没开网络抓包时，OpenCLI 扩展会在导航前断开调试器，Chrome 随即拒绝这次导航。所以 adapter 每次顶层导航前都要先开抓包，小红书的 `search.js`、`note.js`、`comments.js` 与 SSRN 的 `paper.js` 已经这样做。新 adapter 或新命令遇到这个报错，按同样方式处理。重启 Chrome 也能暂时消除。还观察到运行过带 `--trace` 的命令后，不带 trace 的命令会连续被拒，但没有确认原因。
+- **`Navigation rejected.`**：标签页没开网络抓包时，OpenCLI 扩展会在导航前断开调试器，Chrome 随即拒绝这次导航。所以 adapter 每次顶层导航前都要先开抓包，小红书的 `search.js`、`note.js`、`comments.js` 已经这样做。新命令遇到这个报错，按同样方式处理。重启 Chrome 也能暂时消除。还观察到运行过带 `--trace` 的命令后，不带 trace 的命令会连续被拒，但没有确认原因。
 - **诱饵按钮**：小红书会在按钮下面叠放同类名、同文本的不可见副本（`aria-hidden`），按类名和文本找元素会找到两个，或先找到诱饵。adapter 的点击都经 `shared.js` 原生输入块的 `clickTarget`：只认不在 `aria-hidden` 子树中、指针在中心能命中的元素，并要求恰好一个，详见小红书 route 设计的「诱饵按钮」。
 - **抓包条目完成了却没有响应体**：扩展只在请求结束时向 Chrome 取一次响应体，取失败时不报错，条目照样标记完成（`captureComplete`），只是没有 `responsePreview`。2026-10-20 在 Browser Bridge 1.0.26、Chrome 155 上实测，当时的 Gemini adapter 跟踪的响应约一半的打开会丢响应体；这与 adapter 在页面上的读取无关，页面加载期间不发任何命令也一样丢。Chrome 那边取失败的原因没有查明。页面重新加载后会重新取。小红书的读取会话以 `body_missing` 标出这种情况。
-- **只有实测能证明 JS 的行为**：Rust 侧的测试用的是假 `opencli`，只证明外壳解码、退出码映射和核对规则。adapter 的页面读取、抓包完成条件和点击路径，只能靠实测证明：小红书有 live smoke 用例（C27–C29）；SSRN 的浏览器 route 经常被 Cloudflare 拦截，没有 live 用例，也不做实测，所以 SSRN adapter 没有经过 live 验证。
+- **只有实测能证明 JS 的行为**：Rust 侧的测试用的是假 `opencli`，只证明外壳解码、退出码映射和核对规则。adapter 的页面读取、抓包完成条件和点击路径，只能靠实测证明：小红书有 live smoke 用例（C27–C29）。
 
 ## 原生输入的已知限制
 

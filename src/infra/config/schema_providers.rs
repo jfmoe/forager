@@ -20,7 +20,6 @@ pub(crate) struct Providers {
     pub(crate) firecrawl: Endpoint<FirecrawlEndpoint>,
     pub(crate) arxiv_api: AnonymousEndpoint<ArxivApiEndpoint>,
     pub(crate) ssrn_crossref: AnonymousEndpoint<SsrnCrossrefEndpoint>,
-    pub(crate) ssrn_browser: ProcessRoute<SsrnBrowserProcess>,
     pub(crate) serpapi: Endpoint<SerpapiEndpoint>,
     pub(crate) xiaohongshu_browser: ProcessRoute<XiaohongshuBrowserProcess>,
     pub(crate) hn_api: HnApi,
@@ -140,13 +139,6 @@ impl<D: ProcessDefaults> Default for ProcessRoute<D> {
 
 pub(crate) trait ProcessDefaults {
     const TIMEOUT_SECONDS: u64;
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct SsrnBrowserProcess;
-
-impl ProcessDefaults for SsrnBrowserProcess {
-    const TIMEOUT_SECONDS: u64 = 90;
 }
 
 #[derive(Clone, Debug)]

@@ -69,7 +69,6 @@ pub(crate) enum ProviderId {
     Context7,
     ArxivApi,
     SsrnCrossref,
-    SsrnBrowser,
     Serpapi,
     XiaohongshuBrowser,
     HnApi,
@@ -81,7 +80,7 @@ pub(crate) enum ProviderId {
 }
 
 impl ProviderId {
-    pub(crate) const ALL: [Self; 18] = [
+    pub(crate) const ALL: [Self; 17] = [
         Self::Xai,
         Self::Openai,
         Self::Exa,
@@ -91,7 +90,6 @@ impl ProviderId {
         Self::Context7,
         Self::ArxivApi,
         Self::SsrnCrossref,
-        Self::SsrnBrowser,
         Self::Serpapi,
         Self::XiaohongshuBrowser,
         Self::HnApi,
@@ -113,7 +111,6 @@ impl ProviderId {
             "context7" => Some(Self::Context7),
             "arxiv_api" => Some(Self::ArxivApi),
             "ssrn_crossref" => Some(Self::SsrnCrossref),
-            "ssrn_browser" => Some(Self::SsrnBrowser),
             "serpapi" => Some(Self::Serpapi),
             "xiaohongshu_browser" => Some(Self::XiaohongshuBrowser),
             "hn_api" => Some(Self::HnApi),
@@ -137,7 +134,6 @@ impl ProviderId {
             Self::Context7 => "context7",
             Self::ArxivApi => "arxiv_api",
             Self::SsrnCrossref => "ssrn_crossref",
-            Self::SsrnBrowser => "ssrn_browser",
             Self::Serpapi => "serpapi",
             Self::XiaohongshuBrowser => "xiaohongshu_browser",
             Self::HnApi => "hn_api",
@@ -558,12 +554,6 @@ const SSRN_CROSSREF_ACCESS: AccessPolicy = AccessPolicy {
     max_concurrency: 1,
 };
 
-// One browser operation every five seconds keeps the pace close to a person's (ADR 0020).
-const SSRN_BROWSER_ACCESS: AccessPolicy = AccessPolicy {
-    min_interval: Duration::from_secs(5),
-    max_concurrency: 1,
-};
-
 // About 55 read-only commands 5 to 10 seconds apart raised no risk control on 2026-10-08; ten
 // seconds is the slowest pace measured, not a limit the site states (ADR 0020).
 const XIAOHONGSHU_BROWSER_ACCESS: AccessPolicy = AccessPolicy {
@@ -733,24 +723,6 @@ const REGISTRY: &[ProviderRegistration] = &[
             transport: "http",
         },
         smoke_cases: SSRN_CROSSREF_SMOKE,
-        native_full_text: false,
-    },
-    // No live smoke case: SSRN's Cloudflare check fails too often for an unattended run.
-    ProviderRegistration {
-        id: ProviderId::SsrnBrowser,
-        operations: &[],
-        credentials: Credentials::Unused,
-        transport: ProviderTransport::OpenCli(OpenCliAdapter {
-            site: "ssrn",
-            contract: "forager-ssrn/4",
-        }),
-        access_policy: Some(SSRN_BROWSER_ACCESS),
-        probe: DoctorProbe::PlatformSearch {
-            platform: Platform::Ssrn,
-            name: "search",
-            transport: "process",
-        },
-        smoke_cases: &[],
         native_full_text: false,
     },
     // SerpApi limits throughput per account; a 429 rotates to the next key instead of pacing.
@@ -953,9 +925,6 @@ mod tests {
         registration, registrations, validate_registrations,
     };
 
-    /// Providers without a live smoke case.
-    const WITHOUT_LIVE_SMOKE: &[ProviderId] = &[ProviderId::SsrnBrowser];
-
     #[derive(Deserialize)]
     struct AcceptanceManifest {
         transport_fixtures: Vec<TransportFixture>,
@@ -1062,9 +1031,8 @@ mod tests {
                 }
             };
             assert!(probe_is_supported, "{} probe", registration.id.name());
-            assert_eq!(
-                registration.smoke_cases.is_empty(),
-                WITHOUT_LIVE_SMOKE.contains(&registration.id),
+            assert!(
+                !registration.smoke_cases.is_empty(),
                 "{} smoke",
                 registration.id.name()
             );

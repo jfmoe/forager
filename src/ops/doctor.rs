@@ -7,7 +7,7 @@ use serde_json::Value;
 use crate::catalog::{self, DoctorProbe, ProviderId, ProviderRegistration, ProviderTransport};
 use crate::config::{self, PlatformRouteConfig, RuntimeConfig};
 use crate::net::{self, RetryPolicy};
-use crate::providers::{self, FetchRequest, FetchSource, KeyAccount, KeyQuota, MainSearchRequest};
+use crate::providers::{self, FetchRequest, KeyAccount, KeyQuota, MainSearchRequest};
 use crate::rate_limit::RateLimiter;
 use crate::types::{
     AttemptErrorKind, ContentDepth, Deadline, Platform, PlatformFetchRequest, PlatformRef,
@@ -440,7 +440,7 @@ async fn probe_web_fetch(
         providers::build_web_fetch(provider, provider_config, client, retry_policy, deadline);
     let result = adapter
         .fetch(&FetchRequest {
-            source: FetchSource::Url("https://example.com/".into()),
+            url: "https://example.com/".into(),
             verbose: false,
         })
         .await;

@@ -5,8 +5,8 @@ use chrono::{Datelike, Local, Weekday};
 
 use super::{
     ArxivApi, Context7, Context7DocsRequest, Context7LibraryRequest, Exa, ExaSearchRequest, HnApi,
-    Openai, PolymarketApi, RedditWeb, SearchType, Serpapi, SsrnBrowser, SsrnCrossref,
-    SupplementalSearch, Xai, XiaohongshuBrowser, YoutubeApi, YoutubeWeb,
+    Openai, PolymarketApi, RedditWeb, SearchType, Serpapi, SsrnCrossref, SupplementalSearch, Xai,
+    XiaohongshuBrowser, YoutubeApi, YoutubeWeb,
 };
 use crate::types::{
     Context7Outcome, DocumentationEvidence, DocumentationSearchOutcome, EvidenceLocator,
@@ -147,16 +147,6 @@ impl PlatformSearch for SsrnCrossref {
     }
 }
 
-impl PlatformSearch for SsrnBrowser {
-    fn search<'a>(
-        &'a self,
-        request: &'a PlatformSearchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>
-    {
-        Box::pin(SsrnBrowser::search(self, request))
-    }
-}
-
 impl PlatformSearch for Serpapi {
     fn search<'a>(
         &'a self,
@@ -242,16 +232,6 @@ impl PlatformFetch for SsrnCrossref {
     ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
     {
         Box::pin(SsrnCrossref::fetch(self, request))
-    }
-}
-
-impl PlatformFetch for SsrnBrowser {
-    fn fetch<'a>(
-        &'a self,
-        request: &'a PlatformFetchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
-    {
-        Box::pin(SsrnBrowser::fetch(self, request))
     }
 }
 

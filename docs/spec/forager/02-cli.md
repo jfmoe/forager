@@ -32,8 +32,7 @@ forager platform arxiv fetch REF_OR_URL [--depth full_text|abstract] [--content-
                              [--timeout 120] [--format json|markdown|content] [...]
 forager platform ssrn search QUERY [--limit 1..=100（默认 10）] [--cursor CURSOR]
                              [--timeout 120] [--format json|markdown] [...]
-forager platform ssrn fetch REF_OR_URL [--depth metadata|abstract|full_text]
-                            [--content-dir DIR] [--keep-pdf]
+forager platform ssrn fetch REF_OR_URL [--depth metadata|abstract]
                             [--timeout 120] [--format json|markdown|content] [...]
 forager platform scholar search QUERY [--limit 1..=20（默认 20）]
                                 [--year-from YYYY] [--year-to YYYY] [--review-only]
@@ -190,9 +189,9 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 ## 契约③：`doctor --provider`
 
-两档：`doctor` 浅检全体（掩码配置 + 凭据存在 + 可达性（对 endpoint 发 GET 并只等待响应头，任何 HTTP 响应都算可达；部分 endpoint 对 HEAD 不响应）+ 过宽权限报告 + config list 同构生效值块）；顶层 `ok` 等于所有 `configured=true` provider 均 `reachable=true`，零配置为 true，任一不可达则 JSON/Markdown 均为 false 并退出 4，permission warning 不改变 `ok`。`--provider NAME` 深探单体，值域＝provider 注册表的编译期 enum。需要凭据的 6 个 provider（exa、tavily、firecrawl、context7 与主搜索 backend `xai`、`openai`）执行凭据有效性 + 最小活体调用；两个主搜索 backend 的活体调用都是一次不带工具与 instructions 的 Responses SSE 模型探测，检查记为 `[{name: "responses", transport: "sse"}]`；凭据可选的 `jina` 恒为已配置，没有 key 时浅检的 `message` 注明以匿名方式运行，深探以不带凭据的请求执行同一 fetch 探测；有 key 时按现有方式探测，key 失败后的匿名请求即使成功，深探仍以 key 的失败结束；平台 route（`arxiv_api`、`ssrn_crossref`、`ssrn_browser`、`xiaohongshu_browser`、`hn_api`）不需要凭据，恒为已配置，深探执行一次最小平台检索；`hn_api` 访问两个端点，深探在检索之后再向 Firebase 发一个请求，记为 `firebase` 检查；主搜索 backend `xai` 同时是 X 平台的 route，`platforms.x.order` 含 `xai` 时，深探在主搜索检查之后再执行一次最小 X 检索，记为 `x_search` 检查；需要凭据的平台 route `serpapi` 有 key 时才算已配置，浅检对端点发一次不带 key 的 GET（不计额度）；深探不做检索，而是按池中顺序对每个 key 各调用一次同源的 SerpApi Account API（`/account.json`，不计额度），不经凭据轮换、不推进凭据游标，输出增加 `keys` 数组，每个 key 一项 `{key_index, ok, searches_left, plan_searches_left, this_month_usage, this_hour_searches, hourly_limit}`，失败项带 `error_kind`，取不到的数字为 `null`；HTTP 失败沿用共享归因（401/403 为 auth），剩余额度为 0 为 `quota_exhausted`，本小时检索数达到上限为 `rate_limited`，缺数字字段为 `runtime`；任一 key 失败则深探失败退 4，顶层 `error_kind` 与 `message` 取第一个失败的 key，`message` 以 `providers.serpapi.keys[N]` 指明它；响应中的 key、账户邮箱与账户 ID 不被解码，也不进入任何输出；这个深探只证明端点、key 与额度状态，不证明 Scholar 检索的请求与解码（由 live smoke C24–C26 证明）；没有 key 时以 config 失败退 3 且不发请求；需要凭据的平台 route `gemini_api` 同样有 key 时才算已配置，浅检对端点发一次不带 key 的 GET；深探不调用模型，而是按池中顺序用每个 key 各请求一次 `GET <url>/models`（不计模型额度），检查记为 `[{name: "models", transport: "http"}]`，`keys` 每项只有 `{key_index, ok}`，失败项带 `error_kind`，失败与报告规则同 `serpapi`（`message` 以 `providers.gemini_api.keys[N]` 指明失败的 key）；其他 provider 的深探输出没有 `keys`。声明访问策略的 provider（平台 route）的浅检检查与深探请求都先经过跨进程限速，等不到窗口时浅检记为不可达、深探以 timeout 失败，且都不发送请求。
+两档：`doctor` 浅检全体（掩码配置 + 凭据存在 + 可达性（对 endpoint 发 GET 并只等待响应头，任何 HTTP 响应都算可达；部分 endpoint 对 HEAD 不响应）+ 过宽权限报告 + config list 同构生效值块）；顶层 `ok` 等于所有 `configured=true` provider 均 `reachable=true`，零配置为 true，任一不可达则 JSON/Markdown 均为 false 并退出 4，permission warning 不改变 `ok`。`--provider NAME` 深探单体，值域＝provider 注册表的编译期 enum。需要凭据的 6 个 provider（exa、tavily、firecrawl、context7 与主搜索 backend `xai`、`openai`）执行凭据有效性 + 最小活体调用；两个主搜索 backend 的活体调用都是一次不带工具与 instructions 的 Responses SSE 模型探测，检查记为 `[{name: "responses", transport: "sse"}]`；凭据可选的 `jina` 恒为已配置，没有 key 时浅检的 `message` 注明以匿名方式运行，深探以不带凭据的请求执行同一 fetch 探测；有 key 时按现有方式探测，key 失败后的匿名请求即使成功，深探仍以 key 的失败结束；平台 route（`arxiv_api`、`ssrn_crossref`、`xiaohongshu_browser`、`hn_api`）不需要凭据，恒为已配置，深探执行一次最小平台检索；`hn_api` 访问两个端点，深探在检索之后再向 Firebase 发一个请求，记为 `firebase` 检查；主搜索 backend `xai` 同时是 X 平台的 route，`platforms.x.order` 含 `xai` 时，深探在主搜索检查之后再执行一次最小 X 检索，记为 `x_search` 检查；需要凭据的平台 route `serpapi` 有 key 时才算已配置，浅检对端点发一次不带 key 的 GET（不计额度）；深探不做检索，而是按池中顺序对每个 key 各调用一次同源的 SerpApi Account API（`/account.json`，不计额度），不经凭据轮换、不推进凭据游标，输出增加 `keys` 数组，每个 key 一项 `{key_index, ok, searches_left, plan_searches_left, this_month_usage, this_hour_searches, hourly_limit}`，失败项带 `error_kind`，取不到的数字为 `null`；HTTP 失败沿用共享归因（401/403 为 auth），剩余额度为 0 为 `quota_exhausted`，本小时检索数达到上限为 `rate_limited`，缺数字字段为 `runtime`；任一 key 失败则深探失败退 4，顶层 `error_kind` 与 `message` 取第一个失败的 key，`message` 以 `providers.serpapi.keys[N]` 指明它；响应中的 key、账户邮箱与账户 ID 不被解码，也不进入任何输出；这个深探只证明端点、key 与额度状态，不证明 Scholar 检索的请求与解码（由 live smoke C24–C26 证明）；没有 key 时以 config 失败退 3 且不发请求；需要凭据的平台 route `gemini_api` 同样有 key 时才算已配置，浅检对端点发一次不带 key 的 GET；深探不调用模型，而是按池中顺序用每个 key 各请求一次 `GET <url>/models`（不计模型额度），检查记为 `[{name: "models", transport: "http"}]`，`keys` 每项只有 `{key_index, ok}`，失败项带 `error_kind`，失败与报告规则同 `serpapi`（`message` 以 `providers.gemini_api.keys[N]` 指明失败的 key）；其他 provider 的深探输出没有 `keys`。声明访问策略的 provider（平台 route）的浅检检查与深探请求都先经过跨进程限速，等不到窗口时浅检记为不可达、深探以 timeout 失败，且都不发送请求。
 
-传输类型为 process 的 route（`ssrn_browser`、`xiaohongshu_browser`）不发 GET：浅检只在它出现在所属平台的 order 中时参与，运行 adapter 的 `contract` 命令并核对契约版本；未启用时报告 `configured: false`，不影响 `ok`。检查失败时该 provider 状态带 `message`（含安装提示），Markdown 在同一行括号中显示。深探（`doctor --provider ssrn_browser` 或 `xiaohongshu_browser`）同样只在 order 启用该 route 时运行一次真实的平台检索；未启用时以 config 失败退 3，不启动进程。
+传输类型为 process 的 route（`xiaohongshu_browser`）不发 GET：浅检只在它出现在所属平台的 order 中时参与，运行 adapter 的 `contract` 命令并核对契约版本；未启用时报告 `configured: false`，不影响 `ok`。检查失败时该 provider 状态带 `message`（含安装提示），Markdown 在同一行括号中显示。深探（`doctor --provider xiaohongshu_browser`）同样只在 order 启用该 route 时运行一次真实的平台检索；未启用时以 config 失败退 3，不启动进程。
 
 ## 平台命令
 
@@ -235,12 +234,10 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 | 参数 | 类型与取值 | 默认值 | 语义 |
 |---|---|---|---|
-| 查询词（位置参数） | 字符串，不带 cursor 时必填 | 无 | 查询表达式，匹配语义由 route 和模式决定 |
-| `--scope` | `all` / `title` / `bibliographic` / `full-text` | `all` | all 使用 route 默认字段；bibliographic 仅 Crossref；full-text 仅 browser，仍只搜索 |
-| `--author` | 非空字符串 | 无 | 作者文本查询；browser 原站 Author(s) 字段，不是作者 ID 或精确姓名匹配 |
+| 查询词（位置参数） | 字符串，不带 cursor 时必填 | 无 | 查询表达式，匹配语义遵循 Crossref |
+| `--scope` | `all` / `title` / `bibliographic` | `all` | all 使用 Crossref 默认字段；bibliographic 为 Crossref 书目字段 |
+| `--author` | 非空字符串 | 无 | 作者文本查询，不是作者 ID 或精确姓名匹配 |
 | `--affiliation` | 非空字符串 | 无 | Crossref 作者机构查询 |
-| `--mode` | `fuzzy` / `boolean` | 无 | browser 专属；省略时原站为 Fuzzy，Boolean 支持 AND、OR、NOT 和括号 |
-| `--date` | `all-time` / `last-week` / `last-month` / `last-3-months` / `last-6-months` / `last-year` / `last-2-years` / `last-3-years` | 无 | browser 原站日期预设；省略时为全部时间 |
 | `--published-from` / `--published-to` | `YYYY-MM-DD` | 无 | 发表日期区间，含边界，可单端 |
 | `--created-from` / `--created-to` | `YYYY-MM-DD` | 无 | Crossref 首次登记日期区间，含边界，可单端 |
 | `--updated-from` / `--updated-to` | `YYYY-MM-DD` | 无 | Crossref 元数据存入或重新存入日期区间，含边界，可单端 |
@@ -248,31 +245,27 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 | `--type` | Crossref 注册文献类型，help 列出取值 | 无 | 精确类型过滤；默认保留所有类型 |
 | `--orcid` | 带校验位的裸 ORCID | 无 | 精确匹配贡献者 ORCID，例如 `0000-0002-1825-0097` |
 | `--funder` | `10.13039/<数字>` | 无 | 精确匹配 Open Funder Registry DOI |
-| `--sort` | `relevance` / `published` / `created` / `updated` / `citations` / `posted` / `downloads` / `title` | `relevance` | 前五项为 Crossref；browser 支持 relevance、posted、downloads、title；Posted 不等同于 Crossref published |
-| `--order` | `asc` / `desc` | `desc` | 上游排序方向；browser relevance 仅支持 desc，title asc/desc 对应 A–Z/Z–A |
+| `--sort` | `relevance` / `published` / `created` / `updated` / `citations` | `relevance` | Crossref 排序依据 |
+| `--order` | `asc` / `desc` | `desc` | 上游排序方向 |
 | `--limit` | 1..=100 | 10 | 本页最多返回的条数 |
 | `--cursor` | 上一页的 `next_cursor` | 无 | 翻页；完整恢复原请求 |
 
 - 通用 flag、cursor 独占规则与 arXiv search 相同。查询词为空或只有空白＝飞行前退 2。日期须为有效日历日期，起点不晚于终点。cursor 与显式查询词、任一高级选项或 limit 互斥，包括显式传入默认值。
-- 两条 route 的支持矩阵见第 7 章；browser 不支持 Crossref 元数据筛选和任意日期区间，Crossref 不支持原站 mode、date、全文范围及原站专属排序。不能完整满足条件的 route 记为 Skipped，所有已配置 route 都不支持时飞行前退 2，不丢弃条件继续搜索。
 - 机构、ORCID 与资助机构筛选依赖已登记的 Crossref 元数据，缺失会漏检；资助机构标识符只支持 OFR DOI。Crossref 时间和被引次数不代表 SSRN Posted 时间或下载量。
-- 启用 `ssrn_browser` 时，该 route 的一页不跨越 SSRN 的 50 条原生页，可以短于 `--limit`；SSRN 最多列出 10,000 条，末页不签发 cursor；条目深度为 `snippet`（片段，绝不是摘要；没有片段时为 `metadata`）。
-- **输出**：外层形状与 arXiv search 相同。每个 item 含 `ref`（`ssrn:<id>`，不带版本）、canonical `url`（SSRN 摘要页）、`depth`、`title`、`authors`、`published`，以及 SSRN 字段 `abstract`、`snippet`、`doi`、`crossref_type`、`crossref_created`、`posted`、`last_revised`、`date_written`；route 没有读到的字段为 `null`。`ssrn_crossref` 的条目有摘要时 `depth` 为 `abstract`，否则为 `metadata` 且 `abstract: null`；`ssrn_browser` 的条目为 `snippet`，没有片段时为 `metadata`；它的 `posted` 是 UTC 日期（`07 Sep 2019` 形式），有修订记录时带 `last_revised`。`published` 保留 route 报告的原始日期精度（`2012`、`2012-04` 或 `2012-04-19`）。route 细节（分页上限、DOI 过滤、诊断、浏览器检索请求核对）见第 7 章「SSRN」。
-- **退出码**：cursor 无效或越过上游分页上限、查询词为空＝飞行前退 2；`platforms.ssrn.order` 为空或操作可用 route 为空＝飞行前退 3；Crossref 429 为 RateLimited 退 4；浏览器 route 的站点验证未通过为 Auth、无法识别的接口响应为 Runtime，都退 4；其他上游失败沿用共享状态码映射；合法零结果为 `items: []` 且退 0。
+- **输出**：外层形状与 arXiv search 相同。每个 item 含 `ref`（`ssrn:<id>`，不带版本）、canonical `url`（SSRN 摘要页）、`depth`、`title`、`authors`、`published`，以及 SSRN 字段 `abstract`、`doi`、`crossref_type`、`crossref_created`；Crossref 记录没有的字段为 `null`。条目有摘要时 `depth` 为 `abstract`，否则为 `metadata` 且 `abstract: null`。`published` 保留 Crossref 报告的原始日期精度（`2012`、`2012-04` 或 `2012-04-19`）。route 细节（分页上限、DOI 过滤、诊断）见第 7 章「SSRN」。
+- **退出码**：cursor 无效或越过上游分页上限、查询词为空＝飞行前退 2；`platforms.ssrn.order` 为空或操作可用 route 为空＝飞行前退 3；Crossref 429 为 RateLimited 退 4；其他上游失败沿用共享状态码映射；合法零结果为 `items: []` 且退 0。
 
 ### `platform ssrn fetch`
 
 | 参数 | 类型与取值 | 默认值 | 语义 |
 |---|---|---|---|
 | ref 或 URL（位置参数） | `ssrn:<id>`、`papers.ssrn.com/sol3/papers.cfm?abstract_id=<id>`、`ssrn.com/abstract=<id>`（含 `www.`）、DOI `10.2139/ssrn.<id>` 或其 doi.org URL | 必填 | 主机名不区分大小写；摘要页的其他 query 参数与 fragment 被忽略 |
-| `--depth` | `metadata` / `abstract` / `full_text` | `metadata` | 请求的深度是最低要求：`metadata` 在有摘要时一并返回摘要；`abstract` 要求摘要；`full_text` 需要能下载论文的 route（`ssrn_browser`） |
-| `--content-dir` | 目录路径 | 系统临时目录下 `forager-platform/<pid>-<时间戳>` | 全文 Markdown 文件所在目录 |
-| `--keep-pdf` | 开关 | 关 | 全文时把下载的 PDF 移入内容目录，输出增加 `pdf_path` 与 `pdf_bytes` |
-| `--format` | `json` / `markdown` / `content` | `json` | `content` 把摘要或全文正文输出到 stdout，不写文件；Markdown 只在有摘要时显示 Abstract 小节 |
+| `--depth` | `metadata` / `abstract` | `metadata` | 请求的深度是最低要求：`metadata` 在有摘要时一并返回摘要；`abstract` 要求摘要。SSRN 不提供正文，`full_text` 为参数错误 |
+| `--format` | `json` / `markdown` / `content` | `json` | `content` 把摘要输出到 stdout；Markdown 只在有摘要时显示 Abstract 小节 |
 
 - 通用 flag 为 `--timeout`（默认 120 秒）、`--output`/`--receipt`、`--verbose`。
-- **输出**：JSON 顶层为 `platform`、`provider`、`ref`、`url`、`depth`、`title`、`authors`、`published`，以及与 search item 相同的 SSRN 字段；`depth` 记录 route 实际拿到的内容。`metadata` 与 `abstract` 不写文件。**`full_text`** 时浏览器 route 下载 PDF 并校验后交给全局 Web Fetch 链转换成 Markdown：默认写入 `ssrn-<id>.md` 并删除 PDF，stdout 另有 `content_url`（SSRN 规范摘要页，永不指向有时效的签名下载地址）、`content_provider`、`content_path` 与 `content_len`；`--keep-pdf` 时 PDF 移入内容目录（`ssrn-<id>.pdf`）并报告 `pdf_path` 与 `pdf_bytes`；转换失败时 PDF 一律保留，错误消息写明它的路径。不写 Search Result Journal。
-- **退出码**：ref 或 URL 无法识别（包括 SSRN 的 `Delivery.cfm` PDF 链接、相似域名与短链）＝飞行前退 2；`--depth full_text` 时没有已配置的 route 支持全文＝飞行前退 2；`platforms.ssrn.order` 为空、`full_text` 时没有已配置的 Web Fetch provider＝飞行前退 3；Crossref 中找不到该 DOI 为 attempt 级 Parameter（`SSRN paper not found in Crossref: ssrn:<id>`），SSRN 页面显示论文审核中或已撤下为 attempt 级 Parameter（`SSRN paper not available: ssrn:<id> (…)`），都退 4；`--depth abstract` 但所有 route 都没有摘要为 Quality 退 5；全文的下载校验（下载未完成、文件不存在、不是 PDF、详情页 id 不一致）与转换后正文过薄为 Quality 退 5，转换的上游失败沿用 Web Fetch 链终态。
+- **输出**：JSON 顶层为 `platform`、`provider`、`ref`、`url`、`depth`、`title`、`authors`、`published`，以及与 search item 相同的 SSRN 字段；`depth` 记录 route 实际拿到的内容。结果不写文件，也不写 Search Result Journal。
+- **退出码**：ref 或 URL 无法识别（包括 SSRN 的 `Delivery.cfm` PDF 链接、相似域名与短链）、`--depth full_text`＝飞行前退 2；`platforms.ssrn.order` 为空＝飞行前退 3；Crossref 中找不到该 DOI 为 attempt 级 Parameter（`SSRN paper not found in Crossref: ssrn:<id>`），退 4；`--depth abstract` 但 Crossref 记录没有摘要为 Quality 退 5。
 
 ### `platform scholar search`
 
@@ -349,7 +342,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 | `--content-dir` | 目录 | 系统临时目录下按调用隔离的新目录 | 全文文件所在目录 |
 | `--format` | `json` / `markdown` / `content` | `json` | `content` 把正文输出到 stdout，不写文件 |
 
-- 通用 flag 同 search。没有 `--keep-pdf`。全文不需要配置任何 Web Fetch provider（ADR 0022）。
+- 通用 flag 同 search。全文不需要配置任何 Web Fetch provider（ADR 0022）。
 - **输出**：JSON 顶层为 `platform`、`provider`、`ref`、`url`（canonical URL，不含 token）、`depth`、`title`（可为空串）、`authors`、`published`（北京时间 ISO 8601 时间戳），以及小红书字段 `updated`、`note_type`、`author_id`、`likes`、`collects`、`comments`、`shares`、`tags`、`images`（`[{url, width, height}]`）、`video`（`{duration_seconds, width, height}` 或 `null`，不含视频地址）、`ip_location` 与 `access_url`（由 ref 与 token 重新构造，含 token）。`full_text` 时另有 `content_url`（canonical URL）、`content_provider`（`xiaohongshu_browser`）、`content_path`（`xiaohongshu-<id>.md`）与 `content_len`。正文格式见第 7 章。不写 Search Result Journal。
 - **退出码**：输入无法识别、短链、`rednote.com`、token 格式不对或缺少 token＝飞行前退 2，不启动进程；`platforms.xiaohongshu.order` 为空（默认）＝飞行前退 3；会话未登录或 461 为 Auth，300031/300017 或安全限制为 attempt 级 Parameter（消息列出 token 过期、笔记受限或删除、账号被限频三种可能），截止点前仍停在该笔记页为 Timeout，`noteId` 不符、停在非预期页面或外壳形状不对为 Runtime，正文文件写入失败为 Runtime，都退 4；标题、正文与图片全为空为 Quality，退 5。token 永不出现在 attempt 消息、`--verbose` attempts 与失败时的 stderr 中。
 

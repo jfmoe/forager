@@ -214,5 +214,5 @@ fn scholar_fetch(arguments: ScholarFetchArgs) -> Result<CommandOutput, AppError>
         OutputFormat::Json => DocsOutputFormat::Json,
         OutputFormat::Markdown => DocsOutputFormat::Markdown,
     };
-    fetch(Platform::Scholar, request, format, None, false, &common)
+    fetch(Platform::Scholar, request, format, None, &common)
 }

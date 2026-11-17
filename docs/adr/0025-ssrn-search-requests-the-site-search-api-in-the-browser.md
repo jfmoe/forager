@@ -1,3 +1,7 @@
+---
+status: superseded by ADR-0035
+---
+
 # SSRN 检索在用户浏览器中请求原站检索接口
 
 本记录修订 ADR 0020 中 `ssrn_browser` search 的读取方式。ADR 0020 的其余决定不变：route 由用户自行启用；永不解或绕过站点验证，遇到验证以 Auth 失败；每个 OpenCLI 操作计一次访问，单并发，每 5 秒一个。调研与实测见 [SSRN browser 检索改用原站接口的实测](../research/2026-10-11-ssrn-search-api.md)。

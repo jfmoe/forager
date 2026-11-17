@@ -2,9 +2,9 @@
 //!
 //! The platform's fetch routes form a fallback chain that returns the item metadata; a metadata
 //! failure ends the command. At full-text depth, the route that answered declares the full-text
-//! source of the version it returned: URLs to read in order or one verified local file, each of
-//! which runs the global Web Fetch chain until one succeeds, or a native body the route already
-//! read and verified, which needs no Web Fetch. Route adapters never import Web Fetch providers.
+//! source of the version it returned: URLs to read in order, each of which runs the global Web
+//! Fetch chain until one succeeds, or a native body the route already read and verified, which
+//! needs no Web Fetch. Route adapters never import Web Fetch providers.
 //!
 //! At thread depth each platform declares how the discussion is delivered: a route that returns
 //! a native body (Hacker News) has it delivered by reference like a full text; any other route
@@ -23,9 +23,9 @@ use crate::net::{RetryPolicy, combine_diagnostics};
 use crate::platform_chain::{
     PlatformPreflightError, operation_target, plan_routes, route_candidates, route_identity,
 };
-use crate::providers::{self, FetchRequest, FetchSource};
+use crate::providers::{self, FetchRequest};
 use crate::types::{
-    AttemptErrorKind, ContentDepth, Deadline, FullTextSource, LocalFile, Platform, PlatformContent,
+    AttemptErrorKind, ContentDepth, Deadline, FullTextSource, Platform, PlatformContent,
     PlatformFetchRequest, PlatformFetchResult, PlatformItem, ProviderAttempt, ProviderError,
 };
 
@@ -71,13 +71,6 @@ pub(crate) fn plan_fetch(
     })
 }
 
-/// A platform fetch terminal failure. When the route produced a local full-text file before
-/// the failure, it rides along so delivery can keep it for the user.
-pub(crate) struct PlatformFetchError {
-    pub(crate) error: ProviderError,
-    pub(crate) source_file: Option<LocalFile>,
-}
-
 /// Runs a planned fetch. At full-text depth the body comes from `web_fetch`, which must have a
 /// configured provider when [`PlatformFetchPlan::needs_web_fetch`] says so.
 pub(crate) async fn fetch(
@@ -87,7 +80,7 @@ pub(crate) async fn fetch(
     retry_policy: RetryPolicy,
     deadline: Deadline,
     verbose: bool,
-) -> Result<PlatformFetchResult, PlatformFetchError> {
+) -> Result<PlatformFetchResult, ProviderError> {
     let PlatformFetchPlan {
         platform,
         request,
@@ -110,10 +103,7 @@ pub(crate) async fn fetch(
         Err(mut error) => {
             attempts.append(&mut error.attempts);
             error.attempts = attempts;
-            return Err(PlatformFetchError {
-                error,
-                source_file: None,
-            });
+            return Err(error);
         }
     };
     attempts.extend(metadata.attempts);
@@ -136,20 +126,8 @@ pub(crate) async fn fetch(
                 diagnostic: None,
             }),
             FullTextSource::Urls(urls) => {
-                read_url_full_text(urls, &web_fetch, &client, retry_policy, deadline)
-                    .await
-                    .map_err(|error| (error, None))
+                read_url_full_text(urls, &web_fetch, &client, retry_policy, deadline).await
             }
-            FullTextSource::LocalFile(file) => read_file_full_text(
-                &file,
-                &item.url,
-                &web_fetch,
-                &client,
-                retry_policy,
-                deadline,
-            )
-            .await
-            .map_err(|error| (error, Some(file))),
         };
         match full_text {
             Ok(body) => {
@@ -159,13 +137,13 @@ pub(crate) async fn fetch(
                     combine_diagnostics([diagnostic, body.diagnostic].into_iter().flatten());
                 content = Some(body.content);
             }
-            Err((mut error, source_file)) => {
+            Err(mut error) => {
                 attempts.append(&mut error.attempts);
                 error.attempts = attempts;
                 error.verbose = verbose;
                 error.diagnostic =
                     combine_diagnostics([diagnostic, error.diagnostic].into_iter().flatten());
-                return Err(PlatformFetchError { error, source_file });
+                return Err(error);
             }
         }
     }
@@ -323,7 +301,7 @@ async fn read_url_full_text(
         };
         // The attempts of every stage are kept; the caller drops them unless verbose.
         let request = FetchRequest {
-            source: FetchSource::Url(url.clone()),
+            url: url.clone(),
             verbose: true,
         };
         match engine::fetch(
@@ -359,37 +337,6 @@ async fn read_url_full_text(
     });
     error.attempts = attempts;
     Err(error)
-}
-
-/// Converts a verified local file through the Web Fetch chain. The content URL is the item's
-/// canonical URL: the body originates from the platform, not from a fetchable address.
-async fn read_file_full_text(
-    file: &LocalFile,
-    item_url: &str,
-    web_fetch: &WebFetchRuntimeConfig,
-    client: &Client,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
-) -> Result<FullText, ProviderError> {
-    let request = FetchRequest {
-        source: FetchSource::LocalFile(file.clone()),
-        verbose: true,
-    };
-    let outcome = engine::fetch(
-        request,
-        web_fetch.clone(),
-        client.clone(),
-        retry_policy,
-        deadline,
-    )
-    .await?;
-    let mut content = PlatformContent::new(item_url.to_owned(), outcome.provider, outcome.content);
-    content.source_file = Some(file.clone());
-    Ok(FullText {
-        content,
-        attempts: outcome.attempts,
-        diagnostic: outcome.diagnostic,
-    })
 }
 
 /// Returns a deadline for half of the remaining budget, keeping the other half for fallback.

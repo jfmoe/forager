@@ -359,10 +359,6 @@ fn has_adapter(platform: Platform, operation: PlatformOperation, route: Provider
     let routes = PlatformRoutesRuntimeConfig {
         arxiv_api: http_route.clone(),
         ssrn_crossref: http_route,
-        ssrn_browser: ProcessRouteRuntimeConfig {
-            command: String::new(),
-            timeout_seconds: 1,
-        },
         serpapi: KeyedHttpRouteRuntimeConfig {
             url: String::new(),
             keys: Vec::new(),

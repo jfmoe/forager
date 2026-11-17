@@ -155,13 +155,9 @@ fn search_returns_abstract_and_metadata_depth_items_and_skips_non_ssrn_dois() {
                         "authors": ["Gary Antonacci"],
                         "published": "2012",
                         "abstract": "Abstract of 1.",
-                        "snippet": null,
                         "doi": "10.2139/ssrn.1",
                         "crossref_type": "posted-content",
-                        "crossref_created": "2012-04-25T11:01:44Z",
-                        "posted": null,
-                        "last_revised": null,
-                        "date_written": null
+                        "crossref_created": "2012-04-25T11:01:44Z"
                     },
                     {
                         "ref": "ssrn:2",
@@ -171,13 +167,9 @@ fn search_returns_abstract_and_metadata_depth_items_and_skips_non_ssrn_dois() {
                         "authors": ["Gary Antonacci"],
                         "published": "2012",
                         "abstract": null,
-                        "snippet": null,
                         "doi": "10.2139/ssrn.2",
                         "crossref_type": "journal-article",
-                        "crossref_created": "2012-04-25T11:01:44Z",
-                        "posted": null,
-                        "last_revised": null,
-                        "date_written": null
+                        "crossref_created": "2012-04-25T11:01:44Z"
                     }
                 ],
                 "next_cursor": null
@@ -556,8 +548,6 @@ fn every_explicit_criterion_conflicts_with_cursor_even_at_its_default() {
     let cursor = cursor("momentum", 2, "2");
     for args in [
         vec!["--scope", "all"],
-        vec!["--mode", "fuzzy"],
-        vec!["--date", "all-time"],
         vec!["--author", "A"],
         vec!["--affiliation", "U"],
         vec!["--published-from", "2024-01-01"],
@@ -592,38 +582,4 @@ fn crossref_date_sorts_map_to_their_own_fields() {
             (Some(0), expected)
         );
     }
-}
-
-#[test]
-fn browser_is_skipped_instead_of_dropping_advanced_criteria() {
-    let fixture = Fixture::start_sequence(vec![work_list(0, &[])]);
-    let configuration = format!(
-        "{}\n[platforms.ssrn]\norder = [\"ssrn_browser\", \"ssrn_crossref\"]\n[providers.ssrn_browser]\ncommand = \"must-not-run-ssrn-browser\"\n",
-        config(&fixture.url)
-    );
-    let environment = RunEnvironment::new(&configuration);
-    let output = search(&environment, &["momentum", "--has-abstract", "--verbose"]);
-    assert_eq!(
-        output.status.code(),
-        Some(0),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let response = payload(&output);
-    assert_eq!(response["provider_attempts"][0]["disposition"], "skipped");
-    assert_eq!(response["provider_attempts"][0]["provider"], "ssrn_browser");
-    assert_eq!(
-        query_pairs(&fixture.finish())["filter"],
-        "has-abstract:true"
-    );
-}
-
-#[test]
-fn unsupported_browser_only_search_fails_before_io() {
-    assert_preflight_exit(
-        "[platforms.ssrn]\norder = [\"ssrn_browser\"]\n[providers.ssrn_browser]\ncommand = \"must-not-run-ssrn-browser\"\n",
-        &["momentum", "--affiliation", "A"],
-        2,
-        "no configured ssrn route supports",
-    );
 }

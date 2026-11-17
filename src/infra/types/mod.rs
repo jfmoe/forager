@@ -35,9 +35,9 @@ pub use outcome::{
 };
 pub(crate) use outcome::{DENSITY_MAX_CHARS, DENSITY_MAX_UNIQUE_LINES, MIN_FETCH_CONTENT_CHARS};
 pub(crate) use platform::{
-    ASK, COMMENTS, FullTextSource, LocalFile, LocalMediaType, PlatformAskRequest,
-    PlatformCommentsRequest, PlatformFetchOptions, PlatformFetchOutcome, PlatformFetchRequest,
-    PlatformSearchOutcome, PlatformSearchRequest,
+    ASK, COMMENTS, FullTextSource, PlatformAskRequest, PlatformCommentsRequest,
+    PlatformFetchOptions, PlatformFetchOutcome, PlatformFetchRequest, PlatformSearchOutcome,
+    PlatformSearchRequest,
 };
 pub use platform::{
     ContentDepth, Platform, PlatformAskResult, PlatformCollection, PlatformCommentsPage,
@@ -79,8 +79,7 @@ pub use platform_scholar::{
 };
 pub use platform_ssrn::{SsrnItemData, SsrnRef};
 pub use platform_ssrn_search::{
-    SsrnDatePreset, SsrnDateRange, SsrnSearchMode, SsrnSearchOptions, SsrnSearchScope, SsrnSort,
-    SsrnSortOrder, SsrnWorkType,
+    SsrnDateRange, SsrnSearchOptions, SsrnSearchScope, SsrnSort, SsrnSortOrder, SsrnWorkType,
 };
 pub(crate) use platform_x::{XAskOutcome, XAskRequest};
 pub use platform_x::{

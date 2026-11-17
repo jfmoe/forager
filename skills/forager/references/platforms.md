@@ -61,14 +61,10 @@ Every item carries `depth`, the content it actually holds: `metadata` (bibliogra
 `thread` (a post with its conversation).
 
 - **arXiv** `fetch` defaults to `--depth full_text`; `--depth abstract` skips the body.
-- **SSRN** `fetch` defaults to `--depth metadata` and includes the abstract when a route has one.
-  `--depth abstract` requires an abstract and fails with exit 5 when none is available. SSRN full
-  text needs the `ssrn_browser` route: `--depth full_text` downloads the PDF in Chrome, converts
-  it to Markdown through the Web Fetch chain, writes `ssrn-<id>.md`, and removes the PDF unless
-  `--keep-pdf` keeps it next to the Markdown. Without the browser route it exits 2.
-- **SSRN search** items from `ssrn_crossref` are `abstract` or `metadata`; items from
-  `ssrn_browser` are `snippet` (`metadata` for a result card without an excerpt). A browser page never spans two SSRN result pages, so it can hold
-  fewer items than `--limit`; follow `next_cursor` for more.
+- **SSRN** `fetch` defaults to `--depth metadata` and includes the abstract when Crossref has one.
+  `--depth abstract` requires an abstract and fails with exit 5 when none is available. forager
+  does not read SSRN full text; `--depth full_text` exits 2.
+- **SSRN search** items are `abstract` or `metadata`.
 - **Xiaohongshu** search items are `metadata`: the card title, author, date, and counts, never the
   note body. `fetch` defaults to `--depth full_text`: it writes the note text, tags, and image links
   to `xiaohongshu-<id>.md` and needs no Web Fetch provider; `--depth metadata` returns the exact
@@ -118,22 +114,10 @@ flags; see [`cli.md`](cli.md#platform-ssrn-search). For example:
 forager platform ssrn search "dual momentum" --scope title --author Antonacci --has-abstract
 ```
 
-The example uses Crossref because it requires an abstract field. Title queries do not require an exact phrase. Date filters
+Title queries do not require an exact phrase. Date filters
 separate publication, Crossref registration, and metadata updates. ORCID and funder filters only
-match deposited identifiers, so missing metadata can exclude relevant papers. If a configured
-route cannot apply the criteria, preserve the request and report the support error. Continue a
-result page with its cursor alone; do not repeat search criteria or fetch papers unless needed.
-
-For native SSRN search, use an enabled browser route with `--scope title|all|full-text`,
-`--mode fuzzy|boolean`, `--author`, `--date`, or `--sort posted|downloads|title` with `--order`.
-Boolean supports AND, OR, NOT, and parentheses. Author text follows the site's matching rules;
-try the surname when a full name has no matches, but report that changed condition.
-`--scope full-text` still returns search cards only. The browser rejects affiliation, type,
-abstract-presence, and arbitrary date-range filters; it does not approximate them locally.
-
-```console
-forager platform ssrn search "momentum AND portfolio" --scope title --mode boolean --date last-year --sort downloads
-```
+match deposited identifiers, so missing metadata can exclude relevant papers. Continue a result
+page with its cursor alone; do not repeat search criteria or fetch papers unless needed.
 
 ## Google Scholar search
 
@@ -416,23 +400,6 @@ forager platform reddit fetch 'https://www.reddit.com/r/rust/comments/1w2pcmd/'
 forager platform reddit fetch reddit:1w2pcmd --depth metadata
 ```
 
-## SSRN browser route
-
-`ssrn_browser` searches and reads SSRN in the user's own Chrome through OpenCLI: search sends
-SSRN's own search request from a blank tab, and fetch reads the paper page. It is off by default.
-Enable it only when the user asks for it; it runs at most one browser command every 5 seconds.
-
-- **Install**: OpenCLI 2.x (`npm install -g @jackwener/opencli@2`) with its Chrome Browser Bridge
-  extension 1.0.25 or later connected (`opencli doctor`), then copy the `opencli/ssrn` directory
-  next to this skill's `SKILL.md` to `~/.opencli/clis/ssrn` (replace the whole directory to
-  update). Run the same copy after updating forager, then `forager doctor` to check the adapter. A
-  forager that expects a newer adapter contract fails its commands with an install hint until the
-  copy is updated. The required contract is `forager-ssrn/4`; replace the whole directory so that files the new contract dropped, such as
-  `search-state.js`, are removed.
-- **Enable**: `forager config set platforms.ssrn.order '["ssrn_crossref", "ssrn_browser"]'`. With
-  this order, a `--depth abstract` fetch that Crossref cannot serve falls through to the browser.
-  Set `providers.ssrn_browser.command` when `opencli` is not on `PATH`.
-
 ## Xiaohongshu browser route
 
 `xiaohongshu_browser` searches and reads Xiaohongshu notes and their comments in the user's own Chrome through
@@ -478,11 +445,6 @@ A full-text fetch writes the body to a Markdown file and stdout carries only met
 
 Use `--depth abstract` when the abstract answers the request. Use `--format content` only when the
 body must enter context or a pipe directly.
-
-For SSRN, `content_url` is the canonical abstract page (the signed download address is never
-reported), the download and the conversion share the command deadline, so retry a timed-out
-full-text fetch with a larger `--timeout` (for example 300), and pass `--keep-pdf` when the
-original PDF must be checked against the Markdown.
 
 ## Read a Scholar paper
 
@@ -614,20 +576,13 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
   user to wait or switch networks, and do not retry.
 - Exit 5 on full-text fetch (both HTML and PDF too thin): report it; use `--depth abstract` only
   when the abstract still answers the request, and say so.
-- Exit 5 on an SSRN `--depth abstract` fetch: no route had the abstract. Fetch at the default
-  `metadata` depth and state that the abstract is unavailable.
-- Exit 5 on an SSRN `--depth full_text` fetch: the download failed its checks or the converted
-  body was too thin. Retry once with a larger `--timeout`; when it still fails, read the kept PDF
-  whose path the error message names, or fall back to `--depth abstract` and say so.
+- Exit 5 on an SSRN `--depth abstract` fetch: Crossref has no abstract for the paper. Fetch at the
+  default `metadata` depth and state that the abstract is unavailable.
 - "SSRN paper not found in Crossref": the paper may still exist on SSRN; say that Crossref has no
   record of it rather than that the paper does not exist.
-- An `ssrn_browser` `auth` error saying SSRN security verification did not clear: ask the user to
-  open SSRN in Chrome and pass the check by hand, then retry. Never try to pass it for them.
-- An `ssrn_browser` or `xiaohongshu_browser` error saying it found OpenCLI 1.x
+- A `xiaohongshu_browser` error saying it found OpenCLI 1.x
   output: forager needs OpenCLI 2.x and Browser Bridge 1.0.25 or later. Tell the user to upgrade
   both as in the install step, then retry; do not upgrade them yourself.
-- An `ssrn_browser` error that names the forager OpenCLI adapter, or a doctor `message` with
-  install steps: repeat the install step in "SSRN browser route".
 - A `xiaohongshu_browser` `auth` error: the Chrome session is logged out, or Xiaohongshu wants a
   verification (461). Ask the user to open xiaohongshu.com in Chrome, log in or complete the check
   by hand, then retry once.
