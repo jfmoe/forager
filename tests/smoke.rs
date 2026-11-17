@@ -633,7 +633,7 @@ fn live_smoke_runs_the_xiaohongshu_search_once_and_only_when_the_order_lists_the
         let environment = SmokeEnvironment::new(|journal_dir| {
             format!(
                 "{}[journal]\ndir = {journal_dir:?}\n[platforms.arxiv]\norder = []\n[platforms.hn]\norder = []\n[platforms.polymarket]\norder = []\n[platforms.ssrn]\norder = []\n",
-                fake.route_config("xiaohongshu_browser", "xiaohongshu", order)
+                fake.config(order)
             )
         });
         let output = environment.run(&["smoke", "--live", "--timeout", "60"]);
@@ -782,11 +782,7 @@ fn xhs_smoke(fake: &support::opencli::FakeOpenCli) -> Value {
     let environment = SmokeEnvironment::new(|journal_dir| {
         format!(
             "{}[journal]\ndir = {:?}\n[platforms.arxiv]\norder = []\n[platforms.hn]\norder = []\n[platforms.polymarket]\norder = []\n[platforms.ssrn]\norder = []\n",
-            fake.route_config(
-                "xiaohongshu_browser",
-                "xiaohongshu",
-                "[\"xiaohongshu_browser\"]"
-            ),
+            fake.config("[\"xiaohongshu_browser\"]"),
             journal_dir.display().to_string()
         )
     });

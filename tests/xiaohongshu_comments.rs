@@ -59,11 +59,7 @@ fn printed(output: &Output) -> String {
 
 /// Runs `comments` once in a fresh environment, so the route's pacing never waits.
 fn comments_with(fake: &FakeOpenCli, input: &str, arguments: &[&str]) -> Output {
-    let environment = RunEnvironment::new(&fake.route_config(
-        "xiaohongshu_browser",
-        "xiaohongshu",
-        "[\"xiaohongshu_browser\"]",
-    ));
+    let environment = RunEnvironment::new(&fake.config("[\"xiaohongshu_browser\"]"));
     let mut command = vec!["platform", "xiaohongshu", "comments", input];
     command.extend_from_slice(arguments);
     environment.run(&command)

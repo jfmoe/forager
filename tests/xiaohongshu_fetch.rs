@@ -38,11 +38,7 @@ fn stderr(output: &Output) -> String {
 }
 
 fn enabled(fake: &FakeOpenCli) -> RunEnvironment {
-    RunEnvironment::new(&fake.route_config(
-        "xiaohongshu_browser",
-        "xiaohongshu",
-        "[\"xiaohongshu_browser\"]",
-    ))
+    RunEnvironment::new(&fake.config("[\"xiaohongshu_browser\"]"))
 }
 
 fn fetch(environment: &RunEnvironment, input: &str, arguments: &[&str]) -> Output {

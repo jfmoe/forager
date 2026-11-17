@@ -11,7 +11,7 @@ use crate::catalog::{OpenCliAdapter, ProviderId, ProviderTransport, registration
 use crate::config::ProcessRouteRuntimeConfig;
 use crate::net::{AttemptFailure, RetryPolicy};
 use crate::providers::execution::ExecutionSettings;
-use crate::providers::opencli::{self, Envelope, EnvelopeStatus, OpenCliCommand};
+use crate::providers::opencli::{self, EnvelopeStatus, OpenCliCommand};
 use crate::rate_limit::RateLimiter;
 use crate::types::{AttemptErrorKind, AttemptTarget, Deadline};
 
@@ -78,20 +78,6 @@ impl OpenCliRoute {
         }
     }
 
-    /// Runs one adapter command and returns its envelope, for a caller that tells the site's
-    /// own `no_results` answer apart from page facts.
-    ///
-    /// # Errors
-    ///
-    /// Returns the transport failure of [`opencli::run`].
-    pub(crate) async fn run<T: DeserializeOwned>(
-        &self,
-        command: &OpenCliCommand<'_>,
-        deadline: Deadline,
-    ) -> Result<Envelope<T>, AttemptFailure> {
-        opencli::run(command, &self.limiter, deadline).await
-    }
-
     /// Runs one adapter command and returns the page facts it reported.
     ///
     /// # Errors
@@ -103,7 +89,7 @@ impl OpenCliRoute {
         command: &OpenCliCommand<'_>,
         deadline: Deadline,
     ) -> Result<T, AttemptFailure> {
-        let envelope = self.run::<T>(command, deadline).await?;
+        let envelope = opencli::run::<T>(command, &self.limiter, deadline).await?;
         if envelope.status != EnvelopeStatus::Ok {
             return Err(AttemptFailure {
                 kind: AttemptErrorKind::Runtime,

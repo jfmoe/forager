@@ -133,11 +133,7 @@ fn fake(data: &Value) -> FakeOpenCli {
 }
 
 fn enabled(fake: &FakeOpenCli) -> RunEnvironment {
-    RunEnvironment::new(&fake.route_config(
-        "xiaohongshu_browser",
-        "xiaohongshu",
-        "[\"xiaohongshu_browser\"]",
-    ))
+    RunEnvironment::new(&fake.config("[\"xiaohongshu_browser\"]"))
 }
 
 fn search(fake: &FakeOpenCli, arguments: &[&str]) -> Output {

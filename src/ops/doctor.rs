@@ -668,16 +668,12 @@ fn deep_unconfigured_reason(provider: ProviderId, runtime: &RuntimeConfig) -> Op
     }
 }
 
-fn is_platform_route(id: ProviderId) -> bool {
-    catalog::PLATFORMS
-        .iter()
-        .any(|platform| platform.contains(id))
-}
-
 /// Returns whether the route serves a platform but no default order lists it, so only the
 /// user's order enables it.
 fn is_opt_in_route(id: ProviderId) -> bool {
-    is_platform_route(id)
+    catalog::PLATFORMS
+        .iter()
+        .any(|platform| platform.contains(id))
         && !catalog::PLATFORMS
             .iter()
             .any(|platform| platform.default_order.contains(&id))
