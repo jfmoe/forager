@@ -11,9 +11,7 @@ use crate::catalog::{OpenCliAdapter, ProviderId, ProviderTransport, registration
 use crate::config::ProcessRouteRuntimeConfig;
 use crate::net::{AttemptFailure, RetryPolicy};
 use crate::providers::execution::ExecutionSettings;
-use crate::providers::opencli::{
-    self, CommandFailure, Envelope, EnvelopeStatus, OpenCliCommand, Window,
-};
+use crate::providers::opencli::{self, Envelope, EnvelopeStatus, OpenCliCommand};
 use crate::rate_limit::RateLimiter;
 use crate::types::{AttemptErrorKind, AttemptTarget, Deadline};
 
@@ -45,19 +43,17 @@ impl OpenCliRoute {
         }
     }
 
-    /// One command of the route's adapter, run with the configured executable in `window`.
+    /// One command of the route's adapter, run with the configured executable.
     pub(crate) fn command(
         &self,
         command: &'static str,
         options: Vec<(&'static str, String)>,
-        window: Window,
     ) -> OpenCliCommand<'_> {
         OpenCliCommand {
             executable: &self.config.command,
             adapter: self.adapter,
             command,
             options,
-            window,
         }
     }
 
@@ -92,7 +88,7 @@ impl OpenCliRoute {
         &self,
         command: &OpenCliCommand<'_>,
         deadline: Deadline,
-    ) -> Result<Envelope<T>, CommandFailure> {
+    ) -> Result<Envelope<T>, AttemptFailure> {
         opencli::run(command, &self.limiter, deadline).await
     }
 
@@ -106,7 +102,7 @@ impl OpenCliRoute {
         &self,
         command: &OpenCliCommand<'_>,
         deadline: Deadline,
-    ) -> Result<T, CommandFailure> {
+    ) -> Result<T, AttemptFailure> {
         let envelope = self.run::<T>(command, deadline).await?;
         if envelope.status != EnvelopeStatus::Ok {
             return Err(AttemptFailure {
@@ -116,8 +112,7 @@ impl OpenCliRoute {
                     "the {} adapter reported no results instead of page facts",
                     self.adapter.site
                 ),
-            }
-            .into());
+            });
         }
         Ok(envelope.data)
     }

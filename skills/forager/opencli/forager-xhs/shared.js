@@ -339,9 +339,6 @@ export class ReadSession {
 }
 
 // ---- Native input -------------------------------------------------------------------------------
-// forager-xhs, forager-gemini and forager-chatgpt each carry an identical copy of this block,
-// because OpenCLI loads every adapter directory on its own; change all three copies together.
-//
 // Every action that changes the page (pointer moves, clicks, wheel scrolls, keys, and text) goes
 // through Chrome's input pipeline as CDP `Input.*` events, so the page sees trusted events with
 // coordinates and a full pointer sequence. Reading the DOM, network capture, and screenshots are

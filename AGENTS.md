@@ -54,7 +54,7 @@ Dependencies flow one way, top to bottom: entry → cli → orchestration (`core
 
 ### Platforms
 
-Before you add or change a platform or a platform route, read `docs/spec/forager/07-platforms.md`. Complete its integration checklist and keep the new-platform checklist test (`src/core/platform_checklist.rs`) passing. Before installing, changing, or live-testing an OpenCLI adapter, read `docs/agents/opencli.md`.
+Before you add or change a platform or a platform route, read `docs/spec/forager/07-platforms.md`. Complete its integration checklist and keep the new-platform checklist test (`src/core/platform_checklist.rs`) passing. Before installing, changing, or live-testing an OpenCLI adapter, read `docs/agents/opencli.md`. OpenCLI is frozen (ADR 0035): it serves only the existing routes until a headless-browser approach replaces it, so a new browser route goes through that approach, never a new OpenCLI route or adapter.
 
 ### Compatibility fixes
 

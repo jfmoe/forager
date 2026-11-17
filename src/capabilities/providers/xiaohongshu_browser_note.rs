@@ -11,7 +11,7 @@ use super::{
 use crate::catalog::PlatformOperation;
 use crate::net::AttemptFailure;
 use crate::providers::execution::execute_anonymous;
-use crate::providers::opencli::{OpenCliCommand, Window};
+use crate::providers::opencli::OpenCliCommand;
 use crate::providers::shared::{other_platform_message, parameter_error};
 use crate::types::{
     AccessToken, AttemptErrorKind, ContentDepth, Deadline, FullTextSource, PlatformFetchOutcome,
@@ -59,7 +59,6 @@ impl XiaohongshuBrowser {
                 ("id", requested.note_id().to_owned()),
                 ("xsec-token", token.as_str().to_owned()),
             ],
-            Window::Background,
         );
         let command = &command;
         let execution = execute_anonymous(

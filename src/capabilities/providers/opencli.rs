@@ -22,25 +22,6 @@ use crate::types::{AttemptErrorKind, Deadline};
 const CLEANUP_RESERVE: Duration = Duration::from_secs(5);
 const REAP_POLLS: u32 = 1000;
 const REAP_POLL_INTERVAL: Duration = Duration::from_millis(1);
-/// The OpenCLI exit code of a command line it rejected before running the command.
-const USAGE_ERROR: i32 = 2;
-
-/// The Chrome window an adapter command runs in. A background window keeps the user's screen
-/// free, but a hidden page may not render menus, so each command declares the window it needs.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum Window {
-    Background,
-    Foreground,
-}
-
-impl Window {
-    const fn flag(self) -> &'static str {
-        match self {
-            Self::Background => "background",
-            Self::Foreground => "foreground",
-        }
-    }
-}
 
 /// One command of a forager-owned OpenCLI adapter.
 pub(crate) struct OpenCliCommand<'a> {
@@ -50,25 +31,21 @@ pub(crate) struct OpenCliCommand<'a> {
     pub(crate) command: &'static str,
     /// Named options, passed as `--<name> <value>`.
     pub(crate) options: Vec<(&'static str, String)>,
-    pub(crate) window: Window,
 }
 
-impl OpenCliCommand<'_> {
-    // Every forager-owned adapter command accepts these flags: JSON output, the declared window,
-    // a site session that ends with the command, and no tab kept after it.
-    fn session_flags(&self) -> [&'static str; 8] {
-        [
-            "-f",
-            "json",
-            "--window",
-            self.window.flag(),
-            "--site-session",
-            "ephemeral",
-            "--keep-tab",
-            "false",
-        ]
-    }
-}
+// Every forager-owned adapter command accepts these flags: JSON output, a background window
+// that keeps the user's screen free, a site session that ends with the command, and no tab kept
+// after it.
+const SESSION_FLAGS: [&str; 8] = [
+    "-f",
+    "json",
+    "--window",
+    "background",
+    "--site-session",
+    "ephemeral",
+    "--keep-tab",
+    "false",
+];
 
 /// Returns whether this host can run process routes: they need Unix process groups to stop
 /// every process an OpenCLI command starts.
@@ -80,40 +57,6 @@ pub(crate) fn host_support() -> Result<(), String> {
     }
 }
 
-/// A failed adapter command, and whether its page operations may have run.
-#[derive(Debug)]
-pub(crate) struct CommandFailure {
-    pub(crate) attempt: AttemptFailure,
-    /// False only when forager knows the adapter command never ran: OpenCLI was not started, or
-    /// it rejected the command line or could not load the adapter command. Any other failure,
-    /// including a browser connection lost mid-command, may follow page operations.
-    pub(crate) may_have_run: bool,
-}
-
-impl CommandFailure {
-    fn not_run(attempt: AttemptFailure) -> Self {
-        Self {
-            attempt,
-            may_have_run: false,
-        }
-    }
-}
-
-impl From<AttemptFailure> for CommandFailure {
-    fn from(attempt: AttemptFailure) -> Self {
-        Self {
-            attempt,
-            may_have_run: true,
-        }
-    }
-}
-
-impl From<CommandFailure> for AttemptFailure {
-    fn from(failure: CommandFailure) -> Self {
-        failure.attempt
-    }
-}
-
 /// Runs the command and decodes its envelope within `deadline`, the attempt deadline.
 ///
 /// The access permit is held until the process is reaped. When the command outlives its
@@ -121,39 +64,32 @@ impl From<CommandFailure> for AttemptFailure {
 ///
 /// # Errors
 ///
-/// Returns a command failure for a pacing failure, a missing executable, a nonzero exit, output
+/// Returns an attempt failure for a pacing failure, a missing executable, a nonzero exit, output
 /// over its limit, an envelope that does not match the adapter contract, or a missed deadline.
 pub(crate) async fn run<T: DeserializeOwned>(
     command: &OpenCliCommand<'_>,
     limiter: &RateLimiter,
     deadline: Deadline,
-) -> Result<Envelope<T>, CommandFailure> {
-    host_support()
-        .map_err(runtime)
-        .map_err(CommandFailure::not_run)?;
+) -> Result<Envelope<T>, AttemptFailure> {
+    host_support().map_err(runtime)?;
     let working_deadline = deadline
         .remaining()
         .and_then(|remaining| remaining.checked_sub(CLEANUP_RESERVE))
         .filter(|working| working >= &Duration::from_secs(1))
         .map(Deadline::new)
-        .ok_or_else(|| {
-            CommandFailure::not_run(AttemptFailure {
-                kind: AttemptErrorKind::Timeout,
-                status: None,
-                message: "no time is left to run an OpenCLI command".into(),
-            })
+        .ok_or_else(|| AttemptFailure {
+            kind: AttemptErrorKind::Timeout,
+            status: None,
+            message: "no time is left to run an OpenCLI command".into(),
         })?;
-    let permit = acquire_window(limiter, working_deadline)
-        .await
-        .map_err(CommandFailure::not_run)?;
+    let permit = acquire_window(limiter, working_deadline).await?;
     let Some(working) = working_deadline.remaining() else {
-        return Err(CommandFailure::not_run(timeout_failure()));
+        return Err(timeout_failure());
     };
-    let mut group = ProcessGroup::spawn(command, working.as_secs().max(1), permit)
-        .map_err(CommandFailure::not_run)?;
+    let mut group = ProcessGroup::spawn(command, working.as_secs().max(1), permit)?;
     let Ok(output) = tokio::time::timeout(working, group.collect()).await else {
         group.kill_and_reap().await;
-        return Err(timeout_failure().into());
+        return Err(timeout_failure());
     };
     let output = output?;
     if !output.status.success() {
@@ -165,7 +101,7 @@ pub(crate) async fn run<T: DeserializeOwned>(
             command.adapter,
         ));
     }
-    decode_success(&output.stdout, command.adapter, command.command).map_err(CommandFailure::from)
+    decode_success(&output.stdout, command.adapter, command.command)
 }
 
 /// Runs the adapter's `contract` command, which needs no browser, and checks that the installed
@@ -185,12 +121,11 @@ pub(crate) async fn check_contract(
         adapter,
         command: "contract",
         options: Vec::new(),
-        window: Window::Background,
     };
     run::<serde_json::Value>(&command, limiter, deadline)
         .await
         .map(|_| ())
-        .map_err(|failure| failure.attempt.message)
+        .map_err(|failure| failure.message)
 }
 
 fn timeout_failure() -> AttemptFailure {
@@ -231,7 +166,7 @@ impl ProcessGroup {
                     .flat_map(|(name, value)| [format!("--{name}"), value.clone()]),
             )
             .args(["--timeout", &timeout_seconds.to_string()])
-            .args(command.session_flags())
+            .args(SESSION_FLAGS)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -477,17 +412,12 @@ fn names_missing_adapter(code: &str) -> bool {
     matches!(code, "ADAPTER_LOAD" | "unknown_command") || code.starts_with("commander.")
 }
 
-/// Whether an OpenCLI error code says that OpenCLI rejected the command before running it.
-fn names_rejected_command(code: &str) -> bool {
-    names_missing_adapter(code) || matches!(code, "usage_error" | "ARGUMENT")
-}
-
 /// Whether failed output is the YAML error envelope that OpenCLI 1.x wrote to stderr.
 fn is_legacy_failure(stdout: &[u8], stderr: &str) -> bool {
     stdout.trim_ascii().is_empty() && stderr.lines().any(|line| line.trim() == "ok: false")
 }
 
-/// Maps a nonzero OpenCLI exit to a command failure, read from the error envelope on stdout or
+/// Maps a nonzero OpenCLI exit to an attempt failure, read from the error envelope on stdout or
 /// else the first line of stderr. Exit 66 (`EMPTY_RESULT`) is never a legitimate empty result:
 /// only the adapter envelope's `no_results` status is.
 fn exit_failure(
@@ -495,18 +425,14 @@ fn exit_failure(
     stdout: &[u8],
     stderr: &str,
     adapter: OpenCliAdapter,
-) -> CommandFailure {
+) -> AttemptFailure {
     let exit = code.map_or_else(|| "a signal".to_owned(), |code| code.to_string());
-    let rejected = code == Some(USAGE_ERROR);
     let (error_code, message) = match serde_json::from_slice::<FailureOutput>(stdout) {
         Ok(FailureOutput { ok: false, error }) => (Some(error.code), error.message),
         _ if is_legacy_failure(stdout, stderr) => {
-            return CommandFailure {
-                attempt: runtime(format!(
-                    "OpenCLI exited with {exit} and printed an OpenCLI 1.x error; {UPGRADE_HINT}"
-                )),
-                may_have_run: !rejected,
-            };
+            return runtime(format!(
+                "OpenCLI exited with {exit} and printed an OpenCLI 1.x error; {UPGRADE_HINT}"
+            ));
         }
         _ => {
             let line = stderr.lines().map(str::trim).find(|line| !line.is_empty());
@@ -521,7 +447,6 @@ fn exit_failure(
         Some(77) => AttemptErrorKind::Auth,
         _ => AttemptErrorKind::Runtime,
     };
-    let may_have_run = !rejected && !error_code.as_deref().is_some_and(names_rejected_command);
     let mut message = format!(
         "OpenCLI exited with {exit}: {}",
         truncate_message(&redact_urls(&message))
@@ -529,13 +454,10 @@ fn exit_failure(
     if missing_adapter {
         message = format!("{message}; {}", install_hint(adapter));
     }
-    CommandFailure {
-        attempt: AttemptFailure {
-            kind,
-            status: None,
-            message,
-        },
-        may_have_run,
+    AttemptFailure {
+        kind,
+        status: None,
+        message,
     }
 }
 
@@ -687,7 +609,7 @@ mod tests {
                 .to_string()
         }
 
-        fn fail(code: Option<i32>, stdout: &str) -> super::super::CommandFailure {
+        fn fail(code: Option<i32>, stdout: &str) -> crate::net::AttemptFailure {
             exit_failure(code, stdout.as_bytes(), "", ADAPTER)
         }
 
@@ -713,7 +635,7 @@ mod tests {
                 (Some(2), envelope("ARGUMENT", "--window must be one of")),
                 (None, String::new()),
             ]
-            .map(|(code, stdout)| fail(code, &stdout).attempt.kind);
+            .map(|(code, stdout)| fail(code, &stdout).kind);
 
             assert_eq!(
                 kinds,
@@ -739,7 +661,7 @@ mod tests {
             );
 
             assert_eq!(
-                failure.attempt.message,
+                failure.message,
                 "OpenCLI exited with 69: cannot load ssrn/search; install or update the forager OpenCLI adapter: copy the `opencli/ssrn` directory of the forager skill to `~/.opencli/clis/ssrn` (see the forager skill references)"
             );
         }
@@ -753,12 +675,7 @@ mod tests {
                     "error: unknown command 'search'",
                 ),
             ]
-            .map(|stdout| {
-                fail(Some(2), &stdout)
-                    .attempt
-                    .message
-                    .contains("install or update")
-            });
+            .map(|stdout| fail(Some(2), &stdout).message.contains("install or update"));
 
             assert_eq!(hinted, [true, true]);
         }
@@ -773,11 +690,7 @@ mod tests {
                 ),
             );
 
-            assert!(
-                !failure.attempt.message.contains("secret"),
-                "{}",
-                failure.attempt.message
-            );
+            assert!(!failure.message.contains("secret"), "{}", failure.message);
         }
 
         #[test]
@@ -785,7 +698,7 @@ mod tests {
             let failure = exit_failure(None, b"", "\n  Killed by signal 9\nmore detail\n", ADAPTER);
 
             assert_eq!(
-                failure.attempt.message,
+                failure.message,
                 "OpenCLI exited with a signal: Killed by signal 9"
             );
         }
@@ -800,53 +713,11 @@ mod tests {
             );
 
             assert_eq!(
-                (failure.attempt.kind, failure.attempt.message.as_str()),
+                (failure.kind, failure.message.as_str()),
                 (
                     AttemptErrorKind::Runtime,
                     "OpenCLI exited with 77 and printed an OpenCLI 1.x error; forager needs OpenCLI 2.x and Browser Bridge 1.0.25 or later; upgrade OpenCLI and its Chrome extension (see the forager skill references)"
                 )
-            );
-        }
-
-        #[test]
-        fn only_a_rejected_command_line_or_a_missing_adapter_never_ran_the_command() {
-            let outcome_unknown = json!({"ok": false, "error": {
-                "code": "command_result_unknown",
-                "message": "lost",
-                "exitCode": 1,
-                "outcome": "unknown"
-            }})
-            .to_string();
-            let ran = [
-                (
-                    Some(69),
-                    envelope("ADAPTER_LOAD", "cannot load ssrn/search"),
-                ),
-                (
-                    Some(2),
-                    envelope("unknown_command", "Unknown command: ssrn"),
-                ),
-                (
-                    Some(2),
-                    envelope("commander.unknownOption", "unknown option"),
-                ),
-                (Some(2), envelope("usage_error", "bad usage")),
-                (Some(1), envelope("usage_error", "bad usage")),
-                (Some(1), envelope("ARGUMENT", "bad --timeout")),
-                (Some(2), String::new()),
-                (Some(69), envelope("BROWSER_CONNECT", "daemon unavailable")),
-                (Some(75), envelope("TIMEOUT", "timed out")),
-                (Some(1), envelope("COMMAND_EXEC", "boom")),
-                (Some(1), outcome_unknown),
-                (None, String::new()),
-            ]
-            .map(|(code, stdout)| fail(code, &stdout).may_have_run);
-
-            assert_eq!(
-                ran,
-                [
-                    false, false, false, false, false, false, false, true, true, true, true, true
-                ]
             );
         }
     }

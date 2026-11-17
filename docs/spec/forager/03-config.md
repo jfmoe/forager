@@ -89,14 +89,6 @@ url = "https://hn.algolia.com/api/v1"                 # Algolia HN Search API
 firebase_url = "https://hacker-news.firebaseio.com/v0" # HN 官方 Firebase API
 timeout = 30                 # 对任一端点的单个请求的 attempt 超时
 
-[providers.gemini_browser]   # process 供应方，不属于任何平台，只由 `forager gemini` 命令运行（ADR 0023）
-command = "opencli"          # 不能为空
-timeout = 240                # 一次 OpenCLI 命令的 attempt 超时
-
-[providers.chatgpt_browser]  # process 供应方，不属于任何平台，只由 `forager chatgpt` 命令运行（ADR 0023、0024）
-command = "opencli"          # 不能为空
-timeout = 240                # 一次 OpenCLI 命令的 attempt 超时
-
 [providers.serpapi]          # 需要凭据的平台 route；key 由用户自备（ADR 0021）
 url = "https://serpapi.com/search.json"
 keys = []                    # 为空＝未配置，scholar 平台命令飞行前退 3
@@ -175,7 +167,7 @@ ssl_verify = true
 
 ### 凭据形状
 
-唯一形状：每个需要凭据的 provider 节一个 `keys` **真数组**（单凭据＝单元素数组）；注册信息声明不需要凭据的 provider（`arxiv_api`、`ssrn_crossref`、`ssrn_browser`、`xiaohongshu_browser`、`youtube_web`、`gemini_browser`、`chatgpt_browser`）的节没有 `keys`：HTTP route 只有 `url` 与 `timeout`，process 供应方（`ssrn_browser`、`xiaohongshu_browser`、`gemini_browser`、`chatgpt_browser`）只有 `command` 与 `timeout`，写入 `keys` 为未知键（文件层退 3，`config set` 退 2），该 provider 恒为已配置。`*_API_KEY`/`*_API_KEYS` 双形态与「KEYS 覆盖 KEY」优先级消灭。`classifier.keys` 沿用凭据池全套语义（去空去重、轮询、配额/限流失败同请求内换用）。例外：`providers.youtube_api.keys` 最多一个元素（Developer Policies 要求一个客户端只用一个项目、不得规避配额，见第 7 章「YouTube」），多于一个时文件层退 3、`config set` 退 2。
+唯一形状：每个需要凭据的 provider 节一个 `keys` **真数组**（单凭据＝单元素数组）；注册信息声明不需要凭据的 provider（`arxiv_api`、`ssrn_crossref`、`ssrn_browser`、`xiaohongshu_browser`、`youtube_web`）的节没有 `keys`：HTTP route 只有 `url` 与 `timeout`，process route（`ssrn_browser`、`xiaohongshu_browser`）只有 `command` 与 `timeout`，写入 `keys` 为未知键（文件层退 3，`config set` 退 2），该 provider 恒为已配置。`*_API_KEY`/`*_API_KEYS` 双形态与「KEYS 覆盖 KEY」优先级消灭。`classifier.keys` 沿用凭据池全套语义（去空去重、轮询、配额/限流失败同请求内换用）。例外：`providers.youtube_api.keys` 最多一个元素（Developer Policies 要求一个客户端只用一个项目、不得规避配额，见第 7 章「YouTube」），多于一个时文件层退 3、`config set` 退 2。
 
 ### 链序权威
 

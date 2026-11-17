@@ -2,10 +2,7 @@ use std::sync::LazyLock;
 use std::time::Duration;
 
 use crate::rate_limit::AccessPolicy;
-use crate::types::{
-    ASK, CHATGPT_RESEARCH_RESULT, CHATGPT_RESEARCH_START, CITED_BY, COMMENTS,
-    GEMINI_RESEARCH_RESULT, GEMINI_RESEARCH_START, HISTORY, Platform, STORIES, TRANSCRIBE, VIDEOS,
-};
+use crate::types::{ASK, CITED_BY, COMMENTS, HISTORY, Platform, STORIES, TRANSCRIBE, VIDEOS};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct CapabilityCatalog {
@@ -79,14 +76,12 @@ pub(crate) enum ProviderId {
     YoutubeApi,
     YoutubeWeb,
     GeminiApi,
-    GeminiBrowser,
-    ChatgptBrowser,
     PolymarketApi,
     RedditWeb,
 }
 
 impl ProviderId {
-    pub(crate) const ALL: [Self; 20] = [
+    pub(crate) const ALL: [Self; 18] = [
         Self::Xai,
         Self::Openai,
         Self::Exa,
@@ -103,8 +98,6 @@ impl ProviderId {
         Self::YoutubeApi,
         Self::YoutubeWeb,
         Self::GeminiApi,
-        Self::GeminiBrowser,
-        Self::ChatgptBrowser,
         Self::PolymarketApi,
         Self::RedditWeb,
     ];
@@ -127,8 +120,6 @@ impl ProviderId {
             "youtube_api" => Some(Self::YoutubeApi),
             "youtube_web" => Some(Self::YoutubeWeb),
             "gemini_api" => Some(Self::GeminiApi),
-            "gemini_browser" => Some(Self::GeminiBrowser),
-            "chatgpt_browser" => Some(Self::ChatgptBrowser),
             "polymarket_api" => Some(Self::PolymarketApi),
             "reddit_web" => Some(Self::RedditWeb),
             _ => None,
@@ -153,8 +144,6 @@ impl ProviderId {
             Self::YoutubeApi => "youtube_api",
             Self::YoutubeWeb => "youtube_web",
             Self::GeminiApi => "gemini_api",
-            Self::GeminiBrowser => "gemini_browser",
-            Self::ChatgptBrowser => "chatgpt_browser",
             Self::PolymarketApi => "polymarket_api",
             Self::RedditWeb => "reddit_web",
         }
@@ -213,12 +202,6 @@ pub(crate) enum DoctorProbe {
     /// Asks the service's account endpoint about every configured key; it proves the endpoint
     /// and keys, not any operation's request or decoding.
     ServiceAccount {
-        name: &'static str,
-        transport: &'static str,
-    },
-    /// Runs the OpenCLI adapter's read-only `status` command: it proves OpenCLI, the adapter
-    /// contract, and the site login, never an operation.
-    AdapterStatus {
         name: &'static str,
         transport: &'static str,
     },
@@ -632,20 +615,6 @@ const GEMINI_API_ACCESS: AccessPolicy = AccessPolicy {
     max_concurrency: 1,
 };
 
-// The Gemini page itself polls its conversation about every ten seconds while a research runs
-// (2026-10-09), so one command every ten seconds stays at a person's pace (ADR 0020).
-const GEMINI_BROWSER_ACCESS: AccessPolicy = AccessPolicy {
-    min_interval: Duration::from_secs(10),
-    max_concurrency: 1,
-};
-
-// One command every ten seconds keeps reading a ChatGPT conversation at a person's pace, a
-// condition of accepting the OpenAI terms risk (ADR 0024).
-const CHATGPT_BROWSER_ACCESS: AccessPolicy = AccessPolicy {
-    min_interval: Duration::from_secs(10),
-    max_concurrency: 1,
-};
-
 const REGISTRY: &[ProviderRegistration] = &[
     ProviderRegistration {
         id: ProviderId::Xai,
@@ -908,46 +877,10 @@ const REGISTRY: &[ProviderRegistration] = &[
         smoke_cases: GEMINI_API_SMOKE,
         native_full_text: false,
     },
-    // Only `forager gemini` commands run it, never a chain. No live smoke case exists: starting
-    // a research spends the user's quota, and reading one needs a conversation of the user.
-    ProviderRegistration {
-        id: ProviderId::GeminiBrowser,
-        operations: &[GEMINI_RESEARCH_START, GEMINI_RESEARCH_RESULT],
-        credentials: Credentials::Unused,
-        transport: ProviderTransport::OpenCli(OpenCliAdapter {
-            site: "forager-gemini",
-            contract: "forager-gemini/2",
-        }),
-        access_policy: Some(GEMINI_BROWSER_ACCESS),
-        probe: DoctorProbe::AdapterStatus {
-            name: "status",
-            transport: "process",
-        },
-        smoke_cases: &[],
-        native_full_text: false,
-    },
-    // Like `gemini_browser`: only `forager chatgpt` commands run it, and it has no live smoke
-    // case.
-    ProviderRegistration {
-        id: ProviderId::ChatgptBrowser,
-        operations: &[CHATGPT_RESEARCH_START, CHATGPT_RESEARCH_RESULT],
-        credentials: Credentials::Unused,
-        transport: ProviderTransport::OpenCli(OpenCliAdapter {
-            site: "forager-chatgpt",
-            contract: "forager-chatgpt/2",
-        }),
-        access_policy: Some(CHATGPT_BROWSER_ACCESS),
-        probe: DoctorProbe::AdapterStatus {
-            name: "status",
-            transport: "process",
-        },
-        smoke_cases: &[],
-        native_full_text: false,
-    },
 ];
 
 /// Returns whether a registration is legitimate: it belongs to a capability catalog or a
-/// platform catalog, or it owns an operation.
+/// platform catalog.
 pub(crate) fn has_owner(registration: &ProviderRegistration) -> bool {
     CATALOGS
         .iter()
@@ -955,7 +888,6 @@ pub(crate) fn has_owner(registration: &ProviderRegistration) -> bool {
         || PLATFORMS
             .iter()
             .any(|platform| platform.contains(registration.id))
-        || !registration.operations.is_empty()
 }
 
 static VALIDATED_REGISTRY: LazyLock<()> = LazyLock::new(|| {
@@ -990,7 +922,7 @@ fn validate_registrations(registry: &[ProviderRegistration]) -> Result<(), Strin
     for registration in registry {
         if !has_owner(registration) {
             return Err(format!(
-                "{} belongs to no capability or platform and owns no operation",
+                "{} belongs to no capability or platform",
                 registration.id.name()
             ));
         }
@@ -1017,18 +949,12 @@ mod tests {
 
     use super::{
         CATALOGS, Credentials, DOCS_SEARCH, DoctorProbe, MAIN_SEARCH, PLATFORMS, PlatformOperation,
-        ProviderId, ProviderRegistration, ProviderTransport, REGISTRY, WEB_FETCH, WEB_SEARCH,
-        has_owner, platform, registration, registrations, validate_registrations,
+        ProviderId, ProviderRegistration, REGISTRY, WEB_FETCH, WEB_SEARCH, has_owner, platform,
+        registration, registrations, validate_registrations,
     };
 
-    /// Providers without a live smoke case. `gemini_browser` and `chatgpt_browser` get only the
-    /// offline registration check: a live case would spend the user's Deep Research quota or read
-    /// their conversations.
-    const WITHOUT_LIVE_SMOKE: &[ProviderId] = &[
-        ProviderId::SsrnBrowser,
-        ProviderId::GeminiBrowser,
-        ProviderId::ChatgptBrowser,
-    ];
+    /// Providers without a live smoke case.
+    const WITHOUT_LIVE_SMOKE: &[ProviderId] = &[ProviderId::SsrnBrowser];
 
     #[derive(Deserialize)]
     struct AcceptanceManifest {
@@ -1134,9 +1060,6 @@ mod tests {
                 DoctorProbe::ServiceAccount { .. } => {
                     registration.credentials == Credentials::Required
                 }
-                DoctorProbe::AdapterStatus { .. } => {
-                    matches!(registration.transport, ProviderTransport::OpenCli(_))
-                }
             };
             assert!(probe_is_supported, "{} probe", registration.id.name());
             assert_eq!(
@@ -1146,37 +1069,6 @@ mod tests {
                 registration.id.name()
             );
         }
-    }
-
-    #[test]
-    fn a_provider_outside_every_catalog_is_registered_through_its_operations() {
-        let registered = [ProviderId::GeminiBrowser, ProviderId::ChatgptBrowser].map(|id| {
-            let registration = registration(id);
-            (
-                CATALOGS.iter().any(|catalog| catalog.contains(id)),
-                PLATFORMS.iter().any(|catalog| catalog.contains(id)),
-                registration.operations,
-                has_owner(registration),
-            )
-        });
-
-        assert_eq!(
-            registered,
-            [
-                (
-                    false,
-                    false,
-                    &["gemini_research_start", "gemini_research_result"][..],
-                    true
-                ),
-                (
-                    false,
-                    false,
-                    &["chatgpt_research_start", "chatgpt_research_result"][..],
-                    true
-                ),
-            ]
-        );
     }
 
     #[test]

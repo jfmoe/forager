@@ -27,8 +27,6 @@ pub(crate) struct Providers {
     pub(crate) youtube_api: Endpoint<YoutubeApiEndpoint>,
     pub(crate) youtube_web: AnonymousEndpoint<YoutubeWebEndpoint>,
     pub(crate) gemini_api: GeminiApi,
-    pub(crate) gemini_browser: ProcessRoute<GeminiBrowserProcess>,
-    pub(crate) chatgpt_browser: ProcessRoute<ChatgptBrowserProcess>,
     pub(crate) polymarket_api: PolymarketApi,
     pub(crate) reddit_web: RedditWeb,
 }
@@ -157,22 +155,6 @@ pub(crate) struct XiaohongshuBrowserProcess;
 // One command opens the results page in about 20 seconds and then reads up to four more pages.
 impl ProcessDefaults for XiaohongshuBrowserProcess {
     const TIMEOUT_SECONDS: u64 = 120;
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct GeminiBrowserProcess;
-
-// Starting a research waits for the plan and then for the confirmed turn, about a minute live.
-impl ProcessDefaults for GeminiBrowserProcess {
-    const TIMEOUT_SECONDS: u64 = 240;
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct ChatgptBrowserProcess;
-
-// The same budget as Gemini: starting a research sends once and then waits for the plan card.
-impl ProcessDefaults for ChatgptBrowserProcess {
-    const TIMEOUT_SECONDS: u64 = 240;
 }
 
 pub(crate) trait EndpointDefaults {
