@@ -2,7 +2,7 @@
   "unix": [
     {
       "target": "aarch64-apple-darwin",
-      "runner": "macos-14",
+      "runner": "macos-15",
       "host_arch": "arm64",
       "file_arch": "arm64",
       "archive": "tar.xz"
