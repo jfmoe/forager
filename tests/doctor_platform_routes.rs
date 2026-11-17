@@ -224,11 +224,7 @@ fn xiaohongshu_browser_deep_doctor_runs_one_first_page_search() {
             }]
         }),
     );
-    let environment = RunEnvironment::new(&fake.route_config(
-        "xiaohongshu_browser",
-        "xiaohongshu",
-        "[\"xiaohongshu_browser\"]",
-    ));
+    let environment = RunEnvironment::new(&fake.config("[\"xiaohongshu_browser\"]"));
 
     let output = environment.run(&["doctor", "--provider", "xiaohongshu_browser"]);
 
@@ -264,11 +260,7 @@ fn shallow_doctor_checks_the_enabled_xiaohongshu_adapter_contract() {
     let environment = RunEnvironment::new(&format!(
         "{}\n{}",
         shallow_config(&fixture.url),
-        fake.route_config(
-            "xiaohongshu_browser",
-            "xiaohongshu",
-            "[\"xiaohongshu_browser\"]"
-        )
+        fake.config("[\"xiaohongshu_browser\"]")
     ));
 
     let output = environment.run(&["doctor"]);
@@ -304,7 +296,7 @@ fn shallow_doctor_skips_the_xiaohongshu_route_while_its_order_is_empty() {
     let environment = RunEnvironment::new(&format!(
         "{}\n{}",
         shallow_config(&fixture.url),
-        fake.route_config("xiaohongshu_browser", "xiaohongshu", "[]")
+        fake.config("[]")
     ));
 
     let output = environment.run(&["doctor"]);
@@ -327,8 +319,7 @@ fn shallow_doctor_skips_the_xiaohongshu_route_while_its_order_is_empty() {
 #[test]
 fn xiaohongshu_browser_deep_doctor_refuses_the_route_while_its_order_is_empty() {
     let fake = FakeOpenCli::answering("", "", 1);
-    let environment =
-        RunEnvironment::new(&fake.route_config("xiaohongshu_browser", "xiaohongshu", "[]"));
+    let environment = RunEnvironment::new(&fake.config("[]"));
 
     let output = environment.run(&["doctor", "--provider", "xiaohongshu_browser"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");

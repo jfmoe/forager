@@ -21,7 +21,7 @@ pub(crate) struct Providers {
     pub(crate) arxiv_api: AnonymousEndpoint<ArxivApiEndpoint>,
     pub(crate) ssrn_crossref: AnonymousEndpoint<SsrnCrossrefEndpoint>,
     pub(crate) serpapi: Endpoint<SerpapiEndpoint>,
-    pub(crate) xiaohongshu_browser: ProcessRoute<XiaohongshuBrowserProcess>,
+    pub(crate) xiaohongshu_browser: ProcessRoute,
     pub(crate) hn_api: HnApi,
     pub(crate) youtube_api: Endpoint<YoutubeApiEndpoint>,
     pub(crate) youtube_web: AnonymousEndpoint<YoutubeWebEndpoint>,
@@ -119,34 +119,21 @@ impl<D: EndpointDefaults> Default for AnonymousEndpoint<D> {
 /// The configuration selects only the executable; the route owns every argument (ADR 0019).
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
-pub(crate) struct ProcessRoute<D: ProcessDefaults> {
+pub(crate) struct ProcessRoute {
     pub(crate) command: String,
     #[serde(deserialize_with = "deserialize_integer")]
     pub(crate) timeout: u64,
-    #[serde(skip)]
-    pub(crate) defaults: PhantomData<D>,
 }
 
-impl<D: ProcessDefaults> Default for ProcessRoute<D> {
+impl Default for ProcessRoute {
     fn default() -> Self {
         Self {
             command: "opencli".into(),
-            timeout: D::TIMEOUT_SECONDS,
-            defaults: PhantomData,
+            // One xiaohongshu_browser command opens the results page in about 20 seconds and
+            // then reads up to four more pages.
+            timeout: 120,
         }
     }
-}
-
-pub(crate) trait ProcessDefaults {
-    const TIMEOUT_SECONDS: u64;
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct XiaohongshuBrowserProcess;
-
-// One command opens the results page in about 20 seconds and then reads up to four more pages.
-impl ProcessDefaults for XiaohongshuBrowserProcess {
-    const TIMEOUT_SECONDS: u64 = 120;
 }
 
 pub(crate) trait EndpointDefaults {

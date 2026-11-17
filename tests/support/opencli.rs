@@ -118,13 +118,8 @@ impl FakeOpenCli {
 
     /// Points `xiaohongshu_browser` at this fake and sets the Xiaohongshu order.
     pub(crate) fn config(&self, order: &str) -> String {
-        self.route_config("xiaohongshu_browser", "xiaohongshu", order)
-    }
-
-    /// Points `route` at this fake and sets the order of `platform`.
-    pub(crate) fn route_config(&self, route: &str, platform: &str, order: &str) -> String {
         format!(
-            "[providers.{route}]\ncommand = {:?}\n\n[platforms.{platform}]\norder = {order}\n",
+            "[providers.xiaohongshu_browser]\ncommand = {:?}\n\n[platforms.xiaohongshu]\norder = {order}\n",
             self.executable().display().to_string()
         )
     }

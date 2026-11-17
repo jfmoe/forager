@@ -26,11 +26,6 @@ pub(crate) struct FetchRequest {
     pub(crate) verbose: bool,
 }
 
-/// The PDF parser options Firecrawl applies in scrape (ADR 0018).
-fn pdf_parsers() -> serde_json::Value {
-    json!([{"type": "pdf", "mode": "auto", "pageMarkers": true}])
-}
-
 /// Returns whether the URL names a PDF, for the thin-content gate.
 pub(crate) fn is_pdf_url(url: &str) -> bool {
     url.split(['?', '#'])
@@ -213,7 +208,8 @@ impl HttpFetchProvider {
                 "formats": ["markdown"],
                 "onlyMainContent": true,
                 "timeout": 60000,
-                "parsers": pdf_parsers(),
+                // The PDF parser options Firecrawl applies in scrape (ADR 0018).
+                "parsers": [{"type": "pdf", "mode": "auto", "pageMarkers": true}],
             })),
             _ => unreachable!("only web fetch providers make fetch requests"),
         }
