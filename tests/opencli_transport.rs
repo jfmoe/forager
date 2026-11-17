@@ -1,9 +1,14 @@
-//! The OpenCLI process transport against a fake `opencli`: how forager reads the OpenCLI 2.x
-//! output envelope and exit code of an adapter command, seen through the `xiaohongshu_browser`
+//! The OpenCLI process transport against a fake `opencli`: how forager runs an adapter command
+//! and reads its OpenCLI 2.x output envelope and exit code, seen through the `xiaohongshu_browser`
 //! route.
 #![cfg(unix)]
 
 mod support;
+
+use std::fs;
+use std::process::{Command, Output};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 
@@ -11,10 +16,18 @@ use support::RunEnvironment;
 use support::opencli::{self, FakeOpenCli};
 
 const UPGRADE_HINT: &str = "forager needs OpenCLI 2.x and Browser Bridge 1.0.25 or later";
+const SESSION_FLAGS: [&str; 8] = [
+    "-f",
+    "json",
+    "--window",
+    "background",
+    "--site-session",
+    "ephemeral",
+    "--keep-tab",
+    "false",
+];
 
-fn search(fake: &FakeOpenCli) -> Value {
-    let environment = RunEnvironment::new(&fake.config("[\"xiaohongshu_browser\"]"));
-    let output = environment.run(&["platform", "xiaohongshu", "search", "咖啡", "--verbose"]);
+fn payload(output: &Output) -> Value {
     serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
         panic!(
             "parse JSON stdout: {error}\nstdout: {}\nstderr: {}",
@@ -22,6 +35,12 @@ fn search(fake: &FakeOpenCli) -> Value {
             String::from_utf8_lossy(&output.stderr)
         )
     })
+}
+
+fn search(fake: &FakeOpenCli) -> Value {
+    let environment = RunEnvironment::new(&fake.config("[\"xiaohongshu_browser\"]"));
+    let output = environment.run(&["platform", "xiaohongshu", "search", "咖啡", "--verbose"]);
+    payload(&output)
 }
 
 /// Runs a search against a fake that prints `stdout` and `stderr` and exits with
@@ -159,5 +178,85 @@ fn forager_passes_no_opencli_settings_through_the_environment() {
                 .collect::<Vec<_>>()
         ),
         (1, Vec::<&String>::new())
+    );
+}
+
+#[test]
+fn every_command_ends_with_its_deadline_and_the_session_flags() {
+    let fake = FakeOpenCli::failing("EMPTY_RESULT", "forager-xhs/search returned no data", 66);
+
+    search(&fake);
+    let call = fake.calls().remove(0);
+    let (rest, flags) = call.split_at(call.len() - SESSION_FLAGS.len());
+    let [command @ .., flag, timeout] = rest else {
+        panic!("argv {call:?} lacks --timeout");
+    };
+    let timeout: u64 = timeout.parse().expect("integer --timeout");
+
+    assert_eq!(
+        (&command[..2], flag.as_str(), flags),
+        (
+            &["forager-xhs".to_owned(), "search".to_owned()][..],
+            "--timeout",
+            &SESSION_FLAGS.map(str::to_owned)[..]
+        ),
+        "argv {call:?}"
+    );
+    assert!(
+        (1..=115).contains(&timeout),
+        "the command timeout leaves the cleanup reserve of the 120-second attempt: {timeout}"
+    );
+}
+
+#[test]
+fn a_missing_executable_is_a_runtime_failure() {
+    let environment = RunEnvironment::new(
+        "[providers.xiaohongshu_browser]\ncommand = \"/nonexistent/opencli\"\n\n[platforms.xiaohongshu]\norder = [\"xiaohongshu_browser\"]\n",
+    );
+
+    let output = environment.run(&["platform", "xiaohongshu", "search", "咖啡"]);
+
+    assert_eq!(
+        (output.status.code(), payload(&output)["error_kind"].clone()),
+        (Some(4), json!("runtime"))
+    );
+}
+
+fn process_exists(pid: &str) -> bool {
+    Command::new("/bin/kill")
+        .args(["-0", pid.trim()])
+        .output()
+        .is_ok_and(|output| output.status.success())
+}
+
+#[test]
+fn a_command_past_its_working_deadline_is_killed_with_its_process_group() {
+    let fake = FakeOpenCli::hanging();
+    let environment = RunEnvironment::new(&fake.config("[\"xiaohongshu_browser\"]").replace(
+        "[providers.xiaohongshu_browser]\n",
+        "[providers.xiaohongshu_browser]\ntimeout = 7\n",
+    ));
+    let started = Instant::now();
+
+    let output = environment.run(&["platform", "xiaohongshu", "search", "咖啡"]);
+    let elapsed = started.elapsed();
+    let pids = ["leader.pid", "child.pid"]
+        .map(|name| fs::read_to_string(fake.path(name)).expect("recorded pid"));
+    let deadline = Instant::now() + Duration::from_secs(3);
+    while pids.iter().any(|pid| process_exists(pid)) && Instant::now() < deadline {
+        thread::sleep(Duration::from_millis(50));
+    }
+
+    assert_eq!(
+        (
+            output.status.code(),
+            payload(&output)["error_kind"].clone(),
+            pids.iter().any(|pid| process_exists(pid)),
+        ),
+        (Some(4), json!("timeout"), false)
+    );
+    assert!(
+        elapsed < Duration::from_secs(6),
+        "the working deadline stops the command before the attempt deadline: {elapsed:?}"
     );
 }
