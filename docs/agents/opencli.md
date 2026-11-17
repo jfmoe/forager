@@ -21,13 +21,13 @@
 ## 已知问题
 
 - **`Navigation rejected.`**：标签页没开网络抓包时，OpenCLI 扩展会在导航前断开调试器，Chrome 随即拒绝这次导航。所以 adapter 每次顶层导航前都要先开抓包，小红书的 `search.js`、`note.js`、`comments.js` 已经这样做。新命令遇到这个报错，按同样方式处理。重启 Chrome 也能暂时消除。还观察到运行过带 `--trace` 的命令后，不带 trace 的命令会连续被拒，但没有确认原因。
-- **诱饵按钮**：小红书会在按钮下面叠放同类名、同文本的不可见副本（`aria-hidden`），按类名和文本找元素会找到两个，或先找到诱饵。adapter 的点击都经 `shared.js` 原生输入块的 `clickTarget`：只认不在 `aria-hidden` 子树中、指针在中心能命中的元素，并要求恰好一个，详见小红书 route 设计的「诱饵按钮」。
-- **抓包条目完成了却没有响应体**：扩展只在请求结束时向 Chrome 取一次响应体，取失败时不报错，条目照样标记完成（`captureComplete`），只是没有 `responsePreview`。2026-10-20 在 Browser Bridge 1.0.26、Chrome 155 上实测，当时的 Gemini adapter 跟踪的响应约一半的打开会丢响应体；这与 adapter 在页面上的读取无关，页面加载期间不发任何命令也一样丢。Chrome 那边取失败的原因没有查明。页面重新加载后会重新取。小红书的读取会话以 `body_missing` 标出这种情况。
+- **诱饵按钮**：小红书会在按钮下面叠放同类名、同文本的不可见副本（`aria-hidden`），按类名和文本找元素会找到两个，或先找到诱饵。adapter 的点击都经 `shared.js` 原生输入的 `clickTarget`：只认不在 `aria-hidden` 子树中、指针在中心能命中的元素，并要求恰好一个，详见小红书 route 设计的「诱饵按钮」。
+- **抓包条目完成了却没有响应体**：扩展只在请求结束时向 Chrome 取一次响应体，取失败时不报错，条目照样标记完成（`captureComplete`），只是没有 `responsePreview`。2026-10-20 在 Browser Bridge 1.0.26、Chrome 155 上实测，adapter 跟踪的响应在约一半的页面打开中丢了响应体；这与 adapter 在页面上的读取无关，页面加载期间不发任何命令也一样丢。Chrome 那边取失败的原因没有查明。页面重新加载后会重新取。小红书的读取会话以 `body_missing` 标出这种情况。
 - **只有实测能证明 JS 的行为**：Rust 侧的测试用的是假 `opencli`，只证明外壳解码、退出码映射和核对规则。adapter 的页面读取、抓包完成条件和点击路径，只能靠实测证明：小红书有 live smoke 用例（C27–C29）。
 
 ## 原生输入的已知限制
 
-规则见第 7 章「adapter 原生输入」。实现是 `forager-xhs/shared.js` 末尾以 `---- Native input` 和 `---- End of native input` 标出的块：`clickTarget`、`hoverTarget`、`wheelAt`、`typeText`、`pressNativeKey`、`humanPause` 与 `confirmWithin`，失败时抛出带原因的 `InputFailure`。只有小红书 adapter 做页面操作，这个块只有这一份。
+规则见第 7 章「adapter 原生输入」。实现在 `forager-xhs/shared.js` 末尾：`clickTarget`、`hoverTarget`、`wheelAt`、`typeText`、`pressNativeKey`、`humanPause` 与 `confirmWithin`，失败时抛出带原因的 `InputFailure`。
 
 以下依据 OpenCLI 2.0.0 与 Browser Bridge 1.0.25 的源码。标「未实测」的条目没有在本机验证；OpenCLI 升级后要复核这些接口是否仍在、行为是否变化。
 

@@ -1,6 +1,6 @@
 # Gemini Deep Research 浏览器 route 设计
 
-状态：第一期（只读的 `result`）已实现，规格见第 2 章「Gemini 命令」与 ADR 0023；`start` 仍为提案。可行性已于 2026-10-09 实测确认。日期：2026-10-09。前置调研与实测见 [Gemini Deep Research 接入可行性](../research/2026-10-09-gemini-deep-research.md)。
+状态：已退役。第一期（只读的 `result`）曾实现，`start` 未实现；`gemini_browser` 与 `forager gemini` 命令由 [ADR 0035](../adr/0035-retire-browser-providers-and-freeze-opencli.md) 删除，下文作为历史设计保留。日期：2026-10-09。前置调研与实测见 [Gemini Deep Research 接入可行性](../research/2026-10-09-gemini-deep-research.md)。
 
 ## 目标与边界
 

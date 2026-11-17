@@ -11,7 +11,7 @@
   - 点击：在页面中选出唯一一个指针可命中的目标（不在 `aria-hidden` 子树中、有尺寸、指针在其中心命中它自身或其后代），必要时用滚轮把它滚进视口，在中心附近取一个仍命中目标的随机点，先悬停，悬停后仍命中再 `nativeClick`。没有目标、多于一个可命中目标、目标被遮挡、滚不进视口、悬停后不再命中，或所需的原生接口不存在时，立即以明确的原因失败，不退回脚本操作。
   - 核对：点击结果能在页面上观察到时（选项选中、面板展开、展开按钮消失、菜单项出现），点击后在几秒内核对，核对不通过以 `click_missed` 失败，不等到读取截止。
   - 节奏：每次操作前随机停顿 0.3–1.5 秒，计入命令自己的读取截止时间；截止时间一过，不再发出任何输入（包括逐字输入的下一个字符），当前操作以 `deadline_passed` 失败；点击前先悬停；不超过 200 个字符的文本逐字原生输入，字符间隔 30–90 毫秒随机；更长的文本用一次 `insertText`。编辑键（全选、退格、删除）经 `Input.dispatchKeyEvent` 发送并带上键码，macOS 上另带对应的编辑命令。不模拟鼠标轨迹。
-  - 归属：小红书 adapter 是唯一的 forager 自有 OpenCLI adapter，原生输入块只有一份，在它的 `shared.js` 中。
+  - 归属：小红书 adapter 是唯一的 forager 自有 OpenCLI adapter，原生输入在它的 `shared.js` 中实现。
   - 原生输入提高的是交互的真实度与稳健性，不是反检测：不做 stealth 改造、不伪造指纹、不解验证码；遇到验证、风控或登录墙仍按 ADR 0020 立即停止。
 - **OpenCLI 进程传输**（`providers/opencli`，不含站点知识）：输入为可执行文件、adapter（site 与契约版本）、命令、具名参数与 attempt 截止时间。process route 的配置项为 `providers.<route>.command`（OpenCLI 可执行文件，默认 `opencli`，不能为空）与 `.timeout`（一次命令的 attempt 超时），没有 `url` 与 `keys`；它是匿名 route，始终视为已配置。命令只能选择可执行文件，参数全部由 route 决定（ADR 0019）。
   - 调用形式：`<command> <site> <命令> --<参数> <值>… --timeout <秒> -f json --window background --site-session ephemeral --keep-tab false`。forager 自有 adapter 的每个命令都接受这些 flag，且都在后台窗口运行，不占用用户的屏幕。

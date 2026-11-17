@@ -338,7 +338,6 @@ export class ReadSession {
   }
 }
 
-// ---- Native input -------------------------------------------------------------------------------
 // Every action that changes the page (pointer moves, clicks, wheel scrolls, keys, and text) goes
 // through Chrome's input pipeline as CDP `Input.*` events, so the page sees trusted events with
 // coordinates and a full pointer sequence. Reading the DOM, network capture, and screenshots are
@@ -634,4 +633,3 @@ export async function pressNativeKey(page, name, { deadline = Infinity } = {}) {
   await dispatchKey(page, 'keyUp', key, modifiers);
   if (key.shortcut) await dispatchKey(page, 'keyUp', SHORTCUT_MODIFIER, 0);
 }
-// ---- End of native input ------------------------------------------------------------------------
