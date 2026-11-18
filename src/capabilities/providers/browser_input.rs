@@ -488,7 +488,8 @@ impl Page {
         Ok(())
     }
 
-    /// Moves the pointer to `to` along a slight curve in several steps.
+    /// Moves the pointer to `to` along a slight curve in several steps, and stops before the
+    /// first step past the read deadline.
     async fn move_pointer(&mut self, to: Point) -> Result<(), InputError> {
         let from = self.pointer;
         let control = (
@@ -509,6 +510,7 @@ impl Page {
                     along(from.1, control.1, to.y),
                 )
             };
+            self.require_time()?;
             self.call(
                 "Input.dispatchMouseEvent",
                 json!({"type": "mouseMoved", "x": x, "y": y, "button": "none", "buttons": 0}),
@@ -541,4 +543,110 @@ fn step_fraction(step: usize, steps: usize) -> f64 {
     let step = u32::try_from(step).unwrap_or(u32::MAX);
     let steps = u32::try_from(steps).unwrap_or(u32::MAX).max(1);
     f64::from(step) / f64::from(steps)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Mutex};
+    use std::time::Duration;
+
+    use serde_json::{Value, json};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt, duplex};
+    use tokio::time::Instant;
+
+    use super::super::capture::Capture;
+    use super::super::{CaptureLevel, Deadlines, Page};
+    use super::{InputError, InputFailure, Point};
+    use crate::providers::cdp::Cdp;
+    use crate::types::Deadline;
+
+    /// The methods a browser received, each with when it arrived.
+    type Received = Arc<Mutex<Vec<(String, Instant)>>>;
+
+    /// A page whose browser answers every command at once, with `read` left before its read
+    /// deadline.
+    fn page(read: Duration) -> (Page, Received) {
+        let (writer, mut commands) = duplex(1 << 20);
+        let (mut answers, reader) = duplex(1 << 20);
+        let (cdp, events) = Cdp::start(reader, writer);
+        let received = Received::default();
+        let log = Arc::clone(&received);
+        tokio::spawn(async move {
+            let mut message = Vec::new();
+            while let Ok(byte) = commands.read_u8().await {
+                if byte != 0 {
+                    message.push(byte);
+                    continue;
+                }
+                let command: Value = serde_json::from_slice(&message).expect("command is JSON");
+                message.clear();
+                log.lock().expect("log").push((
+                    command["method"].as_str().unwrap_or_default().to_owned(),
+                    Instant::now(),
+                ));
+                let mut answer = serde_json::to_vec(&json!({"id": command["id"], "result": {}}))
+                    .expect("encode answer");
+                answer.push(0);
+                answers.write_all(&answer).await.expect("answer");
+            }
+        });
+        let deadlines = Deadlines {
+            work: Deadline::new(Duration::from_secs(10)),
+            read: Deadline::new(read),
+        };
+        let capture = Capture::start(
+            cdp.clone(),
+            "session".into(),
+            events,
+            |_| CaptureLevel::Ignore,
+            deadlines.work,
+        );
+        let page = Page {
+            cdp,
+            session: "session".into(),
+            deadlines,
+            capture,
+            pointer: (0.0, 0.0),
+        };
+        (page, received)
+    }
+
+    // Paused time advances only while every task waits on a timer, so each step lands at an
+    // exact instant.
+    fn run<T>(test: impl Future<Output = T>) -> T {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .start_paused(true)
+            .build()
+            .expect("build test runtime")
+            .block_on(test)
+    }
+
+    #[test]
+    fn a_pointer_move_that_the_read_deadline_interrupts_sends_no_later_step() {
+        let read = Duration::from_millis(30);
+
+        let (moved, started, received) = run(async {
+            let started = Instant::now();
+            let (mut page, received) = page(read);
+            let moved = page.move_pointer(Point { x: 400.0, y: 300.0 }).await;
+            (moved, started, received)
+        });
+
+        let late = received
+            .lock()
+            .expect("log")
+            .iter()
+            .filter(|(method, at)| {
+                method == "Input.dispatchMouseEvent" && at.duration_since(started) >= read
+            })
+            .count();
+        assert!(
+            matches!(
+                (moved, late),
+                (Err(InputError::Failed(InputFailure::DeadlinePassed)), 0)
+            ),
+            "{late} pointer steps went out after the read deadline"
+        );
+    }
 }
