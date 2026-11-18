@@ -182,6 +182,9 @@ fn serve(mut stream: TcpStream) {
     let (content_type, content) = match path {
         "/input" => ("text/html", INPUT_PAGE.to_owned()),
         "/ambiguous" => ("text/html", AMBIGUOUS_PAGE.to_owned()),
+        "/hover-twin" => ("text/html", hover_page("twin")),
+        "/hover-gone" => ("text/html", hover_page("gone")),
+        "/hover-moved" => ("text/html", hover_page("moved")),
         "/scroll" => ("text/html", SCROLL_PAGE.to_owned()),
         "/more" => ("application/json", r#"{"count":20}"#.to_owned()),
         "/api" => ("text/html", API_PAGE.to_owned()),
@@ -226,6 +229,23 @@ for (const id of ['hidden', 'covered', 'real']) {
 
 const AMBIGUOUS_PAGE: &str = r#"<!doctype html><title>ambiguous</title>
 <button class="twin" style="margin:40px">One</button><button class="twin" style="margin:40px">Two</button>"#;
+
+// One button that, once the pointer reaches it, gains a hittable twin, disappears, or moves away.
+fn hover_page(change: &str) -> String {
+    format!(
+        r#"<!doctype html><title>hover</title>
+<button class="solo" style="position:absolute;left:100px;top:100px;width:120px;height:40px">Go</button>
+<script>
+const button = document.querySelector('.solo');
+button.addEventListener('mouseover', () => {{
+  const change = '{change}';
+  if (change === 'twin') {{ const twin = button.cloneNode(true); twin.style.top = '300px'; document.body.appendChild(twin); }}
+  if (change === 'gone') button.remove();
+  if (change === 'moved') button.style.top = '400px';
+}}, {{ once: true }});
+</script>"#
+    )
+}
 
 const SCROLL_PAGE: &str = r#"<!doctype html><title>scroll</title>
 <div id="list" style="height:300px;width:400px;overflow-y:auto"><div id="items"></div></div>
@@ -390,6 +410,37 @@ fn a_click_refuses_two_hittable_targets() {
     });
 
     assert_eq!(failure, Some("ambiguous_target"));
+}
+
+#[test]
+fn a_target_that_changes_during_the_hover_is_reported_by_what_changed() {
+    let Some(executable) = executable() else {
+        return;
+    };
+    let pages = Pages::start();
+
+    let reasons = Sandbox::new().run(&executable, async |page| {
+        let mut reasons = Vec::new();
+        for path in ["/hover-twin", "/hover-gone", "/hover-moved"] {
+            page.navigate(&pages.url(path)).await?;
+            reasons.push(
+                match page.click("document.querySelectorAll('.solo')").await {
+                    Err(InputError::Failed(failure)) => Some(failure.reason()),
+                    _ => None,
+                },
+            );
+        }
+        Ok(reasons)
+    });
+
+    assert_eq!(
+        reasons,
+        [
+            Some("ambiguous_target"),
+            Some("no_target"),
+            Some("target_moved")
+        ]
+    );
 }
 
 #[test]
