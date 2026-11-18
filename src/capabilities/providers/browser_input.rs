@@ -95,6 +95,13 @@ impl From<AttemptFailure> for InputError {
 
 /// A key that page logic presses.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[cfg_attr(
+    not(all(test, unix)),
+    expect(
+        dead_code,
+        reason = "browser routes press only Enter so far; the real-browser tests press every key"
+    )
+)]
 pub(crate) enum Key {
     Enter,
     Escape,

@@ -610,9 +610,9 @@ struct ShallowCheck {
     message: Option<String>,
 }
 
-/// Checks an HTTP provider by a GET to its endpoint, and a process route by the adapter's
-/// `contract` command. A platform route that users must enable takes part only when an order
-/// enables it.
+/// Checks an HTTP provider by a GET to its endpoint, and a browser route by its preflight
+/// check, which launches no browser and opens no site. A platform route that users must enable
+/// takes part only when an order enables it.
 async fn shallow_check(
     registration: &ProviderRegistration,
     runtime: &RuntimeConfig,
@@ -627,29 +627,39 @@ async fn shallow_check(
             message: None,
         };
     }
-    let endpoint = provider_endpoint(id, runtime);
-    let limiter = providers::route_limiter(id);
-    let ProviderTransport::OpenCli(adapter) = registration.transport else {
-        let anonymous = registration.lacks_optional_keys(runtime.provider_runtime(id).keys.len());
-        return ShallowCheck {
-            configured: runtime.provider_configured(id),
-            reachable: probe_reachability(client.clone(), endpoint.to_owned(), limiter, deadline)
+    match registration.transport {
+        ProviderTransport::Http => {
+            let endpoint = provider_endpoint(id, runtime);
+            let limiter = providers::route_limiter(id);
+            let anonymous =
+                registration.lacks_optional_keys(runtime.provider_runtime(id).keys.len());
+            ShallowCheck {
+                configured: runtime.provider_configured(id),
+                reachable: probe_reachability(
+                    client.clone(),
+                    endpoint.to_owned(),
+                    limiter,
+                    deadline,
+                )
                 .await,
-            message: anonymous.then(|| "runs anonymously without keys".to_owned()),
-        };
-    };
-    let limiter = limiter.expect("a process route declares an access policy");
-    let result = providers::check_opencli_contract(endpoint, adapter, &limiter, deadline).await;
-    ShallowCheck {
-        configured: true,
-        reachable: result.is_ok(),
-        message: result.err(),
+                message: anonymous.then(|| "runs anonymously without keys".to_owned()),
+            }
+        }
+        ProviderTransport::Browser(environment) => {
+            let preflight = providers::browser_preflight(&environment, &runtime.browser);
+            ShallowCheck {
+                configured: true,
+                reachable: preflight.is_ok(),
+                message: preflight.err(),
+            }
+        }
     }
 }
 
 /// Returns why the deep probe cannot run the provider, or `None` when it can. A platform route
-/// that users must enable (one driving their browser, or one reading undocumented endpoints)
-/// runs only when a platform order enables it.
+/// that users must enable (one driving a browser, or one reading undocumented endpoints) runs
+/// only when a platform order enables it; a browser route also needs its preflight check to
+/// pass.
 fn deep_unconfigured_reason(provider: ProviderId, runtime: &RuntimeConfig) -> Option<String> {
     let name = provider.name();
     if is_opt_in_route(provider) && !route_enabled(provider, runtime) {
@@ -658,7 +668,9 @@ fn deep_unconfigured_reason(provider: ProviderId, runtime: &RuntimeConfig) -> Op
         ));
     }
     match catalog::registration(provider).transport {
-        ProviderTransport::OpenCli(_) => None,
+        ProviderTransport::Browser(environment) => {
+            providers::browser_preflight(&environment, &runtime.browser).err()
+        }
         ProviderTransport::Http => (!runtime.provider_configured(provider)).then(|| {
             format!(
                 "{} has no configured credentials",

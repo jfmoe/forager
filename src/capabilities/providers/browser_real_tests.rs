@@ -20,7 +20,7 @@ use serde_json::Value;
 
 use super::input::{InputError, Key};
 use super::{
-    BrowserLogin, BrowserSession, CaptureLevel, Display, Exchange, Page, RequestMethod,
+    BrowserLogin, BrowserSession, CaptureLevel, Display, Exchange, LoginPage, Page, RequestMethod,
     ResponseBody, run,
 };
 use crate::catalog::ProviderId;
@@ -507,13 +507,15 @@ fn a_login_completes_once_the_page_logic_sees_the_session() {
         route: ProviderId::XiaohongshuBrowser,
         profile: "local",
         language: "zh-CN",
-        entry_url: Box::leak(pages.url("/login").into_boxed_str()),
-        capture: local,
-        logged_in: |exchanges| {
-            exchanges.iter().any(|exchange| {
-                exchange.url.path() == "/api/me"
-                    && exchange.body == ResponseBody::Received(r#"{"user":"local"}"#.into())
-            })
+        page: LoginPage {
+            entry_url: Box::leak(pages.url("/login").into_boxed_str()),
+            capture: local,
+            logged_in: |exchanges| {
+                exchanges.iter().any(|exchange| {
+                    exchange.url.path() == "/api/me"
+                        && exchange.body == ResponseBody::Received(r#"{"user":"local"}"#.into())
+                })
+            },
         },
     };
 

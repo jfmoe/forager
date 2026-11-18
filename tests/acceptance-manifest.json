@@ -138,22 +138,22 @@
       "id": "F20",
       "provider": "xiaohongshu_browser",
       "seam": "platform:xiaohongshu:search",
-      "test": "tests/xiaohongshu_search.rs::search_reads_the_pages_after_the_last_filter_click_into_note_items",
-      "note": "A fake opencli executable answering live-shaped page facts proves the transport, the page-fact classification, the condition checks, and the decoding; the JavaScript adapter is covered only by the live smoke C27."
+      "test": "src/capabilities/providers/xiaohongshu_browser_search_tests.rs::the_pages_after_the_last_filter_click_decode_into_note_items",
+      "note": "Live-shaped search observations, judged without a browser, prove the page-fact classification, the condition checks, and the decoding; tests/xiaohongshu_search.rs proves the preflight and the headless launch against a stand-in browser, and the page logic is covered only by the live smoke C27."
     },
     {
       "id": "F21",
       "provider": "xiaohongshu_browser",
       "seam": "platform:xiaohongshu:fetch",
-      "test": "tests/xiaohongshu_fetch.rs::full_text_writes_the_native_note_body_without_any_web_fetch_provider",
-      "note": "A fake opencli executable answering live-shaped note page facts proves the transport, the identity check, the metadata decoding, and the native full-text delivery; the JavaScript adapter is covered only by the live smoke C28."
+      "test": "src/capabilities/providers/xiaohongshu_browser_note_tests.rs::metadata_reads_the_note_page_into_the_note_fields",
+      "note": "Live-shaped note observations, judged without a browser, prove the identity check, the metadata decoding, and the native full text; tests/xiaohongshu_fetch.rs proves the access token rules against a stand-in browser, and the page logic is covered only by the live smoke C28."
     },
     {
       "id": "F22",
       "provider": "xiaohongshu_browser",
       "seam": "platform:xiaohongshu:comments",
-      "test": "tests/xiaohongshu_comments.rs::comments_follow_the_cursor_chain_and_expand_the_first_selected_replies",
-      "note": "comments is a single-route platform operation outside the platform catalog; the platform checklist matches this entry against the provider factory's comments routes. A fake opencli executable answering live-shaped comment responses proves the transport, the order and ownership checks, and the decoding; the JavaScript adapter is covered only by the live smoke C29."
+      "test": "src/capabilities/providers/xiaohongshu_browser_comments_tests.rs::comments_follow_the_cursor_chain_and_expand_the_first_selected_replies",
+      "note": "comments is a single-route platform operation outside the platform catalog; the platform checklist matches this entry against the provider factory's comments routes. Live-shaped comment observations, judged without a browser, prove the order and ownership checks and the decoding; tests/xiaohongshu_comments.rs proves the access token rules against a stand-in browser, and the page logic is covered only by the live smoke C29."
     },
     {
       "id": "F23",

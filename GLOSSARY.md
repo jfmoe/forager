@@ -101,12 +101,12 @@ _Avoid_: platform provider、custom platform
 _Avoid_: platform backend、platform provider list
 
 **Route Transport**:
-Platform Route 到达外部内容源的方式，在供应方注册信息中声明：HTTP（配置 `url`；需要凭据的 HTTP route 另有 `keys`），或本机 OpenCLI 命令（配置 `command`，这类 route 称为 process route）。配置检查、doctor 与接入清单按传输类型判断，不按 route id 判断。process route 只能由用户在平台 order 中手动启用（ADR 0020）。
-_Avoid_: route kind、backend type
+Platform Route 到达外部内容源的方式，在供应方注册信息中声明：HTTP（配置 `url`；需要凭据的 HTTP route 另有 `keys`），或 forager 的浏览器传输（这类 route 称为 browser route，配置只有 `timeout`；注册信息同时声明它使用哪个平台的 Browser Profile、浏览器语言，以及该 profile 是否需要登录）。配置检查、飞行前检查、doctor 与接入清单按传输类型判断，不按 route id 判断。browser route 只能由用户在平台 order 中手动启用（ADR 0020）。
+_Avoid_: route kind、backend type、process route
 
-**OpenCLI Adapter**:
-forager 自有、安装到本机 OpenCLI 的站点命令集合，例如小红书的 `search`、`note`、`comments` 与 `contract`。每个命令只读取页面或站点自身请求的事实，输出带契约版本的统一外壳（`contract`、`status`、`data`）；校验与归一化由 route adapter 完成。只有 adapter 核实了站点自己的无结果答复时，`status` 才是 `no_results`。
-_Avoid_: OpenCLI plugin、browser script、built-in OpenCLI site adapter
+**Page Logic**:
+browser route 自有的站点知识：在一条浏览器命令中打开哪些页面、以原生输入做哪些操作、等待并保留哪些请求，产出观察结果（页面事实、抓到的请求与响应、未能完成的原因）。把观察结果判定为结果或失败的是不需要浏览器的纯函数，同样归该 route 所有。浏览器传输本身不含页面逻辑。
+_Avoid_: adapter、browser script、scraper
 
 **Managed Browser**:
 forager 下载、固定版本并校验 SHA256 的浏览器（fingerprint-chromium），由 `forager browser install` 安装到 forager 的缓存目录，安装位置带版本号；运行时只认固定版本。配置 `browser.path` 时由它指定的本地浏览器替代。

@@ -1,9 +1,13 @@
 //! Comments observations shaped like the live comment responses of 2026-10-09 and 2026-11-18,
 //! judged into comments or failures without a browser.
 
+use reqwest::Url;
 use serde_json::{Value, json};
 
-use super::{CommentsData, read_comments, without_token};
+use super::{
+    CommentsData, Exchange, RequestMethod, ResponseBody, captured_comments, read_comments,
+    without_token,
+};
 use crate::redact::CREDENTIAL_MASK;
 use crate::types::{AccessToken, AttemptErrorKind, XiaohongshuCommentsRequest, XiaohongshuRef};
 
@@ -285,7 +289,7 @@ fn a_reply_expansion_the_page_logic_could_not_make_is_a_failure_with_its_reason(
         [
             Err((
                 AttemptErrorKind::Runtime,
-                "the forager-xhs adapter could not expand the replies of a comment (no_expand_button for comment 6a9eda8f0000000014000001)".to_owned()
+                "the Xiaohongshu page logic could not expand the replies of a comment (no_expand_button for comment 6a9eda8f0000000014000001)".to_owned()
             )),
             Err((
                 AttemptErrorKind::Timeout,
@@ -313,5 +317,65 @@ fn a_failure_that_quotes_the_access_token_masks_it() {
     assert!(
         !message.contains(TOKEN_BODY) && message.contains(CREDENTIAL_MASK),
         "{message}"
+    );
+}
+
+fn exchange(url: &str, body: &Value) -> Exchange {
+    Exchange {
+        method: RequestMethod::Get,
+        url: Url::parse(url).expect("API URL"),
+        status: Some(200),
+        request_body: None,
+        body: ResponseBody::Received(body.to_string()),
+    }
+}
+
+#[test]
+fn captured_comment_exchanges_are_read_by_their_query_parameters() {
+    let [first, _] = two_pages();
+    let api = "https://edith.xiaohongshu.com/api/sns/web/v2/comment";
+    let exchanges = [
+        exchange(
+            &format!(
+                "{api}/page?note_id={NOTE_ID}&cursor=&top_comment_id=&image_formats=jpg,webp,avif&xsec_token={TOKEN_BODY}%3D"
+            ),
+            &first["body"],
+        ),
+        exchange(
+            "https://edith.xiaohongshu.com/api/sns/web/v1/feed",
+            &json!({"code": 0, "success": true, "data": {}}),
+        ),
+        exchange(
+            &format!(
+                "{api}/sub/page?note_id={NOTE_ID}&root_comment_id={}&num=10&cursor={}&image_formats=jpg,webp,avif&top_comment_id=&xsec_token={TOKEN_BODY}%3D",
+                id(1),
+                id(101)
+            ),
+            &sub_page(1, &id(101), &[reply(102, 1)], false)["body"],
+        ),
+    ];
+    let observed = CommentsData {
+        page: serde_json::from_value(note_page()).expect("page facts"),
+        responses: captured_comments(&exchanges),
+        ..CommentsData::default()
+    };
+
+    let (comments, has_more) = read_comments(&observed, &request(10, 1)).expect("comments");
+
+    assert_eq!(
+        (
+            has_more,
+            comments.len(),
+            comments[0]
+                .replies
+                .iter()
+                .map(|reply| reply.id.as_str())
+                .collect::<Vec<_>>(),
+        ),
+        (
+            true,
+            10,
+            vec!["6a9eda8f0000000014000101", "6a9eda8f0000000014000102"],
+        )
     );
 }

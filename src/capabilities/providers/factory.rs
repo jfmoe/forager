@@ -5,14 +5,14 @@ use super::{
     ArxivApi, DocsSearch, GeminiApi, HnApi, KeyAccount, KeyQuota, MainSearch, PlatformFetch,
     PlatformSearch, PolymarketApi, ProviderId, RedditWeb, Serpapi, SsrnCrossref,
     SupplementalSearch, WebFetch, WebSearch, XiaohongshuBrowser, YoutubeApi, YoutubeWeb, arxiv,
-    hn_api, opencli, polymarket_api, reddit_web, serpapi, ssrn_crossref, web_fetch, xai,
+    browser, hn_api, polymarket_api, reddit_web, serpapi, ssrn_crossref, web_fetch, xai,
     xiaohongshu_browser, youtube_api, youtube_web,
 };
-use crate::catalog::{ProviderTransport, WEB_FETCH, WEB_SEARCH, registration};
+use crate::catalog::{ProviderTransport, WEB_FETCH, WEB_SEARCH, registration, registrations};
 use crate::config::{
-    DocsSearchProviderConfig, HnRouteRuntimeConfig, HttpRouteRuntimeConfig,
-    KeyedHttpRouteRuntimeConfig, MainSearchProviderConfig, ModelRouteRuntimeConfig,
-    PlatformRouteConfig, PolymarketRouteRuntimeConfig, ProcessRouteRuntimeConfig,
+    BrowserRouteRuntimeConfig, DocsSearchProviderConfig, HnRouteRuntimeConfig,
+    HttpRouteRuntimeConfig, KeyedHttpRouteRuntimeConfig, MainSearchProviderConfig,
+    ModelRouteRuntimeConfig, PlatformRouteConfig, PolymarketRouteRuntimeConfig,
     RedditRouteRuntimeConfig, WebFetchProviderConfig,
 };
 use crate::net::RetryPolicy;
@@ -547,7 +547,7 @@ fn build_ssrn_crossref(
 }
 
 fn build_xiaohongshu_browser(
-    config: ProcessRouteRuntimeConfig,
+    config: BrowserRouteRuntimeConfig,
     deadline: Deadline,
 ) -> XiaohongshuBrowser {
     XiaohongshuBrowser::new(
@@ -700,20 +700,35 @@ pub(crate) fn polymarket_history_support(id: ProviderId) -> Option<Result<(), St
     }
 }
 
-/// Returns the login page logic of a platform whose browser route needs a logged-in Browser
-/// Profile, or `None` for a platform without one.
+/// Returns the login into `platform`'s Browser Profile: the platform's browser route whose
+/// environment declares that it needs a login, with that route's login page logic. `None` for a
+/// platform without one.
 pub(crate) fn browser_login(platform: Platform) -> Option<BrowserLogin> {
-    match platform {
-        Platform::Xiaohongshu => Some(xiaohongshu_browser::LOGIN),
-        _ => None,
-    }
+    registrations().iter().find_map(|registration| {
+        let ProviderTransport::Browser(environment) = registration.transport else {
+            return None;
+        };
+        if environment.profile != platform || !environment.requires_login {
+            return None;
+        }
+        let page = match registration.id {
+            ProviderId::XiaohongshuBrowser => xiaohongshu_browser::LOGIN_PAGE,
+            _ => return None,
+        };
+        Some(BrowserLogin {
+            route: registration.id,
+            profile: environment.profile.as_str(),
+            language: environment.language,
+            page,
+        })
+    })
 }
 
 /// Returns whether this host can run the route's transport at all.
 fn transport_support(id: ProviderId) -> Result<(), String> {
     match registration(id).transport {
         ProviderTransport::Http => Ok(()),
-        ProviderTransport::OpenCli(_) => opencli::host_support()
+        ProviderTransport::Browser(_) => browser::host_support()
             .map_err(|reason| format!("{} cannot run here: {reason}", id.name())),
     }
 }

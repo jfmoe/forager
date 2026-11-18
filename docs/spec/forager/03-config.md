@@ -76,9 +76,8 @@ timeout = 30
 url = "https://api.crossref.org"
 timeout = 30
 
-[providers.xiaohongshu_browser]  # process route：没有 url 与 keys；只选择 OpenCLI 可执行文件
-command = "opencli"          # 不能为空
-timeout = 120                # 一次 OpenCLI 命令的 attempt 超时
+[providers.xiaohongshu_browser]  # 浏览器 route：没有 url 与 keys；启动的浏览器由 [browser] 节选择
+timeout = 120                # 一次浏览器命令的 attempt 超时
 
 [providers.hn_api]           # 不需要凭据，没有 keys；一条 route 访问两个端点，共用访问策略（ADR 0027）
 url = "https://hn.algolia.com/api/v1"                 # Algolia HN Search API
@@ -166,7 +165,7 @@ path = ""                    # 空串＝使用 Managed Browser（`forager browse
 
 ### 凭据形状
 
-唯一形状：每个需要凭据的 provider 节一个 `keys` **真数组**（单凭据＝单元素数组）；注册信息声明不需要凭据的 provider（`arxiv_api`、`ssrn_crossref`、`xiaohongshu_browser`、`youtube_web`）的节没有 `keys`：HTTP route 只有 `url` 与 `timeout`，process route（`xiaohongshu_browser`）只有 `command` 与 `timeout`，写入 `keys` 为未知键（文件层退 3，`config set` 退 2），该 provider 恒为已配置。`*_API_KEY`/`*_API_KEYS` 双形态与「KEYS 覆盖 KEY」优先级消灭。`classifier.keys` 沿用凭据池全套语义（去空去重、轮询、配额/限流失败同请求内换用）。例外：`providers.youtube_api.keys` 最多一个元素（Developer Policies 要求一个客户端只用一个项目、不得规避配额，见第 7 章「YouTube」），多于一个时文件层退 3、`config set` 退 2。
+唯一形状：每个需要凭据的 provider 节一个 `keys` **真数组**（单凭据＝单元素数组）；注册信息声明不需要凭据的 provider（`arxiv_api`、`ssrn_crossref`、`xiaohongshu_browser`、`youtube_web`）的节没有 `keys`：HTTP route 只有 `url` 与 `timeout`，浏览器 route（`xiaohongshu_browser`）只有 `timeout`，写入 `keys` 为未知键（文件层退 3，`config set` 退 2），该 provider 恒为已配置。`*_API_KEY`/`*_API_KEYS` 双形态与「KEYS 覆盖 KEY」优先级消灭。`classifier.keys` 沿用凭据池全套语义（去空去重、轮询、配额/限流失败同请求内换用）。例外：`providers.youtube_api.keys` 最多一个元素（Developer Policies 要求一个客户端只用一个项目、不得规避配额，见第 7 章「YouTube」），多于一个时文件层退 3、`config set` 退 2。
 
 ### 链序权威
 
@@ -180,7 +179,7 @@ path = ""                    # 空串＝使用 Managed Browser（`forager browse
 
 ### 值域与交叉约束（进 schema 与验收）
 
-`search.backends` 非空、去重、限 `{xai, openai}`；全部 backend 无凭据＝退 3；`providers.xai.tools` 限 `{web_search, x_search}`；`providers.openai.model` 非空，openai 没有 `tools` 与 `timeout` 键，attempt 与 xai 一样只受命令 deadline 与共享的读超时约束（ADR 0007）；所有 `timeout > 0`；process 供应方的 `command` 去掉空白后不能为空；`retry.max_attempts >= 1`、`multiplier > 0`、`max_wait >= 0`；`journal.retention_days >= 0` 且 0＝无限期。`search.validation` 已从 schema 删除；旧文件键或 `FORAGER_SEARCH__VALIDATION` 都按未知输入退出 3。文件层严格 schema：未知键＝退 3、报错点名坏键。
+`search.backends` 非空、去重、限 `{xai, openai}`；全部 backend 无凭据＝退 3；`providers.xai.tools` 限 `{web_search, x_search}`；`providers.openai.model` 非空，openai 没有 `tools` 与 `timeout` 键，attempt 与 xai 一样只受命令 deadline 与共享的读超时约束（ADR 0007）；所有 `timeout > 0`；`retry.max_attempts >= 1`、`multiplier > 0`、`max_wait >= 0`；`journal.retention_days >= 0` 且 0＝无限期。`search.validation` 已从 schema 删除；旧文件键或 `FORAGER_SEARCH__VALIDATION` 都按未知输入退出 3。文件层严格 schema：未知键＝退 3、报错点名坏键。
 
 ### 浏览器
 

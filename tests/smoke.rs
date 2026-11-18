@@ -625,336 +625,49 @@ fn live_smoke_runs_the_x_cases_through_the_xai_route_only_when_the_order_lists_i
 #[cfg(unix)]
 #[test]
 fn live_smoke_runs_the_xiaohongshu_search_once_and_only_when_the_order_lists_the_route() {
-    use support::opencli::FakeOpenCli;
+    use support::browser::{StandIn, mark_logged_in};
 
     // A failing command would be retried for any other case.
-    let fake = FakeOpenCli::failing("COMMAND_EXEC", "boom", 1);
+    let stand_in = StandIn::failing("no CDP here");
     let run = |order: &str| {
         let environment = SmokeEnvironment::new(|journal_dir| {
             format!(
                 "{}[journal]\ndir = {journal_dir:?}\n[platforms.arxiv]\norder = []\n[platforms.hn]\norder = []\n[platforms.polymarket]\norder = []\n[platforms.ssrn]\norder = []\n",
-                fake.config(order)
+                stand_in.xiaohongshu_config(order)
             )
         });
+        mark_logged_in(&environment.state_dir, "xiaohongshu");
         let output = environment.run(&["smoke", "--live", "--timeout", "60"]);
         let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live smoke JSON");
-        let c27 = case(&payload, "C27");
-        (c27["status"].clone(), c27["attempts"].clone())
+        ["C27", "C28", "C29"].map(|id| {
+            let case = case(&payload, id);
+            (case["status"].clone(), case["attempts"].clone())
+        })
     };
 
     let disabled = run("[]");
-    let calls_while_disabled = fake.calls().len();
+    let launches_while_disabled = stand_in.launches().len();
     let enabled = run("[\"xiaohongshu_browser\"]");
-    let calls = fake.calls();
 
+    let unconfigured = (json!("unconfigured"), json!(0));
+    let not_started = (json!("skipped"), json!(0));
     assert_eq!(
-        (disabled, calls_while_disabled, enabled, calls.len()),
         (
-            (json!("unconfigured"), json!(0)),
+            disabled,
+            launches_while_disabled,
+            enabled,
+            stand_in.launches().len()
+        ),
+        (
+            [unconfigured.clone(), unconfigured.clone(), unconfigured],
             0,
-            (json!("failed"), json!(1)),
+            [
+                (json!("failed"), json!(1)),
+                not_started.clone(),
+                not_started
+            ],
             1
         )
-    );
-    assert_eq!(
-        calls[0][..12],
-        [
-            "forager-xhs",
-            "search",
-            "--query",
-            "咖啡",
-            "--sort",
-            "latest",
-            "--note-type",
-            "all",
-            "--publish-time",
-            "week",
-            "--pages",
-            "2"
-        ]
-    );
-}
-
-#[cfg(unix)]
-const XHS_NOTE_ID: &str = "66f0a1b2c3d4e5f607100001";
-#[cfg(unix)]
-const XHS_TOKEN: &str = "ABsmokeToken1=";
-#[cfg(unix)]
-const XHS_COMMENTED_NOTE_ID: &str = "66f0a1b2c3d4e5f607100002";
-#[cfg(unix)]
-const XHS_COMMENTED_TOKEN: &str = "ABsmokeToken2=";
-
-#[cfg(unix)]
-fn xhs_page(url: &str) -> Value {
-    json!({"url": url, "title": "小红书", "guest": false, "error_code": null, "notice": null, "blocked_status": null})
-}
-
-#[cfg(unix)]
-fn xhs_note(id: &str, token: &str, comments: &str) -> Value {
-    json!({
-        "id": id,
-        "model_type": "note",
-        "xsec_token": token,
-        "note_card": {"type": "normal", "display_title": "", "user": {"user_id": "5ff0e6410000000001008400", "nickname": "豆子"}, "interact_info": {"comment_count": comments}, "corner_tag_info": [{"type": "publish_time", "text": "3天前"}]}
-    })
-}
-
-/// The C27 search as the adapter reports it after both filter clicks: on one page, a note with
-/// 3 comments, then one with 1.2万, then one with 999.
-#[cfg(unix)]
-fn xhs_search(page: &Value) -> Value {
-    json!({
-        "page": page,
-        "filter_clicks": 2,
-        "timed_out": false,
-        "body_missing": false,
-        "responses": [{
-            "click": 2,
-            "request": {"keyword": "咖啡", "page": 1, "search_id": "2fhpxs5cks5vx6nvw1ar4@2fhpxsfv1qadn0lsg9txa", "filters": [
-                {"tags": ["time_descending"], "type": "sort_type"},
-                {"tags": ["不限"], "type": "filter_note_type"},
-                {"tags": ["一周内"], "type": "filter_note_time"},
-                {"tags": ["不限"], "type": "filter_note_range"},
-                {"tags": ["不限"], "type": "filter_pos_distance"}
-            ]},
-            "body": {"code": 0, "success": true, "data": {"has_more": false, "items": [
-                xhs_note(XHS_NOTE_ID, XHS_TOKEN, "3"),
-                xhs_note(XHS_COMMENTED_NOTE_ID, XHS_COMMENTED_TOKEN, "1.2万"),
-                xhs_note("66f0a1b2c3d4e5f607100003", "ABsmokeToken3=", "999")
-            ]}}
-        }]
-    })
-}
-
-/// A top-level comment of the most-commented note; with `inline`, it carries that reply and has
-/// more.
-#[cfg(unix)]
-fn xhs_comment(serial: u32, inline: Option<u32>) -> Value {
-    let id = |serial: u32| format!("6a9eda8f00000000140{serial:05}");
-    let replies = inline.map_or_else(Vec::new, |reply| {
-        vec![json!({"id": id(reply), "content": "回复", "target_comment": {"id": id(serial)}})]
-    });
-    json!({
-        "id": id(serial),
-        "content": "评论",
-        "sub_comment_cursor": inline.map(id),
-        "sub_comment_has_more": inline.is_some(),
-        "sub_comments": replies
-    })
-}
-
-/// The C29 comments as the adapter reports them: `count` comments on one or two pages, and the
-/// first page of replies of the first comment when it has more.
-#[cfg(unix)]
-fn xhs_comments(count: u32, expandable: bool) -> Value {
-    let params = |cursor: &str| json!({"note_id": XHS_COMMENTED_NOTE_ID, "cursor": cursor});
-    let comments = (1..=count)
-        .map(|serial| xhs_comment(serial, (expandable && serial == 1).then_some(101)))
-        .collect::<Vec<_>>();
-    let mut responses = comments
-        .chunks(10)
-        .enumerate()
-        .map(|(index, page)| {
-            json!({
-                "kind": "page",
-                "params": params(if index == 0 { "" } else { "c1" }),
-                "body": {"data": {"comments": page, "cursor": "c1", "has_more": index == 0 && count > 10}}
-            })
-        })
-        .collect::<Vec<_>>();
-    if expandable {
-        responses.push(json!({
-            "kind": "sub",
-            "params": {"note_id": XHS_COMMENTED_NOTE_ID, "cursor": "6a9eda8f0000000014000101", "root_comment_id": "6a9eda8f0000000014000001"},
-            "body": {"data": {"comments": [xhs_comment(102, None)], "cursor": "", "has_more": false}}
-        }));
-    }
-    json!({
-        "page": xhs_page(&format!("https://www.xiaohongshu.com/explore/{XHS_COMMENTED_NOTE_ID}?xsec_source=pc_search")),
-        "timed_out": false,
-        "body_missing": false,
-        "responses": responses
-    })
-}
-
-#[cfg(unix)]
-fn xhs_smoke(fake: &support::opencli::FakeOpenCli) -> Value {
-    let environment = SmokeEnvironment::new(|journal_dir| {
-        format!(
-            "{}[journal]\ndir = {:?}\n[platforms.arxiv]\norder = []\n[platforms.hn]\norder = []\n[platforms.polymarket]\norder = []\n[platforms.ssrn]\norder = []\n",
-            fake.config("[\"xiaohongshu_browser\"]"),
-            journal_dir.display().to_string()
-        )
-    });
-    let output = environment.run(&["smoke", "--live", "--timeout", "60"]);
-    serde_json::from_slice(&output.stdout).expect("parse live smoke JSON")
-}
-
-#[cfg(unix)]
-fn status_and_attempts(payload: &Value, id: &str) -> (Value, Value) {
-    let case = case(payload, id);
-    (case["status"].clone(), case["attempts"].clone())
-}
-
-#[cfg(unix)]
-#[test]
-fn live_smoke_fetches_the_first_xiaohongshu_search_result_and_reads_the_comments_of_the_most_commented()
- {
-    use support::opencli::{FakeOpenCli, XHS_CONTRACT};
-
-    let fake = FakeOpenCli::contract_by_command(
-        XHS_CONTRACT,
-        &[
-            (
-                "search",
-                xhs_search(&xhs_page(
-                    "https://www.xiaohongshu.com/search_result?keyword=%E5%92%96%E5%95%A1",
-                )),
-            ),
-            (
-                "note",
-                json!({
-                    "page": xhs_page(&format!("https://www.xiaohongshu.com/explore/{XHS_NOTE_ID}?xsec_source=pc_search")),
-                    "note": {"noteId": XHS_NOTE_ID, "type": "normal", "title": "", "desc": "第一次手冲", "imageList": []},
-                    "timed_out": false
-                }),
-            ),
-            ("comments", xhs_comments(11, true)),
-        ],
-    );
-
-    let payload = xhs_smoke(&fake);
-    let calls = fake.calls();
-
-    assert_eq!(
-        (
-            status_and_attempts(&payload, "C27"),
-            status_and_attempts(&payload, "C28"),
-            status_and_attempts(&payload, "C29"),
-            calls.len(),
-        ),
-        (
-            (json!("passed"), json!(1)),
-            (json!("passed"), json!(1)),
-            (json!("passed"), json!(1)),
-            3
-        ),
-        "{payload}"
-    );
-    assert_eq!(
-        calls[2][..10],
-        [
-            "forager-xhs",
-            "comments",
-            "--id",
-            XHS_COMMENTED_NOTE_ID,
-            "--xsec-token",
-            XHS_COMMENTED_TOKEN,
-            "--limit",
-            "15",
-            "--expand",
-            "1"
-        ]
-    );
-    assert_eq!(
-        calls[1][..6],
-        [
-            "forager-xhs",
-            "note",
-            "--id",
-            XHS_NOTE_ID,
-            "--xsec-token",
-            XHS_TOKEN
-        ]
-    );
-}
-
-#[cfg(unix)]
-#[test]
-fn a_xiaohongshu_login_wall_or_block_stops_every_later_xiaohongshu_case() {
-    use support::opencli::{FakeOpenCli, XHS_CONTRACT};
-
-    let mut logged_out =
-        xhs_page("https://www.xiaohongshu.com/search_result?keyword=%E5%92%96%E5%95%A1");
-    logged_out["guest"] = json!(true);
-    let mut blocked = xhs_page("https://www.xiaohongshu.com/website-login/error?error_code=300017");
-    blocked["error_code"] = json!("300017");
-    blocked["notice"] = json!("安全限制");
-
-    let outcomes = [logged_out, blocked].map(|page| {
-        let fake = FakeOpenCli::contract_envelope(XHS_CONTRACT, "ok", &xhs_search(&page));
-        let payload = xhs_smoke(&fake);
-        (
-            status_and_attempts(&payload, "C27"),
-            ["C28", "C29"].map(|id| {
-                let (status, attempts) = status_and_attempts(&payload, id);
-                (status, attempts, case(&payload, id)["message"].clone())
-            }),
-            fake.calls().len(),
-            payload["ok"].clone(),
-        )
-    });
-
-    let not_started = (
-        json!("skipped"),
-        json!(0),
-        json!(
-            "not started: an earlier Xiaohongshu case met a login wall or a block, so this run stops all Xiaohongshu access"
-        ),
-    );
-    let stopped = (
-        (json!("failed"), json!(1)),
-        [not_started.clone(), not_started],
-        1,
-        json!(false),
-    );
-    assert_eq!(outcomes, [stopped.clone(), stopped]);
-}
-
-#[cfg(unix)]
-#[test]
-fn live_smoke_leaves_the_comments_case_unverified_without_a_second_page_or_an_expansion() {
-    use support::opencli::{FakeOpenCli, XHS_CONTRACT};
-
-    let outcomes = [xhs_comments(10, true), xhs_comments(11, false)].map(|comments| {
-        let fake = FakeOpenCli::contract_by_command(
-            XHS_CONTRACT,
-            &[
-                (
-                    "search",
-                    xhs_search(&xhs_page(
-                        "https://www.xiaohongshu.com/search_result?keyword=%E5%92%96%E5%95%A1",
-                    )),
-                ),
-                ("comments", comments),
-            ],
-        );
-        let payload = xhs_smoke(&fake);
-        (
-            status_and_attempts(&payload, "C29"),
-            case(&payload, "C29")["message"].clone(),
-            payload["ok"].clone(),
-        )
-    });
-
-    assert_eq!(
-        outcomes,
-        [
-            (
-                (json!("skipped"), json!(1)),
-                json!(
-                    "not verified: the most-commented note of the Xiaohongshu search has 10 or fewer comments, so the second comment page was not read"
-                ),
-                json!(false)
-            ),
-            (
-                (json!("skipped"), json!(1)),
-                json!(
-                    "not verified: no returned comment of the most-commented Xiaohongshu note had more replies to expand"
-                ),
-                json!(false)
-            ),
-        ]
     );
 }
 

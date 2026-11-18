@@ -21,7 +21,7 @@ pub(crate) struct Providers {
     pub(crate) arxiv_api: AnonymousEndpoint<ArxivApiEndpoint>,
     pub(crate) ssrn_crossref: AnonymousEndpoint<SsrnCrossrefEndpoint>,
     pub(crate) serpapi: Endpoint<SerpapiEndpoint>,
-    pub(crate) xiaohongshu_browser: ProcessRoute,
+    pub(crate) xiaohongshu_browser: BrowserRoute,
     pub(crate) hn_api: HnApi,
     pub(crate) youtube_api: Endpoint<YoutubeApiEndpoint>,
     pub(crate) youtube_web: AnonymousEndpoint<YoutubeWebEndpoint>,
@@ -115,22 +115,20 @@ impl<D: EndpointDefaults> Default for AnonymousEndpoint<D> {
     }
 }
 
-/// The section of a route that runs a local OpenCLI command instead of sending HTTP requests.
-/// The configuration selects only the executable; the route owns every argument (ADR 0019).
+/// The section of a browser route, which reaches its site through the browser that `[browser]`
+/// configures; the route owns every page it opens and every launch argument.
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
-pub(crate) struct ProcessRoute {
-    pub(crate) command: String,
+pub(crate) struct BrowserRoute {
     #[serde(deserialize_with = "deserialize_integer")]
     pub(crate) timeout: u64,
 }
 
-impl Default for ProcessRoute {
+impl Default for BrowserRoute {
     fn default() -> Self {
         Self {
-            command: "opencli".into(),
-            // One xiaohongshu_browser command opens the results page in about 20 seconds and
-            // then reads up to four more pages.
+            // One xiaohongshu_browser command opens the site, searches, and then reads up to
+            // four more pages.
             timeout: 120,
         }
     }

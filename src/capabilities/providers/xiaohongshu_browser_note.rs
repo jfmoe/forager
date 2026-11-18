@@ -1,20 +1,24 @@
-//! Xiaohongshu fetch: one note page, its identity check, its metadata, and its native full text.
+//! Xiaohongshu fetch: opening one note page with its access token, then judging what it
+//! showed: its identity check, its metadata, and its native full text.
 
 use std::collections::BTreeMap;
+use std::time::Duration;
 
+use reqwest::Url;
 use serde::Deserialize;
 
+use super::page::{Reading, page_script, site_capture};
 use super::{
     PageFacts, ROUTE, XiaohongshuBrowser, beijing_time, classify_blocks, count_text, is_note_page,
     note_unavailable, runtime, unexpected_page, unfinished_read, without_token,
 };
 use crate::catalog::PlatformOperation;
 use crate::net::AttemptFailure;
+use crate::providers::browser::{CaptureLevel, Page};
 use crate::providers::execution::execute_anonymous;
-use crate::providers::opencli::OpenCliCommand;
 use crate::providers::shared::{other_platform_message, parameter_error};
 use crate::types::{
-    AccessToken, AttemptErrorKind, ContentDepth, Deadline, FullTextSource, PlatformFetchOutcome,
+    AccessToken, AttemptErrorKind, ContentDepth, FullTextSource, PlatformFetchOutcome,
     PlatformFetchRequest, PlatformItem, PlatformItemData, PlatformRef, ProviderError,
     XiaohongshuImage, XiaohongshuNoteData, XiaohongshuRef, XiaohongshuVideo,
 };
@@ -38,8 +42,10 @@ pub(crate) fn fetch_support(request: &PlatformFetchRequest) -> Result<(), String
     }
 }
 
+const POLL: Duration = Duration::from_millis(500);
+
 impl XiaohongshuBrowser {
-    /// Opens the note page with its access token in one OpenCLI command and reads the note the
+    /// Opens the note page with its access token in one browser command and reads the note the
     /// page rendered. At full-text depth the same attempt builds the Markdown body, so the body
     /// needs no Web Fetch provider.
     pub(crate) async fn fetch(
@@ -53,19 +59,19 @@ impl XiaohongshuBrowser {
             unreachable!("support checked")
         };
         let full_text = request.depth == ContentDepth::FullText;
-        let command = self.opencli.command(
-            "note",
-            vec![
-                ("id", requested.note_id().to_owned()),
-                ("xsec-token", token.as_str().to_owned()),
-            ],
-        );
-        let command = &command;
         let execution = execute_anonymous(
             self.settings(PlatformOperation::Fetch.as_str()),
             move |deadline| async move {
-                read_note(command, self, requested, token, full_text, deadline)
-                    .await
+                let read = async {
+                    let data = self
+                        .browser
+                        .read(capture, deadline, async |page| {
+                            observe_note(page, requested, token).await
+                        })
+                        .await?;
+                    note_outcome(&data, requested, token, full_text)
+                };
+                read.await
                     .map(|value| (None, value))
                     .map_err(|failure| without_token(failure, token))
             },
@@ -81,16 +87,81 @@ impl XiaohongshuBrowser {
     }
 }
 
-async fn read_note(
-    command: &OpenCliCommand<'_>,
-    route: &XiaohongshuBrowser,
+fn capture(url: &Url) -> CaptureLevel {
+    site_capture(url, &[])
+}
+
+// Reads the note the page rendered from its server-side state, keeping only the fields forager
+// decodes. The signed, expiring video stream URLs and the page's own access token never leave
+// the page.
+fn note_script(id: &str) -> String {
+    page_script(&format!(
+        r"
+    const id = {id};
+    const map = noteDetailMap();
+    const entry = map && map[id];
+    const raw = entry && entry.note;
+    if (!raw || typeof raw !== 'object' || !raw.noteId) return null;
+    const note = JSON.parse(JSON.stringify(raw));
+    let video = null;
+    if (note.video && typeof note.video === 'object') {{
+      const stream = {{}};
+      const source = (note.video.media && note.video.media.stream) || {{}};
+      for (const [encoding, renditions] of Object.entries(source)) {{
+        if (Array.isArray(renditions)) stream[encoding] = renditions.map((item) => pick(item, ['width', 'height']));
+      }}
+      video = {{ capa: pick(note.video.capa, ['duration']), media: {{ stream }} }};
+    }}
+    return {{
+      ...pick(note, ['noteId', 'title', 'desc', 'type', 'time', 'lastUpdateTime', 'ipLocation']),
+      tagList: (note.tagList || []).map((tag) => pick(tag, ['name'])),
+      imageList: (note.imageList || []).map((image) => pick(image, ['urlDefault', 'width', 'height'])),
+      interactInfo: pick(note.interactInfo, ['likedCount', 'collectedCount', 'commentCount', 'shareCount']),
+      user: pick(note.user, ['userId', 'nickname']),
+      video,
+    }};",
+        id = serde_json::Value::from(id),
+    ))
+}
+
+/// Drives one note read: opens the note page with its access token and polls until the page
+/// renders the note, the page facts end the read, or the read deadline passes.
+async fn observe_note(
+    page: &mut Page,
     requested: &XiaohongshuRef,
     token: &AccessToken,
-    full_text: bool,
-    deadline: Deadline,
-) -> Result<(PlatformItem, FullTextSource), AttemptFailure> {
-    let data: NoteData = route.opencli.read(command, deadline).await?;
-    note_outcome(&data, requested, token, full_text)
+) -> Result<NoteData, AttemptFailure> {
+    let script = note_script(requested.note_id());
+    let mut reading = Reading::new(page);
+    reading.navigate(&requested.access_url(token)).await?;
+    let mut note = None;
+    let mut timed_out = true;
+    while reading.page().reading() {
+        note = reading
+            .page()
+            .evaluate::<Option<NoteState>>(&script)
+            .await
+            .ok()
+            .flatten();
+        let ended = reading.poll().await?;
+        if note.is_some() || ended {
+            timed_out = false;
+            break;
+        }
+        reading.page().rest(POLL).await;
+    }
+    if timed_out {
+        reading.mark_timed_out();
+    }
+    if note.is_some() {
+        reading.clear_notice();
+    }
+    let observed = reading.finish()?;
+    Ok(NoteData {
+        page: observed.page,
+        note,
+        timed_out: observed.timed_out,
+    })
 }
 
 /// Judges one note page observation: classifies the page facts, checks that the page shows the
@@ -132,9 +203,10 @@ fn note_outcome(
     Ok((item, FullTextSource::Native(body)))
 }
 
-/// The facts the adapter reports for one note page.
-#[derive(Debug, Default, Deserialize)]
-#[serde(default)]
+/// What one note page read observed.
+#[derive(Debug, Default)]
+#[cfg_attr(test, derive(Deserialize))]
+#[cfg_attr(test, serde(default))]
 struct NoteData {
     page: PageFacts,
     /// `__INITIAL_STATE__.note.noteDetailMap[<id>].note`, when the page rendered it.

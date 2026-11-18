@@ -5,7 +5,6 @@ use serde_json::Value;
 use std::time::Duration;
 
 use support::doctor::{assert_deep_success, reachable_responses, shallow_config};
-use support::opencli::FakeOpenCli;
 use support::{Fixture, RunEnvironment, youtube_web};
 
 const EMPTY_ARXIV_FEED: &str = r#"<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns="http://www.w3.org/2005/Atom"><opensearch:totalResults>0</opensearch:totalResults></feed>"#;
@@ -144,34 +143,6 @@ fn route_status<'a>(payload: &'a Value, route: &str) -> &'a Value {
 }
 
 #[test]
-fn shallow_doctor_reports_an_outdated_adapter_with_install_steps() {
-    let fixture = Fixture::start_sequence(reachable_responses(10));
-    let fake = FakeOpenCli::contract_envelope("forager-xhs/0", "ok", &Value::Null);
-    let environment = RunEnvironment::new(&format!(
-        "{}\n{}",
-        shallow_config(&fixture.url),
-        fake.config("[\"xiaohongshu_browser\"]")
-    ));
-
-    let output = environment.run(&["doctor"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
-    let status = route_status(&payload, "xiaohongshu_browser");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["ok"],
-            &status["reachable"],
-            status["message"]
-                .as_str()
-                .is_some_and(|message| message.contains("install or update")),
-        ),
-        (Some(4), &Value::Bool(false), &Value::Bool(false), true)
-    );
-    assert_eq!(fixture.finish_all().len(), 10);
-}
-
-#[test]
 fn youtube_api_deep_doctor_runs_one_search_with_the_key_in_a_header() {
     let fixture = Fixture::start_sequence(vec![support::youtube::search_page(&[], None)]);
     let environment = RunEnvironment::new(&support::youtube::config(&fixture.url));
@@ -197,152 +168,6 @@ fn youtube_api_deep_doctor_runs_one_search_with_the_key_in_a_header() {
             false,
             false
         )
-    );
-}
-
-#[test]
-fn xiaohongshu_browser_deep_doctor_runs_one_first_page_search() {
-    let fake = FakeOpenCli::contract_envelope(
-        support::opencli::XHS_CONTRACT,
-        "ok",
-        &serde_json::json!({
-            "page": {
-                "url": "https://www.xiaohongshu.com/search_result?keyword=forager%20doctor&source=web_explore_feed",
-                "title": "forager doctor - 小红书搜索",
-                "guest": false
-            },
-            "filter_clicks": 0,
-            "responses": [{
-                "click": 0,
-                "request": {"keyword": "forager doctor", "page": 1, "search_id": "2fhpxs5cks5vx6nvw1ar4"},
-                "body": {"code": 0, "success": true, "data": {"has_more": true, "items": [{
-                    "id": "66f0a1b2c3d4e5f607100001",
-                    "model_type": "note",
-                    "xsec_token": "ABtoken1=",
-                    "note_card": {"type": "normal", "display_title": "Note"}
-                }]}}
-            }]
-        }),
-    );
-    let environment = RunEnvironment::new(&fake.config("[\"xiaohongshu_browser\"]"));
-
-    let output = environment.run(&["doctor", "--provider", "xiaohongshu_browser"]);
-
-    assert_deep_success(&output, "xiaohongshu_browser", &[("search", "process")]);
-    let calls = fake.calls();
-    assert_eq!(
-        calls[0][..12],
-        [
-            "forager-xhs",
-            "search",
-            "--query",
-            "forager doctor",
-            "--sort",
-            "comprehensive",
-            "--note-type",
-            "all",
-            "--publish-time",
-            "any",
-            "--pages",
-            "1"
-        ]
-    );
-}
-
-#[test]
-fn shallow_doctor_checks_the_enabled_xiaohongshu_adapter_contract() {
-    let fixture = Fixture::start_sequence(reachable_responses(10));
-    let fake = FakeOpenCli::contract_envelope(
-        support::opencli::XHS_CONTRACT,
-        "ok",
-        &serde_json::json!({"commands": ["contract", "search"]}),
-    );
-    let environment = RunEnvironment::new(&format!(
-        "{}\n{}",
-        shallow_config(&fixture.url),
-        fake.config("[\"xiaohongshu_browser\"]")
-    ));
-
-    let output = environment.run(&["doctor"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
-    let status = route_status(&payload, "xiaohongshu_browser").clone();
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &status["configured"],
-            &status["reachable"],
-            fake.calls()
-                .iter()
-                .map(|call| call[..2].to_vec())
-                .collect::<Vec<_>>(),
-        ),
-        (
-            Some(0),
-            &Value::Bool(true),
-            &Value::Bool(true),
-            vec![vec!["forager-xhs".to_owned(), "contract".to_owned()]],
-        ),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_eq!(fixture.finish_all().len(), 10);
-}
-
-#[test]
-fn shallow_doctor_skips_the_xiaohongshu_route_while_its_order_is_empty() {
-    let fixture = Fixture::start_sequence(reachable_responses(10));
-    let fake = FakeOpenCli::answering("", "", 1);
-    let environment = RunEnvironment::new(&format!(
-        "{}\n{}",
-        shallow_config(&fixture.url),
-        fake.config("[]")
-    ));
-
-    let output = environment.run(&["doctor"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["ok"],
-            route_status(&payload, "xiaohongshu_browser")["configured"].clone(),
-            fake.calls().len(),
-        ),
-        (Some(0), &Value::Bool(true), Value::Bool(false), 0),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_eq!(fixture.finish_all().len(), 10);
-}
-
-#[test]
-fn xiaohongshu_browser_deep_doctor_refuses_the_route_while_its_order_is_empty() {
-    let fake = FakeOpenCli::answering("", "", 1);
-    let environment = RunEnvironment::new(&fake.config("[]"));
-
-    let output = environment.run(&["doctor", "--provider", "xiaohongshu_browser"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["error_kind"],
-            &payload["message"],
-            fake.calls().len()
-        ),
-        (
-            Some(3),
-            &Value::String("config".into()),
-            &Value::String(
-                "no platform order lists `xiaohongshu_browser`; add it to the order to enable it"
-                    .into()
-            ),
-            0
-        ),
-        "stdout: {}\nstderr: {}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
     );
 }
 
@@ -472,4 +297,146 @@ fn polymarket_api_deep_doctor_checks_the_clob_and_the_data_api_after_its_search(
         [gamma.finish(), clob.finish(), data.finish()].map(|request| support::hn::path(&request));
 
     assert_eq!(paths, ["/public-search", "/time", "/v2/status"]);
+}
+
+/// The browser route against a shell stand-in for the browser, which speaks no CDP.
+#[cfg(unix)]
+mod xiaohongshu_browser {
+    use serde_json::{Value, json};
+
+    use super::route_status;
+    use crate::support::browser::{StandIn, mark_logged_in};
+    use crate::support::doctor::{reachable_responses, shallow_config};
+    use crate::support::{Fixture, RunEnvironment};
+
+    fn shallow_with_xiaohongshu(order: &str, logged_in: bool) -> (Option<i32>, Value, usize) {
+        let fixture = Fixture::start_sequence(reachable_responses(10));
+        let stand_in = StandIn::failing("must not start");
+        let environment = RunEnvironment::new(&format!(
+            "{}\n{}",
+            shallow_config(&fixture.url),
+            stand_in.xiaohongshu_config(order)
+        ));
+        if logged_in {
+            mark_logged_in(&environment.state_dir, "xiaohongshu");
+        }
+
+        let output = environment.run(&["doctor"]);
+        let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
+        assert_eq!(fixture.finish_all().len(), 10);
+        (
+            output.status.code(),
+            route_status(&payload, "xiaohongshu_browser").clone(),
+            stand_in.launches().len(),
+        )
+    }
+
+    #[test]
+    fn shallow_doctor_checks_the_xiaohongshu_route_with_its_preflight_alone() {
+        let enabled = "[\"xiaohongshu_browser\"]";
+
+        let [ready, not_logged_in, disabled] = [
+            shallow_with_xiaohongshu(enabled, true),
+            shallow_with_xiaohongshu(enabled, false),
+            shallow_with_xiaohongshu("[]", true),
+        ]
+        .map(|(code, status, launches)| {
+            (
+                code,
+                status["configured"].clone(),
+                status["reachable"].clone(),
+                status["message"].clone(),
+                launches,
+            )
+        });
+
+        assert_eq!(
+            [ready, not_logged_in, disabled],
+            [
+                (Some(0), json!(true), json!(true), Value::Null, 0),
+                (
+                    Some(4),
+                    json!(true),
+                    json!(false),
+                    json!(
+                        "the xiaohongshu Browser Profile has never been logged in; run `forager browser login xiaohongshu`"
+                    ),
+                    0
+                ),
+                (Some(0), json!(false), json!(false), Value::Null, 0),
+            ]
+        );
+    }
+
+    #[test]
+    fn xiaohongshu_browser_deep_doctor_runs_one_browser_search() {
+        let stand_in = StandIn::failing("no CDP here");
+        let environment =
+            RunEnvironment::new(&stand_in.xiaohongshu_config("[\"xiaohongshu_browser\"]"));
+        mark_logged_in(&environment.state_dir, "xiaohongshu");
+
+        let output = environment.run(&["doctor", "--provider", "xiaohongshu_browser"]);
+        let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
+        let launches = stand_in.launches();
+
+        assert_eq!(
+            (
+                output.status.code(),
+                payload["checks"].as_array().map(|checks| checks
+                    .iter()
+                    .map(|check| (check["name"].clone(), check["transport"].clone()))
+                    .collect::<Vec<_>>()),
+                launches.len(),
+                launches.concat().contains(&"--headless=new".to_owned()),
+            ),
+            (
+                Some(4),
+                Some(vec![(json!("search"), json!("browser"))]),
+                1,
+                true
+            ),
+            "{payload}"
+        );
+    }
+
+    #[test]
+    fn xiaohongshu_browser_deep_doctor_refuses_a_route_that_cannot_run() {
+        let stand_in = StandIn::failing("must not start");
+        let disabled = RunEnvironment::new(&stand_in.xiaohongshu_config("[]"));
+        let not_logged_in =
+            RunEnvironment::new(&stand_in.xiaohongshu_config("[\"xiaohongshu_browser\"]"));
+
+        let outcomes = [disabled, not_logged_in].map(|environment| {
+            let output = environment.run(&["doctor", "--provider", "xiaohongshu_browser"]);
+            let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
+            (
+                output.status.code(),
+                payload["error_kind"].clone(),
+                payload["message"].clone(),
+            )
+        });
+
+        assert_eq!(
+            (outcomes, stand_in.launches().len()),
+            (
+                [
+                    (
+                        Some(3),
+                        json!("config"),
+                        json!(
+                            "no platform order lists `xiaohongshu_browser`; add it to the order to enable it"
+                        )
+                    ),
+                    (
+                        Some(3),
+                        json!("config"),
+                        json!(
+                            "the xiaohongshu Browser Profile has never been logged in; run `forager browser login xiaohongshu`"
+                        )
+                    ),
+                ],
+                0
+            )
+        );
+    }
 }

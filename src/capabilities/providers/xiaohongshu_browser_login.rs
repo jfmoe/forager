@@ -5,28 +5,17 @@
 use reqwest::Url;
 use serde_json::Value;
 
-use super::{ROUTE, SITE_HOST};
-use crate::providers::browser::{
-    BrowserLogin, CaptureLevel, Exchange, RequestMethod, ResponseBody,
-};
-use crate::types::Platform;
+use super::{ACCOUNT_PATH, HOME_URL, on_site};
+use crate::providers::browser::{CaptureLevel, Exchange, LoginPage, RequestMethod, ResponseBody};
 
-const ACCOUNT_PATH: &str = "/api/sns/web/v2/user/me";
-
-pub(crate) const LOGIN: BrowserLogin = BrowserLogin {
-    route: ROUTE,
-    profile: Platform::Xiaohongshu.as_str(),
-    language: "zh-CN",
-    entry_url: "https://www.xiaohongshu.com/explore",
+pub(crate) const LOGIN_PAGE: LoginPage = LoginPage {
+    entry_url: HOME_URL,
     capture,
     logged_in,
 };
 
 fn capture(url: &Url) -> CaptureLevel {
-    let on_site = url
-        .host_str()
-        .is_some_and(|host| host == SITE_HOST || host.ends_with(".xiaohongshu.com"));
-    if on_site && url.path() == ACCOUNT_PATH {
+    if on_site(url) && url.path() == ACCOUNT_PATH {
         CaptureLevel::Body
     } else {
         CaptureLevel::Ignore

@@ -41,15 +41,6 @@ use crate::types::{AttemptErrorKind, Deadline};
 
 #[path = "browser_capture.rs"]
 mod capture;
-// Native input is the transport's interface for page logic that drives pages; its first caller
-// is the browser route of #270, and until then only the Unix real-browser tests use it.
-#[cfg_attr(
-    not(all(test, unix)),
-    expect(
-        dead_code,
-        reason = "the page logic of the first browser route calls it (#270)"
-    )
-)]
 #[path = "browser_input.rs"]
 mod input;
 #[cfg(all(test, unix))]
@@ -57,6 +48,7 @@ mod input;
 mod real_tests;
 
 pub(crate) use capture::{CaptureFilter, CaptureLevel, Exchange, RequestMethod, ResponseBody};
+pub(crate) use input::{InputError, InputFailure, Key};
 
 const CLEANUP_RESERVE: Duration = Duration::from_secs(5);
 const READ_RESERVE: Duration = Duration::from_secs(3);
@@ -91,7 +83,18 @@ pub(crate) struct BrowserSession<'a> {
 }
 
 /// Page logic that logs a user into a platform: where the login starts and how what the page
-/// captured shows that it succeeded. Platforms provide it through the provider factory.
+/// captured shows that it succeeded. A platform's browser route provides it.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct LoginPage {
+    pub(crate) entry_url: &'static str,
+    pub(crate) capture: CaptureFilter,
+    /// Whether the exchanges captured so far show a logged-in session.
+    pub(crate) logged_in: fn(&[Exchange]) -> bool,
+}
+
+/// A login into a platform's Browser Profile: the route whose environment and access policy it
+/// uses, and that route's login page logic. The provider factory builds it from the route's
+/// browser environment declaration.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct BrowserLogin {
     /// The route whose access policy a login counts against.
@@ -99,10 +102,7 @@ pub(crate) struct BrowserLogin {
     /// The Browser Profile, named after the platform.
     pub(crate) profile: &'static str,
     pub(crate) language: &'static str,
-    pub(crate) entry_url: &'static str,
-    pub(crate) capture: CaptureFilter,
-    /// Whether the exchanges captured so far show a logged-in session.
-    pub(crate) logged_in: fn(&[Exchange]) -> bool,
+    pub(crate) page: LoginPage,
 }
 
 /// Returns whether this host can run browser routes: the transport needs Unix process groups
@@ -409,13 +409,6 @@ pub(crate) struct Page {
 
 /// How a navigation ended.
 #[derive(Debug)]
-#[cfg_attr(
-    not(all(test, unix)),
-    expect(
-        dead_code,
-        reason = "the page logic of the first browser route reads it (#270)"
-    )
-)]
 pub(crate) struct Navigation {
     /// The network error that stopped it, such as `net::ERR_CONNECTION_REFUSED`.
     pub(crate) error: Option<String>,

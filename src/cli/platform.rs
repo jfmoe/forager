@@ -376,7 +376,7 @@ fn run_page(
     common: &PlatformCommonArgs,
 ) -> Result<CommandOutput, AppError> {
     let dependencies = NetworkDependencies::load()?;
-    let plan = plan(dependencies.config.platforms.get(platform)).map_err(preflight_error)?;
+    let plan = plan(dependencies.platform(platform)?).map_err(preflight_error)?;
     let result = dependencies.runtime.block_on(platform_chain::run_page(
         plan,
         dependencies.client,
@@ -402,11 +402,9 @@ fn comments(
     common: &PlatformCommonArgs,
 ) -> Result<CommandOutput, AppError> {
     let dependencies = NetworkDependencies::load()?;
-    let plan = platform_comments::plan_comments(
-        dependencies.config.platforms.get(request.platform()),
-        request,
-    )
-    .map_err(preflight_error)?;
+    let plan =
+        platform_comments::plan_comments(dependencies.platform(request.platform())?, request)
+            .map_err(preflight_error)?;
     let result = dependencies
         .runtime
         .block_on(platform_comments::run_comments(
@@ -435,7 +433,7 @@ fn ask(
 ) -> Result<CommandOutput, AppError> {
     let platform = request.platform();
     let dependencies = NetworkDependencies::load()?;
-    let plan = platform_ask::plan_ask(dependencies.config.platforms.get(platform), request)
+    let plan = platform_ask::plan_ask(dependencies.platform(platform)?, request)
         .map_err(preflight_error)?;
     let result = dependencies.runtime.block_on(platform_ask::run_ask(
         plan,
@@ -498,7 +496,7 @@ fn fetch(
     common: &PlatformCommonArgs,
 ) -> Result<CommandOutput, AppError> {
     let dependencies = NetworkDependencies::load()?;
-    let plan = platform_fetch::plan_fetch(dependencies.config.platforms.get(platform), request)
+    let plan = platform_fetch::plan_fetch(dependencies.platform(platform)?, request)
         .map_err(preflight_error)?;
     let web_fetch = dependencies.config.web_fetch;
     if plan.needs_web_fetch() && web_fetch.configured_provider_count() == 0 {

@@ -379,7 +379,7 @@ pub(crate) async fn login(
         profile,
         language: login.language,
         display: BrowserDisplay::Headed,
-        capture: login.capture,
+        capture: login.page.capture,
     };
     let (screen, mut locked) = run_browser(&session, limiter, deadline, async |page| {
         await_login(page, login).await
@@ -405,7 +405,7 @@ pub(crate) async fn await_login(
     page: &mut BrowserPage,
     login: &BrowserLogin,
 ) -> Result<crate::providers::BrowserScreen, AttemptFailure> {
-    page.navigate(login.entry_url).await?;
+    page.navigate(login.page.entry_url).await?;
     let mut exchanges = Vec::new();
     let mut unanswered = 0;
     let mut screen = None;
@@ -428,7 +428,7 @@ pub(crate) async fn await_login(
         }
         exchanges.extend(page.take_exchanges()?);
         if let Some(screen) = screen
-            && (login.logged_in)(&exchanges)
+            && (login.page.logged_in)(&exchanges)
         {
             return Ok(screen);
         }
@@ -439,7 +439,7 @@ pub(crate) async fn await_login(
         status: None,
         message: format!(
             "no login to {} was observed before the timeout; run `forager browser login {}` again",
-            login.entry_url, login.profile
+            login.page.entry_url, login.profile
         ),
     })
 }

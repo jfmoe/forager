@@ -11,9 +11,10 @@ use crate::catalog::{
     ProviderRegistration, ProviderTransport,
 };
 use crate::config::{
-    self, HnRouteRuntimeConfig, HttpRouteRuntimeConfig, KeyedHttpRouteRuntimeConfig,
-    ModelRouteRuntimeConfig, PlatformRoutesRuntimeConfig, PolymarketRouteRuntimeConfig,
-    ProcessRouteRuntimeConfig, RedditRouteRuntimeConfig, XaiRuntimeConfig,
+    self, BrowserRouteRuntimeConfig, BrowserRuntimeConfig, HnRouteRuntimeConfig,
+    HttpRouteRuntimeConfig, KeyedHttpRouteRuntimeConfig, ModelRouteRuntimeConfig,
+    PlatformRoutesRuntimeConfig, PolymarketRouteRuntimeConfig, RedditRouteRuntimeConfig,
+    XaiRuntimeConfig,
 };
 use crate::providers;
 use crate::types::{
@@ -90,6 +91,8 @@ struct Registry<'a> {
     registrations: &'a [ProviderRegistration],
     has_adapter: &'a dyn Fn(Platform, PlatformOperation, ProviderId) -> bool,
     is_config_leaf: &'a dyn Fn(&str) -> bool,
+    /// Whether the factory provides the login page logic of a platform's browser route.
+    has_login: &'a dyn Fn(Platform) -> bool,
     fixtures: &'a BTreeSet<(String, String)>,
     sample_refs: &'a dyn Fn(Platform) -> &'static [&'static str],
 }
@@ -236,8 +239,27 @@ fn check_route(
         // command's remaining time like main search (ADR 0026).
         ProviderTransport::Http if catalog::MAIN_SEARCH.contains(route) => &["url"],
         ProviderTransport::Http => &["url", "timeout"],
-        ProviderTransport::OpenCli(_) => &["command", "timeout"],
+        ProviderTransport::Browser(_) => &["timeout"],
     };
+    if let ProviderTransport::Browser(environment) = registration.transport {
+        if environment.profile != platform {
+            found.push(violation(
+                platform,
+                "R3",
+                &format!(
+                    "browser route `{name}` declares the Browser Profile of {}",
+                    environment.profile
+                ),
+            ));
+        }
+        if environment.requires_login && !(registry.has_login)(platform) {
+            found.push(violation(
+                platform,
+                "R3",
+                &format!("the provider factory has no login page logic for browser route `{name}`"),
+            ));
+        }
+    }
     for leaf in leaves {
         let path = format!("providers.{name}.{leaf}");
         if !(registry.is_config_leaf)(&path) {
@@ -364,9 +386,9 @@ fn has_adapter(platform: Platform, operation: PlatformOperation, route: Provider
             keys: Vec::new(),
             timeout_seconds: 1,
         },
-        xiaohongshu_browser: ProcessRouteRuntimeConfig {
-            command: String::new(),
+        xiaohongshu_browser: BrowserRouteRuntimeConfig {
             timeout_seconds: 1,
+            browser: BrowserRuntimeConfig { path: None },
         },
         xai: XaiRuntimeConfig {
             url: String::new(),
@@ -418,6 +440,7 @@ fn baseline(fixtures: &BTreeSet<(String, String)>) -> Registry<'_> {
         registrations: catalog::registrations(),
         has_adapter: &has_adapter,
         is_config_leaf: &config::is_leaf,
+        has_login: &|platform| providers::browser_login(platform).is_some(),
         fixtures,
         sample_refs: &sample_refs,
     }
@@ -548,11 +571,11 @@ fn a_platform_without_an_order_leaf_violates_r4() {
 }
 
 #[test]
-fn a_process_route_without_a_command_leaf_violates_r4() {
+fn a_browser_route_without_a_timeout_leaf_violates_r4() {
     let fixtures = manifest_fixtures();
     let registry = Registry {
         is_config_leaf: &|path| {
-            path != "providers.xiaohongshu_browser.command" && config::is_leaf(path)
+            path != "providers.xiaohongshu_browser.timeout" && config::is_leaf(path)
         },
         ..baseline(&fixtures)
     };
@@ -562,7 +585,7 @@ fn a_process_route_without_a_command_leaf_violates_r4() {
     assert!(
         found
             .iter()
-            .any(|message| message.contains("`providers.xiaohongshu_browser.command`")),
+            .any(|message| message.contains("`providers.xiaohongshu_browser.timeout`")),
         "{found:?}"
     );
 }
@@ -583,7 +606,7 @@ fn a_main_search_backend_is_not_required_to_have_a_timeout_leaf() {
 }
 
 #[test]
-fn a_process_route_is_not_required_to_have_a_url_leaf() {
+fn a_browser_route_is_not_required_to_have_a_url_leaf() {
     let fixtures = manifest_fixtures();
     let registry = baseline(&fixtures);
 
@@ -661,6 +684,57 @@ fn a_platform_without_a_smoke_case_violates_r6() {
     };
 
     assert_reports(&violations(Platform::Arxiv, &registry), "R6");
+}
+
+#[test]
+fn a_browser_route_that_needs_a_login_without_login_page_logic_violates_r3() {
+    let fixtures = manifest_fixtures();
+    let registry = Registry {
+        has_login: &|_| false,
+        ..baseline(&fixtures)
+    };
+
+    let found = violations(Platform::Xiaohongshu, &registry);
+
+    assert_reports(&found, "R3");
+    assert!(
+        found
+            .iter()
+            .any(|message| message.contains("login page logic")),
+        "{found:?}"
+    );
+}
+
+#[test]
+fn a_browser_route_on_another_platform_profile_violates_r3() {
+    let fixtures = manifest_fixtures();
+    let registrations = catalog::registrations()
+        .iter()
+        .map(|registration| match registration.transport {
+            ProviderTransport::Browser(environment) => ProviderRegistration {
+                transport: ProviderTransport::Browser(catalog::BrowserEnvironment {
+                    profile: Platform::Arxiv,
+                    ..environment
+                }),
+                ..*registration
+            },
+            ProviderTransport::Http => *registration,
+        })
+        .collect::<Vec<_>>();
+    let registry = Registry {
+        registrations: &registrations,
+        ..baseline(&fixtures)
+    };
+
+    let found = violations(Platform::Xiaohongshu, &registry);
+
+    assert_reports(&found, "R3");
+    assert!(
+        found
+            .iter()
+            .any(|message| message.contains("declares the Browser Profile of arxiv")),
+        "{found:?}"
+    );
 }
 
 #[test]
