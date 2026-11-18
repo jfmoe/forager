@@ -1,5 +1,6 @@
 //! The browser transport against a real Managed Browser and local static pages. These tests
-//! never open a real site.
+//! never open a real site. Their sandbox, page server, and executable lookup also serve the
+//! real-browser tests of the flows built on the transport.
 //!
 //! They run only when `FORAGER_REAL_BROWSER=1`, and launch the installed Managed Browser, or the
 //! executable that `FORAGER_REAL_BROWSER_PATH` names; without the variable each test returns at
@@ -37,7 +38,7 @@ const EXECUTABLE: &str = "FORAGER_REAL_BROWSER_PATH";
 const DRIVER_PROFILE: &str = "FORAGER_REAL_BROWSER_DRIVER_PROFILE";
 const COMMAND_TIMEOUT: Duration = Duration::from_mins(1);
 
-fn executable() -> Option<PathBuf> {
+pub(crate) fn executable() -> Option<PathBuf> {
     if std::env::var_os(ENABLED).is_none_or(|value| value != "1") {
         eprintln!("skipped: set {ENABLED}=1 to run the real browser tests");
         return None;
@@ -56,7 +57,8 @@ fn block_on<T>(future: impl Future<Output = T>) -> T {
         .block_on(future)
 }
 
-fn local(url: &Url) -> CaptureLevel {
+/// Keeps the bodies of the test pages' own requests.
+pub(crate) fn local(url: &Url) -> CaptureLevel {
     if url.host_str() == Some("127.0.0.1") && url.path() != "/favicon.ico" {
         CaptureLevel::Body
     } else {
@@ -65,13 +67,13 @@ fn local(url: &Url) -> CaptureLevel {
 }
 
 /// A Browser Profile and an access limiter in one temporary directory.
-struct Sandbox {
+pub(crate) struct Sandbox {
     directory: tempfile::TempDir,
     limiter: RateLimiter,
 }
 
 impl Sandbox {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let directory = tempfile::tempdir().expect("create sandbox");
         let limiter = RateLimiter::in_state_file(
             "real_browser_test",
@@ -89,7 +91,7 @@ impl Sandbox {
     }
 
     /// Runs `work` on a headless page of the sandbox profile.
-    fn run<T>(
+    pub(crate) fn run<T>(
         &self,
         executable: &Path,
         work: impl AsyncFnOnce(&mut Page) -> Result<T, AttemptFailure>,
@@ -116,14 +118,14 @@ impl Sandbox {
 }
 
 /// Serves the test pages on 127.0.0.1 until dropped.
-struct Pages {
+pub(crate) struct Pages {
     origin: String,
     stop: Arc<AtomicBool>,
     address: std::net::SocketAddr,
 }
 
 impl Pages {
-    fn start() -> Self {
+    pub(crate) fn start() -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind test pages");
         let address = listener.local_addr().expect("test pages address");
         let stop = Arc::new(AtomicBool::new(false));
@@ -145,7 +147,7 @@ impl Pages {
         }
     }
 
-    fn url(&self, path: &str) -> String {
+    pub(crate) fn url(&self, path: &str) -> String {
         format!("{}{path}", self.origin)
     }
 }
@@ -275,6 +277,26 @@ const STORE_PAGE: &str = r"<!doctype html><title>store</title>
 
 const LOGIN_PAGE: &str = r"<!doctype html><title>login</title>
 <script>setTimeout(() => fetch('/api/me').then((response) => response.text()), 1500);</script>";
+
+/// A login whose entry is the `/login` test page, which requests `/api/me` after a moment,
+/// and whose page logic sees a session in that request's answer.
+pub(crate) fn local_login(pages: &Pages) -> BrowserLogin {
+    BrowserLogin {
+        route: ProviderId::XiaohongshuBrowser,
+        profile: "local",
+        language: "zh-CN",
+        page: LoginPage {
+            entry_url: Box::leak(pages.url("/login").into_boxed_str()),
+            capture: local,
+            logged_in: |exchanges| {
+                exchanges.iter().any(|exchange| {
+                    exchange.url.path() == "/api/me"
+                        && exchange.body == ResponseBody::Received(r#"{"user":"local"}"#.into())
+                })
+            },
+        },
+    }
+}
 
 /// Unwraps a native action, failing the test with the reason it did not happen.
 fn done<T>(action: Result<T, InputError>) -> T {
@@ -546,35 +568,6 @@ fn a_headless_launch_reports_the_screen_recorded_at_login() {
     let reported = sandbox.run(&executable, async |page| page.screen().await);
 
     assert_eq!(reported, screen);
-}
-
-#[test]
-fn a_login_completes_once_the_page_logic_sees_the_session() {
-    let Some(executable) = executable() else {
-        return;
-    };
-    let pages = Pages::start();
-    let login = BrowserLogin {
-        route: ProviderId::XiaohongshuBrowser,
-        profile: "local",
-        language: "zh-CN",
-        page: LoginPage {
-            entry_url: Box::leak(pages.url("/login").into_boxed_str()),
-            capture: local,
-            logged_in: |exchanges| {
-                exchanges.iter().any(|exchange| {
-                    exchange.url.path() == "/api/me"
-                        && exchange.body == ResponseBody::Received(r#"{"user":"local"}"#.into())
-                })
-            },
-        },
-    };
-
-    let screen = Sandbox::new().run(&executable, async |page| {
-        crate::browser_setup::await_login(page, &login).await
-    });
-
-    assert!(screen.device_pixel_ratio > 0.0, "{screen:?}");
 }
 
 /// The process the kill tests terminate: it drives a browser on the profile that

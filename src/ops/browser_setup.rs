@@ -17,13 +17,14 @@ use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 
+use crate::config::BrowserRuntimeConfig;
 use crate::net::{AttemptFailure, truncate_message};
 use crate::providers::managed_browser::{self, Package, VERSION};
 use crate::providers::{
-    BrowserDisplay, BrowserLogin, BrowserPage, BrowserProfile, BrowserSession, run_browser,
+    self, BrowserDisplay, BrowserLogin, BrowserPage, BrowserProfile, BrowserScreen, BrowserSession,
+    run_browser,
 };
-use crate::rate_limit::RateLimiter;
-use crate::types::{AttemptErrorKind, Deadline, ErrorKind};
+use crate::types::{AttemptErrorKind, Deadline, Platform};
 
 const MAX_REDIRECTS: usize = 5;
 const LOGIN_POLL: Duration = Duration::from_secs(1);
@@ -33,25 +34,28 @@ const STAGING_PREFIX: &str = ".staging-";
 // Detaching runs even after the command's timeout, so that no disk image stays mounted.
 const DETACH_LIMIT: Duration = Duration::from_secs(15);
 
-/// Why a browser setup command failed, with the error kind its exit code follows.
-#[derive(Debug, Eq, PartialEq)]
-pub(crate) struct SetupFailure {
-    pub(crate) kind: ErrorKind,
-    pub(crate) message: String,
+/// Why a browser setup command failed.
+#[derive(Debug)]
+pub(crate) enum SetupFailure {
+    /// The browser to launch cannot be found; a preflight failure.
+    Config(String),
+    /// The command started and failed, with the error kind its exit code follows.
+    Failed(AttemptFailure),
 }
 
 impl SetupFailure {
-    fn new(kind: ErrorKind, message: impl Into<String>) -> Self {
-        Self {
+    fn new(kind: AttemptErrorKind, message: impl Into<String>) -> Self {
+        Self::Failed(AttemptFailure {
             kind,
+            status: None,
             message: message.into(),
-        }
+        })
     }
 }
 
 impl From<AttemptFailure> for SetupFailure {
     fn from(failure: AttemptFailure) -> Self {
-        Self::new(ErrorKind::from(failure.kind), failure.message)
+        Self::Failed(failure)
     }
 }
 
@@ -128,18 +132,10 @@ pub(crate) async fn install(
     deadline: Deadline,
     progress: &mut dyn FnMut(&str),
 ) -> Result<Installed, SetupFailure> {
-    let package = managed_browser::host_package().ok_or_else(|| {
-        SetupFailure::new(
-            ErrorKind::Runtime,
-            managed_browser::LocateError::NoHostPackage.to_string(),
-        )
-    })?;
-    let cache = crate::cache_dir::cache_directory().ok_or_else(|| {
-        SetupFailure::new(
-            ErrorKind::Runtime,
-            managed_browser::LocateError::NoCacheDirectory.to_string(),
-        )
-    })?;
+    let package = managed_browser::host_package()
+        .ok_or_else(|| runtime(managed_browser::LocateError::NoHostPackage.to_string()))?;
+    let cache = crate::cache_dir::cache_directory()
+        .ok_or_else(|| runtime(managed_browser::LocateError::NoCacheDirectory.to_string()))?;
     let install_directory = managed_browser::install_directory(&cache);
     let download = HttpDownload { client, deadline };
     install_package(
@@ -287,7 +283,7 @@ fn hex(bytes: &[u8]) -> String {
 }
 
 fn runtime(message: impl Into<String>) -> SetupFailure {
-    SetupFailure::new(ErrorKind::Runtime, message)
+    SetupFailure::new(AttemptErrorKind::Runtime, message)
 }
 
 fn io_failure(action: &str, error: &io::Error) -> SetupFailure {
@@ -381,12 +377,12 @@ impl HttpDownload<'_> {
 }
 
 fn network(message: impl Into<String>) -> SetupFailure {
-    SetupFailure::new(ErrorKind::Network, message)
+    SetupFailure::new(AttemptErrorKind::Network, message)
 }
 
 fn download_timeout() -> SetupFailure {
     SetupFailure::new(
-        ErrorKind::Timeout,
+        AttemptErrorKind::Timeout,
         "the download did not finish before the command timeout; retry with a longer --timeout",
     )
 }
@@ -468,7 +464,7 @@ async fn run_tool(command: &mut Command, deadline: Deadline) -> Result<(), Setup
         .kill_on_drop(true);
     let timed_out = || {
         SetupFailure::new(
-            ErrorKind::Timeout,
+            AttemptErrorKind::Timeout,
             format!(
                 "`{subcommand}` did not finish before the command timeout; retry with a longer --timeout"
             ),
@@ -502,32 +498,69 @@ pub(crate) struct LoginReport {
     pub(crate) profile: PathBuf,
 }
 
-/// Opens a window on the login entry of `login` and waits, until the read deadline of
-/// `deadline`, for its page logic to see a logged-in session; then closes the browser normally
-/// and records the login in the Browser Profile, with the window's screen.
+/// The login page logic of `platform`.
 ///
 /// # Errors
 ///
-/// Returns Timeout when no login is observed in time, and Runtime for a busy or unusable
-/// profile, a browser that fails to launch or closes early, or a failed handshake.
+/// Returns the argument error that names the platforms with a login when `platform` has none.
+pub(crate) fn platform_login(platform: Platform) -> Result<BrowserLogin, String> {
+    providers::browser_login(platform).ok_or_else(|| {
+        format!(
+            "platform `{platform}` has no browser route that needs a login; `forager browser login` supports: {}",
+            Platform::ALL
+                .into_iter()
+                .filter(|platform| providers::browser_login(*platform).is_some())
+                .map(Platform::as_str)
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    })
+}
+
+/// Logs a user into the Browser Profile of `login` within `timeout`: finds the browser that
+/// `browser` names, opens the profile, and takes the access permit of the login's route, then
+/// opens a window on the login entry and waits, until the read deadline, for the page logic to
+/// see a logged-in session. It closes the browser normally and records the login in the
+/// Browser Profile, with the window's screen.
+///
+/// # Errors
+///
+/// Returns Config when the browser cannot be found, Timeout when no login is observed in time,
+/// and Runtime for a busy or unusable profile, a browser that fails to launch or closes early,
+/// or a failed handshake.
 pub(crate) async fn login(
     login: &BrowserLogin,
-    executable: &Path,
-    profile: &BrowserProfile,
-    limiter: &RateLimiter,
-    deadline: Deadline,
+    browser: &BrowserRuntimeConfig,
+    timeout: Duration,
+    progress: &mut dyn FnMut(&str),
 ) -> Result<LoginReport, SetupFailure> {
+    let executable = managed_browser::locate(browser)
+        .map_err(|error| SetupFailure::Config(error.to_string()))?;
+    let profile =
+        BrowserProfile::named(login.profile).map_err(|error| runtime(error.to_string()))?;
+    let limiter = providers::route_limiter(login.route).ok_or_else(|| {
+        runtime(format!(
+            "{} declares no access policy for its browser commands",
+            login.route.name()
+        ))
+    })?;
+    progress(&format!(
+        "opening a browser window on {}; log in there (waiting up to {} seconds)",
+        login.page.entry_url,
+        timeout.as_secs()
+    ));
     let session = BrowserSession {
-        executable,
-        profile,
+        executable: &executable,
+        profile: &profile,
         language: login.language,
         display: BrowserDisplay::Headed,
         capture: login.page.capture,
     };
-    let (screen, mut locked) = run_browser(&session, limiter, deadline, async |page| {
-        await_login(page, login).await
-    })
-    .await?;
+    let (screen, mut locked) =
+        run_browser(&session, &limiter, Deadline::new(timeout), async |page| {
+            await_login(page, login).await
+        })
+        .await?;
     locked
         .record_login(Some(screen))
         .map_err(|error| runtime(error.to_string()))?;
@@ -544,10 +577,10 @@ pub(crate) async fn login(
 /// # Errors
 ///
 /// Returns Timeout at the read deadline, and Runtime when the window closes first.
-pub(crate) async fn await_login(
+async fn await_login(
     page: &mut BrowserPage,
     login: &BrowserLogin,
-) -> Result<crate::providers::BrowserScreen, AttemptFailure> {
+) -> Result<BrowserScreen, AttemptFailure> {
     page.navigate(login.page.entry_url).await?;
     let mut exchanges = Vec::new();
     let mut unanswered = 0;
@@ -598,7 +631,7 @@ mod tests {
 
     use super::{Archive, Download, Installed, SetupFailure, Unpack, install_package};
     use crate::providers::managed_browser::{Package, VERSION};
-    use crate::types::{Deadline, ErrorKind};
+    use crate::types::{AttemptErrorKind, Deadline};
 
     const PACKAGE_BYTES: &[u8] = b"a disk image";
 
@@ -691,6 +724,14 @@ mod tests {
         names
     }
 
+    /// The error kind and message of a failed install.
+    fn failure(failure: SetupFailure) -> (AttemptErrorKind, String) {
+        match failure {
+            SetupFailure::Failed(failure) => (failure.kind, failure.message),
+            SetupFailure::Config(message) => panic!("unexpected config failure: {message}"),
+        }
+    }
+
     #[test]
     fn a_package_matching_its_hash_is_installed() {
         let cache = tempfile::tempdir().expect("create cache");
@@ -699,7 +740,10 @@ mod tests {
         let installed = run(&package(digest()), &directory, &FakeDownload::default());
 
         assert_eq!(
-            (installed, files(&cache.path().join("browser"))),
+            (
+                installed.map_err(failure),
+                files(&cache.path().join("browser"))
+            ),
             (
                 Ok(Installed {
                     version: VERSION,
@@ -716,15 +760,16 @@ mod tests {
         let cache = tempfile::tempdir().expect("create cache");
         let directory = cache.path().join("browser/fingerprint-chromium");
 
-        let failure = run(&package("0000"), &directory, &FakeDownload::default()).unwrap_err();
+        let (kind, message) =
+            failure(run(&package("0000"), &directory, &FakeDownload::default()).unwrap_err());
 
         assert_eq!(
             (
-                failure.kind,
-                failure.message.contains("SHA256"),
+                kind,
+                message.contains("SHA256"),
                 files(&cache.path().join("browser"))
             ),
-            (ErrorKind::Runtime, true, Vec::<String>::new())
+            (AttemptErrorKind::Runtime, true, Vec::<String>::new())
         );
     }
 
@@ -781,20 +826,41 @@ mod tests {
         };
         let into = tools.path().join("staging");
 
-        let failure = block_on(image.unpack(
-            &tools.path().join("browser.dmg"),
-            "Chromium.app",
-            &into,
-            Deadline::new(Duration::from_millis(300)),
-        ))
-        .unwrap_err();
+        let (kind, _) = failure(
+            block_on(image.unpack(
+                &tools.path().join("browser.dmg"),
+                "Chromium.app",
+                &into,
+                Deadline::new(Duration::from_millis(300)),
+            ))
+            .unwrap_err(),
+        );
 
         assert_eq!(
             (
-                failure.kind,
+                kind,
                 fs::read_to_string(tools.path().join("calls")).expect("calls")
             ),
-            (ErrorKind::Timeout, "attach\ndetach\n".to_owned())
+            (AttemptErrorKind::Timeout, "attach\ndetach\n".to_owned())
         );
+    }
+}
+
+#[cfg(all(test, unix))]
+mod real_browser_tests {
+    use super::await_login;
+    use crate::providers::real_browser::{Pages, Sandbox, executable, local_login};
+
+    #[test]
+    fn a_login_completes_once_the_page_logic_sees_the_session() {
+        let Some(executable) = executable() else {
+            return;
+        };
+        let pages = Pages::start();
+        let login = local_login(&pages);
+
+        let screen = Sandbox::new().run(&executable, async |page| await_login(page, &login).await);
+
+        assert!(screen.device_pixel_ratio > 0.0, "{screen:?}");
     }
 }

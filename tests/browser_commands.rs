@@ -113,6 +113,26 @@ fn a_browser_that_exits_before_the_handshake_is_a_runtime_failure_with_its_stder
 }
 
 #[test]
+fn a_failure_message_is_cut_to_500_characters() {
+    let stand_in = StandIn::failing(&"x".repeat(600));
+    let environment = RunEnvironment::new(&stand_in.config());
+
+    let output = login(&environment);
+    let payload = payload(&output);
+
+    assert_eq!(
+        (
+            output.status.code(),
+            payload["message"]
+                .as_str()
+                .map(|message| message.chars().count()),
+        ),
+        (Some(4), Some(500)),
+        "{payload}"
+    );
+}
+
+#[test]
 fn a_browser_that_never_answers_is_killed_with_its_process_group_at_the_working_deadline() {
     let stand_in = StandIn::hanging();
     let environment = RunEnvironment::new(&stand_in.config());
