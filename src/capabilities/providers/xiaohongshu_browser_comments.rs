@@ -8,13 +8,15 @@ use std::time::Duration;
 use reqwest::Url;
 use serde::Deserialize;
 
-use super::page::{Reading, Tracked, input_reason, page_script, site_capture};
+use super::page::{Reading, Tracked, input_failure, page_script, site_capture};
 use super::{
     PageFacts, XiaohongshuBrowser, beijing_time, classify_blocks, count_text, describe,
     is_note_page, note_unavailable, runtime, unfinished_read, without_token,
 };
 use crate::net::AttemptFailure;
-use crate::providers::browser::{CaptureLevel, Exchange, Page, RequestMethod, ResponseBody};
+use crate::providers::browser::{
+    CaptureLevel, Exchange, InputFailure, Page, RequestMethod, ResponseBody,
+};
 use crate::providers::execution::execute_anonymous;
 use crate::types::{
     COMMENTS, ProviderError, XiaohongshuComment, XiaohongshuCommentsOutcome,
@@ -180,11 +182,11 @@ async fn expand_replies(
   }})()"
     );
     let clicked = reading.page().click(&buttons).await;
-    if let Some(reason) = input_reason(clicked)? {
-        return Ok(Some(match reason {
-            "no_target" => "no_expand_button",
-            "ambiguous_target" => "ambiguous_expand_button",
-            other => other,
+    if let Some(failure) = input_failure(clicked)? {
+        return Ok(Some(match failure {
+            InputFailure::NoTarget => "no_expand_button",
+            InputFailure::AmbiguousTarget => "ambiguous_expand_button",
+            other => other.reason(),
         }));
     }
     let gone = format!(r#"{buttons}.every((element) => element.closest('[aria-hidden="true"]'))"#);

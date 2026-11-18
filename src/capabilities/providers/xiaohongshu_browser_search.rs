@@ -9,7 +9,7 @@ use chrono::{Datelike, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeDelta};
 use reqwest::Url;
 use serde::Deserialize;
 
-use super::page::{Observed, Reading, Tracked, input_reason, page_script, site_capture};
+use super::page::{Observed, Reading, Tracked, input_failure, page_script, site_capture};
 use super::{
     HOME_URL, PageFacts, ROUTE, SITE_HOST, XiaohongshuBrowser, classify_blocks, describe, runtime,
     unfinished_read,
@@ -17,7 +17,7 @@ use super::{
 use crate::catalog::PlatformOperation;
 use crate::net::{AttemptFailure, combine_diagnostics};
 use crate::providers::browser::{
-    CaptureLevel, Exchange, InputError, Key, Page, RequestMethod, ResponseBody,
+    CaptureLevel, Exchange, InputError, InputFailure, Key, Page, RequestMethod, ResponseBody,
 };
 use crate::providers::execution::execute_anonymous;
 use crate::providers::shared::{other_platform_message, parameter_error};
@@ -197,8 +197,8 @@ async fn drive_search(
     if reading.poll().await? {
         return Ok(());
     }
-    if let Some(reason) = enter_query(reading.page(), query).await? {
-        progress.search_failure = Some(reason);
+    if let Some(failure) = enter_query(reading.page(), query).await? {
+        progress.search_failure = Some(format!("{} for the search box", failure.reason()));
         return Ok(());
     }
     if !reading.next(SEARCH, 0, false).await? {
@@ -229,23 +229,21 @@ async fn drive_search(
 }
 
 /// Types the query into the home page's search box and submits it; returns why it could not.
-async fn enter_query(page: &mut Page, query: &str) -> Result<Option<String>, AttemptFailure> {
+async fn enter_query(page: &mut Page, query: &str) -> Result<Option<InputFailure>, AttemptFailure> {
     let mut missed = None;
     for search_box in SEARCH_BOXES {
-        missed = input_reason(page.click(search_box).await)?;
-        if missed != Some("no_target") {
+        missed = input_failure(page.click(search_box).await)?;
+        if missed != Some(InputFailure::NoTarget) {
             break;
         }
     }
-    let typed = match missed {
-        Some(reason) => Some(reason),
-        None => input_reason(page.type_text(query).await)?,
-    };
-    let submitted = match typed {
-        Some(reason) => Some(reason),
-        None => input_reason(page.press(Key::Enter).await)?,
-    };
-    Ok(submitted.map(|reason| format!("{reason} for the search box")))
+    if missed.is_some() {
+        return Ok(missed);
+    }
+    if let Some(failure) = input_failure(page.type_text(query).await)? {
+        return Ok(Some(failure));
+    }
+    input_failure(page.press(Key::Enter).await)
 }
 
 /// Opens the filter panel with the pointer and clicks one option, then confirms the click took
@@ -257,19 +255,19 @@ async fn choose_option(
     seen: usize,
     progress: &mut SearchProgress,
 ) -> Result<Option<&'static str>, AttemptFailure> {
-    let button = |reason| match reason {
-        "no_target" => "no_filter_button",
-        "ambiguous_target" => "ambiguous_filter_button",
-        other => other,
+    let button = |failure| match failure {
+        InputFailure::NoTarget => "no_filter_button",
+        InputFailure::AmbiguousTarget => "ambiguous_filter_button",
+        other => other.reason(),
     };
     if !reading.page().evaluate::<bool>(PANEL_OPEN).await? {
         let hovered = reading.page().hover(FILTER_BUTTON).await.map(|_| ());
-        if let Some(reason) = input_reason(hovered)? {
-            return Ok(Some(button(reason)));
+        if let Some(failure) = input_failure(hovered)? {
+            return Ok(Some(button(failure)));
         }
         if !panel_opens(reading.page(), PANEL_AFTER_HOVER).await? {
-            if let Some(reason) = input_reason(reading.page().click(FILTER_BUTTON).await)? {
-                return Ok(Some(button(reason)));
+            if let Some(failure) = input_failure(reading.page().click(FILTER_BUTTON).await)? {
+                return Ok(Some(button(failure)));
             }
             if !panel_opens(reading.page(), PANEL_AFTER_CLICK).await? {
                 return Ok(Some("no_filter_panel"));
@@ -285,10 +283,10 @@ async fn choose_option(
         .page()
         .click(&options_expression(group, option, true))
         .await;
-    let missed = input_reason(clicked)?.map(|reason| match reason {
-        "no_target" => "no_filter_option",
-        "ambiguous_target" => "ambiguous_filter_option",
-        other => other,
+    let missed = input_failure(clicked)?.map(|failure| match failure {
+        InputFailure::NoTarget => "no_filter_option",
+        InputFailure::AmbiguousTarget => "ambiguous_filter_option",
+        other => other.reason(),
     });
     if missed.is_none()
         && reading
