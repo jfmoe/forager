@@ -275,7 +275,7 @@ forager context7 docs LIBRARY_ID QUERY [--timeout SECONDS]
 [`platform-vocabulary.json`](platform-vocabulary.json). Platform commands write no result journal.
 Their `--timeout` defaults to `120` (`600` for YouTube ask and transcribe) and includes waits for the platform's request window, shared
 across all local processes (arXiv: one request every 3 seconds; SSRN through Crossref: one request
-per second; Xiaohongshu: one OpenCLI
+per second; Xiaohongshu: one browser
 command every 10 seconds; Hacker News: one request to either of its two endpoints every half
 second; YouTube through the Data API: one request per second; YouTube through `youtube_web`: one request every 4 seconds; Google Scholar through SerpApi, X through xAI, and YouTube ask and transcribe through Gemini have no local window).
 
@@ -504,11 +504,13 @@ forager platform xiaohongshu search QUERY [--limit N]
 | `--note-type TYPE` | `all`, `image`, or `video`. | `all` |
 | `--publish-time PERIOD` | `any`, `day`, `week`, or `half-year`. | `any` |
 
-Xiaohongshu is reached only through the opt-in `xiaohongshu_browser` route, which searches in the
-user's own logged-in Chrome through OpenCLI; see "Xiaohongshu browser route" in
-[`platforms.md`](platforms.md). With the default empty `platforms.xiaohongshu.order` the command
-exits `3` before starting any browser and names the steps to enable it. A search takes about 30 to
-60 seconds.
+Xiaohongshu is reached only through the opt-in `xiaohongshu_browser` route, which searches in a
+headless browser that forager drives itself, on the Browser Profile the user logged into with
+`forager browser login xiaohongshu`; see "Xiaohongshu browser route" in
+[`platforms.md`](platforms.md) and [`browser`](#browser). With the default empty
+`platforms.xiaohongshu.order` the command exits `3` before starting any browser and names the three
+steps to enable it: `forager browser install`, `forager browser login xiaohongshu`, and adding the
+route to the order.
 
 JSON output is `{platform, provider, items, next_cursor}`. Each item has:
 
@@ -528,11 +530,14 @@ continue in a later command. When more results remain, stderr says so; raise `--
 Notes without a valid ID or access token are skipped and reported on stderr. A valid empty search
 returns `items: []` with exit 0.
 
-Exit codes: `2` before any request for a blank query or `--limit` outside `1..=100`; `3` for an
-empty `platforms.xiaohongshu.order`; `4` for `auth` (the Chrome session is logged out, or
+Exit codes: `2` before any request for a blank query or `--limit` outside `1..=100`; `3` before
+starting any browser for an empty `platforms.xiaohongshu.order`, a Managed Browser that is not
+installed (or has no package for this host), or a Browser Profile that was never logged in, each
+message naming the command that fixes it; `4` for `auth` (the profile's session is logged out, or
 Xiaohongshu answered 461 and wants a verification), `parameter` (a security restriction such as
 `300031` or `300017`), `timeout` (the results did not arrive before the deadline), and `runtime`
-(the page or the responses did not match the request, or the adapter is missing or outdated).
+(the page or the responses did not match the request, the browser failed to start, or the Browser
+Profile is in use by another forager process).
 
 ### `platform xiaohongshu fetch`
 
@@ -550,9 +555,8 @@ forager platform xiaohongshu fetch ACCESS_URL [--depth metadata|full_text]
 | `--content-dir DIR` | Directory for the Markdown file. | A new directory under the system temporary directory |
 | `--format content` | Print the note text to stdout and write no file. | `json` |
 
-The note opens in the user's own logged-in Chrome through `xiaohongshu_browser`, like search; a
-fetch takes about 20 seconds. The full text needs no Web Fetch provider: the route reads it from
-the note page itself.
+The note opens in the same headless browser and Browser Profile as search. The full text needs no
+Web Fetch provider: the route reads it from the note page itself.
 
 JSON output has `platform`, `provider`, `ref`, `url` (the canonical page, without the token),
 `depth`, `title` (may be `""`), `authors` (the nickname), and `published` (exact Beijing time,
@@ -575,8 +579,8 @@ holds the title as a heading, the text exactly as shown (topics stay as `#话题
 line, one `![](url)` line per image, and, for a video note, a line giving its length.
 
 Exit codes: `2` before any request for a missing or malformed token, a short link, a
-`rednote.com` link, or another depth; `3` for an empty `platforms.xiaohongshu.order`; `4` for
-`auth` and `timeout` as under search, `parameter` for a note Xiaohongshu would not open
+`rednote.com` link, or another depth; `3` as under search; `4` for `auth` and `timeout` as under
+search, `parameter` for a note Xiaohongshu would not open
 (`300031` or `300017`: the token may be stale, the note restricted or removed, or the account
 rate-limited), and `runtime` (the page showed another note or an unexpected page, or the file
 could not be written); `5` for `quality` (the note has no title, text, or images).
@@ -595,9 +599,8 @@ forager platform xiaohongshu comments ACCESS_URL [--limit N] [--replies N]
 | `--limit N` | Top-level comments, `1..=50`; one command reads up to five pages of 10. | `20` |
 | `--replies N` | Expand the replies of the first `N` returned comments that have more replies than they show, `0..=10`; reads the first page (about 5 replies) of each. | `0` |
 
-The comments are read on the note page in the user's own logged-in Chrome through
-`xiaohongshu_browser`, like fetch; a read takes about 20 to 30 seconds. There is no cursor: a
-later command cannot continue where this one stopped.
+The comments are read on the note page in the same headless browser and Browser Profile as fetch.
+There is no cursor: a later command cannot continue where this one stopped.
 
 JSON output is `{platform, provider, note, comments, has_more}`. `note` is the note ref;
 `has_more` is `true` when the note has top-level comments this result did not return. Each
@@ -618,11 +621,10 @@ A note without comments returns `comments: []` with exit 0. The output never con
 access token.
 
 Exit codes: `2` before any request for a missing or malformed token, a short link, a
-`rednote.com` link, or `--limit` or `--replies` out of range; `3` for an empty
-`platforms.xiaohongshu.order`; `4` for `auth`, `parameter`, and `timeout` as under fetch, and
-`runtime` (a comment response belonged to another note, broke the page order, or answered a
-comment that was not expanded; the adapter could not click "展开 N 条回复", with the reason; or the
-page was unexpected).
+`rednote.com` link, or `--limit` or `--replies` out of range; `3` as under search; `4` for
+`auth`, `parameter`, and `timeout` as under fetch, and `runtime` (a comment response belonged to
+another note, broke the page order, or answered a comment that was not expanded; the page logic
+could not click "展开 N 条回复", with the reason; or the page was unexpected).
 
 ### `platform x search`
 
@@ -1216,6 +1218,32 @@ forager setup [--non-interactive] [--lang zh|en]
 
 After setup, use `forager doctor` to check the resulting configuration.
 
+### `browser`
+
+```console
+forager browser install [--timeout SECONDS]
+forager browser login PLATFORM [--timeout SECONDS]
+```
+
+| Command | Behavior |
+| --- | --- |
+| `browser install` | Download the Managed Browser this forager pins (fingerprint-chromium), check its SHA256, and install it into forager's cache. When the pinned version is already installed, download nothing. Prints `{version, executable, downloaded}`. `--timeout` defaults to `600`. |
+| `browser login PLATFORM` | Open a browser window on the platform's login page and wait until the user has logged in there, then close it and mark the platform's Browser Profile as logged in. Prints `{platform, logged_in: true, profile}`. Only `xiaohongshu` has a login. `--timeout` is at least `10` and defaults to `600`. |
+
+Browser routes need both: the Managed Browser, and for a route that needs a login, a Browser
+Profile that has been logged in once. The profile keeps the session; forager never reads or exports
+its cookies. Only macOS on Apple silicon has a Managed Browser package. A non-empty `browser.path`
+(`FORAGER_BROWSER__PATH`) names a local browser executable that every browser command starts
+instead; `browser install` still installs, and says on stderr that `browser.path` is in use.
+Progress goes to stderr.
+
+Exit codes: `2` for a platform without a browser login; `3` when `browser login` finds no browser
+(the message names `forager browser install` or `browser.path`); `4` with `{error_kind, message}`
+on stdout for `network` (the download failed), `timeout` (the download or the login did not finish
+in time), and `runtime` (the SHA256 did not match and the download was deleted, the package could
+not be unpacked, this host has no package, the browser failed to start or its window closed before
+the login, or the Browser Profile is in use by another forager process).
+
 ### `doctor`
 
 ```console
@@ -1231,9 +1259,11 @@ forager doctor [--provider PROVIDER] [--timeout SECONDS] [--format json|markdown
 Use `doctor` for credentials, connectivity, provider responses, and effective configuration
 inspection. In shallow mode, `ok` covers every configured provider: if any configured provider is
 unreachable, the top-level result is false and the command uses exit code 4. The browser route
-`xiaohongshu_browser` is checked only when the Xiaohongshu order lists it: doctor runs its OpenCLI
-`contract` command, and a failed check carries a `message` with install steps; `--provider
-xiaohongshu_browser` also needs the route in the order and runs one real search in Chrome. Without a key, `jina` is configured and the shallow report notes that it runs
+`xiaohongshu_browser` is checked only when the Xiaohongshu order lists it: doctor checks, without
+starting a browser, that the browser can be found and the Browser Profile has been logged in, and a
+failed check carries a `message` naming the command that fixes it. `--provider
+xiaohongshu_browser` also needs the route in the order and that check to pass, and runs one real
+search in the headless browser; its check reports `transport: "browser"`. Without a key, `jina` is configured and the shallow report notes that it runs
 anonymously; `--provider jina` then probes without a key, and with keys it reports a failing key
 even when the anonymous request succeeds. `--provider xai` and `--provider openai` each send one
 Responses model probe without tools, recorded as the `responses` check; `--provider xai` adds an

@@ -402,24 +402,27 @@ forager platform reddit fetch reddit:1w2pcmd --depth metadata
 
 ## Xiaohongshu browser route
 
-`xiaohongshu_browser` searches and reads Xiaohongshu notes and their comments in the user's own Chrome through
-OpenCLI, using the account the user is logged in with. It is off by default; enable it only when the user asks for
+`xiaohongshu_browser` searches and reads Xiaohongshu notes and their comments in a headless browser that
+forager starts and drives itself, using the account the user logged into its Xiaohongshu Browser
+Profile. No window appears while it runs. It is off by default; enable it only when the user asks for
 it. It runs at most one browser command every 10 seconds and never retries. Xiaohongshu's user
 agreement forbids scraping and the site rate-limits accounts: tell the user that the searches,
 fetches, and comment reads run under their account, suggest a secondary account rather than their main one, and keep
 the number of commands small.
 
-- **Install**: OpenCLI 2.x (`npm install -g @jackwener/opencli@2`) with its Chrome Browser Bridge
-  extension 1.0.25 or later connected (`opencli doctor`), then copy the `opencli/forager-xhs`
-  directory next to this skill's `SKILL.md` to `~/.opencli/clis/forager-xhs` (replace the whole
-  directory to update), and run `forager doctor`. The required contract is `forager-xhs/2`. When
-  a command or `forager doctor` reports contract `forager-xhs/1`, the installed adapter is the
-  older one: replace the whole `~/.opencli/clis/forager-xhs` directory with the one from this
-  skill and run `forager doctor` again.
-- **Log in**: the user opens xiaohongshu.com in the Chrome that OpenCLI drives and logs in there.
-  Never log in, solve a verification, or switch accounts for them.
-- **Enable**: `forager config set platforms.xiaohongshu.order '["xiaohongshu_browser"]'`. Set
-  `providers.xiaohongshu_browser.command` when `opencli` is not on `PATH`.
+- **Install**: `forager browser install` downloads the pinned Managed Browser, checks its SHA256, and
+  installs it into forager's cache; rerunning it downloads nothing. Only macOS on Apple silicon has a
+  package. On another host, or when the Managed Browser fails, `browser.path` names a local
+  Chromium-based browser instead; a browser that is not fingerprint-chromium ignores the fingerprint
+  switches.
+- **Log in**: the user runs `forager browser login xiaohongshu`, which opens a browser window on
+  xiaohongshu.com, and logs in there (for example by scanning the QR code). The command closes the
+  window once the site reports the login, and fails with `timeout` when no login is seen within
+  `--timeout` (600 seconds by default). Never log in, scan, solve a verification, or switch
+  accounts for them.
+- **Enable**: `forager config set platforms.xiaohongshu.order '["xiaohongshu_browser"]'`, then run
+  `forager doctor`: the `xiaohongshu_browser` check is reachable once the browser is installed and
+  the profile has been logged in.
 - **Search**: set `--sort`, `--note-type`, and `--publish-time` only when the request implies them.
   A search cannot continue in a later command: `next_cursor` is always `null`, which here means no
   continuation exists, not that the results are complete. When stderr says more results remain,
@@ -580,12 +583,14 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
   default `metadata` depth and state that the abstract is unavailable.
 - "SSRN paper not found in Crossref": the paper may still exist on SSRN; say that Crossref has no
   record of it rather than that the paper does not exist.
-- A `xiaohongshu_browser` error saying it found OpenCLI 1.x
-  output: forager needs OpenCLI 2.x and Browser Bridge 1.0.25 or later. Tell the user to upgrade
-  both as in the install step, then retry; do not upgrade them yourself.
-- A `xiaohongshu_browser` `auth` error: the Chrome session is logged out, or Xiaohongshu wants a
-  verification (461). Ask the user to open xiaohongshu.com in Chrome, log in or complete the check
-  by hand, then retry once.
+- Exit 3 saying `xiaohongshu_browser cannot run`: the Managed Browser is not installed (or this
+  forager pins a different version from the one installed), the host has no package, or the Browser
+  Profile was never logged in. The message names the fix: `forager browser install`,
+  `browser.path`, or `forager browser login xiaohongshu`. Run `forager browser install` yourself
+  when it is named; ask the user to run the login.
+- A `xiaohongshu_browser` `auth` error: the session in the Browser Profile is logged out, or
+  Xiaohongshu wants a verification (461). Ask the user to run `forager browser login xiaohongshu`
+  and log in or complete the check in that window by hand, then retry once.
 - A `xiaohongshu_browser` `parameter` error naming `300031`, `300017`, or a security restriction on
   a search: Xiaohongshu is limiting the account. Stop using Xiaohongshu for this task, tell the
   user, and do not retry; it may clear after a long pause.
@@ -594,16 +599,17 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
   which. Search once more for the note and retry with the new `access_url`; when that also fails with `300031` or
   `300017`, stop using Xiaohongshu, tell the user, and try again only after a long pause.
 - Exit 5 on a Xiaohongshu fetch: the note has no title, text, or images; report it.
-- A Xiaohongshu comments `runtime` error saying the adapter could not expand the replies of a
+- A Xiaohongshu comments `runtime` error saying the page logic could not expand the replies of a
   comment: the page did not show the expected button. Retry once without `--replies`, and tell the
   user the replies were not read.
 - A `xiaohongshu_browser` `timeout`: retry once with `--timeout 180`; when it times out again,
   report it.
-- A `xiaohongshu_browser` `network` error saying Chrome could not load the page: the browser could
-  not reach Xiaohongshu. Retry once after a short pause; when it fails again, tell the user to
-  check the network in that Chrome.
-- A `xiaohongshu_browser` error that names the forager OpenCLI adapter, or a doctor `message`
-  with install steps: repeat the install step in "Xiaohongshu browser route".
+- A `xiaohongshu_browser` `network` error saying the browser could not load the page: the browser
+  could not reach Xiaohongshu. Retry once after a short pause; when it fails again, tell the user to
+  check this machine's network.
+- A `xiaohongshu_browser` `runtime` error saying the Browser Profile is in use by another forager
+  process: a `forager browser login` window or another command still holds it. Wait for it to end,
+  then retry once.
 
 - X exit 3 naming `providers.xai.keys`: no xAI key is configured; go to Diagnose or configure in
   `SKILL.md`. Exit 3 naming `platforms.x.order`: the user disabled X; do not re-enable it yourself.

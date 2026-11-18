@@ -74,8 +74,8 @@ pub(super) enum PlatformCommand {
         #[command(subcommand)]
         command: ScholarCommand,
     },
-    /// Search Xiaohongshu (小红书) notes through your own logged-in Chrome; disabled until you
-    /// enable its browser route.
+    /// Search Xiaohongshu (小红书) notes in a headless browser logged into your account; disabled
+    /// until you enable its browser route.
     Xiaohongshu {
         #[command(subcommand)]
         command: XiaohongshuCommand,

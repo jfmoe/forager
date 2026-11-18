@@ -20,7 +20,7 @@
     - 点击：在页面中选出唯一一个指针可命中的目标（不在 `aria-hidden` 子树中、有尺寸、指针在其中心命中它自身或其后代），必要时用滚轮把它滚进视口，在中心附近取一个仍命中目标的随机点，先悬停，悬停后重新选一次目标，仍是同一个唯一目标且指针仍命中它才点击。没有目标、多于一个可命中目标、目标被遮挡、滚不进视口或悬停后不再命中时，立即以明确的原因失败（如 `no_target`、`ambiguous_target`），不退回脚本操作；悬停后的重新选择同样按目标消失（`no_target`）、出现第二个可命中目标（`ambiguous_target`）与目标移开（`target_moved`）区分原因。
     - 核对：点击结果能在页面上观察到时（选项选中、面板展开、展开按钮消失），点击后在几秒内核对，核对不通过以 `click_missed` 失败，不等到读取截止。
     - 节奏：每次操作前随机停顿 0.3–1.5 秒，计入读取截止时间；读取截止点一过，不再发出任何输入（包括逐字输入的下一个字符），当前操作以 `deadline_passed` 失败。指针分若干步沿略弯的路径移动到目标，不瞬移；每一步之前都检查读取截止点。不超过 200 个字符的文本逐字输入，每个字符一次 `Input.insertText`，字符间隔 30–90 毫秒随机；更长的文本用一次 `Input.insertText`。按键带键码与它输入的文本发送；目前页面逻辑只按回车。无头浏览器中滚轮滚动直接触发懒加载，不需要截图强制渲染。
-    - 原生输入提高的是交互的真实度与稳健性，不是反检测：浏览器指纹由 Managed Browser 的指纹参数决定，forager 不另做 stealth 改造；不解验证码，遇到验证、风控或登录墙立即停止（ADR 0020）。
+    - 原生输入提高的是交互的真实度与稳健性，不是反检测：浏览器指纹只由 Managed Browser 按 Browser Profile 的固定种子生成，forager 不向页面注入 stealth 脚本，不轮换指纹；不解验证码，遇到验证、风控或登录墙立即停止（ADR 0020、ADR 0036）。
   - 被动抓包：只读页面自己发出的请求与响应，不发起自己的接口请求，不改写 `fetch`、XHR 或 WebSocket。页面逻辑给出过滤器，按 URL 决定忽略、只记状态或连同响应体保留；只保留 GET 与 POST。POST 请求体取自请求事件；响应体在请求加载完成事件之后读取，单个响应体上限 4 MiB，超出为 Runtime；浏览器以 base64 返回而解不开的响应体同样为 Runtime，消息与超限不同；请求已加载完成而取不到响应体记为缺失；请求失败记下浏览器的错误文本。页面没有读取的响应，浏览器不报告加载完成，因此不会进入抓包结果。
   - 读取页面状态：经 CDP 在页面中求值的小段只读脚本，作为字符串内嵌在 Rust 里；脚本抛出异常为 Runtime。
   - 主机支持：传输只要求 Unix（进程组与 POSIX shell），非 Unix 主机上以 Runtime 拒绝。
@@ -170,7 +170,7 @@ attempt 级 Parameter 不映射为退 2（第 4 章）。
 
 ## 小红书
 
-第四个平台，只有一条浏览器 route `xiaohongshu_browser`：forager 的浏览器传输以用户登录过的小红书 Browser Profile 启动无头浏览器，route 的页面逻辑像人一样操作站点页面，只读取页面自身发出的接口响应与服务端渲染状态。站点行为的实测证据见 [小红书 OpenCLI route 设计](../../design/2026-10-08-xiaohongshu-opencli-route.md)，其中经 OpenCLI 驱动用户 Chrome 的传输已被浏览器传输取代。提供 search、fetch 与 L2 操作 comments。
+第四个平台，只有一条浏览器 route `xiaohongshu_browser`：forager 的浏览器传输以用户登录过的小红书 Browser Profile 启动无头浏览器，route 的页面逻辑像人一样操作站点页面，只读取页面自身发出的接口响应与服务端渲染状态。改用浏览器传输与指纹版 Managed Browser 的决定见 ADR 0036，无头指纹浏览器的实测见 [小红书无头指纹浏览器可行性实测](../../research/2026-11-18-xiaohongshu-headless-fingerprint-browser.md)（2026-11-18）；更早的站点行为实测（诱饵按钮、楼中楼的起始 cursor 等）见 [小红书 route 设计](../../design/2026-10-08-xiaohongshu-opencli-route.md)，其中的 OpenCLI 传输已退役。提供 search、fetch 与 L2 操作 comments。
 
 - **身份**：kind 只有 `note`。ref 为 `xiaohongshu:<note_id>`，`note_id` 是 24 位十六进制，统一为小写，没有版本。canonical URL 为 `https://www.xiaohongshu.com/explore/<note_id>`，不含查询参数，满足往返性质。可识别的 URL：主机为 `www.xiaohongshu.com` 或 `xiaohongshu.com`（http 或 https），路径为 `/explore/<id>`、`/discovery/item/<id>`、`/search_result/<id>` 或 `/user/profile/<user_id>/<id>`，忽略 fragment 与末尾 `/`。`xhslink.com` 短链需要联网展开、`rednote.com` 适用另一份用户协议，两者都在飞行前退 2，消息分别说明替代做法。
 - **Access Token**：笔记 URL 中的 `xsec_token` 是打开该笔记所需的访问参数，不是身份，不进入 ref、canonical URL、cursor 与 journal。解析纯函数把 URL 拆成 `(ref, Option<AccessToken>)`；token 须为 URL 解码后 1–128 个 `A-Za-z0-9_=-` 字符，重复、含 `+` 或转义非法时飞行前退 2。解析错误消息不回显原始输入。`AccessToken` 的 Debug 输出打码，不可序列化。`access_url` 由 ref 与 token 构造：`https://www.xiaohongshu.com/explore/<id>?xsec_token=<token>&xsec_source=pc_search`，不回显用户输入的链接。
