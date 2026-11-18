@@ -8,7 +8,11 @@
 
 ## 发版
 
-版本号和 changelog 由 release-plz 生成，`CHANGELOG.md` 不手改。`release-plz.yml` 只能手动触发，每次发版要触发两次：
+版本号和 changelog 由 release-plz 生成，`CHANGELOG.md` 不手改。
+
+触发发版之前，在本机运行默认忽略的真实浏览器测试 `cargo nextest run --lib --locked --run-ignored only`，全部通过才继续。CI 不运行它们；前提与范围见 [`browser-routes.md`](browser-routes.md)。
+
+`release-plz.yml` 只能手动触发，每次发版要触发两次：
 
 1. 运行 `gh workflow run release-plz.yml --ref main`，等这次 run 结束。它会开一个 `chore: release vX.Y.Z` PR，核对其中的版本号和 changelog。
 2. 等这个 release PR 的检查通过，运行 `gh pr merge <N> --squash --delete-branch`。release PR 一律 squash 合并。
@@ -29,6 +33,6 @@
 
    然后确认 `forager --version` 是新版本。`cargo install --path .` 不能代替安装器：目标位置已有不归 cargo 管理的同名二进制，它会拒绝覆盖。验证未发布的改动时，直接运行 `./target/debug/forager`。
 2. **更新 skill**：运行 `npx skills add jfmoe/forager -g -s forager -a '*' -y`。不支持全局安装的 agent 会报失败，这是预期结果。
-3. **更新 OpenCLI adapter**：本次发版改过的 `skills/forager/opencli/<name>`，按 [`opencli.md`](opencli.md) 重新安装，并用 `diff -r` 确认装上的和 skill 里的一致。
+3. **更新 Managed Browser**：运行 `forager browser install`。新版本固定的浏览器版本没变时，它不下载并输出 `downloaded: false`；变了时下载、校验并安装新版本。旧版本的安装目录不再使用，也不会被自动删除。
 4. **live 端到端测试**：用真实配置运行 `forager smoke --live`。默认时限 420 秒，命令的工具超时要设得更长。逐个用例报告状态。消息以 `not started:` 开头的 `skipped` 表示时限用完，加大 `--timeout` 后重跑，不要当成 provider 故障。
 5. **清理构建产物**：运行 `cargo clean -p forager`。forager 自身的测试二进制和增量编译目录会不断累积，这条命令只删 forager 自己的产物，第三方依赖的编译结果保留。

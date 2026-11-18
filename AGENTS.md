@@ -54,7 +54,7 @@ Dependencies flow one way, top to bottom: entry → cli → orchestration (`core
 
 ### Platforms
 
-Before you add or change a platform or a platform route, read `docs/spec/forager/07-platforms.md`. Complete its integration checklist and keep the new-platform checklist test (`src/core/platform_checklist.rs`) passing. Before installing, changing, or live-testing an OpenCLI adapter, read `docs/agents/opencli.md`. OpenCLI is frozen (ADR 0035): it serves only the existing routes until a headless-browser approach replaces it, so a new browser route goes through that approach, never a new OpenCLI route or adapter.
+Before you add or change a platform or a platform route, read `docs/spec/forager/07-platforms.md`. Complete its integration checklist and keep the new-platform checklist test (`src/core/platform_checklist.rs`) passing. Before changing or live-testing a browser route, the browser transport, or the Managed Browser, read `docs/agents/browser-routes.md`. A new browser route declares its browser environment in its registration and reuses that transport; only its page logic is new (ADR 0036).
 
 ### Compatibility fixes
 
@@ -62,4 +62,4 @@ Prefer solving a compatibility problem through the general mechanism that owns t
 
 ### Spec-code lockstep
 
-A change that adds, moves, or removes a module, or alters a module's ownership or dependency direction, updates `docs/spec/forager/04-architecture.md` in the same commit. `tests/repository_rules.rs` fails while a module or OpenCLI adapter file goes unnamed in that chapter; ownership and dependency claims remain the reviewer's to check. A spec claim the code no longer satisfies is corrected or deleted immediately — never left to drift.
+A change that adds, moves, or removes a module, or alters a module's ownership or dependency direction, updates `docs/spec/forager/04-architecture.md` in the same commit. `tests/repository_rules.rs` fails while a module goes unnamed in that chapter; ownership and dependency claims remain the reviewer's to check. A spec claim the code no longer satisfies is corrected or deleted immediately — never left to drift.
