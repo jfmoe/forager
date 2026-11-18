@@ -12,6 +12,7 @@ use crate::net::AttemptFailure;
 use crate::providers::browser::{
     CaptureLevel, Exchange, InputError, InputFailure, Page, RequestMethod, ResponseBody,
 };
+use crate::types::Deadline;
 
 const POLL: Duration = Duration::from_millis(500);
 // A list loads its next page by itself a moment after the last one, so the first scroll waits.
@@ -386,20 +387,21 @@ impl<'p> Reading<'p> {
         check: &str,
         within: Duration,
     ) -> Result<bool, AttemptFailure> {
-        let started = Instant::now();
-        while self.page.reading() {
-            if self.poll().await?
-                || self.completions(tracked) > seen
-                || self.page.evaluate::<bool>(check).await.unwrap_or(false)
-            {
+        let until = Deadline::new(within);
+        loop {
+            if self.poll().await? || self.completions(tracked) > seen {
                 return Ok(true);
             }
-            if started.elapsed() >= within {
+            let slice = POLL.min(until.remaining().unwrap_or_default());
+            match self.page.confirm(check, slice).await {
+                Ok(()) => return Ok(true),
+                Err(InputError::Transport(failure)) => return Err(failure),
+                Err(InputError::Failed(_)) => {}
+            }
+            if until.remaining().is_none_or(|left| left.is_zero()) || !self.page.reading() {
                 return Ok(false);
             }
-            self.page.rest(POLL.min(within)).await;
         }
-        Ok(false)
     }
 
     /// Turns the wheel over the list the page shows toward its end. Returns `false` once the
