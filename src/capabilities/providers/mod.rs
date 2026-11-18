@@ -34,6 +34,8 @@ mod youtube_web;
 
 pub(crate) use crate::catalog::ProviderId;
 pub(crate) use arxiv::ArxivApi;
+#[cfg(all(test, unix))]
+pub(crate) use browser::real_tests as real_browser;
 pub(crate) use browser::{
     BrowserLogin, BrowserSession, Display as BrowserDisplay, Page as BrowserPage,
     run as run_browser,

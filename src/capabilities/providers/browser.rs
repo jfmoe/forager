@@ -45,7 +45,7 @@ mod capture;
 mod input;
 #[cfg(all(test, unix))]
 #[path = "browser_real_tests.rs"]
-mod real_tests;
+pub(crate) mod real_tests;
 
 pub(crate) use capture::{CaptureFilter, CaptureLevel, Exchange, RequestMethod, ResponseBody};
 pub(crate) use input::{InputError, InputFailure, Key};

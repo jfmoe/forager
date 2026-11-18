@@ -18,9 +18,9 @@ use crate::providers::{
     FetchRequest, MapRequest, ProviderId,
 };
 use crate::types::{
-    CapabilitySet, ClaimRisk, Context7Outcome, Deadline, EvidenceStrength, FallbackPolicy,
-    FetchOutcome, HnStoriesResult, JournalOutcome, MapOutcome, PlanCapability, Platform,
-    PlatformAskResult, PlatformCommentsPage, PlatformFetchResult, PlatformSearchPage,
+    AttemptErrorKind, CapabilitySet, ClaimRisk, Context7Outcome, Deadline, EvidenceStrength,
+    FallbackPolicy, FetchOutcome, HnStoriesResult, JournalOutcome, MapOutcome, PlanCapability,
+    Platform, PlatformAskResult, PlatformCommentsPage, PlatformFetchResult, PlatformSearchPage,
     PlatformTranscribeResult, PolymarketHistoryResult, ProviderAttempt, RecencyRequirement,
     ResearchIntentSignals, ResearchPlan, ResearchSubquestion, SearchOutcome,
 };
@@ -46,6 +46,15 @@ pub enum CommandOutput {
         stderr: Option<String>,
         /// Process exit status.
         exit_code: u8,
+    },
+    /// A command that failed after its preflight, without attempts or a journal: the binary
+    /// renders the thin failure payload `{error_kind, message}` with the exit code of the
+    /// error's family.
+    Failure {
+        /// What kind of failure ended the command.
+        kind: AttemptErrorKind,
+        /// The failure message.
+        message: String,
     },
     /// A Default Search Invocation that failed after journal configuration was available.
     SearchPreflight {

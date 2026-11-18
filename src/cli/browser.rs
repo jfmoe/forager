@@ -1,18 +1,16 @@
 //! The `forager browser` command group: installing the Managed Browser and logging a user into
 //! a platform's Browser Profile. Results go to stdout as one JSON object, progress and prompts
-//! to stderr.
+//! to stderr; the flows themselves are in `ops/browser_setup`.
 
 use std::time::Duration;
 
 use clap::Subcommand;
 use serde::Serialize;
-use serde_json::json;
 
 use super::dispatch::{AppError, CommandOutput, NetworkDependencies};
 use crate::browser_setup::{self, SetupFailure};
 use crate::config::ConfigError;
-use crate::providers::{self, BrowserProfile, managed_browser};
-use crate::types::{Deadline, ErrorKind, Platform};
+use crate::types::{Deadline, Platform};
 
 #[derive(Clone, Copy, Debug, Subcommand)]
 pub(super) enum BrowserCommand {
@@ -69,44 +67,19 @@ fn install(timeout: u64) -> Result<CommandOutput, AppError> {
 }
 
 fn login(platform: Platform, timeout: u64) -> Result<CommandOutput, AppError> {
-    let Some(login) = providers::browser_login(platform) else {
-        return Err(AppError::Argument(format!(
-            "platform `{platform}` has no browser route that needs a login; `forager browser login` supports: {}",
-            Platform::ALL
-                .into_iter()
-                .filter(|platform| providers::browser_login(*platform).is_some())
-                .map(Platform::as_str)
-                .collect::<Vec<_>>()
-                .join(", ")
-        )));
-    };
+    let login = browser_setup::platform_login(platform).map_err(AppError::Argument)?;
     let dependencies = NetworkDependencies::load()?;
-    let executable = managed_browser::locate(&dependencies.config.browser)
-        .map_err(|error| AppError::Config(ConfigError::Message(error.to_string())))?;
-    let profile = BrowserProfile::named(login.profile)
-        .map_err(|error| AppError::Runtime(error.to_string()))?;
-    let limiter = providers::route_limiter(login.route).ok_or_else(|| {
-        AppError::Runtime(format!(
-            "{} declares no access policy for its browser commands",
-            login.route.name()
-        ))
-    })?;
-    eprintln!(
-        "opening a browser window on {}; log in there (waiting up to {timeout} seconds)",
-        login.page.entry_url
-    );
     let logged_in = dependencies.runtime.block_on(browser_setup::login(
         &login,
-        &executable,
-        &profile,
-        &limiter,
-        Deadline::new(Duration::from_secs(timeout)),
+        &dependencies.config.browser,
+        Duration::from_secs(timeout),
+        &mut |line| eprintln!("{line}"),
     ));
     finish(logged_in)
 }
 
-/// Renders a setup result: the result on stdout, or the failure as the thin failure payload
-/// with the exit code of its error family. Config and parameter failures are preflight errors.
+/// Renders a setup result: the result on stdout, a missing browser as a preflight config
+/// error, and any other failure as the thin failure payload the binary renders.
 fn finish(result: Result<impl Serialize, SetupFailure>) -> Result<CommandOutput, AppError> {
     match result {
         Ok(value) => Ok(CommandOutput::Text {
@@ -115,21 +88,10 @@ fn finish(result: Result<impl Serialize, SetupFailure>) -> Result<CommandOutput,
             stderr: None,
             exit_code: 0,
         }),
-        Err(SetupFailure {
-            kind: ErrorKind::Config,
-            message,
-        }) => Err(AppError::Config(ConfigError::Message(message))),
-        Err(SetupFailure {
-            kind: ErrorKind::Parameter,
-            message,
-        }) => Err(AppError::Argument(message)),
-        Err(SetupFailure { kind, message }) => Ok(CommandOutput::Text {
-            stdout: json!({"error_kind": kind.as_str(), "message": message}).to_string(),
-            stderr: None,
-            exit_code: match kind.family() {
-                Some(crate::types::ErrorFamily::Content) => 5,
-                _ => 4,
-            },
+        Err(SetupFailure::Config(message)) => Err(AppError::Config(ConfigError::Message(message))),
+        Err(SetupFailure::Failed(failure)) => Ok(CommandOutput::Failure {
+            kind: failure.kind,
+            message: failure.message,
         }),
     }
 }

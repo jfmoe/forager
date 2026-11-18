@@ -33,6 +33,15 @@ fn main() -> ExitCode {
             stderr,
             exit_code,
         }) => emit(stdout, stderr, exit_code),
+        Ok(CommandOutput::Failure { kind, message }) => emit(
+            json!({
+                "error_kind": kind.as_str(),
+                "message": message.chars().take(500).collect::<String>(),
+            })
+            .to_string(),
+            None,
+            postflight_exit_code(kind),
+        ),
         Ok(CommandOutput::SearchPreflight {
             error,
             journal,
