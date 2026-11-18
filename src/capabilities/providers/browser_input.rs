@@ -34,9 +34,6 @@ const LOCATE_POLL: Duration = Duration::from_millis(200);
 const MAX_SCROLLS_INTO_VIEW: usize = 8;
 // How far from the center a click may land, as a fraction of the target's size.
 const CLICK_JITTER: f64 = 0.25;
-// CDP modifier bits.
-const MODIFIER_CONTROL: u32 = 2;
-const MODIFIER_META: u32 = 4;
 
 /// Why a native action did not happen.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -96,59 +93,25 @@ impl From<AttemptFailure> for InputError {
 
 /// A key that page logic presses.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[cfg_attr(
-    not(all(test, unix)),
-    expect(
-        dead_code,
-        reason = "browser routes press only Enter so far; the real-browser tests press every key"
-    )
-)]
 pub(crate) enum Key {
     Enter,
-    Escape,
-    SelectAll,
-    Backspace,
-    Delete,
 }
 
 struct KeyCode {
     key: &'static str,
     code: &'static str,
     windows_code: u32,
-    text: Option<&'static str>,
-    // The editing command Chrome on macOS needs to perform the key.
-    command: Option<&'static str>,
-    shortcut: bool,
+    text: &'static str,
 }
 
 impl Key {
     fn code(self) -> KeyCode {
-        let plain = |key, code, windows_code| KeyCode {
-            key,
-            code,
-            windows_code,
-            text: None,
-            command: None,
-            shortcut: false,
-        };
         match self {
             Self::Enter => KeyCode {
-                text: Some("\r"),
-                ..plain("Enter", "Enter", 13)
-            },
-            Self::Escape => plain("Escape", "Escape", 27),
-            Self::SelectAll => KeyCode {
-                command: Some("selectAll"),
-                shortcut: true,
-                ..plain("a", "KeyA", 65)
-            },
-            Self::Backspace => KeyCode {
-                command: Some("deleteBackward"),
-                ..plain("Backspace", "Backspace", 8)
-            },
-            Self::Delete => KeyCode {
-                command: Some("deleteForward"),
-                ..plain("Delete", "Delete", 46)
+                key: "Enter",
+                code: "Enter",
+                windows_code: 13,
+                text: "\r",
             },
         }
     }
@@ -266,18 +229,17 @@ fn locate_script(targets: &str, at: Option<Point>) -> String {
 
 impl Page {
     /// Moves the pointer onto the one target that `targets` (a page expression yielding
-    /// elements) names, scrolling it into view with the wheel first. Returns the point.
+    /// elements) names, scrolling it into view with the wheel first.
     ///
     /// # Errors
     ///
     /// Returns why no single target could be reached, or a transport failure.
-    pub(crate) async fn hover(&mut self, targets: &str) -> Result<(f64, f64), InputError> {
+    pub(crate) async fn hover(&mut self, targets: &str) -> Result<(), InputError> {
         self.require_time()?;
         self.pause().await;
         let point = self.locate(targets).await?;
         self.require_time()?;
-        self.move_pointer(point).await?;
-        Ok((point.x, point.y))
+        self.move_pointer(point).await
     }
 
     /// Clicks the one target that `targets` names: scrolls it into view with the wheel, hovers a
@@ -364,8 +326,7 @@ impl Page {
         Ok(())
     }
 
-    /// Presses `key` in the focused element, with its key code and, on macOS, the editing
-    /// command Chrome needs to perform it.
+    /// Presses `key` in the focused element, with its key code and the text it types.
     ///
     /// # Errors
     ///
@@ -376,46 +337,16 @@ impl Page {
         self.pause().await;
         self.require_time()?;
         let code = key.code();
-        let (modifier, modifier_key, modifier_code, modifier_key_code) =
-            if cfg!(target_os = "macos") {
-                (MODIFIER_META, "Meta", "MetaLeft", 91)
-            } else {
-                (MODIFIER_CONTROL, "Control", "ControlLeft", 17)
-            };
-        let modifiers = if code.shortcut { modifier } else { 0 };
-        if code.shortcut {
-            self.key_event(json!({
-                "type": "rawKeyDown", "key": modifier_key, "code": modifier_code,
-                "windowsVirtualKeyCode": modifier_key_code, "modifiers": modifiers,
-            }))
-            .await?;
-        }
-        let mut down = json!({
-            "type": if code.text.is_some() { "keyDown" } else { "rawKeyDown" },
-            "key": code.key, "code": code.code,
-            "windowsVirtualKeyCode": code.windows_code, "modifiers": modifiers,
-        });
-        if let Some(text) = code.text {
-            down["text"] = json!(text);
-        }
-        if cfg!(target_os = "macos")
-            && let Some(command) = code.command
-        {
-            down["commands"] = json!([command]);
-        }
-        self.key_event(down).await?;
         self.key_event(json!({
-            "type": "keyUp", "key": code.key, "code": code.code,
-            "windowsVirtualKeyCode": code.windows_code, "modifiers": modifiers,
+            "type": "keyDown", "key": code.key, "code": code.code,
+            "windowsVirtualKeyCode": code.windows_code, "text": code.text,
         }))
         .await?;
-        if code.shortcut {
-            self.key_event(json!({
-                "type": "keyUp", "key": modifier_key, "code": modifier_code,
-                "windowsVirtualKeyCode": modifier_key_code, "modifiers": 0,
-            }))
-            .await?;
-        }
+        self.key_event(json!({
+            "type": "keyUp", "key": code.key, "code": code.code,
+            "windowsVirtualKeyCode": code.windows_code,
+        }))
+        .await?;
         Ok(())
     }
 }
