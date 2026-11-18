@@ -45,6 +45,18 @@ impl Tracked {
     pub(super) fn matches(self, exchange: &Exchange) -> bool {
         exchange.method == self.method && exchange.url.path() == self.path
     }
+
+    /// The responses to this request among `exchanges` that finished loading, with or without
+    /// a body.
+    pub(super) fn completed(self, exchanges: &[Exchange]) -> impl Iterator<Item = &Exchange> {
+        exchanges.iter().filter(move |exchange| {
+            self.matches(exchange)
+                && matches!(
+                    exchange.body,
+                    ResponseBody::Received(_) | ResponseBody::Missing
+                )
+        })
+    }
 }
 
 // The helpers every page script can use. The site keeps its state in Vue refs, which hold their
@@ -273,19 +285,27 @@ impl<'p> Reading<'p> {
             || facts.blocked_status.is_some()
     }
 
-    /// The responses to `tracked` that finished loading, with or without a body.
-    fn completed(&self, tracked: Tracked) -> impl Iterator<Item = &Exchange> {
-        self.exchanges.iter().filter(move |exchange| {
-            tracked.matches(exchange)
-                && matches!(
-                    exchange.body,
-                    ResponseBody::Received(_) | ResponseBody::Missing
-                )
-        })
+    pub(super) fn completions(&self, tracked: Tracked) -> usize {
+        tracked.completed(&self.exchanges).count()
     }
 
-    pub(super) fn completions(&self, tracked: Tracked) -> usize {
-        self.completed(tracked).count()
+    /// Waits while the browser shows its own error page for the last navigation, which it
+    /// reloads by itself; returns whether the read can go on: the page loaded before the read
+    /// deadline and its facts do not end the read.
+    pub(super) async fn loaded(&mut self) -> Result<bool, AttemptFailure> {
+        loop {
+            if self.poll().await? {
+                return Ok(false);
+            }
+            if !self.page.reading() {
+                self.timed_out = true;
+                return Ok(false);
+            }
+            if self.facts.load_error.is_none() {
+                return Ok(true);
+            }
+            self.page.rest(POLL).await;
+        }
     }
 
     /// Waits for a response to `tracked` after the `seen` completed ones, scrolling to the end
@@ -304,8 +324,8 @@ impl<'p> Reading<'p> {
                 return Ok(false);
             }
             if self.completions(tracked) > seen {
-                let held = self
-                    .completed(tracked)
+                let held = tracked
+                    .completed(&self.exchanges)
                     .skip(seen)
                     .any(|exchange| matches!(exchange.body, ResponseBody::Received(_)));
                 self.body_missing |= !held;
