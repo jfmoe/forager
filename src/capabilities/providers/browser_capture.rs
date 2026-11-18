@@ -82,7 +82,8 @@ pub(super) fn network_enable_params() -> Value {
 struct State {
     open: HashMap<String, Open>,
     ended: Vec<Exchange>,
-    oversized: Option<String>,
+    /// Why the first kept body that could not be read failed the capture.
+    failure: Option<String>,
 }
 
 struct Open {
@@ -127,11 +128,8 @@ impl Capture {
 
     pub(super) fn take(&self) -> Result<Vec<Exchange>, AttemptFailure> {
         let mut state = lock(&self.state);
-        if let Some(url) = &state.oversized {
-            return Err(runtime(format!(
-                "a response body from {url} exceeded the {} MiB limit",
-                MAX_RESPONSE_BYTES / (1024 * 1024)
-            )));
+        if let Some(failure) = &state.failure {
+            return Err(runtime(failure.clone()));
         }
         Ok(std::mem::take(&mut state.ended))
     }
@@ -203,6 +201,7 @@ struct LoadingFailed {
     error: String,
 }
 
+#[cfg_attr(test, derive(Debug))]
 #[derive(Deserialize)]
 struct ResponseBodyResult {
     body: String,
@@ -326,17 +325,24 @@ impl Recorder {
                 self.work,
             )
             .await;
-        let body = match read.ok().map(decode_body) {
-            Some(Some(text)) if text.len() <= MAX_RESPONSE_BYTES => ResponseBody::Received(text),
-            Some(_) => {
-                self.oversize(&url);
+        let body = match read_body(read.ok(), finished.encoded_length) {
+            BodyRead::Kept(text) => ResponseBody::Received(text),
+            BodyRead::Missing => ResponseBody::Missing,
+            BodyRead::Oversized => {
+                self.fail(&url, |origin| {
+                    format!(
+                        "a response body from {origin} exceeded the {} MiB limit",
+                        MAX_RESPONSE_BYTES / (1024 * 1024)
+                    )
+                });
                 ResponseBody::Missing
             }
-            None if finished.encoded_length > f64::from(RESOURCE_BUFFER_BYTES) => {
-                self.oversize(&url);
+            BodyRead::Undecodable => {
+                self.fail(&url, |origin| {
+                    format!("the browser returned a response body from {origin} that is not valid base64")
+                });
                 ResponseBody::Missing
             }
-            None => ResponseBody::Missing,
         };
         self.end(&finished.id, body);
     }
@@ -349,24 +355,51 @@ impl Recorder {
         }
     }
 
-    fn oversize(&self, url: &Url) {
+    /// Records the first body that failed the capture, by the URL without its query.
+    fn fail(&self, url: &Url, message: impl FnOnce(&Url) -> String) {
         let mut origin = url.clone();
         origin.set_query(None);
         lock(&self.state)
-            .oversized
-            .get_or_insert_with(|| origin.to_string());
+            .failure
+            .get_or_insert_with(|| message(&origin));
     }
 }
 
-/// Decodes a body the browser returned; `None` for base64 that does not decode.
-fn decode_body(result: ResponseBodyResult) -> Option<String> {
-    if !result.base64 {
-        return Some(result.body);
+/// What became of a kept response body the browser was asked for.
+#[derive(Debug, Eq, PartialEq)]
+enum BodyRead {
+    Kept(String),
+    /// The browser returned no body, and the body was not too large to keep.
+    Missing,
+    /// The body exceeds the response limit, or the browser's buffer.
+    Oversized,
+    /// The browser returned a base64 body that does not decode.
+    Undecodable,
+}
+
+/// Judges the answer to `Network.getResponseBody`, `None` when the browser returned no body,
+/// for a response of `encoded_length` bytes.
+fn read_body(result: Option<ResponseBodyResult>, encoded_length: f64) -> BodyRead {
+    let Some(result) = result else {
+        return if encoded_length > f64::from(RESOURCE_BUFFER_BYTES) {
+            BodyRead::Oversized
+        } else {
+            BodyRead::Missing
+        };
+    };
+    let text = if result.base64 {
+        match STANDARD.decode(result.body) {
+            Ok(bytes) => String::from_utf8_lossy(&bytes).into_owned(),
+            Err(_) => return BodyRead::Undecodable,
+        }
+    } else {
+        result.body
+    };
+    if text.len() > MAX_RESPONSE_BYTES {
+        BodyRead::Oversized
+    } else {
+        BodyRead::Kept(text)
     }
-    STANDARD
-        .decode(result.body)
-        .ok()
-        .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
 }
 
 fn post_body(request: &Request) -> Option<String> {
@@ -382,4 +415,32 @@ fn post_body(request: &Request) -> Option<String> {
         .ok()?
         .concat();
     (!bytes.is_empty()).then(|| String::from_utf8_lossy(&bytes).into_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{BodyRead, ResponseBodyResult, read_body};
+
+    fn base64(body: &str) -> Option<ResponseBodyResult> {
+        Some(ResponseBodyResult {
+            body: body.into(),
+            base64: true,
+        })
+    }
+
+    #[test]
+    fn a_base64_body_that_does_not_decode_is_undecodable_not_oversized() {
+        assert_eq!(
+            read_body(base64("not base64!"), 12.0),
+            BodyRead::Undecodable
+        );
+    }
+
+    #[test]
+    fn a_base64_body_decodes_to_its_text() {
+        assert_eq!(
+            read_body(base64("5ZKW5ZWh"), 6.0),
+            BodyRead::Kept("咖啡".into())
+        );
+    }
 }
