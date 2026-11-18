@@ -64,7 +64,7 @@ const PIPE_SHELL: &str = r#"exec "$0" "$@" 3<&0 4>&1 </dev/null >/dev/null"#;
 
 /// Whether a window shows.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum Display {
+pub(crate) enum WindowMode {
     Headless,
     Headed,
 }
@@ -75,7 +75,7 @@ pub(crate) struct BrowserSession<'a> {
     pub(crate) profile: &'a BrowserProfile,
     /// The page language, such as `zh-CN`.
     pub(crate) language: &'a str,
-    pub(crate) display: Display,
+    pub(crate) window: WindowMode,
     /// Which requests passive capture keeps, and how much of each.
     pub(crate) capture: CaptureFilter,
 }
@@ -119,7 +119,7 @@ pub(crate) fn launch_arguments(
     seed: u32,
     screen: Option<Screen>,
     language: &str,
-    display: Display,
+    window: WindowMode,
 ) -> Vec<OsString> {
     let primary = language.split('-').next().unwrap_or(language);
     let accept = if primary == language {
@@ -138,7 +138,7 @@ pub(crate) fn launch_arguments(
         "--no-first-run".into(),
         "--no-default-browser-check".into(),
     ];
-    if display == Display::Headless {
+    if window == WindowMode::Headless {
         arguments.push("--headless=new".into());
         if let Some(screen) = screen {
             arguments.extend(screen_arguments(screen));
@@ -250,7 +250,7 @@ pub(crate) async fn run<T>(
         profile.seed(),
         profile.screen(),
         session.language,
-        session.display,
+        session.window,
     );
     let mut group = ProcessGroup::spawn(session.executable, &arguments, permit, profile)?;
     let Some(working) = deadlines.work.remaining() else {
@@ -764,7 +764,7 @@ fn last_line(stderr: &[u8]) -> String {
 mod tests {
     use std::path::Path;
 
-    use super::{Display, launch_arguments};
+    use super::{WindowMode, launch_arguments};
     use crate::providers::browser_profile::Screen;
 
     #[cfg(unix)]
@@ -795,7 +795,7 @@ mod tests {
             executable: &browser,
             profile: &profile,
             language: "zh-CN",
-            display: Display::Headless,
+            window: WindowMode::Headless,
             capture: |_| CaptureLevel::Ignore,
         };
         let limiter = RateLimiter::in_state_file(
@@ -872,22 +872,16 @@ mod tests {
         );
     }
 
-    fn arguments(display: Display, screen: Option<Screen>) -> Vec<String> {
-        launch_arguments(
-            Path::new("/profile/user-data"),
-            42,
-            screen,
-            "zh-CN",
-            display,
-        )
-        .into_iter()
-        .map(|argument| argument.to_string_lossy().into_owned())
-        .collect()
+    fn arguments(window: WindowMode, screen: Option<Screen>) -> Vec<String> {
+        launch_arguments(Path::new("/profile/user-data"), 42, screen, "zh-CN", window)
+            .into_iter()
+            .map(|argument| argument.to_string_lossy().into_owned())
+            .collect()
     }
 
     #[test]
     fn a_headless_launch_carries_the_profile_seed_and_language() {
-        let arguments = arguments(Display::Headless, None);
+        let arguments = arguments(WindowMode::Headless, None);
 
         assert_eq!(
             arguments
@@ -912,7 +906,7 @@ mod tests {
 
     #[test]
     fn a_headed_launch_has_no_headless_switch() {
-        let arguments = arguments(Display::Headed, None);
+        let arguments = arguments(WindowMode::Headed, None);
 
         assert!(
             !arguments
@@ -934,7 +928,7 @@ mod tests {
             window_height: 800,
         };
 
-        let arguments = arguments(Display::Headless, Some(screen));
+        let arguments = arguments(WindowMode::Headless, Some(screen));
 
         assert_eq!(
             arguments[arguments.len() - 3..],

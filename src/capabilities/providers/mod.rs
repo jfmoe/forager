@@ -37,8 +37,7 @@ pub(crate) use arxiv::ArxivApi;
 #[cfg(all(test, unix))]
 pub(crate) use browser::real_tests as real_browser;
 pub(crate) use browser::{
-    BrowserLogin, BrowserSession, Display as BrowserDisplay, Page as BrowserPage,
-    run as run_browser,
+    BrowserLogin, BrowserSession, Page as BrowserPage, WindowMode, run as run_browser,
 };
 pub(crate) use browser_profile::{BrowserProfile, Screen as BrowserScreen};
 pub(crate) use browser_route::preflight as browser_preflight;

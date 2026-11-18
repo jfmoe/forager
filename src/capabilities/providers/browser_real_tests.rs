@@ -21,8 +21,8 @@ use serde_json::Value;
 
 use super::input::{InputError, Key};
 use super::{
-    BrowserLogin, BrowserSession, CaptureLevel, Display, Exchange, LoginPage, Page, RequestMethod,
-    ResponseBody, run,
+    BrowserLogin, BrowserSession, CaptureLevel, Exchange, LoginPage, Page, RequestMethod,
+    ResponseBody, WindowMode, run,
 };
 use crate::catalog::ProviderId;
 use crate::config::BrowserRuntimeConfig;
@@ -101,7 +101,7 @@ impl Sandbox {
             executable,
             profile: &profile,
             language: "zh-CN",
-            display: Display::Headless,
+            window: WindowMode::Headless,
             capture: local,
         };
         block_on(run(
@@ -586,7 +586,7 @@ fn driver_helper() {
         executable: &executable,
         profile: &profile,
         language: "zh-CN",
-        display: Display::Headless,
+        window: WindowMode::Headless,
         capture: local,
     };
     let _ = block_on(run(
