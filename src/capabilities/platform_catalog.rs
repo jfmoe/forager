@@ -63,8 +63,8 @@ pub(crate) const SCHOLAR: PlatformCatalog = PlatformCatalog {
     default_order: &[ProviderId::Serpapi],
 };
 
-// Xiaohongshu has no public API and forbids crawlers, so its only route reads the pages of the
-// user's own logged-in Chrome and stays out of every default order (ADR 0020).
+// Xiaohongshu has no public API and forbids crawlers, so its only route reads the site's pages in
+// a browser logged into the user's account and stays out of every default order (ADR 0020).
 pub(crate) const XIAOHONGSHU: PlatformCatalog = PlatformCatalog {
     platform: Platform::Xiaohongshu,
     search: &[ProviderId::XiaohongshuBrowser],

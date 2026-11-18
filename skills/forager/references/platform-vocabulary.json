@@ -67,7 +67,7 @@
     },
     {
       "id": "xiaohongshu",
-      "purpose": "Search and read Xiaohongshu (小红书, RED) notes in the user's own logged-in Chrome: note identity, title, author, publish time, tags, interaction counts, images, the note text, its comments and replies, and an access URL that opens the note.",
+      "purpose": "Search and read Xiaohongshu (小红书, RED) notes in a headless browser logged into the user's account: note identity, title, author, publish time, tags, interaction counts, images, the note text, its comments and replies, and an access URL that opens the note.",
       "select_when": "The request names Xiaohongshu, 小红书 or RED, supplies a xiaohongshu.com note URL, access_url or xiaohongshu: ref, or needs Chinese consumer experience, reviews, and lifestyle posts rather than web pages; it needs the xiaohongshu_browser route enabled by the user.",
       "examples": [
         "search Xiaohongshu for coffee grinder reviews",

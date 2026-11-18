@@ -16,15 +16,15 @@ use crate::types::{
 
 #[derive(Debug, Subcommand)]
 pub(in crate::app) enum XiaohongshuCommand {
-    /// Search Xiaohongshu notes in your own logged-in Chrome; each result carries the note card
+    /// Search Xiaohongshu notes in the logged-in Browser Profile; each result carries the note card
     /// and an `access_url` that opens the note. Needs `xiaohongshu_browser` in
     /// `platforms.xiaohongshu.order`.
     Search(XiaohongshuSearchArgs),
-    /// Read one Xiaohongshu note in your own logged-in Chrome; by default its text is written to
-    /// a local Markdown file. Needs the note's access token, as in a search result's
+    /// Read one Xiaohongshu note in the logged-in Browser Profile; by default its text is written
+    /// to a local Markdown file. Needs the note's access token, as in a search result's
     /// `access_url`.
     Fetch(XiaohongshuFetchArgs),
-    /// List the top-level comments of one Xiaohongshu note in your own logged-in Chrome, and
+    /// List the top-level comments of one Xiaohongshu note in the logged-in Browser Profile, and
     /// optionally the first page of replies under the first few. Needs the note's access token,
     /// as in a search result's `access_url`.
     Comments(XiaohongshuCommentsArgs),
