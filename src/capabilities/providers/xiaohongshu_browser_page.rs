@@ -143,14 +143,13 @@ struct ScrollPlan {
     distance: f64,
 }
 
-/// Turns the outcome of a native action into the reason it did not happen, or a transport
-/// failure.
-pub(super) fn input_reason(
+/// Turns the outcome of a native action into why it did not happen, or a transport failure.
+pub(super) fn input_failure(
     result: Result<(), InputError>,
-) -> Result<Option<&'static str>, AttemptFailure> {
+) -> Result<Option<InputFailure>, AttemptFailure> {
     match result {
         Ok(()) => Ok(None),
-        Err(InputError::Failed(failure)) => Ok(Some(failure.reason())),
+        Err(InputError::Failed(failure)) => Ok(Some(failure)),
         Err(InputError::Transport(failure)) => Err(failure),
     }
 }
