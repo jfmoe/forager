@@ -386,6 +386,7 @@ dependencies = [
  "chrono",
  "clap",
  "eventsource-stream",
+ "fastrand",
  "fs2",
  "futures-util",
  "http",

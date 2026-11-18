@@ -43,6 +43,14 @@ pub(crate) struct JournalRuntimeConfig {
     pub(crate) credentials: Vec<Secret>,
 }
 
+/// The browser that browser routes and `forager browser` commands launch.
+#[derive(Clone, Debug)]
+pub(crate) struct BrowserRuntimeConfig {
+    /// The configured local browser executable that replaces the Managed Browser, resolved by
+    /// the same rules as `journal.dir`; `None` uses the Managed Browser.
+    pub(crate) path: Option<PathBuf>,
+}
+
 /// The configuration of every platform route. Route lookups take it whole, so a new route adds
 /// a field here and changes no signature.
 #[derive(Clone, Debug)]
@@ -212,6 +220,7 @@ pub(crate) struct RuntimeConfig {
     pub(crate) retry: RetryRuntimeConfig,
     pub(crate) log_level: LogLevel,
     pub(crate) ssl_verify: bool,
+    pub(crate) browser: BrowserRuntimeConfig,
 }
 
 pub(crate) struct ProviderRuntime<'a> {
@@ -503,6 +512,11 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         },
         log_level: LogLevel::from_validated(&config.log.level),
         ssl_verify: config.http.ssl_verify,
+        browser: BrowserRuntimeConfig {
+            path: (!config.browser.path.is_empty())
+                .then(|| resolve_path("browser.path", &config.browser.path, &config_dir))
+                .transpose()?,
+        },
     })
 }
 
@@ -573,6 +587,12 @@ fn resolve_journal_dir(value: &str, config_dir: &Path) -> Result<PathBuf, Config
     {
         return Ok(state_home.join("forager/journal"));
     }
+    resolve_path("journal.dir", value, config_dir)
+}
+
+/// Resolves a configured path: a leading `~/` expands to `HOME`, and a relative path is relative
+/// to the configuration directory, never the working directory.
+fn resolve_path(key: &str, value: &str, config_dir: &Path) -> Result<PathBuf, ConfigError> {
     if let Some(relative) = value.strip_prefix("~/") {
         return env::var_os("HOME")
             .filter(|value| !value.is_empty())
@@ -580,9 +600,9 @@ fn resolve_journal_dir(value: &str, config_dir: &Path) -> Result<PathBuf, Config
             .filter(|path| path.is_absolute())
             .map(|home| home.join(relative))
             .ok_or_else(|| {
-                ConfigError::Message(
-                    "journal.dir uses `~` but HOME is unavailable or not absolute".into(),
-                )
+                ConfigError::Message(format!(
+                    "{key} uses `~` but HOME is unavailable or not absolute"
+                ))
             });
     }
     let path = PathBuf::from(value);

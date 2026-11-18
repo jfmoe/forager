@@ -958,6 +958,7 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             output.target(),
         ),
         Command::Platform { command } => super::platform::run(command),
+        Command::Browser { command } => super::browser::run(command),
         Command::Config {
             command: ConfigCommand::Path,
         } => Ok(CommandOutput::Text {

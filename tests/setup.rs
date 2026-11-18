@@ -27,10 +27,11 @@ fn non_interactive_setup_creates_a_complete_template() {
             &value["capabilities"]["web_fetch"]["order"],
             value["providers"]["firecrawl"]["timeout"].as_integer(),
             value["search"].get("validation"),
+            value["browser"]["path"].as_str(),
         ),
         (
             Some(0),
-            78,
+            79,
             Some(0),
             Some(0),
             &toml::Value::Array(
@@ -41,6 +42,7 @@ fn non_interactive_setup_creates_a_complete_template() {
             ),
             Some(60),
             None,
+            Some(""),
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)

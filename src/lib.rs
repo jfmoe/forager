@@ -8,6 +8,10 @@ pub mod app;
 mod attempt_log;
 #[path = "core/attempt_trace.rs"]
 mod attempt_trace;
+#[path = "ops/browser_setup.rs"]
+mod browser_setup;
+#[path = "infra/cache_dir.rs"]
+mod cache_dir;
 #[path = "capabilities/catalog.rs"]
 mod catalog;
 #[path = "core/chain.rs"]

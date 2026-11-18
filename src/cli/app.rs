@@ -1,6 +1,7 @@
 //! CLI parsing and application dispatch.
 
 mod args;
+mod browser;
 mod dispatch;
 mod platform;
 

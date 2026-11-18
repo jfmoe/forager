@@ -17,6 +17,7 @@ use std::sync::{Arc, Condvar, Mutex, mpsc};
 use std::thread;
 use std::time::{Duration, Instant};
 
+pub(crate) mod browser;
 pub(crate) mod doctor;
 pub(crate) mod gemini_api;
 pub(crate) mod hn;

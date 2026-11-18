@@ -108,6 +108,14 @@ _Avoid_: route kind、backend type
 forager 自有、安装到本机 OpenCLI 的站点命令集合，例如小红书的 `search`、`note`、`comments` 与 `contract`。每个命令只读取页面或站点自身请求的事实，输出带契约版本的统一外壳（`contract`、`status`、`data`）；校验与归一化由 route adapter 完成。只有 adapter 核实了站点自己的无结果答复时，`status` 才是 `no_results`。
 _Avoid_: OpenCLI plugin、browser script、built-in OpenCLI site adapter
 
+**Managed Browser**:
+forager 下载、固定版本并校验 SHA256 的浏览器（fingerprint-chromium），由 `forager browser install` 安装到 forager 的缓存目录，安装位置带版本号；运行时只认固定版本。配置 `browser.path` 时由它指定的本地浏览器替代。
+_Avoid_: bundled Chrome、system browser
+
+**Browser Profile**:
+某个平台专用的持久浏览器环境，位于状态目录、以平台 id 命名，保存该平台的登录态、创建时生成一次的指纹种子与登录时宿主的屏幕尺寸；同一时刻只有一个进程能使用它。登录标记只表示登录过，不保证会话仍有效；forager 不读取、不导出它保存的 cookie。
+_Avoid_: browser session、cookie store、user data dir
+
 **Platform Ref**:
 Platform 实体的类型化身份，由平台、平台自有的 kind 与 id 组成，可以带版本（SSRN 修订论文时 DOI 不变，无法据此推出版本，因此 SSRN ref 不带版本）；它与 canonical URL 可以互相推导。kind 只按身份空间或取回结果形状划分，不按对话角色划分。
 _Avoid_: platform URL、raw id

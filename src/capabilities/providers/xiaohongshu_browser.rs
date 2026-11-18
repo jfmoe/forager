@@ -31,11 +31,14 @@ const BEIJING_SECONDS: i32 = 8 * 3600;
 
 #[path = "xiaohongshu_browser_comments.rs"]
 mod comments;
+#[path = "xiaohongshu_browser_login.rs"]
+mod login;
 #[path = "xiaohongshu_browser_note.rs"]
 mod note;
 #[path = "xiaohongshu_browser_search.rs"]
 mod search;
 
+pub(crate) use login::LOGIN;
 pub(crate) use note::fetch_support;
 pub(crate) use search::search_support;
 

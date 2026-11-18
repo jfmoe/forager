@@ -21,10 +21,11 @@ fn config_list_reports_the_complete_default_effective_view() {
             view["search"].get("validation"),
             &view["providers"]["exa"]["keys"],
             &view["http"]["ssl_verify"],
+            &view["browser"]["path"],
         ),
         (
             Some(0),
-            78,
+            79,
             None,
             &serde_json::json!({
                 "value": [],
@@ -33,6 +34,7 @@ fn config_list_reports_the_complete_default_effective_view() {
                 "key_count": 0
             }),
             &serde_json::json!({"value": true, "source": "default"}),
+            &serde_json::json!({"value": "", "source": "default"}),
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
