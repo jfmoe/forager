@@ -8,6 +8,7 @@ use serde_json::{Value, json};
 use super::{
     Decoded, Exchange, Observed, RequestMethod, ResponseBody, SearchData, SearchProgress,
     filter_choices, published_date, search_data as captured_search_data, search_outcome,
+    wants_another_page,
 };
 use crate::types::{
     AttemptErrorKind, XiaohongshuNoteType, XiaohongshuPublishTime, XiaohongshuSearchOptions,
@@ -794,4 +795,85 @@ fn captured_search_responses_count_the_filter_clicks_made_before_them() {
             Err("the Xiaohongshu page logic made 1 filter clicks, not 2".to_owned())
         )
     );
+}
+
+#[test]
+fn a_read_deadline_before_the_search_was_submitted_is_a_timeout_or_a_load_failure() {
+    let home =
+        json!({"url": "https://www.xiaohongshu.com/explore", "title": "小红书 - 你的生活兴趣社区"});
+    let mut error_page = home.clone();
+    error_page["load_error"] = json!("ERR_CONNECTION_CLOSED");
+
+    let kinds = [home, error_page].map(|page| {
+        let mut data = with_page(&page, true, false);
+        data["before_search"] = json!(true);
+        default_search(&data, 20)
+            .map(|_| ())
+            .map_err(|(kind, message)| (kind, message.contains("before the search was submitted")))
+    });
+
+    assert_eq!(
+        kinds,
+        [
+            Err((AttemptErrorKind::Timeout, true)),
+            Err((AttemptErrorKind::Network, false))
+        ]
+    );
+}
+
+#[test]
+fn a_read_that_timed_out_before_the_query_was_submitted_is_marked_before_search() {
+    let observed = |timed_out| Observed {
+        page: serde_json::from_value(results_page()).expect("page facts"),
+        exchanges: Vec::new(),
+        timed_out,
+        body_missing: false,
+    };
+    let submitted = SearchProgress {
+        submitted: true,
+        ..SearchProgress::default()
+    };
+
+    let marks = [
+        (observed(true), SearchProgress::default()),
+        (observed(true), submitted),
+        (observed(false), SearchProgress::default()),
+    ]
+    .map(|(observed, progress)| {
+        captured_search_data(observed, progress)
+            .expect("search observation")
+            .before_search
+    });
+
+    assert_eq!(marks, [true, false, false]);
+}
+
+#[test]
+fn the_results_are_read_until_the_needed_pages_have_answered() {
+    let page = |page: u32, has_more: bool| {
+        let response = response(
+            0,
+            page,
+            ROOT_SEARCH_ID,
+            &Value::Null,
+            has_more,
+            &[note(page)],
+        );
+        exchange(
+            "/api/sns/web/v2/search/notes",
+            &response["request"],
+            &response["body"],
+        )
+    };
+    // The first screen requests its second page by itself.
+    let auto = [page(1, true), page(2, true)];
+
+    let wanted = [
+        wants_another_page(&auto, 0, 2),
+        wants_another_page(&auto, 0, 3),
+        wants_another_page(&[page(1, true), page(2, false)], 0, 3),
+        wants_another_page(&auto, 1, 2),
+    ];
+
+    assert_eq!(wanted, [false, true, false, true]);
 }

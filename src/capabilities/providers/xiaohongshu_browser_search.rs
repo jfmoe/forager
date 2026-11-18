@@ -167,6 +167,8 @@ struct SearchProgress {
     filter_clicks: u32,
     filter_failure: Option<String>,
     search_failure: Option<String>,
+    /// Whether the query was submitted from the home page.
+    submitted: bool,
     /// For each filter click, how many exchanges the read had kept before it.
     marks: Vec<usize>,
 }
@@ -194,16 +196,25 @@ async fn drive_search(
     progress: &mut SearchProgress,
 ) -> Result<(), AttemptFailure> {
     reading.navigate(HOME_URL).await?;
-    if reading.poll().await? {
+    if !reading.loaded().await? {
         return Ok(());
     }
-    if let Some(failure) = enter_query(reading.page(), query).await? {
-        progress.search_failure = Some(format!("{} for the search box", failure.reason()));
-        return Ok(());
+    match enter_query(reading.page(), query).await? {
+        None => progress.submitted = true,
+        Some(InputFailure::DeadlinePassed) => {
+            reading.mark_timed_out();
+            return Ok(());
+        }
+        Some(failure) => {
+            progress.search_failure = Some(format!("{} for the search box", failure.reason()));
+            return Ok(());
+        }
     }
     if !reading.next(SEARCH, 0, false).await? {
         return Ok(());
     }
+    // The responses that answer the last filter click come after the ones completed before it.
+    let mut answered_from = 0;
     for (group, option) in filter_choices(options) {
         // The first screen requests its second page by itself; a click before that page
         // arrives would count it as an answer to the click.
@@ -216,16 +227,28 @@ async fn drive_search(
             return Ok(());
         }
         progress.filter_clicks += 1;
+        answered_from = seen;
         if !reading.next(SEARCH, seen, false).await? {
             return Ok(());
         }
     }
-    for _ in 1..pages {
-        if !last_page_has_more(reading.exchanges()) || !reading.more(SEARCH).await? {
+    while wants_another_page(reading.exchanges(), answered_from, pages) {
+        if !reading.more(SEARCH).await? {
             break;
         }
     }
     Ok(())
+}
+
+/// Whether the search must scroll for another results page: fewer than `pages` responses have
+/// completed after the first `answered_from`, which came before the last filter click, and the
+/// last one says more results remain. The page the first screen requests by itself counts.
+fn wants_another_page(exchanges: &[Exchange], answered_from: usize, pages: usize) -> bool {
+    let answered = SEARCH
+        .completed(exchanges)
+        .count()
+        .saturating_sub(answered_from);
+    answered < pages && last_page_has_more(exchanges)
 }
 
 /// Types the query into the home page's search box and submits it; returns why it could not.
@@ -394,6 +417,7 @@ fn search_data(observed: Observed, progress: SearchProgress) -> Result<SearchDat
         filter_clicks: progress.filter_clicks,
         filter_failure: progress.filter_failure,
         search_failure: progress.search_failure,
+        before_search: observed.timed_out && !progress.submitted,
         timed_out: observed.timed_out,
         body_missing: observed.body_missing,
         responses,
@@ -488,6 +512,8 @@ struct SearchData {
     filter_failure: Option<String>,
     /// Why the page logic could not enter the search on the home page.
     search_failure: Option<String>,
+    /// The read deadline passed on the home page, before the query was submitted.
+    before_search: bool,
     /// The read deadline passed before the expected responses arrived.
     timed_out: bool,
     /// An awaited search response finished loading, but the browser returned no body for it.
@@ -649,9 +675,12 @@ fn incomplete(
         ));
     }
     let clicked = data.filter_clicks == expected.clicks;
-    let on_results = is_results_page(&data.page.url);
-    let unfinished = unfinished_read(&data.page, data.timed_out, on_results, || {
-        if clicked {
+    let on_expected_page = data.before_search || is_results_page(&data.page.url);
+    let unfinished = unfinished_read(&data.page, data.timed_out, on_expected_page, || {
+        if data.before_search {
+            "the read deadline passed before the search was submitted on the Xiaohongshu home page"
+                .to_owned()
+        } else if clicked {
             format!(
                 "Xiaohongshu returned {answered} of {pages} search pages before the read deadline"
             )
