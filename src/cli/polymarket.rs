@@ -232,11 +232,9 @@ fn polymarket_history(arguments: PolymarketHistoryArgs) -> Result<CommandOutput,
     let request = PolymarketHistoryRequest::new(market, outcome, window, bucket.map(Into::into))
         .map_err(AppError::Argument)?;
     let dependencies = NetworkDependencies::load()?;
-    let plan = platform_history::plan_history(
-        dependencies.config.platforms.get(Platform::Polymarket),
-        request,
-    )
-    .map_err(preflight_error)?;
+    let plan =
+        platform_history::plan_history(dependencies.platform(Platform::Polymarket)?, request)
+            .map_err(preflight_error)?;
     let result = dependencies.runtime.block_on(platform_history::run_history(
         plan,
         dependencies.client,

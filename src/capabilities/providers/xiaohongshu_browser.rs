@@ -1,18 +1,20 @@
 //! The `xiaohongshu_browser` route: Xiaohongshu search, note, and comment pages, read in the
-//! user's own logged-in Chrome through the forager OpenCLI adapter `forager-xhs`.
+//! headless Managed Browser with the logged-in Xiaohongshu Browser Profile.
 //!
-//! The JavaScript adapter only navigates, hovers, clicks, and scrolls, and reports what the page
-//! itself requested, received, and rendered. This route classifies the page facts, checks that
-//! the responses answer the request, and decodes them into items.
+//! The page logic of each operation has two parts. Driving the page navigates, types, clicks,
+//! and scrolls with native input, and observes what the page itself requested, received, and
+//! rendered. Judging the observation classifies the page facts, checks that the responses
+//! answer the request, and decodes them into items; it never touches a browser.
 
 use chrono::{DateTime, FixedOffset, SecondsFormat};
+#[cfg(test)]
 use serde::Deserialize;
 
 use crate::catalog::ProviderId;
-use crate::config::ProcessRouteRuntimeConfig;
+use crate::config::BrowserRouteRuntimeConfig;
 use crate::net::AttemptFailure;
+use crate::providers::browser_route::{BrowserRoute, single_attempt};
 use crate::providers::execution::ExecutionSettings;
-use crate::providers::opencli_route::{OpenCliRoute, single_attempt};
 use crate::rate_limit::RateLimiter;
 use crate::redact::CREDENTIAL_MASK;
 use crate::types::{
@@ -27,6 +29,10 @@ const BLOCK_NOTICES: [&str; 2] = ["安全限制", "访问链接异常"];
 const BLOCK_CODES: [&str; 2] = ["300031", "300017"];
 const RISK_CONTROL_STATUS: u16 = 461;
 const SITE_HOST: &str = "www.xiaohongshu.com";
+/// The site's home page: where a search starts, and where a logged-out visitor can log in.
+const HOME_URL: &str = "https://www.xiaohongshu.com/explore";
+/// The page's own account request, which says whether the session is a guest's.
+const ACCOUNT_PATH: &str = "/api/sns/web/v2/user/me";
 const BEIJING_SECONDS: i32 = 8 * 3600;
 
 #[path = "xiaohongshu_browser_comments.rs"]
@@ -35,36 +41,44 @@ mod comments;
 mod login;
 #[path = "xiaohongshu_browser_note.rs"]
 mod note;
+#[path = "xiaohongshu_browser_page.rs"]
+mod page;
 #[path = "xiaohongshu_browser_search.rs"]
 mod search;
 
-pub(crate) use login::LOGIN;
+pub(crate) use login::LOGIN_PAGE;
 pub(crate) use note::fetch_support;
 pub(crate) use search::search_support;
 
 pub(crate) struct XiaohongshuBrowser {
-    opencli: OpenCliRoute,
+    browser: BrowserRoute,
 }
 
 impl XiaohongshuBrowser {
     pub(crate) fn new(
-        config: ProcessRouteRuntimeConfig,
+        config: BrowserRouteRuntimeConfig,
         limiter: RateLimiter,
         deadline: Deadline,
     ) -> Self {
         Self {
-            opencli: OpenCliRoute::new(ROUTE, config, limiter, deadline),
+            browser: BrowserRoute::new(ROUTE, config, limiter, deadline),
         }
     }
 
     // The route never retries: repeating a blocked page pushes the account further into risk
     // control.
     fn settings(&self, operation: &'static str) -> ExecutionSettings {
-        self.opencli.settings(
+        self.browser.settings(
             AttemptTarget::platform(Platform::Xiaohongshu.as_str(), operation),
             single_attempt(),
         )
     }
+}
+
+/// Whether `url` is on a Xiaohongshu host, where the page's own API requests go.
+fn on_site(url: &reqwest::Url) -> bool {
+    url.host_str()
+        .is_some_and(|host| host == "xiaohongshu.com" || host.ends_with(".xiaohongshu.com"))
 }
 
 fn runtime(message: String) -> AttemptFailure {
@@ -75,10 +89,10 @@ fn runtime(message: String) -> AttemptFailure {
     }
 }
 
-/// Masks the access token of the request wherever an attempt message repeats it: OpenCLI
-/// stderr can echo the `--xsec-token` argument, a decoding error can quote page facts, and a
-/// redirect URL can carry the token percent-encoded once or twice. Only the `=` padding changes
-/// under URL encoding, so the token without it is masked.
+/// Masks the access token of the request wherever an attempt message repeats it: a browser
+/// error can quote the note URL, a page script error can quote page state, and a redirect URL
+/// can carry the token percent-encoded once or twice. Only the `=` padding changes under URL
+/// encoding, so the token without it is masked.
 fn without_token(mut failure: AttemptFailure, token: &AccessToken) -> AttemptFailure {
     let body = token.as_str().trim_end_matches('=');
     let secret = if body.is_empty() {
@@ -91,8 +105,9 @@ fn without_token(mut failure: AttemptFailure, token: &AccessToken) -> AttemptFai
 }
 
 /// Where the page ended up and what the site showed there.
-#[derive(Debug, Default, Deserialize)]
-#[serde(default)]
+#[derive(Debug, Default)]
+#[cfg_attr(test, derive(Deserialize))]
+#[cfg_attr(test, serde(default))]
 struct PageFacts {
     /// The final page URL, without any access token value.
     url: String,
@@ -105,7 +120,7 @@ struct PageFacts {
     notice: Option<String>,
     /// The status of a Xiaohongshu API call that answered 461.
     blocked_status: Option<u16>,
-    /// The network error code, such as `ERR_CONNECTION_CLOSED`, while Chrome shows its own
+    /// The network error code, such as `ERR_CONNECTION_CLOSED`, while the browser shows its own
     /// error page instead of the Xiaohongshu page.
     load_error: Option<String>,
 }
@@ -122,14 +137,14 @@ fn classify_blocks(
         return Err(AttemptFailure {
             kind: AttemptErrorKind::Auth,
             status: None,
-            message: "Xiaohongshu treats the browser session as logged out; log in to xiaohongshu.com in the Chrome that OpenCLI drives, then retry".into(),
+            message: "Xiaohongshu treats the browser session as logged out; run `forager browser login xiaohongshu`, then retry".into(),
         });
     }
     if facts.blocked_status == Some(RISK_CONTROL_STATUS) {
         return Err(AttemptFailure {
             kind: AttemptErrorKind::Auth,
             status: Some(RISK_CONTROL_STATUS),
-            message: "Xiaohongshu answered HTTP 461 and wants a verification; open xiaohongshu.com in Chrome, complete any check it shows, then retry".into(),
+            message: "Xiaohongshu answered HTTP 461 and wants a verification; run `forager browser login xiaohongshu` and complete any check the site shows, then retry".into(),
         });
     }
     let code = facts.error_code.as_deref().map(str::trim);
@@ -152,9 +167,9 @@ fn classify_blocks(
     Ok(())
 }
 
-/// Fails a read that ended before it had what it needed: Chrome never loaded the page by the
+/// Fails a read that ended before it had what it needed: the browser never loaded the page by the
 /// deadline (Network), the deadline passed on the expected page (Timeout, with
-/// `timeout_message`), or the adapter stopped at another page (Runtime). Returns `None` for a
+/// `timeout_message`), or the page logic stopped at another page (Runtime). Returns `None` for a
 /// read that stopped on the expected page before the deadline; the caller knows why.
 fn unfinished_read(
     facts: &PageFacts,
@@ -175,23 +190,23 @@ fn unfinished_read(
     })
 }
 
-/// Chrome still showed its own error page at the read deadline: the page never loaded, so no
-/// response was due. Chrome reloads its error page by itself, which is why the adapter keeps
-/// waiting until the deadline.
+/// The browser still showed its own error page at the read deadline: the page never loaded, so
+/// no response was due. The browser reloads its error page by itself, which is why the page
+/// logic keeps waiting until the deadline.
 fn load_failure(facts: &PageFacts) -> Option<AttemptFailure> {
     let code = facts.load_error.as_deref()?.trim();
     Some(AttemptFailure {
         kind: AttemptErrorKind::Network,
         status: None,
         message: format!(
-            "Chrome could not load the Xiaohongshu page ({code}) and had not loaded it again by the read deadline; check the network and retry"
+            "the browser could not load the Xiaohongshu page ({code}) and had not loaded it again by the read deadline; check the network and retry"
         ),
     })
 }
 
 fn unexpected_page(facts: &PageFacts) -> AttemptFailure {
     runtime(format!(
-        "the forager-xhs adapter stopped at an unexpected page: {}",
+        "the Xiaohongshu page logic stopped at an unexpected page: {}",
         describe(facts)
     ))
 }

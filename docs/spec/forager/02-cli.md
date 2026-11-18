@@ -193,7 +193,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 两档：`doctor` 浅检全体（掩码配置 + 凭据存在 + 可达性（对 endpoint 发 GET 并只等待响应头，任何 HTTP 响应都算可达；部分 endpoint 对 HEAD 不响应）+ 过宽权限报告 + config list 同构生效值块）；顶层 `ok` 等于所有 `configured=true` provider 均 `reachable=true`，零配置为 true，任一不可达则 JSON/Markdown 均为 false 并退出 4，permission warning 不改变 `ok`。`--provider NAME` 深探单体，值域＝provider 注册表的编译期 enum。需要凭据的 6 个 provider（exa、tavily、firecrawl、context7 与主搜索 backend `xai`、`openai`）执行凭据有效性 + 最小活体调用；两个主搜索 backend 的活体调用都是一次不带工具与 instructions 的 Responses SSE 模型探测，检查记为 `[{name: "responses", transport: "sse"}]`；凭据可选的 `jina` 恒为已配置，没有 key 时浅检的 `message` 注明以匿名方式运行，深探以不带凭据的请求执行同一 fetch 探测；有 key 时按现有方式探测，key 失败后的匿名请求即使成功，深探仍以 key 的失败结束；平台 route（`arxiv_api`、`ssrn_crossref`、`xiaohongshu_browser`、`hn_api`）不需要凭据，恒为已配置，深探执行一次最小平台检索；`hn_api` 访问两个端点，深探在检索之后再向 Firebase 发一个请求，记为 `firebase` 检查；主搜索 backend `xai` 同时是 X 平台的 route，`platforms.x.order` 含 `xai` 时，深探在主搜索检查之后再执行一次最小 X 检索，记为 `x_search` 检查；需要凭据的平台 route `serpapi` 有 key 时才算已配置，浅检对端点发一次不带 key 的 GET（不计额度）；深探不做检索，而是按池中顺序对每个 key 各调用一次同源的 SerpApi Account API（`/account.json`，不计额度），不经凭据轮换、不推进凭据游标，输出增加 `keys` 数组，每个 key 一项 `{key_index, ok, searches_left, plan_searches_left, this_month_usage, this_hour_searches, hourly_limit}`，失败项带 `error_kind`，取不到的数字为 `null`；HTTP 失败沿用共享归因（401/403 为 auth），剩余额度为 0 为 `quota_exhausted`，本小时检索数达到上限为 `rate_limited`，缺数字字段为 `runtime`；任一 key 失败则深探失败退 4，顶层 `error_kind` 与 `message` 取第一个失败的 key，`message` 以 `providers.serpapi.keys[N]` 指明它；响应中的 key、账户邮箱与账户 ID 不被解码，也不进入任何输出；这个深探只证明端点、key 与额度状态，不证明 Scholar 检索的请求与解码（由 live smoke C24–C26 证明）；没有 key 时以 config 失败退 3 且不发请求；需要凭据的平台 route `gemini_api` 同样有 key 时才算已配置，浅检对端点发一次不带 key 的 GET；深探不调用模型，而是按池中顺序用每个 key 各请求一次 `GET <url>/models`（不计模型额度），检查记为 `[{name: "models", transport: "http"}]`，`keys` 每项只有 `{key_index, ok}`，失败项带 `error_kind`，失败与报告规则同 `serpapi`（`message` 以 `providers.gemini_api.keys[N]` 指明失败的 key）；其他 provider 的深探输出没有 `keys`。声明访问策略的 provider（平台 route）的浅检检查与深探请求都先经过跨进程限速，等不到窗口时浅检记为不可达、深探以 timeout 失败，且都不发送请求。
 
-传输类型为 process 的 route（`xiaohongshu_browser`）不发 GET：浅检只在它出现在所属平台的 order 中时参与，运行 adapter 的 `contract` 命令并核对契约版本；未启用时报告 `configured: false`，不影响 `ok`。检查失败时该 provider 状态带 `message`（含安装提示），Markdown 在同一行括号中显示。深探（`doctor --provider xiaohongshu_browser`）同样只在 order 启用该 route 时运行一次真实的平台检索；未启用时以 config 失败退 3，不启动进程。
+传输类型为浏览器的 route（`xiaohongshu_browser`）不发 GET：浅检只在它出现在所属平台的 order 中时参与，只运行浏览器传输的飞行前检查（浏览器可以找到、Browser Profile 有登录标记，第 7 章「浏览器传输」），不启动浏览器；未启用时报告 `configured: false`，不影响 `ok`。检查失败时该 provider 状态带 `message`（含修复命令），Markdown 在同一行括号中显示。深探（`doctor --provider xiaohongshu_browser`）同样只在 order 启用该 route 时运行，先做同一检查，通过后运行一次真实的平台检索；未启用或检查失败时以 config 失败退 3，不启动浏览器。
 
 ## `browser` 命令
 
@@ -324,7 +324,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 ### `platform xiaohongshu search`
 
-在用户自己已登录的 Chrome 中检索小红书笔记，经 `xiaohongshu_browser` route（第 7 章「小红书」）。该 route 默认不在 order 中。
+在 forager 的无头浏览器中，以用户登录过的小红书 Browser Profile 检索小红书笔记，经 `xiaohongshu_browser` route（第 7 章「小红书」）。该 route 默认不在 order 中。
 
 | 参数 | 类型与取值 | 默认值 | 语义 |
 |---|---|---|---|
@@ -338,11 +338,11 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 - 通用 flag 为 `--timeout`（默认 120 秒，计入等待限速窗口的时间）、`--output`/`--receipt`、`--verbose`。没有 `--cursor`。
 - **不续页**：小红书每次访问的排序都不同，跨命令续页既不能复现也无法去重，所以 `next_cursor` 恒为 `null`。上游最后一页仍有结果，或去重后的条目在截到 `--limit` 时有余项，stderr 输出一条诊断，说明还有更多结果、需要更多时加大 `--limit`。
 - **输出**：外层形状与 arXiv search 相同。每个 item 含 `ref`（`xiaohongshu:<note_id>`）、canonical `url`（`https://www.xiaohongshu.com/explore/<note_id>`）、`depth`（恒为 `metadata`，卡片没有正文片段）、`title`（可以为空字符串）、`authors`（作者昵称）、`published`（日期，相对时间按本机时钟换算，规则见第 7 章；无法识别的形式为 `null`），以及小红书字段 `note_type`（`image` / `video`）、`author_id`、`likes`、`collects`、`comments`、`shares`（计数原文，可能是 `1.2万` 这类缩写）、`published_text`（卡片上的时间原文）与 `access_url`（带 Access Token 的访问链接，打开该笔记的推荐入口）。ID 不合法或缺少 Access Token 的笔记被跳过并写入 stderr 诊断。
-- **退出码**：查询词为空、`--limit` 越界＝飞行前退 2；`platforms.xiaohongshu.order` 为空（默认）＝飞行前退 3，消息给出启用步骤，不启动进程；会话未登录或站点返回 461 为 Auth，站点安全限制（300031、300017）为 attempt 级 Parameter，截止点前仍停在结果页为 Timeout，都退 4；条件、页序或关键词与请求不符、响应体缺失、停在非预期页面、上游有笔记但全部被跳过为 Runtime，退 4；合法零结果为 `items: []` 且退 0。
+- **退出码**：查询词为空、`--limit` 越界＝飞行前退 2；`platforms.xiaohongshu.order` 为空（默认）＝飞行前退 3，消息给出启用步骤，不启动浏览器；order 启用该 route 而浏览器未安装或 Browser Profile 从未登录＝飞行前退 3，消息给出修复命令；会话未登录或站点返回 461 为 Auth，站点安全限制（300031、300017）为 attempt 级 Parameter，截止点前仍停在结果页为 Timeout，都退 4；条件、页序或关键词与请求不符、响应体缺失、停在非预期页面、上游有笔记但全部被跳过为 Runtime，退 4；合法零结果为 `items: []` 且退 0。
 
 ### `platform xiaohongshu fetch`
 
-在用户自己已登录的 Chrome 中打开一篇小红书笔记，经 `xiaohongshu_browser` route（第 7 章「小红书」）。
+在 forager 的无头浏览器中，以用户登录过的小红书 Browser Profile 打开一篇小红书笔记，经 `xiaohongshu_browser` route（第 7 章「小红书」）。
 
 | 参数 | 类型与取值 | 默认值 | 语义 |
 |---|---|---|---|
@@ -353,11 +353,11 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 - 通用 flag 同 search。全文不需要配置任何 Web Fetch provider（ADR 0022）。
 - **输出**：JSON 顶层为 `platform`、`provider`、`ref`、`url`（canonical URL，不含 token）、`depth`、`title`（可为空串）、`authors`、`published`（北京时间 ISO 8601 时间戳），以及小红书字段 `updated`、`note_type`、`author_id`、`likes`、`collects`、`comments`、`shares`、`tags`、`images`（`[{url, width, height}]`）、`video`（`{duration_seconds, width, height}` 或 `null`，不含视频地址）、`ip_location` 与 `access_url`（由 ref 与 token 重新构造，含 token）。`full_text` 时另有 `content_url`（canonical URL）、`content_provider`（`xiaohongshu_browser`）、`content_path`（`xiaohongshu-<id>.md`）与 `content_len`。正文格式见第 7 章。不写 Search Result Journal。
-- **退出码**：输入无法识别、短链、`rednote.com`、token 格式不对或缺少 token＝飞行前退 2，不启动进程；`platforms.xiaohongshu.order` 为空（默认）＝飞行前退 3；会话未登录或 461 为 Auth，300031/300017 或安全限制为 attempt 级 Parameter（消息列出 token 过期、笔记受限或删除、账号被限频三种可能），截止点前仍停在该笔记页为 Timeout，`noteId` 不符、停在非预期页面或外壳形状不对为 Runtime，正文文件写入失败为 Runtime，都退 4；标题、正文与图片全为空为 Quality，退 5。token 永不出现在 attempt 消息、`--verbose` attempts 与失败时的 stderr 中。
+- **退出码**：输入无法识别、短链、`rednote.com`、token 格式不对或缺少 token＝飞行前退 2，不启动浏览器；`platforms.xiaohongshu.order` 为空（默认）或飞行前检查失败＝飞行前退 3；会话未登录或 461 为 Auth，300031/300017 或安全限制为 attempt 级 Parameter（消息列出 token 过期、笔记受限或删除、账号被限频三种可能），截止点前仍停在该笔记页为 Timeout，`noteId` 不符、停在非预期页面或外壳形状不对为 Runtime，正文文件写入失败为 Runtime，都退 4；标题、正文与图片全为空为 Quality，退 5。token 永不出现在 attempt 消息、`--verbose` attempts 与失败时的 stderr 中。
 
 ### `platform xiaohongshu comments`
 
-在用户自己已登录的 Chrome 中读取一篇小红书笔记的一级评论，并可展开前几条评论的楼中楼，经 `xiaohongshu_browser` route（第 7 章「小红书」）。这是只有一条 route 的 L2 平台操作。
+在 forager 的无头浏览器中，以用户登录过的小红书 Browser Profile 读取一篇小红书笔记的一级评论，并可展开前几条评论的楼中楼，经 `xiaohongshu_browser` route（第 7 章「小红书」）。这是只有一条 route 的 L2 平台操作。
 
 | 参数 | 类型与取值 | 默认值 | 语义 |
 |---|---|---|---|
@@ -368,7 +368,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 - 通用 flag 同 search。没有 `--cursor`：页面只能从第一页起按顺序加载评论，命令之间无法续读。
 - **输出**：JSON 为 `{platform, provider, note, comments, has_more}`。`note` 为笔记 ref；`has_more` 表示还有未交付的一级评论（上游最后一页仍有更多，或读到的评论截到 `--limit` 时有余项）。每条评论为 `{id, author, author_id, text, likes, published, ip_location, reply_count, replies, replies_has_more}`，回复为 `{id, author, author_id, text, likes, published, ip_location, reply_to}`：`text` 为原文，`likes` 与 `reply_count` 为计数原文，`published` 为北京时间 ISO 8601 时间戳，`reply_to` 为该回复所回复的评论或回复的 ID。`replies` 先放评论自带的一条回复，展开时再追加第一页回复，按 ID 去重；`replies_has_more` 表示该评论还有未交付的回复。输出不含 token。不写 Search Result Journal。
-- **退出码**：输入无法识别或缺少 token、`--limit` 或 `--replies` 越界＝飞行前退 2，不启动进程；`platforms.xiaohongshu.order` 为空（默认）＝飞行前退 3；会话未登录或 461 为 Auth，300031/300017 或安全限制为 attempt 级 Parameter，截止点前仍停在该笔记页为 Timeout，都退 4；评论页的笔记或 cursor 链不符、楼中楼不属于选中的评论或起始 cursor 不符、读取模块无法点击展开（消息附原因）、响应体缺失、停在非预期页面、第一页没有评论却声称还有更多为 Runtime，退 4；笔记没有评论为 `comments: []` 且退 0。token 卫生同 fetch。
+- **退出码**：输入无法识别或缺少 token、`--limit` 或 `--replies` 越界＝飞行前退 2，不启动浏览器；`platforms.xiaohongshu.order` 为空（默认）或飞行前检查失败＝飞行前退 3；会话未登录或 461 为 Auth，300031/300017 或安全限制为 attempt 级 Parameter，截止点前仍停在该笔记页为 Timeout，都退 4；评论页的笔记或 cursor 链不符、楼中楼不属于选中的评论或起始 cursor 不符、读取模块无法点击展开（消息附原因）、响应体缺失、停在非预期页面、第一页没有评论却声称还有更多为 Runtime，退 4；笔记没有评论为 `comments: []` 且退 0。token 卫生同 fetch。
 
 ### `platform x search`
 

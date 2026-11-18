@@ -63,6 +63,26 @@ impl StandIn {
             self.executable().display().to_string()
         )
     }
+
+    /// A configuration that launches this stand-in and sets the Xiaohongshu order to `order`.
+    pub(crate) fn xiaohongshu_config(&self, order: &str) -> String {
+        format!(
+            "{}\n[platforms.xiaohongshu]\norder = {order}\n",
+            self.config()
+        )
+    }
+}
+
+/// Marks the Browser Profile of `platform` under `state_dir` as logged in, the way a finished
+/// `forager browser login` leaves it.
+pub(crate) fn mark_logged_in(state_dir: &Path, platform: &str) {
+    let profile = state_dir.join("forager/browser").join(platform);
+    fs::create_dir_all(&profile).expect("create the Browser Profile");
+    fs::write(
+        profile.join("login.json"),
+        "{\"logged_in_at\":\"2026-11-18T08:00:00+00:00\"}\n",
+    )
+    .expect("write the login marker");
 }
 
 #[cfg(unix)]

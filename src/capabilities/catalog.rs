@@ -152,16 +152,23 @@ impl ProviderId {
 pub(crate) enum ProviderTransport {
     /// HTTP requests to the configured `url`.
     Http,
-    /// Commands of a forager-owned OpenCLI adapter, run through the configured `command`.
-    OpenCli(OpenCliAdapter),
+    /// Pages that a browser forager launches loads and drives, in the declared environment.
+    Browser(BrowserEnvironment),
 }
 
-/// A forager-owned OpenCLI adapter: the site whose commands it installs, and the contract
-/// version of the output envelope every command answers with.
+/// The browser environment a browser route declares. The preflight check, doctor, `forager
+/// browser login`, and the platform checklist read it instead of branching on a route ID.
+///
+/// Every browser route runs in the headless Managed Browser, or the browser that `browser.path`
+/// names, with the Browser Profile named after its platform.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct OpenCliAdapter {
-    pub(crate) site: &'static str,
-    pub(crate) contract: &'static str,
+pub(crate) struct BrowserEnvironment {
+    /// The platform whose Browser Profile the route uses.
+    pub(crate) profile: Platform,
+    /// The page language, such as `zh-CN`.
+    pub(crate) language: &'static str,
+    /// Whether the route needs a profile that a `forager browser login` once succeeded in.
+    pub(crate) requires_login: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -230,8 +237,8 @@ pub(crate) struct ProviderRegistration {
     pub(crate) operations: &'static [&'static str],
     pub(crate) credentials: Credentials,
     pub(crate) transport: ProviderTransport,
-    /// The pacing every send to the provider must follow; a process route paces each OpenCLI
-    /// command, not each HTTP request the browser sends.
+    /// The pacing every send to the provider must follow; a browser route paces each browser
+    /// command, not each HTTP request the page sends.
     pub(crate) access_policy: Option<AccessPolicy>,
     pub(crate) probe: DoctorProbe,
     pub(crate) smoke_cases: &'static [ProviderSmokeCase],
@@ -413,19 +420,19 @@ const XIAOHONGSHU_BROWSER_SMOKE: &[ProviderSmokeCase] = &[
         id: "C27",
         platform: Some(Platform::Xiaohongshu),
         operation: "search",
-        transport: "process",
+        transport: "browser",
     },
     ProviderSmokeCase {
         id: "C28",
         platform: Some(Platform::Xiaohongshu),
         operation: "fetch",
-        transport: "process",
+        transport: "browser",
     },
     ProviderSmokeCase {
         id: "C29",
         platform: Some(Platform::Xiaohongshu),
         operation: COMMENTS,
-        transport: "process",
+        transport: "browser",
     },
 ];
 
@@ -743,15 +750,16 @@ const REGISTRY: &[ProviderRegistration] = &[
         id: ProviderId::XiaohongshuBrowser,
         operations: &[],
         credentials: Credentials::Unused,
-        transport: ProviderTransport::OpenCli(OpenCliAdapter {
-            site: "forager-xhs",
-            contract: "forager-xhs/2",
+        transport: ProviderTransport::Browser(BrowserEnvironment {
+            profile: Platform::Xiaohongshu,
+            language: "zh-CN",
+            requires_login: true,
         }),
         access_policy: Some(XIAOHONGSHU_BROWSER_ACCESS),
         probe: DoctorProbe::PlatformSearch {
             platform: Platform::Xiaohongshu,
             name: "search",
-            transport: "process",
+            transport: "browser",
         },
         smoke_cases: XIAOHONGSHU_BROWSER_SMOKE,
         native_full_text: true,

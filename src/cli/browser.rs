@@ -93,7 +93,7 @@ fn login(platform: Platform, timeout: u64) -> Result<CommandOutput, AppError> {
     })?;
     eprintln!(
         "opening a browser window on {}; log in there (waiting up to {timeout} seconds)",
-        login.entry_url
+        login.page.entry_url
     );
     let logged_in = dependencies.runtime.block_on(browser_setup::login(
         &login,

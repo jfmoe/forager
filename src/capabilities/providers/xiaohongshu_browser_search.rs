@@ -1,16 +1,24 @@
-//! Xiaohongshu search: page-fact classification, condition checks, and note-card decoding.
+//! Xiaohongshu search: driving the search from the site's home page with native input, then
+//! judging what it observed: page-fact classification, condition checks, and note-card
+//! decoding.
 
 use std::collections::HashSet;
+use std::time::Duration;
 
 use chrono::{Datelike, Local, NaiveDate, NaiveDateTime, NaiveTime, TimeDelta};
+use reqwest::Url;
 use serde::Deserialize;
 
+use super::page::{Observed, Reading, Tracked, input_reason, page_script, site_capture};
 use super::{
-    PageFacts, ROUTE, SITE_HOST, XiaohongshuBrowser, classify_blocks, describe, runtime,
+    HOME_URL, PageFacts, ROUTE, SITE_HOST, XiaohongshuBrowser, classify_blocks, describe, runtime,
     unfinished_read,
 };
 use crate::catalog::PlatformOperation;
 use crate::net::{AttemptFailure, combine_diagnostics};
+use crate::providers::browser::{
+    CaptureLevel, Exchange, InputError, Key, Page, RequestMethod, ResponseBody,
+};
 use crate::providers::execution::execute_anonymous;
 use crate::providers::shared::{other_platform_message, parameter_error};
 use crate::types::{
@@ -21,13 +29,34 @@ use crate::types::{
 };
 
 const PAGE_SIZE: u16 = 20;
-const RESULTS_PATH: &str = "/search_result";
+const MAX_PAGES: usize = 5;
+// The results page of the older layout, and of the `/search_result_ai` layout.
+const RESULTS_PATHS: [&str; 2] = ["/search_result", "/search_result_ai"];
+const SEARCH: Tracked = Tracked {
+    path: "/api/sns/web/v2/search/notes",
+    method: RequestMethod::Post,
+};
 const SORT_FILTER: &str = "sort_type";
 const NOTE_TYPE_FILTER: &str = "filter_note_type";
 const TIME_FILTER: &str = "filter_note_time";
 // The filter groups forager never sets; they depend on browsing history and location.
 const UNSET_FILTERS: [&str; 2] = ["filter_note_range", "filter_pos_distance"];
 const ANY: &str = "不限";
+
+// The home page's search box in the `/search_result_ai` layout, then in the older layout.
+const SEARCH_BOXES: [&str; 2] = [
+    "document.querySelectorAll('textarea#search-input-in-feeds')",
+    "document.querySelectorAll('input#search-input')",
+];
+// The filter button in either layout. The panel opens on hover, and a click also opens it when
+// the hover does not.
+const FILTER_BUTTON: &str =
+    "document.querySelectorAll('.filter.ai-chat-filter, .search-layout__top > .filter')";
+const PANEL_OPEN: &str = "[...document.querySelectorAll('.filter-panel')].some((element) => { const rect = element.getBoundingClientRect(); const style = getComputedStyle(element); return rect.width > 0 && rect.height > 0 && style.display !== 'none' && style.visibility !== 'hidden'; })";
+const PANEL_AFTER_HOVER: Duration = Duration::from_secs(1);
+const PANEL_AFTER_CLICK: Duration = Duration::from_millis(1500);
+// How long a filter click has to show its effect: the option selected or a new results page.
+const CLICK_CHECK: Duration = Duration::from_secs(5);
 
 /// Returns whether the route can run the request; it never starts a process. Xiaohongshu
 /// search issues no cursor, so only a first page can run.
@@ -56,9 +85,9 @@ pub(crate) fn search_support(request: &PlatformSearchRequest) -> Result<(), Stri
 }
 
 impl XiaohongshuBrowser {
-    /// Reads the results pages that `limit` needs in one OpenCLI command. Xiaohongshu ranks
-    /// differently on every visit, so the route issues no cursor and reports in a diagnostic
-    /// when results remain.
+    /// Searches from the site's home page and reads the results pages that `limit` needs in
+    /// one browser command. Xiaohongshu ranks differently on every visit, so the route issues
+    /// no cursor and reports in a diagnostic when results remain.
     pub(crate) async fn search(
         &self,
         request: &PlatformSearchRequest,
@@ -68,24 +97,16 @@ impl XiaohongshuBrowser {
             unreachable!("support checked")
         };
         let query = request.query.trim();
-        let command = self.opencli.command(
-            "search",
-            vec![
-                ("query", query.to_owned()),
-                ("sort", sort_name(options.sort).to_owned()),
-                ("note-type", note_type_name(options.note_type).to_owned()),
-                (
-                    "publish-time",
-                    publish_time_name(options.publish_time).to_owned(),
-                ),
-                ("pages", request.limit.div_ceil(PAGE_SIZE).to_string()),
-            ],
-        );
-        let command = &command;
+        let pages = usize::from(request.limit.div_ceil(PAGE_SIZE)).clamp(1, MAX_PAGES);
         let execution = execute_anonymous(
             self.settings(PlatformOperation::Search.as_str()),
             move |deadline| async move {
-                let data: SearchData = self.opencli.read(command, deadline).await?;
+                let data = self
+                    .browser
+                    .read(capture, deadline, async |page| {
+                        observe_search(page, query, options, pages).await
+                    })
+                    .await?;
                 let decoded = search_outcome(&data, query, options, request.limit, local_now())?;
                 Ok((None, decoded))
             },
@@ -105,31 +126,280 @@ impl XiaohongshuBrowser {
     }
 }
 
-fn sort_name(sort: XiaohongshuSort) -> &'static str {
-    match sort {
-        XiaohongshuSort::Comprehensive => "comprehensive",
-        XiaohongshuSort::Latest => "latest",
-        XiaohongshuSort::MostLiked => "most-liked",
-        XiaohongshuSort::MostCommented => "most-commented",
-        XiaohongshuSort::MostCollected => "most-collected",
+fn capture(url: &Url) -> CaptureLevel {
+    site_capture(url, &[SEARCH.path])
+}
+
+/// The filter panel's group and option text of each non-default condition, in the order they
+/// are set.
+fn filter_choices(options: &XiaohongshuSearchOptions) -> Vec<(&'static str, &'static str)> {
+    let sort = match options.sort {
+        XiaohongshuSort::Comprehensive => None,
+        XiaohongshuSort::Latest => Some("最新"),
+        XiaohongshuSort::MostLiked => Some("最多点赞"),
+        XiaohongshuSort::MostCommented => Some("最多评论"),
+        XiaohongshuSort::MostCollected => Some("最多收藏"),
+    };
+    let note_type = match options.note_type {
+        XiaohongshuNoteType::All => None,
+        XiaohongshuNoteType::Image => Some("图文"),
+        XiaohongshuNoteType::Video => Some("视频"),
+    };
+    let time = match options.publish_time {
+        XiaohongshuPublishTime::Any => None,
+        XiaohongshuPublishTime::Day => Some("一天内"),
+        XiaohongshuPublishTime::Week => Some("一周内"),
+        XiaohongshuPublishTime::HalfYear => Some("半年内"),
+    };
+    [
+        ("排序依据", sort),
+        ("笔记类型", note_type),
+        ("发布时间", time),
+    ]
+    .into_iter()
+    .filter_map(|(group, option)| option.map(|option| (group, option)))
+    .collect()
+}
+
+/// What the search drive did besides reading the page.
+#[derive(Default)]
+struct SearchProgress {
+    filter_clicks: u32,
+    filter_failure: Option<String>,
+    search_failure: Option<String>,
+    /// For each filter click, how many exchanges the read had kept before it.
+    marks: Vec<usize>,
+}
+
+/// Drives one search: opens the home page, types the query into its search box, presses
+/// Enter, sets each requested filter in the filter panel, and scrolls the results for the
+/// `pages` the request needs. Returns what the page showed and answered.
+async fn observe_search(
+    page: &mut Page,
+    query: &str,
+    options: &XiaohongshuSearchOptions,
+    pages: usize,
+) -> Result<SearchData, AttemptFailure> {
+    let mut reading = Reading::new(page);
+    let mut progress = SearchProgress::default();
+    drive_search(&mut reading, query, options, pages, &mut progress).await?;
+    search_data(reading.finish()?, progress)
+}
+
+async fn drive_search(
+    reading: &mut Reading<'_>,
+    query: &str,
+    options: &XiaohongshuSearchOptions,
+    pages: usize,
+    progress: &mut SearchProgress,
+) -> Result<(), AttemptFailure> {
+    reading.navigate(HOME_URL).await?;
+    if reading.poll().await? {
+        return Ok(());
+    }
+    if let Some(reason) = enter_query(reading.page(), query).await? {
+        progress.search_failure = Some(reason);
+        return Ok(());
+    }
+    if !reading.next(SEARCH, 0, false).await? {
+        return Ok(());
+    }
+    for (group, option) in filter_choices(options) {
+        // The first screen requests its second page by itself; a click before that page
+        // arrives would count it as an answer to the click.
+        if !reading.settle(SEARCH).await? {
+            return Ok(());
+        }
+        let seen = reading.completions(SEARCH);
+        if let Some(reason) = choose_option(reading, group, option, seen, progress).await? {
+            progress.filter_failure = Some(format!("{reason} for {group} {option}"));
+            return Ok(());
+        }
+        progress.filter_clicks += 1;
+        if !reading.next(SEARCH, seen, false).await? {
+            return Ok(());
+        }
+    }
+    for _ in 1..pages {
+        if !last_page_has_more(reading.exchanges()) || !reading.more(SEARCH).await? {
+            break;
+        }
+    }
+    Ok(())
+}
+
+/// Types the query into the home page's search box and submits it; returns why it could not.
+async fn enter_query(page: &mut Page, query: &str) -> Result<Option<String>, AttemptFailure> {
+    let mut missed = None;
+    for search_box in SEARCH_BOXES {
+        missed = input_reason(page.click(search_box).await)?;
+        if missed != Some("no_target") {
+            break;
+        }
+    }
+    let typed = match missed {
+        Some(reason) => Some(reason),
+        None => input_reason(page.type_text(query).await)?,
+    };
+    let submitted = match typed {
+        Some(reason) => Some(reason),
+        None => input_reason(page.press(Key::Enter).await)?,
+    };
+    Ok(submitted.map(|reason| format!("{reason} for the search box")))
+}
+
+/// Opens the filter panel with the pointer and clicks one option, then confirms the click took
+/// effect. Returns why it could not.
+async fn choose_option(
+    reading: &mut Reading<'_>,
+    group: &str,
+    option: &str,
+    seen: usize,
+    progress: &mut SearchProgress,
+) -> Result<Option<&'static str>, AttemptFailure> {
+    let button = |reason| match reason {
+        "no_target" => "no_filter_button",
+        "ambiguous_target" => "ambiguous_filter_button",
+        other => other,
+    };
+    if !reading.page().evaluate::<bool>(PANEL_OPEN).await? {
+        let hovered = reading.page().hover(FILTER_BUTTON).await.map(|_| ());
+        if let Some(reason) = input_reason(hovered)? {
+            return Ok(Some(button(reason)));
+        }
+        if !panel_opens(reading.page(), PANEL_AFTER_HOVER).await? {
+            if let Some(reason) = input_reason(reading.page().click(FILTER_BUTTON).await)? {
+                return Ok(Some(button(reason)));
+            }
+            if !panel_opens(reading.page(), PANEL_AFTER_CLICK).await? {
+                return Ok(Some("no_filter_panel"));
+            }
+        }
+    }
+    let group_shown = format!("{}.length === 1", groups_expression(group, true));
+    if !reading.page().evaluate::<bool>(&group_shown).await? {
+        return Ok(Some("no_filter_group"));
+    }
+    progress.marks.push(reading.exchanges().len());
+    let clicked = reading
+        .page()
+        .click(&options_expression(group, option, true))
+        .await;
+    let missed = input_reason(clicked)?.map(|reason| match reason {
+        "no_target" => "no_filter_option",
+        "ambiguous_target" => "ambiguous_filter_option",
+        other => other,
+    });
+    if missed.is_none()
+        && reading
+            .confirm(SEARCH, seen, &selected_script(group, option), CLICK_CHECK)
+            .await?
+    {
+        return Ok(None);
+    }
+    progress.marks.pop();
+    Ok(Some(missed.unwrap_or("click_missed")))
+}
+
+async fn panel_opens(page: &Page, within: Duration) -> Result<bool, AttemptFailure> {
+    match page.confirm(PANEL_OPEN, within).await {
+        Ok(()) => Ok(true),
+        Err(InputError::Failed(_)) => Ok(false),
+        Err(InputError::Transport(failure)) => Err(failure),
     }
 }
 
-fn note_type_name(note_type: XiaohongshuNoteType) -> &'static str {
-    match note_type {
-        XiaohongshuNoteType::All => "all",
-        XiaohongshuNoteType::Image => "image",
-        XiaohongshuNoteType::Video => "video",
-    }
+/// A page expression for the filter groups labelled `group`, in an open panel when `shown`.
+fn groups_expression(group: &str, shown: bool) -> String {
+    format!(
+        r"(() => {{
+    const text = (element) => (element ? element.textContent : '').replace(/\s+/g, '');
+    return [...document.querySelectorAll('.filter-panel')]
+      .filter((panel) => !{shown} || panel.getBoundingClientRect().height > 0)
+      .flatMap((panel) => [...panel.querySelectorAll('.filters')])
+      .filter((element) => text([...element.children].find((child) => child.tagName === 'SPAN')) === {group});
+  }})()",
+        group = serde_json::Value::from(group),
+    )
 }
 
-fn publish_time_name(time: XiaohongshuPublishTime) -> &'static str {
-    match time {
-        XiaohongshuPublishTime::Any => "any",
-        XiaohongshuPublishTime::Day => "day",
-        XiaohongshuPublishTime::Week => "week",
-        XiaohongshuPublishTime::HalfYear => "half-year",
+/// A page expression for the options with the text `option` in the one group `group`. The
+/// panel renders every option twice; the native click picks the one a pointer hits.
+fn options_expression(group: &str, option: &str, shown: bool) -> String {
+    format!(
+        r"(() => {{
+    const groups = {groups};
+    if (groups.length !== 1) return [];
+    return [...groups[0].querySelectorAll('.tags')]
+      .filter((element) => (element.textContent || '').replace(/\s+/g, '') === {option});
+  }})()",
+        groups = groups_expression(group, shown),
+        option = serde_json::Value::from(option),
+    )
+}
+
+fn selected_script(group: &str, option: &str) -> String {
+    page_script(&format!(
+        r#"return [...{options}].some((element) => !element.closest('[aria-hidden="true"]')
+      && (/\b(active|selected|checked)\b/.test(element.className)
+        || ['aria-selected', 'aria-checked', 'aria-pressed'].some((name) => element.getAttribute(name) === 'true')));"#,
+        options = options_expression(group, option, false),
+    ))
+}
+
+/// Whether the last search response with a body says more results remain.
+fn last_page_has_more(exchanges: &[Exchange]) -> bool {
+    exchanges
+        .iter()
+        .rev()
+        .filter(|exchange| SEARCH.matches(exchange))
+        .find_map(|exchange| match &exchange.body {
+            ResponseBody::Received(body) => Some(serde_json::from_str::<SearchBody>(body).ok()),
+            _ => None,
+        })
+        .flatten()
+        .and_then(|body| body.data)
+        .is_some_and(|page| page.has_more)
+}
+
+/// Builds the search observation from what the read kept: every `search/notes` exchange with
+/// a body, tagged with the filter clicks made before it.
+fn search_data(observed: Observed, progress: SearchProgress) -> Result<SearchData, AttemptFailure> {
+    let mut responses = Vec::new();
+    for (index, exchange) in observed.exchanges.iter().enumerate() {
+        let ResponseBody::Received(body) = &exchange.body else {
+            continue;
+        };
+        if !SEARCH.matches(exchange) {
+            continue;
+        }
+        let request = exchange
+            .request_body
+            .as_deref()
+            .and_then(|request| serde_json::from_str(request).ok())
+            .ok_or_else(|| {
+                runtime("Xiaohongshu sent a search request without a readable body".into())
+            })?;
+        let body = serde_json::from_str(body).unwrap_or_else(|_| SearchBody {
+            msg: Some("not a search results body".into()),
+            data: None,
+        });
+        let clicks = progress.marks.iter().filter(|mark| **mark <= index).count();
+        responses.push(CapturedSearch {
+            click: u32::try_from(clicks).unwrap_or(u32::MAX),
+            request,
+            body,
+        });
     }
+    Ok(SearchData {
+        page: observed.page,
+        filter_clicks: progress.filter_clicks,
+        filter_failure: progress.filter_failure,
+        search_failure: progress.search_failure,
+        timed_out: observed.timed_out,
+        body_missing: observed.body_missing,
+        responses,
+    })
 }
 
 /// The filter tags the search requests must carry, and how many filter clicks set them.
@@ -208,20 +478,23 @@ impl Conditions {
     }
 }
 
-/// The facts the adapter reports for one search command.
-#[derive(Debug, Default, Deserialize)]
-#[serde(default)]
+/// What one search command observed.
+#[derive(Debug, Default)]
+#[cfg_attr(test, derive(Deserialize))]
+#[cfg_attr(test, serde(default))]
 struct SearchData {
     page: PageFacts,
-    /// How many filter clicks the adapter made.
+    /// How many filter clicks the page logic made.
     filter_clicks: u32,
-    /// Why the adapter could not make the next filter click.
+    /// Why the page logic could not make the next filter click.
     filter_failure: Option<String>,
+    /// Why the page logic could not enter the search on the home page.
+    search_failure: Option<String>,
     /// The read deadline passed before the expected responses arrived.
     timed_out: bool,
-    /// An awaited search response completed, but the capture held no body for it.
+    /// An awaited search response finished loading, but the browser returned no body for it.
     body_missing: bool,
-    /// Every captured `search/notes` exchange, in order.
+    /// Every captured `search/notes` exchange with a body, in the order the responses ended.
     responses: Vec<CapturedSearch>,
 }
 
@@ -371,6 +644,12 @@ fn incomplete(
     answered: usize,
     pages: usize,
 ) -> AttemptFailure {
+    if let Some(reason) = &data.search_failure {
+        return runtime(format!(
+            "the Xiaohongshu page logic could not search from {} ({reason})",
+            describe(&data.page)
+        ));
+    }
     let clicked = data.filter_clicks == expected.clicks;
     let on_results = is_results_page(&data.page.url);
     let unfinished = unfinished_read(&data.page, data.timed_out, on_results, || {
@@ -395,18 +674,19 @@ fn incomplete(
             .map(|failure| format!(" ({failure})"))
             .unwrap_or_default();
         return runtime(format!(
-            "the forager-xhs adapter made {} filter clicks, not {}{reason}",
+            "the Xiaohongshu page logic made {} filter clicks, not {}{reason}",
             data.filter_clicks, expected.clicks
         ));
     }
     runtime(format!(
-        "the forager-xhs adapter returned {answered} of {pages} search pages without timing out"
+        "the Xiaohongshu page logic read {answered} of {pages} search pages without timing out"
     ))
 }
 
 fn is_results_page(url: &str) -> bool {
-    reqwest::Url::parse(url).is_ok_and(|url| {
-        url.host_str() == Some(SITE_HOST) && url.path().trim_end_matches('/') == RESULTS_PATH
+    Url::parse(url).is_ok_and(|url| {
+        url.host_str() == Some(SITE_HOST)
+            && RESULTS_PATHS.contains(&url.path().trim_end_matches('/'))
     })
 }
 

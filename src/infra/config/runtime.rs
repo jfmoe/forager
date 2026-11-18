@@ -4,8 +4,8 @@ use std::path::{Path, PathBuf};
 use super::load::load_effective_config;
 use super::location::{ConfigError, ConfigLocation};
 use super::route_config::{
-    HnRouteRuntimeConfig, HttpRouteRuntimeConfig, KeyedHttpRouteRuntimeConfig,
-    ModelRouteRuntimeConfig, PolymarketRouteRuntimeConfig, ProcessRouteRuntimeConfig,
+    BrowserRouteRuntimeConfig, BrowserRuntimeConfig, HnRouteRuntimeConfig, HttpRouteRuntimeConfig,
+    KeyedHttpRouteRuntimeConfig, ModelRouteRuntimeConfig, PolymarketRouteRuntimeConfig,
     RedditRouteRuntimeConfig,
 };
 use super::schema::{Config, FieldRef, SCHEMA};
@@ -43,14 +43,6 @@ pub(crate) struct JournalRuntimeConfig {
     pub(crate) credentials: Vec<Secret>,
 }
 
-/// The browser that browser routes and `forager browser` commands launch.
-#[derive(Clone, Debug)]
-pub(crate) struct BrowserRuntimeConfig {
-    /// The configured local browser executable that replaces the Managed Browser, resolved by
-    /// the same rules as `journal.dir`; `None` uses the Managed Browser.
-    pub(crate) path: Option<PathBuf>,
-}
-
 /// The configuration of every platform route. Route lookups take it whole, so a new route adds
 /// a field here and changes no signature.
 #[derive(Clone, Debug)]
@@ -58,7 +50,7 @@ pub(crate) struct PlatformRoutesRuntimeConfig {
     pub(crate) arxiv_api: HttpRouteRuntimeConfig,
     pub(crate) ssrn_crossref: HttpRouteRuntimeConfig,
     pub(crate) serpapi: KeyedHttpRouteRuntimeConfig,
-    pub(crate) xiaohongshu_browser: ProcessRouteRuntimeConfig,
+    pub(crate) xiaohongshu_browser: BrowserRouteRuntimeConfig,
     /// The main search provider, which also reads X.
     pub(crate) xai: XaiRuntimeConfig,
     pub(crate) hn_api: HnRouteRuntimeConfig,
@@ -75,7 +67,7 @@ pub(crate) enum PlatformRouteConfig {
     ArxivApi(HttpRouteRuntimeConfig),
     SsrnCrossref(HttpRouteRuntimeConfig),
     Serpapi(KeyedHttpRouteRuntimeConfig),
-    XiaohongshuBrowser(ProcessRouteRuntimeConfig),
+    XiaohongshuBrowser(BrowserRouteRuntimeConfig),
     Xai(XaiRuntimeConfig),
     HnApi(HnRouteRuntimeConfig),
     YoutubeApi(KeyedHttpRouteRuntimeConfig),
@@ -224,7 +216,7 @@ pub(crate) struct RuntimeConfig {
 }
 
 pub(crate) struct ProviderRuntime<'a> {
-    /// The HTTP endpoint, or the command of a process route.
+    /// The HTTP endpoint; empty for a browser route, which has none.
     pub(crate) endpoint: &'a str,
     pub(crate) keys: &'a [Secret],
 }
@@ -287,7 +279,7 @@ impl RuntimeConfig {
                 keys: &self.platform_routes.serpapi.keys,
             },
             ProviderId::XiaohongshuBrowser => ProviderRuntime {
-                endpoint: &self.platform_routes.xiaohongshu_browser.command,
+                endpoint: "",
                 keys: &[],
             },
             ProviderId::HnApi => ProviderRuntime {
@@ -334,6 +326,11 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         dir: resolve_journal_dir(&config.journal.dir, &config_dir)?,
         retention_days: config.journal.retention_days,
         credentials: configured_credentials(&config),
+    };
+    let browser = BrowserRuntimeConfig {
+        path: (!config.browser.path.is_empty())
+            .then(|| resolve_path("browser.path", &config.browser.path, &config_dir))
+            .transpose()?,
     };
     let tavily = WebFetchProviderConfig {
         url: config.providers.tavily.url,
@@ -383,9 +380,9 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
             keys: config.providers.serpapi.keys,
             timeout_seconds: config.providers.serpapi.timeout,
         },
-        xiaohongshu_browser: ProcessRouteRuntimeConfig {
-            command: config.providers.xiaohongshu_browser.command,
+        xiaohongshu_browser: BrowserRouteRuntimeConfig {
             timeout_seconds: config.providers.xiaohongshu_browser.timeout,
+            browser: browser.clone(),
         },
         xai: xai.clone(),
         hn_api: HnRouteRuntimeConfig {
@@ -512,11 +509,7 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
         },
         log_level: LogLevel::from_validated(&config.log.level),
         ssl_verify: config.http.ssl_verify,
-        browser: BrowserRuntimeConfig {
-            path: (!config.browser.path.is_empty())
-                .then(|| resolve_path("browser.path", &config.browser.path, &config_dir))
-                .transpose()?,
-        },
+        browser,
     })
 }
 

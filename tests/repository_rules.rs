@@ -21,29 +21,15 @@ const OVERSIZED_SOURCES: &[(&str, usize)] = &[
 ];
 
 #[test]
-fn every_module_and_adapter_file_is_named_in_the_architecture_spec() {
+fn every_module_is_named_in_the_architecture_spec() {
     let spec = read(&root().join("docs/spec/forager/04-architecture.md"));
     let normalized_spec = normalize(&spec);
-    let paragraphs = spec.split("\n\n").collect::<Vec<_>>();
     let mut unnamed = Vec::new();
     for path in files(&root().join("src"), "rs") {
         let stem = file_name(&path).trim_end_matches(".rs");
         let is_test_module = stem == "tests" || stem.ends_with("_tests");
         let is_entry = matches!(stem, "mod" | "lib" | "main");
         if !is_test_module && !is_entry && !contains_word(&normalized_spec, &normalize(stem)) {
-            unnamed.push(relative(&path));
-        }
-    }
-    for path in files(&root().join("skills/forager/opencli"), "js") {
-        let adapter = path.parent().map(file_name).unwrap_or_default();
-        let directory = format!("opencli/{adapter}");
-        let name = format!("`{}`", file_name(&path));
-        let full_path = format!("{directory}/{}", file_name(&path));
-        let in_adapter_paragraph = paragraphs.iter().any(|paragraph| {
-            paragraph.contains(&full_path)
-                || (paragraph.contains(&directory) && paragraph.contains(&name))
-        });
-        if !in_adapter_paragraph {
             unnamed.push(relative(&path));
         }
     }

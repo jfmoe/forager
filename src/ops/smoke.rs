@@ -803,7 +803,7 @@ fn run_case_once(
         if output.status.code() != Some(0) {
             return Err(CaseFailure {
                 message: "live case command returned a nonzero terminal",
-                kind: if is_refusal(&output) {
+                kind: if is_refusal(output.status.code(), &output.stdout) {
                     FailureKind::Refused
                 } else {
                     FailureKind::Failed
@@ -879,10 +879,11 @@ fn is_xiaohongshu_fetch(definition: LiveCaseDefinition) -> bool {
     definition.platform == Some(Platform::Xiaohongshu) && definition.operation == "fetch"
 }
 
-/// Whether a failed command ended on Auth or an attempt-level Parameter failure.
-fn is_refusal(output: &Output) -> bool {
-    output.status.code() == Some(4)
-        && serde_json::from_slice::<Value>(&output.stdout).is_ok_and(|payload| {
+/// Whether a failed command, by its exit code and stdout, ended on Auth or an attempt-level
+/// Parameter failure.
+fn is_refusal(code: Option<i32>, stdout: &[u8]) -> bool {
+    code == Some(4)
+        && serde_json::from_slice::<Value>(stdout).is_ok_and(|payload| {
             matches!(payload["error_kind"].as_str(), Some("auth" | "parameter"))
         })
 }
@@ -1570,121 +1571,5 @@ fn check_permissions(path: &Path, expected: u32, label: &str, issues: &mut Vec<S
 }
 
 #[cfg(test)]
-mod tests {
-    use std::fs;
-    use std::process::Command;
-    use std::thread;
-    use std::time::{Duration, Instant};
-
-    use super::{
-        LiveRun, command_specs, execute_with_deadline, live_case_process, official_status_host,
-        registry_status, status_host_matches_endpoint, status_page_reports_outage,
-    };
-    use crate::catalog;
-    use crate::types::Deadline;
-
-    #[test]
-    fn live_case_processes_disable_the_search_result_journal() {
-        let specs = command_specs("P1", 60, None, &LiveRun::default())
-            .expect("P1 is a registered live case");
-
-        let journal_settings = specs
-            .iter()
-            .map(|spec| {
-                live_case_process(std::path::Path::new("forager"), spec)
-                    .get_envs()
-                    .find(|(name, _)| *name == "FORAGER_JOURNAL__ENABLED")
-                    .and_then(|(_, value)| value)
-                    .map(|value| value.to_string_lossy().into_owned())
-            })
-            .collect::<Vec<_>>();
-
-        assert_eq!(
-            journal_settings,
-            vec![Some("false".to_owned()); specs.len()]
-        );
-    }
-
-    #[test]
-    fn deadline_terminates_the_child_process() {
-        let root = tempfile::tempdir().expect("create marker root");
-        let marker = root.path().join("child-completed");
-        let mut command = Command::new(std::env::current_exe().expect("resolve test executable"));
-        command
-            .args([
-                "--exact",
-                "smoke::tests::deadline_child_writes_marker",
-                "--nocapture",
-            ])
-            .env("FORAGER_SMOKE_DEADLINE_MARKER", &marker);
-
-        let started = Instant::now();
-        let result = execute_with_deadline(command, Deadline::new(Duration::from_millis(50)));
-        let elapsed = started.elapsed();
-        thread::sleep(Duration::from_millis(1_100));
-
-        assert_eq!(result.unwrap_err(), "live smoke hard deadline elapsed");
-        assert!(elapsed < Duration::from_millis(500));
-        assert!(!marker.exists(), "timed-out child kept running");
-    }
-
-    #[test]
-    fn deadline_child_writes_marker() {
-        let Some(marker) = std::env::var_os("FORAGER_SMOKE_DEADLINE_MARKER") else {
-            return;
-        };
-        thread::sleep(Duration::from_secs(1));
-        fs::write(marker, "completed").expect("write completion marker");
-    }
-
-    #[test]
-    fn map_live_case_uses_a_legal_command_timeout() {
-        let timeouts = [1, 10, 150, 600].map(|budget| {
-            let commands =
-                command_specs("C17", budget, None, &LiveRun::default()).expect("C17 command");
-            commands[0].arguments[5].clone()
-        });
-
-        assert_eq!(timeouts, ["10", "10", "150", "150"]);
-    }
-
-    #[test]
-    fn official_status_evidence_is_bound_to_the_case_provider() {
-        assert_eq!(
-            official_status_host("https://status.x.ai/"),
-            Some("status.x.ai")
-        );
-        assert!(status_host_matches_endpoint(
-            "status.x.ai",
-            "https://api.x.ai/v1"
-        ));
-        assert!(!status_host_matches_endpoint(
-            "status.openai.com",
-            "https://api.x.ai/v1"
-        ));
-        assert_eq!(official_status_host("https://example.com/status"), None);
-        assert_eq!(official_status_host("http://status.x.ai/"), None);
-    }
-
-    #[test]
-    fn official_status_evidence_requires_a_statuspage_outage_indicator() {
-        assert_eq!(
-            [
-                r#"{"status":{"indicator":"major"},"incidents":[]}"#,
-                r#"{"status":{"indicator":"none"},"incidents":[{"status":"investigating"}]}"#,
-                "Major outage affecting the API",
-                "not valid JSON",
-            ]
-            .map(status_page_reports_outage),
-            [true, false, false, false]
-        );
-    }
-
-    #[test]
-    fn registry_status_accepts_registrations_without_credentials() {
-        let mut registry = catalog::registrations().to_vec();
-        registry[0].credentials = catalog::Credentials::Unused;
-
-        assert!(registry_status(&registry).ok);
-    }
-}
+#[path = "smoke_tests.rs"]
+mod tests;

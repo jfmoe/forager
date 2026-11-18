@@ -1,15 +1,20 @@
-//! Xiaohongshu comments: the comment responses of one note page, their order and ownership
-//! checks, and the comments and replies they decode into.
+//! Xiaohongshu comments: reading the comment responses of one note page with native input,
+//! then judging them: their order and ownership checks, and the comments and replies they
+//! decode into.
 
 use std::collections::{HashMap, HashSet};
+use std::time::Duration;
 
+use reqwest::Url;
 use serde::Deserialize;
 
+use super::page::{Reading, Tracked, input_reason, page_script, site_capture};
 use super::{
     PageFacts, XiaohongshuBrowser, beijing_time, classify_blocks, count_text, describe,
     is_note_page, note_unavailable, runtime, unfinished_read, without_token,
 };
 use crate::net::AttemptFailure;
+use crate::providers::browser::{CaptureLevel, Exchange, Page, RequestMethod, ResponseBody};
 use crate::providers::execution::execute_anonymous;
 use crate::types::{
     COMMENTS, ProviderError, XiaohongshuComment, XiaohongshuCommentsOutcome,
@@ -18,28 +23,33 @@ use crate::types::{
 
 /// Top-level comments in one `comment/page` response.
 const PAGE_SIZE: u16 = 10;
+const TOP_LEVEL: Tracked = Tracked {
+    path: "/api/sns/web/v2/comment/page",
+    method: RequestMethod::Get,
+};
+const REPLIES: Tracked = Tracked {
+    path: "/api/sns/web/v2/comment/sub/page",
+    method: RequestMethod::Get,
+};
+// How long an expand click has to show its effect: its button gone or a reply page loaded.
+const CLICK_CHECK: Duration = Duration::from_secs(5);
 
 impl XiaohongshuBrowser {
     /// Reads the top-level comments `limit` needs and expands the first `replies` delivered
-    /// comments that have more replies, in one OpenCLI command on the note page.
+    /// comments that have more replies, in one browser command on the note page.
     pub(crate) async fn comments(
         &self,
         request: &XiaohongshuCommentsRequest,
     ) -> Result<XiaohongshuCommentsOutcome, ProviderError> {
         let token = &request.access;
-        let command = self.opencli.command(
-            "comments",
-            vec![
-                ("id", request.note.note_id().to_owned()),
-                ("xsec-token", token.as_str().to_owned()),
-                ("limit", request.limit.to_string()),
-                ("expand", request.replies.to_string()),
-            ],
-        );
-        let command = &command;
         let execution = execute_anonymous(self.settings(COMMENTS), move |deadline| async move {
             let read = async {
-                let data: CommentsData = self.opencli.read(command, deadline).await?;
+                let data = self
+                    .browser
+                    .read(capture, deadline, async |page| {
+                        observe_comments(page, request).await
+                    })
+                    .await?;
                 read_comments(&data, request)
             };
             read.await
@@ -57,18 +67,182 @@ impl XiaohongshuBrowser {
     }
 }
 
-/// The facts the adapter reports for one comments command.
-#[derive(Debug, Default, Deserialize)]
-#[serde(default)]
+fn capture(url: &Url) -> CaptureLevel {
+    site_capture(url, &[TOP_LEVEL.path, REPLIES.path])
+}
+
+/// Drives one comments read: opens the note page with its access token, scrolls its comment
+/// panel for the top-level pages `limit` needs, and expands the replies of the selected
+/// comments. Returns what the page showed and answered.
+async fn observe_comments(
+    page: &mut Page,
+    request: &XiaohongshuCommentsRequest,
+) -> Result<CommentsData, AttemptFailure> {
+    let mut reading = Reading::new(page);
+    let expand_failure = drive_comments(&mut reading, request).await?;
+    let observed = reading.finish()?;
+    Ok(CommentsData {
+        responses: captured_comments(&observed.exchanges),
+        page: observed.page,
+        timed_out: observed.timed_out,
+        body_missing: observed.body_missing,
+        expand_failure,
+    })
+}
+
+/// Returns why a selected comment's replies could not be expanded.
+async fn drive_comments(
+    reading: &mut Reading<'_>,
+    request: &XiaohongshuCommentsRequest,
+) -> Result<Option<String>, AttemptFailure> {
+    reading
+        .navigate(&request.note.access_url(&request.access))
+        .await?;
+    if !reading.next(TOP_LEVEL, 0, false).await? {
+        return Ok(None);
+    }
+    let needed = usize::from(request.limit.div_ceil(PAGE_SIZE));
+    loop {
+        let responses = captured_comments(reading.exchanges());
+        let pages = responses
+            .iter()
+            .filter(|response| response.kind == ResponseKind::Page)
+            .collect::<Vec<_>>();
+        let more = pages
+            .last()
+            .and_then(|response| response.body.data.as_ref())
+            .is_some_and(|page| page.has_more);
+        if pages.len() >= needed || !more {
+            break;
+        }
+        if !reading.more(TOP_LEVEL).await? {
+            return Ok(None);
+        }
+    }
+    // Only comments among the first `limit` are delivered, so only they are expanded.
+    let targets = expansion_targets(&captured_comments(reading.exchanges()), request);
+    for id in targets {
+        let seen = reading.completions(REPLIES);
+        if let Some(reason) = expand_replies(reading, &id, seen).await? {
+            return Ok(Some(format!("{reason} for comment {id}")));
+        }
+        if !reading.next(REPLIES, seen, false).await? {
+            return Ok(None);
+        }
+    }
+    Ok(None)
+}
+
+/// The IDs of the first `replies` delivered comments that have more replies than they carry.
+fn expansion_targets(
+    responses: &[CapturedComments],
+    request: &XiaohongshuCommentsRequest,
+) -> Vec<String> {
+    let mut seen = HashSet::new();
+    responses
+        .iter()
+        .filter(|response| response.kind == ResponseKind::Page)
+        .filter_map(|response| response.body.data.as_ref())
+        .flat_map(|page| &page.comments)
+        .filter(|comment| seen.insert(comment.id.as_str()))
+        .take(usize::from(request.limit))
+        .filter(|comment| comment.sub_comment_has_more)
+        .take(usize::from(request.replies))
+        .map(|comment| comment.id.clone())
+        .collect()
+}
+
+/// Clicks "展开 N 条回复" under one top-level comment with the pointer, then confirms the click
+/// took effect. Returns why it could not.
+async fn expand_replies(
+    reading: &mut Reading<'_>,
+    id: &str,
+    seen: usize,
+) -> Result<Option<&'static str>, AttemptFailure> {
+    let element = serde_json::Value::from(format!("comment-{id}"));
+    let missing = page_script(&format!(
+        "const item = document.getElementById({element}); if (!item) return 'no_comment_element'; return item.closest('.parent-comment') ? null : 'no_parent_comment';"
+    ));
+    if let Some(reason) = reading.page().evaluate::<Option<String>>(&missing).await? {
+        return Ok(Some(if reason == "no_comment_element" {
+            "no_comment_element"
+        } else {
+            "no_parent_comment"
+        }));
+    }
+    let buttons = format!(
+        r"(() => {{
+    const item = document.getElementById({element});
+    const parent = item && item.closest('.parent-comment');
+    if (!parent) return [];
+    return [...parent.querySelectorAll('.reply-container .show-more')]
+      .filter((element) => /展开\s*\d+\s*条回复/.test(element.textContent || ''));
+  }})()"
+    );
+    let clicked = reading.page().click(&buttons).await;
+    if let Some(reason) = input_reason(clicked)? {
+        return Ok(Some(match reason {
+            "no_target" => "no_expand_button",
+            "ambiguous_target" => "ambiguous_expand_button",
+            other => other,
+        }));
+    }
+    let gone = format!(r#"{buttons}.every((element) => element.closest('[aria-hidden="true"]'))"#);
+    if reading.confirm(REPLIES, seen, &gone, CLICK_CHECK).await? {
+        Ok(None)
+    } else {
+        Ok(Some("click_missed"))
+    }
+}
+
+/// The comment and reply responses the read kept, with the request parameters that say which
+/// note, page, and comment they answer.
+fn captured_comments(exchanges: &[Exchange]) -> Vec<CapturedComments> {
+    exchanges
+        .iter()
+        .filter_map(|exchange| {
+            let kind = if TOP_LEVEL.matches(exchange) {
+                ResponseKind::Page
+            } else if REPLIES.matches(exchange) {
+                ResponseKind::Sub
+            } else {
+                return None;
+            };
+            let ResponseBody::Received(body) = &exchange.body else {
+                return None;
+            };
+            let mut params = CommentParams::default();
+            for (name, value) in exchange.url.query_pairs() {
+                match name.as_ref() {
+                    "note_id" => params.note_id = value.into_owned(),
+                    "cursor" => params.cursor = value.into_owned(),
+                    "root_comment_id" => params.root_comment_id = Some(value.into_owned()),
+                    _ => {}
+                }
+            }
+            let body = serde_json::from_str(body).unwrap_or_else(|_| CommentsBody {
+                msg: Some("not a comments body".into()),
+                data: None,
+            });
+            Some(CapturedComments { kind, params, body })
+        })
+        .collect()
+}
+
+/// What one comments command observed.
+#[derive(Debug, Default)]
+#[cfg_attr(test, derive(Deserialize))]
+#[cfg_attr(test, serde(default))]
 struct CommentsData {
     page: PageFacts,
     /// The read deadline passed before the expected responses arrived.
     timed_out: bool,
-    /// An awaited comment response completed, but the capture held no body for it.
+    /// An awaited comment response finished loading, but the browser returned no body for it.
     body_missing: bool,
-    /// Why the adapter could not expand the replies of a selected comment.
+    /// Why the page logic could not expand the replies of a selected comment.
     expand_failure: Option<String>,
-    /// Every captured `comment/page` and `comment/sub/page` exchange, in order.
+    /// Every captured `comment/page` and `comment/sub/page` exchange with a body, in the order
+    /// the responses ended.
     responses: Vec<CapturedComments>,
 }
 
@@ -174,7 +348,7 @@ fn read_comments(
     }
     if let Some(failure) = &data.expand_failure {
         return Err(runtime(format!(
-            "the forager-xhs adapter could not expand the replies of a comment ({failure})"
+            "the Xiaohongshu page logic could not expand the replies of a comment ({failure})"
         )));
     }
     let needed = usize::from(request.limit.div_ceil(PAGE_SIZE));
@@ -328,7 +502,7 @@ fn incomplete(data: &CommentsData, requested: &XiaohongshuRef, missing: &str) ->
     })
     .unwrap_or_else(|| {
         runtime(format!(
-            "the forager-xhs adapter returned {missing} without timing out"
+            "the Xiaohongshu page logic read {missing} without timing out"
         ))
     })
 }

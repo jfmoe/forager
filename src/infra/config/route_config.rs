@@ -1,5 +1,7 @@
 //! The runtime configuration of one route, by how it reaches its source: anonymous or keyed
-//! HTTP, a model API, several official endpoints, or a local OpenCLI command.
+//! HTTP, a model API, several official endpoints, or a browser that forager launches.
+
+use std::path::PathBuf;
 
 use crate::redact::Secret;
 
@@ -62,9 +64,17 @@ pub(crate) struct ModelRouteRuntimeConfig {
     pub(crate) timeout_seconds: u64,
 }
 
-/// The configuration of a route that runs local OpenCLI commands.
+/// The configuration of a browser route: its timeout, and the browser it launches.
 #[derive(Clone, Debug)]
-pub(crate) struct ProcessRouteRuntimeConfig {
-    pub(crate) command: String,
+pub(crate) struct BrowserRouteRuntimeConfig {
     pub(crate) timeout_seconds: u64,
+    pub(crate) browser: BrowserRuntimeConfig,
+}
+
+/// The browser that browser routes and `forager browser` commands launch.
+#[derive(Clone, Debug)]
+pub(crate) struct BrowserRuntimeConfig {
+    /// The configured local browser executable that replaces the Managed Browser, resolved by
+    /// the same rules as `journal.dir`; `None` uses the Managed Browser.
+    pub(crate) path: Option<PathBuf>,
 }

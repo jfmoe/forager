@@ -79,13 +79,6 @@ impl BrowserProfile {
     }
 
     /// Whether a login into this profile once succeeded. The session may have expired since.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "the preflight check of browser routes reads it (#270)"
-        )
-    )]
     pub(crate) fn has_logged_in(&self) -> bool {
         self.login_marker().is_file()
     }

@@ -426,7 +426,7 @@ fn youtube_transcribe(arguments: YoutubeTranscribeArgs) -> Result<CommandOutput,
     );
     let dependencies = NetworkDependencies::load()?;
     let plan = platform_transcribe::plan_transcribe(
-        dependencies.config.platforms.get(Platform::Youtube),
+        dependencies.platform(Platform::Youtube)?,
         YoutubeTranscribeRequest { video },
     )
     .map_err(preflight_error)?;

@@ -1,6 +1,7 @@
 mod arxiv;
 mod browser;
 mod browser_profile;
+mod browser_route;
 mod cdp;
 mod constructors;
 mod context7;
@@ -14,8 +15,6 @@ mod main_search_responses;
 pub(crate) mod managed_browser;
 mod markup;
 mod openai;
-mod opencli;
-mod opencli_route;
 mod polymarket_api;
 mod reddit_web;
 mod responses_api;
@@ -40,6 +39,7 @@ pub(crate) use browser::{
     run as run_browser,
 };
 pub(crate) use browser_profile::{BrowserProfile, Screen as BrowserScreen};
+pub(crate) use browser_route::preflight as browser_preflight;
 pub(crate) use constructors::{
     build_context7, build_exa, build_openai, build_tavily_map, build_xai, route_limiter,
 };
@@ -61,7 +61,6 @@ pub(crate) use gemini_api::GeminiApi;
 pub(crate) use hn_api::HnApi;
 pub(crate) use key_account::{KeyAccount, KeyQuota};
 pub(crate) use openai::Openai;
-pub(crate) use opencli::check_contract as check_opencli_contract;
 pub(crate) use polymarket_api::PolymarketApi;
 pub(crate) use reddit_web::RedditWeb;
 pub(crate) use serpapi::Serpapi;

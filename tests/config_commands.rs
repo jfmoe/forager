@@ -25,7 +25,7 @@ fn config_list_reports_the_complete_default_effective_view() {
         ),
         (
             Some(0),
-            79,
+            78,
             None,
             &serde_json::json!({
                 "value": [],
@@ -94,7 +94,7 @@ fn config_list_projects_the_default_ssrn_route_and_order() {
 }
 
 #[test]
-fn config_set_enables_the_browser_route_and_its_command() {
+fn config_set_enables_the_browser_route_and_its_timeout() {
     let config_dir = tempfile::tempdir().expect("create config directory");
     let set = |path: &str, value: &str| {
         run(
@@ -109,10 +109,6 @@ fn config_set_enables_the_browser_route_and_its_command() {
 
     let codes = [
         set("platforms.xiaohongshu.order", "[\"xiaohongshu_browser\"]"),
-        set(
-            "providers.xiaohongshu_browser.command",
-            "/opt/opencli/bin/opencli",
-        ),
         set("providers.xiaohongshu_browser.timeout", "150"),
     ];
     let output = run(config_dir.path(), &["config", "list"], &[], None);
@@ -122,20 +118,18 @@ fn config_set_enables_the_browser_route_and_its_command() {
         (
             codes,
             &view["platforms"]["xiaohongshu"]["order"]["value"],
-            &view["providers"]["xiaohongshu_browser"]["command"]["value"],
             &view["providers"]["xiaohongshu_browser"]["timeout"]["value"],
         ),
         (
-            [Some(0); 3],
+            [Some(0); 2],
             &serde_json::json!(["xiaohongshu_browser"]),
-            &serde_json::json!("/opt/opencli/bin/opencli"),
             &serde_json::json!(150),
         )
     );
 }
 
 #[test]
-fn a_process_route_has_a_command_and_a_timeout_but_no_keys() {
+fn a_browser_route_has_a_timeout_but_no_keys_or_url() {
     let config_dir = tempfile::tempdir().expect("create config directory");
     let set = |path: &str, value: &str| {
         run(
@@ -151,7 +145,7 @@ fn a_process_route_has_a_command_and_a_timeout_but_no_keys() {
     let defaults = run(config_dir.path(), &["config", "list"], &[], None);
     let codes = [
         set("providers.xiaohongshu_browser.keys", "[\"secret\"]"),
-        set("providers.xiaohongshu_browser.command", " "),
+        set("providers.xiaohongshu_browser.url", "https://example.test"),
         set("providers.xiaohongshu_browser.timeout", "0"),
     ];
     let view: Value = serde_json::from_slice(&defaults.stdout).expect("parse config view");
@@ -159,32 +153,10 @@ fn a_process_route_has_a_command_and_a_timeout_but_no_keys() {
     assert_eq!(
         (&view["providers"]["xiaohongshu_browser"], codes),
         (
-            &serde_json::json!({
-                "command": {"value": "opencli", "source": "default"},
-                "timeout": {"value": 120, "source": "default"}
-            }),
+            &serde_json::json!({"timeout": {"value": 120, "source": "default"}}),
             [Some(2); 3]
         )
     );
-}
-
-#[test]
-fn a_process_route_has_no_url_leaf() {
-    let config_dir = tempfile::tempdir().expect("create config directory");
-
-    let output = run(
-        config_dir.path(),
-        &[
-            "config",
-            "set",
-            "providers.xiaohongshu_browser.url",
-            "https://example.test",
-        ],
-        &[],
-        None,
-    );
-
-    assert_eq!(output.status.code(), Some(2), "{output:?}");
 }
 
 #[test]

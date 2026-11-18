@@ -21,7 +21,6 @@ pub(crate) mod browser;
 pub(crate) mod doctor;
 pub(crate) mod gemini_api;
 pub(crate) mod hn;
-pub(crate) mod opencli;
 pub(crate) mod polymarket;
 pub(crate) mod reddit;
 pub(crate) mod scholar;

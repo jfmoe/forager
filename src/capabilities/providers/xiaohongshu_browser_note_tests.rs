@@ -242,7 +242,7 @@ fn a_page_without_the_note_is_a_timeout_only_while_it_stays_on_the_note_page() {
             ),
             (
                 AttemptErrorKind::Runtime,
-                "the forager-xhs adapter stopped at an unexpected page: `验证` (https://www.xiaohongshu.com/website-login/captcha?redirectPath=https%3A%2F%2Fwww.xiaohongshu.com%2Fexplore)".to_owned()
+                "the Xiaohongshu page logic stopped at an unexpected page: `验证` (https://www.xiaohongshu.com/website-login/captcha?redirectPath=https%3A%2F%2Fwww.xiaohongshu.com%2Fexplore)".to_owned()
             ),
         ]
     );
@@ -258,7 +258,7 @@ fn a_read_deadline_on_the_browser_load_error_page_is_a_network_failure() {
         failure(&data),
         (
             AttemptErrorKind::Network,
-            "Chrome could not load the Xiaohongshu page (ERR_TIMED_OUT) and had not loaded it again by the read deadline; check the network and retry".to_owned()
+            "the browser could not load the Xiaohongshu page (ERR_TIMED_OUT) and had not loaded it again by the read deadline; check the network and retry".to_owned()
         )
     );
 }

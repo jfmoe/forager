@@ -276,9 +276,8 @@ fn hn_stories(arguments: HnStoriesArgs) -> Result<CommandOutput, AppError> {
         limit,
     };
     let dependencies = NetworkDependencies::load()?;
-    let plan =
-        platform_stories::plan_stories(dependencies.config.platforms.get(Platform::Hn), request)
-            .map_err(preflight_error)?;
+    let plan = platform_stories::plan_stories(dependencies.platform(Platform::Hn)?, request)
+        .map_err(preflight_error)?;
     let result = dependencies.runtime.block_on(platform_stories::run_stories(
         plan,
         dependencies.client,

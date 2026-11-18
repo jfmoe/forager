@@ -277,6 +277,26 @@ impl NetworkDependencies {
             runtime,
         })
     }
+
+    /// The configuration of `platform`, once every browser route in its order passed the
+    /// preflight check; a platform command reads it before it plans its route chain.
+    pub(super) fn platform(
+        &self,
+        platform: crate::types::Platform,
+    ) -> Result<&config::PlatformRuntimeConfig, AppError> {
+        let config = self.config.platforms.get(platform);
+        crate::platform_chain::browser_preflight(config, &self.config.browser).map_err(
+            |error| match error {
+                crate::platform_chain::PlatformPreflightError::Argument(message) => {
+                    AppError::Argument(message)
+                }
+                crate::platform_chain::PlatformPreflightError::Config(message) => {
+                    AppError::Config(ConfigError::Message(message))
+                }
+            },
+        )?;
+        Ok(config)
+    }
 }
 
 impl FetchContext {

@@ -2,11 +2,16 @@
 //! 2026-10-08 and 2026-11-18, judged into items or failures without a browser.
 
 use chrono::{NaiveDate, NaiveDateTime};
+use reqwest::Url;
 use serde_json::{Value, json};
 
-use super::{Decoded, SearchData, published_date, search_outcome};
+use super::{
+    Decoded, Exchange, Observed, RequestMethod, ResponseBody, SearchData, SearchProgress,
+    filter_choices, published_date, search_data as captured_search_data, search_outcome,
+};
 use crate::types::{
-    AttemptErrorKind, XiaohongshuPublishTime, XiaohongshuSearchOptions, XiaohongshuSort,
+    AttemptErrorKind, XiaohongshuNoteType, XiaohongshuPublishTime, XiaohongshuSearchOptions,
+    XiaohongshuSort,
 };
 
 const RESULTS_URL: &str =
@@ -398,7 +403,7 @@ fn a_filter_click_that_never_happened_fails_with_its_reason() {
     assert_eq!(
         result,
         runtime(
-            "the forager-xhs adapter made 0 filter clicks, not 1 (no_filter_panel for 排序依据 最新)"
+            "the Xiaohongshu page logic made 0 filter clicks, not 1 (no_filter_panel for 排序依据 最新)"
         )
     );
 }
@@ -468,7 +473,7 @@ fn page_facts_classify_a_search_that_returned_no_results() {
             (AttemptErrorKind::Timeout, "Xiaohongshu returned 0 of 1 search pages before the read deadline".to_owned()),
             (
                 AttemptErrorKind::Runtime,
-                "the forager-xhs adapter stopped at an unexpected page: `验证` (https://www.xiaohongshu.com/website-login/captcha?redirectPath=)".to_owned()
+                "the Xiaohongshu page logic stopped at an unexpected page: `验证` (https://www.xiaohongshu.com/website-login/captcha?redirectPath=)".to_owned()
             ),
             (
                 AttemptErrorKind::Runtime,
@@ -511,7 +516,7 @@ fn a_read_deadline_on_the_browser_load_error_page_is_a_network_failure() {
         result,
         Err((
             AttemptErrorKind::Network,
-            "Chrome could not load the Xiaohongshu page (ERR_CONNECTION_CLOSED) and had not loaded it again by the read deadline; check the network and retry".to_owned()
+            "the browser could not load the Xiaohongshu page (ERR_CONNECTION_CLOSED) and had not loaded it again by the read deadline; check the network and retry".to_owned()
         ))
     );
 }
@@ -611,4 +616,182 @@ fn other_texts_have_no_date() {
     .map(|shown| published_date(shown, now));
 
     assert_eq!(dates, [None, None, None, None, None, None, None, None]);
+}
+
+#[test]
+fn a_logged_out_session_and_risk_control_ask_for_a_browser_login() {
+    let mut guest = results_page();
+    guest["guest"] = json!(true);
+    let mut blocked = results_page();
+    blocked["blocked_status"] = json!(461);
+
+    let hinted = [guest, blocked].map(|page| {
+        let (kind, message) = default_search(&with_page(&page, false, false), 20)
+            .map(|_| ())
+            .unwrap_err();
+        (
+            kind,
+            message.contains("run `forager browser login xiaohongshu`"),
+        )
+    });
+
+    assert_eq!(
+        hinted,
+        [
+            (AttemptErrorKind::Auth, true),
+            (AttemptErrorKind::Auth, true)
+        ]
+    );
+}
+
+#[test]
+fn a_read_deadline_counts_as_a_timeout_only_on_a_results_page_of_either_layout() {
+    let page = |url: &str, title: &str| {
+        let mut page = results_page();
+        page["url"] = json!(url);
+        page["title"] = json!(title);
+        page
+    };
+    let pages = [
+        page(
+            "https://www.xiaohongshu.com/search_result_ai?keyword=%25E5%2592%2596%25E5%2595%25A1&source=web_explore_feed",
+            "咖啡 - 小红书搜索",
+        ),
+        page(
+            "https://www.xiaohongshu.com/explore",
+            "小红书 - 你的生活兴趣社区",
+        ),
+    ];
+
+    let results = pages.map(|page| {
+        default_search(&with_page(&page, true, false), 20).map(|decoded| refs(&decoded))
+    });
+
+    assert_eq!(
+        results,
+        [
+            Err((
+                AttemptErrorKind::Timeout,
+                "Xiaohongshu returned 0 of 1 search pages before the read deadline".to_owned()
+            )),
+            runtime(
+                "the Xiaohongshu page logic stopped at an unexpected page: `小红书 - 你的生活兴趣社区` (https://www.xiaohongshu.com/explore)"
+            ),
+        ]
+    );
+}
+
+#[test]
+fn a_search_that_could_not_be_entered_fails_with_its_reason_and_page() {
+    let mut data = with_page(
+        &json!({"url": "https://www.xiaohongshu.com/explore", "title": "小红书 - 你的生活兴趣社区"}),
+        false,
+        false,
+    );
+    data["search_failure"] = json!("no_target for the search box");
+
+    let result = default_search(&data, 20).map(|decoded| refs(&decoded));
+
+    assert_eq!(
+        result,
+        runtime(
+            "the Xiaohongshu page logic could not search from `小红书 - 你的生活兴趣社区` (https://www.xiaohongshu.com/explore) (no_target for the search box)"
+        )
+    );
+}
+
+#[test]
+fn each_non_default_condition_is_one_filter_panel_option() {
+    let options = XiaohongshuSearchOptions {
+        sort: XiaohongshuSort::MostCommented,
+        note_type: XiaohongshuNoteType::Video,
+        publish_time: XiaohongshuPublishTime::HalfYear,
+    };
+
+    assert_eq!(
+        (
+            filter_choices(&XiaohongshuSearchOptions::default()),
+            filter_choices(&options),
+            filter_choices(&latest_week()),
+        ),
+        (
+            vec![],
+            vec![
+                ("排序依据", "最多评论"),
+                ("笔记类型", "视频"),
+                ("发布时间", "半年内")
+            ],
+            vec![("排序依据", "最新"), ("发布时间", "一周内")],
+        )
+    );
+}
+
+fn exchange(path: &str, request: &Value, body: &Value) -> Exchange {
+    Exchange {
+        method: RequestMethod::Post,
+        url: Url::parse(&format!("https://edith.xiaohongshu.com{path}")).expect("API URL"),
+        status: Some(200),
+        request_body: Some(request.to_string()),
+        body: ResponseBody::Received(body.to_string()),
+    }
+}
+
+fn search_exchange(page: u32, search_id: &str, filters: &Value) -> Exchange {
+    let response = response(0, page, search_id, filters, true, &[note(page)]);
+    exchange(
+        "/api/sns/web/v2/search/notes",
+        &response["request"],
+        &response["body"],
+    )
+}
+
+#[test]
+fn captured_search_responses_count_the_filter_clicks_made_before_them() {
+    let week = filters("time_descending", "不限", "一周内");
+    let onebox = exchange(
+        "/api/sns/web/v1/search/onebox",
+        &json!({"keyword": "咖啡", "search_id": ROOT_SEARCH_ID}),
+        &json!({"code": 0, "success": false, "msg": "成功", "data": {}}),
+    );
+    let observed = Observed {
+        page: serde_json::from_value(results_page()).expect("page facts"),
+        exchanges: vec![
+            onebox,
+            search_exchange(1, ROOT_SEARCH_ID, &Value::Null),
+            search_exchange(2, ROOT_SEARCH_ID, &Value::Null),
+            search_exchange(1, FILTERED_SEARCH_ID, &week),
+            search_exchange(2, FILTERED_SEARCH_ID, &week),
+        ],
+        timed_out: false,
+        body_missing: false,
+    };
+    let progress = SearchProgress {
+        filter_clicks: 1,
+        marks: vec![3],
+        ..SearchProgress::default()
+    };
+    let options = XiaohongshuSearchOptions {
+        publish_time: XiaohongshuPublishTime::Week,
+        sort: XiaohongshuSort::Latest,
+        ..XiaohongshuSearchOptions::default()
+    };
+
+    let data = captured_search_data(observed, progress).expect("search observation");
+    let clicks = data
+        .responses
+        .iter()
+        .map(|response| (response.click, response.request.page))
+        .collect::<Vec<_>>();
+    // One click set both conditions here, so the judgement expects two.
+    let judged = search_outcome(&data, "咖啡", &options, 40, at((2026, 3, 1), (12, 0)))
+        .map(|decoded| refs(&decoded))
+        .map_err(|failure| failure.message);
+
+    assert_eq!(
+        (clicks, judged),
+        (
+            vec![(0, 1), (0, 2), (1, 1), (1, 2)],
+            Err("the Xiaohongshu page logic made 1 filter clicks, not 2".to_owned())
+        )
+    );
 }

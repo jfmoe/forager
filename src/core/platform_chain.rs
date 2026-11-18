@@ -16,7 +16,7 @@ use crate::chain::{
     self, BudgetPolicy, ChainSettings, ChainStep, DiagnosticMerge, StepIdentity, StepSuccess,
     StepVerdict, TerminalPolicy,
 };
-use crate::config::{self, PlatformRouteConfig, PlatformRuntimeConfig};
+use crate::config::{self, BrowserRuntimeConfig, PlatformRouteConfig, PlatformRuntimeConfig};
 use crate::net::RetryPolicy;
 use crate::providers;
 use crate::types::{
@@ -32,7 +32,8 @@ const CURSOR_VERSION: &str = "v1";
 pub(crate) enum PlatformPreflightError {
     /// The arguments or cursor cannot run; exit 2.
     Argument(String),
-    /// The configuration leaves the operation without a route; exit 3.
+    /// The configuration leaves the operation without a route, or a browser route in the
+    /// order cannot run; exit 3.
     Config(String),
 }
 
@@ -495,7 +496,7 @@ pub(crate) fn plan_routes<C: Clone>(
 }
 
 /// Says how to enable the operation's routes that the order leaves out, that only users may
-/// enable, and that `relevant` keeps: process routes drive their own browser (ADR 0020), and an
+/// enable, and that `relevant` keeps: a browser route acts on the user's own account, and an
 /// HTTP route may read a site's undocumented endpoints (ADR 0028).
 fn opt_in_hint<C>(
     order_key: &str,
@@ -511,16 +512,51 @@ fn opt_in_hint<C>(
         .iter()
         .filter(|route| !order.contains(route) && relevant(**route))
         .filter_map(|route| match catalog::registration(*route).transport {
-            ProviderTransport::OpenCli(adapter) => Some(format!(
-                "; to use {route}, install the forager OpenCLI adapter `{site}` (copy the `opencli/{site}` directory of the forager skill to `~/.opencli/clis/{site}`), open the site in the Chrome that OpenCLI drives and log in if it asks, then add `{route}` to {order_key}",
-                route = route.name(),
-                site = adapter.site,
-            )),
+            ProviderTransport::Browser(environment) => {
+                let login = if environment.requires_login {
+                    format!(
+                        ", run `forager browser login {platform}` and log in",
+                        platform = environment.profile
+                    )
+                } else {
+                    String::new()
+                };
+                Some(format!(
+                    "; to use {route}, run `forager browser install`{login}, then add `{route}` to {order_key}",
+                    route = route.name(),
+                ))
+            }
             ProviderTransport::Http => {
                 catalog::http_opt_in(*route, order_key, &order).map(|text| format!("; {text}"))
             }
         })
         .collect()
+}
+
+/// Fails a platform command before its route chain when a browser route in the order cannot
+/// run: the browser cannot be found, or its Browser Profile never had the login it needs. The
+/// check launches nothing; it is a Config failure, not an attempt.
+///
+/// # Errors
+///
+/// Returns [`PlatformPreflightError::Config`] with the command that fixes the first failing
+/// route.
+pub(crate) fn browser_preflight(
+    config: &PlatformRuntimeConfig,
+    browser: &BrowserRuntimeConfig,
+) -> Result<(), PlatformPreflightError> {
+    for entry in config.entries() {
+        if let ProviderTransport::Browser(environment) = catalog::registration(entry.id()).transport
+        {
+            providers::browser_preflight(&environment, browser).map_err(|reason| {
+                PlatformPreflightError::Config(format!(
+                    "{} cannot run: {reason}",
+                    entry.id().name()
+                ))
+            })?;
+        }
+    }
+    Ok(())
 }
 
 /// Encodes `v1.<route>.<payload>`; the payload restores the complete request and page.
