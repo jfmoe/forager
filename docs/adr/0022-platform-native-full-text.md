@@ -17,11 +17,11 @@
 
 ## 接受的边界
 
-- **token 在本机进程参数中可见**：route 以具名参数 `--xsec-token` 把 Access Token 传给 OpenCLI，同一台机器上的其他进程可以从进程列表中看到它。token 离开用户的登录会话就打不开笔记，而且它本来就出现在站点的分享链接中，所以不另建传递通道。
+- **token 在本机进程参数中可见**：route 以具名参数 `--xsec-token` 把 Access Token 传给 OpenCLI，同一台机器上的其他进程可以从进程列表中看到它。token 离开用户的登录会话就打不开笔记，而且它本来就出现在站点的分享链接中，所以不另建传递通道。ADR 0036 取代本条：route 改用浏览器传输，token 只在导航时经 CDP 交给浏览器，不再出现在任何进程参数中。
 - **成功输出的 `access_url` 含 token**：它是打开笔记的推荐入口，调用方需要用它重新 fetch 或读取评论。除此之外 token 不进入 ref、canonical `url`、cursor、journal、attempt 消息、`--verbose` attempts 与失败时的 stderr：route 在记录 attempt 之前，按本次请求的 token 值清理来自 OpenCLI stderr、外壳解码错误与页面事实的消息。
 
 ## 影响
 
 - ADR 0009（Web Fetch 以 provider 为先的正文契约）与 ADR 0015（结果只按引用交付已落盘的材料）的作用域不变：Web Fetch capability 仍不含平台知识，Native 正文同样写入本地文件、stdout 只给路径。
-- Native 正文仍受 OpenCLI stdout 4 MiB 上限约束。
+- Native 正文仍受 OpenCLI stdout 4 MiB 上限约束。ADR 0036 取代本条：OpenCLI 已退役，Native 正文改受浏览器传输的单条 CDP 消息 16 MiB 与单个响应体 4 MiB 上限约束。
 - 以后其他平台的 route 若能在同一 attempt 内读到并核对正文，可以复用 Native 来源，只需在注册信息中声明 `native_full_text`。

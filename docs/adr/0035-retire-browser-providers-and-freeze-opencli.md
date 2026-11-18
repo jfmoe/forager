@@ -25,9 +25,13 @@ forager 删除三个经本机 OpenCLI 驱动用户 Chrome 的供应方，以及�
 
 ## 保留 xiaohongshu_browser 作为过渡
 
+ADR 0036 取代本节：`xiaohongshu_browser` 原地改用 forager 自带的浏览器传输与 Managed Browser，OpenCLI transport 与 process route 的配置形状已删除。
+
 小红书没有公开 API，暂时没有替代路线。抢占前台与外部依赖对 `xiaohongshu_browser` 同样成立，所以它只是过渡保留，计划以后用无头浏览器方案替换；在此之前它与 OpenCLI transport 一起保留，process route 的配置形状（`command`、`timeout`）、退出码映射、process 访问策略与 opt-in 启用规则继续服务它。
 
 ## OpenCLI 冻结
+
+ADR 0036 取代本节：OpenCLI 已整体退役，浏览器类 route 走 forager 自带的浏览器传输。
 
 OpenCLI 只服务 `xiaohongshu_browser`，直到无头浏览器方案替代它。不再新增 OpenCLI route 或 adapter；以后的浏览器类 route（包括 bilibili 字幕）走无头浏览器方案。
 
