@@ -22,6 +22,7 @@ pub(super) struct Config {
     pub(super) journal: Journal,
     pub(super) retry: Retry,
     pub(super) http: Http,
+    pub(super) browser: Browser,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -206,6 +207,15 @@ impl Default for Http {
     fn default() -> Self {
         Self { ssl_verify: true }
     }
+}
+
+/// The browser that browser routes and `forager browser` commands launch.
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(default, deny_unknown_fields)]
+pub(super) struct Browser {
+    /// A local browser executable that replaces the Managed Browser; empty uses the Managed
+    /// Browser.
+    pub(super) path: String,
 }
 
 #[derive(Clone, Copy)]
@@ -421,6 +431,7 @@ pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("retry.multiplier", retry.multiplier: F64, Rule::PositiveFinite, View::Plain, "retry backoff multiplier"),
     leaf!("retry.max_wait", retry.max_wait: U64, Rule::Any, View::Plain, "maximum retry wait in seconds"),
     leaf!("http.ssl_verify", http.ssl_verify: Bool, Rule::Any, View::Plain, "verify TLS certificates"),
+    leaf!("browser.path", browser.path: String, Rule::Any, View::Plain, "local browser executable that replaces the Managed Browser; empty uses the Managed Browser that `forager browser install` installs. forager does not check that it is fingerprint-chromium: another browser ignores the fingerprint switches"),
 ];
 
 pub(super) static LEAVES: LazyLock<Vec<&'static str>> =

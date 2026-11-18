@@ -83,6 +83,17 @@ impl RateLimiter {
         )
     }
 
+    /// A limiter whose cross-process state lives in `state_file`, for tests that must not share
+    /// the user's state directory.
+    #[cfg(test)]
+    pub(crate) fn in_state_file(
+        route: &'static str,
+        policy: AccessPolicy,
+        state_file: PathBuf,
+    ) -> Self {
+        Self::with_state(route, policy, Some(state_file), WallClock::new())
+    }
+
     fn with_state(
         route: &'static str,
         policy: AccessPolicy,

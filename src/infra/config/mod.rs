@@ -21,8 +21,9 @@ pub(crate) use route_config::{
     RedditRouteRuntimeConfig,
 };
 pub(crate) use runtime::{
-    ClassifierRuntimeConfig, JournalRuntimeConfig, LogLevel, PlatformRouteConfig,
-    PlatformRuntimeConfig, RuntimeConfig, platform_route_config, provider_keys_key, runtime_config,
+    BrowserRuntimeConfig, ClassifierRuntimeConfig, JournalRuntimeConfig, LogLevel,
+    PlatformRouteConfig, PlatformRuntimeConfig, RuntimeConfig, platform_route_config,
+    provider_keys_key, runtime_config,
 };
 #[cfg(test)]
 pub(crate) use runtime::{PlatformRoutesRuntimeConfig, platform_order_key};

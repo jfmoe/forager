@@ -6,7 +6,7 @@
 
 项目 / binary 名 **forager**（脱离上游 fork 网络的独立身份；crates.io / GitHub 撞名验证通过）。
 
-## 命令面（13 顶层）
+## 命令面（12 顶层）
 
 ```
 forager search QUERY [--capabilities CSV|none] [--model ID] [--extra-sources N]
@@ -100,6 +100,8 @@ forager platform reddit search QUERY [--subreddit NAME] [--sort relevance|hot|to
 forager platform reddit search --cursor CURSOR [--timeout 120] [--format json|markdown] [...]
 forager platform reddit fetch REF_OR_URL [--depth thread|metadata|full_text（默认 thread）]
                               [--content-dir DIR] [--timeout 120] [--format json|markdown|content] [...]
+forager browser install [--timeout 600]
+forager browser login PLATFORM [--timeout 10..（默认 600）]
 forager doctor [--provider PROVIDER] [--timeout 30] [--format json|markdown]
 forager smoke [--live] [...]
 forager config path|list|set|unset
@@ -192,6 +194,13 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 两档：`doctor` 浅检全体（掩码配置 + 凭据存在 + 可达性（对 endpoint 发 GET 并只等待响应头，任何 HTTP 响应都算可达；部分 endpoint 对 HEAD 不响应）+ 过宽权限报告 + config list 同构生效值块）；顶层 `ok` 等于所有 `configured=true` provider 均 `reachable=true`，零配置为 true，任一不可达则 JSON/Markdown 均为 false 并退出 4，permission warning 不改变 `ok`。`--provider NAME` 深探单体，值域＝provider 注册表的编译期 enum。需要凭据的 6 个 provider（exa、tavily、firecrawl、context7 与主搜索 backend `xai`、`openai`）执行凭据有效性 + 最小活体调用；两个主搜索 backend 的活体调用都是一次不带工具与 instructions 的 Responses SSE 模型探测，检查记为 `[{name: "responses", transport: "sse"}]`；凭据可选的 `jina` 恒为已配置，没有 key 时浅检的 `message` 注明以匿名方式运行，深探以不带凭据的请求执行同一 fetch 探测；有 key 时按现有方式探测，key 失败后的匿名请求即使成功，深探仍以 key 的失败结束；平台 route（`arxiv_api`、`ssrn_crossref`、`xiaohongshu_browser`、`hn_api`）不需要凭据，恒为已配置，深探执行一次最小平台检索；`hn_api` 访问两个端点，深探在检索之后再向 Firebase 发一个请求，记为 `firebase` 检查；主搜索 backend `xai` 同时是 X 平台的 route，`platforms.x.order` 含 `xai` 时，深探在主搜索检查之后再执行一次最小 X 检索，记为 `x_search` 检查；需要凭据的平台 route `serpapi` 有 key 时才算已配置，浅检对端点发一次不带 key 的 GET（不计额度）；深探不做检索，而是按池中顺序对每个 key 各调用一次同源的 SerpApi Account API（`/account.json`，不计额度），不经凭据轮换、不推进凭据游标，输出增加 `keys` 数组，每个 key 一项 `{key_index, ok, searches_left, plan_searches_left, this_month_usage, this_hour_searches, hourly_limit}`，失败项带 `error_kind`，取不到的数字为 `null`；HTTP 失败沿用共享归因（401/403 为 auth），剩余额度为 0 为 `quota_exhausted`，本小时检索数达到上限为 `rate_limited`，缺数字字段为 `runtime`；任一 key 失败则深探失败退 4，顶层 `error_kind` 与 `message` 取第一个失败的 key，`message` 以 `providers.serpapi.keys[N]` 指明它；响应中的 key、账户邮箱与账户 ID 不被解码，也不进入任何输出；这个深探只证明端点、key 与额度状态，不证明 Scholar 检索的请求与解码（由 live smoke C24–C26 证明）；没有 key 时以 config 失败退 3 且不发请求；需要凭据的平台 route `gemini_api` 同样有 key 时才算已配置，浅检对端点发一次不带 key 的 GET；深探不调用模型，而是按池中顺序用每个 key 各请求一次 `GET <url>/models`（不计模型额度），检查记为 `[{name: "models", transport: "http"}]`，`keys` 每项只有 `{key_index, ok}`，失败项带 `error_kind`，失败与报告规则同 `serpapi`（`message` 以 `providers.gemini_api.keys[N]` 指明失败的 key）；其他 provider 的深探输出没有 `keys`。声明访问策略的 provider（平台 route）的浅检检查与深探请求都先经过跨进程限速，等不到窗口时浅检记为不可达、深探以 timeout 失败，且都不发送请求。
 
 传输类型为 process 的 route（`xiaohongshu_browser`）不发 GET：浅检只在它出现在所属平台的 order 中时参与，运行 adapter 的 `contract` 命令并核对契约版本；未启用时报告 `configured: false`，不影响 `ok`。检查失败时该 provider 状态带 `message`（含安装提示），Markdown 在同一行括号中显示。深探（`doctor --provider xiaohongshu_browser`）同样只在 order 启用该 route 时运行一次真实的平台检索；未启用时以 config 失败退 3，不启动进程。
+
+## `browser` 命令
+
+`forager browser` 管理浏览器传输使用的浏览器环境（第 7 章「浏览器传输」）。两条命令都按运维类命令的约定输出：结果是 stdout 上的一个 JSON 对象，进度与提示写 stderr；失败沿用 ErrorKind 与退出码映射，config 与参数错误是飞行前终态（stderr 一行 `config_error: …` 或 `argument_error: …`，退 3 或 2），其他失败在 stdout 给出 `{"error_kind", "message"}`，传输族退 4。
+
+- **`browser install`**：下载当前主机的 Managed Browser 安装包（fingerprint-chromium 固定版本，地址与 SHA256 内置在 forager 中），校验哈希后安装到缓存目录（第 3 章「浏览器」）。macOS 上用 `hdiutil` 挂载磁盘映像、用 `ditto` 拷出应用（保留符号链接与签名）。已安装固定版本时不下载，退 0。成功输出 `{version, executable, downloaded}`，`downloaded` 表示本次是否下载。下载失败为 network，超过 `--timeout` 为 timeout，哈希不符（下载物随即删除）、解包失败与当前主机没有安装包为 runtime，均退 4。设置了 `browser.path` 时照常安装，并在 stderr 提示浏览器命令会启动 `browser.path`。
+- **`browser login PLATFORM`**：只接受有浏览器 route 且该 route 需要登录的平台（目前只有 `xiaohongshu`）；其他平台为参数错误退 2，未知平台名由 clap 退 2。以有界面模式启动浏览器，打开该平台页面逻辑声明的登录入口，等待页面逻辑判定已登录，然后正常关闭浏览器、在 Browser Profile 中写入登录标记与窗口所在屏幕的尺寸，退 0，输出 `{platform, logged_in: true, profile}`（`profile` 是 Browser Profile 目录）。找不到浏览器（没有设置 `browser.path`，且 Managed Browser 未安装或当前主机没有安装包）为 config_error 退 3，消息给出 `forager browser install` 或指向 `browser.path`。`--timeout` 是整条命令的期限，按第 7 章「浏览器传输」的截止时间执行：读取截止点（期限前 8 秒）仍未观察到登录为 timeout 退 4；浏览器启动失败、CDP 握手失败、窗口在登录前被关闭、Browser Profile 被另一个进程占用为 runtime 退 4。登录与检索命令一样先取该 route 的访问限速 permit，再取 profile 锁。
 
 ## 平台命令
 

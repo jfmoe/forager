@@ -157,6 +157,9 @@ max_wait = 10
 
 [http]
 ssl_verify = true
+
+[browser]
+path = ""                    # 空串＝使用 Managed Browser（`forager browser install` 安装）；非空＝替代它的本地浏览器可执行文件
 ```
 
 命名规则：小写 snake；节承担命名空间；endpoint 字段统一 `url`；`timeout` 裸秒数。`[research]` 节不存在。
@@ -178,6 +181,10 @@ ssl_verify = true
 ### 值域与交叉约束（进 schema 与验收）
 
 `search.backends` 非空、去重、限 `{xai, openai}`；全部 backend 无凭据＝退 3；`providers.xai.tools` 限 `{web_search, x_search}`；`providers.openai.model` 非空，openai 没有 `tools` 与 `timeout` 键，attempt 与 xai 一样只受命令 deadline 与共享的读超时约束（ADR 0007）；所有 `timeout > 0`；process 供应方的 `command` 去掉空白后不能为空；`retry.max_attempts >= 1`、`multiplier > 0`、`max_wait >= 0`；`journal.retention_days >= 0` 且 0＝无限期。`search.validation` 已从 schema 删除；旧文件键或 `FORAGER_SEARCH__VALIDATION` 都按未知输入退出 3。文件层严格 schema：未知键＝退 3、报错点名坏键。
+
+### 浏览器
+
+`browser.path` 选择浏览器传输启动的浏览器（第 7 章「浏览器传输」）。默认空串，表示使用 forager 固定版本、校验过哈希的 Managed Browser，它由 `forager browser install` 安装到缓存目录（`$XDG_CACHE_HOME/forager`，否则 `$HOME/.cache/forager`）的 `browser/fingerprint-chromium-<版本>/`；未安装时，需要浏览器的命令在启动浏览器之前以 config_error 退 3 并给出 `forager browser install`，当前主机没有安装包时改为说明这一点并指向 `browser.path`。非空时它是替代 Managed Browser 的本地浏览器可执行文件，此时不检查受管安装；路径规则与 `journal.dir` 相同：前导 `~/` 展开为 `HOME`，相对路径相对 config 目录解析。env 按既有公式派生为 `FORAGER_BROWSER__PATH`。forager 不校验这个可执行文件是不是 fingerprint-chromium：其他基于 Chromium 的浏览器会忽略指纹参数，以自己的真实特征访问站点。
 
 ### `log.level` 运行时语义
 

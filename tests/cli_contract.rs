@@ -29,6 +29,7 @@ fn command_tree_aliases_and_exact_subcommands_match_the_contract() {
             ("context7", vec!["c7"]),
             ("exa", vec![]),
             ("platform", vec![]),
+            ("browser", vec![]),
             ("config", vec![]),
             ("setup", vec![]),
             ("doctor", vec![]),
@@ -55,6 +56,17 @@ fn command_tree_aliases_and_exact_subcommands_match_the_contract() {
             ("set", vec![]),
             ("unset", vec![]),
         ]
+    );
+    let browser = command
+        .get_subcommands()
+        .find(|subcommand| subcommand.get_name() == "browser")
+        .expect("browser command");
+    assert_eq!(
+        browser
+            .get_subcommands()
+            .map(clap::Command::get_name)
+            .collect::<Vec<_>>(),
+        ["install", "login"]
     );
     assert!(Cli::try_parse_from(["forager", "setu", "--non-interactive"]).is_err());
 }

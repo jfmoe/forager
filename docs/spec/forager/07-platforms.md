@@ -35,6 +35,18 @@
     | `code` 为 `unknown_command`（站点目录未安装）或任意 `commander.*`（如已安装的旧版 adapter 缺少该命令或参数），退出码 2 | Runtime，附安装提示 |
     | 找不到可执行文件 | Runtime，提示安装 OpenCLI 或设置 `command` |
     | 其他退出码（含 2 的其他命令行错误）、输出无法解码 | Runtime |
+- **浏览器传输**（`providers/browser`，不含站点知识；模块见第 4 章「浏览器传输职责」）：forager 自带的第二种传输，自己启动浏览器并经 CDP 驱动它。它已经实现并服务 `forager browser login`（第 2 章「`browser` 命令」）；`xiaohongshu_browser` 仍是上面的 process route，改用它之前本条与 OpenCLI 的各条并存。
+  - 浏览器：`browser.path` 非空时启动它，否则启动 Managed Browser（fingerprint-chromium 固定版本，第 3 章「浏览器」）。
+  - 生命周期：每条浏览器命令启动一个浏览器进程，放入独立进程组，不设常驻进程。先取 route 的访问限速 permit，再取 Browser Profile 的文件锁（拿不到即 Runtime，不等待）；permit 与锁都持有到浏览器进程被回收为止。
+  - CDP：经 `--remote-debugging-pipe` 的管道通信，不开调试端口；单条 CDP 消息上限 16 MiB，超出为 Runtime。CDP 握手（取得第一个页面并附加会话）20 秒内没有完成、浏览器在握手前退出或管道上不是 CDP 消息，都为 Runtime，消息带浏览器 stderr 的最后一行。
+  - 截止时间，按先后：① attempt 截止时间之前预留 5 秒，得到工作截止点；② 工作截止点之前 3 秒是读取截止点：页面逻辑停止等待与输入；③ 页面逻辑返回后正常关闭浏览器（`Browser.close`），让 profile 落盘，正常关闭最多 3 秒且不超过工作截止点；④ 到工作截止点仍未退出，或命令的 future 被丢弃时，强杀整个进程组。工作截止点到达时命令为 Timeout。剩余时间不足以留出读取截止点时不启动浏览器，直接 Timeout。
+  - forager 自身被终止：forager 被 Ctrl-C（SIGINT）、SIGTERM 或 SIGKILL 终止时，内核关闭 forager 一端的调试管道，浏览器随即自行退出，整个进程组不留下进程；因此 forager 不处理信号。这一点由"真实浏览器"测试层验证：三种信号下浏览器都在约 0.1 秒内退出。
+  - 启动参数：Browser Profile 的数据目录、该 profile 的指纹种子（`--fingerprint`）、与宿主一致的指纹平台、品牌 Chrome、调用方给出的语言（`--lang` 与 `--accept-lang`，小红书为 `zh-CN`）、`--remote-debugging-pipe`、`--no-first-run`、`--no-default-browser-check`；检索命令用新 Headless（`--headless=new`），`browser login` 用同一组参数但有界面。无头浏览器默认报告 800×600、DPR 1 的屏幕；`browser login` 在有界面的窗口里读取宿主真实的屏幕尺寸、可用区域、DPR 与窗口尺寸并记入 Browser Profile，之后的无头启动以 `--screen-info`（物理像素，含可用区域的上下边距）与 `--window-size` 复现它们；从未登录过的 profile 没有记录，保持默认值。
+  - Browser Profile：状态目录下每个平台一个，目录仅用户可读写；指纹种子在 profile 创建时随机生成一次，之后不变；`browser login` 成功后记下登录标记，标记只表示登录过，不保证会话仍有效。forager 不读取、不导出、不注入 cookie 或 token。
+  - 原生输入：上面「adapter 原生输入」的规则全部适用于浏览器传输，归属改为浏览器传输（`providers/browser_input`），接口为 CDP `Input.dispatchMouseEvent`、`Input.dispatchKeyEvent` 与 `Input.insertText`，另有三处不同：指针分若干步沿略弯的路径移动到目标，不瞬移；不做截图强制渲染（无头下滚轮滚动直接触发懒加载）；"不做 stealth 改造、不伪造指纹"的边界由 Managed Browser 的指纹参数取代，"不解验证码，遇到验证、风控或登录墙立即停止"不变。逐字输入每个字符一次 `Input.insertText`。
+  - 被动抓包：只读页面自己发出的请求与响应，不发起自己的接口请求，不改写 `fetch`、XHR 或 WebSocket。页面逻辑给出过滤器，按 URL 决定忽略、只记状态或连同响应体保留；只保留 GET 与 POST。POST 请求体取自请求事件；响应体在请求加载完成事件之后读取，单个响应体上限 4 MiB，超出为 Runtime；请求已加载完成而取不到响应体记为缺失；请求失败记下浏览器的错误文本。页面没有读取的响应，浏览器不报告加载完成，因此不会进入抓包结果。
+  - 读取页面状态：经 CDP 在页面中求值的小段只读脚本，作为字符串内嵌在 Rust 里；脚本抛出异常为 Runtime。
+  - 主机支持：传输只要求 Unix（进程组与 POSIX shell），非 Unix 主机上以 Runtime 拒绝。
 - **链语义**：同平台的 route 按 `platforms.<id>.order` 组成 fallback 链，由共享链执行器运行，沿用 LegitimateEmpty 语义：至少一条 route 返回合法空结果、之后没有 route 被接受时，结果为空成功。结果永不跨平台 fallback。
 - **Platform Ref**：平台实体的类型化身份，由平台、平台自有的 kind 和 id 组成。kind 只按「身份空间不同」或「fetch 结果形状不同」划分，不按对话角色划分。字符串形式为 `<platform>:<id>`，例如 `arxiv:2401.01234v2`。
   - ref 解析与 canonical URL 推导是 types 门面中的零 IO 纯函数。每个 kind 都满足往返性质：解析 ref 的 canonical URL，得到同一个 ref。

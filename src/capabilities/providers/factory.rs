@@ -16,9 +16,10 @@ use crate::config::{
     RedditRouteRuntimeConfig, WebFetchProviderConfig,
 };
 use crate::net::RetryPolicy;
+use crate::providers::browser::BrowserLogin;
 use crate::types::{
     Deadline, HnStoriesOutcome, HnStoriesRequest, ModelAnswerOutcome, ModelTranscriptOutcome,
-    PlatformFetchRequest, PlatformItem, PlatformSearchOutcome, PlatformSearchRequest,
+    Platform, PlatformFetchRequest, PlatformItem, PlatformSearchOutcome, PlatformSearchRequest,
     PolymarketHistoryOutcome, PolymarketHistoryRequest, ProviderError, ScholarCitedByRequest,
     XAskOutcome, XAskRequest, XiaohongshuCommentsOutcome, XiaohongshuCommentsRequest,
     YoutubeCommentsOutcome, YoutubeCommentsRequest, YoutubeVideosOutcome, YoutubeVideosRequest,
@@ -695,6 +696,15 @@ pub(crate) fn hn_stories_support(id: ProviderId) -> Option<Result<(), String>> {
 pub(crate) fn polymarket_history_support(id: ProviderId) -> Option<Result<(), String>> {
     match id {
         ProviderId::PolymarketApi => Some(transport_support(id)),
+        _ => None,
+    }
+}
+
+/// Returns the login page logic of a platform whose browser route needs a logged-in Browser
+/// Profile, or `None` for a platform without one.
+pub(crate) fn browser_login(platform: Platform) -> Option<BrowserLogin> {
+    match platform {
+        Platform::Xiaohongshu => Some(xiaohongshu_browser::LOGIN),
         _ => None,
     }
 }

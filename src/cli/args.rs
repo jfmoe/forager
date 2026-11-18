@@ -144,6 +144,11 @@ pub(super) enum Command {
         #[command(subcommand)]
         command: super::platform::PlatformCommand,
     },
+    /// Install the Managed Browser, or log into a platform's Browser Profile.
+    Browser {
+        #[command(subcommand)]
+        command: super::browser::BrowserCommand,
+    },
     Config {
         #[command(subcommand)]
         command: ConfigCommand,
