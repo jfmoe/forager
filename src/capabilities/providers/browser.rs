@@ -55,8 +55,6 @@ const READ_RESERVE: Duration = Duration::from_secs(3);
 const CLOSE_LIMIT: Duration = Duration::from_secs(3);
 const HANDSHAKE_LIMIT: Duration = Duration::from_secs(20);
 const READY_POLL: Duration = Duration::from_millis(250);
-const REAP_POLLS: u32 = 1000;
-const REAP_POLL_INTERVAL: Duration = Duration::from_millis(1);
 
 // Rust cannot hand a child extra file descriptors without `unsafe` code, which this crate
 // forbids. A POSIX shell moves the two piped standard streams to the descriptors that
@@ -706,16 +704,16 @@ impl Drop for ProcessGroup {
             return;
         };
         kill_group(&child);
-        // A killed process exits at once, so a short blocking wait reaps it here and the permit
-        // and the profile lock outlive the process even when the runtime shuts down next.
-        for _ in 0..REAP_POLLS {
-            if !matches!(child.try_wait(), Ok(None)) {
-                break;
-            }
-            std::thread::sleep(REAP_POLL_INTERVAL);
+        // A task reaps the killed leader, so the drop never blocks a runtime thread, and holds
+        // the permit and the profile lock until then. A runtime that shuts down first means
+        // forager is exiting, and the kernel releases both locks with the process.
+        let held = (self.permit.take(), self.profile.take());
+        if let Ok(runtime) = tokio::runtime::Handle::try_current() {
+            runtime.spawn(async move {
+                let _ = child.wait().await;
+                drop(held);
+            });
         }
-        self.permit = None;
-        self.profile = None;
     }
 }
 
@@ -770,7 +768,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn dropping_the_command_kills_the_browser_process_group() {
+    fn dropping_the_command_kills_the_browser_group_and_frees_the_profile_once_reaped() {
         use std::os::unix::fs::PermissionsExt;
         use std::time::Duration;
 
@@ -808,6 +806,11 @@ mod tests {
             sandbox.path().join("rate_limit_state.json"),
         );
         let pid_files = ["leader.pid", "child.pid"].map(|name| sandbox.path().join(name));
+        let running = |file: &std::path::PathBuf| {
+            let pid = std::fs::read_to_string(file).expect("recorded pid");
+            let pid = nix::unistd::Pid::from_raw(pid.trim().parse().expect("pid"));
+            nix::sys::signal::kill(pid, None).is_ok()
+        };
 
         tokio::runtime::Builder::new_multi_thread()
             .enable_all()
@@ -834,19 +837,16 @@ mod tests {
                     panic!("the stand-in never started");
                 };
                 drop(command);
+                let deadline = std::time::Instant::now() + Duration::from_secs(3);
+                while (pid_files.iter().any(running) || profile.lock().is_err())
+                    && std::time::Instant::now() < deadline
+                {
+                    tokio::time::sleep(Duration::from_millis(20)).await;
+                }
             });
-        let running = |file: &std::path::PathBuf| {
-            let pid = std::fs::read_to_string(file).expect("recorded pid");
-            let pid = nix::unistd::Pid::from_raw(pid.trim().parse().expect("pid"));
-            nix::sys::signal::kill(pid, None).is_ok()
-        };
-        let deadline = std::time::Instant::now() + Duration::from_secs(3);
-        while pid_files.iter().any(running) && std::time::Instant::now() < deadline {
-            std::thread::sleep(Duration::from_millis(20));
-        }
         let alive = pid_files.each_ref().map(running);
 
-        assert_eq!(alive, [false, false]);
+        assert_eq!((alive, profile.lock().is_ok()), ([false, false], true));
     }
 
     #[test]
