@@ -852,10 +852,9 @@ mod real_browser_tests {
     use crate::providers::real_browser::{Pages, Sandbox, executable, local_login};
 
     #[test]
+    #[ignore = "launches the Managed Browser; see the docs of providers::real_browser"]
     fn a_login_completes_once_the_page_logic_sees_the_session() {
-        let Some(executable) = executable() else {
-            return;
-        };
+        let executable = executable();
         let pages = Pages::start();
         let login = local_login(&pages);
 

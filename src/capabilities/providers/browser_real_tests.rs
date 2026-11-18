@@ -2,10 +2,10 @@
 //! never open a real site. Their sandbox, page server, and executable lookup also serve the
 //! real-browser tests of the flows built on the transport.
 //!
-//! They run only when `FORAGER_REAL_BROWSER=1`, and launch the installed Managed Browser, or the
-//! executable that `FORAGER_REAL_BROWSER_PATH` names; without the variable each test returns at
-//! once. Run them before a release on a host with the Managed Browser:
-//! `FORAGER_REAL_BROWSER=1 cargo nextest run --lib real_tests`.
+//! Every real-browser test is ignored, so the full suite never launches a browser and never
+//! counts one as passed. Run them before a release on a host with the Managed Browser
+//! installed (`forager browser install`), or with `FORAGER_REAL_BROWSER_PATH` naming another
+//! executable: `cargo nextest run --lib --locked --run-ignored only`.
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
@@ -33,20 +33,17 @@ use crate::rate_limit::{AccessPolicy, RateLimiter};
 use crate::types::Deadline;
 
 const GO_BUTTONS: &str = "document.querySelectorAll('.go')";
-const ENABLED: &str = "FORAGER_REAL_BROWSER";
 const EXECUTABLE: &str = "FORAGER_REAL_BROWSER_PATH";
 const DRIVER_PROFILE: &str = "FORAGER_REAL_BROWSER_DRIVER_PROFILE";
 const COMMAND_TIMEOUT: Duration = Duration::from_mins(1);
 
-pub(crate) fn executable() -> Option<PathBuf> {
-    if std::env::var_os(ENABLED).is_none_or(|value| value != "1") {
-        eprintln!("skipped: set {ENABLED}=1 to run the real browser tests");
-        return None;
-    }
+/// The browser the tests launch: `FORAGER_REAL_BROWSER_PATH`, else the installed Managed
+/// Browser.
+pub(crate) fn executable() -> PathBuf {
     let config = BrowserRuntimeConfig {
         path: std::env::var_os(EXECUTABLE).map(PathBuf::from),
     };
-    Some(managed_browser::locate(&config).unwrap_or_else(|error| panic!("{error}")))
+    managed_browser::locate(&config).unwrap_or_else(|error| panic!("{error}"))
 }
 
 fn block_on<T>(future: impl Future<Output = T>) -> T {
@@ -331,10 +328,9 @@ async fn exchanges_at<const N: usize>(
 }
 
 #[test]
+#[ignore = "launches the Managed Browser; see the module docs"]
 fn native_input_reaches_the_page_as_trusted_events_on_the_one_hittable_target() {
-    let Some(executable) = executable() else {
-        return;
-    };
+    let executable = executable();
     let pages = Pages::start();
 
     let (loaded, clicked, value, events) = Sandbox::new().run(&executable, async |page| {
@@ -370,10 +366,9 @@ fn native_input_reaches_the_page_as_trusted_events_on_the_one_hittable_target() 
 }
 
 #[test]
+#[ignore = "launches the Managed Browser; see the module docs"]
 fn a_click_whose_effect_never_shows_is_missed() {
-    let Some(executable) = executable() else {
-        return;
-    };
+    let executable = executable();
     let pages = Pages::start();
 
     let missed = Sandbox::new().run(&executable, async |page| {
@@ -394,10 +389,9 @@ fn a_click_whose_effect_never_shows_is_missed() {
 }
 
 #[test]
+#[ignore = "launches the Managed Browser; see the module docs"]
 fn a_navigation_to_a_closed_port_reports_the_network_error() {
-    let Some(executable) = executable() else {
-        return;
-    };
+    let executable = executable();
     let closed = TcpListener::bind("127.0.0.1:0")
         .and_then(|listener| listener.local_addr())
         .expect("reserve a closed port");
@@ -410,10 +404,9 @@ fn a_navigation_to_a_closed_port_reports_the_network_error() {
 }
 
 #[test]
+#[ignore = "launches the Managed Browser; see the module docs"]
 fn a_click_refuses_two_hittable_targets() {
-    let Some(executable) = executable() else {
-        return;
-    };
+    let executable = executable();
     let pages = Pages::start();
 
     let failure = Sandbox::new().run(&executable, async |page| {
@@ -430,10 +423,9 @@ fn a_click_refuses_two_hittable_targets() {
 }
 
 #[test]
+#[ignore = "launches the Managed Browser; see the module docs"]
 fn a_target_that_changes_during_the_hover_is_reported_by_what_changed() {
-    let Some(executable) = executable() else {
-        return;
-    };
+    let executable = executable();
     let pages = Pages::start();
 
     let reasons = Sandbox::new().run(&executable, async |page| {
@@ -461,10 +453,9 @@ fn a_target_that_changes_during_the_hover_is_reported_by_what_changed() {
 }
 
 #[test]
+#[ignore = "launches the Managed Browser; see the module docs"]
 fn wheel_turns_in_a_scrolling_container_make_the_page_load_more() {
-    let Some(executable) = executable() else {
-        return;
-    };
+    let executable = executable();
     let pages = Pages::start();
 
     let more = Sandbox::new().run(&executable, async |page| {
@@ -484,10 +475,9 @@ fn wheel_turns_in_a_scrolling_container_make_the_page_load_more() {
 }
 
 #[test]
+#[ignore = "launches the Managed Browser; see the module docs"]
 fn capture_keeps_response_bodies_and_post_bodies() {
-    let Some(executable) = executable() else {
-        return;
-    };
+    let executable = executable();
     let pages = Pages::start();
 
     let (data, echo) = Sandbox::new().run(&executable, async |page| {
@@ -518,10 +508,9 @@ fn capture_keeps_response_bodies_and_post_bodies() {
 }
 
 #[test]
+#[ignore = "launches the Managed Browser; see the module docs"]
 fn a_normal_close_keeps_the_profile_for_the_next_launch() {
-    let Some(executable) = executable() else {
-        return;
-    };
+    let executable = executable();
     let pages = Pages::start();
     let sandbox = Sandbox::new();
     sandbox.run(&executable, async |page| {
@@ -539,10 +528,9 @@ fn a_normal_close_keeps_the_profile_for_the_next_launch() {
 }
 
 #[test]
+#[ignore = "launches the Managed Browser; see the module docs"]
 fn a_headless_launch_reports_the_screen_recorded_at_login() {
-    let Some(executable) = executable() else {
-        return;
-    };
+    let executable = executable();
     let sandbox = Sandbox::new();
     let screen = Screen {
         width: 1512,
@@ -566,13 +554,15 @@ fn a_headless_launch_reports_the_screen_recorded_at_login() {
 }
 
 /// The process the kill tests terminate: it drives a browser on the profile that
-/// `FORAGER_REAL_BROWSER_DRIVER_PROFILE` names, prints `ready`, and waits.
+/// `FORAGER_REAL_BROWSER_DRIVER_PROFILE` names, prints `ready`, and waits. Run without that
+/// variable, it does nothing.
 #[test]
+#[ignore = "the kill tests run it in a process of its own"]
 fn driver_helper() {
     let Some(profile) = std::env::var_os(DRIVER_PROFILE).map(PathBuf::from) else {
         return;
     };
-    let executable = executable().expect("the driver runs only with the real browser enabled");
+    let executable = executable();
     let limiter = RateLimiter::in_state_file(
         "real_browser_driver",
         AccessPolicy {
@@ -623,6 +613,7 @@ fn browser_lifetime_after(signal: nix::sys::signal::Signal) -> Option<Duration> 
         .args([
             "--exact",
             "providers::browser::real_tests::driver_helper",
+            "--ignored",
             "--nocapture",
             "--test-threads=1",
         ])
@@ -655,12 +646,12 @@ fn browser_lifetime_after(signal: nix::sys::signal::Signal) -> Option<Duration> 
 }
 
 #[test]
+#[ignore = "launches the Managed Browser; see the module docs"]
 fn the_browser_exits_after_its_driver_is_killed() {
     use nix::sys::signal::Signal;
 
-    if executable().is_none() || std::env::var_os(DRIVER_PROFILE).is_some() {
-        return;
-    }
+    // Fails here, with the reason, when no browser can launch.
+    executable();
 
     let lifetimes = [Signal::SIGINT, Signal::SIGTERM, Signal::SIGKILL]
         .map(|signal| (signal, browser_lifetime_after(signal)));
