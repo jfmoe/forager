@@ -90,10 +90,21 @@ async fn read_note(
     deadline: Deadline,
 ) -> Result<(PlatformItem, FullTextSource), AttemptFailure> {
     let data: NoteData = route.opencli.read(command, deadline).await?;
+    note_outcome(&data, requested, token, full_text)
+}
+
+/// Judges one note page observation: classifies the page facts, checks that the page shows the
+/// requested note, and decodes it, with its Native body at full-text depth.
+fn note_outcome(
+    data: &NoteData,
+    requested: &XiaohongshuRef,
+    token: &AccessToken,
+    full_text: bool,
+) -> Result<(PlatformItem, FullTextSource), AttemptFailure> {
     classify_blocks(&data.page, |code, notice| {
         note_unavailable(requested, code, notice)
     })?;
-    let Some(note) = data.note else {
+    let Some(note) = &data.note else {
         let on_note = is_note_page(&data.page.url, requested);
         return Err(unfinished_read(&data.page, data.timed_out, on_note, || {
             "the Xiaohongshu note page showed no note before the read deadline".into()
@@ -107,7 +118,7 @@ async fn read_note(
             note.note_id
         )));
     }
-    let item = note_item(&note, requested, token);
+    let item = note_item(note, requested, token);
     if !full_text {
         return Ok((item, FullTextSource::Urls(Vec::new())));
     }
@@ -321,3 +332,7 @@ fn native_body(item: &PlatformItem, desc: Option<&str>) -> Option<String> {
     }
     Some(blocks.join("\n\n"))
 }
+
+#[cfg(test)]
+#[path = "xiaohongshu_browser_note_tests.rs"]
+mod tests;

@@ -68,7 +68,6 @@ impl XiaohongshuBrowser {
             unreachable!("support checked")
         };
         let query = request.query.trim();
-        let expected = Conditions::of(options);
         let command = self.opencli.command(
             "search",
             vec![
@@ -83,14 +82,11 @@ impl XiaohongshuBrowser {
             ],
         );
         let command = &command;
-        let expected = &expected;
-        let pages = usize::from(request.limit.div_ceil(PAGE_SIZE));
         let execution = execute_anonymous(
             self.settings(PlatformOperation::Search.as_str()),
             move |deadline| async move {
                 let data: SearchData = self.opencli.read(command, deadline).await?;
-                let verified = read_search(&data, query, expected, pages)?;
-                let decoded = decode(&verified, request.limit, local_now()).map_err(runtime)?;
+                let decoded = search_outcome(&data, query, options, request.limit, local_now())?;
                 Ok((None, decoded))
             },
         )
@@ -266,6 +262,22 @@ struct SearchBody {
 struct SearchPage {
     has_more: bool,
     items: Vec<serde_json::Value>,
+}
+
+/// Judges one search observation: classifies the page facts, checks that the responses answer
+/// `query` with the conditions of `options`, and decodes the notes that `limit` keeps. `now` is
+/// the request time in the system local timezone.
+fn search_outcome(
+    data: &SearchData,
+    query: &str,
+    options: &XiaohongshuSearchOptions,
+    limit: u16,
+    now: NaiveDateTime,
+) -> Result<Decoded, AttemptFailure> {
+    let expected = Conditions::of(options);
+    let pages = usize::from(limit.div_ceil(PAGE_SIZE));
+    let verified = read_search(data, query, &expected, pages)?;
+    decode(&verified, limit, now).map_err(runtime)
 }
 
 /// The search pages that answer the request, in page order.
@@ -576,89 +588,5 @@ fn calendar_date(shown: &str, today: NaiveDate) -> Option<NaiveDate> {
 }
 
 #[cfg(test)]
-mod tests {
-    use chrono::{NaiveDate, NaiveDateTime};
-
-    use super::published_date;
-
-    fn at(date: (i32, u32, u32), time: (u32, u32)) -> NaiveDateTime {
-        NaiveDate::from_ymd_opt(date.0, date.1, date.2)
-            .and_then(|date| date.and_hms_opt(time.0, time.1, 0))
-            .expect("valid local time")
-    }
-
-    #[test]
-    fn a_month_and_day_take_the_latest_year_that_is_not_in_the_future() {
-        let now = at((2026, 3, 1), (12, 0));
-
-        let dates = [
-            "07-09",
-            "03-01",
-            "02-28",
-            "2025-06-13",
-            "02-29",
-            "2025-6-13",
-        ]
-        .map(|shown| published_date(shown, now));
-
-        assert_eq!(
-            dates,
-            [
-                Some("2025-07-09".to_owned()),
-                Some("2026-03-01".to_owned()),
-                Some("2026-02-28".to_owned()),
-                Some("2025-06-13".to_owned()),
-                None,
-                None,
-            ]
-        );
-    }
-
-    #[test]
-    fn a_relative_time_counts_back_from_now_to_a_local_date() {
-        let now = at((2026, 3, 1), (0, 30));
-
-        let dates = [
-            "刚刚",
-            "5分钟前",
-            "45分钟前",
-            "1小时前",
-            "3天前",
-            "昨天",
-            "昨天 23:09",
-        ]
-        .map(|shown| published_date(shown, now));
-
-        assert_eq!(
-            dates,
-            [
-                Some("2026-03-01".to_owned()),
-                Some("2026-03-01".to_owned()),
-                Some("2026-02-28".to_owned()),
-                Some("2026-02-28".to_owned()),
-                Some("2026-02-26".to_owned()),
-                Some("2026-02-28".to_owned()),
-                Some("2026-02-28".to_owned()),
-            ]
-        );
-    }
-
-    #[test]
-    fn other_texts_have_no_date() {
-        let now = at((2026, 3, 1), (12, 0));
-
-        let dates = [
-            "前天",
-            "3周前",
-            "分钟前",
-            "-3天前",
-            "3 天前",
-            "昨天 25:00",
-            "昨天23:09",
-            "今天 08:00",
-        ]
-        .map(|shown| published_date(shown, now));
-
-        assert_eq!(dates, [None, None, None, None, None, None, None, None]);
-    }
-}
+#[path = "xiaohongshu_browser_search_tests.rs"]
+mod tests;
