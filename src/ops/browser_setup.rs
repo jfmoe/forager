@@ -6,15 +6,16 @@
 //! page logic sees a logged-in session, then closes the browser normally and records the login.
 
 use std::fmt::Write as _;
-use std::fs::{self, File};
-use std::io::{self, Read, Write};
+use std::io;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::Stdio;
 use std::time::Duration;
 
 use reqwest::{Client, StatusCode, Url};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
+use tokio::io::AsyncWriteExt;
+use tokio::process::Command;
 
 use crate::net::{AttemptFailure, truncate_message};
 use crate::providers::managed_browser::{self, Package, VERSION};
@@ -27,6 +28,10 @@ use crate::types::{AttemptErrorKind, Deadline, ErrorKind};
 const MAX_REDIRECTS: usize = 5;
 const LOGIN_POLL: Duration = Duration::from_secs(1);
 const MAX_UNANSWERED_POLLS: u32 = 5;
+const DOWNLOAD_PREFIX: &str = ".download-";
+const STAGING_PREFIX: &str = ".staging-";
+// Detaching runs even after the command's timeout, so that no disk image stays mounted.
+const DETACH_LIMIT: Duration = Duration::from_secs(15);
 
 /// Why a browser setup command failed, with the error kind its exit code follows.
 #[derive(Debug, Eq, PartialEq)]
@@ -59,30 +64,65 @@ pub(crate) struct Installed {
     pub(crate) downloaded: bool,
 }
 
-/// Fetches a package into a file.
+/// The package being downloaded: written to its file and hashed as it arrives, so the SHA256
+/// needs no second read of the file.
+pub(crate) struct Archive {
+    file: tokio::fs::File,
+    hasher: Sha256,
+}
+
+impl Archive {
+    async fn create(path: &Path) -> io::Result<Self> {
+        Ok(Self {
+            file: tokio::fs::File::create(path).await?,
+            hasher: Sha256::new(),
+        })
+    }
+
+    pub(crate) async fn write(&mut self, bytes: &[u8]) -> io::Result<()> {
+        self.hasher.update(bytes);
+        self.file.write_all(bytes).await
+    }
+
+    /// Writes out what is buffered and returns the SHA256 of everything written, in hex.
+    async fn finish(mut self) -> io::Result<String> {
+        self.file.flush().await?;
+        Ok(hex(&self.hasher.finalize()))
+    }
+}
+
+/// Fetches a package.
 pub(crate) trait Download {
     /// Writes the body at `url` into `into`, reporting progress lines through `progress`.
     async fn download(
         &self,
         url: &str,
-        into: &mut File,
+        into: &mut Archive,
         progress: &mut dyn FnMut(&str),
     ) -> Result<(), SetupFailure>;
 }
 
 /// Copies the browser bundle out of a downloaded package.
 pub(crate) trait Unpack {
-    /// Copies `bundle` from the package at `archive` into the directory `into`.
-    fn unpack(&self, archive: &Path, bundle: &str, into: &Path) -> Result<(), String>;
+    /// Copies `bundle` from the package at `archive` into the directory `into` before
+    /// `deadline`.
+    async fn unpack(
+        &self,
+        archive: &Path,
+        bundle: &str,
+        into: &Path,
+        deadline: Deadline,
+    ) -> Result<(), SetupFailure>;
 }
 
-/// Installs the pinned version of this host's package into the cache, unless it is already
-/// installed.
+/// Installs the pinned version of this host's package into the cache within `deadline`,
+/// unless it is already installed.
 ///
 /// # Errors
 ///
 /// Returns Runtime when the host has no package or no cache directory, when the download does
-/// not match its SHA256, or when unpacking fails; Network when the download fails.
+/// not match its SHA256, or when unpacking fails; Network when the download fails; Timeout when
+/// the deadline passes first.
 pub(crate) async fn install(
     client: &Client,
     deadline: Deadline,
@@ -102,7 +142,15 @@ pub(crate) async fn install(
     })?;
     let install_directory = managed_browser::install_directory(&cache);
     let download = HttpDownload { client, deadline };
-    install_package(package, &install_directory, &download, &DiskImage, progress).await
+    install_package(
+        package,
+        &install_directory,
+        &download,
+        &DiskImage::default(),
+        deadline,
+        progress,
+    )
+    .await
 }
 
 async fn install_package(
@@ -110,10 +158,11 @@ async fn install_package(
     install_directory: &Path,
     download: &impl Download,
     unpack: &impl Unpack,
+    deadline: Deadline,
     progress: &mut dyn FnMut(&str),
 ) -> Result<Installed, SetupFailure> {
     let executable = install_directory.join(package.executable);
-    if executable.is_file() {
+    if is_file(&executable).await {
         return Ok(Installed {
             version: VERSION,
             executable,
@@ -123,19 +172,25 @@ async fn install_package(
     let parent = install_directory
         .parent()
         .ok_or_else(|| runtime("the install directory has no parent"))?;
-    fs::create_dir_all(parent).map_err(|error| io_failure("create the cache directory", &error))?;
-    let archive = parent.join(format!(".download-{}", std::process::id()));
-    let staging = parent.join(format!(".staging-{}", std::process::id()));
+    tokio::fs::create_dir_all(parent)
+        .await
+        .map_err(|error| io_failure("create the cache directory", &error))?;
+    remove_leftovers(parent).await;
+    let archive = parent.join(format!("{DOWNLOAD_PREFIX}{}", std::process::id()));
+    let staging = parent.join(format!("{STAGING_PREFIX}{}", std::process::id()));
     let installed = async {
         progress(&format!(
             "downloading fingerprint-chromium {VERSION} from {}",
             package.url
         ));
-        let mut file = File::create(&archive)
+        let mut file = Archive::create(&archive)
+            .await
             .map_err(|error| io_failure("create the download file", &error))?;
         download.download(package.url, &mut file, progress).await?;
-        drop(file);
-        let digest = sha256_of(&archive).map_err(|error| io_failure("read the download", &error))?;
+        let digest = file
+            .finish()
+            .await
+            .map_err(|error| io_failure("write the download", &error))?;
         if digest != package.sha256 {
             return Err(runtime(format!(
                 "the downloaded package does not match its SHA256 (expected {}, got {digest}); it was deleted",
@@ -143,19 +198,22 @@ async fn install_package(
             )));
         }
         progress("verified the SHA256; installing");
-        let _ = fs::remove_dir_all(&staging);
-        fs::create_dir_all(&staging).map_err(|error| io_failure("create the staging directory", &error))?;
+        let _ = tokio::fs::remove_dir_all(&staging).await;
+        tokio::fs::create_dir_all(&staging)
+            .await
+            .map_err(|error| io_failure("create the staging directory", &error))?;
         unpack
-            .unpack(&archive, package.bundle, &staging)
-            .map_err(|reason| runtime(format!("cannot unpack the package: {reason}")))?;
-        if !staging.join(package.executable).is_file() {
+            .unpack(&archive, package.bundle, &staging, deadline)
+            .await?;
+        if !is_file(&staging.join(package.executable)).await {
             return Err(runtime(format!(
                 "the package has no {}",
                 package.executable
             )));
         }
-        let _ = fs::remove_dir_all(install_directory);
-        fs::rename(&staging, install_directory)
+        let _ = tokio::fs::remove_dir_all(install_directory).await;
+        tokio::fs::rename(&staging, install_directory)
+            .await
             .map_err(|error| io_failure("move the browser into place", &error))?;
         Ok(Installed {
             version: VERSION,
@@ -164,23 +222,61 @@ async fn install_package(
         })
     }
     .await;
-    let _ = fs::remove_file(&archive);
-    let _ = fs::remove_dir_all(&staging);
+    let _ = tokio::fs::remove_file(&archive).await;
+    let _ = tokio::fs::remove_dir_all(&staging).await;
     installed
 }
 
-fn sha256_of(path: &Path) -> io::Result<String> {
-    let mut file = File::open(path)?;
-    let mut hasher = Sha256::new();
-    let mut buffer = vec![0; 1024 * 1024];
-    loop {
-        let read = file.read(&mut buffer)?;
-        if read == 0 {
-            break;
+async fn is_file(path: &Path) -> bool {
+    tokio::fs::metadata(path)
+        .await
+        .is_ok_and(|metadata| metadata.is_file())
+}
+
+/// Removes the downloads and staging directories that an install interrupted earlier left in
+/// `directory`. Each carries the process ID of its install, and one whose process still runs
+/// belongs to a concurrent install and stays.
+async fn remove_leftovers(directory: &Path) {
+    let Ok(mut entries) = tokio::fs::read_dir(directory).await else {
+        return;
+    };
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        let name = entry.file_name();
+        let Some(owner) = name
+            .to_str()
+            .and_then(|name| {
+                name.strip_prefix(DOWNLOAD_PREFIX)
+                    .or_else(|| name.strip_prefix(STAGING_PREFIX))
+            })
+            .map(|pid| pid.parse::<u32>().ok())
+        else {
+            continue;
+        };
+        if owner.is_some_and(process_runs) {
+            continue;
         }
-        hasher.update(&buffer[..read]);
+        let path = entry.path();
+        if tokio::fs::remove_dir_all(&path).await.is_err() {
+            let _ = tokio::fs::remove_file(&path).await;
+        }
     }
-    Ok(hex(&hasher.finalize()))
+}
+
+#[cfg(unix)]
+fn process_runs(pid: u32) -> bool {
+    use nix::errno::Errno;
+    use nix::sys::signal::kill;
+    use nix::unistd::Pid;
+
+    let Ok(pid) = i32::try_from(pid) else {
+        return false;
+    };
+    !matches!(kill(Pid::from_raw(pid), None), Err(Errno::ESRCH))
+}
+
+#[cfg(not(unix))]
+fn process_runs(pid: u32) -> bool {
+    pid == std::process::id()
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -209,7 +305,7 @@ impl Download for HttpDownload<'_> {
     async fn download(
         &self,
         url: &str,
-        into: &mut File,
+        into: &mut Archive,
         progress: &mut dyn FnMut(&str),
     ) -> Result<(), SetupFailure> {
         let mut url =
@@ -250,7 +346,7 @@ impl HttpDownload<'_> {
     async fn write_body(
         &self,
         mut response: reqwest::Response,
-        into: &mut File,
+        into: &mut Archive,
         progress: &mut dyn FnMut(&str),
     ) -> Result<(), SetupFailure> {
         let total = response.content_length();
@@ -265,7 +361,8 @@ impl HttpDownload<'_> {
             let Some(chunk) = chunk else {
                 return Ok(());
             };
-            into.write_all(&chunk)
+            into.write(&chunk)
+                .await
                 .map_err(|error| io_failure("write the download", &error))?;
             written += chunk.len() as u64;
             if let Some(total) = total.filter(|total| *total > 0) {
@@ -295,60 +392,106 @@ fn download_timeout() -> SetupFailure {
 }
 
 /// Copies the bundle out of a macOS disk image with `hdiutil` and `ditto`, which keeps the
-/// bundle's symbolic links and code signature.
-struct DiskImage;
+/// bundle's symbolic links and code signature. The image is detached afterwards, also when
+/// attaching or copying failed or ran out of time.
+struct DiskImage {
+    hdiutil: PathBuf,
+    ditto: PathBuf,
+}
+
+impl Default for DiskImage {
+    fn default() -> Self {
+        Self {
+            hdiutil: "hdiutil".into(),
+            ditto: "ditto".into(),
+        }
+    }
+}
 
 impl Unpack for DiskImage {
-    fn unpack(&self, archive: &Path, bundle: &str, into: &Path) -> Result<(), String> {
-        let mount = tempfile::tempdir().map_err(|error| error.to_string())?;
-        run_tool(
-            Command::new("hdiutil")
-                .args([
-                    "attach",
-                    "-nobrowse",
-                    "-readonly",
-                    "-noautoopen",
-                    "-quiet",
-                    "-mountpoint",
-                ])
-                .arg(mount.path())
-                .arg(archive),
-        )?;
-        let copied = run_tool(
-            Command::new("ditto")
-                .arg(mount.path().join(bundle))
-                .arg(into.join(bundle)),
-        );
-        let detached = run_tool(
-            Command::new("hdiutil")
-                .args(["detach", "-quiet"])
-                .arg(mount.path()),
-        )
-        .or_else(|_| {
-            run_tool(
-                Command::new("hdiutil")
-                    .args(["detach", "-quiet", "-force"])
-                    .arg(mount.path()),
-            )
-        });
+    async fn unpack(
+        &self,
+        archive: &Path,
+        bundle: &str,
+        into: &Path,
+        deadline: Deadline,
+    ) -> Result<(), SetupFailure> {
+        let mount =
+            tempfile::tempdir().map_err(|error| io_failure("create the mount point", &error))?;
+        let mut attach = Command::new(&self.hdiutil);
+        attach
+            .args([
+                "attach",
+                "-nobrowse",
+                "-readonly",
+                "-noautoopen",
+                "-quiet",
+                "-mountpoint",
+            ])
+            .arg(mount.path())
+            .arg(archive);
+        let mut copy = Command::new(&self.ditto);
+        copy.arg(mount.path().join(bundle)).arg(into.join(bundle));
+        let copied = match run_tool(&mut attach, deadline).await {
+            Ok(()) => run_tool(&mut copy, deadline).await,
+            Err(failure) => Err(failure),
+        };
+        // An attach that ran out of time may still have mounted the image.
+        let detach_limit = Deadline::new(DETACH_LIMIT);
+        let mut detach = Command::new(&self.hdiutil);
+        detach.args(["detach", "-quiet"]).arg(mount.path());
+        let mut detached = run_tool(&mut detach, detach_limit).await;
+        if detached.is_err() {
+            let mut force = Command::new(&self.hdiutil);
+            force.args(["detach", "-quiet", "-force"]).arg(mount.path());
+            detached = run_tool(&mut force, detach_limit).await;
+        }
         copied.and(detached)
     }
 }
 
-fn run_tool(command: &mut Command) -> Result<(), String> {
-    let output = command
-        .output()
-        .map_err(|error| format!("cannot run {}: {error}", command.get_program().display()))?;
+/// Runs a tool to its end before `deadline`, killing it when the deadline passes first.
+async fn run_tool(command: &mut Command, deadline: Deadline) -> Result<(), SetupFailure> {
+    let program = command
+        .as_std()
+        .get_program()
+        .to_string_lossy()
+        .into_owned();
+    let subcommand = command.as_std().get_args().next().map_or_else(
+        || program.clone(),
+        |argument| format!("{program} {}", argument.to_string_lossy()),
+    );
+    command
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
+    let timed_out = || {
+        SetupFailure::new(
+            ErrorKind::Timeout,
+            format!(
+                "`{subcommand}` did not finish before the command timeout; retry with a longer --timeout"
+            ),
+        )
+    };
+    let remaining = deadline.remaining().ok_or_else(timed_out)?;
+    let output = tokio::time::timeout(remaining, command.output())
+        .await
+        .map_err(|_| timed_out())?
+        .map_err(|error| {
+            runtime(format!(
+                "cannot unpack the package: cannot run {program}: {error}"
+            ))
+        })?;
     if output.status.success() {
         return Ok(());
     }
     let stderr = String::from_utf8_lossy(&output.stderr);
-    Err(format!(
-        "{} exited with {}: {}",
-        command.get_program().display(),
+    Err(runtime(format!(
+        "cannot unpack the package: {program} exited with {}: {}",
         output.status,
         truncate_message(stderr.trim())
-    ))
+    )))
 }
 
 /// The result of `forager browser login`.
@@ -447,15 +590,15 @@ pub(crate) async fn await_login(
 #[cfg(test)]
 mod tests {
     use std::cell::Cell;
-    use std::fs::{self, File};
-    use std::io::Write;
+    use std::fs;
     use std::path::Path;
+    use std::time::Duration;
 
     use sha2::{Digest, Sha256};
 
-    use super::{Download, Installed, SetupFailure, Unpack, install_package};
+    use super::{Archive, Download, Installed, SetupFailure, Unpack, install_package};
     use crate::providers::managed_browser::{Package, VERSION};
-    use crate::types::ErrorKind;
+    use crate::types::{Deadline, ErrorKind};
 
     const PACKAGE_BYTES: &[u8] = b"a disk image";
 
@@ -481,11 +624,11 @@ mod tests {
         async fn download(
             &self,
             _url: &str,
-            into: &mut File,
+            into: &mut Archive,
             _progress: &mut dyn FnMut(&str),
         ) -> Result<(), SetupFailure> {
             self.calls.set(self.calls.get() + 1);
-            into.write_all(PACKAGE_BYTES).expect("write package");
+            into.write(PACKAGE_BYTES).await.expect("write package");
             Ok(())
         }
     }
@@ -494,7 +637,13 @@ mod tests {
     struct FakeUnpack;
 
     impl Unpack for FakeUnpack {
-        fn unpack(&self, archive: &Path, bundle: &str, into: &Path) -> Result<(), String> {
+        async fn unpack(
+            &self,
+            archive: &Path,
+            bundle: &str,
+            into: &Path,
+            _deadline: Deadline,
+        ) -> Result<(), SetupFailure> {
             assert_eq!(fs::read(archive).expect("read archive"), PACKAGE_BYTES);
             let executable = into.join(bundle).join("Contents/MacOS/Chromium");
             fs::create_dir_all(executable.parent().expect("bundle directory"))
@@ -504,21 +653,27 @@ mod tests {
         }
     }
 
+    fn block_on<T>(future: impl Future<Output = T>) -> T {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("build test runtime")
+            .block_on(future)
+    }
+
     fn run(
         package: &Package,
         install_directory: &Path,
         download: &FakeDownload,
     ) -> Result<Installed, SetupFailure> {
-        tokio::runtime::Builder::new_current_thread()
-            .build()
-            .expect("build test runtime")
-            .block_on(install_package(
-                package,
-                install_directory,
-                download,
-                &FakeUnpack,
-                &mut |_| {},
-            ))
+        block_on(install_package(
+            package,
+            install_directory,
+            download,
+            &FakeUnpack,
+            Deadline::new(Duration::from_secs(10)),
+            &mut |_| {},
+        ))
     }
 
     fn files(directory: &Path) -> Vec<String> {
@@ -583,5 +738,63 @@ mod tests {
         let again = run(&package(digest()), &directory, &download).expect("second install");
 
         assert_eq!((again.downloaded, download.calls.get()), (false, 1));
+    }
+
+    #[test]
+    fn leftovers_of_an_interrupted_install_are_removed() {
+        let cache = tempfile::tempdir().expect("create cache");
+        let browsers = cache.path().join("browser");
+        // No process runs with these IDs, above the highest process ID macOS and Linux assign.
+        fs::create_dir_all(browsers.join(".staging-4194305/Chromium.app")).expect("staging");
+        fs::write(browsers.join(".download-4194306"), "partial").expect("download");
+
+        run(
+            &package(digest()),
+            &browsers.join("fingerprint-chromium"),
+            &FakeDownload::default(),
+        )
+        .expect("install");
+
+        assert_eq!(files(&browsers), ["fingerprint-chromium"]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_disk_image_that_never_attaches_ends_at_the_deadline_and_is_detached() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let tools = tempfile::tempdir().expect("create tools");
+        let hdiutil = tools.path().join("hdiutil");
+        fs::write(
+            &hdiutil,
+            format!(
+                "#!/bin/sh\nprintf '%s\\n' \"$1\" >> '{}'\n[ \"$1\" = attach ] && exec /bin/sleep 60\nexit 0\n",
+                tools.path().join("calls").display()
+            ),
+        )
+        .expect("write hdiutil");
+        fs::set_permissions(&hdiutil, fs::Permissions::from_mode(0o755))
+            .expect("make hdiutil executable");
+        let image = super::DiskImage {
+            hdiutil,
+            ditto: "/usr/bin/false".into(),
+        };
+        let into = tools.path().join("staging");
+
+        let failure = block_on(image.unpack(
+            &tools.path().join("browser.dmg"),
+            "Chromium.app",
+            &into,
+            Deadline::new(Duration::from_millis(300)),
+        ))
+        .unwrap_err();
+
+        assert_eq!(
+            (
+                failure.kind,
+                fs::read_to_string(tools.path().join("calls")).expect("calls")
+            ),
+            (ErrorKind::Timeout, "attach\ndetach\n".to_owned())
+        );
     }
 }
