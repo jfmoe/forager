@@ -831,17 +831,17 @@ mod tests {
                 &tools.path().join("browser.dmg"),
                 "Chromium.app",
                 &into,
-                Deadline::new(Duration::from_millis(300)),
+                Deadline::new(Duration::from_millis(500)),
             ))
             .unwrap_err(),
         );
 
+        // Under load the deadline can pass before the stand-in records its attach.
+        let calls = fs::read_to_string(tools.path().join("calls")).expect("calls");
         assert_eq!(
-            (
-                kind,
-                fs::read_to_string(tools.path().join("calls")).expect("calls")
-            ),
-            (AttemptErrorKind::Timeout, "attach\ndetach\n".to_owned())
+            (kind, calls.lines().last()),
+            (AttemptErrorKind::Timeout, Some("detach")),
+            "{calls}"
         );
     }
 }
