@@ -21,7 +21,7 @@ use crate::config::BrowserRuntimeConfig;
 use crate::net::{AttemptFailure, truncate_message};
 use crate::providers::managed_browser::{self, Package, VERSION};
 use crate::providers::{
-    self, BrowserDisplay, BrowserLogin, BrowserPage, BrowserProfile, BrowserScreen, BrowserSession,
+    self, BrowserLogin, BrowserPage, BrowserProfile, BrowserScreen, BrowserSession, WindowMode,
     run_browser,
 };
 use crate::types::{AttemptErrorKind, Deadline, Platform};
@@ -553,7 +553,7 @@ pub(crate) async fn login(
         executable: &executable,
         profile: &profile,
         language: login.language,
-        display: BrowserDisplay::Headed,
+        window: WindowMode::Headed,
         capture: login.page.capture,
     };
     let (screen, mut locked) =

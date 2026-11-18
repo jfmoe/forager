@@ -12,7 +12,7 @@ use std::time::Duration;
 use crate::catalog::{BrowserEnvironment, ProviderId, ProviderTransport, registration};
 use crate::config::{BrowserRouteRuntimeConfig, BrowserRuntimeConfig};
 use crate::net::{AttemptFailure, RetryPolicy};
-use crate::providers::browser::{self, BrowserSession, CaptureFilter, Display, Page, runtime};
+use crate::providers::browser::{self, BrowserSession, CaptureFilter, Page, WindowMode, runtime};
 use crate::providers::browser_profile::BrowserProfile;
 use crate::providers::execution::ExecutionSettings;
 use crate::providers::managed_browser;
@@ -89,7 +89,7 @@ impl BrowserRoute {
             executable: &executable,
             profile: &profile,
             language: self.environment.language,
-            display: Display::Headless,
+            window: WindowMode::Headless,
             capture,
         };
         let (value, _profile) = browser::run(&session, &self.limiter, deadline, work).await?;
