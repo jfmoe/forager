@@ -1,7 +1,5 @@
-//! The `xiaohongshu_browser` comments against a fake `opencli` executable that answers envelopes
-//! shaped like the live comment responses of 2026-10-09. These tests prove the transport, the
-//! page order and ownership checks, and the decoding of comments and replies; only the live
-//! smoke C29 exercises the JavaScript adapter.
+//! The `xiaohongshu_browser` comments against a fake `opencli` executable: the adapter command line
+//! and the access token rules. The judgement of the page facts is unit-tested with the route.
 
 mod support;
 
@@ -13,7 +11,6 @@ use support::RunEnvironment;
 use support::opencli::{FakeOpenCli, XHS_CONTRACT};
 
 const NOTE_ID: &str = "6a9d4f5f00000000260323c4";
-const OTHER_NOTE_ID: &str = "6a9d4f5f00000000260399ff";
 const TOKEN: &str = "ABfakeTOKENcanary4242=";
 /// The token without its padding, which no URL encoding changes.
 const TOKEN_BODY: &str = "ABfakeTOKENcanary4242";
@@ -69,15 +66,6 @@ fn comments(data: &Value, arguments: &[&str]) -> (FakeOpenCli, Output) {
     let fake = FakeOpenCli::contract_envelope(XHS_CONTRACT, "ok", data);
     let output = comments_with(&fake, &access_url(), arguments);
     (fake, output)
-}
-
-fn failure(output: &Output) -> (Option<i32>, Value, String) {
-    let payload = payload(output);
-    (
-        output.status.code(),
-        payload["error_kind"].clone(),
-        payload["message"].as_str().unwrap_or_default().to_owned(),
-    )
 }
 
 /// The page facts of the note page, as the adapter reports them: the token value removed.
@@ -261,114 +249,6 @@ fn comments_follow_the_cursor_chain_and_expand_the_first_selected_replies() {
             "15",
             "--expand",
             "1"
-        ]
-    );
-}
-
-#[test]
-fn a_broken_order_or_ownership_of_any_response_is_a_runtime_failure() {
-    let [first, second] = two_pages();
-    let mut broken_chain = second.clone();
-    broken_chain["params"]["cursor"] = json!(id(9));
-    let mut foreign_page = second.clone();
-    foreign_page["params"]["note_id"] = json!(OTHER_NOTE_ID);
-    let unselected_root = sub_page(12, &id(121), &[reply(122, 12)], false);
-    let mut foreign_replies = sub_page(1, &id(101), &[reply(102, 1)], false);
-    foreign_replies["params"]["note_id"] = json!(OTHER_NOTE_ID);
-    let wrong_start = sub_page(1, "", &[reply(102, 1)], false);
-    let cases = [
-        vec![first.clone(), broken_chain],
-        vec![first.clone(), foreign_page],
-        vec![first.clone(), second.clone(), unselected_root],
-        vec![first.clone(), second.clone(), foreign_replies],
-        vec![first, second, wrong_start],
-    ];
-
-    let results = cases.map(|responses| {
-        failure(&comments(&data(&responses), &["--limit", "15", "--replies", "1"]).1)
-    });
-
-    let runtime = |message: &str| (Some(4), json!("runtime"), message.to_owned());
-    assert_eq!(
-        results,
-        [
-            runtime(
-                "Xiaohongshu comment page 2 continued from cursor `6a9eda8f0000000014000009`, not `6a9eda8f0000000014000010`"
-            ),
-            runtime(
-                "Xiaohongshu answered comments of note `6a9d4f5f00000000260399ff` for xiaohongshu:6a9d4f5f00000000260323c4"
-            ),
-            runtime(
-                "Xiaohongshu answered replies of comment `6a9eda8f0000000014000012`, which this command did not expand"
-            ),
-            runtime(
-                "Xiaohongshu answered comments of note `6a9d4f5f00000000260399ff` for xiaohongshu:6a9d4f5f00000000260323c4"
-            ),
-            runtime(
-                "the first Xiaohongshu reply page of comment `6a9eda8f0000000014000001` started from cursor ``, not `6a9eda8f0000000014000101`"
-            ),
-        ]
-    );
-}
-
-#[test]
-fn comments_cut_by_the_limit_on_the_last_page_still_report_more() {
-    let last = page("", &(1..=8).map(comment).collect::<Vec<_>>(), "", false);
-
-    let results = ["8", "5"].map(|limit| {
-        let payload = payload(&comments(&data(std::slice::from_ref(&last)), &["--limit", limit]).1);
-        (ids(&payload).len(), payload["has_more"].clone())
-    });
-
-    assert_eq!(results, [(8, json!(false)), (5, json!(true))]);
-}
-
-#[test]
-fn a_note_without_comments_lists_none_and_succeeds() {
-    let (_, output) = comments(&data(&[page("", &[], "", false)]), &[]);
-
-    assert_eq!(
-        (output.status.code(), payload(&output)),
-        (
-            Some(0),
-            json!({
-                "platform": "xiaohongshu",
-                "provider": "xiaohongshu_browser",
-                "note": "xiaohongshu:6a9d4f5f00000000260323c4",
-                "comments": [],
-                "has_more": false
-            })
-        ),
-        "stderr: {}",
-        stderr(&output)
-    );
-}
-
-#[test]
-fn a_reply_expansion_the_adapter_could_not_make_is_a_runtime_failure_with_its_reason() {
-    let [first, _] = two_pages();
-    let mut failed = data(&[first]);
-    failed["expand_failure"] = json!("no_expand_button for comment 6a9eda8f0000000014000001");
-    let [first, _] = two_pages();
-    let mut waiting = data(&[first]);
-    waiting["timed_out"] = json!(true);
-
-    let results = [failed, waiting]
-        .map(|data| failure(&comments(&data, &["--limit", "10", "--replies", "1"]).1));
-
-    assert_eq!(
-        results,
-        [
-            (
-                Some(4),
-                json!("runtime"),
-                "the forager-xhs adapter could not expand the replies of a comment (no_expand_button for comment 6a9eda8f0000000014000001)".to_owned()
-            ),
-            (
-                Some(4),
-                json!("timeout"),
-                "Xiaohongshu returned 0 of 1 reply expansions before the read deadline".to_owned()
-            ),
         ]
     );
 }

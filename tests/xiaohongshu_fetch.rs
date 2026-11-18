@@ -1,7 +1,6 @@
-//! The `xiaohongshu_browser` fetch against a fake `opencli` executable that answers envelopes
-//! shaped like the live note page facts of 2026-10-08. These tests prove the transport, the
-//! page-fact classification, the identity check, the metadata decoding, and the delivery of the
-//! native full text; only the live smoke C28 exercises the JavaScript adapter.
+//! The `xiaohongshu_browser` fetch against a fake `opencli` executable: the adapter command line,
+//! the delivery of the native full text, and the access token rules. The judgement of the page
+//! facts is unit-tested with the route.
 
 mod support;
 
@@ -289,93 +288,6 @@ fn a_full_text_that_cannot_be_written_is_a_runtime_failure() {
 }
 
 #[test]
-fn a_note_without_a_title_text_or_images_is_a_quality_failure() {
-    let mut empty = image_note();
-    empty["title"] = json!("");
-    empty["desc"] = json!(" ");
-    empty["imageList"] = json!([]);
-    let fake = fake(&note_data(&empty));
-    let environment = enabled(&fake);
-
-    let result = failure(&fetch(&environment, &access_url(), &[]));
-
-    assert_eq!(
-        result,
-        (
-            Some(5),
-            json!("quality"),
-            "the Xiaohongshu note xiaohongshu:66f0a1b2c3d4e5f607100001 has no title, text, or images".to_owned()
-        )
-    );
-}
-
-#[test]
-fn a_video_note_reports_its_duration_and_size_but_never_its_signed_stream_url() {
-    let mut video = image_note();
-    video["type"] = json!("video");
-    video["imageList"] = json!([{"urlDefault": "http://sns-webpic-qc.xhscdn.com/202610081306/v1/cover!nd_dft_wlteh_webp_3", "width": 1080, "height": 1920}]);
-    video["video"] = json!({
-        "capa": {"duration": 37},
-        "media": {"stream": {
-            "av1": [],
-            "h264": [{"width": 1080, "height": 1920, "duration": 37_000, "size": 9_437_184, "masterUrl": "http://sns-video-bd.xhscdn.com/stream/79/110/259/01e6f0a1.mp4?sign=5f0c0ffee&t=6705a1b2"}],
-            "h265": [{"width": 720, "height": 1280, "masterUrl": "http://sns-video-bd.xhscdn.com/stream/79/110/114/01e6f0a2.mp4?sign=5f0c0ffee&t=6705a1b2"}]
-        }}
-    });
-    let fake = fake(&note_data(&video));
-    let environment = enabled(&fake);
-
-    let output = fetch(&environment, &access_url(), &["--format", "content"]);
-    let body = String::from_utf8_lossy(&output.stdout).into_owned();
-    let metadata = fetch(&environment, &access_url(), &["--depth", "metadata"]);
-
-    assert_eq!(
-        (
-            output.status.code(),
-            body.ends_with("（视频笔记，时长 37 秒，视频文件未下载）\n"),
-            &payload(&metadata)["note_type"],
-            &payload(&metadata)["video"],
-        ),
-        (
-            Some(0),
-            true,
-            &json!("video"),
-            &json!({"duration_seconds": 37, "width": 1080, "height": 1920}),
-        ),
-        "{body}"
-    );
-    for printed in [body, String::from_utf8_lossy(&metadata.stdout).into_owned()] {
-        assert!(
-            !printed.contains("sns-video-bd") && !printed.contains("sign="),
-            "{printed}"
-        );
-    }
-}
-
-#[test]
-fn a_page_that_shows_another_note_is_a_runtime_failure() {
-    let mut other = image_note();
-    other["noteId"] = json!("66f0a1b2c3d4e5f607199999");
-    let fake = fake(&note_data(&other));
-    let environment = enabled(&fake);
-
-    let result = failure(&fetch(
-        &environment,
-        &access_url(),
-        &["--depth", "metadata"],
-    ));
-
-    assert_eq!(
-        result,
-        (
-            Some(4),
-            json!("runtime"),
-            "the Xiaohongshu page shows note `66f0a1b2c3d4e5f607199999` for xiaohongshu:66f0a1b2c3d4e5f607100001".to_owned()
-        )
-    );
-}
-
-#[test]
 fn an_unavailable_note_names_the_likely_causes_and_is_never_retried() {
     let unavailable = json!({
         "page": {
@@ -403,62 +315,6 @@ fn an_unavailable_note_names_the_likely_causes_and_is_never_retried() {
                 "Xiaohongshu note unavailable: xiaohongshu:66f0a1b2c3d4e5f607100001 (300031: 当前笔记暂时无法浏览); the access token may be stale, the note restricted or removed, or the account rate-limited".to_owned()
             ),
             1
-        )
-    );
-}
-
-#[test]
-fn a_page_without_the_note_is_a_timeout_only_while_it_stays_on_the_note_page() {
-    let waiting = json!({"page": note_page(), "note": null, "timed_out": true});
-    let elsewhere = json!({
-        "page": {
-            "url": "https://www.xiaohongshu.com/website-login/captcha?redirectPath=https%3A%2F%2Fwww.xiaohongshu.com%2Fexplore",
-            "title": "验证",
-            "guest": false,
-            "error_code": null,
-            "notice": null,
-            "blocked_status": null
-        },
-        "note": null,
-        "timed_out": true
-    });
-
-    let results = [waiting, elsewhere].map(|data| {
-        let fake = fake(&data);
-        failure(&fetch(&enabled(&fake), &access_url(), &[]))
-    });
-
-    assert_eq!(
-        results,
-        [
-            (
-                Some(4),
-                json!("timeout"),
-                "the Xiaohongshu note page showed no note before the read deadline".to_owned()
-            ),
-            (
-                Some(4),
-                json!("runtime"),
-                "the forager-xhs adapter stopped at an unexpected page: `验证` (https://www.xiaohongshu.com/website-login/captcha?redirectPath=https%3A%2F%2Fwww.xiaohongshu.com%2Fexplore)".to_owned()
-            ),
-        ]
-    );
-}
-
-#[test]
-fn a_read_deadline_on_the_browser_load_error_page_is_a_network_failure() {
-    let mut data = json!({"page": note_page(), "note": null, "timed_out": true});
-    data["page"]["title"] = json!("www.xiaohongshu.com");
-    data["page"]["load_error"] = json!("ERR_TIMED_OUT");
-
-    let result = failure(&fetch(&enabled(&fake(&data)), &access_url(), &[]));
-
-    assert_eq!(
-        result,
-        (
-            Some(4),
-            json!("network"),
-            "Chrome could not load the Xiaohongshu page (ERR_TIMED_OUT) and had not loaded it again by the read deadline; check the network and retry".to_owned()
         )
     );
 }

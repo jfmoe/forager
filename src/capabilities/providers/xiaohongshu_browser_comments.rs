@@ -380,3 +380,7 @@ fn text(value: Option<&String>) -> Option<String> {
         .map(|value| value.trim().to_owned())
         .filter(|value| !value.is_empty())
 }
+
+#[cfg(test)]
+#[path = "xiaohongshu_browser_comments_tests.rs"]
+mod tests;
