@@ -75,6 +75,7 @@ impl InputFailure {
             "ambiguous_target" => Self::AmbiguousTarget,
             "obscured_target" => Self::ObscuredTarget,
             "out_of_view" => Self::OutOfView,
+            "target_moved" => Self::TargetMoved,
             _ => Self::NoTarget,
         }
     }
@@ -175,9 +176,10 @@ enum Located {
     Point(Point),
 }
 
+/// Why the pointer no longer hits the one target; no reason when it still does.
 #[derive(Deserialize)]
-struct StillHit {
-    hit: bool,
+struct Recheck {
+    reason: Option<String>,
 }
 
 fn between((low, high): (f64, f64)) -> f64 {
@@ -192,7 +194,8 @@ fn millis(range: (f64, f64)) -> Duration {
 // invisible decoy copies of buttons under the real ones, so an element counts only outside
 // `aria-hidden` subtrees, with a size, and when a pointer at its center hits it or a descendant.
 // Returns a point on the target that a pointer hits, a wheel turn that brings it into view, or
-// the reason it cannot. With `at`, it reports whether a pointer at `at` still hits the target.
+// the reason it cannot. With `at`, it checks that a pointer at `at` still hits the one target,
+// and otherwise reports whether the target is gone, has a hittable twin, or moved.
 fn locate_script(targets: &str, at: Option<Point>) -> String {
     let at = at.map_or(Value::Null, |point| json!({"x": point.x, "y": point.y}));
     format!(
@@ -208,13 +211,13 @@ fn locate_script(targets: &str, at: Option<Point>) -> String {
       return !element.closest('[aria-hidden="true"]') && rect.width > 0 && rect.height > 0;
     }});
     const at = {at};
-    if (candidates.length === 0) return at ? {{ hit: false }} : {{ reason: 'no_target' }};
+    if (candidates.length === 0) return {{ reason: 'no_target' }};
     const hittable = candidates.filter((element) => {{
       const point = center(element.getBoundingClientRect());
       return hits(element, point.x, point.y);
     }});
-    if (at) return {{ hit: hittable.length === 1 && hits(hittable[0], at.x, at.y) }};
     if (hittable.length > 1) return {{ reason: 'ambiguous_target' }};
+    if (at) return hittable.length === 1 && hits(hittable[0], at.x, at.y) ? {{ reason: null }} : {{ reason: 'target_moved' }};
     if (hittable.length === 1) {{
       const rect = hittable[0].getBoundingClientRect();
       const middle = center(rect);
@@ -291,9 +294,9 @@ impl Page {
         self.require_time()?;
         self.move_pointer(point).await?;
         self.rest(millis(HOVER_DWELL_MS)).await;
-        let still: StillHit = self.evaluate(&locate_script(targets, Some(point))).await?;
-        if !still.hit {
-            return Err(InputError::Failed(InputFailure::TargetMoved));
+        let recheck: Recheck = self.evaluate(&locate_script(targets, Some(point))).await?;
+        if let Some(reason) = recheck.reason {
+            return Err(InputError::Failed(InputFailure::from_reason(&reason)));
         }
         self.require_time()?;
         self.mouse("mousePressed", point, 1).await?;
