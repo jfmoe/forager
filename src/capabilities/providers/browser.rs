@@ -609,7 +609,7 @@ impl ProcessGroup {
         let stderr_task = child
             .stderr
             .take()
-            .map(|pipe| tokio::spawn(keep_prefix(pipe, Arc::clone(&stderr))));
+            .map(|pipe| tokio::spawn(keep_tail(pipe, Arc::clone(&stderr))));
         Ok(Self {
             child: Some(child),
             permit: Some(permit),
@@ -645,13 +645,7 @@ impl ProcessGroup {
         {
             let _ = tokio::time::timeout(Duration::from_millis(200), task).await;
         }
-        let stderr = self.stderr.lock().unwrap_or_else(PoisonError::into_inner);
-        let text = String::from_utf8_lossy(&stderr);
-        let line = text
-            .lines()
-            .map(str::trim)
-            .rfind(|line| !line.is_empty())
-            .unwrap_or("no error output");
+        let line = last_line(&self.stderr.lock().unwrap_or_else(PoisonError::into_inner));
         runtime(format!(
             "the browser did not complete the CDP handshake ({}): {}",
             if exited {
@@ -659,7 +653,7 @@ impl ProcessGroup {
             } else {
                 error_summary(error)
             },
-            truncate_message(&redact_urls(line))
+            truncate_message(&redact_urls(&line))
         ))
     }
 
@@ -740,20 +734,31 @@ fn kill_group(child: &Child) {
 #[cfg(not(unix))]
 fn kill_group(_child: &Child) {}
 
-/// Keeps the first bytes the browser writes to stderr and drains the rest, so the browser never
-/// blocks on a full pipe.
-async fn keep_prefix(mut pipe: impl AsyncRead + Unpin, kept: Arc<Mutex<Vec<u8>>>) {
+/// Reads everything the browser writes to stderr, so the browser never blocks on a full pipe,
+/// and keeps the last bytes of it, where the reason a browser exits comes.
+async fn keep_tail(mut pipe: impl AsyncRead + Unpin, kept: Arc<Mutex<Vec<u8>>>) {
     let mut buffer = [0; 8192];
     loop {
         match pipe.read(&mut buffer).await {
             Ok(0) | Err(_) => return,
             Ok(read) => {
                 let mut kept = kept.lock().unwrap_or_else(PoisonError::into_inner);
-                let room = MAX_ERROR_BODY_BYTES.saturating_sub(kept.len());
-                kept.extend_from_slice(&buffer[..read.min(room)]);
+                kept.extend_from_slice(&buffer[..read]);
+                let excess = kept.len().saturating_sub(MAX_ERROR_BODY_BYTES);
+                kept.drain(..excess);
             }
         }
     }
+}
+
+/// The last non-empty line of the kept stderr.
+fn last_line(stderr: &[u8]) -> String {
+    String::from_utf8_lossy(stderr)
+        .lines()
+        .map(str::trim)
+        .rfind(|line| !line.is_empty())
+        .unwrap_or("no error output")
+        .to_owned()
 }
 
 #[cfg(test)]
@@ -842,6 +847,28 @@ mod tests {
         let alive = pid_files.each_ref().map(running);
 
         assert_eq!(alive, [false, false]);
+    }
+
+    #[test]
+    fn the_last_stderr_line_survives_output_beyond_the_kept_size() {
+        use std::sync::{Arc, Mutex};
+
+        use super::{MAX_ERROR_BODY_BYTES, keep_tail, last_line};
+
+        let mut output = "starting up\n".repeat(MAX_ERROR_BODY_BYTES / 4);
+        output.push_str("fatal: the profile is in use\n\n");
+        let kept = Arc::new(Mutex::new(Vec::new()));
+
+        tokio::runtime::Builder::new_current_thread()
+            .build()
+            .expect("build test runtime")
+            .block_on(keep_tail(output.as_bytes(), Arc::clone(&kept)));
+
+        let kept = kept.lock().expect("kept stderr");
+        assert_eq!(
+            (kept.len() <= MAX_ERROR_BODY_BYTES, last_line(&kept)),
+            (true, "fatal: the profile is in use".to_owned())
+        );
     }
 
     fn arguments(display: Display, screen: Option<Screen>) -> Vec<String> {
