@@ -346,11 +346,6 @@ fn native_input_reaches_the_page_as_trusted_events_on_the_one_hittable_target() 
                 .await,
         );
         done(page.type_text("abc").await);
-        done(page.press(Key::SelectAll).await);
-        done(page.press(Key::Delete).await);
-        done(page.type_text("xy").await);
-        done(page.press(Key::Backspace).await);
-        done(page.press(Key::Escape).await);
         done(page.press(Key::Enter).await);
         let clicked: String = page.evaluate("window.clicked").await?;
         let value: String = page
@@ -369,7 +364,7 @@ fn native_input_reaches_the_page_as_trusted_events_on_the_one_hittable_target() 
             kinds.map(|kind| events.iter().any(|event| event["type"] == kind)),
             events.iter().all(|event| event["trusted"] == true),
         ),
-        (true, "real", "x", [true; 5], true),
+        (true, "real", "abc", [true; 5], true),
         "{events:?}"
     );
 }

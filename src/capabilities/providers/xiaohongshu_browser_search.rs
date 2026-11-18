@@ -284,8 +284,7 @@ async fn choose_option(
         other => other.reason(),
     };
     if !reading.page().evaluate::<bool>(PANEL_OPEN).await? {
-        let hovered = reading.page().hover(FILTER_BUTTON).await.map(|_| ());
-        if let Some(failure) = input_failure(hovered)? {
+        if let Some(failure) = input_failure(reading.page().hover(FILTER_BUTTON).await)? {
             return Ok(Some(button(failure)));
         }
         if !panel_opens(reading.page(), PANEL_AFTER_HOVER).await? {

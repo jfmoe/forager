@@ -294,16 +294,8 @@ impl NetworkDependencies {
         platform: crate::types::Platform,
     ) -> Result<&config::PlatformRuntimeConfig, AppError> {
         let config = self.config.platforms.get(platform);
-        crate::platform_chain::browser_preflight(config, &self.config.browser).map_err(
-            |error| match error {
-                crate::platform_chain::PlatformPreflightError::Argument(message) => {
-                    AppError::Argument(message)
-                }
-                crate::platform_chain::PlatformPreflightError::Config(message) => {
-                    AppError::Config(ConfigError::Message(message))
-                }
-            },
-        )?;
+        crate::platform_chain::browser_preflight(config, &self.config.browser)
+            .map_err(|message| AppError::Config(ConfigError::Message(message)))?;
         Ok(config)
     }
 }

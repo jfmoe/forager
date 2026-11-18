@@ -32,8 +32,7 @@ const CURSOR_VERSION: &str = "v1";
 pub(crate) enum PlatformPreflightError {
     /// The arguments or cursor cannot run; exit 2.
     Argument(String),
-    /// The configuration leaves the operation without a route, or a browser route in the
-    /// order cannot run; exit 3.
+    /// The configuration leaves the operation without a route; exit 3.
     Config(String),
 }
 
@@ -539,21 +538,16 @@ fn opt_in_hint<C>(
 ///
 /// # Errors
 ///
-/// Returns [`PlatformPreflightError::Config`] with the command that fixes the first failing
-/// route.
+/// Returns the Config message, with the command that fixes the first failing route.
 pub(crate) fn browser_preflight(
     config: &PlatformRuntimeConfig,
     browser: &BrowserRuntimeConfig,
-) -> Result<(), PlatformPreflightError> {
+) -> Result<(), String> {
     for entry in config.entries() {
         if let ProviderTransport::Browser(environment) = catalog::registration(entry.id()).transport
         {
-            providers::browser_preflight(&environment, browser).map_err(|reason| {
-                PlatformPreflightError::Config(format!(
-                    "{} cannot run: {reason}",
-                    entry.id().name()
-                ))
-            })?;
+            providers::browser_preflight(&environment, browser)
+                .map_err(|reason| format!("{} cannot run: {reason}", entry.id().name()))?;
         }
     }
     Ok(())

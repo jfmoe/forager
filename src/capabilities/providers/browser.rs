@@ -148,11 +148,12 @@ pub(crate) fn launch_arguments(
     arguments
 }
 
+// Browser routes run only on Unix hosts (`host_support`).
 fn fingerprint_platform() -> &'static str {
-    match std::env::consts::OS {
-        "macos" => "macos",
-        "windows" => "windows",
-        _ => "linux",
+    if cfg!(target_os = "macos") {
+        "macos"
+    } else {
+        "linux"
     }
 }
 
