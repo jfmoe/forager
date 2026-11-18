@@ -8,9 +8,11 @@ SSRN's Terms of Use forbid "automated queries of any sort" (read 2026-09-26; see
 
 - The platform catalog lists `ssrn_browser` as a valid route but never in `default_order`. It runs only after the user adds it to `platforms.ssrn.order`.
 - No release adds a browser route to any default order.
-- The route never solves or bypasses a site challenge. When SSRN shows a security check that does not clear by itself, the attempt fails as Auth, and the user passes the check in Chrome.
+- The route never solves or bypasses a site challenge. When SSRN shows a security check that does not clear by itself, the attempt fails as Auth, and the user passes the check in Chrome. ADR 0036 supersedes "in Chrome": browser routes run in forager's own Managed Browser, and the user deals with a check in the window that `forager browser login` opens.
 
 ## A process route is paced per OpenCLI operation
+
+ADR 0036 supersedes the unit: OpenCLI is retired, and a browser route's access-policy unit is one browser command, which launches one browser process. The permit is still held until that process is reaped.
 
 For an HTTP route, the access policy paces every HTTP send. A browser page load sends many requests that forager cannot see or pace one by one. For a process route, the access-policy unit is one OpenCLI command: `ssrn_browser` allows one command every 5 seconds with a concurrency of 1, across all forager processes. The permit is held until the command's process is reaped, so a killed command still counts until it has stopped.
 
@@ -22,9 +24,9 @@ A browser route cannot hand Web Fetch a URL: the SSRN download address is signed
 
 ## Consequences
 
-- Provider registrations declare their transport (HTTP, or an OpenCLI adapter with its site and contract version). Configuration checks, doctor, and the platform checklist branch on the transport, not on route IDs: an HTTP route has `url` and `timeout`, a process route has `command` and `timeout`.
+- Provider registrations declare their transport (HTTP, or an OpenCLI adapter with its site and contract version). Configuration checks, doctor, and the platform checklist branch on the transport, not on route IDs: an HTTP route has `url` and `timeout`, a process route has `command` and `timeout`. ADR 0036 supersedes the OpenCLI transport: the second transport is forager's browser transport, declared with the route's browser environment, and a browser route has only `timeout`.
 - Doctor checks a process route, in shallow and deep mode, only when a platform order enables it, so an unused browser route never runs and never affects the health result.
-- The route depends on the user's machine: OpenCLI, its browser bridge, a logged-in Chrome, and the forager adapter installed in OpenCLI's adapter directory. Doctor reports a missing or outdated adapter with the install steps.
+- The route depends on the user's machine: OpenCLI, its browser bridge, a logged-in Chrome, and the forager adapter installed in OpenCLI's adapter directory. Doctor reports a missing or outdated adapter with the install steps. ADR 0036 supersedes this entry: a browser route depends on the Managed Browser (or `browser.path`) and a logged-in Browser Profile, and doctor reports a missing one with the command that fixes it.
 - Process routes need Unix process groups to stop every process a command starts, so other hosts skip them.
 - Web Fetch accepts a local file as its input next to a URL; a provider declares a pure support check, an unsupported source marks the provider Skipped, and a chain with no capable provider fails naming the source kind. The route's full-text source is a set of URLs or one verified local file, and the platform fetch orchestration runs the same Web Fetch chain for both. ADR 0022 adds a third source, a native body the route reads itself, which needs no Web Fetch; that supersedes this list as exhaustive. ADR 0035 supersedes this entry: the local-file source is removed, so a full-text source is a set of URLs or a native body.
-- A killed command leaves no tab behind permanently: the OpenCLI daemon's command timer reclaims the ephemeral tab (verified 2026-09-26 with a SIGKILLed `ssrn paper` command: the tab was gone within the 25-second command timeout).
+- A killed command leaves no tab behind permanently: the OpenCLI daemon's command timer reclaims the ephemeral tab (verified 2026-09-26 with a SIGKILLed `ssrn paper` command: the tab was gone within the 25-second command timeout). ADR 0036 supersedes this entry: the browser exits once forager's end of its debugging pipe closes, and the transport kills the browser's process group at the deadline.
