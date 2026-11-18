@@ -421,17 +421,17 @@ fn post_body(request: &Request) -> Option<String> {
 mod tests {
     use super::{BodyRead, ResponseBodyResult, read_body};
 
-    fn base64(body: &str) -> Option<ResponseBodyResult> {
-        Some(ResponseBodyResult {
+    fn base64(body: &str) -> ResponseBodyResult {
+        ResponseBodyResult {
             body: body.into(),
             base64: true,
-        })
+        }
     }
 
     #[test]
     fn a_base64_body_that_does_not_decode_is_undecodable_not_oversized() {
         assert_eq!(
-            read_body(base64("not base64!"), 12.0),
+            read_body(Some(base64("not base64!")), 12.0),
             BodyRead::Undecodable
         );
     }
@@ -439,7 +439,7 @@ mod tests {
     #[test]
     fn a_base64_body_decodes_to_its_text() {
         assert_eq!(
-            read_body(base64("5ZKW5ZWh"), 6.0),
+            read_body(Some(base64("5ZKW5ZWh")), 6.0),
             BodyRead::Kept("咖啡".into())
         );
     }
