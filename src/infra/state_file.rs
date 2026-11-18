@@ -30,9 +30,16 @@ static STATE_WORK: LazyLock<std::sync::Mutex<HashMap<PathBuf, Arc<Mutex<()>>>>> 
     LazyLock::new(Default::default);
 
 pub(crate) fn state_directory() -> Option<PathBuf> {
-    absolute_env("XDG_STATE_HOME")
-        .map(|path| path.join("forager"))
-        .or_else(|| absolute_env("HOME").map(|path| path.join(".local/state/forager")))
+    forager_directory("XDG_STATE_HOME", ".local/state")
+}
+
+/// Returns forager's directory under the XDG base directory that `variable` names, or under
+/// `home_default` in `$HOME` when `variable` is not an absolute path; `None` when `HOME` is not
+/// one either.
+pub(crate) fn forager_directory(variable: &str, home_default: &str) -> Option<PathBuf> {
+    absolute_env(variable)
+        .or_else(|| absolute_env("HOME").map(|home| home.join(home_default)))
+        .map(|base| base.join("forager"))
 }
 
 fn absolute_env(name: &str) -> Option<PathBuf> {

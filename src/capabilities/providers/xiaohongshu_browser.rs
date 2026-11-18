@@ -13,6 +13,7 @@ use serde::Deserialize;
 use crate::catalog::ProviderId;
 use crate::config::BrowserRouteRuntimeConfig;
 use crate::net::AttemptFailure;
+use crate::providers::browser::runtime;
 use crate::providers::browser_route::{BrowserRoute, single_attempt};
 use crate::providers::execution::ExecutionSettings;
 use crate::rate_limit::RateLimiter;
@@ -79,14 +80,6 @@ impl XiaohongshuBrowser {
 fn on_site(url: &reqwest::Url) -> bool {
     url.host_str()
         .is_some_and(|host| host == "xiaohongshu.com" || host.ends_with(".xiaohongshu.com"))
-}
-
-fn runtime(message: String) -> AttemptFailure {
-    AttemptFailure {
-        kind: AttemptErrorKind::Runtime,
-        status: None,
-        message,
-    }
 }
 
 /// Masks the access token of the request wherever an attempt message repeats it: a browser

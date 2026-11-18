@@ -268,16 +268,20 @@ impl Page {
     }
 
     /// Polls the read-only page `check`, which yields a boolean, until it holds or `within`
-    /// passes, never past the read deadline.
+    /// passes, never past the read deadline. A page that navigates after a click briefly
+    /// answers no script, so a failed check counts as not holding yet.
     ///
     /// # Errors
     ///
-    /// Returns [`InputFailure::ClickMissed`] when it never holds, or a transport failure.
+    /// Returns [`InputFailure::ClickMissed`] when it never holds, or a transport failure once
+    /// the browser has closed the connection.
     pub(crate) async fn confirm(&self, check: &str, within: Duration) -> Result<(), InputError> {
         let until = crate::types::Deadline::new(within);
         loop {
-            if self.evaluate::<bool>(check).await? {
-                return Ok(());
+            match self.evaluate::<bool>(check).await {
+                Ok(true) => return Ok(()),
+                Err(failure) if self.closed() => return Err(InputError::Transport(failure)),
+                Ok(false) | Err(_) => {}
             }
             if until.remaining().is_none_or(|left| left.is_zero()) || !self.reading() {
                 return Err(InputError::Failed(InputFailure::ClickMissed));
