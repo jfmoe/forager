@@ -107,16 +107,23 @@ async fn drive_comments(
     let mut expanded = 0;
     loop {
         // Each page's targets are expanded where the page shows them, before the next scroll.
-        let due = expansion_targets(&captured_comments(reading.exchanges()), request);
-        for id in due.into_iter().skip(expanded) {
-            let sent = reading.page().requests_sent();
-            if let Some(reason) = expand_replies(reading, &id, sent).await? {
-                return Ok(Some(format!("{reason} for comment {id}")));
+        // Wheeling a target into view can make the page load its next page by itself, so the
+        // targets are counted again until none is left.
+        loop {
+            let due = expansion_targets(&captured_comments(reading.exchanges()), request);
+            if due.len() <= expanded {
+                break;
             }
-            if !reading.answer(REPLIES, sent).await? {
-                return Ok(None);
+            for id in due.into_iter().skip(expanded) {
+                let sent = reading.page().requests_sent();
+                if let Some(reason) = expand_replies(reading, &id, sent).await? {
+                    return Ok(Some(format!("{reason} for comment {id}")));
+                }
+                if !reading.answer(REPLIES, sent).await? {
+                    return Ok(None);
+                }
+                expanded += 1;
             }
-            expanded += 1;
         }
         let responses = captured_comments(reading.exchanges());
         let pages = responses
