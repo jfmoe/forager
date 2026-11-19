@@ -7,8 +7,9 @@
 //! The pacing is a person's: a random pause of 0.3–1.5 seconds before each action, a hover
 //! before each click, a pointer that moves to its target in several steps, a wheel that turns in
 //! small notches with pauses between bursts, and short text typed one character at a time, CJK
-//! text in the small groups an input method commits. No input goes out after the read deadline. An action that cannot be
-//! done natively fails with its reason and never falls back to a scripted one.
+//! text in the small groups an input method commits (`browser_input_pacing`). No input goes out
+//! after the read deadline. An action that cannot be done natively fails with its reason and
+//! never falls back to a scripted one.
 //!
 //! A click aims only at a target that stands still, and re-aims when the target moves or is
 //! covered during the hover, but presses at most once: nothing is retried after the press.
@@ -18,28 +19,19 @@ use std::time::Duration;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+use self::pacing::{
+    COMMIT_CHARACTERS, COMMIT_GAP_MS, HOVER_DWELL_MS, INPUT_PAUSE_MS, KEY_GAP_MS, PRESS_MS,
+    between, millis, typing_pieces, wheel_notches,
+};
 use super::Page;
 use crate::net::AttemptFailure;
 
-const INPUT_PAUSE_MS: (f64, f64) = (300.0, 1500.0);
-const HOVER_DWELL_MS: (f64, f64) = (80.0, 250.0);
-const PRESS_MS: (f64, f64) = (50.0, 130.0);
-const KEY_GAP_MS: (f64, f64) = (30.0, 90.0);
-// An input method commits a few characters at a time, after the user picks them.
-const COMMIT_GAP_MS: (f64, f64) = (100.0, 300.0);
-const COMMIT_CHARACTERS: (usize, usize) = (1, 3);
-// A mouse wheel turns in notches of about 100 px, a few at a time with a pause between bursts.
-const WHEEL_NOTCH_PX: (f64, f64) = (80.0, 120.0);
-const WHEEL_GAP_MS: (f64, f64) = (30.0, 90.0);
-const WHEEL_BURST: (usize, usize) = (3, 8);
-const WHEEL_BURST_PAUSE_MS: (f64, f64) = (200.0, 700.0);
-// At the slowest pacing 12 notches take 2.8 seconds, which keeps five pages of search results
-// or comments within the default attempt timeout when each page takes one wheel turn.
-const MAX_WHEEL_NOTCHES: usize = 12;
+#[path = "browser_input_pacing.rs"]
+mod pacing;
+
 const POINTER_STEPS: (usize, usize) = (8, 18);
 const POINTER_STEP_MS: (f64, f64) = (8.0, 22.0);
 const POINTER_CURVE_PX: f64 = 60.0;
-const MAX_TYPED_CHARACTERS: usize = 200;
 // A target may render a moment after the action that reveals it.
 const LOCATE_WITHIN: Duration = Duration::from_secs(2);
 const LOCATE_POLL: Duration = Duration::from_millis(200);
@@ -257,14 +249,6 @@ impl Recheck {
             None => format!("pointer hit {hit}"),
         }
     }
-}
-
-fn between((low, high): (f64, f64)) -> f64 {
-    fastrand::f64().mul_add(high - low, low)
-}
-
-fn millis(range: (f64, f64)) -> Duration {
-    Duration::from_secs_f64(between(range) / 1000.0)
 }
 
 // Finds the one target among the elements that the page expression `targets` yields. Sites stack
@@ -670,91 +654,6 @@ impl Page {
     }
 }
 
-/// One piece of typed text, and whether an input method commits it as a group.
-#[derive(Debug, Eq, PartialEq)]
-struct Piece<'a> {
-    text: &'a str,
-    committed: bool,
-}
-
-/// Cuts `text` into the pieces it is typed in: runs of CJK characters in groups of the sizes
-/// `group` picks, as an input method commits them, and every other character alone. Text over
-/// 200 characters is one piece, so that it fits the command's time.
-fn typing_pieces(text: &str, mut group: impl FnMut() -> usize) -> Vec<Piece<'_>> {
-    if text.chars().count() > MAX_TYPED_CHARACTERS {
-        return vec![Piece {
-            text,
-            committed: false,
-        }];
-    }
-    let mut pieces = Vec::new();
-    let mut characters = text.char_indices().peekable();
-    while let Some((start, character)) = characters.next() {
-        let mut end = start + character.len_utf8();
-        let committed = is_cjk(character);
-        if committed {
-            for _ in 1..group().max(1) {
-                let Some((index, next)) = characters.next_if(|(_, next)| is_cjk(*next)) else {
-                    break;
-                };
-                end = index + next.len_utf8();
-            }
-        }
-        pieces.push(Piece {
-            text: &text[start..end],
-            committed,
-        });
-    }
-    pieces
-}
-
-/// Whether an input method composes `character`: Han ideographs, kana, and Hangul syllables.
-/// Punctuation, even full-width, is typed alone.
-fn is_cjk(character: char) -> bool {
-    matches!(
-        character,
-        '\u{3040}'..='\u{30FF}'
-            | '\u{3400}'..='\u{4DBF}'
-            | '\u{4E00}'..='\u{9FFF}'
-            | '\u{AC00}'..='\u{D7AF}'
-            | '\u{F900}'..='\u{FAFF}'
-            | '\u{20000}'..='\u{3134F}'
-    )
-}
-
-/// One wheel notch: the wait before it and how far it scrolls.
-#[derive(Debug)]
-struct Notch {
-    wait: Duration,
-    delta: f64,
-}
-
-/// The notches that scroll `delta_y` CSS pixels: 80–120 px each (the last one what is left),
-/// 30–90 ms apart in bursts of 3–8 with a 200–700 ms pause between bursts, and at most
-/// [`MAX_WHEEL_NOTCHES`]. The first notch does not wait.
-fn wheel_notches(delta_y: f64) -> Vec<Notch> {
-    let mut notches = Vec::new();
-    let mut remaining = delta_y;
-    let mut burst = 0;
-    while remaining.abs() >= 1.0 && notches.len() < MAX_WHEEL_NOTCHES {
-        let wait = if notches.is_empty() {
-            Duration::ZERO
-        } else if burst == 0 {
-            millis(WHEEL_BURST_PAUSE_MS)
-        } else {
-            millis(WHEEL_GAP_MS)
-        };
-        if burst == 0 {
-            burst = fastrand::usize(WHEEL_BURST.0..=WHEEL_BURST.1);
-        }
-        burst -= 1;
-        let delta = remaining.signum() * remaining.abs().min(between(WHEEL_NOTCH_PX));
-        remaining -= delta;
-        notches.push(Notch { wait, delta });
-    }
-    notches
-}
-
 fn step_fraction(step: usize, steps: usize) -> f64 {
     let step = u32::try_from(step).unwrap_or(u32::MAX);
     let steps = u32::try_from(steps).unwrap_or(u32::MAX).max(1);
@@ -772,9 +671,7 @@ mod tests {
 
     use super::super::capture::Capture;
     use super::super::{CaptureLevel, Deadlines, Page};
-    use super::{
-        InputError, InputFailure, Missed, Piece, Point, Recheck, Rect, typing_pieces, wheel_notches,
-    };
+    use super::{InputError, InputFailure, Missed, Point, Recheck, Rect};
     use crate::providers::cdp::Cdp;
     use crate::types::Deadline;
 
@@ -905,97 +802,5 @@ mod tests {
                 format!("pointer hit {hit}, target moved by (0, -40) px"),
             ]
         );
-    }
-
-    /// The pieces of `text` and whether each is a committed group, with group sizes taken in
-    /// turn from `sizes`.
-    fn pieces<'a>(text: &'a str, sizes: &[usize]) -> Vec<(&'a str, bool)> {
-        let mut sizes = sizes.iter().copied().cycle();
-        typing_pieces(text, || sizes.next().unwrap_or(1))
-            .into_iter()
-            .map(|Piece { text, committed }| (text, committed))
-            .collect()
-    }
-
-    #[test]
-    fn chinese_text_is_committed_in_the_groups_an_input_method_picks() {
-        assert_eq!(
-            pieces("咖啡拿铁推荐", &[2, 1, 3]),
-            [("咖啡", true), ("拿", true), ("铁推荐", true)]
-        );
-    }
-
-    #[test]
-    fn latin_letters_and_digits_beside_chinese_are_typed_one_at_a_time() {
-        assert_eq!(
-            pieces("Mac咖啡2", &[3]),
-            [
-                ("M", false),
-                ("a", false),
-                ("c", false),
-                ("咖啡", true),
-                ("2", false)
-            ]
-        );
-    }
-
-    #[test]
-    fn punctuation_ends_a_chinese_group_and_is_typed_alone() {
-        assert_eq!(
-            pieces("咖啡，拿铁 推荐", &[3]),
-            [
-                ("咖啡", true),
-                ("，", false),
-                ("拿铁", true),
-                (" ", false),
-                ("推荐", true)
-            ]
-        );
-    }
-
-    #[test]
-    fn text_over_200_characters_is_one_insertion() {
-        let typed = |length| pieces(&"咖".repeat(length), &[2]).len();
-
-        assert_eq!([typed(200), typed(201)], [100, 1]);
-    }
-
-    #[test]
-    fn a_wheel_turn_goes_in_bursts_of_three_to_eight_small_notches() {
-        fastrand::seed(274);
-        for distance in [5000.0, -5000.0, 750.0] {
-            for _ in 0..200 {
-                let notches = wheel_notches(distance);
-                let scrolled: f64 = notches.iter().map(|notch| notch.delta).sum();
-                let (last, rest) = notches.split_last().expect("at least one notch");
-                let mut bursts = vec![0_usize];
-                for notch in &notches[1..] {
-                    let wait = notch.wait.as_secs_f64() * 1000.0;
-                    if (200.0..=700.0).contains(&wait) {
-                        bursts.push(0);
-                    } else {
-                        assert!((30.0..=90.0).contains(&wait), "{notches:?}");
-                    }
-                    *bursts.last_mut().expect("a burst") += 1;
-                }
-                *bursts.first_mut().expect("a burst") += 1;
-                let (last_burst, full_bursts) = bursts.split_last().expect("a burst");
-                assert!(
-                    notches.len() <= 12
-                        && notches[0].wait.is_zero()
-                        && rest
-                            .iter()
-                            .all(|notch| (80.0..=120.0).contains(&notch.delta.abs()))
-                        && last.delta.abs() <= 120.0
-                        && notches
-                            .iter()
-                            .all(|notch| notch.delta.signum() == distance.signum())
-                        && full_bursts.iter().all(|burst| (3..=8).contains(burst))
-                        && *last_burst <= 8
-                        && (notches.len() == 12 || (scrolled - distance).abs() < 1.0),
-                    "{notches:?}"
-                );
-            }
-        }
     }
 }
