@@ -8,6 +8,9 @@
 //! before each click, a pointer that moves to its target in several steps, and short text typed
 //! one character at a time. No input goes out after the read deadline. An action that cannot be
 //! done natively fails with its reason and never falls back to a scripted one.
+//!
+//! A click aims only at a target that stands still, and re-aims when the target moves or is
+//! covered during the hover, but presses at most once: nothing is retried after the press.
 
 use std::time::Duration;
 
@@ -32,6 +35,13 @@ const MAX_TYPED_CHARACTERS: usize = 200;
 const LOCATE_WITHIN: Duration = Duration::from_secs(2);
 const LOCATE_POLL: Duration = Duration::from_millis(200);
 const MAX_SCROLLS_INTO_VIEW: usize = 8;
+// A target counts as standing still when two readings this far apart agree.
+const STEADY_GAP: Duration = Duration::from_millis(100);
+const STEADY_PX: f64 = 0.5;
+// How many times a click aims again after its recheck finds the target moved or covered.
+const MAX_REAIMS: usize = 2;
+// How much of the element under the pointer a failed recheck reports.
+const MAX_HIT_CHARACTERS: usize = 80;
 // Chromium animates a wheel scroll past its last event, so positions read too early are stale.
 const SCROLL_SETTLE_POLL: Duration = Duration::from_millis(50);
 const SCROLL_SETTLE_WITHIN: Duration = Duration::from_millis(1500);
@@ -81,16 +91,44 @@ impl InputFailure {
     }
 }
 
+/// A native action that did not happen on the page: why, and for a click stopped before its
+/// press, what the pointer hit and how far the target had moved since it was located. The
+/// diagnosis names elements by tag and class only, never by their text.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct Missed {
+    pub(crate) failure: InputFailure,
+    pub(crate) diagnosis: Option<String>,
+}
+
+impl Missed {
+    /// `name`, the caller's name for the failure, followed by the diagnosis.
+    pub(crate) fn describe(&self, name: &str) -> String {
+        match &self.diagnosis {
+            Some(diagnosis) => format!("{name} [{diagnosis}]"),
+            None => name.to_owned(),
+        }
+    }
+}
+
 /// A native action that failed: on the page, or in the browser connection.
 #[derive(Debug)]
 pub(crate) enum InputError {
-    Failed(InputFailure),
+    Failed(Missed),
     Transport(AttemptFailure),
 }
 
 impl From<AttemptFailure> for InputError {
     fn from(failure: AttemptFailure) -> Self {
         Self::Transport(failure)
+    }
+}
+
+impl From<InputFailure> for InputError {
+    fn from(failure: InputFailure) -> Self {
+        Self::Failed(Missed {
+            failure,
+            diagnosis: None,
+        })
     }
 }
 
@@ -126,6 +164,54 @@ struct Point {
     y: f64,
 }
 
+/// Where an element's box lay in the viewport when a script read it.
+#[derive(Clone, Copy, Debug, Deserialize)]
+struct Rect {
+    left: f64,
+    top: f64,
+    width: f64,
+    height: f64,
+}
+
+impl Rect {
+    fn agrees_with(self, other: Self) -> bool {
+        [
+            self.left - other.left,
+            self.top - other.top,
+            self.width - other.width,
+            self.height - other.height,
+        ]
+        .iter()
+        .all(|difference| difference.abs() < STEADY_PX)
+    }
+}
+
+/// How far a target moved from `from` to `to`, in whole CSS pixels.
+fn movement(from: Rect, to: Rect) -> String {
+    format!(
+        "target moved by ({:.0}, {:.0}) px",
+        to.left - from.left,
+        to.top - from.top
+    )
+}
+
+/// A point on the one target that a pointer hits, and the target's box when it was read.
+#[derive(Clone, Copy, Debug, Deserialize)]
+struct Aim {
+    x: f64,
+    y: f64,
+    rect: Rect,
+}
+
+impl Aim {
+    fn point(self) -> Point {
+        Point {
+            x: self.x,
+            y: self.y,
+        }
+    }
+}
+
 #[derive(Deserialize)]
 struct WheelTurn {
     x: f64,
@@ -139,13 +225,29 @@ struct WheelTurn {
 enum Located {
     Scroll { scroll: WheelTurn },
     Reason { reason: String },
-    Point(Point),
+    Aim(Aim),
 }
 
-/// Why the pointer no longer hits the one target; no reason when it still does.
+/// Why the pointer no longer hits the one target, with the element under the pointer and the
+/// target's box now; no reason when the pointer still hits it.
 #[derive(Deserialize)]
 struct Recheck {
     reason: Option<String>,
+    #[serde(default)]
+    hit: Option<String>,
+    #[serde(default)]
+    rect: Option<Rect>,
+}
+
+impl Recheck {
+    fn diagnosis(&self, located: Rect) -> String {
+        let hit = self.hit.as_deref().unwrap_or("nothing");
+        let hit: String = hit.chars().take(MAX_HIT_CHARACTERS).collect();
+        match self.rect {
+            Some(rect) => format!("pointer hit {hit}, {}", movement(located, rect)),
+            None => format!("pointer hit {hit}"),
+        }
+    }
 }
 
 fn between((low, high): (f64, f64)) -> f64 {
@@ -159,15 +261,17 @@ fn millis(range: (f64, f64)) -> Duration {
 // Finds the one target among the elements that the page expression `targets` yields. Sites stack
 // invisible decoy copies of buttons under the real ones, so an element counts only outside
 // `aria-hidden` subtrees, with a size, and when a pointer at its center hits it or a descendant.
-// Returns a point on the target that a pointer hits, a wheel turn that brings it into view, or
-// the reason it cannot. With `at`, it checks that a pointer at `at` still hits the one target,
-// and otherwise reports whether the target is gone, has a hittable twin, or moved.
-fn locate_script(targets: &str, at: Option<Point>) -> String {
-    let at = at.map_or(Value::Null, |point| json!({"x": point.x, "y": point.y}));
+// Returns a point on the target that a pointer hits with the target's box, a wheel turn that
+// brings it into view, or the reason it cannot. With `at`, it checks that a pointer at `at` still
+// hits the one target, and otherwise reports whether the target is gone, has a hittable twin,
+// moved, or is covered, with the element under the pointer by tag and class and the target's box.
+fn locate_script(targets: &str, at: Option<Aim>) -> String {
+    let at = at.map_or(Value::Null, |aim| json!({"x": aim.x, "y": aim.y}));
     format!(
         r#"(() => {{
     const found = [...({targets})].filter((element) => element instanceof Element);
     const center = (rect) => ({{ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }});
+    const box = (rect) => ({{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }});
     const hits = (element, x, y) => {{
       const hit = document.elementFromPoint(x, y);
       return Boolean(hit) && element.contains(hit);
@@ -176,23 +280,35 @@ fn locate_script(targets: &str, at: Option<Point>) -> String {
       const rect = element.getBoundingClientRect();
       return !element.closest('[aria-hidden="true"]') && rect.width > 0 && rect.height > 0;
     }});
-    const at = {at};
-    if (candidates.length === 0) return {{ reason: 'no_target' }};
     const hittable = candidates.filter((element) => {{
       const point = center(element.getBoundingClientRect());
       return hits(element, point.x, point.y);
     }});
+    const at = {at};
+    if (at) {{
+      const under = document.elementFromPoint(at.x, at.y);
+      const classes = under ? (under.getAttribute('class') || '').trim().split(/\s+/).filter(Boolean) : [];
+      const hit = under ? [under.tagName.toLowerCase(), ...classes].join('.').slice(0, {MAX_HIT_CHARACTERS}) : null;
+      const target = hittable[0] || candidates[0];
+      if (!target) return {{ reason: 'no_target', hit }};
+      const rect = target.getBoundingClientRect();
+      const report = (reason) => ({{ reason, hit, rect: box(rect) }});
+      if (hittable.length > 1) return report('ambiguous_target');
+      if (hittable.length === 1) return hits(target, at.x, at.y) ? {{ reason: null }} : report('target_moved');
+      const covered = rect.left <= at.x && at.x <= rect.right && rect.top <= at.y && at.y <= rect.bottom;
+      return report(covered ? 'obscured_target' : 'target_moved');
+    }}
+    if (candidates.length === 0) return {{ reason: 'no_target' }};
     if (hittable.length > 1) return {{ reason: 'ambiguous_target' }};
-    if (at) return hittable.length === 1 && hits(hittable[0], at.x, at.y) ? {{ reason: null }} : {{ reason: 'target_moved' }};
     if (hittable.length === 1) {{
       const rect = hittable[0].getBoundingClientRect();
       const middle = center(rect);
       for (let attempt = 0; attempt < 8; attempt += 1) {{
         const x = middle.x + (Math.random() * 2 - 1) * rect.width * {CLICK_JITTER};
         const y = middle.y + (Math.random() * 2 - 1) * rect.height * {CLICK_JITTER};
-        if (hits(hittable[0], x, y)) return {{ x, y }};
+        if (hits(hittable[0], x, y)) return {{ x, y, rect: box(rect) }};
       }}
-      return middle;
+      return {{ ...middle, rect: box(rect) }};
     }}
     const view = {{
       left: 0, top: 0, right: document.documentElement.clientWidth, bottom: document.documentElement.clientHeight,
@@ -240,29 +356,48 @@ impl Page {
     pub(crate) async fn hover(&mut self, targets: &str) -> Result<(), InputError> {
         self.require_time()?;
         self.pause().await;
-        let point = self.locate(targets).await?;
+        let aim = self.locate(targets).await?;
         self.require_time()?;
-        self.move_pointer(point).await
+        self.move_pointer(aim.point()).await
     }
 
-    /// Clicks the one target that `targets` names: scrolls it into view with the wheel, hovers a
-    /// point near its center that hits it, and clicks there once the pointer still hits it after
-    /// the hover. Callers confirm the click's effect with [`Page::confirm`].
+    /// Clicks the one target that `targets` names: scrolls it into view with the wheel, waits
+    /// until it stands still, hovers a point near its center that hits it, and clicks there once
+    /// the pointer still hits it after the hover. When the hover finds the target moved or
+    /// covered, it aims again, at most twice; it presses at most once. Callers confirm the
+    /// click's effect with [`Page::confirm`].
     ///
     /// # Errors
     ///
-    /// Returns why the click could not be made, or a transport failure.
+    /// Returns why the click could not be made, with what the pointer hit when the recheck
+    /// stopped it, or a transport failure.
     pub(crate) async fn click(&mut self, targets: &str) -> Result<(), InputError> {
         self.require_time()?;
         self.pause().await;
-        let point = self.locate(targets).await?;
-        self.require_time()?;
-        self.move_pointer(point).await?;
-        self.rest(millis(HOVER_DWELL_MS)).await;
-        let recheck: Recheck = self.evaluate(&locate_script(targets, Some(point))).await?;
-        if let Some(reason) = recheck.reason {
-            return Err(InputError::Failed(InputFailure::from_reason(&reason)));
-        }
+        let mut reaims = 0;
+        let point = loop {
+            let aim = self.locate(targets).await?;
+            self.require_time()?;
+            self.move_pointer(aim.point()).await?;
+            self.rest(millis(HOVER_DWELL_MS)).await;
+            let recheck: Recheck = self.evaluate(&locate_script(targets, Some(aim))).await?;
+            let Some(reason) = &recheck.reason else {
+                break aim.point();
+            };
+            let failure = InputFailure::from_reason(reason);
+            let movable = matches!(
+                failure,
+                InputFailure::TargetMoved | InputFailure::ObscuredTarget
+            );
+            if movable && reaims < MAX_REAIMS {
+                reaims += 1;
+                continue;
+            }
+            return Err(InputError::Failed(Missed {
+                failure,
+                diagnosis: Some(recheck.diagnosis(aim.rect)),
+            }));
+        };
         self.require_time()?;
         self.mouse("mousePressed", point, 1).await?;
         self.rest(millis(PRESS_MS)).await;
@@ -287,7 +422,7 @@ impl Page {
                 Ok(false) | Err(_) => {}
             }
             if until.remaining().is_none_or(|left| left.is_zero()) || !self.reading() {
-                return Err(InputError::Failed(InputFailure::ClickMissed));
+                return Err(InputFailure::ClickMissed.into());
             }
             self.rest(LOCATE_POLL.min(until.remaining().unwrap_or_default()))
                 .await;
@@ -363,7 +498,7 @@ impl Page {
         if self.reading() {
             Ok(())
         } else {
-            Err(InputError::Failed(InputFailure::DeadlinePassed))
+            Err(InputFailure::DeadlinePassed.into())
         }
     }
 
@@ -371,18 +506,47 @@ impl Page {
         self.rest(millis(INPUT_PAUSE_MS)).await;
     }
 
-    async fn locate(&mut self, targets: &str) -> Result<Point, InputError> {
+    /// Finds the one target, scrolling it into view, and returns a point on it once two readings
+    /// of its box [`STEADY_GAP`] apart agree. A target that is still moving when
+    /// [`LOCATE_WITHIN`] has passed since it was first found is [`InputFailure::TargetMoved`].
+    async fn locate(&mut self, targets: &str) -> Result<Aim, InputError> {
         let looking = crate::types::Deadline::new(LOCATE_WITHIN);
         let mut scrolls = 0;
+        let mut steadying: Option<(Aim, crate::types::Deadline)> = None;
         loop {
             match self
                 .evaluate::<Located>(&locate_script(targets, None))
                 .await?
             {
-                Located::Point(point) => return Ok(point),
+                Located::Aim(aim) => {
+                    let steady = match steadying {
+                        Some((previous, _)) if aim.rect.agrees_with(previous.rect) => {
+                            return Ok(aim);
+                        }
+                        Some((previous, steady)) => {
+                            if steady.remaining().is_none_or(|left| left.is_zero())
+                                || !self.reading()
+                            {
+                                return Err(InputError::Failed(Missed {
+                                    failure: InputFailure::TargetMoved,
+                                    diagnosis: Some(format!(
+                                        "{} within {} ms of locating it",
+                                        movement(previous.rect, aim.rect),
+                                        STEADY_GAP.as_millis()
+                                    )),
+                                }));
+                            }
+                            steady
+                        }
+                        None => crate::types::Deadline::new(LOCATE_WITHIN),
+                    };
+                    steadying = Some((aim, steady));
+                    self.rest(STEADY_GAP).await;
+                }
                 Located::Scroll { scroll } => {
+                    steadying = None;
                     if scrolls >= MAX_SCROLLS_INTO_VIEW {
-                        return Err(InputError::Failed(InputFailure::OutOfView));
+                        return Err(InputFailure::OutOfView.into());
                     }
                     scrolls += 1;
                     self.wheel_at(
@@ -395,10 +559,11 @@ impl Page {
                     .await?;
                 }
                 Located::Reason { reason } => {
+                    steadying = None;
                     let failure = InputFailure::from_reason(&reason);
                     let waited = looking.remaining().is_none_or(|left| left.is_zero());
                     if failure == InputFailure::AmbiguousTarget || waited || !self.reading() {
-                        return Err(InputError::Failed(failure));
+                        return Err(failure.into());
                     }
                     self.rest(LOCATE_POLL).await;
                 }
@@ -517,7 +682,7 @@ mod tests {
 
     use super::super::capture::Capture;
     use super::super::{CaptureLevel, Deadlines, Page};
-    use super::{InputError, InputFailure, Point};
+    use super::{InputError, InputFailure, Missed, Point, Recheck, Rect};
     use crate::providers::cdp::Cdp;
     use crate::types::Deadline;
 
@@ -605,9 +770,48 @@ mod tests {
         assert!(
             matches!(
                 (moved, late),
-                (Err(InputError::Failed(InputFailure::DeadlinePassed)), 0)
+                (
+                    Err(InputError::Failed(Missed {
+                        failure: InputFailure::DeadlinePassed,
+                        diagnosis: None
+                    })),
+                    0
+                )
             ),
             "{late} pointer steps went out after the read deadline"
+        );
+    }
+
+    #[test]
+    fn a_recheck_diagnosis_keeps_at_most_80_characters_of_the_element_under_the_pointer() {
+        let located = Rect {
+            left: 100.0,
+            top: 100.0,
+            width: 120.0,
+            height: 40.0,
+        };
+        let recheck = |rect| Recheck {
+            reason: Some("target_moved".into()),
+            hit: Some(format!("div.{}", "a".repeat(100))),
+            rect,
+        };
+
+        let diagnoses = [
+            None,
+            Some(Rect {
+                top: 60.4,
+                ..located
+            }),
+        ]
+        .map(|rect| recheck(rect).diagnosis(located));
+
+        let hit = format!("div.{}", "a".repeat(76));
+        assert_eq!(
+            diagnoses,
+            [
+                format!("pointer hit {hit}"),
+                format!("pointer hit {hit}, target moved by (0, -40) px"),
+            ]
         );
     }
 }

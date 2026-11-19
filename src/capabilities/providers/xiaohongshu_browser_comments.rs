@@ -160,16 +160,16 @@ async fn expand_replies(
     reading: &mut Reading<'_>,
     id: &str,
     seen: usize,
-) -> Result<Option<&'static str>, AttemptFailure> {
+) -> Result<Option<String>, AttemptFailure> {
     let element = serde_json::Value::from(format!("comment-{id}"));
     let missing = page_script(&format!(
         "const item = document.getElementById({element}); if (!item) return 'no_comment_element'; return item.closest('.parent-comment') ? null : 'no_parent_comment';"
     ));
     if let Some(reason) = reading.page().evaluate::<Option<String>>(&missing).await? {
         return Ok(Some(if reason == "no_comment_element" {
-            "no_comment_element"
+            reason
         } else {
-            "no_parent_comment"
+            "no_parent_comment".into()
         }));
     }
     let buttons = format!(
@@ -182,18 +182,18 @@ async fn expand_replies(
   }})()"
     );
     let clicked = reading.page().click(&buttons).await;
-    if let Some(failure) = input_failure(clicked)? {
-        return Ok(Some(match failure {
+    if let Some(missed) = input_failure(clicked)? {
+        return Ok(Some(missed.describe(match missed.failure {
             InputFailure::NoTarget => "no_expand_button",
             InputFailure::AmbiguousTarget => "ambiguous_expand_button",
             other => other.reason(),
-        }));
+        })));
     }
     let gone = format!(r#"{buttons}.every((element) => element.closest('[aria-hidden="true"]'))"#);
     if reading.confirm(REPLIES, seen, &gone, CLICK_CHECK).await? {
         Ok(None)
     } else {
-        Ok(Some("click_missed"))
+        Ok(Some("click_missed".into()))
     }
 }
 

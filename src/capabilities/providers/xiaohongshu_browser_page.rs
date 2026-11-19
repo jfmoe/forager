@@ -10,7 +10,7 @@ use serde::Deserialize;
 use super::{ACCOUNT_PATH, ApiError, LOGIN_CODES, PageFacts, RISK_CONTROL_STATUSES, on_site};
 use crate::net::AttemptFailure;
 use crate::providers::browser::{
-    CaptureLevel, Exchange, InputError, InputFailure, Page, RequestMethod, ResponseBody,
+    CaptureLevel, Exchange, InputError, InputFailure, Missed, Page, RequestMethod, ResponseBody,
 };
 use crate::types::Deadline;
 
@@ -159,7 +159,7 @@ struct ScrollPlan {
 /// Turns the outcome of a native action into why it did not happen, or a transport failure.
 pub(super) fn input_failure(
     result: Result<(), InputError>,
-) -> Result<Option<InputFailure>, AttemptFailure> {
+) -> Result<Option<Missed>, AttemptFailure> {
     match result {
         Ok(()) => Ok(None),
         Err(InputError::Failed(failure)) => Ok(Some(failure)),
@@ -435,11 +435,10 @@ impl<'p> Reading<'p> {
         if plan.distance < 1.0 {
             return Ok(true);
         }
-        match self.page.wheel((plan.x, plan.y), plan.distance).await {
-            Err(InputError::Failed(InputFailure::DeadlinePassed)) => Ok(false),
+        match input_failure(self.page.wheel((plan.x, plan.y), plan.distance).await)? {
+            Some(missed) if missed.failure == InputFailure::DeadlinePassed => Ok(false),
             // A wheel turn that found no target leaves the next poll to turn it again.
-            Ok(()) | Err(InputError::Failed(_)) => Ok(true),
-            Err(InputError::Transport(failure)) => Err(failure),
+            _ => Ok(true),
         }
     }
 

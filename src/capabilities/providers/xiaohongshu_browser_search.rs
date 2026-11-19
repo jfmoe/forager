@@ -17,7 +17,8 @@ use super::{
 use crate::catalog::PlatformOperation;
 use crate::net::{AttemptFailure, combine_diagnostics};
 use crate::providers::browser::{
-    CaptureLevel, Exchange, InputError, InputFailure, Key, Page, RequestMethod, ResponseBody,
+    CaptureLevel, Exchange, InputError, InputFailure, Key, Missed, Page, RequestMethod,
+    ResponseBody,
 };
 use crate::providers::execution::execute_anonymous;
 use crate::providers::shared::{other_platform_message, parameter_error};
@@ -201,12 +202,15 @@ async fn drive_search(
     }
     match enter_query(reading.page(), query).await? {
         None => progress.submitted = true,
-        Some(InputFailure::DeadlinePassed) => {
+        Some(missed) if missed.failure == InputFailure::DeadlinePassed => {
             reading.mark_timed_out();
             return Ok(());
         }
-        Some(failure) => {
-            progress.search_failure = Some(format!("{} for the search box", failure.reason()));
+        Some(missed) => {
+            progress.search_failure = Some(format!(
+                "{} for the search box",
+                missed.describe(missed.failure.reason())
+            ));
             return Ok(());
         }
     }
@@ -252,11 +256,14 @@ fn wants_another_page(exchanges: &[Exchange], answered_from: usize, pages: usize
 }
 
 /// Types the query into the home page's search box and submits it; returns why it could not.
-async fn enter_query(page: &mut Page, query: &str) -> Result<Option<InputFailure>, AttemptFailure> {
+async fn enter_query(page: &mut Page, query: &str) -> Result<Option<Missed>, AttemptFailure> {
     let mut missed = None;
     for search_box in SEARCH_BOXES {
         missed = input_failure(page.click(search_box).await)?;
-        if missed != Some(InputFailure::NoTarget) {
+        if missed
+            .as_ref()
+            .is_none_or(|missed| missed.failure != InputFailure::NoTarget)
+        {
             break;
         }
     }
@@ -277,38 +284,42 @@ async fn choose_option(
     option: &str,
     seen: usize,
     progress: &mut SearchProgress,
-) -> Result<Option<&'static str>, AttemptFailure> {
-    let button = |failure| match failure {
-        InputFailure::NoTarget => "no_filter_button",
-        InputFailure::AmbiguousTarget => "ambiguous_filter_button",
-        other => other.reason(),
+) -> Result<Option<String>, AttemptFailure> {
+    let button = |missed: Missed| {
+        missed.describe(match missed.failure {
+            InputFailure::NoTarget => "no_filter_button",
+            InputFailure::AmbiguousTarget => "ambiguous_filter_button",
+            other => other.reason(),
+        })
     };
     if !reading.page().evaluate::<bool>(PANEL_OPEN).await? {
-        if let Some(failure) = input_failure(reading.page().hover(FILTER_BUTTON).await)? {
-            return Ok(Some(button(failure)));
+        if let Some(missed) = input_failure(reading.page().hover(FILTER_BUTTON).await)? {
+            return Ok(Some(button(missed)));
         }
         if !panel_opens(reading.page(), PANEL_AFTER_HOVER).await? {
-            if let Some(failure) = input_failure(reading.page().click(FILTER_BUTTON).await)? {
-                return Ok(Some(button(failure)));
+            if let Some(missed) = input_failure(reading.page().click(FILTER_BUTTON).await)? {
+                return Ok(Some(button(missed)));
             }
             if !panel_opens(reading.page(), PANEL_AFTER_CLICK).await? {
-                return Ok(Some("no_filter_panel"));
+                return Ok(Some("no_filter_panel".into()));
             }
         }
     }
     let group_shown = format!("{}.length === 1", groups_expression(group, true));
     if !reading.page().evaluate::<bool>(&group_shown).await? {
-        return Ok(Some("no_filter_group"));
+        return Ok(Some("no_filter_group".into()));
     }
     progress.marks.push(reading.exchanges().len());
     let clicked = reading
         .page()
         .click(&options_expression(group, option, true))
         .await;
-    let missed = input_failure(clicked)?.map(|failure| match failure {
-        InputFailure::NoTarget => "no_filter_option",
-        InputFailure::AmbiguousTarget => "ambiguous_filter_option",
-        other => other.reason(),
+    let missed = input_failure(clicked)?.map(|missed| {
+        missed.describe(match missed.failure {
+            InputFailure::NoTarget => "no_filter_option",
+            InputFailure::AmbiguousTarget => "ambiguous_filter_option",
+            other => other.reason(),
+        })
     });
     if missed.is_none()
         && reading
@@ -318,7 +329,7 @@ async fn choose_option(
         return Ok(None);
     }
     progress.marks.pop();
-    Ok(Some(missed.unwrap_or("click_missed")))
+    Ok(Some(missed.unwrap_or_else(|| "click_missed".into())))
 }
 
 async fn panel_opens(page: &Page, within: Duration) -> Result<bool, AttemptFailure> {
