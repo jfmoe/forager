@@ -32,6 +32,9 @@ const MAX_TYPED_CHARACTERS: usize = 200;
 const LOCATE_WITHIN: Duration = Duration::from_secs(2);
 const LOCATE_POLL: Duration = Duration::from_millis(200);
 const MAX_SCROLLS_INTO_VIEW: usize = 8;
+// Chromium animates a wheel scroll past its last event, so positions read too early are stale.
+const SCROLL_SETTLE_POLL: Duration = Duration::from_millis(50);
+const SCROLL_SETTLE_WITHIN: Duration = Duration::from_millis(1500);
 // How far from the center a click may land, as a fraction of the target's size.
 const CLICK_JITTER: f64 = 0.25;
 
@@ -422,6 +425,26 @@ impl Page {
             )
             .await?;
             remaining -= delta;
+        }
+        self.settle_scroll(at).await
+    }
+
+    /// Waits until the scrolling areas under `at` stop moving, or [`SCROLL_SETTLE_WITHIN`]
+    /// passes; a page still scrolling after that is left to the click's recheck.
+    async fn settle_scroll(&self, at: Point) -> Result<(), InputError> {
+        let script = format!(
+            "(() => {{ let offset = 0; for (let element = document.elementFromPoint({}, {}); element; element = element.parentElement) offset += element.scrollTop; return offset; }})()",
+            at.x, at.y
+        );
+        let settling = crate::types::Deadline::new(SCROLL_SETTLE_WITHIN);
+        let mut last: Option<f64> = None;
+        while settling.remaining().is_some_and(|left| !left.is_zero()) && self.reading() {
+            self.rest(SCROLL_SETTLE_POLL).await;
+            let offset: f64 = self.evaluate(&script).await?;
+            if last.is_some_and(|previous| (previous - offset).abs() < 0.5) {
+                break;
+            }
+            last = Some(offset);
         }
         Ok(())
     }
