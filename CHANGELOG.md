@@ -7,6 +7,58 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0](https://github.com/jfmoe/forager/compare/v0.19.0...v0.20.0) - 2026-11-19
+
+### Added
+
+- *(xiaohongshu)* [**breaking**] run xiaohongshu_browser on the browser transport
+- *(browser)* add browser transport, install and login commands
+
+### Fixed
+
+- *(xiaohongshu)* expand replies the page loaded while expanding
+- *(browser)* gate the unix-only test import of WindowMode
+- *(browser)* send the browser's stdout to /dev/null again
+- *(browser)* say how a browser exited before the handshake
+- *(xiaohongshu)* attribute click answers by when the request was sent
+- *(xiaohongshu)* expand replies on each comment page as it arrives
+- *(browser)* turn the wheel in small bursts and type CJK in groups
+- *(browser)* aim at a steady target and re-aim before the press
+- *(xiaohongshu)* stop on rate limits, 471, and API error codes
+- *(browser)* let a wheel scroll settle before reading positions
+- *(rate-limit)* gate the test-only state-file limiter to unix
+- *(browser)* keep browser install off the blocking path and in time
+- *(xiaohongshu)* classify searches cut short on the home page
+- *(browser)* reap a dropped browser without blocking the runtime
+- *(browser)* quote the browser's real last stderr line
+- *(browser)* name an undecodable response body as such
+- *(browser)* report why a hovered target no longer qualifies
+- *(browser)* send no pointer step past the read deadline
+- *(release)* verify aarch64 macOS artifacts on macos-15
+- *(release)* build aarch64 macOS artifacts on macos-15
+
+### Other
+
+- *(spec)* drop a ticket reference from the Xiaohongshu classification
+- *(research)* record the live matrix of the Xiaohongshu browser route
+- *(browser)* move the browser's process group into its own module
+- *(browser)* move the input pacing into its own module
+- *(skill)* describe the new Xiaohongshu stop signals
+- *(xiaohongshu)* expect the host's own fix when no browser is installed
+- *(skill)* describe the Xiaohongshu route on the browser transport
+- *(agents)* replace the OpenCLI guide with a browser-route guide
+- *(adr)* record the own browser transport and fingerprint browser
+- *(browser)* ignore real-browser tests instead of passing them empty
+- *(browser)* rename the window choice to WindowMode
+- *(browser)* share the duplicated helpers of the transport
+- *(browser)* drop input and preflight paths nothing uses
+- *(browser)* tolerate a stand-in hdiutil killed before it logs
+- *(spec)* register the browser route config projections
+- *(browser)* move login orchestration into ops
+- *(browser)* build the base64 body fixture without an Option wrap
+- *(xiaohongshu)* keep native input failures typed to the route boundary
+- *(xiaohongshu)* judge page observations in pure functions
+
 ## [0.19.0](https://github.com/jfmoe/forager/compare/v0.18.0...v0.19.0) - 2026-11-17
 
 ### Other
