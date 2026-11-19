@@ -185,6 +185,7 @@ fn serve(mut stream: TcpStream) {
         "/hover-gone" => ("text/html", hover_page("gone")),
         "/hover-moved" => ("text/html", hover_page("moved")),
         "/scroll" => ("text/html", SCROLL_PAGE.to_owned()),
+        "/scrolled-away" => ("text/html", SCROLLED_AWAY_PAGE.to_owned()),
         "/more" => ("application/json", r#"{"count":20}"#.to_owned()),
         "/api" => ("text/html", API_PAGE.to_owned()),
         "/api/data" => ("application/json", r#"{"items":[1,2,3]}"#.to_owned()),
@@ -262,6 +263,14 @@ list.addEventListener('scroll', () => {
   fetch('/more?page=' + page).then((response) => response.json()).then((more) => { add(more.count); loading = false; });
 });
 </script>"#;
+
+// A button near the top of a tall scrolling container, which a test scrolls far past before
+// clicking it, as a comment panel does after loading its later pages.
+const SCROLLED_AWAY_PAGE: &str = r#"<!doctype html><title>scrolled away</title>
+<div id="list" style="height:400px;width:400px;overflow-y:auto">
+<div style="height:200px"></div><button id="target" style="width:200px;height:30px">Go</button><div style="height:6000px"></div>
+</div>
+<script>document.getElementById('target').addEventListener('click', () => { window.clicked = true; });</script>"#;
 
 const API_PAGE: &str = r"<!doctype html><title>api</title>
 <script>
@@ -472,6 +481,26 @@ fn wheel_turns_in_a_scrolling_container_make_the_page_load_more() {
         more.map(|exchange| exchange.body),
         Some(ResponseBody::Received(r#"{"count":20}"#.into()))
     );
+}
+
+#[test]
+#[ignore = "launches the Managed Browser; see the module docs"]
+fn a_click_scrolls_a_target_back_into_view_and_hits_it() {
+    let executable = executable();
+    let pages = Pages::start();
+
+    let clicked = Sandbox::new().run(&executable, async |page| {
+        page.navigate(&pages.url("/scrolled-away")).await?;
+        let center: (f64, f64) = page
+            .evaluate("(() => { const r = document.getElementById('list').getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; })()")
+            .await?;
+        done(page.wheel(center, 4000.0).await);
+        done(page.click("[document.getElementById('target')]").await);
+        done(page.confirm("window.clicked === true", Duration::from_secs(2)).await);
+        Ok(true)
+    });
+
+    assert!(clicked);
 }
 
 #[test]
