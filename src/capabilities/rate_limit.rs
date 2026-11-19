@@ -85,7 +85,7 @@ impl RateLimiter {
 
     /// A limiter whose cross-process state lives in `state_file`, for tests that must not share
     /// the user's state directory.
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     pub(crate) fn in_state_file(
         route: &'static str,
         policy: AccessPolicy,
