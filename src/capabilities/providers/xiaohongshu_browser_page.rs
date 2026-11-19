@@ -7,7 +7,7 @@ use std::time::{Duration, Instant};
 use reqwest::Url;
 use serde::Deserialize;
 
-use super::{ACCOUNT_PATH, PageFacts, RISK_CONTROL_STATUS, on_site};
+use super::{ACCOUNT_PATH, ApiError, LOGIN_CODES, PageFacts, RISK_CONTROL_STATUSES, on_site};
 use crate::net::AttemptFailure;
 use crate::providers::browser::{
     CaptureLevel, Exchange, InputError, InputFailure, Page, RequestMethod, ResponseBody,
@@ -167,6 +167,45 @@ pub(super) fn input_failure(
     }
 }
 
+/// Records what captured exchanges show: a risk control status on any request, a logged-out
+/// session in the account answer or a login code in any answer, and the first other failure
+/// `code` in an awaited API answer. Capture keeps the body only of the account request and the
+/// awaited ones. A `code` of 0 is no failure even with `success: false`, which `search/onebox`
+/// answers on a working search.
+fn absorb(facts: &mut PageFacts, exchanges: &[Exchange]) {
+    for exchange in exchanges {
+        if let Some(status) = exchange
+            .status
+            .filter(|status| RISK_CONTROL_STATUSES.contains(status))
+        {
+            facts.blocked_status.get_or_insert(status);
+        }
+        let ResponseBody::Received(body) = &exchange.body else {
+            continue;
+        };
+        let Ok(answer) = serde_json::from_str::<serde_json::Value>(body) else {
+            continue;
+        };
+        let account = exchange.url.path() == ACCOUNT_PATH;
+        let code = answer["code"].as_i64();
+        if code.is_some_and(|code| LOGIN_CODES.contains(&code))
+            || (account && answer["data"]["guest"] == true)
+        {
+            facts.guest = true;
+        } else if let Some(code) = code.filter(|code| *code != 0 && !account)
+            && facts.api_error.is_none()
+        {
+            facts.api_error = Some(ApiError {
+                path: exchange.url.path().to_owned(),
+                code,
+                msg: answer["msg"]
+                    .as_str()
+                    .map(|msg| msg.chars().take(120).collect()),
+            });
+        }
+    }
+}
+
 /// What one read observed.
 pub(super) struct Observed {
     pub(super) page: PageFacts,
@@ -229,7 +268,7 @@ impl<'p> Reading<'p> {
     /// Returns a transport failure, or a page script failure that lasted several reads.
     pub(super) async fn poll(&mut self) -> Result<bool, AttemptFailure> {
         let exchanges = self.page.take_exchanges()?;
-        self.absorb(&exchanges);
+        absorb(&mut self.facts, &exchanges);
         self.exchanges.extend(exchanges);
         match self
             .page
@@ -260,30 +299,15 @@ impl<'p> Reading<'p> {
         Ok(self.ended())
     }
 
-    /// Records what captured exchanges show: risk control and a guest session.
-    fn absorb(&mut self, exchanges: &[Exchange]) {
-        for exchange in exchanges {
-            if exchange.status == Some(RISK_CONTROL_STATUS) {
-                self.facts.blocked_status = Some(RISK_CONTROL_STATUS);
-            }
-            if exchange.url.path() == ACCOUNT_PATH
-                && let ResponseBody::Received(body) = &exchange.body
-                && serde_json::from_str::<serde_json::Value>(body)
-                    .is_ok_and(|account| account["data"]["guest"] == true)
-            {
-                self.facts.guest = true;
-            }
-        }
-    }
-
-    /// Whether the page facts end the read: a logged-out session, a block page, a notice, or
-    /// risk control.
+    /// Whether the page facts end the read: a logged-out session, a block page, a notice, risk
+    /// control, or a failed API answer.
     pub(super) fn ended(&self) -> bool {
         let facts = &self.facts;
         facts.guest
             || facts.error_code.is_some()
             || facts.notice.is_some()
             || facts.blocked_status.is_some()
+            || facts.api_error.is_some()
     }
 
     pub(super) fn completions(&self, tracked: Tracked) -> usize {
@@ -435,7 +459,7 @@ impl<'p> Reading<'p> {
     /// Returns a transport failure.
     pub(super) fn finish(mut self) -> Result<Observed, AttemptFailure> {
         let exchanges = self.page.take_exchanges()?;
-        self.absorb(&exchanges);
+        absorb(&mut self.facts, &exchanges);
         self.exchanges.extend(exchanges);
         Ok(Observed {
             page: self.facts,
@@ -443,5 +467,110 @@ impl<'p> Reading<'p> {
             timed_out: self.timed_out,
             body_missing: self.body_missing,
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use reqwest::Url;
+    use serde_json::{Value, json};
+
+    use super::{ACCOUNT_PATH, PageFacts, absorb};
+    use crate::providers::browser::{Exchange, RequestMethod, ResponseBody};
+
+    const SEARCH_PATH: &str = "/api/sns/web/v1/search/notes";
+
+    fn exchange(path: &str, status: u16, body: Option<&Value>) -> Exchange {
+        Exchange {
+            method: RequestMethod::Get,
+            url: Url::parse(&format!(
+                "https://edith.xiaohongshu.com{path}?xsec_token=ABsecret="
+            ))
+            .expect("site URL"),
+            status: Some(status),
+            request_body: None,
+            body: body.map_or(ResponseBody::Missing, |body| {
+                ResponseBody::Received(body.to_string())
+            }),
+        }
+    }
+
+    fn absorbed(exchanges: &[Exchange]) -> PageFacts {
+        let mut facts = PageFacts::default();
+        absorb(&mut facts, exchanges);
+        facts
+    }
+
+    #[test]
+    fn an_account_answer_with_a_login_code_or_a_guest_is_a_logged_out_session() {
+        // -101 is what `user/me` answered before the QR code login on 2026-11-18.
+        let answers = [
+            json!({"code": -101, "success": false, "msg": "无登录信息，或登录信息为空", "data": {}}),
+            json!({"code": -100, "success": false, "data": {}}),
+            json!({"code": 0, "success": true, "data": {"guest": true, "user_id": "6a1b"}}),
+        ];
+
+        let guests =
+            answers.map(|answer| absorbed(&[exchange(ACCOUNT_PATH, 200, Some(&answer))]).guest);
+
+        assert_eq!(guests, [true, true, true]);
+    }
+
+    #[test]
+    fn a_logged_in_account_answer_is_no_page_fact() {
+        let answer =
+            json!({"code": 0, "success": true, "data": {"guest": false, "user_id": "5f0a"}});
+
+        let facts = absorbed(&[exchange(ACCOUNT_PATH, 200, Some(&answer))]);
+
+        assert_eq!(
+            (facts.guest, facts.blocked_status, facts.api_error.is_none()),
+            (false, None, true)
+        );
+    }
+
+    #[test]
+    fn an_api_answer_with_a_login_code_is_a_logged_out_session() {
+        let answer = json!({"code": -101, "success": false, "msg": "无登录信息，或登录信息为空"});
+
+        let facts = absorbed(&[exchange(SEARCH_PATH, 200, Some(&answer))]);
+
+        assert_eq!((facts.guest, facts.api_error.is_none()), (true, true));
+    }
+
+    #[test]
+    fn the_first_failure_code_of_an_api_answer_is_kept_with_its_path_and_message() {
+        let first = json!({"code": 300_031, "success": false, "msg": "当前笔记暂时无法浏览"});
+        let second = json!({"code": 999_999, "success": false, "msg": "未知错误"});
+
+        let facts = absorbed(&[
+            exchange(SEARCH_PATH, 200, Some(&first)),
+            exchange(SEARCH_PATH, 200, Some(&second)),
+        ]);
+
+        let api = facts.api_error.expect("a failed API answer");
+        assert_eq!(
+            (api.path.as_str(), api.code, api.msg.as_deref()),
+            (SEARCH_PATH, 300_031, Some("当前笔记暂时无法浏览"))
+        );
+    }
+
+    #[test]
+    fn a_zero_code_is_no_failure_even_without_success() {
+        // `search/onebox` answered this on both working searches of 2026-11-18.
+        let answer = json!({"code": 0, "success": false, "msg": "成功", "data": {}});
+
+        let facts = absorbed(&[exchange(SEARCH_PATH, 200, Some(&answer))]);
+
+        assert!(facts.api_error.is_none(), "{:?}", facts.api_error);
+    }
+
+    #[test]
+    fn a_verification_status_on_any_site_request_is_risk_control() {
+        let statuses = [461, 471, 403].map(|status| {
+            absorbed(&[exchange("/api/sns/web/v1/feed", status, None)]).blocked_status
+        });
+
+        assert_eq!(statuses, [Some(461), Some(471), None]);
     }
 }

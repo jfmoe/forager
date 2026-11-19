@@ -338,7 +338,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 - 通用 flag 为 `--timeout`（默认 120 秒，计入等待限速窗口的时间）、`--output`/`--receipt`、`--verbose`。没有 `--cursor`。
 - **不续页**：小红书每次访问的排序都不同，跨命令续页既不能复现也无法去重，所以 `next_cursor` 恒为 `null`。上游最后一页仍有结果，或去重后的条目在截到 `--limit` 时有余项，stderr 输出一条诊断，说明还有更多结果、需要更多时加大 `--limit`。
 - **输出**：外层形状与 arXiv search 相同。每个 item 含 `ref`（`xiaohongshu:<note_id>`）、canonical `url`（`https://www.xiaohongshu.com/explore/<note_id>`）、`depth`（恒为 `metadata`，卡片没有正文片段）、`title`（可以为空字符串）、`authors`（作者昵称）、`published`（日期，相对时间按本机时钟换算，规则见第 7 章；无法识别的形式为 `null`），以及小红书字段 `note_type`（`image` / `video`）、`author_id`、`likes`、`collects`、`comments`、`shares`（计数原文，可能是 `1.2万` 这类缩写）、`published_text`（卡片上的时间原文）与 `access_url`（带 Access Token 的访问链接，打开该笔记的推荐入口）。ID 不合法或缺少 Access Token 的笔记被跳过并写入 stderr 诊断。
-- **退出码**：查询词为空、`--limit` 越界＝飞行前退 2；`platforms.xiaohongshu.order` 为空（默认）＝飞行前退 3，消息给出启用步骤，不启动浏览器；order 启用该 route 而浏览器未安装或 Browser Profile 从未登录＝飞行前退 3，消息给出修复命令；会话未登录或站点返回 461 为 Auth，站点安全限制（300031、300017）为 attempt 级 Parameter，截止点前仍停在结果页为 Timeout，都退 4；条件、页序或关键词与请求不符、响应体缺失、停在非预期页面、上游有笔记但全部被跳过为 Runtime，退 4；合法零结果为 `items: []` 且退 0。
+- **退出码**：查询词为空、`--limit` 越界＝飞行前退 2；`platforms.xiaohongshu.order` 为空（默认）＝飞行前退 3，消息给出启用步骤，不启动浏览器；order 启用该 route 而浏览器未安装或 Browser Profile 从未登录＝飞行前退 3，消息给出修复命令；会话未登录、站点返回 461 或 471、页面提示请求太频繁或访问频次异常为 Auth，站点安全限制（300031、300017，页面跳转或接口返回）为 attempt 级 Parameter，截止点前仍停在结果页为 Timeout，都退 4；条件、页序或关键词与请求不符、响应体缺失、接口返回其他非 0 `code`、停在非预期页面、上游有笔记但全部被跳过为 Runtime，退 4；合法零结果为 `items: []` 且退 0。
 
 ### `platform xiaohongshu fetch`
 
@@ -353,7 +353,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 - 通用 flag 同 search。全文不需要配置任何 Web Fetch provider（ADR 0022）。
 - **输出**：JSON 顶层为 `platform`、`provider`、`ref`、`url`（canonical URL，不含 token）、`depth`、`title`（可为空串）、`authors`、`published`（北京时间 ISO 8601 时间戳），以及小红书字段 `updated`、`note_type`、`author_id`、`likes`、`collects`、`comments`、`shares`、`tags`、`images`（`[{url, width, height}]`）、`video`（`{duration_seconds, width, height}` 或 `null`，不含视频地址）、`ip_location` 与 `access_url`（由 ref 与 token 重新构造，含 token）。`full_text` 时另有 `content_url`（canonical URL）、`content_provider`（`xiaohongshu_browser`）、`content_path`（`xiaohongshu-<id>.md`）与 `content_len`。正文格式见第 7 章。不写 Search Result Journal。
-- **退出码**：输入无法识别、短链、`rednote.com`、token 格式不对或缺少 token＝飞行前退 2，不启动浏览器；`platforms.xiaohongshu.order` 为空（默认）或飞行前检查失败＝飞行前退 3；会话未登录或 461 为 Auth，300031/300017 或安全限制为 attempt 级 Parameter（消息列出 token 过期、笔记受限或删除、账号被限频三种可能），截止点前仍停在该笔记页为 Timeout，`noteId` 不符、停在非预期页面或外壳形状不对为 Runtime，正文文件写入失败为 Runtime，都退 4；标题、正文与图片全为空为 Quality，退 5。token 永不出现在 attempt 消息、`--verbose` attempts 与失败时的 stderr 中。
+- **退出码**：输入无法识别、短链、`rednote.com`、token 格式不对或缺少 token＝飞行前退 2，不启动浏览器；`platforms.xiaohongshu.order` 为空（默认）或飞行前检查失败＝飞行前退 3；会话未登录、461 或 471、请求太频繁或访问频次异常提示为 Auth，300031/300017 或安全限制为 attempt 级 Parameter（消息列出 token 过期、笔记受限或删除、账号被限频三种可能），截止点前仍停在该笔记页为 Timeout，`noteId` 不符、停在非预期页面或外壳形状不对为 Runtime，正文文件写入失败为 Runtime，都退 4；标题、正文与图片全为空为 Quality，退 5。token 永不出现在 attempt 消息、`--verbose` attempts 与失败时的 stderr 中。
 
 ### `platform xiaohongshu comments`
 
@@ -368,7 +368,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 - 通用 flag 同 search。没有 `--cursor`：页面只能从第一页起按顺序加载评论，命令之间无法续读。
 - **输出**：JSON 为 `{platform, provider, note, comments, has_more}`。`note` 为笔记 ref；`has_more` 表示还有未交付的一级评论（上游最后一页仍有更多，或读到的评论截到 `--limit` 时有余项）。每条评论为 `{id, author, author_id, text, likes, published, ip_location, reply_count, replies, replies_has_more}`，回复为 `{id, author, author_id, text, likes, published, ip_location, reply_to}`：`text` 为原文，`likes` 与 `reply_count` 为计数原文，`published` 为北京时间 ISO 8601 时间戳，`reply_to` 为该回复所回复的评论或回复的 ID。`replies` 先放评论自带的一条回复，展开时再追加第一页回复，按 ID 去重；`replies_has_more` 表示该评论还有未交付的回复。输出不含 token。不写 Search Result Journal。
-- **退出码**：输入无法识别或缺少 token、`--limit` 或 `--replies` 越界＝飞行前退 2，不启动浏览器；`platforms.xiaohongshu.order` 为空（默认）或飞行前检查失败＝飞行前退 3；会话未登录或 461 为 Auth，300031/300017 或安全限制为 attempt 级 Parameter，截止点前仍停在该笔记页为 Timeout，都退 4；评论页的笔记或 cursor 链不符、楼中楼不属于选中的评论或起始 cursor 不符、读取模块无法点击展开（消息附原因）、响应体缺失、停在非预期页面、第一页没有评论却声称还有更多为 Runtime，退 4；笔记没有评论为 `comments: []` 且退 0。token 卫生同 fetch。
+- **退出码**：输入无法识别或缺少 token、`--limit` 或 `--replies` 越界＝飞行前退 2，不启动浏览器；`platforms.xiaohongshu.order` 为空（默认）或飞行前检查失败＝飞行前退 3；会话未登录、461 或 471、请求太频繁或访问频次异常提示为 Auth，300031/300017（页面跳转或评论接口返回）或安全限制为 attempt 级 Parameter，截止点前仍停在该笔记页为 Timeout，都退 4；评论接口返回其他非 0 `code`、评论页的笔记或 cursor 链不符、楼中楼不属于选中的评论或起始 cursor 不符、读取模块无法点击展开（消息附原因）、响应体缺失、停在非预期页面、第一页没有评论却声称还有更多为 Runtime，退 4；笔记没有评论为 `comments: []` 且退 0。token 卫生同 fetch。
 
 ### `platform x search`
 

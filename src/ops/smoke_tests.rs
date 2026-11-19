@@ -179,6 +179,25 @@ fn the_later_xiaohongshu_cases_read_the_notes_the_search_case_left() {
 }
 
 #[test]
+fn a_rate_limit_notice_or_http_471_refuses_the_case() {
+    // The failure payloads `platform xiaohongshu search` prints for these two signals.
+    let failures = [
+        json!({
+            "error_kind": "auth",
+            "message": "Xiaohongshu says the account requests too often (请求太频繁); stop, run `forager browser login xiaohongshu` and complete any check the site shows in its window, then retry later",
+        }),
+        json!({
+            "error_kind": "auth",
+            "message": "Xiaohongshu answered HTTP 471 and wants a verification; run `forager browser login xiaohongshu` and complete any check the site shows, then retry",
+        }),
+    ];
+
+    let refusals = failures.map(|payload| is_refusal(Some(4), payload.to_string().as_bytes()));
+
+    assert_eq!(refusals, [true, true]);
+}
+
+#[test]
 fn a_refused_xiaohongshu_case_stops_every_later_one() {
     let stopped = XiaohongshuRun {
         access_url: Some("https://www.xiaohongshu.com/explore/a?xsec_token=A".into()),

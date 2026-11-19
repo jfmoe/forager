@@ -347,6 +347,42 @@ fn a_first_page_without_notes_is_an_empty_result_only_when_nothing_more_remains(
 }
 
 #[test]
+fn a_blocked_search_is_never_an_empty_result() {
+    let blocks = [
+        ("notice", json!("请求太频繁")),
+        ("blocked_status", json!(471)),
+        ("guest", json!(true)),
+        (
+            "api_error",
+            json!({"path": "/api/sns/web/v1/search/notes", "code": 300_017, "msg": null}),
+        ),
+        (
+            "api_error",
+            json!({"path": "/api/sns/web/v1/search/notes", "code": 999_999, "msg": "未知错误"}),
+        ),
+    ];
+
+    let kinds = blocks.map(|(fact, value)| {
+        let mut data = search_data(0, &[default_page(false, &[])]);
+        data["page"][fact] = value;
+        default_search(&data, 20)
+            .map(|decoded| refs(&decoded))
+            .map_err(|(kind, _)| kind)
+    });
+
+    assert_eq!(
+        kinds,
+        [
+            Err(AttemptErrorKind::Auth),
+            Err(AttemptErrorKind::Auth),
+            Err(AttemptErrorKind::Auth),
+            Err(AttemptErrorKind::Parameter),
+            Err(AttemptErrorKind::Runtime),
+        ]
+    );
+}
+
+#[test]
 fn responses_that_do_not_answer_the_request_fail_as_runtime() {
     let week = filters("time_descending", "不限", "一周内");
     let day = filters("time_descending", "不限", "一天内");

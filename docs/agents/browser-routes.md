@@ -45,9 +45,10 @@ cargo nextest run --lib --locked --run-ignored only
 
 出现以下任一情况，立即停止该站点的全部 live 命令与循环：
 
-- `auth`：未登录，或 HTTP 461 要求验证；
-- `parameter`：300031、300017、安全限制或访问链接异常；
-- 页面显示验证码、验证页或"请求太频繁"一类提示；
+- `auth`：未登录（含接口返回 `code` −101 或 −100），HTTP 461 或 471 要求验证，或页面提示"请求太频繁""访问频次异常"；
+- `parameter`：300031、300017（页面跳转或接口返回）、安全限制或访问链接异常；
+- 页面显示验证码或验证页（route 认不出这类页面，报 Runtime，消息带页面标题与 URL）；
+- 接口返回 route 无法定性的非 0 `code`（Runtime，消息以 `Xiaohongshu answered` 开头、带码值）；
 - 连续两次 `timeout`。
 
 停下后先把离线能做的部分做完，再向用户报告看到的错误与次数，由用户运行 `forager browser login xiaohongshu`，在窗口中处理登录或验证。拦截不会因为等待很快解除，等待冷却后再跑只会再次触发拦截。
