@@ -423,6 +423,23 @@ fn native_input_reaches_the_page_as_trusted_events_on_the_one_hittable_target() 
 
 #[test]
 #[ignore = "launches the Managed Browser; see the module docs"]
+fn chinese_typed_in_input_method_groups_reaches_the_field_whole() {
+    let executable = executable();
+    let pages = Pages::start();
+
+    let value = Sandbox::new().run(&executable, async |page| {
+        page.navigate(&pages.url("/input")).await?;
+        done(page.click("[document.getElementById('field')]").await);
+        done(page.type_text("咖啡拿铁 latte，推荐2款").await);
+        page.evaluate::<String>("document.getElementById('field').value")
+            .await
+    });
+
+    assert_eq!(value, "咖啡拿铁 latte，推荐2款");
+}
+
+#[test]
+#[ignore = "launches the Managed Browser; see the module docs"]
 fn a_click_whose_effect_never_shows_is_missed() {
     let executable = executable();
     let pages = Pages::start();
