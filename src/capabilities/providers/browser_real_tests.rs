@@ -19,7 +19,7 @@ use std::time::{Duration, Instant};
 use reqwest::Url;
 use serde_json::Value;
 
-use super::input::{InputError, Key};
+use super::input::{InputError, InputFailure, Key, Missed};
 use super::{
     BrowserLogin, BrowserSession, CaptureLevel, Exchange, LoginPage, Page, RequestMethod,
     ResponseBody, WindowMode, run,
@@ -184,6 +184,9 @@ fn serve(mut stream: TcpStream) {
         "/hover-twin" => ("text/html", hover_page("twin")),
         "/hover-gone" => ("text/html", hover_page("gone")),
         "/hover-moved" => ("text/html", hover_page("moved")),
+        "/hover-covered" => ("text/html", hover_page("covered")),
+        "/layout-shift" => ("text/html", LAYOUT_SHIFT_PAGE.to_owned()),
+        "/drifting" => ("text/html", DRIFTING_PAGE.to_owned()),
         "/scroll" => ("text/html", SCROLL_PAGE.to_owned()),
         "/scrolled-away" => ("text/html", SCROLLED_AWAY_PAGE.to_owned()),
         "/more" => ("application/json", r#"{"count":20}"#.to_owned()),
@@ -230,22 +233,61 @@ for (const id of ['hidden', 'covered', 'real']) {
 const AMBIGUOUS_PAGE: &str = r#"<!doctype html><title>ambiguous</title>
 <button class="twin" style="margin:40px">One</button><button class="twin" style="margin:40px">Two</button>"#;
 
-// One button that, once the pointer reaches it, gains a hittable twin, disappears, or moves away.
+// One button that, once the pointer reaches it, gains a hittable twin or disappears; that moves
+// away each time the pointer reaches it; or that a pop-up covers for a moment, as a user card
+// opens over a list. It counts the presses it gets.
 fn hover_page(change: &str) -> String {
     format!(
         r#"<!doctype html><title>hover</title>
 <button class="solo" style="position:absolute;left:100px;top:100px;width:120px;height:40px">Go</button>
 <script>
+window.presses = 0;
+document.addEventListener('mousedown', () => {{ window.presses += 1; }}, true);
 const button = document.querySelector('.solo');
+button.addEventListener('click', () => {{ window.clicked = true; }});
+const change = '{change}';
 button.addEventListener('mouseover', () => {{
-  const change = '{change}';
+  if (change === 'moved') button.style.top = button.style.top === '400px' ? '100px' : '400px';
+}});
+button.addEventListener('mouseover', () => {{
   if (change === 'twin') {{ const twin = button.cloneNode(true); twin.style.top = '300px'; document.body.appendChild(twin); }}
   if (change === 'gone') button.remove();
-  if (change === 'moved') button.style.top = '400px';
+  if (change === 'covered') {{
+    const card = document.createElement('div');
+    card.className = 'user-card';
+    card.style.cssText = 'position:fixed;left:60px;top:60px;width:300px;height:160px;background:#fff';
+    document.body.appendChild(card);
+    setTimeout(() => card.remove(), 700);
+  }}
 }}, {{ once: true }});
 </script>"#
     )
 }
+
+// A button that a late-loading image above it pushes down just after the pointer starts moving
+// toward it. It counts the presses it gets.
+const LAYOUT_SHIFT_PAGE: &str = r"<!doctype html><title>layout shift</title>
+<div id=spacer style=height:0></div><button id=target style=margin-left:100px;width:120px;height:40px>Go</button>
+<script>
+window.presses = 0;
+document.addEventListener('mousedown', () => { window.presses += 1; }, true);
+document.getElementById('target').addEventListener('click', () => { window.clicked = true; });
+document.addEventListener('mousemove', () => {
+  setTimeout(() => { document.getElementById('spacer').style.height = '150px'; }, 0);
+}, { once: true });
+</script>";
+
+// A button that slides back and forth without pause, as a carousel does. It counts the presses
+// it gets.
+const DRIFTING_PAGE: &str = r"<!doctype html><title>drifting</title>
+<button id=target style=position:absolute;left:100px;top:100px;width:120px;height:40px>Go</button>
+<script>
+window.presses = 0;
+document.addEventListener('mousedown', () => { window.presses += 1; }, true);
+const button = document.getElementById('target');
+let step = 0;
+setInterval(() => { step += 1; button.style.left = 100 + (step % 50) * 4 + 'px'; }, 16);
+</script>";
 
 const SCROLL_PAGE: &str = r#"<!doctype html><title>scroll</title>
 <div id="list" style="height:300px;width:400px;overflow-y:auto"><div id="items"></div></div>
@@ -308,7 +350,12 @@ pub(crate) fn local_login(pages: &Pages) -> BrowserLogin {
 fn done<T>(action: Result<T, InputError>) -> T {
     match action {
         Ok(value) => value,
-        Err(InputError::Failed(failure)) => panic!("native input failed: {}", failure.reason()),
+        Err(InputError::Failed(missed)) => {
+            panic!(
+                "native input failed: {}",
+                missed.describe(missed.failure.reason())
+            )
+        }
         Err(InputError::Transport(failure)) => panic!("browser failed: {}", failure.message),
     }
 }
@@ -388,7 +435,7 @@ fn a_click_whose_effect_never_shows_is_missed() {
                 .confirm("window.clicked === 'covered'", Duration::from_secs(1))
                 .await
             {
-                Err(InputError::Failed(failure)) => Some(failure.reason()),
+                Err(InputError::Failed(missed)) => Some(missed.failure.reason()),
                 _ => None,
             },
         )
@@ -422,7 +469,7 @@ fn a_click_refuses_two_hittable_targets() {
         page.navigate(&pages.url("/ambiguous")).await?;
         Ok(
             match page.click("document.querySelectorAll('.twin')").await {
-                Err(InputError::Failed(failure)) => Some(failure.reason()),
+                Err(InputError::Failed(missed)) => Some(missed.failure.reason()),
                 _ => None,
             },
         )
@@ -443,7 +490,7 @@ fn a_target_that_changes_during_the_hover_is_reported_by_what_changed() {
             page.navigate(&pages.url(path)).await?;
             reasons.push(
                 match page.click("document.querySelectorAll('.solo')").await {
-                    Err(InputError::Failed(failure)) => Some(failure.reason()),
+                    Err(InputError::Failed(missed)) => Some(missed.failure.reason()),
                     _ => None,
                 },
             );
@@ -458,6 +505,101 @@ fn a_target_that_changes_during_the_hover_is_reported_by_what_changed() {
             Some("no_target"),
             Some("target_moved")
         ]
+    );
+}
+
+/// Clicks the one target the page expression `targets` names, and returns why the click did
+/// not happen, whether the page saw the click, and how many presses it saw.
+async fn click_outcome(
+    page: &mut Page,
+    targets: &str,
+) -> Result<(Option<Missed>, bool, u32), AttemptFailure> {
+    let missed = match page.click(targets).await {
+        Ok(()) => None,
+        Err(InputError::Failed(missed)) => Some(missed),
+        Err(InputError::Transport(failure)) => return Err(failure),
+    };
+    let (clicked, presses) = page
+        .evaluate::<(bool, u32)>("[window.clicked === true, window.presses]")
+        .await?;
+    Ok((missed, clicked, presses))
+}
+
+#[test]
+#[ignore = "launches the Managed Browser; see the module docs"]
+fn a_click_hits_a_target_that_a_layout_shift_moves_after_it_was_located() {
+    let executable = executable();
+    let pages = Pages::start();
+
+    let outcome = Sandbox::new().run(&executable, async |page| {
+        page.navigate(&pages.url("/layout-shift")).await?;
+        click_outcome(page, "[document.getElementById('target')]").await
+    });
+
+    assert_eq!(outcome, (None, true, 1));
+}
+
+#[test]
+#[ignore = "launches the Managed Browser; see the module docs"]
+fn a_click_waits_out_a_pop_up_that_covers_the_target_during_the_hover() {
+    let executable = executable();
+    let pages = Pages::start();
+
+    let outcome = Sandbox::new().run(&executable, async |page| {
+        page.navigate(&pages.url("/hover-covered")).await?;
+        click_outcome(page, "document.querySelectorAll('.solo')").await
+    });
+
+    assert_eq!(outcome, (None, true, 1));
+}
+
+#[test]
+#[ignore = "launches the Managed Browser; see the module docs"]
+fn a_target_that_keeps_moving_fails_as_moved_with_a_diagnosis_and_no_press() {
+    let executable = executable();
+    let pages = Pages::start();
+
+    let outcome = Sandbox::new().run(&executable, async |page| {
+        page.navigate(&pages.url("/hover-moved")).await?;
+        click_outcome(page, "document.querySelectorAll('.solo')").await
+    });
+
+    assert_eq!(
+        outcome,
+        (
+            Some(Missed {
+                failure: InputFailure::TargetMoved,
+                diagnosis: Some("pointer hit html, target moved by (0, 300) px".into()),
+            }),
+            false,
+            0
+        )
+    );
+}
+
+#[test]
+#[ignore = "launches the Managed Browser; see the module docs"]
+fn a_target_that_never_stands_still_is_not_aimed_at() {
+    let executable = executable();
+    let pages = Pages::start();
+
+    let (missed, _, presses) = Sandbox::new().run(&executable, async |page| {
+        page.navigate(&pages.url("/drifting")).await?;
+        click_outcome(page, "[document.getElementById('target')]").await
+    });
+
+    let missed = missed.expect("the click did not happen");
+    assert_eq!(
+        (
+            missed.failure,
+            missed
+                .diagnosis
+                .as_deref()
+                .is_some_and(|diagnosis| diagnosis.ends_with("within 100 ms of locating it")),
+            presses
+        ),
+        (InputFailure::TargetMoved, true, 0),
+        "{missed:?}"
     );
 }
 

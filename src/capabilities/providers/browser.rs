@@ -48,7 +48,7 @@ mod input;
 pub(crate) mod real_tests;
 
 pub(crate) use capture::{CaptureFilter, CaptureLevel, Exchange, RequestMethod, ResponseBody};
-pub(crate) use input::{InputError, InputFailure, Key};
+pub(crate) use input::{InputError, InputFailure, Key, Missed};
 
 const CLEANUP_RESERVE: Duration = Duration::from_secs(5);
 const READ_RESERVE: Duration = Duration::from_secs(3);
