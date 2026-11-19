@@ -140,9 +140,14 @@ fn a_route_that_cannot_run_fails_the_preflight_without_launching_the_browser() {
         ),
         "{login}"
     );
+    // Only macOS arm64 has a Managed Browser package; elsewhere the fix is `browser.path`.
+    let install_hint = if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        "`forager browser install`"
+    } else {
+        "`browser.path`"
+    };
     assert!(
-        install.contains("xiaohongshu_browser cannot run: ")
-            && install.contains("`forager browser install`"),
+        install.contains("xiaohongshu_browser cannot run: ") && install.contains(install_hint),
         "{install}"
     );
 }
