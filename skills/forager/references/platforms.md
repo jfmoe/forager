@@ -588,9 +588,10 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
   Profile was never logged in. The message names the fix: `forager browser install`,
   `browser.path`, or `forager browser login xiaohongshu`. Run `forager browser install` yourself
   when it is named; ask the user to run the login.
-- A `xiaohongshu_browser` `auth` error: the session in the Browser Profile is logged out, or
-  Xiaohongshu wants a verification (461). Ask the user to run `forager browser login xiaohongshu`
-  and log in or complete the check in that window by hand, then retry once.
+- A `xiaohongshu_browser` `auth` error: the session in the Browser Profile is logged out,
+  Xiaohongshu wants a verification (461 or 471), or it says the account requests too often. Ask
+  the user to run `forager browser login xiaohongshu` and log in or complete the check in that
+  window by hand, then retry once; after a "requests too often" error, wait a while first.
 - A `xiaohongshu_browser` `parameter` error naming `300031`, `300017`, or a security restriction on
   a search: Xiaohongshu is limiting the account. Stop using Xiaohongshu for this task, tell the
   user, and do not retry; it may clear after a long pause.
