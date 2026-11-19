@@ -23,9 +23,9 @@ use crate::redact::redact_urls;
 // Rust cannot hand a child extra file descriptors without `unsafe` code, which this crate
 // forbids. A POSIX shell moves the two piped standard streams to the descriptors that
 // `--remote-debugging-pipe` reads (3) and writes (4), then replaces itself with the browser,
-// which keeps the process ID and group. The browser's own stdout joins its stderr, where some
-// reasons for exiting early are printed.
-const PIPE_SHELL: &str = r#"exec "$0" "$@" 3<&0 4>&1 </dev/null >&2"#;
+// which keeps the process ID and group. Its stdout goes to /dev/null: when it joined the stderr
+// pipe, a real-browser run left browsers spinning after their driver died.
+const PIPE_SHELL: &str = r#"exec "$0" "$@" 3<&0 4>&1 </dev/null >/dev/null"#;
 
 /// Owns a launched browser's process group until its leader is reaped. Dropping it earlier
 /// kills the whole group, and keeps the access permit and the profile lock until the leader is
@@ -91,8 +91,7 @@ impl ProcessGroup {
     }
 
     /// The failure of a handshake that `error` ended: the browser exited, answered garbage, or
-    /// never answered. It carries how the browser exited and the last line it wrote to stdout
-    /// or stderr.
+    /// never answered. It carries how the browser exited and the last line it wrote to stderr.
     pub(super) async fn handshake_failure(&mut self, error: &CdpError) -> AttemptFailure {
         let exited = self.wait_exit(Duration::from_millis(200)).await;
         if let Some(task) = self.stderr_task.take()
@@ -306,7 +305,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn a_browser_that_exits_before_the_handshake_reports_its_exit_status_and_last_output() {
+    fn a_browser_that_exits_before_the_handshake_reports_its_exit_status_and_last_stderr_line() {
         use std::os::unix::fs::PermissionsExt;
         use std::time::Duration;
 
@@ -319,7 +318,7 @@ mod tests {
         let browser = sandbox.path().join("browser");
         std::fs::write(
             &browser,
-            "#!/bin/sh\necho 'Opening in existing browser session.'\nexit 3\n",
+            "#!/bin/sh\necho 'Opening in existing browser session.' >&2\nexit 3\n",
         )
         .expect("write stand-in");
         std::fs::set_permissions(&browser, std::fs::Permissions::from_mode(0o755))

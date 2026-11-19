@@ -68,7 +68,7 @@ cargo nextest run --lib --locked --run-ignored only
 - **登录窗口开着时检索会等待**：`browser login` 与检索命令共用 route 的限速 permit，并持有到浏览器退出。登录窗口还开着时，检索命令等待 permit，到截止时间仍等不到即为 Timeout。拿到 permit 后 Browser Profile 仍被另一个进程占用时，命令立即以 Runtime 失败（`the Browser Profile … is in use by another forager process`）。
 - **固定版本变了**：升级 forager 后若固定的浏览器版本不同，命令提示已安装的旧版本并要求运行 `forager browser install`。运行时只认固定版本。
 - **登录标记不等于会话有效**：会话过期时，命令以 Auth 失败并提示 `forager browser login xiaohongshu`，飞行前检查照样通过。
-- **握手失败**：浏览器在 CDP 握手前退出或 20 秒内没有答复时为 Runtime，消息带浏览器输出（stdout 与 stderr）的最后一行，退出时还带退出状态，先看这两项。
+- **握手失败**：浏览器在 CDP 握手前退出或 20 秒内没有答复时为 Runtime，消息带浏览器 stderr 的最后一行，退出时还带退出状态，先看这两项。
 - **搜索结果页布局**：2026-11-18 只见到 `/search_result_ai` 新布局；旧布局 `/search_result` 的选择器保留但没有实测。
 - **不能用 `success` 判断接口失败**：`search/onebox` 会返回 `code: 0` 而 `success: false`；账户接口 `user/me` 对访客返回 `code: 0` 而 `guest: true`。见 [实测记录](../research/2026-11-18-xiaohongshu-headless-fingerprint-browser.md)。
 - **诱饵副本**：站点在按钮下叠放同类名、同文本的不可见副本，筛选面板的每个选项也渲染两份。点击都经原生输入的唯一可命中目标规则，不按类名或文本直接取第一个元素。
