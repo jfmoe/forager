@@ -26,9 +26,14 @@ const ROUTE: ProviderId = ProviderId::XiaohongshuBrowser;
 // The login wall's own notice, such as `登录后查看搜索结果`; a bare `登录` would also match a
 // block notice that mentions logging in.
 const LOGIN_NOTICES: [&str; 1] = ["登录后查看"];
+const RATE_LIMIT_NOTICES: [&str; 2] = ["请求太频繁", "访问频次异常"];
 const BLOCK_NOTICES: [&str; 2] = ["安全限制", "访问链接异常"];
-const BLOCK_CODES: [&str; 2] = ["300031", "300017"];
-const RISK_CONTROL_STATUS: u16 = 461;
+/// The `code` of an API answer to a logged-out session.
+const LOGIN_CODES: [i64; 2] = [-101, -100];
+/// The `error_code` of a block page, and the same codes in an API answer.
+const BLOCK_CODES: [i64; 2] = [300_031, 300_017];
+/// The HTTP statuses of a Xiaohongshu request that wants a verification.
+const RISK_CONTROL_STATUSES: [u16; 2] = [461, 471];
 const SITE_HOST: &str = "www.xiaohongshu.com";
 /// The site's home page: where a search starts, and where a logged-out visitor can log in.
 const HOME_URL: &str = "https://www.xiaohongshu.com/explore";
@@ -111,16 +116,29 @@ struct PageFacts {
     error_code: Option<String>,
     /// A notice the site showed, such as `安全限制`.
     notice: Option<String>,
-    /// The status of a Xiaohongshu API call that answered 461.
+    /// The status of a Xiaohongshu request that answered one of [`RISK_CONTROL_STATUSES`].
     blocked_status: Option<u16>,
+    /// The first answer of an awaited API request whose `code` is neither 0 nor a login code.
+    api_error: Option<ApiError>,
     /// The network error code, such as `ERR_CONNECTION_CLOSED`, while the browser shows its own
     /// error page instead of the Xiaohongshu page.
     load_error: Option<String>,
 }
 
-/// Fails on the facts that end any Xiaohongshu page read: a logged-out session and risk control
-/// are Auth; the site's own block pages are Parameter, with the message `blocked` builds from
-/// the error code and the notice.
+/// An awaited API request that Xiaohongshu answered with a failure `code`.
+#[derive(Debug)]
+#[cfg_attr(test, derive(Deserialize))]
+struct ApiError {
+    /// The request path, without the query that can carry the access token.
+    path: String,
+    code: i64,
+    msg: Option<String>,
+}
+
+/// Fails on the facts that end any Xiaohongshu page read: a logged-out session, risk control,
+/// and a rate-limit notice are Auth; the site's own block pages and block codes are Parameter,
+/// with the message `blocked` builds from the code and the notice; any other failure code of
+/// an API answer is Runtime.
 fn classify_blocks(
     facts: &PageFacts,
     blocked: impl FnOnce(&str, &str) -> String,
@@ -133,22 +151,33 @@ fn classify_blocks(
             message: "Xiaohongshu treats the browser session as logged out; run `forager browser login xiaohongshu`, then retry".into(),
         });
     }
-    if facts.blocked_status == Some(RISK_CONTROL_STATUS) {
+    if let Some(status) = facts.blocked_status {
         return Err(AttemptFailure {
             kind: AttemptErrorKind::Auth,
-            status: Some(RISK_CONTROL_STATUS),
-            message: "Xiaohongshu answered HTTP 461 and wants a verification; run `forager browser login xiaohongshu` and complete any check the site shows, then retry".into(),
+            status: Some(status),
+            message: format!(
+                "Xiaohongshu answered HTTP {status} and wants a verification; run `forager browser login xiaohongshu` and complete any check the site shows, then retry"
+            ),
         });
     }
-    let code = facts.error_code.as_deref().map(str::trim);
-    if code.is_some_and(|code| BLOCK_CODES.contains(&code))
+    if RATE_LIMIT_NOTICES.iter().any(|rate| notice.contains(rate)) {
+        return Err(AttemptFailure {
+            kind: AttemptErrorKind::Auth,
+            status: None,
+            message: format!(
+                "Xiaohongshu says the account requests too often ({notice}); stop, run `forager browser login xiaohongshu` and complete any check the site shows in its window, then retry later"
+            ),
+        });
+    }
+    let page_code = facts.error_code.as_deref().map(str::trim);
+    if page_code.is_some_and(|code| code.parse().is_ok_and(|code| BLOCK_CODES.contains(&code)))
         || BLOCK_NOTICES.iter().any(|block| notice.contains(block))
     {
         return Err(AttemptFailure {
             kind: AttemptErrorKind::Parameter,
             status: None,
             message: blocked(
-                code.unwrap_or("no code"),
+                page_code.unwrap_or("no code"),
                 if notice.is_empty() {
                     "no notice"
                 } else {
@@ -157,7 +186,22 @@ fn classify_blocks(
             ),
         });
     }
-    Ok(())
+    let Some(api) = &facts.api_error else {
+        return Ok(());
+    };
+    let msg = api.msg.as_deref().map(str::trim).unwrap_or_default();
+    let msg = if msg.is_empty() { "no message" } else { msg };
+    if BLOCK_CODES.contains(&api.code) {
+        return Err(AttemptFailure {
+            kind: AttemptErrorKind::Parameter,
+            status: None,
+            message: blocked(&api.code.to_string(), msg),
+        });
+    }
+    Err(runtime(format!(
+        "Xiaohongshu answered `{}` with code {} ({msg})",
+        api.path, api.code
+    )))
 }
 
 /// Fails a read that ended before it had what it needed: the browser never loaded the page by the
@@ -241,4 +285,126 @@ fn beijing_time(milliseconds: i64) -> Option<String> {
         time.with_timezone(&beijing)
             .to_rfc3339_opts(SecondsFormat::Secs, false)
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ApiError, PageFacts, classify_blocks};
+    use crate::types::AttemptErrorKind;
+
+    fn classify(facts: &PageFacts) -> Result<(), (AttemptErrorKind, Option<u16>, String)> {
+        classify_blocks(facts, |code, notice| format!("blocked ({code}: {notice})"))
+            .map_err(|failure| (failure.kind, failure.status, failure.message))
+    }
+
+    fn api_error(code: i64, msg: Option<&str>) -> PageFacts {
+        PageFacts {
+            api_error: Some(ApiError {
+                path: "/api/sns/web/v1/search/notes".into(),
+                code,
+                msg: msg.map(str::to_owned),
+            }),
+            ..PageFacts::default()
+        }
+    }
+
+    #[test]
+    fn a_rate_limit_notice_asks_for_a_browser_login_like_risk_control() {
+        let classified = ["请求太频繁", "访问频次异常"].map(|notice| {
+            classify(&PageFacts {
+                notice: Some(notice.into()),
+                ..PageFacts::default()
+            })
+        });
+
+        assert_eq!(
+            classified,
+            [
+                Err((
+                    AttemptErrorKind::Auth,
+                    None,
+                    "Xiaohongshu says the account requests too often (请求太频繁); stop, run `forager browser login xiaohongshu` and complete any check the site shows in its window, then retry later".into()
+                )),
+                Err((
+                    AttemptErrorKind::Auth,
+                    None,
+                    "Xiaohongshu says the account requests too often (访问频次异常); stop, run `forager browser login xiaohongshu` and complete any check the site shows in its window, then retry later".into()
+                )),
+            ]
+        );
+    }
+
+    #[test]
+    fn http_471_is_risk_control_like_461() {
+        let classified = classify(&PageFacts {
+            blocked_status: Some(471),
+            ..PageFacts::default()
+        });
+
+        assert_eq!(
+            classified,
+            Err((
+                AttemptErrorKind::Auth,
+                Some(471),
+                "Xiaohongshu answered HTTP 471 and wants a verification; run `forager browser login xiaohongshu` and complete any check the site shows, then retry".into()
+            ))
+        );
+    }
+
+    #[test]
+    fn an_api_block_code_is_a_block_like_the_block_page() {
+        let classified =
+            [300_031, 300_017].map(|code| classify(&api_error(code, Some("当前笔记暂时无法浏览"))));
+
+        assert_eq!(
+            classified,
+            [
+                Err((
+                    AttemptErrorKind::Parameter,
+                    None,
+                    "blocked (300031: 当前笔记暂时无法浏览)".into()
+                )),
+                Err((
+                    AttemptErrorKind::Parameter,
+                    None,
+                    "blocked (300017: 当前笔记暂时无法浏览)".into()
+                )),
+            ]
+        );
+    }
+
+    #[test]
+    fn an_unconfirmed_api_code_is_a_runtime_failure_naming_the_code_and_message() {
+        let classified = [
+            api_error(999_999, Some("未知错误")),
+            api_error(999_999, None),
+        ]
+        .map(|facts| classify(&facts));
+
+        assert_eq!(
+            classified,
+            [
+                Err((
+                    AttemptErrorKind::Runtime,
+                    None,
+                    "Xiaohongshu answered `/api/sns/web/v1/search/notes` with code 999999 (未知错误)".into()
+                )),
+                Err((
+                    AttemptErrorKind::Runtime,
+                    None,
+                    "Xiaohongshu answered `/api/sns/web/v1/search/notes` with code 999999 (no message)".into()
+                )),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_page_error_code_outside_the_block_codes_is_no_block() {
+        let classified = classify(&PageFacts {
+            error_code: Some("300099".into()),
+            ..PageFacts::default()
+        });
+
+        assert_eq!(classified, Ok(()));
+    }
 }

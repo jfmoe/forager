@@ -87,7 +87,7 @@
 AnySearch **extraction 裁决**（消解 #53 砍 `anysearch-extract` 与 #59 L8 原文的矛盾）：extraction 本质为纯 fetch，**彻底删除**——不保留内部操作、不入矩阵、不入 registry。
 
 - 断言统一：退 0 + 可解析 + 该 seam 形状非空 + 无 Parse/Runtime 类 ErrorKind；不断言内容质量。失败模式排列全留 offline-e2e。
-- 抗瞬时故障（H13）：金丝雀查询固定；每用例最多重试 2 次（共 3 次尝试）。以 Auth 或 attempt 级 Parameter 失败的用例不再重试，因为重试得到的仍是同一个答复。所有用例共用 `--timeout`（默认 420 秒）这一个 hard deadline：截止时正在执行的用例记为失败；截止前一次尝试已失败的用例保留那次失败的消息；尚未开始的用例记为 `skipped`（`attempts: 0`，消息以 `not started:` 开头），不计 PASS。**例外**：小红书用例（C27–C29）只执行一次、不重试，因为对处于风控状态的账号重复访问会加重风控；失败即记为失败。任一小红书用例以 Auth 或 attempt 级 Parameter（登录墙、461、300031/300017）失败时，该用例本身记为失败，本轮其余小红书用例不启动，记为 `skipped`（`attempts: 0`，消息说明本轮已停止小红书访问），不计 PASS；C27 没有返回 `access_url` 时 C28 与 C29 同样不启动、记为 `skipped`。失败可按 **outage 豁免规则**延期：证据须为 provider 官方状态页异常，或规格外最小独立探测（如 `curl` 同端点）同样失败；留档记录 case ID、时间戳、证据链接。**豁免仅延期、不计 PASS**——必须择日重跑转绿后才能过切换门；不设定时哨兵。
+- 抗瞬时故障（H13）：金丝雀查询固定；每用例最多重试 2 次（共 3 次尝试）。以 Auth 或 attempt 级 Parameter 失败的用例不再重试，因为重试得到的仍是同一个答复。所有用例共用 `--timeout`（默认 420 秒）这一个 hard deadline：截止时正在执行的用例记为失败；截止前一次尝试已失败的用例保留那次失败的消息；尚未开始的用例记为 `skipped`（`attempts: 0`，消息以 `not started:` 开头），不计 PASS。**例外**：小红书用例（C27–C29）只执行一次、不重试，因为对处于风控状态的账号重复访问会加重风控；失败即记为失败。任一小红书用例以 Auth 或 attempt 级 Parameter（登录墙、461 或 471、请求太频繁一类提示、300031/300017）失败时，该用例本身记为失败，本轮其余小红书用例不启动，记为 `skipped`（`attempts: 0`，消息说明本轮已停止小红书访问），不计 PASS；C27 没有返回 `access_url` 时 C28 与 C29 同样不启动、记为 `skipped`。失败可按 **outage 豁免规则**延期：证据须为 provider 官方状态页异常，或规格外最小独立探测（如 `curl` 同端点）同样失败；留档记录 case ID、时间戳、证据链接。**豁免仅延期、不计 PASS**——必须择日重跑转绿后才能过切换门；不设定时哨兵。
 - 凭据只走统一体系（`keys` + `FORAGER_` env）；废除 `ANYSEARCH_API_KEY(S)` 特读与 `ANYSEARCH_LIVE_ACCEPTANCE` 分档。退出码：全 PASS →0（SKIP 不计为 PASS：`unconfigured`、`deferred` 与 `skipped` 都使 `ok` 为 false，退 4）、任一已配置凭据探测失败→4、配置坏→3。
 - 档次落流程不落旗标：每里程碑跑 L0 全绿 + 手动 P1/P2；切换前跑 `smoke --live` 全量（P1–P2 与本章矩阵中的全部 C 用例）；live 档不进 PR CI。
 
@@ -113,7 +113,7 @@ AnySearch **extraction 裁决**（消解 #53 砍 `anysearch-extract` 与 #59 L8 
 
 SSRN Crossref 高级检索的搜索专用实测记录见 [2026-09-28 验收](../../research/2026-09-28-ssrn-crossref-advanced-search.md)。动态结果数量不作为离线测试断言。
 
-小红书 search 的 transport fixture 为 `(xiaohongshu_browser, platform:xiaohongshu:search)`：判定是纯函数，单元测试（`providers/xiaohongshu_browser_search_tests.rs`）以按实测结构构造的观察结果覆盖页面事实分类（两种结果页布局）、条件与页序核对、按点击标记归属搜索响应、去重截断、合法空集与"未列全"诊断、未登录与 461 提示 `forager browser login xiaohongshu`，期望值为字面量；进程级测试（`tests/xiaohongshu_search.rs`）以替身浏览器覆盖飞行前检查、启用说明与无头启动。页面逻辑的搜索框输入、筛选点击、翻页与抓包完成条件不由 fixture 证明，由 C27 证明。
+小红书 search 的 transport fixture 为 `(xiaohongshu_browser, platform:xiaohongshu:search)`：判定是纯函数，单元测试（`providers/xiaohongshu_browser_search_tests.rs`）以按实测结构构造的观察结果覆盖页面事实分类（两种结果页布局）、条件与页序核对、按点击标记归属搜索响应、去重截断、合法空集与"未列全"诊断、未登录、461/471 与频次提示要求 `forager browser login xiaohongshu`，期望值为字面量；进程级测试（`tests/xiaohongshu_search.rs`）以替身浏览器覆盖飞行前检查、启用说明与无头启动。页面逻辑的搜索框输入、筛选点击、翻页与抓包完成条件不由 fixture 证明，由 C27 证明。
 
 小红书 fetch 的 transport fixture 为 `(xiaohongshu_browser, platform:xiaohongshu:fetch)`：单元测试（`providers/xiaohongshu_browser_note_tests.rs`）覆盖元数据解码、Native 全文、`noteId` 不符、300031 消息、超时与非预期页面、浏览器错误页为 Network、空笔记为 Quality、视频不输出 `masterUrl`、成功输出只在 `access_url` 中含 token，以及失败消息中的 token 打码；进程级测试（`tests/xiaohongshu_fetch.rs`）覆盖不带 token 的输入退 2 且不启动浏览器，以及一个可识别的假 token 不出现在浏览器启动参数、`--verbose` attempts、失败输出与非法输入链接的报错中。Native 全文写成文件、`--format content` 不落盘与写文件失败退 4 是平台 fetch 的共用交付规则，由 Hacker News 的进程级测试证明。没有 Web Fetch provider 时 arXiv 与 SSRN 的 `full_text` 仍零调用退 3。smoke 的交接与停止规则在 `ops/smoke` 的单元测试中覆盖：C28 收到 C27 第一条的 `access_url`，Auth 或 attempt 级 Parameter 失败后其余小红书用例不启动、记为 `skipped`；`tests/smoke.rs` 以替身浏览器覆盖 C27 只在 order 启用时运行、只执行一次。页面逻辑读取笔记由 C28 证明。
 

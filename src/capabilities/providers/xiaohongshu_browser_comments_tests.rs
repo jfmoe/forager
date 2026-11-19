@@ -261,6 +261,24 @@ fn a_note_without_comments_lists_none_and_succeeds() {
 }
 
 #[test]
+fn a_comment_page_with_a_block_code_is_an_unavailable_note_not_an_empty_list() {
+    let mut blocked = data(&[page("", &[], "", false)]);
+    blocked["page"]["api_error"] = json!({"path": "/api/sns/web/v2/comment/page", "code": 300_031, "msg": "当前笔记暂时无法浏览"});
+
+    let result = judge(&blocked, 20, 0);
+
+    assert_eq!(
+        result,
+        Err((
+            AttemptErrorKind::Parameter,
+            format!(
+                "Xiaohongshu note unavailable: xiaohongshu:{NOTE_ID} (300031: 当前笔记暂时无法浏览); the access token may be stale, the note restricted or removed, or the account rate-limited"
+            )
+        ))
+    );
+}
+
+#[test]
 fn a_first_page_without_comments_that_says_more_remain_is_a_runtime_failure() {
     let result = judge(&data(&[page("", &[], "c1", true)]), 10, 0);
 
