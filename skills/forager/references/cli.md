@@ -533,11 +533,12 @@ returns `items: []` with exit 0.
 Exit codes: `2` before any request for a blank query or `--limit` outside `1..=100`; `3` before
 starting any browser for an empty `platforms.xiaohongshu.order`, a Managed Browser that is not
 installed (or has no package for this host), or a Browser Profile that was never logged in, each
-message naming the command that fixes it; `4` for `auth` (the profile's session is logged out, or
-Xiaohongshu answered 461 and wants a verification), `parameter` (a security restriction such as
-`300031` or `300017`), `timeout` (the results did not arrive before the deadline), and `runtime`
-(the page or the responses did not match the request, the browser failed to start, or the Browser
-Profile is in use by another forager process).
+message naming the command that fixes it; `4` for `auth` (the profile's session is logged out,
+Xiaohongshu answered 461 or 471 and wants a verification, or it says the account requests too
+often), `parameter` (a security restriction such as `300031` or `300017`), `timeout` (the results
+did not arrive before the deadline), and `runtime` (the page or the responses did not match the
+request, Xiaohongshu answered an API code forager cannot classify, the browser failed to start, or
+the Browser Profile is in use by another forager process).
 
 ### `platform xiaohongshu fetch`
 
