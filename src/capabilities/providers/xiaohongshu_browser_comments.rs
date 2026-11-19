@@ -75,7 +75,7 @@ fn capture(url: &Url) -> CaptureLevel {
 
 /// Drives one comments read: opens the note page with its access token, scrolls its comment
 /// panel for the top-level pages `limit` needs, and expands the replies of the selected
-/// comments. Returns what the page showed and answered.
+/// comments on each page before scrolling on. Returns what the page showed and answered.
 async fn observe_comments(
     page: &mut Page,
     request: &XiaohongshuCommentsRequest,
@@ -104,7 +104,20 @@ async fn drive_comments(
         return Ok(None);
     }
     let needed = usize::from(request.limit.div_ceil(PAGE_SIZE));
+    let mut expanded = 0;
     loop {
+        // Each page's targets are expanded where the page shows them, before the next scroll.
+        let due = expansion_targets(&captured_comments(reading.exchanges()), request);
+        for id in due.into_iter().skip(expanded) {
+            let seen = reading.completions(REPLIES);
+            if let Some(reason) = expand_replies(reading, &id, seen).await? {
+                return Ok(Some(format!("{reason} for comment {id}")));
+            }
+            if !reading.next(REPLIES, seen, false).await? {
+                return Ok(None);
+            }
+            expanded += 1;
+        }
         let responses = captured_comments(reading.exchanges());
         let pages = responses
             .iter()
@@ -115,27 +128,17 @@ async fn drive_comments(
             .and_then(|response| response.body.data.as_ref())
             .is_some_and(|page| page.has_more);
         if pages.len() >= needed || !more {
-            break;
+            return Ok(None);
         }
         if !reading.more(TOP_LEVEL).await? {
             return Ok(None);
         }
     }
-    // Only comments among the first `limit` are delivered, so only they are expanded.
-    let targets = expansion_targets(&captured_comments(reading.exchanges()), request);
-    for id in targets {
-        let seen = reading.completions(REPLIES);
-        if let Some(reason) = expand_replies(reading, &id, seen).await? {
-            return Ok(Some(format!("{reason} for comment {id}")));
-        }
-        if !reading.next(REPLIES, seen, false).await? {
-            return Ok(None);
-        }
-    }
-    Ok(None)
 }
 
-/// The IDs of the first `replies` delivered comments that have more replies than they carry.
+/// The IDs of the first `replies` delivered comments that have more replies than they carry,
+/// among the first `limit` comments of `responses`. Delivery order runs across pages, so the
+/// targets of the pages read so far are always the first of the targets of the whole read.
 fn expansion_targets(
     responses: &[CapturedComments],
     request: &XiaohongshuCommentsRequest,

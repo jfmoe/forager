@@ -5,8 +5,8 @@ use reqwest::Url;
 use serde_json::{Value, json};
 
 use super::{
-    CommentsData, Exchange, RequestMethod, ResponseBody, captured_comments, read_comments,
-    without_token,
+    CommentsData, Exchange, RequestMethod, ResponseBody, captured_comments, expansion_targets,
+    read_comments, without_token,
 };
 use crate::redact::CREDENTIAL_MASK;
 use crate::types::{AccessToken, AttemptErrorKind, XiaohongshuCommentsRequest, XiaohongshuRef};
@@ -195,6 +195,68 @@ fn comments_follow_the_cursor_chain_and_expand_the_first_selected_replies() {
             Some(1),
         )
     );
+}
+
+/// The targets the page logic expands as each page of `pages` arrives, in turn, and the
+/// targets the whole read selects.
+fn targets_page_by_page(
+    pages: &[Value],
+    limit: u16,
+    replies: u16,
+) -> (Vec<Vec<String>>, Vec<String>) {
+    let targets = |pages: &[Value]| {
+        let data = serde_json::from_value::<CommentsData>(data(pages)).expect("observation");
+        expansion_targets(&data.responses, &request(limit, replies))
+    };
+    let mut expanded = 0;
+    let per_page = (1..=pages.len())
+        .map(|read| {
+            let due = targets(&pages[..read]).split_off(expanded);
+            expanded += due.len();
+            due
+        })
+        .collect();
+    (per_page, targets(pages))
+}
+
+#[test]
+fn expanding_each_page_as_it_arrives_selects_the_comments_the_whole_read_selects() {
+    let mut first = (1..=10).map(comment).collect::<Vec<_>>();
+    first[0] = expandable(1, 101);
+    first[4] = expandable(5, 105);
+    let mut second = (11..=20).map(comment).collect::<Vec<_>>();
+    second[1] = expandable(12, 121);
+    second[6] = expandable(17, 171);
+    let pages = [
+        page("", &first, &id(10), true),
+        page(&id(10), &second, &id(20), true),
+    ];
+    let ids = |serials: &[u32]| serials.iter().copied().map(id).collect::<Vec<_>>();
+
+    let cases = [(20, 3), (15, 10), (20, 1)]
+        .map(|(limit, replies)| targets_page_by_page(&pages, limit, replies));
+
+    assert_eq!(
+        cases,
+        [
+            (vec![ids(&[1, 5]), ids(&[12])], ids(&[1, 5, 12])),
+            (vec![ids(&[1, 5]), ids(&[12])], ids(&[1, 5, 12])),
+            (vec![ids(&[1]), ids(&[])], ids(&[1])),
+        ]
+    );
+}
+
+#[test]
+fn reply_pages_between_comment_pages_are_judged_as_after_them() {
+    let [first, second] = two_pages();
+    let replies = sub_page(1, &id(101), &[reply(102, 1)], false);
+    let after = data(&[first.clone(), second.clone(), replies.clone()]);
+    let between = data(&[first, replies, second]);
+
+    let judged = [after, between].map(|observed| judge(&observed, 15, 1));
+
+    assert_eq!(judged[0], judged[1]);
+    assert!(judged[0].is_ok(), "{:?}", judged[0]);
 }
 
 #[test]
