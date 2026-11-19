@@ -60,6 +60,27 @@ impl Tracked {
     }
 }
 
+/// Which completed responses to a tracked request a read waits for.
+#[derive(Clone, Copy, Debug)]
+enum Awaited {
+    /// Any after the first this many.
+    After(usize),
+    /// Those to requests the page sent once this many requests had gone out.
+    SentFrom(u64),
+}
+
+impl Awaited {
+    fn among(self, tracked: Tracked, exchanges: &[Exchange]) -> Vec<&Exchange> {
+        let completed = tracked.completed(exchanges);
+        match self {
+            Self::After(seen) => completed.skip(seen).collect(),
+            Self::SentFrom(sent) => completed
+                .filter(|exchange| exchange.sequence >= sent)
+                .collect(),
+        }
+    }
+}
+
 // The helpers every page script can use. The site keeps its state in Vue refs, which hold their
 // value in `value` or `_value`.
 const PAGE_HELPERS: &str = r"
@@ -310,7 +331,7 @@ impl<'p> Reading<'p> {
             || facts.api_error.is_some()
     }
 
-    pub(super) fn completions(&self, tracked: Tracked) -> usize {
+    fn completions(&self, tracked: Tracked) -> usize {
         tracked.completed(&self.exchanges).count()
     }
 
@@ -342,16 +363,37 @@ impl<'p> Reading<'p> {
         seen: usize,
         scroll: bool,
     ) -> Result<bool, AttemptFailure> {
+        self.wait(tracked, Awaited::After(seen), scroll).await
+    }
+
+    /// Waits for the answer to an action: a response to `tracked` whose request the page sent
+    /// once `sent` requests had gone out (see [`Page::requests_sent`]); returns whether the read
+    /// can go on, as [`Reading::next`] does. An older request that ends after the action is no
+    /// answer to it.
+    pub(super) async fn answer(
+        &mut self,
+        tracked: Tracked,
+        sent: u64,
+    ) -> Result<bool, AttemptFailure> {
+        self.wait(tracked, Awaited::SentFrom(sent), false).await
+    }
+
+    async fn wait(
+        &mut self,
+        tracked: Tracked,
+        awaited: Awaited,
+        scroll: bool,
+    ) -> Result<bool, AttemptFailure> {
         let started = Instant::now();
         let mut scrolled: Option<Instant> = None;
         while self.page.reading() {
             if self.poll().await? {
                 return Ok(false);
             }
-            if self.completions(tracked) > seen {
-                let held = tracked
-                    .completed(&self.exchanges)
-                    .skip(seen)
+            let arrived = awaited.among(tracked, &self.exchanges);
+            if !arrived.is_empty() {
+                let held = arrived
+                    .iter()
                     .any(|exchange| matches!(exchange.body, ResponseBody::Received(_)));
                 self.body_missing |= !held;
                 return Ok(held);
@@ -402,18 +444,23 @@ impl<'p> Reading<'p> {
         Ok(false)
     }
 
-    /// Polls until the page facts end the read, a response to `tracked` after `seen` arrives,
-    /// or the read-only page `check` holds, for at most `within`; returns whether one did.
+    /// Polls until the page facts end the read, a response to `tracked` whose request was sent
+    /// once `sent` requests had gone out arrives, or the read-only page `check` holds, for at
+    /// most `within`; returns whether one did.
     pub(super) async fn confirm(
         &mut self,
         tracked: Tracked,
-        seen: usize,
+        sent: u64,
         check: &str,
         within: Duration,
     ) -> Result<bool, AttemptFailure> {
         let until = Deadline::new(within);
         loop {
-            if self.poll().await? || self.completions(tracked) > seen {
+            if self.poll().await?
+                || !Awaited::SentFrom(sent)
+                    .among(tracked, &self.exchanges)
+                    .is_empty()
+            {
                 return Ok(true);
             }
             let slice = POLL.min(until.remaining().unwrap_or_default());
@@ -481,6 +528,7 @@ mod tests {
 
     fn exchange(path: &str, status: u16, body: Option<&Value>) -> Exchange {
         Exchange {
+            sequence: 0,
             method: RequestMethod::Get,
             url: Url::parse(&format!(
                 "https://edith.xiaohongshu.com{path}?xsec_token=ABsecret="

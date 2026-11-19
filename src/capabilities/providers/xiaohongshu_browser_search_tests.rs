@@ -765,12 +765,21 @@ fn each_non_default_condition_is_one_filter_panel_option() {
 
 fn exchange(path: &str, request: &Value, body: &Value) -> Exchange {
     Exchange {
+        sequence: 0,
         method: RequestMethod::Post,
         url: Url::parse(&format!("https://edith.xiaohongshu.com{path}")).expect("API URL"),
         status: Some(200),
         request_body: Some(request.to_string()),
         body: ResponseBody::Received(body.to_string()),
     }
+}
+
+/// Numbers `exchanges` in the order their requests were sent.
+fn sent_in_order(mut exchanges: Vec<Exchange>) -> Vec<Exchange> {
+    for (sequence, exchange) in (0..).zip(&mut exchanges) {
+        exchange.sequence = sequence;
+    }
+    exchanges
 }
 
 fn search_exchange(page: u32, search_id: &str, filters: &Value) -> Exchange {
@@ -792,13 +801,13 @@ fn captured_search_responses_count_the_filter_clicks_made_before_them() {
     );
     let observed = Observed {
         page: serde_json::from_value(results_page()).expect("page facts"),
-        exchanges: vec![
+        exchanges: sent_in_order(vec![
             onebox,
             search_exchange(1, ROOT_SEARCH_ID, &Value::Null),
             search_exchange(2, ROOT_SEARCH_ID, &Value::Null),
             search_exchange(1, FILTERED_SEARCH_ID, &week),
             search_exchange(2, FILTERED_SEARCH_ID, &week),
-        ],
+        ]),
         timed_out: false,
         body_missing: false,
     };
@@ -902,14 +911,52 @@ fn the_results_are_read_until_the_needed_pages_have_answered() {
         )
     };
     // The first screen requests its second page by itself.
-    let auto = [page(1, true), page(2, true)];
+    let auto = sent_in_order(vec![page(1, true), page(2, true)]);
+    let last = sent_in_order(vec![page(1, true), page(2, false)]);
 
     let wanted = [
         wants_another_page(&auto, 0, 2),
         wants_another_page(&auto, 0, 3),
-        wants_another_page(&[page(1, true), page(2, false)], 0, 3),
+        wants_another_page(&last, 0, 3),
         wants_another_page(&auto, 1, 2),
     ];
 
     assert_eq!(wanted, [false, true, false, true]);
+}
+
+#[test]
+fn a_response_to_a_request_sent_before_a_filter_click_is_no_answer_to_it() {
+    let latest = filters("time_descending", "不限", "不限");
+    // The first screen's own second page was requested before the click but finished during
+    // the hover, after the read last polled, so it ended after the click.
+    let mut exchanges = sent_in_order(vec![
+        search_exchange(1, ROOT_SEARCH_ID, &Value::Null),
+        search_exchange(2, ROOT_SEARCH_ID, &Value::Null),
+        search_exchange(1, FILTERED_SEARCH_ID, &latest),
+        search_exchange(2, FILTERED_SEARCH_ID, &latest),
+    ]);
+    exchanges[2].sequence = 3;
+    exchanges[3].sequence = 4;
+    let observed = Observed {
+        page: serde_json::from_value(results_page()).expect("page facts"),
+        exchanges,
+        timed_out: false,
+        body_missing: false,
+    };
+    let progress = SearchProgress {
+        filter_clicks: 1,
+        marks: vec![2],
+        ..SearchProgress::default()
+    };
+    let options = XiaohongshuSearchOptions {
+        sort: XiaohongshuSort::Latest,
+        ..XiaohongshuSearchOptions::default()
+    };
+
+    let data = captured_search_data(observed, progress).expect("search observation");
+    let judged = search_outcome(&data, "咖啡", &options, 40, at((2026, 3, 1), (12, 0)))
+        .map(|decoded| refs(&decoded))
+        .map_err(|failure| failure.message);
+
+    assert_eq!(judged, Ok(vec![note_ref(1), note_ref(2)]));
 }

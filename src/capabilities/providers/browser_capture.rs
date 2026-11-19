@@ -4,6 +4,8 @@
 //!
 //! Only GET and POST requests are kept, and only those the caller's filter names. A POST body
 //! comes from the request event; a response body is read once the request has finished loading.
+//! Every request the page sends gets the next number in a sequence when it is sent, so page
+//! logic can tell the requests an action caused from older ones that end after it.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, PoisonError};
@@ -62,6 +64,9 @@ pub(crate) enum ResponseBody {
 /// One request the page made and what came back.
 #[derive(Clone, Debug)]
 pub(crate) struct Exchange {
+    /// Where the request stands among every request the page sent, from 0, in the order
+    /// they were sent; see [`Capture::requests_sent`].
+    pub(crate) sequence: u64,
     pub(crate) method: RequestMethod,
     pub(crate) url: Url,
     pub(crate) status: Option<u16>,
@@ -80,6 +85,8 @@ pub(super) fn network_enable_params() -> Value {
 
 #[derive(Default)]
 struct State {
+    /// How many requests the page has sent, kept or not.
+    sent: u64,
     open: HashMap<String, Open>,
     ended: Vec<Exchange>,
     /// Why the first kept body that could not be read failed the capture.
@@ -124,6 +131,12 @@ impl Capture {
             events,
         ));
         Self { state, task }
+    }
+
+    /// How many requests the page has sent so far. The requests it sends from now on have a
+    /// sequence of at least this, whenever their responses end.
+    pub(super) fn requests_sent(&self) -> u64 {
+        lock(&self.state).sent
     }
 
     pub(super) fn take(&self) -> Result<Vec<Exchange>, AttemptFailure> {
@@ -252,6 +265,8 @@ async fn record(recorder: Recorder, mut events: UnboundedReceiver<CdpEvent>) {
 impl Recorder {
     fn sent(&self, sent: RequestWillBeSent) {
         let mut state = lock(&self.state);
+        let sequence = state.sent;
+        state.sent += 1;
         if let Some(redirect) = sent.redirect
             && let Some(mut open) = state.open.remove(&sent.id)
         {
@@ -280,6 +295,7 @@ impl Recorder {
                 level,
                 has_post_data: sent.request.has_post_data && request_body.is_none(),
                 exchange: Exchange {
+                    sequence,
                     method,
                     url,
                     status: None,

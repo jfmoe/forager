@@ -170,8 +170,8 @@ struct SearchProgress {
     search_failure: Option<String>,
     /// Whether the query was submitted from the home page.
     submitted: bool,
-    /// For each filter click, how many exchanges the read had kept before it.
-    marks: Vec<usize>,
+    /// For each filter click, how many requests the page had sent just before it.
+    marks: Vec<u64>,
 }
 
 /// Drives one search: opens the home page, types the query into its search box, presses
@@ -217,25 +217,26 @@ async fn drive_search(
     if !reading.next(SEARCH, 0, false).await? {
         return Ok(());
     }
-    // The responses that answer the last filter click come after the ones completed before it.
-    let mut answered_from = 0;
     for (group, option) in filter_choices(options) {
-        // The first screen requests its second page by itself; a click before that page
-        // arrives would count it as an answer to the click.
+        // The first screen requests its second page by itself. A click before the page has
+        // sent that request would take its answer for the click's.
         if !reading.settle(SEARCH).await? {
             return Ok(());
         }
-        let seen = reading.completions(SEARCH);
-        if let Some(reason) = choose_option(reading, group, option, seen, progress).await? {
-            progress.filter_failure = Some(format!("{reason} for {group} {option}"));
-            return Ok(());
-        }
+        let sent = match choose_option(reading, group, option).await? {
+            Ok(sent) => sent,
+            Err(reason) => {
+                progress.filter_failure = Some(format!("{reason} for {group} {option}"));
+                return Ok(());
+            }
+        };
         progress.filter_clicks += 1;
-        answered_from = seen;
-        if !reading.next(SEARCH, seen, false).await? {
+        progress.marks.push(sent);
+        if !reading.answer(SEARCH, sent).await? {
             return Ok(());
         }
     }
+    let answered_from = progress.marks.last().copied().unwrap_or(0);
     while wants_another_page(reading.exchanges(), answered_from, pages) {
         if !reading.more(SEARCH).await? {
             break;
@@ -245,13 +246,14 @@ async fn drive_search(
 }
 
 /// Whether the search must scroll for another results page: fewer than `pages` responses have
-/// completed after the first `answered_from`, which came before the last filter click, and the
-/// last one says more results remain. The page the first screen requests by itself counts.
-fn wants_another_page(exchanges: &[Exchange], answered_from: usize, pages: usize) -> bool {
+/// completed to requests sent once `answered_from` requests had gone out (the mark of the last
+/// filter click, or 0), and the last one says more results remain. The page the first screen
+/// requests by itself counts.
+fn wants_another_page(exchanges: &[Exchange], answered_from: u64, pages: usize) -> bool {
     let answered = SEARCH
         .completed(exchanges)
-        .count()
-        .saturating_sub(answered_from);
+        .filter(|exchange| exchange.sequence >= answered_from)
+        .count();
     answered < pages && last_page_has_more(exchanges)
 }
 
@@ -277,14 +279,13 @@ async fn enter_query(page: &mut Page, query: &str) -> Result<Option<Missed>, Att
 }
 
 /// Opens the filter panel with the pointer and clicks one option, then confirms the click took
-/// effect. Returns why it could not.
+/// effect. Returns how many requests the page had sent just before the click, or why it could
+/// not click.
 async fn choose_option(
     reading: &mut Reading<'_>,
     group: &str,
     option: &str,
-    seen: usize,
-    progress: &mut SearchProgress,
-) -> Result<Option<String>, AttemptFailure> {
+) -> Result<Result<u64, String>, AttemptFailure> {
     let button = |missed: Missed| {
         missed.describe(match missed.failure {
             InputFailure::NoTarget => "no_filter_button",
@@ -294,42 +295,41 @@ async fn choose_option(
     };
     if !reading.page().evaluate::<bool>(PANEL_OPEN).await? {
         if let Some(missed) = input_failure(reading.page().hover(FILTER_BUTTON).await)? {
-            return Ok(Some(button(missed)));
+            return Ok(Err(button(missed)));
         }
         if !panel_opens(reading.page(), PANEL_AFTER_HOVER).await? {
             if let Some(missed) = input_failure(reading.page().click(FILTER_BUTTON).await)? {
-                return Ok(Some(button(missed)));
+                return Ok(Err(button(missed)));
             }
             if !panel_opens(reading.page(), PANEL_AFTER_CLICK).await? {
-                return Ok(Some("no_filter_panel".into()));
+                return Ok(Err("no_filter_panel".into()));
             }
         }
     }
     let group_shown = format!("{}.length === 1", groups_expression(group, true));
     if !reading.page().evaluate::<bool>(&group_shown).await? {
-        return Ok(Some("no_filter_group".into()));
+        return Ok(Err("no_filter_group".into()));
     }
-    progress.marks.push(reading.exchanges().len());
+    let sent = reading.page().requests_sent();
     let clicked = reading
         .page()
         .click(&options_expression(group, option, true))
         .await;
-    let missed = input_failure(clicked)?.map(|missed| {
-        missed.describe(match missed.failure {
+    if let Some(missed) = input_failure(clicked)? {
+        return Ok(Err(missed.describe(match missed.failure {
             InputFailure::NoTarget => "no_filter_option",
             InputFailure::AmbiguousTarget => "ambiguous_filter_option",
             other => other.reason(),
-        })
-    });
-    if missed.is_none()
-        && reading
-            .confirm(SEARCH, seen, &selected_script(group, option), CLICK_CHECK)
-            .await?
-    {
-        return Ok(None);
+        })));
     }
-    progress.marks.pop();
-    Ok(Some(missed.unwrap_or_else(|| "click_missed".into())))
+    if reading
+        .confirm(SEARCH, sent, &selected_script(group, option), CLICK_CHECK)
+        .await?
+    {
+        Ok(Ok(sent))
+    } else {
+        Ok(Err("click_missed".into()))
+    }
 }
 
 async fn panel_opens(page: &Page, within: Duration) -> Result<bool, AttemptFailure> {
@@ -394,10 +394,10 @@ fn last_page_has_more(exchanges: &[Exchange]) -> bool {
 }
 
 /// Builds the search observation from what the read kept: every `search/notes` exchange with
-/// a body, tagged with the filter clicks made before it.
+/// a body, tagged with the filter clicks made before its request was sent.
 fn search_data(observed: Observed, progress: SearchProgress) -> Result<SearchData, AttemptFailure> {
     let mut responses = Vec::new();
-    for (index, exchange) in observed.exchanges.iter().enumerate() {
+    for exchange in &observed.exchanges {
         let ResponseBody::Received(body) = &exchange.body else {
             continue;
         };
@@ -415,7 +415,11 @@ fn search_data(observed: Observed, progress: SearchProgress) -> Result<SearchDat
             msg: Some("not a search results body".into()),
             data: None,
         });
-        let clicks = progress.marks.iter().filter(|mark| **mark <= index).count();
+        let clicks = progress
+            .marks
+            .iter()
+            .filter(|mark| **mark <= exchange.sequence)
+            .count();
         responses.push(CapturedSearch {
             click: u32::try_from(clicks).unwrap_or(u32::MAX),
             request,
@@ -534,7 +538,7 @@ struct SearchData {
 
 #[derive(Debug, Deserialize)]
 struct CapturedSearch {
-    /// The number of filter clicks made before the request.
+    /// The number of filter clicks made before the request was sent.
     click: u32,
     request: SearchRequestFacts,
     body: SearchBody,

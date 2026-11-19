@@ -402,6 +402,7 @@ fn a_failure_that_quotes_the_access_token_masks_it() {
 
 fn exchange(url: &str, body: &Value) -> Exchange {
     Exchange {
+        sequence: 0,
         method: RequestMethod::Get,
         url: Url::parse(url).expect("API URL"),
         status: Some(200),
