@@ -59,8 +59,9 @@ const READY_POLL: Duration = Duration::from_millis(250);
 // Rust cannot hand a child extra file descriptors without `unsafe` code, which this crate
 // forbids. A POSIX shell moves the two piped standard streams to the descriptors that
 // `--remote-debugging-pipe` reads (3) and writes (4), then replaces itself with the browser,
-// which keeps the process ID and group.
-const PIPE_SHELL: &str = r#"exec "$0" "$@" 3<&0 4>&1 </dev/null >/dev/null"#;
+// which keeps the process ID and group. The browser's own stdout joins its stderr, where some
+// reasons for exiting early are printed.
+const PIPE_SHELL: &str = r#"exec "$0" "$@" 3<&0 4>&1 </dev/null >&2"#;
 
 /// Whether a window shows.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -581,6 +582,8 @@ impl Page {
 /// gone.
 struct ProcessGroup {
     child: Option<Child>,
+    /// How the leader exited, once it was reaped by waiting for it.
+    exit: Option<std::process::ExitStatus>,
     permit: Option<RatePermit>,
     profile: Option<LockedProfile>,
     stderr: Arc<Mutex<Vec<u8>>>,
@@ -618,6 +621,7 @@ impl ProcessGroup {
             .map(|pipe| tokio::spawn(keep_tail(pipe, Arc::clone(&stderr))));
         Ok(Self {
             child: Some(child),
+            exit: None,
             permit: Some(permit),
             profile: Some(profile),
             stderr,
@@ -643,7 +647,8 @@ impl ProcessGroup {
     }
 
     /// The failure of a handshake that `error` ended: the browser exited, answered garbage, or
-    /// never answered. It carries the last line the browser wrote to stderr.
+    /// never answered. It carries how the browser exited and the last line it wrote to stdout
+    /// or stderr.
     async fn handshake_failure(&mut self, error: &CdpError) -> AttemptFailure {
         let exited = self.wait_exit(Duration::from_millis(200)).await;
         if let Some(task) = self.stderr_task.take()
@@ -654,10 +659,10 @@ impl ProcessGroup {
         let line = last_line(&self.stderr.lock().unwrap_or_else(PoisonError::into_inner));
         runtime(format!(
             "the browser did not complete the CDP handshake ({}): {}",
-            if exited {
-                "it exited"
-            } else {
-                error_summary(error)
+            match (exited, self.exit) {
+                (true, Some(status)) => format!("it exited with {status}"),
+                (true, None) => "it exited".to_owned(),
+                (false, _) => error_summary(error).to_owned(),
             },
             truncate_message(&redact_urls(&line))
         ))
@@ -668,8 +673,9 @@ impl ProcessGroup {
         let Some(child) = self.child.as_mut() else {
             return true;
         };
-        if matches!(tokio::time::timeout(within, child.wait()).await, Ok(Ok(_))) {
+        if let Ok(Ok(status)) = tokio::time::timeout(within, child.wait()).await {
             self.child = None;
+            self.exit = Some(status);
             // Helpers the browser left behind in its group go with it.
             return true;
         }
@@ -855,6 +861,65 @@ mod tests {
         let alive = pid_files.each_ref().map(running);
 
         assert_eq!((alive, profile.lock().is_ok()), ([false, false], true));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_browser_that_exits_before_the_handshake_reports_its_exit_status_and_last_output() {
+        use std::os::unix::fs::PermissionsExt;
+        use std::time::Duration;
+
+        use super::{BrowserSession, CaptureLevel, run};
+        use crate::providers::browser_profile::BrowserProfile;
+        use crate::rate_limit::{AccessPolicy, RateLimiter};
+        use crate::types::{AttemptErrorKind, Deadline};
+
+        let sandbox = tempfile::tempdir().expect("create sandbox");
+        let browser = sandbox.path().join("browser");
+        std::fs::write(
+            &browser,
+            "#!/bin/sh\necho 'Opening in existing browser session.'\nexit 3\n",
+        )
+        .expect("write stand-in");
+        std::fs::set_permissions(&browser, std::fs::Permissions::from_mode(0o755))
+            .expect("make stand-in executable");
+        let profile = BrowserProfile::at(sandbox.path().join("profile"));
+        let session = BrowserSession {
+            executable: &browser,
+            profile: &profile,
+            language: "zh-CN",
+            window: WindowMode::Headless,
+            capture: |_| CaptureLevel::Ignore,
+        };
+        let limiter = RateLimiter::in_state_file(
+            "handshake_test",
+            AccessPolicy {
+                min_interval: Duration::ZERO,
+                max_concurrency: 1,
+            },
+            sandbox.path().join("rate_limit_state.json"),
+        );
+
+        let failure = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("build test runtime")
+            .block_on(run(
+                &session,
+                &limiter,
+                Deadline::new(Duration::from_secs(30)),
+                async |_page| Ok(()),
+            ))
+            .map(|_| ())
+            .expect_err("the stand-in exits before the handshake");
+
+        assert_eq!(
+            (failure.kind, failure.message.as_str()),
+            (
+                AttemptErrorKind::Runtime,
+                "the browser did not complete the CDP handshake (it exited with exit status: 3): Opening in existing browser session."
+            )
+        );
     }
 
     #[test]
