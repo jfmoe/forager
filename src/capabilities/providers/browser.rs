@@ -550,6 +550,13 @@ impl Page {
         self.capture.take()
     }
 
+    /// How many requests the page has sent so far: an exchange whose `sequence` is at least
+    /// this answers a request sent after this call. Page logic takes it just before an action
+    /// whose answer it waits for.
+    pub(crate) fn requests_sent(&self) -> u64 {
+        self.capture.requests_sent()
+    }
+
     /// Reads the screen and window size the page reports, in CSS pixels.
     ///
     /// # Errors

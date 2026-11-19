@@ -109,11 +109,11 @@ async fn drive_comments(
         // Each page's targets are expanded where the page shows them, before the next scroll.
         let due = expansion_targets(&captured_comments(reading.exchanges()), request);
         for id in due.into_iter().skip(expanded) {
-            let seen = reading.completions(REPLIES);
-            if let Some(reason) = expand_replies(reading, &id, seen).await? {
+            let sent = reading.page().requests_sent();
+            if let Some(reason) = expand_replies(reading, &id, sent).await? {
                 return Ok(Some(format!("{reason} for comment {id}")));
             }
-            if !reading.next(REPLIES, seen, false).await? {
+            if !reading.answer(REPLIES, sent).await? {
                 return Ok(None);
             }
             expanded += 1;
@@ -158,11 +158,12 @@ fn expansion_targets(
 }
 
 /// Clicks "展开 N 条回复" under one top-level comment with the pointer, then confirms the click
-/// took effect. Returns why it could not.
+/// took effect: the button gone, or a reply page requested once `sent` requests had gone out.
+/// Returns why it could not.
 async fn expand_replies(
     reading: &mut Reading<'_>,
     id: &str,
-    seen: usize,
+    sent: u64,
 ) -> Result<Option<String>, AttemptFailure> {
     let element = serde_json::Value::from(format!("comment-{id}"));
     let missing = page_script(&format!(
@@ -193,7 +194,7 @@ async fn expand_replies(
         })));
     }
     let gone = format!(r#"{buttons}.every((element) => element.closest('[aria-hidden="true"]'))"#);
-    if reading.confirm(REPLIES, seen, &gone, CLICK_CHECK).await? {
+    if reading.confirm(REPLIES, sent, &gone, CLICK_CHECK).await? {
         Ok(None)
     } else {
         Ok(Some("click_missed".into()))

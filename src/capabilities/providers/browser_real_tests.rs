@@ -190,6 +190,11 @@ fn serve(mut stream: TcpStream) {
         "/scroll" => ("text/html", SCROLL_PAGE.to_owned()),
         "/scrolled-away" => ("text/html", SCROLLED_AWAY_PAGE.to_owned()),
         "/more" => ("application/json", r#"{"count":20}"#.to_owned()),
+        "/late" => ("text/html", LATE_PAGE.to_owned()),
+        "/slow" => {
+            thread::sleep(Duration::from_millis(1500));
+            ("application/json", r#"{"slow":true}"#.to_owned())
+        }
         "/api" => ("text/html", API_PAGE.to_owned()),
         "/api/data" => ("application/json", r#"{"items":[1,2,3]}"#.to_owned()),
         "/api/echo" | "/api/me" => (
@@ -318,6 +323,15 @@ const API_PAGE: &str = r"<!doctype html><title>api</title>
 <script>
 fetch('/api/data').then((response) => response.text());
 fetch('/api/echo', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ q: '咖啡' }) }).then((response) => response.text());
+</script>";
+
+// A request that the page sends as it loads and the server answers late, and a button whose
+// click sends another.
+const LATE_PAGE: &str = r"<!doctype html><title>late</title>
+<button id=fetch style=margin:40px;width:120px;height:40px>Fetch</button>
+<script>
+fetch('/slow').then((response) => response.text());
+document.getElementById('fetch').addEventListener('click', () => fetch('/api/data').then((response) => response.text()));
 </script>";
 
 const STORE_PAGE: &str = r"<!doctype html><title>store</title>
@@ -692,6 +706,36 @@ fn capture_keeps_response_bodies_and_post_bodies() {
             Some(r#"{"q":"咖啡"}"#),
             Some(200)
         )
+    );
+}
+
+#[test]
+#[ignore = "launches the Managed Browser; see the module docs"]
+fn a_request_sent_before_a_mark_stays_before_it_though_its_response_ends_after() {
+    let executable = executable();
+    let pages = Pages::start();
+
+    let (ended_before, mark, slow, clicked) = Sandbox::new().run(&executable, async |page| {
+        page.navigate(&pages.url("/late")).await?;
+        let ended_before = page
+            .take_exchanges()?
+            .iter()
+            .any(|exchange| exchange.url.path() == "/slow");
+        let mark = page.requests_sent();
+        done(page.click("[document.getElementById('fetch')]").await);
+        let [slow, clicked] =
+            exchanges_at(page, ["/slow", "/api/data"], Duration::from_secs(5)).await;
+        Ok((ended_before, mark, slow, clicked))
+    });
+
+    let slow = slow.expect("the late response");
+    let clicked = clicked.expect("the clicked request");
+    assert_eq!(
+        (ended_before, slow.sequence < mark, clicked.sequence >= mark),
+        (false, true, true),
+        "mark {mark}, /slow {}, /api/data {}",
+        slow.sequence,
+        clicked.sequence
     );
 }
 

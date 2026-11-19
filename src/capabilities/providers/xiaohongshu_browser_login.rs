@@ -53,6 +53,7 @@ mod tests {
 
     fn account(body: &serde_json::Value) -> Exchange {
         Exchange {
+            sequence: 0,
             method: RequestMethod::Get,
             url: Url::parse(&format!("https://edith.xiaohongshu.com{ACCOUNT_PATH}"))
                 .expect("account URL"),
