@@ -218,6 +218,7 @@ fn last_line(stderr: &[u8]) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(unix)]
     use super::super::WindowMode;
 
     #[cfg(unix)]
