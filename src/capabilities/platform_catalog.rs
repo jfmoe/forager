@@ -207,7 +207,7 @@ fn opt_in(route: ProviderId) -> Option<&'static OptIn> {
 /// needs the browser and a login first. `order` is the current value of `order_key`: the
 /// suggested order keeps it and places the route right after its last fetch route, so routes
 /// that only serve other operations keep working.
-pub(crate) fn http_opt_in(
+pub(crate) fn config_set_hint(
     route: ProviderId,
     order_key: &str,
     order: &[ProviderId],
@@ -242,10 +242,10 @@ pub(crate) fn platform(platform: Platform) -> PlatformCatalog {
 mod tests {
     use std::collections::BTreeSet;
 
-    use super::{PLATFORMS, ProviderId, http_opt_in, opt_in_risk};
+    use super::{PLATFORMS, ProviderId, config_set_hint, opt_in_risk};
 
     fn suggested_command(order: &[ProviderId]) -> String {
-        let hint = http_opt_in(ProviderId::YoutubeWeb, "platforms.youtube.order", order)
+        let hint = config_set_hint(ProviderId::YoutubeWeb, "platforms.youtube.order", order)
             .expect("youtube_web is opt-in");
         let (_, command) = hint
             .rsplit_once("run ")

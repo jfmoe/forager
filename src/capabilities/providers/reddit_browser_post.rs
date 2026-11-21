@@ -13,9 +13,9 @@ use serde::Deserialize;
 use super::markup::reddit_markdown;
 use super::thread::{Comment, render};
 use super::{
-    POLL, PageFacts, Projection, ROUTE, RedditBrowser, SITE_ORIGIN, blocked, capture,
-    document_status, project, projection_script, runtime, site_path, site_timestamp, unfinished,
-    unread,
+    Observation, POLL, PageFacts, Projection, ROUTE, RedditBrowser, SITE_ORIGIN, blocked, capture,
+    document_status, ended_without_content, project, projection_script, runtime, server_failure,
+    site_path, site_timestamp, site_url, unfinished,
 };
 use crate::catalog::PlatformOperation;
 use crate::net::AttemptFailure;
@@ -248,27 +248,11 @@ const POST_PROJECTION: &str = r#"
   };"#;
 
 /// What one fetch read observed.
-#[derive(Debug, Default)]
-struct PostObservation {
-    projection: PostProjection,
-    document_status: Option<u16>,
-    /// The read deadline passed before the page reached a final state.
-    timed_out: bool,
-}
+type PostObservation = Observation<PostProjection>;
 
-/// Whether `projection` ends the read: the page shows the post, a block, or a loaded page
-/// without a post, which renders none later, of a logged-in session or of a document the site
-/// failed to serve.
+/// Whether `projection` ends the read: the page shows the post, or a final page without one.
 fn post_ended(projection: &PostProjection, document_status: Option<u16>) -> bool {
-    let page = &projection.page;
-    projection.post.is_some()
-        || blocked(page, document_status).is_some()
-        || (page.loaded() && (page.logged_in() || server_failure(document_status).is_some()))
-}
-
-/// The status of a document the site failed to serve.
-fn server_failure(document_status: Option<u16>) -> Option<u16> {
-    document_status.filter(|status| *status >= 500)
+    projection.post.is_some() || ended_without_content(&projection.page, document_status)
 }
 
 /// Drives one fetch: opens the post page and projects it every half second until it reaches a
@@ -294,14 +278,7 @@ async fn observe_post(
         }
         reading.page().rest(POLL).await;
     }
-    Ok(PostObservation {
-        projection: last.unwrap_or_else(|| PostProjection {
-            page: unread(&reading),
-            ..PostProjection::default()
-        }),
-        document_status: status,
-        timed_out: !ended,
-    })
+    Ok(Observation::new(last, &reading, status, !ended))
 }
 
 /// Judges one fetch read: classifies the page facts, checks the post's identity, and builds the
@@ -312,7 +289,7 @@ fn post_outcome(
     depth: ContentDepth,
 ) -> Result<(PlatformItem, FullTextSource), AttemptFailure> {
     let projection = &observed.projection;
-    let fullname = format!("t3_{}", reference.id());
+    let fullname = reference.fullname();
     let post = shown_post(observed, reference, &fullname)?;
     let mut item = post_item(projection, post, reference, &fullname)?;
     let source = match depth {
@@ -345,21 +322,14 @@ fn shown_post<'o>(
         return Err(failure);
     }
     let Some(post) = &projection.post else {
-        // A site failure is no statement about the post.
-        if let Some(status) = server_failure(observed.document_status) {
-            return Err(AttemptFailure {
-                kind: AttemptErrorKind::Runtime,
-                status: Some(status),
-                message: format!(
-                    "Reddit answered the post page with HTTP {status} and showed no post; the site may be failing, so retry later"
-                ),
-            });
+        if let Some(failure) = server_failure(facts, observed.document_status) {
+            return Err(failure);
         }
         if observed.timed_out {
             return Err(unfinished(
                 facts,
                 is_post_page(&facts.url, reference),
-                || "the Reddit post page showed no post before the read deadline".to_owned(),
+                "the Reddit post page showed no post before the read deadline",
             ));
         }
         return Err(AttemptFailure {
@@ -400,12 +370,11 @@ fn post_item(
         .clone()
         .filter(|title| !title.trim().is_empty())
         .ok_or_else(|| format_change(fullname, "title"))?;
-    let permalink_path = post
+    let (permalink_path, permalink) = post
         .permalink
         .as_deref()
-        .filter(|path| path.starts_with('/'))
+        .and_then(|path| Some((path, site_url(path)?)))
         .ok_or_else(|| format_change(fullname, "permalink"))?;
-    let permalink = format!("{SITE_ORIGIN}{permalink_path}");
     Ok(PlatformItem {
         url: reference.canonical_url(),
         reference: PlatformRef::Reddit(reference.clone()),
@@ -487,11 +456,7 @@ fn decode_comments(records: &[CommentRecord]) -> Vec<Comment> {
                     .filter(|author| !record.author_deleted && named(author)),
                 published: record.created.as_deref().and_then(site_timestamp),
                 score: record.score.as_deref().and_then(|score| score.parse().ok()),
-                permalink: record
-                    .permalink
-                    .as_deref()
-                    .filter(|path| path.starts_with('/'))
-                    .map(|path| format!("{SITE_ORIGIN}{path}")),
+                permalink: record.permalink.as_deref().and_then(site_url),
                 text: (!record.deleted)
                     .then(|| record.body.as_deref().and_then(markdown))
                     .flatten(),

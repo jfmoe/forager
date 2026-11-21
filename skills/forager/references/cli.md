@@ -1150,7 +1150,7 @@ Exit codes: `2` before any request for a missing or blank query, an invalid subr
 the browser is missing or the Reddit Browser Profile was never logged in, with the command that
 fixes it; `4` for `auth` (a verification page, HTTP 403 or 429, or a logged-out session, with
 `forager browser login reddit` to fix it), `network`, `timeout`, and `runtime` for a page whose
-format changed.
+format changed or that Reddit answered with a server error (HTTP 5xx; retry later).
 
 ### `platform reddit fetch`
 
@@ -1175,12 +1175,12 @@ JSON output is the item fields as under search, with `post_type` (Reddit's own t
 `top`, `best`, `new`, `controversial`, `old`, or `qa`, the comment order Reddit applied
 (forager asks for `top` and reports what the page says).
 The file starts with the post's title, ref, permalink, subreddit, author, link, score, comment
-count, time, and text, then the first page of comments with a line naming their order, indented
-by depth, each with its author, score, time, and permalink. A deleted comment keeps its place as
-`*[deleted or removed]*`. The route opens the post page once in the logged-in browser and
-reads the comments it loaded with the post; it never scrolls for more or expands replies.
-`full_text` needs a configured Web Fetch provider for a link post; a text post's body comes from
-the route itself.
+count, time, and text, then the first batch of comments the page loaded with the post, with a line
+naming their order, indented by depth, each with its author, score, time, and permalink. A deleted
+comment keeps its place as `*[deleted or removed]*`. The route opens the post page once in the
+logged-in browser and reads the comments it loaded with the post; it never scrolls for more or
+expands replies. `full_text` needs a configured Web Fetch provider for a link post; a text post's
+body comes from the route itself.
 
 Exit codes: `2` before any request for a comment permalink (the message names the post's ref), a
 share link (`/s/…`), another URL, or a depth other than the three; `3` for an empty

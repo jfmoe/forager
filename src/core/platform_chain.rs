@@ -529,7 +529,7 @@ fn opt_in_hint<C>(
                 ))
             }
             ProviderTransport::Http => {
-                catalog::http_opt_in(*route, order_key, &order).map(|text| format!("; {text}"))
+                catalog::config_set_hint(*route, order_key, &order).map(|text| format!("; {text}"))
             }
         })
         .collect()

@@ -1,7 +1,10 @@
 use serde_json::Value;
 
 use super::super::projection_script;
-use super::{SEARCH_PROJECTION, SearchObservation, SearchProjection, SearchTarget, search_outcome};
+use super::{
+    SEARCH_PROJECTION, SearchObservation, SearchProjection, SearchState, SearchTarget,
+    search_outcome, search_state,
+};
 use crate::types::{AttemptErrorKind, RedditSearchOptions};
 
 const SEARCH_PAGE: &str = "reddit_browser/search.json";
@@ -443,5 +446,63 @@ fn the_search_url_carries_the_query_scope_order_and_window() {
                 "/r/rust/search/".to_owned()
             ),
         ]
+    );
+}
+
+#[test]
+fn a_page_without_results_whose_document_failed_on_the_server_is_no_format_change() {
+    let observation = SearchObservation {
+        document_status: Some(503),
+        ..observed(bare_page())
+    };
+
+    assert_eq!(
+        failure(&observation),
+        (
+            AttemptErrorKind::Runtime,
+            Some(503),
+            "Reddit answered https://www.reddit.com/search/?q=example+runtime&type=posts&sort=relevance with HTTP 503 instead of the page; the site may be failing, so retry later".to_owned()
+        )
+    );
+}
+
+#[test]
+fn a_loaded_error_page_whose_document_failed_on_the_server_ends_the_read() {
+    let mut page = bare_page();
+    page.page.app = false;
+    page.page.user_logged_in = None;
+
+    assert!(matches!(search_state(&page, Some(502)), SearchState::Ended));
+}
+
+/// Breaks the page's `document.scrollingElement`, so the scroll plan script throws.
+#[cfg(unix)]
+const BREAK_SCROLL_PLAN: &str = "Object.defineProperty(document, 'scrollingElement', { get() { throw new Error('broken'); } }); null";
+
+#[cfg(unix)]
+#[test]
+#[ignore = "launches a real browser"]
+fn a_scroll_plan_script_that_keeps_failing_fails_the_read() {
+    use crate::providers::browser_route::PageReading;
+    use crate::providers::real_browser::{Pages, Sandbox, executable};
+
+    let pages = Pages::start();
+    let url = pages.url("/scroll");
+
+    let failed = Sandbox::new().run(&executable(), async |page| {
+        let mut reading = PageReading::new(page);
+        reading.navigate(&url).await?;
+        reading.page().evaluate::<Value>(BREAK_SCROLL_PLAN).await?;
+        for _ in 0..10 {
+            if let Err(failure) = super::scroll_to_end(&mut reading).await {
+                return Ok(Some((failure.kind, failure.message)));
+            }
+        }
+        Ok(None)
+    });
+
+    assert!(
+        matches!(&failed, Some((AttemptErrorKind::Runtime, message)) if message.contains("broken")),
+        "{failed:?}"
     );
 }

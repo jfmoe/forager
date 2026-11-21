@@ -6,10 +6,10 @@ use std::time::{Duration, Instant};
 use serde_json::json;
 
 use super::{
-    FailureKind, LiveCaseDefinition, LiveRun, REDDIT_NO_POST, REDDIT_STOPPED, RedditRun,
-    XIAOHONGSHU_NO_ACCESS_URL, XIAOHONGSHU_NO_REPLIES, XIAOHONGSHU_ONE_COMMENT_PAGE,
-    XIAOHONGSHU_STOPPED, XiaohongshuRun, blocker, command_specs, comments_coverage,
-    execute_with_deadline, first_safe_post, live_case, live_case_process, max_attempts,
+    FailureKind, LiveCaseDefinition, LiveRun, REDDIT_NO_SAFE_POST, REDDIT_SEARCH_NOT_PASSED,
+    REDDIT_STOPPED, RedditRun, RedditSearch, XIAOHONGSHU_NO_ACCESS_URL, XIAOHONGSHU_NO_REPLIES,
+    XIAOHONGSHU_ONE_COMMENT_PAGE, XIAOHONGSHU_STOPPED, XiaohongshuRun, blocker, command_specs,
+    comments_coverage, execute_with_deadline, live_case, live_case_process, max_attempts,
     most_commented_access_url, needs_scratch, official_status_host, refusal, registry_status,
     status_host_matches_endpoint, status_page_reports_outage, stop_after_refusal,
     xiaohongshu_blocker,
@@ -262,7 +262,7 @@ fn case(id: &str) -> LiveCaseDefinition {
 }
 
 #[test]
-fn the_reddit_fetch_case_reads_the_first_search_result_not_marked_nsfw() {
+fn the_reddit_fetch_case_reads_the_first_search_result_marked_as_not_nsfw() {
     let search = json!({"items": [
         {"ref": "reddit:1aaaaaa", "nsfw": true},
         {"ref": "reddit:1bbbbbb", "nsfw": false},
@@ -270,7 +270,7 @@ fn the_reddit_fetch_case_reads_the_first_search_result_not_marked_nsfw() {
     ]});
     let run = LiveRun {
         reddit: RedditRun {
-            post: first_safe_post(&search),
+            search: RedditSearch::passed(&search),
             stopped: false,
         },
         ..LiveRun::default()
@@ -295,19 +295,44 @@ fn the_reddit_fetch_case_reads_the_first_search_result_not_marked_nsfw() {
 }
 
 #[test]
-fn the_reddit_fetch_case_waits_for_a_post_from_the_search_case() {
-    let only_nsfw = json!({"items": [{"ref": "reddit:1aaaaaa", "nsfw": true}]});
-    let run = LiveRun {
+fn a_search_result_without_a_false_nsfw_flag_is_never_the_post_to_read() {
+    let search = json!({"items": [
+        {"ref": "reddit:1aaaaaa"},
+        {"ref": "reddit:1bbbbbb", "nsfw": null},
+        {"ref": "reddit:1cccccc", "nsfw": "false"},
+        {"ref": "reddit:1dddddd", "nsfw": false}
+    ]});
+
+    assert_eq!(
+        RedditSearch::passed(&search),
+        RedditSearch::Post("reddit:1dddddd".into())
+    );
+}
+
+#[test]
+fn the_reddit_fetch_case_says_whether_the_search_case_failed_or_found_no_post_to_read() {
+    let run = |search| LiveRun {
         reddit: RedditRun {
-            post: first_safe_post(&only_nsfw),
+            search,
             stopped: false,
         },
         ..LiveRun::default()
     };
+    let unflagged = json!({"items": [
+        {"ref": "reddit:1aaaaaa", "nsfw": true},
+        {"ref": "reddit:1bbbbbb"}
+    ]});
 
     assert_eq!(
-        ["C50", "C51"].map(|id| blocker(case(id), &run)),
-        [None, Some(REDDIT_NO_POST)]
+        [
+            run(RedditSearch::NotPassed),
+            run(RedditSearch::passed(&unflagged)),
+        ]
+        .map(|run| ["C50", "C51"].map(|id| blocker(case(id), &run))),
+        [
+            [None, Some(REDDIT_SEARCH_NOT_PASSED)],
+            [None, Some(REDDIT_NO_SAFE_POST)],
+        ]
     );
 }
 
@@ -320,7 +345,7 @@ fn auth_on_a_reddit_case_stops_the_later_reddit_cases_only() {
     };
     let stopped = LiveRun {
         reddit: RedditRun {
-            post: Some("reddit:1bbbbbb".into()),
+            search: RedditSearch::Post("reddit:1bbbbbb".into()),
             stopped: true,
         },
         ..LiveRun::default()
@@ -361,7 +386,7 @@ fn every_case_whose_commands_need_a_scratch_directory_gets_one() {
             stopped: false,
         },
         reddit: RedditRun {
-            post: Some("reddit:1bbbbbb".into()),
+            search: RedditSearch::Post("reddit:1bbbbbb".into()),
             stopped: false,
         },
         polymarket_event: Some("polymarket:some-event".into()),

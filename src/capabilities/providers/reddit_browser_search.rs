@@ -9,8 +9,9 @@ use reqwest::Url;
 use serde::Deserialize;
 
 use super::{
-    POLL, PageFacts, Projection, ROUTE, RedditBrowser, SITE_ORIGIN, blocked, capture, is_page,
-    project, projection_script, runtime, site_timestamp, unexpected_page, unfinished, unread,
+    Observation, POLL, PageFacts, Projection, ROUTE, RedditBrowser, SITE_ORIGIN, blocked, capture,
+    ended_without_content, is_page, project, projection_script, runtime, server_failure,
+    site_timestamp, site_url, unexpected_page, unfinished,
 };
 use crate::catalog::PlatformOperation;
 use crate::net::{AttemptFailure, combine_diagnostics};
@@ -191,14 +192,7 @@ struct CountRecord {
 }
 
 /// What one search read observed.
-#[derive(Debug, Default)]
-struct SearchObservation {
-    /// The last projection, with every result any projection showed.
-    projection: SearchProjection,
-    document_status: Option<u16>,
-    /// The read deadline passed before the page reached a final state.
-    timed_out: bool,
-}
+type SearchObservation = Observation<SearchProjection>;
 
 // The results, the no-results marker, and the next page fragment; nothing about the account.
 const SEARCH_PROJECTION: &str = r#"
@@ -251,7 +245,7 @@ fn search_state(projection: &SearchProjection, document_status: Option<u16>) -> 
         SearchState::Ended
     } else if !projection.results.is_empty() {
         SearchState::Listed
-    } else if page.logged_in() && page.loaded() {
+    } else if ended_without_content(page, document_status) {
         SearchState::Ended
     } else {
         SearchState::Waiting
@@ -302,7 +296,7 @@ async fn observe_search(
                     if due {
                         scrolled = Some((Instant::now(), listed));
                         scrolls += 1;
-                        if !scroll_to_end(reading.page()).await? {
+                        if !scroll_to_end(&mut reading).await? {
                             break;
                         }
                         continue;
@@ -312,32 +306,35 @@ async fn observe_search(
         }
         reading.page().rest(POLL).await;
     }
-    let projection = merged.unwrap_or_else(|| SearchProjection {
-        page: unread(&reading),
-        ..SearchProjection::default()
-    });
     let timed_out = !ended
-        && matches!(
-            search_state(&projection, document_status),
-            SearchState::Waiting
-        );
-    Ok(SearchObservation {
-        projection,
+        && merged.as_ref().is_none_or(|projection| {
+            matches!(
+                search_state(projection, document_status),
+                SearchState::Waiting
+            )
+        });
+    Ok(Observation::new(
+        merged,
+        &reading,
         document_status,
         timed_out,
-    })
+    ))
 }
 
 /// Turns the wheel toward the end of the results. Returns `false` once the read deadline has
-/// passed. A page that answers no script leaves the next due scroll to turn it.
-async fn scroll_to_end(page: &mut Page) -> Result<bool, AttemptFailure> {
-    let Ok(plan) = page.evaluate::<ScrollPlan>(SCROLL_PLAN).await else {
+/// passed. A page that briefly answers no script leaves the next due scroll to turn it.
+///
+/// # Errors
+///
+/// Returns a transport failure, or a scroll script failure that lasted several reads.
+async fn scroll_to_end(reading: &mut PageReading<'_>) -> Result<bool, AttemptFailure> {
+    let Some(plan) = reading.evaluate::<ScrollPlan>(SCROLL_PLAN).await? else {
         return Ok(true);
     };
     if plan.distance < 1.0 {
         return Ok(true);
     }
-    match page.wheel((plan.x, plan.y), plan.distance).await {
+    match reading.page().wheel((plan.x, plan.y), plan.distance).await {
         Ok(()) => Ok(true),
         Err(InputError::Transport(failure)) => Err(failure),
         Err(InputError::Failed(missed)) => Ok(missed.failure != InputFailure::DeadlinePassed),
@@ -384,11 +381,16 @@ fn search_outcome(
             incomplete: None,
         });
     }
+    if let Some(failure) = server_failure(facts, observed.document_status) {
+        return Err(failure);
+    }
     let on_search_page = is_page(&facts.url, &target.path);
     if observed.timed_out {
-        return Err(unfinished(facts, on_search_page, || {
-            "the Reddit search page showed no results before the read deadline".to_owned()
-        }));
+        return Err(unfinished(
+            facts,
+            on_search_page,
+            "the Reddit search page showed no results before the read deadline",
+        ));
     }
     if !on_search_page {
         return Err(unexpected_page(facts));
@@ -469,11 +471,7 @@ fn decode_result(record: &ResultRecord) -> Option<PlatformItem> {
         published: record.published.as_deref().and_then(site_timestamp),
         data: PlatformItemData::Reddit(RedditItemData {
             subreddit: tracking.subreddit.and_then(|subreddit| subreddit.name),
-            permalink: record
-                .permalink
-                .as_deref()
-                .filter(|href| href.starts_with('/'))
-                .map(|href| format!("{SITE_ORIGIN}{href}")),
+            permalink: record.permalink.as_deref().and_then(site_url),
             score,
             comments,
             nsfw: tracking.post.nsfw,

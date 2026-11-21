@@ -83,6 +83,12 @@ impl RedditRef {
         &self.id
     }
 
+    /// Returns the post's fullname, its ID with the `t3_` type prefix, as the site's pages name
+    /// it.
+    pub(crate) fn fullname(&self) -> String {
+        format!("{POST_PREFIX}{}", self.id)
+    }
+
     /// Returns the post page without a subreddit or slug; Reddit redirects it to the post.
     #[must_use]
     pub fn canonical_url(&self) -> String {
@@ -450,6 +456,21 @@ mod tests {
                 "post",
                 Some(reference)
             )
+        );
+    }
+
+    #[test]
+    fn a_fullname_carries_the_post_prefix_and_parses_back_to_the_ref() {
+        let reference = super::RedditRef::from_id("17SNC7D").expect("a post ID");
+
+        let fullname = reference.fullname();
+
+        assert_eq!(
+            (
+                fullname.as_str(),
+                super::RedditRef::from_fullname(&fullname)
+            ),
+            ("t3_17snc7d", Some(reference))
         );
     }
 

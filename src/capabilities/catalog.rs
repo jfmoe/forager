@@ -48,7 +48,7 @@ mod platform_catalog;
 
 pub(crate) use platform_catalog::{
     ARXIV, HN, PLATFORMS, POLYMARKET, PlatformCatalog, PlatformOperation, REDDIT, SCHOLAR, SSRN, X,
-    XIAOHONGSHU, YOUTUBE, http_opt_in, opt_in_risk, platform,
+    XIAOHONGSHU, YOUTUBE, config_set_hint, opt_in_risk, platform,
 };
 
 pub(crate) fn supports(capability: &str, provider: &str) -> bool {
