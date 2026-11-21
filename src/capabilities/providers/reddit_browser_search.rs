@@ -9,12 +9,13 @@ use reqwest::Url;
 use serde::Deserialize;
 
 use super::{
-    POLL, PageFacts, Projection, ROUTE, Reading, RedditBrowser, SITE_ORIGIN, blocked, capture,
-    is_page, projection_script, runtime, unexpected_page, unfinished,
+    POLL, PageFacts, Projection, ROUTE, RedditBrowser, SITE_ORIGIN, blocked, capture, is_page,
+    project, projection_script, runtime, unexpected_page, unfinished, unread,
 };
 use crate::catalog::PlatformOperation;
 use crate::net::{AttemptFailure, combine_diagnostics};
 use crate::providers::browser::{InputError, InputFailure, Page};
+use crate::providers::browser_route::PageReading;
 use crate::providers::execution::execute_anonymous;
 use crate::providers::shared::{other_platform_message, parameter_error, utc_second};
 use crate::types::{
@@ -266,7 +267,7 @@ async fn observe_search(
     limit: usize,
 ) -> Result<SearchObservation, AttemptFailure> {
     let script = projection_script(SEARCH_PROJECTION);
-    let mut reading = Reading::new(page);
+    let mut reading = PageReading::new(page);
     reading.navigate(&target.url).await?;
     let mut merged: Option<SearchProjection> = None;
     let mut document_status = None;
@@ -275,14 +276,15 @@ async fn observe_search(
     let mut scrolled: Option<(Instant, usize)> = None;
     let mut ended = false;
     while reading.page().reading() {
-        if let Some(projection) = reading.project::<SearchProjection>(&script).await? {
+        if let Some(projection) = project::<SearchProjection>(&mut reading, &script).await? {
             match &mut merged {
                 Some(merged) => merged.absorb(projection),
                 None => merged = Some(projection),
             }
         }
         if let Some(current) = &merged {
-            document_status = reading.document_status(&target.path, &current.page);
+            document_status =
+                super::document_status(reading.exchanges(), &target.path, &current.page.url);
             match search_state(current, document_status) {
                 SearchState::Waiting => {}
                 SearchState::Ended => {
@@ -311,7 +313,7 @@ async fn observe_search(
         reading.page().rest(POLL).await;
     }
     let projection = merged.unwrap_or_else(|| SearchProjection {
-        page: reading.unread(),
+        page: unread(&reading),
         ..SearchProjection::default()
     });
     let timed_out = !ended

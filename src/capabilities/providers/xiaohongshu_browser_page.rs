@@ -1,6 +1,7 @@
 //! Page driving shared by the Xiaohongshu operations: what passive capture keeps, the page-facts
 //! script, scrolling to the end of a list, and the read that waits for the page's own
-//! responses and records why it stopped.
+//! responses and records why it stopped. Navigating, taking capture, and tolerating a page that
+//! briefly answers no script are the shared reading session's.
 
 use std::time::{Duration, Instant};
 
@@ -12,6 +13,7 @@ use crate::net::AttemptFailure;
 use crate::providers::browser::{
     CaptureLevel, Exchange, InputError, InputFailure, Missed, Page, RequestMethod, ResponseBody,
 };
+use crate::providers::browser_route::PageReading;
 use crate::types::Deadline;
 
 const POLL: Duration = Duration::from_millis(500);
@@ -20,8 +22,6 @@ const FIRST_SCROLL_AFTER: Duration = Duration::from_millis(1500);
 const SCROLL_EVERY: Duration = Duration::from_secs(4);
 // How long no new response must arrive before the page counts as settled.
 const SETTLE: Duration = Duration::from_millis(1500);
-// A page that is navigating briefly answers no script.
-const MAX_UNANSWERED: u32 = 5;
 
 /// What capture keeps of a request: the body of the `bodies` paths and of the account request,
 /// and the status of every other request to the site, which shows risk control.
@@ -241,12 +241,8 @@ pub(super) struct Observed {
 /// One operation's read of the page: it keeps every exchange capture holds, follows the page
 /// facts, and waits for the responses to the tracked requests.
 pub(super) struct Reading<'p> {
-    page: &'p mut Page,
+    session: PageReading<'p>,
     facts: PageFacts,
-    exchanges: Vec<Exchange>,
-    /// The network error of a navigation that never loaded a document.
-    navigation_error: Option<String>,
-    unanswered: u32,
     timed_out: bool,
     body_missing: bool,
 }
@@ -254,32 +250,24 @@ pub(super) struct Reading<'p> {
 impl<'p> Reading<'p> {
     pub(super) fn new(page: &'p mut Page) -> Self {
         Self {
-            page,
+            session: PageReading::new(page),
             facts: PageFacts::default(),
-            exchanges: Vec::new(),
-            navigation_error: None,
-            unanswered: 0,
             timed_out: false,
             body_missing: false,
         }
     }
 
     pub(super) fn page(&mut self) -> &mut Page {
-        self.page
+        self.session.page()
     }
 
     pub(super) fn exchanges(&self) -> &[Exchange] {
-        &self.exchanges
+        self.session.exchanges()
     }
 
     /// Opens `url` and waits until its document has loaded, at most until the read deadline.
     pub(super) async fn navigate(&mut self, url: &str) -> Result<(), AttemptFailure> {
-        let navigation = self.page.navigate(url).await?;
-        self.navigation_error = navigation
-            .error
-            .filter(|_| !navigation.loaded)
-            .map(|error| error.trim_start_matches("net::").to_owned());
-        Ok(())
+        self.session.navigate(url).await
     }
 
     /// Takes what capture holds and reads the page facts; returns whether they end the read.
@@ -288,34 +276,22 @@ impl<'p> Reading<'p> {
     ///
     /// Returns a transport failure, or a page script failure that lasted several reads.
     pub(super) async fn poll(&mut self) -> Result<bool, AttemptFailure> {
-        let exchanges = self.page.take_exchanges()?;
-        absorb(&mut self.facts, &exchanges);
-        self.exchanges.extend(exchanges);
-        match self
-            .page
+        absorb(&mut self.facts, self.session.capture()?);
+        if let Some(state) = self
+            .session
             .evaluate::<PageState>(&page_script(PAGE_STATE))
-            .await
+            .await?
         {
-            Ok(state) => {
-                self.unanswered = 0;
-                let blank = !state.url.starts_with("http");
-                self.facts.url = state.url;
-                self.facts.title = state.title;
-                self.facts.error_code = state.error_code;
-                self.facts.notice = state.notice;
-                // A navigation that failed before the browser showed its error page leaves the
-                // tab blank, where only the navigation result names the error.
-                self.facts.load_error = state
-                    .load_error
-                    .or_else(|| self.navigation_error.clone().filter(|_| blank));
-                if state.logged_out {
-                    self.facts.guest = true;
-                }
+            self.facts.load_error = state
+                .load_error
+                .or_else(|| self.session.blank_page_error(&state.url));
+            self.facts.url = state.url;
+            self.facts.title = state.title;
+            self.facts.error_code = state.error_code;
+            self.facts.notice = state.notice;
+            if state.logged_out {
+                self.facts.guest = true;
             }
-            Err(failure) if self.page.closed() || self.unanswered >= MAX_UNANSWERED => {
-                return Err(failure);
-            }
-            Err(_) => self.unanswered += 1,
         }
         Ok(self.ended())
     }
@@ -332,7 +308,7 @@ impl<'p> Reading<'p> {
     }
 
     fn completions(&self, tracked: Tracked) -> usize {
-        tracked.completed(&self.exchanges).count()
+        tracked.completed(self.exchanges()).count()
     }
 
     /// Waits while the browser shows its own error page for the last navigation, which it
@@ -343,14 +319,14 @@ impl<'p> Reading<'p> {
             if self.poll().await? {
                 return Ok(false);
             }
-            if !self.page.reading() {
+            if !self.page().reading() {
                 self.timed_out = true;
                 return Ok(false);
             }
             if self.facts.load_error.is_none() {
                 return Ok(true);
             }
-            self.page.rest(POLL).await;
+            self.page().rest(POLL).await;
         }
     }
 
@@ -386,11 +362,11 @@ impl<'p> Reading<'p> {
     ) -> Result<bool, AttemptFailure> {
         let started = Instant::now();
         let mut scrolled: Option<Instant> = None;
-        while self.page.reading() {
+        while self.page().reading() {
             if self.poll().await? {
                 return Ok(false);
             }
-            let arrived = awaited.among(tracked, &self.exchanges);
+            let arrived = awaited.among(tracked, self.exchanges());
             if !arrived.is_empty() {
                 let held = arrived
                     .iter()
@@ -408,7 +384,7 @@ impl<'p> Reading<'p> {
                 }
                 continue;
             }
-            self.page.rest(POLL).await;
+            self.page().rest(POLL).await;
         }
         self.poll().await?;
         self.timed_out = true;
@@ -427,7 +403,7 @@ impl<'p> Reading<'p> {
     pub(super) async fn settle(&mut self, tracked: Tracked) -> Result<bool, AttemptFailure> {
         let mut seen = self.completions(tracked);
         let mut quiet = Instant::now();
-        while self.page.reading() {
+        while self.page().reading() {
             if self.poll().await? {
                 return Ok(false);
             }
@@ -438,7 +414,7 @@ impl<'p> Reading<'p> {
             } else if quiet.elapsed() >= SETTLE {
                 return Ok(true);
             }
-            self.page.rest(POLL).await;
+            self.page().rest(POLL).await;
         }
         self.timed_out = true;
         Ok(false)
@@ -458,18 +434,18 @@ impl<'p> Reading<'p> {
         loop {
             if self.poll().await?
                 || !Awaited::SentFrom(sent)
-                    .among(tracked, &self.exchanges)
+                    .among(tracked, self.exchanges())
                     .is_empty()
             {
                 return Ok(true);
             }
             let slice = POLL.min(until.remaining().unwrap_or_default());
-            match self.page.confirm(check, slice).await {
+            match self.page().confirm(check, slice).await {
                 Ok(()) => return Ok(true),
                 Err(InputError::Transport(failure)) => return Err(failure),
                 Err(InputError::Failed(_)) => {}
             }
-            if until.remaining().is_none_or(|left| left.is_zero()) || !self.page.reading() {
+            if until.remaining().is_none_or(|left| left.is_zero()) || !self.page().reading() {
                 return Ok(false);
             }
         }
@@ -478,11 +454,11 @@ impl<'p> Reading<'p> {
     /// Turns the wheel over the list the page shows toward its end. Returns `false` once the
     /// read deadline has passed.
     async fn scroll_to_end(&mut self) -> Result<bool, AttemptFailure> {
-        let plan: ScrollPlan = self.page.evaluate(&page_script(SCROLL_PLAN)).await?;
+        let plan: ScrollPlan = self.page().evaluate(&page_script(SCROLL_PLAN)).await?;
         if plan.distance < 1.0 {
             return Ok(true);
         }
-        match input_failure(self.page.wheel((plan.x, plan.y), plan.distance).await)? {
+        match input_failure(self.page().wheel((plan.x, plan.y), plan.distance).await)? {
             Some(missed) if missed.failure == InputFailure::DeadlinePassed => Ok(false),
             // A wheel turn that found no target leaves the next poll to turn it again.
             _ => Ok(true),
@@ -504,12 +480,10 @@ impl<'p> Reading<'p> {
     ///
     /// Returns a transport failure.
     pub(super) fn finish(mut self) -> Result<Observed, AttemptFailure> {
-        let exchanges = self.page.take_exchanges()?;
-        absorb(&mut self.facts, &exchanges);
-        self.exchanges.extend(exchanges);
+        absorb(&mut self.facts, self.session.capture()?);
         Ok(Observed {
             page: self.facts,
-            exchanges: self.exchanges,
+            exchanges: self.session.into_exchanges(),
             timed_out: self.timed_out,
             body_missing: self.body_missing,
         })

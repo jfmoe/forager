@@ -18,8 +18,8 @@ use serde::de::DeserializeOwned;
 use crate::catalog::ProviderId;
 use crate::config::BrowserRouteRuntimeConfig;
 use crate::net::AttemptFailure;
-use crate::providers::browser::{CaptureLevel, Exchange, Page, RequestMethod, runtime};
-use crate::providers::browser_route::{BrowserRoute, single_attempt};
+use crate::providers::browser::{CaptureLevel, Exchange, RequestMethod, runtime};
+use crate::providers::browser_route::{BrowserRoute, PageReading, single_attempt};
 use crate::providers::execution::ExecutionSettings;
 use crate::rate_limit::RateLimiter;
 use crate::types::{AttemptErrorKind, AttemptTarget, Deadline, Platform};
@@ -32,8 +32,6 @@ const VERIFICATION_TITLE: &str = "Prove your humanity";
 /// The document statuses with which Reddit refuses a session or a network.
 const REFUSAL_STATUSES: [u16; 2] = [403, 429];
 const POLL: Duration = Duration::from_millis(500);
-// A page that is navigating briefly answers no script.
-const MAX_UNANSWERED: u32 = 5;
 
 #[path = "reddit_browser_login.rs"]
 mod login;
@@ -248,82 +246,34 @@ fn document_status(exchanges: &[Exchange], requested_path: &str, final_url: &str
         .and_then(|exchange| exchange.status)
 }
 
-/// One operation's read of the page: it navigates, keeps the site exchanges capture holds, and
-/// projects the page.
-struct Reading<'p> {
-    page: &'p mut Page,
-    requested: String,
-    exchanges: Vec<Exchange>,
-    /// The network error of a navigation that never loaded a document.
-    navigation_error: Option<String>,
-    unanswered: u32,
+/// Takes what capture holds and evaluates the projection `script`; `None` while the page
+/// briefly answers no script, as it does while it navigates.
+///
+/// # Errors
+///
+/// Returns a transport failure, or a script failure that lasted several reads.
+async fn project<T: Projection>(
+    reading: &mut PageReading<'_>,
+    script: &str,
+) -> Result<Option<T>, AttemptFailure> {
+    reading.capture()?;
+    let Some(mut projection) = reading.evaluate::<T>(script).await? else {
+        return Ok(None);
+    };
+    let page = projection.page_mut();
+    if page.load_error.is_none() {
+        page.load_error = reading.blank_page_error(&page.url);
+    }
+    Ok(Some(projection))
 }
 
-impl<'p> Reading<'p> {
-    fn new(page: &'p mut Page) -> Self {
-        Self {
-            page,
-            requested: String::new(),
-            exchanges: Vec::new(),
-            navigation_error: None,
-            unanswered: 0,
-        }
-    }
-
-    fn page(&mut self) -> &mut Page {
-        self.page
-    }
-
-    /// Opens `url` and waits until its document has loaded, at most until the read deadline.
-    async fn navigate(&mut self, url: &str) -> Result<(), AttemptFailure> {
-        url.clone_into(&mut self.requested);
-        let navigation = self.page.navigate(url).await?;
-        self.navigation_error = navigation
-            .error
-            .filter(|_| !navigation.loaded)
-            .map(|error| error.trim_start_matches("net::").to_owned());
-        Ok(())
-    }
-
-    /// Takes what capture holds and evaluates the projection `script`; `None` while the page
-    /// briefly answers no script, as it does while it navigates.
-    ///
-    /// # Errors
-    ///
-    /// Returns a transport failure, or a script failure that lasted several reads.
-    async fn project<T: Projection>(&mut self, script: &str) -> Result<Option<T>, AttemptFailure> {
-        self.exchanges.extend(self.page.take_exchanges()?);
-        match self.page.evaluate::<T>(script).await {
-            Ok(mut projection) => {
-                self.unanswered = 0;
-                let page = projection.page_mut();
-                // A navigation that failed before the browser showed its error page leaves the
-                // tab blank, where only the navigation result names the error.
-                if page.load_error.is_none() && !page.url.starts_with("http") {
-                    page.load_error.clone_from(&self.navigation_error);
-                }
-                Ok(Some(projection))
-            }
-            Err(failure) if self.page.closed() || self.unanswered >= MAX_UNANSWERED => Err(failure),
-            Err(_) => {
-                self.unanswered += 1;
-                Ok(None)
-            }
-        }
-    }
-
-    /// The facts of a read that never had a projection: the requested page, with the
-    /// navigation's network error.
-    fn unread(&self) -> PageFacts {
-        PageFacts {
-            url: self.requested.clone(),
-            load_error: self.navigation_error.clone(),
-            ..PageFacts::default()
-        }
-    }
-
-    fn document_status(&self, requested_path: &str, facts: &PageFacts) -> Option<u16> {
-        document_status(&self.exchanges, requested_path, &facts.url)
+/// The facts of a read that never had a projection: the requested page, with the navigation's
+/// network error.
+fn unread(reading: &PageReading<'_>) -> PageFacts {
+    PageFacts {
+        url: reading.requested().to_owned(),
+        load_error: reading.navigation_error().map(str::to_owned),
+        ..PageFacts::default()
     }
 }
 
