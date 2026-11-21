@@ -27,7 +27,6 @@ pub(crate) struct Providers {
     pub(crate) youtube_web: AnonymousEndpoint<YoutubeWebEndpoint>,
     pub(crate) gemini_api: GeminiApi,
     pub(crate) polymarket_api: PolymarketApi,
-    pub(crate) reddit_web: RedditWeb,
     pub(crate) reddit_browser: BrowserRoute,
 }
 
@@ -204,27 +203,6 @@ impl Default for PolymarketApi {
             url: "https://gamma-api.polymarket.com".into(),
             clob_url: "https://clob.polymarket.com".into(),
             data_url: "https://data-api.polymarket.com".into(),
-            timeout: 30,
-        }
-    }
-}
-
-/// The `reddit_web` route section: the site origin that serves search and comment pages, and the
-/// origin of its embed pages.
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub(crate) struct RedditWeb {
-    pub(crate) url: String,
-    pub(crate) embed_url: String,
-    #[serde(deserialize_with = "deserialize_integer")]
-    pub(crate) timeout: u64,
-}
-
-impl Default for RedditWeb {
-    fn default() -> Self {
-        Self {
-            url: "https://www.reddit.com".into(),
-            embed_url: "https://embed.reddit.com".into(),
             timeout: 30,
         }
     }

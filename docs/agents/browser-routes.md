@@ -1,6 +1,6 @@
 # 浏览器 route 的开发与实测
 
-浏览器 route（`xiaohongshu_browser` 与 `reddit_browser`）经 forager 自带的浏览器传输，在平台专用的 Browser Profile 中启动 Managed Browser 并运行 route 自己的页面逻辑。传输与页面逻辑的规则见规格第 7 章「浏览器传输」「小红书」与「Reddit」的「Route `reddit_browser`」，模块归属见第 4 章「浏览器传输职责」，决策见 ADR 0036。本文只记录本机开发和实测时要遵守的事。
+浏览器 route（`xiaohongshu_browser` 与 `reddit_browser`）经 forager 自带的浏览器传输，在平台专用的 Browser Profile 中启动 Managed Browser 并运行 route 自己的页面逻辑。传输与页面逻辑的规则见规格第 7 章「浏览器传输」「小红书」与「Reddit」，模块归属见第 4 章「浏览器传输职责」，决策见 ADR 0036，Reddit 改用浏览器 route 的决策见 ADR 0037。本文只记录本机开发和实测时要遵守的事。
 
 ## 哪一层证明什么
 

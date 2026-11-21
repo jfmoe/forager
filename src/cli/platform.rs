@@ -103,8 +103,8 @@ pub(super) enum PlatformCommand {
         #[command(subcommand)]
         command: PolymarketCommand,
     },
-    /// Search Reddit posts and read their discussions from the site's own pages; needs no key,
-    /// and is disabled until you enable its route.
+    /// Search Reddit posts and read their discussions in a headless browser logged into your
+    /// account; disabled until you enable its browser route.
     Reddit {
         #[command(subcommand)]
         command: RedditCommand,

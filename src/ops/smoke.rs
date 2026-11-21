@@ -61,11 +61,11 @@ const YOUTUBE_VIDEOS_CANARY: &str = "youtube:playlist/PLZHQObOWTQDPD3MizzM2xVFit
 // speaker's clothes.
 const YOUTUBE_ASK_CANARY_QUESTION: &str =
     "How many elephants are visible behind the speaker, and what is he wearing?";
-const SPECIFICATION_CASE_IDS: [&str; 46] = [
+const SPECIFICATION_CASE_IDS: [&str; 44] = [
     "P1", "P2", "C01", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "C13", "C17",
     "C18", "C19", "C20", "C21", "C24", "C25", "C26", "C27", "C28", "C29", "C30", "C31", "C32",
     "C33", "C34", "C35", "C36", "C37", "C38", "C39", "C40", "C41", "C42", "C43", "C44", "C45",
-    "C46", "C47", "C48", "C49", "C50", "C51",
+    "C46", "C49", "C50", "C51",
 ];
 // One comment page holds 10 top-level comments, so 15 needs the second page.
 const XIAOHONGSHU_COMMENTS_LIMIT: &str = "15";
@@ -76,9 +76,9 @@ const DEADLINE_NOT_STARTED: &str =
     "not started: the live smoke deadline elapsed before this case began";
 const XIAOHONGSHU_ONE_COMMENT_PAGE: &str = "not verified: the most-commented note of the Xiaohongshu search has 10 or fewer comments, so the second comment page was not read";
 const XIAOHONGSHU_NO_REPLIES: &str = "not verified: no returned comment of the most-commented Xiaohongshu note had more replies to expand";
-const REDDIT_STOPPED: &str = "not started: an earlier Reddit browser case met a verification page, a refused page, or a logged-out session, so this run stops all Reddit browser access";
+const REDDIT_STOPPED: &str = "not started: an earlier Reddit case met a verification page, a refused page, or a logged-out session, so this run stops all Reddit access";
 const REDDIT_NO_POST: &str =
-    "not started: the Reddit browser search case returned no post that is not marked NSFW";
+    "not started: the Reddit search case returned no post that is not marked NSFW";
 const PIPELINE_CASES: [LiveCaseDefinition; 3] = [
     LiveCaseDefinition::pipeline("P1", "search"),
     LiveCaseDefinition::pipeline("P2", "research"),
@@ -211,7 +211,7 @@ struct LiveRun {
     polymarket_event: Option<String>,
 }
 
-/// What one live run carries between its Reddit browser cases, in memory only: the fetch case
+/// What one live run carries between its Reddit cases, in memory only: the fetch case
 /// reads a post the search case found, so it never opens a post chosen from memory.
 #[derive(Default)]
 struct RedditRun {
@@ -263,23 +263,21 @@ impl From<&'static str> for CaseFailure {
 }
 
 /// A stable item and a depth that its route serves without Web Fetch, so the platform fetch
-/// case checks only the route contract. Xiaohongshu has no stable item: a note opens only with
-/// an access token, which expires.
+/// case checks only the route contract. Xiaohongshu and Reddit have none: a Xiaohongshu note
+/// opens only with an access token, which expires, and the Reddit fetch case reads a post its
+/// search case returned rather than one fixed in advance.
 fn platform_fetch_canary(platform: Platform) -> Option<(&'static str, &'static str)> {
     match platform {
         Platform::Arxiv => Some(("arxiv:1706.03762", "abstract")),
         Platform::Ssrn => Some(("ssrn:2042750", "metadata")),
         Platform::Scholar => Some(("scholar:18208131694456651388", "metadata")),
-        Platform::Xiaohongshu => None,
         Platform::X => Some(("x:2098634733248720992", "metadata")),
         // The 2007 Dropbox launch discussion: about 70 comments that no longer change.
         Platform::Hn => Some(("hn:8863", "thread")),
         // The first YouTube upload (2005), whose metadata no longer changes.
         Platform::Youtube => Some(("youtube:jNQXAC9IVRw", "metadata")),
         Platform::Polymarket => Some((POLYMARKET_CANARY, "metadata")),
-        // An r/running daily thread of 2023-11-11: archived, so its roughly 100 comments no
-        // longer change.
-        Platform::Reddit => Some(("reddit:17snc7d", "thread")),
+        Platform::Xiaohongshu | Platform::Reddit => None,
     }
 }
 
@@ -292,14 +290,14 @@ fn platform_fetch_shape(platform: Platform) -> ResultShape {
     }
 }
 
-/// The canary of a fetch case that writes its document to a file: the Hacker News and Reddit
-/// discussions, and the transcript of the YouTube canary, which only `youtube_web` reads.
+/// The canary of a fetch case that writes its document to a file: the Hacker News discussion,
+/// and the transcript of the YouTube canary, which only `youtube_web` reads.
 fn document_fetch_canary(definition: LiveCaseDefinition) -> Option<(&'static str, &'static str)> {
     if definition.operation != "fetch" {
         return None;
     }
     match (definition.platform?, definition.provider?) {
-        (platform @ (Platform::Hn | Platform::Reddit), _) => platform_fetch_canary(platform),
+        (Platform::Hn, _) => platform_fetch_canary(Platform::Hn),
         (Platform::Youtube, route) if route == ProviderId::YoutubeWeb.name() => {
             platform_fetch_canary(Platform::Youtube).map(|(reference, _)| (reference, "full_text"))
         }
@@ -676,14 +674,10 @@ fn blocker(definition: LiveCaseDefinition, run: &LiveRun) -> Option<&'static str
         .or_else(|| reddit_blocker(definition, &run.reddit))
 }
 
-fn is_reddit_browser(definition: LiveCaseDefinition) -> bool {
-    definition.platform == Some(Platform::Reddit) && definition.transport == Some("browser")
-}
-
-/// Returns why a Reddit browser case must not start: an earlier one failed with Auth, or the
-/// fetch case has no post from the search case.
+/// Returns why a Reddit case must not start: an earlier one failed with Auth, or the fetch case
+/// has no post from the search case.
 fn reddit_blocker(definition: LiveCaseDefinition, run: &RedditRun) -> Option<&'static str> {
-    if !is_reddit_browser(definition) {
+    if definition.platform != Some(Platform::Reddit) {
         return None;
     }
     if run.stopped {
@@ -760,7 +754,7 @@ fn run_configured_case(
                             most_commented_access_url(&payload);
                     }
                     (Some(Platform::Polymarket), "search") => run.polymarket_event = first("ref"),
-                    (Some(Platform::Reddit), "search") if is_reddit_browser(definition) => {
+                    (Some(Platform::Reddit), "search") => {
                         run.reddit.post = first_safe_post(&payload);
                     }
                     _ => {}
@@ -807,13 +801,13 @@ fn run_configured_case(
 }
 
 /// Stops the later cases a refusal endangers: any refusal stops the Xiaohongshu cases, and Auth
-/// stops the Reddit browser cases; a Reddit post that is not visible says nothing about the
+/// stops the Reddit cases; a Reddit post that is not visible says nothing about the
 /// account.
 fn stop_after_refusal(definition: LiveCaseDefinition, kind: FailureKind, run: &mut LiveRun) {
     if definition.platform == Some(Platform::Xiaohongshu) {
         run.xiaohongshu.stopped = true;
     }
-    if kind == FailureKind::Auth && is_reddit_browser(definition) {
+    if kind == FailureKind::Auth && definition.platform == Some(Platform::Reddit) {
         run.reddit.stopped = true;
     }
 }
@@ -837,12 +831,7 @@ fn run_case_once(
     let case_id = definition.id;
     let timeout_seconds = remaining_seconds(deadline).ok_or("live smoke hard deadline elapsed")?;
     let executable = std::env::current_exe().map_err(|_| "cannot resolve forager executable")?;
-    // P2 writes its evidence, the Xiaohongshu fetch its full text, the Hacker News and YouTube
-    // document fetches their documents, and transcribe its transcript here.
-    let scratch = (case_id == "P2"
-        || is_xiaohongshu_fetch(definition)
-        || document_fetch_canary(definition).is_some()
-        || definition.operation == TRANSCRIBE)
+    let scratch = needs_scratch(definition)
         .then(tempfile::tempdir)
         .transpose()
         .map_err(|_| "cannot create a temporary directory for the live case")?;
@@ -932,6 +921,21 @@ fn comments_coverage(payload: &Value) -> Result<(), CaseFailure> {
 
 fn is_xiaohongshu_fetch(definition: LiveCaseDefinition) -> bool {
     definition.platform == Some(Platform::Xiaohongshu) && definition.operation == "fetch"
+}
+
+/// Returns whether the case's commands write into a temporary directory: P2 its evidence, the
+/// Xiaohongshu fetch its full text, the Reddit, Hacker News, and YouTube document fetches their
+/// documents, and transcribe its transcript.
+fn needs_scratch(definition: LiveCaseDefinition) -> bool {
+    definition.id == "P2"
+        || is_xiaohongshu_fetch(definition)
+        || is_reddit_fetch(definition)
+        || document_fetch_canary(definition).is_some()
+        || definition.operation == TRANSCRIBE
+}
+
+fn is_reddit_fetch(definition: LiveCaseDefinition) -> bool {
+    definition.platform == Some(Platform::Reddit) && definition.operation == "fetch"
 }
 
 /// The refusal a failed command ended on, by its exit code and stdout: Auth, or an
@@ -1090,7 +1094,7 @@ fn command_specs(
                 ],
                 ResultShape::PlatformSearch,
             )
-        } else if is_reddit_browser(definition) && definition.operation == "fetch" {
+        } else if is_reddit_fetch(definition) {
             let content_dir = scratch_dir?.display().to_string();
             one(
                 &[

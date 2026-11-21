@@ -97,7 +97,6 @@ forager platform polymarket history MARKET [--outcome NAME]
 forager platform reddit search QUERY [--subreddit NAME] [--sort relevance|hot|top|new|comments]
                                [--time hour|day|week|month|year|all] [--limit 1..=25（默认 10）]
                                [--timeout 120] [--format json|markdown] [...]
-forager platform reddit search --cursor CURSOR [--timeout 120] [--format json|markdown] [...]
 forager platform reddit fetch REF_OR_URL [--depth thread|metadata|full_text（默认 thread）]
                               [--content-dir DIR] [--timeout 120] [--format json|markdown|content] [...]
 forager browser install [--timeout 600]
@@ -614,25 +613,24 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 ### `platform reddit search`
 
-只在 Reddit 上检索帖子，经两条 route 之一（第 7 章「Reddit」）：`reddit_browser` 在 forager 的无头浏览器中以用户登录过的 Reddit Browser Profile 打开站点的搜索页；`reddit_web` 匿名读取站点自己的搜索结果片段。两条 route 都默认关闭，由用户加入 `platforms.reddit.order` 启用；order 为空时的配置错误给出两者的启用说明与风险说明。
+只在 Reddit 上检索帖子，经浏览器 route `reddit_browser`（第 7 章「Reddit」）：在 forager 的无头浏览器中以用户登录过的 Reddit Browser Profile 打开站点的搜索页。route 默认关闭，由用户加入 `platforms.reddit.order` 启用；order 为空时的配置错误给出它的启用说明与风险说明。
 
 | 参数 | 类型与取值 | 默认值 | 语义 |
 |---|---|---|---|
-| 查询词（位置参数） | 非空字符串 | 无 `--cursor` 时必填 | 按 Reddit 自己的搜索语法原样发送 |
+| 查询词（位置参数） | 非空字符串 | 必填 | 按 Reddit 自己的搜索语法原样发送 |
 | `--subreddit` | 1–21 个 `[A-Za-z0-9_]`，可带 `r/` 前缀 | 全站 | 只要该版块的帖子 |
 | `--sort` | `relevance` / `hot` / `top` / `new` / `comments` | `relevance` | 结果顺序 |
 | `--time` | `hour` / `day` / `week` / `month` / `year` / `all` | 不限 | 时间窗，只用于 `relevance`、`top` 与 `comments` |
-| `--limit` | 1–25 | 10 | 本页条目数；站点每页约 7 条。`reddit_web` 一次命令最多读 5 个片段页；`reddit_browser` 不够数时原生滚动，最多 6 次 |
-| `--cursor` | 上一页的 `next_cursor` | 无 | 与查询词、选项和 `--limit` 互斥；只有 `reddit_web` 签发 cursor，`reddit_browser` 的 `next_cursor` 恒为 `null` |
+| `--limit` | 1–25 | 10 | 条目数；首屏约 7 条，不够数时原生滚动，最多 6 次。没有 `--cursor`：`next_cursor` 恒为 `null`，一次命令之后不能续页 |
 | `--format` | `json` / `markdown` | `json` | 输出格式 |
 
 - 通用 flag 同 arXiv search。
-- **输出**：外层形状与 arXiv search 相同。每个 item 含 `ref`（`reddit:<id>`）、canonical `url`（`https://www.reddit.com/comments/<id>/`）、`depth`（有搜索摘录为 `snippet`，否则为 `metadata`）、`title`、`authors`、`published`（UTC，精确到秒），以及 Reddit 字段 `subreddit`、`permalink`、`post_type`（search 为 `null`）、`link_url`、`score`、`comments`、`nsfw`、`spoiler`、`snippet` 与 `snippet_source`（`post` 或 `comment`）。不写 Search Result Journal。`reddit_browser` 读到的结果少于 `--limit` 而页面还有下一页时，成功返回已有条目，stderr 给出“未列全”诊断，提示缩小查询、版块或时间窗。
-- **退出码**：查询词为空、版块名非法、`--time` 与 `hot` 或 `new` 同时出现、`--limit` 越界、cursor 无效、order 中只有 `reddit_browser` 而给出 cursor＝飞行前退 2；`platforms.reddit.order` 为空（默认）＝飞行前退 3，消息给出启用命令与风险说明；order 含 `reddit_browser` 而浏览器找不到或 Reddit Browser Profile 从未登录＝飞行前退 3，不启动浏览器，消息给出 `forager browser install`、`browser.path` 或 `forager browser login reddit`；验证页为 Auth（`reddit_web` 的 403 与 429 消息说明出口 IP 被拒；`reddit_browser` 的 403、429 与未登录的消息提示运行 `forager browser login reddit` 或等待），页面不是预期格式为 Runtime，`reddit_browser` 到读取截止点仍未载入页面为 Network、仍停在搜索页为 Timeout，都退 4；合法零结果为 `items: []` 且退 0。
+- **输出**：外层形状与 arXiv search 相同。每个 item 含 `ref`（`reddit:<id>`）、canonical `url`（`https://www.reddit.com/comments/<id>/`）、`depth`（有搜索摘录为 `snippet`，否则为 `metadata`）、`title`、`authors`、`published`（UTC，精确到秒），以及 Reddit 字段 `subreddit`、`permalink`、`post_type`（search 为 `null`）、`link_url`、`score`、`comments`、`nsfw`、`spoiler`、`snippet` 与 `snippet_source`（`post` 或 `comment`）。不写 Search Result Journal。读到的结果少于 `--limit` 而页面还有下一页时，成功返回已有条目，stderr 给出“未列全”诊断，提示缩小查询、版块或时间窗。
+- **退出码**：缺查询词或查询词为空、版块名非法、`--time` 与 `hot` 或 `new` 同时出现、`--limit` 越界、给出 `--cursor`（参数已不存在）＝飞行前退 2；`platforms.reddit.order` 为空（默认）＝飞行前退 3，消息给出三步启用说明与风险说明；order 中出现已退役的 `reddit_web`，或配置中有 `[providers.reddit_web]` 段＝退 3（未知 route 与未知键）；浏览器找不到或 Reddit Browser Profile 从未登录＝飞行前退 3，不启动浏览器，消息给出 `forager browser install`、`browser.path` 或 `forager browser login reddit`；验证页、文档 403/429 与未登录为 Auth，消息提示运行 `forager browser login reddit` 或等待；页面不是预期格式为 Runtime，到读取截止点仍未载入页面为 Network、仍停在搜索页为 Timeout，都退 4；合法零结果为 `items: []` 且退 0。
 
 ### `platform reddit fetch`
 
-读取一个 Reddit 帖子，默认把帖子与它第一页 top 序的评论写成 Markdown 文件。
+读取一个 Reddit 帖子，经 `reddit_browser` 在登录的 Reddit Browser Profile 中打开帖子页，默认把帖子与页面随文档带来的第一批评论写成 Markdown 文件。
 
 | 参数 | 类型与取值 | 默认值 | 语义 |
 |---|---|---|---|
@@ -642,8 +640,8 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 | `--format` | `json` / `markdown` / `content` | `json` | `content` 把讨论串或全文输出到 stdout，不写文件 |
 
 - 通用 flag 同 search。
-- **输出**：JSON 顶层为 `platform`、`provider`，条目的公共字段与 Reddit 字段（`post_type` 为帖子类型，`spoiler`、`snippet` 与 `snippet_source` 为 `null`），另有 `text`（帖子正文的 Markdown）。`thread` 深度另有 `content_url`、`content_provider`（交付的 route）、`content_path`、`content_len`、`comments_delivered`、`has_more_comments` 与 `order`（评论的排序，封闭取值 `top`、`best`、`new`、`controversial`、`old`、`qa`；`reddit_web` 恒为 `top`，`reddit_browser` 取页面评论树报告的排序）；`full_text` 深度另有正文的四个 `content_*` 字段。
-- **退出码**：评论 permalink（消息给出所属帖子的 ref）、分享短链 `/s/<code>`、其他无法识别的输入，`thread`、`metadata`、`full_text` 以外的深度＝飞行前退 2；`platforms.reddit.order` 为空（默认）、`full_text` 而没有已配置的 Web Fetch provider＝飞行前退 3；帖子不存在（`Reddit post not found: reddit:<id>`）、embed 页不显示它（已删除、私有或受限），或 `reddit_browser` 已登录、页面加载完成而没有帖子元素，为 attempt 级 Parameter，退 4；`reddit_browser` 遇到验证页、文档 403/429 或未登录为 Auth，退 4；没有正文也不是 link 帖的帖子，以及经 `reddit_browser` 读到的类型不在 `text`、`link`、`image`、`video`、`gallery`、`multi_media` 之中的帖子（如 `crosspost`，即使有正文），请求 `full_text` 为 Quality，退 5；文件写入失败为 Runtime，退 4；传输失败同 search。
+- **输出**：JSON 顶层为 `platform`、`provider`，条目的公共字段与 Reddit 字段（`post_type` 为帖子类型，`spoiler`、`snippet` 与 `snippet_source` 为 `null`），另有 `text`（帖子正文的 Markdown）。`thread` 深度另有 `content_url`、`content_provider`（交付的 route）、`content_path`、`content_len`、`comments_delivered`、`has_more_comments` 与 `order`（评论的排序，取页面评论树报告的排序，封闭取值 `top`、`best`、`new`、`controversial`、`old`、`qa`；导航时请求 `top`）；`full_text` 深度另有正文的四个 `content_*` 字段。
+- **退出码**：评论 permalink（消息给出所属帖子的 ref）、分享短链 `/s/<code>`、其他无法识别的输入，`thread`、`metadata`、`full_text` 以外的深度＝飞行前退 2；`platforms.reddit.order` 为空（默认）、`full_text` 而没有已配置的 Web Fetch provider＝飞行前退 3；已登录、页面加载完成而没有帖子元素（`Reddit post not found: reddit:<id>`，帖子不存在、已删除、私有、受限，或被账号的成人内容设置挡住）为 attempt 级 Parameter，退 4；验证页、文档 403/429 或未登录为 Auth，退 4；没有正文也不是 link 帖的帖子，以及类型不在 `text`、`link`、`image`、`video`、`gallery`、`multi_media` 之中的帖子（如 `crosspost`，即使有正文），请求 `full_text` 为 Quality，退 5；文件写入失败为 Runtime，退 4；传输失败同 search。
 
 ## 收尾
 

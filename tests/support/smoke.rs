@@ -86,6 +86,6 @@ pub(crate) fn case<'a>(payload: &'a Value, id: &str) -> &'a Value {
 /// once.
 pub(crate) fn anonymous_routes_at(url: &str, youtube_web_url: &str) -> String {
     format!(
-        "[providers.arxiv_api]\nurl = \"{url}\"\n[providers.ssrn_crossref]\nurl = \"{url}\"\n[providers.hn_api]\nurl = \"{url}\"\nfirebase_url = \"{url}\"\n[providers.polymarket_api]\nurl = \"{url}\"\nclob_url = \"{url}\"\ndata_url = \"{url}\"\n[providers.reddit_web]\nurl = \"{url}\"\nembed_url = \"{url}\"\n[providers.youtube_web]\nurl = \"{youtube_web_url}\"\n"
+        "[providers.arxiv_api]\nurl = \"{url}\"\n[providers.ssrn_crossref]\nurl = \"{url}\"\n[providers.hn_api]\nurl = \"{url}\"\nfirebase_url = \"{url}\"\n[providers.polymarket_api]\nurl = \"{url}\"\nclob_url = \"{url}\"\ndata_url = \"{url}\"\n[providers.youtube_web]\nurl = \"{youtube_web_url}\"\n"
     )
 }

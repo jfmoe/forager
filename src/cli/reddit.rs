@@ -14,34 +14,32 @@ use crate::types::{
 
 #[derive(Debug, Subcommand)]
 pub(in crate::app) enum RedditCommand {
-    /// Search Reddit posts through the site's own search; each result carries its ref,
-    /// subreddit, score, comment count, and the excerpt the search shows.
+    /// Search Reddit posts in the logged-in Browser Profile; each result carries its ref,
+    /// subreddit, score, comment count, and the excerpt the search shows. Needs
+    /// `reddit_browser` in `platforms.reddit.order`.
     Search(RedditSearchArgs),
-    /// Fetch one Reddit post; by default the post and its first page of top comments are
-    /// written to a local Markdown file.
+    /// Read one Reddit post in the logged-in Browser Profile; by default the post and the
+    /// comments its page loads are written to a local Markdown file.
     Fetch(RedditFetchArgs),
 }
 
 #[derive(Debug, Args)]
 pub(in crate::app) struct RedditSearchArgs {
     /// Words to search for, in Reddit's own search syntax.
-    #[arg(conflicts_with = "cursor")]
-    query: Option<String>,
+    query: String,
     /// Only posts in this subreddit, with or without the `r/` prefix.
-    #[arg(long, value_name = "SUBREDDIT", conflicts_with = "cursor")]
+    #[arg(long, value_name = "SUBREDDIT")]
     subreddit: Option<String>,
     /// Result order.
-    #[arg(long, value_enum, default_value_t = RedditSortArg::Relevance, conflicts_with = "cursor")]
+    #[arg(long, value_enum, default_value_t = RedditSortArg::Relevance)]
     sort: RedditSortArg,
     /// How far back to search; applies to the relevance, top, and comments orders.
-    #[arg(long, value_enum, conflicts_with = "cursor")]
+    #[arg(long, value_enum)]
     time: Option<RedditTimeArg>,
-    /// Maximum results on this page; Reddit lists about seven posts per request.
-    #[arg(long, default_value_t = 10, value_parser = clap::value_parser!(u16).range(1..=25), conflicts_with = "cursor")]
+    /// Maximum results; one command scrolls the results page up to six times and cannot
+    /// continue later.
+    #[arg(long, default_value_t = 10, value_parser = clap::value_parser!(u16).range(1..=25))]
     limit: u16,
-    /// Opaque `next_cursor` from a previous page; it restores the complete original request.
-    #[arg(long)]
-    cursor: Option<String>,
     #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
     format: OutputFormat,
     #[command(flatten)]
@@ -52,7 +50,7 @@ pub(in crate::app) struct RedditSearchArgs {
 pub(in crate::app) struct RedditFetchArgs {
     /// A `reddit:<id>` ref, a reddit.com post URL, or a redd.it short link.
     reference: String,
-    /// `thread` writes the post and its first page of top comments to a file; `metadata`
+    /// `thread` writes the post and the comments its page loads to a file; `metadata`
     /// returns the post with its own text; `full_text` reads the page a link post points to,
     /// or the post's own text.
     #[arg(long, value_enum, default_value_t = RedditDepthArg::Thread)]
@@ -148,35 +146,34 @@ fn reddit_search(arguments: RedditSearchArgs) -> Result<CommandOutput, AppError>
         sort,
         time,
         limit,
-        cursor,
         format,
         common,
     } = arguments;
-    let input = if let Some(cursor) = cursor {
-        PageInput::Cursor(cursor)
-    } else {
-        let options = RedditSearchOptions {
-            subreddit: subreddit.map(|name| {
-                let name = name.trim();
-                name.strip_prefix("r/")
-                    .or_else(|| name.strip_prefix("/r/"))
-                    .unwrap_or(name)
-                    .trim_end_matches('/')
-                    .to_owned()
-            }),
-            sort: sort.into(),
-            time: time.map(RedditTime::from),
-        };
-        let request = PlatformSearchRequest {
-            query: query.unwrap_or_default(),
-            limit,
-            options: PlatformSearchOptions::Reddit(options),
-            page: None,
-        };
-        request.validate().map_err(AppError::Argument)?;
-        PageInput::Request(request)
+    let options = RedditSearchOptions {
+        subreddit: subreddit.map(|name| {
+            let name = name.trim();
+            name.strip_prefix("r/")
+                .or_else(|| name.strip_prefix("/r/"))
+                .unwrap_or(name)
+                .trim_end_matches('/')
+                .to_owned()
+        }),
+        sort: sort.into(),
+        time: time.map(RedditTime::from),
     };
-    search(Platform::Reddit, input, format, &common)
+    let request = PlatformSearchRequest {
+        query,
+        limit,
+        options: PlatformSearchOptions::Reddit(options),
+        page: None,
+    };
+    request.validate().map_err(AppError::Argument)?;
+    search(
+        Platform::Reddit,
+        PageInput::Request(request),
+        format,
+        &common,
+    )
 }
 
 fn reddit_fetch(arguments: RedditFetchArgs) -> Result<CommandOutput, AppError> {

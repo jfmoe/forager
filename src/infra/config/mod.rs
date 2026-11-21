@@ -18,7 +18,6 @@ pub use location::{ConfigError, ConfigLocation, EditError};
 pub(crate) use route_config::{
     BrowserRouteRuntimeConfig, BrowserRuntimeConfig, HnRouteRuntimeConfig, HttpRouteRuntimeConfig,
     KeyedHttpRouteRuntimeConfig, ModelRouteRuntimeConfig, PolymarketRouteRuntimeConfig,
-    RedditRouteRuntimeConfig,
 };
 pub(crate) use runtime::{
     ClassifierRuntimeConfig, JournalRuntimeConfig, LogLevel, PlatformRouteConfig,
