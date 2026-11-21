@@ -141,8 +141,8 @@ const PROJECTED_PAGES: [(&str, &str, &str); 2] = [
     ),
 ];
 
-/// Runs the search projection on the local copies of the pages Reddit served on 2026-11-21 and
-/// compares it with the projections the judgement tests read; with
+/// Runs the search projection on local pages trimmed from those Reddit served on 2026-11-21, with
+/// fake post and author values, and compares it with the projections the judgement tests read; with
 /// `FORAGER_WRITE_PROJECTIONS` set, it writes them instead.
 #[cfg(unix)]
 #[test]
@@ -360,27 +360,41 @@ fn a_page_that_is_not_logged_in_is_auth() {
 
 #[test]
 fn a_loaded_search_page_without_results_or_a_no_results_notice_is_a_format_change() {
+    assert_eq!(
+        failure(&observed(bare_page())),
+        (
+            AttemptErrorKind::Runtime,
+            None,
+            "the Reddit search page shows neither results nor a no-results notice; the page format may have changed".to_owned()
+        )
+    );
+}
+
+#[test]
+fn a_loaded_page_other_than_the_search_page_is_an_unexpected_page() {
     let mut elsewhere = bare_page();
     elsewhere.page.url = "https://www.reddit.com/".into();
     elsewhere.page.title = "Reddit - The heart of the internet".into();
 
-    let failures = [bare_page(), elsewhere].map(|page| failure(&observed(page)));
-
     assert_eq!(
-        failures,
-        [
-            (
-                AttemptErrorKind::Runtime,
-                None,
-                "the Reddit search page shows neither results nor a no-results notice; the page format may have changed".to_owned()
-            ),
-            (
-                AttemptErrorKind::Runtime,
-                None,
-                "the Reddit page logic stopped at an unexpected page: `Reddit - The heart of the internet` (https://www.reddit.com/)".to_owned()
-            ),
-        ]
+        failure(&observed(elsewhere)),
+        (
+            AttemptErrorKind::Runtime,
+            None,
+            "the Reddit page logic stopped at an unexpected page: `Reddit - The heart of the internet` (https://www.reddit.com/)".to_owned()
+        )
     );
+}
+
+#[test]
+fn a_projection_that_leaves_out_a_nullable_fact_does_not_decode() {
+    let mut page: Value = serde_json::from_str(&fixture(SEARCH_PAGE)).expect("a JSON fixture");
+    page["page"]
+        .as_object_mut()
+        .expect("page facts")
+        .remove("user_logged_in");
+
+    assert!(serde_json::from_value::<SearchProjection>(page).is_err());
 }
 
 #[test]
@@ -404,11 +418,11 @@ fn a_read_deadline_without_a_final_page_is_network_timeout_or_runtime_by_where_i
         [
             (
                 AttemptErrorKind::Network,
-                "the browser could not load the Reddit page (ERR_CONNECTION_CLOSED) and had not loaded it again by the read deadline; check the network and retry".to_owned()
+                "the browser could not load the Reddit page https://www.reddit.com/search/?q=example+runtime&type=posts&sort=relevance (ERR_CONNECTION_CLOSED) and had not loaded it again by the read deadline; check the network and retry".to_owned()
             ),
             (
                 AttemptErrorKind::Timeout,
-                "the Reddit search page showed no results before the read deadline".to_owned()
+                "the Reddit search page showed no results before the read deadline on `example runtime - Reddit Search!` (https://www.reddit.com/search/?q=example+runtime&type=posts&sort=relevance)".to_owned()
             ),
             (
                 AttemptErrorKind::Runtime,

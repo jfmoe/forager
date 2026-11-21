@@ -77,7 +77,8 @@ fn capture(url: &Url) -> CaptureLevel {
     }
 }
 
-/// What every projection reports about the page it read.
+/// What every projection reports about the page it read. Every field must be present, a
+/// nullable one as `null`, so a script that drifted from this shape fails to decode.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 struct PageFacts {
@@ -89,6 +90,7 @@ struct PageFacts {
     /// Whether the page has the site's `shreddit-app` element.
     app: bool,
     /// The raw `user-logged-in` attribute of `shreddit-app`.
+    #[serde(deserialize_with = "Option::deserialize")]
     user_logged_in: Option<String>,
     /// Whether a form holds a reCAPTCHA widget, as the verification page does.
     recaptcha_form: bool,
@@ -96,6 +98,7 @@ struct PageFacts {
     js_challenge: bool,
     /// The network error code, such as `ERR_CONNECTION_CLOSED`, while the browser shows its own
     /// error page instead of the Reddit page.
+    #[serde(deserialize_with = "Option::deserialize")]
     load_error: Option<String>,
 }
 
@@ -188,7 +191,8 @@ fn unfinished(
             kind: AttemptErrorKind::Network,
             status: None,
             message: format!(
-                "the browser could not load the Reddit page ({}) and had not loaded it again by the read deadline; check the network and retry",
+                "the browser could not load the Reddit page {} ({}) and had not loaded it again by the read deadline; check the network and retry",
+                facts.url,
                 code.trim()
             ),
         };
@@ -199,7 +203,7 @@ fn unfinished(
     AttemptFailure {
         kind: AttemptErrorKind::Timeout,
         status: None,
-        message: timeout_message(),
+        message: format!("{} on {}", timeout_message(), describe(facts)),
     }
 }
 
