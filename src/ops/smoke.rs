@@ -77,8 +77,10 @@ const DEADLINE_NOT_STARTED: &str =
 const XIAOHONGSHU_ONE_COMMENT_PAGE: &str = "not verified: the most-commented note of the Xiaohongshu search has 10 or fewer comments, so the second comment page was not read";
 const XIAOHONGSHU_NO_REPLIES: &str = "not verified: no returned comment of the most-commented Xiaohongshu note had more replies to expand";
 const REDDIT_STOPPED: &str = "not started: an earlier Reddit case met a verification page, a refused page, or a logged-out session, so this run stops all Reddit access";
-const REDDIT_NO_POST: &str =
-    "not started: the Reddit search case returned no post that is not marked NSFW";
+const REDDIT_SEARCH_NOT_PASSED: &str =
+    "not started: the Reddit search case did not pass, so it found no post to read";
+const REDDIT_NO_SAFE_POST: &str =
+    "not started: the Reddit search case returned no post marked as not NSFW";
 const PIPELINE_CASES: [LiveCaseDefinition; 3] = [
     LiveCaseDefinition::pipeline("P1", "search"),
     LiveCaseDefinition::pipeline("P2", "research"),
@@ -215,11 +217,43 @@ struct LiveRun {
 /// reads a post the search case found, so it never opens a post chosen from memory.
 #[derive(Default)]
 struct RedditRun {
-    /// The first search result that is not marked NSFW.
-    post: Option<String>,
+    search: RedditSearch,
     /// A case failed with Auth; more page loads would push the account further into the site's
     /// risk scoring.
     stopped: bool,
+}
+
+/// What the Reddit search case left for the fetch case.
+#[derive(Debug, Default, PartialEq)]
+enum RedditSearch {
+    /// The search case failed, or never ran.
+    #[default]
+    NotPassed,
+    /// The search case passed without a result marked as not NSFW.
+    NoSafePost,
+    /// The ref of the first result marked as not NSFW.
+    Post(String),
+}
+
+impl RedditSearch {
+    /// What a passing search case left: the first result whose `nsfw` is `false`; a result
+    /// without the flag is never chosen.
+    fn passed(payload: &Value) -> Self {
+        payload["items"]
+            .as_array()
+            .and_then(|items| items.iter().find(|item| item["nsfw"] == Value::Bool(false)))
+            .and_then(|item| item["ref"].as_str())
+            .map_or(Self::NoSafePost, |reference| {
+                Self::Post(reference.to_owned())
+            })
+    }
+
+    fn post(&self) -> Option<&str> {
+        match self {
+            Self::Post(reference) => Some(reference),
+            Self::NotPassed | Self::NoSafePost => None,
+        }
+    }
 }
 
 /// What one live run carries between its Xiaohongshu cases, in memory only: a note opens only
@@ -675,7 +709,7 @@ fn blocker(definition: LiveCaseDefinition, run: &LiveRun) -> Option<&'static str
 }
 
 /// Returns why a Reddit case must not start: an earlier one failed with Auth, or the fetch case
-/// has no post from the search case.
+/// has no post from the search case, which did not pass or found none to read.
 fn reddit_blocker(definition: LiveCaseDefinition, run: &RedditRun) -> Option<&'static str> {
     if definition.platform != Some(Platform::Reddit) {
         return None;
@@ -683,17 +717,14 @@ fn reddit_blocker(definition: LiveCaseDefinition, run: &RedditRun) -> Option<&'s
     if run.stopped {
         return Some(REDDIT_STOPPED);
     }
-    (definition.operation != "search" && run.post.is_none()).then_some(REDDIT_NO_POST)
-}
-
-/// The ref of the first search result that is not marked NSFW.
-fn first_safe_post(payload: &Value) -> Option<String> {
-    payload["items"]
-        .as_array()?
-        .iter()
-        .find(|item| item["nsfw"] != Value::Bool(true))
-        .and_then(|item| item["ref"].as_str())
-        .map(str::to_owned)
+    if definition.operation == "search" {
+        return None;
+    }
+    match run.search {
+        RedditSearch::NotPassed => Some(REDDIT_SEARCH_NOT_PASSED),
+        RedditSearch::NoSafePost => Some(REDDIT_NO_SAFE_POST),
+        RedditSearch::Post(_) => None,
+    }
 }
 
 /// Returns why a Xiaohongshu case must not start: an earlier case met a login wall or a block,
@@ -755,7 +786,7 @@ fn run_configured_case(
                     }
                     (Some(Platform::Polymarket), "search") => run.polymarket_event = first("ref"),
                     (Some(Platform::Reddit), "search") => {
-                        run.reddit.post = first_safe_post(&payload);
+                        run.reddit.search = RedditSearch::passed(&payload);
                     }
                     _ => {}
                 }
@@ -1101,7 +1132,7 @@ fn command_specs(
                     "platform",
                     platform.as_str(),
                     definition.operation,
-                    run.reddit.post.as_deref()?,
+                    run.reddit.search.post()?,
                     "--depth",
                     "thread",
                     "--content-dir",

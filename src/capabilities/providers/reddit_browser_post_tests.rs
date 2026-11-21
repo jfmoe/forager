@@ -108,7 +108,7 @@ async fn main() {}
 
 ## Comments
 
-The first page of comments in Reddit's best order: 6 of 94 comments.
+The first batch of comments the post page loaded, in Reddit's best order: 6 of 94 comments.
 
 - **u/example_one** · 156 points · 2026-08-30T19:48:51Z · [t1_c1top01](https://www.reddit.com/r/rust/comments/1q2w3e4/comment/c1top01/)
 
@@ -186,13 +186,13 @@ fn a_page_that_marks_more_comments_says_the_thread_holds_only_its_first_batch() 
             &item["order"],
             markdown
                 .lines()
-                .find(|line| line.starts_with("The first page")),
+                .find(|line| line.starts_with("The first batch")),
         ),
         (
             &serde_json::json!(true),
             &serde_json::json!("top"),
             Some(
-                "The first page of comments in Reddit's top order: 1 of 1369 comments; Reddit has more that this file does not hold."
+                "The first batch of comments the post page loaded, in Reddit's top order: 1 of 1369 comments; Reddit has more that this file does not hold."
             ),
         )
     );
@@ -462,7 +462,7 @@ fn a_page_without_a_post_whose_document_failed_on_the_server_is_no_missing_post(
         Err((
             AttemptErrorKind::Runtime,
             Some(503),
-            "Reddit answered the post page with HTTP 503 and showed no post; the site may be failing, so retry later".to_owned()
+            "Reddit answered https://www.reddit.com/r/example_adult/comments/1m5n6b7/a_slug/ with HTTP 503 instead of the page; the site may be failing, so retry later".to_owned()
         ))
     );
 }

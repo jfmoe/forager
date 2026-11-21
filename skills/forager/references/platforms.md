@@ -396,11 +396,11 @@ its adult-content setting) is `parameter`, not a different post.
   `new`.
 - A Reddit ref names a post. For a comment link, fetch the post the error message names; for a
   share link (`/s/…`), ask the user for the post URL it opens.
-- The discussion file holds only the first page of comments, in the order `order` names
-  (`top`, which forager asks for; `best`, `new`, `controversial`, `old`, or `qa` if Reddit applied
-  another); `has_more_comments: true` says Reddit has more that the file lacks, and `comments` is
-  the post's whole count, which can exceed `comments_delivered` even without more, because Reddit
-  does not render every removed comment. Say how many of them you read.
+- The discussion file holds only the first batch of comments the post page loaded with the post, in
+  the order `order` names (`top`, which forager asks for; `best`, `new`, `controversial`, `old`, or
+  `qa` if Reddit applied another); `has_more_comments: true` says Reddit has more that the file
+  lacks, and `comments` is the post's whole count, which can exceed `comments_delivered` even
+  without more, because Reddit does not render every removed comment. Say how many of them you read.
 
 ```console
 forager platform reddit search 'rust async runtime' --subreddit rust --sort top --time year

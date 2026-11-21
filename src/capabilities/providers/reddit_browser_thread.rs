@@ -21,8 +21,9 @@ pub(super) struct Comment {
 }
 
 /// Renders the discussion file: the post's metadata and text, then the page's comments indented
-/// by depth with their author, score, time, and permalink, under a line that says in which
-/// order they come and how many of the post's comments they are.
+/// by depth with their author, score, time, and permalink, under a line that says they are the
+/// first batch the page loaded, in which order they come, and how many of the post's comments
+/// they are.
 pub(super) fn render(
     item: &PlatformItem,
     comments: &[Comment],
@@ -70,7 +71,7 @@ pub(super) fn render(
     }
     let _ = writeln!(
         markdown,
-        "\nThe first page of comments in {} order: {} of {} comments{}.",
+        "\nThe first batch of comments the post page loaded, in {} order: {} of {} comments{}.",
         order_name(order),
         comments.len(),
         data.comments.unwrap_or_default(),

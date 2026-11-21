@@ -150,8 +150,44 @@ fn projection_script(body: &str) -> String {
 }
 
 /// A projection: the page facts and the operation's own markers and records.
-trait Projection: DeserializeOwned {
+trait Projection: DeserializeOwned + Default {
     fn page_mut(&mut self) -> &mut PageFacts;
+}
+
+/// What one read of a page observed.
+#[derive(Debug)]
+struct Observation<P> {
+    /// The last projection; a search's holds every result any projection showed.
+    projection: P,
+    document_status: Option<u16>,
+    /// The read deadline passed before the page reached a final state.
+    timed_out: bool,
+}
+
+impl<P: Projection> Observation<P> {
+    /// What a read observed that ended at the projection `last`, or, without one, at the
+    /// requested page with the navigation's network error.
+    fn new(
+        last: Option<P>,
+        reading: &PageReading<'_>,
+        document_status: Option<u16>,
+        timed_out: bool,
+    ) -> Self {
+        let projection = last.unwrap_or_else(|| {
+            let mut unread = P::default();
+            *unread.page_mut() = PageFacts {
+                url: reading.requested().to_owned(),
+                load_error: reading.navigation_error().map(str::to_owned),
+                ..PageFacts::default()
+            };
+            unread
+        });
+        Self {
+            projection,
+            document_status,
+            timed_out,
+        }
+    }
 }
 
 /// Fails on the facts that end any Reddit page read with Auth: a verification page, a document
@@ -184,14 +220,36 @@ fn blocked(facts: &PageFacts, document_status: Option<u16>) -> Option<AttemptFai
     })
 }
 
+/// Whether a page that shows none of the operation's content reached a final state, which
+/// renders the content no later: a block, or a loaded page of a logged-in session or of a
+/// document the site failed to serve.
+fn ended_without_content(facts: &PageFacts, document_status: Option<u16>) -> bool {
+    blocked(facts, document_status).is_some()
+        || (facts.loaded() && (facts.logged_in() || server_error(document_status).is_some()))
+}
+
+/// Fails a page that shows none of the operation's content when the site failed to serve its
+/// document: a site failure says nothing about the content.
+fn server_failure(facts: &PageFacts, document_status: Option<u16>) -> Option<AttemptFailure> {
+    server_error(document_status).map(|status| AttemptFailure {
+        kind: AttemptErrorKind::Runtime,
+        status: Some(status),
+        message: format!(
+            "Reddit answered {} with HTTP {status} instead of the page; the site may be failing, so retry later",
+            facts.url
+        ),
+    })
+}
+
+/// The status of a document the site failed to serve.
+fn server_error(document_status: Option<u16>) -> Option<u16> {
+    document_status.filter(|status| *status >= 500)
+}
+
 /// Fails a read whose deadline passed before the page reached a final state: the browser never
 /// loaded the page (Network), the page stayed the expected one (Timeout, with
 /// `timeout_message`), or the read stopped at another page (Runtime).
-fn unfinished(
-    facts: &PageFacts,
-    on_expected_page: bool,
-    timeout_message: impl FnOnce() -> String,
-) -> AttemptFailure {
+fn unfinished(facts: &PageFacts, on_expected_page: bool, timeout_message: &str) -> AttemptFailure {
     if let Some(code) = &facts.load_error {
         return AttemptFailure {
             kind: AttemptErrorKind::Network,
@@ -209,7 +267,7 @@ fn unfinished(
     AttemptFailure {
         kind: AttemptErrorKind::Timeout,
         status: None,
-        message: format!("{} on {}", timeout_message(), describe(facts)),
+        message: format!("{timeout_message} on {}", describe(facts)),
     }
 }
 
@@ -230,6 +288,12 @@ fn site_timestamp(value: &str) -> Option<String> {
     chrono::DateTime::parse_from_str(value.trim(), "%Y-%m-%dT%H:%M:%S%.f%z")
         .ok()
         .map(|time| utc_second(time.to_utc()))
+}
+
+/// The site URL of a site-relative `path`, such as the permalink `/r/rust/comments/<id>/<slug>/`.
+fn site_url(path: &str) -> Option<String> {
+    path.starts_with('/')
+        .then(|| format!("{SITE_ORIGIN}{path}"))
 }
 
 /// The path of a site URL without its trailing `/`, in lower case: the site redirects a
@@ -281,16 +345,6 @@ async fn project<T: Projection>(
         page.load_error = reading.blank_page_error(&page.url);
     }
     Ok(Some(projection))
-}
-
-/// The facts of a read that never had a projection: the requested page, with the navigation's
-/// network error.
-fn unread(reading: &PageReading<'_>) -> PageFacts {
-    PageFacts {
-        url: reading.requested().to_owned(),
-        load_error: reading.navigation_error().map(str::to_owned),
-        ..PageFacts::default()
-    }
 }
 
 #[cfg(test)]
