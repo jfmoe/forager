@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.21.0](https://github.com/jfmoe/forager/compare/v0.20.0...v0.21.0) - 2026-11-21
+
+### Added
+
+- *(reddit)* [**breaking**] retire reddit_web and read Reddit only in the browser
+- *(reddit)* read posts in the logged-in Managed Browser
+- *(reddit)* search Reddit in the logged-in Managed Browser
+- *(smoke)* run left-out routes under --opt-in and name why cases skip
+
+### Fixed
+
+- *(reddit)* gate the unix-only projection test imports
+- *(smoke)* report the child's error in a failed live case
+- *(reddit)* end both reads on a 5xx and stop hiding scroll failures
+- *(reddit)* end a post read on a server error and tidy the review findings
+- *(reddit)* hold reddit_browser to its spec on decoding and messages
+
+### Other
+
+- *(reddit)* state the ADR and research findings as current fact
+- *(reddit)* state the search exit codes as current behavior
+- *(browser)* share one page reading session across browser routes
+- *(smoke)* fold the opt-in gate branches and split its test
+
 ## [0.20.0](https://github.com/jfmoe/forager/compare/v0.19.0...v0.20.0) - 2026-11-19
 
 ### Added
