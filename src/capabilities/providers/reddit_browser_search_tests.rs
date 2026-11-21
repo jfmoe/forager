@@ -1,9 +1,11 @@
 use serde_json::Value;
 
+#[cfg(unix)]
 use super::super::projection_script;
+#[cfg(unix)]
+use super::SEARCH_PROJECTION;
 use super::{
-    SEARCH_PROJECTION, SearchObservation, SearchProjection, SearchState, SearchTarget,
-    search_outcome, search_state,
+    SearchObservation, SearchProjection, SearchState, SearchTarget, search_outcome, search_state,
 };
 use crate::types::{AttemptErrorKind, RedditSearchOptions};
 

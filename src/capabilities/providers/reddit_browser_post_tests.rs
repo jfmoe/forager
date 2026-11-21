@@ -1,7 +1,10 @@
 use serde_json::Value;
 
+#[cfg(unix)]
 use super::super::projection_script;
-use super::{POST_PROJECTION, PostObservation, PostProjection, PostTarget, post_outcome};
+#[cfg(unix)]
+use super::POST_PROJECTION;
+use super::{PostObservation, PostProjection, PostTarget, post_outcome};
 use crate::types::{AttemptErrorKind, ContentDepth, FullTextSource, RedditRef};
 
 const POST_PAGE: &str = "reddit_browser/post.json";
