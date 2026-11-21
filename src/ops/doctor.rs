@@ -658,26 +658,15 @@ async fn shallow_check(
 
 /// Returns why the deep probe cannot run the provider, or `None` when it can. A platform route
 /// that users must enable (one driving a browser, or one reading undocumented endpoints) runs
-/// only when a platform order enables it; a browser route also needs its preflight check to
-/// pass.
+/// only when a platform order enables it; every provider also needs its prerequisites.
 fn deep_unconfigured_reason(provider: ProviderId, runtime: &RuntimeConfig) -> Option<String> {
-    let name = provider.name();
     if is_opt_in_route(provider) && !route_enabled(provider, runtime) {
         return Some(format!(
-            "no platform order lists `{name}`; add it to the order to enable it"
+            "no platform order lists `{}`; add it to the order to enable it",
+            provider.name()
         ));
     }
-    match catalog::registration(provider).transport {
-        ProviderTransport::Browser(environment) => {
-            providers::browser_preflight(&environment, &runtime.browser).err()
-        }
-        ProviderTransport::Http => (!runtime.provider_configured(provider)).then(|| {
-            format!(
-                "{} has no configured credentials",
-                config::provider_keys_key(name)
-            )
-        }),
-    }
+    providers::route_prerequisites(provider, runtime).err()
 }
 
 /// Returns whether the route serves a platform but no default order lists it, so only the

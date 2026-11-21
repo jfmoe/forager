@@ -176,6 +176,8 @@ pub(super) enum Command {
         timeout: u64,
         #[arg(long, requires = "live", value_name = "CASE_ID=EVIDENCE_URL")]
         outage_evidence: Vec<String>,
+        #[arg(long, requires = "live")]
+        opt_in: bool,
         #[arg(long, hide = true, conflicts_with = "live", value_parser = ["C04", "C05", "C06", "OUTAGE"])]
         probe: Option<String>,
         #[arg(long, hide = true, requires = "probe", default_value_t = 180, value_parser = clap::value_parser!(u64).range(1..))]

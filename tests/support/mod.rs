@@ -181,10 +181,18 @@ impl Fixture {
     /// Starts a sequence whose responses name the fixture's own URL, such as a link the client
     /// follows next.
     pub(crate) fn start_sequence_for(responses: impl FnOnce(&str) -> Vec<Response>) -> Self {
+        Self::start_sequence_for_with_deadline(ACCEPT_DEADLINE, responses)
+    }
+
+    /// [`Self::start_sequence_for`], waiting up to `accept_deadline` for each request.
+    pub(crate) fn start_sequence_for_with_deadline(
+        accept_deadline: Duration,
+        responses: impl FnOnce(&str) -> Vec<Response>,
+    ) -> Self {
         let listener = fixture_listener("fixture");
         let address = listener.local_addr().expect("fixture address");
         let responses = responses(&format!("http://{address}"));
-        Self::serve_sequence(listener, responses, ACCEPT_DEADLINE)
+        Self::serve_sequence(listener, responses, accept_deadline)
     }
 
     fn serve_sequence(

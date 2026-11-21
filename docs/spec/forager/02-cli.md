@@ -103,7 +103,7 @@ forager platform reddit fetch REF_OR_URL [--depth thread|metadata|full_text（�
 forager browser install [--timeout 600]
 forager browser login PLATFORM [--timeout 10..（默认 600）]
 forager doctor [--provider PROVIDER] [--timeout 30] [--format json|markdown]
-forager smoke [--live] [...]
+forager smoke [--live [--opt-in]] [...]
 forager config path|list|set|unset
 forager setup [--non-interactive] [--lang zh|en]
 ```
@@ -647,5 +647,5 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 ## 收尾
 
-- `smoke [--live]`：默认离线档；内容定义见第 5 章。
+- `smoke [--live [--opt-in]]`：默认离线档；`--opt-in` 让 order 未列出、但本机具备运行前提的平台 route 的 live 用例也运行（模型操作用例除外），`unconfigured` 用例的 `message` 写明原因；内容定义见第 5 章。
 - `setup` 只留 `--non-interactive`/`--lang`；键面见第 3 章。

@@ -1106,12 +1106,13 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             list: false,
             timeout,
             outage_evidence,
+            opt_in,
             probe: None,
             ..
         } => {
             let outage_evidence = crate::smoke::parse_outage_evidence(&outage_evidence)
                 .map_err(AppError::Argument)?;
-            let (report, exit_code) = crate::smoke::run_live(timeout, &outage_evidence)?;
+            let (report, exit_code) = crate::smoke::run_live(timeout, &outage_evidence, opt_in)?;
             Ok(CommandOutput::Text {
                 stdout: serde_json::to_string(&report)
                     .map_err(|error| AppError::Runtime(error.to_string()))?,

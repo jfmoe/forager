@@ -58,7 +58,10 @@ impl SmokeEnvironment {
             )
             .env("XDG_STATE_HOME", &self.state_dir)
             .env("HOME", &self.home_dir)
-            .env("NO_PROXY", "127.0.0.1,localhost");
+            .env("NO_PROXY", "127.0.0.1,localhost")
+            // A case that reaches past the fixtures fails on this closed port, never on a site.
+            .env("HTTP_PROXY", "http://127.0.0.1:9")
+            .env("HTTPS_PROXY", "http://127.0.0.1:9");
         #[cfg(windows)]
         if let Some(system_root) = std::env::var_os("SystemRoot") {
             command.env("SystemRoot", system_root);
@@ -75,4 +78,13 @@ pub(crate) fn case<'a>(payload: &'a Value, id: &str) -> &'a Value {
         .iter()
         .find(|case| case["id"] == id)
         .expect("registered live case")
+}
+
+/// Points every anonymous HTTP platform route but `youtube_web` at `url`, and `youtube_web` at
+/// `youtube_web`. With `--opt-in`, live smoke runs the cases of every such route that the order
+/// leaves out, so a test points them at a fixture that answers 401: a refused case runs once.
+pub(crate) fn anonymous_routes_at(url: &str, youtube_web: &str) -> String {
+    format!(
+        "[providers.arxiv_api]\nurl = \"{url}\"\n[providers.ssrn_crossref]\nurl = \"{url}\"\n[providers.hn_api]\nurl = \"{url}\"\nfirebase_url = \"{url}\"\n[providers.polymarket_api]\nurl = \"{url}\"\nclob_url = \"{url}\"\ndata_url = \"{url}\"\n[providers.reddit_web]\nurl = \"{url}\"\nembed_url = \"{url}\"\n[providers.youtube_web]\nurl = \"{youtube_web}\"\n"
+    )
 }
