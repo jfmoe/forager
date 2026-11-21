@@ -3,17 +3,17 @@ use reqwest::Client;
 use super::constructors::{credentials, route_limiter};
 use super::{
     ArxivApi, DocsSearch, GeminiApi, HnApi, KeyAccount, KeyQuota, MainSearch, PlatformFetch,
-    PlatformSearch, PolymarketApi, ProviderId, RedditBrowser, RedditWeb, Serpapi, SsrnCrossref,
+    PlatformSearch, PolymarketApi, ProviderId, RedditBrowser, Serpapi, SsrnCrossref,
     SupplementalSearch, WebFetch, WebSearch, XiaohongshuBrowser, YoutubeApi, YoutubeWeb, arxiv,
-    browser, browser_preflight, hn_api, polymarket_api, reddit_browser, reddit_web, serpapi,
-    ssrn_crossref, web_fetch, xai, xiaohongshu_browser, youtube_api, youtube_web,
+    browser, browser_preflight, hn_api, polymarket_api, reddit_browser, serpapi, ssrn_crossref,
+    web_fetch, xai, xiaohongshu_browser, youtube_api, youtube_web,
 };
 use crate::catalog::{ProviderTransport, WEB_FETCH, WEB_SEARCH, registration, registrations};
 use crate::config::{
     BrowserRouteRuntimeConfig, DocsSearchProviderConfig, HnRouteRuntimeConfig,
     HttpRouteRuntimeConfig, KeyedHttpRouteRuntimeConfig, MainSearchProviderConfig,
-    ModelRouteRuntimeConfig, PlatformRouteConfig, PolymarketRouteRuntimeConfig,
-    RedditRouteRuntimeConfig, RuntimeConfig, WebFetchProviderConfig, provider_keys_key,
+    ModelRouteRuntimeConfig, PlatformRouteConfig, PolymarketRouteRuntimeConfig, RuntimeConfig,
+    WebFetchProviderConfig, provider_keys_key,
 };
 use crate::net::RetryPolicy;
 use crate::providers::browser::BrowserLogin;
@@ -160,9 +160,6 @@ pub(crate) fn build_platform_search(
         PlatformRouteConfig::PolymarketApi(config) => {
             Box::new(build_polymarket_api(config, client, retry_policy, deadline))
         }
-        PlatformRouteConfig::RedditWeb(config) => {
-            Box::new(build_reddit_web(config, client, deadline))
-        }
         PlatformRouteConfig::RedditBrowser(config) => {
             Box::new(build_reddit_browser(config, deadline))
         }
@@ -210,9 +207,6 @@ pub(crate) fn build_platform_fetch(
         }
         PlatformRouteConfig::PolymarketApi(config) => {
             Box::new(build_polymarket_api(config, client, retry_policy, deadline))
-        }
-        PlatformRouteConfig::RedditWeb(config) => {
-            Box::new(build_reddit_web(config, client, deadline))
         }
         PlatformRouteConfig::RedditBrowser(config) => {
             Box::new(build_reddit_browser(config, deadline))
@@ -521,21 +515,6 @@ fn build_youtube_web(
     )
 }
 
-// Like `youtube_web`, the route never retries, so the shared retry policy does not reach it.
-fn build_reddit_web(
-    config: RedditRouteRuntimeConfig,
-    client: Client,
-    deadline: Deadline,
-) -> RedditWeb {
-    RedditWeb::new(
-        config,
-        client,
-        route_limiter(ProviderId::RedditWeb)
-            .expect("reddit_web registration declares an access policy"),
-        deadline,
-    )
-}
-
 fn build_reddit_browser(config: BrowserRouteRuntimeConfig, deadline: Deadline) -> RedditBrowser {
     RedditBrowser::new(
         config,
@@ -598,7 +577,6 @@ pub(crate) fn platform_search_support(
         ProviderId::HnApi => hn_api::search_support(request),
         ProviderId::YoutubeApi => youtube_api::search_support(request),
         ProviderId::PolymarketApi => polymarket_api::search_support(request),
-        ProviderId::RedditWeb => reddit_web::search_support(request),
         ProviderId::RedditBrowser => reddit_browser::search_support(request),
         _ => return None,
     };
@@ -621,7 +599,6 @@ pub(crate) fn platform_fetch_support(
         ProviderId::YoutubeApi => youtube_api::fetch_support(request),
         ProviderId::YoutubeWeb => youtube_web::fetch_support(request),
         ProviderId::PolymarketApi => polymarket_api::fetch_support(request),
-        ProviderId::RedditWeb => reddit_web::fetch_support(request),
         ProviderId::RedditBrowser => reddit_browser::fetch_support(request),
         _ => return None,
     };

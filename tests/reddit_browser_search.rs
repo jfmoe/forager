@@ -9,8 +9,6 @@ mod support;
 
 use std::process::Output;
 
-use base64::Engine as _;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use serde_json::{Value, json};
 
 use support::RunEnvironment;
@@ -146,41 +144,6 @@ fn the_default_empty_order_refuses_the_search_with_the_steps_and_the_account_ris
     assert!(
         stderr(&output).contains(
             "to use reddit_browser, run `forager browser install`, run `forager browser login reddit` and log in, then add `reddit_browser` to platforms.reddit.order. reddit_browser reads Reddit in a browser logged into your account, which Reddit's User Agreement does not allow for automated access, so it is off by default; its risk falls on the Reddit account you log in with, not your egress IP"
-        ),
-        "{}",
-        stderr(&output)
-    );
-}
-
-#[test]
-fn a_cursor_is_refused_before_the_browser_starts() {
-    let stand_in = StandIn::failing("must not start");
-    let environment = RunEnvironment::new(&stand_in.reddit_config(ENABLED));
-    mark_logged_in(&environment.state_dir, "reddit");
-
-    // The cursor another page would carry, had the route issued one.
-    let request = json!({
-        "query": "async runtime",
-        "limit": 10,
-        "options": {"platform": "reddit"},
-        "page": "7"
-    });
-    let cursor = format!(
-        "v1.reddit_browser.{}",
-        URL_SAFE_NO_PAD.encode(request.to_string())
-    );
-
-    let output = environment.run(&["platform", "reddit", "search", "--cursor", &cursor]);
-
-    assert_eq!(
-        (output.status.code(), stand_in.launches().len()),
-        (Some(2), 0),
-        "{}",
-        stderr(&output)
-    );
-    assert!(
-        stderr(&output).contains(
-            "reddit_browser cannot continue a search from a page position; it issues no cursor"
         ),
         "{}",
         stderr(&output)

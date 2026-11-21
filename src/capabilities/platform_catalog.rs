@@ -114,13 +114,13 @@ pub(crate) const POLYMARKET: PlatformCatalog = PlatformCatalog {
     default_order: &[ProviderId::PolymarketApi],
 };
 
-// Reddit's public Data API takes no new apps and is being retired, so both routes read the pages
-// the site renders: `reddit_browser` in a browser logged into the user's account, `reddit_web`
-// anonymously over HTTP (ADR 0033). Users must enable either themselves.
+// Reddit's public Data API takes no new apps and is being retired, and the site refuses
+// anonymous readers on datacenter networks, so the one route reads the pages the site renders in
+// a browser logged into the user's account (ADR 0037). Users must enable it themselves.
 pub(crate) const REDDIT: PlatformCatalog = PlatformCatalog {
     platform: Platform::Reddit,
-    search: &[ProviderId::RedditBrowser, ProviderId::RedditWeb],
-    fetch: &[ProviderId::RedditBrowser, ProviderId::RedditWeb],
+    search: &[ProviderId::RedditBrowser],
+    fetch: &[ProviderId::RedditBrowser],
     operation_only: &[],
     default_order: &[],
 };
@@ -148,11 +148,6 @@ const OPT_INS: &[OptIn] = &[
         route: ProviderId::RedditBrowser,
         catalog: REDDIT,
         risk: "reddit_browser reads Reddit in a browser logged into your account, which Reddit's User Agreement does not allow for automated access, so it is off by default; its risk falls on the Reddit account you log in with, not your egress IP",
-    },
-    OptIn {
-        route: ProviderId::RedditWeb,
-        catalog: REDDIT,
-        risk: "reddit_web reads Reddit's own search, comment, and embed pages anonymously, which Reddit's User Agreement and robots.txt do not allow for automated access, so it is off by default; its risk is a temporary block of your egress IP, never your account",
     },
 ];
 
@@ -311,20 +306,6 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(unstated, Vec::<ProviderId>::new());
-    }
-
-    #[test]
-    fn the_reddit_web_hint_enables_it_in_an_empty_order() {
-        let hint = http_opt_in(ProviderId::RedditWeb, "platforms.reddit.order", &[])
-            .expect("reddit_web is opt-in");
-
-        assert!(
-            hint.starts_with("reddit_web reads Reddit's own search")
-                && hint.ends_with(
-                    r#"run `forager config set platforms.reddit.order '["reddit_web"]'`"#
-                ),
-            "{hint}"
-        );
     }
 
     #[test]

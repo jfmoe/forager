@@ -228,8 +228,7 @@ impl RedditTime {
     }
 }
 
-/// Optional Reddit search scope, order, and window; the site enforces each one. A cursor
-/// encodes them completely.
+/// Optional Reddit search scope, order, and window; the site enforces each one.
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct RedditSearchOptions {

@@ -76,12 +76,11 @@ pub(crate) enum ProviderId {
     YoutubeWeb,
     GeminiApi,
     PolymarketApi,
-    RedditWeb,
     RedditBrowser,
 }
 
 impl ProviderId {
-    pub(crate) const ALL: [Self; 18] = [
+    pub(crate) const ALL: [Self; 17] = [
         Self::Xai,
         Self::Openai,
         Self::Exa,
@@ -98,7 +97,6 @@ impl ProviderId {
         Self::YoutubeWeb,
         Self::GeminiApi,
         Self::PolymarketApi,
-        Self::RedditWeb,
         Self::RedditBrowser,
     ];
 
@@ -120,7 +118,6 @@ impl ProviderId {
             "youtube_web" => Some(Self::YoutubeWeb),
             "gemini_api" => Some(Self::GeminiApi),
             "polymarket_api" => Some(Self::PolymarketApi),
-            "reddit_web" => Some(Self::RedditWeb),
             "reddit_browser" => Some(Self::RedditBrowser),
             _ => None,
         }
@@ -144,7 +141,6 @@ impl ProviderId {
             Self::YoutubeWeb => "youtube_web",
             Self::GeminiApi => "gemini_api",
             Self::PolymarketApi => "polymarket_api",
-            Self::RedditWeb => "reddit_web",
             Self::RedditBrowser => "reddit_browser",
         }
     }
@@ -488,21 +484,6 @@ const POLYMARKET_API_SMOKE: &[ProviderSmokeCase] = &[
     },
 ];
 
-const REDDIT_WEB_SMOKE: &[ProviderSmokeCase] = &[
-    ProviderSmokeCase {
-        id: "C47",
-        platform: Some(Platform::Reddit),
-        operation: "search",
-        transport: "http",
-    },
-    ProviderSmokeCase {
-        id: "C48",
-        platform: Some(Platform::Reddit),
-        operation: "fetch",
-        transport: "http",
-    },
-];
-
 const REDDIT_BROWSER_SMOKE: &[ProviderSmokeCase] = &[
     ProviderSmokeCase {
         id: "C50",
@@ -598,14 +579,6 @@ const HN_API_ACCESS: AccessPolicy = AccessPolicy {
 // Gamma search at 350 requests per 10 seconds.
 const POLYMARKET_API_ACCESS: AccessPolicy = AccessPolicy {
     min_interval: Duration::from_millis(250),
-    max_concurrency: 1,
-};
-
-// Reddit states no pace for its site pages; one request every two seconds is the pace of the
-// 2026-10-17 and 2026-10-27 probes, which met no 429. A search page lists about seven posts and
-// a fetch sends two requests. Going faster risks the user's egress IP (ADR 0033).
-const REDDIT_WEB_ACCESS: AccessPolicy = AccessPolicy {
-    min_interval: Duration::from_secs(2),
     max_concurrency: 1,
 };
 
@@ -821,20 +794,6 @@ const REGISTRY: &[ProviderRegistration] = &[
         native_full_text: false,
     },
     // A full-text fetch of a link post reads the linked page through Web Fetch.
-    ProviderRegistration {
-        id: ProviderId::RedditWeb,
-        operations: &[],
-        credentials: Credentials::Unused,
-        transport: ProviderTransport::Http,
-        access_policy: Some(REDDIT_WEB_ACCESS),
-        probe: DoctorProbe::PlatformSearch {
-            platform: Platform::Reddit,
-            name: "search",
-            transport: "http",
-        },
-        smoke_cases: REDDIT_WEB_SMOKE,
-        native_full_text: false,
-    },
     ProviderRegistration {
         id: ProviderId::RedditBrowser,
         operations: &[],

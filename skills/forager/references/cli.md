@@ -1118,46 +1118,39 @@ transport failures under search.
 ### `platform reddit search`
 
 ```console
-forager platform reddit search [QUERY] [--subreddit NAME] [--sort relevance|hot|top|new|comments]
-                               [--time hour|day|week|month|year|all] [--limit N] [--cursor CURSOR]
+forager platform reddit search QUERY [--subreddit NAME] [--sort relevance|hot|top|new|comments]
+                               [--time hour|day|week|month|year|all] [--limit N]
                                [--timeout SECONDS] [--format json|markdown]
                                [--output FILE [--receipt]] [--verbose]
 ```
 
 | Argument or option | Meaning | Default |
 | --- | --- | --- |
-| `QUERY` | Words to search for, in Reddit's own search syntax. Required without `--cursor`. | Omitted |
+| `QUERY` | Words to search for, in Reddit's own search syntax. | Required |
 | `--subreddit NAME` | Only posts in this subreddit (1 to 21 letters, digits, or `_`), with or without `r/`. | All of Reddit |
 | `--sort ORDER` | `relevance`, `hot`, `top`, `new`, or `comments` (most comments first). | `relevance` |
 | `--time WINDOW` | `hour`, `day`, `week`, `month`, `year`, or `all`; only with `relevance`, `top`, or `comments`. | Omitted |
-| `--limit N` | Results on this page, `1..=25`; Reddit lists about seven posts per request. | `10` |
-| `--cursor CURSOR` | `next_cursor` of a previous page; it restores the whole request, so pass no query, option, or `--limit` with it. Only `reddit_web` issues one. | Omitted |
+| `--limit N` | Results, `1..=25`; the first screen lists about seven posts, and the command scrolls for more. It cannot continue later. | `10` |
 
-Reddit search runs through one of two opt-in routes. `reddit_browser` opens Reddit's search page in
+Reddit search runs through one opt-in route, `reddit_browser`. It opens Reddit's search page in
 forager's headless browser, logged into the user's Reddit account (`forager browser install`,
 then `forager browser login reddit`, then adding `reddit_browser` to `platforms.reddit.order`); it
 runs at most one browser command every 10 seconds, scrolls the page while it lists fewer than
 `--limit` posts (at most six scrolls), and issues no cursor (`next_cursor` is always `null`). When
-it read fewer than `--limit` and Reddit has more, it says so on stderr. `reddit_web` reads
-Reddit's own search, comment, and embed pages anonymously (`providers.reddit_web.url` and
-`.embed_url`); it needs no key but is off until the user runs
-`forager config set platforms.reddit.order '["reddit_web"]'`, and it sends at most one request
-every 2 seconds. JSON output is `{platform, provider, items, next_cursor}`. Each item has
+it read fewer than `--limit` and Reddit has more, it says so on stderr. JSON output is `{platform, provider, items, next_cursor}`. Each item has
 `ref` (`reddit:<id>`), `url` (`https://www.reddit.com/comments/<id>/`), `depth` (`snippet` when
 Reddit showed an excerpt, otherwise `metadata`), `title`, `authors`, `published` (UTC second),
 `subreddit`, `permalink`, `post_type` (`null` in search), `link_url`, `score`, `comments`,
-`nsfw`, `spoiler`, `snippet`, and `snippet_source` (`post` or `comment`). A search reads up to
-five result pages through `reddit_web`; a valid empty search returns `items: []` with exit 0.
+`nsfw`, `spoiler`, `snippet`, and `snippet_source` (`post` or `comment`). A valid empty search
+returns `items: []` with exit 0.
 
-Exit codes: `2` before any request for a blank query, an invalid subreddit name, `--time` with
-`hot` or `new`, `--limit` out of range, an invalid cursor, or a cursor for `reddit_browser`; `3`
-for an empty `platforms.reddit.order` (the default), with the steps and the risk of enabling each
-route, or when `reddit_browser` is in the order but the browser is missing or the Reddit Browser
-Profile was never logged in, with the command that fixes it; `4` for `auth` (through
-`reddit_web`: a verification page only a browser can pass, HTTP 403, or `rate_limited`, all of
-which mean Reddit is refusing this egress IP; through `reddit_browser`: a verification page,
-HTTP 403 or 429, or a logged-out session, with `forager browser login reddit` to fix it),
-`network`, `timeout`, and `runtime` for a page whose format changed.
+Exit codes: `2` before any request for a missing or blank query, an invalid subreddit name,
+`--time` with `hot` or `new`, or `--limit` out of range; `3` for an empty
+`platforms.reddit.order` (the default), with the steps and the risk of enabling the route, or when
+the browser is missing or the Reddit Browser Profile was never logged in, with the command that
+fixes it; `4` for `auth` (a verification page, HTTP 403 or 429, or a logged-out session, with
+`forager browser login reddit` to fix it), `network`, `timeout`, and `runtime` for a page whose
+format changed.
 
 ### `platform reddit fetch`
 
@@ -1170,7 +1163,7 @@ forager platform reddit fetch REF_OR_URL [--depth thread|metadata|full_text] [--
 | Argument or option | Meaning | Default |
 | --- | --- | --- |
 | `REF_OR_URL` | `reddit:<id>`, `reddit:t3_<id>`, a reddit.com post URL (`www`, `old`, `new`, `np`, or `m`), or a `redd.it/<id>` short link. | Required |
-| `--depth DEPTH` | `thread` writes the post and its first page of top comments to a Markdown file; `metadata` returns the post with its own text; `full_text` reads the page a link post points to, or the post's own title and text. | `thread` |
+| `--depth DEPTH` | `thread` writes the post and the comments its page loads to a Markdown file; `metadata` returns the post with its own text; `full_text` reads the page a link post points to, or the post's own title and text. | `thread` |
 | `--content-dir DIR` | Directory for the discussion or full-text Markdown file, named `reddit-<id>.md`. | New directory under the system temp directory |
 | `--format FORMAT` | `json`, `markdown`, or `content`; `content` prints the discussion or the full text and writes no file. | `json` |
 
@@ -1180,11 +1173,11 @@ JSON output is the item fields as under search, with `post_type` (Reddit's own t
 `thread` depth it adds `content_url`, `content_provider` (the route), `content_path`,
 `content_len`, `comments_delivered` (comments in the file), `has_more_comments`, and `order`:
 `top`, `best`, `new`, `controversial`, `old`, or `qa`, the comment order Reddit applied
-(`reddit_web` always reads `top`; `reddit_browser` asks for `top` and reports what the page says).
+(forager asks for `top` and reports what the page says).
 The file starts with the post's title, ref, permalink, subreddit, author, link, score, comment
 count, time, and text, then the first page of comments with a line naming their order, indented
 by depth, each with its author, score, time, and permalink. A deleted comment keeps its place as
-`*[deleted or removed]*`. `reddit_browser` opens the post page once in the logged-in browser and
+`*[deleted or removed]*`. The route opens the post page once in the logged-in browser and
 reads the comments it loaded with the post; it never scrolls for more or expands replies.
 `full_text` needs a configured Web Fetch provider for a link post; a text post's body comes from
 the route itself.
@@ -1193,8 +1186,7 @@ Exit codes: `2` before any request for a comment permalink (the message names th
 share link (`/s/…`), another URL, or a depth other than the three; `3` for an empty
 `platforms.reddit.order`, or `full_text` with no configured Web Fetch provider; `4` for
 `parameter` (`Reddit post not found: reddit:<id>`, or a post the route cannot see because it is
-removed, private, or restricted, or, through `reddit_browser`, hidden by the account's
-adult-content setting) and the failures under search; `5` (`quality`) for `full_text` of a post
+removed, private, or restricted, or hidden by the account's adult-content setting) and the failures under search; `5` (`quality`) for `full_text` of a post
 with neither text nor a link, such as an image or gallery post, or of a post type forager does
 not know, such as `crosspost`.
 

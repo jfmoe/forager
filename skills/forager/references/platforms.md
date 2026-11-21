@@ -48,8 +48,8 @@ platform absent from it has no platform command; follow
   "Polymarket".
 - **Reddit**: for what Reddit says about a topic, run `forager platform reddit search QUERY`; for
   a post and its discussion (a reddit.com or redd.it link the user gave, or a ref forager
-  returned), run `forager platform reddit fetch 'REF_OR_URL'`. Both Reddit routes are off until
-  the user enables one; see "Reddit".
+  returned), run `forager platform reddit fetch 'REF_OR_URL'`. Reddit's only route is off until
+  the user enables it; see "Reddit".
 
 `forager platform <id> <op> --help` is the syntax authority; see the platform section of
 [`cli.md`](cli.md) for output fields and exit codes.
@@ -377,7 +377,7 @@ forager platform polymarket history polymarket:market/will-no-fed-rate-cuts-happ
 
 ## Reddit
 
-Reddit search and fetch run through one of two opt-in routes; with both in the order, the first one listed answers.
+Reddit search and fetch run through one opt-in route, `reddit_browser`.
 
 `reddit_browser` searches and reads Reddit in forager's headless browser, logged into the user's
 own Reddit account. Reddit's User Agreement does not allow automated access, and the risk falls on that
@@ -391,20 +391,13 @@ opens the post page once and reads the comments it loaded with the post (about t
 in Reddit's top order. A post the account cannot see (deleted, private, restricted, or hidden by
 its adult-content setting) is `parameter`, not a different post.
 
-`reddit_web` reads Reddit's own search, comment, and embed pages anonymously. It needs no key, but it is off by default: Reddit's User Agreement and
-robots.txt do not allow automated access. Enable it only when the user asks for it, and tell
-them what it means first: the risk is a temporary block of their egress IP, never their account,
-because the route never logs in. The command is
-`forager config set platforms.reddit.order '["reddit_web"]'`. It runs at most one request every
-2 seconds; a search reads up to five result pages of about seven posts each.
-
 - Queries follow Reddit's own search. Set `--subreddit`, `--sort`, and `--time` only when the
   request implies them; `--time` applies to `relevance`, `top`, and `comments`, not to `hot` or
   `new`.
 - A Reddit ref names a post. For a comment link, fetch the post the error message names; for a
   share link (`/s/…`), ask the user for the post URL it opens.
 - The discussion file holds only the first page of comments, in the order `order` names
-  (`top` for both routes so far; `best`, `new`, `controversial`, `old`, or `qa` if Reddit applied
+  (`top`, which forager asks for; `best`, `new`, `controversial`, `old`, or `qa` if Reddit applied
   another); `has_more_comments: true` says Reddit has more that the file lacks, and `comments` is
   the post's whole count, which can exceed `comments_delivered` even without more, because Reddit
   does not render every removed comment. Say how many of them you read.
@@ -636,7 +629,7 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
   or out of the model's reach; report it rather than retrying.
 - A `t.co` link (exit 2): ask the user for the x.com URL it opens.
 
-- Reddit exit 3 naming `platforms.reddit.order`: the Reddit routes are off. Continue with
+- Reddit exit 3 naming `platforms.reddit.order`: the Reddit route is off. Continue with
   `forager search` for Reddit content, and tell the user what enabling a route means (see
   "Reddit") rather than enabling it yourself.
 - Reddit exit 3 saying `reddit_browser cannot run`: the browser is missing or the user never
@@ -646,9 +639,6 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
   session): stop using Reddit for this task and do not retry; tell the user to run
   `forager browser login reddit` and deal with what the site shows in its window, or to wait.
   Never try to pass a verification page.
-- Reddit `auth` or `rate_limited` through `reddit_web` (exit 4), or a message naming the egress
-  IP: Reddit is refusing this network. Stop using Reddit for this task, tell the user to wait or switch networks, and do
-  not retry. Never try to pass a verification page.
 - Reddit `runtime` saying the page format may have changed: report it and continue with
   `forager search`; do not retry.
 - Reddit `parameter` saying the post was not found or is not available: it may be removed,

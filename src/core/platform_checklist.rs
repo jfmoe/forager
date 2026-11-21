@@ -13,8 +13,7 @@ use crate::catalog::{
 use crate::config::{
     self, BrowserRouteRuntimeConfig, BrowserRuntimeConfig, HnRouteRuntimeConfig,
     HttpRouteRuntimeConfig, KeyedHttpRouteRuntimeConfig, ModelRouteRuntimeConfig,
-    PlatformRoutesRuntimeConfig, PolymarketRouteRuntimeConfig, RedditRouteRuntimeConfig,
-    XaiRuntimeConfig,
+    PlatformRoutesRuntimeConfig, PolymarketRouteRuntimeConfig, XaiRuntimeConfig,
 };
 use crate::providers;
 use crate::types::{
@@ -424,11 +423,6 @@ fn has_adapter(platform: Platform, operation: PlatformOperation, route: Provider
             url: String::new(),
             clob_url: String::new(),
             data_url: String::new(),
-            timeout_seconds: 1,
-        },
-        reddit_web: RedditRouteRuntimeConfig {
-            url: String::new(),
-            embed_url: String::new(),
             timeout_seconds: 1,
         },
     };

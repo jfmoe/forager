@@ -847,11 +847,9 @@ mod tests {
         let reddit = empty_order_message(Platform::Reddit);
         let xiaohongshu = empty_order_message(Platform::Xiaohongshu);
 
-        assert!(
-            reddit.starts_with(
-                "platforms.reddit.order has no configured route for reddit search; to use reddit_browser, run `forager browser install`, run `forager browser login reddit` and log in, then add `reddit_browser` to platforms.reddit.order. reddit_browser reads Reddit in a browser logged into your account, which Reddit's User Agreement does not allow for automated access, so it is off by default; its risk falls on the Reddit account you log in with, not your egress IP; reddit_web reads"
-            ),
-            "{reddit}"
+        assert_eq!(
+            reddit,
+            "platforms.reddit.order has no configured route for reddit search; to use reddit_browser, run `forager browser install`, run `forager browser login reddit` and log in, then add `reddit_browser` to platforms.reddit.order. reddit_browser reads Reddit in a browser logged into your account, which Reddit's User Agreement does not allow for automated access, so it is off by default; its risk falls on the Reddit account you log in with, not your egress IP"
         );
         assert_eq!(
             xiaohongshu,

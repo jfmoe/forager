@@ -10,7 +10,7 @@ use super::{
     XIAOHONGSHU_NO_ACCESS_URL, XIAOHONGSHU_NO_REPLIES, XIAOHONGSHU_ONE_COMMENT_PAGE,
     XIAOHONGSHU_STOPPED, XiaohongshuRun, blocker, command_specs, comments_coverage,
     execute_with_deadline, first_safe_post, live_case, live_case_process, max_attempts,
-    most_commented_access_url, official_status_host, refusal, registry_status,
+    most_commented_access_url, needs_scratch, official_status_host, refusal, registry_status,
     status_host_matches_endpoint, status_page_reports_outage, stop_after_refusal,
     xiaohongshu_blocker,
 };
@@ -312,7 +312,7 @@ fn the_reddit_fetch_case_waits_for_a_post_from_the_search_case() {
 }
 
 #[test]
-fn auth_on_a_reddit_browser_case_stops_the_later_reddit_browser_cases_only() {
+fn auth_on_a_reddit_case_stops_the_later_reddit_cases_only() {
     let stopped_after = |id: &str, kind| {
         let mut run = LiveRun::default();
         stop_after_refusal(case(id), kind, &mut run);
@@ -331,9 +331,9 @@ fn auth_on_a_reddit_browser_case_stops_the_later_reddit_browser_cases_only() {
             [
                 stopped_after("C50", FailureKind::Auth),
                 stopped_after("C51", FailureKind::Parameter),
-                stopped_after("C47", FailureKind::Auth),
+                stopped_after("C27", FailureKind::Auth),
             ],
-            ["C47", "C48", "C50", "C51"].map(|id| blocker(case(id), &stopped)),
+            ["C27", "C36", "C50", "C51"].map(|id| blocker(case(id), &stopped)),
         ),
         (
             [true, false, false],
@@ -345,7 +345,38 @@ fn auth_on_a_reddit_browser_case_stops_the_later_reddit_browser_cases_only() {
 #[test]
 fn browser_route_cases_run_once() {
     assert_eq!(
-        ["C27", "C50", "C51", "C47", "C48"].map(|id| max_attempts(case(id))),
+        ["C27", "C50", "C51", "C36", "C37"].map(|id| max_attempts(case(id))),
         [1, 1, 1, 3, 3]
     );
+}
+
+#[test]
+fn every_case_whose_commands_need_a_scratch_directory_gets_one() {
+    let run = LiveRun {
+        xiaohongshu: XiaohongshuRun {
+            access_url: Some("https://www.xiaohongshu.com/explore/a?xsec_token=A".into()),
+            most_commented_access_url: Some(
+                "https://www.xiaohongshu.com/explore/b?xsec_token=B".into(),
+            ),
+            stopped: false,
+        },
+        reddit: RedditRun {
+            post: Some("reddit:1bbbbbb".into()),
+            stopped: false,
+        },
+        polymarket_event: Some("polymarket:some-event".into()),
+    };
+    let scratch = std::path::Path::new("/scratch");
+
+    let unprovided = super::LIVE_CASES
+        .iter()
+        .filter(|definition| {
+            command_specs(definition.id, 60, None, &run).is_none()
+                && command_specs(definition.id, 60, Some(scratch), &run).is_some()
+                && !needs_scratch(**definition)
+        })
+        .map(|definition| definition.id)
+        .collect::<Vec<_>>();
+
+    assert_eq!(unprovided, Vec::<&str>::new());
 }
