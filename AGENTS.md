@@ -32,6 +32,8 @@ Run `cargo nextest run --all-targets --all-features --locked --no-fail-fast --st
 
 The `windows-permissions` job is CI-only. On non-Windows hosts, do not report a missing local run as a risk; report only an observed CI failure, and claim success only from a successful remote run.
 
+That job runs clippy on Windows, where `#[cfg(unix)]` code does not compile. Give an import, helper, or constant that only `#[cfg(unix)]` code uses the same `#[cfg(unix)]` gate, or Windows clippy fails on an unused import or dead code. No local command reproduces this check, so before pushing, confirm that each item a unix-only test uses either has a user that is not unix-only or carries the gate.
+
 ### Merging and releasing
 
 Merge to `main`, release, and finish a release by `docs/agents/release.md`. A release task closes only after every step of its completion section.
