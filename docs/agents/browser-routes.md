@@ -30,7 +30,7 @@ cargo nextest run --lib --locked --run-ignored only
 
 - Managed Browser 已安装：`forager browser install` 退 0。已装固定版本时它不下载，输出 `downloaded: false`。
 - 用户已经亲自登录：由用户运行 `forager browser login xiaohongshu` 并在弹出的窗口中扫码，命令退 0 后 Browser Profile 才有登录标记。
-- `platforms.xiaohongshu.order` 含 `xiaohongshu_browser`。这条 route 由用户决定启用；用户没有要求时，不替用户加入 order。
+- `platforms.xiaohongshu.order` 含 `xiaohongshu_browser`。这条 route 由用户决定启用；用户没有要求时，不替用户加入 order。`smoke --live --opt-in`（发版收尾的 live 步骤）不要求这一条：浏览器已安装、Browser Profile 有登录标记时，它也运行小红书用例，用户的登录就是同意。
 - `forager doctor` 中 `xiaohongshu_browser` 的 `reachable` 为 true。shallow doctor 只做飞行前检查，不启动浏览器、不访问站点；它不通过时，`message` 给出修复命令。
 
 验证未发布的改动时运行 `./target/debug/forager`，本机安装的 `forager` 是上一次发版的版本。

@@ -15,6 +15,7 @@ use shared_child::SharedChild;
 
 use crate::catalog::{self, ProviderId, ProviderRegistration};
 use crate::config::{self, RuntimeConfig};
+use crate::providers;
 use crate::redact::{CREDENTIAL_MASK, Secret, redact_credentials, redact_url};
 use crate::state_file;
 use crate::types::{
@@ -195,7 +196,7 @@ struct LiveCaseResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     outage_evidence: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    message: Option<&'static str>,
+    message: Option<String>,
 }
 
 /// What one live run carries from one case to a later one, in memory only.
@@ -595,9 +596,12 @@ fn same_origin(first: &str, second: &str) -> bool {
         && first.port_or_known_default() == second.port_or_known_default()
 }
 
+/// Runs every live case. With `opt_in`, a platform case whose route the order leaves out runs
+/// too when this machine meets the route's prerequisites.
 pub(crate) fn run_live(
     timeout_seconds: u64,
     outage_evidence: &BTreeMap<String, String>,
+    opt_in: bool,
 ) -> Result<(LiveReport, u8), config::ConfigError> {
     let runtime = config::runtime_config()?;
     let deadline = Deadline::new(Duration::from_secs(timeout_seconds));
@@ -606,26 +610,21 @@ pub(crate) fn run_live(
     let mut run = LiveRun::default();
 
     for definition in LIVE_CASES.iter().copied() {
-        let result = if case_is_configured(definition.id, &runtime) {
-            match blocker(definition, &run) {
-                Some(message) => skipped(definition, 0, message),
-                None => {
-                    run_configured_case(definition, &runtime, deadline, outage_evidence, &mut run)
-                }
-            }
-        } else {
-            LiveCaseResult {
+        let result = match unconfigured_reason(definition, &runtime, opt_in) {
+            Some(reason) => LiveCaseResult {
                 definition,
                 status: LiveCaseStatus::Unconfigured,
                 attempts: 0,
                 checked_at_unix_seconds: unix_timestamp(),
                 outage_evidence: None,
-                message: Some(if definition.platform.is_some() {
-                    "the platform order does not list this route, or the route has no credentials"
-                } else {
-                    "required unified credentials are not configured"
-                }),
-            }
+                message: Some(reason),
+            },
+            None => match blocker(definition, &run) {
+                Some(message) => skipped(definition, 0, message),
+                None => {
+                    run_configured_case(definition, &runtime, deadline, outage_evidence, &mut run)
+                }
+            },
         };
         match result.status {
             LiveCaseStatus::Passed => summary.passed += 1,
@@ -686,7 +685,7 @@ fn skipped(
         attempts,
         checked_at_unix_seconds: unix_timestamp(),
         outage_evidence: None,
-        message: Some(message),
+        message: Some(message.into()),
     }
 }
 
@@ -755,7 +754,7 @@ fn run_configured_case(
         attempts,
         checked_at_unix_seconds: unix_timestamp(),
         outage_evidence: evidence,
-        message: Some(failure),
+        message: Some(failure.into()),
     }
 }
 
@@ -1370,8 +1369,62 @@ fn contains_runtime_error(value: &Value) -> bool {
     }
 }
 
-fn case_is_configured(case_id: &str, runtime: &RuntimeConfig) -> bool {
-    match case_id {
+/// Returns why the case does not run on this machine, or `None` when it runs.
+fn unconfigured_reason(
+    definition: LiveCaseDefinition,
+    runtime: &RuntimeConfig,
+    opt_in: bool,
+) -> Option<String> {
+    if let (Some(platform), Some(route)) = (
+        definition.platform,
+        definition.provider.and_then(ProviderId::parse),
+    ) {
+        return platform_unconfigured_reason(
+            platform,
+            route,
+            definition.operation,
+            runtime,
+            opt_in,
+        );
+    }
+    (!case_is_configured(definition, runtime))
+        .then(|| "required unified credentials are not configured".into())
+}
+
+/// A platform case runs while the order lists its route and the route has its keys. With
+/// `opt_in`, a case whose route the order leaves out runs too once the route's prerequisites are
+/// met, under the order the case command sets; a model operation reads its item through the
+/// configured order, so it keeps that order.
+fn platform_unconfigured_reason(
+    platform: Platform,
+    route: ProviderId,
+    operation: &str,
+    runtime: &RuntimeConfig,
+    opt_in: bool,
+) -> Option<String> {
+    let config = runtime.platforms.get(platform);
+    let model_operation = reads_before_model(platform, operation);
+    match config.entries().iter().find(|entry| entry.id() == route) {
+        Some(entry) if entry.configured() => None,
+        // A listed route is unconfigured only without the keys it requires.
+        Some(_) => providers::route_prerequisites(route, runtime).err(),
+        None if opt_in && !model_operation => providers::route_prerequisites(route, runtime).err(),
+        None if model_operation => Some(format!(
+            "{} does not list `{}`; a model operation runs with the configured order only",
+            config.order_key(),
+            route.name()
+        )),
+        None => Some(format!(
+            "{} does not list `{}`; pass --opt-in to run it where its prerequisites are met",
+            config.order_key(),
+            route.name()
+        )),
+    }
+}
+
+/// Whether a pipeline case or a case outside any platform has the credentials it needs.
+fn case_is_configured(definition: LiveCaseDefinition, runtime: &RuntimeConfig) -> bool {
+    match definition.id {
         "P1" => {
             runtime.classifier.configured()
                 && runtime.main_search.configured_provider_count() > 0
@@ -1384,27 +1437,15 @@ fn case_is_configured(case_id: &str, runtime: &RuntimeConfig) -> bool {
                 && runtime.web_fetch.configured_provider_count() > 0
         }
         "C04" => runtime.classifier.configured(),
-        _ => live_case(case_id).is_some_and(|definition| {
-            let Some(provider) = definition.provider.and_then(ProviderId::parse) else {
-                return false;
-            };
-            match definition.platform {
-                // A platform case runs only when the route stays in the platform order and has its
-                // credentials.
-                Some(platform) => runtime
-                    .platforms
-                    .get(platform)
-                    .entries()
-                    .iter()
-                    .any(|entry| entry.id() == provider && entry.configured()),
-                // Live smoke checks keys; the anonymous run is tested offline.
-                None => {
-                    provider_is_configured(runtime, provider)
-                        && !catalog::registration(provider)
-                            .lacks_optional_keys(runtime.provider_runtime(provider).keys.len())
-                }
-            }
-        }),
+        // Live smoke checks keys; the anonymous run is tested offline.
+        _ => definition
+            .provider
+            .and_then(ProviderId::parse)
+            .is_some_and(|provider| {
+                provider_is_configured(runtime, provider)
+                    && !catalog::registration(provider)
+                        .lacks_optional_keys(runtime.provider_runtime(provider).keys.len())
+            }),
     }
 }
 

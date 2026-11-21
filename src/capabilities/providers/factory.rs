@@ -5,15 +5,15 @@ use super::{
     ArxivApi, DocsSearch, GeminiApi, HnApi, KeyAccount, KeyQuota, MainSearch, PlatformFetch,
     PlatformSearch, PolymarketApi, ProviderId, RedditWeb, Serpapi, SsrnCrossref,
     SupplementalSearch, WebFetch, WebSearch, XiaohongshuBrowser, YoutubeApi, YoutubeWeb, arxiv,
-    browser, hn_api, polymarket_api, reddit_web, serpapi, ssrn_crossref, web_fetch, xai,
-    xiaohongshu_browser, youtube_api, youtube_web,
+    browser, browser_preflight, hn_api, polymarket_api, reddit_web, serpapi, ssrn_crossref,
+    web_fetch, xai, xiaohongshu_browser, youtube_api, youtube_web,
 };
 use crate::catalog::{ProviderTransport, WEB_FETCH, WEB_SEARCH, registration, registrations};
 use crate::config::{
     BrowserRouteRuntimeConfig, DocsSearchProviderConfig, HnRouteRuntimeConfig,
     HttpRouteRuntimeConfig, KeyedHttpRouteRuntimeConfig, MainSearchProviderConfig,
     ModelRouteRuntimeConfig, PlatformRouteConfig, PolymarketRouteRuntimeConfig,
-    RedditRouteRuntimeConfig, WebFetchProviderConfig,
+    RedditRouteRuntimeConfig, RuntimeConfig, WebFetchProviderConfig, provider_keys_key,
 };
 use crate::net::RetryPolicy;
 use crate::providers::browser::BrowserLogin;
@@ -730,5 +730,25 @@ fn transport_support(id: ProviderId) -> Result<(), String> {
         ProviderTransport::Http => Ok(()),
         ProviderTransport::Browser(_) => browser::host_support()
             .map_err(|reason| format!("{} cannot run here: {reason}", id.name())),
+    }
+}
+
+/// Checks, without launching a browser or sending a request, that this machine meets what the
+/// route needs to run: a browser route passes its preflight check, and an HTTP route that
+/// requires keys has them. An anonymous HTTP route always meets them.
+///
+/// # Errors
+///
+/// Returns the unmet prerequisite with the fix.
+pub(crate) fn route_prerequisites(id: ProviderId, runtime: &RuntimeConfig) -> Result<(), String> {
+    match registration(id).transport {
+        ProviderTransport::Browser(environment) => {
+            browser_preflight(&environment, &runtime.browser)
+        }
+        ProviderTransport::Http if runtime.provider_configured(id) => Ok(()),
+        ProviderTransport::Http => Err(format!(
+            "{} has no configured credentials",
+            provider_keys_key(id.name())
+        )),
     }
 }

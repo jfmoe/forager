@@ -34,5 +34,7 @@
    然后确认 `forager --version` 是新版本。`cargo install --path .` 不能代替安装器：目标位置已有不归 cargo 管理的同名二进制，它会拒绝覆盖。验证未发布的改动时，直接运行 `./target/debug/forager`。
 2. **更新 skill**：运行 `npx skills add jfmoe/forager -g -s forager -a '*' -y`。不支持全局安装的 agent 会报失败，这是预期结果。
 3. **更新 Managed Browser**：运行 `forager browser install`。新版本固定的浏览器版本没变时，它不下载并输出 `downloaded: false`；变了时下载、校验并安装新版本。旧版本的安装目录不再使用，也不会被自动删除。
-4. **live 端到端测试**：用真实配置运行 `forager smoke --live`。默认时限 420 秒，命令的工具超时要设得更长。逐个用例报告状态。消息以 `not started:` 开头的 `skipped` 表示时限用完，加大 `--timeout` 后重跑，不要当成 provider 故障。
+4. **live 端到端测试**：用真实配置运行 `forager smoke --live --opt-in`。`--opt-in` 让 order 未列出、但本机具备运行前提的平台 route 的用例也运行，手动启用的 route 因此在发版时被覆盖。默认时限 420 秒，命令的工具超时要设得更长。逐个用例报告状态。消息以 `not started:` 开头的 `skipped` 表示时限用完，加大 `--timeout` 后重跑，不要当成 provider 故障。
+
+   收尾记录逐条列出每个 `unconfigured` 用例及其 `message` 给出的原因（未加 `--opt-in` 时的 order 未列出、浏览器未安装、Browser Profile 未登录、缺 keys，以及非平台用例的缺凭据）。`unconfigured` 不算通过，也不能默认放过：本机本可以具备的前提（例如安装浏览器、由用户亲自登录），要么补齐后重跑这些用例，要么开 issue 跟踪；只有本机确实不具备的前提（例如没有某个付费服务的 key）才在记录中说明原因后保留。
 5. **清理构建产物**：运行 `cargo clean -p forager`。forager 自身的测试二进制和增量编译目录会不断累积，这条命令只删 forager 自己的产物，第三方依赖的编译结果保留。

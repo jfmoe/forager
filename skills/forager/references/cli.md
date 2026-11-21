@@ -1282,7 +1282,7 @@ the recovery path for configuration that cannot be loaded.
 
 ```console
 forager smoke
-forager smoke --live [--timeout SECONDS]
+forager smoke --live [--opt-in] [--timeout SECONDS]
                    [--outage-evidence CASE_ID=EVIDENCE_URL ...]
 forager smoke --live --list
 ```
@@ -1291,6 +1291,7 @@ forager smoke --live --list
 | --- | --- | --- |
 | `--live` | Run the live acceptance registry instead of offline checks. | Off |
 | `--list` | Print the live case registry without running it. Requires `--live`. | Off |
+| `--opt-in` | Also run a platform case whose route the platform order leaves out, when this machine meets the route's prerequisites. Requires `--live`. | Off |
 | `--timeout SECONDS` | Set the live run deadline. Requires `--live`. | `420` |
 | `--outage-evidence CASE_ID=EVIDENCE_URL` | Attach repeatable provider-outage evidence to a live case. Requires `--live`. | Empty |
 
@@ -1302,6 +1303,16 @@ All live cases share the one `--timeout` deadline. A case runs up to three times
 when it fails on Auth or an attempt-level Parameter error. A case that the deadline left no time to
 start is `skipped` with a message beginning `not started:`; raise `--timeout` and rerun rather than
 treating it as a provider failure.
+
+A platform case runs only when its platform order lists the route and the route has the keys it
+requires. With `--opt-in`, a platform case whose route the order leaves out also runs when the
+route's prerequisites hold: a browser route needs a locatable browser and, if it needs a login, a
+logged-in Browser Profile; an HTTP route that requires keys needs them; an anonymous HTTP route
+always qualifies. The check launches no browser and sends no request. The YouTube model operations
+(ask and transcribe) read the video through the configured order, so `--opt-in` does not change
+them. A case that does not run is `unconfigured`, and its `message` names why: the order does not
+list the route, the browser is not installed, the profile was never logged in, or the keys are
+missing, with the fix. `unconfigured` is not a pass.
 
 ## Exit codes
 
