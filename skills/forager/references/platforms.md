@@ -48,8 +48,8 @@ platform absent from it has no platform command; follow
   "Polymarket".
 - **Reddit**: for what Reddit says about a topic, run `forager platform reddit search QUERY`; for
   a post and its discussion (a reddit.com or redd.it link the user gave, or a ref forager
-  returned), run `forager platform reddit fetch 'REF_OR_URL'`. The `reddit_web` route is off until
-  the user enables it; see "Reddit".
+  returned), run `forager platform reddit fetch 'REF_OR_URL'`. Both Reddit routes are off until
+  the user enables one; see "Reddit".
 
 `forager platform <id> <op> --help` is the syntax authority; see the platform section of
 [`cli.md`](cli.md) for output fields and exit codes.
@@ -377,8 +377,18 @@ forager platform polymarket history polymarket:market/will-no-fed-rate-cuts-happ
 
 ## Reddit
 
-Reddit runs through the `reddit_web` route, which reads Reddit's own search, comment, and embed
-pages anonymously. It needs no key, but it is off by default: Reddit's User Agreement and
+Reddit search runs through one of two opt-in routes; fetch runs only through `reddit_web`.
+
+`reddit_browser` searches Reddit in forager's headless browser, logged into the user's own Reddit
+account. Reddit's User Agreement does not allow automated access, and the risk falls on that
+account, not on the egress IP. Enable it only when the user asks, and tell them this first; the
+user installs the browser (`forager browser install`), logs in themselves
+(`forager browser login reddit`, in the window it opens), and adds `reddit_browser` to
+`platforms.reddit.order`. It runs at most one browser command every 10 seconds, reads up to 25
+results in one command by scrolling, and issues no cursor: a stderr note that Reddit has more
+than the command read means narrowing the query, subreddit, or time window, not paging.
+
+`reddit_web` reads Reddit's own search, comment, and embed pages anonymously. It needs no key, but it is off by default: Reddit's User Agreement and
 robots.txt do not allow automated access. Enable it only when the user asks for it, and tell
 them what it means first: the risk is a temporary block of their egress IP, never their account,
 because the route never logs in. The command is
@@ -621,11 +631,18 @@ Never build an arXiv ref, SSRN ref, or URL from a Scholar title, byline, or snip
   or out of the model's reach; report it rather than retrying.
 - A `t.co` link (exit 2): ask the user for the x.com URL it opens.
 
-- Reddit exit 3 naming `platforms.reddit.order`: the `reddit_web` route is off. Continue with
-  `forager search` for Reddit content, and tell the user what enabling it means (see "Reddit")
-  rather than enabling it yourself.
-- Reddit `auth` or `rate_limited` (exit 4), or a message naming the egress IP: Reddit is refusing
-  this network. Stop using Reddit for this task, tell the user to wait or switch networks, and do
+- Reddit exit 3 naming `platforms.reddit.order`: the Reddit routes are off. Continue with
+  `forager search` for Reddit content, and tell the user what enabling a route means (see
+  "Reddit") rather than enabling it yourself.
+- Reddit exit 3 saying `reddit_browser cannot run`: the browser is missing or the user never
+  logged in; tell the user the command the message names (`forager browser install`, or
+  `forager browser login reddit`, which only they can complete).
+- Reddit `auth` through `reddit_browser` (a verification page, HTTP 403 or 429, or a logged-out
+  session): stop using Reddit for this task and do not retry; tell the user to run
+  `forager browser login reddit` and deal with what the site shows in its window, or to wait.
+  Never try to pass a verification page.
+- Reddit `auth` or `rate_limited` through `reddit_web` (exit 4), or a message naming the egress
+  IP: Reddit is refusing this network. Stop using Reddit for this task, tell the user to wait or switch networks, and do
   not retry. Never try to pass a verification page.
 - Reddit `runtime` saying the page format may have changed: report it and continue with
   `forager search`; do not retry.

@@ -28,6 +28,7 @@ pub(crate) struct Providers {
     pub(crate) gemini_api: GeminiApi,
     pub(crate) polymarket_api: PolymarketApi,
     pub(crate) reddit_web: RedditWeb,
+    pub(crate) reddit_browser: BrowserRoute,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -127,8 +128,8 @@ pub(crate) struct BrowserRoute {
 impl Default for BrowserRoute {
     fn default() -> Self {
         Self {
-            // One xiaohongshu_browser command opens the site, searches, and then reads up to
-            // four more pages.
+            // One browser command opens the site and then loads more pages: up to four more
+            // for a Xiaohongshu search, up to six scrolls for a Reddit search.
             timeout: 120,
         }
     }

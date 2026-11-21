@@ -1,6 +1,6 @@
 //! The platform half of the Capability Catalog: which routes serve each platform and its
-//! search and fetch operations, each platform's default order, and how users enable a route
-//! that is off by default.
+//! search and fetch operations, each platform's default order, and what enabling a route that
+//! is off by default risks.
 
 use super::ProviderId;
 use crate::types::Platform;
@@ -114,32 +114,42 @@ pub(crate) const POLYMARKET: PlatformCatalog = PlatformCatalog {
     default_order: &[ProviderId::PolymarketApi],
 };
 
-// Reddit's only keyless access is its own site: the public Data API takes no new apps and is
-// being retired, so `reddit_web` reads the pages the site renders, and users must enable it
-// themselves (ADR 0033).
+// Reddit's public Data API takes no new apps and is being retired, so both routes read the pages
+// the site renders: `reddit_browser` in a browser logged into the user's account, `reddit_web`
+// anonymously over HTTP. Users must enable either themselves (ADR 0033).
 pub(crate) const REDDIT: PlatformCatalog = PlatformCatalog {
     platform: Platform::Reddit,
-    search: &[ProviderId::RedditWeb],
+    search: &[ProviderId::RedditBrowser, ProviderId::RedditWeb],
     fetch: &[ProviderId::RedditWeb],
     operation_only: &[],
     default_order: &[],
 };
 
-/// An HTTP route that users must enable themselves: the platform it serves and what enabling it
+/// A route that users must enable themselves: the platform it serves and what enabling it
 /// risks.
-struct HttpOptIn {
+struct OptIn {
     route: ProviderId,
     catalog: PlatformCatalog,
     risk: &'static str,
 }
 
-const HTTP_OPT_INS: &[HttpOptIn] = &[
-    HttpOptIn {
+const OPT_INS: &[OptIn] = &[
+    OptIn {
+        route: ProviderId::XiaohongshuBrowser,
+        catalog: XIAOHONGSHU,
+        risk: "xiaohongshu_browser reads Xiaohongshu in a browser logged into your account, which Xiaohongshu forbids for crawlers, so it is off by default; its risk falls on the Xiaohongshu account you log in with, which the site may rate-limit or block",
+    },
+    OptIn {
         route: ProviderId::YoutubeWeb,
         catalog: YOUTUBE,
         risk: "youtube_web reads YouTube's undocumented web endpoints anonymously, which YouTube's terms do not allow, so it is off by default; its risk is a temporary block of your egress IP, never your account",
     },
-    HttpOptIn {
+    OptIn {
+        route: ProviderId::RedditBrowser,
+        catalog: REDDIT,
+        risk: "reddit_browser reads Reddit in a browser logged into your account, which Reddit's User Agreement does not allow for automated access, so it is off by default; its risk falls on the Reddit account you log in with, not your egress IP",
+    },
+    OptIn {
         route: ProviderId::RedditWeb,
         catalog: REDDIT,
         risk: "reddit_web reads Reddit's own search, comment, and embed pages anonymously, which Reddit's User Agreement and robots.txt do not allow for automated access, so it is off by default; its risk is a temporary block of your egress IP, never your account",
@@ -187,6 +197,15 @@ impl PlatformCatalog {
     }
 }
 
+/// Says what enabling a route that users must enable themselves risks, or `None` for any other
+/// provider.
+pub(crate) fn opt_in_risk(route: ProviderId) -> Option<&'static str> {
+    OPT_INS
+        .iter()
+        .find(|opt_in| opt_in.route == route)
+        .map(|opt_in| opt_in.risk)
+}
+
 /// Says what an HTTP platform route that users must enable themselves risks and how to enable
 /// it, or `None` for any other provider. `order` is the current value of `order_key`: the
 /// suggested order keeps it and places the route right after its last fetch route, so routes
@@ -196,7 +215,7 @@ pub(crate) fn http_opt_in(
     order_key: &str,
     order: &[ProviderId],
 ) -> Option<String> {
-    let opt_in = HTTP_OPT_INS.iter().find(|opt_in| opt_in.route == route)?;
+    let opt_in = OPT_INS.iter().find(|opt_in| opt_in.route == route)?;
     let mut suggested = order.to_vec();
     let position = order
         .iter()
@@ -226,7 +245,7 @@ pub(crate) fn platform(platform: Platform) -> PlatformCatalog {
 mod tests {
     use std::collections::BTreeSet;
 
-    use super::{PLATFORMS, ProviderId, http_opt_in};
+    use super::{PLATFORMS, ProviderId, http_opt_in, opt_in_risk};
 
     fn suggested_command(order: &[ProviderId]) -> String {
         let hint = http_opt_in(ProviderId::YoutubeWeb, "platforms.youtube.order", order)
@@ -265,7 +284,7 @@ mod tests {
 
     #[test]
     fn every_opt_in_route_is_a_route_of_its_platform_outside_its_default_order() {
-        for opt_in in super::HTTP_OPT_INS {
+        for opt_in in super::OPT_INS {
             assert!(
                 opt_in.catalog.contains(opt_in.route)
                     && !opt_in.catalog.default_order.contains(&opt_in.route),
@@ -274,6 +293,22 @@ mod tests {
                 opt_in.catalog.platform
             );
         }
+    }
+
+    #[test]
+    fn every_route_outside_every_default_order_says_what_enabling_it_risks() {
+        let unstated = PLATFORMS
+            .iter()
+            .flat_map(|catalog| {
+                catalog
+                    .all_routes()
+                    .into_iter()
+                    .filter(|route| !catalog.default_order.contains(route))
+            })
+            .filter(|route| opt_in_risk(*route).is_none())
+            .collect::<Vec<_>>();
+
+        assert_eq!(unstated, Vec::<ProviderId>::new());
     }
 
     #[test]

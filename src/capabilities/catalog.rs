@@ -48,7 +48,7 @@ mod platform_catalog;
 
 pub(crate) use platform_catalog::{
     ARXIV, HN, PLATFORMS, POLYMARKET, PlatformCatalog, PlatformOperation, REDDIT, SCHOLAR, SSRN, X,
-    XIAOHONGSHU, YOUTUBE, http_opt_in, platform,
+    XIAOHONGSHU, YOUTUBE, http_opt_in, opt_in_risk, platform,
 };
 
 pub(crate) fn supports(capability: &str, provider: &str) -> bool {
@@ -77,10 +77,11 @@ pub(crate) enum ProviderId {
     GeminiApi,
     PolymarketApi,
     RedditWeb,
+    RedditBrowser,
 }
 
 impl ProviderId {
-    pub(crate) const ALL: [Self; 17] = [
+    pub(crate) const ALL: [Self; 18] = [
         Self::Xai,
         Self::Openai,
         Self::Exa,
@@ -98,6 +99,7 @@ impl ProviderId {
         Self::GeminiApi,
         Self::PolymarketApi,
         Self::RedditWeb,
+        Self::RedditBrowser,
     ];
 
     pub(crate) fn parse(value: &str) -> Option<Self> {
@@ -119,6 +121,7 @@ impl ProviderId {
             "gemini_api" => Some(Self::GeminiApi),
             "polymarket_api" => Some(Self::PolymarketApi),
             "reddit_web" => Some(Self::RedditWeb),
+            "reddit_browser" => Some(Self::RedditBrowser),
             _ => None,
         }
     }
@@ -142,6 +145,7 @@ impl ProviderId {
             Self::GeminiApi => "gemini_api",
             Self::PolymarketApi => "polymarket_api",
             Self::RedditWeb => "reddit_web",
+            Self::RedditBrowser => "reddit_browser",
         }
     }
 }
@@ -499,6 +503,13 @@ const REDDIT_WEB_SMOKE: &[ProviderSmokeCase] = &[
     },
 ];
 
+const REDDIT_BROWSER_SMOKE: &[ProviderSmokeCase] = &[ProviderSmokeCase {
+    id: "C50",
+    platform: Some(Platform::Reddit),
+    operation: "search",
+    transport: "browser",
+}];
+
 const YOUTUBE_API_SMOKE: &[ProviderSmokeCase] = &[
     ProviderSmokeCase {
         id: "C36",
@@ -587,6 +598,13 @@ const POLYMARKET_API_ACCESS: AccessPolicy = AccessPolicy {
 // a fetch sends two requests. Going faster risks the user's egress IP (ADR 0033).
 const REDDIT_WEB_ACCESS: AccessPolicy = AccessPolicy {
     min_interval: Duration::from_secs(2),
+    max_concurrency: 1,
+};
+
+// Reddit states no pace for its pages; one browser command every ten seconds, as for
+// Xiaohongshu, met no verification page in nine logged-in page opens on 2026-11-21.
+const REDDIT_BROWSER_ACCESS: AccessPolicy = AccessPolicy {
+    min_interval: Duration::from_secs(10),
     max_concurrency: 1,
 };
 
@@ -807,6 +825,24 @@ const REGISTRY: &[ProviderRegistration] = &[
             transport: "http",
         },
         smoke_cases: REDDIT_WEB_SMOKE,
+        native_full_text: false,
+    },
+    ProviderRegistration {
+        id: ProviderId::RedditBrowser,
+        operations: &[],
+        credentials: Credentials::Unused,
+        transport: ProviderTransport::Browser(BrowserEnvironment {
+            profile: Platform::Reddit,
+            language: "en-US",
+            requires_login: true,
+        }),
+        access_policy: Some(REDDIT_BROWSER_ACCESS),
+        probe: DoctorProbe::PlatformSearch {
+            platform: Platform::Reddit,
+            name: "search",
+            transport: "browser",
+        },
+        smoke_cases: REDDIT_BROWSER_SMOKE,
         native_full_text: false,
     },
     // A deep doctor spends one search of the separate daily search quota.

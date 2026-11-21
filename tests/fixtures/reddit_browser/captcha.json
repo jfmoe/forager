@@ -1,0 +1,15 @@
+{
+  "next_page": false,
+  "no_results": false,
+  "page": {
+    "app": false,
+    "js_challenge": false,
+    "load_error": null,
+    "ready_state": "complete",
+    "recaptcha_form": true,
+    "title": "Reddit - Prove your humanity",
+    "url": "https://www.reddit.com/r/rust/search/?q=example+runtime&restrict_sr=1&sort=relevance",
+    "user_logged_in": null
+  },
+  "results": []
+}

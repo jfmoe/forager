@@ -197,7 +197,7 @@
     {
       "id": "reddit",
       "purpose": "Search and read Reddit posts from the site's own pages: post identity, subreddit, score and comment counts, the excerpt Reddit's search shows, a post's own text, and its first page of top comments written to a Markdown file.",
-      "select_when": "The request names Reddit or a subreddit, supplies a reddit.com or redd.it post URL or reddit: ref, or asks what Reddit users say about a topic; it needs no key, but the user must first enable the reddit_web route, which Reddit's terms do not allow. General questions keep using forager search.",
+      "select_when": "The request names Reddit or a subreddit, supplies a reddit.com or redd.it post URL or reddit: ref, or asks what Reddit users say about a topic; it needs no key, but the user must first enable a Reddit route, which Reddit's terms do not allow: reddit_browser, which searches in a browser logged into the user's Reddit account, or reddit_web, which reads the site anonymously. General questions keep using forager search.",
       "examples": [
         "what does r/rust think about async runtimes",
         "read the discussion at https://www.reddit.com/r/rust/comments/1w2pcmd/",
