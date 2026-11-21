@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::{self, Read};
@@ -76,6 +77,7 @@ const DEADLINE_NOT_STARTED: &str =
     "not started: the live smoke deadline elapsed before this case began";
 const XIAOHONGSHU_ONE_COMMENT_PAGE: &str = "not verified: the most-commented note of the Xiaohongshu search has 10 or fewer comments, so the second comment page was not read";
 const XIAOHONGSHU_NO_REPLIES: &str = "not verified: no returned comment of the most-commented Xiaohongshu note had more replies to expand";
+const NONZERO_TERMINAL: &str = "live case command returned a nonzero terminal";
 const REDDIT_STOPPED: &str = "not started: an earlier Reddit case met a verification page, a refused page, or a logged-out session, so this run stops all Reddit access";
 const REDDIT_SEARCH_NOT_PASSED: &str =
     "not started: the Reddit search case did not pass, so it found no post to read";
@@ -270,7 +272,7 @@ struct XiaohongshuRun {
 
 /// Why one execution of a live case did not pass.
 struct CaseFailure {
-    message: &'static str,
+    message: Cow<'static, str>,
     kind: FailureKind,
 }
 
@@ -290,7 +292,7 @@ enum FailureKind {
 impl From<&'static str> for CaseFailure {
     fn from(message: &'static str) -> Self {
         Self {
-            message,
+            message: Cow::Borrowed(message),
             kind: FailureKind::Failed,
         }
     }
@@ -746,7 +748,7 @@ fn xiaohongshu_blocker(
 fn skipped(
     definition: LiveCaseDefinition,
     attempts: usize,
-    message: &'static str,
+    message: impl Into<String>,
 ) -> LiveCaseResult {
     LiveCaseResult {
         definition,
@@ -765,7 +767,7 @@ fn run_configured_case(
     outage_evidence: &BTreeMap<String, String>,
     run: &mut LiveRun,
 ) -> LiveCaseResult {
-    let mut failure = "live case failed";
+    let mut failure = Cow::Borrowed("live case failed");
     let mut attempts = 0;
     for attempt in 1..=max_attempts(definition) {
         if deadline.remaining().is_none() {
@@ -775,7 +777,7 @@ fn run_configured_case(
             break;
         }
         attempts = attempt;
-        match run_case_once(definition, deadline, run) {
+        match run_case_once(definition, deadline, run, &runtime.journal.credentials) {
             Ok(payload) => {
                 let first = |field: &str| payload["items"][0][field].as_str().map(str::to_owned);
                 match (definition.platform, definition.operation) {
@@ -853,11 +855,13 @@ fn max_attempts(definition: LiveCaseDefinition) -> usize {
     }
 }
 
-/// Runs every command of a case once and returns the payload of the last one.
+/// Runs every command of a case once and returns the payload of the last one. A failure
+/// message never shows any of `credentials`.
 fn run_case_once(
     definition: LiveCaseDefinition,
     deadline: Deadline,
     run: &LiveRun,
+    credentials: &[Secret],
 ) -> Result<Value, CaseFailure> {
     let case_id = definition.id;
     let timeout_seconds = remaining_seconds(deadline).ok_or("live smoke hard deadline elapsed")?;
@@ -881,7 +885,7 @@ fn run_case_once(
         let output = execute_with_deadline(live_case_process(&executable, &command), deadline)?;
         if output.status.code() != Some(0) {
             return Err(CaseFailure {
-                message: "live case command returned a nonzero terminal",
+                message: nonzero_terminal(&output.stdout, credentials),
                 kind: refusal(output.status.code(), &output.stdout).unwrap_or(FailureKind::Failed),
             });
         }
@@ -929,8 +933,8 @@ fn most_commented_access_url(payload: &Value) -> Option<String> {
 /// replies. A comment carries one reply, so more replies prove the expansion. A note that
 /// cannot show either leaves the case unverified rather than passed.
 fn comments_coverage(payload: &Value) -> Result<(), CaseFailure> {
-    let unverified = |message| CaseFailure {
-        message,
+    let unverified = |message: &'static str| CaseFailure {
+        message: Cow::Borrowed(message),
         kind: FailureKind::Unverified,
     };
     let comments = payload["comments"]
@@ -967,6 +971,22 @@ fn needs_scratch(definition: LiveCaseDefinition) -> bool {
 
 fn is_reddit_fetch(definition: LiveCaseDefinition) -> bool {
     definition.platform == Some(Platform::Reddit) && definition.operation == "fetch"
+}
+
+/// Says why a command exited nonzero: the error kind and message its stdout reports, with every
+/// configured credential masked, or a fixed text when stdout reports neither.
+fn nonzero_terminal(stdout: &[u8], credentials: &[Secret]) -> Cow<'static, str> {
+    serde_json::from_slice::<Value>(stdout)
+        .ok()
+        .and_then(|payload| {
+            let kind = payload["error_kind"].as_str()?;
+            let message = payload["message"].as_str()?;
+            Some(redact_credentials(
+                &format!("live case command failed with {kind}: {message}"),
+                credentials,
+            ))
+        })
+        .map_or(Cow::Borrowed(NONZERO_TERMINAL), Cow::Owned)
 }
 
 /// The refusal a failed command ended on, by its exit code and stdout: Auth, or an
