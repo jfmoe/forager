@@ -69,34 +69,45 @@ fn opt_in_runs_a_platform_case_whose_route_the_order_leaves_out() {
 }
 
 #[test]
-fn opt_in_leaves_a_case_unconfigured_with_the_prerequisite_its_route_misses() {
+fn opt_in_names_the_keys_a_left_out_route_misses() {
     let refusing = refusing();
-    let stand_in = StandIn::failing("must not start");
-    let anonymous = anonymous_routes_at(&refusing.url, &refusing.url);
-    let left_out = "[platforms.scholar]\norder = []\n";
-
-    let [no_keys] = run(&format!("{anonymous}{left_out}"), &["--opt-in"], ["C24"]);
-    let [not_logged_in] = run(
-        &format!("{anonymous}{}", stand_in.config()),
-        &["--opt-in"],
-        ["C27"],
+    let config = format!(
+        "{}[platforms.scholar]\norder = []\n",
+        anonymous_routes_at(&refusing.url, &refusing.url)
     );
 
+    let cases = run(&config, &["--opt-in"], ["C24"]);
+
     assert_eq!(
-        ([no_keys, not_logged_in], stand_in.launches().len()),
+        cases,
+        [(
+            Value::String("unconfigured".into()),
+            Value::String("providers.serpapi.keys has no configured credentials".into()),
+        )]
+    );
+}
+
+#[test]
+fn opt_in_names_a_browser_profile_never_logged_in_without_launching_the_browser() {
+    let refusing = refusing();
+    let stand_in = StandIn::failing("must not start");
+    let config = format!(
+        "{}{}",
+        anonymous_routes_at(&refusing.url, &refusing.url),
+        stand_in.config()
+    );
+
+    let cases = run(&config, &["--opt-in"], ["C27"]);
+
+    assert_eq!(
+        (cases, stand_in.launches().len()),
         (
-            [
-                (
-                    Value::String("unconfigured".into()),
-                    Value::String("providers.serpapi.keys has no configured credentials".into()),
+            [(
+                Value::String("unconfigured".into()),
+                Value::String(
+                    "the xiaohongshu Browser Profile has never been logged in; run `forager browser login xiaohongshu`".into()
                 ),
-                (
-                    Value::String("unconfigured".into()),
-                    Value::String(
-                        "the xiaohongshu Browser Profile has never been logged in; run `forager browser login xiaohongshu`".into()
-                    ),
-                ),
-            ],
+            )],
             0,
         )
     );

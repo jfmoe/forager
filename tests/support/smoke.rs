@@ -81,10 +81,11 @@ pub(crate) fn case<'a>(payload: &'a Value, id: &str) -> &'a Value {
 }
 
 /// Points every anonymous HTTP platform route but `youtube_web` at `url`, and `youtube_web` at
-/// `youtube_web`. With `--opt-in`, live smoke runs the cases of every such route that the order
-/// leaves out, so a test points them at a fixture that answers 401: a refused case runs once.
-pub(crate) fn anonymous_routes_at(url: &str, youtube_web: &str) -> String {
+/// `youtube_web_url`. With `--opt-in`, live smoke runs the cases of every such route that the
+/// order leaves out, so a test points them at a fixture that answers 401: a refused case runs
+/// once.
+pub(crate) fn anonymous_routes_at(url: &str, youtube_web_url: &str) -> String {
     format!(
-        "[providers.arxiv_api]\nurl = \"{url}\"\n[providers.ssrn_crossref]\nurl = \"{url}\"\n[providers.hn_api]\nurl = \"{url}\"\nfirebase_url = \"{url}\"\n[providers.polymarket_api]\nurl = \"{url}\"\nclob_url = \"{url}\"\ndata_url = \"{url}\"\n[providers.reddit_web]\nurl = \"{url}\"\nembed_url = \"{url}\"\n[providers.youtube_web]\nurl = \"{youtube_web}\"\n"
+        "[providers.arxiv_api]\nurl = \"{url}\"\n[providers.ssrn_crossref]\nurl = \"{url}\"\n[providers.hn_api]\nurl = \"{url}\"\nfirebase_url = \"{url}\"\n[providers.polymarket_api]\nurl = \"{url}\"\nclob_url = \"{url}\"\ndata_url = \"{url}\"\n[providers.reddit_web]\nurl = \"{url}\"\nembed_url = \"{url}\"\n[providers.youtube_web]\nurl = \"{youtube_web_url}\"\n"
     )
 }

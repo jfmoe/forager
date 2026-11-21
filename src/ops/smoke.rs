@@ -14,7 +14,7 @@ use serde_json::Value;
 use shared_child::SharedChild;
 
 use crate::catalog::{self, ProviderId, ProviderRegistration};
-use crate::config::{self, RuntimeConfig};
+use crate::config::{self, RuntimeConfig, SeamEntry};
 use crate::providers;
 use crate::redact::{CREDENTIAL_MASK, Secret, redact_credentials, redact_url};
 use crate::state_file;
@@ -1379,13 +1379,7 @@ fn unconfigured_reason(
         definition.platform,
         definition.provider.and_then(ProviderId::parse),
     ) {
-        return platform_unconfigured_reason(
-            platform,
-            route,
-            definition.operation,
-            runtime,
-            opt_in,
-        );
+        return platform_unconfigured_reason(definition, platform, route, runtime, opt_in);
     }
     (!case_is_configured(definition, runtime))
         .then(|| "required unified credentials are not configured".into())
@@ -1396,30 +1390,32 @@ fn unconfigured_reason(
 /// met, under the order the case command sets; a model operation reads its item through the
 /// configured order, so it keeps that order.
 fn platform_unconfigured_reason(
+    definition: LiveCaseDefinition,
     platform: Platform,
     route: ProviderId,
-    operation: &str,
     runtime: &RuntimeConfig,
     opt_in: bool,
 ) -> Option<String> {
     let config = runtime.platforms.get(platform);
-    let model_operation = reads_before_model(platform, operation);
-    match config.entries().iter().find(|entry| entry.id() == route) {
-        Some(entry) if entry.configured() => None,
-        // A listed route is unconfigured only without the keys it requires.
-        Some(_) => providers::route_prerequisites(route, runtime).err(),
-        None if opt_in && !model_operation => providers::route_prerequisites(route, runtime).err(),
-        None if model_operation => Some(format!(
-            "{} does not list `{}`; a model operation runs with the configured order only",
-            config.order_key(),
-            route.name()
-        )),
-        None => Some(format!(
-            "{} does not list `{}`; pass --opt-in to run it where its prerequisites are met",
-            config.order_key(),
-            route.name()
-        )),
+    let listed = config.entries().iter().find(|entry| entry.id() == route);
+    if listed.is_some_and(SeamEntry::configured) {
+        return None;
     }
+    let model_operation = reads_before_model(platform, definition.operation);
+    // A listed route is unconfigured only without the keys it requires.
+    if listed.is_some() || (opt_in && !model_operation) {
+        return providers::route_prerequisites(route, runtime).err();
+    }
+    let remedy = if model_operation {
+        "a model operation runs with the configured order only"
+    } else {
+        "pass --opt-in to run it where its prerequisites are met"
+    };
+    Some(format!(
+        "{} does not list `{}`; {remedy}",
+        config.order_key(),
+        route.name()
+    ))
 }
 
 /// Whether a pipeline case or a case outside any platform has the credentials it needs.
