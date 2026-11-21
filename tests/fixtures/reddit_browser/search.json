@@ -1,0 +1,76 @@
+{
+  "next_page": true,
+  "no_results": false,
+  "page": {
+    "app": true,
+    "js_challenge": false,
+    "load_error": null,
+    "ready_state": "complete",
+    "recaptcha_form": false,
+    "title": "example runtime - Reddit Search!",
+    "url": "https://www.reddit.com/search/?q=example+runtime&type=posts&sort=relevance",
+    "user_logged_in": "true"
+  },
+  "results": [
+    {
+      "counts": [
+        {
+          "label": "124 votes",
+          "number": "124"
+        },
+        {
+          "label": "53 comments",
+          "number": "53"
+        }
+      ],
+      "permalink": "/r/rust/comments/1a2b3c4/why_is_the_example_runtime_so_big/",
+      "published": "2026-06-13T07:09:42.183000+0000",
+      "tracking": "{\"action_info\":{\"position\":0,\"relative_position\":0},\"post\":{\"id\":\"t3_1a2b3c4\",\"nsfw\":false,\"spoiler\":false,\"title\":\"Why is the example runtime so big?\"},\"profile\":{\"id\":\"t2_aaaa1\",\"name\":\"example_author_one\"},\"search\":{\"safe_search\":\"UNAVAILABLE\",\"structure_type\":\"search\",\"snippet\":\"A fake comment excerpt about a minimal runtime.\",\"snippet_id\":\"t1_c0mment1\"},\"subreddit\":{\"id\":\"t5_2s7lj\",\"name\":\"rust\",\"nsfw\":false,\"quarantined\":false}}"
+    },
+    {
+      "counts": [
+        {
+          "label": "59 votes",
+          "number": "59"
+        },
+        {
+          "label": "10 comments",
+          "number": "10"
+        }
+      ],
+      "permalink": "/r/rust/comments/1d5e6f7/an_example_ffi_bridge_rust_c_interop/",
+      "published": "2026-08-31T15:25:23.987000+0000",
+      "tracking": "{\"action_info\":{\"position\":1,\"relative_position\":1},\"post\":{\"id\":\"t3_1d5e6f7\",\"nsfw\":false,\"spoiler\":false,\"title\":\"An example FFI bridge for Rust <-> C# interop\"},\"profile\":{\"id\":\"t2_aaaa2\",\"name\":\"example_author_two\"},\"search\":{\"safe_search\":\"UNAVAILABLE\",\"structure_type\":\"search\",\"snippet\":\"The post itself says how the two runtimes talk “across” the C ABI.\",\"snippet_id\":\"t3_1d5e6f7\"},\"subreddit\":{\"id\":\"t5_2s7lj\",\"name\":\"rust\",\"nsfw\":false,\"quarantined\":false}}"
+    },
+    {
+      "counts": [
+        {
+          "label": "281 votes",
+          "number": "281"
+        },
+        {
+          "label": "44 comments",
+          "number": "44"
+        }
+      ],
+      "permalink": "/r/rust/comments/f9g8h7/an_older_example_post_about_async/",
+      "published": "2020-03-23T12:20:15.351000+0000",
+      "tracking": "{\"action_info\":{\"position\":2,\"relative_position\":2},\"post\":{\"id\":\"t3_f9g8h7\",\"nsfw\":false,\"spoiler\":false,\"title\":\"An older example post about async\"},\"profile\":{\"id\":\"t2_aaaa3\",\"name\":\"example_author_three\"},\"search\":{\"safe_search\":\"UNAVAILABLE\",\"structure_type\":\"search\"},\"subreddit\":{\"id\":\"t5_2s7lj\",\"name\":\"rust\",\"nsfw\":false,\"quarantined\":false}}"
+    },
+    {
+      "counts": [
+        {
+          "label": "6 votes",
+          "number": "6"
+        },
+        {
+          "label": "8 comments",
+          "number": "8"
+        }
+      ],
+      "permalink": "/r/rust/comments/1j2k3l4/looking_for_an_example_runtime/",
+      "published": "2024-04-04T07:54:28.960000+0000",
+      "tracking": "{\"action_info\":{\"position\":3,\"relative_position\":3},\"post\":{\"id\":\"t3_1j2k3l4\",\"nsfw\":false,\"spoiler\":false,\"title\":\"Looking for an example runtime\"},\"search\":{\"safe_search\":\"UNAVAILABLE\",\"structure_type\":\"search\",\"snippet\":\"A fake excerpt of a post whose author deleted the account.\",\"snippet_id\":\"t3_1j2k3l4\"},\"subreddit\":{\"id\":\"t5_2s7lj\",\"name\":\"rust\",\"nsfw\":false,\"quarantined\":false}}"
+    }
+  ]
+}

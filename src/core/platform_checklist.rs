@@ -390,6 +390,10 @@ fn has_adapter(platform: Platform, operation: PlatformOperation, route: Provider
             timeout_seconds: 1,
             browser: BrowserRuntimeConfig { path: None },
         },
+        reddit_browser: BrowserRouteRuntimeConfig {
+            timeout_seconds: 1,
+            browser: BrowserRuntimeConfig { path: None },
+        },
         xai: XaiRuntimeConfig {
             url: String::new(),
             keys: Vec::new(),

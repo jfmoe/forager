@@ -410,6 +410,7 @@ pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("providers.reddit_web.url", providers.reddit_web.url: String, Rule::Any, View::Url, "Reddit site origin whose search and comment pages the route reads anonymously; this route needs no credentials"),
     leaf!("providers.reddit_web.embed_url", providers.reddit_web.embed_url: String, Rule::Any, View::Url, "Reddit embed origin whose post embed pages carry each post's metadata and text"),
     leaf!("providers.reddit_web.timeout", providers.reddit_web.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one request to either origin; must be greater than zero"),
+    leaf!("providers.reddit_browser.timeout", providers.reddit_browser.timeout: U64, Rule::Positive, View::Plain, "timeout in seconds for one browser command; must be greater than zero; this route needs no credentials"),
     leaf!("capabilities.web_search.order", capabilities.web_search.order: Strings, Rule::CapabilityOrder { capability: "web_search", allow_empty: true }, View::Plain, "authoritative provider order for this capability"),
     leaf!("capabilities.web_fetch.order", capabilities.web_fetch.order: Strings, Rule::CapabilityOrder { capability: "web_fetch", allow_empty: false }, View::Plain, "authoritative provider order for this capability"),
     leaf!("capabilities.docs_search.order", capabilities.docs_search.order: Strings, Rule::CapabilityOrder { capability: "docs_search", allow_empty: true }, View::Plain, "authoritative provider order for this capability"),

@@ -114,6 +114,9 @@ impl Sandbox {
     }
 }
 
+/// Pages that files under `tests/fixtures` answer: the path served and the file, as HTML.
+pub(crate) type FixturePages = &'static [(&'static str, &'static str)];
+
 /// Serves the test pages on 127.0.0.1 until dropped.
 pub(crate) struct Pages {
     origin: String,
@@ -123,6 +126,11 @@ pub(crate) struct Pages {
 
 impl Pages {
     pub(crate) fn start() -> Self {
+        Self::serving(&[])
+    }
+
+    /// Serves the test pages and `fixtures`, which take precedence.
+    pub(crate) fn serving(fixtures: FixturePages) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind test pages");
         let address = listener.local_addr().expect("test pages address");
         let stop = Arc::new(AtomicBool::new(false));
@@ -133,7 +141,7 @@ impl Pages {
                     return;
                 }
                 if let Ok(stream) = stream {
-                    thread::spawn(move || serve(stream));
+                    thread::spawn(move || serve(stream, fixtures));
                 }
             }
         });
@@ -147,6 +155,11 @@ impl Pages {
     pub(crate) fn url(&self, path: &str) -> String {
         format!("{}{path}", self.origin)
     }
+
+    /// The origin the pages are served from, such as `http://127.0.0.1:50123`.
+    pub(crate) fn origin(&self) -> &str {
+        &self.origin
+    }
 }
 
 impl Drop for Pages {
@@ -156,7 +169,7 @@ impl Drop for Pages {
     }
 }
 
-fn serve(mut stream: TcpStream) {
+fn serve(mut stream: TcpStream, fixtures: FixturePages) {
     let mut reader = BufReader::new(stream.try_clone().expect("clone stream"));
     let mut request_line = String::new();
     if reader.read_line(&mut request_line).is_err() {
@@ -178,39 +191,53 @@ fn serve(mut stream: TcpStream) {
     let _ = reader.read_exact(&mut body);
     let path = request_line.split_whitespace().nth(1).unwrap_or("/");
     let path = path.split('?').next().unwrap_or(path);
-    let (content_type, content) = match path {
-        "/input" => ("text/html", INPUT_PAGE.to_owned()),
-        "/ambiguous" => ("text/html", AMBIGUOUS_PAGE.to_owned()),
-        "/hover-twin" => ("text/html", hover_page("twin")),
-        "/hover-gone" => ("text/html", hover_page("gone")),
-        "/hover-moved" => ("text/html", hover_page("moved")),
-        "/hover-covered" => ("text/html", hover_page("covered")),
-        "/layout-shift" => ("text/html", LAYOUT_SHIFT_PAGE.to_owned()),
-        "/drifting" => ("text/html", DRIFTING_PAGE.to_owned()),
-        "/scroll" => ("text/html", SCROLL_PAGE.to_owned()),
-        "/scrolled-away" => ("text/html", SCROLLED_AWAY_PAGE.to_owned()),
-        "/more" => ("application/json", r#"{"count":20}"#.to_owned()),
-        "/late" => ("text/html", LATE_PAGE.to_owned()),
-        "/slow" => {
-            thread::sleep(Duration::from_millis(1500));
-            ("application/json", r#"{"slow":true}"#.to_owned())
+    let fixture = fixtures
+        .iter()
+        .find(|(served, _)| *served == path)
+        .map(|(_, file)| {
+            let file = Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures")
+                .join(file);
+            std::fs::read_to_string(&file)
+                .unwrap_or_else(|error| panic!("read {}: {error}", file.display()))
+        });
+    let (content_type, content) = if let Some(content) = fixture {
+        ("text/html", content)
+    } else {
+        match path {
+            "/input" => ("text/html", INPUT_PAGE.to_owned()),
+            "/ambiguous" => ("text/html", AMBIGUOUS_PAGE.to_owned()),
+            "/hover-twin" => ("text/html", hover_page("twin")),
+            "/hover-gone" => ("text/html", hover_page("gone")),
+            "/hover-moved" => ("text/html", hover_page("moved")),
+            "/hover-covered" => ("text/html", hover_page("covered")),
+            "/layout-shift" => ("text/html", LAYOUT_SHIFT_PAGE.to_owned()),
+            "/drifting" => ("text/html", DRIFTING_PAGE.to_owned()),
+            "/scroll" => ("text/html", SCROLL_PAGE.to_owned()),
+            "/scrolled-away" => ("text/html", SCROLLED_AWAY_PAGE.to_owned()),
+            "/more" => ("application/json", r#"{"count":20}"#.to_owned()),
+            "/late" => ("text/html", LATE_PAGE.to_owned()),
+            "/slow" => {
+                thread::sleep(Duration::from_millis(1500));
+                ("application/json", r#"{"slow":true}"#.to_owned())
+            }
+            "/api" => ("text/html", API_PAGE.to_owned()),
+            "/api/data" => ("application/json", r#"{"items":[1,2,3]}"#.to_owned()),
+            "/api/echo" | "/api/me" => (
+                "application/json",
+                if body.is_empty() {
+                    r#"{"user":"local"}"#.to_owned()
+                } else {
+                    String::from_utf8_lossy(&body).into_owned()
+                },
+            ),
+            "/store" => ("text/html", STORE_PAGE.to_owned()),
+            "/login" => ("text/html", LOGIN_PAGE.to_owned()),
+            _ => (
+                "text/html",
+                "<!doctype html><title>blank</title>".to_owned(),
+            ),
         }
-        "/api" => ("text/html", API_PAGE.to_owned()),
-        "/api/data" => ("application/json", r#"{"items":[1,2,3]}"#.to_owned()),
-        "/api/echo" | "/api/me" => (
-            "application/json",
-            if body.is_empty() {
-                r#"{"user":"local"}"#.to_owned()
-            } else {
-                String::from_utf8_lossy(&body).into_owned()
-            },
-        ),
-        "/store" => ("text/html", STORE_PAGE.to_owned()),
-        "/login" => ("text/html", LOGIN_PAGE.to_owned()),
-        _ => (
-            "text/html",
-            "<!doctype html><title>blank</title>".to_owned(),
-        ),
     };
     let response = format!(
         "HTTP/1.1 200 OK\r\ncontent-type: {content_type}; charset=utf-8\r\ncontent-length: {}\r\ncache-control: no-store\r\nconnection: close\r\n\r\n{content}",

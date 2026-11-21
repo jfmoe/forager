@@ -71,6 +71,11 @@ impl StandIn {
             self.config()
         )
     }
+
+    /// A configuration that launches this stand-in and sets the Reddit order to `order`.
+    pub(crate) fn reddit_config(&self, order: &str) -> String {
+        format!("{}\n[platforms.reddit]\norder = {order}\n", self.config())
+    }
 }
 
 /// Marks the Browser Profile of `platform` under `state_dir` as logged in, the way a finished

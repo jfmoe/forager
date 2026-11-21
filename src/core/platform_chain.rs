@@ -520,8 +520,11 @@ fn opt_in_hint<C>(
                 } else {
                     String::new()
                 };
+                let risk = catalog::opt_in_risk(*route)
+                    .map(|risk| format!(". {risk}"))
+                    .unwrap_or_default();
                 Some(format!(
-                    "; to use {route}, run `forager browser install`{login}, then add `{route}` to {order_key}",
+                    "; to use {route}, run `forager browser install`{login}, then add `{route}` to {order_key}{risk}",
                     route = route.name(),
                 ))
             }
@@ -818,6 +821,41 @@ mod tests {
                 "platforms.youtube.order has no configured route for youtube fetch; set providers.youtube_api.keys; youtube_web reads"
             ) && message.ends_with(YOUTUBE_WEB_ADDED),
             "{message}"
+        );
+    }
+
+    fn empty_order_message(platform: Platform) -> String {
+        let catalog = catalog::platform(platform);
+        let order_key = format!("platforms.{platform}.order");
+        let result = plan_routes::<()>(
+            PlatformOperation::Search.as_str(),
+            platform,
+            &order_key,
+            catalog.search,
+            &[],
+            None,
+            |_| Some(Ok(())),
+        );
+        let Some(PlatformPreflightError::Config(message)) = result.err() else {
+            panic!("expected a configuration error");
+        };
+        message
+    }
+
+    #[test]
+    fn an_empty_order_gives_each_browser_route_its_steps_and_its_account_risk() {
+        let reddit = empty_order_message(Platform::Reddit);
+        let xiaohongshu = empty_order_message(Platform::Xiaohongshu);
+
+        assert!(
+            reddit.starts_with(
+                "platforms.reddit.order has no configured route for reddit search; to use reddit_browser, run `forager browser install`, run `forager browser login reddit` and log in, then add `reddit_browser` to platforms.reddit.order. reddit_browser reads Reddit in a browser logged into your account, which Reddit's User Agreement does not allow for automated access, so it is off by default; its risk falls on the Reddit account you log in with, not your egress IP; reddit_web reads"
+            ),
+            "{reddit}"
+        );
+        assert_eq!(
+            xiaohongshu,
+            "platforms.xiaohongshu.order has no configured route for xiaohongshu search; to use xiaohongshu_browser, run `forager browser install`, run `forager browser login xiaohongshu` and log in, then add `xiaohongshu_browser` to platforms.xiaohongshu.order. xiaohongshu_browser reads Xiaohongshu in a browser logged into your account, which Xiaohongshu forbids for crawlers, so it is off by default; its risk falls on the Xiaohongshu account you log in with, which the site may rate-limit or block"
         );
     }
 

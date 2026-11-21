@@ -59,6 +59,7 @@ pub(crate) struct PlatformRoutesRuntimeConfig {
     pub(crate) gemini_api: ModelRouteRuntimeConfig,
     pub(crate) polymarket_api: PolymarketRouteRuntimeConfig,
     pub(crate) reddit_web: RedditRouteRuntimeConfig,
+    pub(crate) reddit_browser: BrowserRouteRuntimeConfig,
 }
 
 /// The configuration of one platform route.
@@ -75,6 +76,7 @@ pub(crate) enum PlatformRouteConfig {
     GeminiApi(ModelRouteRuntimeConfig),
     PolymarketApi(PolymarketRouteRuntimeConfig),
     RedditWeb(RedditRouteRuntimeConfig),
+    RedditBrowser(BrowserRouteRuntimeConfig),
 }
 
 impl PlatformRouteConfig {
@@ -91,6 +93,7 @@ impl PlatformRouteConfig {
             Self::GeminiApi(_) => ProviderId::GeminiApi,
             Self::PolymarketApi(_) => ProviderId::PolymarketApi,
             Self::RedditWeb(_) => ProviderId::RedditWeb,
+            Self::RedditBrowser(_) => ProviderId::RedditBrowser,
         }
     }
 
@@ -102,7 +105,8 @@ impl PlatformRouteConfig {
             | Self::HnApi(_)
             | Self::YoutubeWeb(_)
             | Self::PolymarketApi(_)
-            | Self::RedditWeb(_) => provider_configured(self.route(), &[]),
+            | Self::RedditWeb(_)
+            | Self::RedditBrowser(_) => provider_configured(self.route(), &[]),
             Self::Serpapi(config) | Self::YoutubeApi(config) => {
                 provider_configured(self.route(), &config.keys)
             }
@@ -278,7 +282,7 @@ impl RuntimeConfig {
                 endpoint: &self.platform_routes.serpapi.url,
                 keys: &self.platform_routes.serpapi.keys,
             },
-            ProviderId::XiaohongshuBrowser => ProviderRuntime {
+            ProviderId::XiaohongshuBrowser | ProviderId::RedditBrowser => ProviderRuntime {
                 endpoint: "",
                 keys: &[],
             },
@@ -415,6 +419,10 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
             url: config.providers.reddit_web.url,
             embed_url: config.providers.reddit_web.embed_url,
             timeout_seconds: config.providers.reddit_web.timeout,
+        },
+        reddit_browser: BrowserRouteRuntimeConfig {
+            timeout_seconds: config.providers.reddit_browser.timeout,
+            browser: browser.clone(),
         },
     };
     let classifier = ClassifierRuntimeConfig {
@@ -567,6 +575,9 @@ pub(crate) fn platform_route_config(
             routes.polymarket_api.clone(),
         )),
         ProviderId::RedditWeb => Some(PlatformRouteConfig::RedditWeb(routes.reddit_web.clone())),
+        ProviderId::RedditBrowser => Some(PlatformRouteConfig::RedditBrowser(
+            routes.reddit_browser.clone(),
+        )),
         _ => None,
     }
 }

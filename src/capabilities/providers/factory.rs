@@ -3,10 +3,10 @@ use reqwest::Client;
 use super::constructors::{credentials, route_limiter};
 use super::{
     ArxivApi, DocsSearch, GeminiApi, HnApi, KeyAccount, KeyQuota, MainSearch, PlatformFetch,
-    PlatformSearch, PolymarketApi, ProviderId, RedditWeb, Serpapi, SsrnCrossref,
+    PlatformSearch, PolymarketApi, ProviderId, RedditBrowser, RedditWeb, Serpapi, SsrnCrossref,
     SupplementalSearch, WebFetch, WebSearch, XiaohongshuBrowser, YoutubeApi, YoutubeWeb, arxiv,
-    browser, browser_preflight, hn_api, polymarket_api, reddit_web, serpapi, ssrn_crossref,
-    web_fetch, xai, xiaohongshu_browser, youtube_api, youtube_web,
+    browser, browser_preflight, hn_api, polymarket_api, reddit_browser, reddit_web, serpapi,
+    ssrn_crossref, web_fetch, xai, xiaohongshu_browser, youtube_api, youtube_web,
 };
 use crate::catalog::{ProviderTransport, WEB_FETCH, WEB_SEARCH, registration, registrations};
 use crate::config::{
@@ -163,6 +163,9 @@ pub(crate) fn build_platform_search(
         PlatformRouteConfig::RedditWeb(config) => {
             Box::new(build_reddit_web(config, client, deadline))
         }
+        PlatformRouteConfig::RedditBrowser(config) => {
+            Box::new(build_reddit_browser(config, deadline))
+        }
         PlatformRouteConfig::YoutubeWeb(_) => {
             unreachable!("youtube_web serves fetch only, so planning never selects it for search")
         }
@@ -210,6 +213,11 @@ pub(crate) fn build_platform_fetch(
         }
         PlatformRouteConfig::RedditWeb(config) => {
             Box::new(build_reddit_web(config, client, deadline))
+        }
+        PlatformRouteConfig::RedditBrowser(_) => {
+            unreachable!(
+                "reddit_browser serves search only, so planning never selects it for fetch"
+            )
         }
         PlatformRouteConfig::GeminiApi(_) => {
             unreachable!(
@@ -530,6 +538,15 @@ fn build_reddit_web(
     )
 }
 
+fn build_reddit_browser(config: BrowserRouteRuntimeConfig, deadline: Deadline) -> RedditBrowser {
+    RedditBrowser::new(
+        config,
+        route_limiter(ProviderId::RedditBrowser)
+            .expect("reddit_browser registration declares an access policy"),
+        deadline,
+    )
+}
+
 fn build_ssrn_crossref(
     config: HttpRouteRuntimeConfig,
     client: Client,
@@ -584,6 +601,7 @@ pub(crate) fn platform_search_support(
         ProviderId::YoutubeApi => youtube_api::search_support(request),
         ProviderId::PolymarketApi => polymarket_api::search_support(request),
         ProviderId::RedditWeb => reddit_web::search_support(request),
+        ProviderId::RedditBrowser => reddit_browser::search_support(request),
         _ => return None,
     };
     Some(transport_support(id).and(route))
@@ -713,6 +731,7 @@ pub(crate) fn browser_login(platform: Platform) -> Option<BrowserLogin> {
         }
         let page = match registration.id {
             ProviderId::XiaohongshuBrowser => xiaohongshu_browser::LOGIN_PAGE,
+            ProviderId::RedditBrowser => reddit_browser::LOGIN_PAGE,
             _ => return None,
         };
         Some(BrowserLogin {

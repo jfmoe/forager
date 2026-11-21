@@ -1131,24 +1131,33 @@ forager platform reddit search [QUERY] [--subreddit NAME] [--sort relevance|hot|
 | `--sort ORDER` | `relevance`, `hot`, `top`, `new`, or `comments` (most comments first). | `relevance` |
 | `--time WINDOW` | `hour`, `day`, `week`, `month`, `year`, or `all`; only with `relevance`, `top`, or `comments`. | Omitted |
 | `--limit N` | Results on this page, `1..=25`; Reddit lists about seven posts per request. | `10` |
-| `--cursor CURSOR` | `next_cursor` of a previous page; it restores the whole request, so pass no query, option, or `--limit` with it. | Omitted |
+| `--cursor CURSOR` | `next_cursor` of a previous page; it restores the whole request, so pass no query, option, or `--limit` with it. Only `reddit_web` issues one. | Omitted |
 
-Reddit runs through the `reddit_web` route, which reads Reddit's own search, comment, and embed
-pages anonymously (`providers.reddit_web.url` and `.embed_url`). It needs no key but is off until
-the user runs `forager config set platforms.reddit.order '["reddit_web"]'`; it sends at most one
-request every 2 seconds. JSON output is `{platform, provider, items, next_cursor}`. Each item has
+Reddit search runs through one of two opt-in routes. `reddit_browser` opens Reddit's search page in
+forager's headless browser, logged into the user's Reddit account (`forager browser install`,
+then `forager browser login reddit`, then adding `reddit_browser` to `platforms.reddit.order`); it
+runs at most one browser command every 10 seconds, scrolls the page while it lists fewer than
+`--limit` posts (at most six scrolls), and issues no cursor (`next_cursor` is always `null`). When
+it read fewer than `--limit` and Reddit has more, it says so on stderr. `reddit_web` reads
+Reddit's own search, comment, and embed pages anonymously (`providers.reddit_web.url` and
+`.embed_url`); it needs no key but is off until the user runs
+`forager config set platforms.reddit.order '["reddit_web"]'`, and it sends at most one request
+every 2 seconds. JSON output is `{platform, provider, items, next_cursor}`. Each item has
 `ref` (`reddit:<id>`), `url` (`https://www.reddit.com/comments/<id>/`), `depth` (`snippet` when
 Reddit showed an excerpt, otherwise `metadata`), `title`, `authors`, `published` (UTC second),
 `subreddit`, `permalink`, `post_type` (`null` in search), `link_url`, `score`, `comments`,
 `nsfw`, `spoiler`, `snippet`, and `snippet_source` (`post` or `comment`). A search reads up to
-five result pages; a valid empty search returns `items: []` with exit 0.
+five result pages through `reddit_web`; a valid empty search returns `items: []` with exit 0.
 
 Exit codes: `2` before any request for a blank query, an invalid subreddit name, `--time` with
-`hot` or `new`, `--limit` out of range, or an invalid cursor; `3` for an empty
-`platforms.reddit.order` (the default), with the command that enables the route; `4` for `auth`
-(a verification page only a browser can pass), HTTP 403 or `rate_limited`, both of which mean
-Reddit is refusing this egress IP, `network`, `timeout`, and `runtime` for a page whose format
-changed.
+`hot` or `new`, `--limit` out of range, an invalid cursor, or a cursor for `reddit_browser`; `3`
+for an empty `platforms.reddit.order` (the default), with the steps and the risk of enabling each
+route, or when `reddit_browser` is in the order but the browser is missing or the Reddit Browser
+Profile was never logged in, with the command that fixes it; `4` for `auth` (through
+`reddit_web`: a verification page only a browser can pass, HTTP 403, or `rate_limited`, all of
+which mean Reddit is refusing this egress IP; through `reddit_browser`: a verification page,
+HTTP 403 or 429, or a logged-out session, with `forager browser login reddit` to fix it),
+`network`, `timeout`, and `runtime` for a page whose format changed.
 
 ### `platform reddit fetch`
 
@@ -1229,7 +1238,7 @@ forager browser login PLATFORM [--timeout SECONDS]
 | Command | Behavior |
 | --- | --- |
 | `browser install` | Download the Managed Browser this forager pins (fingerprint-chromium), check its SHA256, and install it into forager's cache. When the pinned version is already installed, download nothing. Prints `{version, executable, downloaded}`. `--timeout` defaults to `600`. |
-| `browser login PLATFORM` | Open a browser window on the platform's login page and wait until the user has logged in there, then close it and mark the platform's Browser Profile as logged in. Prints `{platform, logged_in: true, profile}`. Only `xiaohongshu` has a login. `--timeout` is at least `10` and defaults to `600`. |
+| `browser login PLATFORM` | Open a browser window on the platform's login page and wait until the user has logged in there, then close it and mark the platform's Browser Profile as logged in. Prints `{platform, logged_in: true, profile}`. Only `xiaohongshu` and `reddit` have a login. `--timeout` is at least `10` and defaults to `600`. |
 
 Browser routes need both: the Managed Browser, and for a route that needs a login, a Browser
 Profile that has been logged in once. The profile keeps the session; forager never reads or exports
@@ -1253,18 +1262,19 @@ forager doctor [--provider PROVIDER] [--timeout SECONDS] [--format json|markdown
 
 | Option | Meaning | Default |
 | --- | --- | --- |
-| `--provider PROVIDER` | Deep-probe one of `xai`, `openai`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, `arxiv_api`, `ssrn_crossref`, `serpapi`, `xiaohongshu_browser`, or `hn_api`. Without it, run the shallow all-provider report. | Omitted |
+| `--provider PROVIDER` | Deep-probe one of `xai`, `openai`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, `arxiv_api`, `ssrn_crossref`, `serpapi`, `xiaohongshu_browser`, `reddit_browser`, or `hn_api`. Without it, run the shallow all-provider report. | Omitted |
 | `--timeout SECONDS` | Set the diagnostic deadline. | `30` |
 | `--format FORMAT` | Use `json` or `markdown`. | `json` |
 
 Use `doctor` for credentials, connectivity, provider responses, and effective configuration
 inspection. In shallow mode, `ok` covers every configured provider: if any configured provider is
 unreachable, the top-level result is false and the command uses exit code 4. The browser route
-`xiaohongshu_browser` is checked only when the Xiaohongshu order lists it: doctor checks, without
-starting a browser, that the browser can be found and the Browser Profile has been logged in, and a
-failed check carries a `message` naming the command that fixes it. `--provider
-xiaohongshu_browser` also needs the route in the order and that check to pass, and runs one real
-search in the headless browser; its check reports `transport: "browser"`. Without a key, `jina` is configured and the shallow report notes that it runs
+A browser route (`xiaohongshu_browser`, `reddit_browser`) is checked only when its platform order
+lists it: doctor checks, without starting a browser, that the browser can be found and the Browser
+Profile has been logged in, and a failed check carries a `message` naming the command that fixes
+it. `--provider xiaohongshu_browser` or `--provider reddit_browser` also needs the route in the
+order and that check to pass, and runs one real search in the headless browser, which opens one
+page of the site; its check reports `transport: "browser"`. Without a key, `jina` is configured and the shallow report notes that it runs
 anonymously; `--provider jina` then probes without a key, and with keys it reports a failing key
 even when the anonymous request succeeds. `--provider xai` and `--provider openai` each send one
 Responses model probe without tools, recorded as the `responses` check; `--provider xai` adds an
