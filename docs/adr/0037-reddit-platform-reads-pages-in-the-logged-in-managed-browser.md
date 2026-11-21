@@ -10,7 +10,7 @@
 - 匿名的 Managed Browser 打开搜索页，文档状态为 200，但页面是 reCAPTCHA 验证页 “Prove your humanity”（2 次样本）。
 - 用户登录过的 Managed Browser 正常打开了搜索页与帖子页：9 次页面打开，没有验证页，reddit.com 的请求全部是 2xx。
 
-ADR 0033 已经预见机房 IP 更容易被拦截。`reddit_web` 首发时（2026-10-28）在同一个出口 IP 上可用，此后 24 天没有任何一层测试实际运行过它：它不在默认 order 中，而发版收尾的 `smoke --live` 使用维护者的真实配置，它的 live 用例因此每次都记为 `unconfigured`。发版流程已改为带 `--opt-in` 运行 live smoke（规格第 5 章）。
+ADR 0033 已经预见机房 IP 更容易被拦截。`reddit_web` 首发时（2026-10-28）在同一个出口 IP 上可用，此后 24 天没有任何一层测试实际运行过它：它不在默认 order 中，而发版收尾的 `smoke --live` 使用维护者的真实配置，它的 live 用例因此每次都记为 `unconfigured`。发版流程带 `--opt-in` 运行 live smoke（规格第 5 章）。
 
 官方 public Data API 不再受理新的访问申请，并将按迁移公告的时间表关闭（ADR 0033 的背景）。Reddit User Agreement 与 robots.txt 都不允许自动访问。
 
@@ -26,7 +26,7 @@ ADR 0033 已经预见机房 IP 更容易被拦截。`reddit_web` 首发时（202
 - **search** 用 URL 表达选项（全站 `/search/`，版块内 `/r/<sub>/search/` 加 `restrict_sr=1`）。首屏约 7 条，不够 `--limit` 时用原生滚轮让页面自己加载下一页，最多滚 6 次。route 不签发续页 cursor，`next_cursor` 恒为 `null`，Reddit 的 CLI 删除 `--cursor`。没有列全时成功返回已有条目，并在 stderr 说明。
 - **fetch** 导航到 `/comments/<id>/?sort=top`，在页面首次出现帖子元素时投影一次，交付帖子与页面随文档带来的第一批评论，不滚动加载更多，也不点击展开回复。`order` 取页面评论树报告的排序，映射为封闭取值 `top`、`best`、`new`、`controversial`、`old`、`qa`。
 - **遇到验证就停止。** 验证页（title 含 “Prove your humanity”、表单中有 reCAPTCHA，或有 `js_challenge` 字段）、文档状态 403 或 429、页面未登录，都判为 Auth：不重试，提示运行 `forager browser login reddit` 并在窗口中处理，或等待后再试。forager 从不尝试通过验证。已登录、页面加载完成却没有帖子元素时，判为 attempt 级 Parameter（帖子不存在、已删除、私有、受限，或被账号的成人内容设置挡住）。
-- **启用风险说明统一登记。** 所有需要用户自行启用的 route，不分 HTTP 与浏览器传输，都在平台 catalog 的同一处登记启用风险说明。配置错误中的启用说明读这一处：HTTP route 附上 `config set` 命令；浏览器 route 先给通用的三步启用说明（安装浏览器、登录、加入 order），再附上风险说明。生成启用说明时不按 route id 特判。Reddit 的风险说明是：自动访问违反 Reddit User Agreement，风险落在登录的账号上，不在出口 IP。小红书的风险说明（站点禁止爬虫，风险落在登录的小红书账号上，站点可能限流或封禁）是建这份登记时新写的。ADR 0020 只记录了“由用户自行启用”的原则，没有对应的表述。
+- **启用风险说明统一登记。** 所有需要用户自行启用的 route，不分 HTTP 与浏览器传输，都在平台 catalog 的同一处登记启用风险说明。配置错误中的启用说明读这一处：HTTP route 附上 `config set` 命令；浏览器 route 先给通用的三步启用说明（安装浏览器、登录、加入 order），再附上风险说明。生成启用说明时不按 route id 特判。Reddit 的风险说明是：自动访问违反 Reddit User Agreement，风险落在登录的账号上，不在出口 IP。小红书的风险说明是：站点禁止爬虫，风险落在登录的小红书账号上，站点可能限流或封禁；它没有更早的 ADR 出处，ADR 0020 只记录了“由用户自行启用”的原则。
 - **完整退役 `reddit_web`，不留兼容层。** order 中出现 `reddit_web`，或配置中出现 `[providers.reddit_web]` 段时，由现有的未知 route、未知键检查拒绝（退 3）。`doctor --provider reddit_web` 与 `platform reddit search --cursor` 退 2。与传输无关的部分保留：ref 与 URL 解析、搜索选项、CLI 参数树、输出字段、正文 HTML 转 Markdown、讨论串 Markdown 的渲染。
 
 ## 风险
