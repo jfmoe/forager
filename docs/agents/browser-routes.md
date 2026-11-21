@@ -8,8 +8,8 @@
 | --- | --- | --- |
 | 判定的单元测试（`*_tests.rs`） | 完整测试套件 | 观察结果到分类、核对、解码与输出的规则 |
 | 替身浏览器的二进制测试 | 完整测试套件 | 启动参数、飞行前检查、启用说明、截止时间与进程清理；替身不讲 CDP |
-| 真实浏览器测试（`browser_real_tests.rs`、`ops/browser_setup.rs` 中的登录等待与 `reddit_browser_search_tests.rs` 中的投影） | 默认忽略，见下文 | 原生输入、唯一可命中目标、滚轮加载、抓包、profile 落盘、forager 被杀后浏览器退出、Reddit 投影脚本在页面上的取值；只访问本机页面 |
-| live smoke C27–C29（小红书）、C50（Reddit） | `forager smoke --live` | 真实站点上的页面驱动与成功路径；唯一能发现页面改版的一层 |
+| 真实浏览器测试（`browser_real_tests.rs`、`ops/browser_setup.rs` 中的登录等待与 `reddit_browser_search_tests.rs`、`reddit_browser_post_tests.rs` 中的投影） | 默认忽略，见下文 | 原生输入、唯一可命中目标、滚轮加载、抓包、profile 落盘、forager 被杀后浏览器退出、Reddit 投影脚本在页面上的取值；只访问本机页面 |
+| live smoke C27–C29（小红书）、C50–C51（Reddit） | `forager smoke --live` | 真实站点上的页面驱动与成功路径；唯一能发现页面改版的一层 |
 
 改了页面驱动（导航、输入、等待、抓包过滤），只有 live smoke 能证明它；改了判定，单元测试就够。
 
@@ -21,7 +21,7 @@
 cargo nextest run --lib --locked --run-ignored only
 ```
 
-- Reddit 的投影测试在本机页面（`tests/fixtures/reddit_browser/*.html`）上运行页面内的投影脚本，断言输出等于判定测试读的 JSON fixture；改了投影脚本或本机页面后，设置 `FORAGER_WRITE_PROJECTIONS=1` 运行它重写 JSON，再审阅差异。
+- Reddit 的投影测试（搜索页与帖子页各一个）在本机页面（`tests/fixtures/reddit_browser/*.html`）上运行页面内的投影脚本，断言输出等于判定测试读的 JSON fixture；改了投影脚本或本机页面后，设置 `FORAGER_WRITE_PROJECTIONS=1` 运行它重写 JSON，再审阅差异。
 - 需要已安装的 Managed Browser（`forager browser install`），或用 `FORAGER_REAL_BROWSER_PATH` 指定另一个浏览器可执行文件。找不到浏览器时测试以原因失败，不会悄悄通过。
 - 测试只打开本机起的静态页面，不访问任何真实站点，不需要登录，每个测试用自己的临时 Browser Profile。
 

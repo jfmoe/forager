@@ -21,6 +21,7 @@ use crate::net::AttemptFailure;
 use crate::providers::browser::{CaptureLevel, Exchange, RequestMethod, runtime};
 use crate::providers::browser_route::{BrowserRoute, PageReading, single_attempt};
 use crate::providers::execution::ExecutionSettings;
+use crate::providers::shared::utc_second;
 use crate::rate_limit::RateLimiter;
 use crate::types::{AttemptErrorKind, AttemptTarget, Deadline, Platform};
 
@@ -35,10 +36,17 @@ const POLL: Duration = Duration::from_millis(500);
 
 #[path = "reddit_browser_login.rs"]
 mod login;
+#[path = "reddit_markup.rs"]
+mod markup;
+#[path = "reddit_browser_post.rs"]
+mod post;
 #[path = "reddit_browser_search.rs"]
 mod search;
+#[path = "reddit_browser_thread.rs"]
+mod thread;
 
 pub(crate) use login::LOGIN_PAGE;
+pub(crate) use post::fetch_support;
 pub(crate) use search::search_support;
 
 pub(crate) struct RedditBrowser {
@@ -216,6 +224,14 @@ fn describe(facts: &PageFacts) -> String {
     format!("`{}` ({})", facts.title.trim(), facts.url)
 }
 
+/// Formats a site timestamp such as `2026-09-30T17:37:11.509000+0000` as a platform item
+/// timestamp.
+fn site_timestamp(value: &str) -> Option<String> {
+    chrono::DateTime::parse_from_str(value.trim(), "%Y-%m-%dT%H:%M:%S%.f%z")
+        .ok()
+        .map(|time| utc_second(time.to_utc()))
+}
+
 /// The path of a site URL without its trailing `/`, in lower case: the site redirects a
 /// subreddit path to its own capitalization.
 fn site_path(url: &Url) -> Option<String> {
@@ -280,6 +296,8 @@ fn unread(reading: &PageReading<'_>) -> PageFacts {
 #[cfg(test)]
 mod tests {
     use reqwest::Url;
+    #[cfg(unix)]
+    use serde_json::Value;
 
     use super::document_status;
     use crate::providers::browser::{Exchange, RequestMethod, ResponseBody};
@@ -330,5 +348,38 @@ mod tests {
         );
 
         assert_eq!(status, None);
+    }
+
+    /// Runs the projection `script` on each local page of `projected` (the path, the file the
+    /// server serves it from, and the projection fixture it must yield), with the server's origin
+    /// written as Reddit's; with `FORAGER_WRITE_PROJECTIONS` set, it writes the fixtures instead.
+    #[cfg(unix)]
+    pub(super) fn check_projections(
+        served: crate::providers::real_browser::FixturePages,
+        projected: &[(&str, &str, &str)],
+        script: &str,
+    ) {
+        use crate::providers::real_browser::{Pages, Sandbox, executable};
+
+        let pages = Pages::serving(served);
+        let executable = executable();
+        for (path, served, expected) in projected {
+            let url = pages.url(path);
+            let projection: Value = Sandbox::new().run(&executable, async |page| {
+                page.navigate(&url).await?;
+                page.evaluate(script).await
+            });
+            let projection = serde_json::to_string_pretty(&projection)
+                .expect("a JSON value serializes")
+                .replace(pages.origin(), super::SITE_ORIGIN);
+            let file = format!("{}/tests/fixtures/{expected}", env!("CARGO_MANIFEST_DIR"));
+            if std::env::var_os("FORAGER_WRITE_PROJECTIONS").is_some() {
+                std::fs::write(&file, format!("{projection}\n")).expect("write the projection");
+                continue;
+            }
+            let fixture = std::fs::read_to_string(&file)
+                .unwrap_or_else(|error| panic!("read {file}: {error}"));
+            assert_eq!(projection.trim_end(), fixture.trim_end(), "{served}");
+        }
     }
 }

@@ -642,8 +642,8 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 | `--format` | `json` / `markdown` / `content` | `json` | `content` 把讨论串或全文输出到 stdout，不写文件 |
 
 - 通用 flag 同 search。
-- **输出**：JSON 顶层为 `platform`、`provider`，条目的公共字段与 Reddit 字段（`post_type` 为帖子类型，`spoiler`、`snippet` 与 `snippet_source` 为 `null`），另有 `text`（帖子正文的 Markdown）。`thread` 深度另有 `content_url`、`content_provider`（`reddit_web`）、`content_path`、`content_len`、`comments_delivered`、`has_more_comments` 与 `order`（`top`）；`full_text` 深度另有正文的四个 `content_*` 字段。
-- **退出码**：评论 permalink（消息给出所属帖子的 ref）、分享短链 `/s/<code>`、其他无法识别的输入，`thread`、`metadata`、`full_text` 以外的深度＝飞行前退 2；`platforms.reddit.order` 为空（默认）、`full_text` 而没有已配置的 Web Fetch provider＝飞行前退 3；帖子不存在（`Reddit post not found: reddit:<id>`）或 embed 页不显示它（已删除、私有或受限）为 attempt 级 Parameter，退 4；没有正文也不是 link 帖的帖子请求 `full_text` 为 Quality，退 5；文件写入失败为 Runtime，退 4；传输失败同 search。
+- **输出**：JSON 顶层为 `platform`、`provider`，条目的公共字段与 Reddit 字段（`post_type` 为帖子类型，`spoiler`、`snippet` 与 `snippet_source` 为 `null`），另有 `text`（帖子正文的 Markdown）。`thread` 深度另有 `content_url`、`content_provider`（交付的 route）、`content_path`、`content_len`、`comments_delivered`、`has_more_comments` 与 `order`（评论的排序，封闭取值 `top`、`best`、`new`、`controversial`、`old`、`qa`；`reddit_web` 恒为 `top`，`reddit_browser` 取页面评论树报告的排序）；`full_text` 深度另有正文的四个 `content_*` 字段。
+- **退出码**：评论 permalink（消息给出所属帖子的 ref）、分享短链 `/s/<code>`、其他无法识别的输入，`thread`、`metadata`、`full_text` 以外的深度＝飞行前退 2；`platforms.reddit.order` 为空（默认）、`full_text` 而没有已配置的 Web Fetch provider＝飞行前退 3；帖子不存在（`Reddit post not found: reddit:<id>`）、embed 页不显示它（已删除、私有或受限），或 `reddit_browser` 已登录、页面加载完成而没有帖子元素，为 attempt 级 Parameter，退 4；`reddit_browser` 遇到验证页、文档 403/429 或未登录为 Auth，退 4；没有正文也不是 link 帖的帖子请求 `full_text` 为 Quality，退 5；文件写入失败为 Runtime，退 4；传输失败同 search。
 
 ## 收尾
 

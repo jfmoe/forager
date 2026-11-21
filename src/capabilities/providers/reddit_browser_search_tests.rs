@@ -148,35 +148,14 @@ const PROJECTED_PAGES: [(&str, &str, &str); 2] = [
 #[test]
 #[ignore = "launches a real browser"]
 fn the_projection_of_each_local_page_is_the_fixture_the_judgement_reads() {
-    use crate::providers::real_browser::{Pages, Sandbox, executable};
-
-    const SERVED: crate::providers::real_browser::FixturePages = &[
-        ("/search/", "reddit_browser/search.html"),
-        ("/r/rust/search/", "reddit_browser/captcha.html"),
-    ];
-    let pages = Pages::serving(SERVED);
-    let executable = executable();
-    let script = projection_script(SEARCH_PROJECTION);
-    for (path, served, expected) in PROJECTED_PAGES {
-        let url = pages.url(path);
-        let projected: Value = Sandbox::new().run(&executable, async |page| {
-            page.navigate(&url).await?;
-            page.evaluate(&script).await
-        });
-        let projected = serde_json::to_string_pretty(&projected)
-            .expect("a JSON value serializes")
-            .replace(pages.origin(), super::SITE_ORIGIN);
-        let file = format!("{}/tests/fixtures/{expected}", env!("CARGO_MANIFEST_DIR"));
-        if std::env::var_os("FORAGER_WRITE_PROJECTIONS").is_some() {
-            std::fs::write(&file, format!("{projected}\n")).expect("write the projection");
-            continue;
-        }
-        assert_eq!(
-            projected.trim_end(),
-            fixture(expected).trim_end(),
-            "{served}"
-        );
-    }
+    super::super::tests::check_projections(
+        &[
+            ("/search/", "reddit_browser/search.html"),
+            ("/r/rust/search/", "reddit_browser/captcha.html"),
+        ],
+        &PROJECTED_PAGES,
+        &projection_script(SEARCH_PROJECTION),
+    );
 }
 
 fn ids(decoded: &Value) -> Vec<String> {

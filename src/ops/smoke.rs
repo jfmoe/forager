@@ -61,11 +61,11 @@ const YOUTUBE_VIDEOS_CANARY: &str = "youtube:playlist/PLZHQObOWTQDPD3MizzM2xVFit
 // speaker's clothes.
 const YOUTUBE_ASK_CANARY_QUESTION: &str =
     "How many elephants are visible behind the speaker, and what is he wearing?";
-const SPECIFICATION_CASE_IDS: [&str; 45] = [
+const SPECIFICATION_CASE_IDS: [&str; 46] = [
     "P1", "P2", "C01", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "C13", "C17",
     "C18", "C19", "C20", "C21", "C24", "C25", "C26", "C27", "C28", "C29", "C30", "C31", "C32",
     "C33", "C34", "C35", "C36", "C37", "C38", "C39", "C40", "C41", "C42", "C43", "C44", "C45",
-    "C46", "C47", "C48", "C49", "C50",
+    "C46", "C47", "C48", "C49", "C50", "C51",
 ];
 // One comment page holds 10 top-level comments, so 15 needs the second page.
 const XIAOHONGSHU_COMMENTS_LIMIT: &str = "15";
@@ -76,6 +76,9 @@ const DEADLINE_NOT_STARTED: &str =
     "not started: the live smoke deadline elapsed before this case began";
 const XIAOHONGSHU_ONE_COMMENT_PAGE: &str = "not verified: the most-commented note of the Xiaohongshu search has 10 or fewer comments, so the second comment page was not read";
 const XIAOHONGSHU_NO_REPLIES: &str = "not verified: no returned comment of the most-commented Xiaohongshu note had more replies to expand";
+const REDDIT_STOPPED: &str = "not started: an earlier Reddit browser case met a verification page, a refused page, or a logged-out session, so this run stops all Reddit browser access";
+const REDDIT_NO_POST: &str =
+    "not started: the Reddit browser search case returned no post that is not marked NSFW";
 const PIPELINE_CASES: [LiveCaseDefinition; 3] = [
     LiveCaseDefinition::pipeline("P1", "search"),
     LiveCaseDefinition::pipeline("P2", "research"),
@@ -203,8 +206,20 @@ struct LiveCaseResult {
 #[derive(Default)]
 struct LiveRun {
     xiaohongshu: XiaohongshuRun,
+    reddit: RedditRun,
     /// The first event of the Polymarket search case, which the live-quote fetch case reads.
     polymarket_event: Option<String>,
+}
+
+/// What one live run carries between its Reddit browser cases, in memory only: the fetch case
+/// reads a post the search case found, so it never opens a post chosen from memory.
+#[derive(Default)]
+struct RedditRun {
+    /// The first search result that is not marked NSFW.
+    post: Option<String>,
+    /// A case failed with Auth; more page loads would push the account further into the site's
+    /// risk scoring.
+    stopped: bool,
 }
 
 /// What one live run carries between its Xiaohongshu cases, in memory only: a note opens only
@@ -225,12 +240,14 @@ struct CaseFailure {
     kind: FailureKind,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum FailureKind {
     Failed,
-    /// The provider refused the canary with Auth or an attempt-level Parameter failure, so a
-    /// retry gets the same answer. On Xiaohongshu this marks a login wall, risk control, or a
-    /// block page.
+    /// The provider refused the canary with Auth, so a retry gets the same answer. On a browser
+    /// route this marks a login wall, risk control, or a verification page.
+    Auth,
+    /// The provider refused the canary with an attempt-level Parameter failure, so a retry gets
+    /// the same answer. On Xiaohongshu this marks a block page.
     Refused,
     /// The case ran, but its sample could not show what the case covers.
     Unverified,
@@ -656,6 +673,33 @@ fn blocker(definition: LiveCaseDefinition, run: &LiveRun) -> Option<&'static str
         return Some(POLYMARKET_NO_EVENT);
     }
     xiaohongshu_blocker(definition, &run.xiaohongshu)
+        .or_else(|| reddit_blocker(definition, &run.reddit))
+}
+
+fn is_reddit_browser(definition: LiveCaseDefinition) -> bool {
+    definition.platform == Some(Platform::Reddit) && definition.transport == Some("browser")
+}
+
+/// Returns why a Reddit browser case must not start: an earlier one failed with Auth, or the
+/// fetch case has no post from the search case.
+fn reddit_blocker(definition: LiveCaseDefinition, run: &RedditRun) -> Option<&'static str> {
+    if !is_reddit_browser(definition) {
+        return None;
+    }
+    if run.stopped {
+        return Some(REDDIT_STOPPED);
+    }
+    (definition.operation != "search" && run.post.is_none()).then_some(REDDIT_NO_POST)
+}
+
+/// The ref of the first search result that is not marked NSFW.
+fn first_safe_post(payload: &Value) -> Option<String> {
+    payload["items"]
+        .as_array()?
+        .iter()
+        .find(|item| item["nsfw"] != Value::Bool(true))
+        .and_then(|item| item["ref"].as_str())
+        .map(str::to_owned)
 }
 
 /// Returns why a Xiaohongshu case must not start: an earlier case met a login wall or a block,
@@ -716,6 +760,9 @@ fn run_configured_case(
                             most_commented_access_url(&payload);
                     }
                     (Some(Platform::Polymarket), "search") => run.polymarket_event = first("ref"),
+                    (Some(Platform::Reddit), "search") if is_reddit_browser(definition) => {
+                        run.reddit.post = first_safe_post(&payload);
+                    }
                     _ => {}
                 }
                 return LiveCaseResult {
@@ -732,10 +779,8 @@ fn run_configured_case(
                     return skipped(definition, attempt, case_failure.message);
                 }
                 failure = case_failure.message;
-                if case_failure.kind == FailureKind::Refused {
-                    if definition.platform == Some(Platform::Xiaohongshu) {
-                        run.xiaohongshu.stopped = true;
-                    }
+                if matches!(case_failure.kind, FailureKind::Auth | FailureKind::Refused) {
+                    stop_after_refusal(definition, case_failure.kind, run);
                     break;
                 }
             }
@@ -758,10 +803,22 @@ fn run_configured_case(
     }
 }
 
-/// Xiaohongshu cases run once: repeating a page the site blocked pushes the user's account
-/// further into risk control.
-fn max_attempts(definition: LiveCaseDefinition) -> usize {
+/// Stops the later cases a refusal endangers: any refusal stops the Xiaohongshu cases, and Auth
+/// stops the Reddit browser cases; a Reddit post that is not visible says nothing about the
+/// account.
+fn stop_after_refusal(definition: LiveCaseDefinition, kind: FailureKind, run: &mut LiveRun) {
     if definition.platform == Some(Platform::Xiaohongshu) {
+        run.xiaohongshu.stopped = true;
+    }
+    if kind == FailureKind::Auth && is_reddit_browser(definition) {
+        run.reddit.stopped = true;
+    }
+}
+
+/// Browser route cases run once: they read sites with the user's logged-in account, and
+/// repeating a page the site distrusts pushes the account further into its risk control.
+fn max_attempts(definition: LiveCaseDefinition) -> usize {
+    if definition.transport == Some("browser") {
         1
     } else {
         3
@@ -802,11 +859,7 @@ fn run_case_once(
         if output.status.code() != Some(0) {
             return Err(CaseFailure {
                 message: "live case command returned a nonzero terminal",
-                kind: if is_refusal(output.status.code(), &output.stdout) {
-                    FailureKind::Refused
-                } else {
-                    FailureKind::Failed
-                },
+                kind: refusal(output.status.code(), &output.stdout).unwrap_or(FailureKind::Failed),
             });
         }
         if matches!(case_id, "P1" | "P2")
@@ -878,13 +931,18 @@ fn is_xiaohongshu_fetch(definition: LiveCaseDefinition) -> bool {
     definition.platform == Some(Platform::Xiaohongshu) && definition.operation == "fetch"
 }
 
-/// Whether a failed command, by its exit code and stdout, ended on Auth or an attempt-level
-/// Parameter failure.
-fn is_refusal(code: Option<i32>, stdout: &[u8]) -> bool {
-    code == Some(4)
-        && serde_json::from_slice::<Value>(stdout).is_ok_and(|payload| {
-            matches!(payload["error_kind"].as_str(), Some("auth" | "parameter"))
-        })
+/// The refusal a failed command ended on, by its exit code and stdout: Auth, or an
+/// attempt-level Parameter failure.
+fn refusal(code: Option<i32>, stdout: &[u8]) -> Option<FailureKind> {
+    if code != Some(4) {
+        return None;
+    }
+    let payload = serde_json::from_slice::<Value>(stdout).ok()?;
+    match payload["error_kind"].as_str()? {
+        "auth" => Some(FailureKind::Auth),
+        "parameter" => Some(FailureKind::Refused),
+        _ => None,
+    }
 }
 
 // Live cases are canaries, not user searches, so they stay out of the Search Result Journal.
@@ -1028,6 +1086,23 @@ fn command_specs(
                     &timeout,
                 ],
                 ResultShape::PlatformSearch,
+            )
+        } else if is_reddit_browser(definition) && definition.operation == "fetch" {
+            let content_dir = scratch_dir?.display().to_string();
+            one(
+                &[
+                    "platform",
+                    platform.as_str(),
+                    definition.operation,
+                    run.reddit.post.as_deref()?,
+                    "--depth",
+                    "thread",
+                    "--content-dir",
+                    &content_dir,
+                    "--timeout",
+                    &timeout,
+                ],
+                ResultShape::PlatformFullText,
             )
         } else if let Some((reference, depth)) = document_fetch_canary(definition) {
             let content_dir = scratch_dir?.display().to_string();

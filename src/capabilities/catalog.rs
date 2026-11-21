@@ -503,12 +503,20 @@ const REDDIT_WEB_SMOKE: &[ProviderSmokeCase] = &[
     },
 ];
 
-const REDDIT_BROWSER_SMOKE: &[ProviderSmokeCase] = &[ProviderSmokeCase {
-    id: "C50",
-    platform: Some(Platform::Reddit),
-    operation: "search",
-    transport: "browser",
-}];
+const REDDIT_BROWSER_SMOKE: &[ProviderSmokeCase] = &[
+    ProviderSmokeCase {
+        id: "C50",
+        platform: Some(Platform::Reddit),
+        operation: "search",
+        transport: "browser",
+    },
+    ProviderSmokeCase {
+        id: "C51",
+        platform: Some(Platform::Reddit),
+        operation: "fetch",
+        transport: "browser",
+    },
+];
 
 const YOUTUBE_API_SMOKE: &[ProviderSmokeCase] = &[
     ProviderSmokeCase {

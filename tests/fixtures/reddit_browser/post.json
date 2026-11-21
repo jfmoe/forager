@@ -1,0 +1,98 @@
+{
+  "comments": [
+    {
+      "author": "example_one",
+      "author_deleted": false,
+      "body": "<div id=\"t1_c1top01-post-rtjson-content\" dir=\"auto\"><p>Did you try the <a href=\"https://example.org/tutorial\">tutorial</a>?</p></div>",
+      "created": "2026-08-30T19:48:51.317000+0000",
+      "deleted": false,
+      "depth": "0",
+      "id": "t1_c1top01",
+      "permalink": "/r/rust/comments/1q2w3e4/comment/c1top01/",
+      "score": "156"
+    },
+    {
+      "author": "example_two",
+      "author_deleted": false,
+      "body": "<div id=\"t1_c1rep02-post-rtjson-content\" dir=\"auto\"><p>Seconding this, it <em>helped</em>.</p></div>",
+      "created": "2026-08-31T01:55:59.707000+0000",
+      "deleted": false,
+      "depth": "1",
+      "id": "t1_c1rep02",
+      "permalink": "/r/rust/comments/1q2w3e4/comment/c1rep02/",
+      "score": "89"
+    },
+    {
+      "author": "example_three",
+      "author_deleted": false,
+      "body": "<div id=\"t1_c1deep3-post-rtjson-content\" dir=\"auto\"><blockquote><p>helped</p></blockquote><p>Same here.</p></div>",
+      "created": "2026-08-31T11:34:01.095000+0000",
+      "deleted": false,
+      "depth": "2",
+      "id": "t1_c1deep3",
+      "permalink": "/r/rust/comments/1q2w3e4/comment/c1deep3/",
+      "score": "22"
+    },
+    {
+      "author": "example_four",
+      "author_deleted": false,
+      "body": "<div id=\"t1_c1top04-post-rtjson-content\" dir=\"auto\"><p>Give it time.</p></div>",
+      "created": "2026-08-30T18:54:04.853000+0000",
+      "deleted": false,
+      "depth": "0",
+      "id": "t1_c1top04",
+      "permalink": "/r/rust/comments/1q2w3e4/comment/c1top04/",
+      "score": "70"
+    },
+    {
+      "author": "[deleted]",
+      "author_deleted": true,
+      "body": null,
+      "created": "2026-08-31T00:02:17.388000+0000",
+      "deleted": true,
+      "depth": "0",
+      "id": "t1_c1gone5",
+      "permalink": null,
+      "score": null
+    },
+    {
+      "author": "example_six",
+      "author_deleted": false,
+      "body": "<div id=\"t1_c1orph6-post-rtjson-content\" dir=\"auto\"><p>What did they say?</p></div>",
+      "created": "2026-08-31T14:01:27.796000+0000",
+      "deleted": false,
+      "depth": "1",
+      "id": "t1_c1orph6",
+      "permalink": "/r/rust/comments/1q2w3e4/comment/c1orph6/",
+      "score": "2"
+    }
+  ],
+  "more_comments": false,
+  "page": {
+    "app": true,
+    "js_challenge": false,
+    "load_error": null,
+    "ready_state": "complete",
+    "recaptcha_form": false,
+    "title": "Learning the example runtime feels slow : r/rust",
+    "url": "https://www.reddit.com/r/rust/comments/1q2w3e4/learning_the_example_runtime/",
+    "user_logged_in": "true"
+  },
+  "post": {
+    "author": "example_poster",
+    "body": "<p>I have written C for years and the example runtime still surprises me. The <a href=\"/r/rust/wiki/faq\">FAQ</a> says <code>spawn</code> needs <strong>Send</strong>.</p><ul><li><p>Pinning</p></li><li><p>Cancellation</p></li></ul><pre><code>async fn main() {}\n</code></pre>",
+    "comment_count": "94",
+    "content_href": "https://www.reddit.com/r/rust/comments/1q2w3e4/learning_the_example_runtime/",
+    "created": "2026-08-30T18:31:14.504000+0000",
+    "id": "t3_1q2w3e4",
+    "permalink": "/r/rust/comments/1q2w3e4/learning_the_example_runtime/",
+    "post_type": "text",
+    "score": "389",
+    "title": "Learning the example runtime feels slow"
+  },
+  "screenview": {
+    "id": "t3_1q2w3e4",
+    "nsfw": false
+  },
+  "sort": "CONFIDENCE"
+}

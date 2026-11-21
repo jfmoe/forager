@@ -245,6 +245,16 @@ impl PlatformFetch for Serpapi {
     }
 }
 
+impl PlatformFetch for RedditBrowser {
+    fn fetch<'a>(
+        &'a self,
+        request: &'a PlatformFetchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(RedditBrowser::fetch(self, request))
+    }
+}
+
 impl PlatformFetch for XiaohongshuBrowser {
     fn fetch<'a>(
         &'a self,

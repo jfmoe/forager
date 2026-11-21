@@ -29,6 +29,8 @@ use crate::types::{
 
 #[path = "reddit_web_embed.rs"]
 mod embed;
+// The markup converter is reddit_browser's; reddit_web shares it until it retires (#285).
+#[expect(clippy::duplicate_mod)]
 #[path = "reddit_markup.rs"]
 mod markup;
 #[path = "reddit_web_search.rs"]

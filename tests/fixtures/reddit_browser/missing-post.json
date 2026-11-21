@@ -1,0 +1,20 @@
+{
+  "comments": [],
+  "more_comments": false,
+  "page": {
+    "app": true,
+    "js_challenge": false,
+    "load_error": null,
+    "ready_state": "complete",
+    "recaptcha_form": false,
+    "title": "Reddit - The heart of the internet",
+    "url": "https://www.reddit.com/r/example_adult/comments/1m5n6b7/a_slug/",
+    "user_logged_in": "true"
+  },
+  "post": null,
+  "screenview": {
+    "id": "t3_1m5n6b7",
+    "nsfw": true
+  },
+  "sort": null
+}
