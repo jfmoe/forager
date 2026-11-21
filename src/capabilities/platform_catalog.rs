@@ -120,7 +120,7 @@ pub(crate) const POLYMARKET: PlatformCatalog = PlatformCatalog {
 pub(crate) const REDDIT: PlatformCatalog = PlatformCatalog {
     platform: Platform::Reddit,
     search: &[ProviderId::RedditBrowser, ProviderId::RedditWeb],
-    fetch: &[ProviderId::RedditWeb],
+    fetch: &[ProviderId::RedditBrowser, ProviderId::RedditWeb],
     operation_only: &[],
     default_order: &[],
 };

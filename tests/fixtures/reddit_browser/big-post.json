@@ -1,0 +1,43 @@
+{
+  "comments": [
+    {
+      "author": "example_seven",
+      "author_deleted": false,
+      "body": "<div id=\"t1_c2top01-post-rtjson-content\" dir=\"auto\"><p>That is a lot of listening.</p></div>",
+      "created": "2026-10-24T00:36:49.074000+0000",
+      "deleted": false,
+      "depth": "0",
+      "id": "t1_c2top01",
+      "permalink": "/r/example_sub/comments/1z9y8x7/comment/c2top01/",
+      "score": "2094"
+    }
+  ],
+  "more_comments": true,
+  "page": {
+    "app": true,
+    "js_challenge": false,
+    "load_error": null,
+    "ready_state": "complete",
+    "recaptcha_form": false,
+    "title": "An example gallery of a television teardown : r/example_sub",
+    "url": "https://www.reddit.com/r/example_sub/comments/1z9y8x7/an_example_gallery/",
+    "user_logged_in": "true"
+  },
+  "post": {
+    "author": "example_gallery_poster",
+    "body": null,
+    "comment_count": "1369",
+    "content_href": "https://www.reddit.com/gallery/1z9y8x7",
+    "created": "2026-10-24T00:21:18.253000+0000",
+    "id": "t3_1z9y8x7",
+    "permalink": "/r/example_sub/comments/1z9y8x7/an_example_gallery/",
+    "post_type": "gallery",
+    "score": "18143",
+    "title": "An example gallery of a television teardown"
+  },
+  "screenview": {
+    "id": "t3_1z9y8x7",
+    "nsfw": false
+  },
+  "sort": "TOP"
+}

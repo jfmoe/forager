@@ -90,7 +90,7 @@ Every item carries `depth`, the content it actually holds: `metadata` (bibliogra
   to a model's transcript; that comes only from `transcribe`.
 - **Reddit** search items are `snippet` when Reddit's search showed an excerpt (`snippet_source`
   says whether it came from the post or one of its comments) and `metadata` otherwise. `fetch`
-  defaults to `--depth thread`, which writes the post and its first page of top comments to
+  defaults to `--depth thread`, which writes the post and the first comments its page loaded to
   `reddit-<id>.md`; `--depth metadata` returns the post with its own text; `--depth full_text`
   reads the page a link post points to through Web Fetch, or a text post's own body.
 
@@ -377,16 +377,19 @@ forager platform polymarket history polymarket:market/will-no-fed-rate-cuts-happ
 
 ## Reddit
 
-Reddit search runs through one of two opt-in routes; fetch runs only through `reddit_web`.
+Reddit search and fetch run through one of two opt-in routes; with both in the order, the first one listed answers.
 
-`reddit_browser` searches Reddit in forager's headless browser, logged into the user's own Reddit
-account. Reddit's User Agreement does not allow automated access, and the risk falls on that
+`reddit_browser` searches and reads Reddit in forager's headless browser, logged into the user's
+own Reddit account. Reddit's User Agreement does not allow automated access, and the risk falls on that
 account, not on the egress IP. Enable it only when the user asks, and tell them this first; the
 user installs the browser (`forager browser install`), logs in themselves
 (`forager browser login reddit`, in the window it opens), and adds `reddit_browser` to
 `platforms.reddit.order`. It runs at most one browser command every 10 seconds, reads up to 25
 results in one command by scrolling, and issues no cursor: a stderr note that Reddit has more
-than the command read means narrowing the query, subreddit, or time window, not paging.
+than the command read means narrowing the query, subreddit, or time window, not paging. A fetch
+opens the post page once and reads the comments it loaded with the post (about the first 100),
+in Reddit's top order. A post the account cannot see (deleted, private, restricted, or hidden by
+its adult-content setting) is `parameter`, not a different post.
 
 `reddit_web` reads Reddit's own search, comment, and embed pages anonymously. It needs no key, but it is off by default: Reddit's User Agreement and
 robots.txt do not allow automated access. Enable it only when the user asks for it, and tell
@@ -400,9 +403,11 @@ because the route never logs in. The command is
   `new`.
 - A Reddit ref names a post. For a comment link, fetch the post the error message names; for a
   share link (`/s/…`), ask the user for the post URL it opens.
-- The discussion file holds only the first page of comments in Reddit's top order;
-  `has_more_comments: true` says Reddit has more that the file lacks, and `comments` is the
-  post's whole count. Say how many of them you read.
+- The discussion file holds only the first page of comments, in the order `order` names
+  (`top` for both routes so far; `best`, `new`, `controversial`, `old`, or `qa` if Reddit applied
+  another); `has_more_comments: true` says Reddit has more that the file lacks, and `comments` is
+  the post's whole count, which can exceed `comments_delivered` even without more, because Reddit
+  does not render every removed comment. Say how many of them you read.
 
 ```console
 forager platform reddit search 'rust async runtime' --subreddit rust --sort top --time year

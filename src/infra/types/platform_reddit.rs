@@ -277,10 +277,21 @@ pub enum RedditSnippetSource {
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
-/// How the comments of a delivered discussion are ordered.
+/// How the comments of a delivered discussion are ordered: the comment sort Reddit applied,
+/// with replies nested under the comment they answer.
 pub enum RedditThreadOrder {
-    /// Reddit's `top` order: top-level comments by score, replies nested under them.
+    /// Highest score first.
     Top,
+    /// Reddit's default `best` order, which ranks by a confidence estimate of the votes.
+    Best,
+    /// Newest first.
+    New,
+    /// Most evenly split votes first.
+    Controversial,
+    /// Oldest first.
+    Old,
+    /// Comments the post's author answered first, as in an AMA.
+    Qa,
 }
 
 #[derive(Clone, Debug, Default, Serialize)]

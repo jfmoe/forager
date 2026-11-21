@@ -214,10 +214,8 @@ pub(crate) fn build_platform_fetch(
         PlatformRouteConfig::RedditWeb(config) => {
             Box::new(build_reddit_web(config, client, deadline))
         }
-        PlatformRouteConfig::RedditBrowser(_) => {
-            unreachable!(
-                "reddit_browser serves search only, so planning never selects it for fetch"
-            )
+        PlatformRouteConfig::RedditBrowser(config) => {
+            Box::new(build_reddit_browser(config, deadline))
         }
         PlatformRouteConfig::GeminiApi(_) => {
             unreachable!(
@@ -624,6 +622,7 @@ pub(crate) fn platform_fetch_support(
         ProviderId::YoutubeWeb => youtube_web::fetch_support(request),
         ProviderId::PolymarketApi => polymarket_api::fetch_support(request),
         ProviderId::RedditWeb => reddit_web::fetch_support(request),
+        ProviderId::RedditBrowser => reddit_browser::fetch_support(request),
         _ => return None,
     };
     Some(transport_support(id).and(route))

@@ -6,11 +6,13 @@ use std::time::{Duration, Instant};
 use serde_json::json;
 
 use super::{
-    FailureKind, LiveCaseDefinition, LiveRun, XIAOHONGSHU_NO_ACCESS_URL, XIAOHONGSHU_NO_REPLIES,
-    XIAOHONGSHU_ONE_COMMENT_PAGE, XIAOHONGSHU_STOPPED, XiaohongshuRun, command_specs,
-    comments_coverage, execute_with_deadline, is_refusal, live_case, live_case_process,
-    most_commented_access_url, official_status_host, registry_status, status_host_matches_endpoint,
-    status_page_reports_outage, xiaohongshu_blocker,
+    FailureKind, LiveCaseDefinition, LiveRun, REDDIT_NO_POST, REDDIT_STOPPED, RedditRun,
+    XIAOHONGSHU_NO_ACCESS_URL, XIAOHONGSHU_NO_REPLIES, XIAOHONGSHU_ONE_COMMENT_PAGE,
+    XIAOHONGSHU_STOPPED, XiaohongshuRun, blocker, command_specs, comments_coverage,
+    execute_with_deadline, first_safe_post, live_case, live_case_process, max_attempts,
+    most_commented_access_url, official_status_host, refusal, registry_status,
+    status_host_matches_endpoint, status_page_reports_outage, stop_after_refusal,
+    xiaohongshu_blocker,
 };
 use crate::catalog;
 use crate::types::Deadline;
@@ -192,9 +194,9 @@ fn a_rate_limit_notice_or_http_471_refuses_the_case() {
         }),
     ];
 
-    let refusals = failures.map(|payload| is_refusal(Some(4), payload.to_string().as_bytes()));
+    let refusals = failures.map(|payload| refusal(Some(4), payload.to_string().as_bytes()));
 
-    assert_eq!(refusals, [true, true]);
+    assert_eq!(refusals, [Some(FailureKind::Auth); 2]);
 }
 
 #[test]
@@ -210,7 +212,7 @@ fn a_refused_xiaohongshu_case_stops_every_later_one() {
         (Some(4), json!({"error_kind": "runtime"})),
         (Some(3), json!({"error_kind": "config"})),
     ]
-    .map(|(code, payload)| is_refusal(code, payload.to_string().as_bytes()));
+    .map(|(code, payload)| refusal(code, payload.to_string().as_bytes()).is_some());
 
     assert_eq!(
         (
@@ -252,5 +254,98 @@ fn the_comments_case_passes_only_with_a_second_page_and_an_expansion() {
             Some((XIAOHONGSHU_ONE_COMMENT_PAGE, true)),
             Some((XIAOHONGSHU_NO_REPLIES, true)),
         ]
+    );
+}
+
+fn case(id: &str) -> LiveCaseDefinition {
+    live_case(id).expect("registered case")
+}
+
+#[test]
+fn the_reddit_fetch_case_reads_the_first_search_result_not_marked_nsfw() {
+    let search = json!({"items": [
+        {"ref": "reddit:1aaaaaa", "nsfw": true},
+        {"ref": "reddit:1bbbbbb", "nsfw": false},
+        {"ref": "reddit:1cccccc", "nsfw": false}
+    ]});
+    let run = LiveRun {
+        reddit: RedditRun {
+            post: first_safe_post(&search),
+            stopped: false,
+        },
+        ..LiveRun::default()
+    };
+
+    let command = command_specs("C51", 60, Some(std::path::Path::new("/scratch")), &run)
+        .expect("Reddit fetch case")[0]
+        .arguments[..6]
+        .to_vec();
+
+    assert_eq!(
+        command,
+        [
+            "platform",
+            "reddit",
+            "fetch",
+            "reddit:1bbbbbb",
+            "--depth",
+            "thread"
+        ]
+    );
+}
+
+#[test]
+fn the_reddit_fetch_case_waits_for_a_post_from_the_search_case() {
+    let only_nsfw = json!({"items": [{"ref": "reddit:1aaaaaa", "nsfw": true}]});
+    let run = LiveRun {
+        reddit: RedditRun {
+            post: first_safe_post(&only_nsfw),
+            stopped: false,
+        },
+        ..LiveRun::default()
+    };
+
+    assert_eq!(
+        ["C50", "C51"].map(|id| blocker(case(id), &run)),
+        [None, Some(REDDIT_NO_POST)]
+    );
+}
+
+#[test]
+fn auth_on_a_reddit_browser_case_stops_the_later_reddit_browser_cases_only() {
+    let stopped_after = |id: &str, kind| {
+        let mut run = LiveRun::default();
+        stop_after_refusal(case(id), kind, &mut run);
+        run.reddit.stopped
+    };
+    let stopped = LiveRun {
+        reddit: RedditRun {
+            post: Some("reddit:1bbbbbb".into()),
+            stopped: true,
+        },
+        ..LiveRun::default()
+    };
+
+    assert_eq!(
+        (
+            [
+                stopped_after("C50", FailureKind::Auth),
+                stopped_after("C51", FailureKind::Refused),
+                stopped_after("C47", FailureKind::Auth),
+            ],
+            ["C47", "C48", "C50", "C51"].map(|id| blocker(case(id), &stopped)),
+        ),
+        (
+            [true, false, false],
+            [None, None, Some(REDDIT_STOPPED), Some(REDDIT_STOPPED)],
+        )
+    );
+}
+
+#[test]
+fn browser_route_cases_run_once() {
+    assert_eq!(
+        ["C27", "C50", "C51", "C47", "C48"].map(|id| max_attempts(case(id))),
+        [1, 1, 1, 3, 3]
     );
 }

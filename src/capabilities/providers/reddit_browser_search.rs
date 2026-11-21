@@ -10,14 +10,14 @@ use serde::Deserialize;
 
 use super::{
     POLL, PageFacts, Projection, ROUTE, RedditBrowser, SITE_ORIGIN, blocked, capture, is_page,
-    project, projection_script, runtime, unexpected_page, unfinished, unread,
+    project, projection_script, runtime, site_timestamp, unexpected_page, unfinished, unread,
 };
 use crate::catalog::PlatformOperation;
 use crate::net::{AttemptFailure, combine_diagnostics};
 use crate::providers::browser::{InputError, InputFailure, Page};
 use crate::providers::browser_route::PageReading;
 use crate::providers::execution::execute_anonymous;
-use crate::providers::shared::{other_platform_message, parameter_error, utc_second};
+use crate::providers::shared::{other_platform_message, parameter_error};
 use crate::types::{
     ContentDepth, PlatformItem, PlatformItemData, PlatformRef, PlatformSearchOptions,
     PlatformSearchOutcome, PlatformSearchRequest, ProviderError, RedditItemData, RedditRef,
@@ -498,14 +498,6 @@ fn counts(counts: &[CountRecord]) -> (Option<i64>, Option<u64>) {
         }
     }
     (score, comments)
-}
-
-/// Formats a site timestamp such as `2026-09-30T17:37:11.509000+0000` as a platform item
-/// timestamp.
-fn site_timestamp(value: &str) -> Option<String> {
-    chrono::DateTime::parse_from_str(value.trim(), "%Y-%m-%dT%H:%M:%S%.f%z")
-        .ok()
-        .map(|time| utc_second(time.to_utc()))
 }
 
 #[derive(Deserialize)]

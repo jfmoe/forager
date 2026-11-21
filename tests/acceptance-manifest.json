@@ -284,6 +284,13 @@
       "seam": "platform:reddit:search",
       "test": "src/capabilities/providers/reddit_browser_search_tests.rs::the_results_page_decodes_into_post_items",
       "note": "Page projections, judged without a browser, prove the page-fact classification, the result decoding, repeats, and the incomplete-list diagnostic; the real-browser test runs the projection script on local copies of the pages Reddit served on 2026-11-21 and proves it yields those projections; tests/reddit_browser_search.rs proves the preflight, the enabling steps, and the headless launch against a stand-in browser, and the page driving on the site is covered only by the live smoke C50."
+    },
+    {
+      "id": "F43",
+      "provider": "reddit_browser",
+      "seam": "platform:reddit:fetch",
+      "test": "src/capabilities/providers/reddit_browser_post_tests.rs::thread_writes_the_post_and_the_page_comments_nested_by_depth_in_the_page_order",
+      "note": "Post page projections, judged without a browser, prove the page-fact classification, the post identity check, the three depths, the comments and their order, and the missing-post Parameter; the real-browser test runs the projection script on local copies of the post pages Reddit served on 2026-11-21 and proves it yields those projections; tests/reddit_browser_fetch.rs proves the fetch preflight against a stand-in browser, and the page driving on the site is covered only by the live smoke C51."
     }
   ],
   "offline_e2e": [

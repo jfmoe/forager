@@ -1174,22 +1174,29 @@ forager platform reddit fetch REF_OR_URL [--depth thread|metadata|full_text] [--
 | `--content-dir DIR` | Directory for the discussion or full-text Markdown file, named `reddit-<id>.md`. | New directory under the system temp directory |
 | `--format FORMAT` | `json`, `markdown`, or `content`; `content` prints the discussion or the full text and writes no file. | `json` |
 
-JSON output is the item fields as under search, with `post_type` (`text`, `link`, `image`,
-`video`, `multi_media`), `spoiler`, `snippet`, and `snippet_source` `null`, plus `text` (the
-post's own body as Markdown). At `thread` depth it adds `content_url`, `content_provider`
-(`reddit_web`), `content_path`, `content_len`, `comments_delivered` (comments in the file),
-`has_more_comments`, and `order` (`top`). The file starts with the post's title, ref, permalink,
-subreddit, author, link, score, comment count, time, and text, then the first page of comments in
-Reddit's top order, indented by depth, each with its author, score, time, and permalink. A
-deleted comment keeps its place as `*[deleted or removed]*`. `full_text` needs a configured Web
-Fetch provider for a link post; a text post's body comes from `reddit_web` itself.
+JSON output is the item fields as under search, with `post_type` (Reddit's own type, such as
+`text`, `link`, `image`, `video`, `gallery`, `multi_media`, or `crosspost`), `spoiler`,
+`snippet`, and `snippet_source` `null`, plus `text` (the post's own body as Markdown). At
+`thread` depth it adds `content_url`, `content_provider` (the route), `content_path`,
+`content_len`, `comments_delivered` (comments in the file), `has_more_comments`, and `order`:
+`top`, `best`, `new`, `controversial`, `old`, or `qa`, the comment order Reddit applied
+(`reddit_web` always reads `top`; `reddit_browser` asks for `top` and reports what the page says).
+The file starts with the post's title, ref, permalink, subreddit, author, link, score, comment
+count, time, and text, then the first page of comments with a line naming their order, indented
+by depth, each with its author, score, time, and permalink. A deleted comment keeps its place as
+`*[deleted or removed]*`. `reddit_browser` opens the post page once in the logged-in browser and
+reads the comments it loaded with the post; it never scrolls for more or expands replies.
+`full_text` needs a configured Web Fetch provider for a link post; a text post's body comes from
+the route itself.
 
 Exit codes: `2` before any request for a comment permalink (the message names the post's ref), a
 share link (`/s/…`), another URL, or a depth other than the three; `3` for an empty
 `platforms.reddit.order`, or `full_text` with no configured Web Fetch provider; `4` for
-`parameter` (`Reddit post not found: reddit:<id>`, or a post its embed page does not show because
-it is removed, private, or restricted) and the failures under search; `5` (`quality`) for
-`full_text` of a post with neither text nor a link, such as an image post.
+`parameter` (`Reddit post not found: reddit:<id>`, or a post the route cannot see because it is
+removed, private, or restricted, or, through `reddit_browser`, hidden by the account's
+adult-content setting) and the failures under search; `5` (`quality`) for `full_text` of a post
+with neither text nor a link, such as an image or gallery post, or of a post type forager does
+not know, such as `crosspost`.
 
 ## Configuration and diagnostics
 

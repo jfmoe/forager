@@ -630,7 +630,7 @@ pub(crate) struct PlatformFetchOutcome {
     pub(crate) diagnostic: Option<String>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 /// Where the full text of an item lives: URLs to read in order, or the Markdown body the route
 /// itself read and verified in the same attempt.
 pub(crate) enum FullTextSource {
