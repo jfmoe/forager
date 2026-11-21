@@ -28,7 +28,7 @@
 ## live-e2e（`smoke --live` 用例面）
 
 - 离线档（无 `--live`）：不碰网络——配置可解析且过值域、registry 完整、凭据在位状态（不验真伪）、journal 目录可写；进 PR CI。
-- `--live` 用例以子进程执行，子进程固定 `FORAGER_JOURNAL__ENABLED=false`：金丝雀调用不写入用户的 Search Result Journal，避免污染复盘数据。
+- `--live` 用例以子进程执行，子进程固定 `FORAGER_JOURNAL__ENABLED=false`：金丝雀调用不写入用户的 Search Result Journal，避免污染复盘数据。子进程非零退出时，`failed` 用例的 `message` 带上子进程 stdout 给出的 `error_kind` 与 `message`（`live case command failed with <error_kind>: <message>`，先经凭据脱敏）；stdout 没有这两个字段时为固定文本 `live case command returned a nonzero terminal`。
 - **平台用例的门控与 `--opt-in`**：平台用例只在平台 order 列出其 route、且 route 已配置（需要凭据的有 keys）时运行，子进程把该平台的 order 固定为这条 route；下表中「order 不含时为 unconfigured」都指不加 `--opt-in`。加 `--opt-in` 时，order 未列出 route 的平台用例按传输判定本机是否具备运行前提，与 doctor 深探同一判定：浏览器 route 为浏览器可定位、且需要登录时 Browser Profile 有登录标记，需要凭据的 HTTP route 为 keys 非空，匿名 HTTP route 恒具备；具备即运行，不具备仍为 `unconfigured`。判定不启动浏览器、不发请求。模型操作用例（YouTube 的 ask 与 transcribe，C41、C42）先经配置的 YouTube fetch 链读取视频，子进程不固定 order，所以不受 `--opt-in` 影响，仍按真实 order 门控。order 已列出、但浏览器前提不具备的浏览器 route 照常运行，子进程飞行前退 3，用例记为 `failed`。`unconfigured` 的 `message` 写明原因：order 未列出（提示 `--opt-in`；模型操作用例则说明只按配置的 order 运行）、浏览器未安装或主机没有安装包（给出 `forager browser install` 或 `browser.path`）、Browser Profile 未登录（给出 `forager browser login <platform>`）、缺 keys（点名 `providers.<route>.keys`）；管线用例与非平台用例为缺统一凭据。`tests/smoke_opt_in.rs` 离线覆盖：order 未列出的 `youtube_web`（C38）不加选项为 `unconfigured`、加选项后经 fixture 通过；加选项时浏览器未安装、未登录（替身浏览器不被启动）与缺 keys 各为 `unconfigured` 且消息写明原因；模型操作用例在 `--opt-in` 下仍为 `unconfigured`，模型 fixture 收不到请求。这些测试把其余匿名平台 route 指向一律回 401 的 fixture（Auth 失败的用例不重试），smoke 测试的子进程另设一个关闭端口作 HTTP 代理，越过 fixture 的请求只会失败、不会到达站点。
 - `--live` 用例面分两类，全部原子化编 ID（H12 修订：原 L0–L8 粗分档废止，改为下述规范化清单；「全绿」以用例 ID 计）：
 

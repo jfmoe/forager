@@ -177,7 +177,8 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
 
 #[test]
 fn live_smoke_runs_a_case_that_fails_on_auth_once() {
-    let fixture = Fixture::start_repeating(Response::json(401, r#"{"error":"invalid key"}"#));
+    let fixture =
+        Fixture::start_repeating(Response::json(401, r#"{"error":"invalid key xai-secret"}"#));
     let endpoint = format!("{}/v1", fixture.url);
     let environment = SmokeEnvironment::new(|journal_dir| minimal_config(&endpoint, journal_dir));
 
@@ -188,9 +189,17 @@ fn live_smoke_runs_a_case_that_fails_on_auth_once() {
         (
             &case(&payload, "C01")["status"],
             &case(&payload, "C01")["attempts"],
+            &case(&payload, "C01")["message"],
             fixture.finish_all().len(),
         ),
-        (&Value::String("failed".into()), &Value::Number(1.into()), 1),
+        (
+            &Value::String("failed".into()),
+            &Value::Number(1.into()),
+            &Value::String(
+                r#"live case command failed with auth: {"error":"invalid key ********"}"#.into()
+            ),
+            1
+        ),
         "stdout: {}\nstderr: {}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)

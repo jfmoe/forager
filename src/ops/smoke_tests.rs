@@ -6,15 +6,16 @@ use std::time::{Duration, Instant};
 use serde_json::json;
 
 use super::{
-    FailureKind, LiveCaseDefinition, LiveRun, REDDIT_NO_SAFE_POST, REDDIT_SEARCH_NOT_PASSED,
-    REDDIT_STOPPED, RedditRun, RedditSearch, XIAOHONGSHU_NO_ACCESS_URL, XIAOHONGSHU_NO_REPLIES,
-    XIAOHONGSHU_ONE_COMMENT_PAGE, XIAOHONGSHU_STOPPED, XiaohongshuRun, blocker, command_specs,
-    comments_coverage, execute_with_deadline, live_case, live_case_process, max_attempts,
-    most_commented_access_url, needs_scratch, official_status_host, refusal, registry_status,
-    status_host_matches_endpoint, status_page_reports_outage, stop_after_refusal,
-    xiaohongshu_blocker,
+    FailureKind, LiveCaseDefinition, LiveRun, NONZERO_TERMINAL, REDDIT_NO_SAFE_POST,
+    REDDIT_SEARCH_NOT_PASSED, REDDIT_STOPPED, RedditRun, RedditSearch, XIAOHONGSHU_NO_ACCESS_URL,
+    XIAOHONGSHU_NO_REPLIES, XIAOHONGSHU_ONE_COMMENT_PAGE, XIAOHONGSHU_STOPPED, XiaohongshuRun,
+    blocker, command_specs, comments_coverage, execute_with_deadline, live_case, live_case_process,
+    max_attempts, most_commented_access_url, needs_scratch, nonzero_terminal, official_status_host,
+    refusal, registry_status, status_host_matches_endpoint, status_page_reports_outage,
+    stop_after_refusal, xiaohongshu_blocker,
 };
 use crate::catalog;
+use crate::redact::Secret;
 use crate::types::Deadline;
 
 #[test]
@@ -242,17 +243,20 @@ fn the_comments_case_passes_only_with_a_second_page_and_an_expansion() {
     };
 
     let results = [comments(11, 2), comments(10, 2), comments(11, 1)].map(|payload| {
-        comments_coverage(&payload)
-            .err()
-            .map(|failure| (failure.message, failure.kind == FailureKind::Unverified))
+        comments_coverage(&payload).err().map(|failure| {
+            (
+                failure.message.into_owned(),
+                failure.kind == FailureKind::Unverified,
+            )
+        })
     });
 
     assert_eq!(
         results,
         [
             None,
-            Some((XIAOHONGSHU_ONE_COMMENT_PAGE, true)),
-            Some((XIAOHONGSHU_NO_REPLIES, true)),
+            Some((XIAOHONGSHU_ONE_COMMENT_PAGE.to_owned(), true)),
+            Some((XIAOHONGSHU_NO_REPLIES.to_owned(), true)),
         ]
     );
 }
@@ -404,4 +408,33 @@ fn every_case_whose_commands_need_a_scratch_directory_gets_one() {
         .collect::<Vec<_>>();
 
     assert_eq!(unprovided, Vec::<&str>::new());
+}
+
+#[test]
+fn a_nonzero_terminal_reports_the_error_kind_and_message_without_credentials() {
+    let stdout = json!({
+        "error_kind": "parameter",
+        "message": "Gemini API returned HTTP 400 for key smoke-secret-key: unknown provider",
+        "journal_ref": null,
+    })
+    .to_string();
+
+    assert_eq!(
+        nonzero_terminal(stdout.as_bytes(), &[Secret::from("smoke-secret-key")]),
+        "live case command failed with parameter: Gemini API returned HTTP 400 for key ********: unknown provider"
+    );
+}
+
+#[test]
+fn a_nonzero_terminal_without_an_error_kind_and_message_keeps_the_fixed_text() {
+    let outputs = [
+        b"not json".to_vec(),
+        json!({"message": "no kind"}).to_string().into_bytes(),
+        json!({"error_kind": "runtime"}).to_string().into_bytes(),
+    ];
+
+    assert_eq!(
+        outputs.map(|stdout| nonzero_terminal(&stdout, &[]).into_owned()),
+        [(); 3].map(|()| NONZERO_TERMINAL.to_owned())
+    );
 }
