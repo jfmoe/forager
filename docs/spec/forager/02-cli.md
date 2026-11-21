@@ -626,7 +626,7 @@ research 是文件化证据管线，不是答案引擎；未指定 `--budget` �
 
 - 通用 flag 同 arXiv search。
 - **输出**：外层形状与 arXiv search 相同。每个 item 含 `ref`（`reddit:<id>`）、canonical `url`（`https://www.reddit.com/comments/<id>/`）、`depth`（有搜索摘录为 `snippet`，否则为 `metadata`）、`title`、`authors`、`published`（UTC，精确到秒），以及 Reddit 字段 `subreddit`、`permalink`、`post_type`（search 为 `null`）、`link_url`、`score`、`comments`、`nsfw`、`spoiler`、`snippet` 与 `snippet_source`（`post` 或 `comment`）。不写 Search Result Journal。读到的结果少于 `--limit` 而页面还有下一页时，成功返回已有条目，stderr 给出“未列全”诊断，提示缩小查询、版块或时间窗。
-- **退出码**：缺查询词或查询词为空、版块名非法、`--time` 与 `hot` 或 `new` 同时出现、`--limit` 越界、给出 `--cursor`（参数已不存在）＝飞行前退 2；`platforms.reddit.order` 为空（默认）＝飞行前退 3，消息给出三步启用说明与风险说明；order 中出现已退役的 `reddit_web`，或配置中有 `[providers.reddit_web]` 段＝退 3（未知 route 与未知键）；浏览器找不到或 Reddit Browser Profile 从未登录＝飞行前退 3，不启动浏览器，消息给出 `forager browser install`、`browser.path` 或 `forager browser login reddit`；验证页、文档 403/429 与未登录为 Auth，消息提示运行 `forager browser login reddit` 或等待；页面不是预期格式为 Runtime，到读取截止点仍未载入页面为 Network、仍停在搜索页为 Timeout，都退 4；合法零结果为 `items: []` 且退 0。
+- **退出码**：缺查询词或查询词为空、版块名非法、`--time` 与 `hot` 或 `new` 同时出现、`--limit` 越界、未知参数（如 `--cursor`，Reddit search 不签发也不接受 cursor）＝飞行前退 2；`platforms.reddit.order` 为空（默认）＝飞行前退 3，消息给出三步启用说明与风险说明；order 中有不属于 Reddit 的 route 名（如 `reddit_web`），或配置中有未知的 provider 段（如 `[providers.reddit_web]`）＝退 3；浏览器找不到或 Reddit Browser Profile 从未登录＝飞行前退 3，不启动浏览器，消息给出 `forager browser install`、`browser.path` 或 `forager browser login reddit`；验证页、文档 403/429 与未登录为 Auth，消息提示运行 `forager browser login reddit` 或等待；页面不是预期格式为 Runtime，到读取截止点仍未载入页面为 Network、仍停在搜索页为 Timeout，都退 4；合法零结果为 `items: []` 且退 0。
 
 ### `platform reddit fetch`
 

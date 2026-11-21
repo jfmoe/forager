@@ -19,7 +19,8 @@ pub(in crate::app) enum RedditCommand {
     /// `reddit_browser` in `platforms.reddit.order`.
     Search(RedditSearchArgs),
     /// Read one Reddit post in the logged-in Browser Profile; by default the post and the
-    /// comments its page loads are written to a local Markdown file.
+    /// comments its page loads are written to a local Markdown file. Needs `reddit_browser` in
+    /// `platforms.reddit.order`.
     Fetch(RedditFetchArgs),
 }
 
