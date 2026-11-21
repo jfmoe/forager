@@ -167,10 +167,13 @@ impl SearchProjection {
 #[serde(deny_unknown_fields)]
 struct ResultRecord {
     /// The result's `data-faceplate-tracking-context`, a JSON record of the post.
+    #[serde(deserialize_with = "Option::deserialize")]
     tracking: Option<String>,
     /// The `href` of the post title link.
+    #[serde(deserialize_with = "Option::deserialize")]
     permalink: Option<String>,
     /// The `ts` of the post's `faceplate-timeago`.
+    #[serde(deserialize_with = "Option::deserialize")]
     published: Option<String>,
     /// The counter row's numbers, each with the text that labels it.
     counts: Vec<CountRecord>,
@@ -180,6 +183,7 @@ struct ResultRecord {
 #[serde(deny_unknown_fields)]
 struct CountRecord {
     /// The `number` attribute of a `faceplate-number`.
+    #[serde(deserialize_with = "Option::deserialize")]
     number: Option<String>,
     /// The text of the element around it, such as `124 votes`.
     label: String,

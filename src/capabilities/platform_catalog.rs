@@ -116,7 +116,7 @@ pub(crate) const POLYMARKET: PlatformCatalog = PlatformCatalog {
 
 // Reddit's public Data API takes no new apps and is being retired, so both routes read the pages
 // the site renders: `reddit_browser` in a browser logged into the user's account, `reddit_web`
-// anonymously over HTTP. Users must enable either themselves (ADR 0033).
+// anonymously over HTTP (ADR 0033). Users must enable either themselves.
 pub(crate) const REDDIT: PlatformCatalog = PlatformCatalog {
     platform: Platform::Reddit,
     search: &[ProviderId::RedditBrowser, ProviderId::RedditWeb],
@@ -200,14 +200,16 @@ impl PlatformCatalog {
 /// Says what enabling a route that users must enable themselves risks, or `None` for any other
 /// provider.
 pub(crate) fn opt_in_risk(route: ProviderId) -> Option<&'static str> {
-    OPT_INS
-        .iter()
-        .find(|opt_in| opt_in.route == route)
-        .map(|opt_in| opt_in.risk)
+    opt_in(route).map(|opt_in| opt_in.risk)
 }
 
-/// Says what an HTTP platform route that users must enable themselves risks and how to enable
-/// it, or `None` for any other provider. `order` is the current value of `order_key`: the
+fn opt_in(route: ProviderId) -> Option<&'static OptIn> {
+    OPT_INS.iter().find(|opt_in| opt_in.route == route)
+}
+
+/// Says what a route that users must enable themselves risks and how to enable it with one
+/// `config set`, or `None` for any other provider. It suits an HTTP route; a browser route also
+/// needs the browser and a login first. `order` is the current value of `order_key`: the
 /// suggested order keeps it and places the route right after its last fetch route, so routes
 /// that only serve other operations keep working.
 pub(crate) fn http_opt_in(
@@ -215,7 +217,7 @@ pub(crate) fn http_opt_in(
     order_key: &str,
     order: &[ProviderId],
 ) -> Option<String> {
-    let opt_in = OPT_INS.iter().find(|opt_in| opt_in.route == route)?;
+    let opt_in = opt_in(route)?;
     let mut suggested = order.to_vec();
     let position = order
         .iter()
