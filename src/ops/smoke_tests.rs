@@ -330,7 +330,7 @@ fn auth_on_a_reddit_browser_case_stops_the_later_reddit_browser_cases_only() {
         (
             [
                 stopped_after("C50", FailureKind::Auth),
-                stopped_after("C51", FailureKind::Refused),
+                stopped_after("C51", FailureKind::Parameter),
                 stopped_after("C47", FailureKind::Auth),
             ],
             ["C47", "C48", "C50", "C51"].map(|id| blocker(case(id), &stopped)),

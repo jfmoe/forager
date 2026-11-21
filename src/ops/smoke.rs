@@ -248,7 +248,7 @@ enum FailureKind {
     Auth,
     /// The provider refused the canary with an attempt-level Parameter failure, so a retry gets
     /// the same answer. On Xiaohongshu this marks a block page.
-    Refused,
+    Parameter,
     /// The case ran, but its sample could not show what the case covers.
     Unverified,
 }
@@ -779,7 +779,10 @@ fn run_configured_case(
                     return skipped(definition, attempt, case_failure.message);
                 }
                 failure = case_failure.message;
-                if matches!(case_failure.kind, FailureKind::Auth | FailureKind::Refused) {
+                if matches!(
+                    case_failure.kind,
+                    FailureKind::Auth | FailureKind::Parameter
+                ) {
                     stop_after_refusal(definition, case_failure.kind, run);
                     break;
                 }
@@ -940,7 +943,7 @@ fn refusal(code: Option<i32>, stdout: &[u8]) -> Option<FailureKind> {
     let payload = serde_json::from_slice::<Value>(stdout).ok()?;
     match payload["error_kind"].as_str()? {
         "auth" => Some(FailureKind::Auth),
-        "parameter" => Some(FailureKind::Refused),
+        "parameter" => Some(FailureKind::Parameter),
         _ => None,
     }
 }

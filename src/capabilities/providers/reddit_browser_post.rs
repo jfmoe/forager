@@ -257,12 +257,18 @@ struct PostObservation {
 }
 
 /// Whether `projection` ends the read: the page shows the post, a block, or a loaded page
-/// of a logged-in session without a post, which renders none later.
+/// without a post, which renders none later, of a logged-in session or of a document the site
+/// failed to serve.
 fn post_ended(projection: &PostProjection, document_status: Option<u16>) -> bool {
     let page = &projection.page;
     projection.post.is_some()
         || blocked(page, document_status).is_some()
-        || (page.logged_in() && page.loaded())
+        || (page.loaded() && (page.logged_in() || server_failure(document_status).is_some()))
+}
+
+/// The status of a document the site failed to serve.
+fn server_failure(document_status: Option<u16>) -> Option<u16> {
+    document_status.filter(|status| *status >= 500)
 }
 
 /// Drives one fetch: opens the post page and projects it every half second until it reaches a
@@ -306,28 +312,22 @@ fn post_outcome(
     depth: ContentDepth,
 ) -> Result<(PlatformItem, FullTextSource), AttemptFailure> {
     let projection = &observed.projection;
-    let post = shown_post(observed, reference)?;
-    let thread = depth == ContentDepth::Thread;
-    let (comments, order) = if thread {
-        (
-            decode_comments(&projection.comments),
-            Some(order(projection)?),
-        )
-    } else {
-        (Vec::new(), None)
-    };
-    let mut item = post_item(projection, post, reference)?;
-    if let (PlatformItemData::Reddit(data), Some(order)) = (&mut item.data, order) {
-        item.depth = ContentDepth::Thread;
-        data.comments_delivered = Some(comments.len());
-        data.has_more_comments = Some(projection.more_comments);
-        data.order = Some(order);
-    }
-    let source = match (depth, order) {
-        (ContentDepth::Thread, Some(order)) => {
+    let fullname = format!("t3_{}", reference.id());
+    let post = shown_post(observed, reference, &fullname)?;
+    let mut item = post_item(projection, post, reference, &fullname)?;
+    let source = match depth {
+        ContentDepth::Thread => {
+            let comments = decode_comments(&projection.comments);
+            let order = order(projection)?;
+            item.depth = ContentDepth::Thread;
+            if let PlatformItemData::Reddit(data) = &mut item.data {
+                data.comments_delivered = Some(comments.len());
+                data.has_more_comments = Some(projection.more_comments);
+                data.order = Some(order);
+            }
             FullTextSource::Native(render(&item, &comments, order))
         }
-        (ContentDepth::FullText, _) => full_text_source(reference, &item)?,
+        ContentDepth::FullText => full_text_source(reference, &item)?,
         _ => FullTextSource::Urls(Vec::new()),
     };
     Ok((item, source))
@@ -337,6 +337,7 @@ fn post_outcome(
 fn shown_post<'o>(
     observed: &'o PostObservation,
     reference: &RedditRef,
+    fullname: &str,
 ) -> Result<&'o PostRecord, AttemptFailure> {
     let projection = &observed.projection;
     let facts = &projection.page;
@@ -344,15 +345,8 @@ fn shown_post<'o>(
         return Err(failure);
     }
     let Some(post) = &projection.post else {
-        if observed.timed_out {
-            return Err(unfinished(
-                facts,
-                is_post_page(&facts.url, reference),
-                || "the Reddit post page showed no post before the read deadline".to_owned(),
-            ));
-        }
         // A site failure is no statement about the post.
-        if let Some(status) = observed.document_status.filter(|status| *status >= 500) {
+        if let Some(status) = server_failure(observed.document_status) {
             return Err(AttemptFailure {
                 kind: AttemptErrorKind::Runtime,
                 status: Some(status),
@@ -360,6 +354,13 @@ fn shown_post<'o>(
                     "Reddit answered the post page with HTTP {status} and showed no post; the site may be failing, so retry later"
                 ),
             });
+        }
+        if observed.timed_out {
+            return Err(unfinished(
+                facts,
+                is_post_page(&facts.url, reference),
+                || "the Reddit post page showed no post before the read deadline".to_owned(),
+            ));
         }
         return Err(AttemptFailure {
             kind: AttemptErrorKind::Parameter,
@@ -369,7 +370,6 @@ fn shown_post<'o>(
             ),
         });
     };
-    let fullname = format!("t3_{}", reference.id());
     let shown = [
         post.id.as_deref(),
         projection
@@ -383,7 +383,7 @@ fn shown_post<'o>(
         )));
     }
     if post.id.is_none() {
-        return Err(format_change(&fullname, "ID"));
+        return Err(format_change(fullname, "ID"));
     }
     Ok(post)
 }
@@ -393,18 +393,18 @@ fn post_item(
     projection: &PostProjection,
     post: &PostRecord,
     reference: &RedditRef,
+    fullname: &str,
 ) -> Result<PlatformItem, AttemptFailure> {
-    let fullname = format!("t3_{}", reference.id());
     let title = post
         .title
         .clone()
         .filter(|title| !title.trim().is_empty())
-        .ok_or_else(|| format_change(&fullname, "title"))?;
+        .ok_or_else(|| format_change(fullname, "title"))?;
     let permalink_path = post
         .permalink
         .as_deref()
         .filter(|path| path.starts_with('/'))
-        .ok_or_else(|| format_change(&fullname, "permalink"))?;
+        .ok_or_else(|| format_change(fullname, "permalink"))?;
     let permalink = format!("{SITE_ORIGIN}{permalink_path}");
     Ok(PlatformItem {
         url: reference.canonical_url(),

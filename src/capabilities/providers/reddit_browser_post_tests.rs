@@ -381,27 +381,31 @@ fn a_refused_document_is_auth_even_with_the_post_shown() {
     assert_eq!(failure(&observation, "1q2w3e4").0, AttemptErrorKind::Auth);
 }
 
-#[test]
-fn a_read_deadline_without_a_post_is_timeout_on_the_post_page_and_runtime_elsewhere() {
-    let unfinished = |url: &str| {
-        let mut page = projection(MISSING_POST_PAGE);
-        page.page.url = url.to_owned();
-        page.page.ready_state = "interactive".to_owned();
-        let observation = PostObservation {
-            timed_out: true,
-            ..observed(page)
-        };
-        failure(&observation, "1m5n6b7").0
+/// The kind of a read whose deadline passed while the page at `url` showed no post.
+fn unfinished_at(url: &str) -> AttemptErrorKind {
+    let mut page = projection(MISSING_POST_PAGE);
+    page.page.url = url.to_owned();
+    page.page.ready_state = "interactive".to_owned();
+    let observation = PostObservation {
+        timed_out: true,
+        ..observed(page)
     };
+    failure(&observation, "1m5n6b7").0
+}
 
-    let kinds = [
-        unfinished("https://www.reddit.com/r/Example_Adult/comments/1m5n6b7/a_slug/"),
-        unfinished("https://www.reddit.com/"),
-    ];
-
+#[test]
+fn a_read_deadline_on_the_page_the_post_redirects_to_is_a_timeout() {
     assert_eq!(
-        kinds,
-        [AttemptErrorKind::Timeout, AttemptErrorKind::Runtime]
+        unfinished_at("https://www.reddit.com/r/Example_Adult/comments/1m5n6b7/a_slug/"),
+        AttemptErrorKind::Timeout
+    );
+}
+
+#[test]
+fn a_read_deadline_on_another_page_is_an_unexpected_page() {
+    assert_eq!(
+        unfinished_at("https://www.reddit.com/"),
+        AttemptErrorKind::Runtime
     );
 }
 
@@ -461,4 +465,14 @@ fn a_page_without_a_post_whose_document_failed_on_the_server_is_no_missing_post(
             "Reddit answered the post page with HTTP 503 and showed no post; the site may be failing, so retry later".to_owned()
         ))
     );
+}
+
+#[test]
+fn a_loaded_error_page_whose_document_failed_on_the_server_ends_the_read() {
+    let mut page = projection(MISSING_POST_PAGE);
+    page.page.app = false;
+    page.page.user_logged_in = None;
+    page.screenview = None;
+
+    assert!(super::post_ended(&page, Some(502)));
 }
