@@ -38,7 +38,7 @@
 
 ## 可行性原型（2026-11-21 22:32–22:40）
 
-原型在 forager 的浏览器传输上运行一个临时探针（分支 `spike/reddit-browser`，不合入），用户事先用 `forager browser login reddit` 亲自登录。9 次页面打开之间至少间隔 10 秒，页面内的 4 次同源 GET 之间也至少间隔 10 秒。
+原型在 forager 的浏览器传输上运行一个临时探针（不是 forager 的代码），用户事先用 `forager browser login reddit` 亲自登录。9 次页面打开之间至少间隔 10 秒，页面内的 4 次同源 GET 之间也至少间隔 10 秒。
 
 ### 搜索页
 
