@@ -1,6 +1,6 @@
 # forager CLI reference
 
-This reference documents the public CLI for `forager >=0.5.4`. Load it under the conditions given
+This reference documents the public CLI of the forager release this skill ships with. Load it under the conditions given
 in `SKILL.md`: for exact command syntax, non-routine commands, or diagnosis and recovery details.
 Routine `search` and `research` stay on their branch references. Treat
 `forager <command> --help` as the final authority for argument parsing.
@@ -1488,8 +1488,17 @@ probe flags are internal and are not part of the public CLI.
 
 All live cases share the one `--timeout` deadline. A case runs up to three times, but only once
 when it fails on Auth or an attempt-level Parameter error. A case that the deadline left no time to
-start is `skipped` with a message beginning `not started:`; raise `--timeout` and rerun rather than
-treating it as a provider failure.
+start is `skipped` with a message beginning `not started:`. That prefix has three kinds of source,
+and the rest of the message says which:
+
+- The deadline elapsed before the case began: raise `--timeout` and rerun.
+- An earlier case on the same site met a login wall, a verification page or a block, so the run
+  stopped all access to that site: do not rerun. Another run only triggers the block again; the
+  user logs in with `forager browser login <platform>` and handles the check in the window.
+- An upstream case produced no input for this one, such as a search that found nothing to fetch:
+  look at that upstream case; a larger `--timeout` does not help.
+
+None of them is a provider failure of the skipped case itself.
 
 A platform case runs only when its platform order lists the route and the route has the keys it
 requires. With `--opt-in`, a platform case whose route the order leaves out also runs when the

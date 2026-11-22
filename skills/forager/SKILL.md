@@ -5,9 +5,10 @@ description: "Search current web and X/Twitter sources with the local forager CL
 
 # forager
 
-Use the local `forager >=0.5.4` CLI as the execution layer. The CLI owns provider selection,
-ordering, credential rotation, and same-capability fallback. If the command is missing or below the
-required version, report the observed command or version and stop this skill run.
+Use the local `forager` CLI as the execution layer. The CLI owns provider selection, ordering,
+credential rotation, and same-capability fallback. If `forager` is not installed, report it and stop
+this skill run. If a command or option this skill names is missing, the installed forager is older
+than this skill: report the observed `forager --version` and ask the user to upgrade forager.
 
 ## Run commands to completion
 
