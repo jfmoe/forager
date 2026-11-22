@@ -1,11 +1,38 @@
-# Keep citation binding inline without a new output schema
+# Keep citation binding inline
 
-Forager will represent Citation Binding in answer text rather than add `claims`, `citation_bindings`, or another parallel JSON structure. Main search preserves provider-generated inline citations such as xAI's `[[N]](URL)` unchanged; when a provider returns no inline citation, the result remains successful without a binding status, forced fallback, or rewritten answer. This avoids duplicating information already present in the answer and keeps providers without positional citation metadata usable.
+## Decision
 
-The Research Evidence Pipeline continues to deliver evidence rather than synthesize an answer. Its skill-layer consumer must cite evidence inline as `[eN](URL)`, using the corresponding `evidence_items[].id` and URL. Forager does not rewrite or validate the consumer's final answer. Citation Binding records attribution only, not proof that the cited content supports a claim, so the existing risk-based fetch, verification, and disclosure rules remain unchanged.
+Citation Binding lives in the answer text. forager adds no parallel claim or binding structure to
+its output.
 
-## Consequences
+- Main search keeps a provider's inline citations in the answer unchanged. An answer without
+  inline citations is still a success: there is no binding status, no forced fallback and no
+  rewritten answer.
+- The research pipeline delivers evidence, not an answer. Its consumer cites evidence inline
+  through the evidence item's identity, in the form the CLI reference defines. forager neither
+  rewrites nor validates the consumer's final answer.
+- A binding records attribution only. It is not proof that the cited content supports the claim,
+  so the skill's risk-based fetch, verification and disclosure rules still apply.
 
-- JSON, Markdown, and content output gain no new binding fields or rendering rules.
-- The output-contract work following this decision may remove redundant fields without reserving a claim-binding structure.
-- Hard enforcement, semantic claim verification, and normalization of missing provider citations remain outside the CLI contract.
+## Why
+
+- The positional information is already in the answer; a parallel structure would duplicate it
+  and could disagree with it.
+- Some providers return no positional citation metadata. Requiring a binding would make them
+  unusable or force a fallback that costs a second search for the same answer.
+- Validating that a cited page supports a claim is semantic work that a deterministic CLI cannot
+  do reliably; pretending to would give the caller false confidence.
+
+## Rejected alternatives
+
+- **A `claims` or bindings array in JSON output.** It duplicates the answer's own citations and
+  needs rendering rules in every format.
+- **Falling back or rewriting when a provider returns no inline citations.** It spends another
+  search to restyle an answer that is already usable.
+- **Verifying claims against cited content in the CLI.** Semantic verification belongs to the
+  agent that writes the answer.
+
+## Revisit when
+
+- A consumer needs machine-readable claim-to-source links that cannot be recovered from the
+  answer text.
