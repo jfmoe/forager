@@ -35,7 +35,7 @@ pub fn adr_number(name: &str) -> Option<u16> {
                 .chars()
                 .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
     });
-    (number.len() == 4 && is_slug)
+    (number.len() == 4 && number.chars().all(|c| c.is_ascii_digit()) && is_slug)
         .then(|| number.parse().ok())
         .flatten()
 }
@@ -129,6 +129,7 @@ fn reference_at(rest: &str, from: &str) -> Option<Reference> {
             list_follows: list_follows(after),
         });
     }
+    let rest = rest.strip_prefix('s').unwrap_or(rest);
     let after_space = rest.trim_start_matches([' ', '\u{a0}']);
     (after_space.len() < rest.len() && !leading_digits(after_space).is_empty())
         .then(|| Reference::Malformed(written(from)))
@@ -176,13 +177,23 @@ mod tests {
             "29-short.md",
             "0030-Upper-Case.md",
             "0031_snake.md",
+            "+123-plus.md",
             "README.md",
         ]);
-        assert_eq!(problems.len(), 5, "{problems:#?}");
-        assert!(
-            problems
-                .iter()
-                .any(|problem| problem.contains("ADR-0007 is used by"))
+        let reported = problems
+            .iter()
+            .map(|problem| problem.split(':').next().unwrap_or_default())
+            .collect::<Vec<_>>();
+        assert_eq!(
+            reported,
+            [
+                "29-short.md",
+                "0030-Upper-Case.md",
+                "0031_snake.md",
+                "+123-plus.md",
+                "README.md",
+                "ADR-0007 is used by [\"0007-primary-first.md\", \"0007-other.md\"]",
+            ]
         );
     }
 
@@ -208,11 +219,11 @@ mod tests {
     #[test]
     fn reports_other_forms_of_reference() {
         let problems = reference_problems(
-            "See ADR 0007, ADR-07 and ADR-00070.\nADR 29 too.",
+            "See ADR 0007, ADR-07 and ADR-00070.\nADR 29 too, and ADRs 0007-0029.",
             &existing(),
             false,
         );
-        assert_eq!(problems.len(), 4, "{problems:#?}");
+        assert_eq!(problems.len(), 5, "{problems:#?}");
         assert!(
             problems[0].starts_with("line 1: `ADR 0007`"),
             "{problems:#?}"
@@ -227,6 +238,10 @@ mod tests {
             "ADR-0007, 0029",
             "ADR-0007/0029",
             "ADR-0007 and 0029",
+            "ADR-0007 or 0029",
+            "ADR-0007 & 0029",
+            "ADR-0007–0029",
+            "ADR-0007和0029",
         ] {
             assert_eq!(
                 reference_problems(text, &existing(), false).len(),
