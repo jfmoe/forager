@@ -4,6 +4,10 @@
 
 ## 工程形态：单 crate `forager`，bin + lib
 
+Design priorities, in order: distribution and startup experience, type safety, and architectural stability under long-running agent-driven change. Runtime throughput is not a goal.
+
+There is no MSRV promise: releases ship prebuilt binaries, so nothing downstream compiles the source. `rust-toolchain.toml` pins one stable toolchain for local and CI builds only to keep environments from drifting; upgrading is a one-line version change that lands when CI passes.
+
 不上多 crate 工作区（Rust 模块私有性已在编译期阻止跨私有面 import；单 crate → 工作区是机械重构）。两条纪律：① 模块默认私有，`lib.rs` 对外只开放 `app`、`config`、`types` 三个必要门面；跨模块共享必须显式 `pub(crate)` 且只能上移共享层，provider adapter 之间禁止横向 import；② `main.rs`/`lib.rs` 分离，bin 只负责 clap 解析、输出渲染与退出码映射。
 
 ## 六分组物理结构与五层单向依赖
