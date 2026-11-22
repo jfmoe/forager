@@ -3,7 +3,7 @@ mod support;
 use support::{Fixture, forager_command_through, run_command};
 
 #[test]
-fn an_ordinary_test_process_cannot_reach_the_network() {
+fn a_spawned_binary_sends_http_only_through_the_shared_proxy() {
     let proxy = Fixture::start(200, "text/plain", "proxied");
     let config = tempfile::tempdir().expect("config directory");
     std::fs::write(

@@ -7,7 +7,7 @@ use forager::app::Cli;
 
 use support::{Fixture, Response, RunEnvironment};
 
-/// Options every platform command shares; they do not reach a route's request.
+/// Options every platform command shares; this test covers only route-specific options.
 const SHARED: &[&str] = &[
     "--limit",
     "--cursor",
