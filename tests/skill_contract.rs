@@ -148,25 +148,66 @@ fn every_relative_link_in_the_skill_resolves_to_a_file() {
 }
 
 #[test]
-fn cli_reference_documents_every_platform_operation() {
+fn cli_reference_documents_every_command_and_platform_operation() {
     let reference =
         fs::read_to_string(skill_path("references/cli.md")).expect("read CLI reference");
-    let command = Cli::command();
-    let missing = command
-        .find_subcommand("platform")
-        .expect("platform command")
+
+    assert_eq!(
+        undocumented_commands(&reference, &Cli::command()),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn undocumented_commands_reports_a_missing_command_and_platform_operation() {
+    let cli = clap::Command::new("forager")
+        .subcommand(clap::Command::new("search"))
+        .subcommand(clap::Command::new("exa").subcommand(clap::Command::new("similar")))
+        .subcommand(
+            clap::Command::new("platform").subcommand(
+                clap::Command::new("hn")
+                    .subcommand(clap::Command::new("search"))
+                    .subcommand(clap::Command::new("stories")),
+            ),
+        );
+    let reference = "### `searching`\n### `exa similar`\n### `platform hn search`\n";
+
+    assert_eq!(
+        undocumented_commands(reference, &cli),
+        ["search", "platform hn stories"]
+    );
+}
+
+/// Each top-level command without a `### ` heading naming it or one of its subcommands, and each
+/// `platform <id> <op>` without a heading of its own.
+fn undocumented_commands(reference: &str, cli: &clap::Command) -> Vec<String> {
+    let headings = reference
+        .lines()
+        .filter_map(|line| line.strip_prefix("### `"))
+        .filter_map(|heading| heading.split('`').next())
+        .collect::<Vec<_>>();
+    let documented = |command: &str| {
+        headings.iter().any(|heading| {
+            heading
+                .strip_prefix(command)
+                .is_some_and(|rest| rest.is_empty() || rest.starts_with(' '))
+        })
+    };
+    let commands = cli
         .get_subcommands()
+        .filter(|command| !command.is_hide_set() && command.get_name() != "help")
+        .map(|command| command.get_name().to_owned());
+    let platform_operations = cli
+        .find_subcommand("platform")
+        .into_iter()
+        .flat_map(clap::Command::get_subcommands)
         .flat_map(|platform| {
             platform.get_subcommands().map(move |operation| {
-                format!(
-                    "### `platform {} {}`",
-                    platform.get_name(),
-                    operation.get_name()
-                )
+                format!("platform {} {}", platform.get_name(), operation.get_name())
             })
-        })
-        .filter(|heading| !reference.contains(heading.as_str()))
-        .collect::<Vec<_>>();
-
-    assert_eq!(missing, Vec::<String>::new());
+        });
+    commands
+        .chain(platform_operations)
+        .filter(|command| !documented(command))
+        .collect()
 }
