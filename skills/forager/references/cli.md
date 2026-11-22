@@ -46,8 +46,10 @@ After argument parsing selects `--format json`, `search`, `fetch`, and `research
 parseable error object on stdout for configuration, stdin, or plan preflight failures. Clap parser
 errors and panics keep their existing channels, as do failures in non-JSON formats.
 The object is `{error_kind, message, journal_ref, journal_status}`: `error_kind` is `parameter`,
-`config`, or `runtime` with exit `2`, `3`, or `4`, and `journal_ref` is `null` with
-`journal_status: "unavailable"`, because no journal configuration has loaded yet. Every other
+`config`, or `runtime` with exit `2`, `3`, or `4`. When the failure comes before the
+configuration has loaded, `journal_ref` is `null` with `journal_status: "unavailable"`. A `search`
+whose main-search backends have no keys also fails this way with exit `3`, but it records the
+failure in the journal and reports the journal pair as any search does. Every other
 command, and these three in other formats, reports a preflight failure as one stderr line starting
 `argument_error:`, `config_error:`, or `runtime_error:`.
 
@@ -121,9 +123,10 @@ front of a Codex account). The default order is `["xai", "openai"]`; a backend w
 which one answered. To use `openai`, set `providers.openai.url` and `providers.openai.keys`;
 `providers.openai.model` defaults to `gpt-6.1-terra`, the Codex model name under CLIProxyAPI.
 
-forager removes closed `<think>…</think>` blocks from the answer, and adds a trailing source
-heading block and inline `[[N]](URL)` citations to `sources`, deduplicated by URL. An answer that
-is empty after this fails with `runtime`. When main search fails, it alone decides the terminal
+forager removes closed `<think>…</think>` blocks from the answer and moves a trailing source
+heading block out of it into `sources`; inline `[[N]](URL)` citations stay in the answer and are
+copied into `sources`, which are deduplicated by URL. An answer that is empty after this fails
+with `runtime`. When main search fails, it alone decides the terminal
 state and exit code, and the failure payload keeps the candidates already found: `extra_sources`
 in order without their `summary`, as many as fit, with `extra_sources_truncated` saying whether
 any were cut. Its attempt summary counts the supplemental attempts too. `--verbose` keeps every
@@ -167,7 +170,7 @@ change only evidence strength and cross-validation inside the declared capabilit
 add, remove, or reorder capabilities or providers. A declared capability without a configured
 provider does not block the run; it appears in `capability_gaps`.
 
-`quick`, `standard`, and `deep` allow at most 2, 4, and 6 subquestions and at most 1, 2, and 3
+Besides their subquestion limits, `quick`, `standard`, and `deep` allow at most 1, 2, and 3
 evidence items per subquestion. The caps are limits, not targets: one accepted evidence item
 covers a subquestion. A caller plan over its budget's subquestion limit exits 2; a classifier plan
 over it is truncated with a warning. The run fails when it collects fewer evidence items than it
@@ -177,8 +180,9 @@ lowered with a diagnostic when the caps cannot hold that many. The failure is `e
 takes the terminal kind of its attempts. Known URLs are fetched outside the caps: a URL in a
 subquestion's text belongs to that subquestion, and one only in the query belongs to the whole
 plan. A known URL that fails to fetch always records a gap, even when other evidence covers its
-subquestion. Otherwise a gap is a subquestion that ran out of candidates without evidence; a
-failed fetch of one candidate is only an attempt. `gap_check.status` is `closed` when there is no
+subquestion. Otherwise a gap is a subquestion that ran out of candidates without evidence, or a
+run that collected fewer evidence items than it requires; a failed fetch of one candidate is only
+an attempt. `gap_check.status` is `closed` when there is no
 gap and no capability gap, and `degraded` otherwise. The engine runs once and never refetches or
 re-plans; that loop belongs to the caller.
 
