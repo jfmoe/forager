@@ -1,9 +1,44 @@
-# Provider Credential Pool for every provider that needs credentials
+# One credential pool model for every keyed provider
 
-forager uses a **Provider Credential Pool** as the only credential model for every provider whose registration requires credentials: xai, openai_compatible, exa, tavily, jina, firecrawl, context7, and anysearch. A single credential is the one-element case of the same pool. A provider that requires no credentials, such as arxiv_api, has no pool: it never claims or rotates a credential and is always configured.
+## Decision
 
-**Config:** every provider that needs credentials has one TOML `keys` array containing real string values. Empty values are removed and duplicates are discarded while preserving order. There is no `KEY`/`KEYS` dual shape, JSON-encoded array, replacement priority, or provider allowlist. The section of a provider that needs no credentials has no `keys` leaf; it has only `url` and `timeout`. The classifier uses the same `keys` shape and pool behavior.
+Every provider whose registration says it uses credentials, and the classifier, holds them in a
+Provider Credential Pool. A single credential is the one-element case of the same pool; there is
+no second shape for one key. A provider registered as not using credentials has no pool, never
+claims or rotates, and always counts as configured. A provider registered with optional
+credentials runs anonymously when its pool cannot serve it (ADR-0029).
 
-**Selection and failure:** claim `next_index` under the XDG state cursor-file lock at request start and advance immediately without rollback. On RateLimited or QuotaExhausted, rotate before retrying and try each credential at most once in the request; do not back off and retry the same credential for HTTP 429. Other errors follow the provider's retry and capability fallback rules.
+- A request claims the next credential from a cursor shared by all local processes and advances
+  it at once, without rolling back on failure.
+- Only a rate-limit or quota failure rotates to another credential before retrying, and each
+  credential is tried at most once per request. A rate-limited credential is not backed off and
+  retried. Other failures follow the provider's retry and fallback rules.
+- No output or error contains a credential's characters. Configuration and doctor views show a
+  fixed, irreversible mask; the cursor state holds only non-sensitive indices.
 
-**Observability:** configuration and doctor views may represent each configured credential with the same fixed, irreversible mask and report `configured`, `key_count`, and `source`. No output or error may contain raw credential characters. Journals and cursor state store neither raw credentials nor masked placeholders; cursor state contains only schema-versioned, non-sensitive indices. Runtime diagnostics may report rotation and credential-index facts.
+The configuration shape is in `docs/reference/config.md` and the pool's state file and locking in
+`docs/reference/architecture.md`.
+
+## Why
+
+- The predecessor kept two credential systems and several configuration shapes for them (a single
+  key, a key list, a JSON-encoded list) with replacement priorities and a provider allowlist between
+  them. Every provider had to be checked against each shape.
+- Advancing without rollback keeps concurrent processes from piling onto the same credential and
+  needs no coordination after the request ends.
+- A rate-limited credential recovers on the upstream's schedule, not within one request; trying
+  the next credential is the only retry that can succeed in time.
+
+## Rejected alternatives
+
+- **Separate single-key and multi-key shapes.** Two code paths and a precedence rule for the same
+  fact, with no behaviour that the one-element pool does not already give.
+- **Rolling the cursor back after a failed attempt.** Concurrent requests would reuse a failing
+  credential, and the rollback would need its own cross-process transaction.
+- **Backing off and retrying the same credential on a rate limit.** It burns the deadline waiting
+  on a limit that outlasts the request.
+
+## Revisit when
+
+- A provider's terms forbid rotating across credentials. The pool model stays, but such a provider
+  is restricted to one credential in its configuration, as YouTube's Data API already is.
