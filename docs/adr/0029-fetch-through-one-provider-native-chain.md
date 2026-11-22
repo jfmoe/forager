@@ -1,35 +1,99 @@
-# Web Fetch 默认顺序改为 Firecrawl → Jina → Tavily，Jina 无可用 key 时匿名运行
+# Fetch through one provider-native chain: Firecrawl, then Jina, then Tavily
 
-Web Fetch 的默认顺序从 `Firecrawl → Tavily → Jina` 改为 `Firecrawl → Jina → Tavily`。本记录只替换 ADR 0018 中的默认顺序；Firecrawl、Tavily 与 Jina 的请求配置、薄正文门、截断、链预算的平均切分，以及"不存在按内容类型或域名的顺序"的规则都不变。直接 fetch、research 取证、search-side Web Fetch 与平台全文仍共用同一条链。
+## Decision
 
-同时，Jina 的凭据改为可选：`providers.jina.keys` 为空时以匿名方式请求，有 key 但凭据池以认证、额度或限流失败告终时，再匿名请求一次（Anonymous Fallback）。凭据池沿用现有规则：额度与限流时换用其他 key，认证失败不换 key，直接结束。
+**Content contract.** Web Fetch returns Normalized Fetch Content: the body Markdown decoded from
+the successful provider's response, without its transport envelope or diagnostics. The provider's
+own extraction chooses the page body. forager applies no local semantic denoiser and offers no raw
+or clean variants. A body that is empty or too thin is one quality failure that falls through to
+the next provider.
 
-## 依据
+**One chain.** Direct fetch, research evidence fetching, search-side Web Fetch and platform full
+text share one chain, by default Firecrawl, then Jina, then Tavily. There is no order by content
+type or domain. A configuration that sets its own order keeps it when the default changes, because
+configuration is authoritative.
 
-- Firecrawl 失败（不支持的站点、超时、额度耗尽、正文过薄）后，第二家决定交付的正文。forager 交付原文证据，静默丢失内容比多带页面杂项危害更大。
-- 2026-10-18 的 X 文章实测（`docs/research/2026-10-18-x-article-fetch-and-extraction-quality.md`）：Firecrawl 云端对 x.com 一律返回 403；两篇文章中 Jina 保留了 Tavily 的全部内容，另外保留了完整表格、换行正确的代码块与 Tavily 缺失的句子。Tavily 把代码块压成重复的一行、清空表格单元格，同一 URL 两次返回的版本不同。
-- 2026-09-26 的对比（`docs/research/2026-09-26-firecrawl-tavily-fetch-quality.md`）中 Tavily 丢掉了 Python 教程全部 35 个代码块。
-- 独立基准（arlen/bench web extraction）中 Jina 的关键句召回高于 Tavily，失分来自杂项。
-- Jina Reader 支持不带 key 的调用（官方限额每 IP 每分钟 20 次，带 key 为 500 次）。2026-10-18 实测匿名读取 `doc.rust-lang.org` 成功。此前没有 key 的 Jina 被当作未配置而跳过，key 全部失效或额度用尽时 Jina 直接失败，而匿名调用本可以读到正文。
+**Request profiles.** Each provider attempt asks for complete Markdown once:
 
-## 匿名兜底的规则
+- Firecrawl gets one scrape that relies on its own wait for rendering, with no extra waits,
+  browser actions or second rendering probe. Every request also asks for Firecrawl's PDF parser
+  with page markers, which Firecrawl applies only to files, so forager does not detect PDFs first.
+  forager waits for Firecrawl as long as the request allows Firecrawl to work.
+- Jina is read through its structured JSON response, without link removal or generic selectors.
+- Tavily is asked for its complete basic Markdown, without query-directed chunks.
 
-- 只有注册为"凭据可选"的 provider 使用匿名兜底；目前只有 Jina。凭据可选的 provider 恒视为已配置，因此默认 order 下即使没有任何 Web Fetch key，`forager fetch`、research 与平台全文也不会在飞行前以"没有已配置的 provider"退 3。
-- 只有凭据池以 Auth、QuotaExhausted 或 RateLimited 终止时才匿名再试；网络错误、超时、参数错误与薄正文与 key 无关，不触发。每次 Jina 执行最多一次匿名请求，匿名 429 不重试、交给链上的下一家，不为匿名请求设限速。
-- 匿名请求不发送 `Authorization`，其余请求头与带 key 时相同。attempt 以 `anonymous: true` 标明。
-- Jina 因滥用防护拒绝匿名访问某个域名时返回 403 `AbuseAlleviationError`（2026-10-18 匿名读取 x.com 时出现），共享 status mapper 把它记为 Parameter，而不是认证失败。
+**Anonymous Jina.** Jina's credentials are optional. With no key Jina runs anonymously; with keys,
+when the credential pool ends in an authentication, quota or rate-limit failure, Jina tries once
+more anonymously (the Anonymous Fallback). Failures unrelated to credentials do not trigger it.
+Because Jina always counts as configured, the default chain can fetch with no Web Fetch key at all.
 
-## 被接受的代价
+The request fields, the thin-content thresholds and the error mapping are under Web Fetch in
+`docs/reference/architecture.md`; the default order and timeouts in `docs/reference/config.md`.
 
-- Firecrawl 整体不可用（额度耗尽、限流、故障）时，Jina 成为一般网页的实际首选，而独立基准上 Jina 的综合分低于 Tavily（杂项多）。
-- ADR 0018 的实测中 Jina 在 arXiv HTML 上只成功 3/8，arXiv 全文在 Firecrawl 失败后可能多花一次 Jina attempt 才到 Tavily。
-- Jina 按 token 计费，页面杂项也计费。
-- Jina 在大陆网络无法直连（jina-ai/reader#1237）。这类网络中每次落到 Jina 都多一次失败的 attempt，并占用一份链预算。
-- 匿名请求共享每 IP 的限额，并可能被 Jina 按域名临时封禁；保留可用的 Jina key 更可靠。
-- live smoke 的 Jina 用例（C07）仍只在有 key 时运行，并且只有带 key 的请求读到正文才算通过；匿名路径只由离线 fixture 覆盖。`doctor --provider jina` 有 key 时同样只认带 key 的请求，key 失败后匿名请求即使成功也报告 key 的失败。
-- 显式设置过 `capabilities.web_fetch.order` 的配置保持原值。此前 `forager setup` 生成的模板都显式写入了旧顺序，这些用户需要手动修改才能得到新默认值。
+## Why
 
-## 重新评估的条件
+- A shared output shape cannot make three different extraction algorithms agree on where the body
+  ends, and a local denoiser would be a fourth algorithm deciding what the caller never sees.
+- The chain stops at the first body that passes the thin-content gate, so an incomplete but long
+  body from an earlier provider is the final result. The order is therefore set by what each
+  provider silently drops. forager delivers source text, and losing content silently does more
+  harm than extra page clutter.
+- Firecrawl first (comparisons from 2026-09-26: 15 URLs across page types and 9 arXiv papers):
+  on the Python data-structures tutorial Tavily kept 0 of 35 code blocks and Firecrawl kept all
+  35; on arXiv HTML Tavily dropped most figure captions. Firecrawl extracted all 8 papers with
+  official HTML, against 7 for Tavily and 3 for Jina, and was the only one to read a scanned PDF
+  and a one-page PDF. On a Hacker News thread both kept all 71 comments, but Tavily's output was
+  2.63 times longer from repetition. Tavily was not worse on plain articles and text-layer PDFs:
+  the evidence supports Firecrawl as the first provider, not a universal ranking.
+- The PDF parser (5 PDFs and 2 HTML pages, with and without it): output improved on 3 of the 4 PDFs with
+  a text layer and got worse on none. Mixtral's body grew from 4,330 to 8,486 words, ten
+  recognition errors disappeared, and a table matched the source in all 98 cells. Credits were the
+  same, one per PDF page, and the two HTML pages returned byte-identical Markdown. It makes PDFs
+  slower (6 to 13 s for 9 to 28 pages, 32 s for 92 pages), and Firecrawl bills a job forager
+  stopped waiting for, so the local timeout matches the request.
+- Jina before Tavily (2026-10-18, two X articles): Firecrawl's cloud refused x.com outright. Jina
+  kept everything Tavily kept plus whole tables, correctly wrapped code blocks and sentences Tavily
+  lost; Tavily collapsed code blocks into one repeated line, emptied table cells and returned
+  different versions of the same URL. An independent web-extraction benchmark also scored Jina's
+  key-sentence recall above Tavily's, losing points only on clutter.
+- Jina Reader serves calls without a key, at a lower official rate per IP than with a key, and an
+  anonymous read was confirmed on 2026-10-18. Before, a Jina without a key was skipped as
+  unconfigured, and exhausted or failing keys made Jina fail where an anonymous call would have
+  read the page.
 
-- 出现 Jina 交付了错误正文却通过薄正文门的实例；
-- 或 Firecrawl 失败后的 Jina 结果被证实普遍劣于 Tavily。
+## Rejected alternatives
+
+- **A local denoiser, or raw and clean output modes.** No safe common content boundary exists
+  across providers.
+- **Provider order by content type or domain.** A second routing layer. Tavily matched Firecrawl
+  on plain articles and text-layer PDFs but did not beat it, so per-type rules would add routing
+  without a measured gain.
+- **Repeated Firecrawl scrapes or render waits for delayed pages.** Some delayed-rendering pages
+  fall through earlier, but repeated scrapes would multiply billing and blur the ownership of
+  quality, retry, rotation and deadline accounting.
+- **Tavily first, or Tavily second.** It produced the long-but-incomplete bodies that the gate
+  cannot catch.
+- **Requiring a key for Jina.** It turned a provider that can always read into one that is skipped
+  or fails on credential trouble.
+- **Anonymous retries for non-credential failures, retries of an anonymous rate limit, or local
+  pacing of anonymous calls.** Network, timeout, parameter and thin-body failures do not depend on
+  the key, and an anonymous rate limit is left to the next provider in the chain.
+
+## Revisit when
+
+- Jina is seen delivering a wrong body that still passes the thin-content gate.
+- Jina's results after a Firecrawl failure prove generally worse than Tavily's.
+- One of these accepted costs becomes significant: Firecrawl bills PDFs per page and bills failed
+  targets too; a Firecrawl body with recognition errors that is not thin is accepted; sites
+  Firecrawl refuses cost one attempt; when Firecrawl is unavailable Jina becomes the de facto first
+  provider and returns more clutter, billed by token; Jina cannot be reached directly from some
+  networks (for example mainland China), costing a failed attempt and a budget slot each time;
+  anonymous calls share a per-IP limit and can be temporarily blocked per domain, so a working key
+  stays more reliable.
+
+## Supersedes
+
+- ADR-0009, the provider-first Web Fetch content contract. It is the content contract above; only
+  its order was replaced.
+- ADR-0018, which put Firecrawl first and added its PDF parser. Its order was replaced in part by
+  Jina moving ahead of Tavily; its evidence and parser decision are kept above.
