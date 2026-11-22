@@ -18,7 +18,8 @@ A search runs against one end-to-end deadline, and no stage holds a reservation 
   Rotations do not consume the retry quota, so the worst case for one provider is its credential
   count plus its retries. Backoff is linear and without jitter.
 
-The defaults and the slot rules are in `docs/reference/config.md` and `docs/reference/testing.md`.
+The retry settings are in `docs/reference/config.md` and the slot rules in
+`docs/reference/testing.md`.
 
 ## Why
 

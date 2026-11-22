@@ -40,9 +40,9 @@ details are under the main-search sections of `docs/reference/architecture.md` a
   different endpoint. On 2026-10-28 a gateway test completed a streamed web-search request in about
   12 s with two search rounds, returned cited answer text, and emitted the same stream event
   sequence as xAI.
-- In the 30 days to 2026-10-28 the journal had 274 searches with two main-search failures: three
-  fast network attempts under half a second each, and one 30-second runtime failure. Both left
-  enough deadline for an independent backend to answer.
+- In the 30 days to 2026-10-28 the journal had 274 searches with two main-search failures. One
+  was three consecutive network attempts of under half a second each, the other a 30-second
+  runtime failure. Both left enough deadline for an independent backend to answer.
 - Two backends speak one protocol, so a protocol fix belongs in one place.
 
 ## Rejected alternatives
@@ -56,6 +56,8 @@ details are under the main-search sections of `docs/reference/architecture.md` a
 - **Opening tools, reasoning effort or web-search parameters.** No current need; they can be added
   when one appears.
 - **Per-backend copies of the Responses transport.** Each protocol fix would have to land twice.
+- **Removing tools a gateway injects into requests.** That is the gateway's behaviour; handling it
+  would tie forager to one gateway's quirks.
 
 ## Revisit when
 
@@ -66,11 +68,8 @@ details are under the main-search sections of `docs/reference/architecture.md` a
 - The cost of `openai` matters. One simple query with web search used about 15,600 tokens,
   including reasoning, on the tested model; more complex queries cost more.
 
-Accepted as gateway behaviour that forager does not handle: a gateway may inject tools of its own
-into requests.
-
 ## Supersedes
 
-- ADR-0031, the retirement of the `openai_compatible` backend. ADR-0034 overturned two of its
-  points (only `xai` valid, no backend fallback); the rest, the removed machinery and its
-  evidence, is kept above.
+- ADR-0031, the retirement of the `openai_compatible` backend. Two of its points no longer hold
+  (only `xai` valid, no backend fallback); the rest, the removed machinery and its evidence, is
+  kept above.

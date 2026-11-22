@@ -43,14 +43,13 @@ The request fields, the thin-content thresholds and the error mapping are under 
   35; on arXiv HTML Tavily dropped most figure captions. Firecrawl extracted all 8 papers with
   official HTML, against 7 for Tavily and 3 for Jina, and was the only one to read a scanned PDF
   and a one-page PDF. On a Hacker News thread both kept all 71 comments, but Tavily's output was
-  2.63 times longer from repetition. Tavily was not worse on plain articles and text-layer PDFs:
+  much longer from repetition. Tavily was not worse on plain articles and text-layer PDFs:
   the evidence supports Firecrawl as the first provider, not a universal ranking.
-- The PDF parser (5 PDFs and 2 HTML pages, with and without it): output improved on 3 of the 4 PDFs with
-  a text layer and got worse on none. Mixtral's body grew from 4,330 to 8,486 words, ten
-  recognition errors disappeared, and a table matched the source in all 98 cells. Credits were the
-  same, one per PDF page, and the two HTML pages returned byte-identical Markdown. It makes PDFs
-  slower (6 to 13 s for 9 to 28 pages, 32 s for 92 pages), and Firecrawl bills a job forager
-  stopped waiting for, so the local timeout matches the request.
+- The PDF parser (5 PDFs and 2 HTML pages, with and without it): output improved on 3 of the 4
+  PDFs with a text layer and got worse on none; on one paper the body nearly doubled and its
+  recognition errors disappeared. Credits were unchanged and HTML output was byte-identical. It
+  makes long PDFs take tens of seconds, and Firecrawl bills a job forager stopped waiting for, so
+  the local timeout matches the request.
 - Jina before Tavily (2026-10-18, two X articles): Firecrawl's cloud refused x.com outright. Jina
   kept everything Tavily kept plus whole tables, correctly wrapped code blocks and sentences Tavily
   lost; Tavily collapsed code blocks into one repeated line, emptied table cells and returned
@@ -71,6 +70,10 @@ The request fields, the thin-content thresholds and the error mapping are under 
 - **Repeated Firecrawl scrapes or render waits for delayed pages.** Some delayed-rendering pages
   fall through earlier, but repeated scrapes would multiply billing and blur the ownership of
   quality, retry, rotation and deadline accounting.
+- **Cache or privacy modes, site selectors, browser actions, query-directed chunks or structured
+  extraction as defaults.** Each is a task- or site-specific choice that a caller can make
+  explicitly; as a default it would change every fetch to suit a few. Firecrawl's own default
+  cache stays on.
 - **Tavily first, or Tavily second.** It produced the long-but-incomplete bodies that the gate
   cannot catch.
 - **Requiring a key for Jina.** It turned a provider that can always read into one that is skipped
@@ -83,13 +86,20 @@ The request fields, the thin-content thresholds and the error mapping are under 
 
 - Jina is seen delivering a wrong body that still passes the thin-content gate.
 - Jina's results after a Firecrawl failure prove generally worse than Tavily's.
-- One of these accepted costs becomes significant: Firecrawl bills PDFs per page and bills failed
-  targets too; a Firecrawl body with recognition errors that is not thin is accepted; sites
-  Firecrawl refuses cost one attempt; when Firecrawl is unavailable Jina becomes the de facto first
-  provider and returns more clutter, billed by token; Jina cannot be reached directly from some
-  networks (for example mainland China), costing a failed attempt and a budget slot each time;
-  anonymous calls share a per-IP limit and can be temporarily blocked per domain, so a working key
-  stays more reliable.
+- One of these accepted costs becomes significant:
+  - Firecrawl bills PDFs per page, and bills failed targets too.
+  - Firecrawl's timeout is shared by all its capabilities, so a failing Firecrawl web search can
+    wait as long as a fetch.
+  - A Firecrawl body with recognition errors that is not thin is accepted.
+  - Sites Firecrawl refuses cost one attempt.
+  - arXiv full text that Firecrawl fails on may spend a Jina attempt, which reads arXiv HTML
+    poorly, before reaching Tavily.
+  - When Firecrawl is unavailable, Jina becomes the de facto first provider and returns more
+    clutter, billed by token.
+  - Jina cannot be reached directly from some networks (for example mainland China), which costs
+    a failed attempt and a budget slot each time.
+  - Anonymous calls share a per-IP limit and can be blocked per domain for a while, so a working
+    key stays more reliable.
 
 ## Supersedes
 
