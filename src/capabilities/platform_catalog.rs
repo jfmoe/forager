@@ -54,7 +54,7 @@ pub(crate) const SSRN: PlatformCatalog = PlatformCatalog {
     default_order: &[ProviderId::SsrnCrossref],
 };
 
-// Google Scholar has no public API; SerpApi is its only route (ADR 0021).
+// Google Scholar has no public API; SerpApi is its only route (ADR-0021).
 pub(crate) const SCHOLAR: PlatformCatalog = PlatformCatalog {
     platform: Platform::Scholar,
     search: &[ProviderId::Serpapi],
@@ -64,7 +64,7 @@ pub(crate) const SCHOLAR: PlatformCatalog = PlatformCatalog {
 };
 
 // Xiaohongshu has no public API and forbids crawlers, so its only route reads the site's pages in
-// a browser logged into the user's account and stays out of every default order (ADR 0020).
+// a browser logged into the user's account and stays out of every default order (ADR-0020).
 pub(crate) const XIAOHONGSHU: PlatformCatalog = PlatformCatalog {
     platform: Platform::Xiaohongshu,
     search: &[ProviderId::XiaohongshuBrowser],
@@ -74,7 +74,7 @@ pub(crate) const XIAOHONGSHU: PlatformCatalog = PlatformCatalog {
 };
 
 // xAI's `x_search` tool reads X for the model, which relays what it read; the route shares the
-// main search provider's configuration and credentials (ADR 0026).
+// main search provider's configuration and credentials (ADR-0026).
 pub(crate) const X: PlatformCatalog = PlatformCatalog {
     platform: Platform::X,
     search: &[ProviderId::Xai],
@@ -83,7 +83,7 @@ pub(crate) const X: PlatformCatalog = PlatformCatalog {
     default_order: &[ProviderId::Xai],
 };
 
-// One route combines Algolia's HN Search API with the official Firebase API (ADR 0027).
+// One route combines Algolia's HN Search API with the official Firebase API (ADR-0027).
 pub(crate) const HN: PlatformCatalog = PlatformCatalog {
     platform: Platform::Hn,
     search: &[ProviderId::HnApi],
@@ -95,7 +95,7 @@ pub(crate) const HN: PlatformCatalog = PlatformCatalog {
 // The official Data API needs the user's own key; one key per client, never a pool, because a
 // pool would sidestep the project quota the Developer Policies bind to one project.
 // `youtube_web` reads YouTube's undocumented web endpoints, so users must enable it themselves
-// (ADR 0028). `gemini_api` serves only Ask and Transcribe: a model watches the video.
+// (ADR-0028). `gemini_api` serves only Ask and Transcribe: a model watches the video.
 pub(crate) const YOUTUBE: PlatformCatalog = PlatformCatalog {
     platform: Platform::Youtube,
     search: &[ProviderId::YoutubeApi],
@@ -105,7 +105,7 @@ pub(crate) const YOUTUBE: PlatformCatalog = PlatformCatalog {
 };
 
 // One anonymous route combines Gamma metadata with live CLOB quotes; it reads only official
-// public APIs, never the site, so it is on by default (ADR 0032).
+// public APIs, never the site, so it is on by default (ADR-0032).
 pub(crate) const POLYMARKET: PlatformCatalog = PlatformCatalog {
     platform: Platform::Polymarket,
     search: &[ProviderId::PolymarketApi],
@@ -116,7 +116,7 @@ pub(crate) const POLYMARKET: PlatformCatalog = PlatformCatalog {
 
 // Reddit's public Data API takes no new apps and is being retired, and the site refuses
 // anonymous readers on datacenter networks, so the one route reads the pages the site renders in
-// a browser logged into the user's account (ADR 0037). Users must enable it themselves.
+// a browser logged into the user's account (ADR-0037). Users must enable it themselves.
 pub(crate) const REDDIT: PlatformCatalog = PlatformCatalog {
     platform: Platform::Reddit,
     search: &[ProviderId::RedditBrowser],

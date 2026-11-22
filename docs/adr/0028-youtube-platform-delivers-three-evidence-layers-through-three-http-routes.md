@@ -26,7 +26,7 @@ forager 的第七个平台 `youtube` 只交付文字证据，并按来源把证�
 - **`youtube_api` 只接受一个 key。** 凭据池在额度耗尽时换 key，等于用多个项目绕开配额。配置 schema 拒绝多于一个 key（退 3）；`quotaExceeded` 与 `dailyLimitExceeded` 归为 QuotaExhausted，不轮换。
 - **key 放在 `X-Goog-Api-Key` 请求头中，不放在 URL 的 `key` 参数中。** Data API 两种方式都接受（实测用的是请求头）。请求头不会进入 reqwest 错误消息中的 URL、attempt 与日志，所以不需要再对 URL 脱敏。
 - **错误按上游 reason 归因，status 映射仍只在 net。** 无效 key 是 HTTP 400，额度耗尽与其他权限错误都是 HTTP 403，只看 status 无法区分。route 提供 reason 识别函数（`API_KEY_INVALID` → Auth，`quotaExceeded`、`dailyLimitExceeded` → QuotaExhausted），经 net 读取边界的 reason 钩子生效；没有识别出的 reason 沿用 net 的共享 status 映射。
-- **search 结果用一次批量 `videos.list` 补充时长、计数与字幕标记。** 补充只花 1 单位配额；失败时保留检索结果并给出诊断，与 ADR 0027 的增强规则一致。
+- **search 结果用一次批量 `videos.list` 补充时长、计数与字幕标记。** 补充只花 1 单位配额；失败时保留检索结果并给出诊断，与 ADR-0027 的增强规则一致。
 
 ## 不选的方案
 

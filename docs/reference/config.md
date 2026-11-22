@@ -31,13 +31,13 @@ model = ""
 fallback_models = []         # 同端点模型链（同 url/keys 换模型）
 timeout = 30                 # 整个分类阶段的共享预算
 
-[providers.xai]                # 主搜索 backend，也是 X 平台的 route（ADR 0026）
+[providers.xai]                # 主搜索 backend，也是 X 平台的 route（ADR-0026）
 url = "https://api.x.ai/v1"
 keys = []
 model = "grok-4-fast"         # 主搜索与 X 平台共用
 tools = ["web_search", "x_search"]   # 只作用于主搜索；X 平台请求固定只发 x_search
 
-[providers.openai]             # 主搜索 backend：OpenAI Responses API 与固定的 web_search 工具（ADR 0034）
+[providers.openai]             # 主搜索 backend：OpenAI Responses API 与固定的 web_search 工具（ADR-0034）
 url = "https://api.openai.com/v1"   # 也可指向 CLIProxyAPI 等说同一协议的网关；请求发往 <url>/responses
 keys = []                    # 为空＝未配置，主搜索链跳过它
 model = "gpt-6.1-terra"      # 非空；这是 CLIProxyAPI 下 Codex 账号的模型名，直连官方 API 时改为官方模型名
@@ -54,7 +54,7 @@ timeout = 30
 
 [providers.jina]
 url = "https://r.jina.ai"
-keys = []                    # 为空＝匿名请求；凭据可选（ADR 0029）
+keys = []                    # 为空＝匿名请求；凭据可选（ADR-0029）
 respond_with = ""            # X-Respond-With（如 readerlm-v2）
 timeout = 30
 
@@ -66,7 +66,7 @@ timeout = 30
 [providers.firecrawl]
 url = "https://api.firecrawl.dev/v2"
 keys = []
-timeout = 60                 # 与 Web Fetch 请求体的 timeout: 60000 一致（ADR 0018）
+timeout = 60                 # 与 Web Fetch 请求体的 timeout: 60000 一致（ADR-0029）
 
 [providers.arxiv_api]        # 不需要凭据，没有 keys
 url = "https://export.arxiv.org/api/query"
@@ -79,46 +79,46 @@ timeout = 30
 [providers.xiaohongshu_browser]  # 浏览器 route：没有 url 与 keys；启动的浏览器由 [browser] 节选择
 timeout = 120                # 一次浏览器命令的 attempt 超时
 
-[providers.hn_api]           # 不需要凭据，没有 keys；一条 route 访问两个端点，共用访问策略（ADR 0027）
+[providers.hn_api]           # 不需要凭据，没有 keys；一条 route 访问两个端点，共用访问策略（ADR-0027）
 url = "https://hn.algolia.com/api/v1"                 # Algolia HN Search API
 firebase_url = "https://hacker-news.firebaseio.com/v0" # HN 官方 Firebase API
 timeout = 30                 # 对任一端点的单个请求的 attempt 超时
 
-[providers.serpapi]          # 需要凭据的平台 route；key 由用户自备（ADR 0021）
+[providers.serpapi]          # 需要凭据的平台 route；key 由用户自备（ADR-0021）
 url = "https://serpapi.com/search.json"
 keys = []                    # 为空＝未配置，scholar 平台命令飞行前退 3
 timeout = 30
 
-[providers.youtube_api]      # 需要凭据的平台 route；YouTube Data API v3 key 由用户自备（ADR 0028）
+[providers.youtube_api]      # 需要凭据的平台 route；YouTube Data API v3 key 由用户自备（ADR-0028）
 url = "https://www.googleapis.com/youtube/v3"
 keys = []                    # 为空＝未配置；最多一个 key，多于一个退 3（`platforms.md`「YouTube」）
 timeout = 30
 
-[providers.youtube_web]      # 不需要凭据的平台 route，匿名读取 YouTube 网页与未公开接口；只在 order 中才启用（ADR 0028）
+[providers.youtube_web]      # 不需要凭据的平台 route，匿名读取 YouTube 网页与未公开接口；只在 order 中才启用（ADR-0028）
 url = "https://www.youtube.com"   # 只请求与它同源的字幕轨地址
 timeout = 30                 # 一次请求的 attempt 超时
 
-[providers.gemini_api]       # 需要凭据的平台 route，只服务 YouTube 的 ask 与 transcribe；Gemini key 由用户自备（ADR 0028）
+[providers.gemini_api]       # 需要凭据的平台 route，只服务 YouTube 的 ask 与 transcribe；Gemini key 由用户自备（ADR-0028）
 url = "https://generativelanguage.googleapis.com/v1beta"   # 也可指向用户自建的 Gemini 兼容网关
 keys = []                    # 为空＝未配置，ask 与 transcribe 飞行前退 3
 model = "gemini-flash-latest"   # 非空
 timeout = 300                # 一次模型请求的 attempt 超时；命令默认 --timeout 600
 
-[providers.polymarket_api]   # 不需要凭据，没有 keys；一条 route 访问三个端点，共用访问策略（ADR 0032）
+[providers.polymarket_api]   # 不需要凭据，没有 keys；一条 route 访问三个端点，共用访问策略（ADR-0032）
 url = "https://gamma-api.polymarket.com"   # Gamma：检索、event 与 market 的元数据
 clob_url = "https://clob.polymarket.com"   # CLOB：实时订单簿报价
 data_url = "https://data-api.polymarket.com"   # Data API：价格历史，请求路径带 /v2
 timeout = 30                 # 对任一端点的单个请求的 attempt 超时
 
-[providers.reddit_browser]   # 浏览器 route：以登录过的 Reddit Browser Profile 读取站点页面；只在 order 中才启用（ADR 0037）
+[providers.reddit_browser]   # 浏览器 route：以登录过的 Reddit Browser Profile 读取站点页面；只在 order 中才启用（ADR-0037）
 timeout = 120                # 一次浏览器命令的 attempt 超时
 
 [capabilities.web_search]
 order = ["tavily", "firecrawl"]
 [capabilities.web_fetch]
-order = ["firecrawl", "jina", "tavily"]   # Firecrawl 优先（ADR 0018），Jina 先于 Tavily（ADR 0029）；置空＝config_error（引擎不变量）
+order = ["firecrawl", "jina", "tavily"]   # Firecrawl 优先，Jina 先于 Tavily（ADR-0029）；置空＝config_error（引擎不变量）
 [capabilities.docs_search]
-order = ["exa", "context7"]       # Exa 优先；Context7 仅在 Exa 无可消费结果时自动调用（ADR 0017）
+order = ["exa", "context7"]       # Exa 优先；Context7 仅在 Exa 无可消费结果时自动调用（ADR-0017）
 
 [platforms.arxiv]
 order = ["arxiv_api"]        # 置空＝禁用该平台
@@ -171,13 +171,13 @@ path = ""                    # 空串＝使用 Managed Browser（`forager browse
 
 ### 平台 route 顺序
 
-`[platforms.<id>].order`＝该平台 route 的完全权威顺序（ADR 0019），默认值是 platform catalog 为该平台声明的默认 order（不是 route 集合的并集），需要用户手动启用的 route 是合法取值但不出现在默认值中。校验：拒绝重复项与不属于该平台的 route（config_error 退 3；`config set` 退 2）；允许为空，含义是禁用该平台。某个操作实际使用的 route＝该 order ∩ 该操作的 route 集合 ∩ 已配置的 route，集合为空时平台命令飞行前退 3，消息指出该配置键；order 中有 route 只因缺凭据而未配置时，消息另外点名 `providers.<route>.keys`。env 按既有公式派生，例如 `FORAGER_PLATFORMS__ARXIV__ORDER='["arxiv_api"]'`。
+`[platforms.<id>].order`＝该平台 route 的完全权威顺序（ADR-0019），默认值是 platform catalog 为该平台声明的默认 order（不是 route 集合的并集），需要用户手动启用的 route 是合法取值但不出现在默认值中。校验：拒绝重复项与不属于该平台的 route（config_error 退 3；`config set` 退 2）；允许为空，含义是禁用该平台。某个操作实际使用的 route＝该 order ∩ 该操作的 route 集合 ∩ 已配置的 route，集合为空时平台命令飞行前退 3，消息指出该配置键；order 中有 route 只因缺凭据而未配置时，消息另外点名 `providers.<route>.keys`。env 按既有公式派生，例如 `FORAGER_PLATFORMS__ARXIV__ORDER='["arxiv_api"]'`。
 
 平台 fetch 的正文段不设平台级顺序：它复用 `[capabilities.web_fetch].order` 与各 provider 的凭据（例如 arXiv 全文读取 HTML/PDF 时）。`full_text` 深度下计划需要 Web Fetch（计划中有 route 不自己读取正文，见 `platforms.md`「fetch」）而该链没有已配置的 provider 时，平台 fetch 飞行前退 3；只取元数据与摘要的深度，以及只含原生正文 route 的计划（`xiaohongshu_browser`），不需要 Web Fetch 配置。`providers.arxiv_api.url` 同时决定 HTML 可用性探测所在的主机（默认 export 镜像，与 arxiv.org 返回同一结果）。
 
 ### 值域与交叉约束（进 schema 与验收）
 
-`search.backends` 非空、去重、限 `{xai, openai}`；全部 backend 无凭据＝退 3；`providers.xai.tools` 限 `{web_search, x_search}`；`providers.openai.model` 非空，openai 没有 `tools` 与 `timeout` 键，attempt 与 xai 一样只受命令 deadline 与共享的读超时约束（ADR 0007）；所有 `timeout > 0`；`retry.max_attempts >= 1`、`multiplier > 0`、`max_wait >= 0`；`journal.retention_days >= 0` 且 0＝无限期。`search.validation` 已从 schema 删除；旧文件键或 `FORAGER_SEARCH__VALIDATION` 都按未知输入退出 3。文件层严格 schema：未知键＝退 3、报错点名坏键。
+`search.backends` 非空、去重、限 `{xai, openai}`；全部 backend 无凭据＝退 3；`providers.xai.tools` 限 `{web_search, x_search}`；`providers.openai.model` 非空，openai 没有 `tools` 与 `timeout` 键，attempt 与 xai 一样只受命令 deadline 与共享的读超时约束（ADR-0007）；所有 `timeout > 0`；`retry.max_attempts >= 1`、`multiplier > 0`、`max_wait >= 0`；`journal.retention_days >= 0` 且 0＝无限期。`search.validation` 已从 schema 删除；旧文件键或 `FORAGER_SEARCH__VALIDATION` 都按未知输入退出 3。文件层严格 schema：未知键＝退 3、报错点名坏键。
 
 ### 浏览器
 
@@ -217,7 +217,7 @@ path = ""                    # 空串＝使用 Managed Browser（`forager browse
 | `XAI_API_KEY` | `providers.xai.keys`（单元素数组） |
 | `XAI_MODEL` | `providers.xai.model` |
 | `XAI_TOOLS` | `providers.xai.tools` |
-| `OPENAI_COMPATIBLE_API_URL` | **已删除**（openai-compatible 已退役，ADR 0031） |
+| `OPENAI_COMPATIBLE_API_URL` | **已删除**（openai-compatible 已退役，ADR-0034） |
 | `OPENAI_COMPATIBLE_API_KEY` | **已删除**（同上） |
 | `OPENAI_COMPATIBLE_MODEL` | **已删除**（同上） |
 | `OPENAI_COMPATIBLE_FALLBACK_MODELS` | **已删除**（同上） |
@@ -263,7 +263,7 @@ path = ""                    # 空串＝使用 Managed Browser（`forager browse
 | `TAVILY_TIMEOUT_SECONDS` | `providers.tavily.timeout` |
 | `FIRECRAWL_API_KEY` / `FIRECRAWL_API_KEYS` | `providers.firecrawl.keys` |
 | `FIRECRAWL_API_URL` | `providers.firecrawl.url` |
-| `ANYSEARCH_API_KEY` / `ANYSEARCH_API_KEYS` | **已删除**（AnySearch 已退役，ADR 0030） |
+| `ANYSEARCH_API_KEY` / `ANYSEARCH_API_KEYS` | **已删除**（AnySearch 已退役，ADR-0030） |
 | `ANYSEARCH_API_URL` | **已删除**（同上） |
 | `ANYSEARCH_TIMEOUT_SECONDS` | **已删除**（同上） |
 | `SMART_SEARCH_DEBUG` | **已删除**（`log.level = "debug"` 继任） |

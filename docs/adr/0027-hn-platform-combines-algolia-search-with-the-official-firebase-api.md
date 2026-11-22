@@ -16,7 +16,7 @@ forager 的第六个平台 `hn`（Hacker News）只有一条匿名 route `hn_api
 - **一条 route 访问两个端点，而不是两条 route。** 参考文档 `docs/reference/platforms.md` 的链语义是第一条被接受的 route 产出整个结果、不合并结果；两条 route 无法在一次 fetch 里组合 Algolia 的树与 Firebase 的排名。平台契约因此增加一条规则：一条 route 可以访问同一平台的多个官方端点，每个端点各有一个 URL 配置键，所有端点共用这条 route 的访问策略（每 0.5 秒 1 个请求、并发 1，合每小时最多 7200 次）。
 - **Firebase 只增强结果。** 增强请求（排名、实时计数、删除标记、story 标题）失败时，保留 Algolia 的结果并给出诊断，不判失败。唯一例外是 Stories 的榜单列表只有 Firebase 能提供。
 - **请求数保持常数。** 只为根条目取 Firebase 排名：顶层评论按 HN 页面排名排列，更深层按时间排列。每个操作最多 3 次请求，不随评论数增长；只有 Stories 在 Algolia 漏掉条目时逐条补取。
-- **讨论串按文件交付。** `thread` 是 HN fetch 的默认深度，讨论串写成 Markdown 文件，stdout 只给路径与统计（ADR 0015）。平台契约原本规定非全文深度一律内联，现改为由平台为 `thread` 深度声明交付方式：route 返回 Native 正文时写文件（HN），否则内联（X）。大讨论串渲染后可达百万字符，内联会撑满调用方的上下文。
+- **讨论串按文件交付。** `thread` 是 HN fetch 的默认深度，讨论串写成 Markdown 文件，stdout 只给路径与统计（ADR-0015）。平台契约原本规定非全文深度一律内联，现改为由平台为 `thread` 深度声明交付方式：route 返回 Native 正文时写文件（HN），否则内联（X）。大讨论串渲染后可达百万字符，内联会撑满调用方的上下文。
 - **榜单是独立的 Platform Operation Stories。** 它不需要查询词，改变了必需输入；条目带名次，不签发 cursor（榜单随时在变，翻页无法复现）。
 
 ## 不选的方案

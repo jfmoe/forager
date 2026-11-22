@@ -8,7 +8,7 @@ forager 删除 Vertical Search Capability 及其唯一供应方 AnySearch，包�
 
 - 152 次 search（34%）带上了 `vertical_search`；在分类器生成的 92 个计划中，有 61 个选择了它。
 - 结果只进入 `extra_sources`，不参与主回答。默认每次取 1 条，平均每次多出 1.27 条来源；其中 38 次没有结果，8 次返回的是 "No relevant results found." 占位条目。193 条结果中，只有 5 个 URL 出现在主回答里。
-- 在会话中被反复引用的结果，多数是 `ssrn.com/`、`csindex.com.cn/` 这类网站首页。学术来源已由 arXiv、SSRN、Google Scholar 平台覆盖（ADR 0019）。
+- 在会话中被反复引用的结果，多数是 `ssrn.com/`、`csindex.com.cn/` 这类网站首页。学术来源已由 arXiv、SSRN、Google Scholar 平台覆盖（ADR-0019）。
 - `anysearch search/domains` 在会话记录中从未被实际调用；Verified Domain Manifest 始终为空，域级结构化搜索从未启用。
 - 这项能力贯穿 CLI、配置、分类器、research、doctor、smoke、setup、发布验证与规格文档，任何相关改动都要连带维护这一整条链路。
 
@@ -18,7 +18,7 @@ forager 删除 Vertical Search Capability 及其唯一供应方 AnySearch，包�
 
 ## 不改为自动路由到平台
 
-原本被分类器路由到 vertical 的查询，现在由 Documentation Search 与 Web Search 覆盖。分类器不会自动选择平台：ADR 0019 规定平台只通过显式命令调用，自动路由到平台属于另一项决策。
+原本被分类器路由到 vertical 的查询，现在由 Documentation Search 与 Web Search 覆盖。分类器不会自动选择平台：ADR-0019 规定平台只通过显式命令调用，自动路由到平台属于另一项决策。
 
 ## 重新评估的条件
 

@@ -347,7 +347,7 @@ async fn probe_main_search_backend(
     deadline: Deadline,
 ) -> ProbeOutcome {
     // A main-search backend that a platform order lists also serves that platform, so
-    // doctor proves the platform request too (ADR 0026).
+    // doctor proves the platform request too (ADR-0026).
     let platform_routes = enabled_platforms(provider, &config)
         .into_iter()
         .filter_map(|platform| {
@@ -386,7 +386,7 @@ async fn probe_main_search_backend(
     outcome
 }
 
-/// Probes a platform route with one search, then each extra endpoint it combines (ADR 0027).
+/// Probes a platform route with one search, then each extra endpoint it combines (ADR-0027).
 async fn probe_platform_route(
     platform: Platform,
     route_config: PlatformRouteConfig,

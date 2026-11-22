@@ -208,7 +208,7 @@ impl HttpFetchProvider {
                 "formats": ["markdown"],
                 "onlyMainContent": true,
                 "timeout": 60000,
-                // The PDF parser options Firecrawl applies in scrape (ADR 0018).
+                // The PDF parser options Firecrawl applies in scrape (ADR-0029).
                 "parsers": [{"type": "pdf", "mode": "auto", "pageMarkers": true}],
             })),
             _ => unreachable!("only web fetch providers make fetch requests"),

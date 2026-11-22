@@ -1,6 +1,6 @@
 # 浏览器 route 改用 forager 自带的浏览器传输与指纹版 Managed Browser
 
-`xiaohongshu_browser` 原先经本机 OpenCLI 驱动用户日常使用的 Chrome。本记录决定由 forager 自己启动一个无头的指纹浏览器（[adryfish/fingerprint-chromium](https://github.com/adryfish/fingerprint-chromium)），经 CDP 管道直接驱动它，登录态保存在该平台专用的 Browser Profile 中。route id、三个操作的参数、输出字段与错误分类都不变。OpenCLI 传输、forager 的 JS adapter 与 `providers.xiaohongshu_browser.command` 在同一个版本中删除，不保留兼容层（沿用 ADR 0030、0031、0035）。可行性依据是 2026-11-18 的实测，见 [小红书无头指纹浏览器可行性实测](../research/2026-11-18-xiaohongshu-headless-fingerprint-browser.md)。
+`xiaohongshu_browser` 原先经本机 OpenCLI 驱动用户日常使用的 Chrome。本记录决定由 forager 自己启动一个无头的指纹浏览器（[adryfish/fingerprint-chromium](https://github.com/adryfish/fingerprint-chromium)），经 CDP 管道直接驱动它，登录态保存在该平台专用的 Browser Profile 中。route id、三个操作的参数、输出字段与错误分类都不变。OpenCLI 传输、forager 的 JS adapter 与 `providers.xiaohongshu_browser.command` 在同一个版本中删除，不保留兼容层（沿用 ADR-0030、ADR-0034、ADR-0035）。可行性依据是 2026-11-18 的实测，见 [小红书无头指纹浏览器可行性实测](../research/2026-11-18-xiaohongshu-headless-fingerprint-browser.md)。
 
 ## 决定
 
@@ -14,7 +14,7 @@
 参考文档 `docs/reference/platforms.md`原先规定原生输入"不做 stealth 改造、不伪造指纹"；2026-10-18 的 [后台运行调研](../research/2026-10-18-background-browser-automation.md) 规定"不以 stealth 或反复重试作为验收通过方式"。本记录推翻这两条：forager 接受一个由 Managed Browser 按固定种子生成浏览器指纹的运行环境。依据：
 
 - **OpenCLI 干扰桌面，后台调用时失败。** OpenCLI 在用户的 Chrome 里开一个自动化窗口。这个窗口被其他窗口遮挡时，OpenCLI 2.x 拒绝发送原生输入，search 与 comments 以 Runtime 失败（#248）。agent 在后台调用 forager 时，这个窗口大多处于被遮挡的状态。
-- **OpenCLI 的外部依赖多。** route 需要全局安装 OpenCLI 2.x、手动更新 Browser Bridge 扩展、把 JS adapter 复制到 `~/.opencli/clis/`，还需要 Node。任何一项版本漂移都会让 route 失效（ADR 0035）。
+- **OpenCLI 的外部依赖多。** route 需要全局安装 OpenCLI 2.x、手动更新 Browser Bridge 扩展、把 JS adapter 复制到 `~/.opencli/clis/`，还需要 Node。任何一项版本漂移都会让 route 失效（ADR-0035）。
 - **不带指纹的无头浏览器有站点可见的特征。** 原版 Chromium 的新 Headless 在 UA 中报告 `HeadlessChrome`。[xpzouying/xiaohongshu-mcp](https://github.com/xpzouying/xiaohongshu-mcp) 默认以无头模式运行，2026-06 至 07 月有用户报告账号被警告、禁言或封号（issue #720、#722、#726、#728）；该项目随后在 PR #737（2026-07-20 合入）中改用内置的指纹浏览器，它的 macOS 安装包与本记录固定的版本逐字节相同。
 - **实测可行。** 2026-11-18 用一个真实账号，以同一版本、同一组启动参数完成了有界面登录与无头的 search、fetch、comments，没有出现风控信号。
 
@@ -25,7 +25,7 @@
 - 不解验证码，不绕过验证页或安全限制。遇到未登录、HTTP 461、验证、安全限制或请求太频繁，立即停止，不重试；被拦截的结果永不当作合法空结果。
 - 不导出登录态：forager 不读取、不导出、不注入 cookie 或 token，登录态只存在于 Browser Profile 中。登录由用户在 `browser login` 打开的窗口中亲手完成。
 - 不自行请求站点接口：只读页面自己发出的请求与响应，不改写 `fetch`、XHR 或 WebSocket。
-- 访问节奏不变：每 10 秒 1 条浏览器命令，并发 1，跨进程生效；`browser login` 计入同一节奏。route 只能由用户手动加入 `platforms.<id>.order`（ADR 0020）。
+- 访问节奏不变：每 10 秒 1 条浏览器命令，并发 1，跨进程生效；`browser login` 计入同一节奏。route 只能由用户手动加入 `platforms.<id>.order`（ADR-0020）。
 - 只读：不做点赞、收藏、评论、发布等写操作。
 
 ## 实现确定的两点
@@ -50,9 +50,9 @@
 
 ## 取代范围
 
-- 本记录取代 ADR 0035 的「保留 xiaohongshu_browser 作为过渡」与「OpenCLI 冻结」两节。
-- 本记录取代 ADR 0020 中绑定 OpenCLI 的表述：访问策略的单位从一条 OpenCLI 命令改为一条浏览器命令（permit 仍持有到浏览器进程被回收）；route 不再依赖用户自己的 Chrome、OpenCLI 与安装好的 adapter；被杀命令的清理由进程组强杀与管道关闭保证，不再依赖 OpenCLI daemon 回收标签页。opt-in 与不解站点验证的原则继续有效。
-- 本记录取代 ADR 0022「接受的边界」中"token 在本机进程参数中可见"一条：Access Token 只在导航时经 CDP 交给浏览器，不进入任何进程参数；以及「影响」中 OpenCLI stdout 4 MiB 的上限：Native 正文改受单条 CDP 消息 16 MiB 与单个响应体 4 MiB 的上限约束。
+- 本记录取代 ADR-0035 的「保留 xiaohongshu_browser 作为过渡」与「OpenCLI 冻结」两节。
+- 本记录取代 ADR-0020 中绑定 OpenCLI 的表述：访问策略的单位从一条 OpenCLI 命令改为一条浏览器命令（permit 仍持有到浏览器进程被回收）；route 不再依赖用户自己的 Chrome、OpenCLI 与安装好的 adapter；被杀命令的清理由进程组强杀与管道关闭保证，不再依赖 OpenCLI daemon 回收标签页。opt-in 与不解站点验证的原则继续有效。
+- 本记录取代 ADR-0022「接受的边界」中"token 在本机进程参数中可见"一条：Access Token 只在导航时经 CDP 交给浏览器，不进入任何进程参数；以及「影响」中 OpenCLI stdout 4 MiB 的上限：Native 正文改受单条 CDP 消息 16 MiB 与单个响应体 4 MiB 的上限约束。
 - 带日期的设计与调研文档作为历史记录保留。
 
 ## 重新评估的条件

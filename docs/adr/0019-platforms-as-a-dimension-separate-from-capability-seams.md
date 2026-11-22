@@ -13,5 +13,5 @@ forager supports only Platforms and routes that ship with a release. Configurati
 ## Consequences
 
 - A route is a provider, so it reuses provider identity, the provider configuration section, doctor, and smoke. A route ID never uses the bare Platform name (`arxiv_api`, not `arxiv`).
-- A route that needs no credentials has no `keys` leaf and is always configured (ADR 0005).
+- A route that needs no credentials has no `keys` leaf and is always configured (ADR-0005).
 - The registration points are spread over several modules and the type system cannot find a missing one. The new-platform checklist test reports each missing point and names the checklist item in the platform specification.

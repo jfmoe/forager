@@ -496,7 +496,7 @@ pub(crate) fn plan_routes<C: Clone>(
 
 /// Says how to enable the operation's routes that the order leaves out, that only users may
 /// enable, and that `relevant` keeps: a browser route acts on the user's own account, and an
-/// HTTP route may read a site's undocumented endpoints (ADR 0028).
+/// HTTP route may read a site's undocumented endpoints (ADR-0028).
 fn opt_in_hint<C>(
     order_key: &str,
     operation_routes: &[ProviderId],

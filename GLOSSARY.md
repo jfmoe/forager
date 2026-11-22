@@ -77,7 +77,7 @@ _Avoid_: claim verification、source list
 _Avoid_: key pool、key rotation、API key list、high-availability credential pool
 
 **Anonymous Fallback**:
-凭据可选的供应方不带凭据再请求一次的规则：Provider Credential Pool 为空时直接匿名请求；凭据池按自身规则执行（额度与限流时换用其他凭据，认证失败即结束）后以认证、额度或限流类失败告终时，在同一供应方槽位内用剩余时间匿名再请求一次。与凭据无关的失败不触发，每次执行最多一次；匿名请求的 attempt 标为 `anonymous`（ADR 0029）。
+凭据可选的供应方不带凭据再请求一次的规则：Provider Credential Pool 为空时直接匿名请求；凭据池按自身规则执行（额度与限流时换用其他凭据，认证失败即结束）后以认证、额度或限流类失败告终时，在同一供应方槽位内用剩余时间匿名再请求一次。与凭据无关的失败不触发，每次执行最多一次；匿名请求的 attempt 标为 `anonymous`（ADR-0029）。
 _Avoid_: keyless mode、free tier fallback、anonymous retry
 
 **Access Policy**:
@@ -101,7 +101,7 @@ _Avoid_: platform provider、custom platform
 _Avoid_: platform backend、platform provider list
 
 **Route Transport**:
-Platform Route 到达外部内容源的方式，在供应方注册信息中声明：HTTP（配置 `url`；需要凭据的 HTTP route 另有 `keys`），或 forager 的浏览器传输（这类 route 称为 browser route，配置只有 `timeout`；注册信息同时声明它使用哪个平台的 Browser Profile、浏览器语言，以及该 profile 是否需要登录）。配置检查、飞行前检查、doctor 与接入清单按传输类型判断，不按 route id 判断。browser route 只能由用户在平台 order 中手动启用（ADR 0020）。
+Platform Route 到达外部内容源的方式，在供应方注册信息中声明：HTTP（配置 `url`；需要凭据的 HTTP route 另有 `keys`），或 forager 的浏览器传输（这类 route 称为 browser route，配置只有 `timeout`；注册信息同时声明它使用哪个平台的 Browser Profile、浏览器语言，以及该 profile 是否需要登录）。配置检查、飞行前检查、doctor 与接入清单按传输类型判断，不按 route id 判断。browser route 只能由用户在平台 order 中手动启用（ADR-0020）。
 _Avoid_: route kind、backend type、process route
 
 **Page Logic**:
@@ -129,7 +129,7 @@ Google Scholar 把同一论文的多个版本（出版社页面、预印本、�
 _Avoid_: scholar paper id、result id、version
 
 **SERP API Route**:
-经第三方搜索结果 API 读取搜索引擎结果页的 Platform Route，例如 `serpapi`。它按供应商命名，key 由用户自备并进入 Provider Credential Pool，同一账号的额度与吞吐不分引擎；每次成功检索都消耗用户的额度，forager 不持久化额度状态（ADR 0021）。
+经第三方搜索结果 API 读取搜索引擎结果页的 Platform Route，例如 `serpapi`。它按供应商命名，key 由用户自备并进入 Provider Credential Pool，同一账号的额度与吞吐不分引擎；每次成功检索都消耗用户的额度，forager 不持久化额度状态（ADR-0021）。
 _Avoid_: scholar scraper、scholar_serpapi
 
 **Platform Operation**:
@@ -185,7 +185,7 @@ _Avoid_: odds、chance、displayed price、outcome price
 _Avoid_: probability history、chart、price feed
 
 **Platform Fetch**:
-按 Platform Ref 取回单个平台条目的操作；它不同于 Web Fetch Capability，尽管其正文段可以复用 Web Fetch。先由平台 route 取元数据并确定实际版本，全文深度再按 route 声明的正文来源取正文：一组 URL 依次走同一条 Web Fetch 链；route 在同一 attempt 内自己读到并核对过的平台原生正文（Native，例如小红书笔记）不经 Web Fetch（ADR 0022）。全文写入本地文件，结果只按路径引用它。
+按 Platform Ref 取回单个平台条目的操作；它不同于 Web Fetch Capability，尽管其正文段可以复用 Web Fetch。先由平台 route 取元数据并确定实际版本，全文深度再按 route 声明的正文来源取正文：一组 URL 依次走同一条 Web Fetch 链；route 在同一 attempt 内自己读到并核对过的平台原生正文（Native，例如小红书笔记）不经 Web Fetch（ADR-0022）。全文写入本地文件，结果只按路径引用它。
 _Avoid_: web fetch、platform download
 
 **Content Depth**:

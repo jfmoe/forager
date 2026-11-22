@@ -562,7 +562,7 @@ const SSRN_CROSSREF_ACCESS: AccessPolicy = AccessPolicy {
 };
 
 // About 55 read-only commands 5 to 10 seconds apart raised no risk control on 2026-10-08; ten
-// seconds is the slowest pace measured, not a limit the site states (ADR 0020).
+// seconds is the slowest pace measured, not a limit the site states (ADR-0020).
 const XIAOHONGSHU_BROWSER_ACCESS: AccessPolicy = AccessPolicy {
     min_interval: Duration::from_secs(10),
     max_concurrency: 1,
@@ -598,7 +598,7 @@ const YOUTUBE_API_ACCESS: AccessPolicy = AccessPolicy {
 
 // The yt-dlp wiki's anonymous pace is about 300 videos an hour, 5 to 10 seconds apart; one
 // request every four seconds keeps a fetch's three requests near it. Going faster risks the
-// user's egress IP (ADR 0028).
+// user's egress IP (ADR-0028).
 const YOUTUBE_WEB_ACCESS: AccessPolicy = AccessPolicy {
     min_interval: Duration::from_secs(4),
     max_concurrency: 1,

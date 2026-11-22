@@ -28,7 +28,7 @@ forager 的第八个平台 `polymarket` 只有一条匿名 route `polymarket_api
   - 未关闭而 `active` 为 false 的 neg-risk 占位 market 算作停止交易（`suspended`），不请求 CLOB。`active` 只对未关闭的 market 读取，因为已结算 market 的 `active` 仍为 true；
   - 已结算的市场给出兑付值，标为结算，不称为概率；
   - forager 同时交付 bid、ask、价差与最近成交，由调用方判断宽价差市场的可信度，不替它在中点与成交价之间选择。
-- **一条 route 访问三个端点。** 链语义只取第一条被接受的 route 的结果、不合并，而 fetch 要把 Gamma 的结构与 CLOB 的实时报价组合在一起，所以沿用 ADR 0027 的多端点 route 规则，每个端点一个 URL 配置键。
+- **一条 route 访问三个端点。** 链语义只取第一条被接受的 route 的结果、不合并，而 fetch 要把 Gamma 的结构与 CLOB 的实时报价组合在一起，所以沿用 ADR-0027 的多端点 route 规则，每个端点一个 URL 配置键。
   - CLOB 只用来增强结果：它失败时，fetch 改用 Gamma 的缓存报价，按同一条规则计算，标明来源；
   - search 只用 Gamma 的价格，保持一次请求；
   - Price History 只有 Data API 能提供，它失败即命令失败。

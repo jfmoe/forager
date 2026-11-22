@@ -1,4 +1,4 @@
-//! The `hn_api` route: one route over two official Hacker News endpoints (ADR 0027).
+//! The `hn_api` route: one route over two official Hacker News endpoints (ADR-0027).
 //!
 //! Algolia's HN Search API searches items and returns a whole discussion tree in one request;
 //! the official Firebase API knows the rank Hacker News shows and the live counts. Firebase only

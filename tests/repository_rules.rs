@@ -1,8 +1,11 @@
 //! Repository rules from `AGENTS.md` that a reviewer would otherwise check by hand.
 
+#[path = "repository_rules/adrs.rs"]
+mod adrs;
 #[path = "repository_rules/links.rs"]
 mod links;
 
+use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -98,13 +101,69 @@ fn every_relative_link_in_the_scanned_documents_resolves() {
     );
 }
 
+#[test]
+fn adr_files_are_numbered_and_carry_no_status() {
+    let paths = adr_paths();
+    let names = paths.iter().map(|path| file_name(path)).collect::<Vec<_>>();
+    let mut problems = adrs::file_name_problems(names);
+    for path in &paths {
+        if let Some(problem) = adrs::format_problem(&read(path)) {
+            problems.push(format!("{}: {problem}", relative(path)));
+        }
+    }
+
+    assert!(problems.is_empty(), "fix these ADR files: {problems:#?}");
+}
+
+#[test]
+fn every_adr_reference_names_an_existing_adr() {
+    let existing = adr_paths()
+        .iter()
+        .filter_map(|path| adrs::adr_number(file_name(path)))
+        .collect::<BTreeSet<_>>();
+    let adr_directory = root().join("docs/adr");
+    let problems = scanned_files(&["md", "rs"])
+        .into_iter()
+        .filter(|path| !is_rule_test(path))
+        .flat_map(|path| {
+            let in_adr = path.starts_with(&adr_directory);
+            adrs::reference_problems(&read(&path), &existing, in_adr)
+                .into_iter()
+                .map(move |problem| format!("{} {problem}", relative(&path)))
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+
+    assert!(
+        problems.is_empty(),
+        "fix these ADR references (a reference inside an ADR's Supersedes section may name a deleted ADR): {problems:#?}"
+    );
+}
+
+fn adr_paths() -> Vec<PathBuf> {
+    files(&root().join("docs/adr"), "md")
+}
+
+/// The rule tests quote malformed references as counter-examples.
+fn is_rule_test(path: &Path) -> bool {
+    let tests = root().join("tests");
+    path == tests.join("repository_rules.rs") || path.starts_with(tests.join("repository_rules"))
+}
+
 fn scanned_markdown() -> Vec<PathBuf> {
+    scanned_files(&["md"])
+}
+
+fn scanned_files(extensions: &[&str]) -> Vec<PathBuf> {
     SCANNED_ROOTS
         .iter()
         .map(|scanned| root().join(scanned))
         .flat_map(|path| {
             if path.is_dir() {
-                files(&path, "md")
+                extensions
+                    .iter()
+                    .flat_map(|extension| files(&path, extension))
+                    .collect()
             } else {
                 vec![path]
             }

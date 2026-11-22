@@ -4,12 +4,12 @@ forager 的第三个平台 `scholar`（Google Scholar）只经第三方 SERP API
 
 ## 为什么不直接访问谷歌学术
 
-谷歌学术没有官方公共检索 API，官方帮助明确不提供批量访问，并要求自动化软件遵守 robots.txt，而 robots.txt 禁止访问 `/scholar`（`docs/research/2026-09-25-scholarly-agent-access.md`）。自建抓取因此不能作为稳定的基础设施；有文档的第三方 SERP API 已经提供结构化结果，包括被引数与版本聚合。所以第一期不做自建抓取，也不做浏览器 route。以后如果加入 `scholar_browser`，它和 SSRN 的浏览器 route（ADR 0020）一样，只能由用户手动加入 order。
+谷歌学术没有官方公共检索 API，官方帮助明确不提供批量访问，并要求自动化软件遵守 robots.txt，而 robots.txt 禁止访问 `/scholar`（`docs/research/2026-09-25-scholarly-agent-access.md`）。自建抓取因此不能作为稳定的基础设施；有文档的第三方 SERP API 已经提供结构化结果，包括被引数与版本聚合。所以第一期不做自建抓取，也不做浏览器 route。以后如果加入 `scholar_browser`，它和 SSRN 的浏览器 route（ADR-0020）一样，只能由用户手动加入 order。
 
 ## 为什么 key 由用户自备
 
 - SERP API 按次计费，forager 是本地 CLI，没有服务端可以安全保管共享 key，也不应替用户承担费用或条款责任。
-- key 进入现有 Provider Credential Pool（ADR 0005），不新增凭据机制：多 key 轮询、`run out of searches` 的 429 识别为 QuotaExhausted 后同一请求内换 key、其他 429 为 RateLimited 也换 key。
+- key 进入现有 Provider Credential Pool（ADR-0005），不新增凭据机制：多 key 轮询、`run out of searches` 的 429 识别为 QuotaExhausted 后同一请求内换 key、其他 429 为 RateLimited 也换 key。
 - 默认 order 含 `serpapi`，但没有 key 时 route 视为未配置：平台命令飞行前退 3，消息点名 `providers.serpapi.keys`；普通 `search` 与 `research` 永不调用它。
 - 文档只说明"每个 key 对应一个账号的额度"，不建议用多注册免费账号的方式扩大额度，因为这可能被认定为滥用免费计划。
 

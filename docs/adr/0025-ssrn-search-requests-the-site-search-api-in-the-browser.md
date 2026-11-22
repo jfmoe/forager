@@ -1,10 +1,6 @@
----
-status: superseded by ADR-0035
----
-
 # SSRN 检索在用户浏览器中请求原站检索接口
 
-本记录修订 ADR 0020 中 `ssrn_browser` search 的读取方式。ADR 0020 的其余决定不变：route 由用户自行启用；永不解或绕过站点验证，遇到验证以 Auth 失败；每个 OpenCLI 操作计一次访问，单并发，每 5 秒一个。调研与实测见 [SSRN browser 检索改用原站接口的实测](../research/2026-10-11-ssrn-search-api.md)。
+本记录修订 ADR-0020 中 `ssrn_browser` search 的读取方式。ADR-0020 的其余决定不变：route 由用户自行启用；永不解或绕过站点验证，遇到验证以 Auth 失败；每个 OpenCLI 操作计一次访问，单并发，每 5 秒一个。调研与实测见 [SSRN browser 检索改用原站接口的实测](../research/2026-10-11-ssrn-search-api.md)。
 
 ## 背景
 
@@ -27,7 +23,7 @@ process route 可以在用户自己的 Chrome 中，发出站点页面本身就�
 
 本决定不是对浏览器 route 自行构造请求的普遍放开。
 
-- **ChatGPT（ADR 0024）**：`backend-api` 需要账号会话、access token 和反滥用字段（`chat-requirements`、工作量证明、Turnstile）。自行请求意味着使用或构造这些凭据与字段，因此 `chatgpt_browser` 只读取页面自己收到的响应。
+- **ChatGPT（ADR-0024）**：`backend-api` 需要账号会话、access token 和反滥用字段（`chat-requirements`、工作量证明、Turnstile）。自行请求意味着使用或构造这些凭据与字段，因此 `chatgpt_browser` 只读取页面自己收到的响应。
 - **小红书**：搜索与评论接口要求前端在真实浏览器中生成签名与指纹（`a1`、`b1`）。自行请求就要逆向或调用签名逻辑，因此 `xiaohongshu_browser` 只读网络抓包与页面状态。
 - **SSRN 检索接口**：原站匿名使用的公开只读 GET，不需要会话、凭据、签名或验证字段，满足上文全部条件。
 
@@ -39,4 +35,4 @@ process route 可以在用户自己的 Chrome 中，发出站点页面本身就�
 - 检索结果的 `posted` 按接口给出的 UTC 时间取日期，与详情页一致，不再随机器时区变化。
 - adapter 契约升为 `forager-ssrn/4`。旧 adapter 由契约版本检查拒绝并提示重新安装。
 - 该接口没有公开文档，随时可能变化。契约版本、请求地址核对与严格解码用于发现变化；无法识别的响应以 Runtime 失败，不返回假空页。
-- SSRN 使用条款的风险判断沿用 ADR 0020。访问强度不高于原做法：每个操作一次接口请求，而原来是一次完整页面加载及其全部子请求。
+- SSRN 使用条款的风险判断沿用 ADR-0020。访问强度不高于原做法：每个操作一次接口请求，而原来是一次完整页面加载及其全部子请求。

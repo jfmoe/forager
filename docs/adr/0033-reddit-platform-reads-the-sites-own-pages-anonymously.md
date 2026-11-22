@@ -1,12 +1,8 @@
----
-status: superseded by ADR-0037
----
-
 # Reddit 平台匿名读取站点自己渲染的页面
 
 forager 的第九个平台 `reddit` 只有一条匿名 HTTP route `reddit_web`。它读取 Reddit 网站自己渲染的三种页面：搜索结果片段、帖子的评论树片段，以及帖子的 embed 页。这条 route 不在默认 order 中，由用户手动启用。
 
-ADR 0037 取代本记录：`reddit_web` 已退役，Reddit 改为在登录的 Managed Browser 中读取页面。本记录只有“全进程的 HTTP client 启用 reqwest 的 `http2` feature”一条继续有效。
+ADR-0037 取代本记录：`reddit_web` 已退役，Reddit 改为在登录的 Managed Browser 中读取页面。本记录只有“全进程的 HTTP client 启用 reqwest 的 `http2` feature”一条继续有效。
 
 ## 背景
 

@@ -38,7 +38,7 @@
 - **P1** `search` 端到端（真实 classifier 路由 + 主链 + 补强）
 - **P2** `research` 裸调用端到端（classifier 计划 + 多 seam 编排 + 证据）
 
-**Provider 契约用例矩阵**（每行恰为一个 `(provider, operation, transport)` 三元组；编号不复用，退役的 provider 留下空号，如 C47、C48 原为匿名 HTTP route `reddit_web` 的 search 与 fetch，随它退役，ADR 0037）：
+**Provider 契约用例矩阵**（每行恰为一个 `(provider, operation, transport)` 三元组；编号不复用，退役的 provider 留下空号，如 C47、C48 原为匿名 HTTP route `reddit_web` 的 search 与 fetch，随它退役，ADR-0037）：
 
 | ID | provider | operation | transport |
 |---|---|---|---|
@@ -94,7 +94,7 @@ AnySearch **extraction 裁决**（消解 #53 砍 `anysearch-extract` 与 #59 L8 
 
 ## Medium 落地件（补充决议② M17–M21 定稿）
 
-- **M17 辅助 seam 预算槽位定义**：槽位＝该层中「尚未尝试、已配置（凭据在位，或凭据可选）」的候选数；classifier model 链及 web_fetch、supplemental、tavily_map 等辅助 provider 链继续按槽位均分，并受各自阶段或单次 timeout 上限约束；`剩余预算/剩余槽位 < 5s` 时跳过该槽（journal 记 skipped），最后一槽可用全部剩余预算。main search 不适用槽位均分：主 backend 的首次尝试可使用全部剩余预算，fallback backend 只消费残余；`--fallback off` 仍只执行链头，classifier 链不受该旗标影响。单 backend 没有 in-seam 超时重试；共享 endpoint、model 或凭据池的 fallback 不提供故障隔离，隔离由配置负责（ADR 0007）。
+- **M17 辅助 seam 预算槽位定义**：槽位＝该层中「尚未尝试、已配置（凭据在位，或凭据可选）」的候选数；classifier model 链及 web_fetch、supplemental、tavily_map 等辅助 provider 链继续按槽位均分，并受各自阶段或单次 timeout 上限约束；`剩余预算/剩余槽位 < 5s` 时跳过该槽（journal 记 skipped），最后一槽可用全部剩余预算。main search 不适用槽位均分：主 backend 的首次尝试可使用全部剩余预算，fallback backend 只消费残余；`--fallback off` 仍只执行链头，classifier 链不受该旗标影响。单 backend 没有 in-seam 超时重试；共享 endpoint、model 或凭据池的 fallback 不提供故障隔离，隔离由配置负责（ADR-0007）。
 - **M18 瘦载荷边界**：普通路径的默认失败载荷以 **4 KiB** 为目标；列表字段（by_kind、providers、capability_gaps.providers_skipped）各截断至 8 项并置 `truncated: true`，message 截断至 500 字符。Research failure 使用稳定 schema，`evidence_dir`/`summary_path` locator 永不截断；极端长合法路径允许超过目标，不在创建 artifact 前预演拒绝。
 - **M19 追踪清单与 registry 一致性**：Tier 0/Tier 1 → 测试 ID → provider/seam 追踪清单入库。PR CI 保留两条直接集合断言：① provider registry 的 `(provider, seam)` 投影（Capability Catalog 的 `(provider, seam)` 加上 platform catalog 的 `(route, platform:<id>:<op>)`，如 `(arxiv_api, platform:arxiv:search)` 与 `(arxiv_api, platform:arxiv:fetch)`）＝ transport fixture 集中这些 seam 的同一投影，且每项 fixture 都有非空测试引用；② `SPECIFICATION_CASE_IDS` 与 `smoke --live` 实际 registry 都精确等于 P1–P2 与本章矩阵中的全部 C 用例（C14–C16 随 AnySearch 退役空号，C02–C03 随 openai-compatible 退役空号，C22–C23 随 SSRN 浏览器 live 用例删除空号，不重排）。另有新平台 checklist 测试按 `platforms.md` 接入清单 R1–R8 检查每个平台的登记点，并断言 platform catalog 之外的单 route 平台操作（provider factory 声明的 `(serpapi, platform:scholar:cited_by)`、`(xiaohongshu_browser, platform:xiaohongshu:comments)`、`(xai, platform:x:ask)`、`(hn_api, platform:hn:stories)`、`(youtube_api, platform:youtube:comments)` 与 `(youtube_api, platform:youtube:videos)`）恰好登记了 fixture。`tests/acceptance-manifest.json` 继续作为受版本控制的追踪清单，但不再递归启动 Cargo 来验证每个测试引用是否仍注册且未被忽略；本章用例清单与 `SPECIFICATION_CASE_IDS` 的同步由变更审查负责。L0 为流程门，不入集合。
 - **M21 冻结题集 + rubric**（人工质量抽查，行为丢失报警器，不做旧版对拍）：三题字面冻结——① 「Rust 的 async drop 现状与最新提案是什么？」（docs+web 混合、时效）；② 「对比 figment 与 config-rs 的分层覆盖模型，给出出处」（docs、交叉验证）；③ 「近一个月各大社区关于 Coding Agent 的讨论」（web+x 混合、时效、观点聚合）。rubric 三行，每行 pass/fail：相关性（回答对准问题）；来源去重（无重复/近重复来源）；引用支持结论（每主张可溯源到给出的 citation）。

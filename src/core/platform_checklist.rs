@@ -235,7 +235,7 @@ fn check_route(
     };
     let leaves: &[&str] = match registration.transport {
         // A main-search backend has no timeout of its own; its platform requests use the
-        // command's remaining time like main search (ADR 0026).
+        // command's remaining time like main search (ADR-0026).
         ProviderTransport::Http if catalog::MAIN_SEARCH.contains(route) => &["url"],
         ProviderTransport::Http => &["url", "timeout"],
         ProviderTransport::Browser(_) => &["timeout"],

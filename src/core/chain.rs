@@ -9,7 +9,7 @@
 //! skipped/unconfigured attempt records, attempt and diagnostic merging,
 //! quality-gate marking, unconsumed-success semantics, and terminal
 //! attribution through [`attempt_trace`]. Each call site keeps declaring its
-//! own parameters through [`ChainSettings`]; per ADR-0008 steps run strictly
+//! own parameters through [`ChainSettings`]; per ADR-0016 steps run strictly
 //! sequentially and no in-flight future is ever dropped.
 
 use std::future::Future;

@@ -56,7 +56,7 @@ Dependencies flow one way, top to bottom: entry → cli → orchestration (`core
 
 ### Platforms
 
-Before you add or change a platform or a platform route, read `docs/reference/platforms.md`. Complete its integration checklist and keep the new-platform checklist test (`src/core/platform_checklist.rs`) passing. Before changing or live-testing a browser route, the browser transport, or the Managed Browser, read `docs/agents/browser-routes.md`. A new browser route declares its browser environment in its registration and reuses that transport; only its page logic is new (ADR 0036).
+Before you add or change a platform or a platform route, read `docs/reference/platforms.md`. Complete its integration checklist and keep the new-platform checklist test (`src/core/platform_checklist.rs`) passing. Before changing or live-testing a browser route, the browser transport, or the Managed Browser, read `docs/agents/browser-routes.md`. A new browser route declares its browser environment in its registration and reuses that transport; only its page logic is new (ADR-0036).
 
 ### Compatibility fixes
 
