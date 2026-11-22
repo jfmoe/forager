@@ -1487,8 +1487,8 @@ writability checks without contacting providers. `smoke` emits JSON. Hidden acce
 probe flags are internal and are not part of the public CLI.
 
 All live cases share the one `--timeout` deadline. A case runs up to three times, but only once
-when it fails on Auth or an attempt-level Parameter error. A case that the deadline left no time to
-start is `skipped` with a message beginning `not started:`. That prefix has three kinds of source,
+when it fails on Auth or an attempt-level Parameter error. A case that did not start is `skipped`
+with a message beginning `not started:`. That prefix has three kinds of source,
 and the rest of the message says which:
 
 - The deadline elapsed before the case began: raise `--timeout` and rerun.

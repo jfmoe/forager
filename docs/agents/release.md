@@ -32,8 +32,8 @@ After a release, finish these steps in order. The task is complete only when all
 
    Then confirm that `forager --version` shows the new version. `cargo install --path .` cannot replace the installer here: it refuses to overwrite a binary of the same name that cargo does not manage.
 2. **Update the skill.** Run `npx skills add jfmoe/forager -g -s forager -a '*' -y`. Agents that do not support a global install report a failure; that is expected.
-3. **Update the Managed Browser.** Run `forager browser install`. When the new version pins the same browser version, it downloads nothing and prints `downloaded: false`; otherwise it downloads, verifies and installs the new one. The old installation directory is no longer used and is not deleted automatically.
-4. **Run the live end-to-end test.** Run `forager smoke --live --opt-in` with the real configuration. `--opt-in` also runs the cases of platform routes that the order leaves out but whose prerequisites this machine meets, so routes enabled by hand are covered at release. The default time limit is 420 seconds; give the tool running the command a longer timeout. Report the status of every case.
+3. **Update the Managed Browser.** Run `forager browser install`. When the new version pins the same browser version, it downloads nothing; otherwise it downloads, verifies and installs the new one. The old installation directory is no longer used and is not deleted automatically.
+4. **Run the live end-to-end test.** Run `forager smoke --live --opt-in` with the real configuration. `--opt-in` also runs the cases of platform routes that the order leaves out but whose prerequisites this machine meets, so routes enabled by hand are covered at release. Give the tool running the command a timeout longer than the smoke time limit, whose default `forager smoke --help` shows. Report the status of every case.
 
    A `skipped` case whose message starts with `not started:` has one of three kinds of source (the messages are constants in `src/ops/smoke.rs`):
 
