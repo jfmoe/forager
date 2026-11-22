@@ -1,27 +1,47 @@
----
-status: accepted
----
-
-# Record search results and execution in a local journal
-
-forager maintains a Search Result Journal as its persistent observability surface. The journal is enabled by default and records one terminal entry for each completed Default Search Invocation, whether it succeeds or fails.
+# Record every search invocation in a local journal
 
 ## Decision
 
-- `journal.enabled` defaults to `true`.
-- The default directory follows XDG state and resolves to `~/.local/state/forager/journal` when `XDG_STATE_HOME` is unset.
-- Each entry has two surfaces. The result surface may contain the query, full answer, normalized sources, and research citations and evidence items. The execution surface may contain the plan summary, provider attempts, terminal attribution, deadline budget, classifier duration, and capability gaps.
-- Persisted fields follow an allowlist. Provider attempts may include provider, seam, error kind, HTTP status, duration, credential index, retry and rotation counts, a redacted error message truncated to 500 characters, model, endpoint host, and circuit-breaker events.
-- The journal never persists request or response headers, request bodies, raw response bodies, credentials in any form, classifier prompt text, or tool traces.
-- URLs and error messages pass through the shared redactor before persistence.
-- The application layer owns the terminal writer and writes once for both successful and failed outcomes. A journal write failure emits a non-fatal diagnostic and does not change the command result or exit code.
-- Each invocation writes one complete JSON object plus a trailing newline to an exclusive `search_result_<nanos>_<pid>_<seq>.json` file and calls `sync_all` before retention cleanup. The unique path string is the opaque record identity exposed as `journal_ref`; there is no separate `record_id`.
-- The journal does not use daily JSONL partitions, cross-process append locks, or partial-line recovery.
-- Retention uses the file modification time and owns only regular files whose names fully match `search_result_<nanos>_<pid>_<seq>.json`, with three non-empty ASCII decimal fields. Other JSON or JSONL files, approximate names, directories, and links are ignored.
-- Retention cleanup is best-effort after the new record has been written and synchronized. A cleanup warning does not change the command result or exit code.
-- A preflight failure is journaled only after a valid, enabled journal configuration is available and the failure belongs to a recordable invocation. When configuration is invalid or unavailable, JSON output reports `journal_ref: null` and `journal_status: "unavailable"` without inferring defaults or creating the default journal directory.
-- `journal.retention_days` defaults to `30`; `0` retains entries indefinitely.
+forager keeps a Search Result Journal, enabled by default, as its only persistent record of what
+a search did. Every Default Search Invocation of `search` or `research` that reaches a terminal
+state, success or failure, writes one entry with two surfaces: the result (query, full answer,
+sources, research evidence) and the execution (plan summary, provider attempts, terminal
+attribution, budget, classifier timing, capability gaps).
 
-## Consequences
+- Persisted content follows an allowlist. Credentials in any form, request and response headers,
+  request bodies, raw response bodies, classifier prompts and tool traces are never written; URLs
+  and messages pass through the shared redactor first. The journal directory and its files are
+  readable by the user only, because full queries and answers are deliberately kept.
+- The application layer writes the entry once, after the terminal state is known. A journal
+  failure is a non-fatal diagnostic and never changes the command's result or exit code.
+- Each entry is its own exclusively created file, synced before anything else happens, and its
+  path is the entry's identity. Retention deletes only regular files whose names fully match the
+  journal's own naming pattern, so it cannot remove neighbouring data.
+- When no valid journal configuration exists yet, forager reports the journal as unavailable
+  instead of guessing a default location.
 
-Full queries, answers, sources, and execution facts are intentionally persisted for review and diagnosis, so directory and file permissions must remain user-only. Independent files avoid shared append and record-addressing coordination, while strict filename ownership prevents retention from deleting neighboring application data. Debug output stays on stderr and is not a second persistent log.
+The configuration keys and defaults are in `docs/reference/config.md`; the persisted fields and
+the file naming are in `docs/reference/architecture.md`.
+
+## Why
+
+- Reviewing and diagnosing a search later needs the full query and answer next to the attempts
+  that produced them; a summary or a debug stream loses exactly the facts a review asks about.
+- One file per invocation needs no cross-process append lock, no partial-line recovery and no
+  separate record identifier: concurrent invocations never touch the same file.
+- Strict name ownership makes retention safe in a directory the user may share with other data.
+
+## Rejected alternatives
+
+- **Daily JSONL partitions with an append lock.** Concurrent processes would contend for one
+  file, a crash could leave a partial line that every reader must recover from, and addressing a
+  record would need an identifier beyond its location.
+- **Off by default.** The record would be missing exactly when a user first needs to review a
+  surprising result.
+- **Persisting debug logs as a second record.** Debug output stays on stderr; two persistent
+  records would disagree about what happened.
+
+## Revisit when
+
+- A consumer needs to query across entries at a volume that per-file storage makes slow.
+- An entry is found to persist something sensitive that the allowlist did not anticipate.
