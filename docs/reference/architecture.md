@@ -118,6 +118,33 @@ Web Fetch 成功值是 **Normalized Fetch Content**：从成功 provider 响应�
 - 普通 search 在分类器决定能力集合后，让主搜索与辅助能力 fan-out 并发执行并共享同一绝对 Deadline（ADR 0016）；主搜索结束后按「分类器 attempts → 主搜索 attempts → 各能力分支（词汇表顺序）」合并。主搜索失败时，辅助 attempts 只追加用于诊断，已取得的候选与 capability gaps 由 `search_fanout::SearchFailure` 携带交付。
 - search-side Web Fetch 成功结果以实际 provider 和 Normalized Fetch Content 的 300 字 preview 进入 `extra_sources`；抓取失败由 attempts、capability gap 和既有终态表达。Markdown 明确渲染 `Primary Sources` 与 `Extra Sources`；content 只返回主 answer；JSON、verbose 和 journal 消费同一结果角色。
 
+## Search concurrency
+
+- Stages stay in order: the classifier runs first, and a provider fallback chain inside one seam
+  runs its steps strictly one after another (`core/chain`).
+- Work fans out at three points: the supplemental capabilities of a search, which start together
+  with main search (search-side Web Fetch fans out again over the URLs in the query); research
+  discovery, flattened into one task list over subquestion × declared capability; and research
+  candidate fetching, in waves.
+- Each fan-out point bounds its own in-flight work by `engine::FANOUT_CONCURRENCY`. There is no
+  shared global capacity, so nested fan-outs can briefly exceed it: three capabilities plus a Web
+  Fetch fan-out over four URLs peak at seven requests.
+- Concurrent branches share the one absolute `Deadline` and do not split it among themselves.
+  Inside each branch the auxiliary-seam budget rules still apply.
+- A research fetch wave holds at most the fan-out width and never reserves more candidates for a
+  subquestion than its remaining evidence cap. Waves refill until every cap is met or the
+  candidates run out; candidates never race each other, so a success path spends no provider quota
+  on a result it then discards.
+- Fan-outs use order-preserving primitives (`join_all`, `stream::buffered`, never
+  `buffer_unordered` or `JoinSet`). Each branch's attempts, sources, gaps and diagnostics are
+  appended as one block in launch order, so merge order is deterministic. Concurrency can change
+  which requests get budget, so the invariants are order and field structure, not identical
+  content to a serial run.
+- An in-flight future is never dropped midway: a cancelled request can have upstream side effects
+  that would never reach the journal.
+- The command runtime is Tokio's multi-thread runtime; synchronous CPU work such as SSE parsing and
+  large body decoding runs on executor threads.
+
 ## research 文件化交付
 
 Research Evidence Pipeline 默认使用 standard 预算，将正文逐条写入 evidence Markdown，并只在成功 stdout 返回 Research Evidence Index。计划、未消费候选与 Research Recovery Manifest 分别写入 `00-plan.json`、`candidates.json` 与 `summary.json`；manifest 包含无正文的 evidence identity/metadata/path、coverage、gap、capability gaps、终态、attempts 与 `synthesis_policy`。未消费候选 artifact 以 `is_evidence: false` 明确其角色。失败 stdout 使用稳定小形状并以可空 `summary_path` 指向已成功写入且可直接读取的 manifest；locator 永不截断，极端长合法路径可超过 4 KiB 目标。
