@@ -38,6 +38,9 @@ Every browser route is opt-in; an HTTP route is opt-in when its access carries s
   branch, and HTTP and browser routes would drift.
 - **Solving or retrying past a challenge.** It is circumvention, and repeated requests extend the
   block.
+- **Classifying a site error code by guesswork.** A code is treated as a login wall, a block or a
+  verification page only with evidence: a captured answer, a block page carrying it, or another
+  maintained client that handles it the same way. A code without evidence stays a runtime failure.
 
 ## Revisit when
 

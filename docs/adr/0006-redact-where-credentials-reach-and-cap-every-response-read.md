@@ -18,9 +18,6 @@ Every other body is a protocol envelope (search streams, JSON APIs, MCP response
 limit is a runtime failure, and forager never synthesizes a result from incomplete framing. An
 error body is cut silently, because only its first part reaches the error message.
 
-The limits and their consumers are listed under the net layer in
-`docs/reference/architecture.md`.
-
 ## Why
 
 - A provider cannot know the caller's credentials, so generated answers and third-party pages

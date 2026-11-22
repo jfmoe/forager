@@ -24,7 +24,7 @@ heavy use and little contribution:
 - The domain-level search was never called in the session logs; the Verified Domain Manifest was
   always empty, so structured domain search never switched on.
 - The capability ran through the CLI, configuration, the classifier, research, doctor, smoke,
-  setup, release verification and the reference docs, and every related change had to carry that
+  setup, release verification and the documentation, and every related change had to carry that
   whole chain.
 
 ## Rejected alternatives

@@ -76,6 +76,10 @@ From documentation checks and anonymous tests on 2026-10-24:
 - **Query expansion and local relevance filtering.** Gamma's search relevance is poor, but judging
   relevance and retrying with other words belong to the caller; heuristics in platform search
   would make results unpredictable.
+- **Gamma's optimized search response.** It drops each market's condition ID and outcome tokens,
+  which pricing and history need.
+- **A sort option for Polymarket search.** The upstream sort parameter was tested and has no
+  effect.
 
 ## Revisit when
 

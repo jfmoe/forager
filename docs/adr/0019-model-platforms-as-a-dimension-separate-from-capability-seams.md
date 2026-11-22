@@ -13,9 +13,8 @@ fetch, and its options are typed flags.
 forager supports only the platforms and routes that ship with a release. Configuration cannot
 define a platform or a generic route. Each platform and route is registered once in the catalog,
 and configuration defaults, validation, construction, doctor probes, smoke cases and a
-consistency test derive from that registration. A new platform or route is a code change that
-follows `docs/reference/platforms.md`, and the new-platform checklist test reports any
-registration point it misses.
+consistency test derive from that registration. A new platform or route is a code change, and
+the new-platform checklist test reports any registration point it misses.
 
 ## Why
 
@@ -39,6 +38,9 @@ registration point it misses.
   evidence, and none has been made.
 - **User-defined platforms or generic MCP and CLI routes in configuration.** They would skip the
   registration that derives validation, doctor and smoke, and could not carry typed options.
+- **Time windows and sort order as shared platform parameters.** Their meaning differs from
+  platform to platform, so each platform declares its own; the shared layer is the query and limit
+  for search and the ref and depth for fetch.
 
 ## Revisit when
 

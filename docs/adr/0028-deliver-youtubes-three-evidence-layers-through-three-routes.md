@@ -63,6 +63,8 @@ Measured and read on 2026-10-17:
 - **The official API only.** No captions, so the video's content would be only its description.
 - **A browser route.** It would need a login and a browser, while anonymous HTTP already returns
   the captions.
+- **Clipping the video for the model.** It had no effect through the gateway, and the whole video
+  was still billed.
 
 ## Revisit when
 

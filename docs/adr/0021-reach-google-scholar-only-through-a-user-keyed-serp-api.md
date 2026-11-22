@@ -48,6 +48,13 @@ plan.
   terms liability.
 - **Suggesting several free accounts to stretch the quota.** That may count as abusing the free
   plan, so the docs say only that each key carries one account's quota.
+- **Sorting Scholar search by date.** The upstream date order ignores the year range, so the two
+  could not be combined.
+- **An `--author` option for Scholar search.** The query's own `author:` operator already applies
+  to the whole query.
+- **Cited-by as a search option, and `--review-only` on cited-by.** Cited-by changes the required
+  input and what a result means, so it is its own operation. The review filter was never tested
+  together with the citation lookup.
 
 ## Revisit when
 

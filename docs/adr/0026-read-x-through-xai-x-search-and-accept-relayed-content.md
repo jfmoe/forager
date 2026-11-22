@@ -54,6 +54,9 @@ fetch and the Platform Operation Ask.
   route of the same platform without overturning this decision.
 - **An X search capability in main search.** Main search already enables `x_search` by default; a
   new capability would duplicate it.
+- **A sort option and a limit on tool turns for X search.** The model picks top or latest posts
+  itself and the service does not enforce an order; a turn limit was tested and does not bound the
+  number of tool calls.
 
 ## Revisit when
 
