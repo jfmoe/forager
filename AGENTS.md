@@ -11,7 +11,7 @@ A Rust CLI that gives AI agents search, fetch, research and per-platform retriev
 
 Read failures from the summary nextest prints at the end, which names every failed test; never filter the test output. An agent that filtered it lost the name of a failing test.
 
-A test that fails in the full suite but passes alone depends on something outside itself, such as a real host or another test's state. Find that dependency before closing the task; one such test turned out to depend on real hosts being reachable.
+A test that fails in the full suite but passes alone depends on something outside itself, such as a real host or another test's state. Find that dependency before closing the task.
 
 ## Where each fact goes
 
