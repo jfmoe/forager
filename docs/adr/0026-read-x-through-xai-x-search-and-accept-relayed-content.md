@@ -1,30 +1,66 @@
-# X 平台经 xAI x_search 接入，条目是转述内容
+# Read X through xAI x_search and accept relayed content
 
-forager 的第五个平台 `x`（X，原 Twitter）只有一条 route `xai`。它复用主搜索的 xAI provider（`providers.xai` 的 `url`、`keys` 与 `model`），以 Responses API 的 `x_search` 工具读取 X，提供 search、fetch 与 Platform Operation Ask。
+## Decision
 
-## 背景
+The `x` platform has one route, `xai`, which reuses the main-search xAI provider's endpoint,
+credentials and model and reads X through the Responses API's `x_search` tool. It provides search,
+fetch and the Platform Operation Ask.
 
-`x_search` 包含关键词检索、语义检索、用户检索与 thread 读取四个服务端工具，由模型自行决定调用哪个、调用几次。xAI API 只返回工具调用的参数，不返回工具读到的帖子（xAI 文档 Tool Usage Details，2026-10-17）；forager 能拿到的只有模型写出的文本与 `url_citation` 注释。现有平台的条目都来自 forager 直接读到的平台数据，X 是第一个条目由模型转述的平台。
+- **Relayed Content is accepted as a platform item, but identity and time never depend on the
+  model.**
+  - Search asks for a post list through structured output. With structured output the response's
+    annotations list every source the model read, and an item whose post ID is not among them is
+    dropped.
+  - The publication time is derived from the post ID (a snowflake), never taken from the model.
+  - Fetch reads the thread. The root post must match the request, and the response must either
+    record an `x_thread_fetch` call for the requested ID or carry that ID in its annotations. xAI
+    returns the parameters of server-side tool calls, so the call record does not depend on the
+    model's retelling. Fetch requires a tool call, because without that the model often skipped
+    the tool and returned an empty list. Other posts in the thread cannot be checked, and the
+    platform reference says so.
+  - Body text and author handles are not guaranteed verbatim, so search items are at snippet
+    depth.
+- **Only server-enforced parameters are exposed:** account allow and deny lists and a date range.
+  The model picks the ordering itself and the server does not enforce one, so forager offers none.
+- **Answers are a separate Platform Operation, Ask**, not a field or switch on search. Ask uses no
+  structured output, keeps inline `[[N]](url)` citations with main search's source normalisation,
+  and maps the cited posts to Platform Refs that can be fetched next.
+- **The route is named after the vendor and reuses its configuration**, as SerpApi does: one
+  credential pool serves both main search and the platform. Platform requests send only
+  `x_search`, whatever tools main search is configured with, and like main search they have no
+  per-attempt timeout and use the command's deadline.
 
-## 决定
+## Why
 
-- **接受 Relayed Content 作为平台条目，但身份与时间不依赖模型。**
-  - search 用 json_schema 结构化输出取得帖子列表。结构化输出时，annotations 列出本次读到的全部来源；帖子 id 不在其中的条目被丢弃。2026-10-17 经 SuperGrok 订阅提供 Responses API 的网关实测：模型返回的帖子都在 annotations 中。
-  - 发布时间由帖子 id（snowflake）推算，不取模型给出的时间。同日 3 条样本的推算值与模型给出值精确到秒一致。
-  - fetch 读取 thread，根帖须与请求一致，并且响应须记录了对请求 id 的 `x_thread_fetch` 调用，或在 annotations 中出现该 id。xAI 返回服务端工具调用的参数，所以这条调用记录不依赖模型的转述。2026-10-18 实测（`docs/research/x-fetch-2026-10-18/`）：thread 读取只为 thread 最上面的帖子生成注释，请求的帖子是回复时注释是它的父帖；只按注释核对时，回复都会被判为未读。fetch 请求设 `tool_choice: "required"`：不设时模型常跳过工具、直接返回空列表。thread 中其他帖子无法核对，平台规范写明这一点。
-  - 正文与作者 handle 不保证逐字，search 条目深度为 `snippet`。
-- **只暴露服务端强制执行的参数**：账号白名单或黑名单、日期区间。排序由模型自选，服务端不强制，因此不提供。
-- **回答形态是独立的 Platform Operation Ask，不是 search 的字段或开关。** 结构化输出时回答失去逐句引用（实测 annotations 位置全为 0）。Ask 不用结构化输出，保留 `[[N]](url)` 引用，并沿用主搜索的来源规范化；引用的帖子映射为 Platform Ref，可以接着 fetch。
-- **route 按供应商命名为 `xai`，复用其配置节**，与 SerpApi 相同：同一凭据池同时服务主搜索与平台。平台请求只发 `x_search`，不受 `providers.xai.tools` 影响。
+- `x_search` bundles keyword search, semantic search, user search and thread reading, and the
+  model decides which to call and how often. The xAI API returns only the tool-call parameters,
+  not the posts the tools read (xAI's Tool Usage Details, 2026-10-17); forager gets only the
+  model's text and its `url_citation` annotations. X is the first platform whose items the model
+  relays instead of forager reading them directly.
+- Tested on 2026-10-17 through a gateway that serves the Responses API on a SuperGrok
+  subscription: every post the model returned was among the annotations. The times derived from
+  three same-day post IDs matched the model's to the second.
+- Tested on 2026-10-18: thread reading annotates only the top post of the thread, and when the
+  requested post is a reply the annotation is its parent, so a check by annotation alone would
+  judge every reply unread. The recorded tool call closes that gap.
+- With structured output the answer loses its per-sentence citations (every annotation position
+  was 0), which is why answers are a separate operation.
 
-## 不选的方案
+## Rejected alternatives
 
-- **只做回答命令**：拿不到可以继续 fetch 的帖子身份，也不能列出某个账号的帖子。
-- **先做 OpenCLI 浏览器 route**：能读到逐字正文与互动数，但需要登录 X，并承担风控与封号风险。它以后可以作为同一平台的第二条 route 加入，不推翻本决定。
-- **在主搜索中新增 X 检索能力**：主搜索默认已启用 `x_search` 工具，新增 capability 只会重复。
+- **Only an answer command.** It yields no post identity to fetch next and cannot list an
+  account's posts.
+- **A browser route first.** It would read verbatim text and engagement counts, but needs a
+  logged-in X account and carries risk control and ban risk. It can be added later as a second
+  route of the same platform without overturning this decision.
+- **An X search capability in main search.** Main search already enables `x_search` by default; a
+  new capability would duplicate it.
 
-## 影响
+## Revisit when
 
-- skill 的平台 reference 须写明 X 条目的正文是转述；需要逐字引用时，按条目 URL 打开原帖。
-- 每次请求读取多少帖子由模型决定，`max_turns` 实测不能限制调用次数：一次 search 发生 16 次工具调用、读取 52 条帖子。经 xAI 官方 API 时，按读取的帖子数与用户数计费。
-- 接入清单 R4 要求 HTTP route 有 `timeout` 配置项。`xai` 同时是主搜索 provider，没有这个配置项；平台请求与主搜索一样使用命令的总时限。
+- Cost or volume matters. How many posts a request reads is the model's choice, and limiting turns
+  did not cap the number of tool calls: one search made 16 tool calls and read 52 posts. Through
+  xAI's official API, billing follows posts and users read.
+- A caller needs verbatim text: today the platform reference tells callers to open the post's URL
+  for an exact quote.
+- xAI starts returning the posts its tools read, which would let items stop being relayed.
