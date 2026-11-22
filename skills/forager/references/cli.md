@@ -1532,8 +1532,9 @@ errors, panics, and non-JSON formats retain their existing channels.
 
 Exit `2` covers only input that forager rejects before sending a request; when an upstream
 service rejects a request, the resulting `parameter` failure exits `4`. Exit `3` also covers an
-unknown file key or `FORAGER_*` variable, an empty chain or order, and a missing credential that
-the command needs. Exit `4` is the transport family (`auth`, `rate_limited`, `quota_exhausted`,
-`parameter`, `network`, `timeout`, `runtime`), and exit `5` the content family (`quality`,
-`evidence`). An empty result is never an error: a direct command with no matches succeeds, and
+unknown file key or `FORAGER_*` variable, an empty `search.backends` or
+`capabilities.web_fetch.order`, a platform order with no configured route for the command, and a
+missing credential that the command needs. Exit `4` is the transport family (`auth`,
+`rate_limited`, `quota_exhausted`, `parameter`, `network`, `timeout`, `runtime`), and exit `5` the
+content family (`quality`, `evidence`). An empty result is never an error: a direct command with no matches succeeds, and
 only research turns missing evidence into `evidence`.

@@ -78,7 +78,7 @@ forager research "compare the main ways to distribute a Rust CLI" \
   --format markdown
 ```
 
-Calling `research` directly needs a configured classifier; through the Agent Skill, the agent writes the plan and passes it with `--plan`. Without `--budget` the budget is `standard`; `deep` is the explicit maximum-coverage, high-cost tier. On success `research` returns a lightweight Research Evidence Index: each evidence body is written to the returned `evidence_items[].path`, and the full plan and the unconsumed candidates are in `00-plan.json` and `candidates.json`. `summary.json` is the body-free Research Recovery Manifest, not the Evidence Index; a failure JSON points to a manifest that was written and can be read directly through the nullable `summary_path`. The caller reads the bodies it needs and does the synthesis; stdout carries no mechanical answer and no repeated bodies.
+Calling `research` directly needs a configured classifier; through the Agent Skill, the agent writes the plan and passes it with `--plan`. `research` writes each evidence body to a file and returns a Research Evidence Index that points to them; the caller reads the bodies it needs and does the synthesis. The budget tiers and the files it writes are described in the Agent Skill.
 
 Read a known web page:
 
@@ -86,7 +86,7 @@ Read a known web page:
 forager fetch https://doc.rust-lang.org/cargo/ --format markdown
 ```
 
-`fetch` uses the same default `Firecrawl → Jina → Tavily` chain for URLs and PDFs, and on success returns only provider-independent Markdown; diagnostics and provider attempts are kept out of the body.
+`fetch` reads URLs and PDFs through the configured Web Fetch chain, and on success returns only provider-independent Markdown; diagnostics and provider attempts are kept out of the body.
 
 See every command:
 
@@ -107,7 +107,7 @@ When the skill names a command or option the installed forager lacks, upgrade fo
 ## Design boundaries
 
 - `search` accepts the full capability set the caller declares; forager does not widen it on its own.
-- The `sources` of `search` are only the main answer's sources; `extra_sources` carries every non-main Search Candidate produced by Supplemental Web Search, Documentation Search and search-side Web Fetch. Candidates keep the provider's own snippet; only search-side Web Fetch uses a 300-character body preview.
+- The `sources` of `search` are only the main answer's sources; `extra_sources` carries every non-main Search Candidate produced by Supplemental Web Search, Documentation Search and search-side Web Fetch. Candidates keep the provider's own snippet; only search-side Web Fetch candidates carry a short preview of the page body.
 - `research` can take a Schema v1 research plan that the caller passes with `--plan`, and delivers evidence through a file-based Research Evidence Index instead of generating an answer.
 - `fetch`, `map` and the `exa` and `context7` subcommands are explicit direct entry points.
 - Credentials are kept in the local configuration; command output and the persisted journal redact sensitive URL parameters.

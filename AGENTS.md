@@ -6,7 +6,7 @@ A Rust CLI that gives AI agents search, fetch, research and per-platform retriev
 
 - Quick, the same as the CI quality job: `cargo fmt --check && cargo clippy --all-targets --locked -- -D warnings`.
 - Full: `cargo nextest run --all-targets --all-features --locked --no-fail-fast --status-level fail && cargo test --doc --locked` (install with `brew install cargo-nextest`). CI runs the same tests through `cargo test --locked`; nextest runs the binaries in parallel.
-- Documents only: `cargo nextest run --locked --test repository_rules --test skill_contract`. The Docs workflow runs these two tests on every pull request that touches markdown or `docs/`; CI skips a pull request that touches only those.
+- Documents only: `cargo nextest run --locked --test repository_rules --test skill_contract`. The Docs workflow runs these two tests on every pull request that touches markdown or `docs/`; CI skips a pull request that touches only top-level markdown files or `docs/`.
 - `git config core.hooksPath .githooks` enables a pre-commit hook that runs `cargo fmt --check`.
 
 Read failures from the summary nextest prints at the end, which names every failed test; never filter the test output. An agent that filtered it lost the name of a failing test.
@@ -44,9 +44,9 @@ Each fact has one owner. When something changes, update the owner and nothing el
 
 - Every tracked document and prompt is in English, because this is a public project. Contributors' personal agent settings may ask for another language; this rule wins inside the repository.
 - No document restates the code. A copy goes stale without a test noticing, and the next reader cannot tell which version is current.
-- Documents carry no history: no dated observations, no "previously", no migration notes. History lives in commits, the changelog and closed issues.
+- Documents carry no change history: no "previously", no migration notes, no leftovers from the session that wrote them. History lives in commits, the changelog and closed issues. An ADR's `Why` may cite dated measurements and figures as its evidence.
 - Working material goes in `.local/`; its conclusion goes into an ADR or an issue. `docs/` holds only `architecture.md`, `adr/` and `agents/`, and a rule test enforces that.
-- When you retire a route, provider or capability, remove its mentions in the same commit and add its identifier to `RETIRED` in `tests/repository_rules/retired.rs`. A retired approach that a search still finds misleads the next agent.
+- When you retire a route, provider or capability, remove its mentions in the same commit, add its identifier to `RETIRED` in `tests/repository_rules/retired.rs`, and add the numbers of its retired smoke cases to the retired set in `tests/smoke.rs`. A retired approach that a search still finds misleads the next agent.
 - A rule written for agents states its reason, so it can be applied where its wording does not reach. Keep absolute wording ("never", "always") for rules with an incident behind them.
 
 ## Rust conventions
@@ -64,4 +64,4 @@ Each fact has one owner. When something changes, update the owner and nothing el
 - **Fix a compatibility problem in the general mechanism that owns the behaviour**, not with a special case for one site, URL or sample. An agent once reached for a per-domain Web Fetch order where a global order change solved the problem. When a special case seems the only option, discuss it first.
 - **Read `docs/agents/browser-routes.md` before you change or live-test a browser route, the browser transport or the Managed Browser.** It holds the stop rules and safety boundaries; a probe loop that kept opening pages through a site block re-triggered the block after it lifted.
 - **Run the platform checklist test (`cargo nextest run --lib platform_checklist`) when you add or change a platform or platform route.** Each failure names the rule it breaks and what to add.
-- **Merge to `main` and release by `docs/agents/release.md`**; a release closes only after every step of its completion section.
+- **Merge to `main` and release by `docs/agents/release.md`**; a release closes only after every step of its completion section, because the next session uses the local CLI, skill and Managed Browser those steps update.
