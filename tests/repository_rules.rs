@@ -2,8 +2,10 @@
 
 #[path = "repository_rules/links.rs"]
 mod links;
+#[path = "repository_rules/retired.rs"]
+mod retired;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -14,15 +16,20 @@ const LINE_LIMIT: usize = 1000;
 const OVERSIZED_SOURCES: &[(&str, usize)] = &[
     ("tests/search.rs", 3410),
     ("tests/research.rs", 3020),
-    ("src/cli/dispatch.rs", 2105),
-    ("src/ops/smoke.rs", 1755),
-    ("src/evidence/research.rs", 1426),
-    ("src/main.rs", 1336),
-    ("src/capabilities/net.rs", 1321),
-    ("tests/smoke.rs", 1265),
-    ("src/capabilities/catalog.rs", 1223),
-    ("tests/config_commands.rs", 1122),
+    ("src/cli/dispatch.rs", 1898),
+    ("src/ops/smoke.rs", 1745),
+    ("src/evidence/research.rs", 1367),
+    ("src/main.rs", 1230),
+    ("src/capabilities/net.rs", 1312),
+    ("src/capabilities/catalog.rs", 1094),
+    ("tests/config_commands.rs", 1021),
 ];
+
+/// How far a ceiling may sit above its file's length before the allowance becomes a growth
+/// budget.
+const CEILING_SLACK: usize = 50;
+
+const AGENTS_LINE_LIMIT: usize = 100;
 
 /// Roots whose Markdown the document checks scan: the current documents, not working material
 /// or generated files such as `CHANGELOG.md`.
@@ -39,26 +46,199 @@ const SCANNED_ROOTS: &[&str] = &[
 
 #[test]
 fn rust_sources_stay_within_their_line_ceiling() {
-    let mut over = Vec::new();
-    for path in files(&root().join("src"), "rs")
+    let lengths = files(&root().join("src"), "rs")
         .into_iter()
         .chain(files(&root().join("tests"), "rs"))
-    {
-        let file = relative(&path);
-        let ceiling = OVERSIZED_SOURCES
-            .iter()
-            .find_map(|(oversized, ceiling)| (*oversized == file).then_some(*ceiling))
-            .unwrap_or(LINE_LIMIT);
-        let lines = read(&path).lines().count();
-        if lines > ceiling {
-            over.push(format!("{file}: {lines} lines, ceiling {ceiling}"));
-        }
-    }
+        .map(|path| (relative(&path), read(&path).lines().count()))
+        .collect::<BTreeMap<_, _>>();
+    let violations = ceiling_violations(&lengths, OVERSIZED_SOURCES);
 
     assert!(
-        over.is_empty(),
-        "split these files by responsibility, or raise the ceiling in OVERSIZED_SOURCES and say why in the commit: {over:#?}"
+        violations.is_empty(),
+        "split an over-long file by responsibility, or raise its ceiling in OVERSIZED_SOURCES and say why in the commit; \
+         lower a ceiling to the file's length once it shrinks, and remove the entry once the file is within {LINE_LIMIT} lines: {violations:#?}"
     );
+}
+
+#[test]
+fn a_stale_or_loose_line_ceiling_is_reported() {
+    let lengths = BTreeMap::from([
+        ("src/long.rs".to_owned(), 1200),
+        ("src/shrunk.rs".to_owned(), 900),
+    ]);
+    let allowance = [("src/long.rs", 1300), ("src/shrunk.rs", 1100)];
+    assert_eq!(
+        ceiling_violations(&lengths, &allowance),
+        [
+            "src/long.rs: ceiling 1300 is more than 50 above its 1200 lines",
+            "src/shrunk.rs: 900 lines is within the limit, so its entry is stale",
+        ]
+    );
+}
+
+/// Files over their ceiling, and allowance entries that no longer hold a file to its length.
+fn ceiling_violations(
+    lengths: &BTreeMap<String, usize>,
+    allowance: &[(&str, usize)],
+) -> Vec<String> {
+    let mut violations = Vec::new();
+    for (file, &lines) in lengths {
+        let ceiling = allowance
+            .iter()
+            .find_map(|(oversized, ceiling)| (oversized == file).then_some(*ceiling));
+        match ceiling {
+            None if lines > LINE_LIMIT => {
+                violations.push(format!("{file}: {lines} lines, limit {LINE_LIMIT}"));
+            }
+            Some(ceiling) if lines > ceiling => {
+                violations.push(format!("{file}: {lines} lines, ceiling {ceiling}"));
+            }
+            Some(_) if lines <= LINE_LIMIT => violations.push(format!(
+                "{file}: {lines} lines is within the limit, so its entry is stale"
+            )),
+            Some(ceiling) if ceiling - lines > CEILING_SLACK => violations.push(format!(
+                "{file}: ceiling {ceiling} is more than {CEILING_SLACK} above its {lines} lines"
+            )),
+            _ => {}
+        }
+    }
+    for (file, _) in allowance {
+        if !lengths.contains_key(*file) {
+            violations.push(format!("{file}: no such file, so its entry is stale"));
+        }
+    }
+    violations
+}
+
+#[test]
+fn agents_md_stays_short() {
+    let lines = read(&root().join("AGENTS.md")).lines().count();
+    assert!(
+        !over_line_limit(lines),
+        "AGENTS.md has {lines} lines, limit {AGENTS_LINE_LIMIT}: it is loaded in every session, so move detail to the document that owns it"
+    );
+}
+
+#[test]
+fn an_agents_md_over_the_limit_is_reported() {
+    assert_eq!(
+        (
+            over_line_limit(AGENTS_LINE_LIMIT),
+            over_line_limit(AGENTS_LINE_LIMIT + 1)
+        ),
+        (false, true)
+    );
+}
+
+const fn over_line_limit(lines: usize) -> bool {
+    lines > AGENTS_LINE_LIMIT
+}
+
+#[test]
+fn docs_holds_only_the_architecture_document_adrs_and_procedures() {
+    let docs = root().join("docs");
+    let misplaced = misplaced_docs(
+        &all_files(&docs)
+            .iter()
+            .map(|path| relative(path).trim_start_matches("docs/").to_owned())
+            .collect::<Vec<_>>(),
+    );
+
+    assert!(
+        misplaced.is_empty(),
+        "docs/ holds only architecture.md and Markdown under adr/ and agents/; put research, live-test records, \
+         design drafts and captured material in .local/, and their conclusion in an ADR or an issue: {misplaced:#?}"
+    );
+}
+
+#[test]
+fn material_outside_the_docs_layout_is_reported() {
+    let paths = [
+        "architecture.md",
+        "adr/0002-x.md",
+        "agents/release.md",
+        ".DS_Store",
+        "research/notes.md",
+        "adr/capture.json",
+    ]
+    .map(str::to_owned);
+    assert_eq!(
+        misplaced_docs(&paths),
+        ["research/notes.md", "adr/capture.json"]
+    );
+}
+
+/// Paths under `docs/`, relative to it, that the layout does not allow. Dotfiles are ignored.
+fn misplaced_docs(paths: &[String]) -> Vec<String> {
+    paths
+        .iter()
+        .filter(|path| !path.split('/').any(|part| part.starts_with('.')))
+        .filter(|path| {
+            let placed = path.as_str() == "architecture.md"
+                || path.starts_with("adr/")
+                || path.starts_with("agents/");
+            !(placed
+                && Path::new(path)
+                    .extension()
+                    .is_some_and(|extension| extension == "md"))
+        })
+        .cloned()
+        .collect()
+}
+
+#[test]
+fn retired_identifiers_appear_only_where_allowed() {
+    let found = SCANNED_ROOTS
+        .iter()
+        .chain(&["skills", ".github"])
+        .map(|scanned| root().join(scanned))
+        .flat_map(|path| {
+            if path.is_dir() {
+                all_files(&path)
+            } else {
+                vec![path]
+            }
+        })
+        .filter(|path| !retired::allowed(&relative(path)))
+        .filter_map(|path| {
+            let text = fs::read_to_string(&path).ok()?;
+            let mentions = retired::mentions(&text);
+            (!mentions.is_empty()).then(|| format!("{}: {}", relative(&path), mentions.join(", ")))
+        })
+        .collect::<Vec<_>>();
+
+    assert!(
+        found.is_empty(),
+        "these files mention retired identifiers; remove the mention, or, if it is legitimate, add the path to \
+         `retired::ALLOWED` with its reason: {found:#?}"
+    );
+}
+
+#[test]
+fn the_library_exposes_only_its_three_facades() {
+    assert_eq!(
+        public_modules(&read(&root().join("src/lib.rs"))),
+        ["app", "config", "types"],
+        "the library's public surface is the app, config and types facades; keep other modules private to the crate, \
+         and widen the surface only through a spec that decides it"
+    );
+}
+
+#[test]
+fn a_public_module_beyond_the_facades_is_reported() {
+    assert_eq!(
+        public_modules("pub mod app;\nmod chain;\npub mod catalog;\n"),
+        ["app", "catalog"]
+    );
+}
+
+/// The modules `lib_rs` declares `pub`.
+fn public_modules(lib_rs: &str) -> Vec<&str> {
+    lib_rs
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix("pub mod "))
+        .map(|rest| rest.trim_end_matches(';').trim())
+        .collect()
 }
 
 #[test]
@@ -215,6 +395,21 @@ fn relative(path: &Path) -> String {
 
 fn read(path: &Path) -> String {
     fs::read_to_string(path).unwrap_or_else(|error| panic!("read {}: {error}", path.display()))
+}
+
+fn all_files(directory: &Path) -> Vec<PathBuf> {
+    let mut found = Vec::new();
+    let entries = fs::read_dir(directory)
+        .unwrap_or_else(|error| panic!("read {}: {error}", directory.display()));
+    for entry in entries {
+        let path = entry.expect("directory entry").path();
+        if path.is_dir() {
+            found.extend(all_files(&path));
+        } else {
+            found.push(path);
+        }
+    }
+    found
 }
 
 fn files(directory: &Path, extension: &str) -> Vec<PathBuf> {

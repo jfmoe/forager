@@ -46,7 +46,7 @@ Each fact has one owner. When something changes, update the owner and nothing el
 - No document restates the code. A copy goes stale without a test noticing, and the next reader cannot tell which version is current.
 - Documents carry no history: no dated observations, no "previously", no migration notes. History lives in commits, the changelog and closed issues.
 - Working material goes in `.local/`; its conclusion goes into an ADR or an issue. `docs/` holds only `architecture.md`, `adr/` and `agents/`, and a rule test enforces that.
-- When you retire a route, provider or capability, remove its mentions in the same commit and add its identifier to the retired list in the rule tests. A retired approach that a search still finds misleads the next agent.
+- When you retire a route, provider or capability, remove its mentions in the same commit and add its identifier to `RETIRED` in `tests/repository_rules/retired.rs`. A retired approach that a search still finds misleads the next agent.
 - A rule written for agents states its reason, so it can be applied where its wording does not reach. Keep absolute wording ("never", "always") for rules with an incident behind them.
 
 ## Rust conventions
