@@ -1,4 +1,4 @@
-# 3. 配置
+# 配置
 
 权威来源：[#57 Resolution](https://github.com/jfmoe/smartsearch/issues/57) 及其[补充决议](https://github.com/jfmoe/smartsearch/issues/57#issuecomment-5078205945)。
 
@@ -91,7 +91,7 @@ timeout = 30
 
 [providers.youtube_api]      # 需要凭据的平台 route；YouTube Data API v3 key 由用户自备（ADR 0028）
 url = "https://www.googleapis.com/youtube/v3"
-keys = []                    # 为空＝未配置；最多一个 key，多于一个退 3（第 7 章「YouTube」）
+keys = []                    # 为空＝未配置；最多一个 key，多于一个退 3（`platforms.md`「YouTube」）
 timeout = 30
 
 [providers.youtube_web]      # 不需要凭据的平台 route，匿名读取 YouTube 网页与未公开接口；只在 order 中才启用（ADR 0028）
@@ -127,7 +127,7 @@ order = ["ssrn_crossref"]
 [platforms.scholar]
 order = ["serpapi"]          # 默认含 serpapi，但没有 key 时不算已配置
 [platforms.xiaohongshu]
-order = []                   # 默认为空；加入 "xiaohongshu_browser" 才启用（第 7 章「小红书」）
+order = []                   # 默认为空；加入 "xiaohongshu_browser" 才启用（`platforms.md`「小红书」）
 [platforms.x]
 order = ["xai"]              # 复用主搜索的 xAI key；没有 key 时不算已配置，置空＝禁用
 [platforms.hn]
@@ -137,7 +137,7 @@ order = ["youtube_api", "gemini_api"]   # 没有 key 的 route 不算已配置�
 [platforms.polymarket]
 order = ["polymarket_api"]   # 不需要凭据；置空＝禁用
 [platforms.reddit]
-order = []                   # 默认为空；加入 "reddit_browser" 才启用（第 7 章「Reddit」）
+order = []                   # 默认为空；加入 "reddit_browser" 才启用（`platforms.md`「Reddit」）
 
 [log]
 level = "info"               # error|warn|info|debug|trace；见下方运行时语义
@@ -163,17 +163,17 @@ path = ""                    # 空串＝使用 Managed Browser（`forager browse
 
 ### 凭据形状
 
-唯一形状：每个需要凭据的 provider 节一个 `keys` **真数组**（单凭据＝单元素数组）；注册信息声明不需要凭据的 provider（`arxiv_api`、`ssrn_crossref`、`xiaohongshu_browser`、`reddit_browser`、`youtube_web`）的节没有 `keys`：HTTP route 只有 `url` 与 `timeout`，浏览器 route（`xiaohongshu_browser`、`reddit_browser`）只有 `timeout`，写入 `keys` 为未知键（文件层退 3，`config set` 退 2），该 provider 恒为已配置。`*_API_KEY`/`*_API_KEYS` 双形态与「KEYS 覆盖 KEY」优先级消灭。`classifier.keys` 沿用凭据池全套语义（去空去重、轮询、配额/限流失败同请求内换用）。例外：`providers.youtube_api.keys` 最多一个元素（Developer Policies 要求一个客户端只用一个项目、不得规避配额，见第 7 章「YouTube」），多于一个时文件层退 3、`config set` 退 2。
+唯一形状：每个需要凭据的 provider 节一个 `keys` **真数组**（单凭据＝单元素数组）；注册信息声明不需要凭据的 provider（`arxiv_api`、`ssrn_crossref`、`xiaohongshu_browser`、`reddit_browser`、`youtube_web`）的节没有 `keys`：HTTP route 只有 `url` 与 `timeout`，浏览器 route（`xiaohongshu_browser`、`reddit_browser`）只有 `timeout`，写入 `keys` 为未知键（文件层退 3，`config set` 退 2），该 provider 恒为已配置。`*_API_KEY`/`*_API_KEYS` 双形态与「KEYS 覆盖 KEY」优先级消灭。`classifier.keys` 沿用凭据池全套语义（去空去重、轮询、配额/限流失败同请求内换用）。例外：`providers.youtube_api.keys` 最多一个元素（Developer Policies 要求一个客户端只用一个项目、不得规避配额，见 `platforms.md`「YouTube」），多于一个时文件层退 3、`config set` 退 2。
 
 ### 链序权威
 
-`[capabilities.<seam>].order`＝**完全权威**：列表即该 seam 全部可用面与顺序，禁用＝从表删除，无合并规则；未配置凭据者运行时自然跳过。`RESEARCH_PREFERRED/DISABLED_PROVIDERS`、`TAVILY_ENABLED` 消灭。条件变序废除，JS-heavy 场景由薄正文质量门控继任（第 4 章）。变序若回归必须走「具名 request class + `<class>_order` 键」机制（v1 具名类为空；写 `order` 未写变体键→继承）。校验：order 引用不支持该 seam 的 provider＝config_error（支持矩阵＝registry 编译期事实）。
+`[capabilities.<seam>].order`＝**完全权威**：列表即该 seam 全部可用面与顺序，禁用＝从表删除，无合并规则；未配置凭据者运行时自然跳过。`RESEARCH_PREFERRED/DISABLED_PROVIDERS`、`TAVILY_ENABLED` 消灭。条件变序废除，JS-heavy 场景由薄正文质量门控继任（`architecture.md`）。变序若回归必须走「具名 request class + `<class>_order` 键」机制（v1 具名类为空；写 `order` 未写变体键→继承）。校验：order 引用不支持该 seam 的 provider＝config_error（支持矩阵＝registry 编译期事实）。
 
 ### 平台 route 顺序
 
 `[platforms.<id>].order`＝该平台 route 的完全权威顺序（ADR 0019），默认值是 platform catalog 为该平台声明的默认 order（不是 route 集合的并集），需要用户手动启用的 route 是合法取值但不出现在默认值中。校验：拒绝重复项与不属于该平台的 route（config_error 退 3；`config set` 退 2）；允许为空，含义是禁用该平台。某个操作实际使用的 route＝该 order ∩ 该操作的 route 集合 ∩ 已配置的 route，集合为空时平台命令飞行前退 3，消息指出该配置键；order 中有 route 只因缺凭据而未配置时，消息另外点名 `providers.<route>.keys`。env 按既有公式派生，例如 `FORAGER_PLATFORMS__ARXIV__ORDER='["arxiv_api"]'`。
 
-平台 fetch 的正文段不设平台级顺序：它复用 `[capabilities.web_fetch].order` 与各 provider 的凭据（例如 arXiv 全文读取 HTML/PDF 时）。`full_text` 深度下计划需要 Web Fetch（计划中有 route 不自己读取正文，见第 7 章「fetch」）而该链没有已配置的 provider 时，平台 fetch 飞行前退 3；只取元数据与摘要的深度，以及只含原生正文 route 的计划（`xiaohongshu_browser`），不需要 Web Fetch 配置。`providers.arxiv_api.url` 同时决定 HTML 可用性探测所在的主机（默认 export 镜像，与 arxiv.org 返回同一结果）。
+平台 fetch 的正文段不设平台级顺序：它复用 `[capabilities.web_fetch].order` 与各 provider 的凭据（例如 arXiv 全文读取 HTML/PDF 时）。`full_text` 深度下计划需要 Web Fetch（计划中有 route 不自己读取正文，见 `platforms.md`「fetch」）而该链没有已配置的 provider 时，平台 fetch 飞行前退 3；只取元数据与摘要的深度，以及只含原生正文 route 的计划（`xiaohongshu_browser`），不需要 Web Fetch 配置。`providers.arxiv_api.url` 同时决定 HTML 可用性探测所在的主机（默认 export 镜像，与 arxiv.org 返回同一结果）。
 
 ### 值域与交叉约束（进 schema 与验收）
 
@@ -181,7 +181,7 @@ path = ""                    # 空串＝使用 Managed Browser（`forager browse
 
 ### 浏览器
 
-`browser.path` 选择浏览器传输启动的浏览器（第 7 章「浏览器传输」）。默认空串，表示使用 forager 固定版本、校验过哈希的 Managed Browser，它由 `forager browser install` 安装到缓存目录（`$XDG_CACHE_HOME/forager`，否则 `$HOME/.cache/forager`）的 `browser/fingerprint-chromium-<版本>/`；未安装时，需要浏览器的命令在启动浏览器之前以 config_error 退 3 并给出 `forager browser install`，当前主机没有安装包时改为说明这一点并指向 `browser.path`。非空时它是替代 Managed Browser 的本地浏览器可执行文件，此时不检查受管安装；路径规则与 `journal.dir` 相同：前导 `~/` 展开为 `HOME`，相对路径相对 config 目录解析。env 按既有公式派生为 `FORAGER_BROWSER__PATH`。forager 不校验这个可执行文件是不是 fingerprint-chromium：其他基于 Chromium 的浏览器会忽略指纹参数，以自己的真实特征访问站点。
+`browser.path` 选择浏览器传输启动的浏览器（`platforms.md`「浏览器传输」）。默认空串，表示使用 forager 固定版本、校验过哈希的 Managed Browser，它由 `forager browser install` 安装到缓存目录（`$XDG_CACHE_HOME/forager`，否则 `$HOME/.cache/forager`）的 `browser/fingerprint-chromium-<版本>/`；未安装时，需要浏览器的命令在启动浏览器之前以 config_error 退 3 并给出 `forager browser install`，当前主机没有安装包时改为说明这一点并指向 `browser.path`。非空时它是替代 Managed Browser 的本地浏览器可执行文件，此时不检查受管安装；路径规则与 `journal.dir` 相同：前导 `~/` 展开为 `HOME`，相对路径相对 config 目录解析。env 按既有公式派生为 `FORAGER_BROWSER__PATH`。forager 不校验这个可执行文件是不是 fingerprint-chromium：其他基于 Chromium 的浏览器会忽略指纹参数，以自己的真实特征访问站点。
 
 ### `log.level` 运行时语义
 
@@ -224,7 +224,7 @@ path = ""                    # 空串＝使用 Managed Browser（`forager browse
 | `OPENAI_COMPATIBLE_STREAM` | **已删除**（同上） |
 | `SMART_SEARCH_VALIDATION_LEVEL` | **已删除**（Caller Capability Declaration、classifier 与 Citation Binding 分别拥有原混合职责；手动删除旧 `search.validation` 配置） |
 | `SMART_SEARCH_FALLBACK_MODE` | `search.fallback` |
-| `SMART_SEARCH_MINIMUM_PROFILE` | **已删除**（capability 缺口自报继任，见第 1 章修订留痕） |
+| `SMART_SEARCH_MINIMUM_PROFILE` | **已删除**（capability 缺口自报继任） |
 | `SMART_SEARCH_RESEARCH_PREFERRED_PROVIDERS` | **已删除**（`capabilities.*.order` 完全权威） |
 | `SMART_SEARCH_RESEARCH_DISABLED_PROVIDERS` | **已删除**（同上） |
 | `SMART_SEARCH_INTENT_ROUTER` | **已删除**（三层路由砍） |

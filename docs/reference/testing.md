@@ -1,4 +1,4 @@
-# 5. 验收契约与切换步骤
+# 验收契约与切换步骤
 
 权威来源：[#59 Resolution](https://github.com/jfmoe/smartsearch/issues/59)、[补充决议①](https://github.com/jfmoe/smartsearch/issues/59#issuecomment-5081831697)、[补充决议②（Codex 对抗审查 21 条裁定）](https://github.com/jfmoe/smartsearch/issues/59#issuecomment-5081958567)，以及 [smartsearch → forager 迁移 Q1–Q14 最终裁决](https://github.com/jfmoe/forager/issues/108)。迁移裁决 supersede 与其冲突的旧验收文字。
 
@@ -9,7 +9,7 @@
 - **I0-1 终态与退出码**：一次调用恰达一个终态，终态↔退出码一一对应（0/2/3/4/5）；直连空结果＝0，证据管线证据不足＝5；Timeout 属 Transport 族；`--timeout`＝整命令 hard deadline，超时终态保留已完成 attempts（journal 全量 + stdout 摘要）；panic 101 为非契约异常出口。
 - **I0-2 能力路由权威**：`--capabilities` 存在即权威、三态 CSV/none/缺省；裸调用由 classifier 兜底；`web_fetch` 恒为引擎不变量（plan 声明即退 2）。
 - **I0-3 尝试链与预算**：每 seam 按配置 order 走链；凭据池轮询，429/quota 同请求内换凭据（轮换先于重试、429 不重试）；fallback 在共享 deadline 内可达（预算保留 `min(层上限, 剩余预算/剩余槽位)`）。
-- **I0-4 归因确定性**：只按每 provider 最终 attempt 归约，与重试次数/失败顺序无关；进入证据阶段的终局失败 Content 优先退 5；全 provider 无可验证响应才退 4；同质失败透传原 kind；全序表见第 4 章。
+- **I0-4 归因确定性**：只按每 provider 最终 attempt 归约，与重试次数/失败顺序无关；进入证据阶段的终局失败 Content 优先退 5；全 provider 无可验证响应才退 4；同质失败透传原 kind；全序表见 `architecture.md`。
 - **I0-5 结果装配与缺口自报**：`sources` 只表示 Primary Search Source；所有非主结果统一为 `extra_sources` Search Candidate，并以 URL 或 provider-owned typed locator 定位。候选保留 provider-native summary，在被对应读取/取证操作消费前不是 evidence；capability_gaps 自报（结果字段 + stderr），无 minimum profile 门禁。
 - **I0-6 输出通道与载荷边界**：clap 已成功解析且选择 JSON 后，search/fetch/research 的配置与 plan 飞行前失败在 stdout 返回单个干净 JSON；Markdown/content 飞行前错误留在 stderr。research 成功只渲染 Research Evidence Index，正文只存在逐条 evidence Markdown；失败以稳定小载荷和可空 `summary_path` 指向 Research Recovery Manifest，locator 不截断。普通失败以 4 KiB 为目标而非硬拒绝长合法路径。协议成功载荷硬上限 4 MiB；只有 Web Fetch 可将 UTF-8 安全前缀截断为成功，SSE/JSON/MCP 超限整体 Runtime。`--output` tee 时 stdout 不变，`--receipt` 成功时 stdout 只含回执、失败时保留失败载荷，`--verbose` 为 provider attempts 的内联逃生阀。豁免：clap argv 错（退 2）与 panic（101）。
 - **I0-7 旁路隔离与降级**：主终态/退出码/主结果不被旁路失败改变——journal 写失败（非致命告警、journal_ref 置 null + journal_status）、游标文件损坏（安全复位）、classifier 已配置但失败（降级 + 警告 + 落痕；research 用固定最小降级 plan）；`--output` 写失败例外＝显式请求，退 3。
@@ -96,8 +96,7 @@ AnySearch **extraction 裁决**（消解 #53 砍 `anysearch-extract` 与 #59 L8 
 
 - **M17 辅助 seam 预算槽位定义**：槽位＝该层中「尚未尝试、已配置（凭据在位，或凭据可选）」的候选数；classifier model 链及 web_fetch、supplemental、tavily_map 等辅助 provider 链继续按槽位均分，并受各自阶段或单次 timeout 上限约束；`剩余预算/剩余槽位 < 5s` 时跳过该槽（journal 记 skipped），最后一槽可用全部剩余预算。main search 不适用槽位均分：主 backend 的首次尝试可使用全部剩余预算，fallback backend 只消费残余；`--fallback off` 仍只执行链头，classifier 链不受该旗标影响。单 backend 没有 in-seam 超时重试；共享 endpoint、model 或凭据池的 fallback 不提供故障隔离，隔离由配置负责（ADR 0007）。
 - **M18 瘦载荷边界**：普通路径的默认失败载荷以 **4 KiB** 为目标；列表字段（by_kind、providers、capability_gaps.providers_skipped）各截断至 8 项并置 `truncated: true`，message 截断至 500 字符。Research failure 使用稳定 schema，`evidence_dir`/`summary_path` locator 永不截断；极端长合法路径允许超过目标，不在创建 artifact 前预演拒绝。
-- **M19 追踪清单与 registry 一致性**：Tier 0/Tier 1 → 测试 ID → provider/seam 追踪清单入库。PR CI 保留两条直接集合断言：① provider registry 的 `(provider, seam)` 投影（Capability Catalog 的 `(provider, seam)` 加上 platform catalog 的 `(route, platform:<id>:<op>)`，如 `(arxiv_api, platform:arxiv:search)` 与 `(arxiv_api, platform:arxiv:fetch)`）＝ transport fixture 集中这些 seam 的同一投影，且每项 fixture 都有非空测试引用；② `SPECIFICATION_CASE_IDS` 与 `smoke --live` 实际 registry 都精确等于 P1–P2 与本章矩阵中的全部 C 用例（C14–C16 随 AnySearch 退役空号，C02–C03 随 openai-compatible 退役空号，C22–C23 随 SSRN 浏览器 live 用例删除空号，不重排）。另有新平台 checklist 测试按第 7 章接入清单 R1–R8 检查每个平台的登记点，并断言 platform catalog 之外的单 route 平台操作（provider factory 声明的 `(serpapi, platform:scholar:cited_by)`、`(xiaohongshu_browser, platform:xiaohongshu:comments)`、`(xai, platform:x:ask)`、`(hn_api, platform:hn:stories)`、`(youtube_api, platform:youtube:comments)` 与 `(youtube_api, platform:youtube:videos)`）恰好登记了 fixture。`tests/acceptance-manifest.json` 继续作为受版本控制的追踪清单，但不再递归启动 Cargo 来验证每个测试引用是否仍注册且未被忽略；本章用例清单与 `SPECIFICATION_CASE_IDS` 的同步由变更审查负责。L0 为流程门，不入集合。
-- **M20 随迁 manifest**：见第 6 章。
+- **M19 追踪清单与 registry 一致性**：Tier 0/Tier 1 → 测试 ID → provider/seam 追踪清单入库。PR CI 保留两条直接集合断言：① provider registry 的 `(provider, seam)` 投影（Capability Catalog 的 `(provider, seam)` 加上 platform catalog 的 `(route, platform:<id>:<op>)`，如 `(arxiv_api, platform:arxiv:search)` 与 `(arxiv_api, platform:arxiv:fetch)`）＝ transport fixture 集中这些 seam 的同一投影，且每项 fixture 都有非空测试引用；② `SPECIFICATION_CASE_IDS` 与 `smoke --live` 实际 registry 都精确等于 P1–P2 与本章矩阵中的全部 C 用例（C14–C16 随 AnySearch 退役空号，C02–C03 随 openai-compatible 退役空号，C22–C23 随 SSRN 浏览器 live 用例删除空号，不重排）。另有新平台 checklist 测试按 `platforms.md` 接入清单 R1–R8 检查每个平台的登记点，并断言 platform catalog 之外的单 route 平台操作（provider factory 声明的 `(serpapi, platform:scholar:cited_by)`、`(xiaohongshu_browser, platform:xiaohongshu:comments)`、`(xai, platform:x:ask)`、`(hn_api, platform:hn:stories)`、`(youtube_api, platform:youtube:comments)` 与 `(youtube_api, platform:youtube:videos)`）恰好登记了 fixture。`tests/acceptance-manifest.json` 继续作为受版本控制的追踪清单，但不再递归启动 Cargo 来验证每个测试引用是否仍注册且未被忽略；本章用例清单与 `SPECIFICATION_CASE_IDS` 的同步由变更审查负责。L0 为流程门，不入集合。
 - **M21 冻结题集 + rubric**（人工质量抽查，行为丢失报警器，不做旧版对拍）：三题字面冻结——① 「Rust 的 async drop 现状与最新提案是什么？」（docs+web 混合、时效）；② 「对比 figment 与 config-rs 的分层覆盖模型，给出出处」（docs、交叉验证）；③ 「近一个月各大社区关于 Coding Agent 的讨论」（web+x 混合、时效、观点聚合）。rubric 三行，每行 pass/fail：相关性（回答对准问题）；来源去重（无重复/近重复来源）；引用支持结论（每主张可溯源到给出的 citation）。
 
 ## 人工验收清单五项
@@ -108,9 +107,9 @@ AnySearch **extraction 裁决**（消解 #53 砍 `anysearch-extract` 与 #59 L8 
 
 本仓**零代码删除**（整体 archive 冻结）；「Cargo 工作区落地顺序」作废。
 
-1. **开发期**：新仓建仓即随迁 CONTEXT/ADR（修订内容见第 6 章）。
-2. **验收期**：前置——手动迁移本机凭据至 forager config.toml（第 3 章映射表）→ **L0 门**（doctor 8-provider 全绿）→ 自动化四层全绿 → **制品门**（H10）：从正式 GitHub Release 资产干净安装（权限/架构/PATH/`--version`）→ doctor → P1/P2 → 人工清单五项。
-3. **退役链**：以 [#61 原链为唯一权威](https://github.com/jfmoe/smartsearch/issues/61)（本章不复述，见第 6 章）。回退轻量化（H16）：archive 前验证本机旧 `smart-search` 命令已不可达；回退路径一行——archive 可逆、npm 旧版可重装；不做完整 rollback 方案。
+1. **开发期**：新仓建仓即随迁 CONTEXT/ADR。
+2. **验收期**：前置——手动迁移本机凭据至 forager config.toml（`config.md` 映射表）→ **L0 门**（doctor 8-provider 全绿）→ 自动化四层全绿 → **制品门**（H10）：从正式 GitHub Release 资产干净安装（权限/架构/PATH/`--version`）→ doctor → P1/P2 → 人工清单五项。
+3. **退役链**：以 [#61 原链为唯一权威](https://github.com/jfmoe/smartsearch/issues/61)（本章不复述）。回退轻量化（H16）：archive 前验证本机旧 `smart-search` 命令已不可达；回退路径一行——archive 可逆、npm 旧版可重装；不做完整 rollback 方案。
 
 SSRN Crossref 高级检索的搜索专用实测记录见 [2026-09-28 验收](../research/2026-09-28-ssrn-crossref-advanced-search.md)。动态结果数量不作为离线测试断言。
 

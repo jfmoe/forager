@@ -1,6 +1,6 @@
 # 平台原生正文是第三种全文来源
 
-小红书 fetch（`xiaohongshu_browser`，规格第 7 章「小红书」）要交付笔记全文。ADR 0020 把平台 fetch 的全文来源穷举为两种：一组按序读取的 URL，或一个在同一 attempt 内校验过的本地文件，两者都走同一条 Web Fetch 链。本记录增加第三种来源 **Native**，取代 ADR 0020「Consequences」中"route 的全文来源只有 URL 或本地文件、平台 fetch 对两者运行同一条 Web Fetch 链"的穷举表述；ADR 0020 的其余内容不变。
+小红书 fetch（`xiaohongshu_browser`，参考文档 `docs/reference/platforms.md`「小红书」）要交付笔记全文。ADR 0020 把平台 fetch 的全文来源穷举为两种：一组按序读取的 URL，或一个在同一 attempt 内校验过的本地文件，两者都走同一条 Web Fetch 链。本记录增加第三种来源 **Native**，取代 ADR 0020「Consequences」中"route 的全文来源只有 URL 或本地文件、平台 fetch 对两者运行同一条 Web Fetch 链"的穷举表述；ADR 0020 的其余内容不变。
 
 ## 为什么不能交给 Web Fetch
 

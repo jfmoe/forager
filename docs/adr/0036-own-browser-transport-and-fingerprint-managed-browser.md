@@ -4,14 +4,14 @@
 
 ## 决定
 
-- **浏览器传输**：每条浏览器命令启动一个浏览器进程，放入独立进程组，经 `--remote-debugging-pipe` 通信，不开调试端口，不设常驻进程。传输不含站点知识；页面逻辑与判定属于各条 route，全部用 Rust 写。改变页面状态的操作只用 CDP 原生输入；数据只来自被动抓包与只读的页面状态脚本。规则见规格第 7 章「浏览器传输」。
+- **浏览器传输**：每条浏览器命令启动一个浏览器进程，放入独立进程组，经 `--remote-debugging-pipe` 通信，不开调试端口，不设常驻进程。传输不含站点知识；页面逻辑与判定属于各条 route，全部用 Rust 写。改变页面状态的操作只用 CDP 原生输入；数据只来自被动抓包与只读的页面状态脚本。规则见参考文档 `docs/reference/platforms.md`「浏览器传输」。
 - **Managed Browser**：固定 fingerprint-chromium `148.0.7778.215`，从上游 GitHub Release 下载，按 forager 内置的 SHA256 校验，由 `forager browser install` 安装到缓存目录中带版本号的位置。只固定补丁源码已经公开的版本。固定版本只为 macOS arm64 提供安装包。`browser.path` 可以指定替代的本地浏览器，forager 不检查它是不是指纹版。
 - **Browser Profile**：每个平台一个，位于状态目录。指纹种子在创建时随机生成一次，之后不变。`forager browser login <platform>` 打开一个有界面的窗口，由用户自己登录，之后的检索命令都在无头模式下复用这个 profile。
 - **浏览器环境由 route 声明**：注册信息的传输类型为 `Browser`，并携带该 route 的浏览器环境（使用哪个 Browser Profile、语言、是否需要登录）。配置检查、飞行前检查、doctor 与接入清单按这份声明判断，不按 route id 分支。以后的平台只写自己的页面逻辑。
 
 ## 推翻的边界
 
-规格第 7 章原先规定原生输入"不做 stealth 改造、不伪造指纹"；2026-10-18 的 [后台运行调研](../research/2026-10-18-background-browser-automation.md) 规定"不以 stealth 或反复重试作为验收通过方式"。本记录推翻这两条：forager 接受一个由 Managed Browser 按固定种子生成浏览器指纹的运行环境。依据：
+参考文档 `docs/reference/platforms.md`原先规定原生输入"不做 stealth 改造、不伪造指纹"；2026-10-18 的 [后台运行调研](../research/2026-10-18-background-browser-automation.md) 规定"不以 stealth 或反复重试作为验收通过方式"。本记录推翻这两条：forager 接受一个由 Managed Browser 按固定种子生成浏览器指纹的运行环境。依据：
 
 - **OpenCLI 干扰桌面，后台调用时失败。** OpenCLI 在用户的 Chrome 里开一个自动化窗口。这个窗口被其他窗口遮挡时，OpenCLI 2.x 拒绝发送原生输入，search 与 comments 以 Runtime 失败（#248）。agent 在后台调用 forager 时，这个窗口大多处于被遮挡的状态。
 - **OpenCLI 的外部依赖多。** route 需要全局安装 OpenCLI 2.x、手动更新 Browser Bridge 扩展、把 JS adapter 复制到 `~/.opencli/clis/`，还需要 Node。任何一项版本漂移都会让 route 失效（ADR 0035）。

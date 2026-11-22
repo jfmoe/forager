@@ -1,6 +1,6 @@
 # 浏览器 route 的开发与实测
 
-浏览器 route（`xiaohongshu_browser` 与 `reddit_browser`）经 forager 自带的浏览器传输，在平台专用的 Browser Profile 中启动 Managed Browser 并运行 route 自己的页面逻辑。传输与页面逻辑的规则见规格第 7 章「浏览器传输」「小红书」与「Reddit」，模块归属见第 4 章「浏览器传输职责」，决策见 ADR 0036，Reddit 改用浏览器 route 的决策见 ADR 0037。本文只记录本机开发和实测时要遵守的事。
+浏览器 route（`xiaohongshu_browser` 与 `reddit_browser`）经 forager 自带的浏览器传输，在平台专用的 Browser Profile 中启动 Managed Browser 并运行 route 自己的页面逻辑。传输与页面逻辑的规则见 `docs/reference/platforms.md`「浏览器传输」「小红书」与「Reddit」，模块归属见 `docs/reference/architecture.md`「浏览器传输职责」，决策见 ADR 0036，Reddit 改用浏览器 route 的决策见 ADR 0037。本文只记录本机开发和实测时要遵守的事。
 
 ## 哪一层证明什么
 
@@ -63,7 +63,7 @@ Reddit 出现以下任一情况同样立即停止：`auth`（验证页 `Prove yo
 
 - 登录与验证只由用户亲手完成。agent 不代为扫码、输入账号或验证码，也不替用户点击验证页。
 - 登录态只留在 Browser Profile 中。不读取、复制或导出其中的 cookie、token 或任何文件（profile 在 `$XDG_STATE_HOME/forager/browser/<platform>`，未设置时为 `~/.local/state/forager/browser/<platform>`），也不把 profile 拷到别处做实验。
-- 只读页面自己发出的请求。页面逻辑不发起自己的接口请求，不改写 `fetch`、XHR 或 WebSocket，改变页面状态只用原生输入（第 7 章「原生输入」）。
+- 只读页面自己发出的请求。页面逻辑不发起自己的接口请求，不改写 `fetch`、XHR 或 WebSocket，改变页面状态只用原生输入（`docs/reference/platforms.md`「原生输入」）。
 - 风险信号之后不重试，不换 profile、换浏览器或换指纹再试。
 - 提交与实测记录中不出现 Access Token（`xsec_token`）、cookie、账号标识，以及真实用户的笔记或用户 ID；fixture 中的这些值用假值。
 

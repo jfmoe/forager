@@ -10,7 +10,7 @@
 - 匿名的 Managed Browser 打开搜索页，文档状态为 200，但页面是 reCAPTCHA 验证页 “Prove your humanity”（2 次样本）。
 - 用户登录过的 Managed Browser 正常打开了搜索页与帖子页：9 次页面打开，没有验证页，reddit.com 的请求全部是 2xx。
 
-ADR 0033 已经预见机房 IP 更容易被拦截。`reddit_web` 首发时（2026-10-28）在同一个出口 IP 上可用，此后 24 天没有任何一层测试实际运行过它：它不在默认 order 中，而发版收尾的 `smoke --live` 使用维护者的真实配置，它的 live 用例因此每次都记为 `unconfigured`。发版流程带 `--opt-in` 运行 live smoke（规格第 5 章）。
+ADR 0033 已经预见机房 IP 更容易被拦截。`reddit_web` 首发时（2026-10-28）在同一个出口 IP 上可用，此后 24 天没有任何一层测试实际运行过它：它不在默认 order 中，而发版收尾的 `smoke --live` 使用维护者的真实配置，它的 live 用例因此每次都记为 `unconfigured`。发版流程带 `--opt-in` 运行 live smoke（参考文档 `docs/reference/testing.md`）。
 
 官方 public Data API 不再受理新的访问申请，并将按迁移公告的时间表关闭（ADR 0033 的背景）。Reddit User Agreement 与 robots.txt 都不允许自动访问。
 

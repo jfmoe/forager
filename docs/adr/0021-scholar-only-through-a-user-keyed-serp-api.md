@@ -1,6 +1,6 @@
 # 谷歌学术只经第三方 SERP API 接入、key 由用户自备、以免费额度为前提
 
-forager 的第三个平台 `scholar`（Google Scholar）只经第三方 SERP API 接入，首条也是唯一一条 route 是 `serpapi`（SerpApi 的 Google Scholar 引擎）。key 由用户自己注册并配置在 `providers.serpapi.keys`；forager 不附带 key，不代付额度，默认使用场景是 SerpApi 免费计划（2026-10-07 为每账号每月 250 次搜索）。设计与实测证据见 `docs/design/2026-10-07-scholar-serpapi-route.md`，平台契约见规格第 7 章「Google Scholar」。
+forager 的第三个平台 `scholar`（Google Scholar）只经第三方 SERP API 接入，首条也是唯一一条 route 是 `serpapi`（SerpApi 的 Google Scholar 引擎）。key 由用户自己注册并配置在 `providers.serpapi.keys`；forager 不附带 key，不代付额度，默认使用场景是 SerpApi 免费计划（2026-10-07 为每账号每月 250 次搜索）。设计与实测证据见 `docs/design/2026-10-07-scholar-serpapi-route.md`，平台契约见参考文档 `docs/reference/platforms.md`「Google Scholar」。
 
 ## 为什么不直接访问谷歌学术
 
@@ -26,5 +26,5 @@ forager 的第三个平台 `scholar`（Google Scholar）只经第三方 SERP API
 
 - provider 按供应商命名为 `serpapi`，不叫 `scholar_serpapi`：同一账号的额度与吞吐不分引擎，以后接入 SerpApi 的其他引擎可以复用同一 key 池与凭据游标。
 - key 只能放在 URL 查询参数里，因此 route 先去掉 reqwest 错误中的 URL，并在 route 自产消息进入 attempt 前按凭据值脱敏；输出不投影 `search_metadata`、`search_parameters` 与分页链接。
-- 结果质量受第三方解析与谷歌学术自身限制：作者名可能缩写或截断，cluster 身份部分依赖未文档化的 `result_id` 编码，cluster 的第一个版本不一定是正式出版版本。这些限制写在规格第 7 章与 skill 的平台 reference 中。
+- 结果质量受第三方解析与谷歌学术自身限制：作者名可能缩写或截断，cluster 身份部分依赖未文档化的 `result_id` 编码，cluster 的第一个版本不一定是正式出版版本。这些限制写在参考文档 `docs/reference/platforms.md`与 skill 的平台 reference 中。
 - SerpApi 停止服务或条款变化时，Scholar 平台随之不可用；平台不会 fallback 到其他平台。
