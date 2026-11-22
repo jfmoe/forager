@@ -1249,7 +1249,7 @@ forager config unset KEY
 | Command | Behavior |
 | --- | --- |
 | `config path` | Print the active configuration file path without loading or validating its schema. |
-| `config list` | Print the effective JSON view, including each value's source and masked credentials. When parsing fails, report the path, bad key, and location. |
+| `config list` | Print the effective JSON view: each leaf as `{value, source}`, and each credential list as its masked values with `source`, `configured`, and `key_count`. When parsing fails, report the path, bad key, and location. |
 | `config set KEY VALUE` | Set one schema key. Strings, numbers, and booleans are plain text, such as `https://api.exa.ai` or `45`; arrays are TOML literals, such as `'["KEY"]'`. A string wrapped in one pair of matching quotes fails with exit `2` instead of saving the quotes. Argument values may remain in shell history. Invalid paths, types, or enum values fail without writing. |
 | `config set KEY -` | Read the complete value from stdin; use this form for secrets. |
 | `config unset KEY` | Remove only the file-layer value. An environment override can remain effective. |
