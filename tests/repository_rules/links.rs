@@ -4,8 +4,9 @@ use std::path::Path;
 
 /// Relative link targets in `markdown` that `exists` rejects, resolved against `directory`.
 ///
-/// Fenced blocks and inline code are skipped, a `#fragment` is stripped, and external links
-/// (anything with a URL scheme) and pure anchors are not checked.
+/// Inline links, images, and reference definitions are checked. Fenced blocks and inline code
+/// are skipped, a `#fragment` is stripped, and external links (anything with a URL scheme) and
+/// pure anchors are not checked.
 pub fn broken_links(
     markdown: &str,
     directory: &Path,
@@ -77,11 +78,13 @@ fn closing_run(text: &str, run: usize) -> Option<usize> {
     None
 }
 
-/// The destination of every inline link or image, without its optional title.
+/// The destination of every inline link, image, and reference definition, without its optional
+/// title.
 fn link_targets(prose: &str) -> Vec<String> {
-    prose
-        .split("](")
-        .skip(1)
+    let inline = prose.split("](").skip(1);
+    let definitions = prose.lines().filter_map(reference_definition);
+    inline
+        .chain(definitions)
         .filter_map(|rest| {
             let destination = match rest.strip_prefix('<') {
                 Some(bracketed) => bracketed.split('>').next()?,
@@ -90,6 +93,17 @@ fn link_targets(prose: &str) -> Vec<String> {
             Some(destination.to_owned())
         })
         .collect()
+}
+
+/// What follows the label of a reference definition such as `[1]: path "title"`, indented by at
+/// most three spaces.
+fn reference_definition(line: &str) -> Option<&str> {
+    let indent = line.len() - line.trim_start_matches(' ').len();
+    let (label, rest) = line
+        .trim_start_matches(' ')
+        .strip_prefix('[')?
+        .split_once("]:")?;
+    (indent <= 3 && !label.is_empty()).then(|| rest.trim_start())
 }
 
 /// Whether `target` starts with a URL scheme such as `https:` or `mailto:`.
@@ -128,6 +142,12 @@ mod tests {
             broken("[a](a.md), [s](sub), [f](a.md#part), [t](a.md \"title\"), [p](<a.md>)"),
             Vec::<String>::new()
         );
+    }
+
+    #[test]
+    fn checks_reference_definitions() {
+        let markdown = "[x][1] and [y][2]\n\n[1]: missing.md\n   [2]: <a.md> \"title\"\n[3]: https://example.com";
+        assert_eq!(broken(markdown), ["missing.md"]);
     }
 
     #[test]
