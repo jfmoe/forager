@@ -1,9 +1,46 @@
-# Output redaction scope and response byte caps
+# Redact where credentials can reach and cap every response read
 
-**Redaction scope:** redaction guards the surfaces a credential can actually reach: error messages (providers echo bad keys, and reqwest errors embed request URLs), source URLs and titles, journal entries, diagnostics, and config/doctor views. The answer body and fetched page content are exempt: providers cannot know the caller's credentials, so generated or third-party content cannot echo them — a provider that does echo a credential surfaces it through the error path, which stays redacted. Per-delta redaction during SSE accumulation is removed; deltas are appended verbatim. This narrows ADR 0005's "no output or error may contain raw credential characters" to the surfaces listed above, and rescopes acceptance canary H14 accordingly.
+## Decision
 
-**Response byte caps:** every HTTP response read is bounded by hard-coded constants, not config — caps are safety rails against memory exhaustion, not tuning knobs. `MAX_RESPONSE_BYTES` (4 MiB) bounds Web Fetch bodies, Exa JSON, Context7/AnySearch MCP bodies, and xAI/OpenAI-compatible raw SSE byte streams. `MAX_ERROR_BODY_BYTES` (64 KiB) bounds non-2xx bodies, whose only consumer is a 500-character error message. A shared capped reader over `bytes_stream()` replaces bare `response.text()`; SSE streams are capped below the eventsource parser so a single oversized event cannot buffer unbounded. Truncation always lands on a UTF-8 character boundary.
+**Redaction scope.** Credential redaction guards the surfaces a credential can actually reach:
+error messages, source URLs and titles, journal entries, diagnostics, and configuration and
+doctor views. The answer body and fetched page content are exempt, and streamed answer deltas are
+appended verbatim. Where ADR-0005 says no output contains a credential, it means these surfaces.
 
-**Truncation semantics:** only Web Fetch may turn a 4 MiB prefix into success. It returns UTF-8-safe Normalized Fetch Content plus `content truncated at 4 MiB`, and falls through only when the surviving prefix is still thin. Exa JSON, MCP JSON/SSE and main-search SSE are protocol envelopes: reaching the hard limit is Runtime and must not return a partial answer or synthesize success from incomplete framing. Every nonempty malformed SSE JSON frame is likewise Runtime; only OpenAI-compatible clean EOF with an already nonempty answer is a narrow successful terminal, while xAI still requires `response.completed`. Error bodies truncate silently at 64 KiB; only their leading 500 characters surface.
+**Response caps.** Every HTTP response read is bounded by fixed limits in code, not by
+configuration: one for successful bodies and streams, a smaller one for error bodies. Streams are
+capped below the event parser, so a single oversized event cannot buffer without bound, and a cut
+always lands on a character boundary.
 
-**Post-assembly main-search normalization:** appending SSE deltas verbatim does not prohibit deterministic normalization after a complete response. xAI and OpenAI-compatible share one normalizer before a successful attempt is accepted: remove only complete, case-insensitive multiline `<think>...</think>` blocks, then project explicitly bounded textual sources. This is structural cleanup, not credential redaction or general content moderation; an empty normalized answer is Runtime rather than a reason to reveal the removed text.
+**What a cap means.** Only Web Fetch may turn a capped prefix into success, with a truncation
+diagnostic, and it falls through to the next provider only when the surviving prefix is thin.
+Every other body is a protocol envelope (search streams, JSON APIs, MCP responses): reaching the
+limit is a runtime failure, and forager never synthesizes a result from incomplete framing. An
+error body is cut silently, because only its first part reaches the error message.
+
+The limits and their consumers are listed under the net layer in
+`docs/reference/architecture.md`.
+
+## Why
+
+- A provider cannot know the caller's credentials, so generated answers and third-party pages
+  cannot echo them. A provider that does echo a credential back does so in an error, and the error
+  path stays redacted. Redacting every streamed delta guarded a surface no credential reaches.
+- The caps are safety rails against memory exhaustion, not tuning knobs: no user is better placed
+  than the code to choose them, so they are not configurable.
+- A page prefix is still the page's own text and useful evidence. A truncated protocol envelope
+  is not: completing it by guesswork would report a partial answer as a whole one.
+
+## Rejected alternatives
+
+- **Redacting all output, including answers and page bodies.** No credential can appear there, so
+  the work protected nothing.
+- **Configurable caps.** They would invite raising a limit to work around one response, which
+  removes the protection for all of them.
+- **Accepting a capped protocol response as partial success.** The caller could not tell a
+  complete answer from a cut one.
+
+## Revisit when
+
+- A provider is found to reflect request credentials into answer text or page content.
+- Legitimate protocol responses start reaching the success cap.
