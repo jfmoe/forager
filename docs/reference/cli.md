@@ -170,30 +170,24 @@ beside its ordinary-search semantics without conflict.
 
 ### Budgets and evidence accounting
 
-- `--budget` shapes the run instead of setting one global counter. `quick`, `standard` (the
-  default) and `deep` allow at most 2, 4 and 6 subquestions and at most 1, 2 and 3 evidence items
-  per subquestion. The caps are upper bounds, not fill targets: a subquestion with one accepted
-  evidence item is covered.
-- A caller's plan with more subquestions than its budget allows exits 2. A classifier plan is
-  bounded up front by its schema and an instruction to list the most important subquestions
-  first; any excess is truncated with a warning.
-- Each subquestion's discovery limit is three times its evidence cap. It bounds the request to
-  each declared capability and, after merging and deduplication, the subquestion's candidate pool.
-- The run requires 2 evidence items in total when the plan's cross-validation or source-authority
-  need is `high`, and 1 otherwise. When the plan cannot hold that many (subquestions times the
-  evidence cap), the floor is clamped to that capacity and a diagnostic says so.
+- `--budget` bounds the shape of a run. `quick`, `standard` (the default) and `deep` allow at
+  most 2, 4 and 6 subquestions and at most 1, 2 and 3 evidence items per subquestion. The caps
+  are upper bounds, not fill targets: a subquestion with one accepted evidence item is covered.
+- A caller's plan with more subquestions than its budget allows exits 2. A classifier plan over
+  the limit is truncated with a warning.
+- The run fails when it collects fewer evidence items than it requires: 2 when the plan's
+  `cross_validation_need` or `source_authority_need` is `high`, 1 otherwise, and never more than
+  the plan's caps can hold (a diagnostic says when the requirement was lowered to fit). The
+  failure is `evidence`, except that a run with no evidence whose attempts all failed, or that hit
+  a quality failure, takes the terminal kind of its attempts.
 - Known URLs are evidence directives outside the caps. A URL in a subquestion's text belongs to
-  that subquestion; a URL only in the query belongs to the plan as a whole and to no subquestion.
-  Every known URL is attempted and each unique URL is fetched once. A known URL that fails to
-  fetch always records a gap, even when other evidence covers its subquestion.
-- A failed candidate fetch records an attempt only. A gap means a subquestion exhausted its
-  candidates without evidence; its reason counts the candidate URLs attempted, not provider
-  attempts. `gap_check.status` is `closed` only when there is no gap and no capability gap;
-  otherwise it is `degraded`.
-- Documentation Search content that a provider reads itself, such as a Context7 query-docs body,
-  counts as evidence through the seam contract, never through a provider-specific branch. It
-  passes the same thin-content gate as a fetched page and does not go through Web Fetch.
-- The engine runs once. It does not refetch or re-plan; that loop belongs to the caller.
+  that subquestion; a URL only in the query belongs to the plan as a whole. Every known URL is
+  attempted, and one that fails to fetch always records a gap, even when other evidence covers its
+  subquestion.
+- A gap means a subquestion ran out of candidates without evidence; a failed fetch of one
+  candidate is only an attempt. `gap_check.status` is `closed` when there is no gap and no
+  capability gap, and `degraded` otherwise.
+- The engine runs once: it never refetches or re-plans. That loop belongs to the caller.
 
 ### Research Evidence Index
 

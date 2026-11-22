@@ -21,8 +21,7 @@ forager runs independent provider work concurrently and keeps dependent steps in
   candidates and capability gaps already gathered are delivered instead of discarded.
 - Credential claims are serialized within the process and run off the async executor.
 
-The mechanics are under "Search concurrency" in `docs/reference/architecture.md`, and the failure
-payload is in `docs/reference/cli.md`.
+The failure payload is in `docs/reference/cli.md`.
 
 ## Why
 
@@ -63,6 +62,6 @@ payload is in `docs/reference/cli.md`.
 
 ## Supersedes
 
-- ADR-0008, intra-stage search concurrency. ADR-0016 had already replaced its sequential boundary
-  between main search and supplemental capabilities; its remaining rules (per-point limits, the
-  shared deadline, deterministic merge, claim serialization) are one concurrency decision with it.
+- ADR-0008, intra-stage search concurrency. It ran supplemental capabilities only after main
+  search, a boundary this decision replaces; its other rules (per-point limits, the shared
+  deadline, deterministic merge, claim serialization) are part of the same concurrency decision.
