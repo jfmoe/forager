@@ -1,7 +1,7 @@
 //! Consistency checks for every registration point a platform needs.
 //!
 //! The type system cannot see a platform that misses a registration point, so this test walks
-//! the integration checklist in `docs/spec/forager/07-platforms.md`. Each violation names the
+//! the integration checklist in `docs/reference/platforms.md`. Each violation names the
 //! checklist item (R1–R8) that the platform misses.
 
 use std::collections::BTreeSet;
@@ -21,7 +21,7 @@ use crate::types::{
     PlatformSearchOptions, PlatformSearchRequest, STORIES, TRANSCRIBE, VIDEOS,
 };
 
-const CHECKLIST: &str = "docs/spec/forager/07-platforms.md";
+const CHECKLIST: &str = "docs/reference/platforms.md";
 
 /// Refs of every kind of each platform; the exhaustive match makes a new platform add samples.
 fn sample_refs(platform: Platform) -> &'static [&'static str] {

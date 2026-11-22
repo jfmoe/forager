@@ -22,7 +22,7 @@ const OVERSIZED_SOURCES: &[(&str, usize)] = &[
 
 #[test]
 fn every_module_is_named_in_the_architecture_spec() {
-    let spec = read(&root().join("docs/spec/forager/04-architecture.md"));
+    let spec = read(&root().join("docs/reference/architecture.md"));
     let normalized_spec = normalize(&spec);
     let mut unnamed = Vec::new();
     for path in files(&root().join("src"), "rs") {
@@ -36,7 +36,7 @@ fn every_module_is_named_in_the_architecture_spec() {
 
     assert!(
         unnamed.is_empty(),
-        "docs/spec/forager/04-architecture.md does not name these files; record what each owns: {unnamed:#?}"
+        "docs/reference/architecture.md does not name these files; record what each owns: {unnamed:#?}"
     );
 }
 

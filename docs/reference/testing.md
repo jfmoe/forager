@@ -112,7 +112,7 @@ AnySearch **extraction 裁决**（消解 #53 砍 `anysearch-extract` 与 #59 L8 
 2. **验收期**：前置——手动迁移本机凭据至 forager config.toml（第 3 章映射表）→ **L0 门**（doctor 8-provider 全绿）→ 自动化四层全绿 → **制品门**（H10）：从正式 GitHub Release 资产干净安装（权限/架构/PATH/`--version`）→ doctor → P1/P2 → 人工清单五项。
 3. **退役链**：以 [#61 原链为唯一权威](https://github.com/jfmoe/smartsearch/issues/61)（本章不复述，见第 6 章）。回退轻量化（H16）：archive 前验证本机旧 `smart-search` 命令已不可达；回退路径一行——archive 可逆、npm 旧版可重装；不做完整 rollback 方案。
 
-SSRN Crossref 高级检索的搜索专用实测记录见 [2026-09-28 验收](../../research/2026-09-28-ssrn-crossref-advanced-search.md)。动态结果数量不作为离线测试断言。
+SSRN Crossref 高级检索的搜索专用实测记录见 [2026-09-28 验收](../research/2026-09-28-ssrn-crossref-advanced-search.md)。动态结果数量不作为离线测试断言。
 
 小红书 search 的 transport fixture 为 `(xiaohongshu_browser, platform:xiaohongshu:search)`：判定是纯函数，单元测试（`providers/xiaohongshu_browser_search_tests.rs`）以按实测结构构造的观察结果覆盖页面事实分类（两种结果页布局）、条件与页序核对、按点击标记归属搜索响应、去重截断、合法空集与"未列全"诊断、未登录、461/471 与频次提示要求 `forager browser login xiaohongshu`，期望值为字面量；进程级测试（`tests/xiaohongshu_search.rs`）以替身浏览器覆盖飞行前检查、启用说明与无头启动。页面逻辑的搜索框输入、筛选点击、翻页与抓包完成条件不由 fixture 证明，由 C27 证明。
 

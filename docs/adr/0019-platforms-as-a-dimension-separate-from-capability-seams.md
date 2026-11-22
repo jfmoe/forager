@@ -8,7 +8,7 @@ Vertical Search is a fallback chain in which the first accepted result ends the 
 
 ## Only built-in Platforms
 
-forager supports only Platforms and routes that ship with a release. Configuration cannot define a Platform or a generic MCP or CLI route. Each Platform and route is registered once in the catalog, and configuration defaults, validation, construction, doctor probes, smoke cases, and a consistency test all derive from that registration. User-defined routes would bypass these registration points and the typed options, so a new Platform or route is a code change that follows `docs/spec/forager/07-platforms.md`.
+forager supports only Platforms and routes that ship with a release. Configuration cannot define a Platform or a generic MCP or CLI route. Each Platform and route is registered once in the catalog, and configuration defaults, validation, construction, doctor probes, smoke cases, and a consistency test all derive from that registration. User-defined routes would bypass these registration points and the typed options, so a new Platform or route is a code change that follows `docs/reference/platforms.md`.
 
 ## Consequences
 

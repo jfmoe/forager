@@ -1,7 +1,7 @@
 //! Shared platform shapes: identities, references, search options, items, and result pages.
 //!
 //! Each platform's own shapes live in its own module and join the shared enums here as one
-//! variant; see `docs/spec/forager/07-platforms.md`.
+//! variant; see `docs/reference/platforms.md`.
 
 use std::borrow::Cow;
 use std::fmt;
