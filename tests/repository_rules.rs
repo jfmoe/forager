@@ -1,5 +1,8 @@
 //! Repository rules from `AGENTS.md` that a reviewer would otherwise check by hand.
 
+#[path = "repository_rules/links.rs"]
+mod links;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -62,6 +65,52 @@ fn rust_sources_stay_within_their_line_ceiling() {
         over.is_empty(),
         "split these files by responsibility, or raise the ceiling in OVERSIZED_SOURCES and say why in the commit: {over:#?}"
     );
+}
+
+/// Roots whose Markdown the document checks scan: the current documents, not working material
+/// or generated files such as `CHANGELOG.md`.
+const SCANNED_ROOTS: &[&str] = &[
+    "src",
+    "tests",
+    "AGENTS.md",
+    "GLOSSARY.md",
+    "README.md",
+    "docs/reference",
+    "docs/adr",
+    "docs/agents",
+];
+
+#[test]
+fn every_relative_link_in_the_scanned_documents_resolves() {
+    let broken = scanned_markdown()
+        .into_iter()
+        .flat_map(|path| {
+            let directory = path.parent().expect("document directory").to_owned();
+            links::broken_links(&read(&path), &directory, Path::exists)
+                .into_iter()
+                .map(move |target| format!("{} -> {target}", relative(&path)))
+                .collect::<Vec<_>>()
+        })
+        .collect::<Vec<_>>();
+
+    assert!(
+        broken.is_empty(),
+        "these relative links point nowhere; fix the path, or drop the link if its target was removed on purpose: {broken:#?}"
+    );
+}
+
+fn scanned_markdown() -> Vec<PathBuf> {
+    SCANNED_ROOTS
+        .iter()
+        .map(|scanned| root().join(scanned))
+        .flat_map(|path| {
+            if path.is_dir() {
+                files(&path, "md")
+            } else {
+                vec![path]
+            }
+        })
+        .collect()
 }
 
 fn root() -> PathBuf {
