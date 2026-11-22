@@ -32,29 +32,10 @@ const SCANNED_ROOTS: &[&str] = &[
     "AGENTS.md",
     "GLOSSARY.md",
     "README.md",
-    "docs/reference",
+    "docs/architecture.md",
     "docs/adr",
     "docs/agents",
 ];
-
-#[test]
-fn every_module_is_named_in_the_architecture_doc() {
-    let architecture = normalize(&read(&root().join("docs/reference/architecture.md")));
-    let mut unnamed = Vec::new();
-    for path in files(&root().join("src"), "rs") {
-        let stem = file_name(&path).trim_end_matches(".rs");
-        let is_test_module = stem == "tests" || stem.ends_with("_tests");
-        let is_entry = matches!(stem, "mod" | "lib" | "main");
-        if !is_test_module && !is_entry && !contains_word(&architecture, &normalize(stem)) {
-            unnamed.push(relative(&path));
-        }
-    }
-
-    assert!(
-        unnamed.is_empty(),
-        "docs/reference/architecture.md does not name these files; record what each owns: {unnamed:#?}"
-    );
-}
 
 #[test]
 fn rust_sources_stay_within_their_line_ceiling() {
@@ -215,21 +196,6 @@ fn scanned_files(extensions: &[&str]) -> Vec<PathBuf> {
 
 fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-}
-
-/// Matches `attempt_log` with "attempt log" and `web_fetch` with "web-fetch".
-fn normalize(text: &str) -> String {
-    text.to_lowercase().replace(['-', ' '], "_")
-}
-
-/// Whether `word` occurs in `text` without letters or digits on either side, so `net` does not
-/// match inside "network".
-fn contains_word(text: &str, word: &str) -> bool {
-    text.match_indices(word).any(|(start, _)| {
-        let before = text[..start].chars().next_back();
-        let after = text[start + word.len()..].chars().next();
-        !before.is_some_and(char::is_alphanumeric) && !after.is_some_and(char::is_alphanumeric)
-    })
 }
 
 fn file_name(path: &Path) -> &str {

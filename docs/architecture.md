@@ -104,4 +104,4 @@ Invariants that hold for every command:
 | Offline end to end | The real binary against local fixtures: routing, attribution, fallback, exit codes, configuration, journal side effects |
 | Live smoke | Real sites and keys, run before a release; the only layer that proves browser Page Logic |
 
-The test suite does not build a matrix of every provider against every status code. Ordinary tests never reach the network: each test configuration points every route it reaches at a local fixture.
+The test suite does not build a matrix of every provider against every status code. A test that spawns the binary goes through the shared test environment, which sends its HTTP through a proxy on a closed port, so a route its configuration missed fails instead of reaching a site. In-process tests rely on their own configuration pointing every route they reach at a local fixture.
