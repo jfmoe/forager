@@ -1,15 +1,57 @@
-# Deliver research evidence by reference and search candidates with provider summaries
+# Shape each command's output for the next decision
 
-Forager will make the default CLI result contain what an agent needs for its next decision, while moving already-persisted or diagnostic material behind file references. Research becomes a file-backed evidence delivery command rather than a pseudo-answer command; search keeps the provider-supplied summaries that let an agent choose which candidates deserve a fetch. This is command-specific output modeling, not the generic stdout truncation or two-stage retrieval mechanism rejected by ADR 0010.
+## Decision
 
-## Consequences
+forager has no generic context budget for successful output: no character, byte or token budget
+option, no default context limit, no automatic stdout truncation that spills the full content to a
+file, and no summary-then-full two-stage retrieval. The full rendered result goes to stdout, and
+`--output` tees it. Callers and the skill manage long output.
 
-- Research JSON is a **Research Evidence Index**. Each evidence item keeps its identity, source metadata, subquestion association, content length, verification state, and evidence-file path, but not its fetched body. The result points to the persisted plan and unconsumed-candidate files; the latter is represented on stdout by count and path. Full plan, candidate, run, and provider-attempt details remain in the evidence directory or Search Result Journal.
-- `summary.json` is a body-free **Research Recovery Manifest**, not a Research Evidence Index. It records the terminal, query, budget, plan source, capabilities, fallback, evidence identity/metadata/path, coverage and gaps, capability gaps, provider attempts, artifact locators, and synthesis policy. Success writes the manifest as a required postflight artifact. Evidence failures preserve their original attribution if manifest persistence fails; an otherwise successful run becomes Runtime when the required manifest cannot be written.
-- Default non-verbose research failures use one stable envelope containing the bounded terminal message, complete `evidence_dir`, readable-or-null `summary_path`, compact gap status and stop reason, synthesis policy, and journal status. The schema does not change with metadata size. Locators are never truncated: ordinary paths target at most 4 KiB, while an extreme valid path may exceed that target. Verbose mode only adds the complete provider-attempt list.
-- Research no longer emits `final_answer`, its duplicate `content`, the derived `citations` array, or an inline `research_plan`. Markdown and content formats render the same evidence index and unresolved gaps instead of presenting the engine's mechanical excerpt list as an answer. The skill-layer consumer synthesizes the answer and cites evidence as `[eN](URL)` under the existing `fetch_before_claim` policy.
-- Search `sources` contains only **Primary Search Sources**. `extra_sources` contains every non-primary **Search Candidate**, including Supplemental Web Search, Documentation Search, Vertical Discovery, and search-side Web Fetch results. Supplemental items are no longer cloned into `sources`, and the separate `vertical_results` projection is removed.
-- Each non-primary candidate restores the discovery provider identity and exposes its provider-returned summary through a dedicated `summary` field. Provider-native descriptions, snippets, contents, or highlights that already serve as discovery summaries are preserved without a universal second truncation. Full document bodies and unbounded detail fields are not relabelled as summaries. The legacy search-side Web Fetch branch again produces the fetched-content preview that smartsearch placed in supplemental candidates; its historical 300-character excerpt rule is scoped to that branch only and is not applied to provider-returned summaries. `validation_results` is removed.
-- Source titles become optional in JSON: a missing provider title is omitted rather than serialized as an empty string or fabricated. Human-readable Markdown falls back to the URL as its link label.
-- Default search stdout retains the answer, primary sources, unified non-primary candidates, capability gaps, and journal reference. Invocation echoes and diagnostics such as query, model, selected provider, and capability list live in the journal. Verbose mode remains the explicit inline provider-attempt surface.
-- These JSON removals and semantic changes are released as a breaking pre-1.0 contract change. The implementation updates the changelog and raises the bundled skill's minimum CLI version in the same release; it does not keep duplicate compatibility aliases.
+Instead, each command's default output is modelled for what its caller decides next, and material
+that is already persisted or only diagnostic is delivered by reference:
+
+- **research** is a file-backed evidence delivery command. Its default result is a Research
+  Evidence Index: identity, metadata and a readable path for each evidence item, with no bodies.
+  The plan, the unconsumed candidates and a body-free Research Recovery Manifest are files the
+  result points to. research emits no answer of its own; its consumer synthesizes one and cites
+  the evidence (ADR-0014).
+- **search** keeps the answer and its primary sources apart from every other candidate, and each
+  candidate carries the summary its provider returned, so an agent can choose which candidates are
+  worth a fetch. Echoes of the invocation and diagnostics live in the journal; `--verbose` is the
+  explicit way to see provider attempts inline.
+
+The byte caps of ADR-0006 are memory safety rails, not a context budget, and the deadline limits
+time, not size. Field names and shapes are in `docs/reference/cli.md` and the product skill's CLI
+reference.
+
+## Why
+
+- A generic budget cannot know which part of a result matters: cutting a search answer, an
+  evidence index or a page body at the same size loses different and unpredictable things, and
+  the caller then pays a second call to get back what was cut.
+- What a caller needs next differs by command. A research consumer needs to know which evidence
+  exists and where, not to receive every body at once; a search consumer needs enough of each
+  candidate to choose which to fetch. Modelling each command keeps both small without hiding
+  anything the next step needs.
+- Bodies already written to disk or recorded in the journal would only be duplicated on stdout.
+- research used to return an answer-shaped excerpt list. It looked like a synthesized answer but
+  was not one, which invited citing it.
+
+## Rejected alternatives
+
+- **A budget option or default limit with spillover to a file.** Every caller would have to learn
+  a two-stage protocol to recover content that a command-specific shape never cuts.
+- **Inlining evidence bodies in the research result.** It multiplies the payload by the evidence
+  count for content the consumer reads selectively.
+- **Truncating provider summaries to one uniform length.** Provider-native summaries already serve
+  as discovery snippets; a second cut removes the signal used to choose a fetch.
+
+## Revisit when
+
+- Callers routinely receive successful outputs too large to consume even after the per-command
+  shaping, in a way the skill cannot handle by persisting with `--output` and reading fragments.
+
+## Supersedes
+
+- ADR-0010, which kept stdout without a separate agent context budget. Its decision is the first
+  half of this one; it is merged because command-specific shaping is what replaced the budget.
