@@ -18,7 +18,7 @@ Routine `search` and `research` stay on their branch references. Treat
 ## Shared behavior
 
 The public top-level commands are `search`, `research`, `fetch`, `map`, `exa`, `context7`,
-`platform`, `config`, `setup`, `doctor`, and `smoke`. Use `-h` or
+`platform`, `browser`, `config`, `setup`, `doctor`, and `smoke`. Use `-h` or
 `--help` on any command for parser-generated help. Available aliases are:
 
 | Command | Alias |
@@ -84,7 +84,12 @@ HTTP(S) URL can enter Web Fetch; a Context7 candidate carries a typed library lo
 URL. Search-side Web Fetch successes use the actual fetch provider and a 300-character Normalized
 Fetch Content preview as their candidate summary. `--verbose` adds provider attempts inline.
 Content format emits only the main answer. Markdown labels the two source roles as `Primary
-Sources` and `Extra Sources`.
+Sources` and `Extra Sources`. The `--extra-sources` target never selects a capability: with
+`--capabilities none` no supplemental search runs. A Context7 candidate's `provider_data` holds
+`library_id`, `total_snippets`, `trust_score`, `benchmark_score`, `stars`, and `versions`; an Exa
+Documentation Search candidate has a real URL and `provider_data` with `id`, `highlights`,
+`published_date`, `author`, `image`, and `favicon`, without the page text. A field the provider
+does not report is left out.
 
 Main search runs the backends of `search.backends` in order: `xai` (the xAI Responses API) and
 `openai` (an OpenAI Responses endpoint with its `web_search` tool, such as a CLIProxyAPI gateway in
@@ -179,6 +184,9 @@ forager map URL [--instructions TEXT] [--max-depth N] [--max-breadth N]
 | `--output FILE` | Tee the rendered result to a file. | Omitted |
 | `--receipt` | Print only a receipt on success; requires `--output`. | Off |
 | `--verbose` | Include full provider attempts inline. | Off |
+
+`--timeout` is both the command deadline and the timeout sent to Tavily; each request still waits
+at most the smaller of the remaining deadline and `providers.tavily.timeout`.
 
 ## Provider-direct commands
 
@@ -302,7 +310,17 @@ forager platform arxiv search [QUERY] [--category CODE]... [--author NAME] [--ti
 Give a query or at least one of `--category`, `--author`, `--title`. JSON output is
 `{platform, provider, items, next_cursor}`; each item has `ref`, `url`, `depth: "abstract"`,
 `title`, `authors`, `published`, the full `abstract`, and arXiv metadata. `next_cursor` is `null`
-on the last page; a valid empty search returns `items: []` with exit 0.
+on the last page; a valid empty search returns `items: []` with exit 0. The arXiv metadata is
+`updated`, `primary_category`, `categories`, `doi`, `journal_ref`, `comment`, and `pdf_url`, each
+`null` when arXiv has none; `ref` carries the version, such as `arxiv:2401.01234v2`, and `title`
+has its whitespace folded.
+
+Exit codes: `2` before any request for an invalid cursor or option, a reversed date range, no query
+and no filter, or an option no configured route supports; `3` for an empty `platforms.arxiv.order`
+or one that lists another platform's route; `4` for `parameter` (arXiv answered with an error
+entry, whose message is passed on), `timeout` (including too little time left to wait for the
+request window), and `runtime` when the request window's shared state is unusable, before any
+request.
 
 ### `platform arxiv fetch`
 
@@ -324,7 +342,10 @@ HTML read fails, through the configured `web_fetch` chain. JSON output carries t
 `content_url`, `content_provider`, `content_path`, and `content_len`; the body itself stays in the
 file. Short links and unrecognized inputs exit `2` before any request; a missing paper is a
 `parameter` failure (exit `4`); both HTML and PDF too thin is a `quality` failure (exit `5`);
-`full_text` with no configured Web Fetch provider exits `3`.
+`full_text` with no configured Web Fetch provider exits `3`. `export.arxiv.org` URLs are accepted
+too. The file is named after the versioned ref, such as `arxiv-hep-th-9901001v3.md`. A failed
+metadata read reads no body; arXiv's HTTP 429 is `rate_limited` (exit `4`); a file that cannot be
+written is a `runtime` failure (exit `4`), never an inline fallback.
 
 ### `platform ssrn search`
 
@@ -362,7 +383,14 @@ with exit 0.
 
 Affiliation, ORCID, and funder searches depend on deposited metadata. Crossref publication,
 registration, and update dates are distinct from SSRN's own posting and revision dates. Cursors
-restore all criteria.
+restore all criteria. `published` keeps the precision Crossref reports: `2012`, `2012-04`, or
+`2012-04-19`.
+
+Exit codes: `2` before any request for a blank query, an invalid calendar date or a range that ends
+before it starts, an invalid cursor or one past Crossref's paging limit, or a cursor combined with
+a query, criterion, or `--limit` (even one passed with its default value); `3` for an empty
+`platforms.ssrn.order`; `4` for `rate_limited` (Crossref answered 429) and the other transport
+failures.
 
 ### `platform ssrn fetch`
 
@@ -381,7 +409,8 @@ forager platform ssrn fetch REF_OR_URL [--depth metadata|abstract]
 SSRN download links, look-alike hosts, short links, and `--depth full_text` exit `2` before any
 request. A DOI that Crossref does not know is a `parameter` failure (exit `4`) whose message says
 the paper was not found in Crossref; `--depth abstract` without an abstract is a `quality` failure
-(exit `5`).
+(exit `5`). Hosts match in any letter case, and other query parameters and fragments of an
+abstract-page URL are ignored. An empty `platforms.ssrn.order` exits `3`.
 
 ### `platform scholar search`
 
@@ -427,7 +456,8 @@ most Google Scholar serves.
 Exit codes: `2` before any request for a blank query, `--limit` outside `1..=20`, a year out of
 range or `--year-from` after `--year-to`, a cursor combined with a query, option, or `--limit`, a
 tampered cursor, or a cursor whose route left the order or lost its keys; `3` for no key or an
-empty `platforms.scholar.order`; `4` for `auth` (SerpApi rejected the key), `quota_exhausted`
+empty `platforms.scholar.order`; `4` for `auth` (SerpApi rejected the key; the request is sent once and not retried with another
+key), `quota_exhausted`
 (every key has used its monthly searches), `rate_limited` (the hourly limit), `network`, `timeout`,
 and `runtime` failures.
 
@@ -527,7 +557,8 @@ JSON output is `{platform, provider, items, next_cursor}`. Each item has:
 
 `next_cursor` is always `null`: Xiaohongshu ranks differently on every visit, so a search cannot
 continue in a later command. When more results remain, stderr says so; raise `--limit` instead.
-Notes without a valid ID or access token are skipped and reported on stderr. A valid empty search
+Notes without a valid ID or access token are skipped and reported on stderr. A page that
+listed notes but kept none of them is a `runtime` failure. A valid empty search
 returns `items: []` with exit 0.
 
 Exit codes: `2` before any request for a blank query or `--limit` outside `1..=100`; `3` before
@@ -584,7 +615,8 @@ Exit codes: `2` before any request for a missing or malformed token, a short lin
 search, `parameter` for a note Xiaohongshu would not open
 (`300031` or `300017`: the token may be stale, the note restricted or removed, or the account
 rate-limited), and `runtime` (the page showed another note or an unexpected page, or the file
-could not be written); `5` for `quality` (the note has no title, text, or images).
+could not be written); `5` for `quality` (the note has no title, text, or images). The access token never appears in
+attempt messages, in `--verbose` attempts, or on stderr.
 
 ### `platform xiaohongshu comments`
 
@@ -639,7 +671,7 @@ forager platform x search QUERY [--handle HANDLE]... [--exclude-handle HANDLE]..
 | Argument or option | Meaning | Default |
 | --- | --- | --- |
 | `QUERY` | What to find on X, in natural language or X search syntax; the model chooses how to search. | Required |
-| `--handle HANDLE` | Only posts by this account, with or without `@`; repeat for up to 20. | None |
+| `--handle HANDLE` | Only posts by this account, with or without `@`; repeat for up to 20. A handle is 1 to 15 letters, digits, or `_`; repeats are dropped in any letter case. | None |
 | `--exclude-handle HANDLE` | No posts by this account; repeat for up to 20. Cannot be combined with `--handle`. | None |
 | `--from` / `--to` | Inclusive range of UTC publication days. | None |
 | `--limit N` | Maximum posts, `1..=20`. | `10` |
@@ -663,6 +695,8 @@ Exit codes: `2` before any request for a blank query, `--handle` with `--exclude
 `3` for no `providers.xai.keys` or an empty `platforms.x.order`; `4` for xAI failures as in main
 search (`auth`, `rate_limited` and `quota_exhausted` after every key, `parameter`, `network`,
 `timeout`) and `runtime` when the posts are not the requested JSON or none could be verified.
+`5` (`quality`) when xAI stops the answer at a content filter or the output limit; this holds for
+fetch and ask too.
 
 ### `platform x fetch`
 
@@ -697,17 +731,20 @@ forager platform x ask QUERY [--handle HANDLE]... [--exclude-handle HANDLE]...
                              [--format json|markdown] [--output FILE [--receipt]] [--verbose]
 ```
 
-`QUERY` is the question; the filters are the same as under search. The model searches X only
+`QUERY` is the question; the filters are the same as under search. The question is sent
+with this machine's current time in front of it. The model searches X only
 and writes an answer with inline citations such as `[[1]](https://x.com/SpaceX/status/<id>)`; the
 whole answer is relayed content.
 
 JSON output is `{platform, provider, query, answer, sources}`. Each source is `{ref, url, title}`:
 a cited post has its `x:<post_id>` ref and canonical URL, which `platform x fetch` accepts; a
 profile or other page has `ref: null` and its own URL. `sources` may be empty; treat an answer
-without sources as unverified. Ask writes no result journal.
+without sources as unverified. The answer passes the same normalization as main search, and
+sources are deduplicated by URL. Ask writes no result journal.
 
 Exit codes: `2` before any request for a blank question or invalid filters as under search; `3`
-as under search; `4` for the xAI failures under search.
+as under search; `4` for the xAI failures under search. An answer that is empty after
+normalization is a `runtime` failure (exit `4`).
 
 ### `platform hn search`
 
@@ -886,7 +923,8 @@ and its risk); `3` as under search; `4` for `parameter` (`YouTube video not foun
 through `youtube_api`, `not found or not playable` through `youtube_web`), `auth` (YouTube asks
 to sign in or to confirm the caller is not a bot: the egress IP is temporarily restricted),
 `rate_limited`, `runtime` (an empty caption track, which may mean a soft IP block; a player answer
-for another video; a caption track outside the configured origin), and the failures under search;
+for another video; a caption track outside the configured origin; a caption track that needs a
+PO Token), and the failures under search;
 `5` (`quality`) for `abstract` of a video without a description, a `full_text` with no qualifying
 caption track (the message lists the available languages and points to `transcribe`; fetch never
 falls back to it), or a live stream.
@@ -1011,7 +1049,8 @@ that of a `full_text` fetch, with `provider` and `content_provider` `gemini_api`
 `transcript.source` `model`, and `model` and `usage` as under ask.
 
 Exit codes: as under ask; `5` (`quality`) also for a transcript cut off at the output limit or
-one that is not the requested JSON (no file is written); `4` (`runtime`) when the file cannot be
+one that is not the requested JSON, has no language, has a segment with an invalid time, or has
+no segment (no file is written); `4` (`runtime`) when the file cannot be
 written.
 
 ### `platform polymarket search`
@@ -1261,7 +1300,7 @@ forager doctor [--provider PROVIDER] [--timeout SECONDS] [--format json|markdown
 
 | Option | Meaning | Default |
 | --- | --- | --- |
-| `--provider PROVIDER` | Deep-probe one of `xai`, `openai`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, `arxiv_api`, `ssrn_crossref`, `serpapi`, `xiaohongshu_browser`, `reddit_browser`, or `hn_api`. Without it, run the shallow all-provider report. | Omitted |
+| `--provider PROVIDER` | Deep-probe one of `xai`, `openai`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, `arxiv_api`, `ssrn_crossref`, `serpapi`, `xiaohongshu_browser`, `reddit_browser`, `hn_api`, `polymarket_api`, `youtube_api`, `youtube_web`, or `gemini_api`. Without it, run the shallow all-provider report. | Omitted |
 | `--timeout SECONDS` | Set the diagnostic deadline. | `30` |
 | `--format FORMAT` | Use `json` or `markdown`. | `json` |
 
@@ -1284,7 +1323,10 @@ with `key_index`, `ok`, `searches_left`, `plan_searches_left`, `this_month_usage
 `this_hour_searches`, and `hourly_limit`, plus `error_kind` for a failing key (`auth`,
 `quota_exhausted` with no searches left, `rate_limited` at the hourly limit). Any failing key fails
 the probe with exit 4, and `message` names it as `providers.serpapi.keys[N]`. It does not prove
-that Scholar searches decode; `smoke --live` does. Do not use doctor as
+that Scholar searches decode; `smoke --live` does. `--provider gemini_api` calls no model:
+it lists the models once with every key, recorded as the `models` check, and its `keys` entries
+have only `key_index`, `ok`, and `error_kind` for a failing key, with the failing key named as
+`providers.gemini_api.keys[N]`. Do not use doctor as
 the recovery path for configuration that cannot be loaded.
 
 ### `smoke`
