@@ -3,12 +3,12 @@ mod support;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::Path;
-use std::process::{Command, Output, Stdio};
+use std::process::{Output, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
 use fs2::FileExt;
-use support::{run_command, spawn_command, wait_for_child};
+use support::{forager_command, run_command, spawn_command, wait_for_child};
 
 #[test]
 fn non_interactive_setup_creates_a_complete_template() {
@@ -96,10 +96,9 @@ fn setup_modes_time_out_without_writing_when_the_config_lock_is_held() {
 #[test]
 fn interactive_setup_holds_the_config_lock_until_its_update_is_saved() {
     let config_dir = tempfile::tempdir().expect("create config directory");
-    let mut setup_command = Command::new(env!("CARGO_BIN_EXE_forager"));
+    let mut setup_command = forager_command();
     setup_command
         .args(["setup", "--lang", "en"])
-        .env_clear()
         .env("FORAGER_CONFIG_DIR", config_dir.path())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
@@ -384,10 +383,9 @@ fn count_leaves(value: &toml::Value) -> usize {
 }
 
 fn run(config_dir: &Path, args: &[&str], stdin: Option<&str>) -> Output {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_forager"));
+    let mut command = forager_command();
     command
         .args(args)
-        .env_clear()
         .env("FORAGER_CONFIG_DIR", config_dir)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());

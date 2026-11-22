@@ -123,6 +123,40 @@ fn every_adr_reference_names_an_existing_adr() {
     );
 }
 
+const SPAWN: &str = "Command::new(env!(\"CARGO_BIN_EXE_forager\"))";
+
+#[test]
+fn only_the_shared_test_environment_spawns_the_binary() {
+    let shared = [
+        root().join("tests/support/mod.rs"),
+        root().join("tests/repository_rules.rs"),
+    ];
+    let spawning = files(&root().join("tests"), "rs")
+        .into_iter()
+        .filter(|path| !shared.contains(path) && spawns_the_binary(&read(path)))
+        .map(|path| relative(&path))
+        .collect::<Vec<_>>();
+
+    assert!(
+        spawning.is_empty(),
+        "spawn the binary through `support::forager_command`, which routes HTTP to a closed port so a test cannot reach a real site: {spawning:#?}"
+    );
+}
+
+#[test]
+fn a_test_that_builds_its_own_binary_command_is_reported() {
+    let own = format!("let mut command = {SPAWN};\ncommand.arg(\"--version\");\n");
+    let shared = "let mut command = forager_command();\ncommand.arg(\"--version\");\n";
+    assert_eq!(
+        (spawns_the_binary(&own), spawns_the_binary(shared)),
+        (true, false)
+    );
+}
+
+fn spawns_the_binary(text: &str) -> bool {
+    text.contains(SPAWN)
+}
+
 #[test]
 fn a_reference_to_a_deleted_adr_is_reported_outside_supersedes() {
     let adr = "See ADR-0012 and ADR 0007.\n\n## Supersedes\n\n- ADR-0012, merged here.\n";

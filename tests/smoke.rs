@@ -2,14 +2,13 @@ mod support;
 
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 use support::hn::{search_page, story_hit, story_item, story_tree};
 use support::scholar::{fixture, ok};
 use support::smoke::{DISABLED_PLATFORMS, SmokeEnvironment, case};
-use support::{Fixture, Response, run_command};
+use support::{Fixture, Response, forager_command, run_command};
 
 #[test]
 fn offline_smoke_reports_local_readiness_without_contacting_provider_endpoints() {
@@ -237,7 +236,7 @@ fn independent_outage_probe_reports_a_failed_same_endpoint_request() {
 
 #[test]
 fn internal_smoke_probe_does_not_add_a_top_level_command() {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_forager"));
+    let mut command = forager_command();
     command.arg("__smoke-probe");
     let output = run_command(&mut command, None);
 

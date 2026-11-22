@@ -1,12 +1,11 @@
 mod support;
 
-use std::process::Command;
 use std::time::Duration;
 use std::time::Instant;
 
 use serde_json::Value;
 
-use support::{Fixture, Response, RunEnvironment, request_json, run_command};
+use support::{Fixture, Response, RunEnvironment, forager_command, request_json, run_command};
 
 #[test]
 fn map_sends_tavily_options_and_normalizes_site_results() {
@@ -226,10 +225,8 @@ fn map_rejects_out_of_range_options_before_network_attempts() {
 
 #[test]
 fn map_rejects_content_output_format() {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_forager"));
-    command
-        .args(["map", "https://docs.example.test", "--format", "content"])
-        .env_clear();
+    let mut command = forager_command();
+    command.args(["map", "https://docs.example.test", "--format", "content"]);
     let output = run_command(&mut command, None);
 
     assert_eq!(

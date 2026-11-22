@@ -5,7 +5,7 @@ use std::fs;
 use std::process::Command;
 
 use serde_json::{Map, Value};
-use support::run_command;
+use support::{forager_command, run_command};
 
 #[test]
 fn every_runnable_workflow_job_has_a_twenty_minute_timeout() {
@@ -122,7 +122,7 @@ fn windows_ci_runs_release_artifact_fixtures() {
 
 #[test]
 fn released_binary_reports_the_cargo_package_version() {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_forager"));
+    let mut command = forager_command();
     command.arg("--version");
     let output = run_command(&mut command, None);
 

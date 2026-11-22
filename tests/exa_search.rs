@@ -1,12 +1,12 @@
 mod support;
 
 use std::fs::{self, OpenOptions};
-use std::process::{Command, Output};
+use std::process::Output;
 use std::time::{Duration, Instant};
 
 use fs2::FileExt;
 use serde_json::Value;
-use support::{Fixture, Response, run_command};
+use support::{Fixture, Response, forager_command, run_command};
 
 const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 
@@ -385,16 +385,14 @@ fn exa_rejects_success_responses_without_the_results_container() {
 
 #[test]
 fn exa_similar_rejects_an_invalid_result_count_before_network_or_config() {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_forager"));
-    command
-        .args([
-            "exa",
-            "similar",
-            "https://example.test/source",
-            "--num-results",
-            "0",
-        ])
-        .env_clear();
+    let mut command = forager_command();
+    command.args([
+        "exa",
+        "similar",
+        "https://example.test/source",
+        "--num-results",
+        "0",
+    ]);
     let output = run_command(&mut command, None);
 
     assert_eq!(
@@ -921,10 +919,9 @@ impl RunEnvironment {
     }
 
     fn run(&self, arguments: &[&str]) -> Output {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_forager"));
+        let mut command = forager_command();
         command
             .args(arguments)
-            .env_clear()
             .env("FORAGER_CONFIG_DIR", &self.config_dir)
             .env("XDG_STATE_HOME", &self.state_dir)
             .env("HOME", self.root.path());

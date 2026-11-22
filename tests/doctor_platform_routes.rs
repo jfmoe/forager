@@ -25,10 +25,11 @@ fn arxiv_api_deep_doctor_executes_the_registry_search_probe_without_credentials(
 
 #[test]
 fn shallow_doctor_reaches_serpapi_with_a_keyless_get() {
-    let fixture = Fixture::start_sequence(reachable_responses(4));
+    let fixture = Fixture::start_sequence(reachable_responses(6));
     let environment = RunEnvironment::new(&format!(
         "[providers.arxiv_api]\nurl = {url:?}\n[providers.ssrn_crossref]\nurl = {url:?}\n\
-         [providers.hn_api]\nurl = {url:?}\n\
+         [providers.hn_api]\nurl = {url:?}\n[providers.jina]\nurl = {url:?}\n\
+         [providers.polymarket_api]\nurl = {url:?}\n\
          [providers.serpapi]\nurl = \"{url}/search.json\"\nkeys = [\"test-serpapi-key\"]\n",
         url = fixture.url
     ));
