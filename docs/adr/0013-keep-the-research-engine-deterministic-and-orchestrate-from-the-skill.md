@@ -1,13 +1,63 @@
-# Skill-layer search orchestration: cost-ladder routing with bounded recovery
+# Keep the research engine deterministic and orchestrate from the skill
 
-The forager skill routes every request down a cost ladder — direct retrieval, then ordinary search, then research — taking the cheapest branch that can terminate the request. Escalation happens only on an observed shortfall of the cheaper branch, never in anticipation, and each branch's shape gate must match the request before it is eligible. The skill copy states explicitly that research is the most expensive branch. Within research, a main-search read always precedes plan writing (the skill-layer orientation that ADR 0012 assigns here); recovery and refetch work is bounded at the skill layer because the engine itself is single-pass.
+## Decision
 
-## Consequences
+**The engine.** `research` is a deterministic, single-pass evidence pipeline: plan, discover,
+fetch, then account for coverage and deliver. It performs no semantic synthesis and never calls
+main search. Budget tiers bound its shape (subquestions, evidence per subquestion, discovery
+breadth) rather than one global counter, and known URLs in the plan are evidence directives that
+are always attempted. The engine delivers evidence; it does not answer.
 
-- Routing: direct retrieval when a known URL or PDF supplies the content; ordinary search for everything one live search can terminate; research only when the request's shape requires decomposition or multi-source verification and a cheaper branch has been observed (or is evidently unable) to fall short.
-- Orientation is a hard precondition of the research plan, with two unified entry paths: a request judged research-grade up front runs one `forager search` before writing the plan; an escalation from ordinary search reuses the existing search result as orientation material without searching again. Orientation output feeds only the plan — it corrects subquestion decomposition and supplies authoritative URLs as known-URL evidence directives — and is never cited as evidence; evidence comes exclusively from the engine pipeline.
-- The ordinary-search recovery chain keeps its shape (retry, exa fallback, fetch) but gains per-step hard caps: at most one retry (only after a terminal `timeout` or `network` error; raising `--timeout` to 300 helps only the timeout case), at most one `exa search` call, at most two fetches. Each step runs only on the previous step's continue signal; any non-timeout/non-network error (auth, config, quota) leaves the chain immediately for the Diagnose-or-configure branch. The retry is the default rather than conditional on a vague time budget; users who signal urgency skip it. Answers produced through the chain disclose the rounds consumed alongside `source_mode: fallback`, and an abandoned chain reports how far it got and what failed.
-- The refetch loop after a research run lives in the agent layer, gap-check style: at synthesis time, a key claim lacking fetched evidence is either backed by refetching — preferring the engine's disclosed unconsumed candidates via `forager fetch`, falling back to `forager exa similar` on a reliable URL when no candidate fits — or downgraded to an unverified candidate and disclosed. Termination is policy-driven (every key claim evidenced or downgraded), with no numeric per-subquestion, per-tool, or round quotas. The loop never re-runs `forager research` and never uses main search to backfill evidence.
-- Result consumption stays as currently documented (ordinary search consumes `answer` and fetches key URLs only for high-risk claims; research synthesizes from `evidence_items` only); the sole pending change is field-name alignment once the #96 output contract lands, at which point the research reference states that unconsumed candidates are refetch input or unverified-candidate listings, never citable evidence.
-- Skill document layering is confirmed adequate as-is: `SKILL.md` 2.7 KB always loaded, the ordinary branch about 6.9 KB total, `cli.md` 16.6 KB on demand.
-- The integration guide for external callers covers context-protection patterns as its sole substantive content — delegate multi-page evidence gathering to subagents that return conclusions and citations rather than page bodies, persist bulk evidence with `--output` and read fragments on demand, fetch directly in the main context only for single-page spot checks — plus a one-sentence overview of the three branches and their cost order. It contains no tool-preference template, no per-branch routing criteria, no provider setup, and no output-field detail.
+**The skill.** Everything that needs judgement runs in the agent layer, guided by the product
+skill:
+
+- **Cost ladder.** Every request goes down `direct retrieval → ordinary search → research` and
+  takes the cheapest branch that can finish it. Escalation happens only on an observed shortfall
+  of the cheaper branch, or when the request's shape rules that branch out, never in anticipation.
+- **Orientation.** One ordinary search precedes every research plan; an escalation from ordinary
+  search reuses the result it already has. Orientation only shapes the plan, correcting the
+  decomposition and supplying known URLs. It is never cited as evidence.
+- **Bounded recovery.** The ordinary-search recovery chain (retry, Exa fallback, fetch) has small
+  fixed caps per step, and an error that is not a timeout or network failure leaves it at once.
+- **Refetch after research.** A key claim without fetched evidence is either backed by fetching a
+  disclosed candidate or a similar page, or downgraded to an unverified candidate. The loop ends
+  when every key claim is evidenced or downgraded. It never reruns research and never uses main
+  search to backfill evidence.
+
+The engine's caps and accounting rules are in `docs/reference/cli.md`; the skill's procedure and
+its caps are in `skills/forager/`.
+
+## Why
+
+- The plan is fixed before any in-engine stage runs, so an orientation stage inside the engine
+  could not prevent a wrong decomposition. Read before the plan is written, the same search shapes
+  the subquestions and contributes the high-value URLs as known-URL directives.
+- Main-search answers are model-synthesized. Admitting them into a pipeline whose contract is
+  fetch before claim would let unverified text pose as evidence.
+- A deterministic engine is reproducible and testable offline; judgement about when evidence is
+  enough belongs to the agent that writes the final answer.
+- Research is the most expensive branch, and the engine is single-pass, so recovery work lands in
+  the agent layer either way. The ladder and the caps keep that cost in proportion to the request.
+
+## Rejected alternatives
+
+- **An orientation stage inside the engine**, run in parallel with discovery. It runs too late to
+  change the plan and brings synthesized content into the evidence path.
+- **A refetch loop inside the engine.** The engine cannot judge which claim lacks support; the
+  agent can, and it already holds the disclosed candidates.
+- **Numeric per-subquestion, per-tool or per-round quotas for the refetch loop.** A policy that
+  ends when every key claim is evidenced or downgraded bounds the loop without arbitrary numbers.
+- **A mechanical synthesis report from the engine.** It presented an excerpt list as an answer.
+
+## Revisit when
+
+- Research is used mostly without an agent in the loop. A bare CLI call plans from the query text
+  alone, without orientation, and decomposes ambiguous queries worse; that is accepted while the
+  skill workflow is the main caller.
+- Agents are seen escalating to research, or looping in recovery, despite the ladder and caps.
+
+## Supersedes
+
+- ADR-0012, the research engine as a deterministic evidence pipeline without main search. It
+  assigned orientation to the skill layer, and this ADR held the other half of that boundary;
+  they are one decision.
