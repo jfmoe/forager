@@ -61,8 +61,11 @@ route is opt-in (ADR-0020), does not retry, and follows the browser transport's 
   configuration without it, and by 2026-11-21 the site refused that egress outright. Two routes
   would mean two page parsers and two cursor semantics, and a fallback would spend the egress
   IP's standing before touching the account. It is retired with no compatibility layer. The HTTP/2
-  support it needed in the shared HTTP client (Reddit refused a TLS handshake that offered only
-  HTTP/1.1) stays, as ordinary client configuration unrelated to any route.
+  support it needed in the shared HTTP client (Reddit answered 403 when the TLS handshake's ALPN
+  offered only HTTP/1.1) stays, as ordinary client configuration unrelated to any route. A client
+  that imitates a browser's fingerprint was rejected then as detection evasion that would replace
+  the whole HTTP stack, and switching to native-tls as inconsistent across platforms and
+  irrelevant, since the cause was ALPN, not the TLS library.
 - **An anonymous browser plus a one-time human challenge.** Passing the challenge probably sets a
   pass cookie, but its name, lifetime and binding to egress, fingerprint or headedness are
   unknown, every expiry needs a person, and `forager browser login` would have to serve a route

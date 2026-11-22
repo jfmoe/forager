@@ -19,11 +19,11 @@ Every browser route is opt-in; an HTTP route is opt-in when its access carries s
 
 ## Why
 
-- Several sites forager reads forbid automated access in their terms: SSRN's Terms of Use forbid
-  "automated queries of any sort", Xiaohongshu forbids crawlers, Reddit's User Agreement does not
-  allow automated access, and YouTube's terms restrict automated access to its web endpoints. The
-  maintainer accepts this risk only for personal use, at a pace close to a person's, and only when
-  the user has chosen it knowing where the risk falls.
+- Several sites forager reads forbid automated access in their terms: Xiaohongshu forbids
+  crawlers, Reddit's User Agreement does not allow automated access, and YouTube's terms restrict
+  automated access to its web endpoints. The maintainer accepts this risk only for personal use,
+  at a pace close to a person's, and only when the user has chosen it knowing where the risk
+  falls.
 - The risk falls in different places: on the egress IP for an anonymous route, on the logged-in
   account for a browser route. The user can only weigh it if the instructions name it, and one
   registration keeps the instructions for HTTP and browser routes from drifting apart.

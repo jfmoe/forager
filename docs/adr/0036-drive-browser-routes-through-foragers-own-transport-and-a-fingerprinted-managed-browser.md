@@ -93,5 +93,6 @@ user's everyday browser and never through an external browser driver.
   `HeadlessChrome` user agent in headless mode, and forager corrects only the screen size; on
   2026-11-19 the headless window's outer height still exceeded its inner height and the page
   reported no focus.
-- Browser routes are needed on hosts other than macOS arm64, where only a user-chosen browser
-  runs and a non-fingerprint browser presents its own real traits.
+- Browser routes are needed beyond macOS arm64. The transport runs only on Unix hosts, and on Unix
+  hosts other than macOS arm64 only a user-chosen browser runs, where a non-fingerprint browser
+  presents its own real traits.

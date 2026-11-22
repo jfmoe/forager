@@ -39,7 +39,8 @@ only for SSRN PDFs, so a platform full text is a set of URLs or a Native body (A
   pages. The route ran only under conditions the maintainer set: personal use, triggered by a named
   command, reading only the responses the page itself received, never using or building session
   credentials or anti-abuse fields, human pace, single-attempt writes. It was a higher risk than
-  any other route, on a paid account.
+  any other route, on a paid account. Google's terms, by contrast, forbid only automated access
+  that breaks robots.txt.
 - **SSRN's browser route was unreliable.** SSRN's Cloudflare challenge blocked it often. Reading
   the site's own anonymous search API from inside the browser avoided the results page's
   challenge, but it was a request of forager's own, which ADR-0036 now forbids. After the move to
@@ -63,8 +64,9 @@ only for SSRN PDFs, so a platform full text is a set of URLs or a Native body (A
 ## Revisit when
 
 - **Delegated research:** an access path appears that neither takes over the user's desktop nor
-  depends on an external browser driver, there is a real need, and for ChatGPT it does not breach
-  the terms. A revived provider would deliver its report as a third-party view that is never
+  depends on an external browser driver, there is a real need, and it stays within the service's
+  terms: for Gemini that means respecting robots.txt, and for ChatGPT any programmatic extraction
+  of Output breaches them, so only an official access path would do. A revived provider would deliver its report as a third-party view that is never
   research evidence, and would run any write that changes account state as a single attempt,
   because a timed-out write may already have reached the service and a retry would spend quota
   twice.
