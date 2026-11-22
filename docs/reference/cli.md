@@ -1,649 +1,249 @@
-# 2. CLI 接口
+# CLI contracts
 
-权威来源：[#56 Resolution](https://github.com/jfmoe/smartsearch/issues/56) 及其[补充决议](https://github.com/jfmoe/smartsearch/issues/56#issuecomment-5076846003)。
+This document owns the contracts that hold across forager's commands: how output is rendered and
+where it goes, how payloads stay small, what exit codes mean, the deadline, the contracts of the
+core commands, and what `doctor` and `browser` check and report.
 
-## 定名
+It does not describe commands one by one. For the arguments of a command run
+`forager <command> --help`, which is the authority for argument parsing; for its options, output
+fields and failure cases read the product skill's
+[CLI reference](../../skills/forager/references/cli.md). The rules shared by all platform
+commands are in [`platforms.md`](platforms.md), and the configuration surface is in
+[`config.md`](config.md).
 
-项目 / binary 名 **forager**（脱离上游 fork 网络的独立身份；crates.io / GitHub 撞名验证通过）。
+## Command surface
 
-## 命令面（12 顶层）
+- A bare verb is a smart pipeline (`search`, `research`). An operation with a provider fallback
+  chain is a top-level verb named after the operation (`fetch`, `map`). A command that names a
+  provider is nested under it (`exa search`, `context7 docs`) and bypasses capability routing and
+  cross-provider fallback. Platform commands are `platform <id> <op>`.
+- Aliases are visible aliases listed in `--help`. Clap's subcommand prefix inference is off, so an
+  abbreviation that is not a declared alias is an unknown command.
 
-```
-forager search QUERY [--capabilities CSV|none] [--model ID] [--extra-sources N]
-                     [--fallback auto|off]
-                     [--timeout 180] [--format json|markdown|content] [--output FILE [--receipt]] [--verbose]
-forager research QUERY [--plan FILE|-] [--budget quick|standard|deep（默认 standard）]
-                       [--evidence-dir DIR] [--fallback auto|off] [--timeout 600] [...]
-forager fetch URL [--timeout N] [...]
-forager map URL [--instructions S] [--max-depth 1..=5] [--max-breadth 1..=500]
-                [--limit N>0] [--timeout 10..=150（默认 150）] [...]
-forager exa search QUERY [--num-results 5] [--search-type neural|keyword|auto]
-                         [--include-text [--text-max-characters 3000]] [--include-highlights]
-                         [--start-published-date D]
-                         [--include-domains ...] [--exclude-domains ...] [--category NAME] [...]
-forager exa similar URL [--num-results 5] [...]
-forager context7 library NAME [QUERY] [...]
-forager context7 docs LIBRARY_ID QUERY [...]
-forager platform arxiv search [QUERY] [--category CAT]... [--author NAME] [--title TEXT]
-                              [--submitted-from YYYY-MM-DD] [--submitted-to YYYY-MM-DD]
-                              [--sort relevance|submitted|updated] [--limit 1..=100（默认 10）]
-                              [--cursor CURSOR] [--timeout 120] [--format json|markdown] [...]
-forager platform arxiv fetch REF_OR_URL [--depth full_text|abstract] [--content-dir DIR]
-                             [--timeout 120] [--format json|markdown|content] [...]
-forager platform ssrn search QUERY [--limit 1..=100（默认 10）] [--cursor CURSOR]
-                             [--timeout 120] [--format json|markdown] [...]
-forager platform ssrn fetch REF_OR_URL [--depth metadata|abstract]
-                            [--timeout 120] [--format json|markdown|content] [...]
-forager platform scholar search QUERY [--limit 1..=20（默认 20）]
-                                [--year-from YYYY] [--year-to YYYY] [--review-only]
-                                [--timeout 120] [--format json|markdown] [...]
-forager platform scholar search --cursor CURSOR [--timeout 120] [--format json|markdown] [...]
-forager platform scholar fetch REF_OR_URL [--depth metadata]
-                               [--timeout 120] [--format json|markdown] [...]
-forager platform scholar cited-by REF_OR_URL [--query TEXT] [--limit 1..=20（默认 20）]
-                                  [--year-from YYYY] [--year-to YYYY] [--sort relevance|date]
-                                  [--timeout 120] [--format json|markdown] [...]
-forager platform scholar cited-by --cursor CURSOR [--timeout 120] [--format json|markdown] [...]
-forager platform xiaohongshu search QUERY [--limit 1..=100（默认 20）]
-                                    [--sort comprehensive|latest|most-liked|most-commented|most-collected]
-                                    [--note-type all|image|video] [--publish-time any|day|week|half-year]
-                                    [--timeout 120] [--format json|markdown] [...]
-forager platform xiaohongshu fetch ACCESS_URL [--depth metadata|full_text（默认 full_text）]
-                                   [--content-dir DIR] [--timeout 120] [--format json|markdown|content] [...]
-forager platform xiaohongshu comments ACCESS_URL [--limit 1..=50（默认 20）] [--replies 0..=10（默认 0）]
-                                      [--timeout 120] [--format json|markdown] [...]
-forager platform x search QUERY [--handle HANDLE]... [--exclude-handle HANDLE]...
-                          [--from YYYY-MM-DD] [--to YYYY-MM-DD] [--limit 1..=20（默认 10）]
-                          [--timeout 120] [--format json|markdown] [...]
-forager platform x fetch REF_OR_URL [--depth thread|metadata（默认 thread）]
-                         [--timeout 120] [--format json|markdown|content] [...]
-forager platform x ask QUERY [--handle HANDLE]... [--exclude-handle HANDLE]...
-                       [--from YYYY-MM-DD] [--to YYYY-MM-DD]
-                       [--timeout 120] [--format json|markdown] [...]
-forager platform hn search QUERY [--sort relevance|date] [--type TYPE]... [--author USER]
-                           [--story ID] [--from YYYY-MM-DD] [--to YYYY-MM-DD]
-                           [--min-points N] [--min-comments N] [--limit 1..=100（默认 20）]
-                           [--timeout 120] [--format json|markdown] [...]
-forager platform hn search --cursor CURSOR [--timeout 120] [--format json|markdown] [...]
-forager platform hn fetch REF_OR_URL [--depth thread|metadata|full_text（默认 thread）]
-                          [--content-dir DIR] [--timeout 120] [--format json|markdown|content] [...]
-forager platform hn stories [top|new|best|ask|show|job（默认 top）] [--limit 1..=100（默认 30）]
-                            [--timeout 120] [--format json|markdown] [...]
-forager platform youtube search QUERY [--sort relevance|date|views|rating] [--from YYYY-MM-DD]
-                                [--to YYYY-MM-DD] [--duration short|medium|long] [--channel CHANNEL]
-                                [--has-captions] [--limit 1..=50（默认 20）]
-                                [--timeout 120] [--format json|markdown] [...]
-forager platform youtube search --cursor CURSOR [--timeout 120] [--format json|markdown] [...]
-forager platform youtube fetch REF_OR_URL [--depth metadata|abstract|full_text（默认 full_text）]
-                               [--lang LANG ...] [--content-dir DIR] [--timeout 120]
-                               [--format json|markdown|content] [...]
-forager platform youtube comments VIDEO [--limit 1..=100（默认 20）] [--sort relevance|time]
-                                  [--timeout 120] [--format json|markdown] [...]
-forager platform youtube videos COLLECTION [--limit 1..=50（默认 20）]
-                                [--timeout 120] [--format json|markdown] [...]
-forager platform youtube videos --cursor CURSOR [--timeout 120] [--format json|markdown] [...]
-forager platform youtube ask VIDEO QUESTION [--timeout 600] [--format json|markdown] [...]
-forager platform youtube transcribe VIDEO [--content-dir DIR] [--timeout 600]
-                                    [--format json|markdown|content] [...]
-forager platform polymarket search QUERY [--include-closed] [--limit 1..=20（默认 10）]
-                                   [--timeout 120] [--format json|markdown] [...]
-forager platform polymarket search --cursor CURSOR [--timeout 120] [--format json|markdown] [...]
-forager platform polymarket fetch REF_OR_URL [--depth metadata|abstract（默认 metadata）]
-                                  [--timeout 120] [--format json|markdown|content] [...]
-forager platform polymarket history MARKET [--outcome NAME]
-                                    [--interval 1d|1w|1m|max（默认 1m）| --from DATE --to DATE]
-                                    [--bucket 1m|5m|30m|1h|3h|12h|1d]
-                                    [--timeout 120] [--format json|markdown] [...]
-forager platform reddit search QUERY [--subreddit NAME] [--sort relevance|hot|top|new|comments]
-                               [--time hour|day|week|month|year|all] [--limit 1..=25（默认 10）]
-                               [--timeout 120] [--format json|markdown] [...]
-forager platform reddit fetch REF_OR_URL [--depth thread|metadata|full_text（默认 thread）]
-                              [--content-dir DIR] [--timeout 120] [--format json|markdown|content] [...]
-forager browser install [--timeout 600]
-forager browser login PLATFORM [--timeout 10..（默认 600）]
-forager doctor [--provider PROVIDER] [--timeout 30] [--format json|markdown]
-forager smoke [--live [--opt-in]] [...]
-forager config path|list|set|unset
-forager setup [--non-interactive] [--lang zh|en]
-```
+## Output channels and formats
 
-- **分界规则**：点名 provider 的命令按 provider 分组嵌套（exa/context7）；操作语义 + fallback 链的按操作命名保持顶层（fetch、map）；平台直连命令按 `platform <id> <op>` 嵌套。裸动词＝智能管线，provider 前缀＝旁路直连。
-- **别名五槽**（全部 visible_alias）：`s`=search、`f`=fetch、`rs`=research、`c7`=context7、`ls`=config list。关闭 clap `infer_subcommands`。
+- stdout carries the result, and only the result: on success the result itself, on a terminal
+  failure the failure payload. Diagnostics, warnings, progress and logs go to stderr. A failed
+  command also prints its payload on stdout, so an empty stderr does not mean success; the exit
+  code decides.
+- `--format` selects the stdout rendering. `json` is the default for every command that has the
+  option. `markdown` is the readable rendering of the same result. `content` prints only the body
+  a command retrieved, so only commands with a body accept it; the parser rejects it elsewhere.
+  research renders its Research Evidence Index and unresolved gaps in both `markdown` and
+  `content`, never evidence bodies or a synthesized answer.
+- `--output FILE` tees: the rendered result is written to `FILE` and printed to stdout as usual.
+  When the write fails, the command ends with exit 3 whatever its own result was; stdout still
+  carries the full result, and JSON output gains `output_status: "failed"` and a bounded
+  `output_error`. A Search Result Journal failure is different: the journal is a side channel, and
+  its failure is a warning that never changes the result or the exit code.
+- `--receipt` requires `--output` and is accepted wherever `--output` is. The file content is
+  identical to the tee. Only when the command succeeds (exit 0) and the file was written does
+  stdout become a one-line receipt `{"output_path", "bytes", "lines"}` describing the written
+  file. A failed command still prints its full failure payload; a failed write behaves as it does
+  without `--receipt`. The receipt lets a caller keep a long result in a file and read parts of
+  it instead of loading the whole result.
+- JSON preflight failures: once clap has parsed the arguments and `--format json` is selected, a
+  failure of `search`, `fetch` or `research` before a rendered result (loading the configuration,
+  reading stdin, reading, parsing or validating a research plan) is a single parseable JSON object
+  on stdout `{error_kind, message, journal_ref, journal_status}`, with exit 2, 3 or 4. No valid
+  journal configuration exists yet, so forager does not guess one or fall back to a default
+  directory: `journal_ref` is `null` and `journal_status` is `"unavailable"`. Clap argument errors
+  and panics keep clap's and Rust's channels. Every other command, and these three in other
+  formats, report a preflight failure as one stderr line `argument_error: …`, `config_error: …` or
+  `runtime_error: …`.
+- Operational commands (`browser`) print their result as one JSON object on stdout and their
+  progress and prompts on stderr; a failure after preflight is `{error_kind, message}` on stdout.
 
-## 输出与退出码
+## Lean payloads
 
-- `--format json(默认)/markdown/content` 三态；**content 收窄**到 search、fetch、context7 docs、research 与平台 fetch，per-command ValueEnum 在解析层强制。research 的 Markdown/content 都渲染 Research Evidence Index 与 unresolved gaps，不渲染证据正文或机械答案。doctor 默认 json。
-- `--output FILE` 为 **tee 语义**（写文件 + stdout 照常）。写失败＝非零终态退 3，stdout JSON 照常输出并标注写失败（#59 H15）；与 journal 旁路（非致命）区分。
-- `--receipt`（须与 `--output` 同用，所有带 `--output` 的命令均支持）为**回执语义**：文件内容与 tee 完全相同；仅当命令成功（退 0）且文件写入成功时，stdout 改为单行 JSON 回执 `{"output_path", "bytes", "lines"}`，其中 `bytes`/`lines` 描述写入文件的内容。命令失败时 stdout 仍是该失败的完整瘦载荷；写失败时退回 tee 的写失败行为（完整 stdout + 标注，退 3）。它让调用方把长结果留在文件中、按需读取片段，而不是让全文进入调用方上下文。
-- 退出码：`0` 成功（含直连命令的合法空结果）；`2` 参数错（clap 天然 + 坏 plan + `config set` 非法路径）；`3` config_error（含未知文件键、未知 `FORAGER_*` env、web_fetch 空链、`--output` 写失败）；`4` transport 族终态；`5` content 族终态（quality/evidence；**evidence_error 由 4 改 5**）。`1` 空缺；panic 101 不拦，为非契约异常出口。
-- **JSON 飞行前终态**：clap 已成功解析并选择 `--format json` 后，search/fetch/research 的配置装载以及 research plan 读取、解析、校验失败都在 stdout 返回单个可解析错误对象，退出码沿用 2/3/4/5。clap argv 错误与 panic 豁免；Markdown/content 保持简洁 stderr 错误。尚未取得有效 `JournalRuntimeConfig` 时不得猜测 journal 配置或回退默认目录，返回 `journal_ref: null` 与 `journal_status: "unavailable"`。
-- **默认 stdout 瘦载荷**：成功＝结果本身；普通命令失败＝`error_kind` + 一行 message + attempts 计数摘要（total/by_kind/providers，非全文）+ 精简 capability_gaps + `journal_ref`（nullable）与 `journal_status`。research 失败使用稳定小形状：`error_kind`、有界 `message`、完整 `evidence_dir`、可空且仅在文件可读时存在的 `summary_path`、精简 gap、`synthesis_policy` 与 journal 状态；不按编码长度切换 schema，locator 永不截断。普通路径以 4 KiB 为目标，极端长的合法路径可超出。全量 `provider_attempts` 只落 journal；`--verbose` 为 inline 全量逃生阀。
-- **search 失败附带候选**（ADR 0016）：辅助能力与主搜索并发执行，主搜索失败时终态与退出码仍只由主搜索决定；已取得的 Search Candidate 不丢弃。默认失败 JSON 增加非空时才出现的 `capability_gaps`，以及 `extra_sources`（去掉各条 `summary`，按顺序保留到载荷触及 4 KiB 目标前为止）与 `extra_sources_truncated`；attempts 计数摘要同时计入辅助 attempts；`--verbose` 给出完整 `extra_sources`；Markdown 失败视图列出 Extra Sources；journal 失败结果面保存完整候选与 gaps。无候选时不输出后两个字段。
-- **fetch 成功载荷**：`content` 只包含 provider 无关的 Markdown 正文；provider attempts 与 diagnostic 保持在各自字段/输出通道，不混入正文。URL 与 PDF 共享 `web_fetch` 链和失败语义，`--output` 的 tee 与 `--receipt` 语义同上。
+- Default stdout carries what a caller acts on and leaves the rest to the journal. A failure
+  payload holds `error_kind`, a `message` cut to 500 characters, an attempt summary (`total`,
+  counts `by_kind`, the `providers` tried, each list bounded and marked when truncated), the
+  `capability_gaps` that are not empty, and `journal_ref` (nullable) with `journal_status`.
+  Commands that write no journal report `journal_status: "not_applicable"`.
+- The default failure payload targets 4 KiB, and forager treats a default failure payload over
+  that target as a rendering error.
+- research failures use one small, fixed shape whatever the size of the run: `error_kind`, the
+  bounded `message`, the full `evidence_dir`, `summary_path` (`null` unless the Research Recovery
+  Manifest is readable), the `gap_check` status and stop reason, `synthesis_policy`, and the
+  journal pair. The shape never changes with encoded length and locators are never cut, so a very
+  long legitimate path can exceed 4 KiB.
+- Full `provider_attempts` are stored only in the journal. `--verbose` is the escape hatch that
+  puts them inline on stdout, on success and on failure.
 
-## search 参数清理
+## Exit codes
 
-- **砍** `--providers`（链序权威归配置）、`--platform`（伪过滤器）、`--stream/--no-stream`（主搜索不再有传输开关，ADR 0031）。
-- 留 `--model`、`--extra-sources`、`--fallback`。`--model ID` 只作用于本次主搜索链实际运行的第一个 backend：跳过没有凭据的条目之后的链首，`--fallback off` 时即被固定的链首；之后接手的 fallback backend 一律使用各自配置的 `providers.<backend>.model`，所以 `--model grok-4.5` 不会被发给 `openai`。`--extra-sources` 接受 `0..=20`：0 是分支内默认哨兵，Supplemental Web Search 映射为 3，Documentation Search 映射为 1；1–20 原样传递，21+ 在读取配置和联网前由 clap 退出 2。数量不选择 capability，`--capabilities none` 仍不执行补强。
-- 删除 `--validation`，不保留 alias、静默忽略或替代门；旧参数按未知参数退出 2。
-- **`--timeout` 横切**所有网络命令：search 180 / research 600 / doctor 探测 30 / fetch、map 补齐。
+| Code | Meaning |
+| --- | --- |
+| `0` | Success, including a valid empty result of a direct command (`items: []`). |
+| `2` | Argument or caller input error, found before any request: clap errors, an invalid research plan, an invalid `config set` path or value, and option combinations a route cannot serve. |
+| `3` | Configuration error: an unknown file key or `FORAGER_*` variable, an empty chain or order, a missing credential a command needs, unreadable stdin, or a failed `--output` write. |
+| `4` | Terminal failure of the transport family: `auth`, `rate_limited`, `quota_exhausted`, `parameter`, `network`, `timeout`, `runtime`. |
+| `5` | Terminal failure of the content family: `quality` and `evidence`. |
 
-### `--timeout` 语义（补充决议 A2）
+- Exit code `1` is unused. A panic exits `101`, which is outside the contract.
+- Exit 2 is reserved for input forager rejects before sending. When an upstream service rejects a
+  request, the attempt's `parameter` kind is a transport-family failure and exits 4.
+- An empty result is never an error kind. A direct command with no matches succeeds; only the
+  evidence pipeline turns missing evidence into `evidence` (exit 5).
 
-整条 CLI 命令的 **hard deadline**：实现可为单次 attempt 设更短上限，但所有重试、fallback 与探针共享总预算；超时结果保留已完成 attempts（journal 全量 + stdout 摘要，#59 B2）。预算保留规则（保证 fallback 可达）见第 4 章。map 只接受 `10..=150` 秒并原样作为命令 Deadline 与 Tavily request body；每个网络 attempt 仍取命令剩余预算与 `providers.tavily.timeout` 的较小值，不设 cap、clamp 或 provider 内二次默认。
+## Deadlines
 
-## search 输出角色
+- `--timeout SECONDS` is the hard deadline of the whole command. Every retry, fallback and probe
+  shares it; an implementation may give one attempt a shorter limit, but never more than what
+  remains. A command that runs out reports `timeout` and keeps the attempts it completed: in full
+  in the journal and as the summary on stdout.
+- Waiting for a route's request window counts against the deadline; see the access policies in
+  [`platforms.md`](platforms.md).
+- How the budget is reserved so that a fallback stays reachable is in
+  [`architecture.md`](architecture.md).
 
-- `sources` 只表示 Primary Search Source；空 `sources` 即主回答没有可归属的引用，forager 不另设字段标记，由调用方把此类回答视为未核实。所有非主候选统一由 `extra_sources` 表示，领域类型为 Search Candidate。
-- 每条 Search Candidate 固定包含必填 `provider`、`capability`、`provider_data`，以及可空 `title`、`url`、`summary`。`url` 只能是真实 HTTP(S) URL；`summary` 只复制 provider-native 描述、摘要或片段；`provider_data` 只投影 provider 定义的 snake_case 强类型白名单，不透传原始 HTTP/MCP 包装或正文。
-- Context7 Documentation Search 只 resolve library，候选 `url: null`、`summary` 复制 description；`provider_data` 白名单为 `library_id`、`total_snippets`、`trust_score`、`benchmark_score`、`stars`、`versions`。Research 才调用 query-docs 取证。Exa Documentation Search 使用真实 URL，白名单为 `id`、`highlights`、`published_date`、`author`、`image`、`favicon`，且不读取完整 text。直连 `context7 docs` 继续只公开可消费 `content`，structuredContent-only 响应也必须填充该字段。
-- Main Search 在完整响应组装后共享执行 normalizer：先删除完整闭合、大小写不敏感且可跨行的 `<think>...</think>`，再投影末尾显式来源标题块与 `[[N]](HTTP(S) URL)`；其他策略关键词、`sources(...)`、任意 `<details>` 或尾链猜测不解析。规范化后 answer 为空为 Runtime。provider 引用注释中仅由数字构成的标题是引用序号而非页面标题，按无标题处理。来源按脱敏后的公开 URL 稳定去重。
+## `search`
 
-## 契约①：`--capabilities`
+### Capability declaration
 
-CSV + 独占哨兵 `none`，未传＝自动路由。Rust 类型 `Option<CapabilitySet>` 三态：`None`＝未声明（分类器；未配置则降级默认 Web 链）、`Some(∅)`＝`none`（纯主搜）、`Some({…})`＝caller 权威。词表 3 值（docs_search/web_search/web_fetch）编译期 enum。
+`--capabilities` takes comma-separated capability IDs from the product skill's
+[capability vocabulary](../../skills/forager/references/capability-vocabulary.json), or the
+exclusive sentinel `none`. It has three states:
 
-## 契约②：research 计划注入（Schema v1）
+- omitted: undeclared, so the classifier chooses the capabilities; without a configured
+  classifier, search falls back to the default Web route;
+- `none`: main search only;
+- a list: the caller's declaration is authoritative and forager never widens it (ADR-0004).
 
-通道：`--plan FILE`，`-`＝stdin。caller 注入与分类器产出共用同一类型：
+### Output roles
 
-```json
-{
-  "plan_version": 1,
-  "intent_signals": {
-    "recency_requirement": "none | recent | current",
-    "docs_api_intent": false,
-    "source_authority_need": "normal | high",
-    "claim_risk": "medium | high",
-    "cross_validation_need": "normal | high"
-  },
-  "decomposition": [
-    { "id": "sq1", "question": "…", "reason": "…", "required_capabilities": ["web_search"] }
-  ]
-}
-```
+- `sources` holds only Primary Search Sources, the sources the main answer is attributed to. An
+  empty `sources` means the answer cites nothing; forager adds no flag, and the caller treats such
+  an answer as unverified.
+- Every non-primary candidate is a Search Candidate in `extra_sources`. A candidate has a
+  `provider`, a `capability` and `provider_data`, and nullable `title`, `url` and `summary`. `url`
+  is a real HTTP(S) URL or `null`, never a fabricated locator. `summary` copies only a
+  provider-native description, abstract or snippet, except that a search-side Web Fetch success
+  uses a preview of its fetched content. `provider_data` is a typed snake_case allowlist each
+  provider defines; it never passes through raw HTTP or MCP wrappers or page bodies.
+- Main search runs alongside the supplemental capabilities. When main search fails, it alone
+  decides the terminal state and the exit code, and the candidates already found are kept: the
+  failure payload adds `extra_sources` without their `summary`, in order, as many as fit the
+  4 KiB target, with `extra_sources_truncated`, and its attempt summary counts the supplemental
+  attempts too (ADR-0016). Both fields are absent when there are no candidates. `--verbose` gives
+  every candidate in full, and the journal keeps them all.
 
-- 相对旧版砍四块：`steps`/`capability_plan`（执行编排归引擎）、`known_url`/`locale_domain_scope`（URL 引擎自算）、`breadth_depth_budget`（`--budget` 为准）。
-- 语义：有 `--plan`＝caller 权威跳过分类器；无＝分类器生成同 schema；分类器未配置＝退 3；坏 plan＝退 2；`plan_version` 不识别＝退 2。
-- **严格解析**：未知/缺字段拒绝、空 `decomposition` 无效、`id` 非空且唯一、capability 重复保序归一化、`reason` 必填且非空。v2 走显式新分支，不做宽容升级。
+### Answer normalization
 
-### 权威规则（补充决议 A1，经 #57 R2 收窄）
+Every main-search backend's answer passes one normalizer after the response is complete. It first
+removes closed `<think>…</think>` blocks (case-insensitive, across lines), then projects a
+trailing explicit source heading block and inline `[[N]](URL)` citations with an HTTP(S) URL
+into sources. Other markers, `sources(...)`, arbitrary `<details>` and guessed trailing links are
+not parsed. A citation title made only of digits is the citation's number, not a page title, so
+the source has no title. Sources are deduplicated by their redacted public URL. An answer that is
+empty after normalization is a `runtime` failure. `platform x ask` uses the same normalizer.
 
-- `decomposition[].required_capabilities` 决定允许跨越哪些 seam；plan 语境词表**限两值**（docs_search/web_search），用独立两值枚举 `PlanCapability`。
-- `intent_signals` 只在已声明 seam 内影响**证据强度与交叉验证策略**，不得增删 capability；其对 provider 顺序的影响通道＝具名 request class 机制，**v1 未启用**（引擎永不静默偏离配置序）。
-- **`web_fetch` 为 research 引擎不变量**（fetch-before-claim）：由引擎按证据需要自动执行，plan 中声明它＝退 2，错误信息说明其由引擎自动执行。
-- `required_capabilities`＝seam 门（路由权威）；seam 内 provider 凭据缺口不阻断成功，经 capability_gaps 自报（#59 H7：required＝路由权威、可用性 advisory）。
-- 与 ADR-0004 关系：本规则是计划注入进入 research 后对该 ADR 豁免区的首次权威定义，与其 search 侧语义并立不冲突。
+## `research`
+
+research is a file-based evidence pipeline, not an answer engine.
+
+### Research plan injection
+
+A plan is passed with `--plan FILE`, or `--plan -` for stdin. A caller's plan and a
+classifier-generated plan share one type, Schema v1; the product skill's
+[`research-plan.json`](../../skills/forager/references/research-plan.json) is a valid example.
+
+- A caller's plan is authoritative and skips the classifier. Without `--plan` the classifier
+  generates the plan; without a configured classifier research exits 3.
+- Parsing is strict, and any violation exits 2: an unknown or missing field, an unrecognized
+  `plan_version`, an empty `decomposition`, an empty or duplicate subquestion `id`, an empty
+  `reason`, or a capability outside the plan vocabulary. Duplicate capabilities are folded,
+  keeping their order. A future version is a new explicit branch, never a lenient upgrade.
+- `decomposition[].required_capabilities` decides which capability seams a subquestion may cross.
+  The plan vocabulary has two values, `docs_search` and `web_search`. A missing credential inside
+  a declared seam does not block success; it is reported in `capability_gaps`. Declared
+  capabilities route; availability is advisory.
+- `web_fetch` is an engine invariant (fetch before claim): the engine fetches as evidence needs
+  it. Declaring `web_fetch` in a plan exits 2 with a message saying that the engine runs it.
+- `intent_signals` affect evidence strength and the cross-validation strategy inside the
+  declared seams only. They never add or remove a capability and never reorder providers; the
+  engine never departs silently from the configured order.
+
+These rules are the authoritative definition of the research exemption in ADR-0004; they stand
+beside its ordinary-search semantics without conflict.
 
 ### Research Evidence Index
 
-research 是文件化证据管线，不是答案引擎；未指定 `--budget` 时使用 `standard`。默认 JSON 顶层只包含 `evidence_items`、`evidence_dir`、`plan_path`、`unconsumed_candidates: {count, path}`、`gap_check`、`capability_gaps`、`synthesis_policy: "fetch_before_claim"`、`journal_ref` 与 `journal_status`。每条 evidence item 包含 `id`、可空 `url`、可选 `library_id`/`title`、`provider`、`source_type`、`subquestion_ids`、`content_len`、`verified` 和可直接读取的 `path`；同一 locator 只抓取一次，`subquestion_ids` 记录它覆盖的全部子问题。URL evidence 使用 `[eN](URL)`；Context7 无 URL evidence 使用 `[eN]`，由同 ID 的 Index 项完成归属。
-
-`evidence_dir` 固定写出：
-
-- `00-plan.json`：完整规范化计划；
-- `NN-evidence.md`：逐条 evidence 正文，stdout、summary 与 journal 不重复嵌入；
-- `candidates.json`：`is_evidence: false` 的未消费候选完整元数据；
-- `summary.json`：Research Recovery Manifest，而非 Research Evidence Index；记录 query、budget、plan source、capabilities、fallback、evidence identity/metadata/path、coverage、gap、capability gaps、终态、attempts 与 `synthesis_policy`，不包含 evidence 正文。
-
-成功 stdout 交付 Research Evidence Index；失败通过可读的 Recovery Manifest 保证制品可恢复，不要求两种终态内联同一形状。manifest 写入失败时保留原终态与完整 `evidence_dir`，`summary_path: null` 并输出既有 diagnostic。`--verbose` 仍只负责把 `provider_attempts` 显式内联；`--output` 的 tee 与 `--receipt` 语义同上。
-
-## 契约③：`doctor --provider`
-
-两档：`doctor` 浅检全体（掩码配置 + 凭据存在 + 可达性（对 endpoint 发 GET 并只等待响应头，任何 HTTP 响应都算可达；部分 endpoint 对 HEAD 不响应）+ 过宽权限报告 + config list 同构生效值块）；顶层 `ok` 等于所有 `configured=true` provider 均 `reachable=true`，零配置为 true，任一不可达则 JSON/Markdown 均为 false 并退出 4，permission warning 不改变 `ok`。`--provider NAME` 深探单体，值域＝provider 注册表的编译期 enum。需要凭据的 6 个 provider（exa、tavily、firecrawl、context7 与主搜索 backend `xai`、`openai`）执行凭据有效性 + 最小活体调用；两个主搜索 backend 的活体调用都是一次不带工具与 instructions 的 Responses SSE 模型探测，检查记为 `[{name: "responses", transport: "sse"}]`；凭据可选的 `jina` 恒为已配置，没有 key 时浅检的 `message` 注明以匿名方式运行，深探以不带凭据的请求执行同一 fetch 探测；有 key 时按现有方式探测，key 失败后的匿名请求即使成功，深探仍以 key 的失败结束；平台 route（`arxiv_api`、`ssrn_crossref`、`xiaohongshu_browser`、`reddit_browser`、`hn_api`）不需要凭据，恒为已配置，深探执行一次最小平台检索；`hn_api` 访问两个端点，深探在检索之后再向 Firebase 发一个请求，记为 `firebase` 检查；主搜索 backend `xai` 同时是 X 平台的 route，`platforms.x.order` 含 `xai` 时，深探在主搜索检查之后再执行一次最小 X 检索，记为 `x_search` 检查；需要凭据的平台 route `serpapi` 有 key 时才算已配置，浅检对端点发一次不带 key 的 GET（不计额度）；深探不做检索，而是按池中顺序对每个 key 各调用一次同源的 SerpApi Account API（`/account.json`，不计额度），不经凭据轮换、不推进凭据游标，输出增加 `keys` 数组，每个 key 一项 `{key_index, ok, searches_left, plan_searches_left, this_month_usage, this_hour_searches, hourly_limit}`，失败项带 `error_kind`，取不到的数字为 `null`；HTTP 失败沿用共享归因（401/403 为 auth），剩余额度为 0 为 `quota_exhausted`，本小时检索数达到上限为 `rate_limited`，缺数字字段为 `runtime`；任一 key 失败则深探失败退 4，顶层 `error_kind` 与 `message` 取第一个失败的 key，`message` 以 `providers.serpapi.keys[N]` 指明它；响应中的 key、账户邮箱与账户 ID 不被解码，也不进入任何输出；这个深探只证明端点、key 与额度状态，不证明 Scholar 检索的请求与解码（由 live smoke C24–C26 证明）；没有 key 时以 config 失败退 3 且不发请求；需要凭据的平台 route `gemini_api` 同样有 key 时才算已配置，浅检对端点发一次不带 key 的 GET；深探不调用模型，而是按池中顺序用每个 key 各请求一次 `GET <url>/models`（不计模型额度），检查记为 `[{name: "models", transport: "http"}]`，`keys` 每项只有 `{key_index, ok}`，失败项带 `error_kind`，失败与报告规则同 `serpapi`（`message` 以 `providers.gemini_api.keys[N]` 指明失败的 key）；其他 provider 的深探输出没有 `keys`。声明访问策略的 provider（平台 route）的浅检检查与深探请求都先经过跨进程限速，等不到窗口时浅检记为不可达、深探以 timeout 失败，且都不发送请求。
-
-传输类型为浏览器的 route（`xiaohongshu_browser`、`reddit_browser`）不发 GET：浅检只在它出现在所属平台的 order 中时参与，只运行浏览器传输的飞行前检查（浏览器可以找到、Browser Profile 有登录标记，第 7 章「浏览器传输」），不启动浏览器；未启用时报告 `configured: false`，不影响 `ok`。检查失败时该 provider 状态带 `message`（含修复命令），Markdown 在同一行括号中显示。深探（如 `doctor --provider reddit_browser`）同样只在 order 启用该 route 时运行，先做同一检查，通过后运行一次真实的平台检索；未启用或检查失败时以 config 失败退 3，不启动浏览器。
-
-## `browser` 命令
-
-`forager browser` 管理浏览器传输使用的浏览器环境（第 7 章「浏览器传输」）。两条命令都按运维类命令的约定输出：结果是 stdout 上的一个 JSON 对象，进度与提示写 stderr；失败沿用 ErrorKind 与退出码映射，config 与参数错误是飞行前终态（stderr 一行 `config_error: …` 或 `argument_error: …`，退 3 或 2），其他失败在 stdout 给出 `{"error_kind", "message"}`，传输族退 4。
-
-- **`browser install`**：下载当前主机的 Managed Browser 安装包（fingerprint-chromium 固定版本，地址与 SHA256 内置在 forager 中），校验哈希后安装到缓存目录（第 3 章「浏览器」）。macOS 上用 `hdiutil` 挂载磁盘映像、用 `ditto` 拷出应用（保留符号链接与签名）。已安装固定版本时不下载，退 0。成功输出 `{version, executable, downloaded}`，`downloaded` 表示本次是否下载。下载失败为 network，超过 `--timeout` 为 timeout，哈希不符（下载物随即删除）、解包失败与当前主机没有安装包为 runtime，均退 4。设置了 `browser.path` 时照常安装，并在 stderr 提示浏览器命令会启动 `browser.path`。
-- **`browser login PLATFORM`**：只接受有浏览器 route 且该 route 需要登录的平台（目前为 `xiaohongshu` 与 `reddit`）；其他平台为参数错误退 2，未知平台名由 clap 退 2。以有界面模式启动浏览器，打开该平台页面逻辑声明的登录入口，等待页面逻辑判定已登录，然后正常关闭浏览器、在 Browser Profile 中写入登录标记与窗口所在屏幕的尺寸，退 0，输出 `{platform, logged_in: true, profile}`（`profile` 是 Browser Profile 目录）。找不到浏览器（没有设置 `browser.path`，且 Managed Browser 未安装或当前主机没有安装包）为 config_error 退 3，消息给出 `forager browser install` 或指向 `browser.path`。`--timeout` 是整条命令的期限，按第 7 章「浏览器传输」的截止时间执行：读取截止点（期限前 8 秒）仍未观察到登录为 timeout 退 4；浏览器启动失败、CDP 握手失败、窗口在登录前被关闭、Browser Profile 被另一个进程占用为 runtime 退 4。登录与检索命令一样先取该 route 的访问限速 permit，再取 profile 锁。
-
-## 平台命令
-
-`forager platform <id> <op>` 直连检索内置平台（ADR 0019；接入契约见第 7 章）。每个平台一棵静态 clap 子树；`forager platform <id> --help` 及各操作的 help 是参数语法的唯一权威。arXiv、SSRN 与 Google Scholar 都提供 `search` 与 `fetch`；Google Scholar 另有 L2 平台操作 `cited-by`。小红书提供 `search` 与 `fetch`，另有 L2 平台操作 `comments`（见第 7 章「小红书」）。X 提供 `search` 与 `fetch`，另有 L2 平台操作 `ask`（见第 7 章「X」）。YouTube 提供 `search` 与 `fetch`，另有 L2 平台操作 `comments`、`videos`、`ask` 与 `transcribe`（见第 7 章「YouTube」）。
-
-### `platform arxiv search`
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| 查询词（位置参数） | 字符串，可省略 | 无 | 关键词与双引号括起的短语，全部都必须出现（AND）；未配对的双引号退 2；arXiv 查询语法字符按字面文本处理；切分与编码规则见第 7 章 |
-| `--category` | 可重复，arXiv 分类代码 | 无 | 多个分类之间为 OR，整体与其他条件 AND |
-| `--author` | 字符串 | 无 | 作者名短语匹配 |
-| `--title` | 字符串 | 无 | 标题短语匹配 |
-| `--submitted-from` / `--submitted-to` | `YYYY-MM-DD`，UTC | 无 | 提交日期区间，两端都包含；可只给一端 |
-| `--sort` | `relevance` / `submitted` / `updated` | `relevance` | 固定降序 |
-| `--limit` | 1..=100 | 10 | 本页最多返回的条数 |
-| `--cursor` | 上一页的 `next_cursor` | 无 | 翻页；完整恢复原请求 |
-
-- 查询词与 `--category`、`--author`、`--title` 至少给出一个。通用 flag 为 `--timeout`（默认 120 秒，计入等待限速窗口的时间）、`--format json|markdown`、`--output`/`--receipt`、`--verbose`。
-- **cursor 独占**：`--cursor` 与显式传入的查询词、任何平台选项或 `--limit` 同时出现时由 clap 退 2；解析后的默认值不算冲突；通用 flag 可以同时使用。
-- **输出**：成功 JSON 为 `{platform, provider, items, next_cursor}`，`--verbose` 时另有 `provider_attempts`（含被跳过的 route）。每个 item 含 `ref`（带版本号，如 `arxiv:2401.01234v2`）、canonical `url`、`depth: "abstract"`、空白折叠后的 `title`、`authors`、`published`，以及 arXiv 数据 `abstract`（完整摘要）、`updated`、`primary_category`、`categories`、`doi`、`journal_ref`、`comment`、`pdf_url`；缺失字段为 `null`。有下一页时 `next_cursor` 为字符串；本页条数小于 limit 或已达总数时为 `null`；合法零结果为 `items: []` 且退 0。平台直连命令不写 Search Result Journal。
-- **退出码**：ref、cursor 或选项无效、日期区间颠倒、缺少查询词与过滤条件、所有已配置 route 都不支持所请求的选项＝飞行前退 2；`platforms.arxiv.order` 为空或操作可用 route 为空、order 含其他平台的 route＝飞行前退 3；arXiv Atom error entry（HTTP 400 或 200）为 attempt 级 Parameter，退 4 并带 arXiv 消息；等待限速窗口时预算不足为 Timeout 退 4；限速状态不可用为 Runtime 退 4 且不发送请求。
-
-### `platform arxiv fetch`
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| ref 或 URL（位置参数） | `arxiv:<id>[v<n>]`，或 arxiv.org / export.arxiv.org 的 abs、pdf（有无 `.pdf` 后缀）、html 页面 URL | 必填 | 新式与旧式 ID 都可带版本号；不带版本时取 arXiv 当前版本 |
-| `--depth` | `full_text` / `abstract` | `full_text` | `abstract` 只返回元数据与摘要 |
-| `--content-dir` | 目录路径 | 系统临时目录下 `forager-platform/<pid>-<时间戳>` | 全文 Markdown 文件所在目录 |
-| `--format` | `json` / `markdown` / `content` | `json` | `content` 把正文（`abstract` 时为摘要）直接输出到 stdout，不写文件 |
-
-- 通用 flag 为 `--timeout`（默认 120 秒，覆盖元数据、HTML 探测与正文读取）、`--output`/`--receipt`、`--verbose`。
-- **元数据段**：用 Query API 按 id 读取元数据，输出的 `ref` 与 `url` 带 arXiv 返回的实际版本。
-- **正文段**（仅 `full_text`）：对该版本的 HTML 地址发一次 HEAD 探测（经 arXiv 限速，发往 Query API 所在主机）；404 表示没有 HTML，直接读 `https://arxiv.org/pdf/<id>v<n>`；其他结果先读 `https://arxiv.org/html/<id>v<n>`，HTML 的 Web Fetch 链失败（包括全部过薄）后再读同一版本的 PDF。有 PDF 兜底时 HTML 链最多使用剩余预算的一半。正文沿用全局 `capabilities.web_fetch.order` 与凭据、薄正文门与 4 MiB 截断诊断；abs 页面永不作为正文。
-- **输出**：JSON 顶层为 `platform`、`provider`（元数据 route）、`ref`、`url`、`depth`、`title`、`authors`、`published`，以及与 search item 相同的 arXiv 数据字段。`full_text` 时另有 `content_url`（正文实际来自的 html 或 pdf URL）、`content_provider`（Web Fetch provider）、`content_path`（可直接读取的 Markdown 文件）与 `content_len`（正文字符数）；正文本身不出现在 stdout。文件名由带版本的 ref 派生（`arxiv:hep-th/9901001v3` → `arxiv-hep-th-9901001v3.md`），写入方式与 research 证据文件相同；v1 不做跨调用缓存。`abstract` 不写文件。`--verbose` 时 `provider_attempts` 依次包含元数据、HTML 探测与各 Web Fetch attempt。不写 Search Result Journal。
-- **退出码**：ref 或 URL 无法识别（包括短链）＝飞行前退 2；`platforms.arxiv.order` 为空或 fetch 可用 route 为空＝飞行前退 3；`full_text` 时没有已配置的 Web Fetch provider＝飞行前退 3（`abstract` 不受影响）；id 或版本不存在为 attempt 级 Parameter（`arXiv item not found`），Query API 429 为 RateLimited，都退 4 且元数据失败时不读正文；HTML 与 PDF 都失败时沿用最后一条 Web Fetch 链的终态（例如全部过薄为 Quality 退 5）；正文文件写入失败为 Runtime 退 4，不回退为内联输出。
-
-### `platform ssrn search`
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| 查询词（位置参数） | 字符串，不带 cursor 时必填 | 无 | 查询表达式，匹配语义遵循 Crossref |
-| `--scope` | `all` / `title` / `bibliographic` | `all` | all 使用 Crossref 默认字段；bibliographic 为 Crossref 书目字段 |
-| `--author` | 非空字符串 | 无 | 作者文本查询，不是作者 ID 或精确姓名匹配 |
-| `--affiliation` | 非空字符串 | 无 | Crossref 作者机构查询 |
-| `--published-from` / `--published-to` | `YYYY-MM-DD` | 无 | 发表日期区间，含边界，可单端 |
-| `--created-from` / `--created-to` | `YYYY-MM-DD` | 无 | Crossref 首次登记日期区间，含边界，可单端 |
-| `--updated-from` / `--updated-to` | `YYYY-MM-DD` | 无 | Crossref 元数据存入或重新存入日期区间，含边界，可单端 |
-| `--has-abstract` | 开关 | false | 要求上游摘要字段存在；不 fetch，也不保证清理后有可用摘要 |
-| `--type` | Crossref 注册文献类型，help 列出取值 | 无 | 精确类型过滤；默认保留所有类型 |
-| `--orcid` | 带校验位的裸 ORCID | 无 | 精确匹配贡献者 ORCID，例如 `0000-0002-1825-0097` |
-| `--funder` | `10.13039/<数字>` | 无 | 精确匹配 Open Funder Registry DOI |
-| `--sort` | `relevance` / `published` / `created` / `updated` / `citations` | `relevance` | Crossref 排序依据 |
-| `--order` | `asc` / `desc` | `desc` | 上游排序方向 |
-| `--limit` | 1..=100 | 10 | 本页最多返回的条数 |
-| `--cursor` | 上一页的 `next_cursor` | 无 | 翻页；完整恢复原请求 |
-
-- 通用 flag、cursor 独占规则与 arXiv search 相同。查询词为空或只有空白＝飞行前退 2。日期须为有效日历日期，起点不晚于终点。cursor 与显式查询词、任一高级选项或 limit 互斥，包括显式传入默认值。
-- 机构、ORCID 与资助机构筛选依赖已登记的 Crossref 元数据，缺失会漏检；资助机构标识符只支持 OFR DOI。Crossref 时间和被引次数不代表 SSRN Posted 时间或下载量。
-- **输出**：外层形状与 arXiv search 相同。每个 item 含 `ref`（`ssrn:<id>`，不带版本）、canonical `url`（SSRN 摘要页）、`depth`、`title`、`authors`、`published`，以及 SSRN 字段 `abstract`、`doi`、`crossref_type`、`crossref_created`；Crossref 记录没有的字段为 `null`。条目有摘要时 `depth` 为 `abstract`，否则为 `metadata` 且 `abstract: null`。`published` 保留 Crossref 报告的原始日期精度（`2012`、`2012-04` 或 `2012-04-19`）。route 细节（分页上限、DOI 过滤、诊断）见第 7 章「SSRN」。
-- **退出码**：cursor 无效或越过上游分页上限、查询词为空＝飞行前退 2；`platforms.ssrn.order` 为空或操作可用 route 为空＝飞行前退 3；Crossref 429 为 RateLimited 退 4；其他上游失败沿用共享状态码映射；合法零结果为 `items: []` 且退 0。
-
-### `platform ssrn fetch`
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| ref 或 URL（位置参数） | `ssrn:<id>`、`papers.ssrn.com/sol3/papers.cfm?abstract_id=<id>`、`ssrn.com/abstract=<id>`（含 `www.`）、DOI `10.2139/ssrn.<id>` 或其 doi.org URL | 必填 | 主机名不区分大小写；摘要页的其他 query 参数与 fragment 被忽略 |
-| `--depth` | `metadata` / `abstract` | `metadata` | 请求的深度是最低要求：`metadata` 在有摘要时一并返回摘要；`abstract` 要求摘要。SSRN 不提供正文，`full_text` 为参数错误 |
-| `--format` | `json` / `markdown` / `content` | `json` | `content` 把摘要输出到 stdout；Markdown 只在有摘要时显示 Abstract 小节 |
-
-- 通用 flag 为 `--timeout`（默认 120 秒）、`--output`/`--receipt`、`--verbose`。
-- **输出**：JSON 顶层为 `platform`、`provider`、`ref`、`url`、`depth`、`title`、`authors`、`published`，以及与 search item 相同的 SSRN 字段；`depth` 记录 route 实际拿到的内容。结果不写文件，也不写 Search Result Journal。
-- **退出码**：ref 或 URL 无法识别（包括 SSRN 的 `Delivery.cfm` PDF 链接、相似域名与短链）、`--depth full_text`＝飞行前退 2；`platforms.ssrn.order` 为空＝飞行前退 3；Crossref 中找不到该 DOI 为 attempt 级 Parameter（`SSRN paper not found in Crossref: ssrn:<id>`），退 4；`--depth abstract` 但 Crossref 记录没有摘要为 Quality 退 5。
-
-### `platform scholar search`
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| 查询词（位置参数） | 字符串，去空白后不能为空 | 必填 | 原样作为谷歌学术查询发送，`"短语"`、`OR`、`-词`、`author:`、`source:` 等运算符照常生效 |
-| `--limit` | 1–20 | 20 | 本页条数；每页无论多少条都计 1 次 SerpApi 额度 |
-| `--year-from` / `--year-to` | `YYYY`，1000–9999 | 无 | 发表年份区间，含边界，可单端；起始不晚于结束 |
-| `--review-only` | 开关 | false | 只返回综述论文 |
-| `--cursor` | 上一页的 `next_cursor` | 无 | 翻页；完整恢复原请求 |
-| `--format` | `json` / `markdown` | `json` | 输出格式 |
-
-- 通用 flag 为 `--timeout`（默认 120 秒）、`--output`/`--receipt`、`--verbose`。cursor 与显式查询词、`--year-from`、`--year-to`、`--review-only` 或 `--limit` 互斥，包括显式传入默认值。
-- 翻页：上游带下一页信号，且下一页不越过谷歌学术的第 1000 条结果时才签发 `next_cursor`，否则为 `null`；`--limit` 不整除 1000 时会在第 1000 条之前结束。每一页都计 1 次额度。
-- **输出**：外层形状与 arXiv search 相同。每个 item 含 `ref`（`scholar:<cluster_id>`）、canonical `url`（`https://scholar.google.com/scholar?cluster=<cluster_id>`）、`depth`（有片段为 `snippet`，否则为 `metadata`）、`title`、`authors`、`published`（年份或 `null`），以及 Scholar 字段 `snippet`、`link`、`source`、`cited_by`、`version_count`、`resources`、`result_type`。无法确定 cluster ID 的条目被跳过并写入 stderr 诊断。解码规则见第 7 章「Google Scholar」。
-- **退出码**：`--limit` 或年份越界、`--year-from` 晚于 `--year-to`、查询词为空、cursor 无效、被改动（limit、年份或页位置越界）或其 route 已移出 order 或已无 key＝飞行前退 2；`platforms.scholar.order` 为空＝飞行前退 3，消息只提示 order；`providers.serpapi.keys` 为空＝飞行前退 3，消息点名该键，零请求；无效 key（401/403）为 Auth，只发一次、不换 key，退 4；所有 key 额度用尽为 QuotaExhausted、限流为 RateLimited，都退 4；上游结果全部无法确定身份或响应形状不对为 Runtime，退 4；合法零结果为 `items: []` 且退 0。
-
-### `platform scholar fetch`
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| ref 或 URL（位置参数） | `scholar:<cluster_id>`，或查询参数恰有一个 `cluster`、没有 `cites` 的 `scholar.google.com/scholar` URL | 必填 | 其他查询参数与 fragment 被忽略 |
-| `--depth` | `metadata` / `snippet` / `abstract` / `full_text` | `metadata` | 只支持 `metadata`，其他深度飞行前退 2 |
-| `--format` | `json` / `markdown` | `json` | 输出格式 |
-
-- 通用 flag 同 search。
-- **输出**：JSON 顶层为 `platform`、`provider`、`ref`、`url`、`depth`（恒为 `metadata`）、`title`、`authors`、`published`（取第一个版本），以及 `versions`：本页最多 20 个版本，每个为 `{title, link, source, resources}`。cluster 还有更多版本时，stderr 诊断说明版本没有列全并给出 canonical URL。不写文件，不写 Search Result Journal。
-- **退出码**：ref 或 URL 无法识别（被引页 `cites`、`cluster` 重复或溢出、作者主页等）、`metadata` 以外的深度＝飞行前退 2；`platforms.scholar.order` 为空或 `providers.serpapi.keys` 为空＝飞行前退 3；cluster 不存在为 attempt 级 Parameter（`Google Scholar has no cluster scholar:<id>`），退 4；其他失败同 search。
-
-### `platform scholar cited-by`
-
-列出谷歌学术统计为引用某篇论文的文献，用于向后追踪：一篇论文之后有哪些延伸、复现或反驳的研究。
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| ref 或 URL（位置参数） | 同 fetch | 必填（带 `--cursor` 时不能给） | 被引论文 |
-| `--query` | 字符串，去空白后不能为空 | 无 | 只返回匹配该谷歌学术查询的施引文献，运算符同 search |
-| `--limit` | 1–20 | 20 | 本页条数；每页无论多少条都计 1 次 SerpApi 额度 |
-| `--year-from` / `--year-to` | `YYYY`，1000–9999 | 无 | 施引文献的发表年份区间，规则同 search |
-| `--sort` | `relevance` / `date` | `relevance` | `date` 按收录时间倒序列出最新的引用，不能与年份参数同时使用 |
-| `--cursor` | 上一页 cited-by 的 `next_cursor` | 无 | 翻页；完整恢复原请求 |
-| `--format` | `json` / `markdown` | `json` | 输出格式 |
-
-- 通用 flag 同 search。cursor 与 ref、`--query`、年份、`--sort` 或 `--limit` 互斥，包括显式传入默认值。翻页规则与额度同 search。
-- **输出**：与 `platform scholar search` 相同的结果页，条目解码规则相同。`--sort date` 时 `snippet` 保留上游加上的收录时间前缀（如 `6 days ago - `）。
-- **退出码**：ref 或 URL 无法识别、`--limit` 或年份越界、`--year-from` 晚于 `--year-to`、`--sort date` 与年份参数同时出现、`--query` 为空＝飞行前退 2；search 的 cursor 交给 cited-by 或反过来、cursor 被改动或其 route 不再可用＝飞行前退 2；配置错误与 search 相同，退 3，消息点名 `platforms.scholar.order` 或 `providers.serpapi.keys`。谷歌学术对无人引用的论文与不存在的 cluster 给出同样的空结果，所以两者都是 `items: []` 且退 0，并都计 1 次额度。其他失败同 search。
-
-### `platform xiaohongshu search`
-
-在 forager 的无头浏览器中，以用户登录过的小红书 Browser Profile 检索小红书笔记，经 `xiaohongshu_browser` route（第 7 章「小红书」）。该 route 默认不在 order 中。
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| 查询词（位置参数） | 字符串，去空白后不能为空 | 必填 | 原样输入小红书搜索框；不承诺精确短语或运算符语义 |
-| `--limit` | 1–100 | 20 | 最多返回的条数；一次命令读取 ⌈limit / 20⌉ 页（最多 5 页） |
-| `--sort` | `comprehensive` / `latest` / `most-liked` / `most-commented` / `most-collected` | `comprehensive` | 综合 / 最新 / 最多点赞 / 最多评论 / 最多收藏 |
-| `--note-type` | `all` / `image` / `video` | `all` | 不限 / 图文 / 视频 |
-| `--publish-time` | `any` / `day` / `week` / `half-year` | `any` | 不限 / 一天内 / 一周内 / 半年内 |
-| `--format` | `json` / `markdown` | `json` | 输出格式 |
-
-- 通用 flag 为 `--timeout`（默认 120 秒，计入等待限速窗口的时间）、`--output`/`--receipt`、`--verbose`。没有 `--cursor`。
-- **不续页**：小红书每次访问的排序都不同，跨命令续页既不能复现也无法去重，所以 `next_cursor` 恒为 `null`。上游最后一页仍有结果，或去重后的条目在截到 `--limit` 时有余项，stderr 输出一条诊断，说明还有更多结果、需要更多时加大 `--limit`。
-- **输出**：外层形状与 arXiv search 相同。每个 item 含 `ref`（`xiaohongshu:<note_id>`）、canonical `url`（`https://www.xiaohongshu.com/explore/<note_id>`）、`depth`（恒为 `metadata`，卡片没有正文片段）、`title`（可以为空字符串）、`authors`（作者昵称）、`published`（日期，相对时间按本机时钟换算，规则见第 7 章；无法识别的形式为 `null`），以及小红书字段 `note_type`（`image` / `video`）、`author_id`、`likes`、`collects`、`comments`、`shares`（计数原文，可能是 `1.2万` 这类缩写）、`published_text`（卡片上的时间原文）与 `access_url`（带 Access Token 的访问链接，打开该笔记的推荐入口）。ID 不合法或缺少 Access Token 的笔记被跳过并写入 stderr 诊断。
-- **退出码**：查询词为空、`--limit` 越界＝飞行前退 2；`platforms.xiaohongshu.order` 为空（默认）＝飞行前退 3，消息给出启用步骤，不启动浏览器；order 启用该 route 而浏览器未安装或 Browser Profile 从未登录＝飞行前退 3，消息给出修复命令；会话未登录、站点返回 461 或 471、页面提示请求太频繁或访问频次异常为 Auth，站点安全限制（300031、300017，页面跳转或接口返回）为 attempt 级 Parameter，截止点前仍停在结果页为 Timeout，都退 4；条件、页序或关键词与请求不符、响应体缺失、接口返回其他非 0 `code`、停在非预期页面、上游有笔记但全部被跳过为 Runtime，退 4；合法零结果为 `items: []` 且退 0。
-
-### `platform xiaohongshu fetch`
-
-在 forager 的无头浏览器中，以用户登录过的小红书 Browser Profile 打开一篇小红书笔记，经 `xiaohongshu_browser` route（第 7 章「小红书」）。
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| 访问链接（位置参数） | search 条目的 `access_url`，或带 `xsec_token` 的可识别笔记链接 | 必填 | 只给 ref 或不带 token 的链接时飞行前退 2 |
-| `--depth` | `metadata` / `full_text` | `full_text` | `metadata` 内联返回笔记字段；`full_text` 另把正文写成本地 Markdown 文件 |
-| `--content-dir` | 目录 | 系统临时目录下按调用隔离的新目录 | 全文文件所在目录 |
-| `--format` | `json` / `markdown` / `content` | `json` | `content` 把正文输出到 stdout，不写文件 |
-
-- 通用 flag 同 search。全文不需要配置任何 Web Fetch provider（ADR 0022）。
-- **输出**：JSON 顶层为 `platform`、`provider`、`ref`、`url`（canonical URL，不含 token）、`depth`、`title`（可为空串）、`authors`、`published`（北京时间 ISO 8601 时间戳），以及小红书字段 `updated`、`note_type`、`author_id`、`likes`、`collects`、`comments`、`shares`、`tags`、`images`（`[{url, width, height}]`）、`video`（`{duration_seconds, width, height}` 或 `null`，不含视频地址）、`ip_location` 与 `access_url`（由 ref 与 token 重新构造，含 token）。`full_text` 时另有 `content_url`（canonical URL）、`content_provider`（`xiaohongshu_browser`）、`content_path`（`xiaohongshu-<id>.md`）与 `content_len`。正文格式见第 7 章。不写 Search Result Journal。
-- **退出码**：输入无法识别、短链、`rednote.com`、token 格式不对或缺少 token＝飞行前退 2，不启动浏览器；`platforms.xiaohongshu.order` 为空（默认）或飞行前检查失败＝飞行前退 3；会话未登录、461 或 471、请求太频繁或访问频次异常提示为 Auth，300031/300017 或安全限制为 attempt 级 Parameter（消息列出 token 过期、笔记受限或删除、账号被限频三种可能），截止点前仍停在该笔记页为 Timeout，`noteId` 不符、停在非预期页面或外壳形状不对为 Runtime，正文文件写入失败为 Runtime，都退 4；标题、正文与图片全为空为 Quality，退 5。token 永不出现在 attempt 消息、`--verbose` attempts 与失败时的 stderr 中。
-
-### `platform xiaohongshu comments`
-
-在 forager 的无头浏览器中，以用户登录过的小红书 Browser Profile 读取一篇小红书笔记的一级评论，并可展开前几条评论的楼中楼，经 `xiaohongshu_browser` route（第 7 章「小红书」）。这是只有一条 route 的 L2 平台操作。
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| 访问链接（位置参数） | 同 fetch | 必填 | 只给 ref 或不带 token 的链接时飞行前退 2 |
-| `--limit` | 1–50 | 20 | 最多返回的一级评论条数；一次命令读取 ⌈limit / 10⌉ 页（最多 5 页） |
-| `--replies` | 0–10 | 0 | 在返回的一级评论中，对前 N 条还有未显示回复的评论各点击一次"展开 N 条回复"，只读回复的第一页 |
-| `--format` | `json` / `markdown` | `json` | 输出格式 |
-
-- 通用 flag 同 search。没有 `--cursor`：页面只能从第一页起按顺序加载评论，命令之间无法续读。
-- **输出**：JSON 为 `{platform, provider, note, comments, has_more}`。`note` 为笔记 ref；`has_more` 表示还有未交付的一级评论（上游最后一页仍有更多，或读到的评论截到 `--limit` 时有余项）。每条评论为 `{id, author, author_id, text, likes, published, ip_location, reply_count, replies, replies_has_more}`，回复为 `{id, author, author_id, text, likes, published, ip_location, reply_to}`：`text` 为原文，`likes` 与 `reply_count` 为计数原文，`published` 为北京时间 ISO 8601 时间戳，`reply_to` 为该回复所回复的评论或回复的 ID。`replies` 先放评论自带的一条回复，展开时再追加第一页回复，按 ID 去重；`replies_has_more` 表示该评论还有未交付的回复。输出不含 token。不写 Search Result Journal。
-- **退出码**：输入无法识别或缺少 token、`--limit` 或 `--replies` 越界＝飞行前退 2，不启动浏览器；`platforms.xiaohongshu.order` 为空（默认）或飞行前检查失败＝飞行前退 3；会话未登录、461 或 471、请求太频繁或访问频次异常提示为 Auth，300031/300017（页面跳转或评论接口返回）或安全限制为 attempt 级 Parameter，截止点前仍停在该笔记页为 Timeout，都退 4；评论接口返回其他非 0 `code`、评论页的笔记或 cursor 链不符、楼中楼不属于选中的评论或起始 cursor 不符、读取模块无法点击展开（消息附原因）、响应体缺失、停在非预期页面、第一页没有评论却声称还有更多为 Runtime，退 4；笔记没有评论为 `comments: []` 且退 0。token 卫生同 fetch。
-
-### `platform x search`
-
-只在 X 上检索帖子，经 `xai` route（第 7 章「X」）。条目是 Relayed Content：正文与作者 handle 由读到帖子的模型转述。
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| 查询词（位置参数） | 非空字符串 | 必填 | 原样作为用户消息发送，模型自行决定检索方式 |
-| `--handle` | 可重复，最多 20 个 | 无 | 只要这些账号的帖子；可带 `@`，按出现顺序去重（不区分大小写），每个须为 1–15 个 `[A-Za-z0-9_]` |
-| `--exclude-handle` | 同上 | 无 | 排除这些账号；与 `--handle` 互斥 |
-| `--from` / `--to` | `YYYY-MM-DD` | 无 | UTC 发布日期区间，两端都含当天 |
-| `--limit` | 1–20 | 10 | 最多返回的帖子数 |
-| `--format` | `json` / `markdown` | `json` | 输出格式 |
-
-- 通用 flag 同 arXiv search。没有 `--cursor`：X 检索不可续页，`next_cursor` 恒为 `null`。
-- **输出**：外层形状与 arXiv search 相同。每个 item 含 `ref`（`x:<post_id>`）、canonical `url`（`https://x.com/i/status/<post_id>`）、`depth`（恒为 `snippet`）、`title`（恒为 `null`）、`authors`（`[author_handle]`）、`published`（由帖子 id 推算的 UTC 时间，精确到秒，2010-11 以前的帖子为 `null`），以及 X 字段 `author_handle` 与 `text`。annotations 中没有的帖子、无法识别的 URL 与发布日期落在区间外的帖子被丢弃，stderr 汇总一条诊断。不写 Search Result Journal。
-- **退出码**：查询词为空、handle 非法、超过 20 个或两种 handle 同时给出、日期非法或 `--from` 晚于 `--to`、`--limit` 越界＝飞行前退 2；`providers.xai.keys` 为空或 `platforms.x.order` 为空＝飞行前退 3；xAI 终态失败按主搜索的规则映射（鉴权、限流、额度、参数、内容过滤），退 4 或 5；输出不是请求的 JSON、或模型返回了帖子而全部未通过核对为 Runtime，退 4；模型没有找到帖子为 `items: []` 且退 0。
-
-### `platform x fetch`
-
-读取一条 X 帖子，默认连同它的 thread。
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| ref 或 URL（位置参数） | `x:<post_id>`，或 `x.com`/`twitter.com`（含 `www.`、`mobile.`）的帖子 URL | 必填 | 路径为 `/<handle>/status/<id>`（可带 `/photo/N`）、`/i/status/<id>` 或 `/i/web/status/<id>`，忽略 query、fragment 与末尾 `/` |
-| `--depth` | `thread` / `metadata` | `thread` | `metadata` 只返回该帖子 |
-| `--format` | `json` / `markdown` / `content` | `json` | `content` 输出帖子正文；`thread` 深度时为 thread 的 Markdown |
-
-- 通用 flag 同 search。不写文件。
-- **输出**：JSON 顶层为 `platform`、`provider`，帖子的公共字段与 X 字段（同 search，`depth` 为请求的深度）；`thread` 深度另有 `thread: [{ref, url, author_handle, published, text, role}]`，按模型给出的顺序，`role` 为 `parent`、`root`、`reply` 或 `quoted`。
-- **退出码**：`t.co` 短链（消息提示在浏览器中打开后传 x.com URL）、其他无法识别的输入、`thread` 与 `metadata` 以外的深度＝飞行前退 2；配置错误同 search，退 3；模型表示帖子不存在或不可见为 attempt 级 Parameter（`X post x:<id> was not found or is not visible`），退 4；根帖不是请求的帖子、不止一条或没有根帖、根帖不在 annotations 中为 Runtime，退 4；xAI 终态失败同 search。
-
-### `platform x ask`
-
-只依据 X 上的帖子回答问题，这是只有一条 route 的 L2 平台操作（第 7 章「X」）。
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| 问题（位置参数） | 非空字符串 | 必填 | 前面加上本机当前时间，作为用户消息发送 |
-| `--handle` / `--exclude-handle` / `--from` / `--to` | 同 search | 无 | 同 search |
-| `--format` | `json` / `markdown` | `json` | 输出格式 |
-
-- 通用 flag 同 search。
-- **输出**：JSON 为 `{platform, provider, query, answer, sources}`；`--verbose` 附 `provider_attempts`。`answer` 经主搜索的 normalizer，保留 `[[N]](url)` 逐句引用；`sources` 为 `{ref, url, title}`：帖子 URL 映射为 `x:<post_id>` 与 canonical URL，用户主页与其他页面 `ref` 为 `null` 并保留原 URL，按 URL 去重。`sources` 可以为空。不写 Search Result Journal。
-- **退出码**：问题为空、过滤参数非法同 search，飞行前退 2；配置错误同 search，退 3；规范化后回答为空为 Runtime，退 4；xAI 终态失败同 search。
-
-### `platform hn search`
-
-只在 Hacker News 上检索条目，经 `hn_api` route（第 7 章「Hacker News」）。
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| 查询词（位置参数） | 非空字符串 | 无 `--cursor` 时必填 | 原样发送；引号为短语，`-词` 为排除 |
-| `--sort` | `relevance` / `date` | `relevance` | 相关度，或按时间倒序 |
-| `--type` | 可重复：`story`、`comment`、`ask_hn`、`show_hn`、`launch_hn`、`job`、`poll` | 任意类型 | 多个类型之间为「或」，按出现顺序去重 |
-| `--author` | 2–15 个 `[A-Za-z0-9_-]` | 无 | 只要该用户的条目 |
-| `--story` | 条目 ID（规则同 ref） | 无 | 只要该 story 讨论串中的条目 |
-| `--from` / `--to` | `YYYY-MM-DD` | 无 | UTC 发布日期区间，两端都含当天，可只给一端 |
-| `--min-points` / `--min-comments` | 非负整数 | 无 | 最低分数与评论数；评论没有分数 |
-| `--limit` | 1–100 | 20 | 本页条目数 |
-| `--cursor` | 上一页的 `next_cursor` | 无 | 与查询词、选项和 `--limit` 互斥 |
-| `--format` | `json` / `markdown` | `json` | 输出格式 |
-
-- 通用 flag 同 arXiv search。只在下一页仍在前 1000 条之内时签发 cursor。
-- **输出**：外层形状与 arXiv search 相同。每个 item 含 `ref`（`hn:<id>`）、canonical `url`（`https://news.ycombinator.com/item?id=<id>`）、`depth`（带正文为 `snippet`，否则为 `metadata`）、`title`（comment 为 `null`）、`authors`、`published`（UTC，精确到秒），以及 HN 字段 `item_type`、`link_url`、`points`、`comments`、`text`（条目自身正文的 Markdown）、`story_ref`、`story_title`、`parent_ref`（后三者只对 comment 填写）。计数可能滞后几分钟。不写 Search Result Journal。
-- **退出码**：查询词为空、用户名或 story ID 非法、日期非法或 `--from` 晚于 `--to`、`--min-points` 与只含 `comment` 的 `--type` 同时出现、`--limit` 越界、cursor 越过前 1000 条＝飞行前退 2；`platforms.hn.order` 为空＝飞行前退 3；Algolia 400 为 attempt 级 Parameter，429 为 RateLimited，响应不是预期的 JSON 为 Runtime，都退 4；合法零结果为 `items: []` 且退 0。
-
-### `platform hn fetch`
-
-读取一个 Hacker News 条目，默认把整个讨论串写成 Markdown 文件。
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| ref 或 URL（位置参数） | `hn:<id>`，或 `news.ycombinator.com/item?id=<id>` | 必填 | 前缀不区分大小写；忽略其他 query 参数（如 `p`）、fragment 与末尾 `/` |
-| `--depth` | `thread` / `metadata` / `full_text` | `thread` | `thread` 写讨论串文件；`metadata` 只返回条目与实时计数；`full_text` 读外链文章或条目自身正文 |
-| `--content-dir` | 目录 | 系统临时目录下的新目录 | 讨论串或全文文件 `hn-<id>.md` 的写入位置 |
-| `--format` | `json` / `markdown` / `content` | `json` | `content` 把讨论串或全文输出到 stdout，不写文件 |
-
-- 通用 flag 同 search。
-- **输出**：JSON 顶层为 `platform`、`provider`，条目的公共字段与 HN 字段（`points` 与 `comments` 为 Firebase 的实时值）。`thread` 深度另有 `content_url`、`content_provider`（`hn_api`）、`content_path`、`content_len`、`comments_delivered` 与 `order`（`ranked_top_level` 或 `chronological`）；`full_text` 深度另有正文的四个 `content_*` 字段。
-- **退出码**：用户页、站点页等无法识别的输入，`thread`、`metadata`、`full_text` 以外的深度＝飞行前退 2；`platforms.hn.order` 为空、`full_text` 而没有已配置的 Web Fetch provider＝飞行前退 3；条目不存在（`HN item not found: hn:<id>`）、已删除或 dead（`HN item hn:<id> is deleted or dead`）、对 comment 请求 `full_text` 为 attempt 级 Parameter，退 4；没有标题与正文的帖子请求 `full_text` 为 Quality，退 5；文件写入失败为 Runtime，退 4；传输失败同 search。
-
-### `platform hn stories`
-
-列出 Hacker News 某个官方榜单的当前条目，这是只有一条 route 的 L2 平台操作（第 7 章「Hacker News」）。
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| 榜单（位置参数） | `top` / `new` / `best` / `ask` / `show` / `job` | `top` | `top` 为首页 |
-| `--limit` | 1–100 | 30 | 最多返回的条目数 |
-| `--format` | `json` / `markdown` | `json` | 输出格式 |
-
-- 通用 flag 同 search。没有 `--cursor`：榜单随时在变，翻页无法复现。
-- **输出**：JSON 为 `{platform, provider, list, items}`；`--verbose` 附 `provider_attempts`。条目为 search 的条目字段加 `rank`（榜单中的 1-based 名次），按名次排列；已删除、dead 或不存在的条目被跳过，stderr 汇总一条诊断。计数可能滞后几分钟。不写 Search Result Journal。
-- **退出码**：未知榜单、`--limit` 越界＝飞行前退 2；`platforms.hn.order` 为空＝飞行前退 3；榜单列表读取失败或不是数组、传输失败，退 4；列表为空为 `items: []` 且退 0。
-
-### `platform youtube search`
-
-只在 YouTube 上检索视频，经 `youtube_api` route（第 7 章「YouTube」），需要用户自己的 YouTube Data API key。
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| 查询词（位置参数） | 非空字符串 | 无 `--cursor` 时必填 | 按 Data API `q` 的语义原样发送；`-词` 为排除，`a\|b` 为任一 |
-| `--sort` | `relevance` / `date` / `views` / `rating` | `relevance` | 相关度、发布时间倒序、播放数或评分 |
-| `--from` / `--to` | `YYYY-MM-DD` | 无 | UTC 发布日期区间，两端都含当天，可只给一端 |
-| `--duration` | `short` / `medium` / `long` | 无 | 小于 4 分钟、4–20 分钟、大于 20 分钟 |
-| `--channel` | `youtube:channel/<UC…>` 或 `/channel/<UC…>` URL | 无 | 只在该频道里检索 |
-| `--has-captions` | 开关 | 关 | 只要有字幕的视频，不保证语言 |
-| `--limit` | 1–50 | 20 | 本页条目数 |
-| `--cursor` | 上一页的 `next_cursor` | 无 | 与查询词、选项和 `--limit` 互斥 |
-| `--format` | `json` / `markdown` | `json` | 输出格式 |
-
-- 通用 flag 同 arXiv search。一次 search 消耗 1 次 search 配额（默认每天 100 次）与 1 单位增强配额。
-- **输出**：外层形状与 arXiv search 相同，不输出估算总数。每个 item 含 `ref`（`youtube:<video_id>`）、canonical `url`、`depth`（有描述片段为 `snippet`，否则为 `metadata`）、`title`（已还原 HTML 实体）、`authors`（频道名）、`published`（UTC，精确到秒），以及 YouTube 字段 `channel_ref`、`snippet`、`duration_seconds`、`live_status`、`views`、`likes`、`comments`、`language`（search 恒为 `null`）、`has_captions` 与 `caption_tracks`（恒为 `null`）。时长、计数与字幕标志来自一次批量增强请求；它失败时这些字段为 `null`，stderr 汇总一条诊断，退出码不变。不写 Search Result Journal。
-- **退出码**：查询词为空、日期非法或 `--from` 晚于 `--to`、`--channel` 不是 channel、`--limit` 越界＝飞行前退 2，不发请求；`platforms.youtube.order` 为空、`providers.youtube_api.keys` 为空或多于一个＝飞行前退 3；key 无效为 Auth，配额耗尽为 QuotaExhausted，上游参数错误为 attempt 级 Parameter，响应不是预期结构为 Runtime，都退 4；合法零结果为 `items: []` 且退 0。
-
-### `platform youtube fetch`
-
-读取一个 YouTube 视频的元数据、完整描述与章节，或把它的一条平台字幕渲染成 Transcript。`metadata` 与 `abstract` 由 `youtube_api` 交付（order 中没有已配置的 `youtube_api` 时由已启用的 `youtube_web` 交付）；`full_text` 只有 `youtube_web` 支持，它不在默认 order 中（第 7 章「YouTube」）。
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| ref 或 URL（位置参数） | `youtube:<video_id>`，或 watch、`youtu.be`、`shorts`、`live`、`embed` 视频链接 | 必填 | 前缀不区分大小写；忽略 `t`、`list`、`si` 等观看参数与 fragment |
-| `--depth` | `metadata` / `abstract` / `full_text` | `full_text` | `metadata` 只返回书目字段；`abstract` 另有完整描述与章节；`full_text` 把一条平台字幕渲染成 Transcript 写入文件 |
-| `--lang` | BCP 47 风格语言标签（如 `en`、`pt-BR`），可重复 | 无（取视频的原始语言） | 只用于 `full_text`，按出现顺序为优先级：先在这些语言中依次找发布者上传的字幕，再依次找 ASR 字幕；带子标签的标签精确匹配，不带子标签的匹配该语言的任一变体；从不使用机器翻译 |
-| `--content-dir` | 目录 | 系统临时目录下的新目录 | Transcript 文件的写入位置 |
-| `--format` | `json` / `markdown` / `content` | `json` | `content` 把描述（`abstract`）或 Transcript（`full_text`）输出到 stdout，不写文件 |
-
-- 通用 flag 同 search。经 `youtube_api` 的一次 fetch 消耗 1 单位配额；经 `youtube_web` 的一次 fetch 不计费，`metadata` 与 `abstract` 发 2 个请求，`full_text` 发 3 个，每个请求等待该 route 每 4 秒 1 个的访问窗口。
-- **输出**：JSON 顶层为 `platform`、`provider`，条目的公共字段与 YouTube 字段（`snippet` 为 `null`；`youtube_api` 的 `language` 为音频语言或描述语言，`youtube_web` 的 `language` 为唯一一条 ASR 轨的语言（视频的语音），没有恰好一条时为 `null`；`youtube_web` 的 `likes` 与 `comments` 恒为 `null`，`caption_tracks` 为 `[{language, source}]`，不含机器翻译）；`abstract` 深度另有 `description` 与 `chapters`（`[{start_seconds, title}]`）。`full_text` 深度不内联描述与章节（它们在 Transcript 文件中），另有 `content_url`（canonical URL）、`content_provider`（`youtube_web`）、`content_path`（`youtube-<id>.md`）、`content_len` 与 `transcript: {language, source, cues, paragraphs}`（`source` 为 `manual` 或 `asr`）。
-- **Transcript 文件**：开头是标题、`Ref`、频道、发布时间、时长、字幕的语言与来源，以及「本文只含字幕文字、没有描述画面与非语音的声音」的说明；然后是「Description」一节与「Transcript」一节。字幕按章节分节（章节标题为小节标题），章节内按约 45 秒或 2 秒以上的静音断段，发布者上传的字幕优先在句末断段；每段以 `[mm:ss](<canonical URL>&t=<秒>s)` 开头，超过一小时为 `h:mm:ss`。
-- **退出码**：无法识别的输入、playlist 或 channel 的 ref 与 URL（消息提示改用 `videos`）、`@handle` 与 `/c/`、`/user/` 频道页、`--lang` 与非 `full_text` 深度同时出现或语言标签非法、order 中没有支持所请求深度的 route（默认 order 下的 `full_text`：消息给出启用 `youtube_web` 的命令与风险说明）＝飞行前退 2；配置错误同 search，退 3（`full_text` 缺 `youtube_web` 时消息同样给出启用说明）。`youtube_api`：视频不存在或不公开（`YouTube video not found or not public: youtube:<id>`）为 attempt 级 Parameter，退 4。`youtube_web`：播放器报告视频不存在或不可播放为 attempt 级 Parameter，要求登录或机器人验证为 Auth（消息说明出口 IP 被临时限制、需要等待或换网络），429 为 RateLimited，字幕轨正文为空为 Runtime（提示可能遭遇 IP 软封），播放器返回的视频 ID 不一致、字幕轨不在配置的 `url` 同源下或需要 PO Token 为 Runtime，都退 4；没有符合选轨规则的字幕（消息列出可用的字幕语言，提示 `--lang`，并提示改用 `transcribe` 让模型生成非逐字的 Transcript；`full_text` 从不自动回退到它）与直播中的 `full_text` 为 Quality，退 5。`abstract` 而视频没有描述为 Quality，退 5；传输失败同 search。
-
-### `platform youtube comments`
-
-列出一个 YouTube 视频的一级评论及随评论返回的回复，经 `youtube_api` route（第 7 章「YouTube」）。这是只有一条 route 的 L2 平台操作。
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| 视频（位置参数） | 同 fetch 的 video ref 或 URL | 必填 | playlist、channel 与 `@handle` 飞行前退 2 |
-| `--limit` | 1–100 | 20 | 最多返回的一级评论条数，一次请求读取 |
-| `--sort` | `relevance` / `time` | `relevance` | 相关度或时间倒序；`time` 不承诺整页严格递减（置顶评论可能在最前） |
-| `--format` | `json` / `markdown` | `json` | 输出格式 |
-
-- 通用 flag 同 search。一次命令消耗 1 单位配额。没有 `--cursor`：评论续页与回复展开不在范围内。
-- **输出**：JSON 为 `{platform, provider, video, comments, has_more}`。`video` 为视频 ref；`has_more` 表示还有本页未交付的一级评论。每条评论为 `{id, author, author_channel_ref, text, likes, published, reply_count, replies, replies_complete}`，回复为 `{id, author, author_channel_ref, text, likes, published}`：`author` 为显示名（如 `@handle`），`author_channel_ref` 为作者频道的 ref，`text` 为纯文本，`published` 为 UTC（精确到秒），`reply_count` 为回复总数；`replies` 是随评论返回的回复（最多约 5 条），`replies_complete` 表示它们是否就是全部回复。不写 Search Result Journal。
-- **退出码**：输入无法识别或不是视频、`--limit` 越界＝飞行前退 2，不发请求；配置错误同 search，退 3；视频关闭了评论为 attempt 级 Parameter（`comments are disabled for youtube:<id>`，不是空列表），视频不存在或不公开为 attempt 级 Parameter（`YouTube video not found or not public: youtube:<id>`），key 与配额错误同 search，响应不是预期结构或评论属于另一个视频为 Runtime，都退 4；视频没有评论为 `comments: []` 且退 0。
-
-### `platform youtube videos`
-
-列出一个 YouTube 播放列表（按列表顺序）或频道（按上传时间倒序）的视频，经 `youtube_api` route（第 7 章「YouTube」）。这是只有一条 route 的分页 L2 平台操作。
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| 集合（位置参数） | `youtube:playlist/<id>`、`youtube:channel/<UC…>`，或 `/playlist?list=<id>`、带 `list=<id>` 的 `/watch`、`/channel/<UC…>`、`/@<handle>` 链接 | 无 `--cursor` 时必填 | 频道与 handle 链接可带 `/videos` 等标签页；handle 由 Data API 在执行时解析成频道 |
-| `--limit` | 1–50 | 20 | 本页条目数 |
-| `--cursor` | 上一页的 `next_cursor` | 无 | 与集合和 `--limit` 互斥；恢复集合（handle 已解析成频道）、limit 与页位置（频道的页位置含它的上传列表） |
-| `--format` | `json` / `markdown` | `json` | 输出格式 |
-
-- 通用 flag 同 search。每页消耗 1 单位配额；频道与 handle 的第一页另加 1 单位（解析频道的上传列表），cursor 带着解析出的上传列表，后续页不再解析。
-- **输出**：JSON 为 `{platform, provider, collection: {ref, url}, items, next_cursor}`。`collection` 为读到的播放列表或频道（handle 输出它的频道 ref）。条目字段与 search 条目相同，另有 `position`（在列表中的 0-based 位置）：`authors` 与 `channel_ref` 为视频的发布频道，`published` 为视频的发布时间（不是加入列表的时间），`snippet` 为描述的前 160 个字符；不补时长与计数，`duration_seconds`、`live_status`、计数、`language` 与 `has_captions` 为 `null`。私有与已删除的视频被跳过，stderr 汇总一条诊断列出它们的位置。不写 Search Result Journal。
-- **退出码**：输入无法识别、是视频、是 `/c/` 或 `/user/` 频道页、handle 格式非法、`--limit` 越界、cursor 无法解码或属于其他操作＝飞行前退 2，不发请求；配置错误同 search，退 3；频道或 handle 不存在、播放列表不存在或不公开为 attempt 级 Parameter，key 与配额错误同 search，响应不是预期结构为 Runtime，都退 4；空列表为 `items: []` 且退 0。
-
-### `platform youtube ask`
-
-由模型看完一个 YouTube 视频的画面、听完它的声音后回答问题，经 `gemini_api` route（第 7 章「YouTube」），需要用户自己的 Gemini key。这是只有一条 route 的 L2 平台操作。
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| 视频（位置参数） | 同 fetch 的 video ref 或 URL | 必填 | playlist、channel 与 `@handle` 飞行前退 2 |
-| 问题（位置参数） | 字符串，去空白后不能为空 | 必填 | 接在固定指令之后发送：只依据视频作答，引用时以 `mm:ss`（一小时起为 `h:mm:ss`）标出时间点，看不到视频时明说 |
-| `--timeout` | 秒 | 600 | 整条命令的截止时间；模型读完一个长视频需要数分钟 |
-| `--format` | `json` / `markdown` | `json` | 输出格式 |
-
-- 其余通用 flag 同 search。
-- **前置检查**：先经 YouTube 的 fetch 链以 `metadata` 深度读这个视频（经 `youtube_api` 消耗 1 单位配额），成功后才请求模型；`--verbose` 的 `provider_attempts` 含这一步。
-- **输出**：JSON 为 `{platform, provider, video: {ref, url, title}, question, answer, model, usage}`；`--verbose` 附 `provider_attempts`。`answer` 是模型的话（Relayed Content），不是视频原文；`model` 为响应报告的模型版本；`usage` 为 `{prompt_tokens, output_tokens, thoughts_tokens, cached_tokens, total_tokens}`，取不到的数字为 `null`。不写 Search Result Journal。
-- **退出码**：输入无法识别或不是视频、问题为空＝飞行前退 2，不发请求；`platforms.youtube.order` 中没有已配置的 `gemini_api`（缺 `providers.gemini_api.keys`）或没有可读元数据的 fetch route＝飞行前退 3，不发请求；前置检查的失败同 fetch（视频不存在或不公开为 attempt 级 Parameter，退 4），不请求模型；直播中的视频为 Quality，退 5，不请求模型。Gemini 400 为 attempt 级 Parameter，401/403 为 Auth，429 为 RateLimited 或 QuotaExhausted 并按凭据池换 key，回答为空或响应不是预期结构为 Runtime，都退 4；输出被截断或被安全策略拦截为 Quality，退 5。
-
-### `platform youtube transcribe`
-
-视频没有平台字幕时，由模型看完视频后生成一份带时间戳的 Transcript，经 `gemini_api` route（第 7 章「YouTube」）。这是只有一条 route 的 L2 平台操作；只在调用者显式请求时运行，fetch 的 `full_text` 从不回退到它。
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| 视频（位置参数） | 同 fetch 的 video ref 或 URL | 必填 | playlist、channel 与 `@handle` 飞行前退 2 |
-| `--content-dir` | 目录 | 系统临时目录下的新目录 | Transcript 文件 `youtube-<id>-transcribed.md` 的写入位置 |
-| `--timeout` | 秒 | 600 | 同 ask |
-| `--format` | `json` / `markdown` / `content` | `json` | `content` 把 Transcript 输出到 stdout，不写文件 |
-
-- 其余通用 flag 同 search。
-- **前置检查**：同 ask，但读 `abstract` 深度（同样 1 单位配额），以便把描述与章节写进 Transcript 文件；视频没有描述不算失败。
-- **输出**：JSON 与 `full_text` fetch 相同（`provider` 与 `content_provider` 为 `gemini_api`，`content_path` 为 `youtube-<id>-transcribed.md`，`transcript.source` 为 `model`），另有 `model` 与 `usage`（同 ask）。
-- **Transcript 文件**：结构同 fetch 的 Transcript 文件；头部注明字幕由模型看画面、听声音后生成，不保证逐字；章节取前置检查读到的描述中的章节。结束时间超出视频时长 5 秒以上的分段被丢弃，stderr 汇总一条诊断。
-- **退出码**：同 ask；另外，输出被截断（`MAX_TOKENS`）、不是合法 JSON、语言为空、分段时间非法或没有分段为 Quality，退 5，不写文件；文件写入失败为 Runtime，退 4。
-
-### `platform polymarket search`
-
-按主题检索 Polymarket 的 event，经 `polymarket_api` route（第 7 章「Polymarket」）。每个结果带最可能的几个 market，价格来自 Gamma 的缓存。
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| 查询词（位置参数） | 非空字符串 | 无 `--cursor` 时必填 | 原样发送 |
-| `--include-closed` | flag | 关 | 也匹配已关闭的 event；默认只匹配仍开放的 event |
-| `--limit` | 1–20 | 10 | 本页 event 数 |
-| `--cursor` | 上一页的 `next_cursor` | 无 | 与查询词、`--include-closed` 和 `--limit` 互斥 |
-| `--format` | `json` / `markdown` | `json` | 输出格式 |
-
-- 通用 flag 同 arXiv search。只在下一页不超过第 100 页时签发 cursor。
-- **输出**：外层形状与 arXiv search 相同。每个 item 是一个 event：`ref`（`polymarket:<event_slug>`）、canonical `url`、`depth`（恒为 `metadata`）、`title`、`authors`（空数组）、`published`（`startDate`，UTC，精确到秒），以及 Polymarket 字段 `event_id`、`status`（`open`、`closed` 或 `resolved`）、`end_date`、`volume`、`volume_24h`、`liquidity`、`neg_risk`、`market_count`、`price_source`（恒为 `gamma`）与 `top_markets`（按概率降序的前 5 个 market，每项为 `{ref, label, probability, basis, status}`）。价格可能滞后最多 5 分钟；要实时概率就 fetch 这个 event。读不出的 event 被跳过，stderr 汇总一条诊断。不写 Search Result Journal。
-- **退出码**：查询词为空、`--limit` 越界、cursor 越过第 100 页＝飞行前退 2；`platforms.polymarket.order` 为空＝飞行前退 3；429 为 RateLimited，Gamma 422 与响应不是预期结构为 Runtime，上游有 event 而全部读不出为 Runtime，都退 4；合法零结果为 `items: []` 且退 0。
-
-### `platform polymarket fetch`
-
-读取一个 event 或 market 的结算状态，以及每个结果当前的 Market-Implied Probability。
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| ref 或 URL（位置参数） | `polymarket:<event_slug>`、`polymarket:market/<market_slug>`，或 `polymarket.com` 的 `/event/<e>`、`/event/<e>/<m>`、`/market/<m>` | 必填 | 路径前可有站点语言前缀；忽略 query、fragment 与末尾 `/` |
-| `--depth` | `metadata` / `abstract` | `metadata` | `abstract` 另外内联结算规则 |
-| `--format` | `json` / `markdown` / `content` | `json` | `content` 把 `abstract` 的结算规则输出到 stdout |
-
-- 通用 flag 同 search。
-- **输出**：JSON 顶层为 `platform`、`provider`，条目的公共字段与 Polymarket 字段。event 有 search 的平台字段（不含 `top_markets`）、`prices_as_of` 与 `markets`（每个 market 一项：`ref`、`url`、`market_id`、`condition_id`、`question`、`label`、`status`、`end_date`、`probability`、`outcomes` 为 `[{name, price, basis, best_bid, best_ask}]`、`spread`、`last_trade_price`、`one_day_change`、`one_week_change`、`one_month_change`、`volume`、`liquidity`）；market 有 `event_id`、上述 market 字段、`neg_risk`、`event: {ref, url, title}`、`price_source` 与 `prices_as_of`。`price_source` 为 `clob` 时价格来自实时订单簿；为 `gamma` 时来自 Gamma 的缓存（CLOB 不可用时 stderr 有一条诊断）。`abstract` 另有 `rules`。
-- **退出码**：数字 id、`polymarket.us`、其他路径或主机，`metadata` 与 `abstract` 以外的深度＝飞行前退 2；`platforms.polymarket.order` 为空＝飞行前退 3；event 或 market 不存在（`Polymarket event not found: polymarket:<slug>; slugs can change, search again`）为 attempt 级 Parameter，返回的 slug 与请求不符、编码字段无法解码、结果与 token 数不一致为 Runtime，都退 4；`abstract` 而结算规则为空为 Quality，退 5；传输失败同 search。
-
-### `platform polymarket history`
-
-列出一个 market 中某个结果的 Price History：按时间升序的价格序列，经 `polymarket_api` route 的 Data API（第 7 章「Polymarket」）。这是只有一条 route 的 L2 平台操作。
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| market（位置参数） | `polymarket:market/<market_slug>`、`polymarket:<event_slug>`，或 fetch 接受的 URL | 必填 | event 只在恰有一个 market 时可用 |
-| `--outcome` | 结果名 | 第一个结果（Yes） | 不区分大小写 |
-| `--interval` | `1d` / `1w` / `1m` / `max` | `1m` | 到现在为止的时间窗；`1m` 是一个月，`max` 是 market 的全部历史；与 `--from/--to` 互斥 |
-| `--from`、`--to` | UTC 日期 `YYYY-MM-DD` | 无 | 显式时间窗，含两端，必须同时给出，至多 15 天 |
-| `--bucket` | `1m` / `5m` / `30m` / `1h` / `3h` / `12h` / `1d` | 按时间窗 | 每个点的宽度；`1m` 是一分钟 |
-| `--format` | `json` / `markdown` | `json` | 输出格式 |
-
-- 通用 flag 同 search。默认 bucket：`1d` 为 `5m`，`1w` 为 `1h`，`1m` 与 `max` 为 `1d`；显式区间不超过 2 天为 `5m`，其余为 `1h`。
-- **输出**：JSON 为 `{platform, provider, market: {ref, url, question, status}, outcome, interval, bucket_seconds, points: [{t, price}], settlement}`；显式区间时 `interval` 为 `null`，另有 `from` 与 `to`；`--verbose` 附 `provider_attempts`。`t` 为精确到秒的 UTC。已结算 market 的兑付值是 `settlement: {t, price}`，不在 `points` 中；未结算，或时间窗没有到达结算点时，`settlement` 为 `null`。序列超过 5 页时只列出前 5 页，stderr 给出一条诊断，建议加大 bucket。不写 Search Result Journal。
-- **退出码**：输入无法识别、`--interval` 与 `--from/--to` 同时给出、只给出 `--from` 或 `--to`、`--from` 晚于 `--to`、区间超过 15 天、`--bucket` 细于时间窗的下限（`1m` 与 `max` 至少 `30m`，`1w` 至少 `5m`）＝飞行前退 2，不发请求；`platforms.polymarket.order` 为空＝飞行前退 3；event 有多个 market（stderr 的诊断列出前 10 个 market 的 ref 与 label）、结果名不存在（消息列出可用的结果名）、event 或 market 不存在，以及 Data API 400（消息取上游 `error`）为 attempt 级 Parameter，退 4；传输失败同 search；超出保留期的粒度是合法空序列 `points: []`，退 0。
-
-### `platform reddit search`
-
-只在 Reddit 上检索帖子，经浏览器 route `reddit_browser`（第 7 章「Reddit」）：在 forager 的无头浏览器中以用户登录过的 Reddit Browser Profile 打开站点的搜索页。route 默认关闭，由用户加入 `platforms.reddit.order` 启用；order 为空时的配置错误给出它的启用说明与风险说明。
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| 查询词（位置参数） | 非空字符串 | 必填 | 按 Reddit 自己的搜索语法原样发送 |
-| `--subreddit` | 1–21 个 `[A-Za-z0-9_]`，可带 `r/` 前缀 | 全站 | 只要该版块的帖子 |
-| `--sort` | `relevance` / `hot` / `top` / `new` / `comments` | `relevance` | 结果顺序 |
-| `--time` | `hour` / `day` / `week` / `month` / `year` / `all` | 不限 | 时间窗，只用于 `relevance`、`top` 与 `comments` |
-| `--limit` | 1–25 | 10 | 条目数；首屏约 7 条，不够数时原生滚动，最多 6 次。没有 `--cursor`：`next_cursor` 恒为 `null`，一次命令之后不能续页 |
-| `--format` | `json` / `markdown` | `json` | 输出格式 |
-
-- 通用 flag 同 arXiv search。
-- **输出**：外层形状与 arXiv search 相同。每个 item 含 `ref`（`reddit:<id>`）、canonical `url`（`https://www.reddit.com/comments/<id>/`）、`depth`（有搜索摘录为 `snippet`，否则为 `metadata`）、`title`、`authors`、`published`（UTC，精确到秒），以及 Reddit 字段 `subreddit`、`permalink`、`post_type`（search 为 `null`）、`link_url`、`score`、`comments`、`nsfw`、`spoiler`、`snippet` 与 `snippet_source`（`post` 或 `comment`）。不写 Search Result Journal。读到的结果少于 `--limit` 而页面还有下一页时，成功返回已有条目，stderr 给出“未列全”诊断，提示缩小查询、版块或时间窗。
-- **退出码**：缺查询词或查询词为空、版块名非法、`--time` 与 `hot` 或 `new` 同时出现、`--limit` 越界、未知参数（如 `--cursor`，Reddit search 不签发也不接受 cursor）＝飞行前退 2；`platforms.reddit.order` 为空（默认）＝飞行前退 3，消息给出三步启用说明与风险说明；order 中有不属于 Reddit 的 route 名（如 `reddit_web`），或配置中有未知的 provider 段（如 `[providers.reddit_web]`）＝退 3；浏览器找不到或 Reddit Browser Profile 从未登录＝飞行前退 3，不启动浏览器，消息给出 `forager browser install`、`browser.path` 或 `forager browser login reddit`；验证页、文档 403/429 与未登录为 Auth，消息提示运行 `forager browser login reddit` 或等待；页面不是预期格式为 Runtime，到读取截止点仍未载入页面为 Network、仍停在搜索页为 Timeout，都退 4；合法零结果为 `items: []` 且退 0。
-
-### `platform reddit fetch`
-
-读取一个 Reddit 帖子，经 `reddit_browser` 在登录的 Reddit Browser Profile 中打开帖子页，默认把帖子与页面随文档带来的第一批评论写成 Markdown 文件。
-
-| 参数 | 类型与取值 | 默认值 | 语义 |
-|---|---|---|---|
-| ref 或 URL（位置参数） | `reddit:<id>`、`reddit:t3_<id>`、reddit.com 的帖子 URL，或 `redd.it/<id>` | 必填 | 主机可为 `www`、`old`、`new`、`np`、`m`；忽略 query、fragment 与末尾 `/` |
-| `--depth` | `thread` / `metadata` / `full_text` | `thread` | `thread` 写讨论串文件；`metadata` 内联帖子正文；`full_text` 读 link 帖的外链文章或帖子自身正文 |
-| `--content-dir` | 目录 | 系统临时目录下的新目录 | 讨论串或全文文件 `reddit-<id>.md` 的写入位置 |
-| `--format` | `json` / `markdown` / `content` | `json` | `content` 把讨论串或全文输出到 stdout，不写文件 |
-
-- 通用 flag 同 search。
-- **输出**：JSON 顶层为 `platform`、`provider`，条目的公共字段与 Reddit 字段（`post_type` 为帖子类型，`spoiler`、`snippet` 与 `snippet_source` 为 `null`），另有 `text`（帖子正文的 Markdown）。`thread` 深度另有 `content_url`、`content_provider`（交付的 route）、`content_path`、`content_len`、`comments_delivered`、`has_more_comments` 与 `order`（评论的排序，取页面评论树报告的排序，封闭取值 `top`、`best`、`new`、`controversial`、`old`、`qa`；导航时请求 `top`）；`full_text` 深度另有正文的四个 `content_*` 字段。
-- **退出码**：评论 permalink（消息给出所属帖子的 ref）、分享短链 `/s/<code>`、其他无法识别的输入，`thread`、`metadata`、`full_text` 以外的深度＝飞行前退 2；`platforms.reddit.order` 为空（默认）、`full_text` 而没有已配置的 Web Fetch provider＝飞行前退 3；已登录、页面加载完成而没有帖子元素（`Reddit post not found: reddit:<id>`，帖子不存在、已删除、私有、受限，或被账号的成人内容设置挡住）为 attempt 级 Parameter，退 4；验证页、文档 403/429 或未登录为 Auth，退 4；没有正文也不是 link 帖的帖子，以及类型不在 `text`、`link`、`image`、`video`、`gallery`、`multi_media` 之中的帖子（如 `crosspost`，即使有正文），请求 `full_text` 为 Quality，退 5；文件写入失败为 Runtime，退 4；传输失败同 search。
-
-## 收尾
-
-- `smoke [--live [--opt-in]]`：默认离线档；`--opt-in` 让 order 未列出、但本机具备运行前提的平台 route 的 live 用例也运行（模型操作用例除外），`unconfigured` 用例的 `message` 写明原因；内容定义见第 5 章。
-- `setup` 只留 `--non-interactive`/`--lang`；键面见第 3 章。
+- Default JSON on success is the Research Evidence Index: identity, metadata and a readable path
+  for each evidence item, plus the evidence directory, the plan path, the unconsumed candidates
+  as a count and a path, the gap check, capability gaps, `synthesis_policy: "fetch_before_claim"`
+  and the journal pair. Evidence bodies never appear on stdout, in the manifest or in the journal.
+- One locator is fetched once; its evidence item lists every subquestion it covers.
+- Citations bind to evidence item IDs: URL evidence as `[eN](URL)`, URL-less Context7 evidence as
+  `[eN]`, attributed through the index item with the same ID.
+- `evidence_dir` always holds `00-plan.json` (the full normalized plan), one `NN-evidence.md` per
+  evidence item (its body), `candidates.json` (the full metadata of unconsumed candidates, each
+  `is_evidence: false`) and `summary.json`, the Research Recovery Manifest. The manifest records
+  the query, budget, plan source, capabilities, fallback, evidence identity, metadata and paths,
+  coverage, gaps, capability gaps, the terminal state, attempts and `synthesis_policy`, but no
+  evidence body.
+- Success delivers the index; a failure is recoverable through the manifest. The two terminal
+  states need not share one shape. When the manifest cannot be written, the original terminal
+  state and the full `evidence_dir` stay, `summary_path` is `null`, and the existing diagnostic is
+  printed.
+
+## `fetch`
+
+The `content` of a fetch is the provider-independent Markdown body only. Provider attempts and
+diagnostics stay in their own fields and channels and never enter the body. URLs and PDFs share
+the `web_fetch` chain and its failure semantics.
+
+## `doctor`
+
+`doctor` has two tiers.
+
+- **Shallow** (`doctor`) covers every registered provider: masked configuration, whether
+  credentials are present, reachability, configuration and directory permissions that are too
+  broad, and an effective-value block with the same shape as `config list`. An HTTP provider is
+  reachable when a GET to its endpoint gets any HTTP response; doctor waits only for the response
+  headers, because some endpoints do not answer HEAD. A platform route that no default order
+  lists takes part only when the user's platform order lists it; otherwise it reports
+  `configured: false`. A browser route is checked by the browser transport's preflight check
+  (the browser can be found and, when the route needs a login, the Browser Profile carries a login
+  marker), without launching a browser; a failed check carries a `message` with the fixing
+  command.
+- The top-level `ok` is true when every provider with `configured: true` is reachable, and true
+  with nothing configured. When it is false, JSON and Markdown both say so and the command exits
+  4. Permission warnings never change `ok`.
+- **Deep** (`doctor --provider ID`) probes one provider; the IDs come from the provider registry.
+  A provider that needs credentials gets a credential check and a minimal live call; a platform
+  route gets a minimal platform request, except that a route whose service has a free account
+  endpoint checks every key there instead of spending quota. A provider whose prerequisites are missing, or a
+  platform route no order enables, fails with `config` and exit 3 before any request, and a
+  browser route launches no browser in that case. A failed probe exits 4. What each provider's
+  probe sends and adds to the report is in the product skill.
+- A provider with an access policy sends both the shallow check and the deep probe through the
+  cross-process request window. When the window does not open in time, the shallow check reports
+  the provider unreachable and the deep probe fails with `timeout`; neither sends the request.
+- A doctor report only proves what it probed. It is not the recovery path for a configuration
+  that cannot be loaded; that is a preflight failure with exit 3.
+
+## `browser`
+
+`forager browser` manages the browser environment that the browser transport uses (see
+[`platforms.md`](platforms.md)) and follows the operational output convention above. Argument
+and configuration errors are preflight failures (exit 2 or 3); other failures exit 4.
+
+- `browser install` downloads the Managed Browser package this forager pins for the current
+  host, with the address and SHA256 built in, verifies the hash, and installs it into the cache
+  directory given in [`config.md`](config.md). When the pinned version is already installed it
+  downloads nothing and exits 0; the result says whether it downloaded. A download failure is
+  `network`, the deadline is `timeout`, and a hash mismatch (the download is deleted), a failed
+  unpack and a host without a package are `runtime`. A configured `browser.path` does not stop the
+  install; stderr says that browser commands launch `browser.path`.
+- `browser login PLATFORM` accepts only a platform whose browser route needs a login; any other
+  platform exits 2. It launches a headed browser on the login entry that the route's page logic
+  declares, waits until the page logic observes a logged-in session, closes the browser normally,
+  and writes the login marker and the window's screen size into the Browser Profile. Like a
+  platform command, it takes the route's request window before the profile lock. No locatable
+  browser is a configuration error (exit 3) whose message names `forager browser install` or
+  `browser.path`. `--timeout` bounds the whole command under the browser transport's deadline
+  rules: no login observed by the read deadline is `timeout`; a browser that fails to launch, a
+  failed CDP handshake, a window closed before the login, and a profile another process holds are
+  `runtime`.

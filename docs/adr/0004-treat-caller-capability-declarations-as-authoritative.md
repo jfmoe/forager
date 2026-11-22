@@ -8,4 +8,4 @@ A Caller Capability Declaration is the complete and authoritative capability set
 
 This supersedes ADR-0003 because merging lower-fidelity keyword rules into an Agent's complete semantic decision caused false capabilities, including Vertical Search for documentation requests that merely asked for accurate code. The routing decision records the caller as the only decision source for this path, making the declared authority observable rather than presenting unused inputs as decision sources.
 
-Research plan injection is the first authoritative definition inside this ADR's research exemption. Its rules are specified in [`docs/reference/cli.md`](../reference/cli.md#权威规则补充决议-a1经-57-r2-收窄) and coexist with this decision's ordinary-search semantics.
+Research plan injection is the first authoritative definition inside this ADR's research exemption. Its rules are specified in [`docs/reference/cli.md`](../reference/cli.md#research-plan-injection) and coexist with this decision's ordinary-search semantics.
