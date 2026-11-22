@@ -1,32 +1,48 @@
-# Browser routes are opt-in and paced per operation
+# Keep routes that carry terms risk opt-in and stop at site challenges
 
-The `ssrn_browser` route reads SSRN in the user's own Chrome through a local OpenCLI adapter. It is the first **process route**: a Platform Route that runs a local command instead of sending HTTP requests. This record sets how such a route is enabled and paced, and how it delivers full text.
+## Decision
 
-## Users enable a browser route themselves
+A Platform Route whose way of reading a site goes against that site's terms, or puts the user's
+account or egress IP at risk, is **opt-in**: it is a valid entry of its platform's order but never
+part of any default order, and no release adds it to one. It runs only after the user adds it.
+Every browser route is opt-in; an HTTP route is opt-in when its access carries such a risk (today
+`youtube_web`, which reads undocumented endpoints).
 
-SSRN's Terms of Use forbid "automated queries of any sort" (read 2026-09-26; see `docs/research/2026-09-26-ssrn-integration.md`). The maintainer accepts this risk for personal use at a pace close to a person's, and only when the user opts in. Therefore:
+- **One registration of the risk.** Every opt-in route, HTTP or browser, registers one sentence in
+  the platform catalog saying what enabling it risks and where the risk falls. The enable
+  instructions that configuration errors print read that one place, with no branch on a route ID.
+- **Unused routes stay idle.** Doctor checks an opt-in route only when an order enables it, so a
+  route the user never chose never runs and never affects the health result.
+- **Stop at a challenge.** A route never solves or bypasses a site's challenge, verification page
+  or block. It fails as Auth, does not retry, and tells the user how to deal with it themselves; a
+  blocked result is never reported as a legitimate empty one.
 
-- The platform catalog lists `ssrn_browser` as a valid route but never in `default_order`. It runs only after the user adds it to `platforms.ssrn.order`.
-- No release adds a browser route to any default order.
-- The route never solves or bypasses a site challenge. When SSRN shows a security check that does not clear by itself, the attempt fails as Auth, and the user passes the check in Chrome. ADR-0036 supersedes "in Chrome": browser routes run in forager's own Managed Browser, and the user deals with a check in the window that `forager browser login` opens.
+## Why
 
-## A process route is paced per OpenCLI operation
+- Several sites forager reads forbid automated access in their terms: SSRN's Terms of Use forbid
+  "automated queries of any sort", Xiaohongshu forbids crawlers, Reddit's User Agreement does not
+  allow automated access, and YouTube's terms restrict automated access to its web endpoints. The
+  maintainer accepts this risk only for personal use, at a pace close to a person's, and only when
+  the user has chosen it knowing where the risk falls.
+- The risk falls in different places: on the egress IP for an anonymous route, on the logged-in
+  account for a browser route. The user can only weigh it if the instructions name it, and one
+  registration keeps the instructions for HTTP and browser routes from drifting apart.
+- Retrying after a challenge, or solving it, turns a temporary block into a longer one or into a
+  lost account; stopping keeps the decision with the person who owns the account.
 
-ADR-0036 supersedes the unit: OpenCLI is retired, and a browser route's access-policy unit is one browser command, which launches one browser process. The permit is still held until that process is reaped.
+## Rejected alternatives
 
-For an HTTP route, the access policy paces every HTTP send. A browser page load sends many requests that forager cannot see or pace one by one. For a process route, the access-policy unit is one OpenCLI command: `ssrn_browser` allows one command every 5 seconds with a concurrency of 1, across all forager processes. The permit is held until the command's process is reaped, so a killed command still counts until it has stopped.
+- **On by default with a warning.** Most users would carry a terms risk they never chose.
+- **A separate enabled switch per route.** Adding the route to the order already expresses the
+  choice; a second switch would be one more place to get out of step.
+- **Risk text written per route in the error paths.** Each new opt-in route would need its own
+  branch, and HTTP and browser routes would drift.
+- **Solving or retrying past a challenge.** It is circumvention, and repeated requests extend the
+  block.
 
-## Full text is converted from the local file and delivered as Markdown
+## Revisit when
 
-ADR-0035 supersedes this section: `ssrn_browser` is retired, Web Fetch reads only URLs, and no platform route produces a local file.
-
-A browser route cannot hand Web Fetch a URL: the SSRN download address is signed, expires after 300 seconds, and must never appear in output, attempts, or logs. Instead the route downloads the PDF inside the same OpenCLI operation that reads the paper page, verifies the file in the same attempt (complete download, file present, `%PDF-` magic, matching page id), and declares the local file as the full-text source. Web Fetch accepts a local file next to a URL as its input, so the same provider chain, thin-content gate, and error attribution convert it; Firecrawl reads it through `/v2/parse` with the same PDF parser options as `/scrape`. The conversion result is delivered as a local Markdown file, keeping stdout to metadata and paths; the PDF is removed after a successful delivery unless `--keep-pdf` moves it next to the Markdown, and it is always kept, with its path in the error message, when the conversion fails. The capability holds no platform knowledge: any platform that downloads a file reuses this path.
-
-## Consequences
-
-- Provider registrations declare their transport (HTTP, or an OpenCLI adapter with its site and contract version). Configuration checks, doctor, and the platform checklist branch on the transport, not on route IDs: an HTTP route has `url` and `timeout`, a process route has `command` and `timeout`. ADR-0036 supersedes the OpenCLI transport: the second transport is forager's browser transport, declared with the route's browser environment, and a browser route has only `timeout`.
-- Doctor checks a process route, in shallow and deep mode, only when a platform order enables it, so an unused browser route never runs and never affects the health result.
-- The route depends on the user's machine: OpenCLI, its browser bridge, a logged-in Chrome, and the forager adapter installed in OpenCLI's adapter directory. Doctor reports a missing or outdated adapter with the install steps. ADR-0036 supersedes this entry: a browser route depends on the Managed Browser (or `browser.path`) and a logged-in Browser Profile, and doctor reports a missing one with the command that fixes it.
-- Process routes need Unix process groups to stop every process a command starts, so other hosts skip them.
-- Web Fetch accepts a local file as its input next to a URL; a provider declares a pure support check, an unsupported source marks the provider Skipped, and a chain with no capable provider fails naming the source kind. The route's full-text source is a set of URLs or one verified local file, and the platform fetch orchestration runs the same Web Fetch chain for both. ADR-0022 adds a third source, a native body the route reads itself, which needs no Web Fetch; that supersedes this list as exhaustive. ADR-0035 supersedes this entry: the local-file source is removed, so a full-text source is a set of URLs or a native body.
-- A killed command leaves no tab behind permanently: the OpenCLI daemon's command timer reclaims the ephemeral tab (verified 2026-09-26 with a SIGKILLed `ssrn paper` command: the tab was gone within the 25-second command timeout). ADR-0036 supersedes this entry: the browser exits once forager's end of its debugging pipe closes, and the transport kills the browser's process group at the deadline.
+- A site offers a sanctioned access path for personal tools, which would make its route a
+  candidate for a default order.
+- An account or egress IP used through an opt-in route is warned, limited or banned, which would
+  call the pace or the route itself into question.
