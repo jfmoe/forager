@@ -1,213 +1,364 @@
 # forager
 
-forager 按检索能力组织供应方，并把拥有自身身份空间的外部内容源组织为平台。
+forager organizes its providers by retrieval capability, and organizes external content sources
+that have their own identity space as platforms.
 
 ## Language
 
 **Capability Seam**:
-围绕一种检索能力定义的稳定契约，只由提供该能力的供应方共享，不要求不同能力具有相同操作。
-_Avoid_: universal provider interface、extra search channel
+A stable contract defined around one retrieval capability and shared only by the providers that
+offer that capability; different capabilities need not have the same operations.
+_Avoid_: universal provider interface, extra search channel
 
 **Documentation Search Capability**:
-面向外部库、SDK、API、框架和官方技术文档的检索能力；普通技术知识问答或仅出现技术名词不自动构成该能力需求。
-_Avoid_: general technical search、Context7 capability、docs provider
+The capability that searches documentation of external libraries, SDKs, APIs, frameworks and
+official technical sources. An ordinary technical question, or one that merely mentions a
+technical name, is not by itself a need for this capability.
+_Avoid_: general technical search, Context7 capability, docs provider
 
 **Supplemental Web Search Capability**:
-主搜索之外，为时效、新闻、地区、政策、行情、交叉验证或来源补强提供的 Web 发现能力；它不代表每次普通搜索都会执行的主搜索。
-_Avoid_: main search、all web access、web provider
+Web discovery beside main search, for recency, news, region, policy, market data, cross-validation
+or stronger sourcing. It is not the main search that every ordinary search runs.
+_Avoid_: main search, all web access, web provider
 
 **Primary Search Source**:
-主搜索回答归属的来源，由 search 输出的 `sources` 表示；它不同于非主搜索能力产生但尚未消费的候选，也不因被引用而自动成为已验证证据。
-_Avoid_: supplemental source、verified evidence、all search sources
+A source that the main-search answer is attributed to, reported in search's `sources`. It differs
+from the candidates that other capabilities produce and nobody has consumed yet, and being cited
+does not make it verified evidence.
+_Avoid_: supplemental source, verified evidence, all search sources
 
 **Search Candidate**:
-普通 search 中由非主搜索能力产生、可供调用方选择后续动作的候选，由 `extra_sources` 表示；候选可以由 URL 或 provider 专属标识定位，在被相应读取或取证流程消费前不是证据。
-_Avoid_: Supplemental Search Candidate、primary source、verified evidence、merged source
+A candidate that a capability other than main search produces during an ordinary search, for the
+caller to choose its next action from; reported in `extra_sources`. A candidate is located by a URL
+or by a provider-specific identifier, and it is not evidence until a fetch or the evidence
+pipeline consumes it.
+_Avoid_: Supplemental Search Candidate, primary source, verified evidence, merged source
 
 **Web Fetch Capability**:
-读取、提取或核验已知来源正文的能力；输入是已知 URL。它不负责发现链接。
-_Avoid_: web search、link discovery
+The capability that reads, extracts or verifies the body of a known source; its input is a known
+URL. It does not discover links.
+_Avoid_: web search, link discovery
 
 **Normalized Fetch Content**:
-Web Fetch Capability 经 provider 解码与质量门控后接受的 provider 无关 Markdown 正文；它不包含传输包装或诊断，也不承诺不同 provider 选出相同的正文边界。
-_Avoid_: raw provider response、cleaned content
+The provider-independent Markdown body that the Web Fetch Capability accepts after provider
+decoding and the quality gate. It contains no transport wrapper or diagnostics, and different
+providers are not promised to choose the same body boundaries.
+_Avoid_: raw provider response, cleaned content
 
 **Default Search Invocation**:
-一次通过 forager 默认聚合搜索入口发起并到达终态的请求，无论结果成功、失败或超时；供应方直连、抓取、诊断及其他专用操作不属于该概念。
-_Avoid_: successful search、provider search、all commands
+One request through forager's default aggregate search entry points that reaches a terminal
+state, whether it succeeded, failed or timed out. Provider-direct commands, fetches, diagnostics
+and other dedicated operations are not Default Search Invocations.
+_Avoid_: successful search, provider search, all commands
 
 **Search Result Journal**:
-默认启用、按发生顺序保存每次 Default Search Invocation 的结果面与执行过程面的本地集合。结果面包含查询、回答、来源及 research 的引用与证据；过程面包含计划摘要、供应方尝试链、终态归因、预算、分类器耗时和能力缺口。字段以架构参考文档的白名单为准，不保存请求或响应头、请求体、原始响应体、凭据、分类器 prompt 或工具 trace。它用于复盘与诊断，不是调试消息流，也不作为搜索响应缓存。
-_Avoid_: debug log、response cache、search history
+The local record, on by default and in order of occurrence, of the result and the execution of
+every Default Search Invocation. The result side holds the query, the answer, the sources and, for
+research, the citations and evidence; the execution side holds the plan summary, the provider
+attempt chain, the terminal attribution, the budget, the classifier's duration and the capability
+gaps. It never stores request or response headers, request bodies, raw response bodies,
+credentials, classifier prompts or tool traces. It serves review and diagnosis; it is not a debug
+message stream and not a cache of search responses.
+_Avoid_: debug log, response cache, search history
 
 **Attempt Trace**:
-供应方尝试链的只读派生事实（终态归因、fallback 判定、成功供应方、有界摘要），由 attempt_trace module 唯一拥有；Search Result Journal、stderr attempt log、Research Recovery Manifest 与退出码归因等消费方从它读取投影，不再各自重新解释裸尝试链。fallback 保留两种刻意不同的语义：Recovery Manifest 的 seam 级 `provider_fallback_used` 回答「是否离开了首选 provider」，stderr log 的身份级 `identity_fallback_occurred` 回答「是否发生任何降级，含同 provider 换 model」；两者在同 provider 换 model 的链上给出相反答案是预期行为，不是 bug。
-_Avoid_: per-call-site interpretation、raw attempt scan
+The read-only facts derived from a provider attempt chain: the terminal attribution, whether a
+fallback happened, the provider that succeeded, and a bounded summary. Every consumer (the Search
+Result Journal, the stderr attempt log, the Research Recovery Manifest and exit-code attribution)
+reads its projection instead of interpreting the raw chain again. It answers "did a fallback
+happen" two ways on purpose: whether the run left its preferred provider, and whether it degraded
+at all, including a model change within one provider. On a chain that only changed model the two
+answers differ, and that is intended.
+_Avoid_: per-call-site interpretation, raw attempt scan
 
 **Caller Capability Declaration**:
-调用方为一次普通 `forager search` 显式声明的完整、权威检索能力集合；空集合也是有效声明。forager 不以本地规则、URL 识别、严格校验或分类器补充该集合；声明只能引用 Capability Seam，不能选择供应方。research 使用计划注入，不使用该声明。
-_Avoid_: provider override、router hint、capability patch
+The complete and authoritative capability set that a caller declares for one ordinary
+`forager search`; an empty set is a valid declaration. forager never adds to it from local rules,
+URL recognition, strict validation or the classifier. A declaration names Capability Seams and
+never selects providers. research takes a plan instead of a declaration.
+_Avoid_: provider override, router hint, capability patch
 
 **Classifier Capability Decision**:
-意图分类器为普通 search 产出的完整检索能力集合，或为裸 research 产出的 Schema v1 计划（`intent_signals` + `decomposition`）；分类器不能选择供应方。
-_Avoid_: classifier additions、classifier patch、provider decision
+What the intent classifier produces: the complete capability set for an ordinary search, or a
+Schema v1 plan (`intent_signals` and `decomposition`) for a research run without a plan. The
+classifier never selects providers.
+_Avoid_: classifier additions, classifier patch, provider decision
 
 **Capability Vocabulary**:
-统一拥有 capability 身份、顺序、选择语义和语义例句的领域词汇表；分类器 prompt、`--capabilities` 校验与 forager skill 契约共同消费它，而 provider fallback 与路由控制流不属于该词汇表。
-_Avoid_: Skill capability list、routing rules DSL、provider registry
+The single vocabulary that owns each capability's identity, order, selection meaning and example
+phrases. The classifier prompt, `--capabilities` validation and the forager skill's contract all
+consume it; provider fallback and routing control flow are not part of it.
+_Avoid_: Skill capability list, routing rules DSL, provider registry
 
 **Research Evidence Pipeline**:
-research 引擎的职责定位：确定性地执行计划、发现候选、取证、按子问题记账覆盖并落盘证据；它不做语义综合，也不含 main search 定向——综合归消费方 agent，定向在计划之前由 skill 编排完成。
-_Avoid_: research answer engine、engine synthesis、final answer generator、in-engine orientation
+What the research engine is: it runs a plan deterministically, discovers candidates, fetches
+evidence, accounts coverage per subquestion and writes the evidence to disk. It does no semantic
+synthesis and does not orient with a main search: synthesis belongs to the consuming agent, and
+orientation happens before the plan, orchestrated by the skill.
+_Avoid_: research answer engine, engine synthesis, final answer generator, in-engine orientation
 
 **Research Evidence Index**:
-Research Evidence Pipeline 在标准输出中交付的轻量证据目录；它描述每条证据的身份、来源、覆盖归属与本地正文路径，但不重复输出已经落盘的正文。
-_Avoid_: evidence preview、inline evidence content、research answer
+The lightweight evidence directory that the Research Evidence Pipeline delivers on stdout. It
+describes each evidence item's identity, source, coverage and local body path, without repeating
+bodies already written to disk.
+_Avoid_: evidence preview, inline evidence content, research answer
 
 **Research Recovery Manifest**:
-Research Evidence Pipeline 写入 `summary.json` 的无正文恢复清单；它记录终态、计划与预算来源、能力、fallback、证据身份和路径、未消费候选、覆盖缺口、供应方尝试及综合策略，使失败调用方能通过稳定的 `summary_path` 恢复制品。它不是成功 stdout 交付的 Research Evidence Index。
-_Avoid_: Research Evidence Index、inline failure index、evidence body archive
+The body-free recovery record that the Research Evidence Pipeline writes to `summary.json`. It
+records the terminal state, the plan and budget sources, the capabilities, fallback, evidence
+identities and paths, unconsumed candidates, coverage gaps, provider attempts and the synthesis
+policy, so that a failed caller can recover the artifacts through a stable `summary_path`. It is
+not the Research Evidence Index that a success delivers on stdout.
+_Avoid_: Research Evidence Index, inline failure index, evidence body archive
 
 **Citation Binding**:
-回答文本中的内联标记与某条来源或证据之间可机器读取的对应关系；它表达引用归属，不代表系统已验证该证据确实支持对应陈述。
-_Avoid_: claim verification、source list
+A machine-readable link between an inline marker in an answer and one source or evidence item.
+It expresses attribution; it does not mean the system has verified that the evidence supports the
+statement.
+_Avoid_: claim verification, source list
 
 **Provider Credential Pool**:
-某一使用凭据的供应方上由 TOML `keys` 真数组配置的认证凭据集合；每个使用凭据的供应方都使用这一形状，单凭据是单元素数组；不需要凭据的供应方没有 `keys`。运行时按轮询选用，并在额度或限流类失败时于同一次请求内换用其他凭据。注册信息声明不需要凭据的供应方不选用、不轮换凭据，且恒视为已配置；声明凭据可选的供应方（目前只有 Jina）也有 `keys`，为空时以匿名方式运行，同样恒视为已配置。
-_Avoid_: key pool、key rotation、API key list、high-availability credential pool
+The credentials of a provider that uses them, configured as a TOML `keys` array; every such
+provider has this shape, and a single credential is a one-element array. A provider that needs no
+credentials has no `keys`. At run time the pool rotates through its credentials and, on a quota
+or rate-limit failure, switches to another credential within the same request. A provider whose
+registration says it needs no credentials never selects or rotates one and always counts as
+configured. A provider whose credentials are optional also has `keys`; when they are empty it runs
+anonymously and likewise always counts as configured.
+_Avoid_: key pool, key rotation, API key list, high-availability credential pool
 
 **Anonymous Fallback**:
-凭据可选的供应方不带凭据再请求一次的规则：Provider Credential Pool 为空时直接匿名请求；凭据池按自身规则执行（额度与限流时换用其他凭据，认证失败即结束）后以认证、额度或限流类失败告终时，在同一供应方槽位内用剩余时间匿名再请求一次。与凭据无关的失败不触发，每次执行最多一次；匿名请求的 attempt 标为 `anonymous`（ADR-0029）。
-_Avoid_: keyless mode、free tier fallback、anonymous retry
+The rule by which a provider with optional credentials sends one more request without a
+credential. With an empty Provider Credential Pool it requests anonymously from the start. When
+the pool, following its own rules (switching credentials on quota and rate limits, stopping on an
+authentication failure), ends in an authentication, quota or rate-limit failure, the provider
+requests once more anonymously in the time left in its slot. Failures unrelated to credentials do
+not trigger it, it happens at most once per run, and the anonymous attempt is marked `anonymous`
+(ADR-0029).
+_Avoid_: keyless mode, free tier fallback, anonymous retry
 
 **Access Policy**:
-供应方为自己的 endpoint 声明的请求节奏：最小间隔与最大并发。每次发送先取得一个连接槽位并持有到发送结束，再在共享状态锁内预约时间窗口；同一状态目录下的所有 forager 进程共享这一节奏与最大并发。锁或状态不可用时不发送，预算内等不到槽位或窗口时以超时结束。
-_Avoid_: throttle、retry backoff、provider quota
+The request pace a provider declares for its endpoint: a minimum interval and a maximum
+concurrency. Every forager process sharing one state directory shares that pace and concurrency.
+When the shared state is unavailable nothing is sent, and a request that cannot get its turn
+within the budget ends in a timeout.
+_Avoid_: throttle, retry backoff, provider quota
 
 **Capability Catalog**:
-每个 Capability Seam 的合法供应方集合的唯一出处；配置默认顺序、order 校验、供应方构造、doctor 探测与 smoke 用例投影都从它派生，供应方与 seam 的隶属关系不存在第二份平行清单。
-_Avoid_: provider registry、BACKENDS allowlist、per-call-site provider list
+The single source of the legal providers of each Capability Seam. Default configuration order,
+order validation, provider construction, doctor probes and smoke cases all derive from it; there
+is no second, parallel list of which provider belongs to which seam.
+_Avoid_: provider registry, BACKENDS allowlist, per-call-site provider list
 
 **Provider HTTP Read Contract**:
-供应方网络边界上由 net 唯一拥有的读取语义：HTTP status 与 429 额度嗅探的错误归因、完整协议响应的 4 MiB 硬上限、Web Fetch 正文的 UTF-8 安全截断、64 KiB 有界错误正文、凭据与 URL 脱敏；provider adapter 只构造请求并解码自己的成功格式，不再各自组合这些规则。
-_Avoid_: per-adapter read recipe、raw reqwest handling
+The read rules that every provider response passes at forager's network boundary: error
+attribution from the HTTP status and from quota hints in rate-limit responses, a hard cap on
+response size, UTF-8-safe truncation of fetched bodies, bounded error bodies, and redaction of
+credentials and URLs. A provider adapter only builds its request and decodes its own success
+format; it never assembles these rules itself.
+_Avoid_: per-adapter read recipe, raw reqwest handling
 
 **Platform**:
-内置的外部内容源，拥有自己的身份空间，例如 arXiv、SSRN 与 Google Scholar；它与 Capability Seam 并列，平台之间永不互相 fallback。它不是供应方。
-_Avoid_: platform provider、custom platform
+A built-in external content source with its own identity space, such as arXiv, SSRN or Google
+Scholar. It stands beside the Capability Seams, and platforms never fall back to one another. A
+platform is not a provider.
+_Avoid_: platform provider, custom platform
 
 **Platform Route**:
-接入某个 Platform 的一条路线；route 就是供应方，同平台的 route 按配置顺序组成 fallback 链。route 身份绝不使用裸平台名。
-_Avoid_: platform backend、platform provider list
+One way to reach a Platform. A route is a provider, and the routes of one platform form a
+fallback chain in their configured order. A route's identity is never the bare platform name.
+_Avoid_: platform backend, platform provider list
 
 **Route Transport**:
-Platform Route 到达外部内容源的方式，在供应方注册信息中声明：HTTP（配置 `url`；需要凭据的 HTTP route 另有 `keys`），或 forager 的浏览器传输（这类 route 称为 browser route，配置只有 `timeout`；注册信息同时声明它使用哪个平台的 Browser Profile、浏览器语言，以及该 profile 是否需要登录）。配置检查、飞行前检查、doctor 与接入清单按传输类型判断，不按 route id 判断。browser route 只能由用户在平台 order 中手动启用（ADR-0020）。
-_Avoid_: route kind、backend type、process route
+How a Platform Route reaches its source, declared in the provider's registration: HTTP (configured
+with `url`, plus `keys` when the route needs credentials), or forager's browser transport. A route
+on the browser transport is a browser route; its only setting is `timeout`, and its registration
+also declares which platform's Browser Profile it uses, the browser language, and whether the
+profile needs a login. Configuration checks, preflight checks, doctor and the platform checklist
+decide by transport, never by route id. A browser route runs only when the user adds it to the
+platform's order (ADR-0020).
+_Avoid_: route kind, backend type, process route
 
 **Page Logic**:
-browser route 自有的站点知识：在一条浏览器命令中打开哪些页面、以原生输入做哪些操作、等待并保留哪些请求，产出观察结果（页面事实、抓到的请求与响应、未能完成的原因）。把观察结果判定为结果或失败的是不需要浏览器的纯函数，同样归该 route 所有。浏览器传输本身不含页面逻辑。
-_Avoid_: adapter、browser script、scraper
+A browser route's own knowledge of its site: which pages one browser command opens, which native
+input it performs, and which requests it waits for and keeps. It produces observations (page
+facts, captured requests and responses, the reason it could not finish). Judging those
+observations into a result or a failure is a pure function that needs no browser, and it also
+belongs to the route. The browser transport itself has no page logic.
+_Avoid_: adapter, browser script, scraper
 
 **Managed Browser**:
-forager 下载、固定版本并校验 SHA256 的浏览器（fingerprint-chromium），由 `forager browser install` 安装到 forager 的缓存目录，安装位置带版本号；运行时只认固定版本。配置 `browser.path` 时由它指定的本地浏览器替代。
-_Avoid_: bundled Chrome、system browser
+The browser (fingerprint-chromium) that forager downloads, pins to one version and checks by
+SHA256. `forager browser install` installs it into forager's cache under a versioned directory,
+and forager runs only the pinned version. When `browser.path` is set, the local browser it names
+replaces it.
+_Avoid_: bundled Chrome, system browser
 
 **Browser Profile**:
-某个平台专用的持久浏览器环境，位于状态目录、以平台 id 命名，保存该平台的登录态、创建时生成一次的指纹种子与登录时宿主的屏幕尺寸；同一时刻只有一个进程能使用它。登录标记只表示登录过，不保证会话仍有效；forager 不读取、不导出它保存的 cookie。
-_Avoid_: browser session、cookie store、user data dir
+A persistent browser environment dedicated to one platform, kept in the state directory and named
+after the platform id. It holds the platform's login state, a fingerprint seed generated once when
+it is created, and the host's screen size at login. Only one process can use it at a time. A login
+marker says only that a login happened, not that the session is still valid; forager never reads
+or exports the cookies it holds.
+_Avoid_: browser session, cookie store, user data dir
 
 **Platform Ref**:
-Platform 实体的类型化身份，由平台、平台自有的 kind 与 id 组成，可以带版本（SSRN 修订论文时 DOI 不变，无法据此推出版本，因此 SSRN ref 不带版本）；它与 canonical URL 可以互相推导。kind 只按身份空间或取回结果形状划分，不按对话角色划分。
-_Avoid_: platform URL、raw id
+The typed identity of a Platform entity: the platform, a kind of the platform's own, and an id,
+optionally with a version. An SSRN ref has no version, because SSRN keeps a paper's DOI when it
+revises the paper, so no version can be derived. A ref and its canonical URL can each be derived
+from the other. Kinds divide only by identity space or by the shape of what is retrieved, never
+by conversational role.
+_Avoid_: platform URL, raw id
 
 **Access Token**:
-打开某个平台实体所需、却不属于其身份的访问参数，例如小红书笔记 URL 中的 `xsec_token`。同一实体在不同时间、从不同入口得到的 token 不同；它只在用户自己的登录会话中起作用。它不进入 Platform Ref、canonical URL、Page Cursor 与 Search Result Journal，只出现在 route 构造的访问链接（`access_url`）中；调试输出打码，不可序列化。
-_Avoid_: credential、key、session token、ref version
+An access parameter needed to open a platform entity that is not part of its identity, such as
+`xsec_token` in a Xiaohongshu note URL. One entity gets different tokens at different times and
+from different entry points, and a token works only in the user's own logged-in session. It never
+enters the Platform Ref, the canonical URL, a Page Cursor or the Search Result Journal; it appears
+only in the access link that the route builds (`access_url`), is masked in debug output and cannot
+be serialized.
+_Avoid_: credential, key, session token, ref version
 
 **Scholar Cluster**:
-Google Scholar 把同一论文的多个版本（出版社页面、预印本、第三方副本）归为一组的身份，以十进制 cluster ID 表示；Google Scholar 的 Platform Ref 指向 cluster，不指向其中某个版本。cluster 里第一个版本不一定是正式出版版本，也可能混入别的论文。
-_Avoid_: scholar paper id、result id、version
+The identity under which Google Scholar groups the versions of one paper (the publisher's page,
+preprints, third-party copies), written as a decimal cluster ID. A Google Scholar Platform Ref
+points to the cluster, not to one of its versions. The first version in a cluster is not
+necessarily the published one, and a cluster can include other papers.
+_Avoid_: scholar paper id, result id, version
 
 **SERP API Route**:
-经第三方搜索结果 API 读取搜索引擎结果页的 Platform Route，例如 `serpapi`。它按供应商命名，key 由用户自备并进入 Provider Credential Pool，同一账号的额度与吞吐不分引擎；每次成功检索都消耗用户的额度，forager 不持久化额度状态（ADR-0021）。
-_Avoid_: scholar scraper、scholar_serpapi
+A Platform Route that reads search engine result pages through a third-party search results API,
+such as `serpapi`. It is named after the vendor, and its key, supplied by the user, joins the
+Provider Credential Pool; one account's quota and throughput are shared across engines. Every
+successful search spends the user's quota, and forager keeps no quota state (ADR-0021).
+_Avoid_: scholar scraper, scholar_serpapi
 
 **Platform Operation**:
-Platform 的一项操作。每个 Platform 都提供 search 与 fetch；改变结果种类或必需输入的操作是新的 Platform Operation，不是参数，例如 Google Scholar 的 Cited-by、小红书与 YouTube 的 Comments、X 与 YouTube 的 Ask、Hacker News 的 Stories，以及 YouTube 的 Videos 与 Transcribe。
-_Avoid_: platform option、sub-command flag
+An operation of a Platform. Every Platform offers search and fetch. An operation that changes the
+kind of result or the required input is a new Platform Operation, not an option: for example
+Google Scholar's Cited-by, Comments on Xiaohongshu and YouTube, Ask on X and YouTube, Hacker News
+Stories, and YouTube's Videos and Transcribe.
+_Avoid_: platform option, sub-command flag
 
 **Cited-by**:
-列出 Google Scholar 统计为引用某篇论文的文献的 Platform Operation；结果形状与 search 相同，无人引用与论文不存在都给出空列表。
-_Avoid_: citations、references、backlinks
+The Platform Operation that lists the works Google Scholar counts as citing a paper. Its result
+has the same shape as search, and both a paper nobody cites and a paper that does not exist give
+an empty list.
+_Avoid_: citations, references, backlinks
 
 **Comments**:
-列出一个平台条目一级评论的 Platform Operation；回复与续页的范围由平台定义：小红书可展开前几条评论的第一页回复、不签发 cursor，YouTube 只附带随评论一起返回的回复。条目没有评论时给出空列表；评论被关闭不是空列表。
-_Avoid_: replies（指楼中楼回复本身）、thread
+The Platform Operation that lists the top-level comments of a platform item. Each platform defines
+how far replies and further pages go: Xiaohongshu can expand the first page of replies to the
+first few comments and issues no cursor, and YouTube includes only the replies returned with the
+comments. An item without comments gives an empty list; comments being turned off is not an empty
+list.
+_Avoid_: replies (the replies themselves), thread
 
 **Ask**:
-由模型只依据平台内容写出回答的 Platform Operation；结果是一段回答及其来源，不是条目列表，回答整体是 Relayed Content。回答依据的范围由平台定义：X 为模型在 X 上检索到的帖子，YouTube 为单个视频的画面与声音。
-_Avoid_: X answer search、summary、main search、video analysis
+The Platform Operation in which a model writes an answer from platform content alone. The result
+is one answer with its sources, not a list of items, and the whole answer is Relayed Content. Each
+platform defines what the answer rests on: on X, the posts the model found on X; on YouTube, the
+picture and sound of one video.
+_Avoid_: X answer search, summary, main search, video analysis
 
 **Videos**:
-列出 YouTube 一个播放列表或频道所含视频的 Platform Operation；条目带有在集合中的位置，频道的视频按发布时间倒序。
-_Avoid_: playlist fetch、channel search、uploads
+The Platform Operation that lists the videos in a YouTube playlist or channel. Each item carries
+its position in the collection, and a channel's videos are newest first.
+_Avoid_: playlist fetch, channel search, uploads
 
-**Transcript（字幕文档）**:
-一个视频的一条字幕渲染成的带时间戳文档，标明字幕的语言与来源：发布者上传的字幕、平台自动识别的字幕或模型生成的字幕。平台上已有字幕的 Transcript 是视频的 `full_text`；模型生成的 Transcript 只经 Transcribe 交付。
-_Avoid_: 逐字稿、subtitles dump、captions file
+**Transcript**:
+A timestamped document rendered from one caption track of a video, labelled with the track's
+language and origin: captions the publisher uploaded, captions the platform recognized
+automatically, or captions a model generated. A Transcript of captions already on the platform is
+the video's `full_text`; a model-generated Transcript is delivered only by Transcribe.
+_Avoid_: subtitles dump, captions file
 
 **Transcribe**:
-由模型听看一个视频后生成 Transcript 的 Platform Operation；结果整体是 Relayed Content，只在调用者显式请求时运行，不作为平台字幕缺失时的自动替代。
-_Avoid_: ASR fallback、generated full text
+The Platform Operation in which a model watches and listens to a video and generates a Transcript.
+The whole result is Relayed Content. It runs only when the caller asks for it explicitly and never
+stands in automatically for missing platform captions.
+_Avoid_: ASR fallback, generated full text
 
-**Precheck（前置检查）**:
-模型操作（YouTube 的 Ask 与 Transcribe）请求模型之前经该平台的 Platform Fetch 链读取同一视频的步骤；读取失败或视频正在直播即命令失败，不请求模型。读到的条目交给模型 route，模型 route 从不自己读取平台；前置检查的 attempts 排在模型 route 的 attempts 之前。
-_Avoid_: preflight（指不发请求的飞行前校验）、metadata check、validation
+**Precheck**:
+The step in which a model operation (YouTube's Ask and Transcribe) reads the same video through
+the platform's Platform Fetch chain before it calls the model. If that read fails, or the video
+is live, the command fails without calling the model. The item read is handed to the model route,
+which never reads the platform itself, and the precheck's attempts come before the model route's.
+_Avoid_: preflight (the checks made before any request), metadata check, validation
 
 **Stories**:
-列出 Hacker News 某个官方榜单当前条目的 Platform Operation；条目按榜单排名排列，不签发 cursor。
-_Avoid_: front page search、HN feed
+The Platform Operation that lists the current items of one of Hacker News's official lists,
+ordered by their rank on the list; it issues no cursor.
+_Avoid_: front page search, HN feed
 
 **Polymarket Event**:
-Polymarket 上展示给人的一个问题或主题，含一个或多个 Polymarket Market，是 Polymarket 平台条目的默认 kind。互斥的多个 market 组成的 event 恰有一个结算为 Yes，但各 market 的 Market-Implied Probability 之和不必为 1。
-_Avoid_: question、market group
+A question or topic presented to people on Polymarket, containing one or more Polymarket Markets;
+the default kind of a Polymarket platform item. Exactly one market of an event made of mutually
+exclusive markets resolves Yes, but the markets' Market-Implied Probabilities need not sum to 1.
+_Avoid_: question, market group
 
 **Polymarket Market**:
-Polymarket Event 中一个可单独结算的问题，有两个或多个结果（多为 Yes 与 No），每个结果在订单簿上单独交易。
-_Avoid_: contract、outcome、event
+A question within a Polymarket Event that resolves on its own. It has two or more outcomes (usually
+Yes and No), and each outcome trades separately on the order book.
+_Avoid_: contract, outcome, event
 
-**Market-Implied Probability（市场隐含概率）**:
-Polymarket Market 的一个结果在订单簿买卖两边都有挂单时，最优买价与最优卖价的中点。任一边没有挂单或市场停止交易时，它不存在；已结算的市场给出兑付值，不是概率。它表达交易者此刻的定价，不是校准过的预测，也不等于网页显示的价格。
-_Avoid_: odds、chance、displayed price、outcome price
+**Market-Implied Probability**:
+The midpoint between the best bid and the best ask for one outcome of a Polymarket Market, when
+both sides of its order book have orders. It does not exist when either side is empty or the
+market has stopped trading; a resolved market gives its payout value, not a probability. It
+expresses how traders price the outcome now; it is not a calibrated forecast and not the price the
+website shows.
+_Avoid_: odds, chance, displayed price, outcome price
 
 **Price History**:
-列出一个 Polymarket Market 中某个结果在一段时间内价格序列的 Platform Operation。序列只含市场价格；市场已结算时，兑付值单独给出，不混入序列。价格序列不等于 Market-Implied Probability 的历史：平台没有说明历史点取的是成交价还是中点。
-_Avoid_: probability history、chart、price feed
+The Platform Operation that lists the price series of one outcome of a Polymarket Market over a
+period. The series holds only market prices; for a resolved market the payout value is given
+separately, never mixed into the series. A price series is not a history of the Market-Implied
+Probability: the platform does not say whether a historical point is a trade price or a midpoint.
+_Avoid_: probability history, chart, price feed
 
 **Platform Fetch**:
-按 Platform Ref 取回单个平台条目的操作；它不同于 Web Fetch Capability，尽管其正文段可以复用 Web Fetch。先由平台 route 取元数据并确定实际版本，全文深度再按 route 声明的正文来源取正文：一组 URL 依次走同一条 Web Fetch 链；route 在同一 attempt 内自己读到并核对过的平台原生正文（Native，例如小红书笔记）不经 Web Fetch（ADR-0022）。全文写入本地文件，结果只按路径引用它。
-_Avoid_: web fetch、platform download
+The operation that retrieves one platform item by its Platform Ref. It is not the Web Fetch
+Capability, although its body step can reuse Web Fetch. The platform route first retrieves the
+metadata and settles the actual version; a full-text depth then retrieves the body from the source
+the route declares: a list of URLs, tried in turn through one Web Fetch chain, or a platform-native
+body that the route read and checked itself within the same attempt (Native, such as a Xiaohongshu
+note), which skips Web Fetch (ADR-0022). The full text is written to a local file, and the result
+refers to it only by path.
+_Avoid_: web fetch, platform download
 
 **Content Depth**:
-平台条目结果所含内容的程度：`metadata`（只有书目信息，没有摘要）、`snippet`、`abstract`、`full_text` 或 `thread`；每个 Platform 定义它所支持深度的含义，深度之间没有全局排序。摘要深度绝不等于全文，片段绝不等于摘要。对 SSRN，请求的深度是最低要求，条目的 `depth` 记录 route 实际拿到的内容。
-_Avoid_: detail level、verbosity
+How much content a platform item result holds: `metadata` (bibliographic data only, no abstract),
+`snippet`, `abstract`, `full_text` or `thread`. Each Platform defines what the depths it supports
+mean, and there is no global order between depths. An abstract depth is never the full text, and a
+snippet is never the abstract. For SSRN the requested depth is a minimum, and the item's `depth`
+records what the route actually obtained.
+_Avoid_: detail level, verbosity
 
-**Relayed Content（转述内容）**:
-Platform Route 经模型转述得到的条目内容：模型的工具读到了原文，forager 只拿到模型写出的文本。条目身份可以由 route 用可核对的事实确认，正文与作者不保证逐字，例如 X 平台经 xAI 读到的帖子正文，以及模型看过 YouTube 视频后写出的回答与字幕。
-_Avoid_: platform-native content、verbatim text、quoted post
+**Relayed Content**:
+Item content a Platform Route obtains through a model's retelling: the model's tool read the
+original, and forager receives only the text the model wrote. The route can confirm the item's
+identity from checkable facts, but the body and the author are not guaranteed verbatim; for
+example the X posts read through xAI, and the answers and captions a model writes after watching a
+YouTube video.
+_Avoid_: platform-native content, verbatim text, quoted post
 
 **Page Cursor**:
-平台检索结果的不透明翻页标识；它完整恢复原请求与下一页位置，只能在产出它的 route 与 Platform Operation 上继续。没有 cursor 只表示无法跨命令续页，不证明结果已读完：小红书每次访问的排序都不同，它的检索从不签发 cursor。
-_Avoid_: offset、page token
+An opaque paging token for platform search results. It fully restores the original request and the
+position of the next page, and continues only on the route and Platform Operation that issued it.
+No cursor only means the results cannot be continued in another command; it does not prove they
+were all read. Xiaohongshu orders results differently on every visit, so its search never issues a
+cursor.
+_Avoid_: offset, page token
 
 **SSRN Search Criteria**:
-一次 SSRN 检索要求的搜索范围、作者与机构、日期、元数据条件和排序。每条 Platform Route 必须完整应用这些条件；名称相近但语义不同的条件不互相替代。
-_Avoid_: raw provider parameters、best-effort filters
-
-**Reference Docs**:
-The standing documents under `docs/reference/` that describe what forager does now. They change whenever the implementation changes, carry no change history, and outlive every change that edits them.
-_Avoid_: spec, spec chapter
+The search scope, authors and institutions, dates, metadata conditions and sort order that one
+SSRN search asks for. Every Platform Route applies them in full, and a condition with a similar
+name but a different meaning never stands in for another.
+_Avoid_: raw provider parameters, best-effort filters
 
 **Spec**:
-The description of one change, kept in a GitHub issue and closed when the change ships. A spec is never the source of a current fact: on delivery, the contracts that stay true move into the Reference Docs and the hard-to-reverse trade-offs into ADRs.
-_Avoid_: reference docs, standing spec
+The description of one change, kept in a GitHub issue and closed when the change ships. An issue
+is never the source of a current fact: on delivery, what a CLI user can observe goes into the
+product skill, how it works stays in the code, and a hard-to-reverse trade-off goes into an ADR.
+_Avoid_: standing spec, spec chapter
