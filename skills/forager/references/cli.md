@@ -29,6 +29,9 @@ The public top-level commands are `search`, `research`, `fetch`, `map`, `exa`, `
 | `context7` | `c7` |
 | `config list` | `config ls` |
 
+Subcommand prefixes are not inferred: an abbreviation that is not a listed alias is an unknown
+command.
+
 Network commands that expose these options share the following behavior:
 
 | Option | Behavior |
@@ -42,6 +45,25 @@ Network commands that expose these options share the following behavior:
 After argument parsing selects `--format json`, `search`, `fetch`, and `research` return a single
 parseable error object on stdout for configuration, stdin, or plan preflight failures. Clap parser
 errors and panics keep their existing channels, as do failures in non-JSON formats.
+The object is `{error_kind, message, journal_ref, journal_status}`: `error_kind` is `parameter`,
+`config`, or `runtime` with exit `2`, `3`, or `4`, and `journal_ref` is `null` with
+`journal_status: "unavailable"`, because no journal configuration has loaded yet. Every other
+command, and these three in other formats, reports a preflight failure as one stderr line starting
+`argument_error:`, `config_error:`, or `runtime_error:`.
+
+A terminal failure prints a small failure payload on stdout: `error_kind`, a `message` of at most
+500 characters, an `attempts` summary (`total`, counts `by_kind`, the `providers` tried, and
+`by_kind_truncated`, `providers_truncated`, and `truncated` marking a cut list), and `journal_ref`
+with `journal_status`. `journal_status` is `written`, `disabled`, or `failed` for `search` and
+`research`, and `not_applicable` for commands that write no journal. A `search` failure also
+carries its non-empty `capability_gaps`; `research` uses its own shape, described under
+[`research`](#research). A command that reaches its `--timeout` reports `timeout` and keeps the
+attempts it completed.
+
+When `--output` cannot write its file, the command exits `3` whatever its own result was; stdout
+still carries the full result, and JSON output gains `output_status: "failed"` and an
+`output_error` message. A failed journal write is only a stderr warning: it never changes the
+result or the exit code.
 
 `log.level=debug` enables an optional terminal projection with one bounded attempts summary;
 `trace` adds safe fields for each attempt. This projection never changes stdout or replaces
@@ -99,6 +121,14 @@ front of a Codex account). The default order is `["xai", "openai"]`; a backend w
 which one answered. To use `openai`, set `providers.openai.url` and `providers.openai.keys`;
 `providers.openai.model` defaults to `gpt-6.1-terra`, the Codex model name under CLIProxyAPI.
 
+forager removes closed `<think>…</think>` blocks from the answer, and adds a trailing source
+heading block and inline `[[N]](URL)` citations to `sources`, deduplicated by URL. An answer that
+is empty after this fails with `runtime`. When main search fails, it alone decides the terminal
+state and exit code, and the failure payload keeps the candidates already found: `extra_sources`
+in order without their `summary`, as many as fit, with `extra_sources_truncated` saying whether
+any were cut. Its attempt summary counts the supplemental attempts too. `--verbose` keeps every
+candidate in full.
+
 ### `research`
 
 ```console
@@ -131,6 +161,26 @@ Use `research-plan.json` as the Schema v1 shape. A caller-provided plan is autho
 plan generation. An omitted plan requires a configured classifier. Invalid JSON, unsupported
 versions, unknown or missing fields, invalid capabilities, empty decomposition, and empty or
 duplicate subquestion IDs exit with code 2.
+So do an empty `question` or `reason`, and a declared `web_fetch`: the engine runs Web Fetch
+itself. Duplicate capabilities in a subquestion are folded, keeping their order. `intent_signals`
+change only evidence strength and cross-validation inside the declared capabilities; they never
+add, remove, or reorder capabilities or providers. A declared capability without a configured
+provider does not block the run; it appears in `capability_gaps`.
+
+`quick`, `standard`, and `deep` allow at most 2, 4, and 6 subquestions and at most 1, 2, and 3
+evidence items per subquestion. The caps are limits, not targets: one accepted evidence item
+covers a subquestion. A caller plan over its budget's subquestion limit exits 2; a classifier plan
+over it is truncated with a warning. The run fails when it collects fewer evidence items than it
+requires: 2 when `cross_validation_need` or `source_authority_need` is `high`, otherwise 1,
+lowered with a diagnostic when the caps cannot hold that many. The failure is `evidence` (exit
+5), except that a run with no evidence whose attempts all failed, or that hit a quality failure,
+takes the terminal kind of its attempts. Known URLs are fetched outside the caps: a URL in a
+subquestion's text belongs to that subquestion, and one only in the query belongs to the whole
+plan. A known URL that fails to fetch always records a gap, even when other evidence covers its
+subquestion. Otherwise a gap is a subquestion that ran out of candidates without evidence; a
+failed fetch of one candidate is only an attempt. `gap_check.status` is `closed` when there is no
+gap and no capability gap, and `degraded` otherwise. The engine runs once and never refetches or
+re-plans; that loop belongs to the caller.
 
 Default JSON is a Research Evidence Index. Each item in `evidence_items` contains evidence identity
 and metadata plus a readable `evidence_items[].path`; fetched body content lives at that path rather
@@ -141,6 +191,16 @@ On success, the Evidence Index locates these artifacts. On terminal failure, a n
 `summary_path` points to the readable Research Recovery Manifest containing completed evidence,
 gaps, and artifact paths. If it is null, use the other reported paths and gaps before diagnosis.
 `--verbose` adds provider attempts inline.
+
+One URL is fetched once, and its evidence item lists every subquestion it covers. `evidence_dir`
+holds `00-plan.json` (the normalized plan), one `NN-evidence.md` body per evidence item,
+`candidates.json` (the unconsumed candidates, each `is_evidence: false`), and `summary.json`, the
+Research Recovery Manifest; no evidence body appears on stdout, in the manifest, or in the
+journal. A research failure has one fixed shape: `error_kind`, the bounded `message`,
+`evidence_dir`, `summary_path`, `gap_check` with its `status` and `stop_reason`,
+`synthesis_policy`, and the journal pair. Paths are never cut, so a very long path can make the
+payload large. `summary_path` is `null` when the manifest could not be written; the evidence
+directory stays.
 
 ## Direct operations
 
@@ -1258,6 +1318,52 @@ Use dotted schema paths such as `providers.exa.timeout`. `config set` and `confi
 document layer and remain available for repairing a schema-invalid but syntactically parseable
 file. Edit the path printed by `config path` when the TOML syntax itself is damaged.
 
+`config set KEY -` reads all of stdin, strips exactly one trailing LF or CRLF, and accepts empty
+input as an empty string. `config unset` says so when an environment variable still sets the key.
+
+The configuration file is `config.toml` in `$XDG_CONFIG_HOME/forager`, or `~/.config/forager`;
+`FORAGER_CONFIG_DIR` replaces that directory. When the default directory cannot be resolved or
+written, commands fail and ask for `FORAGER_CONFIG_DIR`. The directory is kept at mode `0700` and
+the file at `0600`. Every key may be omitted to use its built-in default; `config list` shows the
+effective value and source of each, and `setup --non-interactive` writes a template that comments
+every key. An unknown file key exits 3 and names the key.
+
+The environment overrides the file, which overrides the defaults. Each key's variable is
+`FORAGER_` plus the dotted path in upper case with `__` between levels, such as
+`FORAGER_PROVIDERS__XAI__MODEL`. A value is parsed as the key's type, so a string is taken
+verbatim, and an array is a TOML literal such as `FORAGER_PROVIDERS__EXA__KEYS='["sk-a","sk-b"]'`.
+An unknown `FORAGER_*` variable exits 3. Provider-native variables such as `EXA_API_KEY` are not
+read.
+
+- Credentials: every provider that takes credentials has a `keys` array, and several keys form a
+  pool that forager rotates through. A provider that needs no credentials has no `keys` key;
+  writing one is an unknown key (exit 3 in the file, exit 2 from `config set`). An empty `keys`
+  leaves its provider unconfigured, except that `jina` then runs anonymously.
+- `capabilities.<capability>.order` lists the providers that may serve `web_search`, `web_fetch`,
+  or `docs_search`, in fallback order. The list is complete: a provider left out is never used,
+  one without keys is skipped, and a provider that cannot serve the capability is a configuration
+  error. `web_search` and `docs_search` may be empty, which leaves them unserved and reported in
+  `capability_gaps`; an empty `web_fetch` order is a configuration error.
+- `platforms.<id>.order` lists the platform's routes; empty disables the platform. Platform
+  fetches that need a page body read it through `capabilities.web_fetch.order`.
+- `classifier`: `url`, `keys`, `model`, `fallback_models` tried in order on the same endpoint, and
+  `timeout`, one budget for the whole classification step. Without it, search uses the default
+  Web route and research needs `--plan`.
+- `journal`: `enabled` (default `true`), `dir` (default `$XDG_STATE_HOME/forager/journal`, else
+  `~/.local/state/forager/journal`), and `retention_days` (default `30`; `0` keeps files forever).
+  Each search or research run writes its own file, whose path is `journal_ref`; retention deletes
+  only expired files that forager named.
+- `retry`: `max_attempts` per request (at least 1), backoff `multiplier` (above 0), and `max_wait`
+  seconds between attempts.
+- `http.ssl_verify` turns TLS certificate verification off when `false`.
+- `providers.jina.respond_with` sets Jina's `X-Respond-With` header, such as `readerlm-v2`.
+- `log.level` is `error`, `warn`, `info` (default), `debug`, or `trace`. Only `debug` and `trace`
+  add output. Terminal errors, capability gaps, classifier fallback, and journal and `--output`
+  warnings always reach stderr.
+- Every `timeout` is a positive number of seconds.
+- A leading `~/` in `journal.dir` or `browser.path` expands to `HOME`, and a relative path is
+  relative to the configuration directory.
+
 ### `setup`
 
 ```console
@@ -1270,6 +1376,12 @@ forager setup [--non-interactive] [--lang zh|en]
 | `--lang LANG` | Use `zh` or `en` for the interactive setup prompts. | Prompt/default locale |
 
 After setup, use `forager doctor` to check the resulting configuration.
+
+Interactive setup has five steps: the language; the main model (`xai` URL, keys, and model); the
+classifier, which can be skipped; keys for `exa`, `context7`, `jina`, `tavily`, and `firecrawl`;
+and keys for the `serpapi` and `youtube_api` routes. Enter keeps the current value, so a second
+run updates the existing file. Setup asks only for credentials and model settings and sends no
+request; set other keys with `config set`.
 
 ### `browser`
 
@@ -1290,12 +1402,17 @@ its cookies. Only macOS on Apple silicon has a Managed Browser package. A non-em
 instead; `browser install` still installs, and says on stderr that `browser.path` is in use.
 Progress goes to stderr.
 
+forager's cache is `$XDG_CACHE_HOME/forager`, or `~/.cache/forager`. `browser login` counts
+against its route's request window like a platform command, so a platform command right after a
+login can wait for that window.
+
 Exit codes: `2` for a platform without a browser login; `3` when `browser login` finds no browser
 (the message names `forager browser install` or `browser.path`); `4` with `{error_kind, message}`
 on stdout for `network` (the download failed), `timeout` (the download or the login did not finish
 in time), and `runtime` (the SHA256 did not match and the download was deleted, the package could
 not be unpacked, this host has no package, the browser failed to start or its window closed before
-the login, or the Browser Profile is in use by another forager process).
+the login, or the Browser Profile is in use by another forager process). A failed CDP handshake
+with the started browser is also `runtime`.
 
 ### `doctor`
 
@@ -1334,6 +1451,16 @@ have only `key_index`, `ok`, and `error_kind` for a failing key, with the failin
 `providers.gemini_api.keys[N]`. Do not use doctor as
 the recovery path for configuration that cannot be loaded.
 
+The shallow report also has a `config` block shaped like `config list`, and `permission_warnings`
+when the configuration directory or file is more open than `0700` or `0600`. Warnings never change
+`ok`, and `ok` is true when nothing is configured. A platform route that no default order lists
+reports `configured: false` until a platform order lists it. A deep probe of a provider whose
+prerequisites are missing, or of a route no order enables, fails with `config` and exit 3 before
+sending anything; a failed probe exits 4. For a provider with a request window, both the shallow
+check and the deep probe wait for that window; when it does not open in time, the shallow report
+marks the provider unreachable and the deep probe fails with `timeout`, and neither sends a
+request.
+
 ### `smoke`
 
 ```console
@@ -1370,6 +1497,9 @@ them. A case that does not run is `unconfigured`, and its `message` names why: t
 list the route, the browser is not installed, the profile was never logged in, or the keys are
 missing, with the fix. `unconfigured` is not a pass.
 
+A live run's `ok` is true only when every case passed; the command then exits `0`, and otherwise
+`4`. A configuration that cannot be loaded exits `3`.
+
 ## Exit codes
 
 | Code | Meaning |
@@ -1386,3 +1516,11 @@ and diagnostics or logs use stderr. A failed command renders its failure payload
 an empty stderr does not mean success; judge the outcome by the exit code. After successful Clap parsing selects JSON, configuration,
 stdin, and plan preflight failures use the parseable stdout error object described above. Clap
 errors, panics, and non-JSON formats retain their existing channels.
+
+Exit `2` covers only input that forager rejects before sending a request; when an upstream
+service rejects a request, the resulting `parameter` failure exits `4`. Exit `3` also covers an
+unknown file key or `FORAGER_*` variable, an empty chain or order, and a missing credential that
+the command needs. Exit `4` is the transport family (`auth`, `rate_limited`, `quota_exhausted`,
+`parameter`, `network`, `timeout`, `runtime`), and exit `5` the content family (`quality`,
+`evidence`). An empty result is never an error: a direct command with no matches succeeds, and
+only research turns missing evidence into `evidence`.
