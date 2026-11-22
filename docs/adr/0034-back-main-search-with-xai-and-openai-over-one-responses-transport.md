@@ -1,42 +1,76 @@
-# 主搜索新增 openai 供应方：经 Responses API 的 web_search 检索
+# Back main search with xai and openai over one Responses transport
 
-forager 在 Main Search 下新增供应方 `openai`：经 OpenAI Responses API（`POST <url>/responses`，SSE）与固定的 `web_search` 工具执行主搜索。`url` 可以指向官方 API，也可以指向 CLIProxyAPI 等说同一协议的网关。`search.backends` 的合法值扩为 `{xai, openai}`，默认值改为 `["xai", "openai"]`。没有 key 的 `openai` 不算已配置，链上跳过，因此不配置它的用户行为不变；把顺序改为 `["openai", "xai"]` 就能让它成为首选。
+## Decision
 
-这一决定取代 [ADR-0031](0031-retire-openai-compatible-main-search-backend.md) 中的两条：「`search.backends` 合法值只剩 `xai`」与「主搜索没有 backend 级 fallback」。ADR-0031 其余部分不变：同端点模型链、model 断路器、SSE→HTTP 传输回退与同故障域 `config_warnings` 都不恢复。
+Main search is a Capability Seam with two backends in independent failure domains: `xai` and
+`openai`. Both speak the Responses API with a fixed web-search tool; `openai` may point at the
+official API or at a gateway that speaks the same protocol. A backend without credentials is
+skipped, so a user who does not configure `openai` sees no change, and reordering the backends
+makes `openai` primary.
 
-## 依据
+- **One transport.** The Responses transport (request body, stream reading, completion and
+  terminal-failure handling, answer text and citation extraction) is a shared module named after
+  the protocol, and the main-search execution path exists once. A backend supplies only its
+  endpoint, model, tool item and tracking parameter. X platform search stays xai's own adapter.
+- **A fixed request surface.** `openai` exposes only its endpoint, credentials and model. Tools,
+  reasoning effort and web-search parameters are not configurable, and like `xai` it has no
+  per-attempt timeout: the primary-first budget applies (ADR-0007).
+- **Scope.** `openai` is not a platform route and does not serve the classifier.
+- **No same-failure-domain machinery.** The retired `openai_compatible` backend and everything
+  that existed only for it stay removed: the same-endpoint model chain, the in-process model
+  circuit breaker, the stream-to-plain-HTTP transport fallback, the two-shape doctor probe, the
+  chain's pre-run gate, and the configuration warning about fallbacks in the same failure domain.
+  Its configuration keys, environment variables and doctor target are rejected as unknown input,
+  with no alias.
 
-ADR-0031 的重新评估条件之一是「出现与 xai 故障域独立（不同 endpoint 或不同模型提供方）、并经过验收的主搜索候选」。`openai` 满足这一条：
+The configuration surface is in `docs/reference/config.md`; the module split and the request
+details are under the main-search sections of `docs/reference/architecture.md` and
+`docs/reference/cli.md`.
 
-- 上游模型提供方是 OpenAI 而不是 xAI，与 xai 的网关也是不同的 endpoint。
-- 2026-10-28 经维护者自建的 CLIProxyAPI 网关实测：`POST /v1/responses` 调用 `gpt-6-luna`，带 `stream: true` 与 `tools: [{"type": "web_search"}]`，约 12 秒完成，过程中有 2 轮 `web_search_call`；`output_text` 带 `url_citation` 标注，SSE 事件序列（`response.output_text.delta`、`response.completed` 等）与 xAI Responses API 一致。
-- CLIProxyAPI 源码（`router-for-me/CLIProxyAPI` 2026-10-27 的 main 分支）显示，它的 Codex 执行器原样透传 Responses 请求，接受 `web_search`、`web_search_preview` 与 `web_search_preview_2025_03_11` 三种工具类型，只强制 `store: false` 与 `stream: true`，并删除 `max_output_tokens`、`temperature` 等字段。forager 不发送这些被删除的字段。
+## Why
 
-截至 2026-10-28，本机近 30 天的 journal 共有 274 次 search，其中 2 次主搜索失败：一次是 3 个连续的快速 network attempt，每个不到 0.5 秒；另一次是 30 秒的 runtime 失败。两次失败后剩余的 deadline 都足够让另一个独立的 backend 接住。
+- The retired fallback never helped. In the journal from 2026-09-19 to 2026-10-18 (443 searches)
+  it was called in 13 searches, and all 39 of its attempts failed with the upstream's "service
+  temporarily unavailable". It was configured with the same endpoint and model as `xai`, so it
+  failed whenever `xai` did, while its machinery reached across providers, chain, configuration,
+  doctor, smoke and setup, with about 900 lines in the provider alone.
+- That data showed only that a fallback in the same failure domain is worthless, not that an
+  independent one is; this is why the seam was kept for a later candidate.
+- `openai` is independent: its upstream model provider is OpenAI rather than xAI, through a
+  different endpoint. On 2026-10-28 a gateway test completed a streamed web-search request in about
+  12 s with two search rounds, returned cited answer text, and emitted the same stream event
+  sequence as xAI.
+- In the 30 days to 2026-10-28 the journal had 274 searches with two main-search failures: three
+  fast network attempts under half a second each, and one 30-second runtime failure. Both left
+  enough deadline for an independent backend to answer.
+- Two backends speak one protocol, so a protocol fix belongs in one place.
 
-## 共用 Responses 传输
+## Rejected alternatives
 
-xai 与 openai 说同一个协议，因此原先 xai 私有的 Responses 传输（请求体、SSE 读取、`response.completed` 提取、终态失败分类、`output_text` 与 `url_citation` 提取）上移为 providers 层按协议命名的共享模块。失败消息中的服务名由调用方给出，协议行为不随调用方变化，协议层的修复只需改一处。主搜索的执行路径（按请求种类构造请求、经凭据池执行、规范化、组装结果）同样只有一份，provider 只提供端点、模型、工具项与追踪参数。X 平台的 `x_search` 适配仍只归 xai。
+- **Keeping `openai_compatible` as the fallback.** It shared the primary's failure domain and never
+  succeeded.
+- **Removing the main-search seam while only `xai` remained.** A new candidate would have needed
+  the structure rebuilt; keeping it cost a backend list with one valid value for a while.
+- **Restoring the same-failure-domain warning.** `openai`'s default endpoint differs from `xai`'s;
+  configuring both to the same endpoint and model takes deliberate effort.
+- **Opening tools, reasoning effort or web-search parameters.** No current need; they can be added
+  when one appears.
+- **Per-backend copies of the Responses transport.** Each protocol fix would have to land twice.
 
-## `--model` 只作用于链首
+## Revisit when
 
-`--model` 原先会被交给链上每一个 backend。只有 xai 时这没有区别；有两个 backend 后，`--model grok-4.5` 会在 fallback 时被发给 openai，导致参数错误。现在 `--model` 只交给本次主搜索链实际运行的第一个 backend（跳过没有凭据的条目之后的链首），之后接手的 backend 使用各自配置的模型。
+- The two backends are seen failing together. The maintainer's two gateways resolve to the local
+  proxy's fake IPs, so it is unknown whether they share a host; a host failure would take both
+  down, though the upstream services remain independent.
+- A third main-search candidate with its own failure domain passes acceptance.
+- The cost of `openai` matters. One simple query with web search used about 15,600 tokens,
+  including reasoning, on the tested model; more complex queries cost more.
 
-## 请求面固定
+Accepted as gateway behaviour that forager does not handle: a gateway may inject tools of its own
+into requests.
 
-`openai` 只开放 `url`、`keys` 与 `model`。工具固定为 `web_search`，因为 `x_search` 是 xAI 专有的工具；不开放 `tools`、`reasoning.effort` 或 `web_search` 的可调参数，等有实际需求再加。与 xai 一样没有 `timeout` 键：首选 backend 可以用掉全部剩余预算（[ADR-0007](0007-primary-first-timeout-budget.md)），fallback 用剩下的部分。
+## Supersedes
 
-OpenAI 在引用 URL 末尾追加 `utm_source=openai`。forager 只去掉这一个精确参数，保留 URL 的其他部分；它与 ChatGPT 网页的 `utm_source=chatgpt.com` 由同一条共享规则处理，不做通用的 `utm_*` 剥离。
-
-## 已接受的局限
-
-- **静默挂起会饿死 fallback**：首选 backend 静默挂起时，每个 attempt 最多等待 60 秒的共享读超时，加上 `retry.max_attempts` 次重试，可能耗尽默认 180 秒 deadline，使 fallback 没有机会运行。这一路径在上述 journal 中没有出现过。等 journal 显示确有发生，再考虑为 fallback 预留预算或在后面还有 backend 时减少首选的重试次数。
-- **故障域的不确定性**：维护者本机 xai 网关与 CLIProxyAPI 网关的域名都解析到本地代理的 fake-IP，无法判断两者是否部署在同一主机上。如果是同一主机，主机级故障会让两个 backend 同时失败；上游服务的故障仍然独立。
-- **成本**：一次带 `web_search` 的简单查询在 `gpt-6-luna` 上消耗约 1.56 万 token（含推理）；更复杂的查询耗时与额度消耗更高。默认模型 `gpt-6.1-terra` 未实测。
-- **默认模型名**：`gpt-6.1-terra` 是 CLIProxyAPI 下 Codex 账号的模型名，直接指向 `api.openai.com` 的用户需要按官方 API 可用的模型修改 `providers.openai.model`。
-- **网关注入的工具**：CLIProxyAPI 会为非免费账号自动注入 `image_generation` 工具。这是网关行为，forager 不处理。
-
-## 不做的事
-
-- 不把 `openai` 作为 X 或任何平台的 route，也不接入 classifier。
-- 不恢复同故障域 `config_warnings`：`openai` 的协议与默认 endpoint 都不同于 xai，配到同一 endpoint 与模型需要用户刻意为之。
+- ADR-0031, the retirement of the `openai_compatible` backend. ADR-0034 overturned two of its
+  points (only `xai` valid, no backend fallback); the rest, the removed machinery and its
+  evidence, is kept above.
