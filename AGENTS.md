@@ -34,7 +34,7 @@ Each fact has one owner. When something changes, update the owner and nothing el
 - **ADRs** contain only decisions in force:
   - Write one only when the decision is hard to reverse, surprising without its context, and a real trade-off.
   - Sections: a title, then `Decision`, `Why` (with the key evidence figures), `Rejected alternatives`, `Revisit when`, and `Supersedes` when it replaces deleted ADRs. No front matter and no status field.
-  - Files are `NNNN-slug.md`. A merged ADR keeps the newest number it inherits; a split-off part takes the highest number ever used plus one. Numbers are never reused, because commit history, the changelog and old issues cite them.
+  - Files are `NNNN-slug.md`. A new ADR, or a part split off an old one, takes the highest number ever used plus one; a merged ADR keeps the newest number it inherits. Numbers are never reused, because commit history, the changelog and old issues cite them.
   - Refer to one as `ADR-NNNN`, one token per number. No values, key names or field names that the code states, and no pointer to another document "for details".
   - Delete a superseded ADR and name it in its successor's `Supersedes` section.
 - **`docs/agents/`**: `release.md` and `browser-routes.md` are procedures. `issue-tracker.md`, `triage-labels.md` and `domain.md` are read by external skills at those paths, so keep the paths; rerunning those skills' setup overwrites them.
