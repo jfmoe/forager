@@ -73,7 +73,7 @@ Platform 与 Capability Seam 并列（ADR-0019），完整接入契约见 `platf
 
 ## net 层
 
-1. 全进程一个 `reqwest::Client`（rustls，启用 HTTP/2），构造参数单点。TLS 握手的 ALPN 因此声明 `h2, http/1.1`，与 curl 和浏览器相同；有的站点拒绝只声明 `http/1.1` 的客户端（2026-10-28 实测 Reddit 如此，ADR-0033 的这一条经 ADR-0037 保留）。`net::build_client` 统一拥有 TLS、connect/read timeout、pool、User-Agent 与 `redirect::Policy::none()`；任何 provider endpoint 的 3xx 保留原 status，不请求 `Location`，经共享 status mapper 形成不可重试、不可轮换的 Runtime。当前不设 same-origin、provider 或状态码例外，也不构造第二个 client。
+1. 全进程一个 `reqwest::Client`（rustls，启用 HTTP/2），构造参数单点。TLS 握手的 ALPN 因此声明 `h2, http/1.1`，与 curl 和浏览器相同；有的站点拒绝只声明 `http/1.1` 的客户端（2026-10-28 实测 Reddit 如此，ADR-0037）。`net::build_client` 统一拥有 TLS、connect/read timeout、pool、User-Agent 与 `redirect::Policy::none()`；任何 provider endpoint 的 3xx 保留原 status，不请求 `Location`，经共享 status mapper 形成不可重试、不可轮换的 Runtime。当前不设 same-origin、provider 或状态码例外，也不构造第二个 client。
 2. **`Deadline` 贯穿调用链**；main search 的主 backend 首次尝试可使用全部剩余预算，fallback backend 只消费失败后的残余。classifier 与辅助 seam 的 attempt 上限＝`min(层上限, 剩余预算 / 剩余必要 fallback 槽位数)`（F3）；耗尽→Timeout、保留已完成 attempts。辅助 seam 的槽位可执行定义见 `testing.md` M17，main search 的边界与已接受后果见 ADR-0007。
 3. SSE 只用 **eventsource-stream 裸解析**（不用 reqwest-eventsource——其自动重连绕过预算与 attempt 记录）；NDJSON 同入口换分帧器。
 4. **`McpClient`** 统一 HTTP、Deadline、可选 session、JSON/SSE、JSON-RPC 与错误映射；只有 server 返回 session 时才发送 initialized notification 与后续 session header，缺 session 时直接 tools/call。session 过期重握手只服务实际发放 session 的 server，受同一 Deadline 约束。Context7 不发送旧 `X-Context7-Source`。`result.content` 存在但非标准数组时为 Runtime；structuredContent-only 路径继续可消费。**语义错误解码**（F5）：统一识别 JSON-RPC `error` 与 `result.isError`；可识别限流/配额文本映射 RateLimited/QuotaExhausted（触发轮换），未知 tool error 映射 Runtime 且不重试；归类先于轮换/重试决策。
