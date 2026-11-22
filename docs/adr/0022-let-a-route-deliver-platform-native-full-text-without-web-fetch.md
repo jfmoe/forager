@@ -1,27 +1,46 @@
-# 平台原生正文是第三种全文来源
+# Let a route deliver platform-native full text without Web Fetch
 
-小红书 fetch（`xiaohongshu_browser`，参考文档 `docs/reference/platforms.md`「小红书」）要交付笔记全文。ADR-0020 把平台 fetch 的全文来源穷举为两种：一组按序读取的 URL，或一个在同一 attempt 内校验过的本地文件，两者都走同一条 Web Fetch 链。本记录增加第三种来源 **Native**，取代 ADR-0020「Consequences」中"route 的全文来源只有 URL 或本地文件、平台 fetch 对两者运行同一条 Web Fetch 链"的穷举表述；ADR-0020 的其余内容不变。
+## Decision
 
-## 为什么不能交给 Web Fetch
+A platform fetch has two kinds of full-text source: a set of URLs that the shared Web Fetch chain
+reads in order, or a **Native** body that the route read and checked itself in the same attempt
+that produced the item's metadata. A Native body skips the Web Fetch chain and its thin-content
+gate and goes straight to the same delivery as any full text: written to a local file, with only
+its path on stdout (ADR-0015).
 
-- 笔记只在用户自己的登录会话中、带 Access Token 时才能打开；匿名抓取 canonical URL 或 `access_url` 都拿不到正文（2026-10-08 实测：不带 cookie、带 token 的请求返回 200，但页面里没有该笔记）。第三方 Web Fetch provider 没有这个会话。
-- route 打开笔记页时已经从服务端渲染状态中读到了结构化的标题、正文、标签与图片，并核对过 `noteId`。把同一页面再交给 Web Fetch 只会多一次访问、多一份风控风险，而且结果更差。
-- 正文是纯文本加图片列表，不需要格式转换。
+- **Declared in the registration.** Each route declares whether its fetch reads the full text
+  itself. The plan for a fetch uses that declaration to decide whether a Web Fetch provider may be
+  needed, and only then does the CLI fail a full-text request up front when no Web Fetch provider
+  is configured.
+- **Attribution.** The content provider is whoever produced the Markdown: the Web Fetch provider
+  for a URL source, the route for a Native one. The content URL of a Native body is the item's
+  canonical identity URL, with no promise that it opens anonymously.
+- **Web Fetch stays platform-free.** The Web Fetch capability holds no platform knowledge; a route
+  that can read and check its own body reuses the Native source by declaring it.
 
-## 决定
+## Why
 
-- `FullTextSource` 增加 `Native(String)`，只携带 Markdown 正文。route 在取得元数据的同一个 attempt 内构造并核对它；标题、正文、图片全为空时在这个 attempt 内报 Quality，不另记 attempt。
-- core 的平台 fetch 遇到 Native 来源时跳过 Web Fetch 链与薄正文门，用条目的 canonical URL、route id 与正文构造 `PlatformContent`，交给 CLI 现有的交付逻辑（文件、`content_path`、`content_len`、`--format content`、`--content-dir`、写入失败为 Runtime）。Native 来源没有原始文件，因此没有 `--keep-pdf`。
-- 注册信息为每条 route 声明 fetch 全文是否由 route 自己读取（`native_full_text`）。`plan_fetch` 据此回答"本计划是否可能需要 Web Fetch"：请求 `full_text` 且计划中有任一 route 不读原生正文时为是。CLI 只在为是时做"没有已配置的 Web Fetch provider 即飞行前退 3"的预检。arXiv 与 SSRN 的 route 声明不读原生正文，行为不变。
-- `content_provider` 定义为实际产出 Markdown 的 provider：Web Fetch 来源时是 Web Fetch provider，Native 来源时是 route id。`content_url` 对 Native 来源是条目的规范身份 URL，不承诺可以匿名打开。
+- Some bodies cannot be read by a third-party fetcher at all. A Xiaohongshu note opens only in the
+  user's own logged-in session with its access token; on 2026-10-08 an anonymous request with the
+  token returned 200 with no note in the page.
+- The route already holds a structured body it has checked against the requested item, such as
+  the note's title, text, tags and images or a discussion tree. Sending the same page to Web Fetch
+  would cost another visit and, on sites with risk control, another chance of a block, for a worse
+  result.
+- These bodies need no format conversion, so the Web Fetch providers would add nothing.
 
-## 接受的边界
+## Rejected alternatives
 
-- **token 在本机进程参数中可见**：route 以具名参数 `--xsec-token` 把 Access Token 传给 OpenCLI，同一台机器上的其他进程可以从进程列表中看到它。token 离开用户的登录会话就打不开笔记，而且它本来就出现在站点的分享链接中，所以不另建传递通道。ADR-0036 取代本条：route 改用浏览器传输，token 只在导航时经 CDP 交给浏览器，不再出现在任何进程参数中。
-- **成功输出的 `access_url` 含 token**：它是打开笔记的推荐入口，调用方需要用它重新 fetch 或读取评论。除此之外 token 不进入 ref、canonical `url`、cursor、journal、attempt 消息、`--verbose` attempts 与失败时的 stderr：route 在记录 attempt 之前，按本次请求的 token 值清理来自 OpenCLI stderr、外壳解码错误与页面事实的消息。
+- **Fetching the canonical URL through Web Fetch.** It cannot see a logged-in session, and where
+  it can read the page it duplicates a visit for worse output.
+- **Platform knowledge inside Web Fetch.** It would couple the shared capability to every
+  platform's page shape.
+- **A local downloaded file as a third source.** It served only SSRN PDFs and was removed with the
+  SSRN browser route (ADR-0035).
 
-## 影响
+## Revisit when
 
-- ADR-0029（Web Fetch 以 provider 为先的正文契约）与 ADR-0015（结果只按引用交付已落盘的材料）的作用域不变：Web Fetch capability 仍不含平台知识，Native 正文同样写入本地文件、stdout 只给路径。
-- Native 正文仍受 OpenCLI stdout 4 MiB 上限约束。ADR-0036 取代本条：OpenCLI 已退役，Native 正文改受浏览器传输的单条 CDP 消息 16 MiB 与单个响应体 4 MiB 上限约束。
-- 以后其他平台的 route 若能在同一 attempt 内读到并核对正文，可以复用 Native 来源，只需在注册信息中声明 `native_full_text`。
+- A Native body turns out to need conversion that the Web Fetch providers do better than the
+  route.
+- A platform's full text can be read both natively and by Web Fetch with materially different
+  quality, which would call for a per-route choice instead of a fixed declaration.
