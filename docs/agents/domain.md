@@ -1,42 +1,11 @@
 # Domain Docs
 
-How the engineering skills should consume this repo's domain documentation when exploring the codebase.
+How the engineering skills consume this repository's domain documentation. The repository has a single context.
 
 ## Before exploring, read these
 
-- **`GLOSSARY.md`** at the repo root, or
-- **`GLOSSARY-MAP.md`** at the repo root if it exists: it points at one `GLOSSARY.md` per context. Read each one relevant to the topic.
-- **`docs/adr/`**: read ADRs that touch the area you're about to work in. In multi-context repos, also check `src/<context>/docs/adr/` for context-scoped decisions.
-
-If any of these files don't exist, **proceed silently**. Don't flag their absence; don't suggest creating them upfront. The `/domain-modeling` skill (reached via `/grill-with-docs` and `/improve-codebase-architecture`) creates them lazily when terms or decisions actually get resolved.
-
-## File structure
-
-Single-context repo (most repos):
-
-```
-/
-├── GLOSSARY.md
-├── docs/adr/
-│   ├── 0001-event-sourced-orders.md
-│   └── 0002-postgres-for-write-model.md
-└── src/
-```
-
-Multi-context repo (presence of `GLOSSARY-MAP.md` at the root):
-
-```
-/
-├── GLOSSARY-MAP.md
-├── docs/adr/                          ← system-wide decisions
-└── src/
-    ├── ordering/
-    │   ├── GLOSSARY.md
-    │   └── docs/adr/                  ← context-specific decisions
-    └── billing/
-        ├── GLOSSARY.md
-        └── docs/adr/
-```
+- **`GLOSSARY.md`** at the repository root.
+- **`docs/adr/`**: the ADRs that touch the area you are about to work in.
 
 ## Use the glossary's vocabulary
 
@@ -46,6 +15,13 @@ If the concept you need isn't in the glossary yet, that's a signal: either you'r
 
 ## Flag ADR conflicts
 
-If your output contradicts an existing ADR, surface it explicitly rather than silently overriding:
+If your output contradicts an existing ADR, name it as `ADR-NNNN` and say why it is worth reopening, rather than silently overriding it.
 
-> _Contradicts ADR-0007 (event-sourced orders), but worth reopening because…_
+## ADR format in this repository
+
+This repository's ADRs differ from the `/domain-modeling` default; follow these rules instead of its template:
+
+- Every ADR has the same sections: a title, then `Decision`, `Why` (with the key evidence figures), `Rejected alternatives`, `Revisit when`, and `Supersedes` when it replaces deleted ADRs, giving their numbers and the reason.
+- There is no front matter and no status field. The set holds only decisions in force: a superseded ADR is deleted and named in its successor's `Supersedes` section, not marked as superseded.
+- A new ADR takes the highest number ever used plus one, not the highest number now present: numbers of deleted ADRs are never reused, because commit history, the changelog and old issues cite them. A merged ADR keeps the newest number it inherits.
+- An ADR states no values, key names or field names the code states, and does not point to another document for details.

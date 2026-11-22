@@ -208,4 +208,39 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn five_pages_at_the_slowest_input_pacing_fit_the_default_route_timeout() {
+        use std::time::Duration;
+
+        use super::{
+            INPUT_PAUSE_MS, MAX_WHEEL_NOTCHES, WHEEL_BURST, WHEEL_BURST_PAUSE_MS, WHEEL_GAP_MS,
+        };
+        use crate::config::BrowserRoute;
+        use crate::providers::browser::input::{
+            POINTER_STEP_MS, POINTER_STEPS, SCROLL_SETTLE_WITHIN,
+        };
+        use crate::providers::browser::{CLEANUP_RESERVE, READ_RESERVE};
+
+        const PAGES: u32 = 5;
+        // The time this budget allows for each page's response to arrive.
+        const PAGE_RESPONSE: Duration = Duration::from_secs(2);
+        let ms = |millis: f64| Duration::from_secs_f64(millis / 1000.0);
+
+        let bursts = MAX_WHEEL_NOTCHES.div_ceil(WHEEL_BURST.0);
+        let burst_pauses = u32::try_from(bursts - 1).expect("burst count");
+        let notch_gaps = u32::try_from(MAX_WHEEL_NOTCHES - 1).expect("notch count") - burst_pauses;
+        let wheel = ms(WHEEL_BURST_PAUSE_MS.1) * burst_pauses + ms(WHEEL_GAP_MS.1) * notch_gaps;
+        let pointer = ms(POINTER_STEP_MS.1) * u32::try_from(POINTER_STEPS.1).expect("steps");
+        let scroll = ms(INPUT_PAUSE_MS.1) + pointer + wheel + SCROLL_SETTLE_WITHIN;
+        let read = (scroll + PAGE_RESPONSE) * PAGES;
+        let budget = Duration::from_secs(BrowserRoute::default().timeout)
+            .checked_sub(CLEANUP_RESERVE + READ_RESERVE)
+            .expect("the default timeout exceeds the reserves");
+
+        assert!(
+            read <= budget,
+            "{PAGES} pages at the slowest pacing take {read:?}, past the {budget:?} a default browser command has to read; shorten the pacing or raise the default timeout"
+        );
+    }
 }

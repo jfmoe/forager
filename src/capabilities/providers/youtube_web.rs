@@ -1,7 +1,7 @@
 //! The `youtube_web` route: YouTube's own web page, player, and caption endpoints, read
 //! anonymously.
 //!
-//! These endpoints are undocumented, so the user enables the route (ADR 0028). One fetch sends
+//! These endpoints are undocumented, so the user enables the route (ADR-0028). One fetch sends
 //! three requests in a fixed order, each under the route's access policy and none retried: the
 //! watch page (the `InnerTube` key and the player response it embeds, which carries the
 //! metadata), the player endpoint (playability and caption tracks), and, at `full_text` depth

@@ -157,7 +157,7 @@ macro_rules! endpoint_defaults {
 endpoint_defaults!(ExaEndpoint, "https://api.exa.ai");
 endpoint_defaults!(Context7Endpoint, "https://mcp.context7.com/mcp");
 endpoint_defaults!(TavilyEndpoint, "https://api.tavily.com");
-// Matches the 60 s server-side timeout that Web Fetch requests from Firecrawl (ADR 0018).
+// Matches the 60 s server-side timeout that Web Fetch requests from Firecrawl (ADR-0029).
 endpoint_defaults!(FirecrawlEndpoint, "https://api.firecrawl.dev/v2", 60);
 endpoint_defaults!(ArxivApiEndpoint, "https://export.arxiv.org/api/query");
 endpoint_defaults!(SsrnCrossrefEndpoint, "https://api.crossref.org");

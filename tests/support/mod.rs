@@ -542,6 +542,29 @@ pub(crate) fn read_only_journal(environment: &RunEnvironment) -> serde_json::Val
         .expect("parse journal record")
 }
 
+/// The proxy every spawned binary uses: a closed port, so a request that reaches past the
+/// fixtures fails at once instead of reaching a real site.
+const CLOSED_PROXY: &str = "http://127.0.0.1:9";
+
+/// The forager binary with an empty environment whose HTTP goes through a closed port.
+pub(crate) fn forager_command() -> Command {
+    forager_command_through(CLOSED_PROXY)
+}
+
+pub(crate) fn forager_command_through(proxy: &str) -> Command {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_forager"));
+    command
+        .env_clear()
+        .env("NO_PROXY", "127.0.0.1,localhost")
+        .env("HTTP_PROXY", proxy)
+        .env("HTTPS_PROXY", proxy);
+    #[cfg(windows)]
+    if let Some(system_root) = std::env::var_os("SystemRoot") {
+        command.env("SystemRoot", system_root);
+    }
+    command
+}
+
 pub(crate) struct RunEnvironment {
     root: tempfile::TempDir,
     pub(crate) config_dir: PathBuf,
@@ -567,10 +590,9 @@ impl RunEnvironment {
     }
 
     pub(crate) fn run_with_env(&self, arguments: &[&str], variables: &[(&str, &str)]) -> Output {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_forager"));
+        let mut command = forager_command();
         command
             .args(arguments)
-            .env_clear()
             .env("FORAGER_CONFIG_DIR", &self.config_dir)
             .env("XDG_STATE_HOME", &self.state_dir)
             .env("HOME", self.root.path());
@@ -581,10 +603,9 @@ impl RunEnvironment {
     }
 
     pub(crate) fn run_with_stdin(&self, arguments: &[&str], stdin: &str) -> Output {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_forager"));
+        let mut command = forager_command();
         command
             .args(arguments)
-            .env_clear()
             .env("FORAGER_CONFIG_DIR", &self.config_dir)
             .env("XDG_STATE_HOME", &self.state_dir)
             .env("HOME", self.root.path())

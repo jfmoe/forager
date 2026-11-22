@@ -1,11 +1,11 @@
 mod support;
 
 use std::fs::{self, OpenOptions};
-use std::process::{Command, Output, Stdio};
+use std::process::{Output, Stdio};
 
 use fs2::FileExt;
 use serde_json::Value;
-use support::run_command;
+use support::{forager_command, run_command};
 
 #[test]
 fn config_list_reports_the_complete_default_effective_view() {
@@ -1003,10 +1003,9 @@ fn run(
     env: &[(&str, &str)],
     stdin: Option<&[u8]>,
 ) -> Output {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_forager"));
+    let mut command = forager_command();
     command
         .args(args)
-        .env_clear()
         .env("FORAGER_CONFIG_DIR", config_dir)
         .stdin(if stdin.is_some() {
             Stdio::piped()

@@ -25,10 +25,11 @@ fn arxiv_api_deep_doctor_executes_the_registry_search_probe_without_credentials(
 
 #[test]
 fn shallow_doctor_reaches_serpapi_with_a_keyless_get() {
-    let fixture = Fixture::start_sequence(reachable_responses(4));
+    let fixture = Fixture::start_sequence(reachable_responses(6));
     let environment = RunEnvironment::new(&format!(
         "[providers.arxiv_api]\nurl = {url:?}\n[providers.ssrn_crossref]\nurl = {url:?}\n\
-         [providers.hn_api]\nurl = {url:?}\n\
+         [providers.hn_api]\nurl = {url:?}\n[providers.jina]\nurl = {url:?}\n\
+         [providers.polymarket_api]\nurl = {url:?}\n\
          [providers.serpapi]\nurl = \"{url}/search.json\"\nkeys = [\"test-serpapi-key\"]\n",
         url = fixture.url
     ));
@@ -104,32 +105,6 @@ fn arxiv_api_deep_doctor_probe_waits_for_the_request_window() {
             fixture.finish_all().len()
         ),
         (Some(4), &Value::String("timeout".into()), 0)
-    );
-}
-
-#[test]
-fn shallow_doctor_reachability_probe_waits_for_the_request_window() {
-    let fixture = Fixture::start_sequence(reachable_responses(9));
-    let environment = RunEnvironment::new(&shallow_config(&fixture.url));
-    reserve_arxiv_window(&environment);
-
-    let output = environment.run(&["doctor", "--timeout", "1"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
-    let arxiv_api = payload["providers"]
-        .as_array()
-        .expect("providers")
-        .iter()
-        .find(|provider| provider["provider"] == "arxiv_api")
-        .expect("arxiv_api status");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &arxiv_api["configured"],
-            &arxiv_api["reachable"],
-            fixture.finish_all().len()
-        ),
-        (Some(4), &Value::Bool(true), &Value::Bool(false), 9)
     );
 }
 

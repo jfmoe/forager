@@ -1,4 +1,4 @@
-//! The X platform route through xAI's `x_search` tool (ADR 0026).
+//! The X platform route through xAI's `x_search` tool (ADR-0026).
 //!
 //! xAI never returns what the tool read; the model relays the posts. Search and fetch ask for
 //! structured output and date each post by its snowflake ID. Search keeps only posts whose IDs

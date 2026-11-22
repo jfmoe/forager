@@ -1,40 +1,47 @@
-# 合入与发版
+# Merging and releasing
 
-## 合入 main
+## Merging to main
 
-- 分支经 PR 合入：CI 的 `quality`、`test`、`windows-permissions` 全绿后，运行 `gh pr merge <N> --rebase --delete-branch`。用 rebase 合并是为了保留每个 Conventional Commit，release-plz 按提交生成 changelog。
-- 只改文档的 PR 不触发 CI，不必等这三项检查，可以直接合并。不触发的范围见 `.github/workflows/ci.yml` 中 `pull_request.paths` 的排除项：根目录的 `*.md`、`docs/**`（`docs/spec/forager/04-architecture.md` 与 `07-platforms.md` 除外，测试会读取它们）、`.agents/**`、`.claude/**`。`release.yml` 的 `plan` job 仍会运行，但不是合入条件。推送到 `main` 后 CI 总是完整运行。新增读取文档的测试时，要把该文档加回 `paths`。
-- GitHub 的 rebase 合并会重写提交哈希。合并后先确认本地与远端的树一致，再运行 `git pull --rebase`，本地同内容的提交会被跳过。
+- A branch reaches `main` through a pull request. Once every check the pull request runs is green, merge with `gh pr merge <N> --rebase --delete-branch`. Rebase keeps every Conventional Commit, and release-plz builds the changelog from them. The `plan` job of `release.yml` also runs on pull requests but is not a merge condition.
+- A GitHub rebase merge rewrites commit hashes. After merging, confirm that the local and remote trees match, then run `git pull --rebase`; local commits with the same content are skipped.
 
-## 发版
+## Releasing
 
-版本号和 changelog 由 release-plz 生成，`CHANGELOG.md` 不手改。
+release-plz generates the version number and the changelog; `CHANGELOG.md` is not edited by hand.
 
-触发发版之前，在本机运行默认忽略的真实浏览器测试 `cargo nextest run --lib --locked --run-ignored only`，全部通过才继续。CI 不运行它们；前提与范围见 [`browser-routes.md`](browser-routes.md)。
+Before triggering a release, run the real-browser tests that are ignored by default, as [`browser-routes.md`](browser-routes.md) describes, on this machine. Continue only when all of them pass; CI does not run them.
 
-`release-plz.yml` 只能手动触发，每次发版要触发两次：
+`release-plz.yml` is triggered only by hand, twice per release:
 
-1. 运行 `gh workflow run release-plz.yml --ref main`，等这次 run 结束。它会开一个 `chore: release vX.Y.Z` PR，核对其中的版本号和 changelog。
-2. 等这个 release PR 的检查通过，运行 `gh pr merge <N> --squash --delete-branch`。release PR 一律 squash 合并。
-3. 运行 `git pull --rebase`，然后再次触发 `release-plz.yml`。这一次它会打 tag，创建草稿 Release，并触发 `release.yml`（cargo-dist 构建）。用 `gh run list --workflow release.yml --limit 1` 和 `gh run watch <ID> --exit-status` 等构建结束。
+1. Run `gh workflow run release-plz.yml --ref main` and wait for the run to finish. It opens a `chore: release vX.Y.Z` pull request; check its version number and changelog.
+2. When that release pull request's checks pass, run `gh pr merge <N> --squash --delete-branch`. Release pull requests are always squash-merged.
+3. Run `git pull --rebase`, then trigger `release-plz.yml` again. This run tags the release, creates a draft Release and triggers `release.yml` (the cargo-dist build). Wait for the build with `gh run list --workflow release.yml --limit 1` and `gh run watch <ID> --exit-status`.
 
-`gh release view vX.Y.Z --json isDraft` 显示 `isDraft` 为 `false` 时，发版完成：`release.yml` 只在各平台制品都通过校验后才公开 Release。
+The release is done when `gh release view vX.Y.Z --json isDraft` shows `isDraft` as `false`: `release.yml` publishes the Release only after the artifacts for every platform pass their checks.
 
-## 收尾
+## Completion
 
-发版后依次完成以下步骤，全部完成才算结束任务：
+After a release, finish these steps in order. The task is complete only when all of them are done.
 
-1. **更新本机 CLI**：本机的 forager 是 cargo-dist 安装器装到 `~/.cargo/bin` 的，回执在 `~/.config/forager/forager-receipt.json`。用同一个安装器更新：
+1. **Update the local CLI.** The local forager was installed into `~/.cargo/bin` by the cargo-dist installer, whose receipt is `~/.config/forager/forager-receipt.json`. Update it with the same installer:
 
    ```sh
    curl --proto '=https' --tlsv1.2 -LsSf \
      https://github.com/jfmoe/forager/releases/download/vX.Y.Z/forager-installer.sh | sh
    ```
 
-   然后确认 `forager --version` 是新版本。`cargo install --path .` 不能代替安装器：目标位置已有不归 cargo 管理的同名二进制，它会拒绝覆盖。验证未发布的改动时，直接运行 `./target/debug/forager`。
-2. **更新 skill**：运行 `npx skills add jfmoe/forager -g -s forager -a '*' -y`。不支持全局安装的 agent 会报失败，这是预期结果。
-3. **更新 Managed Browser**：运行 `forager browser install`。新版本固定的浏览器版本没变时，它不下载并输出 `downloaded: false`；变了时下载、校验并安装新版本。旧版本的安装目录不再使用，也不会被自动删除。
-4. **live 端到端测试**：用真实配置运行 `forager smoke --live --opt-in`。`--opt-in` 让 order 未列出、但本机具备运行前提的平台 route 的用例也运行，手动启用的 route 因此在发版时被覆盖。默认时限 420 秒，命令的工具超时要设得更长。逐个用例报告状态。消息以 `not started:` 开头的 `skipped` 表示时限用完，加大 `--timeout` 后重跑，不要当成 provider 故障。
+   Then confirm that `forager --version` shows the new version. `cargo install --path .` cannot replace the installer here: it refuses to overwrite a binary of the same name that cargo does not manage.
+2. **Update the skill.** Run `npx skills add jfmoe/forager -g -s forager -a '*' -y`. Agents that do not support a global install report a failure; that is expected.
+3. **Update the Managed Browser.** Run `forager browser install`. When the new version pins the same browser version, it downloads nothing; otherwise it downloads, verifies and installs the new one. The old installation directory is no longer used and is not deleted automatically.
+4. **Run the live end-to-end test.** Run `forager smoke --live --opt-in` with the real configuration. `--opt-in` also runs the cases of platform routes that the order leaves out but whose prerequisites this machine meets, so routes enabled by hand are covered at release. Give the tool running the command a timeout longer than the smoke time limit, whose default `forager smoke --help` shows. Report the status of every case.
 
-   收尾记录逐条列出每个 `unconfigured` 用例及其 `message` 给出的原因（未加 `--opt-in` 时的 order 未列出、浏览器未安装、Browser Profile 未登录、缺 keys，以及非平台用例的缺凭据）。`unconfigured` 不算通过，也不能默认放过：本机本可以具备的前提（例如安装浏览器、由用户亲自登录），要么补齐后重跑这些用例，要么开 issue 跟踪；只有本机确实不具备的前提（例如没有某个付费服务的 key）才在记录中说明原因后保留。
-5. **清理构建产物**：运行 `cargo clean -p forager`。forager 自身的测试二进制和增量编译目录会不断累积，这条命令只删 forager 自己的产物，第三方依赖的编译结果保留。
+   A `skipped` case whose message starts with `not started:` has one of three kinds of source (the messages are constants in `src/ops/smoke.rs`):
+
+   - **The time limit ran out** before the case began. Rerun with a larger `--timeout`.
+   - **The site blocked the session**: an earlier case on the same site met a login wall, a verification page or a block, so the run stopped all access to that site. Do not rerun; follow the stop rules in [`browser-routes.md`](browser-routes.md). Another run only triggers the block again.
+   - **An upstream case produced no input** for this one, such as a search that returned nothing to fetch. Investigate the upstream case; a larger time limit does not help.
+
+   None of these is a provider failure in the case itself.
+
+   The completion record lists every `unconfigured` case with the reason its `message` gives (the order leaves the route out when `--opt-in` is absent, the browser is not installed, the Browser Profile is not logged in, keys are missing, or a non-platform case lacks credentials). `unconfigured` is not a pass and is not let through by default. For a prerequisite this machine could meet, such as installing the browser or a login the user does in person, either meet it and rerun those cases or open an issue to track it. Keep the case unconfigured, with its reason in the record, only when this machine genuinely cannot meet the prerequisite, such as a key for a paid service it has no account for.
+5. **Clean build artifacts.** Run `cargo clean -p forager`. forager's own test binaries and incremental compilation directories keep accumulating; this command removes only forager's own artifacts and keeps the compiled third-party dependencies.

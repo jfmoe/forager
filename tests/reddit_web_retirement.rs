@@ -1,5 +1,5 @@
 //! A configuration or command left from `reddit_web`, the anonymous HTTP route that
-//! `reddit_browser` replaced (ADR 0037), fails before any request: the configuration checks
+//! `reddit_browser` replaced (ADR-0037), fails before any request: the configuration checks
 //! reject the old route and its section, and the arguments no longer have the old cursor.
 
 mod support;

@@ -1,10 +1,10 @@
 mod support;
 
-use std::process::{Command, Output};
+use std::process::Output;
 
 use clap::{CommandFactory, Parser};
 use forager::app::Cli;
-use support::run_command;
+use support::{forager_command, run_command};
 
 #[test]
 fn command_tree_aliases_and_exact_subcommands_match_the_contract() {
@@ -222,10 +222,9 @@ fn search_rejects_the_removed_validation_option_as_unknown() {
 
 fn run(arguments: &[&str]) -> Output {
     let isolated = tempfile::tempdir().expect("isolated environment");
-    let mut command = Command::new(env!("CARGO_BIN_EXE_forager"));
+    let mut command = forager_command();
     command
         .args(arguments)
-        .env_clear()
         .env("HOME", isolated.path())
         .env("XDG_CONFIG_HOME", isolated.path().join("config"))
         .env("XDG_STATE_HOME", isolated.path().join("state"));

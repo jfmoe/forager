@@ -1,19 +1,19 @@
 # forager
 
-面向 AI Agent 的检索与研究 CLI。forager 按能力组织搜索、网页读取、站点映射、文档检索和深度研究，并统一处理供应方选择、凭据轮换与同能力降级。
+A search and research CLI for AI agents. forager organises search, web page reading, site mapping, documentation lookup and deep research by capability, and handles provider selection, credential rotation and same-capability fallback in one place.
 
-默认输出 JSON，适合被 Agent、脚本和 CI 调用；需要人读结果时可选择 Markdown 或纯内容格式。
+Output is JSON by default, for agents, scripts and CI; Markdown or plain content formats are available when a person reads the result.
 
-## 安装
+## Installation
 
-forager 通过 [GitHub Releases](https://github.com/jfmoe/forager/releases) 发布预编译二进制，不要求本机安装 Rust。正式 Release 提供：
+forager ships prebuilt binaries through [GitHub Releases](https://github.com/jfmoe/forager/releases); no local Rust installation is needed. A release provides:
 
-- macOS：Apple Silicon、Intel
-- Linux：AArch64、x86-64
-- Windows：x86-64
-- 每个平台归档对应的 SHA-256 校验文件
-- Shell 和 PowerShell 安装器
-- 构建来源证明与 `release-gate.json`
+- macOS: Apple Silicon, Intel
+- Linux: AArch64, x86-64
+- Windows: x86-64
+- a SHA-256 checksum file for each platform archive
+- shell and PowerShell installers
+- build provenance attestations and `release-gate.json`
 
 ### macOS / Linux
 
@@ -22,7 +22,7 @@ curl --proto '=https' --tlsv1.2 -LsSf \
   https://github.com/jfmoe/forager/releases/latest/download/forager-installer.sh | sh
 ```
 
-安装器默认把二进制放到 `$CARGO_HOME/bin` 或 `$HOME/.cargo/bin`，并在需要时配置 `PATH`。
+The installer puts the binary in `$CARGO_HOME/bin` or `$HOME/.cargo/bin` and configures `PATH` when needed. To upgrade, run the installer again.
 
 ### Windows PowerShell
 
@@ -30,23 +30,23 @@ curl --proto '=https' --tlsv1.2 -LsSf \
 powershell -ExecutionPolicy Bypass -c "irm https://github.com/jfmoe/forager/releases/latest/download/forager-installer.ps1 | iex"
 ```
 
-希望固定版本或先检查安装内容时，请从 [Releases 页面](https://github.com/jfmoe/forager/releases) 下载对应安装器或平台归档，并用同名 `.sha256` 文件验证归档。
+To pin a version or inspect what gets installed first, download the installer or platform archive from the [Releases page](https://github.com/jfmoe/forager/releases) and verify the archive with the `.sha256` file of the same name.
 
-## 初始化
+## Setup
 
-交互式创建配置：
+Create the configuration interactively:
 
 ```sh
 forager setup
 ```
 
-检查配置和供应方状态：
+Check the configuration and provider status:
 
 ```sh
 forager doctor --format markdown
 ```
 
-配置默认写入 `~/.config/forager/config.toml`，同时尊重 `XDG_CONFIG_HOME`。可以用以下命令查看和修改配置：
+The configuration is written to `~/.config/forager/config.toml` by default and respects `XDG_CONFIG_HOME`. View and change it with:
 
 ```sh
 forager config path
@@ -54,89 +54,82 @@ forager config list
 forager config set providers.exa.keys '["YOUR_API_KEY"]'
 ```
 
-## 基本使用
+## Basic usage
 
-普通搜索：
+Ordinary search:
 
 ```sh
-forager search "Rust async drop 的最新进展" --format markdown
+forager search "latest progress on Rust async drop" --format markdown
 ```
 
-由调用方明确声明所需能力：
+Declare the capabilities the caller needs:
 
 ```sh
-forager search "OpenAI API 最近有什么变化" \
+forager search "what changed in the OpenAI API recently" \
   --capabilities docs_search,web_search \
   --format markdown
 ```
 
-多来源研究：
+Multi-source research:
 
 ```sh
-forager research "对比主流 Rust CLI 分发方式" \
+forager research "compare the main ways to distribute a Rust CLI" \
   --budget standard \
   --format markdown
 ```
 
-直接调用 `research` 时需要配置分类器；通过 Agent Skill 调用时，Agent 会生成计划并通过 `--plan` 注入。未指定 `--budget` 时默认使用 `standard`；`deep` 是显式选择的最大覆盖、高成本档。成功时 `research` 返回轻量 Research Evidence Index：证据正文逐条写入返回的 `evidence_items[].path`，完整计划与未消费候选分别位于 `00-plan.json` 和 `candidates.json`。`summary.json` 是无正文的 Research Recovery Manifest，不是 Evidence Index；失败 JSON 通过可空的 `summary_path` 指向已成功写入且可直接读取的 manifest。调用方按需读取正文并完成综合；stdout 不再输出机械答案或重复正文。
+Calling `research` directly needs a configured classifier; through the Agent Skill, the agent writes the plan and passes it with `--plan`. `research` writes each evidence body to a file and returns a Research Evidence Index that points to them; the caller reads the bodies it needs and does the synthesis. The budget tiers and the files it writes are described in the Agent Skill.
 
-读取已知网页：
+Read a known web page:
 
 ```sh
 forager fetch https://doc.rust-lang.org/cargo/ --format markdown
 ```
 
-`fetch` 对 URL 与 PDF 使用同一条默认 `Firecrawl → Jina → Tavily` 链，成功时只返回 provider 无关的 Markdown 正文；诊断与 provider attempts 不会混入正文。
+`fetch` reads URLs and PDFs through the configured Web Fetch chain, and on success returns only provider-independent Markdown; diagnostics and provider attempts are kept out of the body.
 
-查看全部命令：
+See every command:
 
 ```sh
 forager --help
 ```
 
-## 安装 Agent Skill
+## Installing the Agent Skill
 
-CLI 负责实际检索，仓库中的 `forager` Skill 负责教 Agent 选择命令、声明能力和组织研究计划。安装二进制并完成配置后，可为当前项目安装 Skill：
+The CLI does the retrieval; the repository's `forager` skill teaches an agent to choose commands, declare capabilities and organise research plans. After installing the binary and configuring it, install the skill for the current project:
 
 ```sh
 npx skills add jfmoe/forager
 ```
 
-Skill 要求 `forager >= 0.5.2`。外部 Agent 的上下文保护方式见
-[Forager integration](docs/agents/forager-integration.md)。
+When the skill names a command or option the installed forager lacks, upgrade forager.
 
-## 设计边界
+## Design boundaries
 
-- `search` 接受调用方声明的完整能力集合；forager 不擅自扩张该集合。
-- `search` 的 `sources` 只表示主回答来源；`extra_sources` 统一承载 Supplemental Web Search、Documentation Search 与 search-side Web Fetch 产生的非主 Search Candidate。候选保留 provider 原生摘要，只有 search-side Web Fetch 使用 300 字正文 preview。
-- `research` 可以接受调用方通过 `--plan` 注入的 Schema v1 研究计划，并以文件化 Research Evidence Index 交付证据而非生成答案。
-- `fetch`、`map` 以及 `exa`、`context7` 子命令提供显式直连入口。
-- 凭据保存在本地配置中；命令输出和持久化 journal 会对敏感 URL 参数脱敏。
-- 能力暂时不可用时，结果会明确报告 `capability_gaps`，不会把缺失能力伪装成成功覆盖。
+- `search` accepts the full capability set the caller declares; forager does not widen it on its own.
+- The `sources` of `search` are only the main answer's sources; `extra_sources` carries every non-main Search Candidate produced by Supplemental Web Search, Documentation Search and search-side Web Fetch. Candidates keep the provider's own snippet; only search-side Web Fetch candidates carry a short preview of the page body.
+- `research` can take a Schema v1 research plan that the caller passes with `--plan`, and delivers evidence through a file-based Research Evidence Index instead of generating an answer.
+- `fetch`, `map` and the `exa` and `context7` subcommands are explicit direct entry points.
+- Credentials are kept in the local configuration; command output and the persisted journal redact sensitive URL parameters.
+- When a capability is temporarily unavailable, the result reports it in `capability_gaps` instead of passing the missing capability off as covered.
 
-领域术语与约束见 [GLOSSARY.md](GLOSSARY.md)，完整规格见 [docs/spec/forager/](docs/spec/forager/)。
+Domain terms are in [GLOSSARY.md](GLOSSARY.md), the architecture in [docs/architecture.md](docs/architecture.md).
 
-## 从源码构建
+## Building from source
 
-源码构建面向贡献者，不是主要安装方式。项目使用 `rust-toolchain.toml` 固定开发工具链：
+Building from source is for contributors, not the main way to install. The project pins its development toolchain in `rust-toolchain.toml`:
 
 ```sh
 git clone https://github.com/jfmoe/forager.git
 cd forager
-git config core.hooksPath .githooks  # 提交前检查格式
-cargo install --path . --locked
+git config core.hooksPath .githooks  # check formatting before each commit
+cargo build --locked
 ```
 
-提交前运行与 CI 对齐的检查（测试需要先安装 [cargo-nextest](https://nexte.st)）：
+Run the build as `./target/debug/forager`. `cargo install --path .` refuses to overwrite a forager that the installer placed, since cargo does not manage it; update an installed forager with the installer.
 
-```sh
-cargo fmt --check
-cargo check --all-targets --all-features --locked
-cargo clippy --all-targets --all-features --locked -- -D warnings
-cargo nextest run --all-targets --all-features --locked --no-fail-fast --status-level fail
-cargo test --doc --locked
-```
+The checks to run before committing are listed in [AGENTS.md](AGENTS.md).
 
-## 发布
+## Releases
 
-版本和 changelog 由 release-plz 管理，跨平台归档、安装器、校验和与 GitHub Release 由 dist 生成。Release 只有在五个目标平台的归档校验、架构检查和真实二进制冒烟测试通过后才会公开。
+release-plz manages the version and the changelog; dist builds the cross-platform archives, installers, checksums and the GitHub Release. A release is published only after the archive checks, architecture checks and real-binary smoke tests pass for all five target platforms.

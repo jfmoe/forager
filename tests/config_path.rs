@@ -2,9 +2,9 @@ mod support;
 
 use std::fs;
 use std::path::Path;
-use std::process::{Command, Output};
+use std::process::Output;
 
-use support::run_command;
+use support::{forager_command, run_command};
 
 #[test]
 fn config_path_does_not_load_a_removed_validation_key() {
@@ -112,8 +112,8 @@ fn config_path_reports_an_unwritable_default_directory() {
 }
 
 fn run(variables: &[(&str, &Path)]) -> Output {
-    let mut command = Command::new(env!("CARGO_BIN_EXE_forager"));
-    command.args(["config", "path"]).env_clear();
+    let mut command = forager_command();
+    command.args(["config", "path"]);
     for (name, value) in variables {
         command.env(name, value);
     }

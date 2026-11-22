@@ -1,5 +1,5 @@
 //! Polymarket market status and outcome prices: the Market-Implied Probability rules of
-//! ADR 0032 as zero-IO functions over what Gamma and the CLOB return.
+//! ADR-0032 as zero-IO functions over what Gamma and the CLOB return.
 
 use super::platform_polymarket::{PolymarketBasis, PolymarketOutcome, PolymarketStatus};
 

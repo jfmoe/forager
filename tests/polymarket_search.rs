@@ -235,6 +235,23 @@ fn a_page_with_no_match_is_an_empty_result() {
 }
 
 #[test]
+fn search_never_asks_for_the_optimized_response() {
+    let empty = || body(&json!({"pagination": {"hasMore": false, "totalResults": 0}}));
+    let gamma = Fixture::start_sequence(vec![empty(), empty()]);
+    let environment = RunEnvironment::new(&config(&gamma.url, "http://127.0.0.1:9"));
+
+    run(&environment, &["search", "fed rate"]);
+    run(&environment, &["search", "fed rate", "--include-closed"]);
+    let asked = gamma
+        .finish_all()
+        .iter()
+        .map(|request| query(request).contains_key("optimized"))
+        .collect::<Vec<_>>();
+
+    assert_eq!(asked, [false, false]);
+}
+
+#[test]
 fn results_without_a_valid_slug_or_markets_are_skipped_with_one_diagnostic() {
     let mut without_markets = event("an-event-without-markets", &[]);
     without_markets

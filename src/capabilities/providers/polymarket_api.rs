@@ -1,5 +1,5 @@
 //! The `polymarket_api` route: one anonymous route over Polymarket's official public read APIs
-//! (ADR 0032).
+//! (ADR-0032).
 //!
 //! Gamma finds events and holds their metadata and cached quotes; the CLOB holds the live order
 //! books; the Data API holds price histories. Search prices from Gamma alone in one request.

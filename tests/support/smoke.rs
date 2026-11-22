@@ -3,7 +3,7 @@
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::Output;
 
 use serde_json::Value;
 
@@ -48,24 +48,15 @@ impl SmokeEnvironment {
     }
 
     pub(crate) fn run(&self, arguments: &[&str]) -> Output {
-        let mut command = Command::new(env!("CARGO_BIN_EXE_forager"));
+        let mut command = super::forager_command();
         command
             .args(arguments)
-            .env_clear()
             .env(
                 "XDG_CONFIG_HOME",
                 self.config_dir.parent().expect("XDG config home"),
             )
             .env("XDG_STATE_HOME", &self.state_dir)
-            .env("HOME", &self.home_dir)
-            .env("NO_PROXY", "127.0.0.1,localhost")
-            // A case that reaches past the fixtures fails on this closed port, never on a site.
-            .env("HTTP_PROXY", "http://127.0.0.1:9")
-            .env("HTTPS_PROXY", "http://127.0.0.1:9");
-        #[cfg(windows)]
-        if let Some(system_root) = std::env::var_os("SystemRoot") {
-            command.env("SystemRoot", system_root);
-        }
+            .env("HOME", &self.home_dir);
         run_command(&mut command, None)
     }
 }

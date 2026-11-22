@@ -1,6 +1,6 @@
 # forager CLI reference
 
-This reference documents the public CLI for `forager >=0.5.4`. Load it under the conditions given
+This reference documents the public CLI of the forager release this skill ships with. Load it under the conditions given
 in `SKILL.md`: for exact command syntax, non-routine commands, or diagnosis and recovery details.
 Routine `search` and `research` stay on their branch references. Treat
 `forager <command> --help` as the final authority for argument parsing.
@@ -18,7 +18,7 @@ Routine `search` and `research` stay on their branch references. Treat
 ## Shared behavior
 
 The public top-level commands are `search`, `research`, `fetch`, `map`, `exa`, `context7`,
-`platform`, `config`, `setup`, `doctor`, and `smoke`. Use `-h` or
+`platform`, `browser`, `config`, `setup`, `doctor`, and `smoke`. Use `-h` or
 `--help` on any command for parser-generated help. Available aliases are:
 
 | Command | Alias |
@@ -28,6 +28,9 @@ The public top-level commands are `search`, `research`, `fetch`, `map`, `exa`, `
 | `fetch` | `f` |
 | `context7` | `c7` |
 | `config list` | `config ls` |
+
+Subcommand prefixes are not inferred: an abbreviation that is not a listed alias is an unknown
+command.
 
 Network commands that expose these options share the following behavior:
 
@@ -42,6 +45,27 @@ Network commands that expose these options share the following behavior:
 After argument parsing selects `--format json`, `search`, `fetch`, and `research` return a single
 parseable error object on stdout for configuration, stdin, or plan preflight failures. Clap parser
 errors and panics keep their existing channels, as do failures in non-JSON formats.
+The object is `{error_kind, message, journal_ref, journal_status}`: `error_kind` is `parameter`,
+`config`, or `runtime` with exit `2`, `3`, or `4`. When the failure comes before the
+configuration has loaded, `journal_ref` is `null` with `journal_status: "unavailable"`. A `search`
+whose main-search backends have no keys also fails this way with exit `3`, but it records the
+failure in the journal and reports the journal pair as any search does. Every other
+command, and these three in other formats, reports a preflight failure as one stderr line starting
+`argument_error:`, `config_error:`, or `runtime_error:`.
+
+A terminal failure prints a small failure payload on stdout: `error_kind`, a `message` of at most
+500 characters, an `attempts` summary (`total`, counts `by_kind`, the `providers` tried, and
+`by_kind_truncated`, `providers_truncated`, and `truncated` marking a cut list), and `journal_ref`
+with `journal_status`. `journal_status` is `written`, `disabled`, or `failed` for `search` and
+`research`, and `not_applicable` for commands that write no journal. A `search` failure also
+carries its non-empty `capability_gaps`; `research` uses its own shape, described under
+[`research`](#research). A command that reaches its `--timeout` reports `timeout` and keeps the
+attempts it completed.
+
+When `--output` cannot write its file, the command exits `3` whatever its own result was; stdout
+still carries the full result, and JSON output gains `output_status: "failed"` and an
+`output_error` message. A failed journal write is only a stderr warning: it never changes the
+result or the exit code.
 
 `log.level=debug` enables an optional terminal projection with one bounded attempts summary;
 `trace` adds safe fields for each attempt. This projection never changes stdout or replaces
@@ -84,7 +108,12 @@ HTTP(S) URL can enter Web Fetch; a Context7 candidate carries a typed library lo
 URL. Search-side Web Fetch successes use the actual fetch provider and a 300-character Normalized
 Fetch Content preview as their candidate summary. `--verbose` adds provider attempts inline.
 Content format emits only the main answer. Markdown labels the two source roles as `Primary
-Sources` and `Extra Sources`.
+Sources` and `Extra Sources`. The `--extra-sources` target never selects a capability: with
+`--capabilities none` no supplemental search runs. A Context7 candidate's `provider_data` holds
+`library_id`, `total_snippets`, `trust_score`, `benchmark_score`, `stars`, and `versions`; an Exa
+Documentation Search candidate has a real URL and `provider_data` with `id`, `highlights`,
+`published_date`, `author`, `image`, and `favicon`, without the page text. A field the provider
+does not report is left out.
 
 Main search runs the backends of `search.backends` in order: `xai` (the xAI Responses API) and
 `openai` (an OpenAI Responses endpoint with its `web_search` tool, such as a CLIProxyAPI gateway in
@@ -93,6 +122,15 @@ front of a Codex account). The default order is `["xai", "openai"]`; a backend w
 `["openai", "xai"]` makes it the first choice. `provider_attempts` show which backend failed and
 which one answered. To use `openai`, set `providers.openai.url` and `providers.openai.keys`;
 `providers.openai.model` defaults to `gpt-6.1-terra`, the Codex model name under CLIProxyAPI.
+
+forager removes closed `<think>…</think>` blocks from the answer and moves a trailing source
+heading block out of it into `sources`; inline `[[N]](URL)` citations stay in the answer and are
+copied into `sources`, which are deduplicated by URL. An answer that is empty after this fails
+with `runtime`. When main search fails, it alone decides the terminal
+state and exit code, and the failure payload keeps the candidates already found: `extra_sources`
+in order without their `summary`, as many as fit, with `extra_sources_truncated` saying whether
+any were cut. Its attempt summary counts the supplemental attempts too. `--verbose` keeps every
+candidate in full.
 
 ### `research`
 
@@ -126,6 +164,27 @@ Use `research-plan.json` as the Schema v1 shape. A caller-provided plan is autho
 plan generation. An omitted plan requires a configured classifier. Invalid JSON, unsupported
 versions, unknown or missing fields, invalid capabilities, empty decomposition, and empty or
 duplicate subquestion IDs exit with code 2.
+So do an empty `question` or `reason`, and a declared `web_fetch`: the engine runs Web Fetch
+itself. Duplicate capabilities in a subquestion are folded, keeping their order. `intent_signals`
+change only evidence strength and cross-validation inside the declared capabilities; they never
+add, remove, or reorder capabilities or providers. A declared capability without a configured
+provider does not block the run; it appears in `capability_gaps`.
+
+Besides their subquestion limits, `quick`, `standard`, and `deep` allow at most 1, 2, and 3
+evidence items per subquestion. The caps are limits, not targets: one accepted evidence item
+covers a subquestion. A caller plan over its budget's subquestion limit exits 2; a classifier plan
+over it is truncated with a warning. The run fails when it collects fewer evidence items than it
+requires: 2 when `cross_validation_need` or `source_authority_need` is `high`, otherwise 1,
+lowered with a diagnostic when the caps cannot hold that many. The failure is `evidence` (exit
+5), except that a run with no evidence whose attempts all failed, or that hit a quality failure,
+takes the terminal kind of its attempts. Known URLs are fetched outside the caps: a URL in a
+subquestion's text belongs to that subquestion, and one only in the query belongs to the whole
+plan. A known URL that fails to fetch always records a gap, even when other evidence covers its
+subquestion. Otherwise a gap is a subquestion that ran out of candidates without evidence, or a
+run that collected fewer evidence items than it requires; a failed fetch of one candidate is only
+an attempt. `gap_check.status` is `closed` when there is no
+gap and no capability gap, and `degraded` otherwise. The engine runs once and never refetches or
+re-plans; that loop belongs to the caller.
 
 Default JSON is a Research Evidence Index. Each item in `evidence_items` contains evidence identity
 and metadata plus a readable `evidence_items[].path`; fetched body content lives at that path rather
@@ -136,6 +195,16 @@ On success, the Evidence Index locates these artifacts. On terminal failure, a n
 `summary_path` points to the readable Research Recovery Manifest containing completed evidence,
 gaps, and artifact paths. If it is null, use the other reported paths and gaps before diagnosis.
 `--verbose` adds provider attempts inline.
+
+One URL is fetched once, and its evidence item lists every subquestion it covers. `evidence_dir`
+holds `00-plan.json` (the normalized plan), one `NN-evidence.md` body per evidence item,
+`candidates.json` (the unconsumed candidates, each `is_evidence: false`), and `summary.json`, the
+Research Recovery Manifest; no evidence body appears on stdout, in the manifest, or in the
+journal. A research failure has one fixed shape: `error_kind`, the bounded `message`,
+`evidence_dir`, `summary_path`, `gap_check` with its `status` and `stop_reason`,
+`synthesis_policy`, and the journal pair. Paths are never cut, so a very long path can make the
+payload large. `summary_path` is `null` when the manifest could not be written; the evidence
+directory stays.
 
 ## Direct operations
 
@@ -179,6 +248,9 @@ forager map URL [--instructions TEXT] [--max-depth N] [--max-breadth N]
 | `--output FILE` | Tee the rendered result to a file. | Omitted |
 | `--receipt` | Print only a receipt on success; requires `--output`. | Off |
 | `--verbose` | Include full provider attempts inline. | Off |
+
+`--timeout` is both the command deadline and the timeout sent to Tavily; each request still waits
+at most the smaller of the remaining deadline and `providers.tavily.timeout`.
 
 ## Provider-direct commands
 
@@ -268,6 +340,11 @@ forager context7 docs LIBRARY_ID QUERY [--timeout SECONDS]
 | `--receipt` | Print only a receipt on success; requires `--output`. | Off |
 | `--verbose` | Include full provider attempts inline. | Off |
 
+Success JSON has `provider`, `library_id`, `query`, and `content`; `--verbose` adds
+`provider_attempts`. `content` is the one documentation body Context7 returns. forager does not
+parse its `Source:` lines into a source list, so read any URLs inside `content` to decide
+whether an original page needs fetching.
+
 ## Platform commands
 
 `forager platform <id> <op>` retrieves items of a built-in platform through the routes in
@@ -302,7 +379,17 @@ forager platform arxiv search [QUERY] [--category CODE]... [--author NAME] [--ti
 Give a query or at least one of `--category`, `--author`, `--title`. JSON output is
 `{platform, provider, items, next_cursor}`; each item has `ref`, `url`, `depth: "abstract"`,
 `title`, `authors`, `published`, the full `abstract`, and arXiv metadata. `next_cursor` is `null`
-on the last page; a valid empty search returns `items: []` with exit 0.
+on the last page; a valid empty search returns `items: []` with exit 0. The arXiv metadata is
+`updated`, `primary_category`, `categories`, `doi`, `journal_ref`, `comment`, and `pdf_url`, each
+`null` when arXiv has none; `ref` carries the version, such as `arxiv:2401.01234v2`, and `title`
+has its whitespace folded.
+
+Exit codes: `2` before any request for an invalid cursor or option, a reversed date range, no query
+and no filter, or an option no configured route supports; `3` for an empty `platforms.arxiv.order`
+or one that lists another platform's route; `4` for `parameter` (arXiv answered with an error
+entry, whose message is passed on), `timeout` (including too little time left to wait for the
+request window), and `runtime` when the request window's shared state is unusable, before any
+request.
 
 ### `platform arxiv fetch`
 
@@ -324,7 +411,10 @@ HTML read fails, through the configured `web_fetch` chain. JSON output carries t
 `content_url`, `content_provider`, `content_path`, and `content_len`; the body itself stays in the
 file. Short links and unrecognized inputs exit `2` before any request; a missing paper is a
 `parameter` failure (exit `4`); both HTML and PDF too thin is a `quality` failure (exit `5`);
-`full_text` with no configured Web Fetch provider exits `3`.
+`full_text` with no configured Web Fetch provider exits `3`. `export.arxiv.org` URLs are accepted
+too. The file is named after the versioned ref, such as `arxiv-hep-th-9901001v3.md`. A failed
+metadata read reads no body; arXiv's HTTP 429 is `rate_limited` (exit `4`); a file that cannot be
+written is a `runtime` failure (exit `4`), never an inline fallback.
 
 ### `platform ssrn search`
 
@@ -362,7 +452,14 @@ with exit 0.
 
 Affiliation, ORCID, and funder searches depend on deposited metadata. Crossref publication,
 registration, and update dates are distinct from SSRN's own posting and revision dates. Cursors
-restore all criteria.
+restore all criteria. `published` keeps the precision Crossref reports: `2012`, `2012-04`, or
+`2012-04-19`.
+
+Exit codes: `2` before any request for a blank query, an invalid calendar date or a range that ends
+before it starts, an invalid cursor or one past Crossref's paging limit, or a cursor combined with
+a query, criterion, or `--limit` (even one passed with its default value); `3` for an empty
+`platforms.ssrn.order`; `4` for `rate_limited` (Crossref answered 429) and the other transport
+failures.
 
 ### `platform ssrn fetch`
 
@@ -381,7 +478,8 @@ forager platform ssrn fetch REF_OR_URL [--depth metadata|abstract]
 SSRN download links, look-alike hosts, short links, and `--depth full_text` exit `2` before any
 request. A DOI that Crossref does not know is a `parameter` failure (exit `4`) whose message says
 the paper was not found in Crossref; `--depth abstract` without an abstract is a `quality` failure
-(exit `5`).
+(exit `5`). Hosts match in any letter case, and other query parameters and fragments of an
+abstract-page URL are ignored. An empty `platforms.ssrn.order` exits `3`.
 
 ### `platform scholar search`
 
@@ -427,7 +525,8 @@ most Google Scholar serves.
 Exit codes: `2` before any request for a blank query, `--limit` outside `1..=20`, a year out of
 range or `--year-from` after `--year-to`, a cursor combined with a query, option, or `--limit`, a
 tampered cursor, or a cursor whose route left the order or lost its keys; `3` for no key or an
-empty `platforms.scholar.order`; `4` for `auth` (SerpApi rejected the key), `quota_exhausted`
+empty `platforms.scholar.order`; `4` for `auth` (SerpApi rejected the key; the request is sent once and not retried with another
+key), `quota_exhausted`
 (every key has used its monthly searches), `rate_limited` (the hourly limit), `network`, `timeout`,
 and `runtime` failures.
 
@@ -527,7 +626,8 @@ JSON output is `{platform, provider, items, next_cursor}`. Each item has:
 
 `next_cursor` is always `null`: Xiaohongshu ranks differently on every visit, so a search cannot
 continue in a later command. When more results remain, stderr says so; raise `--limit` instead.
-Notes without a valid ID or access token are skipped and reported on stderr. A valid empty search
+Notes without a valid ID or access token are skipped and reported on stderr. A page that
+listed notes but kept none of them is a `runtime` failure. A valid empty search
 returns `items: []` with exit 0.
 
 Exit codes: `2` before any request for a blank query or `--limit` outside `1..=100`; `3` before
@@ -584,7 +684,8 @@ Exit codes: `2` before any request for a missing or malformed token, a short lin
 search, `parameter` for a note Xiaohongshu would not open
 (`300031` or `300017`: the token may be stale, the note restricted or removed, or the account
 rate-limited), and `runtime` (the page showed another note or an unexpected page, or the file
-could not be written); `5` for `quality` (the note has no title, text, or images).
+could not be written); `5` for `quality` (the note has no title, text, or images). The access token never appears in
+attempt messages, in `--verbose` attempts, or on stderr.
 
 ### `platform xiaohongshu comments`
 
@@ -639,7 +740,7 @@ forager platform x search QUERY [--handle HANDLE]... [--exclude-handle HANDLE]..
 | Argument or option | Meaning | Default |
 | --- | --- | --- |
 | `QUERY` | What to find on X, in natural language or X search syntax; the model chooses how to search. | Required |
-| `--handle HANDLE` | Only posts by this account, with or without `@`; repeat for up to 20. | None |
+| `--handle HANDLE` | Only posts by this account, with or without `@`; repeat for up to 20. A handle is 1 to 15 letters, digits, or `_`; repeats are dropped in any letter case. | None |
 | `--exclude-handle HANDLE` | No posts by this account; repeat for up to 20. Cannot be combined with `--handle`. | None |
 | `--from` / `--to` | Inclusive range of UTC publication days. | None |
 | `--limit N` | Maximum posts, `1..=20`. | `10` |
@@ -663,6 +764,8 @@ Exit codes: `2` before any request for a blank query, `--handle` with `--exclude
 `3` for no `providers.xai.keys` or an empty `platforms.x.order`; `4` for xAI failures as in main
 search (`auth`, `rate_limited` and `quota_exhausted` after every key, `parameter`, `network`,
 `timeout`) and `runtime` when the posts are not the requested JSON or none could be verified.
+`5` (`quality`) when xAI stops the answer at a content filter or the output limit; this holds for
+fetch and ask too.
 
 ### `platform x fetch`
 
@@ -697,17 +800,20 @@ forager platform x ask QUERY [--handle HANDLE]... [--exclude-handle HANDLE]...
                              [--format json|markdown] [--output FILE [--receipt]] [--verbose]
 ```
 
-`QUERY` is the question; the filters are the same as under search. The model searches X only
+`QUERY` is the question; the filters are the same as under search. The question is sent
+with this machine's current time in front of it. The model searches X only
 and writes an answer with inline citations such as `[[1]](https://x.com/SpaceX/status/<id>)`; the
 whole answer is relayed content.
 
 JSON output is `{platform, provider, query, answer, sources}`. Each source is `{ref, url, title}`:
 a cited post has its `x:<post_id>` ref and canonical URL, which `platform x fetch` accepts; a
 profile or other page has `ref: null` and its own URL. `sources` may be empty; treat an answer
-without sources as unverified. Ask writes no result journal.
+without sources as unverified. The answer passes the same normalization as main search, and
+sources are deduplicated by URL. Ask writes no result journal.
 
 Exit codes: `2` before any request for a blank question or invalid filters as under search; `3`
-as under search; `4` for the xAI failures under search.
+as under search; `4` for the xAI failures under search. An answer that is empty after
+normalization is a `runtime` failure (exit `4`).
 
 ### `platform hn search`
 
@@ -886,7 +992,8 @@ and its risk); `3` as under search; `4` for `parameter` (`YouTube video not foun
 through `youtube_api`, `not found or not playable` through `youtube_web`), `auth` (YouTube asks
 to sign in or to confirm the caller is not a bot: the egress IP is temporarily restricted),
 `rate_limited`, `runtime` (an empty caption track, which may mean a soft IP block; a player answer
-for another video; a caption track outside the configured origin), and the failures under search;
+for another video; a caption track outside the configured origin; a caption track that needs a
+PO Token), and the failures under search;
 `5` (`quality`) for `abstract` of a video without a description, a `full_text` with no qualifying
 caption track (the message lists the available languages and points to `transcribe`; fetch never
 falls back to it), or a live stream.
@@ -1011,7 +1118,8 @@ that of a `full_text` fetch, with `provider` and `content_provider` `gemini_api`
 `transcript.source` `model`, and `model` and `usage` as under ask.
 
 Exit codes: as under ask; `5` (`quality`) also for a transcript cut off at the output limit or
-one that is not the requested JSON (no file is written); `4` (`runtime`) when the file cannot be
+one that is not the requested JSON, has no language, has a segment with an invalid time, or has
+no segment (no file is written); `4` (`runtime`) when the file cannot be
 written.
 
 ### `platform polymarket search`
@@ -1205,7 +1313,7 @@ forager config unset KEY
 | Command | Behavior |
 | --- | --- |
 | `config path` | Print the active configuration file path without loading or validating its schema. |
-| `config list` | Print the effective JSON view, including each value's source and masked credentials. When parsing fails, report the path, bad key, and location. |
+| `config list` | Print the effective JSON view: each leaf as `{value, source}`, and each credential list as its masked values with `source`, `configured`, and `key_count`. When parsing fails, report the path, bad key, and location. |
 | `config set KEY VALUE` | Set one schema key. Strings, numbers, and booleans are plain text, such as `https://api.exa.ai` or `45`; arrays are TOML literals, such as `'["KEY"]'`. A string wrapped in one pair of matching quotes fails with exit `2` instead of saving the quotes. Argument values may remain in shell history. Invalid paths, types, or enum values fail without writing. |
 | `config set KEY -` | Read the complete value from stdin; use this form for secrets. |
 | `config unset KEY` | Remove only the file-layer value. An environment override can remain effective. |
@@ -1213,6 +1321,52 @@ forager config unset KEY
 Use dotted schema paths such as `providers.exa.timeout`. `config set` and `config unset` edit the
 document layer and remain available for repairing a schema-invalid but syntactically parseable
 file. Edit the path printed by `config path` when the TOML syntax itself is damaged.
+
+`config set KEY -` reads all of stdin, strips exactly one trailing LF or CRLF, and accepts empty
+input as an empty string. `config unset` says so when an environment variable still sets the key.
+
+The configuration file is `config.toml` in `$XDG_CONFIG_HOME/forager`, or `~/.config/forager`;
+`FORAGER_CONFIG_DIR` replaces that directory. When the default directory cannot be resolved or
+written, commands fail and ask for `FORAGER_CONFIG_DIR`. The directory is kept at mode `0700` and
+the file at `0600`. Every key may be omitted to use its built-in default; `config list` shows the
+effective value and source of each, and `setup --non-interactive` writes a template that comments
+every key. An unknown file key exits 3 and names the key.
+
+The environment overrides the file, which overrides the defaults. Each key's variable is
+`FORAGER_` plus the dotted path in upper case with `__` between levels, such as
+`FORAGER_PROVIDERS__XAI__MODEL`. A value is parsed as the key's type, so a string is taken
+verbatim, and an array is a TOML literal such as `FORAGER_PROVIDERS__EXA__KEYS='["sk-a","sk-b"]'`.
+An unknown `FORAGER_*` variable exits 3. Provider-native variables such as `EXA_API_KEY` are not
+read.
+
+- Credentials: every provider that takes credentials has a `keys` array, and several keys form a
+  pool that forager rotates through. A provider that needs no credentials has no `keys` key;
+  writing one is an unknown key (exit 3 in the file, exit 2 from `config set`). An empty `keys`
+  leaves its provider unconfigured, except that `jina` then runs anonymously.
+- `capabilities.<capability>.order` lists the providers that may serve `web_search`, `web_fetch`,
+  or `docs_search`, in fallback order. The list is complete: a provider left out is never used,
+  one without keys is skipped, and a provider that cannot serve the capability is a configuration
+  error. `web_search` and `docs_search` may be empty, which leaves them unserved and reported in
+  `capability_gaps`; an empty `web_fetch` order is a configuration error.
+- `platforms.<id>.order` lists the platform's routes; empty disables the platform. Platform
+  fetches that need a page body read it through `capabilities.web_fetch.order`.
+- `classifier`: `url`, `keys`, `model`, `fallback_models` tried in order on the same endpoint, and
+  `timeout`, one budget for the whole classification step. Without it, search uses the default
+  Web route and research needs `--plan`.
+- `journal`: `enabled` (default `true`), `dir` (default `$XDG_STATE_HOME/forager/journal`, else
+  `~/.local/state/forager/journal`), and `retention_days` (default `30`; `0` keeps files forever).
+  Each search or research run writes its own file, whose path is `journal_ref`; retention deletes
+  only expired files that forager named.
+- `retry`: `max_attempts` per request (at least 1), backoff `multiplier` (above 0), and `max_wait`
+  seconds between attempts.
+- `http.ssl_verify` turns TLS certificate verification off when `false`.
+- `providers.jina.respond_with` sets Jina's `X-Respond-With` header, such as `readerlm-v2`.
+- `log.level` is `error`, `warn`, `info` (default), `debug`, or `trace`. Only `debug` and `trace`
+  add output. Terminal errors, capability gaps, classifier fallback, and journal and `--output`
+  warnings always reach stderr.
+- Every `timeout` is a positive number of seconds.
+- A leading `~/` in `journal.dir` or `browser.path` expands to `HOME`, and a relative path is
+  relative to the configuration directory.
 
 ### `setup`
 
@@ -1226,6 +1380,12 @@ forager setup [--non-interactive] [--lang zh|en]
 | `--lang LANG` | Use `zh` or `en` for the interactive setup prompts. | Prompt/default locale |
 
 After setup, use `forager doctor` to check the resulting configuration.
+
+Interactive setup has five steps: the language; the main model (`xai` URL, keys, and model); the
+classifier, which can be skipped; keys for `exa`, `context7`, `jina`, `tavily`, and `firecrawl`;
+and keys for the `serpapi` and `youtube_api` routes. Enter keeps the current value, so a second
+run updates the existing file. Setup asks only for credentials and model settings and sends no
+request; set other keys with `config set`.
 
 ### `browser`
 
@@ -1246,12 +1406,17 @@ its cookies. Only macOS on Apple silicon has a Managed Browser package. A non-em
 instead; `browser install` still installs, and says on stderr that `browser.path` is in use.
 Progress goes to stderr.
 
+forager's cache is `$XDG_CACHE_HOME/forager`, or `~/.cache/forager`. `browser login` counts
+against its route's request window like a platform command, so a platform command right after a
+login can wait for that window.
+
 Exit codes: `2` for a platform without a browser login; `3` when `browser login` finds no browser
 (the message names `forager browser install` or `browser.path`); `4` with `{error_kind, message}`
 on stdout for `network` (the download failed), `timeout` (the download or the login did not finish
 in time), and `runtime` (the SHA256 did not match and the download was deleted, the package could
 not be unpacked, this host has no package, the browser failed to start or its window closed before
-the login, or the Browser Profile is in use by another forager process).
+the login, or the Browser Profile is in use by another forager process). A failed CDP handshake
+with the started browser is also `runtime`.
 
 ### `doctor`
 
@@ -1261,7 +1426,7 @@ forager doctor [--provider PROVIDER] [--timeout SECONDS] [--format json|markdown
 
 | Option | Meaning | Default |
 | --- | --- | --- |
-| `--provider PROVIDER` | Deep-probe one of `xai`, `openai`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, `arxiv_api`, `ssrn_crossref`, `serpapi`, `xiaohongshu_browser`, `reddit_browser`, or `hn_api`. Without it, run the shallow all-provider report. | Omitted |
+| `--provider PROVIDER` | Deep-probe one of `xai`, `openai`, `tavily`, `firecrawl`, `jina`, `context7`, `exa`, `arxiv_api`, `ssrn_crossref`, `serpapi`, `xiaohongshu_browser`, `reddit_browser`, `hn_api`, `polymarket_api`, `youtube_api`, `youtube_web`, or `gemini_api`. Without it, run the shallow all-provider report. | Omitted |
 | `--timeout SECONDS` | Set the diagnostic deadline. | `30` |
 | `--format FORMAT` | Use `json` or `markdown`. | `json` |
 
@@ -1284,8 +1449,21 @@ with `key_index`, `ok`, `searches_left`, `plan_searches_left`, `this_month_usage
 `this_hour_searches`, and `hourly_limit`, plus `error_kind` for a failing key (`auth`,
 `quota_exhausted` with no searches left, `rate_limited` at the hourly limit). Any failing key fails
 the probe with exit 4, and `message` names it as `providers.serpapi.keys[N]`. It does not prove
-that Scholar searches decode; `smoke --live` does. Do not use doctor as
+that Scholar searches decode; `smoke --live` does. `--provider gemini_api` calls no model:
+it lists the models once with every key, recorded as the `models` check, and its `keys` entries
+have only `key_index`, `ok`, and `error_kind` for a failing key, with the failing key named as
+`providers.gemini_api.keys[N]`. Do not use doctor as
 the recovery path for configuration that cannot be loaded.
+
+The shallow report also has a `config` block shaped like `config list`, and `permission_warnings`
+when the configuration directory or file is more open than `0700` or `0600`. Warnings never change
+`ok`, and `ok` is true when nothing is configured. A platform route that no default order lists
+reports `configured: false` until a platform order lists it. A deep probe of a provider whose
+prerequisites are missing, or of a route no order enables, fails with `config` and exit 3 before
+sending anything; a failed probe exits 4. For a provider with a request window, both the shallow
+check and the deep probe wait for that window; when it does not open in time, the shallow report
+marks the provider unreachable and the deep probe fails with `timeout`, and neither sends a
+request.
 
 ### `smoke`
 
@@ -1309,9 +1487,18 @@ writability checks without contacting providers. `smoke` emits JSON. Hidden acce
 probe flags are internal and are not part of the public CLI.
 
 All live cases share the one `--timeout` deadline. A case runs up to three times, but only once
-when it fails on Auth or an attempt-level Parameter error. A case that the deadline left no time to
-start is `skipped` with a message beginning `not started:`; raise `--timeout` and rerun rather than
-treating it as a provider failure.
+when it fails on Auth or an attempt-level Parameter error. A case that did not start is `skipped`
+with a message beginning `not started:`. That prefix has three kinds of source,
+and the rest of the message says which:
+
+- The deadline elapsed before the case began: raise `--timeout` and rerun.
+- An earlier case on the same site met a login wall, a verification page or a block, so the run
+  stopped all access to that site: do not rerun. Another run only triggers the block again; the
+  user logs in with `forager browser login <platform>` and handles the check in the window.
+- An upstream case produced no input for this one, such as a search that found nothing to fetch:
+  look at that upstream case; a larger `--timeout` does not help.
+
+None of them is a provider failure of the skipped case itself.
 
 A platform case runs only when its platform order lists the route and the route has the keys it
 requires. With `--opt-in`, a platform case whose route the order leaves out also runs when the
@@ -1322,6 +1509,9 @@ always qualifies. The check launches no browser and sends no request. The YouTub
 them. A case that does not run is `unconfigured`, and its `message` names why: the order does not
 list the route, the browser is not installed, the profile was never logged in, or the keys are
 missing, with the fix. `unconfigured` is not a pass.
+
+A live run's `ok` is true only when every case passed; the command then exits `0`, and otherwise
+`4`. A configuration that cannot be loaded exits `3`.
 
 ## Exit codes
 
@@ -1339,3 +1529,12 @@ and diagnostics or logs use stderr. A failed command renders its failure payload
 an empty stderr does not mean success; judge the outcome by the exit code. After successful Clap parsing selects JSON, configuration,
 stdin, and plan preflight failures use the parseable stdout error object described above. Clap
 errors, panics, and non-JSON formats retain their existing channels.
+
+Exit `2` covers only input that forager rejects before sending a request; when an upstream
+service rejects a request, the resulting `parameter` failure exits `4`. Exit `3` also covers an
+unknown file key or `FORAGER_*` variable, an empty `search.backends` or
+`capabilities.web_fetch.order`, a platform order with no configured route for the command, and a
+missing credential that the command needs. Exit `4` is the transport family (`auth`,
+`rate_limited`, `quota_exhausted`, `parameter`, `network`, `timeout`, `runtime`), and exit `5` the
+content family (`quality`, `evidence`). An empty result is never an error: a direct command with no matches succeeds, and
+only research turns missing evidence into `evidence`.
