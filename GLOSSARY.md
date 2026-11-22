@@ -37,7 +37,7 @@ _Avoid_: raw provider response、cleaned content
 _Avoid_: successful search、provider search、all commands
 
 **Search Result Journal**:
-默认启用、按发生顺序保存每次 Default Search Invocation 的结果面与执行过程面的本地集合。结果面包含查询、回答、来源及 research 的引用与证据；过程面包含计划摘要、供应方尝试链、终态归因、预算、分类器耗时和能力缺口。字段以架构规格的白名单为准，不保存请求或响应头、请求体、原始响应体、凭据、分类器 prompt 或工具 trace。它用于复盘与诊断，不是调试消息流，也不作为搜索响应缓存。
+默认启用、按发生顺序保存每次 Default Search Invocation 的结果面与执行过程面的本地集合。结果面包含查询、回答、来源及 research 的引用与证据；过程面包含计划摘要、供应方尝试链、终态归因、预算、分类器耗时和能力缺口。字段以架构参考文档的白名单为准，不保存请求或响应头、请求体、原始响应体、凭据、分类器 prompt 或工具 trace。它用于复盘与诊断，不是调试消息流，也不作为搜索响应缓存。
 _Avoid_: debug log、response cache、search history
 
 **Attempt Trace**:
@@ -203,3 +203,11 @@ _Avoid_: offset、page token
 **SSRN Search Criteria**:
 一次 SSRN 检索要求的搜索范围、作者与机构、日期、元数据条件和排序。每条 Platform Route 必须完整应用这些条件；名称相近但语义不同的条件不互相替代。
 _Avoid_: raw provider parameters、best-effort filters
+
+**Reference Docs**:
+The standing documents under `docs/reference/` that describe what forager does now. They change whenever the implementation changes, carry no change history, and outlive every change that edits them.
+_Avoid_: spec, spec chapter
+
+**Spec**:
+The description of one change, kept in a GitHub issue and closed when the change ships. A spec is never the source of a current fact: on delivery, the contracts that stay true move into the Reference Docs and the hard-to-reverse trade-offs into ADRs.
+_Avoid_: reference docs, standing spec
