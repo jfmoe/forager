@@ -413,16 +413,8 @@ fn all_files(directory: &Path) -> Vec<PathBuf> {
 }
 
 fn files(directory: &Path, extension: &str) -> Vec<PathBuf> {
-    let mut found = Vec::new();
-    let entries = fs::read_dir(directory)
-        .unwrap_or_else(|error| panic!("read {}: {error}", directory.display()));
-    for entry in entries {
-        let path = entry.expect("directory entry").path();
-        if path.is_dir() {
-            found.extend(files(&path, extension));
-        } else if path.extension().is_some_and(|found| found == extension) {
-            found.push(path);
-        }
-    }
-    found
+    all_files(directory)
+        .into_iter()
+        .filter(|path| path.extension().is_some_and(|found| found == extension))
+        .collect()
 }

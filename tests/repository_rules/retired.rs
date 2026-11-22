@@ -1,7 +1,6 @@
 //! Identifiers of retired routes, providers and capabilities, and where they may still appear.
 
-/// Identifiers of things that were retired. Add one when you retire a route, provider or
-/// capability, and remove its mentions in the same commit.
+/// Identifiers of retired routes, providers and capabilities.
 pub const RETIRED: &[&str] = &[
     "opencli",
     "ssrn_browser",
