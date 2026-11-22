@@ -5,8 +5,7 @@
 A Platform Route whose way of reading a site goes against that site's terms, or puts the user's
 account or egress IP at risk, is **opt-in**: it is a valid entry of its platform's order but never
 part of any default order, and no release adds it to one. It runs only after the user adds it.
-Every browser route is opt-in; an HTTP route is opt-in when its access carries such a risk (today
-`youtube_web`, which reads undocumented endpoints).
+Every browser route is opt-in; an HTTP route is opt-in when its access carries such a risk.
 
 - **One registration of the risk.** Every opt-in route, HTTP or browser, registers one sentence in
   the platform catalog saying what enabling it risks and where the risk falls. The enable

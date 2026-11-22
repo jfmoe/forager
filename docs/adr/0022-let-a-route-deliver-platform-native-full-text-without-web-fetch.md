@@ -35,8 +35,6 @@ its path on stdout (ADR-0015).
   it can read the page it duplicates a visit for worse output.
 - **Platform knowledge inside Web Fetch.** It would couple the shared capability to every
   platform's page shape.
-- **A local downloaded file as a third source.** It served only SSRN PDFs and was removed with the
-  SSRN browser route (ADR-0035).
 
 ## Revisit when
 

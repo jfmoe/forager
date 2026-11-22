@@ -32,8 +32,8 @@ only for SSRN PDFs, so a platform full text is a set of URLs or a Native body (A
   random, and rejected navigations, each investigated within a budget of page opens.
 - **Desktop takeover.** The providers drove the Chrome the user was working in, and starting Deep
   Research needed a foreground window.
-- **An external toolchain.** They depended on a global OpenCLI 2.x install and a manually updated
-  Browser Bridge extension, and version drift broke them (ADR-0036).
+- **An external toolchain.** They ran on OpenCLI, whose install and version drift broke routes
+  (ADR-0036).
 - **ChatGPT's terms.** OpenAI's terms of use forbid automatically or programmatically extracting
   data or Output, independent of robots.txt, and `chatgpt.com/robots.txt` disallows conversation
   pages. The route ran only under conditions the maintainer set: personal use, triggered by a named
@@ -50,7 +50,7 @@ only for SSRN PDFs, so a platform full text is a set of URLs or a Native body (A
   against 0.481. The two routes shared a median of only 6 of their top 20, and Crossref misses
   papers without a DOI; for recent papers with a DOI, Crossref registration trails SSRN posting
   by 0–1 days. The browser route was never in the default order (ADR-0020), so default SSRN
-  search did not change.
+  search never used it.
 
 ## Rejected alternatives
 

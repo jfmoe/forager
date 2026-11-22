@@ -21,16 +21,12 @@ route is opt-in (ADR-0020), does not retry, and follows the browser transport's 
   only the post ID and the adult flag; viewer attributes on the post element are not read.
   Passive capture records only the status of the site's requests and keeps no response body.
 - **No requests of its own**, including the old `.json` endpoints and the page fragments.
-- **Search loads more by scrolling**, with native wheel input letting the page fetch its own next
-  page, up to a fixed bound. The route issues no continuation cursor; a short result succeeds
-  with what it has and says so on stderr.
-- **Fetch reads the first batch.** It opens the post sorted by top and projects once when the post
-  element first appears, delivering the post and the comments the page brought with it, without
-  scrolling for more or expanding replies.
-- **Stop at a challenge.** A challenge page, a 403 or 429 document, or a logged-out page is Auth
-  with no retry and a pointer to `forager browser login reddit`. A logged-in, loaded page without
-  a post element is an attempt-level Parameter failure: the post is missing, removed, private,
-  restricted or hidden by the account's adult-content setting.
+- **Search loads more by letting the page scroll** and issues no continuation cursor; a short
+  result says so on stderr.
+- **Fetch reads the first batch** of comments the post page brings, without scrolling for more or
+  expanding replies.
+- **Stop at a challenge** (ADR-0020). A logged-out page counts as a challenge; a logged-in, loaded
+  page without the post means only that this post is not visible to the account.
 
 ## Why
 

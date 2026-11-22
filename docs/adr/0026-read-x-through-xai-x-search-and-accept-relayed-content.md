@@ -27,8 +27,7 @@ fetch and the Platform Operation Ask.
   and maps the cited posts to Platform Refs that can be fetched next.
 - **The route is named after the vendor and reuses its configuration**, as SerpApi does: one
   credential pool serves both main search and the platform. Platform requests send only
-  `x_search`, whatever tools main search is configured with, and like main search they have no
-  per-attempt timeout and use the command's deadline.
+  `x_search`, whatever tools main search is configured with.
 
 ## Why
 

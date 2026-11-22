@@ -64,10 +64,10 @@ user's everyday browser and never through an external browser driver.
 
 - **OpenCLI, an external browser CLI driving the user's Chrome.** It ran Xiaohongshu, SSRN and the
   Deep Research providers as process routes paced per OpenCLI command. It interfered with the
-  desktop, failed when run in the background, and carried an external toolchain that drifted. It
-  was replaced in place, with no compatibility layer: the route's inputs, outputs and error
-  classes stayed the same, and keeping both paths would have kept OpenCLI, the Browser Bridge and
-  Node for no user who needed them.
+  desktop, failed when run in the background, and carried an external toolchain that drifted.
+- **Keeping OpenCLI beside the browser transport.** A route's inputs, outputs and error classes do
+  not depend on the transport, so a second path would keep OpenCLI, the Browser Bridge and Node,
+  and two code paths, for no user who needs them. There is no compatibility layer.
 - **A Node sidecar or Playwright for page logic.** It would reuse some adapter code but keep Node
   and a second browser runtime as dependencies, and tests would need Node too.
 - **Letting users install the browser themselves.** It cannot guarantee which build is installed
@@ -76,10 +76,9 @@ user's everyday browser and never through an external browser driver.
   and accounts using one were banned.
 - **A fake browser that speaks CDP in tests.** Simulating navigation, network events and
   evaluation would cost far more than the code it tests, and passing would only show agreement
-  with the simulation. Offline tests cover the pure judgements, launch arguments with a stand-in
-  browser that records them, and the CDP client over an in-memory pipe; tests against a real
-  browser on local pages run on request, and live smoke proves the page logic on the site. The
-  cost is that no offline test runs a browser route's success path end to end.
+  with the simulation. Offline tests cover the pure judgements and the transport without a real
+  site, and live smoke proves the page logic on the site. The cost is that no offline test runs a
+  browser route's success path end to end.
 
 ## Revisit when
 
