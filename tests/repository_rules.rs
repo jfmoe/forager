@@ -23,16 +23,28 @@ const OVERSIZED_SOURCES: &[(&str, usize)] = &[
     ("tests/config_commands.rs", 1122),
 ];
 
+/// Roots whose Markdown the document checks scan: the current documents, not working material
+/// or generated files such as `CHANGELOG.md`.
+const SCANNED_ROOTS: &[&str] = &[
+    "src",
+    "tests",
+    "AGENTS.md",
+    "GLOSSARY.md",
+    "README.md",
+    "docs/reference",
+    "docs/adr",
+    "docs/agents",
+];
+
 #[test]
-fn every_module_is_named_in_the_architecture_spec() {
-    let spec = read(&root().join("docs/reference/architecture.md"));
-    let normalized_spec = normalize(&spec);
+fn every_module_is_named_in_the_architecture_doc() {
+    let architecture = normalize(&read(&root().join("docs/reference/architecture.md")));
     let mut unnamed = Vec::new();
     for path in files(&root().join("src"), "rs") {
         let stem = file_name(&path).trim_end_matches(".rs");
         let is_test_module = stem == "tests" || stem.ends_with("_tests");
         let is_entry = matches!(stem, "mod" | "lib" | "main");
-        if !is_test_module && !is_entry && !contains_word(&normalized_spec, &normalize(stem)) {
+        if !is_test_module && !is_entry && !contains_word(&architecture, &normalize(stem)) {
             unnamed.push(relative(&path));
         }
     }
@@ -66,19 +78,6 @@ fn rust_sources_stay_within_their_line_ceiling() {
         "split these files by responsibility, or raise the ceiling in OVERSIZED_SOURCES and say why in the commit: {over:#?}"
     );
 }
-
-/// Roots whose Markdown the document checks scan: the current documents, not working material
-/// or generated files such as `CHANGELOG.md`.
-const SCANNED_ROOTS: &[&str] = &[
-    "src",
-    "tests",
-    "AGENTS.md",
-    "GLOSSARY.md",
-    "README.md",
-    "docs/reference",
-    "docs/adr",
-    "docs/agents",
-];
 
 #[test]
 fn every_relative_link_in_the_scanned_documents_resolves() {
