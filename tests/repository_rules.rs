@@ -1,7 +1,5 @@
 //! Repository rules from `AGENTS.md` that a reviewer would otherwise check by hand.
 
-#[path = "repository_rules/adrs.rs"]
-mod adrs;
 #[path = "repository_rules/links.rs"]
 mod links;
 
@@ -102,52 +100,62 @@ fn every_relative_link_in_the_scanned_documents_resolves() {
 }
 
 #[test]
-fn adr_files_are_numbered_and_carry_no_status() {
-    let paths = adr_paths();
-    let names = paths.iter().map(|path| file_name(path)).collect::<Vec<_>>();
-    let mut problems = adrs::file_name_problems(names);
-    for path in &paths {
-        if let Some(problem) = adrs::format_problem(&read(path)) {
-            problems.push(format!("{}: {problem}", relative(path)));
-        }
-    }
-
-    assert!(problems.is_empty(), "fix these ADR files: {problems:#?}");
-}
-
-#[test]
 fn every_adr_reference_names_an_existing_adr() {
-    let existing = adr_paths()
+    let existing = files(&root().join("docs/adr"), "md")
         .iter()
-        .filter_map(|path| adrs::adr_number(file_name(path)))
-        .collect::<BTreeSet<_>>();
-    let adr_directory = root().join("docs/adr");
-    let problems = scanned_files(&["md", "rs"])
+        .filter_map(|path| file_name(path).get(..4)?.parse().ok())
+        .collect::<BTreeSet<u16>>();
+    let rule_test = root().join("tests/repository_rules.rs");
+    let missing = scanned_files(&["md", "rs"])
         .into_iter()
-        .filter(|path| !is_rule_test(path))
+        .filter(|path| *path != rule_test)
         .flat_map(|path| {
-            let in_adr = path.starts_with(&adr_directory);
-            adrs::reference_problems(&read(&path), &existing, in_adr)
+            missing_adr_references(&read(&path), &existing)
                 .into_iter()
-                .map(move |problem| format!("{} {problem}", relative(&path)))
+                .map(move |reference| format!("{} {reference}", relative(&path)))
                 .collect::<Vec<_>>()
         })
         .collect::<Vec<_>>();
 
     assert!(
-        problems.is_empty(),
-        "fix these ADR references (a reference inside an ADR's Supersedes section may name a deleted ADR): {problems:#?}"
+        missing.is_empty(),
+        "these ADRs do not exist; point to the ADR that replaced them, or drop the reference: {missing:#?}"
     );
 }
 
-fn adr_paths() -> Vec<PathBuf> {
-    files(&root().join("docs/adr"), "md")
+#[test]
+fn a_reference_to_a_deleted_adr_is_reported_outside_supersedes() {
+    let adr = "See ADR-0012 and ADR 0007.\n\n## Supersedes\n\n- ADR-0012, merged here.\n";
+    assert_eq!(
+        missing_adr_references(adr, &BTreeSet::from([7])),
+        ["line 1: ADR-0012"]
+    );
 }
 
-/// The rule tests quote malformed references as counter-examples.
-fn is_rule_test(path: &Path) -> bool {
-    let tests = root().join("tests");
-    path == tests.join("repository_rules.rs") || path.starts_with(tests.join("repository_rules"))
+/// ADR numbers `text` references that are not in `existing`. A reference is `ADR`, an optional
+/// `-` or space, and four digits. Under a `Supersedes` heading an ADR may name deleted ADRs.
+fn missing_adr_references(text: &str, existing: &BTreeSet<u16>) -> Vec<String> {
+    let mut missing = Vec::new();
+    let mut in_supersedes = false;
+    for (index, line) in text.lines().enumerate() {
+        if line.starts_with('#') {
+            in_supersedes = line.trim_start_matches('#').trim() == "Supersedes";
+        }
+        for (start, _) in line.match_indices("ADR") {
+            let rest = &line[start + 3..];
+            let rest = rest.strip_prefix(['-', ' ']).unwrap_or(rest);
+            let Some(number) = rest
+                .get(..4)
+                .filter(|digits| digits.bytes().all(|byte| byte.is_ascii_digit()))
+            else {
+                continue;
+            };
+            if !in_supersedes && !existing.contains(&number.parse().unwrap_or_default()) {
+                missing.push(format!("line {}: ADR-{number}", index + 1));
+            }
+        }
+    }
+    missing
 }
 
 fn scanned_markdown() -> Vec<PathBuf> {

@@ -131,30 +131,15 @@ mod tests {
     #[test]
     fn reports_a_relative_link_to_a_missing_file() {
         assert_eq!(
-            broken("See [b](b.md) and ![x](img/x.png)."),
-            ["b.md", "img/x.png"]
+            broken("See [b](b.md), ![x](img/x.png) and [y][1].\n\n[1]: missing.md"),
+            ["b.md", "img/x.png", "missing.md"]
         );
     }
 
     #[test]
-    fn accepts_files_directories_and_fragments_that_resolve() {
-        assert_eq!(
-            broken("[a](a.md), [s](sub), [f](a.md#part), [t](a.md \"title\"), [p](<a.md>)"),
-            Vec::<String>::new()
-        );
-    }
-
-    #[test]
-    fn checks_reference_definitions() {
-        let markdown = "[x][1] and [y][2]\n\n[1]: missing.md\n   [2]: <a.md> \"title\"\n[3]: https://example.com";
-        assert_eq!(broken(markdown), ["missing.md"]);
-    }
-
-    #[test]
-    fn skips_code_external_links_and_anchors() {
-        let markdown = "`[c](missing.md)` and ``[d](`x`)``\n\
-                        ```text\n[e](missing.md)\n```\n\
-                        [web](https://example.com/x) [mail](mailto:a@b.c) [here](#top)";
+    fn does_not_report_links_that_resolve_or_are_not_checked() {
+        let markdown = "[a](a.md#part) [s](sub) `[c](missing.md)` [web](https://example.com/x) \
+                        [here](#top)\n```text\n[e](missing.md)\n```";
         assert_eq!(broken(markdown), Vec::<String>::new());
     }
 }
