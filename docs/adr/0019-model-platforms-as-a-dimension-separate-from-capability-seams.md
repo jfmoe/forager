@@ -1,17 +1,47 @@
-# Platforms are a dimension separate from Capability Seams
+# Model platforms as a dimension separate from capability seams
 
-forager adds **Platform** as a second dimension beside the Capability Seam. A Platform is a built-in external content source with its own identity space, such as arXiv. Each Platform is structurally like a seam: its **Platform Routes** are providers, and the routes of one Platform form a fallback chain in the order that `platforms.<id>.order` sets. A result never falls back to another Platform. Users and agents reach a Platform through `forager platform <id> <op>`; every Platform provides `search` and `fetch`, and its options are typed flags.
+## Decision
 
-## Why a Platform is not a Vertical Search provider
+A **Platform** is a built-in external content source with its own identity space, such as arXiv,
+and it is a dimension beside the Capability Seam, not a provider of one. Its **Platform Routes**
+are providers: they reuse provider identity, the provider configuration section, the credential
+pool, doctor and smoke, and the routes of one platform form a fallback chain in the order the
+user configures. A result never falls back to another platform. Users and agents reach a platform
+only through an explicit `forager platform <id> <op>` command; every platform provides search and
+fetch, and its options are typed flags.
 
-Vertical Search is a fallback chain in which the first accepted result ends the chain. A request for a Platform names the Platform as the requirement ("papers on arXiv", "this post and its replies"). If Platforms were Vertical Search providers, they would replace each other by chain order, and a paper search could return a Reddit post. Platforms also have their own identity spaces (arXiv IDs and versions, post IDs) and their own parameters (categories, submission dates) that the shared Vertical Search request cannot express. Vertical Search therefore stays a domain-based discovery capability in which the provider selects the sources.
+forager supports only the platforms and routes that ship with a release. Configuration cannot
+define a platform or a generic route. Each platform and route is registered once in the catalog,
+and configuration defaults, validation, construction, doctor probes, smoke cases and a
+consistency test derive from that registration. A new platform or route is a code change that
+follows `docs/reference/platforms.md`, and the new-platform checklist test reports any
+registration point it misses.
 
-## Only built-in Platforms
+## Why
 
-forager supports only Platforms and routes that ship with a release. Configuration cannot define a Platform or a generic MCP or CLI route. Each Platform and route is registered once in the catalog, and configuration defaults, validation, construction, doctor probes, smoke cases, and a consistency test all derive from that registration. User-defined routes would bypass these registration points and the typed options, so a new Platform or route is a code change that follows `docs/reference/platforms.md`.
+- A request for a platform names the platform as the requirement: "papers on arXiv", "this post
+  and its replies". A seam's chain lets one provider replace another by order, so as seam
+  providers a paper search could come back as a Reddit post.
+- Platforms have their own identity spaces (arXiv IDs and versions, post IDs) and their own
+  parameters (categories, submission dates) that a shared seam request cannot express.
+- User-defined routes would bypass the registration points and the typed options, which are what
+  keep configuration checks, doctor and smoke in step with the code. The registration points are
+  spread over several modules and the type system cannot find a missing one, so the checklist
+  test does.
 
-## Consequences
+## Rejected alternatives
 
-- A route is a provider, so it reuses provider identity, the provider configuration section, doctor, and smoke. A route ID never uses the bare Platform name (`arxiv_api`, not `arxiv`).
-- A route that needs no credentials has no `keys` leaf and is always configured (ADR-0005).
-- The registration points are spread over several modules and the type system cannot find a missing one. The new-platform checklist test reports each missing point and names the checklist item in the platform specification.
+- **Platforms as providers of a discovery seam.** The seam's first accepted result ends the chain,
+  so platforms would replace each other, and the shared request would lose each platform's
+  identity and options.
+- **Letting search, research or the classifier route to a platform automatically.** A platform is
+  chosen by the caller who names it; automatic routing would be a separate decision with its own
+  evidence, and none has been made.
+- **User-defined platforms or generic MCP and CLI routes in configuration.** They would skip the
+  registration that derives validation, doctor and smoke, and could not carry typed options.
+
+## Revisit when
+
+- A content source is needed that a release cannot ship as a built-in platform, and enough users
+  need it to justify a stable extension contract.
+- A recurring query need appears that only automatic routing to a platform would serve.
