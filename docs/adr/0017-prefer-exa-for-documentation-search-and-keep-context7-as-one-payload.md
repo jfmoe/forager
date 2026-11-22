@@ -1,16 +1,63 @@
-# Prefer Exa over Context7 for automatic Documentation Search
+# Prefer Exa for Documentation Search and keep Context7 as one payload
 
-The default Documentation Search order changes from Context7 → Exa to Exa → Context7, and research shares each subquestion's discovery limit across the capabilities that subquestion declares. Context7 stays a supported provider and its direct `forager context7` commands are unchanged. It is now called automatically only when Exa returns no consumable candidate, or when a user configures a different order.
+## Decision
 
-The evidence is the measured comparison in `docs/research/context7-necessity-evaluation.md`, based on 14 queries checked against official pages and the Search Result Journal from 2026-08-26 to 2026-09-25:
+This ADR holds two decisions about Documentation Search and its Context7 provider.
 
-- Key-fact coverage was 48% for Context7 and 93% for Exa, with median latency of 8.2 s and 2.4 s. On vendor platforms, data APIs, and app manuals, Context7 covered 25% and Exa 100%.
-- Context7's `resolve-library-id` almost always returns some library, so the previous chain never reached Exa: 0 of 233 journaled Documentation Search attempts did. In research, 42% of Context7 attempts were rejected as thin, and some accepted bodies came from the wrong library.
-- Research kept each subquestion's first `discovery_limit` candidates in arrival order. Documentation Search was discovered before Web Search, so under the quick budget its candidates filled every slot and no web candidate was ever fetched. In the evaluation, one sampled run ended with zero evidence because of this, and another converged on a marketing page.
+**1. Exa first.** Automatic Documentation Search tries Exa before Context7. Context7 is called
+automatically only when Exa returns no consumable candidate, or when the user configures another
+order. A provider result with no normalized source is not consumable, so an empty Context7 answer
+continues down the chain instead of ending it as an empty success. Within one research subquestion,
+candidates are taken round-robin across the declared capabilities before the discovery limit
+applies, so no capability can fill every slot.
 
-## Consequences
+**2. Context7 as one readable payload.** The direct `context7` commands use the official Context7
+MCP and deliver one documentation body. forager does not invent structured fields the MCP does not
+return, and does not parse the body's source lines into sources. The library identifier is a
+reusable lookup key, not a fetchable URL; the product skill teaches callers to resolve it once and
+reuse it.
 
-- Ordinary search with `docs_search` now returns Exa URL candidates, which a caller can fetch directly, instead of Context7 library locators that need a second `context7 docs` call. Research docs candidates are therefore usually URLs read through Web Fetch rather than Context7 query-docs bodies.
-- Within one subquestion, discovery candidates are ranked round-robin across capability blocks (the first candidate of each capability, then the second of each, and so on) before the discovery limit is applied. Candidate order within one capability is preserved.
-- Relevance gating of Context7 resolve results (library-name overlap, minimum snippet count) and anchor-term gating of query-docs bodies are not adopted. With Exa first, Context7 is rarely reached automatically, so these tuned heuristics would seldom apply. They should be reconsidered if journal data shows off-topic Context7 evidence again.
-- The skill's capability vocabulary is unchanged. It also feeds the classifier prompt, and with Exa first, `docs_search` serves vendor API and platform documentation well, so callers need no Context7-specific declaration rules.
+The default order is in `docs/reference/config.md`, and the command output in the product skill's
+CLI reference.
+
+## Why
+
+For Exa first, a comparison of 14 queries checked against official pages, together with the
+journal from 2026-08-26 to 2026-09-25:
+
+- Key-fact coverage was 48% for Context7 and 93% for Exa, at median latencies of 8.2 s and 2.4 s.
+  On vendor platforms, data APIs and app manuals, Context7 covered 25% and Exa 100%.
+- Context7's library resolution almost always returns some library, so the old Context7-first
+  chain never reached Exa: none of 233 journaled Documentation Search attempts did. In research,
+  42% of Context7 attempts were rejected as thin, and some accepted bodies came from the wrong
+  library.
+- Research kept each subquestion's first candidates in arrival order. Documentation Search
+  arrived before Web Search, so under the smallest budget its candidates took every slot and no
+  web candidate was fetched; one sampled run ended with no evidence because of this.
+- Exa returns URLs a caller can fetch directly, where Context7 returns library locators that need
+  a second call.
+
+For one payload, the official MCP returns formatted text, unlike Context7's REST API with its
+structured snippets. Exposing snippet fields would duplicate the body and make a response shape
+the MCP does not produce part of the CLI contract.
+
+## Rejected alternatives
+
+- **Relevance gates on Context7 results** (library-name overlap, a minimum snippet count, anchor
+  terms in the body). With Exa first, Context7 is rarely reached automatically, so the tuned
+  heuristics would seldom run.
+- **Context7-specific capability declarations in the skill.** With Exa first, the existing
+  vocabulary already serves vendor API and platform documentation.
+- **Structured snippet fields, or sources parsed from the body.** They duplicate content and
+  depend on formatting the MCP does not promise.
+
+## Revisit when
+
+- The journal shows off-topic Context7 evidence again; then reconsider the relevance gates.
+- Exa's coverage of documentation queries drops below Context7's on a comparable sample.
+- The Context7 MCP starts returning structured results.
+
+## Supersedes
+
+- ADR-0011, which kept Context7 MCP docs as one readable payload. It is decision 2 above, and its
+  rule that an empty Context7 result does not end the automatic chain is part of decision 1.

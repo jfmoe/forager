@@ -276,6 +276,11 @@ forager context7 docs LIBRARY_ID QUERY [--timeout SECONDS]
 | `--receipt` | Print only a receipt on success; requires `--output`. | Off |
 | `--verbose` | Include full provider attempts inline. | Off |
 
+Success JSON has `provider`, `library_id`, `query`, and `content`; `--verbose` adds
+`provider_attempts`. `content` is the one documentation body Context7 returns. forager does not
+parse its `Source:` lines into a source list, so read any URLs inside `content` to decide
+whether an original page needs fetching.
+
 ## Platform commands
 
 `forager platform <id> <op>` retrieves items of a built-in platform through the routes in
