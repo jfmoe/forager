@@ -26,7 +26,7 @@ pub(crate) use runtime::{
 #[cfg(test)]
 pub(crate) use runtime::{PlatformRoutesRuntimeConfig, platform_order_key};
 #[cfg(test)]
-pub(crate) use schema::is_leaf;
+pub(crate) use schema::{BrowserRoute, is_leaf};
 pub(crate) use seam_config::{
     Context7RuntimeConfig, DocsSearchProviderConfig, DocsSearchRuntimeConfig, ExaRuntimeConfig,
     MainSearchProviderConfig, MainSearchRuntimeConfig, OpenaiRuntimeConfig, SeamEntry,

@@ -8,6 +8,8 @@ use crate::types::Platform;
 
 #[path = "schema_providers.rs"]
 mod providers;
+#[cfg(test)]
+pub(crate) use providers::BrowserRoute;
 pub(super) use providers::Providers;
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]

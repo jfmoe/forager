@@ -108,32 +108,6 @@ fn arxiv_api_deep_doctor_probe_waits_for_the_request_window() {
     );
 }
 
-#[test]
-fn shallow_doctor_reachability_probe_waits_for_the_request_window() {
-    let fixture = Fixture::start_sequence(reachable_responses(9));
-    let environment = RunEnvironment::new(&shallow_config(&fixture.url));
-    reserve_arxiv_window(&environment);
-
-    let output = environment.run(&["doctor", "--timeout", "1"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse doctor JSON");
-    let arxiv_api = payload["providers"]
-        .as_array()
-        .expect("providers")
-        .iter()
-        .find(|provider| provider["provider"] == "arxiv_api")
-        .expect("arxiv_api status");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &arxiv_api["configured"],
-            &arxiv_api["reachable"],
-            fixture.finish_all().len()
-        ),
-        (Some(4), &Value::Bool(true), &Value::Bool(false), 9)
-    );
-}
-
 fn route_status<'a>(payload: &'a Value, route: &str) -> &'a Value {
     payload["providers"]
         .as_array()

@@ -99,6 +99,33 @@ fn live_smoke_lists_exactly_the_specification_case_registry_without_l0_doctor_ga
     }));
 }
 
+/// Case numbers whose cases were retired; a report or a release note that names one must keep
+/// meaning the retired case.
+const RETIRED_CASE_IDS: [&str; 9] = [
+    "C02", "C03", "C14", "C15", "C16", "C22", "C23", "C47", "C48",
+];
+
+#[test]
+fn a_retired_smoke_case_number_is_never_reused() {
+    let environment =
+        SmokeEnvironment::new(|journal_dir| minimal_config("http://127.0.0.1:9", journal_dir));
+
+    let output = environment.run(&["smoke", "--live", "--list"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live registry JSON");
+    let reused = payload["registered_case_ids"]
+        .as_array()
+        .expect("registered case IDs")
+        .iter()
+        .filter_map(Value::as_str)
+        .filter(|id| RETIRED_CASE_IDS.contains(id))
+        .collect::<Vec<_>>();
+
+    assert!(
+        reused.is_empty(),
+        "give these new cases the next unused number: {reused:?}"
+    );
+}
+
 #[test]
 fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_unconfigured_cases() {
     let endpoint = "http://127.0.0.1:9";
