@@ -94,7 +94,7 @@ Platform 与 Capability Seam 并列（ADR-0019），完整接入契约见 `platf
 
 ## 跨进程限速
 
-`rate_limit` 统一负责跨进程请求节奏。访问策略包括最小间隔与最大并发，由 provider 注册信息的 `access_policy` 声明（`arxiv_api`：每 3 秒 1 个请求、并发 1；`ssrn_crossref`：每秒 1 个请求、并发 1；`xiaohongshu_browser` 与 `reddit_browser`：每 10 秒 1 次浏览器命令、并发 1）；浏览器 route 以一次浏览器命令为限速单位，permit 持有到浏览器进程被回收为止（ADR-0020）；对受限 endpoint 的每次发送（包括重试、doctor 的 shallow 可达性探测与 deep 探测）都必须先调用 `RateLimiter::acquire` 申请时间窗口。`providers::route_limiter` 按注册信息构造限速器；route adapter 在单次发送内先取窗口再发请求，窗口的等待计入该 attempt 与命令的 Deadline。
+`rate_limit` 统一负责跨进程请求节奏。访问策略包括最小间隔与最大并发，由 provider 注册信息的 `access_policy` 声明（`arxiv_api`：每 3 秒 1 个请求、并发 1；`ssrn_crossref`：每秒 1 个请求、并发 1；`xiaohongshu_browser` 与 `reddit_browser`：每 10 秒 1 次浏览器命令、并发 1）；浏览器 route 以一次浏览器命令为限速单位，permit 持有到浏览器进程被回收为止（ADR-0036）；对受限 endpoint 的每次发送（包括重试、doctor 的 shallow 可达性探测与 deep 探测）都必须先调用 `RateLimiter::acquire` 申请时间窗口。`providers::route_limiter` 按注册信息构造限速器；route adapter 在单次发送内先取窗口再发请求，窗口的等待计入该 attempt 与命令的 Deadline。
 
 - **算法**：先在进程内按最大并发取得 permit，再取得跨进程连接槽位：状态目录下每个 route 有最大并发个槽位锁文件（`rate_limit_<route>.<n>.lock`），异步轮询到第一个空闲槽位；两段等待都计入 Deadline，超时为 Timeout。然后在 Deadline 内等到状态文件的进程内轮次（此时尚未预留，超时不会占用窗口），再在共享状态锁内读取该 route 上次预留的时刻，计算下一个窗口 = max(现在, 上次预留 + 最小间隔)。需要等待的时间不小于剩余预算时，直接以 Timeout 结束，不写入预留；否则写入新的预留时刻，释放锁，然后在锁外等待到该绝对时刻。permit 与槽位锁持有到发送结束，因此共享状态目录的所有进程同时在途的请求不超过最大并发；进程退出时操作系统释放槽位锁。
 - **时钟**：预留时刻是墙钟毫秒，从构造时的墙钟起按 Tokio 时钟推进，因此预留、等待与 Deadline 在同一时间线上。

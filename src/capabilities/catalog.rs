@@ -562,7 +562,7 @@ const SSRN_CROSSREF_ACCESS: AccessPolicy = AccessPolicy {
 };
 
 // About 55 read-only commands 5 to 10 seconds apart raised no risk control on 2026-10-08; ten
-// seconds is the slowest pace measured, not a limit the site states (ADR-0020).
+// seconds is the slowest pace measured, not a limit the site states (ADR-0036).
 const XIAOHONGSHU_BROWSER_ACCESS: AccessPolicy = AccessPolicy {
     min_interval: Duration::from_secs(10),
     max_concurrency: 1,

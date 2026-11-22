@@ -90,7 +90,7 @@ attempt 级 Parameter 不映射为退 2（`architecture.md`）。
 ## 访问策略与限速
 
 - route 在注册信息中以 `access_policy` 声明最小间隔与最大并发。对该 route endpoint 的**每次发送**都先经过 `RateLimiter::acquire`，包括重试、doctor 的 shallow 可达性探测与 deep 探测。
-- 浏览器 route 的访问策略以一次浏览器命令为单位：浏览器在一次命令内发出的请求不逐个限速。permit 持有到浏览器进程被回收为止（ADR-0020）。
+- 浏览器 route 的访问策略以一次浏览器命令为单位：浏览器在一次命令内发出的请求不逐个限速。permit 持有到浏览器进程被回收为止（ADR-0036）。
 - 等待窗口的时间计入 attempt 与命令的 Deadline；算法、跨进程协调范围与已知边界见 `architecture.md`「跨进程限速」。
 - 不需要凭据的 route 在注册信息中声明 `credentials: Credentials::Unused`：配置节没有 `keys`（HTTP route 只有 `url` 与 `timeout`，访问多个端点的 route 另有每个端点的 URL 键；浏览器 route 只有 `timeout`），经 `execute_anonymous` 执行，attempt 的 `credential_index` 与 `rotation_count` 恒为 0。
 - 需要凭据的 HTTP route 声明 `credentials: Credentials::Required`：配置节为 `url`、`keys` 与 `timeout`（runtime 投影 `KeyedHttpRouteRuntimeConfig`），经 `execute_v2` 使用 Provider Credential Pool（ADR-0005），额度耗尽与限流时换 key。keys 为空的 route 视为未配置，不进入平台链。
