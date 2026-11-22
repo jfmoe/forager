@@ -20,9 +20,6 @@ attribution, budget, classifier timing, capability gaps).
 - When no valid journal configuration exists yet, forager reports the journal as unavailable
   instead of guessing a default location.
 
-The configuration keys and defaults are in `docs/reference/config.md`; the persisted fields and
-the file naming are in `docs/reference/architecture.md`.
-
 ## Why
 
 - Reviewing and diagnosing a search later needs the full query and answer next to the attempts

@@ -27,9 +27,6 @@ when the credential pool ends in an authentication, quota or rate-limit failure,
 more anonymously (the Anonymous Fallback). Failures unrelated to credentials do not trigger it.
 Because Jina always counts as configured, the default chain can fetch with no Web Fetch key at all.
 
-The request fields, the thin-content thresholds and the error mapping are under Web Fetch in
-`docs/reference/architecture.md`; the default order and timeouts in `docs/reference/config.md`.
-
 ## Why
 
 - A shared output shape cannot make three different extraction algorithms agree on where the body

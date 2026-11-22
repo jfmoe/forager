@@ -16,9 +16,6 @@ credentials runs anonymously when its pool cannot serve it (ADR-0029).
 - No output or error contains a credential's characters. Configuration and doctor views show a
   fixed, irreversible mask; the cursor state holds only non-sensitive indices.
 
-The configuration shape is in `docs/reference/config.md` and the pool's state file and locking in
-`docs/reference/architecture.md`.
-
 ## Why
 
 - The predecessor kept two credential systems and several configuration shapes for them (a single

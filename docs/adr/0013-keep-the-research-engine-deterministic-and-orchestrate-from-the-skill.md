@@ -24,9 +24,6 @@ skill:
   when every key claim is evidenced or downgraded. It never reruns research and never uses main
   search to backfill evidence.
 
-The engine's caps and accounting rules are in `docs/reference/cli.md`; the skill's procedure and
-its caps are in `skills/forager/`.
-
 ## Why
 
 - The plan is fixed before any in-engine stage runs, so an orientation stage inside the engine

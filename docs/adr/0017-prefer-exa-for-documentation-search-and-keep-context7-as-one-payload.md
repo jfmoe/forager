@@ -17,9 +17,6 @@ return, and does not parse the body's source lines into sources. The library ide
 reusable lookup key, not a fetchable URL; the product skill teaches callers to resolve it once and
 reuse it.
 
-The default order is in `docs/reference/config.md`, and the command output in the product skill's
-CLI reference.
-
 ## Why
 
 For Exa first, a comparison of 14 queries checked against official pages, together with the

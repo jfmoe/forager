@@ -21,8 +21,6 @@ forager runs independent provider work concurrently and keeps dependent steps in
   candidates and capability gaps already gathered are delivered instead of discarded.
 - Credential claims are serialized within the process and run off the async executor.
 
-The failure payload is in `docs/reference/cli.md`.
-
 ## Why
 
 - Over 2026-08-26 to 2026-09-25 the journal showed main search (xAI) taking a median of 57 s,

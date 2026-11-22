@@ -13,8 +13,8 @@ failed classifier degrades to a fixed default. Provider selection, same-capabili
 the research pipeline's own planning rules are unaffected. The routing decision recorded for the
 invocation names the caller as its only decision source, so the declared authority is observable.
 
-Research plans follow their own authoritative rules, defined under "Research plan injection" in
-`docs/reference/cli.md`.
+A research plan follows its own rules: a caller's plan is authoritative, and each subquestion
+declares the capability seams it may cross.
 
 ## Why
 
@@ -44,4 +44,4 @@ Research plans follow their own authoritative rules, defined under "Research pla
 
 - ADR-0003, which merged the caller's declaration with local rules. Its merge produced false
   capabilities; its remaining content (the declaration's shape and the classifier fallback) is
-  restated above or owned by the reference docs.
+  restated above or owned by the product skill.

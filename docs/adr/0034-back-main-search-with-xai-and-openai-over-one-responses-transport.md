@@ -23,10 +23,6 @@ makes `openai` primary.
   Its configuration keys, environment variables and doctor target are rejected as unknown input,
   with no alias.
 
-The configuration surface is in `docs/reference/config.md`; the module split and the request
-details are under the main-search sections of `docs/reference/architecture.md` and
-`docs/reference/cli.md`.
-
 ## Why
 
 - The retired fallback never helped. In the journal from 2026-09-19 to 2026-10-18 (443 searches)

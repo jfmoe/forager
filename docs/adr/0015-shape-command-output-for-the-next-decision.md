@@ -21,8 +21,7 @@ that is already persisted or only diagnostic is delivered by reference:
   explicit way to see provider attempts inline.
 
 The byte caps of ADR-0006 are memory safety rails, not a context budget, and the deadline limits
-time, not size. Field names and shapes are in `docs/reference/cli.md` and the product skill's CLI
-reference.
+time, not size.
 
 ## Why
 
