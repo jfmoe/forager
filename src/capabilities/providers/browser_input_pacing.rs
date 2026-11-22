@@ -213,12 +213,14 @@ mod tests {
     fn five_pages_at_the_slowest_input_pacing_fit_the_default_route_timeout() {
         use std::time::Duration;
 
-        use super::super::super::{CLEANUP_RESERVE, READ_RESERVE};
-        use super::super::{POINTER_STEP_MS, POINTER_STEPS, SCROLL_SETTLE_WITHIN};
         use super::{
             INPUT_PAUSE_MS, MAX_WHEEL_NOTCHES, WHEEL_BURST, WHEEL_BURST_PAUSE_MS, WHEEL_GAP_MS,
         };
         use crate::config::BrowserRoute;
+        use crate::providers::browser::input::{
+            POINTER_STEP_MS, POINTER_STEPS, SCROLL_SETTLE_WITHIN,
+        };
+        use crate::providers::browser::{CLEANUP_RESERVE, READ_RESERVE};
 
         const PAGES: u32 = 5;
         // The time this budget allows for each page's response to arrive.

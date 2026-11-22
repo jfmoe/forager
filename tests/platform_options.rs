@@ -2,6 +2,9 @@ mod support;
 
 use std::collections::BTreeSet;
 
+use clap::CommandFactory;
+use forager::app::Cli;
+
 use support::{Fixture, Response, RunEnvironment};
 
 /// Options every platform command shares; they do not reach a route's request.
@@ -82,18 +85,6 @@ const LIVE_SMOKE_ONLY: &[(&str, &str, &str)] = &[
     ("reddit", "search", "--time"),
 ];
 
-const PLATFORMS: &[&str] = &[
-    "arxiv",
-    "ssrn",
-    "scholar",
-    "xiaohongshu",
-    "x",
-    "hn",
-    "youtube",
-    "polymarket",
-    "reddit",
-];
-
 fn config(url: &str) -> String {
     format!(
         r#"
@@ -140,14 +131,26 @@ fn baseline(platform: &str, operation: &str) -> Vec<String> {
         .collect()
 }
 
-/// The long options `forager platform <platform> <operation> --help` lists.
-fn listed_options(platform: &str, operation: &str) -> BTreeSet<String> {
-    let help = RunEnvironment::new("").run(&["platform", platform, operation, "--help"]);
-    String::from_utf8_lossy(&help.stdout)
-        .lines()
-        .filter_map(|line| line.trim_start().strip_prefix("--"))
-        .filter_map(|rest| rest.split([' ', '<']).next())
-        .map(|name| format!("--{name}"))
+/// The long options of every platform's search and fetch, as `platform:operation:option`.
+fn listed_options() -> BTreeSet<String> {
+    let command = Cli::command();
+    let platform = command
+        .find_subcommand("platform")
+        .expect("platform command");
+    platform
+        .get_subcommands()
+        .flat_map(|platform| {
+            platform
+                .get_subcommands()
+                .filter(|operation| ["search", "fetch"].contains(&operation.get_name()))
+                .flat_map(move |operation| {
+                    operation.get_arguments().filter_map(move |argument| {
+                        argument.get_long().map(|long| {
+                            format!("{} {} --{long}", platform.get_name(), operation.get_name())
+                        })
+                    })
+                })
+        })
         .collect()
 }
 
@@ -177,14 +180,12 @@ fn every_route_option_has_a_sample_value() {
         .chain(LIVE_SMOKE_ONLY.iter().copied())
         .map(|(platform, operation, option)| format!("{platform} {operation} {option}"))
         .collect::<BTreeSet<_>>();
-    let missing = PLATFORMS
-        .iter()
-        .flat_map(|platform| ["search", "fetch"].map(|operation| (*platform, operation)))
-        .flat_map(|(platform, operation)| {
-            listed_options(platform, operation)
-                .into_iter()
-                .filter(|option| !SHARED.contains(&option.as_str()))
-                .map(move |option| format!("{platform} {operation} {option}"))
+    let missing = listed_options()
+        .into_iter()
+        .filter(|option| {
+            !SHARED
+                .iter()
+                .any(|shared| option.ends_with(&format!(" {shared}")))
         })
         .filter(|option| !known.contains(option))
         .collect::<Vec<_>>();

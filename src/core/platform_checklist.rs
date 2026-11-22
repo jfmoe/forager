@@ -42,7 +42,7 @@ impl Rule {
         match self {
             Self::Catalog => (
                 "the platform catalog lists every platform with a non-empty route set for search and for fetch, and a default order of its own routes",
-                "add the platform and its routes to the platform catalog, and a `Platform` variant with its shapes in a type leaf of its own",
+                "add the platform and its routes to the platform catalog",
             ),
             Self::Registration => (
                 "every route has a provider ID and a provider registration, and its ID is not the bare platform name",
