@@ -6,7 +6,7 @@ A Rust CLI that gives AI agents search, fetch, research and per-platform retriev
 
 - Quick, the same as the CI quality job: `cargo fmt --check && cargo clippy --all-targets --locked -- -D warnings`.
 - Full: `cargo nextest run --all-targets --all-features --locked --no-fail-fast --status-level fail && cargo test --doc --locked` (install with `brew install cargo-nextest`). CI runs the same tests through `cargo test --locked`; nextest runs the binaries in parallel.
-- Documents only: `cargo nextest run --locked --test repository_rules --test skill_contract`. This is what CI runs on a change that touches only markdown or `docs/`.
+- Documents only: `cargo nextest run --locked --test repository_rules --test skill_contract`. The Docs workflow runs these two tests on every pull request that touches markdown or `docs/`; CI skips a pull request that touches only those.
 - `git config core.hooksPath .githooks` enables a pre-commit hook that runs `cargo fmt --check`.
 
 Read failures from the summary nextest prints at the end, which names every failed test; never filter the test output. An agent that filtered it lost the name of a failing test.
