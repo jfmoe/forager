@@ -174,9 +174,8 @@ How a Platform Route reaches its source, declared in the provider's registration
 with `url`, plus `keys` when the route needs credentials), or forager's browser transport. A route
 on the browser transport is a browser route; its only setting is `timeout`, and its registration
 also declares which platform's Browser Profile it uses, the browser language, and whether the
-profile needs a login. Configuration checks, preflight checks, doctor and the platform checklist
-decide by transport, never by route id. A browser route runs only when the user adds it to the
-platform's order (ADR-0020).
+profile needs a login. A browser route runs only when the user adds it to the platform's order
+(ADR-0020).
 _Avoid_: route kind, backend type, process route
 
 **Page Logic**:

@@ -38,10 +38,10 @@ user's everyday browser and never through an external browser driver.
 
 ## Why
 
-- The previous transport drove the user's own Chrome through OpenCLI. It opened an automation
-  window on the user's desktop, and when another window covered it OpenCLI 2.x refused to send
-  native input, so search and comments failed as Runtime. An agent calling forager in the
-  background left that window covered most of the time.
+- Driving the user's own Chrome through OpenCLI opened an automation window on the user's
+  desktop, and when another window covered it OpenCLI 2.x refused to send native input, so search
+  and comments failed as Runtime. An agent calling forager in the background left that window
+  covered most of the time.
 - OpenCLI needed a global OpenCLI 2.x install, a manually updated Browser Bridge extension, JS
   adapters copied into OpenCLI's adapter directory, and Node; drift in any of them broke the
   route.

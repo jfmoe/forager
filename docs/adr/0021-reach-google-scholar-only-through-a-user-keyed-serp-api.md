@@ -47,7 +47,7 @@ plan.
 - **A shared forager key.** No safe place to keep it, and forager would carry the cost and the
   terms liability.
 - **Suggesting several free accounts to stretch the quota.** That may count as abusing the free
-  plan, so the docs say only that each key carries one account's quota.
+  plan, so the product skill says only that each key carries its own quota.
 - **Sorting Scholar search by date.** The upstream date order ignores the year range, so the two
   could not be combined.
 - **An author option for Scholar search.** The query's own `author:` operator already applies

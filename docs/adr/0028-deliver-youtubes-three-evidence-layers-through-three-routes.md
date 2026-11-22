@@ -14,9 +14,9 @@ stand in for each other, each delivered by its own route over the HTTP transport
 - **No fallback between layers.** Full text delivers only captions that exist on the platform; a
   video without captions fails full text instead of falling back to a model transcript. A model
   transcript comes only from Transcribe, which the caller asks for explicitly.
-- **`youtube_web` is opt-in** (ADR-0020). Its enable instructions warn that using it together with
-  an official key may get the user's Google project suspended under the Developer Policies' ban on
-  obtaining scraped data.
+- **`youtube_web` is opt-in** (ADR-0020). The product skill's platform reference warns that using
+  it together with an official key may get the user's Google project suspended under the Developer
+  Policies' ban on obtaining scraped data.
 - **`youtube_api` takes exactly one key.** Rotating keys when quota runs out would amount to using
   several projects to get around the quota, so configuration rejects more than one key, and quota
   errors are QuotaExhausted with no rotation.

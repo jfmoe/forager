@@ -33,7 +33,7 @@ and the Platform Operation Price History.
   condition ID and events by event ID.
 - **On by default.** The route calls only public read APIs that Polymarket documents as needing no
   key, reads no site pages, and paces far below the official limits. The terms' two restrictions
-  are written into the skill's platform reference for users to judge by their own status.
+  are written into the product skill's platform reference for users to judge by their own status.
 - **Price series and settlement stay apart.** Price History holds only market prices; a settled
   market's payout is given separately. Polymarket does not say whether a history point is a trade
   or a midpoint, so it is not called a probability history.
@@ -76,8 +76,10 @@ From documentation checks and anonymous tests on 2026-10-24:
 - **Query expansion and local relevance filtering.** Gamma's search relevance is poor, but judging
   relevance and retrying with other words belong to the caller; heuristics in platform search
   would make results unpredictable.
-- **Gamma's reduced search response.** It drops each market's condition ID and outcome tokens,
-  which pricing and history need.
+- **Gamma's reduced search response.** It is smaller, but it leaves out each market's condition ID
+  and the token IDs of its outcomes. CLOB quotes and Price History are requested by those token
+  IDs, and search reads markets through the same decoder as fetch, which rejects an open market
+  that lacks a token for every outcome.
 - **A sort option for Polymarket search.** The upstream sort parameter was tested and has no
   effect.
 

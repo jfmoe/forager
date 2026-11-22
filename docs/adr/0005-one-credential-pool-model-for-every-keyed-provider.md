@@ -18,9 +18,9 @@ credentials runs anonymously when its pool cannot serve it (ADR-0029).
 
 ## Why
 
-- The predecessor kept two credential systems and several configuration shapes for them (a single
-  key, a key list, a JSON-encoded list) with replacement priorities and a provider allowlist between
-  them. Every provider had to be checked against each shape.
+- Two credential systems with several configuration shapes (a single key, a key list, a
+  JSON-encoded list), replacement priorities and a provider allowlist between them mean every
+  provider has to be checked against each shape.
 - Advancing without rollback keeps concurrent processes from piling onto the same credential and
   needs no coordination after the request ends.
 - A rate-limited credential recovers on the upstream's schedule, not within one request; trying

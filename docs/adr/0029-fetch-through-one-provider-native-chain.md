@@ -53,9 +53,8 @@ Because Jina always counts as configured, the default chain can fetch with no We
   different versions of the same URL. An independent web-extraction benchmark also scored Jina's
   key-sentence recall above Tavily's, losing points only on clutter.
 - Jina Reader serves calls without a key, at a lower official rate per IP than with a key, and an
-  anonymous read was confirmed on 2026-10-18. Before, a Jina without a key was skipped as
-  unconfigured, and exhausted or failing keys made Jina fail where an anonymous call would have
-  read the page.
+  anonymous read was confirmed on 2026-10-18. Skipping a Jina without a key as unconfigured, or
+  failing Jina when its keys are exhausted or failing, would refuse pages an anonymous call reads.
 
 ## Rejected alternatives
 

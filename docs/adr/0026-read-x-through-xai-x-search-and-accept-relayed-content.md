@@ -17,7 +17,7 @@ fetch and the Platform Operation Ask.
     returns the parameters of server-side tool calls, so the call record does not depend on the
     model's retelling. Fetch requires a tool call, because without that the model often skipped
     the tool and returned an empty list. Other posts in the thread cannot be checked, and the
-    platform reference says so.
+    product skill's platform reference says so.
   - Body text and author handles are not guaranteed verbatim, so search items are at snippet
     depth.
 - **Only server-enforced parameters are exposed:** account allow and deny lists and a date range.
@@ -63,6 +63,6 @@ fetch and the Platform Operation Ask.
 - Cost or volume matters. How many posts a request reads is the model's choice, and limiting turns
   did not cap the number of tool calls: one search made 16 tool calls and read 52 posts. Through
   xAI's official API, billing follows posts and users read.
-- A caller needs verbatim text: today the platform reference tells callers to open the post's URL
-  for an exact quote.
+- A caller needs verbatim text: today the product skill's platform reference tells callers to open
+  the post's URL for an exact quote.
 - xAI starts returning the posts its tools read, which would let items stop being relayed.

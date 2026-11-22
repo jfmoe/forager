@@ -18,10 +18,9 @@ fetch and the Platform Operation Stories.
   comments follow HN's page ranking and deeper levels follow time. Each operation sends at most a
   few requests whatever the number of comments; only Stories fetches items one by one when Algolia
   is missing some.
-- **Threads are delivered as files.** `thread` is HN fetch's default depth; the discussion is
-  written as a Markdown file and stdout carries only its path and counts (ADR-0015). A platform
-  declares how its `thread` depth is delivered: as a file when the route returns a Native body
-  (HN), inline otherwise (X).
+- **Threads are delivered as files.** The discussion is written as a Markdown file and stdout
+  carries only its path and counts (ADR-0015). A `thread` depth is delivered as a file when the
+  route returns a Native body (HN), inline otherwise (X).
 - **Ranked lists are a separate Platform Operation, Stories.** It takes no query, which changes the
   required input; items carry their rank, and it issues no cursor, because the list keeps changing
   and paging could not be reproduced.
@@ -63,4 +62,4 @@ Measured on 2026-10-17:
   shared access policy keeps a margin below Algolia's limit across processes.
 - Callers need a complete mirror of HN pages. Threads leave out deleted and dead comments and may
   miss the last few minutes of comments, and search and Stories counts may lag by minutes; the
-  platform reference tells callers this.
+  product skill's platform reference tells callers this.

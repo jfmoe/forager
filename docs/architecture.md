@@ -39,11 +39,11 @@ Nothing depends on a layer above it. When two modules need the same thing, it mo
 - A route adapter builds requests, decodes responses and declares where the full text lives. It does not plan, fall back or retry across routes.
 - `types` is the base. It does no IO and is the single definition point of every shape that crosses a layer. Parsing and validating refs, requests and options are pure functions there, and `types` does not depend on the argument parser.
 - The HTTP boundary owns the only HTTP client. Status codes become error kinds there, once; a route may only add a reason hook.
-- Code branches on the Route Transport (HTTP or browser), never on a provider ID. A browser route declares its browser environment in its registration (ADR-0036).
+- Configuration checks, preflight checks, doctor and the platform checklist branch on a route's Route Transport (HTTP or browser), never on its provider ID. A browser route declares its browser environment in its registration (ADR-0036).
 
 ## Providers and platforms
 
-Each Capability Seam has one trait with its own outcome type. A provider is one struct, and the same instance can join several chains. The provider registry is the only place that records a provider's identity, credentials, transport, Access Policy, doctor probe and constructor.
+Each Capability Seam has one trait with its own outcome type. A provider is one struct, and the same instance can join several chains. The provider registry is the only place that records a provider's identity, credentials, transport, Access Policy and doctor probe.
 
 A Platform is a dimension beside the Capability Seams, not another seam (ADR-0019). A Platform Route is a provider, and one route can serve both a seam and a platform. The platform catalog is the only source of which routes belong to which platform. A platform can have several routes that split its evidence into layers; one layer never falls back to another (ADR-0028).
 
@@ -65,7 +65,7 @@ Only state that separate processes must share is written to disk: credential cur
 
 ## Browser transport
 
-The browser transport knows no site; all site knowledge is in a route's Page Logic. Page Logic reads only the requests the page itself makes and drives the page with native input (ADR-0036).
+The browser transport knows no site; all site knowledge is in a route's Page Logic. Page Logic sends no request of its own: it reads the requests the page makes and the page state through read-only scripts, and drives the page with native input (ADR-0036).
 
 ## Error model
 
@@ -86,7 +86,7 @@ Invariants that hold for every command:
 
 ## Extension points
 
-- **A provider** is registered once, in the provider registry.
+- **A provider** is registered once, in the provider registry; it also needs its constructor in the provider factory and its configuration leaves.
 - **A platform or route** needs a catalog entry, its type leaf, the route adapter and the registration points that the platform checklist test names. Run that test; each failure says what is missing.
 - **A platform operation served by one route** is an inherent method on that route. The provider factory declares the operation's route set, and `core/` adds one orchestration entry for it. When a second route appears, the operation becomes a trait.
 - **A command** is placed by kind:
@@ -102,6 +102,7 @@ Invariants that hold for every command:
 | Unit | Pure decisions as truth tables: attribution, budget slicing, plan parsing, ref parsing, redaction |
 | HTTP fixture | Decoding of each provider's responses over the real HTTP stack against a local server |
 | Offline end to end | The real binary against local fixtures: routing, attribution, fallback, exit codes, configuration, journal side effects |
-| Live smoke | Real sites and keys, run before a release; the only layer that proves browser Page Logic |
+| Real browser | Ignored by default and run before a release: the browser transport and Page Logic's page scripts in the Managed Browser, against local pages only |
+| Live smoke | Real sites and keys, run before a release; the only layer that proves Page Logic against the real site |
 
 The test suite does not build a matrix of every provider against every status code. A test that spawns the binary goes through the shared test environment, which sends its HTTP through a proxy on a closed port, so a route its configuration missed fails instead of reaching a site. In-process tests rely on their own configuration pointing every route they reach at a local fixture.

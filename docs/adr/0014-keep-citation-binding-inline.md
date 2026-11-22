@@ -9,8 +9,8 @@ its output.
   inline citations is still a success: there is no binding status, no forced fallback and no
   rewritten answer.
 - The research pipeline delivers evidence, not an answer. Its consumer cites evidence inline
-  through the evidence item's identity, in the form the CLI reference defines. forager neither
-  rewrites nor validates the consumer's final answer.
+  through the evidence item's identity, in the form the product skill's CLI reference defines.
+  forager neither rewrites nor validates the consumer's final answer.
 - A binding records attribution only. It is not proof that the cited content supports the claim,
   so the skill's risk-based fetch, verification and disclosure rules still apply.
 

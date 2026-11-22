@@ -63,13 +63,13 @@ Every live operation acts as the user's account. These are hard boundaries:
 
 - Only the user logs in or passes a verification, by hand. The agent never scans a code, types an account or a verification code, or clicks through a verification page on the user's behalf.
 - The login state stays in the Browser Profile. Do not read, copy or export its cookies, tokens or any of its files (the profile is in `$XDG_STATE_HOME/forager/browser/<platform>`, or `~/.local/state/forager/browser/<platform>` when that is unset), and do not copy the profile elsewhere to experiment.
-- Read only the requests the page itself makes. Page Logic sends no API request of its own and does not patch `fetch`, XHR or WebSocket; it changes page state only through native input.
+- Read only the requests the page itself makes and the page state through read-only scripts. Page Logic sends no API request of its own and does not patch `fetch`, XHR or WebSocket; it changes page state only through native input.
 - After a risk signal, do not retry, and do not try again with another profile, browser or fingerprint.
 - Commits and live-test records never contain an Access Token (`xsec_token`), a cookie, an account identifier, or a real user's note or user ID; fixtures use fake values for these.
 
 ## Known behaviour
 
-- **A search waits while the login window is open.** `browser login` and the platform commands share the route's pacing permit, and login holds it until the browser exits. While the login window is open, a command waits for the permit and times out if it does not get one by its deadline. A command that has the permit but finds the Browser Profile held by another process fails at once with Runtime (`the Browser Profile … is in use by another forager process`).
+- **A search waits while the login window is open.** `browser login` and the platform commands share the route's pacing permit, and login holds it until the browser exits. While the login window is open, a command waits for the permit and times out if it does not get one by its deadline. A command that has the permit but finds the Browser Profile held by another forager process fails at once with Runtime.
 - **The pinned version changed.** When an upgraded forager pins a different browser version, commands name the installed old version and ask for `forager browser install`. At run time only the pinned version is accepted.
 - **A login marker does not mean a valid session.** When the session has expired, the command fails with Auth and suggests `forager browser login <platform>`, while the preflight check still passes.
 - **Handshake failure.** When the browser exits before the CDP handshake or does not answer within the handshake timeout, the result is Runtime, and the message carries the last line of the browser's stderr, plus its exit status when it exited. Look at those first.

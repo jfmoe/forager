@@ -33,8 +33,8 @@ time, not size.
   candidate to choose which to fetch. Modelling each command keeps both small without hiding
   anything the next step needs.
 - Bodies already written to disk or recorded in the journal would only be duplicated on stdout.
-- research used to return an answer-shaped excerpt list. It looked like a synthesized answer but
-  was not one, which invited citing it.
+- An answer-shaped excerpt list looks like a synthesized answer but is not one, which invites
+  citing it.
 
 ## Rejected alternatives
 
