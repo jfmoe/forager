@@ -108,7 +108,7 @@ AnySearch **extraction 裁决**（消解 #53 砍 `anysearch-extract` 与 #59 L8 
 本仓**零代码删除**（整体 archive 冻结）；「Cargo 工作区落地顺序」作废。
 
 1. **开发期**：新仓建仓即随迁 CONTEXT/ADR。
-2. **验收期**：前置——手动迁移本机凭据至 forager config.toml（`config.md` 映射表）→ **L0 门**（doctor 8-provider 全绿）→ 自动化四层全绿 → **制品门**（H10）：从正式 GitHub Release 资产干净安装（权限/架构/PATH/`--version`）→ doctor → P1/P2 → 人工清单五项。
+2. **验收期**：前置——手动迁移本机凭据至 forager config.toml → **L0 门**（doctor 8-provider 全绿）→ 自动化四层全绿 → **制品门**（H10）：从正式 GitHub Release 资产干净安装（权限/架构/PATH/`--version`）→ doctor → P1/P2 → 人工清单五项。
 3. **退役链**：以 [#61 原链为唯一权威](https://github.com/jfmoe/smartsearch/issues/61)（本章不复述）。回退轻量化（H16）：archive 前验证本机旧 `smart-search` 命令已不可达；回退路径一行——archive 可逆、npm 旧版可重装；不做完整 rollback 方案。
 
 SSRN Crossref 高级检索的搜索专用实测记录见 [2026-09-28 验收](../research/2026-09-28-ssrn-crossref-advanced-search.md)。动态结果数量不作为离线测试断言。

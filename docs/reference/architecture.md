@@ -139,8 +139,8 @@ Research Evidence Pipeline 默认使用 standard 预算，将正文逐条写入 
 
 - 具名 request class 预留（v1 空）；env 数组＝TOML 字面量、按 schema 目标类型解析（figment Env 层自定义）；`FORAGER_CONFIG_DIR` 豁免、未知 `FORAGER_*` 退 3。
 - **统一 URL 脱敏器**居 `config` 模块：去 userinfo/fragment、掩 token/key/secret/signature/authorization 类 query 参数；config list / doctor / 错误消息 / journal 四出口共用。
-- config 目录 0700 / 文件与临时文件 0600（替换后重申）；`config set KEY -` stdin 语义（`config.md`）；坏配置双通道（严格加载 vs 修复）；toml_edit 承诺以 #57 原文为准，不扩大。
-- Schema v1 严格解析细则全套（`cli.md`「Research plan injection」）；`reason` 必填非空；`PlanCapability` 独立两值枚举；plan→执行纯函数只读 `required_capabilities`。
+- config 目录 0700 / 文件与临时文件 0600（替换后重申）；`config set KEY -` stdin 语义；坏配置双通道（严格加载 vs 修复）；toml_edit 承诺以 #57 原文为准，不扩大。
+- Schema v1 严格解析细则全套；`reason` 必填非空；`PlanCapability` 独立两值枚举；plan→执行纯函数只读 `required_capabilities`。
 
 ## #55 痛点 13 条消解落点
 
