@@ -75,7 +75,10 @@ pub struct SearchCandidate {
 }
 
 impl SearchCandidate {
-    pub(crate) fn from_source(
+    /// Builds the candidate that `provider` found through `capability` from a normalized
+    /// `source`, or `None` when the source has no HTTP(S) URL.
+    #[must_use]
+    pub fn from_source(
         source: Source,
         provider: &'static str,
         capability: Capability,
@@ -131,11 +134,10 @@ impl SearchCandidate {
         })
     }
 
-    pub(crate) fn from_web_fetch(
-        provider: &'static str,
-        url: String,
-        summary: String,
-    ) -> Option<Self> {
+    /// Builds the content preview candidate that `provider` fetched from `url`, or `None` when
+    /// `url` is not HTTP(S).
+    #[must_use]
+    pub fn from_web_fetch(provider: &'static str, url: String, summary: String) -> Option<Self> {
         Some(Self {
             provider,
             capability: Capability::WebFetch,
