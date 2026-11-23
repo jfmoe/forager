@@ -114,7 +114,7 @@ impl Sandbox {
     }
 }
 
-/// Pages that files under `tests/fixtures` answer: the path served and the file, as HTML.
+/// Pages that samples under `tests/samples` answer: the path served and the sample, as HTML.
 pub(crate) type FixturePages = &'static [(&'static str, &'static str)];
 
 /// Serves the test pages on 127.0.0.1 until dropped.
@@ -194,13 +194,7 @@ fn serve(mut stream: TcpStream, fixtures: FixturePages) {
     let fixture = fixtures
         .iter()
         .find(|(served, _)| *served == path)
-        .map(|(_, file)| {
-            let file = Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("tests/fixtures")
-                .join(file);
-            std::fs::read_to_string(&file)
-                .unwrap_or_else(|error| panic!("read {}: {error}", file.display()))
-        });
+        .map(|(_, file)| crate::samples::sample(file));
     let (content_type, content) = if let Some(content) = fixture {
         ("text/html", content)
     } else {

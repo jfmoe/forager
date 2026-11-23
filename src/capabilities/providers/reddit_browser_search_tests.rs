@@ -7,18 +7,15 @@ use super::SEARCH_PROJECTION;
 use super::{
     SearchObservation, SearchProjection, SearchState, SearchTarget, search_outcome, search_state,
 };
+use crate::providers::reddit_browser::tests::stored;
 use crate::types::{AttemptErrorKind, RedditSearchOptions};
 
-const SEARCH_PAGE: &str = "reddit_browser/search.json";
-const CAPTCHA_PAGE: &str = "reddit_browser/captcha.json";
+const SEARCH_PAGE: &str = "search.json";
+const CAPTCHA_PAGE: &str = "captcha.json";
 
-fn fixture(name: &str) -> String {
-    let path = format!("{}/tests/fixtures/{name}", env!("CARGO_MANIFEST_DIR"));
-    std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("read {path}: {error}"))
-}
-
+/// The stored projection `name`.
 fn projection(name: &str) -> SearchProjection {
-    serde_json::from_str(&fixture(name)).unwrap_or_else(|error| panic!("decode {name}: {error}"))
+    serde_json::from_str(&stored(name)).unwrap_or_else(|error| panic!("decode {name}: {error}"))
 }
 
 fn global_target() -> SearchTarget {
@@ -146,9 +143,9 @@ const PROJECTED_PAGES: [(&str, &str, &str); 2] = [
     ),
 ];
 
-/// Runs the search projection on local pages trimmed from those Reddit served on 2026-11-21, with
-/// fake post and author values, and compares it with the projections the judgement tests read; with
-/// `FORAGER_WRITE_PROJECTIONS` set, it writes them instead.
+/// Runs the search projection on the stored local pages and compares it with the stored
+/// projections the judgement tests read; with `FORAGER_WRITE_PROJECTIONS` set, it writes them
+/// instead.
 #[cfg(unix)]
 #[test]
 #[ignore = "launches a real browser"]
@@ -372,7 +369,7 @@ fn a_loaded_page_other_than_the_search_page_is_an_unexpected_page() {
 
 #[test]
 fn a_projection_that_leaves_out_a_nullable_fact_does_not_decode() {
-    let mut page: Value = serde_json::from_str(&fixture(SEARCH_PAGE)).expect("a JSON fixture");
+    let mut page: Value = serde_json::from_str(&stored(SEARCH_PAGE)).expect("a JSON sample");
     page["page"]
         .as_object_mut()
         .expect("page facts")

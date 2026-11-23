@@ -45,7 +45,7 @@ route is opt-in (ADR-0020), does not retry, and follows the browser transport's 
   enters the DOM too, so one read covers the first screen and later pages without attributing
   fragments to scrolls.
 - Judgements written as pure functions over the projection are testable without a browser, and
-  running the script on local pages against the same JSON fixtures binds script and judgement
+  running the script on local pages against the same JSON samples binds script and judgement
   together.
 
 ## Rejected alternatives

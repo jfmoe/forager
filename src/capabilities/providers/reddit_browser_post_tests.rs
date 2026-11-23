@@ -5,19 +5,16 @@ use super::super::projection_script;
 #[cfg(unix)]
 use super::POST_PROJECTION;
 use super::{PostObservation, PostProjection, PostTarget, post_outcome};
+use crate::providers::reddit_browser::tests::stored;
 use crate::types::{AttemptErrorKind, ContentDepth, FullTextSource, RedditRef};
 
-const POST_PAGE: &str = "reddit_browser/post.json";
-const BIG_POST_PAGE: &str = "reddit_browser/big-post.json";
-const MISSING_POST_PAGE: &str = "reddit_browser/missing-post.json";
+const POST_PAGE: &str = "post.json";
+const BIG_POST_PAGE: &str = "big-post.json";
+const MISSING_POST_PAGE: &str = "missing-post.json";
 
-fn fixture(name: &str) -> String {
-    let path = format!("{}/tests/fixtures/{name}", env!("CARGO_MANIFEST_DIR"));
-    std::fs::read_to_string(&path).unwrap_or_else(|error| panic!("read {path}: {error}"))
-}
-
+/// The stored projection `name`.
 fn projection(name: &str) -> PostProjection {
-    serde_json::from_str(&fixture(name)).unwrap_or_else(|error| panic!("decode {name}: {error}"))
+    serde_json::from_str(&stored(name)).unwrap_or_else(|error| panic!("decode {name}: {error}"))
 }
 
 fn reference(id: &str) -> RedditRef {
@@ -420,9 +417,8 @@ fn the_post_page_url_asks_for_the_top_comments() {
     );
 }
 
-/// Runs the post projection on local pages trimmed from those Reddit served on 2026-11-21, with
-/// fake post, author, and account values, and compares it with the projections the judgement
-/// tests read; with `FORAGER_WRITE_PROJECTIONS` set, it writes them instead.
+/// Runs the post projection on the stored local pages and compares it with the stored projections
+/// the judgement tests read; with `FORAGER_WRITE_PROJECTIONS` set, it writes them instead.
 #[cfg(unix)]
 #[test]
 #[ignore = "launches a real browser"]

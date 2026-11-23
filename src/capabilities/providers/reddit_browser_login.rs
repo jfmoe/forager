@@ -59,6 +59,12 @@ mod tests {
 
     use super::logged_in;
     use crate::providers::browser::{Exchange, RequestMethod, ResponseBody};
+    use crate::providers::reddit_browser::tests::stored;
+
+    /// The stored home page document of a logged-in session.
+    fn home() -> String {
+        stored("home.html")
+    }
 
     fn document(url: &str, body: &str) -> Exchange {
         Exchange {
@@ -73,12 +79,7 @@ mod tests {
 
     #[test]
     fn a_home_page_whose_app_is_marked_logged_in_is_a_login() {
-        let home = document(
-            "https://www.reddit.com/",
-            r#"<!doctype html><html><body><shreddit-app pagetype="home" user-logged-in="true" theme="light"><main></main></shreddit-app></body></html>"#,
-        );
-
-        assert!(logged_in(&[home]));
+        assert!(logged_in(&[document("https://www.reddit.com/", &home())]));
     }
 
     #[test]
@@ -86,16 +87,13 @@ mod tests {
         let pages = [
             document(
                 "https://www.reddit.com/",
-                r#"<shreddit-app pagetype="home" user-logged-in="false"></shreddit-app>"#,
+                &home().replace(r#"user-logged-in="true""#, r#"user-logged-in="false""#),
             ),
             document(
                 "https://www.reddit.com/",
                 r#"<shreddit-app pagetype="home"></shreddit-app><p user-logged-in="true"></p>"#,
             ),
-            document(
-                "https://www.reddit.com/login/",
-                r#"<shreddit-app user-logged-in="true"></shreddit-app>"#,
-            ),
+            document("https://www.reddit.com/login/", &home()),
         ];
 
         assert!(!logged_in(&pages));
