@@ -1041,20 +1041,26 @@ fn run_interactive_setup(language: Option<Language>) -> Result<CommandOutput, Ap
     };
     let mut document = config::SetupDocument::load()?;
 
-    prompt_stage(language, 2);
-    configure_model(&mut input, language, &mut document, "xai")?;
-
-    prompt_stage(language, 3);
-    configure_optional_keys(
-        &mut input,
-        language,
-        &mut document,
-        &["exa", "jina", "tavily", "firecrawl"],
-    )?;
-
-    prompt_stage(language, 4);
-    let keyed_routes = ["serpapi", "youtube_api"];
-    configure_optional_keys(&mut input, language, &mut document, &keyed_routes)?;
+    for (index, step) in SetupStep::ORDER.into_iter().enumerate() {
+        step.announce(language, index + 2);
+        match step {
+            SetupStep::MainModel => {
+                configure_model(&mut input, language, &mut document, "xai")?;
+            }
+            SetupStep::SupplementalProviders => configure_optional_keys(
+                &mut input,
+                language,
+                &mut document,
+                &["exa", "jina", "tavily", "firecrawl"],
+            )?,
+            SetupStep::PlatformRoutes => configure_optional_keys(
+                &mut input,
+                language,
+                &mut document,
+                &["serpapi", "youtube_api"],
+            )?,
+        }
+    }
 
     document.save()?;
     let stdout = match language {
@@ -1079,17 +1085,41 @@ fn choose_language(input: &mut impl BufRead) -> Result<Language, AppError> {
     }
 }
 
-fn prompt_stage(language: Language, stage: u8) {
-    let label = match (language, stage) {
-        (Language::Zh, 2) => "第 2 步：主模型",
-        (Language::Zh, 3) => "第 3 步：补强 provider",
-        (Language::En, 2) => "Step 2: main model",
-        (Language::En, 3) => "Step 3: supplemental providers",
-        (Language::Zh, 4) => "第 4 步：平台 route（Scholar 与 YouTube 需要自备 key）",
-        (Language::En, 4) => "Step 4: platform routes (Scholar and YouTube need your own key)",
-        _ => return,
-    };
-    eprintln!("{label}");
+/// A step of interactive setup after the language choice, which is step 1.
+#[derive(Clone, Copy)]
+enum SetupStep {
+    MainModel,
+    SupplementalProviders,
+    PlatformRoutes,
+}
+
+impl SetupStep {
+    /// The steps in the order setup runs them; each one's number follows from its place here.
+    const ORDER: [Self; 3] = [
+        Self::MainModel,
+        Self::SupplementalProviders,
+        Self::PlatformRoutes,
+    ];
+
+    fn announce(self, language: Language, number: usize) {
+        match language {
+            Language::Zh => eprintln!("第 {number} 步：{}", self.title(language)),
+            Language::En => eprintln!("Step {number}: {}", self.title(language)),
+        }
+    }
+
+    fn title(self, language: Language) -> &'static str {
+        match (self, language) {
+            (Self::MainModel, Language::Zh) => "主模型",
+            (Self::MainModel, Language::En) => "main model",
+            (Self::SupplementalProviders, Language::Zh) => "补强 provider",
+            (Self::SupplementalProviders, Language::En) => "supplemental providers",
+            (Self::PlatformRoutes, Language::Zh) => "平台 route（Scholar 与 YouTube 需要自备 key）",
+            (Self::PlatformRoutes, Language::En) => {
+                "platform routes (Scholar and YouTube need your own key)"
+            }
+        }
+    }
 }
 
 fn configure_optional_keys(
