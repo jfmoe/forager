@@ -13,6 +13,27 @@ fail-fast = false
 # deadline fires first and the test reports what it expected and what it received.
 slow-timeout = { period = "30s", terminate-after = 2 }
 
+# The exemption list: command contract tests allowed to wait on production pacing, because no
+# operation without a wait proves their rule. Each entry keeps this generous limit when the
+# profile's own limit tightens; docs/agents/testing.md says when a test may join.
+
+# Writing fetched content to a directory needs an arXiv full text, which is the metadata request
+# and the HTML probe, two paced requests.
+[[profile.default.overrides]]
+filter = "binary_id(forager::arxiv_fetch) & test(=full_text_fetch_writes_the_body_to_a_file_and_reports_the_resolved_version)"
+slow-timeout = { period = "30s", terminate-after = 2 }
+
+# Any successful read through `youtube_web` needs the watch page and the player, two paced
+# requests, and YouTube's other routes do not reach it.
+[[profile.default.overrides]]
+filter = "binary_id(forager::youtube_web_fetch) & test(=an_abstract_fetch_prints_the_video_read_from_its_page_and_player)"
+slow-timeout = { period = "30s", terminate-after = 2 }
+
+# A history reads the market from Gamma before its prices from the Data API, two paced requests.
+[[profile.default.overrides]]
+filter = "binary_id(forager::polymarket_history) & test(=a_history_prints_the_price_series_of_the_market)"
+slow-timeout = { period = "30s", terminate-after = 2 }
+
 [profile.ci]
 retries = 0
 fail-fast = false
