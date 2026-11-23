@@ -328,17 +328,12 @@ fn merge_extra_sources(
         .map(|source| source.url.as_str())
         .collect::<HashSet<_>>();
     for source in sources {
-        if source.url().is_some_and(|url| {
-            primary_urls.contains(url)
-                || extra_sources
-                    .iter()
-                    .any(|existing| existing.url() == Some(url))
-        }) {
+        let url = source.url();
+        if primary_urls.contains(url) || extra_sources.iter().any(|existing| existing.url() == url)
+        {
             continue;
         }
-        if !extra_sources.contains(&source) {
-            extra_sources.push(source);
-        }
+        extra_sources.push(source);
     }
 }
 

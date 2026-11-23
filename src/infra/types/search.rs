@@ -69,7 +69,7 @@ pub struct SearchCandidate {
     provider: &'static str,
     capability: Capability,
     title: Option<String>,
-    url: Option<CandidateUrl>,
+    url: CandidateUrl,
     summary: Option<String>,
     provider_data: SearchCandidateProviderData,
 }
@@ -91,7 +91,7 @@ impl SearchCandidate {
             provider,
             capability,
             title: (!title.trim().is_empty()).then_some(title),
-            url: Some(CandidateUrl::parse(url)?),
+            url: CandidateUrl::parse(url)?,
             summary: text
                 .or_else(|| highlights.into_iter().next())
                 .filter(|summary| !summary.trim().is_empty()),
@@ -115,7 +115,7 @@ impl SearchCandidate {
             provider: "exa",
             capability: Capability::DocsSearch,
             title: (!title.trim().is_empty()).then_some(title),
-            url: Some(CandidateUrl::parse(url)?),
+            url: CandidateUrl::parse(url)?,
             summary: highlights
                 .first()
                 .filter(|summary| !summary.trim().is_empty())
@@ -140,7 +140,7 @@ impl SearchCandidate {
             provider,
             capability: Capability::WebFetch,
             title: None,
-            url: Some(CandidateUrl::parse(url)?),
+            url: CandidateUrl::parse(url)?,
             summary: Some(summary),
             provider_data: SearchCandidateProviderData::Empty(EmptyCandidateData {}),
         })
@@ -158,10 +158,10 @@ impl SearchCandidate {
         self.title.as_deref()
     }
 
-    /// Returns the candidate's HTTP(S) URL when it has one.
+    /// Returns the candidate's HTTP(S) URL.
     #[must_use]
-    pub fn url(&self) -> Option<&str> {
-        self.url.as_ref().map(|url| url.0.as_str())
+    pub fn url(&self) -> &str {
+        self.url.0.as_str()
     }
 
     /// Returns the provider-native summary when one was supplied.
