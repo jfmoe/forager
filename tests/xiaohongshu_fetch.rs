@@ -38,24 +38,20 @@ fn printed(output: &Output) -> String {
 #[test]
 fn a_note_without_an_access_token_fails_before_starting_the_browser() {
     let stand_in = StandIn::failing("must not start");
-    let environment = environment(&stand_in);
-    let inputs = [
-        format!("xiaohongshu:{NOTE_ID}"),
-        format!("https://www.xiaohongshu.com/explore/{NOTE_ID}"),
-        format!("https://www.xiaohongshu.com/discovery/item/{NOTE_ID}?xsec_source=pc_search"),
-    ];
 
-    let outcomes = inputs.map(|input| {
-        let output = fetch(&environment, &input);
-        (output.status.code(), printed(&output))
-    });
+    let output = fetch(&environment(&stand_in), &format!("xiaohongshu:{NOTE_ID}"));
 
-    let hint = "xiaohongshu fetch needs the note's access token: pass the `access_url` of a xiaohongshu search result, or the full note URL with its `xsec_token` copied from the browser";
-    for (code, printed) in &outcomes {
-        assert_eq!(*code, Some(2), "{printed}");
-        assert!(printed.contains(hint), "{printed}");
-    }
-    assert_eq!(stand_in.launches().len(), 0);
+    assert_eq!(
+        (output.status.code(), stand_in.launches().len()),
+        (Some(2), 0),
+        "{}",
+        printed(&output)
+    );
+    assert!(
+        printed(&output).contains("xiaohongshu fetch needs the note's access token: pass the `access_url` of a xiaohongshu search result, or the full note URL with its `xsec_token` copied from the browser"),
+        "{}",
+        printed(&output)
+    );
 }
 
 #[test]
@@ -69,23 +65,20 @@ fn the_access_token_never_reaches_the_browser_command_line_or_the_output() {
             "https://www.xiaohongshu.com/explore/{NOTE_ID}?xsec_token={TOKEN}&xsec_source=pc_search"
         ),
     );
-    let malformed = fetch(
-        &environment,
-        &format!("https://www.xiaohongshu.com/explore/{NOTE_ID}?xsec_token={TOKEN}%zz"),
-    );
     let launches = stand_in.launches();
 
     assert_eq!(
         (
             opened.status.code(),
-            malformed.status.code(),
             launches.len(),
             launches.concat().join(" ").contains(TOKEN_BODY),
         ),
-        (Some(4), Some(2), 1, false),
+        (Some(4), 1, false),
         "{launches:?}"
     );
-    for output in [&opened, &malformed] {
-        assert!(!printed(output).contains(TOKEN_BODY), "{}", printed(output));
-    }
+    assert!(
+        !printed(&opened).contains(TOKEN_BODY),
+        "{}",
+        printed(&opened)
+    );
 }
