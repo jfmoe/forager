@@ -76,7 +76,6 @@ impl SupplementalSearch {
         limit: u16,
         credential: Secret,
     ) -> Result<(Option<u16>, Vec<Source>), AttemptFailure> {
-        let provider = self.provider.name();
         let endpoint = format!("{}/search", self.config.url.trim_end_matches('/'));
         let mut request = self
             .client
@@ -101,74 +100,74 @@ impl SupplementalSearch {
         let response = send_provider_request(request, &self.credentials).await?;
         let body = read_complete_protocol(response, &self.credentials, raw_error_body).await?;
         let status = body.status;
-        let results = if self.provider == ProviderId::Tavily {
-            serde_json::from_str::<TavilySearchResponse>(&body.text)
-                .map(|response| response.results)
-        } else {
-            serde_json::from_str::<FirecrawlSearchResponse>(&body.text)
-                .map(|response| response.data.web)
-        }
-        .map_err(|error| AttemptFailure {
-            kind: AttemptErrorKind::Runtime,
-            status: Some(status),
-            message: redacted_urls_message(
-                &format!("invalid {provider} search response: {error}"),
-                &self.credentials,
-            ),
-        })?;
-        let sources = self.normalize_sources(results, limit, status)?;
+        let sources = decode_sources(self.provider, &body.text, limit, status, &self.credentials)?;
         Ok((Some(status), sources))
     }
+}
 
-    fn normalize_sources(
-        &self,
-        results: Vec<SearchResult>,
-        limit: u16,
-        status: u16,
-    ) -> Result<Vec<Source>, AttemptFailure> {
-        let results_were_empty = results.is_empty();
-        let mut sources = Vec::new();
-        let result_limit = usize::from(limit);
-        for source in results {
-            if sources.len() == result_limit {
-                break;
-            }
-            let Some(url) = source
-                .url
-                .map(|url| url.trim().to_owned())
-                .filter(|url| is_http_url(url))
-            else {
-                continue;
-            };
-            sources.push(Source {
-                title: self.credentials.redact(&source.title),
-                url: self.credentials.redact(&redact_url(&url)),
-                published_date: source
-                    .published_date
-                    .map(|value| self.credentials.redact(&value)),
-                author: source.author.map(|value| self.credentials.redact(&value)),
-                text: source
-                    .content
-                    .or(source.description)
-                    .map(|value| redact_urls(&self.credentials.redact(&value))),
-                highlights: Vec::new(),
-                id: None,
-                image: None,
-                favicon: None,
-            });
-        }
-        if !results_were_empty && sources.is_empty() {
-            return Err(AttemptFailure {
-                kind: AttemptErrorKind::Evidence,
-                status: Some(status),
-                message: format!(
-                    "{} search returned no valid candidate",
-                    self.provider.name()
-                ),
-            });
-        }
-        Ok(sources)
+/// Decodes a successful answer `body` of `provider` into at most `limit` sources, with their
+/// secrets redacted as the outcome shows them. A body whose results all lack an HTTP(S) URL is
+/// an evidence failure, unlike a body without results.
+fn decode_sources(
+    provider: ProviderId,
+    body: &str,
+    limit: u16,
+    status: u16,
+    credentials: &CredentialPool,
+) -> Result<Vec<Source>, AttemptFailure> {
+    let name = provider.name();
+    let results = if provider == ProviderId::Tavily {
+        serde_json::from_str::<TavilySearchResponse>(body).map(|response| response.results)
+    } else {
+        serde_json::from_str::<FirecrawlSearchResponse>(body).map(|response| response.data.web)
     }
+    .map_err(|error| AttemptFailure {
+        kind: AttemptErrorKind::Runtime,
+        status: Some(status),
+        message: redacted_urls_message(
+            &format!("invalid {name} search response: {error}"),
+            credentials,
+        ),
+    })?;
+    let results_were_empty = results.is_empty();
+    let mut sources = Vec::new();
+    let result_limit = usize::from(limit);
+    for source in results {
+        if sources.len() == result_limit {
+            break;
+        }
+        let Some(url) = source
+            .url
+            .map(|url| url.trim().to_owned())
+            .filter(|url| is_http_url(url))
+        else {
+            continue;
+        };
+        sources.push(Source {
+            title: credentials.redact(&source.title),
+            url: credentials.redact(&redact_url(&url)),
+            published_date: source
+                .published_date
+                .map(|value| credentials.redact(&value)),
+            author: source.author.map(|value| credentials.redact(&value)),
+            text: source
+                .content
+                .or(source.description)
+                .map(|value| redact_urls(&credentials.redact(&value))),
+            highlights: Vec::new(),
+            id: None,
+            image: None,
+            favicon: None,
+        });
+    }
+    if !results_were_empty && sources.is_empty() {
+        return Err(AttemptFailure {
+            kind: AttemptErrorKind::Evidence,
+            status: Some(status),
+            message: format!("{name} search returned no valid candidate"),
+        });
+    }
+    Ok(sources)
 }
 
 #[derive(Serialize)]
