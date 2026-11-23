@@ -3,10 +3,10 @@ mod support;
 use serde_json::json;
 
 use support::youtube::{
-    KEY, LINEAR_ALGEBRA, config, header, pairs, payload, playlist_item, playlist_items_page, stderr,
+    KEY, LINEAR_ALGEBRA, config, pairs, payload, playlist_item, playlist_items_page, stderr,
 };
 use support::{Fixture, RunEnvironment};
-use support::{path, query};
+use support::{header, path, query};
 
 fn videos(environment: &RunEnvironment, arguments: &[&str]) -> std::process::Output {
     let mut command = vec!["platform", "youtube", "videos"];

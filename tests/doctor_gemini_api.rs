@@ -6,9 +6,9 @@ mod support;
 use serde_json::{Value, json};
 
 use support::gemini_api;
-use support::path;
-use support::youtube::{header, payload};
+use support::youtube::payload;
 use support::{Fixture, Response, RunEnvironment};
+use support::{header, path};
 
 fn config(url: &str, keys: &[&str]) -> String {
     format!(

@@ -318,7 +318,14 @@ impl HnApi {
                 )),
             }
         }
-        let (item, markdown) = thread_item(reference, item_type, tree, live.as_ref(), story_title);
+        let (item, markdown) = thread_item(
+            reference,
+            item_type,
+            tree,
+            live.as_ref(),
+            story_id,
+            story_title,
+        );
         Ok((item, FullTextSource::Native(markdown)))
     }
 
@@ -453,15 +460,15 @@ impl HnApi {
 }
 
 /// Builds the discussion item and its Markdown file from the Algolia tree of `item_type`, the
-/// root's Firebase item when Firebase has it, and the title of a comment's story.
+/// root's Firebase item when Firebase has it, and the ID and title of a comment's story.
 fn thread_item(
     reference: HnRef,
     item_type: HnItemType,
     tree: ThreadNode,
     live: Option<&FirebaseItem>,
+    story_id: Option<u64>,
     story_title: Option<String>,
 ) -> (PlatformItem, String) {
-    let story_id = tree.story_id.filter(|id| *id != reference.id());
     let (root, order) = ThreadRoot::new(tree, live.map(|live| live.kids.as_slice()));
     let delivered = root.comment_count();
     let comments = live.and_then(|live| live.descendants).or_else(|| {

@@ -629,6 +629,22 @@ pub(crate) fn path(request: &str) -> String {
     target.split('?').next().unwrap_or_default().to_owned()
 }
 
+/// The value of a header of a request the fixture server recorded, matched case-insensitively.
+pub(crate) fn header(request: &str, name: &str) -> Option<String> {
+    request
+        .split("\r\n\r\n")
+        .next()
+        .unwrap_or_default()
+        .lines()
+        .skip(1)
+        .find_map(|line| {
+            let (key, value) = line.split_once(':')?;
+            key.trim()
+                .eq_ignore_ascii_case(name)
+                .then(|| value.trim().to_owned())
+        })
+}
+
 /// The decoded query parameters of a request the fixture server recorded.
 pub(crate) fn query(request: &str) -> BTreeMap<String, String> {
     let target = request.split_whitespace().nth(1).expect("request target");

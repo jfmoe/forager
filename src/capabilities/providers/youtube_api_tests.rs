@@ -12,7 +12,7 @@ use super::{
     fetch_support, live_status, reason_kind,
 };
 use crate::config::{KeyedHttpRouteRuntimeConfig, runtime_config_from_toml};
-use crate::fixture_server::{Fixture, Response, block_on, path, query};
+use crate::fixture_server::{Fixture, Response, block_on, header, path, query};
 use crate::net::{RetryPolicy, build_client};
 use crate::providers::RouteContext;
 // The stored bodies below read the sample store through this name.
@@ -80,22 +80,6 @@ fn pairs(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
         .iter()
         .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
         .collect()
-}
-
-/// Returns the value of a request header, matched case-insensitively.
-fn header(request: &str, name: &str) -> Option<String> {
-    request
-        .split("\r\n\r\n")
-        .next()
-        .unwrap_or_default()
-        .lines()
-        .skip(1)
-        .find_map(|line| {
-            let (key, value) = line.split_once(':')?;
-            key.trim()
-                .eq_ignore_ascii_case(name)
-                .then(|| value.trim().to_owned())
-        })
 }
 
 /// The header `x-goog-api-key` of a request, and whether the key appears anywhere else in it.

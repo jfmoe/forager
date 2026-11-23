@@ -84,22 +84,6 @@ pub(crate) fn payload(output: &Output) -> Value {
     })
 }
 
-/// Returns the value of a request header, matched case-insensitively.
-pub(crate) fn header(request: &str, name: &str) -> Option<String> {
-    request
-        .split("\r\n\r\n")
-        .next()
-        .unwrap_or_default()
-        .lines()
-        .skip(1)
-        .find_map(|line| {
-            let (key, value) = line.split_once(':')?;
-            key.trim()
-                .eq_ignore_ascii_case(name)
-                .then(|| value.trim().to_owned())
-        })
-}
-
 pub(crate) fn stderr(output: &Output) -> String {
     String::from_utf8_lossy(&output.stderr).into_owned()
 }

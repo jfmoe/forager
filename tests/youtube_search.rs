@@ -2,9 +2,9 @@ mod support;
 
 use serde_json::json;
 
-use support::youtube::{KEY, config, header, pairs, payload, search_page, stderr};
+use support::youtube::{KEY, config, pairs, payload, search_page, stderr};
 use support::{Fixture, RunEnvironment};
-use support::{path, query};
+use support::{header, path, query};
 
 fn search(environment: &RunEnvironment, arguments: &[&str]) -> std::process::Output {
     let mut command = vec!["platform", "youtube", "search"];
