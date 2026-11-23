@@ -1003,33 +1003,20 @@ fn declared_docs_search_normalizes_a_text_context7_library_candidate() {
 }
 
 #[test]
-fn declared_docs_search_falls_back_to_exa_when_context7_lacks_a_library_id() {
+fn declared_docs_search_projects_an_exa_result_into_a_candidate() {
     let main = Fixture::start(
         200,
         "text/event-stream",
         &completed_body("answer", "Primary"),
     );
-    let context7 = Fixture::start_sequence(vec![
-        Response::json(
-            200,
-            r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{},"serverInfo":{"name":"context7","version":"1"}}}"#,
-        )
-        .with_session("library-session"),
-        Response::json(202, ""),
-        Response::json(
-            200,
-            r#"{"jsonrpc":"2.0","id":2,"result":{"structuredContent":{"results":[{"title":"Rust","description":"Missing identity"}]},"content":[]}}"#,
-        ),
-    ]);
     let exa = Fixture::start(
         200,
         "application/json",
         r#"{"requestId":"wrapper-must-not-leak","results":[{"id":"exa-result-id","title":"Rust ownership","url":"https://doc.rust-lang.org/book/ch04-00-understanding-ownership.html","publishedDate":"2026-08-06","author":"Rust Project","text":"Full body must not leak","highlights":["Ownership summary","Secondary detail"],"image":"https://example.test/image.png","favicon":"https://example.test/favicon.ico","unknownField":"must not leak"}]}"#,
     );
     let config = format!(
-        "{}\n[providers.context7]\nurl = {:?}\nkeys = [\"context7-key\"]\ntimeout = 30\n\n[providers.exa]\nurl = {:?}\nkeys = [\"exa-key\"]\ntimeout = 30\n\n[capabilities.docs_search]\norder = [\"context7\", \"exa\"]\n",
+        "{}\n[providers.exa]\nurl = {:?}\nkeys = [\"exa-key\"]\ntimeout = 30\n\n[capabilities.docs_search]\norder = [\"exa\"]\n",
         search_config(&main.url, false),
-        context7.url,
         exa.url,
     );
     let environment = RunEnvironment::new(&config);
@@ -1073,13 +1060,12 @@ fn declared_docs_search_falls_back_to_exa_when_context7_lacks_a_library_id() {
                     "favicon": "https://example.test/favicon.ico"
                 }
             }]),
-            vec!["context7", "exa"],
+            vec!["exa"],
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     main.finish();
-    context7.finish_all();
     let exa_request = exa.finish();
     assert!(exa_request.contains(r#""type":"auto""#), "{exa_request}");
     assert!(exa_request.contains(r#""text":false"#), "{exa_request}");
@@ -1091,7 +1077,7 @@ fn declared_docs_search_falls_back_to_exa_when_context7_lacks_a_library_id() {
 }
 
 #[test]
-fn declared_docs_search_falls_back_from_an_exa_candidate_without_an_http_url() {
+fn declared_docs_search_drops_an_exa_result_without_an_http_url() {
     let main = Fixture::start(
         200,
         "text/event-stream",
@@ -1102,68 +1088,36 @@ fn declared_docs_search_falls_back_from_an_exa_candidate_without_an_http_url() {
         "application/json",
         r#"{"results":[{"title":"Invalid","url":"exa:result-id"}]}"#,
     );
-    let context7 = Fixture::start_sequence(vec![
-        Response::json(
-            200,
-            r#"{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{}}}"#,
-        )
-        .with_session("fallback-library-session"),
-        Response::json(202, ""),
-        Response::json(
-            200,
-            r#"{"jsonrpc":"2.0","id":2,"result":{"structuredContent":{"results":[{"id":"/tokio-rs/tokio","title":"Tokio","description":"Async runtime"}]},"content":[]}}"#,
-        ),
-    ]);
     let config = format!(
-        "{}\n[providers.exa]\nurl = {:?}\nkeys = [\"exa-key\"]\ntimeout = 30\n\n[providers.context7]\nurl = {:?}\nkeys = [\"context7-key\"]\ntimeout = 30\n\n[capabilities.docs_search]\norder = [\"exa\", \"context7\"]\n",
+        "{}\n[providers.exa]\nurl = {:?}\nkeys = [\"exa-key\"]\ntimeout = 30\n\n[capabilities.docs_search]\norder = [\"exa\"]\n",
         search_config(&main.url, false),
         exa.url,
-        context7.url,
     );
     let environment = RunEnvironment::new(&config);
 
-    let output = environment.run(&[
-        "search",
-        "Tokio runtime",
-        "--capabilities",
-        "docs_search",
-        "--verbose",
-    ]);
+    let output = environment.run(&["search", "Tokio runtime", "--capabilities", "docs_search"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-    let docs_attempt_providers = payload["provider_attempts"]
-        .as_array()
-        .expect("provider attempts")
-        .iter()
-        .filter(|attempt| attempt["seam"] == "docs_search")
-        .map(|attempt| attempt["provider"].as_str().expect("attempt provider"))
-        .collect::<Vec<_>>();
 
     assert_eq!(
         (
             output.status.code(),
             &payload["extra_sources"],
-            docs_attempt_providers,
+            &payload["capability_gaps"],
         ),
         (
             Some(0),
+            &Value::Null,
             &serde_json::json!([{
-                "provider": "context7",
                 "capability": "docs_search",
-                "title": "Tokio",
-                "url": null,
-                "summary": "Async runtime",
-                "provider_data": {
-                    "library_id": "/tokio-rs/tokio"
-                }
+                "reason": "all_attempts_failed",
+                "providers_skipped": []
             }]),
-            vec!["exa", "context7"],
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
     main.finish();
     exa.finish();
-    context7.finish_all();
 }
 
 #[test]
@@ -3028,7 +2982,7 @@ fn failed_main_search_reports_supplemental_capability_gaps() {
 }
 
 #[test]
-fn documentation_search_uses_exa_before_context7_by_default() {
+fn documentation_search_uses_exa_by_default() {
     let main = Fixture::start(
         200,
         "text/event-stream",
@@ -3040,7 +2994,7 @@ fn documentation_search_uses_exa_before_context7_by_default() {
         r#"{"results":[{"title":"Exa docs","url":"https://docs.example.test/api","highlights":["API reference"]}]}"#,
     );
     let config = format!(
-        "{}\n[providers.exa]\nurl = {:?}\nkeys = [\"exa-key\"]\n\n[providers.context7]\nurl = \"http://127.0.0.1:9\"\nkeys = [\"context7-key\"]\n",
+        "{}\n[providers.exa]\nurl = {:?}\nkeys = [\"exa-key\"]\n",
         search_config(&main.url, true),
         exa.url,
     );
