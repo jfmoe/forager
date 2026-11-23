@@ -1,9 +1,9 @@
 #![expect(
     dead_code,
-    reason = "each integration test compiles only the fixture capabilities it uses"
+    reason = "each offline end-to-end test binary compiles only the fixture capabilities it uses"
 )]
 
-//! Shared fixtures and the shared test environment for integration tests.
+//! Shared fixtures and the shared test environment for the offline end-to-end tests.
 
 use std::fs;
 use std::io::{self, Read, Write};

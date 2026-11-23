@@ -9,7 +9,7 @@ final-status-level = "fail"
 failure-output = "immediate"
 success-output = "never"
 fail-fast = false
-# Above the 30-second deadline the shared test environment gives a spawned binary, so that
+# Above the command deadline the shared test environment gives a spawned binary, so that
 # deadline fires first and the test reports what it expected and what it received.
 slow-timeout = { period = "30s", terminate-after = 2 }
 
@@ -17,8 +17,9 @@ slow-timeout = { period = "30s", terminate-after = 2 }
 retries = 0
 fail-fast = false
 
-# The real-browser tests are ignored by default; run them with
-# `cargo nextest run --profile real-browser --run-ignored only`.
+# For the real-browser tests, which are ignored by default. A profile cannot select ignored
+# tests, so the command line passes `--run-ignored only`; docs/agents/browser-routes.md has the
+# command.
 [profile.real-browser]
 # Every ignored test is a real-browser test in the library; with `--run-ignored only` this
 # filter selects exactly them. Narrow it when an ignored test of another kind appears.

@@ -2,10 +2,9 @@ mod support;
 
 use std::collections::BTreeMap;
 use std::fs;
-use std::process::Command;
 
 use serde_json::{Map, Value};
-use support::{forager_command, run_command};
+use support::{command_behind_closed_proxy, forager_command, run_command};
 
 const WORKFLOW_DIRECTORY: &str = ".github/workflows";
 
@@ -56,9 +55,9 @@ fn ci_does_not_run_live_smoke_checks() {
     );
 }
 
-// CI ran `cargo test`, one process with many threads, while local checks ran nextest, one process
-// per test; a fixture race in the concurrent search test showed only under CI's runner. Linux now
-// runs the local full check, unfiltered, through the `ci` profile.
+// Linux runs the local full check, unfiltered, through the `ci` profile, so CI and local checks
+// share one runner. Under `cargo test`, one process with many threads, a fixture race in the
+// concurrent search test failed in CI and not locally (#302).
 #[test]
 fn linux_runs_the_full_suite_through_the_local_runner_and_the_ci_profile() {
     let workflow = pull_request_workflow();
@@ -93,8 +92,8 @@ fn ci_locks_every_dependency_resolving_cargo_command() {
     );
 }
 
-// The Windows modules of these targets run nowhere else. When d0be5ad narrowed the Windows job,
-// the only Windows test of the read-side permission check stopped running and no test noticed.
+// The Windows modules of these targets run in no other job. Incident: d0be5ad left the only
+// Windows test of the read-side permission check running nowhere, and no test noticed.
 #[test]
 fn windows_runs_the_permission_and_release_artifact_tests_through_the_ci_profile() {
     let workflow = pull_request_workflow();
@@ -137,8 +136,8 @@ fn released_binary_reports_the_cargo_package_version() {
     );
 }
 
-// Since ab0fb3b the artifact gate verifies the targets in its own file, a second list beside the
-// one dist builds from; a target only dist lists would be published unverified.
+// The artifact gate verifies the targets in its own file, a second list beside the one dist
+// builds from (ab0fb3b); a target only dist lists is published unverified.
 #[test]
 fn release_target_allowlist_matches_dist() {
     let source = fs::read_to_string("dist-workspace.toml").expect("read dist config");
@@ -170,7 +169,7 @@ fn release_target_allowlist_matches_dist() {
 fn release_target_preparation_is_fail_closed() {
     let directory = tempfile::tempdir().expect("create release target test directory");
     let output_path = directory.path().join("github-output");
-    let mut command = Command::new("bash");
+    let mut command = command_behind_closed_proxy("bash");
     command.args([
         ".github/scripts/prepare-release-targets.sh",
         ".github/release-targets.json",
@@ -205,7 +204,7 @@ fn release_target_preparation_is_fail_closed() {
     let empty_source = directory.path().join("empty-targets.json");
     fs::write(&empty_source, r#"{"unix":[],"windows":[]}"#).expect("write empty release targets");
     let empty_output = directory.path().join("empty-output");
-    let mut command = Command::new("bash");
+    let mut command = command_behind_closed_proxy("bash");
     command
         .arg(".github/scripts/prepare-release-targets.sh")
         .arg(empty_source)
@@ -244,8 +243,8 @@ fn the_release_is_published_only_by_jobs_that_wait_for_the_artifact_gate() {
     }
 }
 
-// gh finds the repository from a checkout. The gate's draft Release downloads failed in jobs
-// without one until fbf1ce1, and the job that records the gate still checks out nothing.
+// gh finds the repository from a checkout, and the job that records the gate checks out nothing.
+// Incident: the gate's draft Release downloads failed in jobs without a checkout (fbf1ce1).
 #[test]
 fn every_release_asset_command_of_the_artifact_gate_names_the_repository() {
     let workflow = load_workflow(".github/workflows/release-artifact-gate.yml");
@@ -267,7 +266,7 @@ fn every_release_asset_command_of_the_artifact_gate_names_the_repository() {
     }
 }
 
-// release-plz ran on every push to main until de1dda8; a release is now started by hand.
+// A release is started by hand, never by a push to main (de1dda8).
 #[test]
 fn release_plz_runs_only_when_manually_dispatched() {
     let workflow = load_workflow(".github/workflows/release-plz.yml");
@@ -279,7 +278,7 @@ fn release_plz_runs_only_when_manually_dispatched() {
     );
 }
 
-// A release pull request opened with the default token starts no workflow, so its checks waited
+// A release pull request opened with the default token starts no workflow, so its checks wait
 // for the maintainer (#76); an app token lets them run.
 #[test]
 fn release_plz_commands_use_github_app_tokens() {
