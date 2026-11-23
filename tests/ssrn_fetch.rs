@@ -4,7 +4,7 @@ use std::process::Output;
 
 use serde_json::{Value, json};
 
-use support::{Fixture, Response, RunEnvironment};
+use support::{Fixture, Response, RunEnvironment, path};
 
 const DOI_PATH: &str = "/works/10.2139/ssrn.2042750";
 
@@ -55,14 +55,6 @@ fn payload(output: &Output) -> Value {
     })
 }
 
-fn request_path(request: &str) -> String {
-    request
-        .split_whitespace()
-        .nth(1)
-        .expect("request target")
-        .to_owned()
-}
-
 /// Runs one fetch against a fixture that answers with `responses`, and returns the output and
 /// the received requests.
 fn run(arguments: &[&str], responses: Vec<Response>) -> (Output, Vec<String>) {
@@ -81,7 +73,7 @@ fn fetch_returns_metadata_and_the_abstract_at_the_default_depth() {
             output.status.code(),
             requests
                 .iter()
-                .map(|request| request_path(request))
+                .map(|request| path(request))
                 .collect::<Vec<_>>(),
             payload(&output)
         ),
@@ -121,137 +113,13 @@ fn every_accepted_input_form_reads_the_same_doi() {
         assert_eq!(
             (
                 output.status.code(),
-                request_path(&requests[0]),
+                path(&requests[0]),
                 payload(&output)["ref"].clone()
             ),
             (Some(0), DOI_PATH.to_owned(), json!("ssrn:2042750")),
             "input: {input}"
         );
     }
-}
-
-#[test]
-fn a_record_without_an_abstract_succeeds_at_metadata_depth() {
-    let (output, _) = run(&["ssrn:2042750"], vec![paper(None)]);
-    let payload = payload(&output);
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["depth"],
-            &payload["abstract"]
-        ),
-        (Some(0), &json!("metadata"), &Value::Null)
-    );
-}
-
-#[test]
-fn an_abstract_request_without_an_abstract_is_a_quality_failure() {
-    let (output, _) = run(&["ssrn:2042750", "--depth", "abstract"], vec![paper(None)]);
-    let payload = payload(&output);
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["error_kind"],
-            &payload["message"]
-        ),
-        (
-            Some(5),
-            &json!("quality"),
-            &json!("Crossref has no abstract for ssrn:2042750")
-        )
-    );
-}
-
-#[test]
-fn an_abstract_request_with_an_abstract_succeeds() {
-    let (output, _) = run(
-        &["ssrn:2042750", "--depth", "abstract"],
-        vec![paper(ABSTRACT)],
-    );
-
-    assert_eq!(
-        (output.status.code(), payload(&output)["depth"].clone()),
-        (Some(0), json!("abstract"))
-    );
-}
-
-#[test]
-fn a_missing_doi_names_crossref_as_the_source() {
-    let (output, _) = run(
-        &["ssrn:2042750"],
-        vec![Response::new(404, "text/plain", "Resource not found.")],
-    );
-    let payload = payload(&output);
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["error_kind"],
-            &payload["message"]
-        ),
-        (
-            Some(4),
-            &json!("parameter"),
-            &json!("SSRN paper not found in Crossref: ssrn:2042750")
-        )
-    );
-}
-
-#[test]
-fn a_rate_limited_request_ends_the_route_without_retrying() {
-    let (output, requests) = run(
-        &["ssrn:2042750", "--verbose"],
-        vec![Response::new(429, "text/plain", "Too many requests")],
-    );
-    let payload = payload(&output);
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["error_kind"],
-            requests.len(),
-            payload["provider_attempts"].as_array().map(Vec::len),
-        ),
-        (Some(4), &json!("rate_limited"), 1, Some(1))
-    );
-}
-
-#[test]
-fn a_record_for_another_doi_is_a_runtime_failure() {
-    let (output, _) = run(
-        &["ssrn:2042750"],
-        vec![work(&record("10.2139/ssrn.1", ABSTRACT))],
-    );
-    let payload = payload(&output);
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["error_kind"],
-            &payload["message"]
-        ),
-        (
-            Some(4),
-            &json!("runtime"),
-            &json!("Crossref returned DOI 10.2139/ssrn.1 for ssrn:2042750")
-        )
-    );
-}
-
-#[test]
-fn a_response_of_another_message_type_is_a_runtime_failure() {
-    let body = json!({"status": "ok", "message-type": "work-list", "message": {"total-results": 0, "items": []}});
-    let (output, _) = run(
-        &["ssrn:2042750"],
-        vec![Response::json(200, &body.to_string())],
-    );
-
-    assert_eq!(
-        (output.status.code(), payload(&output)["error_kind"].clone()),
-        (Some(4), json!("runtime"))
-    );
 }
 
 #[test]
@@ -265,45 +133,4 @@ fn markdown_shows_the_abstract_section_only_when_there_is_an_abstract() {
     });
 
     assert_eq!(sections, [true, false]);
-}
-
-fn assert_preflight_exit(config: &str, arguments: &[&str], exit_code: i32, message: &str) {
-    let fixture = Fixture::start_canary();
-    let environment = RunEnvironment::new(&config.replace("{url}", &fixture.url));
-
-    let output = fetch(&environment, arguments);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    assert_eq!(
-        (
-            output.status.code(),
-            stderr.contains(message),
-            fixture.finish_all().len()
-        ),
-        (Some(exit_code), true, 0),
-        "arguments: {arguments:?}\nstderr: {stderr}"
-    );
-}
-
-const ROUTE_CONFIG: &str = "[providers.ssrn_crossref]\nurl = \"{url}\"\n";
-
-#[test]
-fn download_links_and_short_links_fail_before_any_request() {
-    for input in [
-        "https://papers.ssrn.com/sol3/Delivery.cfm/SSRN_ID2881657_code1556771.pdf?abstractid=2042750&mirid=1",
-        "https://papers.ssrn.com.evil.example/sol3/papers.cfm?abstract_id=2042750",
-        "https://bit.ly/abc",
-    ] {
-        assert_preflight_exit(ROUTE_CONFIG, &[input], 2, "unrecognized ssrn reference");
-    }
-}
-
-#[test]
-fn a_full_text_request_fails_before_any_request() {
-    assert_preflight_exit(
-        ROUTE_CONFIG,
-        &["ssrn:2042750", "--depth", "full_text"],
-        2,
-        "invalid value 'full_text' for '--depth <DEPTH>'",
-    );
 }

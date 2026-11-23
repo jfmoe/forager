@@ -1,0 +1,34 @@
+{
+  "status": "ok",
+  "message-type": "work-list",
+  "message-version": "1.0.0",
+  "message": {
+    "total-results": 3,
+    "items": [
+      {
+        "DOI": "10.2139/ssrn.1",
+        "title": ["Paper 1"],
+        "author": [{"given": "Gary", "family": "Antonacci", "sequence": "first"}],
+        "abstract": "<jats:p>Abstract of 1.</jats:p>",
+        "published": {"date-parts": [[2012]]},
+        "type": "posted-content",
+        "created": {"date-parts": [[2012, 4, 25]], "date-time": "2012-04-25T11:01:44Z"},
+        "resource": {"primary": {"URL": "https://www.ssrn.com/abstract=1"}}
+      },
+      {
+        "DOI": "10.1016/j.jfineco.2020.01.001",
+        "title": ["Elsewhere"]
+      },
+      {
+        "DOI": "10.2139/ssrn.2",
+        "title": ["Paper 2"],
+        "author": [{"given": "Gary", "family": "Antonacci", "sequence": "first"}],
+        "published": {"date-parts": [[2012]]},
+        "type": "journal-article",
+        "created": {"date-parts": [[2012, 4, 25]], "date-time": "2012-04-25T11:01:44Z"},
+        "resource": {"primary": {"URL": "https://www.ssrn.com/abstract=2"}}
+      }
+    ],
+    "items-per-page": 3
+  }
+}

@@ -1,0 +1,25 @@
+# Upstream samples of the `ssrn_crossref` route; each record names one file in this directory.
+
+[[sample]]
+file = "work.json"
+shape = "Crossref REST `GET /works/{doi}`: the `work` message of one SSRN DOI with its title, authors, JATS abstract, dates, type and resource URL"
+origin = "hand-written"
+observed = 2026-09-26
+
+[[sample]]
+file = "work-list.json"
+shape = "Crossref REST `GET /prefixes/10.2139/works`: a `work-list` message with the total and a page of records, one without an SSRN DOI and one without an abstract"
+origin = "hand-written"
+observed = 2026-09-26
+
+[[sample]]
+file = "validation-failure.json"
+shape = "Crossref REST `validation-failure` body: the messages of a request it rejects, answered with HTTP 400"
+origin = "hand-written"
+observed = 2026-09-26
+
+[[sample]]
+file = "not-found.txt"
+shape = "Crossref REST plain-text body of `GET /works/{doi}` for a DOI it does not have, answered with HTTP 404"
+origin = "hand-written"
+observed = 2026-09-26

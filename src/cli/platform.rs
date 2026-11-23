@@ -847,3 +847,73 @@ mod arxiv_tests {
         );
     }
 }
+
+/// The SSRN fetch command's argument rules, proven by parsing its definition in process.
+#[cfg(test)]
+mod ssrn_tests {
+    use clap::error::ErrorKind;
+
+    use super::{PlatformCommand, SsrnCommand, SsrnFetchArgs, parse_platform, ssrn_fetch_input};
+    use crate::app::AppError;
+    use crate::types::ContentDepth;
+
+    fn fetch_args(arguments: &[&str]) -> Result<SsrnFetchArgs, clap::Error> {
+        let fetch = ["ssrn", "fetch"]
+            .into_iter()
+            .chain(arguments.iter().copied());
+        match parse_platform(&fetch.collect::<Vec<_>>())? {
+            PlatformCommand::Ssrn {
+                command: SsrnCommand::Fetch(arguments),
+            } => Ok(arguments),
+            _ => unreachable!("the arguments name ssrn fetch"),
+        }
+    }
+
+    #[test]
+    fn a_fetch_reads_the_paper_at_metadata_depth_by_default() {
+        let arguments = fetch_args(&["ssrn:2042750"]).expect("the parser accepts a ref");
+
+        let (request, _, _) = ssrn_fetch_input(arguments).expect("a request");
+
+        assert_eq!(
+            (request.reference.to_string(), request.depth),
+            ("ssrn:2042750".to_owned(), ContentDepth::Metadata)
+        );
+    }
+
+    #[test]
+    fn download_links_and_short_links_are_argument_errors_before_any_request() {
+        for input in [
+            "https://papers.ssrn.com/sol3/Delivery.cfm/SSRN_ID2881657_code1556771.pdf?abstractid=2042750&mirid=1",
+            "https://papers.ssrn.com.evil.example/sol3/papers.cfm?abstract_id=2042750",
+            "https://bit.ly/abc",
+        ] {
+            let arguments = fetch_args(&[input]).expect("the parser accepts any reference");
+
+            let result = ssrn_fetch_input(arguments).map(|_| ());
+
+            assert!(
+                matches!(&result, Err(AppError::Argument(message)) if message.contains("unrecognized ssrn reference")),
+                "{input}: {result:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_full_text_depth_is_refused_while_parsing() {
+        let error = fetch_args(&["ssrn:2042750", "--depth", "full_text"])
+            .map(|_| ())
+            .expect_err("the parser refuses the depth");
+
+        assert_eq!(
+            (
+                error.kind(),
+                error
+                    .to_string()
+                    .contains("invalid value 'full_text' for '--depth <DEPTH>'")
+            ),
+            (ErrorKind::InvalidValue, true),
+            "{error}"
+        );
+    }
+}
