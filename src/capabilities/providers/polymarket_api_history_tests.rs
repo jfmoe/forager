@@ -156,6 +156,46 @@ fn both_requests_are_attempts_of_the_polymarket_history_operation() {
 }
 
 #[test]
+fn each_interval_asks_the_data_api_for_itself_in_its_default_bucket() {
+    let [yes, _] = tokens(OPEN);
+
+    let sent = [
+        PolymarketInterval::Day,
+        PolymarketInterval::Week,
+        PolymarketInterval::Month,
+        PolymarketInterval::Max,
+    ]
+    .map(|window| {
+        let (outcome, requests) = history(
+            &request(
+                &format!("polymarket:market/{OPEN}"),
+                None,
+                interval(window),
+                None,
+            ),
+            vec![json(&market(OPEN, "No cuts")), json(&price_page(&[], None))],
+        );
+        outcome.expect("history succeeds");
+        query(&requests[1])
+    });
+
+    assert_eq!(
+        sent,
+        [
+            ("1d", "300"),
+            ("1w", "3600"),
+            ("1m", "86400"),
+            ("max", "86400")
+        ]
+        .map(|(window, bucket)| pairs(&[
+            ("token_id", yes.as_str()),
+            ("interval", window),
+            ("bucket_seconds", bucket),
+        ]))
+    );
+}
+
+#[test]
 fn an_open_market_keeps_its_latest_tick_in_a_month_of_daily_prices_and_has_no_settlement() {
     let [yes, _] = tokens(OPEN);
 
