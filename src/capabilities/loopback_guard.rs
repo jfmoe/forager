@@ -84,6 +84,5 @@ fn refused_target(request: &str) -> Option<String> {
     (!loopback).then(|| host.to_owned())
 }
 
-#[cfg(test)]
 #[path = "loopback_guard_tests.rs"]
 mod tests;

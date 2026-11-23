@@ -24,8 +24,8 @@ mod credentials;
 mod doctor;
 #[path = "core/engine.rs"]
 mod engine;
-// Test builds only. The file lives with the integration test support because the in-crate
-// tests and the command contract tests share this one implementation.
+// The file lives with the test support under `tests/` because the in-crate tests and the
+// offline end-to-end tests share this one implementation.
 #[cfg(test)]
 #[expect(
     dead_code,
