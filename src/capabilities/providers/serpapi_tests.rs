@@ -186,23 +186,16 @@ fn results_with_success_are_found_with_the_next_page_signal() {
 
 #[test]
 fn a_fully_empty_success_without_results_is_empty() {
-    let body = json!({
-        "search_metadata": {"status": "Success"},
-        "search_information": {"organic_results_state": "Fully empty"}
-    });
-
-    assert_eq!(decided(&body), Ok(SearchResults::Empty));
+    assert_eq!(
+        decided(&stored("fully-empty.json")),
+        Ok(SearchResults::Empty)
+    );
 }
 
 #[test]
 fn an_error_status_is_a_network_failure_with_serpapi_message() {
-    let body = json!({
-        "search_metadata": {"id": "6ac6613da20802ffe5e7c8be", "status": "Error"},
-        "error": "Google hasn't returned any results for this query."
-    });
-
     assert_eq!(
-        decided(&body),
+        decided(&stored("status-error.json")),
         Err((
             AttemptErrorKind::Network,
             "SerpApi reported an error: Google hasn't returned any results for this query."
