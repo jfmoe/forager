@@ -384,18 +384,18 @@ mod tests {
             "https://www.reddit.com/r/running/",
             "https://www.reddit.com/r/running/comments/",
             "https://www.reddit.com/user/someone/",
-            "https://www.reddit.com/r/running/comments/17snc7d/slug/k8so54m/extra/",
+            "https://www.reddit.com/r/running/comments/17snc7d/slug/c0fake1/extra/",
             "https://www.reddit.com/r/bad-name/comments/17snc7d/",
             "https://www.reddit.com/r/running/comments/017snc7d/",
             "https://www.reddit.com/r/running/comments/17snc_7d/",
             "https://reddit.com.evil.example/r/running/comments/17snc7d/",
-            "https://i.redd.it/rvyyy1ket1xh1.jpeg",
+            "https://i.redd.it/fakeimage0001.jpeg",
             "https://redd.it/17snc7d/extra",
             "https://embed.reddit.com/r/running/comments/17snc7d/",
             "ftp://www.reddit.com/r/running/comments/17snc7d/",
             "17snc7d",
             "reddit:",
-            "reddit:t1_k8so54m",
+            "reddit:t1_c0fake1",
             "reddit:abcdefghijklmn",
         ]
         .map(reddit);
@@ -406,9 +406,9 @@ mod tests {
     #[test]
     fn a_comment_permalink_names_its_post_instead_of_dropping_the_comment() {
         let hints = [
-            "https://www.reddit.com/r/running/comments/17snc7d/comment/k8so54m/",
-            "https://www.reddit.com/r/running/comments/17snc7d/achievements/K8SO54M/",
-            "https://www.reddit.com/comments/17snc7d/_/k8so54m/",
+            "https://www.reddit.com/r/running/comments/17snc7d/comment/c0fake1/",
+            "https://www.reddit.com/r/running/comments/17snc7d/achievements/C0FAKE1/",
+            "https://www.reddit.com/comments/17snc7d/_/c0fake1/",
         ]
         .map(|input| hint(input).rsplit("; ").next().map(str::to_owned));
 
@@ -417,16 +417,16 @@ mod tests {
             [(); 3].map(|()| Some("Reddit refs name posts, so fetch reddit:17snc7d to read the post and its discussion".to_owned()))
         );
         assert!(
-            hint("https://www.reddit.com/comments/17snc7d/_/k8so54m/")
-                .contains("this URL names comment t1_k8so54m of post reddit:17snc7d")
+            hint("https://www.reddit.com/comments/17snc7d/_/c0fake1/")
+                .contains("this URL names comment t1_c0fake1 of post reddit:17snc7d")
         );
     }
 
     #[test]
     fn a_share_link_is_refused_because_resolving_it_needs_the_network() {
         let hints = [
-            "https://www.reddit.com/r/running/s/3TzXiyxaMD",
-            "https://www.reddit.com/s/3TzXiyxaMD",
+            "https://www.reddit.com/r/running/s/0FakeShare",
+            "https://www.reddit.com/s/0FakeShare",
         ]
         .map(|input| {
             hint(input).ends_with("open it in a browser and pass the post URL it leads to")
