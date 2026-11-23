@@ -500,11 +500,11 @@ mod tests {
     use crate::providers::xiaohongshu_browser::tests::stored;
 
     const SEARCH_PATH: &str = "/api/sns/web/v1/search/notes";
+    const ONEBOX_PATH: &str = "/api/sns/web/v1/search/onebox";
 
-    /// A failure answer in the form of the stored logged-out account answer, with `code` and
-    /// `msg`.
-    fn failure(code: i64, msg: Option<&str>) -> Value {
-        let mut answer = stored("account-logged-out.json");
+    /// The stored `search/notes` failure answer with `code` and `msg`.
+    fn failure(code: i64, msg: &str) -> Value {
+        let mut answer = stored("search-error.json");
         answer["code"] = json!(code);
         answer["msg"] = json!(msg);
         answer
@@ -534,13 +534,11 @@ mod tests {
 
     #[test]
     fn an_account_answer_with_a_login_code_or_a_guest_is_a_logged_out_session() {
+        let mut expired = stored("account-logged-out.json");
+        expired["code"] = json!(-100);
         let mut guest = stored("account.json");
         guest["data"]["guest"] = json!(true);
-        let answers = [
-            stored("account-logged-out.json"),
-            failure(-100, None),
-            guest,
-        ];
+        let answers = [stored("account-logged-out.json"), expired, guest];
 
         let guests =
             answers.map(|answer| absorbed(&[exchange(ACCOUNT_PATH, 200, Some(&answer))]).guest);
@@ -560,17 +558,19 @@ mod tests {
 
     #[test]
     fn an_api_answer_with_a_login_code_is_a_logged_out_session() {
-        let answer = stored("account-logged-out.json");
-
-        let facts = absorbed(&[exchange(SEARCH_PATH, 200, Some(&answer))]);
+        let facts = absorbed(&[exchange(
+            SEARCH_PATH,
+            200,
+            Some(&stored("search-error.json")),
+        )]);
 
         assert_eq!((facts.guest, facts.api_error.is_none()), (true, true));
     }
 
     #[test]
     fn the_first_failure_code_of_an_api_answer_is_kept_with_its_path_and_message() {
-        let first = failure(300_031, Some("当前笔记暂时无法浏览"));
-        let second = failure(999_999, Some("未知错误"));
+        let first = failure(300_031, "当前笔记暂时无法浏览");
+        let second = failure(999_999, "未知错误");
 
         let facts = absorbed(&[
             exchange(SEARCH_PATH, 200, Some(&first)),
@@ -586,7 +586,7 @@ mod tests {
 
     #[test]
     fn a_zero_code_is_no_failure_even_without_success() {
-        let facts = absorbed(&[exchange(SEARCH_PATH, 200, Some(&stored("onebox.json")))]);
+        let facts = absorbed(&[exchange(ONEBOX_PATH, 200, Some(&stored("onebox.json")))]);
 
         assert!(facts.api_error.is_none(), "{:?}", facts.api_error);
     }

@@ -37,3 +37,9 @@ file = "onebox.json"
 shape = "`POST /api/sns/web/v1/search/onebox` answer on a working search: code 0 with `success: false`"
 origin = "hand-written"
 observed = 2026-11-18
+
+[[sample]]
+file = "search-error.json"
+shape = "`POST /api/sns/web/v1/search/notes` failure answer: a non-zero code with its message, here the login code -101 of a session that is not logged in"
+origin = "hand-written"
+observed = 2026-11-19
