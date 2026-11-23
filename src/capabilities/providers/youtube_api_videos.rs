@@ -76,10 +76,10 @@ struct PlaylistItemDetails {
 }
 
 /// The videos of one page and the positions of the entries skipped as unreadable.
-struct ListedPage {
-    items: Vec<PlatformItem>,
-    unreadable: Vec<u64>,
-    next_page: Option<String>,
+pub(super) struct ListedPage {
+    pub(super) items: Vec<PlatformItem>,
+    pub(super) unreadable: Vec<u64>,
+    pub(super) next_page: Option<String>,
 }
 
 /// Where a page of videos is read from: a known playlist, or a channel whose uploads playlist
@@ -298,7 +298,7 @@ fn playlist_not_found(collection: &YoutubeRef, failure: AttemptFailure) -> Attem
     }
 }
 
-fn listed_page(body: &str) -> Result<ListedPage, Refusal> {
+pub(super) fn listed_page(body: &str) -> Result<ListedPage, Refusal> {
     let response = decode::<PlaylistItemListResponse>(body)?;
     let mut page = ListedPage {
         items: Vec::new(),

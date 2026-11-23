@@ -198,10 +198,7 @@ impl YoutubeApi {
                 "videos",
                 &query,
                 PlatformOperation::Fetch.as_str(),
-                |body| {
-                    let response = decode::<VideoListResponse>(body)?;
-                    fetched_item(reference, depth, require_description, response.items)
-                },
+                |body| decode_video(reference, depth, require_description, body),
             )
             .await?;
         Ok(PlatformFetchOutcome {
@@ -335,6 +332,17 @@ struct Statistics {
 struct LiveStreamingDetails {
     actual_start_time: Option<String>,
     actual_end_time: Option<String>,
+}
+
+/// Reads the `videos.list` body of a fetch as the fetched item.
+pub(super) fn decode_video(
+    reference: &YoutubeRef,
+    depth: ContentDepth,
+    require_description: bool,
+    body: &str,
+) -> Result<PlatformItem, Refusal> {
+    let response = decode::<VideoListResponse>(body)?;
+    fetched_item(reference, depth, require_description, response.items)
 }
 
 /// Builds the fetched item from the one video the API returned for the request.
