@@ -40,6 +40,12 @@ slow-timeout = { period = "30s", terminate-after = 2 }
 filter = "binary_id(forager::hn_fetch) & test(=a_thread_is_written_to_a_file_with_top_level_comments_in_rank_order)"
 slow-timeout = { period = "30s", terminate-after = 2 }
 
+# A browser route's timeout through the CLI: `timeout` takes whole seconds, and the smallest that
+# still launches the browser leaves a working deadline of whole seconds after the cleanup reserve.
+[[profile.default.overrides]]
+filter = "(binary_id(forager::xiaohongshu_search) | binary_id(forager::reddit_browser_search)) & test(=a_browser_that_never_answers_is_one_timed_out_attempt)"
+slow-timeout = { period = "30s", terminate-after = 2 }
+
 [profile.ci]
 retries = 0
 fail-fast = false
