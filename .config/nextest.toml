@@ -1,0 +1,27 @@
+# The test runner configuration that local checks and CI share.
+nextest-version = { required = "0.9.152" }
+
+[profile.default]
+# A passing run prints only the summary. A failing run prints each failure's output as it
+# happens and ends by naming every failed test, so the end of the output is the list to read.
+status-level = "fail"
+final-status-level = "fail"
+failure-output = "immediate"
+success-output = "never"
+fail-fast = false
+# Above the 30-second deadline the shared test environment gives a spawned binary, so that
+# deadline fires first and the test reports what it expected and what it received.
+slow-timeout = { period = "30s", terminate-after = 2 }
+
+[profile.ci]
+retries = 0
+fail-fast = false
+
+# The real-browser tests are ignored by default; run them with
+# `cargo nextest run --profile real-browser --run-ignored only`.
+[profile.real-browser]
+# Every ignored test is a real-browser test in the library; with `--run-ignored only` this
+# filter selects exactly them. Narrow it when an ignored test of another kind appears.
+default-filter = "kind(lib)"
+test-threads = 2
+slow-timeout = { period = "60s", terminate-after = 3 }
