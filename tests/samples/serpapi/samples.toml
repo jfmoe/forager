@@ -1,0 +1,49 @@
+# Upstream samples of the `serpapi` route; each record names one file in this directory.
+
+[[sample]]
+file = "search.json"
+shape = "SerpApi `GET /search.json` with `engine=google_scholar` and `q`: a `Success` page of organic results with their result IDs, bylines, resources and inline cited-by and versions links, and the pagination with its next page"
+origin = "captured"
+observed = 2026-10-07
+obtained = "a Google Scholar search for `time series momentum` through SerpApi with a real key, during the route's live test; the search ID is zeroed"
+
+[[sample]]
+file = "cited_by.json"
+shape = "SerpApi `GET /search.json` with `engine=google_scholar` and `cites`: a `Success` page of the works citing one cluster, beside its citations per year and profiles, and the pagination with its next page"
+origin = "captured"
+observed = 2026-10-08
+obtained = "a cited-by search of scholar:18208131694456651388 with the query `crash` through SerpApi with a real key, during the operation's live test; the search ID is zeroed"
+
+[[sample]]
+file = "cluster.json"
+shape = "SerpApi `GET /search.json` with `engine=google_scholar` and `cluster`: a `Success` page listing the versions of one paper, without pagination"
+origin = "captured"
+observed = 2026-10-08
+obtained = "a cluster lookup of scholar:18208131694456651388 through SerpApi with a real key, during the route's live test; the search ID is zeroed"
+
+[[sample]]
+file = "fully-empty.json"
+shape = "SerpApi `GET /search.json` with `engine=google_scholar`: a `Success` answer whose results state is `Fully empty`, with no organic results and an error message"
+origin = "captured"
+observed = 2026-10-08
+obtained = "a cluster lookup of scholar:1 through SerpApi with a real key, trimmed to its status, results state and message; a cited-by search of the same ID answered alike; the search ID is zeroed"
+
+[[sample]]
+file = "status-error.json"
+shape = "SerpApi `GET /search.json` answered with HTTP 200 and the search status `Error`, carrying the error message"
+origin = "hand-written"
+observed = 2026-10-08
+
+[[sample]]
+file = "invalid-key.json"
+shape = "SerpApi error body for a key it does not accept, answered with HTTP 401"
+origin = "captured"
+observed = 2026-10-08
+obtained = "a SerpApi request with a key SerpApi does not accept, during the route's live test"
+
+[[sample]]
+file = "account.json"
+shape = "SerpApi Account API `GET /account.json`: the plan, the searches left and this month's and this hour's usage of one key"
+origin = "captured"
+observed = 2026-10-08
+obtained = "an Account API request with a real key, during the account probe's live test; the account ID, key and email are fake values"

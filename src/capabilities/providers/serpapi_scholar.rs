@@ -536,8 +536,260 @@ fn resources(resources: Option<Vec<Resource>>) -> Vec<ScholarResource> {
 mod tests {
     use serde_json::{Value, json};
 
-    use super::{OrganicResult, resources, result_id_cluster};
-    use crate::types::ScholarRef;
+    use super::super::success_protocol;
+    use super::{
+        DecodedCluster, DecodedPage, OrganicResult, decode_cluster, decode_page, resources,
+        result_id_cluster,
+    };
+    use crate::samples::sample;
+    use crate::types::{PlatformRef, ScholarRef};
+
+    /// The stored SerpApi body `name`.
+    fn stored(name: &str) -> Value {
+        serde_json::from_str(&sample(&format!("serpapi/{name}")))
+            .unwrap_or_else(|error| panic!("stored serpapi/{name}: {error}"))
+    }
+
+    /// Decodes a results page as a search or cited-by attempt does.
+    fn page(body: &Value) -> DecodedPage {
+        let decoded = success_protocol(&body.to_string()).and_then(decode_page);
+        decoded.unwrap_or_else(|failure| panic!("decode the page: {}", failure.message))
+    }
+
+    fn to_json<T: serde::Serialize + ?Sized>(value: &T) -> Value {
+        serde_json::to_value(value).expect("serialize")
+    }
+
+    fn refs(page: &DecodedPage) -> Vec<String> {
+        page.items
+            .iter()
+            .map(|item| item.reference.to_string())
+            .collect()
+    }
+
+    #[test]
+    fn a_search_page_decodes_its_results_with_cluster_refs_and_metadata() {
+        let source = stored("search.json");
+        let snippet = |index: usize| source["organic_results"][index]["snippet"].clone();
+
+        let decoded = page(&source);
+        let first = to_json(&decoded.items[..4]);
+
+        assert_eq!(
+            (
+                first,
+                decoded.items.len(),
+                decoded.skipped,
+                decoded.has_next_page
+            ),
+            (
+                json!([
+                    {
+                        "ref": "scholar:18208131694456651388",
+                        "url": "https://scholar.google.com/scholar?cluster=18208131694456651388",
+                        "depth": "snippet",
+                        "title": "Time series momentum",
+                        "authors": ["TJ Moskowitz", "YH Ooi", "LH Pedersen"],
+                        "published": "2012",
+                        "snippet": snippet(0),
+                        "link": "https://www.sciencedirect.com/science/article/pii/S0304405X11002613",
+                        "source": "TJ Moskowitz, YH Ooi, LH Pedersen - Journal of financial economics, 2012 - Elsevier",
+                        "cited_by": 2307,
+                        "version_count": 45,
+                        "resources": [{
+                            "title": "sciencedirect.com",
+                            "file_format": "HTML",
+                            "url": "https://www.sciencedirect.com/science/article/pii/S0304405X11002613"
+                        }],
+                        "result_type": "Html"
+                    },
+                    {
+                        "ref": "scholar:10743434366743644145",
+                        "url": "https://scholar.google.com/scholar?cluster=10743434366743644145",
+                        "depth": "snippet",
+                        "title": "Enhancing time series momentum strategies using deep neural networks",
+                        "authors": ["B Lim", "S Zohren", "S Roberts"],
+                        "published": "2019",
+                        "snippet": snippet(1),
+                        "link": "https://arxiv.org/abs/1904.04912",
+                        "source": "B Lim, S Zohren, S Roberts - arXiv preprint arXiv:1904.04912, 2019 - arxiv.org",
+                        "cited_by": 151,
+                        "version_count": 18,
+                        "resources": [{
+                            "title": "arxiv.org",
+                            "file_format": "PDF",
+                            "url": "https://arxiv.org/pdf/1904.04912"
+                        }],
+                        "result_type": null
+                    },
+                    {
+                        // No explicit ID: the ref comes from `result_id`, and SerpApi answered a
+                        // cluster lookup for this ID with this paper.
+                        "ref": "scholar:2175834747627124651",
+                        "url": "https://scholar.google.com/scholar?cluster=2175834747627124651",
+                        "depth": "snippet",
+                        "title": "When Does Risk-Managed Momentum Add Value? An Out-of-Sample, Regime-Conditional, and Statistically Tested Study of a Volatility-Targeted Dual-Momentum …",
+                        "authors": ["A Goyal"],
+                        "published": "2026",
+                        "snippet": snippet(2),
+                        "link": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7143882",
+                        "source": "A Goyal - … Volatility-Targeted Dual-Momentum Strategy (June 15 …, 2026 - papers.ssrn.com",
+                        "cited_by": null,
+                        "version_count": null,
+                        "resources": [{
+                            "title": "ssrn.com",
+                            "file_format": "PDF",
+                            "url": "https://papers.ssrn.com/sol3/Delivery.cfm?abstractid=7143882"
+                        }],
+                        "result_type": null
+                    },
+                    {
+                        "ref": "scholar:15167737520660287132",
+                        "url": "https://scholar.google.com/scholar?cluster=15167737520660287132",
+                        "depth": "snippet",
+                        "title": "Resilience Anomaly and Asset Pricing in the Chinese Stock Market",
+                        "authors": ["J Hu", "X Li", "T Wang"],
+                        "published": null,
+                        "snippet": snippet(3),
+                        "link": "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=7506942",
+                        "source": "J Hu, X Li, T Wang - papers.ssrn.com",
+                        "cited_by": null,
+                        "version_count": null,
+                        "resources": [{
+                            "title": "ssrn.com",
+                            "file_format": "PDF",
+                            "url": "https://papers.ssrn.com/sol3/Delivery.cfm?abstractid=7506942"
+                        }],
+                        "result_type": null
+                    }
+                ]),
+                8,
+                None,
+                true
+            )
+        );
+    }
+
+    #[test]
+    fn a_result_without_a_verifiable_identity_is_skipped_and_named() {
+        let mut source = stored("search.json");
+        let results = source["organic_results"].as_array().expect("results");
+        let mut unidentified = results[3].clone();
+        unidentified["result_id"] = Value::Null;
+        source["organic_results"] = json!([results[1].clone(), unidentified]);
+
+        let decoded = page(&source);
+
+        assert_eq!(
+            (refs(&decoded), decoded.skipped),
+            (
+                vec!["scholar:10743434366743644145".to_owned()],
+                Some(
+                    "serpapi skipped 1 Google Scholar results without a usable cluster ID: \"Resilience Anomaly and Asset Pricing in the Chinese Stock Market\" (no explicit cluster ID and no decodable result_id)"
+                        .to_owned()
+                )
+            )
+        );
+    }
+
+    #[test]
+    fn a_cited_by_page_decodes_citing_works_like_search_results() {
+        let source = stored("cited_by.json");
+
+        let decoded = page(&source);
+
+        assert_eq!(
+            (
+                refs(&decoded),
+                to_json(&decoded.items[0]),
+                decoded.has_next_page
+            ),
+            (
+                vec![
+                    "scholar:2061579707271568590".to_owned(),
+                    "scholar:13440399377941409520".to_owned(),
+                    "scholar:239332318604014067".to_owned(),
+                ],
+                json!({
+                    "ref": "scholar:2061579707271568590",
+                    "url": "https://scholar.google.com/scholar?cluster=2061579707271568590",
+                    "depth": "snippet",
+                    "title": "Momentum crashes",
+                    "authors": ["K Daniel", "TJ Moskowitz"],
+                    "published": "2016",
+                    "snippet": source["organic_results"][0]["snippet"],
+                    "link": "https://www.sciencedirect.com/science/article/pii/S0304405X16301490",
+                    "source": "K Daniel, TJ Moskowitz - Journal of Financial economics, 2016 - Elsevier",
+                    "cited_by": 1851,
+                    "version_count": 28,
+                    "resources": [{
+                        "title": "sciencedirect.com",
+                        "file_format": "HTML",
+                        "url": "https://www.sciencedirect.com/science/article/pii/S0304405X16301490"
+                    }],
+                    "result_type": "Html"
+                }),
+                true
+            )
+        );
+    }
+
+    #[test]
+    fn a_cluster_page_lists_the_versions_of_the_requested_paper_at_metadata_depth() {
+        let requested = ScholarRef::from(18_208_131_694_456_651_388);
+        let results = success_protocol(&stored("cluster.json").to_string())
+            .unwrap_or_else(|failure| panic!("a cluster page: {}", failure.message));
+
+        let DecodedCluster {
+            item,
+            has_more_versions,
+        } = decode_cluster(results, requested)
+            .unwrap_or_else(|failure| panic!("decode the cluster: {}", failure.message));
+
+        assert_eq!(
+            (
+                item.reference == PlatformRef::Scholar(requested),
+                to_json(&item),
+                has_more_versions
+            ),
+            (
+                true,
+                json!({
+                    "ref": "scholar:18208131694456651388",
+                    "url": "https://scholar.google.com/scholar?cluster=18208131694456651388",
+                    "depth": "metadata",
+                    "title": "Time series momentum$",
+                    "authors": ["TJ Moskowitz", "YH Ooi"],
+                    "published": "2012",
+                    "versions": [
+                        {
+                            "title": "Time series momentum$",
+                            "link": "https://www.trendfollowing.com/whitepaper/b.pdf",
+                            "source": "TJ Moskowitz, YH Ooi… - Journal of Financial …, 2012 - trendfollowing.com",
+                            "resources": [{
+                                "title": "trendfollowing.com",
+                                "file_format": "PDF",
+                                "url": "https://www.trendfollowing.com/whitepaper/b.pdf"
+                            }]
+                        },
+                        {
+                            "title": "Replication of “Time series momentum”",
+                            "link": "https://dmurav.com/replications/releases/v2026-09-06/reports/paper-f920fb6a4696.pdf",
+                            "source": "TJ Moskowitz, YH Ooi, LH Pedersen - Journal of Financial Economics, 2012 - dmurav.com",
+                            "resources": []
+                        },
+                        {
+                            "title": "Time series momentum",
+                            "link": null,
+                            "source": "TJ Moskowitz, YH Ooi, LH Pedersen - Journal of Financial Economics, 2012",
+                            "resources": []
+                        }
+                    ]
+                }),
+                false
+            )
+        );
+    }
 
     fn organic(value: Value) -> OrganicResult {
         serde_json::from_value(value).expect("decode result")
