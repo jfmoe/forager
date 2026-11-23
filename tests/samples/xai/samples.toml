@@ -29,3 +29,9 @@ shape = "xAI Responses `POST /responses` for X ask: the `x_search` tool with han
 origin = "captured"
 observed = 2026-10-17
 obtained = "a question about SpaceX's Starship posts in early October 2026 through the SuperGrok gateway with grok-4.5 and a real key, during the route's live test, trimmed to the output and tool usage; the response ID is zeroed"
+
+[[sample]]
+file = "search.json"
+shape = "xAI Responses `POST /responses` for main search with the `web_search` tool: output text that carries a `<think>` block, inline `[[N]](url)` bindings and a trailing `Sources:` block, and a `url_citation` annotation whose URL holds a secret query parameter and a fragment"
+origin = "hand-written"
+observed = 2026-07-26

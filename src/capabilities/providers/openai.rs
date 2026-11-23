@@ -76,3 +76,7 @@ impl Openai {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "openai_tests.rs"]
+mod tests;

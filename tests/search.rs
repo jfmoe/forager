@@ -5,7 +5,9 @@ use std::time::Duration;
 
 use serde_json::Value;
 
-use support::{Fixture, Response, RunEnvironment, jina_response, request_json};
+use support::main_search_samples::answer_with;
+use support::x_samples::completed_events;
+use support::{Fixture, Response, RunEnvironment, jina_response};
 
 #[test]
 fn caller_capability_declaration_is_normalized_in_vocabulary_order() {
@@ -212,142 +214,6 @@ fn search_markdown_separates_primary_sources_from_untitled_extra_sources() {
 }
 
 #[test]
-fn search_uses_the_completed_xai_response_and_deduplicates_sources() {
-    let answer = concat!(
-        "<think>Hidden [[9]](https://hidden.example/path)</think>\n",
-        "Final answer [[1]](https://example.test/inline)\n\n",
-        "Sources:\n",
-        "- [Tail](https://example.test/tail)"
-    );
-    let fixture = Fixture::start(
-        200,
-        "text/event-stream",
-        &format!(
-            ": keepalive\n\ndata:\n\ndata: [DONE]\n\ndata: {}\n\n",
-            serde_json::json!({
-                "type": "response.completed",
-                "response": {"output": [{"content": [{
-                    "type": "output_text",
-                    "text": answer,
-                    "annotations": [{
-                        "type": "url_citation",
-                        "url": "https://example.test/a?token=secret#fragment",
-                        "title": "Source A"
-                    }]
-                }]}]}
-            })
-        ),
-    );
-    let environment = RunEnvironment::new(&search_config(&fixture.url, false));
-
-    let output = environment.run(&["search", "What changed?", "--capabilities", "none"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["answer"],
-            &payload["sources"],
-            &payload["journal_status"],
-        ),
-        (
-            Some(0),
-            &Value::String("Final answer [[1]](https://example.test/inline)".into()),
-            &serde_json::json!([
-                {
-                    "title": "Source A",
-                    "url": "https://example.test/a?token=********"
-                },
-                {"url": "https://example.test/inline"},
-                {"title": "Tail", "url": "https://example.test/tail"}
-            ]),
-            &Value::String("disabled".into()),
-        ),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(payload.get("provider_attempts").is_none());
-    assert!(!payload.to_string().contains("hidden.example"));
-
-    let request = fixture.finish();
-    assert!(request.starts_with("POST /v1/responses "), "{request}");
-    assert!(
-        request.contains("authorization: Bearer xai-key"),
-        "{request}"
-    );
-    assert!(request.contains("\"stream\":true"), "{request}");
-    assert!(request.contains("\"model\":\"test-model\""), "{request}");
-    let request_body = request_json(&request);
-    assert_eq!(
-        &request_body["input"][0]["role"],
-        &Value::String("user".into())
-    );
-    assert!(request_body["instructions"].as_str().is_some());
-    assert!(
-        request_body["input"][0]["content"]
-            .as_str()
-            .is_some_and(|content| content.contains("What changed?"))
-    );
-}
-
-#[test]
-fn search_fails_when_xai_normalization_removes_the_answer() {
-    let xai = Fixture::start(
-        200,
-        "text/event-stream",
-        &completed_body("<think>hidden-only</think>", "Hidden source"),
-    );
-    let environment = RunEnvironment::new(&search_config(&xai.url, false));
-
-    let output = environment.run(&["search", "Hidden", "--capabilities", "none"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["error_kind"],
-            payload.get("answer"),
-        ),
-        (Some(4), &Value::String("runtime".into()), None),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    xai.finish();
-}
-
-#[test]
-fn search_preserves_answer_content_while_redacting_sources() {
-    let fixture = Fixture::start(
-        200,
-        "text/event-stream",
-        &completed_body(
-            "xai-key https://example.test/answer?token=answer-secret",
-            "xai-key source title",
-        ),
-    );
-    let environment = RunEnvironment::new(&search_config(&fixture.url, false));
-
-    let output = environment.run(&["search", "Answer exemption", "--capabilities", "none"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["answer"],
-            &payload["sources"][0]["title"],
-            &payload["sources"][0]["url"],
-        ),
-        (
-            Some(0),
-            &Value::String("xai-key https://example.test/answer?token=answer-secret".into()),
-            &Value::String("******** source title".into()),
-            &Value::String("https://example.test/source?token=********".into()),
-        )
-    );
-    fixture.finish();
-}
-
-#[test]
 fn search_default_json_moves_invocation_echoes_to_the_journal() {
     let answer = concat!(
         "<think>hidden</think>\n",
@@ -412,118 +278,6 @@ fn search_default_json_moves_invocation_echoes_to_the_journal() {
             &serde_json::json!([]),
             &Value::String("xai".into()),
             &Value::String("test-model".into()),
-        ),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    fixture.finish();
-}
-
-#[test]
-fn primary_source_without_title_omits_json_title() {
-    let fixture = Fixture::start(
-        200,
-        "text/event-stream",
-        concat!(
-            "event: response.output_text.delta\n",
-            "data: {\"type\":\"response.output_text.delta\",\"delta\":\"answer\"}\n\n",
-            "event: response.completed\n",
-            "data: {\"type\":\"response.completed\",\"response\":{\"output\":[{\"content\":[",
-            "{\"type\":\"output_text\",\"text\":\"answer\",\"annotations\":[",
-            "{\"type\":\"url_citation\",\"url\":\"https://example.test/untitled\"}",
-            "]}]}]}}\n\n"
-        ),
-    );
-    let environment = RunEnvironment::new(&search_config(&fixture.url, false));
-
-    let output = environment.run(&["search", "Untitled source", "--capabilities", "none"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
-    assert_eq!(
-        (output.status.code(), &payload["sources"]),
-        (
-            Some(0),
-            &serde_json::json!([{"url": "https://example.test/untitled"}]),
-        ),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    fixture.finish();
-}
-
-#[test]
-fn search_fails_when_the_raw_sse_stream_exceeds_four_mibibytes() {
-    let body = format!("data: {}\n\n", "x".repeat(4 * 1024 * 1024));
-    let fixture = Fixture::start(200, "text/event-stream", &body);
-    let environment = RunEnvironment::new(&search_config(&fixture.url, false));
-
-    let output = environment.run(&["search", "Runaway stream", "--capabilities", "none"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["error_kind"],
-            &payload["message"],
-        ),
-        (
-            Some(4),
-            &Value::String("runtime".into()),
-            &Value::String("response exceeded 4 MiB".into()),
-        )
-    );
-    fixture.finish();
-}
-
-#[test]
-fn search_rejects_an_xai_sse_body_that_exceeds_four_mibibytes_after_completion() {
-    let body = format!(
-        "{}data: {}\n\n",
-        completed_body("Partial answer", "Partial source"),
-        "x".repeat(4 * 1024 * 1024)
-    );
-    let fixture = Fixture::start(200, "text/event-stream", &body);
-    let environment = RunEnvironment::new(&search_config(&fixture.url, false));
-
-    let output = environment.run(&["search", "Oversized tail", "--capabilities", "none"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["error_kind"],
-            &payload["message"],
-            payload.get("answer"),
-            payload.get("sources"),
-        ),
-        (
-            Some(4),
-            &Value::String("runtime".into()),
-            &Value::String("response exceeded 4 MiB".into()),
-            None,
-            None,
-        )
-    );
-    fixture.finish();
-}
-
-#[test]
-fn search_accepts_a_complete_xai_sse_body_at_four_mibibytes() {
-    let completed = completed_body("Boundary answer", "Boundary source");
-    let padding = "x".repeat(4 * 1024 * 1024 - completed.len() - 3);
-    let body = format!(":{padding}\n\n{completed}");
-    let fixture = Fixture::start(200, "text/event-stream", &body);
-    let environment = RunEnvironment::new(&search_config(&fixture.url, false));
-
-    let output = environment.run(&["search", "Boundary SSE", "--capabilities", "none"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
-    assert_eq!(
-        (body.len(), output.status.code(), &payload["answer"]),
-        (
-            4 * 1024 * 1024,
-            Some(0),
-            &Value::String("Boundary answer".into()),
         ),
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
@@ -607,225 +361,6 @@ fn search_formats_content_and_markdown_and_marks_json_tee_failures() {
         )
     );
     fixture.finish_all();
-}
-
-#[test]
-fn search_maps_unknown_xai_terminals_missing_completion_and_malformed_frames_to_runtime() {
-    for body in [
-        "data: {\"type\":\"response.failed\",\"error\":{\"message\":\"upstream failed\"}}\n\n",
-        "data: {\"type\":\"response.incomplete\",\"response\":{}}\n\n",
-        "data: {\"type\":\"response.output_text.delta\",\"delta\":\"partial\"}\n\n",
-        "data: {not-json}\n\n",
-    ] {
-        let fixture = Fixture::start(200, "text/event-stream", body);
-        let environment = RunEnvironment::new(&search_config(&fixture.url, false));
-
-        let output = environment.run(&["search", "Failure", "--capabilities", "none"]);
-        let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
-        assert_eq!(
-            (
-                output.status.code(),
-                &payload["error_kind"],
-                &payload["attempts"]["total"],
-                &payload["journal_status"],
-            ),
-            (
-                Some(4),
-                &Value::String("runtime".into()),
-                &Value::from(1),
-                &Value::String("disabled".into()),
-            ),
-            "stderr: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        fixture.finish();
-    }
-}
-
-#[test]
-fn search_xai_structured_terminals_drive_retry_and_credential_rotation() {
-    let retry = Fixture::start_sequence(vec![
-        Response::sse(
-            200,
-            "data: {\"type\":\"response.failed\",\"error\":{\"code\":\"server_error\"}}\n\n",
-        ),
-        Response::sse(200, &completed_body("Retried answer", "Retried source")),
-    ]);
-    let retry_environment = RunEnvironment::new(
-        &search_config(&retry.url, false).replace("max_attempts = 1", "max_attempts = 2"),
-    );
-
-    let retry_output =
-        retry_environment.run(&["search", "Retry", "--capabilities", "none", "--verbose"]);
-    let retry_payload: Value =
-        serde_json::from_slice(&retry_output.stdout).expect("parse retry stdout");
-
-    assert_eq!(
-        (
-            retry_output.status.code(),
-            &retry_payload["answer"],
-            &retry_payload["provider_attempts"][0]["error_kind"],
-            &retry_payload["provider_attempts"][1]["error_kind"],
-        ),
-        (
-            Some(0),
-            &Value::String("Retried answer".into()),
-            &Value::String("network".into()),
-            &Value::Null,
-        )
-    );
-    assert_eq!(retry.finish_all().len(), 2);
-
-    let rotation = Fixture::start_sequence(vec![
-        Response::sse(
-            200,
-            "data: {\"type\":\"response.failed\",\"error\":{\"code\":\"rate_limit_exceeded\"}}\n\n",
-        ),
-        Response::sse(200, &completed_body("Rotated answer", "Rotated source")),
-    ]);
-    let rotation_environment = RunEnvironment::new(
-        &search_config(&rotation.url, false)
-            .replace(r#"keys = ["xai-key"]"#, r#"keys = ["key-1", "key-2"]"#),
-    );
-
-    let rotation_output =
-        rotation_environment.run(&["search", "Rotation", "--capabilities", "none", "--verbose"]);
-    let rotation_payload: Value =
-        serde_json::from_slice(&rotation_output.stdout).expect("parse rotation stdout");
-
-    assert_eq!(
-        (
-            rotation_output.status.code(),
-            &rotation_payload["answer"],
-            &rotation_payload["provider_attempts"][0]["error_kind"],
-            &rotation_payload["provider_attempts"][1]["rotation_count"],
-        ),
-        (
-            Some(0),
-            &Value::String("Rotated answer".into()),
-            &Value::String("rate_limited".into()),
-            &Value::from(1),
-        )
-    );
-    let requests = rotation.finish_all();
-    assert!(requests[0].contains("authorization: Bearer key-1"));
-    assert!(requests[1].contains("authorization: Bearer key-2"));
-}
-
-#[test]
-fn search_fails_when_xai_completed_response_has_no_output_text() {
-    let xai = Fixture::start(
-        200,
-        "text/event-stream",
-        concat!(
-            "data: {\"type\":\"response.completed\",\"response\":{\"output\":[",
-            "{\"content\":[{\"type\":\"reasoning\",\"text\":\"hidden\"}]}]}}\n\n"
-        ),
-    );
-    let environment = RunEnvironment::new(&search_config(&xai.url, false));
-
-    let output = environment.run(&["search", "No text", "--capabilities", "none"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["error_kind"],
-            payload.get("answer"),
-        ),
-        (Some(4), &Value::String("runtime".into()), None),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    xai.finish();
-}
-
-#[test]
-fn search_credential_rotation_does_not_consume_network_retry_quota() {
-    let xai = Fixture::start_sequence(vec![
-        Response::json(429, r#"{"error":"rate limited"}"#),
-        Response::json(429, r#"{"error":"rate limited"}"#),
-        Response::json(503, r#"{"error":"network failure"}"#),
-        Response::json(503, r#"{"error":"network failure"}"#),
-    ]);
-    let config = search_config(&xai.url, false)
-        .replace(
-            r#"keys = ["xai-key"]"#,
-            r#"keys = ["key-1", "key-2", "key-3"]"#,
-        )
-        .replace("max_attempts = 1", "max_attempts = 2");
-    let environment = RunEnvironment::new(&config);
-
-    let output = environment.run(&[
-        "search",
-        "Independent quotas",
-        "--capabilities",
-        "none",
-        "--verbose",
-    ]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["error_kind"],
-            &payload["attempts"]["total"],
-        ),
-        (Some(4), &Value::String("network".into()), &Value::from(4),),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    let requests = xai.finish_all();
-    assert_eq!(requests.len(), 4);
-    assert!(requests[0].contains("authorization: Bearer key-1"));
-    assert!(requests[1].contains("authorization: Bearer key-2"));
-    assert!(requests[2].contains("authorization: Bearer key-3"));
-    assert!(requests[3].contains("authorization: Bearer key-3"));
-}
-
-#[test]
-fn search_retries_after_a_truncated_response_body() {
-    let xai = Fixture::start_sequence(vec![
-        Response::sse(200, "").with_declared_content_length(1),
-        Response::sse(200, &completed_body("Retried answer", "Retried source")),
-    ]);
-    let config = search_config(&xai.url, true).replace("max_attempts = 1", "max_attempts = 2");
-    let environment = RunEnvironment::new(&config);
-
-    let output = environment.run(&[
-        "search",
-        "Truncated response retry",
-        "--capabilities",
-        "none",
-    ]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-    let journal = read_only_journal(&environment);
-    let attempts = journal["execution"]["provider_attempts"]
-        .as_array()
-        .expect("journal attempts");
-
-    assert_eq!(
-        (output.status.code(), &payload["answer"], attempts.len()),
-        (Some(0), &Value::String("Retried answer".into()), 2,),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_eq!(
-        (
-            &attempts[0]["error_kind"],
-            &attempts[0]["retry_count"],
-            &attempts[1]["error_kind"],
-            &attempts[1]["retry_count"],
-        ),
-        (
-            &Value::String("network".into()),
-            &Value::from(0),
-            &Value::Null,
-            &Value::from(1),
-        )
-    );
-    assert_eq!(xai.finish_all().len(), 2);
 }
 
 #[test]
@@ -1185,6 +720,34 @@ fn search_journal_failure_is_non_fatal_and_reported_in_json() {
 }
 
 #[test]
+fn search_fails_when_xai_completed_response_has_no_output_text() {
+    let xai = Fixture::start(
+        200,
+        "text/event-stream",
+        concat!(
+            "data: {\"type\":\"response.completed\",\"response\":{\"output\":[",
+            "{\"content\":[{\"type\":\"reasoning\",\"text\":\"hidden\"}]}]}}\n\n"
+        ),
+    );
+    let environment = RunEnvironment::new(&search_config(&xai.url, false));
+
+    let output = environment.run(&["search", "No text", "--capabilities", "none"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["error_kind"],
+            payload.get("answer"),
+        ),
+        (Some(4), &Value::String("runtime".into()), None),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    xai.finish();
+}
+
+#[test]
 fn search_canary_exempts_answer_content_but_redacts_protected_outputs() {
     let secret = "canary-secret";
     let query_secret = "query-url-secret";
@@ -1283,25 +846,11 @@ enabled = {journal_enabled}
 }
 
 fn completed_body(answer: &str, title: &str) -> String {
-    format!(
-        "data: {}\n\n",
-        serde_json::json!({
-            "type": "response.completed",
-            "response": {
-                "output": [{
-                    "content": [{
-                        "type": "output_text",
-                        "text": answer,
-                        "annotations": [{
-                            "type": "url_citation",
-                            "url": "https://example.test/source?token=canary-secret",
-                            "title": title
-                        }]
-                    }]
-                }]
-            }
-        })
-    )
+    completed_events(&answer_with(
+        "xai",
+        answer,
+        &[("https://example.test/source?token=canary-secret", title)],
+    ))
 }
 
 fn read_only_journal(environment: &RunEnvironment) -> Value {

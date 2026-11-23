@@ -6,18 +6,21 @@ use std::time::Duration;
 use serde_json::{Value, json};
 
 use super::{
-    CapabilityExecution, fetch, is_thin_content, supplemental_web_search, web_fetch_chain_settings,
+    CapabilityExecution, fetch, is_thin_content, search, supplemental_web_search,
+    web_fetch_chain_settings,
 };
 use crate::chain::{ChainStep, StepSuccess, StepVerdict, run_chain};
 use crate::config::runtime_config_from_toml;
-use crate::fixture_server::{Fixture, Response, advance_after_request, block_on};
+use crate::fixture_server::{Fixture, Response, advance_after_request, block_on, request_json};
+use crate::main_search_samples::{answer_with, stored_answer};
 use crate::net::{CONTENT_TRUNCATED_DIAGNOSTIC, MAX_RESPONSE_BYTES, RetryPolicy, build_client};
-use crate::providers::{FetchRequest, ProviderId};
+use crate::providers::{FetchRequest, MainSearchRequest, ProviderId};
 use crate::samples::sample;
 use crate::types::{
     AttemptErrorKind, Deadline, FallbackPolicy, FetchOutcome, ProviderAttempt, ProviderError,
-    SupplementalSearchOutcome,
+    SearchOutcome, SupplementalSearchOutcome,
 };
+use crate::x_samples::completed_events;
 
 const ARTICLE: &str = "https://example.test/article";
 
@@ -507,4 +510,186 @@ fn a_malformed_web_search_answer_is_a_runtime_failure_that_falls_back() {
             "{head} first"
         );
     }
+}
+
+/// A configuration document that orders the main-search chain as `backends`, giving each backend
+/// with a fixture URL its own model and one key; a backend without a URL has no key.
+fn main_search_document(backends: &[(&str, Option<&str>)]) -> String {
+    let order = backends.iter().map(|(name, _)| *name).collect::<Vec<_>>();
+    let mut document = format!("[search]\nbackends = {order:?}\n\n");
+    for (backend, url) in backends {
+        let Some(url) = url else { continue };
+        let tools = if *backend == "xai" {
+            "tools = [\"web_search\"]\n"
+        } else {
+            ""
+        };
+        let _ = write!(
+            document,
+            "[providers.{backend}]\nurl = \"{url}/v1\"\nkeys = [\"{backend}-key\"]\nmodel = \"{backend}-model\"\n{tools}\n"
+        );
+    }
+    document
+}
+
+/// Runs the main-search chain of the configuration `document` under `fallback`, with one
+/// attempt per request and the request's `model` override.
+fn main_search(
+    document: &str,
+    model: Option<&str>,
+    fallback: FallbackPolicy,
+) -> Result<SearchOutcome, ProviderError> {
+    let config = runtime_config_from_toml(document).expect("valid configuration");
+    block_on(search(
+        MainSearchRequest {
+            query: "What changed?".into(),
+            model: model.map(str::to_owned),
+            verbose: true,
+        },
+        config.main_search,
+        fallback,
+        build_client(true).expect("build client"),
+        RetryPolicy::new(1, 1.0, Duration::ZERO),
+        Deadline::new(Duration::from_secs(30)),
+    ))
+}
+
+fn answer(provider: &str) -> Response {
+    Response::sse(200, &completed_events(&stored_answer(provider)))
+}
+
+fn overloaded() -> Response {
+    Response::json(503, r#"{"error":{"message":"overloaded"}}"#)
+}
+
+/// Each attempt as its provider, error kind and HTTP status, in chain order.
+fn statuses(
+    attempts: &[ProviderAttempt],
+) -> Vec<(&'static str, Option<AttemptErrorKind>, Option<u16>)> {
+    attempts
+        .iter()
+        .map(|attempt| (attempt.provider, attempt.error_kind, attempt.http_status))
+        .collect()
+}
+
+#[test]
+fn main_search_falls_back_from_a_failed_xai_to_openai() {
+    let xai = Fixture::start_sequence(vec![overloaded()]);
+    let openai = Fixture::start_sequence(vec![answer("openai")]);
+    let document = main_search_document(&[("xai", Some(&xai.url)), ("openai", Some(&openai.url))]);
+
+    let outcome = main_search(&document, None, FallbackPolicy::Auto).expect("openai answers");
+    xai.finish();
+    openai.finish();
+
+    assert_eq!(
+        (outcome.provider, statuses(&outcome.attempts)),
+        (
+            "openai",
+            vec![
+                ("xai", Some(AttemptErrorKind::Network), Some(503)),
+                ("openai", None, Some(200)),
+            ],
+        )
+    );
+}
+
+#[test]
+fn main_search_falls_back_when_xai_normalization_leaves_no_answer() {
+    let hidden = answer_with(
+        "xai",
+        "<think>hidden only</think>",
+        &[("https://example.test/hidden", "Source")],
+    );
+    let xai = Fixture::start_sequence(vec![Response::sse(200, &completed_events(&hidden))]);
+    let openai = Fixture::start_sequence(vec![answer("openai")]);
+    let document = main_search_document(&[("xai", Some(&xai.url)), ("openai", Some(&openai.url))]);
+
+    let outcome = main_search(&document, None, FallbackPolicy::Auto).expect("openai answers");
+    xai.finish();
+    openai.finish();
+
+    assert_eq!(
+        (outcome.provider, chain(&outcome.attempts)),
+        (
+            "openai",
+            vec![("xai", Some(AttemptErrorKind::Runtime)), ("openai", None)],
+        )
+    );
+}
+
+#[test]
+fn main_search_with_fallback_off_ends_at_a_failed_head() {
+    let xai = Fixture::start_sequence(vec![overloaded()]);
+    let openai = Fixture::start_canary();
+    let document = main_search_document(&[("xai", Some(&xai.url)), ("openai", Some(&openai.url))]);
+
+    let error = main_search(&document, None, FallbackPolicy::Off).expect_err("the head fails");
+    xai.finish();
+
+    assert_eq!(
+        (
+            error.kind,
+            chain(&error.attempts),
+            openai.finish_all().len()
+        ),
+        (
+            AttemptErrorKind::Network,
+            vec![("xai", Some(AttemptErrorKind::Network))],
+            0,
+        )
+    );
+}
+
+#[test]
+fn an_openai_first_order_answers_without_sending_to_xai() {
+    let openai = Fixture::start_sequence(vec![answer("openai")]);
+    let xai = Fixture::start_canary();
+    let document = main_search_document(&[("openai", Some(&openai.url)), ("xai", Some(&xai.url))]);
+
+    let outcome = main_search(&document, None, FallbackPolicy::Auto).expect("openai answers");
+    openai.finish();
+
+    assert_eq!(
+        (
+            outcome.provider,
+            chain(&outcome.attempts),
+            xai.finish_all().len()
+        ),
+        ("openai", vec![("openai", None)], 0)
+    );
+}
+
+#[test]
+fn a_model_override_reaches_only_the_backend_that_runs_first() {
+    let xai = Fixture::start_sequence(vec![overloaded()]);
+    let openai = Fixture::start_sequence(vec![answer("openai")]);
+    let document = main_search_document(&[("xai", Some(&xai.url)), ("openai", Some(&openai.url))]);
+
+    main_search(&document, Some("head-model"), FallbackPolicy::Auto).expect("openai answers");
+
+    assert_eq!(
+        (
+            request_json(&xai.finish())["model"].clone(),
+            request_json(&openai.finish())["model"].clone(),
+        ),
+        (json!("head-model"), json!("openai-model"))
+    );
+}
+
+#[test]
+fn a_model_override_reaches_the_first_configured_backend_past_a_head_without_keys() {
+    let openai = Fixture::start_sequence(vec![answer("openai")]);
+    let document = main_search_document(&[("xai", None), ("openai", Some(&openai.url))]);
+
+    let outcome =
+        main_search(&document, Some("head-model"), FallbackPolicy::Auto).expect("openai answers");
+
+    assert_eq!(
+        (
+            outcome.provider,
+            request_json(&openai.finish())["model"].clone(),
+        ),
+        ("openai", json!("head-model"))
+    );
 }

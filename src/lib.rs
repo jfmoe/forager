@@ -35,6 +35,10 @@ mod engine;
 mod fixture_server;
 #[path = "evidence/journal.rs"]
 mod journal;
+// The main-search answers derived from the stored samples, shared like the sample reader.
+#[cfg(test)]
+#[path = "../tests/support/main_search_samples.rs"]
+mod main_search_samples;
 #[path = "capabilities/net.rs"]
 mod net;
 #[path = "core/page_cursor.rs"]

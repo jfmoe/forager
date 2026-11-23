@@ -174,3 +174,7 @@ impl Xai {
             .settings(target, model, self.retry_policy, self.deadline)
     }
 }
+
+#[cfg(test)]
+#[path = "xai_tests.rs"]
+mod tests;
