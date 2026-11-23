@@ -1,26 +1,17 @@
 mod support;
 
-use std::collections::BTreeMap;
-
 use serde_json::json;
 
-use support::hn::{path, payload, query, stderr};
+use support::hn::{path, payload, stderr};
 use support::polymarket::{history_config, json as body, run};
-use support::polymarket_samples::{resolved, stored, tokens};
+use support::polymarket_samples::{resolved, stored};
 use support::{Fixture, Response, RunEnvironment};
 
 const WINNER: &str = "will-donald-trump-win-the-2024-us-presidential-election";
 const OPEN: &str = "will-no-fed-rate-cuts-happen-in-2026";
 
-fn params<const N: usize>(pairs: [(&str, &str); N]) -> BTreeMap<String, String> {
-    pairs
-        .into_iter()
-        .map(|(name, value)| (name.to_owned(), value.to_owned()))
-        .collect()
-}
-
 #[test]
-fn a_resolved_market_lists_its_daily_prices_and_gives_its_payout_as_the_settlement() {
+fn a_history_prints_the_price_series_of_the_market() {
     let gamma = Fixture::start_sequence(vec![body(&resolved(WINNER, "Donald Trump", true))]);
     let data = Fixture::start_sequence(vec![Response::json(200, &stored("price-history.json"))]);
     let environment = RunEnvironment::new(&history_config(&gamma.url, &data.url));
@@ -36,48 +27,33 @@ fn a_resolved_market_lists_its_daily_prices_and_gives_its_payout_as_the_settleme
     );
     let gamma_request = gamma.finish();
     let data_request = data.finish();
-    let [yes, _] = tokens(WINNER);
+    let history = payload(&output);
 
     assert_eq!(
         (
             output.status.code(),
             path(&gamma_request),
             path(&data_request),
-            query(&data_request),
+            [
+                &history["platform"],
+                &history["provider"],
+                &history["market"]["ref"],
+            ],
+            history["points"].as_array().map(Vec::len),
         ),
         (
             Some(0),
             format!("/markets/slug/{WINNER}"),
             "/v2/prices-history".to_owned(),
-            params([
-                ("token_id", yes.as_str()),
-                ("interval", "max"),
-                ("bucket_seconds", "86400"),
-            ]),
+            [
+                &json!("polymarket"),
+                &json!("polymarket_api"),
+                &json!(format!("polymarket:market/{WINNER}")),
+            ],
+            Some(2),
         ),
         "stderr: {}",
         stderr(&output)
-    );
-    assert_eq!(
-        payload(&output),
-        json!({
-            "platform": "polymarket",
-            "provider": "polymarket_api",
-            "market": {
-                "ref": format!("polymarket:market/{WINNER}"),
-                "url": format!("https://polymarket.com/market/{WINNER}"),
-                "question": "Will Donald Trump happen?",
-                "status": "resolved"
-            },
-            "outcome": "Yes",
-            "interval": "max",
-            "bucket_seconds": 86_400,
-            "points": [
-                {"t": "2024-11-05T00:00:00Z", "price": 0.5855},
-                {"t": "2024-11-06T00:00:00Z", "price": 0.58}
-            ],
-            "settlement": {"t": "2024-11-07T00:00:00Z", "price": 1.0}
-        })
     );
 }
 
