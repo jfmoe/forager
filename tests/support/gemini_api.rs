@@ -24,12 +24,7 @@ pub(crate) fn config(api_url: &str, gemini_url: &str) -> String {
 
 /// A finished `generateContent` response whose answer is `text`, after a reasoning summary.
 pub(crate) fn answer(text: &str) -> Response {
-    generate(text, "STOP")
-}
-
-/// A `generateContent` response with one candidate that stopped for `finish_reason`.
-pub(crate) fn generate(text: &str, finish_reason: &str) -> Response {
-    Response::json(200, &samples::generated(text, finish_reason).to_string())
+    Response::json(200, &samples::generated(text, "STOP").to_string())
 }
 
 /// The usage the stored `generateContent` answer reports, as forager prints it.

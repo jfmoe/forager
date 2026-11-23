@@ -176,31 +176,6 @@ fn without_a_content_directory_the_transcript_is_written_under_the_system_tempor
 }
 
 #[test]
-fn a_video_without_a_description_is_transcribed_and_content_prints_the_document() {
-    let api = Fixture::start_sequence(vec![videos_page(&[zoo_video("")])]);
-    let gemini = Fixture::start_sequence(vec![gemini_api::answer(&transcript(&json!([
-        {"start": 1.2, "end": 3.4, "text": "All right, so here we are."}
-    ])))]);
-    let environment = RunEnvironment::new(&gemini_api::config(&api.url, &gemini.url));
-
-    let output = transcribe(
-        &environment,
-        &["youtube:jNQXAC9IVRw", "--format", "content"],
-    );
-    api.finish();
-    gemini.finish();
-    let document = String::from_utf8_lossy(&output.stdout);
-
-    assert_eq!(output.status.code(), Some(0), "stderr: {}", stderr(&output));
-    assert!(
-        document.starts_with("# Me at the zoo\n")
-            && document.contains("## Description\n\n(none)\n")
-            && document.contains("[00:01](https://www.youtube.com/watch?v=jNQXAC9IVRw&t=1s) All right, so here we are."),
-        "{document}"
-    );
-}
-
-#[test]
 fn the_content_format_prints_the_transcript_and_writes_no_file() {
     let api = Fixture::start_sequence(vec![videos_page(&[zoo_video(CHAPTERED)])]);
     let gemini = Fixture::start_sequence(vec![gemini_api::answer(&transcript(&json!([
@@ -224,71 +199,6 @@ fn the_content_format_prints_the_transcript_and_writes_no_file() {
             files_under(temp.path()),
         ),
         (Some(0), true, Vec::<PathBuf>::new()),
-        "stderr: {}",
-        stderr(&output)
-    );
-}
-
-#[test]
-fn a_truncated_or_invalid_model_transcript_is_quality_and_writes_no_file() {
-    let outcomes = [
-        gemini_api::generate(
-            r#"{"language": "en", "segments": [{"start": 1.2, "end": 3.4, "text": "All ri"#,
-            "MAX_TOKENS",
-        ),
-        gemini_api::answer("Here is the transcript: all right, so here we are."),
-    ]
-    .map(|response| {
-        let api = Fixture::start_sequence(vec![videos_page(&[zoo_video(CHAPTERED)])]);
-        let gemini = Fixture::start_sequence(vec![response]);
-        let environment = RunEnvironment::new(&gemini_api::config(&api.url, &gemini.url));
-        let content_dir = tempfile::tempdir().expect("content directory");
-
-        let output = transcribe(
-            &environment,
-            &[
-                "youtube:jNQXAC9IVRw",
-                "--content-dir",
-                content_dir.path().to_str().expect("UTF-8 path"),
-            ],
-        );
-        api.finish();
-        gemini.finish();
-        let written = fs::read_dir(content_dir.path())
-            .map(Iterator::count)
-            .unwrap_or_default();
-        (
-            output.status.code(),
-            payload(&output)["error_kind"].clone(),
-            written,
-        )
-    });
-
-    assert_eq!(
-        outcomes,
-        [
-            (Some(5), json!("quality"), 0),
-            (Some(5), json!("quality"), 0)
-        ]
-    );
-}
-
-#[test]
-fn a_video_the_metadata_check_cannot_read_is_not_sent_to_the_model() {
-    let api = Fixture::start_sequence(vec![videos_page(&[])]);
-    let gemini = Fixture::start_canary();
-    let environment = RunEnvironment::new(&gemini_api::config(&api.url, &gemini.url));
-
-    let output = transcribe(&environment, &["youtube:aaaaaaaaaaa"]);
-    api.finish();
-
-    assert_eq!(
-        (
-            output.status.code(),
-            payload(&output)["error_kind"].clone(),
-            gemini.finish_all().len()
-        ),
-        (Some(4), json!("parameter"), 0),
         "stderr: {}",
         stderr(&output)
     );

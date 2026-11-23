@@ -1036,4 +1036,201 @@ mod tests {
             );
         }
     }
+
+    /// The `gemini_api` route's ask and transcribe, which read the video through the precheck
+    /// before any model request.
+    mod gemini_api {
+        use std::time::Duration;
+
+        use serde_json::{Value, json};
+
+        use super::super::{plan_ask, plan_transcribe, run_ask, run_transcribe};
+        use crate::config::{RuntimeConfig, runtime_config_from_toml};
+        use crate::fixture_server::{Fixture, Response, block_on, path};
+        use crate::net::{RetryPolicy, build_client};
+        use crate::samples::sample;
+        use crate::types::{
+            AttemptErrorKind, Deadline, Platform, PlatformAskRequest, ProviderError,
+            YoutubeAskRequest, YoutubeRef, YoutubeTranscribeRequest,
+        };
+
+        fn stored(name: &str) -> Value {
+            serde_json::from_str(&sample(name)).expect("stored sample")
+        }
+
+        /// The stored `videos.list` response holding `items`.
+        fn videos(items: &[Value]) -> Response {
+            let mut page = stored("youtube_api/video.json");
+            page["items"] = json!(items);
+            Response::json(200, &page.to_string())
+        }
+
+        fn zoo() -> Value {
+            stored("youtube_api/video.json")["items"][0].clone()
+        }
+
+        /// The stored Gemini answer whose text is `text`.
+        fn answer(text: &str) -> Response {
+            let mut body = stored("gemini_api/generate-content.json");
+            body["candidates"][0]["content"]["parts"][1]["text"] = json!(text);
+            Response::json(200, &body.to_string())
+        }
+
+        /// The default YouTube order over `youtube_api` at `api` and `gemini_api` at `gemini`.
+        fn runtime(api: &Fixture, gemini: &Fixture) -> RuntimeConfig {
+            runtime_config_from_toml(&format!(
+                "[providers.youtube_api]\nurl = \"{}/youtube/v3\"\nkeys = [\"yt-key\"]\n\n[providers.gemini_api]\nurl = \"{}/v1beta\"\nkeys = [\"gemini-key\"]\nmodel = \"gemini-flash-latest\"\n",
+                api.url, gemini.url
+            ))
+            .expect("valid configuration")
+        }
+
+        /// The outcome of one operation and the paths each fixture received.
+        type Run = (Result<(), ProviderError>, Vec<String>, Vec<String>);
+
+        /// An ask and a transcription of `video` with the precheck on `youtube_api` answering
+        /// `precheck` and the model on `gemini_api` answering `model` to each.
+        fn both(
+            video: &str,
+            precheck: &dyn Fn() -> Response,
+            model: &dyn Fn() -> Vec<Response>,
+        ) -> [Run; 2] {
+            [true, false].map(|asks| {
+                let api = Fixture::start_sequence(vec![precheck()]);
+                let gemini = Fixture::start_sequence(model());
+                let runtime = runtime(&api, &gemini);
+                let config = runtime.platforms.get(Platform::Youtube);
+                let video = YoutubeRef::video(video).expect("a video ID");
+                let client = build_client(true).expect("build client");
+                let retry = RetryPolicy::new(1, 1.0, Duration::ZERO);
+                let deadline = Deadline::new(Duration::from_secs(10));
+                let outcome = if asks {
+                    let request = PlatformAskRequest::Youtube(YoutubeAskRequest {
+                        video,
+                        question: "What animals stand behind the speaker?".to_owned(),
+                    });
+                    let plan = plan_ask(config, &runtime.platform_routes, request).expect("plan");
+                    block_on(run_ask(plan, client, retry, deadline, false)).map(drop)
+                } else {
+                    let request = YoutubeTranscribeRequest { video };
+                    let plan =
+                        plan_transcribe(config, &runtime.platform_routes, request).expect("plan");
+                    block_on(run_transcribe(plan, client, retry, deadline, false)).map(drop)
+                };
+                let paths = |fixture: Fixture| {
+                    fixture
+                        .finish_all()
+                        .iter()
+                        .map(|request| path(request))
+                        .collect()
+                };
+                (outcome, paths(api), paths(gemini))
+            })
+        }
+
+        fn failure(outcome: &Result<(), ProviderError>) -> (AttemptErrorKind, &str, Vec<&str>) {
+            let error = outcome.as_ref().expect_err("the operation fails");
+            (
+                error.kind,
+                error.message.as_str(),
+                error
+                    .attempts
+                    .iter()
+                    .map(|attempt| attempt.provider)
+                    .collect(),
+            )
+        }
+
+        #[test]
+        fn a_video_the_precheck_cannot_read_reaches_no_model() {
+            let outcomes = both("aaaaaaaaaaa", &|| videos(&[]), &Vec::new);
+
+            for (outcome, api, gemini) in &outcomes {
+                assert_eq!(
+                    (failure(outcome), api.as_slice(), gemini.len()),
+                    (
+                        (
+                            AttemptErrorKind::Parameter,
+                            "YouTube video not found or not public: youtube:aaaaaaaaaaa",
+                            vec!["youtube_api"],
+                        ),
+                        ["/youtube/v3/videos".to_owned()].as_slice(),
+                        0,
+                    )
+                );
+            }
+        }
+
+        #[test]
+        fn a_live_stream_is_a_quality_failure_that_reaches_no_model() {
+            let mut live = zoo();
+            live["snippet"]["liveBroadcastContent"] = json!("live");
+            live["liveStreamingDetails"] = json!({"actualStartTime": "2026-10-18T01:00:00Z"});
+
+            let outcomes = both("jNQXAC9IVRw", &|| videos(&[live.clone()]), &Vec::new);
+
+            for (outcome, _, gemini) in &outcomes {
+                assert_eq!(
+                    (failure(outcome), gemini.len()),
+                    (
+                        (
+                            AttemptErrorKind::Quality,
+                            "youtube:jNQXAC9IVRw is streaming live; a model can read it only after the stream ends",
+                            vec!["youtube_api"],
+                        ),
+                        0,
+                    )
+                );
+            }
+        }
+
+        #[test]
+        fn a_video_without_a_description_is_transcribed_with_an_empty_description() {
+            let mut video = zoo();
+            video["snippet"]["description"] = json!("");
+            video["snippet"]["localized"]["description"] = json!("");
+            let api = Fixture::start_sequence(vec![videos(&[video])]);
+            let gemini = Fixture::start_sequence(vec![answer(
+                &json!({"language": "en", "segments": [
+                    {"start": 1.2, "end": 3.4, "text": "All right, so here we are."}
+                ]})
+                .to_string(),
+            )]);
+            let runtime = runtime(&api, &gemini);
+            let request = YoutubeTranscribeRequest {
+                video: YoutubeRef::video("jNQXAC9IVRw").expect("a video ID"),
+            };
+            let plan = plan_transcribe(
+                runtime.platforms.get(Platform::Youtube),
+                &runtime.platform_routes,
+                request,
+            )
+            .expect("plan");
+
+            let transcribed = block_on(run_transcribe(
+                plan,
+                build_client(true).expect("build client"),
+                RetryPolicy::new(1, 1.0, Duration::ZERO),
+                Deadline::new(Duration::from_secs(10)),
+                false,
+            ))
+            .expect("a video without a description is transcribed");
+            api.finish();
+            gemini.finish();
+            let document = transcribed
+                .fetched
+                .content
+                .map(|content| content.text)
+                .unwrap_or_default();
+
+            assert!(
+                document.starts_with("# Me at the zoo\n")
+                    && document.contains("## Description\n\n(none)\n")
+                    && document.contains(
+                        "[00:01](https://www.youtube.com/watch?v=jNQXAC9IVRw&t=1s) All right, so here we are."
+                    ),
+                "{document}"
+            );
+        }
+    }
 }
