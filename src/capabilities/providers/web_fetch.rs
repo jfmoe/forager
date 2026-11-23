@@ -326,9 +326,57 @@ mod tests {
     use super::{FetchRequest, HttpFetchProvider};
     use crate::config::WebFetchProviderConfig;
     use crate::credentials::CredentialPool;
-    use crate::net::RetryPolicy;
+    use crate::net::{RetryPolicy, build_client};
     use crate::providers::ProviderId;
     use crate::types::{AttemptErrorKind, Deadline};
+
+    #[test]
+    fn a_fetch_target_naming_a_remote_site_reaches_the_loopback_fixture() {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind provider fixture");
+        let address = listener.local_addr().expect("fixture address");
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("accept provider request");
+            let mut request = [0_u8; 4096];
+            let _ = stream.read(&mut request).expect("read provider request");
+            let body = r#"{"data":{"content":"fixture article"}}"#;
+            let _ = write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len(),
+            );
+        });
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("test runtime");
+
+        let outcome = runtime.block_on(async {
+            let provider = HttpFetchProvider {
+                id: ProviderId::Jina,
+                config: WebFetchProviderConfig {
+                    url: format!("http://{address}"),
+                    keys: Vec::new(),
+                    timeout_seconds: 5,
+                    respond_with: String::new(),
+                },
+                client: build_client(true).expect("build client"),
+                credentials: CredentialPool::new("jina", Vec::new()),
+                retry_policy: RetryPolicy::new(1, 1.0, Duration::ZERO),
+                deadline: Deadline::new(Duration::from_secs(10)),
+            };
+            let request = FetchRequest {
+                url: "https://example.test/article".into(),
+                verbose: false,
+            };
+            provider.execute(&request).await
+        });
+        server.join().expect("provider fixture");
+
+        assert_eq!(
+            outcome.map(|outcome| outcome.content).ok(),
+            Some("fixture article".to_owned())
+        );
+    }
 
     #[test]
     fn configured_attempt_timeout_bounds_web_fetch_without_wall_clock_waiting() {
@@ -365,7 +413,7 @@ mod tests {
                     timeout_seconds: 2,
                     respond_with: String::new(),
                 },
-                client: reqwest::Client::new(),
+                client: build_client(true).expect("build client"),
                 credentials: CredentialPool::new("jina", vec!["key".into()]),
                 retry_policy: RetryPolicy::new(1, 1.0, Duration::ZERO),
                 deadline: Deadline::new(Duration::from_secs(10)),

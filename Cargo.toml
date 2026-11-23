@@ -43,6 +43,8 @@ windows-acl = "0.3.0"
 http = "1.4.2"
 serde_yaml_ng = "0.10.0"
 tokio = { version = "1.47.1", features = ["test-util"] }
+tower-layer = "0.3.3"
+tower-service = "0.3.3"
 
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }

@@ -10,6 +10,10 @@ use crate::credentials::CredentialPool;
 use crate::redact::redact_urls;
 use crate::types::{AttemptErrorKind, MIN_USEFUL_SLICE_SECONDS};
 
+#[cfg(test)]
+#[path = "loopback_guard.rs"]
+mod loopback_guard;
+
 const HTTP_READ_TIMEOUT: Duration = Duration::from_mins(1);
 pub(crate) const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
 pub(crate) const MAX_ERROR_BODY_BYTES: usize = 64 * 1024;
@@ -357,14 +361,16 @@ fn build_client_with_read_timeout(
     ssl_verify: bool,
     read_timeout: Duration,
 ) -> Result<Client, reqwest::Error> {
-    Client::builder()
+    let builder = Client::builder()
         .danger_accept_invalid_certs(!ssl_verify)
         .connect_timeout(Duration::from_secs(5))
         .read_timeout(read_timeout)
         .redirect(redirect::Policy::none())
         .user_agent(concat!("forager/", env!("CARGO_PKG_VERSION")))
-        .pool_idle_timeout(Duration::from_secs(90))
-        .build()
+        .pool_idle_timeout(Duration::from_secs(90));
+    #[cfg(test)]
+    let builder = loopback_guard::apply(builder);
+    builder.build()
 }
 
 pub(crate) fn error_kind_for_status(status: StatusCode, body: &str) -> AttemptErrorKind {
