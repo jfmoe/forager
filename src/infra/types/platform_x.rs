@@ -441,6 +441,39 @@ mod tests {
     }
 
     #[test]
+    fn unrecognized_refs_explain_the_accepted_forms() {
+        let error = PlatformRef::parse(Platform::X, "https://x.com/SpaceX").unwrap_err();
+
+        assert_eq!(
+            error.to_string(),
+            "unrecognized x reference `https://x.com/SpaceX`; pass an `x:<post_id>` ref or an x.com or twitter.com post URL such as https://x.com/<handle>/status/<id>"
+        );
+    }
+
+    #[test]
+    fn article_links_point_to_web_fetch_of_the_link() {
+        let urls = [
+            "https://x.com/SpaceX/article/2110126570233094527",
+            "https://x.com/i/article/2110126570233094527/",
+            "https://x.com/SpaceX/status/2110126570233094527/article?s=20",
+            "https://mobile.twitter.com/SpaceX/article/2110126570233094527#top",
+        ];
+
+        let errors = urls.map(|url| {
+            PlatformRef::parse(Platform::X, url)
+                .unwrap_err()
+                .to_string()
+        });
+
+        assert_eq!(
+            errors,
+            urls.map(|url| format!(
+                "unrecognized x reference `{url}`; this is an X article, not a post; read it with `forager fetch '{url}'`"
+            ))
+        );
+    }
+
+    #[test]
     fn canonical_urls_round_trip_to_the_ref() {
         let reference = PlatformRef::parse(Platform::X, "x:2110126570233094527").expect("ref");
 
