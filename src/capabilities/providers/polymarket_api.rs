@@ -526,3 +526,7 @@ fn gamma_reason_kind(body: &str) -> Option<AttemptErrorKind> {
         .filter(|kind| kind == "validation error")
         .map(|_| AttemptErrorKind::Runtime)
 }
+
+#[cfg(test)]
+#[path = "polymarket_api_tests.rs"]
+mod tests;

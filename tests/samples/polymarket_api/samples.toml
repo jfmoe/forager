@@ -1,0 +1,74 @@
+# Upstream samples of the `polymarket_api` route; each record names one file in this directory.
+
+[[sample]]
+file = "search.json"
+shape = "Gamma `GET /public-search` page: the matching events with their markets, and whether more pages follow"
+origin = "hand-written"
+observed = 2026-10-24
+
+[[sample]]
+file = "event.json"
+shape = "Gamma `GET /events/slug/{slug}`: a neg-risk event with its metadata and its markets"
+origin = "hand-written"
+observed = 2026-10-24
+
+[[sample]]
+file = "market.json"
+shape = "Gamma `GET /markets/slug/{slug}`: an open Yes/No market with its JSON-encoded outcomes, prices and CLOB tokens, cached book and the events it belongs to"
+origin = "hand-written"
+observed = 2026-10-24
+
+[[sample]]
+file = "gamma-error.json"
+shape = "Gamma error body: a validation error, answered with HTTP 422 for a request Gamma refuses"
+origin = "hand-written"
+observed = 2026-10-24
+
+[[sample]]
+file = "gamma-error-not-found.json"
+shape = "Gamma error body: a not-found error, answered with HTTP 404 for a slug Gamma does not know"
+variant_of = "gamma-error.json"
+origin = "hand-written"
+observed = 2026-10-24
+
+[[sample]]
+file = "prices.json"
+shape = "CLOB `POST /prices` answer: each outcome token's best bid (BUY) and best ask (SELL)"
+origin = "hand-written"
+observed = 2026-10-24
+
+[[sample]]
+file = "last-trades.json"
+shape = "CLOB `POST /last-trades-prices` answer: each outcome token's last trade price"
+origin = "hand-written"
+observed = 2026-10-24
+
+[[sample]]
+file = "clob-error.json"
+shape = "CLOB error body, answered with a failed status"
+origin = "hand-written"
+observed = 2026-10-24
+
+[[sample]]
+file = "clob-time.json"
+shape = "CLOB `GET /time` answer: the server clock in epoch seconds"
+origin = "hand-written"
+observed = 2026-10-24
+
+[[sample]]
+file = "price-history.json"
+shape = "Data API `GET /v2/prices-history` page of a resolved market: daily points ending with the payout at `resolution_seconds` 0, and its pagination"
+origin = "hand-written"
+observed = 2026-10-24
+
+[[sample]]
+file = "data-error.json"
+shape = "Data API error body, answered with HTTP 400 for a window or bucket it refuses"
+origin = "hand-written"
+observed = 2026-10-24
+
+[[sample]]
+file = "data-status.json"
+shape = "Data API `GET /v2/status` answer: the service status object"
+origin = "hand-written"
+observed = 2026-10-24

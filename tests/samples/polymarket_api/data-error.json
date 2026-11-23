@@ -1,0 +1,3 @@
+{
+  "error": "bucket_seconds must be at least 600 for this interval"
+}

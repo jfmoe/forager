@@ -2,20 +2,16 @@ mod support;
 
 use std::collections::BTreeMap;
 
-use base64::Engine as _;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use serde_json::{Value, json};
 
 use support::hn::{path, payload, query, stderr};
-use support::polymarket::{config, event, json as body, market, resolved, run, with};
+use support::polymarket::{config, json as body, run};
+use support::polymarket_samples::{event, market, resolved, search_page, with};
 use support::{Fixture, Response, RunEnvironment};
 
 /// A search page as Gamma returns it: the events, and whether more pages follow.
 fn page(events: &[Value], has_more: bool) -> Response {
-    body(&json!({
-        "events": events,
-        "pagination": {"hasMore": has_more, "totalResults": 41}
-    }))
+    body(&search_page(events, has_more))
 }
 
 fn parameters(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
@@ -23,21 +19,6 @@ fn parameters(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
         .iter()
         .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
         .collect()
-}
-
-/// Builds the cursor of `page` for a `fed rate` search of `limit` events, as a previous page
-/// would have issued it.
-fn cursor(limit: u16, page: u64) -> String {
-    let request = json!({
-        "query": "fed rate",
-        "limit": limit,
-        "options": {"platform": "polymarket", "include_closed": false},
-        "page": page.to_string()
-    });
-    format!(
-        "v1.polymarket_api.{}",
-        URL_SAFE_NO_PAD.encode(request.to_string())
-    )
 }
 
 /// Six markets of one event: two-sided books, an empty book whose cached price is the 0.5
@@ -219,186 +200,6 @@ fn include_closed_drops_the_status_filter_and_its_cursor_resumes_the_next_page()
 }
 
 #[test]
-fn a_page_with_no_match_is_an_empty_result() {
-    let gamma = Fixture::start_sequence(vec![body(
-        &json!({"pagination": {"hasMore": false, "totalResults": 0}}),
-    )]);
-    let environment = RunEnvironment::new(&config(&gamma.url, "http://127.0.0.1:9"));
-
-    let output = run(&environment, &["search", "no such market anywhere"]);
-    gamma.finish();
-
-    assert_eq!(
-        (output.status.code(), payload(&output)["items"].clone()),
-        (Some(0), json!([]))
-    );
-}
-
-#[test]
-fn search_never_asks_for_the_optimized_response() {
-    let empty = || body(&json!({"pagination": {"hasMore": false, "totalResults": 0}}));
-    let gamma = Fixture::start_sequence(vec![empty(), empty()]);
-    let environment = RunEnvironment::new(&config(&gamma.url, "http://127.0.0.1:9"));
-
-    run(&environment, &["search", "fed rate"]);
-    run(&environment, &["search", "fed rate", "--include-closed"]);
-    let asked = gamma
-        .finish_all()
-        .iter()
-        .map(|request| query(request).contains_key("optimized"))
-        .collect::<Vec<_>>();
-
-    assert_eq!(asked, [false, false]);
-}
-
-#[test]
-fn results_without_a_valid_slug_or_markets_are_skipped_with_one_diagnostic() {
-    let mut without_markets = event("an-event-without-markets", &[]);
-    without_markets
-        .as_object_mut()
-        .expect("event object")
-        .remove("markets");
-    let with_legacy_market_slug = event(
-        "biden-approval-rating",
-        &[market(
-            "will-joe-bidens-approval-rating-be-49.0-or-higher-on-september-1",
-            "49.0 or higher",
-        )],
-    );
-    let gamma = Fixture::start_sequence(vec![page(
-        &[
-            with(fed_event(), &json!({"slug": "not a slug"})),
-            fed_event(),
-            without_markets,
-            with_legacy_market_slug,
-        ],
-        false,
-    )]);
-    let environment = RunEnvironment::new(&config(&gamma.url, "http://127.0.0.1:9"));
-
-    let output = run(&environment, &["search", "fed rate"]);
-    gamma.finish();
-
-    assert_eq!(
-        (
-            output.status.code(),
-            payload(&output)["items"]
-                .as_array()
-                .expect("items")
-                .iter()
-                .map(|item| item["ref"].clone())
-                .collect::<Vec<_>>(),
-            stderr(&output).trim().to_owned(),
-        ),
-        (
-            Some(0),
-            vec![json!("polymarket:how-many-fed-rate-cuts-in-2026")],
-            "skipped 3 Polymarket search results that could not be read".to_owned(),
-        )
-    );
-}
-
-#[test]
-fn a_page_whose_every_result_is_unreadable_fails_as_runtime() {
-    let gamma = Fixture::start_sequence(vec![page(
-        &[with(fed_event(), &json!({"slug": "not a slug"}))],
-        false,
-    )]);
-    let environment = RunEnvironment::new(&config(&gamma.url, "http://127.0.0.1:9"));
-
-    let output = run(&environment, &["search", "fed rate"]);
-    gamma.finish();
-    let failure = payload(&output);
-
-    assert_eq!(
-        (
-            output.status.code(),
-            failure["error_kind"].clone(),
-            failure["message"].clone()
-        ),
-        (
-            Some(4),
-            json!("runtime"),
-            json!("Polymarket Gamma API returned 1 search results and none could be read")
-        )
-    );
-}
-
-#[test]
-fn a_result_with_an_undecodable_field_fails_the_page_as_runtime() {
-    let broken = event(
-        "broken-outcomes",
-        &[with(
-            market("will-1-fed-rate-cut-happen-in-2026", "1 (25 bps)"),
-            &json!({"outcomes": "[\"Yes\", "}),
-        )],
-    );
-    let gamma = Fixture::start_sequence(vec![page(&[fed_event(), broken], false)]);
-    let environment = RunEnvironment::new(&config(&gamma.url, "http://127.0.0.1:9"));
-
-    let output = run(&environment, &["search", "fed rate"]);
-    gamma.finish();
-    let failure = payload(&output);
-
-    assert_eq!(
-        (
-            output.status.code(),
-            failure["error_kind"].clone(),
-            failure["message"].clone()
-        ),
-        (
-            Some(4),
-            json!("runtime"),
-            json!(
-                "Polymarket Gamma API returned polymarket:market/will-1-fed-rate-cut-happen-in-2026 with an undecodable `outcomes`: EOF while parsing a value at line 1 column 8"
-            )
-        )
-    );
-}
-
-#[test]
-fn a_page_without_pagination_fails_as_runtime() {
-    let gamma = Fixture::start_sequence(vec![body(&json!({"events": [fed_event()]}))]);
-    let environment = RunEnvironment::new(&config(&gamma.url, "http://127.0.0.1:9"));
-
-    let output = run(&environment, &["search", "fed rate"]);
-    gamma.finish();
-
-    assert_eq!(
-        (output.status.code(), payload(&output)["error_kind"].clone()),
-        (Some(4), json!("runtime"))
-    );
-}
-
-#[test]
-fn a_gamma_validation_error_is_a_forager_defect_not_a_user_error() {
-    let gamma = Fixture::start_sequence(vec![Response::json(
-        422,
-        r#"{"type":"validation error","error":"query argument \"page\": must be less than or equal to 100"}"#,
-    )]);
-    let environment = RunEnvironment::new(&config(&gamma.url, "http://127.0.0.1:9"));
-
-    let output = run(&environment, &["search", "fed rate"]);
-    gamma.finish();
-    let failure = payload(&output);
-
-    assert_eq!(
-        (
-            output.status.code(),
-            failure["error_kind"].clone(),
-            failure["message"].clone()
-        ),
-        (
-            Some(4),
-            json!("runtime"),
-            json!(
-                "Polymarket Gamma API returned HTTP 422: query argument \"page\": must be less than or equal to 100"
-            )
-        )
-    );
-}
-
-#[test]
 fn an_empty_order_is_a_configuration_error_before_any_request() {
     let gamma = Fixture::start_sequence(Vec::new());
     let environment = RunEnvironment::new(&format!(
@@ -416,24 +217,4 @@ fn an_empty_order_is_a_configuration_error_before_any_request() {
             "config_error: platforms.polymarket.order has no configured route for polymarket search".to_owned()
         )
     );
-}
-
-#[test]
-fn invalid_searches_fail_before_any_request() {
-    let gamma = Fixture::start_sequence(Vec::new());
-    let environment = RunEnvironment::new(&config(&gamma.url, "http://127.0.0.1:9"));
-
-    let codes = [
-        run(&environment, &["search", "  "]),
-        run(&environment, &["search", "fed rate", "--limit", "21"]),
-        run(&environment, &["search", "--cursor", &cursor(10, 101)]),
-        run(
-            &environment,
-            &["search", "fed rate", "--cursor", &cursor(10, 2)],
-        ),
-    ]
-    .map(|output| output.status.code());
-    gamma.finish_all();
-
-    assert_eq!(codes, [Some(2); 4]);
 }

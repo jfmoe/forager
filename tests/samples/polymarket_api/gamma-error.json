@@ -1,0 +1,4 @@
+{
+  "type": "validation error",
+  "error": "query argument \"page\": must be less than or equal to 100"
+}

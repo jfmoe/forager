@@ -1,0 +1,35 @@
+{
+  "id": "616902",
+  "question": "Will no Fed rate cuts happen in 2026?",
+  "conditionId": "0x0000000000000000000000000000000000000000000000000000000000616902",
+  "slug": "will-no-fed-rate-cuts-happen-in-2026",
+  "endDate": "2027-01-01T04:59:00Z",
+  "startDate": "2025-09-29T22:24:45.988997Z",
+  "liquidity": "654503.09367",
+  "description": "Event rules.",
+  "outcomes": "[\"Yes\", \"No\"]",
+  "outcomePrices": "[\"0.962\", \"0.038\"]",
+  "volume": "9041795.83",
+  "active": true,
+  "closed": false,
+  "groupItemTitle": "0 (0 bps)",
+  "volumeNum": 9041795.83,
+  "liquidityNum": 654503.09367,
+  "clobTokenIds": "[\"10000000000000000000000000000000000000000000000000000000000000000000000000001\", \"10000000000000000000000000000000000000000000000000000000000000000000000000002\"]",
+  "acceptingOrders": true,
+  "negRisk": true,
+  "bestBid": 0.961,
+  "bestAsk": 0.963,
+  "oneDayPriceChange": -0.002,
+  "oneWeekPriceChange": -0.006,
+  "oneMonthPriceChange": 0.01,
+  "updatedAt": "2026-10-24T06:34:38.245985Z",
+  "version": "v1",
+  "events": [
+    {
+      "id": "51456",
+      "slug": "how-many-fed-rate-cuts-in-2026",
+      "title": "How many Fed rate cuts in 2026?"
+    }
+  ]
+}
