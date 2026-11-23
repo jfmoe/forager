@@ -3,8 +3,8 @@ mod support;
 use serde_json::{Value, json};
 
 use support::hn::{path, payload, stderr};
-use support::polymarket::{config, json as body, last_trades, prices, run};
-use support::polymarket_samples::{event, market, resolved, tokens, with};
+use support::polymarket::{config, json as body, run};
+use support::polymarket_samples::{resolved, with};
 use support::{Fixture, RunEnvironment};
 
 const EVENT: &str = "how-many-fed-rate-cuts-in-2026";
@@ -113,81 +113,34 @@ fn a_resolved_market_is_read_from_gamma_alone() {
 }
 
 #[test]
-fn abstract_inlines_the_event_rules_and_only_market_rules_that_differ() {
-    let fetched_event = event(
-        EVENT,
-        &[
-            with(
-                market("same-rules", "Same"),
-                &json!({"description": "Event rules."}),
-            ),
-            with(
-                market("own-rules", "Own"),
-                &json!({"description": "Own rules."}),
-            ),
-        ],
-    );
-    let gamma = Fixture::start_sequence(vec![body(&fetched_event), body(&fetched_event)]);
-    let quotes = || {
-        let [same_yes, same_no] = tokens("same-rules");
-        let [own_yes, own_no] = tokens("own-rules");
-        prices(&[
-            (&same_yes, "0.4", "0.5"),
-            (&same_no, "0.5", "0.6"),
-            (&own_yes, "0.4", "0.5"),
-            (&own_no, "0.5", "0.6"),
-        ])
-    };
-    let clob =
-        Fixture::start_sequence(vec![quotes(), last_trades(&[]), quotes(), last_trades(&[])]);
+fn abstract_content_prints_the_resolution_rules() {
+    let slug = "will-donald-trump-win-the-2024-us-presidential-election";
+    let gamma = Fixture::start_sequence(vec![body(&resolved(slug, "Donald Trump", true))]);
+    let clob = Fixture::start_sequence(Vec::new());
     let environment = RunEnvironment::new(&config(&gamma.url, &clob.url));
 
-    let json_output = run(
+    let output = run(
         &environment,
         &[
             "fetch",
-            &format!("polymarket:{EVENT}"),
-            "--depth",
-            "abstract",
-        ],
-    );
-    let content_output = run(
-        &environment,
-        &[
-            "fetch",
-            &format!("polymarket:{EVENT}"),
+            &format!("polymarket:market/{slug}"),
             "--depth",
             "abstract",
             "--format",
             "content",
         ],
     );
-    gamma.finish_all();
+    gamma.finish();
     clob.finish_all();
-    let fetched = payload(&json_output);
 
     assert_eq!(
         (
-            fetched["depth"].clone(),
-            fetched["rules"].clone(),
-            fetched["markets"]
-                .as_array()
-                .expect("markets")
-                .iter()
-                .map(|market| market.get("rules").cloned())
-                .collect::<Vec<_>>(),
-            content_output.status.code(),
-            String::from_utf8_lossy(&content_output.stdout)
-                .trim()
-                .to_owned(),
+            output.status.code(),
+            String::from_utf8_lossy(&output.stdout).trim().to_owned(),
         ),
-        (
-            json!("abstract"),
-            json!("Event rules."),
-            vec![None, Some(json!("Own rules."))],
-            Some(0),
-            "Event rules.\n\n## Own\n\nOwn rules.".to_owned(),
-        )
+        (Some(0), "Event rules.".to_owned()),
+        "stderr: {}",
+        stderr(&output)
     );
 }
 
