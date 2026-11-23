@@ -578,12 +578,14 @@ fn configured_credentials(config: &Config) -> Vec<Secret> {
 
 #[cfg(test)]
 mod tests {
+    use std::env;
     use std::path::{Path, PathBuf};
 
     use crate::redact::{CREDENTIAL_MASK, Secret};
 
     use super::{configured_credentials, resolve_journal_dir};
     use crate::config::schema::Config;
+    use crate::state_file;
 
     #[test]
     fn configured_credentials_collects_every_pool_without_debug_leakage() {
@@ -603,6 +605,27 @@ mod tests {
         assert_eq!(credentials.len(), 8);
         assert_eq!(debug.matches(CREDENTIAL_MASK).count(), 8);
         assert!(!debug.contains("canary"));
+    }
+
+    #[test]
+    fn in_crate_tests_resolve_state_and_the_default_journal_outside_home() {
+        let home = env::var_os("HOME").map(PathBuf::from);
+        let state = state_file::state_directory().expect("test state directory");
+        let journal = resolve_journal_dir(&Config::default().journal.dir, Path::new("/unused"))
+            .expect("resolve default journal directory");
+
+        let under_home = |path: &Path| home.as_deref().is_some_and(|home| path.starts_with(home));
+        assert_eq!(
+            (
+                state.starts_with(env::temp_dir()),
+                journal == state.join("journal"),
+                under_home(&state),
+            ),
+            (true, true, false),
+            "state {} and journal {} must be in the test process's temporary directory, outside HOME",
+            state.display(),
+            journal.display()
+        );
     }
 
     #[test]

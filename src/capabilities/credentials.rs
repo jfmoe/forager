@@ -167,7 +167,7 @@ mod tests {
     use serde_json::json;
     use tempfile::tempdir;
 
-    use super::claim_persistent_index;
+    use super::{CredentialPool, claim_persistent_index};
 
     #[test]
     fn persistent_claims_round_robin_independently_per_provider() {
@@ -193,6 +193,31 @@ mod tests {
         ];
 
         assert_eq!(claims, [0, 1, 0, 2, 1]);
+    }
+
+    #[test]
+    fn a_pool_rotates_through_the_state_file_its_caller_supplies() {
+        let directory = tempdir().expect("create state directory");
+        let path = directory.path().join("cursor.json");
+        let pool = CredentialPool::in_state_file(
+            "exa",
+            vec!["first".into(), "second".into()],
+            Some(path.clone()),
+        );
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .expect("test runtime");
+
+        let claims = runtime.block_on(async {
+            let first = pool.claim().await;
+            let second = pool.claim().await;
+            [
+                (first.index, first.diagnostic),
+                (second.index, second.diagnostic),
+            ]
+        });
+
+        assert_eq!((claims, path.is_file()), ([(0, None), (1, None)], true));
     }
 
     #[test]

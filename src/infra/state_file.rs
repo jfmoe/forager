@@ -29,8 +29,27 @@ const ASYNC_LOCK_POLL: Duration = Duration::from_millis(20);
 static STATE_WORK: LazyLock<std::sync::Mutex<HashMap<PathBuf, Arc<Mutex<()>>>>> =
     LazyLock::new(Default::default);
 
+#[cfg(not(test))]
 pub(crate) fn state_directory() -> Option<PathBuf> {
     forager_directory("XDG_STATE_HOME", ".local/state")
+}
+
+/// Under the test build, a temporary directory owned by the test process, so in-crate tests
+/// never touch the user's state. It is never `None`: an unresolved state directory makes the
+/// Access Policy limiter fail and credential claims add a diagnostic.
+#[cfg(test)]
+#[expect(
+    clippy::unnecessary_wraps,
+    reason = "the test build keeps the production signature"
+)]
+pub(crate) fn state_directory() -> Option<PathBuf> {
+    static DIRECTORY: LazyLock<tempfile::TempDir> = LazyLock::new(|| {
+        tempfile::Builder::new()
+            .prefix("forager-test-state-")
+            .tempdir()
+            .expect("create the test state directory")
+    });
+    Some(DIRECTORY.path().to_path_buf())
 }
 
 /// Returns forager's directory under the XDG base directory that `variable` names, or under

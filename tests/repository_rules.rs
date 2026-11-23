@@ -203,6 +203,74 @@ fn only_the_shared_test_environment_spawns_the_binary() {
     );
 }
 
+/// The HTTP boundary, which owns the only HTTP client, and its test-build loopback guard.
+const HTTP_BOUNDARY: &[&str] = &[
+    "src/capabilities/net.rs",
+    "src/capabilities/loopback_guard.rs",
+    "src/capabilities/loopback_guard_tests.rs",
+];
+
+#[test]
+fn only_the_http_boundary_builds_an_http_client() {
+    let building = ["src", "tests"]
+        .iter()
+        .flat_map(|scanned| files(&root().join(scanned), "rs"))
+        .filter(|path| {
+            let path = relative(path);
+            !HTTP_BOUNDARY.contains(&path.as_str()) && path != "tests/repository_rules.rs"
+        })
+        .flat_map(|path| {
+            client_constructions(&read(&path))
+                .into_iter()
+                .map(move |found| format!("{}:{found}", relative(&path)))
+        })
+        .collect::<Vec<_>>();
+
+    assert!(
+        building.is_empty(),
+        "get an HTTP client from `net::build_client`: under the test build only that client refuses non-loopback hosts, \
+         so a client built elsewhere lets an in-crate test reach a real site: {building:#?}"
+    );
+}
+
+#[test]
+fn an_http_client_built_outside_the_boundary_is_reported() {
+    let source = "let a = reqwest::Client::new();\nlet b = HttpClient::new();\nlet c = Client::builder()\n    .build();\nlet d = reqwest::get(url);\n";
+    assert_eq!(
+        client_constructions(source),
+        ["1: Client::new(", "3: Client::builder(", "5: reqwest::get("]
+    );
+}
+
+/// Lines of `source`, with the construction found, that build a reqwest client.
+fn client_constructions(source: &str) -> Vec<String> {
+    const CONSTRUCTIONS: &[&str] = &[
+        "Client::new(",
+        "Client::builder(",
+        "Client::default(",
+        "ClientBuilder::new(",
+        "ClientBuilder::default(",
+        "reqwest::get(",
+    ];
+    source
+        .lines()
+        .enumerate()
+        .flat_map(|(index, line)| {
+            CONSTRUCTIONS
+                .iter()
+                .filter(move |construction| {
+                    line.match_indices(*construction).any(|(start, _)| {
+                        !line[..start]
+                            .chars()
+                            .next_back()
+                            .is_some_and(|before| before.is_alphanumeric() || before == '_')
+                    })
+                })
+                .map(move |construction| format!("{}: {construction}", index + 1))
+        })
+        .collect()
+}
+
 #[test]
 fn a_reference_to_a_deleted_adr_is_reported_outside_supersedes() {
     let adr = "See ADR-0012 and ADR 0007.\n\n## Supersedes\n\n- ADR-0012, merged here.\n";
