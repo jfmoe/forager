@@ -4,7 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-use support::run_command;
+use support::{command_behind_closed_proxy, run_command};
 use tempfile::TempDir;
 
 #[cfg(unix)]
@@ -76,7 +76,7 @@ impl UnixFixture {
         }
         let target = "fixture-unix";
         let archive = artifacts.join(format!("forager-{target}.tar.xz"));
-        let mut command = Command::new("tar");
+        let mut command = command_behind_closed_proxy("tar");
         command
             .args(["-cJf"])
             .arg(&archive)
@@ -85,7 +85,7 @@ impl UnixFixture {
             .arg(".");
         let output = run_command(&mut command, None);
         assert!(output.status.success(), "{output:?}");
-        let host_arch = command_stdout(Command::new("uname").arg("-m"));
+        let host_arch = command_stdout(command_behind_closed_proxy("uname").arg("-m"));
         let file_arch = match host_arch.as_str() {
             "x86_64" if cfg!(target_os = "linux") => "x86-64".to_owned(),
             "aarch64" if cfg!(target_os = "macos") => "arm64".to_owned(),
@@ -101,7 +101,7 @@ impl UnixFixture {
     }
 
     fn verify(&self, version: &str, file_arch: &str) -> Output {
-        let mut command = Command::new("bash");
+        let mut command = command_behind_closed_proxy("bash");
         command
             .arg(script_path("verify-release-unix.sh"))
             .current_dir(&self.root)
@@ -198,7 +198,7 @@ impl WindowsFixture {
                 .expect("write fixture placeholder");
         }
         let archive = artifacts.join("forager-fixture-windows.zip");
-        let mut command = Command::new("pwsh");
+        let mut command = command_behind_closed_proxy("pwsh");
         command
             .args([
                 "-NoProfile",
@@ -225,7 +225,7 @@ impl WindowsFixture {
             .prefix("runner-")
             .tempdir_in(&self.root)
             .expect("create Windows runner directory");
-        let mut command = Command::new("pwsh");
+        let mut command = command_behind_closed_proxy("pwsh");
         command
             .args(["-NoProfile", "-File"])
             .arg(script_path("verify-release-windows.ps1"))
@@ -277,7 +277,7 @@ impl ChecksumFixture {
     }
 
     fn verify(&self) -> std::process::Output {
-        let mut command = Command::new("bash");
+        let mut command = command_behind_closed_proxy("bash");
         command
             .arg(".github/scripts/verify-release-checksums.sh")
             .arg(&self.artifacts)
@@ -291,7 +291,7 @@ impl ChecksumFixture {
 
 #[cfg(unix)]
 fn write_checksum(archive: &Path) {
-    let mut command = Command::new("sha256sum");
+    let mut command = command_behind_closed_proxy("sha256sum");
     command
         .arg(archive.file_name().expect("fixture archive file name"))
         .current_dir(archive.parent().expect("fixture archive parent"));

@@ -85,16 +85,39 @@ pub(crate) fn forager_command() -> Command {
 
 pub(crate) fn forager_command_through(proxy: &str) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_forager"));
-    command
-        .env_clear()
-        .env("NO_PROXY", "127.0.0.1,localhost")
-        .env("HTTP_PROXY", proxy)
-        .env("HTTPS_PROXY", proxy);
+    command.env_clear();
+    proxy_through(&mut command, proxy);
     #[cfg(windows)]
     if let Some(system_root) = std::env::var_os("SystemRoot") {
         command.env("SystemRoot", system_root);
     }
     command
+}
+
+/// A program, such as a release script, that keeps the environment it inherits but sends its
+/// HTTP, and that of every process it starts, through the closed port.
+pub(crate) fn command_behind_closed_proxy(program: &str) -> Command {
+    let mut command = Command::new(program);
+    proxy_through(&mut command, CLOSED_PROXY);
+    command
+}
+
+/// Sends HTTP through `proxy`, except to loopback, whatever proxy settings the process would
+/// otherwise inherit.
+fn proxy_through(command: &mut Command, proxy: &str) {
+    for inherited in [
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+        "ALL_PROXY",
+        "no_proxy",
+    ] {
+        command.env_remove(inherited);
+    }
+    command
+        .env("NO_PROXY", "127.0.0.1,localhost")
+        .env("HTTP_PROXY", proxy)
+        .env("HTTPS_PROXY", proxy);
 }
 
 pub(crate) struct RunEnvironment {

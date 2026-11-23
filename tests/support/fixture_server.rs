@@ -184,6 +184,40 @@ impl Fixture {
         }
     }
 
+    /// Answers each request by its method and path, ignoring the query, so concurrent requests
+    /// cannot race for a response. Each route answers one request; routes that share a method
+    /// and path answer in the order given. [`Self::finish_all`] returns the requests in route
+    /// order, and fails when a route was never requested or a request matched no route.
+    pub(crate) fn start_routed(routes: Vec<Route>) -> Self {
+        let listener = fixture_listener("routed fixture");
+        let address = listener.local_addr().expect("routed fixture address");
+        let (stop, stopped) = mpsc::channel();
+        let table = Arc::new(Mutex::new(RouteTable::new(routes)));
+        let handle = thread::spawn(move || {
+            let mut workers = Vec::new();
+            accept_until_stopped(&listener, &stopped, "routed fixture", |stream| {
+                let table = Arc::clone(&table);
+                workers.push(thread::spawn(move || answer_routed(stream, &table)));
+            });
+            for worker in workers {
+                worker
+                    .join()
+                    .unwrap_or_else(|panic| std::panic::resume_unwind(panic));
+            }
+            Arc::into_inner(table)
+                .expect("routed fixture workers finished")
+                .into_inner()
+                .expect("routed fixture routes")
+                .finish()
+        });
+        Self {
+            url: format!("http://{address}"),
+            handle,
+            stop: Some(stop),
+            expected_requests: None,
+        }
+    }
+
     pub(crate) fn start_canary() -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind fixture canary");
         listener
@@ -261,6 +295,111 @@ impl Fixture {
         }
         requests
     }
+}
+
+/// A response that a routed fixture gives to one request with this method and path.
+pub(crate) struct Route {
+    method: String,
+    path: String,
+    exchange: Exchange,
+}
+
+enum Exchange {
+    Pending(Response),
+    Answered(String),
+}
+
+impl Route {
+    pub(crate) fn new(method: &str, path: &str, response: Response) -> Self {
+        Self {
+            method: method.into(),
+            path: path.into(),
+            exchange: Exchange::Pending(response),
+        }
+    }
+
+    fn is_pending(&self) -> bool {
+        matches!(self.exchange, Exchange::Pending(_))
+    }
+
+    fn label(&self) -> String {
+        format!("{} {}", self.method, self.path)
+    }
+}
+
+struct RouteTable {
+    routes: Vec<Route>,
+    unmatched: Vec<String>,
+}
+
+impl RouteTable {
+    fn new(routes: Vec<Route>) -> Self {
+        Self {
+            routes,
+            unmatched: Vec::new(),
+        }
+    }
+
+    /// Records `request` against the first unanswered route it matches and hands out that
+    /// route's response.
+    fn answer(&mut self, request: String) -> Option<Response> {
+        let line = request.lines().next().unwrap_or_default();
+        let mut parts = line.split(' ');
+        let method = parts.next().unwrap_or_default();
+        let path = parts
+            .next()
+            .unwrap_or_default()
+            .split('?')
+            .next()
+            .unwrap_or_default();
+        let Some(route) = self
+            .routes
+            .iter_mut()
+            .find(|route| route.is_pending() && route.method == method && route.path == path)
+        else {
+            self.unmatched.push(line.to_owned());
+            return None;
+        };
+        match std::mem::replace(&mut route.exchange, Exchange::Answered(request)) {
+            Exchange::Pending(response) => Some(response),
+            Exchange::Answered(_) => unreachable!("only a pending route matches"),
+        }
+    }
+
+    fn finish(self) -> Vec<String> {
+        assert!(
+            self.unmatched.is_empty(),
+            "routed fixture received requests that match no route: {:?}",
+            self.unmatched
+        );
+        let unrequested = self
+            .routes
+            .iter()
+            .filter(|route| route.is_pending())
+            .map(Route::label)
+            .collect::<Vec<_>>();
+        assert!(
+            unrequested.is_empty(),
+            "routed fixture routes were never requested: {unrequested:?}"
+        );
+        self.routes
+            .into_iter()
+            .filter_map(|route| match route.exchange {
+                Exchange::Answered(request) => Some(request),
+                Exchange::Pending(_) => None,
+            })
+            .collect()
+    }
+}
+
+fn answer_routed(mut stream: TcpStream, table: &Mutex<RouteTable>) {
+    let request = read_request(&mut stream);
+    let response = table
+        .lock()
+        .expect("lock routed fixture routes")
+        .answer(request);
+    let response = response.unwrap_or_else(|| Response::new(404, "text/plain", "no fixture route"));
+    write_response(stream, &response);
 }
 
 struct ConnectionBarrier {
@@ -366,6 +505,12 @@ fn accept_until_stopped(
 }
 
 fn respond(mut stream: TcpStream, response: &Response) -> String {
+    let request = read_request(&mut stream);
+    write_response(stream, response);
+    request
+}
+
+fn read_request(stream: &mut TcpStream) -> String {
     let mut request = Vec::new();
     let mut buffer = [0_u8; 4096];
     loop {
@@ -378,6 +523,10 @@ fn respond(mut stream: TcpStream, response: &Response) -> String {
             break;
         }
     }
+    String::from_utf8(request).expect("UTF-8 request")
+}
+
+fn write_response(mut stream: TcpStream, response: &Response) {
     thread::sleep(response.delay);
     let reason = if response.status == 200 {
         "OK"
@@ -395,7 +544,6 @@ fn respond(mut stream: TcpStream, response: &Response) -> String {
     );
     let _ = stream.flush();
     let _ = stream.write_all(response.body.as_bytes());
-    String::from_utf8(request).expect("UTF-8 request")
 }
 
 fn accept_request(
