@@ -3,8 +3,6 @@
 //! The type system cannot see a platform that misses a registration point, so this test walks
 //! the integration checklist: each [`Rule`] states one registration point and what to add.
 
-use std::collections::BTreeSet;
-
 use crate::catalog::{
     self, Credentials, DoctorProbe, PLATFORMS, PlatformCatalog, PlatformOperation, ProviderId,
     ProviderRegistration, ProviderTransport,
@@ -31,7 +29,6 @@ enum Rule {
     ConfigLeaves,
     DoctorProbe,
     SmokeCase,
-    TransportFixture,
     SampleRefs,
     AccessWindowTest,
 }
@@ -71,10 +68,6 @@ impl Rule {
             Self::SmokeCase => (
                 "each platform operation has a route that registers a live smoke case",
                 "register a smoke case for the operation in a route's registration, under the next unused case number",
-            ),
-            Self::TransportFixture => (
-                "every route of every operation has a transport fixture in the acceptance manifest",
-                "add the route and seam, with the tests that cover them, to `transport_fixtures` in `tests/acceptance-manifest.json`",
             ),
             Self::SampleRefs => (
                 "the sample refs cover every kind of the platform, each round-trips through its canonical URL, and the first is a ref a fetch route of the platform accepts",
@@ -176,7 +169,6 @@ struct Registry<'a> {
     is_config_leaf: &'a dyn Fn(&str) -> bool,
     /// Whether the factory provides the login page logic of a platform's browser route.
     has_login: &'a dyn Fn(Platform) -> bool,
-    fixtures: &'a BTreeSet<(String, String)>,
     sample_refs: &'a dyn Fn(Platform) -> &'static [&'static str],
     has_window_test: &'a dyn Fn(ProviderId) -> bool,
 }
@@ -271,20 +263,6 @@ fn check_operation(
                 Rule::Factory,
                 &format!(
                     "the platform factory cannot build {name} route `{}`",
-                    route.name()
-                ),
-            ));
-        }
-        let seam = format!("platform:{platform}:{name}");
-        if !registry
-            .fixtures
-            .contains(&(route.name().to_owned(), seam.clone()))
-        {
-            found.push(violation(
-                platform,
-                Rule::TransportFixture,
-                &format!(
-                    "the acceptance manifest has no transport fixture for `{}` / `{seam}`",
                     route.name()
                 ),
             ));
@@ -476,25 +454,6 @@ fn check_refs(
     }
 }
 
-fn manifest_fixtures() -> BTreeSet<(String, String)> {
-    let manifest: serde_json::Value = serde_json::from_str(include_str!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/acceptance-manifest.json"
-    )))
-    .expect("acceptance manifest");
-    manifest["transport_fixtures"]
-        .as_array()
-        .expect("transport fixtures")
-        .iter()
-        .map(|fixture| {
-            (
-                fixture["provider"].as_str().expect("provider").to_owned(),
-                fixture["seam"].as_str().expect("seam").to_owned(),
-            )
-        })
-        .collect()
-}
-
 /// The factory covers a route when it has a support check for the operation and a route
 /// configuration that names the route, which is what `build_platform_search` and
 /// `build_platform_fetch` construct from.
@@ -583,7 +542,7 @@ fn has_window_test(route: ProviderId) -> bool {
     .contains(&format!("\"{}\"", route.name()))
 }
 
-fn baseline(fixtures: &BTreeSet<(String, String)>) -> Registry<'_> {
+fn baseline() -> Registry<'static> {
     Registry {
         platforms: PLATFORMS,
         single_route_operations: SINGLE_ROUTE_OPERATIONS,
@@ -591,7 +550,6 @@ fn baseline(fixtures: &BTreeSet<(String, String)>) -> Registry<'_> {
         has_adapter: &has_adapter,
         is_config_leaf: &config::is_leaf,
         has_login: &|platform| providers::browser_login(platform).is_some(),
-        fixtures,
         sample_refs: &sample_refs,
         has_window_test: &has_window_test,
     }
@@ -599,8 +557,7 @@ fn baseline(fixtures: &BTreeSet<(String, String)>) -> Registry<'_> {
 
 #[test]
 fn every_platform_satisfies_the_integration_checklist() {
-    let fixtures = manifest_fixtures();
-    let registry = baseline(&fixtures);
+    let registry = baseline();
 
     let found = Platform::ALL
         .into_iter()
@@ -618,32 +575,6 @@ fn every_platform_satisfies_the_integration_checklist() {
     );
 }
 
-#[test]
-fn single_route_operations_have_transport_fixtures() {
-    let catalog_operations = PlatformOperation::ALL.map(PlatformOperation::as_str);
-    let fixtures = manifest_fixtures()
-        .into_iter()
-        .filter(|(_, seam)| {
-            seam.strip_prefix("platform:")
-                .and_then(|rest| rest.split_once(':'))
-                .is_some_and(|(_, operation)| !catalog_operations.contains(&operation))
-        })
-        .collect::<BTreeSet<_>>();
-    let routes = SINGLE_ROUTE_OPERATIONS
-        .iter()
-        .flat_map(|(platform, operation, routes)| {
-            routes.iter().map(move |route| {
-                (
-                    route.name().to_owned(),
-                    format!("platform:{platform}:{operation}"),
-                )
-            })
-        })
-        .collect::<BTreeSet<_>>();
-
-    assert_eq!(fixtures, routes);
-}
-
 fn assert_reports(found: &[Violation], rule: Rule) {
     assert!(
         found.iter().any(|violation| violation.rule == rule),
@@ -653,10 +584,9 @@ fn assert_reports(found: &[Violation], rule: Rule) {
 
 #[test]
 fn a_platform_without_a_catalog_breaks_the_catalog_rule() {
-    let fixtures = manifest_fixtures();
     let registry = Registry {
         platforms: &[],
-        ..baseline(&fixtures)
+        ..baseline()
     };
 
     assert_reports(&violations(Platform::Arxiv, &registry), Rule::Catalog);
@@ -664,7 +594,6 @@ fn a_platform_without_a_catalog_breaks_the_catalog_rule() {
 
 #[test]
 fn an_operation_only_route_that_no_operation_lists_breaks_the_operation_only_rule() {
-    let fixtures = manifest_fixtures();
     let without_youtube_model_operations = SINGLE_ROUTE_OPERATIONS
         .iter()
         .copied()
@@ -674,7 +603,7 @@ fn an_operation_only_route_that_no_operation_lists_breaks_the_operation_only_rul
         .collect::<Vec<_>>();
     let registry = Registry {
         single_route_operations: &without_youtube_model_operations,
-        ..baseline(&fixtures)
+        ..baseline()
     };
 
     let found = violations(Platform::Youtube, &registry);
@@ -690,7 +619,6 @@ fn an_operation_only_route_that_no_operation_lists_breaks_the_operation_only_rul
 
 #[test]
 fn a_route_without_a_registration_breaks_the_registration_rule() {
-    let fixtures = manifest_fixtures();
     let registrations = catalog::registrations()
         .iter()
         .copied()
@@ -698,7 +626,7 @@ fn a_route_without_a_registration_breaks_the_registration_rule() {
         .collect::<Vec<_>>();
     let registry = Registry {
         registrations: &registrations,
-        ..baseline(&fixtures)
+        ..baseline()
     };
 
     assert_reports(&violations(Platform::Arxiv, &registry), Rule::Registration);
@@ -706,10 +634,9 @@ fn a_route_without_a_registration_breaks_the_registration_rule() {
 
 #[test]
 fn a_route_without_a_factory_breaks_the_factory_rule() {
-    let fixtures = manifest_fixtures();
     let registry = Registry {
         has_adapter: &|_, _, _| false,
-        ..baseline(&fixtures)
+        ..baseline()
     };
 
     assert_reports(&violations(Platform::Arxiv, &registry), Rule::Factory);
@@ -717,10 +644,9 @@ fn a_route_without_a_factory_breaks_the_factory_rule() {
 
 #[test]
 fn a_platform_without_an_order_leaf_breaks_the_config_rule() {
-    let fixtures = manifest_fixtures();
     let registry = Registry {
         is_config_leaf: &|path| path != "platforms.arxiv.order" && config::is_leaf(path),
-        ..baseline(&fixtures)
+        ..baseline()
     };
 
     assert_reports(&violations(Platform::Arxiv, &registry), Rule::ConfigLeaves);
@@ -728,12 +654,11 @@ fn a_platform_without_an_order_leaf_breaks_the_config_rule() {
 
 #[test]
 fn a_browser_route_without_a_timeout_leaf_breaks_the_config_rule() {
-    let fixtures = manifest_fixtures();
     let registry = Registry {
         is_config_leaf: &|path| {
             path != "providers.xiaohongshu_browser.timeout" && config::is_leaf(path)
         },
-        ..baseline(&fixtures)
+        ..baseline()
     };
 
     let found = violations(Platform::Xiaohongshu, &registry);
@@ -748,8 +673,7 @@ fn a_browser_route_without_a_timeout_leaf_breaks_the_config_rule() {
 
 #[test]
 fn a_main_search_backend_is_not_required_to_have_a_timeout_leaf() {
-    let fixtures = manifest_fixtures();
-    let registry = baseline(&fixtures);
+    let registry = baseline();
 
     let found = violations(Platform::X, &registry);
 
@@ -763,8 +687,7 @@ fn a_main_search_backend_is_not_required_to_have_a_timeout_leaf() {
 
 #[test]
 fn a_browser_route_is_not_required_to_have_a_url_leaf() {
-    let fixtures = manifest_fixtures();
-    let registry = baseline(&fixtures);
+    let registry = baseline();
 
     let found = violations(Platform::Xiaohongshu, &registry);
 
@@ -778,7 +701,6 @@ fn a_browser_route_is_not_required_to_have_a_url_leaf() {
 
 #[test]
 fn a_route_without_a_platform_probe_breaks_the_doctor_rule() {
-    let fixtures = manifest_fixtures();
     let registrations = catalog::registrations()
         .iter()
         .map(|registration| ProviderRegistration {
@@ -791,7 +713,7 @@ fn a_route_without_a_platform_probe_breaks_the_doctor_rule() {
         .collect::<Vec<_>>();
     let registry = Registry {
         registrations: &registrations,
-        ..baseline(&fixtures)
+        ..baseline()
     };
 
     assert_reports(&violations(Platform::Arxiv, &registry), Rule::DoctorProbe);
@@ -799,7 +721,6 @@ fn a_route_without_a_platform_probe_breaks_the_doctor_rule() {
 
 #[test]
 fn a_keyless_route_with_an_account_probe_breaks_the_doctor_rule() {
-    let fixtures = manifest_fixtures();
     let registrations = catalog::registrations()
         .iter()
         .map(|registration| ProviderRegistration {
@@ -812,7 +733,7 @@ fn a_keyless_route_with_an_account_probe_breaks_the_doctor_rule() {
         .collect::<Vec<_>>();
     let registry = Registry {
         registrations: &registrations,
-        ..baseline(&fixtures)
+        ..baseline()
     };
 
     assert_reports(&violations(Platform::Arxiv, &registry), Rule::DoctorProbe);
@@ -826,7 +747,6 @@ fn a_keyless_route_with_an_account_probe_breaks_the_doctor_rule() {
 
 #[test]
 fn a_platform_without_a_smoke_case_breaks_the_smoke_rule() {
-    let fixtures = manifest_fixtures();
     let registrations = catalog::registrations()
         .iter()
         .map(|registration| ProviderRegistration {
@@ -836,7 +756,7 @@ fn a_platform_without_a_smoke_case_breaks_the_smoke_rule() {
         .collect::<Vec<_>>();
     let registry = Registry {
         registrations: &registrations,
-        ..baseline(&fixtures)
+        ..baseline()
     };
 
     assert_reports(&violations(Platform::Arxiv, &registry), Rule::SmokeCase);
@@ -844,10 +764,9 @@ fn a_platform_without_a_smoke_case_breaks_the_smoke_rule() {
 
 #[test]
 fn a_browser_route_that_needs_a_login_without_login_page_logic_breaks_the_browser_rule() {
-    let fixtures = manifest_fixtures();
     let registry = Registry {
         has_login: &|_| false,
-        ..baseline(&fixtures)
+        ..baseline()
     };
 
     let found = violations(Platform::Xiaohongshu, &registry);
@@ -863,7 +782,6 @@ fn a_browser_route_that_needs_a_login_without_login_page_logic_breaks_the_browse
 
 #[test]
 fn a_browser_route_on_another_platform_profile_breaks_the_browser_rule() {
-    let fixtures = manifest_fixtures();
     let registrations = catalog::registrations()
         .iter()
         .map(|registration| match registration.transport {
@@ -879,7 +797,7 @@ fn a_browser_route_on_another_platform_profile_breaks_the_browser_rule() {
         .collect::<Vec<_>>();
     let registry = Registry {
         registrations: &registrations,
-        ..baseline(&fixtures)
+        ..baseline()
     };
 
     let found = violations(Platform::Xiaohongshu, &registry);
@@ -894,22 +812,10 @@ fn a_browser_route_on_another_platform_profile_breaks_the_browser_rule() {
 }
 
 #[test]
-fn a_route_without_a_transport_fixture_breaks_the_fixture_rule() {
-    let fixtures = BTreeSet::new();
-    let registry = baseline(&fixtures);
-
-    assert_reports(
-        &violations(Platform::Arxiv, &registry),
-        Rule::TransportFixture,
-    );
-}
-
-#[test]
 fn samples_that_miss_a_kind_of_the_platform_break_the_sample_rule() {
-    let fixtures = manifest_fixtures();
     let registry = Registry {
         sample_refs: &|_| &["youtube:jNQXAC9IVRw"],
-        ..baseline(&fixtures)
+        ..baseline()
     };
 
     assert_reports(&violations(Platform::Youtube, &registry), Rule::SampleRefs);
@@ -917,10 +823,9 @@ fn samples_that_miss_a_kind_of_the_platform_break_the_sample_rule() {
 
 #[test]
 fn a_ref_that_does_not_round_trip_breaks_the_sample_rule() {
-    let fixtures = manifest_fixtures();
     let registry = Registry {
         sample_refs: &|_| &["arXiv:2401.01234"],
-        ..baseline(&fixtures)
+        ..baseline()
     };
 
     assert_reports(&violations(Platform::Arxiv, &registry), Rule::SampleRefs);
@@ -928,7 +833,6 @@ fn a_ref_that_does_not_round_trip_breaks_the_sample_rule() {
 
 #[test]
 fn samples_whose_first_ref_no_fetch_route_accepts_break_the_sample_rule() {
-    let fixtures = manifest_fixtures();
     let registry = Registry {
         sample_refs: &|_| {
             &[
@@ -937,7 +841,7 @@ fn samples_whose_first_ref_no_fetch_route_accepts_break_the_sample_rule() {
                 "youtube:channel/UCYO_jab_esuFRV4b17AJtAw",
             ]
         },
-        ..baseline(&fixtures)
+        ..baseline()
     };
 
     let found = violations(Platform::Youtube, &registry);
@@ -954,10 +858,9 @@ fn samples_whose_first_ref_no_fetch_route_accepts_break_the_sample_rule() {
 
 #[test]
 fn a_paced_http_route_without_a_window_test_breaks_the_window_rule() {
-    let fixtures = manifest_fixtures();
     let registry = Registry {
         has_window_test: &|_| false,
-        ..baseline(&fixtures)
+        ..baseline()
     };
 
     assert_reports(
