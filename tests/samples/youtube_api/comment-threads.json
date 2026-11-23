@@ -12,14 +12,14 @@
       "etag": "thread-UgzTop1",
       "id": "UgzTop1",
       "snippet": {
-        "channelId": "UC4QobU6STFB0P71PMvOGN5A",
+        "channelId": "UCExampleZooVisitor00001",
         "videoId": "jNQXAC9IVRw",
         "topLevelComment": {
           "kind": "youtube#comment",
           "etag": "etag-UgzTop1",
           "id": "UgzTop1",
           "snippet": {
-            "channelId": "UC4QobU6STFB0P71PMvOGN5A",
+            "channelId": "UCExampleZooVisitor00001",
             "videoId": "jNQXAC9IVRw",
             "textDisplay": "The first video ever.",
             "textOriginal": "The first video ever.",
@@ -46,14 +46,14 @@
       "etag": "thread-UgzTop2",
       "id": "UgzTop2",
       "snippet": {
-        "channelId": "UC4QobU6STFB0P71PMvOGN5A",
+        "channelId": "UCExampleZooVisitor00001",
         "videoId": "jNQXAC9IVRw",
         "topLevelComment": {
           "kind": "youtube#comment",
           "etag": "etag-UgzTop2",
           "id": "UgzTop2",
           "snippet": {
-            "channelId": "UC4QobU6STFB0P71PMvOGN5A",
+            "channelId": "UCExampleZooVisitor00001",
             "videoId": "jNQXAC9IVRw",
             "textDisplay": "Those trunks are long.",
             "textOriginal": "Those trunks are long.",
@@ -81,7 +81,7 @@
             "etag": "etag-UgzTop2.r1",
             "id": "UgzTop2.r1",
             "snippet": {
-              "channelId": "UC4QobU6STFB0P71PMvOGN5A",
+              "channelId": "UCExampleZooVisitor00001",
               "videoId": "jNQXAC9IVRw",
               "textDisplay": "Really long.",
               "textOriginal": "Really long.",
