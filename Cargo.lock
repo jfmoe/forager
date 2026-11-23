@@ -406,6 +406,8 @@ dependencies = [
  "tokio",
  "toml",
  "toml_edit",
+ "tower-layer",
+ "tower-service",
  "winapi",
  "windows-acl",
 ]
