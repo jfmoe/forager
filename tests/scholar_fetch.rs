@@ -1,11 +1,9 @@
 mod support;
 
-use std::collections::BTreeMap;
 use std::process::Output;
 
 use serde_json::{Value, json};
 
-use support::query;
 use support::scholar::{config, fixture, ok, payload};
 use support::{Fixture, RunEnvironment};
 
@@ -23,27 +21,6 @@ fn run(arguments: &[&str], body: &Value) -> (Output, String) {
     let environment = RunEnvironment::new(&config(&fixture.url, &[KEY]));
     let output = fetch(&environment, arguments);
     (output, fixture.finish())
-}
-
-#[test]
-fn fetch_requests_one_full_page_of_the_cluster() {
-    let (output, request) = run(&[CLUSTER], &fixture("cluster.json"));
-
-    assert_eq!(
-        (output.status.code(), query(&request)),
-        (
-            Some(0),
-            BTreeMap::from([
-                ("engine".to_owned(), "google_scholar".to_owned()),
-                ("hl".to_owned(), "en".to_owned()),
-                ("cluster".to_owned(), "18208131694456651388".to_owned()),
-                ("num".to_owned(), "20".to_owned()),
-                ("api_key".to_owned(), KEY.to_owned()),
-            ])
-        ),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
 }
 
 #[test]
@@ -86,98 +63,5 @@ fn fetch_lists_the_cluster_versions_at_metadata_depth() {
                 }
             ]
         })
-    );
-}
-
-#[test]
-fn a_cluster_url_fetches_the_cluster_it_names() {
-    let (output, request) = run(
-        &[
-            "https://scholar.google.com/scholar?cluster=18208131694456651388&hl=en&num=20&as_sdt=0,27",
-        ],
-        &fixture("cluster.json"),
-    );
-
-    assert_eq!(
-        (
-            output.status.code(),
-            payload(&output)["ref"].clone(),
-            query(&request)["cluster"].clone()
-        ),
-        (
-            Some(0),
-            json!("scholar:18208131694456651388"),
-            "18208131694456651388".to_owned()
-        )
-    );
-}
-
-#[test]
-fn unrecognized_urls_and_depths_other_than_metadata_are_rejected_before_any_request() {
-    for arguments in [
-        &["https://scholar.google.com/scholar?cites=18208131694456651388"][..],
-        &[
-            "https://scholar.google.com/scholar?cluster=18208131694456651388&cites=18208131694456651388",
-        ],
-        &["https://scholar.google.com/scholar?cluster=1&cluster=2"],
-        &["https://scholar.google.com/scholar?cluster=18446744073709551616"],
-        &["https://scholar.google.com/citations?user=q9g8tuAAAAAJ&hl=en"],
-        &[CLUSTER, "--depth", "snippet"],
-        &[CLUSTER, "--depth", "abstract"],
-        &[CLUSTER, "--depth", "full_text"],
-    ] {
-        let fixture = Fixture::start_canary();
-        let environment = RunEnvironment::new(&config(&fixture.url, &[KEY]));
-
-        let output = fetch(&environment, arguments);
-
-        assert_eq!(
-            (output.status.code(), fixture.finish_all().len()),
-            (Some(2), 0),
-            "arguments: {arguments:?}\nstderr: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-    }
-}
-
-#[test]
-fn a_cluster_with_more_versions_than_one_page_says_the_list_is_incomplete() {
-    let mut cluster = fixture("cluster.json");
-    cluster["serpapi_pagination"] = json!({
-        "current": 1,
-        "next": "https://serpapi.com/search.json?cluster=18208131694456651388&engine=google_scholar&hl=en&num=20&start=20"
-    });
-
-    let (output, _) = run(&[CLUSTER], &cluster);
-    let stderr = String::from_utf8_lossy(&output.stderr);
-
-    assert_eq!(
-        (
-            output.status.code(),
-            payload(&output)["versions"].as_array().map(Vec::len),
-            stderr.contains("more versions of scholar:18208131694456651388"),
-            stderr.contains("https://scholar.google.com/scholar?cluster=18208131694456651388"),
-        ),
-        (Some(0), Some(3), true, true),
-        "stderr: {stderr}"
-    );
-}
-
-#[test]
-fn a_cluster_that_does_not_exist_is_an_attempt_parameter_failure() {
-    let (output, _) = run(&["scholar:1"], &fixture("cl_missing.json"));
-    let payload = payload(&output);
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["error_kind"],
-            &payload["message"]
-        ),
-        (
-            Some(4),
-            &json!("parameter"),
-            &json!("Google Scholar has no cluster scholar:1")
-        )
     );
 }

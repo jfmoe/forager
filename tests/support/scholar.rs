@@ -1,19 +1,17 @@
-//! Google Scholar fixtures: trimmed real SerpApi responses, configuration, and request and
-//! output readers shared by the `platform scholar` tests.
+//! Google Scholar fixtures: the stored SerpApi bodies of `tests/samples/serpapi/`, configuration,
+//! and output readers shared by the `platform scholar` and `serpapi` tests.
 
 use std::process::Output;
 
 use serde_json::Value;
 
 use super::Response;
+use super::samples::sample;
 
-/// Reads a trimmed real SerpApi response from `tests/fixtures/scholar`.
+/// The stored SerpApi body `name`, as the upstream answered it.
 pub(crate) fn fixture(name: &str) -> Value {
-    let path = format!(
-        "{}/tests/fixtures/scholar/{name}",
-        env!("CARGO_MANIFEST_DIR")
-    );
-    serde_json::from_str(&std::fs::read_to_string(path).expect("read fixture")).expect("fixture")
+    serde_json::from_str(&sample(&format!("serpapi/{name}")))
+        .unwrap_or_else(|error| panic!("stored serpapi/{name}: {error}"))
 }
 
 pub(crate) fn ok(body: &Value) -> Response {
