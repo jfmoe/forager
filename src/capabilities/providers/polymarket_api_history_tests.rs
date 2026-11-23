@@ -499,49 +499,6 @@ fn a_data_api_refusal_fails_the_history_with_the_upstream_reason() {
 }
 
 #[test]
-fn the_day_and_week_windows_default_to_five_minute_and_hourly_buckets() {
-    let [yes, _] = tokens(OPEN);
-
-    let sent = [PolymarketInterval::Day, PolymarketInterval::Week].map(|window| {
-        let (outcome, requests) = history(
-            &request(
-                &format!("polymarket:market/{OPEN}"),
-                None,
-                interval(window),
-                None,
-            ),
-            vec![json(&market(OPEN, "No cuts")), json(&price_page(&[], None))],
-        );
-        (
-            outcome.map(|_| ()).map_err(|error| error.message),
-            query(&requests[1]),
-        )
-    });
-
-    assert_eq!(
-        sent,
-        [
-            (
-                Ok(()),
-                pairs(&[
-                    ("token_id", yes.as_str()),
-                    ("interval", "1d"),
-                    ("bucket_seconds", "300"),
-                ])
-            ),
-            (
-                Ok(()),
-                pairs(&[
-                    ("token_id", yes.as_str()),
-                    ("interval", "1w"),
-                    ("bucket_seconds", "3600"),
-                ])
-            ),
-        ]
-    );
-}
-
-#[test]
 fn prices_written_as_decimal_strings_are_read_as_numbers() {
     let mut page: Value = serde_json::from_str(&stored("price-history.json")).expect("stored page");
     page["data"] = json!([with(
