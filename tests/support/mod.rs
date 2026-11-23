@@ -31,6 +31,7 @@ pub(crate) mod ssrn_samples;
 pub(crate) mod x;
 pub(crate) mod x_samples;
 pub(crate) mod youtube;
+pub(crate) mod youtube_api_samples;
 pub(crate) mod youtube_web;
 
 const COMMAND_DEADLINE: Duration = Duration::from_secs(30);

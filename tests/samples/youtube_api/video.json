@@ -1,0 +1,57 @@
+{
+  "kind": "youtube#videoListResponse",
+  "etag": "videos-etag",
+  "items": [
+    {
+      "kind": "youtube#video",
+      "etag": "etag-jNQXAC9IVRw",
+      "id": "jNQXAC9IVRw",
+      "snippet": {
+        "publishedAt": "2005-04-24T03:31:52Z",
+        "channelId": "UC4QobU6STFB0P71PMvOGN5A",
+        "title": "Me at the zoo",
+        "description": "The first video on YouTube.\n\n0:00 Elephants\n0:07 Trunks\n0:14 That's it",
+        "thumbnails": {},
+        "channelTitle": "jawed",
+        "tags": [
+          "me at the zoo"
+        ],
+        "categoryId": "1",
+        "liveBroadcastContent": "none",
+        "defaultLanguage": "en",
+        "localized": {
+          "title": "Me at the zoo",
+          "description": "The first video on YouTube.\n\n0:00 Elephants\n0:07 Trunks\n0:14 That's it"
+        },
+        "defaultAudioLanguage": "en"
+      },
+      "contentDetails": {
+        "duration": "PT19S",
+        "dimension": "2d",
+        "definition": "hd",
+        "caption": "true",
+        "licensedContent": true,
+        "contentRating": {},
+        "projection": "rectangular"
+      },
+      "status": {
+        "uploadStatus": "processed",
+        "privacyStatus": "public",
+        "license": "youtube",
+        "embeddable": true,
+        "publicStatsViewable": false,
+        "madeForKids": false
+      },
+      "statistics": {
+        "viewCount": "444694156",
+        "likeCount": "20083234",
+        "favoriteCount": "0",
+        "commentCount": "10641589"
+      }
+    }
+  ],
+  "pageInfo": {
+    "totalResults": 1,
+    "resultsPerPage": 1
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "kind": "youtube#channelListResponse",
+  "etag": "channels-etag",
+  "pageInfo": {
+    "totalResults": 1,
+    "resultsPerPage": 5
+  },
+  "items": [
+    {
+      "kind": "youtube#channel",
+      "etag": "etag-UCYO_jab_esuFRV4b17AJtAw",
+      "id": "UCYO_jab_esuFRV4b17AJtAw",
+      "contentDetails": {
+        "relatedPlaylists": {
+          "likes": "",
+          "uploads": "UUYO_jab_esuFRV4b17AJtAw"
+        }
+      }
+    }
+  ]
+}

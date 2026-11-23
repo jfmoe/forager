@@ -1,0 +1,44 @@
+# Upstream samples of the `youtube_api` route, the YouTube Data API v3; each record names one file
+# in this directory.
+
+[[sample]]
+file = "search.json"
+shape = "`search.list` with `part=snippet&type=video`: a page of video results whose titles and descriptions come HTML-escaped, and the token of the next page"
+origin = "hand-written"
+observed = 2026-10-17
+
+[[sample]]
+file = "video-details.json"
+shape = "`videos.list` with `part=contentDetails,statistics`, the detail batch of a search page: each video's duration, caption flag and counts, in no particular order"
+origin = "hand-written"
+observed = 2026-10-17
+
+[[sample]]
+file = "video.json"
+shape = "`videos.list` with `part=snippet,contentDetails,statistics,status,liveStreamingDetails`, the read of one video: an ordinary upload with a chaptered description"
+origin = "hand-written"
+observed = 2026-10-17
+
+[[sample]]
+file = "error.json"
+shape = "a Data API error body: the status, the message, the `errors[]` reasons and a `google.rpc.ErrorInfo` detail, here the 400 of an invalid key"
+origin = "hand-written"
+observed = 2026-10-17
+
+[[sample]]
+file = "comment-threads.json"
+shape = "`commentThreads.list` with `part=snippet,replies&textFormat=plainText`: top-level comments with their reply counts, the replies a thread embeds, and the token of the next page"
+origin = "hand-written"
+observed = 2026-10-18
+
+[[sample]]
+file = "playlist-items.json"
+shape = "`playlistItems.list` with `part=snippet,contentDetails`: readable entries with their position, the video's owner and the video's publication time"
+origin = "hand-written"
+observed = 2026-10-18
+
+[[sample]]
+file = "channels.json"
+shape = "`channels.list` with `part=contentDetails`: a channel and the uploads playlist among its related playlists"
+origin = "hand-written"
+observed = 2026-10-18

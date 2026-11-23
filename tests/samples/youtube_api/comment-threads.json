@@ -1,0 +1,105 @@
+{
+  "kind": "youtube#commentThreadListResponse",
+  "etag": "threads-etag",
+  "nextPageToken": "QURTSl9pMk",
+  "pageInfo": {
+    "totalResults": 2,
+    "resultsPerPage": 2
+  },
+  "items": [
+    {
+      "kind": "youtube#commentThread",
+      "etag": "thread-UgzTop1",
+      "id": "UgzTop1",
+      "snippet": {
+        "channelId": "UC4QobU6STFB0P71PMvOGN5A",
+        "videoId": "jNQXAC9IVRw",
+        "topLevelComment": {
+          "kind": "youtube#comment",
+          "etag": "etag-UgzTop1",
+          "id": "UgzTop1",
+          "snippet": {
+            "channelId": "UC4QobU6STFB0P71PMvOGN5A",
+            "videoId": "jNQXAC9IVRw",
+            "textDisplay": "The first video ever.",
+            "textOriginal": "The first video ever.",
+            "authorDisplayName": "@elephantfan",
+            "authorProfileImageUrl": "https://yt3.ggpht.com/fixture",
+            "authorChannelUrl": "http://www.youtube.com/@elephantfan",
+            "authorChannelId": {
+              "value": "UCelephantfan___________"
+            },
+            "canRate": true,
+            "viewerRating": "none",
+            "likeCount": 4866586,
+            "publishedAt": "2020-02-17T18:58:15Z",
+            "updatedAt": "2020-02-17T18:58:15Z"
+          }
+        },
+        "canReply": true,
+        "totalReplyCount": 0,
+        "isPublic": true
+      }
+    },
+    {
+      "kind": "youtube#commentThread",
+      "etag": "thread-UgzTop2",
+      "id": "UgzTop2",
+      "snippet": {
+        "channelId": "UC4QobU6STFB0P71PMvOGN5A",
+        "videoId": "jNQXAC9IVRw",
+        "topLevelComment": {
+          "kind": "youtube#comment",
+          "etag": "etag-UgzTop2",
+          "id": "UgzTop2",
+          "snippet": {
+            "channelId": "UC4QobU6STFB0P71PMvOGN5A",
+            "videoId": "jNQXAC9IVRw",
+            "textDisplay": "Those trunks are long.",
+            "textOriginal": "Those trunks are long.",
+            "authorDisplayName": "@zoofan",
+            "authorProfileImageUrl": "https://yt3.ggpht.com/fixture",
+            "authorChannelUrl": "http://www.youtube.com/@zoofan",
+            "authorChannelId": {
+              "value": "UCzoofan________________"
+            },
+            "canRate": true,
+            "viewerRating": "none",
+            "likeCount": 94,
+            "publishedAt": "2020-02-17T18:58:15Z",
+            "updatedAt": "2020-02-17T18:58:15Z"
+          }
+        },
+        "canReply": true,
+        "totalReplyCount": 1000,
+        "isPublic": true
+      },
+      "replies": {
+        "comments": [
+          {
+            "kind": "youtube#comment",
+            "etag": "etag-UgzTop2.r1",
+            "id": "UgzTop2.r1",
+            "snippet": {
+              "channelId": "UC4QobU6STFB0P71PMvOGN5A",
+              "videoId": "jNQXAC9IVRw",
+              "textDisplay": "Really long.",
+              "textOriginal": "Really long.",
+              "authorDisplayName": "@replier",
+              "authorProfileImageUrl": "https://yt3.ggpht.com/fixture",
+              "authorChannelUrl": "http://www.youtube.com/@replier",
+              "authorChannelId": {
+                "value": "UCreplier_______________"
+              },
+              "canRate": true,
+              "viewerRating": "none",
+              "likeCount": 1,
+              "publishedAt": "2020-02-17T18:58:15Z",
+              "updatedAt": "2020-02-17T18:58:15Z"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
