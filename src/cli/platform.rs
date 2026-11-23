@@ -296,6 +296,21 @@ pub(super) fn run(command: PlatformCommand) -> Result<CommandOutput, AppError> {
 }
 
 fn arxiv_search(arguments: ArxivSearchArgs) -> Result<CommandOutput, AppError> {
+    let (input, format, common) = arxiv_search_input(arguments)?;
+    search(Platform::Arxiv, input, format, &common)
+}
+
+/// The page an arXiv search asks for, checked before any configuration is read.
+fn arxiv_search_input(
+    arguments: ArxivSearchArgs,
+) -> Result<
+    (
+        PageInput<PlatformSearchRequest>,
+        OutputFormat,
+        PlatformCommonArgs,
+    ),
+    AppError,
+> {
     let ArxivSearchArgs {
         query,
         categories,
@@ -328,7 +343,7 @@ fn arxiv_search(arguments: ArxivSearchArgs) -> Result<CommandOutput, AppError> {
         request.validate().map_err(AppError::Argument)?;
         PageInput::Request(request)
     };
-    search(Platform::Arxiv, input, format, &common)
+    Ok((input, format, common))
 }
 
 /// The page a paged command asks for: a first page, or the page a cursor names.

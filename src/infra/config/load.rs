@@ -2,6 +2,7 @@ use std::collections::HashSet;
 use std::env;
 use std::fs;
 use std::io;
+use std::path::Path;
 
 use serde::Deserialize;
 
@@ -25,38 +26,7 @@ pub(super) fn load_effective_config() -> Result<LoadedConfig, ConfigError> {
         Err(error) if error.kind() == io::ErrorKind::NotFound => String::new(),
         Err(error) => return Err(ConfigError::io(&path, error)),
     };
-    let mut config = if content.is_empty() {
-        Config::default()
-    } else {
-        let deserializer =
-            toml::Deserializer::parse(&content).map_err(|error| ConfigError::Document {
-                path: path.clone(),
-                detail: diagnostic_without_source(&error.to_string()),
-            })?;
-        serde_path_to_error::deserialize(deserializer).map_err(|error| {
-            let key_path = error.path().to_string();
-            let detail = if config_leaf(&key_path) == "keys" {
-                let location = error
-                    .inner()
-                    .to_string()
-                    .lines()
-                    .find(|line| line.contains("TOML parse error"))
-                    .unwrap_or("invalid credential array")
-                    .to_owned();
-                format!("{location}\ninvalid credential array")
-            } else {
-                diagnostic_without_source(&error.inner().to_string())
-            };
-            ConfigError::Document {
-                path: path.clone(),
-                detail: if key_path.is_empty() {
-                    detail
-                } else {
-                    format!("key `{key_path}`: {detail}")
-                },
-            }
-        })?
-    };
+    let mut config = deserialize(&content, &path)?;
     let file_value = if content.is_empty() {
         toml::Value::Table(toml::map::Map::new())
     } else {
@@ -74,6 +44,41 @@ pub(super) fn load_effective_config() -> Result<LoadedConfig, ConfigError> {
         config,
         file_value,
         env_paths,
+    })
+}
+
+/// Reads a configuration document; an empty document is the default configuration.
+fn deserialize(content: &str, path: &Path) -> Result<Config, ConfigError> {
+    if content.is_empty() {
+        return Ok(Config::default());
+    }
+    let deserializer =
+        toml::Deserializer::parse(content).map_err(|error| ConfigError::Document {
+            path: path.to_path_buf(),
+            detail: diagnostic_without_source(&error.to_string()),
+        })?;
+    serde_path_to_error::deserialize(deserializer).map_err(|error| {
+        let key_path = error.path().to_string();
+        let detail = if config_leaf(&key_path) == "keys" {
+            let location = error
+                .inner()
+                .to_string()
+                .lines()
+                .find(|line| line.contains("TOML parse error"))
+                .unwrap_or("invalid credential array")
+                .to_owned();
+            format!("{location}\ninvalid credential array")
+        } else {
+            diagnostic_without_source(&error.inner().to_string())
+        };
+        ConfigError::Document {
+            path: path.to_path_buf(),
+            detail: if key_path.is_empty() {
+                detail
+            } else {
+                format!("key `{key_path}`: {detail}")
+            },
+        }
     })
 }
 
