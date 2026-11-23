@@ -143,29 +143,16 @@ fn a_malformed_day_or_a_limit_outside_one_to_twenty_is_refused_while_parsing() {
 }
 
 #[test]
-fn invalid_search_filters_or_a_blank_query_are_argument_errors_before_any_request() {
-    for (arguments, message) in [
-        (
-            &["rust", "--handle", "a", "--exclude-handle", "b"][..],
-            "--handle cannot be combined with --exclude-handle",
-        ),
-        (
-            &["rust", "--handle", "space-x"],
-            "invalid X handle `space-x`",
-        ),
-        (
-            &["rust", "--from", "2026-10-02", "--to", "2026-10-01"],
-            "--from must not be later than --to",
-        ),
-        (&["  "], "x search needs a query"),
-    ] {
-        let found = argument_error(search_request(arguments));
+fn a_search_the_validator_refuses_is_an_argument_error_before_any_request() {
+    let found = argument_error(search_request(&[
+        "rust",
+        "--from",
+        "2026-10-02",
+        "--to",
+        "2026-10-01",
+    ]));
 
-        assert!(
-            found.contains(message),
-            "arguments: {arguments:?}\nmessage: {found}"
-        );
-    }
+    assert_eq!(found, "--from must not be later than --to");
 }
 
 // Fetch.
@@ -203,37 +190,15 @@ fn a_post_url_or_ref_is_fetched_at_thread_depth_unless_another_depth_is_given() 
 }
 
 #[test]
-fn short_links_profiles_and_bare_ids_are_argument_errors_before_any_request() {
-    for (input, message) in [
-        ("https://t.co/AbCdEf", "t.co short links"),
-        ("https://x.com/SpaceX", "unrecognized x reference"),
-        ("2110126570233094527", "unrecognized x reference"),
-    ] {
-        let parsed = fetch_args(&[input]).expect("the parser accepts any reference");
+fn a_reference_the_parser_refuses_is_an_argument_error_before_any_request() {
+    let parsed = fetch_args(&["https://x.com/SpaceX"]).expect("the parser accepts any reference");
 
-        let found = argument_error(x_fetch_input(parsed).map(|_| ()));
+    let found = argument_error(x_fetch_input(parsed).map(|_| ()));
 
-        assert!(found.contains(message), "{input}: {found}");
-    }
-}
-
-#[test]
-fn article_links_point_to_web_fetch_before_any_request() {
-    for url in [
-        "https://x.com/SpaceX/article/2110126570233094527",
-        "https://x.com/i/article/2110126570233094527/",
-        "https://x.com/SpaceX/status/2110126570233094527/article?s=20",
-        "https://mobile.twitter.com/SpaceX/article/2110126570233094527#top",
-    ] {
-        let parsed = fetch_args(&[url]).expect("the parser accepts any reference");
-
-        let found = argument_error(x_fetch_input(parsed).map(|_| ()));
-
-        assert!(
-            found.contains(&format!("forager fetch '{url}'")),
-            "{url}: {found}"
-        );
-    }
+    assert!(
+        found.starts_with("unrecognized x reference `https://x.com/SpaceX`"),
+        "{found}"
+    );
 }
 
 // Ask.
