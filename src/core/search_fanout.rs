@@ -346,7 +346,105 @@ fn supplemental_candidates(sources: Vec<Source>, provider: &'static str) -> Vec<
 
 #[cfg(test)]
 mod tests {
-    use super::CapabilityTargets;
+    use std::time::Duration;
+
+    use serde_json::{Value, json};
+
+    use super::{CapabilityBranch, CapabilityTargets, execute_capabilities};
+    use crate::config::runtime_config_from_toml;
+    use crate::engine::CapabilityExecution;
+    use crate::fixture_server::{Fixture, block_on};
+    use crate::net::{RetryPolicy, build_client};
+    use crate::samples::sample;
+    use crate::types::{CapabilitySet, Deadline, FallbackPolicy};
+
+    /// Runs a declared documentation search over the configuration `document` and returns its
+    /// branch.
+    fn docs_branch(document: &str) -> CapabilityBranch {
+        let config = runtime_config_from_toml(document).expect("valid configuration");
+        let capabilities: CapabilitySet = "docs_search".parse().expect("capability set");
+        let execution = CapabilityExecution::new(
+            FallbackPolicy::Auto,
+            build_client(true).expect("build client"),
+            RetryPolicy::new(1, 1.0, Duration::ZERO),
+            Deadline::new(Duration::from_secs(30)),
+        );
+        let mut results = block_on(execute_capabilities(
+            "Rust ownership",
+            &capabilities,
+            0,
+            &config,
+            execution,
+        ));
+        assert_eq!(results.branches.len(), 1, "one declared capability");
+        results.branches.remove(0)
+    }
+
+    fn exa_document(url: &str) -> String {
+        format!("[providers.exa]\nurl = {url:?}\nkeys = [\"exa-key\"]\n")
+    }
+
+    /// The branch's candidate URLs, its gaps and the providers of its attempts.
+    fn branch_summary(branch: &CapabilityBranch) -> (Vec<String>, Value, Vec<&'static str>) {
+        (
+            branch
+                .sources
+                .iter()
+                .map(|candidate| candidate.url().to_owned())
+                .collect(),
+            serde_json::to_value(&branch.capability_gaps).expect("encode gaps"),
+            branch
+                .attempts
+                .iter()
+                .map(|attempt| attempt.provider)
+                .collect(),
+        )
+    }
+
+    #[test]
+    fn a_docs_search_runs_exa_by_default_and_by_its_configured_order() {
+        let summaries = [
+            String::new(),
+            "[capabilities.docs_search]\norder = [\"exa\"]\n".to_owned(),
+        ]
+        .map(|order| {
+            let exa = Fixture::start_json(200, &sample("exa/search.json"));
+            let branch = docs_branch(&format!("{}{order}", exa_document(&exa.url)));
+            exa.finish();
+            branch_summary(&branch)
+        });
+
+        let expected = (
+            vec!["https://example.test/result?api_key=********&safe=1".to_owned()],
+            json!([]),
+            vec!["exa"],
+        );
+        assert_eq!(summaries, [expected.clone(), expected]);
+    }
+
+    #[test]
+    fn a_docs_search_whose_exa_answer_is_refused_becomes_a_capability_gap() {
+        let mut body: Value =
+            serde_json::from_str(&sample("exa/search.json")).expect("stored Exa JSON");
+        body["results"][0]["url"] = json!("exa:result-id");
+        let exa = Fixture::start_json(200, &body.to_string());
+
+        let branch = docs_branch(&exa_document(&exa.url));
+        exa.finish();
+
+        assert_eq!(
+            branch_summary(&branch),
+            (
+                Vec::new(),
+                json!([{
+                    "capability": "docs_search",
+                    "reason": "all_attempts_failed",
+                    "providers_skipped": []
+                }]),
+                vec!["exa"],
+            )
+        );
+    }
 
     #[test]
     fn capability_targets_preserve_branch_local_defaults_and_positive_requests() {

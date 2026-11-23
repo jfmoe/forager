@@ -688,7 +688,10 @@ mod tests {
     use forager::types::{AttemptDisposition, AttemptErrorKind, AttemptTarget, ProviderAttempt};
     use serde_json::{Value, json};
 
-    use super::{FAILURE_PAYLOAD_TARGET_BYTES, fit_failure_candidates, format_failure_json};
+    use super::{
+        FAILURE_PAYLOAD_TARGET_BYTES, OutputTarget, apply_tee, fit_failure_candidates,
+        format_failure_json,
+    };
 
     #[test]
     fn failure_candidates_stop_before_the_payload_target_is_exceeded() {
@@ -744,6 +747,63 @@ mod tests {
                 payload["attempts"]["providers_truncated"].as_bool(),
             ),
             (Some(500), Some(8), Some(true), Some(8), Some(true))
+        );
+    }
+
+    #[test]
+    fn a_failure_lists_its_provider_attempts_and_may_exceed_four_kib_only_when_verbose() {
+        let attempts = (0..10)
+            .map(|_| ProviderAttempt {
+                message: "rate limit detail ".repeat(100),
+                ..attempt("exa", AttemptErrorKind::RateLimited)
+            })
+            .collect::<Vec<_>>();
+        let payloads = [false, true].map(|verbose| {
+            let encoded = format_failure_json(&ProviderError {
+                kind: AttemptErrorKind::RateLimited,
+                message: "rate limit detail".into(),
+                attempts: attempts.clone(),
+                verbose,
+                diagnostic: None,
+            })
+            .expect("provider failure payload");
+            let payload: Value = serde_json::from_str(&encoded).expect("provider failure JSON");
+            (
+                payload
+                    .get("provider_attempts")
+                    .and_then(Value::as_array)
+                    .map(Vec::len),
+                encoded.len() > FAILURE_PAYLOAD_TARGET_BYTES,
+            )
+        });
+
+        assert_eq!(payloads, [(None, false), (Some(10), true)]);
+    }
+
+    #[test]
+    fn an_output_file_that_cannot_be_written_marks_the_json_and_exits_three() {
+        let directory = tempfile::tempdir().expect("create unwritable output target");
+
+        let rendered = apply_tee(
+            json!({"results": []}).to_string(),
+            0,
+            true,
+            Some(OutputTarget::Tee(directory.path().to_path_buf())),
+            None,
+        )
+        .expect("rendered output");
+        let payload: Value = serde_json::from_str(&rendered.stdout).expect("annotated JSON");
+
+        assert_eq!(
+            (
+                rendered.exit_code,
+                &payload["output_status"],
+                &payload["results"],
+                rendered
+                    .stderr
+                    .is_some_and(|stderr| stderr.contains("cannot write output")),
+            ),
+            (3, &json!("failed"), &json!([]), true)
         );
     }
 

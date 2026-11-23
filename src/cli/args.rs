@@ -387,3 +387,55 @@ mod map_tests {
         assert!(error.to_string().contains("--format"), "{error}");
     }
 }
+
+/// The `exa` commands' argument rules, proven by parsing their definitions in process.
+#[cfg(test)]
+mod exa_tests {
+    use super::{Command, ExaCommand, ExaSearchType, parse};
+
+    #[test]
+    fn an_exa_search_without_options_asks_for_five_automatic_results_without_contents() {
+        let parsed = parse(&["exa", "search", "rust async drop"]).expect("the parser accepts it");
+
+        let Command::Exa {
+            command:
+                ExaCommand::Search {
+                    num_results,
+                    search_type,
+                    include_text,
+                    include_highlights,
+                    ..
+                },
+        } = parsed
+        else {
+            unreachable!("the arguments name exa search")
+        };
+        assert_eq!(
+            (
+                num_results,
+                matches!(search_type, ExaSearchType::Auto),
+                include_text,
+                include_highlights,
+            ),
+            (5, true, false, false)
+        );
+    }
+
+    #[test]
+    fn a_result_count_outside_its_range_is_refused_naming_the_option() {
+        for (command, target) in [
+            ("search", "rust async drop"),
+            ("similar", "https://example.test/source"),
+        ] {
+            for count in ["0", "101"] {
+                let error = parse(&["exa", command, target, "--num-results", count])
+                    .expect_err("the parser refuses the count");
+
+                assert!(
+                    error.to_string().contains("--num-results"),
+                    "{command} {count}: {error}"
+                );
+            }
+        }
+    }
+}

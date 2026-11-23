@@ -1,0 +1,19 @@
+# Upstream samples of the `exa` provider; each record names one file in this directory.
+
+[[sample]]
+file = "search.json"
+shape = "search endpoint success: each result's identity, page fields, requested contents and media under `results`; the text and first highlight echo the fake key `first-key` so its redaction shows"
+origin = "hand-written"
+observed = 2026-07-26
+
+[[sample]]
+file = "similar.json"
+shape = "findSimilar endpoint success: the similar pages under `results`, with their text and highlights"
+origin = "hand-written"
+observed = 2026-07-26
+
+[[sample]]
+file = "error.json"
+shape = "error answer of any endpoint: the reason under `error.message`"
+origin = "hand-written"
+observed = 2026-07-26

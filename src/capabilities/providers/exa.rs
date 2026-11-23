@@ -374,3 +374,7 @@ fn failure_message(body: &str, status: u16) -> String {
 fn slice_is_empty<T>(values: &[T]) -> bool {
     values.is_empty()
 }
+
+#[cfg(test)]
+#[path = "exa_tests.rs"]
+mod tests;
