@@ -56,8 +56,6 @@ impl ResponsesMainSearch<'_> {
         let (answer, sources) = execution.value;
         Ok(SearchOutcome {
             provider: self.endpoint.provider,
-            query,
-            model,
             answer,
             sources,
             extra_sources: Vec::new(),

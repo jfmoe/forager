@@ -56,12 +56,6 @@ impl SsrnRef {
         is_id.then(|| Self { id: id.to_owned() })
     }
 
-    /// Returns the abstract ID.
-    #[must_use]
-    pub fn id(&self) -> &str {
-        &self.id
-    }
-
     /// Returns the SSRN DOI of the paper.
     #[must_use]
     pub fn doi(&self) -> String {

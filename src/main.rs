@@ -682,10 +682,7 @@ fn annotate_output_failure(stdout: &str, diagnostic: &str) -> Result<String, Str
 }
 
 fn postflight_exit_code(kind: AttemptErrorKind) -> u8 {
-    match ErrorKind::from(kind)
-        .family()
-        .expect("postflight errors always have a family")
-    {
+    match ErrorKind::from(kind).family() {
         ErrorFamily::Transport => 4,
         ErrorFamily::Content => 5,
     }
