@@ -34,6 +34,12 @@ slow-timeout = { period = "30s", terminate-after = 2 }
 filter = "binary_id(forager::polymarket_history) & test(=a_history_prints_the_price_series_of_the_market)"
 slow-timeout = { period = "30s", terminate-after = 2 }
 
+# The second platform whose fetch writes a content directory through the binary; any Hacker News
+# discussion read is the Algolia tree and the Firebase ranking, two requests on one paced window.
+[[profile.default.overrides]]
+filter = "binary_id(forager::hn_fetch) & test(=a_thread_is_written_to_a_file_with_top_level_comments_in_rank_order)"
+slow-timeout = { period = "30s", terminate-after = 2 }
+
 [profile.ci]
 retries = 0
 fail-fast = false
