@@ -518,6 +518,19 @@ mod tests {
     }
 
     #[test]
+    fn a_search_record_names_the_backend_that_answered() {
+        let result = Ok(SearchOutcome {
+            provider: "openai",
+            ..outcome()
+        });
+
+        assert_eq!(
+            record(PlanSource::Caller, &result)["result"]["provider"],
+            json!("openai")
+        );
+    }
+
+    #[test]
     fn a_failed_search_record_keeps_each_candidate_with_its_summary_and_each_gap() {
         let candidate = SearchCandidate::from_source(
             Source {

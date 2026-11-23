@@ -229,6 +229,27 @@ mod tests {
     }
 
     #[test]
+    fn subset_rule_rejects_a_value_outside_its_set_in_both_validators() {
+        let mut config = Config::default();
+        config.search.backends = vec!["openai".into(), "gemini_api".into()];
+        let mut values = Array::new();
+        values.push("openai");
+        values.push("gemini_api");
+
+        assert!(!validates(&config));
+        assert!(validate_edit_value("search.backends", &Value::Array(values)).is_err());
+    }
+
+    #[test]
+    fn non_empty_rule_rejects_a_blank_string_in_full_and_edit_validation() {
+        let mut config = Config::default();
+        config.providers.openai.model = String::new();
+
+        assert!(!validates(&config));
+        assert!(validate_edit_value("providers.openai.model", &Value::from(" ")).is_err());
+    }
+
+    #[test]
     fn positive_rule_rejects_zero_in_full_and_edit_validation() {
         let mut config = Config::default();
         config.providers.exa.timeout = 0;

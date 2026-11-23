@@ -1,0 +1,29 @@
+{
+  "output": [
+    {
+      "content": [
+        {
+          "type": "output_text",
+          "text": "Answer ([example.test](https://example.test/page?id=7&utm_source=openai))",
+          "annotations": [
+            {
+              "type": "url_citation",
+              "url": "https://example.test/page?id=7&utm_source=openai",
+              "title": "Page"
+            },
+            {
+              "type": "url_citation",
+              "url": "https://example.test/other?utm_source=openai",
+              "title": "Other"
+            },
+            {
+              "type": "url_citation",
+              "url": "https://example.test/page?id=7",
+              "title": "Page again"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

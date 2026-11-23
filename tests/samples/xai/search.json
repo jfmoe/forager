@@ -1,0 +1,19 @@
+{
+  "output": [
+    {
+      "content": [
+        {
+          "type": "output_text",
+          "text": "<think>Hidden [[9]](https://hidden.example/path)</think>\nFinal answer [[1]](https://example.test/inline)\n\nSources:\n- [Tail](https://example.test/tail)",
+          "annotations": [
+            {
+              "type": "url_citation",
+              "url": "https://example.test/a?token=fake-token#fragment",
+              "title": "Source A"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

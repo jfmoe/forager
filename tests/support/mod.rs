@@ -23,6 +23,7 @@ pub(crate) mod gemini_api;
 pub(crate) mod gemini_api_samples;
 pub(crate) mod hn;
 pub(crate) mod hn_samples;
+pub(crate) mod main_search_samples;
 pub(crate) mod polymarket;
 pub(crate) mod polymarket_samples;
 pub(crate) mod samples;
