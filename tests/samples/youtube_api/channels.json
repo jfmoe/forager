@@ -8,12 +8,12 @@
   "items": [
     {
       "kind": "youtube#channel",
-      "etag": "etag-UCYO_jab_esuFRV4b17AJtAw",
-      "id": "UCYO_jab_esuFRV4b17AJtAw",
+      "etag": "etag-UCExampleMathsChannel001",
+      "id": "UCExampleMathsChannel001",
       "contentDetails": {
         "relatedPlaylists": {
           "likes": "",
-          "uploads": "UUYO_jab_esuFRV4b17AJtAw"
+          "uploads": "UUExampleMathsChannel001"
         }
       }
     }

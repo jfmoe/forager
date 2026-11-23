@@ -8,19 +8,19 @@
       "id": "item-0",
       "snippet": {
         "publishedAt": "2016-08-06T00:06:04Z",
-        "channelId": "UCYO_jab_esuFRV4b17AJtAw",
+        "channelId": "UCExampleMathsChannel001",
         "title": "Vectors | Chapter 1, Essence of linear algebra",
         "description": "Beginning the linear algebra series with the basics.",
         "thumbnails": {},
-        "channelTitle": "3Blue1Brown",
+        "channelTitle": "Example Maths",
         "playlistId": "PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab",
         "position": 0,
         "resourceId": {
           "kind": "youtube#video",
           "videoId": "fNk_zzaMoSs"
         },
-        "videoOwnerChannelTitle": "3Blue1Brown",
-        "videoOwnerChannelId": "UCYO_jab_esuFRV4b17AJtAw"
+        "videoOwnerChannelTitle": "Example Maths",
+        "videoOwnerChannelId": "UCExampleMathsChannel001"
       },
       "contentDetails": {
         "videoId": "fNk_zzaMoSs",
@@ -33,19 +33,19 @@
       "id": "item-1",
       "snippet": {
         "publishedAt": "2016-08-06T00:06:04Z",
-        "channelId": "UCYO_jab_esuFRV4b17AJtAw",
+        "channelId": "UCExampleMathsChannel001",
         "title": "Linear combinations, span, and basis vectors | Chapter 2",
         "description": "",
         "thumbnails": {},
-        "channelTitle": "3Blue1Brown",
+        "channelTitle": "Example Maths",
         "playlistId": "PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab",
         "position": 1,
         "resourceId": {
           "kind": "youtube#video",
           "videoId": "k7RM-ot2NWY"
         },
-        "videoOwnerChannelTitle": "3Blue1Brown",
-        "videoOwnerChannelId": "UCYO_jab_esuFRV4b17AJtAw"
+        "videoOwnerChannelTitle": "Example Maths",
+        "videoOwnerChannelId": "UCExampleMathsChannel001"
       },
       "contentDetails": {
         "videoId": "k7RM-ot2NWY",

@@ -40,8 +40,8 @@ const ZOO: &str = "jNQXAC9IVRw";
 /// The playlist of the stored playlist entries.
 const PLAYLIST: &str = "PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab";
 /// The channel of the stored search results, playlist entries and channel list.
-const CHANNEL: &str = "UCYO_jab_esuFRV4b17AJtAw";
-const UPLOADS: &str = "UUYO_jab_esuFRV4b17AJtAw";
+const CHANNEL: &str = "UCExampleMathsChannel001";
+const UPLOADS: &str = "UUExampleMathsChannel001";
 /// The stored description of the zoo video.
 const CHAPTERED: &str =
     "The first video on YouTube.\n\n0:00 Elephants\n0:07 Trunks\n0:14 That's it";
@@ -471,9 +471,9 @@ fn search_results_carry_the_details_of_one_batched_video_request() {
                     "url": "https://www.youtube.com/watch?v=eMlx5fFNoYc",
                     "depth": "snippet",
                     "title": "Attention in transformers, step-by-step | Deep Learning Chapter 6",
-                    "authors": ["3Blue1Brown"],
+                    "authors": ["Example Maths"],
                     "published": "2024-04-07T12:53:54Z",
-                    "channel_ref": "youtube:channel/UCYO_jab_esuFRV4b17AJtAw",
+                    "channel_ref": "youtube:channel/UCExampleMathsChannel001",
                     "snippet": "Demystifying attention, the key mechanism inside transformers & LLMs.",
                     "duration_seconds": 1570,
                     "live_status": "none",
@@ -489,9 +489,9 @@ fn search_results_carry_the_details_of_one_batched_video_request() {
                     "url": "https://www.youtube.com/watch?v=Ks-_Mh1QhMc",
                     "depth": "metadata",
                     "title": "Your Body Language May Shape Who You Are 'TED'",
-                    "authors": ["3Blue1Brown"],
+                    "authors": ["Example Maths"],
                     "published": "2024-04-07T12:53:54Z",
-                    "channel_ref": "youtube:channel/UCYO_jab_esuFRV4b17AJtAw",
+                    "channel_ref": "youtube:channel/UCExampleMathsChannel001",
                     "snippet": null,
                     "duration_seconds": 1263,
                     "live_status": "none",
@@ -684,9 +684,9 @@ fn metadata_reads_the_videos_fields_and_leaves_out_the_description() {
             "url": "https://www.youtube.com/watch?v=jNQXAC9IVRw",
             "depth": "metadata",
             "title": "Me at the zoo",
-            "authors": ["jawed"],
+            "authors": ["Example Zoo Visitor"],
             "published": "2005-04-24T03:31:52Z",
-            "channel_ref": "youtube:channel/UC4QobU6STFB0P71PMvOGN5A",
+            "channel_ref": "youtube:channel/UCExampleZooVisitor00001",
             "snippet": null,
             "duration_seconds": 19,
             "live_status": "none",
@@ -1007,9 +1007,9 @@ fn playlist_entries_carry_their_position_owner_and_video_publication_time() {
                     "url": "https://www.youtube.com/watch?v=fNk_zzaMoSs",
                     "depth": "snippet",
                     "title": "Vectors | Chapter 1, Essence of linear algebra",
-                    "authors": ["3Blue1Brown"],
+                    "authors": ["Example Maths"],
                     "published": "2016-08-06T00:05:49Z",
-                    "channel_ref": "youtube:channel/UCYO_jab_esuFRV4b17AJtAw",
+                    "channel_ref": "youtube:channel/UCExampleMathsChannel001",
                     "snippet": "Beginning the linear algebra series with the basics.",
                     "duration_seconds": null,
                     "live_status": null,
@@ -1026,9 +1026,9 @@ fn playlist_entries_carry_their_position_owner_and_video_publication_time() {
                     "url": "https://www.youtube.com/watch?v=k7RM-ot2NWY",
                     "depth": "metadata",
                     "title": "Linear combinations, span, and basis vectors | Chapter 2",
-                    "authors": ["3Blue1Brown"],
+                    "authors": ["Example Maths"],
                     "published": "2016-08-06T00:05:49Z",
-                    "channel_ref": "youtube:channel/UCYO_jab_esuFRV4b17AJtAw",
+                    "channel_ref": "youtube:channel/UCExampleMathsChannel001",
                     "snippet": null,
                     "duration_seconds": null,
                     "live_status": null,
@@ -1087,7 +1087,7 @@ fn private_and_deleted_entries_are_skipped_with_one_diagnostic() {
 #[test]
 fn a_handle_resolves_to_its_channel_and_the_next_page_names_its_uploads_playlist() {
     let request = YoutubeVideosRequest {
-        collection: YoutubeCollection::Handle("@3blue1brown".to_owned()),
+        collection: YoutubeCollection::Handle("@examplemaths".to_owned()),
         limit: 1,
         page: None,
     };
@@ -1115,7 +1115,7 @@ fn a_handle_resolves_to_its_channel_and_the_next_page_names_its_uploads_playlist
             vec![
                 (
                     "/youtube/v3/channels".to_owned(),
-                    pairs(&[("part", "contentDetails"), ("forHandle", "@3blue1brown")]),
+                    pairs(&[("part", "contentDetails"), ("forHandle", "@examplemaths")]),
                 ),
                 (
                     "/youtube/v3/playlistItems".to_owned(),

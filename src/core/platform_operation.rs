@@ -993,7 +993,7 @@ mod tests {
             .expect("valid configuration");
             let config = runtime.platforms.get(Platform::Youtube);
             let request = YoutubeVideosRequest {
-                collection: YoutubeCollection::Handle("@3blue1brown".to_owned()),
+                collection: YoutubeCollection::Handle("@examplemaths".to_owned()),
                 limit: 1,
                 page: None,
             };
@@ -1021,8 +1021,8 @@ mod tests {
                     sent
                 ),
                 (
-                    json!("youtube:channel/UCYO_jab_esuFRV4b17AJtAw"),
-                    json!("youtube:channel/UCYO_jab_esuFRV4b17AJtAw"),
+                    json!("youtube:channel/UCExampleMathsChannel001"),
+                    json!("youtube:channel/UCExampleMathsChannel001"),
                     None,
                     vec![
                         ("/youtube/v3/channels".to_owned(), None),

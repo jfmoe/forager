@@ -601,7 +601,7 @@ mod youtube_api_tests {
     };
 
     const ZOO: &str = "jNQXAC9IVRw";
-    const CHANNEL: &str = "UCYO_jab_esuFRV4b17AJtAw";
+    const CHANNEL: &str = "UCExampleMathsChannel001";
     const PLAYLIST: &str = "PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab";
 
     fn youtube(arguments: &[&str]) -> Result<YoutubeCommand, clap::Error> {
@@ -782,7 +782,7 @@ mod youtube_api_tests {
         ])
         .expect("a playlist URL");
         let handle =
-            videos_request(&["https://www.youtube.com/@3blue1brown/videos"]).expect("a handle");
+            videos_request(&["https://www.youtube.com/@examplemaths/videos"]).expect("a handle");
 
         assert_eq!(
             [
@@ -796,7 +796,7 @@ mod youtube_api_tests {
                     None
                 ),
                 (
-                    YoutubeCollection::Handle("@3blue1brown".to_owned()),
+                    YoutubeCollection::Handle("@examplemaths".to_owned()),
                     20,
                     None
                 ),
@@ -808,7 +808,7 @@ mod youtube_api_tests {
     fn videos_of_a_video_or_an_unknown_url_are_argument_errors() {
         let results = [
             videos_request(&[&format!("youtube:{ZOO}")]),
-            videos_request(&["https://www.youtube.com/c/3blue1brown"]),
+            videos_request(&["https://www.youtube.com/c/examplemaths"]),
         ];
 
         assert!(results.iter().all(is_argument_error), "{results:?}");
@@ -838,7 +838,7 @@ mod youtube_api_tests {
                 "https://www.youtube.com/playlist?list={PLAYLIST}"
             )]),
             fetch_reference_and_depth(&[&format!("youtube:channel/{CHANNEL}")]),
-            fetch_reference_and_depth(&["https://www.youtube.com/@3blue1brown"]),
+            fetch_reference_and_depth(&["https://www.youtube.com/@examplemaths"]),
         ];
 
         assert!(results.iter().all(is_argument_error), "{results:?}");
