@@ -381,6 +381,49 @@ fn declared_adapter(id: ProviderId) -> Option<RouteAdapter> {
     }
 }
 
+/// For the route `config` configures, and for each of search and fetch: whether its declaration
+/// checks the operation's requests, and whether the route built from the declaration hands the
+/// operation out. Building a route sends nothing and launches nothing.
+#[cfg(test)]
+pub(crate) fn declared_and_built_operations(config: PlatformRouteConfig) -> [(bool, bool); 2] {
+    let context = || {
+        route_context(
+            crate::net::build_client(true).expect("build the HTTP client"),
+            RetryPolicy::new(1, 1.0, std::time::Duration::ZERO),
+            Deadline::new(std::time::Duration::from_secs(1)),
+        )
+    };
+    let adapter = declared_adapter(config.route())
+        .expect("a platform route configuration names a platform route");
+    [
+        (
+            adapter.search_support.is_some(),
+            declared_route(config.clone(), context())
+                .into_search()
+                .is_some(),
+        ),
+        (
+            adapter.fetch_support.is_some(),
+            declared_route(config, context()).into_fetch().is_some(),
+        ),
+    ]
+}
+
+/// Whether the route `config` configures, built from its declaration, checks the account of each
+/// key. Building a route sends nothing and launches nothing.
+#[cfg(test)]
+pub(crate) fn built_route_checks_accounts(config: PlatformRouteConfig) -> bool {
+    let route = declared_route(
+        config,
+        route_context(
+            crate::net::build_client(true).expect("build the HTTP client"),
+            RetryPolicy::new(1, 1.0, std::time::Duration::ZERO),
+            Deadline::new(std::time::Duration::from_secs(1)),
+        ),
+    );
+    route.accounts().is_some()
+}
+
 /// Returns whether a platform search route can run the request with every explicit option, or
 /// `None` for a provider that has no platform search adapter.
 pub(crate) fn platform_search_support(
