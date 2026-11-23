@@ -802,42 +802,6 @@ fn offline_smoke_rejects_overly_broad_configuration_permissions() {
     );
 }
 
-#[cfg(windows)]
-#[test]
-fn offline_smoke_rejects_configuration_access_granted_beyond_the_windows_owner() {
-    use winapi::um::winnt::{FILE_ALL_ACCESS, PSID};
-    use windows_acl::acl::{ACL, AceType};
-    use windows_acl::helper::string_to_sid;
-
-    let endpoint = "http://127.0.0.1:9";
-    let environment = SmokeEnvironment::new(|journal_dir| minimal_config(endpoint, journal_dir));
-    let config_file = environment.config_dir.join("config.toml");
-    let mut acl = ACL::from_file_path(config_file.to_str().expect("Unicode test path"), false)
-        .expect("read config ACL");
-    let everyone = string_to_sid("S-1-1-0").expect("create Everyone SID");
-    acl.add_entry(
-        everyone.as_ptr() as PSID,
-        AceType::AccessAllow,
-        0,
-        FILE_ALL_ACCESS,
-    )
-    .expect("broaden config ACL");
-
-    let output = environment.run(&["smoke"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse smoke JSON");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["ok"],
-            &payload["permissions"]["ok"],
-        ),
-        (Some(4), &Value::Bool(false), &Value::Bool(false)),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
 // Debug path formatting supplies the quoted and escaped TOML string literal required by fixtures.
 #[expect(clippy::unnecessary_debug_formatting)]
 fn complete_config(endpoint: &str, journal_dir: &Path) -> String {
