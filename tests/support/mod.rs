@@ -16,6 +16,7 @@ mod fixture_server;
 
 pub(crate) use fixture_server::*;
 
+pub(crate) mod arxiv_feed;
 pub(crate) mod browser;
 pub(crate) mod doctor;
 pub(crate) mod gemini_api;

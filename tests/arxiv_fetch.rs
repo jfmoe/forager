@@ -8,28 +8,12 @@ use std::process::Output;
 
 use serde_json::{Value, json};
 
-use support::{Fixture, Response, RunEnvironment, request_json};
+use support::samples::sample;
+use support::{Fixture, Response, RunEnvironment, arxiv_feed, request_json};
 
-const TITLE: &str = "Dark Matter Halos";
-
+/// The stored feed with its paper renamed `id`.
 fn entry_feed(id: &str) -> String {
-    format!(
-        r#"<?xml version='1.0' encoding='UTF-8'?>
-<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom" xmlns="http://www.w3.org/2005/Atom">
-  <opensearch:totalResults>1</opensearch:totalResults>
-  <entry>
-    <id>http://arxiv.org/abs/{id}</id>
-    <title>{TITLE}</title>
-    <summary>Abstract of {id}.</summary>
-    <published>2024-01-02T18:59:59Z</published>
-    <updated>2024-01-03T00:00:00Z</updated>
-    <author><name>Ada Lovelace</name></author>
-    <link href="https://arxiv.org/pdf/{id}" rel="related" type="application/pdf" title="pdf"/>
-    <arxiv:primary_category term="astro-ph.CO"/>
-    <category term="astro-ph.CO" scheme="http://arxiv.org/schemas/atom"/>
-  </entry>
-</feed>"#
-    )
+    arxiv_feed::feed_of(&sample("arxiv_api/feed.xml"), id)
 }
 
 fn atom(status: u16, body: &str) -> Response {
@@ -47,11 +31,12 @@ fn body(label: &str) -> String {
     )
 }
 
+/// A Firecrawl scrape answer whose Markdown is `content`.
 fn firecrawl(content: &str) -> Response {
-    Response::json(
-        200,
-        &json!({"success": true, "data": {"markdown": content}}).to_string(),
-    )
+    let mut answer: Value =
+        serde_json::from_str(&sample("firecrawl/scrape.json")).expect("stored scrape answer");
+    answer["data"]["markdown"] = json!(content);
+    Response::json(200, &answer.to_string())
 }
 
 /// Configures the arXiv route and, for each named Web Fetch provider, a fixture URL and a key.
@@ -232,16 +217,16 @@ fn full_text_fetch_returns_metadata_and_a_file_under_the_system_temporary_direct
             "ref": "arxiv:2401.01234v2",
             "url": "https://arxiv.org/abs/2401.01234v2",
             "depth": "full_text",
-            "title": TITLE,
-            "authors": ["Ada Lovelace"],
+            "title": "Dark Matter Halos & Galaxies",
+            "authors": ["Ada Lovelace", "Alan Turing"],
             "published": "2024-01-02T18:59:59Z",
-            "abstract": "Abstract of 2401.01234v2.",
-            "updated": "2024-01-03T00:00:00Z",
+            "abstract": "First line\n  second line.",
+            "updated": "2024-02-03T04:05:06Z",
             "primary_category": "astro-ph.CO",
-            "categories": ["astro-ph.CO"],
-            "doi": null,
-            "journal_ref": null,
-            "comment": null,
+            "categories": ["astro-ph.CO", "hep-ph"],
+            "doi": "10.1000/example",
+            "journal_ref": "Phys. Rev. D 1 (2024)",
+            "comment": "12 pages, 3 figures",
             "pdf_url": "https://arxiv.org/pdf/2401.01234v2",
             "content_url": "https://arxiv.org/html/2401.01234v2",
             "content_provider": "firecrawl",

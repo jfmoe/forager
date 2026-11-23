@@ -4,8 +4,8 @@ use std::time::Duration;
 use serde_json::{Value, json};
 
 use super::{
-    ArxivApi, HtmlAvailability, content_urls, decode_feed, failure_message, html_probe_url,
-    read_feed, search_support, select_paper,
+    ArxivApi, HtmlAvailability, content_urls, failure_message, html_probe_url, read_feed,
+    search_support, select_paper,
 };
 use crate::config::HttpRouteRuntimeConfig;
 use crate::fixture_server::{Fixture, Response};
@@ -22,7 +22,7 @@ use crate::types::{
 #[path = "../../../tests/support/arxiv_feed.rs"]
 mod arxiv_feed;
 
-use arxiv_feed::{feed_of, page};
+use arxiv_feed::{STORED_ID, feed_of, page, without};
 
 fn feed() -> String {
     sample("arxiv_api/feed.xml")
@@ -210,18 +210,20 @@ fn an_error_entry_is_the_requests_fault_with_the_arxiv_message() {
 
 #[test]
 fn an_entry_with_an_unrecognized_id_fails_to_map() {
-    let feed = decode_feed(
-        r#"<feed xmlns="http://www.w3.org/2005/Atom"><totalResults>1</totalResults><entry><id>http://example.org/x</id></entry></feed>"#,
-    )
-    .expect("decode feed");
+    let body = feed().replace(
+        &format!("<id>http://arxiv.org/abs/{STORED_ID}</id>"),
+        "<id>http://example.org/x</id>",
+    );
 
-    let result = feed
-        .entries
-        .into_iter()
-        .map(super::Entry::into_item)
-        .collect::<Result<Vec<_>, _>>();
+    let result = read_feed(&body).map(|_| ());
 
-    assert!(result.is_err());
+    assert_eq!(
+        result,
+        Err((
+            AttemptErrorKind::Runtime,
+            "arXiv entry has an unrecognized id `http://example.org/x`".to_owned()
+        ))
+    );
 }
 
 #[test]
@@ -497,15 +499,13 @@ fn an_atom_error_entry_fails_with_the_arxiv_message_whatever_the_status() {
 
 #[test]
 fn a_failed_status_reads_the_error_entry_or_names_the_status() {
-    let error_feed = r#"<feed xmlns="http://www.w3.org/2005/Atom"><totalResults>1</totalResults><entry><id>http://arxiv.org/api/errors#bad</id><summary>bad id</summary></entry></feed>"#;
-
     assert_eq!(
         [
-            failure_message(error_feed, 400),
-            failure_message("<html>busy</html>", 503)
+            failure_message(&sample("arxiv_api/feed-error.xml"), 400),
+            failure_message(&sample("arxiv_api/maintenance.html"), 503)
         ],
         [
-            "arXiv rejected the request: bad id".to_owned(),
+            "arXiv rejected the request: Invalid query string: '('".to_owned(),
             "arXiv returned HTTP 503".to_owned()
         ]
     );
@@ -513,7 +513,7 @@ fn a_failed_status_reads_the_error_entry_or_names_the_status() {
 
 #[test]
 fn a_rate_limited_query_api_ends_the_route_without_retry() {
-    let fixture = Fixture::start_sequence(vec![atom(429, "Rate exceeded.")]);
+    let fixture = Fixture::start_sequence(vec![atom(429, "")]);
     let request = fetch_request("arxiv:2401.01234", ContentDepth::Abstract);
 
     let error = block_on(route(&fixture.url, Duration::from_secs(10)).fetch(&request))
@@ -634,26 +634,30 @@ fn a_probe_window_beyond_the_budget_ends_the_fetch_as_timeout() {
 
 #[test]
 fn an_entry_without_optional_metadata_maps_absent_fields_to_null() {
-    let body = r#"<feed xmlns="http://www.w3.org/2005/Atom" xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/">
-  <opensearch:totalResults>1</opensearch:totalResults>
-  <entry>
-<id>http://arxiv.org/abs/hep-th/9901001v1</id>
-<title>Old paper</title>
-<summary>Abstract.</summary>
-<author><name>A. Author</name></author>
-  </entry>
-</feed>"#;
+    let body = without(
+        &feed(),
+        &[
+            "published",
+            "updated",
+            "link",
+            "category",
+            "arxiv:primary_category",
+            "arxiv:doi",
+            "arxiv:journal_ref",
+            "arxiv:comment",
+        ],
+    );
 
     assert_eq!(
-        items(body),
+        items(&body),
         json!([{
-            "ref": "arxiv:hep-th/9901001v1",
-            "url": "https://arxiv.org/abs/hep-th/9901001v1",
+            "ref": "arxiv:2401.01234v2",
+            "url": "https://arxiv.org/abs/2401.01234v2",
             "depth": "abstract",
-            "title": "Old paper",
-            "authors": ["A. Author"],
+            "title": "Dark Matter Halos & Galaxies",
+            "authors": ["Ada Lovelace", "Alan Turing"],
             "published": null,
-            "abstract": "Abstract.",
+            "abstract": "First line\n  second line.",
             "updated": null,
             "primary_category": null,
             "categories": [],
