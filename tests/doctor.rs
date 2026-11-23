@@ -93,7 +93,7 @@ fn xai_deep_doctor_also_searches_x_while_the_x_order_lists_it() {
             200,
             "data: {\"type\":\"response.completed\",\"response\":{\"output\":[{\"content\":[{\"type\":\"output_text\",\"text\":\"ok\",\"annotations\":[]}]}]}}\n\n",
         ),
-        support::x::completed(&support::x::fixture("search.json")),
+        support::x::completed(&support::x::fixture("x-search.json")),
     ]);
     let environment = RunEnvironment::new(&format!(
         "[providers.xai]\nurl = {:?}\nkeys = [\"xai-key\"]\n",

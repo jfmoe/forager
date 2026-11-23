@@ -527,3 +527,7 @@ fn x_sources(sources: Vec<Source>) -> Vec<XSource> {
     }
     mapped
 }
+
+#[cfg(test)]
+#[path = "xai_x_tests.rs"]
+mod tests;
