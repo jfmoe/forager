@@ -11,3 +11,9 @@ file = "error.json"
 shape = "error answer of any endpoint: the reason under `message`"
 origin = "hand-written"
 observed = 2026-07-26
+
+[[sample]]
+file = "extract.json"
+shape = "extract endpoint success: one result per requested URL, the page as Markdown under `raw_content`"
+origin = "hand-written"
+observed = 2026-07-26

@@ -689,8 +689,8 @@ mod tests {
     use serde_json::{Value, json};
 
     use super::{
-        FAILURE_PAYLOAD_TARGET_BYTES, OutputTarget, apply_tee, fit_failure_candidates,
-        format_failure_json,
+        ContentOutputFormat, FAILURE_PAYLOAD_TARGET_BYTES, FetchOutcome, OutputTarget, apply_tee,
+        fit_failure_candidates, format_failure_json, render_fetch,
     };
 
     #[test]
@@ -804,6 +804,32 @@ mod tests {
                     .is_some_and(|stderr| stderr.contains("cannot write output")),
             ),
             (3, &json!("failed"), &json!([]), true)
+        );
+    }
+
+    #[test]
+    fn a_fetched_body_keeps_its_diagnostic_for_standard_error() {
+        let rendered = render_fetch(
+            Ok(FetchOutcome {
+                provider: "jina",
+                url: "https://example.test/large".into(),
+                content: "body".into(),
+                attempts: Vec::new(),
+                diagnostic: Some("content truncated at 4 MiB".into()),
+            }),
+            ContentOutputFormat::Json,
+            None,
+        )
+        .expect("rendered output");
+        let payload: Value = serde_json::from_str(&rendered.stdout).expect("fetch JSON");
+
+        assert_eq!(
+            (
+                rendered.exit_code,
+                &payload["content"],
+                rendered.stderr.as_deref()
+            ),
+            (0, &json!("body"), Some("content truncated at 4 MiB"))
         );
     }
 

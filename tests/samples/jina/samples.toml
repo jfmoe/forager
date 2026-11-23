@@ -5,3 +5,9 @@ file = "read.json"
 shape = "Reader JSON answer: the page as Markdown under `data.content`"
 origin = "hand-written"
 observed = 2026-08-29
+
+[[sample]]
+file = "error.json"
+shape = "error answer of the Reader: `data` null, the code, an error `name` and `status`, and the reason under `message` and `readableMessage`, here the 403 that blocks anonymous access to a domain; the abuse URL's path is invented"
+origin = "hand-written"
+observed = 2026-10-18

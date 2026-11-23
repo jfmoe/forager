@@ -38,8 +38,12 @@ pub(crate) mod youtube_web;
 const COMMAND_DEADLINE: Duration = Duration::from_secs(30);
 const COMMAND_POLL_INTERVAL: Duration = Duration::from_millis(5);
 
+/// The stored Jina Reader answer whose page content is `content`.
 pub(crate) fn jina_response(content: &str) -> String {
-    serde_json::json!({"data": {"content": content}}).to_string()
+    let mut answer: serde_json::Value =
+        serde_json::from_str(&samples::sample("jina/read.json")).expect("stored Reader answer");
+    answer["data"]["content"] = serde_json::json!(content);
+    answer.to_string()
 }
 
 pub(crate) fn request_json(request: &str) -> serde_json::Value {
