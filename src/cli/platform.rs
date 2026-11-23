@@ -517,6 +517,21 @@ fn arxiv_fetch(arguments: ArxivFetchArgs) -> Result<CommandOutput, AppError> {
 }
 
 fn ssrn_fetch(arguments: SsrnFetchArgs) -> Result<CommandOutput, AppError> {
+    let (request, format, common) = ssrn_fetch_input(arguments)?;
+    fetch(Platform::Ssrn, request, format, None, &common)
+}
+
+/// Reads the paper ref before any request.
+fn ssrn_fetch_input(
+    arguments: SsrnFetchArgs,
+) -> Result<
+    (
+        PlatformFetchRequest,
+        ContentOutputFormat,
+        PlatformCommonArgs,
+    ),
+    AppError,
+> {
     let SsrnFetchArgs {
         reference,
         depth,
@@ -526,7 +541,7 @@ fn ssrn_fetch(arguments: SsrnFetchArgs) -> Result<CommandOutput, AppError> {
     let reference = PlatformRef::parse(Platform::Ssrn, &reference)
         .map_err(|error| AppError::Argument(error.to_string()))?;
     let request = PlatformFetchRequest::new(reference, depth.into());
-    fetch(Platform::Ssrn, request, format, None, &common)
+    Ok((request, format, common))
 }
 
 fn fetch(

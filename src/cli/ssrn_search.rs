@@ -73,6 +73,21 @@ pub(in crate::app) struct SsrnSearchArgs {
 }
 
 pub(super) fn ssrn_search(arguments: SsrnSearchArgs) -> Result<CommandOutput, AppError> {
+    let (input, format, common) = ssrn_search_input(arguments)?;
+    search(Platform::Ssrn, input, format, &common)
+}
+
+/// Builds the page a search asks for and checks its criteria before any request.
+fn ssrn_search_input(
+    arguments: SsrnSearchArgs,
+) -> Result<
+    (
+        PageInput<PlatformSearchRequest>,
+        OutputFormat,
+        PlatformCommonArgs,
+    ),
+    AppError,
+> {
     let SsrnSearchArgs {
         query,
         scope,
@@ -129,7 +144,7 @@ pub(super) fn ssrn_search(arguments: SsrnSearchArgs) -> Result<CommandOutput, Ap
         request.validate().map_err(AppError::Argument)?;
         PageInput::Request(request)
     };
-    search(Platform::Ssrn, input, format, &common)
+    Ok((input, format, common))
 }
 
 #[derive(Clone, Copy, Debug, ValueEnum)]
