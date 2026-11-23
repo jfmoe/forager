@@ -36,12 +36,9 @@ fn opt_in_runs_a_platform_case_whose_route_the_order_leaves_out() {
     let refusing = refusing();
     let youtube = Fixture::start_sequence_for_with_deadline(LATE_REQUEST, |origin| {
         vec![
-            support::youtube_web::watch_page(&support::youtube_web::zoo_embedded("Zoo.")),
-            support::youtube_web::json(&support::youtube_web::zoo_player(
-                &[support::youtube_web::track(origin, "en", false)],
-                0,
-            )),
-            support::youtube_web::srv1(support::youtube_web::ZOO_SRV1_EN),
+            support::youtube_web::watch_page(),
+            support::youtube_web::player(origin),
+            support::youtube_web::srv1(),
         ]
     });
     let config = format!(

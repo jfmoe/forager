@@ -226,13 +226,7 @@ fn youtube_web_deep_doctor_refuses_the_route_while_no_order_enables_it() {
 #[test]
 fn youtube_web_deep_doctor_fetches_the_canary_video_metadata() {
     let fixture = Fixture::start_sequence_for(|origin| {
-        vec![
-            youtube_web::watch_page(&youtube_web::zoo_embedded(youtube_web::ZOO_DESCRIPTION)),
-            youtube_web::json(&youtube_web::zoo_player(
-                &[youtube_web::track(origin, "en", false)],
-                0,
-            )),
-        ]
+        vec![youtube_web::watch_page(), youtube_web::player(origin)]
     });
     let environment = RunEnvironment::new(&youtube_web::config(&fixture.url));
 

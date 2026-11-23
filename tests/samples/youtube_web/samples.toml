@@ -1,0 +1,28 @@
+# Upstream samples of the `youtube_web` route; each record names one file in this directory.
+
+[[sample]]
+file = "watch.html"
+shape = "watch page of a video: the `ytInitialPlayerResponse` the page embeds and the `INNERTUBE_API_KEY` of its `ytcfg`"
+origin = "captured"
+observed = 2026-10-17
+obtained = "an anonymous request for the watch page of youtube:jNQXAC9IVRw, trimmed to the fields the route reads, with a fake InnerTube key"
+
+[[sample]]
+file = "player.json"
+shape = "ANDROID InnerTube player response of a playable video: playability, video details and the caption track list"
+origin = "captured"
+observed = 2026-10-17
+obtained = "an anonymous ANDROID player request for youtube:jNQXAC9IVRw, trimmed to the fields the route reads, with a fake event id in each caption track URL"
+
+[[sample]]
+file = "srv1.xml"
+shape = "srv1 timed text of a caption track, as the timedtext endpoint answers without `fmt`"
+origin = "captured"
+observed = 2026-10-17
+obtained = "an anonymous request for the English caption track of youtube:jNQXAC9IVRw without `fmt`"
+
+[[sample]]
+file = "bot-check.html"
+shape = "the page served in place of the watch page to an egress IP YouTube wants to verify: a reCAPTCHA form and no InnerTube key"
+origin = "hand-written"
+observed = 2026-10-18

@@ -1,0 +1,46 @@
+{
+  "responseContext": {},
+  "playabilityStatus": {"status": "OK", "playableInEmbed": true},
+  "captions": {"playerCaptionsTracklistRenderer": {
+    "captionTracks": [
+      {
+        "baseUrl": "https://www.youtube.com/api/timedtext?v=jNQXAC9IVRw&ei=fixture&xoaf=5&hl=en&lang=en&fmt=srv3",
+        "name": {"runs": [{"text": "en"}]},
+        "vssId": ".en",
+        "languageCode": "en",
+        "isTranslatable": true,
+        "trackName": ""
+      },
+      {
+        "baseUrl": "https://www.youtube.com/api/timedtext?v=jNQXAC9IVRw&ei=fixture&xoaf=5&hl=en&lang=de&fmt=srv3",
+        "name": {"runs": [{"text": "de"}]},
+        "vssId": ".de",
+        "languageCode": "de",
+        "isTranslatable": true,
+        "trackName": ""
+      }
+    ],
+    "audioTracks": [{
+      "captionTrackIndices": [0, 1],
+      "defaultCaptionTrackIndex": 0,
+      "hasDefaultTrack": true
+    }],
+    "defaultAudioTrackIndex": 0
+  }},
+  "videoDetails": {
+    "videoId": "jNQXAC9IVRw",
+    "title": "Me at the zoo",
+    "lengthSeconds": "19",
+    "keywords": ["me at the zoo"],
+    "channelId": "UC4QobU6STFB0P71PMvOGN5A",
+    "isOwnerViewing": false,
+    "shortDescription": "The first video on YouTube.\n\n00:00 Intro\n00:05 The cool thing\n00:17 End",
+    "isCrawlable": true,
+    "allowRatings": true,
+    "viewCount": "444721399",
+    "author": "jawed",
+    "isPrivate": false,
+    "isUnpluggedCorpus": false,
+    "isLiveContent": false
+  }
+}

@@ -270,3 +270,94 @@ fn only_a_full_text_fetch_through_a_route_without_a_native_body_needs_web_fetch(
 
     assert_eq!(needs, [false, true]);
 }
+
+/// A YouTube full-text fetch, whose Data API route cannot read captions and whose web route
+/// reads them natively.
+mod youtube_web {
+    use std::time::Duration;
+
+    use super::fetch;
+    use super::plan_fetch;
+    use crate::config::runtime_config_from_toml;
+    use crate::fixture_server::{Fixture, Response};
+    use crate::net::{RetryPolicy, build_client};
+    use crate::samples::sample;
+    use crate::types::{
+        AttemptDisposition, ContentDepth, Deadline, Platform, PlatformFetchRequest, PlatformRef,
+    };
+
+    #[test]
+    fn a_full_text_fetch_skips_the_data_api_and_takes_the_transcript_from_youtube_web() {
+        let data_api = Fixture::start_canary();
+        let youtube = Fixture::start_sequence_for(|origin| {
+            vec![
+                Response::new(
+                    200,
+                    "text/html; charset=utf-8",
+                    &sample("youtube_web/watch.html"),
+                ),
+                Response::json(
+                    200,
+                    &sample("youtube_web/player.json").replace("https://www.youtube.com", origin),
+                ),
+                Response::new(
+                    200,
+                    "text/xml; charset=UTF-8",
+                    &sample("youtube_web/srv1.xml"),
+                ),
+            ]
+        });
+        let runtime = runtime_config_from_toml(&format!(
+            "[providers.youtube_api]\nurl = \"{}\"\nkeys = [\"yt-key\"]\n\n[providers.youtube_web]\nurl = \"{}\"\n\n[platforms.youtube]\norder = [\"youtube_api\", \"youtube_web\"]\n",
+            data_api.url, youtube.url
+        ))
+        .expect("valid configuration");
+        let request = PlatformFetchRequest::new(
+            PlatformRef::parse(Platform::Youtube, "youtube:jNQXAC9IVRw").expect("valid ref"),
+            ContentDepth::FullText,
+        );
+        let plan = plan_fetch(runtime.platforms.get(Platform::Youtube), request).expect("plan");
+
+        let result = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("test runtime")
+            .block_on(fetch(
+                plan,
+                runtime.web_fetch,
+                build_client(true).expect("build client"),
+                RetryPolicy::new(1, 1.0, Duration::ZERO),
+                Deadline::new(Duration::from_mins(1)),
+                true,
+            ))
+            .expect("the fetch succeeds");
+        youtube.finish_all();
+        let content = result.content.expect("full text");
+
+        assert_eq!(
+            (
+                result.provider,
+                content.url.as_str(),
+                content.provider,
+                result
+                    .attempts
+                    .iter()
+                    .map(|attempt| (attempt.provider, attempt.disposition))
+                    .collect::<Vec<_>>(),
+                data_api.finish_all().len(),
+            ),
+            (
+                "youtube_web",
+                "https://www.youtube.com/watch?v=jNQXAC9IVRw",
+                "youtube_web",
+                vec![
+                    ("youtube_api", AttemptDisposition::Skipped),
+                    ("youtube_web", AttemptDisposition::Succeeded),
+                    ("youtube_web", AttemptDisposition::Succeeded),
+                    ("youtube_web", AttemptDisposition::Succeeded),
+                ],
+                0,
+            )
+        );
+    }
+}
