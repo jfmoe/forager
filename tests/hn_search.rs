@@ -2,8 +2,9 @@ mod support;
 
 use serde_json::json;
 
-use support::hn::{comment_hit, config, payload, search_page, story_hit};
-use support::{Fixture, RunEnvironment};
+use support::hn::{config, payload};
+use support::hn_samples::stored;
+use support::{Fixture, Response, RunEnvironment};
 use support::{path, query};
 
 fn search(environment: &RunEnvironment, arguments: &[&str]) -> std::process::Output {
@@ -14,7 +15,7 @@ fn search(environment: &RunEnvironment, arguments: &[&str]) -> std::process::Out
 
 #[test]
 fn hits_carry_item_fields_and_comments_carry_their_story() {
-    let algolia = Fixture::start_sequence(vec![search_page(&[story_hit(), comment_hit()], 0, 1)]);
+    let algolia = Fixture::start_sequence(vec![Response::json(200, &stored("search.json"))]);
     let environment = RunEnvironment::new(&config(&algolia.url, "http://127.0.0.1:9"));
 
     let output = search(&environment, &["dropbox"]);
