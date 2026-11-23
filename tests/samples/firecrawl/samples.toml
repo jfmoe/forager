@@ -1,0 +1,7 @@
+# Upstream samples of the `firecrawl` provider; each record names one file in this directory.
+
+[[sample]]
+file = "scrape.json"
+shape = "scrape endpoint success: the page as Markdown under `data.markdown`"
+origin = "hand-written"
+observed = 2026-09-26

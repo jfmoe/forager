@@ -297,6 +297,15 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
     assemble(loaded.config, &config_dir)
 }
 
+/// The runtime configuration of a TOML document, as the loader would read it from a file in
+/// the test process's state directory, without the environment's overrides.
+#[cfg(test)]
+pub(crate) fn runtime_config_from_toml(document: &str) -> Result<RuntimeConfig, ConfigError> {
+    let config_dir = crate::state_file::state_directory().expect("the test state directory");
+    let config = super::load::parse_document(document, &config_dir.join("config.toml"))?;
+    assemble(config, &config_dir)
+}
+
 // Runtime assembly mirrors the complete validated configuration surface in one place.
 #[expect(clippy::too_many_lines)]
 fn assemble(config: Config, config_dir: &Path) -> Result<RuntimeConfig, ConfigError> {

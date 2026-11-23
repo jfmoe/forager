@@ -1,0 +1,7 @@
+# Upstream samples of the `jina` provider; each record names one file in this directory.
+
+[[sample]]
+file = "read.json"
+shape = "Reader JSON answer: the page as Markdown under `data.content`"
+origin = "hand-written"
+observed = 2026-08-29

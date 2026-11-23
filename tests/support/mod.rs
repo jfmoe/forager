@@ -21,6 +21,7 @@ pub(crate) mod doctor;
 pub(crate) mod gemini_api;
 pub(crate) mod hn;
 pub(crate) mod polymarket;
+pub(crate) mod samples;
 pub(crate) mod scholar;
 pub(crate) mod smoke;
 pub(crate) mod x;

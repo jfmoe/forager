@@ -75,6 +75,8 @@ pub(crate) struct RateLimiter {
 
 impl RateLimiter {
     pub(crate) fn new(route: &'static str, policy: AccessPolicy) -> Self {
+        #[cfg(test)]
+        let policy = test_pacing::policy(policy);
         Self::in_state_file(
             route,
             policy,
@@ -277,6 +279,50 @@ impl WallClock {
     }
 }
 
+/// Under the test build, a limiter that [`RateLimiter::new`] builds has no minimum interval, so
+/// an in-crate test that builds routes through the provider factory or the orchestration never
+/// waits on an Access Policy. A test about pacing holds [`PacedLimiters`] while it builds them.
+/// Nothing outside the test build can build an unpaced limiter.
+#[cfg(test)]
+pub(crate) mod test_pacing {
+    use std::cell::Cell;
+    use std::time::Duration;
+
+    use super::AccessPolicy;
+
+    thread_local! {
+        static PACED: Cell<bool> = const { Cell::new(false) };
+    }
+
+    /// Keeps the declared pacing for every limiter built on this thread until it is dropped.
+    pub(crate) struct PacedLimiters {
+        previous: bool,
+    }
+
+    pub(crate) fn paced_limiters() -> PacedLimiters {
+        PacedLimiters {
+            previous: PACED.replace(true),
+        }
+    }
+
+    impl Drop for PacedLimiters {
+        fn drop(&mut self) {
+            PACED.set(self.previous);
+        }
+    }
+
+    pub(super) fn policy(policy: AccessPolicy) -> AccessPolicy {
+        if PACED.get() {
+            policy
+        } else {
+            AccessPolicy {
+                min_interval: Duration::ZERO,
+                ..policy
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::fs::{self, OpenOptions};
@@ -375,6 +421,30 @@ mod tests {
                 (error.kind(), rejected_at, started.elapsed()),
                 (AttemptErrorKind::Timeout, Duration::ZERO, INTERVAL)
             );
+        });
+    }
+
+    #[test]
+    fn a_route_limiter_of_the_test_build_does_not_pace_unless_the_test_asks_for_pacing() {
+        let policy = AccessPolicy {
+            min_interval: INTERVAL,
+            max_concurrency: 1,
+        };
+        let two_sends = |limiter: RateLimiter| async move {
+            let started = Instant::now();
+            drop(limiter.acquire(budget(10)).await.expect("first window"));
+            drop(limiter.acquire(budget(10)).await.expect("second window"));
+            started.elapsed()
+        };
+        runtime().block_on(async {
+            let unpaced = two_sends(RateLimiter::new("unpaced_route", policy)).await;
+            let paced = {
+                let _paced = super::test_pacing::paced_limiters();
+                RateLimiter::new("paced_route", policy)
+            };
+            let paced = two_sends(paced).await;
+
+            assert_eq!((unpaced, paced), (Duration::ZERO, INTERVAL));
         });
     }
 

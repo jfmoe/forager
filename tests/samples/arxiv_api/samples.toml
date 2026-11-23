@@ -1,0 +1,20 @@
+# Upstream samples of the `arxiv_api` route; each record names one file in this directory.
+
+[[sample]]
+file = "feed.xml"
+shape = "Query API Atom feed: one entry carrying every element the route reads, with the OpenSearch total"
+origin = "hand-written"
+observed = 2026-09-26
+
+[[sample]]
+file = "feed-error.xml"
+shape = "Query API Atom feed whose only entry is an error entry"
+variant_of = "feed.xml"
+origin = "hand-written"
+observed = 2026-09-26
+
+[[sample]]
+file = "maintenance.html"
+shape = "an HTML page answered with HTTP 200 in place of a feed"
+origin = "hand-written"
+observed = 2026-09-26

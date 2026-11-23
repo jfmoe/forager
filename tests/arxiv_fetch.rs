@@ -32,11 +32,6 @@ fn entry_feed(id: &str) -> String {
     )
 }
 
-const EMPTY_FEED: &str = r#"<?xml version='1.0' encoding='UTF-8'?>
-<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns="http://www.w3.org/2005/Atom">
-  <opensearch:totalResults>0</opensearch:totalResults>
-</feed>"#;
-
 fn atom(status: u16, body: &str) -> Response {
     Response::new(status, "application/atom+xml", body)
 }
@@ -58,12 +53,6 @@ fn firecrawl(content: &str) -> Response {
         &json!({"success": true, "data": {"markdown": content}}).to_string(),
     )
 }
-
-fn jina(content: &str) -> Response {
-    Response::json(200, &support::jina_response(content))
-}
-
-const THIN: &str = "No HTML.";
 
 /// Configures the arXiv route and, for each named Web Fetch provider, a fixture URL and a key.
 /// Named providers become the Web Fetch order, so Jina never runs anonymously against the real
@@ -263,130 +252,6 @@ fn full_text_fetch_returns_metadata_and_a_file_under_the_system_temporary_direct
 }
 
 #[test]
-fn fetch_by_url_requests_the_version_the_url_names() {
-    let arxiv = Fixture::start_sequence(vec![atom(200, &entry_feed("hep-th/9901001v1"))]);
-    let environment = RunEnvironment::new(&config(&arxiv.url, &[]));
-
-    let output = fetch(
-        &environment,
-        &[
-            "https://arxiv.org/pdf/hep-th/9901001v1.pdf",
-            "--depth",
-            "abstract",
-        ],
-    );
-    let request = arxiv.finish();
-
-    assert_eq!(
-        (
-            output.status.code(),
-            query_pairs(&request).get("id_list").cloned(),
-            payload(&output)["ref"].clone(),
-        ),
-        (
-            Some(0),
-            Some("hep-th/9901001v1".to_owned()),
-            json!("arxiv:hep-th/9901001v1"),
-        )
-    );
-}
-
-#[test]
-fn abstract_depth_inlines_the_abstract_without_web_fetch_configuration() {
-    let arxiv = Fixture::start_sequence(vec![atom(200, &entry_feed("2401.01234v2"))]);
-    let environment = RunEnvironment::new(&config(&arxiv.url, &[]));
-
-    let output = fetch(&environment, &["arxiv:2401.01234v2", "--depth", "abstract"]);
-    let requests = arxiv.finish_all();
-    let payload = payload(&output);
-
-    assert_eq!(
-        (
-            output.status.code(),
-            requests.len(),
-            &payload["depth"],
-            &payload["abstract"],
-            payload.get("content_path").is_none() && payload.get("content_url").is_none(),
-        ),
-        (
-            Some(0),
-            1,
-            &json!("abstract"),
-            &json!("Abstract of 2401.01234v2."),
-            true,
-        )
-    );
-}
-
-#[test]
-fn a_missing_paper_is_a_parameter_failure() {
-    let arxiv = Fixture::start_sequence(vec![atom(200, EMPTY_FEED)]);
-    let environment = RunEnvironment::new(&config(&arxiv.url, &[]));
-
-    let output = fetch(&environment, &["arxiv:2401.99999", "--depth", "abstract"]);
-    arxiv.finish();
-    let payload = payload(&output);
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["error_kind"],
-            &payload["message"]
-        ),
-        (
-            Some(4),
-            &json!("parameter"),
-            &json!("arXiv item not found: arxiv:2401.99999"),
-        )
-    );
-}
-
-#[test]
-fn a_rate_limited_query_api_ends_the_route_without_retry() {
-    let arxiv = Fixture::start_sequence(vec![atom(429, "Rate exceeded.")]);
-    let environment = RunEnvironment::new(&config(&arxiv.url, &[]));
-
-    let output = fetch(&environment, &["arxiv:2401.01234", "--depth", "abstract"]);
-    let requests = arxiv.finish_all();
-
-    assert_eq!(
-        (
-            output.status.code(),
-            requests.len(),
-            payload(&output)["error_kind"].clone()
-        ),
-        (Some(4), 1, json!("rate_limited"))
-    );
-}
-
-#[test]
-fn a_version_without_html_reads_the_pdf_directly() {
-    let arxiv =
-        Fixture::start_sequence(vec![atom(200, &entry_feed("hep-th/9901001v3")), head(404)]);
-    let provider = Fixture::start_sequence(vec![firecrawl(&body("PDF body"))]);
-    let environment = RunEnvironment::new(&config(&arxiv.url, &[("firecrawl", &provider.url)]));
-
-    let output = fetch(
-        &environment,
-        &["arxiv:hep-th/9901001", "--format", "content"],
-    );
-    arxiv.finish_all();
-
-    assert_eq!(
-        (
-            output.status.code(),
-            fetched_urls(&provider.finish_all()),
-            String::from_utf8_lossy(&output.stdout).into_owned(),
-        ),
-        (
-            Some(0),
-            vec!["https://arxiv.org/pdf/hep-th/9901001v3".to_owned()],
-            format!("{}\n", body("PDF body")),
-        )
-    );
-}
-
-#[test]
 fn format_content_prints_the_body_and_writes_no_file() {
     let arxiv = Fixture::start_sequence(vec![atom(200, &entry_feed("2401.01234v2")), head(200)]);
     let provider = Fixture::start_sequence(vec![firecrawl(&body("HTML body"))]);
@@ -412,126 +277,6 @@ fn format_content_prints_the_body_and_writes_no_file() {
             format!("{}\n", body("HTML body")),
             Vec::<String>::new()
         )
-    );
-}
-
-#[test]
-fn thin_html_falls_back_to_the_pdf_of_the_same_version() {
-    let arxiv = Fixture::start_sequence(vec![atom(200, &entry_feed("2401.01234v2")), head(200)]);
-    let provider = Fixture::start_sequence(vec![firecrawl(THIN), firecrawl(&body("PDF body"))]);
-    let environment = RunEnvironment::new(&config(&arxiv.url, &[("firecrawl", &provider.url)]));
-
-    let output = fetch(&environment, &["arxiv:2401.01234", "--format", "content"]);
-    arxiv.finish_all();
-
-    assert_eq!(
-        (
-            output.status.code(),
-            fetched_urls(&provider.finish_all()),
-            String::from_utf8_lossy(&output.stdout).into_owned(),
-        ),
-        (
-            Some(0),
-            vec![
-                "https://arxiv.org/html/2401.01234v2".to_owned(),
-                "https://arxiv.org/pdf/2401.01234v2".to_owned(),
-            ],
-            format!("{}\n", body("PDF body")),
-        )
-    );
-}
-
-#[test]
-fn html_and_pdf_both_failing_ends_with_the_web_fetch_terminal_state() {
-    let arxiv = Fixture::start_sequence(vec![atom(200, &entry_feed("2401.01234v2")), head(200)]);
-    let provider = Fixture::start_sequence(vec![firecrawl(THIN), firecrawl(THIN)]);
-    let environment = RunEnvironment::new(&config(&arxiv.url, &[("firecrawl", &provider.url)]));
-
-    let output = fetch(&environment, &["arxiv:2401.01234"]);
-    arxiv.finish_all();
-    provider.finish_all();
-
-    assert_eq!(
-        (output.status.code(), payload(&output)["error_kind"].clone()),
-        (Some(5), json!("quality"))
-    );
-}
-
-#[test]
-fn full_text_follows_the_global_web_fetch_order() {
-    let arxiv = Fixture::start_sequence(vec![atom(200, &entry_feed("2401.01234v2")), head(200)]);
-    let jina_fixture = Fixture::start_sequence(vec![jina(&body("Jina body"))]);
-    let firecrawl_fixture = Fixture::start_sequence(Vec::new());
-    let config = config(
-        &arxiv.url,
-        &[
-            ("jina", &jina_fixture.url),
-            ("firecrawl", &firecrawl_fixture.url),
-        ],
-    );
-    let environment = RunEnvironment::new(&config);
-
-    let output = fetch(&environment, &["arxiv:2401.01234", "--format", "content"]);
-    arxiv.finish_all();
-    let jina_request = jina_fixture.finish();
-    firecrawl_fixture.finish_all();
-
-    assert_eq!(
-        (
-            output.status.code(),
-            request_line(&jina_request),
-            String::from_utf8_lossy(&output.stdout).into_owned(),
-        ),
-        (
-            Some(0),
-            "GET /https://arxiv.org/html/2401.01234v2 HTTP/1.1",
-            format!("{}\n", body("Jina body")),
-        )
-    );
-}
-
-#[test]
-fn verbose_lists_metadata_probe_and_body_attempts() {
-    let arxiv =
-        Fixture::start_sequence(vec![atom(200, &entry_feed("hep-th/9901001v3")), head(404)]);
-    let provider = Fixture::start_sequence(vec![firecrawl(&body("PDF body"))]);
-    let environment = RunEnvironment::new(&config(&arxiv.url, &[("firecrawl", &provider.url)]));
-    let content_dir = tempfile::tempdir().expect("content directory");
-
-    let output = fetch(
-        &environment,
-        &[
-            "arxiv:hep-th/9901001",
-            "--verbose",
-            "--content-dir",
-            content_dir.path().to_str().expect("UTF-8 path"),
-        ],
-    );
-    arxiv.finish_all();
-    provider.finish_all();
-    let attempts = payload(&output)["provider_attempts"]
-        .as_array()
-        .expect("attempts")
-        .iter()
-        .map(|attempt| {
-            (
-                attempt["provider"].as_str().unwrap_or_default().to_owned(),
-                attempt["http_status"].clone(),
-                attempt["disposition"]
-                    .as_str()
-                    .unwrap_or_default()
-                    .to_owned(),
-            )
-        })
-        .collect::<Vec<_>>();
-
-    assert_eq!(
-        attempts,
-        [
-            ("arxiv_api".to_owned(), json!(200), "succeeded".to_owned()),
-            ("arxiv_api".to_owned(), json!(404), "succeeded".to_owned()),
-            ("firecrawl".to_owned(), json!(200), "succeeded".to_owned()),
-        ]
     );
 }
 
@@ -583,23 +328,6 @@ fn assert_preflight_exit(config: &str, arguments: &[&str], exit_code: i32, messa
 }
 
 #[test]
-fn unrecognized_references_and_short_links_fail_before_any_request() {
-    for input in [
-        "https://bit.ly/abc123",
-        "2401.01234",
-        "https://arxiv.org/list/cs.AI/recent",
-        "arxiv:2401.123",
-    ] {
-        assert_preflight_exit(
-            "[providers.arxiv_api]\nurl = \"{url}/api/query\"\n",
-            &[input, "--depth", "abstract"],
-            2,
-            "pass an `arxiv:<id>[v<n>]` ref or an original arxiv.org URL",
-        );
-    }
-}
-
-#[test]
 fn full_text_without_a_configured_web_fetch_provider_is_a_config_error() {
     assert_preflight_exit(
         "[providers.arxiv_api]\nurl = \"{url}/api/query\"\n\n[capabilities.web_fetch]\norder = [\"firecrawl\", \"tavily\"]\n",
@@ -620,39 +348,18 @@ fn an_empty_platform_order_is_a_config_error() {
 }
 
 #[test]
-fn a_probe_window_beyond_the_budget_ends_as_timeout_without_reading_the_body() {
-    let arxiv = Fixture::start_sequence(vec![atom(200, &entry_feed("2401.01234v2"))]);
-    let provider = Fixture::start_sequence(Vec::new());
-    let environment = RunEnvironment::new(&config(&arxiv.url, &[("firecrawl", &provider.url)]));
-
-    let output = fetch(
-        &environment,
-        &["arxiv:2401.01234", "--timeout", "2", "--verbose"],
-    );
-    arxiv.finish_all();
-    provider.finish_all();
-    let payload = payload(&output);
-    let attempts = payload["provider_attempts"]
-        .as_array()
-        .expect("attempts")
-        .iter()
-        .map(|attempt| {
-            (
-                attempt["disposition"].clone(),
-                attempt["error_kind"].clone(),
-            )
-        })
-        .collect::<Vec<_>>();
-
-    assert_eq!(
-        (output.status.code(), &payload["error_kind"], attempts),
-        (
-            Some(4),
-            &json!("timeout"),
-            vec![
-                (json!("succeeded"), Value::Null),
-                (json!("failed"), json!("timeout")),
-            ]
-        )
-    );
+fn unrecognized_references_and_short_links_fail_before_any_request() {
+    for input in [
+        "https://bit.ly/abc123",
+        "2401.01234",
+        "https://arxiv.org/list/cs.AI/recent",
+        "arxiv:2401.123",
+    ] {
+        assert_preflight_exit(
+            "[providers.arxiv_api]\nurl = \"{url}/api/query\"\n",
+            &[input, "--depth", "abstract"],
+            2,
+            "pass an `arxiv:<id>[v<n>]` ref or an original arxiv.org URL",
+        );
+    }
 }

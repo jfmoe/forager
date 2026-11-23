@@ -344,3 +344,7 @@ fn fallback_share(deadline: Deadline) -> Deadline {
         .remaining()
         .map_or(deadline, |remaining| Deadline::new(remaining / 2))
 }
+
+#[cfg(test)]
+#[path = "platform_fetch_tests.rs"]
+mod tests;
