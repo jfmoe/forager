@@ -336,7 +336,7 @@ mod tests {
             "https://scholar.google.com/scholar?cluster=12x",
             "https://scholar.google.com/scholar?cluster=",
             "https://scholar.google.com/scholar?q=time+series+momentum",
-            "https://scholar.google.com/citations?user=q9g8tuAAAAAJ&hl=en",
+            "https://scholar.google.com/citations?user=zz9fakeAAAAJ&hl=en",
             "https://scholar.google.com/scholar_lookup?cluster=1",
             "https://scholar.google.com.evil.example/scholar?cluster=1",
             "https://scholar.google.co.uk/scholar?cluster=1",
