@@ -11,8 +11,8 @@ use super::{
 use crate::redact::CREDENTIAL_MASK;
 use crate::types::{AccessToken, AttemptErrorKind, XiaohongshuCommentsRequest, XiaohongshuRef};
 
-const NOTE_ID: &str = "6a9d4f5f00000000260323c4";
-const OTHER_NOTE_ID: &str = "6a9d4f5f00000000260399ff";
+const NOTE_ID: &str = "66f0a1b2c3d4e5f607200001";
+const OTHER_NOTE_ID: &str = "66f0a1b2c3d4e5f607299999";
 const TOKEN: &str = "ABfakeTOKENcanary4242=";
 /// The token without its padding, which no URL encoding changes.
 const TOKEN_BODY: &str = "ABfakeTOKENcanary4242";
@@ -21,7 +21,7 @@ const TOKEN_BODY: &str = "ABfakeTOKENcanary4242";
 fn note_page() -> Value {
     json!({
         "url": format!("https://www.xiaohongshu.com/explore/{NOTE_ID}?xsec_source=pc_search"),
-        "title": "提神咖啡排行榜 - 小红书",
+        "title": "咖啡豆怎么选 - 小红书",
         "guest": false,
         "error_code": null,
         "notice": null,
@@ -31,7 +31,7 @@ fn note_page() -> Value {
 
 /// A comment ID: a fixed prefix and a five-digit serial.
 fn id(serial: u32) -> String {
-    format!("6a9eda8f00000000140{serial:05}")
+    format!("00000000000000000c0{serial:05}")
 }
 
 /// A top-level comment without replies.
@@ -46,7 +46,7 @@ fn comment(serial: u32) -> Value {
         "sub_comment_cursor": "",
         "sub_comment_has_more": false,
         "sub_comments": [],
-        "user_info": {"user_id": "5ff0e6410000000001008400", "nickname": "豆子", "xsec_token": "ABuser="},
+        "user_info": {"user_id": "00000000000000000000a001", "nickname": "豆子", "xsec_token": "ABuser="},
         "target_comment": null
     })
 }
@@ -59,7 +59,7 @@ fn reply(serial: u32, target: u32) -> Value {
         "create_time": 1_759_903_600_000_u64,
         "ip_location": "北京",
         "like_count": "1",
-        "user_info": {"user_id": "5ff0e6410000000001008401", "nickname": "拿铁"},
+        "user_info": {"user_id": "00000000000000000000a002", "nickname": "拿铁"},
         "target_comment": {"id": id(target)}
     })
 }
@@ -176,18 +176,18 @@ fn comments_follow_the_cursor_chain_and_expand_the_first_selected_replies() {
             true,
             (1..=15).map(id).collect::<Vec<_>>(),
             &json!({
-                "id": "6a9eda8f0000000014000001",
+                "id": "00000000000000000c000001",
                 "author": "豆子",
-                "author_id": "5ff0e6410000000001008400",
+                "author_id": "00000000000000000000a001",
                 "text": "评论 1",
                 "likes": "3",
                 "published": "2025-10-08T13:06:40+08:00",
                 "ip_location": "上海",
                 "reply_count": "20",
                 "replies": [
-                    {"id": "6a9eda8f0000000014000101", "author": "拿铁", "author_id": "5ff0e6410000000001008401", "text": "回复 101", "likes": "1", "published": "2025-10-08T14:06:40+08:00", "ip_location": "北京", "reply_to": "6a9eda8f0000000014000001"},
-                    {"id": "6a9eda8f0000000014000102", "author": "拿铁", "author_id": "5ff0e6410000000001008401", "text": "回复 102", "likes": "1", "published": "2025-10-08T14:06:40+08:00", "ip_location": "北京", "reply_to": "6a9eda8f0000000014000001"},
-                    {"id": "6a9eda8f0000000014000103", "author": "拿铁", "author_id": "5ff0e6410000000001008401", "text": "回复 103", "likes": "1", "published": "2025-10-08T14:06:40+08:00", "ip_location": "北京", "reply_to": "6a9eda8f0000000014000102"}
+                    {"id": "00000000000000000c000101", "author": "拿铁", "author_id": "00000000000000000000a002", "text": "回复 101", "likes": "1", "published": "2025-10-08T14:06:40+08:00", "ip_location": "北京", "reply_to": "00000000000000000c000001"},
+                    {"id": "00000000000000000c000102", "author": "拿铁", "author_id": "00000000000000000000a002", "text": "回复 102", "likes": "1", "published": "2025-10-08T14:06:40+08:00", "ip_location": "北京", "reply_to": "00000000000000000c000001"},
+                    {"id": "00000000000000000c000103", "author": "拿铁", "author_id": "00000000000000000000a002", "text": "回复 103", "likes": "1", "published": "2025-10-08T14:06:40+08:00", "ip_location": "北京", "reply_to": "00000000000000000c000102"}
                 ],
                 "replies_has_more": true
             }),
@@ -285,19 +285,19 @@ fn a_broken_order_or_ownership_of_any_response_is_a_runtime_failure() {
         results,
         [
             runtime(
-                "Xiaohongshu comment page 2 continued from cursor `6a9eda8f0000000014000009`, not `6a9eda8f0000000014000010`"
+                "Xiaohongshu comment page 2 continued from cursor `00000000000000000c000009`, not `00000000000000000c000010`"
             ),
             runtime(
-                "Xiaohongshu answered comments of note `6a9d4f5f00000000260399ff` for xiaohongshu:6a9d4f5f00000000260323c4"
+                "Xiaohongshu answered comments of note `66f0a1b2c3d4e5f607299999` for xiaohongshu:66f0a1b2c3d4e5f607200001"
             ),
             runtime(
-                "Xiaohongshu answered replies of comment `6a9eda8f0000000014000012`, which this command did not expand"
+                "Xiaohongshu answered replies of comment `00000000000000000c000012`, which this command did not expand"
             ),
             runtime(
-                "Xiaohongshu answered comments of note `6a9d4f5f00000000260399ff` for xiaohongshu:6a9d4f5f00000000260323c4"
+                "Xiaohongshu answered comments of note `66f0a1b2c3d4e5f607299999` for xiaohongshu:66f0a1b2c3d4e5f607200001"
             ),
             runtime(
-                "the first Xiaohongshu reply page of comment `6a9eda8f0000000014000001` started from cursor ``, not `6a9eda8f0000000014000101`"
+                "the first Xiaohongshu reply page of comment `00000000000000000c000001` started from cursor ``, not `00000000000000000c000101`"
             ),
         ]
     );
@@ -357,7 +357,7 @@ fn a_first_page_without_comments_that_says_more_remain_is_a_runtime_failure() {
 fn a_reply_expansion_the_page_logic_could_not_make_is_a_failure_with_its_reason() {
     let [first, _] = two_pages();
     let mut failed = data(&[first]);
-    failed["expand_failure"] = json!("no_expand_button for comment 6a9eda8f0000000014000001");
+    failed["expand_failure"] = json!("no_expand_button for comment 00000000000000000c000001");
     let [first, _] = two_pages();
     let mut waiting = data(&[first]);
     waiting["timed_out"] = json!(true);
@@ -369,7 +369,7 @@ fn a_reply_expansion_the_page_logic_could_not_make_is_a_failure_with_its_reason(
         [
             Err((
                 AttemptErrorKind::Runtime,
-                "the Xiaohongshu page logic could not expand the replies of a comment (no_expand_button for comment 6a9eda8f0000000014000001)".to_owned()
+                "the Xiaohongshu page logic could not expand the replies of a comment (no_expand_button for comment 00000000000000000c000001)".to_owned()
             )),
             Err((
                 AttemptErrorKind::Timeout,
@@ -456,7 +456,7 @@ fn captured_comment_exchanges_are_read_by_their_query_parameters() {
         (
             true,
             10,
-            vec!["6a9eda8f0000000014000101", "6a9eda8f0000000014000102"],
+            vec!["00000000000000000c000101", "00000000000000000c000102"],
         )
     );
 }

@@ -35,7 +35,7 @@ fn image_note() -> Value {
         "time": 1_759_900_000_000_u64,
         "lastUpdateTime": 1_759_903_600_000_u64,
         "ipLocation": "上海",
-        "user": {"userId": "5ff0e6410000000001008400", "nickname": "豆子", "avatar": "https://sns-avatar-qc.xhscdn.com/avatar.jpg"},
+        "user": {"userId": "00000000000000000000a001", "nickname": "豆子", "avatar": "https://sns-avatar-qc.xhscdn.com/avatar.jpg"},
         "interactInfo": {"liked": false, "likedCount": "1.2万", "collected": false, "collectedCount": "356", "commentCount": "89", "shareCount": "12"},
         "tagList": [
             {"id": "5be00ac2000000000101ecbc", "name": "咖啡", "type": "topic"},
@@ -99,7 +99,7 @@ fn metadata_reads_the_note_page_into_the_note_fields() {
                 "published": "2025-10-08T13:06:40+08:00",
                 "updated": "2025-10-08T14:06:40+08:00",
                 "note_type": "image",
-                "author_id": "5ff0e6410000000001008400",
+                "author_id": "00000000000000000000a001",
                 "likes": "1.2万",
                 "collects": "356",
                 "comments": "89",

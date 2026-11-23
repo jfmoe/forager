@@ -356,7 +356,7 @@ mod tests {
             "http://xiaohongshu.com/explore/64a1b2c3d4e5f60718293a4b/",
             "https://WWW.Xiaohongshu.com/discovery/item/64a1b2c3d4e5f60718293a4b",
             "https://www.xiaohongshu.com/search_result/64a1b2c3d4e5f60718293a4b#comments",
-            "https://www.xiaohongshu.com/user/profile/5ff0e6410000000001008400/64a1b2c3d4e5f60718293a4b",
+            "https://www.xiaohongshu.com/user/profile/00000000000000000000a001/64a1b2c3d4e5f60718293a4b",
             "https://www.xiaohongshu.com/explore/64a1b2c3d4e5f60718293a4b?source=webshare&xhsshare=pc_web",
         ]
         .map(|input| parsed(input).map(|(reference, _)| reference));
@@ -488,7 +488,7 @@ mod tests {
             "64a1b2c3d4e5f60718293a4b",
             "https://www.xiaohongshu.com/explore",
             "https://www.xiaohongshu.com/explore/64a1b2c3d4e5f60718293a4b/extra",
-            "https://www.xiaohongshu.com/user/profile/5ff0e6410000000001008400",
+            "https://www.xiaohongshu.com/user/profile/00000000000000000000a001",
             "https://www.xiaohongshu.com/notes/64a1b2c3d4e5f60718293a4b",
             "https://edith.xiaohongshu.com/explore/64a1b2c3d4e5f60718293a4b",
             "https://www.xiaohongshu.com.evil.example/explore/64a1b2c3d4e5f60718293a4b",
