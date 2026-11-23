@@ -707,14 +707,15 @@ mod tests {
     use forager::app::ProviderError;
     use forager::types::{
         AttemptDisposition, AttemptErrorKind, AttemptTarget, Capability, CapabilityGap,
-        ProviderAttempt, SearchOutcome,
+        ProviderAttempt, SearchCandidate, SearchOutcome, Source,
     };
     use serde_json::{Value, json};
 
     use super::{
         ContentOutputFormat, FAILURE_PAYLOAD_TARGET_BYTES, FetchOutcome, JournalOutcome,
-        OutputTarget, SearchFailure, add_failure_candidates, apply_tee, fit_failure_candidates,
-        format_failure_json, format_search_failure_json, render_fetch, render_search,
+        OutputTarget, RenderedOutput, SearchFailure, add_failure_candidates, apply_tee,
+        fit_failure_candidates, format_failure_json, format_search_failure_json, render_fetch,
+        render_search, with_attempt_log,
     };
 
     #[test]
@@ -1009,6 +1010,212 @@ mod tests {
                 0,
                 Some("capability gap: web_search has no configured provider")
             )
+        );
+    }
+
+    fn source(title: &str, url: &str) -> Source {
+        Source {
+            title: title.into(),
+            url: url.into(),
+            published_date: None,
+            author: None,
+            text: None,
+            highlights: Vec::new(),
+            id: None,
+            image: None,
+            favicon: None,
+        }
+    }
+
+    /// xAI's answer `answer` citing one primary source, with no extra sources.
+    fn answered(answer: &str) -> SearchOutcome {
+        SearchOutcome {
+            provider: "xai",
+            answer: answer.into(),
+            sources: vec![source(
+                "Primary",
+                "https://example.test/source?token=********",
+            )],
+            extra_sources: Vec::new(),
+            capabilities: Vec::new(),
+            capability_gaps: Vec::new(),
+            attempts: Vec::new(),
+            diagnostic: None,
+        }
+    }
+
+    fn written_journal() -> JournalOutcome {
+        JournalOutcome {
+            status: "written",
+            reference: Some("/journal/search_result_1_2_3.json".into()),
+            warning: None,
+        }
+    }
+
+    #[test]
+    fn a_search_payload_leaves_the_invocation_echoes_to_the_journal() {
+        let rendered = render_search(
+            Ok(SearchOutcome {
+                capabilities: vec![Capability::DocsSearch, Capability::WebSearch],
+                attempts: vec![attempt("xai", AttemptErrorKind::Network)],
+                ..answered("Focused answer")
+            }),
+            &written_journal(),
+            ContentOutputFormat::Json,
+            None,
+            false,
+        )
+        .expect("rendered output");
+        let payload: Value = serde_json::from_str(&rendered.stdout).expect("search JSON");
+
+        assert_eq!(
+            (rendered.exit_code, payload),
+            (
+                0,
+                json!({
+                    "answer": "Focused answer",
+                    "sources": [{
+                        "title": "Primary",
+                        "url": "https://example.test/source?token=********"
+                    }],
+                    "capability_gaps": [],
+                    "journal_ref": "/journal/search_result_1_2_3.json",
+                    "journal_status": "written"
+                })
+            )
+        );
+    }
+
+    #[test]
+    fn a_search_in_markdown_lists_extra_sources_after_the_primary_ones_titled_by_url_if_untitled() {
+        let untitled = SearchCandidate::from_source(
+            Source {
+                text: Some("Firecrawl summary".into()),
+                ..source("", "https://example.test/untitled")
+            },
+            "firecrawl",
+            Capability::WebSearch,
+        )
+        .expect("an HTTP candidate");
+        let preview = SearchCandidate::from_web_fetch(
+            "jina",
+            "https://example.test/article".into(),
+            "Fetched evidence line one.".into(),
+        )
+        .expect("an HTTP candidate");
+
+        let rendered = render_search(
+            Ok(SearchOutcome {
+                extra_sources: vec![untitled, preview],
+                ..answered("answer")
+            }),
+            &written_journal(),
+            ContentOutputFormat::Markdown,
+            None,
+            false,
+        )
+        .expect("rendered output");
+
+        assert_eq!(
+            (rendered.exit_code, rendered.stdout.as_str()),
+            (
+                0,
+                "# Search result\n\nanswer\n\n## Primary Sources\n\n- [Primary](https://example.test/source?token=********)\n\n## Extra Sources\n\n- [https://example.test/untitled](https://example.test/untitled) — firecrawl\n\n  Firecrawl summary\n- [https://example.test/article](https://example.test/article) — jina\n\n  Fetched evidence line one."
+            )
+        );
+    }
+
+    #[test]
+    fn a_journal_that_failed_leaves_the_search_successful_and_warns_once() {
+        let rendered = render_search(
+            Ok(answered("answer")),
+            &JournalOutcome {
+                status: "failed",
+                reference: None,
+                warning: Some("File exists (os error 17)".into()),
+            },
+            ContentOutputFormat::Json,
+            None,
+            false,
+        )
+        .expect("rendered output");
+        let payload: Value = serde_json::from_str(&rendered.stdout).expect("search JSON");
+
+        assert_eq!(
+            (
+                rendered.exit_code,
+                &payload["answer"],
+                &payload["journal_status"],
+                &payload["journal_ref"],
+                rendered.stderr.as_deref(),
+            ),
+            (
+                0,
+                &json!("answer"),
+                &json!("failed"),
+                &Value::Null,
+                Some("Search Result Journal warning: File exists (os error 17)"),
+            )
+        );
+    }
+
+    #[test]
+    fn a_search_that_ran_out_of_time_prints_its_failure_payload_and_exits_four() {
+        let rendered = render_search(
+            Err(SearchFailure {
+                error: ProviderError {
+                    kind: AttemptErrorKind::Timeout,
+                    message: "deadline exceeded".into(),
+                    attempts: vec![attempt("xai", AttemptErrorKind::Timeout)],
+                    verbose: false,
+                    diagnostic: None,
+                },
+                extra_sources: Vec::new(),
+                capability_gaps: Vec::new(),
+            }),
+            &written_journal(),
+            ContentOutputFormat::Json,
+            None,
+            false,
+        )
+        .expect("rendered output");
+        let payload: Value = serde_json::from_str(&rendered.stdout).expect("failure JSON");
+
+        assert_eq!(
+            (rendered.exit_code, &payload["error_kind"]),
+            (4, &json!("timeout"))
+        );
+    }
+
+    #[test]
+    fn the_attempt_log_joins_the_diagnostics_without_changing_stdout() {
+        let rendered = || {
+            Ok(RenderedOutput {
+                stdout: r#"{"answer":"answer"}"#.into(),
+                stderr: Some("diagnostic".into()),
+                exit_code: 0,
+            })
+        };
+
+        let outputs = [None, Some("forager attempts: {}".to_owned())].map(|attempt_log| {
+            let output = with_attempt_log(rendered(), attempt_log).expect("rendered output");
+            (output.stdout, output.stderr, output.exit_code)
+        });
+
+        assert_eq!(
+            outputs,
+            [
+                (
+                    r#"{"answer":"answer"}"#.to_owned(),
+                    Some("diagnostic".to_owned()),
+                    0
+                ),
+                (
+                    r#"{"answer":"answer"}"#.to_owned(),
+                    Some("diagnostic\nforager attempts: {}".to_owned()),
+                    0
+                ),
+            ]
         );
     }
 

@@ -444,6 +444,20 @@ mod exa_tests {
 #[cfg(test)]
 mod search_tests {
     use super::{Command, parse};
+    use crate::types::Capability;
+
+    /// The capabilities a `search` declares with `--capabilities declaration`.
+    fn declared(declaration: &str) -> Vec<Capability> {
+        match parse(&["search", "Declared", "--capabilities", declaration])
+            .expect("the parser accepts the declaration")
+        {
+            Command::Search {
+                capabilities: Some(capabilities),
+                ..
+            } => capabilities.iter().collect(),
+            _ => unreachable!("the arguments name search with a declaration"),
+        }
+    }
 
     #[test]
     fn a_search_without_options_declares_no_capabilities_and_asks_for_no_extra_sources() {
@@ -458,5 +472,64 @@ mod search_tests {
             unreachable!("the arguments name search")
         };
         assert_eq!((capabilities.is_none(), extra_sources), (true, 0));
+    }
+
+    #[test]
+    fn a_capability_declaration_is_deduplicated_in_vocabulary_order_whatever_its_case() {
+        assert_eq!(
+            (
+                declared("WEB_SEARCH,docs_search,web_search"),
+                declared("none"),
+            ),
+            (
+                vec![Capability::DocsSearch, Capability::WebSearch],
+                Vec::new()
+            )
+        );
+    }
+
+    #[test]
+    fn unknown_empty_and_mixed_none_declarations_are_usage_errors_naming_the_option() {
+        for declaration in ["unknown", "", "docs_search,", "none,web_search"] {
+            let error = parse(&[
+                "search",
+                "Invalid declaration",
+                "--capabilities",
+                declaration,
+            ])
+            .expect_err("the parser refuses the declaration");
+
+            assert_eq!(
+                (
+                    error.exit_code(),
+                    error.to_string().contains("--capabilities")
+                ),
+                (2, true),
+                "{declaration:?}: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn more_than_twenty_extra_sources_are_a_usage_error_naming_the_option() {
+        let accepted = parse(&["search", "In range", "--extra-sources", "20"]);
+        let error = parse(&["search", "Out of range", "--extra-sources", "21"])
+            .expect_err("the parser refuses the count");
+
+        assert_eq!(
+            (
+                matches!(
+                    accepted,
+                    Ok(Command::Search {
+                        extra_sources: 20,
+                        ..
+                    })
+                ),
+                error.exit_code(),
+                error.to_string().contains("--extra-sources"),
+            ),
+            (true, 2, true),
+            "{error}"
+        );
     }
 }

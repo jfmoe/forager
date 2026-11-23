@@ -554,6 +554,39 @@ fn main_search(
     ))
 }
 
+#[test]
+fn a_command_deadline_ends_main_search_as_a_timeout_that_keeps_its_attempt() {
+    let xai = Fixture::start_unanswered();
+    let config = runtime_config_from_toml(&main_search_document(&[("xai", Some(&xai.url))]))
+        .expect("valid configuration");
+
+    let error = advance_after_request(&xai, Duration::from_secs(1), async {
+        search(
+            MainSearchRequest {
+                query: "Budget".into(),
+                model: None,
+                verbose: true,
+            },
+            config.main_search,
+            FallbackPolicy::Auto,
+            build_client(true).expect("build client"),
+            RetryPolicy::new(1, 1.0, Duration::ZERO),
+            Deadline::new(Duration::from_secs(1)),
+        )
+        .await
+    })
+    .expect_err("the command deadline ends the search");
+    xai.finish();
+
+    assert_eq!(
+        (error.kind, statuses(&error.attempts)),
+        (
+            AttemptErrorKind::Timeout,
+            vec![("xai", Some(AttemptErrorKind::Timeout), None)]
+        )
+    );
+}
+
 fn answer(provider: &str) -> Response {
     Response::sse(200, &completed_events(&stored_answer(provider)))
 }

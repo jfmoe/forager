@@ -324,7 +324,11 @@ mod tests {
     use tempfile::tempdir;
 
     use super::*;
-    use crate::types::{AttemptErrorKind, CapabilityGap, ProviderError, SearchCandidate, Source};
+    use crate::config::runtime_config_from_toml;
+    use crate::types::{
+        AttemptDisposition, AttemptErrorKind, AttemptTarget, CapabilityGap, ProviderAttempt,
+        ProviderError, SearchCandidate, Source,
+    };
 
     #[test]
     fn write_value_persists_json_that_can_be_read_back() {
@@ -586,6 +590,204 @@ mod tests {
                     "providers_skipped": ["exa"]
                 }]),
             )
+        );
+    }
+
+    fn source(title: &str, url: &str) -> Source {
+        Source {
+            title: title.into(),
+            url: url.into(),
+            published_date: None,
+            author: None,
+            text: None,
+            highlights: Vec::new(),
+            id: None,
+            image: None,
+            favicon: None,
+        }
+    }
+
+    /// One main-search attempt of xAI with the model `test-model`, ended as `kind`.
+    fn xai_attempt(kind: Option<AttemptErrorKind>) -> ProviderAttempt {
+        ProviderAttempt {
+            provider: "xai",
+            target: AttemptTarget::seam("main_search"),
+            disposition: if kind.is_some() {
+                AttemptDisposition::Failed
+            } else {
+                AttemptDisposition::Succeeded
+            },
+            error_kind: kind,
+            http_status: kind.is_none().then_some(200),
+            duration_ms: 0,
+            credential_index: 0,
+            retry_count: 0,
+            rotation_count: 0,
+            anonymous: false,
+            message: String::new(),
+            model: Some("test-model".into()),
+            transport: Some("sse"),
+            endpoint_host: Some("127.0.0.1".into()),
+        }
+    }
+
+    #[test]
+    fn a_search_record_keeps_the_query_plan_and_attempts_that_the_payload_leaves_out() {
+        let sources = vec![
+            source("Primary", "https://example.test/source?token=********"),
+            source("", "https://example.test/inline"),
+        ];
+        let result = Ok(SearchOutcome {
+            sources: sources.clone(),
+            attempts: vec![xai_attempt(None)],
+            ..outcome()
+        });
+
+        let record = build_record(SearchRecord {
+            query: "Focused stdout",
+            budget: Duration::from_mins(3),
+            elapsed: Duration::from_secs(1),
+            capabilities: &[Capability::DocsSearch, Capability::WebSearch],
+            plan_source: PlanSource::Caller,
+            result: &result,
+        });
+
+        assert_eq!(
+            (
+                &record["result"]["query"],
+                &record["result"]["answer"],
+                &record["result"]["sources"],
+                &record["execution"]["plan_summary"]["capabilities"],
+                &record["execution"]["provider_attempts"][0]["provider"],
+                &record["execution"]["provider_attempts"][0]["model"],
+            ),
+            (
+                &json!("Focused stdout"),
+                &json!("answer"),
+                &serde_json::to_value(&sources).expect("encode sources"),
+                &json!(["docs_search", "web_search"]),
+                &json!("xai"),
+                &json!("test-model"),
+            )
+        );
+    }
+
+    #[test]
+    fn a_search_that_used_up_its_budget_is_recorded_with_its_attempt_chain() {
+        let result = Err(SearchFailure {
+            error: ProviderError {
+                kind: AttemptErrorKind::Timeout,
+                message: "deadline exceeded".into(),
+                attempts: vec![xai_attempt(Some(AttemptErrorKind::Timeout))],
+                verbose: false,
+                diagnostic: None,
+            },
+            extra_sources: Vec::new(),
+            capability_gaps: Vec::new(),
+        });
+
+        let record = build_record(SearchRecord {
+            query: "Budget",
+            budget: Duration::from_secs(1),
+            elapsed: Duration::from_secs(1),
+            capabilities: &[],
+            plan_source: PlanSource::Caller,
+            result: &result,
+        });
+
+        assert_eq!(
+            (
+                &record["result"]["error_kind"],
+                &record["execution"]["terminal_attribution"],
+                record["execution"]["provider_attempts"]
+                    .as_array()
+                    .map(Vec::len),
+                &record["execution"]["provider_attempts"][0]["error_kind"],
+                &record["execution"]["deadline_budget"]["exhausted"],
+            ),
+            (
+                &json!("timeout"),
+                &json!("timeout"),
+                Some(1),
+                &json!("timeout"),
+                &json!(true),
+            )
+        );
+    }
+
+    /// Records a successful search under `config`.
+    fn record_success(config: &JournalRuntimeConfig) -> JournalOutcome {
+        record_search(
+            config,
+            SearchRecord {
+                query: "query",
+                budget: Duration::from_mins(3),
+                elapsed: Duration::from_secs(1),
+                capabilities: &[],
+                plan_source: PlanSource::DefaultMainSearchOnly,
+                result: &Ok(outcome()),
+            },
+        )
+    }
+
+    #[test]
+    fn a_journal_that_cannot_be_written_is_reported_as_failed_with_a_warning() {
+        let root = tempdir().expect("create temporary directory");
+        let blocked = root.path().join("journal");
+        fs::write(&blocked, "not a directory").expect("block the journal directory");
+
+        let journal = record_success(&journal_config(blocked));
+
+        assert_eq!(
+            (
+                journal.status,
+                journal.reference,
+                journal.warning.is_some_and(|warning| !warning.is_empty()),
+            ),
+            ("failed", None, true)
+        );
+    }
+
+    #[test]
+    fn writing_a_record_removes_expired_owned_records_under_the_default_retention() {
+        let root = tempdir().expect("create temporary directory");
+        let dir = root.path().join("journal");
+        let document = format!(
+            "[journal]\nenabled = true\ndir = {:?}\n",
+            dir.to_string_lossy()
+        );
+        let config = runtime_config_from_toml(&document)
+            .expect("valid configuration")
+            .journal;
+        fs::create_dir(&dir).expect("create journal directory");
+        let stale_owned = dir.join("search_result_1_2_3.json");
+        let fresh_owned = dir.join("search_result_4_5_6.json");
+        for path in [&stale_owned, &fresh_owned] {
+            fs::write(path, "{}").expect("create an earlier record");
+        }
+        fs::File::open(&stale_owned)
+            .expect("open the stale record")
+            .set_times(
+                fs::FileTimes::new().set_modified(
+                    SystemTime::now()
+                        .checked_sub(Duration::from_hours(960))
+                        .expect("calculate stale modification time"),
+                ),
+            )
+            .expect("age the stale record");
+
+        let journal = record_success(&config);
+
+        assert_eq!(
+            (
+                journal.status,
+                journal
+                    .reference
+                    .is_some_and(|reference| std::path::Path::new(&reference).is_file()),
+                stale_owned.exists(),
+                fresh_owned.exists(),
+            ),
+            ("written", true, false, true)
         );
     }
 

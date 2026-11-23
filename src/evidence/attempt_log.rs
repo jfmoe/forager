@@ -111,6 +111,39 @@ mod tests {
     }
 
     #[test]
+    fn the_summary_line_precedes_one_line_per_attempt_only_at_trace() {
+        let attempts = [
+            attempt(AttemptErrorKind::Network),
+            ProviderAttempt {
+                disposition: AttemptDisposition::Succeeded,
+                error_kind: None,
+                http_status: Some(200),
+                ..attempt(AttemptErrorKind::Network)
+            },
+        ];
+        let prefixes = [LogLevel::Debug, LogLevel::Trace].map(|level| {
+            render(level, &attempts)
+                .expect("an attempt projection")
+                .lines()
+                .map(|line| {
+                    if line.starts_with("forager attempts: ") {
+                        "summary"
+                    } else if line.starts_with("forager attempt: ") {
+                        "attempt"
+                    } else {
+                        "other"
+                    }
+                })
+                .collect::<Vec<_>>()
+        });
+
+        assert_eq!(
+            prefixes,
+            [vec!["summary"], vec!["summary", "attempt", "attempt"]]
+        );
+    }
+
+    #[test]
     fn summary_marks_same_provider_model_change_as_fallback() {
         let first = attempt(AttemptErrorKind::Runtime);
         let mut second = attempt(AttemptErrorKind::Network);
