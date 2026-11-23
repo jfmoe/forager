@@ -30,11 +30,9 @@ pub(crate) struct PlatformCatalog {
     pub(crate) platform: Platform,
     pub(crate) search: &'static [ProviderId],
     pub(crate) fetch: &'static [ProviderId],
-    /// Routes that serve neither search nor fetch, only operations of the platform's own, such
-    /// as a model that answers about a video. They are valid order entries like any route.
-    pub(crate) operation_only: &'static [ProviderId],
     /// The platform's own operations beyond search and fetch, each with the routes that serve
-    /// it.
+    /// it. A route may serve only such operations, as a model that answers about a video does; it
+    /// is a valid order entry like any route.
     pub(crate) operations: &'static [OperationRoutes],
     /// The default `platforms.<id>.order`. A route that users must enable themselves is a
     /// valid order entry but never appears here.
@@ -52,7 +50,6 @@ pub(crate) const ARXIV: PlatformCatalog = PlatformCatalog {
     platform: Platform::Arxiv,
     search: &[ProviderId::ArxivApi],
     fetch: &[ProviderId::ArxivApi],
-    operation_only: &[],
     operations: &[],
     default_order: &[ProviderId::ArxivApi],
 };
@@ -61,7 +58,6 @@ pub(crate) const SSRN: PlatformCatalog = PlatformCatalog {
     platform: Platform::Ssrn,
     search: &[ProviderId::SsrnCrossref],
     fetch: &[ProviderId::SsrnCrossref],
-    operation_only: &[],
     operations: &[],
     default_order: &[ProviderId::SsrnCrossref],
 };
@@ -71,7 +67,6 @@ pub(crate) const SCHOLAR: PlatformCatalog = PlatformCatalog {
     platform: Platform::Scholar,
     search: &[ProviderId::Serpapi],
     fetch: &[ProviderId::Serpapi],
-    operation_only: &[],
     operations: &[OperationRoutes {
         operation: CITED_BY,
         routes: &[ProviderId::Serpapi],
@@ -85,7 +80,6 @@ pub(crate) const XIAOHONGSHU: PlatformCatalog = PlatformCatalog {
     platform: Platform::Xiaohongshu,
     search: &[ProviderId::XiaohongshuBrowser],
     fetch: &[ProviderId::XiaohongshuBrowser],
-    operation_only: &[],
     operations: &[OperationRoutes {
         operation: COMMENTS,
         routes: &[ProviderId::XiaohongshuBrowser],
@@ -99,7 +93,6 @@ pub(crate) const X: PlatformCatalog = PlatformCatalog {
     platform: Platform::X,
     search: &[ProviderId::Xai],
     fetch: &[ProviderId::Xai],
-    operation_only: &[],
     operations: &[OperationRoutes {
         operation: ASK,
         routes: &[ProviderId::Xai],
@@ -112,7 +105,6 @@ pub(crate) const HN: PlatformCatalog = PlatformCatalog {
     platform: Platform::Hn,
     search: &[ProviderId::HnApi],
     fetch: &[ProviderId::HnApi],
-    operation_only: &[],
     operations: &[OperationRoutes {
         operation: STORIES,
         routes: &[ProviderId::HnApi],
@@ -128,7 +120,6 @@ pub(crate) const YOUTUBE: PlatformCatalog = PlatformCatalog {
     platform: Platform::Youtube,
     search: &[ProviderId::YoutubeApi],
     fetch: &[ProviderId::YoutubeApi, ProviderId::YoutubeWeb],
-    operation_only: &[ProviderId::GeminiApi],
     operations: &[
         OperationRoutes {
             operation: COMMENTS,
@@ -156,7 +147,6 @@ pub(crate) const POLYMARKET: PlatformCatalog = PlatformCatalog {
     platform: Platform::Polymarket,
     search: &[ProviderId::PolymarketApi],
     fetch: &[ProviderId::PolymarketApi],
-    operation_only: &[],
     operations: &[OperationRoutes {
         operation: HISTORY,
         routes: &[ProviderId::PolymarketApi],
@@ -171,7 +161,6 @@ pub(crate) const REDDIT: PlatformCatalog = PlatformCatalog {
     platform: Platform::Reddit,
     search: &[ProviderId::RedditBrowser],
     fetch: &[ProviderId::RedditBrowser],
-    operation_only: &[],
     operations: &[],
     default_order: &[],
 };
@@ -234,12 +223,11 @@ impl PlatformCatalog {
     /// Returns every route of the platform once, in declaration order.
     pub(crate) fn all_routes(self) -> Vec<ProviderId> {
         let mut routes = Vec::new();
-        for route in self
-            .search
-            .iter()
-            .chain(self.fetch)
-            .chain(self.operation_only)
-        {
+        for route in self.search.iter().chain(self.fetch).chain(
+            self.operations
+                .iter()
+                .flat_map(|operation| operation.routes),
+        ) {
             if !routes.contains(route) {
                 routes.push(*route);
             }
