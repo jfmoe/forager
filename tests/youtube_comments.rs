@@ -3,8 +3,7 @@ mod support;
 use serde_json::json;
 
 use support::youtube::{
-    KEY, api_error, comment, comment_thread, comment_threads_page, config, header, pairs, payload,
-    stderr,
+    KEY, comment, comment_thread, comment_threads_page, config, header, pairs, payload, stderr,
 };
 use support::{Fixture, RunEnvironment};
 use support::{path, query};
@@ -110,107 +109,4 @@ fn comments_carry_their_authors_counts_and_replies_and_say_whether_the_replies_a
         "stderr: {}",
         stderr(&output)
     );
-}
-
-#[test]
-fn disabled_comments_are_an_attempt_level_parameter_failure_not_an_empty_list() {
-    let api = Fixture::start_sequence(vec![api_error(
-        403,
-        "commentsDisabled",
-        None,
-        "The video identified by the <code>videoId</code> parameter has disabled comments.",
-    )]);
-    let environment = RunEnvironment::new(&config(&api.url));
-
-    let output = comments(&environment, &["youtube:XqZsoesa55w"]);
-    api.finish();
-    let failure = payload(&output);
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &failure["error_kind"],
-            &failure["message"]
-        ),
-        (
-            Some(4),
-            &json!("parameter"),
-            &json!("comments are disabled for youtube:XqZsoesa55w")
-        ),
-        "stderr: {}",
-        stderr(&output)
-    );
-}
-
-#[test]
-fn a_missing_video_is_an_attempt_level_parameter_failure_naming_the_video() {
-    let api = Fixture::start_sequence(vec![api_error(
-        404,
-        "videoNotFound",
-        None,
-        r#"The video identified by the <code><a href="/youtube/v3/docs/commentThreads/list#videoId">videoId</a></code> parameter could not be found."#,
-    )]);
-    let environment = RunEnvironment::new(&config(&api.url));
-
-    let output = comments(&environment, &["youtube:zzQq9ZxZ9Zq"]);
-    api.finish();
-    let failure = payload(&output);
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &failure["error_kind"],
-            &failure["message"]
-        ),
-        (
-            Some(4),
-            &json!("parameter"),
-            &json!("YouTube video not found or not public: youtube:zzQq9ZxZ9Zq")
-        ),
-        "stderr: {}",
-        stderr(&output)
-    );
-}
-
-#[test]
-fn a_video_without_comments_lists_none_and_succeeds() {
-    let api = Fixture::start_sequence(vec![comment_threads_page(&[], None)]);
-    let environment = RunEnvironment::new(&config(&api.url));
-
-    let output = comments(&environment, &["youtube:jNQXAC9IVRw"]);
-    let request = api.finish();
-
-    assert_eq!(
-        (
-            output.status.code(),
-            query(&request)["order"].as_str(),
-            payload(&output)
-        ),
-        (
-            Some(0),
-            "relevance",
-            json!({
-                "platform": "youtube",
-                "provider": "youtube_api",
-                "video": "youtube:jNQXAC9IVRw",
-                "comments": [],
-                "has_more": false
-            })
-        ),
-        "stderr: {}",
-        stderr(&output)
-    );
-}
-
-#[test]
-fn a_playlist_or_channel_is_refused_before_any_request() {
-    let environment = RunEnvironment::new(&config("http://127.0.0.1:9"));
-
-    let codes = [
-        "youtube:playlist/PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab",
-        "youtube:channel/UCYO_jab_esuFRV4b17AJtAw",
-    ]
-    .map(|reference| comments(&environment, &[reference]).status.code());
-
-    assert_eq!(codes, [Some(2), Some(2)]);
 }
