@@ -129,6 +129,45 @@ impl Service {
             Self::Firecrawl => ProviderId::Firecrawl,
         }
     }
+
+    /// Decodes the page content of an answer `body`. When the response cap `truncated` the body,
+    /// a body that no longer parses yields the content read before the cut.
+    fn content(self, body: &str, truncated: bool) -> Result<String, String> {
+        let decoded = match self {
+            Self::Jina => serde_json::from_str::<JinaResponse>(body)
+                .map_err(|error| format!("invalid Jina response: {error}"))
+                .map(|response| response.data.content),
+            Self::Tavily => serde_json::from_str::<TavilyResponse>(body)
+                .map_err(|error| format!("invalid Tavily response: {error}"))
+                .map(|response| {
+                    response
+                        .results
+                        .into_iter()
+                        .next()
+                        .map(|result| result.raw_content)
+                        .unwrap_or_default()
+                }),
+            Self::Firecrawl => serde_json::from_str::<FirecrawlResponse>(body)
+                .map_err(|error| format!("invalid Firecrawl response: {error}"))
+                .map(|response| response.data.markdown),
+        };
+        decoded.or_else(|message| {
+            if truncated {
+                Ok(self.truncated_content(body))
+            } else {
+                Err(message)
+            }
+        })
+    }
+
+    fn truncated_content(self, body: &str) -> String {
+        let key = match self {
+            Self::Jina => "content",
+            Self::Tavily => "raw_content",
+            Self::Firecrawl => "markdown",
+        };
+        json_string_prefix(body, key).unwrap_or_else(|| body.to_owned())
+    }
 }
 
 struct FetchBody {
@@ -197,14 +236,8 @@ impl HttpFetchProvider {
         let response = send_provider_request(request_builder, &self.credentials).await?;
         let body = read_truncatable_content(response, &self.credentials, failure_message).await?;
         let status = body.status;
-        self.decode(&body.text)
-            .or_else(|message| {
-                if body.truncated {
-                    Ok(self.decode_truncated(&body.text))
-                } else {
-                    Err(message)
-                }
-            })
+        self.service
+            .content(&body.text, body.truncated)
             .map(|content| {
                 (
                     Some(status),
@@ -257,39 +290,6 @@ impl HttpFetchProvider {
                 // The PDF parser options Firecrawl applies in scrape (ADR-0029).
                 "parsers": [{"type": "pdf", "mode": "auto", "pageMarkers": true}],
             })),
-        }
-    }
-
-    fn decode(&self, body: &str) -> Result<String, String> {
-        match self.service {
-            Service::Jina => serde_json::from_str::<JinaResponse>(body)
-                .map_err(|error| format!("invalid Jina response: {error}"))
-                .map(|response| response.data.content),
-            Service::Tavily => serde_json::from_str::<TavilyResponse>(body)
-                .map_err(|error| format!("invalid Tavily response: {error}"))
-                .map(|response| {
-                    response
-                        .results
-                        .into_iter()
-                        .next()
-                        .map(|result| result.raw_content)
-                        .unwrap_or_default()
-                }),
-            Service::Firecrawl => serde_json::from_str::<FirecrawlResponse>(body)
-                .map_err(|error| format!("invalid Firecrawl response: {error}"))
-                .map(|response| response.data.markdown),
-        }
-    }
-
-    fn decode_truncated(&self, body: &str) -> String {
-        match self.service {
-            Service::Jina => json_string_prefix(body, "content").unwrap_or_else(|| body.to_owned()),
-            Service::Tavily => {
-                json_string_prefix(body, "raw_content").unwrap_or_else(|| body.to_owned())
-            }
-            Service::Firecrawl => {
-                json_string_prefix(body, "markdown").unwrap_or_else(|| body.to_owned())
-            }
         }
     }
 
