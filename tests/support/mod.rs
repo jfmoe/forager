@@ -27,6 +27,7 @@ pub(crate) mod polymarket_samples;
 pub(crate) mod samples;
 pub(crate) mod scholar;
 pub(crate) mod smoke;
+pub(crate) mod ssrn_samples;
 pub(crate) mod x;
 pub(crate) mod youtube;
 pub(crate) mod youtube_web;

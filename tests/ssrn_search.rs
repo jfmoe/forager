@@ -4,33 +4,8 @@ use std::process::Output;
 
 use serde_json::{Value, json};
 
+use support::ssrn_samples::{stored, stored_json, work_list};
 use support::{Fixture, Response, RunEnvironment};
-
-fn work(id: &str) -> Value {
-    json!({
-        "DOI": format!("10.2139/ssrn.{id}"),
-        "title": [format!("Paper {id}")],
-        "author": [{"given": "Gary", "family": "Antonacci", "sequence": "first"}],
-        "abstract": format!("<jats:p>Abstract of {id}.</jats:p>"),
-        "published": {"date-parts": [[2012]]},
-        "type": "posted-content",
-        "created": {"date-parts": [[2012, 4, 25]], "date-time": "2012-04-25T11:01:44Z"},
-        "resource": {"primary": {"URL": format!("https://www.ssrn.com/abstract={id}")}}
-    })
-}
-
-fn work_list(total: u64, items: &[Value]) -> Response {
-    Response::json(
-        200,
-        &json!({
-            "status": "ok",
-            "message-type": "work-list",
-            "message-version": "1.0.0",
-            "message": {"total-results": total, "items": items, "items-per-page": items.len()}
-        })
-        .to_string(),
-    )
-}
 
 fn config(url: &str) -> String {
     format!("[providers.ssrn_crossref]\nurl = \"{url}\"\n")
@@ -62,15 +37,10 @@ fn page(arguments: &[&str], response: Response) -> (Output, String) {
 
 #[test]
 fn search_returns_abstract_and_metadata_depth_items_and_skips_non_ssrn_dois() {
-    let mut without_abstract = work("2");
-    without_abstract["abstract"] = Value::Null;
-    without_abstract["type"] = json!("journal-article");
-    let items = [
-        work("1"),
-        json!({"DOI": "10.1016/j.jfineco.2020.01.001", "title": ["Elsewhere"]}),
-        without_abstract,
-    ];
-    let (output, _) = page(&["momentum"], work_list(3, &items));
+    let (output, _) = page(
+        &["momentum"],
+        Response::json(200, &stored("work-list.json")),
+    );
 
     assert_eq!(
         (
@@ -122,11 +92,14 @@ fn search_returns_abstract_and_metadata_depth_items_and_skips_non_ssrn_dois() {
 
 #[test]
 fn markdown_shows_an_abstract_only_for_items_that_have_one() {
-    let mut without_abstract = work("2");
-    without_abstract["abstract"] = Value::Null;
+    let records = &stored_json("work-list.json")["message"]["items"];
+    let without_abstract = records[2].clone();
     let (output, _) = page(
         &["momentum", "--format", "markdown"],
-        work_list(2, &[without_abstract, work("1")]),
+        Response::json(
+            200,
+            &work_list(2, &[without_abstract, records[0].clone()]).to_string(),
+        ),
     );
     let markdown = String::from_utf8_lossy(&output.stdout);
 

@@ -828,12 +828,10 @@ fn a_body_that_is_not_json_fails_to_decode() {
 
 #[test]
 fn a_failed_status_reads_the_validation_message_or_names_the_status() {
-    let validation = r#"{"status":"failed","message-type":"validation-failure","message":[{"type":"integer-not-valid","value":10001,"message":"Offset specified as 10001 is too large"}]}"#;
-
     assert_eq!(
         [
-            failure_message(validation, 400),
-            failure_message("Resource not found.", 404)
+            failure_message(&stored::stored("validation-failure.json"), 400),
+            failure_message(&stored::stored("not-found.txt"), 404)
         ],
         [
             "Crossref rejected the request: Offset specified as 10001 is too large".to_owned(),
