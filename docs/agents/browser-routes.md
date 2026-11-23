@@ -21,7 +21,7 @@ These tests are marked `#[ignore]`, so the full test suite lists them as skipped
 cargo nextest run --locked --profile real-browser --run-ignored only
 ```
 
-- The Reddit projection tests (one for the search page, one for the post page) run the in-page projection script on local pages stored as samples (`tests/samples/reddit_browser/*.html`) and assert that its output equals the stored JSON projection the judgement tests read. After changing a projection script or a local page, run them with `FORAGER_WRITE_PROJECTIONS=1` to rewrite the JSON, then review the diff and update the samples' records.
+- The Reddit projection tests (one for the search page, one for the post page) run the in-page projection script on local pages stored as samples (`tests/samples/reddit_browser/*.html`) and assert that its output equals the stored JSON projection the judgement tests read. After changing a projection script or a local page, run them with `FORAGER_WRITE_PROJECTIONS=1` to rewrite the JSON, then review the diff.
 - They need the installed Managed Browser (`forager browser install`), or another browser executable named by `FORAGER_REAL_BROWSER_PATH`. Without a browser the tests fail with the reason; they never pass silently.
 - The tests open only static pages served on this machine, visit no real site, need no login, and each uses its own temporary Browser Profile.
 
