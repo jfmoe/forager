@@ -601,11 +601,11 @@ fn live_smoke_runs_the_scholar_cases_only_with_a_serpapi_key() {
 fn live_smoke_runs_the_x_cases_through_the_xai_route_only_when_the_order_lists_it() {
     let response = |name: &str| support::x::completed(&support::x::fixture(name));
     let xai = Fixture::start_sequence(vec![
-        response("ask.json"),
-        response("search.json"),
-        response("reply_thread.json"),
-        response("ask.json"),
-        response("ask.json"),
+        response("x-ask.json"),
+        response("x-search.json"),
+        response("x-reply-thread.json"),
+        response("x-ask.json"),
+        response("x-ask.json"),
     ]);
     let run = |order: &str| {
         let environment = SmokeEnvironment::new(|journal_dir| {
