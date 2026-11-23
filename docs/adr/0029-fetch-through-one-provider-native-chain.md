@@ -8,10 +8,10 @@ own extraction chooses the page body. forager applies no local semantic denoiser
 or clean variants. A body that is empty or too thin is one quality failure that falls through to
 the next provider.
 
-**One chain.** Direct fetch, research evidence fetching, search-side Web Fetch and platform full
-text share one chain, by default Firecrawl, then Jina, then Tavily. There is no order by content
-type or domain. A configuration that sets its own order keeps it when the default changes, because
-configuration is authoritative.
+**One chain.** Direct fetch, search-side Web Fetch and platform full text share one chain, by
+default Firecrawl, then Jina, then Tavily. There is no order by content type or domain. A
+configuration that sets its own order keeps it when the default changes, because configuration is
+authoritative.
 
 **Request profiles.** Each provider attempt asks for complete Markdown once:
 

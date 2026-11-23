@@ -25,10 +25,10 @@ When the request names a platform, supplies a platform URL or ref, or needs plat
 read [`references/platforms.md`](references/platforms.md) first; it decides whether a platform
 command serves the request and covers its direct and search branches.
 
-Route every request through `direct retrieval → ordinary search → research`. Choose the cheapest
-branch that can complete the request. Run one eligible branch, then escalate only when the request
-shape or an observed shortfall shows that branch cannot finish the task. Research is the most
-expensive branch.
+Route every request through `direct retrieval → ordinary search → multi-source investigation`.
+Choose the cheapest branch that can complete the request. Run one eligible branch, then escalate
+only when the request shape or an observed shortfall shows that branch cannot finish the task. A
+multi-source investigation is the most expensive branch.
 
 - For a known URL, PDF, site map, or provider-direct operation, read
   [`references/direct-retrieval.md`](references/direct-retrieval.md) and follow it through
@@ -36,8 +36,13 @@ expensive branch.
 - For a request one live search can complete, read
   [`references/ordinary-search.md`](references/ordinary-search.md) and follow it through
   completion.
-- For a request that requires decomposition or multi-source verification, read
-  [`references/research.md`](references/research.md) and follow it through completion.
+- For a request that requires decomposition or multi-source verification, orchestrate the
+  investigation yourself. Split the question into parts; run `forager search` for a part that
+  needs discovery, `forager fetch` for each source that may answer it, and the platform commands
+  for platform-native items. Judge each source on whether it bears on the question, not by how
+  many sources there are. Cite only fetched content, and disclose each part no source answered.
+  Stop when further searches are unlikely to change the answer, the task budget is reached, or
+  access is blocked, and report what remains open.
 
 Routing is complete when exactly one branch matches the request shape or the preceding branch has
 returned an observable reason to escalate.

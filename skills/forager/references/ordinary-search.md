@@ -27,9 +27,8 @@ explicit value from `1..=20` is the exact target.
   and `summary` can be null, while `provider_data` carries provider-specific selection data. A
   provider-native summary is not verified evidence.
 - Fetch a candidate with an HTTP(S) `url` before using it as evidence. A Context7 Documentation
-  Candidate instead carries a typed library locator in `provider_data`; consume it through
-  Documentation Search or the Research Evidence Pipeline, never by fabricating a URL or passing it
-  to Web Fetch.
+  Candidate instead carries a typed library locator in `provider_data`; read it with
+  `forager context7 docs`, never by fabricating a URL or passing it to Web Fetch.
 - Disclose every `capability_gaps` entry and its effect on coverage.
 
 For high-risk, time-sensitive, or source-backed claims, fetch the key URLs and limit the answer to

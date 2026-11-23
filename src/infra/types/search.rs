@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use super::{Capability, EvidenceLocator, LibraryCandidate, ProviderAttempt};
+use super::{Capability, LibraryCandidate, ProviderAttempt};
 
 #[derive(Clone, Debug, Serialize)]
 /// A normalized source returned by a search provider.
@@ -205,28 +205,6 @@ impl SearchCandidate {
     #[must_use]
     pub fn summary(&self) -> Option<&str> {
         self.summary.as_deref()
-    }
-
-    pub(crate) fn into_evidence_source(self) -> Option<(EvidenceLocator, Source)> {
-        let locator = match (self.url, self.provider_data) {
-            (Some(url), _) => EvidenceLocator::Url(url.0),
-            (None, SearchCandidateProviderData::Context7(data)) => {
-                EvidenceLocator::Context7Library(data.library_id)
-            }
-            (None, _) => return None,
-        };
-        let source = Source {
-            title: self.title.unwrap_or_default(),
-            url: locator.url().unwrap_or_default().to_owned(),
-            published_date: None,
-            author: None,
-            text: self.summary,
-            highlights: Vec::new(),
-            id: None,
-            image: None,
-            favicon: None,
-        };
-        Some((locator, source))
     }
 }
 

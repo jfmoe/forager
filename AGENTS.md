@@ -1,6 +1,6 @@
 # forager
 
-A Rust CLI that gives AI agents search, fetch, research and per-platform retrieval through a chain of providers. Coding agents do almost all of the development here.
+A Rust CLI that gives AI agents search, fetch and per-platform retrieval through a chain of providers. Coding agents do almost all of the development here.
 
 ## Checks
 

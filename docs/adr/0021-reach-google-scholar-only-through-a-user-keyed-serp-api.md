@@ -11,7 +11,7 @@ plan.
   exhausted key and a rate-limited key both make the same request move to the next key.
 - **Present by default, idle without a key.** The route is in the default order, but without a key
   it is unconfigured: platform commands fail before any request and name the missing key, and
-  plain search and research never call it.
+  plain search never calls it.
 - **Spend as little quota as possible.** Every successful search costs quota, including a
   legitimate empty result and a missing cluster. Search asks for a full page by default, because a
   page costs the same whatever its size; fetch reads one page of a cluster with no automatic

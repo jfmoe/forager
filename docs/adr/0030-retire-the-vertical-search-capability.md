@@ -4,7 +4,7 @@
 
 forager has no vertical search capability. The capability, its only provider AnySearch, the
 `anysearch` command, their configuration, the Verified Domain Manifest, and their entries in
-doctor, smoke and setup are removed. The capabilities that search and research can plan are
+doctor, smoke and setup are removed. The capabilities that search can plan are
 Documentation Search, Web Search and Web Fetch. Old capability declarations, configuration keys,
 environment variables and the old command are rejected as unknown input, with no alias or
 compatibility layer.
@@ -29,8 +29,8 @@ heavy use and little contribution:
 
 ## Rejected alternatives
 
-- **Removing AnySearch but keeping an empty vertical search slot.** The classifier, research plans
-  and documents would keep offering an option that can never be covered, and every selection would
+- **Removing AnySearch but keeping an empty vertical search slot.** The classifier and the
+  documents would keep offering an option that can never be covered, and every selection would
   only produce a capability gap. Reintroducing the capability through a new ADR costs less.
 - **Routing the queries it served to platforms automatically.** Documentation Search and Web
   Search now cover those queries, and platforms are called only by explicit command (ADR-0019).
@@ -40,4 +40,4 @@ heavy use and little contribution:
 - A recurring vertical search need appears that neither Web Search nor the existing platforms can
   cover.
 - A vertical search provider offers a stable, accepted domain-level contract whose results the main
-  answer or research evidence would actually use.
+  answer or a caller's evidence would actually use.

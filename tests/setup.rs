@@ -173,7 +173,7 @@ fn interactive_setup_configures_the_five_stages_without_echoing_credentials() {
             config.get("search").is_none(),
             config["providers"]["xai"]["model"].as_str(),
             config["classifier"]["model"].as_str(),
-            combined.contains("第 3 步：分类器（跳过后无法自动路由或生成 research 计划）"),
+            combined.contains("第 3 步：分类器（跳过后无法自动路由）"),
             combined.contains("第 5 步：平台 route"),
             combined.contains("forager doctor"),
             combined.contains(canary),
@@ -276,7 +276,7 @@ fn interactive_setup_enter_preserves_a_single_backend_array() {
             config["search"]["backends"].as_array().map(Vec::len),
             config["search"]["backends"][0].as_str(),
             stderr.contains("Step 3: classifier (skip preserves current values)"),
-            stderr.contains("skipping disables automatic routing and research plans"),
+            stderr.contains("skipping disables automatic routing"),
         ),
         (Some(0), Some(1), Some("xai"), true, false,),
         "stderr: {stderr}"

@@ -23,9 +23,6 @@ impl Cli {
             Command::Search {
                 format: DocsOutputFormat::Json,
                 ..
-            } | Command::Research {
-                format: DocsOutputFormat::Json,
-                ..
             } | Command::Fetch {
                 format: DocsOutputFormat::Json,
                 ..
@@ -38,11 +35,6 @@ impl Cli {
     pub fn json_preflight_output(&self) -> Option<OutputTarget> {
         match &self.command {
             Command::Search {
-                format: DocsOutputFormat::Json,
-                output,
-                ..
-            }
-            | Command::Research {
                 format: DocsOutputFormat::Json,
                 output,
                 ..
@@ -71,26 +63,6 @@ pub(super) enum Command {
         #[arg(long)]
         fallback: Option<FallbackPolicy>,
         #[arg(long, default_value_t = 180, value_parser = clap::value_parser!(u64).range(1..))]
-        timeout: u64,
-        #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
-        format: DocsOutputFormat,
-        #[command(flatten)]
-        output: OutputArgs,
-        #[arg(long)]
-        verbose: bool,
-    },
-    #[command(visible_alias = "rs")]
-    Research {
-        query: String,
-        #[arg(long)]
-        plan: Option<String>,
-        #[arg(long, value_enum, default_value_t = ResearchBudgetArg::Standard)]
-        budget: ResearchBudgetArg,
-        #[arg(long)]
-        evidence_dir: Option<PathBuf>,
-        #[arg(long, default_value_t = FallbackPolicy::Auto)]
-        fallback: FallbackPolicy,
-        #[arg(long, default_value_t = 600, value_parser = clap::value_parser!(u64).range(1..))]
         timeout: u64,
         #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
         format: DocsOutputFormat,
@@ -290,23 +262,6 @@ pub(super) enum ExaSearchType {
     Neural,
     Keyword,
     Auto,
-}
-
-#[derive(Clone, Copy, Debug, ValueEnum)]
-pub(super) enum ResearchBudgetArg {
-    Quick,
-    Standard,
-    Deep,
-}
-
-impl From<ResearchBudgetArg> for crate::research::ResearchBudget {
-    fn from(value: ResearchBudgetArg) -> Self {
-        match value {
-            ResearchBudgetArg::Quick => Self::Quick,
-            ResearchBudgetArg::Standard => Self::Standard,
-            ResearchBudgetArg::Deep => Self::Deep,
-        }
-    }
 }
 
 impl From<ExaSearchType> for SearchType {

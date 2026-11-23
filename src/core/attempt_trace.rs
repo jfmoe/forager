@@ -2,23 +2,15 @@
 //!
 //! This module is the single owner of every read-only fact derived from a
 //! `&[ProviderAttempt]` chain: cross-provider terminal attribution
-//! ([`terminal_attempt`] / [`terminal_kind`]), in-chain tail attribution
+//! ([`terminal_attempt`]), in-chain tail attribution
 //! ([`last_failed`]), successful-provider extraction
-//! ([`successful_provider`]), both fallback definitions
-//! ([`provider_fallback_used`] / [`identity_fallback_occurred`]), and the
-//! bounded attempt summary ([`bounded_attempt_summary`]). Consumers — the
-//! Search Result Journal, the stderr attempt log, the Research Recovery
-//! Manifest, and exit-code attribution — read projections from here instead
-//! of re-interpreting the raw chain.
-//!
-//! The two fallback definitions deliberately differ:
-//! [`provider_fallback_used`] answers "did we leave the primary provider"
-//! for the Recovery Manifest, while [`identity_fallback_occurred`] answers
-//! "did any degradation happen, including a same-provider model switch" for
-//! the stderr attempt log. On a same-provider model-switch chain they
-//! legitimately disagree; neither answer is a bug.
+//! ([`successful_provider`]), the fallback definition
+//! ([`identity_fallback_occurred`]), and the bounded attempt summary
+//! ([`bounded_attempt_summary`]). Consumers — the Search Result Journal, the
+//! stderr attempt log, and exit-code attribution — read projections from here
+//! instead of re-interpreting the raw chain.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use serde_json::{Value, json};
 
@@ -38,15 +30,6 @@ pub(crate) fn terminal_attempt(attempts: &[ProviderAttempt]) -> Option<&Provider
         .filter_map(|(index, attempt)| attempt.error_kind.map(|kind| (index, attempt, kind)))
         .max_by_key(|(index, _, kind)| (error_priority(*kind), *index))
         .map(|(_, attempt, _)| attempt)
-}
-
-/// Returns the [`AttemptErrorKind`] attributed by [`terminal_attempt`],
-/// defaulting to [`AttemptErrorKind::Timeout`] when the chain records no
-/// attributable failure.
-pub(crate) fn terminal_kind(attempts: &[ProviderAttempt]) -> AttemptErrorKind {
-    terminal_attempt(attempts)
-        .and_then(|attempt| attempt.error_kind)
-        .unwrap_or(AttemptErrorKind::Timeout)
 }
 
 // The match stays exhaustive on purpose: adding an AttemptErrorKind variant
@@ -90,34 +73,11 @@ pub(crate) fn successful_provider(
         .map(|attempt| attempt.provider)
 }
 
-/// Returns whether at least two distinct providers ran within one
-/// [`AttemptTarget::Seam`](crate::types::AttemptTarget::Seam).
-///
-/// This is the Research Recovery Manifest `fallback.used` semantics: "did we
-/// leave the primary provider". A same-provider model switch does not count
-/// here; contrast [`identity_fallback_occurred`].
-pub(crate) fn provider_fallback_used(attempts: &[ProviderAttempt]) -> bool {
-    let mut providers_by_seam = HashMap::<&str, HashSet<&str>>::new();
-    for attempt in attempts {
-        if let Some(seam) = attempt.target.seam_name() {
-            providers_by_seam
-                .entry(seam)
-                .or_default()
-                .insert(attempt.provider);
-        }
-    }
-    providers_by_seam
-        .values()
-        .any(|providers| providers.len() > 1)
-}
-
 /// Returns whether the `(provider, model)` identity changed within the same
 /// [`AttemptTarget`](crate::types::AttemptTarget).
 ///
 /// This is the stderr attempt log `fallback` semantics: "did any degradation
-/// happen, including a same-provider model switch". Contrast
-/// [`provider_fallback_used`], which only observes cross-provider movement
-/// within a seam.
+/// happen, including a same-provider model switch".
 pub(crate) fn identity_fallback_occurred(attempts: &[ProviderAttempt]) -> bool {
     let mut identity_by_target = BTreeMap::new();
     for attempt in attempts {
@@ -167,8 +127,8 @@ pub fn bounded_attempt_summary(attempts: &[ProviderAttempt]) -> Value {
 #[cfg(test)]
 mod tests {
     use super::{
-        bounded_attempt_summary, identity_fallback_occurred, last_failed, provider_fallback_used,
-        successful_provider, terminal_attempt, terminal_kind,
+        bounded_attempt_summary, identity_fallback_occurred, last_failed, successful_provider,
+        terminal_attempt,
     };
     use crate::types::{AttemptDisposition, AttemptErrorKind, AttemptTarget, ProviderAttempt};
 
@@ -212,7 +172,7 @@ mod tests {
     }
 
     #[test]
-    fn terminal_kind_exhausts_final_kind_pairs_and_ignores_history() {
+    fn terminal_attempt_exhausts_final_kind_pairs_and_ignores_history() {
         for first in ALL_KINDS {
             for second in ALL_KINDS {
                 let expected = ALL_KINDS
@@ -221,13 +181,14 @@ mod tests {
                     .map(|index| ALL_KINDS[index])
                     .expect("pair contains a specified kind");
                 assert_eq!(
-                    terminal_kind(&[
+                    terminal_attempt(&[
                         attempt("tavily", AttemptErrorKind::Evidence),
                         attempt("tavily", first),
                         attempt("jina", AttemptErrorKind::Evidence),
                         attempt("jina", second),
-                    ]),
-                    expected,
+                    ])
+                    .and_then(|attempt| attempt.error_kind),
+                    Some(expected),
                     "first={first:?}, second={second:?}"
                 );
             }
@@ -288,33 +249,6 @@ mod tests {
     }
 
     #[test]
-    fn provider_fallback_used_detects_two_providers_within_one_seam() {
-        let first = attempt("tavily", AttemptErrorKind::Network);
-        let second = attempt("jina", AttemptErrorKind::Network);
-
-        assert!(provider_fallback_used(&[first, second]));
-    }
-
-    #[test]
-    fn provider_fallback_used_ignores_a_same_provider_model_switch() {
-        let first = attempt("fixture", AttemptErrorKind::Runtime);
-        let mut second = attempt("fixture", AttemptErrorKind::Network);
-        second.model = Some("fallback-model".into());
-
-        assert!(!provider_fallback_used(&[first, second]));
-    }
-
-    #[test]
-    fn provider_fallback_used_ignores_operation_targets() {
-        let mut first = attempt("tavily", AttemptErrorKind::Network);
-        first.target = AttemptTarget::operation("context7_resolve");
-        let mut second = attempt("jina", AttemptErrorKind::Network);
-        second.target = AttemptTarget::operation("context7_resolve");
-
-        assert!(!provider_fallback_used(&[first, second]));
-    }
-
-    #[test]
     fn identity_fallback_occurred_detects_a_same_target_model_change() {
         let first = attempt("fixture", AttemptErrorKind::Runtime);
         let mut second = attempt("fixture", AttemptErrorKind::Network);
@@ -331,17 +265,6 @@ mod tests {
         let main_search = attempt("fixture", AttemptErrorKind::Network);
 
         assert!(!identity_fallback_occurred(&[classifier, main_search]));
-    }
-
-    #[test]
-    fn fallback_definitions_diverge_on_a_same_provider_model_switch() {
-        let first = attempt("fixture", AttemptErrorKind::Runtime);
-        let mut second = attempt("fixture", AttemptErrorKind::Network);
-        second.model = Some("fallback-model".into());
-        let attempts = [first, second];
-
-        assert!(!provider_fallback_used(&attempts));
-        assert!(identity_fallback_occurred(&attempts));
     }
 
     #[test]

@@ -9,12 +9,9 @@ contains a URL. Main search always runs and is not part of the declaration, and 
 capabilities, never providers.
 
 Without a declaration, the configured classifier chooses the capabilities, and a missing or
-failed classifier degrades to a fixed default. Provider selection, same-capability fallback and
-the research pipeline's own planning rules are unaffected. The routing decision recorded for the
-invocation names the caller as its only decision source, so the declared authority is observable.
-
-A research plan follows its own rules: a caller's plan is authoritative, and each subquestion
-declares the capability seams it may cross.
+failed classifier degrades to a fixed default. Provider selection and same-capability fallback
+are unaffected. The routing decision recorded for the invocation names the caller as its only
+decision source, so the declared authority is observable.
 
 ## Why
 

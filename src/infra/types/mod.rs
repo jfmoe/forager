@@ -1,4 +1,4 @@
-//! Zero-IO shared shapes: capabilities, platforms, research plans, errors, attempts, and outcomes.
+//! Zero-IO shared shapes: capabilities, platforms, errors, attempts, and outcomes.
 
 mod attempt;
 mod capability;
@@ -22,11 +22,10 @@ mod platform_youtube;
 mod platform_youtube_comments;
 mod platform_youtube_model;
 mod platform_youtube_videos;
-mod research;
 mod search;
 
 pub use attempt::{AttemptDisposition, AttemptTarget, ProviderAttempt};
-pub use capability::{Capability, CapabilitySet, FallbackPolicy, PlanCapability};
+pub use capability::{Capability, CapabilitySet, FallbackPolicy};
 pub(crate) use deadline::{Deadline, MIN_USEFUL_SLICE_SECONDS};
 pub use error::{AttemptErrorKind, ErrorFamily, ErrorKind, ProviderError};
 pub use outcome::{
@@ -116,11 +115,5 @@ pub(crate) use platform_youtube_model::{
     YoutubeTranscribeRequest,
 };
 pub(crate) use platform_youtube_videos::{VIDEOS, YoutubeVideosOutcome, YoutubeVideosRequest};
-pub(crate) use research::DocumentationEvidence;
-pub use research::{
-    ClaimRisk, EvidenceItem, EvidenceLocator, EvidenceStrength, RecencyRequirement, ResearchGap,
-    ResearchGapCheck, ResearchIntentSignals, ResearchPlan, ResearchSubquestion,
-    UnconsumedCandidates,
-};
 pub use search::{CapabilityGap, SearchCandidate, SearchOutcome, Source};
 pub(crate) use search::{DocumentationSearchOutcome, SupplementalSearchOutcome};

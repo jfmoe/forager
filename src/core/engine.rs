@@ -16,8 +16,8 @@ use crate::redact::redact_url;
 use crate::types::ProviderError;
 use crate::types::{
     AttemptErrorKind, AttemptTarget, DENSITY_MAX_CHARS, DENSITY_MAX_UNIQUE_LINES, Deadline,
-    DocumentationEvidence, DocumentationSearchOutcome, EvidenceLocator, FallbackPolicy,
-    FetchOutcome, MIN_FETCH_CONTENT_CHARS, SearchOutcome, SupplementalSearchOutcome,
+    DocumentationSearchOutcome, FallbackPolicy, FetchOutcome, MIN_FETCH_CONTENT_CHARS,
+    SearchOutcome, SupplementalSearchOutcome,
 };
 
 pub(crate) const FANOUT_CONCURRENCY: usize = 4;
@@ -391,80 +391,6 @@ pub(crate) async fn documentation_search(
     })
 }
 
-pub(crate) async fn documentation_read(
-    locator: &EvidenceLocator,
-    query: &str,
-    config: DocsSearchRuntimeConfig,
-    execution: CapabilityExecution,
-) -> Result<DocumentationEvidence, ProviderError> {
-    let Some(provider) = locator.provider() else {
-        return Err(ProviderError {
-            kind: AttemptErrorKind::Evidence,
-            message: "documentation locator has no provider-owned reader".into(),
-            attempts: Vec::new(),
-            verbose: false,
-            diagnostic: None,
-            redirected_library_id: None,
-        });
-    };
-    let Some(entry) = config
-        .into_entries()
-        .into_iter()
-        .find(|entry| entry.configured() && entry.name() == provider)
-    else {
-        return Err(ProviderError {
-            kind: AttemptErrorKind::Evidence,
-            message: format!("{provider} documentation reader is not configured"),
-            attempts: Vec::new(),
-            verbose: false,
-            diagnostic: None,
-            redirected_library_id: None,
-        });
-    };
-    let (id, provider_config, _) = entry.into_parts();
-    let reader = providers::build_docs_search(
-        id,
-        provider_config,
-        execution.client,
-        execution.retry_policy,
-        execution.deadline,
-    );
-    let Some(read) = reader.read(locator, query) else {
-        return Err(ProviderError {
-            kind: AttemptErrorKind::Evidence,
-            message: format!("{provider} cannot read this documentation locator"),
-            attempts: Vec::new(),
-            verbose: false,
-            diagnostic: None,
-            redirected_library_id: None,
-        });
-    };
-    let mut evidence = read.await?;
-    let identity = evidence
-        .locator
-        .url()
-        .or_else(|| evidence.locator.library_id())
-        .unwrap_or_default();
-    if is_thin(&evidence.content, identity) {
-        chain::mark_last_attempt_failed(
-            &mut evidence.attempts,
-            AttemptErrorKind::Quality,
-            "documentation content is too thin",
-        );
-        return Err(chain::chain_wide_error(
-            evidence.attempts,
-            false,
-            evidence.diagnostic,
-            "documentation content is too thin",
-        ));
-    }
-    Ok(evidence)
-}
-
-pub(crate) fn is_thin(content: &str, url: &str) -> bool {
-    is_thin_content(content, is_pdf(url))
-}
-
 fn is_thin_content(content: &str, pdf: bool) -> bool {
     let content = content.trim();
     let character_count = content.chars().count();
@@ -493,7 +419,7 @@ mod tests {
     use std::rc::Rc;
     use std::time::Duration;
 
-    use super::{is_thin, web_fetch_chain_settings};
+    use super::{is_thin_content, web_fetch_chain_settings};
     use crate::chain::{ChainStep, StepSuccess, StepVerdict, run_chain};
     use crate::providers::ProviderId;
     use crate::types::ProviderError;
@@ -505,8 +431,8 @@ mod tests {
 
         assert_eq!(
             (
-                is_thin(&content, "https://example.test/page"),
-                is_thin(&content, "https://example.test/file.pdf"),
+                is_thin_content(&content, false),
+                is_thin_content(&content, true),
             ),
             (true, false)
         );

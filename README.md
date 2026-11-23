@@ -1,6 +1,6 @@
 # forager
 
-A search and research CLI for AI agents. forager organises search, web page reading, site mapping, documentation lookup and deep research by capability, and handles provider selection, credential rotation and same-capability fallback in one place.
+A search and retrieval CLI for AI agents. forager organises search, web page reading, site mapping, documentation lookup and platform retrieval by capability, and handles provider selection, credential rotation and same-capability fallback in one place.
 
 Output is JSON by default, for agents, scripts and CI; Markdown or plain content formats are available when a person reads the result.
 
@@ -70,16 +70,6 @@ forager search "what changed in the OpenAI API recently" \
   --format markdown
 ```
 
-Multi-source research:
-
-```sh
-forager research "compare the main ways to distribute a Rust CLI" \
-  --budget standard \
-  --format markdown
-```
-
-Calling `research` directly needs a configured classifier; through the Agent Skill, the agent writes the plan and passes it with `--plan`. `research` writes each evidence body to a file and returns a Research Evidence Index that points to them; the caller reads the bodies it needs and does the synthesis. The budget tiers and the files it writes are described in the Agent Skill.
-
 Read a known web page:
 
 ```sh
@@ -96,7 +86,7 @@ forager --help
 
 ## Installing the Agent Skill
 
-The CLI does the retrieval; the repository's `forager` skill teaches an agent to choose commands, declare capabilities and organise research plans. After installing the binary and configuring it, install the skill for the current project:
+The CLI does the retrieval; the repository's `forager` skill teaches an agent to choose commands, declare capabilities and run a multi-source investigation from `search`, `fetch` and the platform commands. After installing the binary and configuring it, install the skill for the current project:
 
 ```sh
 npx skills add jfmoe/forager
@@ -108,7 +98,7 @@ When the skill names a command or option the installed forager lacks, upgrade fo
 
 - `search` accepts the full capability set the caller declares; forager does not widen it on its own.
 - The `sources` of `search` are only the main answer's sources; `extra_sources` carries every non-main Search Candidate produced by Supplemental Web Search, Documentation Search and search-side Web Fetch. Candidates keep the provider's own snippet; only search-side Web Fetch candidates carry a short preview of the page body.
-- `research` can take a Schema v1 research plan that the caller passes with `--plan`, and delivers evidence through a file-based Research Evidence Index instead of generating an answer.
+- forager does not orchestrate investigations: the calling agent splits the question, chooses the commands and judges the evidence.
 - `fetch`, `map` and the `exa` and `context7` subcommands are explicit direct entry points.
 - Credentials are kept in the local configuration; command output and the persisted journal redact sensitive URL parameters.
 - When a capability is temporarily unavailable, the result reports it in `capability_gaps` instead of passing the missing capability off as covered.

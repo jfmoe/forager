@@ -8,7 +8,6 @@ use serde_json::{Value, json};
 use crate::config::JournalRuntimeConfig;
 use crate::net::duration_millis;
 use crate::redact::{Secret, redact_credentials};
-use crate::research::ResearchTerminal;
 use crate::search_fanout::SearchFailure;
 use crate::secure_fs::{create_new_private_file, ensure_private_directory};
 use crate::types::{Capability, JournalOutcome, SearchOutcome};
@@ -28,18 +27,6 @@ pub(crate) struct SearchRecord<'a> {
 }
 
 #[derive(Clone, Copy)]
-pub(crate) struct ResearchRecord<'a> {
-    pub(crate) query: &'a str,
-    pub(crate) budget: Duration,
-    pub(crate) elapsed: Duration,
-    pub(crate) capabilities: &'a [Capability],
-    pub(crate) plan_source: &'static str,
-    pub(crate) classifier_degraded: bool,
-    pub(crate) classifier_duration: Option<Duration>,
-    pub(crate) terminal: &'a ResearchTerminal,
-}
-
-#[derive(Clone, Copy)]
 pub(crate) struct SearchPreflightRecord<'a> {
     pub(crate) query: &'a str,
     pub(crate) budget: Duration,
@@ -52,13 +39,6 @@ pub(crate) fn record_search(
     record: SearchRecord<'_>,
 ) -> JournalOutcome {
     record_value(config, || build_record(record))
-}
-
-pub(crate) fn record_research(
-    config: &JournalRuntimeConfig,
-    record: ResearchRecord<'_>,
-) -> JournalOutcome {
-    record_value(config, || build_research_record(record))
 }
 
 pub(crate) fn record_search_preflight(
@@ -149,59 +129,6 @@ fn build_search_preflight_record(record: SearchPreflightRecord<'_>) -> Value {
             },
             "classifier_duration_ms": Value::Null,
             "capability_gaps": Value::Null,
-        }
-    })
-}
-
-fn build_research_record(record: ResearchRecord<'_>) -> Value {
-    let recorded_at_unix_ms = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis();
-    let terminal = record.terminal;
-    let mut result_surface = json!({
-        "status": terminal.status(),
-        "query": record.query,
-        "evidence_items": terminal.evidence_items,
-        "capability_gaps": terminal.capability_gaps,
-        "gap_check": terminal.gap_check,
-        "evidence_dir": terminal.evidence_dir,
-        "plan_path": terminal.plan_path,
-        "unconsumed_candidates": terminal.unconsumed_candidates,
-        "synthesis_policy": terminal.synthesis_policy,
-    });
-    let terminal_attribution = if let Some(failure) = terminal.failure.as_ref() {
-        let surface = result_surface
-            .as_object_mut()
-            .expect("research result surface is an object");
-        surface.insert("error_kind".into(), json!(failure.kind.as_str()));
-        surface.insert("message".into(), json!(failure.message));
-        surface.insert("summary_path".into(), json!(failure.summary_path));
-        failure.kind.as_str()
-    } else {
-        "ok"
-    };
-    json!({
-        "schema_version": 1,
-        "recorded_at_unix_ms": recorded_at_unix_ms,
-        "result": result_surface,
-        "execution": {
-            "plan_summary": {
-                "source": record.plan_source,
-                "capabilities": record.capabilities,
-                "classifier_degraded": record.classifier_degraded
-            },
-            "provider_attempts": terminal.attempts,
-            "terminal_attribution": terminal_attribution,
-            "deadline_budget": {
-                "total_ms": duration_millis(record.budget),
-                "consumed_ms": duration_millis(record.elapsed),
-                "exhausted": record.elapsed >= record.budget
-            },
-            "classifier_duration_ms": record.classifier_duration
-                .map(duration_millis)
-                .map_or(Value::Null, Value::from),
-            "capability_gaps": terminal.capability_gaps
         }
     })
 }

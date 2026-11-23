@@ -30,8 +30,7 @@ _Avoid_: supplemental source, verified evidence, all search sources
 **Search Candidate**:
 A candidate that a capability other than main search produces during an ordinary search, for the
 caller to choose its next action from; reported in `extra_sources`. A candidate is located by a URL
-or by a provider-specific identifier, and it is not evidence until a fetch or the evidence
-pipeline consumes it.
+or by a provider-specific identifier, and it is not evidence until the caller retrieves its body.
 _Avoid_: Supplemental Search Candidate, primary source, verified evidence, merged source
 
 **Web Fetch Capability**:
@@ -46,15 +45,15 @@ providers are not promised to choose the same body boundaries.
 _Avoid_: raw provider response, cleaned content
 
 **Default Search Invocation**:
-One request through forager's default aggregate search entry points that reaches a terminal
-state, whether it succeeded, failed or timed out. Provider-direct commands, fetches, diagnostics
-and other dedicated operations are not Default Search Invocations.
+One request through `forager search`, forager's default aggregate search entry point, that reaches a
+terminal state, whether it succeeded, failed or timed out. Provider-direct commands, fetches,
+diagnostics and other dedicated operations are not Default Search Invocations.
 _Avoid_: successful search, provider search, all commands
 
 **Search Result Journal**:
 The local record, on by default and in order of occurrence, of the result and the execution of
-every Default Search Invocation. The result side holds the query, the answer, the sources and, for
-research, the citations and evidence; the execution side holds the plan summary, the provider
+every Default Search Invocation. The result side holds the query, the answer and the sources; the
+execution side holds the plan summary, the provider
 attempt chain, the terminal attribution, the budget, the classifier's duration and the capability
 gaps. It never stores request or response headers, request bodies, raw response bodies,
 credentials, classifier prompts or tool traces. It serves review and diagnosis; it is not a debug
@@ -64,23 +63,20 @@ _Avoid_: debug log, response cache, search history
 **Attempt Trace**:
 The read-only facts derived from a provider attempt chain: the terminal attribution, whether a
 fallback happened, the provider that succeeded, and a bounded summary. Every consumer (the Search
-Result Journal, the stderr attempt log, the Research Recovery Manifest and exit-code attribution)
-reads its projection instead of interpreting the raw chain again. It answers "did a fallback
-happen" two ways on purpose: whether the run left its preferred provider, and whether it degraded
-at all, including a model change within one provider. On a chain that only changed model the two
-answers differ, and that is intended.
+Result Journal, the stderr attempt log and exit-code attribution) reads its projection instead of
+interpreting the raw chain again. A fallback happened when the run degraded at all, including a
+model change within one provider.
 _Avoid_: per-call-site interpretation, raw attempt scan
 
 **Caller Capability Declaration**:
 The complete and authoritative capability set that a caller declares for one ordinary
 `forager search`; an empty set is a valid declaration. forager never adds to it from local rules,
 URL recognition, strict validation or the classifier. A declaration names Capability Seams and
-never selects providers. research takes a plan instead of a declaration.
+never selects providers.
 _Avoid_: provider override, router hint, capability patch
 
 **Classifier Capability Decision**:
-What the intent classifier produces: the complete capability set for an ordinary search, or a
-Schema v1 plan (`intent_signals` and `decomposition`) for a research run without a plan. The
+What the intent classifier produces: the complete capability set for an ordinary search. The
 classifier never selects providers.
 _Avoid_: classifier additions, classifier patch, provider decision
 
@@ -90,29 +86,8 @@ phrases. The classifier prompt, `--capabilities` validation and the forager skil
 consume it; provider fallback and routing control flow are not part of it.
 _Avoid_: Skill capability list, routing rules DSL, provider registry
 
-**Research Evidence Pipeline**:
-What the research engine is: it runs a plan deterministically, discovers candidates, fetches
-evidence, accounts coverage per subquestion and writes the evidence to disk. It does no semantic
-synthesis and does not orient with a main search: synthesis belongs to the consuming agent, and
-orientation happens before the plan, orchestrated by the skill.
-_Avoid_: research answer engine, engine synthesis, final answer generator, in-engine orientation
-
-**Research Evidence Index**:
-The lightweight evidence directory that the Research Evidence Pipeline delivers on stdout. It
-describes each evidence item's identity, source, coverage and local body path, without repeating
-bodies already written to disk.
-_Avoid_: evidence preview, inline evidence content, research answer
-
-**Research Recovery Manifest**:
-The body-free recovery record that the Research Evidence Pipeline writes to `summary.json`. It
-records the terminal state, the plan and budget sources, the capabilities, fallback, evidence
-identities and paths, unconsumed candidates, coverage gaps, provider attempts and the synthesis
-policy, so that a failed caller can recover the artifacts through a stable `summary_path`. It is
-not the Research Evidence Index that a success delivers on stdout.
-_Avoid_: Research Evidence Index, inline failure index, evidence body archive
-
 **Citation Binding**:
-A machine-readable link between an inline marker in an answer and one source or evidence item.
+A machine-readable link between an inline marker in an answer and one source.
 It expresses attribution; it does not mean the system has verified that the evidence supports the
 statement.
 _Avoid_: claim verification, source list

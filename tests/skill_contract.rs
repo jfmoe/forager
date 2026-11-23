@@ -4,7 +4,7 @@ use std::path::Path;
 
 use clap::CommandFactory;
 use forager::app::Cli;
-use forager::types::{Platform, PlatformRef, ResearchPlan};
+use forager::types::{Platform, PlatformRef};
 
 #[test]
 fn repository_exposes_only_the_named_installable_skill() {
@@ -31,16 +31,6 @@ fn repository_exposes_only_the_named_installable_skill() {
         serde_yaml_ng::from_str(frontmatter).expect("parse skill YAML frontmatter");
 
     assert_eq!(metadata["name"].as_str(), Some("forager"));
-}
-
-#[test]
-fn research_plan_example_matches_the_current_schema() {
-    let source = fs::read_to_string(
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("skills/forager/references/research-plan.json"),
-    )
-    .expect("read research plan example");
-
-    serde_json::from_str::<ResearchPlan>(&source).expect("parse research plan example");
 }
 
 fn skill_path(relative: &str) -> std::path::PathBuf {
@@ -118,7 +108,6 @@ fn every_relative_link_in_the_skill_resolves_to_a_file() {
         "references/platforms.md",
         "references/direct-retrieval.md",
         "references/ordinary-search.md",
-        "references/research.md",
         "references/cli.md",
     ];
     let broken = documents

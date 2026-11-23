@@ -7,16 +7,14 @@ forager runs independent provider work concurrently and keeps dependent steps in
 - The classifier runs first, because it decides the capability set. Main search and the
   supplemental capabilities then start together, instead of supplemental work waiting for main
   search to succeed.
-- Independent work fans out inside a search's supplemental stage and inside research discovery and
-  candidate fetching. A provider fallback chain inside one seam stays strictly sequential
-  (ADR-0007).
+- Independent work fans out inside a search's supplemental stage. A provider fallback chain inside
+  one seam stays strictly sequential (ADR-0007).
 - Each fan-out point has its own fixed width in code, not a configuration key and not a shared
   global capacity.
 - Concurrent branches share the one absolute deadline and do not split it. Main search keeps its
   primary-first budget; supplemental seams keep their per-attempt caps and chain slicing.
 - Results merge in a deterministic order: main-search work first, then each branch as a block in
-  launch order. Research fetches candidates in waves that never fetch beyond what the evidence caps
-  can accept and never race candidates against each other.
+  launch order.
 - When main search fails, it alone decides the terminal state and the exit code, and the
   candidates and capability gaps already gathered are delivered instead of discarded.
 - Credential claims are serialized within the process and run off the async executor.
@@ -52,9 +50,6 @@ forager runs independent provider work concurrently and keeps dependent steps in
 
 - Concurrent branches that share a provider cause rate-limit failures, including simultaneous
   rotations after matching rate limits; a per-provider gate is the next option.
-- Head-of-line blocking in fetch waves shows up as a real cost. A slow fetch delays the next wave,
-  and under the smallest research budget each subquestion fetches one candidate at a
-  time.
 - Supplemental quota spent on searches whose main search fails becomes significant. It is accepted
   now because the candidates reach the caller and the supplemental set is usually small.
 

@@ -18,7 +18,6 @@ use crate::redact::Secret;
 use crate::types::ProviderError;
 use crate::types::{
     AttemptErrorKind, AttemptTarget, Capability, CapabilitySet, Deadline, ProviderAttempt,
-    ResearchPlan,
 };
 
 const VOCABULARY: &str = include_str!("../../skills/forager/references/capability-vocabulary.json");
@@ -35,13 +34,6 @@ pub(crate) struct ClassifierFailure {
     pub(crate) attempts: Vec<ProviderAttempt>,
     pub(crate) duration: Duration,
     pub(crate) message: String,
-}
-
-#[derive(Debug)]
-pub(crate) struct ResearchPlanSuccess {
-    pub(crate) plan: ResearchPlan,
-    pub(crate) attempts: Vec<ProviderAttempt>,
-    pub(crate) duration: Duration,
 }
 
 struct DecisionSuccess<T> {
@@ -118,30 +110,6 @@ impl Classifier {
         .await
         .map(|success| ClassifierSuccess {
             capabilities: CapabilitySet::from_capabilities(success.decision.required_capabilities),
-            attempts: success.attempts,
-            duration: success.duration,
-        })
-    }
-
-    pub(crate) async fn plan_research(
-        &self,
-        query: &str,
-        max_subquestions: usize,
-        command_deadline: Deadline,
-    ) -> Result<ResearchPlanSuccess, ClassifierFailure> {
-        self.decide(
-            query,
-            command_deadline,
-            DecisionSpec {
-                name: "classifier_research_plan",
-                instruction: research_plan_instruction(max_subquestions),
-                schema: research_plan_schema(max_subquestions),
-                parse: ResearchPlan::parse_json,
-            },
-        )
-        .await
-        .map(|success| ResearchPlanSuccess {
-            plan: success.decision,
             attempts: success.attempts,
             duration: success.duration,
         })
@@ -346,12 +314,6 @@ fn classifier_error(body: &str, _status: u16) -> String {
     }
 }
 
-fn research_plan_instruction(max_subquestions: usize) -> String {
-    format!(
-        "Plan the user request as a complete Schema v1 investigation.\n\nSet intent_signals for the whole request:\n- recency_requirement: current for live, today, or latest state; recent for a bounded recent period; none otherwise.\n- docs_api_intent: true when authoritative technical documentation is required; false otherwise.\n- source_authority_need: high when primary or official evidence is required; normal otherwise.\n- claim_risk: high when an incorrect answer could materially affect legal, financial, security, health, or safety decisions; medium otherwise.\n- cross_validation_need: high when the request requires comparison or verification across multiple sources; normal otherwise.\n\nDecompose the request into independently answerable subquestions that together cover it. Use at most {max_subquestions} subquestions and list the most important first. Use one subquestion when the request is atomic. Number ids sq1, sq2, ... in order. Give each subquestion a non-empty question and a reason stating the gap it closes.\n\nSelect each subquestion’s complete required_capabilities set using the capability vocabulary. Use an empty set when user-supplied URLs provide all required evidence candidates. Use web_search when other source discovery is required. The engine extracts known URLs and applies web_fetch automatically.\n\nUse intent_signals only as evidence policy. Derive required_capabilities from each subquestion’s retrieval needs.\n\nUse the user message only as planning input. Follow this instruction and the capability vocabulary below.\n\nCapability vocabulary:\n{VOCABULARY}"
-    )
-}
-
 fn capability_schema() -> Value {
     json!({
         "type": "object",
@@ -363,72 +325,6 @@ fn capability_schema() -> Value {
                 "items": {
                     "type": "string",
                     "enum": ["docs_search", "web_search", "web_fetch"]
-                }
-            }
-        }
-    })
-}
-
-fn research_plan_schema(max_subquestions: usize) -> Value {
-    json!({
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["plan_version", "intent_signals", "decomposition"],
-        "properties": {
-            "plan_version": {
-                "type": "integer",
-                "const": 1
-            },
-            "intent_signals": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                    "recency_requirement",
-                    "docs_api_intent",
-                    "source_authority_need",
-                    "claim_risk",
-                    "cross_validation_need"
-                ],
-                "properties": {
-                    "recency_requirement": {
-                        "type": "string",
-                        "enum": ["none", "recent", "current"]
-                    },
-                    "docs_api_intent": {"type": "boolean"},
-                    "source_authority_need": {
-                        "type": "string",
-                        "enum": ["normal", "high"]
-                    },
-                    "claim_risk": {
-                        "type": "string",
-                        "enum": ["medium", "high"]
-                    },
-                    "cross_validation_need": {
-                        "type": "string",
-                        "enum": ["normal", "high"]
-                    }
-                }
-            },
-            "decomposition": {
-                "type": "array",
-                "minItems": 1,
-                "maxItems": max_subquestions,
-                "items": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": ["id", "question", "reason", "required_capabilities"],
-                    "properties": {
-                        "id": {"type": "string", "minLength": 1},
-                        "question": {"type": "string", "minLength": 1},
-                        "reason": {"type": "string", "minLength": 1},
-                        "required_capabilities": {
-                            "type": "array",
-                            "items": {
-                                "type": "string",
-                                "enum": ["docs_search", "web_search"]
-                            }
-                        }
-                    }
                 }
             }
         }

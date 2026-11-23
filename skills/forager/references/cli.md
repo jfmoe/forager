@@ -2,7 +2,7 @@
 
 This reference documents the public CLI of the forager release this skill ships with. Load it under the conditions given
 in `SKILL.md`: for exact command syntax, non-routine commands, or diagnosis and recovery details.
-Routine `search` and `research` stay on their branch references. Treat
+Routine `search` stays on its branch reference. Treat
 `forager <command> --help` as the final authority for argument parsing.
 
 ## Contents
@@ -17,14 +17,13 @@ Routine `search` and `research` stay on their branch references. Treat
 
 ## Shared behavior
 
-The public top-level commands are `search`, `research`, `fetch`, `map`, `exa`, `context7`,
+The public top-level commands are `search`, `fetch`, `map`, `exa`, `context7`,
 `platform`, `browser`, `config`, `setup`, `doctor`, and `smoke`. Use `-h` or
 `--help` on any command for parser-generated help. Available aliases are:
 
 | Command | Alias |
 | --- | --- |
 | `search` | `s` |
-| `research` | `rs` |
 | `fetch` | `f` |
 | `context7` | `c7` |
 | `config list` | `config ls` |
@@ -40,26 +39,25 @@ Network commands that expose these options share the following behavior:
 | `--format FORMAT` | Select stdout rendering. The default is `json`. |
 | `--output FILE` | Write the same rendered result to `FILE` and still emit it to stdout. |
 | `--receipt` | With `--output`, emit only a one-line `{"output_path","bytes","lines"}` receipt on success; failures still print the full failure payload. Use it to keep long results out of context and read the file in parts. |
-| `--verbose` | Include full provider attempts inline. Without it, `search` and `research` retain full attempts in their journal; provider-direct commands do not create a result journal. |
+| `--verbose` | Include full provider attempts inline. Without it, `search` retains full attempts in its journal; provider-direct commands do not create a result journal. |
 
-After argument parsing selects `--format json`, `search`, `fetch`, and `research` return a single
-parseable error object on stdout for configuration, stdin, or plan preflight failures. Clap parser
-errors and panics keep their existing channels, as do failures in non-JSON formats.
-The object is `{error_kind, message, journal_ref, journal_status}`: `error_kind` is `parameter`,
-`config`, or `runtime` with exit `2`, `3`, or `4`. When the failure comes before the
+After argument parsing selects `--format json`, `search` and `fetch` return a single parseable
+error object on stdout for configuration or runtime preflight failures. Clap parser errors and
+panics keep their existing channels, as do failures in non-JSON formats.
+The object is `{error_kind, message, journal_ref, journal_status}`: `error_kind` is `config` or
+`runtime` with exit `3` or `4`. When the failure comes before the
 configuration has loaded, `journal_ref` is `null` with `journal_status: "unavailable"`. A `search`
 whose main-search backends have no keys also fails this way with exit `3`, but it records the
 failure in the journal and reports the journal pair as any search does. Every other
-command, and these three in other formats, reports a preflight failure as one stderr line starting
+command, and these two in other formats, reports a preflight failure as one stderr line starting
 `argument_error:`, `config_error:`, or `runtime_error:`.
 
 A terminal failure prints a small failure payload on stdout: `error_kind`, a `message` of at most
 500 characters, an `attempts` summary (`total`, counts `by_kind`, the `providers` tried, and
 `by_kind_truncated`, `providers_truncated`, and `truncated` marking a cut list), and `journal_ref`
-with `journal_status`. `journal_status` is `written`, `disabled`, or `failed` for `search` and
-`research`, and `not_applicable` for commands that write no journal. A `search` failure also
-carries its non-empty `capability_gaps`; `research` uses its own shape, described under
-[`research`](#research). A command that reaches its `--timeout` reports `timeout` and keeps the
+with `journal_status`. `journal_status` is `written`, `disabled`, or `failed` for `search`, and
+`not_applicable` for commands that write no journal. A `search` failure also carries its non-empty
+`capability_gaps`. A command that reaches its `--timeout` reports `timeout` and keeps the
 attempts it completed.
 
 When `--output` cannot write its file, the command exits `3` whatever its own result was; stdout
@@ -71,7 +69,7 @@ result or the exit code.
 `trace` adds safe fields for each attempt. This projection never changes stdout or replaces
 `--verbose` and journal attempts.
 
-`content` output is available only for `search`, `research`, `fetch`, `context7 docs`, and
+`content` output is available only for `search`, `fetch`, `context7 docs`, and
 `platform <id> fetch`.
 All other commands with `--format` accept only `json` and `markdown`. `smoke` emits JSON and does
 not expose `--format`.
@@ -104,9 +102,9 @@ Candidate in `extra_sources`, capability gaps, and the journal reference. Each c
 required `provider`, `capability`, and provider-specific `provider_data`, plus nullable `title`,
 `url`, and `summary`. Provider-native summaries are not verified evidence. Candidates with an
 HTTP(S) URL can enter Web Fetch; a Context7 candidate carries a typed library locator in
-`provider_data` for Documentation Search or the Research Evidence Pipeline and has no fabricated
-URL. Search-side Web Fetch successes use the actual fetch provider and a 300-character Normalized
-Fetch Content preview as their candidate summary. `--verbose` adds provider attempts inline.
+`provider_data` for `context7 docs` and has no fabricated URL. Search-side Web Fetch successes use
+the actual fetch provider and a 300-character Normalized Fetch Content preview as their candidate
+summary. `--verbose` adds provider attempts inline.
 Content format emits only the main answer. Markdown labels the two source roles as `Primary
 Sources` and `Extra Sources`. The `--extra-sources` target never selects a capability: with
 `--capabilities none` no supplemental search runs. A Context7 candidate's `provider_data` holds
@@ -131,80 +129,6 @@ state and exit code, and the failure payload keeps the candidates already found:
 in order without their `summary`, as many as fit, with `extra_sources_truncated` saying whether
 any were cut. Its attempt summary counts the supplemental attempts too. `--verbose` keeps every
 candidate in full.
-
-### `research`
-
-```console
-forager research QUERY [--plan FILE|-] [--budget quick|standard|deep]
-                       [--evidence-dir DIR] [--fallback auto|off]
-                       [--timeout SECONDS] [--format json|markdown|content]
-                       [--output FILE [--receipt]] [--verbose]
-```
-
-| Argument or option | Meaning | Default |
-| --- | --- | --- |
-| `QUERY` | Research question passed to the research pipeline. | Required |
-| `--plan FILE\|-` | Load a strict Schema v1 plan from `FILE`; use `-` to read it from stdin. Omit it to have the configured classifier generate the plan. | Classifier-generated |
-| `--budget BUDGET` | Select `quick`, `standard`, or `deep` execution breadth. | `standard` |
-| `--evidence-dir DIR` | Store the plan, fetched evidence, and summary under `DIR`. | A unique temporary directory |
-| `--fallback MODE` | Use `auto` or `off` for provider fallback. | `auto` |
-| `--timeout SECONDS` | Set the whole research deadline. | `600` |
-| `--format FORMAT` | Use `json`, `markdown`, or `content`. | `json` |
-| `--output FILE` | Tee the rendered result to a file. | Omitted |
-| `--receipt` | Print only a receipt on success; requires `--output`. | Off |
-| `--verbose` | Include full provider attempts inline. | Off |
-
-Pipe stdin all the way into the command when using `--plan -`:
-
-```console
-printf '%s' "$PLAN_JSON" | forager research "QUERY" --plan - --budget standard --format json
-```
-
-Use `research-plan.json` as the Schema v1 shape. A caller-provided plan is authoritative and skips
-plan generation. An omitted plan requires a configured classifier. Invalid JSON, unsupported
-versions, unknown or missing fields, invalid capabilities, empty decomposition, and empty or
-duplicate subquestion IDs exit with code 2.
-So do an empty `question` or `reason`, and a declared `web_fetch`: the engine runs Web Fetch
-itself. Duplicate capabilities in a subquestion are folded, keeping their order. `intent_signals`
-change only evidence strength and cross-validation inside the declared capabilities; they never
-add, remove, or reorder capabilities or providers. A declared capability without a configured
-provider does not block the run; it appears in `capability_gaps`.
-
-Besides their subquestion limits, `quick`, `standard`, and `deep` allow at most 1, 2, and 3
-evidence items per subquestion. The caps are limits, not targets: one accepted evidence item
-covers a subquestion. A caller plan over its budget's subquestion limit exits 2; a classifier plan
-over it is truncated with a warning. The run fails when it collects fewer evidence items than it
-requires: 2 when `cross_validation_need` or `source_authority_need` is `high`, otherwise 1,
-lowered with a diagnostic when the caps cannot hold that many. The failure is `evidence` (exit
-5), except that a run with no evidence whose attempts all failed, or that hit a quality failure,
-takes the terminal kind of its attempts. Known URLs are fetched outside the caps: a URL in a
-subquestion's text belongs to that subquestion, and one only in the query belongs to the whole
-plan. A known URL that fails to fetch always records a gap, even when other evidence covers its
-subquestion. Otherwise a gap is a subquestion that ran out of candidates without evidence, or a
-run that collected fewer evidence items than it requires; a failed fetch of one candidate is only
-an attempt. `gap_check.status` is `closed` when there is no
-gap and no capability gap, and `degraded` otherwise. The engine runs once and never refetches or
-re-plans; that loop belongs to the caller.
-
-Default JSON is a Research Evidence Index. Each item in `evidence_items` contains evidence identity
-and metadata plus a readable `evidence_items[].path`; fetched body content lives at that path rather
-than in stdout. The top level contains `evidence_dir`, `plan_path`, `unconsumed_candidates` as a
-count and path, `gap_check`, `capability_gaps`, `synthesis_policy: "fetch_before_claim"`, and the
-`journal_ref`/`journal_status` pair. Markdown and content render the same index and unresolved gaps.
-On success, the Evidence Index locates these artifacts. On terminal failure, a non-null
-`summary_path` points to the readable Research Recovery Manifest containing completed evidence,
-gaps, and artifact paths. If it is null, use the other reported paths and gaps before diagnosis.
-`--verbose` adds provider attempts inline.
-
-One URL is fetched once, and its evidence item lists every subquestion it covers. `evidence_dir`
-holds `00-plan.json` (the normalized plan), one `NN-evidence.md` body per evidence item,
-`candidates.json` (the unconsumed candidates, each `is_evidence: false`), and `summary.json`, the
-Research Recovery Manifest; no evidence body appears on stdout, in the manifest, or in the
-journal. A research failure has one fixed shape: `error_kind`, the bounded `message`,
-`evidence_dir`, `summary_path`, `gap_check` with its `status` and `stop_reason`,
-`synthesis_policy`, and the journal pair. Paths are never cut, so a very long path can make the
-payload large. `summary_path` is `null` when the manifest could not be written; the evidence
-directory stays.
 
 ## Direct operations
 
@@ -1352,10 +1276,10 @@ read.
   fetches that need a page body read it through `capabilities.web_fetch.order`.
 - `classifier`: `url`, `keys`, `model`, `fallback_models` tried in order on the same endpoint, and
   `timeout`, one budget for the whole classification step. Without it, search uses the default
-  Web route and research needs `--plan`.
+  Web route.
 - `journal`: `enabled` (default `true`), `dir` (default `$XDG_STATE_HOME/forager/journal`, else
   `~/.local/state/forager/journal`), and `retention_days` (default `30`; `0` keeps files forever).
-  Each search or research run writes its own file, whose path is `journal_ref`; retention deletes
+  Each search run writes its own file, whose path is `journal_ref`; retention deletes
   only expired files that forager named.
 - `retry`: `max_attempts` per request (at least 1), backoff `multiplier` (above 0), and `max_wait`
   seconds between attempts.
@@ -1518,7 +1442,7 @@ A live run's `ok` is true only when every case passed; the command then exits `0
 | Code | Meaning |
 | --- | --- |
 | `0` | Success, including a valid empty result from a provider-direct command. |
-| `2` | Argument or caller-input error, including an invalid plan or invalid `config set` path/value. |
+| `2` | Argument or caller-input error, including an invalid `config set` path/value. |
 | `3` | Configuration, stdin, or requested output-write error. |
 | `4` | Transport/runtime terminal failure, including a hard timeout. |
 | `5` | Content-quality or evidence terminal failure. |
@@ -1526,9 +1450,10 @@ A live run's `ok` is true only when every case passed; the command then exits `0
 Exit code `1` is intentionally unused. Panic status `101` is outside the CLI contract. After a
 network command reaches a rendered terminal result, JSON output is emitted as clean JSON on stdout
 and diagnostics or logs use stderr. A failed command renders its failure payload on stdout too, so
-an empty stderr does not mean success; judge the outcome by the exit code. After successful Clap parsing selects JSON, configuration,
-stdin, and plan preflight failures use the parseable stdout error object described above. Clap
-errors, panics, and non-JSON formats retain their existing channels.
+an empty stderr does not mean success; judge the outcome by the exit code. After successful Clap
+parsing selects JSON, `search` and `fetch` report configuration and runtime preflight failures in
+the parseable stdout error object described above. Clap errors, panics, and non-JSON formats retain
+their existing channels.
 
 Exit `2` covers only input that forager rejects before sending a request; when an upstream
 service rejects a request, the resulting `parameter` failure exits `4`. Exit `3` also covers an
@@ -1536,5 +1461,5 @@ unknown file key or `FORAGER_*` variable, an empty `search.backends` or
 `capabilities.web_fetch.order`, a platform order with no configured route for the command, and a
 missing credential that the command needs. Exit `4` is the transport family (`auth`,
 `rate_limited`, `quota_exhausted`, `parameter`, `network`, `timeout`, `runtime`), and exit `5` the
-content family (`quality`, `evidence`). An empty result is never an error: a direct command with no matches succeeds, and
-only research turns missing evidence into `evidence`.
+content family (`quality`, `evidence`). An empty result is never an error: a direct command with
+no matches succeeds.
