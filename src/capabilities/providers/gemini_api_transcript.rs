@@ -130,7 +130,7 @@ mod tests {
             reference: PlatformRef::Youtube(reference),
             depth: ContentDepth::Abstract,
             title: Some("Me at the zoo".into()),
-            authors: vec!["jawed".into()],
+            authors: vec!["Example Zoo Visitor".into()],
             published: Some("2005-04-24T03:31:52Z".into()),
             data: PlatformItemData::Youtube(YoutubeItemData {
                 channel_ref: None,
