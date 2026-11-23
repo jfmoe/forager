@@ -7,22 +7,48 @@ use std::process::Command;
 use serde_json::{Map, Value};
 use support::{forager_command, run_command};
 
+const WORKFLOW_DIRECTORY: &str = ".github/workflows";
+
+// cargo-dist generates this workflow and runs its plan job on pull requests as a dry run.
+const DIST_WORKFLOW: &str = ".github/workflows/release.yml";
+
+// Without a timeout, a hung fixture accept could hold a job until GitHub's six-hour limit (#52).
 #[test]
 fn every_runnable_workflow_job_has_a_twenty_minute_timeout() {
-    for workflow in [
-        ".github/workflows/ci.yml",
-        ".github/workflows/release.yml",
-        ".github/workflows/release-plz.yml",
-        ".github/workflows/release-artifact-gate.yml",
-    ] {
-        assert_runnable_job_timeouts(workflow);
+    for workflow in workflow_paths() {
+        assert_runnable_job_timeouts(&workflow);
     }
+}
+
+// The `linux` and `windows` job names are what a ruleset on main is to require. A path filter
+// would leave those checks pending on a pull request it skips (c8ab40c), so every pull request
+// runs the whole workflow.
+#[test]
+fn one_workflow_runs_the_required_jobs_on_every_pull_request_and_main_push() {
+    let workflow = pull_request_workflow();
+    let pull_request = &workflow["on"]["pull_request"];
+    let path_filters = ["paths", "paths-ignore"]
+        .into_iter()
+        .filter(|filter| pull_request.get(filter).is_some())
+        .collect::<Vec<_>>();
+
+    assert_eq!(
+        (
+            path_filters,
+            string_list(&workflow["on"]["push"]["branches"]),
+            workflow_jobs(&workflow)
+                .keys()
+                .map(String::as_str)
+                .collect::<Vec<_>>(),
+        ),
+        (Vec::<&str>::new(), vec!["main"], vec!["linux", "windows"])
+    );
 }
 
 #[test]
 fn ci_does_not_run_live_smoke_checks() {
     assert!(
-        workflow_run_commands(&ci_workflow())
+        workflow_run_commands(&pull_request_workflow())
             .iter()
             .all(|command| !command.contains("smoke --live"))
     );
@@ -30,48 +56,57 @@ fn ci_does_not_run_live_smoke_checks() {
 
 #[test]
 fn ci_checks_rust_formatting() {
-    assert!(cargo_commands(&ci_workflow()).iter().any(|command| {
-        let arguments = command.split_whitespace().collect::<Vec<_>>();
-        arguments.starts_with(&["cargo", "fmt"]) && arguments.contains(&"--check")
-    }));
+    assert!(
+        cargo_commands(&pull_request_workflow())
+            .iter()
+            .any(|command| {
+                let arguments = command.split_whitespace().collect::<Vec<_>>();
+                arguments.starts_with(&["cargo", "fmt"]) && arguments.contains(&"--check")
+            })
+    );
 }
 
 #[test]
 fn ci_denies_clippy_warnings() {
-    assert!(cargo_commands(&ci_workflow()).iter().any(|command| {
-        let arguments = command.split_whitespace().collect::<Vec<_>>();
-        arguments.starts_with(&["cargo", "clippy"])
-            && arguments.windows(2).any(|pair| pair == ["-D", "warnings"])
-    }));
+    assert!(
+        cargo_commands(&pull_request_workflow())
+            .iter()
+            .any(|command| {
+                let arguments = command.split_whitespace().collect::<Vec<_>>();
+                arguments.starts_with(&["cargo", "clippy"])
+                    && arguments.windows(2).any(|pair| pair == ["-D", "warnings"])
+            })
+    );
 }
 
+// CI ran `cargo test`, one process with many threads, while local checks ran nextest, one process
+// per test; a fixture race in the concurrent search test showed only under CI's runner. Linux now
+// runs the local full check, unfiltered, through the `ci` profile.
 #[test]
-fn ci_runs_the_full_unfiltered_test_suite() {
+fn linux_runs_the_full_suite_through_the_local_runner_and_the_ci_profile() {
+    let workflow = pull_request_workflow();
     assert!(
-        cargo_commands(&ci_workflow())
+        cargo_commands_in_job(workflow_job(&workflow, "linux"))
             .iter()
-            .any(|command| is_full_cargo_test_command(command))
+            .any(|command| is_full_ci_suite_run(command))
     );
+    assert!(is_full_ci_suite_run(
+        "cargo nextest run --locked --all-features --profile ci --all-targets"
+    ));
     for command in [
-        "cargo test --locked",
-        "cargo test --all-targets --all-features --locked --no-fail-fast -- --quiet",
+        "cargo nextest run --all-targets --all-features --locked",
+        "cargo nextest run --profile ci --all-targets --all-features --locked --test search",
+        "cargo nextest run --profile ci --all-targets --all-features --locked -E kind(lib)",
+        "cargo nextest run --profile ci --all-targets --all-features --locked test_name",
     ] {
-        assert!(is_full_cargo_test_command(command), "command: {command}");
-    }
-    for command in [
-        "cargo test --locked --package forager",
-        "cargo test --locked -p forager",
-        "cargo test --locked --test search",
-        "cargo test --locked test_name",
-    ] {
-        assert!(!is_full_cargo_test_command(command), "command: {command}");
+        assert!(!is_full_ci_suite_run(command), "command: {command}");
     }
 }
 
 #[test]
 fn ci_locks_every_dependency_resolving_cargo_command() {
     assert!(
-        cargo_commands(&ci_workflow())
+        cargo_commands(&pull_request_workflow())
             .iter()
             .filter(|command| !command.starts_with("cargo fmt "))
             .all(|command| command
@@ -80,28 +115,31 @@ fn ci_locks_every_dependency_resolving_cargo_command() {
     );
 }
 
+// The Windows modules of these targets run nowhere else. When d0be5ad narrowed the Windows job,
+// the only Windows test of the read-side permission check stopped running and no test noticed.
 #[test]
-fn ci_tests_on_a_windows_runner() {
-    let workflow = ci_workflow();
+fn windows_runs_the_permission_and_release_artifact_tests_through_the_ci_profile() {
+    let workflow = pull_request_workflow();
+    let windows = workflow_job(&workflow, "windows");
+    let selections = cargo_commands_in_job(windows)
+        .iter()
+        .filter_map(|command| ci_profile_nextest_targets(command))
+        .flatten()
+        .collect::<Vec<_>>();
 
-    assert!(workflow_jobs(&workflow).values().any(|job| {
-        job["runs-on"].as_str() == Some("windows-latest")
-            && cargo_commands_in_job(job)
-                .iter()
-                .any(|command| command.starts_with("cargo test"))
-    }));
-}
-
-#[test]
-fn windows_ci_runs_release_artifact_fixtures() {
-    let workflow = ci_workflow();
-
-    assert!(workflow_jobs(&workflow).values().any(|job| {
-        job["runs-on"].as_str() == Some("windows-latest")
-            && cargo_commands_in_job(job)
-                .iter()
-                .any(|command| command.contains("--test release_artifact_gate"))
-    }));
+    assert!(
+        windows["runs-on"]
+            .as_str()
+            .is_some_and(|runner| runner.starts_with("windows")),
+        "runs-on: {}",
+        windows["runs-on"]
+    );
+    for target in ["config_permissions", "release_artifact_gate"] {
+        assert!(
+            selections.iter().any(|selected| selected == target),
+            "{target} is not among the ci-profile selections {selections:?}"
+        );
+    }
 }
 
 #[test]
@@ -650,8 +688,32 @@ fn cargo_commands_in_job(job: &Value) -> Vec<String> {
         .collect()
 }
 
-fn ci_workflow() -> Value {
-    load_workflow(".github/workflows/ci.yml")
+fn workflow_paths() -> Vec<String> {
+    let mut paths = fs::read_dir(WORKFLOW_DIRECTORY)
+        .expect("read workflow directory")
+        .map(|entry| entry.expect("workflow directory entry").path())
+        .filter(|path| path.extension().is_some_and(|extension| extension == "yml"))
+        .map(|path| path.to_str().expect("Unicode workflow path").to_owned())
+        .collect::<Vec<_>>();
+    paths.sort();
+    paths
+}
+
+/// The one workflow, apart from the dist workflow, that runs on pull requests.
+fn pull_request_workflow() -> Value {
+    let mut workflows = workflow_paths()
+        .into_iter()
+        .filter(|path| path != DIST_WORKFLOW)
+        .map(|path| (load_workflow(&path), path))
+        .filter(|(workflow, _)| workflow["on"].get("pull_request").is_some())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        workflows.len(),
+        1,
+        "pull request workflows: {:?}",
+        workflows.iter().map(|(_, path)| path).collect::<Vec<_>>()
+    );
+    workflows.remove(0).0
 }
 
 fn cargo_commands(workflow: &Value) -> Vec<String> {
@@ -661,23 +723,36 @@ fn cargo_commands(workflow: &Value) -> Vec<String> {
         .collect()
 }
 
-fn is_full_cargo_test_command(command: &str) -> bool {
-    let arguments = command.split_whitespace().collect::<Vec<_>>();
-    if !arguments.starts_with(&["cargo", "test"]) || !arguments.contains(&"--locked") {
+fn is_full_ci_suite_run(command: &str) -> bool {
+    let Some(arguments) = command.strip_prefix("cargo nextest run ") else {
         return false;
-    }
-    let mut test_binary_arguments = false;
-    arguments[2..].iter().all(|argument| {
-        if *argument == "--" {
-            test_binary_arguments = true;
-            true
-        } else if test_binary_arguments {
-            *argument == "--quiet"
-        } else {
-            matches!(
-                *argument,
-                "--locked" | "--all-targets" | "--all-features" | "--no-fail-fast" | "--quiet"
-            )
-        }
-    })
+    };
+    let mut arguments = arguments.split_whitespace().collect::<Vec<_>>();
+    arguments.sort_unstable();
+    arguments
+        == [
+            "--all-features",
+            "--all-targets",
+            "--locked",
+            "--profile",
+            "ci",
+        ]
+}
+
+/// The test targets a `cargo nextest run` through the `ci` profile selects by name.
+fn ci_profile_nextest_targets(command: &str) -> Option<Vec<String>> {
+    let arguments = command
+        .strip_prefix("cargo nextest run ")?
+        .split_whitespace()
+        .collect::<Vec<_>>();
+    arguments
+        .windows(2)
+        .any(|pair| pair == ["--profile", "ci"])
+        .then(|| {
+            arguments
+                .windows(2)
+                .filter(|pair| pair[0] == "--test")
+                .map(|pair| pair[1].to_owned())
+                .collect()
+        })
 }
