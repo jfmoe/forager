@@ -7,6 +7,7 @@ use serde_json::{Value, json};
 use crate::redact::{CREDENTIAL_MASK, Secret};
 use crate::state_file::{self, StateLock, serialized_blocking};
 
+const STATE_FILE: &str = "credential_pool_state.json";
 const STATE_SCHEMA_VERSION: u8 = 1;
 const LOCK_WAIT: Duration = Duration::from_millis(100);
 
@@ -25,11 +26,24 @@ pub(crate) struct CredentialSelection {
 
 impl CredentialPool {
     pub(crate) fn new(provider: &'static str, keys: Vec<Secret>) -> Self {
+        Self::in_state_file(
+            provider,
+            keys,
+            state_file::state_directory().map(|directory| directory.join(STATE_FILE)),
+        )
+    }
+
+    /// A pool whose cursor lives in `state_file`; without one, claims fall back to optimistic
+    /// selection.
+    pub(crate) fn in_state_file(
+        provider: &'static str,
+        keys: Vec<Secret>,
+        state_file: Option<PathBuf>,
+    ) -> Self {
         Self {
             provider,
             keys,
-            state_file: state_file::state_directory()
-                .map(|directory| directory.join("credential_pool_state.json")),
+            state_file,
         }
     }
 

@@ -258,7 +258,7 @@ mod tests {
                 min_interval: Duration::ZERO,
                 max_concurrency: 1,
             },
-            sandbox.path().join("rate_limit_state.json"),
+            Some(sandbox.path().join("rate_limit_state.json")),
         );
         let pid_files = ["leader.pid", "child.pid"].map(|name| sandbox.path().join(name));
         let running = |file: &std::path::PathBuf| {
@@ -338,7 +338,7 @@ mod tests {
                 min_interval: Duration::ZERO,
                 max_concurrency: 1,
             },
-            sandbox.path().join("rate_limit_state.json"),
+            Some(sandbox.path().join("rate_limit_state.json")),
         );
 
         let failure = tokio::runtime::Builder::new_multi_thread()
