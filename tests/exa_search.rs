@@ -192,10 +192,7 @@ fn exa_search_and_similar_share_the_persistent_credential_cursor_between_process
 
 #[test]
 fn exa_search_supports_markdown_and_output_tee() {
-    let fixture = Fixture::start_json(
-        200,
-        r#"{"results":[{"title":"Tee result","url":"https://example.test"}]}"#,
-    );
+    let fixture = Fixture::start_json(200, &sample("exa/search.json"));
     let output_file = tempfile::NamedTempFile::new().expect("create output file");
     let output_path = output_file.path().to_string_lossy().into_owned();
 
@@ -216,7 +213,8 @@ fn exa_search_supports_markdown_and_output_tee() {
     assert_eq!(
         (
             output.status.code(),
-            String::from_utf8_lossy(&output.stdout).contains("[Tee result]"),
+            String::from_utf8_lossy(&output.stdout)
+                .contains("[Fixture result](https://example.test/result?api_key=********&safe=1)"),
             fs::read(output_file.path()).expect("read tee output"),
         ),
         (Some(0), true, output.stdout.clone()),
