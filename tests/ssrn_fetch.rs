@@ -4,36 +4,10 @@ use std::process::Output;
 
 use serde_json::{Value, json};
 
+use support::ssrn_samples::{stored, work_with};
 use support::{Fixture, Response, RunEnvironment, path};
 
 const DOI_PATH: &str = "/works/10.2139/ssrn.2042750";
-
-fn record(doi: &str, abstract_markup: Option<&str>) -> Value {
-    json!({
-        "DOI": doi,
-        "title": ["Risk Premia Harvesting Through Dual Momentum"],
-        "author": [{"given": "Gary", "family": "Antonacci", "sequence": "first"}],
-        "abstract": abstract_markup,
-        "published": {"date-parts": [[2012, 4]]},
-        "type": "posted-content",
-        "created": {"date-parts": [[2012, 4, 25]], "date-time": "2012-04-25T11:01:44Z"},
-        "resource": {"primary": {"URL": "https://www.ssrn.com/abstract=2042750"}}
-    })
-}
-
-fn work(message: &Value) -> Response {
-    Response::json(
-        200,
-        &json!({"status": "ok", "message-type": "work", "message-version": "1.0.0", "message": message})
-            .to_string(),
-    )
-}
-
-fn paper(abstract_markup: Option<&str>) -> Response {
-    work(&record("10.2139/ssrn.2042750", abstract_markup))
-}
-
-const ABSTRACT: Option<&str> = Some("<jats:p>Momentum is the premier market anomaly.</jats:p>");
 
 fn config(url: &str) -> String {
     format!("[providers.ssrn_crossref]\nurl = \"{url}\"\n")
@@ -66,7 +40,10 @@ fn run(arguments: &[&str], responses: Vec<Response>) -> (Output, Vec<String>) {
 
 #[test]
 fn fetch_returns_metadata_and_the_abstract_at_the_default_depth() {
-    let (output, requests) = run(&["ssrn:2042750"], vec![paper(ABSTRACT)]);
+    let (output, requests) = run(
+        &["ssrn:2042750"],
+        vec![Response::json(200, &stored("work.json"))],
+    );
 
     assert_eq!(
         (
@@ -102,10 +79,11 @@ fn fetch_returns_metadata_and_the_abstract_at_the_default_depth() {
 
 #[test]
 fn markdown_shows_the_abstract_section_only_when_there_is_an_abstract() {
-    let sections = [ABSTRACT, None].map(|abstract_markup| {
+    let without_abstract = work_with(&json!({"abstract": null})).to_string();
+    let sections = [stored("work.json"), without_abstract].map(|body| {
         let (output, _) = run(
             &["ssrn:2042750", "--format", "markdown"],
-            vec![paper(abstract_markup)],
+            vec![Response::json(200, &body)],
         );
         String::from_utf8_lossy(&output.stdout).contains("## Abstract")
     });
