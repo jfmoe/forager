@@ -568,30 +568,40 @@ fn config_set_can_repair_a_strictly_invalid_but_parseable_document() {
 #[test]
 fn config_list_rejects_an_undefined_file_key_and_environment_variable() {
     let config_dir = tempfile::tempdir().expect("create config directory");
-    fs::write(
-        config_dir.path().join("config.toml"),
-        "[search]\nno_such_key = \"x\"\n",
-    )
-    .expect("write config");
-
-    let file_error = run(config_dir.path(), &["config", "list"], &[], None);
-    fs::write(config_dir.path().join("config.toml"), "").expect("clear config");
-    let env_error = run(
-        config_dir.path(),
-        &["config", "list"],
-        &[("FORAGER_SEARCH__NO_SUCH_KEY", "x")],
-        None,
-    );
-
-    assert_eq!(
+    let config = config_dir.path().join("config.toml");
+    let mut errors = Vec::new();
+    for (document, named) in [
+        ("[search]\nno_such_key = \"x\"\n", "no_such_key"),
         (
-            file_error.status.code(),
-            String::from_utf8_lossy(&file_error.stderr).contains("no_such_key"),
-            env_error.status.code(),
-            String::from_utf8_lossy(&env_error.stderr).contains("FORAGER_SEARCH__NO_SUCH_KEY"),
+            "[providers.no_such_provider]\ntimeout = 30\n",
+            "no_such_provider",
         ),
-        (Some(3), true, Some(3), true)
-    );
+    ] {
+        fs::write(&config, document).expect("write config");
+        errors.push((
+            run(config_dir.path(), &["config", "list"], &[], None),
+            named,
+        ));
+    }
+    fs::write(&config, "").expect("clear config");
+    errors.push((
+        run(
+            config_dir.path(),
+            &["config", "list"],
+            &[("FORAGER_SEARCH__NO_SUCH_KEY", "x")],
+            None,
+        ),
+        "FORAGER_SEARCH__NO_SUCH_KEY",
+    ));
+
+    for (error, named) in errors {
+        let stderr = String::from_utf8_lossy(&error.stderr);
+        assert_eq!(
+            (error.status.code(), stderr.contains(named)),
+            (Some(3), true),
+            "{named}: {stderr}"
+        );
+    }
 }
 
 #[test]
