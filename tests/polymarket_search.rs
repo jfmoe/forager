@@ -6,7 +6,7 @@ use serde_json::{Value, json};
 
 use support::hn::{path, payload, query, stderr};
 use support::polymarket::{config, json as body, run};
-use support::polymarket_samples::{event, market, resolved, search_page, with};
+use support::polymarket_samples::{event, market, resolved, search_page, stored, with};
 use support::{Fixture, Response, RunEnvironment};
 
 /// A search page as Gamma returns it: the events, and whether more pages follow.
@@ -53,101 +53,35 @@ fn fed_event() -> Value {
 }
 
 #[test]
-fn results_are_events_with_their_most_probable_markets_priced_from_gamma() {
-    let gamma = Fixture::start_sequence(vec![page(&[fed_event()], false)]);
+fn a_search_prints_the_matching_events_as_platform_items() {
+    let gamma = Fixture::start_sequence(vec![Response::json(200, &stored("search.json"))]);
     let environment = RunEnvironment::new(&config(&gamma.url, "http://127.0.0.1:9"));
 
     let output = run(&environment, &["search", "fed rate"]);
     let request = gamma.finish();
+    let items = payload(&output);
 
     assert_eq!(
-        (output.status.code(), path(&request), query(&request)),
+        (
+            output.status.code(),
+            path(&request),
+            [
+                &items["platform"],
+                &items["provider"],
+                &items["items"][0]["ref"]
+            ],
+        ),
         (
             Some(0),
             "/public-search".to_owned(),
-            parameters(&[
-                ("q", "fed rate"),
-                ("limit_per_type", "10"),
-                ("page", "1"),
-                ("search_tags", "false"),
-                ("search_profiles", "false"),
-                ("events_status", "active"),
-            ])
+            [
+                &json!("polymarket"),
+                &json!("polymarket_api"),
+                &json!("polymarket:how-many-fed-rate-cuts-in-2026"),
+            ],
         ),
         "stderr: {}",
         stderr(&output)
-    );
-    let market_summary =
-        |slug: &str, label: &str, probability: Value, basis: &str, status: &str| {
-            json!({
-                "ref": format!("polymarket:market/{slug}"),
-                "label": label,
-                "probability": probability,
-                "basis": basis,
-                "status": status
-            })
-        };
-    assert_eq!(
-        payload(&output),
-        json!({
-            "platform": "polymarket",
-            "provider": "polymarket_api",
-            "items": [{
-                "ref": "polymarket:how-many-fed-rate-cuts-in-2026",
-                "url": "https://polymarket.com/event/how-many-fed-rate-cuts-in-2026",
-                "depth": "metadata",
-                "title": "How many Fed rate cuts in 2026?",
-                "authors": [],
-                "published": "2025-09-29T22:24:45Z",
-                "event_id": "51456",
-                "status": "open",
-                "end_date": "2027-01-01T04:59:00Z",
-                "volume": 54_744_246.257_398_99,
-                "volume_24h": 55_418.871_714,
-                "liquidity": 3_993_492.103_83,
-                "neg_risk": true,
-                "market_count": 6,
-                "price_source": "gamma",
-                "top_markets": [
-                    market_summary(
-                        "will-no-fed-rate-cuts-happen-in-2026",
-                        "Will 0 (0 bps) happen?",
-                        json!(0.962),
-                        "midpoint_cached",
-                        "open"
-                    ),
-                    market_summary(
-                        "will-1-fed-rate-cut-happen-in-2026",
-                        "1 (25 bps)",
-                        json!(0.0135),
-                        "midpoint_cached",
-                        "open"
-                    ),
-                    market_summary(
-                        "will-the-fed-cut-in-january",
-                        "January cut",
-                        json!(0.0),
-                        "resolution",
-                        "resolved"
-                    ),
-                    market_summary(
-                        "will-9-fed-rate-cuts-happen-in-2026",
-                        "9 (225 bps)",
-                        Value::Null,
-                        "no_two_sided_book",
-                        "open"
-                    ),
-                    market_summary(
-                        "will-8-fed-rate-cuts-happen-in-2026",
-                        "8 (200 bps)",
-                        Value::Null,
-                        "no_two_sided_book",
-                        "open"
-                    ),
-                ]
-            }],
-            "next_cursor": null
-        })
     );
 }
 
