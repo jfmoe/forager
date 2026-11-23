@@ -165,10 +165,6 @@ impl DocsSearchRuntimeConfig {
             .count()
     }
 
-    pub(crate) fn entries(&self) -> &[SeamEntry<DocsSearchProviderConfig>] {
-        &self.entries
-    }
-
     pub(crate) fn into_entries(self) -> Vec<SeamEntry<DocsSearchProviderConfig>> {
         self.entries
     }
@@ -220,10 +216,6 @@ impl WebSearchRuntimeConfig {
         entry_names(&self.entries)
     }
 
-    pub(crate) fn unconfigured_names(&self) -> Vec<String> {
-        unconfigured_entry_names(&self.entries)
-    }
-
     pub(crate) fn retain(&mut self, id: ProviderId) {
         self.entries.retain(|entry| entry.id() == id);
     }
@@ -237,10 +229,6 @@ impl WebFetchRuntimeConfig {
             .count()
     }
 
-    pub(crate) fn entries(&self) -> &[SeamEntry<WebFetchProviderConfig>] {
-        &self.entries
-    }
-
     pub(crate) fn into_entries(self) -> Vec<SeamEntry<WebFetchProviderConfig>> {
         self.entries
     }
@@ -251,10 +239,6 @@ impl WebFetchRuntimeConfig {
 
     pub(crate) fn unconfigured_names(&self) -> Vec<String> {
         unconfigured_entry_names(&self.entries)
-    }
-
-    pub(crate) fn retain_first(&mut self) {
-        self.entries.truncate(1);
     }
 }
 

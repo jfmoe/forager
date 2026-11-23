@@ -1,0 +1,72 @@
+# Leave orchestration to the calling agent
+
+## Decision
+
+forager offers deterministic atomic operations and does not orchestrate an investigation. There is
+no `research` command, no Research Evidence Pipeline and no planner. An agent that needs a
+multi-source investigation splits the question itself, runs `search`, `fetch` and the platform
+commands, and judges each source on whether it bears on the question. The product skill teaches
+that workflow.
+
+These rules of the agent layer stay in force:
+
+- **Cost ladder.** Every request goes down `direct retrieval → ordinary search → multi-source
+  investigation` and takes the cheapest branch that can finish it. Escalation happens only on an
+  observed shortfall of the cheaper branch, or when the request's shape rules that branch out,
+  never in anticipation.
+- **Bounded recovery.** The ordinary-search recovery chain (retry, Exa fallback, fetch) has small
+  fixed caps on each step, and an error that is not a timeout or a network failure leaves it at
+  once.
+- **A main-search answer is never evidence.** A claim that needs a source is backed by fetched
+  content; the answer only orients the next step.
+
+## Why
+
+- **It was not used.** From 2026-10-24 to 2026-11-23 the Search Result Journal recorded one
+  `research` run against 171 searches, and no run where the classifier wrote the plan.
+- **What it added was bookkeeping.** Over an agent calling `search` and then `fetch`, research
+  added deduplication, per-subquestion caps and evidence numbering, which the agent can do itself.
+  Its pipeline module was 1,367 lines with a 3,020-line test file, and its contract was among the
+  heaviest parts of the product skill to document.
+- **Its coverage status counted, it did not judge.** A run reported no remaining gap once it held
+  enough evidence items. Two real investigations found secondary paraphrases, aggregator pages and
+  unrelated reports behind such a status and had to reread every source. Judging relevance is
+  semantic work that a deterministic CLI cannot do reliably (ADR-0014); the agent that writes the
+  answer has to read the sources anyway.
+- **The ladder keeps cost in proportion.** A multi-source investigation is the most expensive
+  branch, and its recovery work lands in the agent layer, so escalation has to be earned by an
+  observed shortfall.
+- **Capped recovery stops a failing search from spiralling.** Retrying an authentication,
+  configuration or quota error cannot succeed, and an uncapped chain spends quota and time on a
+  search that already failed.
+- **Main-search answers are model-synthesized.** Citing one as evidence would let unverified text
+  pose as a source.
+- **The accepted cost.** Research discovered candidates through Supplemental Web Search without
+  running main search. Through `search`, each part of an investigation pays one main search, a
+  median of 31 s over the same 30 days.
+
+## Rejected alternatives
+
+- **Keeping research and requiring a caller plan.** It removes only classifier planning and keeps
+  the whole evidence contract, its files and its documentation for one run a month, with the same
+  count-based coverage status.
+- **Making the coverage status judge relevance.** That moves semantic judgement into the CLI and
+  gives the caller a confidence it has not earned.
+- **A batch fetch that writes each page to a file.** It would restore research's concurrent
+  fetching, but parallel `fetch` calls that each write their page to a file already do that
+  without a new contract for partial failure.
+
+## Revisit when
+
+- Agents repeat the same investigation bookkeeping and get it wrong in a way a deterministic step
+  would prevent, or a caller without an agent in the loop needs multi-source investigations.
+- The main search each part pays becomes the dominant cost of investigations. A search mode that
+  skips main search is the next option, not a planner.
+- Agents are seen escalating to an investigation, or looping in recovery, despite the ladder and
+  the caps.
+
+## Supersedes
+
+- ADR-0013, which kept the research engine deterministic and orchestrated it from the skill. The
+  engine is retired; the cost ladder, the recovery caps and the rule that a main-search answer is
+  never evidence are restated above.

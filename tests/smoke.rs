@@ -69,10 +69,10 @@ fn live_smoke_lists_exactly_the_specification_case_registry_without_l0_doctor_ga
     let output = environment.run(&["smoke", "--live", "--list"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live registry JSON");
     let expected = json!([
-        "P1", "P2", "C01", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "C13",
-        "C17", "C18", "C19", "C20", "C21", "C24", "C25", "C26", "C27", "C28", "C29", "C30", "C31",
-        "C32", "C33", "C34", "C35", "C36", "C37", "C38", "C39", "C40", "C41", "C42", "C43", "C44",
-        "C45", "C46", "C49", "C50", "C51"
+        "P1", "C01", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "C13", "C17",
+        "C18", "C19", "C20", "C21", "C24", "C25", "C26", "C27", "C28", "C29", "C30", "C31", "C32",
+        "C33", "C34", "C35", "C36", "C37", "C38", "C39", "C40", "C41", "C42", "C43", "C44", "C45",
+        "C46", "C49", "C50", "C51"
     ]);
 
     assert_eq!(
@@ -101,8 +101,8 @@ fn live_smoke_lists_exactly_the_specification_case_registry_without_l0_doctor_ga
 
 /// Case numbers whose cases were retired; a report or a release note that names one must keep
 /// meaning the retired case.
-const RETIRED_CASE_IDS: [&str; 9] = [
-    "C02", "C03", "C14", "C15", "C16", "C22", "C23", "C47", "C48",
+const RETIRED_CASE_IDS: [&str; 10] = [
+    "C02", "C03", "C14", "C15", "C16", "C22", "C23", "C47", "C48", "P2",
 ];
 
 #[test]
@@ -151,7 +151,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
             Some(4),
             &Value::String("live".into()),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 43, "skipped": 0}),
+            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 42, "skipped": 0}),
             &Value::String("failed".into()),
             &Value::Number(3.into()),
             &Value::String("unconfigured".into()),
@@ -188,7 +188,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
         (
             Some(4),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 43, "skipped": 0}),
+            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 42, "skipped": 0}),
             &Value::String("deferred".into()),
             &Value::Number(3.into()),
             &Value::String("http://127.0.0.1:9?token=********".into()),
@@ -307,7 +307,7 @@ fn live_smoke_passes_a_configured_case_only_after_a_zero_parseable_nonempty_term
         ),
         (
             Some(4),
-            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 43, "skipped": 0}),
+            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 42, "skipped": 0}),
             &Value::String("passed".into()),
             &Value::Number(1.into()),
         ),
@@ -413,62 +413,6 @@ fn live_smoke_enforces_one_hard_deadline_and_reports_the_cases_it_left_no_time_f
     fixture.finish();
 }
 
-#[test]
-fn live_smoke_p2_does_not_write_evidence_into_the_configured_journal() {
-    let classifier_response = json!({
-        "choices": [{
-            "message": {
-                "content": json!({
-                    "plan_version": 1,
-                    "intent_signals": {
-                        "recency_requirement": "none",
-                        "docs_api_intent": false,
-                        "source_authority_need": "normal",
-                        "claim_risk": "medium",
-                        "cross_validation_need": "normal"
-                    },
-                    "decomposition": [{
-                        "id": "sq1",
-                        "question": "What evidence is available?",
-                        "reason": "Gather relevant evidence",
-                        "required_capabilities": []
-                    }]
-                })
-                .to_string()
-            }
-        }]
-    })
-    .to_string();
-    let classifier = Fixture::start_repeating(Response::json(200, &classifier_response));
-    let environment = SmokeEnvironment::new(|journal_dir| p2_config(&classifier.url, journal_dir));
-
-    let output = environment.run(&["smoke", "--live", "--timeout", "3"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live smoke JSON");
-
-    assert_eq!(
-        (
-            &case(&payload, "P2")["status"],
-            &case(&payload, "P2")["attempts"]
-        ),
-        (&Value::String("failed".into()), &Value::Number(3.into())),
-        "stdout: {}\nstderr: {}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(
-        !environment
-            .journal_dir
-            .join("live-smoke-p2-evidence")
-            .exists(),
-        "P2 smoke evidence polluted the configured journal"
-    );
-    let classifier_requests = classifier.finish_all();
-    assert!(
-        classifier_requests.len() >= 3,
-        "P2 smoke did not exercise all three classifier attempts"
-    );
-}
-
 fn single_entry_feed(id: &str) -> String {
     format!(
         r#"<feed xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns="http://www.w3.org/2005/Atom">
@@ -543,7 +487,7 @@ fn live_smoke_runs_the_platform_cases_through_their_configured_route() {
             algolia_requests[1].starts_with("GET /items/8863 "),
         ),
         (
-            &json!({"passed": 7, "failed": 0, "deferred": 0, "unconfigured": 37, "skipped": 0}),
+            &json!({"passed": 7, "failed": 0, "deferred": 0, "unconfigured": 36, "skipped": 0}),
             [(); 7].map(|()| Value::String("passed".into())),
             [
                 &Value::String("arxiv".into()),
@@ -892,44 +836,6 @@ dir = {journal_dir:?}
 fn minimal_config(endpoint: &str, journal_dir: &Path) -> String {
     format!(
         "[providers.xai]\nurl = {endpoint:?}\nkeys = [\"xai-secret\"]\n{DISABLED_PLATFORMS}[journal]\ndir = {journal_dir:?}\n"
-    )
-}
-
-// Debug path formatting supplies the quoted and escaped TOML string literal required by fixtures.
-#[expect(clippy::unnecessary_debug_formatting)]
-fn p2_config(classifier_url: &str, journal_dir: &Path) -> String {
-    format!(
-        r#"
-[classifier]
-url = {classifier_url:?}
-keys = ["classifier-secret"]
-model = "classifier-model"
-
-[providers.exa]
-url = "http://127.0.0.1:9"
-keys = ["exa-secret"]
-
-[providers.tavily]
-url = "http://127.0.0.1:9"
-keys = ["tavily-secret"]
-
-[providers.jina]
-url = "http://127.0.0.1:9"
-keys = ["jina-secret"]
-
-[capabilities.docs_search]
-order = ["exa"]
-
-[capabilities.web_search]
-order = ["tavily"]
-
-[capabilities.web_fetch]
-order = ["jina"]
-
-{DISABLED_PLATFORMS}
-[journal]
-dir = {journal_dir:?}
-"#
     )
 }
 

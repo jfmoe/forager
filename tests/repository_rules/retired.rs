@@ -1,6 +1,8 @@
-//! Identifiers of retired routes, providers and capabilities, and where they may still appear.
+//! Identifiers of retired routes, providers, capabilities and commands, and where they may still
+//! appear.
 
-/// Identifiers of retired routes, providers and capabilities.
+/// Identifiers of retired routes, providers, capabilities and commands. A retired command
+/// contributes its command phrase and the output fields and terms only it used.
 pub const RETIRED: &[&str] = &[
     "opencli",
     "ssrn_browser",
@@ -10,6 +12,19 @@ pub const RETIRED: &[&str] = &[
     "gemini_browser",
     "chatgpt_browser",
     "vertical_search",
+    "forager research",
+    "research_plan",
+    "research evidence pipeline",
+    "research evidence index",
+    "research recovery manifest",
+    "evidence_items",
+    "evidence_dir",
+    "plan_path",
+    "unconsumed_candidates",
+    "synthesis_policy",
+    "gap_check",
+    "summary_path",
+    "fetch_before_claim",
 ];
 
 /// Paths where a retired identifier legitimately appears, each with its reason. A `*` matches

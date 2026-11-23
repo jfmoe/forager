@@ -56,7 +56,7 @@ only for SSRN PDFs, so a platform full text is a set of URLs or a Native body (A
 
 - **Keeping the delegated research providers.** A report is another agent's synthesis: its
   sources are Gemini's or ChatGPT's own claim, and forager has read none of them. It could never
-  be research evidence, so the cost above bought only a third-party opinion.
+  be evidence, so the cost above bought only a third-party opinion.
 - **Keeping `ssrn_browser` as an opt-in route.** It kept SSRN full text, exact Posted, Last
   revised and Date Written dates, the site-only search conditions and the candidates only the site
   finds, at the price of a route that was often blocked and could not be tested.
@@ -67,7 +67,7 @@ only for SSRN PDFs, so a platform full text is a set of URLs or a Native body (A
   depends on an external browser driver, there is a real need, and it stays within the service's
   terms: for Gemini that means respecting robots.txt, and for ChatGPT any programmatic extraction
   of Output breaches them, so only an official access path would do. A revived provider would deliver its report as a third-party view that is never
-  research evidence, and would run any write that changes account state as a single attempt,
+  evidence, and would run any write that changes account state as a single attempt,
   because a timed-out write may already have reached the service and a retry would spend quota
   twice.
 - **SSRN:** SSRN full text, exact dates or site-only candidates are needed, and a browser route

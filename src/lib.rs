@@ -55,8 +55,6 @@ mod providers;
 mod rate_limit;
 #[path = "infra/redact.rs"]
 mod redact;
-#[path = "evidence/research.rs"]
-mod research;
 #[path = "core/search_fanout.rs"]
 mod search_fanout;
 #[path = "infra/secure_fs.rs"]

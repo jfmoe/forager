@@ -4,14 +4,14 @@ use std::pin::Pin;
 use chrono::{Datelike, Local, Weekday};
 
 use super::{
-    ArxivApi, Context7, Context7DocsRequest, Context7LibraryRequest, Exa, ExaSearchRequest, HnApi,
-    Openai, PolymarketApi, RedditBrowser, SearchType, Serpapi, SsrnCrossref, SupplementalSearch,
-    Xai, XiaohongshuBrowser, YoutubeApi, YoutubeWeb,
+    ArxivApi, Context7, Context7LibraryRequest, Exa, ExaSearchRequest, HnApi, Openai,
+    PolymarketApi, RedditBrowser, SearchType, Serpapi, SsrnCrossref, SupplementalSearch, Xai,
+    XiaohongshuBrowser, YoutubeApi, YoutubeWeb,
 };
 use crate::types::{
-    Context7Outcome, DocumentationEvidence, DocumentationSearchOutcome, EvidenceLocator,
-    ExaOutcome, PlatformFetchOutcome, PlatformFetchRequest, PlatformSearchOutcome,
-    PlatformSearchRequest, ProviderError, SearchCandidate, SupplementalSearchOutcome,
+    Context7Outcome, DocumentationSearchOutcome, ExaOutcome, PlatformFetchOutcome,
+    PlatformFetchRequest, PlatformSearchOutcome, PlatformSearchRequest, ProviderError,
+    SearchCandidate, SupplementalSearchOutcome,
 };
 
 #[derive(Clone, Debug)]
@@ -100,23 +100,12 @@ impl WebSearch for SupplementalSearch {
     }
 }
 
-type DocumentationReadFuture<'a> =
-    Pin<Box<dyn Future<Output = Result<DocumentationEvidence, ProviderError>> + Send + 'a>>;
-
 pub(crate) trait DocsSearch: Send + Sync {
     fn search<'a>(
         &'a self,
         query: &'a str,
         limit: u16,
     ) -> Pin<Box<dyn Future<Output = Result<DocumentationSearchOutcome, ProviderError>> + Send + 'a>>;
-
-    fn read<'a>(
-        &'a self,
-        _locator: &'a EvidenceLocator,
-        _query: &'a str,
-    ) -> Option<DocumentationReadFuture<'a>> {
-        None
-    }
 }
 
 /// The search seam of a platform; each route of the platform implements it.
@@ -394,35 +383,6 @@ impl DocsSearch for Context7 {
                 diagnostic: library.diagnostic,
             })
         })
-    }
-
-    fn read<'a>(
-        &'a self,
-        locator: &'a EvidenceLocator,
-        query: &'a str,
-    ) -> Option<DocumentationReadFuture<'a>> {
-        let EvidenceLocator::Context7Library(library_id) = locator else {
-            return None;
-        };
-        Some(Box::pin(async move {
-            let Context7Outcome::Docs(docs) = self
-                .docs(Context7DocsRequest {
-                    library_id: library_id.clone(),
-                    query: query.to_owned(),
-                    verbose: true,
-                })
-                .await?
-            else {
-                unreachable!("docs request returns docs outcome");
-            };
-            Ok(DocumentationEvidence {
-                locator: EvidenceLocator::Context7Library(docs.library_id),
-                provider: docs.provider,
-                content: docs.content,
-                attempts: docs.attempts,
-                diagnostic: docs.diagnostic,
-            })
-        }))
     }
 }
 

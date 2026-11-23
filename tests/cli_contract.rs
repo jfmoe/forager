@@ -23,7 +23,6 @@ fn command_tree_aliases_and_exact_subcommands_match_the_contract() {
         commands,
         [
             ("search", vec!["s"]),
-            ("research", vec!["rs"]),
             ("fetch", vec!["f"]),
             ("map", vec![]),
             ("context7", vec!["c7"]),
@@ -193,19 +192,6 @@ fn ssrn_fetch_help_defaults_to_metadata_depth() {
             "missing {expected} in help:\n{help}"
         );
     }
-}
-
-#[test]
-fn research_help_declares_standard_as_the_default_budget() {
-    let output = run(&["research", "--help"]);
-    let help = String::from_utf8(output.stdout).expect("UTF-8 help");
-
-    assert!(
-        help.contains("--budget <BUDGET>")
-            && help.contains("[default: standard]")
-            && help.contains("[possible values: quick, standard, deep]"),
-        "research help:\n{help}"
-    );
 }
 
 #[test]

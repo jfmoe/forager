@@ -601,19 +601,6 @@ impl RunEnvironment {
         }
         run_command(&mut command, None)
     }
-
-    pub(crate) fn run_with_stdin(&self, arguments: &[&str], stdin: &str) -> Output {
-        let mut command = forager_command();
-        command
-            .args(arguments)
-            .env("FORAGER_CONFIG_DIR", &self.config_dir)
-            .env("XDG_STATE_HOME", &self.state_dir)
-            .env("HOME", self.root.path())
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
-        run_command(&mut command, Some(stdin.as_bytes()))
-    }
 }
 
 pub(crate) fn run_command(command: &mut Command, stdin: Option<&[u8]>) -> Output {

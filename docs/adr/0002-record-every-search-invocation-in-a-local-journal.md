@@ -2,11 +2,10 @@
 
 ## Decision
 
-forager keeps a Search Result Journal, enabled by default, as its only persistent record of what
-a search did. Every Default Search Invocation of `search` or `research` that reaches a terminal
-state, success or failure, writes one entry with two surfaces: the result (query, full answer,
-sources, research evidence) and the execution (plan summary, provider attempts, terminal
-attribution, budget, classifier timing, capability gaps).
+forager keeps a Search Result Journal, enabled by default, as its only persistent record of what a
+search did. Every Default Search Invocation that reaches a terminal state, success or failure,
+writes one entry with two surfaces: the result (query, full answer, sources) and the execution (plan
+summary, provider attempts, terminal attribution, budget, classifier timing, capability gaps).
 
 - Persisted content follows an allowlist. Credentials in any form, request and response headers,
   request bodies, raw response bodies, classifier prompts and tool traces are never written; URLs

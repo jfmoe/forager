@@ -7,10 +7,6 @@ use support::RunEnvironment;
 #[test]
 fn json_preflight_failures_are_machine_readable_without_a_journal_config() {
     let invalid_config = RunEnvironment::new("invalid = [");
-    let invalid_plan = tempfile::NamedTempFile::new().expect("create invalid plan");
-    std::fs::write(invalid_plan.path(), "not JSON").expect("write invalid plan");
-    let valid_config = RunEnvironment::new("");
-    let plan_path = invalid_plan.path().to_string_lossy().into_owned();
     let cases = [
         (
             &invalid_config,
@@ -23,12 +19,6 @@ fn json_preflight_failures_are_machine_readable_without_a_journal_config() {
             vec!["fetch", "https://example.test"],
             3,
             "config",
-        ),
-        (
-            &valid_config,
-            vec!["research", "query", "--plan", &plan_path],
-            2,
-            "parameter",
         ),
     ];
 
@@ -74,10 +64,7 @@ fn json_preflight_failures_are_machine_readable_without_a_journal_config() {
 #[test]
 fn non_json_preflight_failures_remain_on_standard_error() {
     let invalid_config = RunEnvironment::new("invalid = [");
-    let invalid_plan = tempfile::NamedTempFile::new().expect("create invalid plan");
-    std::fs::write(invalid_plan.path(), "not JSON").expect("write invalid plan");
     let valid_config = RunEnvironment::new("");
-    let plan_path = invalid_plan.path().to_string_lossy().into_owned();
     let cases = [
         (
             &invalid_config,
@@ -94,7 +81,14 @@ fn non_json_preflight_failures_remain_on_standard_error() {
         (
             &valid_config,
             vec![
-                "research", "query", "--plan", &plan_path, "--format", "markdown",
+                "platform",
+                "polymarket",
+                "history",
+                "polymarket:market/fed-decision",
+                "--from",
+                "2026-10-23",
+                "--to",
+                "2026-10-22",
             ],
             2,
             "argument_error:",

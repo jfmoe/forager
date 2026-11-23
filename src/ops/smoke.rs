@@ -32,7 +32,6 @@ static PROBE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 pub(crate) const MAIN_CANARY_QUERY: &str = "What is the latest stable Rust release?";
 pub(crate) const PIPELINE_CANARY_QUERY: &str =
     "Find current Rust release news and official documentation.";
-pub(crate) const RESEARCH_CANARY_QUERY: &str = "What is the current status of async drop in Rust?";
 const FETCH_CANARY_URL: &str = "https://www.rust-lang.org/";
 const PLATFORM_CANARY_QUERY: &str = "retrieval augmented generation";
 // Xiaohongshu has new coffee notes every week, so the filtered search reaches its second page.
@@ -62,8 +61,8 @@ const YOUTUBE_VIDEOS_CANARY: &str = "youtube:playlist/PLZHQObOWTQDPD3MizzM2xVFit
 // speaker's clothes.
 const YOUTUBE_ASK_CANARY_QUESTION: &str =
     "How many elephants are visible behind the speaker, and what is he wearing?";
-const SPECIFICATION_CASE_IDS: [&str; 44] = [
-    "P1", "P2", "C01", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "C13", "C17",
+const SPECIFICATION_CASE_IDS: [&str; 43] = [
+    "P1", "C01", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "C13", "C17",
     "C18", "C19", "C20", "C21", "C24", "C25", "C26", "C27", "C28", "C29", "C30", "C31", "C32",
     "C33", "C34", "C35", "C36", "C37", "C38", "C39", "C40", "C41", "C42", "C43", "C44", "C45",
     "C46", "C49", "C50", "C51",
@@ -83,10 +82,9 @@ const REDDIT_SEARCH_NOT_PASSED: &str =
     "not started: the Reddit search case did not pass, so it found no post to read";
 const REDDIT_NO_SAFE_POST: &str =
     "not started: the Reddit search case returned no post marked as not NSFW";
-const PIPELINE_CASES: [LiveCaseDefinition; 3] = [
+const PIPELINE_CASES: [LiveCaseDefinition; 2] = [
     LiveCaseDefinition::pipeline("P1", "search"),
-    LiveCaseDefinition::pipeline("P2", "research"),
-    LiveCaseDefinition::provider("C04", "classifier", None, "capability_and_plan", "http"),
+    LiveCaseDefinition::provider("C04", "classifier", None, "capability", "http"),
 ];
 
 static LIVE_CASES: LazyLock<Vec<LiveCaseDefinition>> = LazyLock::new(|| {
@@ -503,8 +501,7 @@ fn official_status_page_matches_case(case_id: &str, url: &str, runtime: &Runtime
         return false;
     };
     match case_id {
-        "P1" => pipeline_status_matches(runtime, host, false),
-        "P2" => pipeline_status_matches(runtime, host, true),
+        "P1" => pipeline_status_matches(runtime, host),
         "C04" => status_host_matches_endpoint(host, &runtime.classifier.url),
         _ => provider_for_case(case_id).is_some_and(|provider| {
             status_host_matches_endpoint(host, provider_endpoint(runtime, provider))
@@ -520,7 +517,7 @@ fn live_case(case_id: &str) -> Option<LiveCaseDefinition> {
     LIVE_CASES.iter().copied().find(|case| case.id == case_id)
 }
 
-fn pipeline_status_matches(runtime: &RuntimeConfig, status_host: &str, research: bool) -> bool {
+fn pipeline_status_matches(runtime: &RuntimeConfig, status_host: &str) -> bool {
     let classifier_matches = runtime.classifier.configured()
         && status_host_matches_endpoint(status_host, &runtime.classifier.url);
     let main_matches = runtime.main_search.entries().iter().any(|entry| {
@@ -529,30 +526,7 @@ fn pipeline_status_matches(runtime: &RuntimeConfig, status_host: &str, research:
     let web_search_matches = runtime.web_search.entries().iter().any(|entry| {
         entry.configured() && status_host_matches_endpoint(status_host, &entry.config().url)
     });
-    classifier_matches
-        || (!research && main_matches)
-        || web_search_matches
-        || (research && research_status_matches(runtime, status_host))
-}
-
-fn research_status_matches(runtime: &RuntimeConfig, status_host: &str) -> bool {
-    let configured_endpoint_matches = |provider| {
-        provider_is_configured(runtime, provider)
-            && status_host_matches_endpoint(
-                status_host,
-                runtime.provider_runtime(provider).endpoint,
-            )
-    };
-    runtime
-        .docs_search
-        .entries()
-        .iter()
-        .any(|entry| configured_endpoint_matches(entry.id()))
-        || runtime
-            .web_fetch
-            .entries()
-            .iter()
-            .any(|entry| configured_endpoint_matches(entry.id()))
+    classifier_matches || main_matches || web_search_matches
 }
 
 fn status_host_matches_endpoint(status_host: &str, endpoint: &str) -> bool {
@@ -622,7 +596,7 @@ pub(crate) fn status_page_reports_outage(body: &str) -> bool {
 fn evidence_matches_case_endpoint(case_id: &str, evidence: &str, runtime: &RuntimeConfig) -> bool {
     let matches = |endpoint: &str| same_origin(evidence, endpoint);
     match case_id {
-        "P1" | "P2" => {
+        "P1" => {
             matches(&runtime.classifier.url)
                 || catalog::registrations()
                     .iter()
@@ -889,8 +863,7 @@ fn run_case_once(
                 kind: refusal(output.status.code(), &output.stdout).unwrap_or(FailureKind::Failed),
             });
         }
-        if matches!(case_id, "P1" | "P2")
-            && String::from_utf8_lossy(&output.stderr).contains("Classifier warning")
+        if case_id == "P1" && String::from_utf8_lossy(&output.stderr).contains("Classifier warning")
         {
             return Err("pipeline used classifier degradation instead of the live contract".into());
         }
@@ -958,12 +931,11 @@ fn is_xiaohongshu_fetch(definition: LiveCaseDefinition) -> bool {
     definition.platform == Some(Platform::Xiaohongshu) && definition.operation == "fetch"
 }
 
-/// Returns whether the case's commands write into a temporary directory: P2 its evidence, the
-/// Xiaohongshu fetch its full text, the Reddit, Hacker News, and YouTube document fetches their
+/// Returns whether the case's commands write into a temporary directory: the Xiaohongshu fetch
+/// its full text, the Reddit, Hacker News, and YouTube document fetches their
 /// documents, and transcribe its transcript.
 fn needs_scratch(definition: LiveCaseDefinition) -> bool {
-    definition.id == "P2"
-        || is_xiaohongshu_fetch(definition)
+    is_xiaohongshu_fetch(definition)
         || is_reddit_fetch(definition)
         || document_fetch_canary(definition).is_some()
         || definition.operation == TRANSCRIBE
@@ -1400,22 +1372,6 @@ fn command_specs(
             ],
             ResultShape::PipelineSearch,
         ),
-        "P2" => {
-            let evidence_dir = scratch_dir?.display().to_string();
-            one(
-                &[
-                    "research",
-                    RESEARCH_CANARY_QUERY,
-                    "--budget",
-                    "standard",
-                    "--evidence-dir",
-                    &evidence_dir,
-                    "--timeout",
-                    &timeout,
-                ],
-                ResultShape::Research,
-            )
-        }
         "C04" => one(
             &["smoke", "--probe", "C04", "--probe-timeout", &timeout],
             ResultShape::Classifier,
@@ -1558,12 +1514,6 @@ fn case_is_configured(definition: LiveCaseDefinition, runtime: &RuntimeConfig) -
             runtime.classifier.configured()
                 && runtime.main_search.configured_provider_count() > 0
                 && runtime.web_search.configured_provider_count() > 0
-        }
-        "P2" => {
-            runtime.classifier.configured()
-                && runtime.docs_search.configured_provider_count() > 0
-                && runtime.web_search.configured_provider_count() > 0
-                && runtime.web_fetch.configured_provider_count() > 0
         }
         "C04" => runtime.classifier.configured(),
         // Live smoke checks keys; the anonymous run is tested offline.

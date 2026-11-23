@@ -15,7 +15,7 @@ The project is one crate with a binary and a library. The library exposes exactl
 - **`cli/`**: the argument tree, command dispatch and the `app` facade. Dispatch runs the browser preflight check and writes the journal at the end of a command.
 - **`core/`**: orchestration of one invocation. This covers the search fan-out and its classifier, the shared chain executor, route planning for each platform operation, and attempt attribution.
 - **`capabilities/`**: everything that reaches a provider. This covers the Capability Catalog and platform catalog, the HTTP boundary, credential pools, Access Policies, and the provider and route adapters, including the browser transport.
-- **`evidence/`**: what an invocation leaves behind: the Search Result Journal, the stderr attempt log and the Research Evidence Pipeline.
+- **`evidence/`**: what an invocation leaves behind: the Search Result Journal and the stderr attempt log.
 - **`infra/`**: shared foundations: configuration, the shared types, redaction, secure file writing and cross-process state files.
 - **`ops/`**: operator commands outside a search: doctor, smoke, and browser install and login.
 

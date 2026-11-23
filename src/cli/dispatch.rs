@@ -1,5 +1,4 @@
 use std::fmt::Write as _;
-use std::fs;
 use std::io::{self, BufRead, IsTerminal, Read, Write};
 use std::path::PathBuf;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -18,11 +17,10 @@ use crate::providers::{
     FetchRequest, MapRequest, ProviderId,
 };
 use crate::types::{
-    AttemptErrorKind, CapabilitySet, ClaimRisk, Context7Outcome, Deadline, EvidenceStrength,
-    FallbackPolicy, FetchOutcome, HnStoriesResult, JournalOutcome, MapOutcome, PlanCapability,
-    Platform, PlatformAskResult, PlatformCommentsPage, PlatformFetchResult, PlatformSearchPage,
-    PlatformTranscribeResult, PolymarketHistoryResult, ProviderAttempt, RecencyRequirement,
-    ResearchIntentSignals, ResearchPlan, ResearchSubquestion, SearchOutcome,
+    AttemptErrorKind, CapabilitySet, Context7Outcome, Deadline, FallbackPolicy, FetchOutcome,
+    HnStoriesResult, JournalOutcome, MapOutcome, Platform, PlatformAskResult, PlatformCommentsPage,
+    PlatformFetchResult, PlatformSearchPage, PlatformTranscribeResult, PolymarketHistoryResult,
+    ProviderAttempt, SearchOutcome,
 };
 
 #[doc(hidden)]
@@ -30,7 +28,6 @@ pub use crate::attempt_trace::bounded_attempt_summary;
 #[doc(hidden)]
 pub use crate::net::combine_diagnostics;
 
-pub use crate::research::{ResearchFailure, ResearchTerminal};
 pub use crate::search_fanout::SearchFailure;
 pub use crate::types::ExaOutcome;
 pub use crate::types::ProviderError;
@@ -71,21 +68,6 @@ pub enum CommandOutput {
     Search {
         /// Main-search terminal result.
         result: Result<SearchOutcome, SearchFailure>,
-        /// Search Result Journal side-channel outcome.
-        journal: JournalOutcome,
-        /// Requested output format.
-        format: DocsOutputFormat,
-        /// Optional output file destination.
-        output: Option<OutputTarget>,
-        /// Whether full provider attempts should be rendered inline.
-        verbose: bool,
-        /// Optional terminal projection selected by `log.level`.
-        attempt_log: Option<String>,
-    },
-    /// One completed caller-planned research invocation.
-    Research {
-        /// Research terminal state, success or failure.
-        terminal: ResearchTerminal,
         /// Search Result Journal side-channel outcome.
         journal: JournalOutcome,
         /// Requested output format.
@@ -247,15 +229,6 @@ struct FetchContext {
 }
 
 struct SearchContext {
-    config: config::RuntimeConfig,
-    client: reqwest::Client,
-    retry_policy: RetryPolicy,
-    journal: config::JournalRuntimeConfig,
-    timeout: Duration,
-    runtime: tokio::runtime::Runtime,
-}
-
-struct ResearchContext {
     config: config::RuntimeConfig,
     client: reqwest::Client,
     retry_policy: RetryPolicy,
@@ -477,119 +450,6 @@ impl SearchContext {
     }
 }
 
-impl ResearchContext {
-    fn load(timeout_seconds: u64) -> Result<Self, AppError> {
-        let dependencies = NetworkDependencies::load()?;
-        let journal = dependencies.config.journal.clone();
-        Ok(Self {
-            config: dependencies.config,
-            client: dependencies.client,
-            retry_policy: dependencies.retry_policy,
-            journal,
-            timeout: Duration::from_secs(timeout_seconds),
-            runtime: dependencies.runtime,
-        })
-    }
-
-    fn research(
-        self,
-        query: &str,
-        caller_plan: Option<ResearchPlan>,
-        budget: crate::research::ResearchBudget,
-        evidence_dir: PathBuf,
-        fallback: FallbackPolicy,
-    ) -> (ResearchTerminal, JournalOutcome, Option<String>) {
-        let started = Instant::now();
-        let deadline = Deadline::new(self.timeout);
-        let (
-            plan,
-            plan_source,
-            classifier_degraded,
-            classifier_duration,
-            classifier_attempts,
-            classifier_warning,
-        ) = if let Some(plan) = caller_plan {
-            (plan, "caller", false, None, Vec::new(), None)
-        } else {
-            let classifier = crate::classifier::Classifier::new(
-                self.config.classifier.clone(),
-                self.client.clone(),
-                self.retry_policy,
-            );
-            match self.runtime.block_on(classifier.plan_research(
-                query,
-                budget.max_subquestions(),
-                deadline,
-            )) {
-                Ok(mut decision) => {
-                    let original_len = decision
-                        .plan
-                        .truncate_decomposition(budget.max_subquestions());
-                    let warning = (original_len > budget.max_subquestions()).then(|| {
-                        format!(
-                            "Classifier warning: classifier returned {original_len} subquestions; truncated to {} limit {}",
-                            budget.as_str(),
-                            budget.max_subquestions()
-                        )
-                    });
-                    (
-                        decision.plan,
-                        "classifier",
-                        false,
-                        Some(decision.duration),
-                        decision.attempts,
-                        warning,
-                    )
-                }
-                Err(failure) => (
-                    minimal_research_fallback_plan(query),
-                    "classifier_degraded",
-                    true,
-                    Some(failure.duration),
-                    failure.attempts,
-                    Some(format!(
-                        "Classifier warning: {}; using fixed minimal web_search research plan",
-                        failure.message
-                    )),
-                ),
-            }
-        };
-        let capabilities = plan.capabilities().iter().collect::<Vec<_>>();
-        let log_level = self.config.log_level;
-        let terminal = self.runtime.block_on(crate::research::execute(
-            crate::research::ResearchRequest {
-                query: query.to_owned(),
-                plan,
-                plan_source,
-                budget,
-                evidence_dir,
-                fallback,
-                initial_attempts: classifier_attempts,
-                initial_diagnostic: classifier_warning,
-            },
-            self.config,
-            self.client,
-            self.retry_policy,
-            deadline,
-        ));
-        let journal = crate::journal::record_research(
-            &self.journal,
-            crate::journal::ResearchRecord {
-                query,
-                budget: self.timeout,
-                elapsed: started.elapsed(),
-                capabilities: &capabilities,
-                plan_source,
-                classifier_degraded,
-                classifier_duration,
-                terminal: &terminal,
-            },
-        );
-        let attempt_log = crate::attempt_log::render(log_level, &terminal.attempts);
-        (terminal, journal, attempt_log)
-    }
-}
-
 impl AppContext<providers::Exa> {
     fn for_exa(timeout: Option<u64>) -> Result<Self, AppError> {
         let dependencies = NetworkDependencies::load()?;
@@ -769,58 +629,6 @@ pub fn run(cli: Cli) -> Result<CommandOutput, AppError> {
             );
             Ok(CommandOutput::Search {
                 result,
-                journal,
-                format,
-                output: output.target(),
-                verbose,
-                attempt_log,
-            })
-        }
-        Command::Research {
-            query,
-            plan,
-            budget,
-            evidence_dir,
-            fallback,
-            timeout,
-            format,
-            output,
-            verbose,
-        } => {
-            let budget = crate::research::ResearchBudget::from(budget);
-            let plan = if let Some(plan) = plan {
-                let plan_input = if plan == "-" {
-                    read_stdin()?
-                } else {
-                    fs::read_to_string(&plan).map_err(|error| {
-                        AppError::Argument(format!("cannot read research plan `{plan}`: {error}"))
-                    })?
-                };
-                let plan = ResearchPlan::parse_json(&plan_input).map_err(AppError::Argument)?;
-                if plan.decomposition().len() > budget.max_subquestions() {
-                    return Err(AppError::Argument(format!(
-                        "caller research plan has {} subquestions; {} budget allows at most {}",
-                        plan.decomposition().len(),
-                        budget.as_str(),
-                        budget.max_subquestions()
-                    )));
-                }
-                Some(plan)
-            } else {
-                None
-            };
-            let evidence_dir = evidence_dir.unwrap_or_else(default_evidence_dir);
-            let context = ResearchContext::load(timeout)?;
-            if plan.is_none() && !context.config.classifier.configured() {
-                return Err(AppError::Config(ConfigError::Message(
-                    "research without --plan requires a configured classifier plan generator"
-                        .into(),
-                )));
-            }
-            let (terminal, journal, attempt_log) =
-                context.research(&query, plan, budget, evidence_dir, fallback);
-            Ok(CommandOutput::Research {
-                terminal,
                 journal,
                 format,
                 output: output.target(),
@@ -1204,12 +1012,7 @@ fn run_classifier_smoke_probe(timeout_seconds: u64) -> Result<CommandOutput, App
     let capabilities = dependencies
         .runtime
         .block_on(classifier.classify(crate::smoke::PIPELINE_CANARY_QUERY, Deadline::new(timeout)));
-    let plan = dependencies.runtime.block_on(classifier.plan_research(
-        crate::smoke::RESEARCH_CANARY_QUERY,
-        crate::research::ResearchBudget::Standard.max_subquestions(),
-        Deadline::new(timeout),
-    ));
-    let (Ok(capabilities), Ok(plan)) = (capabilities, plan) else {
+    let Ok(capabilities) = capabilities else {
         return Ok(CommandOutput::Text {
             stdout: serde_json::json!({
                 "error_kind": "runtime",
@@ -1220,13 +1023,10 @@ fn run_classifier_smoke_probe(timeout_seconds: u64) -> Result<CommandOutput, App
             exit_code: 4,
         });
     };
-    let mut attempts = capabilities.attempts;
-    attempts.extend(plan.attempts);
     Ok(CommandOutput::Text {
         stdout: serde_json::json!({
             "capabilities": capabilities.capabilities.iter().collect::<Vec<_>>(),
-            "research_plan": plan.plan,
-            "provider_attempts": attempts,
+            "provider_attempts": capabilities.attempts,
         })
         .to_string(),
         stderr: None,
@@ -1384,31 +1184,6 @@ fn render_deep_doctor_markdown(
     Ok(output)
 }
 
-fn minimal_research_fallback_plan(query: &str) -> ResearchPlan {
-    ResearchPlan::new(
-        1,
-        ResearchIntentSignals {
-            recency_requirement: RecencyRequirement::None,
-            docs_api_intent: false,
-            source_authority_need: EvidenceStrength::Normal,
-            claim_risk: ClaimRisk::Medium,
-            cross_validation_need: EvidenceStrength::Normal,
-        },
-        vec![ResearchSubquestion {
-            id: "sq1".into(),
-            question: query.into(),
-            reason: "Gather minimum available web evidence".into(),
-            required_capabilities: vec![PlanCapability::WebSearch],
-        }],
-    )
-    .expect("the fixed fallback research plan is valid")
-}
-
-fn default_evidence_dir() -> PathBuf {
-    invocation_temp_dir("forager-evidence")
-}
-
-/// Returns a directory under the system temporary directory that belongs to this invocation.
 pub(super) fn invocation_temp_dir(name: &str) -> PathBuf {
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -1531,13 +1306,11 @@ fn prompt_stage(language: Language, stage: u8, classifier_configured: bool) {
     let label = match (language, stage, classifier_configured) {
         (Language::Zh, 2, _) => "第 2 步：主模型",
         (Language::Zh, 3, true) => "第 3 步：分类器（跳过会保留现值）",
-        (Language::Zh, 3, false) => "第 3 步：分类器（跳过后无法自动路由或生成 research 计划）",
+        (Language::Zh, 3, false) => "第 3 步：分类器（跳过后无法自动路由）",
         (Language::Zh, 4, _) => "第 4 步：补强 provider",
         (Language::En, 2, _) => "Step 2: main model",
         (Language::En, 3, true) => "Step 3: classifier (skip preserves current values)",
-        (Language::En, 3, false) => {
-            "Step 3: classifier (skipping disables automatic routing and research plans)"
-        }
+        (Language::En, 3, false) => "Step 3: classifier (skipping disables automatic routing)",
         (Language::En, 4, _) => "Step 4: supplemental providers",
         (Language::Zh, 5, _) => "第 5 步：平台 route（Scholar 与 YouTube 需要自备 key）",
         (Language::En, 5, _) => "Step 5: platform routes (Scholar and YouTube need your own key)",
@@ -1610,11 +1383,9 @@ fn configure_classifier(
 ) -> Result<(), AppError> {
     let prompt = match (language, configured) {
         (Language::Zh, true) => "配置分类器？[Y/n]（跳过会保留现值）: ",
-        (Language::Zh, false) => "配置分类器？[y/N]（跳过后无法自动路由或生成 research 计划）: ",
+        (Language::Zh, false) => "配置分类器？[y/N]（跳过后无法自动路由）: ",
         (Language::En, true) => "Configure classifier? [Y/n] (skip preserves current values): ",
-        (Language::En, false) => {
-            "Configure classifier? [y/N] (skip disables automatic routing and research plans): "
-        }
+        (Language::En, false) => "Configure classifier? [y/N] (skip disables automatic routing): ",
     };
     if !read_confirmation(input, prompt, configured, language)? {
         return Ok(());

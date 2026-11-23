@@ -7,9 +7,7 @@ This ADR holds two decisions about Documentation Search and its Context7 provide
 **1. Exa first.** Automatic Documentation Search tries Exa before Context7. Context7 is called
 automatically only when Exa returns no consumable candidate, or when the user configures another
 order. A provider result with no normalized source is not consumable, so an empty Context7 answer
-continues down the chain instead of ending it as an empty success. Within one research subquestion,
-candidates are taken round-robin across the declared capabilities before the discovery limit
-applies, so no capability can fill every slot.
+continues down the chain instead of ending it as an empty success.
 
 **2. Context7 as one readable payload.** The direct `context7` commands use the official Context7
 MCP and deliver one documentation body. forager does not invent structured fields the MCP does not
