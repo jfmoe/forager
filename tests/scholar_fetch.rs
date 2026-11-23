@@ -5,7 +5,8 @@ use std::process::Output;
 
 use serde_json::{Value, json};
 
-use support::scholar::{config, fixture, ok, payload, query_pairs};
+use support::query;
+use support::scholar::{config, fixture, ok, payload};
 use support::{Fixture, RunEnvironment};
 
 const KEY: &str = "test-serpapi-key-a";
@@ -29,7 +30,7 @@ fn fetch_requests_one_full_page_of_the_cluster() {
     let (output, request) = run(&[CLUSTER], &fixture("cluster.json"));
 
     assert_eq!(
-        (output.status.code(), query_pairs(&request)),
+        (output.status.code(), query(&request)),
         (
             Some(0),
             BTreeMap::from([
@@ -101,7 +102,7 @@ fn a_cluster_url_fetches_the_cluster_it_names() {
         (
             output.status.code(),
             payload(&output)["ref"].clone(),
-            query_pairs(&request)["cluster"].clone()
+            query(&request)["cluster"].clone()
         ),
         (
             Some(0),

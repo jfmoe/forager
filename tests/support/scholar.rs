@@ -1,7 +1,6 @@
 //! Google Scholar fixtures: trimmed real SerpApi responses, configuration, and request and
 //! output readers shared by the `platform scholar` tests.
 
-use std::collections::BTreeMap;
 use std::process::Output;
 
 use serde_json::Value;
@@ -45,18 +44,6 @@ pub(crate) fn payload(output: &Output) -> Value {
 
 pub(crate) fn stderr(output: &Output) -> String {
     String::from_utf8_lossy(&output.stderr).into_owned()
-}
-
-pub(crate) fn request_target(request: &str) -> reqwest::Url {
-    let target = request.split_whitespace().nth(1).expect("request target");
-    reqwest::Url::parse(&format!("http://fixture.test{target}")).expect("request URL")
-}
-
-pub(crate) fn query_pairs(request: &str) -> BTreeMap<String, String> {
-    request_target(request)
-        .query_pairs()
-        .map(|(name, value)| (name.into_owned(), value.into_owned()))
-        .collect()
 }
 
 pub(crate) fn refs(page: &Value) -> Vec<String> {

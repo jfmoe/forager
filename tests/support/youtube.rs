@@ -182,22 +182,6 @@ pub(crate) fn payload(output: &Output) -> Value {
     })
 }
 
-/// Returns the path of a recorded request.
-pub(crate) fn path(request: &str) -> String {
-    let target = request.split_whitespace().nth(1).expect("request target");
-    target.split('?').next().unwrap_or_default().to_owned()
-}
-
-/// Returns the decoded query parameters of a recorded request.
-pub(crate) fn query(request: &str) -> BTreeMap<String, String> {
-    let target = request.split_whitespace().nth(1).expect("request target");
-    reqwest::Url::parse(&format!("http://fixture.test{target}"))
-        .expect("request URL")
-        .query_pairs()
-        .map(|(name, value)| (name.into_owned(), value.into_owned()))
-        .collect()
-}
-
 /// Returns the value of a request header, matched case-insensitively.
 pub(crate) fn header(request: &str, name: &str) -> Option<String> {
     request

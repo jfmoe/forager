@@ -2,7 +2,6 @@
 //! the shapes the Algolia and Firebase APIs returned on 2026-10-17, and request and output
 //! readers shared by the `platform hn` tests.
 
-use std::collections::BTreeMap;
 use std::process::Output;
 
 use serde_json::{Value, json};
@@ -130,22 +129,6 @@ pub(crate) fn payload(output: &Output) -> Value {
             String::from_utf8_lossy(&output.stderr)
         )
     })
-}
-
-/// Returns the path of a recorded request.
-pub(crate) fn path(request: &str) -> String {
-    let target = request.split_whitespace().nth(1).expect("request target");
-    target.split('?').next().unwrap_or_default().to_owned()
-}
-
-/// Returns the decoded query parameters of a recorded request.
-pub(crate) fn query(request: &str) -> BTreeMap<String, String> {
-    let target = request.split_whitespace().nth(1).expect("request target");
-    reqwest::Url::parse(&format!("http://fixture.test{target}"))
-        .expect("request URL")
-        .query_pairs()
-        .map(|(name, value)| (name.into_owned(), value.into_owned()))
-        .collect()
 }
 
 pub(crate) fn stderr(output: &Output) -> String {

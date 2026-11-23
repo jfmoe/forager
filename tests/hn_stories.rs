@@ -5,8 +5,9 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 
-use support::hn::{config, json, path, payload, query, search_page, stderr, story_hit};
+use support::hn::{config, json, payload, search_page, stderr, story_hit};
 use support::{Fixture, Response, RunEnvironment};
+use support::{path, query};
 
 fn stories(environment: &RunEnvironment, arguments: &[&str]) -> Output {
     let mut command = vec!["platform", "hn", "stories"];

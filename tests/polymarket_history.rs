@@ -2,7 +2,8 @@ mod support;
 
 use serde_json::json;
 
-use support::hn::{path, payload, stderr};
+use support::hn::{payload, stderr};
+use support::path;
 use support::polymarket::{history_config, json as body, run};
 use support::polymarket_samples::{resolved, stored};
 use support::{Fixture, Response, RunEnvironment};

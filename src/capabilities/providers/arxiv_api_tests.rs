@@ -8,7 +8,7 @@ use super::{
     search_support, select_paper,
 };
 use crate::config::HttpRouteRuntimeConfig;
-use crate::fixture_server::{Fixture, Response};
+use crate::fixture_server::{Fixture, Response, block_on, query};
 use crate::net::{RetryPolicy, build_client};
 use crate::providers::RouteContext;
 use crate::rate_limit::test_pacing::paced_limiters;
@@ -51,14 +51,6 @@ fn route(url: &str, deadline: Duration) -> ArxivApi {
     )
 }
 
-fn block_on<T>(future: impl Future<Output = T>) -> T {
-    tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("test runtime")
-        .block_on(future)
-}
-
 fn search_request(query: &str, options: ArxivSearchOptions, limit: u16) -> PlatformSearchRequest {
     PlatformSearchRequest {
         query: query.to_owned(),
@@ -73,15 +65,6 @@ fn fetch_request(reference: &str, depth: ContentDepth) -> PlatformFetchRequest {
         PlatformRef::parse(Platform::Arxiv, reference).expect("valid ref"),
         depth,
     )
-}
-
-fn query_pairs(request: &str) -> BTreeMap<String, String> {
-    let target = request.split_whitespace().nth(1).expect("request target");
-    reqwest::Url::parse(&format!("http://fixture.test{target}"))
-        .expect("request URL")
-        .query_pairs()
-        .map(|(name, value)| (name.into_owned(), value.into_owned()))
-        .collect()
 }
 
 fn items(body: &str) -> Value {
@@ -248,7 +231,7 @@ fn search_page(
     let fixture = Fixture::start_sequence(vec![atom(200, body)]);
     let outcome = block_on(route(&fixture.url, Duration::from_secs(10)).search(request))
         .expect("search succeeds");
-    (outcome, query_pairs(&fixture.finish()))
+    (outcome, query(&fixture.finish()))
 }
 
 /// A search, its page size, the `search_query` it sends, and the other query parameters
@@ -540,7 +523,7 @@ fn fetch_by_url_requests_the_version_the_url_names() {
 
     assert_eq!(
         (
-            query_pairs(&sent).get("id_list").cloned(),
+            query(&sent).get("id_list").cloned(),
             outcome.item.reference.to_string(),
         ),
         (
@@ -588,7 +571,7 @@ fn a_full_text_fetch_probes_the_returned_version_and_orders_its_urls() {
 
         assert_eq!(
             (
-                query_pairs(&sent[0]).get("id_list").cloned(),
+                query(&sent[0]).get("id_list").cloned(),
                 sent[1].lines().next(),
                 outcome.content_source,
             ),

@@ -9,7 +9,7 @@ use super::{
     read_watch_page, render_transcript,
 };
 use crate::config::HttpRouteRuntimeConfig;
-use crate::fixture_server::{Fixture, Response};
+use crate::fixture_server::{Fixture, Response, block_on, query};
 use crate::net::{RetryPolicy, build_client};
 use crate::providers::RouteContext;
 use crate::providers::shared::Refusal;
@@ -221,11 +221,7 @@ fn fetch(
         }),
         ..PlatformFetchRequest::new(PlatformRef::Youtube(zoo()), depth)
     };
-    tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("test runtime")
-        .block_on(route(url).fetch(&request))
+    block_on(route(url).fetch(&request))
 }
 
 /// The method and path of a recorded request.
@@ -234,15 +230,6 @@ fn method_and_path(request: &str) -> String {
     let method = line.next().expect("request method");
     let target = line.next().expect("request target");
     format!("{method} {}", target.split('?').next().unwrap_or_default())
-}
-
-fn query(request: &str) -> BTreeMap<String, String> {
-    let target = request.split_whitespace().nth(1).expect("request target");
-    reqwest::Url::parse(&format!("http://fixture.test{target}"))
-        .expect("request URL")
-        .query_pairs()
-        .map(|(name, value)| (name.into_owned(), value.into_owned()))
-        .collect()
 }
 
 fn pairs(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {

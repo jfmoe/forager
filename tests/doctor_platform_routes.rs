@@ -128,7 +128,7 @@ fn youtube_api_deep_doctor_runs_one_search_with_the_key_in_a_header() {
 
     assert_eq!(
         (
-            support::youtube::path(&request),
+            support::path(&request),
             support::youtube::header(&request, "x-goog-api-key").as_deref(),
             request
                 .lines()
@@ -237,7 +237,7 @@ fn youtube_web_deep_doctor_fetches_the_canary_video_metadata() {
     assert_eq!(
         requests
             .iter()
-            .map(|request| support::youtube::path(request))
+            .map(|request| support::path(request))
             .collect::<Vec<_>>(),
         ["/watch", "/youtubei/v1/player"]
     );
@@ -263,7 +263,7 @@ fn polymarket_api_deep_doctor_checks_the_clob_and_the_data_api_after_its_search(
         &[("search", "http"), ("clob", "http"), ("data", "http")],
     );
     let paths =
-        [gamma.finish(), clob.finish(), data.finish()].map(|request| support::hn::path(&request));
+        [gamma.finish(), clob.finish(), data.finish()].map(|request| support::path(&request));
 
     assert_eq!(paths, ["/public-search", "/time", "/v2/status"]);
 }

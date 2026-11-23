@@ -2,6 +2,8 @@
 //! the crate root, the in-crate tests. Extend it when a test needs new server behavior instead of
 //! writing another server.
 
+use std::collections::BTreeMap;
+use std::future::Future;
 use std::io::{self, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Condvar, Mutex, mpsc};
@@ -619,4 +621,30 @@ fn request_complete(request: &[u8]) -> bool {
         })
         .unwrap_or(0);
     request.len() >= header_end + 4 + content_length
+}
+
+/// The path of a request the fixture server recorded, without its query.
+pub(crate) fn path(request: &str) -> String {
+    let target = request.split_whitespace().nth(1).expect("request target");
+    target.split('?').next().unwrap_or_default().to_owned()
+}
+
+/// The decoded query parameters of a request the fixture server recorded.
+pub(crate) fn query(request: &str) -> BTreeMap<String, String> {
+    let target = request.split_whitespace().nth(1).expect("request target");
+    reqwest::Url::parse(&format!("http://fixture.test{target}"))
+        .expect("request URL")
+        .query_pairs()
+        .map(|(name, value)| (name.into_owned(), value.into_owned()))
+        .collect()
+}
+
+/// Runs `future` to completion on a current-thread runtime, for an in-crate test that drives a
+/// route against the fixture server.
+pub(crate) fn block_on<T>(future: impl Future<Output = T>) -> T {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("test runtime")
+        .block_on(future)
 }

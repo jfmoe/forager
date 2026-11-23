@@ -4,8 +4,9 @@ use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use serde_json::{Value, json};
 
-use support::hn::{comment_hit, config, path, payload, query, search_page, story_hit};
+use support::hn::{comment_hit, config, payload, search_page, story_hit};
 use support::{Fixture, Response, RunEnvironment};
+use support::{path, query};
 
 fn search(environment: &RunEnvironment, arguments: &[&str]) -> std::process::Output {
     let mut command = vec!["platform", "hn", "search"];

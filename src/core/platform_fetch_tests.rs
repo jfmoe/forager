@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 
 use super::{fetch, plan_fetch};
 use crate::config::runtime_config_from_toml;
-use crate::fixture_server::{Fixture, Response};
+use crate::fixture_server::{Fixture, Response, block_on};
 use crate::net::{RetryPolicy, build_client};
 use crate::samples::sample;
 use crate::types::{
@@ -81,18 +81,14 @@ fn run(
         depth,
     );
     let plan = plan_fetch(runtime.platforms.get(Platform::Arxiv), request).expect("plan");
-    tokio::runtime::Builder::new_current_thread()
-        .enable_all()
-        .build()
-        .expect("test runtime")
-        .block_on(fetch(
-            plan,
-            runtime.web_fetch,
-            build_client(true).expect("build client"),
-            RetryPolicy::new(1, 1.0, Duration::ZERO),
-            Deadline::new(Duration::from_mins(1)),
-            verbose,
-        ))
+    block_on(fetch(
+        plan,
+        runtime.web_fetch,
+        build_client(true).expect("build client"),
+        RetryPolicy::new(1, 1.0, Duration::ZERO),
+        Deadline::new(Duration::from_mins(1)),
+        verbose,
+    ))
 }
 
 fn fetched_url(request: &str) -> String {
@@ -279,7 +275,7 @@ mod youtube_web {
     use super::fetch;
     use super::plan_fetch;
     use crate::config::runtime_config_from_toml;
-    use crate::fixture_server::{Fixture, Response};
+    use crate::fixture_server::{Fixture, Response, block_on};
     use crate::net::{RetryPolicy, build_client};
     use crate::samples::sample;
     use crate::types::{
@@ -318,19 +314,15 @@ mod youtube_web {
         );
         let plan = plan_fetch(runtime.platforms.get(Platform::Youtube), request).expect("plan");
 
-        let result = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("test runtime")
-            .block_on(fetch(
-                plan,
-                runtime.web_fetch,
-                build_client(true).expect("build client"),
-                RetryPolicy::new(1, 1.0, Duration::ZERO),
-                Deadline::new(Duration::from_mins(1)),
-                true,
-            ))
-            .expect("the fetch succeeds");
+        let result = block_on(fetch(
+            plan,
+            runtime.web_fetch,
+            build_client(true).expect("build client"),
+            RetryPolicy::new(1, 1.0, Duration::ZERO),
+            Deadline::new(Duration::from_mins(1)),
+            true,
+        ))
+        .expect("the fetch succeeds");
         youtube.finish_all();
         let content = result.content.expect("full text");
 

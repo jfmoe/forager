@@ -4,7 +4,7 @@
 mod support;
 
 use serde_json::{Value, json};
-use support::hn::path;
+use support::path;
 use support::polymarket::{json as body, last_trades, price_page, prices};
 use support::polymarket_samples::{event, market, resolved, search_page, stored, tokens};
 use support::smoke::{DISABLED_PLATFORMS, SmokeEnvironment, case};

@@ -5,8 +5,9 @@ mod support;
 
 use serde_json::{Value, json};
 
-use support::scholar::{config, fixture, ok, payload, query_pairs, request_target};
+use support::scholar::{config, fixture, ok, payload};
 use support::{Fixture, Response, RunEnvironment};
+use support::{path, query};
 
 #[test]
 fn deep_doctor_reports_the_quota_of_every_key_from_the_account_api() {
@@ -39,8 +40,8 @@ fn deep_doctor_reports_the_quota_of_every_key_from_the_account_api() {
         requests
             .iter()
             .map(|request| (
-                request_target(request).path().to_owned(),
-                query_pairs(request).into_iter().collect::<Vec<_>>()
+                path(request),
+                query(request).into_iter().collect::<Vec<_>>()
             ))
             .collect::<Vec<_>>(),
         ["first-key", "second-key"].map(|key| (

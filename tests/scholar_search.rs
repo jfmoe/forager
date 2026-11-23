@@ -7,8 +7,9 @@ use base64::Engine as _;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use serde_json::{Value, json};
 
-use support::scholar::{config, fixture, ok, payload, query_pairs, refs, request_target, stderr};
+use support::scholar::{config, fixture, ok, payload, refs, stderr};
 use support::{Fixture, Response, RunEnvironment};
+use support::{path, query};
 
 const KEY: &str = "test-serpapi-key-a";
 const SECOND_KEY: &str = "test-serpapi-key-b";
@@ -61,8 +62,8 @@ fn search_sends_the_engine_language_query_and_page_size_with_the_key() {
     assert_eq!(
         (
             output.status.code(),
-            request_target(&requests[0]).path().to_owned(),
-            query_pairs(&requests[0]),
+            path(&requests[0]),
+            query(&requests[0]),
         ),
         (
             Some(0),
@@ -97,7 +98,7 @@ fn year_bounds_and_review_only_join_the_query_parameters() {
         ],
         vec![ok(&fixture("search.json"))],
     );
-    let query = query_pairs(&requests[0]);
+    let query = query(&requests[0]);
 
     assert_eq!(
         (
@@ -116,7 +117,7 @@ fn year_bounds_and_review_only_join_the_query_parameters() {
 #[test]
 fn a_search_without_years_or_review_only_sends_no_filter_parameters() {
     let (output, requests) = run(&[KEY], &["momentum"], vec![ok(&fixture("search.json"))]);
-    let query = query_pairs(&requests[0]);
+    let query = query(&requests[0]);
 
     assert_eq!(
         (
@@ -132,10 +133,7 @@ fn the_page_size_defaults_to_twenty() {
     let (output, requests) = run(&[KEY], &["momentum"], vec![ok(&fixture("search.json"))]);
 
     assert_eq!(
-        (
-            output.status.code(),
-            query_pairs(&requests[0])["num"].as_str()
-        ),
+        (output.status.code(), query(&requests[0])["num"].as_str()),
         (Some(0), "20")
     );
 }
@@ -215,7 +213,7 @@ fn a_cursor_resumes_the_next_page_with_every_original_condition() {
         .to_owned();
     let second = search(&environment, &["--cursor", &cursor]);
     let requests = fixture.finish_all();
-    let mut resumed = query_pairs(&requests[1]);
+    let mut resumed = query(&requests[1]);
     let start = resumed.remove("start");
 
     assert_eq!(
@@ -225,7 +223,7 @@ fn a_cursor_resumes_the_next_page_with_every_original_condition() {
             start.as_deref(),
             resumed,
         ),
-        (Some(0), true, Some("10"), query_pairs(&requests[0])),
+        (Some(0), true, Some("10"), query(&requests[0])),
         "stderr: {}",
         stderr(&second)
     );
@@ -243,7 +241,7 @@ fn the_last_page_google_scholar_offers_has_no_next_cursor() {
     assert_eq!(
         (
             output.status.code(),
-            query_pairs(&requests[0])["start"].as_str(),
+            query(&requests[0])["start"].as_str(),
             page["items"].as_array().map(Vec::len),
             &page["next_cursor"],
         ),
@@ -289,7 +287,7 @@ fn twenty_result_pages_reach_result_1000_exactly() {
 
     assert_eq!(
         (
-            query_pairs(&requests[0])["start"].as_str(),
+            query(&requests[0])["start"].as_str(),
             &payload(&output)["next_cursor"]
         ),
         ("980", &Value::Null)
@@ -657,7 +655,7 @@ fn an_exhausted_key_rotates_to_the_next_key_in_the_same_request() {
         .collect::<Vec<_>>();
     let keys = requests
         .iter()
-        .map(|request| query_pairs(request)["api_key"].clone())
+        .map(|request| query(request)["api_key"].clone())
         .collect::<Vec<_>>();
 
     assert_eq!(
