@@ -417,7 +417,7 @@ fn a_discussion_ranks_top_level_comments_by_firebase_and_replies_by_time() {
     let tree = decode_tree(&stored_body("item-tree.json")).expect("a discussion tree");
     let live = decode_json::<FirebaseItem>(&stored_body("firebase-item.json")).expect("an item");
 
-    let (item, markdown) = thread_item(hn(8863), HnItemType::Story, tree, Some(&live), None);
+    let (item, markdown) = thread_item(hn(8863), HnItemType::Story, tree, Some(&live), None, None);
 
     assert_eq!(
         (to_json(&item), markdown),

@@ -3,10 +3,10 @@ mod support;
 use serde_json::json;
 
 use support::youtube::{
-    KEY, comment, comment_thread, comment_threads_page, config, header, pairs, payload, stderr,
+    KEY, comment, comment_thread, comment_threads_page, config, pairs, payload, stderr,
 };
 use support::{Fixture, RunEnvironment};
-use support::{path, query};
+use support::{header, path, query};
 
 fn comments(environment: &RunEnvironment, arguments: &[&str]) -> std::process::Output {
     let mut command = vec!["platform", "youtube", "comments"];

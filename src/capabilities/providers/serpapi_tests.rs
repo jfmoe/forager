@@ -155,7 +155,7 @@ fn next_page(outcome: Result<PlatformSearchOutcome, ProviderError>) -> Option<St
 
 // The HTTP 200 success protocol.
 
-fn decided(body: &Value) -> Result<SearchResults, (AttemptErrorKind, String)> {
+fn results_or_failure(body: &Value) -> Result<SearchResults, (AttemptErrorKind, String)> {
     success_protocol(&body.to_string()).map_err(|failure| (failure.kind, failure.message))
 }
 
@@ -173,7 +173,7 @@ fn results_with_success_are_found_with_the_next_page_signal() {
         json!({"current": 1}),
         Value::Null,
     ]
-    .map(|pagination| decided(&page(pagination)));
+    .map(|pagination| results_or_failure(&page(pagination)));
 
     let found = |has_next_page| {
         Ok(SearchResults::Found {
@@ -187,7 +187,7 @@ fn results_with_success_are_found_with_the_next_page_signal() {
 #[test]
 fn a_fully_empty_success_without_results_is_empty() {
     assert_eq!(
-        decided(&stored("fully-empty.json")),
+        results_or_failure(&stored("fully-empty.json")),
         Ok(SearchResults::Empty)
     );
 }
@@ -195,7 +195,7 @@ fn a_fully_empty_success_without_results_is_empty() {
 #[test]
 fn an_error_status_is_a_network_failure_with_serpapi_message() {
     assert_eq!(
-        decided(&stored("status-error.json")),
+        results_or_failure(&stored("status-error.json")),
         Err((
             AttemptErrorKind::Network,
             "SerpApi reported an error: Google hasn't returned any results for this query."
@@ -220,7 +220,7 @@ fn any_other_status_or_results_shape_is_a_runtime_failure() {
         json!({"search_metadata": {}, "organic_results": [{"title": "x"}]}),
         json!({"search_metadata": {"status": "Processing"}, "organic_results": [{"title": "x"}]}),
     ]
-    .map(|body| decided(&body));
+    .map(|body| results_or_failure(&body));
 
     let runtime = |message: &str| Err((AttemptErrorKind::Runtime, message.to_owned()));
     assert_eq!(
@@ -239,7 +239,7 @@ fn any_other_status_or_results_shape_is_a_runtime_failure() {
 
 #[test]
 fn a_body_that_is_no_serpapi_envelope_is_a_runtime_failure() {
-    let failure = decided(&json!({
+    let failure = results_or_failure(&json!({
         "search_metadata": {"status": "Success"},
         "organic_results": {"position": 1}
     }))

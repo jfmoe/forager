@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 
 use super::{GeminiApi, GenerateResponse, decode_answer, decode_generated, failure_message};
 use crate::config::ModelRouteRuntimeConfig;
-use crate::fixture_server::{Fixture, Response, block_on, path};
+use crate::fixture_server::{Fixture, Response, block_on, header, path};
 use crate::net::{RetryPolicy, build_client};
 use crate::providers::RouteContext;
 // The stored bodies below read the sample store through this name.
@@ -102,22 +102,6 @@ fn failure<T>(result: Result<T, ProviderError>) -> (AttemptErrorKind, String) {
     }
 }
 
-/// Returns the value of a request header, matched case-insensitively.
-fn header(request: &str, name: &str) -> Option<String> {
-    request
-        .split("\r\n\r\n")
-        .next()
-        .unwrap_or_default()
-        .lines()
-        .skip(1)
-        .find_map(|line| {
-            let (key, value) = line.split_once(':')?;
-            key.trim()
-                .eq_ignore_ascii_case(name)
-                .then(|| value.trim().to_owned())
-        })
-}
-
 fn request_json(request: &str) -> Value {
     let (_, body) = request.split_once("\r\n\r\n").expect("request body");
     serde_json::from_str(body).expect("request JSON")
@@ -125,7 +109,7 @@ fn request_json(request: &str) -> Value {
 
 /// What an attempt records about the route: provider, target, disposition, status, model and
 /// transport.
-fn identity(
+fn route_fields(
     attempt: &ProviderAttempt,
 ) -> (
     &'static str,
@@ -273,7 +257,11 @@ fn a_question_travels_with_the_video_url_and_the_key_only_in_its_header() {
             outcome.answer.as_str(),
             outcome.model.as_deref(),
             outcome.usage,
-            outcome.attempts.iter().map(identity).collect::<Vec<_>>(),
+            outcome
+                .attempts
+                .iter()
+                .map(route_fields)
+                .collect::<Vec<_>>(),
         ),
         (
             "Two elephants stand behind him (00:01).",
@@ -449,7 +437,11 @@ fn a_transcription_asks_for_the_transcript_schema_and_renders_the_model_transcri
             outcome.diagnostic.as_deref(),
             outcome.model.as_deref(),
             outcome.usage,
-            outcome.attempts.iter().map(identity).collect::<Vec<_>>(),
+            outcome
+                .attempts
+                .iter()
+                .map(route_fields)
+                .collect::<Vec<_>>(),
         ),
         (
             ("en", TranscriptSource::Model, 3, 2),

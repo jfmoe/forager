@@ -129,7 +129,7 @@ fn youtube_api_deep_doctor_runs_one_search_with_the_key_in_a_header() {
     assert_eq!(
         (
             support::path(&request),
-            support::youtube::header(&request, "x-goog-api-key").as_deref(),
+            support::header(&request, "x-goog-api-key").as_deref(),
             request
                 .lines()
                 .next()

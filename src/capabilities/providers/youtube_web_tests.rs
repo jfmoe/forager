@@ -9,7 +9,7 @@ use super::{
     read_watch_page, render_transcript,
 };
 use crate::config::HttpRouteRuntimeConfig;
-use crate::fixture_server::{Fixture, Response, block_on, query};
+use crate::fixture_server::{Fixture, Response, block_on, header, query};
 use crate::net::{RetryPolicy, build_client};
 use crate::providers::RouteContext;
 use crate::providers::shared::Refusal;
@@ -237,21 +237,6 @@ fn pairs(pairs: &[(&str, &str)]) -> BTreeMap<String, String> {
         .iter()
         .map(|(name, value)| ((*name).to_owned(), (*value).to_owned()))
         .collect()
-}
-
-fn header(request: &str, name: &str) -> Option<String> {
-    request
-        .split("\r\n\r\n")
-        .next()
-        .unwrap_or_default()
-        .lines()
-        .skip(1)
-        .find_map(|line| {
-            let (key, value) = line.split_once(':')?;
-            key.trim()
-                .eq_ignore_ascii_case(name)
-                .then(|| value.trim().to_owned())
-        })
 }
 
 fn request_json(request: &str) -> Value {
