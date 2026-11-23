@@ -4,7 +4,7 @@
 //! `&[ProviderAttempt]` chain: cross-provider terminal attribution
 //! ([`terminal_attempt`]), successful-provider extraction
 //! ([`successful_provider`]), the fallback definition
-//! ([`identity_fallback_occurred`]), and the bounded attempt summary
+//! ([`fallback_occurred`]), and the bounded attempt summary
 //! ([`bounded_attempt_summary`]). Consumers — the Search Result Journal, the
 //! stderr attempt log, and exit-code attribution — read projections from here
 //! instead of re-interpreting the raw chain.
@@ -63,12 +63,13 @@ pub(crate) fn successful_provider(
         .map(|attempt| attempt.provider)
 }
 
-/// Returns whether the `(provider, model)` identity changed within the same
-/// [`AttemptTarget`](crate::types::AttemptTarget).
+/// Returns whether a fallback occurred: the `(provider, model)` identity
+/// changed within the same [`AttemptTarget`](crate::types::AttemptTarget), so a
+/// same-provider model switch counts and a move to another seam does not.
 ///
-/// This is the stderr attempt log `fallback` semantics: "did any degradation
-/// happen, including a same-provider model switch".
-pub(crate) fn identity_fallback_occurred(attempts: &[ProviderAttempt]) -> bool {
+/// This is forager's one definition of a fallback; the stderr attempt log
+/// reports it as its `fallback` field.
+pub(crate) fn fallback_occurred(attempts: &[ProviderAttempt]) -> bool {
     let mut identity_by_target = BTreeMap::new();
     for attempt in attempts {
         let identity = (attempt.provider, attempt.model.as_deref());
@@ -117,7 +118,7 @@ pub fn bounded_attempt_summary(attempts: &[ProviderAttempt]) -> Value {
 #[cfg(test)]
 mod tests {
     use super::{
-        bounded_attempt_summary, identity_fallback_occurred, successful_provider, terminal_attempt,
+        bounded_attempt_summary, fallback_occurred, successful_provider, terminal_attempt,
     };
     use crate::types::{AttemptDisposition, AttemptErrorKind, AttemptTarget, ProviderAttempt};
 
@@ -225,22 +226,22 @@ mod tests {
     }
 
     #[test]
-    fn identity_fallback_occurred_detects_a_same_target_model_change() {
+    fn fallback_occurred_detects_a_same_target_model_change() {
         let first = attempt("fixture", AttemptErrorKind::Runtime);
         let mut second = attempt("fixture", AttemptErrorKind::Network);
         second.model = Some("fallback-model".into());
 
-        assert!(identity_fallback_occurred(&[first, second]));
+        assert!(fallback_occurred(&[first, second]));
     }
 
     #[test]
-    fn identity_fallback_occurred_ignores_a_seam_transition() {
+    fn fallback_occurred_ignores_a_seam_transition() {
         let mut web_search = attempt("tavily", AttemptErrorKind::Runtime);
         web_search.target = AttemptTarget::seam("web_search");
         web_search.model = Some("web-search-model".into());
         let main_search = attempt("fixture", AttemptErrorKind::Network);
 
-        assert!(!identity_fallback_occurred(&[web_search, main_search]));
+        assert!(!fallback_occurred(&[web_search, main_search]));
     }
 
     #[test]

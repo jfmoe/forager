@@ -6,7 +6,7 @@ use chrono::NaiveDate;
 use clap::{Args, Subcommand, ValueEnum};
 
 use super::{PageInput, PlatformCommonArgs, fetch, parse_date, preflight_error, search};
-use crate::app::args::{DocsOutputFormat, OutputFormat};
+use crate::app::args::{ContentOutputFormat, OutputFormat};
 use crate::app::dispatch::{AppError, CommandOutput, NetworkDependencies, provider_attempt_log};
 use crate::platform_operation;
 use crate::types::{
@@ -57,8 +57,8 @@ pub(in crate::app) struct PolymarketFetchArgs {
     #[arg(long, value_enum, default_value_t = PolymarketDepthArg::Metadata)]
     depth: PolymarketDepthArg,
     /// `content` prints the resolution rules of an `abstract` fetch.
-    #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
-    format: DocsOutputFormat,
+    #[arg(long, value_enum, default_value_t = ContentOutputFormat::Json)]
+    format: ContentOutputFormat,
     #[command(flatten)]
     common: PlatformCommonArgs,
 }

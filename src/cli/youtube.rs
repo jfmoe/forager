@@ -10,7 +10,7 @@ use super::{
     PageInput, PlatformCommonArgs, ask, comments, content_file_stem, deliver, fetch, parse_date,
     preflight_error, run_page, search,
 };
-use crate::app::args::{DocsOutputFormat, OutputArgs, OutputFormat};
+use crate::app::args::{ContentOutputFormat, OutputArgs, OutputFormat};
 use crate::app::dispatch::{
     AppError, CommandOutput, NetworkDependencies, invocation_temp_dir, provider_attempt_log,
 };
@@ -105,8 +105,8 @@ pub(in crate::app) struct YoutubeFetchArgs {
     #[arg(long, value_name = "DIR")]
     content_dir: Option<PathBuf>,
     /// `content` prints the description (or the full text) to stdout and writes no file.
-    #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
-    format: DocsOutputFormat,
+    #[arg(long, value_enum, default_value_t = ContentOutputFormat::Json)]
+    format: ContentOutputFormat,
     #[command(flatten)]
     common: PlatformCommonArgs,
 }
@@ -166,8 +166,8 @@ pub(in crate::app) struct YoutubeTranscribeArgs {
     #[arg(long, value_name = "DIR")]
     content_dir: Option<PathBuf>,
     /// `content` prints the transcript to stdout and writes no file.
-    #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
-    format: DocsOutputFormat,
+    #[arg(long, value_enum, default_value_t = ContentOutputFormat::Json)]
+    format: ContentOutputFormat,
     #[command(flatten)]
     common: ModelCommonArgs,
 }
@@ -443,7 +443,7 @@ fn youtube_transcribe(arguments: YoutubeTranscribeArgs) -> Result<CommandOutput,
             common.verbose,
         ))
         .and_then(|transcribed| {
-            if format == DocsOutputFormat::Content {
+            if format == ContentOutputFormat::Content {
                 return Ok(transcribed);
             }
             let PlatformTranscribeResult {

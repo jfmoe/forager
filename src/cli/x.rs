@@ -4,7 +4,7 @@ use chrono::NaiveDate;
 use clap::{Args, Subcommand, ValueEnum};
 
 use super::{PageInput, PlatformCommonArgs, ask, fetch, parse_date, search};
-use crate::app::args::{DocsOutputFormat, OutputFormat};
+use crate::app::args::{ContentOutputFormat, OutputFormat};
 use crate::app::dispatch::{AppError, CommandOutput};
 use crate::types::{
     ContentDepth, Platform, PlatformAskRequest, PlatformFetchRequest, PlatformRef,
@@ -76,8 +76,8 @@ pub(in crate::app) struct XFetchArgs {
     #[arg(long, value_enum, default_value_t = XDepthArg::Thread)]
     depth: XDepthArg,
     /// `content` prints the post text, or the thread as Markdown.
-    #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
-    format: DocsOutputFormat,
+    #[arg(long, value_enum, default_value_t = ContentOutputFormat::Json)]
+    format: ContentOutputFormat,
     #[command(flatten)]
     common: PlatformCommonArgs,
 }

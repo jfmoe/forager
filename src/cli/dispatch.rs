@@ -7,7 +7,8 @@ use serde_json::Value;
 use thiserror::Error;
 
 use super::args::{
-    Cli, Command, ConfigCommand, DocsOutputFormat, ExaCommand, Language, OutputFormat, OutputTarget,
+    Cli, Command, ConfigCommand, ContentOutputFormat, ExaCommand, Language, OutputFormat,
+    OutputTarget,
 };
 use crate::config::{self, ConfigError, ConfigLocation, EditError};
 use crate::net::{self, RetryPolicy};
@@ -58,7 +59,7 @@ pub enum CommandOutput {
         /// Search Result Journal side-channel outcome.
         journal: JournalOutcome,
         /// Requested output format.
-        format: DocsOutputFormat,
+        format: ContentOutputFormat,
         /// Optional output file destination.
         output: Option<OutputTarget>,
     },
@@ -69,7 +70,7 @@ pub enum CommandOutput {
         /// Search Result Journal side-channel outcome.
         journal: JournalOutcome,
         /// Requested output format.
-        format: DocsOutputFormat,
+        format: ContentOutputFormat,
         /// Optional output file destination.
         output: Option<OutputTarget>,
         /// Whether full provider attempts should be rendered inline.
@@ -93,7 +94,7 @@ pub enum CommandOutput {
         /// Fetch result.
         result: Result<FetchOutcome, ProviderError>,
         /// Requested output format.
-        format: DocsOutputFormat,
+        format: ContentOutputFormat,
         /// Optional output file destination.
         output: Option<OutputTarget>,
         /// Optional terminal projection selected by `log.level`.
@@ -116,7 +117,7 @@ pub enum CommandOutput {
         /// `content`.
         result: Box<Result<PlatformFetchResult, ProviderError>>,
         /// Requested output format.
-        format: DocsOutputFormat,
+        format: ContentOutputFormat,
         /// Optional output file destination.
         output: Option<OutputTarget>,
         /// Optional terminal projection selected by `log.level`.
@@ -152,7 +153,7 @@ pub enum CommandOutput {
         /// `content`.
         result: Box<Result<PlatformTranscribeResult, ProviderError>>,
         /// Requested output format.
-        format: DocsOutputFormat,
+        format: ContentOutputFormat,
         /// Optional output file destination.
         output: Option<OutputTarget>,
         /// Optional terminal projection selected by `log.level`.
