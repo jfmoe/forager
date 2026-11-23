@@ -25,7 +25,7 @@ fn config_list_reports_the_complete_default_effective_view() {
         ),
         (
             Some(0),
-            76,
+            71,
             None,
             &serde_json::json!({
                 "value": [],

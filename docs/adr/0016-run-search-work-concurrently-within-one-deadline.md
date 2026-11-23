@@ -4,9 +4,8 @@
 
 forager runs independent provider work concurrently and keeps dependent steps in order.
 
-- The classifier runs first, because it decides the capability set. Main search and the
-  supplemental capabilities then start together, instead of supplemental work waiting for main
-  search to succeed.
+- Main search and the declared supplemental capabilities start together, instead of supplemental
+  work waiting for main search to succeed.
 - Independent work fans out inside a search's supplemental stage. A provider fallback chain inside
   one seam stays strictly sequential (ADR-0007).
 - Each fan-out point has its own fixed width in code, not a configuration key and not a shared

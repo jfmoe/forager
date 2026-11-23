@@ -323,8 +323,6 @@ impl SearchContext {
         })
     }
 
-    // Search orchestration is kept together so attempt and journal ordering stay auditable.
-    #[expect(clippy::too_many_lines)]
     fn search(
         self,
         request: providers::MainSearchRequest,
@@ -340,86 +338,33 @@ impl SearchContext {
         let query = request.query.clone();
         let started = Instant::now();
         let deadline = Deadline::new(self.timeout);
-        let (
-            capabilities,
-            decision_source,
-            classifier_degraded,
-            classifier_duration,
-            classifier_attempts,
-            classifier_warning,
-        ) = match capabilities {
-            Some(capabilities) => (capabilities, "caller", false, None, Vec::new(), None),
-            None if !self.config.classifier.configured() => (
-                CapabilitySet::default_supplemental_web_search(),
-                "default_web_search",
-                false,
-                None,
-                Vec::new(),
-                None,
-            ),
-            None => {
-                let classifier = crate::classifier::Classifier::new(
-                    self.config.classifier.clone(),
-                    self.client.clone(),
-                    self.retry_policy,
-                );
-                match self.runtime.block_on(classifier.classify(&query, deadline)) {
-                    Ok(decision) => (
-                        decision.capabilities,
-                        "classifier",
-                        false,
-                        Some(decision.duration),
-                        decision.attempts,
-                        None,
-                    ),
-                    Err(failure) => (
-                        CapabilitySet::default_supplemental_web_search(),
-                        "classifier_degraded",
-                        true,
-                        Some(failure.duration),
-                        failure.attempts,
-                        Some(format!(
-                            "Classifier warning: {}; using default web_search capability",
-                            failure.message
-                        )),
-                    ),
-                }
-            }
+        let (capabilities, decision_source) = match capabilities {
+            Some(capabilities) => (capabilities, "caller"),
+            None => (CapabilitySet::default(), "default_main_search_only"),
         };
         let journal_capabilities = capabilities.iter().collect::<Vec<_>>();
-        let (mut main_result, capability_results) =
-            self.runtime.block_on(futures_util::future::join(
-                crate::engine::search(
-                    request,
-                    self.config.main_search.clone(),
+        let (main_result, capability_results) = self.runtime.block_on(futures_util::future::join(
+            crate::engine::search(
+                request,
+                self.config.main_search.clone(),
+                fallback,
+                self.client.clone(),
+                self.retry_policy,
+                deadline,
+            ),
+            crate::search_fanout::execute_capabilities(
+                &query,
+                &capabilities,
+                extra_sources,
+                &self.config,
+                crate::engine::CapabilityExecution::new(
                     fallback,
                     self.client.clone(),
                     self.retry_policy,
                     deadline,
                 ),
-                crate::search_fanout::execute_capabilities(
-                    &query,
-                    &capabilities,
-                    extra_sources,
-                    &self.config,
-                    crate::engine::CapabilityExecution::new(
-                        fallback,
-                        self.client.clone(),
-                        self.retry_policy,
-                        deadline,
-                    ),
-                ),
-            ));
-        let (attempts, diagnostic) = match &mut main_result {
-            Ok(outcome) => (&mut outcome.attempts, &mut outcome.diagnostic),
-            Err(error) => (&mut error.attempts, &mut error.diagnostic),
-        };
-        prepend_classifier_context(
-            attempts,
-            diagnostic,
-            classifier_attempts,
-            classifier_warning,
-        );
+            ),
+        ));
         let result = match main_result {
             Ok(mut outcome) => {
                 outcome.capabilities = capabilities.iter().collect();
@@ -436,8 +381,6 @@ impl SearchContext {
                 elapsed: started.elapsed(),
                 capabilities: &journal_capabilities,
                 decision_source,
-                classifier_degraded,
-                classifier_duration,
                 result: &result,
             },
         );
@@ -937,7 +880,6 @@ fn run_smoke_probe(
     url: Option<&str>,
 ) -> Result<CommandOutput, AppError> {
     match crate::smoke::probe_kind(case_id).map_err(AppError::Argument)? {
-        crate::smoke::ProbeKind::Classifier => run_classifier_smoke_probe(timeout_seconds),
         crate::smoke::ProbeKind::Supplemental(provider) => {
             run_supplemental_smoke_probe(provider.name(), timeout_seconds)
         }
@@ -993,44 +935,6 @@ fn run_outage_smoke_probe(url: &str, timeout_seconds: u64) -> Result<CommandOutp
         stdout: serde_json::json!({"outage": outage}).to_string(),
         stderr: None,
         exit_code: if outage { 4 } else { 0 },
-    })
-}
-
-fn run_classifier_smoke_probe(timeout_seconds: u64) -> Result<CommandOutput, AppError> {
-    let dependencies = NetworkDependencies::load()?;
-    if !dependencies.config.classifier.configured() {
-        return Err(AppError::Config(ConfigError::Message(
-            "classifier.keys has no configured credentials".into(),
-        )));
-    }
-    let classifier = crate::classifier::Classifier::new(
-        dependencies.config.classifier,
-        dependencies.client,
-        RetryPolicy::new(1, 1.0, Duration::ZERO),
-    );
-    let timeout = Duration::from_secs(timeout_seconds);
-    let capabilities = dependencies
-        .runtime
-        .block_on(classifier.classify(crate::smoke::PIPELINE_CANARY_QUERY, Deadline::new(timeout)));
-    let Ok(capabilities) = capabilities else {
-        return Ok(CommandOutput::Text {
-            stdout: serde_json::json!({
-                "error_kind": "runtime",
-                "message": "classifier live contract probe failed"
-            })
-            .to_string(),
-            stderr: None,
-            exit_code: 4,
-        });
-    };
-    Ok(CommandOutput::Text {
-        stdout: serde_json::json!({
-            "capabilities": capabilities.capabilities.iter().collect::<Vec<_>>(),
-            "provider_attempts": capabilities.attempts,
-        })
-        .to_string(),
-        stderr: None,
-        exit_code: 0,
     })
 }
 
@@ -1194,20 +1098,6 @@ pub(super) fn invocation_temp_dir(name: &str) -> PathBuf {
         .join(format!("{}-{timestamp}", std::process::id()))
 }
 
-fn prepend_classifier_context(
-    attempts: &mut Vec<ProviderAttempt>,
-    diagnostic: &mut Option<String>,
-    classifier_attempts: Vec<ProviderAttempt>,
-    classifier_warning: Option<String>,
-) {
-    attempts.splice(0..0, classifier_attempts);
-    *diagnostic = combine_diagnostics(
-        [classifier_warning, diagnostic.take()]
-            .into_iter()
-            .flatten(),
-    );
-}
-
 pub(super) fn provider_attempt_log<'a, T>(
     level: config::LogLevel,
     result: &'a Result<T, ProviderError>,
@@ -1260,14 +1150,10 @@ fn run_interactive_setup(language: Option<Language>) -> Result<CommandOutput, Ap
     };
     let mut document = config::SetupDocument::load()?;
 
-    prompt_stage(language, 2, false);
+    prompt_stage(language, 2);
     configure_model(&mut input, language, &mut document, "xai")?;
 
-    let classifier_configured = document.classifier_is_configured();
-    prompt_stage(language, 3, classifier_configured);
-    configure_classifier(&mut input, language, &mut document, classifier_configured)?;
-
-    prompt_stage(language, 4, false);
+    prompt_stage(language, 3);
     configure_optional_keys(
         &mut input,
         language,
@@ -1275,7 +1161,7 @@ fn run_interactive_setup(language: Option<Language>) -> Result<CommandOutput, Ap
         &["exa", "context7", "jina", "tavily", "firecrawl"],
     )?;
 
-    prompt_stage(language, 5, false);
+    prompt_stage(language, 4);
     let keyed_routes = ["serpapi", "youtube_api"];
     configure_optional_keys(&mut input, language, &mut document, &keyed_routes)?;
 
@@ -1302,18 +1188,14 @@ fn choose_language(input: &mut impl BufRead) -> Result<Language, AppError> {
     }
 }
 
-fn prompt_stage(language: Language, stage: u8, classifier_configured: bool) {
-    let label = match (language, stage, classifier_configured) {
-        (Language::Zh, 2, _) => "第 2 步：主模型",
-        (Language::Zh, 3, true) => "第 3 步：分类器（跳过会保留现值）",
-        (Language::Zh, 3, false) => "第 3 步：分类器（跳过后无法自动路由）",
-        (Language::Zh, 4, _) => "第 4 步：补强 provider",
-        (Language::En, 2, _) => "Step 2: main model",
-        (Language::En, 3, true) => "Step 3: classifier (skip preserves current values)",
-        (Language::En, 3, false) => "Step 3: classifier (skipping disables automatic routing)",
-        (Language::En, 4, _) => "Step 4: supplemental providers",
-        (Language::Zh, 5, _) => "第 5 步：平台 route（Scholar 与 YouTube 需要自备 key）",
-        (Language::En, 5, _) => "Step 5: platform routes (Scholar and YouTube need your own key)",
+fn prompt_stage(language: Language, stage: u8) {
+    let label = match (language, stage) {
+        (Language::Zh, 2) => "第 2 步：主模型",
+        (Language::Zh, 3) => "第 3 步：补强 provider",
+        (Language::En, 2) => "Step 2: main model",
+        (Language::En, 3) => "Step 3: supplemental providers",
+        (Language::Zh, 4) => "第 4 步：平台 route（Scholar 与 YouTube 需要自备 key）",
+        (Language::En, 4) => "Step 4: platform routes (Scholar and YouTube need your own key)",
         _ => return,
     };
     eprintln!("{label}");
@@ -1373,67 +1255,6 @@ fn configure_model(
     }
     document.set_string(&model_path, &model)?;
     Ok(())
-}
-
-fn configure_classifier(
-    input: &mut impl BufRead,
-    language: Language,
-    document: &mut config::SetupDocument,
-    configured: bool,
-) -> Result<(), AppError> {
-    let prompt = match (language, configured) {
-        (Language::Zh, true) => "配置分类器？[Y/n]（跳过会保留现值）: ",
-        (Language::Zh, false) => "配置分类器？[y/N]（跳过后无法自动路由）: ",
-        (Language::En, true) => "Configure classifier? [Y/n] (skip preserves current values): ",
-        (Language::En, false) => "Configure classifier? [y/N] (skip disables automatic routing): ",
-    };
-    if !read_confirmation(input, prompt, configured, language)? {
-        return Ok(());
-    }
-
-    let url = read_preserving(
-        input,
-        language,
-        "classifier URL",
-        document.string("classifier.url"),
-    )?;
-    let keys_prompt = match language {
-        Language::Zh => "classifier keys（逗号分隔；回车保留现值）: ",
-        Language::En => "classifier keys (comma-separated; Enter preserves): ",
-    };
-    let keys = read_keys(input, keys_prompt)?;
-    let model = read_preserving(
-        input,
-        language,
-        "classifier model",
-        document.string("classifier.model"),
-    )?;
-    document.set_string("classifier.url", &url)?;
-    if let Some(keys) = keys {
-        document.set_strings("classifier.keys", &keys)?;
-    }
-    document.set_string("classifier.model", &model)?;
-    Ok(())
-}
-
-fn read_confirmation(
-    input: &mut impl BufRead,
-    prompt: &str,
-    default: bool,
-    language: Language,
-) -> Result<bool, AppError> {
-    loop {
-        let value = prompt_line(input, prompt)?;
-        match value.trim().to_ascii_lowercase().as_str() {
-            "" => return Ok(default),
-            "y" | "yes" => return Ok(true),
-            "n" | "no" => return Ok(false),
-            _ => match language {
-                Language::Zh => eprintln!("请输入 y 或 n。"),
-                Language::En => eprintln!("Enter y or n."),
-            },
-        }
-    }
 }
 
 fn read_preserving(

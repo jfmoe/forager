@@ -20,21 +20,6 @@ use crate::redact::Secret;
 use crate::types::Platform;
 
 #[derive(Clone, Debug)]
-pub(crate) struct ClassifierRuntimeConfig {
-    pub(crate) url: String,
-    pub(crate) keys: Vec<Secret>,
-    pub(crate) model: String,
-    pub(crate) fallback_models: Vec<String>,
-    pub(crate) timeout_seconds: u64,
-}
-
-impl ClassifierRuntimeConfig {
-    pub(crate) fn configured(&self) -> bool {
-        !self.url.is_empty() && !self.keys.is_empty() && !self.model.is_empty()
-    }
-}
-
-#[derive(Clone, Debug)]
 pub(crate) struct JournalRuntimeConfig {
     pub(crate) enabled: bool,
     pub(crate) dir: PathBuf,
@@ -194,7 +179,6 @@ impl LogLevel {
 #[derive(Clone, Debug)]
 pub(crate) struct RuntimeConfig {
     pub(crate) main_search: MainSearchRuntimeConfig,
-    pub(crate) classifier: ClassifierRuntimeConfig,
     pub(crate) xai: XaiRuntimeConfig,
     pub(crate) openai: OpenaiRuntimeConfig,
     pub(crate) exa: ExaRuntimeConfig,
@@ -411,13 +395,6 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
             browser: browser.clone(),
         },
     };
-    let classifier = ClassifierRuntimeConfig {
-        url: config.classifier.url,
-        keys: config.classifier.keys,
-        model: config.classifier.model,
-        fallback_models: config.classifier.fallback_models,
-        timeout_seconds: config.classifier.timeout,
-    };
     let openai = OpenaiRuntimeConfig {
         url: config.providers.openai.url,
         keys: config.providers.openai.keys,
@@ -480,7 +457,6 @@ pub(crate) fn runtime_config() -> Result<RuntimeConfig, ConfigError> {
     };
     Ok(RuntimeConfig {
         main_search,
-        classifier,
         xai,
         openai,
         exa,

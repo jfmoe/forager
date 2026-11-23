@@ -8,6 +8,10 @@ multi-source investigation splits the question itself, runs `search`, `fetch` an
 commands, and judges each source on whether it bears on the question. The product skill teaches
 that workflow.
 
+forager also does not choose capabilities for the caller. There is no classifier: no model call
+decides what an ordinary search runs. A search without a Caller Capability Declaration runs main
+search only (ADR-0004).
+
 These rules of the agent layer stay in force:
 
 - **Cost ladder.** Every request goes down `direct retrieval → ordinary search → multi-source
@@ -41,9 +45,15 @@ These rules of the agent layer stay in force:
   search that already failed.
 - **Main-search answers are model-synthesized.** Citing one as evidence would let unverified text
   pose as a source.
+- **The classifier decided for almost nobody.** Over the same 30 days, 159 of the 171 searches
+  declared their capabilities and the classifier planned the other 12, at a median of 7.7 s
+  (at most 11.6 s) before main search could start. Its callers are agents that the product skill
+  already teaches to declare, so the classifier cost a model endpoint, a credential, a `setup` step
+  and journal fields for a decision the caller makes better from the request it has read.
 - **The accepted cost.** Research discovered candidates through Supplemental Web Search without
   running main search. Through `search`, each part of an investigation pays one main search, a
-  median of 31 s over the same 30 days.
+  median of 31 s over the same 30 days. An undeclared search gets no supplemental sources of any
+  kind; a caller that wants them has to declare them.
 
 ## Rejected alternatives
 
@@ -52,6 +62,8 @@ These rules of the agent layer stay in force:
   count-based coverage status.
 - **Making the coverage status judge relevance.** That moves semantic judgement into the CLI and
   gives the caller a confidence it has not earned.
+- **Keeping the classifier only as an opt-in.** It still leaves the module, its configuration, its
+  `setup` step and its journal fields to maintain for a path the product skill never takes.
 - **A batch fetch that writes each page to a file.** It would restore research's concurrent
   fetching, but parallel `fetch` calls that each write their page to a file already do that
   without a new contract for partial failure.
@@ -64,6 +76,9 @@ These rules of the agent layer stay in force:
   skips main search is the next option, not a planner.
 - Agents are seen escalating to an investigation, or looping in recovery, despite the ladder and
   the caps.
+- Undeclared searches become a large share of the journal and their answers show capabilities the
+  request needed and did not get, for example because callers other than agents taught by the
+  product skill start using `search`.
 
 ## Supersedes
 

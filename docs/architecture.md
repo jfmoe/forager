@@ -13,7 +13,7 @@ The project is one crate with a binary and a library. The library exposes exactl
 `src/` holds six groups, each owning one kind of responsibility:
 
 - **`cli/`**: the argument tree, command dispatch and the `app` facade. Dispatch runs the browser preflight check and writes the journal at the end of a command.
-- **`core/`**: orchestration of one invocation. This covers the search fan-out and its classifier, the shared chain executor, route planning for each platform operation, and attempt attribution.
+- **`core/`**: orchestration of one invocation. This covers the search fan-out, the shared chain executor, route planning for each platform operation, and attempt attribution.
 - **`capabilities/`**: everything that reaches a provider. This covers the Capability Catalog and platform catalog, the HTTP boundary, credential pools, Access Policies, and the provider and route adapters, including the browser transport.
 - **`evidence/`**: what an invocation leaves behind: the Search Result Journal and the stderr attempt log.
 - **`infra/`**: shared foundations: configuration, the shared types, redaction, secure file writing and cross-process state files.
@@ -49,7 +49,7 @@ A Platform is a dimension beside the Capability Seams, not another seam (ADR-001
 
 ## How a request flows
 
-**Search.** The classifier decides which capabilities to run unless the caller declared them, in which case the declaration is authoritative (ADR-0004). Main search and the supporting capabilities then fan out inside one deadline (ADR-0016). Their attempts are merged, and dispatch writes one journal record at the terminal state (ADR-0002).
+**Search.** The caller's capability declaration is authoritative, and a search without one runs main search only (ADR-0004). Main search and the supporting capabilities then fan out inside one deadline (ADR-0016). Their attempts are merged, and dispatch writes one journal record at the terminal state (ADR-0002).
 
 **A platform operation.**
 
@@ -80,7 +80,7 @@ Invariants that hold for every command:
 
 - An invocation reaches exactly one terminal state.
 - The exit code is chosen by the error family.
-- A failure in side work (the journal, a credential cursor, the classifier, the `--output` copy) does not change the main terminal state, except that an explicitly requested output file that cannot be written exits 3.
+- A failure in side work (the journal, a credential cursor, the `--output` copy) does not change the main terminal state, except that an explicitly requested output file that cannot be written exits 3.
 - Success and failure payloads each have a bound.
 - A caller's capability declaration is authoritative.
 

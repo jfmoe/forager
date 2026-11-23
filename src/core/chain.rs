@@ -1,11 +1,11 @@
 //! Typed chain runner shared by every ordered fallback loop.
 //!
-//! Two levels of the search path perform the same bookkeeping over an ordered
-//! step list: the provider chain inside each Capability Seam (`engine`) and
-//! the classifier model chain. This module owns that bookkeeping once:
+//! Every provider chain, inside each Capability Seam (`engine`) and each
+//! platform route chain, performs the same bookkeeping over an ordered step
+//! list. This module owns that bookkeeping once:
 //! fallback-off head pinning and configured filtering, budget slicing
 //! (ADR-0007: [`BudgetPolicy::PrimaryFirst`] for main search, `SlicedEven` for
-//! auxiliary seams and the classifier stage cap), synthetic
+//! auxiliary seams and platform routes), synthetic
 //! skipped/unconfigured attempt records, attempt and diagnostic merging,
 //! quality-gate marking, unconsumed-success semantics, and terminal
 //! attribution through [`attempt_trace`]. Each call site keeps declaring its
@@ -38,8 +38,6 @@ pub(crate) enum BudgetPolicy {
 pub(crate) enum DiagnosticMerge {
     /// Provider chains: join every present diagnostic in step order.
     Join,
-    /// Model chains: the latest present diagnostic wins.
-    LatestWins,
 }
 
 /// How an exhausted chain becomes a [`ProviderError`].
@@ -49,13 +47,6 @@ pub(crate) enum TerminalPolicy {
     /// [`attempt_trace::terminal_attempt`].
     ChainWide {
         verbose: bool,
-        exhausted_message: &'static str,
-    },
-    /// Model chains: attribute to the most recent failed attempt via
-    /// [`attempt_trace::last_failed`].
-    Tail {
-        verbose: bool,
-        default_kind: AttemptErrorKind,
         exhausted_message: &'static str,
     },
 }
@@ -295,34 +286,13 @@ fn terminal_error(
             verbose,
             exhausted_message,
         } => chain_wide_error(attempts, verbose, diagnostic, exhausted_message),
-        TerminalPolicy::Tail {
-            verbose,
-            default_kind,
-            exhausted_message,
-        } => {
-            let terminal = attempt_trace::last_failed(&attempts);
-            ProviderError {
-                kind: terminal
-                    .and_then(|attempt| attempt.error_kind)
-                    .unwrap_or(default_kind),
-                message: terminal.map_or_else(
-                    || exhausted_message.to_owned(),
-                    |attempt| attempt.message.clone(),
-                ),
-                attempts,
-                verbose,
-                diagnostic,
-                redirected_library_id: None,
-            }
-        }
     }
 }
 
 fn merge_diagnostics(policy: DiagnosticMerge, diagnostics: Vec<Option<String>>) -> Option<String> {
-    let mut present = diagnostics.into_iter().flatten();
+    let present = diagnostics.into_iter().flatten();
     match policy {
         DiagnosticMerge::Join => combine_diagnostics(present),
-        DiagnosticMerge::LatestWins => present.next_back(),
     }
 }
 

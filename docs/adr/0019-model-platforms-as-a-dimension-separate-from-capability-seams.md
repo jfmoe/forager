@@ -33,7 +33,7 @@ the new-platform checklist test reports any registration point it misses.
 - **Platforms as providers of a discovery seam.** The seam's first accepted result ends the chain,
   so platforms would replace each other, and the shared request would lose each platform's
   identity and options.
-- **Letting search or the classifier route to a platform automatically.** A platform is
+- **Letting search route to a platform automatically.** A platform is
   chosen by the caller who names it; automatic routing would be a separate decision with its own
   evidence, and none has been made.
 - **User-defined platforms or generic MCP and CLI routes in configuration.** They would skip the

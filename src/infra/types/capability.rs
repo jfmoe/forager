@@ -74,7 +74,7 @@ impl Capability {
     }
 }
 
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 /// A deduplicated capability set kept in the canonical [`Capability`] order.
 pub struct CapabilitySet(Vec<Capability>);
 
@@ -87,10 +87,6 @@ impl CapabilitySet {
                 .filter(|capability| selected.contains(capability))
                 .collect(),
         )
-    }
-
-    pub(crate) fn default_supplemental_web_search() -> Self {
-        Self(vec![Capability::WebSearch])
     }
 
     pub(crate) fn iter(&self) -> impl Iterator<Item = Capability> + '_ {

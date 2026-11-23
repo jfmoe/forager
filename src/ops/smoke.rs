@@ -30,8 +30,7 @@ use shape::{ResultShape, result_shape_is_nonempty};
 
 static PROBE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 pub(crate) const MAIN_CANARY_QUERY: &str = "What is the latest stable Rust release?";
-pub(crate) const PIPELINE_CANARY_QUERY: &str =
-    "Find current Rust release news and official documentation.";
+const PIPELINE_CANARY_QUERY: &str = "Find current Rust release news and official documentation.";
 const FETCH_CANARY_URL: &str = "https://www.rust-lang.org/";
 const PLATFORM_CANARY_QUERY: &str = "retrieval augmented generation";
 // Xiaohongshu has new coffee notes every week, so the filtered search reaches its second page.
@@ -61,11 +60,11 @@ const YOUTUBE_VIDEOS_CANARY: &str = "youtube:playlist/PLZHQObOWTQDPD3MizzM2xVFit
 // speaker's clothes.
 const YOUTUBE_ASK_CANARY_QUESTION: &str =
     "How many elephants are visible behind the speaker, and what is he wearing?";
-const SPECIFICATION_CASE_IDS: [&str; 43] = [
-    "P1", "C01", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "C13", "C17",
-    "C18", "C19", "C20", "C21", "C24", "C25", "C26", "C27", "C28", "C29", "C30", "C31", "C32",
-    "C33", "C34", "C35", "C36", "C37", "C38", "C39", "C40", "C41", "C42", "C43", "C44", "C45",
-    "C46", "C49", "C50", "C51",
+const SPECIFICATION_CASE_IDS: [&str; 42] = [
+    "P1", "C01", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "C13", "C17", "C18",
+    "C19", "C20", "C21", "C24", "C25", "C26", "C27", "C28", "C29", "C30", "C31", "C32", "C33",
+    "C34", "C35", "C36", "C37", "C38", "C39", "C40", "C41", "C42", "C43", "C44", "C45", "C46",
+    "C49", "C50", "C51",
 ];
 // One comment page holds 10 top-level comments, so 15 needs the second page.
 const XIAOHONGSHU_COMMENTS_LIMIT: &str = "15";
@@ -82,10 +81,7 @@ const REDDIT_SEARCH_NOT_PASSED: &str =
     "not started: the Reddit search case did not pass, so it found no post to read";
 const REDDIT_NO_SAFE_POST: &str =
     "not started: the Reddit search case returned no post marked as not NSFW";
-const PIPELINE_CASES: [LiveCaseDefinition; 2] = [
-    LiveCaseDefinition::pipeline("P1", "search"),
-    LiveCaseDefinition::provider("C04", "classifier", None, "capability", "http"),
-];
+const PIPELINE_CASES: [LiveCaseDefinition; 1] = [LiveCaseDefinition::pipeline("P1", "search")];
 
 static LIVE_CASES: LazyLock<Vec<LiveCaseDefinition>> = LazyLock::new(|| {
     let mut cases = PIPELINE_CASES.to_vec();
@@ -361,7 +357,6 @@ fn platform_search_canary(platform: Platform) -> (&'static str, &'static str) {
 const CITED_BY_CANARY: &str = "scholar:18208131694456651388";
 
 pub(crate) enum ProbeKind {
-    Classifier,
     Supplemental(ProviderId),
     Outage,
 }
@@ -371,9 +366,6 @@ pub(crate) fn probe_kind(case_id: &str) -> Result<ProbeKind, String> {
         return Ok(ProbeKind::Outage);
     }
     let definition = live_case(case_id).ok_or_else(|| "unknown internal smoke probe".to_owned())?;
-    if definition.provider == Some("classifier") {
-        return Ok(ProbeKind::Classifier);
-    }
     if definition.operation == "web_search"
         && let Some(provider) = definition.provider.and_then(ProviderId::parse)
     {
@@ -394,7 +386,6 @@ pub(crate) struct SmokeReport {
     ok: bool,
     registry: RegistryStatus,
     providers: Vec<CredentialStatus>,
-    classifier: CredentialStatus,
     journal: DirectoryStatus,
     credential_cursor: DirectoryStatus,
     permissions: PermissionStatus,
@@ -502,7 +493,6 @@ fn official_status_page_matches_case(case_id: &str, url: &str, runtime: &Runtime
     };
     match case_id {
         "P1" => pipeline_status_matches(runtime, host),
-        "C04" => status_host_matches_endpoint(host, &runtime.classifier.url),
         _ => provider_for_case(case_id).is_some_and(|provider| {
             status_host_matches_endpoint(host, provider_endpoint(runtime, provider))
         }),
@@ -518,15 +508,13 @@ fn live_case(case_id: &str) -> Option<LiveCaseDefinition> {
 }
 
 fn pipeline_status_matches(runtime: &RuntimeConfig, status_host: &str) -> bool {
-    let classifier_matches = runtime.classifier.configured()
-        && status_host_matches_endpoint(status_host, &runtime.classifier.url);
     let main_matches = runtime.main_search.entries().iter().any(|entry| {
         entry.configured() && status_host_matches_endpoint(status_host, entry.config().url())
     });
     let web_search_matches = runtime.web_search.entries().iter().any(|entry| {
         entry.configured() && status_host_matches_endpoint(status_host, &entry.config().url)
     });
-    classifier_matches || main_matches || web_search_matches
+    main_matches || web_search_matches
 }
 
 fn status_host_matches_endpoint(status_host: &str, endpoint: &str) -> bool {
@@ -596,13 +584,9 @@ pub(crate) fn status_page_reports_outage(body: &str) -> bool {
 fn evidence_matches_case_endpoint(case_id: &str, evidence: &str, runtime: &RuntimeConfig) -> bool {
     let matches = |endpoint: &str| same_origin(evidence, endpoint);
     match case_id {
-        "P1" => {
-            matches(&runtime.classifier.url)
-                || catalog::registrations()
-                    .iter()
-                    .any(|registration| matches(provider_endpoint(runtime, registration.id)))
-        }
-        "C04" => matches(&runtime.classifier.url),
+        "P1" => catalog::registrations()
+            .iter()
+            .any(|registration| matches(provider_endpoint(runtime, registration.id))),
         _ => provider_for_case(case_id)
             .is_some_and(|provider| matches(provider_endpoint(runtime, provider))),
     }
@@ -862,10 +846,6 @@ fn run_case_once(
                 message: nonzero_terminal(&output.stdout, credentials),
                 kind: refusal(output.status.code(), &output.stdout).unwrap_or(FailureKind::Failed),
             });
-        }
-        if case_id == "P1" && String::from_utf8_lossy(&output.stderr).contains("Classifier warning")
-        {
-            return Err("pipeline used classifier degradation instead of the live contract".into());
         }
         payload = serde_json::from_slice(&output.stdout)
             .map_err(|_| "live case returned invalid JSON")?;
@@ -1365,16 +1345,14 @@ fn command_specs(
             &[
                 "search",
                 PIPELINE_CANARY_QUERY,
+                "--capabilities",
+                "web_search",
                 "--extra-sources",
                 "2",
                 "--timeout",
                 &timeout,
             ],
             ResultShape::PipelineSearch,
-        ),
-        "C04" => one(
-            &["smoke", "--probe", "C04", "--probe-timeout", &timeout],
-            ResultShape::Classifier,
         ),
         "C10" => one(
             &[
@@ -1511,11 +1489,9 @@ fn platform_unconfigured_reason(
 fn case_is_configured(definition: LiveCaseDefinition, runtime: &RuntimeConfig) -> bool {
     match definition.id {
         "P1" => {
-            runtime.classifier.configured()
-                && runtime.main_search.configured_provider_count() > 0
+            runtime.main_search.configured_provider_count() > 0
                 && runtime.web_search.configured_provider_count() > 0
         }
-        "C04" => runtime.classifier.configured(),
         // Live smoke checks keys; the anonymous run is tested offline.
         _ => definition
             .provider
@@ -1547,13 +1523,6 @@ pub(crate) fn run_offline() -> Result<(SmokeReport, u8), config::ConfigError> {
         .iter()
         .map(|registration| credential_status(registration.id, &runtime, &effective))
         .collect();
-    let classifier = CredentialStatus {
-        provider: "classifier",
-        configured: !runtime.classifier.keys.is_empty(),
-        key_count: runtime.classifier.keys.len(),
-        keys: vec![CREDENTIAL_MASK; runtime.classifier.keys.len()],
-        source: credential_source(&effective, "classifier"),
-    };
     let journal = directory_status(
         Some(runtime.journal.enabled),
         &runtime.journal.dir,
@@ -1575,7 +1544,6 @@ pub(crate) fn run_offline() -> Result<(SmokeReport, u8), config::ConfigError> {
             ok,
             registry,
             providers,
-            classifier,
             journal,
             credential_cursor,
             permissions,
@@ -1618,13 +1586,6 @@ fn credential_status(
             .unwrap_or("default")
             .to_owned(),
     }
-}
-
-fn credential_source(effective: &Value, section: &str) -> String {
-    effective[section]["keys"]["source"]
-        .as_str()
-        .unwrap_or("default")
-        .to_owned()
 }
 
 fn directory_status(enabled: Option<bool>, path: &Path, credentials: &[Secret]) -> DirectoryStatus {

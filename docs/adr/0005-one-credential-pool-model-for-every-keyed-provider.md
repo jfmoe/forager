@@ -2,10 +2,10 @@
 
 ## Decision
 
-Every provider whose registration says it uses credentials, and the classifier, holds them in a
-Provider Credential Pool. A single credential is the one-element case of the same pool; there is
-no second shape for one key. A provider registered as not using credentials has no pool, never
-claims or rotates, and always counts as configured. A provider registered with optional
+Every provider whose registration says it uses credentials holds them in a Provider Credential
+Pool. A single credential is the one-element case of the same pool; there is no second shape for
+one key. A provider registered as not using credentials has no pool, never claims or rotates, and
+always counts as configured. A provider registered with optional
 credentials runs anonymously when its pool cannot serve it (ADR-0029).
 
 - A request claims the next credential from a cursor shared by all local processes and advances
