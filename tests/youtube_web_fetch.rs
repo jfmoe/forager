@@ -15,32 +15,28 @@ fn fetch(environment: &RunEnvironment, arguments: &[&str]) -> Output {
 }
 
 #[test]
-fn abstract_reads_the_page_and_the_player_only_and_inlines_the_description() {
+fn an_abstract_fetch_prints_the_video_read_from_its_page_and_player() {
     let youtube = Fixture::start_sequence_for(|origin| vec![watch_page(), player(origin)]);
     let environment = RunEnvironment::new(&config(&youtube.url));
 
     let output = fetch(&environment, &["--depth", "abstract"]);
-    youtube.finish_all();
+    let requests = youtube.finish_all();
     let item = payload(&output);
 
     assert_eq!(
         (
             output.status.code(),
-            &item["depth"],
-            &item["description"],
-            &item["chapters"],
-            item.get("transcript"),
+            requests.len(),
+            [&item["provider"], &item["ref"], &item["depth"]],
         ),
         (
             Some(0),
-            &json!("abstract"),
-            &json!("The first video on YouTube.\n\n00:00 Intro\n00:05 The cool thing\n00:17 End"),
-            &json!([
-                {"start_seconds": 0, "title": "Intro"},
-                {"start_seconds": 5, "title": "The cool thing"},
-                {"start_seconds": 17, "title": "End"}
-            ]),
-            None,
+            2,
+            [
+                &json!("youtube_web"),
+                &json!("youtube:jNQXAC9IVRw"),
+                &json!("abstract"),
+            ],
         ),
         "stderr: {}",
         stderr(&output)
