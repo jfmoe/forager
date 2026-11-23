@@ -10,8 +10,8 @@ use crate::catalog::{
 use crate::config;
 use crate::providers;
 use crate::types::{
-    AccessToken, COMMENTS, ContentDepth, Platform, PlatformFetchRequest, PlatformRef,
-    PlatformSearchOptions, PlatformSearchRequest,
+    AccessToken, ContentDepth, Platform, PlatformFetchRequest, PlatformRef, PlatformSearchOptions,
+    PlatformSearchRequest,
 };
 
 /// One item of the integration checklist for a platform and its routes.
@@ -21,7 +21,6 @@ enum Rule {
     Registration,
     Factory,
     Declaration,
-    OperationOnlyRoute,
     BrowserEnvironment,
     ConfigLeaves,
     DoctorProbe,
@@ -49,10 +48,6 @@ impl Rule {
             Self::Declaration => (
                 "what each route's declaration says it serves of search and fetch, and whether its registration declares an account probe, is what the route built from it hands out",
                 "make the route's declared support checks and doctor probe agree with its `PlatformRoute` implementation",
-            ),
-            Self::OperationOnlyRoute => (
-                "a route that serves neither search nor fetch serves a single-route operation",
-                "add the route to that operation's route set in the platform catalog, or drop it from the catalog",
             ),
             Self::BrowserEnvironment => (
                 "a browser route, which needs a login into its platform's Browser Profile, has login Page Logic",
@@ -186,22 +181,6 @@ fn violations(platform: Platform, registry: &Registry<'_>) -> Vec<Violation> {
     }
     for route in catalog.all_routes() {
         check_route(platform, route, registry, &mut found);
-    }
-    for route in catalog.operation_only {
-        let serves_an_operation = catalog
-            .operations
-            .iter()
-            .any(|operation| operation.routes.contains(route));
-        if !serves_an_operation {
-            found.push(violation(
-                platform,
-                Rule::OperationOnlyRoute,
-                &format!(
-                    "route `{}` serves neither search nor fetch, and no operation of the platform lists it",
-                    route.name()
-                ),
-            ));
-        }
     }
     for operation in PlatformOperation::ALL {
         check_operation(
@@ -551,31 +530,6 @@ fn a_platform_without_a_catalog_breaks_the_catalog_rule() {
     };
 
     assert_reports(&violations(Platform::Arxiv, &registry), Rule::Catalog);
-}
-
-#[test]
-fn an_operation_only_route_that_no_operation_lists_breaks_the_operation_only_rule() {
-    let without_youtube_model_operations = [PlatformCatalog {
-        operations: &[catalog::OperationRoutes {
-            operation: COMMENTS,
-            routes: &[ProviderId::YoutubeApi],
-        }],
-        ..catalog::YOUTUBE
-    }];
-    let registry = Registry {
-        platforms: &without_youtube_model_operations,
-        ..baseline()
-    };
-
-    let found = violations(Platform::Youtube, &registry);
-
-    assert_reports(&found, Rule::OperationOnlyRoute);
-    assert!(
-        found
-            .iter()
-            .any(|violation| violation.detail.contains("`gemini_api`")),
-        "{found:?}"
-    );
 }
 
 #[test]
