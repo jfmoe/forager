@@ -27,12 +27,13 @@ No in-crate test waits on real time, because a suite that sleeps grows slower wi
 - In the test build, a route's limiter has no minimum interval, so a test that builds routes through the provider factory or the orchestration never waits on an Access Policy. Nothing outside the test build can build such a limiter, so no release can bypass an Access Policy.
 - A test about pacing holds `paced_limiters()` while it builds the route, and either runs on the paused Tokio clock or is arranged so that a window fails at once instead of being awaited.
 - A test may combine the paused clock with a real loopback socket only when it waits for the request to arrive before it advances the clock. Otherwise the paused clock jumps ahead while the response is in flight and the outcome depends on scheduling.
-- Deadlines inside the crate use sub-second values on the paused clock.
+- No in-crate test waits out a deadline either. On the paused clock any deadline works; on the real clock the test makes the deadline decide at once, as a window that cannot fit it does, or sets it far longer than the test runs.
 - The spawned binary keeps production pacing, so a command contract test pays one interval for every paced request after the first. Pick the operation that makes the fewest paced requests.
+- A command contract test may wait on pacing only when it is on the exemption list in the runner configuration, whose entry says in one sentence why no operation without a wait proves its rule. A new entry needs such a reason; otherwise the rule moves into the crate or to an operation that does not wait.
 
 ## Selecting a subset
 
-A test's path names what it belongs to. A *word* is one `_`-separated part of a module name in the test's path, or of the name of the test binary. In the crate, a provider's tests live in its adapter's modules, which carry the provider ID, and a platform's types live in `types::platform_<platform>`; a command contract test file's name starts with the platform it exercises. Because placement sets the words, moving a test to the right module is enough to make the filters find it.
+A test's path names what it belongs to. A *word* is one `_`-separated part of a module name in the test's path, or of the name of the test binary. In the crate, a provider's tests live in its adapter's modules, which carry the provider ID, and a platform's types live in `types::platform_<platform>`; a command contract test file that exercises one platform starts its name with that platform, such as `arxiv_fetch`, while a file about a shared mechanism, such as `access_windows`, names that mechanism. Because placement sets the words, moving a test to the right module is enough to make the filters find it.
 
 One filter selects a provider's or a platform's tests, with `IDS` replaced:
 
@@ -50,6 +51,7 @@ The routes of each platform are in the platform catalog and in the product skill
 The sample store is `tests/samples/<provider>/`. Every upstream body a test replays comes from there, and the in-crate tests and the command contract tests read the same file, so an upstream change is fixed in one place. Tests locate samples relative to the crate root, because the runner does not fix the working directory.
 
 - A *shape* is one response structure of one upstream endpoint, and it is stored once. Derive a variant (an error, an empty result, another page) from the base sample inside the test, or store it as a named variant whose record says `variant_of`.
+- An input built to break a decoder, such as a truncated body or a page that is not XML, is not an upstream shape: write it in the test, because it records nothing the upstream did and no refresh would ever change it.
 - Each directory's `samples.toml` has one record per sample: `file`, `shape`, `origin` (`captured` or `hand-written`), the `observed` date and, for a captured sample only, `obtained`, which says how it was captured. A repository rule fails, naming the sample, when a sample has no record or a record names no sample.
 - `observed` is the date the shape was seen at the upstream. For a hand-written sample of unknown basis, it is the date the sample was written, and its origin is `hand-written`.
 
@@ -98,4 +100,4 @@ A test may be retired or rewritten when it:
 - is **duplicated**: another test proves the same rule with the same oracle and input class, so a rule change would edit both;
 - proves **the wrong thing**: framework glue, a configuration literal, or that a retired behavior is absent.
 
-Each retirement, and each change to an expected value, is its own commit. Its message names the rule the test proved and what proves it now, or why the rule needs no proof, so a reviewer can check that no proof was lost. A commit that moves tests changes no expected value, and a behavior test is never weakened to make a move easier.
+A retirement or a change to an expected value never shares a commit with moved tests, so a reviewer can tell a moved proof from a changed one. Several retirements of one provider may share a commit, as may several changes to expected values; the message names, for each test, the rule it proved and what proves it now, or why the rule needs no proof, so a reviewer can check that no proof was lost. A commit that moves tests changes no expected value, and a behavior test is never weakened to make a move easier.
