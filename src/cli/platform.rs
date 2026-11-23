@@ -2,7 +2,7 @@
 
 use std::fs;
 use std::future::Future;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::time::Duration;
 
 use chrono::NaiveDate;
@@ -553,14 +553,10 @@ fn fetch(
         Deadline::new(Duration::from_secs(common.timeout)),
         common.verbose,
     ));
-    let result = match result {
-        Ok(fetched) if fetched.content.is_some() && format != ContentOutputFormat::Content => {
-            let directory = content_dir.unwrap_or_else(|| invocation_temp_dir("forager-platform"));
-            let file_name = content_file_name(&fetched.item.reference);
-            deliver(fetched, &directory, &file_name, common.verbose)
-        }
-        result => result,
-    };
+    let result = result.and_then(|fetched| {
+        let file_name = content_file_name(&fetched.item.reference);
+        deliver(fetched, format, content_dir, &file_name, common.verbose)
+    });
     let attempt_log = provider_attempt_log(dependencies.config.log_level, &result, |fetched| {
         &fetched.attempts
     });
@@ -572,19 +568,26 @@ fn fetch(
     })
 }
 
-/// Writes a fetched full text to the Markdown file `file_name` in `directory`. A write failure
-/// is Runtime and never falls back to inline output.
+/// Delivers a fetched full text. The content format prints it and writes no file; every other
+/// format writes it to the Markdown file `file_name` in `content_dir`, or in the invocation's
+/// temporary directory when none is given. A write failure is Runtime and never falls back to
+/// inline output.
 fn deliver(
     mut fetched: PlatformFetchResult,
-    directory: &Path,
+    format: ContentOutputFormat,
+    content_dir: Option<PathBuf>,
     file_name: &str,
     verbose: bool,
 ) -> Result<PlatformFetchResult, ProviderError> {
+    if format == ContentOutputFormat::Content {
+        return Ok(fetched);
+    }
     let Some(content) = fetched.content.as_mut() else {
         return Ok(fetched);
     };
+    let directory = content_dir.unwrap_or_else(|| invocation_temp_dir("forager-platform"));
     let path = directory.join(file_name);
-    match fs::create_dir_all(directory).and_then(|()| fs::write(&path, &content.text)) {
+    match fs::create_dir_all(&directory).and_then(|()| fs::write(&path, &content.text)) {
         Ok(()) => {
             content.path = Some(path.display().to_string());
             Ok(fetched)

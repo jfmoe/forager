@@ -11,9 +11,7 @@ use super::{
     preflight_error, run_page, search,
 };
 use crate::app::args::{ContentOutputFormat, OutputArgs, OutputFormat};
-use crate::app::dispatch::{
-    AppError, CommandOutput, NetworkDependencies, invocation_temp_dir, provider_attempt_log,
-};
+use crate::app::dispatch::{AppError, CommandOutput, NetworkDependencies, provider_attempt_log};
 use crate::platform_operation;
 use crate::types::{
     ContentDepth, Deadline, Platform, PlatformAskRequest, PlatformCommentsRequest,
@@ -459,16 +457,12 @@ fn youtube_transcribe(arguments: YoutubeTranscribeArgs) -> Result<CommandOutput,
             common.verbose,
         ))
         .and_then(|transcribed| {
-            if format == ContentOutputFormat::Content {
-                return Ok(transcribed);
-            }
             let PlatformTranscribeResult {
                 fetched,
                 model,
                 usage,
             } = transcribed;
-            let directory = content_dir.unwrap_or_else(|| invocation_temp_dir("forager-platform"));
-            deliver(fetched, &directory, &file_name, common.verbose).map(|fetched| {
+            deliver(fetched, format, content_dir, &file_name, common.verbose).map(|fetched| {
                 PlatformTranscribeResult {
                     fetched,
                     model,
