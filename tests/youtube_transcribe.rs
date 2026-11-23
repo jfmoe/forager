@@ -1,6 +1,7 @@
 mod support;
 
 use std::fs;
+use std::path::{Path, PathBuf};
 
 use serde_json::json;
 
@@ -119,6 +120,61 @@ fn a_model_transcript_is_written_beside_the_metadata_with_its_model_and_usage() 
     );
 }
 
+/// Runs a transcription whose system temporary directory is `temp`.
+fn transcribe_with_temp(
+    environment: &RunEnvironment,
+    arguments: &[&str],
+    temp: &Path,
+) -> std::process::Output {
+    let mut command = vec!["platform", "youtube", "transcribe"];
+    command.extend_from_slice(arguments);
+    let temp = temp.to_str().expect("UTF-8 path");
+    environment.run_with_env(&command, &[("TMPDIR", temp), ("TMP", temp), ("TEMP", temp)])
+}
+
+fn files_under(directory: &Path) -> Vec<PathBuf> {
+    let mut files = Vec::new();
+    for entry in fs::read_dir(directory).expect("read directory") {
+        let path = entry.expect("directory entry").path();
+        if path.is_dir() {
+            files.extend(files_under(&path));
+        } else {
+            files.push(path);
+        }
+    }
+    files
+}
+
+#[test]
+fn without_a_content_directory_the_transcript_is_written_under_the_system_temporary_directory() {
+    let api = Fixture::start_sequence(vec![videos_page(&[zoo_video(CHAPTERED)])]);
+    let gemini = Fixture::start_sequence(vec![gemini_api::answer(&transcript(&json!([
+        {"start": 1.2, "end": 3.4, "text": "All right, so here we are."}
+    ])))]);
+    let environment = RunEnvironment::new(&gemini_api::config(&api.url, &gemini.url));
+    let temp = tempfile::tempdir().expect("temporary directory");
+
+    let output = transcribe_with_temp(&environment, &["youtube:jNQXAC9IVRw"], temp.path());
+    api.finish();
+    gemini.finish();
+    let path = payload(&output)["content_path"]
+        .as_str()
+        .map(PathBuf::from)
+        .expect("content path");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            path.starts_with(temp.path().join("forager-platform")),
+            path.ends_with("youtube-jNQXAC9IVRw-transcribed.md"),
+            files_under(temp.path()),
+        ),
+        (Some(0), true, true, vec![path.clone()]),
+        "stderr: {}",
+        stderr(&output)
+    );
+}
+
 #[test]
 fn a_video_without_a_description_is_transcribed_and_content_prints_the_document() {
     let api = Fixture::start_sequence(vec![videos_page(&[zoo_video("")])]);
@@ -141,6 +197,35 @@ fn a_video_without_a_description_is_transcribed_and_content_prints_the_document(
             && document.contains("## Description\n\n(none)\n")
             && document.contains("[00:01](https://www.youtube.com/watch?v=jNQXAC9IVRw&t=1s) All right, so here we are."),
         "{document}"
+    );
+}
+
+#[test]
+fn the_content_format_prints_the_transcript_and_writes_no_file() {
+    let api = Fixture::start_sequence(vec![videos_page(&[zoo_video(CHAPTERED)])]);
+    let gemini = Fixture::start_sequence(vec![gemini_api::answer(&transcript(&json!([
+        {"start": 1.2, "end": 3.4, "text": "All right, so here we are."}
+    ])))]);
+    let environment = RunEnvironment::new(&gemini_api::config(&api.url, &gemini.url));
+    let temp = tempfile::tempdir().expect("temporary directory");
+
+    let output = transcribe_with_temp(
+        &environment,
+        &["youtube:jNQXAC9IVRw", "--format", "content"],
+        temp.path(),
+    );
+    api.finish();
+    gemini.finish();
+
+    assert_eq!(
+        (
+            output.status.code(),
+            String::from_utf8_lossy(&output.stdout).starts_with("# Me at the zoo\n"),
+            files_under(temp.path()),
+        ),
+        (Some(0), true, Vec::<PathBuf>::new()),
+        "stderr: {}",
+        stderr(&output)
     );
 }
 

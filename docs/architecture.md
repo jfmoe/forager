@@ -103,7 +103,7 @@ Invariants that hold for every command:
 
 | Layer | Proves |
 | --- | --- |
-| In-crate | Pure decisions as truth tables (attribution, budget slicing, plan parsing, ref parsing, redaction); response decoding against stored upstream samples, without a server; request construction and HTTP semantics over the real HTTP stack against a local server; argument rules, by parsing the command definition in process; pacing on the paused clock |
+| In-crate | Pure decisions as truth tables (attribution, budget slicing, plan parsing, ref parsing, redaction); response decoding against stored upstream samples, without a server; request construction and HTTP semantics over the real HTTP stack against a local server; argument rules, by parsing the command definition in process; pacing on the paused clock; the platform-independent rules of planning, Page Cursors, fallback and attribution, once each in the module that implements them |
 | Command contract | The real binary against the local fixture server: each command's outer path and the facts only a process shows, such as exit codes, output formats and files, environment overrides, preflight output, journal side effects and environment isolation |
 | Real browser | Ignored by default and run before a release: the browser transport and Page Logic's page scripts in the Managed Browser, against local pages only |
 | Live smoke | Real sites and keys, run before a release; the only layer that proves Page Logic against the real site |
