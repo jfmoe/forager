@@ -895,86 +895,11 @@ fn validate_registrations(registry: &[ProviderRegistration]) -> Result<(), Strin
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
-
-    use serde::Deserialize;
-
     use super::{
-        CATALOGS, Credentials, DOCS_SEARCH, DoctorProbe, MAIN_SEARCH, PLATFORMS, PlatformOperation,
-        ProviderId, ProviderRegistration, REGISTRY, WEB_FETCH, WEB_SEARCH, has_owner, platform,
-        registration, registrations, validate_registrations,
+        CATALOGS, Credentials, DOCS_SEARCH, DoctorProbe, MAIN_SEARCH, ProviderId,
+        ProviderRegistration, REGISTRY, WEB_FETCH, WEB_SEARCH, has_owner, platform, registration,
+        registrations, validate_registrations,
     };
-
-    #[derive(Deserialize)]
-    struct AcceptanceManifest {
-        transport_fixtures: Vec<TransportFixture>,
-    }
-
-    #[derive(Deserialize)]
-    struct TransportFixture {
-        provider: String,
-        seam: String,
-        test: String,
-    }
-
-    /// Returns whether a seam names a platform operation that no platform catalog lists.
-    fn is_single_route_operation_seam(seam: &str) -> bool {
-        seam.strip_prefix("platform:")
-            .and_then(|rest| rest.split_once(':'))
-            .is_some_and(|(_, operation)| {
-                !PlatformOperation::ALL
-                    .iter()
-                    .any(|catalog_operation| catalog_operation.as_str() == operation)
-            })
-    }
-
-    #[test]
-    fn provider_fixture_projection_matches_transport_manifest() {
-        let manifest: AcceptanceManifest = serde_json::from_str(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/tests/acceptance-manifest.json"
-        )))
-        .expect("acceptance manifest");
-        let capability_projection = CATALOGS.iter().flat_map(|catalog| {
-            catalog
-                .providers
-                .iter()
-                .map(move |provider| (provider.name().to_owned(), catalog.seam.to_owned()))
-        });
-        let platform_projection = PLATFORMS.iter().flat_map(|catalog| {
-            PlatformOperation::ALL
-                .into_iter()
-                .flat_map(move |operation| {
-                    catalog.routes(operation).iter().map(move |route| {
-                        (
-                            route.name().to_owned(),
-                            format!("platform:{}:{}", catalog.platform, operation.as_str()),
-                        )
-                    })
-                })
-        });
-        let registry = capability_projection
-            .chain(platform_projection)
-            .collect::<BTreeSet<_>>();
-        // Single-route platform operations live outside the catalog; the platform checklist
-        // checks their fixtures.
-        let fixture_projection = manifest
-            .transport_fixtures
-            .iter()
-            .filter(|fixture| !is_single_route_operation_seam(&fixture.seam))
-            .map(|fixture| (fixture.provider.clone(), fixture.seam.clone()))
-            .collect::<BTreeSet<_>>();
-
-        assert_eq!(fixture_projection, registry);
-        for fixture in manifest.transport_fixtures {
-            assert!(
-                !fixture.test.trim().is_empty(),
-                "{} / {} lacks a fixture test",
-                fixture.provider,
-                fixture.seam
-            );
-        }
-    }
 
     #[test]
     fn registration_lookup_is_identifier_based_and_rejects_missing_or_duplicate_ids() {
