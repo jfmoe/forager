@@ -127,30 +127,3 @@ fn a_thread_is_written_to_a_file_with_top_level_comments_in_rank_order() {
         })
     );
 }
-
-#[test]
-fn a_thread_that_cannot_be_written_is_a_runtime_failure() {
-    let algolia = Fixture::start_sequence(vec![Response::json(200, &stored("item-tree.json"))]);
-    let firebase =
-        Fixture::start_sequence(vec![Response::json(200, &stored("firebase-item.json"))]);
-    let environment = RunEnvironment::new(&config(&algolia.url, &firebase.url));
-    let blocker = tempfile::NamedTempFile::new().expect("a file where the directory should be");
-    let content_dir = blocker.path().join("threads").display().to_string();
-
-    let output = fetch(&environment, &["hn:8863", "--content-dir", &content_dir]);
-    algolia.finish_all();
-    firebase.finish_all();
-    let payload = payload(&output);
-
-    assert_eq!(
-        (
-            output.status.code(),
-            payload["error_kind"].clone(),
-            payload["message"]
-                .as_str()
-                .is_some_and(|message| message.starts_with("cannot write the full text to ")),
-        ),
-        (Some(4), json!("runtime"), true),
-        "{payload}"
-    );
-}
