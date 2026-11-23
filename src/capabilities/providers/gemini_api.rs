@@ -138,18 +138,7 @@ impl GeminiApi {
             &format!("{ASK_INSTRUCTION}\n\nQuestion: {question}"),
             None,
         );
-        let outcome = self
-            .generate(ASK, &body, |response| {
-                let text = response.text()?;
-                if text.trim().is_empty() {
-                    return Err(Refusal::new(
-                        AttemptErrorKind::Runtime,
-                        "Gemini returned an empty answer",
-                    ));
-                }
-                Ok(text)
-            })
-            .await?;
+        let outcome = self.generate(ASK, &body, decode_answer).await?;
         let (answer, model, usage) = outcome.value;
         Ok(ModelAnswerOutcome {
             answer,
@@ -173,8 +162,7 @@ impl GeminiApi {
         );
         let outcome = self
             .generate(TRANSCRIBE, &body, |response| {
-                transcript::render(&response.text()?, video)
-                    .map_err(|message| Refusal::new(AttemptErrorKind::Quality, message))
+                decode_transcript(response, video)
             })
             .await?;
         let (rendered, model, usage) = outcome.value;
@@ -229,7 +217,7 @@ impl GeminiApi {
         operation: &'static str,
         body: &Value,
         decode: impl Fn(&GenerateResponse) -> Result<T, Refusal>,
-    ) -> Result<ExecutionOutcome<(T, Option<String>, Option<ModelUsage>)>, ProviderError> {
+    ) -> Result<ExecutionOutcome<Generated<T>>, ProviderError> {
         let url = &format!(
             "{}/models/{}:generateContent",
             self.base_url(),
@@ -242,19 +230,9 @@ impl GeminiApi {
             |credential, deadline| async move {
                 let request = self.client.post(url).json(body);
                 let (status, text) = self.send(request, &credential, deadline).await?;
-                let response =
-                    serde_json::from_str::<GenerateResponse>(&text).map_err(|error| {
-                        Refusal::runtime(format!("invalid Gemini response: {error}")).at(status)
-                    })?;
-                let value = decode(&response).map_err(|refusal| refusal.at(status))?;
-                Ok((
-                    Some(status),
-                    (
-                        value,
-                        response.model_version,
-                        response.usage_metadata.map(ModelUsage::from),
-                    ),
-                ))
+                let generated =
+                    decode_generated(&text, decode).map_err(|refusal| refusal.at(status))?;
+                Ok((Some(status), generated))
             },
         )
         .await
@@ -293,6 +271,47 @@ impl GeminiApi {
             endpoint_host: None,
         }
     }
+}
+
+/// A decoded `generateContent` answer: the operation's value, the model version, and the token
+/// usage.
+type Generated<T> = (T, Option<String>, Option<ModelUsage>);
+
+/// Decodes a `generateContent` body; `decode` turns the model's text into the operation's value.
+fn decode_generated<T>(
+    body: &str,
+    decode: impl Fn(&GenerateResponse) -> Result<T, Refusal>,
+) -> Result<Generated<T>, Refusal> {
+    let response = serde_json::from_str::<GenerateResponse>(body)
+        .map_err(|error| Refusal::runtime(format!("invalid Gemini response: {error}")))?;
+    let value = decode(&response)?;
+    Ok((
+        value,
+        response.model_version,
+        response.usage_metadata.map(ModelUsage::from),
+    ))
+}
+
+/// The answer of an ask; an empty answer is a runtime failure.
+fn decode_answer(response: &GenerateResponse) -> Result<String, Refusal> {
+    let text = response.text()?;
+    if text.trim().is_empty() {
+        return Err(Refusal::new(
+            AttemptErrorKind::Runtime,
+            "Gemini returned an empty answer",
+        ));
+    }
+    Ok(text)
+}
+
+/// The transcript of `video` the model wrote; output that is no usable transcript is a quality
+/// failure.
+fn decode_transcript(
+    response: &GenerateResponse,
+    video: &PlatformItem,
+) -> Result<transcript::Rendered, Refusal> {
+    transcript::render(&response.text()?, video)
+        .map_err(|message| Refusal::new(AttemptErrorKind::Quality, message))
 }
 
 /// Builds a request whose user turn is the video, then the instruction; `generation_config`
