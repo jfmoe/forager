@@ -2308,6 +2308,37 @@ fn search_budget_exhaustion_preserves_the_attempt_chain_in_the_journal() {
 }
 
 #[test]
+fn a_search_with_the_journal_off_writes_no_journal() {
+    let fixture = Fixture::start(
+        200,
+        "text/event-stream",
+        &completed_body("answer", "Source"),
+    );
+    let environment = RunEnvironment::new(&search_config(&fixture.url, false));
+
+    let output = environment.run(&["search", "Success", "--capabilities", "none"]);
+    fixture.finish();
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
+
+    assert_eq!(
+        (
+            output.status.code(),
+            &payload["journal_status"],
+            &payload["journal_ref"],
+            environment.state_dir.join("forager/journal").exists(),
+        ),
+        (
+            Some(0),
+            &Value::String("disabled".into()),
+            &Value::Null,
+            false
+        ),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
 fn search_journals_each_success_and_failure_terminal_once() {
     let fixture = Fixture::start_sequence(vec![
         Response::new(
