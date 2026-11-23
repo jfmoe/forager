@@ -5,31 +5,15 @@ use std::process::Output;
 
 use serde_json::{Value, json};
 
-use support::hn::{config, json, node, payload, stderr, story_item, story_tree};
+use support::hn::{config, payload, stderr};
+use support::hn_samples::stored;
 use support::path;
-use support::{Fixture, RunEnvironment};
+use support::{Fixture, Response, RunEnvironment};
 
 fn fetch(environment: &RunEnvironment, arguments: &[&str]) -> Output {
     let mut command = vec!["platform", "hn", "fetch"];
     command.extend_from_slice(arguments);
     environment.run(&command)
-}
-
-/// Three top-level comments posted in ID order, with replies listed out of order.
-fn discussion() -> Value {
-    story_tree(&[
-        node(
-            10,
-            "alice",
-            "First<p>Second",
-            &[
-                node(15, "erin", "reply c", &[]),
-                node(13, "dave", "reply b", &[node(14, "frank", "deep", &[])]),
-            ],
-        ),
-        node(11, "bob", "Second top", &[]),
-        node(12, "carol", "Third", &[]),
-    ])
 }
 
 const HEADER: &str = "# My YC app: Dropbox - Throw away your USB drive\n\n- Ref: `hn:8863` <https://news.ycombinator.com/item?id=8863>\n- Link: <http://www.getdropbox.com/u/2/screencast.html>\n- Author: dhouston\n";
@@ -55,8 +39,9 @@ fn comment(depth: usize, author: &str, id: u64, text: &str) -> String {
 
 #[test]
 fn a_thread_is_written_to_a_file_with_top_level_comments_in_rank_order() {
-    let algolia = Fixture::start_sequence(vec![json(&discussion())]);
-    let firebase = Fixture::start_sequence(vec![json(&story_item(&[12, 99, 10]))]);
+    let algolia = Fixture::start_sequence(vec![Response::json(200, &stored("item-tree.json"))]);
+    let firebase =
+        Fixture::start_sequence(vec![Response::json(200, &stored("firebase-item.json"))]);
     let environment = RunEnvironment::new(&config(&algolia.url, &firebase.url));
     let content_dir = tempfile::tempdir().expect("content directory");
 
@@ -145,8 +130,9 @@ fn a_thread_is_written_to_a_file_with_top_level_comments_in_rank_order() {
 
 #[test]
 fn a_thread_that_cannot_be_written_is_a_runtime_failure() {
-    let algolia = Fixture::start_sequence(vec![json(&discussion())]);
-    let firebase = Fixture::start_sequence(vec![json(&story_item(&[12, 99, 10]))]);
+    let algolia = Fixture::start_sequence(vec![Response::json(200, &stored("item-tree.json"))]);
+    let firebase =
+        Fixture::start_sequence(vec![Response::json(200, &stored("firebase-item.json"))]);
     let environment = RunEnvironment::new(&config(&algolia.url, &firebase.url));
     let blocker = tempfile::NamedTempFile::new().expect("a file where the directory should be");
     let content_dir = blocker.path().join("threads").display().to_string();

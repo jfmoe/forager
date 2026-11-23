@@ -5,7 +5,8 @@ use std::path::Path;
 use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
-use support::hn::{search_page, story_hit, story_item, story_tree};
+use support::hn::{search_page, story_tree};
+use support::hn_samples::{story_hit, story_item};
 use support::scholar::{fixture, ok};
 use support::smoke::{DISABLED_PLATFORMS, SmokeEnvironment, case};
 use support::{Fixture, Response, forager_command, object_keys, run_command};
