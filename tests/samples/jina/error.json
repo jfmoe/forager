@@ -1,0 +1,8 @@
+{
+  "data": null,
+  "code": 403,
+  "name": "AbuseAlleviationError",
+  "status": 40305,
+  "message": "Anonymous access to domain x.com blocked until Sun Oct 18 2026 04:21:55 GMT+0000 (Coordinated Universal Time) due to previous abuse found on http://x.com/example-path: DDoS attack suspected: Too many requests",
+  "readableMessage": "AbuseAlleviationError: Anonymous access to domain x.com blocked until Sun Oct 18 2026 04:21:55 GMT+0000 (Coordinated Universal Time) due to previous abuse found on http://x.com/example-path: DDoS attack suspected: Too many requests"
+}

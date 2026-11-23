@@ -151,4 +151,18 @@ mod tests {
             )
         );
     }
+
+    #[test]
+    fn the_default_web_fetch_order_is_listed_from_the_default_layer() {
+        let view = build_view(
+            &Config::default(),
+            &toml::Value::Table(toml::Table::new()),
+            &HashSet::new(),
+        );
+
+        assert_eq!(
+            view["capabilities"]["web_fetch"]["order"],
+            json!({"value": ["firecrawl", "jina", "tavily"], "source": "default"})
+        );
+    }
 }

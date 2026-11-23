@@ -1,0 +1,8 @@
+{
+  "results": [
+    {
+      "url": "https://example.test/article",
+      "raw_content": "# Example Article\n\nArticle body text."
+    }
+  ]
+}

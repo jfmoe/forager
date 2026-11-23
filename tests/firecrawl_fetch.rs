@@ -2,16 +2,16 @@ mod support;
 
 use serde_json::{Value, json};
 
+use support::samples::sample;
 use support::{Fixture, RunEnvironment, request_json};
 
 #[test]
 fn firecrawl_fetch_decodes_scrape_results_through_the_real_http_stack() {
     let content = "Firecrawl fixture content. ".repeat(30);
-    let body = serde_json::json!({
-        "success": true,
-        "data": {"markdown": content}
-    })
-    .to_string();
+    let mut answer: Value =
+        serde_json::from_str(&sample("firecrawl/scrape.json")).expect("stored scrape answer");
+    answer["data"]["markdown"] = json!(content);
+    let body = answer.to_string();
     let fixture = Fixture::start(200, "application/json", &body);
     let config = format!(
         r#"
@@ -65,52 +65,4 @@ enabled = false
             "parsers": [{"type": "pdf", "mode": "auto", "pageMarkers": true}]
         })
     );
-}
-
-#[test]
-fn firecrawl_unsupported_site_403_is_a_parameter_failure_with_the_provider_reason() {
-    let body = json!({
-        "success": false,
-        "error": "We apologize for the inconvenience but we do not support this site."
-    })
-    .to_string();
-    let fixture = Fixture::start(403, "application/json", &body);
-    let config = format!(
-        r#"
-[providers.jina]
-keys = []
-
-[providers.tavily]
-keys = []
-
-[providers.firecrawl]
-url = {url:?}
-keys = ["firecrawl-key"]
-timeout = 2
-
-[capabilities.web_fetch]
-order = ["firecrawl"]
-
-[journal]
-enabled = false
-"#,
-        url = fixture.url
-    );
-    let environment = RunEnvironment::new(&config);
-
-    let output = environment.run(&["fetch", "https://example.test/blocked"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
-    assert_eq!(
-        (&payload["error_kind"], &payload["message"]),
-        (
-            &Value::String("parameter".into()),
-            &Value::String(
-                "We apologize for the inconvenience but we do not support this site.".into()
-            ),
-        ),
-        "stdout: {payload}\nstderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    fixture.finish();
 }

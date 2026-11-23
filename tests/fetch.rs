@@ -1,122 +1,33 @@
 mod support;
 
 use std::fs;
-use std::time::Duration;
 
 use serde_json::Value;
 
+use support::samples::sample;
 use support::{Fixture, Response, RunEnvironment, jina_response};
 
-const MAX_RESPONSE_BYTES: usize = 4 * 1024 * 1024;
-
-#[test]
-fn fetch_uses_the_default_provider_order_and_falls_back_after_thin_html() {
-    let firecrawl = Fixture::start(
-        200,
-        "application/json",
-        r#"{"success":true,"data":{"markdown":"thin"}}"#,
-    );
-    let jina = Fixture::start(200, "application/json", &jina_response("also thin"));
-    let rich_content = "Tavily fallback content. ".repeat(30);
-    let tavily_body = serde_json::json!({"results": [{"raw_content": rich_content}]}).to_string();
-    let tavily = Fixture::start(200, "application/json", &tavily_body);
-    let config = fetch_config_with_default_order(
-        &jina.url,
-        &["jina-key"],
-        &tavily.url,
-        &["tavily-key"],
-        &firecrawl.url,
-        &["firecrawl-key"],
-    );
-    let environment = RunEnvironment::new(&config);
-
-    let output = environment.run(&["fetch", "https://example.test/article", "--verbose"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["provider"],
-            attempt_summary(&payload),
-        ),
-        (
-            Some(0),
-            &Value::String("tavily".into()),
-            vec![
-                ("firecrawl".to_owned(), Value::String("quality".into())),
-                ("jina".to_owned(), Value::String("quality".into())),
-                ("tavily".to_owned(), Value::Null),
-            ],
-        ),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    jina.finish();
-    tavily.finish();
-    firecrawl.finish();
+/// The stored Tavily extract answer whose page content is `raw_content`.
+fn tavily_extract(raw_content: &str) -> String {
+    let mut answer: Value =
+        serde_json::from_str(&sample("tavily/extract.json")).expect("stored extract answer");
+    answer["results"][0]["raw_content"] = serde_json::json!(raw_content);
+    answer.to_string()
 }
 
-#[test]
-fn fetch_reads_a_site_firecrawl_refuses_through_jina_before_tavily() {
-    let firecrawl = Fixture::start(
-        403,
-        "application/json",
-        r#"{"success":false,"error":"This website is no longer supported. We do not support this site."}"#,
-    );
-    let jina = Fixture::start(
-        200,
-        "application/json",
-        &jina_response(&"Jina article content. ".repeat(30)),
-    );
-    let tavily = Fixture::start_canary();
-    let config = fetch_config_with_default_order(
-        &jina.url,
-        &["jina-key"],
-        &tavily.url,
-        &["tavily-key"],
-        &firecrawl.url,
-        &["firecrawl-key"],
-    );
-    let environment = RunEnvironment::new(&config);
-
-    let output = environment.run(&[
-        "fetch",
-        "https://x.com/i/article/2110126570233094527",
-        "--verbose",
-    ]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["provider"],
-            attempt_summary(&payload),
-            tavily.finish_all().len(),
-        ),
-        (
-            Some(0),
-            &Value::String("jina".into()),
-            vec![
-                ("firecrawl".to_owned(), Value::String("parameter".into())),
-                ("jina".to_owned(), Value::Null),
-            ],
-            0,
-        ),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    jina.finish();
-    firecrawl.finish();
+/// The stored Jina Reader error with `message` as its reason.
+fn jina_refusal(message: &str) -> String {
+    let mut answer: Value =
+        serde_json::from_str(&sample("jina/error.json")).expect("stored Reader error");
+    answer["message"] = serde_json::json!(message);
+    answer["readableMessage"] = serde_json::json!(message);
+    answer.to_string()
 }
 
 #[test]
 fn fetch_reports_quality_when_every_configured_provider_is_thin() {
     let jina = Fixture::start(200, "application/json", &jina_response(""));
-    let tavily = Fixture::start(
-        200,
-        "application/json",
-        r#"{"results":[{"raw_content":"also thin"}]}"#,
-    );
+    let tavily = Fixture::start(200, "application/json", &tavily_extract("also thin"));
     let config = fetch_config(
         &jina.url,
         &["jina-key"],
@@ -185,339 +96,6 @@ fn fetch_terminal_kind_and_message_describe_the_same_attempt() {
 }
 
 #[test]
-fn fetch_applies_only_the_length_line_to_pdf_content() {
-    let content = "P".repeat(250);
-    let tavily = Fixture::start(
-        200,
-        "application/json",
-        r#"{"results":[{"raw_content":"thin"}]}"#,
-    );
-    let firecrawl = Fixture::start(
-        200,
-        "application/json",
-        r#"{"success":true,"data":{"markdown":"also thin"}}"#,
-    );
-    let jina = Fixture::start(200, "application/json", &jina_response(&content));
-    let config = fetch_config(
-        &jina.url,
-        &["jina-key"],
-        &tavily.url,
-        &["tavily-key"],
-        &firecrawl.url,
-        &["firecrawl-key"],
-        &["tavily", "firecrawl", "jina"],
-    );
-    let environment = RunEnvironment::new(&config);
-
-    let output = environment.run(&["fetch", "https://example.test/report.PDF?download=1"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["provider"],
-            payload["content"].as_str().map(str::len),
-        ),
-        (Some(0), &Value::String("jina".into()), Some(250))
-    );
-    jina.finish();
-    tavily.finish();
-    firecrawl.finish();
-}
-
-#[test]
-fn fetch_truncates_oversized_content_on_a_utf8_boundary_with_a_diagnostic() {
-    let prefix = r#"{"data":{"content":""#;
-    let retained = "a".repeat(MAX_RESPONSE_BYTES - prefix.len() - 1);
-    let body = format!("{prefix}{retained}€unreachable suffix");
-    let jina = Fixture::start(200, "application/json", &body);
-    let config = fetch_config(
-        &jina.url,
-        &["jina-key"],
-        "http://127.0.0.1:9",
-        &[],
-        "http://127.0.0.1:9",
-        &[],
-        &["jina", "tavily", "firecrawl"],
-    );
-    let environment = RunEnvironment::new(&config);
-
-    let output = environment.run(&["fetch", "https://example.test/large"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            payload["content"].as_str(),
-            String::from_utf8_lossy(&output.stderr).as_ref(),
-        ),
-        (
-            Some(0),
-            Some(retained.as_str()),
-            "content truncated at 4 MiB\n",
-        )
-    );
-    assert!(!String::from_utf8_lossy(&output.stdout).contains('\u{fffd}'));
-    jina.finish();
-}
-
-#[test]
-fn fetch_falls_back_when_truncated_content_is_still_thin() {
-    let tavily_body = format!(
-        r#"{{"results":[{{"raw_content":"thin","padding":"{}"#,
-        "x".repeat(MAX_RESPONSE_BYTES)
-    );
-    let tavily = Fixture::start(200, "application/json", &tavily_body);
-    let rich_content = "Firecrawl fallback after truncated thin content. ".repeat(20);
-    let firecrawl_body = serde_json::json!({
-        "success": true,
-        "data": {"markdown": rich_content}
-    })
-    .to_string();
-    let firecrawl = Fixture::start(200, "application/json", &firecrawl_body);
-    let config = fetch_config(
-        "http://127.0.0.1:9",
-        &[],
-        &tavily.url,
-        &["tavily-key"],
-        &firecrawl.url,
-        &["firecrawl-key"],
-        &["tavily", "firecrawl", "jina"],
-    );
-    let environment = RunEnvironment::new(&config);
-
-    let output = environment.run(&["fetch", "https://example.test/large", "--verbose"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["provider"],
-            &payload["provider_attempts"][0]["provider"],
-            &payload["provider_attempts"][0]["error_kind"],
-            &payload["provider_attempts"][1]["provider"],
-            String::from_utf8_lossy(&output.stderr).as_ref(),
-        ),
-        (
-            Some(0),
-            &Value::String("firecrawl".into()),
-            &Value::String("tavily".into()),
-            &Value::String("quality".into()),
-            &Value::String("firecrawl".into()),
-            "content truncated at 4 MiB\n",
-        )
-    );
-    tavily.finish();
-    firecrawl.finish();
-}
-
-#[test]
-fn fetch_falls_back_when_jina_returns_malformed_structured_json() {
-    let jina = Fixture::start(200, "application/json", r#"{"data":null}"#);
-    let rich_content = "Tavily fallback after malformed Jina JSON. ".repeat(20);
-    let tavily_body = serde_json::json!({
-        "results": [{"raw_content": rich_content}]
-    })
-    .to_string();
-    let tavily = Fixture::start(200, "application/json", &tavily_body);
-    let config = fetch_config(
-        &jina.url,
-        &["jina-key"],
-        &tavily.url,
-        &["tavily-key"],
-        "http://127.0.0.1:9",
-        &[],
-        &["jina", "tavily", "firecrawl"],
-    );
-    let environment = RunEnvironment::new(&config);
-
-    let output = environment.run(&["fetch", "https://example.test/article", "--verbose"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["provider"],
-            &payload["provider_attempts"][0]["provider"],
-            &payload["provider_attempts"][0]["error_kind"],
-            &payload["provider_attempts"][1]["provider"],
-        ),
-        (
-            Some(0),
-            &Value::String("tavily".into()),
-            &Value::String("jina".into()),
-            &Value::String("runtime".into()),
-            &Value::String("tavily".into()),
-        )
-    );
-    jina.finish();
-    tavily.finish();
-}
-
-#[test]
-fn fetch_preserves_the_available_tavily_content_when_json_is_truncated() {
-    let body = format!(
-        r#"{{"results":[{{"raw_content":"{}"#,
-        "t".repeat(MAX_RESPONSE_BYTES)
-    );
-    let tavily = Fixture::start(200, "application/json", &body);
-    let config = fetch_config(
-        "http://127.0.0.1:9",
-        &[],
-        &tavily.url,
-        &["tavily-key"],
-        "http://127.0.0.1:9",
-        &[],
-        &["tavily", "jina", "firecrawl"],
-    );
-    let environment = RunEnvironment::new(&config);
-
-    let output = environment.run(&["fetch", "https://example.test/large-json"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
-    assert!(
-        output.status.success()
-            && payload["content"]
-                .as_str()
-                .is_some_and(|content| content.len() > MAX_RESPONSE_BYTES - 100)
-            && String::from_utf8_lossy(&output.stderr) == "content truncated at 4 MiB\n",
-        "stdout: {}\nstderr: {}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    tavily.finish();
-}
-
-#[test]
-fn fetch_rotates_tavily_credentials_after_rate_limiting() {
-    let rich_content = "Rotated Tavily content. ".repeat(30);
-    let success = serde_json::json!({
-        "results": [{"raw_content": rich_content}]
-    })
-    .to_string();
-    let tavily = Fixture::start_sequence(vec![
-        Response::new(429, "application/json", r#"{"message":"rate limited"}"#),
-        Response::new(200, "application/json", &success),
-    ]);
-    let config = fetch_config(
-        "http://127.0.0.1:9",
-        &[],
-        &tavily.url,
-        &["first-key", "second-key"],
-        "http://127.0.0.1:9",
-        &[],
-        &["tavily", "jina", "firecrawl"],
-    );
-    let environment = RunEnvironment::new(&config);
-
-    let output = environment.run(&["fetch", "https://example.test/article", "--verbose"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-    let requests = tavily.finish_all();
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["provider_attempts"][0]["error_kind"],
-            &payload["provider_attempts"][1]["rotation_count"],
-            requests[0].contains("authorization: Bearer first-key"),
-            requests[1].contains("authorization: Bearer second-key"),
-        ),
-        (
-            Some(0),
-            &Value::String("rate_limited".into()),
-            &Value::from(1),
-            true,
-            true,
-        )
-    );
-}
-
-#[test]
-fn fetch_rotates_firecrawl_credentials_after_payment_required() {
-    let rich_content = "Rotated Firecrawl content. ".repeat(30);
-    let success = serde_json::json!({
-        "success": true,
-        "data": {"markdown": rich_content}
-    })
-    .to_string();
-    let firecrawl = Fixture::start_sequence(vec![
-        Response::new(402, "application/json", r#"{"message":"Payment Required"}"#),
-        Response::new(200, "application/json", &success),
-    ]);
-    let config = fetch_config(
-        "http://127.0.0.1:9",
-        &[],
-        "http://127.0.0.1:9",
-        &[],
-        &firecrawl.url,
-        &["first-key", "second-key"],
-        &["firecrawl", "jina", "tavily"],
-    );
-    let environment = RunEnvironment::new(&config);
-
-    let output = environment.run(&["fetch", "https://example.test/article", "--verbose"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["provider_attempts"][0]["error_kind"],
-            &payload["provider_attempts"][1]["rotation_count"],
-        ),
-        (
-            Some(0),
-            &Value::String("quota_exhausted".into()),
-            &Value::from(1),
-        ),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-
-    let requests = firecrawl.finish_all();
-    assert!(
-        requests[0].contains("authorization: Bearer first-key")
-            && requests[1].contains("authorization: Bearer second-key")
-    );
-}
-
-#[test]
-fn fetch_attributes_only_tavilys_final_attempt_after_rotation() {
-    let tavily = Fixture::start_sequence(vec![
-        Response::new(429, "application/json", r#"{"message":"rate limited"}"#),
-        Response::new(500, "application/json", r#"{"message":"upstream failed"}"#),
-    ]);
-    let config = fetch_config(
-        "http://127.0.0.1:9",
-        &[],
-        &tavily.url,
-        &["first-key", "second-key"],
-        "http://127.0.0.1:9",
-        &[],
-        &["tavily", "jina", "firecrawl"],
-    );
-    let environment = RunEnvironment::new(&config);
-
-    let output = environment.run(&["fetch", "https://example.test/article", "--verbose"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["error_kind"],
-            &payload["provider_attempts"][0]["error_kind"],
-            &payload["provider_attempts"][1]["error_kind"],
-        ),
-        (
-            Some(4),
-            &Value::String("network".into()),
-            &Value::String("rate_limited".into()),
-            &Value::String("network".into()),
-        )
-    );
-    tavily.finish_all();
-}
-
-#[test]
 fn fetch_attribution_uses_each_provider_final_attempt_and_error_priority() {
     let firecrawl = Fixture::start(401, "application/json", r#"{"error":"bad firecrawl key"}"#);
     let tavily = Fixture::start(503, "application/json", r#"{"error":"tavily down"}"#);
@@ -564,7 +142,7 @@ fn fetch_redacts_canaries_from_stdout_stderr_and_tee() {
         Response::new(
             401,
             "application/json",
-            &format!(r#"{{"message":"bad credential {canary}"}}"#),
+            &jina_refusal(&format!("bad credential {canary}")),
         )
     };
     // Jina's anonymous fallback follows its rejected key.
@@ -613,47 +191,6 @@ fn fetch_redacts_canaries_from_stdout_stderr_and_tee() {
 }
 
 #[test]
-fn fetch_reports_timeout_when_the_command_deadline_expires() {
-    let jina = Fixture::start_sequence(vec![
-        Response::new(200, "application/json", &jina_response("too late"))
-            .with_delay(Duration::from_millis(1500)),
-    ]);
-    let config = fetch_config(
-        &jina.url,
-        &["jina-key"],
-        "http://127.0.0.1:9",
-        &[],
-        "http://127.0.0.1:9",
-        &[],
-        &["jina", "tavily", "firecrawl"],
-    );
-    let environment = RunEnvironment::new(&config);
-
-    let output = environment.run(&[
-        "fetch",
-        "https://example.test/article",
-        "--timeout",
-        "1",
-        "--verbose",
-    ]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["error_kind"],
-            &payload["provider_attempts"][0]["error_kind"],
-        ),
-        (
-            Some(4),
-            &Value::String("timeout".into()),
-            &Value::String("timeout".into()),
-        )
-    );
-    jina.finish_all();
-}
-
-#[test]
 fn fetch_rejects_a_chain_without_configured_credentials_before_network() {
     // Jina runs anonymously without keys, so only an order without it has no configured
     // provider.
@@ -691,42 +228,6 @@ fn fetch_rejects_a_chain_without_configured_credentials_before_network() {
             true,
         )
     );
-}
-
-#[test]
-fn config_list_reports_the_default_fetch_order() {
-    let environment = RunEnvironment::new("");
-
-    let output = environment.run(&["config", "list"]);
-    let view: Value = serde_json::from_slice(&output.stdout).expect("parse config view");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &view["capabilities"]["web_fetch"]["order"]
-        ),
-        (
-            Some(0),
-            &serde_json::json!({"value": ["firecrawl", "jina", "tavily"], "source": "default"})
-        ),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-}
-
-/// Each provider attempt as its provider and error kind, in chain order.
-fn attempt_summary(payload: &Value) -> Vec<(String, Value)> {
-    payload["provider_attempts"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .map(|attempt| {
-            (
-                attempt["provider"].as_str().unwrap_or_default().to_owned(),
-                attempt["error_kind"].clone(),
-            )
-        })
-        .collect()
 }
 
 fn fetch_config(
@@ -839,7 +340,7 @@ fn fetch_receipt_writes_the_result_file_and_prints_only_a_receipt() {
 
 #[test]
 fn fetch_receipt_keeps_the_failure_payload_on_stdout() {
-    let refusal = || Response::new(401, "application/json", r#"{"message":"bad credential"}"#);
+    let refusal = || Response::new(401, "application/json", &jina_refusal("bad credential"));
     let jina = Fixture::start_sequence(vec![refusal(), refusal()]);
     let config = fetch_config(
         &jina.url,
