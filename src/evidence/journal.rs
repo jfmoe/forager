@@ -371,7 +371,6 @@ mod tests {
             ("prefix_search_result_1_2_3.json", true, false),
             ("search_result_1_2_3.json.bak", true, false),
             ("stale.json", true, false),
-            ("search_results_20260809.jsonl", true, false),
         ];
         for (name, stale, _) in cases {
             let path = journal_path.join(name);

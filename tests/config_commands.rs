@@ -18,7 +18,6 @@ fn config_list_reports_the_complete_default_effective_view() {
         (
             output.status.code(),
             count_effective_leaves(&view),
-            view["search"].get("validation"),
             &view["providers"]["exa"]["keys"],
             &view["http"]["ssl_verify"],
             &view["browser"]["path"],
@@ -26,7 +25,6 @@ fn config_list_reports_the_complete_default_effective_view() {
         (
             Some(0),
             68,
-            None,
             &serde_json::json!({
                 "value": [],
                 "source": "default",
@@ -568,11 +566,11 @@ fn config_set_can_repair_a_strictly_invalid_but_parseable_document() {
 }
 
 #[test]
-fn config_list_rejects_removed_validation_file_and_environment_inputs() {
+fn config_list_rejects_an_undefined_file_key_and_environment_variable() {
     let config_dir = tempfile::tempdir().expect("create config directory");
     fs::write(
         config_dir.path().join("config.toml"),
-        "[search]\nvalidation = \"strict\"\n",
+        "[search]\nno_such_key = \"x\"\n",
     )
     .expect("write config");
 
@@ -581,16 +579,16 @@ fn config_list_rejects_removed_validation_file_and_environment_inputs() {
     let env_error = run(
         config_dir.path(),
         &["config", "list"],
-        &[("FORAGER_SEARCH__VALIDATION", "strict")],
+        &[("FORAGER_SEARCH__NO_SUCH_KEY", "x")],
         None,
     );
 
     assert_eq!(
         (
             file_error.status.code(),
-            String::from_utf8_lossy(&file_error.stderr).contains("validation"),
+            String::from_utf8_lossy(&file_error.stderr).contains("no_such_key"),
             env_error.status.code(),
-            String::from_utf8_lossy(&env_error.stderr).contains("FORAGER_SEARCH__VALIDATION"),
+            String::from_utf8_lossy(&env_error.stderr).contains("FORAGER_SEARCH__NO_SUCH_KEY"),
         ),
         (Some(3), true, Some(3), true)
     );

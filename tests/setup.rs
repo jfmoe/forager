@@ -25,7 +25,6 @@ fn non_interactive_setup_creates_a_complete_template() {
             value["providers"]["exa"]["keys"].as_array().map(Vec::len),
             &value["capabilities"]["web_fetch"]["order"],
             value["providers"]["firecrawl"]["timeout"].as_integer(),
-            value["search"].get("validation"),
             value["browser"]["path"].as_str(),
         ),
         (
@@ -39,7 +38,6 @@ fn non_interactive_setup_creates_a_complete_template() {
                     .collect()
             ),
             Some(60),
-            None,
             Some(""),
         ),
         "stderr: {}",

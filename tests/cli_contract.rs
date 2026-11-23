@@ -194,15 +194,23 @@ fn ssrn_fetch_help_defaults_to_metadata_depth() {
 }
 
 #[test]
-fn search_rejects_the_removed_validation_option_as_unknown() {
-    let output = run(&["search", "query", "--validation", "strict"]);
-    let stderr = String::from_utf8_lossy(&output.stderr);
+fn an_undefined_command_or_option_is_a_usage_error_naming_it() {
+    for (arguments, named) in [
+        (&["no-such-command", "query"][..], "no-such-command"),
+        (
+            &["search", "query", "--no-such-option", "x"][..],
+            "--no-such-option",
+        ),
+    ] {
+        let output = run(arguments);
+        let stderr = String::from_utf8_lossy(&output.stderr);
 
-    assert_eq!(
-        (output.status.code(), stderr.contains("--validation")),
-        (Some(2), true),
-        "stderr: {stderr}"
-    );
+        assert_eq!(
+            (output.status.code(), stderr.contains(named)),
+            (Some(2), true),
+            "{arguments:?} stderr: {stderr}"
+        );
+    }
 }
 
 fn run(arguments: &[&str]) -> Output {

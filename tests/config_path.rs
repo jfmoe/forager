@@ -7,15 +7,15 @@ use std::process::Output;
 use support::{forager_command, run_command};
 
 #[test]
-fn config_path_does_not_load_a_removed_validation_key() {
+fn config_path_does_not_load_the_configuration_file() {
     let config_dir = tempfile::tempdir().expect("create temporary config directory");
     let xdg_config_home = tempfile::tempdir().expect("create alternate XDG directory");
     let home = tempfile::tempdir().expect("create alternate home");
     fs::write(
         config_dir.path().join("config.toml"),
-        "[search]\nvalidation = \"strict\"\n",
+        "[search]\nno_such_key = \"x\"\n",
     )
-    .expect("write legacy config");
+    .expect("write config with an undefined key");
 
     let output = run(&[
         ("FORAGER_CONFIG_DIR", config_dir.path()),
