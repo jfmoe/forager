@@ -21,14 +21,14 @@ use crate::providers::constructors::credentials;
 use crate::providers::execution::{ExecutionOutcome, ExecutionSettings, execute_v2};
 use crate::providers::key_account::KeyAccount;
 use crate::providers::route_declaration::{
-    PlatformRoute, RouteAdapter, RouteContext, RouteDeclaration,
+    OperationRoute, PlatformRoute, RouteAdapter, RouteContext, RouteDeclaration,
 };
 use crate::providers::shared::redacted_urls_message;
 use crate::providers::{PlatformFetch, PlatformSearch};
 use crate::redact::Secret;
 use crate::types::{
     AttemptErrorKind, AttemptTarget, Deadline, PlatformFetchOutcome, PlatformFetchRequest,
-    PlatformSearchOutcome, PlatformSearchRequest, ProviderError,
+    PlatformSearchOutcome, PlatformSearchRequest, ProviderError, ScholarCitedByRequest,
 };
 
 const ROUTE: ProviderId = ProviderId::Serpapi;
@@ -47,6 +47,21 @@ pub(crate) const DECLARATION: RouteDeclaration<KeyedHttpRouteRuntimeConfig> = Ro
         search_support: Some(search_support),
         fetch_support: Some(fetch_support),
         login_page: None,
+    },
+};
+
+/// Cited-by, the Google Scholar operation that only this route serves.
+pub(crate) const CITED_BY_OPERATION: OperationRoute<
+    KeyedHttpRouteRuntimeConfig,
+    ScholarCitedByRequest,
+    ScholarCitedByRequest,
+    PlatformSearchOutcome,
+> = OperationRoute {
+    route: ROUTE,
+    config: |routes| &routes.serpapi,
+    support: cited_by_support,
+    run: |config, context, request| {
+        Box::pin(async move { Serpapi::build(config, context).cited_by(request).await })
     },
 };
 

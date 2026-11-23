@@ -43,22 +43,22 @@ pub(crate) use browser_route::preflight as browser_preflight;
 pub(crate) use constructors::{build_exa, build_openai, build_tavily_map, route_limiter};
 pub(crate) use exa::{Exa, ExaSearchRequest, ExaSimilarRequest, SearchType};
 pub(crate) use factory::{
-    HN_STORIES_ROUTES, POLYMARKET_HISTORY_ROUTES, SCHOLAR_CITED_BY_ROUTES, X_ASK_ROUTES,
-    XIAOHONGSHU_COMMENTS_ROUTES, YOUTUBE_ASK_ROUTES, YOUTUBE_COMMENTS_ROUTES,
-    YOUTUBE_TRANSCRIBE_ROUTES, YOUTUBE_VIDEOS_ROUTES, browser_login, build_docs_search,
-    build_main_search, build_platform_fetch, build_platform_search, build_web_fetch,
-    build_web_search, hn_stories, hn_stories_support, platform_fetch_support,
-    platform_route_extra_checks, platform_search_support, polymarket_history,
-    polymarket_history_support, route_accounts, route_prerequisites, scholar_cited_by,
-    scholar_cited_by_support, x_ask, x_ask_support, xiaohongshu_comments,
-    xiaohongshu_comments_support, youtube_ask, youtube_ask_support, youtube_comments,
-    youtube_comments_support, youtube_transcribe, youtube_transcribe_support, youtube_videos,
-    youtube_videos_support,
+    browser_login, build_docs_search, build_main_search, build_platform_fetch,
+    build_platform_search, build_web_fetch, build_web_search, operation_support,
+    platform_fetch_support, platform_route_extra_checks, platform_search_support, route_accounts,
+    route_prerequisites,
 };
 #[cfg(test)]
 pub(crate) use factory::{built_route_checks_accounts, declared_and_built_operations};
+pub(crate) use gemini_api::{
+    ASK_OPERATION as YOUTUBE_ASK, TRANSCRIBE_OPERATION as YOUTUBE_TRANSCRIBE,
+};
+pub(crate) use hn_api::STORIES_OPERATION as HN_STORIES;
 pub(crate) use key_account::KeyAccount;
 pub(crate) use openai::Openai;
+pub(crate) use polymarket_api::HISTORY_OPERATION as POLYMARKET_HISTORY;
+pub(crate) use route_declaration::{OperationRoute, RouteContext};
+pub(crate) use serpapi::CITED_BY_OPERATION as SCHOLAR_CITED_BY;
 pub(crate) use serpapi::KeyQuota;
 pub(crate) use supplemental::SupplementalSearch;
 pub(crate) use tavily_map::{MapRequest, TavilyMap};
@@ -67,3 +67,8 @@ pub(crate) use types::{
     PlatformSearch, WebSearch,
 };
 pub(crate) use web_fetch::{FetchRequest, WebFetch, is_pdf_url};
+pub(crate) use xai::ASK_OPERATION as X_ASK;
+pub(crate) use xiaohongshu_browser::COMMENTS_OPERATION as XIAOHONGSHU_COMMENTS;
+pub(crate) use youtube_api::{
+    COMMENTS_OPERATION as YOUTUBE_COMMENTS, VIDEOS_OPERATION as YOUTUBE_VIDEOS,
+};

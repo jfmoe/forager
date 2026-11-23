@@ -27,7 +27,7 @@ use crate::providers::execution::{
 };
 use crate::providers::key_account::KeyAccount;
 use crate::providers::route_declaration::{
-    PlatformRoute, RouteAdapter, RouteContext, RouteDeclaration,
+    OperationRoute, PlatformRoute, RouteAdapter, RouteContext, RouteDeclaration, any_request,
 };
 use crate::providers::shared::{Refusal, acquire_window};
 use crate::providers::{PlatformFetch, PlatformSearch, route_limiter};
@@ -35,7 +35,8 @@ use crate::rate_limit::RateLimiter;
 use crate::redact::Secret;
 use crate::types::{
     ASK, AttemptErrorKind, AttemptTarget, Deadline, ModelAnswerOutcome, ModelTranscriptOutcome,
-    ModelUsage, Platform, PlatformItem, ProviderError, TRANSCRIBE,
+    ModelUsage, Platform, PlatformItem, ProviderError, TRANSCRIBE, YoutubeAskRequest,
+    YoutubeTranscribeRequest,
 };
 
 #[path = "gemini_api_transcript.rs"]
@@ -55,6 +56,37 @@ pub(crate) const DECLARATION: RouteDeclaration<ModelRouteRuntimeConfig> = RouteD
         search_support: None,
         fetch_support: None,
         login_page: None,
+    },
+};
+
+/// Ask on YouTube, a YouTube operation that only this route serves: a question about the video
+/// the precheck read.
+pub(crate) const ASK_OPERATION: OperationRoute<
+    ModelRouteRuntimeConfig,
+    YoutubeAskRequest,
+    (PlatformItem, String),
+    ModelAnswerOutcome,
+> = OperationRoute {
+    route: ROUTE,
+    config: |routes| &routes.gemini_api,
+    support: any_request,
+    run: |config, context, (video, question)| {
+        Box::pin(async move { GeminiApi::build(config, context).ask(video, question).await })
+    },
+};
+
+/// Transcribe, a YouTube operation that only this route serves, on the video the precheck read.
+pub(crate) const TRANSCRIBE_OPERATION: OperationRoute<
+    ModelRouteRuntimeConfig,
+    YoutubeTranscribeRequest,
+    PlatformItem,
+    ModelTranscriptOutcome,
+> = OperationRoute {
+    route: ROUTE,
+    config: |routes| &routes.gemini_api,
+    support: any_request,
+    run: |config, context, video| {
+        Box::pin(async move { GeminiApi::build(config, context).transcribe(video).await })
     },
 };
 

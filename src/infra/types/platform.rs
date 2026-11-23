@@ -479,16 +479,6 @@ impl PlatformCommentsPage {
             Self::Youtube(page) => page.diagnostic,
         }
     }
-
-    /// Sets the attempts and the diagnostic the route chain collected.
-    pub(crate) fn attach(&mut self, attempts: Vec<ProviderAttempt>, diagnostic: Option<String>) {
-        let (page_attempts, page_diagnostic) = match self {
-            Self::Xiaohongshu(page) => (&mut page.attempts, &mut page.diagnostic),
-            Self::Youtube(page) => (&mut page.attempts, &mut page.diagnostic),
-        };
-        *page_attempts = attempts;
-        *page_diagnostic = diagnostic;
-    }
 }
 
 /// The attempt-target name of the ask operation.

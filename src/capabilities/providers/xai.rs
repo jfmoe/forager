@@ -16,14 +16,14 @@ use crate::providers::execution::ExecutionSettings;
 use crate::providers::main_search_responses::ResponsesMainSearch;
 use crate::providers::responses_api::ResponsesEndpoint;
 use crate::providers::route_declaration::{
-    PlatformRoute, RouteAdapter, RouteContext, RouteDeclaration,
+    OperationRoute, PlatformRoute, RouteAdapter, RouteContext, RouteDeclaration, any_request,
 };
 use crate::providers::{
     MainSearch, MainSearchRequest, MainSearchRequestKind, PlatformFetch, PlatformSearch,
 };
 use crate::types::{
     AttemptTarget, Deadline, PlatformFetchOutcome, PlatformFetchRequest, PlatformSearchOutcome,
-    PlatformSearchRequest, ProviderError, SearchOutcome,
+    PlatformSearchRequest, ProviderError, SearchOutcome, XAskOutcome, XAskRequest,
 };
 
 #[path = "xai_x.rs"]
@@ -40,6 +40,21 @@ pub(crate) const DECLARATION: RouteDeclaration<XaiRuntimeConfig> = RouteDeclarat
         search_support: Some(search_support),
         fetch_support: Some(fetch_support),
         login_page: None,
+    },
+};
+
+/// Ask on X, the X operation that only this route serves.
+pub(crate) const ASK_OPERATION: OperationRoute<
+    XaiRuntimeConfig,
+    XAskRequest,
+    XAskRequest,
+    XAskOutcome,
+> = OperationRoute {
+    route: ProviderId::Xai,
+    config: |routes| &routes.xai,
+    support: any_request,
+    run: |config, context, request| {
+        Box::pin(async move { Xai::build(config, context).ask(request).await })
     },
 };
 

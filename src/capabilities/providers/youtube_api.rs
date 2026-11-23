@@ -22,7 +22,7 @@ use crate::providers::constructors::credentials;
 use crate::providers::execution::{ExecutionOutcome, ExecutionSettings, execute_v2};
 use crate::providers::markup::markup_text;
 use crate::providers::route_declaration::{
-    PlatformRoute, RouteAdapter, RouteContext, RouteDeclaration,
+    OperationRoute, PlatformRoute, RouteAdapter, RouteContext, RouteDeclaration, any_request,
 };
 use crate::providers::shared::{
     Refusal, acquire_window, count, other_platform_message, parameter_error, utc_timestamp,
@@ -33,7 +33,9 @@ use crate::types::{
     AttemptErrorKind, AttemptTarget, ContentDepth, Deadline, FullTextSource, Platform,
     PlatformFetchOptions, PlatformFetchOutcome, PlatformFetchRequest, PlatformItem,
     PlatformItemData, PlatformRef, PlatformSearchOutcome, PlatformSearchRequest, ProviderError,
-    YoutubeItemData, YoutubeKind, YoutubeLiveStatus, YoutubeRef, chapters_from_description,
+    YoutubeCommentsOutcome, YoutubeCommentsRequest, YoutubeItemData, YoutubeKind,
+    YoutubeLiveStatus, YoutubeRef, YoutubeVideosOutcome, YoutubeVideosRequest,
+    chapters_from_description,
 };
 
 #[path = "youtube_api_comments.rs"]
@@ -59,6 +61,36 @@ pub(crate) const DECLARATION: RouteDeclaration<KeyedHttpRouteRuntimeConfig> = Ro
         search_support: Some(search_support),
         fetch_support: Some(fetch_support),
         login_page: None,
+    },
+};
+
+/// Comments on YouTube, a YouTube operation that only this route serves.
+pub(crate) const COMMENTS_OPERATION: OperationRoute<
+    KeyedHttpRouteRuntimeConfig,
+    YoutubeCommentsRequest,
+    YoutubeCommentsRequest,
+    YoutubeCommentsOutcome,
+> = OperationRoute {
+    route: ROUTE,
+    config: |routes| &routes.youtube_api,
+    support: any_request,
+    run: |config, context, request| {
+        Box::pin(async move { YoutubeApi::build(config, context).comments(request).await })
+    },
+};
+
+/// Videos, a YouTube operation that only this route serves.
+pub(crate) const VIDEOS_OPERATION: OperationRoute<
+    KeyedHttpRouteRuntimeConfig,
+    YoutubeVideosRequest,
+    YoutubeVideosRequest,
+    YoutubeVideosOutcome,
+> = OperationRoute {
+    route: ROUTE,
+    config: |routes| &routes.youtube_api,
+    support: videos_support,
+    run: |config, context, request| {
+        Box::pin(async move { YoutubeApi::build(config, context).videos(request).await })
     },
 };
 

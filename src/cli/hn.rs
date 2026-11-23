@@ -9,7 +9,7 @@ use clap::{Args, Subcommand, ValueEnum};
 use super::{PageInput, PlatformCommonArgs, fetch, parse_date, preflight_error, search};
 use crate::app::args::{DocsOutputFormat, OutputFormat};
 use crate::app::dispatch::{AppError, CommandOutput, NetworkDependencies, provider_attempt_log};
-use crate::platform_stories;
+use crate::platform_operation;
 use crate::types::{
     ContentDepth, Deadline, HnRef, HnSearchOptions, HnSearchType, HnSort, HnStoriesList,
     HnStoriesRequest, Platform, PlatformFetchRequest, PlatformRef, PlatformSearchOptions,
@@ -276,15 +276,21 @@ fn hn_stories(arguments: HnStoriesArgs) -> Result<CommandOutput, AppError> {
         limit,
     };
     let dependencies = NetworkDependencies::load()?;
-    let plan = platform_stories::plan_stories(dependencies.platform(Platform::Hn)?, request)
-        .map_err(preflight_error)?;
-    let result = dependencies.runtime.block_on(platform_stories::run_stories(
-        plan,
-        dependencies.client,
-        dependencies.retry_policy,
-        Deadline::new(Duration::from_secs(common.timeout)),
-        common.verbose,
-    ));
+    let plan = platform_operation::plan_stories(
+        dependencies.platform(Platform::Hn)?,
+        &dependencies.config.platform_routes,
+        request,
+    )
+    .map_err(preflight_error)?;
+    let result = dependencies
+        .runtime
+        .block_on(platform_operation::run_stories(
+            plan,
+            dependencies.client,
+            dependencies.retry_policy,
+            Deadline::new(Duration::from_secs(common.timeout)),
+            common.verbose,
+        ));
     let attempt_log = provider_attempt_log(dependencies.config.log_level, &result, |listing| {
         &listing.attempts
     });

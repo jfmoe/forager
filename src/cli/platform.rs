@@ -11,15 +11,19 @@ use super::args::{DocsOutputFormat, OutputArgs, OutputFormat};
 use super::dispatch::{
     AppError, CommandOutput, NetworkDependencies, invocation_temp_dir, provider_attempt_log,
 };
-use crate::config::{ConfigError, PlatformRuntimeConfig};
-use crate::platform_ask;
-use crate::platform_chain::{self, PlatformPagePlan, PlatformPreflightError};
-use crate::platform_comments;
+use std::future::Future;
+
+use reqwest::Client;
+
+use crate::config::{ConfigError, PlatformRoutesRuntimeConfig, PlatformRuntimeConfig};
+use crate::net::RetryPolicy;
+use crate::platform_chain::{self, PlatformPreflightError};
 use crate::platform_fetch;
+use crate::platform_operation;
 use crate::types::{
     ArxivSearchOptions, ArxivSort, AttemptErrorKind, ContentDepth, Deadline, Platform,
     PlatformAskRequest, PlatformCommentsRequest, PlatformFetchRequest, PlatformFetchResult,
-    PlatformRef, PlatformSearchOptions, PlatformSearchRequest, ProviderError,
+    PlatformRef, PlatformSearchOptions, PlatformSearchPage, PlatformSearchRequest, ProviderError,
     ScholarCitedByRequest,
 };
 
@@ -343,10 +347,11 @@ fn search(
 ) -> Result<CommandOutput, AppError> {
     run_page(
         platform,
-        |config| match input {
+        |config, _| match input {
             PageInput::Request(request) => platform_chain::plan_search(config, request),
             PageInput::Cursor(cursor) => platform_chain::plan_cursor_search(config, &cursor),
         },
+        platform_chain::run_page,
         format,
         common,
     )
@@ -359,25 +364,41 @@ fn scholar_cited_by(
 ) -> Result<CommandOutput, AppError> {
     run_page(
         Platform::Scholar,
-        |config| match input {
-            PageInput::Request(request) => platform_chain::plan_cited_by(config, request),
-            PageInput::Cursor(cursor) => platform_chain::plan_cursor_cited_by(config, &cursor),
+        |config, routes| match input {
+            PageInput::Request(request) => {
+                platform_operation::plan_cited_by(config, routes, request)
+            }
+            PageInput::Cursor(cursor) => {
+                platform_operation::plan_cursor_cited_by(config, routes, &cursor)
+            }
         },
+        platform_operation::run_cited_by,
         format,
         common,
     )
 }
 
 /// Plans one page of a paged operation over the platform's configuration and runs it.
-fn run_page(
+fn run_page<Plan, Page>(
     platform: Platform,
-    plan: impl FnOnce(&PlatformRuntimeConfig) -> Result<PlatformPagePlan, PlatformPreflightError>,
+    plan: impl FnOnce(
+        &PlatformRuntimeConfig,
+        &PlatformRoutesRuntimeConfig,
+    ) -> Result<Plan, PlatformPreflightError>,
+    run: impl FnOnce(Plan, Client, RetryPolicy, Deadline, bool) -> Page,
     format: OutputFormat,
     common: &PlatformCommonArgs,
-) -> Result<CommandOutput, AppError> {
+) -> Result<CommandOutput, AppError>
+where
+    Page: Future<Output = Result<PlatformSearchPage, ProviderError>>,
+{
     let dependencies = NetworkDependencies::load()?;
-    let plan = plan(dependencies.platform(platform)?).map_err(preflight_error)?;
-    let result = dependencies.runtime.block_on(platform_chain::run_page(
+    let plan = plan(
+        dependencies.platform(platform)?,
+        &dependencies.config.platform_routes,
+    )
+    .map_err(preflight_error)?;
+    let result = dependencies.runtime.block_on(run(
         plan,
         dependencies.client,
         dependencies.retry_policy,
@@ -402,12 +423,15 @@ fn comments(
     common: &PlatformCommonArgs,
 ) -> Result<CommandOutput, AppError> {
     let dependencies = NetworkDependencies::load()?;
-    let plan =
-        platform_comments::plan_comments(dependencies.platform(request.platform())?, request)
-            .map_err(preflight_error)?;
+    let plan = platform_operation::plan_comments(
+        dependencies.platform(request.platform())?,
+        &dependencies.config.platform_routes,
+        request,
+    )
+    .map_err(preflight_error)?;
     let result = dependencies
         .runtime
-        .block_on(platform_comments::run_comments(
+        .block_on(platform_operation::run_comments(
             plan,
             dependencies.client,
             dependencies.retry_policy,
@@ -433,9 +457,13 @@ fn ask(
 ) -> Result<CommandOutput, AppError> {
     let platform = request.platform();
     let dependencies = NetworkDependencies::load()?;
-    let plan = platform_ask::plan_ask(dependencies.platform(platform)?, request)
-        .map_err(preflight_error)?;
-    let result = dependencies.runtime.block_on(platform_ask::run_ask(
+    let plan = platform_operation::plan_ask(
+        dependencies.platform(platform)?,
+        &dependencies.config.platform_routes,
+        request,
+    )
+    .map_err(preflight_error)?;
+    let result = dependencies.runtime.block_on(platform_operation::run_ask(
         plan,
         dependencies.client,
         dependencies.retry_policy,

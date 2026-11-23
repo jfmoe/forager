@@ -19,13 +19,15 @@ use crate::net::AttemptFailure;
 use crate::providers::browser::runtime;
 use crate::providers::browser_route::{BrowserRoute, single_attempt};
 use crate::providers::execution::ExecutionSettings;
-use crate::providers::route_declaration::{PlatformRoute, RouteAdapter, RouteDeclaration};
+use crate::providers::route_declaration::{
+    OperationRoute, PlatformRoute, RouteAdapter, RouteDeclaration, any_request,
+};
 use crate::providers::{PlatformFetch, PlatformSearch, route_limiter};
 use crate::redact::CREDENTIAL_MASK;
 use crate::types::{
     AccessToken, AttemptErrorKind, AttemptTarget, Deadline, Platform, PlatformFetchOutcome,
     PlatformFetchRequest, PlatformSearchOutcome, PlatformSearchRequest, ProviderError,
-    XiaohongshuRef,
+    XiaohongshuCommentsOutcome, XiaohongshuCommentsRequest, XiaohongshuRef,
 };
 
 const ROUTE: ProviderId = ProviderId::XiaohongshuBrowser;
@@ -74,6 +76,25 @@ pub(crate) const DECLARATION: RouteDeclaration<BrowserRouteRuntimeConfig> = Rout
         search_support: Some(search_support),
         fetch_support: Some(fetch_support),
         login_page: Some(LOGIN_PAGE),
+    },
+};
+
+/// Comments on Xiaohongshu, the Xiaohongshu operation that only this route serves.
+pub(crate) const COMMENTS_OPERATION: OperationRoute<
+    BrowserRouteRuntimeConfig,
+    XiaohongshuCommentsRequest,
+    XiaohongshuCommentsRequest,
+    XiaohongshuCommentsOutcome,
+> = OperationRoute {
+    route: ROUTE,
+    config: |routes| &routes.xiaohongshu_browser,
+    support: any_request,
+    run: |config, context, request| {
+        Box::pin(async move {
+            XiaohongshuBrowser::build(config, context.deadline)
+                .comments(request)
+                .await
+        })
     },
 };
 

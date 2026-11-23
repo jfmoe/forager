@@ -37,25 +37,19 @@ mod fixture_server;
 mod journal;
 #[path = "capabilities/net.rs"]
 mod net;
-#[path = "core/platform_ask.rs"]
-mod platform_ask;
+#[path = "core/page_cursor.rs"]
+mod page_cursor;
 #[path = "core/platform_chain.rs"]
 mod platform_chain;
 #[cfg(test)]
 #[path = "core/platform_checklist.rs"]
 mod platform_checklist;
-#[path = "core/platform_comments.rs"]
-mod platform_comments;
 #[path = "core/platform_fetch.rs"]
 mod platform_fetch;
-#[path = "core/platform_history.rs"]
-mod platform_history;
+#[path = "core/platform_operation.rs"]
+mod platform_operation;
 #[path = "core/platform_precheck.rs"]
 mod platform_precheck;
-#[path = "core/platform_stories.rs"]
-mod platform_stories;
-#[path = "core/platform_transcribe.rs"]
-mod platform_transcribe;
 #[path = "capabilities/providers/mod.rs"]
 mod providers;
 #[path = "capabilities/rate_limit.rs"]

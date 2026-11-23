@@ -45,7 +45,7 @@ Nothing depends on a layer above it. When two modules need the same thing, it mo
 
 Each Capability Seam has one trait with its own outcome type. A provider is one struct, and the same instance can join several chains. The provider registry is the only place that records a provider's identity, credentials, transport, Access Policy and doctor probe.
 
-A Platform is a dimension beside the Capability Seams, not another seam (ADR-0019). A Platform Route is a provider, and one route can serve both a seam and a platform. The platform catalog is the only source of which routes belong to which platform. A platform can have several routes that split its evidence into layers; one layer never falls back to another (ADR-0028).
+A Platform is a dimension beside the Capability Seams, not another seam (ADR-0019). A Platform Route is a provider, and one route can serve both a seam and a platform. The platform catalog is the only source of which routes belong to which platform, and it declares the routes of every Platform Operation: search, fetch, and each operation of a platform's own. A platform can have several routes that split its evidence into layers; one layer never falls back to another (ADR-0028).
 
 Each Platform Route is declared once, in its own adapter: how it is built from its runtime configuration, the request checks planning runs before it chooses the route, and what doctor and the browser login add for it. The built route hands out its own seam implementations, extra endpoint checks and per-key account checks. The provider factory reaches a route only through that declaration, with one lookup by route configuration and one by provider identity.
 
@@ -58,7 +58,7 @@ Every match on the provider identity, or on a configuration keyed by it, in the 
 **A platform operation.**
 
 1. Dispatch runs the browser preflight check when a browser route could serve the request.
-2. Planning is pure: the usable routes are the configured order, intersected with the operation's route set and with the configured routes.
+2. Planning is pure: the usable routes are the configured order, intersected with the operation's route set in the platform catalog and with the configured routes. An operation that one route serves gets that route's own configuration, or a configuration error when the order leaves the route out or it is unconfigured.
 3. The shared chain executor runs them. An empty result is a legitimate outcome, not a failure. A request never falls back to another platform.
 4. Platform fetch has two stages. The route returns metadata and declares where the full text lives; orchestration then reads it through the global Web Fetch chain, or uses the native body the route already read (ADR-0022).
 5. A model operation reads what it needs from the platform during orchestration first. A model route never reads the platform itself.
@@ -92,7 +92,7 @@ Invariants that hold for every command:
 
 - **A provider** is registered once, in the provider registry, and needs its configuration section, leaves and runtime configuration. The compiler then names each match in the provider factory and the runtime configuration that must place it.
 - **A platform or route** needs a catalog entry, its type leaf, the route adapter with its one route declaration, its configuration section and runtime configuration, and the registration points that the platform checklist test names, such as an access-window test, sample refs and a live case for each operation. The compiler names the factory's two lookups. Run the checklist test; each failure says what is missing.
-- **A platform operation served by one route** is an inherent method on that route. The provider factory declares the operation's route set, and `core/` adds one orchestration entry for it. When a second route appears, the operation becomes a trait.
+- **A platform operation served by one route** is an inherent method on that route. The platform catalog lists the operation and its route; the route's module declares how the operation reaches that method; `core/` declares the operation and shapes its result, and the one orchestration entry that every such operation shares plans and runs it. When a second route appears, the operation becomes a trait.
 - **A command** is placed by kind:
   - the bare verb is the smart pipeline;
   - an operation with a fallback chain is a top-level verb;

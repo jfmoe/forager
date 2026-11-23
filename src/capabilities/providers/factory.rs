@@ -3,13 +3,13 @@
 //!
 //! The no-wildcard rule covers every match in this module: a match on the provider identity, or
 //! on a configuration keyed by it, names each case, so a new provider is a compile error at every
-//! dispatch site here. Only the single-route support checks opt out.
+//! dispatch site here.
 #![deny(clippy::wildcard_enum_match_arm)]
 
 use reqwest::Client;
 
 use super::constructors::credentials;
-use super::route_declaration::{PlatformRoute, RouteAdapter, RouteContext};
+use super::route_declaration::{OperationRoute, PlatformRoute, RouteAdapter, RouteContext};
 use super::{
     DocsSearch, KeyAccount, MainSearch, PlatformFetch, PlatformSearch, ProviderId,
     SupplementalSearch, WebFetch, WebSearch, arxiv, browser, browser_preflight, gemini_api, hn_api,
@@ -26,49 +26,8 @@ use crate::config::{
 use crate::net::RetryPolicy;
 use crate::providers::browser::BrowserLogin;
 use crate::types::{
-    Deadline, HnStoriesOutcome, HnStoriesRequest, ModelAnswerOutcome, ModelTranscriptOutcome,
-    Platform, PlatformFetchRequest, PlatformItem, PlatformSearchOutcome, PlatformSearchRequest,
-    PolymarketHistoryOutcome, PolymarketHistoryRequest, ProviderError, ScholarCitedByRequest,
-    XAskOutcome, XAskRequest, XiaohongshuCommentsOutcome, XiaohongshuCommentsRequest,
-    YoutubeCommentsOutcome, YoutubeCommentsRequest, YoutubeVideosOutcome, YoutubeVideosRequest,
+    Deadline, Platform, PlatformFetchRequest, PlatformSearchRequest, ProviderError,
 };
-
-/// The routes that list the works citing a Google Scholar paper. Cited-by has one route, so it
-/// is an inherent method of that route and its route set lives here, not in the platform
-/// catalog.
-pub(crate) const SCHOLAR_CITED_BY_ROUTES: &[ProviderId] = &[ProviderId::Serpapi];
-
-/// The routes that list the comments of a Xiaohongshu note; like cited-by, a single-route
-/// operation whose route set lives here.
-pub(crate) const XIAOHONGSHU_COMMENTS_ROUTES: &[ProviderId] = &[ProviderId::XiaohongshuBrowser];
-
-/// The routes that list the comments of a YouTube video; like cited-by, a single-route
-/// operation whose route set lives here.
-pub(crate) const YOUTUBE_COMMENTS_ROUTES: &[ProviderId] = &[ProviderId::YoutubeApi];
-
-/// The routes that list the videos of a YouTube playlist or channel; like cited-by, a
-/// single-route operation whose route set lives here.
-pub(crate) const YOUTUBE_VIDEOS_ROUTES: &[ProviderId] = &[ProviderId::YoutubeApi];
-
-/// The routes that answer a question from X posts; like cited-by, a single-route operation
-/// whose route set lives here.
-pub(crate) const X_ASK_ROUTES: &[ProviderId] = &[ProviderId::Xai];
-
-/// The routes that answer a question about a YouTube video; like cited-by, a single-route
-/// operation whose route set lives here.
-pub(crate) const YOUTUBE_ASK_ROUTES: &[ProviderId] = &[ProviderId::GeminiApi];
-
-/// The routes that transcribe a YouTube video with a model; like cited-by, a single-route
-/// operation whose route set lives here.
-pub(crate) const YOUTUBE_TRANSCRIBE_ROUTES: &[ProviderId] = &[ProviderId::GeminiApi];
-
-/// The routes that list a Hacker News story list; like cited-by, a single-route operation whose
-/// route set lives here.
-pub(crate) const HN_STORIES_ROUTES: &[ProviderId] = &[ProviderId::HnApi];
-
-/// The routes that read the Price History of a Polymarket market; like cited-by, a single-route
-/// operation whose route set lives here.
-pub(crate) const POLYMARKET_HISTORY_ROUTES: &[ProviderId] = &[ProviderId::PolymarketApi];
 
 pub(crate) fn build_main_search(
     config: MainSearchProviderConfig,
@@ -151,150 +110,6 @@ pub(crate) fn build_platform_fetch(
     declared_route(config, route_context(client, retry_policy, deadline))
         .into_fetch()
         .expect("planning selects a route for fetch only when its adapter checks fetch requests")
-}
-
-/// Lists one page of the works citing a Google Scholar paper through a cited-by route.
-pub(crate) async fn scholar_cited_by(
-    config: PlatformRouteConfig,
-    client: Client,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
-    request: &ScholarCitedByRequest,
-) -> Result<PlatformSearchOutcome, ProviderError> {
-    let PlatformRouteConfig::Serpapi(config) = config else {
-        unreachable!("planning selects only cited-by routes")
-    };
-    serpapi::Serpapi::build(config, route_context(client, retry_policy, deadline))
-        .cited_by(request)
-        .await
-}
-
-/// Answers a question from X posts through an ask route.
-pub(crate) async fn x_ask(
-    config: PlatformRouteConfig,
-    client: Client,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
-    request: &XAskRequest,
-) -> Result<XAskOutcome, ProviderError> {
-    let PlatformRouteConfig::Xai(config) = config else {
-        unreachable!("planning selects only ask routes")
-    };
-    xai::Xai::build(config, route_context(client, retry_policy, deadline))
-        .ask(request)
-        .await
-}
-
-/// Lists the comments of a Xiaohongshu note through a comments route.
-pub(crate) async fn xiaohongshu_comments(
-    config: PlatformRouteConfig,
-    deadline: Deadline,
-    request: &XiaohongshuCommentsRequest,
-) -> Result<XiaohongshuCommentsOutcome, ProviderError> {
-    let PlatformRouteConfig::XiaohongshuBrowser(config) = config else {
-        unreachable!("planning selects only comments routes")
-    };
-    xiaohongshu_browser::XiaohongshuBrowser::build(config, deadline)
-        .comments(request)
-        .await
-}
-
-/// Lists the top-level comments of a YouTube video through a comments route.
-pub(crate) async fn youtube_comments(
-    config: PlatformRouteConfig,
-    client: Client,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
-    request: &YoutubeCommentsRequest,
-) -> Result<YoutubeCommentsOutcome, ProviderError> {
-    let PlatformRouteConfig::YoutubeApi(config) = config else {
-        unreachable!("planning selects only comments routes")
-    };
-    youtube_api::YoutubeApi::build(config, route_context(client, retry_policy, deadline))
-        .comments(request)
-        .await
-}
-
-/// Lists one page of the videos of a YouTube playlist or channel through a videos route.
-pub(crate) async fn youtube_videos(
-    config: PlatformRouteConfig,
-    client: Client,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
-    request: &YoutubeVideosRequest,
-) -> Result<YoutubeVideosOutcome, ProviderError> {
-    let PlatformRouteConfig::YoutubeApi(config) = config else {
-        unreachable!("planning selects only videos routes")
-    };
-    youtube_api::YoutubeApi::build(config, route_context(client, retry_policy, deadline))
-        .videos(request)
-        .await
-}
-
-/// Answers a question about a YouTube video, which the precheck read, through an ask
-/// route.
-pub(crate) async fn youtube_ask(
-    config: PlatformRouteConfig,
-    client: Client,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
-    video: &PlatformItem,
-    question: &str,
-) -> Result<ModelAnswerOutcome, ProviderError> {
-    let PlatformRouteConfig::GeminiApi(config) = config else {
-        unreachable!("planning selects only ask routes")
-    };
-    gemini_api::GeminiApi::build(config, route_context(client, retry_policy, deadline))
-        .ask(video, question)
-        .await
-}
-
-/// Transcribes a YouTube video, which the precheck read, through a transcribe route.
-pub(crate) async fn youtube_transcribe(
-    config: PlatformRouteConfig,
-    client: Client,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
-    video: &PlatformItem,
-) -> Result<ModelTranscriptOutcome, ProviderError> {
-    let PlatformRouteConfig::GeminiApi(config) = config else {
-        unreachable!("planning selects only transcribe routes")
-    };
-    gemini_api::GeminiApi::build(config, route_context(client, retry_policy, deadline))
-        .transcribe(video)
-        .await
-}
-
-/// Lists the current items of a Hacker News story list through a stories route.
-pub(crate) async fn hn_stories(
-    config: PlatformRouteConfig,
-    client: Client,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
-    request: &HnStoriesRequest,
-) -> Result<HnStoriesOutcome, ProviderError> {
-    let PlatformRouteConfig::HnApi(config) = config else {
-        unreachable!("planning selects only stories routes")
-    };
-    hn_api::HnApi::build(config, route_context(client, retry_policy, deadline))
-        .stories(request)
-        .await
-}
-
-/// Reads the Price History of one outcome of a Polymarket market through a history route.
-pub(crate) async fn polymarket_history(
-    config: PlatformRouteConfig,
-    client: Client,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
-    request: &PolymarketHistoryRequest,
-) -> Result<PolymarketHistoryOutcome, ProviderError> {
-    let PlatformRouteConfig::PolymarketApi(config) = config else {
-        unreachable!("planning selects only history routes")
-    };
-    polymarket_api::PolymarketApi::build(config, route_context(client, retry_policy, deadline))
-        .history(request)
-        .await
 }
 
 /// Runs the checks a platform route needs beyond its platform search probe: one per extra
@@ -446,131 +261,6 @@ pub(crate) fn platform_fetch_support(
     Some(transport_support(id).and(route))
 }
 
-/// Returns whether a cited-by route can run the request, or `None` for a provider that does not
-/// implement cited-by.
-#[expect(
-    clippy::wildcard_enum_match_arm,
-    reason = "a single-route support check answers `None` for every provider but its route"
-)]
-pub(crate) fn scholar_cited_by_support(
-    id: ProviderId,
-    request: &ScholarCitedByRequest,
-) -> Option<Result<(), String>> {
-    let route = match id {
-        ProviderId::Serpapi => serpapi::cited_by_support(request),
-        _ => return None,
-    };
-    Some(transport_support(id).and(route))
-}
-
-/// Returns whether a comments route can run, or `None` for a provider that does not list
-/// Xiaohongshu comments. The request needs no check beyond what parsing guarantees.
-#[expect(
-    clippy::wildcard_enum_match_arm,
-    reason = "a single-route support check answers `None` for every provider but its route"
-)]
-pub(crate) fn xiaohongshu_comments_support(id: ProviderId) -> Option<Result<(), String>> {
-    match id {
-        ProviderId::XiaohongshuBrowser => Some(transport_support(id)),
-        _ => None,
-    }
-}
-
-/// Returns whether a comments route can run, or `None` for a provider that does not list
-/// YouTube comments. The request needs no check beyond what parsing guarantees.
-#[expect(
-    clippy::wildcard_enum_match_arm,
-    reason = "a single-route support check answers `None` for every provider but its route"
-)]
-pub(crate) fn youtube_comments_support(id: ProviderId) -> Option<Result<(), String>> {
-    match id {
-        ProviderId::YoutubeApi => Some(transport_support(id)),
-        _ => None,
-    }
-}
-
-/// Returns whether a videos route can list the requested page, or `None` for a provider that
-/// does not list the videos of a YouTube collection.
-#[expect(
-    clippy::wildcard_enum_match_arm,
-    reason = "a single-route support check answers `None` for every provider but its route"
-)]
-pub(crate) fn youtube_videos_support(
-    id: ProviderId,
-    request: &YoutubeVideosRequest,
-) -> Option<Result<(), String>> {
-    let route = match id {
-        ProviderId::YoutubeApi => youtube_api::videos_support(request),
-        _ => return None,
-    };
-    Some(transport_support(id).and(route))
-}
-
-/// Returns whether an ask route can run, or `None` for a provider that does not answer from X
-/// posts. The request needs no check beyond what parsing guarantees.
-#[expect(
-    clippy::wildcard_enum_match_arm,
-    reason = "a single-route support check answers `None` for every provider but its route"
-)]
-pub(crate) fn x_ask_support(id: ProviderId) -> Option<Result<(), String>> {
-    match id {
-        ProviderId::Xai => Some(transport_support(id)),
-        _ => None,
-    }
-}
-
-/// Returns whether an ask route can run, or `None` for a provider that does not answer about
-/// YouTube videos. The request needs no check beyond what parsing guarantees.
-#[expect(
-    clippy::wildcard_enum_match_arm,
-    reason = "a single-route support check answers `None` for every provider but its route"
-)]
-pub(crate) fn youtube_ask_support(id: ProviderId) -> Option<Result<(), String>> {
-    match id {
-        ProviderId::GeminiApi => Some(transport_support(id)),
-        _ => None,
-    }
-}
-
-/// Returns whether a transcribe route can run, or `None` for a provider that does not
-/// transcribe YouTube videos. The request needs no check beyond what parsing guarantees.
-#[expect(
-    clippy::wildcard_enum_match_arm,
-    reason = "a single-route support check answers `None` for every provider but its route"
-)]
-pub(crate) fn youtube_transcribe_support(id: ProviderId) -> Option<Result<(), String>> {
-    match id {
-        ProviderId::GeminiApi => Some(transport_support(id)),
-        _ => None,
-    }
-}
-
-/// Returns whether a stories route can run, or `None` for a provider that does not list Hacker
-/// News stories. The request needs no check beyond what parsing guarantees.
-#[expect(
-    clippy::wildcard_enum_match_arm,
-    reason = "a single-route support check answers `None` for every provider but its route"
-)]
-pub(crate) fn hn_stories_support(id: ProviderId) -> Option<Result<(), String>> {
-    match id {
-        ProviderId::HnApi => Some(transport_support(id)),
-        _ => None,
-    }
-}
-
-/// Returns whether a history route can run, or `None` for a provider that does not read
-/// Polymarket price histories. The request needs no check beyond what parsing guarantees.
-#[expect(
-    clippy::wildcard_enum_match_arm,
-    reason = "a single-route support check answers `None` for every provider but its route"
-)]
-pub(crate) fn polymarket_history_support(id: ProviderId) -> Option<Result<(), String>> {
-    match id {
-        ProviderId::PolymarketApi => Some(transport_support(id)),
-        _ => None,
-    }
-}
-
 /// Returns the login into `platform`'s Browser Profile: the platform's browser route, with that
 /// route's login page logic. `None` for a platform without one.
 pub(crate) fn browser_login(platform: Platform) -> Option<BrowserLogin> {
@@ -588,6 +278,15 @@ pub(crate) fn browser_login(platform: Platform) -> Option<BrowserLogin> {
             page: declared_adapter(registration.id)?.login_page?,
         })
     })
+}
+
+/// Returns whether the route that alone serves an operation can run the request: this host runs
+/// its transport, and the route's request check passes.
+pub(crate) fn operation_support<C, Q: ?Sized, I: ?Sized, T>(
+    operation: &OperationRoute<C, Q, I, T>,
+    request: &Q,
+) -> Result<(), String> {
+    transport_support(operation.route).and((operation.support)(request))
 }
 
 /// Returns whether this host can run the route's transport at all.

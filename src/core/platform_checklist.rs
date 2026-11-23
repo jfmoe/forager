@@ -10,8 +10,8 @@ use crate::catalog::{
 use crate::config;
 use crate::providers;
 use crate::types::{
-    ASK, AccessToken, CITED_BY, COMMENTS, ContentDepth, HISTORY, Platform, PlatformFetchRequest,
-    PlatformRef, PlatformSearchOptions, PlatformSearchRequest, STORIES, TRANSCRIBE, VIDEOS,
+    AccessToken, COMMENTS, ContentDepth, Platform, PlatformFetchRequest, PlatformRef,
+    PlatformSearchOptions, PlatformSearchRequest,
 };
 
 /// One item of the integration checklist for a platform and its routes.
@@ -52,7 +52,7 @@ impl Rule {
             ),
             Self::OperationOnlyRoute => (
                 "a route that serves neither search nor fetch serves a single-route operation",
-                "add the route to that operation's route set in the provider factory, or drop it from the catalog",
+                "add the route to that operation's route set in the platform catalog, or drop it from the catalog",
             ),
             Self::BrowserEnvironment => (
                 "a browser route, which needs a login into its platform's Browser Profile, has login Page Logic",
@@ -127,44 +127,9 @@ fn sample_refs(platform: Platform) -> &'static [&'static str] {
     }
 }
 
-/// The operations that one route implements outside the platform catalog, with their route
-/// sets in the provider factory.
-const SINGLE_ROUTE_OPERATIONS: &[(Platform, &str, &[ProviderId])] = &[
-    (
-        Platform::Scholar,
-        CITED_BY,
-        providers::SCHOLAR_CITED_BY_ROUTES,
-    ),
-    (
-        Platform::Xiaohongshu,
-        COMMENTS,
-        providers::XIAOHONGSHU_COMMENTS_ROUTES,
-    ),
-    (Platform::X, ASK, providers::X_ASK_ROUTES),
-    (Platform::Hn, STORIES, providers::HN_STORIES_ROUTES),
-    (
-        Platform::Polymarket,
-        HISTORY,
-        providers::POLYMARKET_HISTORY_ROUTES,
-    ),
-    (
-        Platform::Youtube,
-        COMMENTS,
-        providers::YOUTUBE_COMMENTS_ROUTES,
-    ),
-    (Platform::Youtube, VIDEOS, providers::YOUTUBE_VIDEOS_ROUTES),
-    (Platform::Youtube, ASK, providers::YOUTUBE_ASK_ROUTES),
-    (
-        Platform::Youtube,
-        TRANSCRIBE,
-        providers::YOUTUBE_TRANSCRIBE_ROUTES,
-    ),
-];
-
 /// The registration points the checklist inspects; tests replace one at a time.
 struct Registry<'a> {
     platforms: &'a [PlatformCatalog],
-    single_route_operations: &'a [(Platform, &'a str, &'a [ProviderId])],
     registrations: &'a [ProviderRegistration],
     has_adapter: &'a dyn Fn(Platform, PlatformOperation, ProviderId) -> bool,
     /// For each of search and fetch: whether the route's declaration checks the operation's
@@ -223,10 +188,10 @@ fn violations(platform: Platform, registry: &Registry<'_>) -> Vec<Violation> {
         check_route(platform, route, registry, &mut found);
     }
     for route in catalog.operation_only {
-        let serves_an_operation = registry
-            .single_route_operations
+        let serves_an_operation = catalog
+            .operations
             .iter()
-            .any(|(served, _, routes)| *served == platform && routes.contains(route));
+            .any(|operation| operation.routes.contains(route));
         if !serves_an_operation {
             found.push(violation(
                 platform,
@@ -534,7 +499,6 @@ fn has_window_test(route: ProviderId) -> bool {
 fn baseline() -> Registry<'static> {
     Registry {
         platforms: PLATFORMS,
-        single_route_operations: SINGLE_ROUTE_OPERATIONS,
         registrations: catalog::registrations(),
         has_adapter: &has_adapter,
         route_operations: &|route| {
@@ -591,15 +555,15 @@ fn a_platform_without_a_catalog_breaks_the_catalog_rule() {
 
 #[test]
 fn an_operation_only_route_that_no_operation_lists_breaks_the_operation_only_rule() {
-    let without_youtube_model_operations = SINGLE_ROUTE_OPERATIONS
-        .iter()
-        .copied()
-        .filter(|(platform, operation, _)| {
-            !(*platform == Platform::Youtube && [ASK, TRANSCRIBE].contains(operation))
-        })
-        .collect::<Vec<_>>();
+    let without_youtube_model_operations = [PlatformCatalog {
+        operations: &[catalog::OperationRoutes {
+            operation: COMMENTS,
+            routes: &[ProviderId::YoutubeApi],
+        }],
+        ..catalog::YOUTUBE
+    }];
     let registry = Registry {
-        single_route_operations: &without_youtube_model_operations,
+        platforms: &without_youtube_model_operations,
         ..baseline()
     };
 
