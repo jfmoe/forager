@@ -326,9 +326,12 @@ impl SearchContext {
         let query = request.query.clone();
         let started = Instant::now();
         let deadline = Deadline::new(self.timeout);
-        let (capabilities, decision_source) = match capabilities {
-            Some(capabilities) => (capabilities, "caller"),
-            None => (CapabilitySet::default(), "default_main_search_only"),
+        let (capabilities, plan_source) = match capabilities {
+            Some(capabilities) => (capabilities, crate::journal::PlanSource::Caller),
+            None => (
+                CapabilitySet::default(),
+                crate::journal::PlanSource::DefaultMainSearchOnly,
+            ),
         };
         let journal_capabilities = capabilities.iter().collect::<Vec<_>>();
         let (main_result, capability_results) = self.runtime.block_on(futures_util::future::join(
@@ -368,7 +371,7 @@ impl SearchContext {
                 budget: self.timeout,
                 elapsed: started.elapsed(),
                 capabilities: &journal_capabilities,
-                decision_source,
+                plan_source,
                 result: &result,
             },
         );

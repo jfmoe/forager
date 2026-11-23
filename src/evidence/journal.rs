@@ -20,8 +20,26 @@ pub(crate) struct SearchRecord<'a> {
     pub(crate) budget: Duration,
     pub(crate) elapsed: Duration,
     pub(crate) capabilities: &'a [Capability],
-    pub(crate) decision_source: &'static str,
+    pub(crate) plan_source: PlanSource,
     pub(crate) result: &'a Result<SearchOutcome, SearchFailure>,
+}
+
+/// Who chose the capabilities a search ran.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum PlanSource {
+    /// The caller declared them.
+    Caller,
+    /// The caller declared none, so the search ran main search only.
+    DefaultMainSearchOnly,
+}
+
+impl PlanSource {
+    const fn as_str(self) -> &'static str {
+        match self {
+            Self::Caller => "caller",
+            Self::DefaultMainSearchOnly => "default_main_search_only",
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -168,7 +186,7 @@ fn build_record(record: SearchRecord<'_>) -> Value {
         "result": result_surface,
         "execution": {
             "plan_summary": {
-                "source": record.decision_source,
+                "source": record.plan_source.as_str(),
                 "capabilities": record.capabilities,
             },
             "provider_attempts": attempts,
