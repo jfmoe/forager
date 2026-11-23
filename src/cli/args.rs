@@ -439,3 +439,24 @@ mod exa_tests {
         }
     }
 }
+
+/// The `search` command's argument rules, proven by parsing its definition in process.
+#[cfg(test)]
+mod search_tests {
+    use super::{Command, parse};
+
+    #[test]
+    fn a_search_without_options_declares_no_capabilities_and_asks_for_no_extra_sources() {
+        let parsed = parse(&["search", "Ordinary search"]).expect("the parser accepts it");
+
+        let Command::Search {
+            capabilities,
+            extra_sources,
+            ..
+        } = parsed
+        else {
+            unreachable!("the arguments name search")
+        };
+        assert_eq!((capabilities.is_none(), extra_sources), (true, 0));
+    }
+}

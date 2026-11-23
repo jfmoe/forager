@@ -1324,7 +1324,33 @@ mod tests {
 
     use serde_json::{Value, json};
 
-    use super::{AppError, ConfigError, read_secret};
+    use super::{AppError, ConfigError, read_secret, search_plan};
+    use crate::journal::PlanSource;
+
+    #[test]
+    fn a_search_runs_the_declared_capabilities_or_else_main_search_alone() {
+        let plans = [None, Some("none"), Some("web_search")].map(|declared| {
+            let (capabilities, source) = search_plan(
+                declared.map(|declaration| declaration.parse().expect("capability set")),
+            );
+            (
+                capabilities
+                    .iter()
+                    .map(crate::types::Capability::as_str)
+                    .collect::<Vec<_>>(),
+                source,
+            )
+        });
+
+        assert_eq!(
+            plans,
+            [
+                (Vec::new(), PlanSource::DefaultMainSearchOnly),
+                (Vec::new(), PlanSource::Caller),
+                (vec!["web_search"], PlanSource::Caller),
+            ]
+        );
+    }
 
     #[test]
     fn app_errors_have_stable_json_preflight_fields() {

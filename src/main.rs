@@ -697,12 +697,16 @@ fn postflight_exit_code(kind: AttemptErrorKind) -> u8 {
 #[cfg(test)]
 mod tests {
     use forager::app::ProviderError;
-    use forager::types::{AttemptDisposition, AttemptErrorKind, AttemptTarget, ProviderAttempt};
+    use forager::types::{
+        AttemptDisposition, AttemptErrorKind, AttemptTarget, Capability, CapabilityGap,
+        ProviderAttempt, SearchOutcome,
+    };
     use serde_json::{Value, json};
 
     use super::{
-        ContentOutputFormat, FAILURE_PAYLOAD_TARGET_BYTES, FetchOutcome, OutputTarget, apply_tee,
-        fit_failure_candidates, format_failure_json, render_fetch,
+        ContentOutputFormat, FAILURE_PAYLOAD_TARGET_BYTES, FetchOutcome, JournalOutcome,
+        OutputTarget, SearchFailure, add_failure_candidates, apply_tee, fit_failure_candidates,
+        format_failure_json, format_search_failure_json, render_fetch, render_search,
     };
 
     #[test]
@@ -842,6 +846,161 @@ mod tests {
                 rendered.stderr.as_deref()
             ),
             (0, &json!("body"), Some("content truncated at 4 MiB"))
+        );
+    }
+
+    /// The JSON payload of a search whose main search failed for a bad key, with `gaps` and
+    /// without candidates.
+    fn search_failure_payload(gaps: Vec<CapabilityGap>) -> Value {
+        let encoded = format_search_failure_json(
+            &SearchFailure {
+                error: ProviderError {
+                    kind: AttemptErrorKind::Auth,
+                    message: "bad key".into(),
+                    attempts: Vec::new(),
+                    verbose: false,
+                    diagnostic: None,
+                },
+                extra_sources: Vec::new(),
+                capability_gaps: gaps,
+            },
+            &JournalOutcome {
+                status: "written",
+                reference: Some("/journal/record.json".into()),
+                warning: None,
+            },
+        )
+        .expect("search failure payload");
+        serde_json::from_str(&encoded).expect("search failure JSON")
+    }
+
+    /// `payload` with `candidates` added as a failed search adds them.
+    fn with_candidates(mut payload: Value, candidates: Vec<Value>, verbose: bool) -> Value {
+        add_failure_candidates(
+            payload.as_object_mut().expect("payload object"),
+            candidates,
+            verbose,
+        )
+        .expect("candidates added");
+        payload
+    }
+
+    #[test]
+    fn a_failed_search_payload_names_its_capability_gaps() {
+        let payload = search_failure_payload(vec![CapabilityGap {
+            capability: Capability::DocsSearch,
+            reason: "no_configured_provider",
+            providers_skipped: vec!["exa".into()],
+        }]);
+
+        assert_eq!(
+            (&payload["error_kind"], &payload["capability_gaps"]),
+            (
+                &json!("auth"),
+                &json!([{
+                    "capability": "docs_search",
+                    "reason": "no_configured_provider",
+                    "providers_skipped": ["exa"]
+                }]),
+            )
+        );
+    }
+
+    #[test]
+    fn a_failed_search_payload_drops_candidate_summaries_unless_verbose() {
+        let candidate = json!({
+            "provider": "tavily",
+            "capability": "web_search",
+            "title": "Candidate",
+            "url": "https://example.test/candidate",
+            "summary": "Candidate summary",
+            "provider_data": {}
+        });
+        let mut without_summary = candidate.clone();
+        without_summary
+            .as_object_mut()
+            .expect("candidate object")
+            .remove("summary");
+
+        let payloads = [false, true].map(|verbose| {
+            let payload = with_candidates(
+                search_failure_payload(Vec::new()),
+                vec![candidate.clone()],
+                verbose,
+            );
+            (
+                payload["extra_sources"].clone(),
+                payload.get("extra_sources_truncated").cloned(),
+            )
+        });
+
+        assert_eq!(
+            payloads,
+            [
+                (json!([without_summary]), Some(json!(false))),
+                (json!([candidate]), None),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_failed_search_payload_cuts_its_candidates_to_the_payload_target() {
+        let candidates = (0..20)
+            .map(|index| {
+                json!({
+                    "provider": "tavily",
+                    "capability": "web_search",
+                    "title": format!("{index} {}", "long title ".repeat(30)),
+                    "url": format!("https://example.test/candidate/{index}"),
+                    "provider_data": {}
+                })
+            })
+            .collect::<Vec<_>>();
+
+        let payload = with_candidates(search_failure_payload(Vec::new()), candidates, false);
+        let kept = payload["extra_sources"].as_array().map_or(0, Vec::len);
+
+        assert_eq!(
+            (
+                &payload["extra_sources_truncated"],
+                payload.to_string().len() <= FAILURE_PAYLOAD_TARGET_BYTES,
+                (1..20).contains(&kept),
+            ),
+            (&json!(true), true, true),
+            "kept {kept}"
+        );
+    }
+
+    #[test]
+    fn a_search_keeps_its_capability_gap_diagnostic_for_standard_error() {
+        let rendered = render_search(
+            Ok(SearchOutcome {
+                provider: "xai",
+                answer: "answer".into(),
+                sources: Vec::new(),
+                extra_sources: Vec::new(),
+                capabilities: vec![Capability::WebSearch],
+                capability_gaps: Vec::new(),
+                attempts: Vec::new(),
+                diagnostic: Some("capability gap: web_search has no configured provider".into()),
+            }),
+            &JournalOutcome {
+                status: "disabled",
+                reference: None,
+                warning: None,
+            },
+            ContentOutputFormat::Json,
+            None,
+            false,
+        )
+        .expect("rendered output");
+
+        assert_eq!(
+            (rendered.exit_code, rendered.stderr.as_deref()),
+            (
+                0,
+                Some("capability gap: web_search has no configured provider")
+            )
         );
     }
 

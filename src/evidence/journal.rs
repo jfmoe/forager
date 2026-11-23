@@ -324,6 +324,7 @@ mod tests {
     use tempfile::tempdir;
 
     use super::*;
+    use crate::types::{AttemptErrorKind, CapabilityGap, ProviderError, SearchCandidate, Source};
 
     #[test]
     fn write_value_persists_json_that_can_be_read_back() {
@@ -445,6 +446,134 @@ mod tests {
         let warning = cleanup_warning(&error);
 
         assert!(warning.is_none(), "unexpected cleanup warning: {warning:?}");
+    }
+
+    fn outcome() -> SearchOutcome {
+        SearchOutcome {
+            provider: "xai",
+            answer: "answer".into(),
+            sources: Vec::new(),
+            extra_sources: Vec::new(),
+            capabilities: Vec::new(),
+            capability_gaps: Vec::new(),
+            attempts: Vec::new(),
+            diagnostic: None,
+        }
+    }
+
+    fn record(plan_source: PlanSource, result: &Result<SearchOutcome, SearchFailure>) -> Value {
+        build_record(SearchRecord {
+            query: "query",
+            budget: Duration::from_mins(3),
+            elapsed: Duration::from_secs(1),
+            capabilities: &[],
+            plan_source,
+            result,
+        })
+    }
+
+    #[test]
+    fn a_search_record_names_who_chose_its_capabilities() {
+        let result = Ok(outcome());
+        let summaries = [PlanSource::Caller, PlanSource::DefaultMainSearchOnly].map(|source| {
+            let record = record(source, &result);
+            let mut keys = record["execution"]
+                .as_object()
+                .expect("execution object")
+                .keys()
+                .cloned()
+                .collect::<Vec<_>>();
+            keys.sort();
+            (
+                record["schema_version"].clone(),
+                keys,
+                record["execution"]["plan_summary"].clone(),
+            )
+        });
+        let keys = [
+            "capability_gaps",
+            "deadline_budget",
+            "plan_summary",
+            "provider_attempts",
+            "terminal_attribution",
+        ]
+        .map(str::to_owned)
+        .to_vec();
+
+        assert_eq!(
+            summaries,
+            [
+                (
+                    json!(1),
+                    keys.clone(),
+                    json!({"source": "caller", "capabilities": []}),
+                ),
+                (
+                    json!(1),
+                    keys,
+                    json!({"source": "default_main_search_only", "capabilities": []}),
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_failed_search_record_keeps_each_candidate_with_its_summary_and_each_gap() {
+        let candidate = SearchCandidate::from_source(
+            Source {
+                title: "Candidate".into(),
+                url: "https://example.test/candidate".into(),
+                published_date: None,
+                author: None,
+                text: Some("Candidate summary".into()),
+                highlights: Vec::new(),
+                id: None,
+                image: None,
+                favicon: None,
+            },
+            "tavily",
+            Capability::WebSearch,
+        )
+        .expect("an HTTP candidate");
+        let result = Err(SearchFailure {
+            error: ProviderError {
+                kind: AttemptErrorKind::Auth,
+                message: "bad key".into(),
+                attempts: Vec::new(),
+                verbose: false,
+                diagnostic: None,
+            },
+            extra_sources: vec![candidate],
+            capability_gaps: vec![CapabilityGap {
+                capability: Capability::DocsSearch,
+                reason: "no_configured_provider",
+                providers_skipped: vec!["exa".into()],
+            }],
+        });
+
+        let record = record(PlanSource::Caller, &result);
+
+        assert_eq!(
+            (
+                &record["result"]["extra_sources"],
+                &record["execution"]["capability_gaps"],
+            ),
+            (
+                &json!([{
+                    "provider": "tavily",
+                    "capability": "web_search",
+                    "title": "Candidate",
+                    "url": "https://example.test/candidate",
+                    "summary": "Candidate summary",
+                    "provider_data": {}
+                }]),
+                &json!([{
+                    "capability": "docs_search",
+                    "reason": "no_configured_provider",
+                    "providers_skipped": ["exa"]
+                }]),
+            )
+        );
     }
 
     fn journal_config(dir: std::path::PathBuf) -> JournalRuntimeConfig {
