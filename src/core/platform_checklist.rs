@@ -41,7 +41,7 @@ impl Rule {
                 "add the platform and its routes to the platform catalog",
             ),
             Self::Registration => (
-                "every route has a provider registration, and its provider ID is not the bare platform name",
+                "no route's provider ID is the bare platform name",
                 "register the route in the provider registry under a name such as `<platform>_api` or `<platform>_browser`",
             ),
             Self::Factory => (
@@ -264,18 +264,11 @@ fn check_route(
             &format!("route `{name}` reuses the bare platform name"),
         ));
     }
-    let Some(registration) = registry
+    let registration = registry
         .registrations
         .iter()
         .find(|registration| registration.id == route)
-    else {
-        found.push(violation(
-            platform,
-            Rule::Registration,
-            &format!("route `{name}` has no provider registration"),
-        ));
-        return;
-    };
+        .expect("the provider registry validates that every provider ID is registered");
     check_declaration(platform, registration, registry, found);
     let leaves: &[&str] = match registration.transport {
         // A main-search backend has no timeout of its own; its platform requests use the
@@ -548,21 +541,6 @@ fn a_platform_without_a_catalog_breaks_the_catalog_rule() {
     };
 
     assert_reports(&violations(Platform::Arxiv, &registry), Rule::Catalog);
-}
-
-#[test]
-fn a_route_without_a_registration_breaks_the_registration_rule() {
-    let registrations = catalog::registrations()
-        .iter()
-        .copied()
-        .filter(|registration| registration.id != ProviderId::ArxivApi)
-        .collect::<Vec<_>>();
-    let registry = Registry {
-        registrations: &registrations,
-        ..baseline()
-    };
-
-    assert_reports(&violations(Platform::Arxiv, &registry), Rule::Registration);
 }
 
 #[test]
