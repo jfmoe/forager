@@ -357,8 +357,17 @@ fn beijing_time(milliseconds: i64) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::Value;
+
     use super::{ApiError, PageFacts, classify_blocks};
+    use crate::samples::sample;
     use crate::types::AttemptErrorKind;
+
+    /// The stored observation or body `name` of `tests/samples/xiaohongshu_browser/`.
+    pub(super) fn stored(name: &str) -> Value {
+        serde_json::from_str(&sample(&format!("xiaohongshu_browser/{name}")))
+            .unwrap_or_else(|error| panic!("stored xiaohongshu_browser/{name}: {error}"))
+    }
 
     fn classify(facts: &PageFacts) -> Result<(), (AttemptErrorKind, Option<u16>, String)> {
         classify_blocks(facts, |code, notice| format!("blocked ({code}: {notice})"))

@@ -1,9 +1,10 @@
-//! Note page observations shaped like the live note page facts of 2026-10-08, judged into a note
+//! Note page observations derived from the stored note page observation, judged into a note
 //! or a failure without a browser.
 
 use serde_json::{Value, json};
 
 use super::{NoteData, note_outcome, without_token};
+use crate::providers::xiaohongshu_browser::tests::stored;
 use crate::redact::CREDENTIAL_MASK;
 use crate::types::{AccessToken, AttemptErrorKind, FullTextSource, XiaohongshuRef};
 
@@ -13,45 +14,22 @@ const TOKEN: &str = "ABfakeTOKENcanary4242=";
 const TOKEN_BODY: &str = "ABfakeTOKENcanary4242";
 const IMAGE_NOTE_MARKDOWN: &str = "# 手冲咖啡入门\n\n第一次手冲就成功了 #咖啡[话题]# #手冲[话题]#\n\n标签：咖啡，手冲\n\n![](http://sns-webpic-qc.xhscdn.com/202610081306/a1/1040g2sg31!nd_dft_wlteh_webp_3)\n![](https://sns-webpic-qc.xhscdn.com/202610081306/a2/1040g2sg32!nd_dft_wlteh_webp_3)";
 
-/// The page facts of the note page: the token value removed.
-fn note_page() -> Value {
-    json!({
-        "url": format!("https://www.xiaohongshu.com/explore/{NOTE_ID}?xsec_source=pc_search"),
-        "title": "手冲咖啡入门 - 小红书",
-        "guest": false,
-        "error_code": null,
-        "notice": null,
-        "blocked_status": null
-    })
+/// The stored observation of the image note's page.
+fn stored_note() -> Value {
+    stored("note.json")
 }
 
-/// An image note as `__INITIAL_STATE__.note.noteDetailMap[<id>].note` holds it.
+/// The stored image note, as the page logic picks it from
+/// `__INITIAL_STATE__.note.noteDetailMap[<id>].note`.
 fn image_note() -> Value {
-    json!({
-        "noteId": NOTE_ID,
-        "type": "normal",
-        "title": "手冲咖啡入门",
-        "desc": "第一次手冲就成功了 #咖啡[话题]# #手冲[话题]#",
-        "time": 1_759_900_000_000_u64,
-        "lastUpdateTime": 1_759_903_600_000_u64,
-        "ipLocation": "上海",
-        "user": {"userId": "00000000000000000000a001", "nickname": "豆子", "avatar": "https://sns-avatar-qc.xhscdn.com/avatar.jpg"},
-        "interactInfo": {"liked": false, "likedCount": "1.2万", "collected": false, "collectedCount": "356", "commentCount": "89", "shareCount": "12"},
-        "tagList": [
-            {"id": "5be00ac2000000000101ecbc", "name": "咖啡", "type": "topic"},
-            {"id": "5be00ac2000000000101ecbd", "name": "手冲", "type": "topic"}
-        ],
-        "imageList": [
-            {"urlDefault": "http://sns-webpic-qc.xhscdn.com/202610081306/a1/1040g2sg31!nd_dft_wlteh_webp_3", "width": 1080, "height": 1440},
-            {"urlDefault": "", "width": 1080, "height": 1440},
-            {"urlDefault": "https://sns-webpic-qc.xhscdn.com/202610081306/a2/1040g2sg32!nd_dft_wlteh_webp_3", "width": 1080, "height": 1080}
-        ],
-        "xsecToken": TOKEN
-    })
+    stored_note()["note"].clone()
 }
 
+/// The stored observation, showing `note`.
 fn note_data(note: &Value) -> Value {
-    json!({"page": note_page(), "note": note, "timed_out": false})
+    let mut data = stored_note();
+    data["note"] = note.clone();
+    data
 }
 
 fn requested() -> XiaohongshuRef {
@@ -219,7 +197,8 @@ fn an_unavailable_note_names_the_likely_causes() {
 
 #[test]
 fn a_page_without_the_note_is_a_timeout_only_while_it_stays_on_the_note_page() {
-    let waiting = json!({"page": note_page(), "note": null, "timed_out": true});
+    let mut waiting = note_data(&Value::Null);
+    waiting["timed_out"] = json!(true);
     let elsewhere = json!({
         "page": {
             "url": "https://www.xiaohongshu.com/website-login/captcha?redirectPath=https%3A%2F%2Fwww.xiaohongshu.com%2Fexplore",
@@ -250,7 +229,8 @@ fn a_page_without_the_note_is_a_timeout_only_while_it_stays_on_the_note_page() {
 
 #[test]
 fn a_read_deadline_on_the_browser_load_error_page_is_a_network_failure() {
-    let mut data = json!({"page": note_page(), "note": null, "timed_out": true});
+    let mut data = note_data(&Value::Null);
+    data["timed_out"] = json!(true);
     data["page"]["title"] = json!("www.xiaohongshu.com");
     data["page"]["load_error"] = json!("ERR_TIMED_OUT");
 

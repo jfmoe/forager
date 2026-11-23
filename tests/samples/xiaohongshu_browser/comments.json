@@ -1,0 +1,92 @@
+{
+  "page": {
+    "url": "https://www.xiaohongshu.com/explore/66f0a1b2c3d4e5f607200001?xsec_source=pc_search",
+    "title": "咖啡豆怎么选 - 小红书",
+    "guest": false,
+    "error_code": null,
+    "notice": null,
+    "blocked_status": null
+  },
+  "timed_out": false,
+  "body_missing": false,
+  "expand_failure": null,
+  "responses": [
+    {
+      "kind": "page",
+      "params": {"note_id": "66f0a1b2c3d4e5f607200001", "cursor": ""},
+      "body": {
+        "code": 0,
+        "success": true,
+        "msg": "成功",
+        "data": {
+          "comments": [
+            {
+              "id": "00000000000000000c000001",
+              "content": "浅烘的豆子更适合手冲",
+              "create_time": 1759900000000,
+              "ip_location": "上海",
+              "like_count": "3",
+              "sub_comment_count": "0",
+              "sub_comment_cursor": "",
+              "sub_comment_has_more": false,
+              "sub_comments": [],
+              "user_info": {"user_id": "00000000000000000000a001", "nickname": "豆子"}
+            },
+            {
+              "id": "00000000000000000c000002",
+              "content": "求推荐几款入门的豆子",
+              "create_time": 1759900000000,
+              "ip_location": "上海",
+              "like_count": "3",
+              "sub_comment_count": "20",
+              "sub_comment_cursor": "00000000000000000c000201",
+              "sub_comment_has_more": true,
+              "sub_comments": [
+                {
+                  "id": "00000000000000000c000201",
+                  "content": "试试埃塞俄比亚的",
+                  "create_time": 1759903600000,
+                  "ip_location": "北京",
+                  "like_count": "1",
+                  "user_info": {"user_id": "00000000000000000000a002", "nickname": "拿铁"},
+                  "target_comment": {"id": "00000000000000000c000002"}
+                }
+              ],
+              "user_info": {"user_id": "00000000000000000000a001", "nickname": "豆子"}
+            }
+          ],
+          "cursor": "00000000000000000c000002",
+          "has_more": true
+        }
+      }
+    },
+    {
+      "kind": "sub",
+      "params": {
+        "note_id": "66f0a1b2c3d4e5f607200001",
+        "cursor": "00000000000000000c000201",
+        "root_comment_id": "00000000000000000c000002"
+      },
+      "body": {
+        "code": 0,
+        "success": true,
+        "msg": "成功",
+        "data": {
+          "comments": [
+            {
+              "id": "00000000000000000c000202",
+              "content": "云南的也不错",
+              "create_time": 1759903600000,
+              "ip_location": "北京",
+              "like_count": "1",
+              "user_info": {"user_id": "00000000000000000000a002", "nickname": "拿铁"},
+              "target_comment": {"id": "00000000000000000c000201"}
+            }
+          ],
+          "cursor": "00000000000000000c000202",
+          "has_more": true
+        }
+      }
+    }
+  ]
+}

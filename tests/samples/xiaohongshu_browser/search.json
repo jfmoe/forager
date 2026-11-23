@@ -1,0 +1,57 @@
+{
+  "page": {
+    "url": "https://www.xiaohongshu.com/search_result?keyword=%E5%92%96%E5%95%A1&source=web_explore_feed",
+    "title": "咖啡 - 小红书搜索",
+    "guest": false,
+    "error_code": null,
+    "notice": null,
+    "blocked_status": null
+  },
+  "filter_clicks": 0,
+  "timed_out": false,
+  "body_missing": false,
+  "responses": [
+    {
+      "click": 0,
+      "request": {
+        "keyword": "咖啡",
+        "page": 1,
+        "search_id": "2fakesearch0root00001"
+      },
+      "body": {
+        "code": 0,
+        "success": true,
+        "msg": "成功",
+        "data": {
+          "has_more": true,
+          "items": [
+            {
+              "id": "hot_query_2fakesearch0root00001",
+              "model_type": "hot_query",
+              "hot_query": {
+                "queries": [{"name": "咖啡豆推荐", "search_word": "咖啡豆推荐"}]
+              }
+            },
+            {
+              "id": "66f0a1b2c3d4e5f607100001",
+              "model_type": "note",
+              "xsec_token": "ABtoken1=",
+              "note_card": {
+                "type": "normal",
+                "display_title": "手冲咖啡入门",
+                "user": {"user_id": "00000000000000000000a001", "nickname": "豆子"},
+                "interact_info": {
+                  "liked_count": "1.2万",
+                  "collected_count": "356",
+                  "comment_count": "89",
+                  "shared_count": "12"
+                },
+                "corner_tag_info": [{"type": "publish_time", "text": "2025-06-13"}]
+              }
+            }
+          ]
+        }
+      }
+    }
+  ]
+}

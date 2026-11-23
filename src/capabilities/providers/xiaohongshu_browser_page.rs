@@ -497,8 +497,18 @@ mod tests {
 
     use super::{ACCOUNT_PATH, PageFacts, absorb};
     use crate::providers::browser::{Exchange, RequestMethod, ResponseBody};
+    use crate::providers::xiaohongshu_browser::tests::stored;
 
     const SEARCH_PATH: &str = "/api/sns/web/v1/search/notes";
+
+    /// A failure answer in the form of the stored logged-out account answer, with `code` and
+    /// `msg`.
+    fn failure(code: i64, msg: Option<&str>) -> Value {
+        let mut answer = stored("account-logged-out.json");
+        answer["code"] = json!(code);
+        answer["msg"] = json!(msg);
+        answer
+    }
 
     fn exchange(path: &str, status: u16, body: Option<&Value>) -> Exchange {
         Exchange {
@@ -524,11 +534,12 @@ mod tests {
 
     #[test]
     fn an_account_answer_with_a_login_code_or_a_guest_is_a_logged_out_session() {
-        // -101 is what `user/me` answered before the QR code login on 2026-11-18.
+        let mut guest = stored("account.json");
+        guest["data"]["guest"] = json!(true);
         let answers = [
-            json!({"code": -101, "success": false, "msg": "无登录信息，或登录信息为空", "data": {}}),
-            json!({"code": -100, "success": false, "data": {}}),
-            json!({"code": 0, "success": true, "data": {"guest": true, "user_id": "6a1b"}}),
+            stored("account-logged-out.json"),
+            failure(-100, None),
+            guest,
         ];
 
         let guests =
@@ -539,10 +550,7 @@ mod tests {
 
     #[test]
     fn a_logged_in_account_answer_is_no_page_fact() {
-        let answer =
-            json!({"code": 0, "success": true, "data": {"guest": false, "user_id": "5f0a"}});
-
-        let facts = absorbed(&[exchange(ACCOUNT_PATH, 200, Some(&answer))]);
+        let facts = absorbed(&[exchange(ACCOUNT_PATH, 200, Some(&stored("account.json")))]);
 
         assert_eq!(
             (facts.guest, facts.blocked_status, facts.api_error.is_none()),
@@ -552,7 +560,7 @@ mod tests {
 
     #[test]
     fn an_api_answer_with_a_login_code_is_a_logged_out_session() {
-        let answer = json!({"code": -101, "success": false, "msg": "无登录信息，或登录信息为空"});
+        let answer = stored("account-logged-out.json");
 
         let facts = absorbed(&[exchange(SEARCH_PATH, 200, Some(&answer))]);
 
@@ -561,8 +569,8 @@ mod tests {
 
     #[test]
     fn the_first_failure_code_of_an_api_answer_is_kept_with_its_path_and_message() {
-        let first = json!({"code": 300_031, "success": false, "msg": "当前笔记暂时无法浏览"});
-        let second = json!({"code": 999_999, "success": false, "msg": "未知错误"});
+        let first = failure(300_031, Some("当前笔记暂时无法浏览"));
+        let second = failure(999_999, Some("未知错误"));
 
         let facts = absorbed(&[
             exchange(SEARCH_PATH, 200, Some(&first)),
@@ -578,10 +586,7 @@ mod tests {
 
     #[test]
     fn a_zero_code_is_no_failure_even_without_success() {
-        // `search/onebox` answered this on both working searches of 2026-11-18.
-        let answer = json!({"code": 0, "success": false, "msg": "成功", "data": {}});
-
-        let facts = absorbed(&[exchange(SEARCH_PATH, 200, Some(&answer))]);
+        let facts = absorbed(&[exchange(SEARCH_PATH, 200, Some(&stored("onebox.json")))]);
 
         assert!(facts.api_error.is_none(), "{:?}", facts.api_error);
     }
