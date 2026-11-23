@@ -81,7 +81,18 @@ impl ResponsesMainSearch<'_> {
         };
         let body = ResponsesRequest::new(model, request_kind.instruction(), &input, tools);
         let (status, response) = self.endpoint.complete(&body, credential).await?;
-        let (answer, sources) = output_text(self.endpoint.service, &response)?;
+        Ok((Some(status), self.decode(&response, request_kind)?))
+    }
+
+    /// Returns the answer and the sources of the completed `response` to a request of
+    /// `request_kind`. A search's answer is normalized; every request's sources are redacted and
+    /// deduplicated without the tracking parameter.
+    pub(super) fn decode(
+        &self,
+        response: &Value,
+        request_kind: MainSearchRequestKind,
+    ) -> Result<(String, Vec<Source>), AttemptFailure> {
+        let (answer, sources) = output_text(self.endpoint.service, response)?;
         let (answer, sources) = if matches!(request_kind, MainSearchRequestKind::Search) {
             normalize_main_search(&answer, sources, self.endpoint.credentials)?
         } else {
@@ -90,7 +101,7 @@ impl ResponsesMainSearch<'_> {
                 redact_and_deduplicate_sources(sources, self.endpoint.credentials),
             )
         };
-        Ok((Some(status), (answer, self.untracked(sources))))
+        Ok((answer, self.untracked(sources)))
     }
 
     /// Drops the tracking parameter from every source, then deduplicates the sources again,
