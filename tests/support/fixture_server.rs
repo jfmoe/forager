@@ -237,22 +237,11 @@ impl Fixture {
                         stream
                             .set_read_timeout(Some(ACCEPT_DEADLINE))
                             .expect("set canary stream read timeout");
-                        let mut request = Vec::new();
-                        let mut buffer = [0_u8; 4096];
-                        loop {
-                            let read = stream.read(&mut buffer).expect("read canary request");
-                            if read == 0 {
-                                break;
-                            }
-                            request.extend_from_slice(&buffer[..read]);
-                            if request_complete(&request) {
-                                break;
-                            }
-                        }
+                        let request = read_request(&mut stream);
                         let _ = stream.write_all(
                             b"HTTP/1.1 500 Error\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
                         );
-                        requests.push(String::from_utf8(request).expect("UTF-8 request"));
+                        requests.push(request);
                         break;
                     }
                     Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => {
