@@ -16,6 +16,7 @@ use super::seam_config::{
 };
 use crate::catalog::{self, ProviderId};
 use crate::redact::Secret;
+use crate::state_file;
 use crate::types::Platform;
 
 #[derive(Clone, Debug)]
@@ -533,12 +534,9 @@ pub(crate) fn platform_route_config(
 
 fn resolve_journal_dir(value: &str, config_dir: &Path) -> Result<PathBuf, ConfigError> {
     if value == "~/.local/state/forager/journal"
-        && let Some(state_home) = env::var_os("XDG_STATE_HOME")
-            .filter(|value| !value.is_empty())
-            .map(PathBuf::from)
-            .filter(|path| path.is_absolute())
+        && let Some(state_directory) = state_file::state_directory()
     {
-        return Ok(state_home.join("forager/journal"));
+        return Ok(state_directory.join("journal"));
     }
     resolve_path("journal.dir", value, config_dir)
 }
