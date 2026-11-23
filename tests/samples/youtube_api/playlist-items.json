@@ -1,0 +1,60 @@
+{
+  "kind": "youtube#playlistItemListResponse",
+  "etag": "playlist-items-etag",
+  "items": [
+    {
+      "kind": "youtube#playlistItem",
+      "etag": "etag-fNk_zzaMoSs",
+      "id": "item-0",
+      "snippet": {
+        "publishedAt": "2016-08-06T00:06:04Z",
+        "channelId": "UCYO_jab_esuFRV4b17AJtAw",
+        "title": "Vectors | Chapter 1, Essence of linear algebra",
+        "description": "Beginning the linear algebra series with the basics.",
+        "thumbnails": {},
+        "channelTitle": "3Blue1Brown",
+        "playlistId": "PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab",
+        "position": 0,
+        "resourceId": {
+          "kind": "youtube#video",
+          "videoId": "fNk_zzaMoSs"
+        },
+        "videoOwnerChannelTitle": "3Blue1Brown",
+        "videoOwnerChannelId": "UCYO_jab_esuFRV4b17AJtAw"
+      },
+      "contentDetails": {
+        "videoId": "fNk_zzaMoSs",
+        "videoPublishedAt": "2016-08-06T00:05:49Z"
+      }
+    },
+    {
+      "kind": "youtube#playlistItem",
+      "etag": "etag-k7RM-ot2NWY",
+      "id": "item-1",
+      "snippet": {
+        "publishedAt": "2016-08-06T00:06:04Z",
+        "channelId": "UCYO_jab_esuFRV4b17AJtAw",
+        "title": "Linear combinations, span, and basis vectors | Chapter 2",
+        "description": "",
+        "thumbnails": {},
+        "channelTitle": "3Blue1Brown",
+        "playlistId": "PLZHQObOWTQDPD3MizzM2xVFitgF8hE_ab",
+        "position": 1,
+        "resourceId": {
+          "kind": "youtube#video",
+          "videoId": "k7RM-ot2NWY"
+        },
+        "videoOwnerChannelTitle": "3Blue1Brown",
+        "videoOwnerChannelId": "UCYO_jab_esuFRV4b17AJtAw"
+      },
+      "contentDetails": {
+        "videoId": "k7RM-ot2NWY",
+        "videoPublishedAt": "2016-08-06T00:05:49Z"
+      }
+    }
+  ],
+  "pageInfo": {
+    "totalResults": 16,
+    "resultsPerPage": 2
+  }
+}

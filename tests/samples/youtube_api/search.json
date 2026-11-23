@@ -1,0 +1,60 @@
+{
+  "kind": "youtube#searchListResponse",
+  "etag": "search-etag",
+  "nextPageToken": "CAUQAA",
+  "regionCode": "US",
+  "pageInfo": {
+    "totalResults": 1000000,
+    "resultsPerPage": 2
+  },
+  "items": [
+    {
+      "kind": "youtube#searchResult",
+      "etag": "etag-eMlx5fFNoYc",
+      "id": {
+        "kind": "youtube#video",
+        "videoId": "eMlx5fFNoYc"
+      },
+      "snippet": {
+        "publishedAt": "2024-04-07T12:53:54Z",
+        "channelId": "UCYO_jab_esuFRV4b17AJtAw",
+        "title": "Attention in transformers, step-by-step | Deep Learning Chapter 6",
+        "description": "Demystifying attention, the key mechanism inside transformers &amp; LLMs.",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/eMlx5fFNoYc/default.jpg",
+            "width": 120,
+            "height": 90
+          }
+        },
+        "channelTitle": "3Blue1Brown",
+        "liveBroadcastContent": "none",
+        "publishTime": "2024-04-07T12:53:54Z"
+      }
+    },
+    {
+      "kind": "youtube#searchResult",
+      "etag": "etag-Ks-_Mh1QhMc",
+      "id": {
+        "kind": "youtube#video",
+        "videoId": "Ks-_Mh1QhMc"
+      },
+      "snippet": {
+        "publishedAt": "2024-04-07T12:53:54Z",
+        "channelId": "UCYO_jab_esuFRV4b17AJtAw",
+        "title": "Your Body Language May Shape Who You Are &#39;TED&#39;",
+        "description": "",
+        "thumbnails": {
+          "default": {
+            "url": "https://i.ytimg.com/vi/Ks-_Mh1QhMc/default.jpg",
+            "width": 120,
+            "height": 90
+          }
+        },
+        "channelTitle": "3Blue1Brown",
+        "liveBroadcastContent": "none",
+        "publishTime": "2024-04-07T12:53:54Z"
+      }
+    }
+  ]
+}
