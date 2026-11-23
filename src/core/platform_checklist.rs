@@ -336,7 +336,10 @@ fn check_route(
             ..
         } => probed == platform && PlatformRef::parse(platform, canary).is_ok(),
         DoctorProbe::ServiceAccount { .. } => registration.credentials == Credentials::Required,
-        _ => false,
+        DoctorProbe::MainSearch { .. }
+        | DoctorProbe::WebSearch { .. }
+        | DoctorProbe::WebFetch { .. }
+        | DoctorProbe::DocsSearch { .. } => false,
     };
     let serves_capability = catalog::CATALOGS
         .iter()

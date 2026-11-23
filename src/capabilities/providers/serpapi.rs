@@ -37,7 +37,7 @@ mod account;
 #[path = "serpapi_scholar.rs"]
 mod scholar;
 pub(crate) use account::KeyQuota;
-pub(crate) use scholar::{cited_by_support, fetch_support, search_support};
+use scholar::{cited_by_support, fetch_support, search_support};
 
 /// The route's declaration: Search and Fetch of the catalog, and an account probe that reads
 /// every key's quota.

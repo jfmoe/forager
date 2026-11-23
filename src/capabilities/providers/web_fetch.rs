@@ -1,3 +1,9 @@
+//! The HTTP Web Fetch providers behind one adapter: Jina, Tavily and Firecrawl.
+//!
+//! The no-wildcard rule covers every match in this module, so a new Web Fetch provider is a
+//! compile error at each request, decoding and message site that must handle it.
+#![deny(clippy::wildcard_enum_match_arm)]
+
 use std::future::Future;
 use std::pin::Pin;
 use std::time::Duration;
@@ -56,7 +62,7 @@ pub(crate) fn new(
     deadline: Deadline,
 ) -> Box<dyn WebFetch> {
     Box::new(HttpFetchProvider {
-        id,
+        service: Service::of(id),
         config,
         client,
         credentials,
@@ -76,12 +82,53 @@ impl WebFetch for HttpFetchProvider {
 }
 
 struct HttpFetchProvider {
-    id: ProviderId,
+    service: Service,
     config: WebFetchProviderConfig,
     client: Client,
     credentials: CredentialPool,
     retry_policy: RetryPolicy,
     deadline: Deadline,
+}
+
+/// The Web Fetch provider an adapter sends to.
+#[derive(Clone, Copy)]
+enum Service {
+    Jina,
+    Tavily,
+    Firecrawl,
+}
+
+impl Service {
+    fn of(id: ProviderId) -> Self {
+        match id {
+            ProviderId::Jina => Self::Jina,
+            ProviderId::Tavily => Self::Tavily,
+            ProviderId::Firecrawl => Self::Firecrawl,
+            ProviderId::Xai
+            | ProviderId::Openai
+            | ProviderId::Exa
+            | ProviderId::ArxivApi
+            | ProviderId::SsrnCrossref
+            | ProviderId::Serpapi
+            | ProviderId::XiaohongshuBrowser
+            | ProviderId::HnApi
+            | ProviderId::YoutubeApi
+            | ProviderId::YoutubeWeb
+            | ProviderId::GeminiApi
+            | ProviderId::PolymarketApi
+            | ProviderId::RedditBrowser => {
+                unreachable!("only web fetch providers make fetch requests")
+            }
+        }
+    }
+
+    const fn id(self) -> ProviderId {
+        match self {
+            Self::Jina => ProviderId::Jina,
+            Self::Tavily => ProviderId::Tavily,
+            Self::Firecrawl => ProviderId::Firecrawl,
+        }
+    }
 }
 
 struct FetchBody {
@@ -92,23 +139,22 @@ struct FetchBody {
 impl HttpFetchProvider {
     async fn execute(&self, request: &FetchRequest) -> Result<ProviderFetchOutcome, ProviderError> {
         let settings = ExecutionSettings {
-            provider: self.id.name(),
+            provider: self.service.id().name(),
             target: AttemptTarget::seam("web_fetch"),
             retry_policy: self.retry_policy,
             deadline: self.deadline,
             attempt_timeout: Duration::from_secs(self.config.timeout_seconds),
             verbose: request.verbose,
-            timeout_message: match self.id {
-                ProviderId::Jina => "jina request timed out",
-                ProviderId::Tavily => "tavily request timed out",
-                ProviderId::Firecrawl => "firecrawl request timed out",
-                _ => unreachable!("only web fetch providers make fetch requests"),
+            timeout_message: match self.service {
+                Service::Jina => "jina request timed out",
+                Service::Tavily => "tavily request timed out",
+                Service::Firecrawl => "firecrawl request timed out",
             },
             model: None,
             transport: Some("http"),
             endpoint_host: None,
         };
-        let execution = match catalog::registration(self.id).credentials {
+        let execution = match catalog::registration(self.service.id()).credentials {
             Credentials::Optional => {
                 execute_optional(&self.credentials, settings, |credential, _| async move {
                     self.send_once(request, credential.as_ref()).await
@@ -124,7 +170,7 @@ impl HttpFetchProvider {
             Credentials::Unused => unreachable!("every web fetch provider reads keys"),
         }?;
         Ok(ProviderFetchOutcome {
-            provider: self.id.name(),
+            provider: self.service.id().name(),
             content: execution.value.content,
             attempts: execution.attempts,
             diagnostic: combine_diagnostics(
@@ -177,8 +223,8 @@ impl HttpFetchProvider {
 
     fn request(&self, request: &FetchRequest, credential: Option<&Secret>) -> RequestBuilder {
         let url = &request.url;
-        match self.id {
-            ProviderId::Jina => {
+        match self.service {
+            Service::Jina => {
                 let endpoint = format!("{}/{}", self.config.url.trim_end_matches('/'), url);
                 let mut request = authorized(self.client.get(endpoint), credential)
                     .header("x-return-format", "markdown")
@@ -188,7 +234,7 @@ impl HttpFetchProvider {
                 }
                 request
             }
-            ProviderId::Tavily => authorized(
+            Service::Tavily => authorized(
                 self.client
                     .post(format!("{}/extract", self.config.url.trim_end_matches('/'))),
                 credential,
@@ -198,7 +244,7 @@ impl HttpFetchProvider {
                 "format": "markdown",
                 "extract_depth": "basic"
             })),
-            ProviderId::Firecrawl => authorized(
+            Service::Firecrawl => authorized(
                 self.client
                     .post(format!("{}/scrape", self.config.url.trim_end_matches('/'))),
                 credential,
@@ -211,16 +257,15 @@ impl HttpFetchProvider {
                 // The PDF parser options Firecrawl applies in scrape (ADR-0029).
                 "parsers": [{"type": "pdf", "mode": "auto", "pageMarkers": true}],
             })),
-            _ => unreachable!("only web fetch providers make fetch requests"),
         }
     }
 
     fn decode(&self, body: &str) -> Result<String, String> {
-        match self.id {
-            ProviderId::Jina => serde_json::from_str::<JinaResponse>(body)
+        match self.service {
+            Service::Jina => serde_json::from_str::<JinaResponse>(body)
                 .map_err(|error| format!("invalid Jina response: {error}"))
                 .map(|response| response.data.content),
-            ProviderId::Tavily => serde_json::from_str::<TavilyResponse>(body)
+            Service::Tavily => serde_json::from_str::<TavilyResponse>(body)
                 .map_err(|error| format!("invalid Tavily response: {error}"))
                 .map(|response| {
                     response
@@ -230,25 +275,21 @@ impl HttpFetchProvider {
                         .map(|result| result.raw_content)
                         .unwrap_or_default()
                 }),
-            ProviderId::Firecrawl => serde_json::from_str::<FirecrawlResponse>(body)
+            Service::Firecrawl => serde_json::from_str::<FirecrawlResponse>(body)
                 .map_err(|error| format!("invalid Firecrawl response: {error}"))
                 .map(|response| response.data.markdown),
-            _ => unreachable!("only web fetch providers decode fetch responses"),
         }
     }
 
     fn decode_truncated(&self, body: &str) -> String {
-        match self.id {
-            ProviderId::Jina => {
-                json_string_prefix(body, "content").unwrap_or_else(|| body.to_owned())
-            }
-            ProviderId::Tavily => {
+        match self.service {
+            Service::Jina => json_string_prefix(body, "content").unwrap_or_else(|| body.to_owned()),
+            Service::Tavily => {
                 json_string_prefix(body, "raw_content").unwrap_or_else(|| body.to_owned())
             }
-            ProviderId::Firecrawl => {
+            Service::Firecrawl => {
                 json_string_prefix(body, "markdown").unwrap_or_else(|| body.to_owned())
             }
-            _ => unreachable!("only web fetch providers decode fetch responses"),
         }
     }
 
@@ -323,12 +364,11 @@ mod tests {
 
     use futures_util::future::{self, Either};
 
-    use super::{FetchRequest, HttpFetchProvider};
+    use super::{FetchRequest, HttpFetchProvider, Service};
     use crate::config::WebFetchProviderConfig;
     use crate::credentials::CredentialPool;
     use crate::fixture_server::{Fixture, Response, Route};
     use crate::net::{RetryPolicy, build_client};
-    use crate::providers::ProviderId;
     use crate::types::{AttemptErrorKind, Deadline};
 
     #[test]
@@ -345,7 +385,7 @@ mod tests {
 
         let outcome = runtime.block_on(async {
             let provider = HttpFetchProvider {
-                id: ProviderId::Jina,
+                service: Service::Jina,
                 config: WebFetchProviderConfig {
                     url: fixture.url.clone(),
                     keys: Vec::new(),
@@ -399,7 +439,7 @@ mod tests {
 
         let error = runtime.block_on(async {
             let provider = HttpFetchProvider {
-                id: ProviderId::Jina,
+                service: Service::Jina,
                 config: WebFetchProviderConfig {
                     url: format!("http://{address}"),
                     keys: vec!["key".into()],

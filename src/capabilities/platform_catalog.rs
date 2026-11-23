@@ -33,7 +33,7 @@ pub(crate) struct PlatformCatalog {
     /// The platform's own operations beyond search and fetch, each with the routes that serve
     /// it. A route may serve only such operations, as a model that answers about a video does; it
     /// is a valid order entry like any route.
-    pub(crate) operations: &'static [OperationRoutes],
+    pub(crate) operations: &'static [OperationRouteSet],
     /// The default `platforms.<id>.order`. A route that users must enable themselves is a
     /// valid order entry but never appears here.
     pub(crate) default_order: &'static [ProviderId],
@@ -41,7 +41,7 @@ pub(crate) struct PlatformCatalog {
 
 /// A Platform Operation of one platform beyond search and fetch, and the routes that serve it.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct OperationRoutes {
+pub(crate) struct OperationRouteSet {
     pub(crate) operation: &'static str,
     pub(crate) routes: &'static [ProviderId],
 }
@@ -67,7 +67,7 @@ pub(crate) const SCHOLAR: PlatformCatalog = PlatformCatalog {
     platform: Platform::Scholar,
     search: &[ProviderId::Serpapi],
     fetch: &[ProviderId::Serpapi],
-    operations: &[OperationRoutes {
+    operations: &[OperationRouteSet {
         operation: CITED_BY,
         routes: &[ProviderId::Serpapi],
     }],
@@ -80,7 +80,7 @@ pub(crate) const XIAOHONGSHU: PlatformCatalog = PlatformCatalog {
     platform: Platform::Xiaohongshu,
     search: &[ProviderId::XiaohongshuBrowser],
     fetch: &[ProviderId::XiaohongshuBrowser],
-    operations: &[OperationRoutes {
+    operations: &[OperationRouteSet {
         operation: COMMENTS,
         routes: &[ProviderId::XiaohongshuBrowser],
     }],
@@ -93,7 +93,7 @@ pub(crate) const X: PlatformCatalog = PlatformCatalog {
     platform: Platform::X,
     search: &[ProviderId::Xai],
     fetch: &[ProviderId::Xai],
-    operations: &[OperationRoutes {
+    operations: &[OperationRouteSet {
         operation: ASK,
         routes: &[ProviderId::Xai],
     }],
@@ -105,7 +105,7 @@ pub(crate) const HN: PlatformCatalog = PlatformCatalog {
     platform: Platform::Hn,
     search: &[ProviderId::HnApi],
     fetch: &[ProviderId::HnApi],
-    operations: &[OperationRoutes {
+    operations: &[OperationRouteSet {
         operation: STORIES,
         routes: &[ProviderId::HnApi],
     }],
@@ -121,19 +121,19 @@ pub(crate) const YOUTUBE: PlatformCatalog = PlatformCatalog {
     search: &[ProviderId::YoutubeApi],
     fetch: &[ProviderId::YoutubeApi, ProviderId::YoutubeWeb],
     operations: &[
-        OperationRoutes {
+        OperationRouteSet {
             operation: COMMENTS,
             routes: &[ProviderId::YoutubeApi],
         },
-        OperationRoutes {
+        OperationRouteSet {
             operation: VIDEOS,
             routes: &[ProviderId::YoutubeApi],
         },
-        OperationRoutes {
+        OperationRouteSet {
             operation: ASK,
             routes: &[ProviderId::GeminiApi],
         },
-        OperationRoutes {
+        OperationRouteSet {
             operation: TRANSCRIBE,
             routes: &[ProviderId::GeminiApi],
         },
@@ -147,7 +147,7 @@ pub(crate) const POLYMARKET: PlatformCatalog = PlatformCatalog {
     platform: Platform::Polymarket,
     search: &[ProviderId::PolymarketApi],
     fetch: &[ProviderId::PolymarketApi],
-    operations: &[OperationRoutes {
+    operations: &[OperationRouteSet {
         operation: HISTORY,
         routes: &[ProviderId::PolymarketApi],
     }],

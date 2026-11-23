@@ -44,7 +44,7 @@ mod search;
 #[path = "hn_api_thread.rs"]
 mod thread;
 
-pub(crate) use search::search_support;
+use search::search_support;
 
 use hn_markup::hn_markdown;
 use thread::{ThreadNode, ThreadRoot};

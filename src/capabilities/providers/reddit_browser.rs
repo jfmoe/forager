@@ -52,8 +52,8 @@ mod search;
 mod thread;
 
 pub(crate) use login::LOGIN_PAGE;
-pub(crate) use post::fetch_support;
-pub(crate) use search::search_support;
+use post::fetch_support;
+use search::search_support;
 
 pub(crate) struct RedditBrowser {
     browser: BrowserRoute,

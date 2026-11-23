@@ -1,8 +1,9 @@
 //! The declared shape of a platform route. A route's module declares it once, beside its adapter:
 //! how the provider factory builds it from its runtime configuration, the request checks planning
 //! runs before it chooses the route, the platform operations it serves through the seam traits,
-//! and what doctor and `forager browser login` add for it. The factory looks the declaration up
-//! and knows nothing else about the route. A Platform Operation that only the route serves is
+//! and what doctor and `forager browser login` add for it. The factory reaches a platform route
+//! only through its declaration; a route that also backs a Capability Seam, as xAI backs main
+//! search, is built for that seam without it. A Platform Operation that only the route serves is
 //! declared beside it as an operation route.
 
 use std::future::Future;
@@ -57,21 +58,20 @@ pub(crate) struct RouteDeclaration<C> {
 }
 
 /// Checks a platform search request without sending it.
-pub(crate) type SearchSupport = fn(&PlatformSearchRequest) -> Result<(), String>;
+type SearchSupport = fn(&PlatformSearchRequest) -> Result<(), String>;
 
 /// Checks a platform fetch request without sending it.
-pub(crate) type FetchSupport = fn(&PlatformFetchRequest) -> Result<(), String>;
+type FetchSupport = fn(&PlatformFetchRequest) -> Result<(), String>;
 
 /// The answer of a route's inherent method to one request.
-pub(crate) type OperationFuture<'a, T> =
-    Pin<Box<dyn Future<Output = Result<T, ProviderError>> + Send + 'a>>;
+type OperationFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, ProviderError>> + Send + 'a>>;
 
 /// How a Platform Operation that one route serves runs on that route, declared in the route's
 /// module: the route, where its runtime configuration is, the check of the operation's request
 /// `Q` that planning runs before it chooses the route, and the route's inherent method that
 /// answers the input `I` it runs on. The configuration it hands that method is always the
 /// route's own, so the method needs no check of which route it got.
-pub(crate) struct OperationRoute<C: 'static, Q: ?Sized + 'static, I: ?Sized + 'static, T: 'static> {
+pub(crate) struct OperationRoute<C: 'static, Q: 'static, I: 'static, T: 'static> {
     pub(crate) route: ProviderId,
     pub(crate) config: fn(&PlatformRoutesRuntimeConfig) -> &C,
     pub(crate) support: fn(&Q) -> Result<(), String>,
@@ -83,7 +83,7 @@ pub(crate) struct OperationRoute<C: 'static, Q: ?Sized + 'static, I: ?Sized + 's
     clippy::unnecessary_wraps,
     reason = "matches the request check of an operation route"
 )]
-pub(crate) fn any_request<R: ?Sized>(_: &R) -> Result<(), String> {
+pub(crate) fn any_request<R>(_: &R) -> Result<(), String> {
     Ok(())
 }
 
