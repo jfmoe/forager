@@ -6,8 +6,8 @@ use crate::net::combine_diagnostics;
 use crate::providers::execution::execute_anonymous;
 use crate::providers::shared::{other_platform_message, parameter_error};
 use crate::types::{
-    PlatformSearchOptions, PlatformSearchOutcome, PlatformSearchRequest, ProviderError,
-    SsrnSearchOptions,
+    PlatformItem, PlatformSearchOptions, PlatformSearchOutcome, PlatformSearchRequest,
+    ProviderError, SsrnSearchOptions,
 };
 use crate::types::{SsrnSearchScope, SsrnSort, SsrnSortOrder};
 
@@ -34,9 +34,8 @@ pub(crate) fn search_support(request: &PlatformSearchRequest) -> Result<(), Stri
 }
 
 impl SsrnCrossref {
-    /// Searches the SSRN DOI prefix with the complete criteria. The page position is an absolute offset, and
-    /// the last page is judged by the record count before records without an SSRN DOI are
-    /// dropped.
+    /// Searches the SSRN DOI prefix with the complete criteria. The page position is an absolute
+    /// offset.
     pub(crate) async fn search(
         &self,
         request: &PlatformSearchRequest,
@@ -60,11 +59,37 @@ impl SsrnCrossref {
             },
         )
         .await?;
+        let page = SearchPage::from_list(execution.value, offset, u64::from(request.limit));
+        Ok(PlatformSearchOutcome {
+            items: page.items,
+            next_page: page.next_page,
+            attempts: execution.attempts,
+            diagnostic: combine_diagnostics(
+                execution
+                    .diagnostic
+                    .into_iter()
+                    .chain(skipped_diagnostic(&page.skipped_dois)),
+            ),
+        })
+    }
+}
+
+/// One decoded page of a search: its SSRN items, the next page position, and the DOIs of the
+/// records dropped for lacking an SSRN DOI.
+pub(super) struct SearchPage {
+    pub(super) items: Vec<PlatformItem>,
+    pub(super) next_page: Option<String>,
+    pub(super) skipped_dois: Vec<String>,
+}
+
+impl SearchPage {
+    /// Decodes the page of `rows` records that starts at `offset`. The last page is judged by
+    /// the record count before records without an SSRN DOI are dropped.
+    pub(super) fn from_list(list: WorkList, offset: u64, rows: u64) -> Self {
         let WorkList {
             total_results,
             items: works,
-        } = execution.value;
-        let rows = u64::from(request.limit);
+        } = list;
         let raw_count = works.len() as u64;
         let mut skipped_dois = Vec::new();
         let items = works
@@ -75,17 +100,11 @@ impl SsrnCrossref {
         let has_next_page = raw_count == rows
             && next_offset < total_results
             && next_offset.saturating_add(rows) <= MAX_PAGE_END;
-        Ok(PlatformSearchOutcome {
+        Self {
             items,
             next_page: has_next_page.then(|| next_offset.to_string()),
-            attempts: execution.attempts,
-            diagnostic: combine_diagnostics(
-                execution
-                    .diagnostic
-                    .into_iter()
-                    .chain(skipped_diagnostic(&skipped_dois)),
-            ),
-        })
+            skipped_dois,
+        }
     }
 }
 
