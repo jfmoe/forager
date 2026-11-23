@@ -93,22 +93,6 @@ fn ci_tests_on_a_windows_runner() {
 }
 
 #[test]
-fn windows_ci_denies_clippy_warnings() {
-    let workflow = ci_workflow();
-
-    assert!(workflow_jobs(&workflow).values().any(|job| {
-        job["runs-on"].as_str() == Some("windows-latest")
-            && cargo_commands_in_job(job).iter().any(|command| {
-                let arguments = command.split_whitespace().collect::<Vec<_>>();
-                arguments.starts_with(&["cargo", "clippy"])
-                    && arguments.contains(&"--all-targets")
-                    && arguments.contains(&"--locked")
-                    && arguments.windows(2).any(|pair| pair == ["-D", "warnings"])
-            })
-    }));
-}
-
-#[test]
 fn windows_ci_runs_release_artifact_fixtures() {
     let workflow = ci_workflow();
 

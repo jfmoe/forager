@@ -59,7 +59,6 @@ Each fact has one owner. When something changes, update the owner and nothing el
 ## Rules
 
 - **Dependencies point one way**, from the binary down to `types`, as `docs/architecture.md` describes. No test checks this, so a new upward or lateral import is caught only in review.
-- **Give an item used only by `#[cfg(unix)]` code the same gate.** The `windows-permissions` CI job runs clippy on Windows, where unix-only code does not compile, so an ungated import or helper fails it as unused. This mistake reached CI twice. No local command reproduces the job (clippy for the Windows target on macOS stops in `ring`'s C build), so before pushing, check that each item a unix-only test uses has another user or carries the gate.
 - **Report the Windows job only from a remote run.** Without a local run there is nothing to report on a non-Windows host; a CI failure or success is the evidence.
 - **Fix a compatibility problem in the general mechanism that owns the behaviour**, not with a special case for one site, URL or sample. An agent once reached for a per-domain Web Fetch order where a global order change solved the problem. When a special case seems the only option, discuss it first.
 - **Read `docs/agents/browser-routes.md` before you change or live-test a browser route, the browser transport or the Managed Browser.** It holds the stop rules and safety boundaries; a probe loop that kept opening pages through a site block re-triggered the block after it lifted.
