@@ -245,11 +245,11 @@ fn youtube_web_deep_doctor_fetches_the_canary_video_metadata() {
 
 #[test]
 fn polymarket_api_deep_doctor_checks_the_clob_and_the_data_api_after_its_search() {
-    let gamma = Fixture::start_json(200, r#"{"pagination":{"hasMore":false,"totalResults":0}}"#);
-    let clob = Fixture::start_json(200, "1792800000");
+    let gamma = Fixture::start_json(200, &support::polymarket_samples::no_match().to_string());
+    let clob = Fixture::start_json(200, &support::polymarket_samples::stored("clob-time.json"));
     let data = Fixture::start_json(
         200,
-        r#"{"data":{"computed_at":"2026-10-24T07:35:04Z","age_seconds":4}}"#,
+        &support::polymarket_samples::stored("data-status.json"),
     );
     let environment = RunEnvironment::new(&format!(
         "[providers.polymarket_api]\nurl = {:?}\nclob_url = {:?}\ndata_url = {:?}\n",

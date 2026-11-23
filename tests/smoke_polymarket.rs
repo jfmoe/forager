@@ -5,9 +5,8 @@ mod support;
 
 use serde_json::{Value, json};
 use support::hn::path;
-use support::polymarket::{
-    event, json as body, last_trades, market, price_page, prices, resolved, tokens,
-};
+use support::polymarket::{json as body, last_trades, price_page, prices};
+use support::polymarket_samples::{event, market, resolved, search_page, stored, tokens};
 use support::smoke::{DISABLED_PLATFORMS, SmokeEnvironment, case};
 use support::{Fixture, Response};
 
@@ -33,10 +32,10 @@ fn statuses(payload: &Value) -> [Value; 4] {
 fn live_smoke_reads_the_canary_without_the_clob_the_found_event_with_it_and_the_canary_history() {
     let found = "how-many-fed-rate-cuts-in-2026";
     let gamma = Fixture::start_sequence(vec![
-        body(&json!({
-            "events": [event(found, &[market("two-sided", "Two-sided")])],
-            "pagination": {"hasMore": false, "totalResults": 1}
-        })),
+        body(&search_page(
+            &[event(found, &[market("two-sided", "Two-sided")])],
+            false,
+        )),
         body(&event(
             "presidential-election-winner-2024",
             &[resolved(WINNER, "Donald Trump", true)],
@@ -93,7 +92,7 @@ fn live_smoke_reads_the_canary_without_the_clob_the_found_event_with_it_and_the_
 
 #[test]
 fn the_live_quote_case_does_not_start_without_an_event_from_the_search_case() {
-    let gamma = Fixture::start_repeating(Response::json(500, r#"{"error":"down"}"#));
+    let gamma = Fixture::start_repeating(Response::json(500, &stored("gamma-error.json")));
     let environment = environment(&gamma.url, "http://127.0.0.1:9", "http://127.0.0.1:9");
 
     let output = environment.run(&["smoke", "--live", "--timeout", "20"]);

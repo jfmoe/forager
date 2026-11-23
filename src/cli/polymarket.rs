@@ -295,3 +295,157 @@ fn polymarket_history_input(
         .map_err(AppError::Argument)?;
     Ok((request, format, common))
 }
+
+/// The Polymarket commands' argument rules, proven by parsing their definition in process.
+#[cfg(test)]
+mod tests {
+    use clap::Parser;
+
+    use super::super::PlatformCommand;
+    use super::{
+        PolymarketCommand, polymarket_fetch_input, polymarket_history_input,
+        polymarket_search_input,
+    };
+    use crate::app::AppError;
+
+    #[derive(Parser)]
+    struct PlatformCli {
+        #[command(subcommand)]
+        command: PlatformCommand,
+    }
+
+    fn command(arguments: &[&str]) -> Result<PolymarketCommand, clap::Error> {
+        let cli = PlatformCli::try_parse_from(
+            ["platform", "polymarket"]
+                .into_iter()
+                .chain(arguments.iter().copied()),
+        )?;
+        match cli.command {
+            PlatformCommand::Polymarket { command } => Ok(command),
+            _ => unreachable!("the arguments name a polymarket command"),
+        }
+    }
+
+    /// The argument error, if any, of the checks a command makes before reading configuration.
+    fn checked(arguments: &[&str]) -> Result<(), AppError> {
+        match command(arguments).expect("the parser accepts the arguments") {
+            PolymarketCommand::Search(arguments) => polymarket_search_input(arguments).map(|_| ()),
+            PolymarketCommand::Fetch(arguments) => polymarket_fetch_input(arguments).map(|_| ()),
+            PolymarketCommand::History(arguments) => {
+                polymarket_history_input(arguments).map(|_| ())
+            }
+        }
+    }
+
+    fn argument_error(arguments: &[&str]) -> String {
+        match checked(arguments) {
+            Err(AppError::Argument(message)) => message,
+            other => panic!("arguments: {arguments:?}\nexpected an argument error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn options_outside_their_definition_or_in_conflict_are_refused_while_parsing() {
+        for (arguments, kind) in [
+            (
+                &["search", "fed rate", "--limit", "21"][..],
+                clap::error::ErrorKind::ValueValidation,
+            ),
+            (
+                &["search", "fed rate", "--cursor", "v1.polymarket_api.e30"],
+                clap::error::ErrorKind::ArgumentConflict,
+            ),
+            (
+                &[
+                    "history",
+                    "polymarket:market/will-no-fed-rate-cuts-happen-in-2026",
+                    "--interval",
+                    "1d",
+                    "--from",
+                    "2026-10-22",
+                    "--to",
+                    "2026-10-23",
+                ],
+                clap::error::ErrorKind::ArgumentConflict,
+            ),
+            (
+                &[
+                    "history",
+                    "polymarket:market/will-no-fed-rate-cuts-happen-in-2026",
+                    "--from",
+                    "2026-10-22",
+                ],
+                clap::error::ErrorKind::MissingRequiredArgument,
+            ),
+        ] {
+            let error = command(arguments)
+                .map(|_| ())
+                .expect_err("the parser refuses the arguments");
+
+            assert_eq!(error.kind(), kind, "arguments: {arguments:?}\n{error}");
+        }
+    }
+
+    #[test]
+    fn a_blank_search_is_an_argument_error_before_any_request() {
+        assert!(matches!(
+            checked(&["search", "  "]),
+            Err(AppError::Argument(_))
+        ));
+    }
+
+    #[test]
+    fn a_fetch_of_what_names_no_polymarket_com_page_is_an_argument_error_before_any_request() {
+        for reference in [
+            "https://polymarket.us/event/fedfnds-ondt-2027-12-31",
+            "polymarket:51456",
+            "https://polymarket.com/sports/nfl",
+        ] {
+            assert!(
+                matches!(checked(&["fetch", reference]), Err(AppError::Argument(_))),
+                "{reference}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_polymarket_us_link_is_refused_before_any_request() {
+        let message = argument_error(&[
+            "history",
+            "https://polymarket.us/event/fedfnds-ondt-2027-12-31",
+        ]);
+
+        assert!(
+            message.contains("Polymarket US (polymarket.us) is a separate product"),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn windows_the_data_api_would_refuse_are_argument_errors_before_any_request() {
+        let market = "polymarket:market/will-no-fed-rate-cuts-happen-in-2026";
+        let refusals = [
+            &["--from", "2026-10-08", "--to", "2026-10-23"][..],
+            &["--from", "2026-10-23", "--to", "2026-10-22"],
+            &["--interval", "1m", "--bucket", "5m"],
+            &["--interval", "max", "--bucket", "1m"],
+            &["--interval", "1w", "--bucket", "1m"],
+        ]
+        .map(|options| {
+            let mut arguments = vec!["history", market];
+            arguments.extend_from_slice(options);
+            argument_error(&arguments)
+        });
+
+        assert_eq!(
+            refusals,
+            [
+                "--from 2026-10-08 --to 2026-10-23 spans 16 days, and the Polymarket Data API serves at most 15; use --interval for a longer span",
+                "--from 2026-10-23 is after --to 2026-10-22",
+                "--bucket 5m is finer than the Polymarket Data API serves over --interval 1m; use 30m or coarser",
+                "--bucket 1m is finer than the Polymarket Data API serves over --interval max; use 30m or coarser",
+                "--bucket 1m is finer than the Polymarket Data API serves over --interval 1w; use 5m or coarser",
+            ]
+        );
+    }
+}

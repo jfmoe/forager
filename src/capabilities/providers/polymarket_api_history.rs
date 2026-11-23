@@ -310,3 +310,7 @@ fn decode_page(body: &str) -> Result<Page, Refusal> {
         next_cursor,
     })
 }
+
+#[cfg(test)]
+#[path = "polymarket_api_history_tests.rs"]
+mod tests;
