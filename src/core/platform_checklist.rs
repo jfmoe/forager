@@ -10,8 +10,8 @@ use crate::catalog::{
 use crate::config;
 use crate::providers;
 use crate::types::{
-    AccessToken, ContentDepth, Platform, PlatformFetchRequest, PlatformRef, PlatformSearchOptions,
-    PlatformSearchRequest,
+    AccessToken, CITED_BY, ContentDepth, Platform, PlatformFetchRequest, PlatformRef,
+    PlatformSearchOptions, PlatformSearchRequest,
 };
 
 /// One item of the integration checklist for a platform and its routes.
@@ -191,6 +191,9 @@ fn violations(platform: Platform, registry: &Registry<'_>) -> Vec<Violation> {
             &mut found,
         );
     }
+    for operation in catalog.operations {
+        check_smoke_case(platform, operation.operation, registry, &mut found);
+    }
     check_refs(
         platform,
         (registry.sample_refs)(platform),
@@ -220,17 +223,26 @@ fn check_operation(
             ));
         }
     }
+    check_smoke_case(platform, name, registry, found);
+}
+
+fn check_smoke_case(
+    platform: Platform,
+    operation: &str,
+    registry: &Registry<'_>,
+    found: &mut Vec<Violation>,
+) {
     let has_smoke_case = registry.registrations.iter().any(|registration| {
         registration
             .smoke_cases
             .iter()
-            .any(|case| case.platform == Some(platform) && case.operation == name)
+            .any(|case| case.platform == Some(platform) && case.operation == operation)
     });
     if !has_smoke_case {
         found.push(violation(
             platform,
             Rule::SmokeCase,
-            &format!("no route registers a {name} smoke case"),
+            &format!("no route registers a {operation} smoke case"),
         ));
     }
 }
@@ -711,6 +723,38 @@ fn a_platform_without_a_smoke_case_breaks_the_smoke_rule() {
     };
 
     assert_reports(&violations(Platform::Arxiv, &registry), Rule::SmokeCase);
+}
+
+#[test]
+fn an_operation_of_the_platform_without_a_smoke_case_breaks_the_smoke_rule() {
+    let registrations = catalog::registrations()
+        .iter()
+        .map(|registration| ProviderRegistration {
+            smoke_cases: registration
+                .smoke_cases
+                .iter()
+                .copied()
+                .filter(|case| case.operation != CITED_BY)
+                .collect::<Vec<_>>()
+                .leak(),
+            ..*registration
+        })
+        .collect::<Vec<_>>();
+    let registry = Registry {
+        registrations: &registrations,
+        ..baseline()
+    };
+
+    let found = violations(Platform::Scholar, &registry);
+
+    assert_eq!(
+        found
+            .iter()
+            .map(|violation| (violation.rule, violation.detail.as_str()))
+            .collect::<Vec<_>>(),
+        [(Rule::SmokeCase, "no route registers a cited_by smoke case")],
+        "{found:#?}"
+    );
 }
 
 #[test]
