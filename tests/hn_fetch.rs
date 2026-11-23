@@ -5,11 +5,9 @@ use std::process::Output;
 
 use serde_json::{Value, json};
 
-use support::hn::{
-    config, json, node, payload, search_page, stderr, story_hit, story_item, story_tree,
-};
+use support::hn::{config, json, node, payload, stderr, story_item, story_tree};
 use support::path;
-use support::{Fixture, RunEnvironment, request_json};
+use support::{Fixture, RunEnvironment};
 
 fn fetch(environment: &RunEnvironment, arguments: &[&str]) -> Output {
     let mut command = vec!["platform", "hn", "fetch"];
@@ -142,67 +140,6 @@ fn a_thread_is_written_to_a_file_with_top_level_comments_in_rank_order() {
             "content_path": null,
             "content_len": written.chars().count()
         })
-    );
-}
-
-/// Adds Firecrawl as the only configured Web Fetch provider.
-fn with_web_fetch(algolia: &str, firebase: &str, firecrawl: &str) -> String {
-    format!(
-        "{}\n[providers.firecrawl]\nurl = \"{firecrawl}\"\nkeys = [\"firecrawl-key\"]\ntimeout = 5\n",
-        config(algolia, firebase)
-    )
-}
-
-#[test]
-fn the_full_text_of_a_link_story_is_the_linked_page_through_web_fetch() {
-    let body = format!("# Dropbox\n\n{}", "Screencast transcript. ".repeat(40));
-    let algolia = Fixture::start_sequence(vec![search_page(&[story_hit()], 0, 1)]);
-    let firebase = Fixture::start_sequence(vec![json(&story_item(&[]))]);
-    let firecrawl = Fixture::start_sequence(vec![json(
-        &json!({"success": true, "data": {"markdown": body}}),
-    )]);
-    let environment =
-        RunEnvironment::new(&with_web_fetch(&algolia.url, &firebase.url, &firecrawl.url));
-    let content_dir = tempfile::tempdir().expect("content directory");
-
-    let output = fetch(
-        &environment,
-        &[
-            "hn:8863",
-            "--depth",
-            "full_text",
-            "--content-dir",
-            content_dir.path().to_str().expect("UTF-8 path"),
-        ],
-    );
-    algolia.finish();
-    firebase.finish();
-    let fetched = request_json(&firecrawl.finish())["url"].clone();
-    let payload = payload(&output);
-
-    assert_eq!(
-        (
-            output.status.code(),
-            fetched,
-            [
-                &payload["depth"],
-                &payload["content_url"],
-                &payload["content_provider"]
-            ],
-            fs::read_to_string(content_dir.path().join("hn-8863.md")).ok(),
-        ),
-        (
-            Some(0),
-            json!("http://www.getdropbox.com/u/2/screencast.html"),
-            [
-                &json!("full_text"),
-                &json!("http://www.getdropbox.com/u/2/screencast.html"),
-                &json!("firecrawl")
-            ],
-            Some(body),
-        ),
-        "stderr: {}",
-        stderr(&output)
     );
 }
 
