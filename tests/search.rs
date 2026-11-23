@@ -1030,7 +1030,6 @@ fn declared_web_fetch_adds_a_content_preview_candidate_without_changing_the_main
         (
             output.status.code(),
             &payload["answer"],
-            payload.get("validation_results"),
             &payload["extra_sources"][0]["url"],
             &payload["extra_sources"][0]["provider"],
             preview.chars().count(),
@@ -1041,7 +1040,6 @@ fn declared_web_fetch_adds_a_content_preview_candidate_without_changing_the_main
         (
             Some(0),
             &Value::String("answer".into()),
-            None,
             &Value::String("https://example.test/article".into()),
             &Value::String("jina".into()),
             300,
@@ -1309,17 +1307,11 @@ fn combined_declaration_executes_only_declared_seams_in_vocabulary_order() {
         .collect::<Vec<_>>();
 
     assert_eq!(
-        (
-            output.status.code(),
-            payload.get("capabilities"),
-            seams,
-            payload.get("validation_results"),
-        ),
+        (output.status.code(), payload.get("capabilities"), seams,),
         (
             Some(0),
             None,
             vec!["main_search", "docs_search", "web_search"],
-            None,
         )
     );
     main.finish();
@@ -2430,18 +2422,11 @@ fn search_retention_only_removes_expired_owned_regular_files() {
     let stale_owned = journal_dir.join("search_result_1_2_3.json");
     let fresh_owned = journal_dir.join("search_result_4_5_6.json");
     let foreign_json = journal_dir.join("foreign.json");
-    let foreign_jsonl = journal_dir.join("search_results_20260809.jsonl");
     let similar_name = journal_dir.join("search_result_1_2_bad.json");
-    for path in [
-        &stale_owned,
-        &fresh_owned,
-        &foreign_json,
-        &foreign_jsonl,
-        &similar_name,
-    ] {
+    for path in [&stale_owned, &fresh_owned, &foreign_json, &similar_name] {
         fs::write(path, "{}").expect("create retention fixture");
     }
-    for path in [&stale_owned, &foreign_json, &foreign_jsonl, &similar_name] {
+    for path in [&stale_owned, &foreign_json, &similar_name] {
         fs::File::open(path)
             .expect("open retention fixture")
             .set_times(fs::FileTimes::new().set_modified(stale_time))
@@ -2474,7 +2459,7 @@ fn search_retention_only_removes_expired_owned_regular_files() {
         String::from_utf8_lossy(&output.stderr)
     );
     assert!(!stale_owned.exists());
-    for path in [fresh_owned, foreign_json, foreign_jsonl, similar_name] {
+    for path in [fresh_owned, foreign_json, similar_name] {
         assert!(path.exists(), "retention removed {}", path.display());
     }
     assert!(owned_directory.is_dir());

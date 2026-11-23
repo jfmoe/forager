@@ -275,14 +275,20 @@ mod tests {
     }
 
     #[test]
-    fn platform_order_rule_rejects_routes_of_other_platforms_in_both_validators() {
-        let mut config = Config::default();
-        config.platforms.arxiv.order = vec!["tavily".into()];
-        let mut values = Array::new();
-        values.push("tavily");
+    fn platform_order_rule_rejects_routes_of_other_platforms_and_undefined_routes_in_both_validators()
+     {
+        for route in ["tavily", "no_such_route"] {
+            let mut config = Config::default();
+            config.platforms.arxiv.order = vec![route.into()];
+            let mut values = Array::new();
+            values.push(route);
 
-        assert!(!validates(&config));
-        assert!(validate_edit_value("platforms.arxiv.order", &Value::Array(values)).is_err());
+            assert!(!validates(&config), "{route}");
+            assert!(
+                validate_edit_value("platforms.arxiv.order", &Value::Array(values)).is_err(),
+                "{route}"
+            );
+        }
     }
 
     #[test]

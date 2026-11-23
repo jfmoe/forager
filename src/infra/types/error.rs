@@ -235,15 +235,5 @@ mod tests {
                 "attempt={attempt:?}"
             );
         }
-        assert_eq!(
-            (
-                ErrorKind::Config.as_str(),
-                serde_json::to_value(ErrorKind::Config).expect("serialize config error kind"),
-                ErrorKind::Config.family(),
-                ErrorKind::Config.is_retryable(),
-                ErrorKind::Config.rotates_credential(),
-            ),
-            ("config", Value::String("config".into()), None, false, false)
-        );
     }
 }

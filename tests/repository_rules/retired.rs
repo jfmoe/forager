@@ -33,10 +33,6 @@ pub const RETIRED: &[&str] = &[
 /// any run of characters.
 pub const ALLOWED: &[(&str, &str)] = &[
     ("docs/adr/*", "ADRs record what was retired and why"),
-    (
-        "tests/*_retirement.rs",
-        "retirement tests prove the retired name is rejected",
-    ),
     ("tests/repository_rules/retired.rs", "this list"),
 ];
 
