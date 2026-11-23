@@ -31,8 +31,9 @@ obtained = "a cluster lookup of scholar:1 through SerpApi with a real key, trimm
 [[sample]]
 file = "status-error.json"
 shape = "SerpApi `GET /search.json` answered with HTTP 200 and the search status `Error`, carrying the error message"
-origin = "hand-written"
+origin = "captured"
 observed = 2026-10-08
+obtained = "a Google Scholar search through SerpApi with a real key that Google answered without results, during the route's live test, trimmed to its search status and error message; the search ID is zeroed"
 
 [[sample]]
 file = "invalid-key.json"
