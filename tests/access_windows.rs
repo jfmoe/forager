@@ -150,7 +150,7 @@ fn a_retry_waits_for_the_window_again() {
 #[test]
 fn shallow_doctor_waits_for_every_reserved_window() {
     let paced = ["arxiv_api", "ssrn_crossref", "hn_api", "polymarket_api"];
-    let fixture = Fixture::start_sequence(reachable_responses(6));
+    let fixture = Fixture::start_sequence(reachable_responses(5));
     let environment = RunEnvironment::new(&shallow_config(&fixture.url));
     reserve_windows(&environment, &paced);
 
@@ -171,6 +171,6 @@ fn shallow_doctor_waits_for_every_reserved_window() {
 
     assert_eq!(
         (reachable, fixture.finish_all().len()),
-        (paced.map(|route| (route.to_owned(), false)).into(), 6)
+        (paced.map(|route| (route.to_owned(), false)).into(), 5)
     );
 }

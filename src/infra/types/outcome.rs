@@ -15,58 +15,6 @@ pub struct JournalOutcome {
 }
 
 #[derive(Clone, Debug, Serialize)]
-/// A documentation library candidate returned by Context7 resolution.
-pub struct LibraryCandidate {
-    pub id: String,
-    pub title: String,
-    pub description: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub trust_score: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub benchmark_score: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub total_snippets: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub stars: Option<u64>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub versions: Vec<String>,
-    pub provider: &'static str,
-}
-
-#[derive(Clone, Debug, Serialize)]
-/// The normalized result of a Context7 library-resolution request.
-pub struct Context7LibraryOutcome {
-    pub provider: &'static str,
-    pub query: String,
-    pub results: Vec<LibraryCandidate>,
-    pub total: usize,
-    #[serde(rename = "provider_attempts", skip_serializing_if = "Vec::is_empty")]
-    pub attempts: Vec<ProviderAttempt>,
-    #[serde(skip)]
-    pub diagnostic: Option<String>,
-}
-
-#[derive(Clone, Debug, Serialize)]
-/// The normalized result of a Context7 documentation request.
-pub struct Context7DocsOutcome {
-    pub provider: &'static str,
-    pub library_id: String,
-    pub query: String,
-    pub content: String,
-    #[serde(rename = "provider_attempts", skip_serializing_if = "Vec::is_empty")]
-    pub attempts: Vec<ProviderAttempt>,
-    #[serde(skip)]
-    pub diagnostic: Option<String>,
-}
-
-#[derive(Clone, Debug)]
-/// A Context7 result whose variant matches the requested library or documentation operation.
-pub enum Context7Outcome {
-    Library(Context7LibraryOutcome),
-    Docs(Context7DocsOutcome),
-}
-
-#[derive(Clone, Debug, Serialize)]
 #[serde(untagged)]
 /// The operation-specific input echoed in an Exa result.
 pub enum ExaInput {

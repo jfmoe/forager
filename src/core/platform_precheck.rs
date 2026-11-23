@@ -139,7 +139,6 @@ pub(crate) async fn run_precheck(
             attempts: prior,
             verbose,
             diagnostic: checked.diagnostic,
-            redirected_library_id: None,
         });
     }
     Ok(Prechecked {
@@ -197,7 +196,6 @@ mod tests {
                 attempts: vec![attempt("gemini_api")],
                 verbose: false,
                 diagnostic: None,
-                redirected_library_id: None,
             }))
             .err()
             .map(|error| (providers(&error.attempts).join(","), error.diagnostic));

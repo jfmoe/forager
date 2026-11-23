@@ -29,8 +29,6 @@ printf '%s\n' \
   'keys = ["release-gate"]' \
   '[providers.jina]' \
   'keys = ["release-gate"]' \
-  '[providers.context7]' \
-  'keys = ["release-gate"]' \
   '[providers.exa]' \
   'keys = ["release-gate"]' \
   > "$config_dir/config.toml"
@@ -40,7 +38,7 @@ doctor=$(FORAGER_CONFIG_DIR="$config_dir" XDG_STATE_HOME="$state_dir" \
 jq -e '
   .ok == false
   and .mode == "shallow"
-  and ([.providers[] | select(.configured)] | length) == 10
+  and ([.providers[] | select(.configured)] | length) == 9
   and .config.providers.exa.keys.source == "file"
   and (.permission_warnings | length) == 0
 ' <<< "$doctor"

@@ -281,9 +281,8 @@ async fn run_probe(
             transport,
         ),
         DoctorProbe::DocsSearch { name, transport } => {
-            let provider_config =
-                config::docs_provider_config(provider, &config.exa, &config.context7)
-                    .expect("probe registration belongs to the docs-search catalog");
+            let provider_config = config::docs_provider_config(provider, &config.exa)
+                .expect("probe registration belongs to the docs-search catalog");
             let adapter = providers::build_docs_search(
                 provider,
                 provider_config,
@@ -461,7 +460,6 @@ async fn probe_web_fetch(
             attempts: Vec::new(),
             verbose: false,
             diagnostic: None,
-            redirected_library_id: None,
         });
     match key_failure {
         Some(error) => Err(error),

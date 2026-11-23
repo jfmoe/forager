@@ -24,7 +24,7 @@ pub(crate) const WEB_FETCH: CapabilityCatalog = CapabilityCatalog {
 };
 pub(crate) const DOCS_SEARCH: CapabilityCatalog = CapabilityCatalog {
     seam: "docs_search",
-    providers: &[ProviderId::Exa, ProviderId::Context7],
+    providers: &[ProviderId::Exa],
 };
 
 pub(crate) const CATALOGS: &[CapabilityCatalog] =
@@ -66,7 +66,6 @@ pub(crate) enum ProviderId {
     Tavily,
     Firecrawl,
     Jina,
-    Context7,
     ArxivApi,
     SsrnCrossref,
     Serpapi,
@@ -80,14 +79,13 @@ pub(crate) enum ProviderId {
 }
 
 impl ProviderId {
-    pub(crate) const ALL: [Self; 17] = [
+    pub(crate) const ALL: [Self; 16] = [
         Self::Xai,
         Self::Openai,
         Self::Exa,
         Self::Tavily,
         Self::Firecrawl,
         Self::Jina,
-        Self::Context7,
         Self::ArxivApi,
         Self::SsrnCrossref,
         Self::Serpapi,
@@ -108,7 +106,6 @@ impl ProviderId {
             "tavily" => Some(Self::Tavily),
             "firecrawl" => Some(Self::Firecrawl),
             "jina" => Some(Self::Jina),
-            "context7" => Some(Self::Context7),
             "arxiv_api" => Some(Self::ArxivApi),
             "ssrn_crossref" => Some(Self::SsrnCrossref),
             "serpapi" => Some(Self::Serpapi),
@@ -131,7 +128,6 @@ impl ProviderId {
             Self::Tavily => "tavily",
             Self::Firecrawl => "firecrawl",
             Self::Jina => "jina",
-            Self::Context7 => "context7",
             Self::ArxivApi => "arxiv_api",
             Self::SsrnCrossref => "ssrn_crossref",
             Self::Serpapi => "serpapi",
@@ -335,20 +331,6 @@ const JINA_SMOKE: &[ProviderSmokeCase] = &[ProviderSmokeCase {
     operation: "web_fetch",
     transport: "http",
 }];
-const CONTEXT7_SMOKE: &[ProviderSmokeCase] = &[
-    ProviderSmokeCase {
-        id: "C10",
-        platform: None,
-        operation: "library_resolve",
-        transport: "mcp",
-    },
-    ProviderSmokeCase {
-        id: "C11",
-        platform: None,
-        operation: "docs",
-        transport: "mcp",
-    },
-];
 const EXA_SMOKE: &[ProviderSmokeCase] = &[
     ProviderSmokeCase {
         id: "C12",
@@ -675,19 +657,6 @@ const REGISTRY: &[ProviderRegistration] = &[
             transport: "http",
         },
         smoke_cases: JINA_SMOKE,
-        native_full_text: false,
-    },
-    ProviderRegistration {
-        id: ProviderId::Context7,
-        operations: &[],
-        credentials: Credentials::Required,
-        transport: ProviderTransport::Http,
-        access_policy: None,
-        probe: DoctorProbe::DocsSearch {
-            name: "library",
-            transport: "mcp",
-        },
-        smoke_cases: CONTEXT7_SMOKE,
         native_full_text: false,
     },
     ProviderRegistration {

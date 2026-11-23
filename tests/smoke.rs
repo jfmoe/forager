@@ -52,8 +52,8 @@ fn offline_smoke_reports_local_readiness_without_contacting_provider_endpoints()
                 "providers",
                 "registry",
             ],
-            &json!({"ok": true, "provider_count": 17}),
-            Some(17),
+            &json!({"ok": true, "provider_count": 16}),
+            Some(16),
             &json!(["********"]),
             &Value::Bool(true),
             &Value::Bool(true),
@@ -77,10 +77,10 @@ fn live_smoke_lists_exactly_the_specification_case_registry_without_l0_doctor_ga
     let output = environment.run(&["smoke", "--live", "--list"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live registry JSON");
     let expected = json!([
-        "P1", "C01", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "C13", "C17", "C18",
-        "C19", "C20", "C21", "C24", "C25", "C26", "C27", "C28", "C29", "C30", "C31", "C32", "C33",
-        "C34", "C35", "C36", "C37", "C38", "C39", "C40", "C41", "C42", "C43", "C44", "C45", "C46",
-        "C49", "C50", "C51"
+        "P1", "C01", "C05", "C06", "C07", "C08", "C09", "C12", "C13", "C17", "C18", "C19", "C20",
+        "C21", "C24", "C25", "C26", "C27", "C28", "C29", "C30", "C31", "C32", "C33", "C34", "C35",
+        "C36", "C37", "C38", "C39", "C40", "C41", "C42", "C43", "C44", "C45", "C46", "C49", "C50",
+        "C51"
     ]);
 
     assert_eq!(
@@ -109,8 +109,8 @@ fn live_smoke_lists_exactly_the_specification_case_registry_without_l0_doctor_ga
 
 /// Case numbers whose cases were retired; a report or a release note that names one must keep
 /// meaning the retired case.
-const RETIRED_CASE_IDS: [&str; 11] = [
-    "C02", "C03", "C04", "C14", "C15", "C16", "C22", "C23", "C47", "C48", "P2",
+const RETIRED_CASE_IDS: [&str; 13] = [
+    "C02", "C03", "C04", "C10", "C11", "C14", "C15", "C16", "C22", "C23", "C47", "C48", "P2",
 ];
 
 #[test]
@@ -158,7 +158,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
             Some(4),
             &Value::String("live".into()),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 41, "skipped": 0}),
+            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 39, "skipped": 0}),
             &Value::String("failed".into()),
             &Value::Number(3.into()),
             &Value::String("unconfigured".into()),
@@ -194,7 +194,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
         (
             Some(4),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 41, "skipped": 0}),
+            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 39, "skipped": 0}),
             &Value::String("deferred".into()),
             &Value::Number(3.into()),
             &Value::String("http://127.0.0.1:9?token=********".into()),
@@ -313,7 +313,7 @@ fn live_smoke_passes_a_configured_case_only_after_a_zero_parseable_nonempty_term
         ),
         (
             Some(4),
-            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 41, "skipped": 0}),
+            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 39, "skipped": 0}),
             &Value::String("passed".into()),
             &Value::Number(1.into()),
         ),
@@ -534,7 +534,7 @@ fn live_smoke_runs_the_platform_cases_through_their_configured_route() {
             algolia_requests[1].starts_with("GET /items/8863 "),
         ),
         (
-            &json!({"passed": 7, "failed": 0, "deferred": 0, "unconfigured": 35, "skipped": 0}),
+            &json!({"passed": 7, "failed": 0, "deferred": 0, "unconfigured": 33, "skipped": 0}),
             [(); 7].map(|()| Value::String("passed".into())),
             [
                 &Value::String("arxiv".into()),
@@ -863,10 +863,6 @@ keys = ["firecrawl-secret"]
 url = {endpoint:?}
 keys = ["jina-secret"]
 
-[providers.context7]
-url = {endpoint:?}
-keys = ["context7-secret"]
-
 [journal]
 dir = {journal_dir:?}
 "#
@@ -881,13 +877,12 @@ fn minimal_config(endpoint: &str, journal_dir: &Path) -> String {
     )
 }
 
-fn provider_secrets() -> [&'static str; 6] {
+fn provider_secrets() -> [&'static str; 5] {
     [
         "xai-secret",
         "exa-secret",
         "tavily-secret",
         "firecrawl-secret",
         "jina-secret",
-        "context7-secret",
     ]
 }

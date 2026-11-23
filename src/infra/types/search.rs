@@ -1,6 +1,6 @@
 use serde::Serialize;
 
-use super::{Capability, LibraryCandidate, ProviderAttempt};
+use super::{Capability, ProviderAttempt};
 
 #[derive(Clone, Debug, Serialize)]
 /// A normalized source returned by a search provider.
@@ -41,21 +41,6 @@ impl CandidateUrl {
 struct EmptyCandidateData {}
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
-struct Context7CandidateData {
-    library_id: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    total_snippets: Option<u64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    trust_score: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    benchmark_score: Option<f64>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    stars: Option<u64>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    versions: Vec<String>,
-}
-
-#[derive(Clone, Debug, PartialEq, Serialize)]
 struct ExaCandidateData {
     #[serde(skip_serializing_if = "Option::is_none")]
     id: Option<String>,
@@ -74,7 +59,6 @@ struct ExaCandidateData {
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(untagged)]
 enum SearchCandidateProviderData {
-    Context7(Context7CandidateData),
     Exa(ExaCandidateData),
     Empty(EmptyCandidateData),
 }
@@ -143,27 +127,6 @@ impl SearchCandidate {
                 author,
                 image,
                 favicon,
-            }),
-        })
-    }
-
-    pub(crate) fn from_context7_library(library: LibraryCandidate) -> Option<Self> {
-        if library.id.trim().is_empty() {
-            return None;
-        }
-        Some(Self {
-            provider: "context7",
-            capability: Capability::DocsSearch,
-            title: (!library.title.trim().is_empty()).then_some(library.title),
-            url: None,
-            summary: (!library.description.trim().is_empty()).then_some(library.description),
-            provider_data: SearchCandidateProviderData::Context7(Context7CandidateData {
-                library_id: library.id,
-                total_snippets: library.total_snippets,
-                trust_score: library.trust_score,
-                benchmark_score: library.benchmark_score,
-                stars: library.stars,
-                versions: library.versions,
             }),
         })
     }

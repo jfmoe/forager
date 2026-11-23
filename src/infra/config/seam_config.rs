@@ -131,23 +131,14 @@ impl MainSearchRuntimeConfig {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct Context7RuntimeConfig {
-    pub(crate) url: String,
-    pub(crate) keys: Vec<Secret>,
-    pub(crate) timeout_seconds: u64,
-}
-
-#[derive(Clone, Debug)]
 pub(crate) enum DocsSearchProviderConfig {
     Exa(ExaRuntimeConfig),
-    Context7(Context7RuntimeConfig),
 }
 
 impl DocsSearchProviderConfig {
     pub(crate) fn configured(&self) -> bool {
         match self {
             Self::Exa(config) => provider_configured(ProviderId::Exa, &config.keys),
-            Self::Context7(config) => provider_configured(ProviderId::Context7, &config.keys),
         }
     }
 }
@@ -268,15 +259,14 @@ pub(super) fn main_search_runtime(
 pub(super) fn docs_search_runtime(
     order: Vec<String>,
     exa: &ExaRuntimeConfig,
-    context7: &Context7RuntimeConfig,
 ) -> Result<DocsSearchRuntimeConfig, ConfigError> {
     let entries = order
         .into_iter()
         .map(|name| {
             let seam = "capabilities.docs_search.order";
             let id = ProviderId::parse(&name).ok_or_else(|| unknown_provider(&name, seam))?;
-            let config = docs_provider_config(id, exa, context7)
-                .ok_or_else(|| unknown_provider(&name, seam))?;
+            let config =
+                docs_provider_config(id, exa).ok_or_else(|| unknown_provider(&name, seam))?;
             let configured = config.configured();
             Ok(SeamEntry::new(id, config, configured))
         })
@@ -351,11 +341,9 @@ pub(crate) fn main_provider_config(
 pub(crate) fn docs_provider_config(
     id: ProviderId,
     exa: &ExaRuntimeConfig,
-    context7: &Context7RuntimeConfig,
 ) -> Option<DocsSearchProviderConfig> {
     match id {
         ProviderId::Exa => Some(DocsSearchProviderConfig::Exa(exa.clone())),
-        ProviderId::Context7 => Some(DocsSearchProviderConfig::Context7(context7.clone())),
         _ => None,
     }
 }

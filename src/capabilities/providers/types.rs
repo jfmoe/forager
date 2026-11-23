@@ -4,14 +4,13 @@ use std::pin::Pin;
 use chrono::{Datelike, Local, Weekday};
 
 use super::{
-    ArxivApi, Context7, Context7LibraryRequest, Exa, ExaSearchRequest, HnApi, Openai,
-    PolymarketApi, RedditBrowser, SearchType, Serpapi, SsrnCrossref, SupplementalSearch, Xai,
-    XiaohongshuBrowser, YoutubeApi, YoutubeWeb,
+    ArxivApi, Exa, ExaSearchRequest, HnApi, Openai, PolymarketApi, RedditBrowser, SearchType,
+    Serpapi, SsrnCrossref, SupplementalSearch, Xai, XiaohongshuBrowser, YoutubeApi, YoutubeWeb,
 };
 use crate::types::{
-    Context7Outcome, DocumentationSearchOutcome, ExaOutcome, PlatformFetchOutcome,
-    PlatformFetchRequest, PlatformSearchOutcome, PlatformSearchRequest, ProviderError,
-    SearchCandidate, SupplementalSearchOutcome,
+    DocumentationSearchOutcome, ExaOutcome, PlatformFetchOutcome, PlatformFetchRequest,
+    PlatformSearchOutcome, PlatformSearchRequest, ProviderError, SearchCandidate,
+    SupplementalSearchOutcome,
 };
 
 #[derive(Clone, Debug)]
@@ -349,38 +348,6 @@ impl DocsSearch for Exa {
                 candidate_sources,
                 attempts,
                 diagnostic,
-            })
-        })
-    }
-}
-
-impl DocsSearch for Context7 {
-    fn search<'a>(
-        &'a self,
-        query: &'a str,
-        limit: u16,
-    ) -> Pin<Box<dyn Future<Output = Result<DocumentationSearchOutcome, ProviderError>> + Send + 'a>>
-    {
-        Box::pin(async move {
-            let Context7Outcome::Library(library) = self
-                .library(Context7LibraryRequest {
-                    name: query.to_owned(),
-                    query: String::new(),
-                    verbose: true,
-                })
-                .await?
-            else {
-                unreachable!("library request returns library outcome");
-            };
-            Ok(DocumentationSearchOutcome {
-                candidate_sources: library
-                    .results
-                    .into_iter()
-                    .filter_map(SearchCandidate::from_context7_library)
-                    .take(usize::from(limit))
-                    .collect(),
-                attempts: library.attempts,
-                diagnostic: library.diagnostic,
             })
         })
     }

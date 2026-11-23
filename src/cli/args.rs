@@ -102,11 +102,6 @@ pub(super) enum Command {
         #[arg(long)]
         verbose: bool,
     },
-    #[command(visible_alias = "c7")]
-    Context7 {
-        #[command(subcommand)]
-        command: Context7Command,
-    },
     Exa {
         #[command(subcommand)]
         command: ExaCommand,
@@ -156,35 +151,6 @@ pub(super) enum Command {
         probe_timeout: u64,
         #[arg(long, hide = true, requires = "probe")]
         probe_url: Option<String>,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-pub(super) enum Context7Command {
-    Library {
-        name: String,
-        #[arg(default_value = "")]
-        query: String,
-        #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
-        timeout: Option<u64>,
-        #[arg(long, value_enum, default_value_t = OutputFormat::Json)]
-        format: OutputFormat,
-        #[command(flatten)]
-        output: OutputArgs,
-        #[arg(long)]
-        verbose: bool,
-    },
-    Docs {
-        library_id: String,
-        query: String,
-        #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
-        timeout: Option<u64>,
-        #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
-        format: DocsOutputFormat,
-        #[command(flatten)]
-        output: OutputArgs,
-        #[arg(long)]
-        verbose: bool,
     },
 }
 

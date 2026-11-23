@@ -14,7 +14,7 @@ _Avoid_: universal provider interface, extra search channel
 The capability that searches documentation of external libraries, SDKs, APIs, frameworks and
 official technical sources. An ordinary technical question, or one that merely mentions a
 technical name, is not by itself a need for this capability.
-_Avoid_: general technical search, Context7 capability, docs provider
+_Avoid_: general technical search, docs provider
 
 **Supplemental Web Search Capability**:
 Web discovery beside main search, for recency, news, region, policy, market data, cross-validation
@@ -29,8 +29,8 @@ _Avoid_: supplemental source, verified evidence, all search sources
 
 **Search Candidate**:
 A candidate that a capability other than main search produces during an ordinary search, for the
-caller to choose its next action from; reported in `extra_sources`. A candidate is located by a URL
-or by a provider-specific identifier, and it is not evidence until the caller retrieves its body.
+caller to choose its next action from; reported in `extra_sources`. A candidate is located by a URL,
+and it is not evidence until the caller retrieves its body.
 _Avoid_: Supplemental Search Candidate, primary source, verified evidence, merged source
 
 **Web Fetch Capability**:

@@ -14,7 +14,7 @@ always lands on a character boundary.
 
 **What a cap means.** Only Web Fetch may turn a capped prefix into success, with a truncation
 diagnostic, and it falls through to the next provider only when the surviving prefix is thin.
-Every other body is a protocol envelope (search streams, JSON APIs, MCP responses): reaching the
+Every other body is a protocol envelope (search streams, JSON APIs): reaching the
 limit is a runtime failure, and forager never synthesizes a result from incomplete framing. An
 error body is cut silently, because only its first part reaches the error message.
 

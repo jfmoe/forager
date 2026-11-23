@@ -272,7 +272,6 @@ pub(crate) fn chain_wide_error(
         attempts,
         verbose,
         diagnostic,
-        redirected_library_id: None,
     }
 }
 

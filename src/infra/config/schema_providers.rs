@@ -14,7 +14,6 @@ pub(crate) struct Providers {
     pub(crate) xai: Xai,
     pub(crate) openai: Openai,
     pub(crate) exa: Endpoint<ExaEndpoint>,
-    pub(crate) context7: Endpoint<Context7Endpoint>,
     pub(crate) jina: Jina,
     pub(crate) tavily: Endpoint<TavilyEndpoint>,
     pub(crate) firecrawl: Endpoint<FirecrawlEndpoint>,
@@ -155,7 +154,6 @@ macro_rules! endpoint_defaults {
 }
 
 endpoint_defaults!(ExaEndpoint, "https://api.exa.ai");
-endpoint_defaults!(Context7Endpoint, "https://mcp.context7.com/mcp");
 endpoint_defaults!(TavilyEndpoint, "https://api.tavily.com");
 // Matches the 60 s server-side timeout that Web Fetch requests from Firecrawl (ADR-0029).
 endpoint_defaults!(FirecrawlEndpoint, "https://api.firecrawl.dev/v2", 60);

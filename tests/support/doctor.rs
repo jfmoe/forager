@@ -79,10 +79,6 @@ keys = ["firecrawl-secret"]
 url = {url:?}
 keys = ["jina-secret"]
 
-[providers.context7]
-url = {url:?}
-keys = ["context7-secret"]
-
 [providers.arxiv_api]
 url = {url:?}
 

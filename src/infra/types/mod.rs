@@ -28,11 +28,8 @@ pub use attempt::{AttemptDisposition, AttemptTarget, ProviderAttempt};
 pub use capability::{Capability, CapabilitySet, FallbackPolicy};
 pub(crate) use deadline::{Deadline, MIN_USEFUL_SLICE_SECONDS};
 pub use error::{AttemptErrorKind, ErrorFamily, ErrorKind, ProviderError};
-pub use outcome::{
-    Context7DocsOutcome, Context7LibraryOutcome, Context7Outcome, ExaInput, ExaOutcome,
-    FetchOutcome, JournalOutcome, LibraryCandidate, MapOutcome,
-};
 pub(crate) use outcome::{DENSITY_MAX_CHARS, DENSITY_MAX_UNIQUE_LINES, MIN_FETCH_CONTENT_CHARS};
+pub use outcome::{ExaInput, ExaOutcome, FetchOutcome, JournalOutcome, MapOutcome};
 pub(crate) use platform::{
     ASK, COMMENTS, FullTextSource, PlatformAskRequest, PlatformCommentsRequest,
     PlatformFetchOptions, PlatformFetchOutcome, PlatformFetchRequest, PlatformSearchOutcome,
