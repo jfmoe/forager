@@ -504,27 +504,17 @@ fn parse_video(input: &str, operation: &str) -> Result<YoutubeRef, AppError> {
 /// full text alone. Proven by parsing the command's definition in process.
 #[cfg(test)]
 mod youtube_web_tests {
-    use clap::Parser;
-
-    use super::super::PlatformCommand;
+    use super::super::{PlatformCommand, parse_platform};
     use super::{YoutubeCommand, YoutubeFetchArgs, youtube_fetch_input};
     use crate::app::AppError;
     use crate::types::PlatformFetchOptions;
 
-    #[derive(Parser)]
-    struct PlatformCli {
-        #[command(subcommand)]
-        command: PlatformCommand,
-    }
-
     fn fetch_args(arguments: &[&str]) -> YoutubeFetchArgs {
-        let cli = PlatformCli::try_parse_from(
-            ["platform", "youtube", "fetch", "youtube:jNQXAC9IVRw"]
-                .into_iter()
-                .chain(arguments.iter().copied()),
-        )
-        .expect("the parser accepts the arguments");
-        match cli.command {
+        let fetch = ["youtube", "fetch", "youtube:jNQXAC9IVRw"]
+            .into_iter()
+            .chain(arguments.iter().copied());
+        match parse_platform(&fetch.collect::<Vec<_>>()).expect("the parser accepts the arguments")
+        {
             PlatformCommand::Youtube {
                 command: YoutubeCommand::Fetch(arguments),
             } => arguments,

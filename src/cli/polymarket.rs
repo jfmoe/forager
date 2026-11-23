@@ -299,28 +299,16 @@ fn polymarket_history_input(
 /// The Polymarket commands' argument rules, proven by parsing their definition in process.
 #[cfg(test)]
 mod tests {
-    use clap::Parser;
-
-    use super::super::PlatformCommand;
+    use super::super::{PlatformCommand, parse_platform};
     use super::{
         PolymarketCommand, polymarket_fetch_input, polymarket_history_input,
         polymarket_search_input,
     };
     use crate::app::AppError;
 
-    #[derive(Parser)]
-    struct PlatformCli {
-        #[command(subcommand)]
-        command: PlatformCommand,
-    }
-
     fn command(arguments: &[&str]) -> Result<PolymarketCommand, clap::Error> {
-        let cli = PlatformCli::try_parse_from(
-            ["platform", "polymarket"]
-                .into_iter()
-                .chain(arguments.iter().copied()),
-        )?;
-        match cli.command {
+        let command = std::iter::once("polymarket").chain(arguments.iter().copied());
+        match parse_platform(&command.collect::<Vec<_>>())? {
             PlatformCommand::Polymarket { command } => Ok(command),
             _ => unreachable!("the arguments name a polymarket command"),
         }
