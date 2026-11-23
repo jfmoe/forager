@@ -25,7 +25,8 @@ use crate::net::{
 };
 use crate::providers::execution::{ExecutionOutcome, ExecutionSettings, execute_anonymous};
 use crate::providers::route_declaration::{
-    ExtraCheck, PlatformRoute, RouteAdapter, RouteContext, RouteDeclaration,
+    ExtraCheck, OperationRoute, PlatformRoute, RouteAdapter, RouteContext, RouteDeclaration,
+    any_request,
 };
 use crate::providers::shared::{
     Refusal, Trail, acquire_window, other_platform_message, parameter_error,
@@ -35,7 +36,8 @@ use crate::rate_limit::RateLimiter;
 use crate::types::{
     AttemptErrorKind, AttemptTarget, ContentDepth, Deadline, FullTextSource, Platform,
     PlatformFetchOutcome, PlatformFetchRequest, PlatformItem, PlatformRef, PlatformSearchOptions,
-    PlatformSearchOutcome, PlatformSearchRequest, PolymarketKind, PolymarketRef, ProviderError,
+    PlatformSearchOutcome, PlatformSearchRequest, PolymarketHistoryOutcome,
+    PolymarketHistoryRequest, PolymarketKind, PolymarketRef, ProviderError,
 };
 
 #[path = "polymarket_api_gamma.rs"]
@@ -60,6 +62,21 @@ pub(crate) const DECLARATION: RouteDeclaration<PolymarketRouteRuntimeConfig> = R
         search_support: Some(search_support),
         fetch_support: Some(fetch_support),
         login_page: None,
+    },
+};
+
+/// Price History, the Polymarket operation that only this route serves.
+pub(crate) const HISTORY_OPERATION: OperationRoute<
+    PolymarketRouteRuntimeConfig,
+    PolymarketHistoryRequest,
+    PolymarketHistoryRequest,
+    PolymarketHistoryOutcome,
+> = OperationRoute {
+    route: ROUTE,
+    config: |routes| &routes.polymarket_api,
+    support: any_request,
+    run: |config, context, request| {
+        Box::pin(async move { PolymarketApi::build(config, context).history(request).await })
     },
 };
 

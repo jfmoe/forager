@@ -46,6 +46,8 @@ pub(crate) fn by_seam(seam: &str) -> Option<CapabilityCatalog> {
 #[path = "platform_catalog.rs"]
 mod platform_catalog;
 
+#[cfg(test)]
+pub(crate) use platform_catalog::OperationRoutes;
 pub(crate) use platform_catalog::{
     ARXIV, HN, PLATFORMS, POLYMARKET, PlatformCatalog, PlatformOperation, REDDIT, SCHOLAR, SSRN, X,
     XIAOHONGSHU, YOUTUBE, config_set_hint, opt_in_risk, platform, route_platform,

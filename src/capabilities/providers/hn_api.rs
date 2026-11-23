@@ -22,7 +22,8 @@ use crate::credentials::CredentialPool;
 use crate::net::{AttemptFailure, RetryPolicy, read_complete_protocol, send_provider_request};
 use crate::providers::execution::{ExecutionOutcome, ExecutionSettings, execute_anonymous};
 use crate::providers::route_declaration::{
-    ExtraCheck, PlatformRoute, RouteAdapter, RouteContext, RouteDeclaration,
+    ExtraCheck, OperationRoute, PlatformRoute, RouteAdapter, RouteContext, RouteDeclaration,
+    any_request,
 };
 use crate::providers::shared::{
     Trail, acquire_window, other_platform_message, parameter_error, utc_second,
@@ -31,8 +32,9 @@ use crate::providers::{PlatformFetch, PlatformSearch, route_limiter};
 use crate::rate_limit::RateLimiter;
 use crate::types::{
     AttemptErrorKind, AttemptTarget, ContentDepth, Deadline, FullTextSource, HnItemData,
-    HnItemType, HnRef, Platform, PlatformFetchOutcome, PlatformFetchRequest, PlatformItem,
-    PlatformItemData, PlatformRef, PlatformSearchOutcome, PlatformSearchRequest, ProviderError,
+    HnItemType, HnRef, HnStoriesOutcome, HnStoriesRequest, Platform, PlatformFetchOutcome,
+    PlatformFetchRequest, PlatformItem, PlatformItemData, PlatformRef, PlatformSearchOutcome,
+    PlatformSearchRequest, ProviderError,
 };
 
 #[path = "hn_markup.rs"]
@@ -58,6 +60,21 @@ pub(crate) const DECLARATION: RouteDeclaration<HnRouteRuntimeConfig> = RouteDecl
         search_support: Some(search_support),
         fetch_support: Some(fetch_support),
         login_page: None,
+    },
+};
+
+/// Stories, the Hacker News operation that only this route serves.
+pub(crate) const STORIES_OPERATION: OperationRoute<
+    HnRouteRuntimeConfig,
+    HnStoriesRequest,
+    HnStoriesRequest,
+    HnStoriesOutcome,
+> = OperationRoute {
+    route: ROUTE,
+    config: |routes| &routes.hn_api,
+    support: any_request,
+    run: |config, context, request| {
+        Box::pin(async move { HnApi::build(config, context).stories(request).await })
     },
 };
 

@@ -8,7 +8,7 @@ use clap::{Args, Subcommand, ValueEnum};
 use super::{PageInput, PlatformCommonArgs, fetch, parse_date, preflight_error, search};
 use crate::app::args::{DocsOutputFormat, OutputFormat};
 use crate::app::dispatch::{AppError, CommandOutput, NetworkDependencies, provider_attempt_log};
-use crate::platform_history;
+use crate::platform_operation;
 use crate::types::{
     ContentDepth, Deadline, Platform, PlatformFetchRequest, PlatformRef, PlatformSearchOptions,
     PlatformSearchRequest, PolymarketBucket, PolymarketHistoryRequest, PolymarketInterval,
@@ -232,16 +232,21 @@ fn polymarket_history(arguments: PolymarketHistoryArgs) -> Result<CommandOutput,
     let request = PolymarketHistoryRequest::new(market, outcome, window, bucket.map(Into::into))
         .map_err(AppError::Argument)?;
     let dependencies = NetworkDependencies::load()?;
-    let plan =
-        platform_history::plan_history(dependencies.platform(Platform::Polymarket)?, request)
-            .map_err(preflight_error)?;
-    let result = dependencies.runtime.block_on(platform_history::run_history(
-        plan,
-        dependencies.client,
-        dependencies.retry_policy,
-        Deadline::new(Duration::from_secs(common.timeout)),
-        common.verbose,
-    ));
+    let plan = platform_operation::plan_history(
+        dependencies.platform(Platform::Polymarket)?,
+        &dependencies.config.platform_routes,
+        request,
+    )
+    .map_err(preflight_error)?;
+    let result = dependencies
+        .runtime
+        .block_on(platform_operation::run_history(
+            plan,
+            dependencies.client,
+            dependencies.retry_policy,
+            Deadline::new(Duration::from_secs(common.timeout)),
+            common.verbose,
+        ));
     let attempt_log = provider_attempt_log(dependencies.config.log_level, &result, |history| {
         &history.attempts
     });

@@ -1,9 +1,9 @@
-//! The platform half of the Capability Catalog: which routes serve each platform and its
-//! search and fetch operations, each platform's default order, and what enabling a route that
-//! is off by default risks.
+//! The platform half of the Capability Catalog: which routes serve each platform and each of its
+//! Platform Operations, each platform's default order, and what enabling a route that is off by
+//! default risks.
 
 use super::ProviderId;
-use crate::types::Platform;
+use crate::types::{ASK, CITED_BY, COMMENTS, HISTORY, Platform, STORIES, TRANSCRIBE, VIDEOS};
 
 /// A platform operation that every platform provides through its own route set.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -33,9 +33,19 @@ pub(crate) struct PlatformCatalog {
     /// Routes that serve neither search nor fetch, only operations of the platform's own, such
     /// as a model that answers about a video. They are valid order entries like any route.
     pub(crate) operation_only: &'static [ProviderId],
+    /// The platform's own operations beyond search and fetch, each with the routes that serve
+    /// it.
+    pub(crate) operations: &'static [OperationRoutes],
     /// The default `platforms.<id>.order`. A route that users must enable themselves is a
     /// valid order entry but never appears here.
     pub(crate) default_order: &'static [ProviderId],
+}
+
+/// A Platform Operation of one platform beyond search and fetch, and the routes that serve it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct OperationRoutes {
+    pub(crate) operation: &'static str,
+    pub(crate) routes: &'static [ProviderId],
 }
 
 pub(crate) const ARXIV: PlatformCatalog = PlatformCatalog {
@@ -43,6 +53,7 @@ pub(crate) const ARXIV: PlatformCatalog = PlatformCatalog {
     search: &[ProviderId::ArxivApi],
     fetch: &[ProviderId::ArxivApi],
     operation_only: &[],
+    operations: &[],
     default_order: &[ProviderId::ArxivApi],
 };
 
@@ -51,6 +62,7 @@ pub(crate) const SSRN: PlatformCatalog = PlatformCatalog {
     search: &[ProviderId::SsrnCrossref],
     fetch: &[ProviderId::SsrnCrossref],
     operation_only: &[],
+    operations: &[],
     default_order: &[ProviderId::SsrnCrossref],
 };
 
@@ -60,6 +72,10 @@ pub(crate) const SCHOLAR: PlatformCatalog = PlatformCatalog {
     search: &[ProviderId::Serpapi],
     fetch: &[ProviderId::Serpapi],
     operation_only: &[],
+    operations: &[OperationRoutes {
+        operation: CITED_BY,
+        routes: &[ProviderId::Serpapi],
+    }],
     default_order: &[ProviderId::Serpapi],
 };
 
@@ -70,6 +86,10 @@ pub(crate) const XIAOHONGSHU: PlatformCatalog = PlatformCatalog {
     search: &[ProviderId::XiaohongshuBrowser],
     fetch: &[ProviderId::XiaohongshuBrowser],
     operation_only: &[],
+    operations: &[OperationRoutes {
+        operation: COMMENTS,
+        routes: &[ProviderId::XiaohongshuBrowser],
+    }],
     default_order: &[],
 };
 
@@ -80,6 +100,10 @@ pub(crate) const X: PlatformCatalog = PlatformCatalog {
     search: &[ProviderId::Xai],
     fetch: &[ProviderId::Xai],
     operation_only: &[],
+    operations: &[OperationRoutes {
+        operation: ASK,
+        routes: &[ProviderId::Xai],
+    }],
     default_order: &[ProviderId::Xai],
 };
 
@@ -89,6 +113,10 @@ pub(crate) const HN: PlatformCatalog = PlatformCatalog {
     search: &[ProviderId::HnApi],
     fetch: &[ProviderId::HnApi],
     operation_only: &[],
+    operations: &[OperationRoutes {
+        operation: STORIES,
+        routes: &[ProviderId::HnApi],
+    }],
     default_order: &[ProviderId::HnApi],
 };
 
@@ -101,6 +129,24 @@ pub(crate) const YOUTUBE: PlatformCatalog = PlatformCatalog {
     search: &[ProviderId::YoutubeApi],
     fetch: &[ProviderId::YoutubeApi, ProviderId::YoutubeWeb],
     operation_only: &[ProviderId::GeminiApi],
+    operations: &[
+        OperationRoutes {
+            operation: COMMENTS,
+            routes: &[ProviderId::YoutubeApi],
+        },
+        OperationRoutes {
+            operation: VIDEOS,
+            routes: &[ProviderId::YoutubeApi],
+        },
+        OperationRoutes {
+            operation: ASK,
+            routes: &[ProviderId::GeminiApi],
+        },
+        OperationRoutes {
+            operation: TRANSCRIBE,
+            routes: &[ProviderId::GeminiApi],
+        },
+    ],
     default_order: &[ProviderId::YoutubeApi, ProviderId::GeminiApi],
 };
 
@@ -111,6 +157,10 @@ pub(crate) const POLYMARKET: PlatformCatalog = PlatformCatalog {
     search: &[ProviderId::PolymarketApi],
     fetch: &[ProviderId::PolymarketApi],
     operation_only: &[],
+    operations: &[OperationRoutes {
+        operation: HISTORY,
+        routes: &[ProviderId::PolymarketApi],
+    }],
     default_order: &[ProviderId::PolymarketApi],
 };
 
@@ -122,6 +172,7 @@ pub(crate) const REDDIT: PlatformCatalog = PlatformCatalog {
     search: &[ProviderId::RedditBrowser],
     fetch: &[ProviderId::RedditBrowser],
     operation_only: &[],
+    operations: &[],
     default_order: &[],
 };
 
@@ -169,6 +220,15 @@ impl PlatformCatalog {
             PlatformOperation::Search => self.search,
             PlatformOperation::Fetch => self.fetch,
         }
+    }
+
+    /// Returns the routes that serve one of the platform's own operations; none for an operation
+    /// the platform does not have.
+    pub(crate) fn operation_routes(self, operation: &str) -> &'static [ProviderId] {
+        self.operations
+            .iter()
+            .find(|served| served.operation == operation)
+            .map_or(&[], |served| served.routes)
     }
 
     /// Returns every route of the platform once, in declaration order.

@@ -146,7 +146,9 @@ _Avoid_: platform provider, custom platform
 
 **Platform Route**:
 One way to reach a Platform. A route is a provider, and the routes of one platform form a
-fallback chain in their configured order. A route's identity is never the bare platform name.
+fallback chain in their configured order. The Capability Catalog declares which routes serve each
+Platform Operation; a route that serves no operation of a platform is not one of its routes. A
+route's identity is never the bare platform name.
 _Avoid_: platform backend, platform provider list
 
 **Route Transport**:
@@ -216,7 +218,8 @@ _Avoid_: scholar scraper, scholar_serpapi
 An operation of a Platform. Every Platform offers search and fetch. An operation that changes the
 kind of result or the required input is a new Platform Operation, not an option: for example
 Google Scholar's Cited-by, Comments on Xiaohongshu and YouTube, Ask on X and YouTube, Hacker News
-Stories, and YouTube's Videos and Transcribe.
+Stories, and YouTube's Videos and Transcribe. Each operation's routes are declared in the
+Capability Catalog.
 _Avoid_: platform option, sub-command flag
 
 **Cited-by**:

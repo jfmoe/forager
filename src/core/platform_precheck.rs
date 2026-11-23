@@ -10,9 +10,8 @@
 
 use reqwest::Client;
 
-use crate::chain::ChainOutcome;
 use crate::config::PlatformRuntimeConfig;
-use crate::net::{RetryPolicy, combine_diagnostics};
+use crate::net::RetryPolicy;
 use crate::platform_chain::PlatformPreflightError;
 use crate::platform_fetch::{self, PlatformFetchPlan};
 use crate::types::{
@@ -58,49 +57,12 @@ pub(crate) fn plan_precheck(
     })
 }
 
-/// The video the precheck read, and the trace of the read.
+/// The video the precheck read, the attempts of the read led by those recorded before it, and the
+/// read's diagnostic.
 pub(crate) struct Prechecked {
     pub(crate) video: PlatformItem,
-    pub(crate) trace: PrecheckTrace,
-}
-
-/// The attempts of a precheck, led by those recorded before it, and its diagnostic.
-pub(crate) struct PrecheckTrace {
-    attempts: Vec<ProviderAttempt>,
-    diagnostic: Option<String>,
-}
-
-impl PrecheckTrace {
-    /// Leads the result of the model operation's route chain with the precheck's trace: the
-    /// precheck's attempts come first and its diagnostic joins the chain's, on success and on
-    /// failure.
-    pub(crate) fn lead<T>(
-        self,
-        result: Result<ChainOutcome<T>, ProviderError>,
-    ) -> Result<ChainOutcome<T>, ProviderError> {
-        let Self {
-            mut attempts,
-            diagnostic,
-        } = self;
-        match result {
-            Ok(mut outcome) => {
-                attempts.append(&mut outcome.attempts);
-                outcome.attempts = attempts;
-                outcome.diagnostic = joined(diagnostic, outcome.diagnostic);
-                Ok(outcome)
-            }
-            Err(mut error) => {
-                attempts.append(&mut error.attempts);
-                error.attempts = attempts;
-                error.diagnostic = joined(diagnostic, error.diagnostic);
-                Err(error)
-            }
-        }
-    }
-}
-
-fn joined(first: Option<String>, second: Option<String>) -> Option<String> {
-    combine_diagnostics([first, second].into_iter().flatten())
+    pub(crate) attempts: Vec<ProviderAttempt>,
+    pub(crate) diagnostic: Option<String>,
 }
 
 /// Reads the video; a failed read, or a stream that is live, fails with every attempt of the
@@ -143,66 +105,7 @@ pub(crate) async fn run_precheck(
     }
     Ok(Prechecked {
         video,
-        trace: PrecheckTrace {
-            attempts: prior,
-            diagnostic: checked.diagnostic,
-        },
+        attempts: prior,
+        diagnostic: checked.diagnostic,
     })
-}
-
-#[cfg(test)]
-mod tests {
-    use super::PrecheckTrace;
-    use crate::chain::{ChainOutcome, skipped_attempt};
-    use crate::types::{AttemptErrorKind, AttemptTarget, ProviderAttempt, ProviderError};
-
-    fn attempt(provider: &'static str) -> ProviderAttempt {
-        skipped_attempt(AttemptTarget::platform("youtube", "ask"), provider, "test")
-    }
-
-    fn trace() -> PrecheckTrace {
-        PrecheckTrace {
-            attempts: vec![attempt("youtube_api")],
-            diagnostic: Some("read".into()),
-        }
-    }
-
-    fn providers(attempts: &[ProviderAttempt]) -> Vec<&str> {
-        attempts.iter().map(|attempt| attempt.provider).collect()
-    }
-
-    #[test]
-    fn the_precheck_trace_leads_a_successful_chain() {
-        let outcome = trace()
-            .lead(Ok(ChainOutcome {
-                value: (),
-                attempts: vec![attempt("gemini_api")],
-                diagnostic: Some("answered".into()),
-            }))
-            .unwrap_or_else(|error| panic!("lead failed: {}", error.message));
-
-        assert_eq!(
-            (providers(&outcome.attempts), outcome.diagnostic.as_deref()),
-            (vec!["youtube_api", "gemini_api"], Some("read\nanswered"))
-        );
-    }
-
-    #[test]
-    fn the_precheck_trace_leads_a_failed_chain() {
-        let error = trace()
-            .lead::<()>(Err(ProviderError {
-                kind: AttemptErrorKind::Quality,
-                message: "refused".into(),
-                attempts: vec![attempt("gemini_api")],
-                verbose: false,
-                diagnostic: None,
-            }))
-            .err()
-            .map(|error| (providers(&error.attempts).join(","), error.diagnostic));
-
-        assert_eq!(
-            error,
-            Some(("youtube_api,gemini_api".to_owned(), Some("read".to_owned())))
-        );
-    }
 }

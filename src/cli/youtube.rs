@@ -14,8 +14,7 @@ use crate::app::args::{DocsOutputFormat, OutputArgs, OutputFormat};
 use crate::app::dispatch::{
     AppError, CommandOutput, NetworkDependencies, invocation_temp_dir, provider_attempt_log,
 };
-use crate::platform_chain;
-use crate::platform_transcribe;
+use crate::platform_operation;
 use crate::types::{
     ContentDepth, Deadline, Platform, PlatformAskRequest, PlatformCommentsRequest,
     PlatformFetchOptions, PlatformFetchRequest, PlatformRef, PlatformSearchOptions,
@@ -385,10 +384,13 @@ fn youtube_videos(arguments: YoutubeVideosArgs) -> Result<CommandOutput, AppErro
     };
     run_page(
         Platform::Youtube,
-        |config| match input {
-            PageInput::Request(request) => platform_chain::plan_videos(config, request),
-            PageInput::Cursor(cursor) => platform_chain::plan_cursor_videos(config, &cursor),
+        |config, routes| match input {
+            PageInput::Request(request) => platform_operation::plan_videos(config, routes, request),
+            PageInput::Cursor(cursor) => {
+                platform_operation::plan_cursor_videos(config, routes, &cursor)
+            }
         },
+        platform_operation::run_videos,
         format,
         &common,
     )
@@ -425,14 +427,15 @@ fn youtube_transcribe(arguments: YoutubeTranscribeArgs) -> Result<CommandOutput,
         content_file_stem(&PlatformRef::Youtube(video.clone()))
     );
     let dependencies = NetworkDependencies::load()?;
-    let plan = platform_transcribe::plan_transcribe(
+    let plan = platform_operation::plan_transcribe(
         dependencies.platform(Platform::Youtube)?,
+        &dependencies.config.platform_routes,
         YoutubeTranscribeRequest { video },
     )
     .map_err(preflight_error)?;
     let result = dependencies
         .runtime
-        .block_on(platform_transcribe::run_transcribe(
+        .block_on(platform_operation::run_transcribe(
             plan,
             dependencies.client,
             dependencies.retry_policy,
