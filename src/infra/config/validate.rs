@@ -275,8 +275,7 @@ mod tests {
     }
 
     #[test]
-    fn platform_order_rule_rejects_routes_of_other_platforms_and_undefined_routes_in_both_validators()
-     {
+    fn platform_order_rule_rejects_routes_outside_the_platform_in_both_validators() {
         for route in ["tavily", "no_such_route"] {
             let mut config = Config::default();
             config.platforms.arxiv.order = vec![route.into()];
