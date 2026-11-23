@@ -1042,7 +1042,7 @@ fn run_interactive_setup(language: Option<Language>) -> Result<CommandOutput, Ap
     let mut document = config::SetupDocument::load()?;
 
     for (index, step) in SetupStep::ORDER.into_iter().enumerate() {
-        step.announce(language, index + 2);
+        step.announce(language, SetupStep::FIRST_NUMBER + index);
         match step {
             SetupStep::MainModel => {
                 configure_model(&mut input, language, &mut document, "xai")?;
@@ -1094,6 +1094,9 @@ enum SetupStep {
 }
 
 impl SetupStep {
+    /// The number of the first step here; the language choice is step 1.
+    const FIRST_NUMBER: usize = 2;
+
     /// The steps in the order setup runs them; each one's number follows from its place here.
     const ORDER: [Self; 3] = [
         Self::MainModel,

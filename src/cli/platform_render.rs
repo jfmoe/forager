@@ -449,7 +449,7 @@ pub(crate) fn render_fetch(
             0,
             fetched.diagnostic,
         ),
-        Err(error) => docs_failure(&error, format, "Platform fetch failed")?,
+        Err(error) => content_failure(&error, format, "Platform fetch failed")?,
     };
     apply_tee(
         stdout,
@@ -492,7 +492,7 @@ pub(crate) fn render_transcribe(
             };
             (stdout, 0, transcribed.fetched.diagnostic)
         }
-        Err(error) => docs_failure(&error, format, "YouTube transcribe failed")?,
+        Err(error) => content_failure(&error, format, "YouTube transcribe failed")?,
     };
     apply_tee(
         stdout,
@@ -504,7 +504,7 @@ pub(crate) fn render_transcribe(
 }
 
 /// Renders a failure of a command whose output is a document, with `title` heading Markdown.
-fn docs_failure(
+fn content_failure(
     error: &ProviderError,
     format: ContentOutputFormat,
     title: &str,
