@@ -46,12 +46,13 @@ fn logged_in(exchanges: &[Exchange]) -> bool {
 #[cfg(test)]
 mod tests {
     use reqwest::Url;
-    use serde_json::json;
+    use serde_json::{Value, json};
 
     use super::{ACCOUNT_PATH, logged_in};
     use crate::providers::browser::{Exchange, RequestMethod, ResponseBody};
+    use crate::providers::xiaohongshu_browser::tests::stored;
 
-    fn account(body: &serde_json::Value) -> Exchange {
+    fn account(body: &Value) -> Exchange {
         Exchange {
             sequence: 0,
             method: RequestMethod::Get,
@@ -65,18 +66,14 @@ mod tests {
 
     #[test]
     fn a_non_guest_account_answer_is_a_login() {
-        let answer =
-            json!({"code": 0, "success": true, "data": {"guest": false, "user_id": "5f0a"}});
-
-        assert!(logged_in(&[account(&answer)]));
+        assert!(logged_in(&[account(&stored("account.json"))]));
     }
 
     #[test]
     fn a_guest_or_missing_session_is_no_login() {
-        let answers = [
-            json!({"code": 0, "success": true, "data": {"guest": true, "user_id": "6a1b"}}),
-            json!({"code": -101, "success": false, "msg": "无登录信息，或登录信息为空", "data": {}}),
-        ];
+        let mut guest = stored("account.json");
+        guest["data"]["guest"] = json!(true);
+        let answers = [guest, stored("account-logged-out.json")];
 
         assert!(!logged_in(&answers.map(|answer| account(&answer))));
     }

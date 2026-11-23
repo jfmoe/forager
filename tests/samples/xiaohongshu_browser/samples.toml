@@ -1,0 +1,39 @@
+# Recorded observations of the `xiaohongshu_browser` route's page logic, with the upstream bodies
+# they hold; each record names one file in this directory.
+
+[[sample]]
+file = "search.json"
+shape = "Search observation: the results page facts after the query was submitted, and one captured `search/notes` exchange, its request facts and its body with a hot-query card and a note card"
+origin = "hand-written"
+observed = 2026-11-18
+
+[[sample]]
+file = "note.json"
+shape = "Note page observation: the note page facts, and the note of `__INITIAL_STATE__.note.noteDetailMap[<id>]` as the page logic picks it, an image note"
+origin = "hand-written"
+observed = 2026-10-08
+
+[[sample]]
+file = "comments.json"
+shape = "Comments observation: the note page facts, a `comment/page` exchange whose comments are one without replies and one that carries a reply and has more, and the `comment/sub/page` exchange that expands it, each with its query parameters"
+origin = "hand-written"
+observed = 2026-11-18
+
+[[sample]]
+file = "account.json"
+shape = "`GET /api/sns/web/v2/user/me` answer for a logged-in session: code 0, not a guest, with the user's ID"
+origin = "hand-written"
+observed = 2026-11-18
+
+[[sample]]
+file = "account-logged-out.json"
+shape = "`GET /api/sns/web/v2/user/me` answer for a session that is not logged in, before the QR code login: the login code -101 with its message"
+variant_of = "account.json"
+origin = "hand-written"
+observed = 2026-11-18
+
+[[sample]]
+file = "onebox.json"
+shape = "`POST /api/sns/web/v1/search/onebox` answer on a working search: code 0 with `success: false`"
+origin = "hand-written"
+observed = 2026-11-18

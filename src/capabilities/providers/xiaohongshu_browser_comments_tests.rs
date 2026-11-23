@@ -1,5 +1,5 @@
-//! Comments observations shaped like the live comment responses of 2026-10-09 and 2026-11-18,
-//! judged into comments or failures without a browser.
+//! Comments observations derived from the stored comments observation, judged into comments
+//! or failures without a browser.
 
 use reqwest::Url;
 use serde_json::{Value, json};
@@ -8,6 +8,7 @@ use super::{
     CommentsData, Exchange, RequestMethod, ResponseBody, captured_comments, expansion_targets,
     read_comments, without_token,
 };
+use crate::providers::xiaohongshu_browser::tests::stored;
 use crate::redact::CREDENTIAL_MASK;
 use crate::types::{AccessToken, AttemptErrorKind, XiaohongshuCommentsRequest, XiaohongshuRef};
 
@@ -17,16 +18,28 @@ const TOKEN: &str = "ABfakeTOKENcanary4242=";
 /// The token without its padding, which no URL encoding changes.
 const TOKEN_BODY: &str = "ABfakeTOKENcanary4242";
 
+/// The stored observation of a note's comments: a comment page, then the reply page of its
+/// second comment.
+fn stored_comments() -> Value {
+    stored("comments.json")
+}
+
+fn stored_response(kind: &str) -> Value {
+    stored_comments()["responses"]
+        .as_array()
+        .and_then(|responses| responses.iter().find(|response| response["kind"] == kind))
+        .cloned()
+        .unwrap_or_else(|| panic!("a stored {kind} response"))
+}
+
+/// The stored top-level comment at `index` of the comment page.
+fn stored_comment(index: usize) -> Value {
+    stored_response("page")["body"]["data"]["comments"][index].clone()
+}
+
 /// The page facts of the note page: the token value removed.
 fn note_page() -> Value {
-    json!({
-        "url": format!("https://www.xiaohongshu.com/explore/{NOTE_ID}?xsec_source=pc_search"),
-        "title": "咖啡豆怎么选 - 小红书",
-        "guest": false,
-        "error_code": null,
-        "notice": null,
-        "blocked_status": null
-    })
+    stored_comments()["page"].clone()
 }
 
 /// A comment ID: a fixed prefix and a five-digit serial.
@@ -34,70 +47,56 @@ fn id(serial: u32) -> String {
     format!("00000000000000000c0{serial:05}")
 }
 
-/// A top-level comment without replies.
+/// The stored top-level comment without replies, as comment `serial`.
 fn comment(serial: u32) -> Value {
-    json!({
-        "id": id(serial),
-        "content": format!("评论 {serial}"),
-        "create_time": 1_759_900_000_000_u64,
-        "ip_location": "上海",
-        "like_count": "3",
-        "sub_comment_count": "0",
-        "sub_comment_cursor": "",
-        "sub_comment_has_more": false,
-        "sub_comments": [],
-        "user_info": {"user_id": "00000000000000000000a001", "nickname": "豆子", "xsec_token": "ABuser="},
-        "target_comment": null
-    })
+    let mut comment = stored_comment(0);
+    comment["id"] = json!(id(serial));
+    comment["content"] = json!(format!("评论 {serial}"));
+    comment
 }
 
-/// A reply to `target`.
+/// The stored reply, as reply `serial` to `target`.
 fn reply(serial: u32, target: u32) -> Value {
-    json!({
-        "id": id(serial),
-        "content": format!("回复 {serial}"),
-        "create_time": 1_759_903_600_000_u64,
-        "ip_location": "北京",
-        "like_count": "1",
-        "user_info": {"user_id": "00000000000000000000a002", "nickname": "拿铁"},
-        "target_comment": {"id": id(target)}
-    })
+    let mut reply = stored_comment(1)["sub_comments"][0].clone();
+    reply["id"] = json!(id(serial));
+    reply["content"] = json!(format!("回复 {serial}"));
+    reply["target_comment"]["id"] = json!(id(target));
+    reply
 }
 
-/// A top-level comment that carries reply `inline` and has more replies after it.
+/// Comment `serial`, carrying reply `inline` and, like the stored comment with replies, more
+/// replies after it.
 fn expandable(serial: u32, inline: u32) -> Value {
     let mut comment = comment(serial);
-    comment["sub_comment_count"] = json!("20");
+    comment["sub_comment_count"] = stored_comment(1)["sub_comment_count"].clone();
     comment["sub_comment_cursor"] = json!(id(inline));
     comment["sub_comment_has_more"] = json!(true);
     comment["sub_comments"] = json!([reply(inline, serial)]);
     comment
 }
 
+/// The stored comment page, as the page from `cursor` listing `comments`.
 fn page(cursor: &str, comments: &[Value], next: &str, has_more: bool) -> Value {
-    json!({
-        "kind": "page",
-        "params": {"note_id": NOTE_ID, "cursor": cursor},
-        "body": {"code": 0, "success": true, "msg": "成功", "data": {"comments": comments, "cursor": next, "has_more": has_more}}
-    })
+    let mut page = stored_response("page");
+    page["params"]["cursor"] = json!(cursor);
+    page["body"]["data"] = json!({"comments": comments, "cursor": next, "has_more": has_more});
+    page
 }
 
+/// The stored reply page, as the replies of comment `root` from `cursor`.
 fn sub_page(root: u32, cursor: &str, replies: &[Value], has_more: bool) -> Value {
-    json!({
-        "kind": "sub",
-        "params": {"note_id": NOTE_ID, "cursor": cursor, "root_comment_id": id(root)},
-        "body": {"code": 0, "success": true, "msg": "成功", "data": {"comments": replies, "cursor": id(999), "has_more": has_more}}
-    })
+    let mut page = stored_response("sub");
+    page["params"]["cursor"] = json!(cursor);
+    page["params"]["root_comment_id"] = json!(id(root));
+    page["body"]["data"] = json!({"comments": replies, "cursor": id(999), "has_more": has_more});
+    page
 }
 
+/// The stored observation, with `responses` captured.
 fn data(responses: &[Value]) -> Value {
-    json!({
-        "page": note_page(),
-        "timed_out": false,
-        "body_missing": false,
-        "expand_failure": null,
-        "responses": responses
-    })
+    let mut data = stored_comments();
+    data["responses"] = json!(responses);
+    data
 }
 
 /// Two pages of ten comments; the first comment carries reply 101 and has more replies, and

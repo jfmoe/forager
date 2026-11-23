@@ -1,5 +1,5 @@
-//! Search observations shaped like the live page facts and `search/notes` exchanges of
-//! 2026-10-08 and 2026-11-18, judged into items or failures without a browser.
+//! Search observations derived from the stored search observation, judged into items or
+//! failures without a browser.
 
 use chrono::{NaiveDate, NaiveDateTime};
 use reqwest::Url;
@@ -10,6 +10,7 @@ use super::{
     filter_choices, published_date, search_data as captured_search_data, search_outcome,
     wants_another_page,
 };
+use crate::providers::xiaohongshu_browser::tests::stored;
 use crate::types::{
     AttemptErrorKind, XiaohongshuNoteType, XiaohongshuPublishTime, XiaohongshuSearchOptions,
     XiaohongshuSort,
@@ -27,34 +28,37 @@ fn at(date: (i32, u32, u32), time: (u32, u32)) -> NaiveDateTime {
         .expect("valid local time")
 }
 
-/// The page facts of a results page that shows the search for 咖啡.
-fn results_page() -> Value {
-    json!({
-        "url": RESULTS_URL,
-        "title": "咖啡 - 小红书搜索",
-        "guest": false,
-        "error_code": null,
-        "notice": null,
-        "blocked_status": null
-    })
+/// The stored observation of a search for 咖啡: one default-condition first page.
+fn stored_search() -> Value {
+    stored("search.json")
 }
 
-/// A note card as `search/notes` returns it; `n` picks the note ID and token.
+/// The stored captured `search/notes` exchange.
+fn stored_response() -> Value {
+    stored_search()["responses"][0].clone()
+}
+
+/// The stored card of `model_type`.
+fn stored_card(model_type: &str) -> Value {
+    stored_response()["body"]["data"]["items"]
+        .as_array()
+        .and_then(|items| items.iter().find(|item| item["model_type"] == model_type))
+        .cloned()
+        .unwrap_or_else(|| panic!("a stored {model_type} card"))
+}
+
+/// The page facts of the results page that shows the search for 咖啡.
+fn results_page() -> Value {
+    stored_search()["page"].clone()
+}
+
+/// The stored note card; `n` picks the note ID, the token and the title.
 fn note(n: u32) -> Value {
-    json!({
-        "id": note_id(n),
-        "model_type": "note",
-        "xsec_token": format!("ABtoken{n}="),
-        "note_card": {
-            "type": "normal",
-            "display_title": format!("手冲咖啡 {n}"),
-            "user": {"user_id": "00000000000000000000a001", "nickname": "豆子", "xsec_token": "ABuser="},
-            "interact_info": {"liked": false, "liked_count": "1.2万", "collected": false, "collected_count": "356", "comment_count": "89", "shared_count": "12"},
-            "cover": {"url_default": "https://sns-webpic-qc.xhscdn.com/cover.jpg"},
-            "image_list": [{"width": 1080, "height": 1440}],
-            "corner_tag_info": [{"type": "publish_time", "text": "2025-06-13"}]
-        }
-    })
+    let mut card = stored_card("note");
+    card["id"] = json!(note_id(n));
+    card["xsec_token"] = json!(format!("ABtoken{n}="));
+    card["note_card"]["display_title"] = json!(format!("手冲咖啡 {n}"));
+    card
 }
 
 fn note_id(n: u32) -> String {
@@ -66,11 +70,7 @@ fn note_ref(n: u32) -> String {
 }
 
 fn hot_query() -> Value {
-    json!({
-        "id": "hot_query_2fakesearch0root00001",
-        "model_type": "hot_query",
-        "hot_query": {"queries": [{"name": "咖啡豆推荐", "search_word": "咖啡豆推荐"}]}
-    })
+    stored_card("hot_query")
 }
 
 fn sort_filter(sort: &str) -> Value {
@@ -87,7 +87,8 @@ fn filters(sort: &str, note_type: &str, time: &str) -> Value {
     ])
 }
 
-/// One captured `search/notes` exchange, after `click` filter clicks.
+/// The stored `search/notes` exchange as page `page` of search `search_id` with `filters`,
+/// after `click` filter clicks, answering `items`.
 fn response(
     click: u32,
     page: u32,
@@ -96,11 +97,13 @@ fn response(
     has_more: bool,
     items: &[Value],
 ) -> Value {
-    json!({
-        "click": click,
-        "request": {"keyword": "咖啡", "page": page, "search_id": search_id, "filters": filters},
-        "body": {"code": 0, "success": true, "msg": "成功", "data": {"has_more": has_more, "items": items}}
-    })
+    let mut response = stored_response();
+    response["click"] = json!(click);
+    response["request"]["page"] = json!(page);
+    response["request"]["search_id"] = json!(search_id);
+    response["request"]["filters"] = filters.clone();
+    response["body"]["data"] = json!({"has_more": has_more, "items": items});
+    response
 }
 
 /// A default-condition first page with `items`.
@@ -109,23 +112,18 @@ fn default_page(has_more: bool, items: &[Value]) -> Value {
 }
 
 fn search_data(filter_clicks: u32, responses: &[Value]) -> Value {
-    json!({
-        "page": results_page(),
-        "filter_clicks": filter_clicks,
-        "timed_out": false,
-        "body_missing": false,
-        "responses": responses
-    })
+    let mut data = stored_search();
+    data["filter_clicks"] = json!(filter_clicks);
+    data["responses"] = json!(responses);
+    data
 }
 
 fn with_page(facts: &Value, timed_out: bool, body_missing: bool) -> Value {
-    json!({
-        "page": facts,
-        "filter_clicks": 0,
-        "timed_out": timed_out,
-        "body_missing": body_missing,
-        "responses": []
-    })
+    let mut data = search_data(0, &[]);
+    data["page"] = facts.clone();
+    data["timed_out"] = json!(timed_out);
+    data["body_missing"] = json!(body_missing);
+    data
 }
 
 fn latest_week() -> XiaohongshuSearchOptions {
@@ -797,7 +795,7 @@ fn captured_search_responses_count_the_filter_clicks_made_before_them() {
     let onebox = exchange(
         "/api/sns/web/v1/search/onebox",
         &json!({"keyword": "咖啡", "search_id": ROOT_SEARCH_ID}),
-        &json!({"code": 0, "success": false, "msg": "成功", "data": {}}),
+        &stored("onebox.json"),
     );
     let observed = Observed {
         page: serde_json::from_value(results_page()).expect("page facts"),
