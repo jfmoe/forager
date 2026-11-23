@@ -305,16 +305,9 @@ impl PolymarketApi {
             }
             Ok(entry)
         });
-        let item = match trail.required(entry.await)? {
-            Entry::Event(event) => {
-                let quotes = self.quote(&event.markets, &mut trail).await;
-                event.into_item(depth, &quotes)
-            }
-            Entry::Market(market) => {
-                let quotes = self.quote(std::slice::from_ref(&market), &mut trail).await;
-                market.into_item(depth, &quotes)
-            }
-        };
+        let entry = trail.required(entry.await)?;
+        let quotes = self.quote(entry.markets(), &mut trail).await;
+        let item = entry.into_item(depth, &quotes);
         Ok(PlatformFetchOutcome {
             item,
             content_source: FullTextSource::Urls(Vec::new()),
@@ -343,14 +336,7 @@ impl PolymarketApi {
                 query: &[],
             },
             operation,
-            |body| {
-                let entry = match reference.kind() {
-                    PolymarketKind::Event => Entry::Event(Event::decode(decode(body)?)?),
-                    PolymarketKind::Market => Entry::Market(Market::decode(decode(body)?)?),
-                };
-                check_slug(reference, entry.slug())?;
-                then(entry)
-            },
+            |body| then(decode_entry(reference, body)?),
             |failure| not_found(failure, reference),
         )
         .await
@@ -465,6 +451,17 @@ fn decode_search(body: &str) -> Result<(Vec<PlatformItem>, usize, bool), Refusal
     }
     let skipped = total - items.len();
     Ok((items, skipped, pagination.has_more))
+}
+
+/// Decodes Gamma's answer to the slug lookup of `reference`: the event or market it names, and
+/// no other.
+fn decode_entry(reference: &PolymarketRef, body: &str) -> Result<Entry, Refusal> {
+    let entry = match reference.kind() {
+        PolymarketKind::Event => Entry::Event(Event::decode(decode(body)?)?),
+        PolymarketKind::Market => Entry::Market(Market::decode(decode(body)?)?),
+    };
+    check_slug(reference, entry.slug())?;
+    Ok(entry)
 }
 
 fn decode<T: serde::de::DeserializeOwned>(body: &str) -> Result<T, Refusal> {

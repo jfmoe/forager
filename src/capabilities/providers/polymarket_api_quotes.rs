@@ -21,13 +21,13 @@ const MAX_BATCH_ITEMS: usize = 500;
 const STALE_QUOTES: &str = "prices are Gamma's cached quotes, which may lag up to 5 minutes";
 
 /// What the CLOB said about a set of outcome tokens.
-struct LiveQuotes {
+pub(super) struct LiveQuotes {
     /// The top of book of every token the CLOB answered for.
-    tops: HashMap<String, BookTop>,
+    pub(super) tops: HashMap<String, BookTop>,
     /// The last trade of every token that has traded; `None` when that read failed.
-    last_trades: Option<HashMap<String, f64>>,
+    pub(super) last_trades: Option<HashMap<String, f64>>,
     /// When the price read completed, in UTC.
-    as_of: String,
+    pub(super) as_of: String,
 }
 
 /// One side of a token's best price, as `POST /prices` answers: BUY is the best bid and SELL
@@ -50,10 +50,7 @@ impl PolymarketApi {
     /// Reads the live quotes of the open ones of `markets`. With no open market, or when the
     /// CLOB fails, every market prices from Gamma's cache.
     pub(super) async fn quote(&self, markets: &[Market], trail: &mut Trail) -> Quotes {
-        let open = markets
-            .iter()
-            .filter(|market| market.status == PolymarketStatus::Open)
-            .collect::<Vec<_>>();
+        let open = open_markets(markets);
         if open.is_empty() {
             return Quotes::Cached;
         }
@@ -71,10 +68,7 @@ impl PolymarketApi {
                 return Quotes::Cached;
             }
         };
-        let missing = tokens
-            .iter()
-            .filter(|token| !live.tops.contains_key(*token))
-            .count();
+        let (quotes, missing) = live_prices(&open, live);
         if missing > 0 {
             trail.note(format!(
                 "Polymarket CLOB API returned no quote for {missing} {}; {} no price",
@@ -82,30 +76,7 @@ impl PolymarketApi {
                 if missing == 1 { "it has" } else { "they have" }
             ));
         }
-        let markets = open
-            .iter()
-            .map(|market| {
-                let quotes = MarketQuotes::Live {
-                    tops: market
-                        .tokens
-                        .iter()
-                        .map(|token| live.tops.get(token).copied())
-                        .collect(),
-                    last_trade: live
-                        .last_trades
-                        .as_ref()
-                        .and_then(|trades| {
-                            market.tokens.first().and_then(|token| trades.get(token))
-                        })
-                        .copied(),
-                };
-                (market.reference.slug().to_owned(), quotes)
-            })
-            .collect();
-        Quotes::Live {
-            markets,
-            as_of: live.as_of,
-        }
+        quotes
     }
 
     /// Reads the live quotes of `tokens`. A failed price read is the error of the whole read;
@@ -205,7 +176,48 @@ impl PolymarketApi {
     }
 }
 
-fn decode_prices(body: &str) -> Result<HashMap<String, BookTop>, Refusal> {
+/// The markets whose live books the CLOB serves: the open ones of `markets`.
+pub(super) fn open_markets(markets: &[Market]) -> Vec<&Market> {
+    markets
+        .iter()
+        .filter(|market| market.status == PolymarketStatus::Open)
+        .collect()
+}
+
+/// Prices the `open` markets from what the CLOB said about their tokens, and counts the
+/// outcomes it gave no quote for.
+pub(super) fn live_prices(open: &[&Market], live: LiveQuotes) -> (Quotes, usize) {
+    let missing = open
+        .iter()
+        .flat_map(|market| &market.tokens)
+        .filter(|token| !live.tops.contains_key(*token))
+        .count();
+    let markets = open
+        .iter()
+        .map(|market| {
+            let quotes = MarketQuotes::Live {
+                tops: market
+                    .tokens
+                    .iter()
+                    .map(|token| live.tops.get(token).copied())
+                    .collect(),
+                last_trade: live
+                    .last_trades
+                    .as_ref()
+                    .and_then(|trades| market.tokens.first().and_then(|token| trades.get(token)))
+                    .copied(),
+            };
+            (market.reference.slug().to_owned(), quotes)
+        })
+        .collect();
+    let quotes = Quotes::Live {
+        markets,
+        as_of: live.as_of,
+    };
+    (quotes, missing)
+}
+
+pub(super) fn decode_prices(body: &str) -> Result<HashMap<String, BookTop>, Refusal> {
     let sides = serde_json::from_str::<HashMap<String, Sides>>(body).map_err(|error| {
         Refusal::runtime(format!("invalid Polymarket CLOB API prices: {error}"))
     })?;
@@ -221,7 +233,7 @@ fn decode_prices(body: &str) -> Result<HashMap<String, BookTop>, Refusal> {
         .collect())
 }
 
-fn decode_last_trades(body: &str) -> Result<HashMap<String, f64>, Refusal> {
+pub(super) fn decode_last_trades(body: &str) -> Result<HashMap<String, f64>, Refusal> {
     let trades = serde_json::from_str::<Vec<LastTrade>>(body).map_err(|error| {
         Refusal::runtime(format!("invalid Polymarket CLOB API last trades: {error}"))
     })?;

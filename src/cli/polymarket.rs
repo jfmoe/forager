@@ -176,6 +176,21 @@ pub(in crate::app) fn run(command: PolymarketCommand) -> Result<CommandOutput, A
 }
 
 fn polymarket_search(arguments: PolymarketSearchArgs) -> Result<CommandOutput, AppError> {
+    let (input, format, common) = polymarket_search_input(arguments)?;
+    search(Platform::Polymarket, input, format, &common)
+}
+
+/// The page a Polymarket search asks for, checked before any configuration is read.
+fn polymarket_search_input(
+    arguments: PolymarketSearchArgs,
+) -> Result<
+    (
+        PageInput<PlatformSearchRequest>,
+        OutputFormat,
+        PlatformCommonArgs,
+    ),
+    AppError,
+> {
     let PolymarketSearchArgs {
         query,
         include_closed,
@@ -196,10 +211,25 @@ fn polymarket_search(arguments: PolymarketSearchArgs) -> Result<CommandOutput, A
         request.validate().map_err(AppError::Argument)?;
         PageInput::Request(request)
     };
-    search(Platform::Polymarket, input, format, &common)
+    Ok((input, format, common))
 }
 
 fn polymarket_fetch(arguments: PolymarketFetchArgs) -> Result<CommandOutput, AppError> {
+    let (request, format, common) = polymarket_fetch_input(arguments)?;
+    fetch(Platform::Polymarket, request, format, None, &common)
+}
+
+/// The fetch a Polymarket fetch asks for, checked before any configuration is read.
+fn polymarket_fetch_input(
+    arguments: PolymarketFetchArgs,
+) -> Result<
+    (
+        PlatformFetchRequest,
+        ContentOutputFormat,
+        PlatformCommonArgs,
+    ),
+    AppError,
+> {
     let PolymarketFetchArgs {
         reference,
         depth,
@@ -209,28 +239,11 @@ fn polymarket_fetch(arguments: PolymarketFetchArgs) -> Result<CommandOutput, App
     let reference = PlatformRef::parse(Platform::Polymarket, &reference)
         .map_err(|error| AppError::Argument(error.to_string()))?;
     let request = PlatformFetchRequest::new(reference, depth.into());
-    fetch(Platform::Polymarket, request, format, None, &common)
+    Ok((request, format, common))
 }
 
 fn polymarket_history(arguments: PolymarketHistoryArgs) -> Result<CommandOutput, AppError> {
-    let PolymarketHistoryArgs {
-        market,
-        outcome,
-        interval,
-        from,
-        to,
-        bucket,
-        format,
-        common,
-    } = arguments;
-    let market =
-        PolymarketRef::parse(&market).map_err(|error| AppError::Argument(error.to_string()))?;
-    let window = match (from, to) {
-        (Some(from), Some(to)) => PolymarketWindow::Range { from, to },
-        _ => PolymarketWindow::Interval(interval.map_or(PolymarketInterval::Month, Into::into)),
-    };
-    let request = PolymarketHistoryRequest::new(market, outcome, window, bucket.map(Into::into))
-        .map_err(AppError::Argument)?;
+    let (request, format, common) = polymarket_history_input(arguments)?;
     let dependencies = NetworkDependencies::load()?;
     let plan = platform_operation::plan_history(
         dependencies.platform(Platform::Polymarket)?,
@@ -256,4 +269,29 @@ fn polymarket_history(arguments: PolymarketHistoryArgs) -> Result<CommandOutput,
         output: common.output.target(),
         attempt_log,
     })
+}
+
+/// The history a Polymarket history asks for, checked before any configuration is read.
+fn polymarket_history_input(
+    arguments: PolymarketHistoryArgs,
+) -> Result<(PolymarketHistoryRequest, OutputFormat, PlatformCommonArgs), AppError> {
+    let PolymarketHistoryArgs {
+        market,
+        outcome,
+        interval,
+        from,
+        to,
+        bucket,
+        format,
+        common,
+    } = arguments;
+    let market =
+        PolymarketRef::parse(&market).map_err(|error| AppError::Argument(error.to_string()))?;
+    let window = match (from, to) {
+        (Some(from), Some(to)) => PolymarketWindow::Range { from, to },
+        _ => PolymarketWindow::Interval(interval.map_or(PolymarketInterval::Month, Into::into)),
+    };
+    let request = PolymarketHistoryRequest::new(market, outcome, window, bucket.map(Into::into))
+        .map_err(AppError::Argument)?;
+    Ok((request, format, common))
 }

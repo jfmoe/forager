@@ -354,7 +354,7 @@ impl Market {
     }
 
     /// Builds the item of a fetched market.
-    pub(super) fn into_item(self, depth: ContentDepth, quotes: &Quotes) -> PlatformItem {
+    fn into_item(self, depth: ContentDepth, quotes: &Quotes) -> PlatformItem {
         let fields = self.fields(quotes.market(self.reference.slug()));
         let parent = self.events.first();
         let event = parent.and_then(|parent| {
@@ -489,7 +489,7 @@ impl Event {
 
     /// Builds the item of a fetched event. At `abstract` depth it carries the event's rules,
     /// and each market's own only where they differ from the event's.
-    pub(super) fn into_item(mut self, depth: ContentDepth, quotes: &Quotes) -> PlatformItem {
+    fn into_item(mut self, depth: ContentDepth, quotes: &Quotes) -> PlatformItem {
         let event_rules = self.rules().to_owned();
         let event = self.fields(quotes.source());
         let markets = std::mem::take(&mut self.markets)
@@ -539,6 +539,22 @@ impl Entry {
         match self {
             Self::Event(event) => event.rules(),
             Self::Market(market) => market.rules(),
+        }
+    }
+
+    /// The markets the entry prices: an event's, or the market itself.
+    pub(super) fn markets(&self) -> &[Market] {
+        match self {
+            Self::Event(event) => &event.markets,
+            Self::Market(market) => std::slice::from_ref(market),
+        }
+    }
+
+    /// Builds the item of a fetched entry, priced from `quotes`.
+    pub(super) fn into_item(self, depth: ContentDepth, quotes: &Quotes) -> PlatformItem {
+        match self {
+            Self::Event(event) => event.into_item(depth, quotes),
+            Self::Market(market) => market.into_item(depth, quotes),
         }
     }
 }
