@@ -16,6 +16,7 @@ use serde_json::{Value, json};
 
 use super::{SERVICE, Xai};
 use crate::catalog::{PlatformOperation, ProviderId};
+use crate::credentials::CredentialPool;
 use crate::net::{AttemptFailure, combine_diagnostics};
 use crate::providers::execution::{ExecutionOutcome, execute_v2};
 use crate::providers::responses_api::{ResponsesRequest, output_text};
@@ -162,9 +163,7 @@ impl Xai {
         );
         let execution = self
             .run_x(ASK, &body, |response| {
-                let (answer, sources) = output_text(SERVICE, response)?;
-                let (answer, sources) = normalize_main_search(&answer, sources, &self.credentials)?;
-                Ok((answer, x_sources(sources)))
+                decode_answer(response, &self.credentials)
             })
             .await?;
         let (answer, sources) = execution.value;
@@ -497,6 +496,16 @@ fn post_item(
 fn handle(value: &str) -> String {
     let value = value.trim();
     value.strip_prefix('@').unwrap_or(value).to_owned()
+}
+
+/// Decodes the answer with its inline citations and the sources it cites.
+fn decode_answer(
+    response: &Value,
+    credentials: &CredentialPool,
+) -> Result<(String, Vec<XSource>), AttemptFailure> {
+    let (answer, sources) = output_text(SERVICE, response)?;
+    let (answer, sources) = normalize_main_search(&answer, sources, credentials)?;
+    Ok((answer, x_sources(sources)))
 }
 
 /// Maps the cited pages to sources: a post gets its ref and canonical URL, and any other page,

@@ -125,6 +125,14 @@ pub(in crate::app) fn run(command: XCommand) -> Result<CommandOutput, AppError> 
 }
 
 fn x_search(arguments: XSearchArgs) -> Result<CommandOutput, AppError> {
+    let (request, format, common) = x_search_input(arguments)?;
+    search(Platform::X, PageInput::Request(request), format, &common)
+}
+
+/// Builds the search a command asks for and checks it before any request.
+fn x_search_input(
+    arguments: XSearchArgs,
+) -> Result<(PlatformSearchRequest, OutputFormat, PlatformCommonArgs), AppError> {
     let XSearchArgs {
         query,
         filters,
@@ -139,10 +147,25 @@ fn x_search(arguments: XSearchArgs) -> Result<CommandOutput, AppError> {
         page: None,
     };
     request.validate().map_err(AppError::Argument)?;
-    search(Platform::X, PageInput::Request(request), format, &common)
+    Ok((request, format, common))
 }
 
 fn x_fetch(arguments: XFetchArgs) -> Result<CommandOutput, AppError> {
+    let (request, format, common) = x_fetch_input(arguments)?;
+    fetch(Platform::X, request, format, None, &common)
+}
+
+/// Reads the post ref before any request.
+fn x_fetch_input(
+    arguments: XFetchArgs,
+) -> Result<
+    (
+        PlatformFetchRequest,
+        ContentOutputFormat,
+        PlatformCommonArgs,
+    ),
+    AppError,
+> {
     let XFetchArgs {
         reference,
         depth,
@@ -152,10 +175,18 @@ fn x_fetch(arguments: XFetchArgs) -> Result<CommandOutput, AppError> {
     let reference = PlatformRef::parse(Platform::X, &reference)
         .map_err(|error| AppError::Argument(error.to_string()))?;
     let request = PlatformFetchRequest::new(reference, depth.into());
-    fetch(Platform::X, request, format, None, &common)
+    Ok((request, format, common))
 }
 
 fn x_ask(arguments: XAskArgs) -> Result<CommandOutput, AppError> {
+    let (request, format, common) = x_ask_input(arguments)?;
+    ask(PlatformAskRequest::X(request), format, &common)
+}
+
+/// Builds the question a command asks and checks it before any request.
+fn x_ask_input(
+    arguments: XAskArgs,
+) -> Result<(XAskRequest, OutputFormat, PlatformCommonArgs), AppError> {
     let XAskArgs {
         query,
         filters,
@@ -167,5 +198,5 @@ fn x_ask(arguments: XAskArgs) -> Result<CommandOutput, AppError> {
         options: filters.into(),
     };
     request.validate().map_err(AppError::Argument)?;
-    ask(PlatformAskRequest::X(request), format, &common)
+    Ok((request, format, common))
 }
