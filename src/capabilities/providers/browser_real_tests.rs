@@ -5,7 +5,7 @@
 //! Every real-browser test is ignored, so the full suite never launches a browser and never
 //! counts one as passed. Run them before a release on a host with the Managed Browser
 //! installed (`forager browser install`), or with `FORAGER_REAL_BROWSER_PATH` naming another
-//! executable: `cargo nextest run --lib --locked --run-ignored only`.
+//! executable: `cargo nextest run --locked --profile real-browser --run-ignored only`.
 
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};

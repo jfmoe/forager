@@ -18,7 +18,7 @@ A change to page driving (navigation, input, waiting, the capture filter) is pro
 These tests are marked `#[ignore]`, so the full test suite lists them as skipped. After changing the browser transport, `browser login` or the Managed Browser, and before every release, run them on a host with the Managed Browser installed:
 
 ```sh
-cargo nextest run --lib --locked --run-ignored only
+cargo nextest run --locked --profile real-browser --run-ignored only
 ```
 
 - The Reddit projection tests (one for the search page, one for the post page) run the in-page projection script on local pages (`tests/fixtures/reddit_browser/*.html`) and assert that its output equals the JSON fixture the judgement tests read. After changing a projection script or a local page, run them with `FORAGER_WRITE_PROJECTIONS=1` to rewrite the JSON, then review the diff.
