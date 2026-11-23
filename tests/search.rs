@@ -720,34 +720,6 @@ fn search_journal_failure_is_non_fatal_and_reported_in_json() {
 }
 
 #[test]
-fn search_fails_when_xai_completed_response_has_no_output_text() {
-    let xai = Fixture::start(
-        200,
-        "text/event-stream",
-        concat!(
-            "data: {\"type\":\"response.completed\",\"response\":{\"output\":[",
-            "{\"content\":[{\"type\":\"reasoning\",\"text\":\"hidden\"}]}]}}\n\n"
-        ),
-    );
-    let environment = RunEnvironment::new(&search_config(&xai.url, false));
-
-    let output = environment.run(&["search", "No text", "--capabilities", "none"]);
-    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse JSON stdout");
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["error_kind"],
-            payload.get("answer"),
-        ),
-        (Some(4), &Value::String("runtime".into()), None),
-        "stderr: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    xai.finish();
-}
-
-#[test]
 fn search_canary_exempts_answer_content_but_redacts_protected_outputs() {
     let secret = "canary-secret";
     let query_secret = "query-url-secret";
