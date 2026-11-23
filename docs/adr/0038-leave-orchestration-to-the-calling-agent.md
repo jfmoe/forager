@@ -84,7 +84,6 @@ These rules of the agent layer stay in force:
 - **A batch fetch that writes each page to a file.** It would restore research's concurrent
   fetching, but parallel `fetch` calls that each write their page to a file already do that
   without a new contract for partial failure.
-
 - **Keeping Context7 as an unused fallback.** It keeps a credential, a transport and a live
   check alive for a path the journal never shows, and its library resolution almost always returns
   some library, so it hides a miss rather than filling it.
@@ -101,7 +100,6 @@ These rules of the agent layer stay in force:
 - Undeclared searches become a large share of the journal and their answers show capabilities the
   request needed and did not get, for example because callers other than agents taught by the
   product skill start using `search`.
-
 - Exa's coverage of documentation queries falls clearly below another documentation provider's
   on a comparable sample, or Exa stops serving them. A second provider then joins the
   Documentation Search order.
