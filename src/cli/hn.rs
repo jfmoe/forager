@@ -332,3 +332,143 @@ fn hn_stories(arguments: HnStoriesArgs) -> Result<CommandOutput, AppError> {
         attempt_log,
     })
 }
+
+/// The Hacker News commands' argument rules, proven by parsing their definition in process.
+#[cfg(test)]
+mod tests {
+    use chrono::NaiveDate;
+    use clap::error::ErrorKind;
+
+    use super::super::{PageInput, PlatformCommand, parse_platform};
+    use super::{HnCommand, hn_fetch_input, hn_search_input};
+    use crate::app::AppError;
+    use crate::types::{
+        HnSearchOptions, HnSearchType, HnSort, PlatformSearchOptions, PlatformSearchRequest,
+    };
+
+    fn command(arguments: &[&str]) -> Result<HnCommand, clap::Error> {
+        let command = std::iter::once("hn").chain(arguments.iter().copied());
+        match parse_platform(&command.collect::<Vec<_>>())? {
+            PlatformCommand::Hn { command } => Ok(command),
+            _ => unreachable!("the arguments name a hn command"),
+        }
+    }
+
+    /// The first page a search asks for, or the argument error its checks raise.
+    fn search_request(arguments: &[&str]) -> Result<PlatformSearchRequest, AppError> {
+        let search = ["search"].into_iter().chain(arguments.iter().copied());
+        let Ok(HnCommand::Search(arguments)) = command(&search.collect::<Vec<_>>()) else {
+            panic!("the parser accepts a hn search of {arguments:?}");
+        };
+        match hn_search_input(arguments)?.0 {
+            PageInput::Request(request) => Ok(request),
+            PageInput::Cursor(_) => panic!("the arguments name no cursor"),
+        }
+    }
+
+    fn day(value: &str) -> Option<NaiveDate> {
+        NaiveDate::parse_from_str(value, "%Y-%m-%d").ok()
+    }
+
+    #[test]
+    fn search_options_become_one_request_with_repeated_types_dropped_and_a_default_limit() {
+        let filtered = search_request(&[
+            "\"sync service\" -dropbox",
+            "--sort",
+            "date",
+            "--type",
+            "show_hn",
+            "--type",
+            "comment",
+            "--type",
+            "show_hn",
+            "--author",
+            "pg",
+            "--story",
+            "8863",
+            "--from",
+            "2024-01-01",
+            "--to",
+            "2024-01-31",
+            "--min-comments",
+            "5",
+            "--limit",
+            "10",
+        ]);
+        let plain = search_request(&["dropbox"]);
+
+        assert_eq!(
+            [filtered.ok(), plain.ok()],
+            [
+                Some(PlatformSearchRequest {
+                    query: "\"sync service\" -dropbox".to_owned(),
+                    limit: 10,
+                    options: PlatformSearchOptions::Hn(HnSearchOptions {
+                        sort: HnSort::Date,
+                        types: vec![HnSearchType::ShowHn, HnSearchType::Comment],
+                        author: Some("pg".to_owned()),
+                        story: Some(8863),
+                        from: day("2024-01-01"),
+                        to: day("2024-01-31"),
+                        min_points: None,
+                        min_comments: Some(5),
+                    }),
+                    page: None,
+                }),
+                Some(PlatformSearchRequest {
+                    query: "dropbox".to_owned(),
+                    limit: 20,
+                    options: PlatformSearchOptions::Hn(HnSearchOptions::default()),
+                    page: None,
+                }),
+            ]
+        );
+    }
+
+    #[test]
+    fn contradictory_search_options_are_an_argument_error_before_any_request() {
+        assert!(matches!(
+            search_request(&["rust", "--type", "comment", "--min-points", "10"]),
+            Err(AppError::Argument(_))
+        ));
+    }
+
+    #[test]
+    fn values_outside_their_definition_are_refused_while_parsing() {
+        for arguments in [
+            &["search", "rust", "--story", "08863"][..],
+            &["search", "rust", "--limit", "101"],
+            &["stories", "--limit", "0"],
+            &["stories", "--limit", "101"],
+            &["stories", "front"],
+        ] {
+            let error = command(arguments)
+                .map(|_| ())
+                .expect_err("the parser refuses the value");
+
+            assert!(
+                matches!(
+                    error.kind(),
+                    ErrorKind::ValueValidation | ErrorKind::InvalidValue
+                ),
+                "arguments: {arguments:?}\n{error}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_fetch_of_what_names_no_hacker_news_item_is_an_argument_error_before_any_request() {
+        let Ok(HnCommand::Fetch(arguments)) =
+            command(&["fetch", "https://news.ycombinator.com/user?id=pg"])
+        else {
+            panic!("the parser accepts any reference");
+        };
+
+        let result = hn_fetch_input(arguments).map(|_| ());
+
+        assert!(
+            matches!(&result, Err(AppError::Argument(message)) if message.contains("pass an `hn:<id>` ref or a Hacker News item URL")),
+            "{result:?}"
+        );
+    }
+}

@@ -1,0 +1,30 @@
+{
+  "hits": [
+    {
+      "_tags": ["story", "author_dhouston", "story_8863"],
+      "author": "dhouston",
+      "created_at_i": 1175714200,
+      "num_comments": 70,
+      "objectID": "8863",
+      "points": 100,
+      "story_id": 8863,
+      "title": "My YC app: Dropbox - Throw away your USB drive",
+      "url": "http://www.getdropbox.com/u/2/screencast.html"
+    },
+    {
+      "_tags": ["comment", "author_brett", "story_8863"],
+      "author": "brett",
+      "comment_text": "I&#x27;ve used <i>this</i>.<p>See <a href=\"https:&#x2F;&#x2F;example.com&#x2F;post\" rel=\"nofollow\">https:&#x2F;&#x2F;example.com&#x2F;post</a>",
+      "created_at_i": 1175720000,
+      "objectID": "8952",
+      "parent_id": 8863,
+      "points": null,
+      "story_id": 8863,
+      "story_title": "My YC app: Dropbox - Throw away your USB drive"
+    }
+  ],
+  "nbHits": 2,
+  "page": 0,
+  "nbPages": 1,
+  "hitsPerPage": 20
+}

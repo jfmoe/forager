@@ -1,0 +1,43 @@
+# Upstream samples of the `hn_api` route; each record names one file in this directory.
+
+[[sample]]
+file = "search.json"
+shape = "Algolia HN Search `GET /api/v1/search` and `/search_by_date` page: a story hit and a comment hit with their tags, counts and HTML body, and the page count"
+origin = "hand-written"
+observed = 2026-10-17
+
+[[sample]]
+file = "search-error.json"
+shape = "Algolia HN Search error body: the message of a request it rejects, answered with HTTP 400"
+origin = "hand-written"
+observed = 2026-10-17
+
+[[sample]]
+file = "item-tree.json"
+shape = "Algolia HN Search `GET /api/v1/items/{id}`: a story with its whole comment tree, children nested in `children`"
+origin = "hand-written"
+observed = 2026-10-17
+
+[[sample]]
+file = "item-not-found.json"
+shape = "Algolia HN Search `GET /api/v1/items/{id}` error body for an item it does not have, answered with HTTP 404"
+origin = "hand-written"
+observed = 2026-10-17
+
+[[sample]]
+file = "firebase-item.json"
+shape = "HN Firebase `GET /v0/item/{id}.json`: a story with its live score and comment count and its top-level replies in rank order"
+origin = "hand-written"
+observed = 2026-10-17
+
+[[sample]]
+file = "firebase-stories.json"
+shape = "HN Firebase `GET /v0/{list}stories.json`: the item IDs of an official story list in list order"
+origin = "hand-written"
+observed = 2026-10-17
+
+[[sample]]
+file = "firebase-null.json"
+shape = "HN Firebase answer for an item or list it does not have: `null` with HTTP 200"
+origin = "hand-written"
+observed = 2026-10-17
