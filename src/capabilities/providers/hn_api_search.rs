@@ -47,6 +47,13 @@ pub(super) struct SearchResponse {
     nb_pages: u64,
 }
 
+impl SearchResponse {
+    /// Decodes the hits of a search page in page order.
+    pub(super) fn into_listed_items(self) -> Result<Vec<PlatformItem>, String> {
+        self.hits.into_iter().map(Hit::into_listed_item).collect()
+    }
+}
+
 /// One Algolia search hit; which text field is set depends on the item type.
 #[derive(Deserialize)]
 pub(super) struct Hit {
@@ -156,14 +163,12 @@ impl HnApi {
             )
             .await,
         )?;
+        let pages = response.nb_pages;
         let items = response
-            .hits
-            .into_iter()
-            .map(Hit::into_listed_item)
-            .collect::<Result<Vec<_>, _>>()
+            .into_listed_items()
             .map_err(|message| trail.error(AttemptErrorKind::Runtime, message))?;
         let limit = u64::from(request.limit);
-        let next_page = (page + 1 < response.nb_pages && (page + 2) * limit <= MAX_REACHABLE_HITS)
+        let next_page = (page + 1 < pages && (page + 2) * limit <= MAX_REACHABLE_HITS)
             .then(|| (page + 1).to_string());
         Ok(PlatformSearchOutcome {
             items,

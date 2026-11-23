@@ -318,39 +318,7 @@ impl HnApi {
                 )),
             }
         }
-        let (root, order) = ThreadRoot::new(tree, live.as_ref().map(|live| live.kids.as_slice()));
-        let delivered = root.comment_count();
-        let comments = live.as_ref().and_then(|live| live.descendants).or_else(|| {
-            matches!(item_type, HnItemType::Story | HnItemType::Poll).then_some(delivered as u64)
-        });
-        let item = PlatformItem {
-            url: reference.canonical_url(),
-            reference: PlatformRef::Hn(reference),
-            depth: ContentDepth::Thread,
-            title: (item_type != HnItemType::Comment)
-                .then(|| root.node().title.clone())
-                .flatten(),
-            authors: root.node().author.clone().into_iter().collect(),
-            published: published(root.node().created_at_i),
-            data: PlatformItemData::Hn(HnItemData {
-                item_type,
-                link_url: non_empty(root.node().url.clone()),
-                points: live
-                    .as_ref()
-                    .and_then(|live| live.score)
-                    .or(root.node().points),
-                comments,
-                text: root.node().text.as_deref().and_then(hn_markdown),
-                story_ref: comment_ref(item_type, story_id),
-                story_title: (item_type == HnItemType::Comment)
-                    .then_some(story_title)
-                    .flatten(),
-                parent_ref: comment_ref(item_type, root.node().parent_id),
-                comments_delivered: Some(delivered),
-                order: Some(order),
-            }),
-        };
-        let markdown = root.render(&item);
+        let (item, markdown) = thread_item(reference, item_type, tree, live.as_ref(), story_title);
         Ok((item, FullTextSource::Native(markdown)))
     }
 
@@ -482,6 +450,49 @@ impl HnApi {
             endpoint_host: None,
         }
     }
+}
+
+/// Builds the discussion item and its Markdown file from the Algolia tree of `item_type`, the
+/// root's Firebase item when Firebase has it, and the title of a comment's story.
+fn thread_item(
+    reference: HnRef,
+    item_type: HnItemType,
+    tree: ThreadNode,
+    live: Option<&FirebaseItem>,
+    story_title: Option<String>,
+) -> (PlatformItem, String) {
+    let story_id = tree.story_id.filter(|id| *id != reference.id());
+    let (root, order) = ThreadRoot::new(tree, live.map(|live| live.kids.as_slice()));
+    let delivered = root.comment_count();
+    let comments = live.and_then(|live| live.descendants).or_else(|| {
+        matches!(item_type, HnItemType::Story | HnItemType::Poll).then_some(delivered as u64)
+    });
+    let item = PlatformItem {
+        url: reference.canonical_url(),
+        reference: PlatformRef::Hn(reference),
+        depth: ContentDepth::Thread,
+        title: (item_type != HnItemType::Comment)
+            .then(|| root.node().title.clone())
+            .flatten(),
+        authors: root.node().author.clone().into_iter().collect(),
+        published: published(root.node().created_at_i),
+        data: PlatformItemData::Hn(HnItemData {
+            item_type,
+            link_url: non_empty(root.node().url.clone()),
+            points: live.and_then(|live| live.score).or(root.node().points),
+            comments,
+            text: root.node().text.as_deref().and_then(hn_markdown),
+            story_ref: comment_ref(item_type, story_id),
+            story_title: (item_type == HnItemType::Comment)
+                .then_some(story_title)
+                .flatten(),
+            parent_ref: comment_ref(item_type, root.node().parent_id),
+            comments_delivered: Some(delivered),
+            order: Some(order),
+        }),
+    };
+    let markdown = root.render(&item);
+    (item, markdown)
 }
 
 /// Says where the full text of an item lives: the page a link item points to, or the item's
