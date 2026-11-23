@@ -1,0 +1,23 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "role": "model",
+        "parts": [
+          {"text": "Looking at the video first.", "thought": true},
+          {"text": "Two elephants stand behind him (00:01)."}
+        ]
+      },
+      "finishReason": "STOP",
+      "index": 0
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 1747,
+    "candidatesTokenCount": 494,
+    "totalTokenCount": 2736,
+    "thoughtsTokenCount": 495
+  },
+  "modelVersion": "gemini-3.8-flash-n",
+  "responseId": "fixture-response"
+}

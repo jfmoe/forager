@@ -20,6 +20,7 @@ pub(crate) mod arxiv_feed;
 pub(crate) mod browser;
 pub(crate) mod doctor;
 pub(crate) mod gemini_api;
+pub(crate) mod gemini_api_samples;
 pub(crate) mod hn;
 pub(crate) mod hn_samples;
 pub(crate) mod polymarket;

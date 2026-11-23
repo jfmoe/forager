@@ -1,0 +1,14 @@
+# Upstream samples of the `gemini_api` route, Gemini's native `generateContent` protocol; each
+# record names one file in this directory.
+
+[[sample]]
+file = "generate-content.json"
+shape = "`POST models/{model}:generateContent`: one finished candidate whose parts are a reasoning summary marked `thought` and the answer text, the token usage, and the model version"
+origin = "hand-written"
+observed = 2026-10-17
+
+[[sample]]
+file = "error.json"
+shape = "a Gemini API error body: the code, the message and the status reason, here the 403 of a key without permission"
+origin = "hand-written"
+observed = 2026-10-17
