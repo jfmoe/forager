@@ -95,6 +95,10 @@ fn refused<T>(result: Result<T, Refusal>) -> Result<T, (AttemptErrorKind, String
     result.map_err(|refusal| (refusal.kind, refusal.message))
 }
 
+fn stored_json(name: &str) -> Value {
+    serde_json::from_str(&stored::stored(name)).expect("a stored JSON body")
+}
+
 fn search_request(query: &str, limit: u16, include_closed: bool) -> PlatformSearchRequest {
     PlatformSearchRequest {
         query: query.to_owned(),
@@ -729,19 +733,15 @@ fn live_prices_are_as_of_the_second_the_clob_read_them_in_utc() {
 
 #[test]
 fn an_event_carries_its_identity_and_scale() {
-    let [yes, no] = tokens("two-sided");
-
-    let mut item = fetched(
+    let item = fetched(
         &format!("https://polymarket.com/zh/event/{EVENT}?tid=1761200000000"),
-        &event(EVENT, &[market("two-sided", "Two-sided")]),
+        &stored_json("event.json"),
         ContentDepth::Metadata,
         Some((
-            &prices(&[(&yes, "0.961", "0.963"), (&no, "0.037", "0.039")]),
-            &last_trades(&[]),
+            &stored_json("prices.json"),
+            &stored_json("last-trades.json"),
         )),
     );
-    item["prices_as_of"].take();
-    item["markets"][0]["outcomes"].take();
 
     assert_eq!(
         item,
@@ -761,20 +761,23 @@ fn an_event_carries_its_identity_and_scale() {
             "neg_risk": true,
             "market_count": 1,
             "price_source": "clob",
-            "prices_as_of": null,
+            "prices_as_of": READ_AT,
             "markets": [{
-                "ref": "polymarket:market/two-sided",
-                "url": "https://polymarket.com/market/two-sided",
+                "ref": "polymarket:market/will-no-fed-rate-cuts-happen-in-2026",
+                "url": "https://polymarket.com/market/will-no-fed-rate-cuts-happen-in-2026",
                 "market_id": "616902",
-                "condition_id": "0xtwo-sided",
-                "question": "Will Two-sided happen?",
-                "label": "Two-sided",
+                "condition_id": "0x0000000000000000000000000000000000000000000000000000000000616902",
+                "question": "Will no Fed rate cuts happen in 2026?",
+                "label": "0 (0 bps)",
                 "status": "open",
                 "end_date": "2027-01-01T04:59:00Z",
                 "probability": 0.962,
-                "outcomes": null,
+                "outcomes": [
+                    outcome_price("Yes", json!(0.962), "midpoint", json!(0.961), json!(0.963)),
+                    outcome_price("No", json!(0.038), "midpoint", json!(0.037), json!(0.039)),
+                ],
                 "spread": 0.002,
-                "last_trade_price": null,
+                "last_trade_price": 0.962,
                 "one_day_change": -0.002,
                 "one_week_change": -0.006,
                 "one_month_change": 0.01,
