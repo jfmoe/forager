@@ -230,6 +230,14 @@ pub(crate) fn config_set_hint(
     ))
 }
 
+/// Returns the platform whose catalog lists `route`, whose Browser Profile a browser route uses.
+pub(crate) fn route_platform(route: ProviderId) -> Platform {
+    let Some(catalog) = PLATFORMS.iter().find(|catalog| catalog.contains(route)) else {
+        panic!("{} belongs to no platform catalog", route.name())
+    };
+    catalog.platform
+}
+
 pub(crate) fn platform(platform: Platform) -> PlatformCatalog {
     PLATFORMS
         .iter()

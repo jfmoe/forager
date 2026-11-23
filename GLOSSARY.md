@@ -153,8 +153,8 @@ _Avoid_: platform backend, platform provider list
 How a Platform Route reaches its source, declared in the provider's registration: HTTP (configured
 with `url`, plus `keys` when the route needs credentials), or forager's browser transport. A route
 on the browser transport is a browser route; its only setting is `timeout`, and its registration
-also declares which platform's Browser Profile it uses, the browser language, and whether the
-profile needs a login. A browser route runs only when the user adds it to the platform's order
+also declares the browser language. It uses the Browser Profile of the platform it serves, which
+needs a login. A browser route runs only when the user adds it to the platform's order
 (ADR-0020).
 _Avoid_: route kind, backend type, process route
 

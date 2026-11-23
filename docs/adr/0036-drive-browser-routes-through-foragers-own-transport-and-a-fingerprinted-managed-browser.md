@@ -32,7 +32,8 @@ user's everyday browser and never through an external browser driver.
 - **Login state stays in the profile.** forager never reads, exports or injects cookies or tokens.
 - **Read-only.** Routes perform no writes on the site: no likes, saves, comments or posts.
 - **The route declares its browser environment.** The registration names the route's transport as
-  a browser together with its profile, page language and whether it needs a login.
+  a browser together with its page language; the route uses the logged-in Browser Profile of the
+  platform it serves.
   Configuration checks, the preflight check, doctor and the platform checklist read that
   declaration and never branch on a route ID, so a new browser route writes only its page logic.
 

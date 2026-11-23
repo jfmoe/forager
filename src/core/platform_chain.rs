@@ -511,15 +511,11 @@ fn opt_in_hint<C>(
         .iter()
         .filter(|route| !order.contains(route) && relevant(**route))
         .filter_map(|route| match catalog::registration(*route).transport {
-            ProviderTransport::Browser(environment) => {
-                let login = if environment.requires_login {
-                    format!(
-                        ", run `forager browser login {platform}` and log in",
-                        platform = environment.profile
-                    )
-                } else {
-                    String::new()
-                };
+            ProviderTransport::Browser(_) => {
+                let login = format!(
+                    ", run `forager browser login {platform}` and log in",
+                    platform = catalog::route_platform(*route)
+                );
                 let risk = catalog::opt_in_risk(*route)
                     .map(|risk| format!(". {risk}"))
                     .unwrap_or_default();
@@ -547,9 +543,8 @@ pub(crate) fn browser_preflight(
     browser: &BrowserRuntimeConfig,
 ) -> Result<(), String> {
     for entry in config.entries() {
-        if let ProviderTransport::Browser(environment) = catalog::registration(entry.id()).transport
-        {
-            providers::browser_preflight(&environment, browser)
+        if let ProviderTransport::Browser(_) = catalog::registration(entry.id()).transport {
+            providers::browser_preflight(entry.id(), browser)
                 .map_err(|reason| format!("{} cannot run: {reason}", entry.id().name()))?;
         }
     }

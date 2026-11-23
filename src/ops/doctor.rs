@@ -632,8 +632,8 @@ async fn shallow_check(
                 message: anonymous.then(|| "runs anonymously without keys".to_owned()),
             }
         }
-        ProviderTransport::Browser(environment) => {
-            let preflight = providers::browser_preflight(&environment, &runtime.browser);
+        ProviderTransport::Browser(_) => {
+            let preflight = providers::browser_preflight(id, &runtime.browser);
             ShallowCheck {
                 configured: true,
                 reachable: preflight.is_ok(),

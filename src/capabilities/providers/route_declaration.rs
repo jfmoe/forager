@@ -68,6 +68,6 @@ pub(crate) struct RouteAdapter {
     pub(crate) search_support: Option<SearchSupport>,
     /// `None` when the route serves no platform fetch.
     pub(crate) fetch_support: Option<FetchSupport>,
-    /// The login page logic of a browser route whose environment needs a login.
+    /// The login page logic of a browser route.
     pub(crate) login_page: Option<LoginPage>,
 }

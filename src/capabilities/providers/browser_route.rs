@@ -6,13 +6,15 @@
 //!
 //! It also owns the reading session every route's page logic drives a page with, and the
 //! preflight check every browser route passes before a platform command enters its route
-//! chain: the browser can be found, and a profile that needs a login had one.
+//! chain: the browser can be found, and its platform's Browser Profile had a login.
 
 use std::time::Duration;
 
 use serde::de::DeserializeOwned;
 
-use crate::catalog::{BrowserEnvironment, ProviderId, ProviderTransport, registration};
+use crate::catalog::{
+    BrowserEnvironment, ProviderId, ProviderTransport, registration, route_platform,
+};
 use crate::config::{BrowserRouteRuntimeConfig, BrowserRuntimeConfig};
 use crate::net::{AttemptFailure, RetryPolicy};
 use crate::providers::browser::{
@@ -91,7 +93,7 @@ impl BrowserRoute {
     ) -> Result<T, AttemptFailure> {
         let executable = managed_browser::locate(&self.config.browser)
             .map_err(|error| runtime(error.to_string()))?;
-        let profile = BrowserProfile::named(self.environment.profile.as_str())
+        let profile = BrowserProfile::named(route_platform(self.route).as_str())
             .map_err(|error| runtime(error.to_string()))?;
         let session = BrowserSession {
             executable: &executable,
@@ -210,22 +212,16 @@ impl<'p> PageReading<'p> {
     }
 }
 
-/// Checks, without launching anything, that a browser route in `environment` can run: the
-/// browser can be found, and a profile that needs a login had one. The login may have expired
+/// Checks, without launching anything, that a browser route can run: the browser can be found,
+/// and its platform's Browser Profile had a login. The login may have expired
 /// since; the page reports that.
 ///
 /// # Errors
 ///
 /// Returns the reason with the command that fixes it.
-pub(crate) fn preflight(
-    environment: &BrowserEnvironment,
-    browser: &BrowserRuntimeConfig,
-) -> Result<(), String> {
+pub(crate) fn preflight(route: ProviderId, browser: &BrowserRuntimeConfig) -> Result<(), String> {
     managed_browser::locate(browser).map_err(|error| error.to_string())?;
-    if !environment.requires_login {
-        return Ok(());
-    }
-    let platform = environment.profile.as_str();
+    let platform = route_platform(route).as_str();
     let profile = BrowserProfile::named(platform).map_err(|error| error.to_string())?;
     if profile.has_logged_in() {
         Ok(())

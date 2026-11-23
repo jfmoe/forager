@@ -48,7 +48,7 @@ mod platform_catalog;
 
 pub(crate) use platform_catalog::{
     ARXIV, HN, PLATFORMS, POLYMARKET, PlatformCatalog, PlatformOperation, REDDIT, SCHOLAR, SSRN, X,
-    XIAOHONGSHU, YOUTUBE, config_set_hint, opt_in_risk, platform,
+    XIAOHONGSHU, YOUTUBE, config_set_hint, opt_in_risk, platform, route_platform,
 };
 
 pub(crate) fn supports(capability: &str, provider: &str) -> bool {
@@ -118,15 +118,12 @@ pub(crate) enum ProviderTransport {
 /// browser login`, and the platform checklist read it instead of branching on a route ID.
 ///
 /// Every browser route runs in the headless Managed Browser, or the browser that `browser.path`
-/// names, with the Browser Profile named after its platform.
+/// names, with the Browser Profile of the platform it serves, and needs a profile that a
+/// `forager browser login` once succeeded in.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct BrowserEnvironment {
-    /// The platform whose Browser Profile the route uses.
-    pub(crate) profile: Platform,
     /// The page language, such as `zh-CN`.
     pub(crate) language: &'static str,
-    /// Whether the route needs a profile that a `forager browser login` once succeeded in.
-    pub(crate) requires_login: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -192,7 +189,6 @@ pub(crate) enum Credentials {
 #[derive(Clone, Copy)]
 pub(crate) struct ProviderRegistration {
     pub(crate) id: ProviderId,
-    pub(crate) operations: &'static [&'static str],
     pub(crate) credentials: Credentials,
     pub(crate) transport: ProviderTransport,
     /// The pacing every send to the provider must follow; a browser route paces each browser
@@ -558,7 +554,6 @@ const GEMINI_API_ACCESS: AccessPolicy = AccessPolicy {
 const REGISTRY: &[ProviderRegistration] = &[
     ProviderRegistration {
         id: ProviderId::Xai,
-        operations: &[],
         credentials: Credentials::Required,
         transport: ProviderTransport::Http,
         access_policy: None,
@@ -571,7 +566,6 @@ const REGISTRY: &[ProviderRegistration] = &[
     },
     ProviderRegistration {
         id: ProviderId::Openai,
-        operations: &[],
         credentials: Credentials::Required,
         transport: ProviderTransport::Http,
         access_policy: None,
@@ -584,7 +578,6 @@ const REGISTRY: &[ProviderRegistration] = &[
     },
     ProviderRegistration {
         id: ProviderId::Tavily,
-        operations: &["site_map"],
         credentials: Credentials::Required,
         transport: ProviderTransport::Http,
         access_policy: None,
@@ -597,7 +590,6 @@ const REGISTRY: &[ProviderRegistration] = &[
     },
     ProviderRegistration {
         id: ProviderId::Firecrawl,
-        operations: &[],
         credentials: Credentials::Required,
         transport: ProviderTransport::Http,
         access_policy: None,
@@ -610,7 +602,6 @@ const REGISTRY: &[ProviderRegistration] = &[
     },
     ProviderRegistration {
         id: ProviderId::Jina,
-        operations: &[],
         credentials: Credentials::Optional,
         transport: ProviderTransport::Http,
         access_policy: None,
@@ -623,7 +614,6 @@ const REGISTRY: &[ProviderRegistration] = &[
     },
     ProviderRegistration {
         id: ProviderId::Exa,
-        operations: &["similar"],
         credentials: Credentials::Required,
         transport: ProviderTransport::Http,
         access_policy: None,
@@ -636,7 +626,6 @@ const REGISTRY: &[ProviderRegistration] = &[
     },
     ProviderRegistration {
         id: ProviderId::ArxivApi,
-        operations: &[],
         credentials: Credentials::Unused,
         transport: ProviderTransport::Http,
         access_policy: Some(ARXIV_API_ACCESS),
@@ -650,7 +639,6 @@ const REGISTRY: &[ProviderRegistration] = &[
     },
     ProviderRegistration {
         id: ProviderId::SsrnCrossref,
-        operations: &[],
         credentials: Credentials::Unused,
         transport: ProviderTransport::Http,
         access_policy: Some(SSRN_CROSSREF_ACCESS),
@@ -665,7 +653,6 @@ const REGISTRY: &[ProviderRegistration] = &[
     // SerpApi limits throughput per account; a 429 rotates to the next key instead of pacing.
     ProviderRegistration {
         id: ProviderId::Serpapi,
-        operations: &[],
         credentials: Credentials::Required,
         transport: ProviderTransport::Http,
         access_policy: None,
@@ -678,13 +665,8 @@ const REGISTRY: &[ProviderRegistration] = &[
     },
     ProviderRegistration {
         id: ProviderId::XiaohongshuBrowser,
-        operations: &[],
         credentials: Credentials::Unused,
-        transport: ProviderTransport::Browser(BrowserEnvironment {
-            profile: Platform::Xiaohongshu,
-            language: "zh-CN",
-            requires_login: true,
-        }),
+        transport: ProviderTransport::Browser(BrowserEnvironment { language: "zh-CN" }),
         access_policy: Some(XIAOHONGSHU_BROWSER_ACCESS),
         probe: DoctorProbe::PlatformSearch {
             platform: Platform::Xiaohongshu,
@@ -697,7 +679,6 @@ const REGISTRY: &[ProviderRegistration] = &[
     // A full-text fetch of a link story reads the linked page through Web Fetch.
     ProviderRegistration {
         id: ProviderId::HnApi,
-        operations: &[],
         credentials: Credentials::Unused,
         transport: ProviderTransport::Http,
         access_policy: Some(HN_API_ACCESS),
@@ -712,7 +693,6 @@ const REGISTRY: &[ProviderRegistration] = &[
     // Search and fetch read only official keyless endpoints; a fetch never needs Web Fetch.
     ProviderRegistration {
         id: ProviderId::PolymarketApi,
-        operations: &[],
         credentials: Credentials::Unused,
         transport: ProviderTransport::Http,
         access_policy: Some(POLYMARKET_API_ACCESS),
@@ -727,13 +707,8 @@ const REGISTRY: &[ProviderRegistration] = &[
     // A full-text fetch of a link post reads the linked page through Web Fetch.
     ProviderRegistration {
         id: ProviderId::RedditBrowser,
-        operations: &[],
         credentials: Credentials::Unused,
-        transport: ProviderTransport::Browser(BrowserEnvironment {
-            profile: Platform::Reddit,
-            language: "en-US",
-            requires_login: true,
-        }),
+        transport: ProviderTransport::Browser(BrowserEnvironment { language: "en-US" }),
         access_policy: Some(REDDIT_BROWSER_ACCESS),
         probe: DoctorProbe::PlatformSearch {
             platform: Platform::Reddit,
@@ -746,7 +721,6 @@ const REGISTRY: &[ProviderRegistration] = &[
     // A deep doctor spends one search of the separate daily search quota.
     ProviderRegistration {
         id: ProviderId::YoutubeApi,
-        operations: &[],
         credentials: Credentials::Required,
         transport: ProviderTransport::Http,
         access_policy: Some(YOUTUBE_API_ACCESS),
@@ -762,7 +736,6 @@ const REGISTRY: &[ProviderRegistration] = &[
     // text is the transcript it renders itself.
     ProviderRegistration {
         id: ProviderId::YoutubeWeb,
-        operations: &[],
         credentials: Credentials::Unused,
         transport: ProviderTransport::Http,
         access_policy: Some(YOUTUBE_WEB_ACCESS),
@@ -780,7 +753,6 @@ const REGISTRY: &[ProviderRegistration] = &[
     // spends no model quota.
     ProviderRegistration {
         id: ProviderId::GeminiApi,
-        operations: &[],
         credentials: Credentials::Required,
         transport: ProviderTransport::Http,
         access_policy: Some(GEMINI_API_ACCESS),
