@@ -1280,7 +1280,6 @@ impl AppError {
             .take(500)
             .collect::<String>();
         let error_kind = match self.exit_code() {
-            2 => "parameter",
             3 => "config",
             _ => "runtime",
         };
@@ -1305,12 +1304,6 @@ mod tests {
     #[test]
     fn app_errors_have_stable_json_preflight_fields() {
         let cases = [
-            (
-                AppError::Argument("invalid plan".into()),
-                "parameter",
-                2,
-                "invalid plan",
-            ),
             (
                 AppError::Config(ConfigError::Message("invalid config".into())),
                 "config",
