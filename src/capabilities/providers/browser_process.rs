@@ -234,10 +234,11 @@ mod tests {
 
         let sandbox = tempfile::tempdir().expect("create sandbox");
         let browser = sandbox.path().join("browser");
+        // Each pid file appears by a rename, so the wait below never reads one half written.
         std::fs::write(
             &browser,
             format!(
-                "#!/bin/sh\n/bin/sleep 60 &\nprintf '%s\\n' \"$!\" > '{0}/child.pid'\nprintf '%s\\n' \"$$\" > '{0}/leader.pid'\nwait\n",
+                "#!/bin/sh\n/bin/sleep 60 &\nprintf '%s\\n' \"$!\" > '{0}/child.tmp' && mv '{0}/child.tmp' '{0}/child.pid'\nprintf '%s\\n' \"$$\" > '{0}/leader.tmp' && mv '{0}/leader.tmp' '{0}/leader.pid'\nwait\n",
                 sandbox.path().display()
             ),
         )
