@@ -115,7 +115,7 @@ impl Sandbox {
 }
 
 /// Pages that samples under `tests/samples` answer: the path served and the sample, as HTML.
-pub(crate) type FixturePages = &'static [(&'static str, &'static str)];
+pub(crate) type SamplePages = &'static [(&'static str, &'static str)];
 
 /// Serves the test pages on 127.0.0.1 until dropped.
 pub(crate) struct Pages {
@@ -129,8 +129,8 @@ impl Pages {
         Self::serving(&[])
     }
 
-    /// Serves the test pages and `fixtures`, which take precedence.
-    pub(crate) fn serving(fixtures: FixturePages) -> Self {
+    /// Serves the test pages and `samples`, which take precedence.
+    pub(crate) fn serving(samples: SamplePages) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").expect("bind test pages");
         let address = listener.local_addr().expect("test pages address");
         let stop = Arc::new(AtomicBool::new(false));
@@ -141,7 +141,7 @@ impl Pages {
                     return;
                 }
                 if let Ok(stream) = stream {
-                    thread::spawn(move || serve(stream, fixtures));
+                    thread::spawn(move || serve(stream, samples));
                 }
             }
         });
@@ -169,7 +169,7 @@ impl Drop for Pages {
     }
 }
 
-fn serve(mut stream: TcpStream, fixtures: FixturePages) {
+fn serve(mut stream: TcpStream, samples: SamplePages) {
     let mut reader = BufReader::new(stream.try_clone().expect("clone stream"));
     let mut request_line = String::new();
     if reader.read_line(&mut request_line).is_err() {
@@ -191,11 +191,11 @@ fn serve(mut stream: TcpStream, fixtures: FixturePages) {
     let _ = reader.read_exact(&mut body);
     let path = request_line.split_whitespace().nth(1).unwrap_or("/");
     let path = path.split('?').next().unwrap_or(path);
-    let fixture = fixtures
+    let stored = samples
         .iter()
         .find(|(served, _)| *served == path)
         .map(|(_, file)| crate::samples::sample(file));
-    let (content_type, content) = if let Some(content) = fixture {
+    let (content_type, content) = if let Some(content) = stored {
         ("text/html", content)
     } else {
         match path {

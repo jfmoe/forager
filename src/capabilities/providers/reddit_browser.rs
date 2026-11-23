@@ -463,7 +463,7 @@ mod tests {
     /// it writes the stored projections instead.
     #[cfg(unix)]
     pub(super) fn check_projections(
-        served: crate::providers::real_browser::FixturePages,
+        served: crate::providers::real_browser::SamplePages,
         projected: &[(&str, &str, &str)],
         script: &str,
     ) {
