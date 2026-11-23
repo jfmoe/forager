@@ -24,6 +24,15 @@ mod credentials;
 mod doctor;
 #[path = "core/engine.rs"]
 mod engine;
+// Test builds only. The file lives with the integration test support because the in-crate
+// tests and the command contract tests share this one implementation.
+#[cfg(test)]
+#[expect(
+    dead_code,
+    reason = "the in-crate tests use only some of the fixture server's modes"
+)]
+#[path = "../tests/support/fixture_server.rs"]
+mod fixture_server;
 #[path = "evidence/journal.rs"]
 mod journal;
 #[path = "capabilities/net.rs"]
