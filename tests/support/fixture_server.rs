@@ -1,4 +1,4 @@
-//! The local HTTP server behind every fixture, shared by the offline end-to-end tests and, through
+//! The local HTTP server behind every fixture, shared by the command contract tests and, through
 //! the crate root, the in-crate tests. Extend it when a test needs new server behavior instead of
 //! writing another server.
 

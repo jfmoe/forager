@@ -25,7 +25,7 @@ mod doctor;
 #[path = "core/engine.rs"]
 mod engine;
 // The file lives with the test support under `tests/` because the in-crate tests and the
-// offline end-to-end tests share this one implementation.
+// command contract tests share this one implementation.
 #[cfg(test)]
 #[expect(
     dead_code,
@@ -54,9 +54,9 @@ mod platform_precheck;
 mod providers;
 #[path = "capabilities/rate_limit.rs"]
 mod rate_limit;
-// Shared with the command contract tests, like the fixture server.
 #[path = "infra/redact.rs"]
 mod redact;
+// Shared with the command contract tests, like the fixture server.
 #[cfg(test)]
 #[path = "../tests/support/samples.rs"]
 mod samples;

@@ -1,4 +1,4 @@
-//! Polymarket fixtures for the command contract tests: configuration for the endpoints of
+//! Polymarket support for the command contract tests: configuration for the endpoints of
 //! `polymarket_api`, and its upstream answers, derived from the stored samples by
 //! [`super::polymarket_samples`].
 
