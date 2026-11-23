@@ -129,13 +129,13 @@ mod tests {
 
     #[test]
     fn summary_does_not_mark_a_seam_transition_as_fallback() {
-        let mut classifier = attempt(AttemptErrorKind::Runtime);
-        classifier.provider = "classifier";
-        classifier.target = AttemptTarget::seam("classifier");
-        classifier.model = Some("classifier-model".into());
+        let mut web_search = attempt(AttemptErrorKind::Runtime);
+        web_search.provider = "tavily";
+        web_search.target = AttemptTarget::seam("web_search");
+        web_search.model = Some("web-search-model".into());
         let main_search = attempt(AttemptErrorKind::Network);
 
-        let output = render(LogLevel::Debug, &[classifier, main_search]).expect("debug projection");
+        let output = render(LogLevel::Debug, &[web_search, main_search]).expect("debug projection");
         let summary: serde_json::Value = serde_json::from_str(
             output
                 .strip_prefix("forager attempts: ")

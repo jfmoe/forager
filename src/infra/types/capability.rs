@@ -60,7 +60,8 @@ pub enum Capability {
 }
 
 impl Capability {
-    const VOCABULARY: [Self; 3] = [Self::DocsSearch, Self::WebSearch, Self::WebFetch];
+    /// Every capability, in the canonical vocabulary order.
+    pub const VOCABULARY: [Self; 3] = [Self::DocsSearch, Self::WebSearch, Self::WebFetch];
 
     /// Returns the stable snake-case capability identifier used by CLI output.
     #[must_use]

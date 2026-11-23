@@ -4,7 +4,7 @@ use std::path::Path;
 
 use clap::CommandFactory;
 use forager::app::Cli;
-use forager::types::{Platform, PlatformRef};
+use forager::types::{Capability, Platform, PlatformRef};
 
 #[test]
 fn repository_exposes_only_the_named_installable_skill() {
@@ -99,6 +99,22 @@ fn platform_vocabulary_ref_examples_parse_as_refs_of_their_platform() {
         .collect::<Vec<_>>();
 
     assert_eq!(unparsed, Vec::<String>::new());
+}
+
+#[test]
+fn capability_vocabulary_lists_the_cli_capabilities_in_canonical_order() {
+    let source = fs::read_to_string(skill_path("references/capability-vocabulary.json"))
+        .expect("read capability vocabulary");
+    let vocabulary: serde_json::Value =
+        serde_json::from_str(&source).expect("parse capability vocabulary");
+    let ids = vocabulary["capabilities"]
+        .as_array()
+        .expect("capabilities array")
+        .iter()
+        .map(|entry| entry["id"].as_str().unwrap_or_default())
+        .collect::<Vec<_>>();
+
+    assert_eq!(ids, Capability::VOCABULARY.map(Capability::as_str).to_vec());
 }
 
 #[test]

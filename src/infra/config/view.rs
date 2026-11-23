@@ -123,21 +123,21 @@ mod tests {
     fn schema_views_project_plain_url_and_keys_at_nested_paths() {
         let mut config = Config::default();
         config.search.fallback = "off".into();
-        config.classifier.url = "https://user:pass@example.test/?token=secret".into();
-        config.classifier.keys = vec![Secret::from("canary")];
+        config.providers.tavily.url = "https://user:pass@example.test/?token=secret".into();
+        config.providers.tavily.keys = vec![Secret::from("canary")];
         let file: toml::Value = toml::from_str(
-            "[classifier]\nurl = \"https://user:pass@example.test/?token=secret\"\n",
+            "[providers.tavily]\nurl = \"https://user:pass@example.test/?token=secret\"\n",
         )
         .expect("parse file layer");
-        let environment = HashSet::from(["classifier.keys".to_owned()]);
+        let environment = HashSet::from(["providers.tavily.keys".to_owned()]);
 
         let view = build_view(&config, &file, &environment);
 
         assert_eq!(
             (
                 &view["search"]["fallback"],
-                &view["classifier"]["url"],
-                &view["classifier"]["keys"],
+                &view["providers"]["tavily"]["url"],
+                &view["providers"]["tavily"]["keys"],
             ),
             (
                 &json!({"value": "off", "source": "default"}),
