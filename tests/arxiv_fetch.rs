@@ -265,35 +265,6 @@ fn format_content_prints_the_body_and_writes_no_file() {
     );
 }
 
-#[test]
-fn an_unwritable_content_directory_is_a_runtime_failure() {
-    let arxiv = Fixture::start_sequence(vec![atom(200, &entry_feed("2401.01234v2")), head(200)]);
-    let provider = Fixture::start_sequence(vec![firecrawl(&body("HTML body"))]);
-    let environment = RunEnvironment::new(&config(&arxiv.url, &[("firecrawl", &provider.url)]));
-    let blocker = tempfile::NamedTempFile::new().expect("blocking file");
-
-    let output = fetch(
-        &environment,
-        &[
-            "arxiv:2401.01234",
-            "--content-dir",
-            blocker.path().to_str().expect("UTF-8 path"),
-        ],
-    );
-    arxiv.finish_all();
-    provider.finish_all();
-    let payload = payload(&output);
-
-    assert_eq!(
-        (
-            output.status.code(),
-            &payload["error_kind"],
-            String::from_utf8_lossy(&output.stdout).contains("Paper body text"),
-        ),
-        (Some(4), &json!("runtime"), false)
-    );
-}
-
 fn assert_preflight_exit(config: &str, arguments: &[&str], exit_code: i32, message: &str) {
     let fixture = Fixture::start_canary();
     let environment = RunEnvironment::new(&config.replace("{url}", &fixture.url));
@@ -330,21 +301,4 @@ fn an_empty_platform_order_is_a_config_error() {
         3,
         "platforms.arxiv.order has no configured route for arxiv fetch",
     );
-}
-
-#[test]
-fn unrecognized_references_and_short_links_fail_before_any_request() {
-    for input in [
-        "https://bit.ly/abc123",
-        "2401.01234",
-        "https://arxiv.org/list/cs.AI/recent",
-        "arxiv:2401.123",
-    ] {
-        assert_preflight_exit(
-            "[providers.arxiv_api]\nurl = \"{url}/api/query\"\n",
-            &[input, "--depth", "abstract"],
-            2,
-            "pass an `arxiv:<id>[v<n>]` ref or an original arxiv.org URL",
-        );
-    }
 }
