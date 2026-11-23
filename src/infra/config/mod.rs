@@ -24,7 +24,7 @@ pub(crate) use runtime::{
     platform_route_config, provider_keys_key, runtime_config,
 };
 #[cfg(test)]
-pub(crate) use runtime::{PlatformRoutesRuntimeConfig, platform_order_key};
+pub(crate) use runtime::{default_platform_routes, platform_order_key};
 #[cfg(test)]
 pub(crate) use schema::{BrowserRoute, is_leaf};
 pub(crate) use seam_config::{

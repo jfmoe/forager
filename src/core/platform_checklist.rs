@@ -7,11 +7,7 @@ use crate::catalog::{
     self, Credentials, DoctorProbe, PLATFORMS, PlatformCatalog, PlatformOperation, ProviderId,
     ProviderRegistration, ProviderTransport,
 };
-use crate::config::{
-    self, BrowserRouteRuntimeConfig, BrowserRuntimeConfig, HnRouteRuntimeConfig,
-    HttpRouteRuntimeConfig, KeyedHttpRouteRuntimeConfig, ModelRouteRuntimeConfig,
-    PlatformRoutesRuntimeConfig, PolymarketRouteRuntimeConfig, XaiRuntimeConfig,
-};
+use crate::config;
 use crate::providers;
 use crate::types::{
     ASK, AccessToken, CITED_BY, COMMENTS, ContentDepth, HISTORY, Platform, PlatformFetchRequest,
@@ -476,59 +472,7 @@ fn has_adapter(platform: Platform, operation: PlatformOperation, route: Provider
                 providers::platform_fetch_support(route, &request).is_some()
             }),
     };
-    let http_route = HttpRouteRuntimeConfig {
-        url: String::new(),
-        timeout_seconds: 1,
-    };
-    let routes = PlatformRoutesRuntimeConfig {
-        arxiv_api: http_route.clone(),
-        ssrn_crossref: http_route,
-        serpapi: KeyedHttpRouteRuntimeConfig {
-            url: String::new(),
-            keys: Vec::new(),
-            timeout_seconds: 1,
-        },
-        xiaohongshu_browser: BrowserRouteRuntimeConfig {
-            timeout_seconds: 1,
-            browser: BrowserRuntimeConfig { path: None },
-        },
-        reddit_browser: BrowserRouteRuntimeConfig {
-            timeout_seconds: 1,
-            browser: BrowserRuntimeConfig { path: None },
-        },
-        xai: XaiRuntimeConfig {
-            url: String::new(),
-            keys: Vec::new(),
-            model: String::new(),
-            tools: Vec::new(),
-        },
-        hn_api: HnRouteRuntimeConfig {
-            url: String::new(),
-            firebase_url: String::new(),
-            timeout_seconds: 1,
-        },
-        youtube_api: KeyedHttpRouteRuntimeConfig {
-            url: String::new(),
-            keys: Vec::new(),
-            timeout_seconds: 1,
-        },
-        youtube_web: HttpRouteRuntimeConfig {
-            url: String::new(),
-            timeout_seconds: 1,
-        },
-        gemini_api: ModelRouteRuntimeConfig {
-            url: String::new(),
-            keys: Vec::new(),
-            model: String::new(),
-            timeout_seconds: 1,
-        },
-        polymarket_api: PolymarketRouteRuntimeConfig {
-            url: String::new(),
-            clob_url: String::new(),
-            data_url: String::new(),
-            timeout_seconds: 1,
-        },
-    };
+    let routes = config::default_platform_routes();
     has_support
         && config::platform_route_config(route, &routes)
             .is_some_and(|route_config| route_config.route() == route)

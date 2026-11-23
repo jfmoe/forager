@@ -17,6 +17,7 @@ mod openai;
 mod polymarket_api;
 mod reddit_browser;
 mod responses_api;
+mod route_declaration;
 mod serpapi;
 pub(crate) mod shared;
 mod ssrn_crossref;
@@ -58,11 +59,9 @@ pub(crate) use factory::{
     youtube_videos_support,
 };
 pub(crate) use gemini_api::GeminiApi;
-pub(crate) use hn_api::HnApi;
 pub(crate) use key_account::{KeyAccount, KeyQuota};
 pub(crate) use openai::Openai;
 pub(crate) use polymarket_api::PolymarketApi;
-pub(crate) use reddit_browser::RedditBrowser;
 pub(crate) use serpapi::Serpapi;
 pub(crate) use ssrn_crossref::SsrnCrossref;
 pub(crate) use supplemental::SupplementalSearch;
