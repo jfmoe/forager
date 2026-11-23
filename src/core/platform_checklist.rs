@@ -1,7 +1,10 @@
-//! Consistency checks for every registration point a platform needs.
+//! Checks what the compiler cannot see in a platform and its routes.
 //!
-//! The type system cannot see a platform that misses a registration point, so this test walks
-//! the integration checklist: each [`Rule`] states one registration point and what to add.
+//! The compiler names every dispatch site a new route must handle, but not whether facts declared
+//! in separate places agree: the platform catalog, the provider registration, the route
+//! declaration and the route built from it, and the configuration schema, nor whether a platform
+//! and its routes have the samples, tests and live cases they need. Each [`Rule`] states one such
+//! fact and what to add when it breaks.
 
 use crate::catalog::{
     self, Credentials, DoctorProbe, PLATFORMS, PlatformCatalog, PlatformOperation, ProviderId,
@@ -34,11 +37,11 @@ impl Rule {
     fn text(self) -> (&'static str, &'static str) {
         match self {
             Self::Catalog => (
-                "the platform catalog lists every platform with a non-empty route set for search and for fetch, and a default order of its own routes",
+                "the platform catalog lists every platform with a non-empty route set for search and for fetch",
                 "add the platform and its routes to the platform catalog",
             ),
             Self::Registration => (
-                "every route has a provider ID and a provider registration, and its ID is not the bare platform name",
+                "every route has a provider registration, and its provider ID is not the bare platform name",
                 "register the route in the provider registry under a name such as `<platform>_api` or `<platform>_browser`",
             ),
             Self::Factory => (
@@ -122,7 +125,7 @@ fn sample_refs(platform: Platform) -> &'static [&'static str] {
     }
 }
 
-/// The registration points the checklist inspects; tests replace one at a time.
+/// Everything the checklist inspects; the negative tests replace one part at a time.
 struct Registry<'a> {
     platforms: &'a [PlatformCatalog],
     registrations: &'a [ProviderRegistration],
@@ -518,7 +521,7 @@ fn every_platform_satisfies_the_integration_checklist() {
 
     assert!(
         found.is_empty(),
-        "missing registration points:\n{}",
+        "platform checklist violations:\n{}",
         found
             .iter()
             .map(ToString::to_string)
