@@ -139,72 +139,80 @@ impl Exa {
         let response = send_provider_request(request, &self.credentials).await?;
         let body = read_complete_protocol(response, &self.credentials, failure_message).await?;
         let status = body.status;
-        let response: ExaResponse =
-            serde_json::from_str(&body.text).map_err(|error| AttemptFailure {
-                kind: AttemptErrorKind::Runtime,
-                status: Some(status),
-                message: redacted_urls_message(
-                    &format!("invalid Exa response: {error}"),
-                    &self.credentials,
-                ),
-            })?;
-        if response
-            .results
-            .iter()
-            .any(|result| !is_http_url(&result.url))
-        {
-            return Err(AttemptFailure {
-                kind: AttemptErrorKind::Runtime,
-                status: Some(status),
-                message: "invalid Exa response: result URL must use HTTP(S)".into(),
-            });
-        }
-        Ok(response
-            .results
-            .into_iter()
-            .map(|result| self.normalize_source(operation, result))
-            .collect())
+        decode_results(&body.text, operation, &self.credentials).map_err(|message| AttemptFailure {
+            kind: AttemptErrorKind::Runtime,
+            status: Some(status),
+            message,
+        })
     }
+}
 
-    fn normalize_source(&self, operation: &ExaOperation, result: ExaResult) -> Source {
-        let (include_text, include_highlights) = match operation {
-            ExaOperation::Search(request) => (
-                request.text_max_characters.is_some(),
-                request.include_highlights,
-            ),
-            ExaOperation::Similar(_) => (true, true),
-        };
-        Source {
-            title: result
-                .title
-                .map(|value| self.credentials.redact(&value))
-                .unwrap_or_default(),
-            url: self.credentials.redact(&redact_url(&result.url)),
-            published_date: result
-                .published_date
-                .map(|value| self.credentials.redact(&value)),
-            author: result.author.map(|value| self.credentials.redact(&value)),
-            text: include_text
-                .then_some(result.text)
-                .flatten()
-                .map(|value| self.credentials.redact(&value)),
-            highlights: if include_highlights {
-                result
-                    .highlights
-                    .iter()
-                    .map(|value| self.credentials.redact(value))
-                    .collect()
-            } else {
-                Vec::new()
-            },
-            id: result.id.map(|value| self.credentials.redact(&value)),
-            image: result
-                .image
-                .map(|value| self.credentials.redact(&redact_url(&value))),
-            favicon: result
-                .favicon
-                .map(|value| self.credentials.redact(&redact_url(&value))),
-        }
+/// Decodes a successful body into the results the operation asked for, with their secrets
+/// redacted as the outcome shows them.
+fn decode_results(
+    text: &str,
+    operation: &ExaOperation,
+    credentials: &CredentialPool,
+) -> Result<Vec<Source>, String> {
+    let response: ExaResponse = serde_json::from_str(text).map_err(|error| {
+        redacted_urls_message(&format!("invalid Exa response: {error}"), credentials)
+    })?;
+    if response
+        .results
+        .iter()
+        .any(|result| !is_http_url(&result.url))
+    {
+        return Err("invalid Exa response: result URL must use HTTP(S)".into());
+    }
+    Ok(response
+        .results
+        .into_iter()
+        .map(|result| normalize_source(operation, result, credentials))
+        .collect())
+}
+
+fn normalize_source(
+    operation: &ExaOperation,
+    result: ExaResult,
+    credentials: &CredentialPool,
+) -> Source {
+    let (include_text, include_highlights) = match operation {
+        ExaOperation::Search(request) => (
+            request.text_max_characters.is_some(),
+            request.include_highlights,
+        ),
+        ExaOperation::Similar(_) => (true, true),
+    };
+    Source {
+        title: result
+            .title
+            .map(|value| credentials.redact(&value))
+            .unwrap_or_default(),
+        url: credentials.redact(&redact_url(&result.url)),
+        published_date: result
+            .published_date
+            .map(|value| credentials.redact(&value)),
+        author: result.author.map(|value| credentials.redact(&value)),
+        text: include_text
+            .then_some(result.text)
+            .flatten()
+            .map(|value| credentials.redact(&value)),
+        highlights: if include_highlights {
+            result
+                .highlights
+                .iter()
+                .map(|value| credentials.redact(value))
+                .collect()
+        } else {
+            Vec::new()
+        },
+        id: result.id.map(|value| credentials.redact(&value)),
+        image: result
+            .image
+            .map(|value| credentials.redact(&redact_url(&value))),
+        favicon: result
+            .favicon
+            .map(|value| credentials.redact(&redact_url(&value))),
     }
 }
 
