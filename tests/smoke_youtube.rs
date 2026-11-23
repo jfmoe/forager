@@ -157,12 +157,9 @@ fn live_smoke_runs_the_youtube_model_cases_after_a_metadata_check_through_the_co
 fn live_smoke_reads_the_youtube_transcript_only_while_the_order_enables_youtube_web() {
     let youtube = Fixture::start_sequence_for(|origin| {
         vec![
-            support::youtube_web::watch_page(&support::youtube_web::zoo_embedded("Zoo.")),
-            support::youtube_web::json(&support::youtube_web::zoo_player(
-                &[support::youtube_web::track(origin, "en", false)],
-                0,
-            )),
-            support::youtube_web::srv1(support::youtube_web::ZOO_SRV1_EN),
+            support::youtube_web::watch_page(),
+            support::youtube_web::player(origin),
+            support::youtube_web::srv1(),
         ]
     });
     let run = |order: &str| {

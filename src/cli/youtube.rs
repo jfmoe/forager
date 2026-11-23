@@ -499,3 +499,62 @@ fn parse_video(input: &str, operation: &str) -> Result<YoutubeRef, AppError> {
     }
     Ok(reference)
 }
+
+/// The `--lang` rules of `platform youtube fetch`: caption languages exist for `youtube_web`'s
+/// full text alone. Proven by parsing the command's definition in process.
+#[cfg(test)]
+mod youtube_web_tests {
+    use clap::Parser;
+
+    use super::super::PlatformCommand;
+    use super::{YoutubeCommand, YoutubeFetchArgs, youtube_fetch_input};
+    use crate::app::AppError;
+    use crate::types::PlatformFetchOptions;
+
+    #[derive(Parser)]
+    struct PlatformCli {
+        #[command(subcommand)]
+        command: PlatformCommand,
+    }
+
+    fn fetch_args(arguments: &[&str]) -> YoutubeFetchArgs {
+        let cli = PlatformCli::try_parse_from(
+            ["platform", "youtube", "fetch", "youtube:jNQXAC9IVRw"]
+                .into_iter()
+                .chain(arguments.iter().copied()),
+        )
+        .expect("the parser accepts the arguments");
+        match cli.command {
+            PlatformCommand::Youtube {
+                command: YoutubeCommand::Fetch(arguments),
+            } => arguments,
+            _ => unreachable!("the arguments name youtube fetch"),
+        }
+    }
+
+    #[test]
+    fn repeated_lang_options_reach_the_request_in_their_priority_order() {
+        let (request, ..) = youtube_fetch_input(fetch_args(&["--lang", "fr", "--lang", "de"]))
+            .expect("a full-text fetch takes languages");
+
+        let PlatformFetchOptions::Youtube(options) = request.options else {
+            panic!("a YouTube fetch carries YouTube options")
+        };
+        assert_eq!(options.languages, ["fr", "de"]);
+    }
+
+    #[test]
+    fn lang_outside_full_text_and_a_malformed_lang_are_argument_errors_before_any_request() {
+        for arguments in [
+            &["--depth", "metadata", "--lang", "en"][..],
+            &["--lang", "english"],
+        ] {
+            let result = youtube_fetch_input(fetch_args(arguments)).map(|_| ());
+
+            assert!(
+                matches!(result, Err(AppError::Argument(_))),
+                "arguments: {arguments:?}\n{result:?}"
+            );
+        }
+    }
+}
