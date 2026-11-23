@@ -43,6 +43,7 @@ cargo nextest run -E 'test(/(^|[:_])(IDS)(_\w*)?::/) | binary(/(^|_)(IDS)(_|$)/)
 
 - **A provider:** its ID, plus each platform that it is the only route of. The `xai` provider is `xai|x`, because it is the X platform's only route; `youtube_web` is `youtube_web`, because YouTube has other routes.
 - **A platform:** its ID, plus each of its routes that serves nothing else. Google Scholar is `scholar|serpapi`. X is `x` alone: the `xai` route also backs main search, and listing it would select main-search tests.
+- **When no test binary carries the IDs**, as for `youtube_api`, drop the `binary(…)` half: nextest refuses a filter whose binary pattern matches no binary. Such a provider's command contract tests sit in its platform's files and run with the platform filter.
 
 The routes of each platform are in the platform catalog and in the product skill. Words match whole, so the X filter never selects `xai`, and `hn` never selects a module that merely starts with the letters.
 
