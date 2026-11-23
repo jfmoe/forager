@@ -2,8 +2,7 @@
 //!
 //! This module is the single owner of every read-only fact derived from a
 //! `&[ProviderAttempt]` chain: cross-provider terminal attribution
-//! ([`terminal_attempt`]), in-chain tail attribution
-//! ([`last_failed`]), successful-provider extraction
+//! ([`terminal_attempt`]), successful-provider extraction
 //! ([`successful_provider`]), the fallback definition
 //! ([`identity_fallback_occurred`]), and the bounded attempt summary
 //! ([`bounded_attempt_summary`]). Consumers — the Search Result Journal, the
@@ -46,15 +45,6 @@ fn error_priority(kind: AttemptErrorKind) -> u8 {
         AttemptErrorKind::Quality => 7,
         AttemptErrorKind::Evidence => 8,
     }
-}
-
-/// Returns the most recent failed attempt, used to close out the classifier
-/// model chain.
-pub(crate) fn last_failed(attempts: &[ProviderAttempt]) -> Option<&ProviderAttempt> {
-    attempts
-        .iter()
-        .rev()
-        .find(|attempt| attempt.disposition == AttemptDisposition::Failed)
 }
 
 /// Returns the provider of the last successful attempt within `seam`, or
@@ -127,8 +117,7 @@ pub fn bounded_attempt_summary(attempts: &[ProviderAttempt]) -> Value {
 #[cfg(test)]
 mod tests {
     use super::{
-        bounded_attempt_summary, identity_fallback_occurred, last_failed, successful_provider,
-        terminal_attempt,
+        bounded_attempt_summary, identity_fallback_occurred, successful_provider, terminal_attempt,
     };
     use crate::types::{AttemptDisposition, AttemptErrorKind, AttemptTarget, ProviderAttempt};
 
@@ -206,19 +195,6 @@ mod tests {
         assert_eq!(
             terminal_attempt(&attempts).map(|attempt| attempt.message.as_str()),
             Some("second")
-        );
-    }
-
-    #[test]
-    fn last_failed_returns_the_most_recent_failed_attempt() {
-        let first = attempt("fixture", AttemptErrorKind::Network);
-        let mut second = attempt("fixture", AttemptErrorKind::Auth);
-        second.message = "latest failure".into();
-        let third = succeeded("fixture", "main_search");
-
-        assert_eq!(
-            last_failed(&[first, second, third]).map(|attempt| attempt.message.as_str()),
-            Some("latest failure")
         );
     }
 

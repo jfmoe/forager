@@ -5,12 +5,12 @@
 forager keeps a Search Result Journal, enabled by default, as its only persistent record of what a
 search did. Every Default Search Invocation that reaches a terminal state, success or failure,
 writes one entry with two surfaces: the result (query, full answer, sources) and the execution (plan
-summary, provider attempts, terminal attribution, budget, classifier timing, capability gaps).
+summary, provider attempts, terminal attribution, budget, capability gaps).
 
 - Persisted content follows an allowlist. Credentials in any form, request and response headers,
-  request bodies, raw response bodies, classifier prompts and tool traces are never written; URLs
-  and messages pass through the shared redactor first. The journal directory and its files are
-  readable by the user only, because full queries and answers are deliberately kept.
+  request bodies, raw response bodies and tool traces are never written; URLs and messages pass
+  through the shared redactor first. The journal directory and its files are readable by the user
+  only, because full queries and answers are deliberately kept.
 - The application layer writes the entry once, after the terminal state is known. A journal
   failure is a non-fatal diagnostic and never changes the command's result or exit code.
 - Each entry is its own exclusively created file, synced before anything else happens, and its

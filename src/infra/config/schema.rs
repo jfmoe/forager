@@ -16,7 +16,6 @@ pub(super) use providers::Providers;
 #[serde(default, deny_unknown_fields)]
 pub(super) struct Config {
     pub(super) search: Search,
-    pub(super) classifier: Classifier,
     pub(super) providers: Providers,
     pub(super) capabilities: Capabilities,
     pub(super) platforms: Platforms,
@@ -39,29 +38,6 @@ impl Default for Search {
         Self {
             backends: provider_names(catalog::MAIN_SEARCH),
             fallback: "auto".into(),
-        }
-    }
-}
-
-#[derive(Clone, Debug, Deserialize, Serialize)]
-#[serde(default, deny_unknown_fields)]
-pub(super) struct Classifier {
-    pub(super) url: String,
-    pub(super) keys: Vec<Secret>,
-    pub(super) model: String,
-    pub(super) fallback_models: Vec<String>,
-    #[serde(deserialize_with = "deserialize_integer")]
-    pub(super) timeout: u64,
-}
-
-impl Default for Classifier {
-    fn default() -> Self {
-        Self {
-            url: String::new(),
-            keys: Vec::new(),
-            model: String::new(),
-            fallback_models: Vec::new(),
-            timeout: 30,
         }
     }
 }
@@ -357,11 +333,6 @@ const LOG_LEVELS: &[&str] = &["error", "warn", "info", "debug", "trace"];
 pub(super) static SCHEMA: &[Leaf] = &[
     leaf!("search.backends", search.backends: Strings, Rule::CapabilityOrder { capability: "main_search", allow_empty: false }, View::Plain, "ordered main-model backends"),
     leaf!("search.fallback", search.fallback: String, Rule::OneOf(FALLBACK), View::Plain, "fallback policy: auto or off"),
-    leaf!("classifier.url", classifier.url: String, Rule::Any, View::Url, "service endpoint URL"),
-    leaf!("classifier.keys", classifier.keys: Secrets, Rule::Any, View::Keys, "credential pool; keep empty until credentials are available"),
-    leaf!("classifier.model", classifier.model: String, Rule::Any, View::Plain, "model identifier"),
-    leaf!("classifier.fallback_models", classifier.fallback_models: Strings, Rule::Any, View::Plain, "ordered fallback model identifiers"),
-    leaf!("classifier.timeout", classifier.timeout: U64, Rule::Positive, View::Plain, "shared timeout in seconds; must be greater than zero"),
     leaf!("providers.xai.url", providers.xai.url: String, Rule::Any, View::Url, "service endpoint URL"),
     leaf!("providers.xai.keys", providers.xai.keys: Secrets, Rule::Any, View::Keys, "credential pool; keep empty until credentials are available"),
     leaf!("providers.xai.model", providers.xai.model: String, Rule::Any, View::Plain, "model identifier"),
@@ -652,7 +623,6 @@ mod tests {
 
     fn secret_at_path<'a>(config: &'a Config, path: &str) -> Option<&'a [Secret]> {
         match path {
-            "classifier.keys" => Some(&config.classifier.keys),
             "providers.xai.keys" => Some(&config.providers.xai.keys),
             "providers.openai.keys" => Some(&config.providers.openai.keys),
             "providers.exa.keys" => Some(&config.providers.exa.keys),

@@ -532,6 +532,27 @@ pub(crate) fn request_json(request: &str) -> serde_json::Value {
 }
 
 /// Reads the single Search Result Journal record an environment wrote.
+/// Every key of the execution object in a Search Result Journal record of schema version 1.
+pub(crate) const JOURNAL_EXECUTION_KEYS: [&str; 5] = [
+    "capability_gaps",
+    "deadline_budget",
+    "plan_summary",
+    "provider_attempts",
+    "terminal_attribution",
+];
+
+/// The keys of a JSON object, sorted, so a test can assert an object's complete shape.
+pub(crate) fn object_keys(value: &serde_json::Value) -> Vec<&str> {
+    let mut keys = value
+        .as_object()
+        .expect("JSON object")
+        .keys()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    keys.sort_unstable();
+    keys
+}
+
 pub(crate) fn read_only_journal(environment: &RunEnvironment) -> serde_json::Value {
     let entry = fs::read_dir(environment.state_dir.join("forager/journal"))
         .expect("read journal")

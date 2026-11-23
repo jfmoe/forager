@@ -475,69 +475,6 @@ fn chainwide_terminal_defaults_to_timeout_with_the_exhausted_message_on_an_empty
 }
 
 #[test]
-fn tail_terminal_attributes_to_the_most_recent_failed_attempt() {
-    let mut settings = settings();
-    settings.terminal = TerminalPolicy::Tail {
-        verbose: true,
-        default_kind: AttemptErrorKind::Runtime,
-        exhausted_message: "no executable models",
-    };
-    let script = RefCell::new(Script {
-        verdicts: VecDeque::from([
-            failed("a", AttemptErrorKind::Network, "net down", None),
-            failed("b", AttemptErrorKind::Auth, "denied", None),
-        ]),
-        ..Script::default()
-    });
-
-    let error = drive(vec![step("a"), step("b")], settings, 60, &script)
-        .err()
-        .expect("chain error");
-
-    assert_eq!(
-        (error.kind, error.message.as_str(), error.verbose),
-        (AttemptErrorKind::Auth, "denied", true)
-    );
-}
-
-#[test]
-fn tail_terminal_uses_its_defaults_when_no_attempt_failed() {
-    let mut settings = settings();
-    settings.terminal = TerminalPolicy::Tail {
-        verbose: false,
-        default_kind: AttemptErrorKind::Runtime,
-        exhausted_message: "no executable models",
-    };
-    let script = RefCell::new(Script::default());
-
-    let error = drive(Vec::new(), settings, 60, &script)
-        .err()
-        .expect("chain error");
-
-    assert_eq!(
-        (error.kind, error.message.as_str()),
-        (AttemptErrorKind::Runtime, "no executable models")
-    );
-}
-
-#[test]
-fn latest_wins_diagnostic_merge_keeps_the_last_present_value() {
-    let mut settings = settings();
-    settings.diagnostic_merge = DiagnosticMerge::LatestWins;
-    let script = RefCell::new(Script {
-        verdicts: VecDeque::from([
-            failed("a", AttemptErrorKind::Network, "down", Some("first")),
-            accepted("winner", "b", None),
-        ]),
-        ..Script::default()
-    });
-
-    let outcome = drive(vec![step("a"), step("b")], settings, 60, &script).expect("chain outcome");
-
-    assert_eq!(outcome.diagnostic.as_deref(), Some("first"));
-}
-
-#[test]
 fn chain_wide_error_uses_kind_and_message_from_the_same_terminal_attempt() {
     let attempts = vec![
         failed_attempt("tavily", AttemptErrorKind::Quality, "thin content"),

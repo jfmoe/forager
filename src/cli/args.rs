@@ -150,7 +150,7 @@ pub(super) enum Command {
         outage_evidence: Vec<String>,
         #[arg(long, requires = "live")]
         opt_in: bool,
-        #[arg(long, hide = true, conflicts_with = "live", value_parser = ["C04", "C05", "C06", "OUTAGE"])]
+        #[arg(long, hide = true, conflicts_with = "live", value_parser = ["C05", "C06", "OUTAGE"])]
         probe: Option<String>,
         #[arg(long, hide = true, requires = "probe", default_value_t = 180, value_parser = clap::value_parser!(u64).range(1..))]
         probe_timeout: u64,

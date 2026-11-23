@@ -10,10 +10,10 @@ A search runs against one end-to-end deadline, and no stage holds a reservation 
 - **Hangs are caught by a read timeout, not by slicing.** The shared HTTP client has a fixed idle
   read timeout. A stream that keeps producing bytes may run as long as the deadline allows; a
   silent stream fails within the read timeout as a retryable network error.
-- **Auxiliary seams keep fair slicing.** The classifier keeps its stage cap and its model-chain
-  slices, and every other provider chain divides the remaining budget evenly across its remaining
-  configured providers under each provider's own per-attempt cap. In those seams the chain is the
-  retry: a single-provider chain gets no in-seam timeout retry.
+- **Auxiliary seams keep fair slicing.** Every provider chain other than main search divides the
+  remaining budget evenly across its remaining configured providers under each provider's own
+  per-attempt cap. In those seams the chain is the retry: a single-provider chain gets no in-seam
+  timeout retry.
 - **Rotation and retry are separate quotas.** A timeout never rotates credentials (ADR-0005).
   Rotations do not consume the retry quota, so the worst case for one provider is its credential
   count plus its retries. Backoff is linear and without jitter.

@@ -117,17 +117,6 @@ impl SetupDocument {
             .unwrap_or_default()
     }
 
-    /// Returns whether the existing file contains classifier model configuration.
-    #[must_use]
-    pub fn classifier_is_configured(&self) -> bool {
-        ["classifier.url", "classifier.model"].iter().any(|path| {
-            document_string(&self.document, path).is_some_and(|value| !value.is_empty())
-        }) || document_array(&self.document, "classifier.keys").is_some_and(|keys| {
-            keys.iter()
-                .any(|key| key.as_str().is_some_and(|key| !key.is_empty()))
-        })
-    }
-
     /// Updates a string leaf in memory.
     ///
     /// # Errors
@@ -223,10 +212,6 @@ fn document_item<'a>(document: &'a DocumentMut, path: &str) -> Option<&'a Item> 
 
 fn document_string<'a>(document: &'a DocumentMut, path: &str) -> Option<&'a str> {
     document_item(document, path)?.as_str()
-}
-
-fn document_array<'a>(document: &'a DocumentMut, path: &str) -> Option<&'a Array> {
-    document_item(document, path)?.as_array()
 }
 
 pub(super) fn config_leaf(path: &str) -> &str {

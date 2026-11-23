@@ -10,7 +10,6 @@ pub(super) enum ResultShape {
     /// A platform answer, such as an X ask.
     Answer,
     PipelineSearch,
-    Classifier,
     SupplementalSearch,
     Fetch,
     Context7Library,
@@ -34,7 +33,6 @@ pub(super) fn result_shape_is_nonempty(shape: ResultShape, payload: &Value) -> b
         ResultShape::PipelineSearch => {
             nonempty_string(payload, "answer") && nonempty_array(payload, "extra_sources")
         }
-        ResultShape::Classifier => nonempty_array(payload, "capabilities"),
         ResultShape::SupplementalSearch
         | ResultShape::Context7Library
         | ResultShape::Exa

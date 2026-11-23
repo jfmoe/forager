@@ -53,10 +53,9 @@ _Avoid_: successful search, provider search, all commands
 **Search Result Journal**:
 The local record, on by default and in order of occurrence, of the result and the execution of
 every Default Search Invocation. The result side holds the query, the answer and the sources; the
-execution side holds the plan summary, the provider
-attempt chain, the terminal attribution, the budget, the classifier's duration and the capability
-gaps. It never stores request or response headers, request bodies, raw response bodies,
-credentials, classifier prompts or tool traces. It serves review and diagnosis; it is not a debug
+execution side holds the plan summary, the provider attempt chain, the terminal attribution, the
+budget and the capability gaps. It never stores request or response headers, request bodies, raw
+response bodies, credentials or tool traces. It serves review and diagnosis; it is not a debug
 message stream and not a cache of search responses.
 _Avoid_: debug log, response cache, search history
 
@@ -70,20 +69,15 @@ _Avoid_: per-call-site interpretation, raw attempt scan
 
 **Caller Capability Declaration**:
 The complete and authoritative capability set that a caller declares for one ordinary
-`forager search`; an empty set is a valid declaration. forager never adds to it from local rules,
-URL recognition, strict validation or the classifier. A declaration names Capability Seams and
-never selects providers.
+`forager search`; an empty set is a valid declaration. A search without a declaration is an empty
+declaration and runs main search only. forager never adds to it from local rules, URL recognition
+or strict validation. A declaration names Capability Seams and never selects providers.
 _Avoid_: provider override, router hint, capability patch
-
-**Classifier Capability Decision**:
-What the intent classifier produces: the complete capability set for an ordinary search. The
-classifier never selects providers.
-_Avoid_: classifier additions, classifier patch, provider decision
 
 **Capability Vocabulary**:
 The single vocabulary that owns each capability's identity, order, selection meaning and example
-phrases. The classifier prompt, `--capabilities` validation and the forager skill's contract all
-consume it; provider fallback and routing control flow are not part of it.
+phrases. `--capabilities` validation and the forager skill's contract consume it; provider
+fallback and routing control flow are not part of it.
 _Avoid_: Skill capability list, routing rules DSL, provider registry
 
 **Citation Binding**:

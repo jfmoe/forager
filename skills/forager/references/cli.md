@@ -87,7 +87,7 @@ forager search QUERY [--capabilities CSV|none] [--model ID] [--extra-sources N]
 | Argument or option | Meaning | Default |
 | --- | --- | --- |
 | `QUERY` | Search request passed to the main-search pipeline. | Required |
-| `--capabilities CSV\|none` | Authoritative supplemental capability set. Use canonical comma-separated IDs, or `none` for main search only. Omit it to use classifier routing, with the configured default Web route when no classifier is available. | Omitted |
+| `--capabilities CSV\|none` | Authoritative supplemental capability set. Use canonical comma-separated IDs, or `none` for main search only. Omitting it is the same as `none`: forager never adds a capability the caller did not declare. | Omitted (`none`) |
 | `--model ID` | Override the model of the first main-search backend that runs; a fallback backend keeps its configured model. | Configured model |
 | `--extra-sources N` | Set a target in `0..=20`. At `0`, Web Search uses 3 while Documentation Search uses 1; an explicit `1..=20` is the exact target. | `0` |
 | `--fallback MODE` | Use `auto` or `off` for provider fallback. | `search.fallback`, normally `auto` |
@@ -1274,9 +1274,6 @@ read.
   `capability_gaps`; an empty `web_fetch` order is a configuration error.
 - `platforms.<id>.order` lists the platform's routes; empty disables the platform. Platform
   fetches that need a page body read it through `capabilities.web_fetch.order`.
-- `classifier`: `url`, `keys`, `model`, `fallback_models` tried in order on the same endpoint, and
-  `timeout`, one budget for the whole classification step. Without it, search uses the default
-  Web route.
 - `journal`: `enabled` (default `true`), `dir` (default `$XDG_STATE_HOME/forager/journal`, else
   `~/.local/state/forager/journal`), and `retention_days` (default `30`; `0` keeps files forever).
   Each search run writes its own file, whose path is `journal_ref`; retention deletes
@@ -1286,8 +1283,8 @@ read.
 - `http.ssl_verify` turns TLS certificate verification off when `false`.
 - `providers.jina.respond_with` sets Jina's `X-Respond-With` header, such as `readerlm-v2`.
 - `log.level` is `error`, `warn`, `info` (default), `debug`, or `trace`. Only `debug` and `trace`
-  add output. Terminal errors, capability gaps, classifier fallback, and journal and `--output`
-  warnings always reach stderr.
+  add output. Terminal errors, capability gaps, and journal and `--output` warnings always reach
+  stderr.
 - Every `timeout` is a positive number of seconds.
 - A leading `~/` in `journal.dir` or `browser.path` expands to `HOME`, and a relative path is
   relative to the configuration directory.
@@ -1305,9 +1302,9 @@ forager setup [--non-interactive] [--lang zh|en]
 
 After setup, use `forager doctor` to check the resulting configuration.
 
-Interactive setup has five steps: the language; the main model (`xai` URL, keys, and model); the
-classifier, which can be skipped; keys for `exa`, `context7`, `jina`, `tavily`, and `firecrawl`;
-and keys for the `serpapi` and `youtube_api` routes. Enter keeps the current value, so a second
+Interactive setup has four steps: the language; the main model (`xai` URL, keys, and model); keys
+for `exa`, `context7`, `jina`, `tavily`, and `firecrawl`; and keys for the `serpapi` and
+`youtube_api` routes. Enter keeps the current value, so a second
 run updates the existing file. Setup asks only for credentials and model settings and sends no
 request; set other keys with `config set`.
 

@@ -8,7 +8,7 @@ use serde_json::{Value, json};
 use support::hn::{search_page, story_hit, story_item, story_tree};
 use support::scholar::{fixture, ok};
 use support::smoke::{DISABLED_PLATFORMS, SmokeEnvironment, case};
-use support::{Fixture, Response, forager_command, run_command};
+use support::{Fixture, Response, forager_command, object_keys, run_command};
 
 #[test]
 fn offline_smoke_reports_local_readiness_without_contacting_provider_endpoints() {
@@ -30,10 +30,10 @@ fn offline_smoke_reports_local_readiness_without_contacting_provider_endpoints()
             output.status.code(),
             &payload["mode"],
             &payload["ok"],
+            object_keys(&payload),
             &payload["registry"],
             payload["providers"].as_array().map(Vec::len),
             &payload["providers"][0]["keys"],
-            &payload["classifier"]["keys"],
             &payload["journal"]["writable"],
             &payload["credential_cursor"]["writable"],
             &payload["permissions"]["ok"],
@@ -43,9 +43,17 @@ fn offline_smoke_reports_local_readiness_without_contacting_provider_endpoints()
             Some(0),
             &Value::String("offline".into()),
             &Value::Bool(true),
+            vec![
+                "credential_cursor",
+                "journal",
+                "mode",
+                "ok",
+                "permissions",
+                "providers",
+                "registry",
+            ],
             &json!({"ok": true, "provider_count": 17}),
             Some(17),
-            &json!(["********"]),
             &json!(["********"]),
             &Value::Bool(true),
             &Value::Bool(true),
@@ -69,10 +77,10 @@ fn live_smoke_lists_exactly_the_specification_case_registry_without_l0_doctor_ga
     let output = environment.run(&["smoke", "--live", "--list"]);
     let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live registry JSON");
     let expected = json!([
-        "P1", "C01", "C04", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "C13", "C17",
-        "C18", "C19", "C20", "C21", "C24", "C25", "C26", "C27", "C28", "C29", "C30", "C31", "C32",
-        "C33", "C34", "C35", "C36", "C37", "C38", "C39", "C40", "C41", "C42", "C43", "C44", "C45",
-        "C46", "C49", "C50", "C51"
+        "P1", "C01", "C05", "C06", "C07", "C08", "C09", "C10", "C11", "C12", "C13", "C17", "C18",
+        "C19", "C20", "C21", "C24", "C25", "C26", "C27", "C28", "C29", "C30", "C31", "C32", "C33",
+        "C34", "C35", "C36", "C37", "C38", "C39", "C40", "C41", "C42", "C43", "C44", "C45", "C46",
+        "C49", "C50", "C51"
     ]);
 
     assert_eq!(
@@ -101,8 +109,8 @@ fn live_smoke_lists_exactly_the_specification_case_registry_without_l0_doctor_ga
 
 /// Case numbers whose cases were retired; a report or a release note that names one must keep
 /// meaning the retired case.
-const RETIRED_CASE_IDS: [&str; 10] = [
-    "C02", "C03", "C14", "C15", "C16", "C22", "C23", "C47", "C48", "P2",
+const RETIRED_CASE_IDS: [&str; 11] = [
+    "C02", "C03", "C04", "C14", "C15", "C16", "C22", "C23", "C47", "C48", "P2",
 ];
 
 #[test]
@@ -144,17 +152,15 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
             &failed_payload["summary"],
             &failed_c01["status"],
             &failed_c01["attempts"],
-            &case(&failed_payload, "C04")["status"],
             &case(&failed_payload, "P1")["status"],
         ),
         (
             Some(4),
             &Value::String("live".into()),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 42, "skipped": 0}),
+            &json!({"passed": 0, "failed": 1, "deferred": 0, "unconfigured": 41, "skipped": 0}),
             &Value::String("failed".into()),
             &Value::Number(3.into()),
-            &Value::String("unconfigured".into()),
             &Value::String("unconfigured".into()),
         ),
         "stdout: {}\nstderr: {}",
@@ -188,7 +194,7 @@ fn live_smoke_retries_configured_cases_and_distinguishes_failure_deferral_and_un
         (
             Some(4),
             &Value::Bool(false),
-            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 42, "skipped": 0}),
+            &json!({"passed": 0, "failed": 0, "deferred": 1, "unconfigured": 41, "skipped": 0}),
             &Value::String("deferred".into()),
             &Value::Number(3.into()),
             &Value::String("http://127.0.0.1:9?token=********".into()),
@@ -307,7 +313,7 @@ fn live_smoke_passes_a_configured_case_only_after_a_zero_parseable_nonempty_term
         ),
         (
             Some(4),
-            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 42, "skipped": 0}),
+            &json!({"passed": 1, "failed": 0, "deferred": 0, "unconfigured": 41, "skipped": 0}),
             &Value::String("passed".into()),
             &Value::Number(1.into()),
         ),
@@ -372,7 +378,7 @@ fn live_smoke_enforces_one_hard_deadline_and_reports_the_cases_it_left_no_time_f
     let endpoint = format!("{}/v1", fixture.url);
     let environment = SmokeEnvironment::new(|journal_dir| {
         format!(
-            "{}[providers.tavily]\nurl = \"http://127.0.0.1:9\"\nkeys = [\"tavily-secret\"]\n",
+            "{}[providers.tavily]\nurl = \"http://127.0.0.1:9\"\nkeys = [\"tavily-secret\"]\n[capabilities.web_search]\norder = []\n",
             minimal_config(&endpoint, journal_dir)
         )
     });
@@ -434,6 +440,47 @@ fn crossref_response(message_type: &str, message: &Value) -> Response {
 }
 
 #[test]
+fn pipeline_live_case_runs_with_main_search_and_a_web_search_provider() {
+    let xai = Fixture::start_repeating(Response::sse(
+        200,
+        &format!(
+            "data: {}\n\n",
+            json!({
+                "type": "response.completed",
+                "response": {"output": [{"content": [{
+                    "type": "output_text",
+                    "text": "Rust release news",
+                    "annotations": []
+                }]}]}
+            })
+        ),
+    ));
+    let tavily = Fixture::start_repeating(Response::json(
+        200,
+        r#"{"results":[{"title":"Rust blog","url":"https://blog.rust-lang.org/"}]}"#,
+    ));
+    let environment = SmokeEnvironment::new(|journal_dir| {
+        format!(
+            "[providers.xai]\nurl = \"{}/v1\"\nkeys = [\"xai-secret\"]\n[providers.tavily]\nurl = {:?}\nkeys = [\"tavily-secret\"]\n[capabilities.web_search]\norder = [\"tavily\"]\n{DISABLED_PLATFORMS}[journal]\ndir = {journal_dir:?}\n",
+            xai.url, tavily.url
+        )
+    });
+
+    let output = environment.run(&["smoke", "--live", "--timeout", "20"]);
+    let payload: Value = serde_json::from_slice(&output.stdout).expect("parse live smoke JSON");
+    xai.finish_all();
+    tavily.finish_all();
+
+    assert_eq!(
+        &case(&payload, "P1")["status"],
+        &Value::String("passed".into()),
+        "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
 fn live_smoke_runs_the_platform_cases_through_their_configured_route() {
     let atom = |body: &str| Response::new(200, "application/atom+xml", body);
     let arxiv = Fixture::start_sequence(vec![
@@ -487,7 +534,7 @@ fn live_smoke_runs_the_platform_cases_through_their_configured_route() {
             algolia_requests[1].starts_with("GET /items/8863 "),
         ),
         (
-            &json!({"passed": 7, "failed": 0, "deferred": 0, "unconfigured": 36, "skipped": 0}),
+            &json!({"passed": 7, "failed": 0, "deferred": 0, "unconfigured": 35, "skipped": 0}),
             [(); 7].map(|()| Value::String("passed".into())),
             [
                 &Value::String("arxiv".into()),
@@ -796,11 +843,6 @@ fn offline_smoke_rejects_configuration_access_granted_beyond_the_windows_owner()
 fn complete_config(endpoint: &str, journal_dir: &Path) -> String {
     format!(
         r#"
-[classifier]
-url = {endpoint:?}
-keys = ["classifier-secret"]
-model = "classifier-model"
-
 [providers.xai]
 url = {endpoint:?}
 keys = ["xai-secret"]
@@ -839,9 +881,8 @@ fn minimal_config(endpoint: &str, journal_dir: &Path) -> String {
     )
 }
 
-fn provider_secrets() -> [&'static str; 7] {
+fn provider_secrets() -> [&'static str; 6] {
     [
-        "classifier-secret",
         "xai-secret",
         "exa-secret",
         "tavily-secret",

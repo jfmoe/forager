@@ -2,7 +2,7 @@ mod support;
 
 use serde_json::Value;
 
-use support::RunEnvironment;
+use support::{JOURNAL_EXECUTION_KEYS, RunEnvironment, object_keys};
 
 #[test]
 fn json_preflight_failures_are_machine_readable_without_a_journal_config() {
@@ -134,6 +134,9 @@ fn recordable_search_preflight_failure_is_journaled_once() {
             journal["execution"]["provider_attempts"]
                 .as_array()
                 .map(Vec::len),
+            &journal["schema_version"],
+            object_keys(&journal["execution"]),
+            &journal["execution"]["plan_summary"],
         ),
         (
             Some(3),
@@ -144,6 +147,9 @@ fn recordable_search_preflight_failure_is_journaled_once() {
             &Value::String("config".into()),
             &Value::String("query".into()),
             Some(0),
+            &serde_json::json!(1),
+            JOURNAL_EXECUTION_KEYS.to_vec(),
+            &serde_json::json!({"source": "preflight", "capabilities": []}),
         )
     );
     assert!(output.stderr.is_empty());

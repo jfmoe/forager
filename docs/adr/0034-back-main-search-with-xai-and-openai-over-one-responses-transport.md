@@ -15,7 +15,7 @@ makes `openai` primary.
 - **A fixed request surface.** `openai` exposes only its endpoint, credentials and model. Tools,
   reasoning effort and web-search parameters are not configurable, and like `xai` it has no
   per-attempt timeout: the primary-first budget applies (ADR-0007).
-- **Scope.** `openai` is not a platform route and does not serve the classifier.
+- **Scope.** `openai` is not a platform route.
 - **No same-failure-domain machinery.** The retired `openai_compatible` backend and everything
   that existed only for it stay removed: the same-endpoint model chain, the in-process model
   circuit breaker, the stream-to-plain-HTTP transport fallback, the two-shape doctor probe, the

@@ -21,8 +21,6 @@ pub(crate) struct SearchRecord<'a> {
     pub(crate) elapsed: Duration,
     pub(crate) capabilities: &'a [Capability],
     pub(crate) decision_source: &'static str,
-    pub(crate) classifier_degraded: bool,
-    pub(crate) classifier_duration: Option<Duration>,
     pub(crate) result: &'a Result<SearchOutcome, SearchFailure>,
 }
 
@@ -118,7 +116,6 @@ fn build_search_preflight_record(record: SearchPreflightRecord<'_>) -> Value {
             "plan_summary": {
                 "source": "preflight",
                 "capabilities": [],
-                "classifier_degraded": false,
             },
             "provider_attempts": [],
             "terminal_attribution": record.error_kind,
@@ -127,7 +124,6 @@ fn build_search_preflight_record(record: SearchPreflightRecord<'_>) -> Value {
                 "consumed_ms": 0,
                 "exhausted": false,
             },
-            "classifier_duration_ms": Value::Null,
             "capability_gaps": Value::Null,
         }
     })
@@ -174,7 +170,6 @@ fn build_record(record: SearchRecord<'_>) -> Value {
             "plan_summary": {
                 "source": record.decision_source,
                 "capabilities": record.capabilities,
-                "classifier_degraded": record.classifier_degraded
             },
             "provider_attempts": attempts,
             "terminal_attribution": terminal_attribution,
@@ -183,9 +178,6 @@ fn build_record(record: SearchRecord<'_>) -> Value {
                 "consumed_ms": duration_millis(record.elapsed),
                 "exhausted": record.elapsed >= record.budget
             },
-            "classifier_duration_ms": record.classifier_duration
-                .map(duration_millis)
-                .map_or(Value::Null, Value::from),
             "capability_gaps": match record.result {
                 Ok(outcome) => &outcome.capability_gaps,
                 Err(failure) => &failure.capability_gaps,

@@ -16,8 +16,6 @@ mod cache_dir;
 mod catalog;
 #[path = "core/chain.rs"]
 mod chain;
-#[path = "core/classifier.rs"]
-mod classifier;
 #[path = "infra/config/mod.rs"]
 pub mod config;
 #[path = "capabilities/credentials.rs"]

@@ -22,7 +22,6 @@ fn non_interactive_setup_creates_a_complete_template() {
         (
             output.status.code(),
             count_leaves(&value),
-            value["classifier"]["keys"].as_array().map(Vec::len),
             value["providers"]["exa"]["keys"].as_array().map(Vec::len),
             &value["capabilities"]["web_fetch"]["order"],
             value["providers"]["firecrawl"]["timeout"].as_integer(),
@@ -31,8 +30,7 @@ fn non_interactive_setup_creates_a_complete_template() {
         ),
         (
             Some(0),
-            76,
-            Some(0),
+            71,
             Some(0),
             &toml::Value::Array(
                 ["firecrawl", "jina", "tavily"]
@@ -149,11 +147,11 @@ fn interactive_setup_holds_the_config_lock_until_its_update_is_saved() {
 }
 
 #[test]
-fn interactive_setup_configures_the_five_stages_without_echoing_credentials() {
+fn interactive_setup_configures_the_four_stages_without_echoing_credentials() {
     let config_dir = tempfile::tempdir().expect("create config directory");
     let canary = "setup-canary-secret";
     let input = format!(
-        "https://main.example/v1\n{canary}\nmain-model\ny\nhttps://classifier.example/v1\nclassifier-secret\nclassifier-model\nexa-secret\ncontext7-secret\njina-secret\ntavily-secret\nfirecrawl-secret\nserpapi-secret\nyoutube-secret\n"
+        "https://main.example/v1\n{canary}\nmain-model\nexa-secret\ncontext7-secret\njina-secret\ntavily-secret\nfirecrawl-secret\nserpapi-secret\nyoutube-secret\n"
     );
 
     let output = run(config_dir.path(), &["setup", "--lang", "zh"], Some(&input));
@@ -172,9 +170,7 @@ fn interactive_setup_configures_the_five_stages_without_echoing_credentials() {
             output.status.code(),
             config.get("search").is_none(),
             config["providers"]["xai"]["model"].as_str(),
-            config["classifier"]["model"].as_str(),
-            combined.contains("第 3 步：分类器（跳过后无法自动路由）"),
-            combined.contains("第 5 步：平台 route"),
+            stage_labels(&combined, "第 "),
             combined.contains("forager doctor"),
             combined.contains(canary),
         ),
@@ -182,9 +178,11 @@ fn interactive_setup_configures_the_five_stages_without_echoing_credentials() {
             Some(0),
             true,
             Some("main-model"),
-            Some("classifier-model"),
-            true,
-            true,
+            vec![
+                "第 2 步：主模型",
+                "第 3 步：补强 provider",
+                "第 4 步：平台 route（Scholar 与 YouTube 需要自备 key）",
+            ],
             true,
             false,
         ),
@@ -219,7 +217,7 @@ fn interactive_setup_second_run_preserves_skipped_and_unrelated_values() {
          [unknown]\nvalue = true\n",
     )
     .expect("write existing config");
-    let input = "\n\nnew-model\nn\nnew-exa\n\n\n\n\n\n\n\n";
+    let input = "\n\nnew-model\nnew-exa\n\n\n\n\n\n\n\n";
 
     let output = run(config_dir.path(), &["setup", "--lang", "en"], Some(input));
     let content = fs::read_to_string(path).expect("read updated config");
@@ -255,16 +253,14 @@ fn interactive_setup_enter_preserves_a_single_backend_array() {
         &path,
         "[search]\nbackends = [\"xai\"]\n\
          [providers.xai]\nurl = \"https://main.example/v1\"\n\
-         keys = [\"old-main\"]\nmodel = \"old-model\"\n\
-         [classifier]\nurl = \"https://classifier.example/v1\"\n\
-         keys = [\"classifier-key\"]\nmodel = \"classifier-model\"\n",
+         keys = [\"old-main\"]\nmodel = \"old-model\"\n",
     )
     .expect("write existing config");
 
     let output = run(
         config_dir.path(),
         &["setup", "--lang", "en"],
-        Some("\n\n\nn\n\n\n\n\n\n\n\n\n"),
+        Some("\n\n\n\n\n\n\n\n\n\n\n"),
     );
     let config: toml::Value =
         toml::from_str(&fs::read_to_string(path).expect("read config")).expect("parse config");
@@ -275,10 +271,18 @@ fn interactive_setup_enter_preserves_a_single_backend_array() {
             output.status.code(),
             config["search"]["backends"].as_array().map(Vec::len),
             config["search"]["backends"][0].as_str(),
-            stderr.contains("Step 3: classifier (skip preserves current values)"),
-            stderr.contains("skipping disables automatic routing"),
+            stage_labels(&stderr, "Step "),
         ),
-        (Some(0), Some(1), Some("xai"), true, false,),
+        (
+            Some(0),
+            Some(1),
+            Some("xai"),
+            vec![
+                "Step 2: main model",
+                "Step 3: supplemental providers",
+                "Step 4: platform routes (Scholar and YouTube need your own key)",
+            ],
+        ),
         "stderr: {stderr}"
     );
 }
@@ -395,4 +399,13 @@ fn run(config_dir: &Path, args: &[&str], stdin: Option<&str>) -> Output {
         command.stdin(Stdio::null());
     }
     run_command(&mut command, stdin.map(str::as_bytes))
+}
+
+/// The stage headings `setup` printed, in order. A heading follows the previous prompt on the
+/// same line, because prompts end without a newline.
+fn stage_labels<'a>(output: &'a str, prefix: &str) -> Vec<&'a str> {
+    output
+        .lines()
+        .filter_map(|line| line.find(prefix).map(|start| &line[start..]))
+        .collect()
 }

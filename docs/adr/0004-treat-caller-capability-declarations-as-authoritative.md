@@ -3,15 +3,15 @@
 ## Decision
 
 When an ordinary search carries a Caller Capability Declaration, that declaration is the complete
-and only capability set for the invocation. forager does not add capabilities from local rules,
-URL recognition or the classifier, so an empty declaration stays empty even when the query
-contains a URL. Main search always runs and is not part of the declaration, and callers name
-capabilities, never providers.
+and only capability set for the invocation. forager does not add capabilities from local rules or
+URL recognition, so an empty declaration stays empty even when the query contains a URL. Main
+search always runs and is not part of the declaration, and callers name capabilities, never
+providers.
 
-Without a declaration, the configured classifier chooses the capabilities, and a missing or
-failed classifier degrades to a fixed default. Provider selection and same-capability fallback
-are unaffected. The routing decision recorded for the invocation names the caller as its only
-decision source, so the declared authority is observable.
+A search without a declaration is an empty declaration: it runs main search and no supplemental
+seam. Provider selection and same-capability fallback are unaffected. The routing decision recorded
+for the invocation names the caller as its source when there is a declaration, and the main-search
+default when there is none, so both the declared authority and the default are observable.
 
 ## Why
 
@@ -22,6 +22,9 @@ decision source, so the declared authority is observable.
   keyword rule. Each false capability costs provider quota and adds noise to the candidates.
 - Treating the declaration as complete also removes a preliminary routing call: the agent sends
   its decision with the search instead of asking forager to route first.
+- Callers are agents that the product skill teaches to declare, so an undeclared search is rare.
+  Running main search alone keeps it fast and spends no supplemental quota on a need nobody
+  stated; a caller that wants more declares it.
 
 ## Rejected alternatives
 
@@ -29,6 +32,9 @@ decision source, so the declared authority is observable.
   rule-confirmed need such as a known URL could never be suppressed, at the cost of false
   capabilities on every request where a rule over-matched. The agent can declare the URL need
   itself, so the guarantee was not worth the noise.
+- **A fixed supplemental default for an undeclared search**, such as always adding Supplemental
+  Web Search. It spends quota on every undeclared call whether or not the request needs current
+  sources, and it makes the empty declaration and no declaration behave differently.
 - **A data-driven routing rules language.** Routing knowledge stays in the code-owned catalog;
   a rules language would add a second place to change behaviour with no caller that needs it.
 
@@ -40,5 +46,5 @@ decision source, so the declared authority is observable.
 ## Supersedes
 
 - ADR-0003, which merged the caller's declaration with local rules. Its merge produced false
-  capabilities; its remaining content (the declaration's shape and the classifier fallback) is
-  restated above or owned by the product skill.
+  capabilities; its remaining content (the declaration's shape) is restated above or owned by the
+  product skill.
