@@ -1,6 +1,8 @@
 //! The `arxiv_api` route: arXiv Query API requests, Atom feed decoding, and the HTML
 //! availability probe that orders full-text URLs.
 
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
@@ -15,9 +17,13 @@ use crate::net::{
     send_provider_request,
 };
 use crate::providers::execution::{ExecutionOutcome, ExecutionSettings, execute_anonymous};
+use crate::providers::route_declaration::{
+    PlatformRoute, RouteAdapter, RouteContext, RouteDeclaration,
+};
 use crate::providers::shared::{
     acquire_window, other_platform_message, parameter_error, redacted_urls_message,
 };
+use crate::providers::{PlatformFetch, PlatformSearch, route_limiter};
 use crate::rate_limit::RateLimiter;
 use crate::types::{
     ArxivItemData, ArxivRef, ArxivSearchOptions, ArxivSort, AttemptErrorKind, AttemptTarget,
@@ -31,6 +37,46 @@ const ERROR_ENTRY_PATH: &str = "arxiv.org/api/errors";
 // arXiv submission dates start in 1991; the upper bound only closes an open range.
 const EARLIEST_SUBMISSION: &str = "199101010000";
 const LATEST_SUBMISSION: &str = "999912312359";
+
+/// The route's declaration: Search and Fetch of the catalog.
+pub(crate) const DECLARATION: RouteDeclaration<HttpRouteRuntimeConfig> = RouteDeclaration {
+    build: |config, context| Box::new(ArxivApi::build(config, context)),
+    adapter: RouteAdapter {
+        search_support: Some(search_support),
+        fetch_support: Some(fetch_support),
+        login_page: None,
+    },
+};
+
+impl PlatformRoute for ArxivApi {
+    fn into_search(self: Box<Self>) -> Option<Box<dyn PlatformSearch>> {
+        Some(self)
+    }
+
+    fn into_fetch(self: Box<Self>) -> Option<Box<dyn PlatformFetch>> {
+        Some(self)
+    }
+}
+
+impl PlatformSearch for ArxivApi {
+    fn search<'a>(
+        &'a self,
+        request: &'a PlatformSearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(ArxivApi::search(self, request))
+    }
+}
+
+impl PlatformFetch for ArxivApi {
+    fn fetch<'a>(
+        &'a self,
+        request: &'a PlatformFetchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(ArxivApi::fetch(self, request))
+    }
+}
 
 /// Returns whether the route can run the request with every explicit option; it never sends
 /// a request. The route applies every arXiv option; only a page position it did not issue fails.
@@ -78,20 +124,16 @@ struct FeedPage {
 }
 
 impl ArxivApi {
-    pub(crate) fn new(
-        config: HttpRouteRuntimeConfig,
-        client: Client,
-        limiter: RateLimiter,
-        retry_policy: RetryPolicy,
-        deadline: Deadline,
-    ) -> Self {
+    /// Builds the route under the access policy its registration declares.
+    fn build(config: HttpRouteRuntimeConfig, context: RouteContext) -> Self {
         Self {
             config,
-            client,
+            client: context.client,
             credentials: CredentialPool::new(ROUTE.name(), Vec::new()),
-            limiter,
-            retry_policy,
-            deadline,
+            limiter: route_limiter(ROUTE)
+                .expect("arxiv_api registration declares an access policy"),
+            retry_policy: context.retry_policy,
+            deadline: context.deadline,
         }
     }
 

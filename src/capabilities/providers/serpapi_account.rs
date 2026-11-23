@@ -8,8 +8,26 @@ use serde::Deserialize;
 use super::{Serpapi, refusal};
 use crate::net::AttemptFailure;
 use crate::providers::execution::execute_pinned;
-use crate::providers::key_account::{AccountQuota, KeyAccount, KeyQuota};
+use crate::providers::key_account::KeyAccount;
 use crate::types::{AttemptErrorKind, AttemptTarget, ProviderError};
+
+/// What an account check learned of one key's quota.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum KeyQuota {
+    /// The check could not read this key's quota.
+    Unread,
+    Read(AccountQuota),
+}
+
+/// The search quota of one key, as the service reports it.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct AccountQuota {
+    pub(crate) searches_left: i64,
+    pub(crate) plan_searches_left: i64,
+    pub(crate) this_month_usage: i64,
+    pub(crate) this_hour_searches: i64,
+    pub(crate) hourly_limit: i64,
+}
 
 /// The quota fields of an Account API report.
 #[derive(Deserialize)]
@@ -36,7 +54,7 @@ impl From<AccountReport> for AccountQuota {
 impl Serpapi {
     /// Checks every key in pool order. Each check sends only its own key, so the persistent
     /// credential cursor does not move.
-    pub(crate) async fn accounts(&self) -> Vec<KeyAccount> {
+    pub(super) async fn key_accounts(&self) -> Vec<KeyAccount> {
         let url = account_url(&self.url);
         let mut accounts = Vec::with_capacity(self.credentials.len());
         for index in 0..self.credentials.len() {
@@ -61,7 +79,7 @@ impl Serpapi {
         .await;
         match result {
             Ok(outcome) => KeyAccount {
-                quota: KeyQuota::Read(outcome.value),
+                quota: Some(KeyQuota::Read(outcome.value)),
                 failure: verdict(outcome.value)
                     .err()
                     .map(|(kind, message)| ProviderError {
@@ -73,7 +91,7 @@ impl Serpapi {
                     }),
             },
             Err(error) => KeyAccount {
-                quota: KeyQuota::Unread,
+                quota: Some(KeyQuota::Unread),
                 failure: Some(error),
             },
         }
@@ -127,8 +145,7 @@ fn verdict(quota: AccountQuota) -> Result<(), (AttemptErrorKind, String)> {
 mod tests {
     use serde_json::json;
 
-    use super::{account_url, decode, verdict};
-    use crate::providers::key_account::AccountQuota;
+    use super::{AccountQuota, account_url, decode, verdict};
     use crate::types::AttemptErrorKind;
 
     const HEALTHY: AccountQuota = AccountQuota {

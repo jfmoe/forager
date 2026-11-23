@@ -5,6 +5,8 @@
 //! attributed by the reason the API names, not by the status alone: an invalid key arrives as a
 //! 400 and an exhausted quota as a 403.
 
+use std::future::Future;
+use std::pin::Pin;
 use std::time::Duration;
 
 use reqwest::Client;
@@ -16,17 +18,22 @@ use crate::credentials::CredentialPool;
 use crate::net::{
     AttemptFailure, RetryPolicy, read_complete_protocol_with_reasons, send_provider_request,
 };
+use crate::providers::constructors::credentials;
 use crate::providers::execution::{ExecutionOutcome, ExecutionSettings, execute_v2};
 use crate::providers::markup::markup_text;
+use crate::providers::route_declaration::{
+    PlatformRoute, RouteAdapter, RouteContext, RouteDeclaration,
+};
 use crate::providers::shared::{
     Refusal, acquire_window, count, other_platform_message, parameter_error, utc_timestamp,
 };
+use crate::providers::{PlatformFetch, PlatformSearch, route_limiter};
 use crate::rate_limit::RateLimiter;
 use crate::types::{
     AttemptErrorKind, AttemptTarget, ContentDepth, Deadline, FullTextSource, Platform,
     PlatformFetchOptions, PlatformFetchOutcome, PlatformFetchRequest, PlatformItem,
-    PlatformItemData, PlatformRef, ProviderError, YoutubeItemData, YoutubeKind, YoutubeLiveStatus,
-    YoutubeRef, chapters_from_description,
+    PlatformItemData, PlatformRef, PlatformSearchOutcome, PlatformSearchRequest, ProviderError,
+    YoutubeItemData, YoutubeKind, YoutubeLiveStatus, YoutubeRef, chapters_from_description,
 };
 
 #[path = "youtube_api_comments.rs"]
@@ -44,6 +51,46 @@ const PLATFORM: Platform = Platform::Youtube;
 const KEY_HEADER: &str = "x-goog-api-key";
 const FETCH_PARTS: &str = "snippet,contentDetails,statistics,status,liveStreamingDetails";
 const FAILURE_PREFIX: &str = "YouTube Data API returned HTTP";
+
+/// The route's declaration: Search and Fetch of the catalog.
+pub(crate) const DECLARATION: RouteDeclaration<KeyedHttpRouteRuntimeConfig> = RouteDeclaration {
+    build: |config, context| Box::new(YoutubeApi::build(config, context)),
+    adapter: RouteAdapter {
+        search_support: Some(search_support),
+        fetch_support: Some(fetch_support),
+        login_page: None,
+    },
+};
+
+impl PlatformRoute for YoutubeApi {
+    fn into_search(self: Box<Self>) -> Option<Box<dyn PlatformSearch>> {
+        Some(self)
+    }
+
+    fn into_fetch(self: Box<Self>) -> Option<Box<dyn PlatformFetch>> {
+        Some(self)
+    }
+}
+
+impl PlatformSearch for YoutubeApi {
+    fn search<'a>(
+        &'a self,
+        request: &'a PlatformSearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(YoutubeApi::search(self, request))
+    }
+}
+
+impl PlatformFetch for YoutubeApi {
+    fn fetch<'a>(
+        &'a self,
+        request: &'a PlatformFetchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(YoutubeApi::fetch(self, request))
+    }
+}
 
 /// Returns whether the route can fetch the request; it never sends a request. The Data API
 /// carries no captions this route may read, so it serves metadata and abstract only.
@@ -82,21 +129,16 @@ pub(crate) struct YoutubeApi {
 }
 
 impl YoutubeApi {
-    pub(crate) fn new(
-        config: KeyedHttpRouteRuntimeConfig,
-        client: Client,
-        credentials: CredentialPool,
-        limiter: RateLimiter,
-        retry_policy: RetryPolicy,
-        deadline: Deadline,
-    ) -> Self {
+    /// Builds the route under the access policy its registration declares.
+    pub(crate) fn build(mut config: KeyedHttpRouteRuntimeConfig, context: RouteContext) -> Self {
         Self {
+            credentials: credentials(ROUTE, &mut config.keys),
             config,
-            client,
-            credentials,
-            limiter,
-            retry_policy,
-            deadline,
+            client: context.client,
+            limiter: route_limiter(ROUTE)
+                .expect("youtube_api registration declares an access policy"),
+            retry_policy: context.retry_policy,
+            deadline: context.deadline,
         }
     }
 

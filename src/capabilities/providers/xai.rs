@@ -1,23 +1,93 @@
 //! The `xai` provider: main search through the xAI Responses API, and the X platform route
 //! through its `x_search` tool.
 
+use std::future::Future;
+use std::pin::Pin;
+
 use reqwest::Client;
 use serde_json::json;
 
+use crate::catalog::ProviderId;
 use crate::config::XaiRuntimeConfig;
 use crate::credentials::CredentialPool;
 use crate::net::RetryPolicy;
+use crate::providers::constructors::credentials;
 use crate::providers::execution::ExecutionSettings;
 use crate::providers::main_search_responses::ResponsesMainSearch;
 use crate::providers::responses_api::ResponsesEndpoint;
-use crate::providers::{MainSearchRequest, MainSearchRequestKind};
-use crate::types::{AttemptTarget, Deadline, ProviderError, SearchOutcome};
+use crate::providers::route_declaration::{
+    PlatformRoute, RouteAdapter, RouteContext, RouteDeclaration,
+};
+use crate::providers::{
+    MainSearch, MainSearchRequest, MainSearchRequestKind, PlatformFetch, PlatformSearch,
+};
+use crate::types::{
+    AttemptTarget, Deadline, PlatformFetchOutcome, PlatformFetchRequest, PlatformSearchOutcome,
+    PlatformSearchRequest, ProviderError, SearchOutcome,
+};
 
 #[path = "xai_x.rs"]
 mod x;
 pub(crate) use x::{fetch_support, search_support};
 
 const SERVICE: &str = "xAI Responses";
+
+/// The declaration of the X platform route: Search and Fetch of the catalog, read through the
+/// `x_search` tool.
+pub(crate) const DECLARATION: RouteDeclaration<XaiRuntimeConfig> = RouteDeclaration {
+    build: |config, context| Box::new(Xai::build(config, context)),
+    adapter: RouteAdapter {
+        search_support: Some(search_support),
+        fetch_support: Some(fetch_support),
+        login_page: None,
+    },
+};
+
+impl PlatformRoute for Xai {
+    fn into_search(self: Box<Self>) -> Option<Box<dyn PlatformSearch>> {
+        Some(self)
+    }
+
+    fn into_fetch(self: Box<Self>) -> Option<Box<dyn PlatformFetch>> {
+        Some(self)
+    }
+}
+
+impl PlatformSearch for Xai {
+    fn search<'a>(
+        &'a self,
+        request: &'a PlatformSearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(Xai::search_posts(self, request))
+    }
+}
+
+impl MainSearch for Xai {
+    fn search(
+        &self,
+        request: MainSearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<SearchOutcome, ProviderError>> + Send + '_>> {
+        Box::pin(self.search(request))
+    }
+
+    fn probe(
+        &self,
+        request: MainSearchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<SearchOutcome, ProviderError>> + Send + '_>> {
+        Box::pin(self.probe(request))
+    }
+}
+
+impl PlatformFetch for Xai {
+    fn fetch<'a>(
+        &'a self,
+        request: &'a PlatformFetchRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
+    {
+        Box::pin(Xai::fetch_post(self, request))
+    }
+}
 
 pub(crate) struct Xai {
     config: XaiRuntimeConfig,
@@ -28,19 +98,14 @@ pub(crate) struct Xai {
 }
 
 impl Xai {
-    pub(crate) fn new(
-        config: XaiRuntimeConfig,
-        client: Client,
-        credentials: CredentialPool,
-        retry_policy: RetryPolicy,
-        deadline: Deadline,
-    ) -> Self {
+    /// Builds the provider for main search and for the X platform route alike.
+    pub(crate) fn build(mut config: XaiRuntimeConfig, context: RouteContext) -> Self {
         Self {
+            credentials: credentials(ProviderId::Xai, &mut config.keys),
             config,
-            client,
-            credentials,
-            retry_policy,
-            deadline,
+            client: context.client,
+            retry_policy: context.retry_policy,
+            deadline: context.deadline,
         }
     }
 

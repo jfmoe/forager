@@ -175,7 +175,7 @@ pub(crate) async fn search(
             "main search deadline elapsed",
         ),
         deadline,
-        |(id, provider_config), provider_deadline| {
+        |(_, provider_config), provider_deadline| {
             let client = client.clone();
             let request = MainSearchRequest {
                 model: head_model.take(),
@@ -183,7 +183,6 @@ pub(crate) async fn search(
             };
             async move {
                 match providers::build_main_search(
-                    id,
                     provider_config,
                     client,
                     retry_policy,
@@ -348,11 +347,10 @@ pub(crate) async fn documentation_search(
             "documentation search has no executable provider",
         ),
         execution.deadline,
-        |(id, provider_config), deadline| {
+        |(_, provider_config), deadline| {
             let client = execution.client.clone();
             async move {
                 match providers::build_docs_search(
-                    id,
                     provider_config,
                     client,
                     execution.retry_policy,

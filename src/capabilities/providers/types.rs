@@ -3,10 +3,7 @@ use std::pin::Pin;
 
 use chrono::{Datelike, Local, Weekday};
 
-use super::{
-    ArxivApi, Exa, ExaSearchRequest, Openai, PolymarketApi, SearchType, Serpapi, SsrnCrossref,
-    SupplementalSearch, Xai, XiaohongshuBrowser, YoutubeApi, YoutubeWeb,
-};
+use super::{Exa, ExaSearchRequest, Openai, SearchType, SupplementalSearch};
 use crate::types::{
     DocumentationSearchOutcome, ExaOutcome, PlatformFetchOutcome, PlatformFetchRequest,
     PlatformSearchOutcome, PlatformSearchRequest, ProviderError, SearchCandidate,
@@ -115,162 +112,12 @@ pub(crate) trait PlatformSearch: Send + Sync {
     ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>;
 }
 
-impl PlatformSearch for ArxivApi {
-    fn search<'a>(
-        &'a self,
-        request: &'a PlatformSearchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>
-    {
-        Box::pin(ArxivApi::search(self, request))
-    }
-}
-
-impl PlatformSearch for SsrnCrossref {
-    fn search<'a>(
-        &'a self,
-        request: &'a PlatformSearchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>
-    {
-        Box::pin(SsrnCrossref::search(self, request))
-    }
-}
-
-impl PlatformSearch for Serpapi {
-    fn search<'a>(
-        &'a self,
-        request: &'a PlatformSearchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>
-    {
-        Box::pin(Serpapi::search(self, request))
-    }
-}
-
-impl PlatformSearch for XiaohongshuBrowser {
-    fn search<'a>(
-        &'a self,
-        request: &'a PlatformSearchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>
-    {
-        Box::pin(XiaohongshuBrowser::search(self, request))
-    }
-}
-
-impl PlatformSearch for Xai {
-    fn search<'a>(
-        &'a self,
-        request: &'a PlatformSearchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>
-    {
-        Box::pin(Xai::search_posts(self, request))
-    }
-}
-
-impl PlatformSearch for PolymarketApi {
-    fn search<'a>(
-        &'a self,
-        request: &'a PlatformSearchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>
-    {
-        Box::pin(PolymarketApi::search(self, request))
-    }
-}
-
-impl PlatformSearch for YoutubeApi {
-    fn search<'a>(
-        &'a self,
-        request: &'a PlatformSearchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<PlatformSearchOutcome, ProviderError>> + Send + 'a>>
-    {
-        Box::pin(YoutubeApi::search(self, request))
-    }
-}
-
 /// The fetch seam of a platform; each route of the platform implements it.
 pub(crate) trait PlatformFetch: Send + Sync {
     fn fetch<'a>(
         &'a self,
         request: &'a PlatformFetchRequest,
     ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>;
-}
-
-impl PlatformFetch for ArxivApi {
-    fn fetch<'a>(
-        &'a self,
-        request: &'a PlatformFetchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
-    {
-        Box::pin(ArxivApi::fetch(self, request))
-    }
-}
-
-impl PlatformFetch for SsrnCrossref {
-    fn fetch<'a>(
-        &'a self,
-        request: &'a PlatformFetchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
-    {
-        Box::pin(SsrnCrossref::fetch(self, request))
-    }
-}
-
-impl PlatformFetch for Serpapi {
-    fn fetch<'a>(
-        &'a self,
-        request: &'a PlatformFetchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
-    {
-        Box::pin(Serpapi::fetch(self, request))
-    }
-}
-
-impl PlatformFetch for XiaohongshuBrowser {
-    fn fetch<'a>(
-        &'a self,
-        request: &'a PlatformFetchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
-    {
-        Box::pin(XiaohongshuBrowser::fetch(self, request))
-    }
-}
-
-impl PlatformFetch for Xai {
-    fn fetch<'a>(
-        &'a self,
-        request: &'a PlatformFetchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
-    {
-        Box::pin(Xai::fetch_post(self, request))
-    }
-}
-
-impl PlatformFetch for PolymarketApi {
-    fn fetch<'a>(
-        &'a self,
-        request: &'a PlatformFetchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
-    {
-        Box::pin(PolymarketApi::fetch(self, request))
-    }
-}
-
-impl PlatformFetch for YoutubeApi {
-    fn fetch<'a>(
-        &'a self,
-        request: &'a PlatformFetchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
-    {
-        Box::pin(YoutubeApi::fetch(self, request))
-    }
-}
-
-impl PlatformFetch for YoutubeWeb {
-    fn fetch<'a>(
-        &'a self,
-        request: &'a PlatformFetchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<PlatformFetchOutcome, ProviderError>> + Send + 'a>>
-    {
-        Box::pin(YoutubeWeb::fetch(self, request))
-    }
 }
 
 impl DocsSearch for Exa {
@@ -314,24 +161,6 @@ impl DocsSearch for Exa {
 }
 
 impl MainSearch for Openai {
-    fn search(
-        &self,
-        request: MainSearchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<crate::types::SearchOutcome, ProviderError>> + Send + '_>>
-    {
-        Box::pin(self.search(request))
-    }
-
-    fn probe(
-        &self,
-        request: MainSearchRequest,
-    ) -> Pin<Box<dyn Future<Output = Result<crate::types::SearchOutcome, ProviderError>> + Send + '_>>
-    {
-        Box::pin(self.probe(request))
-    }
-}
-
-impl MainSearch for Xai {
     fn search(
         &self,
         request: MainSearchRequest,

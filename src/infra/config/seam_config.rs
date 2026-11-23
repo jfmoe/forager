@@ -1,5 +1,9 @@
 //! The runtime projection of each Capability Seam: its configured provider order as
 //! `SeamEntry` values, and the runtime configuration of the providers the seams run.
+//!
+//! The no-wildcard rule covers every match in this module, so a new provider identity is a
+//! compile error at each projection that must place it.
+#![deny(clippy::wildcard_enum_match_arm)]
 
 use super::location::ConfigError;
 use crate::catalog::{self, ProviderId};
@@ -334,7 +338,20 @@ pub(crate) fn main_provider_config(
     match id {
         ProviderId::Xai => Some(MainSearchProviderConfig::Xai(providers.xai.clone())),
         ProviderId::Openai => Some(MainSearchProviderConfig::Openai(providers.openai.clone())),
-        _ => None,
+        ProviderId::Exa
+        | ProviderId::Tavily
+        | ProviderId::Firecrawl
+        | ProviderId::Jina
+        | ProviderId::ArxivApi
+        | ProviderId::SsrnCrossref
+        | ProviderId::Serpapi
+        | ProviderId::XiaohongshuBrowser
+        | ProviderId::HnApi
+        | ProviderId::YoutubeApi
+        | ProviderId::YoutubeWeb
+        | ProviderId::GeminiApi
+        | ProviderId::PolymarketApi
+        | ProviderId::RedditBrowser => None,
     }
 }
 
@@ -344,7 +361,21 @@ pub(crate) fn docs_provider_config(
 ) -> Option<DocsSearchProviderConfig> {
     match id {
         ProviderId::Exa => Some(DocsSearchProviderConfig::Exa(exa.clone())),
-        _ => None,
+        ProviderId::Xai
+        | ProviderId::Openai
+        | ProviderId::Tavily
+        | ProviderId::Firecrawl
+        | ProviderId::Jina
+        | ProviderId::ArxivApi
+        | ProviderId::SsrnCrossref
+        | ProviderId::Serpapi
+        | ProviderId::XiaohongshuBrowser
+        | ProviderId::HnApi
+        | ProviderId::YoutubeApi
+        | ProviderId::YoutubeWeb
+        | ProviderId::GeminiApi
+        | ProviderId::PolymarketApi
+        | ProviderId::RedditBrowser => None,
     }
 }
 
@@ -362,6 +393,18 @@ pub(crate) fn web_provider_config(
         ProviderId::Tavily => Some(tavily.clone()),
         ProviderId::Firecrawl => Some(firecrawl.clone()),
         ProviderId::Jina => Some(jina.clone()),
-        _ => None,
+        ProviderId::Xai
+        | ProviderId::Openai
+        | ProviderId::Exa
+        | ProviderId::ArxivApi
+        | ProviderId::SsrnCrossref
+        | ProviderId::Serpapi
+        | ProviderId::XiaohongshuBrowser
+        | ProviderId::HnApi
+        | ProviderId::YoutubeApi
+        | ProviderId::YoutubeWeb
+        | ProviderId::GeminiApi
+        | ProviderId::PolymarketApi
+        | ProviderId::RedditBrowser => None,
     }
 }

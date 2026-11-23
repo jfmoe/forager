@@ -1,20 +1,25 @@
+//! Builds the provider behind a seam from its runtime configuration, and reaches a platform
+//! route through its route declaration.
+//!
+//! The no-wildcard rule covers every match in this module: a match on the provider identity, or
+//! on a configuration keyed by it, names each case, so a new provider is a compile error at every
+//! dispatch site here. Only the single-route support checks opt out.
+#![deny(clippy::wildcard_enum_match_arm)]
+
 use reqwest::Client;
 
-use super::constructors::{credentials, route_limiter};
+use super::constructors::credentials;
 use super::route_declaration::{PlatformRoute, RouteAdapter, RouteContext};
 use super::{
-    ArxivApi, DocsSearch, GeminiApi, KeyAccount, KeyQuota, MainSearch, PlatformFetch,
-    PlatformSearch, PolymarketApi, ProviderId, Serpapi, SsrnCrossref, SupplementalSearch, WebFetch,
-    WebSearch, XiaohongshuBrowser, YoutubeApi, YoutubeWeb, arxiv, browser, browser_preflight,
-    hn_api, polymarket_api, reddit_browser, serpapi, ssrn_crossref, web_fetch, xai,
-    xiaohongshu_browser, youtube_api, youtube_web,
+    DocsSearch, KeyAccount, MainSearch, PlatformFetch, PlatformSearch, ProviderId,
+    SupplementalSearch, WebFetch, WebSearch, arxiv, browser, browser_preflight, gemini_api, hn_api,
+    polymarket_api, reddit_browser, serpapi, ssrn_crossref, web_fetch, xai, xiaohongshu_browser,
+    youtube_api, youtube_web,
 };
 use crate::catalog::{ProviderTransport, WEB_FETCH, WEB_SEARCH, registration, registrations};
 use crate::config::{
-    BrowserRouteRuntimeConfig, DocsSearchProviderConfig, HttpRouteRuntimeConfig,
-    KeyedHttpRouteRuntimeConfig, MainSearchProviderConfig, ModelRouteRuntimeConfig,
-    PlatformRouteConfig, PolymarketRouteRuntimeConfig, RuntimeConfig, WebFetchProviderConfig,
-    provider_keys_key,
+    DocsSearchProviderConfig, MainSearchProviderConfig, PlatformRouteConfig, RuntimeConfig,
+    WebFetchProviderConfig, provider_keys_key,
 };
 use crate::net::RetryPolicy;
 use crate::providers::browser::BrowserLogin;
@@ -64,20 +69,19 @@ pub(crate) const HN_STORIES_ROUTES: &[ProviderId] = &[ProviderId::HnApi];
 pub(crate) const POLYMARKET_HISTORY_ROUTES: &[ProviderId] = &[ProviderId::PolymarketApi];
 
 pub(crate) fn build_main_search(
-    id: ProviderId,
     config: MainSearchProviderConfig,
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> Box<dyn MainSearch> {
-    match (id, config) {
-        (ProviderId::Xai, MainSearchProviderConfig::Xai(config)) => {
-            Box::new(super::build_xai(config, client, retry_policy, deadline))
-        }
-        (ProviderId::Openai, MainSearchProviderConfig::Openai(config)) => {
+    match config {
+        MainSearchProviderConfig::Xai(config) => Box::new(xai::Xai::build(
+            config,
+            route_context(client, retry_policy, deadline),
+        )),
+        MainSearchProviderConfig::Openai(config) => {
             Box::new(super::build_openai(config, client, retry_policy, deadline))
         }
-        _ => unreachable!("validated main-search catalog entry has matching config"),
     }
 }
 
@@ -113,17 +117,15 @@ pub(crate) fn build_web_search(
 }
 
 pub(crate) fn build_docs_search(
-    id: ProviderId,
     config: DocsSearchProviderConfig,
     client: Client,
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> Box<dyn DocsSearch> {
-    match (id, config) {
-        (ProviderId::Exa, DocsSearchProviderConfig::Exa(config)) => {
+    match config {
+        DocsSearchProviderConfig::Exa(config) => {
             Box::new(super::build_exa(config, client, retry_policy, deadline))
         }
-        _ => unreachable!("validated docs-search catalog entry has matching config"),
     }
 }
 
@@ -133,47 +135,9 @@ pub(crate) fn build_platform_search(
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> Box<dyn PlatformSearch> {
-    match config {
-        PlatformRouteConfig::ArxivApi(config) => {
-            Box::new(build_arxiv_api(config, client, retry_policy, deadline))
-        }
-        PlatformRouteConfig::SsrnCrossref(config) => {
-            Box::new(build_ssrn_crossref(config, client, retry_policy, deadline))
-        }
-        PlatformRouteConfig::Serpapi(config) => {
-            Box::new(build_serpapi(config, client, retry_policy, deadline))
-        }
-        PlatformRouteConfig::XiaohongshuBrowser(config) => {
-            Box::new(build_xiaohongshu_browser(config, deadline))
-        }
-        PlatformRouteConfig::Xai(config) => {
-            Box::new(super::build_xai(config, client, retry_policy, deadline))
-        }
-        PlatformRouteConfig::YoutubeApi(config) => {
-            Box::new(build_youtube_api(config, client, retry_policy, deadline))
-        }
-        PlatformRouteConfig::PolymarketApi(config) => {
-            Box::new(build_polymarket_api(config, client, retry_policy, deadline))
-        }
-        PlatformRouteConfig::YoutubeWeb(_) => {
-            unreachable!("youtube_web serves fetch only, so planning never selects it for search")
-        }
-        PlatformRouteConfig::GeminiApi(_) => {
-            unreachable!(
-                "gemini_api serves model operations only, so planning never selects it for search"
-            )
-        }
-        declared => declared_route(
-            declared,
-            RouteContext {
-                client,
-                retry_policy,
-                deadline,
-            },
-        )
+    declared_route(config, route_context(client, retry_policy, deadline))
         .into_search()
-        .expect("planning selects a route for search only when its adapter checks search requests"),
-    }
+        .expect("planning selects a route for search only when its adapter checks search requests")
 }
 
 pub(crate) fn build_platform_fetch(
@@ -182,47 +146,9 @@ pub(crate) fn build_platform_fetch(
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> Box<dyn PlatformFetch> {
-    match config {
-        PlatformRouteConfig::ArxivApi(config) => {
-            Box::new(build_arxiv_api(config, client, retry_policy, deadline))
-        }
-        PlatformRouteConfig::SsrnCrossref(config) => {
-            Box::new(build_ssrn_crossref(config, client, retry_policy, deadline))
-        }
-        PlatformRouteConfig::Serpapi(config) => {
-            Box::new(build_serpapi(config, client, retry_policy, deadline))
-        }
-        PlatformRouteConfig::XiaohongshuBrowser(config) => {
-            Box::new(build_xiaohongshu_browser(config, deadline))
-        }
-        PlatformRouteConfig::Xai(config) => {
-            Box::new(super::build_xai(config, client, retry_policy, deadline))
-        }
-        PlatformRouteConfig::YoutubeApi(config) => {
-            Box::new(build_youtube_api(config, client, retry_policy, deadline))
-        }
-        PlatformRouteConfig::YoutubeWeb(config) => {
-            Box::new(build_youtube_web(config, client, deadline))
-        }
-        PlatformRouteConfig::PolymarketApi(config) => {
-            Box::new(build_polymarket_api(config, client, retry_policy, deadline))
-        }
-        PlatformRouteConfig::GeminiApi(_) => {
-            unreachable!(
-                "gemini_api serves model operations only, so planning never selects it for fetch"
-            )
-        }
-        declared => declared_route(
-            declared,
-            RouteContext {
-                client,
-                retry_policy,
-                deadline,
-            },
-        )
+    declared_route(config, route_context(client, retry_policy, deadline))
         .into_fetch()
-        .expect("planning selects a route for fetch only when its adapter checks fetch requests"),
-    }
+        .expect("planning selects a route for fetch only when its adapter checks fetch requests")
 }
 
 /// Lists one page of the works citing a Google Scholar paper through a cited-by route.
@@ -236,7 +162,7 @@ pub(crate) async fn scholar_cited_by(
     let PlatformRouteConfig::Serpapi(config) = config else {
         unreachable!("planning selects only cited-by routes")
     };
-    build_serpapi(config, client, retry_policy, deadline)
+    serpapi::Serpapi::build(config, route_context(client, retry_policy, deadline))
         .cited_by(request)
         .await
 }
@@ -252,7 +178,7 @@ pub(crate) async fn x_ask(
     let PlatformRouteConfig::Xai(config) = config else {
         unreachable!("planning selects only ask routes")
     };
-    super::build_xai(config, client, retry_policy, deadline)
+    xai::Xai::build(config, route_context(client, retry_policy, deadline))
         .ask(request)
         .await
 }
@@ -266,7 +192,7 @@ pub(crate) async fn xiaohongshu_comments(
     let PlatformRouteConfig::XiaohongshuBrowser(config) = config else {
         unreachable!("planning selects only comments routes")
     };
-    build_xiaohongshu_browser(config, deadline)
+    xiaohongshu_browser::XiaohongshuBrowser::build(config, deadline)
         .comments(request)
         .await
 }
@@ -282,7 +208,7 @@ pub(crate) async fn youtube_comments(
     let PlatformRouteConfig::YoutubeApi(config) = config else {
         unreachable!("planning selects only comments routes")
     };
-    build_youtube_api(config, client, retry_policy, deadline)
+    youtube_api::YoutubeApi::build(config, route_context(client, retry_policy, deadline))
         .comments(request)
         .await
 }
@@ -298,7 +224,7 @@ pub(crate) async fn youtube_videos(
     let PlatformRouteConfig::YoutubeApi(config) = config else {
         unreachable!("planning selects only videos routes")
     };
-    build_youtube_api(config, client, retry_policy, deadline)
+    youtube_api::YoutubeApi::build(config, route_context(client, retry_policy, deadline))
         .videos(request)
         .await
 }
@@ -316,7 +242,7 @@ pub(crate) async fn youtube_ask(
     let PlatformRouteConfig::GeminiApi(config) = config else {
         unreachable!("planning selects only ask routes")
     };
-    build_gemini_api(config, client, retry_policy, deadline)
+    gemini_api::GeminiApi::build(config, route_context(client, retry_policy, deadline))
         .ask(video, question)
         .await
 }
@@ -332,7 +258,7 @@ pub(crate) async fn youtube_transcribe(
     let PlatformRouteConfig::GeminiApi(config) = config else {
         unreachable!("planning selects only transcribe routes")
     };
-    build_gemini_api(config, client, retry_policy, deadline)
+    gemini_api::GeminiApi::build(config, route_context(client, retry_policy, deadline))
         .transcribe(video)
         .await
 }
@@ -348,16 +274,9 @@ pub(crate) async fn hn_stories(
     let PlatformRouteConfig::HnApi(config) = config else {
         unreachable!("planning selects only stories routes")
     };
-    hn_api::HnApi::build(
-        config,
-        RouteContext {
-            client,
-            retry_policy,
-            deadline,
-        },
-    )
-    .stories(request)
-    .await
+    hn_api::HnApi::build(config, route_context(client, retry_policy, deadline))
+        .stories(request)
+        .await
 }
 
 /// Reads the Price History of one outcome of a Polymarket market through a history route.
@@ -371,7 +290,7 @@ pub(crate) async fn polymarket_history(
     let PlatformRouteConfig::PolymarketApi(config) = config else {
         unreachable!("planning selects only history routes")
     };
-    build_polymarket_api(config, client, retry_policy, deadline)
+    polymarket_api::PolymarketApi::build(config, route_context(client, retry_policy, deadline))
         .history(request)
         .await
 }
@@ -384,27 +303,8 @@ pub(crate) async fn platform_route_extra_checks(
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> Vec<(&'static str, Result<(), ProviderError>)> {
-    match config {
-        PlatformRouteConfig::PolymarketApi(config) => {
-            let route = build_polymarket_api(config, client, retry_policy, deadline);
-            vec![
-                ("clob", route.probe_clob().await),
-                ("data", route.probe_data().await),
-            ]
-        }
-        declared if declared_adapter(declared.route()).is_some() => {
-            let route = declared_route(
-                declared,
-                RouteContext {
-                    client,
-                    retry_policy,
-                    deadline,
-                },
-            );
-            route.extra_checks().await
-        }
-        _ => Vec::new(),
-    }
+    let route = declared_route(config, route_context(client, retry_policy, deadline));
+    route.extra_checks().await
 }
 
 /// Checks the account of every key of a route that registers an account probe.
@@ -414,166 +314,70 @@ pub(crate) async fn route_accounts(
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> Vec<KeyAccount> {
-    match config {
-        PlatformRouteConfig::Serpapi(config) => {
-            build_serpapi(config, client, retry_policy, deadline)
-                .accounts()
-                .await
-        }
-        PlatformRouteConfig::GeminiApi(config) => {
-            build_gemini_api(config, client, retry_policy, deadline)
-                .accounts()
-                .await
-                .into_iter()
-                .map(|result| KeyAccount {
-                    quota: KeyQuota::Unreported,
-                    failure: result.err(),
-                })
-                .collect()
-        }
-        other => unreachable!("{} registers no account probe", other.route().name()),
+    let id = config.route();
+    let route = declared_route(config, route_context(client, retry_policy, deadline));
+    let Some(accounts) = route.accounts() else {
+        unreachable!("{} registers no account probe", id.name())
+    };
+    accounts.await
+}
+
+fn route_context(client: Client, retry_policy: RetryPolicy, deadline: Deadline) -> RouteContext {
+    RouteContext {
+        client,
+        retry_policy,
+        deadline,
     }
-}
-
-fn build_arxiv_api(
-    config: HttpRouteRuntimeConfig,
-    client: Client,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
-) -> ArxivApi {
-    ArxivApi::new(
-        config,
-        client,
-        route_limiter(ProviderId::ArxivApi)
-            .expect("arxiv_api registration declares an access policy"),
-        retry_policy,
-        deadline,
-    )
-}
-
-fn build_polymarket_api(
-    config: PolymarketRouteRuntimeConfig,
-    client: Client,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
-) -> PolymarketApi {
-    PolymarketApi::new(
-        config,
-        client,
-        route_limiter(ProviderId::PolymarketApi)
-            .expect("polymarket_api registration declares an access policy"),
-        retry_policy,
-        deadline,
-    )
-}
-
-fn build_youtube_api(
-    mut config: KeyedHttpRouteRuntimeConfig,
-    client: Client,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
-) -> YoutubeApi {
-    let credentials = credentials(ProviderId::YoutubeApi, &mut config.keys);
-    YoutubeApi::new(
-        config,
-        client,
-        credentials,
-        route_limiter(ProviderId::YoutubeApi)
-            .expect("youtube_api registration declares an access policy"),
-        retry_policy,
-        deadline,
-    )
-}
-
-fn build_gemini_api(
-    mut config: ModelRouteRuntimeConfig,
-    client: Client,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
-) -> GeminiApi {
-    let credentials = credentials(ProviderId::GeminiApi, &mut config.keys);
-    GeminiApi::new(
-        config,
-        client,
-        credentials,
-        route_limiter(ProviderId::GeminiApi)
-            .expect("gemini_api registration declares an access policy"),
-        retry_policy,
-        deadline,
-    )
-}
-
-// The route never retries, so the shared retry policy does not reach it.
-fn build_youtube_web(
-    config: HttpRouteRuntimeConfig,
-    client: Client,
-    deadline: Deadline,
-) -> YoutubeWeb {
-    YoutubeWeb::new(
-        config,
-        client,
-        route_limiter(ProviderId::YoutubeWeb)
-            .expect("youtube_web registration declares an access policy"),
-        deadline,
-    )
-}
-
-fn build_ssrn_crossref(
-    config: HttpRouteRuntimeConfig,
-    client: Client,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
-) -> SsrnCrossref {
-    SsrnCrossref::new(
-        config,
-        client,
-        route_limiter(ProviderId::SsrnCrossref)
-            .expect("ssrn_crossref registration declares an access policy"),
-        retry_policy,
-        deadline,
-    )
-}
-
-fn build_xiaohongshu_browser(
-    config: BrowserRouteRuntimeConfig,
-    deadline: Deadline,
-) -> XiaohongshuBrowser {
-    XiaohongshuBrowser::new(
-        config,
-        route_limiter(ProviderId::XiaohongshuBrowser)
-            .expect("xiaohongshu_browser registration declares an access policy"),
-        deadline,
-    )
-}
-
-fn build_serpapi(
-    mut config: KeyedHttpRouteRuntimeConfig,
-    client: Client,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
-) -> Serpapi {
-    let credentials = credentials(ProviderId::Serpapi, &mut config.keys);
-    Serpapi::new(config, client, credentials, retry_policy, deadline)
 }
 
 /// Builds a platform route from its route declaration.
 fn declared_route(config: PlatformRouteConfig, context: RouteContext) -> Box<dyn PlatformRoute> {
     match config {
+        PlatformRouteConfig::ArxivApi(config) => (arxiv::DECLARATION.build)(config, context),
+        PlatformRouteConfig::SsrnCrossref(config) => {
+            (ssrn_crossref::DECLARATION.build)(config, context)
+        }
+        PlatformRouteConfig::Serpapi(config) => (serpapi::DECLARATION.build)(config, context),
+        PlatformRouteConfig::XiaohongshuBrowser(config) => {
+            (xiaohongshu_browser::DECLARATION.build)(config, context)
+        }
+        PlatformRouteConfig::Xai(config) => (xai::DECLARATION.build)(config, context),
         PlatformRouteConfig::HnApi(config) => (hn_api::DECLARATION.build)(config, context),
+        PlatformRouteConfig::YoutubeApi(config) => {
+            (youtube_api::DECLARATION.build)(config, context)
+        }
+        PlatformRouteConfig::YoutubeWeb(config) => {
+            (youtube_web::DECLARATION.build)(config, context)
+        }
+        PlatformRouteConfig::GeminiApi(config) => (gemini_api::DECLARATION.build)(config, context),
+        PlatformRouteConfig::PolymarketApi(config) => {
+            (polymarket_api::DECLARATION.build)(config, context)
+        }
         PlatformRouteConfig::RedditBrowser(config) => {
             (reddit_browser::DECLARATION.build)(config, context)
         }
-        other => unreachable!("{} has no route declaration", other.route().name()),
     }
 }
 
-/// Returns the adapter of a route that has a route declaration, or `None` for any other
-/// provider.
+/// Returns the adapter of a platform route, or `None` for a provider that is no platform route.
 fn declared_adapter(id: ProviderId) -> Option<RouteAdapter> {
     match id {
+        ProviderId::ArxivApi => Some(arxiv::DECLARATION.adapter),
+        ProviderId::SsrnCrossref => Some(ssrn_crossref::DECLARATION.adapter),
+        ProviderId::Serpapi => Some(serpapi::DECLARATION.adapter),
+        ProviderId::XiaohongshuBrowser => Some(xiaohongshu_browser::DECLARATION.adapter),
+        ProviderId::Xai => Some(xai::DECLARATION.adapter),
         ProviderId::HnApi => Some(hn_api::DECLARATION.adapter),
+        ProviderId::YoutubeApi => Some(youtube_api::DECLARATION.adapter),
+        ProviderId::YoutubeWeb => Some(youtube_web::DECLARATION.adapter),
+        ProviderId::GeminiApi => Some(gemini_api::DECLARATION.adapter),
+        ProviderId::PolymarketApi => Some(polymarket_api::DECLARATION.adapter),
         ProviderId::RedditBrowser => Some(reddit_browser::DECLARATION.adapter),
-        _ => None,
+        ProviderId::Openai
+        | ProviderId::Exa
+        | ProviderId::Tavily
+        | ProviderId::Firecrawl
+        | ProviderId::Jina => None,
     }
 }
 
@@ -583,16 +387,7 @@ pub(crate) fn platform_search_support(
     id: ProviderId,
     request: &PlatformSearchRequest,
 ) -> Option<Result<(), String>> {
-    let route = match id {
-        ProviderId::ArxivApi => arxiv::search_support(request),
-        ProviderId::SsrnCrossref => ssrn_crossref::search_support(request),
-        ProviderId::Serpapi => serpapi::search_support(request),
-        ProviderId::XiaohongshuBrowser => xiaohongshu_browser::search_support(request),
-        ProviderId::Xai => xai::search_support(request),
-        ProviderId::YoutubeApi => youtube_api::search_support(request),
-        ProviderId::PolymarketApi => polymarket_api::search_support(request),
-        _ => (declared_adapter(id)?.search_support?)(request),
-    };
+    let route = (declared_adapter(id)?.search_support?)(request);
     Some(transport_support(id).and(route))
 }
 
@@ -602,22 +397,16 @@ pub(crate) fn platform_fetch_support(
     id: ProviderId,
     request: &PlatformFetchRequest,
 ) -> Option<Result<(), String>> {
-    let route = match id {
-        ProviderId::ArxivApi => arxiv::fetch_support(request),
-        ProviderId::SsrnCrossref => ssrn_crossref::fetch_support(request),
-        ProviderId::Serpapi => serpapi::fetch_support(request),
-        ProviderId::XiaohongshuBrowser => xiaohongshu_browser::fetch_support(request),
-        ProviderId::Xai => xai::fetch_support(request),
-        ProviderId::YoutubeApi => youtube_api::fetch_support(request),
-        ProviderId::YoutubeWeb => youtube_web::fetch_support(request),
-        ProviderId::PolymarketApi => polymarket_api::fetch_support(request),
-        _ => (declared_adapter(id)?.fetch_support?)(request),
-    };
+    let route = (declared_adapter(id)?.fetch_support?)(request);
     Some(transport_support(id).and(route))
 }
 
 /// Returns whether a cited-by route can run the request, or `None` for a provider that does not
 /// implement cited-by.
+#[expect(
+    clippy::wildcard_enum_match_arm,
+    reason = "a single-route support check answers `None` for every provider but its route"
+)]
 pub(crate) fn scholar_cited_by_support(
     id: ProviderId,
     request: &ScholarCitedByRequest,
@@ -631,6 +420,10 @@ pub(crate) fn scholar_cited_by_support(
 
 /// Returns whether a comments route can run, or `None` for a provider that does not list
 /// Xiaohongshu comments. The request needs no check beyond what parsing guarantees.
+#[expect(
+    clippy::wildcard_enum_match_arm,
+    reason = "a single-route support check answers `None` for every provider but its route"
+)]
 pub(crate) fn xiaohongshu_comments_support(id: ProviderId) -> Option<Result<(), String>> {
     match id {
         ProviderId::XiaohongshuBrowser => Some(transport_support(id)),
@@ -640,6 +433,10 @@ pub(crate) fn xiaohongshu_comments_support(id: ProviderId) -> Option<Result<(), 
 
 /// Returns whether a comments route can run, or `None` for a provider that does not list
 /// YouTube comments. The request needs no check beyond what parsing guarantees.
+#[expect(
+    clippy::wildcard_enum_match_arm,
+    reason = "a single-route support check answers `None` for every provider but its route"
+)]
 pub(crate) fn youtube_comments_support(id: ProviderId) -> Option<Result<(), String>> {
     match id {
         ProviderId::YoutubeApi => Some(transport_support(id)),
@@ -649,6 +446,10 @@ pub(crate) fn youtube_comments_support(id: ProviderId) -> Option<Result<(), Stri
 
 /// Returns whether a videos route can list the requested page, or `None` for a provider that
 /// does not list the videos of a YouTube collection.
+#[expect(
+    clippy::wildcard_enum_match_arm,
+    reason = "a single-route support check answers `None` for every provider but its route"
+)]
 pub(crate) fn youtube_videos_support(
     id: ProviderId,
     request: &YoutubeVideosRequest,
@@ -662,6 +463,10 @@ pub(crate) fn youtube_videos_support(
 
 /// Returns whether an ask route can run, or `None` for a provider that does not answer from X
 /// posts. The request needs no check beyond what parsing guarantees.
+#[expect(
+    clippy::wildcard_enum_match_arm,
+    reason = "a single-route support check answers `None` for every provider but its route"
+)]
 pub(crate) fn x_ask_support(id: ProviderId) -> Option<Result<(), String>> {
     match id {
         ProviderId::Xai => Some(transport_support(id)),
@@ -671,6 +476,10 @@ pub(crate) fn x_ask_support(id: ProviderId) -> Option<Result<(), String>> {
 
 /// Returns whether an ask route can run, or `None` for a provider that does not answer about
 /// YouTube videos. The request needs no check beyond what parsing guarantees.
+#[expect(
+    clippy::wildcard_enum_match_arm,
+    reason = "a single-route support check answers `None` for every provider but its route"
+)]
 pub(crate) fn youtube_ask_support(id: ProviderId) -> Option<Result<(), String>> {
     match id {
         ProviderId::GeminiApi => Some(transport_support(id)),
@@ -680,6 +489,10 @@ pub(crate) fn youtube_ask_support(id: ProviderId) -> Option<Result<(), String>> 
 
 /// Returns whether a transcribe route can run, or `None` for a provider that does not
 /// transcribe YouTube videos. The request needs no check beyond what parsing guarantees.
+#[expect(
+    clippy::wildcard_enum_match_arm,
+    reason = "a single-route support check answers `None` for every provider but its route"
+)]
 pub(crate) fn youtube_transcribe_support(id: ProviderId) -> Option<Result<(), String>> {
     match id {
         ProviderId::GeminiApi => Some(transport_support(id)),
@@ -689,6 +502,10 @@ pub(crate) fn youtube_transcribe_support(id: ProviderId) -> Option<Result<(), St
 
 /// Returns whether a stories route can run, or `None` for a provider that does not list Hacker
 /// News stories. The request needs no check beyond what parsing guarantees.
+#[expect(
+    clippy::wildcard_enum_match_arm,
+    reason = "a single-route support check answers `None` for every provider but its route"
+)]
 pub(crate) fn hn_stories_support(id: ProviderId) -> Option<Result<(), String>> {
     match id {
         ProviderId::HnApi => Some(transport_support(id)),
@@ -698,6 +515,10 @@ pub(crate) fn hn_stories_support(id: ProviderId) -> Option<Result<(), String>> {
 
 /// Returns whether a history route can run, or `None` for a provider that does not read
 /// Polymarket price histories. The request needs no check beyond what parsing guarantees.
+#[expect(
+    clippy::wildcard_enum_match_arm,
+    reason = "a single-route support check answers `None` for every provider but its route"
+)]
 pub(crate) fn polymarket_history_support(id: ProviderId) -> Option<Result<(), String>> {
     match id {
         ProviderId::PolymarketApi => Some(transport_support(id)),
@@ -716,15 +537,11 @@ pub(crate) fn browser_login(platform: Platform) -> Option<BrowserLogin> {
         if environment.profile != platform || !environment.requires_login {
             return None;
         }
-        let page = match registration.id {
-            ProviderId::XiaohongshuBrowser => xiaohongshu_browser::LOGIN_PAGE,
-            _ => declared_adapter(registration.id)?.login_page?,
-        };
         Some(BrowserLogin {
             route: registration.id,
             profile: environment.profile.as_str(),
             language: environment.language,
-            page,
+            page: declared_adapter(registration.id)?.login_page?,
         })
     })
 }

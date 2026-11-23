@@ -1,3 +1,10 @@
+//! The runtime configuration assembled from the validated file and environment: each seam's
+//! provider order, each platform's route order, and the configuration of every route.
+//!
+//! The no-wildcard rule covers every match in this module, so a new provider identity or route
+//! configuration is a compile error at each projection that must place it.
+#![deny(clippy::wildcard_enum_match_arm)]
+
 use std::env;
 use std::path::{Path, PathBuf};
 
@@ -546,7 +553,11 @@ pub(crate) fn platform_route_config(
         ProviderId::RedditBrowser => Some(PlatformRouteConfig::RedditBrowser(
             routes.reddit_browser.clone(),
         )),
-        _ => None,
+        ProviderId::Openai
+        | ProviderId::Exa
+        | ProviderId::Tavily
+        | ProviderId::Firecrawl
+        | ProviderId::Jina => None,
     }
 }
 
@@ -587,7 +598,11 @@ fn configured_credentials(config: &Config) -> Vec<Secret> {
         .iter()
         .filter_map(|leaf| match (leaf.get)(config) {
             FieldRef::Secrets(keys) => Some(keys),
-            _ => None,
+            FieldRef::String(_)
+            | FieldRef::Bool(_)
+            | FieldRef::U64(_)
+            | FieldRef::F64(_)
+            | FieldRef::Strings(_) => None,
         })
         .flatten()
         .cloned()

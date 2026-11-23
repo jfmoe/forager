@@ -33,7 +33,6 @@ mod youtube_transcript;
 mod youtube_web;
 
 pub(crate) use crate::catalog::ProviderId;
-pub(crate) use arxiv::ArxivApi;
 #[cfg(all(test, unix))]
 pub(crate) use browser::real_tests as real_browser;
 pub(crate) use browser::{
@@ -41,9 +40,7 @@ pub(crate) use browser::{
 };
 pub(crate) use browser_profile::{BrowserProfile, Screen as BrowserScreen};
 pub(crate) use browser_route::preflight as browser_preflight;
-pub(crate) use constructors::{
-    build_exa, build_openai, build_tavily_map, build_xai, route_limiter,
-};
+pub(crate) use constructors::{build_exa, build_openai, build_tavily_map, route_limiter};
 pub(crate) use exa::{Exa, ExaSearchRequest, ExaSimilarRequest, SearchType};
 pub(crate) use factory::{
     HN_STORIES_ROUTES, POLYMARKET_HISTORY_ROUTES, SCHOLAR_CITED_BY_ROUTES, X_ASK_ROUTES,
@@ -58,12 +55,9 @@ pub(crate) use factory::{
     youtube_comments_support, youtube_transcribe, youtube_transcribe_support, youtube_videos,
     youtube_videos_support,
 };
-pub(crate) use gemini_api::GeminiApi;
-pub(crate) use key_account::{KeyAccount, KeyQuota};
+pub(crate) use key_account::KeyAccount;
 pub(crate) use openai::Openai;
-pub(crate) use polymarket_api::PolymarketApi;
-pub(crate) use serpapi::Serpapi;
-pub(crate) use ssrn_crossref::SsrnCrossref;
+pub(crate) use serpapi::KeyQuota;
 pub(crate) use supplemental::SupplementalSearch;
 pub(crate) use tavily_map::{MapRequest, TavilyMap};
 pub(crate) use types::{
@@ -71,7 +65,3 @@ pub(crate) use types::{
     PlatformSearch, WebSearch,
 };
 pub(crate) use web_fetch::{FetchRequest, WebFetch, is_pdf_url};
-pub(crate) use xai::Xai;
-pub(crate) use xiaohongshu_browser::XiaohongshuBrowser;
-pub(crate) use youtube_api::YoutubeApi;
-pub(crate) use youtube_web::YoutubeWeb;

@@ -1,24 +1,12 @@
 use reqwest::Client;
 
-use super::{Exa, Openai, TavilyMap, Xai};
+use super::{Exa, Openai, TavilyMap};
 use crate::catalog::{ProviderId, registration};
-use crate::config::{
-    ExaRuntimeConfig, OpenaiRuntimeConfig, WebFetchProviderConfig, XaiRuntimeConfig,
-};
+use crate::config::{ExaRuntimeConfig, OpenaiRuntimeConfig, WebFetchProviderConfig};
 use crate::credentials::CredentialPool;
 use crate::net::RetryPolicy;
 use crate::rate_limit::RateLimiter;
 use crate::types::Deadline;
-
-pub(crate) fn build_xai(
-    mut config: XaiRuntimeConfig,
-    client: Client,
-    retry_policy: RetryPolicy,
-    deadline: Deadline,
-) -> Xai {
-    let credentials = credentials(ProviderId::Xai, &mut config.keys);
-    Xai::new(config, client, credentials, retry_policy, deadline)
-}
 
 pub(crate) fn build_openai(
     mut config: OpenaiRuntimeConfig,
