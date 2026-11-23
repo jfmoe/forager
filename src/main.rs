@@ -320,15 +320,9 @@ fn append_extra_sources_markdown(markdown: &mut String, extra_sources: &[SearchC
     }
     markdown.push_str("\n\n## Extra Sources\n");
     for source in extra_sources {
-        let title = source
-            .title()
-            .or_else(|| source.url())
-            .unwrap_or_else(|| source.provider());
-        if let Some(url) = source.url() {
-            let _ = write!(markdown, "\n- [{title}]({url}) — {}", source.provider());
-        } else {
-            let _ = write!(markdown, "\n- **{title}** — {}", source.provider());
-        }
+        let url = source.url();
+        let title = source.title().unwrap_or(url);
+        let _ = write!(markdown, "\n- [{title}]({url}) — {}", source.provider());
         if let Some(summary) = source.summary() {
             let _ = write!(markdown, "\n\n  {summary}");
         }
