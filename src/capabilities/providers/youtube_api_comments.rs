@@ -85,15 +85,7 @@ impl YoutubeApi {
                 "commentThreads",
                 &query,
                 COMMENTS,
-                |body| {
-                    let response = decode::<ThreadListResponse>(body)?;
-                    let comments = response
-                        .items
-                        .into_iter()
-                        .map(|thread| top_level_comment(video, thread))
-                        .collect::<Result<Vec<_>, _>>()?;
-                    Ok((comments, response.next_page_token.is_some()))
-                },
+                |body| decode_threads(video, body),
                 |failure| name_the_video(video, failure),
             )
             .await?;
@@ -105,6 +97,21 @@ impl YoutubeApi {
             diagnostic: outcome.diagnostic,
         })
     }
+}
+
+/// Reads a `commentThreads.list` body as the video's top-level comments and whether another
+/// page follows.
+pub(super) fn decode_threads(
+    video: &YoutubeRef,
+    body: &str,
+) -> Result<(Vec<YoutubeComment>, bool), Refusal> {
+    let response = decode::<ThreadListResponse>(body)?;
+    let comments = response
+        .items
+        .into_iter()
+        .map(|thread| top_level_comment(video, thread))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok((comments, response.next_page_token.is_some()))
 }
 
 /// Names the video in the refusals that are about it: a missing video (`videoNotFound`, a 404)

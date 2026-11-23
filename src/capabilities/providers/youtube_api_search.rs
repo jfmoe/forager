@@ -79,15 +79,7 @@ impl YoutubeApi {
                 "search",
                 &search_parameters(request, options),
                 operation,
-                |body| {
-                    let response = decode::<SearchResponse>(body)?;
-                    let items = response
-                        .items
-                        .into_iter()
-                        .map(listed_item)
-                        .collect::<Result<Vec<_>, _>>()?;
-                    Ok((items, response.next_page_token))
-                },
+                decode_results,
             )
             .await?;
         let (mut items, next_page) = found.value;
@@ -100,12 +92,7 @@ impl YoutubeApi {
                 .collect::<Vec<_>>()
                 .join(",");
             let query = [("part", ENRICHMENT_PARTS.to_owned()), ("id", ids)];
-            match self
-                .get("videos", &query, operation, |body| {
-                    decode::<VideoListResponse>(body).map(|response| response.items)
-                })
-                .await
-            {
+            match self.get("videos", &query, operation, decode_details).await {
                 Ok(details) => {
                     attempts.extend(details.attempts);
                     notes.extend(details.diagnostic);
@@ -128,6 +115,22 @@ impl YoutubeApi {
             diagnostic: combine_diagnostics(notes),
         })
     }
+}
+
+/// Reads a `search.list` body as its listed videos and the token of the next page.
+pub(super) fn decode_results(body: &str) -> Result<(Vec<PlatformItem>, Option<String>), Refusal> {
+    let response = decode::<SearchResponse>(body)?;
+    let items = response
+        .items
+        .into_iter()
+        .map(listed_item)
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok((items, response.next_page_token))
+}
+
+/// Reads the `videos.list` body of the detail batch as its videos.
+pub(super) fn decode_details(body: &str) -> Result<Vec<Video>, Refusal> {
+    decode::<VideoListResponse>(body).map(|response| response.items)
 }
 
 /// Maps the request to `search.list` parameters; an option not given sends nothing.
@@ -241,7 +244,7 @@ fn video_id(item: &PlatformItem) -> &str {
 }
 
 /// Fills each listed video's duration, counts, and caption flag from its `videos` resource.
-fn enrich(items: &mut [PlatformItem], videos: Vec<Video>) {
+pub(super) fn enrich(items: &mut [PlatformItem], videos: Vec<Video>) {
     let mut videos = videos
         .into_iter()
         .map(|video| (video.id.clone(), video))

@@ -289,6 +289,21 @@ pub(in crate::app) fn run(command: YoutubeCommand) -> Result<CommandOutput, AppE
 }
 
 fn youtube_search(arguments: YoutubeSearchArgs) -> Result<CommandOutput, AppError> {
+    let (input, format, common) = youtube_search_input(arguments)?;
+    search(Platform::Youtube, input, format, &common)
+}
+
+/// Builds the page a search asks for and checks its cross-field rules before any request.
+fn youtube_search_input(
+    arguments: YoutubeSearchArgs,
+) -> Result<
+    (
+        PageInput<PlatformSearchRequest>,
+        OutputFormat,
+        PlatformCommonArgs,
+    ),
+    AppError,
+> {
     let YoutubeSearchArgs {
         query,
         sort,
@@ -321,7 +336,7 @@ fn youtube_search(arguments: YoutubeSearchArgs) -> Result<CommandOutput, AppErro
         request.validate().map_err(AppError::Argument)?;
         PageInput::Request(request)
     };
-    search(Platform::Youtube, input, format, &common)
+    Ok((input, format, common))
 }
 
 fn youtube_fetch(arguments: YoutubeFetchArgs) -> Result<CommandOutput, AppError> {
@@ -362,6 +377,14 @@ fn youtube_fetch_input(
 }
 
 fn youtube_comments(arguments: YoutubeCommentsArgs) -> Result<CommandOutput, AppError> {
+    let (request, format, common) = youtube_comments_input(arguments)?;
+    comments(PlatformCommentsRequest::Youtube(request), format, &common)
+}
+
+/// The comments page a command asks for, checked before any configuration is read.
+fn youtube_comments_input(
+    arguments: YoutubeCommentsArgs,
+) -> Result<(YoutubeCommentsRequest, OutputFormat, PlatformCommonArgs), AppError> {
     let YoutubeCommentsArgs {
         reference,
         limit,
@@ -374,10 +397,36 @@ fn youtube_comments(arguments: YoutubeCommentsArgs) -> Result<CommandOutput, App
         limit,
         sort: sort.into(),
     };
-    comments(PlatformCommentsRequest::Youtube(request), format, &common)
+    Ok((request, format, common))
 }
 
 fn youtube_videos(arguments: YoutubeVideosArgs) -> Result<CommandOutput, AppError> {
+    let (input, format, common) = youtube_videos_input(arguments)?;
+    run_page(
+        Platform::Youtube,
+        |config, routes| match input {
+            PageInput::Request(request) => platform_operation::plan_videos(config, routes, request),
+            PageInput::Cursor(cursor) => {
+                platform_operation::plan_cursor_videos(config, routes, &cursor)
+            }
+        },
+        platform_operation::run_videos,
+        format,
+        &common,
+    )
+}
+
+/// The page of videos a command asks for, checked before any configuration is read.
+fn youtube_videos_input(
+    arguments: YoutubeVideosArgs,
+) -> Result<
+    (
+        PageInput<YoutubeVideosRequest>,
+        OutputFormat,
+        PlatformCommonArgs,
+    ),
+    AppError,
+> {
     let YoutubeVideosArgs {
         collection,
         limit,
@@ -396,18 +445,7 @@ fn youtube_videos(arguments: YoutubeVideosArgs) -> Result<CommandOutput, AppErro
             page: None,
         })
     };
-    run_page(
-        Platform::Youtube,
-        |config, routes| match input {
-            PageInput::Request(request) => platform_operation::plan_videos(config, routes, request),
-            PageInput::Cursor(cursor) => {
-                platform_operation::plan_cursor_videos(config, routes, &cursor)
-            }
-        },
-        platform_operation::run_videos,
-        format,
-        &common,
-    )
+    Ok((input, format, common))
 }
 
 fn youtube_ask(arguments: YoutubeAskArgs) -> Result<CommandOutput, AppError> {
