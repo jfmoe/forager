@@ -185,3 +185,7 @@ fn failure_message(body: &str, status: u16) -> String {
         .filter(|message| !message.trim().is_empty())
         .unwrap_or_else(|| format!("Tavily returned HTTP {status}"))
 }
+
+#[cfg(test)]
+#[path = "tavily_map_tests.rs"]
+mod tests;

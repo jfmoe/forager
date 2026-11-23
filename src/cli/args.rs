@@ -305,3 +305,85 @@ fn parse_provider(value: &str) -> Result<ProviderId, String> {
         )
     })
 }
+
+/// Parses `forager` followed by `arguments` with the command-line definition, for the tests of
+/// each command's argument rules.
+#[cfg(test)]
+fn parse(arguments: &[&str]) -> Result<Command, clap::Error> {
+    let arguments = std::iter::once("forager").chain(arguments.iter().copied());
+    Cli::try_parse_from(arguments).map(|cli| cli.command)
+}
+
+/// The `map` command's argument rules, proven by parsing its definition in process.
+#[cfg(test)]
+mod map_tests {
+    use super::{Command, parse};
+
+    /// The depth, breadth, limit and timeout a `map` with `options` asks for.
+    fn map_options(options: &[&str]) -> (u16, u16, u16, u64) {
+        let arguments = [&["map", "https://docs.example.test"][..], options].concat();
+        match parse(&arguments).expect("the parser accepts the values") {
+            Command::Map {
+                max_depth,
+                max_breadth,
+                limit,
+                timeout,
+                ..
+            } => (max_depth, max_breadth, limit, timeout),
+            _ => unreachable!("the arguments name map"),
+        }
+    }
+
+    #[test]
+    fn a_map_without_options_asks_for_the_documented_defaults() {
+        assert_eq!(map_options(&[]), (1, 20, 50, 150));
+    }
+
+    #[test]
+    fn the_boundary_values_of_each_range_are_accepted() {
+        let boundaries = [
+            ["--max-depth", "1", "--max-breadth", "1", "--timeout", "10"],
+            [
+                "--max-depth",
+                "5",
+                "--max-breadth",
+                "500",
+                "--timeout",
+                "150",
+            ],
+        ]
+        .map(|options| map_options(&options));
+
+        assert_eq!(boundaries, [(1, 1, 50, 10), (5, 500, 50, 150)]);
+    }
+
+    #[test]
+    fn option_values_outside_their_range_are_refused_naming_the_option() {
+        for (option, value) in [
+            ("--timeout", "9"),
+            ("--timeout", "151"),
+            ("--timeout", "600"),
+            ("--max-depth", "0"),
+            ("--max-depth", "6"),
+            ("--max-breadth", "0"),
+            ("--max-breadth", "501"),
+            ("--limit", "0"),
+        ] {
+            let error = parse(&["map", "https://docs.example.test", option, value])
+                .expect_err("the parser refuses the value");
+
+            assert!(
+                error.to_string().contains(option),
+                "{option} {value}: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_content_format_is_refused_because_a_site_map_has_no_body() {
+        let error = parse(&["map", "https://docs.example.test", "--format", "content"])
+            .expect_err("the parser refuses the format");
+
+        assert!(error.to_string().contains("--format"), "{error}");
+    }
+}
