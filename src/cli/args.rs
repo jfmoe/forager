@@ -21,10 +21,10 @@ impl Cli {
         matches!(
             &self.command,
             Command::Search {
-                format: DocsOutputFormat::Json,
+                format: ContentOutputFormat::Json,
                 ..
             } | Command::Fetch {
-                format: DocsOutputFormat::Json,
+                format: ContentOutputFormat::Json,
                 ..
             }
         )
@@ -35,12 +35,12 @@ impl Cli {
     pub fn json_preflight_output(&self) -> Option<OutputTarget> {
         match &self.command {
             Command::Search {
-                format: DocsOutputFormat::Json,
+                format: ContentOutputFormat::Json,
                 output,
                 ..
             }
             | Command::Fetch {
-                format: DocsOutputFormat::Json,
+                format: ContentOutputFormat::Json,
                 output,
                 ..
             } => output.target(),
@@ -64,8 +64,8 @@ pub(super) enum Command {
         fallback: Option<FallbackPolicy>,
         #[arg(long, default_value_t = 180, value_parser = clap::value_parser!(u64).range(1..))]
         timeout: u64,
-        #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
-        format: DocsOutputFormat,
+        #[arg(long, value_enum, default_value_t = ContentOutputFormat::Json)]
+        format: ContentOutputFormat,
         #[command(flatten)]
         output: OutputArgs,
         #[arg(long)]
@@ -76,8 +76,8 @@ pub(super) enum Command {
         url: String,
         #[arg(long, value_parser = clap::value_parser!(u64).range(1..))]
         timeout: Option<u64>,
-        #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
-        format: DocsOutputFormat,
+        #[arg(long, value_enum, default_value_t = ContentOutputFormat::Json)]
+        format: ContentOutputFormat,
         #[command(flatten)]
         output: OutputArgs,
         #[arg(long)]
@@ -284,8 +284,10 @@ impl OutputArgs {
     }
 }
 
+/// The output format of a command whose result has a body of its own, such as a search answer or
+/// fetched content: JSON, Markdown, or that body alone.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, ValueEnum)]
-pub enum DocsOutputFormat {
+pub enum ContentOutputFormat {
     Json,
     Markdown,
     Content,

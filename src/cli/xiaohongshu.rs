@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use clap::{Args, Subcommand, ValueEnum};
 
 use super::{PageInput, PlatformCommonArgs, comments, fetch, search};
-use crate::app::args::{DocsOutputFormat, OutputFormat};
+use crate::app::args::{ContentOutputFormat, OutputFormat};
 use crate::app::dispatch::{AppError, CommandOutput};
 use crate::catalog::PlatformOperation;
 use crate::types::{
@@ -63,8 +63,8 @@ pub(in crate::app) struct XiaohongshuFetchArgs {
     #[arg(long, value_name = "DIR")]
     content_dir: Option<PathBuf>,
     /// `content` prints the note text to stdout and writes no file.
-    #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
-    format: DocsOutputFormat,
+    #[arg(long, value_enum, default_value_t = ContentOutputFormat::Json)]
+    format: ContentOutputFormat,
     #[command(flatten)]
     common: PlatformCommonArgs,
 }

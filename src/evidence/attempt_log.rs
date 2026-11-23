@@ -24,7 +24,7 @@ pub(crate) fn render(level: LogLevel, attempts: &[ProviderAttempt]) -> Option<St
     );
     summary.insert(
         "fallback".into(),
-        Value::Bool(attempt_trace::identity_fallback_occurred(attempts)),
+        Value::Bool(attempt_trace::fallback_occurred(attempts)),
     );
 
     let mut lines = vec![format!(

@@ -7,8 +7,8 @@ use std::process::ExitCode;
 
 use clap::Parser;
 use forager::app::{
-    self, AppError, Cli, CommandOutput, DocsOutputFormat, ExaOutcome, OutputFormat, OutputTarget,
-    ProviderError, SearchFailure, bounded_attempt_summary,
+    self, AppError, Cli, CommandOutput, ContentOutputFormat, ExaOutcome, OutputFormat,
+    OutputTarget, ProviderError, SearchFailure, bounded_attempt_summary,
 };
 use forager::types::{
     AttemptErrorKind, ErrorFamily, ErrorKind, FetchOutcome, JournalOutcome, MapOutcome,
@@ -164,14 +164,14 @@ fn emit_error(error: &AppError, json: bool, output: Option<OutputTarget>) -> Exi
 fn render_search(
     result: Result<SearchOutcome, SearchFailure>,
     journal: &JournalOutcome,
-    format: DocsOutputFormat,
+    format: ContentOutputFormat,
     output: Option<OutputTarget>,
     verbose: bool,
 ) -> Result<RenderedOutput, String> {
     let (stdout, exit_code, provider_diagnostic) = match result {
         Ok(outcome) => {
             let stdout = match format {
-                DocsOutputFormat::Json => {
+                ContentOutputFormat::Json => {
                     let mut payload =
                         serde_json::to_value(&outcome).map_err(|error| error.to_string())?;
                     add_journal_status(&mut payload, journal)?;
@@ -187,7 +187,7 @@ fn render_search(
                     }
                     serde_json::to_string(&payload).map_err(|error| error.to_string())?
                 }
-                DocsOutputFormat::Markdown => {
+                ContentOutputFormat::Markdown => {
                     let mut markdown = format!("# Search result\n\n{}", outcome.answer);
                     if !outcome.sources.is_empty() {
                         markdown.push_str("\n\n## Primary Sources\n");
@@ -203,21 +203,21 @@ fn render_search(
                     append_extra_sources_markdown(&mut markdown, &outcome.extra_sources);
                     markdown
                 }
-                DocsOutputFormat::Content => outcome.answer.clone(),
+                ContentOutputFormat::Content => outcome.answer.clone(),
             };
             (stdout, 0, outcome.diagnostic)
         }
         Err(failure) => {
             let error = &failure.error;
             let stdout = match format {
-                DocsOutputFormat::Json => format_search_failure_json(&failure, journal)?,
-                DocsOutputFormat::Markdown | DocsOutputFormat::Content => {
+                ContentOutputFormat::Json => format_search_failure_json(&failure, journal)?,
+                ContentOutputFormat::Markdown | ContentOutputFormat::Content => {
                     let mut rendered = format!(
                         "# Search failed\n\n**{}**: {}",
                         error.kind.as_str(),
                         error.message
                     );
-                    if format == DocsOutputFormat::Markdown {
+                    if format == ContentOutputFormat::Markdown {
                         append_extra_sources_markdown(&mut rendered, &failure.extra_sources);
                     }
                     rendered
@@ -244,7 +244,7 @@ fn render_search(
     apply_tee(
         stdout,
         exit_code,
-        format == DocsOutputFormat::Json,
+        format == ContentOutputFormat::Json,
         output,
         diagnostic,
     )
@@ -253,7 +253,7 @@ fn render_search(
 fn render_search_preflight(
     error: &app::AppError,
     journal: &JournalOutcome,
-    format: DocsOutputFormat,
+    format: ContentOutputFormat,
     output: Option<OutputTarget>,
 ) -> Result<RenderedOutput, String> {
     let journal_warning = journal
@@ -261,12 +261,12 @@ fn render_search_preflight(
         .as_ref()
         .map(|warning| format!("Search Result Journal warning: {warning}"));
     let (stdout, stderr) = match format {
-        DocsOutputFormat::Json => {
+        ContentOutputFormat::Json => {
             let mut payload = error.json_preflight_payload();
             add_journal_status(&mut payload, journal)?;
             (payload.to_string(), journal_warning)
         }
-        DocsOutputFormat::Markdown | DocsOutputFormat::Content => (
+        ContentOutputFormat::Markdown | ContentOutputFormat::Content => (
             String::new(),
             app::combine_diagnostics(
                 [
@@ -281,7 +281,7 @@ fn render_search_preflight(
     apply_tee(
         stdout,
         error.exit_code(),
-        format == DocsOutputFormat::Json,
+        format == ContentOutputFormat::Json,
         output,
         stderr,
     )
@@ -290,7 +290,7 @@ fn render_search_preflight(
 fn emit_search_preflight(
     error: &app::AppError,
     journal: &JournalOutcome,
-    format: DocsOutputFormat,
+    format: ContentOutputFormat,
     output: Option<OutputTarget>,
 ) -> ExitCode {
     emit_rendered(render_search_preflight(error, journal, format, output))
@@ -456,26 +456,26 @@ fn render_map(
 
 fn render_fetch(
     result: Result<FetchOutcome, ProviderError>,
-    format: DocsOutputFormat,
+    format: ContentOutputFormat,
     output: Option<OutputTarget>,
 ) -> Result<RenderedOutput, String> {
     let (stdout, exit_code, diagnostic) = match result {
         Ok(outcome) => {
             let stdout = match format {
-                DocsOutputFormat::Json => {
+                ContentOutputFormat::Json => {
                     serde_json::to_string(&outcome).map_err(|error| error.to_string())?
                 }
-                DocsOutputFormat::Markdown => {
+                ContentOutputFormat::Markdown => {
                     format!("# Fetched with {}\n\n{}", outcome.provider, outcome.content)
                 }
-                DocsOutputFormat::Content => outcome.content.clone(),
+                ContentOutputFormat::Content => outcome.content.clone(),
             };
             (stdout, 0, outcome.diagnostic)
         }
         Err(error) => {
             let stdout = match format {
-                DocsOutputFormat::Json => format_failure_json(&error)?,
-                DocsOutputFormat::Markdown | DocsOutputFormat::Content => format!(
+                ContentOutputFormat::Json => format_failure_json(&error)?,
+                ContentOutputFormat::Markdown | ContentOutputFormat::Content => format!(
                     "# Fetch failed\n\n**{}**: {}",
                     error.kind.as_str(),
                     error.message
@@ -487,7 +487,7 @@ fn render_fetch(
     apply_tee(
         stdout,
         exit_code,
-        format == DocsOutputFormat::Json,
+        format == ContentOutputFormat::Json,
         output,
         diagnostic,
     )

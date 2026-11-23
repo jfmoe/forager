@@ -3,7 +3,7 @@
 use clap::{Args, Subcommand, ValueEnum};
 
 use super::{PageInput, PlatformCommonArgs, fetch, scholar_cited_by, search};
-use crate::app::args::{DocsOutputFormat, OutputFormat};
+use crate::app::args::{ContentOutputFormat, OutputFormat};
 use crate::app::dispatch::{AppError, CommandOutput};
 use crate::types::{
     ContentDepth, Platform, PlatformFetchRequest, PlatformRef, PlatformSearchOptions,
@@ -211,8 +211,8 @@ fn scholar_fetch(arguments: ScholarFetchArgs) -> Result<CommandOutput, AppError>
         .map_err(|error| AppError::Argument(error.to_string()))?;
     let request = PlatformFetchRequest::new(reference, depth.into());
     let format = match format {
-        OutputFormat::Json => DocsOutputFormat::Json,
-        OutputFormat::Markdown => DocsOutputFormat::Markdown,
+        OutputFormat::Json => ContentOutputFormat::Json,
+        OutputFormat::Markdown => ContentOutputFormat::Markdown,
     };
     fetch(Platform::Scholar, request, format, None, &common)
 }

@@ -3,7 +3,7 @@
 
 use std::fmt::Write as _;
 
-use forager::app::{DocsOutputFormat, OutputFormat, OutputTarget, ProviderError};
+use forager::app::{ContentOutputFormat, OutputFormat, OutputTarget, ProviderError};
 use forager::types::{
     ContentDepth, HnStoriesResult, ModelUsage, Platform, PlatformAskResult, PlatformCommentsPage,
     PlatformFetchResult, PlatformItem, PlatformItemData, PlatformSearchPage,
@@ -440,7 +440,7 @@ fn youtube_comments_markdown(page: &YoutubeCommentsPage) -> String {
 
 pub(crate) fn render_fetch(
     result: Result<PlatformFetchResult, ProviderError>,
-    format: DocsOutputFormat,
+    format: ContentOutputFormat,
     output: Option<OutputTarget>,
 ) -> Result<RenderedOutput, String> {
     let (stdout, exit_code, diagnostic) = match result {
@@ -454,7 +454,7 @@ pub(crate) fn render_fetch(
     apply_tee(
         stdout,
         exit_code,
-        format == DocsOutputFormat::Json,
+        format == ContentOutputFormat::Json,
         output,
         diagnostic,
     )
@@ -464,17 +464,19 @@ pub(crate) fn render_fetch(
 /// Markdown names them under the reference to the written file.
 pub(crate) fn render_transcribe(
     result: Result<PlatformTranscribeResult, ProviderError>,
-    format: DocsOutputFormat,
+    format: ContentOutputFormat,
     output: Option<OutputTarget>,
 ) -> Result<RenderedOutput, String> {
     let (stdout, exit_code, diagnostic) = match result {
         Ok(transcribed) => {
             let stdout = match format {
-                DocsOutputFormat::Json => {
+                ContentOutputFormat::Json => {
                     serde_json::to_string(&transcribed).map_err(|error| error.to_string())?
                 }
-                DocsOutputFormat::Content => format_platform_fetch(&transcribed.fetched, format)?,
-                DocsOutputFormat::Markdown => {
+                ContentOutputFormat::Content => {
+                    format_platform_fetch(&transcribed.fetched, format)?
+                }
+                ContentOutputFormat::Markdown => {
                     let mut markdown = format_platform_fetch(&transcribed.fetched, format)?;
                     let _ = write!(
                         markdown,
@@ -495,7 +497,7 @@ pub(crate) fn render_transcribe(
     apply_tee(
         stdout,
         exit_code,
-        format == DocsOutputFormat::Json,
+        format == ContentOutputFormat::Json,
         output,
         diagnostic,
     )
@@ -504,12 +506,12 @@ pub(crate) fn render_transcribe(
 /// Renders a failure of a command whose output is a document, with `title` heading Markdown.
 fn docs_failure(
     error: &ProviderError,
-    format: DocsOutputFormat,
+    format: ContentOutputFormat,
     title: &str,
 ) -> Result<(String, u8, Option<String>), String> {
     let stdout = match format {
-        DocsOutputFormat::Json => format_failure_json(error)?,
-        DocsOutputFormat::Markdown | DocsOutputFormat::Content => format!(
+        ContentOutputFormat::Json => format_failure_json(error)?,
+        ContentOutputFormat::Markdown | ContentOutputFormat::Content => format!(
             "# {title}\n\n**{}**: {}",
             error.kind.as_str(),
             error.message
@@ -534,12 +536,14 @@ fn usage_note(usage: Option<&ModelUsage>) -> String {
 /// the written file instead. Shorter content, such as an X post, is printed inline.
 fn format_platform_fetch(
     fetched: &PlatformFetchResult,
-    format: DocsOutputFormat,
+    format: ContentOutputFormat,
 ) -> Result<String, String> {
     let item = &fetched.item;
     match format {
-        DocsOutputFormat::Json => serde_json::to_string(fetched).map_err(|error| error.to_string()),
-        DocsOutputFormat::Content => Ok(match (&fetched.content, &item.data) {
+        ContentOutputFormat::Json => {
+            serde_json::to_string(fetched).map_err(|error| error.to_string())
+        }
+        ContentOutputFormat::Content => Ok(match (&fetched.content, &item.data) {
             (Some(content), _) => content.text.clone(),
             (None, PlatformItemData::X(data)) => {
                 x_thread_markdown(data).unwrap_or_else(|| data.text.clone())
@@ -549,7 +553,7 @@ fn format_platform_fetch(
             (None, PlatformItemData::Polymarket(data)) => data.rules_document().unwrap_or_default(),
             (None, _) => item_abstract(item).unwrap_or_default().to_owned(),
         }),
-        DocsOutputFormat::Markdown => {
+        ContentOutputFormat::Markdown => {
             let reference = item.reference.to_string();
             let mut markdown = format!(
                 "# {}\n\n`{}` — <{}> ({}, {})",

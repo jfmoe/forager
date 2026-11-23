@@ -9,7 +9,7 @@ use chrono::NaiveDate;
 use clap::{Args, Subcommand, ValueEnum};
 use reqwest::Client;
 
-use super::args::{DocsOutputFormat, OutputArgs, OutputFormat};
+use super::args::{ContentOutputFormat, OutputArgs, OutputFormat};
 use super::dispatch::{
     AppError, CommandOutput, NetworkDependencies, invocation_temp_dir, provider_attempt_log,
 };
@@ -169,8 +169,8 @@ pub(super) struct ArxivFetchArgs {
     #[arg(long, value_name = "DIR")]
     content_dir: Option<PathBuf>,
     /// `content` prints the full text (or the abstract) to stdout and writes no file.
-    #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
-    format: DocsOutputFormat,
+    #[arg(long, value_enum, default_value_t = ContentOutputFormat::Json)]
+    format: ContentOutputFormat,
     #[command(flatten)]
     common: PlatformCommonArgs,
 }
@@ -193,8 +193,8 @@ pub(super) struct SsrnFetchArgs {
     #[arg(long, value_enum, default_value_t = SsrnDepthArg::Metadata)]
     depth: SsrnDepthArg,
     /// `content` prints the abstract to stdout.
-    #[arg(long, value_enum, default_value_t = DocsOutputFormat::Json)]
-    format: DocsOutputFormat,
+    #[arg(long, value_enum, default_value_t = ContentOutputFormat::Json)]
+    format: ContentOutputFormat,
     #[command(flatten)]
     common: PlatformCommonArgs,
 }
@@ -517,7 +517,7 @@ fn ssrn_fetch(arguments: SsrnFetchArgs) -> Result<CommandOutput, AppError> {
 fn fetch(
     platform: Platform,
     request: PlatformFetchRequest,
-    format: DocsOutputFormat,
+    format: ContentOutputFormat,
     content_dir: Option<PathBuf>,
     common: &PlatformCommonArgs,
 ) -> Result<CommandOutput, AppError> {
@@ -539,7 +539,7 @@ fn fetch(
         common.verbose,
     ));
     let result = match result {
-        Ok(fetched) if fetched.content.is_some() && format != DocsOutputFormat::Content => {
+        Ok(fetched) if fetched.content.is_some() && format != ContentOutputFormat::Content => {
             let directory = content_dir.unwrap_or_else(|| invocation_temp_dir("forager-platform"));
             let file_name = content_file_name(&fetched.item.reference);
             deliver(fetched, &directory, &file_name, common.verbose)

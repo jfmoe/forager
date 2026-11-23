@@ -5,7 +5,7 @@ mod browser;
 mod dispatch;
 mod platform;
 
-pub use args::{Cli, DocsOutputFormat, OutputFormat, OutputTarget};
+pub use args::{Cli, ContentOutputFormat, OutputFormat, OutputTarget};
 pub use dispatch::{
     AppError, CommandOutput, ExaOutcome, ProviderError, SearchFailure, bounded_attempt_summary,
     combine_diagnostics, run,
