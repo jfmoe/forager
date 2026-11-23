@@ -630,14 +630,13 @@ mod tests {
     use super::{content_file_name, deliver, parse_date};
     use crate::app::args::ContentOutputFormat;
     use crate::types::{
-        ContentDepth, HnItemData, HnItemType, Platform, PlatformContent, PlatformFetchResult,
-        PlatformItem, PlatformItemData, PlatformRef,
+        AttemptErrorKind, ContentDepth, HnItemData, HnItemType, Platform, PlatformContent,
+        PlatformFetchResult, PlatformItem, PlatformItemData, PlatformRef,
     };
 
-    #[test]
-    fn the_content_format_writes_no_file_even_into_a_given_content_directory() {
+    fn a_thread_with_its_full_text() -> PlatformFetchResult {
         let reference = PlatformRef::parse(Platform::Hn, "hn:8863").expect("valid ref");
-        let fetched = PlatformFetchResult {
+        PlatformFetchResult {
             platform: Platform::Hn,
             provider: "hn_api",
             item: PlatformItem {
@@ -667,7 +666,12 @@ mod tests {
             )),
             attempts: Vec::new(),
             diagnostic: None,
-        };
+        }
+    }
+
+    #[test]
+    fn the_content_format_writes_no_file_even_into_a_given_content_directory() {
+        let fetched = a_thread_with_its_full_text();
         let content_dir = tempfile::tempdir().expect("content directory");
 
         let delivered = deliver(
@@ -687,6 +691,32 @@ mod tests {
                     .count()
             ),
             (None, 0)
+        );
+    }
+
+    #[test]
+    fn a_full_text_that_cannot_be_written_is_a_runtime_failure() {
+        let blocker = tempfile::NamedTempFile::new().expect("a file where the directory should be");
+        let content_dir = blocker.path().join("threads");
+
+        let error = deliver(
+            a_thread_with_its_full_text(),
+            ContentOutputFormat::Json,
+            Some(content_dir.clone()),
+            "hn-8863.md",
+            false,
+        )
+        .expect_err("an unwritable content directory");
+
+        let prefix = format!(
+            "cannot write the full text to {}: ",
+            content_dir.join("hn-8863.md").display()
+        );
+        assert_eq!(
+            (error.kind, error.message.starts_with(&prefix)),
+            (AttemptErrorKind::Runtime, true),
+            "{}",
+            error.message
         );
     }
 
