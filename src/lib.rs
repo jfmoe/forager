@@ -70,3 +70,7 @@ mod smoke;
 mod state_file;
 #[path = "infra/types/mod.rs"]
 pub mod types;
+// The xAI Responses bodies derived from the stored samples, shared like the sample reader.
+#[cfg(test)]
+#[path = "../tests/support/x_samples.rs"]
+mod x_samples;

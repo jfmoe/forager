@@ -11,3 +11,9 @@ file = "error.json"
 shape = "error answer of the scrape endpoint: `success` false and the reason under `error`, here the 403 that refuses a site Firecrawl does not support"
 origin = "hand-written"
 observed = 2026-09-25
+
+[[sample]]
+file = "search.json"
+shape = "search endpoint success: the web results under `data.web`, each with its `title`, `url`, `description` summary, `publishedDate` and `author`"
+origin = "hand-written"
+observed = 2026-07-27

@@ -216,3 +216,7 @@ struct SearchResult {
 fn raw_error_body(body: &str, _status: u16) -> String {
     body.to_owned()
 }
+
+#[cfg(test)]
+#[path = "supplemental_tests.rs"]
+mod tests;

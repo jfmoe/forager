@@ -5,14 +5,19 @@ use std::time::Duration;
 
 use serde_json::{Value, json};
 
-use super::{fetch, is_thin_content, web_fetch_chain_settings};
+use super::{
+    CapabilityExecution, fetch, is_thin_content, supplemental_web_search, web_fetch_chain_settings,
+};
 use crate::chain::{ChainStep, StepSuccess, StepVerdict, run_chain};
 use crate::config::runtime_config_from_toml;
 use crate::fixture_server::{Fixture, Response, advance_after_request, block_on};
 use crate::net::{CONTENT_TRUNCATED_DIAGNOSTIC, MAX_RESPONSE_BYTES, RetryPolicy, build_client};
 use crate::providers::{FetchRequest, ProviderId};
 use crate::samples::sample;
-use crate::types::{AttemptErrorKind, Deadline, FetchOutcome, ProviderAttempt, ProviderError};
+use crate::types::{
+    AttemptErrorKind, Deadline, FallbackPolicy, FetchOutcome, ProviderAttempt, ProviderError,
+    SupplementalSearchOutcome,
+};
 
 const ARTICLE: &str = "https://example.test/article";
 
@@ -349,4 +354,157 @@ fn a_command_deadline_shorter_than_the_attempt_timeout_ends_the_fetch_as_a_timeo
             vec![("jina", Some(AttemptErrorKind::Timeout))]
         )
     );
+}
+
+/// A configuration document that points each named Web Search provider at its fixture URL with
+/// one key and orders the Web Search chain as named.
+fn web_search_document(providers: &[(&str, &str)]) -> String {
+    let order = providers.iter().map(|(name, _)| *name).collect::<Vec<_>>();
+    let mut document = String::new();
+    for (provider, url) in providers {
+        let _ = write!(
+            document,
+            "[providers.{provider}]\nurl = {url:?}\nkeys = [\"{provider}-key\"]\ntimeout = 30\n\n"
+        );
+    }
+    let _ = write!(document, "[capabilities.web_search]\norder = {order:?}\n");
+    document
+}
+
+/// Runs the Web Search chain of the configuration `document` for three sources, with one
+/// attempt per request.
+fn web_search(
+    document: &str,
+    fallback: FallbackPolicy,
+) -> Result<SupplementalSearchOutcome, ProviderError> {
+    let config = runtime_config_from_toml(document).expect("valid configuration");
+    block_on(supplemental_web_search(
+        "Current information",
+        3,
+        config.web_search,
+        CapabilityExecution::new(
+            fallback,
+            build_client(true).expect("build client"),
+            RetryPolicy::new(1, 1.0, Duration::ZERO),
+            Deadline::new(Duration::from_secs(30)),
+        ),
+    ))
+}
+
+fn tavily_results(results: &Value) -> Response {
+    let mut body: Value = serde_json::from_str(&sample("tavily/search.json")).expect("stored JSON");
+    body["results"] = results.clone();
+    Response::json(200, &body.to_string())
+}
+
+fn firecrawl_results(results: &Value) -> Response {
+    let mut body: Value =
+        serde_json::from_str(&sample("firecrawl/search.json")).expect("stored JSON");
+    body["data"]["web"] = results.clone();
+    Response::json(200, &body.to_string())
+}
+
+fn source_urls(outcome: &SupplementalSearchOutcome) -> Vec<&str> {
+    outcome
+        .sources
+        .iter()
+        .map(|source| source.url.as_str())
+        .collect()
+}
+
+#[test]
+fn an_empty_web_search_answer_falls_back_to_the_next_providers_results() {
+    let tavily = Fixture::start_sequence(vec![tavily_results(&json!([]))]);
+    let firecrawl = Fixture::start_json(200, &sample("firecrawl/search.json"));
+    let document = web_search_document(&[("tavily", &tavily.url), ("firecrawl", &firecrawl.url)]);
+
+    let outcome = web_search(&document, FallbackPolicy::Auto).expect("firecrawl answers");
+    tavily.finish();
+    firecrawl.finish();
+
+    assert_eq!(
+        (source_urls(&outcome), chain(&outcome.attempts)),
+        (
+            vec!["https://example.test/fallback"],
+            vec![("tavily", None), ("firecrawl", None)],
+        )
+    );
+}
+
+#[test]
+fn a_web_search_whose_every_provider_is_empty_succeeds_empty_with_every_attempt() {
+    let tavily = Fixture::start_sequence(vec![tavily_results(&json!([]))]);
+    let firecrawl = Fixture::start_sequence(vec![firecrawl_results(&json!([]))]);
+    let document = web_search_document(&[("tavily", &tavily.url), ("firecrawl", &firecrawl.url)]);
+
+    let outcome = web_search(&document, FallbackPolicy::Auto).expect("an empty search succeeds");
+    tavily.finish();
+    firecrawl.finish();
+
+    assert_eq!(
+        (source_urls(&outcome), chain(&outcome.attempts)),
+        (
+            Vec::<&str>::new(),
+            vec![("tavily", None), ("firecrawl", None)]
+        )
+    );
+}
+
+#[test]
+fn a_web_search_with_fallback_off_returns_the_chain_heads_empty_answer() {
+    let tavily = Fixture::start_sequence(vec![tavily_results(&json!([]))]);
+    let firecrawl = Fixture::start_canary();
+    let document = web_search_document(&[("tavily", &tavily.url), ("firecrawl", &firecrawl.url)]);
+
+    let outcome = web_search(&document, FallbackPolicy::Off).expect("the head's empty answer");
+    tavily.finish();
+
+    assert_eq!(
+        (
+            source_urls(&outcome),
+            chain(&outcome.attempts),
+            firecrawl.finish_all().len(),
+        ),
+        (Vec::<&str>::new(), vec![("tavily", None)], 0)
+    );
+}
+
+#[test]
+fn a_malformed_web_search_answer_is_a_runtime_failure_that_falls_back() {
+    let cases = [
+        (
+            ("tavily", Response::json(200, r#"{"results":{}}"#)),
+            (
+                "firecrawl",
+                firecrawl_results(&json!([{"url": "https://example.test/fallback"}])),
+            ),
+        ),
+        (
+            ("firecrawl", Response::json(200, r#"{"data":[]}"#)),
+            (
+                "tavily",
+                tavily_results(&json!([{"url": "https://example.test/fallback"}])),
+            ),
+        ),
+    ];
+
+    for ((head, malformed), (next, answer)) in cases {
+        let head_fixture = Fixture::start_sequence(vec![malformed]);
+        let next_fixture = Fixture::start_sequence(vec![answer]);
+        let document = web_search_document(&[(head, &head_fixture.url), (next, &next_fixture.url)]);
+
+        let outcome =
+            web_search(&document, FallbackPolicy::Auto).expect("the next provider answers");
+        head_fixture.finish();
+        next_fixture.finish();
+
+        assert_eq!(
+            (source_urls(&outcome), chain(&outcome.attempts)),
+            (
+                vec!["https://example.test/fallback"],
+                vec![(head, Some(AttemptErrorKind::Runtime)), (next, None)],
+            ),
+            "{head} first"
+        );
+    }
 }

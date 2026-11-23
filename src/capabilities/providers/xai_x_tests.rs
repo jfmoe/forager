@@ -8,18 +8,13 @@ use crate::config::XaiRuntimeConfig;
 use crate::fixture_server::{Fixture, Response, block_on, path};
 use crate::net::{AttemptFailure, RetryPolicy, build_client};
 use crate::providers::RouteContext;
-// The stored responses below read the sample store through this name.
-use crate::samples;
 use crate::types::{
     AttemptErrorKind, AttemptTarget, ContentDepth, Deadline, PlatformFetchOutcome,
     PlatformFetchRequest, PlatformItem, PlatformRef, PlatformSearchOptions, PlatformSearchOutcome,
     PlatformSearchRequest, ProviderError, XAskOutcome, XAskRequest, XRef, XSearchOptions,
 };
 
-#[path = "../../../tests/support/x_samples.rs"]
-mod stored;
-
-use stored::{completed_events, stored};
+use crate::x_samples::{completed_events, stored};
 
 const KEY: &str = "test-xai-key-a";
 const SECOND_KEY: &str = "test-xai-key-b";
