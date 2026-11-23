@@ -16,7 +16,9 @@ use super::{
     polymarket_api, reddit_browser, serpapi, ssrn_crossref, web_fetch, xai, xiaohongshu_browser,
     youtube_api, youtube_web,
 };
-use crate::catalog::{ProviderTransport, WEB_FETCH, WEB_SEARCH, registration, registrations};
+use crate::catalog::{
+    ProviderTransport, WEB_FETCH, WEB_SEARCH, registration, registrations, route_platform,
+};
 use crate::config::{
     DocsSearchProviderConfig, MainSearchProviderConfig, PlatformRouteConfig, RuntimeConfig,
     WebFetchProviderConfig, provider_keys_key,
@@ -569,20 +571,19 @@ pub(crate) fn polymarket_history_support(id: ProviderId) -> Option<Result<(), St
     }
 }
 
-/// Returns the login into `platform`'s Browser Profile: the platform's browser route whose
-/// environment declares that it needs a login, with that route's login page logic. `None` for a
-/// platform without one.
+/// Returns the login into `platform`'s Browser Profile: the platform's browser route, with that
+/// route's login page logic. `None` for a platform without one.
 pub(crate) fn browser_login(platform: Platform) -> Option<BrowserLogin> {
     registrations().iter().find_map(|registration| {
         let ProviderTransport::Browser(environment) = registration.transport else {
             return None;
         };
-        if environment.profile != platform || !environment.requires_login {
+        if route_platform(registration.id) != platform {
             return None;
         }
         Some(BrowserLogin {
             route: registration.id,
-            profile: environment.profile.as_str(),
+            profile: platform.as_str(),
             language: environment.language,
             page: declared_adapter(registration.id)?.login_page?,
         })
@@ -607,9 +608,7 @@ fn transport_support(id: ProviderId) -> Result<(), String> {
 /// Returns the unmet prerequisite with the fix.
 pub(crate) fn route_prerequisites(id: ProviderId, runtime: &RuntimeConfig) -> Result<(), String> {
     match registration(id).transport {
-        ProviderTransport::Browser(environment) => {
-            browser_preflight(&environment, &runtime.browser)
-        }
+        ProviderTransport::Browser(_) => browser_preflight(id, &runtime.browser),
         ProviderTransport::Http if runtime.provider_configured(id) => Ok(()),
         ProviderTransport::Http => Err(format!(
             "{} has no configured credentials",

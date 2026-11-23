@@ -55,8 +55,8 @@ impl Rule {
                 "add the route to that operation's route set in the provider factory, or drop it from the catalog",
             ),
             Self::BrowserEnvironment => (
-                "a browser route runs on its own platform's Browser Profile, and one that needs a login has login Page Logic",
-                "declare the platform's profile in the route's registration, and give the factory's browser login the platform's login Page Logic",
+                "a browser route, which needs a login into its platform's Browser Profile, has login Page Logic",
+                "give the route's declaration the platform's login Page Logic",
             ),
             Self::ConfigLeaves => (
                 "the configuration schema has the platform's order and each route's leaves: `url` and `timeout` for an HTTP route (`url` alone for a main-search backend, whose platform requests use the command's remaining time), `timeout` for a browser route, and `keys` exactly when the route reads credentials",
@@ -325,8 +325,7 @@ fn check_route(
         ProviderTransport::Http => &["url", "timeout"],
         ProviderTransport::Browser(_) => &["timeout"],
     };
-    if let ProviderTransport::Browser(environment) = registration.transport
-        && environment.requires_login
+    if matches!(registration.transport, ProviderTransport::Browser(_))
         && !(registry.has_login)(platform)
     {
         found.push(violation(

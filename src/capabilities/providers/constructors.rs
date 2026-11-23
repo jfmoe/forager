@@ -34,8 +34,6 @@ pub(crate) fn build_tavily_map(
     retry_policy: RetryPolicy,
     deadline: Deadline,
 ) -> TavilyMap {
-    let registration = registration(ProviderId::Tavily);
-    debug_assert!(registration.operations.contains(&"site_map"));
     let credentials = credentials(ProviderId::Tavily, &mut config.keys);
     TavilyMap::new(config, client, credentials, retry_policy, deadline)
 }
