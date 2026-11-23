@@ -75,23 +75,21 @@ pub(crate) struct RateLimiter {
 
 impl RateLimiter {
     pub(crate) fn new(route: &'static str, policy: AccessPolicy) -> Self {
-        Self::with_state(
+        Self::in_state_file(
             route,
             policy,
             state_file::state_directory().map(|directory| directory.join(STATE_FILE)),
-            WallClock::new(),
         )
     }
 
-    /// A limiter whose cross-process state lives in `state_file`, for tests that must not share
-    /// the user's state directory.
-    #[cfg(all(test, unix))]
+    /// A limiter whose cross-process state lives in `state_file`; without one, every acquire
+    /// fails as unavailable.
     pub(crate) fn in_state_file(
         route: &'static str,
         policy: AccessPolicy,
-        state_file: PathBuf,
+        state_file: Option<PathBuf>,
     ) -> Self {
-        Self::with_state(route, policy, Some(state_file), WallClock::new())
+        Self::with_state(route, policy, state_file, WallClock::new())
     }
 
     fn with_state(

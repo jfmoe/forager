@@ -78,7 +78,7 @@ impl Sandbox {
                 min_interval: Duration::ZERO,
                 max_concurrency: 1,
             },
-            directory.path().join("rate_limit_state.json"),
+            Some(directory.path().join("rate_limit_state.json")),
         );
         Self { directory, limiter }
     }
@@ -828,7 +828,7 @@ fn driver_helper() {
             min_interval: Duration::ZERO,
             max_concurrency: 1,
         },
-        profile.with_extension("rate_limit_state.json"),
+        Some(profile.with_extension("rate_limit_state.json")),
     );
     let profile = BrowserProfile::at(profile);
     let session = BrowserSession {
