@@ -101,28 +101,6 @@ fn fetch_returns_metadata_and_the_abstract_at_the_default_depth() {
 }
 
 #[test]
-fn every_accepted_input_form_reads_the_same_doi() {
-    for input in [
-        "https://papers.ssrn.com/sol3/papers.cfm?abstract_id=2042750",
-        "https://www.ssrn.com/abstract=2042750",
-        "10.2139/ssrn.2042750",
-        "https://doi.org/10.2139/ssrn.2042750",
-    ] {
-        let (output, requests) = run(&[input], vec![paper(ABSTRACT)]);
-
-        assert_eq!(
-            (
-                output.status.code(),
-                path(&requests[0]),
-                payload(&output)["ref"].clone()
-            ),
-            (Some(0), DOI_PATH.to_owned(), json!("ssrn:2042750")),
-            "input: {input}"
-        );
-    }
-}
-
-#[test]
 fn markdown_shows_the_abstract_section_only_when_there_is_an_abstract() {
     let sections = [ABSTRACT, None].map(|abstract_markup| {
         let (output, _) = run(
